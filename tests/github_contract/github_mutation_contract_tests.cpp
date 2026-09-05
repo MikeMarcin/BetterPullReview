@@ -2,6 +2,9 @@
 
 #include "bpr/application/review_mutation_coordinator.hpp"
 
+#include <QJsonDocument>
+#include <QJsonObject>
+
 #include <array>
 #include <cstdint>
 #include <cstdlib>
@@ -212,6 +215,260 @@ namespace {
 			   "invalid UTF-8 cannot be normalized into a different comment");
 	}
 
+	[[nodiscard]] auto submission() -> review_submission_request
+	{
+		return { .Target = target(), .ActingIdentity = identity(), .Disposition = core::review_disposition::comment, .Body = "Review summary." };
+	}
+
+	[[nodiscard]] auto review_body() -> std::string
+	{
+		return R"({"id":45,"node_id":"PRR_fixture_45","user":{"login":"fixture-reviewer","id":22,"node_id":"MDQ6VXNlcjIy"},"body":"Review summary.","state":"COMMENTED","html_url":"https://github.com/MikeMarcin/BPR-Test/pull/1#pullrequestreview-45","pull_request_url":"https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/1","_links":{"html":{"href":"https://github.com/MikeMarcin/BPR-Test/pull/1#pullrequestreview-45"},"pull_request":{"href":"https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/1"}},"submitted_at":"2026-09-05T12:34:56Z","commit_id":"1111111111111111111111111111111111111111"})";
+	}
+
+	[[nodiscard]] auto review_response(const QJsonObject& aObject)
+		-> review_mutation_wire_response
+	{
+		const auto bytes = QJsonDocument{ aObject }.toJson(QJsonDocument::Compact);
+		return { .Status = 200, .Body = { bytes.constData(), static_cast<std::size_t>(bytes.size()) } };
+	}
+
+	void test_whole_review_dispositions_and_literal_summary()
+	{
+		struct review_case
+		{
+			core::review_disposition Disposition;
+			std::string_view         Event;
+			QString                  State;
+		};
+		const auto cases = std::array{
+			review_case{ core::review_disposition::comment, "COMMENT", "COMMENTED" },
+			review_case{ core::review_disposition::approve, "APPROVE", "APPROVED" },
+			review_case{ core::review_disposition::request_changes, "REQUEST_CHANGES", "CHANGES_REQUESTED" },
+		};
+		for (const auto& entry : cases) {
+			auto input          = submission();
+			input.Disposition   = entry.Disposition;
+			const auto compiled = compile_review_submission_request(input);
+			expect(compiled.has_value(), "each whole-review disposition compiles");
+			expect(compiled->Method == http_method::post
+					   && compiled->Operation == review_mutation_operation::create_review
+					   && compiled->Path == "/repos/MikeMarcin/BPR-Test/pulls/1/reviews"
+					   && compiled->Headers == std::vector<http_header>{ { .Name = "Accept", .Value = "application/vnd.github+json" }, { .Name = "User-Agent", .Value = "BetterPullReview/0.1" }, { .Name = "X-GitHub-Api-Version", .Value = "2022-11-28" }, { .Name = "Content-Type", .Value = "application/json" } }
+					   && compiled->Body == std::string{ R"({"body":"Review summary.","commit_id":"1111111111111111111111111111111111111111","event":")" } + std::string{ entry.Event } + "\"}",
+				   "ordinary review wire contains only summary, exact head and explicit event");
+			expect(validate_outbound_review_mutation_request(*compiled).has_value(), "review wire revalidates");
+			auto object = QJsonDocument::fromJson(QByteArray::fromStdString(review_body())).object();
+			object.insert("state", entry.State);
+			const auto parsed = parse_review_submission_response(review_response(object), input);
+			expect(parsed.has_value() && parsed->ReviewDatabaseId == 45U
+					   && parsed->ReviewNodeId == "PRR_fixture_45" && parsed->Target == input.Target
+					   && parsed->Author == input.ActingIdentity && parsed->Body == input.Body
+					   && parsed->Disposition == entry.Disposition && parsed->SubmittedAt == "2026-09-05T12:34:56Z",
+				   "submitted review preserves distinct review identity and exact expected facts");
+
+			for (const auto& body : { std::string{ }, std::string{ " \t\r\n" }, std::string{ "\xE2\x80\x83" } }) {
+				input.Body = body;
+				object.insert("body", QString::fromUtf8(body));
+				const auto allowed = entry.Disposition == core::review_disposition::approve;
+				expect(compile_review_submission_request(input).has_value() == allowed
+						   && parse_review_submission_response(review_response(object), input).has_value() == allowed,
+					   "only approval admits an empty or whitespace-only summary");
+			}
+		}
+		auto input = submission();
+		input.Body = "Literal \"summary\"\\\n\t\xE2\x9C\x93";
+		input.Body.append("\0\x01", 2U);
+		const auto compiled = compile_review_submission_request(input);
+		expect(compiled.has_value(), "escaped and non-ASCII summary compiles");
+		auto object = QJsonDocument::fromJson(QByteArray::fromStdString(review_body())).object();
+		object.insert("body", QString::fromUtf8(input.Body));
+		expect(QJsonDocument::fromJson(QByteArray::fromStdString(compiled->Body)).object().value("body").toString().toStdString() == input.Body
+				   && parse_review_submission_response(review_response(object), input).has_value(),
+			   "summary bytes survive JSON escaping and response parsing");
+		const auto lineComment = parse_review_comment_response({ .Status = 201, .Body = comment_body() }, request());
+		expect(lineComment.has_value() && lineComment->Receipt.ServerCommentId == "PRRC_fixture_44"
+				   && !parse_review_submission_response({ .Status = 200, .Body = comment_body() }, submission()).has_value()
+				   && !parse_review_comment_response({ .Status = 201, .Body = review_body() }, request()).has_value(),
+			   "whole reviews and line-comment receipts cannot substitute for one another");
+	}
+
+	void test_whole_review_request_rejection()
+	{
+		using change       = void (*)(review_submission_request&);
+		const auto changes = std::array<change, 22>{
+			[](auto& aInput) { aInput.Disposition                  = static_cast<core::review_disposition>(255); },
+			[](auto& aInput) { aInput.Target.Semantic.Host         = { }; },
+			[](auto& aInput) { aInput.Target.Semantic.Repository   = { }; },
+			[](auto& aInput) { aInput.Target.Semantic.PullRequest  = { }; },
+			[](auto& aInput) { aInput.Target.Semantic.ExpectedHead = { }; },
+			[](auto& aInput) { aInput.Target.Hostname              = application::github_canonical_hostname{ "elsewhere.invalid" }; },
+			[](auto& aInput) { aInput.Target.Repository.Owner.clear(); },
+			[](auto& aInput) { aInput.Target.Number               = { }; },
+			[](auto& aInput) { aInput.Target.RepositoryDatabaseId = 0U; },
+			[](auto& aInput) { aInput.Target.RepositoryNodeId.clear(); },
+			[](auto& aInput) { aInput.Target.PullRequestDatabaseId = 0U; },
+			[](auto& aInput) { aInput.Target.PullRequestNodeId.clear(); },
+			[](auto& aInput) { aInput.Target.BaseRepositoryDatabaseId = 0U; },
+			[](auto& aInput) { aInput.Target.BaseOid                  = { }; },
+			[](auto& aInput) { aInput.Target.BaseRef.clear(); },
+			[](auto& aInput) { aInput.Target.HeadRef.clear(); },
+			[](auto& aInput) { aInput.Target.Open               = false; },
+			[](auto& aInput) { aInput.ActingIdentity.Account    = { }; },
+			[](auto& aInput) { aInput.ActingIdentity.DatabaseId = 0U; },
+			[](auto& aInput) { aInput.ActingIdentity.NodeId.clear(); },
+			[](auto& aInput) { aInput.ActingIdentity.Login.clear(); },
+			[](auto& aInput) { aInput.Body = "\xC3\x28"; },
+		};
+		for (const auto changeInput : changes) {
+			auto input = submission();
+			changeInput(input);
+			expect(!compile_review_submission_request(input).has_value(), "incomplete or invalid review authority/body is refused");
+		}
+		auto input = submission();
+		input.Body.assign(maximum_review_mutation_body_bytes + 1U, 'x');
+		expect(!compile_review_submission_request(input).has_value(), "oversized summary is refused");
+		input.Body.assign(maximum_review_mutation_body_bytes / 2U, '\n');
+		input.Body += 'x';
+		expect(!compile_review_submission_request(input).has_value(), "encoded JSON size is bounded independently");
+		expect(!compile_review_submission_request(submission(), static_cast<application::github_server_contract>(255)).has_value()
+				   && !compile_review_submission_request(submission(), application::github_server_contract::ghes_3_18_2022_11_28).has_value(),
+			   "unknown and mismatched server contracts are refused");
+
+		using wire_change      = void (*)(review_mutation_wire_request&);
+		const auto wireChanges = std::array<wire_change, 9>{
+			[](auto& aWire) { aWire.Method = http_method::get; },
+			[](auto& aWire) { aWire.Path += "/elsewhere"; },
+			[](auto& aWire) { aWire.Headers.front().Value = "text/plain"; },
+			[](auto& aWire) { aWire.Body += ' '; },
+			[](auto& aWire) { aWire.Operation = review_mutation_operation::create_review_comment; },
+			[](auto& aWire) { aWire.Operation = static_cast<review_mutation_operation>(255); },
+			[](auto& aWire) { aWire.Semantic  = request(); },
+			[](auto& aWire) { aWire.Semantic  = target(); },
+			[](auto& aWire) { aWire.Semantic  = identity(); },
+		};
+		for (const auto changeWire : wireChanges) {
+			auto wire = *compile_review_submission_request(submission());
+			changeWire(wire);
+			expect(!validate_outbound_review_mutation_request(wire).has_value(), "review wire tampering fails canonical validation");
+		}
+		input                       = submission();
+		input.Target.ServerContract = application::github_server_contract::ghes_3_18_2022_11_28;
+		input.Target.Hostname       = application::github_canonical_hostname{ "ghe.example.com" };
+		const auto ghes             = compile_review_submission_request(input, input.Target.ServerContract);
+		expect(ghes.has_value() && ghes->Path == "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1/reviews"
+				   && validate_outbound_review_mutation_request(*ghes).has_value(),
+			   "exact GHES authority compiles");
+		auto object = QJsonDocument::fromJson(QByteArray::fromStdString(review_body())).object();
+		expect(!parse_review_submission_response(review_response(object), input).has_value(), "GitHub.com response cannot satisfy GHES authority");
+		object.insert("pull_request_url", "https://ghe.example.com/api/v3/repos/MikeMarcin/BPR-Test/pulls/1");
+		expect(parse_review_submission_response(review_response(object), input).has_value(), "exact GHES response authority is accepted");
+	}
+
+	void test_whole_review_response_rejection()
+	{
+		auto lossyInput    = submission();
+		lossyInput.Body    = "?";
+		auto surrogateBody = review_body();
+		surrogateBody.replace(surrogateBody.find("Review summary."), std::string_view{ "Review summary." }.size(), "\\ud800");
+		expect(!parse_review_submission_response({ .Status = 200, .Body = surrogateBody }, lossyInput).has_value(),
+			   "an unpaired JSON surrogate cannot normalize into the expected summary");
+		for (const auto* integerText : { "22", "45" }) {
+			auto       fractionalId = review_body();
+			const auto field        = std::string{ "\"id\":" } + integerText;
+			fractionalId.replace(fractionalId.find(field), field.size(), field + ".0000000000000001");
+			expect(!parse_review_submission_response({ .Status = 200, .Body = fractionalId }, submission()).has_value(),
+				   "fractional provider identity cannot round into an exact integer");
+		}
+		const auto original = QJsonDocument::fromJson(QByteArray::fromStdString(review_body())).object();
+		const auto fields   = std::array{
+			"id", "node_id", "commit_id", "body", "state", "submitted_at", "pull_request_url", "user"
+		};
+		for (const auto* field : fields) {
+			auto object = original;
+			object.remove(field);
+			expect(!parse_review_submission_response(review_response(object), submission()).has_value(), "missing review field is refused");
+			object.insert(field, QJsonValue::Null);
+			expect(!parse_review_submission_response(review_response(object), submission()).has_value(), "null review field is refused");
+		}
+		const auto mismatches = std::array<std::pair<QString, QJsonValue>, 19>{
+			std::pair{ "id", QJsonValue{ 0 } },
+			{ "id", -1 },
+			{ "id", 1.5 },
+			{ "node_id", "" },
+			{ "node_id", QString(257, 'x') },
+			{ "commit_id", "2222222222222222222222222222222222222222" },
+			{ "commit_id", "invalid" },
+			{ "body", "different summary" },
+			{ "state", "APPROVED" },
+			{ "state", "PENDING" },
+			{ "submitted_at", "" },
+			{ "submitted_at", "not a date" },
+			{ "submitted_at", "2026-02-30T12:34:56Z" },
+			{ "pull_request_url", "https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/2" },
+			{ "pull_request_url", "https://api.github.com/repos/MikeMarcin/Other/pulls/1" },
+			{ "pull_request_url", "https://elsewhere.invalid/repos/MikeMarcin/BPR-Test/pulls/1" },
+			{ "pull_request_url", "https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/1?other" },
+			{ "pull_request_url", "https://github.com/MikeMarcin/BPR-Test/pull/1" },
+			{ "user", QJsonObject{ { "id", 23 }, { "node_id", "MDQ6VXNlcjIy" }, { "login", "fixture-reviewer" } } },
+		};
+		for (const auto& [field, value] : mismatches) {
+			auto object = original;
+			object.insert(field, value);
+			expect(!parse_review_submission_response(review_response(object), submission()).has_value(), "mismatched or malformed review facts are refused");
+		}
+		for (const auto* field : { "id", "node_id", "login" }) {
+			auto object = original;
+			auto author = object.value("user").toObject();
+			author.insert(field, "different");
+			object.insert("user", author);
+			expect(!parse_review_submission_response(review_response(object), submission()).has_value(), "every author identity field must match");
+		}
+		for (const auto status : { 0, 201, 202, 301, 302, 307, 400, 422, 500 }) {
+			expect(!parse_review_submission_response({ .Status = status, .Body = review_body() }, submission()).has_value(), "only status 200 creates a submitted review observation");
+		}
+		for (const auto* header : { "Location", "location", "lOcAtIoN" }) {
+			expect(!parse_review_submission_response({ .Status = 200, .Headers = { { .Name = header, .Value = "https://elsewhere.invalid" } }, .Body = review_body() }, submission()).has_value(), "redirect headers fail closed regardless of case");
+		}
+		for (const auto& body : std::array<std::string, 6>{ "{", "[]", "{}", "{\"id\":45," + review_body().substr(1U),
+															std::string(maximum_review_mutation_response_bytes + 1U, 'x'), "{\"extra\":\"\xC3\x28\"," + review_body().substr(1U) }) {
+			expect(!parse_review_submission_response({ .Status = 200, .Body = body }, submission()).has_value(), "malformed, duplicate, invalid UTF-8 and oversized responses are refused");
+		}
+	}
+
+	void test_whole_review_exact_integer_ids_and_extensions()
+	{
+		for (const auto id : { std::uint64_t{ 9'007'199'254'740'993U }, std::numeric_limits<std::uint64_t>::max() }) {
+			auto input                      = submission();
+			input.ActingIdentity.DatabaseId = id;
+			auto body                       = review_body();
+			body.replace(body.find("\"id\":45"), 7U, "\"id\":" + std::to_string(id));
+			body.replace(body.find("\"id\":22"), 7U, "\"id\":" + std::to_string(id));
+			const auto parsed = parse_review_submission_response({ .Status = 200, .Body = body }, input);
+			expect(parsed.has_value() && parsed->ReviewDatabaseId == id && parsed->Author.DatabaseId == id,
+				   "provider identities retain exact uint64 values above double precision");
+			input.ActingIdentity.DatabaseId -= 1U;
+			expect(!parse_review_submission_response({ .Status = 200, .Body = body }, input).has_value(),
+				   "adjacent large author identities cannot round into the same account");
+		}
+		for (const auto* field : { "\"id\":45", "\"id\":22" }) {
+			auto body = review_body();
+			body.replace(body.find(field), std::string_view{ field }.size(), "\"id\":18446744073709551616");
+			expect(!parse_review_submission_response({ .Status = 200, .Body = body }, submission()).has_value(),
+				   "overflowing uint64 identities fail closed");
+		}
+		const auto extended = "{\"extension\":{\"ratio\":22.0000000000000001,\"values\":[true,null,\"ordinary\"]},"
+			+ review_body().substr(1U);
+		expect(parse_review_submission_response({ .Status = 200, .Body = extended }, submission()).has_value(),
+			   "unknown valid ordinary GitHub fields can include decimal values");
+		for (const auto* extension : { "\"\\ud800\"", "\"\\udc00\"", "[true,]", "{\"ratio\":1e}" }) {
+			const auto body = std::string{ "{\"extension\":" } + extension + "," + review_body().substr(1U);
+			expect(!parse_review_submission_response({ .Status = 200, .Body = body }, submission()).has_value(),
+				   "skipped extension values still require valid JSON and Unicode");
+		}
+		expect(!parse_review_submission_response({ .Status = 200, .Body = review_body() + " {}" }, submission()).has_value(),
+			   "full response consumption rejects a trailing document");
+	}
+
 	void test_zero_based_semantic_lines_translate_to_one_based_rest_lines()
 	{
 		for (const auto semanticLine : std::array<std::uint32_t, 2>{ 0U, 1U }) {
@@ -317,6 +574,10 @@ namespace {
 auto main() -> int
 {
 	test_exact_wire_compilation_and_tamper_rejection();
+	test_whole_review_dispositions_and_literal_summary();
+	test_whole_review_request_rejection();
+	test_whole_review_response_rejection();
+	test_whole_review_exact_integer_ids_and_extensions();
 	test_zero_based_semantic_lines_translate_to_one_based_rest_lines();
 	test_exact_response_identity_and_bounds();
 	std::cout << "github-mutation-contract-tests:pass\n";

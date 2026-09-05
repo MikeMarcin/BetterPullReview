@@ -303,6 +303,7 @@ class DependencyModernizationTests(unittest.TestCase):
                 "AitoCpm.cmake",
                 "BprDependencies.cmake",
                 "BprQuillProvider.cmake",
+                "BprGlazeProvider.cmake",
                 "BprSQLiteProvider.cmake",
                 "CTest.cmake",
                 "FetchContent.cmake",
@@ -470,6 +471,7 @@ class DependencyModernizationTests(unittest.TestCase):
         self.assertIn("Threads::Threads", targets)
         if any(target.startswith("Qt6::") for target in targets):
             self.assertIn("Quill|PINNED_ARCHIVE|quill::quill", records)
+            self.assertIn("Glaze|PINNED_ARCHIVE|glaze::glaze", records)
             self.assertTrue(
                 {"Qt6::Core", "Qt6::Gui", "Qt6::Widgets", "Qt6::Network"}
                 <= targets

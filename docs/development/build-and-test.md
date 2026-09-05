@@ -2605,3 +2605,17 @@ Focused checks:
 ```sh
 ctest --preset dev --output-on-failure -R '^(native_https_transport_contract|native_https_transport_fixture|github_provider|github_capability_probe|application_logging|quill_logging|quill_logging_backpressure)$'
 ```
+
+## Whole-review JSON dependency
+
+BPR-0610 uses pinned Glaze v8.3.0 for whole-review request serialization and
+typed response parsing inside the GitHub adapter. The central provider checks
+archive SHA-256 and size, supports the ordinary offline dependency cache, and
+exposes only headers; it does not execute upstream build or install rules.
+License and provenance are under `third_party/glaze/`. Core-only builds do not
+acquire Glaze. Existing GitHub Qt JSON parsers are unchanged in this slice.
+
+The focused verification is `github_mutation_contract`, including raw malformed
+numeric identities and Unicode responses, plus `live_review_mutation_provider`
+for the existing source-line publication path. This contract is not yet selected
+by the whole-review application/UI workflow.

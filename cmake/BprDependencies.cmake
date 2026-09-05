@@ -2,6 +2,7 @@ include_guard(GLOBAL)
 
 include("${CMAKE_CURRENT_LIST_DIR}/BprQtProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprQuillProvider.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/BprGlazeProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprSyntaxHighlightingProvider.cmake")
 
 set(BPR_QT_MINIMUM_VERSION "6.8")
@@ -219,6 +220,10 @@ function(bpr_configure_dependencies)
             bpr_require_dependency_target(Git::Git Git)
             list(APPEND records "Git|CMAKE_MODULE|Git::Git")
         endif()
+
+        bpr_acquire_glaze()
+        bpr_require_dependency_target(glaze::glaze Glaze)
+        list(APPEND records "Glaze|PINNED_ARCHIVE|glaze::glaze")
 
         bpr_acquire_quill()
         bpr_require_dependency_target(quill::quill Quill)

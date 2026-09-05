@@ -30,6 +30,7 @@ namespace bpr::adapters::github::detail {
 		observe_viewer,
 		observe_review_comments,
 		create_review_comment,
+		create_review,
 	};
 
 	enum class review_mutation_contract_failure : std::uint8_t {
@@ -45,12 +46,24 @@ namespace bpr::adapters::github::detail {
 		response_limit,
 	};
 
+	/// \brief Carries one whole-review summary without a source-line anchor.
+	struct review_submission_request
+	{
+		application::review_mutation_target_binding  Target;
+		application::review_mutation_acting_identity ActingIdentity;
+		core::review_disposition                     Disposition = core::review_disposition::comment;
+		std::string                                  Body;
+
+		auto operator<=>(const review_submission_request&) const = default;
+	};
+
 	struct review_mutation_wire_request
 	{
 		using semantic_type = std::variant<
 			application::review_mutation_target_binding,
 			application::review_mutation_acting_identity,
-			application::review_mutation_request>;
+			application::review_mutation_request,
+			review_submission_request>;
 
 		semantic_type                       Semantic;
 		application::github_server_contract Server    = application::github_server_contract::github_com_2022_11_28;
@@ -98,6 +111,20 @@ namespace bpr::adapters::github::detail {
 		auto operator<=>(const review_mutation_comment_observation&) const = default;
 	};
 
+	/// \brief Retains a submitted review identity separately from comment receipts.
+	struct review_submission_observation
+	{
+		std::uint64_t                                ReviewDatabaseId = 0U;
+		std::string                                  ReviewNodeId;
+		application::review_mutation_target_binding  Target;
+		application::review_mutation_acting_identity Author;
+		core::review_disposition                     Disposition = core::review_disposition::comment;
+		std::string                                  Body;
+		std::string                                  SubmittedAt;
+
+		auto operator<=>(const review_submission_observation&) const = default;
+	};
+
 	struct review_mutation_server_reconciliation
 	{
 		std::vector<application::review_comment_projection> Projection;
@@ -126,6 +153,11 @@ namespace bpr::adapters::github::detail {
 		const application::review_mutation_request& aRequest,
 		application::github_server_contract         aServer = application::github_server_contract::github_com_2022_11_28)
 		-> review_mutation_request_result;
+	/// \brief Compiles an exact-head REST review with an explicit submission event.
+	[[nodiscard]] auto compile_review_submission_request(
+		const review_submission_request&    aRequest,
+		application::github_server_contract aServer = application::github_server_contract::github_com_2022_11_28)
+		-> review_mutation_request_result;
 	[[nodiscard]] auto compile_review_comment_observation_request(
 		const application::review_mutation_request& aRequest,
 		application::github_server_contract         aServer = application::github_server_contract::github_com_2022_11_28)
@@ -145,6 +177,11 @@ namespace bpr::adapters::github::detail {
 		const review_mutation_wire_response&        aResponse,
 		const application::review_mutation_request& aExpected)
 		-> review_mutation_parse_result<review_mutation_comment_observation>;
+	/// \brief Accepts only the exact submitted review, author, summary and target.
+	[[nodiscard]] auto parse_review_submission_response(
+		const review_mutation_wire_response& aResponse,
+		const review_submission_request&     aExpected)
+		-> review_mutation_parse_result<review_submission_observation>;
 	[[nodiscard]] auto parse_review_comment_observations(
 		const review_mutation_wire_response&        aResponse,
 		const application::review_mutation_request& aExpected)

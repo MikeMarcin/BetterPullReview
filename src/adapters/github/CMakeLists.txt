@@ -86,6 +86,7 @@ if(BPR_BUILD_QT)
         PRIVATE
             Qt6::Core
             Qt6::Network
+            glaze::glaze
             Threads::Threads
     )
     target_include_directories(
