@@ -1,6 +1,7 @@
 #include "platform_test_support.hpp"
 
 #include "bpr/adapters/sqlite/review_mutation_recovery_store.hpp"
+#include "bpr/adapters/sqlite/review_submission_recovery_store.hpp"
 
 #include <sqlite3.h>
 
@@ -370,7 +371,7 @@ namespace {
 		static_cast<void>(::sqlite3_finalize(statement));
 		expect(::sqlite3_exec(
 				   database,
-				   "PRAGMA user_version = 3",
+				   "PRAGMA user_version = 4",
 				   nullptr,
 				   nullptr,
 				   nullptr)
@@ -414,8 +415,25 @@ namespace {
 				   && refused.error()
 					   == application::review_mutation_recovery_failure::conflict,
 			   "baseline-incomplete migrated rows cannot be resolved");
-		expect(user_version(database_path(directory)) == 2,
-			   "version-one migration commits schema version two");
+		expect(user_version(database_path(directory)) == 3,
+			   "version-one migration commits schema version three");
+	}
+
+	void test_version_two_migration_preserves_anchored_rows()
+	{
+		temporary_directory directory;
+		auto                anchored = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		expect(anchored.has_value(), "v2 fixture opens");
+		const auto expected = record();
+		expect((*anchored)->admit(expected).has_value(), "anchored row admitted before migration");
+		anchored->reset();
+		execute_sql(database_path(directory), "DROP TABLE submission_baseline; DROP TABLE submission_attempt; PRAGMA user_version = 2; UPDATE recovery_meta SET schema_format = 2;");
+		auto sibling = adapters::sqlite::make_review_submission_recovery_store(configuration(directory));
+		expect(sibling.has_value() && user_version(database_path(directory)) == 3, "submission factory migrates exact v2 database to v3");
+		anchored = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		expect(anchored.has_value(), "source-line factory opens shared v3 schema");
+		const auto loaded = (*anchored)->load(expected.IdempotencyKey);
+		expect(loaded && *loaded && **loaded == expected, "v2 anchored data preserved through sibling migration");
 	}
 
 	void test_version_one_schema_drift_is_refused_without_migration()
@@ -521,6 +539,7 @@ auto main() -> int
 	test_schema_identity_is_fail_closed_and_credential_free();
 	test_version_one_migration_preserves_success_and_guards_unresolved();
 	test_version_one_schema_drift_is_refused_without_migration();
+	test_version_two_migration_preserves_anchored_rows();
 	test_baseline_capacity_and_integrity_fail_closed();
 	std::cout << "review-mutation-recovery-storage-tests:pass\n";
 	return EXIT_SUCCESS;

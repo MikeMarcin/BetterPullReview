@@ -364,6 +364,46 @@ namespace {
 		expect(parse_review_submission_response(review_response(object), input).has_value(), "exact GHES response authority is accepted");
 	}
 
+	void test_review_list_baseline_and_candidates()
+	{
+		const auto input    = submission();
+		const auto compiled = compile_review_submission_observation_request(input);
+		expect(compiled && compiled->Method == http_method::get && compiled->Path == "/repos/MikeMarcin/BPR-Test/pulls/1/reviews?per_page=100" && compiled->Body.empty() && validate_outbound_review_mutation_request(*compiled), "review list GET compiles canonically");
+		auto tampered      = *compiled;
+		tampered.Operation = review_mutation_operation::create_review;
+		expect(!validate_outbound_review_mutation_request(tampered), "review list semantic/operation mismatch is refused");
+		auto object  = QJsonDocument::fromJson(QByteArray::fromStdString(review_body())).object();
+		auto pending = object;
+		pending.insert("id", 46);
+		pending.insert("state", "PENDING");
+		pending.remove("submitted_at");
+		auto dismissed = object;
+		dismissed.insert("id", 47);
+		dismissed.insert("state", "DISMISSED");
+		auto other = object;
+		other.insert("id", 48);
+		auto actor = other.value("user").toObject();
+		actor.insert("id", 23);
+		other.insert("user", actor);
+		const auto body   = "[" + review_body() + "," + review_response(pending).Body + "," + review_response(dismissed).Body + "," + review_response(other).Body + "]";
+		const auto parsed = parse_review_submission_observations({ .Status = 200, .Body = body }, input);
+		expect(parsed && parsed->ReviewIds.size() == 4U && parsed->ExactReviews.size() == 1U && parsed->ExactReviews.front().ReviewDatabaseId == 45U, "baseline retains all reviews but only exact submitted reviews are candidates");
+		for (const auto& malformed : std::array<std::string, 4>{ "[" + review_body() + "," + review_body() + "]", "[" + review_body() + "] {}", "[{}]", "[" + std::string{ "{\"id\":45.0000000000000001," } + review_body().substr(9U) + "]" }) {
+			expect(!parse_review_submission_observations({ .Status = 200, .Body = malformed }, input), "malformed, fractional or duplicate review lists fail closed");
+		}
+		expect(!parse_review_submission_observations({ .Status = 200, .Headers = { { .Name = "LiNk", .Value = "next" } }, .Body = body }, input), "incomplete review pagination is refused");
+		auto oversized = std::string{ "[" };
+		for (auto index = 0; index < 101; ++index) {
+			if (index) {
+				oversized += ',';
+			}
+			object.insert("id", index + 1);
+			oversized += review_response(object).Body;
+		}
+		oversized += ']';
+		expect(!parse_review_submission_observations({ .Status = 200, .Body = oversized }, input), "review list capacity refuses without truncating");
+	}
+
 	void test_whole_review_response_rejection()
 	{
 		auto lossyInput    = submission();
@@ -577,6 +617,7 @@ auto main() -> int
 	test_whole_review_dispositions_and_literal_summary();
 	test_whole_review_request_rejection();
 	test_whole_review_response_rejection();
+	test_review_list_baseline_and_candidates();
 	test_whole_review_exact_integer_ids_and_extensions();
 	test_zero_based_semantic_lines_translate_to_one_based_rest_lines();
 	test_exact_response_identity_and_bounds();

@@ -1,0 +1,68 @@
+#ifndef BPR_SRC_ADAPTERS_GITHUB_SRC_LIVE_REVIEW_SUBMISSION_PROVIDER_HPP
+#define BPR_SRC_ADAPTERS_GITHUB_SRC_LIVE_REVIEW_SUBMISSION_PROVIDER_HPP
+
+#include "review_submission_session.hpp"
+
+#include "bpr/application/review_mutation_port.hpp"
+
+#include <expected>
+#include <memory>
+#include <stop_token>
+
+namespace bpr::adapters::github {
+	/// \brief Implements ordinary anchor-free whole-review submission.
+	///
+	/// \details The provider owns no endpoint, credential, or network manager.
+	/// Its immutable configuration and narrow transport are supplied by the
+	/// composition root; every submit re-observes the exact target and acting
+	/// identity immediately before the transport may perform a write.
+	class live_review_submission_provider final
+		: public application::review_submission_port
+	{
+	public:
+		~live_review_submission_provider() override = default;
+
+		live_review_submission_provider(const live_review_submission_provider&) = delete;
+		auto operator=(const live_review_submission_provider&)
+			-> live_review_submission_provider&                            = delete;
+		live_review_submission_provider(live_review_submission_provider&&) = delete;
+		auto operator=(live_review_submission_provider&&)
+			-> live_review_submission_provider& = delete;
+
+		[[nodiscard]] auto submit_and_reconcile(const application::review_submission_request& aRequest, std::stop_token aStop = { }) -> application::review_submission_result override;
+		[[nodiscard]] auto reconcile(const application::review_submission_request& aRequest, std::stop_token aStop = { }) -> application::review_submission_result override;
+
+	private:
+		friend auto make_live_review_submission_provider(
+			application::review_mutation_transport       aLease,
+			application::review_mutation_target_binding  aTarget,
+			application::review_mutation_acting_identity aActingIdentity,
+			std::unique_ptr<application::review_submission_recovery_port>
+				aRecovery) noexcept
+			-> std::expected<
+				std::unique_ptr<live_review_submission_provider>,
+				application::review_mutation_failure>;
+
+		live_review_submission_provider(
+			application::review_mutation_transport     aLease,
+			detail::github_mutation_wire_transport&    aTransport,
+			detail::live_review_mutation_configuration aConfiguration,
+			std::unique_ptr<application::review_submission_recovery_port>
+				aRecovery) noexcept;
+
+		detail::review_submission_session Session;
+	};
+
+	/// \brief Constructs the contracted live provider for one fixed authority.
+	[[nodiscard]] auto make_live_review_submission_provider(
+		application::review_mutation_transport       aLease,
+		application::review_mutation_target_binding  aTarget,
+		application::review_mutation_acting_identity aActingIdentity,
+		std::unique_ptr<application::review_submission_recovery_port>
+			aRecovery) noexcept
+		-> std::expected<
+			std::unique_ptr<live_review_submission_provider>,
+			application::review_mutation_failure>;
+} // namespace bpr::adapters::github
+
+#endif // BPR_SRC_ADAPTERS_GITHUB_SRC_LIVE_REVIEW_SUBMISSION_PROVIDER_HPP

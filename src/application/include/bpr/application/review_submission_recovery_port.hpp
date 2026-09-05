@@ -1,0 +1,59 @@
+#ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_SUBMISSION_RECOVERY_PORT_HPP
+#define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_SUBMISSION_RECOVERY_PORT_HPP
+
+#include "bpr/application/review_mutation_recovery_port.hpp"
+#include "bpr/application/review_submission_contract.hpp"
+
+namespace bpr::application {
+	inline constexpr std::size_t maximum_review_submission_baseline_reviews = 100U;
+
+	/// \brief Freezes the exact anchor-free request and complete pre-send review identity set.
+	struct review_submission_recovery_record
+	{
+		review_submission_request                      Request;
+		std::array<std::uint8_t, 32>                   RequestFingerprint{ };
+		std::array<std::uint8_t, 32>                   AuthorityFingerprint{ };
+		std::optional<std::vector<review_database_id>> BaselineReviewIds;
+		review_mutation_recovery_transmission          Transmission = review_mutation_recovery_transmission::baseline_incomplete;
+		review_mutation_recovery_state                 State        = review_mutation_recovery_state::unresolved;
+		std::optional<review_submission_receipt>       Receipt;
+		auto                                           operator<=>(const review_submission_recovery_record&) const = default;
+	};
+	struct review_submission_recovery_admission
+	{
+		review_submission_recovery_record Record;
+		bool                              Inserted = false;
+	};
+
+	/// \brief Validates exact fingerprints, transmission state, baseline and correlated receipt.
+	[[nodiscard]] auto valid(const review_submission_recovery_record& aRecord) -> bool;
+
+	/// \brief Digests every semantic request and live-authority field, including draft and attempt.
+	[[nodiscard]] auto review_submission_request_fingerprint(const review_submission_request& aRequest) -> std::array<std::uint8_t, 32>;
+
+	/// \brief Digests the immutable live target and authenticated actor binding.
+	[[nodiscard]] auto review_submission_authority_fingerprint(const review_submission_live_binding& aBinding) -> std::array<std::uint8_t, 32>;
+
+	/// \brief Transactional durable admission, transmission witness and exact resolution.
+	class review_submission_recovery_port
+	{
+	public:
+		review_submission_recovery_port()          = default;
+		virtual ~review_submission_recovery_port() = default;
+
+		review_submission_recovery_port(const review_submission_recovery_port&)                    = delete;
+		auto operator=(const review_submission_recovery_port&) -> review_submission_recovery_port& = delete;
+		review_submission_recovery_port(review_submission_recovery_port&&)                         = delete;
+		auto operator=(review_submission_recovery_port&&) -> review_submission_recovery_port&      = delete;
+
+		[[nodiscard]] virtual auto load(const std::string& aKey) -> std::expected<std::optional<review_submission_recovery_record>, review_mutation_recovery_failure> = 0;
+
+		[[nodiscard]] virtual auto admit(const review_submission_recovery_record& aRecord) -> std::expected<review_submission_recovery_admission, review_mutation_recovery_failure> = 0;
+
+		[[nodiscard]] virtual auto mark_possibly_transmitted(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint) -> std::expected<review_submission_recovery_record, review_mutation_recovery_failure> = 0;
+
+		[[nodiscard]] virtual auto resolve(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint, const review_submission_receipt& aReceipt) -> std::expected<review_submission_recovery_record, review_mutation_recovery_failure> = 0;
+	};
+}
+
+#endif

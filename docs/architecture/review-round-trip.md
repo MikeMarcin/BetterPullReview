@@ -570,3 +570,53 @@ completed live or attended run.
 
 The fixture proves what BetterPullReview sends and how it reacts. Only GitHub
 can show what GitHub makes of it.
+
+
+## Whole-review provider boundary
+
+BPR-0610, BPR-0613 and BPR-0614 add a separate whole-review path. Its core
+`review_submission_draft` owns the PR/head, acting account, summary, disposition
+and exact attempt. It has no source-line anchor. Comment and Request Changes
+require nonblank summaries; Approve permits an empty summary. A definite
+nonpublication can return to drafting; an indeterminate write stays submitting.
+The application request and result retain the original draft/attempt and
+idempotency key, with a distinct review receipt rather than a comment receipt.
+
+The GitHub session records a complete pre-send review-ID baseline, durably
+admits the exact request, re-observes the viewer then the PR/head, and permits
+one POST only after its durable transmission witness. It reads server reviews
+after a possible send regardless of the POST response. Success requires one
+exact new review outside the baseline and an atomic durable resolution. An
+already admitted key never causes another POST. Prepared or baseline-incomplete
+records cannot adopt a later review; stored success returns its original receipt.
+
+The review-list compiler/parser uses private typed Glaze DTOs. It collects all
+review IDs while matching only submitted reviews with the exact actor, head,
+summary and disposition. Pending and dismissed reviews cannot count as success.
+The initial supported list is one complete page of at most 100 reviews;
+Link headers or response limits refuse submission/reconciliation rather than
+pretend that a partial baseline is complete.
+
+SQLite schema v3 adds `submission_attempt` and `submission_baseline` beside the
+existing comment tables in `review-mutation-recovery.sqlite3`. A versioned,
+bounded binary snapshot preserves the complete request and full uint64 IDs.
+Both factories validate the shared schema; transactional v1/v2 migration
+preserves source-line records. Admission, witness and resolution are atomic.
+
+This is a provider/storage boundary. Whole-review host/UI selection and
+production execution authority remain subsequent work. The app must preserve
+or discover the original pending request/key on restart; a fresh draft with the
+same prose is not a recovery request. The current recovery session also refuses
+when a known pending request's head has moved; it does not query that historical
+review until the exact-head precondition is met. This is a conservative recovery
+limitation, not evidence of failed publication or permission to retry.
+
+Focused evidence: `github_mutation_contract`, `live_review_submission_provider`,
+`sqlite_review_submission_recovery_storage` and
+`live_review_submission_restart_recovery`, with existing source-line regression
+selectors. Restart fixtures use fresh processes and normal exits, including a
+prepared-state exit; they do not simulate abrupt termination or power loss.
+The three new SQLite-backed fixtures use the existing Windows DOS-volume-name
+exception because they call the unchanged retained-ancestor path. That cause
+reuses BPR-0362 evidence; no new native Windows run is claimed. macOS/Linux
+registrations remain network-contained.

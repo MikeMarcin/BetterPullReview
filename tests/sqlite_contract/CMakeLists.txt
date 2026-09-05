@@ -391,3 +391,31 @@ bpr_enable_hardening(test_device_binding_storage)
 bpr_enable_warnings(test_device_binding_storage)
 bpr_add_network_isolated_test(NAME sqlite_device_binding_storage WINDOWS_UNCONTAINED COMMAND test_device_binding_storage)
 set_tests_properties(sqlite_device_binding_storage PROPERTIES TIMEOUT 30 PASS_REGULAR_EXPRESSION "device-binding-storage-tests:pass")
+
+bpr_add_executable(
+    test_better_pull_review_review_submission_recovery_storage_tests
+    review_submission_recovery_storage_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_review_submission_recovery_storage_tests
+    PRIVATE
+        BetterPullReview::AdapterSQLite
+        BetterPullReview::SQLite3
+)
+bpr_enable_hardening(
+    test_better_pull_review_review_submission_recovery_storage_tests
+)
+bpr_enable_warnings(
+    test_better_pull_review_review_submission_recovery_storage_tests
+)
+bpr_add_network_isolated_test(
+    NAME sqlite_review_submission_recovery_storage
+    WINDOWS_UNCONTAINED
+    COMMAND test_better_pull_review_review_submission_recovery_storage_tests
+)
+set_tests_properties(
+    sqlite_review_submission_recovery_storage
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "review-submission-recovery-storage-tests:pass"
+        TIMEOUT 30
+)

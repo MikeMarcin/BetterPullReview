@@ -193,6 +193,21 @@ namespace bpr::adapters::github::detail {
 			};
 		};
 
+		struct review_list_json
+		{
+			std::uint64_t                     Id = 0U;
+			std::string                       NodeId;
+			std::string                       State;
+			std::string                       PullRequestUrl;
+			std::optional<std::string>        Body;
+			std::optional<std::string>        CommitId;
+			std::optional<std::string>        SubmittedAt;
+			std::optional<review_author_json> User;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("id", &review_list_json::Id, "node_id", &review_list_json::NodeId, "state", &review_list_json::State, "pull_request_url", &review_list_json::PullRequestUrl, "body", &review_list_json::Body, "commit_id", &review_list_json::CommitId, "submitted_at", &review_list_json::SubmittedAt, "user", &review_list_json::User);
+			};
+		};
 		struct review_json_options : glz::opts
 		{
 			bool escape_control_characters    = true;
@@ -250,6 +265,37 @@ namespace bpr::adapters::github::detail {
 			const auto timestamp = QDateTime::fromString(value, Qt::ISODate);
 			return timestamp.isValid() && timestamp.toString(Qt::ISODate) == value
 				&& aText.back() == 'Z';
+		}
+
+		[[nodiscard]] auto review_observation(review_response_json aResponse, const review_submission_request& aExpected) -> review_mutation_parse_result<review_submission_observation>
+		{
+			const auto commit = core::parse_git_commit_oid(aResponse.CommitId);
+			if (aResponse.Id == 0U || aResponse.User.Id == 0U
+				|| !bounded_text(aResponse.NodeId, 256U) || !commit.has_value()
+				|| !submitted_timestamp(aResponse.SubmittedAt)) {
+				return failed(review_mutation_contract_failure::malformed_response);
+			}
+			const auto& target      = aExpected.Target;
+			const auto  authority   = target.ServerContract == application::github_server_contract::github_com_2022_11_28
+				? std::string{ "api.github.com" }
+				: std::string{ target.Hostname.value() };
+			const auto  expectedUrl = "https://" + authority + pull_request_path(target, target.ServerContract);
+			if (aResponse.PullRequestUrl != expectedUrl || *commit != target.Semantic.ExpectedHead
+				|| aResponse.Body != aExpected.Body || aResponse.State != submission_names(aExpected.Disposition)->State
+				|| aResponse.User.Id != aExpected.ActingIdentity.DatabaseId
+				|| aResponse.User.NodeId != aExpected.ActingIdentity.NodeId
+				|| aResponse.User.Login != aExpected.ActingIdentity.Login) {
+				return failed(review_mutation_contract_failure::identity_mismatch);
+			}
+			return review_submission_observation{
+				.ReviewDatabaseId = aResponse.Id,
+				.ReviewNodeId     = std::move(aResponse.NodeId),
+				.Target           = target,
+				.Author           = aExpected.ActingIdentity,
+				.Disposition      = aExpected.Disposition,
+				.Body             = std::move(aResponse.Body),
+				.SubmittedAt      = std::move(aResponse.SubmittedAt),
+			};
 		}
 
 		void append_fingerprint_integer(std::string& aMaterial, const std::uint64_t aValue)
@@ -804,6 +850,20 @@ namespace bpr::adapters::github::detail {
 		};
 	}
 
+	auto compile_review_submission_observation_request(const review_submission_request& aRequest, const application::github_server_contract aServer) -> review_mutation_request_result
+	{
+		auto result = compile_review_submission_request(aRequest, aServer);
+		if (!result) {
+			return result;
+		}
+		result->Operation = review_mutation_operation::observe_reviews;
+		result->Method    = http_method::get;
+		result->Path += "?per_page=100";
+		result->Headers = common_headers();
+		result->Body.clear();
+		return result;
+	}
+
 	auto compile_review_comment_observation_request(
 		const application::review_mutation_request& aRequest,
 		const application::github_server_contract   aServer)
@@ -839,7 +899,9 @@ namespace bpr::adapters::github::detail {
 					} else if constexpr (std::same_as<semantic_type, application::review_mutation_acting_identity>) {
 						canonical = compile_viewer_observation_request(aSemantic, aRequest.Server);
 					} else if constexpr (std::same_as<semantic_type, review_submission_request>) {
-						canonical = compile_review_submission_request(aSemantic, aRequest.Server);
+						canonical = aRequest.Operation == review_mutation_operation::observe_reviews
+							? compile_review_submission_observation_request(aSemantic, aRequest.Server)
+							: compile_review_submission_request(aSemantic, aRequest.Server);
 					} else if (aRequest.Operation
 							   == review_mutation_operation::create_review_comment) {
 						canonical = compile_review_comment_request(aSemantic, aRequest.Server);
@@ -1028,33 +1090,65 @@ namespace bpr::adapters::github::detail {
 		if (glz::read<review_json_options{ }>(response, aResponse.Body)) {
 			return failed(review_mutation_contract_failure::malformed_response);
 		}
-		const auto commit = core::parse_git_commit_oid(response.CommitId);
-		if (response.Id == 0U || response.User.Id == 0U
-			|| !bounded_text(response.NodeId, 256U) || !commit.has_value()
-			|| !submitted_timestamp(response.SubmittedAt)) {
+		return review_observation(std::move(response), aExpected);
+	}
+
+	auto parse_review_submission_observations(const review_mutation_wire_response& aResponse, const review_submission_request& aExpected) -> review_mutation_parse_result<review_submission_reconciliation>
+	{
+		if (!compile_review_submission_observation_request(aExpected, aExpected.Target.ServerContract)) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		if (aResponse.Status != 200 || !response_headers_valid(aResponse) || has_header(aResponse, "location") || has_header(aResponse, "link")) {
+			return failed(review_mutation_contract_failure::invalid_status);
+		}
+		if (aResponse.Body.size() > maximum_review_mutation_response_bytes) {
+			return failed(review_mutation_contract_failure::response_limit);
+		}
+		if (!json_preflight{ aResponse.Body }.run()) {
 			return failed(review_mutation_contract_failure::malformed_response);
 		}
-		const auto& target      = aExpected.Target;
-		const auto  authority   = target.ServerContract == application::github_server_contract::github_com_2022_11_28
-			? std::string{ "api.github.com" }
-			: std::string{ target.Hostname.value() };
-		const auto  expectedUrl = "https://" + authority + pull_request_path(target, target.ServerContract);
-		if (response.PullRequestUrl != expectedUrl || *commit != target.Semantic.ExpectedHead
-			|| response.Body != aExpected.Body || response.State != submission_names(aExpected.Disposition)->State
-			|| response.User.Id != aExpected.ActingIdentity.DatabaseId
-			|| response.User.NodeId != aExpected.ActingIdentity.NodeId
-			|| response.User.Login != aExpected.ActingIdentity.Login) {
+		std::vector<review_list_json> reviews;
+		if (glz::read<review_json_options{ }>(reviews, aResponse.Body) || reviews.size() > 100U) {
+			return failed(review_mutation_contract_failure::malformed_response);
+		}
+		review_submission_reconciliation result;
+		const auto                       authority   = aExpected.Target.ServerContract == application::github_server_contract::github_com_2022_11_28 ? std::string{ "api.github.com" } : std::string{ aExpected.Target.Hostname.value() };
+		const auto                       expectedUrl = "https://" + authority + pull_request_path(aExpected.Target, aExpected.Target.ServerContract);
+		for (auto& review : reviews) {
+			if (review.Id == 0U || !bounded_text(review.NodeId, 256U) || review.PullRequestUrl != expectedUrl) {
+				return failed(review_mutation_contract_failure::identity_mismatch);
+			}
+			result.ReviewIds.emplace_back(review.Id);
+			if (review.State == "PENDING") {
+				if (review.SubmittedAt) {
+					return failed(review_mutation_contract_failure::malformed_response);
+				}
+				continue;
+			}
+			if (review.State != "DISMISSED" && review.State != "COMMENTED" && review.State != "APPROVED" && review.State != "CHANGES_REQUESTED") {
+				return failed(review_mutation_contract_failure::malformed_response);
+			}
+			if (!review.SubmittedAt || !submitted_timestamp(*review.SubmittedAt)) {
+				return failed(review_mutation_contract_failure::malformed_response);
+			}
+			if (review.State == "DISMISSED" || !review.User || !review.Body || !review.CommitId) {
+				continue;
+			}
+			const auto exact = review_observation(review_response_json{
+													  .Id = review.Id, .NodeId = std::move(review.NodeId), .CommitId = std::move(*review.CommitId), .Body = std::move(*review.Body), .State = std::move(review.State), .SubmittedAt = std::move(*review.SubmittedAt), .PullRequestUrl = std::move(review.PullRequestUrl), .User = std::move(*review.User) },
+												  aExpected);
+
+			if (exact) {
+				result.ExactReviews.push_back(*exact);
+			} else if (exact.error() != review_mutation_contract_failure::identity_mismatch) {
+				return failed(exact.error());
+			}
+		}
+		std::ranges::sort(result.ReviewIds);
+		if (std::ranges::adjacent_find(result.ReviewIds) != result.ReviewIds.end()) {
 			return failed(review_mutation_contract_failure::identity_mismatch);
 		}
-		return review_submission_observation{
-			.ReviewDatabaseId = response.Id,
-			.ReviewNodeId     = std::move(response.NodeId),
-			.Target           = target,
-			.Author           = aExpected.ActingIdentity,
-			.Disposition      = aExpected.Disposition,
-			.Body             = std::move(response.Body),
-			.SubmittedAt      = std::move(response.SubmittedAt),
-		};
+		return result;
 	}
 
 	auto parse_review_comment_observations(

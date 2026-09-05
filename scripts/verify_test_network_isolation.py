@@ -71,6 +71,11 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "sqlite_epoch_catalog_storage_contract": "dos-volume-name",
     "sqlite_epoch_catalog_behavior_contract": "dos-volume-name",
     "sqlite_review_mutation_recovery_storage": "dos-volume-name",
+    # Whole-review fixtures reuse open_state_directory and the retained ancestor
+    # walk: the measured BPR-0362 DOS-volume cause, not new native evidence.
+    "sqlite_review_submission_recovery_storage": "dos-volume-name",
+    "live_review_submission_provider": "dos-volume-name",
+    "live_review_submission_restart_recovery": "dos-volume-name",
     "sqlite_review_ledger_storage": "dos-volume-name",
     "rfc0016_device_capture_security": "dos-volume-name",
     "test_network_isolation_structure_contract": "dos-volume-name",

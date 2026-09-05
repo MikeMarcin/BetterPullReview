@@ -1,4 +1,5 @@
 #include "bpr/adapters/sqlite/review_mutation_recovery_store.hpp"
+#include "bpr/adapters/sqlite/review_submission_recovery_store.hpp"
 
 #include "sqlite_connection.hpp"
 #include "state_directory.hpp"
@@ -20,7 +21,7 @@
 namespace bpr::adapters::sqlite {
 	namespace {
 		constexpr auto RecoveryApplicationId = std::int32_t{ 0x4250524D };
-		constexpr auto RecoverySchemaVersion = std::int64_t{ 2 };
+		constexpr auto RecoverySchemaVersion = std::int64_t{ 3 };
 		constexpr auto RecoveryName          = std::string_view{
 			"review-mutation-recovery.sqlite3"
 		};
@@ -64,6 +65,26 @@ namespace bpr::adapters::sqlite {
 				"PRIMARY KEY(scope_id,idempotency_key),"
 				"FOREIGN KEY(scope_id,idempotency_key) REFERENCES "
 				"recovery_attempt(scope_id,idempotency_key) ON DELETE CASCADE) STRICT" },
+			std::string_view{
+				"CREATE TABLE submission_attempt("
+				"scope_id INTEGER NOT NULL REFERENCES recovery_scope(scope_id) ON DELETE CASCADE,"
+				"idempotency_key TEXT NOT NULL CHECK(length(CAST(idempotency_key AS BLOB)) BETWEEN 1 AND 256),"
+				"request_fingerprint BLOB NOT NULL CHECK(length(request_fingerprint) = 32),"
+				"authority_fingerprint BLOB NOT NULL CHECK(length(authority_fingerprint) = 32),"
+				"request BLOB NOT NULL CHECK(length(request) BETWEEN 8 AND 98304),"
+				"state INTEGER NOT NULL CHECK(state BETWEEN 0 AND 1),"
+				"review_id BLOB CHECK(review_id IS NULL OR length(review_id) = 8),"
+				"review_node_id TEXT CHECK(review_node_id IS NULL OR length(CAST(review_node_id AS BLOB)) BETWEEN 1 AND 256),"
+				"CHECK((state = 0 AND review_id IS NULL AND review_node_id IS NULL) OR (state = 1 AND review_id IS NOT NULL AND review_node_id IS NOT NULL)),"
+				"PRIMARY KEY(scope_id,idempotency_key)) STRICT" },
+			std::string_view{
+				"CREATE TABLE submission_baseline("
+				"scope_id INTEGER NOT NULL,idempotency_key TEXT NOT NULL,"
+				"baseline BLOB NOT NULL CHECK(length(baseline) BETWEEN 8 AND 808),"
+				"baseline_digest BLOB NOT NULL CHECK(length(baseline_digest) = 32),"
+				"transmission INTEGER NOT NULL CHECK(transmission BETWEEN 0 AND 1),"
+				"PRIMARY KEY(scope_id,idempotency_key),"
+				"FOREIGN KEY(scope_id,idempotency_key) REFERENCES submission_attempt(scope_id,idempotency_key) ON DELETE CASCADE) STRICT" },
 		};
 		constexpr std::array RecoverySchemaVersion1{
 			std::pair{ std::string_view{ "recovery_attempt" }, RecoverySchema[2] },
@@ -75,6 +96,15 @@ namespace bpr::adapters::sqlite {
 			std::pair{ std::string_view{ "recovery_baseline" }, RecoverySchema[3] },
 			std::pair{ std::string_view{ "recovery_meta" }, RecoverySchema[0] },
 			std::pair{ std::string_view{ "recovery_scope" }, RecoverySchema[1] },
+		};
+
+		constexpr std::array RecoverySchemaVersion3{
+			std::pair{ std::string_view{ "recovery_attempt" }, RecoverySchema[2] },
+			std::pair{ std::string_view{ "recovery_baseline" }, RecoverySchema[3] },
+			std::pair{ std::string_view{ "recovery_meta" }, RecoverySchema[0] },
+			std::pair{ std::string_view{ "recovery_scope" }, RecoverySchema[1] },
+			std::pair{ std::string_view{ "submission_attempt" }, RecoverySchema[4] },
+			std::pair{ std::string_view{ "submission_baseline" }, RecoverySchema[5] },
 		};
 
 		[[nodiscard]] auto translate(const detail::failure aFailure) noexcept
@@ -666,82 +696,454 @@ namespace bpr::adapters::sqlite {
 			std::mutex   Mutex;
 		};
 
-		[[nodiscard]] auto establish(::sqlite3* aDatabase)
-			-> std::expected<void, detail::failure>
+		class submission_writer
 		{
-			const auto version = detail::scalar_integer(aDatabase, "PRAGMA user_version");
-			if (!version) {
-				return std::unexpected(version.error());
-			}
-			if (*version == 0) {
-				if (auto begin = detail::execute(aDatabase, "BEGIN IMMEDIATE"); !begin) {
-					return begin;
-				}
-				for (const auto statement : RecoverySchema) {
-					if (auto created = detail::execute(aDatabase, statement); !created) {
-						static_cast<void>(detail::execute(aDatabase, "ROLLBACK"));
-						return created;
-					}
-				}
-				for (const auto statement : {
-						 "PRAGMA application_id = 1112560205",
-						 "PRAGMA user_version = 2",
-						 "INSERT INTO recovery_meta(singleton,schema_format) VALUES(1,2)",
-						 "COMMIT" }) {
-					if (auto applied = detail::execute(aDatabase, statement); !applied) {
-						static_cast<void>(detail::execute(aDatabase, "ROLLBACK"));
-						return applied;
-					}
+		public:
+			std::vector<std::uint8_t> Bytes;
+			void                      integer(std::uint64_t aValue)
+			{
+				for (auto shift = 0U; shift < 64U; shift += 8U) {
+					Bytes.push_back(static_cast<std::uint8_t>((aValue >> shift) & 255U));
 				}
 			}
-			if (*version == 1) {
-				const auto application = detail::scalar_integer(
-					aDatabase, "PRAGMA application_id");
-				const auto meta = detail::scalar_integer(
-					aDatabase,
-					"SELECT schema_format FROM recovery_meta WHERE singleton = 1");
-				if (!application || *application != RecoveryApplicationId || !meta
-					|| *meta != 1) {
+			void text(std::string_view aValue)
+			{
+				integer(aValue.size());
+				Bytes.insert(Bytes.end(), aValue.begin(), aValue.end());
+			}
+			void oid(const core::git_commit_oid& aValue)
+			{
+				integer(static_cast<std::uint64_t>(aValue.algorithm()));
+				Bytes.insert(Bytes.end(), aValue.bytes().begin(), aValue.bytes().end());
+			}
+		};
+		class submission_reader
+		{
+		public:
+			explicit submission_reader(std::span<const std::uint8_t> aBytes)
+				: Bytes{ aBytes }
+			{ }
+			auto integer() -> std::uint64_t
+			{
+				if (Bytes.size() < 8U) {
+					Good = false;
+					return 0U;
+				}
+				std::uint64_t value = 0U;
+				for (auto shift = 0U; shift < 64U; shift += 8U) {
+					value |= static_cast<std::uint64_t>(Bytes[shift / 8U]) << shift;
+				}
+				Bytes = Bytes.subspan(8U);
+				return value;
+			}
+			auto text(std::size_t aMaximum = 256U) -> std::string
+			{
+				const auto size = integer();
+				if (!Good || size > aMaximum || size > Bytes.size()) {
+					Good = false;
+					return { };
+				}
+				std::string value{ reinterpret_cast<const char*>(Bytes.data()), static_cast<std::size_t>(size) };
+				Bytes = Bytes.subspan(static_cast<std::size_t>(size));
+				return value;
+			}
+			auto oid() -> core::git_commit_oid
+			{
+				const auto algorithm = integer();
+				if (!Good || algorithm < 1U || algorithm > 2U || Bytes.size() < 32U) {
+					Good = false;
+					return { };
+				}
+				std::array<std::uint8_t, 32> bytes{ };
+				std::ranges::copy(Bytes.first(32U), bytes.begin());
+				Bytes = Bytes.subspan(32U);
+				return core::git_commit_oid{ static_cast<core::git_hash_algorithm>(algorithm), bytes };
+			}
+			template <typename T>
+			void identity(T& aId)
+			{
+				using value_type = decltype(aId.value());
+				const auto value = integer();
+				if (value > std::numeric_limits<value_type>::max()) {
+					Good = false;
+					return;
+				}
+				aId = T{ static_cast<value_type>(value) };
+			}
+			auto done() const -> bool { return Good && Bytes.empty(); }
+
+		private:
+			std::span<const std::uint8_t> Bytes;
+			bool                          Good = true;
+		};
+		// The snapshot has its own version and preserves full-width IDs and literal body bytes.
+		auto encode_submission(const application::review_submission_request& aRequest) -> std::vector<std::uint8_t>
+		{
+			submission_writer out;
+			out.integer(1U);
+			const auto& proposal = aRequest.Proposal;
+			const auto& target   = aRequest.LiveBinding->Target;
+			const auto& actor    = aRequest.LiveBinding->ActingIdentity;
+			out.integer(proposal.Draft.value());
+			out.integer(proposal.Attempt.value());
+			out.integer(static_cast<std::uint64_t>(proposal.Disposition));
+			out.text(aRequest.IdempotencyKey);
+			out.text(proposal.Body);
+			out.integer(target.Semantic.Host.value());
+			out.integer(target.Semantic.Repository.value());
+			out.integer(target.Semantic.PullRequest.value());
+			out.oid(target.Semantic.ExpectedHead);
+			out.text(target.Hostname.value());
+			out.integer(static_cast<std::uint64_t>(target.ServerContract));
+			out.text(target.Repository.Owner);
+			out.text(target.Repository.Name);
+			out.integer(target.Number.value());
+			out.integer(target.RepositoryDatabaseId);
+			out.text(target.RepositoryNodeId);
+			out.integer(target.PullRequestDatabaseId);
+			out.text(target.PullRequestNodeId);
+			out.integer(target.BaseRepositoryDatabaseId);
+			out.oid(target.BaseOid);
+			out.text(target.BaseRef);
+			out.text(target.HeadRef);
+			out.integer(target.Open ? 1U : 0U);
+			out.integer(actor.Account.value());
+			out.integer(actor.DatabaseId);
+			out.text(actor.NodeId);
+			out.text(actor.Login);
+			return out.Bytes;
+		}
+		auto decode_submission(std::span<const std::uint8_t> aBytes) -> std::optional<application::review_submission_request>
+		{
+			submission_reader in{ aBytes };
+			if (in.integer() != 1U) {
+				return std::nullopt;
+			}
+			application::review_submission_request request;
+			request.LiveBinding.emplace();
+			auto& proposal = request.Proposal;
+			auto& target   = request.LiveBinding->Target;
+			auto& actor    = request.LiveBinding->ActingIdentity;
+			in.identity(proposal.Draft);
+			in.identity(proposal.Attempt);
+			const auto disposition = in.integer();
+			if (disposition > 2U) {
+				return std::nullopt;
+			}
+			proposal.Disposition   = static_cast<core::review_disposition>(disposition);
+			request.IdempotencyKey = in.text();
+			proposal.Body          = in.text(core::maximum_review_submission_body_bytes);
+			in.identity(target.Semantic.Host);
+			in.identity(target.Semantic.Repository);
+			in.identity(target.Semantic.PullRequest);
+			target.Semantic.ExpectedHead = in.oid();
+			target.Hostname              = application::github_canonical_hostname{ in.text() };
+			const auto server            = in.integer();
+			if (server > std::numeric_limits<std::uint8_t>::max()) {
+				return std::nullopt;
+			}
+			target.ServerContract   = static_cast<application::github_server_contract>(server);
+			target.Repository.Owner = in.text();
+			target.Repository.Name  = in.text();
+			in.identity(target.Number);
+			target.RepositoryDatabaseId     = in.integer();
+			target.RepositoryNodeId         = in.text();
+			target.PullRequestDatabaseId    = in.integer();
+			target.PullRequestNodeId        = in.text();
+			target.BaseRepositoryDatabaseId = in.integer();
+			target.BaseOid                  = in.oid();
+			target.BaseRef                  = in.text();
+			target.HeadRef                  = in.text();
+			const auto open                 = in.integer();
+			if (open != 1U) {
+				return std::nullopt;
+			}
+			target.Open = true;
+			in.identity(actor.Account);
+			actor.DatabaseId       = in.integer();
+			actor.NodeId           = in.text();
+			actor.Login            = in.text();
+			proposal.Target        = target.Semantic;
+			proposal.ActingAccount = actor.Account;
+			return in.done() && application::valid(request) ? std::optional{ std::move(request) } : std::nullopt;
+		}
+		auto submission_blob_at(::sqlite3_stmt* aStatement, int aColumn, std::size_t aMaximum) -> std::optional<std::vector<std::uint8_t>>
+		{
+			if (::sqlite3_column_type(aStatement, aColumn) != SQLITE_BLOB) {
+				return std::nullopt;
+			}
+			const auto  size = ::sqlite3_column_bytes(aStatement, aColumn);
+			const auto* data = static_cast<const std::uint8_t*>(::sqlite3_column_blob(aStatement, aColumn));
+			if (size < 1 || static_cast<std::size_t>(size) > aMaximum || !data) {
+				return std::nullopt;
+			}
+			return std::vector<std::uint8_t>{ data, data + size };
+		}
+		class submission_store final : public application::review_submission_recovery_port
+		{
+			using failure = application::review_mutation_recovery_failure;
+			using record  = application::review_submission_recovery_record;
+
+		public:
+			submission_store(::sqlite3* aDatabase, std::int64_t aScope, review_mutation_recovery_configuration aConfiguration)
+				: Database{ aDatabase }
+				, Scope{ aScope }
+				, Configuration{ std::move(aConfiguration) }
+			{ }
+			~submission_store() override { static_cast<void>(::sqlite3_close_v2(Database)); }
+			auto load(const std::string& aKey) -> std::expected<std::optional<record>, failure> override
+			{
+				std::scoped_lock lock{ Mutex };
+				return load_locked(aKey);
+			}
+			auto admit(const record& aRecord) -> std::expected<application::review_submission_recovery_admission, failure> override
+			{
+				if (!application::valid(aRecord) || !matches_scope(aRecord.Request) || aRecord.Transmission != application::review_mutation_recovery_transmission::prepared || aRecord.State != application::review_mutation_recovery_state::unresolved) {
+					return std::unexpected(failure::conflict);
+				}
+				std::scoped_lock lock{ Mutex };
+				return transaction<application::review_submission_recovery_admission>([&]() -> std::expected<application::review_submission_recovery_admission, failure> {
+					auto existing = load_locked(aRecord.Request.IdempotencyKey);
+					if (!existing) {
+						return std::unexpected(existing.error());
+					}
+					if (*existing) {
+						if ((**existing).Request != aRecord.Request || (**existing).RequestFingerprint != aRecord.RequestFingerprint || (**existing).AuthorityFingerprint != aRecord.AuthorityFingerprint) {
+							return std::unexpected(failure::conflict);
+						}
+						return application::review_submission_recovery_admission{ .Record = **existing };
+					}
+					auto count = detail::prepare(Database, "SELECT count(*) FROM submission_attempt WHERE scope_id = ?1");
+					if (!count || ::sqlite3_bind_int64(count->Value, 1, Scope) != SQLITE_OK || ::sqlite3_step(count->Value) != SQLITE_ROW) {
+						return std::unexpected(failure::unavailable);
+					}
+					if (::sqlite3_column_int64(count->Value, 0) >= static_cast<std::int64_t>(application::maximum_review_mutation_recovery_records)) {
+						return std::unexpected(failure::capacity);
+					}
+					auto       insert  = detail::prepare(Database, "INSERT INTO submission_attempt(scope_id,idempotency_key,request_fingerprint,authority_fingerprint,request,state) VALUES(?1,?2,?3,?4,?5,0)");
+					const auto encoded = encode_submission(aRecord.Request);
+					if (!insert || !scope_key(insert->Value, 1, aRecord.Request.IdempotencyKey) || !bind_blob(insert->Value, 3, aRecord.RequestFingerprint) || !bind_blob(insert->Value, 4, aRecord.AuthorityFingerprint) || !bind_blob(insert->Value, 5, encoded) || ::sqlite3_step(insert->Value) != SQLITE_DONE) {
+						return std::unexpected(failure::unavailable);
+					}
+					submission_writer baseline;
+					baseline.integer(aRecord.BaselineReviewIds->size());
+					for (const auto id : *aRecord.BaselineReviewIds) {
+						baseline.integer(id.value());
+					}
+					const auto digest         = baseline_digest(baseline.Bytes);
+					auto       insertBaseline = detail::prepare(Database, "INSERT INTO submission_baseline(scope_id,idempotency_key,baseline,baseline_digest,transmission) VALUES(?1,?2,?3,?4,0)");
+					if (!insertBaseline || !scope_key(insertBaseline->Value, 1, aRecord.Request.IdempotencyKey) || !bind_blob(insertBaseline->Value, 3, baseline.Bytes) || !bind_blob(insertBaseline->Value, 4, digest) || ::sqlite3_step(insertBaseline->Value) != SQLITE_DONE) {
+						return std::unexpected(failure::unavailable);
+					}
+					return application::review_submission_recovery_admission{ .Record = aRecord, .Inserted = true };
+				});
+			}
+			auto mark_possibly_transmitted(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint) -> std::expected<record, failure> override
+			{
+				std::scoped_lock lock{ Mutex };
+				return transaction<record>([&]() -> std::expected<record, failure> {
+					auto loaded = load_locked(aKey);
+					if (!loaded || !*loaded || (**loaded).RequestFingerprint != aFingerprint || !(**loaded).BaselineReviewIds || (**loaded).State != application::review_mutation_recovery_state::unresolved) {
+						return std::unexpected(failure::conflict);
+					}
+					if ((**loaded).Transmission == application::review_mutation_recovery_transmission::possibly_transmitted) {
+						return **loaded;
+					}
+					auto update = detail::prepare(Database, "UPDATE submission_baseline SET transmission = 1 WHERE scope_id = ?1 AND idempotency_key = ?2 AND transmission = 0");
+					if (!update || !scope_key(update->Value, 1, aKey) || ::sqlite3_step(update->Value) != SQLITE_DONE || ::sqlite3_changes(Database) != 1) {
+						return std::unexpected(failure::unavailable);
+					}
+					(**loaded).Transmission = application::review_mutation_recovery_transmission::possibly_transmitted;
+					return **loaded;
+				});
+			}
+			auto resolve(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint, const application::review_submission_receipt& aReceipt) -> std::expected<record, failure> override
+			{
+				std::scoped_lock lock{ Mutex };
+				return transaction<record>([&]() -> std::expected<record, failure> {
+					auto loaded = load_locked(aKey);
+					if (!loaded || !*loaded || (**loaded).RequestFingerprint != aFingerprint) {
+						return std::unexpected(failure::conflict);
+					}
+					auto candidate = **loaded;
+					if (candidate.Receipt) {
+						return *candidate.Receipt == aReceipt ? std::expected<record, failure>{ candidate } : std::unexpected(failure::conflict);
+					}
+					candidate.State   = application::review_mutation_recovery_state::succeeded;
+					candidate.Receipt = aReceipt;
+					if (!application::valid(candidate)) {
+						return std::unexpected(failure::conflict);
+					}
+					submission_writer id;
+					id.integer(aReceipt.ReviewDatabaseId.value());
+					auto update = detail::prepare(Database, "UPDATE submission_attempt SET state = 1,review_id = ?1,review_node_id = ?2 WHERE scope_id = ?3 AND idempotency_key = ?4 AND state = 0");
+					if (!update || !bind_blob(update->Value, 1, id.Bytes) || !bind_text(update->Value, 2, aReceipt.ReviewNodeId) || !scope_key(update->Value, 3, aKey) || ::sqlite3_step(update->Value) != SQLITE_DONE || ::sqlite3_changes(Database) != 1) {
+						return std::unexpected(failure::unavailable);
+					}
+					return candidate;
+				});
+			}
+
+		private:
+			auto matches_scope(const application::review_submission_request& aRequest) const -> bool
+			{
+				if (!aRequest.LiveBinding) {
+					return false;
+				}
+				const auto& target = aRequest.LiveBinding->Target;
+				return target.Hostname.value() == Configuration.Host && std::to_string(aRequest.LiveBinding->ActingIdentity.Account.value()) == Configuration.Account && target.Repository.Owner + "/" + target.Repository.Name == Configuration.Repository && static_cast<std::int64_t>(target.Number.value()) == Configuration.PullRequest;
+			}
+
+			template <typename T, typename TAction>
+			auto transaction(TAction aAction) -> std::expected<T, failure>
+			{
+				if (!detail::execute(Database, "BEGIN IMMEDIATE")) {
+					return std::unexpected(failure::unavailable);
+				}
+				try {
+					auto value = aAction();
+					if (value && detail::execute(Database, "COMMIT")) {
+						return value;
+					}
+					static_cast<void>(detail::execute(Database, "ROLLBACK"));
+					return value ? std::unexpected(failure::unavailable) : value;
+				} catch (...) {
+					static_cast<void>(detail::execute(Database, "ROLLBACK"));
+					return std::unexpected(failure::unavailable);
+				}
+			}
+			auto scope_key(::sqlite3_stmt* aStatement, int aIndex, const std::string& aKey) -> bool { return ::sqlite3_bind_int64(aStatement, aIndex, Scope) == SQLITE_OK && bind_text(aStatement, aIndex + 1, aKey); }
+			auto load_locked(const std::string& aKey) -> std::expected<std::optional<record>, failure>
+			{
+				auto query = detail::prepare(Database, "SELECT request_fingerprint,authority_fingerprint,request,state,review_id,review_node_id,baseline,baseline_digest,transmission FROM submission_attempt LEFT JOIN submission_baseline USING(scope_id,idempotency_key) WHERE submission_attempt.scope_id = ?1 AND submission_attempt.idempotency_key = ?2");
+				if (!query || !scope_key(query->Value, 1, aKey)) {
+					return std::unexpected(failure::unavailable);
+				}
+				const auto row = ::sqlite3_step(query->Value);
+				if (row == SQLITE_DONE) {
+					return std::optional<record>{ };
+				}
+				if (row != SQLITE_ROW) {
+					return std::unexpected(failure::unavailable);
+				}
+				const auto fingerprint = digest_at(query->Value, 0);
+				const auto authority   = digest_at(query->Value, 1);
+				const auto encoded     = submission_blob_at(query->Value, 2, 98304U);
+				const auto state       = ::sqlite3_column_int64(query->Value, 3);
+				if (!fingerprint || !authority || !encoded || state < 0 || state > 1) {
+					return std::unexpected(failure::integrity_failure);
+				}
+				const auto request = decode_submission(*encoded);
+				if (!request || request->IdempotencyKey != aKey || !matches_scope(*request)) {
+					return std::unexpected(failure::integrity_failure);
+				}
+				record     value{ .Request = *request, .RequestFingerprint = *fingerprint, .AuthorityFingerprint = *authority, .State = static_cast<application::review_mutation_recovery_state>(state) };
+				const auto baseline = submission_blob_at(query->Value, 6, 808U);
+				const auto digest   = digest_at(query->Value, 7);
+				if (baseline) {
+					if (!digest || baseline_digest(*baseline) != *digest || ::sqlite3_column_type(query->Value, 8) != SQLITE_INTEGER) {
+						return std::unexpected(failure::integrity_failure);
+					}
+					const auto transmission = ::sqlite3_column_int64(query->Value, 8);
+					if (transmission < 0 || transmission > 1) {
+						return std::unexpected(failure::integrity_failure);
+					}
+					submission_reader in{ *baseline };
+					const auto        count = in.integer();
+					if (count > 100U) {
+						return std::unexpected(failure::integrity_failure);
+					}
+					value.BaselineReviewIds.emplace();
+					for (auto index = std::uint64_t{ }; index < count; ++index) {
+						value.BaselineReviewIds->emplace_back(in.integer());
+					}
+					if (!in.done()) {
+						return std::unexpected(failure::integrity_failure);
+					}
+					value.Transmission = transmission == 0 ? application::review_mutation_recovery_transmission::prepared : application::review_mutation_recovery_transmission::possibly_transmitted;
+				} else if (::sqlite3_column_type(query->Value, 6) != SQLITE_NULL || ::sqlite3_column_type(query->Value, 7) != SQLITE_NULL || ::sqlite3_column_type(query->Value, 8) != SQLITE_NULL) {
+					return std::unexpected(failure::integrity_failure);
+				}
+				if (state == 1) {
+					const auto encodedId = submission_blob_at(query->Value, 4, 8U);
+					const auto node      = text_at(query->Value, 5);
+					if (!encodedId || !node) {
+						return std::unexpected(failure::integrity_failure);
+					}
+					submission_reader in{ *encodedId };
+					const auto        id = in.integer();
+					if (!in.done()) {
+						return std::unexpected(failure::integrity_failure);
+					}
+					value.Receipt = application::review_submission_receipt{ .ReviewDatabaseId = application::review_database_id{ id }, .ReviewNodeId = *node, .Target = request->Proposal.Target, .ActingAccount = request->Proposal.ActingAccount, .Disposition = request->Proposal.Disposition };
+				} else if (::sqlite3_column_type(query->Value, 4) != SQLITE_NULL || ::sqlite3_column_type(query->Value, 5) != SQLITE_NULL) {
+					return std::unexpected(failure::integrity_failure);
+				}
+				if (::sqlite3_step(query->Value) != SQLITE_DONE || !application::valid(value)) {
+					return std::unexpected(failure::integrity_failure);
+				}
+				return std::optional{ std::move(value) };
+			}
+			::sqlite3*                                   Database;
+			std::int64_t                                 Scope;
+			const review_mutation_recovery_configuration Configuration;
+			std::mutex                                   Mutex;
+		};
+		[[nodiscard]] auto establish(::sqlite3* aDatabase) -> std::expected<void, detail::failure>
+		{
+			if (!detail::execute(aDatabase, "BEGIN IMMEDIATE")) {
+				return std::unexpected(detail::failure::unavailable);
+			}
+			const auto migrate = [&]() -> std::expected<void, detail::failure> {
+				const auto version     = detail::scalar_integer(aDatabase, "PRAGMA user_version");
+				const auto application = detail::scalar_integer(aDatabase, "PRAGMA application_id");
+				if (!version || !application || *version < 0 || *version > RecoverySchemaVersion) {
 					return std::unexpected(detail::failure::schema_mismatch);
 				}
-				if (auto schema = validate_schema(aDatabase, RecoverySchemaVersion1);
-					!schema) {
-					return schema;
-				}
-				if (auto begin = detail::execute(aDatabase, "BEGIN IMMEDIATE"); !begin) {
-					return begin;
-				}
-				for (const auto statement : {
-						 "CREATE TABLE recovery_baseline("
-						 "scope_id INTEGER NOT NULL,"
-						 "idempotency_key TEXT NOT NULL,"
-						 "baseline BLOB NOT NULL CHECK(length(baseline) BETWEEN 2 AND 25802),"
-						 "baseline_digest BLOB NOT NULL CHECK(length(baseline_digest) = 32),"
-						 "transmission INTEGER NOT NULL CHECK(transmission BETWEEN 0 AND 1),"
-						 "PRIMARY KEY(scope_id,idempotency_key),"
-						 "FOREIGN KEY(scope_id,idempotency_key) REFERENCES "
-						 "recovery_attempt(scope_id,idempotency_key) ON DELETE CASCADE) STRICT",
-						 "PRAGMA user_version = 2",
-						 "UPDATE recovery_meta SET schema_format = 2 WHERE singleton = 1",
-						 "COMMIT" }) {
-					if (auto applied = detail::execute(aDatabase, statement); !applied) {
-						static_cast<void>(detail::execute(aDatabase, "ROLLBACK"));
-						return applied;
+				if (*version == 0) {
+					const std::array<std::pair<std::string_view, std::string_view>, 0> empty{ };
+					if (*application != 0 || !validate_schema(aDatabase, empty)) {
+						return std::unexpected(detail::failure::schema_mismatch);
+					}
+					for (const auto statement : RecoverySchema) {
+						if (auto created = detail::execute(aDatabase, statement); !created) {
+							return created;
+						}
+					}
+					if (!detail::execute(aDatabase, "PRAGMA application_id = 1112560205") || !detail::execute(aDatabase, "INSERT INTO recovery_meta(singleton,schema_format) VALUES(1,3)")) {
+						return std::unexpected(detail::failure::unavailable);
+					}
+				} else {
+					const auto meta = detail::scalar_integer(aDatabase, "SELECT schema_format FROM recovery_meta WHERE singleton = 1");
+					if (*application != RecoveryApplicationId || !meta || *meta != *version) {
+						return std::unexpected(detail::failure::schema_mismatch);
+					}
+					auto schema = *version == 1 ? validate_schema(aDatabase, RecoverySchemaVersion1) : *version == 2 ? validate_schema(aDatabase, RecoverySchemaVersion2)
+																													 : validate_schema(aDatabase, RecoverySchemaVersion3);
+					if (!schema) {
+						return schema;
+					}
+					if (*version == 1 && !detail::execute(aDatabase, RecoverySchema[3])) {
+						return std::unexpected(detail::failure::unavailable);
+					}
+					if (*version < 3 && (!detail::execute(aDatabase, RecoverySchema[4]) || !detail::execute(aDatabase, RecoverySchema[5]))) {
+						return std::unexpected(detail::failure::unavailable);
+					}
+					if (!detail::execute(aDatabase, "UPDATE recovery_meta SET schema_format = 3 WHERE singleton = 1")) {
+						return std::unexpected(detail::failure::unavailable);
 					}
 				}
+				if (!detail::execute(aDatabase, "PRAGMA user_version = 3")) {
+					return std::unexpected(detail::failure::unavailable);
+				}
+				return validate_schema(aDatabase, RecoverySchemaVersion3);
+			};
+			const auto migrated = migrate();
+			if (!migrated || !detail::execute(aDatabase, "COMMIT")) {
+				static_cast<void>(detail::execute(aDatabase, "ROLLBACK"));
+				return migrated ? std::unexpected(detail::failure::unavailable) : migrated;
 			}
-			const auto application = detail::scalar_integer(
-				aDatabase, "PRAGMA application_id");
-			const auto current = detail::scalar_integer(aDatabase, "PRAGMA user_version");
-			const auto meta    = detail::scalar_integer(
-				aDatabase,
-				"SELECT schema_format FROM recovery_meta WHERE singleton = 1");
-			if (!application || *application != RecoveryApplicationId || !current
-				|| *current != RecoverySchemaVersion || !meta
-				|| *meta != RecoverySchemaVersion) {
-				return std::unexpected(detail::failure::schema_mismatch);
-			}
-			return validate_schema(aDatabase, RecoverySchemaVersion2);
+			return { };
 		}
 
 		[[nodiscard]] auto scope_id(
@@ -826,6 +1228,54 @@ namespace bpr::adapters::sqlite {
 		}
 		return std::unique_ptr<application::review_mutation_recovery_port>{
 			new recovery_store{ database, *scope }
+		};
+	}
+	auto make_review_submission_recovery_store(
+		const review_mutation_recovery_configuration& aConfiguration)
+		-> std::expected<
+			std::unique_ptr<application::review_submission_recovery_port>,
+			application::review_mutation_recovery_failure>
+	{
+		using failure = application::review_mutation_recovery_failure;
+		if (aConfiguration.StorageRoot.empty() || aConfiguration.Host.empty()
+			|| aConfiguration.Account.empty() || aConfiguration.Repository.empty()
+			|| aConfiguration.PullRequest <= 0) {
+			return std::unexpected(failure::unavailable);
+		}
+		auto directory = detail::open_state_directory(aConfiguration.StorageRoot);
+		if (!directory || !detail::sqlite_runtime_ready()) {
+			return std::unexpected(failure::unavailable);
+		}
+		::sqlite3* database = nullptr;
+		const auto path     = (directory->path() / RecoveryName).string();
+		const auto code     = ::sqlite3_open_v2(
+			path.c_str(),
+			&database,
+			SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX
+				| SQLITE_OPEN_EXRESCODE,
+			nullptr);
+		if (code != SQLITE_OK || database == nullptr) {
+			if (database != nullptr) {
+				static_cast<void>(::sqlite3_close_v2(database));
+			}
+			return std::unexpected(failure::unavailable);
+		}
+		auto close = [&] { static_cast<void>(::sqlite3_close_v2(database)); };
+		if (auto configured = detail::configure_connection(database); !configured) {
+			close();
+			return std::unexpected(translate(configured.error()));
+		}
+		if (auto schema = establish(database); !schema) {
+			close();
+			return std::unexpected(translate(schema.error()));
+		}
+		auto scope = scope_id(database, aConfiguration);
+		if (!scope) {
+			close();
+			return std::unexpected(translate(scope.error()));
+		}
+		return std::unique_ptr<application::review_submission_recovery_port>{
+			new submission_store{ database, *scope, aConfiguration }
 		};
 	}
 } // namespace bpr::adapters::sqlite

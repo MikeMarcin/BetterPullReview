@@ -1,7 +1,7 @@
 ---
 id: BPR-0614
 title: Execute whole reviews with durable indeterminate recovery
-status: In Progress
+status: Done
 rfc: RFC-BPR-0008
 depends_on: [BPR-0610, BPR-0613]
 ---
@@ -87,3 +87,47 @@ Next implement the async host, per-request authority and PR-level summary /
 Comment / Approve / Request Changes controls, with ordinary application
 composition and public-path fixtures. BPR-0144 stays open until that workflow
 and its designated real-account observations are complete.
+
+## Implementation and verification — 2026-09-05
+
+The candidate based on claim `7e3e3420` implements the sibling provider/session,
+full request correlation and fingerprints, Glaze baseline parsing, and shared
+SQLite schema-v3 migration with separate whole-review tables. The result names
+published, definitely-not-published or indeterminate; pending reconciliation
+never reissues POST. Existing comment tables and provider behavior are retained.
+
+The five affected dev targets built successfully:
+
+```sh
+cmake --build --preset dev --target test_better_pull_review_github_mutation_contract_tests test_better_pull_review_live_review_mutation_provider_tests test_better_pull_review_review_mutation_recovery_storage_tests test_better_pull_review_live_review_submission_provider_tests test_better_pull_review_review_submission_recovery_storage_tests
+ctest --test-dir build/dev --output-on-failure -R '^(github_mutation_contract|live_review_mutation_provider|sqlite_review_mutation_recovery_storage|live_review_submission_provider|live_review_submission_restart_recovery|sqlite_review_submission_recovery_storage|architecture_boundaries|architecture_boundary_contract)$'
+```
+
+All eight selectors passed in 70.73 seconds. After regenerating the three exact
+Windows fixture registrations, `test_network_isolation_manifest` and
+`test_network_isolation_structure_contract` passed 2/2 in 3.91 seconds. The
+integrator reproduced the three new provider/storage/restart selectors, passing
+3/3 in 0.73 seconds. Scoped simplifier review, clang-format 23.1.0 on 15 C++
+files and `git diff --check` passed. Documentation structure passes. Native
+transport code did not change, so its existing witness/cancellation evidence
+is reused; the new session exercises that contract through its hermetic transport.
+
+The list capacity is one complete page of 100 reviews. Restart fixtures use
+fresh processes with normal exit, not abrupt-kill/power-loss simulation. All
+three SQLite-backed tests reuse the established Windows `dos-volume-name`
+exemption via the unchanged retained-ancestor path (BPR-0362); there is no new
+Windows or Linux execution claim. Only ordinary build/dev outputs remain;
+fixture temporary roots clean themselves and no task-specific logs are retained.
+No live call, credential operation or application UI selection occurred.
+
+The next host/UI slice must preserve or discover the original pending request
+and key across restart. Current recovery also refuses a moved head before
+querying the historical exact review; this remains indeterminate and never
+retries POST. Address historical receipt discovery with that integration.
+
+Independent critical review found no blocker against duplicate/false-success
+publication or v1/v2-to-v3 data loss. It confirmed the moved-head recovery
+limitation above as conservative and non-blocking. The reviewer inspected
+source, fixtures, registrations and the integrator's passing three-selector
+log; it did not run further tests. Opposite-family review was unavailable.
+Closeout review runtime: native collaboration (gpt-6-astra, xhigh).

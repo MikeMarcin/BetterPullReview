@@ -1,0 +1,29 @@
+#ifndef BPR_SRC_ADAPTERS_GITHUB_SRC_REVIEW_SUBMISSION_SESSION_HPP
+#define BPR_SRC_ADAPTERS_GITHUB_SRC_REVIEW_SUBMISSION_SESSION_HPP
+#include "bpr/application/review_submission_port.hpp"
+#include "bpr/application/review_submission_recovery_port.hpp"
+#include "github_mutation_contract.hpp"
+namespace bpr::adapters::github::detail {
+	/// \brief Executes the production protocol with immutable authority and durable one-POST admission.
+	class review_submission_session final
+	{
+	public:
+		review_submission_session(github_mutation_wire_transport& aTransport, live_review_mutation_configuration aConfiguration, application::review_mutation_transport aLease, std::unique_ptr<application::review_submission_recovery_port> aRecovery);
+		[[nodiscard]] auto submit_and_reconcile(const application::review_submission_request& aRequest, std::stop_token aStop = { }) -> application::review_submission_result;
+		[[nodiscard]] auto reconcile(const application::review_submission_request& aRequest, std::stop_token aStop = { }) -> application::review_submission_result;
+
+	private:
+		[[nodiscard]] auto                                            execute(const application::review_submission_request& aRequest, std::stop_token aStop, bool aAllowNew) -> application::review_submission_result;
+		[[nodiscard]] auto                                            perform(review_mutation_wire_request aWire, std::stop_token aStop, github_mutation_transmission_witness aWitness = { }) -> github_mutation_wire_completion;
+		[[nodiscard]] auto                                            observe_exact(std::stop_token aStop) -> std::expected<void, application::review_mutation_failure>;
+		[[nodiscard]] auto                                            observe_reviews(const application::review_submission_request& aRequest, std::stop_token aStop) -> review_mutation_parse_result<review_submission_reconciliation>;
+		[[nodiscard]] auto                                            finish_known(const application::review_submission_recovery_record& aRecord, std::stop_token aStop, bool aDuplicate) -> application::review_submission_result;
+		[[nodiscard]] auto                                            resolve_observed(const application::review_submission_recovery_record& aRecord, const review_submission_reconciliation& aObserved, bool aDuplicate) -> application::review_submission_result;
+		github_mutation_wire_transport&                               Transport;
+		const live_review_mutation_configuration                      Configuration;
+		application::review_mutation_transport                        Lease;
+		std::unique_ptr<application::review_submission_recovery_port> Recovery;
+		std::mutex                                                    Mutex;
+	};
+}
+#endif

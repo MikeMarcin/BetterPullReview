@@ -6,6 +6,7 @@
 #include "bpr/application/github_credential_vault.hpp"
 #include "bpr/application/review_mutation_port.hpp"
 #include "bpr/application/review_mutation_recovery_port.hpp"
+#include "bpr/application/review_submission_contract.hpp"
 
 #include <array>
 #include <cstddef>
@@ -31,6 +32,7 @@ namespace bpr::adapters::github::detail {
 		observe_review_comments,
 		create_review_comment,
 		create_review,
+		observe_reviews,
 	};
 
 	enum class review_mutation_contract_failure : std::uint8_t {
@@ -125,6 +127,12 @@ namespace bpr::adapters::github::detail {
 		auto operator<=>(const review_submission_observation&) const = default;
 	};
 
+	/// \brief A complete bounded review baseline and only exact submitted candidates.
+	struct review_submission_reconciliation
+	{
+		std::vector<application::review_database_id> ReviewIds;
+		std::vector<review_submission_observation>   ExactReviews;
+	};
 	struct review_mutation_server_reconciliation
 	{
 		std::vector<application::review_comment_projection> Projection;
@@ -141,6 +149,8 @@ namespace bpr::adapters::github::detail {
 		TValue,
 		review_mutation_contract_failure>;
 
+	/// \brief Compiles the bounded ordinary REST review-list observation.
+	[[nodiscard]] auto compile_review_submission_observation_request(const review_submission_request& aRequest, application::github_server_contract aServer = application::github_server_contract::github_com_2022_11_28) -> review_mutation_request_result;
 	[[nodiscard]] auto compile_target_observation_request(
 		const application::review_mutation_target_binding& aTarget,
 		application::github_server_contract                aServer = application::github_server_contract::github_com_2022_11_28)
@@ -186,6 +196,9 @@ namespace bpr::adapters::github::detail {
 		const review_mutation_wire_response&        aResponse,
 		const application::review_mutation_request& aExpected)
 		-> review_mutation_parse_result<review_mutation_server_reconciliation>;
+
+	/// \brief Rejects incomplete pagination and retains every baseline review ID.
+	[[nodiscard]] auto parse_review_submission_observations(const review_mutation_wire_response& aResponse, const review_submission_request& aExpected) -> review_mutation_parse_result<review_submission_reconciliation>;
 
 	struct github_mutation_wire_request
 	{

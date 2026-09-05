@@ -719,6 +719,40 @@ bpr_add_network_isolated_test(
 )
 
 bpr_add_executable(
+    test_better_pull_review_live_review_submission_provider_tests
+    live_review_submission_provider_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_live_review_submission_provider_tests
+    PRIVATE
+        BetterPullReview::AdapterGitHub
+        BetterPullReview::AdapterSQLite
+        BetterPullReview::Application
+        Qt6::Core
+)
+target_include_directories(
+    test_better_pull_review_live_review_submission_provider_tests
+    PRIVATE
+        "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
+)
+bpr_enable_hardening(test_better_pull_review_live_review_submission_provider_tests)
+bpr_enable_warnings(test_better_pull_review_live_review_submission_provider_tests)
+bpr_add_network_isolated_test(
+    NAME live_review_submission_provider
+    WINDOWS_UNCONTAINED
+    COMMAND test_better_pull_review_live_review_submission_provider_tests
+)
+bpr_add_network_isolated_test(
+    NAME live_review_submission_restart_recovery
+    WINDOWS_UNCONTAINED
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/review_submission_restart_recovery_tests.py"
+        --executable
+        "$<TARGET_FILE:test_better_pull_review_live_review_submission_provider_tests>"
+)
+
+bpr_add_executable(
     test_better_pull_review_github_paged_read_tests
     github_paged_read_tests.cpp
 )
