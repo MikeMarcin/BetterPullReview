@@ -1498,65 +1498,104 @@ namespace {
 
 	auto test_bootstrap_failure_stages_are_exact_and_replacement_safe() -> void
 	{
-		for (const auto stage : { application::github_bootstrap_failure_stage::account_identity,
-								  application::github_bootstrap_failure_stage::capability_discovery }) {
-			for (const bool replace : { false, true }) {
-				host_fixture fixture;
-				fixture.Host.enroll_profile(core::host_profile_id{ 11U }, credential());
-				const auto profile = fixture.Provider.Profiles.front().Request;
-				fixture.Provider.Profiles.front().Completion(application::github_profile_success{
-					.Request = profile, .Authority = native_profile(profile.Context.Profile) });
-				fixture.Lane.drain();
-				if (stage == application::github_bootstrap_failure_stage::capability_discovery) {
-					const auto bootstrap = fixture.Provider.Viewers.front().Request;
-					fixture.Provider.Viewers.front().Completion(application::github_viewer_success{
-						.Request = bootstrap, .Viewer = viewer(), .RateLimits = rate_limits_for(application::github_rate_limit_resource::core), .AccountTransport = { } });
+		for (const auto detail : { application::github_capability_diagnostic::graphql_errors, static_cast<application::github_capability_diagnostic>(255U) }) {
+			for (const auto stage : { application::github_bootstrap_failure_stage::account_identity,
+									  application::github_bootstrap_failure_stage::capability_discovery }) {
+				for (const bool replace : { false, true }) {
+					host_fixture fixture;
+					fixture.Host.enroll_profile(core::host_profile_id{ 11U }, credential());
+					const auto profile = fixture.Provider.Profiles.front().Request;
+					fixture.Provider.Profiles.front().Completion(application::github_profile_success{
+						.Request = profile, .Authority = native_profile(profile.Context.Profile) });
 					fixture.Lane.drain();
-					const auto store = fixture.Vault.Stores.front().Context;
-					fixture.Vault.Stores.front().Completion(application::github_credential_store_success{
-						.Context = store, .Disposition = application::github_credential_store_disposition::stored });
+					if (stage == application::github_bootstrap_failure_stage::capability_discovery) {
+						const auto bootstrap = fixture.Provider.Viewers.front().Request;
+						fixture.Provider.Viewers.front().Completion(application::github_viewer_success{
+							.Request = bootstrap, .Viewer = viewer(), .RateLimits = rate_limits_for(application::github_rate_limit_resource::core), .AccountTransport = { } });
+						fixture.Lane.drain();
+						const auto store = fixture.Vault.Stores.front().Context;
+						fixture.Vault.Stores.front().Completion(application::github_credential_store_success{
+							.Context = store, .Disposition = application::github_credential_store_disposition::stored });
+						fixture.Lane.drain();
+						const auto retrieve = fixture.Vault.Retrieves.front().Context;
+						fixture.Vault.Retrieves.front().Completion(application::github_credential_retrieve_success{
+							.Context = retrieve, .Credential = credential() });
+						fixture.Lane.drain();
+						const auto account = fixture.Provider.Viewers.back().Request;
+						fixture.Provider.Viewers.back().Completion(application::github_viewer_success{
+							.Request = account, .Viewer = viewer(), .RateLimits = rate_limits_for(application::github_rate_limit_resource::core), .AccountTransport = std::make_shared<fake_lease>() });
+						fixture.Lane.drain();
+					}
+					if (replace) {
+						fixture.Host.dispatch(core::activate_host_profile_intent{ .Profile = core::host_profile_id{ 12U } });
+					}
+					if (stage == application::github_bootstrap_failure_stage::account_identity) {
+						const auto call = fixture.Provider.Viewers.front();
+						call.Completion(application::github_viewer_error{
+							.Request = call.Request, .Error = { .Failure = application::github_provider_failure::malformed_response } });
+					} else {
+						const auto call = fixture.Provider.Capabilities.front();
+						call.Completion(application::github_capability_error{
+							.Request = call.Request, .Error = { .Failure = application::github_provider_failure::malformed_response }, .CapabilityDetail = detail });
+					}
 					fixture.Lane.drain();
-					const auto retrieve = fixture.Vault.Retrieves.front().Context;
-					fixture.Vault.Retrieves.front().Completion(application::github_credential_retrieve_success{
-						.Context = retrieve, .Credential = credential() });
-					fixture.Lane.drain();
-					const auto account = fixture.Provider.Viewers.back().Request;
-					fixture.Provider.Viewers.back().Completion(application::github_viewer_success{
-						.Request = account, .Viewer = viewer(), .RateLimits = rate_limits_for(application::github_rate_limit_resource::core), .AccountTransport = std::make_shared<fake_lease>() });
-					fixture.Lane.drain();
-				}
-				if (replace) {
-					fixture.Host.dispatch(core::activate_host_profile_intent{ .Profile = core::host_profile_id{ 12U } });
-				}
-				if (stage == application::github_bootstrap_failure_stage::account_identity) {
-					const auto call = fixture.Provider.Viewers.front();
-					call.Completion(application::github_viewer_error{
-						.Request = call.Request, .Error = { .Failure = application::github_provider_failure::malformed_response } });
-				} else {
-					const auto call = fixture.Provider.Capabilities.front();
-					call.Completion(application::github_capability_error{
-						.Request = call.Request, .Error = { .Failure = application::github_provider_failure::malformed_response } });
-				}
-				fixture.Lane.drain();
-				if (!fixture.Vault.Deletes.empty()) {
-					const auto call = fixture.Vault.Deletes.front();
-					call.Completion(application::github_credential_delete_success{
-						.Context = call.Context, .Disposition = application::github_credential_delete_disposition::deleted });
-					fixture.Lane.drain();
-				}
-				if (replace) {
-					expect(fixture.Projections.host_diagnostic_count() == 0U
-							   && fixture.Host.state().ActiveProfile == core::host_profile_id{ 12U },
-						   "retired bootstrap failure cannot label or fail the replacement identity");
-				} else {
-					const auto& update = fixture.Projections.last_transition_update();
-					expect(update.Transition->Status->Status == core::github_status::session_failed
-							   && update.Transition->Diagnostics.front().Code == core::github_reason_code::malformed_response
-							   && update.HostDiagnostics.size() == 1U
-							   && update.HostDiagnostics.front().BootstrapStage == stage,
-						   "exact bootstrap stage accompanies its unchanged core failure after cleanup");
+					if (!fixture.Vault.Deletes.empty()) {
+						const auto call = fixture.Vault.Deletes.front();
+						call.Completion(application::github_credential_delete_success{
+							.Context = call.Context, .Disposition = application::github_credential_delete_disposition::deleted });
+						fixture.Lane.drain();
+					}
+					if (replace) {
+						expect(fixture.Projections.host_diagnostic_count() == 0U
+								   && fixture.Host.state().ActiveProfile == core::host_profile_id{ 12U },
+							   "retired bootstrap failure cannot label or fail the replacement identity");
+					} else {
+						const auto& update = fixture.Projections.last_transition_update();
+						expect(update.Transition->Status->Status == core::github_status::session_failed
+								   && update.Transition->Diagnostics.front().Code == core::github_reason_code::malformed_response
+								   && update.HostDiagnostics.size() == 1U
+								   && update.HostDiagnostics.front().BootstrapStage == stage
+								   && update.HostDiagnostics.front().CapabilityDetail == (stage == application::github_bootstrap_failure_stage::capability_discovery ? application::bounded_capability_diagnostic(detail) : application::github_capability_diagnostic::none),
+							   "exact bootstrap stage accompanies its unchanged core failure after cleanup");
+					}
 				}
 			}
+		}
+	}
+
+	auto test_local_capability_refusal_details() -> void
+	{
+		using diagnostic = application::github_capability_diagnostic;
+		for (const auto detail : { diagnostic::host_correlation, diagnostic::host_rate_state, diagnostic::host_cache_stage, diagnostic::host_provider_error }) {
+			application::github_credential_binding_catalog bindings;
+			const auto                                     authority = seed_persistent_binding(bindings);
+			host_fixture                                   fixture{ bindings };
+			auto                                           request = advance_resume_to_capability(fixture, authority);
+			auto                                           facts   = capability_facts();
+			auto                                           rates   = rate_limits_for(application::github_rate_limit_resource::graphql);
+			if (detail == diagnostic::host_correlation) {
+				request.Context.Request = core::request_id{ 999U };
+			}
+			if (detail == diagnostic::host_rate_state) {
+				rates = rate_limits_for(application::github_rate_limit_resource::search);
+			}
+			if (detail == diagnostic::host_cache_stage) {
+				facts.front().State = static_cast<core::github_capability_state>(255U);
+			}
+			if (detail == diagnostic::host_provider_error) {
+				fixture.Provider.Capabilities.front().Completion(application::github_capability_error{
+					.Request          = request,
+					.Error            = { .Failure = static_cast<application::github_provider_failure>(255U) },
+					.CapabilityDetail = diagnostic::host_cache_stage,
+				});
+			} else {
+				fixture.Provider.Capabilities.front().Completion(application::github_capability_success{
+					.Request = request, .Facts = std::move(facts), .SchemaFacts = schema_facts(), .RateLimits = rates });
+			}
+			fixture.Lane.drain();
+			expect(fixture.Projections.last_host_diagnostic().CapabilityDetail == detail
+					   && fixture.Projections.last_host_diagnostic().Reason == core::github_reason_code::malformed_response,
+				   "local capability refusal exposes its exact branch without changing core reason");
 		}
 	}
 
@@ -5534,6 +5573,7 @@ namespace {
 auto main() -> int
 {
 	test_bootstrap_failure_stages_are_exact_and_replacement_safe();
+	test_local_capability_refusal_details();
 	test_failed_startup_load_keeps_repeated_replacement_blocked();
 	test_sign_out_during_binding_load_erases_the_loaded_authority();
 	test_replacement_during_binding_load_waits_for_exact_cleanup();

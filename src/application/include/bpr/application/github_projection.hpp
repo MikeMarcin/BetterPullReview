@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_PROJECTION_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_PROJECTION_HPP
 
+#include "bpr/application/github_capability_diagnostic.hpp"
 #include "bpr/core/anonymous_read_policy.hpp"
 #include "bpr/core/github_model.hpp"
 
@@ -210,8 +211,9 @@ namespace bpr::application {
 		core::github_reason_code                    Reason            = core::github_reason_code::none;
 		std::optional<std::uint32_t>                RetryAfterSeconds = std::nullopt;
 		github_rate_limits_projection               RateLimits{ };
-		std::optional<github_rate_limit_projection> RateLimitCause = std::nullopt;
-		github_bootstrap_failure_stage              BootstrapStage = github_bootstrap_failure_stage::none;
+		std::optional<github_rate_limit_projection> RateLimitCause   = std::nullopt;
+		github_bootstrap_failure_stage              BootstrapStage   = github_bootstrap_failure_stage::none;
+		github_capability_diagnostic                CapabilityDetail = github_capability_diagnostic::none;
 
 		auto operator<=>(const github_host_diagnostic_projection&) const = default;
 	};

@@ -97,3 +97,57 @@ The existing HTTPS fixture previously returned only `{}` and Retry-After metadat
 The existing native target build, changed-TU strict tidy, formatting, Python compilation and diff hygiene pass. Worker selected checks passed 3/3 in 13.67 seconds; integrator reproduction of `ctest --test-dir build/dev --output-on-failure -R '^(native_https_transport_contract|native_https_transport_fixture|github_capability_probe)$'` passed 3/3 in 13.14 seconds. Full final two-file diff and code simplification were reviewed. Loopback certificates/proxies were cleaned by the fixture; consumed native-check temporary logs were removed. Existing build roots remain reused.
 
 This closes an offline coverage gap; it does not reproduce the live refusal or prove provider/session acceptance. Next bounded work must expose the fixed refusal category within capability discovery (transport metadata, GraphQL envelope/schema, provider correlation, or host cache/acceptance) without raw provider text, secret logging, relaxed validation, changed retry behavior or another live launch. The root-repair acceptance remains open.
+
+## Finite capability refusal diagnostics verified
+
+Capability-specific error records now carry a closed category through native
+HTTPS, normalization, provider and host handling. Existing predicates, core
+failures, retries and cleanup authority remain unchanged. Native failures use
+a private capability-only terminal; other surfaces retain their existing
+provider errors. Fixed Qt sentences appear in the existing copyable message,
+and invalid enum values become an explicit unavailable-detail fallback.
+Deferred cleanup preserves the original accepted failure's detail; stale
+replacements cannot inherit it.
+
+Incremental dev and tests-disabled Release builds pass. Worker affected checks
+passed 8/8 in 23.26 seconds, final provider/Qt identifier recheck 4/4 in 3.73
+seconds, architecture boundary 1/1 in 6.07 seconds, scoped strict tidy across
+the changed TUs and final affected repeats, formatting, Python compilation and
+diff hygiene. Integrator reproduction of the eight-selector command below
+passed 8/8 in 20.54 seconds:
+
+```sh
+ctest --test-dir build/dev --output-on-failure -R '^(native_https_transport_contract|native_https_transport_fixture|github_capability_probe|github_provider|application_github_host|qt_composed_github_scale_(100|125|200))$'
+```
+
+Nine native refusal scenarios, normalizer/provider categorization, host local
+and deferred/stale errors, and fixed visible/copied Qt messages are covered.
+The integrator inspected the entire twenty-file source/test change and the
+rendered GraphQL-error detail. Code simplification extracted the host's optional
+diagnostic and combined identical fixed fallback branches. Qt coalesces the
+duplicate numeric-header fixture on this runtime; it correctly reports observed
+invalid metadata rather than inferring duplicate provenance.
+
+Initial verification failures were corrected: incomplete Qt/helper declarations,
+a missing native forwarding branch for the new terminal (also independently
+found in review), a duplicate-header test expectation inconsistent with Qt's
+observed normalization, duplicate fallback branches flagged by tidy, and an enum
+identifier colliding with the architecture guard. The guard was preserved.
+The final named host-provider-error category distinguishes invalid error records
+from invalid success rate state. No known blocking review finding remains.
+
+Closeout review runtime: native rfc-critical-reviewer (gpt-6-astra, xhigh).
+The review was limited to unchanged admission/retry/authority/cleanup behavior,
+exact diagnostic attribution and absence of raw-value disclosure. Opposite-family
+review was unavailable. No live root-repair claim or full matrix is made.
+
+Documentation initially failed during unrelated RFC-directory reorganization,
+then exposed missing historical freeze recognition for answered v007. New
+validation records bind the unchanged v007 and diagnostic-v001 artifacts to
+commits containing those exact bytes, using the existing verifier convention.
+No answered packet, response, source manifest or verifier was rewritten.
+Documentation now passes and all 62 documentation tests pass. All 21 consumed
+`/tmp/bpr0559-detail-*.log` files were reviewed and removed; loopback resources
+were cleaned by the fixture. Existing dev/Release roots and ignored renders
+remain reused. The root cause remains open pending a separately authorized
+observation of the exact new diagnostic executable.

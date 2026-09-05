@@ -921,10 +921,26 @@ namespace {
 		capability_redirect,
 		capability_403_rate,
 		capability_429,
+		capability_refusal_encoding,
+		capability_refusal_duplicate,
+		capability_refusal_invalid,
+		capability_refusal_missing_rate,
+		capability_refusal_partial_rate,
+		capability_refusal_wrong_resource,
+		capability_refusal_content_type,
+		capability_refusal_header_bound,
+		capability_refusal_body_bound,
+
 		credential_free,
 		anonymous_read,
 		anonymous_read_canary,
 	};
+
+	[[nodiscard]] auto is_capability_refusal(const fixture_scenario aScenario) -> bool
+	{
+		return aScenario >= fixture_scenario::capability_refusal_encoding
+			&& aScenario <= fixture_scenario::capability_refusal_body_bound;
+	}
 
 	[[nodiscard]] auto parse_scenario(const std::string_view aValue)
 		-> std::optional<fixture_scenario>
@@ -1034,6 +1050,33 @@ namespace {
 		if (aValue == "capability-metadata") {
 			return fixture_scenario::capability_metadata;
 		}
+		if (aValue == "capability-refusal-encoding") {
+			return fixture_scenario::capability_refusal_encoding;
+		}
+		if (aValue == "capability-refusal-duplicate") {
+			return fixture_scenario::capability_refusal_duplicate;
+		}
+		if (aValue == "capability-refusal-invalid") {
+			return fixture_scenario::capability_refusal_invalid;
+		}
+		if (aValue == "capability-refusal-missing-rate") {
+			return fixture_scenario::capability_refusal_missing_rate;
+		}
+		if (aValue == "capability-refusal-partial-rate") {
+			return fixture_scenario::capability_refusal_partial_rate;
+		}
+		if (aValue == "capability-refusal-wrong-resource") {
+			return fixture_scenario::capability_refusal_wrong_resource;
+		}
+		if (aValue == "capability-refusal-content-type") {
+			return fixture_scenario::capability_refusal_content_type;
+		}
+		if (aValue == "capability-refusal-header-bound") {
+			return fixture_scenario::capability_refusal_header_bound;
+		}
+		if (aValue == "capability-refusal-body-bound") {
+			return fixture_scenario::capability_refusal_body_bound;
+		}
 		if (aValue == "capability-success") {
 			return fixture_scenario::capability_success;
 		}
@@ -1123,6 +1166,24 @@ namespace {
 			return "graphql-link";
 		case fixture_scenario::capability_metadata:
 			return "capability-metadata";
+		case fixture_scenario::capability_refusal_encoding:
+			return "capability-refusal-encoding";
+		case fixture_scenario::capability_refusal_duplicate:
+			return "capability-refusal-duplicate";
+		case fixture_scenario::capability_refusal_invalid:
+			return "capability-refusal-invalid";
+		case fixture_scenario::capability_refusal_missing_rate:
+			return "capability-refusal-missing-rate";
+		case fixture_scenario::capability_refusal_partial_rate:
+			return "capability-refusal-partial-rate";
+		case fixture_scenario::capability_refusal_wrong_resource:
+			return "capability-refusal-wrong-resource";
+		case fixture_scenario::capability_refusal_content_type:
+			return "capability-refusal-content-type";
+		case fixture_scenario::capability_refusal_header_bound:
+			return "capability-refusal-header-bound";
+		case fixture_scenario::capability_refusal_body_bound:
+			return "capability-refusal-body-bound";
 		case fixture_scenario::capability_success:
 			return "capability-success";
 		case fixture_scenario::capability_redirect:
@@ -1504,6 +1565,15 @@ namespace {
 			expect_error(aCompletion, aCorrelation,
 						 application::github_provider_failure::malformed_response);
 			return;
+		case fixture_scenario::capability_refusal_encoding:
+		case fixture_scenario::capability_refusal_duplicate:
+		case fixture_scenario::capability_refusal_invalid:
+		case fixture_scenario::capability_refusal_missing_rate:
+		case fixture_scenario::capability_refusal_partial_rate:
+		case fixture_scenario::capability_refusal_wrong_resource:
+		case fixture_scenario::capability_refusal_content_type:
+		case fixture_scenario::capability_refusal_header_bound:
+		case fixture_scenario::capability_refusal_body_bound:
 		case fixture_scenario::capability_success:
 		case fixture_scenario::capability_metadata:
 		case fixture_scenario::capability_redirect:
@@ -1519,6 +1589,48 @@ namespace {
 		const github_capability_probe_wire_correlation& aCorrelation,
 		const fixture_scenario                          aScenario)
 	{
+		if (is_capability_refusal(aScenario)) {
+			auto expected = application::github_capability_diagnostic::unavailable_detail;
+			if (aScenario == fixture_scenario::capability_refusal_encoding) {
+				expected = application::github_capability_diagnostic::transport_content_encoding;
+			}
+			if (aScenario == fixture_scenario::capability_refusal_duplicate) {
+				// Qt combines repeated numeric fields before exposing rawHeaderPairs.
+				// Diagnose the invalid singleton actually observed, not its provenance.
+				expected = application::github_capability_diagnostic::transport_invalid_metadata;
+			}
+			if (aScenario == fixture_scenario::capability_refusal_invalid) {
+				expected = application::github_capability_diagnostic::transport_invalid_metadata;
+			}
+			if (aScenario == fixture_scenario::capability_refusal_missing_rate) {
+				expected = application::github_capability_diagnostic::transport_missing_rate_tuple;
+			}
+			if (aScenario == fixture_scenario::capability_refusal_partial_rate) {
+				expected = application::github_capability_diagnostic::transport_partial_rate_tuple;
+			}
+			if (aScenario == fixture_scenario::capability_refusal_wrong_resource) {
+				expected = application::github_capability_diagnostic::transport_wrong_rate_resource;
+			}
+			if (aScenario == fixture_scenario::capability_refusal_content_type) {
+				expected = application::github_capability_diagnostic::transport_invalid_content_type;
+			}
+			if (aScenario == fixture_scenario::capability_refusal_header_bound) {
+				expected = application::github_capability_diagnostic::transport_header_limit;
+			}
+			if (aScenario == fixture_scenario::capability_refusal_body_bound) {
+				expected = application::github_capability_diagnostic::transport_body_limit;
+			}
+			const auto* error   = std::get_if<github_capability_probe_wire_error>(&aCompletion);
+			const auto  failure = aScenario == fixture_scenario::capability_refusal_header_bound
+					|| aScenario == fixture_scenario::capability_refusal_body_bound
+				? application::github_provider_failure::response_limit
+				: application::github_provider_failure::malformed_response;
+			expect(error != nullptr && error->Correlation == aCorrelation
+					   && error->Error.Failure == failure && error->CapabilityDetail == expected,
+				   "capability-native-refusal-has-exact-safe-detail");
+			return;
+		}
+
 		if (aScenario == fixture_scenario::capability_redirect) {
 			expect_capability_error(aCompletion, aCorrelation,
 									application::github_provider_failure::redirect,
@@ -1619,7 +1731,7 @@ namespace {
 		expect(!authorityCertificate.empty(), "fixture-authority-empty");
 
 		const auto profile = validate_github_host_profile(
-			aScenario == fixture_scenario::capability_success
+			(aScenario == fixture_scenario::capability_success || is_capability_refusal(aScenario))
 				? github_com_profile_candidate()
 				: profile_candidate(application::github_authentication_transport::native_https));
 		expect(profile.has_value(), "fixture-profile");
@@ -1632,7 +1744,7 @@ namespace {
 				? std::string{ }
 				: std::move(authorityCertificate),
 			.TotalTimeout            = aScenario == fixture_scenario::timeout ? 1s : 5s,
-			.ResponseBodyLimit       = aScenario == fixture_scenario::response_limit
+			.ResponseBodyLimit       = (aScenario == fixture_scenario::response_limit || aScenario == fixture_scenario::capability_refusal_body_bound)
 				? 1'024U
 				: native_https_maximum_response_body_bytes,
 		};
@@ -1724,7 +1836,7 @@ namespace {
 				"credential-free-refuses-pull-request-parent");
 			return;
 		}
-		if (aScenario == fixture_scenario::capability_success
+		if (is_capability_refusal(aScenario) || aScenario == fixture_scenario::capability_success
 			|| aScenario == fixture_scenario::capability_metadata
 			|| aScenario == fixture_scenario::capability_redirect
 			|| aScenario == fixture_scenario::capability_403_rate

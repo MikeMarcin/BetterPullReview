@@ -3,6 +3,7 @@
 
 #include "github_host_profile.hpp"
 
+#include "bpr/application/github_capability_diagnostic.hpp"
 #include "bpr/core/github_model.hpp"
 
 #include <array>
@@ -177,9 +178,10 @@ namespace bpr::adapters::github::detail {
 		std::array<
 			capability_schema_fact_state,
 			capability_schema_fact_count>
-										Facts{ };
-		capability_probe_unavailability Unavailability = capability_probe_unavailability::partial_response;
-		bool                            Complete       = false;
+												  Facts{ };
+		capability_probe_unavailability           Unavailability   = capability_probe_unavailability::partial_response;
+		bool                                      Complete         = false;
+		application::github_capability_diagnostic CapabilityDetail = application::github_capability_diagnostic::none;
 
 		auto operator<=>(const capability_probe_observation&) const = default;
 	};

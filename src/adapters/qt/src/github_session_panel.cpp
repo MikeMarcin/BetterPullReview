@@ -27,6 +27,89 @@
 namespace bpr::qt {
 	using namespace detail;
 
+	namespace {
+		[[nodiscard]] auto capability_detail_text(
+			const application::github_capability_diagnostic aDetail) -> QString
+		{
+			switch (application::bounded_capability_diagnostic(aDetail)) {
+			case application::github_capability_diagnostic::none:
+			case application::github_capability_diagnostic::unavailable_detail:
+				return QStringLiteral("No more specific capability refusal detail is available.");
+			case application::github_capability_diagnostic::transport_content_encoding:
+				return QStringLiteral("The response used an unsupported content encoding.");
+			case application::github_capability_diagnostic::transport_duplicate_metadata:
+				return QStringLiteral("The response contained duplicate HTTP metadata.");
+			case application::github_capability_diagnostic::transport_invalid_metadata:
+				return QStringLiteral("The response contained invalid HTTP metadata.");
+			case application::github_capability_diagnostic::transport_missing_rate_tuple:
+				return QStringLiteral("The response omitted required rate-limit metadata.");
+			case application::github_capability_diagnostic::transport_partial_rate_tuple:
+				return QStringLiteral("The response contained incomplete rate-limit metadata.");
+			case application::github_capability_diagnostic::transport_wrong_rate_resource:
+				return QStringLiteral("The response named an unexpected rate-limit resource.");
+			case application::github_capability_diagnostic::transport_invalid_content_type:
+				return QStringLiteral("The response did not declare a supported JSON content type.");
+			case application::github_capability_diagnostic::transport_header_limit:
+				return QStringLiteral("The response exceeded an HTTP header bound.");
+			case application::github_capability_diagnostic::transport_body_limit:
+				return QStringLiteral("The transport response exceeded a body bound.");
+			case application::github_capability_diagnostic::transport_body_length:
+				return QStringLiteral("The response body length disagreed with its metadata.");
+			case application::github_capability_diagnostic::normalizer_invalid_limits:
+				return QStringLiteral("The capability parser limits were invalid.");
+			case application::github_capability_diagnostic::normalizer_transport_unavailable:
+				return QStringLiteral("The capability parser received an unavailable transport result.");
+			case application::github_capability_diagnostic::normalizer_rate_metadata:
+				return QStringLiteral("The capability parser rejected the rate-limit metadata.");
+			case application::github_capability_diagnostic::normalizer_body_limit:
+				return QStringLiteral("The capability response exceeded the parser byte bound.");
+			case application::github_capability_diagnostic::json_limits:
+				return QStringLiteral("The capability JSON exceeded a structural bound.");
+			case application::github_capability_diagnostic::json_shape:
+				return QStringLiteral("The capability response had invalid JSON structure.");
+			case application::github_capability_diagnostic::graphql_errors:
+				return QStringLiteral("The capability response contained a GraphQL error envelope.");
+			case application::github_capability_diagnostic::graphql_data:
+				return QStringLiteral("The capability response lacked an object data envelope.");
+			case application::github_capability_diagnostic::graphql_aliases:
+				return QStringLiteral("The capability response did not contain the exact expected aliases.");
+			case application::github_capability_diagnostic::schema_limits:
+				return QStringLiteral("The capability schema exceeded a selected schema bound.");
+			case application::github_capability_diagnostic::schema_shape:
+				return QStringLiteral("The capability response had an invalid schema shape.");
+			case application::github_capability_diagnostic::normalization_allocation:
+				return QStringLiteral("The capability parser could not allocate bounded working storage.");
+			case application::github_capability_diagnostic::normalization_unexpected:
+				return QStringLiteral("The capability parser encountered an unexpected local failure.");
+			case application::github_capability_diagnostic::provider_request_compilation:
+				return QStringLiteral("The capability provider could not compile the selected request.");
+			case application::github_capability_diagnostic::provider_correlation:
+				return QStringLiteral("The capability provider received an inconsistent response correlation.");
+			case application::github_capability_diagnostic::provider_metadata:
+				return QStringLiteral("The capability provider rejected inconsistent response metadata.");
+			case application::github_capability_diagnostic::provider_rate_tuple:
+				return QStringLiteral("The capability provider rejected the required rate-limit tuple.");
+			case application::github_capability_diagnostic::provider_retry_metadata:
+				return QStringLiteral("The capability provider rejected inconsistent retry metadata.");
+			case application::github_capability_diagnostic::provider_observation:
+				return QStringLiteral("The capability provider received an invalid normalized observation.");
+			case application::github_capability_diagnostic::host_epoch:
+				return QStringLiteral("The local capability observation counter was exhausted.");
+			case application::github_capability_diagnostic::host_cache_lookup:
+				return QStringLiteral("The local capability cache lookup was refused.");
+			case application::github_capability_diagnostic::host_correlation:
+				return QStringLiteral("The application received an inconsistent capability request correlation.");
+			case application::github_capability_diagnostic::host_provider_error:
+				return QStringLiteral("The application rejected an invalid capability error record.");
+			case application::github_capability_diagnostic::host_rate_state:
+				return QStringLiteral("The application rejected the capability rate-limit state.");
+			case application::github_capability_diagnostic::host_cache_stage:
+				return QStringLiteral("The application could not stage the capability observation.");
+			}
+			return QStringLiteral("No more specific capability refusal detail is available.");
+		}
+	}
+
 	github_session_panel::github_session_panel(
 		std::vector<application::github_profile_option> aProfiles,
 		application::github_intent_dispatch             aDispatch,
@@ -519,7 +602,8 @@ namespace bpr::qt {
 		const std::optional<std::uint32_t>                              aRetryAfter,
 		const std::optional<application::github_rate_limit_projection>& aRateLimit,
 		const bool                                                      aHostDetail,
-		const application::github_bootstrap_failure_stage               aBootstrapStage)
+		const application::github_bootstrap_failure_stage               aBootstrapStage,
+		const application::github_capability_diagnostic                 aCapabilityDetail)
 	{
 		if (
 			!aHostDetail && LastDiagnosticHasHostDetail
@@ -539,6 +623,8 @@ namespace bpr::qt {
 				break;
 			case application::github_bootstrap_failure_stage::capability_discovery:
 				message.prepend(QStringLiteral("Capability discovery: "));
+				message.append(QStringLiteral(" "));
+				message.append(capability_detail_text(aCapabilityDetail));
 				break;
 			case application::github_bootstrap_failure_stage::session_acceptance:
 				message.prepend(QStringLiteral("Session acceptance: "));

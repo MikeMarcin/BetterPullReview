@@ -1369,6 +1369,52 @@ namespace {
 			   "provider never retries beyond explicitly submitted attempts");
 	}
 
+	void test_capability_refusal_detail_propagation()
+	{
+		provider_fixture fixture{ application::github_authentication_transport::native_https };
+		const auto       request = capability_request_for(fixture, account_lease(fixture));
+		using diagnostic         = application::github_capability_diagnostic;
+		for (const auto detail : { diagnostic::transport_content_encoding, static_cast<diagnostic>(255U) }) {
+			fixture.Transport->CapabilityHandler = [detail](const github_capability_probe_wire_request& aWire, std::stop_token) {
+				return github_capability_probe_wire_error{
+					.Correlation      = aWire.Correlation,
+					.Error            = { .Failure = application::github_provider_failure::malformed_response },
+					.CapabilityDetail = detail
+				};
+			};
+			const auto  completion = run_capability(fixture, request);
+			const auto* error      = std::get_if<application::github_capability_error>(&completion);
+			expect(error != nullptr && error->Error.Failure == application::github_provider_failure::malformed_response
+					   && error->CapabilityDetail == application::bounded_capability_diagnostic(detail),
+				   "provider preserves only bounded capability detail without changing failure policy");
+		}
+		for (const auto detail : { diagnostic::graphql_errors, diagnostic::provider_rate_tuple, diagnostic::provider_retry_metadata, diagnostic::provider_correlation }) {
+			fixture.Transport->CapabilityHandler = [detail](const github_capability_probe_wire_request& aWire, std::stop_token) {
+				auto response    = supported_capability_response();
+				auto correlation = aWire.Correlation;
+				if (detail == diagnostic::graphql_errors) {
+					response.Body = R"({"errors":[]})";
+				}
+				if (detail == diagnostic::provider_rate_tuple) {
+					response.RateLimitHeaderCount = 0U;
+				}
+				if (detail == diagnostic::provider_retry_metadata) {
+					response.RateLimitHeaders[4]  = { .Name = "Retry-After", .Value = "7" };
+					response.RateLimitHeaderCount = 5U;
+				}
+				if (detail == diagnostic::provider_correlation) {
+					correlation.Host = core::git_host_id{ 999U };
+				}
+				return github_capability_probe_wire_success{ .Correlation = correlation, .Response = std::move(response) };
+			};
+			const auto  completion = run_capability(fixture, request);
+			const auto* error      = std::get_if<application::github_capability_error>(&completion);
+			expect(error != nullptr && error->CapabilityDetail == detail
+					   && error->Error.Failure == application::github_provider_failure::malformed_response,
+				   "provider discriminates normalization and metadata or correlation refusal");
+		}
+	}
+
 	void test_account_capability_cache_and_retry_contracts()
 	{
 		provider_fixture fixture{
@@ -1594,6 +1640,7 @@ int main()
 	test_retrieved_account_must_match_observed_viewer();
 	test_viewer_terminal_correlation();
 	test_account_capability_cache_and_retry_contracts();
+	test_capability_refusal_detail_propagation();
 	test_cancellation_finality();
 	test_exception_containment_is_exactly_once();
 	test_cli_is_categorically_unavailable();

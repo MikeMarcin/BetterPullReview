@@ -342,6 +342,7 @@ namespace bpr::application {
 			.RetryAfterSeconds = aDiagnostic.RetryAfterSeconds,
 			.RateLimits        = project(aDiagnostic.RateLimits),
 			.RateLimitCause    = project(aDiagnostic.RateLimitCause),
+			.CapabilityDetail  = aDiagnostic.CapabilityDetail == github_capability_diagnostic::none ? github_capability_diagnostic::none : bounded_capability_diagnostic(aDiagnostic.CapabilityDetail),
 		};
 	}
 }

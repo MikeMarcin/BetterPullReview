@@ -1259,7 +1259,8 @@ namespace bpr::adapters::github::detail {
 						});
 					};
 					const auto failed =
-						[&](application::github_provider_error aError) {
+						[&](application::github_provider_error              aError,
+							const application::github_capability_diagnostic aDetail = application::github_capability_diagnostic::unavailable_detail) {
 							if (finish_job(state, job)) {
 								delivery->deliver(
 									application::github_capability_cancelled{
@@ -1268,8 +1269,9 @@ namespace bpr::adapters::github::detail {
 								return;
 							}
 							delivery->deliver(application::github_capability_error{
-								.Request = aRequest,
-								.Error   = std::move(aError),
+								.Request          = aRequest,
+								.Error            = std::move(aError),
+								.CapabilityDetail = application::bounded_capability_diagnostic(aDetail),
 							});
 						};
 					try {
@@ -1280,7 +1282,7 @@ namespace bpr::adapters::github::detail {
 						const auto compiled = compile_capability_probe_request(*profile);
 						if (!compiled.has_value()) {
 							failed(
-								provider_error(provider_failure(compiled.error())));
+								provider_error(provider_failure(compiled.error())), application::github_capability_diagnostic::provider_request_compilation);
 							return;
 						}
 						const github_capability_probe_wire_request wire{
@@ -1296,8 +1298,9 @@ namespace bpr::adapters::github::detail {
 							wire, job->Stop.get_token());
 						if (terminal.valueless_by_exception()) {
 							failed(provider_error(
-								application::github_provider_failure::
-									malformed_response));
+									   application::github_provider_failure::
+										   malformed_response),
+								   application::github_capability_diagnostic::provider_correlation);
 							return;
 						}
 						if (const auto* wireCancelled = std::get_if<github_capability_probe_wire_cancelled>(
@@ -1305,8 +1308,9 @@ namespace bpr::adapters::github::detail {
 							wireCancelled != nullptr) {
 							if (wireCancelled->Correlation != wire.Correlation) {
 								failed(provider_error(
-									application::github_provider_failure::
-										malformed_response));
+										   application::github_provider_failure::
+											   malformed_response),
+									   application::github_capability_diagnostic::provider_correlation);
 							} else {
 								cancelled();
 							}
@@ -1322,10 +1326,11 @@ namespace bpr::adapters::github::detail {
 									application::github_rate_limit_resource::
 										graphql)) {
 								failed(provider_error(
-									application::github_provider_failure::
-										malformed_response));
+										   application::github_provider_failure::
+											   malformed_response),
+									   error->Correlation != wire.Correlation ? application::github_capability_diagnostic::provider_correlation : application::github_capability_diagnostic::provider_metadata);
 							} else {
-								failed(error->Error);
+								failed(error->Error, error->CapabilityDetail);
 							}
 							return;
 						}
@@ -1336,8 +1341,11 @@ namespace bpr::adapters::github::detail {
 							|| success->Response.RateLimitHeaderCount
 								> success->Response.RateLimitHeaders.size()) {
 							failed(provider_error(
-								application::github_provider_failure::
-									malformed_response));
+									   application::github_provider_failure::
+										   malformed_response),
+								   success != nullptr && success->Correlation == wire.Correlation
+									   ? application::github_capability_diagnostic::provider_metadata
+									   : application::github_capability_diagnostic::provider_correlation);
 							return;
 						}
 
@@ -1366,7 +1374,7 @@ namespace bpr::adapters::github::detail {
 						const auto metadata = parse_github_response_metadata(metadataResponse);
 						const auto server   = expected_server(*profile);
 						if (!metadata.has_value()) {
-							failed(metadata.error());
+							failed(metadata.error(), application::github_capability_diagnostic::provider_metadata);
 							return;
 						}
 						if (!server.has_value()
@@ -1377,8 +1385,9 @@ namespace bpr::adapters::github::detail {
 									!= application::github_rate_limit_resource::
 										graphql)) {
 							failed(provider_error(
-								application::github_provider_failure::
-									malformed_response));
+									   application::github_provider_failure::
+										   malformed_response),
+								   application::github_capability_diagnostic::provider_rate_tuple);
 							return;
 						}
 						auto       rateLimits  = rate_limit_state(metadata->RateLimit);
@@ -1395,8 +1404,9 @@ namespace bpr::adapters::github::detail {
 								== application::github_provider_failure::rate_limit) {
 								if (!metadata->RateLimit.has_value()) {
 									failed(provider_error(
-										application::github_provider_failure::
-											malformed_response));
+											   application::github_provider_failure::
+												   malformed_response),
+										   application::github_capability_diagnostic::provider_rate_tuple);
 									return;
 								}
 								auto cause             = *metadata->RateLimit;
@@ -1411,21 +1421,24 @@ namespace bpr::adapters::github::detail {
 										   : std::nullopt);
 							} else if (metadata->RetryAfterSeconds.has_value()) {
 								failed(provider_error(
-									application::github_provider_failure::
-										malformed_response));
+										   application::github_provider_failure::
+											   malformed_response),
+									   application::github_capability_diagnostic::provider_retry_metadata);
 								return;
 							}
 							failed(application::valid(failure)
 									   ? failure
 									   : provider_error(
 											 application::github_provider_failure::
-												 malformed_response));
+												 malformed_response),
+								   valid(observation) ? observation.CapabilityDetail : application::github_capability_diagnostic::provider_observation);
 							return;
 						}
 						if (metadata->RetryAfterSeconds.has_value()) {
 							failed(provider_error(
-								application::github_provider_failure::
-									malformed_response));
+									   application::github_provider_failure::
+										   malformed_response),
+								   application::github_capability_diagnostic::provider_retry_metadata);
 							return;
 						}
 						auto facts    = capability_facts(observation.Capabilities);
@@ -1445,7 +1458,8 @@ namespace bpr::adapters::github::detail {
 						});
 					} catch (...) {
 						failed(provider_error(
-							application::github_provider_failure::response_limit));
+								   application::github_provider_failure::response_limit),
+							   application::github_capability_diagnostic::unavailable_detail);
 					}
 				});
 		} catch (...) {

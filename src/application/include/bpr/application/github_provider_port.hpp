@@ -2,6 +2,7 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_PROVIDER_PORT_HPP
 
 #include "bpr/application/github_capability_cache.hpp"
+#include "bpr/application/github_capability_diagnostic.hpp"
 #include "bpr/application/github_credential_vault.hpp"
 #include "bpr/application/github_read_model.hpp"
 
@@ -290,8 +291,9 @@ namespace bpr::application {
 	/// \brief Describes the github capability error record.
 	struct github_capability_error
 	{
-		github_capability_request Request;
-		github_provider_error     Error;
+		github_capability_request    Request;
+		github_provider_error        Error;
+		github_capability_diagnostic CapabilityDetail = github_capability_diagnostic::unavailable_detail;
 
 		auto operator<=>(const github_capability_error&) const = default;
 	};

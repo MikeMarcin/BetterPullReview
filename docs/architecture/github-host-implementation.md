@@ -719,6 +719,15 @@ permission, network, API-version, rate-limit, certificate, redirect, timeout,
 cancellation, malformed-response, response-limit, and unavailable outcomes
 remain typed and redact remote detail.
 
+Capability-discovery refusals additionally carry a finite source-defined category
+through the provider and exact accepted host terminal. The category distinguishes
+transport metadata, response envelopes and schema normalization, provider
+consistency and local host/cache failures without carrying remote values or
+text. Deferred credential cleanup preserves the category with its original
+request; stale replacements cannot inherit it. Qt renders a fixed sentence in
+the existing copyable diagnostic. Invalid category values display an explicit
+unavailable-detail fallback and do not change failure or retry policy.
+
 Those are adapter acceptance and retention bounds, not exact bounds on Qt's
 private HTTP parser, socket buffers, or other in-flight allocations. Qt can
 parse or retain bytes before exposing metadata through `QNetworkReply`, and it

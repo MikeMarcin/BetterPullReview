@@ -414,3 +414,17 @@ historical at its recorded scope; it does not prove this current composed
 sign-in succeeded. BPR-0559 adds safe bootstrap-stage diagnostics and awaits
 an exact sign-in-only observation to identify the failing response contract.
 No current live publication or successful app session is claimed.
+
+### Capability-discovery refusal isolated — 2026-09-04
+
+The owner-authorized diagnostic retry reported capability discovery as the
+refusing stage. Copy message, explicit Sign out, disconnected terminal UI and
+normal process exit 0 were observed; no PR was opened or publication attempted.
+See the [immutable retry record](reviews/device-session-bootstrap-diagnostic-v001/retry-authorization-and-result.md).
+A new offline native HTTPS course passes the supported public-schema fixture
+through production normalization, closing the split transport/parser coverage
+gap. Finite source-defined refusal categories now distinguish transport,
+normalizer, provider and host branches in the copyable diagnostic. Focused
+native/provider/host/Qt evidence is recorded on BPR-0559. The actual live response
+contract remains unknown; instrumentation is not a root repair or successful
+application-session claim.

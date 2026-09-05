@@ -86,6 +86,15 @@ SCENARIOS = (
     "graphql-link",
     "capability-success",
     "capability-metadata",
+    "capability-refusal-encoding",
+    "capability-refusal-duplicate",
+    "capability-refusal-invalid",
+    "capability-refusal-missing-rate",
+    "capability-refusal-partial-rate",
+    "capability-refusal-wrong-resource",
+    "capability-refusal-content-type",
+    "capability-refusal-header-bound",
+    "capability-refusal-body-bound",
     "capability-redirect",
     "capability-403-rate",
     "capability-429",
@@ -119,7 +128,7 @@ SUITE_LABELS = {
 def scenario_host(scenario: str) -> str:
     return (
         GITHUB_HOST
-        if scenario in ANONYMOUS_READ_SCENARIOS or scenario == "capability-success"
+        if scenario in ANONYMOUS_READ_SCENARIOS or scenario == "capability-success" or scenario.startswith("capability-refusal-")
         else HOST
     )
 
@@ -127,7 +136,7 @@ def scenario_host(scenario: str) -> str:
 def scenario_authority(scenario: str) -> str:
     return (
         GITHUB_AUTHORITY
-        if scenario in ANONYMOUS_READ_SCENARIOS or scenario == "capability-success"
+        if scenario in ANONYMOUS_READ_SCENARIOS or scenario == "capability-success" or scenario.startswith("capability-refusal-")
         else AUTHORITY
     )
 
@@ -836,7 +845,7 @@ class LoopbackConnectTlsFixture:
                 != b"application/json"
             ):
                 self.observation.violate("mutation-content-type")
-        elif self.scenario in {
+        elif self.scenario.startswith("capability-refusal-") or self.scenario in {
             "graphql-redirect",
             "graphql-link",
             "graphql-403-rate",
@@ -848,7 +857,7 @@ class LoopbackConnectTlsFixture:
         }:
             if (
                 request.method != "POST"
-                or request.target != ("/graphql" if self.scenario == "capability-success" else GRAPHQL_PATH)
+                or request.target != ("/graphql" if self.host == GITHUB_HOST else GRAPHQL_PATH)
                 or request.body_size == 0
             ):
                 self.observation.violate("graphql-request")
@@ -857,7 +866,7 @@ class LoopbackConnectTlsFixture:
                 != b"application/json"
             ):
                 self.observation.violate("graphql-content-type")
-            if self.scenario == "capability-success" and (
+            if (self.scenario == "capability-success" or self.scenario.startswith("capability-refusal-")) and (
                 not request.exact_capability_body
                 or one_header(request.headers, "content-encoding") is not None
             ):
@@ -1158,6 +1167,31 @@ class LoopbackConnectTlsFixture:
                 )
             )
             return
+
+        if self.scenario.startswith("capability-refusal-"):
+            headers = list(rate_limit_headers("graphql"))
+            body = b"{}"
+            content_type = "application/json"
+            if self.scenario == "capability-refusal-encoding":
+                headers.append(("Content-Encoding", "gzip"))
+            elif self.scenario == "capability-refusal-duplicate":
+                headers.append(("X-RateLimit-Limit", "60"))
+            elif self.scenario == "capability-refusal-invalid":
+                headers = [(name, "invalid" if name == "X-RateLimit-Reset" else value) for name, value in headers]
+            elif self.scenario == "capability-refusal-missing-rate":
+                headers = []
+            elif self.scenario == "capability-refusal-partial-rate":
+                headers = [("X-RateLimit-Limit", "60")]
+            elif self.scenario == "capability-refusal-wrong-resource":
+                headers = list(rate_limit_headers("core"))
+            elif self.scenario == "capability-refusal-content-type":
+                content_type = "text/plain"
+            elif self.scenario == "capability-refusal-header-bound":
+                headers.append(("X-Bounded-Fixture", "x" * (64 * 1024)))
+            elif self.scenario == "capability-refusal-body-bound":
+                body = b"x" * 2048
+            connection.sendall(response_bytes(200, "OK", body, tuple(headers), content_type=content_type))
+            return
         if self.scenario in {"capability-success", "capability-metadata"}:
             connection.sendall(
                 response_bytes(
@@ -1318,7 +1352,7 @@ class LoopbackConnectTlsFixture:
         }:
             if targets != (MUTATION_PATH,):
                 raise ProbeFailure("mutation-witness-target")
-        elif self.scenario in {
+        elif self.scenario.startswith("capability-refusal-") or self.scenario in {
             "graphql-redirect",
             "graphql-link",
             "graphql-403-rate",
@@ -1328,7 +1362,7 @@ class LoopbackConnectTlsFixture:
             "capability-403-rate",
             "capability-429",
         }:
-            if targets != (("/graphql" if self.scenario == "capability-success" else GRAPHQL_PATH),):
+            if targets != (("/graphql" if self.host == GITHUB_HOST else GRAPHQL_PATH),):
                 raise ProbeFailure("graphql-redirect-target")
         elif targets != (REST_PATH,):
             raise ProbeFailure(f"{self.scenario}-target")

@@ -11,6 +11,7 @@ namespace bpr::application {
 		std::optional<std::uint32_t>            RetryAfterSeconds;
 		github_rate_limit_state                 RateLimits;
 		std::optional<github_rate_limit_record> RateLimitCause;
+		github_capability_diagnostic            CapabilityDetail = github_capability_diagnostic::none;
 
 		auto operator<=>(const github_host_diagnostic&) const = default;
 	};

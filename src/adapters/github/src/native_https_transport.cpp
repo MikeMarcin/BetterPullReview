@@ -223,8 +223,14 @@ namespace bpr::adapters::github::detail {
 			page_completeness        Completeness = page_completeness::unknown;
 		};
 
+		struct hop_capability_failure
+		{
+			application::github_provider_error        Error;
+			application::github_capability_diagnostic Detail;
+		};
+
 		using hop_result = std::variant<hop_success, hop_redirect, hop_proxy_failure,
-										application::github_provider_error, hop_cancelled>;
+										application::github_provider_error, hop_cancelled, hop_capability_failure>;
 
 		struct operation_state
 		{
@@ -324,30 +330,31 @@ namespace bpr::adapters::github::detail {
 			{
 			}
 
-			std::shared_ptr<operation_state> Operation;
-			QNetworkReply*                   Reply                        = nullptr;
-			bool                             Cancellation                 = false;
-			bool                             Certificate                  = false;
-			bool                             EncryptedSignalObserved      = false;
-			bool                             Deadline                     = false;
-			bool                             HeaderLimit                  = false;
-			bool                             ResponseLimit                = false;
-			bool                             Malformed                    = false;
-			bool                             AuthenticationChallenge      = false;
-			bool                             ProxyAuthenticationChallenge = false;
-			bool                             PreSharedKeyChallenge        = false;
-			bool                             MetadataChecked              = false;
-			int                              Status                       = 0;
-			std::optional<std::string>       ContentType;
-			std::optional<std::uint64_t>     ContentLength;
-			std::optional<std::string>       Link;
-			std::optional<std::string>       RetryAfter;
-			std::optional<std::string>       RateLimitLimit;
-			std::optional<std::string>       RateLimitRemaining;
-			std::optional<std::string>       RateLimitReset;
-			std::optional<std::string>       RateLimitResource;
-			std::string                      Body;
-			std::size_t                      ResponseBodyLimit = native_https_maximum_response_body_bytes;
+			std::shared_ptr<operation_state>          Operation;
+			QNetworkReply*                            Reply                        = nullptr;
+			bool                                      Cancellation                 = false;
+			bool                                      Certificate                  = false;
+			bool                                      EncryptedSignalObserved      = false;
+			bool                                      Deadline                     = false;
+			bool                                      HeaderLimit                  = false;
+			bool                                      ResponseLimit                = false;
+			bool                                      Malformed                    = false;
+			bool                                      AuthenticationChallenge      = false;
+			bool                                      ProxyAuthenticationChallenge = false;
+			bool                                      PreSharedKeyChallenge        = false;
+			bool                                      MetadataChecked              = false;
+			int                                       Status                       = 0;
+			std::optional<std::string>                ContentType;
+			std::optional<std::uint64_t>              ContentLength;
+			std::optional<std::string>                Link;
+			std::optional<std::string>                RetryAfter;
+			std::optional<std::string>                RateLimitLimit;
+			std::optional<std::string>                RateLimitRemaining;
+			std::optional<std::string>                RateLimitReset;
+			std::optional<std::string>                RateLimitResource;
+			std::string                               Body;
+			std::size_t                               ResponseBodyLimit = native_https_maximum_response_body_bytes;
+			application::github_capability_diagnostic CapabilityDetail  = application::github_capability_diagnostic::transport_invalid_metadata;
 		};
 
 		[[nodiscard]] auto provider_error(
@@ -410,12 +417,14 @@ namespace bpr::adapters::github::detail {
 
 		[[nodiscard]] auto
 		capability_error(const github_capability_probe_wire_correlation& aCorrelation,
-						 const application::github_provider_error        aError)
+						 const application::github_provider_error        aError,
+						 const application::github_capability_diagnostic aDetail = application::github_capability_diagnostic::unavailable_detail)
 			-> github_capability_probe_wire_completion
 		{
 			return github_capability_probe_wire_error{
-				.Correlation = aCorrelation,
-				.Error       = aError,
+				.Correlation      = aCorrelation,
+				.Error            = aError,
+				.CapabilityDetail = aDetail,
 			};
 		}
 
@@ -426,6 +435,18 @@ namespace bpr::adapters::github::detail {
 			-> github_capability_probe_wire_completion
 		{
 			return capability_error(aCorrelation, provider_error(aFailure, aRetryAfter));
+		}
+
+		[[nodiscard]] auto capability_hop_error(
+			const native_request_surface                    aSurface,
+			const application::github_provider_failure      aFailure,
+			const application::github_capability_diagnostic aDetail) -> hop_result
+		{
+			const auto error = provider_error(aFailure);
+			if (aSurface == native_request_surface::capability_probe) {
+				return hop_capability_failure{ .Error = error, .Detail = aDetail };
+			}
+			return error;
 		}
 
 		[[nodiscard]] auto native_request_from(const github_wire_request& aRequest)
@@ -1515,7 +1536,14 @@ namespace bpr::adapters::github::detail {
 					&& !strict_decimal(*aState.RateLimitRemaining).has_value())
 				|| (aState.RateLimitReset.has_value()
 					&& !strict_decimal(*aState.RateLimitReset).has_value())) {
-				aState.Malformed = true;
+				aState.Malformed        = true;
+				aState.CapabilityDetail = contentEncodingCount != 0U
+					? application::github_capability_diagnostic::transport_content_encoding
+					: (contentTypeCount > 1U || contentLengthCount > 1U || linkCount > 1U
+					   || locationCount > 1U || retryAfterCount > 1U || rateLimitCount > 1U
+					   || rateRemainingCount > 1U || rateResetCount > 1U || rateResourceCount > 1U)
+					? application::github_capability_diagnostic::transport_duplicate_metadata
+					: application::github_capability_diagnostic::transport_invalid_metadata;
 			}
 			const auto rateTupleCount = static_cast<std::size_t>(aState.RateLimitLimit.has_value())
 				+ static_cast<std::size_t>(aState.RateLimitRemaining.has_value())
@@ -1532,6 +1560,13 @@ namespace bpr::adapters::github::detail {
 					&& *aState.RateLimitResource
 						!= rate_limit_resource_name(
 							aState.Operation->Request.RateLimitResource))) {
+				if (!aState.Malformed) {
+					aState.CapabilityDetail = rateTupleCount == 0U
+						? application::github_capability_diagnostic::transport_missing_rate_tuple
+						: rateTupleCount != 4U
+						? application::github_capability_diagnostic::transport_partial_rate_tuple
+						: application::github_capability_diagnostic::transport_wrong_rate_resource;
+				}
 				aState.Malformed = true;
 			}
 			const auto rateLimit     = aState.RateLimitLimit.has_value()
@@ -1999,7 +2034,7 @@ namespace bpr::adapters::github::detail {
 						>= response.RateLimitHeaders.size()) {
 						return capability_error(
 							aCorrelation,
-							application::github_provider_failure::malformed_response);
+							provider_error(application::github_provider_failure::malformed_response), application::github_capability_diagnostic::transport_header_limit);
 					}
 					response.RateLimitHeaders[response.RateLimitHeaderCount] = capability_probe_header{
 						.Name  = std::move(header.Name),
@@ -2010,12 +2045,15 @@ namespace bpr::adapters::github::detail {
 				if (response.ContentType.empty()) {
 					return capability_error(
 						aCorrelation,
-						application::github_provider_failure::malformed_response);
+						provider_error(application::github_provider_failure::malformed_response), application::github_capability_diagnostic::transport_invalid_content_type);
 				}
 				return github_capability_probe_wire_success{
 					.Correlation = aCorrelation,
 					.Response    = std::move(response),
 				};
+			}
+			if (auto* error = std::get_if<hop_capability_failure>(&aResult)) {
+				return capability_error(aCorrelation, error->Error, error->Detail);
 			}
 			if (auto* error = std::get_if<application::github_provider_error>(&aResult);
 				error != nullptr) {
@@ -3650,12 +3688,12 @@ namespace bpr::adapters::github::detail {
 				};
 			}
 			if (state.HeaderLimit || state.ResponseLimit) {
-				return provider_error(
-					application::github_provider_failure::response_limit);
+				return capability_hop_error(aOperation->Request.Surface,
+											application::github_provider_failure::response_limit, state.HeaderLimit ? application::github_capability_diagnostic::transport_header_limit : application::github_capability_diagnostic::transport_body_limit);
 			}
 			if (state.Malformed) {
-				return provider_error(
-					application::github_provider_failure::malformed_response);
+				return capability_hop_error(aOperation->Request.Surface,
+											application::github_provider_failure::malformed_response, state.CapabilityDetail);
 			}
 			if (state.Status == 0) {
 				const auto failure = error == QNetworkReply::NoError
@@ -3699,19 +3737,19 @@ namespace bpr::adapters::github::detail {
 			if (
 				!state.ContentType.has_value()
 				|| !supported_json_content_type(*state.ContentType)) {
-				return provider_error(
-					application::github_provider_failure::malformed_response);
+				return capability_hop_error(aOperation->Request.Surface,
+											application::github_provider_failure::malformed_response, application::github_capability_diagnostic::transport_invalid_content_type);
 			}
 			if (
 				state.ContentLength.has_value()
 				&& *state.ContentLength != state.Body.size()) {
-				return provider_error(
-					application::github_provider_failure::malformed_response);
+				return capability_hop_error(aOperation->Request.Surface,
+											application::github_provider_failure::malformed_response, application::github_capability_diagnostic::transport_body_length);
 			}
 			const auto completeness = parse_link_completeness(state.Link);
 			if (!completeness.has_value()) {
-				return provider_error(
-					application::github_provider_failure::malformed_response);
+				return capability_hop_error(aOperation->Request.Surface,
+											application::github_provider_failure::malformed_response, application::github_capability_diagnostic::transport_invalid_metadata);
 			}
 			return hop_success{
 				.Status       = state.Status,
@@ -3828,6 +3866,10 @@ namespace bpr::adapters::github::detail {
 				}
 				if (auto* error = std::get_if<application::github_provider_error>(&result);
 					error != nullptr) {
+					return *error;
+				}
+
+				if (auto* error = std::get_if<hop_capability_failure>(&result)) {
 					return *error;
 				}
 

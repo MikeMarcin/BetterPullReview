@@ -1065,7 +1065,10 @@ namespace {
 					.Diagnostics = { { .Code = core::github_reason_code::malformed_response } } },
 				.HostDiagnostics = { { .Reason = core::github_reason_code::malformed_response, .BootstrapStage = stage } } });
 			QApplication::processEvents();
-			const auto message = QString::fromLatin1(prefix) + QStringLiteral("GitHub returned data that BetterPullReview could not safely use.");
+			auto message = QString::fromLatin1(prefix) + QStringLiteral("GitHub returned data that BetterPullReview could not safely use.");
+			if (stage == application::github_bootstrap_failure_stage::capability_discovery) {
+				message.append(QStringLiteral(" No more specific capability refusal detail is available."));
+			}
 			expect(required_label(window, "githubEmptyStateBody")->isVisible()
 					   && required_label(window, "githubEmptyStateBody")->text() == message
 					   && required_label(window, "githubDiagnostic")->text() == message,
@@ -1088,6 +1091,39 @@ namespace {
 			required_child<QToolButton>(window, "copyGithubMessageButton")->click();
 			expect(!QApplication::clipboard()->text().contains(QString::fromLatin1(prefix)),
 				   "cleared bootstrap phase cannot survive in copied text");
+		}
+	}
+
+	auto test_capability_refusal_detail_is_copyable_and_cleared() -> void
+	{
+		qt::workbench_window window{ qt::workbench_intent_dispatch{ }, qt::workbench_change_dispatch{ }, qt::workbench_drawer_width_dispatch{ }, profiles(), [](application::github_intent) { } };
+		window.resize(960, 640);
+		window.show();
+		using diagnostic = application::github_capability_diagnostic;
+		for (const auto detail : { diagnostic::transport_content_encoding, diagnostic::graphql_errors, diagnostic::host_cache_stage, static_cast<diagnostic>(255U) }) {
+			window.publish(application::github_presentation_update{
+				.Transition = application::github_transition_projection{
+					.Status      = core::github_status_delta{ .Status = core::github_status::session_failed },
+					.Diagnostics = { { .Code = core::github_reason_code::malformed_response } } },
+				.HostDiagnostics = { { .Reason = core::github_reason_code::malformed_response, .BootstrapStage = application::github_bootstrap_failure_stage::capability_discovery, .CapabilityDetail = detail } } });
+			QApplication::processEvents();
+			const auto message  = QString::fromStdString(window.github_diagnostic_text());
+			const auto expected = detail == diagnostic::transport_content_encoding ? QStringLiteral("The response used an unsupported content encoding.")
+				: detail == diagnostic::graphql_errors                             ? QStringLiteral("The capability response contained a GraphQL error envelope.")
+				: detail == diagnostic::host_cache_stage                           ? QStringLiteral("The application could not stage the capability observation.")
+																				   : QStringLiteral("No more specific capability refusal detail is available.");
+			expect(message.startsWith(QStringLiteral("Capability discovery: ")) && message.endsWith(expected)
+					   && required_label(window, "githubEmptyStateBody")->isVisible()
+					   && required_label(window, "githubEmptyStateBody")->text() == message,
+				   "fixed capability refusal detail appears in the visible error message");
+			required_child<QToolButton>(window, "copyGithubMessageButton")->click();
+			expect(QApplication::clipboard()->text() == QStringLiteral("Connection unavailable\n") + message,
+				   "copy uses exactly the finite visible detail");
+			if (detail == diagnostic::graphql_errors) {
+				capture_layout_state(window, QStringLiteral("capability-graphql-refusal-detail"));
+			}
+			window.publish(application::github_presentation_update{ .Transition = application::github_transition_projection{ .Status = core::github_status_delta{ .Status = core::github_status::no_profile } } });
+			expect(window.github_diagnostic_text().empty(), "replacement clears capability detail");
 		}
 	}
 
@@ -3116,6 +3152,7 @@ auto main(int argc, char** argv) -> int
 	test_intent_translation_is_narrow_and_account_is_output_only();
 	test_presentation_states_disclosures_and_responsive_layout();
 	test_connection_diagnostics_can_be_copied();
+	test_capability_refusal_detail_is_copyable_and_cleared();
 	test_bootstrap_stage_messages_are_visible_copyable_and_cleared();
 	test_cancellation_states_and_failure_layouts();
 	test_identity_metadata_commands_and_refresh_semantics();

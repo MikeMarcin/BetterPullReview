@@ -1768,10 +1768,37 @@ namespace {
 			!valid(invalidIncomplete),
 			"incomplete evidence cannot retain partial schema facts");
 	}
+	auto test_closed_capability_refusal_details() -> void
+	{
+		const auto supported = load_supported_fixture(fixture_root() / "github-com/supported.json");
+		using diagnostic     = application::github_capability_diagnostic;
+		const std::array cases{
+			std::pair{ observe(""), diagnostic::json_shape },
+			std::pair{ observe("[]"), diagnostic::json_shape },
+			std::pair{ observe(R"({"errors":[]})"), diagnostic::graphql_errors },
+			std::pair{ observe("{}"), diagnostic::graphql_data },
+			std::pair{ observe(R"({"data":null})"), diagnostic::graphql_data },
+			std::pair{ observe(R"({"data":{}})"), diagnostic::graphql_aliases },
+			std::pair{ observe(supported, true, 200, "text/plain"), diagnostic::transport_invalid_content_type },
+			std::pair{ observe(with_alias_member(supported, QStringLiteral("reviewThread"), QStringLiteral("fields"), QJsonValue::Null)), diagnostic::schema_shape },
+			std::pair{ observe(supported, true, 200, "application/json", capability_probe_limits{ .MaximumResponseBytes = 1U }), diagnostic::normalizer_body_limit },
+			std::pair{ observe(supported, true, 200, "application/json", capability_probe_limits{ .MaximumDepth = 1U }), diagnostic::json_limits },
+			std::pair{ observe(supported, true, 200, "application/json", capability_probe_limits{ .MaximumMutationFields = 1U }), diagnostic::schema_limits },
+		};
+		for (const auto& [observation, expected] : cases) {
+			expect(!observation.Complete && valid(observation)
+					   && observation.CapabilityDetail == expected,
+				   "normalizer refusal preserves policy and exposes its fixed branch category");
+		}
+		expect(observe(supported).CapabilityDetail == diagnostic::none,
+			   "supported normalization carries no refusal detail");
+	}
+
 } // namespace
 
 int main()
 {
+	test_closed_capability_refusal_details();
 	test_requests_bind_validated_profile_authority();
 	test_paired_supported_contracts();
 	test_synthetic_missing_and_incompatible_contracts();

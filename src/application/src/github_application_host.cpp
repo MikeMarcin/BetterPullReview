@@ -2201,7 +2201,7 @@ namespace bpr::application {
 		{
 			const auto epoch = next_epoch();
 			if (!epoch.has_value()) {
-				fail_session(aContext, core::github_failure::malformed_response, false, github_bootstrap_failure_stage::capability_discovery);
+				fail_capability_session(aContext, core::github_failure::malformed_response, github_capability_diagnostic::host_epoch);
 				return;
 			}
 			const auto key    = capability_key(aProfile, aViewer.Account);
@@ -2220,7 +2220,7 @@ namespace bpr::application {
 			}
 			if (lookup.Status != github_capability_cache_lookup_status::miss
 				&& lookup.Status != github_capability_cache_lookup_status::expired) {
-				fail_session(aContext, core::github_failure::malformed_response, false, github_bootstrap_failure_stage::capability_discovery);
+				fail_capability_session(aContext, core::github_failure::malformed_response, github_capability_diagnostic::host_cache_lookup);
 				return;
 			}
 
@@ -2333,8 +2333,8 @@ namespace bpr::application {
 			if (aCompletion.valueless_by_exception()
 				|| provider_completion_request(aCompletion) != current) {
 				PendingProvider = std::monostate{ };
-				fail_session(current.Context,
-							 core::github_failure::malformed_response, false, github_bootstrap_failure_stage::capability_discovery);
+				fail_capability_session(current.Context,
+										core::github_failure::malformed_response, github_capability_diagnostic::host_correlation);
 				return;
 			}
 
@@ -2344,8 +2344,8 @@ namespace bpr::application {
 				if (!epoch.has_value()
 					|| !valid_capability_rate_limits(
 						success->Request.ProfileAuthority, success->RateLimits)) {
-					fail_session(success->Request.Context,
-								 core::github_failure::malformed_response, false, github_bootstrap_failure_stage::capability_discovery);
+					fail_capability_session(success->Request.Context,
+											core::github_failure::malformed_response, !epoch.has_value() ? github_capability_diagnostic::host_epoch : github_capability_diagnostic::host_rate_state);
 					return;
 				}
 				const github_capability_probe_observation observation{
@@ -2358,13 +2358,13 @@ namespace bpr::application {
 				const auto staged = CapabilityCache.stage(
 					github_capability_probe_result{ observation });
 				if (!staged.staged()) {
-					fail_session(
+					fail_capability_session(
 						success->Request.Context,
 						staged.Error
 								== github_capability_cache_error::capacity_exhausted
 							? core::github_failure::response_too_large
 							: core::github_failure::malformed_response,
-						false, github_bootstrap_failure_stage::capability_discovery);
+						github_capability_diagnostic::host_cache_stage);
 					return;
 				}
 				static_cast<void>(merge(RateLimits, success->RateLimits));
@@ -2400,17 +2400,19 @@ namespace bpr::application {
 				if (errorValid) {
 					publish_error_advisory(error->Error);
 				}
-				fail_session(error->Request.Context,
-							 errorValid
-								 ? mapped_failure(error->Error.Failure)
-								 : core::github_failure::malformed_response,
-							 false, github_bootstrap_failure_stage::capability_discovery, errorValid ? std::optional{ github_host_diagnostic{
-																										   .Reason            = core::reason_for(mapped_failure(error->Error.Failure)),
-																										   .RetryAfterSeconds = error->Error.RetryAfterSeconds,
-																										   .RateLimits        = RateLimits,
-																										   .RateLimitCause    = error->Error.RateLimitCause,
-																									   } }
-																									 : std::nullopt);
+				std::optional<github_host_diagnostic> diagnostic;
+				if (errorValid) {
+					diagnostic = github_host_diagnostic{
+						.Reason            = core::reason_for(mapped_failure(error->Error.Failure)),
+						.RetryAfterSeconds = error->Error.RetryAfterSeconds,
+						.RateLimits        = RateLimits,
+						.RateLimitCause    = error->Error.RateLimitCause,
+					};
+				}
+				fail_capability_session(error->Request.Context,
+										errorValid ? mapped_failure(error->Error.Failure) : core::github_failure::malformed_response,
+										errorValid ? bounded_capability_diagnostic(error->CapabilityDetail) : github_capability_diagnostic::host_provider_error,
+										std::move(diagnostic));
 				return;
 			}
 
@@ -3523,6 +3525,18 @@ namespace bpr::application {
 				DeferredSession.reset();
 				fail_session_direct(context, core::github_failure::vault);
 			}
+		}
+
+		void fail_capability_session(
+			const core::github_session_request_context& aContext,
+			const core::github_failure                  aFailure,
+			const github_capability_diagnostic          aDetail,
+			std::optional<github_host_diagnostic>       aDiagnostic = std::nullopt)
+		{
+			auto diagnostic             = aDiagnostic.value_or(github_host_diagnostic{ });
+			diagnostic.CapabilityDetail = bounded_capability_diagnostic(aDetail);
+			fail_session(aContext, aFailure, false,
+						 github_bootstrap_failure_stage::capability_discovery, std::move(diagnostic));
 		}
 
 		void fail_session(const core::github_session_request_context& aContext,

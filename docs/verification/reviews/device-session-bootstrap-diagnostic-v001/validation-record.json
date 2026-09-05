@@ -1,0 +1,27 @@
+{
+  "gate": "device-session-bootstrap-diagnostic-v001",
+  "status": "answered; all recorded launch authority consumed",
+  "validated_commit": "bad818ca89a4422d6ccd95be106446266d9b6046",
+  "validation_scope": "Historical same-directory artifacts compared byte-for-byte with this committed run record. No new approval, launch or live success is claimed.",
+  "validation_command": "python3 scripts/verify_documentation.py --root .",
+  "reviewed_packet": {
+    "path": "docs/verification/reviews/device-session-bootstrap-diagnostic-v001/operator-packet.md",
+    "sha256": "sha256:bfab453132fc6b5f2958555be2a575b6ad7542a187da83b794482099ded2c3fb",
+    "byte_length": 3906
+  },
+  "operator_response": {
+    "path": "docs/verification/reviews/device-session-bootstrap-diagnostic-v001/operator-response.md",
+    "sha256": "sha256:1ecd5b9a15fad2043d4de0aba4247707b7d08d709b9eee9ab8e44d6fc18b80e2",
+    "byte_length": 603
+  },
+  "attended_result": {
+    "path": "docs/verification/reviews/device-session-bootstrap-diagnostic-v001/attended-result.md",
+    "sha256": "sha256:29f04b1253cc1c75547300fceeed4ad8a9c2c847927534dceac942db57d2a5fe",
+    "byte_length": 1066
+  },
+  "retry_authorization_and_result": {
+    "path": "docs/verification/reviews/device-session-bootstrap-diagnostic-v001/retry-authorization-and-result.md",
+    "sha256": "sha256:5e8202944aeb344437a7abaca9f5e1cf1daf829c8e9be80bfdd63f44f5fb1fa5",
+    "byte_length": 1571
+  }
+}

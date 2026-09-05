@@ -97,9 +97,10 @@ namespace bpr::qt {
 			core::github_reason_code     aReason,
 			std::optional<std::uint32_t> aRetryAfter = std::nullopt,
 			const std::optional<
-				application::github_rate_limit_projection>& aRateLimit      = std::nullopt,
-			bool                                            aHostDetail     = false,
-			application::github_bootstrap_failure_stage     aBootstrapStage = application::github_bootstrap_failure_stage::none);
+				application::github_rate_limit_projection>& aRateLimit        = std::nullopt,
+			bool                                            aHostDetail       = false,
+			application::github_bootstrap_failure_stage     aBootstrapStage   = application::github_bootstrap_failure_stage::none,
+			application::github_capability_diagnostic       aCapabilityDetail = application::github_capability_diagnostic::none);
 		void apply_session(
 			const application::github_session_projection& aSession);
 		void apply_capabilities(const core::github_capabilities& aCapabilities);

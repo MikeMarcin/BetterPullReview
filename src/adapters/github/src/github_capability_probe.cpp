@@ -464,14 +464,16 @@ namespace bpr::adapters::github::detail {
 		}
 
 		[[nodiscard]] auto
-		unavailable(const capability_probe_unavailability aReason) noexcept
+		unavailable(const capability_probe_unavailability           aReason,
+					const application::github_capability_diagnostic aDetail = application::github_capability_diagnostic::unavailable_detail) noexcept
 			-> capability_probe_observation
 		{
 			return {
-				.Capabilities   = { },
-				.Facts          = { },
-				.Unavailability = aReason,
-				.Complete       = false,
+				.Capabilities     = { },
+				.Facts            = { },
+				.Unavailability   = aReason,
+				.Complete         = false,
+				.CapabilityDetail = aDetail,
 			};
 		}
 
@@ -2229,7 +2231,7 @@ namespace bpr::adapters::github::detail {
 	{
 		if (!valid_limits(aLimits)) {
 			return unavailable(
-				capability_probe_unavailability::invalid_limits);
+				capability_probe_unavailability::invalid_limits, application::github_capability_diagnostic::normalizer_invalid_limits);
 		}
 		if (!aResponse.has_value()) {
 			const auto reason = aResponse.error();
@@ -2237,36 +2239,37 @@ namespace bpr::adapters::github::detail {
 				!valid(reason)
 						|| reason == capability_probe_unavailability::none
 					? capability_probe_unavailability::malformed_response
-					: reason);
+					: reason,
+				application::github_capability_diagnostic::normalizer_transport_unavailable);
 		}
 
 		const auto& value = *aResponse;
 		if (!value.Authenticated) {
 			return unavailable(
-				capability_probe_unavailability::authentication);
+				capability_probe_unavailability::authentication, application::github_capability_diagnostic::normalizer_transport_unavailable);
 		}
 		const auto rateLimit = parse_rate_limit_response_facts(value);
 		if (!rateLimit.has_value()) {
 			return unavailable(
-				capability_probe_unavailability::malformed_response);
+				capability_probe_unavailability::malformed_response, application::github_capability_diagnostic::normalizer_rate_metadata);
 		}
 		if (value.Body.size() > aLimits.MaximumResponseBytes) {
-			return unavailable(capability_probe_unavailability::response_limit);
+			return unavailable(capability_probe_unavailability::response_limit, application::github_capability_diagnostic::normalizer_body_limit);
 		}
 		if (value.Status != 200) {
 			if (value.Status == 403
 				&& (rateLimit->signals_throttling()
 					|| graphql_error_body_rate_limited(value, aLimits))) {
-				return unavailable(capability_probe_unavailability::rate_limit);
+				return unavailable(capability_probe_unavailability::rate_limit, application::github_capability_diagnostic::normalizer_transport_unavailable);
 			}
-			return unavailable(status_failure(value.Status));
+			return unavailable(status_failure(value.Status), application::github_capability_diagnostic::normalizer_transport_unavailable);
 		}
 		if (!json_content_type(value.ContentType)) {
 			return unavailable(
-				capability_probe_unavailability::invalid_content_type);
+				capability_probe_unavailability::invalid_content_type, application::github_capability_diagnostic::transport_invalid_content_type);
 		}
 		if (value.Body.empty()) {
-			return unavailable(capability_probe_unavailability::malformed_response);
+			return unavailable(capability_probe_unavailability::malformed_response, application::github_capability_diagnostic::json_shape);
 		}
 
 		try {
@@ -2276,7 +2279,8 @@ namespace bpr::adapters::github::detail {
 					preflight == json_preflight_result::structural_limit
 						? capability_probe_unavailability::response_limit
 						: capability_probe_unavailability::
-							  malformed_response);
+							  malformed_response,
+					preflight == json_preflight_result::structural_limit ? application::github_capability_diagnostic::json_limits : application::github_capability_diagnostic::json_shape);
 			}
 
 			QJsonParseError error;
@@ -2290,7 +2294,7 @@ namespace bpr::adapters::github::detail {
 				error.error != QJsonParseError::NoError
 				|| !document.isObject()) {
 				return unavailable(
-					capability_probe_unavailability::malformed_response);
+					capability_probe_unavailability::malformed_response, application::github_capability_diagnostic::json_shape);
 			}
 			const auto envelope = document.object();
 			if (envelope.contains("errors")) {
@@ -2299,16 +2303,16 @@ namespace bpr::adapters::github::detail {
 					|| graphql_error_rate_limited(
 						envelope.value("errors"))) {
 					return unavailable(
-						capability_probe_unavailability::rate_limit);
+						capability_probe_unavailability::rate_limit, application::github_capability_diagnostic::graphql_errors);
 				}
 				return unavailable(
-					capability_probe_unavailability::partial_response);
+					capability_probe_unavailability::partial_response, application::github_capability_diagnostic::graphql_errors);
 			}
 			if (
 				!envelope.contains("data")
 				|| !envelope.value("data").isObject()) {
 				return unavailable(
-					capability_probe_unavailability::partial_response);
+					capability_probe_unavailability::partial_response, application::github_capability_diagnostic::graphql_data);
 			}
 			for (auto iterator = envelope.begin();
 				 iterator != envelope.end();
@@ -2318,33 +2322,35 @@ namespace bpr::adapters::github::detail {
 					&& iterator.key() != QStringLiteral("extensions")) {
 					return unavailable(
 						capability_probe_unavailability::
-							malformed_response);
+							malformed_response,
+						application::github_capability_diagnostic::json_shape);
 				}
 			}
 
 			const auto data = envelope.value("data").toObject();
 			if (!response_has_exact_aliases(data)) {
 				return unavailable(
-					capability_probe_unavailability::partial_response);
+					capability_probe_unavailability::partial_response, application::github_capability_diagnostic::graphql_aliases);
 			}
 			if (schema_specific_limits_exceeded(data, aLimits)) {
 				return unavailable(
-					capability_probe_unavailability::response_limit);
+					capability_probe_unavailability::response_limit, application::github_capability_diagnostic::schema_limits);
 			}
 
 			capability_probe_observation observation;
 			if (!evaluate_schema(data, aLimits, observation)) {
 				return unavailable(
 					capability_probe_unavailability::
-						malformed_response);
+						malformed_response,
+					application::github_capability_diagnostic::schema_shape);
 			}
 			return observation;
 		} catch (const std::bad_alloc&) {
 			return unavailable(
-				capability_probe_unavailability::allocation_failure);
+				capability_probe_unavailability::allocation_failure, application::github_capability_diagnostic::normalization_allocation);
 		} catch (...) {
 			return unavailable(
-				capability_probe_unavailability::malformed_response);
+				capability_probe_unavailability::malformed_response, application::github_capability_diagnostic::normalization_unexpected);
 		}
 	}
 } // namespace bpr::adapters::github::detail

@@ -99,6 +99,8 @@ namespace bpr::adapters::github::detail {
 			.RateLimitCause    = std::nullopt,
 		};
 
+		application::github_capability_diagnostic CapabilityDetail = application::github_capability_diagnostic::unavailable_detail;
+
 		auto operator==(const github_capability_probe_wire_error&) const
 			-> bool = default;
 	};
