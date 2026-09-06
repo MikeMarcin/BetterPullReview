@@ -951,6 +951,60 @@ namespace {
 					== device_authorization_contract_failure::unexpected_status,
 			"the renewal reports through status 200 like every token answer");
 	}
+	void test_raw_duration_and_envelope_contract()
+	{
+		const auto                 fixture  = outcome_fixture("device_code_success");
+		const auto                 original = response_from(fixture, synthetic_body(fixture));
+		constexpr std::string_view interval = "\"interval\":5";
+		const auto                 position = original.Body.find(interval);
+		expect(position != std::string::npos, "raw device fixture contains interval");
+		for (const auto* number : { "5.0000000000000001", "5.0", "5e-1", "2147483648", "4294967296", "null", "true", "\"5\"" }) {
+			auto response = original;
+			response.Body.replace(position, interval.size(), std::string{ "\"interval\":" } + number);
+			const auto parsed = parse_device_code_response(response);
+			expect(!parsed && parsed.error() == device_authorization_contract_failure::invalid_field_value, "raw durations never round into a valid lifetime");
+		}
+		for (const auto* number : { "5e0", "2147483647" }) {
+			auto response = original;
+			response.Body.replace(position, interval.size(), std::string{ "\"interval\":" } + number);
+			const auto parsed = parse_device_code_response(response);
+			expect(parsed && std::holds_alternative<device_code_grant>(*parsed), "exact bounded integer durations remain accepted");
+		}
+		for (const auto& body : { original.Body + " {}", std::string{ "[" } + original.Body + "]",
+								  std::string{ "{\"extra\":\"\\ud800\"," } + original.Body.substr(1U),
+								  std::string{ "{\"extra\":\"\\udc00\"," } + original.Body.substr(1U),
+								  std::string{ "{\"extra\":\"\xC3\x28\"," } + original.Body.substr(1U) }) {
+			auto response     = original;
+			response.Body     = body;
+			const auto parsed = parse_device_code_response(response);
+			expect(!parsed && parsed.error() == device_authorization_contract_failure::malformed_response, "the full envelope including unknown values requires valid JSON and Unicode");
+		}
+		// Preserve the existing Qt object's last-member-wins policy, including
+		// equivalent escaped keys; no DOM normalization is used for durations.
+		auto duplicate = original;
+		duplicate.Body.insert(1U, "\"interval\":null,");
+		expect(parse_device_code_response(duplicate).has_value(), "last duplicate value preserves existing device envelope policy");
+		duplicate = original;
+		duplicate.Body.insert(duplicate.Body.size() - 1U, ",\"interv\\u0061l\":null");
+		const auto invalidLast = parse_device_code_response(duplicate);
+		expect(!invalidLast && invalidLast.error() == device_authorization_contract_failure::invalid_field_value, "escaped duplicate key still uses the final value");
+
+		const auto tokenFixture = outcome_fixture("token_success");
+		const auto token        = response_from(tokenFixture, synthetic_body(tokenFixture));
+		for (const auto* key : { "expires_in", "refresh_token_expires_in" }) {
+			auto       response = token;
+			const auto begin    = response.Body.find(std::string{ "\"" } + key + "\":");
+			expect(begin != std::string::npos, "token fixture contains lifetime field");
+			const auto end = response.Body.find(',', begin);
+			response.Body.insert(end, ".0000000000000001");
+			const auto grant   = parse_device_token_response(response);
+			const auto renewal = parse_device_refresh_response(response);
+			expect(!grant && grant.error() == device_authorization_contract_failure::invalid_field_value
+					   && !renewal && renewal.error() == device_authorization_contract_failure::invalid_field_value,
+				   "both issuance and renewal reject fractional raw lifetimes");
+		}
+	}
+
 }
 
 auto main() -> int
@@ -972,6 +1026,7 @@ auto main() -> int
 	test_refresh_inputs_are_refused_before_the_wire();
 	test_each_refresh_outcome_parses_to_its_type();
 	test_hostile_refresh_shapes_fail_closed();
+	test_raw_duration_and_envelope_contract();
 
 	std::cout << "github device authorization contract tests passed\n";
 	return EXIT_SUCCESS;

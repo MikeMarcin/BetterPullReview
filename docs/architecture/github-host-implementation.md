@@ -1214,6 +1214,18 @@ before it can reach a host ([[BPR-0278]],
 `github_device_authorization_contract`,
 `native_https_device_authorization_contract`).
 
+The device contract uses Glaze to validate the complete response and index its
+flat envelope as non-owning raw JSON views. Required field inventories are
+checked before strings and durations are decoded into typed grant/error values;
+views never leave the synchronous parser or outlive the caller's response.
+Durations use exact positive uint32 parsing with the existing int32 maximum,
+so fractional JSON spellings cannot round into accepted lifetimes. The prior
+device-envelope last-member-wins policy, including escaped equivalent keys,
+remains distinct from the mutation contract's duplicate-key rejection. Unknown
+values still require valid JSON and Unicode, and failures remain fixed enums.
+Form-encoded outbound bytes, URI authority checks and credential ownership are
+unchanged by the Glaze migration.
+
 #### Polling discipline
 
 The host honors the server's interval within a floor of 5 s and a ceiling of

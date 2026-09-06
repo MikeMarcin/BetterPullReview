@@ -761,6 +761,11 @@ namespace {
 			return Now;
 		}
 
+		[[nodiscard]] auto observe_wall_seconds() noexcept -> std::int64_t override
+		{
+			return 1'000 + std::chrono::duration_cast<std::chrono::seconds>(Now).count();
+		}
+
 		std::chrono::milliseconds Now{ 0 };
 	};
 
@@ -768,15 +773,21 @@ namespace {
 		: public application::device_authorization_timer_port
 	{
 	public:
-		[[nodiscard]] auto schedule_after(std::uint32_t, std::function<void()>)
+		[[nodiscard]] auto schedule_after(const std::uint32_t aSeconds, std::function<void()> aElapsed)
 			-> bool override
 		{
+			DelaySeconds = aSeconds;
+			Elapsed      = std::move(aElapsed);
 			return true;
 		}
 
 		void cancel() noexcept override
 		{
+			Elapsed = { };
 		}
+
+		std::uint32_t         DelaySeconds = 0U;
+		std::function<void()> Elapsed;
 	};
 
 	class lifecycle_enrollment final
@@ -886,8 +897,16 @@ namespace {
 		// [[BPR-0546]]. The identity generation comes in with the authority,
 		// as it does from composition: a context carrying zero is refused
 		// by every platform vault.
+		// Restored sessions now require validated lifetime metadata and renew at
+		// their scheduled deadline. Exercise that boundary before the real wire.
 		host.resume_refresh(
-			lifecycle_authority(), core::github_identity_generation{ 1U });
+			lifecycle_authority(), core::github_identity_generation{ 1U },
+			application::device_binding_lifetime{ .IssuedAt = 1'000, .AccessExpiresAt = 1'002, .RefreshExpiresAt = 2'000 });
+		expect(timer.Elapsed && timer.DelaySeconds == 1U && vault.Rotations == 0U,
+			   "a restored session schedules renewal before spending refresh material");
+		clock.Now += std::chrono::seconds{ timer.DelaySeconds };
+		auto elapsed = std::exchange(timer.Elapsed, { });
+		elapsed();
 		// The vault answers inline, the adapter's exchange runs when the effect
 		// lane is drained, and the terminal comes back through the decision
 		// lane. Draining both until neither has work is the host reaching

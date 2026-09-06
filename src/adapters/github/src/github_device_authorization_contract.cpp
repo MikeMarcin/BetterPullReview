@@ -2,21 +2,46 @@
 
 #include "bpr/application/github_host_authority.hpp"
 
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QJsonParseError>
 #include <QString>
 #include <QUrl>
+
+#include <glaze/json.hpp>
 
 #include <algorithm>
 #include <array>
 #include <cctype>
 #include <limits>
+#include <map>
 #include <utility>
 
 namespace bpr::adapters::github::detail {
 	namespace {
 		using device_failure = device_authorization_contract_failure;
+
+		struct device_json_options : glz::opts
+		{
+			bool validate_skipped             = true;
+			bool validate_trailing_whitespace = true;
+			constexpr device_json_options()
+			{
+				null_terminated = false;
+			}
+		};
+
+		// Views live only during parsing of the caller-owned response. Indexing the
+		// flat envelope first preserves exact field inventories and typed failures;
+		// token strings are decoded when constructing typed grant records.
+		using device_response_json = std::map<std::string, glz::raw_json_view, std::less<>>;
+
+		template <typename T>
+		[[nodiscard]] auto field_value(const glz::raw_json_view& aValue) -> std::expected<T, device_failure>
+		{
+			auto parsed = T{ };
+			if (glz::read<device_json_options{ }>(parsed, aValue.str)) {
+				return std::unexpected(device_failure::invalid_field_value);
+			}
+			return parsed;
+		}
 
 		constexpr std::string_view device_code_url
 			= "https://github.com/login/device/code";
@@ -95,7 +120,7 @@ namespace bpr::adapters::github::detail {
 		[[nodiscard]] auto response_object(
 			const wire_response& aResponse,
 			const int            aExpectedStatus)
-			-> std::expected<QJsonObject, device_failure>
+			-> std::expected<device_response_json, device_failure>
 		{
 			if (aResponse.Status != aExpectedStatus) {
 				return std::unexpected(device_failure::unexpected_status);
@@ -120,106 +145,80 @@ namespace bpr::adapters::github::detail {
 							Qt::CaseInsensitive)) {
 				return std::unexpected(device_failure::unexpected_content_type);
 			}
-			auto       parseError = QJsonParseError{ };
-			const auto document   = QJsonDocument::fromJson(
-				QByteArray::fromStdString(aResponse.Body),
-				&parseError);
-			if (parseError.error != QJsonParseError::NoError
-				|| !document.isObject()) {
+			auto object = device_response_json{ };
+			if (glz::read<device_json_options{ }>(object, aResponse.Body)) {
 				return std::unexpected(device_failure::malformed_response);
 			}
-			return document.object();
+			return object;
 		}
 
-		[[nodiscard]] auto exact_keys(
-			const QJsonObject&                             aObject,
-			const std::initializer_list<QLatin1StringView> aKeys) -> bool
+		[[nodiscard]] auto exact_keys(const device_response_json&                   aObject,
+									  const std::initializer_list<std::string_view> aKeys) -> bool
 		{
-			if (aObject.size() != static_cast<qsizetype>(aKeys.size())) {
-				return false;
-			}
-			return std::ranges::all_of(
-				aKeys,
-				[&aObject](const QLatin1StringView aKey) {
-					return aObject.contains(aKey);
-				});
+			return aObject.size() == aKeys.size()
+				&& std::ranges::all_of(aKeys, [&aObject](const auto aKey) { return aObject.contains(aKey); });
 		}
 
-		[[nodiscard]] auto bounded_seconds(const QJsonValue& aValue)
+		[[nodiscard]] auto bounded_seconds(const glz::raw_json_view& aValue)
 			-> std::expected<std::uint32_t, device_failure>
 		{
-			if (!aValue.isDouble()) {
+			const auto integral = field_value<std::uint32_t>(aValue);
+			if (!integral || *integral == 0U || *integral > static_cast<std::uint32_t>(std::numeric_limits<std::int32_t>::max())) {
 				return std::unexpected(device_failure::invalid_field_value);
 			}
-			const auto integral = aValue.toInteger(-1);
-			if (integral <= 0
-				|| integral > std::numeric_limits<std::int32_t>::max()
-				|| static_cast<double>(integral) != aValue.toDouble()) {
-				return std::unexpected(device_failure::invalid_field_value);
-			}
-			return static_cast<std::uint32_t>(integral);
+			return *integral;
 		}
 
-		[[nodiscard]] auto non_empty_text(const QJsonValue& aValue)
+		[[nodiscard]] auto non_empty_text(const glz::raw_json_view& aValue)
 			-> std::expected<std::string, device_failure>
 		{
-			if (!aValue.isString()) {
-				return std::unexpected(device_failure::invalid_field_value);
-			}
-			auto text = aValue.toString().toStdString();
-			if (text.empty()
-				|| text.size() > maximum_device_transient_code_bytes) {
+			auto text = field_value<std::string>(aValue);
+			if (!text || text->empty() || text->size() > maximum_device_transient_code_bytes) {
 				return std::unexpected(device_failure::invalid_field_value);
 			}
 			return text;
 		}
 
-		[[nodiscard]] auto official_error_uri(const QJsonValue& aValue) noexcept
-			-> bool
+		[[nodiscard]] auto official_error_uri(const glz::raw_json_view& aValue) noexcept -> bool
 		{
-			if (!aValue.isString()) {
+			const auto text = field_value<std::string>(aValue);
+			if (!text) {
 				return false;
 			}
-			const auto url = QUrl{ aValue.toString() };
+			const auto url = QUrl{ QString::fromStdString(*text) };
 			return url.isValid() && url.scheme() == QStringLiteral("https")
-				&& url.host()
-				== QLatin1StringView{
-					   official_error_uri_authority.data(),
-					   static_cast<qsizetype>(
-						   official_error_uri_authority.size())
-				   };
+				&& url.host() == QLatin1StringView{ official_error_uri_authority.data(), static_cast<qsizetype>(official_error_uri_authority.size()) };
 		}
 
-		[[nodiscard]] auto error_object_code(const QJsonObject& aObject)
+		[[nodiscard]] auto error_object_code(const device_response_json& aObject)
 			-> std::expected<std::string, device_failure>
 		{
 			const auto plain = exact_keys(
 				aObject,
-				{ QLatin1StringView{ "error" },
-				  QLatin1StringView{ "error_description" },
-				  QLatin1StringView{ "error_uri" } });
+				{ "error",
+				  "error_description",
+				  "error_uri" });
 			const auto withInterval = exact_keys(
 				aObject,
-				{ QLatin1StringView{ "error" },
-				  QLatin1StringView{ "error_description" },
-				  QLatin1StringView{ "error_uri" },
-				  QLatin1StringView{ "interval" } });
+				{ "error",
+				  "error_description",
+				  "error_uri",
+				  "interval" });
 			if (!plain && !withInterval) {
 				return std::unexpected(device_failure::unexpected_field);
 			}
-			const auto code = aObject.value(QLatin1StringView{ "error" });
-			if (!code.isString() || code.toString().isEmpty()) {
+			const auto code = field_value<std::string>(aObject.at("error"));
+			if (!code || code->empty()) {
 				return std::unexpected(device_failure::invalid_field_value);
 			}
-			if (!aObject.value(QLatin1StringView{ "error_description" })
-					 .isString()) {
+			if (!field_value<std::string>(aObject.at("error_description"))) {
 				return std::unexpected(device_failure::invalid_field_value);
 			}
 			if (!official_error_uri(
-					aObject.value(QLatin1StringView{ "error_uri" }))) {
+					aObject.at("error_uri"))) {
 				return std::unexpected(device_failure::unofficial_error_uri);
 			}
-			auto text = code.toString().toStdString();
+			auto text = *code;
 			if (withInterval && text != "slow_down") {
 				return std::unexpected(device_failure::unexpected_field);
 			}
@@ -233,56 +232,54 @@ namespace bpr::adapters::github::detail {
 		// same six fields, so they are the same code. Splitting them would
 		// let one drift into accepting a shape the other refuses, which is
 		// the difference this exchange can least afford.
-		[[nodiscard]] auto token_grant_body(const QJsonObject& aObject)
+		[[nodiscard]] auto token_grant_body(const device_response_json& aObject)
 			-> std::expected<device_token_grant, device_failure>
 		{
 			if (!exact_keys(
 					aObject,
-					{ QLatin1StringView{ "access_token" },
-					  QLatin1StringView{ "expires_in" },
-					  QLatin1StringView{ "refresh_token" },
-					  QLatin1StringView{ "refresh_token_expires_in" },
-					  QLatin1StringView{ "scope" },
-					  QLatin1StringView{ "token_type" } })) {
+					{ "access_token",
+					  "expires_in",
+					  "refresh_token",
+					  "refresh_token_expires_in",
+					  "scope",
+					  "token_type" })) {
 				return std::unexpected(device_failure::unexpected_field);
 			}
 
-			const auto tokenType = aObject.value(
-				QLatin1StringView{ "token_type" });
-			if (!tokenType.isString()
-				|| tokenType.toString() != QStringLiteral("bearer")) {
+			const auto tokenType = field_value<std::string>(aObject.at("token_type"));
+			if (!tokenType || *tokenType != "bearer") {
 				return std::unexpected(device_failure::invalid_field_value);
 			}
-			const auto scope = aObject.value(QLatin1StringView{ "scope" });
-			if (!scope.isString() || !scope.toString().isEmpty()) {
+			const auto scope = field_value<std::string>(aObject.at("scope"));
+			if (!scope || !scope->empty()) {
 				return std::unexpected(device_failure::invalid_field_value);
 			}
 
 			auto grant = device_token_grant{ };
 
 			const auto accessToken = non_empty_text(
-				aObject.value(QLatin1StringView{ "access_token" }));
+				aObject.at("access_token"));
 			if (!accessToken.has_value()) {
 				return std::unexpected(accessToken.error());
 			}
 			grant.AccessToken = *accessToken;
 
 			const auto refreshToken = non_empty_text(
-				aObject.value(QLatin1StringView{ "refresh_token" }));
+				aObject.at("refresh_token"));
 			if (!refreshToken.has_value()) {
 				return std::unexpected(refreshToken.error());
 			}
 			grant.RefreshToken = *refreshToken;
 
 			const auto expires = bounded_seconds(
-				aObject.value(QLatin1StringView{ "expires_in" }));
+				aObject.at("expires_in"));
 			if (!expires.has_value()) {
 				return std::unexpected(expires.error());
 			}
 			grant.ExpiresInSeconds = *expires;
 
 			const auto refreshExpires = bounded_seconds(
-				aObject.value(QLatin1StringView{ "refresh_token_expires_in" }));
+				aObject.at("refresh_token_expires_in"));
 			if (!refreshExpires.has_value()) {
 				return std::unexpected(refreshExpires.error());
 			}
@@ -385,53 +382,52 @@ namespace bpr::adapters::github::detail {
 		}
 		if (!exact_keys(
 				*object,
-				{ QLatin1StringView{ "device_code" },
-				  QLatin1StringView{ "expires_in" },
-				  QLatin1StringView{ "interval" },
-				  QLatin1StringView{ "user_code" },
-				  QLatin1StringView{ "verification_uri" } })) {
+				{ "device_code",
+				  "expires_in",
+				  "interval",
+				  "user_code",
+				  "verification_uri" })) {
 			return std::unexpected(device_failure::unexpected_field);
 		}
 
 		auto grant = device_code_grant{ };
 
 		const auto deviceCode
-			= non_empty_text(object->value(QLatin1StringView{ "device_code" }));
+			= non_empty_text(object->at("device_code"));
 		if (!deviceCode.has_value()) {
 			return std::unexpected(deviceCode.error());
 		}
 		grant.DeviceCode = *deviceCode;
 
 		const auto userCode
-			= non_empty_text(object->value(QLatin1StringView{ "user_code" }));
+			= non_empty_text(object->at("user_code"));
 		if (!userCode.has_value()) {
 			return std::unexpected(userCode.error());
 		}
 		grant.UserCode = *userCode;
 
-		const auto verification = object->value(
-			QLatin1StringView{ "verification_uri" });
-		if (!verification.isString()) {
+		const auto verification = field_value<std::string>(object->at("verification_uri"));
+		if (!verification) {
 			return std::unexpected(device_failure::invalid_field_value);
 		}
-		const auto verificationUrl = QUrl{ verification.toString() };
+		const auto verificationUrl = QUrl{ QString::fromStdString(*verification) };
 		if (!verificationUrl.isValid()
 			|| verificationUrl.scheme() != QStringLiteral("https")
 			|| verificationUrl.host() != expected_verification_authority()) {
 			return std::unexpected(
 				device_failure::off_authority_verification_uri);
 		}
-		grant.VerificationUri = verification.toString().toStdString();
+		grant.VerificationUri = *verification;
 
 		const auto expires
-			= bounded_seconds(object->value(QLatin1StringView{ "expires_in" }));
+			= bounded_seconds(object->at("expires_in"));
 		if (!expires.has_value()) {
 			return std::unexpected(expires.error());
 		}
 		grant.ExpiresInSeconds = *expires;
 
 		const auto interval
-			= bounded_seconds(object->value(QLatin1StringView{ "interval" }));
+			= bounded_seconds(object->at("interval"));
 		if (!interval.has_value()) {
 			return std::unexpected(interval.error());
 		}
@@ -450,7 +446,7 @@ namespace bpr::adapters::github::detail {
 			return std::unexpected(object.error());
 		}
 
-		if (object->contains(QLatin1StringView{ "error" })) {
+		if (object->contains("error")) {
 			const auto code = error_object_code(*object);
 			if (!code.has_value()) {
 				return std::unexpected(code.error());
@@ -461,7 +457,7 @@ namespace bpr::adapters::github::detail {
 			}
 			if (*code == "slow_down") {
 				const auto interval = bounded_seconds(
-					object->value(QLatin1StringView{ "interval" }));
+					object->at("interval"));
 				if (!interval.has_value()) {
 					return std::unexpected(interval.error());
 				}
@@ -526,7 +522,7 @@ namespace bpr::adapters::github::detail {
 			return std::unexpected(object.error());
 		}
 
-		if (object->contains(QLatin1StringView{ "error" })) {
+		if (object->contains("error")) {
 			const auto code = error_object_code(*object);
 			if (!code.has_value()) {
 				return std::unexpected(code.error());
