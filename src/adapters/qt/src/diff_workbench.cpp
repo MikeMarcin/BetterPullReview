@@ -571,7 +571,7 @@ namespace bpr::qt {
 			case core::diff_reason_code::materialization_limit:
 				return QStringLiteral("File exceeds the comparison materialization limit");
 			case core::diff_reason_code::compute_limit:
-				return QStringLiteral("Comparison exceeded its bounded compute budget");
+				return QStringLiteral("Comparison unavailable — file exceeds the comparison work limit");
 			case core::diff_reason_code::generated_file_unsupported:
 				return QStringLiteral("Generated file comparison is unsupported");
 			case core::diff_reason_code::cancelled:
@@ -912,10 +912,10 @@ namespace bpr::qt {
 			}
 		}
 		++Statistics.Publications;
-		update_status(
-			QStringLiteral("Diff ready — %1 semantic changes%2")
-				.arg(CurrentResult->Alignment.Groups.size())
-				.arg(aPublication.CacheHit ? QStringLiteral(" (cached)") : QString{ }));
+		const auto status = CurrentResult->Alignment.Content == core::diff_content_state::text
+			? QStringLiteral("Diff ready — %1 semantic changes").arg(CurrentResult->Alignment.Groups.size())
+			: reason_text(CurrentResult->Alignment.Diagnostic.Code);
+		update_status(status + (aPublication.CacheHit ? QStringLiteral(" (cached)") : QString{ }));
 		update_detail();
 		update_selection_paint();
 		schedule_geometry_rebuild(

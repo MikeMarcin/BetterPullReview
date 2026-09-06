@@ -11,6 +11,7 @@
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QItemSelectionModel>
+#include <QLabel>
 #include <QLineEdit>
 #include <QListView>
 #include <QPlainTextEdit>
@@ -68,6 +69,7 @@ namespace bpr::e2e::large_review {
 	struct benchmark_report
 	{
 		std::string                    Schema = "bpr.large-review-measurement.v1";
+		bool                           UnavailableCourse = false, UnavailableReasonVerified = false, BinaryStatusVerified = false;
 		std::string                    Platform, Architecture, QtVersion, Style, BuildConfiguration;
 		std::string                    Fixture           = "large-review-v1", Base, Head;
 		int                            LogicalProcessors = 0, WindowWidth = 0, WindowHeight = 0;
@@ -262,7 +264,7 @@ auto main(int argc, char** argv) -> int
 	using namespace bpr::e2e::large_review;
 	QApplication qtApplication{ argc, argv };
 	QApplication::setQuitOnLastWindowClosed(false);
-	if (argc != 4) {
+	if (argc != 4 && (argc != 5 || std::string_view{ argv[4] } != "--unavailable")) {
 		return EXIT_FAILURE;
 	}
 	QTemporaryDir data;
@@ -270,6 +272,7 @@ auto main(int argc, char** argv) -> int
 		return EXIT_FAILURE;
 	}
 	benchmark_report                         report;
+	report.UnavailableCourse = argc == 5;
 	std::unique_ptr<app::github_application> application;
 	try {
 		std::ifstream     input{ std::filesystem::path{ BPR_LARGE_REVIEW_FIXTURE_ROOT } / "manifest.json" };
@@ -285,8 +288,13 @@ auto main(int argc, char** argv) -> int
 		report.Style              = qtApplication.style()->objectName().toStdString();
 		report.BuildConfiguration = BPR_BENCH_BUILD_CONFIGURATION;
 		report.LogicalProcessors  = QThread::idealThreadCount();
-		application               = access::make(app::detail::github_public_path_fixture::large_review_v1,
-												 { .ApplicationDataRoot = data.path().toStdString(), .GitExecutable = std::filesystem::path{ argv[1] } });
+		auto fixtureOptions       = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = data.path().toStdString(), .GitExecutable = std::filesystem::path{ argv[1] } };
+		if (report.UnavailableCourse) {
+			// Retain the production matrix ceiling and disable only its optional
+			// ordered index, so the stored 20,000-line file exceeds real limits.
+			fixtureOptions.DiffComputeLimits.MaximumPrimaryIndexWork = 0U;
+		}
+		application               = access::make(app::detail::github_public_path_fixture::large_review_v1, std::move(fixtureOptions));
 		auto& window              = application->window();
 		window.resize(1600, 1000);
 		application->show();
@@ -299,80 +307,103 @@ auto main(int argc, char** argv) -> int
 		window.session_panel()->pull_request_editor()->setValue(17);
 		require(measure_wait(*application, budget, report, "paged_review_and_git_load", [&] { window.github_open_action()->trigger(); }, [&] { return window.files_drawer()->contents_view()->model()->rowCount() == 515 && access::evidence(*application).SmartFetchCount == 1 && application->status().EpochStatus == core::epoch_status::ready && access::diff_work_evidence(*application).NavigationReady && quiet(*application); }), "review load timed out");
 		verify_snapshot(*application, manifest, report);
-		require(measure_wait(*application, budget, report, "large_file_selection", [&] { select_file(window, QStringLiteral("large/comparison.cpp")); }, [&] { return selected(surface, QStringLiteral("large/comparison.cpp")) && quiet(*application) && surface.scroll_controller()->maximum_position() > 1000.0; }), "large selection timed out");
-		verify_large(surface, manifest);
-		report.ExactLargeSource = true;
-		report.PrimaryIndexWork = surface.current_result()->PrimaryIndexWorkConsumed;
-		report.MatrixCells      = surface.current_result()->MatrixCellsConsumed;
-		require(surface.selection() && surface.selection()->PreferredLine.Line == 0U, "initial selected change is line one");
-		for (int change = 0; change < 2; ++change) {
-			require(window.next_change_action()->isEnabled(), "change navigation action unavailable");
-			QElapsedTimer gesture;
-			gesture.start();
-			window.next_change_action()->trigger();
-			report.ChangeActionMs.push_back(static_cast<double>(gesture.nsecsElapsed()) / 1'000'000.0);
-			require(surface.selection() && surface.selection()->PreferredLine.Line == static_cast<std::uint32_t>((change + 1) * 1000), "next change selected wrong source line");
-		}
-		auto* controller = surface.scroll_controller();
-		surface.shared_scrollbar()->setValue(0);
-		const auto    before               = surface.statistics();
-		const auto    scrollBefore         = controller->statistics();
-		const auto    classificationBefore = application->status().ClassificationSubmissions;
-		QElapsedTimer wheel;
-		wheel.start();
-		for (int event = 0; event < 1000; ++event) {
-			QWheelEvent inputEvent{ QPointF{ 20, 20 }, QPointF{ 20, 20 }, QPoint{ 0, -1 }, QPoint{ }, Qt::NoButton, Qt::NoModifier, Qt::ScrollUpdate, false };
-			QApplication::sendEvent(surface.right_pane()->viewport(), &inputEvent);
-		}
-		report.WheelBatchMs           = static_cast<double>(wheel.nsecsElapsed()) / 1'000'000.0;
-		const auto after              = surface.statistics();
-		const auto scrollAfter        = controller->statistics();
-		report.WheelEvents            = scrollAfter.WheelEvents - scrollBefore.WheelEvents;
-		report.ScrollFrames           = scrollAfter.FramesApplied - scrollBefore.FramesApplied;
-		report.ScrollIndexBuilds      = after.SemanticIndexBuilds - before.SemanticIndexBuilds;
-		report.ScrollGeometryRebuilds = after.GeometryRebuilds - before.GeometryRebuilds;
-		report.ScrollPaneMeasurements = after.PaneMeasurements - before.PaneMeasurements;
-		require(report.WheelEvents == 1000U && report.ScrollFrames == 1000U && report.ScrollIndexBuilds == 0U && report.ScrollGeometryRebuilds == 0U && report.ScrollPaneMeasurements == 0U
-					&& application->status().ClassificationSubmissions == classificationBefore && controller->position() == 1000.0,
-				"scroll gesture work/position contract");
-		surface.shared_scrollbar()->setValue(0);
-		report.WindowWidth      = window.width();
-		report.WindowHeight     = window.height();
-		report.DevicePixelRatio = window.devicePixelRatioF();
-		report.Rendered         = window.grab().save(QString::fromLocal8Bit(argv[3]));
-		require(report.Rendered, "full-window capture failed");
+		if (report.UnavailableCourse) {
+			require(measure_wait(*application, budget, report, "unavailable_file_selection", [&] { select_file(window, QStringLiteral("large/comparison.cpp")); }, [&] { return selected(surface, QStringLiteral("large/comparison.cpp")) && quiet(*application); }), "unavailable selection timed out");
+			const auto& alignment = surface.current_result()->Alignment;
+			require(alignment.Content == core::diff_content_state::unavailable && alignment.Diagnostic.Code == core::diff_reason_code::compute_limit, "real host result must exceed the retained comparison limit");
+			require(surface.status_text() == QStringLiteral("Comparison unavailable — file exceeds the comparison work limit"), "unavailable comparison falsely reports success");
+			require(surface.left_pane()->toPlainText().isEmpty() && surface.right_pane()->toPlainText().isEmpty() && !surface.selection(), "unavailable comparison retains stale source");
+			auto* label = surface.findChild<QLabel*>(QStringLiteral("diffWorkbenchStatus"));
+			require(label && label->isVisible() && label->textInteractionFlags().testFlag(Qt::TextSelectableByKeyboard) && label->textInteractionFlags().testFlag(Qt::TextSelectableByMouse), "unavailable message must support copying");
+			report.UnavailableReasonVerified = true;
+			report.WindowWidth               = window.width();
+			report.WindowHeight              = window.height();
+			report.DevicePixelRatio          = window.devicePixelRatioF();
+			report.Rendered                  = window.grab().save(QString::fromLocal8Bit(argv[3]));
+			require(report.Rendered, "unavailable full-window capture failed");
+			require(measure_wait(*application, budget, report, "binary_file_selection", [&] { select_file(window, QStringLiteral("assets/data.bin")); }, [&] { return selected(surface, QStringLiteral("assets/data.bin")) && quiet(*application); }), "binary selection timed out");
+			require(surface.current_result()->Alignment.Content == core::diff_content_state::binary && surface.status_text() == QStringLiteral("Binary file comparison"), "binary status must be distinct");
+			report.BinaryStatusVerified = true;
+			require(measure_wait(*application, budget, report, "supported_file_recovery", [&] { select_file(window, source_path(31)); }, [&] { return selected(surface, source_path(31)) && quiet(*application); }), "supported recovery timed out");
+			report.ExactFinalSource = surface.left_pane()->document()->firstBlock().text() == "int fixture_0031 = 0;" && surface.right_pane()->document()->firstBlock().text() == "int fixture_0031 = 1;";
+			require(report.ExactFinalSource && surface.status_text().startsWith(QStringLiteral("Diff ready — 1 semantic changes")), "supported file must restore exact normal display");
+			require(access::diff_work_evidence(*application).FixtureDiffHelperInvocations == 0U, "unavailable course bypassed the real diff host");
+		} else {
+			require(measure_wait(*application, budget, report, "large_file_selection", [&] { select_file(window, QStringLiteral("large/comparison.cpp")); }, [&] { return selected(surface, QStringLiteral("large/comparison.cpp")) && quiet(*application) && surface.scroll_controller()->maximum_position() > 1000.0; }), "large selection timed out");
+			verify_large(surface, manifest);
+			report.ExactLargeSource = true;
+			report.PrimaryIndexWork = surface.current_result()->PrimaryIndexWorkConsumed;
+			report.MatrixCells      = surface.current_result()->MatrixCellsConsumed;
+			require(surface.selection() && surface.selection()->PreferredLine.Line == 0U, "initial selected change is line one");
+			for (int change = 0; change < 2; ++change) {
+				require(window.next_change_action()->isEnabled(), "change navigation action unavailable");
+				QElapsedTimer gesture;
+				gesture.start();
+				window.next_change_action()->trigger();
+				report.ChangeActionMs.push_back(static_cast<double>(gesture.nsecsElapsed()) / 1'000'000.0);
+				require(surface.selection() && surface.selection()->PreferredLine.Line == static_cast<std::uint32_t>((change + 1) * 1000), "next change selected wrong source line");
+			}
+			auto* controller = surface.scroll_controller();
+			surface.shared_scrollbar()->setValue(0);
+			const auto    before               = surface.statistics();
+			const auto    scrollBefore         = controller->statistics();
+			const auto    classificationBefore = application->status().ClassificationSubmissions;
+			QElapsedTimer wheel;
+			wheel.start();
+			for (int event = 0; event < 1000; ++event) {
+				QWheelEvent inputEvent{ QPointF{ 20, 20 }, QPointF{ 20, 20 }, QPoint{ 0, -1 }, QPoint{ }, Qt::NoButton, Qt::NoModifier, Qt::ScrollUpdate, false };
+				QApplication::sendEvent(surface.right_pane()->viewport(), &inputEvent);
+			}
+			report.WheelBatchMs           = static_cast<double>(wheel.nsecsElapsed()) / 1'000'000.0;
+			const auto after              = surface.statistics();
+			const auto scrollAfter        = controller->statistics();
+			report.WheelEvents            = scrollAfter.WheelEvents - scrollBefore.WheelEvents;
+			report.ScrollFrames           = scrollAfter.FramesApplied - scrollBefore.FramesApplied;
+			report.ScrollIndexBuilds      = after.SemanticIndexBuilds - before.SemanticIndexBuilds;
+			report.ScrollGeometryRebuilds = after.GeometryRebuilds - before.GeometryRebuilds;
+			report.ScrollPaneMeasurements = after.PaneMeasurements - before.PaneMeasurements;
+			require(report.WheelEvents == 1000U && report.ScrollFrames == 1000U && report.ScrollIndexBuilds == 0U && report.ScrollGeometryRebuilds == 0U && report.ScrollPaneMeasurements == 0U
+						&& application->status().ClassificationSubmissions == classificationBefore && controller->position() == 1000.0,
+					"scroll gesture work/position contract");
+			surface.shared_scrollbar()->setValue(0);
+			report.WindowWidth      = window.width();
+			report.WindowHeight     = window.height();
+			report.DevicePixelRatio = window.devicePixelRatioF();
+			report.Rendered         = window.grab().save(QString::fromLocal8Bit(argv[3]));
+			require(report.Rendered, "full-window capture failed");
 
-		QTimer selections;
-		selections.setInterval(1);
-		int           next = 0;
-		QString       requested;
-		QElapsedTimer drain;
-		QObject::connect(&selections, &QTimer::timeout, &window, [&] {
-			if (next == 32) {
-				selections.stop();
-				return;
-			}
-			const auto work = access::diff_work_evidence(*application);
-			if (!requested.isEmpty() && work.OutstandingJobs == 0U && !selected(surface, requested)) {
-				return;
-			}
-			report.SelectionsWithOutstandingDiff += work.OutstandingJobs != 0U ? 1U : 0U;
-			requested = source_path(next++);
-			select_file(window, requested);
-			++report.RapidSelections;
-			if (next == 32) {
-				drain.start();
-			}
-		});
-		require(measure_wait(*application, budget, report, "rapid_selection_supersession", [&] { selections.start(); }, [&] { return next == 32 && selected(surface, source_path(31)) && quiet(*application); }), "supersession timed out");
-		report.SupersessionDrainMs = static_cast<double>(drain.nsecsElapsed()) / 1'000'000.0;
-		require(report.SelectionsWithOutstandingDiff != 0U, "supersession never overlapped outstanding diff work");
-		report.ExactFinalSource = surface.left_pane()->document()->firstBlock().text() == "int fixture_0031 = 0;" && surface.right_pane()->document()->firstBlock().text() == "int fixture_0031 = 1;";
-		require(report.ExactFinalSource, "stale source adopted after supersession");
-		const auto work         = access::diff_work_evidence(*application);
-		report.DiffCacheEntries = work.CacheEntries;
-		report.DiffCacheBytes   = work.CacheBytes;
-		require(work.FixtureDiffHelperInvocations == 0U, "fixture diff bypass was used");
+			QTimer selections;
+			selections.setInterval(1);
+			int           next = 0;
+			QString       requested;
+			QElapsedTimer drain;
+			QObject::connect(&selections, &QTimer::timeout, &window, [&] {
+				if (next == 32) {
+					selections.stop();
+					return;
+				}
+				const auto work = access::diff_work_evidence(*application);
+				if (!requested.isEmpty() && work.OutstandingJobs == 0U && !selected(surface, requested)) {
+					return;
+				}
+				report.SelectionsWithOutstandingDiff += work.OutstandingJobs != 0U ? 1U : 0U;
+				requested = source_path(next++);
+				select_file(window, requested);
+				++report.RapidSelections;
+				if (next == 32) {
+					drain.start();
+				}
+			});
+			require(measure_wait(*application, budget, report, "rapid_selection_supersession", [&] { selections.start(); }, [&] { return next == 32 && selected(surface, source_path(31)) && quiet(*application); }), "supersession timed out");
+			report.SupersessionDrainMs = static_cast<double>(drain.nsecsElapsed()) / 1'000'000.0;
+			require(report.SelectionsWithOutstandingDiff != 0U, "supersession never overlapped outstanding diff work");
+			report.ExactFinalSource = surface.left_pane()->document()->firstBlock().text() == "int fixture_0031 = 0;" && surface.right_pane()->document()->firstBlock().text() == "int fixture_0031 = 1;";
+			require(report.ExactFinalSource, "stale source adopted after supersession");
+			const auto work         = access::diff_work_evidence(*application);
+			report.DiffCacheEntries = work.CacheEntries;
+			report.DiffCacheBytes   = work.CacheBytes;
+			require(work.FixtureDiffHelperInvocations == 0U, "fixture diff bypass was used");
+		}
 		report.ShutdownComplete = measure_wait(*application, budget, report, "shutdown", [&] { application->begin_shutdown(); }, [&] { return application->status().ShutdownComplete; });
 		require(report.ShutdownComplete && !application->status().ShutdownCleanupFailed, "shutdown failed");
 		auto encoded = glz::write_json(report);
@@ -381,7 +412,7 @@ auto main(int argc, char** argv) -> int
 		output << *encoded << '\n';
 		output.close();
 		require(output.good(), "measurement write");
-		std::cout << "LARGE_REVIEW_COMPOSED_BENCHMARK_OK\n"
+		std::cout << (report.UnavailableCourse ? "UNAVAILABLE_DIFF_COMPOSED_OK\n" : "LARGE_REVIEW_COMPOSED_BENCHMARK_OK\n")
 				  << *encoded << '\n';
 		return EXIT_SUCCESS;
 	} catch (const std::exception& error) {

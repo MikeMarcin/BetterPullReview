@@ -66,3 +66,12 @@ measured UI stalls. This is one application epoch, not 32 epoch refreshes.
 Memory/pruning ceilings, scrolling during active work, native Windows/Linux
 runtime evidence and justified responsiveness thresholds remain open. Smaller
 retained workbench and epoch-model fixtures remain useful for focused checks.
+
+
+The separate `application_unavailable_diff_public_path` selector exercises
+resource-limit presentation and recovery using the same real composition. Its
+test-only limits retain the production matrix ceiling and disable the optional
+ordered index. It checks the resulting unavailable message, binary status and
+supported-file recovery, writing `unavailable-diff-measurement.json` and
+`unavailable-diff-window.png` beside the ordinary benchmark artifacts. This
+selector does not alter shipped limits or use a fixture-produced diff result.

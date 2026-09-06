@@ -8,6 +8,7 @@
 #include <QFont>
 #include <QImage>
 #include <QKeyEvent>
+#include <QLabel>
 #include <QMouseEvent>
 #include <QPalette>
 #include <QPlainTextEdit>
@@ -1206,6 +1207,48 @@ namespace {
 			expect(workbench.grab().save(renderPath),
 				   "selected workbench raster saves");
 		}
+	}
+
+	void test_nontext_publication_status()
+	{
+		auto       workbench = qt::diff_workbench{ };
+		const auto publish   = [&](const core::computed_file_diff& aDiff, const bool aCached) {
+			const auto selected = context(aDiff, 1U, 1U);
+			workbench.set_loading(selected);
+			workbench.publish({ .Context  = selected,
+								.Result   = std::make_shared<const core::computed_file_diff>(aDiff),
+								.CacheHit = aCached });
+		};
+		const auto changed = computed("old\n", "new\n", { }, 70U);
+		publish(changed, false);
+		expect(workbench.selection().has_value(), "changed text supplies a selection before refusal");
+		auto limits                    = core::diff_compute_limits{ };
+		limits.MaximumMatrixCells      = 0U;
+		limits.MaximumPrimaryIndexWork = 0U;
+		const auto left = bytes("old\n"), right = bytes("new\n");
+		const auto limited = core::compute_file_diff({ .Key = key({ }, 71U), .Options = { }, .LeftBytes = left, .RightBytes = right, .Limits = limits });
+		expect(limited.Result && limited.Reason == core::diff_reason_code::compute_limit, "real compute limit produces an unavailable result");
+		for (const bool cached : { false, true }) {
+			publish(*limited.Result, cached);
+			expect(workbench.status_text() == QStringLiteral("Comparison unavailable — file exceeds the comparison work limit") + (cached ? QStringLiteral(" (cached)") : QString{ }), "published and cached limits preserve their diagnostic");
+			expect(!workbench.selection() && workbench.left_pane()->toPlainText().isEmpty()
+					   && workbench.right_pane()->toPlainText().isEmpty(),
+				   "unavailable result clears prior source and selection");
+		}
+		const auto binary  = bytes(std::string_view{ "a\0b", 3U });
+		const auto nontext = core::compute_file_diff({ .Key = key({ }, 72U), .Options = { }, .LeftBytes = binary, .RightBytes = right });
+		expect(nontext.Result && nontext.Reason == core::diff_reason_code::binary_file, "real binary result available");
+		publish(*nontext.Result, false);
+		expect(workbench.status_text() == QStringLiteral("Binary file comparison"), "binary content is distinct from equal text and unavailable content");
+		publish(computed("same\n", "same\n", { }, 73U), false);
+		expect(workbench.status_text() == QStringLiteral("Diff ready — 0 semantic changes")
+				   && workbench.left_pane()->toPlainText() == QStringLiteral("same\n"),
+			   "equal text restores a genuine zero-change comparison");
+		auto* label = workbench.findChild<QLabel*>(QStringLiteral("diffWorkbenchStatus"));
+		expect(label && label->textInteractionFlags().testFlag(Qt::TextSelectableByKeyboard)
+				   && label->textInteractionFlags().testFlag(Qt::TextSelectableByMouse)
+				   && label->accessibleDescription() == label->text(),
+			   "comparison messages remain copyable and accessible");
 	}
 
 	void test_semantic_selection_callback_tracks_both_panes_and_clear()
@@ -2594,6 +2637,7 @@ auto main(int argc, char** argv) -> int
 	test_the_gutter_follows_the_documents_digit_count();
 	test_hiding_the_numbers_returns_the_gutter_width_to_the_code();
 	test_selected_composition();
+	test_nontext_publication_status();
 	test_semantic_selection_callback_tracks_both_panes_and_clear();
 	test_conversation_anchor_reveals_and_paints_exact_line();
 	test_scale_and_high_frequency_evidence();

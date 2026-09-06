@@ -1015,6 +1015,17 @@ set_tests_properties(application_large_review_benchmark PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 120
     PASS_REGULAR_EXPRESSION "LARGE_REVIEW_COMPOSED_BENCHMARK_OK")
 
+bpr_add_network_isolated_test(
+    NAME application_unavailable_diff_public_path
+    COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
+        $<TARGET_FILE:Git::Git>
+        "${CMAKE_CURRENT_BINARY_DIR}/unavailable-diff-measurement.json"
+        "${CMAKE_CURRENT_BINARY_DIR}/unavailable-diff-window.png"
+        --unavailable)
+set_tests_properties(application_unavailable_diff_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 120
+    PASS_REGULAR_EXPRESSION "UNAVAILABLE_DIFF_COMPOSED_OK")
+
 bpr_add_executable(test_better_pull_review_large_review_replay large_review_replay_tests.cpp)
 target_link_libraries(test_better_pull_review_large_review_replay PRIVATE BetterPullReview::AdapterGitHub glaze::glaze)
 target_include_directories(test_better_pull_review_large_review_replay PRIVATE "${PROJECT_SOURCE_DIR}/src/adapters/github/src")

@@ -64,6 +64,7 @@ namespace bpr::app::detail {
 	struct github_public_path_fixture_options
 	{
 		std::optional<std::filesystem::path>             ApplicationDataRoot;
+		core::diff_compute_limits                        DiffComputeLimits;
 		github_epoch_fixture_phase                       EpochPhase                     = github_epoch_fixture_phase::single;
 		bool                                             DisableWorkbenchSelectionWire  = false;
 		bool                                             DisableReviewLedgerGestureWire = false;

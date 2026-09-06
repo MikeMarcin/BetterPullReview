@@ -3382,6 +3382,8 @@ namespace bpr::app {
 			// the gate this exists for selects no fixture: it drives the
 			// shipped composition and only wants the connect denied.
 			NetworkDenied = aConfig.NetworkDenied;
+			const auto diffComputeLimits = aFixture.has_value()
+				? aFixtureOptions.DiffComputeLimits : core::diff_compute_limits{ };
 			// [[BPR-0316]]. Read outside the fixture branch below, because
 			// this is the one option that means something without a fixture:
 			// it forces the shipped selection available over the production
@@ -4257,7 +4259,11 @@ namespace bpr::app {
 				*EpochHost,
 				DiffEffects,
 				DecisionLane,
-				*DiffProjections);
+				*DiffProjections
+#if defined(BPR_BUILD_TESTING)
+				, application::diff_host_limits{ }, diffComputeLimits
+#endif
+			);
 
 			// The workbench observes the review's files through the read model
 			// the provider already produces. The supplier is read at call time

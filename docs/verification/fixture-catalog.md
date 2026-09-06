@@ -1602,3 +1602,14 @@ BPR-0624 records the initial Mac baseline; BPR-0627 tracks its measured UI stall
 These checks do not establish 32 application epochs, memory/pruning ceilings,
 scrolling responsiveness during active work, universal timing budgets or native
 Windows/Linux results. The tests run locally with denied network access.
+
+
+`application_unavailable_diff_public_path` reuses the same stored workload and
+real provider/Git/composition path with a test-only compute-limits override.
+It retains the production matrix ceiling and disables the optional ordered
+index, so the 20,000-line file produces a real typed compute-limit result. The
+course verifies the visible, selectable reason, empty source/selection, full
+window render, a distinct binary-file status and exact source recovery when a
+supported file is selected. Default production limits and live sign-in are
+unchanged. `qt_diff_workbench_scale_100` additionally checks genuine equal text
+and cached unavailable publications. BPR-0626 records the passing Mac result.
