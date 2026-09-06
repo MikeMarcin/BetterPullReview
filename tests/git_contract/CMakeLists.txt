@@ -32,6 +32,7 @@ target_link_libraries(
     test_better_pull_review_git_process_contract_tests
     PRIVATE
         BetterPullReview::Application
+        glaze::glaze
         Qt6::Core
         Threads::Threads
 )
@@ -81,6 +82,7 @@ target_link_libraries(
     test_better_pull_review_git_cache_contract_tests
     PRIVATE
         BetterPullReview::Application
+        glaze::glaze
         Qt6::Core
         Threads::Threads
 )
@@ -218,6 +220,7 @@ target_link_libraries(
     test_better_pull_review_git_anonymous_public_read_tests
     PRIVATE
         BetterPullReview::Application
+        glaze::glaze
         Qt6::Core
         Threads::Threads
 )
@@ -251,3 +254,38 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "git-anonymous-public-read-tests:pass"
         TIMEOUT 180
 )
+
+if(UNIX)
+    bpr_add_executable(
+        test_better_pull_review_agent_workspace_ownership_tests
+        agent_workspace_ownership_tests.cpp
+        ../../src/adapters/git/src/installed_git_process.cpp
+    )
+    target_include_directories(
+        test_better_pull_review_agent_workspace_ownership_tests
+        PRIVATE ../../src/adapters/git/include
+    )
+    target_link_libraries(
+        test_better_pull_review_agent_workspace_ownership_tests
+        PRIVATE BetterPullReview::Application glaze::glaze Qt6::Core Threads::Threads
+    )
+    target_compile_definitions(
+        test_better_pull_review_agent_workspace_ownership_tests
+        PRIVATE BPR_WORKSPACE_OWNERSHIP_FAULT_INJECTION=1
+    )
+    if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        target_compile_definitions(
+            test_better_pull_review_agent_workspace_ownership_tests
+            PRIVATE _LIBCPP_ENABLE_EXPERIMENTAL
+        )
+    endif()
+    bpr_enable_hardening(test_better_pull_review_agent_workspace_ownership_tests)
+    bpr_enable_warnings(test_better_pull_review_agent_workspace_ownership_tests)
+    bpr_add_network_isolated_test(
+        NAME agent_workspace_ownership
+        COMMAND Python3::Interpreter
+            "${PROJECT_SOURCE_DIR}/tests/scripts/agent_workspace_ownership_tests.py"
+            --executable "$<TARGET_FILE:test_better_pull_review_agent_workspace_ownership_tests>"
+    )
+    set_tests_properties(agent_workspace_ownership PROPERTIES TIMEOUT 120)
+endif()

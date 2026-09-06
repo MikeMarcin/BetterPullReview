@@ -1,4 +1,6 @@
 #include "bpr/adapters/git/installed_git_process.hpp"
+#include "bpr/adapters/git/agent_workspace_ownership.hpp"
+#include <glaze/json.hpp>
 
 #include <QByteArray>
 #include <QFileInfo>
@@ -2534,6 +2536,432 @@ namespace bpr::adapters::git {
 				return false;
 			}
 		}
+
+#if defined(Q_OS_UNIX)
+		class workspace_descriptor
+		{
+		public:
+			explicit workspace_descriptor(int aValue)
+				: Value{ aValue }
+			{ }
+			~workspace_descriptor()
+			{
+				if (Value >= 0) {
+					static_cast<void>(::close(Value));
+				}
+			}
+			workspace_descriptor(const workspace_descriptor&)                                  = delete;
+			auto               operator=(const workspace_descriptor&) -> workspace_descriptor& = delete;
+			[[nodiscard]] auto get() const noexcept -> int { return Value; }
+			[[nodiscard]] auto release() noexcept -> int { return std::exchange(Value, -1); }
+
+		private:
+			int Value;
+		};
+		void workspace_checkpoint([[maybe_unused]] std::string_view aName)
+		{
+	#if defined(BPR_WORKSPACE_OWNERSHIP_FAULT_INJECTION)
+			installed_workspace_checkpoint(aName);
+	#endif
+		}
+		using ownership_identity                              = std::array<std::uint64_t, 4U>;
+		constexpr std::size_t maximum_workspace_records       = 64U;
+		constexpr std::size_t maximum_workspace_journal_bytes = 64U * 1024U;
+		struct workspace_record
+		{
+			std::uint32_t Version = 1U;
+			// 0 reserved, 1 parent owned, 2 materializing, 3 ready,
+			// 4 child cleanup planned, 5 parent cleanup planned, 6 removed.
+			std::uint32_t                                 Phase = 0U;
+			std::string                                   Token;
+			ownership_identity                            Registry{ };
+			ownership_identity                            Neighbourhood{ };
+			ownership_identity                            File{ };
+			ownership_identity                            Parent{ };
+			ownership_identity                            Child{ };
+			std::array<std::uint64_t, 10U>                Scope{ };
+			std::array<std::array<std::uint8_t, 32U>, 3U> AuthorityFingerprints{ };
+			std::string                                   Head;
+			auto                                          operator<=>(const workspace_record&) const = default;
+			struct glaze
+			{
+				using T                     = workspace_record;
+				static constexpr auto value = glz::object(
+					"Version", &T::Version, "Phase", &T::Phase, "Token", &T::Token,
+					"Registry", &T::Registry, "Neighbourhood", &T::Neighbourhood,
+					"File", &T::File, "Parent", &T::Parent, "Child", &T::Child,
+					"Scope", &T::Scope, "AuthorityFingerprints", &T::AuthorityFingerprints, "Head", &T::Head);
+			};
+		};
+
+		[[nodiscard]] auto sync_workspace_directory(const std::filesystem::path& aPath) -> bool
+		{
+			const auto fd = ::open(aPath.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
+			if (fd < 0) {
+				return false;
+			}
+			const auto result = ::fsync(fd) == 0;
+			static_cast<void>(::close(fd));
+			return result;
+		}
+		[[nodiscard]] auto ownership_id(const std::filesystem::path& aPath, exact_artifact_kind aKind) -> ownership_identity
+		{
+			const auto identity = exact_identity(aPath, aKind);
+			return identity ? workspace_directory_identity(*identity).Opaque : ownership_identity{ };
+		}
+		[[nodiscard]] auto absent(const std::filesystem::path& aPath) -> bool
+		{
+			std::error_code error;
+			const auto      status = std::filesystem::symlink_status(aPath, error);
+			return error == std::errc::no_such_file_or_directory || (!error && status.type() == std::filesystem::file_type::not_found);
+		}
+		[[nodiscard]] auto record_transition(const workspace_record& aOld, const workspace_record& aNew) -> bool
+		{
+			const auto oldPhase = aOld.Phase;
+			const auto phase    = aNew.Phase;
+			if (!((phase == oldPhase + 1U && oldPhase < 6U)
+				  || (oldPhase == 0U && phase == 6U) || (oldPhase == 1U && phase == 5U)
+				  || (oldPhase == 2U && phase == 4U))) {
+				return false;
+			}
+			auto adjusted  = aNew;
+			adjusted.Phase = oldPhase;
+			if (oldPhase == 0U && phase == 1U) {
+				if (!application::valid(application::agent_workspace_directory_identity{ aNew.Parent }) || aNew.Parent[0] != 2U) {
+					return false;
+				}
+				adjusted.Parent = aOld.Parent;
+			}
+			if (oldPhase == 1U && phase == 2U) {
+				if (!application::valid(application::agent_workspace_directory_identity{ aNew.Child }) || aNew.Child[0] != 2U) {
+					return false;
+				}
+				adjusted.Child = aOld.Child;
+			}
+			return adjusted == aOld;
+		}
+
+		class workspace_ownership final : public installed_agent_workspace_ownership
+		{
+		public:
+			workspace_ownership(std::filesystem::path aRegistry, std::filesystem::path aNeighbourhood, workspace_record aRecord, int aDescriptor)
+				: Record{ std::move(aRecord) }
+				, Registry{ std::move(aRegistry) }
+				, Neighbourhood{ std::move(aNeighbourhood) }
+				, Descriptor{ aDescriptor }
+			{
+				Journal                = Registry / (Record.Token + ".jsonl");
+				Layout.Parent          = Neighbourhood / ("betterpullreview-agent-" + Record.Token);
+				Layout.Workspace       = Layout.Parent / "workspace";
+				Layout.Guard           = { .Path = path_text(Journal), .FileIdentity = Record.File };
+				Layout.OwnershipMarker = "bpr-agent-workspace-v1:" + std::to_string(Record.Scope[0]) + ":" + std::to_string(Record.Scope[4]) + ":" + Record.Head + "\n";
+				refresh_identities();
+			}
+			~workspace_ownership() override
+			{
+				if (Descriptor >= 0) {
+					static_cast<void>(::close(Descriptor));
+				}
+			}
+			[[nodiscard]] auto layout() const noexcept -> const installed_agent_workspace_layout& override { return Layout; }
+			[[nodiscard]] auto boundary_valid() const -> bool
+			{
+				return !Poisoned && private_directory(Registry) && private_directory(Neighbourhood)
+					&& ownership_id(Registry, exact_artifact_kind::directory) == Record.Registry
+					&& ownership_id(Neighbourhood, exact_artifact_kind::directory) == Record.Neighbourhood
+					&& private_regular_file(Journal) && ownership_id(Journal, exact_artifact_kind::regular_file) == Record.File;
+			}
+			[[nodiscard]] auto append(workspace_record aNext, bool aInitial = false) -> bool
+			{
+				if (!boundary_valid() || (!aInitial && !record_transition(Record, aNext))) {
+					return false;
+				}
+				std::string bytes;
+				if (glz::write_json(aNext, bytes)) {
+					return false;
+				}
+				bytes += '\n';
+				const auto offset = ::lseek(Descriptor, 0, SEEK_END);
+				if (offset < 0 || static_cast<std::uint64_t>(offset) + bytes.size() > maximum_workspace_journal_bytes) {
+					return false;
+				}
+				std::size_t written = 0U;
+				while (written < bytes.size()) {
+					const auto count = ::write(Descriptor, bytes.data() + written, bytes.size() - written);
+					if (count < 0 && errno == EINTR) {
+						continue;
+					}
+					if (count <= 0) {
+						Poisoned = true;
+						return false;
+					}
+					written += static_cast<std::size_t>(count);
+				}
+				if (::fsync(Descriptor) != 0) {
+					Poisoned = true;
+					return false;
+				}
+				Record = std::move(aNext);
+				refresh_identities();
+				workspace_checkpoint("journal-" + std::to_string(Record.Phase));
+				return true;
+			}
+			[[nodiscard]] auto advance(std::uint32_t aPhase) -> bool
+			{
+				auto next  = Record;
+				next.Phase = aPhase;
+				return append(std::move(next));
+			}
+			[[nodiscard]] auto mark_ready() -> bool override
+			{
+				auto boundary = process_boundary_lock{ Registry };
+				return boundary.valid() && boundary_valid() && Record.Phase == 2U
+					&& directories_match() && read_exact_file(Layout.Workspace / ".git" / "bpr-owned-workspace", Layout.OwnershipMarker) && advance(3U);
+			}
+			[[nodiscard]] auto cleanup() -> bool override
+			{
+				auto boundary = process_boundary_lock{ Registry };
+				if (!boundary.valid()) {
+					return false;
+				}
+				// flock conversion can drop the shared lock on failure. The registry
+				// lock excludes recovery until shared ownership is restored.
+				if (::flock(Descriptor, LOCK_EX | LOCK_NB) != 0) {
+					if (::flock(Descriptor, LOCK_SH | LOCK_NB) != 0) {
+						Poisoned = true;
+					}
+					return false;
+				}
+				return cleanup_locked();
+			}
+			[[nodiscard]] auto cleanup_locked() -> bool
+			{
+				if (!boundary_valid()) {
+					return false;
+				}
+				const auto parentTrash = Neighbourhood / (".bpr-cleanup-" + Record.Token);
+				const auto childTrash  = Layout.Parent / ".bpr-cleanup-workspace";
+				if (Record.Phase == 0U) {
+					if (!absent(Layout.Parent) || !absent(parentTrash) || !advance(6U)) {
+						return false;
+					}
+				}
+				if (Record.Phase == 1U) {
+					if (ownership_id(Layout.Parent, exact_artifact_kind::directory) != Record.Parent || !empty_private_directory(Layout.Parent) || !advance(5U)) {
+						return false;
+					}
+				}
+				if (Record.Phase == 2U || Record.Phase == 3U) {
+					if (!directories_match() || (Record.Phase == 3U && !read_exact_file(Layout.Workspace / ".git" / "bpr-owned-workspace", Layout.OwnershipMarker)) || !advance(4U)) {
+						return false;
+					}
+				}
+				if (Record.Phase == 4U) {
+					if (ownership_id(Layout.Parent, exact_artifact_kind::directory) != Record.Parent
+						|| !remove_planned(Layout.Workspace, childTrash, Record.Child, true)
+						|| !empty_private_directory(Layout.Parent) || !advance(5U)) {
+						return false;
+					}
+				}
+				if (Record.Phase == 5U && (!remove_planned(Layout.Parent, parentTrash, Record.Parent, false) || !advance(6U))) {
+					return false;
+				}
+				if (Record.Phase != 6U || !absent(Layout.Parent) || !absent(parentTrash) || !boundary_valid()) {
+					return false;
+				}
+				return ::unlink(Journal.c_str()) == 0 && sync_workspace_directory(Registry);
+			}
+			[[nodiscard]] auto directories_match() const -> bool
+			{
+				return private_directory(Layout.Parent) && private_directory(Layout.Workspace)
+					&& ownership_id(Layout.Parent, exact_artifact_kind::directory) == Record.Parent
+					&& ownership_id(Layout.Workspace, exact_artifact_kind::directory) == Record.Child;
+			}
+			workspace_record Record;
+
+		private:
+			void refresh_identities()
+			{
+				Layout.ParentIdentity.Opaque    = Record.Parent;
+				Layout.WorkspaceIdentity.Opaque = Record.Child;
+			}
+			[[nodiscard]] static auto remove_planned(const std::filesystem::path& aSource, const std::filesystem::path& aTrash, const ownership_identity& aIdentity, bool aRecursive) -> bool
+			{
+				if (!absent(aSource)) {
+					if (ownership_id(aSource, exact_artifact_kind::directory) != aIdentity || !absent(aTrash)) {
+						return false;
+					}
+					std::error_code error;
+					if (!rename_no_replace(aSource, aTrash, error) || !sync_workspace_directory(aSource.parent_path())) {
+						return false;
+					}
+				}
+				if (absent(aTrash)) {
+					return true;
+				}
+				workspace_checkpoint(aRecursive ? "child-quarantined" : "parent-quarantined");
+				if (!private_directory(aTrash) || ownership_id(aTrash, exact_artifact_kind::directory) != aIdentity) {
+					return false;
+				}
+				std::error_code error;
+				if (aRecursive) {
+					static_cast<void>(std::filesystem::remove_all(aTrash, error));
+				} else {
+					static_cast<void>(std::filesystem::remove(aTrash, error));
+				}
+				return !error && absent(aTrash) && sync_workspace_directory(aTrash.parent_path());
+			}
+			std::filesystem::path            Registry;
+			std::filesystem::path            Neighbourhood;
+			std::filesystem::path            Journal;
+			int                              Descriptor = -1;
+			bool                             Poisoned   = false;
+			installed_agent_workspace_layout Layout;
+		};
+
+		struct workspace_json_options : glz::opts
+		{
+			bool validate_trailing_whitespace = true;
+			constexpr workspace_json_options() { error_on_missing_keys = true; }
+		};
+		[[nodiscard]] auto load_workspace_record(int aFd, const std::filesystem::path& aRegistry, const std::filesystem::path& aNeighbourhood, std::string_view aToken) -> std::optional<workspace_record>
+		{
+			struct stat info{ };
+			if (::fstat(aFd, &info) != 0 || !S_ISREG(info.st_mode) || info.st_uid != ::geteuid() || info.st_nlink != 1
+				|| (info.st_mode & (S_IRWXG | S_IRWXO)) != 0 || info.st_size <= 0 || static_cast<std::uint64_t>(info.st_size) > maximum_workspace_journal_bytes) {
+				return std::nullopt;
+			}
+			std::string bytes(static_cast<std::size_t>(info.st_size), '\0');
+			std::size_t read = 0U;
+			while (read < bytes.size()) {
+				const auto count = ::pread(aFd, bytes.data() + read, bytes.size() - read, static_cast<off_t>(read));
+				if (count < 0 && errno == EINTR) {
+					continue;
+				}
+				if (count <= 0) {
+					return std::nullopt;
+				}
+				read += static_cast<std::size_t>(count);
+			}
+			std::optional<workspace_record> previous;
+			std::size_t                     offset = 0U;
+			while (offset < bytes.size()) {
+				const auto end = bytes.find('\n', offset);
+				if (end == std::string::npos) {
+					break;
+				}
+				workspace_record record;
+				if (glz::read<workspace_json_options{ }>(record, std::string_view{ bytes }.substr(offset, end - offset))
+					|| record.Version != 1U || record.Token != aToken || record.Registry != ownership_id(aRegistry, exact_artifact_kind::directory)
+					|| record.Neighbourhood != ownership_id(aNeighbourhood, exact_artifact_kind::directory)
+					|| record.File != ownership_identity{ 1U, static_cast<std::uint64_t>(info.st_dev), 0U, static_cast<std::uint64_t>(info.st_ino) }
+					|| (record.Head.size() != 40U && record.Head.size() != 64U)
+					|| !std::ranges::all_of(record.Head, [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); })
+					|| std::ranges::any_of(record.Scope, [](auto id) { return id == 0U; })
+					|| std::ranges::any_of(record.AuthorityFingerprints, [](const auto& fingerprint) { return std::ranges::all_of(fingerprint, [](auto byte) { return byte == 0U; }); })
+					|| (previous ? !record_transition(*previous, record) : record.Phase != 0U || record.Parent != ownership_identity{ } || record.Child != ownership_identity{ })) {
+					return std::nullopt;
+				}
+				previous = std::move(record);
+				offset   = end + 1U;
+			}
+			if (!previous || (offset != bytes.size() && (::ftruncate(aFd, static_cast<off_t>(offset)) != 0 || ::fsync(aFd) != 0))) {
+				return std::nullopt;
+			}
+			return previous;
+		}
+		[[nodiscard]] auto prepare_workspace_registry(const std::filesystem::path& aRegistry, const std::filesystem::path& aNeighbourhood) -> bool
+		{
+			return aRegistry.is_absolute() && path_text(aRegistry).size() <= 3500U
+				&& path_text(aRegistry).find('\0') == std::string::npos
+				&& aRegistry == aRegistry.lexically_normal()
+				&& path_text(aNeighbourhood).size() <= 3500U
+				&& path_text(aNeighbourhood).find('\0') == std::string::npos
+				&& private_directory(aNeighbourhood)
+				&& aRegistry != aNeighbourhood
+				&& !path_begins_with(aNeighbourhood, aRegistry)
+				&& private_directory(aRegistry.parent_path())
+				&& make_private_directory(aRegistry)
+				&& sync_workspace_directory(aRegistry.parent_path());
+		}
+		[[nodiscard]] auto recover_workspaces_locked(const std::filesystem::path& aRegistry, const std::filesystem::path& aNeighbourhood, std::stop_token aStop)
+			-> std::expected<workspace_recovery_statistics, workspace_ownership_failure>
+		{
+			workspace_recovery_statistics      result;
+			std::vector<std::filesystem::path> records;
+			for (const auto& entry : std::filesystem::directory_iterator(aRegistry)) {
+				if (aStop.stop_requested()) {
+					return std::unexpected{ workspace_ownership_failure::cancelled };
+				}
+				if (entry.path().filename() == ".git-process-boundary.lock") {
+					continue;
+				}
+				if (records.size() >= maximum_workspace_records) {
+					return std::unexpected{ workspace_ownership_failure::capacity };
+				}
+				const auto name = entry.path().filename().string();
+				if (name.size() != 38U || !name.ends_with(".jsonl") || !std::ranges::all_of(std::string_view{ name }.substr(0U, 32U), [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); })) {
+					return std::unexpected{ workspace_ownership_failure::repair_required };
+				}
+				records.push_back(entry.path());
+			}
+			// Names only identify artifacts that need repair; they never authorize
+			// deletion. Missing journals cannot silently reset admission accounting.
+			std::size_t inspected = 0U;
+			for (const auto& entry : std::filesystem::directory_iterator(aNeighbourhood)) {
+				if (aStop.stop_requested()) {
+					return std::unexpected{ workspace_ownership_failure::cancelled };
+				}
+				if (++inspected > 4096U) {
+					return std::unexpected{ workspace_ownership_failure::capacity };
+				}
+				const auto       name = entry.path().filename().string();
+				std::string_view token{ name };
+				if (token.starts_with("betterpullreview-agent-")) {
+					token.remove_prefix(std::string_view{ "betterpullreview-agent-" }.size());
+				} else if (token.starts_with(".bpr-cleanup-")) {
+					token.remove_prefix(std::string_view{ ".bpr-cleanup-" }.size());
+				} else {
+					continue;
+				}
+				if (!std::ranges::any_of(records, [&](const auto& path) { return path.stem().string() == token; })) {
+					return std::unexpected{ workspace_ownership_failure::repair_required };
+				}
+			}
+			for (const auto& path : records) {
+				if (aStop.stop_requested()) {
+					return std::unexpected{ workspace_ownership_failure::cancelled };
+				}
+				if (!private_regular_file(path)) {
+					return std::unexpected{ workspace_ownership_failure::repair_required };
+				}
+				workspace_descriptor descriptor{ ::open(path.c_str(), O_RDWR | O_CLOEXEC | O_NOFOLLOW) };
+				const auto           fd = descriptor.get();
+				if (fd < 0) {
+					return std::unexpected{ workspace_ownership_failure::repair_required };
+				}
+				if (::flock(fd, LOCK_EX | LOCK_NB) != 0) {
+					const auto busy = errno == EWOULDBLOCK || errno == EAGAIN;
+					if (!busy) {
+						return std::unexpected{ workspace_ownership_failure::unavailable };
+					}
+					++result.Live;
+					continue;
+				}
+				auto record = load_workspace_record(fd, aRegistry, aNeighbourhood, path.stem().string());
+				if (!record) {
+					return std::unexpected{ workspace_ownership_failure::repair_required };
+				}
+				workspace_ownership owner{ aRegistry, aNeighbourhood, std::move(*record), fd };
+				static_cast<void>(descriptor.release());
+				if (!owner.cleanup_locked()) {
+					return std::unexpected{ workspace_ownership_failure::repair_required };
+				}
+				++result.Recovered;
+			}
+			return result;
+		}
+#endif
 
 		class installed_git_process final
 			: public application::git_process_port
@@ -5078,6 +5506,136 @@ namespace bpr::adapters::git {
 				.WindowsSystemRoot = aWindowsSystemRoot,
 			};
 		}
+	}
+
+	auto recover_installed_agent_workspaces(
+		const std::filesystem::path& aRegistry,
+		const std::filesystem::path& aNeighbourhood,
+		const std::stop_token        aStop)
+		-> std::expected<workspace_recovery_statistics, workspace_ownership_failure>
+	{
+#if defined(Q_OS_UNIX)
+		try {
+			if (aStop.stop_requested()) {
+				return std::unexpected{ workspace_ownership_failure::cancelled };
+			}
+			if (!prepare_workspace_registry(aRegistry, aNeighbourhood)) {
+				return std::unexpected{ workspace_ownership_failure::repair_required };
+			}
+			auto boundary = process_boundary_lock{ aRegistry, aStop };
+			if (!boundary.valid()) {
+				return std::unexpected{ aStop.stop_requested() ? workspace_ownership_failure::cancelled : workspace_ownership_failure::unavailable };
+			}
+			return recover_workspaces_locked(aRegistry, aNeighbourhood, aStop);
+		} catch (...) {
+			return std::unexpected{ workspace_ownership_failure::unavailable };
+		}
+#else
+		static_cast<void>(aRegistry);
+		static_cast<void>(aNeighbourhood);
+		static_cast<void>(aStop);
+		return std::unexpected{ workspace_ownership_failure::unavailable };
+#endif
+	}
+
+	auto prepare_installed_agent_workspace_ownership(
+		const std::filesystem::path&                                aRegistry,
+		const application::agent_workspace_materialization_request& aRequest,
+		const std::stop_token                                       aStop)
+		-> std::expected<std::unique_ptr<installed_agent_workspace_ownership>, workspace_ownership_failure>
+	{
+#if defined(Q_OS_UNIX)
+		try {
+			if (aStop.stop_requested()) {
+				return std::unexpected{ workspace_ownership_failure::cancelled };
+			}
+			if (!application::valid(aRequest) || !prepare_workspace_registry(aRegistry, aRequest.ParentDirectory)) {
+				return std::unexpected{ workspace_ownership_failure::repair_required };
+			}
+			auto boundary = process_boundary_lock{ aRegistry, aStop };
+			if (!boundary.valid()) {
+				return std::unexpected{ aStop.stop_requested() ? workspace_ownership_failure::cancelled : workspace_ownership_failure::unavailable };
+			}
+			const auto recovered = recover_workspaces_locked(aRegistry, aRequest.ParentDirectory, aStop);
+			if (!recovered) {
+				return std::unexpected{ recovered.error() };
+			}
+			if (recovered->Live >= maximum_workspace_records) {
+				return std::unexpected{ workspace_ownership_failure::capacity };
+			}
+			std::random_device random;
+			for (std::size_t attempt = 0U; attempt < 8U; ++attempt) {
+				if (aStop.stop_requested()) {
+					return std::unexpected{ workspace_ownership_failure::cancelled };
+				}
+				std::array<std::uint8_t, 16U> nonce{ };
+				for (auto& byte : nonce) {
+					byte = static_cast<std::uint8_t>(random());
+				}
+				workspace_record record{
+					.Token         = lower_hex(nonce),
+					.Registry      = ownership_id(aRegistry, exact_artifact_kind::directory),
+					.Neighbourhood = ownership_id(aRequest.ParentDirectory, exact_artifact_kind::directory),
+					.Scope         = { aRequest.ApplicationSession.value(), aRequest.Authority.Host.value(), aRequest.Authority.Repository.value(), aRequest.Authority.PullRequest.value(), aRequest.Session.Id.value(), aRequest.Authority.Profile.value(), aRequest.Authority.ProfileRevision.value(), aRequest.Authority.Account.value(), aRequest.Authority.Viewer.value(), aRequest.Authority.Number.value() },
+					.Head          = std::string{ core::canonical_hex(aRequest.Session.Binding.HeadOid).view() },
+				};
+				std::ranges::copy(aRequest.Authority.HostAuthority.bytes(), record.AuthorityFingerprints[0].begin());
+				std::ranges::copy(aRequest.Authority.Cache.bytes(), record.AuthorityFingerprints[1].begin());
+				std::ranges::copy(aRequest.Authority.Scope.bytes(), record.AuthorityFingerprints[2].begin());
+				const auto journal = aRegistry / (record.Token + ".jsonl");
+				const auto parent  = aRequest.ParentDirectory / ("betterpullreview-agent-" + record.Token);
+				if (!absent(parent) || !absent(aRequest.ParentDirectory / (".bpr-cleanup-" + record.Token))) {
+					continue;
+				}
+				workspace_descriptor descriptor{ ::open(journal.c_str(), O_RDWR | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, S_IRUSR | S_IWUSR) };
+				if (descriptor.get() < 0) {
+					if (errno == EEXIST) {
+						continue;
+					}
+					return std::unexpected{ workspace_ownership_failure::unavailable };
+				}
+				struct stat info{ };
+				if (::fstat(descriptor.get(), &info) != 0 || !S_ISREG(info.st_mode) || info.st_nlink != 1 || ::flock(descriptor.get(), LOCK_SH | LOCK_NB) != 0) {
+					return std::unexpected{ workspace_ownership_failure::repair_required };
+				}
+				record.File = { 1U, static_cast<std::uint64_t>(info.st_dev), 0U, static_cast<std::uint64_t>(info.st_ino) };
+				auto owner  = std::make_unique<workspace_ownership>(aRegistry, aRequest.ParentDirectory, record, descriptor.get());
+				static_cast<void>(descriptor.release());
+				if (!owner->append(record, true) || !sync_workspace_directory(aRegistry)) {
+					return std::unexpected{ workspace_ownership_failure::repair_required };
+				}
+				// Exclusive mkdir never adopts a pre-existing directory. A crash
+				// before recording its identity preserves it and refuses admission.
+				if (::mkdir(parent.c_str(), S_IRWXU) != 0 || !sync_workspace_directory(aRequest.ParentDirectory)) {
+					return std::unexpected{ workspace_ownership_failure::repair_required };
+				}
+				workspace_checkpoint("parent-created");
+				record.Parent = ownership_id(parent, exact_artifact_kind::directory);
+				record.Phase  = 1U;
+				if (!owner->append(record)) {
+					return std::unexpected{ workspace_ownership_failure::repair_required };
+				}
+				if (::mkdir(owner->layout().Workspace.c_str(), S_IRWXU) != 0 || !sync_workspace_directory(parent)) {
+					return std::unexpected{ workspace_ownership_failure::repair_required };
+				}
+				workspace_checkpoint("child-created");
+				record.Child = ownership_id(owner->layout().Workspace, exact_artifact_kind::directory);
+				record.Phase = 2U;
+				if (!owner->append(record)) {
+					return std::unexpected{ workspace_ownership_failure::repair_required };
+				}
+				return std::unique_ptr<installed_agent_workspace_ownership>{ std::move(owner) };
+			}
+			return std::unexpected{ workspace_ownership_failure::capacity };
+		} catch (...) {
+			return std::unexpected{ workspace_ownership_failure::unavailable };
+		}
+#else
+		static_cast<void>(aRegistry);
+		static_cast<void>(aRequest);
+		static_cast<void>(aStop);
+		return std::unexpected{ workspace_ownership_failure::unavailable };
+#endif
 	}
 
 	auto capture_installed_agent_workspace_parent(

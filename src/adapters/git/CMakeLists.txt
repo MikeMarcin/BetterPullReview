@@ -20,6 +20,7 @@ if(BPR_BUILD_QT)
         PUBLIC
             BetterPullReview::Application
         PRIVATE
+            glaze::glaze
             Qt6::Core
             Threads::Threads
     )
