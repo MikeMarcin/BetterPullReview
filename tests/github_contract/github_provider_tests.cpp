@@ -1,6 +1,6 @@
 #include "github_provider.hpp"
-#include <QJsonDocument>
-#include <QJsonObject>
+
+#include <glaze/json.hpp>
 
 #include <algorithm>
 #include <array>
@@ -12,6 +12,7 @@
 #include <functional>
 #include <iostream>
 #include <iterator>
+#include <map>
 #include <memory>
 #include <optional>
 #include <span>
@@ -430,23 +431,42 @@ namespace {
 		}
 		auto status() const noexcept -> application::diagnostic_log_status override { return application::diagnostic_log_status::available; }
 	};
+
+	struct fixture_json_options : glz::opts
+	{
+		bool validate_skipped             = true;
+		bool validate_trailing_whitespace = true;
+		bool escape_control_characters    = true;
+		constexpr fixture_json_options()
+		{
+			null_terminated       = false;
+			error_on_missing_keys = true;
+			error_on_unknown_keys = false;
+		}
+	};
 	auto capability_part_response(capability_probe_response aResponse, std::uint8_t aPart) -> capability_probe_response
 	{
-		auto envelope = QJsonDocument::fromJson(QByteArray::fromStdString(aResponse.Body)).object();
-		if (!envelope.contains("errors") && envelope.value("data").isObject()) {
-			const auto  all = envelope.value("data").toObject();
-			QJsonObject selected;
-			for (const auto alias : capability_probe_part_aliases(aPart)) {
-				const auto key = QString::fromUtf8(alias.data(), static_cast<qsizetype>(alias.size()));
-				if (all.contains(key)) {
-					selected.insert(key, all.value(key));
-				}
-			}
-			envelope.insert("data", selected);
-			aResponse.Body = QJsonDocument{ envelope }.toJson(QJsonDocument::Compact).toStdString();
+		using object = std::map<std::string, glz::raw_json, std::less<>>;
+		object envelope;
+		if (glz::read<fixture_json_options{ }>(envelope, aResponse.Body) || envelope.contains("errors")) {
+			return aResponse;
 		}
+		const auto data = envelope.find("data");
+		object     all;
+		if (data == envelope.end() || glz::read<fixture_json_options{ }>(all, data->second.str)) {
+			return aResponse;
+		}
+		object selected;
+		for (const auto alias : capability_probe_part_aliases(aPart)) {
+			if (const auto found = all.find(alias); found != all.end()) {
+				selected.emplace(found->first, found->second);
+			}
+		}
+		expect(!glz::write<fixture_json_options{ }>(selected, data->second.str), "selected capability fixture serializes");
+		expect(!glz::write<fixture_json_options{ }>(envelope, aResponse.Body), "capability fixture envelope serializes");
 		return aResponse;
 	}
+
 	struct provider_fixture
 	{
 		explicit provider_fixture(

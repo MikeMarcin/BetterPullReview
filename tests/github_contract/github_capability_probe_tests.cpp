@@ -1,3 +1,4 @@
+#include "canonical_json_expectations.hpp"
 #include "github_capability_probe.hpp"
 
 #include <QCryptographicHash>
@@ -1960,10 +1961,9 @@ namespace {
 				const auto document = capability_probe_graphql_document(part);
 				expect(capability_probe_document_is_query_only(document), "every canonical part is query-only");
 				expect(document == read_file(fixture_root().parent_path() / "v2-parts" / ("part-" + std::to_string(part) + ".graphql")), "canonical indexed document matches fixture");
-				const auto profile  = validate_github_host_profile(github_com_candidate());
-				const auto compiled = compile_capability_probe_request(*profile, { }, part);
-				// Independent Qt oracle retained only until the BPR-0640 helper migration.
-				const auto previousBytes = QJsonDocument{ QJsonObject{ { "query", QString::fromUtf8(document) } } }.toJson(QJsonDocument::Compact).toStdString();
+				const auto profile       = validate_github_host_profile(github_com_candidate());
+				const auto compiled      = compile_capability_probe_request(*profile, { }, part);
+				const auto previousBytes = tests::canonical_json::capability_requests.at(part);
 				expect(compiled && compiled->Body == previousBytes, "all nine Glaze request bodies retain exact canonical bytes");
 				aliases += capability_probe_part_aliases(part).size();
 				auto response = full;

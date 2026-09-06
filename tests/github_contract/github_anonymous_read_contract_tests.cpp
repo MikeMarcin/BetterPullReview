@@ -4,9 +4,8 @@
 
 #include <QByteArray>
 #include <QCryptographicHash>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
+
+#include <glaze/json.hpp>
 
 #include <algorithm>
 #include <array>
@@ -668,6 +667,60 @@ namespace {
 		return hash.toHex().toStdString();
 	}
 
+	struct fixture_json_options : glz::opts
+	{
+		bool validate_skipped             = true;
+		bool validate_trailing_whitespace = true;
+		bool escape_control_characters    = true;
+		constexpr fixture_json_options()
+		{
+			null_terminated       = false;
+			error_on_missing_keys = true;
+			error_on_unknown_keys = false;
+		}
+	};
+	struct promoted_json
+	{
+		std::string PromotedFile;
+		std::string BodySha256;
+		std::string CaptureRelativeFile;
+		std::string CaptureFileSha256;
+		std::string SourceKind;
+		struct glaze
+		{
+			static constexpr auto value = glz::object("promoted_file", &promoted_json::PromotedFile, "body_sha256", &promoted_json::BodySha256, "capture_relative_file", &promoted_json::CaptureRelativeFile, "capture_file_sha256", &promoted_json::CaptureFileSha256, "source_kind", &promoted_json::SourceKind);
+		};
+	};
+	struct synthetic_json
+	{
+		std::string File;
+		std::string Sha256;
+		std::string Purpose;
+		std::string SourceKind;
+		struct glaze
+		{
+			static constexpr auto value = glz::object("file", &synthetic_json::File, "sha256", &synthetic_json::Sha256, "purpose", &synthetic_json::Purpose, "source_kind", &synthetic_json::SourceKind);
+		};
+	};
+	struct provenance_json
+	{
+		std::vector<promoted_json>  Promoted;
+		std::vector<synthetic_json> Synthetic;
+		struct glaze
+		{
+			static constexpr auto value = glz::object("promoted", &provenance_json::Promoted, "synthetic", &provenance_json::Synthetic);
+		};
+	};
+	struct capture_json
+	{
+		std::string Body;
+		std::string SchemaName;
+		struct glaze
+		{
+			static constexpr auto value = glz::object("body", &capture_json::Body, "schema_name", &capture_json::SchemaName);
+		};
+	};
+
 	/// The promoted fixtures are copies of real captures, so their claim to
 	/// be real is only worth what binds them to the capture. Each promoted
 	/// body is bound twice: to the digest the probe review recorded for that
@@ -682,38 +735,34 @@ namespace {
 		const auto captureRoot = std::filesystem::path{
 			BPR_RFC0017_ANONYMOUS_CAPTURE_ROOT
 		};
-		const auto provenance = QJsonDocument::fromJson(
-									QByteArray::fromStdString(
-										read_bytes(fixtureRoot / "provenance.json")))
-									.object();
-		const auto promoted   = provenance.value("promoted").toArray();
+		provenance_json provenance;
+		expect(!glz::read<fixture_json_options{ }>(provenance, read_bytes(fixtureRoot / "provenance.json")), "promoted provenance has its required typed JSON fields");
+		const auto& promoted = provenance.Promoted;
 		expect(promoted.size() == 6,
 			   "every capture the probe review recorded is promoted");
 		auto live = std::size_t{ 0U };
-		for (const auto& value : promoted) {
-			const auto entry         = value.toObject();
+		for (const auto& entry : promoted) {
 			const auto promotedBytes = read_bytes(
 				fixtureRoot
-				/ entry.value("promoted_file").toString().toStdString());
+				/ entry.PromotedFile);
 			expect(digest_of(promotedBytes)
-					   == entry.value("body_sha256").toString().toStdString(),
+					   == entry.BodySha256,
 				   "a promoted body hashes to the digest the review recorded");
 
 			const auto captureBytes = read_bytes(
 				captureRoot
-				/ entry.value("capture_relative_file").toString().toStdString());
+				/ entry.CaptureRelativeFile);
 			expect(digest_of(captureBytes)
-					   == entry.value("capture_file_sha256").toString().toStdString(),
+					   == entry.CaptureFileSha256,
 				   "the capture the body was promoted from is itself unchanged");
-			const auto capture = QJsonDocument::fromJson(
-									 QByteArray::fromStdString(captureBytes))
-									 .object();
-			expect(capture.value("body").toString().toStdString() == promotedBytes,
+			capture_json capture;
+			expect(!glz::read<fixture_json_options{ }>(capture, captureBytes), "promoted capture has its required typed JSON fields");
+			expect(capture.Body == promotedBytes,
 				   "the promoted copy is the capture's body byte for byte");
-			expect(capture.value("schema_name").toString()
-					   == QStringLiteral("bpr.rfc0017.anonymous_capture"),
+			expect(capture.SchemaName
+					   == "bpr.rfc0017.anonymous_capture",
 				   "the capture is a probe capture rather than an arbitrary file");
-			if (entry.value("source_kind").toString() == QStringLiteral("live")) {
+			if (entry.SourceKind == "live") {
 				++live;
 			}
 		}
@@ -721,21 +770,20 @@ namespace {
 			   "five promoted bodies are live service captures and the sixth "
 			   "says it is derived");
 
-		const auto synthetic = provenance.value("synthetic").toArray();
-		expect(!synthetic.isEmpty(),
+		const auto& synthetic = provenance.Synthetic;
+		expect(!synthetic.empty(),
 			   "the hostile cases the single-comment capture cannot express "
 			   "are listed");
-		for (const auto& value : synthetic) {
-			const auto entry = value.toObject();
-			expect(entry.value("source_kind").toString()
-					   == QStringLiteral("synthetic"),
+		for (const auto& entry : synthetic) {
+			expect(entry.SourceKind
+					   == "synthetic",
 				   "a hand-written fixture is named synthetic, never live");
-			expect(!entry.value("purpose").toString().isEmpty(),
+			expect(!entry.Purpose.empty(),
 				   "a synthetic fixture states the case it exists for");
 			expect(digest_of(read_bytes(
 					   fixtureRoot
-					   / entry.value("file").toString().toStdString()))
-					   == entry.value("sha256").toString().toStdString(),
+					   / entry.File))
+					   == entry.Sha256,
 				   "a synthetic fixture matches its recorded digest");
 		}
 	}

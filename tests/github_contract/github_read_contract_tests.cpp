@@ -1,10 +1,8 @@
+#include "canonical_json_expectations.hpp"
 #include "github_graphql_operation_policy.hpp"
 #include "github_read_contract.hpp"
 
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QJsonParseError>
+#include <glaze/json.hpp>
 
 #include <array>
 #include <cstdlib>
@@ -12,6 +10,7 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <map>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -43,22 +42,41 @@ namespace {
 		};
 	}
 
-	[[nodiscard]] auto parse_object(const std::filesystem::path& aPath)
-		-> QJsonObject
+	struct fixture_json_options : glz::opts
 	{
-		QJsonParseError error;
-		const auto      bytes    = QByteArray::fromStdString(read_all(aPath));
-		const auto      document = QJsonDocument::fromJson(bytes, &error);
-		expect(
-			error.error == QJsonParseError::NoError && document.isObject(),
-			"fixture manifest is valid JSON");
-		return document.object();
-	}
+		bool escape_control_characters    = true;
+		bool validate_skipped             = true;
+		bool validate_trailing_whitespace = true;
+		constexpr fixture_json_options()
+		{
+			null_terminated       = false;
+			error_on_unknown_keys = false;
+			error_on_missing_keys = true;
+		}
+	};
 
-	[[nodiscard]] auto utf8(const QString& aValue) -> std::string
+	struct interaction_json
 	{
-		return aValue.toUtf8().toStdString();
-	}
+		std::string                                     Operation;
+		std::string                                     Method;
+		std::string                                     Path;
+		std::string                                     CanonicalQuery;
+		std::map<std::string, std::string, std::less<>> SafeHeaders;
+		std::optional<std::string>                      Body;
+		std::string                                     ResponseFile;
+		struct glaze
+		{
+			static constexpr auto value = glz::object("operation", &interaction_json::Operation, "method", &interaction_json::Method, "path", &interaction_json::Path, "canonical_query", &interaction_json::CanonicalQuery, "safe_headers", &interaction_json::SafeHeaders, "body", &interaction_json::Body, "response_file", &interaction_json::ResponseFile);
+		};
+	};
+	struct recording_json
+	{
+		std::vector<interaction_json> Interactions;
+		struct glaze
+		{
+			static constexpr auto value = glz::object("interactions", &recording_json::Interactions);
+		};
+	};
 
 	struct loaded_recording
 	{
@@ -73,20 +91,21 @@ namespace {
 		const auto root = std::filesystem::path{
 			BPR_GITHUB_CONTRACT_FIXTURE_ROOT
 		} / aDirectory;
-		const auto manifest     = parse_object(root / "manifest.json");
-		const auto interactions = manifest.value("interactions").toArray();
+		recording_json manifest;
+		expect(!glz::read<fixture_json_options{ }>(manifest, read_all(root / "manifest.json")), "fixture manifest has its required typed JSON fields");
+		const auto& interactions = manifest.Interactions;
 		expect(
 			interactions.size()
-				== static_cast<qsizetype>(read_operation_catalog.size()),
+				== read_operation_catalog.size(),
 			"manifest has exactly ten interactions");
 
 		loaded_recording result;
 		result.Exchanges.reserve(read_operation_catalog.size());
 		result.Responses.reserve(read_operation_catalog.size());
-		for (qsizetype index = 0; index < interactions.size(); ++index) {
-			const auto interaction     = interactions[index].toObject();
-			const auto parsedOperation = read_operation_from_name(
-				utf8(interaction.value("operation").toString()));
+		for (std::size_t index = 0U; index < interactions.size(); ++index) {
+			const auto& interaction     = interactions[index];
+			const auto  parsedOperation = read_operation_from_name(
+				interaction.Operation);
 			expect(parsedOperation.has_value(), "manifest operation is known");
 			const auto operation = *parsedOperation;
 			expect(
@@ -95,29 +114,19 @@ namespace {
 				"manifest operations use canonical order");
 
 			std::vector<http_header> headers;
-			const auto               headerObject = interaction.value("safe_headers").toObject();
-			headers.reserve(static_cast<std::size_t>(headerObject.size()));
-			for (
-				auto iterator = headerObject.constBegin();
-				iterator != headerObject.constEnd();
-				++iterator) {
-				headers.push_back(
-					http_header{
-						.Name  = utf8(iterator.key()),
-						.Value = utf8(iterator.value().toString()),
-					});
+			headers.reserve(interaction.SafeHeaders.size());
+			for (const auto& [name, value] : interaction.SafeHeaders) {
+				headers.push_back(http_header{ .Name = name, .Value = value });
 			}
 
 			const auto method = parse_recorded_http_method(
-				utf8(interaction.value("method").toString()));
+				interaction.Method);
 			expect(
 				method.has_value(),
 				"manifest method is exactly GET or POST");
-			const auto bodyValue    = interaction.value("body");
-			const auto body         = bodyValue.isNull() ? std::string{ }
-														 : utf8(bodyValue.toString());
+			const auto body         = interaction.Body.value_or(std::string{ });
 			const auto responsePath = root
-				/ utf8(interaction.value("response_file").toString());
+				/ interaction.ResponseFile;
 			wire_response response{
 				.Status  = 200,
 				.Headers = {
@@ -136,12 +145,10 @@ namespace {
 						.Server    = aServer,
 						.Operation = operation,
 						.Method    = *method,
-						.Path      = utf8(interaction.value("path").toString()),
-						.Query     = utf8(
-							interaction.value("canonical_query")
-								.toString()),
-						.Headers = std::move(headers),
-						.Body    = body,
+						.Path      = interaction.Path,
+						.Query     = interaction.CanonicalQuery,
+						.Headers   = std::move(headers),
+						.Body      = body,
 					},
 					.Response = response,
 				});
@@ -689,37 +696,26 @@ namespace {
 		};
 	}
 
+	struct query_json
+	{
+		std::string Query;
+		struct glaze
+		{
+			static constexpr auto value = glz::object("query", &query_json::Query);
+		};
+	};
 	[[nodiscard]] auto graphql_query(const wire_request& aRequest) -> std::string
 	{
-		QJsonParseError error;
-		const auto      document = QJsonDocument::fromJson(
-			QByteArray::fromStdString(aRequest.Body),
-			&error);
-		expect(
-			error.error == QJsonParseError::NoError && document.isObject()
-				&& document.object().value("query").isString(),
-			"compiled GraphQL body exposes one query string");
-		return utf8(document.object().value("query").toString());
+		query_json envelope;
+		expect(!glz::read<fixture_json_options{ }>(envelope, aRequest.Body), "compiled GraphQL body exposes one query string");
+		return envelope.Query;
 	}
-
-	[[nodiscard]] auto with_graphql_query(
-		wire_request           aRequest,
-		const std::string_view aQuery) -> wire_request
+	[[nodiscard]] auto with_graphql_query(wire_request aRequest, const std::string_view aQuery) -> wire_request
 	{
-		QJsonParseError error;
-		const auto      document = QJsonDocument::fromJson(
-			QByteArray::fromStdString(aRequest.Body),
-			&error);
-		expect(
-			error.error == QJsonParseError::NoError && document.isObject(),
-			"hostile GraphQL base body is valid JSON");
-		auto object = document.object();
-		object.insert(
-			"query",
-			QString::fromUtf8(
-				aQuery.data(),
-				static_cast<qsizetype>(aQuery.size())));
-		aRequest.Body = QJsonDocument{ object }.toJson(QJsonDocument::Compact).toStdString();
+		std::map<std::string, glz::raw_json, std::less<>> envelope;
+		expect(!glz::read<fixture_json_options{ }>(envelope, aRequest.Body), "hostile GraphQL base body is valid JSON");
+		expect(!glz::write<fixture_json_options{ }>(aQuery, envelope["query"].str), "hostile query string serializes");
+		expect(!glz::write<fixture_json_options{ }>(envelope, aRequest.Body), "hostile query envelope serializes");
 		return aRequest;
 	}
 
@@ -968,6 +964,7 @@ namespace {
 			printableToken += value;
 		}
 		for (const auto server : { server_contract::github_com, server_contract::ghes_3_18 }) {
+			std::size_t shapeIndex = 0U;
 			for (auto request : graphql_request_shapes()) {
 				request.Server            = server;
 				request.PullRequestNumber = core::maximum_pull_request_number;
@@ -979,22 +976,7 @@ namespace {
 				}
 				const auto compiled = compile_read_request(request);
 				expect(compiled.has_value(), "bounded printable tokens and maximum PR number compile for every request shape and host");
-				// Independent prior-writer oracle; BPR-0640 replaces it with literal fixtures.
-				QJsonObject variables{
-					{ "name", QString::fromStdString(request.Repository) },
-					{ "number", static_cast<qint64>(request.PullRequestNumber) },
-					{ "owner", QString::fromStdString(request.Owner) },
-				};
-				if (request.GraphqlPage && request.GraphqlPage->Kind != github_graphql_page_kind::initial) {
-					variables.insert("after", QString::fromStdString(request.GraphqlPage->AfterCursor));
-					if (request.GraphqlPage->Kind == github_graphql_page_kind::comments) {
-						variables.insert("thread", QString::fromStdString(request.GraphqlPage->ThreadId));
-					}
-				}
-				const auto expected = QJsonDocument{ QJsonObject{
-														 { "query", QString::fromStdString(graphql_query(*compiled)) }, { "variables", variables } } }
-										  .toJson(QJsonDocument::Compact)
-										  .toStdString();
+				const auto expected = tests::canonical_json::read_requests.at(shapeIndex++);
 				expect(compiled->Body == expected, "Glaze preserves canonical member order, optional omissions, integer bytes and printable token escaping");
 			}
 		}

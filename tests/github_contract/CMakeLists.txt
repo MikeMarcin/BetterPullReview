@@ -563,6 +563,7 @@ bpr_add_executable(
 target_link_libraries(
     test_better_pull_review_github_contract_tests
     PRIVATE
+        glaze::glaze
         BetterPullReview::AdapterGitHub
 )
 target_include_directories(
@@ -598,6 +599,7 @@ bpr_add_executable(
 target_link_libraries(
     test_better_pull_review_github_anonymous_read_contract_tests
     PRIVATE
+        glaze::glaze
         BetterPullReview::AdapterGitHub
         BetterPullReview::Application
         Qt6::Core
@@ -792,6 +794,7 @@ bpr_add_executable(
 target_link_libraries(
     test_better_pull_review_github_provider_tests
     PRIVATE
+        glaze::glaze
         BetterPullReview::AdapterGitHub
         BetterPullReview::Application
         Qt6::Core

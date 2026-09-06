@@ -1,3 +1,4 @@
+#include "canonical_json_expectations.hpp"
 #include "github_mutation_contract.hpp"
 
 #include "bpr/application/review_mutation_coordinator.hpp"
@@ -605,23 +606,15 @@ namespace {
 		}
 		const auto extended = "{\"extension\":{\"ratio\":22.0000000000000001,\"values\":[true,null,\"\\ud83d\\ude00\"]}," + comment_body().substr(1U);
 		expect(parse_review_comment_response({ .Status = 201, .Body = extended }, request()).has_value(), "valid unknown extension values remain accepted");
-		// Temporary Qt oracle: remove in BPR-0640 after retaining literal byte fixtures.
 		auto input          = request();
 		input.Proposal.Body = "Literal \\u000B \\u001F, escapes: \" \\ / café 😀 ";
 		for (auto character = 0; character < 32; ++character) {
 			input.Proposal.Body.push_back(static_cast<char>(character));
 		}
-		input.IdempotencyKey         = application::idempotency_key_for(input.Proposal, input.Target);
-		const auto        compiled   = compile_review_comment_request(input);
-		const auto        commitText = core::canonical_hex(input.LiveBinding->Anchor.Commit);
-		const QJsonObject previous{
-			{ "body", QString::fromUtf8(input.Proposal.Body) },
-			{ "commit_id", QString::fromUtf8(commitText.view()) },
-			{ "line", 13 },
-			{ "path", "fixture/review.txt" },
-			{ "side", "RIGHT" }
-		};
-		expect(compiled && compiled->Body == QJsonDocument{ previous }.toJson(QJsonDocument::Compact).toStdString(), "Glaze canonical bytes preserve Qt request fingerprints including every control escape and Unicode");
+		input.IdempotencyKey = application::idempotency_key_for(input.Proposal, input.Target);
+		const auto compiled  = compile_review_comment_request(input);
+
+		expect(compiled && compiled->Body == tests::canonical_json::line_comment, "literal canonical bytes preserve request fingerprints including every control escape and Unicode");
 	}
 
 	void test_historical_review_target_identity()

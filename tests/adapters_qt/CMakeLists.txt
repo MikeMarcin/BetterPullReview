@@ -206,6 +206,7 @@ bpr_add_executable(
 target_link_libraries(
     test_better_pull_review_qt_github_thread_map_tests
     PRIVATE
+        glaze::glaze
         BetterPullReview::AdapterQt
 )
 target_compile_definitions(

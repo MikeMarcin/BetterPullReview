@@ -7,15 +7,14 @@
 #include <QApplication>
 #include <QFile>
 #include <QImage>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
 #include <QLabel>
 #include <QMouseEvent>
 #include <QRegularExpression>
 #include <QScrollBar>
 #include <QSet>
 #include <QTreeView>
+
+#include <glaze/json.hpp>
 
 #include <algorithm>
 #include <cstdlib>
@@ -43,6 +42,59 @@ namespace {
 		}
 	}
 
+	struct fixture_json_options : glz::opts
+	{
+		bool validate_skipped             = true;
+		bool validate_trailing_whitespace = true;
+		bool escape_control_characters    = true;
+		constexpr fixture_json_options()
+		{
+			null_terminated       = false;
+			error_on_missing_keys = true;
+			error_on_unknown_keys = false;
+		}
+	};
+	struct thread_node_json
+	{
+		std::string                  Id;
+		std::optional<std::string>   ParentId;
+		std::string                  Kind;
+		std::string                  AuthorLogin;
+		std::string                  Body;
+		std::string                  Path;
+		std::optional<std::uint32_t> Line;
+		struct glaze
+		{
+			static constexpr auto value = glz::object("Id", &thread_node_json::Id, "ParentId", &thread_node_json::ParentId, "Kind", &thread_node_json::Kind, "AuthorLogin", &thread_node_json::AuthorLogin, "Body", &thread_node_json::Body, "Path", &thread_node_json::Path, "Line", &thread_node_json::Line);
+		};
+	};
+	struct thread_case_json
+	{
+		std::string                   Id;
+		std::vector<thread_node_json> Projection;
+		struct glaze
+		{
+			static constexpr auto value = glz::object("id", &thread_case_json::Id, "projection", &thread_case_json::Projection);
+		};
+	};
+	struct thread_provenance_json
+	{
+		bool RecordedEvidence;
+		struct glaze
+		{
+			static constexpr auto value = glz::object("recorded_evidence", &thread_provenance_json::RecordedEvidence);
+		};
+	};
+	struct thread_fixture_json
+	{
+		thread_provenance_json        Provenance;
+		std::vector<thread_case_json> Cases;
+		struct glaze
+		{
+			static constexpr auto value = glz::object("provenance", &thread_fixture_json::Provenance, "cases", &thread_fixture_json::Cases);
+		};
+	};
+
 	/// \brief Reads one labelled case out of the BPR-0417 constructed fixture.
 	///
 	/// \details The fixture is the only conversation in this repository with
@@ -55,52 +107,26 @@ namespace {
 		auto file = QFile{ QStringLiteral(BPR_DEEP_THREAD_FIXTURE) };
 		expect(file.open(QIODevice::ReadOnly),
 			   "the constructed deep-thread fixture opens");
-		const auto document = QJsonDocument::fromJson(file.readAll());
-		expect(document.isObject(), "the fixture is a JSON object");
-		expect(document.object()
-					   .value(QStringLiteral("provenance"))
-					   .toObject()
-					   .value(QStringLiteral("recorded_evidence"))
-					   .toBool(true)
-				   == false,
-			   "the fixture still declares itself constructed, not recorded");
-
+		const auto          bytes = file.readAll();
+		thread_fixture_json fixture;
+		expect(!glz::read<fixture_json_options{ }>(fixture, std::string_view{ bytes.constData(), static_cast<std::size_t>(bytes.size()) }), "the fixture has its required typed JSON fields");
+		expect(!fixture.Provenance.RecordedEvidence, "the fixture still declares itself constructed, not recorded");
 		auto found = std::vector<conversation>{ };
-		for (const auto entry :
-			 document.object().value(QStringLiteral("cases")).toArray()) {
-			const auto object = entry.toObject();
-			if (object.value(QStringLiteral("id")).toString()
-				!= QString::fromUtf8(
-					aCase.data(), static_cast<qsizetype>(aCase.size()))) {
+		for (const auto& entry : fixture.Cases) {
+			if (entry.Id != aCase) {
 				continue;
 			}
-			for (const auto node :
-				 object.value(QStringLiteral("projection")).toArray()) {
-				const auto record = node.toObject();
-				const auto parent = record.value(QStringLiteral("ParentId"));
-				const auto kind   = record.value(QStringLiteral("Kind")).toString();
-				auto       line   = std::optional<std::uint32_t>{ };
-				if (const auto value = record.value(QStringLiteral("Line"));
-					value.isDouble()) {
-					line = static_cast<std::uint32_t>(value.toInt());
-				}
+			for (const auto& node : entry.Projection) {
 				found.push_back(conversation{
-					.Id                 = record.value(QStringLiteral("Id")).toString().toStdString(),
-					.ParentId           = parent.isString()
-						? std::optional{ parent.toString().toStdString() }
-						: std::nullopt,
-					.Kind               = kind == QStringLiteral("review_thread")
-						? application::github_conversation_kind::review_thread
-						: application::github_conversation_kind::review_comment,
-					.AuthorLogin        = record.value(QStringLiteral("AuthorLogin"))
-											  .toString()
-											  .toStdString(),
-					.Body               = record.value(QStringLiteral("Body")).toString().toStdString(),
-					.Path               = record.value(QStringLiteral("Path")).toString().toStdString(),
-					.Line               = line,
+					.Id                 = node.Id,
+					.ParentId           = node.ParentId,
+					.Kind               = node.Kind == "review_thread" ? application::github_conversation_kind::review_thread : application::github_conversation_kind::review_comment,
+					.AuthorLogin        = node.AuthorLogin,
+					.Body               = node.Body,
+					.Path               = node.Path,
+					.Line               = node.Line,
 					.DiffSide           = application::github_conversation_diff_side::right,
-					.AnchorAvailability = application::
-						github_conversation_anchor_availability::current,
+					.AnchorAvailability = application::github_conversation_anchor_availability::current,
 				});
 			}
 		}
