@@ -173,3 +173,16 @@ paged-read, provider, read-contract and designated-live-runner fixtures. Replace
 the temporary Qt writer oracles with independent literal expectations, complete
 the final inventory and focused migration integration, then close BPR-0612.
 Performance work remains deferred until that acceptance is established.
+
+BPR-0640 is In Progress. Source `7de8c974f109754889976035c05a241da61f2feb`
+freezes the independent Qt writer oracles into fifteen literal canonical bodies
+and migrates read-contract, anonymous provenance, provider and thread-map test
+readers to Glaze. The affected six-test local selection passes; the final
+read-contract helper change also passes its rebuilt focused check. Detailed
+revision/evidence reuse and cleanup are recorded on BPR-0640.
+
+Five C++ helper files still use Qt JSON: mutation, capability, device and pager
+contract tests, and the designated-live mutation runner. Complete them and the
+final migration integration before closing this anchor or resuming performance
+work. Production source remains free of Qt JSON, and production sign-in remains
+untouched.
