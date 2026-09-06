@@ -16,8 +16,9 @@ The owner locked this direction on 2026-09-06 after five mockup rounds and
 shipped it the same day. The accepted assets are
 [the workbench states](../design/RFC-BPR-0028-workbench-direction-v5.html),
 [the full review surface](../design/RFC-BPR-0028-full-review-surface-v1.html),
-which is authoritative for the strip, and
-[Settings and the drawers](../design/RFC-BPR-0028-settings-and-drawers-v1.html).
+which is authoritative for the strip,
+[the same surface in light](../design/RFC-BPR-0028-full-review-surface-light-v1.html),
+and [Settings and the drawers](../design/RFC-BPR-0028-settings-and-drawers-v1.html).
 It is the owner-directed replacement for the workbench presentation and is
 the frontier exception the deferred UX RFCs name. It supersedes the layout and
 chrome sections of RFC-BPR-0025 and the Home presentation of RFC-BPR-0026 where
