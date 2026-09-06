@@ -2,9 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0627"
 title: "Diagnose and reduce measured large-review UI stalls"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0624"]
+acceptance: [{"criterion":"Attributed main-thread work","outcome":"pass","revision":"d698b338fc21f8a0f31dadcf4410dffe0cab28d9","evidence":{"kind":"observation","detail":"Process-scoped macOS sampling identifies repeated conversation tree projection; temporary phase timers separately identify 164.10/163.25 ms native pane measurement and 111.14 ms semantic index preparation. Diagnostic probes removed; distinct initial-publication work assigned to BPR-0628/BPR-0629 before expanding implementation scope."}},{"criterion":"Selected-file correction and public regression","outcome":"pass","revision":"d698b338fc21f8a0f31dadcf4410dffe0cab28d9","evidence":{"kind":"observation","detail":"Core-projected file scope survives cleared/loading diff context. qt_workbench_window_scale_100, application_large_review_benchmark and application_unavailable_diff_public_path passed 3/3 in 42.16s; transient roots capped at two during 32 selections, 31 with outstanding work. Exact source, rendered window, navigation, idle wheel invariants and final selection preserved."}},{"criterion":"Measured local target and honest limitations","outcome":"pass","revision":"d698b338fc21f8a0f31dadcf4410dffe0cab28d9","evidence":{"kind":"observation","detail":"Uninstrumented rapid max interval decreased 201.09 to 44.34 ms and elapsed burst 12650.85 to 8262.84 ms on the same M4 Pro/Debug/Qt context. Provisional local maximum input-gap target 100 ms documented with roughly 2x observed headroom. Initial 338.75 ms pause, active-work scrolling and broader platform/budget criteria remain explicitly open on closeout and new cards."}},{"criterion":"Scope and bookkeeping","outcome":"pass","revision":"d698b338fc21f8a0f31dadcf4410dffe0cab28d9","evidence":{"kind":"observation","detail":"Documentation and git diff --check pass. Temporary profiling instrumentation removed exactly. No Actions, pushes, paid CI, credentials or production app launches."}}]
 ---
 
 # Diagnose and reduce measured large-review UI stalls
@@ -93,16 +94,31 @@ two entries/3,517,512 bytes. These are observations, not memory/pruning ceilings
 Documentation and diff checks pass. Profile/build/test logs and generated
 JSON/PNG artifacts were consumed into this record and removed.
 
-## Remaining acceptance
+## Final diagnosis and bounded closeout
 
-Keep this card In Progress. The 338.75 ms initial large-file timer interval
-remains material; a local threshold is not yet justified/enforced for that
-path. The original profile also contains 342 main-thread samples under
-`diff_workbench::rebuild_geometry`; attribute the remaining pause on the current
-candidate before choosing a fix. Inspect measured-pane geometry and publication
-work while preserving exact native source geometry, cancellation and stale-result
-rejection. Do not assume uniform line heights or publish partial axes merely to
-meet a timing target. The selected-file regression is complete, but the card's
-remaining profiling/budget criteria and RFC-wide active-work scrolling remain
-open. All work stays on the Mac with synthetic fixtures; no Actions, push,
-paid CI, credential operation or production application launch.
+A temporary QElapsedTimer probe on the restored `d698b338` source separates the
+initial large-file GUI work: semantic index 111.14 ms, native text install
+62.12 ms, selection/paint 1.19 ms, left/right pane measurement 164.10/163.25 ms,
+axis build/adoption 1.20/0.43 ms. The composed course passes under instrumentation;
+these are diagnostic timings, not a replacement for the uninstrumented baseline.
+The probe and its artifacts are removed.
+
+As the acceptance requires, split these distinct remaining operations before
+expanding ownership: BPR-0628 owns bounded cooperative native measurement and
+BPR-0629 owns immutable semantic-index preparation off the UI publication turn.
+The initial approximately 339 ms pause is not fixed by the selected-file scope
+correction. Both follow-ups remain dependencies of BPR-0617, which stays open.
+
+For rapid file switching on the recorded M4 Pro/Debug/Qt configuration, use a
+provisional maximum event-loop interval target of 100 ms: it leaves roughly
+2× headroom over the corrected 44.34 ms observation while rejecting the earlier
+201.09 ms pauses. This is a local regression target, not an enforced portable CI
+threshold or an RFC-wide responsiveness claim. The exact active-thread-set cap
+is enforced in the composed test independently of wall-clock noise.
+
+This card completes the measured file-switch correction, repeatable regression,
+profile attribution, local target and explicit follow-up split. Final focused
+checks and rendered/source evidence are recorded above; documentation and diff
+checks pass. Native Windows/Linux evidence, active-work scrolling, the two
+initial-publication corrections and full RFC-0013 budgets remain open. No
+GitHub Actions, push, paid CI, credential operation or production app launch.
