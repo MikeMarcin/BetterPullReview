@@ -4,7 +4,7 @@ id: "BPR-0617"
 title: "Verify and close RFC-BPR-0013"
 status: "Backlog"
 rfcs: ["RFC-BPR-0013"]
-depends_on: ["BPR-0507","BPR-0616","BPR-0618","BPR-0619","BPR-0620","BPR-0621","BPR-0622","BPR-0623"]
+depends_on: ["BPR-0507","BPR-0616","BPR-0618","BPR-0619","BPR-0620","BPR-0621","BPR-0622","BPR-0623","BPR-0624"]
 closeout_for: ["RFC-BPR-0013"]
 ---
 
@@ -95,3 +95,7 @@ input/navigation/scroll/cancellation behavior under background work with host
 and workbench counters. Select measured hardware-specific limits only after
 observing that course. The current fixture contract proves the inputs and
 revision history; it is not an application-performance passing result.
+
+BPR-0624 now owns that composed latest-head benchmark slice, including exact
+paged-provider exhaustion, installed-Git display, gestures, supersession and
+hardware-context measurements. No new remote or paid verification is authorized.
