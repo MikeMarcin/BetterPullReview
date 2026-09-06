@@ -4,7 +4,7 @@ id: "BPR-0617"
 title: "Verify and close RFC-BPR-0013"
 status: "Backlog"
 rfcs: ["RFC-BPR-0013"]
-depends_on: ["BPR-0507","BPR-0616","BPR-0618","BPR-0619","BPR-0620","BPR-0621","BPR-0622","BPR-0623","BPR-0624","BPR-0626","BPR-0627","BPR-0628","BPR-0629","BPR-0630","BPR-0631","BPR-0632"]
+depends_on: ["BPR-0507","BPR-0616","BPR-0618","BPR-0619","BPR-0620","BPR-0621","BPR-0622","BPR-0623","BPR-0624","BPR-0626","BPR-0627","BPR-0628","BPR-0629","BPR-0630","BPR-0631","BPR-0632","BPR-0633"]
 closeout_for: ["RFC-BPR-0013"]
 ---
 
@@ -269,3 +269,6 @@ public-window close course before claiming recovery for a still-loaded review.
 Then address remaining cache pressure, backoff/offline, fuzz/diagnostic and
 broader active-work criteria. BPR-0622's Windows/Linux work and earlier live
 human gates remain open. No Actions, workflow dispatch, push or paid CI.
+
+BPR-0633 owns the next independent loaded-review close course, preserving the
+existing prune/delete resource lane and its measured provisional Mac budgets.
