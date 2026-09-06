@@ -156,3 +156,20 @@ in BPR-0639. Nine C++ test/helper files remain for BPR-0640; its final inventory
 and migration integration are still required. Further performance work remains
 deferred until BPR-0612 is complete. The production remembered session remains
 untouched; all migration verification is local and synthetic.
+
+BPR-0639 completes the two application fixture surfaces in
+`e05d00553d72731880df55072a434a9e526c6415`. Typed replay/device projections and
+owned capture objects replace their Qt JSON usage while preserving recorded
+request bytes, synthetic rotation material, accepted source descriptors and v4
+capture fields. Initial local composed GitHub/GHES, registered device, renewal
+and four-profile capture integration passes 5/5; after a final capture hex-buffer
+lifetime fix, the affected capture contract passes again. Details and unchanged
+evidence reuse are recorded on BPR-0639. No production session or live provider
+operation ran.
+
+The source tree now has no Qt JSON entry points. BPR-0640 still owns nine C++
+test/helper files: thread-map, anonymous-read, capability, device, mutation,
+paged-read, provider, read-contract and designated-live-runner fixtures. Replace
+the temporary Qt writer oracles with independent literal expectations, complete
+the final inventory and focused migration integration, then close BPR-0612.
+Performance work remains deferred until that acceptance is established.
