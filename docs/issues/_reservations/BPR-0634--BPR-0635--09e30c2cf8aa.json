@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0634",
+    "BPR-0635"
+  ],
+  "reserve_for": "composed-cache-pressure",
+  "purpose": "",
+  "created": "2026-09-06T05:44:30.538282+00:00",
+  "base": "5761e404cd1d3e806f1a09507410b0e74402cb84"
+}
