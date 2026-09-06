@@ -87,6 +87,9 @@ namespace bpr::e2e::large_review {
 	{
 		std::string Schema         = "bpr.large-review-measurement.v1";
 		bool        ResourceCourse = false;
+		bool          CacheEntryCourse = false, EntryEvictedDiff = false, EntryEvictedIndex = false, EntryRevisitExact = false;
+		std::size_t   EntrySelections = 0U, EntryPeakCacheEntries = 0U;
+		std::uint64_t EntryPeakCacheBytes = 0U;
 		bool        LoadedCloseCourse = false, CloseStartedWithLiveComparison = false, ClosePreservedEpochStorage = false;
 		int         CloseLeftDocumentBlocks = 0, CloseRightDocumentBlocks = 0;
 		bool        ShutdownReleasedDiff = false, ShutdownReleasedIndex = false, DestroyReleasedWindow = false, DestroyReleasedDocuments = false;
@@ -147,7 +150,7 @@ namespace bpr::e2e::large_review {
 
 	void sample_resources(benchmark_report& aReport, app::github_application* aApplication, const char* aPhase)
 	{
-		if (!aReport.ResourceCourse) {
+		if (!aReport.ResourceCourse && !aReport.CacheEntryCourse) {
 			return;
 		}
 		resource_sample sample;
@@ -248,14 +251,16 @@ namespace bpr::e2e::large_review {
 		bool ready = false;
 		QObject::connect(&readiness, &QTimer::timeout, &loop, [&] {
 			ready = aReady();
-			if (ready || aBudget.elapsed() >= (aReport.HistoryCourse ? 540'000 : 90'000)) {
+			if (ready || aBudget.elapsed() >= (aReport.HistoryCourse ? 540'000 : aReport.CacheEntryCourse ? 180'000
+																										  : 90'000)) {
 				loop.quit();
 			}
 		});
 		pulse.start();
 		aAction();
 		ready = aReady();
-		if (!ready && aBudget.elapsed() < (aReport.HistoryCourse ? 540'000 : 90'000)) {
+		if (!ready && aBudget.elapsed() < (aReport.HistoryCourse ? 540'000 : aReport.CacheEntryCourse ? 180'000
+																									  : 90'000)) {
 			readiness.start();
 			loop.exec();
 		}
@@ -495,9 +500,80 @@ namespace bpr::e2e::large_review {
 		}
 	}
 
+	void run_cache_entries(app::github_application& aApplication, const fixture_manifest& aManifest,
+						   benchmark_report& aReport, QElapsedTimer& aBudget, const char* aImage)
+	{
+		auto&      window  = aApplication.window();
+		auto&      surface = *window.comparison_surface();
+		const auto limits  = application::diff_host_limits{ };
+		require(limits.CacheEntries == 64U && access::diff_work_evidence(aApplication).CacheEntries == 0U,
+				"entry-pressure fixture requires the default empty 64-entry cache");
+		std::weak_ptr<const core::computed_file_diff>  firstDiff;
+		std::weak_ptr<const core::diff_semantic_index> firstIndex;
+		const auto                                     ready = [&](int aFile) {
+			return selected(surface, source_path(aFile)) && quiet(aApplication)
+				&& access::diff_work_evidence(aApplication).EpochOutstandingJobs == 0U;
+		};
+		const auto verify = [&](int aFile) {
+			const auto  path  = source_path(aFile).toStdString();
+			const auto  found = std::ranges::find(aManifest.files, path, &fixture_file::path);
+			const auto& key   = surface.current_result()->Alignment.Key;
+			require(found != aManifest.files.end() && key.LeftBlob == core::parse_git_blob_oid(found->base.oid)
+						&& key.RightBlob == core::parse_git_blob_oid(found->head.oid),
+					"entry-pressure selected wrong stored blobs");
+			for (int line = 0; line < 8; ++line) {
+				const auto common = QStringLiteral("// synthetic source %1 line %2").arg(aFile, 4, 10, QChar{ '0' }).arg(line + 1);
+				const auto prefix = QStringLiteral("int fixture_%1 = ").arg(aFile, 4, 10, QChar{ '0' });
+				require(surface.left_pane()->document()->findBlockByNumber(line).text() == (line == 0 ? prefix + "0;" : common)
+							&& surface.right_pane()->document()->findBlockByNumber(line).text() == (line == 0 ? prefix + "1;" : common),
+						"entry-pressure source differs from the independent fixture recipe");
+			}
+		};
+		for (std::size_t index = 0U; index <= limits.CacheEntries; ++index) {
+			const auto file  = 100 + static_cast<int>(index);
+			const auto phase = "cache_entry_selection_" + std::to_string(index + 1U);
+			require(measure_wait(aApplication, aBudget, aReport, phase.c_str(), [&] { select_file(window, source_path(file)); }, [&] { return ready(file); }), "entry-pressure selection timed out");
+			verify(file);
+			const auto work = access::diff_work_evidence(aApplication);
+			require(work.CacheEntries == std::min(index + 1U, limits.CacheEntries) && work.CacheBytes < limits.CacheBytes,
+					"entry pressure exceeded its capacity or encountered byte pressure instead");
+			aReport.EntryPeakCacheEntries = std::max(aReport.EntryPeakCacheEntries, work.CacheEntries);
+			aReport.EntryPeakCacheBytes   = std::max(aReport.EntryPeakCacheBytes, work.CacheBytes);
+			++aReport.EntrySelections;
+			if (index == 0U) {
+				firstDiff  = surface.current_result();
+				firstIndex = surface.current_semantic_index();
+			}
+			if (index < limits.CacheEntries) {
+				require(!firstDiff.expired() && !firstIndex.expired(), "oldest entry was evicted before capacity pressure");
+			}
+			if (index % 16U == 0U) {
+				sample_resources(aReport, &aApplication, phase.c_str());
+			}
+		}
+		aReport.EntryEvictedDiff  = firstDiff.expired();
+		aReport.EntryEvictedIndex = firstIndex.expired();
+		require(aReport.EntryEvictedDiff && aReport.EntryEvictedIndex, "entry eviction still retains the oldest raw diff or prepared index");
+		require(measure_wait(aApplication, aBudget, aReport, "cache_entry_revisit", [&] { select_file(window, source_path(100)); }, [&] { return ready(100); }), "evicted file revisit timed out");
+		verify(100);
+		aReport.EntryRevisitExact = aReport.Phases.back().PulsesWithDiffWork != 0U;
+		require(aReport.EntryRevisitExact, "evicted comparison did not run the normal diff materialization job");
+		const auto work = access::diff_work_evidence(aApplication);
+		require(work.FixtureDiffHelperInvocations == 0U && work.CacheEntries == limits.CacheEntries && work.CacheBytes < limits.CacheBytes,
+				"revisit bypassed composition or exceeded default limits");
+		aReport.DiffCacheEntries = work.CacheEntries;
+		aReport.DiffCacheBytes   = work.CacheBytes;
+		aReport.ExactFinalSource = true;
+		aReport.WindowWidth      = window.width();
+		aReport.WindowHeight     = window.height();
+		aReport.DevicePixelRatio = window.devicePixelRatioF();
+		aReport.Rendered         = window.grab().save(QString::fromLocal8Bit(aImage));
+		require(aReport.Rendered, "entry-pressure public window render failed");
+	}
+
 	auto run_benchmark(QApplication& qtApplication, int argc, char** argv) -> int
 	{
-		if (argc != 4 && (argc != 5 || (std::string_view{ argv[4] } != "--unavailable" && std::string_view{ argv[4] } != "--resources" && std::string_view{ argv[4] } != "--history" && std::string_view{ argv[4] } != "--loaded-close"))) {
+		if (argc != 4 && (argc != 5 || (std::string_view{ argv[4] } != "--unavailable" && std::string_view{ argv[4] } != "--resources" && std::string_view{ argv[4] } != "--history" && std::string_view{ argv[4] } != "--loaded-close" && std::string_view{ argv[4] } != "--cache-entries"))) {
 			return EXIT_FAILURE;
 		}
 		QTemporaryDir data;
@@ -509,6 +585,9 @@ namespace bpr::e2e::large_review {
 		report.LoadedCloseCourse = argc == 5 && std::string_view{ argv[4] } == "--loaded-close";
 		report.ResourceCourse    = report.LoadedCloseCourse || (argc == 5 && std::string_view{ argv[4] } == "--resources");
 		report.HistoryCourse     = argc == 5 && std::string_view{ argv[4] } == "--history";
+		report.CacheEntryCourse                                            = argc == 5 && std::string_view{ argv[4] } == "--cache-entries";
+		const bool                                     observeResources    = report.ResourceCourse || report.CacheEntryCourse;
+		const bool                                     observeLoadedOwners = report.LoadedCloseCourse || report.CacheEntryCourse;
 		std::weak_ptr<const core::computed_file_diff>  resourceDiff;
 		std::weak_ptr<const core::diff_semantic_index> resourceIndex;
 		QPointer<QWidget>                              resourceWindow;
@@ -553,7 +632,9 @@ namespace bpr::e2e::large_review {
 			require(measure_wait(*application, budget, report, "paged_review_and_git_load", [&] { window.github_open_action()->trigger(); }, [&] { return window.files_drawer()->contents_view()->model()->rowCount() == 515 && access::evidence(*application).SmartFetchCount == 1 && application->status().EpochStatus == core::epoch_status::ready && access::diff_work_evidence(*application).NavigationReady && quiet(*application); }), "review load timed out");
 			verify_snapshot(*application, manifest, report);
 			sample_resources(report, application.get(), "review_loaded");
-			if (report.HistoryCourse) {
+			if (report.CacheEntryCourse) {
+				run_cache_entries(*application, manifest, report, budget, argv[3]);
+			} else if (report.HistoryCourse) {
 				run_history(*application, manifest, report, budget, argv[3]);
 			} else if (report.UnavailableCourse) {
 				require(measure_wait(*application, budget, report, "unavailable_file_selection", [&] { select_file(window, QStringLiteral("large/comparison.cpp")); }, [&] { return selected(surface, QStringLiteral("large/comparison.cpp")) && quiet(*application); }), "unavailable selection timed out");
@@ -729,7 +810,11 @@ namespace bpr::e2e::large_review {
 				report.DeleteReleasedIndex = resourceIndex.expired();
 				sample_resources(report, application.get(), "after_cache_delete");
 			}
-			if (report.LoadedCloseCourse) {
+			if (observeLoadedOwners) {
+				if (report.CacheEntryCourse) {
+					resourceDiff  = surface.current_result();
+					resourceIndex = surface.current_semantic_index();
+				}
 				const auto& key                 = surface.current_result()->Alignment.Key;
 				closeComparison                 = key;
 				closeTarget                     = core::review_epoch_id{ key.LeftAnchor.Authority, key.LeftAnchor.Incarnation, key.LeftAnchor.Epoch };
@@ -739,14 +824,16 @@ namespace bpr::e2e::large_review {
 				report.CloseLeftDocumentBlocks  = resourceLeftDocument->blockCount();
 				report.CloseRightDocumentBlocks = resourceRightDocument->blockCount();
 				// The fixture's final newline adds an empty native Qt block.
+				const auto expectedBlocks             = report.CacheEntryCourse ? 9 : 20'001;
+				const auto expectedPath               = report.CacheEntryCourse ? source_path(100) : QStringLiteral("large/comparison.cpp");
 				report.CloseStartedWithLiveComparison = !resourceDiff.expired() && !resourceIndex.expired()
-					&& selected(surface, QStringLiteral("large/comparison.cpp"))
-					&& report.CloseLeftDocumentBlocks == 20'001 && report.CloseRightDocumentBlocks == 20'001
+					&& selected(surface, expectedPath)
+					&& report.CloseLeftDocumentBlocks == expectedBlocks && report.CloseRightDocumentBlocks == expectedBlocks
 					&& resourceLeftDocument->lastBlock().text().isEmpty() && resourceRightDocument->lastBlock().text().isEmpty();
 				require(report.CloseStartedWithLiveComparison, "loaded-close course lost the large comparison before closing");
 				sample_resources(report, application.get(), "before_loaded_close");
 			}
-			if (report.ResourceCourse) {
+			if (observeResources) {
 				// Match main's last-window-close -> application shutdown handoff;
 				// measure_wait drives the existing shutdown poll to completion.
 				QObject::connect(&qtApplication, &QGuiApplication::lastWindowClosed, &window, [&] {
@@ -755,9 +842,9 @@ namespace bpr::e2e::large_review {
 				});
 			}
 			report.ShutdownComplete = measure_wait(*application, budget, report, "shutdown", [&] {
-			if (report.ResourceCourse) { window.close(); } else { application->begin_shutdown(); } }, [&] { return application->status().ShutdownComplete; });
+			if (observeResources) { window.close(); } else { application->begin_shutdown(); } }, [&] { return application->status().ShutdownComplete; });
 			require(report.ShutdownComplete && !application->status().ShutdownCleanupFailed, "shutdown failed");
-			if (report.ResourceCourse) {
+			if (observeResources) {
 				require(report.WindowCloseObserved && !window.isVisible(), "public window close did not start shutdown");
 				sample_resources(report, application.get(), "shutdown_drained");
 				report.ShutdownReleasedDiff  = resourceDiff.expired();
@@ -775,17 +862,18 @@ namespace bpr::e2e::large_review {
 				QApplication::processEvents();
 				report.DestroyReleasedDiff  = resourceDiff.expired();
 				report.DestroyReleasedIndex = resourceIndex.expired();
-				if (report.LoadedCloseCourse) {
+				if (observeLoadedOwners) {
 					report.DestroyReleasedWindow    = resourceWindow.isNull();
 					report.DestroyReleasedDocuments = resourceLeftDocument.isNull() && resourceRightDocument.isNull();
 				}
 				sample_resources(report, nullptr, "application_destroyed");
 				std::cerr << "resource-verdict:" << *glz::write_json(report) << '\n';
-				require(report.LoadedCloseCourse || (report.PruneReleasedDiff && report.PruneReleasedIndex && report.PruneClearedProjection),
-						"pruned large comparison still retains active raw diff/index/source");
-				require((report.LoadedCloseCourse || (report.DeleteReleasedDiff && report.DeleteReleasedIndex)) && report.DestroyReleasedDiff && report.DestroyReleasedIndex,
-						"deleted/closed large comparison retains raw diff or prepared index");
-				require(!report.LoadedCloseCourse || (report.DestroyReleasedWindow && report.DestroyReleasedDocuments),
+				if (report.ResourceCourse && !report.LoadedCloseCourse) {
+					require(report.PruneReleasedDiff && report.PruneReleasedIndex && report.PruneClearedProjection && report.DeleteReleasedDiff && report.DeleteReleasedIndex,
+							"maintenance retains the raw diff, prepared index or native source");
+				}
+				require(report.DestroyReleasedDiff && report.DestroyReleasedIndex, "closed comparison retains raw diff or prepared index");
+				require(!observeLoadedOwners || (report.DestroyReleasedWindow && report.DestroyReleasedDocuments),
 						"closed application retains the window or large source documents");
 			}
 			auto encoded = glz::write_json(report);
@@ -794,10 +882,11 @@ namespace bpr::e2e::large_review {
 			output << *encoded << '\n';
 			output.close();
 			require(output.good(), "measurement write");
-			std::cout << (report.LoadedCloseCourse ? "LARGE_REVIEW_LOADED_CLOSE_OK\n" : report.HistoryCourse ? "LARGE_REVIEW_HISTORY_OK\n"
-							  : report.ResourceCourse                                                        ? "LARGE_REVIEW_RESOURCES_OK\n"
-							  : report.UnavailableCourse                                                     ? "UNAVAILABLE_DIFF_COMPOSED_OK\n"
-																											 : "LARGE_REVIEW_COMPOSED_BENCHMARK_OK\n")
+			std::cout << (report.CacheEntryCourse ? "LARGE_REVIEW_CACHE_ENTRIES_OK\n" : report.LoadedCloseCourse ? "LARGE_REVIEW_LOADED_CLOSE_OK\n"
+							  : report.HistoryCourse                                                             ? "LARGE_REVIEW_HISTORY_OK\n"
+							  : report.ResourceCourse                                                            ? "LARGE_REVIEW_RESOURCES_OK\n"
+							  : report.UnavailableCourse                                                         ? "UNAVAILABLE_DIFF_COMPOSED_OK\n"
+																												 : "LARGE_REVIEW_COMPOSED_BENCHMARK_OK\n")
 					  << *encoded << '\n';
 			return EXIT_SUCCESS;
 		} catch (const std::exception& error) {
