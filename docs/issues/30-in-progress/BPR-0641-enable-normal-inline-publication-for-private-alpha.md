@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0641"
 title: "Enable normal inline publication for the Mac private alpha"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0008"]
 depends_on: ["BPR-0615"]
 priority: "P1"
