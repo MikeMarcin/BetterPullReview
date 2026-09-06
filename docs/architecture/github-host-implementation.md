@@ -1374,6 +1374,18 @@ JSON envelope, then applies the operation scanner before variable-type checks.
 Raw variable views stay inside that synchronous validation call. Exact canonical
 body equality remains the final admission requirement.
 
+Recorded read normalization extracts Glaze wire records after strict fixture
+validation has established field inventories, nullable relationships and page
+completeness. Identities and counts decode directly to integer fields; lines
+and nullable actors remain explicit optionals. The normalizer then checks
+repository/viewer/head identity, groups REST replies, and validates the complete
+application snapshot before returning it. No parser or wire record crosses that
+boundary. Missing REST comment coordinates retain the invalid-zero refusal;
+explicit null coordinates remain absent. Comment position is used only for its
+nullness, preserving the distinction between a missing position and explicit
+null without interpreting another provider value as a coordinate.
+
+
 Mutation capability probing may observe schema support without executing the
 mutation. Executable GitHub mutations remain RFC-BPR-0008.
 

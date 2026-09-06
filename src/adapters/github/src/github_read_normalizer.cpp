@@ -1,19 +1,14 @@
 #include "github_read_contract.hpp"
 #include "github_review_comment_grouping.hpp"
 
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QJsonParseError>
-#include <QString>
+#include <glaze/json.hpp>
 
 #include <algorithm>
 #include <array>
-#include <cmath>
-#include <limits>
 #include <new>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -170,78 +165,485 @@ namespace bpr::adapters::github::detail {
 				&& application::valid(aContext.RateLimits);
 		}
 
-		[[nodiscard]] auto parse_document(const wire_response& aResponse)
-			-> QJsonDocument
+		// These private wire records extract already structurally validated responses.
+		// Strict fixture validation remains responsible for field inventories,
+		// nullable relationships and pagination completeness. Glaze additionally
+		// validates skipped JSON and decodes integers without a floating-point step.
+		struct normalization_json_options : glz::opts
 		{
-			QJsonParseError error;
-			return QJsonDocument::fromJson(
-				QByteArray{
-					aResponse.Body.data(),
-					static_cast<qsizetype>(aResponse.Body.size()),
-				},
-				&error);
-		}
+			bool validate_skipped             = true;
+			bool validate_trailing_whitespace = true;
+			constexpr normalization_json_options()
+			{
+				null_terminated       = false;
+				error_on_unknown_keys = false;
+				error_on_missing_keys = true;
+			}
+		};
 
-		[[nodiscard]] auto text(const QJsonValue& aValue) -> std::string
+		struct json_rest_actor
 		{
-			const auto bytes = aValue.toString().toUtf8();
-			return {
-				bytes.constData(),
-				static_cast<std::size_t>(bytes.size()),
+			std::string NodeId;
+			std::string Login;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"node_id", &json_rest_actor::NodeId,
+					"login", &json_rest_actor::Login);
 			};
-		}
+		};
 
-		[[nodiscard]] auto integer(const QJsonValue& aValue) noexcept
-			-> std::uint64_t
+		struct json_graphql_actor
 		{
-			return static_cast<std::uint64_t>(aValue.toDouble());
-		}
+			std::string Id;
+			std::string Login;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"id", &json_graphql_actor::Id,
+					"login", &json_graphql_actor::Login);
+			};
+		};
 
-		[[nodiscard]] auto uint32(const QJsonValue& aValue)
-			-> std::optional<std::uint32_t>
+		struct json_viewer
 		{
-			const auto number = integer(aValue);
-			if (number > std::numeric_limits<std::uint32_t>::max()) {
-				return std::nullopt;
-			}
-			return static_cast<std::uint32_t>(number);
-		}
+			std::uint64_t              Id = 0U;
+			std::string                NodeId;
+			std::string                Login;
+			std::optional<std::string> Name;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"id", &json_viewer::Id,
+					"node_id", &json_viewer::NodeId,
+					"login", &json_viewer::Login,
+					"name", &json_viewer::Name);
+			};
+		};
 
-		[[nodiscard]] auto optional_line(const QJsonValue& aValue)
-			-> std::optional<std::uint32_t>
+		struct json_owner
 		{
-			if (aValue.isNull()) {
-				return std::nullopt;
-			}
-			return uint32(aValue);
+			std::string Login;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"login", &json_owner::Login);
+			};
+		};
+
+		struct json_repository
+		{
+			std::uint64_t Id = 0U;
+			std::string   NodeId;
+			std::string   Name;
+			std::string   FullName;
+			json_owner    Owner;
+			std::string   DefaultBranch;
+			bool          Private = false;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"id", &json_repository::Id,
+					"node_id", &json_repository::NodeId,
+					"name", &json_repository::Name,
+					"full_name", &json_repository::FullName,
+					"owner", &json_repository::Owner,
+					"default_branch", &json_repository::DefaultBranch,
+					"private", &json_repository::Private);
+			};
+		};
+
+		struct json_ref_repository
+		{
+			std::uint64_t Id = 0U;
+			std::string   FullName;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"id", &json_ref_repository::Id,
+					"full_name", &json_ref_repository::FullName);
+			};
+		};
+
+		struct json_pull_ref
+		{
+			std::string                        Ref;
+			std::string                        Sha;
+			std::optional<json_ref_repository> Repo;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"ref", &json_pull_ref::Ref,
+					"sha", &json_pull_ref::Sha,
+					"repo", &json_pull_ref::Repo);
+			};
+		};
+
+		struct json_pull_request
+		{
+			std::uint64_t                  Id     = 0U;
+			std::uint32_t                  Number = 0U;
+			std::string                    NodeId;
+			std::string                    Title;
+			std::optional<std::string>     Body;
+			std::string                    State;
+			bool                           Merged = false;
+			bool                           Draft  = false;
+			std::optional<json_rest_actor> User;
+			json_pull_ref                  Base;
+			json_pull_ref                  Head;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"id", &json_pull_request::Id,
+					"number", &json_pull_request::Number,
+					"node_id", &json_pull_request::NodeId,
+					"title", &json_pull_request::Title,
+					"body", &json_pull_request::Body,
+					"state", &json_pull_request::State,
+					"merged", &json_pull_request::Merged,
+					"draft", &json_pull_request::Draft,
+					"user", &json_pull_request::User,
+					"base", &json_pull_request::Base,
+					"head", &json_pull_request::Head);
+			};
+		};
+
+		struct json_file
+		{
+			std::string                Filename;
+			std::optional<std::string> PreviousFilename;
+			std::string                Status;
+			std::uint64_t              Additions = 0U;
+			std::uint64_t              Deletions = 0U;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"filename", &json_file::Filename,
+					"previous_filename", &json_file::PreviousFilename,
+					"status", &json_file::Status,
+					"additions", &json_file::Additions,
+					"deletions", &json_file::Deletions);
+			};
+		};
+
+		struct json_commit_message
+		{
+			std::string Message;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"message", &json_commit_message::Message);
+			};
+		};
+
+		struct json_commit
+		{
+			std::string                    Sha;
+			std::string                    NodeId;
+			std::optional<json_rest_actor> Author;
+			json_commit_message            Commit;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"sha", &json_commit::Sha,
+					"node_id", &json_commit::NodeId,
+					"author", &json_commit::Author,
+					"commit", &json_commit::Commit);
+			};
+		};
+
+		struct json_review
+		{
+			std::uint64_t                  Id = 0U;
+			std::string                    NodeId;
+			std::optional<json_rest_actor> User;
+			std::string                    State;
+			std::optional<std::string>     CommitId;
+			std::optional<std::string>     Body;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"id", &json_review::Id,
+					"node_id", &json_review::NodeId,
+					"user", &json_review::User,
+					"state", &json_review::State,
+					"commit_id", &json_review::CommitId,
+					"body", &json_review::Body);
+			};
+		};
+
+		struct json_node
+		{
+			std::string Id;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"id", &json_node::Id);
+			};
+		};
+
+		struct json_graphql_comment
+		{
+			std::string                       Id;
+			std::optional<json_node>          ReplyTo;
+			std::optional<json_graphql_actor> Author;
+			std::string                       BodyText;
+			std::string                       Path;
+			std::optional<std::uint32_t>      Line;
+			std::optional<std::uint32_t>      OriginalLine;
+			bool                              Outdated = false;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"id", &json_graphql_comment::Id,
+					"replyTo", &json_graphql_comment::ReplyTo,
+					"author", &json_graphql_comment::Author,
+					"bodyText", &json_graphql_comment::BodyText,
+					"path", &json_graphql_comment::Path,
+					"line", &json_graphql_comment::Line,
+					"originalLine", &json_graphql_comment::OriginalLine,
+					"outdated", &json_graphql_comment::Outdated);
+			};
+		};
+
+		struct json_comment_connection
+		{
+			std::vector<json_graphql_comment> Nodes;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"nodes", &json_comment_connection::Nodes);
+			};
+		};
+
+		struct json_thread
+		{
+			std::string                  Id;
+			std::string                  SubjectType;
+			std::string                  Path;
+			std::optional<std::uint32_t> Line;
+			std::optional<std::uint32_t> OriginalLine;
+			std::string                  DiffSide;
+			bool                         IsResolved         = false;
+			bool                         IsOutdated         = false;
+			bool                         ViewerCanResolve   = false;
+			bool                         ViewerCanUnresolve = false;
+			json_comment_connection      Comments;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"id", &json_thread::Id,
+					"subjectType", &json_thread::SubjectType,
+					"path", &json_thread::Path,
+					"line", &json_thread::Line,
+					"originalLine", &json_thread::OriginalLine,
+					"diffSide", &json_thread::DiffSide,
+					"isResolved", &json_thread::IsResolved,
+					"isOutdated", &json_thread::IsOutdated,
+					"viewerCanResolve", &json_thread::ViewerCanResolve,
+					"viewerCanUnresolve", &json_thread::ViewerCanUnresolve,
+					"comments", &json_thread::Comments);
+			};
+		};
+
+		struct json_thread_connection
+		{
+			std::vector<json_thread> Nodes;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"nodes", &json_thread_connection::Nodes);
+			};
+		};
+
+		struct json_viewed_file
+		{
+			std::string Path;
+			std::string ViewerViewedState;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"path", &json_viewed_file::Path,
+					"viewerViewedState", &json_viewed_file::ViewerViewedState);
+			};
+		};
+
+		struct json_file_connection
+		{
+			std::vector<json_viewed_file> Nodes;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"nodes", &json_file_connection::Nodes);
+			};
+		};
+
+		struct json_graphql_pull
+		{
+			std::string            Id;
+			std::string            HeadRefOid;
+			json_file_connection   Files;
+			json_thread_connection ReviewThreads;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"id", &json_graphql_pull::Id,
+					"headRefOid", &json_graphql_pull::HeadRefOid,
+					"files", &json_graphql_pull::Files,
+					"reviewThreads", &json_graphql_pull::ReviewThreads);
+			};
+		};
+
+		struct json_graphql_repository
+		{
+			std::string       Id;
+			json_graphql_pull PullRequest;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"id", &json_graphql_repository::Id,
+					"pullRequest", &json_graphql_repository::PullRequest);
+			};
+		};
+
+		struct json_graphql_data
+		{
+			json_graphql_repository Repository;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"repository", &json_graphql_data::Repository);
+			};
+		};
+
+		struct json_graphql_envelope
+		{
+			json_graphql_data Data;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"data", &json_graphql_envelope::Data);
+			};
+		};
+
+		struct json_review_comment
+		{
+			std::uint64_t                  Id = 0U;
+			std::optional<std::uint64_t>   InReplyToId;
+			std::optional<json_rest_actor> User;
+			std::string                    Body;
+			std::string                    Path;
+			// Missing coordinates normalize to invalid zero; explicit null is absent.
+			std::optional<std::uint32_t> Line{ 0U };
+			std::optional<std::uint32_t> OriginalLine{ 0U };
+			// Position only determines nullness, not a value. Missing means current.
+			std::optional<glz::raw_json> Position{ glz::raw_json{ "0" } };
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"id", &json_review_comment::Id,
+					"in_reply_to_id", &json_review_comment::InReplyToId,
+					"user", &json_review_comment::User,
+					"body", &json_review_comment::Body,
+					"path", &json_review_comment::Path,
+					"line", &json_review_comment::Line,
+					"original_line", &json_review_comment::OriginalLine,
+					"position", &json_review_comment::Position);
+			};
+		};
+
+		struct json_issue_comment
+		{
+			std::string                    NodeId;
+			std::optional<json_rest_actor> User;
+			std::string                    Body;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"node_id", &json_issue_comment::NodeId,
+					"user", &json_issue_comment::User,
+					"body", &json_issue_comment::Body);
+			};
+		};
+
+		struct json_check
+		{
+			std::string                NodeId;
+			std::string                HeadSha;
+			std::string                Name;
+			std::string                Status;
+			std::optional<std::string> Conclusion;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"node_id", &json_check::NodeId,
+					"head_sha", &json_check::HeadSha,
+					"name", &json_check::Name,
+					"status", &json_check::Status,
+					"conclusion", &json_check::Conclusion);
+			};
+		};
+
+		struct json_checks
+		{
+			std::vector<json_check> CheckRuns;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"check_runs", &json_checks::CheckRuns);
+			};
+		};
+
+		struct json_search_item
+		{
+			std::string   NodeId;
+			std::uint32_t Number = 0U;
+			std::string   Title;
+			std::string   State;
+			bool          Draft = false;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"node_id", &json_search_item::NodeId,
+					"number", &json_search_item::Number,
+					"title", &json_search_item::Title,
+					"state", &json_search_item::State,
+					"draft", &json_search_item::Draft);
+			};
+		};
+
+		struct json_search
+		{
+			std::vector<json_search_item> Items;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"items", &json_search::Items);
+			};
+		};
+
+		template <typename Record>
+		[[nodiscard]] auto decode_record(Record& aRecord, const wire_response& aResponse) -> bool
+		{
+			return !glz::read<normalization_json_options{ }>(aRecord, aResponse.Body);
 		}
 
-		[[nodiscard]] auto optional_rest_actor(const QJsonValue& aValue)
+		[[nodiscard]] auto optional_rest_actor(const std::optional<json_rest_actor>& aValue)
 			-> std::optional<application::github_actor_record>
 		{
-			if (aValue.isNull()) {
+			if (!aValue) {
 				return std::nullopt;
 			}
-			const auto object = aValue.toObject();
-			return application::github_actor_record{
-				.Actor = application::github_actor_id{
-					text(object.value("node_id")) },
-				.Login = text(object.value("login")),
-			};
+			return application::github_actor_record{ .Actor = application::github_actor_id{ aValue->NodeId }, .Login = aValue->Login };
 		}
-
-		[[nodiscard]] auto optional_graphql_actor(const QJsonValue& aValue)
+		[[nodiscard]] auto optional_graphql_actor(const std::optional<json_graphql_actor>& aValue)
 			-> std::optional<application::github_actor_record>
 		{
-			if (aValue.isNull()) {
+			if (!aValue) {
 				return std::nullopt;
 			}
-			const auto object = aValue.toObject();
-			return application::github_actor_record{
-				.Actor = application::github_actor_id{
-					text(object.value("id")) },
-				.Login = text(object.value("login")),
-			};
+			return application::github_actor_record{ .Actor = application::github_actor_id{ aValue->Id }, .Login = aValue->Login };
 		}
 
 		[[nodiscard]] auto full_name(
@@ -251,8 +653,8 @@ namespace bpr::adapters::github::detail {
 		}
 
 		[[nodiscard]] auto pull_request_state(
-			const QString& aValue,
-			const bool     aMerged = false)
+			const std::string_view aValue,
+			const bool             aMerged = false)
 			-> application::github_pull_request_state
 		{
 			if (aMerged) {
@@ -263,7 +665,7 @@ namespace bpr::adapters::github::detail {
 				: application::github_pull_request_state::closed;
 		}
 
-		[[nodiscard]] auto file_change(const QString& aValue)
+		[[nodiscard]] auto file_change(const std::string_view aValue)
 			-> application::github_file_change
 		{
 			if (aValue == "added") {
@@ -287,7 +689,7 @@ namespace bpr::adapters::github::detail {
 			return application::github_file_change::type_changed;
 		}
 
-		[[nodiscard]] auto viewed_state(const QString& aValue)
+		[[nodiscard]] auto viewed_state(const std::string_view aValue)
 			-> std::optional<application::github_file_viewed_state>
 		{
 			if (aValue == "DISMISSED") {
@@ -302,7 +704,7 @@ namespace bpr::adapters::github::detail {
 			return std::nullopt;
 		}
 
-		[[nodiscard]] auto review_state(const QString& aValue)
+		[[nodiscard]] auto review_state(const std::string_view aValue)
 			-> application::github_review_state
 		{
 			if (aValue == "PENDING") {
@@ -320,7 +722,7 @@ namespace bpr::adapters::github::detail {
 			return application::github_review_state::dismissed;
 		}
 
-		[[nodiscard]] auto review_thread_subject(const QString& aValue)
+		[[nodiscard]] auto review_thread_subject(const std::string_view aValue)
 			-> application::github_review_thread_subject
 		{
 			return aValue == "FILE"
@@ -328,19 +730,19 @@ namespace bpr::adapters::github::detail {
 				: application::github_review_thread_subject::line;
 		}
 
-		[[nodiscard]] auto diff_side(const QString& aValue)
+		[[nodiscard]] auto diff_side(const std::string_view aValue)
 			-> std::optional<application::github_diff_side>
 		{
-			if (aValue == QStringLiteral("LEFT")) {
+			if (aValue == "LEFT") {
 				return application::github_diff_side::left;
 			}
-			if (aValue == QStringLiteral("RIGHT")) {
+			if (aValue == "RIGHT") {
 				return application::github_diff_side::right;
 			}
 			return std::nullopt;
 		}
 
-		[[nodiscard]] auto check_status(const QString& aValue)
+		[[nodiscard]] auto check_status(const std::string_view aValue)
 			-> application::github_check_status
 		{
 			if (aValue == "queued") {
@@ -361,13 +763,13 @@ namespace bpr::adapters::github::detail {
 			return application::github_check_status::pending;
 		}
 
-		[[nodiscard]] auto check_conclusion(const QJsonValue& aValue)
+		[[nodiscard]] auto check_conclusion(const std::optional<std::string>& aValue)
 			-> application::github_check_conclusion
 		{
-			if (aValue.isNull()) {
+			if (!aValue) {
 				return application::github_check_conclusion::none;
 			}
-			const auto conclusion = aValue.toString();
+			const auto& conclusion = *aValue;
 			if (conclusion == "success") {
 				return application::github_check_conclusion::success;
 			}
@@ -425,22 +827,6 @@ namespace bpr::adapters::github::detail {
 				return contract_failure_code::unexpected_response_shape;
 			}
 			return contract_failure_code::unexpected_response_shape;
-		}
-
-		[[nodiscard]] auto review_threads_array(const QJsonDocument& aDocument)
-			-> QJsonArray
-		{
-			return aDocument.object()
-				.value("data")
-				.toObject()
-				.value("repository")
-				.toObject()
-				.value("pullRequest")
-				.toObject()
-				.value("reviewThreads")
-				.toObject()
-				.value("nodes")
-				.toArray();
 		}
 
 		[[nodiscard]] auto semantic_request(
@@ -551,8 +937,21 @@ namespace bpr::adapters::github::detail {
 				return failed(contract_failure_code::unexpected_operation);
 			}
 
-			std::array<QJsonDocument, all_read_operations.size()> documents;
-			std::array<bool, all_read_operations.size()>          present{ };
+			struct response_records
+			{
+				json_viewer                      Viewer;
+				json_repository                  Repository;
+				json_pull_request                PullRequest;
+				std::vector<json_file>           Files;
+				std::vector<json_commit>         Commits;
+				std::vector<json_review>         Reviews;
+				json_graphql_envelope            Graphql;
+				std::vector<json_review_comment> ReviewComments;
+				std::vector<json_issue_comment>  IssueComments;
+				json_checks                      Checks;
+				json_search                      Search;
+			} documents;
+			std::array<bool, all_read_operations.size()> present{ };
 			for (const auto& response : aResponses) {
 				const auto index = operation_index(response.Operation);
 				if (!index.has_value() || present[*index]
@@ -565,8 +964,24 @@ namespace bpr::adapters::github::detail {
 				if (!validation.has_value()) {
 					return std::unexpected{ validation.error() };
 				}
-				documents[*index] = parse_document(response.Response);
-				present[*index]   = true;
+				bool decoded = false;
+				switch (response.Operation) {
+				case read_operation::get_viewer_identity:       decoded = decode_record(documents.Viewer, response.Response); break;
+				case read_operation::get_repository:            decoded = decode_record(documents.Repository, response.Response); break;
+				case read_operation::get_pull_request:          decoded = decode_record(documents.PullRequest, response.Response); break;
+				case read_operation::list_pull_request_files:   decoded = decode_record(documents.Files, response.Response); break;
+				case read_operation::list_pull_request_commits: decoded = decode_record(documents.Commits, response.Response); break;
+				case read_operation::list_reviews:              decoded = decode_record(documents.Reviews, response.Response); break;
+				case read_operation::list_review_threads:       decoded = decode_record(documents.Graphql, response.Response); break;
+				case read_operation::list_review_comments:      decoded = decode_record(documents.ReviewComments, response.Response); break;
+				case read_operation::list_issue_comments:       decoded = decode_record(documents.IssueComments, response.Response); break;
+				case read_operation::list_checks:               decoded = decode_record(documents.Checks, response.Response); break;
+				case read_operation::search_pull_requests:      decoded = decode_record(documents.Search, response.Response); break;
+				}
+				if (!decoded) {
+					return failed(contract_failure_code::unexpected_response_fields);
+				}
+				present[*index] = true;
 			}
 			for (const auto operation : aAdmission.Operations) {
 				if (!present[*operation_index(operation)]) {
@@ -574,10 +989,6 @@ namespace bpr::adapters::github::detail {
 				}
 			}
 
-			const auto document = [&documents](const read_operation aOperation)
-				-> const QJsonDocument& {
-				return documents[*operation_index(aOperation)];
-			};
 			const auto targetName = full_name(
 				aContext.PullRequestRequest.Repository);
 
@@ -588,12 +999,10 @@ namespace bpr::adapters::github::detail {
 			const auto viewerRecord = admitted(read_operation::get_viewer_identity)
 				? application::github_viewer_record{
 					  .Account = core::github_account_id{
-						  integer(document(read_operation::get_viewer_identity)
-									  .object()
-									  .value("id")) },
-					  .Node        = application::github_actor_id{ text(document(read_operation::get_viewer_identity).object().value("node_id")) },
-					  .Login       = text(document(read_operation::get_viewer_identity).object().value("login")),
-					  .DisplayName = text(document(read_operation::get_viewer_identity).object().value("name")),
+						  documents.Viewer.Id },
+					  .Node        = application::github_actor_id{ documents.Viewer.NodeId },
+					  .Login       = documents.Viewer.Login,
+					  .DisplayName = documents.Viewer.Name.value_or(""),
 				  }
 				: *aAdmission.Viewer;
 			if (viewerRecord.Account != aContext.Account) {
@@ -614,42 +1023,38 @@ namespace bpr::adapters::github::detail {
 				.RateLimits = aContext.RateLimits,
 			};
 
-			const auto repository = document(
-										read_operation::get_repository)
-										.object();
+			const auto& repository = documents.Repository;
 			if (
-				integer(repository.value("id")) != aContext.Repository.value()
+				repository.Id != aContext.Repository.value()
 				|| !ascii_equal_fold(
-					text(repository.value("full_name")),
+					repository.FullName,
 					targetName)
 				|| !ascii_equal_fold(
-					text(repository.value("name")),
+					repository.Name,
 					aContext.PullRequestRequest.Repository.Name)
 				|| !ascii_equal_fold(
-					text(repository.value("owner").toObject().value("login")),
+					repository.Owner.Login,
 					aContext.PullRequestRequest.Repository.Owner)) {
 				return failed(contract_failure_code::identity_mismatch);
 			}
 
-			const auto pullRequest    = document(
-											read_operation::get_pull_request)
-											.object();
-			const auto base           = pullRequest.value("base").toObject();
-			const auto head           = pullRequest.value("head").toObject();
-			const auto baseRepository = base.value("repo").toObject();
+			const auto& pullRequest    = documents.PullRequest;
+			const auto& base           = pullRequest.Base;
+			const auto& head           = pullRequest.Head;
+			const auto& baseRepository = *base.Repo;
 			if (
-				integer(pullRequest.value("id"))
+				pullRequest.Id
 					!= aContext.PullRequest.value()
-				|| integer(pullRequest.value("number"))
+				|| pullRequest.Number
 					!= aContext.PullRequestRequest.Number.value()
-				|| integer(baseRepository.value("id"))
+				|| baseRepository.Id
 					!= aContext.Repository.value()
 				|| !ascii_equal_fold(
-					text(baseRepository.value("full_name")),
+					baseRepository.FullName,
 					targetName)) {
 				return failed(contract_failure_code::identity_mismatch);
 			}
-			const auto headOid = text(head.value("sha"));
+			const auto& headOid = head.Sha;
 
 			result.PullRequest = {
 				.Profile = aContext.Profile,
@@ -662,26 +1067,26 @@ namespace bpr::adapters::github::detail {
 				.Snapshot   = aContext.Snapshot,
 				.Repository = {
 					.Repository    = aContext.Repository,
-					.Node          = application::github_node_id{ text(repository.value("node_id")) },
+					.Node          = application::github_node_id{ repository.NodeId },
 					.Owner         = aContext.PullRequestRequest.Repository.Owner,
 					.Name          = aContext.PullRequestRequest.Repository.Name,
-					.DefaultBranch = text(repository.value("default_branch")),
-					.Private       = repository.value("private").toBool(),
+					.DefaultBranch = repository.DefaultBranch,
+					.Private       = repository.Private,
 				},
 				.PullRequest = {
 					.PullRequest = aContext.PullRequest,
 					.Repository  = aContext.Repository,
 					.Number      = aContext.PullRequestRequest.Number,
-					.Node        = application::github_node_id{ text(pullRequest.value("node_id")) },
-					.Title       = text(pullRequest.value("title")),
-					.Body        = text(pullRequest.value("body")),
-					.State       = pull_request_state(pullRequest.value("state").toString(), pullRequest.value("merged").toBool()),
-					.Draft       = pullRequest.value("draft").toBool(),
-					.Author      = optional_rest_actor(pullRequest.value("user")),
-					.BaseOid     = application::commit_oid{ text(base.value("sha")) },
+					.Node        = application::github_node_id{ pullRequest.NodeId },
+					.Title       = pullRequest.Title,
+					.Body        = pullRequest.Body.value_or(""),
+					.State       = pull_request_state(pullRequest.State, pullRequest.Merged),
+					.Draft       = pullRequest.Draft,
+					.Author      = optional_rest_actor(pullRequest.User),
+					.BaseOid     = application::commit_oid{ base.Sha },
 					.HeadOid     = application::commit_oid{ headOid },
-					.BaseRef     = text(base.value("ref")),
-					.HeadRef     = text(head.value("ref")),
+					.BaseRef     = base.Ref,
+					.HeadRef     = head.Ref,
 				},
 				.Files                      = { },
 				.Commits                    = { },
@@ -702,36 +1107,32 @@ namespace bpr::adapters::github::detail {
 				.RateLimits = aContext.RateLimits,
 			};
 
-			const auto files = document(
-								   read_operation::list_pull_request_files)
-								   .array();
+			const auto& files = documents.Files;
 			result.PullRequest.Files.reserve(
 				static_cast<std::size_t>(files.size()));
 			for (const auto& value : files) {
-				const auto                 object = value.toObject();
+				const auto&                object = value;
 				std::optional<std::string> previousPath;
-				if (object.contains("previous_filename")) {
-					previousPath = text(object.value("previous_filename"));
+				if (object.PreviousFilename.has_value()) {
+					previousPath = *object.PreviousFilename;
 				}
 				result.PullRequest.Files.push_back(
 					application::github_file_record{
-						.Path         = text(object.value("filename")),
+						.Path         = object.Filename,
 						.PreviousPath = std::move(previousPath),
-						.Change       = file_change(object.value("status").toString()),
-						.Additions    = integer(object.value("additions")),
-						.Deletions    = integer(object.value("deletions")),
+						.Change       = file_change(object.Status),
+						.Additions    = object.Additions,
+						.Deletions    = object.Deletions,
 						.ContentKind  = application::github_file_content_kind::unknown,
 					});
 			}
 
-			const auto commits = document(
-									 read_operation::list_pull_request_commits)
-									 .array();
+			const auto& commits = documents.Commits;
 			result.PullRequest.Commits.reserve(
 				static_cast<std::size_t>(commits.size()));
 			for (const auto& value : commits) {
-				const auto object   = value.toObject();
-				auto       headline = text(object.value("commit").toObject().value("message"));
+				const auto& object   = value;
+				auto        headline = object.Commit.Message;
 				if (const auto newline = headline.find('\n');
 					newline != std::string::npos) {
 					headline.resize(newline);
@@ -739,9 +1140,9 @@ namespace bpr::adapters::github::detail {
 				result.PullRequest.Commits.push_back(
 					application::github_commit_record{
 						.Oid = application::commit_oid{
-							text(object.value("sha")) },
-						.Node     = application::github_node_id{ text(object.value("node_id")) },
-						.Author   = optional_rest_actor(object.value("author")),
+							object.Sha },
+						.Node     = application::github_node_id{ object.NodeId },
+						.Author   = optional_rest_actor(object.Author),
 						.Headline = std::move(headline),
 					});
 			}
@@ -751,26 +1152,26 @@ namespace bpr::adapters::github::detail {
 				return failed(contract_failure_code::identity_mismatch);
 			}
 
-			const auto reviews = document(read_operation::list_reviews).array();
+			const auto& reviews = documents.Reviews;
 			result.PullRequest.Reviews.reserve(
 				static_cast<std::size_t>(reviews.size()));
 			for (const auto& value : reviews) {
-				const auto                             object = value.toObject();
+				const auto&                            object = value;
 				std::optional<application::commit_oid> commit;
-				if (!object.value("commit_id").isNull()) {
+				if (object.CommitId.has_value()) {
 					commit = application::commit_oid{
-						text(object.value("commit_id"))
+						*object.CommitId
 					};
 				}
 				result.PullRequest.Reviews.push_back(
 					application::github_review_record{
-						.DatabaseId = integer(object.value("id")),
+						.DatabaseId = object.Id,
 						.Review     = application::github_review_id{
-							text(object.value("node_id")) },
-						.Author = optional_rest_actor(object.value("user")),
-						.State  = review_state(object.value("state").toString()),
+							object.NodeId },
+						.Author = optional_rest_actor(object.User),
+						.State  = review_state(object.State),
 						.Commit = std::move(commit),
-						.Body   = text(object.value("body")),
+						.Body   = object.Body.value_or(""),
 					});
 			}
 
@@ -781,25 +1182,18 @@ namespace bpr::adapters::github::detail {
 			// stays unavailable and empty, which is what the snapshot's
 			// all-false read shape requires of it.
 			if (admitted(read_operation::list_review_threads)) {
-				const auto& reviewThreadsDocument = document(read_operation::list_review_threads);
-				const auto  graphqlRepository     = reviewThreadsDocument.object()
-														.value("data")
-														.toObject()
-														.value("repository")
-														.toObject();
-				const auto  graphqlPullRequest    = graphqlRepository.value("pullRequest").toObject();
+				const auto& reviewThreadsDocument = documents.Graphql;
+				const auto& graphqlRepository     = reviewThreadsDocument.Data.Repository;
+				const auto& graphqlPullRequest    = graphqlRepository.PullRequest;
 				if (
-					text(graphqlRepository.value("id"))
-						!= text(repository.value("node_id"))
-					|| text(graphqlPullRequest.value("id"))
-						!= text(pullRequest.value("node_id"))
-					|| text(graphqlPullRequest.value("headRefOid")) != headOid) {
+					graphqlRepository.Id
+						!= repository.NodeId
+					|| graphqlPullRequest.Id
+						!= pullRequest.NodeId
+					|| graphqlPullRequest.HeadRefOid != headOid) {
 					return failed(contract_failure_code::identity_mismatch);
 				}
-				const auto graphqlFiles = graphqlPullRequest.value("files")
-											  .toObject()
-											  .value("nodes")
-											  .toArray();
+				const auto& graphqlFiles = graphqlPullRequest.Files.Nodes;
 				if (
 					static_cast<std::size_t>(graphqlFiles.size())
 					!= result.PullRequest.Files.size()) {
@@ -812,14 +1206,13 @@ namespace bpr::adapters::github::detail {
 				viewedStates.reserve(
 					static_cast<std::size_t>(graphqlFiles.size()));
 				for (const auto& fileValue : graphqlFiles) {
-					const auto file  = fileValue.toObject();
-					const auto state = viewed_state(file.value("viewerViewedState").toString());
+					const auto& file  = fileValue;
+					const auto  state = viewed_state(file.ViewerViewedState);
 					if (!state.has_value()) {
 						return failed(
 							contract_failure_code::unexpected_response_shape);
 					}
-					const auto inserted = viewedStates
-											  .emplace(text(file.value("path")), *state)
+					const auto inserted = viewedStates.emplace(file.Path, *state)
 											  .second;
 					if (!inserted) {
 						return failed(contract_failure_code::duplicate_identity);
@@ -836,57 +1229,51 @@ namespace bpr::adapters::github::detail {
 				if (!viewedStates.empty()) {
 					return failed(contract_failure_code::identity_mismatch);
 				}
-				const auto threads = review_threads_array(reviewThreadsDocument);
+				const auto& threads = reviewThreadsDocument.Data.Repository.PullRequest.ReviewThreads.Nodes;
 				result.PullRequest.ReviewThreads.reserve(
 					static_cast<std::size_t>(threads.size()));
 				for (const auto& threadValue : threads) {
-					const auto thread = threadValue.toObject();
-					const auto side   = diff_side(thread.value("diffSide").toString());
+					const auto& thread = threadValue;
+					const auto  side   = diff_side(thread.DiffSide);
 					if (!side.has_value()) {
 						return failed(contract_failure_code::unexpected_response_shape);
 					}
 					application::github_review_thread_record threadRecord{
 						.Thread = application::github_thread_id{
-							text(thread.value("id")) },
-						.Subject                   = review_thread_subject(thread.value("subjectType").toString()),
-						.Path                      = text(thread.value("path")),
-						.Line                      = optional_line(thread.value("line")),
-						.OriginalLine              = optional_line(thread.value("originalLine")),
+							thread.Id },
+						.Subject                   = review_thread_subject(thread.SubjectType),
+						.Path                      = thread.Path,
+						.Line                      = thread.Line,
+						.OriginalLine              = thread.OriginalLine,
 						.DiffSide                  = *side,
-						.Resolved                  = thread.value("isResolved").toBool(),
-						.Outdated                  = thread.value("isOutdated").toBool(),
-						.ViewerResolvePermission   = thread.value("viewerCanResolve").toBool() ? application::github_permission_state::allowed : application::github_permission_state::denied,
-						.ViewerUnresolvePermission = thread.value("viewerCanUnresolve").toBool() ? application::github_permission_state::allowed : application::github_permission_state::denied,
+						.Resolved                  = thread.IsResolved,
+						.Outdated                  = thread.IsOutdated,
+						.ViewerResolvePermission   = thread.ViewerCanResolve ? application::github_permission_state::allowed : application::github_permission_state::denied,
+						.ViewerUnresolvePermission = thread.ViewerCanUnresolve ? application::github_permission_state::allowed : application::github_permission_state::denied,
 						.Comments                  = { },
 					};
-					const auto comments = thread.value("comments")
-											  .toObject()
-											  .value("nodes")
-											  .toArray();
+					const auto& comments = thread.Comments.Nodes;
 					threadRecord.Comments.reserve(
 						static_cast<std::size_t>(comments.size()));
 					for (const auto& commentValue : comments) {
-						const auto                                    comment = commentValue.toObject();
+						const auto&                                   comment = commentValue;
 						std::optional<application::github_comment_id> replyTo;
-						if (!comment.value("replyTo").isNull()) {
+						if (comment.ReplyTo.has_value()) {
 							replyTo = application::github_comment_id{
-								text(
-									comment.value("replyTo")
-										.toObject()
-										.value("id"))
+								comment.ReplyTo->Id
 							};
 						}
 						threadRecord.Comments.push_back(
 							application::github_review_comment_record{
 								.Comment = application::github_comment_id{
-									text(comment.value("id")) },
+									comment.Id },
 								.ReplyTo      = std::move(replyTo),
-								.Author       = optional_graphql_actor(comment.value("author")),
-								.Body         = text(comment.value("bodyText")),
-								.Path         = text(comment.value("path")),
-								.Line         = optional_line(comment.value("line")),
-								.OriginalLine = optional_line(comment.value("originalLine")),
-								.Outdated     = comment.value("outdated").toBool(),
+								.Author       = optional_graphql_actor(comment.Author),
+								.Body         = comment.BodyText,
+								.Path         = comment.Path,
+								.Line         = comment.Line,
+								.OriginalLine = comment.OriginalLine,
+								.Outdated     = comment.Outdated,
 								.Deleted      = false,
 							});
 					}
@@ -897,24 +1284,22 @@ namespace bpr::adapters::github::detail {
 
 			if (admitted(read_operation::list_review_comments)) {
 				std::vector<application::github_review_comment_record> flat;
-				const auto                                             reviewComments = document(
-																							read_operation::list_review_comments)
-																							.array();
+				const auto&                                            reviewComments = documents.ReviewComments;
 				flat.reserve(static_cast<std::size_t>(reviewComments.size()));
 				for (const auto& value : reviewComments) {
-					const auto object  = value.toObject();
-					const auto replyTo = object.value("in_reply_to_id");
+					const auto& object  = value;
+					const auto  replyTo = object.InReplyToId;
 					flat.push_back(
 						application::github_review_comment_record{
 							.Comment = application::github_comment_id{
-								std::to_string(integer(object.value("id"))) },
-							.ReplyTo      = replyTo.isDouble() ? std::optional<application::github_comment_id>{ application::github_comment_id{ std::to_string(integer(replyTo)) } } : std::nullopt,
-							.Author       = optional_rest_actor(object.value("user")),
-							.Body         = text(object.value("body")),
-							.Path         = text(object.value("path")),
-							.Line         = optional_line(object.value("line")),
-							.OriginalLine = optional_line(object.value("original_line")),
-							.Outdated     = object.value("position").isNull(),
+								std::to_string(object.Id) },
+							.ReplyTo      = replyTo.has_value() ? std::optional<application::github_comment_id>{ application::github_comment_id{ std::to_string(*replyTo) } } : std::nullopt,
+							.Author       = optional_rest_actor(object.User),
+							.Body         = object.Body,
+							.Path         = object.Path,
+							.Line         = object.Line,
+							.OriginalLine = object.OriginalLine,
+							.Outdated     = !object.Position.has_value(),
 							.Deleted      = false,
 						});
 				}
@@ -924,65 +1309,53 @@ namespace bpr::adapters::github::detail {
 				}
 			}
 
-			const auto issueComments = document(read_operation::list_issue_comments).array();
+			const auto& issueComments = documents.IssueComments;
 			result.PullRequest.IssueComments.reserve(
 				static_cast<std::size_t>(issueComments.size()));
 			for (const auto& value : issueComments) {
-				const auto object = value.toObject();
+				const auto& object = value;
 				result.PullRequest.IssueComments.push_back(
 					application::github_issue_comment_record{
 						.Comment = application::github_comment_id{
-							text(object.value("node_id")) },
-						.Author  = optional_rest_actor(object.value("user")),
-						.Body    = text(object.value("body")),
+							object.NodeId },
+						.Author  = optional_rest_actor(object.User),
+						.Body    = object.Body,
 						.Deleted = false,
 					});
 			}
 
-			const auto checks = document(read_operation::list_checks)
-									.object()
-									.value("check_runs")
-									.toArray();
+			const auto& checks = documents.Checks.CheckRuns;
 			result.PullRequest.Checks.reserve(
 				static_cast<std::size_t>(checks.size()));
 			for (const auto& value : checks) {
-				const auto object = value.toObject();
-				if (text(object.value("head_sha")) != headOid) {
+				const auto& object = value;
+				if (object.HeadSha != headOid) {
 					return failed(contract_failure_code::identity_mismatch);
 				}
 				result.PullRequest.Checks.push_back(
 					application::github_check_record{
 						.Check = application::github_check_id{
-							text(object.value("node_id")) },
-						.Name       = text(object.value("name")),
-						.Status     = check_status(object.value("status").toString()),
-						.Conclusion = check_conclusion(object.value("conclusion")),
+							object.NodeId },
+						.Name       = object.Name,
+						.Status     = check_status(object.Status),
+						.Conclusion = check_conclusion(object.Conclusion),
 					});
 			}
 
-			const auto searchResults = document(
-										   read_operation::search_pull_requests)
-										   .object()
-										   .value("items")
-										   .toArray();
+			const auto& searchResults = documents.Search.Items;
 			result.PullRequest.SearchResults.reserve(
 				static_cast<std::size_t>(searchResults.size()));
 			for (const auto& value : searchResults) {
-				const auto object = value.toObject();
-				const auto number = uint32(object.value("number"));
-				if (!number.has_value()) {
-					return failed(
-						contract_failure_code::unexpected_response_shape);
-				}
+				const auto& object = value;
 				result.PullRequest.SearchResults.push_back(
 					application::github_search_result_record{
 						.Repository      = aContext.Repository,
 						.PullRequestNode = application::github_node_id{
-							text(object.value("node_id")) },
-						.Number = core::pull_request_number{ *number },
-						.Title  = text(object.value("title")),
-						.State  = pull_request_state(object.value("state").toString()),
-						.Draft  = object.value("draft").toBool(),
+							object.NodeId },
+						.Number = core::pull_request_number{ object.Number },
+						.Title  = object.Title,
+						.State  = pull_request_state(object.State),
+						.Draft  = object.Draft,
 					});
 			}
 
@@ -1042,12 +1415,11 @@ namespace bpr::adapters::github::detail {
 					if (!validation.has_value()) {
 						return std::unexpected{ validation.error() };
 					}
-					headOid = text(
-						parse_document(*response)
-							.object()
-							.value("head")
-							.toObject()
-							.value("sha"));
+					json_pull_request pull;
+					if (!decode_record(pull, *response)) {
+						return failed(contract_failure_code::unexpected_response_fields);
+					}
+					headOid = std::move(pull.Head.Sha);
 				}
 				responses.push_back(
 					operation_response{

@@ -1892,10 +1892,91 @@ namespace {
 					== "BOT_fixture_ci",
 			"non-User Node actors retain stable identity");
 	}
+	auto test_glaze_normalization_keeps_raw_numbers_exact() -> void
+	{
+		struct numeric_case
+		{
+			std::size_t      Response;
+			std::string_view Before;
+			std::string_view After;
+		};
+		constexpr std::array cases{
+			numeric_case{ 0U, "\"id\": 1001", "\"id\": 1001.0000000000000001" },
+			numeric_case{ 1U, "\"id\": 2001", "\"id\": 2001.0000000000000001" },
+			numeric_case{ 5U, "\"id\": 4001", "\"id\": 4001.0000000000000001" },
+			numeric_case{ 3U, "\"additions\": 12", "\"additions\": 12.0000000000000001" },
+			numeric_case{ 6U, "\"line\": 42", "\"line\": 42.0000000000000001" },
+			numeric_case{ 0U, "\"id\": 1001", "\"id\": 18446744073709551616" },
+		};
+		for (const auto& example : cases) {
+			auto recording = load_recording("github-com", server_contract::github_com);
+			replace_once(recording.Responses[example.Response].Response.Body, example.Before, example.After);
+			const auto result = normalize_github_read(normalization_context(server_contract::github_com), recording.Responses);
+			expect(!result.has_value(), "raw fractional identities/counts/lines and uint64 overflow never yield a normalized snapshot");
+		}
+		for (const auto number : { std::uint64_t{ 1001U }, std::uint64_t{ 9007199254740991ULL } }) {
+			auto recording = load_recording("github-com", server_contract::github_com);
+			replace_once(recording.Responses.front().Response.Body, "\"id\": 1001", "\"id\": " + std::to_string(number) + "e0");
+			auto context    = normalization_context(server_contract::github_com);
+			context.Account = core::github_account_id{ number };
+			// Keep the pull-request context bound to the same viewer.
+			context.PullRequestRequest.Account = context.Account;
+			const auto result                  = normalize_github_read(context, recording.Responses);
+			expect(result.has_value() && result->Session.Viewer.Account == context.Account, "bounded exact integer exponent spelling retains account identity");
+		}
+	}
+
+	auto test_glaze_anonymous_comment_normalization() -> void
+	{
+		auto recording = load_recording("github-com", server_contract::github_com);
+		std::erase_if(recording.Responses, [](const auto& response) {
+			return response.Operation == read_operation::get_viewer_identity || response.Operation == read_operation::list_review_threads;
+		});
+		const auto inlineResponse = recording.Responses.size();
+		recording.Responses.push_back({ .Operation = read_operation::list_review_comments,
+										.Response  = { .Status = 200, .Headers = { { "Content-Type", "application/json" } }, .Body = R"([
+				{"id":501,"body":"root","path":"review.cpp","user":null,"line":42,"original_line":42},
+				{"id":502,"in_reply_to_id":501,"body":"reply","path":"review.cpp","user":null,"line":42,"original_line":42,"position":null}
+			])",
+													   .Completeness = page_completeness::complete } });
+		const auto viewer                  = canonical_normalized_read().Session.Viewer;
+		const auto admission               = anonymous_read_admission(viewer);
+		auto       context                 = normalization_context(server_contract::github_com);
+		context.Capabilities.ReviewThreads = core::github_capability_state::unsupported;
+		const auto result                  = normalize_github_read(context, recording.Responses, admission);
+		expect(result.has_value(), "anonymous admission normalizes the nine REST responses with the supplied viewer");
+		const auto& snapshot = result->PullRequest;
+		expect(result->Session.Viewer == viewer && snapshot.ReviewThreads.empty()
+				   && snapshot.ReviewThreadsAvailability == application::github_collection_availability::unavailable
+				   && snapshot.ReviewCommentGroups.size() == 1U,
+			   "anonymous normalization preserves viewer and REST comment groups without GraphQL threads");
+		const auto& group = snapshot.ReviewCommentGroups.front();
+		expect(group.Root.Comment.value() == "501" && !group.Root.Author && group.Root.Line == 42U && !group.Root.Outdated
+				   && group.Replies.size() == 1U && group.Replies.front().Comment.value() == "502"
+				   && group.Replies.front().ReplyTo == group.Root.Comment && group.Replies.front().Outdated,
+			   "REST identities/replies and missing versus null position remain exact");
+		for (const auto replacement : { std::string_view{ "\"id\":501.0000000000000001" }, std::string_view{ "\"id\":18446744073709551616" } }) {
+			auto hostile = recording.Responses;
+			replace_once(hostile[inlineResponse].Response.Body, "\"id\":501", replacement);
+			expect(!normalize_github_read(context, hostile, admission), "fractional or overflowing REST comment identity fails atomically");
+		}
+		auto nullLine = recording.Responses;
+		replace_once(nullLine[inlineResponse].Response.Body, "\"line\":42,", "\"line\":null,\"position\":{\"synthetic\":true},");
+		const auto nullable = normalize_github_read(context, nullLine, admission);
+		expect(nullable && !nullable->PullRequest.ReviewCommentGroups.front().Root.Line
+				   && !nullable->PullRequest.ReviewCommentGroups.front().Root.Outdated,
+			   "explicit null line stays absent and opaque non-null position keeps its nullness-only meaning");
+		auto missingLine = recording.Responses;
+		replace_once(missingLine[inlineResponse].Response.Body, "\"line\":42,", "");
+		expect(!normalize_github_read(context, missingLine, admission), "missing line retains the prior invalid-coordinate refusal");
+	}
+
 }
 
 auto main() -> int
 {
+	test_glaze_anonymous_comment_normalization();
+	test_glaze_normalization_keeps_raw_numbers_exact();
 	test_manifest_catalog_and_normalization_are_one_contract();
 	test_read_only_protocol_policy();
 	test_glaze_read_request_bytes_and_raw_validation();
