@@ -126,3 +126,11 @@ and pass read/pager/provider/public-composition checks. Its response validators,
 normalizers and pagination JSON conversion remain In Progress; the full source
 inventory still has five files using Qt JSON. Performance remains deferred until
 all migration slices and final integration are complete.
+
+BPR-0638 recorded-response normalization is implemented in `3f25f90d90fa6b55fd5ed89366e2582583ae53c8`:
+all eleven operation projections use private typed Glaze records, with raw
+numeric refusal and direct nine-REST-response grouping/nullness evidence. Four
+production/composed-fixture files still use Qt JSON. Strict fixture validation
+and the production pager remain in BPR-0638; their existing double-based numeric
+ceilings still prevent claiming full-width read identity migration. Next work
+stays on those two paths before application fixtures and final helper cleanup.
