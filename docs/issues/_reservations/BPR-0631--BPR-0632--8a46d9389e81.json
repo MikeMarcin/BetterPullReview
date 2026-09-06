@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0631",
+    "BPR-0632"
+  ],
+  "reserve_for": "rfc0013-many-epoch-replay",
+  "purpose": "",
+  "created": "2026-09-06T04:08:01.770926+00:00",
+  "base": "fca80cea75557d6d19a8987de5271bccce0a2072"
+}
