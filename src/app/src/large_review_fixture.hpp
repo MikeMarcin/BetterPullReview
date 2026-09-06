@@ -10,6 +10,7 @@
 #include <glaze/json.hpp>
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -41,7 +42,7 @@ namespace bpr::app::detail::large_review_fixture {
 		return value;
 	}
 
-	[[nodiscard]] inline auto request(wire::read_operation aOperation, std::uint32_t aPage = 1U) -> wire::semantic_read_request
+	[[nodiscard]] inline auto request(wire::read_operation aOperation, std::uint32_t aPage = 1U, std::string_view aHead = head_oid) -> wire::semantic_read_request
 	{
 		wire::semantic_read_request result{ .Operation = aOperation, .Owner = "bpr-fixtures", .Repository = "large-review", .Page = aPage };
 		switch (aOperation) {
@@ -52,7 +53,7 @@ namespace bpr::app::detail::large_review_fixture {
 		case wire::read_operation::get_repository:
 			break;
 		case wire::read_operation::list_checks:
-			result.HeadOid = head_oid;
+			result.HeadOid = aHead;
 			break;
 		case wire::read_operation::search_pull_requests:
 			result.SearchTerms = "is:open";
@@ -171,7 +172,7 @@ namespace bpr::app::detail::large_review_fixture {
 	}
 
 	inline void append_graphql(std::vector<wire::recorded_exchange>& aExchanges, const std::filesystem::path& aRoot,
-							   const glz::generic& aManifest)
+							   const glz::generic& aManifest, std::string_view aHead)
 	{
 		const auto& files = aManifest["files"].get_array();
 		const auto& pages = aManifest["comment_pages"].get_array();
@@ -187,7 +188,7 @@ namespace bpr::app::detail::large_review_fixture {
 				.Shape       = { .ReviewThreads = true, .ViewedFileState = true, .ResolvePermission = true, .UnresolvePermission = true },
 				.AfterCursor = initial ? std::string{ } : std::string{ filePage ? "files-" : "threads-" } + std::to_string(pageIndex * 100U),
 			};
-			auto pull = glz::generic{ { "id", "PR_large_review_17" }, { "headRefOid", head_oid } };
+			auto pull = glz::generic{ { "id", "PR_large_review_17" }, { "headRefOid", aHead } };
 			if (filePage) {
 				pull["files"] = file_connection(files, pageIndex * 100U);
 			}
@@ -200,10 +201,61 @@ namespace bpr::app::detail::large_review_fixture {
 		}
 	}
 
-	/// \brief Compiles the exact local workload's 29 authenticated exchanges.
-	[[nodiscard]] inline auto load(const std::filesystem::path& aRoot) -> std::vector<wire::recorded_exchange>
+	/// \brief Reconstructs one exact stored head using compact reverse file deltas.
+	[[nodiscard]] inline auto manifest_for_head(glz::generic        aManifest,
+												const glz::generic& aEpochs, std::string_view aHead) -> glz::generic
 	{
-		const auto manifest = read_json(aRoot / "manifest.json");
+		const auto& heads    = aManifest["heads"].get_array();
+		const auto  selected = std::ranges::find_if(heads, [aHead](const auto& aValue) {
+			return aValue.get_string() == aHead;
+		});
+		const auto& deltas   = aEpochs["deltas"].get_array();
+		if (heads.size() != 32U || selected == heads.end()
+			|| aEpochs["schema"].get_string() != "bpr.large-review-epoch-deltas.v1"
+			|| aEpochs["base"].get_string() != aManifest["base"].get_string()
+			|| deltas.size() != 31U) {
+			throw std::runtime_error{ "Large-review epoch identity or count mismatch" };
+		}
+		const auto selectedIndex = static_cast<std::size_t>(selected - heads.begin());
+		for (std::size_t index = 0U; index < deltas.size(); ++index) {
+			const auto& delta = deltas[index];
+			if (delta["previous_head"].get_string() != heads[index].get_string()
+				|| delta["head"].get_string() != heads[index + 1U].get_string()
+				|| delta["files"].get_array().size() != 1U) {
+				throw std::runtime_error{ "Large-review epoch chain mismatch" };
+			}
+			for (const auto side : { "before", "after" }) {
+				const auto& blob  = delta["files"].get_array().front()[side];
+				const auto& oid   = blob["oid"].get_string();
+				const auto  bytes = blob["bytes"].get_number();
+				if (oid.size() != 40U || !std::ranges::all_of(oid, [](char aCharacter) {
+						return (aCharacter >= '0' && aCharacter <= '9') || (aCharacter >= 'a' && aCharacter <= 'f');
+					})
+					|| bytes <= 0.0 || bytes > 1024.0 || std::floor(bytes) != bytes) {
+					throw std::runtime_error{ "Large-review epoch blob metadata mismatch" };
+				}
+			}
+		}
+		auto& files = aManifest["files"].get_array();
+		for (auto index = deltas.size(); index > selectedIndex; --index) {
+			const auto& delta = deltas[index - 1U]["files"].get_array().front();
+			const auto  found = std::ranges::find_if(files, [&delta](const auto& aFile) {
+				return aFile["path"].get_string() == delta["path"].get_string();
+			});
+			if (found == files.end()
+				|| (*found)["head"]["oid"].get_string() != delta["after"]["oid"].get_string()
+				|| (*found)["head"]["bytes"].get_number() != delta["after"]["bytes"].get_number()) {
+				throw std::runtime_error{ "Large-review epoch delta does not match its source tree" };
+			}
+			(*found)["head"] = delta["before"];
+		}
+		return aManifest;
+	}
+
+	/// \brief Compiles the exact local workload's 29 authenticated exchanges.
+	[[nodiscard]] inline auto load(const std::filesystem::path& aRoot, std::string_view aHead = head_oid) -> std::vector<wire::recorded_exchange>
+	{
+		auto manifest = read_json(aRoot / "manifest.json");
 		if (manifest["schema"].get_string() != "bpr.large-review-fixture.v1"
 			|| manifest["base"].get_string() != base_oid
 			|| manifest["heads"].get_array().size() != 32U
@@ -211,6 +263,9 @@ namespace bpr::app::detail::large_review_fixture {
 			|| manifest["files"].get_array().size() != 515U
 			|| manifest["comment_pages"].get_array().size() != 10U) {
 			throw std::runtime_error{ "Large-review fixture identity or dimensions mismatch" };
+		}
+		if (aHead != head_oid) {
+			manifest = manifest_for_head(std::move(manifest), read_json(aRoot / "epoch-deltas.json"), aHead);
 		}
 		auto exchanges = std::vector<wire::recorded_exchange>{ };
 		exchanges.reserve(29U);
@@ -237,23 +292,23 @@ namespace bpr::app::detail::large_review_fixture {
 																						{ "number", 17 },
 																						{ "state", "open" },
 																						{ "title", title },
-																						{ "body", "Synthetic local benchmark; latest head only." },
+																						{ "body", aHead == head_oid ? "Synthetic local benchmark; latest head only." : "Synthetic local benchmark; earlier head projection." },
 																						{ "changed_files", 515 },
 																						{ "commits", 1 },
 																						{ "draft", false },
 																						{ "user", actor },
 																						{ "base", glz::generic{ { "ref", "main" }, { "sha", base_oid }, { "repo", repository } } },
-																						{ "head", glz::generic{ { "ref", "benchmark" }, { "sha", head_oid }, { "repo", repository } } },
+																						{ "head", glz::generic{ { "ref", "benchmark" }, { "sha", aHead }, { "repo", repository } } },
 																						{ "merged", false },
 																					});
 		append_rest_files(exchanges, manifest["files"].get_array());
 		append_exchange(exchanges, request(wire::read_operation::list_pull_request_commits), glz::generic::array_t{
-																								 glz::generic{ { "sha", head_oid }, { "node_id", "C_large_review_latest" }, { "commit", glz::generic{ { "message", "Synthetic latest head" } } }, { "author", actor } },
+																								 glz::generic{ { "sha", aHead }, { "node_id", aHead == head_oid ? std::string{ "C_large_review_latest" } : "C_large_review_" + std::string{ aHead } }, { "commit", glz::generic{ { "message", aHead == head_oid ? "Synthetic latest head" : "Synthetic earlier head" } } }, { "author", actor } },
 																							 });
 		append_exchange(exchanges, request(wire::read_operation::list_reviews), glz::generic::array_t{ });
-		append_graphql(exchanges, aRoot, manifest);
+		append_graphql(exchanges, aRoot, manifest, aHead);
 		append_exchange(exchanges, request(wire::read_operation::list_issue_comments), glz::generic::array_t{ });
-		append_exchange(exchanges, request(wire::read_operation::list_checks), glz::generic{ { "total_count", 0 }, { "check_runs", glz::generic::array_t{ } } });
+		append_exchange(exchanges, request(wire::read_operation::list_checks, 1U, aHead), glz::generic{ { "total_count", 0 }, { "check_runs", glz::generic::array_t{ } } });
 		append_exchange(exchanges, request(wire::read_operation::search_pull_requests), glz::generic{
 																							{ "total_count", 0 },
 																							{ "incomplete_results", false },

@@ -60,6 +60,10 @@ def inspect_fixture(fixture: Path, executable: Path) -> None:
     require(len(heads) == 32 and len(set([base, *heads])) == 33, "duplicate or missing revision identity")
     require(all(len(oid) == 40 and all(c in "0123456789abcdef" for c in oid) for oid in [base, *heads]),
             "invalid object identity")
+    epoch_data = json.loads((fixture / "epoch-deltas.json").read_text())
+    require(epoch_data["schema"] == "bpr.large-review-epoch-deltas.v1"
+            and epoch_data["base"] == base and len(epoch_data["deltas"]) == 31,
+            "epoch delta identity or count differs")
     with contained_temporary_directory(prefix="bpr-large-review-contract-") as raw:
         git = LocalGit(executable, Path(raw).resolve())
         git.run("index-pack", "--stdin", "--strict", data=pack)
@@ -108,6 +112,16 @@ def inspect_fixture(fixture: Path, executable: Path) -> None:
         for index, head in enumerate(heads[1:]):
             names = git.run("diff", "--name-only", heads[index], head).decode().splitlines()
             require(names == [f"src/file_{index:04d}.cpp"], "retained epoch does not contain its distinct source change")
+            delta = epoch_data["deltas"][index]
+            require(delta["previous_head"] == heads[index] and delta["head"] == head
+                    and len(delta["files"]) == 1 and delta["files"][0]["path"] == names[0],
+                    "epoch delta has a substituted head, order or path")
+            for side, revision in (("before", heads[index]), ("after", head)):
+                metadata, name = git.run("ls-tree", "-l", revision, "--", names[0]).rstrip(b"\n").split(b"\t")
+                mode, kind, oid, size = metadata.split()
+                require(name.decode() == names[0] and mode == b"100644" and kind == b"blob"
+                        and delta["files"][0][side] == {"oid": oid.decode(), "bytes": int(size)},
+                        "epoch delta blob identity or byte count differs from installed Git")
     seen = set()
     pages = manifest["comment_pages"]
     require(len(pages) == 10, "wrong comment page count")
@@ -144,9 +158,20 @@ def main() -> int:
         shutil.copytree(FIXTURE, copy)
         manifest = json.loads((copy / "manifest.json").read_text())
         original_page = (copy / "review-comments-01.json").read_bytes()
-        for mutation in ("anchor", "identity", "pack"):
+        original_deltas = (copy / "epoch-deltas.json").read_bytes()
+        for mutation in ("epoch-head", "epoch-blob", "epoch-size", "epoch-missing", "anchor", "identity", "pack"):
             changed = json.loads(json.dumps(manifest))
-            if mutation == "pack":
+            if mutation.startswith("epoch-"):
+                deltas = json.loads(original_deltas)
+                if mutation == "epoch-head":
+                    deltas["deltas"][0]["head"] = deltas["deltas"][1]["head"]
+                elif mutation == "epoch-missing":
+                    deltas["deltas"].pop()
+                else:
+                    field = "oid" if mutation == "epoch-blob" else "bytes"
+                    deltas["deltas"][0]["files"][0]["before"][field] = "0" * 40 if field == "oid" else 1
+                (copy / "epoch-deltas.json").write_text(json.dumps(deltas))
+            elif mutation == "pack":
                 pack = bytearray((FIXTURE / "objects.pack").read_bytes())
                 pack[len(pack) // 2] ^= 1
                 (copy / "objects.pack").write_bytes(pack)
@@ -165,6 +190,7 @@ def main() -> int:
             else:
                 raise ValueError(f"corrupted {mutation} was accepted")
             (copy / "review-comments-01.json").write_bytes(original_page)
+            (copy / "epoch-deltas.json").write_bytes(original_deltas)
     print("LARGE_REVIEW_FIXTURE_OK files=515 source_files=512 large_lines=20000 heads=32 comments=1000")
     return 0
 

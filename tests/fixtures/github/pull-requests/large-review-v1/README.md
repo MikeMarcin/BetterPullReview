@@ -75,3 +75,27 @@ ordered index. It checks the resulting unavailable message, binary status and
 supported-file recovery, writing `unavailable-diff-measurement.json` and
 `unavailable-diff-window.png` beside the ordinary benchmark artifacts. This
 selector does not alter shipped limits or use a fixture-produced diff result.
+
+## Earlier-head replay inputs
+
+`epoch-deltas.json` records the 31 transitions after the first review head. Each
+entry names its exact parent/head and the changed file's before/after Git blob
+OID and byte count. The 14.6 KB sidecar avoids repeating all 515 file records
+for every epoch. `scripts/build_large_review_fixture.py` derives it from the
+same local Git stream; the stored pack, manifest and comment pages are unchanged.
+The independent fixture contract compares each transition against installed Git
+and refuses altered heads, missing transitions, substituted blob OIDs or sizes.
+
+The test-only Glaze compiler can project an exact stored head by reversing later
+file deltas from the final manifest. It binds the PR, commit list, GraphQL head
+and check request to that head. It reuses the synthetic thread text/IDs/line
+positions as a workload projection at each head; these are not historical
+GitHub captures. The default latest-head 29-request script remains unchanged.
+Unknown, abbreviated, base-only and empty head identities refuse. Each compiled
+head is checked through the production pager, with complete 515-file/1,000-thread
+snapshots and independent ordinal-to-file-blob expectations.
+
+BPR-0631 establishes these inputs and provider-boundary checks. BPR-0632 owns
+32 actual application refreshes, retained epoch/catalog identity, historical
+selection and measured UI behavior. Having these inputs does not itself prove
+many-epoch application acceptance or a performance budget.

@@ -127,6 +127,17 @@ def generate(executable: Path, output: Path) -> dict:
             changes.append({"path": path, "additions": None if added == "-" else int(added),
                             "deletions": None if removed == "-" else int(removed),
                             "base": base_tree[path], "head": head_tree[path]})
+        epoch_deltas = []
+        previous_tree = tree(git, revisions[1])
+        for ordinal, head in enumerate(revisions[2:], start=2):
+            current_tree = tree(git, head)
+            paths = git.run("diff", "--name-only", revisions[ordinal - 1], head).decode().splitlines()
+            epoch_deltas.append({"previous_head": revisions[ordinal - 1], "head": head,
+                                 "files": [{"path": path, "before": previous_tree[path],
+                                            "after": current_tree[path]} for path in paths]})
+            previous_tree = current_tree
+    write_json(output / "epoch-deltas.json", {"schema": "bpr.large-review-epoch-deltas.v1",
+                                             "base": revisions[0], "deltas": epoch_deltas})
     (output / "objects.pack").write_bytes(pack)
     pages = []
     for page in range(RECIPE["review_comments"] // RECIPE["comments_per_page"]):
