@@ -112,3 +112,10 @@ public application round-trip evidence are recorded on that card, including a
 corrected stale composition-test link inventory. Seven production/composed-fixture
 files and the test/helper migration remain. Next: select BPR-0637 for device
 sign-in and capability contracts; preserve the remembered production session.
+
+BPR-0637 device portion is implemented in `1211a9f0`: exact typed duration/string
+decoding with Glaze, unchanged form requests and fixed failure categories,
+verified synthetic public sign-in/renewal and native loopback courses. Its
+capability portion remains In Progress. Six production/composed-fixture files
+still use Qt JSON; test/helper migration remains required. Next work stays on
+the capability probe in BPR-0637, preserving the nine-query implementation.
