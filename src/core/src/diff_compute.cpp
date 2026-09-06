@@ -59,7 +59,7 @@ namespace bpr::core {
 			line_pair_kind Kind  = line_pair_kind::similar;
 		};
 
-		struct move_work_budget
+		struct work_budget
 		{
 			std::uint64_t Limit    = 0U;
 			std::uint64_t Consumed = 0U;
@@ -571,17 +571,95 @@ namespace bpr::core {
 			});
 		}
 
+		struct primary_index_limit
+		{ };
+
+		struct budgeted_line_less
+		{
+			work_budget* Budget = nullptr;
+
+			[[nodiscard]] auto operator()(const normalized_line* aLeft, const normalized_line* aRight) const -> bool
+			{
+				if (!Budget->consume()) {
+					throw primary_index_limit{ };
+				}
+				const auto extent = std::min(aLeft->Values.size(), aRight->Values.size());
+				for (std::size_t index = 0U; index < extent; ++index) {
+					if (!Budget->consume()) {
+						throw primary_index_limit{ };
+					}
+					if (aLeft->Values[index] != aRight->Values[index]) {
+						return aLeft->Values[index] < aRight->Values[index];
+					}
+				}
+				return aLeft->Values.size() < aRight->Values.size();
+			}
+		};
+
+		/// All common lines are unique and ordered, so taking every one is the
+		/// unique LCS. Ambiguous duplicates or crossing matches keep the bounded
+		/// refusal; this path never substitutes a different tie-breaking policy.
+		[[nodiscard]] auto ordered_unique_matches(
+			const prepared_document& aLeft, const prepared_document& aRight,
+			work_budget& aBudget)
+			-> std::optional<std::vector<std::pair<std::size_t, std::size_t>>>
+		{
+			struct occurrence
+			{
+				std::size_t Position = 0U;
+				bool        Repeated = false;
+			};
+			// Charge actual comparisons, including every normalized value. Tree
+			// implementations may call a bool comparator twice at a visited node;
+			// an estimated depth is not a bound on that work. The private exception
+			// stops the container operation immediately and cannot escape here.
+			try {
+				std::map<const normalized_line*, occurrence, budgeted_line_less> index{ budgeted_line_less{ &aBudget } };
+				for (std::size_t position = 0U; position < aRight.Normalized.size(); ++position) {
+					if (!aBudget.consume()) {
+						return std::nullopt;
+					}
+					const auto [entry, inserted] = index.try_emplace(&aRight.Normalized[position], occurrence{ .Position = position });
+					if (!inserted) {
+						entry->second.Repeated = true;
+					}
+				}
+				std::vector<std::pair<std::size_t, std::size_t>> matches;
+				for (std::size_t position = 0U; position < aLeft.Normalized.size(); ++position) {
+					if (!aBudget.consume()) {
+						return std::nullopt;
+					}
+					const auto entry = index.find(&aLeft.Normalized[position]);
+					if (entry == index.end()) {
+						continue;
+					}
+					const auto& found = entry->second;
+					if (found.Repeated || (!matches.empty() && found.Position <= matches.back().second)) {
+						return std::nullopt;
+					}
+					matches.emplace_back(position, found.Position);
+				}
+				return matches;
+			} catch (const primary_index_limit&) {
+				return std::nullopt;
+			}
+		}
+
 		[[nodiscard]] auto primary_segments(const prepared_document& aLeft,
 											const prepared_document& aRight,
 											const diff_options&      aOptions,
-											matrix_budget&           aBudget)
+											matrix_budget&           aBudget,
+											work_budget&             aIndexBudget)
 			-> std::optional<std::vector<pending_segment>>
 		{
-			const auto matches = lcs_matches(
+			auto matches = lcs_matches(
 				aLeft.Normalized,
 				aRight.Normalized,
 				[](const normalized_line& aLhs, const normalized_line& aRhs) { return aLhs == aRhs; },
 				aBudget);
+			if (!matches.has_value()) {
+				matches = ordered_unique_matches(aLeft, aRight, aIndexBudget);
+			}
 			if (!matches.has_value()) {
 				return std::nullopt;
 			}
@@ -697,7 +775,7 @@ namespace bpr::core {
 			const std::uint64_t                 aMaximumWork,
 			const std::uint32_t                 aMaximumSegments) -> moved_refinement
 		{
-			auto budget = move_work_budget{ .Limit = aMaximumWork };
+			auto budget = work_budget{ .Limit = aMaximumWork };
 			auto index  = std::map<
 				const normalized_line*,
 				move_line_occurrences,
@@ -1182,8 +1260,9 @@ namespace bpr::core {
 									  : diff_reason_code::materialization_limit);
 		}
 
-		auto budget  = matrix_budget{ .Limit = aInput.Limits.MaximumMatrixCells };
-		auto pending = primary_segments(*left, *right, aInput.Options, budget);
+		auto budget      = matrix_budget{ .Limit = aInput.Limits.MaximumMatrixCells };
+		auto indexBudget = work_budget{ .Limit = aInput.Limits.MaximumPrimaryIndexWork };
+		auto pending     = primary_segments(*left, *right, aInput.Options, budget, indexBudget);
 		if (!pending.has_value() || pending->size() > static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()) || pending->size() > static_cast<std::size_t>(aInput.Limits.MaximumSegments)) {
 			return nontext_result(aInput,
 								  diff_content_state::unavailable,
@@ -1356,6 +1435,7 @@ namespace bpr::core {
 			.MoveDetectionWorkConsumed        = moved.WorkConsumed,
 			.MoveDetectionWorkLimitReached    = moved.WorkLimitReached,
 			.MoveDetectionSegmentLimitReached = moved.SegmentLimitReached,
+			.PrimaryIndexWorkConsumed         = indexBudget.Consumed,
 		};
 		if (!validate_computed_file_diff(result).valid()) {
 			return { .Reason = diff_reason_code::invalid_alignment };

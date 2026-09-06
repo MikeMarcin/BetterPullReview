@@ -74,6 +74,8 @@ namespace bpr::core {
 		std::uint64_t MaximumMatrixCells       = 16U * 1024U * 1024U;
 		std::uint64_t MaximumMoveDetectionWork = 1'000'000U;
 		std::uint32_t MaximumSegments          = 1'000'000U;
+		/// Separate from matrix cells: bounds ordered line-index probes and values.
+		std::uint64_t MaximumPrimaryIndexWork = 64U * 1024U * 1024U;
 
 		auto operator<=>(const diff_compute_limits&) const = default;
 	};
@@ -99,6 +101,7 @@ namespace bpr::core {
 		std::uint64_t                        MoveDetectionWorkConsumed        = 0U;
 		bool                                 MoveDetectionWorkLimitReached    = false;
 		bool                                 MoveDetectionSegmentLimitReached = false;
+		std::uint64_t                        PrimaryIndexWorkConsumed         = 0U;
 
 		auto operator<=>(const computed_file_diff&) const = default;
 	};

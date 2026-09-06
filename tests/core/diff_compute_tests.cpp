@@ -574,7 +574,8 @@ namespace {
 		expect(exact.MatrixCellsConsumed == baseline.MatrixCellsConsumed,
 			   "exact matrix limit is accepted without overflow");
 
-		auto overCells = exactLimits;
+		auto overCells                    = exactLimits;
+		overCells.MaximumPrimaryIndexWork = 0U;
 		--overCells.MaximumMatrixCells;
 		const auto cellLimited = run("a\n", "b\n", noPairing, true, true, overCells);
 		expect(cellLimited.Reason == diff_reason_code::compute_limit && cellLimited.Result.has_value() && cellLimited.Result->Alignment.Segments.empty(),
@@ -600,6 +601,89 @@ namespace {
 		const auto pairedLimited = run("prefix alpha\n", "prefix beta\n", { }, true, true, pairedLimits);
 		expect(pairedLimited.Reason == diff_reason_code::compute_limit && pairedLimited.Result.has_value() && pairedLimited.Result->Alignment.Segments.empty(),
 			   "one cell below secondary work returns no partial records");
+	}
+
+	auto test_ordered_unique_line_fallback() -> void
+	{
+		auto options                        = diff_options{ };
+		options.Pairing                     = pairing_policy::disabled;
+		options.SimilarityThresholdPermille = 0U;
+		auto indexedLimits                  = diff_compute_limits{ };
+		indexedLimits.MaximumMatrixCells    = 0U;
+
+		// Exhaustively compare small sequences against the original full-matrix
+		// result. Duplicates/crossings may refuse, but must never change a tie.
+		std::vector<std::string> sequences{ "" };
+		std::size_t              begin = 0U, end = 1U;
+		for (int length = 0; length < 3; ++length) {
+			for (std::size_t index = begin; index < end; ++index) {
+				for (const char value : { 'a', 'b', 'c' }) {
+					sequences.push_back(sequences[index] + value + '\n');
+				}
+			}
+			begin = end;
+			end   = sequences.size();
+		}
+		for (const auto& left : sequences) {
+			for (const auto& right : sequences) {
+				bool        eligible = true;
+				std::size_t previous = 0U;
+				for (std::size_t position = 0U; position < left.size(); position += 2U) {
+					const auto found = right.find(left[position]);
+					if (found == std::string::npos) {
+						continue;
+					}
+					if (std::ranges::count(left, left[position]) != 1 || std::ranges::count(right, left[position]) != 1
+						|| found + 1U <= previous) {
+						eligible = false;
+						break;
+					}
+					previous = found + 1U;
+				}
+				const auto indexed = run(left, right, options, true, true, indexedLimits);
+				expect((indexed.Reason == diff_reason_code::none) == eligible, "ordered unique eligibility agrees with independent occurrence/order check");
+				if (!eligible) {
+					expect(indexed.Reason == diff_reason_code::compute_limit && indexed.Result && indexed.Result->Alignment.Segments.empty(), "ambiguous fallback publishes no partial alignment");
+					continue;
+				}
+				const auto matrix = text_result(run(left, right, options), "matrix reference");
+				const auto actual = text_result(indexed, "indexed reference");
+				expect(actual.Alignment == matrix.Alignment && actual.LeftDocument == matrix.LeftDocument && actual.RightDocument == matrix.RightDocument
+						   && actual.Intraline == matrix.Intraline && actual.MatrixCellsConsumed == 0U,
+					   "indexed result preserves exact matrix semantics and identities");
+			}
+		}
+
+		auto normalized             = options;
+		normalized.Whitespace       = whitespace_policy::ignore_all;
+		normalized.LineEndings      = line_ending_policy::normalize;
+		const auto normalizedMatrix = text_result(run("a b\r\nc\n", "ab\nc\r\n", normalized), "normalization matrix");
+		const auto normalizedIndex  = text_result(run("a b\r\nc\n", "ab\nc\r\n", normalized, true, true, indexedLimits), "normalization index");
+		expect(normalizedIndex.Alignment == normalizedMatrix.Alignment && normalizedIndex.LeftDocument == normalizedMatrix.LeftDocument
+				   && normalizedIndex.RightDocument == normalizedMatrix.RightDocument,
+			   "index uses normalized equality and retains source bytes");
+		const auto repeatedNormalized = run("a b\nab\n", "ab\n", normalized, true, true, indexedLimits);
+		expect(repeatedNormalized.Reason == diff_reason_code::compute_limit, "normalization cannot hide an ambiguous repeated anchor");
+
+		const auto measured = text_result(run("alpha\nbeta\n", "alpha\nnew\nbeta\n", options, true, true, indexedLimits), "index budget baseline");
+		expect(measured.PrimaryIndexWorkConsumed > 0U, "index work is independently reported");
+		indexedLimits.MaximumPrimaryIndexWork = measured.PrimaryIndexWorkConsumed;
+		expect(run("alpha\nbeta\n", "alpha\nnew\nbeta\n", options, true, true, indexedLimits).Reason == diff_reason_code::none, "exact index budget succeeds");
+		--indexedLimits.MaximumPrimaryIndexWork;
+		const auto exhausted = run("alpha\nbeta\n", "alpha\nnew\nbeta\n", options, true, true, indexedLimits);
+		expect(exhausted.Reason == diff_reason_code::compute_limit && exhausted.Result && exhausted.Result->Alignment.Segments.empty(), "exhausted index budget publishes no partial records");
+
+		std::string largeLeft, largeRight;
+		for (int line = 0; line < 20000; ++line) {
+			const auto prefix = "int sample_" + std::to_string(line) + " = ";
+			largeLeft += prefix + "0;\n";
+			largeRight += prefix + (line % 1000 == 0 ? "1;\n" : "0;\n");
+		}
+		const auto large = text_result(run(largeLeft, largeRight), "default limits compare large ordered source");
+		expect(large.LeftDocument->Lines.size() == 20000U && large.RightDocument->Lines.size() == 20000U && large.Alignment.Groups.size() == 20U
+				   && large.PrimaryIndexWorkConsumed > 0U && large.PrimaryIndexWorkConsumed <= diff_compute_limits{ }.MaximumPrimaryIndexWork
+				   && large.MatrixCellsConsumed <= diff_compute_limits{ }.MaximumMatrixCells,
+			   "large comparison preserves source/groups within both independent budgets");
 	}
 
 	auto test_computed_result_validator() -> void
@@ -728,6 +812,7 @@ int main()
 	test_whitespace_and_endings();
 	test_unicode_binary_and_unavailable();
 	test_moves_identity_and_limits();
+	test_ordered_unique_line_fallback();
 	test_computed_result_validator();
 	test_generated_replay_validation();
 	std::cout << "BPR-0073 deterministic diff computation tests passed\n";
