@@ -9815,8 +9815,9 @@ namespace bpr::app {
 	}
 
 	auto detail::github_application_fixture_access::maintenance_evidence(
-		const github_application& aApplication,
-		core::review_epoch_id     aTarget) noexcept
+		const github_application&                       aApplication,
+		core::review_epoch_id                           aTarget,
+		const std::optional<core::file_comparison_key>& aRetainedComparison) noexcept
 		-> detail::github_epoch_maintenance_fixture_evidence
 	{
 		const auto* const implementation = aApplication.Implementation.get();
@@ -9826,6 +9827,14 @@ namespace bpr::app {
 		}
 
 		const auto&     state                    = implementation->EpochHost->state();
+		if (aRetainedComparison && (!core::valid(*aRetainedComparison) || !aRetainedComparison->LeftBlob || !core::valid(aTarget) || aTarget.Authority != aRetainedComparison->Authority.Scope || aTarget.Incarnation != aRetainedComparison->LeftAnchor.Incarnation || (state.Authority && *state.Authority != aRetainedComparison->Authority))) {
+			return { };
+		}
+		// Shutdown clears live authority. A captured fixture comparison lets
+		// this read-only inspector reopen the same catalog and retained refs.
+		const auto      selectedAuthority        = state.Authority ? state.Authority
+			: aRetainedComparison                                  ? std::optional{ aRetainedComparison->Authority }
+																   : std::nullopt;
 		const auto      root                     = implementation->Fixture->application_data_root();
 		auto            retiredRepositoryPresent = false;
 		auto            retiredMarkerPresent     = false;
@@ -9852,7 +9861,7 @@ namespace bpr::app {
 		// for durable evidence about the retired cache, so derive the stable
 		// catalog binding from the captured smart authority instead of sampling
 		// that transient projection.
-		if (!state.Authority.has_value()
+		if (!selectedAuthority.has_value()
 			|| (!core::valid(aTarget) && retiredMarkerPresent)) {
 			auto       catalogRevision  = std::int64_t{ 0 };
 			auto       baseCacheDeleted = false;
@@ -9948,7 +9957,7 @@ namespace bpr::app {
 			return result;
 		};
 
-		const auto& authority = *state.Authority;
+		const auto& authority = *selectedAuthority;
 		if (!core::valid(aTarget) && state.Catalog) {
 			aTarget = core::review_epoch_id{
 				.Authority   = authority.Scope,
@@ -9994,7 +10003,10 @@ namespace bpr::app {
 			? core::parse_git_commit_oid(
 				  acceptedSnapshot->PullRequest.BaseOid.value())
 			: std::nullopt;
-		if (acceptedBase && !state.PendingMaintenance.has_value()) {
+		const auto  objectFormat     = acceptedBase ? std::optional{ acceptedBase->algorithm() }
+			: aRetainedComparison                   ? std::optional{ aRetainedComparison->LeftBlob->algorithm() }
+													: std::nullopt;
+		if (objectFormat && !state.PendingMaintenance.has_value()) {
 			auto reopened = implementation->EpochCatalogs->open(
 				application::epoch_catalog_open_request{
 					.ApplicationSession = state.ApplicationSession,
@@ -10008,7 +10020,7 @@ namespace bpr::app {
 						.Repository      = authority.Repository,
 						.PullRequest     = authority.PullRequest,
 						.Number          = authority.Number,
-						.ObjectFormat    = acceptedBase->algorithm(),
+						.ObjectFormat    = *objectFormat,
 					},
 				},
 				{ });

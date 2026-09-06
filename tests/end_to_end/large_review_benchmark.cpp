@@ -19,6 +19,7 @@
 #include <QListView>
 #include <QMessageBox>
 #include <QPlainTextEdit>
+#include <QPointer>
 #include <QPushButton>
 #include <QSpinBox>
 #include <QStyle>
@@ -86,6 +87,9 @@ namespace bpr::e2e::large_review {
 	{
 		std::string Schema         = "bpr.large-review-measurement.v1";
 		bool        ResourceCourse = false;
+		bool        LoadedCloseCourse = false, CloseStartedWithLiveComparison = false, ClosePreservedEpochStorage = false;
+		int         CloseLeftDocumentBlocks = 0, CloseRightDocumentBlocks = 0;
+		bool        ShutdownReleasedDiff = false, ShutdownReleasedIndex = false, DestroyReleasedWindow = false, DestroyReleasedDocuments = false;
 		bool        HistoryCourse  = false;
 		std::size_t EpochsObserved = 0U, RetainedEpochsVerified = 0U, EpochSelections = 0U, EpochSelectionsWithOutstandingWork = 0U;
 		std::size_t HistoryPeakRows = 0U, HistoryModelResets = 0U;
@@ -493,7 +497,7 @@ namespace bpr::e2e::large_review {
 
 	auto run_benchmark(QApplication& qtApplication, int argc, char** argv) -> int
 	{
-		if (argc != 4 && (argc != 5 || (std::string_view{ argv[4] } != "--unavailable" && std::string_view{ argv[4] } != "--resources" && std::string_view{ argv[4] } != "--history"))) {
+		if (argc != 4 && (argc != 5 || (std::string_view{ argv[4] } != "--unavailable" && std::string_view{ argv[4] } != "--resources" && std::string_view{ argv[4] } != "--history" && std::string_view{ argv[4] } != "--loaded-close"))) {
 			return EXIT_FAILURE;
 		}
 		QTemporaryDir data;
@@ -502,10 +506,15 @@ namespace bpr::e2e::large_review {
 		}
 		benchmark_report report;
 		report.UnavailableCourse = argc == 5 && std::string_view{ argv[4] } == "--unavailable";
-		report.ResourceCourse    = argc == 5 && std::string_view{ argv[4] } == "--resources";
+		report.LoadedCloseCourse = argc == 5 && std::string_view{ argv[4] } == "--loaded-close";
+		report.ResourceCourse    = report.LoadedCloseCourse || (argc == 5 && std::string_view{ argv[4] } == "--resources");
 		report.HistoryCourse     = argc == 5 && std::string_view{ argv[4] } == "--history";
 		std::weak_ptr<const core::computed_file_diff>  resourceDiff;
 		std::weak_ptr<const core::diff_semantic_index> resourceIndex;
+		QPointer<QWidget>                              resourceWindow;
+		QPointer<QTextDocument>                        resourceLeftDocument, resourceRightDocument;
+		std::optional<core::review_epoch_id>           closeTarget;
+		std::optional<core::file_comparison_key>       closeComparison;
 		std::unique_ptr<app::github_application>       application;
 		try {
 			std::ifstream     input{ std::filesystem::path{ BPR_LARGE_REVIEW_FIXTURE_ROOT } / "manifest.json" };
@@ -690,7 +699,7 @@ namespace bpr::e2e::large_review {
 				report.DiffCacheBytes   = work.CacheBytes;
 				require(work.FixtureDiffHelperInvocations == 0U, "fixture diff bypass was used");
 			}
-			if (report.ResourceCourse) {
+			if (report.ResourceCourse && !report.LoadedCloseCourse) {
 				const auto key              = surface.current_result()->Alignment.Key;
 				const auto target           = core::review_epoch_id{ .Authority   = key.LeftAnchor.Authority,
 																	 .Incarnation = key.LeftAnchor.Incarnation,
@@ -720,6 +729,23 @@ namespace bpr::e2e::large_review {
 				report.DeleteReleasedIndex = resourceIndex.expired();
 				sample_resources(report, application.get(), "after_cache_delete");
 			}
+			if (report.LoadedCloseCourse) {
+				const auto& key                 = surface.current_result()->Alignment.Key;
+				closeComparison                 = key;
+				closeTarget                     = core::review_epoch_id{ key.LeftAnchor.Authority, key.LeftAnchor.Incarnation, key.LeftAnchor.Epoch };
+				resourceWindow                  = &window;
+				resourceLeftDocument            = surface.left_pane()->document();
+				resourceRightDocument           = surface.right_pane()->document();
+				report.CloseLeftDocumentBlocks  = resourceLeftDocument->blockCount();
+				report.CloseRightDocumentBlocks = resourceRightDocument->blockCount();
+				// The fixture's final newline adds an empty native Qt block.
+				report.CloseStartedWithLiveComparison = !resourceDiff.expired() && !resourceIndex.expired()
+					&& selected(surface, QStringLiteral("large/comparison.cpp"))
+					&& report.CloseLeftDocumentBlocks == 20'001 && report.CloseRightDocumentBlocks == 20'001
+					&& resourceLeftDocument->lastBlock().text().isEmpty() && resourceRightDocument->lastBlock().text().isEmpty();
+				require(report.CloseStartedWithLiveComparison, "loaded-close course lost the large comparison before closing");
+				sample_resources(report, application.get(), "before_loaded_close");
+			}
 			if (report.ResourceCourse) {
 				// Match main's last-window-close -> application shutdown handoff;
 				// measure_wait drives the existing shutdown poll to completion.
@@ -734,17 +760,33 @@ namespace bpr::e2e::large_review {
 			if (report.ResourceCourse) {
 				require(report.WindowCloseObserved && !window.isVisible(), "public window close did not start shutdown");
 				sample_resources(report, application.get(), "shutdown_drained");
+				report.ShutdownReleasedDiff  = resourceDiff.expired();
+				report.ShutdownReleasedIndex = resourceIndex.expired();
+				if (closeTarget) {
+					const auto retained               = access::maintenance_evidence(*application, *closeTarget, closeComparison);
+					report.ClosePreservedEpochStorage = retained.PruneIntentDispatchCount == 0U && retained.DeleteIntentDispatchCount == 0U
+						&& retained.RepositoryPresent && retained.TargetBaseRefPresent && retained.TargetHeadRefPresent
+						&& retained.TargetBaseRefOid == manifest.base && retained.TargetBaseCatalogOid == manifest.base
+						&& retained.TargetHeadRefOid == manifest.heads.back() && retained.TargetHeadCatalogOid == manifest.heads.back();
+					require(report.ClosePreservedEpochStorage, "window close changed retained Git/catalog data or performed maintenance");
+				}
 				application.reset();
 				QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
 				QApplication::processEvents();
 				report.DestroyReleasedDiff  = resourceDiff.expired();
 				report.DestroyReleasedIndex = resourceIndex.expired();
+				if (report.LoadedCloseCourse) {
+					report.DestroyReleasedWindow    = resourceWindow.isNull();
+					report.DestroyReleasedDocuments = resourceLeftDocument.isNull() && resourceRightDocument.isNull();
+				}
 				sample_resources(report, nullptr, "application_destroyed");
 				std::cerr << "resource-verdict:" << *glz::write_json(report) << '\n';
-				require(report.PruneReleasedDiff && report.PruneReleasedIndex && report.PruneClearedProjection,
+				require(report.LoadedCloseCourse || (report.PruneReleasedDiff && report.PruneReleasedIndex && report.PruneClearedProjection),
 						"pruned large comparison still retains active raw diff/index/source");
-				require(report.DeleteReleasedDiff && report.DeleteReleasedIndex && report.DestroyReleasedDiff && report.DestroyReleasedIndex,
+				require((report.LoadedCloseCourse || (report.DeleteReleasedDiff && report.DeleteReleasedIndex)) && report.DestroyReleasedDiff && report.DestroyReleasedIndex,
 						"deleted/closed large comparison retains raw diff or prepared index");
+				require(!report.LoadedCloseCourse || (report.DestroyReleasedWindow && report.DestroyReleasedDocuments),
+						"closed application retains the window or large source documents");
 			}
 			auto encoded = glz::write_json(report);
 			require(encoded.has_value(), "measurement serialization");
@@ -752,9 +794,10 @@ namespace bpr::e2e::large_review {
 			output << *encoded << '\n';
 			output.close();
 			require(output.good(), "measurement write");
-			std::cout << (report.HistoryCourse ? "LARGE_REVIEW_HISTORY_OK\n" : report.ResourceCourse ? "LARGE_REVIEW_RESOURCES_OK\n"
-							  : report.UnavailableCourse                                             ? "UNAVAILABLE_DIFF_COMPOSED_OK\n"
-																									 : "LARGE_REVIEW_COMPOSED_BENCHMARK_OK\n")
+			std::cout << (report.LoadedCloseCourse ? "LARGE_REVIEW_LOADED_CLOSE_OK\n" : report.HistoryCourse ? "LARGE_REVIEW_HISTORY_OK\n"
+							  : report.ResourceCourse                                                        ? "LARGE_REVIEW_RESOURCES_OK\n"
+							  : report.UnavailableCourse                                                     ? "UNAVAILABLE_DIFF_COMPOSED_OK\n"
+																											 : "LARGE_REVIEW_COMPOSED_BENCHMARK_OK\n")
 					  << *encoded << '\n';
 			return EXIT_SUCCESS;
 		} catch (const std::exception& error) {

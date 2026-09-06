@@ -650,8 +650,9 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto activate_fixture_notification(
 			github_application& aApplication) -> bool;
 		[[nodiscard]] static auto maintenance_evidence(
-			const github_application& aApplication,
-			core::review_epoch_id     aTarget) noexcept
+			const github_application&                       aApplication,
+			core::review_epoch_id                           aTarget,
+			const std::optional<core::file_comparison_key>& aRetainedComparison = std::nullopt) noexcept
 			-> github_epoch_maintenance_fixture_evidence;
 		/// \brief Requests the deterministic fixture file through the real host/cache path.
 		[[nodiscard]] static auto request_fixture_diff(
