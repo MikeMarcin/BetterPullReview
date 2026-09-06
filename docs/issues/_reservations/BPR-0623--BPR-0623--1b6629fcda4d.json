@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0623"
+  ],
+  "reserve_for": "rfc0013-large-review-fixtures",
+  "purpose": "",
+  "created": "2026-09-06T01:18:08.372704+00:00",
+  "base": "2a5fc976018cd17096d057328da0054022f7660e"
+}
