@@ -186,3 +186,18 @@ contract tests, and the designated-live mutation runner. Complete them and the
 final migration integration before closing this anchor or resuming performance
 work. Production source remains free of Qt JSON, and production sign-in remains
 untouched.
+
+BPR-0640 final source `e80f7a15c1bfcb98c123805d65b44efff5009feb` completes the five
+remaining C++ helpers and designated-runner parser. Fresh src/tests inventory
+finds only the intentional Python Qt boundary guard. The five focused helper
+checks pass; final auth/read/provider/recovery/GitHub/GHES and large-review
+integration passes using the original twelve passing results plus the corrected
+round-trip source-binding rerun. The independent review's duplicate-member
+counterexample is fixed and covered by the local parser fixture. Full evidence,
+platform context, source-binding audit and cleanup are recorded on BPR-0640.
+
+Parser-sensitive timing and memory observations have been refreshed on the
+unchanged 515-file/1,000-thread large-review fixture after the migration. The
+loaded-close course retains the existing 160/96 MiB growth/cleanup budgets and
+confirms object/cache/job release. This anchor is ready for final board closeout;
+it does not change historical RFC closure or outstanding attended/platform gates.
