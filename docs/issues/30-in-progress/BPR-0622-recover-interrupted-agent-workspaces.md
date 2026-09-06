@@ -147,3 +147,77 @@ negatives, then upgrade the composed BPR-0621 orphan observation to prove actual
 reclamation of a durably owned workspace. Run repeated ordinary recovery and
 session #2 with unchanged Git/SQLite identities. Keep safe preservation for
 historical roots without ownership receipts. Only then consider Done.
+
+## Unix ownership journal prerequisite — implemented, not integrated
+
+Source `77651b10` adds `agent_workspace_ownership.hpp` and the native implementation
+beside the installed-Git identity/quarantine helpers. No production caller uses
+this API yet. The existing application still loses its in-memory workspace
+capabilities; this prerequisite does not establish composed reclamation.
+
+Each workspace uses one private append-only Glaze JSONL journal, bounded to
+64 KiB, whose original regular-file identity also serves as the supervisor guard.
+The owner keeps a shared lock; recovery requires an exclusive lock and validates
+original registry, neighbourhood, journal, parent and child identities. Complete
+records preserve the application/agent session, full authority IDs/fingerprints
+and pinned head across legal phase transitions. Ready ownership additionally
+requires the expected Git marker. Cleanup journals its phase before renaming to
+a fixed quarantine name, then checks the original native identity before removal.
+Destructor release never implicitly deletes a directory.
+
+Admission permits at most 64 records, counts live locks, and examines at most
+4096 direct neighbourhood entries. A workspace-shaped name without a journal
+causes repair/refusal; a name never authorizes removal. Oversized, malformed,
+substituted or missing records stop allocation. A partial final JSON line is
+ignored only after complete earlier records validate. An exclusive mkdir before
+its identity receipt is the remaining ambiguous preparation window: retain the
+artifact and journal, refuse further allocation, and require repair. Unknown
+historical roots remain outside this API's deletion authority. The caller must
+select a canonical private neighbourhood outside the retained cache and user
+checkout. Non-Unix implementations return unavailable.
+
+### Local journal verification — 2026-09-05
+
+- Production `better_pull_review_adapter_git` and the dedicated native fixture
+  build successfully, including Glaze with strict missing/unknown-key and
+  trailing-input handling. No production fault checkpoint is compiled in.
+- Final `agent_workspace_ownership` passes in 3.34s (3.35s total). Fourteen actual
+  SIGKILL courses cover every committed phase, both quarantine renames, both
+  mkdir-before-identity windows, a live owner and substituted quarantines.
+  Recovery runs twice after each recoverable checkpoint. Normal cleanup and
+  failed-exclusive-lock/shared-lock restoration pass. The 64-live-owner limit,
+  65th-allocation refusal, released-slot reuse, 4096-entry inventory bound,
+  cancellation, missing journals, partial tails, hardlinks, symlinks, replaced
+  parent/child/neighbourhood/journal identities, malformed scope/authority/phase,
+  missing keys, trailing input and oversized records are exercised. An external
+  checkout reached through a workspace symlink remains unchanged.
+- Before the final missing-journal accounting and extra fixture negatives,
+  `git_process_contract` (84.24s), `architecture_boundaries` (10.13s), isolation
+  manifest (3.68s) and the journal course (2.77s) passed 4/4 in 100.85s. Existing
+  Git execution paths and test registration are unchanged by those final native
+  journal checks; that focused Git/architecture/registration evidence is reused.
+- Documentation gate (`DOCUMENTATION_OK`), changed C++ clang-format checks
+  and `git diff --check` pass. Verification is
+  local, network-isolated fixture work; no GitHub Actions, push, paid agent,
+  production sign-in or release application launch occurred.
+
+### Required integration next
+
+Replace the unrecorded QTemporaryDir lifecycle with ownership prepared on the
+installed-Git/cache effect lane. Materialize into the journal's exact empty
+child, retain its owner through execution and cleanup, and carry `layout().Guard`
+into the launch request. Mark ready only after materialization and the original
+marker validate. Recover on ordinary startup through that same effect lane;
+translate ambiguous ownership into a visible safe repair/refusal. Keep the
+SQLite agent-session catalog unchanged.
+
+Then upgrade the composed BPR-0621 course to require reclamation, with two
+ordinary reopens, unchanged Git/SQLite identities, explicit session #2 and no
+automatic agent replay. Verify a simultaneously live application/supervisor
+excludes cleanup and that selected-path substitution preserves data. Supported
+non-Unix lifetime/registry integration still needs implementation and native
+evidence. This card and RFC-0013 remain open until those requirements pass.
+
+Task-created journal build/test logs and the consumed insertion fragment were
+removed after retaining these results. Fixture temporary roots and children
+were consumed by the bounded runners. No production workspace was removed.

@@ -57,17 +57,24 @@ paused-supervisor lock exclusion after application PID/group death (25.15s),
 normal protocol/architecture checks (79.46s) and the tests-off application build.
 No production caller supplies the guard yet; this does not reclaim workspaces.
 
-Next implement its durable registry and host handoff on the effect lane. Read
-the installed-Git parent/workspace identity and quarantine/removal operations,
-`agent_workspace` host/port lifecycle and `github_application.cpp` construction/
-shutdown. Current parent
-and child cleanup capabilities are in memory; the SQLite session catalog
-intentionally has no filesystem paths. Establish bounded durable ownership,
-live-owner exclusion and exact recovery authority before source changes. Do
-not sweep random sibling workspace names or capture a same-path replacement
-as if it were the crashed application's original directory. Existing unknown
-roots need explicit repair behavior; new provable ownership must support
-idempotent reclamation and preserve retained Git/SQLite state.
+Its Unix journal prerequisite is now implemented in `77651b10`: bounded
+append-only Glaze records retain original native identities, exact scope and
+cleanup phases, and also provide the shared lifetime lock. The final dedicated
+native test passes in 3.34s with fourteen SIGKILL courses, repeated recovery,
+live-owner exclusion, substitution/corruption refusal and bounded admission.
+The existing Git public contract passed in 84.24s; architecture and isolation
+manifest checks also pass. BPR-0622 records the precise evidence and limits.
+
+Next integrate that API with installed-Git/cache effects, the workspace host
+and application construction/restart/shutdown. The production QTemporaryDir
+and child cleanup capabilities are still in memory; no caller uses the new
+journal or supplies its guard to launch. Materialize into the exact journaled
+child, retain the owner through agent teardown and recover on ordinary startup.
+Keep the SQLite session catalog unchanged. Unknown names can demand repair but
+never establish deletion authority. Upgrade the composed kill course from
+orphan preservation to actual reclamation, two no-replay reopens and explicit
+session #2 with unchanged Git/SQLite identity. Non-Unix registry/lifetime
+integration and target-native evidence remain open.
 
 Then inventory retained public-path scale, memory, backoff/offline and
 parser-fuzz coverage before allocating missing bounded slices. Reuse unchanged
