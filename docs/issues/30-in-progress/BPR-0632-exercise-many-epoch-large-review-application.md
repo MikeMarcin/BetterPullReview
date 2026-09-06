@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0632"
 title: "Exercise many-epoch large-review application replay"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0631"]
 platforms: ["mac"]
