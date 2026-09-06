@@ -961,6 +961,62 @@ namespace {
 			"outbound GraphQL operation policy exposes its document bound");
 	}
 
+	auto test_glaze_read_request_bytes_and_raw_validation() -> void
+	{
+		std::string printableToken;
+		for (char value = '!'; value <= '~'; ++value) {
+			printableToken += value;
+		}
+		for (const auto server : { server_contract::github_com, server_contract::ghes_3_18 }) {
+			for (auto request : graphql_request_shapes()) {
+				request.Server            = server;
+				request.PullRequestNumber = core::maximum_pull_request_number;
+				if (request.GraphqlPage && request.GraphqlPage->Kind != github_graphql_page_kind::initial) {
+					request.GraphqlPage->AfterCursor = printableToken;
+					if (request.GraphqlPage->Kind == github_graphql_page_kind::comments) {
+						request.GraphqlPage->ThreadId = printableToken;
+					}
+				}
+				const auto compiled = compile_read_request(request);
+				expect(compiled.has_value(), "bounded printable tokens and maximum PR number compile for every request shape and host");
+				// Independent prior-writer oracle; BPR-0640 replaces it with literal fixtures.
+				QJsonObject variables{
+					{ "name", QString::fromStdString(request.Repository) },
+					{ "number", static_cast<qint64>(request.PullRequestNumber) },
+					{ "owner", QString::fromStdString(request.Owner) },
+				};
+				if (request.GraphqlPage && request.GraphqlPage->Kind != github_graphql_page_kind::initial) {
+					variables.insert("after", QString::fromStdString(request.GraphqlPage->AfterCursor));
+					if (request.GraphqlPage->Kind == github_graphql_page_kind::comments) {
+						variables.insert("thread", QString::fromStdString(request.GraphqlPage->ThreadId));
+					}
+				}
+				const auto expected = QJsonDocument{ QJsonObject{
+														 { "query", QString::fromStdString(graphql_query(*compiled)) }, { "variables", variables } } }
+										  .toJson(QJsonDocument::Compact)
+										  .toStdString();
+				expect(compiled->Body == expected, "Glaze preserves canonical member order, optional omissions, integer bytes and printable token escaping");
+			}
+		}
+		const auto compiled = compile_read_request(semantic(read_operation::list_review_threads));
+		expect(compiled.has_value(), "raw request validation base compiles");
+		for (const auto body : {
+				 R"({"query":"query Safe{viewer{login}}","variables":{"owner":"org","name":"repo","number":17.0000000000000001}})",
+				 R"({"query":"query Safe{viewer{login}}","variables":{"owner":"org","name":"repo","number":4294967296}})",
+				 R"({"query":"query Safe{viewer{login}}","variables":{"owner":"org","name":"repo","number":17,"extra":"\ud800"}})",
+				 R"({"query":"query Safe{viewer{login}}","variables":{"owner":"org","name":"repo","number":17,"extra":"\udc00"}})",
+				 "{\"query\":\"query Safe{viewer{login}}\",\"variables\":{\"extra\":\"\xc3\x28\"}}",
+				 R"({"query":"query Safe{viewer{login}}","variables":null})",
+				 R"({"query":"query Safe{viewer{login}}"})",
+				 R"({"variables":{}})",
+				 R"({"query":"query Safe{viewer{login}}","variables":{}} {})",
+				 R"({"query":"query Safe{viewer{login}}","query":"query Duplicate{viewer{login}}","variables":{}})" }) {
+			auto hostile = *compiled;
+			hostile.Body = body;
+			expect_graphql_failure(hostile, contract_failure_code::unexpected_body, "invalid raw request JSON cannot cross outbound admission");
+		}
+	}
+
 	auto test_read_only_catalog_and_outbound_validation() -> void
 	{
 		expect(
@@ -1842,6 +1898,7 @@ auto main() -> int
 {
 	test_manifest_catalog_and_normalization_are_one_contract();
 	test_read_only_protocol_policy();
+	test_glaze_read_request_bytes_and_raw_validation();
 	test_read_only_catalog_and_outbound_validation();
 	test_hostile_responses_fail_atomically();
 	test_provider_valid_nullable_and_conditional_shapes();

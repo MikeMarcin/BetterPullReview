@@ -7,13 +7,17 @@
 #include <QJsonParseError>
 #include <QString>
 
+#include <glaze/json.hpp>
+
 #include <algorithm>
 #include <array>
 #include <cctype>
 #include <cmath>
 #include <initializer_list>
 #include <limits>
+#include <map>
 #include <new>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -456,38 +460,84 @@ namespace bpr::adapters::github::detail {
 			};
 		}
 
-		[[nodiscard]] auto compact_json(const QJsonObject& aObject) -> std::string
+		struct read_request_json_options : glz::opts
 		{
-			const auto bytes = QJsonDocument{ aObject }.toJson(QJsonDocument::Compact);
-			return { bytes.constData(), static_cast<std::size_t>(bytes.size()) };
-		}
+			bool escape_control_characters    = true;
+			bool validate_skipped             = true;
+			bool validate_trailing_whitespace = true;
+			constexpr read_request_json_options()
+			{
+				null_terminated       = false;
+				error_on_missing_keys = true;
+			}
+		};
 
-		[[nodiscard]] auto review_threads_body(
-			const semantic_read_request& aRequest) -> std::string
+		struct read_variables_json
 		{
-			QJsonObject variables;
-			variables.insert(
-				"name",
-				QString::fromUtf8(
-					aRequest.Repository.data(),
-					static_cast<qsizetype>(aRequest.Repository.size())));
-			variables.insert(
-				"number",
-				static_cast<qint64>(aRequest.PullRequestNumber));
-			variables.insert(
-				"owner",
-				QString::fromUtf8(
-					aRequest.Owner.data(),
-					static_cast<qsizetype>(aRequest.Owner.size())));
+			std::optional<std::string_view> After;
+			std::string_view                Name;
+			std::uint32_t                   Number = 0U;
+			std::string_view                Owner;
+			std::optional<std::string_view> Thread;
+			struct glaze
+			{
+				// This order preserves the canonical bytes of the former sorted DOM.
+				static constexpr auto value = glz::object(
+					"after", &read_variables_json::After,
+					"name", &read_variables_json::Name,
+					"number", &read_variables_json::Number,
+					"owner", &read_variables_json::Owner,
+					"thread", &read_variables_json::Thread);
+			};
+		};
 
-			QJsonObject document;
-			document.insert(
-				"query",
-				QString::fromUtf8(
-					review_threads_document.data(),
-					static_cast<qsizetype>(review_threads_document.size())));
-			document.insert("variables", variables);
-			return compact_json(document);
+		struct read_query_json
+		{
+			std::string_view    Query;
+			read_variables_json Variables;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("query", &read_query_json::Query, "variables", &read_query_json::Variables);
+			};
+		};
+
+		struct read_query_envelope_json
+		{
+			std::string Query;
+			// Validate the object before operation classification; decode variable
+			// types afterwards to retain the existing failure ordering. Views never
+			// outlive the synchronous validation call or the caller's body.
+			std::map<std::string, glz::raw_json_view, std::less<>> Variables;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("query", &read_query_envelope_json::Query, "variables", &read_query_envelope_json::Variables);
+			};
+		};
+
+		[[nodiscard]] auto read_query_body(
+			const semantic_read_request&       aRequest,
+			const std::string_view             aQuery,
+			const github_graphql_page_request* aPage = nullptr) -> std::expected<std::string, contract_failure>
+		{
+			read_query_json document{
+				.Query     = aQuery,
+				.Variables = {
+					.After  = aPage && aPage->Kind != github_graphql_page_kind::initial
+						? std::optional<std::string_view>{ aPage->AfterCursor }
+						: std::nullopt,
+					.Name   = aRequest.Repository,
+					.Number = aRequest.PullRequestNumber,
+					.Owner  = aRequest.Owner,
+					.Thread = aPage && aPage->Kind == github_graphql_page_kind::comments
+						? std::optional<std::string_view>{ aPage->ThreadId }
+						: std::nullopt,
+				},
+			};
+			auto bytes = glz::write<read_request_json_options{ }>(document);
+			if (!bytes) {
+				return failure(contract_failure_code::unexpected_body);
+			}
+			return std::move(*bytes);
 		}
 
 		[[nodiscard]] auto bounded_graphql_token(
@@ -589,7 +639,7 @@ namespace bpr::adapters::github::detail {
 
 		[[nodiscard]] auto paged_review_body(
 			const semantic_read_request&       aRequest,
-			const github_graphql_page_request& aPage) -> std::string
+			const github_graphql_page_request& aPage) -> std::expected<std::string, contract_failure>
 		{
 			std::string query;
 			switch (aPage.Kind) {
@@ -637,43 +687,7 @@ namespace bpr::adapters::github::detail {
 				break;
 			}
 
-			QJsonObject variables;
-			variables.insert(
-				"name",
-				QString::fromUtf8(
-					aRequest.Repository.data(),
-					static_cast<qsizetype>(aRequest.Repository.size())));
-			variables.insert(
-				"number",
-				static_cast<qint64>(aRequest.PullRequestNumber));
-			variables.insert(
-				"owner",
-				QString::fromUtf8(
-					aRequest.Owner.data(),
-					static_cast<qsizetype>(aRequest.Owner.size())));
-			if (aPage.Kind != github_graphql_page_kind::initial) {
-				variables.insert(
-					"after",
-					QString::fromUtf8(
-						aPage.AfterCursor.data(),
-						static_cast<qsizetype>(aPage.AfterCursor.size())));
-			}
-			if (aPage.Kind == github_graphql_page_kind::comments) {
-				variables.insert(
-					"thread",
-					QString::fromUtf8(
-						aPage.ThreadId.data(),
-						static_cast<qsizetype>(aPage.ThreadId.size())));
-			}
-
-			QJsonObject document;
-			document.insert(
-				"query",
-				QString::fromUtf8(
-					query.data(),
-					static_cast<qsizetype>(query.size())));
-			document.insert("variables", variables);
-			return compact_json(document);
+			return read_query_body(aRequest, query, &aPage);
 		}
 
 		[[nodiscard]] auto repository_path(
@@ -782,31 +796,12 @@ namespace bpr::adapters::github::detail {
 				return failure(contract_failure_code::unexpected_body);
 			}
 
-			QJsonParseError parseError;
-			const auto      document = QJsonDocument::fromJson(
-				QByteArray{ aBody.data(), static_cast<qsizetype>(aBody.size()) },
-				&parseError);
-			if (
-				parseError.error != QJsonParseError::NoError
-				|| !document.isObject()) {
+			read_query_envelope_json document;
+			if (glz::read<read_request_json_options{ }>(document, aBody)) {
 				return failure(contract_failure_code::unexpected_body);
 			}
 
-			const auto object = document.object();
-			if (
-				object.size() != 2 || !object.contains("query")
-				|| !object.value("query").isString()
-				|| !object.contains("variables")
-				|| !object.value("variables").isObject()) {
-				return failure(contract_failure_code::unexpected_body);
-			}
-
-			const auto encodedQuery = object.value("query").toString().toUtf8();
-			const auto policy       = inspect_graphql_operation_policy(
-				std::string_view{
-					encodedQuery.constData(),
-					static_cast<std::size_t>(encodedQuery.size()),
-				});
+			const auto policy = inspect_graphql_operation_policy(document.Query);
 			if (policy == graphql_operation_policy_result::write_operation) {
 				return failure(contract_failure_code::mutation_operation);
 			}
@@ -817,12 +812,17 @@ namespace bpr::adapters::github::detail {
 				return failure(contract_failure_code::unexpected_body);
 			}
 
-			const auto variables = object.value("variables").toObject();
-			if (
-				!variables.value("owner").isString()
-				|| !variables.value("name").isString()
-				|| !variables.value("number").isDouble()
-				|| (!aPaged && variables.size() != 3)) {
+			const auto& variables = document.Variables;
+			if (!variables.contains("owner") || !variables.contains("name")
+				|| !variables.contains("number") || (!aPaged && variables.size() != 3U)) {
+				return failure(contract_failure_code::unexpected_body);
+			}
+			std::string   owner;
+			std::string   name;
+			std::uint32_t number = 0U;
+			if (glz::read<read_request_json_options{ }>(owner, variables.at("owner").str)
+				|| glz::read<read_request_json_options{ }>(name, variables.at("name").str)
+				|| glz::read<read_request_json_options{ }>(number, variables.at("number").str)) {
 				return failure(contract_failure_code::unexpected_body);
 			}
 			return { };
@@ -1906,12 +1906,17 @@ namespace bpr::adapters::github::detail {
 			result.Query = "page=" + std::to_string(aRequest.Page)
 				+ "&per_page=100";
 			break;
-		case read_operation::list_review_threads:
+		case read_operation::list_review_threads: {
 			result.Path = std::string{ *prefix } + "/graphql";
-			result.Body = aRequest.GraphqlPage.has_value()
+			auto body   = aRequest.GraphqlPage.has_value()
 				? paged_review_body(aRequest, *aRequest.GraphqlPage)
-				: review_threads_body(aRequest);
+				: read_query_body(aRequest, review_threads_document);
+			if (!body) {
+				return std::unexpected{ body.error() };
+			}
+			result.Body = std::move(*body);
 			break;
+		}
 		case read_operation::list_issue_comments:
 			result.Path = repository_path(*prefix, aRequest) + "/issues/"
 				+ std::to_string(aRequest.PullRequestNumber) + "/comments";

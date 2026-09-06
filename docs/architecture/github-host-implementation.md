@@ -1366,6 +1366,14 @@ canonical compiled request body before an operation can execute. Every
 legacy/current GraphQL shape has a direct case where the scanner approves an
 added read selection but canonical equality rejects the changed body.
 
+GraphQL read requests use typed Glaze query/variable records. Member order,
+integer formatting and omitted cursor/thread fields preserve canonical request
+bytes for legacy, initial and continuation queries. Outbound validation uses
+Glaze after the structural byte/depth/duplicate preflight, validates the entire
+JSON envelope, then applies the operation scanner before variable-type checks.
+Raw variable views stay inside that synchronous validation call. Exact canonical
+body equality remains the final admission requirement.
+
 Mutation capability probing may observe schema support without executing the
 mutation. Executable GitHub mutations remain RFC-BPR-0008.
 
