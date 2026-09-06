@@ -1,5 +1,12 @@
 # BetterPullReview RFC Index
 
+Current delivery priority (owner direction, 2026-09-06): follow the
+[private-alpha route](../development/private-alpha.md) to a personal work build
+for GitHub.com and GitHub Enterprise. Reuse implemented surfaces, address only
+the essential reading/publication gaps, and defer nonessential features and
+hardening. This bounded delivery priority does not change RFC statuses or
+canonical closeout order, and does not activate the deferred redesign RFCs.
+
 The RFCs normally begin and always close in the order below. A dependent RFC
 does not become `Auto-Verified` before every listed dependency is
 `Auto-Verified`.
