@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0629"
 title: "Prepare the selected semantic index outside the UI publication turn"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0627"]
 ---
@@ -36,3 +36,33 @@ Expected scope is the existing diff host/publication port and Qt workbench;
 final exclusive ownership must be recorded after inspection. RFC base
 `d4d9e61d9224ef869ca4de9725c2bf52c5df701a`; closeout BPR-0617. Use local synthetic
 fixtures only; no Actions, push, paid CI, credential use or production app launch.
+
+
+## Selected implementation boundary
+
+Inspection after BPR-0628 confirms the existing diff effect job already produces
+an immutable result. Its worker validates the full result, the UI decision-lane
+`finish` validates it again, and Qt independently validates/builds its semantic
+index. Cache lookup also repeats full validation. Core's `diff_semantic_index`
+has a private constructor, factory validation, and shared ownership of its exact
+result, making that existing type the prepared proof; no second proof subsystem
+is needed.
+
+Own `src/core/{include/bpr/core,src}/diff_semantics.*` for exact retained index
+allocation accounting, `src/application/include/bpr/application/diff_runtime_ports.hpp`
+and `src/application/src/diff_application_host.cpp` for prepared publication,
+worker construction, identity checks, bounded cache retention and cancellation,
+and Qt `diff_workbench.*` for adoption. Update direct fixture publishers and
+focused core/host/Qt/application tests as required by the stronger publication
+contract. No Qt API runs on the worker. Full current request context and exact
+index/result pointer binding remain mandatory on acceptance; typed index
+construction preserves full validation while eliminating repeated UI scans.
+Account for index allocation within existing cache byte limits, including cache
+hits; do not raise limits or keep a second index per result.
+
+BPR-0628's final same-Mac course measures initial-selection maximum 297.119 ms
+while native measurement input gaps are maximum/p95 5.356/4.488 ms. Its final
+source is `49aefc1c`; phase/publication work remains the next latency boundary.
+Keep initial native text installation measured separately when establishing a
+local target. Required checks include focused semantic-index, diff host,
+workbench, architecture-boundary, and composed large/unavailable/recovery lanes.
