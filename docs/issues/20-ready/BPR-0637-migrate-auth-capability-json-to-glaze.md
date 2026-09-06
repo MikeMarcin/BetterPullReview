@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0637"
 title: "Migrate authentication and capability JSON to Glaze"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0002"]
 depends_on: ["BPR-0636"]
 ---
