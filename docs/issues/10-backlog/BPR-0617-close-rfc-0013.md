@@ -115,7 +115,18 @@ with its full-window render inspected. Qt, default large-review, isolation and
 composition checks pass 5/5 in 98.80s; documentation/diff checks pass. Production
 limits and remembered sign-in are unchanged.
 
-Next Mac slice: BPR-0627 profiles and reduces the measured main-thread stalls
-before selecting justified local targets. Keep RFC-0013 open for remaining memory/pruning,
+BPR-0627 is In Progress with an integrated selected-file scope correction in
+`d698b338`: clearing the old diff no longer repopulates the entire conversation
+tree while the next file loads. The composed 32-selection course now caps the
+transient root set at two relevant threads; its maximum timer interval falls
+from 201.09 ms to 44.34 ms and elapsed burst from 12,650.85 ms to 8,262.84 ms.
+Qt workbench, composed large-review and unavailable/recovery checks pass 3/3 in
+42.16s; full-window render, documentation and diff checks pass. Initial large-file
+selection still observes a 338.75 ms maximum interval, so no responsiveness
+closeout or universal budget is claimed.
+
+Next Mac work: attribute that remaining large-file pause, starting with measured
+pane geometry/publication work identified in the retained profile observations,
+and establish justified local targets. BPR-0627 remains open. Keep RFC-0013 open for remaining memory/pruning,
 backoff/offline, fuzz/diagnostic, active-work scrolling and target-native
 criteria. Preserve the Windows/Linux BPR-0622 handoff and earlier live gates.
