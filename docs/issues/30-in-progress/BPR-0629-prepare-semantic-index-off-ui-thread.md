@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0629"
 title: "Prepare the selected semantic index outside the UI publication turn"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0627"]
 ---
