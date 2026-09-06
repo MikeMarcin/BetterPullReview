@@ -166,3 +166,10 @@ errors, 19 threads, nullable fields only). The cause remains undetermined.
 Result: sign-in and identity observation passed; the named PR did not open.
 AC4 stays pending. Next attended step: open the session panel's Details to
 read the load advisory, and retry with a representative current work PR.
+
+Update, 2026-09-06: the owner retained #1773 as a stress test
+([BPR-0643](../10-backlog/BPR-0643-load-the-retained-stress-test-pull-request.md))
+and named `EpicGames/UnrealEngine#14366` (closed, 4 commits, 40 files, 9 review
+comments) as the smoke target. The read model accepts open, closed and merged
+pull request records; only queue search results are open-only. The smoke
+remains an attended step on the running signed instance.

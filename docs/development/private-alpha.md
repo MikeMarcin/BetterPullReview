@@ -6,7 +6,8 @@ Planning baseline: `8d6db643d1e599b1554123b44c5188905fa01065`, `main`.
 This is a delivery plan, not runtime acceptance or a second issue-status ledger.
 
 The owner confirmed this Mac as the first work machine.
-Target one reviewer, one window, one open PR at a time. Use the existing
+Target one reviewer, one window, one PR at a time; open, closed and merged
+pull requests are all readable, and publication stays on open ones. Use the existing
 owner/repository/PR-number controls and explicit server selection. A terminal
 launch and session-only Enterprise token are acceptable alpha compromises.
 Enterprise Cloud on github.com uses the GitHub.com profile; a custom GHES
@@ -146,4 +147,6 @@ slice through implement-rfc. Keep acceptance on its owning live card.
 BPR-0641 owns ordinary inline publication and the Mac candidate. The owner
 named a private GitHub.com PR for a read-only smoke check; its content is not
 retained in this repository. No comment/review submission to that work PR is
-authorized. Authentication and live observation results belong on the card.
+authorized. Authentication and live observation results belong on the card. The first
+named target did not load and is retained as a stress test on BPR-0643; the
+owner then named a small closed pull request for the read-only smoke check.
