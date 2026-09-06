@@ -189,6 +189,15 @@ exhaustion stop further parts. A later GHES response omitting the whole rate
 tuple does not discard an earlier observation. This adds connection round trips;
 [[BPR-0604]] defers evaluation of schema-based alternatives.
 
+The capability wire path uses Glaze throughout: a typed outgoing query record,
+a private dynamic introspection tree, and complete-document parsing for error
+classification and sanitized diagnostics. The existing type-dependent shape
+validators remain authoritative; no JSON representation crosses into core or
+application ports. Batch serialization retains explicit null members and sorted
+object keys. Missing diagnostic fields remain distinct from explicit null, and
+credential reflection removal still runs on decoded text before length checks.
+Structural preflight and aggregate limits precede capability promotion.
+
 The plan inspects the mutation root and
 the pull-request, changed-file, review-thread, viewed-state enum, and four
 mutation input/payload contracts without executing a mutation. Names and type

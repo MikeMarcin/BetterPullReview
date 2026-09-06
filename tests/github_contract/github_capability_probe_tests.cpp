@@ -1880,6 +1880,26 @@ namespace {
 		const auto        selective         = sanitize_capability_error(R"({"errors":[{"message":"Unknown schema field newField abcd%2Befgh%2Fijkl"}]})", std::as_bytes(std::span{ punctuationSecret }));
 		expect(selective.State == application::diagnostic_summary_state::sanitized && selective.text().find("newField") != std::string_view::npos && selective.text().find("abcd") == std::string_view::npos, "selective percent-encoded active credential is removed");
 	}
+	void test_glaze_capability_raw_json_boundaries()
+	{
+		constexpr std::string_view secret     = "synthetic_boundary_credential";
+		const auto                 credential = std::as_bytes(std::span{ secret });
+		for (const auto body : { R"({"errors":[{"message":null}]})", R"({"errors":[{"message":"ok","extensions":null}]})",
+								 R"({"errors":[{"message":"ok","extensions":{"code":null}}]})", R"({"errors":[{"message":"ok"}]} {})",
+								 R"({"errors":[{"message":"ok"}],"extensions":"\ud800"})", R"({"errors":[{"message":"ok"}],"extensions":"\udc00"})",
+								 "{\"errors\":[{\"message\":\"ok\"}],\"extensions\":\"\xc3\x28\"}" }) {
+			expect(sanitize_capability_error(body, credential).State == application::diagnostic_summary_state::omitted_invalid,
+				   "explicit null, trailing documents and malformed skipped Unicode remain invalid diagnostics");
+		}
+		const auto absent = sanitize_capability_error(R"({"errors":[{"message":"ok"}]})", credential);
+		expect(absent.State == application::diagnostic_summary_state::sanitized && absent.text() == "message=\"ok\" ", "absent optional markers differ from explicit null");
+		for (const auto* extension : { "\"\\ud800\"", "\"\\udc00\"", "\"\xc3\x28\"", "[true,]" }) {
+			const auto body   = std::string{ "{\"errors\":[{\"type\":\"RATE_LIMITED\"}],\"extensions\":" } + extension + "}";
+			const auto result = normalize_capability_probe(capability_probe_response{ .Status = 200, .Authenticated = true, .ContentType = "application/json", .Body = body });
+			expect(!result.Complete && result.Unavailability == capability_probe_unavailability::malformed_response, "malformed envelope cannot yield rate or capability facts through a skipped extension");
+		}
+	}
+
 	void test_capability_batch_aggregate_bounds()
 	{
 		for (const bool valueLimit : { false, true }) {
@@ -1940,6 +1960,11 @@ namespace {
 				const auto document = capability_probe_graphql_document(part);
 				expect(capability_probe_document_is_query_only(document), "every canonical part is query-only");
 				expect(document == read_file(fixture_root().parent_path() / "v2-parts" / ("part-" + std::to_string(part) + ".graphql")), "canonical indexed document matches fixture");
+				const auto profile  = validate_github_host_profile(github_com_candidate());
+				const auto compiled = compile_capability_probe_request(*profile, { }, part);
+				// Independent Qt oracle retained only until the BPR-0640 helper migration.
+				const auto previousBytes = QJsonDocument{ QJsonObject{ { "query", QString::fromUtf8(document) } } }.toJson(QJsonDocument::Compact).toStdString();
+				expect(compiled && compiled->Body == previousBytes, "all nine Glaze request bodies retain exact canonical bytes");
 				aliases += capability_probe_part_aliases(part).size();
 				auto response = full;
 				response.Body = read_file(fixture_root().parent_path() / "v2-parts" / host / ("supported-" + std::to_string(part) + ".json"));
@@ -1962,6 +1987,7 @@ int main()
 	test_capability_batch_aggregate_bounds();
 	test_nine_part_capability_plan();
 	test_safe_capability_error_logging();
+	test_glaze_capability_raw_json_boundaries();
 	test_closed_capability_refusal_details();
 	test_graphql_error_code_details_do_not_change_refusal();
 	test_requests_bind_validated_profile_authority();

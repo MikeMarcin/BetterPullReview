@@ -1,13 +1,11 @@
 #include "github_capability_probe.hpp"
 #include "github_graphql_operation_policy.hpp"
 
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QJsonParseError>
 #include <QRegularExpression>
 #include <QSet>
 #include <QString>
+
+#include <glaze/json.hpp>
 
 #include <algorithm>
 #include <array>
@@ -23,6 +21,80 @@
 
 namespace bpr::adapters::github::detail {
 	namespace {
+		// Introspection is a type-dependent tree. Its shape validators below decide
+		// which members are required/null for each selected kind before facts leave
+		// this adapter. Keep full-width integer storage for extension values too.
+		using capability_json   = glz::generic_sorted_u64;
+		using capability_object = capability_json::object_t;
+		using capability_array  = capability_json::array_t;
+
+		struct capability_json_options : glz::opts
+		{
+			bool escape_control_characters    = true;
+			bool validate_skipped             = true;
+			bool validate_trailing_whitespace = true;
+			constexpr capability_json_options()
+			{
+				null_terminated = false;
+				// Null members are part of the introspection shape, not omissions.
+				skip_null_members = false;
+			}
+		};
+
+		struct capability_query_json
+		{
+			std::string_view Query;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("query", &capability_query_json::Query);
+			};
+		};
+
+		[[nodiscard]] auto json_object(const capability_json& aValue) -> const capability_object&
+		{
+			static const capability_object empty;
+			return aValue.is_object() ? aValue.get_object() : empty;
+		}
+		[[nodiscard]] auto json_array(const capability_json& aValue) -> const capability_array&
+		{
+			static const capability_array empty;
+			return aValue.is_array() ? aValue.get_array() : empty;
+		}
+		[[nodiscard]] auto json_member(const capability_object& aObject, const std::string_view aKey) -> const capability_json&
+		{
+			static const capability_json absent;
+			const auto                   found = aObject.find(aKey);
+			return found == aObject.end() ? absent : found->second;
+		}
+		[[nodiscard]] auto json_member(const capability_object& aObject, const QString& aKey) -> const capability_json&
+		{
+			return json_member(aObject, std::string_view{ aKey.toStdString() });
+		}
+		[[nodiscard]] auto json_member(const capability_object& aObject, const char* aKey) -> const capability_json&
+		{
+			return json_member(aObject, std::string_view{ aKey });
+		}
+		[[nodiscard]] auto has_member(const capability_object& aObject, const QString& aKey) -> bool
+		{
+			return aObject.contains(aKey.toStdString());
+		}
+		[[nodiscard]] auto has_member(const capability_object& aObject, const char* aKey) -> bool
+		{
+			return aObject.contains(aKey);
+		}
+		[[nodiscard]] auto json_text(const capability_json& aValue) -> QString
+		{
+			return aValue.is_string() ? QString::fromStdString(aValue.get_string()) : QString{ };
+		}
+		[[nodiscard]] auto parse_json_object(const std::string_view aBody) -> std::optional<capability_object>
+		{
+			auto object = capability_object{ };
+			if (glz::read<capability_json_options{ }>(object, aBody)) {
+				return std::nullopt;
+			}
+			return object;
+		}
+
 		constexpr std::array<std::string_view, capability_probe_part_count> graphql_documents{
 			"query BetterPullReviewCapabilityProbeV1Part0{schemaRoot:__schema{queryType{...FieldType}mutationType{...FieldType}}markInput:__type(name:\"MarkFileAsViewedInput\"){...InputType}unmarkInput:__type(name:\"UnmarkFileAsViewedInput\"){...InputType}threadSubject:__type(name:\"PullRequestReviewThreadSubjectType\"){...EnumType}diffSide:__type(name:\"DiffSide\"){...EnumType}reviewThreadInterfaces:__type(name:\"PullRequestReviewThread\"){...InterfaceType}actorPossibleTypes:__type(name:\"Actor\"){...PossibleType}nodePossibleTypes:__type(name:\"Node\"){...PossibleType}}fragment TypeRef on __Type{kind name ofType{kind name}}fragment FieldType on __Type{kind name fields(includeDeprecated:true){name args{name defaultValue type{...TypeRef}} type{...TypeRef}}}fragment InputType on __Type{kind name inputFields{name defaultValue type{...TypeRef}}}fragment EnumType on __Type{kind name enumValues(includeDeprecated:true){name}}fragment InterfaceType on __Type{kind name interfaces{kind name}}fragment PossibleType on __Type{kind name possibleTypes{kind name}}",
 			"query BetterPullReviewCapabilityProbeV1Part1{repository:__type(name:\"Repository\"){...FieldType}pullRequest:__type(name:\"PullRequest\"){...FieldType}resolveInput:__type(name:\"ResolveReviewThreadInput\"){...InputType}unresolveInput:__type(name:\"UnresolveReviewThreadInput\"){...InputType}fileViewedState:__type(name:\"FileViewedState\"){...EnumType}}fragment TypeRef on __Type{kind name ofType{kind name}}fragment FieldType on __Type{kind name fields(includeDeprecated:true){name args{name defaultValue type{...TypeRef}} type{...TypeRef}}}fragment InputType on __Type{kind name inputFields{name defaultValue type{...TypeRef}}}fragment EnumType on __Type{kind name enumValues(includeDeprecated:true){name}}",
@@ -402,11 +474,11 @@ namespace bpr::adapters::github::detail {
 
 		struct selected_schema_type
 		{
-			bool       Missing = false;
-			QString    Kind;
-			QString    Name;
-			bool       MembersAvailable = false;
-			QJsonArray Members;
+			bool             Missing = false;
+			QString          Kind;
+			QString          Name;
+			bool             MembersAvailable = false;
+			capability_array Members;
 		};
 
 		[[nodiscard]] auto kind_has_selected_members(const QString&            aKind,
@@ -507,28 +579,28 @@ namespace bpr::adapters::github::detail {
 
 		// This refines presentation only after the existing non-rate refusal.
 		// Neither message/location/path nor unrecognized strings leave this parser.
-		[[nodiscard]] auto graphql_error_detail(const QJsonValue& aErrors) noexcept
+		[[nodiscard]] auto graphql_error_detail(const capability_json& aErrors) noexcept
 			-> application::github_capability_diagnostic
 		{
 			try {
 				using diagnostic = application::github_capability_diagnostic;
-				if (!aErrors.isArray()) {
+				if (!aErrors.is_array()) {
 					return diagnostic::graphql_errors_not_array;
 				}
-				const auto errors = aErrors.toArray();
-				if (errors.isEmpty()) {
+				const auto& errors = json_array(aErrors);
+				if (errors.empty()) {
 					return diagnostic::graphql_errors_empty;
 				}
 				std::optional<diagnostic> selected;
 				bool                      unknown       = false;
 				bool                      mixed         = false;
 				std::size_t               markerCount   = 0U;
-				const auto                observeMarker = [&](const QJsonValue& aMarker) {
+				const auto                observeMarker = [&](const capability_json& aMarker) {
 					++markerCount;
-					if (!aMarker.isString()) {
+					if (!aMarker.is_string()) {
 						return false;
 					}
-					const auto detail = graphql_error_code_detail(aMarker.toString());
+					const auto detail = graphql_error_code_detail(json_text(aMarker));
 					if (detail == diagnostic::graphql_errors) {
 						unknown = true;
 					} else if (selected && *selected != detail) {
@@ -539,21 +611,21 @@ namespace bpr::adapters::github::detail {
 					return true;
 				};
 				for (const auto& value : errors) {
-					if (!value.isObject()) {
+					if (!value.is_object()) {
 						return diagnostic::graphql_errors_malformed;
 					}
-					const auto entry  = value.toObject();
-					const auto before = markerCount;
-					if (entry.contains("type") && !observeMarker(entry.value("type"))) {
+					const auto& entry  = json_object(value);
+					const auto  before = markerCount;
+					if (has_member(entry, "type") && !observeMarker(json_member(entry, "type"))) {
 						return diagnostic::graphql_errors_malformed;
 					}
-					if (entry.contains("extensions")) {
-						if (!entry.value("extensions").isObject()) {
+					if (has_member(entry, "extensions")) {
+						if (!json_member(entry, "extensions").is_object()) {
 							return diagnostic::graphql_errors_malformed;
 						}
-						const auto extensions = entry.value("extensions").toObject();
+						const auto& extensions = json_object(json_member(entry, "extensions"));
 						for (const auto* key : { "type", "code" }) {
-							if (extensions.contains(key) && !observeMarker(extensions.value(key))) {
+							if (has_member(extensions, key) && !observeMarker(json_member(extensions, key))) {
 								return diagnostic::graphql_errors_malformed;
 							}
 						}
@@ -612,15 +684,15 @@ namespace bpr::adapters::github::detail {
 		}
 
 		[[nodiscard]] auto exact_keys(
-			const QJsonObject&                   aObject,
+			const capability_object&             aObject,
 			const std::initializer_list<QString> aKeys) -> bool
 		{
-			if (aObject.size() != static_cast<qsizetype>(aKeys.size())) {
+			if (aObject.size() != static_cast<std::size_t>(aKeys.size())) {
 				return false;
 			}
 			return std::ranges::all_of(
 				aKeys,
-				[&aObject](const QString& aKey) { return aObject.contains(aKey); });
+				[&aObject](const QString& aKey) { return has_member(aObject, aKey); });
 		}
 
 		[[nodiscard]] auto valid_kind(const QString& aKind) -> bool
@@ -638,12 +710,12 @@ namespace bpr::adapters::github::detail {
 			return kinds.contains(aKind);
 		}
 
-		[[nodiscard]] auto valid_type_reference(const QJsonValue& aValue) -> bool
+		[[nodiscard]] auto valid_type_reference(const capability_json& aValue) -> bool
 		{
-			if (!aValue.isObject()) {
+			if (!aValue.is_object()) {
 				return false;
 			}
-			const auto object = aValue.toObject();
+			const auto& object = json_object(aValue);
 			if (
 				!exact_keys(
 					object,
@@ -652,55 +724,55 @@ namespace bpr::adapters::github::detail {
 						QStringLiteral("name"),
 						QStringLiteral("ofType"),
 					})
-				|| !object.value("kind").isString()) {
+				|| !json_member(object, "kind").is_string()) {
 				return false;
 			}
 
-			const auto kind = object.value("kind").toString();
+			const auto kind = json_text(json_member(object, "kind"));
 			if (!valid_kind(kind)) {
 				return false;
 			}
 			const bool wrapper = kind == QStringLiteral("LIST")
 				|| kind == QStringLiteral("NON_NULL");
 			if (wrapper) {
-				if (!object.value("name").isNull()) {
+				if (!json_member(object, "name").is_null()) {
 					return false;
 				}
-				const auto inner = object.value("ofType");
-				if (!inner.isObject()) {
+				const auto& inner = json_member(object, "ofType");
+				if (!inner.is_object()) {
 					return false;
 				}
-				const auto innerObject = inner.toObject();
+				const auto& innerObject = json_object(inner);
 				if (
 					!exact_keys(
 						innerObject,
 						{ QStringLiteral("kind"), QStringLiteral("name") })
-					|| !innerObject.value("kind").isString()
-					|| !valid_kind(innerObject.value("kind").toString())) {
+					|| !json_member(innerObject, "kind").is_string()
+					|| !valid_kind(json_text(json_member(innerObject, "kind")))) {
 					return false;
 				}
-				const auto innerKind    = innerObject.value("kind").toString();
+				const auto innerKind    = json_text(json_member(innerObject, "kind"));
 				const bool innerWrapper = innerKind == QStringLiteral("LIST")
 					|| innerKind == QStringLiteral("NON_NULL");
 				return innerWrapper
-					? innerObject.value("name").isNull()
-					: innerObject.value("name").isString()
-						&& !innerObject.value("name").toString().isEmpty();
+					? json_member(innerObject, "name").is_null()
+					: json_member(innerObject, "name").is_string()
+						&& !json_text(json_member(innerObject, "name")).isEmpty();
 			}
-			return object.value("name").isString()
-				&& !object.value("name").toString().isEmpty()
-				&& object.value("ofType").isNull();
+			return json_member(object, "name").is_string()
+				&& !json_text(json_member(object, "name")).isEmpty()
+				&& json_member(object, "ofType").is_null();
 		}
 
 		[[nodiscard]] auto exact_type(
-			const QJsonValue&       aValue,
+			const capability_json&  aValue,
 			const type_requirement& aRequirement) -> bool
 		{
 			if (!valid_type_reference(aValue)) {
 				return false;
 			}
-			const auto object       = aValue.toObject();
-			const auto expectedKind = QString::fromUtf8(
+			const auto& object       = json_object(aValue);
+			const auto  expectedKind = QString::fromUtf8(
 				aRequirement.Kind.data(),
 				static_cast<qsizetype>(aRequirement.Kind.size()));
 			const auto expectedName = QString::fromUtf8(
@@ -709,51 +781,48 @@ namespace bpr::adapters::github::detail {
 
 			switch (aRequirement.Wrapper) {
 			case type_wrapper::named:
-				return object.value("kind").toString() == expectedKind
-					&& object.value("name").toString() == expectedName
-					&& object.value("ofType").isNull();
+				return json_text(json_member(object, "kind")) == expectedKind
+					&& json_text(json_member(object, "name")) == expectedName
+					&& json_member(object, "ofType").is_null();
 			case type_wrapper::non_null:
 			case type_wrapper::list:     {
 				const auto wrapper = aRequirement.Wrapper
 						== type_wrapper::non_null
 					? QStringLiteral("NON_NULL")
 					: QStringLiteral("LIST");
-				if (object.value("kind").toString() != wrapper) {
+				if (json_text(json_member(object, "kind")) != wrapper) {
 					return false;
 				}
-				const auto inner = object.value("ofType").toObject();
-				return inner.value("kind").toString() == expectedKind
-					&& inner.value("name").toString() == expectedName;
+				const auto& inner = json_object(json_member(object, "ofType"));
+				return json_text(json_member(inner, "kind")) == expectedKind
+					&& json_text(json_member(inner, "name")) == expectedName;
 			}
 			}
 			return false;
 		}
 
-		[[nodiscard]] auto required_argument(const QJsonObject& aArgument) -> bool
+		[[nodiscard]] auto required_argument(const capability_object& aArgument) -> bool
 		{
-			return aArgument.value("type")
-					   .toObject()
-					   .value("kind")
-					   .toString()
+			return json_text(json_member(json_object(json_member(aArgument, "type")), "kind"))
 				== QStringLiteral("NON_NULL")
-				&& aArgument.value("defaultValue").isNull();
+				&& json_member(aArgument, "defaultValue").is_null();
 		}
 
 		[[nodiscard]] auto validate_arguments(
-			const QJsonArray&              aArguments,
+			const capability_array&        aArguments,
 			const capability_probe_limits& aLimits) -> bool
 		{
 			if (
 				aArguments.size()
-				> static_cast<qsizetype>(aLimits.MaximumArguments)) {
+				> static_cast<std::size_t>(aLimits.MaximumArguments)) {
 				return false;
 			}
 			QSet<QString> names;
 			for (const auto& value : aArguments) {
-				if (!value.isObject()) {
+				if (!value.is_object()) {
 					return false;
 				}
-				auto object = value.toObject();
+				const auto& object = json_object(value);
 				if (
 					!exact_keys(
 						object,
@@ -762,14 +831,14 @@ namespace bpr::adapters::github::detail {
 							QStringLiteral("defaultValue"),
 							QStringLiteral("type"),
 						})
-					|| !object.value("name").isString()
-					|| object.value("name").toString().isEmpty()
-					|| (!object.value("defaultValue").isNull()
-						&& !object.value("defaultValue").isString())
-					|| !valid_type_reference(object.value("type"))) {
+					|| !json_member(object, "name").is_string()
+					|| json_text(json_member(object, "name")).isEmpty()
+					|| (!json_member(object, "defaultValue").is_null()
+						&& !json_member(object, "defaultValue").is_string())
+					|| !valid_type_reference(json_member(object, "type"))) {
 					return false;
 				}
-				const auto name = object.value("name").toString();
+				const auto name = json_text(json_member(object, "name"));
 				if (names.contains(name)) {
 					return false;
 				}
@@ -779,19 +848,19 @@ namespace bpr::adapters::github::detail {
 		}
 
 		[[nodiscard]] auto validate_field_members(
-			const QJsonArray&              aFields,
+			const capability_array&        aFields,
 			const std::size_t              aMaximum,
 			const capability_probe_limits& aLimits) -> bool
 		{
-			if (aFields.size() > static_cast<qsizetype>(aMaximum)) {
+			if (aFields.size() > static_cast<std::size_t>(aMaximum)) {
 				return false;
 			}
 			QSet<QString> names;
 			for (const auto& value : aFields) {
-				if (!value.isObject()) {
+				if (!value.is_object()) {
 					return false;
 				}
-				const auto object = value.toObject();
+				const auto& object = json_object(value);
 				if (
 					!exact_keys(
 						object,
@@ -800,16 +869,16 @@ namespace bpr::adapters::github::detail {
 							QStringLiteral("args"),
 							QStringLiteral("type"),
 						})
-					|| !object.value("name").isString()
-					|| object.value("name").toString().isEmpty()
-					|| !object.value("args").isArray()
+					|| !json_member(object, "name").is_string()
+					|| json_text(json_member(object, "name")).isEmpty()
+					|| !json_member(object, "args").is_array()
 					|| !validate_arguments(
-						object.value("args").toArray(),
+						json_array(json_member(object, "args")),
 						aLimits)
-					|| !valid_type_reference(object.value("type"))) {
+					|| !valid_type_reference(json_member(object, "type"))) {
 					return false;
 				}
-				const auto name = object.value("name").toString();
+				const auto name = json_text(json_member(object, "name"));
 				if (names.contains(name)) {
 					return false;
 				}
@@ -819,20 +888,20 @@ namespace bpr::adapters::github::detail {
 		}
 
 		[[nodiscard]] auto validate_input_members(
-			const QJsonArray&              aFields,
+			const capability_array&        aFields,
 			const capability_probe_limits& aLimits) -> bool
 		{
 			if (
 				aFields.size()
-				> static_cast<qsizetype>(aLimits.MaximumInputFields)) {
+				> static_cast<std::size_t>(aLimits.MaximumInputFields)) {
 				return false;
 			}
 			QSet<QString> names;
 			for (const auto& value : aFields) {
-				if (!value.isObject()) {
+				if (!value.is_object()) {
 					return false;
 				}
-				const auto object = value.toObject();
+				const auto& object = json_object(value);
 				if (
 					!exact_keys(
 						object,
@@ -841,14 +910,14 @@ namespace bpr::adapters::github::detail {
 							QStringLiteral("defaultValue"),
 							QStringLiteral("type"),
 						})
-					|| !object.value("name").isString()
-					|| object.value("name").toString().isEmpty()
-					|| (!object.value("defaultValue").isNull()
-						&& !object.value("defaultValue").isString())
-					|| !valid_type_reference(object.value("type"))) {
+					|| !json_member(object, "name").is_string()
+					|| json_text(json_member(object, "name")).isEmpty()
+					|| (!json_member(object, "defaultValue").is_null()
+						&& !json_member(object, "defaultValue").is_string())
+					|| !valid_type_reference(json_member(object, "type"))) {
 					return false;
 				}
-				const auto name = object.value("name").toString();
+				const auto name = json_text(json_member(object, "name"));
 				if (names.contains(name)) {
 					return false;
 				}
@@ -858,27 +927,27 @@ namespace bpr::adapters::github::detail {
 		}
 
 		[[nodiscard]] auto validate_enum_members(
-			const QJsonArray&              aValues,
+			const capability_array&        aValues,
 			const capability_probe_limits& aLimits) -> bool
 		{
 			if (
 				aValues.size()
-				> static_cast<qsizetype>(aLimits.MaximumEnumValues)) {
+				> static_cast<std::size_t>(aLimits.MaximumEnumValues)) {
 				return false;
 			}
 			QSet<QString> names;
 			for (const auto& value : aValues) {
-				if (!value.isObject()) {
+				if (!value.is_object()) {
 					return false;
 				}
-				const auto object = value.toObject();
+				const auto& object = json_object(value);
 				if (
 					!exact_keys(object, { QStringLiteral("name") })
-					|| !object.value("name").isString()
-					|| object.value("name").toString().isEmpty()) {
+					|| !json_member(object, "name").is_string()
+					|| json_text(json_member(object, "name")).isEmpty()) {
 					return false;
 				}
-				const auto name = object.value("name").toString();
+				const auto name = json_text(json_member(object, "name"));
 				if (names.contains(name)) {
 					return false;
 				}
@@ -888,30 +957,30 @@ namespace bpr::adapters::github::detail {
 		}
 
 		[[nodiscard]] auto
-		validate_named_type_members(const QJsonArray&              aValues,
+		validate_named_type_members(const capability_array&        aValues,
 									const capability_probe_limits& aLimits) -> bool
 		{
-			if (aValues.size() > static_cast<qsizetype>(aLimits.MaximumNamedTypes)) {
+			if (aValues.size() > static_cast<std::size_t>(aLimits.MaximumNamedTypes)) {
 				return false;
 			}
 			QSet<QString> names;
 			for (const auto& value : aValues) {
-				if (!value.isObject()) {
+				if (!value.is_object()) {
 					return false;
 				}
-				const auto object = value.toObject();
+				const auto& object = json_object(value);
 				if (!exact_keys(object,
 								{
 									QStringLiteral("kind"),
 									QStringLiteral("name"),
 								})
-					|| !object.value("kind").isString()
-					|| !valid_kind(object.value("kind").toString())
-					|| !object.value("name").isString()
-					|| object.value("name").toString().isEmpty()) {
+					|| !json_member(object, "kind").is_string()
+					|| !valid_kind(json_text(json_member(object, "kind")))
+					|| !json_member(object, "name").is_string()
+					|| json_text(json_member(object, "name")).isEmpty()) {
 					return false;
 				}
-				const auto name = object.value("name").toString();
+				const auto name = json_text(json_member(object, "name"));
 				if (names.contains(name)) {
 					return false;
 				}
@@ -920,14 +989,14 @@ namespace bpr::adapters::github::detail {
 			return true;
 		}
 
-		[[nodiscard]] auto parse_selected_type(const QJsonValue&              aValue,
+		[[nodiscard]] auto parse_selected_type(const capability_json&         aValue,
 											   const std::string_view         aExpectedName,
 											   const selected_type_shape      aShape,
 											   const std::size_t              aMaximumFields,
 											   const capability_probe_limits& aLimits,
 											   selected_schema_type&          aOutput) -> bool
 		{
-			if (aValue.isNull()) {
+			if (aValue.is_null()) {
 				aOutput = {
 					.Missing          = true,
 					.Kind             = { },
@@ -937,12 +1006,12 @@ namespace bpr::adapters::github::detail {
 				};
 				return true;
 			}
-			if (!aValue.isObject()) {
+			if (!aValue.is_object()) {
 				return false;
 			}
 
-			const auto object     = aValue.toObject();
-			const auto memberName = aShape == selected_type_shape::fields
+			const auto& object     = json_object(aValue);
+			const auto  memberName = aShape == selected_type_shape::fields
 				? QStringLiteral("fields")
 				: aShape == selected_type_shape::input_fields
 				? QStringLiteral("inputFields")
@@ -959,37 +1028,37 @@ namespace bpr::adapters::github::detail {
 						QStringLiteral("name"),
 						memberName,
 					})
-				|| !object.value("kind").isString()
-				|| !valid_kind(object.value("kind").toString())
-				|| !object.value("name").isString()
-				|| object.value("name").toString().isEmpty()) {
+				|| !json_member(object, "kind").is_string()
+				|| !valid_kind(json_text(json_member(object, "kind")))
+				|| !json_member(object, "name").is_string()
+				|| json_text(json_member(object, "name")).isEmpty()) {
 				return false;
 			}
 			if (!aExpectedName.empty()) {
 				const auto expected = QString::fromUtf8(
 					aExpectedName.data(),
 					static_cast<qsizetype>(aExpectedName.size()));
-				if (object.value("name").toString() != expected) {
+				if (json_text(json_member(object, "name")) != expected) {
 					return false;
 				}
 			}
 
 			aOutput = {
 				.Missing          = false,
-				.Kind             = object.value("kind").toString(),
-				.Name             = object.value("name").toString(),
+				.Kind             = json_text(json_member(object, "kind")),
+				.Name             = json_text(json_member(object, "name")),
 				.MembersAvailable = false,
 				.Members          = { },
 			};
-			const auto members = object.value(memberName);
-			if (members.isNull()) {
+			const auto& members = json_member(object, memberName);
+			if (members.is_null()) {
 				return !kind_has_selected_members(aOutput.Kind, aShape);
 			}
-			if (!members.isArray()) {
+			if (!members.is_array()) {
 				return false;
 			}
 			aOutput.MembersAvailable = true;
-			aOutput.Members          = members.toArray();
+			aOutput.Members          = json_array(members);
 			switch (aShape) {
 			case selected_type_shape::fields:
 				return validate_field_members(
@@ -1008,15 +1077,15 @@ namespace bpr::adapters::github::detail {
 		}
 
 		[[nodiscard]] auto find_named_member(
-			const QJsonArray&      aMembers,
-			const std::string_view aName) -> std::optional<QJsonObject>
+			const capability_array& aMembers,
+			const std::string_view  aName) -> std::optional<capability_object>
 		{
 			const auto expected = QString::fromUtf8(
 				aName.data(),
 				static_cast<qsizetype>(aName.size()));
 			for (const auto& value : aMembers) {
-				auto object = value.toObject();
-				if (object.value("name").toString() == expected) {
+				const auto& object = json_object(value);
+				if (json_text(json_member(object, "name")) == expected) {
 					return object;
 				}
 			}
@@ -1046,11 +1115,11 @@ namespace bpr::adapters::github::detail {
 			if (!field.has_value()) {
 				return capability_schema_fact_state::missing;
 			}
-			if (!exact_type(field->value("type"), aReturnType)) {
+			if (!exact_type(json_member(*field, "type"), aReturnType)) {
 				return capability_schema_fact_state::incompatible;
 			}
 
-			const auto    arguments = field->value("args").toArray();
+			const auto&   arguments = json_array(json_member(*field, "args"));
 			QSet<QString> expectedNames;
 			for (const auto& expected : aExpectedArguments) {
 				expectedNames.insert(
@@ -1060,15 +1129,15 @@ namespace bpr::adapters::github::detail {
 				const auto argument = find_named_member(arguments, expected.Name);
 				if (
 					!argument.has_value()
-					|| !exact_type(argument->value("type"), expected.Type)) {
+					|| !exact_type(json_member(*argument, "type"), expected.Type)) {
 					return capability_schema_fact_state::incompatible;
 				}
 			}
 			for (const auto& value : arguments) {
-				const auto argument = value.toObject();
+				const auto& argument = json_object(value);
 				if (
 					!expectedNames.contains(
-						argument.value("name").toString())
+						json_text(json_member(argument, "name")))
 					&& required_argument(argument)) {
 					return capability_schema_fact_state::incompatible;
 				}
@@ -1099,14 +1168,14 @@ namespace bpr::adapters::github::detail {
 				const auto field = find_named_member(aType.Members, expected.Name);
 				if (
 					!field.has_value()
-					|| !exact_type(field->value("type"), expected.Type)) {
+					|| !exact_type(json_member(*field, "type"), expected.Type)) {
 					return capability_schema_fact_state::incompatible;
 				}
 			}
 			for (const auto& value : aType.Members) {
-				const auto field = value.toObject();
+				const auto& field = json_object(value);
 				if (
-					!expectedNames.contains(field.value("name").toString())
+					!expectedNames.contains(json_text(json_member(field, "name")))
 					&& required_argument(field)) {
 					return capability_schema_fact_state::incompatible;
 				}
@@ -1152,7 +1221,7 @@ namespace bpr::adapters::github::detail {
 				aMemberKind.data(), static_cast<qsizetype>(aMemberKind.size()));
 			const auto member = find_named_member(aType.Members, aMemberName);
 			return member.has_value()
-					&& member->value("kind").toString() == expectedMemberKind
+					&& json_text(json_member(*member, "kind")) == expectedMemberKind
 				? capability_schema_fact_state::matched
 				: capability_schema_fact_state::incompatible;
 		}
@@ -1170,18 +1239,18 @@ namespace bpr::adapters::github::detail {
 				|| !aRight.MembersAvailable) {
 				return capability_schema_fact_state::incompatible;
 			}
-			if (aLeft.Members.isEmpty()) {
+			if (aLeft.Members.empty()) {
 				return capability_schema_fact_state::incompatible;
 			}
 			for (const auto& value : aLeft.Members) {
-				const auto member = value.toObject();
-				if (member.value("kind").toString() != QStringLiteral("OBJECT")) {
+				const auto& member = json_object(value);
+				if (json_text(json_member(member, "kind")) != QStringLiteral("OBJECT")) {
 					return capability_schema_fact_state::incompatible;
 				}
-				const auto name     = member.value("name").toString().toStdString();
+				const auto name     = json_text(json_member(member, "name")).toStdString();
 				const auto matching = find_named_member(aRight.Members, name);
 				if (!matching.has_value()
-					|| matching->value("kind").toString() != QStringLiteral("OBJECT")) {
+					|| json_text(json_member(*matching, "kind")) != QStringLiteral("OBJECT")) {
 					return capability_schema_fact_state::incompatible;
 				}
 			}
@@ -1303,65 +1372,63 @@ namespace bpr::adapters::github::detail {
 		}
 
 		[[nodiscard]] auto response_has_exact_aliases(
-			const QJsonObject& aData) -> bool
+			const capability_object& aData) -> bool
 		{
 			return aData.size()
-				== static_cast<qsizetype>(response_aliases.size())
+				== static_cast<std::size_t>(response_aliases.size())
 				&& std::ranges::all_of(
 					   response_aliases,
 					   [&aData](const auto aAlias) {
-						   return aData.contains(QString::fromUtf8(
-							   aAlias.data(),
-							   static_cast<qsizetype>(aAlias.size())));
+						   return has_member(aData, QString::fromUtf8(aAlias.data(), static_cast<qsizetype>(aAlias.size())));
 					   });
 		}
 
 		[[nodiscard]] auto field_array_exceeds_limits(
-			const QJsonValue&              aValue,
+			const capability_json&         aValue,
 			const std::size_t              aMaximumFields,
 			const capability_probe_limits& aLimits) -> bool
 		{
-			if (!aValue.isObject()) {
+			if (!aValue.is_object()) {
 				return false;
 			}
-			const auto fields = aValue.toObject().value("fields");
-			if (!fields.isArray()) {
+			const auto& fields = json_member(json_object(aValue), "fields");
+			if (!fields.is_array()) {
 				return false;
 			}
-			const auto array = fields.toArray();
-			if (array.size() > static_cast<qsizetype>(aMaximumFields)) {
+			const auto& array = json_array(fields);
+			if (array.size() > static_cast<std::size_t>(aMaximumFields)) {
 				return true;
 			}
 			return std::ranges::any_of(array, [&aLimits](const auto& aField) {
-				return aField.isObject()
-					&& aField.toObject().value("args").isArray()
-					&& aField.toObject().value("args").toArray().size()
-					> static_cast<qsizetype>(aLimits.MaximumArguments);
+				return aField.is_object()
+					&& json_member(json_object(aField), "args").is_array()
+					&& json_array(json_member(json_object(aField), "args")).size()
+					> static_cast<std::size_t>(aLimits.MaximumArguments);
 			});
 		}
 
 		[[nodiscard]] auto schema_specific_limits_exceeded(
-			const QJsonObject&             aData,
+			const capability_object&       aData,
 			const capability_probe_limits& aLimits) -> bool
 		{
-			const auto schema = aData.value("schemaRoot");
+			const auto& schema = json_member(aData, "schemaRoot");
 			if (
-				schema.isObject()
-				&& (field_array_exceeds_limits(schema.toObject().value("queryType"),
+				schema.is_object()
+				&& (field_array_exceeds_limits(json_member(json_object(schema), "queryType"),
 											   aLimits.MaximumQueryFields, aLimits)
 					|| field_array_exceeds_limits(
-						schema.toObject().value("mutationType"),
+						json_member(json_object(schema), "mutationType"),
 						aLimits.MaximumMutationFields, aLimits))) {
 				return true;
 			}
-			if (field_array_exceeds_limits(aData.value("repository"),
+			if (field_array_exceeds_limits(json_member(aData, "repository"),
 										   aLimits.MaximumRepositoryFields,
 										   aLimits)) {
 				return true;
 			}
 			if (
 				field_array_exceeds_limits(
-					aData.value("pullRequest"),
+					json_member(aData, "pullRequest"),
 					aLimits.MaximumPullRequestFields,
 					aLimits)) {
 				return true;
@@ -1384,9 +1451,7 @@ namespace bpr::adapters::github::detail {
 			};
 			for (const auto alias : fieldAliases) {
 				if (field_array_exceeds_limits(
-						aData.value(QString::fromUtf8(
-							alias.data(),
-							static_cast<qsizetype>(alias.size()))),
+						json_member(aData, QString::fromUtf8(alias.data(), static_cast<qsizetype>(alias.size()))),
 						aLimits.MaximumOtherTypeFields,
 						aLimits)) {
 					return true;
@@ -1400,31 +1465,25 @@ namespace bpr::adapters::github::detail {
 				"unresolveInput",
 			};
 			for (const auto alias : inputAliases) {
-				const auto value = aData.value(QString::fromUtf8(
-					alias.data(),
-					static_cast<qsizetype>(alias.size())));
+				const auto& value = json_member(aData, QString::fromUtf8(alias.data(), static_cast<qsizetype>(alias.size())));
 				if (
-					value.isObject()
-					&& value.toObject().value("inputFields").isArray()
-					&& value.toObject()
-							.value("inputFields")
-							.toArray()
+					value.is_object()
+					&& json_member(json_object(value), "inputFields").is_array()
+					&& json_array(json_member(json_object(value), "inputFields"))
 							.size()
-						> static_cast<qsizetype>(aLimits.MaximumInputFields)) {
+						> static_cast<std::size_t>(aLimits.MaximumInputFields)) {
 					return true;
 				}
 			}
 
 			for (const auto alias : { "threadSubject", "fileViewedState" }) {
-				const auto value = aData.value(alias);
+				const auto& value = json_member(aData, alias);
 				if (
-					value.isObject()
-					&& value.toObject().value("enumValues").isArray()
-					&& value.toObject()
-							.value("enumValues")
-							.toArray()
+					value.is_object()
+					&& json_member(json_object(value), "enumValues").is_array()
+					&& json_array(json_member(json_object(value), "enumValues"))
 							.size()
-						> static_cast<qsizetype>(aLimits.MaximumEnumValues)) {
+						> static_cast<std::size_t>(aLimits.MaximumEnumValues)) {
 					return true;
 				}
 			}
@@ -1433,24 +1492,24 @@ namespace bpr::adapters::github::detail {
 					 "actorPossibleTypes",
 					 "nodePossibleTypes",
 				 }) {
-				const auto value = aData.value(alias);
-				if (!value.isObject()) {
+				const auto& value = json_member(aData, alias);
+				if (!value.is_object()) {
 					continue;
 				}
-				const auto object  = value.toObject();
-				const auto members = object.contains("interfaces")
-					? object.value("interfaces")
-					: object.value("possibleTypes");
-				if (members.isArray()
-					&& members.toArray().size()
-						> static_cast<qsizetype>(aLimits.MaximumNamedTypes)) {
+				const auto& object  = json_object(value);
+				const auto  members = has_member(object, "interfaces")
+					? json_member(object, "interfaces")
+					: json_member(object, "possibleTypes");
+				if (members.is_array()
+					&& json_array(members).size()
+						> static_cast<std::size_t>(aLimits.MaximumNamedTypes)) {
 					return true;
 				}
 			}
 			return false;
 		}
 
-		[[nodiscard]] auto evaluate_schema(const QJsonObject&             aData,
+		[[nodiscard]] auto evaluate_schema(const capability_object&       aData,
 										   const capability_probe_limits& aLimits,
 										   capability_probe_observation&  aOutput) -> bool
 		{
@@ -1459,16 +1518,14 @@ namespace bpr::adapters::github::detail {
 														const std::size_t      aMaximum,
 														selected_schema_type&  aResult) {
 				return parse_selected_type(
-					aData.value(QString::fromUtf8(aAlias.data(),
-												  static_cast<qsizetype>(aAlias.size()))),
+					json_member(aData, QString::fromUtf8(aAlias.data(), static_cast<qsizetype>(aAlias.size()))),
 					aTypeName, selected_type_shape::fields, aMaximum, aLimits, aResult);
 			};
 			const auto parseInput = [&aData, &aLimits](const std::string_view aAlias,
 													   const std::string_view aTypeName,
 													   selected_schema_type&  aResult) {
 				return parse_selected_type(
-					aData.value(QString::fromUtf8(aAlias.data(),
-												  static_cast<qsizetype>(aAlias.size()))),
+					json_member(aData, QString::fromUtf8(aAlias.data(), static_cast<qsizetype>(aAlias.size()))),
 					aTypeName, selected_type_shape::input_fields,
 					aLimits.MaximumInputFields, aLimits, aResult);
 			};
@@ -1476,8 +1533,7 @@ namespace bpr::adapters::github::detail {
 													  const std::string_view aTypeName,
 													  selected_schema_type&  aResult) {
 				return parse_selected_type(
-					aData.value(QString::fromUtf8(aAlias.data(),
-												  static_cast<qsizetype>(aAlias.size()))),
+					json_member(aData, QString::fromUtf8(aAlias.data(), static_cast<qsizetype>(aAlias.size()))),
 					aTypeName, selected_type_shape::enum_values,
 					aLimits.MaximumEnumValues, aLimits, aResult);
 			};
@@ -1486,27 +1542,26 @@ namespace bpr::adapters::github::detail {
 													   const selected_type_shape aShape,
 													   selected_schema_type&     aResult) {
 				return parse_selected_type(
-					aData.value(QString::fromUtf8(aAlias.data(),
-												  static_cast<qsizetype>(aAlias.size()))),
+					json_member(aData, QString::fromUtf8(aAlias.data(), static_cast<qsizetype>(aAlias.size()))),
 					aTypeName, aShape, aLimits.MaximumNamedTypes, aLimits, aResult);
 			};
 
 			selected_schema_type query;
 			selected_schema_type mutation;
-			const auto           schemaRoot = aData.value("schemaRoot");
-			if (!schemaRoot.isObject()) {
+			const auto&          schemaRoot = json_member(aData, "schemaRoot");
+			if (!schemaRoot.is_object()) {
 				return false;
 			}
-			const auto schemaObject = schemaRoot.toObject();
+			const auto& schemaObject = json_object(schemaRoot);
 			if (!exact_keys(schemaObject,
 							{
 								QStringLiteral("queryType"),
 								QStringLiteral("mutationType"),
 							})
-				|| !parse_selected_type(schemaObject.value("queryType"), { },
+				|| !parse_selected_type(json_member(schemaObject, "queryType"), { },
 										selected_type_shape::fields,
 										aLimits.MaximumQueryFields, aLimits, query)
-				|| !parse_selected_type(schemaObject.value("mutationType"), { },
+				|| !parse_selected_type(json_member(schemaObject, "mutationType"), { },
 										selected_type_shape::fields,
 										aLimits.MaximumMutationFields, aLimits, mutation)) {
 				return false;
@@ -2068,31 +2123,31 @@ namespace bpr::adapters::github::detail {
 		}
 
 		[[nodiscard]] auto graphql_error_rate_limited(
-			const QJsonValue& aErrors) -> bool
+			const capability_json& aErrors) -> bool
 		{
-			if (!aErrors.isArray()) {
+			if (!aErrors.is_array()) {
 				return false;
 			}
-			for (const auto& value : aErrors.toArray()) {
-				if (!value.isObject()) {
+			for (const auto& value : json_array(aErrors)) {
+				if (!value.is_object()) {
 					continue;
 				}
-				const auto error = value.toObject();
+				const auto& error = json_object(value);
 				if (
-					error.value("type").isString()
-					&& error.value("type").toString()
+					json_member(error, "type").is_string()
+					&& json_text(json_member(error, "type"))
 						== QStringLiteral("RATE_LIMITED")) {
 					return true;
 				}
-				const auto extensions = error.value("extensions");
-				if (!extensions.isObject()) {
+				const auto& extensions = json_member(error, "extensions");
+				if (!extensions.is_object()) {
 					continue;
 				}
-				const auto extension = extensions.toObject();
+				const auto& extension = json_object(extensions);
 				for (const auto key : { "type", "code" }) {
 					if (
-						extension.value(key).isString()
-						&& extension.value(key).toString()
+						json_member(extension, key).is_string()
+						&& json_text(json_member(extension, key))
 							== QStringLiteral("RATE_LIMITED")) {
 						return true;
 					}
@@ -2142,16 +2197,8 @@ namespace bpr::adapters::github::detail {
 					!= json_preflight_result::valid) {
 					return false;
 				}
-				QJsonParseError error;
-				const auto      document = QJsonDocument::fromJson(
-					QByteArray{
-						aResponse.Body.data(),
-						static_cast<qsizetype>(aResponse.Body.size()),
-					},
-					&error);
-				return error.error == QJsonParseError::NoError && document.isObject()
-					&& graphql_error_rate_limited(
-						   document.object().value(QStringLiteral("errors")));
+				const auto document = parse_json_object(aResponse.Body);
+				return document && graphql_error_rate_limited(json_member(*document, "errors"));
 			} catch (...) {
 				return false;
 			}
@@ -2277,22 +2324,9 @@ namespace bpr::adapters::github::detail {
 		}
 
 		try {
-			const QJsonObject payload{
-				{
-					QStringLiteral("query"),
-					QString::fromUtf8(
-						graphqlDocument.data(),
-						static_cast<qsizetype>(graphqlDocument.size())),
-				},
-			};
-			const auto bytes = QJsonDocument{ payload }.toJson(QJsonDocument::Compact);
-			if (
-				bytes.size() < 0
-				|| static_cast<std::size_t>(bytes.size())
-					> aLimits.MaximumRequestBytes) {
-				return std::unexpected{
-					capability_probe_unavailability::response_limit
-				};
+			auto bytes = glz::write<capability_json_options{ }>(capability_query_json{ graphqlDocument });
+			if (!bytes || bytes->size() > aLimits.MaximumRequestBytes) {
+				return std::unexpected{ capability_probe_unavailability::response_limit };
 			}
 
 			return capability_probe_request{
@@ -2319,10 +2353,7 @@ namespace bpr::adapters::github::detail {
 						.Value = "BetterPullReview/0.1",
 					},
 				},
-				.Body = {
-					bytes.constData(),
-					static_cast<std::size_t>(bytes.size()),
-				},
+				.Body = std::move(*bytes),
 			};
 		} catch (const std::bad_alloc&) {
 			return std::unexpected{
@@ -2345,18 +2376,17 @@ namespace bpr::adapters::github::detail {
 				result.State = state::omitted_invalid;
 				return result;
 			}
-			QJsonParseError parseError;
-			const auto      document = QJsonDocument::fromJson(QByteArray{ aBody.data(), static_cast<qsizetype>(aBody.size()) }, &parseError);
-			if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+			const auto document = parse_json_object(aBody);
+			if (!document) {
 				result.State = state::omitted_invalid;
 				return result;
 			}
-			const auto envelope = document.object();
-			if (!envelope.contains("errors")) {
+			const auto& envelope = *document;
+			if (!has_member(envelope, "errors")) {
 				return result;
 			}
-			const auto errors = envelope.value("errors");
-			if (!errors.isArray() || errors.toArray().isEmpty() || errors.toArray().size() > 8) {
+			const auto& errors = json_member(envelope, "errors");
+			if (!errors.is_array() || json_array(errors).empty() || json_array(errors).size() > 8) {
 				result.State = state::omitted_invalid;
 				return result;
 			}
@@ -2366,22 +2396,26 @@ namespace bpr::adapters::github::detail {
 				percent += '%';
 				percent += QByteArray(1, character).toHex();
 			}
-			const auto       encodedJson = QJsonDocument{ QJsonArray{ QString::fromUtf8(credential) } }.toJson(QJsonDocument::Compact);
+			const auto encodedJson = glz::write<capability_json_options{ }>(QString::fromUtf8(credential).toStdString());
+			if (!encodedJson || encodedJson->size() < 2U) {
+				result.State = state::omitted_failure;
+				return result;
+			}
 			const std::array representations{
 				QString::fromUtf8(credential), QString::fromLatin1(credential.toBase64()),
 				QString::fromLatin1(credential.toBase64(QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals)),
 				QString::fromLatin1(credential.toHex()), QString::fromLatin1(percent), QString::fromLatin1(credential.toPercentEncoding()),
-				QString::fromUtf8(encodedJson.mid(2, encodedJson.size() - 4))
+				QString::fromUtf8(std::string_view{ *encodedJson }.substr(1U, encodedJson->size() - 2U))
 			};
 			QString    summary;
-			const auto append = [&](const QString& aName, const QJsonValue& aValue) -> bool {
-				if (aValue.isUndefined()) {
+			const auto append = [&](const QString& aName, const capability_json& aValue, const bool aPresent) -> bool {
+				if (!aPresent) {
 					return true;
 				}
-				if (!aValue.isString() || aValue.toString().size() > 8192) {
+				if (!aValue.is_string() || json_text(aValue).size() > 8192) {
 					return false;
 				}
-				auto text = aValue.toString();
+				auto text = json_text(aValue);
 				// Remove complete reflections before any truncation. JSON decoding above
 				// handles wire escapes; common nested/encoded representations are removed too.
 				for (const auto& representation : representations) {
@@ -2397,18 +2431,18 @@ namespace bpr::adapters::github::detail {
 				summary += aName + QStringLiteral("=\"") + text + QStringLiteral("\" ");
 				return true;
 			};
-			for (const auto& value : errors.toArray()) {
-				if (!value.isObject()) {
+			for (const auto& value : json_array(errors)) {
+				if (!value.is_object()) {
 					result.State = state::omitted_invalid;
 					return result;
 				}
-				const auto entry      = value.toObject();
-				const auto extensions = entry.value("extensions");
-				if ((!extensions.isUndefined() && !extensions.isObject())
-					|| !append(QStringLiteral("message"), entry.value("message"))
-					|| !append(QStringLiteral("type"), entry.value("type"))
-					|| !append(QStringLiteral("type"), extensions.toObject().value("type"))
-					|| !append(QStringLiteral("code"), extensions.toObject().value("code"))) {
+				const auto& entry      = json_object(value);
+				const auto& extensions = json_member(entry, "extensions");
+				if ((has_member(entry, "extensions") && !extensions.is_object())
+					|| !append(QStringLiteral("message"), json_member(entry, "message"), has_member(entry, "message"))
+					|| !append(QStringLiteral("type"), json_member(entry, "type"), has_member(entry, "type"))
+					|| !append(QStringLiteral("type"), json_member(json_object(extensions), "type"), has_member(json_object(extensions), "type"))
+					|| !append(QStringLiteral("code"), json_member(json_object(extensions), "code"), has_member(json_object(extensions), "code"))) {
 					result.State = state::omitted_invalid;
 					return result;
 				}
@@ -2430,8 +2464,8 @@ namespace bpr::adapters::github::detail {
 	}
 
 	namespace {
-		auto data_unavailable(capability_probe_unavailability aReason, application::github_capability_diagnostic aDetail) -> std::expected<QJsonObject, capability_probe_observation> { return std::unexpected{ unavailable(aReason, aDetail) }; }
-		auto checked_capability_data(const capability_probe_transport_result& aResponse, const capability_probe_limits& aLimits) -> std::expected<QJsonObject, capability_probe_observation>
+		auto data_unavailable(capability_probe_unavailability aReason, application::github_capability_diagnostic aDetail) -> std::expected<capability_object, capability_probe_observation> { return std::unexpected{ unavailable(aReason, aDetail) }; }
+		auto checked_capability_data(const capability_probe_transport_result& aResponse, const capability_probe_limits& aLimits) -> std::expected<capability_object, capability_probe_observation>
 		{
 			if (!valid_limits(aLimits)) {
 				return data_unavailable(
@@ -2487,34 +2521,25 @@ namespace bpr::adapters::github::detail {
 						preflight == json_preflight_result::structural_limit ? application::github_capability_diagnostic::json_limits : application::github_capability_diagnostic::json_shape);
 				}
 
-				QJsonParseError error;
-				const auto      document = QJsonDocument::fromJson(
-					QByteArray{
-						value.Body.data(),
-						static_cast<qsizetype>(value.Body.size()),
-					},
-					&error);
-				if (
-					error.error != QJsonParseError::NoError
-					|| !document.isObject()) {
-					return data_unavailable(
-						capability_probe_unavailability::malformed_response, application::github_capability_diagnostic::json_shape);
+				const auto document = parse_json_object(value.Body);
+				if (!document) {
+					return data_unavailable(capability_probe_unavailability::malformed_response, application::github_capability_diagnostic::json_shape);
 				}
-				const auto envelope = document.object();
-				if (envelope.contains("errors")) {
+				const auto& envelope = *document;
+				if (has_member(envelope, "errors")) {
 					if (
 						rateLimit->signals_throttling()
 						|| graphql_error_rate_limited(
-							envelope.value("errors"))) {
+							json_member(envelope, "errors"))) {
 						return data_unavailable(
 							capability_probe_unavailability::rate_limit, application::github_capability_diagnostic::graphql_errors);
 					}
 					return data_unavailable(
-						capability_probe_unavailability::partial_response, graphql_error_detail(envelope.value("errors")));
+						capability_probe_unavailability::partial_response, graphql_error_detail(json_member(envelope, "errors")));
 				}
 				if (
-					!envelope.contains("data")
-					|| !envelope.value("data").isObject()) {
+					!has_member(envelope, "data")
+					|| !json_member(envelope, "data").is_object()) {
 					return data_unavailable(
 						capability_probe_unavailability::partial_response, application::github_capability_diagnostic::graphql_data);
 				}
@@ -2522,8 +2547,8 @@ namespace bpr::adapters::github::detail {
 					 iterator != envelope.end();
 					 ++iterator) {
 					if (
-						iterator.key() != QStringLiteral("data")
-						&& iterator.key() != QStringLiteral("extensions")) {
+						iterator->first != "data"
+						&& iterator->first != "extensions") {
 						return data_unavailable(
 							capability_probe_unavailability::
 								malformed_response,
@@ -2531,7 +2556,7 @@ namespace bpr::adapters::github::detail {
 					}
 				}
 
-				return envelope.value("data").toObject();
+				return json_object(json_member(envelope, "data"));
 			} catch (const std::bad_alloc&) {
 				return data_unavailable(
 					capability_probe_unavailability::allocation_failure, application::github_capability_diagnostic::normalization_allocation);
@@ -2597,7 +2622,7 @@ namespace bpr::adapters::github::detail {
 				return refuse(capability_probe_unavailability::partial_response, application::github_capability_diagnostic::graphql_aliases);
 			}
 			for (const auto alias : aliases) {
-				if (!data->contains(QString::fromUtf8(alias.data(), static_cast<qsizetype>(alias.size())))) {
+				if (!has_member(*data, QString::fromUtf8(alias.data(), static_cast<qsizetype>(alias.size())))) {
 					return refuse(capability_probe_unavailability::partial_response, application::github_capability_diagnostic::graphql_aliases);
 				}
 			}
@@ -2605,19 +2630,25 @@ namespace bpr::adapters::github::detail {
 			if (preflight.run() != json_preflight_result::valid || preflight.value_count() > limits.MaximumTotalValues - Values) {
 				return refuse(capability_probe_unavailability::response_limit, application::github_capability_diagnostic::json_limits);
 			}
-			auto merged = Parts == 0U ? QJsonObject{ } : QJsonDocument::fromJson(QByteArray::fromStdString(Response.Body)).object().value("data").toObject();
-			for (auto entry = data->begin(); entry != data->end(); ++entry) {
-				if (merged.contains(entry.key())) {
+			auto merged = capability_object{ };
+			if (Parts != 0U) {
+				const auto previous = parse_json_object(Response.Body);
+				if (!previous || !json_member(*previous, "data").is_object()) {
+					return refuse(capability_probe_unavailability::malformed_response, application::github_capability_diagnostic::json_shape);
+				}
+				merged = json_object(json_member(*previous, "data"));
+			}
+			for (const auto& [key, value] : *data) {
+				if (!merged.emplace(key, value).second) {
 					return refuse(capability_probe_unavailability::partial_response, application::github_capability_diagnostic::graphql_aliases);
 				}
-				merged.insert(entry.key(), entry.value());
 			}
-			const auto bytes = QJsonDocument{ QJsonObject{ { "data", merged } } }.toJson(QJsonDocument::Compact);
-			if (static_cast<std::size_t>(bytes.size()) > limits.MaximumResponseBytes) {
+			auto bytes = glz::write<capability_json_options{ }>(capability_object{ { "data", capability_json(std::move(merged)) } });
+			if (!bytes || bytes->size() > limits.MaximumResponseBytes) {
 				return refuse(capability_probe_unavailability::response_limit, application::github_capability_diagnostic::normalizer_body_limit);
 			}
 			Response      = aResponse;
-			Response.Body = bytes.toStdString();
+			Response.Body = std::move(*bytes);
 			Bytes += aResponse.Body.size();
 			Values += preflight.value_count();
 			++Parts;
