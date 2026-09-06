@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0628",
+    "BPR-0629"
+  ],
+  "reserve_for": "rfc0013-large-publication-ui-work",
+  "purpose": "",
+  "created": "2026-09-06T02:47:43.143119+00:00",
+  "base": "fb381af78dd1c9a573237e5fec8cd9849ed97a96"
+}
