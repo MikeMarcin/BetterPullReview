@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0623"
 title: "Add deterministic large-review workload fixtures"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0013"]
 depends_on: []
 ---
