@@ -407,6 +407,16 @@ duplicate-key and structural preflight before JSON parsing; redirects,
 malformed values, wrong identities, wrong anchors, and a wrong author fail
 closed.
 
+BPR-0636 migrates these line-comment contracts to private typed Glaze records,
+matching the whole-review parser. Database identities are positive exact uint64
+values; fractional forms and overflow cannot normalize through a double.
+Comment-list reconciliation validates each parsed record directly, without a
+serialize/reparse step. Required fields, bounded structural preflight, full-input
+consumption and validation of skipped extension values remain enforced. The
+line-comment writer preserves the previous canonical member order and lowercase
+Unicode escape spelling, including literal escaped backslashes, so existing
+request fingerprints and recovery records retain their byte identity.
+
 `native_https_transport.cpp` remains the only mutation network-effect owner. It
 adds one narrow mutation operation to the existing account-bound transport,
 reuses its TLS, proxy, deadline, cancellation, credential, response, and manual-

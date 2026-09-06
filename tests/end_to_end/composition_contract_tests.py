@@ -773,14 +773,17 @@ class CompositionContractTests(unittest.TestCase):
         self.assertIn("src/worker_executor.cpp", target_body)
         self.assertNotIn("src/github_public_path_fixture.cpp", target_body)
 
-        links = re.search(
+        # CMake accumulates dependencies across calls (including the fixture's
+        # separate private Glaze link); inspecting only the first loses the
+        # production dependency declaration.
+        links = re.findall(
             r"target_link_libraries\s*\(\s*"
-            r"better_pull_review_composition(?P<body>.*?)\)",
+            r"better_pull_review_composition\b(?P<body>.*?)\)",
             composition_cmake,
             re.DOTALL,
         )
-        self.assertIsNotNone(links, "composition dependencies are required")
-        link_body = links.group("body") if links is not None else ""
+        self.assertTrue(links, "composition dependencies are required")
+        link_body = "\n".join(links)
         for dependency in (
             "BetterPullReview::Application",
             "BetterPullReview::AdapterGitHub",

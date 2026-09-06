@@ -4,10 +4,6 @@
 #include "bpr/core/sha256.hpp"
 
 #include <QDateTime>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QJsonParseError>
 #include <QString>
 
 #include <glaze/json.hpp>
@@ -16,7 +12,6 @@
 #include <array>
 #include <atomic>
 #include <cctype>
-#include <cmath>
 #include <concepts>
 #include <iterator>
 #include <limits>
@@ -111,25 +106,6 @@ namespace bpr::adapters::github::detail {
 				+ percent_encode(aTarget.Repository.Owner) + "/"
 				+ percent_encode(aTarget.Repository.Name) + "/pulls/"
 				+ std::to_string(aTarget.Number.value());
-		}
-
-		[[nodiscard]] auto mutation_body(
-			const application::review_mutation_request& aRequest) -> std::string
-		{
-			const auto& binding = *aRequest.LiveBinding;
-			const auto  commit  = core::canonical_hex(binding.Anchor.Commit);
-			const auto  githubLine
-				= static_cast<std::uint64_t>(binding.Anchor.Semantic.Line) + 1U;
-			QJsonObject object;
-			object.insert("body", QString::fromUtf8(aRequest.Proposal.Body.data(), static_cast<qsizetype>(aRequest.Proposal.Body.size())));
-			object.insert("commit_id", QString::fromUtf8(commit.view().data(), static_cast<qsizetype>(commit.view().size())));
-			object.insert("line", static_cast<qint64>(githubLine));
-			object.insert("path", QString::fromUtf8(binding.Anchor.Path.data(), static_cast<qsizetype>(binding.Anchor.Path.size())));
-			object.insert(
-				"side",
-				binding.Anchor.Semantic.Side == core::diff_side::left ? "LEFT" : "RIGHT");
-			const auto bytes = QJsonDocument{ object }.toJson(QJsonDocument::Compact);
-			return { bytes.constData(), static_cast<std::size_t>(bytes.size()) };
 		}
 
 		struct review_submission_names
@@ -237,6 +213,94 @@ namespace bpr::adapters::github::detail {
 				static constexpr auto value = glz::object("id", &recovery_target_json::Id, "node_id", &recovery_target_json::NodeId, "number", &recovery_target_json::Number, "base", &recovery_target_json::Base);
 			};
 		};
+		struct comment_submission_json
+		{
+			std::string_view Body;
+			std::string_view CommitId;
+			std::uint64_t    Line = 0U;
+			std::string_view Path;
+			std::string_view Side;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"body", &comment_submission_json::Body,
+					"commit_id", &comment_submission_json::CommitId,
+					"line", &comment_submission_json::Line,
+					"path", &comment_submission_json::Path,
+					"side", &comment_submission_json::Side);
+			};
+		};
+
+		struct comment_response_json
+		{
+			std::uint64_t      Id = 0U;
+			std::string        NodeId;
+			std::string        Path;
+			std::string        CommitId;
+			std::string        Side;
+			std::uint64_t      Line = 0U;
+			std::string        Body;
+			review_author_json User;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"id", &comment_response_json::Id,
+					"node_id", &comment_response_json::NodeId,
+					"path", &comment_response_json::Path,
+					"commit_id", &comment_response_json::CommitId,
+					"side", &comment_response_json::Side,
+					"line", &comment_response_json::Line,
+					"body", &comment_response_json::Body,
+					"user", &comment_response_json::User);
+			};
+		};
+
+		struct target_head_json
+		{
+			std::string Sha;
+			std::string Ref;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"sha", &target_head_json::Sha,
+					"ref", &target_head_json::Ref);
+			};
+		};
+
+		struct target_base_json
+		{
+			std::string              Sha;
+			std::string              Ref;
+			recovery_repository_json Repository;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"sha", &target_base_json::Sha,
+					"ref", &target_base_json::Ref,
+					"repo", &target_base_json::Repository);
+			};
+		};
+
+		struct target_response_json
+		{
+			std::uint64_t    Id = 0U;
+			std::string      NodeId;
+			std::uint64_t    Number = 0U;
+			std::string      State;
+			target_head_json Head;
+			target_base_json Base;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"id", &target_response_json::Id,
+					"node_id", &target_response_json::NodeId,
+					"number", &target_response_json::Number,
+					"state", &target_response_json::State,
+					"head", &target_response_json::Head,
+					"base", &target_response_json::Base);
+			};
+		};
+
 		struct review_json_options : glz::opts
 		{
 			bool escape_control_characters    = true;
@@ -250,6 +314,40 @@ namespace bpr::adapters::github::detail {
 				partial_read          = false;
 			}
 		};
+
+		[[nodiscard]] auto mutation_body(const application::review_mutation_request& aRequest) -> std::string
+		{
+			const auto& binding = *aRequest.LiveBinding;
+			const auto  commit  = core::canonical_hex(binding.Anchor.Commit);
+			const auto  object  = comment_submission_json{
+				.Body     = aRequest.Proposal.Body,
+				.CommitId = commit.view(),
+				.Line     = static_cast<std::uint64_t>(binding.Anchor.Semantic.Line) + 1U,
+				.Path     = binding.Anchor.Path,
+				.Side     = binding.Anchor.Semantic.Side == core::diff_side::left ? "LEFT" : "RIGHT",
+			};
+			auto bytes = glz::write<review_json_options{ }>(object);
+			if (!bytes) {
+				return { };
+			}
+			// Preserve Qt compact JSON spelling in durable line-comment fingerprints.
+			// Skip escaped backslashes so literal user text such as \u000B stays literal.
+			for (std::size_t index = 0U; index + 1U < bytes->size(); ++index) {
+				if ((*bytes)[index] != '\\') {
+					continue;
+				}
+				++index;
+				if ((*bytes)[index] == 'u' && index + 4U < bytes->size()) {
+					for (auto digit = 0U; digit < 4U; ++digit) {
+						auto& character = (*bytes)[++index];
+						if (character >= 'A' && character <= 'F') {
+							character = static_cast<char>(character + ('a' - 'A'));
+						}
+					}
+				}
+			}
+			return std::move(*bytes);
+		}
 
 		[[nodiscard]] auto submission_names(const core::review_disposition aDisposition)
 			-> std::optional<review_submission_names>
@@ -632,65 +730,49 @@ namespace bpr::adapters::github::detail {
 			std::size_t      Values   = 0U;
 		};
 
-		[[nodiscard]] auto document(const review_mutation_wire_response& aResponse)
-			-> std::optional<QJsonObject>
+		template <typename T>
+		[[nodiscard]] auto document(const review_mutation_wire_response& aResponse) -> std::optional<T>
 		{
-			if (aResponse.Body.empty()
-				|| aResponse.Body.size() > maximum_review_mutation_response_bytes) {
-				return std::nullopt;
-			}
-			if (!json_preflight{ aResponse.Body }.run()) {
-				return std::nullopt;
-			}
-			QJsonParseError error;
-			const auto      parsed = QJsonDocument::fromJson(
-				QByteArray{ aResponse.Body.data(), static_cast<qsizetype>(aResponse.Body.size()) },
-				&error);
-			if (error.error != QJsonParseError::NoError || !parsed.isObject()) {
-				return std::nullopt;
-			}
-			return parsed.object();
-		}
-
-		[[nodiscard]] auto array_document(
-			const review_mutation_wire_response& aResponse)
-			-> std::optional<QJsonArray>
-		{
-			if (aResponse.Body.empty()
-				|| aResponse.Body.size() > maximum_review_mutation_response_bytes
+			if (aResponse.Body.empty() || aResponse.Body.size() > maximum_review_mutation_response_bytes
 				|| !json_preflight{ aResponse.Body }.run()) {
 				return std::nullopt;
 			}
-			QJsonParseError error;
-			const auto      parsed = QJsonDocument::fromJson(
-				QByteArray{ aResponse.Body.data(), static_cast<qsizetype>(aResponse.Body.size()) },
-				&error);
-			if (error.error != QJsonParseError::NoError || !parsed.isArray()) {
+			auto parsed = T{ };
+			if (glz::read<review_json_options{ }>(parsed, aResponse.Body)) {
 				return std::nullopt;
 			}
-			return parsed.array();
+			return parsed;
 		}
 
-		[[nodiscard]] auto text(const QJsonValue& aValue) -> std::optional<std::string>
+		[[nodiscard]] auto comment_observation(const comment_response_json&                aResponse,
+											   const application::review_mutation_request& aExpected)
+			-> review_mutation_parse_result<review_mutation_comment_observation>
 		{
-			if (!aValue.isString()) {
-				return std::nullopt;
+			const auto     commit            = core::parse_git_commit_oid(aResponse.CommitId);
+			constexpr auto maximumGithubLine = static_cast<std::uint64_t>(std::numeric_limits<std::uint32_t>::max()) + 1U;
+			if (aResponse.Id == 0U || aResponse.User.Id == 0U || !commit
+				|| aResponse.Line == 0U || aResponse.Line > maximumGithubLine) {
+				return failed(review_mutation_contract_failure::malformed_response);
 			}
-			const auto bytes = aValue.toString().toUtf8();
-			return std::string{ bytes.constData(), static_cast<std::size_t>(bytes.size()) };
-		}
-
-		[[nodiscard]] auto integer(const QJsonValue& aValue) -> std::optional<std::uint64_t>
-		{
-			if (!aValue.isDouble()) {
-				return std::nullopt;
+			const auto& binding      = *aExpected.LiveBinding;
+			const auto  expectedSide = binding.Anchor.Semantic.Side == core::diff_side::left ? "LEFT" : "RIGHT";
+			const auto  semanticLine = static_cast<std::uint32_t>(aResponse.Line - 1U);
+			if (aResponse.Path != binding.Anchor.Path || *commit != binding.Anchor.Commit
+				|| aResponse.Side != expectedSide || semanticLine != binding.Anchor.Semantic.Line
+				|| aResponse.Body != aExpected.Proposal.Body
+				|| aResponse.User.Id != binding.ActingIdentity.DatabaseId
+				|| aResponse.User.NodeId != binding.ActingIdentity.NodeId
+				|| aResponse.User.Login != binding.ActingIdentity.Login) {
+				return failed(review_mutation_contract_failure::identity_mismatch);
 			}
-			const auto value = aValue.toDouble();
-			if (!std::isfinite(value) || value <= 0.0 || std::floor(value) != value
-				|| value > 9'007'199'254'740'991.0) {
-				return std::nullopt;
-			}
-			return static_cast<std::uint64_t>(value);
+			return review_mutation_comment_observation{
+				.Receipt    = { .ServerCommentId = aResponse.NodeId, .Duplicate = false },
+				.DatabaseId = aResponse.Id,
+				.NodeId     = aResponse.NodeId,
+				.Anchor     = binding.Anchor,
+				.Body       = aResponse.Body,
+				.Author     = binding.ActingIdentity,
+			};
 		}
 
 		[[nodiscard]] auto response_headers_valid(
@@ -983,53 +1065,26 @@ namespace bpr::adapters::github::detail {
 		if (aResponse.Status != 200 || !response_headers_valid(aResponse)) {
 			return failed(review_mutation_contract_failure::invalid_status);
 		}
-		const auto object = document(aResponse);
-		if (!object.has_value()) {
+		const auto response = document<target_response_json>(aResponse);
+		if (!response || response->Id == 0U || response->Number == 0U || response->Base.Repository.Id == 0U) {
 			return failed(review_mutation_contract_failure::malformed_response);
 		}
-		const auto id               = integer(object->value("id"));
-		const auto node             = text(object->value("node_id"));
-		const auto number           = integer(object->value("number"));
-		const auto state            = text(object->value("state"));
-		const auto head             = object->value("head").toObject();
-		const auto headSha          = text(head.value("sha"));
-		const auto headRef          = text(head.value("ref"));
-		const auto base             = object->value("base").toObject();
-		const auto baseSha          = text(base.value("sha"));
-		const auto baseRef          = text(base.value("ref"));
-		const auto baseRepository   = base.value("repo").toObject();
-		const auto repositoryId     = integer(baseRepository.value("id"));
-		const auto repositoryNode   = text(baseRepository.value("node_id"));
-		const auto fullName         = text(baseRepository.value("full_name"));
-		const auto baseRepositoryId = integer(baseRepository.value("id"));
-		const auto parsedHead       = headSha.has_value()
-			? core::parse_git_commit_oid(*headSha)
-			: std::optional<core::git_commit_oid>{ };
-		const auto parsedBase       = baseSha.has_value()
-			? core::parse_git_commit_oid(*baseSha)
-			: std::optional<core::git_commit_oid>{ };
-		const auto expectedFullName = aExpected.Repository.Owner + "/" + aExpected.Repository.Name;
-		if (!id.has_value() || !node.has_value() || !number.has_value()
-			|| !state.has_value() || !repositoryId.has_value()
-			|| !repositoryNode.has_value() || !fullName.has_value()
-			|| !baseRepositoryId.has_value() || !parsedHead.has_value()
-			|| !parsedBase.has_value() || !baseRef.has_value()
-			|| !headRef.has_value()) {
+		const auto head = core::parse_git_commit_oid(response->Head.Sha);
+		const auto base = core::parse_git_commit_oid(response->Base.Sha);
+		if (!head || !base) {
 			return failed(review_mutation_contract_failure::malformed_response);
 		}
-		if (*id != aExpected.PullRequestDatabaseId
-			|| *node != aExpected.PullRequestNodeId
-			|| *number != aExpected.Number.value() || *state != "open"
-			|| *repositoryId != aExpected.RepositoryDatabaseId
-			|| *repositoryNode != aExpected.RepositoryNodeId
-			|| *fullName != expectedFullName
-			|| *baseRepositoryId != aExpected.BaseRepositoryDatabaseId
-			|| *parsedBase != aExpected.BaseOid || *baseRef != aExpected.BaseRef
-			|| *headRef != aExpected.HeadRef) {
+		const auto& repository = response->Base.Repository;
+		if (response->Id != aExpected.PullRequestDatabaseId || response->NodeId != aExpected.PullRequestNodeId
+			|| response->Number != aExpected.Number.value() || response->State != "open"
+			|| repository.Id != aExpected.RepositoryDatabaseId || repository.Id != aExpected.BaseRepositoryDatabaseId
+			|| repository.NodeId != aExpected.RepositoryNodeId
+			|| repository.FullName != aExpected.Repository.Owner + "/" + aExpected.Repository.Name
+			|| *base != aExpected.BaseOid || response->Base.Ref != aExpected.BaseRef || response->Head.Ref != aExpected.HeadRef) {
 			return failed(review_mutation_contract_failure::identity_mismatch);
 		}
 		auto observed                  = aExpected;
-		observed.Semantic.ExpectedHead = *parsedHead;
+		observed.Semantic.ExpectedHead = *head;
 		return review_mutation_target_observation{ .Target = std::move(observed) };
 	}
 
@@ -1041,18 +1096,11 @@ namespace bpr::adapters::github::detail {
 		if (aResponse.Status != 200 || !response_headers_valid(aResponse)) {
 			return failed(review_mutation_contract_failure::invalid_status);
 		}
-		const auto object = document(aResponse);
-		if (!object.has_value()) {
+		const auto response = document<review_author_json>(aResponse);
+		if (!response || response->Id == 0U) {
 			return failed(review_mutation_contract_failure::malformed_response);
 		}
-		const auto id    = integer(object->value("id"));
-		const auto node  = text(object->value("node_id"));
-		const auto login = text(object->value("login"));
-		if (!id.has_value() || !node.has_value() || !login.has_value()) {
-			return failed(review_mutation_contract_failure::malformed_response);
-		}
-		if (*id != aExpected.DatabaseId || *node != aExpected.NodeId
-			|| *login != aExpected.Login) {
+		if (response->Id != aExpected.DatabaseId || response->NodeId != aExpected.NodeId || response->Login != aExpected.Login) {
 			return failed(review_mutation_contract_failure::identity_mismatch);
 		}
 		return review_mutation_viewer_observation{ .Identity = aExpected };
@@ -1063,61 +1111,14 @@ namespace bpr::adapters::github::detail {
 		const application::review_mutation_request& aExpected)
 		-> review_mutation_parse_result<review_mutation_comment_observation>
 	{
-		if (aResponse.Status != 201 || !response_headers_valid(aResponse)
-			|| !aExpected.LiveBinding.has_value()) {
+		if (aResponse.Status != 201 || !response_headers_valid(aResponse) || !aExpected.LiveBinding) {
 			return failed(review_mutation_contract_failure::invalid_status);
 		}
-		const auto object = document(aResponse);
-		if (!object.has_value()) {
+		const auto response = document<comment_response_json>(aResponse);
+		if (!response) {
 			return failed(review_mutation_contract_failure::malformed_response);
 		}
-		const auto  id           = integer(object->value("id"));
-		const auto  node         = text(object->value("node_id"));
-		const auto  path         = text(object->value("path"));
-		const auto  commitText   = text(object->value("commit_id"));
-		const auto  side         = text(object->value("side"));
-		const auto  line         = integer(object->value("line"));
-		const auto  body         = text(object->value("body"));
-		const auto  user         = object->value("user").toObject();
-		const auto  authorId     = integer(user.value("id"));
-		const auto  authorNode   = text(user.value("node_id"));
-		const auto  authorLogin  = text(user.value("login"));
-		const auto  commit       = commitText.has_value()
-			? core::parse_git_commit_oid(*commitText)
-			: std::optional<core::git_commit_oid>{ };
-		const auto& binding      = *aExpected.LiveBinding;
-		const auto  expectedSide = binding.Anchor.Semantic.Side == core::diff_side::left
-			? std::string_view{ "LEFT" }
-			: std::string_view{ "RIGHT" };
-		if (!id.has_value() || !node.has_value() || !path.has_value()
-			|| !commit.has_value() || !side.has_value() || !line.has_value()
-			|| !body.has_value() || !authorId.has_value()
-			|| !authorNode.has_value() || !authorLogin.has_value()) {
-			return failed(review_mutation_contract_failure::malformed_response);
-		}
-		constexpr auto maximumGithubLine
-			= static_cast<std::uint64_t>(std::numeric_limits<std::uint32_t>::max()) + 1U;
-		if (*line > maximumGithubLine) {
-			return failed(review_mutation_contract_failure::malformed_response);
-		}
-		const auto semanticLine = static_cast<std::uint32_t>(*line - 1U);
-		if (*path != binding.Anchor.Path || *commit != binding.Anchor.Commit
-			|| *side != expectedSide || semanticLine != binding.Anchor.Semantic.Line
-			|| *body != aExpected.Proposal.Body
-			|| *authorId != binding.ActingIdentity.DatabaseId
-			|| *authorNode != binding.ActingIdentity.NodeId
-			|| *authorLogin != binding.ActingIdentity.Login) {
-			return failed(review_mutation_contract_failure::identity_mismatch);
-		}
-		auto observation                    = review_mutation_comment_observation{ };
-		observation.Receipt.ServerCommentId = *node;
-		observation.Receipt.Duplicate       = false;
-		observation.DatabaseId              = *id;
-		observation.NodeId                  = *node;
-		observation.Anchor                  = binding.Anchor;
-		observation.Body                    = *body;
-		observation.Author                  = binding.ActingIdentity;
-		return observation;
+		return comment_observation(*response, aExpected);
 	}
 
 	auto parse_review_submission_response(
@@ -1214,44 +1215,28 @@ namespace bpr::adapters::github::detail {
 			|| has_header(aResponse, "Link") || !aExpected.LiveBinding.has_value()) {
 			return failed(review_mutation_contract_failure::invalid_status);
 		}
-		const auto array = array_document(aResponse);
-		if (!array.has_value() || array->size() > 100) {
+		const auto comments = document<std::vector<comment_response_json>>(aResponse);
+		if (!comments || comments->size() > 100U) {
 			return failed(review_mutation_contract_failure::malformed_response);
 		}
 		auto result = review_mutation_server_reconciliation{ };
-		result.Projection.reserve(static_cast<std::size_t>(array->size()));
-		for (const auto& value : *array) {
-			if (!value.isObject()) {
-				return failed(review_mutation_contract_failure::malformed_response);
-			}
-			const auto object = value.toObject();
-			const auto node   = text(object.value("node_id"));
-			const auto body   = text(object.value("body"));
-			if (!node.has_value() || !body.has_value()
-				|| !bounded_text(*node, 256U)
-				|| body->size() > maximum_review_mutation_response_bytes
-				|| !utf8_round_trip(*body)) {
+		result.Projection.reserve(comments->size());
+		for (const auto& comment : *comments) {
+			if (!bounded_text(comment.NodeId, 256U) || comment.Body.size() > maximum_review_mutation_response_bytes || !utf8_round_trip(comment.Body)) {
 				return failed(review_mutation_contract_failure::malformed_response);
 			}
 			result.Projection.push_back(application::review_comment_projection{
-				.ServerId = *node,
-				.Body     = *body,
+				.ServerId = comment.NodeId,
+				.Body     = comment.Body,
 			});
-
-			const auto bytes     = QJsonDocument{ object }.toJson(QJsonDocument::Compact);
-			const auto candidate = review_mutation_wire_response{
-				.Status = 201,
-				.Body   = std::string{
-					bytes.constData(), static_cast<std::size_t>(bytes.size()) },
-			};
-			const auto exact = parse_review_comment_response(candidate, aExpected);
-			if (exact.has_value()) {
+			const auto exact = comment_observation(comment, aExpected);
+			if (exact) {
 				result.ExactReceipts.push_back(exact->Receipt);
-			} else if (exact.error()
-					   != review_mutation_contract_failure::identity_mismatch) {
+			} else if (exact.error() != review_mutation_contract_failure::identity_mismatch) {
 				return failed(exact.error());
 			}
 		}
+
 		std::ranges::sort(result.Projection, { }, &application::review_comment_projection::ServerId);
 		if (std::ranges::adjacent_find(
 				result.Projection,

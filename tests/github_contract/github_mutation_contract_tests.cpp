@@ -547,6 +547,83 @@ namespace {
 			   "a REST line beyond the semantic range is refused");
 	}
 
+	[[nodiscard]] auto replace_wire_field(std::string aBody, const std::string_view aFrom, const std::string_view aTo) -> std::string
+	{
+		const auto position = aBody.find(aFrom);
+		expect(position != std::string::npos, "raw JSON fixture contains selected field");
+		aBody.replace(position, aFrom.size(), aTo);
+		return aBody;
+	}
+
+	void test_legacy_exact_integer_json()
+	{
+		for (const auto* invalid : { "22.0000000000000001", "22.0", "22e-1", "22e1000", "-22", "0", "18446744073709551616", "null", "true", "\"22\"" }) {
+			const auto field  = std::string{ "\"id\":" } + invalid;
+			const auto viewer = replace_wire_field(viewer_body(), "\"id\":22", field);
+			expect(!parse_viewer_observation({ .Status = 200, .Body = viewer }, identity()), std::string{ "viewer identities require exact positive integer tokens: " } + invalid);
+			const auto comment = replace_wire_field(comment_body(), "\"id\":22", field);
+			expect(!parse_review_comment_response({ .Status = 201, .Body = comment }, request()), "comment author cannot normalize into an integer");
+			expect(!parse_review_comment_observations({ .Status = 200, .Body = "[" + comment + "]" }, request()), "reconciliation cannot normalize fractional author through a DOM round trip");
+		}
+		const auto exactExponent = replace_wire_field(viewer_body(), "\"id\":22", "\"id\":22e0");
+		expect(parse_viewer_observation({ .Status = 200, .Body = exactExponent }, identity()).has_value(), "exact nonnegative exponent remains an integer identity without floating-point conversion");
+		for (const auto* field : { "\"id\":4246446933", "\"id\":1328277631", "\"number\":1" }) {
+			const auto body = replace_wire_field(target_body(target().Semantic.ExpectedHead), field, std::string{ field } + ".0000000000000001");
+			expect(!parse_target_observation({ .Status = 200, .Body = body }, target()), "target identities and number reject fractional raw tokens");
+		}
+		for (const auto* field : { "\"id\":44", "\"line\":13" }) {
+			const auto body = replace_wire_field(comment_body(), field, std::string{ field } + ".0000000000000001");
+			expect(!parse_review_comment_response({ .Status = 201, .Body = body }, request()), "comment identity and line reject fractional raw tokens");
+		}
+		for (const auto id : { std::uint64_t{ 9'007'199'254'740'993U }, std::numeric_limits<std::uint64_t>::max() }) {
+			auto actor        = identity();
+			actor.DatabaseId  = id;
+			const auto field  = "\"id\":" + std::to_string(id);
+			const auto viewer = replace_wire_field(viewer_body(), "\"id\":22", field);
+			expect(parse_viewer_observation({ .Status = 200, .Body = viewer }, actor).has_value(), "viewer retains exact uint64 identity");
+			auto input                        = request();
+			input.LiveBinding->ActingIdentity = actor;
+			const auto comment                = replace_wire_field(replace_wire_field(comment_body(), "\"id\":44", field), "\"id\":22", field);
+			const auto parsed                 = parse_review_comment_response({ .Status = 201, .Body = comment }, input);
+			expect(parsed && parsed->DatabaseId == id && parsed->Author.DatabaseId == id, "comment and author retain exact uint64 identities");
+			const auto reconciled = parse_review_comment_observations({ .Status = 200, .Body = "[" + comment + "]" }, input);
+			expect(reconciled && reconciled->ExactReceipts.size() == 1U, "recovery sees the same exact large author identity");
+			--input.LiveBinding->ActingIdentity.DatabaseId;
+			const auto adjacent = parse_review_comment_observations({ .Status = 200, .Body = "[" + comment + "]" }, input);
+			expect(adjacent && adjacent->ExactReceipts.empty(), "adjacent large identity never matches a recovery receipt");
+		}
+	}
+
+	void test_legacy_json_validation_and_canonical_bytes()
+	{
+		for (const auto& body : { comment_body() + " {}", "{\"id\":44," + comment_body().substr(1U),
+								  "{\"extra\":\"\\ud800\"," + comment_body().substr(1U), "{\"extra\":\"\\udc00\"," + comment_body().substr(1U),
+								  "{\"extra\":\"\xC3\x28\"," + comment_body().substr(1U), replace_wire_field(comment_body(), "\"line\":13", "\"line\":null"),
+								  replace_wire_field(comment_body(), "\"user\":{", "\"unknown_user\":{") }) {
+			expect(!parse_review_comment_response({ .Status = 201, .Body = body }, request()), "legacy comment rejects missing, null, duplicate, trailing and malformed Unicode fields");
+			expect(!parse_review_comment_observations({ .Status = 200, .Body = "[" + body + "]" }, request()), "comment lists retain the same full-input validation");
+		}
+		const auto extended = "{\"extension\":{\"ratio\":22.0000000000000001,\"values\":[true,null,\"\\ud83d\\ude00\"]}," + comment_body().substr(1U);
+		expect(parse_review_comment_response({ .Status = 201, .Body = extended }, request()).has_value(), "valid unknown extension values remain accepted");
+		// Temporary Qt oracle: remove in BPR-0640 after retaining literal byte fixtures.
+		auto input          = request();
+		input.Proposal.Body = "Literal \\u000B \\u001F, escapes: \" \\ / café 😀 ";
+		for (auto character = 0; character < 32; ++character) {
+			input.Proposal.Body.push_back(static_cast<char>(character));
+		}
+		input.IdempotencyKey         = application::idempotency_key_for(input.Proposal, input.Target);
+		const auto        compiled   = compile_review_comment_request(input);
+		const auto        commitText = core::canonical_hex(input.LiveBinding->Anchor.Commit);
+		const QJsonObject previous{
+			{ "body", QString::fromUtf8(input.Proposal.Body) },
+			{ "commit_id", QString::fromUtf8(commitText.view()) },
+			{ "line", 13 },
+			{ "path", "fixture/review.txt" },
+			{ "side", "RIGHT" }
+		};
+		expect(compiled && compiled->Body == QJsonDocument{ previous }.toJson(QJsonDocument::Compact).toStdString(), "Glaze canonical bytes preserve Qt request fingerprints including every control escape and Unicode");
+	}
+
 	void test_historical_review_target_identity()
 	{
 		const auto response = review_mutation_wire_response{
@@ -645,6 +722,8 @@ auto main() -> int
 	test_zero_based_semantic_lines_translate_to_one_based_rest_lines();
 	test_exact_response_identity_and_bounds();
 	test_historical_review_target_identity();
+	test_legacy_exact_integer_json();
+	test_legacy_json_validation_and_canonical_bytes();
 	std::cout << "github-mutation-contract-tests:pass\n";
 	return EXIT_SUCCESS;
 }
