@@ -2,6 +2,7 @@
 
 #include "bpr/qt/comparison_scroll_controller.hpp"
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 
 #include <glaze/json.hpp>
@@ -83,6 +84,7 @@ namespace bpr::e2e::large_review {
 		std::uint64_t                  WheelEvents = 0, ScrollFrames = 0, ScrollIndexBuilds = 0, ScrollGeometryRebuilds = 0, ScrollPaneMeasurements = 0;
 		std::size_t                    RapidSelections = 0, SelectionsWithOutstandingDiff = 0;
 		std::size_t                    DiffCacheEntries = 0;
+		std::size_t                    PeakConversationRootsDuringSelections = 0;
 		std::uint64_t                  DiffCacheBytes   = 0;
 		bool                           ExactLargeSource = false, ExactFinalSource = false, Rendered = false, ShutdownComplete = false;
 		std::string                    TimingScope = "Debug/local observation; 5 ms event-loop timer; outstanding jobs are sampled, not continuous CPU occupancy. Wheel batch is measured after classification settles. No cross-platform latency budget.";
@@ -372,6 +374,12 @@ auto main(int argc, char** argv) -> int
 			report.Rendered         = window.grab().save(QString::fromLocal8Bit(argv[3]));
 			require(report.Rendered, "full-window capture failed");
 
+			auto* conversationModel = window.conversation_model();
+			QObject::connect(conversationModel, &QAbstractItemModel::rowsInserted, &window,
+							 [&report, conversationModel] {
+								 report.PeakConversationRootsDuringSelections = std::max(report.PeakConversationRootsDuringSelections,
+																						 static_cast<std::size_t>(conversationModel->rowCount()));
+							 });
 			QTimer selections;
 			selections.setInterval(1);
 			int           next = 0;
@@ -395,6 +403,7 @@ auto main(int argc, char** argv) -> int
 				}
 			});
 			require(measure_wait(*application, budget, report, "rapid_selection_supersession", [&] { selections.start(); }, [&] { return next == 32 && selected(surface, source_path(31)) && quiet(*application); }), "supersession timed out");
+			require(report.PeakConversationRootsDuringSelections <= 2U, "file switching temporarily widened conversations to unrelated threads");
 			report.SupersessionDrainMs = static_cast<double>(drain.nsecsElapsed()) / 1'000'000.0;
 			require(report.SelectionsWithOutstandingDiff != 0U, "supersession never overlapped outstanding diff work");
 			report.ExactFinalSource = surface.left_pane()->document()->firstBlock().text() == "int fixture_0031 = 0;" && surface.right_pane()->document()->firstBlock().text() == "int fixture_0031 = 1;";

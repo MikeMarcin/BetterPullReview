@@ -640,7 +640,6 @@ namespace bpr::qt {
 				if (ConversationPanel == nullptr || ComparisonSurface == nullptr) {
 					return;
 				}
-				const auto& context           = ComparisonSurface->current_context();
 				const auto  endpointIsCurrent = aSelection.has_value()
 					&& (aSelection->PreferredLine.Side == core::diff_side::left
 							? LeftConversationEndpointCurrent
@@ -651,11 +650,7 @@ namespace bpr::qt {
 					? std::optional<core::source_line_ref>{ aSelection->PreferredLine }
 					: std::nullopt;
 				ApplyingConversationAnchor = true;
-				ConversationPanel->set_anchor_file(
-					context.has_value()
-						? std::optional<core::file_identity>{
-							  context->Key.File }
-						: std::nullopt);
+				ConversationPanel->set_anchor_file(conversation_anchor_file());
 				ConversationPanel->set_anchor_line(line);
 				if (aInteractive && !line.has_value()) {
 					ConversationPanel->view()->setCurrentIndex({ });
@@ -1617,8 +1612,15 @@ namespace bpr::qt {
 			apply_file_rows(*aProjection.Files);
 		}
 		if (aProjection.Selection) {
+			const auto previousFile = conversation_anchor_file();
 			Cursor = aProjection.Selection->Cursor;
 			apply_file_selection();
+			if (ConversationPanel != nullptr && previousFile != conversation_anchor_file()) {
+				ApplyingConversationAnchor = true;
+				ConversationPanel->set_anchor_file(conversation_anchor_file());
+				ConversationPanel->set_anchor_line(std::nullopt);
+				ApplyingConversationAnchor = false;
+			}
 		}
 		if (aProjection.Drawers) {
 			DrawerStates = *aProjection.Drawers;
@@ -1666,6 +1668,22 @@ namespace bpr::qt {
 		ApplyingFileSelection = false;
 		++Statistics.FileRowUpdates;
 		apply_file_selection();
+	}
+
+	auto workbench_window::conversation_anchor_file() const
+		-> std::optional<core::file_identity>
+	{
+		// File selection survives the asynchronous gap between clearing the
+		// previous diff and receiving the next one. Widening to the whole PR
+		// in that gap rebuilds unrelated threads on every file switch.
+		if (Cursor.has_value()) {
+			return Cursor->File;
+		}
+		// Standalone diff presentation has no workbench cursor projection.
+		if (ComparisonSurface != nullptr && ComparisonSurface->current_context()) {
+			return ComparisonSurface->current_context()->Key.File;
+		}
+		return std::nullopt;
 	}
 
 	void workbench_window::apply_file_selection()
@@ -2181,12 +2199,7 @@ namespace bpr::qt {
 		// the anchor could only follow a conversation projection, because nothing
 		// observed a comparison context change. The shell composes both surfaces,
 		// so it sets the anchor from the file the reviewer is actually reading.
-		ConversationPanel->set_anchor_file(
-			ComparisonSurface != nullptr
-					&& ComparisonSurface->current_context().has_value()
-				? std::optional<core::file_identity>{
-					  ComparisonSurface->current_context()->Key.File }
-				: std::nullopt);
+		ConversationPanel->set_anchor_file(conversation_anchor_file());
 		ApplyingConversationAnchor = true;
 		ConversationPanel->adopt(
 			aPullRequest.Conversations,

@@ -1786,6 +1786,40 @@ namespace {
 		window.hide();
 	}
 
+	void test_selected_file_filter_survives_diff_loading()
+	{
+		qt::workbench_window window;
+		const auto           first  = core::file_identity_of("src/first.cpp");
+		const auto           second = core::file_identity_of("src/second.cpp");
+		const auto           select = [&](core::file_identity aFile) {
+			auto projection      = both_files_enabled();
+			projection.Selection = core::workbench_selection_delta{
+				.Cursor = core::workbench_navigation_cursor{ .File = aFile, .Ordinal = 1U, .ActionableCount = 2U }
+			};
+			window.publish(projection);
+		};
+		select(first);
+		window.conversation_panel()->adopt({ { .Id = "first", .Kind = application::github_conversation_kind::review_thread, .Path = "src/first.cpp" },
+											 { .Id = "second", .Kind = application::github_conversation_kind::review_thread, .Path = "src/second.cpp" },
+											 { .Id = "unrelated", .Kind = application::github_conversation_kind::review_thread, .Path = "src/unrelated.cpp" } },
+										   QStringLiteral("three threads"));
+		expect(window.conversation_model()->rowCount() == 1 && window.conversation_model()->index_for_id("first").isValid(), "core file selection filters before a diff arrives");
+		select(second);
+		window.comparison_surface()->clear();
+		window.set_conversation_endpoint_placement(false, false);
+		expect(window.conversation_panel()->anchor_file() == second
+				   && window.conversation_model()->rowCount() == 1 && window.conversation_model()->index_for_id("second").isValid(),
+			   "clearing the previous diff cannot widen the selected file to the whole review");
+		const auto diff = computed_comparison("old\n", "new\n", 0U, second);
+		static_cast<void>(publish_fixture(window, diff));
+		expect(window.conversation_panel()->anchor_file() == second && window.conversation_model()->rowCount() == 1, "accepted diff keeps the same selected file filter");
+		window.comparison_surface()->clear();
+		auto cleared      = both_files_enabled();
+		cleared.Selection = core::workbench_selection_delta{ .Cursor = core::workbench_navigation_cursor{ } };
+		window.publish(cleared);
+		expect(!window.conversation_panel()->anchor_file() && window.conversation_model()->rowCount() == 3, "an explicit absent core file selection restores the whole-review view");
+	}
+
 	void test_same_automatically_selected_line_click_filters_conversations()
 	{
 		const auto diff = computed_comparison(
@@ -4041,6 +4075,7 @@ auto main(int argc, char** argv) -> int
 	test_the_conversations_drawer_hosts_the_threaded_conversation();
 	test_the_centre_is_the_composed_rfc_0004_comparison_surface();
 	test_same_automatically_selected_line_click_filters_conversations();
+	test_selected_file_filter_survives_diff_loading();
 	test_conversation_selection_reveals_exact_diff_anchor();
 	test_conversation_line_outside_selected_comparison_is_explicit();
 	test_failed_replacement_keeps_conversations_on_the_requested_file();
