@@ -35,7 +35,7 @@ performance subsystem or fabricate timing budgets before measurement.
 | Criterion | Check / remaining work | Result and commit |
 |---|---|---|
 | Checked-in benchmark fixtures cover large file counts, large files, many comments, many epochs, and mixed binary/generated content. | BPR-0623 supplies a synthetic 515-file pack with a 20,000-line comparison, binary/generated content, 32 heads and 1,000 paged comments. Stored-object and semantic-drift checks pass. BPR-0624 serves the latest head through the ordinary provider/installed-Git/application path and measures it. | Input boundary passes in `ee1717c2`; latest-head composed course passes in `e9da7abc` (27.30s). Many-epoch application replay and justified budgets remain open. |
-| UI input, scrolling, and navigation remain responsive while background work runs. | BPR-0624 verifies 32 selections (31 with outstanding diff work), exact final source, change navigation and idle wheel invariants. Its Mac timer observes 387.48 ms/201.09 ms maximum intervals in large/rapid selection. BPR-0627 owns profiling/correction and active-work input follow-up. | Open; correctness passes in `e9da7abc`, but measured stalls prevent an RFC-wide responsiveness claim. |
+| UI input, scrolling, and navigation remain responsive while background work runs. | BPR-0624 verifies 32 selections (31 with outstanding diff work), exact final source, change navigation and idle wheel invariants. Its Mac timer observes 387.48 ms/201.09 ms maximum intervals in large/rapid selection. BPR-0627 fixes selected-file scope; BPR-0628 yields native measurement; BPR-0629 owns remaining index/publication work. | Open; correctness passes in `e9da7abc`, but measured stalls prevent an RFC-wide responsiveness claim. |
 | Memory and cache usage remain within documented budgets and recover after closing/pruning reviews. | Measure process/cache retention through close and prune; justify hardware-specific thresholds before enforcing them. | Open; no RFC-wide passing result claimed. |
 | Primary and secondary rate-limit simulations produce bounded backoff and useful UI state. | Reuse and assess provider/host rate-limit fixtures and their visible projection; add uncovered backoff cases. | Open; no RFC-wide passing result claimed. |
 | Offline mode uses clearly labeled cached data and never implies freshness. | Inspect selected cached-data behavior and exercise explicit stale/offline presentation. | Open; no RFC-wide passing result claimed. |
@@ -142,3 +142,25 @@ complete; the RFC responsiveness criterion remains open on these new cards and
 broader active-work/platform coverage. The provisional target for rapid file
 switch input on this recorded Mac is a maximum 100 ms event-loop interval,
 roughly twice the corrected 44.34 ms observation; it is not a portable CI limit.
+
+
+BPR-0628 completes cooperative native measurement in `49aefc1cf2c196168c280d0d7d3d9176251a72e9`
+(helper `52a33b68`). Final focused axis/workbench/window/large-review checks pass
+6/6 in 31.54s; the full-window raster is inspected. On the same recorded Mac,
+94 measurement continuations admit 93 input callbacks; gaps between these
+callbacks are maximum 5.356 ms / p95 4.488 ms. Each continuation has a hard
+512-line cap and checks a 4 ms target between groups. Exact native geometry,
+selection, cached scrolling, supersession and layout cancellation remain intact.
+No incomplete axis can be adopted, and stale geometry input is suspended while
+retaining the remeasurement anchor. No remote CI or live account was used.
+
+The whole initial selection still records a 297.119 ms maximum interval
+(2,329.20 ms total), distinct from the measured batching interval. Next Mac work
+is BPR-0629: the existing host already owns the effect job, while both its finish
+path and Qt publication repeat full-result validation/index preparation on the
+UI decision lane. Bind a prepared immutable index to the exact accepted result,
+include its retained allocation in cache accounting, and keep cancellation and
+late-completion checks. Do not bypass validation or move Qt work to a worker.
+Native text installation remains a separate measured limit. Rapid selection
+remains below the provisional 100 ms local target (50.437 ms maximum here),
+which is not a universal responsiveness claim. RFC-0013 remains open.
