@@ -7,6 +7,7 @@
 #include "bpr/core/agent_profile.hpp"
 #include "bpr/core/review_round_trip.hpp"
 
+#include <array>
 #include <compare>
 #include <cstddef>
 #include <cstdint>
@@ -114,6 +115,15 @@ namespace bpr::application {
 		const core::agent_session&       aSession)
 		-> std::expected<core::agent_context_supplement, agent_context_failure>;
 
+	/// Exact read-only lifetime lock retained by the launcher and its supervisor.
+	/// The adapter interprets native identity; no descriptor crosses this port.
+	struct agent_workspace_lifetime_guard
+	{
+		std::string                   Path;
+		std::array<std::uint64_t, 4U> FileIdentity{ };
+		auto                          operator<=>(const agent_workspace_lifetime_guard&) const = default;
+	};
+
 	/// \brief What one agent process is started with.
 	struct agent_launch_request
 	{
@@ -129,6 +139,9 @@ namespace bpr::application {
 		std::string Input;
 		/// App Server context held until its initialized thread is identified.
 		std::string DeferredContext;
+		/// Present only for a workspace with durable recovery ownership. A
+		/// requested guard must be retained or launch refuses before execution.
+		std::optional<agent_workspace_lifetime_guard> WorkspaceLifetimeGuard;
 
 		auto operator<=>(const agent_launch_request&) const = default;
 	};

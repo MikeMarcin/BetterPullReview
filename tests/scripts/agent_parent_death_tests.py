@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import os
 from pathlib import Path
 import signal
@@ -28,9 +29,41 @@ def run_course(executable: Path, root: Path, *, kill_process_group: bool) -> Non
     agent = None
     descendant = None
     terminated = False
+    paused_supervisor = None
+    def guard_available() -> bool:
+        with (root / "workspace.guard").open("rb") as guard:
+            try:
+                fcntl.flock(guard, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                return True
+            except BlockingIOError:
+                return False
+    def pause_supervisor() -> None:
+        nonlocal paused_supervisor
+        paused_supervisor = int((root / "supervisor.pid").read_text())
+        if paused_supervisor <= 1:
+            raise RuntimeError("invalid fixture supervisor PID")
+        os.kill(paused_supervisor, signal.SIGSTOP)
+        if guard_available():
+            raise RuntimeError("workspace guard was not held during agent execution")
+    def resume_supervisor() -> None:
+        nonlocal paused_supervisor
+        if paused_supervisor is not None:
+            try:
+                os.kill(paused_supervisor, signal.SIGCONT)
+            except ProcessLookupError:
+                pass
+            paused_supervisor = None
+    def observe_dead_owner() -> None:
+        nonlocal paused_supervisor
+        try:
+            if guard_available():
+                raise RuntimeError("application death released the live supervisor's workspace guard")
+        finally:
+            resume_supervisor()
     try:
         kill_at_checkpoint(executable, "--kill-agent-parent", root,
-                           kill_process_group=kill_process_group)
+                           kill_process_group=kill_process_group, before_kill=pause_supervisor,
+                           after_kill=observe_dead_owner)
         agent = int((root / "agent.pid").read_text())
         descendant = int((root / "descendant.pid").read_text())
         if agent <= 1 or descendant <= 1 or agent == descendant:
@@ -44,6 +77,8 @@ def run_course(executable: Path, root: Path, *, kill_process_group: bool) -> Non
                 raise RuntimeError("agent or descendant survived forced application death")
             time.sleep(0.02)
         terminated = True
+        if not guard_available():
+            raise RuntimeError("finished supervisor retained its workspace guard")
         size = marker.stat().st_size
         time.sleep(0.15)
         if marker.stat().st_size != size:
@@ -53,6 +88,7 @@ def run_course(executable: Path, root: Path, *, kill_process_group: bool) -> Non
             raise RuntimeError("fresh launcher did not recover")
         print(f"agent-parent-death:{root.name}:pass", flush=True)
     finally:
+        resume_supervisor()
         if not terminated:
             # These are fixture-reported direct descendants of this run.
             # Cleanup follows the assertion; it cannot make a failed claim pass.
@@ -81,6 +117,8 @@ def main() -> int:
     args = parser.parse_args()
     with contained_temporary_directory(prefix="bpr-agent-parent-death-") as raw:
         root = Path(raw)
+        if "agent-workspace-guard:pass" not in run(args.executable, "--workspace-guard", root, timeout=25):
+            raise RuntimeError("workspace guard refusal/descriptor course failed")
         unauthorized = root / "missing-channel-side-effect"
         refused = subprocess.run(
             [str(args.supervisor), str(args.canary), "--pre-assignment-side-effect", str(unauthorized)],

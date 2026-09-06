@@ -28,7 +28,9 @@
 	#include <csignal>
 	#include <fcntl.h>
 	#include <poll.h>
+	#include <sys/file.h>
 	#include <sys/socket.h>
+	#include <sys/stat.h>
 	#include <sys/types.h>
 	#include <unistd.h>
 #endif
@@ -47,6 +49,7 @@ namespace bpr::adapters::agent {
 			QProcess Process{ nullptr };
 	#if defined(Q_OS_UNIX)
 			std::array<int, 2> Lifetime{ -1, -1 };
+			int                WorkspaceGuard = -1;
 			void               close_owner() noexcept
 			{
 				if (Lifetime[0] >= 0) {
@@ -63,9 +66,48 @@ namespace bpr::adapters::agent {
 				if (Process.state() != QProcess::NotRunning) {
 					static_cast<void>(Process.waitForFinished(5'000));
 				}
+				if (WorkspaceGuard >= 0) {
+					static_cast<void>(::close(WorkspaceGuard));
+				}
 			}
 	#endif
 		};
+
+	#if defined(Q_OS_UNIX)
+		[[nodiscard]] auto open_workspace_guard(const application::agent_workspace_lifetime_guard& aGuard) -> int
+		{
+			if (aGuard.Path.empty() || aGuard.Path.size() > 4096U || aGuard.Path.find('\0') != std::string::npos) {
+				return -1;
+			}
+			const auto      path = std::filesystem::path{ aGuard.Path };
+			std::error_code error;
+			if (!path.is_absolute() || std::filesystem::canonical(path, error) != path || error) {
+				return -1;
+			}
+			const auto opened = ::open(path.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+			if (opened < 0) {
+				return -1;
+			}
+			// Keep the guard source above the helper's fixed FD 3/4 slots.
+			const auto descriptor = ::fcntl(opened, F_DUPFD_CLOEXEC, 5);
+			static_cast<void>(::close(opened));
+			if (descriptor < 0) {
+				return -1;
+			}
+			struct stat before{ }, named{ };
+			const auto  valid = ::fstat(descriptor, &before) == 0
+				&& S_ISREG(before.st_mode) && before.st_uid == ::geteuid()
+				&& (before.st_mode & (S_IRWXG | S_IRWXO)) == 0 && before.st_nlink == 1
+				&& aGuard.FileIdentity == std::array<std::uint64_t, 4U>{ 1U, static_cast<std::uint64_t>(before.st_dev), 0U, static_cast<std::uint64_t>(before.st_ino) }
+				&& ::flock(descriptor, LOCK_SH | LOCK_NB) == 0
+				&& ::lstat(path.c_str(), &named) == 0 && named.st_dev == before.st_dev && named.st_ino == before.st_ino;
+			if (!valid) {
+				static_cast<void>(::close(descriptor));
+				return -1;
+			}
+			return descriptor;
+		}
+	#endif
 
 		[[nodiscard]] auto wait_slice(
 			const QElapsedTimer& aElapsed, const int aTimeoutMilliseconds) -> int
@@ -274,6 +316,13 @@ namespace bpr::adapters::agent {
 			return result;
 		}
 
+#if !defined(Q_OS_UNIX)
+		if (aRequest.WorkspaceLifetimeGuard.has_value()) {
+			result.Outcome       = application::agent_run_outcome::failed_to_start;
+			result.StandardError = "workspace lifetime guard is unavailable on this platform";
+			return result;
+		}
+#endif
 #if defined(Q_OS_WIN)
 		return detail::run_windows_agent_process(
 			aRequest, aTimeoutMilliseconds, aSink, cancelled);
@@ -297,21 +346,33 @@ namespace bpr::adapters::agent {
 			result.StandardError = "agent lifetime channel could not be created";
 			return result;
 		}
-		auto* const process = &state.Process;
-		const auto  channel = state.Lifetime[1];
-		state.Process.setChildProcessModifier([process, channel] {
-			// A terminal/session group signal aimed at the application must not
-			// kill its lifetime supervisor before it can clean up the agent group.
-			if (::setpgid(0, 0) != 0) {
-				process->failChildProcessModifier("agent supervisor process group", errno);
+		if (aRequest.WorkspaceLifetimeGuard.has_value()) {
+			state.WorkspaceGuard = open_workspace_guard(*aRequest.WorkspaceLifetimeGuard);
+			if (state.WorkspaceGuard < 0) {
+				result.Outcome       = application::agent_run_outcome::failed_to_start;
+				result.StandardError = "workspace lifetime guard could not be retained";
+				return result;
+			}
+		}
+		auto* const process        = &state.Process;
+		const auto  channel        = state.Lifetime[1];
+		const auto  workspaceGuard = state.WorkspaceGuard;
+		state.Process.setChildProcessModifier([process, channel, workspaceGuard] {
+			// A separate session excludes application-group signals and the
+			// orphaned-stopped-group SIGHUP when the application dies.
+			if (::setsid() < 0) {
+				process->failChildProcessModifier("agent supervisor session", errno);
 			}
 			if (::dup2(channel, 3) < 0 || ::fcntl(3, F_SETFD, 0) != 0) {
 				process->failChildProcessModifier("agent lifetime channel", errno);
 			}
+			if (workspaceGuard >= 0 && (::dup2(workspaceGuard, 4) < 0 || ::fcntl(4, F_SETFD, 0) != 0)) {
+				process->failChildProcessModifier("workspace lifetime guard", errno);
+			}
 		});
 		state.Process.setUnixProcessParameters({
 			.flags                       = QProcess::UnixProcessFlag::CloseFileDescriptors | QProcess::UnixProcessFlag::ResetSignalHandlers,
-			.lowestFileDescriptorToClose = 4,
+			.lowestFileDescriptorToClose = workspaceGuard >= 0 ? 5 : 4,
 		});
 	#endif
 
@@ -323,6 +384,9 @@ namespace bpr::adapters::agent {
 		elapsed.start();
 	#if defined(Q_OS_UNIX)
 		arguments.prepend(QString::fromStdString(aRequest.Executable));
+		if (workspaceGuard >= 0) {
+			arguments.prepend("--workspace-lease");
+		}
 		#ifdef BPR_AGENT_SUPERVISOR_EXECUTABLE
 		const auto supervisor = QString::fromUtf8(BPR_AGENT_SUPERVISOR_EXECUTABLE);
 		#else

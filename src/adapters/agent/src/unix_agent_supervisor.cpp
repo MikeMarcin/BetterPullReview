@@ -1,14 +1,17 @@
 // Bundled Unix process owner. Descriptor 3 is the application's lifetime/start
-// channel; standard streams belong to the selected agent protocol. No Qt,
+// channel; optional descriptor 4 retains the exact workspace lifetime lock.
+// Standard streams belong to the selected agent protocol. No Qt,
 // repository, credential, settings or network capability is linked here.
 #include <cerrno>
 #include <csignal>
 #include <cstdint>
 #include <cstdlib>
+#include <string_view>
 
 #include <fcntl.h>
 #include <poll.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -61,6 +64,18 @@ namespace {
 
 auto main(int argc, char** argv) -> int
 {
+	const auto workspaceLease = argc > 1 && std::string_view{ argv[1] } == "--workspace-lease";
+	if (workspaceLease) {
+		--argc;
+		++argv;
+		struct stat lease{ };
+		if (::fstat(4, &lease) != 0 || !S_ISREG(lease.st_mode)
+			|| (::fcntl(4, F_GETFL) & O_ACCMODE) != O_RDONLY
+			|| ::fcntl(4, F_SETFD, FD_CLOEXEC) != 0) {
+			return Failure;
+		}
+	}
+
 	int       socketType      = 0;
 	socklen_t socketTypeBytes = sizeof(socketType);
 	if (argc < 2 || argv[1][0] != '/'
@@ -91,6 +106,9 @@ auto main(int argc, char** argv) -> int
 	if (child == 0) {
 		close_descriptor(Owner);
 		close_descriptor(execution[0]);
+		if (workspaceLease) {
+			close_descriptor(4);
+		}
 		static_cast<void>(::signal(SIGPIPE, SIG_DFL));
 		if (::setpgid(0, 0) == 0) {
 			::execv(argv[1], argv + 1);

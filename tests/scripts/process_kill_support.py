@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import os
 from pathlib import Path
 import signal
@@ -27,7 +28,9 @@ def run(executable: Path, phase: str, root: Path, *, timeout: float = 15) -> str
 
 def kill_at_checkpoint(
     executable: Path, phase: str, root: Path, *, kill_process_group: bool = False,
-    arguments: tuple[str, ...] = (), checkpoint_timeout: float = 15
+    arguments: tuple[str, ...] = (), checkpoint_timeout: float = 15,
+    before_kill: Callable[[], None] | None = None,
+    after_kill: Callable[[], None] | None = None,
 ) -> None:
     with subprocess.Popen(
         [str(executable), phase, *arguments, str(root)],
@@ -52,6 +55,8 @@ def kill_at_checkpoint(
                 time.sleep(0.01)
             if process.poll() is not None:
                 raise RuntimeError(f"{phase} exited instead of waiting to be killed")
+            if before_kill is not None:
+                before_kill()
             # kill() uses SIGKILL on POSIX and TerminateProcess on Windows;
             # stdin remains open until after death, so the C++ scope cannot exit.
             if kill_process_group:
@@ -61,6 +66,8 @@ def kill_at_checkpoint(
             else:
                 process.kill()
             process.wait(timeout=5)
+            if after_kill is not None:
+                after_kill()
             stdout, stderr = process.communicate(timeout=5)
             expected = -signal.SIGKILL if os.name == "posix" else 1
             if process.returncode != expected:

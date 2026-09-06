@@ -645,6 +645,7 @@ auto main(int argc, char** argv) -> int
 #if defined(_WIN32)
 			emit(protocol, "process-id\t" + std::to_string(::_getpid()));
 #else
+			emit(protocol, "supervisor-id\t" + std::to_string(::getppid()));
 			emit(protocol, "process-id\t" + std::to_string(::getpid()));
 #endif
 		}

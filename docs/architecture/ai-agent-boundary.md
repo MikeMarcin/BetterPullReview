@@ -149,8 +149,8 @@ cancelled, timed-out, and stale results expose no final event collection.
 Cancellation and deadlines are observed in bounded polling slices on the
 QProcess-owning thread. On Unix, a bundled, Qt-free
 `better_pull_review_agent_supervisor` starts the selected agent in its own
-process group. The supervisor itself has a separate group so a signal to
-the application’s process group does not interrupt child cleanup. A dedicated local socket carries only launch errno and the
+process group. The supervisor starts a separate session so application-group signals and
+orphaned-stopped-group hangups do not interrupt child cleanup. A dedicated local socket carries only launch errno and the
 application's lifetime; context and protocol traffic retain their ordinary
 stdin/stdout/stderr paths. Closing the application end requests teardown even
 when the application was forcibly killed. Qt closes inherited descriptors
@@ -190,6 +190,23 @@ If terminal cleanup refuses a changed workspace identity, the host retains the
 original capability and shutdown polling may request one de-duplicated retry
 on the effects actor after terminal completion; polling never performs Git or
 filesystem work itself.
+BPR-0622 adds an optional exact guard-file reference to the launch request.
+The Unix launcher validates its canonical path, private regular-file identity
+and single link, then takes a nonblocking shared lock through a read-only
+descriptor. The supervisor retains a duplicate until group teardown; the agent
+receives neither that descriptor nor the lifetime channel. An exclusive
+recovery lock therefore excludes launch and remains excluded while the old
+supervisor still runs after application death. The parent-death fixture pauses
+that supervisor to observe this interval directly. Busy, substituted and
+symlinked guard files refuse before child execution. A requested guard on an
+unsupported platform refuses rather than dropping lifetime protection.
+
+The durable workspace registry and host handoff are still BPR-0622 work in
+progress. Only the fixture currently supplies this reference; the new lock
+primitive is not evidence that production abandoned workspaces are reclaimed.
+The registry must supply original ownership and scope, and exclusive access
+alone must never authorize deletion of an arbitrary path.
+
 The Mac `application_agent_crash_recovery` course force-kills the real
 composition during a running local canary session, checks child termination,
 Git fsck/exact refs and SQLite integrity/session identity, then reopens twice

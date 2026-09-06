@@ -24,6 +24,8 @@
 
 #if defined(Q_OS_UNIX)
 	#include <fcntl.h>
+	#include <sys/file.h>
+	#include <sys/stat.h>
 	#include <unistd.h>
 #endif
 
@@ -623,6 +625,52 @@ namespace {
 		std::filesystem::remove(marker, ignored);
 	}
 
+#if defined(Q_OS_UNIX)
+	[[nodiscard]] auto make_workspace_guard(const std::filesystem::path& aPath) -> application::agent_workspace_lifetime_guard
+	{
+		{
+			std::ofstream file{ aPath };
+			file << "fixture-owned workspace guard\n";
+		}
+		std::filesystem::permissions(aPath, std::filesystem::perms::owner_read | std::filesystem::perms::owner_write);
+		struct stat identity{ };
+		expect(::lstat(aPath.c_str(), &identity) == 0, "capture exact fixture guard identity");
+		return { .Path = aPath.string(), .FileIdentity = { 1U, static_cast<std::uint64_t>(identity.st_dev), 0U, static_cast<std::uint64_t>(identity.st_ino) } };
+	}
+
+	void test_workspace_guard(const std::filesystem::path& aRoot)
+	{
+		qputenv("BPR_CANARY_AGENT_IDENTITY", QByteArray{ "allowed" });
+		auto launched                   = request(core::agent_protocol::external_terminal);
+		launched.WorkspaceLifetimeGuard = make_workspace_guard(aRoot / "guard");
+		const auto marker               = aRoot / "guard-side-effect";
+		launched.Arguments.insert(launched.Arguments.end(), { "--pre-assignment-side-effect", marker.string(), "--probe-inherited-fd", "4" });
+		auto       launcher = adapters::agent::agent_process_launcher{ };
+		const auto result   = launcher.run(launched, 20'000);
+		expect(result.Outcome == application::agent_run_outcome::success && std::filesystem::exists(marker)
+				   && std::ranges::any_of(result.Events, [](const auto& aEvent) { return aEvent.Text == "inherited-fd-closed"; }),
+			   "guarded launch succeeds without exposing the guard descriptor to the agent");
+		std::filesystem::remove(marker);
+		const auto lock = ::open((aRoot / "guard").c_str(), O_RDONLY | O_CLOEXEC);
+		expect(lock >= 0 && ::flock(lock, LOCK_EX | LOCK_NB) == 0, "completed launch releases lifetime exclusion");
+		expect(launcher.run(launched, 20'000).Outcome == application::agent_run_outcome::failed_to_start
+				   && !std::filesystem::exists(marker),
+			   "recovery's exclusive lock refuses launch before any child side effect");
+		static_cast<void>(::close(lock));
+		std::filesystem::rename(aRoot / "guard", aRoot / "original");
+		static_cast<void>(make_workspace_guard(aRoot / "guard"));
+		expect(launcher.run(launched, 20'000).Outcome == application::agent_run_outcome::failed_to_start
+				   && !std::filesystem::exists(marker),
+			   "same-path guard substitution refuses before execution");
+		std::filesystem::remove(aRoot / "guard");
+		std::filesystem::create_symlink(aRoot / "original", aRoot / "guard");
+		expect(launcher.run(launched, 20'000).Outcome == application::agent_run_outcome::failed_to_start
+				   && !std::filesystem::exists(marker),
+			   "guard symlink refuses before execution");
+		std::cout << "agent-workspace-guard:pass\n";
+	}
+#endif
+
 	void run_parent_death_course(const std::string_view aPhase, const std::filesystem::path& aRoot)
 	{
 		qputenv("BPR_CANARY_AGENT_IDENTITY", QByteArray{ "allowed" });
@@ -636,8 +684,18 @@ namespace {
 			return;
 		}
 		expect(aPhase == "--kill-agent-parent", "known parent-death course");
+#if defined(Q_OS_UNIX)
+		launched.WorkspaceLifetimeGuard = make_workspace_guard(aRoot / "workspace.guard");
+#endif
+
 		launched.Arguments.insert(launched.Arguments.end(), { "--spawn-descendant", (aRoot / "heartbeat").string(), "--report-process-id", "--wait-forever" });
 		static_cast<void>(launcher.run(launched, 60'000, [&](const application::agent_stream_event& aEvent) {
+			if (aEvent.Text.starts_with("supervisor-id\t")) {
+				std::ofstream supervisor{ aRoot / "supervisor.pid" };
+				supervisor << aEvent.Text.substr(std::string_view{ "supervisor-id\t" }.size());
+				supervisor.close();
+				expect(supervisor.good(), "publish supervisor PID");
+			}
 			if (aEvent.Text.starts_with("descendant-id\t")) {
 				std::ofstream descendant{ aRoot / "descendant.pid" };
 				descendant << aEvent.Text.substr(std::string_view{ "descendant-id\t" }.size());
@@ -721,6 +779,12 @@ auto main(int argc, char** argv) -> int
 {
 	QCoreApplication application{ argc, argv };
 	if (argc == 3) {
+#if defined(Q_OS_UNIX)
+		if (std::string_view{ argv[1] } == "--workspace-guard") {
+			test_workspace_guard(std::filesystem::canonical(argv[2]));
+			return EXIT_SUCCESS;
+		}
+#endif
 		run_parent_death_course(argv[1], std::filesystem::canonical(argv[2]));
 		return EXIT_SUCCESS;
 	}
