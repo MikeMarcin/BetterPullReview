@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <string_view>
@@ -12,6 +13,7 @@
 	#include <process.h>
 	#include <windows.h>
 #else
+	#include <csignal>
 	#include <unistd.h>
 #endif
 
@@ -88,6 +90,44 @@ auto main(int argc, char** argv) -> int
 		std::cerr << raw_git_diagnostic;
 		return 128;
 	}
+
+#if !defined(_WIN32)
+	// The containing composed fixture arms exactly one materialization stage.
+	// Stop before exec so a resumed unsupervised `git init` could recreate a
+	// checkout that recovery incorrectly removed while this writer survived.
+	const auto checkpoint = executable.parent_path() / ".bpr-pause-workspace";
+	if (std::filesystem::is_regular_file(checkpoint)) {
+		auto        input = std::ifstream{ checkpoint };
+		std::string command;
+		std::getline(input, command);
+		if ((command == "init" || command == "checkout-index") && hasArgument(command)) {
+			const auto root      = executable.parent_path().parent_path();
+			auto       workspace = std::filesystem::path{ argv[argc - 1] };
+			if (command == "checkout-index") {
+				for (int index = 1; index + 1 < argc; ++index) {
+					if (std::string_view{ argv[index] } == "-C") {
+						workspace = argv[index + 1];
+					}
+				}
+			}
+			if (!workspace.is_absolute() || !std::filesystem::is_directory(workspace)) {
+				return 126;
+			}
+			for (const auto& [name, value] : std::vector<std::pair<std::string, std::string>>{
+					 { "git.pid", std::to_string(::getpid()) },
+					 { "supervisor.pid", std::to_string(::getppid()) },
+					 { "workspace-parent", workspace.parent_path().string() } }) {
+				auto output = std::ofstream{ root / name };
+				output << value;
+				output.close();
+				if (!output) {
+					return 126;
+				}
+			}
+			static_cast<void>(::raise(SIGSTOP));
+		}
+	}
+#endif
 
 #if defined(_WIN32)
 	// _execv cannot replace a Windows process image: the CRT spawns the new

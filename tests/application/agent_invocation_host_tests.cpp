@@ -210,6 +210,7 @@ namespace {
 				.ParentDirectory    = aRequest.ParentDirectory,
 				.OwnershipMarker    = "owned",
 				.DirectoryIdentity  = { .Opaque = { 2U, 1U, 0U, 1U } },
+				.LifetimeGuard      = Guard,
 			};
 			if (AfterMaterialization) {
 				AfterMaterialization();
@@ -236,6 +237,7 @@ namespace {
 
 		std::size_t                                                         Starts   = 0U;
 		std::size_t                                                         Cleanups = 0U;
+		std::optional<application::agent_workspace_lifetime_guard>          Guard;
 		std::optional<application::agent_workspace_materialization_request> LastRequest;
 		std::optional<application::owned_agent_workspace>                   LastCleanup;
 		std::vector<application::owned_agent_workspace>                     CleanupAttempts;
@@ -688,7 +690,8 @@ namespace {
 
 	void test_valid_dispatch_materializes_before_process_and_cleans_after_terminal()
 	{
-		auto test = harness{ };
+		auto test             = harness{ };
+		test.Workspaces.Guard = application::agent_workspace_lifetime_guard{ .Path = "/tmp/fixture-ownership.jsonl", .FileIdentity = { 1U, 2U, 0U, 3U } };
 		test.Host.observe(
 			core::application_session_id{ 1U },
 			authority(core::git_host_id{ 1U }),
@@ -711,6 +714,9 @@ namespace {
 					== core::agent_session_id{ 41U },
 			"the durable allocator identity is reused by every later effect");
 		const auto& launch = *test.Processes.LastRequest;
+		expect(launch.WorkspaceLifetimeGuard == test.Workspaces.Guard
+				   && test.Workspaces.LastCleanup->LifetimeGuard == test.Workspaces.Guard,
+			   "exact lifetime guard survives materialization, launch and cleanup unchanged");
 		expect(
 			launch.WorkingDirectory == "/tmp/bpr-agent-owned/exact-head"
 				&& launch.Input.find("github.example/octo/review/pull/17")

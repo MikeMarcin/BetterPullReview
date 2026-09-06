@@ -31,6 +31,7 @@
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -492,18 +493,21 @@ auto main(int argc, char** argv) -> int
 	}
 	const auto course              = std::string_view{ argv[1] };
 	const auto workspaceDiagnostic = course == "workspace-diagnostic";
+	const auto crashMaterializing  = course == "crash-materializing-init" || course == "crash-materializing-checkout" || course == "cancel-materializing-checkout";
 	if (
 		(workspaceDiagnostic && argc != 4)
-		|| (!workspaceDiagnostic && argc != 3 && argc != 4)) {
+		|| (crashMaterializing && argc != 5)
+		|| (!workspaceDiagnostic && !crashMaterializing && argc != 3 && argc != 4)) {
 		return EXIT_FAILURE;
 	}
 	if (course != "positive" && course != "positive-seed"
 		&& course != "crash-running" && course != "crash-reinvoke"
+		&& course != "startup-recover" && course != "startup-repair"
 		&& course != "positive-reopen" && course != "construction-cut"
 		&& course != "launcher-construction-cut"
 		&& course != "gesture-cut" && course != "cancellation"
 		&& course != "staleness" && course != "cleanup-retry"
-		&& !workspaceDiagnostic) {
+		&& !workspaceDiagnostic && !crashMaterializing) {
 		return EXIT_FAILURE;
 	}
 	constexpr std::string_view selectedNote
@@ -515,24 +519,24 @@ auto main(int argc, char** argv) -> int
 		= "BPR_SELECTED_DRAFT_0250 would a bounded retry be safer?";
 	auto expectedContext
 		= std::optional<app::detail::agent_invocation_context_evidence>{ };
-	auto data = QTemporaryDir{ };
-	if (!data.isValid()) {
+	const auto externalRoot = crashMaterializing || (argc == 4 && !workspaceDiagnostic);
+	auto       data         = externalRoot ? nullptr : std::make_unique<QTemporaryDir>();
+	if (data && !data->isValid()) {
 		return EXIT_FAILURE;
 	}
-	const auto      dataRoot = argc == 4 && !workspaceDiagnostic
-		? std::filesystem::path{ argv[3] }
-		: std::filesystem::path{ data.path().toStdString() };
+	const auto      dataRoot = crashMaterializing ? std::filesystem::path{ argv[4] } : argc == 4 && !workspaceDiagnostic ? std::filesystem::path{ argv[3] }
+																														 : std::filesystem::path{ data->path().toStdString() } / "data";
 	std::error_code dataError;
 	std::filesystem::create_directories(dataRoot, dataError);
 	if (dataError) {
 		return EXIT_FAILURE;
 	}
-	auto diagnosticGitRoot = QTemporaryDir{ };
-	if (!diagnosticGitRoot.isValid()) {
+	auto diagnosticGitRoot = workspaceDiagnostic ? std::make_unique<QTemporaryDir>() : nullptr;
+	if (diagnosticGitRoot && !diagnosticGitRoot->isValid()) {
 		return EXIT_FAILURE;
 	}
 	auto diagnosticGit = std::optional<std::filesystem::path>{ };
-	if (workspaceDiagnostic) {
+	if (workspaceDiagnostic || crashMaterializing) {
 		const auto source = std::filesystem::path{ argv[3] };
 		// The staging directory carries a non-ASCII component so the ordinary
 		// run of this course exercises the exec-path reply encoding: the
@@ -541,9 +545,7 @@ auto main(int argc, char** argv) -> int
 		// code page (BPR-0476). The root arrives from Qt as UTF-16; the narrow
 		// toStdString() round-trip would mis-decode the component on Windows
 		// before the wrapper ever ran.
-		const auto stagedRoot = std::filesystem::path{
-			diagnosticGitRoot.path().toStdU16String()
-		} / std::filesystem::path{ u8"wräpper" };
+		const auto      stagedRoot = crashMaterializing ? dataRoot / "git-wrapper" : std::filesystem::path{ diagnosticGitRoot->path().toStdU16String() } / std::filesystem::path{ u8"wräpper" };
 		std::error_code stageError;
 		std::filesystem::create_directories(stagedRoot, stageError);
 		if (stageError) {
@@ -620,6 +622,25 @@ auto main(int argc, char** argv) -> int
 		});
 	application->show();
 	auto& window = application->window();
+	if (course == "startup-recover" || course == "startup-repair") {
+		if (course == "startup-repair") {
+			auto repair = wait_terms{ };
+			if (!wait_until_reporting(repair, [&window](wait_terms& aTerms) {
+					return aTerms.require("repair-visible", window.agent_panel()->status_text().contains("Disposable workspace recovery needs repair"));
+				})) {
+				return fail(*application, "startup-repair-visible", repair.render());
+			}
+		}
+		const auto stopped  = shutdown(*application);
+		const auto evidence = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
+		if (!stopped || evidence.AgentProcessLauncherInvocations != 0U
+			|| application->status().AgentWorkspaceCleanupFailed != (course == "startup-repair")) {
+			return EXIT_FAILURE;
+		}
+		std::cout << "agent-invocation-" << course << ":pass\n";
+		return EXIT_SUCCESS;
+	}
+
 	window.github_connect_action()->trigger();
 	auto connected = wait_terms{ };
 	if (!wait_until_reporting(connected, [&window](wait_terms& aTerms) {
@@ -890,7 +911,59 @@ auto main(int argc, char** argv) -> int
 			return fail(*application, "workspace-diagnostic-marker");
 		}
 	}
+	if (crashMaterializing) {
+		auto marker = std::ofstream{ diagnosticGit->parent_path() / ".bpr-pause-workspace" };
+		marker << (course == "crash-materializing-init" ? "init" : "checkout-index");
+		marker.close();
+		if (!marker) {
+			return fail(*application, "materialization-marker");
+		}
+	}
 	panel->start_button()->click();
+	if (crashMaterializing) {
+		auto checkpoint = wait_terms{ };
+		if (!wait_until_reporting(checkpoint, [&dataRoot](wait_terms& aTerms) {
+				return aTerms.require("materializing-git-paused",
+									  std::filesystem::exists(dataRoot / "workspace-parent"));
+			})) {
+			return fail(*application, "materializing-git", checkpoint.render());
+		}
+		const auto fixture    = app::detail::github_application_fixture_access::evidence(*application);
+		const auto invocation = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
+		if (invocation.Statistics.SessionAdmissions != 1U || invocation.Statistics.ProcessStarts != 0U) {
+			return fail(*application, "materializing-session");
+		}
+		for (const auto& [name, value] : std::array{
+				 std::pair{ "base-oid", fixture.BaseOid }, std::pair{ "head-oid", fixture.HeadOneOid },
+				 std::pair{ "kill-ready", std::string{ course } } }) {
+			auto file = std::ofstream{ dataRoot / name };
+			file << value;
+			file.close();
+			if (!file) {
+				return fail(*application, "materializing-checkpoint");
+			}
+		}
+		if (course == "cancel-materializing-checkout") {
+			panel->cancel_action()->trigger();
+			auto terminal = wait_terms{ };
+			if (!wait_until_reporting(terminal, [&application, panel](wait_terms& aTerms) {
+					const auto current = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
+					return aTerms.require("cancelled", panel->status_text() == "Finished: cancelled")
+						&& aTerms.require("quiescent", current.Quiescent)
+						&& aTerms.require("no-agent-start", current.Statistics.ProcessStarts == 0U);
+				})) {
+				return fail(*application, "materialization-cancellation", terminal.render());
+			}
+			if (!shutdown(*application) || application->status().AgentWorkspaceCleanupFailed) {
+				return EXIT_FAILURE;
+			}
+			std::cout << "agent-materialization-cancel:pass\n";
+			return EXIT_SUCCESS;
+		}
+		for (;;) {
+			QThread::msleep(100);
+		}
+	}
 	if (course == "crash-running") {
 		auto running = wait_terms{ };
 		if (!wait_until_reporting(running, [panel](wait_terms& aTerms) {
@@ -908,8 +981,9 @@ auto main(int argc, char** argv) -> int
 		const auto cwd        = line_value(output, "cwd\t");
 		const auto agent      = line_value(output, "process-id\t");
 		const auto descendant = line_value(output, "descendant-id\t");
+		const auto supervisor = line_value(output, "supervisor-id\t");
 		const auto marker     = line_value(output, "descendant-marker\t");
-		if (!cwd || !agent || !descendant || !marker
+		if (!cwd || !agent || !descendant || !supervisor || !marker
 			|| !exact_agent_process_launcher_path(evidence, panel->statistics().StartIntents == 1U)
 			|| evidence.Statistics.SessionAdmissions != 1U
 			|| evidence.Statistics.ProcessStarts != 1U
@@ -919,6 +993,7 @@ auto main(int argc, char** argv) -> int
 		}
 		for (const auto& [name, value] : std::array{
 				 std::pair{ "agent.pid", *agent }, std::pair{ "descendant.pid", *descendant },
+				 std::pair{ "supervisor.pid", *supervisor },
 				 std::pair{ "heartbeat-path", *marker }, std::pair{ "workspace-path", *cwd },
 				 std::pair{ "workspace-parent", evidence.WorkspaceRoot.string() },
 				 std::pair{ "base-oid", fixture.BaseOid }, std::pair{ "head-oid", fixture.HeadOneOid } }) {
@@ -1402,8 +1477,10 @@ auto main(int argc, char** argv) -> int
 			== "https://github.com/octo-org/review-repository/pull/17";
 	const auto containsForbiddenContext = actualFields.has_value()
 		&& contains_forbidden_context(*actualFields);
-	const auto exact = exact_agent_process_launcher_path(
-						   evidence, panel->statistics().StartIntents == 1U)
+	const auto relativeWorkspace = cwd ? std::filesystem::path{ *cwd }.lexically_relative(dataRoot) : std::filesystem::path{ };
+	const auto outsideCache      = !relativeWorkspace.empty() && *relativeWorkspace.begin() == "..";
+	const auto exact             = exact_agent_process_launcher_path(
+									   evidence, panel->statistics().StartIntents == 1U)
 		&& evidence.Quiescent
 		&& evidence.Statistics.CoreDecisions == 1U
 		&& evidence.Statistics.WorkspaceStarts == 1U
@@ -1411,8 +1488,12 @@ auto main(int argc, char** argv) -> int
 		&& evidence.Statistics.WorkspaceCleanups == 1U
 		&& cwd.has_value() && !std::filesystem::exists(*cwd)
 		&& !evidence.WorkspaceRoot.empty()
+#if defined(Q_OS_UNIX)
+		&& !std::filesystem::exists(evidence.WorkspaceRoot)
+#else
 		&& std::filesystem::exists(evidence.WorkspaceRoot)
-		&& !std::filesystem::path{ *cwd }.string().starts_with(dataRoot.string())
+#endif
+		&& outsideCache
 		&& output.find("head\t" + fixture.HeadOneOid) != std::string::npos
 		&& output.find("origin\tabsent") != std::string::npos
 		&& output.find("alternates\tabsent") != std::string::npos

@@ -160,7 +160,10 @@ auto main(int argc, char** argv) -> int
 				}
 				return finish_child(child);
 			}
-			if (state.si_pid == child) {
+			// Darwin can report CLD_STOPPED even with WEXITED. A stopped
+			// writer is still alive and must retain its lifetime exclusion.
+			if (state.si_pid == child
+				&& (state.si_code == CLD_EXITED || state.si_code == CLD_KILLED || state.si_code == CLD_DUMPED)) {
 				return finish_child(child);
 			}
 		}

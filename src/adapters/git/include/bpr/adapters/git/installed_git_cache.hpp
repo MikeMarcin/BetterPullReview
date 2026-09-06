@@ -15,6 +15,8 @@ namespace bpr::adapters::git {
 		std::filesystem::path                GitExecutable;
 		std::filesystem::path                StorageRoot;
 		std::optional<std::filesystem::path> WindowsSystemRoot;
+		/// Opt-in durable workspace ownership; absent for legacy/native callers.
+		std::optional<std::filesystem::path> WorkspaceOwnershipRegistry;
 	};
 
 	/// \brief Creates the installed git cache.

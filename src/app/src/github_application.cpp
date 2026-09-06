@@ -37,6 +37,7 @@
 #endif
 
 #include "bpr/adapters/agent/agent_process_launcher.hpp"
+#include "bpr/adapters/git/agent_workspace_ownership.hpp"
 #include "bpr/adapters/git/installed_git_cache.hpp"
 #include "bpr/adapters/git/installed_git_process.hpp"
 #include "bpr/adapters/mcp/mcp_context_helper.hpp"
@@ -2881,14 +2882,14 @@ namespace bpr::app {
 		: public application::agent_invocation_projection_port
 	{
 	public:
-		using finding_sink = std::function<void(
+		using finding_sink   = std::function<void(
 			const application::agent_invocation_projection_identity&,
 			const application::agent_finding_delivery&)>;
-		using session_sink = std::function<void(const core::agent_session&)>;
+		using session_sink   = std::function<void(const core::agent_session&)>;
+		using workspace_sink = std::function<void(const application::prepared_workspace&)>;
 		/// \brief BPR-0538. One turn, ended, with how it ended.
 		///
-		/// \details The third sink, and the last one this projection needs: a
-		/// press learns that its turn is over from the turn itself. A poll
+		/// \details A press learns that its turn is over from the turn itself. A poll
 		/// would have to decide how often to ask and would still be wrong
 		/// between two asks.
 		using run_sink = std::function<void(
@@ -2899,11 +2900,13 @@ namespace bpr::app {
 			application::agent_invocation_projection_port& aPanel,
 			finding_sink                                   aFindings,
 			session_sink                                   aSessions,
-			run_sink                                       aRuns)
+			run_sink                                       aRuns,
+			workspace_sink                                 aWorkspaces)
 			: Panel{ aPanel }
 			, Findings{ std::move(aFindings) }
 			, Sessions{ std::move(aSessions) }
 			, Runs{ std::move(aRuns) }
+			, Workspaces{ std::move(aWorkspaces) }
 		{
 		}
 
@@ -2936,6 +2939,9 @@ namespace bpr::app {
 			const application::prepared_workspace&                   aWorkspace) override
 		{
 			Panel.start(aIdentity, aWorkspace);
+			if (Workspaces) {
+				Workspaces(aWorkspace);
+			}
 		}
 
 		void stream(
@@ -2980,6 +2986,7 @@ namespace bpr::app {
 		finding_sink                                   Findings;
 		session_sink                                   Sessions;
 		run_sink                                       Runs;
+		workspace_sink                                 Workspaces;
 	};
 
 	/// \brief Forwards chat state and chat outcomes to their surfaces.
@@ -3625,10 +3632,13 @@ namespace bpr::app {
 				}
 			}
 
-			auto cache   = adapters::git::make_installed_git_cache({
+			auto cache = adapters::git::make_installed_git_cache({
 				.GitExecutable     = gitExecutable,
 				.StorageRoot       = applicationDataRoot,
 				.WindowsSystemRoot = windows_system_root(),
+#if defined(Q_OS_UNIX)
+				.WorkspaceOwnershipRegistry = applicationDataRoot / "agent-workspace-ownership-v1",
+#endif
 			});
 			auto catalog = adapters::sqlite::make_epoch_catalog({
 				.StorageRoot = applicationDataRoot,
@@ -3806,6 +3816,12 @@ namespace bpr::app {
 				DecisionLane,
 				*this, application::epoch_host_limits{ }, DiagnosticLog);
 
+#if defined(Q_OS_UNIX)
+			// Persistent private neighbourhood on the cache filesystem, outside
+			// its isolation root. Only effect workers create or recover children.
+			const auto agentWorkspacePath = ApplicationDataRoot.parent_path()
+				/ (ApplicationDataRoot.filename().string() + "-agent-workspaces-v1");
+#else
 			// git pack-objects creates its temporary pack inside the --git-dir's
 			// own object store and renames it onto the requested output base.
 			// A workspace on another filesystem makes that rename EXDEV, and
@@ -3863,6 +3879,8 @@ namespace bpr::app {
 				|| within(cachePath, agentWorkspacePath)) {
 				throw std::runtime_error{ "Agent workspace root crosses Git cache" };
 			}
+#endif
+			AgentWorkspaceNeighbourhood = agentWorkspacePath;
 			// The one new edge out of the agent host. The launch panel still
 			// receives every projection it already did; this adds the typed
 			// finding delivery, and nothing else. There is deliberately no
@@ -3937,6 +3955,9 @@ namespace bpr::app {
 						}
 						settle_comment_workshop(
 							aIdentity.Session.Id, aResult.Outcome);
+					},
+					[this](const application::prepared_workspace& aWorkspace) {
+						LastAgentWorkspacePath = aWorkspace.Path;
 					});
 			auto agentProfiles = core::built_in_agent_profiles();
 			// Stated once and given to both hosts. The chat host asks
@@ -4753,6 +4774,29 @@ namespace bpr::app {
 			// settings actually in effect rather than on its own defaults.
 			adopt_appearance_settings();
 			apply_appearance();
+#if defined(Q_OS_UNIX)
+			AgentWorkspaceRecoveryPending.store(true, std::memory_order_release);
+			try {
+				EpochEffects.post([this, registry = ApplicationDataRoot / "agent-workspace-ownership-v1", neighbourhood = AgentWorkspaceNeighbourhood] {
+					auto recovered = adapters::git::recover_installed_agent_workspaces(registry, neighbourhood);
+					try {
+						DecisionLane.post([this, result = std::move(recovered)] {
+							AgentWorkspaceCleanupFailed = !result.has_value();
+							if (!result && !Closing && Window && Window->agent_panel()) {
+								Window->agent_panel()->refuse("Disposable workspace recovery needs repair or has reached its limit.");
+							}
+							AgentWorkspaceRecoveryPending.store(false, std::memory_order_release);
+						});
+					} catch (...) {
+						AgentWorkspaceRecoveryPostFailed.store(true, std::memory_order_release);
+						AgentWorkspaceRecoveryPending.store(false, std::memory_order_release);
+					}
+				});
+			} catch (...) {
+				AgentWorkspaceCleanupFailed = true;
+				AgentWorkspaceRecoveryPending.store(false, std::memory_order_release);
+			}
+#endif
 		}
 
 		~implementation() override
@@ -7819,7 +7863,7 @@ namespace bpr::app {
 				.EntryPoint     = aChat.EntryPoint,
 				.Provider       = agent_provider_name(aChat.Session.Profile),
 				.GitHost        = AgentReview->Hostname,
-				.Workspace      = AgentWorkspaceRoot != nullptr ? AgentWorkspaceRoot->path().toStdString() : std::string{ },
+				.Workspace      = LastAgentWorkspacePath,
 			});
 		}
 
@@ -8539,11 +8583,18 @@ namespace bpr::app {
 				schedule_shutdown_poll();
 				return;
 			}
+			if (AgentWorkspaceRecoveryPending.load(std::memory_order_acquire)) {
+				schedule_shutdown_poll();
+				return;
+			}
+			if (AgentWorkspaceRecoveryPostFailed.load(std::memory_order_acquire)) {
+				AgentWorkspaceCleanupFailed = true;
+			}
 			if (!AgentWorkspaceCleanupAttempted) {
 				AgentWorkspaceCleanupAttempted = true;
-				AgentWorkspaceCleanupFailed    = !AgentWorkspaceParent.has_value()
-					|| !adapters::git::remove_installed_agent_workspace_parent(
-						*AgentWorkspaceParent);
+				if (AgentWorkspaceParent.has_value()) {
+					AgentWorkspaceCleanupFailed = !adapters::git::remove_installed_agent_workspace_parent(*AgentWorkspaceParent);
+				}
 			}
 			begin_other_shutdown();
 			if (
@@ -8988,6 +9039,10 @@ namespace bpr::app {
 		worker_executor                                                QueueEffects;
 		std::unique_ptr<application::epoch_application_host>           EpochHost;
 		std::unique_ptr<QTemporaryDir>                                 AgentWorkspaceRoot;
+		std::filesystem::path                                          AgentWorkspaceNeighbourhood;
+		std::string                                                    LastAgentWorkspacePath;
+		std::atomic<bool>                                              AgentWorkspaceRecoveryPending{ false };
+		std::atomic<bool>                                              AgentWorkspaceRecoveryPostFailed{ false };
 		std::optional<adapters::git::installed_agent_workspace_parent>
 																 AgentWorkspaceParent;
 		std::unique_ptr<adapters::agent::agent_process_launcher> AgentProcess;
@@ -15010,10 +15065,7 @@ namespace bpr::app {
 			.Statistics    = implementation->AgentHost != nullptr
 				? implementation->AgentHost->statistics()
 				: application::agent_invocation_host_statistics{ },
-			.WorkspaceRoot = implementation->AgentWorkspaceRoot != nullptr
-				? std::filesystem::path{
-					  implementation->AgentWorkspaceRoot->path().toStdString() }
-				: std::filesystem::path{ },
+			.WorkspaceRoot = std::filesystem::path{ implementation->LastAgentWorkspacePath }.parent_path(),
 		};
 	}
 #endif

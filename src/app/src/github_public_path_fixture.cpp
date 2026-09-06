@@ -2248,6 +2248,13 @@ namespace bpr::app::detail {
 					"GitHub public-path installed Git is unavailable"
 				};
 			}
+			// Keep the persistent workspace neighbourhood beside the cache but
+			// inside this fixture's temporary ownership boundary.
+			ApplicationDataRoot /= "data";
+			std::error_code createError;
+			if (!std::filesystem::create_directory(ApplicationDataRoot, createError) || createError) {
+				throw std::runtime_error{ "GitHub public-path application data is unavailable" };
+			}
 			// A QTemporaryDir carries the entries its parent grants; the stores
 			// refuse that, so it is narrowed the way every other root is
 			// (BPR-0436).

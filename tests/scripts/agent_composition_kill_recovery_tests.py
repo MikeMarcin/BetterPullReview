@@ -90,9 +90,49 @@ def main() -> int:
         root.mkdir()
         pids = []
         stopped = False
+        paused_supervisor = None
         try:
+            def invoke(course: str, marker: str) -> None:
+                result = subprocess.run([str(args.executable), course, str(args.canary), str(root)],
+                                        check=False, capture_output=True, text=True, timeout=90)
+                if result.returncode != 0:
+                    raise RuntimeError(f"{course} failed ({result.returncode}):\n{result.stdout[-4000:]}\n{result.stderr[-4000:]}")
+                if marker not in result.stdout:
+                    raise RuntimeError(f"{course} did not prove its public-path result")
+            def live_recovery() -> None:
+                live_workspace = Path(root.joinpath("workspace-parent").read_text())
+                records = list((root / "agent-workspace-ownership-v1").glob("*.jsonl"))
+                if len(records) != 1:
+                    raise RuntimeError("running application lacks exact workspace journal")
+                identity = live_workspace.stat().st_ino
+                receipt = records[0].read_bytes()
+                invoke("startup-recover", "agent-invocation-startup-recover:pass")
+                if not live_workspace.exists() or live_workspace.stat().st_ino != identity or records[0].read_bytes() != receipt:
+                    raise RuntimeError("another ordinary application reclaimed live workspace ownership")
+            def resume_supervisor() -> None:
+                nonlocal paused_supervisor
+                if paused_supervisor is not None:
+                    try:
+                        os.kill(paused_supervisor, signal.SIGCONT)
+                    except ProcessLookupError:
+                        pass
+                    paused_supervisor = None
+            def pause_supervisor() -> None:
+                nonlocal paused_supervisor
+                live_recovery()
+                paused_supervisor = int(root.joinpath("supervisor.pid").read_text())
+                if paused_supervisor <= 1:
+                    raise RuntimeError("invalid fixture supervisor identity")
+                os.kill(paused_supervisor, signal.SIGSTOP)
+            def recover_before_supervisor_teardown() -> None:
+                try:
+                    if not all(running(int(root.joinpath(name).read_text())) for name in ("supervisor.pid", "agent.pid", "descendant.pid")):
+                        raise RuntimeError("supervisor lifetime course lost its live fixture processes")
+                    live_recovery()
+                finally:
+                    resume_supervisor()
             kill_at_checkpoint(args.executable, "crash-running", root,
-                               arguments=(str(args.canary),), checkpoint_timeout=60)
+                               arguments=(str(args.canary),), checkpoint_timeout=60, before_kill=pause_supervisor, after_kill=recover_before_supervisor_teardown)
             pids = [int(root.joinpath(name).read_text()) for name in ("agent.pid", "descendant.pid")]
             if len(set(pids)) != 2 or any(pid <= 1 for pid in pids):
                 raise RuntimeError("invalid fixture process identities")
@@ -107,22 +147,35 @@ def main() -> int:
             stopped = True
             baseline = inspect_state(args.git, root, 1)
             workspace = Path(root.joinpath("workspace-parent").read_text())
-            if workspace.parent != parent:
+            if workspace.parent != parent / "data-agent-workspaces-v1":
                 raise RuntimeError("workspace escaped the fixture-owned parent")
             original = workspace_snapshot(workspace)
-            def invoke(course: str, marker: str) -> None:
-                result = subprocess.run([str(args.executable), course, str(args.canary), str(root)],
-                                        check=False, capture_output=True, text=True, timeout=90)
-                if result.returncode != 0:
-                    raise RuntimeError(f"{course} failed ({result.returncode}):\n{result.stdout[-4000:]}\n{result.stderr[-4000:]}")
-                if marker not in result.stdout:
-                    raise RuntimeError(f"{course} did not prove its public-path result")
+            displaced = parent / "preserved-original"
+            substitute = parent / "preserved-substitute"
+            workspace.rename(displaced)
+            workspace.mkdir(mode=0o700)
+            workspace.joinpath("user-canary").write_text("preserve this substitute")
+            substitute_identity = workspace.stat().st_ino
+            invoke("startup-repair", "agent-invocation-startup-repair:pass")
+            if workspace.stat().st_ino != substitute_identity or workspace.joinpath("user-canary").read_text() != "preserve this substitute":
+                raise RuntimeError("startup recovery altered the substitute")
+            if workspace_snapshot(displaced) != original or inspect_state(args.git, root, 1) != baseline:
+                raise RuntimeError("repair refusal altered original workspace or retained state")
+            workspace.rename(substitute)
+            displaced.rename(workspace)
+            invoke("startup-recover", "agent-invocation-startup-recover:pass")
+            if workspace.exists() or inspect_state(args.git, root, 1) != baseline:
+                raise RuntimeError("startup without opening a PR failed exact workspace reclamation")
+            if substitute.stat().st_ino != substitute_identity or substitute.joinpath("user-canary").read_text() != "preserve this substitute":
+                raise RuntimeError("recovery changed the preserved substitute")
             for index in range(2):
                 invoke("positive-reopen", "agent-invocation-composition-reopen:pass")
                 if inspect_state(args.git, root, 1) != baseline:
                     raise RuntimeError("ordinary reopen changed committed session/cache identity")
-                if workspace_snapshot(workspace) != original:
-                    raise RuntimeError("reopen changed the old workspace without recovery ownership")
+                if workspace.exists():
+                    raise RuntimeError("ordinary reopen retained a durably owned abandoned workspace")
+                if list((root / "agent-workspace-ownership-v1").glob("*.jsonl")):
+                    raise RuntimeError("ordinary reopen retained abandoned ownership journals")
                 print(f"agent-composition-kill:reopen-{index + 1}:pass", flush=True)
             invoke("crash-reinvoke", "agent-invocation-crash-reinvoke:pass")
             current = inspect_state(args.git, root, 2)
@@ -130,11 +183,13 @@ def main() -> int:
                 raise RuntimeError("new explicit invocation changed prior session/epoch/cache identity")
             if current[0][1][2:] != current[0][0][2:]:
                 raise RuntimeError("new session did not preserve the exact admitted binding")
-            if workspace_snapshot(workspace) != original:
-                raise RuntimeError("new invocation modified the interrupted workspace")
-            print(f"agent-composition-kill:orphan-workspace-retained entries={len(original)}", flush=True)
+            if workspace.exists() or list((root / "agent-workspace-ownership-v1").glob("*.jsonl")):
+                raise RuntimeError("new invocation retained old or new disposable workspace ownership")
+            print(f"agent-composition-kill:owned-workspace-reclaimed entries={len(original)}", flush=True)
             print("agent-composition-kill:pass", flush=True)
         finally:
+            if paused_supervisor is not None:
+                resume_supervisor()
             if not stopped:
                 if not pids:
                     pids = [int(path.read_text()) for name in ("agent.pid", "descendant.pid")

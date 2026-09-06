@@ -1059,6 +1059,18 @@ if(UNIX)
     set_tests_properties(application_agent_crash_recovery PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}"
         TIMEOUT 360)
+    bpr_add_network_isolated_test(
+        NAME application_agent_materialization_crash_recovery
+        COMMAND Python3::Interpreter
+            "${PROJECT_SOURCE_DIR}/tests/scripts/agent_materialization_kill_recovery_tests.py"
+            --executable "$<TARGET_FILE:test_better_pull_review_agent_invocation_composition_public_path>"
+            --canary "$<TARGET_FILE:test_better_pull_review_agent_canary>"
+            --git "$<TARGET_FILE:Git::Git>"
+            --wrapper "$<TARGET_FILE:test_better_pull_review_git_diagnostic_wrapper>"
+    )
+    set_tests_properties(application_agent_materialization_crash_recovery PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        TIMEOUT 360)
 endif()
 
 # RFC-BPR-0012. A fixture agent that anchors its finding at the identity the

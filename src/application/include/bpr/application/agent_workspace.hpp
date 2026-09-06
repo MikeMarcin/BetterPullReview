@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_WORKSPACE_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_WORKSPACE_HPP
 
+#include "bpr/application/agent_workspace_lifetime_guard.hpp"
 #include "bpr/core/agent_profile.hpp"
 #include "bpr/core/agent_session.hpp"
 #include "bpr/core/epoch_model.hpp"
@@ -112,13 +113,14 @@ namespace bpr::application {
 	/// bounded workspace rather than authorizing deletion of an ambiguous path.
 	struct owned_agent_workspace
 	{
-		prepared_workspace                 Workspace;
-		core::application_session_id       ApplicationSession;
-		core::pull_request_authority       Authority;
-		core::agent_session_id             Session;
-		std::filesystem::path              ParentDirectory;
-		std::string                        OwnershipMarker;
-		agent_workspace_directory_identity DirectoryIdentity;
+		prepared_workspace                            Workspace;
+		core::application_session_id                  ApplicationSession;
+		core::pull_request_authority                  Authority;
+		core::agent_session_id                        Session;
+		std::filesystem::path                         ParentDirectory;
+		std::string                                   OwnershipMarker;
+		agent_workspace_directory_identity            DirectoryIdentity;
+		std::optional<agent_workspace_lifetime_guard> LifetimeGuard;
 
 		auto operator<=>(const owned_agent_workspace&) const = default;
 	};

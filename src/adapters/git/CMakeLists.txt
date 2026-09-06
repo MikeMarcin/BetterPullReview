@@ -36,6 +36,13 @@ if(BPR_BUILD_QT)
                 _LIBCPP_ENABLE_EXPERIMENTAL
         )
     endif()
+    if(UNIX)
+        add_dependencies(better_pull_review_adapter_git tool_better_pull_review_agent_supervisor)
+        if(BUILD_TESTING)
+            target_compile_definitions(better_pull_review_adapter_git PRIVATE
+                "BPR_AGENT_SUPERVISOR_EXECUTABLE=\"$<TARGET_FILE:tool_better_pull_review_agent_supervisor>\"")
+        endif()
+    endif()
     bpr_enable_hardening(better_pull_review_adapter_git)
     bpr_enable_warnings(better_pull_review_adapter_git)
 else()

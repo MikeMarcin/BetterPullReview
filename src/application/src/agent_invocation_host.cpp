@@ -600,7 +600,8 @@ namespace bpr::application {
 			workspace_preparation              aExisting,
 			const std::shared_ptr<invocation>& aInvocation)
 		{
-			auto workspace = std::optional<prepared_workspace>{ };
+			auto workspace     = std::optional<prepared_workspace>{ };
+			auto lifetimeGuard = std::optional<agent_workspace_lifetime_guard>{ };
 			if (aInvocation->Stop->stop_requested()) {
 				complete(
 					{ .Session = aInvocation->Identity.Session.Id,
@@ -628,7 +629,8 @@ namespace bpr::application {
 						aInvocation);
 					return;
 				}
-				workspace = materialized->Workspace;
+				workspace     = materialized->Workspace;
+				lifetimeGuard = materialized->LifetimeGuard;
 				track_workspace(aInvocation, std::move(*materialized));
 			}
 
@@ -647,7 +649,8 @@ namespace bpr::application {
 					aInvocation);
 				return;
 			}
-			launch->WorkingDirectory = workspace->Path;
+			launch->WorkingDirectory       = workspace->Path;
+			launch->WorkspaceLifetimeGuard = std::move(lifetimeGuard);
 			if (aInvocation->Stop->stop_requested()) {
 				complete(
 					{ .Session = aInvocation->Identity.Session.Id,

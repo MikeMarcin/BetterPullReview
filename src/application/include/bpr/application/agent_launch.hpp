@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_LAUNCH_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_LAUNCH_HPP
 
+#include "bpr/application/agent_workspace_lifetime_guard.hpp"
 #include "bpr/application/review_ledger_port.hpp"
 #include "bpr/core/agent_context_supplement.hpp"
 #include "bpr/core/agent_finding.hpp"
@@ -114,15 +115,6 @@ namespace bpr::application {
 		const agent_context_observation& aObservation,
 		const core::agent_session&       aSession)
 		-> std::expected<core::agent_context_supplement, agent_context_failure>;
-
-	/// Exact read-only lifetime lock retained by the launcher and its supervisor.
-	/// The adapter interprets native identity; no descriptor crosses this port.
-	struct agent_workspace_lifetime_guard
-	{
-		std::string                   Path;
-		std::array<std::uint64_t, 4U> FileIdentity{ };
-		auto                          operator<=>(const agent_workspace_lifetime_guard&) const = default;
-	};
 
 	/// \brief What one agent process is started with.
 	struct agent_launch_request

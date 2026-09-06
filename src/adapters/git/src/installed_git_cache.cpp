@@ -5632,9 +5632,10 @@ namespace bpr::adapters::git {
 				}
 				auto process = make_installed_git_process(
 					{
-						.GitExecutable     = Configuration.GitExecutable,
-						.IsolationRoot     = *storage,
-						.WindowsSystemRoot = Configuration.WindowsSystemRoot,
+						.GitExecutable              = Configuration.GitExecutable,
+						.IsolationRoot              = *storage,
+						.WindowsSystemRoot          = Configuration.WindowsSystemRoot,
+						.WorkspaceOwnershipRegistry = Configuration.WorkspaceOwnershipRegistry,
 					},
 					aStop);
 				if (!process.has_value()) {
