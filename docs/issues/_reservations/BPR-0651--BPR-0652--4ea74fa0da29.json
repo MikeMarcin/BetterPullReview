@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0651",
+    "BPR-0652"
+  ],
+  "reserve_for": "bpr-workbench-direction-drawers-settings",
+  "purpose": "",
+  "created": "2026-09-06T23:22:31.798757+00:00",
+  "base": "6635b2879c66da4d8e676fca4469b8a2a2744db5"
+}
