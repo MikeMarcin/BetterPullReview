@@ -34,9 +34,9 @@ performance subsystem or fabricate timing budgets before measurement.
 
 | Criterion | Check / remaining work | Result and commit |
 |---|---|---|
-| Checked-in benchmark fixtures cover large file counts, large files, many comments, many epochs, and mixed binary/generated content. | BPR-0623 supplies a synthetic 515-file pack with a 20,000-line comparison, binary/generated content, 32 heads and 1,000 paged comments. Stored-object and semantic-drift checks pass. BPR-0624 serves the latest head through the ordinary provider/installed-Git/application path and measures it. | Input boundary passes in `ee1717c2`; latest-head composed course passes in `e9da7abc` (27.30s). Many-epoch application replay and justified budgets remain open. |
-| UI input, scrolling, and navigation remain responsive while background work runs. | BPR-0624 verifies 32 selections (31 with outstanding diff work), exact final source, change navigation and idle wheel invariants. Its Mac timer observes 387.48 ms/201.09 ms maximum intervals in large/rapid selection. BPR-0627 fixes selected-file scope; BPR-0628 yields native measurement; BPR-0629 owns remaining index/publication work. | Open; correctness passes in `e9da7abc`, but measured stalls prevent an RFC-wide responsiveness claim. |
-| Memory and cache usage remain within documented budgets and recover after closing/pruning reviews. | Measure process/cache retention through close and prune; justify hardware-specific thresholds before enforcing them. | Open; no RFC-wide passing result claimed. |
+| Checked-in benchmark fixtures cover large file counts, large files, many comments, many epochs, and mixed binary/generated content. | BPR-0623/0624 supply the 515-file, 20,000-line, binary/generated and 1,000-comment workload. BPR-0631 independently checks all 31 stored head deltas; BPR-0632 drives all 32 application epochs, exact source and retained refs/catalog through public refresh/history/selection. | Fixture and Mac composed coverage pass in `75d1494e` (320.25s history replay), with 897 exact reads and 32 retained epochs. Broader latency/platform criteria remain separate. |
+| UI input, scrolling, and navigation remain responsive while background work runs. | BPR-0627 corrects selected-file scope, BPR-0628 yields native measurement, and BPR-0629 moves semantic-index preparation off the GUI publication turn. BPR-0632 fixes pending single-anchor supersession and measures 31 rapid epoch changes, 30 during active work, with exact final source. | Partial passing Mac evidence: ordinary large-file maximum input interval 68.662 ms; final many-epoch maximum 71.247 ms and supersession 10.848 ms in `75d1494e`. One prior 112.448-ms source-selection sample missed the provisional 100-ms target and did not repeat unchanged; retain the outlier. Broader/native-platform acceptance remains open. |
+| Memory and cache usage remain within documented budgets and recover after closing/pruning reviews. | BPR-0630 proves public prune/delete/close cleanup with sampled Mac footprint and immutable-object release. BPR-0632 keeps 32-epoch comparison caching within configured ceilings (35 entries / 116,505 bytes at completion). Independent loaded-close memory and broader cache pressure remain to be exercised. | Partial passing evidence in `316390ce` and `75d1494e`; no RFC-wide passing result claimed. |
 | Primary and secondary rate-limit simulations produce bounded backoff and useful UI state. | Reuse and assess provider/host rate-limit fixtures and their visible projection; add uncovered backoff cases. | Open; no RFC-wide passing result claimed. |
 | Offline mode uses clearly labeled cached data and never implies freshness. | Inspect selected cached-data behavior and exercise explicit stale/offline presentation. | Open; no RFC-wide passing result claimed. |
 | Process-kill tests recover Git cache and SQLite state without corruption or duplicate mutations. | BPR-0616: `live_review_submission_provider` and `live_review_submission_restart_recovery` passed 2/2, including five SIGKILL courses, SQLite integrity and zero duplicate POSTs. BPR-0618: all four real fetch/spool/prepared/visible kill courses pass, with repeated restart, exact epoch/ref identity, Git fsck, SQLite integrity and owned-spool cleanup. BPR-0619: all six receiving/spool/install transaction kills pass, including prior-history identity and two fresh restarts; unowned artifacts are preserved and new incoming admission is bounded. BPR-0620 adds forced owner PID/process-group death and fresh-launch evidence (`bdcd3837`); BPR-0621 exercises the real application during an AI-session kill, independent Git/SQLite reads, two no-replay reopens and explicit session #2 (`430b7c51`, 43.68s). BPR-0622 now integrates exact Unix workspace reclamation and guarded Git materialization (`0427dc76`), including live-owner/substitution negatives and preserved Git/SQLite identity. | Partial passing evidence in BPR-0616 (`72022b52`) BPR-0618 (`081fc9d1`, `21255d9c`) BPR-0619 (`62c62c6d`) and BPR-0621 (`430b7c51`); Mac state/workspace recovery lanes pass, including BPR-0622 (`0427dc76`); non-Unix integration and other target-native evidence remain open. |
@@ -239,3 +239,33 @@ application checks pass (7.43s / 5.84s / 22.17s); negatives reject substituted o
 missing epoch data. BPR-0632 is now dependency-ready for actual 32-epoch composed
 refresh/selection/cancellation and measured evidence. Do not promote fixture-only
 coverage to the whole many-epoch acceptance claim.
+
+
+BPR-0632 completes the bounded 32-epoch application course in `75d1494e9b993b19ce2822fcdb7cc4d5023b837b`.
+It exposes and fixes a real one-sided selection defect: while resolution was
+pending, enabled selectors lost subsequent choices because the accepted pair
+had been cleared. The core now uses the pending explicit pair, cancels the old
+request and rejects stale results. The isolated test fails before the fix and
+passes afterward; catalog/authority boundaries and existing host tests pass.
+The fixture inspection getter also now uses the actual hexadecimal retained-ref
+ordinal encoding beyond epoch 9; stored Git format is unchanged.
+
+All 32 refreshed heads and retained catalog/ref pairs match independent stored
+input. The final 31-choice public supersession course includes 30 changes during
+active work, displays exact first/latest/previous-upload source and drains
+shutdown. Both full windows are inspected. Final history replay passes 320.25s;
+refresh/source UI maxima are 71.247/52.518 ms, and rapid epoch supersession is
+10.848 ms maximum. The unchanged 100-ms target had one earlier 112.448-ms sample
+at source selection 20; its cause is unproven and it did not recur on the single
+unchanged repeat. Preserve this evidence and provisional status. Other four
+focused application lanes, core/host, core-only/boundaries, network isolation,
+builds and documentation checks pass as recorded on the card. No remote CI or
+production account was used.
+
+The next uncovered Mac slice is independent loaded-close memory: BPR-0630's
+close occurred after pruning/deleting, and BPR-0632 does not sample loaded-close
+memory. Reuse its native sampling and weak ownership observations in a fresh
+public-window close course before claiming recovery for a still-loaded review.
+Then address remaining cache pressure, backoff/offline, fuzz/diagnostic and
+broader active-work criteria. BPR-0622's Windows/Linux work and earlier live
+human gates remain open. No Actions, workflow dispatch, push or paid CI.
