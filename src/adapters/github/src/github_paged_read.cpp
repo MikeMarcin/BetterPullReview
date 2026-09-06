@@ -1,12 +1,9 @@
 #include "github_paged_read.hpp"
 #include "github_review_comment_grouping.hpp"
 
-#include <QByteArray>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QJsonParseError>
 #include <QString>
+
+#include <glaze/json.hpp>
 
 #include <algorithm>
 #include <array>
@@ -16,6 +13,8 @@
 #include <cstdint>
 #include <initializer_list>
 #include <limits>
+#include <map>
+#include <memory>
 #include <new>
 #include <optional>
 #include <ranges>
@@ -29,16 +28,28 @@
 
 namespace bpr::adapters::github::detail {
 	namespace {
-		constexpr std::size_t   maximum_header_name_bytes          = 256U;
-		constexpr std::size_t   maximum_header_value_bytes         = 8U * 1024U;
-		constexpr std::uint64_t maximum_retry_after_seconds        = 86'400U;
-		constexpr double        maximum_exact_json_integer         = 9'007'199'254'740'991.0;
+		constexpr std::size_t   maximum_header_name_bytes   = 256U;
+		constexpr std::size_t   maximum_header_value_bytes  = 8U * 1024U;
+		constexpr std::uint64_t maximum_retry_after_seconds = 86'400U;
+
 		constexpr std::size_t   maximum_production_page_bytes      = 4U * 1024U * 1024U;
 		constexpr std::size_t   maximum_production_aggregate_bytes = 64U * 1024U * 1024U;
 		constexpr std::size_t   maximum_production_pages           = 1'024U;
 		constexpr std::size_t   maximum_production_page_records    = 100U;
 		constexpr std::size_t   maximum_production_cursor_bytes    = 1'024U;
 		constexpr std::uint32_t maximum_graphql_sequence           = 1'024U;
+
+		struct page_json_options : glz::opts
+		{
+			bool escape_control_characters    = true;
+			bool validate_skipped             = true;
+			bool validate_trailing_whitespace = true;
+			constexpr page_json_options()
+			{
+				null_terminated       = false;
+				error_on_missing_keys = true;
+			}
+		};
 
 		[[nodiscard]] auto provider_error(
 			const application::github_provider_failure           aFailure,
@@ -534,8 +545,14 @@ namespace bpr::adapters::github::detail {
 						return json_preflight_result::malformed;
 					}
 				}
-				return Position != start ? json_preflight_result::valid
-										 : json_preflight_result::malformed;
+				// Syntax validation only: identity extraction below decodes uint64
+				// directly from the original token and never passes through double.
+				double finiteNumber = 0.0;
+				return Position != start
+						&& !glz::read<page_json_options{ }>(finiteNumber, Input.substr(start, Position - start))
+						&& std::isfinite(finiteNumber)
+					? json_preflight_result::valid
+					: json_preflight_result::malformed;
 			}
 
 			[[nodiscard]] auto literal(const std::string_view aExpected) noexcept
@@ -572,24 +589,101 @@ namespace bpr::adapters::github::detail {
 			std::size_t      Values             = 0U;
 		};
 
-		[[nodiscard]] auto exact_integer(const QJsonValue& aValue,
-										 const bool        aPositive = false) noexcept -> bool
+		// A fetched page outlives its transport completion. Every indexed child
+		// shares the immutable body, including copied GraphQL connection nodes.
+		// Only Glaze parses JSON; the checks below retain missing versus null.
+		struct page_json_value
 		{
-			if (!aValue.isDouble()) {
-				return false;
+			std::shared_ptr<const std::string> Owner;
+			std::string_view                   Json;
+		};
+		using page_json_object = std::map<std::string, page_json_value, std::less<>>;
+		using page_json_array  = std::vector<page_json_value>;
+
+		[[nodiscard]] auto json_tag(const page_json_value& aValue) noexcept -> char
+		{
+			const auto begin = aValue.Json.find_first_not_of(" \t\r\n");
+			return begin == std::string_view::npos ? '\0' : aValue.Json[begin];
+		}
+		[[nodiscard]] auto json_is_object(const page_json_value& aValue) noexcept -> bool { return json_tag(aValue) == '{'; }
+		[[nodiscard]] auto json_is_array(const page_json_value& aValue) noexcept -> bool { return json_tag(aValue) == '['; }
+		[[nodiscard]] auto json_is_string(const page_json_value& aValue) noexcept -> bool { return json_tag(aValue) == '"'; }
+		[[nodiscard]] auto json_is_null(const page_json_value& aValue) noexcept -> bool { return json_tag(aValue) == 'n'; }
+		[[nodiscard]] auto json_is_undefined(const page_json_value& aValue) noexcept -> bool { return aValue.Json.empty(); }
+		[[nodiscard]] auto json_is_bool(const page_json_value& aValue) noexcept -> bool { return json_tag(aValue) == 't' || json_tag(aValue) == 'f'; }
+		[[nodiscard]] auto json_is_number(const page_json_value& aValue) noexcept -> bool
+		{
+			const auto tag = json_tag(aValue);
+			return tag == '-' || (tag >= '0' && tag <= '9');
+		}
+		[[nodiscard]] auto parse_json_document(const std::string_view aBody) -> std::optional<page_json_value>
+		{
+			glz::skip validated;
+			if (glz::read<page_json_options{ }>(validated, aBody)) {
+				return std::nullopt;
 			}
-			const auto number = aValue.toDouble();
-			return std::isfinite(number) && std::trunc(number) == number
-				&& number >= (aPositive ? 1.0 : 0.0)
-				&& number <= maximum_exact_json_integer;
+			const auto owner  = std::make_shared<const std::string>(aBody);
+			auto       result = page_json_value{ owner, *owner };
+			return json_is_object(result) || json_is_array(result)
+				? std::optional<page_json_value>{ std::move(result) }
+				: std::nullopt;
 		}
-
-		[[nodiscard]] auto integer(const QJsonValue& aValue) noexcept -> std::uint64_t
+		[[nodiscard]] auto json_object(const page_json_value& aValue) -> page_json_object
 		{
-			return static_cast<std::uint64_t>(aValue.toDouble());
+			std::map<std::string, glz::raw_json_view, std::less<>> values;
+			if (!json_is_object(aValue) || glz::read<page_json_options{ }>(values, aValue.Json)) {
+				return { };
+			}
+			page_json_object result;
+			for (const auto& [key, value] : values) {
+				result.emplace(key, page_json_value{ aValue.Owner, value.str });
+			}
+			return result;
+		}
+		[[nodiscard]] auto json_array(const page_json_value& aValue) -> page_json_array
+		{
+			std::vector<glz::raw_json_view> values;
+			if (!json_is_array(aValue) || glz::read<page_json_options{ }>(values, aValue.Json)) {
+				return { };
+			}
+			page_json_array result;
+			result.reserve(values.size());
+			for (const auto& value : values) {
+				result.push_back(page_json_value{ aValue.Owner, value.str });
+			}
+			return result;
+		}
+		[[nodiscard]] auto json_member(const page_json_object& aObject, const std::string_view aKey) -> page_json_value
+		{
+			const auto found = aObject.find(aKey);
+			return found == aObject.end() ? page_json_value{ } : found->second;
+		}
+		[[nodiscard]] auto text(const page_json_value& aValue) -> std::string
+		{
+			std::string result;
+			return json_is_string(aValue) && !glz::read<page_json_options{ }>(result, aValue.Json) ? result : std::string{ };
+		}
+		[[nodiscard]] auto json_text(const page_json_value& aValue) -> QString
+		{
+			return QString::fromStdString(text(aValue));
+		}
+		[[nodiscard]] auto json_bool(const page_json_value& aValue) -> bool
+		{
+			bool result = false;
+			return json_is_bool(aValue) && !glz::read<page_json_options{ }>(result, aValue.Json) && result;
+		}
+		[[nodiscard]] auto exact_integer(const page_json_value& aValue, const bool aPositive = false) noexcept -> bool
+		{
+			std::uint64_t result = 0U;
+			return !glz::read<page_json_options{ }>(result, aValue.Json) && (!aPositive || result != 0U);
+		}
+		[[nodiscard]] auto integer(const page_json_value& aValue) noexcept -> std::uint64_t
+		{
+			std::uint64_t result = 0U;
+			return !glz::read<page_json_options{ }>(result, aValue.Json) ? result : 0U;
 		}
 
-		[[nodiscard]] auto uint32(const QJsonValue& aValue) noexcept
+		[[nodiscard]] auto uint32(const page_json_value& aValue) noexcept
 			-> std::optional<std::uint32_t>
 		{
 			if (!exact_integer(aValue)) {
@@ -602,18 +696,9 @@ namespace bpr::adapters::github::detail {
 			return static_cast<std::uint32_t>(result);
 		}
 
-		[[nodiscard]] auto text(const QJsonValue& aValue) -> std::string
+		[[nodiscard]] auto nonempty_string(const page_json_value& aValue) -> bool
 		{
-			const auto bytes = aValue.toString().toUtf8();
-			return {
-				bytes.constData(),
-				static_cast<std::size_t>(bytes.size()),
-			};
-		}
-
-		[[nodiscard]] auto nonempty_string(const QJsonValue& aValue) -> bool
-		{
-			return aValue.isString() && !aValue.toString().isEmpty();
+			return json_is_string(aValue) && !json_text(aValue).isEmpty();
 		}
 
 		[[nodiscard]] auto bounded_text(const std::string_view aValue,
@@ -624,21 +709,21 @@ namespace bpr::adapters::github::detail {
 				&& aValue.find('\0') == std::string_view::npos;
 		}
 
-		[[nodiscard]] auto sorted_keys(const QJsonObject& aObject)
+		[[nodiscard]] auto sorted_keys(const page_json_object& aObject)
 			-> std::vector<std::string>
 		{
 			std::vector<std::string> keys;
 			keys.reserve(static_cast<std::size_t>(aObject.size()));
-			for (auto iterator = aObject.constBegin(); iterator != aObject.constEnd();
+			for (auto iterator = aObject.cbegin(); iterator != aObject.cend();
 				 ++iterator) {
-				keys.emplace_back(iterator.key().toStdString());
+				keys.emplace_back(iterator->first);
 			}
 			std::ranges::sort(keys);
 			return keys;
 		}
 
 		[[nodiscard]] auto
-		has_exact_keys(const QJsonObject&                      aObject,
+		has_exact_keys(const page_json_object&                 aObject,
 					   const std::span<const std::string_view> aExpected) -> bool
 		{
 			std::vector<std::string> keys;
@@ -651,7 +736,7 @@ namespace bpr::adapters::github::detail {
 		}
 
 		[[nodiscard]] auto
-		has_exact_keys(const QJsonObject&                            aObject,
+		has_exact_keys(const page_json_object&                       aObject,
 					   const std::initializer_list<std::string_view> aExpected) -> bool
 		{
 			return has_exact_keys(
@@ -660,16 +745,16 @@ namespace bpr::adapters::github::detail {
 		}
 
 		[[nodiscard]] auto
-		has_required_keys(const QJsonObject&                      aObject,
+		has_required_keys(const page_json_object&                 aObject,
 						  const std::span<const std::string_view> aRequired) -> bool
 		{
 			return std::ranges::all_of(
 				aRequired,
-				[&aObject](const std::string_view aKey) { return aObject.contains(QString::fromUtf8(aKey)); });
+				[&aObject](const std::string_view aKey) { return aObject.contains(aKey); });
 		}
 
 		[[nodiscard]] auto
-		has_required_keys(const QJsonObject&                            aObject,
+		has_required_keys(const page_json_object&                       aObject,
 						  const std::initializer_list<std::string_view> aRequired)
 			-> bool
 		{
@@ -678,27 +763,27 @@ namespace bpr::adapters::github::detail {
 				std::span<const std::string_view>{ aRequired.begin(), aRequired.size() });
 		}
 
-		[[nodiscard]] auto graphql_success_envelope(const QJsonObject& aObject) -> bool
+		[[nodiscard]] auto graphql_success_envelope(const page_json_object& aObject) -> bool
 		{
 			return has_exact_keys(aObject, { "data" })
 				|| (has_exact_keys(aObject, { "data", "extensions" })
-					&& aObject.value("extensions").isObject());
+					&& json_is_object(json_member(aObject, "extensions")));
 		}
 
-		[[nodiscard]] auto one_of(const QJsonValue&                             aValue,
+		[[nodiscard]] auto one_of(const page_json_value&                        aValue,
 								  const std::initializer_list<std::string_view> aAllowed)
 			-> bool
 		{
-			if (!aValue.isString()) {
+			if (!json_is_string(aValue)) {
 				return false;
 			}
 			const auto candidate = text(aValue);
 			return std::ranges::find(aAllowed, candidate) != aAllowed.end();
 		}
 
-		[[nodiscard]] auto hexadecimal_oid(const QJsonValue& aValue) -> bool
+		[[nodiscard]] auto hexadecimal_oid(const page_json_value& aValue) -> bool
 		{
-			if (!aValue.isString()) {
+			if (!json_is_string(aValue)) {
 				return false;
 			}
 			const auto candidate = text(aValue);
@@ -712,17 +797,17 @@ namespace bpr::adapters::github::detail {
 					   });
 		}
 
-		[[nodiscard]] auto valid_line(const QJsonValue& aValue) noexcept -> bool
+		[[nodiscard]] auto valid_line(const page_json_value& aValue) noexcept -> bool
 		{
 			return exact_integer(aValue, true)
-				&& aValue.toDouble()
-				<= static_cast<double>(application::maximum_github_line);
+				&& integer(aValue)
+				<= application::maximum_github_line;
 		}
 
-		[[nodiscard]] auto optional_line(const QJsonValue& aValue)
+		[[nodiscard]] auto optional_line(const page_json_value& aValue)
 			-> std::optional<std::uint32_t>
 		{
-			return aValue.isNull() ? std::nullopt : uint32(aValue);
+			return json_is_null(aValue) ? std::nullopt : uint32(aValue);
 		}
 
 		[[nodiscard]] auto response_byte_count(const wire_response& aResponse) noexcept
@@ -777,13 +862,13 @@ namespace bpr::adapters::github::detail {
 		}
 
 		[[nodiscard]] auto
-		secondary_rate_limit_message(const QJsonDocument* const aDocument) -> bool
+		secondary_rate_limit_message(const page_json_value* const aDocument) -> bool
 		{
-			if (aDocument == nullptr || !aDocument->isObject()) {
+			if (aDocument == nullptr || !json_is_object(*aDocument)) {
 				return false;
 			}
-			const auto message = aDocument->object().value("message");
-			if (!message.isString()) {
+			const auto message = json_member(json_object(*aDocument), "message");
+			if (!json_is_string(message)) {
 				return false;
 			}
 			const auto raw = text(message);
@@ -791,27 +876,27 @@ namespace bpr::adapters::github::detail {
 				&& ascii_contains_fold(raw, "secondary rate limit");
 		}
 
-		[[nodiscard]] auto graphql_error_rate_limited(const QJsonValue& aErrors) -> bool
+		[[nodiscard]] auto graphql_error_rate_limited(const page_json_value& aErrors) -> bool
 		{
-			if (!aErrors.isArray()) {
+			if (!json_is_array(aErrors)) {
 				return false;
 			}
-			for (const auto& value : aErrors.toArray()) {
-				if (!value.isObject()) {
+			for (const auto& value : json_array(aErrors)) {
+				if (!json_is_object(value)) {
 					continue;
 				}
-				const auto error = value.toObject();
-				if (error.value("type").isString()
-					&& error.value("type").toString() == QStringLiteral("RATE_LIMITED")) {
+				const auto error = json_object(value);
+				if (json_is_string(json_member(error, "type"))
+					&& json_text(json_member(error, "type")) == QStringLiteral("RATE_LIMITED")) {
 					return true;
 				}
-				const auto extensions = error.value("extensions");
-				if (!extensions.isObject()) {
+				const auto extensions = json_member(error, "extensions");
+				if (!json_is_object(extensions)) {
 					continue;
 				}
 				for (const auto key : { "type", "code" }) {
-					if (extensions.toObject().value(key).isString()
-						&& extensions.toObject().value(key).toString()
+					if (json_is_string(json_member(json_object(extensions), key))
+						&& json_text(json_member(json_object(extensions), key))
 							== QStringLiteral("RATE_LIMITED")) {
 						return true;
 					}
@@ -916,7 +1001,7 @@ namespace bpr::adapters::github::detail {
 			wire_request             Request;
 			github_response_metadata Metadata;
 			page_completeness        Completeness = page_completeness::unknown;
-			QJsonDocument            Document;
+			page_json_value          Document;
 		};
 
 		class production_read_execution
@@ -1062,7 +1147,7 @@ namespace bpr::adapters::github::detail {
 										  std::move(cause));
 						};
 					if (success->Response.Status != 200) {
-						std::optional<QJsonDocument> errorDocument;
+						std::optional<page_json_value> errorDocument;
 						if (!success->Response.Body.empty()) {
 							const auto errorPreflight = json_structural_preflight{ success->Response.Body,
 																				   Limits.MaximumPageBytes }
@@ -1074,17 +1159,7 @@ namespace bpr::adapters::github::detail {
 										response_limit);
 							}
 							if (errorPreflight == json_preflight_result::valid) {
-								QJsonParseError error;
-								auto            candidate = QJsonDocument::fromJson(
-									QByteArray{
-										success->Response.Body.data(),
-										static_cast<qsizetype>(
-											success->Response.Body.size()),
-									},
-									&error);
-								if (error.error == QJsonParseError::NoError) {
-									errorDocument = std::move(candidate);
-								}
+								errorDocument = parse_json_document(success->Response.Body);
 							}
 						}
 						return failed(enrich(status_failure(
@@ -1108,21 +1183,15 @@ namespace bpr::adapters::github::detail {
 						return metadataFailed(
 							application::github_provider_failure::malformed_response);
 					}
-					QJsonParseError parseError;
-					auto            document = QJsonDocument::fromJson(
-						QByteArray{
-							success->Response.Body.data(),
-							static_cast<qsizetype>(success->Response.Body.size()),
-						},
-						&parseError);
-					if (parseError.error != QJsonParseError::NoError) {
-						return metadataFailed(
-							application::github_provider_failure::malformed_response);
+					auto parsed = parse_json_document(success->Response.Body);
+					if (!parsed.has_value()) {
+						return metadataFailed(application::github_provider_failure::malformed_response);
 					}
+					auto document = std::move(*parsed);
 					if (aSemantic.Operation == read_operation::list_review_threads
-						&& document.isObject() && document.object().contains("errors")) {
+						&& json_is_object(document) && json_object(document).contains("errors")) {
 						const auto structuredRateLimit = graphql_error_rate_limited(
-							document.object().value("errors"));
+							json_member(json_object(document), "errors"));
 						if ((metadata->RateLimit.has_value()
 							 && metadata->RateLimit->Remaining == 0U)
 							|| metadata->RetryAfterSeconds.has_value()
@@ -1588,22 +1657,22 @@ namespace bpr::adapters::github::detail {
 			return hasNext;
 		}
 
-		[[nodiscard]] auto parse_rest_actor(const QJsonValue& aValue)
+		[[nodiscard]] auto parse_rest_actor(const page_json_value& aValue)
 			-> std::optional<application::github_actor_record>
 		{
-			if (aValue.isNull()) {
+			if (json_is_null(aValue)) {
 				return std::optional<application::github_actor_record>{ };
 			}
-			if (!aValue.isObject()
-				|| !has_required_keys(aValue.toObject(), { "login", "node_id" })
-				|| !nonempty_string(aValue.toObject().value("login"))
-				|| !nonempty_string(aValue.toObject().value("node_id"))) {
+			if (!json_is_object(aValue)
+				|| !has_required_keys(json_object(aValue), { "login", "node_id" })
+				|| !nonempty_string(json_member(json_object(aValue), "login"))
+				|| !nonempty_string(json_member(json_object(aValue), "node_id"))) {
 				return std::nullopt;
 			}
-			const auto object = aValue.toObject();
+			const auto object = json_object(aValue);
 			return application::github_actor_record{
-				.Actor = application::github_actor_id{ text(object.value("node_id")) },
-				.Login = text(object.value("login")),
+				.Actor = application::github_actor_id{ text(json_member(object, "node_id")) },
+				.Login = text(json_member(object, "login")),
 			};
 		}
 
@@ -1613,10 +1682,10 @@ namespace bpr::adapters::github::detail {
 			std::optional<application::github_actor_record> Actor;
 		};
 
-		[[nodiscard]] auto optional_rest_actor(const QJsonValue& aValue)
+		[[nodiscard]] auto optional_rest_actor(const page_json_value& aValue)
 			-> optional_actor_parse
 		{
-			if (aValue.isNull()) {
+			if (json_is_null(aValue)) {
 				return { .Valid = true, .Actor = std::nullopt };
 			}
 			const auto actor = parse_rest_actor(aValue);
@@ -1625,23 +1694,23 @@ namespace bpr::adapters::github::detail {
 				: optional_actor_parse{ };
 		}
 
-		[[nodiscard]] auto optional_graphql_actor(const QJsonValue& aValue)
+		[[nodiscard]] auto optional_graphql_actor(const page_json_value& aValue)
 			-> optional_actor_parse
 		{
-			if (aValue.isNull()) {
+			if (json_is_null(aValue)) {
 				return { .Valid = true, .Actor = std::nullopt };
 			}
-			if (!aValue.isObject() || !has_exact_keys(aValue.toObject(), { "id", "login" })
-				|| !nonempty_string(aValue.toObject().value("id"))
-				|| !nonempty_string(aValue.toObject().value("login"))) {
+			if (!json_is_object(aValue) || !has_exact_keys(json_object(aValue), { "id", "login" })
+				|| !nonempty_string(json_member(json_object(aValue), "id"))
+				|| !nonempty_string(json_member(json_object(aValue), "login"))) {
 				return { };
 			}
-			const auto object = aValue.toObject();
+			const auto object = json_object(aValue);
 			return {
 				.Valid = true,
 				.Actor = application::github_actor_record{
-					.Actor = application::github_actor_id{ text(object.value("id")) },
-					.Login = text(object.value("login")),
+					.Actor = application::github_actor_id{ text(json_member(object, "id")) },
+					.Login = text(json_member(object, "login")),
 				},
 			};
 		}
@@ -1721,13 +1790,13 @@ namespace bpr::adapters::github::detail {
 			return application::github_check_status::pending;
 		}
 
-		[[nodiscard]] auto check_conclusion(const QJsonValue& aValue) noexcept
+		[[nodiscard]] auto check_conclusion(const page_json_value& aValue) noexcept
 			-> application::github_check_conclusion
 		{
-			if (aValue.isNull()) {
+			if (json_is_null(aValue)) {
 				return application::github_check_conclusion::none;
 			}
-			const auto conclusion = aValue.toString();
+			const auto conclusion = json_text(aValue);
 			if (conclusion == QStringLiteral("success")) {
 				return application::github_check_conclusion::success;
 			}
@@ -1767,16 +1836,16 @@ namespace bpr::adapters::github::detail {
 			return std::nullopt;
 		}
 
-		[[nodiscard]] auto diff_side(const QJsonValue& aValue) noexcept
+		[[nodiscard]] auto diff_side(const page_json_value& aValue) noexcept
 			-> std::optional<application::github_diff_side>
 		{
-			if (!aValue.isString()) {
+			if (!json_is_string(aValue)) {
 				return std::nullopt;
 			}
-			if (aValue.toString() == QStringLiteral("LEFT")) {
+			if (json_text(aValue) == QStringLiteral("LEFT")) {
 				return application::github_diff_side::left;
 			}
-			if (aValue.toString() == QStringLiteral("RIGHT")) {
+			if (json_text(aValue) == QStringLiteral("RIGHT")) {
 				return application::github_diff_side::right;
 			}
 			return std::nullopt;
@@ -1797,41 +1866,41 @@ namespace bpr::adapters::github::detail {
 		struct graphql_connection_page
 		{
 			std::uint64_t              TotalCount = 0U;
-			QJsonArray                 Nodes;
+			page_json_array            Nodes;
 			std::optional<std::string> NextCursor;
 		};
 
 		[[nodiscard]] auto
-		parse_graphql_connection(const QJsonValue&               aValue,
+		parse_graphql_connection(const page_json_value&          aValue,
 								 const github_paged_read_limits& aLimits)
 			-> std::expected<graphql_connection_page, github_paged_read_failure>
 		{
-			if (!aValue.isObject()
-				|| !has_exact_keys(aValue.toObject(),
+			if (!json_is_object(aValue)
+				|| !has_exact_keys(json_object(aValue),
 								   { "nodes", "pageInfo", "totalCount" })) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
-			const auto connection = aValue.toObject();
-			if (!exact_integer(connection.value("totalCount"))
-				|| !connection.value("nodes").isArray()
-				|| !connection.value("pageInfo").isObject()
-				|| !has_exact_keys(connection.value("pageInfo").toObject(),
+			const auto connection = json_object(aValue);
+			if (!exact_integer(json_member(connection, "totalCount"))
+				|| !json_is_array(json_member(connection, "nodes"))
+				|| !json_is_object(json_member(connection, "pageInfo"))
+				|| !has_exact_keys(json_object(json_member(connection, "pageInfo")),
 								   { "endCursor", "hasNextPage" })) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
-			const auto nodes    = connection.value("nodes").toArray();
-			const auto pageInfo = connection.value("pageInfo").toObject();
+			const auto nodes    = json_array(json_member(connection, "nodes"));
+			const auto pageInfo = json_object(json_member(connection, "pageInfo"));
 			if (static_cast<std::size_t>(nodes.size()) > aLimits.MaximumPageRecords
-				|| !pageInfo.value("hasNextPage").isBool()) {
+				|| !json_is_bool(json_member(pageInfo, "hasNextPage"))) {
 				return failed(application::github_provider_failure::response_limit);
 			}
-			const auto                 total       = integer(connection.value("totalCount"));
-			const auto                 hasNext     = pageInfo.value("hasNextPage").toBool();
-			const auto                 cursorValue = pageInfo.value("endCursor");
+			const auto                 total       = integer(json_member(connection, "totalCount"));
+			const auto                 hasNext     = json_bool(json_member(pageInfo, "hasNextPage"));
+			const auto                 cursorValue = json_member(pageInfo, "endCursor");
 			std::optional<std::string> nextCursor;
 			if (hasNext) {
 				if (static_cast<std::size_t>(nodes.size()) != 100U
-					|| !cursorValue.isString()) {
+					|| !json_is_string(cursorValue)) {
 					return failed(
 						application::github_provider_failure::malformed_response);
 				}
@@ -1842,9 +1911,9 @@ namespace bpr::adapters::github::detail {
 						application::github_provider_failure::malformed_response);
 				}
 				nextCursor = std::move(cursor);
-			} else if ((nodes.isEmpty() && !cursorValue.isNull())
-					   || (!nodes.isEmpty()
-						   && (!cursorValue.isString()
+			} else if ((nodes.empty() && !json_is_null(cursorValue))
+					   || (!nodes.empty()
+						   && (!json_is_string(cursorValue)
 							   || !bounded_graphql_token(text(cursorValue),
 														 aLimits.MaximumCursorBytes)))) {
 				return failed(application::github_provider_failure::malformed_response);
@@ -1859,12 +1928,12 @@ namespace bpr::adapters::github::detail {
 			};
 		}
 
-		[[nodiscard]] auto parse_graphql_comment(const QJsonValue& aValue)
+		[[nodiscard]] auto parse_graphql_comment(const page_json_value& aValue)
 			-> std::expected<application::github_review_comment_record,
 							 github_paged_read_failure>
 		{
-			if (!aValue.isObject()
-				|| !has_exact_keys(aValue.toObject(),
+			if (!json_is_object(aValue)
+				|| !has_exact_keys(json_object(aValue),
 								   {
 									   "author",
 									   "bodyText",
@@ -1877,35 +1946,35 @@ namespace bpr::adapters::github::detail {
 								   })) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
-			const auto comment      = aValue.toObject();
-			const auto author       = optional_graphql_actor(comment.value("author"));
-			const auto line         = comment.value("line");
-			const auto originalLine = comment.value("originalLine");
-			const auto reply        = comment.value("replyTo");
-			if (!nonempty_string(comment.value("id"))
-				|| !comment.value("bodyText").isString()
-				|| !nonempty_string(comment.value("path"))
-				|| !comment.value("outdated").isBool() || !author.Valid
-				|| (!line.isNull() && !valid_line(line))
-				|| (!originalLine.isNull() && !valid_line(originalLine))
-				|| (!reply.isNull()
-					&& (!reply.isObject() || !has_exact_keys(reply.toObject(), { "id" })
-						|| !nonempty_string(reply.toObject().value("id"))))) {
+			const auto comment      = json_object(aValue);
+			const auto author       = optional_graphql_actor(json_member(comment, "author"));
+			const auto line         = json_member(comment, "line");
+			const auto originalLine = json_member(comment, "originalLine");
+			const auto reply        = json_member(comment, "replyTo");
+			if (!nonempty_string(json_member(comment, "id"))
+				|| !json_is_string(json_member(comment, "bodyText"))
+				|| !nonempty_string(json_member(comment, "path"))
+				|| !json_is_bool(json_member(comment, "outdated")) || !author.Valid
+				|| (!json_is_null(line) && !valid_line(line))
+				|| (!json_is_null(originalLine) && !valid_line(originalLine))
+				|| (!json_is_null(reply)
+					&& (!json_is_object(reply) || !has_exact_keys(json_object(reply), { "id" })
+						|| !nonempty_string(json_member(json_object(reply), "id"))))) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
 			std::optional<application::github_comment_id> replyTo;
-			if (reply.isObject()) {
-				replyTo = application::github_comment_id{ text(reply.toObject().value("id")) };
+			if (json_is_object(reply)) {
+				replyTo = application::github_comment_id{ text(json_member(json_object(reply), "id")) };
 			}
 			return application::github_review_comment_record{
-				.Comment      = application::github_comment_id{ text(comment.value("id")) },
+				.Comment      = application::github_comment_id{ text(json_member(comment, "id")) },
 				.ReplyTo      = std::move(replyTo),
 				.Author       = author.Actor,
-				.Body         = text(comment.value("bodyText")),
-				.Path         = text(comment.value("path")),
+				.Body         = text(json_member(comment, "bodyText")),
+				.Path         = text(json_member(comment, "path")),
 				.Line         = optional_line(line),
 				.OriginalLine = optional_line(originalLine),
-				.Outdated     = comment.value("outdated").toBool(),
+				.Outdated     = json_bool(json_member(comment, "outdated")),
 				.Deleted      = false,
 			};
 		}
@@ -1918,12 +1987,12 @@ namespace bpr::adapters::github::detail {
 		};
 
 		[[nodiscard]] auto
-		parse_graphql_thread(const QJsonValue&                     aValue,
+		parse_graphql_thread(const page_json_value&                aValue,
 							 const application::github_read_shape& aShape,
 							 const github_paged_read_limits&       aLimits)
 			-> std::expected<parsed_graphql_thread, github_paged_read_failure>
 		{
-			if (!aValue.isObject()) {
+			if (!json_is_object(aValue)) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
 			std::vector<std::string_view> keys{
@@ -1943,11 +2012,11 @@ namespace bpr::adapters::github::detail {
 			if (aShape.UnresolvePermission) {
 				keys.emplace_back("viewerCanUnresolve");
 			}
-			const auto thread = aValue.toObject();
+			const auto thread = json_object(aValue);
 			if (!has_exact_keys(thread, keys)) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
-			const auto comments = parse_graphql_connection(thread.value("comments"), aLimits);
+			const auto comments = parse_graphql_connection(json_member(thread, "comments"), aLimits);
 			if (!comments.has_value()) {
 				return std::unexpected{ comments.error() };
 			}
@@ -1955,49 +2024,49 @@ namespace bpr::adapters::github::detail {
 				|| comments->TotalCount > aLimits.Records.MaximumTotalComments) {
 				return failed(application::github_provider_failure::response_limit);
 			}
-			const auto line         = thread.value("line");
-			const auto originalLine = thread.value("originalLine");
-			const auto side         = diff_side(thread.value("diffSide"));
-			const auto fileSubject  = thread.value("subjectType").toString() == QStringLiteral("FILE");
-			const auto lineSubject  = thread.value("subjectType").toString() == QStringLiteral("LINE");
-			if (!nonempty_string(thread.value("id"))
-				|| !thread.value("isOutdated").isBool()
-				|| !thread.value("isResolved").isBool()
-				|| !nonempty_string(thread.value("path"))
+			const auto line         = json_member(thread, "line");
+			const auto originalLine = json_member(thread, "originalLine");
+			const auto side         = diff_side(json_member(thread, "diffSide"));
+			const auto fileSubject  = json_text(json_member(thread, "subjectType")) == QStringLiteral("FILE");
+			const auto lineSubject  = json_text(json_member(thread, "subjectType")) == QStringLiteral("LINE");
+			if (!nonempty_string(json_member(thread, "id"))
+				|| !json_is_bool(json_member(thread, "isOutdated"))
+				|| !json_is_bool(json_member(thread, "isResolved"))
+				|| !nonempty_string(json_member(thread, "path"))
 				|| (!fileSubject && !lineSubject)
 				|| !side.has_value()
-				|| (!line.isNull() && !valid_line(line))
-				|| (!originalLine.isNull() && !valid_line(originalLine))
-				|| (fileSubject && (!line.isNull() || !originalLine.isNull()))
+				|| (!json_is_null(line) && !valid_line(line))
+				|| (!json_is_null(originalLine) && !valid_line(originalLine))
+				|| (fileSubject && (!json_is_null(line) || !json_is_null(originalLine)))
 				|| (lineSubject
-					&& ((!thread.value("isOutdated").toBool() && line.isNull())
-						|| (thread.value("isOutdated").toBool()
-							&& line.isNull() && originalLine.isNull())))
+					&& ((!json_bool(json_member(thread, "isOutdated")) && json_is_null(line))
+						|| (json_bool(json_member(thread, "isOutdated"))
+							&& json_is_null(line) && json_is_null(originalLine))))
 				|| (aShape.ResolvePermission
-					&& !thread.value("viewerCanResolve").isBool())
+					&& !json_is_bool(json_member(thread, "viewerCanResolve")))
 				|| (aShape.UnresolvePermission
-					&& !thread.value("viewerCanUnresolve").isBool())) {
+					&& !json_is_bool(json_member(thread, "viewerCanUnresolve")))) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
 
 			application::github_review_thread_record record{
-				.Thread                    = application::github_thread_id{ text(thread.value("id")) },
+				.Thread                    = application::github_thread_id{ text(json_member(thread, "id")) },
 				.Subject                   = fileSubject
 					? application::github_review_thread_subject::file
 					: application::github_review_thread_subject::line,
-				.Path                      = text(thread.value("path")),
+				.Path                      = text(json_member(thread, "path")),
 				.Line                      = optional_line(line),
 				.OriginalLine              = optional_line(originalLine),
 				.DiffSide                  = *side,
-				.Resolved                  = thread.value("isResolved").toBool(),
-				.Outdated                  = thread.value("isOutdated").toBool(),
+				.Resolved                  = json_bool(json_member(thread, "isResolved")),
+				.Outdated                  = json_bool(json_member(thread, "isOutdated")),
 				.ViewerResolvePermission   = aShape.ResolvePermission
-					? (thread.value("viewerCanResolve").toBool()
+					? (json_bool(json_member(thread, "viewerCanResolve"))
 						   ? application::github_permission_state::allowed
 						   : application::github_permission_state::denied)
 					: application::github_permission_state::unavailable,
 				.ViewerUnresolvePermission = aShape.UnresolvePermission
-					? (thread.value("viewerCanUnresolve").toBool()
+					? (json_bool(json_member(thread, "viewerCanUnresolve"))
 						   ? application::github_permission_state::allowed
 						   : application::github_permission_state::denied)
 					: application::github_permission_state::unavailable,
@@ -2029,40 +2098,40 @@ namespace bpr::adapters::github::detail {
 			const parsed_page&                             aPage,
 			const application::github_repository_record&   aRepository,
 			const application::github_pull_request_record& aPullRequest,
-			QJsonObject*                                   aDataOutput,
-			QJsonObject*                                   aRepositoryOutput,
-			QJsonObject*                                   aPullRequestOutput)
+			page_json_object*                              aDataOutput,
+			page_json_object*                              aRepositoryOutput,
+			page_json_object*                              aPullRequestOutput)
 			-> std::expected<void, github_paged_read_failure>
 		{
-			if (!singleton_complete(aPage) || !aPage.Document.isObject()
-				|| !graphql_success_envelope(aPage.Document.object())) {
+			if (!singleton_complete(aPage) || !json_is_object(aPage.Document)
+				|| !graphql_success_envelope(json_object(aPage.Document))) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
-			const auto dataValue = aPage.Document.object().value("data");
-			if (!dataValue.isObject()
-				|| !has_exact_keys(dataValue.toObject(), { "repository" })) {
+			const auto dataValue = json_member(json_object(aPage.Document), "data");
+			if (!json_is_object(dataValue)
+				|| !has_exact_keys(json_object(dataValue), { "repository" })) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
-			const auto repositoryValue = dataValue.toObject().value("repository");
-			if (!repositoryValue.isObject()
-				|| !has_exact_keys(repositoryValue.toObject(), { "id", "pullRequest" })
-				|| text(repositoryValue.toObject().value("id"))
+			const auto repositoryValue = json_member(json_object(dataValue), "repository");
+			if (!json_is_object(repositoryValue)
+				|| !has_exact_keys(json_object(repositoryValue), { "id", "pullRequest" })
+				|| text(json_member(json_object(repositoryValue), "id"))
 					!= aRepository.Node.value()) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
-			const auto pullRequestValue = repositoryValue.toObject().value("pullRequest");
-			if (!pullRequestValue.isObject()
+			const auto pullRequestValue = json_member(json_object(repositoryValue), "pullRequest");
+			if (!json_is_object(pullRequestValue)
 				|| !has_required_keys(
-					pullRequestValue.toObject(), { "headRefOid", "id" })
-				|| text(pullRequestValue.toObject().value("id"))
+					json_object(pullRequestValue), { "headRefOid", "id" })
+				|| text(json_member(json_object(pullRequestValue), "id"))
 					!= aPullRequest.Node.value()
-				|| text(pullRequestValue.toObject().value("headRefOid"))
+				|| text(json_member(json_object(pullRequestValue), "headRefOid"))
 					!= aPullRequest.HeadOid.value()) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
-			*aDataOutput        = dataValue.toObject();
-			*aRepositoryOutput  = repositoryValue.toObject();
-			*aPullRequestOutput = pullRequestValue.toObject();
+			*aDataOutput        = json_object(dataValue);
+			*aRepositoryOutput  = json_object(repositoryValue);
+			*aPullRequestOutput = json_object(pullRequestValue);
 			return { };
 		}
 
@@ -2159,8 +2228,8 @@ namespace bpr::adapters::github::detail {
 			-> std::expected<application::github_repository_record,
 							 github_paged_read_failure>
 		{
-			if (!singleton_complete(aPage) || !aPage.Document.isObject()
-				|| !has_required_keys(aPage.Document.object(),
+			if (!singleton_complete(aPage) || !json_is_object(aPage.Document)
+				|| !has_required_keys(json_object(aPage.Document),
 									  {
 										  "default_branch",
 										  "full_name",
@@ -2172,38 +2241,38 @@ namespace bpr::adapters::github::detail {
 									  })) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
-			const auto object = aPage.Document.object();
-			const auto owner  = object.value("owner");
-			if (!exact_integer(object.value("id"), true)
-				|| !nonempty_string(object.value("name"))
-				|| !nonempty_string(object.value("full_name"))
-				|| !nonempty_string(object.value("node_id"))
-				|| !object.value("private").isBool()
-				|| !nonempty_string(object.value("default_branch")) || !owner.isObject()
-				|| !has_required_keys(owner.toObject(), { "login" })
-				|| !nonempty_string(owner.toObject().value("login"))) {
+			const auto object = json_object(aPage.Document);
+			const auto owner  = json_member(object, "owner");
+			if (!exact_integer(json_member(object, "id"), true)
+				|| !nonempty_string(json_member(object, "name"))
+				|| !nonempty_string(json_member(object, "full_name"))
+				|| !nonempty_string(json_member(object, "node_id"))
+				|| !json_is_bool(json_member(object, "private"))
+				|| !nonempty_string(json_member(object, "default_branch")) || !json_is_object(owner)
+				|| !has_required_keys(json_object(owner), { "login" })
+				|| !nonempty_string(json_member(json_object(owner), "login"))) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
-			const auto rawOwner    = text(owner.toObject().value("login"));
-			const auto rawName     = text(object.value("name"));
-			const auto rawFullName = text(object.value("full_name"));
+			const auto rawOwner    = text(json_member(json_object(owner), "login"));
+			const auto rawName     = text(json_member(object, "name"));
+			const auto rawFullName = text(json_member(object, "full_name"));
 			if (!ascii_equal_fold(rawOwner, aContext.Repository.Owner)
 				|| !ascii_equal_fold(rawName, aContext.Repository.Name)
 				|| !ascii_equal_fold(rawFullName, rawOwner + "/" + rawName)) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
-			const auto id = core::repository_id{ integer(object.value("id")) };
+			const auto id = core::repository_id{ integer(json_member(object, "id")) };
 			if (aContext.ExpectedRepository.has_value()
 				&& *aContext.ExpectedRepository != id) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
 			return application::github_repository_record{
 				.Repository    = id,
-				.Node          = application::github_node_id{ text(object.value("node_id")) },
+				.Node          = application::github_node_id{ text(json_member(object, "node_id")) },
 				.Owner         = rawOwner,
 				.Name          = rawName,
-				.DefaultBranch = text(object.value("default_branch")),
-				.Private       = object.value("private").toBool(),
+				.DefaultBranch = text(json_member(object, "default_branch")),
+				.Private       = json_bool(json_member(object, "private")),
 			};
 		}
 
@@ -2215,38 +2284,38 @@ namespace bpr::adapters::github::detail {
 			std::optional<std::string>         FullName;
 		};
 
-		[[nodiscard]] auto parse_pull_ref(const QJsonValue& aValue,
-										  const bool        aRepositoryRequired)
+		[[nodiscard]] auto parse_pull_ref(const page_json_value& aValue,
+										  const bool             aRepositoryRequired)
 			-> std::optional<parsed_pull_ref>
 		{
-			if (!aValue.isObject()
-				|| !has_required_keys(aValue.toObject(), { "ref", "repo", "sha" })) {
+			if (!json_is_object(aValue)
+				|| !has_required_keys(json_object(aValue), { "ref", "repo", "sha" })) {
 				return std::nullopt;
 			}
-			const auto object = aValue.toObject();
-			if (!nonempty_string(object.value("ref"))
-				|| !hexadecimal_oid(object.value("sha"))) {
+			const auto object = json_object(aValue);
+			if (!nonempty_string(json_member(object, "ref"))
+				|| !hexadecimal_oid(json_member(object, "sha"))) {
 				return std::nullopt;
 			}
 			parsed_pull_ref result{
-				.Ref        = text(object.value("ref")),
-				.Oid        = text(object.value("sha")),
+				.Ref        = text(json_member(object, "ref")),
+				.Oid        = text(json_member(object, "sha")),
 				.Repository = std::nullopt,
 				.FullName   = std::nullopt,
 			};
-			const auto repository = object.value("repo");
-			if (repository.isNull()) {
+			const auto repository = json_member(object, "repo");
+			if (json_is_null(repository)) {
 				return aRepositoryRequired ? std::nullopt
 										   : std::optional{ std::move(result) };
 			}
-			if (!repository.isObject()
-				|| !has_required_keys(repository.toObject(), { "full_name", "id" })
-				|| !exact_integer(repository.toObject().value("id"), true)
-				|| !nonempty_string(repository.toObject().value("full_name"))) {
+			if (!json_is_object(repository)
+				|| !has_required_keys(json_object(repository), { "full_name", "id" })
+				|| !exact_integer(json_member(json_object(repository), "id"), true)
+				|| !nonempty_string(json_member(json_object(repository), "full_name"))) {
 				return std::nullopt;
 			}
-			result.Repository = core::repository_id{ integer(repository.toObject().value("id")) };
-			result.FullName   = text(repository.toObject().value("full_name"));
+			result.Repository = core::repository_id{ integer(json_member(json_object(repository), "id")) };
+			result.FullName   = text(json_member(json_object(repository), "full_name"));
 			return result;
 		}
 
@@ -2264,8 +2333,8 @@ namespace bpr::adapters::github::detail {
 						   const application::github_read_limits&       aLimits)
 			-> std::expected<parsed_pull_request, github_paged_read_failure>
 		{
-			if (!singleton_complete(aPage) || !aPage.Document.isObject()
-				|| !has_required_keys(aPage.Document.object(),
+			if (!singleton_complete(aPage) || !json_is_object(aPage.Document)
+				|| !has_required_keys(json_object(aPage.Document),
 									  {
 										  "base",
 										  "body",
@@ -2283,33 +2352,33 @@ namespace bpr::adapters::github::detail {
 									  })) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
-			const auto object = aPage.Document.object();
-			const auto base   = parse_pull_ref(object.value("base"), true);
-			const auto head   = parse_pull_ref(object.value("head"), false);
-			const auto author = optional_rest_actor(object.value("user"));
-			if (!exact_integer(object.value("id"), true)
-				|| !exact_integer(object.value("number"), true)
-				|| integer(object.value("number")) > core::maximum_pull_request_number
-				|| !exact_integer(object.value("changed_files"))
-				|| !exact_integer(object.value("commits"), true)
-				|| !nonempty_string(object.value("node_id"))
-				|| !nonempty_string(object.value("title"))
-				|| (!object.value("body").isNull() && !object.value("body").isString())
-				|| !one_of(object.value("state"), { "open", "closed" })
-				|| !object.value("draft").isBool() || !object.value("merged").isBool()
+			const auto object = json_object(aPage.Document);
+			const auto base   = parse_pull_ref(json_member(object, "base"), true);
+			const auto head   = parse_pull_ref(json_member(object, "head"), false);
+			const auto author = optional_rest_actor(json_member(object, "user"));
+			if (!exact_integer(json_member(object, "id"), true)
+				|| !exact_integer(json_member(object, "number"), true)
+				|| integer(json_member(object, "number")) > core::maximum_pull_request_number
+				|| !exact_integer(json_member(object, "changed_files"))
+				|| !exact_integer(json_member(object, "commits"), true)
+				|| !nonempty_string(json_member(object, "node_id"))
+				|| !nonempty_string(json_member(object, "title"))
+				|| (!json_is_null(json_member(object, "body")) && !json_is_string(json_member(object, "body")))
+				|| !one_of(json_member(object, "state"), { "open", "closed" })
+				|| !json_is_bool(json_member(object, "draft")) || !json_is_bool(json_member(object, "merged"))
 				|| !base.has_value() || !head.has_value() || !author.Valid
-				|| (object.value("merged").toBool()
-					&& object.value("state").toString() != QStringLiteral("closed"))) {
+				|| (json_bool(json_member(object, "merged"))
+					&& json_text(json_member(object, "state")) != QStringLiteral("closed"))) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
-			const auto changedFiles = integer(object.value("changed_files"));
-			const auto commits      = integer(object.value("commits"));
+			const auto changedFiles = integer(json_member(object, "changed_files"));
+			const auto commits      = integer(json_member(object, "commits"));
 			if (changedFiles > aLimits.MaximumFiles || commits > aLimits.MaximumCommits) {
 				return failed(application::github_provider_failure::response_limit);
 			}
-			const auto id     = core::pull_request_id{ integer(object.value("id")) };
+			const auto id     = core::pull_request_id{ integer(json_member(object, "id")) };
 			const auto number = core::pull_request_number{
-				static_cast<std::uint32_t>(integer(object.value("number")))
+				static_cast<std::uint32_t>(integer(json_member(object, "number")))
 			};
 			const auto repositoryFullName = aRepository.Owner + "/" + aRepository.Name;
 			if (number != aContext.Number || !base->Repository.has_value()
@@ -2325,14 +2394,14 @@ namespace bpr::adapters::github::detail {
 					.PullRequest = id,
 					.Repository  = aRepository.Repository,
 					.Number      = number,
-					.Node        = application::github_node_id{ text(object.value("node_id")) },
-					.Title       = text(object.value("title")),
-					.Body        = object.value("body").isNull()
+					.Node        = application::github_node_id{ text(json_member(object, "node_id")) },
+					.Title       = text(json_member(object, "title")),
+					.Body        = json_is_null(json_member(object, "body"))
 						? std::string{ }
-						: text(object.value("body")),
-					.State       = pull_request_state(object.value("state").toString(),
-													  object.value("merged").toBool()),
-					.Draft       = object.value("draft").toBool(),
+						: text(json_member(object, "body")),
+					.State       = pull_request_state(json_text(json_member(object, "state")),
+													  json_bool(json_member(object, "merged"))),
+					.Draft       = json_bool(json_member(object, "draft")),
 					.Author      = author.Actor,
 					.BaseOid     = application::commit_oid{ base->Oid },
 					.HeadOid     = application::commit_oid{ head->Oid },
@@ -2344,18 +2413,18 @@ namespace bpr::adapters::github::detail {
 			};
 		}
 
-		[[nodiscard]] auto parse_file(const QJsonValue& aValue)
+		[[nodiscard]] auto parse_file(const page_json_value& aValue)
 			-> std::expected<application::github_file_record, github_paged_read_failure>
 		{
-			if (!aValue.isObject()) {
+			if (!json_is_object(aValue)) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
-			const auto object      = aValue.toObject();
+			const auto object      = json_object(aValue);
 			const auto hasPrevious = object.contains("previous_filename");
 			if (!has_required_keys(object,
 								   { "additions", "deletions", "filename", "status" })
-				|| !nonempty_string(object.value("filename"))
-				|| !one_of(object.value("status"),
+				|| !nonempty_string(json_member(object, "filename"))
+				|| !one_of(json_member(object, "status"),
 						   {
 							   "added",
 							   "modified",
@@ -2365,68 +2434,68 @@ namespace bpr::adapters::github::detail {
 							   "changed",
 							   "unchanged",
 						   })
-				|| !exact_integer(object.value("additions"))
-				|| !exact_integer(object.value("deletions"))
+				|| !exact_integer(json_member(object, "additions"))
+				|| !exact_integer(json_member(object, "deletions"))
 				|| (hasPrevious
-					&& (!nonempty_string(object.value("previous_filename"))
-						|| (object.value("status").toString()
+					&& (!nonempty_string(json_member(object, "previous_filename"))
+						|| (json_text(json_member(object, "status"))
 								!= QStringLiteral("renamed")
-							&& object.value("status").toString()
+							&& json_text(json_member(object, "status"))
 								!= QStringLiteral("copied"))))) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
 			std::optional<std::string> previousPath;
 			if (hasPrevious) {
-				previousPath = text(object.value("previous_filename"));
+				previousPath = text(json_member(object, "previous_filename"));
 			}
 			return application::github_file_record{
-				.Path         = text(object.value("filename")),
+				.Path         = text(json_member(object, "filename")),
 				.PreviousPath = std::move(previousPath),
-				.Change       = file_change(object.value("status").toString()),
-				.Additions    = integer(object.value("additions")),
-				.Deletions    = integer(object.value("deletions")),
+				.Change       = file_change(json_text(json_member(object, "status"))),
+				.Additions    = integer(json_member(object, "additions")),
+				.Deletions    = integer(json_member(object, "deletions")),
 				.ContentKind  = application::github_file_content_kind::unknown,
 				.ViewedState  = application::github_file_viewed_state::unavailable,
 			};
 		}
 
-		[[nodiscard]] auto parse_commit(const QJsonValue& aValue)
+		[[nodiscard]] auto parse_commit(const page_json_value& aValue)
 			-> std::expected<application::github_commit_record,
 							 github_paged_read_failure>
 		{
-			if (!aValue.isObject()
-				|| !has_required_keys(aValue.toObject(),
+			if (!json_is_object(aValue)
+				|| !has_required_keys(json_object(aValue),
 									  { "author", "commit", "node_id", "sha" })) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
-			const auto object = aValue.toObject();
-			const auto author = optional_rest_actor(object.value("author"));
-			const auto commit = object.value("commit");
-			if (!hexadecimal_oid(object.value("sha"))
-				|| !nonempty_string(object.value("node_id")) || !author.Valid
-				|| !commit.isObject()
-				|| !has_required_keys(commit.toObject(), { "message" })
-				|| !commit.toObject().value("message").isString()) {
+			const auto object = json_object(aValue);
+			const auto author = optional_rest_actor(json_member(object, "author"));
+			const auto commit = json_member(object, "commit");
+			if (!hexadecimal_oid(json_member(object, "sha"))
+				|| !nonempty_string(json_member(object, "node_id")) || !author.Valid
+				|| !json_is_object(commit)
+				|| !has_required_keys(json_object(commit), { "message" })
+				|| !json_is_string(json_member(json_object(commit), "message"))) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
-			auto headline = text(commit.toObject().value("message"));
+			auto headline = text(json_member(json_object(commit), "message"));
 			if (const auto newline = headline.find('\n'); newline != std::string::npos) {
 				headline.resize(newline);
 			}
 			return application::github_commit_record{
-				.Oid      = application::commit_oid{ text(object.value("sha")) },
-				.Node     = application::github_node_id{ text(object.value("node_id")) },
+				.Oid      = application::commit_oid{ text(json_member(object, "sha")) },
+				.Node     = application::github_node_id{ text(json_member(object, "node_id")) },
 				.Author   = author.Actor,
 				.Headline = std::move(headline),
 			};
 		}
 
-		[[nodiscard]] auto parse_review(const QJsonValue& aValue)
+		[[nodiscard]] auto parse_review(const page_json_value& aValue)
 			-> std::expected<application::github_review_record,
 							 github_paged_read_failure>
 		{
-			if (!aValue.isObject()
-				|| !has_required_keys(aValue.toObject(),
+			if (!json_is_object(aValue)
+				|| !has_required_keys(json_object(aValue),
 									  { "body",
 										"commit_id",
 										"id",
@@ -2435,12 +2504,12 @@ namespace bpr::adapters::github::detail {
 										"user" })) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
-			const auto object = aValue.toObject();
-			const auto author = optional_rest_actor(object.value("user"));
-			if (!exact_integer(object.value("id"), true)
-				|| !nonempty_string(object.value("node_id"))
-				|| !object.value("body").isString() || !author.Valid
-				|| !one_of(object.value("state"),
+			const auto object = json_object(aValue);
+			const auto author = optional_rest_actor(json_member(object, "user"));
+			if (!exact_integer(json_member(object, "id"), true)
+				|| !nonempty_string(json_member(object, "node_id"))
+				|| !json_is_string(json_member(object, "body")) || !author.Valid
+				|| !one_of(json_member(object, "state"),
 						   {
 							   "PENDING",
 							   "COMMENTED",
@@ -2448,42 +2517,42 @@ namespace bpr::adapters::github::detail {
 							   "CHANGES_REQUESTED",
 							   "DISMISSED",
 						   })
-				|| (!object.value("commit_id").isNull()
-					&& !hexadecimal_oid(object.value("commit_id")))) {
+				|| (!json_is_null(json_member(object, "commit_id"))
+					&& !hexadecimal_oid(json_member(object, "commit_id")))) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
 			std::optional<application::commit_oid> commit;
-			if (!object.value("commit_id").isNull()) {
-				commit = application::commit_oid{ text(object.value("commit_id")) };
+			if (!json_is_null(json_member(object, "commit_id"))) {
+				commit = application::commit_oid{ text(json_member(object, "commit_id")) };
 			}
 			return application::github_review_record{
-				.DatabaseId = integer(object.value("id")),
-				.Review     = application::github_review_id{ text(object.value("node_id")) },
+				.DatabaseId = integer(json_member(object, "id")),
+				.Review     = application::github_review_id{ text(json_member(object, "node_id")) },
 				.Author     = author.Actor,
-				.State      = review_state(object.value("state").toString()),
+				.State      = review_state(json_text(json_member(object, "state"))),
 				.Commit     = std::move(commit),
-				.Body       = text(object.value("body")),
+				.Body       = text(json_member(object, "body")),
 			};
 		}
 
-		[[nodiscard]] auto parse_issue_comment(const QJsonValue& aValue)
+		[[nodiscard]] auto parse_issue_comment(const page_json_value& aValue)
 			-> std::expected<application::github_issue_comment_record,
 							 github_paged_read_failure>
 		{
-			if (!aValue.isObject()
-				|| !has_required_keys(aValue.toObject(), { "body", "node_id", "user" })) {
+			if (!json_is_object(aValue)
+				|| !has_required_keys(json_object(aValue), { "body", "node_id", "user" })) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
-			const auto object = aValue.toObject();
-			const auto author = optional_rest_actor(object.value("user"));
-			if (!nonempty_string(object.value("node_id"))
-				|| !object.value("body").isString() || !author.Valid) {
+			const auto object = json_object(aValue);
+			const auto author = optional_rest_actor(json_member(object, "user"));
+			if (!nonempty_string(json_member(object, "node_id"))
+				|| !json_is_string(json_member(object, "body")) || !author.Valid) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
 			return application::github_issue_comment_record{
-				.Comment = application::github_comment_id{ text(object.value("node_id")) },
+				.Comment = application::github_comment_id{ text(json_member(object, "node_id")) },
 				.Author  = author.Actor,
-				.Body    = text(object.value("body")),
+				.Body    = text(json_member(object, "body")),
 				.Deleted = false,
 			};
 		}
@@ -2498,12 +2567,12 @@ namespace bpr::adapters::github::detail {
 		/// diff, which is what outdated means on this surface. Nothing here
 		/// reads resolution, viewer, viewed, or actionability, because the
 		/// response carries none of them and inferring one is prohibited.
-		[[nodiscard]] auto parse_review_comment(const QJsonValue& aValue)
+		[[nodiscard]] auto parse_review_comment(const page_json_value& aValue)
 			-> std::expected<application::github_review_comment_record,
 							 github_paged_read_failure>
 		{
-			if (!aValue.isObject()
-				|| !has_required_keys(aValue.toObject(),
+			if (!json_is_object(aValue)
+				|| !has_required_keys(json_object(aValue),
 									  {
 										  "body",
 										  "id",
@@ -2513,51 +2582,51 @@ namespace bpr::adapters::github::detail {
 									  })) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
-			const auto object = aValue.toObject();
-			const auto author = optional_rest_actor(object.value("user"));
-			const auto reply  = object.value("in_reply_to_id");
-			if (!exact_integer(object.value("id"), true) || !author.Valid
-				|| !object.value("body").isString()
-				|| !nonempty_string(object.value("path"))
-				|| (!object.value("position").isNull()
-					&& !exact_integer(object.value("position"), true))
-				|| (!object.value("line").isUndefined()
-					&& !object.value("line").isNull()
-					&& !exact_integer(object.value("line"), true))
-				|| (!object.value("original_line").isUndefined()
-					&& !object.value("original_line").isNull()
-					&& !exact_integer(object.value("original_line"), true))
-				|| (!reply.isUndefined() && !reply.isNull()
+			const auto object = json_object(aValue);
+			const auto author = optional_rest_actor(json_member(object, "user"));
+			const auto reply  = json_member(object, "in_reply_to_id");
+			if (!exact_integer(json_member(object, "id"), true) || !author.Valid
+				|| !json_is_string(json_member(object, "body"))
+				|| !nonempty_string(json_member(object, "path"))
+				|| (!json_is_null(json_member(object, "position"))
+					&& !exact_integer(json_member(object, "position"), true))
+				|| (!json_is_undefined(json_member(object, "line"))
+					&& !json_is_null(json_member(object, "line"))
+					&& !exact_integer(json_member(object, "line"), true))
+				|| (!json_is_undefined(json_member(object, "original_line"))
+					&& !json_is_null(json_member(object, "original_line"))
+					&& !exact_integer(json_member(object, "original_line"), true))
+				|| (!json_is_undefined(reply) && !json_is_null(reply)
 					&& !exact_integer(reply, true))) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
 			auto replyTo = std::optional<application::github_comment_id>{ };
-			if (reply.isDouble()) {
+			if (json_is_number(reply)) {
 				replyTo = application::github_comment_id{
 					std::to_string(integer(reply))
 				};
 			}
 			return application::github_review_comment_record{
 				.Comment = application::github_comment_id{
-					std::to_string(integer(object.value("id"))) },
+					std::to_string(integer(json_member(object, "id"))) },
 				.ReplyTo      = std::move(replyTo),
 				.Author       = author.Actor,
-				.Body         = text(object.value("body")),
-				.Path         = text(object.value("path")),
-				.Line         = optional_line(object.value("line")),
-				.OriginalLine = optional_line(object.value("original_line")),
-				.Outdated     = object.value("position").isNull(),
+				.Body         = text(json_member(object, "body")),
+				.Path         = text(json_member(object, "path")),
+				.Line         = optional_line(json_member(object, "line")),
+				.OriginalLine = optional_line(json_member(object, "original_line")),
+				.Outdated     = json_is_null(json_member(object, "position")),
 				.Deleted      = false,
 			};
 		}
 
-		[[nodiscard]] auto parse_check(const QJsonValue&      aValue,
+		[[nodiscard]] auto parse_check(const page_json_value& aValue,
 									   const std::string_view aHeadOid)
 			-> std::expected<application::github_check_record,
 							 github_paged_read_failure>
 		{
-			if (!aValue.isObject()
-				|| !has_required_keys(aValue.toObject(),
+			if (!json_is_object(aValue)
+				|| !has_required_keys(json_object(aValue),
 									  {
 										  "conclusion",
 										  "head_sha",
@@ -2567,13 +2636,13 @@ namespace bpr::adapters::github::detail {
 									  })) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
-			const auto object    = aValue.toObject();
-			const auto completed = object.value("status").toString() == QStringLiteral("completed");
-			if (!nonempty_string(object.value("node_id"))
-				|| !nonempty_string(object.value("name"))
-				|| !hexadecimal_oid(object.value("head_sha"))
-				|| text(object.value("head_sha")) != aHeadOid
-				|| !one_of(object.value("status"),
+			const auto object    = json_object(aValue);
+			const auto completed = json_text(json_member(object, "status")) == QStringLiteral("completed");
+			if (!nonempty_string(json_member(object, "node_id"))
+				|| !nonempty_string(json_member(object, "name"))
+				|| !hexadecimal_oid(json_member(object, "head_sha"))
+				|| text(json_member(object, "head_sha")) != aHeadOid
+				|| !one_of(json_member(object, "status"),
 						   {
 							   "queued",
 							   "in_progress",
@@ -2582,8 +2651,8 @@ namespace bpr::adapters::github::detail {
 							   "requested",
 							   "pending",
 						   })
-				|| (!object.value("conclusion").isNull()
-					&& !one_of(object.value("conclusion"),
+				|| (!json_is_null(json_member(object, "conclusion"))
+					&& !one_of(json_member(object, "conclusion"),
 							   {
 								   "success",
 								   "failure",
@@ -2594,26 +2663,26 @@ namespace bpr::adapters::github::detail {
 								   "action_required",
 								   "stale",
 							   }))
-				|| (completed != !object.value("conclusion").isNull())) {
+				|| (completed != !json_is_null(json_member(object, "conclusion")))) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
 			return application::github_check_record{
-				.Check      = application::github_check_id{ text(object.value("node_id")) },
-				.Name       = text(object.value("name")),
-				.Status     = check_status(object.value("status").toString()),
-				.Conclusion = check_conclusion(object.value("conclusion")),
+				.Check      = application::github_check_id{ text(json_member(object, "node_id")) },
+				.Name       = text(json_member(object, "name")),
+				.Status     = check_status(json_text(json_member(object, "status"))),
+				.Conclusion = check_conclusion(json_member(object, "conclusion")),
 			};
 		}
 
 		[[nodiscard]] auto
-		parse_search_result(const QJsonValue&                            aValue,
+		parse_search_result(const page_json_value&                       aValue,
 							const application::github_repository_record& aRepository,
 							const validated_github_host_profile&         aProfile)
 			-> std::expected<application::github_search_result_record,
 							 github_paged_read_failure>
 		{
-			if (!aValue.isObject()
-				|| !has_required_keys(aValue.toObject(),
+			if (!json_is_object(aValue)
+				|| !has_required_keys(json_object(aValue),
 									  { "draft",
 										"html_url",
 										"node_id",
@@ -2624,19 +2693,19 @@ namespace bpr::adapters::github::detail {
 										"title" })) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
-			const auto object      = aValue.toObject();
-			const auto number      = uint32(object.value("number"));
-			const auto pullRequest = object.value("pull_request");
+			const auto object      = json_object(aValue);
+			const auto number      = uint32(json_member(object, "number"));
+			const auto pullRequest = json_member(object, "pull_request");
 			if (!number.has_value() || *number == 0U
 				|| *number > core::maximum_pull_request_number
-				|| !nonempty_string(object.value("node_id"))
-				|| !nonempty_string(object.value("title"))
-				|| !nonempty_string(object.value("repository_url"))
-				|| !nonempty_string(object.value("html_url")) || !pullRequest.isObject()
-				|| !has_required_keys(pullRequest.toObject(), { "url" })
-				|| !nonempty_string(pullRequest.toObject().value("url"))
-				|| !one_of(object.value("state"), { "open" })
-				|| !object.value("draft").isBool()) {
+				|| !nonempty_string(json_member(object, "node_id"))
+				|| !nonempty_string(json_member(object, "title"))
+				|| !nonempty_string(json_member(object, "repository_url"))
+				|| !nonempty_string(json_member(object, "html_url")) || !json_is_object(pullRequest)
+				|| !has_required_keys(json_object(pullRequest), { "url" })
+				|| !nonempty_string(json_member(json_object(pullRequest), "url"))
+				|| !one_of(json_member(object, "state"), { "open" })
+				|| !json_is_bool(json_member(object, "draft"))) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
 			const auto expectedRepositoryUrl = std::string{ aProfile.rest_root() }
@@ -2645,19 +2714,19 @@ namespace bpr::adapters::github::detail {
 			const auto expectedHtmlUrl = "https://" + std::string{ aProfile.hostname() } + "/" + aRepository.Owner
 				+ "/" + aRepository.Name + "/pull/" + std::to_string(*number);
 			const auto expectedPullRequestUrl = expectedRepositoryUrl + "/pulls/" + std::to_string(*number);
-			if (text(object.value("repository_url")) != expectedRepositoryUrl
-				|| text(object.value("html_url")) != expectedHtmlUrl
-				|| text(pullRequest.toObject().value("url"))
+			if (text(json_member(object, "repository_url")) != expectedRepositoryUrl
+				|| text(json_member(object, "html_url")) != expectedHtmlUrl
+				|| text(json_member(json_object(pullRequest), "url"))
 					!= expectedPullRequestUrl) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
 			return application::github_search_result_record{
 				.Repository      = aRepository.Repository,
-				.PullRequestNode = application::github_node_id{ text(object.value("node_id")) },
+				.PullRequestNode = application::github_node_id{ text(json_member(object, "node_id")) },
 				.Number          = core::pull_request_number{ *number },
-				.Title           = text(object.value("title")),
+				.Title           = text(json_member(object, "title")),
 				.State           = application::github_pull_request_state::open,
-				.Draft           = object.value("draft").toBool(),
+				.Draft           = json_bool(json_member(object, "draft")),
 			};
 		}
 
@@ -2677,11 +2746,11 @@ namespace bpr::adapters::github::detail {
 				if (!page.has_value()) {
 					return std::unexpected{ page.error() };
 				}
-				if (!page->Document.isArray()) {
+				if (!json_is_array(page->Document)) {
 					return failed(
 						application::github_provider_failure::malformed_response);
 				}
-				const auto records = page->Document.array();
+				const auto records = json_array(page->Document);
 				const auto count   = static_cast<std::size_t>(records.size());
 				if (count > aMaximumPageRecords || count > aMaximumRecords
 					|| aOutput.size() > aMaximumRecords - count) {
@@ -2745,9 +2814,9 @@ namespace bpr::adapters::github::detail {
 			if (!initial.has_value()) {
 				return std::unexpected{ initial.error() };
 			}
-			QJsonObject initialData;
-			QJsonObject initialRepository;
-			QJsonObject initialPullRequest;
+			page_json_object initialData;
+			page_json_object initialRepository;
+			page_json_object initialPullRequest;
 			if (const auto identity = graphql_repository_and_pull_request(*initial,
 																		  aSnapshot.Repository,
 																		  aSnapshot.PullRequest,
@@ -2770,7 +2839,7 @@ namespace bpr::adapters::github::detail {
 
 			if (aShape.ViewedFileState) {
 				auto files = parse_graphql_connection(
-					initialPullRequest.value("files"), aLimits);
+					json_member(initialPullRequest, "files"), aLimits);
 				if (!files.has_value()) {
 					return std::unexpected{ files.error() };
 				}
@@ -2784,20 +2853,20 @@ namespace bpr::adapters::github::detail {
 				std::unordered_map<std::string, application::github_file_viewed_state>
 					viewed;
 				viewed.reserve(static_cast<std::size_t>(files->TotalCount));
-				const auto appendFileNodes = [&viewed](const QJsonArray& aNodes)
+				const auto appendFileNodes = [&viewed](const page_json_array& aNodes)
 					-> std::expected<void, github_paged_read_failure> {
 					for (const auto& value : aNodes) {
-						if (!value.isObject()
-							|| !has_exact_keys(value.toObject(),
+						if (!json_is_object(value)
+							|| !has_exact_keys(json_object(value),
 											   { "path", "viewerViewedState" })
-							|| !nonempty_string(value.toObject().value("path"))) {
+							|| !nonempty_string(json_member(json_object(value), "path"))) {
 							return failed(application::github_provider_failure::
 											  malformed_response);
 						}
-						const auto object = value.toObject();
-						const auto state  = viewed_state(object.value("viewerViewedState").toString());
+						const auto object = json_object(value);
+						const auto state  = viewed_state(json_text(json_member(object, "viewerViewedState")));
 						if (!state.has_value()
-							|| !viewed.emplace(text(object.value("path")), *state)
+							|| !viewed.emplace(text(json_member(object, "path")), *state)
 									.second) {
 							return failed(application::github_provider_failure::
 											  malformed_response);
@@ -2833,9 +2902,9 @@ namespace bpr::adapters::github::detail {
 					if (!page.has_value()) {
 						return std::unexpected{ page.error() };
 					}
-					QJsonObject data;
-					QJsonObject repository;
-					QJsonObject pullRequest;
+					page_json_object data;
+					page_json_object repository;
+					page_json_object pullRequest;
 					if (const auto identity = graphql_repository_and_pull_request(*page,
 																				  aSnapshot.Repository,
 																				  aSnapshot.PullRequest,
@@ -2850,7 +2919,7 @@ namespace bpr::adapters::github::detail {
 						return failed(
 							application::github_provider_failure::malformed_response);
 					}
-					auto connection = parse_graphql_connection(pullRequest.value("files"), aLimits);
+					auto connection = parse_graphql_connection(json_member(pullRequest, "files"), aLimits);
 					if (!connection.has_value()) {
 						return std::unexpected{ connection.error() };
 					}
@@ -2893,7 +2962,7 @@ namespace bpr::adapters::github::detail {
 			}
 
 			auto threads = parse_graphql_connection(
-				initialPullRequest.value("reviewThreads"), aLimits);
+				json_member(initialPullRequest, "reviewThreads"), aLimits);
 			if (!threads.has_value()) {
 				return std::unexpected{ threads.error() };
 			}
@@ -2907,7 +2976,7 @@ namespace bpr::adapters::github::detail {
 			std::unordered_set<std::string> threadIds;
 			threadIds.reserve(static_cast<std::size_t>(threads->TotalCount));
 			std::size_t totalComments     = 0U;
-			const auto  appendThreadNodes = [&](const QJsonArray& aNodes)
+			const auto  appendThreadNodes = [&](const page_json_array& aNodes)
 				-> std::expected<void, github_paged_read_failure> {
 				for (const auto& value : aNodes) {
 					auto parsed = parse_graphql_thread(value, aShape, aLimits);
@@ -2965,9 +3034,9 @@ namespace bpr::adapters::github::detail {
 				if (!page.has_value()) {
 					return std::unexpected{ page.error() };
 				}
-				QJsonObject data;
-				QJsonObject repository;
-				QJsonObject pullRequest;
+				page_json_object data;
+				page_json_object repository;
+				page_json_object pullRequest;
 				if (const auto identity = graphql_repository_and_pull_request(*page,
 																			  aSnapshot.Repository,
 																			  aSnapshot.PullRequest,
@@ -2983,7 +3052,7 @@ namespace bpr::adapters::github::detail {
 						application::github_provider_failure::malformed_response);
 				}
 				auto connection = parse_graphql_connection(
-					pullRequest.value("reviewThreads"), aLimits);
+					json_member(pullRequest, "reviewThreads"), aLimits);
 				if (!connection.has_value()) {
 					return std::unexpected{ connection.error() };
 				}
@@ -3030,49 +3099,49 @@ namespace bpr::adapters::github::detail {
 					if (!page.has_value()) {
 						return std::unexpected{ page.error() };
 					}
-					if (!singleton_complete(*page) || !page->Document.isObject()
-						|| !graphql_success_envelope(page->Document.object())) {
+					if (!singleton_complete(*page) || !json_is_object(page->Document)
+						|| !graphql_success_envelope(json_object(page->Document))) {
 						return failed(
 							application::github_provider_failure::malformed_response);
 					}
-					const auto dataValue = page->Document.object().value("data");
-					if (!dataValue.isObject()
-						|| !has_exact_keys(dataValue.toObject(),
+					const auto dataValue = json_member(json_object(page->Document), "data");
+					if (!json_is_object(dataValue)
+						|| !has_exact_keys(json_object(dataValue),
 										   { "node", "repository" })) {
 						return failed(
 							application::github_provider_failure::malformed_response);
 					}
-					const auto data            = dataValue.toObject();
-					const auto repositoryValue = data.value("repository");
-					if (!repositoryValue.isObject()
-						|| !has_exact_keys(repositoryValue.toObject(),
+					const auto data            = json_object(dataValue);
+					const auto repositoryValue = json_member(data, "repository");
+					if (!json_is_object(repositoryValue)
+						|| !has_exact_keys(json_object(repositoryValue),
 										   { "id", "pullRequest" })
-						|| text(repositoryValue.toObject().value("id"))
+						|| text(json_member(json_object(repositoryValue), "id"))
 							!= aSnapshot.Repository.Node.value()) {
 						return failed(
 							application::github_provider_failure::malformed_response);
 					}
-					const auto pullRequestValue = repositoryValue.toObject().value("pullRequest");
-					if (!pullRequestValue.isObject()
+					const auto pullRequestValue = json_member(json_object(repositoryValue), "pullRequest");
+					if (!json_is_object(pullRequestValue)
 						|| !has_exact_keys(
-							pullRequestValue.toObject(), { "headRefOid", "id" })
-						|| text(pullRequestValue.toObject().value("id"))
+							json_object(pullRequestValue), { "headRefOid", "id" })
+						|| text(json_member(json_object(pullRequestValue), "id"))
 							!= aSnapshot.PullRequest.Node.value()
-						|| text(pullRequestValue.toObject().value("headRefOid"))
+						|| text(json_member(json_object(pullRequestValue), "headRefOid"))
 							!= aSnapshot.PullRequest.HeadOid.value()) {
 						return failed(
 							application::github_provider_failure::malformed_response);
 					}
-					const auto nodeValue = data.value("node");
-					if (!nodeValue.isObject()
-						|| !has_exact_keys(nodeValue.toObject(), { "comments", "id" })
-						|| text(nodeValue.toObject().value("id"))
+					const auto nodeValue = json_member(data, "node");
+					if (!json_is_object(nodeValue)
+						|| !has_exact_keys(json_object(nodeValue), { "comments", "id" })
+						|| text(json_member(json_object(nodeValue), "id"))
 							!= thread.Thread.value()) {
 						return failed(
 							application::github_provider_failure::malformed_response);
 					}
 					auto connection = parse_graphql_connection(
-						nodeValue.toObject().value("comments"), aLimits);
+						json_member(json_object(nodeValue), "comments"), aLimits);
 					if (!connection.has_value()) {
 						return std::unexpected{ connection.error() };
 					}
@@ -3125,19 +3194,19 @@ namespace bpr::adapters::github::detail {
 				if (!page.has_value()) {
 					return std::unexpected{ page.error() };
 				}
-				if (!page->Document.isObject()
-					|| !has_required_keys(page->Document.object(),
+				if (!json_is_object(page->Document)
+					|| !has_required_keys(json_object(page->Document),
 										  { "check_runs", "total_count" })) {
 					return failed(
 						application::github_provider_failure::malformed_response);
 				}
-				const auto object = page->Document.object();
-				if (!exact_integer(object.value("total_count"))
-					|| !object.value("check_runs").isArray()) {
+				const auto object = json_object(page->Document);
+				if (!exact_integer(json_member(object, "total_count"))
+					|| !json_is_array(json_member(object, "check_runs"))) {
 					return failed(
 						application::github_provider_failure::malformed_response);
 				}
-				const auto observedTotal = integer(object.value("total_count"));
+				const auto observedTotal = integer(json_member(object, "total_count"));
 				if (observedTotal > aLimits.Records.MaximumChecks) {
 					return failed(application::github_provider_failure::response_limit);
 				}
@@ -3146,7 +3215,7 @@ namespace bpr::adapters::github::detail {
 						application::github_provider_failure::malformed_response);
 				}
 				total              = observedTotal;
-				const auto records = object.value("check_runs").toArray();
+				const auto records = json_array(json_member(object, "check_runs"));
 				const auto count   = static_cast<std::size_t>(records.size());
 				if (count > aLimits.MaximumPageRecords
 					|| count > aLimits.Records.MaximumChecks
@@ -3203,22 +3272,22 @@ namespace bpr::adapters::github::detail {
 				if (!page.has_value()) {
 					return std::unexpected{ page.error() };
 				}
-				if (!page->Document.isObject()
+				if (!json_is_object(page->Document)
 					|| !has_required_keys(
-						page->Document.object(),
+						json_object(page->Document),
 						{ "incomplete_results", "items", "total_count" })) {
 					return failed(
 						application::github_provider_failure::malformed_response);
 				}
-				const auto object = page->Document.object();
-				if (!exact_integer(object.value("total_count"))
-					|| !object.value("items").isArray()
-					|| !object.value("incomplete_results").isBool()
-					|| object.value("incomplete_results").toBool()) {
+				const auto object = json_object(page->Document);
+				if (!exact_integer(json_member(object, "total_count"))
+					|| !json_is_array(json_member(object, "items"))
+					|| !json_is_bool(json_member(object, "incomplete_results"))
+					|| json_bool(json_member(object, "incomplete_results"))) {
 					return failed(
 						application::github_provider_failure::malformed_response);
 				}
-				const auto observedTotal = integer(object.value("total_count"));
+				const auto observedTotal = integer(json_member(object, "total_count"));
 				if (observedTotal > aLimits.Records.MaximumSearchResults) {
 					return failed(application::github_provider_failure::response_limit);
 				}
@@ -3227,7 +3296,7 @@ namespace bpr::adapters::github::detail {
 						application::github_provider_failure::malformed_response);
 				}
 				total              = observedTotal;
-				const auto records = object.value("items").toArray();
+				const auto records = json_array(json_member(object, "items"));
 				const auto count   = static_cast<std::size_t>(records.size());
 				if (count > aLimits.MaximumPageRecords
 					|| count > aLimits.Records.MaximumSearchResults
@@ -3328,15 +3397,8 @@ namespace bpr::adapters::github::detail {
 			if (preflight != json_preflight_result::valid) {
 				return false;
 			}
-			QJsonParseError error;
-			const auto      document = QJsonDocument::fromJson(
-				QByteArray{
-					aBody.data(),
-					static_cast<qsizetype>(aBody.size()),
-				},
-				&error);
-			return error.error == QJsonParseError::NoError
-				&& secondary_rate_limit_message(&document);
+			const auto document = parse_json_document(aBody);
+			return document.has_value() && secondary_rate_limit_message(&*document);
 		} catch (...) {
 			return false;
 		}
@@ -3354,16 +3416,9 @@ namespace bpr::adapters::github::detail {
 			if (preflight != json_preflight_result::valid) {
 				return false;
 			}
-			QJsonParseError error;
-			const auto      document = QJsonDocument::fromJson(
-				QByteArray{
-					aBody.data(),
-					static_cast<qsizetype>(aBody.size()),
-				},
-				&error);
-			return error.error == QJsonParseError::NoError && document.isObject()
-				&& graphql_error_rate_limited(
-					   document.object().value(QStringLiteral("errors")));
+			const auto document = parse_json_document(aBody);
+			return document.has_value() && json_is_object(*document)
+				&& graphql_error_rate_limited(json_member(json_object(*document), "errors"));
 		} catch (...) {
 			return false;
 		}
@@ -3429,33 +3484,31 @@ namespace bpr::adapters::github::detail {
 				return std::unexpected{ metadataError(
 					application::github_provider_failure::malformed_response) };
 			}
-			QJsonParseError parseError;
-			const auto      document = QJsonDocument::fromJson(
-				QByteArray{
-					aResponse.Body.data(),
-					static_cast<qsizetype>(aResponse.Body.size()),
-				},
-				&parseError);
-			if (parseError.error != QJsonParseError::NoError || !document.isObject()
-				|| !has_required_keys(document.object(),
+			const auto parsed = parse_json_document(aResponse.Body);
+			if (!parsed.has_value()) {
+				return std::unexpected{ metadataError(application::github_provider_failure::malformed_response) };
+			}
+			const auto& document = *parsed;
+			if (!json_is_object(document)
+				|| !has_required_keys(json_object(document),
 									  { "id", "login", "name", "node_id" })) {
 				return std::unexpected{ metadataError(
 					application::github_provider_failure::malformed_response) };
 			}
-			const auto object = document.object();
-			if (!exact_integer(object.value("id"), true)
-				|| !nonempty_string(object.value("login"))
-				|| !nonempty_string(object.value("node_id"))
-				|| (!object.value("name").isNull()
-					&& !object.value("name").isString())) {
+			const auto object = json_object(document);
+			if (!exact_integer(json_member(object, "id"), true)
+				|| !nonempty_string(json_member(object, "login"))
+				|| !nonempty_string(json_member(object, "node_id"))
+				|| (!json_is_null(json_member(object, "name"))
+					&& !json_is_string(json_member(object, "name")))) {
 				return std::unexpected{ metadataError(
 					application::github_provider_failure::malformed_response) };
 			}
-			const auto node  = text(object.value("node_id"));
-			const auto login = text(object.value("login"));
-			const auto name  = object.value("name").isNull()
+			const auto node  = text(json_member(object, "node_id"));
+			const auto login = text(json_member(object, "login"));
+			const auto name  = json_is_null(json_member(object, "name"))
 				? std::string{ }
-				: text(object.value("name"));
+				: text(json_member(object, "name"));
 			if (!bounded_text(node, aLimits.Records.MaximumIdentityBytes, true)
 				|| !bounded_text(login, aLimits.Records.MaximumLoginBytes, true)
 				|| !bounded_text(name, aLimits.Records.MaximumDisplayNameBytes)) {
@@ -3464,7 +3517,7 @@ namespace bpr::adapters::github::detail {
 			}
 			return observed_github_viewer{
 				.Viewer = application::github_viewer_record{
-					.Account     = core::github_account_id{ integer(object.value("id")) },
+					.Account     = core::github_account_id{ integer(json_member(object, "id")) },
 					.Node        = application::github_actor_id{ node },
 					.Login       = login,
 					.DisplayName = name,
@@ -3578,7 +3631,7 @@ namespace bpr::adapters::github::detail {
 					result.Files,
 					aLimits.Records.MaximumFiles,
 					aLimits.MaximumPageRecords,
-					[](const QJsonValue& aValue) { return parse_file(aValue); });
+					[](const page_json_value& aValue) { return parse_file(aValue); });
 				!files.has_value()) {
 				return std::unexpected{ execution.enrich(files.error()) };
 			}
@@ -3596,7 +3649,7 @@ namespace bpr::adapters::github::detail {
 					result.Commits,
 					aLimits.Records.MaximumCommits,
 					aLimits.MaximumPageRecords,
-					[](const QJsonValue& aValue) { return parse_commit(aValue); });
+					[](const page_json_value& aValue) { return parse_commit(aValue); });
 				!commits.has_value()) {
 				return std::unexpected{ execution.enrich(commits.error()) };
 			}
@@ -3614,7 +3667,7 @@ namespace bpr::adapters::github::detail {
 					result.Reviews,
 					aLimits.Records.MaximumReviews,
 					aLimits.MaximumPageRecords,
-					[](const QJsonValue& aValue) { return parse_review(aValue); });
+					[](const page_json_value& aValue) { return parse_review(aValue); });
 				!reviews.has_value()) {
 				return std::unexpected{ execution.enrich(reviews.error()) };
 			}
@@ -3648,7 +3701,7 @@ namespace bpr::adapters::github::detail {
 						flat,
 						aLimits.Records.MaximumTotalComments,
 						aLimits.MaximumPageRecords,
-						[](const QJsonValue& aValue) {
+						[](const page_json_value& aValue) {
 							return parse_review_comment(aValue);
 						});
 					!reviewComments.has_value()) {
@@ -3671,7 +3724,7 @@ namespace bpr::adapters::github::detail {
 					result.IssueComments,
 					aLimits.Records.MaximumIssueComments,
 					aLimits.MaximumPageRecords,
-					[](const QJsonValue& aValue) { return parse_issue_comment(aValue); });
+					[](const page_json_value& aValue) { return parse_issue_comment(aValue); });
 				!comments.has_value()) {
 				return std::unexpected{ execution.enrich(comments.error()) };
 			}

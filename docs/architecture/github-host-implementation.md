@@ -1394,6 +1394,15 @@ explicit null coordinates remain absent. Comment position is used only for its
 nullness, preserving the distinction between a missing position and explicit
 null without interpreting another provider value as a coordinate.
 
+Production paging also uses Glaze with exact integer decoding. Each parsed page
+owns an immutable response body; indexed JSON children share that ownership,
+including copied GraphQL connection nodes. No raw view borrows a completed
+transport operation. Structural bounds and whole-document validation precede
+shape and scalar checks, including unknown response values. Required members,
+explicit nulls, exact resource-scoped rate observations, REST authority and
+GraphQL cursor/count checks retain their existing admission rules. Every page
+must exhaust and the complete typed snapshot must validate before it is returned;
+a malformed continuation never exposes an earlier partial snapshot.
 
 Mutation capability probing may observe schema support without executing the
 mutation. Executable GitHub mutations remain RFC-BPR-0008.

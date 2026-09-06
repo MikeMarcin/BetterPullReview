@@ -13,9 +13,11 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <initializer_list>
 #include <iostream>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <stop_token>
@@ -486,13 +488,20 @@ namespace {
 					},
 				};
 			}
+			auto response = response_for(aRequest);
+			if (RewriteResponse) {
+				RewriteResponse(aRequest, response);
+			}
 			return github_wire_success{
 				.Correlation = aRequest.Correlation,
-				.Response    = response_for(aRequest),
+				.Response    = std::move(response),
 			};
 		}
 
 		std::vector<github_wire_request> Requests;
+		// Alter literal wire bytes after serialization so rounding or parser
+		// normalization in fixture construction cannot hide boundary failures.
+		std::function<void(const github_wire_request&, wire_response&)> RewriteResponse;
 		// The signed-out inline review-comment listing the fixture serves.
 		// Each RFC-BPR-0017 case is a specific promoted or synthetic payload,
 		// so the pages are handed in rather than generated.
@@ -1608,6 +1617,157 @@ namespace {
 			   "duplicate viewer error keys cannot claim secondary throttling");
 	}
 
+	auto replace_raw(std::string& aBody, const std::string_view aBefore,
+					 const std::string_view aAfter) -> std::size_t
+	{
+		std::size_t count    = 0U;
+		std::size_t position = 0U;
+		while ((position = aBody.find(aBefore, position)) != std::string::npos) {
+			aBody.replace(position, aBefore.size(), aAfter);
+			position += aAfter.size();
+			++count;
+		}
+		return count;
+	}
+
+	auto test_glaze_viewer_numbers_and_syntax() -> void
+	{
+		for (const auto id : { std::uint64_t{ 9'007'199'254'740'993U }, std::numeric_limits<std::uint64_t>::max() }) {
+			const auto response = success_response("{\"id\":" + std::to_string(id)
+												   + R"(,"login":"octo-reviewer","name":null,"node_id":"U_viewer"})");
+			const auto viewer   = normalize_observed_github_viewer(response);
+			expect(viewer.has_value() && viewer->Viewer.Account.value() == id
+					   && viewer->Viewer.DisplayName.empty() && viewer->RateLimits.Core.has_value(),
+				   "viewer retains exact full-width identity, explicit null name and rate tuple");
+		}
+		for (const auto token : { "1001.00000000000000000001", "18446744073709551616", "-1", "1e-20", "null", "true", "\"1001\"" }) {
+			const auto response = success_response(std::string{ "{\"id\":" } + token
+												   + R"(,"login":"octo-reviewer","name":null,"node_id":"U_viewer"})");
+			const auto result   = normalize_observed_github_viewer(response);
+			expect(!result.has_value() && result.error().Failure == application::github_provider_failure::malformed_response
+					   && result.error().RateLimits.Core.has_value(),
+				   "viewer refuses fractional, overflowing and mistyped identities with observed metadata");
+		}
+		const auto exactExponent = normalize_observed_github_viewer(success_response(
+			R"({"id":1001e0,"login":"octo-reviewer","name":"Caf\u00e9","node_id":"U_viewer"})"));
+		expect(exactExponent.has_value() && exactExponent->Viewer.Account.value() == 1001U
+				   && exactExponent->Viewer.DisplayName == "Café",
+			   "exact integer exponent and escaped Unicode retain their meaning");
+		const auto body = std::string{ R"({"id":1001,"login":"octo-reviewer","name":null,"node_id":"U_viewer"})" };
+		for (const auto& malformed : std::vector<std::string>{
+				 "null", "17", "\"viewer\"", body + "{}", body + "garbage",
+				 body.substr(0U, body.size() - 1U) + R"(,"unknown":1e400})",
+				 body.substr(0U, body.size() - 1U) + R"(,"unknown":"\ud800"})",
+				 body.substr(0U, body.size() - 1U) + ",\"unknown\":\"" + std::string(1U, static_cast<char>(0xff)) + "\"}",
+				 body.substr(0U, body.size() - 1U) + R"(,"id":1001})" }) {
+			const auto result = normalize_observed_github_viewer(success_response(malformed));
+			expect(!result.has_value() && result.error().Failure == application::github_provider_failure::malformed_response,
+				   "whole viewer response is validated including unknown values, duplicate keys and trailing input");
+		}
+	}
+
+	auto test_glaze_paged_identity_and_lifetime() -> void
+	{
+		for (const auto id : { std::uint64_t{ 9'007'199'254'740'993U }, std::numeric_limits<std::uint64_t>::max() }) {
+			auto request                        = provider_request();
+			request.Context.ExpectedRepository  = core::repository_id{ id };
+			request.Context.ExpectedPullRequest = core::pull_request_id{ id };
+			const auto rewrite                  = [id](const github_wire_request& aRequest, wire_response& aResponse) {
+				const auto field = "\"id\":" + std::to_string(id);
+				if (aRequest.Wire.Operation == read_operation::get_repository) {
+					expect(replace_raw(aResponse.Body, "\"id\":2001", field) == 1U, "repository raw numeric fixture selected");
+				} else if (aRequest.Wire.Operation == read_operation::get_pull_request) {
+					expect(replace_raw(aResponse.Body, "\"id\":2001", field) == 2U
+							   && replace_raw(aResponse.Body, "\"id\":3001", field) == 1U,
+						   "PR and both repository reference IDs selected");
+				} else if (aRequest.Wire.Operation == read_operation::list_reviews) {
+					expect(replace_raw(aResponse.Body, "\"id\":4001", field) == 1U, "review raw numeric fixture selected");
+				}
+			};
+			// The transport and every temporary completion are gone before facts
+			// from both REST pages and both nested GraphQL pages are examined.
+			const auto result = [&] {
+				auto transport            = paged_fixture_transport{ fixture_scenario::success };
+				transport.RewriteResponse = rewrite;
+				return perform_paged_github_read(transport, profile(), request,
+												 core::provider_snapshot_id{ 55U }, std::stop_token{ });
+			}();
+			expect(result.has_value() && result->Repository.Repository.value() == id
+					   && result->PullRequest.PullRequest.value() == id
+					   && result->Reviews.size() == 1U && result->Reviews.front().DatabaseId == id,
+				   "complete production paging retains exact full-width repository, PR and review identities");
+			expect(result->Files.size() == 101U && result->ReviewThreads.size() == 1U
+					   && result->ReviewThreads.front().Comments.size() == 101U,
+				   "both collection continuations were exhausted");
+			for (std::size_t index = 0U; index < 101U; ++index) {
+				expect(result->Files[index].Path == "src/file" + std::to_string(index) + ".cpp"
+						   && result->ReviewThreads.front().Comments[index].Body == "comment " + std::to_string(index)
+						   && result->ReviewThreads.front().Comments[index].Comment.value() == "C_" + std::to_string(index),
+					   "all decoded page identities and text survive completion and transport destruction");
+			}
+			for (const auto wrongRepository : { true, false }) {
+				auto wrongRequest = request;
+				if (wrongRepository) {
+					wrongRequest.Context.ExpectedRepository = core::repository_id{ id - 1U };
+				} else {
+					wrongRequest.Context.ExpectedPullRequest = core::pull_request_id{ id - 1U };
+				}
+				auto transport            = paged_fixture_transport{ fixture_scenario::success };
+				transport.RewriteResponse = rewrite;
+				const auto wrong          = perform_paged_github_read(transport, profile(), wrongRequest,
+																	  core::provider_snapshot_id{ 56U }, std::stop_token{ });
+				expect(!wrong.has_value() && provider_failure_of(wrong) == application::github_provider_failure::malformed_response,
+					   "adjacent full-width authority mismatch cannot yield a snapshot");
+			}
+		}
+	}
+
+	auto test_glaze_paged_raw_refusals() -> void
+	{
+		struct raw_case
+		{
+			read_operation   Operation;
+			std::string_view Before;
+			std::string_view After;
+		};
+		for (const auto& test : {
+				 raw_case{ read_operation::get_repository, "\"id\":2001", "\"id\":2001.00000000000000001" },
+				 raw_case{ read_operation::get_pull_request, "\"id\":3001", "\"id\":18446744073709551616" },
+				 raw_case{ read_operation::list_reviews, "\"id\":4001", "\"id\":4001.00000000000000001" },
+				 raw_case{ read_operation::list_pull_request_files, "\"additions\":1", "\"additions\":1.00000000000000001" },
+				 raw_case{ read_operation::list_review_threads, "\"line\":42", "\"line\":42.00000000000000001" },
+				 raw_case{ read_operation::list_review_threads, "\"totalCount\":101", "\"totalCount\":101.00000000000000001" } }) {
+			auto transport            = paged_fixture_transport{ fixture_scenario::success };
+			bool selected             = false;
+			transport.RewriteResponse = [&](const github_wire_request& aRequest, wire_response& aResponse) {
+				if (aRequest.Wire.Operation == test.Operation) {
+					selected = replace_raw(aResponse.Body, test.Before, test.After) != 0U;
+					expect(selected, "raw numeric refusal fixture selected");
+				}
+			};
+			const auto result = perform_paged_github_read(transport, profile(), provider_request(),
+														  core::provider_snapshot_id{ 57U }, std::stop_token{ });
+			expect(selected && !result.has_value()
+					   && provider_failure_of(result) == application::github_provider_failure::malformed_response,
+				   "fractional or overflowing page identities, counts and coordinates fail atomically");
+		}
+		for (const auto& suffix : std::vector<std::string>{ "{}", "garbage", std::string(1U, static_cast<char>(0xff)) }) {
+			auto transport            = paged_fixture_transport{ fixture_scenario::success };
+			bool selected             = false;
+			transport.RewriteResponse = [&](const github_wire_request& aRequest, wire_response& aResponse) {
+				if (aRequest.Wire.Operation == read_operation::list_review_threads && aRequest.Wire.Semantic.Page == 2U) {
+					selected = true;
+					aResponse.Body += suffix;
+				}
+			};
+			const auto result = perform_paged_github_read(transport, profile(), provider_request(),
+														  core::provider_snapshot_id{ 58U }, std::stop_token{ });
+			expect(selected && !result.has_value()
+					   && provider_failure_of(result) == application::github_provider_failure::malformed_response,
+				   "malformed continuation tail cannot return the earlier partial snapshot");
+		}
+	}
+
 	auto test_capability_shaped_query() -> void
 	{
 		const auto request = compile_read_request(semantic_read_request{
@@ -2381,6 +2541,45 @@ namespace {
 		return anonymous_read(transport);
 	}
 
+	auto test_glaze_anonymous_exact_comment_linkage() -> void
+	{
+		for (const auto id : { std::uint64_t{ 9'007'199'254'740'993U }, std::numeric_limits<std::uint64_t>::max() }) {
+			auto       body  = anonymous_fixture_bytes("synthetic/review-comments-linked.json");
+			const auto rawId = std::to_string(id);
+			expect(replace_raw(body, "\"id\": 101,", "\"id\": " + rawId + ",") == 1U
+					   && replace_raw(body, "\"in_reply_to_id\": 101", "\"in_reply_to_id\": " + rawId) == 2U,
+				   "full-width root and both exact reply links selected");
+			auto transport = paged_fixture_transport{ fixture_scenario::success };
+			transport.ReviewCommentPages.push_back(body);
+			const auto result = anonymous_read(transport);
+			expect(result.has_value() && result->ReviewCommentGroups.size() == 2U
+					   && result->ReviewCommentGroups.front().Root.Comment.value() == rawId
+					   && result->ReviewCommentGroups.front().Replies.size() == 2U
+					   && result->ReviewCommentGroups.front().Replies.front().ReplyTo
+						   == std::optional{ application::github_comment_id{ rawId } },
+				   "anonymous root identity and reply grouping remain exact at full uint64 width");
+			expect(replace_raw(body, "\"in_reply_to_id\": " + rawId,
+							   "\"in_reply_to_id\": " + std::to_string(id - 1U))
+					   == 2U,
+				   "adjacent wrong anonymous reply links selected");
+			auto wrong = paged_fixture_transport{ fixture_scenario::success };
+			wrong.ReviewCommentPages.push_back(body);
+			const auto rejected = anonymous_read(wrong);
+			expect(!rejected.has_value() && provider_failure_of(rejected) == application::github_provider_failure::malformed_response,
+				   "adjacent wrong root identity refuses the complete anonymous snapshot");
+		}
+		for (const auto field : { "\"id\": 101", "\"in_reply_to_id\": 101" }) {
+			auto body = anonymous_fixture_bytes("synthetic/review-comments-linked.json");
+			expect(replace_raw(body, field, std::string{ field } + ".00000000000000001") != 0U,
+				   "fractional anonymous identity fixture selected");
+			auto transport = paged_fixture_transport{ fixture_scenario::success };
+			transport.ReviewCommentPages.push_back(body);
+			const auto result = anonymous_read(transport);
+			expect(!result.has_value() && provider_failure_of(result) == application::github_provider_failure::malformed_response,
+				   "fractional root or reply identity cannot round into a valid anonymous group");
+		}
+	}
+
 	auto test_anonymous_review_comments_group_by_linkage() -> void
 	{
 		auto transport = paged_fixture_transport{ fixture_scenario::success };
@@ -2621,6 +2820,9 @@ namespace {
 auto main() -> int
 {
 	test_metadata_and_viewer();
+	test_glaze_viewer_numbers_and_syntax();
+	test_glaze_paged_identity_and_lifetime();
+	test_glaze_paged_raw_refusals();
 	test_capability_shaped_query();
 	test_successful_exhaustive_read();
 	test_graphql_head_is_bound_to_rest_snapshot();
@@ -2630,6 +2832,7 @@ auto main() -> int
 	test_raw_status_classification();
 	test_collection_count_contract();
 	test_atomic_failures();
+	test_glaze_anonymous_exact_comment_linkage();
 	test_anonymous_review_comments_group_by_linkage();
 	test_anonymous_review_comments_exhaust_their_pages();
 	test_anonymous_observed_empty_is_not_unavailable();
