@@ -12,10 +12,10 @@ depends_on: ["BPR-0621"]
 BPR-0621's composed SIGKILL course retained the interrupted workspace through
 two ordinary application reopens. Native identities and content stayed equal;
 Git/SQLite recovery and zero agent replay passed. The process guard stops the
-agent but cannot reclaim the application's disposable checkout. Current
-`github_application.cpp` creates a random sibling QTemporaryDir, disables its
-generic removal, and retains the exact parent/workspace capabilities only in
-memory. A new application creates a different root and cannot recover those
+agent but cannot reclaim the application's disposable checkout. At that revision,
+`github_application.cpp` created a random sibling QTemporaryDir, disabled its
+generic removal, and retained the exact parent/workspace capabilities only in
+memory. A new application created a different root and could not recover those
 capabilities from the session catalog, which intentionally stores no paths.
 
 ## Required outcome
@@ -123,7 +123,7 @@ identified, killed and independently confirmed absent.
   Task build logs are removed after recording results; test roots are consumed
   by their contained runners. No release application sign-out was performed.
 
-## Next implementation step
+## Journal plan before implementation
 
 Implement the durable registry and integrate its lifecycle on the effect lane.
 Carry its exact guard reference from the owned workspace into the process
@@ -148,7 +148,7 @@ reclamation of a durably owned workspace. Run repeated ordinary recovery and
 session #2 with unchanged Git/SQLite identities. Keep safe preservation for
 historical roots without ownership receipts. Only then consider Done.
 
-## Unix ownership journal prerequisite — implemented, not integrated
+## Unix ownership journal prerequisite — historical checkpoint
 
 Source `77651b10` adds `agent_workspace_ownership.hpp` and the native implementation
 beside the installed-Git identity/quarantine helpers. No production caller uses
@@ -201,7 +201,7 @@ checkout. Non-Unix implementations return unavailable.
   local, network-isolated fixture work; no GitHub Actions, push, paid agent,
   production sign-in or release application launch occurred.
 
-### Required integration next
+### Integration plan at the journal checkpoint
 
 Replace the unrecorded QTemporaryDir lifecycle with ownership prepared on the
 installed-Git/cache effect lane. Materialize into the journal's exact empty
@@ -221,3 +221,101 @@ evidence. This card and RFC-0013 remain open until those requirements pass.
 Task-created journal build/test logs and the consumed insertion fragment were
 removed after retaining these results. Fixture temporary roots and children
 were consumed by the bounded runners. No production workspace was removed.
+
+## Unix production integration — current slice
+
+The installed-Git/cache configuration now selects the private versioned journal
+for the Unix application. Preparation and materialization use its original
+parent/child identities; the cache retains the exact owner through execution
+and cleanup. The host carries the journal guard into agent launch. Ordinary
+startup recovers on the existing effect lane without opening a pull request or
+starting an agent, and shutdown waits for that work. Ambiguous ownership gets a
+visible repair/refusal. The SQLite session catalog remains unchanged. The
+stable private workspace neighbourhood is retained; completed disposable
+parents and their journals are removed.
+
+Independent review found that the initial integration still allowed Git to
+outlive application death during materialization, with only the dying
+application holding the journal lock. Every materialization Git subprocess now
+uses the bundled supervisor and an independently opened exact shared guard.
+The supervisor closes that descriptor in Git and retains it through group
+teardown and child reap. Cancellation closes the owner channel and waits;
+an unresponsive helper remains excluded and quarantined instead of being killed
+to release its lock early. The normal Git command, stream and timeout bounds
+remain in effect.
+
+The new composed test stops the selected Git writer before init and checkout,
+freezes its supervisor, kills the application, and starts ordinary recovery
+twice. Both the original workspace and its journal must remain unchanged until
+the supervisor resumes and stops/reaps Git. Two later ordinary startups must
+reclaim the workspace with exact Git refs and SQLite session identity retained.
+A separate cancellation course uses the public Cancel action while Git is
+stopped and requires terminal/quiescent state, no agent launch and cleanup.
+
+This test exposed a second defect: on this Mac, `waitid(WEXITED | WNOHANG |
+WNOWAIT)` reported a stopped child (`si_code=CLD_STOPPED`, status 17). The
+supervisor had treated any reported child identity as exit and killed it.
+It now requires CLD_EXITED, CLD_KILLED or CLD_DUMPED. The composed course leaves
+Git stopped through several helper poll intervals before freezing the helper,
+so the old behavior fails before the crash checkpoint. A small local native
+probe confirmed that OS observation; its temporary source and executable are
+removed after use.
+
+The running-agent crash course now also checks a simultaneous ordinary app,
+a paused supervisor after owner death, same-path substitution with safe repair,
+ordinary startup without PR selection, two no-replay reopens and explicit
+session #2. Fixture-created wrapper and storage roots stay inside the runner's
+owned temporary directory. This is local, network-isolated fixture work only.
+
+Source `0427dc76` contains the complete Unix integration and supervisor repair.
+BPR-0622 remains In Progress: non-Unix durable ownership/lifetime integration
+and the remaining target-native evidence are still required.
+
+### Local integration verification — 2026-09-05, macOS arm64
+
+- Final `qt_agent_launch_canary`, `agent_parent_death` and
+  `application_agent_materialization_crash_recovery` pass 3/3 in 142.86s
+  (72.74s, 24.45s and 45.66s). The materialization course covers init and checkout
+  owner death plus cancellation of stopped Git, exact live-lock exclusion,
+  repeated startup reclamation, no agent launch and preserved Git/SQLite state.
+  Earlier runs failed on the stopped-child event described above; only the
+  repaired final course is acceptance evidence for that behavior.
+- `application_agent_crash_recovery` passes in 43.41s with the integrated
+  registry and Git supervisor, including paused-agent-supervisor exclusion,
+  safe substitution refusal, ordinary startup reclamation, two no-replay
+  reopens and explicit session #2. Its running-child course does not stop the
+  supervisor's child before teardown; the later event-type repair leaves that
+  passing execution path unchanged.
+- The normal composition, cancellation, cleanup-retry and sanitized workspace
+  diagnostic contracts pass in 34.63s, 20.68s, 19.39s and 12.93s. These were the
+  four passing tests in the run whose fifth materialization test exposed the
+  stopped-child defect. Their unchanged normal-child paths reuse that evidence;
+  the final launcher and materialization courses directly check the repair.
+- `git_process_contract` (64.65s), `agent_workspace_ownership` (2.74s),
+  `application_agent_invocation_host` (0.07s), `architecture_boundaries`
+  (8.37s) and `test_network_isolation_manifest` (3.16s) pass. Those inputs are
+  unchanged by the supervisor's later exit-event filter and extra fixture
+  cancellation course. The new fixture is registered for network isolation.
+- Dev application/fixtures and the tests-off `app-release` application build.
+  Built and bundled release supervisor SHA-256 both equal
+  `8c9ebca76da58f47b1c9f8fcb4f56d84462a073cb3e1fd5098e2c93721997c51`;
+  `otool -L` still lists only libc++ and libSystem. No release app was launched.
+- Documentation gate, documentation verifier's 62 tests, changed C++ format
+  checks and `git diff --check` pass. Test stdout/stderr and the native waitid
+  probe were consumed before removing their exact task-created files. The
+  contained fixture runners reclaimed their storage and children. No production
+  workspace was removed and remembered sign-in was not changed.
+- No GitHub Actions, workflow dispatch, push, paid CI, live AI fixture or remote
+  mutation was used. All reported runtime results are local Mac evidence;
+  they do not establish Windows or Linux acceptance.
+
+### Remaining frontier
+
+Implement non-Unix journal identity/locking, process-lifetime transfer and
+application integration before claiming this card complete, then obtain the
+required target-native evidence. Retain safe refusal for unsupported requested
+guards. On the Mac, this slice now demonstrates recovery of durably owned
+workspaces through preparation/cleanup journal checkpoints, actual Git
+materialization and running-agent application death. Unknown historical roots
+and the documented pre-identity mkdir window remain preserved repair cases,
+not deletion candidates. RFC-0013 closeout remains open for its other criteria.

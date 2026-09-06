@@ -39,44 +39,41 @@ performance subsystem or fabricate timing budgets before measurement.
 | Memory and cache usage remain within documented budgets and recover after closing/pruning reviews. | Measure process/cache retention through close and prune; justify hardware-specific thresholds before enforcing them. | Open; no RFC-wide passing result claimed. |
 | Primary and secondary rate-limit simulations produce bounded backoff and useful UI state. | Reuse and assess provider/host rate-limit fixtures and their visible projection; add uncovered backoff cases. | Open; no RFC-wide passing result claimed. |
 | Offline mode uses clearly labeled cached data and never implies freshness. | Inspect selected cached-data behavior and exercise explicit stale/offline presentation. | Open; no RFC-wide passing result claimed. |
-| Process-kill tests recover Git cache and SQLite state without corruption or duplicate mutations. | BPR-0616: `live_review_submission_provider` and `live_review_submission_restart_recovery` passed 2/2, including five SIGKILL courses, SQLite integrity and zero duplicate POSTs. BPR-0618: all four real fetch/spool/prepared/visible kill courses pass, with repeated restart, exact epoch/ref identity, Git fsck, SQLite integrity and owned-spool cleanup. BPR-0619: all six receiving/spool/install transaction kills pass, including prior-history identity and two fresh restarts; unowned artifacts are preserved and new incoming admission is bounded. BPR-0620 adds forced owner PID/process-group death and fresh-launch evidence (`bdcd3837`); BPR-0621 exercises the real application during an AI-session kill, independent Git/SQLite reads, two no-replay reopens and explicit session #2 (`430b7c51`, 43.68s). Its orphaned workspace remains for BPR-0622. | Partial passing evidence in BPR-0616 (`72022b52`) BPR-0618 (`081fc9d1`, `21255d9c`) BPR-0619 (`62c62c6d`) and BPR-0621 (`430b7c51`); Mac state-recovery lanes pass, while complete resource recovery and other target-native evidence remain open. |
+| Process-kill tests recover Git cache and SQLite state without corruption or duplicate mutations. | BPR-0616: `live_review_submission_provider` and `live_review_submission_restart_recovery` passed 2/2, including five SIGKILL courses, SQLite integrity and zero duplicate POSTs. BPR-0618: all four real fetch/spool/prepared/visible kill courses pass, with repeated restart, exact epoch/ref identity, Git fsck, SQLite integrity and owned-spool cleanup. BPR-0619: all six receiving/spool/install transaction kills pass, including prior-history identity and two fresh restarts; unowned artifacts are preserved and new incoming admission is bounded. BPR-0620 adds forced owner PID/process-group death and fresh-launch evidence (`bdcd3837`); BPR-0621 exercises the real application during an AI-session kill, independent Git/SQLite reads, two no-replay reopens and explicit session #2 (`430b7c51`, 43.68s). BPR-0622 now integrates exact Unix workspace reclamation and guarded Git materialization (`0427dc76`), including live-owner/substitution negatives and preserved Git/SQLite identity. | Partial passing evidence in BPR-0616 (`72022b52`) BPR-0618 (`081fc9d1`, `21255d9c`) BPR-0619 (`62c62c6d`) and BPR-0621 (`430b7c51`); Mac state/workspace recovery lanes pass, including BPR-0622 (`0427dc76`); non-Unix integration and other target-native evidence remain open. |
 | Fuzzers cover diff parsing/mapping, Markdown, settings/themes, API normalization, Git output parsing, and AI structured output. | Inventory custom parser entry points and add bounded fuzz targets/corpora for uncovered surfaces. | Open; no RFC-wide passing result claimed. |
 | Logging and diagnostics remain metadata-only under large/error conditions. | Reuse basic Quill metadata-only and bounded-backpressure evidence (BPR-0602, BPR-0606); assess pathological workloads. | Open; no RFC-wide passing result claimed. |
 | Architecture benchmarks and instrumentation prove active-set/changed-set scaling, serialized decision application, incremental Qt updates, deterministic cancellation, and stale-result rejection. | Reuse diff scale / host identity / incremental Qt evidence where inputs are unchanged; measure uncovered public paths. | Open; no RFC-wide passing result claimed. |
 
 ## Continuation
 
-BPR-0616, BPR-0618, BPR-0619, BPR-0620 and BPR-0621 are complete. The Mac
-application's AI-session kill proof (`430b7c51`) passes in 43.68s, including
-Git fsck/ref identity, SQLite integrity/session identity, two no-replay reopens
-and explicit session #2 with new-workspace cleanup. The interrupted workspace
-retains 18 exact entries; complete resource recovery is still false.
+BPR-0616, BPR-0618, BPR-0619, BPR-0620 and BPR-0621 are complete. BPR-0622
+remains In Progress with its Unix production integration committed in
+`0427dc76`. The application now retains durable exact ownership through Git
+materialization and agent execution and recovers it on ordinary startup through
+the effect lane. Unknown/substituted ownership is preserved with a visible
+repair/refusal. The SQLite session catalog format is unchanged.
 
-BPR-0622 is In Progress. Its Unix lifetime prerequisite (`e50edf77`) passes
-paused-supervisor lock exclusion after application PID/group death (25.15s),
-normal protocol/architecture checks (79.46s) and the tests-off application build.
-No production caller supplies the guard yet; this does not reclaim workspaces.
+Its final materialization crash/cancellation course passes in 45.66s and the
+running-agent application crash course passes in 43.41s. Both independently
+check exact Git/SQLite state; the latter adds two no-replay reopens and explicit
+session #2. Restart excludes a paused live supervisor, then reclaims its
+workspace after child teardown. This supersedes BPR-0621's preserved-orphan
+observation where durable ownership exists. Original preparation/cleanup
+journal crash evidence remains in BPR-0622.
 
-Its Unix journal prerequisite is now implemented in `77651b10`: bounded
-append-only Glaze records retain original native identities, exact scope and
-cleanup phases, and also provide the shared lifetime lock. The final dedicated
-native test passes in 3.34s with fourteen SIGKILL courses, repeated recovery,
-live-owner exclusion, substitution/corruption refusal and bounded admission.
-The existing Git public contract passed in 84.24s; architecture and isolation
-manifest checks also pass. BPR-0622 records the precise evidence and limits.
+Independent review caught unsupervised materialization Git in the first wiring;
+all workspace Git commands now retain a guard through the bundled supervisor.
+The new test also exposed Darwin reporting CLD_STOPPED despite WEXITED. The
+supervisor now distinguishes stopped children from actual exit events. Final
+launcher, parent-death and materialization checks pass 3/3 in 142.86s. The normal
+composition/cancellation/cleanup/diagnostic lanes, Git contract, native journal,
+host, architecture, isolation manifest, dev/tests-off builds and documentation
+checks pass as recorded with precise revision relevance on BPR-0622.
 
-Next integrate that API with installed-Git/cache effects, the workspace host
-and application construction/restart/shutdown. The production QTemporaryDir
-and child cleanup capabilities are still in memory; no caller uses the new
-journal or supplies its guard to launch. Materialize into the exact journaled
-child, retain the owner through agent teardown and recover on ordinary startup.
-Keep the SQLite session catalog unchanged. Unknown names can demand repair but
-never establish deletion authority. Upgrade the composed kill course from
-orphan preservation to actual reclamation, two no-replay reopens and explicit
-session #2 with unchanged Git/SQLite identity. Non-Unix registry/lifetime
-integration and target-native evidence remain open.
-
-Then inventory retained public-path scale, memory, backoff/offline and
-parser-fuzz coverage before allocating missing bounded slices. Reuse unchanged
-direct evidence from earlier RFCs. No GitHub Actions, workflow dispatch, push,
-paid CI or live mutation is part of this work. RFC-0013 remains open.
+Next implement the remaining non-Unix journal/lifetime integration and obtain
+required target-native evidence. No Windows or Linux passing result is inferred
+from the Mac. BPR-0622 and this closeout stay open. Separately inventory retained
+public-path scale, memory, backoff/offline and parser-fuzz coverage before
+allocating missing bounded slices; reuse unchanged direct evidence from earlier
+RFCs. No GitHub Actions, workflow dispatch, push, paid CI or live mutation is
+part of this work. Production sign-in is preserved.
