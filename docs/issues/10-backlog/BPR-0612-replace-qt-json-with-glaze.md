@@ -77,5 +77,11 @@ not permission to leave a newly discovered caller behind.
 
 ## Status
 
-Not started. Full migration is intentionally backlogged; BPR-0610's new
-whole-review contract remains its own current implementation slice.
+Not started. On 2026-09-05 the owner questioned doing performance work before
+finishing this migration. This card is now selected for bounded planning and
+implementation ahead of further RFC-BPR-0013 performance work. Split the
+contracts and helpers into dependency-ordered slices before claiming source
+ownership. BPR-0610 is complete; preserve its typed whole-review contract.
+Existing cache-eviction and lifetime tests remain regression coverage. Refresh
+parser-sensitive timing and memory evidence after the migration rather than
+tuning the outgoing Qt JSON implementation.

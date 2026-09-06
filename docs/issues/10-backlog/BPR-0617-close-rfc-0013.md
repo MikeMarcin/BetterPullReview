@@ -21,7 +21,9 @@ Requested set: remaining nondeferred RFC pack through RFC-BPR-0014, with
 RFC-BPR-0008 the current closeout frontier and RFC-BPR-0013 before 0014.
 The canonical index permits available-target implementation while earlier
 live checks remain open. Closure still waits for BPR-0507 and every remaining
-criterion below. Advanced logging and broad Glaze conversion remain deferred.
+criterion below. Advanced logging remains deferred. Owner steering now puts the
+full Glaze migration (BPR-0612) ahead of further performance work; completed
+cache and lifetime coverage remains regression evidence, not a final parser baseline.
 
 Planned cards: BPR-0616 (review-publication kill recovery, Done), BPR-0618
 (Git-fetch/epoch kill recovery, Done), and BPR-0619 (live SQLite journal
@@ -36,7 +38,7 @@ performance subsystem or fabricate timing budgets before measurement.
 |---|---|---|
 | Checked-in benchmark fixtures cover large file counts, large files, many comments, many epochs, and mixed binary/generated content. | BPR-0623/0624 supply the 515-file, 20,000-line, binary/generated and 1,000-comment workload. BPR-0631 independently checks all 31 stored head deltas; BPR-0632 drives all 32 application epochs, exact source and retained refs/catalog through public refresh/history/selection. | Fixture and Mac composed coverage pass in `75d1494e` (320.25s history replay), with 897 exact reads and 32 retained epochs. Broader latency/platform criteria remain separate. |
 | UI input, scrolling, and navigation remain responsive while background work runs. | BPR-0627 corrects selected-file scope, BPR-0628 yields native measurement, and BPR-0629 moves semantic-index preparation off the GUI publication turn. BPR-0632 fixes pending single-anchor supersession and measures 31 rapid epoch changes, 30 during active work, with exact final source. | Partial passing Mac evidence: ordinary large-file maximum input interval 68.662 ms; final many-epoch maximum 71.247 ms and supersession 10.848 ms in `75d1494e`. One prior 112.448-ms source-selection sample missed the provisional 100-ms target and did not repeat unchanged; retain the outlier. Broader/native-platform acceptance remains open. |
-| Memory and cache usage remain within documented budgets and recover after closing/pruning reviews. | BPR-0630 proves prune/delete cleanup, BPR-0632 bounds 32-epoch comparison caching, and BPR-0633 independently closes a still-loaded 20,000-line window, drains cache/jobs, destroys raw/index/native owners and preserves Git/catalog identities without maintenance. Default cache-pressure and other-platform budgets remain open. | Partial passing evidence in `316390ce`, `75d1494e` and `5590d3ff`. Loaded-close footprint falls 92.095 to 55.595 MiB with unchanged provisional 160/96-MiB growth/cleanup budgets; no RFC-wide passing result claimed. |
+| Memory and cache usage remain within documented budgets and recover after closing/pruning reviews. | BPR-0630 proves prune/delete cleanup, BPR-0632 bounds many-epoch caching, BPR-0633 proves independent loaded-window destruction, and BPR-0634 forces default 64-entry eviction/revisit plus cleanup through public selection. Default byte pressure remains required in BPR-0635, along with other-platform budgets. | Partial passing evidence through `470adea7`; entry peak 64 / 212,992 bytes, evicted raw/index release and exact revisit pass. Loaded-close footprint/reclamation and provisional 160/96-MiB budgets remain documented. No RFC-wide passing result claimed. |
 | Primary and secondary rate-limit simulations produce bounded backoff and useful UI state. | Reuse and assess provider/host rate-limit fixtures and their visible projection; add uncovered backoff cases. | Open; no RFC-wide passing result claimed. |
 | Offline mode uses clearly labeled cached data and never implies freshness. | Inspect selected cached-data behavior and exercise explicit stale/offline presentation. | Open; no RFC-wide passing result claimed. |
 | Process-kill tests recover Git cache and SQLite state without corruption or duplicate mutations. | BPR-0616: `live_review_submission_provider` and `live_review_submission_restart_recovery` passed 2/2, including five SIGKILL courses, SQLite integrity and zero duplicate POSTs. BPR-0618: all four real fetch/spool/prepared/visible kill courses pass, with repeated restart, exact epoch/ref identity, Git fsck, SQLite integrity and owned-spool cleanup. BPR-0619: all six receiving/spool/install transaction kills pass, including prior-history identity and two fresh restarts; unowned artifacts are preserved and new incoming admission is bounded. BPR-0620 adds forced owner PID/process-group death and fresh-launch evidence (`bdcd3837`); BPR-0621 exercises the real application during an AI-session kill, independent Git/SQLite reads, two no-replay reopens and explicit session #2 (`430b7c51`, 43.68s). BPR-0622 now integrates exact Unix workspace reclamation and guarded Git materialization (`0427dc76`), including live-owner/substitution negatives and preserved Git/SQLite identity. | Partial passing evidence in BPR-0616 (`72022b52`) BPR-0618 (`081fc9d1`, `21255d9c`) BPR-0619 (`62c62c6d`) and BPR-0621 (`430b7c51`); Mac state/workspace recovery lanes pass, including BPR-0622 (`0427dc76`); non-Unix integration and other target-native evidence remain open. |
@@ -302,3 +304,30 @@ work, BPR-0622 Windows/Linux and earlier live/human gates remain open.
 BPR-0634 and BPR-0635 separately exercise the default entry and byte ceilings
 through real composed pressure. Both are required; small-capacity unit evidence
 or many small entries does not establish the 64-MiB byte-pressure criterion.
+
+
+BPR-0634 completes default entry pressure in `470adea7d7683577893b954f7a0c3d38c1f60689`.
+The real public app selects 65 distinct small files at unchanged limits. Cache
+entries stop at 64; the oldest weak raw diff/index survive through capacity and
+expire at eviction. Revisiting the evicted file rematerializes its exact stored
+blobs/source through the ordinary host. Peak bytes are only 212,992, explicitly
+not byte-pressure evidence. Public close/drain/destruction empties cache/jobs,
+releases current native/immutable owners and preserves Git/catalog data without
+maintenance. Full-window source is inspected.
+
+The same Mac records 54.600 ms maximum UI interval, 64 peak cache entries and
+one diff/one workbench/two epoch jobs. Footprint is 52.954 MiB before close and
+52.173 after destruction versus 4.547 baseline; retained Qt/allocator memory
+and provisional 160/96-MiB growth budgets are explicit. Entry pressure, both
+existing resource courses and isolation pass 4/4 (77.49/13.44/14.41/4.06s).
+Build/documentation/diff checks pass; no production code or remote/account state
+changed, and consumed task artifacts are removed.
+
+Next is to split and implement BPR-0612, the full Qt JSON-to-Glaze migration,
+before further performance work. After migration, BPR-0635 must use enough
+distinct large comparisons across stored heads to exceed 64 MiB before reaching
+64 entries. Verify byte eviction, weak ownership,
+exact public revisit and cleanup, and measure native footprint for that larger
+working set. Do not promote the small-file entry course to byte-budget proof.
+Earlier live/human, Windows/Linux, backoff/offline, fuzz/diagnostic and broader
+active-work criteria remain open; all execution remains local without Actions.

@@ -4,7 +4,7 @@ id: "BPR-0635"
 title: "Exercise default cache byte pressure"
 status: "Backlog"
 rfcs: ["RFC-BPR-0013"]
-depends_on: ["BPR-0634"]
+depends_on: ["BPR-0634","BPR-0612"]
 platforms: ["mac"]
 ---
 
@@ -34,3 +34,9 @@ RFC base `d4d9e61d9224ef869ca4de9725c2bf52c5df701a`; closeout BPR-0617.
 Local Mac, synthetic and network-denied only. No Actions, dispatch, push, paid
 CI, credentials or production account/process operations. Earlier human/live
 and Windows/Linux gates and deferred work remain open.
+
+## Sequencing
+
+Owner steering prioritizes the full Glaze migration in BPR-0612 before further
+performance work. Resume this course after that migration so the measurements
+exercise the intended parser implementation.
