@@ -199,3 +199,24 @@ but neither shows native memory or immutable diff/index release after public
 prune/delete/close. Measure those phases through the real composition, correct
 demonstrated stale ownership, and establish local evidence-based thresholds.
 Keep broader cache pressure, many-epoch and other native-platform claims open.
+
+
+BPR-0630 completes the local maintenance resource slice in `316390ce13411ff1dfbae1ba3896256a62629a78`.
+The new public course exposed retained stale source/diff/index after successful
+prune. Accepted exact-epoch invalidation now releases those objects and their
+cache while preserving other epoch selections and late-completion rejection.
+Public prune/delete/window-close/destruction, exact Git/catalog consequences
+and the before/pruned window renders pass. Final resource course is 14.32s;
+large-selection footprint 86.69 MiB falls to 61.09 MiB after prune with zero
+derived cache/jobs. The measured Mac-only sampled-growth/cleanup budgets are
+160/96 MiB above process baseline; allocator/Qt retention is explicitly distinct
+from object lifetime. Core/host/Qt/boundaries/isolation, original/unavailable
+public courses, composition and documentation checks pass as recorded on the
+card. This does not establish unsampled peaks, independent loaded-close memory,
+cache-pressure or other platform budgets.
+
+Next inventory existing evidence for many-epoch application replay, independent
+loaded-close/cache-pressure, backoff/offline, fuzz/diagnostic and active-work
+criteria; select the narrowest uncovered Mac slice. BPR-0622's Windows/Linux
+work and earlier live gates remain open. No Actions, remote CI, push, paid work
+or production account operation is authorized by this continuation.
