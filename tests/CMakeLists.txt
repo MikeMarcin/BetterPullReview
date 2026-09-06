@@ -307,6 +307,18 @@ bpr_add_network_isolated_test(
         "${PROJECT_SOURCE_DIR}/tests/scripts/recorded_pull_request_fixture_tests.py"
 )
 
+if(TARGET Git::Git)
+    bpr_add_network_isolated_test(
+        NAME large_review_fixture_contract
+        COMMAND Python3::Interpreter
+            "${PROJECT_SOURCE_DIR}/tests/scripts/large_review_fixture_tests.py"
+            --git "$<TARGET_FILE:Git::Git>"
+    )
+    set_tests_properties(large_review_fixture_contract PROPERTIES
+        PASS_REGULAR_EXPRESSION "LARGE_REVIEW_FIXTURE_OK"
+        TIMEOUT 90)
+endif()
+
 bpr_add_network_isolated_test(
     NAME github_conversation_fixture_contract
     COMMAND

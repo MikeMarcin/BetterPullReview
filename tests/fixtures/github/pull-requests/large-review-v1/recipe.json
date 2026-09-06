@@ -1,0 +1,11 @@
+{
+  "schema": "bpr.large-review-recipe.v1",
+  "source_files": 512,
+  "source_lines": 8,
+  "large_file_lines": 20000,
+  "generated_file_lines": 8192,
+  "binary_bytes": 4096,
+  "head_revisions": 32,
+  "review_comments": 1000,
+  "comments_per_page": 100
+}

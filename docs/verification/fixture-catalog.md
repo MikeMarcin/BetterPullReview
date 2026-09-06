@@ -1570,3 +1570,22 @@ prove native live service access. BPR-0316 separately records one successful
 Mac native read of the owner-designated public `MikeMarcin/BPR-Test#1`, with nine
 HTTP 200 responses and the exact accepted head; no private content or token is
 committed as evidence.
+
+
+## Large-review workload inputs (RFC-0013)
+
+`tests/fixtures/github/pull-requests/large-review-v1/` supplies a wholly synthetic
+515-file Git comparison: 512 source files, one 20,000-line comparison, one
+8,192-line generated table and one 4,096-byte binary blob. Its 32 nonempty head
+revisions share one base; ten bounded pages contain 1,000 comments anchored to
+changed source lines. The recipe and manifest record original object identity,
+shape, sizes, explicit pagination and artifact digests. Generation never fetches
+or executes repository content.
+
+`large_review_fixture_contract` imports the stored pack into isolated local Git,
+checks strict fsck, trees, blobs, changes and the exact revision graph, then
+checks every comment/page/anchor. Wrong-anchor, duplicate-identity and corrupted-
+pack negatives update the corresponding digests so semantic validation has to
+reject them. The generator is separate from those acceptance observations.
+These inputs extend the retained focused workbench/epoch fixtures; ordinary
+application benchmark integration and measured platform budgets remain open.
