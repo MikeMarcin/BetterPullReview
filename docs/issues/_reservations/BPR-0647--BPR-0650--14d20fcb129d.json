@@ -1,0 +1,13 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0647",
+    "BPR-0648",
+    "BPR-0649",
+    "BPR-0650"
+  ],
+  "reserve_for": "bpr-workbench-direction-v5",
+  "purpose": "",
+  "created": "2026-09-06T22:37:40.053137+00:00",
+  "base": "429918fecb41c674ab29b670d0357b67061114be"
+}
