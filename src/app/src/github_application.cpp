@@ -10223,7 +10223,7 @@ namespace bpr::app {
 				&& workbench->token_spans(core::diff_side::left) == probe.LeftSpans
 				&& workbench->token_spans(core::diff_side::right) == probe.RightSpans
 				&& statistics.GeometryRebuilds == probe.Statistics.GeometryRebuilds
-				&& statistics.SemanticIndexBuilds == probe.Statistics.SemanticIndexBuilds
+				&& statistics.SemanticIndexAdoptions == probe.Statistics.SemanticIndexAdoptions
 				&& statistics.SelectionChanges == probe.Statistics.SelectionChanges
 				&& statistics.TokenSpanAdoptions == probe.Statistics.TokenSpanAdoptions
 				&& implementation->AppearanceHost->classification_submissions()
@@ -10240,7 +10240,7 @@ namespace bpr::app {
 				   << (workbench->token_spans(core::diff_side::left) == probe.LeftSpans)
 				   << (workbench->token_spans(core::diff_side::right) == probe.RightSpans)
 				   << (statistics.GeometryRebuilds == probe.Statistics.GeometryRebuilds)
-				   << (statistics.SemanticIndexBuilds == probe.Statistics.SemanticIndexBuilds)
+				   << (statistics.SemanticIndexAdoptions == probe.Statistics.SemanticIndexAdoptions)
 				   << (statistics.SelectionChanges == probe.Statistics.SelectionChanges)
 				   << (statistics.TokenSpanAdoptions == probe.Statistics.TokenSpanAdoptions)
 				   << (implementation->AppearanceHost->classification_submissions()

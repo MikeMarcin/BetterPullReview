@@ -39,6 +39,10 @@ namespace bpr::core {
 			-> diff_semantic_index& = default;
 
 		[[nodiscard]] auto diff() const noexcept -> const computed_file_diff&;
+		/// \brief Checks exact immutable-result ownership without repeating validation.
+		[[nodiscard]] auto matches_result(const computed_file_diff& aResult) const noexcept -> bool;
+		/// \brief Counts this index object and vector capacities, excluding the shared result.
+		[[nodiscard]] auto retained_bytes() const noexcept -> std::optional<std::uint64_t>;
 		[[nodiscard]] auto statistics() const noexcept
 			-> diff_semantic_index_statistics;
 		[[nodiscard]] auto segment_index(alignment_segment_id aSegment) const noexcept

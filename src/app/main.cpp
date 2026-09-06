@@ -2039,7 +2039,7 @@ namespace {
 				   << ",\"geometry_generation\":" << stats.GeometryRebuilds
 				   << ",\"semantic_diff_generation\":"
 				   << workbench->current_context()->Generation.value()
-				   << ",\"semantic_index_builds\":" << stats.SemanticIndexBuilds
+				   << ",\"semantic_index_adoptions\":" << stats.SemanticIndexAdoptions
 				   << "}\n";
 			stream.flush();
 			return trace.error() == QFileDevice::NoError
@@ -2440,7 +2440,7 @@ namespace {
 		if (workbench->current_context() != initialContext) {
 			return fail(QStringLiteral("final-context-changed"));
 		}
-		if (finalStats.SemanticIndexBuilds != initialStats.SemanticIndexBuilds) {
+		if (finalStats.SemanticIndexAdoptions != initialStats.SemanticIndexAdoptions) {
 			return fail(QStringLiteral("final-semantic-index-rebuilt"));
 		}
 		if (!workbench->shared_scrollbar()->isEnabled()) {

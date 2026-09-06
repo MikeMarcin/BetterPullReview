@@ -1,3 +1,5 @@
+#include "diff_publication_fixture.hpp"
+
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/diff_semantics.hpp"
@@ -1500,10 +1502,10 @@ namespace {
 			.Generation         = core::request_generation{ 93U },
 		};
 		workbench.set_loading(pending);
-		workbench.publish({
+		workbench.publish(bpr::qt::test::prepare_publication({
 			.Context = pending,
 			.Result  = std::make_shared<const core::computed_file_diff>(diff),
-		});
+		}));
 		process_events();
 		expect(
 			workbench.navigate_change(
@@ -1598,10 +1600,10 @@ namespace {
 			.Generation         = core::request_generation{ 1U },
 		};
 		workbench.set_loading(pending);
-		workbench.publish({
+		workbench.publish(bpr::qt::test::prepare_publication({
 			.Context = pending,
 			.Result  = std::make_shared<const core::computed_file_diff>(diff),
-		});
+		}));
 		process_events();
 
 		profile.apply_code_font_to(workbench);
@@ -1724,10 +1726,10 @@ namespace {
 			.Generation         = core::request_generation{ 1U },
 		};
 		workbench.set_loading(pending);
-		workbench.publish({
+		workbench.publish(bpr::qt::test::prepare_publication({
 			.Context = pending,
 			.Result  = std::make_shared<const core::computed_file_diff>(diff),
-		});
+		}));
 		process_events();
 		expect(
 			workbench.current_result() != nullptr,

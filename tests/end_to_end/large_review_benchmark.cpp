@@ -81,7 +81,7 @@ namespace bpr::e2e::large_review {
 		std::vector<phase_measurement> Phases;
 		std::vector<double>            ChangeActionMs;
 		double                         WheelBatchMs = 0, SupersessionDrainMs = 0;
-		std::uint64_t                  WheelEvents = 0, ScrollFrames = 0, ScrollIndexBuilds = 0, ScrollGeometryRebuilds = 0, ScrollPaneMeasurements = 0;
+		std::uint64_t                  WheelEvents = 0, ScrollFrames = 0, ScrollIndexAdoptions = 0, ScrollGeometryRebuilds = 0, ScrollPaneMeasurements = 0;
 		std::size_t                    RapidSelections = 0, SelectionsWithOutstandingDiff = 0;
 		std::uint64_t                  LargeMeasurementBatches = 0, InputsDuringMeasurement = 0;
 		std::uint32_t                  MaximumMeasurementBatchLines  = 0;
@@ -398,10 +398,10 @@ auto main(int argc, char** argv) -> int
 			const auto scrollAfter        = controller->statistics();
 			report.WheelEvents            = scrollAfter.WheelEvents - scrollBefore.WheelEvents;
 			report.ScrollFrames           = scrollAfter.FramesApplied - scrollBefore.FramesApplied;
-			report.ScrollIndexBuilds      = after.SemanticIndexBuilds - before.SemanticIndexBuilds;
+			report.ScrollIndexAdoptions   = after.SemanticIndexAdoptions - before.SemanticIndexAdoptions;
 			report.ScrollGeometryRebuilds = after.GeometryRebuilds - before.GeometryRebuilds;
 			report.ScrollPaneMeasurements = after.PaneMeasurements - before.PaneMeasurements;
-			require(report.WheelEvents == 1000U && report.ScrollFrames == 1000U && report.ScrollIndexBuilds == 0U && report.ScrollGeometryRebuilds == 0U && report.ScrollPaneMeasurements == 0U
+			require(report.WheelEvents == 1000U && report.ScrollFrames == 1000U && report.ScrollIndexAdoptions == 0U && report.ScrollGeometryRebuilds == 0U && report.ScrollPaneMeasurements == 0U
 						&& application->status().ClassificationSubmissions == classificationBefore && controller->position() == 1000.0,
 					"scroll gesture work/position contract");
 			surface.shared_scrollbar()->setValue(0);

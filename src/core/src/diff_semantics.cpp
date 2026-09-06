@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <iterator>
+#include <limits>
 #include <ranges>
 
 namespace bpr::core {
@@ -135,6 +136,29 @@ namespace bpr::core {
 	auto diff_semantic_index::diff() const noexcept -> const computed_file_diff&
 	{
 		return *Diff;
+	}
+
+	auto diff_semantic_index::matches_result(const computed_file_diff& aResult) const noexcept -> bool
+	{
+		return Diff.get() == &aResult;
+	}
+
+	auto diff_semantic_index::retained_bytes() const noexcept -> std::optional<std::uint64_t>
+	{
+		auto       total = static_cast<std::uint64_t>(sizeof(*this));
+		const auto add   = [&total]<typename Value>(const std::vector<Value>& aValues) {
+			const auto capacity = static_cast<std::uint64_t>(aValues.capacity());
+			if (capacity > (std::numeric_limits<std::uint64_t>::max() - total) / sizeof(Value)) {
+				return false;
+			}
+			total += capacity * sizeof(Value);
+			return true;
+		};
+		if (!add(SegmentsById) || !add(GroupsById) || !add(PairsById)
+			|| !add(MovesBySegment) || !add(IntralineByPair)) {
+			return std::nullopt;
+		}
+		return total;
 	}
 
 	auto diff_semantic_index::statistics() const noexcept

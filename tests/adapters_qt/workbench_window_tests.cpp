@@ -1,3 +1,5 @@
+#include "diff_publication_fixture.hpp"
+
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/diff_semantics.hpp"
 #include "bpr/qt/diff_workbench.hpp"
@@ -1672,10 +1674,10 @@ namespace {
 	{
 		auto* const surface = aWindow.comparison_surface();
 		surface->set_loading(request_context(aDiff));
-		surface->publish({
+		surface->publish(bpr::qt::test::prepare_publication({
 			.Context = request_context(aDiff),
 			.Result  = std::make_shared<const core::computed_file_diff>(aDiff),
-		});
+		}));
 		process_events();
 		expect(surface->current_result() != nullptr,
 			   "the composed surface accepts its exact publication");

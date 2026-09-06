@@ -538,6 +538,11 @@ namespace {
 		auto       retainedDiff = std::make_shared<const computed_file_diff>(diff);
 		const auto index        = build_diff_semantic_index(retainedDiff);
 		expect(index.has_value(), "valid large result builds one semantic index");
+		expect(index->matches_result(*retainedDiff) && !index->matches_result(diff),
+			   "prepared index binds exact ownership, not merely equal content or digest");
+		expect(index->retained_bytes().has_value()
+				   && *index->retained_bytes() > sizeof(diff_semantic_index),
+			   "index allocation accounting includes retained lookup vectors");
 		retainedDiff.reset();
 		expect(
 			index->diff() == diff,

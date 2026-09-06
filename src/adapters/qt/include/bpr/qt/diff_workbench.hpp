@@ -88,7 +88,7 @@ namespace bpr::qt {
 		std::uint64_t FrameApplications     = 0U;
 		std::uint64_t SelectionChanges      = 0U;
 		std::uint64_t RejectedStaleInput    = 0U;
-		std::uint64_t SemanticIndexBuilds   = 0U;
+		std::uint64_t SemanticIndexAdoptions       = 0U;
 		std::uint64_t SemanticQueries       = 0U;
 		std::uint64_t PaneMeasurements      = 0U;
 		std::uint64_t MeasurementBatches           = 0U;
@@ -183,6 +183,8 @@ namespace bpr::qt {
 			-> const std::optional<core::semantic_selection>&;
 		[[nodiscard]] auto current_context() const noexcept
 			-> const std::optional<core::diff_request_context>&;
+		[[nodiscard]] auto current_semantic_index() const noexcept
+			-> const std::shared_ptr<const core::diff_semantic_index>&;
 		[[nodiscard]] auto current_result() const noexcept
 			-> const std::shared_ptr<const core::computed_file_diff>&;
 		/// \brief Whether native geometry is awaiting GUI continuations.
@@ -341,7 +343,7 @@ namespace bpr::qt {
 		application::shared_token_spans                 LeftSpans;
 		application::shared_token_spans                 RightSpans;
 		std::shared_ptr<const core::computed_file_diff> CurrentResult;
-		std::optional<core::diff_semantic_index>        SemanticIndex;
+		std::shared_ptr<const core::diff_semantic_index> SemanticIndex;
 		std::optional<core::line_detail_input>          CurrentDetail;
 		core::diff_interaction_state                    Interaction;
 		selection_sink                                  SelectionSink;

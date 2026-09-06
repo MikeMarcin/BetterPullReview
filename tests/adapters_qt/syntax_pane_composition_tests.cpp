@@ -1,3 +1,5 @@
+#include "diff_publication_fixture.hpp"
+
 /// \file
 /// \brief Proves the packaged classifier's own answer reaches a real pane.
 ///
@@ -255,11 +257,11 @@ namespace {
 			.Generation         = core::request_generation{ 1U },
 		};
 		workbench.set_loading(context);
-		workbench.publish({
+		workbench.publish(bpr::qt::test::prepare_publication({
 			.Context = context,
 			.Result  = std::make_shared<const core::computed_file_diff>(
 				*outcome.Result),
-		});
+		}));
 		process_events();
 		expect(
 			workbench.adopt_token_spans(

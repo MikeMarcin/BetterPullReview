@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_DIFF_RUNTIME_PORTS_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_DIFF_RUNTIME_PORTS_HPP
 
+#include "bpr/core/diff_semantics.hpp"
 #include "bpr/core/diff_transition.hpp"
 
 #include <compare>
@@ -88,6 +89,8 @@ namespace bpr::application {
 	{
 		core::diff_request_context                      Context;
 		std::shared_ptr<const core::computed_file_diff> Result;
+		/// Prepared on the effect lane and bound to Result by exact ownership.
+		std::shared_ptr<const core::diff_semantic_index> Index;
 		bool                                            CacheHit = false;
 	};
 

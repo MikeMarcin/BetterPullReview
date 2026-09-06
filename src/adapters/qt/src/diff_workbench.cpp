@@ -853,14 +853,13 @@ namespace bpr::qt {
 			++Statistics.RejectedStaleInput;
 			return;
 		}
-		auto semanticIndex = core::build_diff_semantic_index(aPublication.Result);
-		if (!semanticIndex.has_value()) {
+		if (!aPublication.Index || !aPublication.Index->matches_result(*aPublication.Result)) {
 			++Statistics.RejectedStaleInput;
 			return;
 		}
 		const auto previousSelection = Interaction.Selection;
 		CurrentResult                = aPublication.Result;
-		SemanticIndex                = std::move(semanticIndex);
+		SemanticIndex                = aPublication.Index;
 		// Built once here rather than searched per segment per repaint. The
 		// move table is keyed by segment identity and is unordered with
 		// respect to the segment list, so the alternative is a linear search
@@ -870,7 +869,7 @@ namespace bpr::qt {
 			MovedSegments.insert(move.SourceDeletion);
 			MovedSegments.insert(move.DestinationInsertion);
 		}
-		++Statistics.SemanticIndexBuilds;
+		++Statistics.SemanticIndexAdoptions;
 		Statistics.SemanticIndexEntries
 			= SemanticIndex->statistics().IndexEntries;
 		Left->setPlainText(text_document(CurrentResult->LeftDocument));
@@ -1109,6 +1108,12 @@ namespace bpr::qt {
 		-> const std::optional<core::diff_request_context>&
 	{
 		return CurrentContext;
+	}
+
+	auto diff_workbench::current_semantic_index() const noexcept
+		-> const std::shared_ptr<const core::diff_semantic_index>&
+	{
+		return SemanticIndex;
 	}
 
 	auto diff_workbench::current_result() const noexcept
@@ -1462,7 +1467,7 @@ namespace bpr::qt {
 		const std::uint32_t   aLine,
 		const bool            aReportUnchangedInteraction) -> bool
 	{
-		if (!CurrentResult || !SemanticIndex.has_value()) {
+		if (!CurrentResult || !SemanticIndex) {
 			clear_conversation_anchor();
 			return false;
 		}
@@ -1503,7 +1508,7 @@ namespace bpr::qt {
 		const bool                    aReveal)
 	{
 		clear_conversation_anchor();
-		if (!CurrentResult || !SemanticIndex.has_value()
+		if (!CurrentResult || !SemanticIndex
 			|| !aIdentity.Group.has_value()) {
 			return;
 		}
@@ -1527,7 +1532,7 @@ namespace bpr::qt {
 		-> bool
 	{
 		clear_conversation_anchor();
-		if (!CurrentResult || !SemanticIndex.has_value()) {
+		if (!CurrentResult || !SemanticIndex) {
 			return false;
 		}
 		++Statistics.SemanticQueries;
@@ -1619,7 +1624,7 @@ namespace bpr::qt {
 	void diff_workbench::update_detail()
 	{
 		CurrentDetail.reset();
-		if (!CurrentResult || !SemanticIndex.has_value()
+		if (!CurrentResult || !SemanticIndex
 			|| !Interaction.Selection.has_value()) {
 			Detail->setPlainText(QStringLiteral("No change selected"));
 			return;

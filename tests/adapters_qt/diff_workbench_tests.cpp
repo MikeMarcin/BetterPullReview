@@ -1,3 +1,5 @@
+#include "diff_publication_fixture.hpp"
+
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/qt/diff_workbench.hpp"
@@ -472,10 +474,10 @@ namespace {
 		// check below would pass against a one-line document.
 		const auto selected = context(diff, 1U, 1U);
 		workbench.set_loading(selected);
-		workbench.publish({
+		workbench.publish(bpr::qt::test::prepare_publication({
 			.Context = selected,
 			.Result  = std::make_shared<const core::computed_file_diff>(diff),
-		});
+		}));
 		process_events();
 		expect(workbench.left_pane()->blockCount() > 1
 				   && workbench.right_pane()->blockCount() > 1,
@@ -573,10 +575,10 @@ namespace {
 		process_events();
 		const auto selected = context(diff, 1U, 1U);
 		workbench.set_loading(selected);
-		workbench.publish({
+		workbench.publish(bpr::qt::test::prepare_publication({
 			.Context = selected,
 			.Result  = std::make_shared<const core::computed_file_diff>(diff),
-		});
+		}));
 		process_events();
 		expect(workbench.left_pane()->blockCount() > 1
 				   && workbench.right_pane()->blockCount() > 1,
@@ -649,10 +651,10 @@ namespace {
 			process_events();
 			const auto selected = context(diff, 1U, 1U);
 			workbench.set_loading(selected);
-			workbench.publish({
+			workbench.publish(bpr::qt::test::prepare_publication({
 				.Context = selected,
 				.Result  = std::make_shared<const core::computed_file_diff>(diff),
-			});
+			}));
 			process_events();
 			expect(workbench.right_pane()->blockCount() > 1,
 				   "the sized fixture really reached the pane");
@@ -709,10 +711,10 @@ namespace {
 				QStringLiteral("Loading selected file comparison…"))
 				== 1U,
 			"loading status is one polite deduplicated workbench announcement");
-		workbench.publish({
+		workbench.publish(bpr::qt::test::prepare_publication({
 			.Context = firstContext,
 			.Result  = std::make_shared<const core::computed_file_diff>(diff),
-		});
+		}));
 		process_events();
 		const auto  statisticsAfterFirstPublish = workbench.statistics();
 		const auto& firstGeometryCause
@@ -1130,18 +1132,18 @@ namespace {
 		const auto second        = computed(leftText, rightText + "option-tail\n", options, 1U);
 		const auto secondContext = context(second, 2U, 2U);
 		workbench.set_loading(secondContext);
-		workbench.publish({
+		workbench.publish(bpr::qt::test::prepare_publication({
 			.Context = firstContext,
 			.Result  = std::make_shared<const core::computed_file_diff>(diff),
-		});
+		}));
 		expect(
 			workbench.current_result() == nullptr
 				&& workbench.statistics().RejectedStaleInput >= 1U,
 			"file/epoch replacement rejects an old completion before geometry appears");
-		workbench.publish({
+		workbench.publish(bpr::qt::test::prepare_publication({
 			.Context = secondContext,
 			.Result  = std::make_shared<const core::computed_file_diff>(second),
-		});
+		}));
 		process_events();
 		expect(workbench.current_result() != nullptr, "replacement comparison publishes");
 
@@ -1156,10 +1158,10 @@ namespace {
 		});
 		expect(workbench.current_result() == nullptr,
 			   "stale failure cannot replace a newer options selection");
-		workbench.publish({
+		workbench.publish(bpr::qt::test::prepare_publication({
 			.Context = thirdContext,
 			.Result  = std::make_shared<const core::computed_file_diff>(third),
-		});
+		}));
 		process_events();
 		workbench.fail({
 			.Context = thirdContext,
@@ -1178,10 +1180,10 @@ namespace {
 				== 1U,
 			"exact failure is one polite workbench announcement");
 		workbench.set_loading(thirdContext);
-		workbench.publish({
+		workbench.publish(bpr::qt::test::prepare_publication({
 			.Context = thirdContext,
 			.Result  = std::make_shared<const core::computed_file_diff>(third),
-		});
+		}));
 		process_events();
 		workbench.invalidate(third.Alignment.Key.Authority);
 		expect(
@@ -1197,10 +1199,10 @@ namespace {
 				== 1U,
 			"invalidation is one polite workbench announcement");
 		const auto rejectedBeforeLate = workbench.statistics().RejectedStaleInput;
-		workbench.publish({
+		workbench.publish(bpr::qt::test::prepare_publication({
 			.Context = thirdContext,
 			.Result  = std::make_shared<const core::computed_file_diff>(third),
-		});
+		}));
 		expect(
 			workbench.current_result() == nullptr
 				&& workbench.statistics().RejectedStaleInput
@@ -1211,10 +1213,10 @@ namespace {
 			= qEnvironmentVariable("BPR_QT_DIFF_WORKBENCH_RENDER_PATH");
 		if (!renderPath.isEmpty()) {
 			workbench.set_loading(firstContext);
-			workbench.publish({
+			workbench.publish(bpr::qt::test::prepare_publication({
 				.Context = firstContext,
 				.Result  = std::make_shared<const core::computed_file_diff>(diff),
-			});
+			}));
 			process_events();
 			expect(workbench.grab().save(renderPath),
 				   "selected workbench raster saves");
@@ -1227,9 +1229,9 @@ namespace {
 		const auto publish   = [&](const core::computed_file_diff& aDiff, const bool aCached) {
 			const auto selected = context(aDiff, 1U, 1U);
 			workbench.set_loading(selected);
-			workbench.publish({ .Context  = selected,
-								.Result   = std::make_shared<const core::computed_file_diff>(aDiff),
-								.CacheHit = aCached });
+			workbench.publish(bpr::qt::test::prepare_publication({ .Context  = selected,
+																   .Result   = std::make_shared<const core::computed_file_diff>(aDiff),
+																   .CacheHit = aCached }));
 		};
 		const auto changed = computed("old\n", "new\n", { }, 70U);
 		publish(changed, false);
@@ -1279,10 +1281,10 @@ namespace {
 		process_events();
 		const auto selected = context(diff, 106U, 106U);
 		workbench.set_loading(selected);
-		workbench.publish({
+		workbench.publish(bpr::qt::test::prepare_publication({
 			.Context = selected,
 			.Result  = std::make_shared<const core::computed_file_diff>(diff),
-		});
+		}));
 		process_events();
 		expect(!selections.empty() && selections.back() == workbench.selection(),
 			   "accepted publication emits its reconciled semantic selection");
@@ -1330,10 +1332,10 @@ namespace {
 		process_events();
 		const auto selected = context(diff, 107U, 107U);
 		workbench.set_loading(selected);
-		workbench.publish({
+		workbench.publish(bpr::qt::test::prepare_publication({
 			.Context = selected,
 			.Result  = std::make_shared<const core::computed_file_diff>(diff),
-		});
+		}));
 		process_events();
 		const auto externalBefore = externalCalls;
 		const auto observerBefore = observerCalls;
@@ -1405,6 +1407,30 @@ namespace {
 			   "a pane gesture clears the conversation-specific marker");
 	}
 
+	void test_prepared_semantic_index_adoption()
+	{
+		auto       workbench = qt::diff_workbench{ };
+		const auto diff      = std::make_shared<const core::computed_file_diff>(computed("old\n", "new\n", { }, 43U));
+		const auto selected  = context(*diff, 92U, 92U);
+		workbench.set_loading(selected);
+		workbench.publish({ .Context = selected, .Result = diff });
+		expect(!workbench.current_result(), "Qt refuses missing preparation instead of doing full validation on the UI thread");
+		const auto prepared   = bpr::qt::test::prepare_publication({ .Context = selected, .Result = diff });
+		auto       mismatched = prepared;
+		mismatched.Result     = std::make_shared<const core::computed_file_diff>(*diff);
+		workbench.publish(mismatched);
+		expect(!workbench.current_result(), "equal content/digest cannot substitute the index's exact result object");
+		workbench.publish(prepared);
+		settle_geometry(workbench);
+		expect(workbench.current_result() == diff && workbench.current_semantic_index() == prepared.Index
+				   && workbench.statistics().SemanticIndexAdoptions == 1U,
+			   "Qt shares the exact prepared index with no reconstruction or copy");
+		workbench.clear();
+		workbench.publish(prepared);
+		expect(!workbench.current_result() && !workbench.current_semantic_index(),
+			   "a valid prepared index does not authorize a stale request after clear");
+	}
+
 	void test_measurement_yields_and_cancels()
 	{
 		const auto [leftText, rightText] = large_comparison_text(2'000U, 8U);
@@ -1416,7 +1442,7 @@ namespace {
 		const auto selectedContext = context(*diff, 90U, 90U);
 		const auto publish         = [&] {
 			workbench.set_loading(selectedContext);
-			workbench.publish({ .Context = selectedContext, .Result = diff });
+			workbench.publish(bpr::qt::test::prepare_publication({ .Context = selectedContext, .Result = diff }));
 		};
 		publish();
 		auto inputDelivered = false;
@@ -1478,7 +1504,7 @@ namespace {
 		const auto small = std::make_shared<const core::computed_file_diff>(computed("old\n", "new\n", { }, 42U));
 		const auto next  = context(*small, 91U, 91U);
 		workbench.set_loading(next);
-		workbench.publish({ .Context = next, .Result = small });
+		workbench.publish(bpr::qt::test::prepare_publication({ .Context = next, .Result = small }));
 		settle_geometry(workbench);
 		expect(workbench.current_result() == small
 				   && workbench.scroll_controller()->current_frame()->Comparison == small->Alignment.Digest
@@ -1486,7 +1512,7 @@ namespace {
 			   "superseding comparison cannot adopt any old measurement callback");
 		auto closing = std::make_unique<qt::diff_workbench>();
 		closing->set_loading(selectedContext);
-		closing->publish({ .Context = selectedContext, .Result = diff });
+		closing->publish(bpr::qt::test::prepare_publication({ .Context = selectedContext, .Result = diff }));
 		QApplication::processEvents();
 		closing.reset();
 		process_events();
@@ -1508,20 +1534,20 @@ namespace {
 		workbench.set_loading(selectedContext);
 		auto timer = QElapsedTimer{ };
 		timer.start();
-		workbench.publish({
+		workbench.publish(bpr::qt::test::prepare_publication({
 			.Context = selectedContext,
 			.Result  = std::make_shared<const core::computed_file_diff>(diff),
-		});
+		}));
 		settle_geometry(workbench);
 		const auto publicationMilliseconds = timer.elapsed();
 		const auto publicationStats        = workbench.statistics();
 		expect(
-			publicationStats.SemanticIndexBuilds == 1U
+			publicationStats.SemanticIndexAdoptions == 1U
 				&& publicationStats.SemanticIndexEntries
 					>= diff.Alignment.Segments.size()
 				&& publicationStats.GeometryRebuilds == 1U
 				&& publicationStats.PaneMeasurements == 2U,
-			"large publication validates/indexes semantics once and measures both panes once");
+			"large publication adopts its prepared index once and measures both panes once");
 
 		auto* const controller = workbench.scroll_controller();
 		auto* const linkMap    = workbench.link_map();
@@ -1566,8 +1592,8 @@ namespace {
 			- linkBefore.VisibilityQueries;
 		const auto paintEvents = linkAfter.PaintEvents - linkBefore.PaintEvents;
 		expect(
-			workbenchAfter.SemanticIndexBuilds
-					== workbenchBefore.SemanticIndexBuilds
+			workbenchAfter.SemanticIndexAdoptions
+					== workbenchBefore.SemanticIndexAdoptions
 				&& workbenchAfter.SemanticQueries
 					== workbenchBefore.SemanticQueries
 				&& workbenchAfter.GeometryRebuilds
@@ -1616,8 +1642,8 @@ namespace {
 					== resizeBefore.PaneMeasurements + 2U,
 			"resize storm coalesces to one two-pane axis rebuild");
 		expect(
-			resizeAfter.SemanticIndexBuilds
-					== resizeBefore.SemanticIndexBuilds
+			resizeAfter.SemanticIndexAdoptions
+					== resizeBefore.SemanticIndexAdoptions
 				&& resizeAfter.SemanticQueries == resizeBefore.SemanticQueries
 				&& workbench.selection() == resizeSelection
 				&& std::isfinite(controller->position()),
@@ -1635,10 +1661,10 @@ namespace {
 			"move-enabled scale fixture retains several selected move relations");
 		const auto movedContext = context(moved, 82U, 82U);
 		workbench.set_loading(movedContext);
-		workbench.publish({
+		workbench.publish(bpr::qt::test::prepare_publication({
 			.Context = movedContext,
 			.Result  = std::make_shared<const core::computed_file_diff>(moved),
-		});
+		}));
 		settle_geometry(workbench);
 		expect(
 			workbench.link_map()->statistics().LastMoveOverlays
@@ -1650,15 +1676,15 @@ namespace {
 			insertionLeft, insertionRight, { }, 41U);
 		const auto insertionContext = context(insertion, 81U, 81U);
 		workbench.set_loading(insertionContext);
-		workbench.publish({
+		workbench.publish(bpr::qt::test::prepare_publication({
 			.Context = insertionContext,
 			.Result  = std::make_shared<const core::computed_file_diff>(insertion),
-		});
+		}));
 		settle_geometry(workbench);
 		expect(
 			insertion.Alignment.RightLineCount
 					> insertion.Alignment.LeftLineCount + 4'000U
-				&& workbench.statistics().SemanticIndexBuilds == 3U
+				&& workbench.statistics().SemanticIndexAdoptions == 3U
 				&& workbench.link_map()->statistics().LastVisiblePaths
 					<= workbench.link_map()->statistics().LastCandidateEntries,
 			"very large one-sided insertion remains indexed and visible-path bounded");
@@ -1710,10 +1736,10 @@ namespace {
 			workbench.adopt_appearance(qt::appearance_profile{ });
 			const auto selected = context(diff, 80U, 80U);
 			workbench.set_loading(selected);
-			workbench.publish({
+			workbench.publish(bpr::qt::test::prepare_publication({
 				.Context = selected,
 				.Result  = std::make_shared<const core::computed_file_diff>(diff),
-			});
+			}));
 			process_events();
 			return static_cast<std::size_t>(
 				workbench.left_pane()->extraSelections().size());
@@ -1858,10 +1884,10 @@ namespace {
 		workbench.adopt_appearance(profile);
 		const auto selected = context(diff, 90U, 90U);
 		workbench.set_loading(selected);
-		workbench.publish({
+		workbench.publish(bpr::qt::test::prepare_publication({
 			.Context = selected,
 			.Result  = std::make_shared<const core::computed_file_diff>(diff),
-		});
+		}));
 		process_events();
 
 		expect(
@@ -1941,8 +1967,8 @@ namespace {
 		expect(workbench.token_spans(core::diff_side::left) == spansBeforePreview
 				   && statisticsAfterPreview.TokenSpanAdoptions
 					   == statisticsBeforePreview.TokenSpanAdoptions
-				   && statisticsAfterPreview.SemanticIndexBuilds
-					   == statisticsBeforePreview.SemanticIndexBuilds
+				   && statisticsAfterPreview.SemanticIndexAdoptions
+					   == statisticsBeforePreview.SemanticIndexAdoptions
 				   && statisticsAfterPreview.SelectionChanges
 					   == statisticsBeforePreview.SelectionChanges
 				   && statisticsAfterPreview.GeometryRebuilds
@@ -2015,10 +2041,10 @@ namespace {
 			workbench.adopt_appearance(qt::appearance_profile{ });
 			const auto selected = context(diff, 91U, 91U);
 			workbench.set_loading(selected);
-			workbench.publish({
+			workbench.publish(bpr::qt::test::prepare_publication({
 				.Context = selected,
 				.Result  = std::make_shared<const core::computed_file_diff>(diff),
-			});
+			}));
 			process_events();
 
 			// One span on every line, which is the worst case a classifier can
@@ -2114,10 +2140,10 @@ namespace {
 		workbench.adopt_appearance(profile);
 		const auto selected = context(diff, 92U, 92U);
 		workbench.set_loading(selected);
-		workbench.publish({
+		workbench.publish(bpr::qt::test::prepare_publication({
 			.Context = selected,
 			.Result  = std::make_shared<const core::computed_file_diff>(diff),
-		});
+		}));
 		process_events();
 
 		expect(
@@ -2222,10 +2248,10 @@ namespace {
 		workbench.adopt_appearance(profile);
 		const auto selected = context(diff, 93U, 93U);
 		workbench.set_loading(selected);
-		workbench.publish({
+		workbench.publish(bpr::qt::test::prepare_publication({
 			.Context = selected,
 			.Result  = std::make_shared<const core::computed_file_diff>(diff),
-		});
+		}));
 		process_events();
 
 		const auto emphasis = selected_row_fill(
@@ -2346,10 +2372,10 @@ namespace {
 		workbench.adopt_appearance(profile);
 		const auto selected = context(diff, 93U, 93U);
 		workbench.set_loading(selected);
-		workbench.publish({
+		workbench.publish(bpr::qt::test::prepare_publication({
 			.Context = selected,
 			.Result  = std::make_shared<const core::computed_file_diff>(diff),
-		});
+		}));
 		process_events();
 
 		const auto emphasis = selected_row_fill(
@@ -2418,10 +2444,10 @@ namespace {
 		workbench.adopt_appearance(profile);
 		const auto selected = context(diff, 95U, 95U);
 		workbench.set_loading(selected);
-		workbench.publish({
+		workbench.publish(bpr::qt::test::prepare_publication({
 			.Context = selected,
 			.Result  = std::make_shared<const core::computed_file_diff>(diff),
-		});
+		}));
 		process_events();
 
 		const auto bare
@@ -2490,10 +2516,10 @@ namespace {
 		workbench.adopt_appearance(profile);
 		const auto selected = context(diff, 94U, 94U);
 		workbench.set_loading(selected);
-		workbench.publish({
+		workbench.publish(bpr::qt::test::prepare_publication({
 			.Context = selected,
 			.Result  = std::make_shared<const core::computed_file_diff>(diff),
-		});
+		}));
 		process_events();
 
 		// Selecting through the ribbon, because that is the gesture that
@@ -2567,10 +2593,10 @@ namespace {
 		process_events();
 		const auto selected = context(diff, 94U, 94U);
 		workbench.set_loading(selected);
-		workbench.publish({
+		workbench.publish(bpr::qt::test::prepare_publication({
 			.Context = selected,
 			.Result  = std::make_shared<const core::computed_file_diff>(diff),
-		});
+		}));
 		process_events();
 
 		auto* const map    = workbench.link_map();
@@ -2647,10 +2673,10 @@ namespace {
 		workbench.adopt_appearance(profile);
 		const auto selected = context(diff, 94U, 94U);
 		workbench.set_loading(selected);
-		workbench.publish({
+		workbench.publish(bpr::qt::test::prepare_publication({
 			.Context = selected,
 			.Result  = std::make_shared<const core::computed_file_diff>(diff),
-		});
+		}));
 		process_events();
 
 		auto& leftPane = *workbench.left_pane();
@@ -2739,6 +2765,7 @@ auto main(int argc, char** argv) -> int
 	test_nontext_publication_status();
 	test_semantic_selection_callback_tracks_both_panes_and_clear();
 	test_conversation_anchor_reveals_and_paints_exact_line();
+	test_prepared_semantic_index_adoption();
 	test_measurement_yields_and_cancels();
 	test_scale_and_high_frequency_evidence();
 	test_line_painting_stays_bounded_by_the_viewport();

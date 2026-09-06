@@ -23,6 +23,7 @@ namespace bpr::application {
 			core::diff_options                              Options;
 			core::diff_reason_code                          Reason = core::diff_reason_code::host_failure;
 			std::shared_ptr<const core::computed_file_diff> Result;
+			std::shared_ptr<const core::diff_semantic_index> Index;
 			bool                                            CacheHit = false;
 		};
 
@@ -125,7 +126,8 @@ namespace bpr::application {
 
 		[[nodiscard]] auto validate_staged(
 			const core::compute_file_diff_request& aRequest,
-			const core::computed_file_diff&        aResult) noexcept -> bool
+			const core::computed_file_diff&        aResult,
+			const core::diff_semantic_index&       aIndex) noexcept -> bool
 		{
 			const auto digest = core::options_digest(aRequest.Options);
 			return core::valid(aRequest.Context)
@@ -136,7 +138,7 @@ namespace bpr::application {
 				&& aResult.Alignment.Options == aRequest.Options
 				&& aResult.Alignment.Digest
 				== core::comparison_digest(aRequest.Context.Key)
-				&& core::validate_computed_file_diff(aResult).valid();
+				&& aIndex.matches_result(aResult);
 		}
 
 		[[nodiscard]] auto checked_add(std::uint64_t&      aTotal,
@@ -203,6 +205,7 @@ namespace bpr::application {
 		{
 			core::file_comparison_key                       Key;
 			std::shared_ptr<const core::computed_file_diff> Result;
+			std::shared_ptr<const core::diff_semantic_index> Index;
 			std::uint64_t                                   Bytes = 0U;
 		};
 
@@ -460,12 +463,13 @@ namespace bpr::application {
 				});
 				return;
 			}
-			if (const auto cached = lookup(aRequest); cached != nullptr) {
+			if (const auto cached = lookup(aRequest); cached.has_value()) {
 				post_local(staged_diff_completion{
 					.Context  = aRequest.Context,
 					.Options  = aRequest.Options,
 					.Reason   = core::diff_reason_code::none,
-					.Result   = std::move(cached),
+					.Result   = cached->Result,
+					.Index    = cached->Index,
 					.CacheHit = true,
 				});
 				return;
@@ -603,16 +607,25 @@ namespace bpr::application {
 						: outcome.Reason;
 					return completion;
 				}
-				if (!validate_staged(aJob->Request, *outcome.Result)) {
+				completion.Result = std::make_shared<const core::computed_file_diff>(
+					std::move(*outcome.Result));
+				auto index = core::build_diff_semantic_index(completion.Result);
+				if (!index || !validate_staged(aJob->Request, *completion.Result, *index)) {
+					completion.Result.reset();
 					completion.Reason = core::diff_reason_code::invalid_alignment;
 					return completion;
 				}
-				completion.Result = std::make_shared<const core::computed_file_diff>(
-					std::move(*outcome.Result));
+				if (stop.stop_requested()) {
+					completion.Result.reset();
+					completion.Reason = core::diff_reason_code::cancelled;
+					return completion;
+				}
+				completion.Index  = std::make_shared<const core::diff_semantic_index>(std::move(*index));
 				completion.Reason = core::diff_reason_code::none;
 				return completion;
 			} catch (...) {
 				completion.Result.reset();
+				completion.Index.reset();
 				completion.Reason = core::diff_reason_code::host_failure;
 				return completion;
 			}
@@ -639,14 +652,15 @@ namespace bpr::application {
 		{
 			erase_job(aCompletion.Context);
 			if (aCompletion.Reason == core::diff_reason_code::none) {
-				if (!aCompletion.Result
+				if (!aCompletion.Result || !aCompletion.Index
 					|| !validate_staged(
 						core::compute_file_diff_request{
 							.Context = aCompletion.Context,
 							.Options = aCompletion.Options,
 						},
-						*aCompletion.Result)) {
+						*aCompletion.Result, *aCompletion.Index)) {
 					aCompletion.Result.reset();
+					aCompletion.Index.reset();
 					aCompletion.Reason = core::diff_reason_code::invalid_alignment;
 				}
 			}
@@ -666,7 +680,7 @@ namespace bpr::application {
 			}
 			if (output.Accepted.has_value() && aCompletion.Result) {
 				try {
-					store(aCompletion.Result);
+					store(aCompletion.Result, aCompletion.Index);
 				} catch (...) {
 					Cache.clear();
 					CachedBytes = 0U;
@@ -675,6 +689,7 @@ namespace bpr::application {
 					Projections.publish(diff_publication{
 						.Context  = aCompletion.Context,
 						.Result   = aCompletion.Result,
+						.Index    = aCompletion.Index,
 						.CacheHit = aCompletion.CacheHit,
 					});
 				});
@@ -726,7 +741,7 @@ namespace bpr::application {
 		}
 
 		[[nodiscard]] auto lookup(const core::compute_file_diff_request& aRequest)
-			-> std::shared_ptr<const core::computed_file_diff>
+			-> std::optional<cache_entry>
 		{
 			const auto found = std::ranges::find_if(
 				Cache, [&aRequest](const cache_entry& aEntry) {
@@ -735,18 +750,21 @@ namespace bpr::application {
 			if (found == Cache.end()) {
 				return { };
 			}
-			if (!validate_staged(aRequest, *found->Result)) {
+			if (!found->Index || !validate_staged(aRequest, *found->Result, *found->Index)) {
 				CachedBytes -= found->Bytes;
 				Cache.erase(found);
 				return { };
 			}
-			return found->Result;
+			return *found;
 		}
 
-		void store(const std::shared_ptr<const core::computed_file_diff>& aResult)
+		void store(const std::shared_ptr<const core::computed_file_diff>&  aResult,
+				   const std::shared_ptr<const core::diff_semantic_index>& aIndex)
 		{
-			const auto bytes = retained_result_bytes(*aResult);
-			if (!bytes.has_value() || *bytes > Limits.CacheBytes) {
+			auto       bytes      = retained_result_bytes(*aResult);
+			const auto indexBytes = aIndex->retained_bytes();
+			if (!bytes || !indexBytes || !checked_add(*bytes, *indexBytes)
+				|| !checked_add(*bytes, sizeof(aIndex)) || *bytes > Limits.CacheBytes) {
 				return;
 			}
 			const auto duplicate = std::ranges::find_if(
@@ -766,6 +784,7 @@ namespace bpr::application {
 			Cache.push_back(cache_entry{
 				.Key    = aResult->Alignment.Key,
 				.Result = aResult,
+				.Index  = aIndex,
 				.Bytes  = *bytes,
 			});
 			CachedBytes += *bytes;

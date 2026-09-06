@@ -183,6 +183,7 @@ namespace {
 		{
 			core::diff_request_context Context;
 			core::computed_file_diff   Result;
+			std::shared_ptr<const core::diff_semantic_index> Index;
 			bool                       CacheHit = false;
 		};
 
@@ -193,9 +194,12 @@ namespace {
 			}
 			begin_delivery();
 			expect(aPublication.Result != nullptr, "success has immutable result");
+			expect(aPublication.Index && aPublication.Index->matches_result(*aPublication.Result),
+				   "every host publication has an already validated index owning its exact result");
 			Results.push_back(result_record{
 				.Context  = aPublication.Context,
 				.Result   = *aPublication.Result,
+				.Index    = aPublication.Index,
 				.CacheHit = aPublication.CacheHit,
 			});
 			run_callback(OnPublish);
@@ -336,6 +340,9 @@ namespace {
 				   && test.Host->cache_bytes() > 0U,
 			   "validated accepted result publishes and enters bounded cache");
 		const auto calls = test.Blobs.Requests.size();
+		const auto prepared   = test.Projections.Results.back().Index;
+		const auto cacheBytes = test.Host->cache_bytes();
+		expect(cacheBytes > *prepared->retained_bytes(), "cache budget includes prepared index allocation and its result");
 
 		test.request(key);
 		expect(test.Effects.pending() == 0U && test.Decisions.pending() == 1U
@@ -346,6 +353,14 @@ namespace {
 				   && test.Projections.Results.back().CacheHit
 				   && test.Blobs.Requests.size() == calls,
 			   "exact cache hit performs no blob acquisition");
+		expect(test.Projections.Results.back().Index == prepared
+				   && test.Host->cache_bytes() == cacheBytes,
+			   "cache hit reuses the very same prepared index without duplicate retained allocation");
+		fixture limited{ application::diff_host_limits{ .OutstandingJobs = 1U, .CacheEntries = 1U, .CacheBytes = cacheBytes - *prepared->retained_bytes() } };
+		limited.request(key);
+		limited.run_effect_and_decision();
+		expect(limited.Host->cache_entries() == 0U && limited.Projections.Results.size() == 1U,
+			   "a budget fitting only the result cannot retain the result plus its prepared index");
 	}
 
 	auto complete_and_count_miss(fixture&                         aTest,
