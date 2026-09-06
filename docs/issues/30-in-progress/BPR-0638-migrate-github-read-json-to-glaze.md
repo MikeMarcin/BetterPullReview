@@ -77,10 +77,9 @@ during projection rather than repeatedly copied. No JSON record crosses inward.
 Raw numeric tests refuse fractional viewer/repository/review/comment identities,
 file counts and line numbers that the old double conversion could round to an
 integer, plus uint64 overflow. Exact integer exponent spellings retain account
-identity up to the current strict fixture ceiling (2^53-1). This is not evidence
-for accepting the full uint64 range through the entire read path: the remaining
-Qt strict validator and pager still impose the old numeric ceiling and must be
-converted with end-to-end identity tests.
+identity up to the current strict fixture ceiling (2^53-1). At that source revision, the Qt strict validator and pager still imposed the
+old numeric ceiling. The strict-validator migration and full-width recorded-read
+evidence are recorded below; the production pager remains open.
 
 The new direct nine-REST-response normalization course uses the supplied viewer,
 omits viewer/GraphQL operations, and checks exact root/reply identities, nullable
@@ -110,15 +109,60 @@ Local Mac evidence:
   application composition and public fixture composition. Test-helper migration
   remains BPR-0640.
 
-BPR-0638 remains In Progress. Next replace strict fixture-response validation in
-`github_read_contract.cpp` and response decoding in `github_paged_read.cpp` with
-Glaze. Preserve strict fixture inventories versus production required/unknown
-field policy, missing/null semantics, malformed-versus-shape failure categories,
-preflight/aggregate limits, rate tuples, exact authority and complete pagination.
-Reuse or extend the private typed record approach where it fits; full uint64
-identity acceptance needs proof through both validation and normalization.
-BPR-0612 and all subsequent migration slices remain open; performance waits.
+The normalization revision left strict fixture validation and the production
+pager open. Current progress and the next remaining path follow below.
 
 Temporary migration script and consumed public-course image were removed after
 verification. Production sign-in/credentials were untouched. No GitHub, Actions,
 push or paid CI ran; reusable build trees remain.
+
+## Strict response validation implementation and evidence
+
+Source `43050ce5d77ca334faec1157ba70e61c9e9a1656` removes all Qt JSON from
+`github_read_contract.cpp`. Existing field-inventory/nullable/relationship checks
+now use Glaze object/array indexes of original JSON values. Views borrow the
+response only inside synchronous validation; decoded scalars and complete typed
+normalization remain separate. Preflight byte/depth/member/record/duplicate
+bounds and whole-document Unicode/trailing-input validation precede field checks.
+Root JSON must remain an object or array. Number syntax still refuses non-finite
+tokens; only pre-existing incomplete-count classification uses a real-number
+comparison, never identity extraction. Identities decode exactly to uint64;
+line/PR-number bounds remain narrower.
+
+A contract failure exposed an empty root raw view when a bounded response ended
+exactly at `]`. The final path validates the whole document with Glaze, then
+explicitly borrows the caller-owned body. New object/array EOF tests verify the
+complete normalized facts rather than relying on incidental trailing whitespace.
+Decoded string equality preserves escaped comment/thread path equivalence.
+
+New direct tests pass viewer, repository, PR and review IDs above 2^53 and at
+UINT64_MAX through strict validation and typed normalization, then reject the
+adjacent wrong viewer binding as identity_mismatch. Existing fractional/overflow
+refusals remain. Malformed Unicode, non-finite number tokens, scalar roots and
+trailing documents preserve the malformed-response category. Existing exact
+field inventories, null handling, incomplete-page ordering, paired GitHub/GHES
+facts and anonymous REST comment coverage also pass.
+
+Local Mac evidence:
+
+- Read-contract, pager, provider and development app targets build.
+- Final registered network-isolated integration: 4/4 pass in 24.14s:
+  `github_read_contract` 0.55s, `github_paged_read` 0.68s,
+  `github_provider` 10.49s and composed
+  `application_github_public_path_github_com` 12.41s.
+- Touched C++ formatted; documentation gate and `git diff --check` pass.
+- Source inventory now has three Qt JSON files: `github_paged_read.cpp`,
+  `github_application.cpp` and `github_public_path_fixture.cpp`.
+
+BPR-0638 remains In Progress for the production pager. Convert its owned parsed
+pages and numeric/shape/rate/pagination decoders, preserving required-versus-
+unknown fields, exact authority, cursor progress, atomic failure and aggregate
+limits. Parsed pages must own their typed records or a stable backing buffer;
+never let a view of a temporary transport response survive that response. The
+recorded-read uint64 evidence above does not establish full-width identities in
+the production paged path. BPR-0612, application fixtures and final test-helper
+migration remain open; performance still waits.
+
+All execution was local and synthetic. No production session, credential, live
+GitHub, Actions, push or paid CI operation ran. The consumed migration script
+and public-course image were removed; reusable build trees remain.

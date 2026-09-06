@@ -134,3 +134,10 @@ production/composed-fixture files still use Qt JSON. Strict fixture validation
 and the production pager remain in BPR-0638; their existing double-based numeric
 ceilings still prevent claiming full-width read identity migration. Next work
 stays on those two paths before application fixtures and final helper cleanup.
+
+BPR-0638 strict response validation is implemented in `43050ce5d77ca334faec1157ba70e61c9e9a1656`.
+Recorded reads now retain full-width uint64 identities through validation and
+normalization, including UINT64_MAX and adjacent-identity refusal. Three source
+files still use Qt JSON: production pager and the two composition/fixture files.
+The pager is the remaining BPR-0638 surface and still needs its own full-width,
+ownership, rate and pagination evidence before the card can close.
