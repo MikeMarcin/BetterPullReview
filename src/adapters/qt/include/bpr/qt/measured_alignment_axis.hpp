@@ -8,6 +8,7 @@
 #include <compare>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <span>
 #include <vector>
@@ -67,6 +68,34 @@ namespace bpr::qt {
 		qreal              DevicePixelRatio = 1.0;
 
 		auto operator<=>(const pane_line_measurements&) const = default;
+	};
+
+	enum class pane_measurement_progress {
+		pending,
+		complete,
+		invalidated,
+	};
+
+	/// Measures a bounded number of native blocks per GUI-thread call. The
+	/// caller owns scheduling and comparison/presentation-generation checks.
+	/// No partial measurements are exposed as a usable pane geometry.
+	class plain_text_pane_measurement final
+	{
+	public:
+		plain_text_pane_measurement(const QPlainTextEdit& aPane, std::uint32_t aLogicalLineCount);
+		~plain_text_pane_measurement();
+		plain_text_pane_measurement(plain_text_pane_measurement&&) noexcept;
+		auto operator=(plain_text_pane_measurement&&) noexcept -> plain_text_pane_measurement&;
+		plain_text_pane_measurement(const plain_text_pane_measurement&)                    = delete;
+		auto operator=(const plain_text_pane_measurement&) -> plain_text_pane_measurement& = delete;
+
+		[[nodiscard]] auto advance(std::uint32_t aMaximumLines) -> pane_measurement_progress;
+		[[nodiscard]] auto measured_lines() const noexcept -> std::uint32_t;
+		[[nodiscard]] auto result() const -> const pane_line_measurements*;
+
+	private:
+		struct state;
+		std::unique_ptr<state> State;
 	};
 
 	/// \brief Measures logical line boundaries from a live natural-layout pane.

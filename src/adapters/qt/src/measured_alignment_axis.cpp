@@ -1,7 +1,9 @@
 #include "bpr/qt/measured_alignment_axis.hpp"
 
 #include <QAbstractTextDocumentLayout>
+#include <QFont>
 #include <QPlainTextEdit>
+#include <QPointer>
 #include <QTextBlock>
 #include <QTextDocument>
 #include <QWidget>
@@ -67,6 +69,130 @@ namespace bpr::qt {
 			};
 		}
 	} // namespace
+
+	struct plain_text_pane_measurement::state
+	{
+		QPointer<const QPlainTextEdit>              Pane;
+		QPointer<const QTextDocument>               Document;
+		QPointer<const QAbstractTextDocumentLayout> Layout;
+		QTextBlock                                  Block;
+		QFont                                       Font;
+		QFont                                       DocumentFont;
+		QSize                                       ViewportSize;
+		int                                         Revision     = 0;
+		int                                         WrapMode     = 0;
+		int                                         WordWrapMode = 0;
+		qreal                                       Margin       = 0.0;
+		qreal                                       TextWidth    = 0.0;
+		qreal                                       TabDistance  = 0.0;
+		std::uint32_t                               LineCount    = 0U;
+		std::uint32_t                               NextLine     = 0U;
+		pane_measurement_progress                   Progress     = pane_measurement_progress::invalidated;
+		pane_line_measurements                      Measurements;
+
+		[[nodiscard]] auto current() const -> bool
+		{
+			return Pane && Document && Layout && Pane->document() == Document
+				&& Document->documentLayout() == Layout && Document->revision() == Revision
+				&& Pane->viewport() && Pane->viewport()->size() == ViewportSize
+				&& Pane->devicePixelRatioF() == Measurements.DevicePixelRatio
+				&& Pane->font() == Font && Document->defaultFont() == DocumentFont
+				&& Document->documentMargin() == Margin && Document->textWidth() == TextWidth
+				&& Pane->tabStopDistance() == TabDistance
+				&& static_cast<int>(Pane->lineWrapMode()) == WrapMode
+				&& static_cast<int>(Pane->wordWrapMode()) == WordWrapMode;
+		}
+	};
+
+	plain_text_pane_measurement::plain_text_pane_measurement(
+		const QPlainTextEdit& aPane, const std::uint32_t aLogicalLineCount)
+		: State{ std::make_unique<state>() }
+	{
+		const auto* document = aPane.document();
+		const auto* viewport = aPane.viewport();
+		const auto* layout   = document ? document->documentLayout() : nullptr;
+		if (!document || !viewport || !layout
+			|| aLogicalLineCount > static_cast<std::uint32_t>(std::numeric_limits<int>::max())) {
+			return;
+		}
+		const auto count = static_cast<std::uint32_t>(document->blockCount());
+		if (count < aLogicalLineCount || count > aLogicalLineCount + 1U
+			|| (count == aLogicalLineCount + 1U && !document->lastBlock().text().isEmpty())) {
+			return;
+		}
+		auto& value        = *State;
+		value.Pane         = &aPane;
+		value.Document     = document;
+		value.Layout       = layout;
+		value.Block        = document->begin();
+		value.Font         = aPane.font();
+		value.DocumentFont = document->defaultFont();
+		value.ViewportSize = viewport->size();
+		value.Revision     = document->revision();
+		value.WrapMode     = static_cast<int>(aPane.lineWrapMode());
+		value.WordWrapMode = static_cast<int>(aPane.wordWrapMode());
+		value.Margin       = document->documentMargin();
+		value.TextWidth    = document->textWidth();
+		value.TabDistance  = aPane.tabStopDistance();
+		value.LineCount    = aLogicalLineCount;
+		value.Measurements = { .DocumentExtent   = layout->documentSize().height(),
+							   .ViewportExtent   = static_cast<qreal>(viewport->height()),
+							   .DevicePixelRatio = aPane.devicePixelRatioF() };
+		value.Measurements.Boundaries.reserve(static_cast<std::size_t>(aLogicalLineCount) + 1U);
+		value.Measurements.Boundaries.push_back(value.Margin);
+		value.Progress = pane_measurement_progress::pending;
+	}
+
+	plain_text_pane_measurement::~plain_text_pane_measurement()                                                         = default;
+	plain_text_pane_measurement::plain_text_pane_measurement(plain_text_pane_measurement&&) noexcept                    = default;
+	auto plain_text_pane_measurement::operator=(plain_text_pane_measurement&&) noexcept -> plain_text_pane_measurement& = default;
+
+	auto plain_text_pane_measurement::advance(const std::uint32_t aMaximumLines) -> pane_measurement_progress
+	{
+		if (!State || State->Progress == pane_measurement_progress::invalidated) {
+			return pane_measurement_progress::invalidated;
+		}
+		auto& value = *State;
+		if (!value.current()) {
+			value.Progress = pane_measurement_progress::invalidated;
+			return value.Progress;
+		}
+		const auto count = std::min(aMaximumLines, value.LineCount - value.NextLine);
+		for (std::uint32_t index = 0U; index < count; ++index) {
+			if (!value.Block.isValid()) {
+				value.Progress = pane_measurement_progress::invalidated;
+				return value.Progress;
+			}
+			value.Measurements.Boundaries.push_back(value.Measurements.Boundaries.back()
+													+ value.Layout->blockBoundingRect(value.Block).height());
+			value.Block = value.Block.next();
+			++value.NextLine;
+		}
+		// Native layout can synchronously change scrollbars and viewport size.
+		// Reject that batch instead of mixing measurements from two layouts.
+		if (!value.current()) {
+			value.Progress = pane_measurement_progress::invalidated;
+		} else if (value.NextLine == value.LineCount) {
+			value.Measurements.DocumentExtent = std::max(value.Measurements.DocumentExtent,
+														 value.Measurements.Boundaries.back());
+			value.Progress                    = valid_measurements(value.Measurements, value.LineCount)
+				? pane_measurement_progress::complete
+				: pane_measurement_progress::invalidated;
+		}
+		return value.Progress;
+	}
+
+	auto plain_text_pane_measurement::measured_lines() const noexcept -> std::uint32_t
+	{
+		return State ? State->NextLine : 0U;
+	}
+
+	auto plain_text_pane_measurement::result() const -> const pane_line_measurements*
+	{
+		return State && State->Progress == pane_measurement_progress::complete && State->current()
+			? &State->Measurements
+			: nullptr;
+	}
 
 	auto measure_plain_text_pane(
 		const QPlainTextEdit& aPane,

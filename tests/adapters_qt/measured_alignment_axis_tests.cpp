@@ -4,6 +4,8 @@
 #include <QApplication>
 #include <QFont>
 #include <QPlainTextEdit>
+#include <QTextCharFormat>
+#include <QTextCursor>
 #include <QTextDocument>
 #include <QWidget>
 
@@ -14,6 +16,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string>
@@ -366,6 +369,74 @@ namespace {
 			   "line-count mismatch fails closed");
 	}
 
+	auto test_bounded_native_measurement() -> void
+	{
+		auto pane = QPlainTextEdit{ };
+		pane.resize(240, 220);
+		pane.setLineWrapMode(QPlainTextEdit::WidgetWidth);
+		QString source;
+		for (int line = 0; line < 40; ++line) {
+			source += line % 3 == 0 ? QStringLiteral("Unicode αβγ 日本語 and a long line that wraps across the narrow native source pane\n") : QStringLiteral("short\n");
+		}
+		pane.setPlainText(source);
+		QTextCursor styled{ pane.document() };
+		styled.movePosition(QTextCursor::NextBlock);
+		styled.select(QTextCursor::LineUnderCursor);
+		QTextCharFormat format;
+		format.setFontPointSize(24);
+		styled.mergeCharFormat(format);
+		pane.show();
+		QApplication::processEvents();
+		const auto reference = qt::measure_plain_text_pane(pane, 40U);
+		expect(reference.has_value(), "mixed wrapped native reference measures");
+		QApplication::processEvents();
+		qt::plain_text_pane_measurement measurement{ pane, 40U };
+		expect(!measurement.result() && measurement.advance(0U) == qt::pane_measurement_progress::pending
+				   && measurement.measured_lines() == 0U,
+			   "zero budget publishes no partial geometry");
+		auto          progress = qt::pane_measurement_progress::pending;
+		std::uint32_t previous = 0U;
+		while (progress == qt::pane_measurement_progress::pending) {
+			progress = measurement.advance(3U);
+			expect(measurement.measured_lines() - previous <= 3U, "a batch never exceeds its native block budget");
+			previous = measurement.measured_lines();
+			if (progress == qt::pane_measurement_progress::pending) {
+				expect(!measurement.result(), "incomplete geometry cannot escape between batches");
+			}
+			QApplication::processEvents();
+		}
+		expect(progress == qt::pane_measurement_progress::complete && measurement.result()
+				   && *measurement.result() == *qt::measure_plain_text_pane(pane, 40U),
+			   "batched native wrapped/Unicode/mixed-font boundaries equal the synchronous reference exactly");
+		const auto stale_after = [&](auto aChange) {
+			QApplication::processEvents();
+			qt::plain_text_pane_measurement pending{ pane, 40U };
+			expect(pending.advance(1U) == qt::pane_measurement_progress::pending, "one block leaves native work pending");
+			aChange();
+			expect(pending.advance(3U) == qt::pane_measurement_progress::invalidated && !pending.result(),
+				   "changed pane facts invalidate partial measurement atomically");
+		};
+		stale_after([&] { pane.setPlainText(source + QStringLiteral("different")); });
+		pane.setPlainText(source);
+		stale_after([&] { auto font = pane.font(); font.setPointSizeF(font.pointSizeF() + 1); pane.setFont(font); });
+		stale_after([&] { pane.resize(pane.width() + 40, pane.height()); });
+		stale_after([&] { pane.setTabStopDistance(pane.tabStopDistance() + 8); });
+		stale_after([&] { pane.setLineWrapMode(QPlainTextEdit::NoWrap); });
+		stale_after([&] { pane.document()->setDocumentMargin(pane.document()->documentMargin() + 1); });
+		auto transient = std::make_unique<QPlainTextEdit>();
+		transient->setPlainText(QStringLiteral("one\ntwo\n"));
+		qt::plain_text_pane_measurement destroyed{ *transient, 2U };
+		transient.reset();
+		expect(destroyed.advance(1U) == qt::pane_measurement_progress::invalidated && !destroyed.result(), "destroyed pane cannot be dereferenced by a continuation");
+		qt::plain_text_pane_measurement wrongCount{ pane, 1U };
+		expect(wrongCount.advance(1U) == qt::pane_measurement_progress::invalidated, "invalid logical count is refused before work");
+		QPlainTextEdit                  empty;
+		qt::plain_text_pane_measurement emptyMeasurement{ empty, 0U };
+		expect(emptyMeasurement.advance(0U) == qt::pane_measurement_progress::complete
+				   && emptyMeasurement.result() && *emptyMeasurement.result() == *qt::measure_plain_text_pane(empty, 0U),
+			   "empty native geometry completes without inventing a source line");
+	}
+
 	auto test_live_plain_text_measurement() -> void
 	{
 		auto surface = QWidget{ };
@@ -471,6 +542,7 @@ auto main(int argc, char** argv) -> int
 	test_unequal_replacement_zero_extent_and_clamping();
 	test_validation_and_coalesced_invalidation();
 	test_live_plain_text_measurement();
+	test_bounded_native_measurement();
 
 	std::cout << "measured-alignment-axis-tests:pass\n";
 	return EXIT_SUCCESS;
