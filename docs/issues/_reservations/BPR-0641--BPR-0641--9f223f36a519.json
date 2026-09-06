@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0641"
+  ],
+  "reserve_for": "mac-private-alpha",
+  "purpose": "",
+  "created": "2026-09-06T08:43:04.355163+00:00",
+  "base": "ae4480bc61cc2144ec365c4654d1027cdeda193a"
+}
