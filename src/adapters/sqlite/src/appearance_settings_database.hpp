@@ -17,7 +17,12 @@ struct sqlite3;
 
 namespace bpr::adapters::sqlite::detail {
 	/// \brief The schema version this build writes and validates.
-	inline constexpr std::int64_t appearance_settings_schema_version = 1;
+	///
+	/// \details Version 2 added `palette_variant`. A palette customises exactly
+	/// one variant, and a version-1 record did not say which, so the reader was
+	/// left to derive it from the current desktop and pinned a light palette
+	/// over the dark profile.
+	inline constexpr std::int64_t appearance_settings_schema_version = 2;
 
 	/// \brief Owns the durable appearance settings database.
 	///

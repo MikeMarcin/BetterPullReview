@@ -204,15 +204,37 @@ namespace bpr::core {
 
 	/// \brief Names the profile variant a resolved appearance applies.
 	///
-	/// \details A variant is a decision, never a persisted setting: it is derived
-	/// from the selected mode and the current observation every time, so it has
-	/// no stable exchange identifier.
+	/// \details A variant is a decision rather than a selection: it is derived
+	/// from the selected mode and the current observation every time, and no
+	/// user ever picks one. It does carry a stable exchange identifier, because
+	/// a stored palette customises exactly one variant and a durable record
+	/// that could not say which one would read a light customisation as
+	/// overrides over the dark profile. Naming the variant is not the same as
+	/// storing the decision: the decision is still made by
+	/// `resolve_appearance` on every read.
 	enum class appearance_variant : std::uint8_t {
 		light,
 		dark,
 		high_contrast_light,
 		high_contrast_dark,
 	};
+
+	inline constexpr std::size_t appearance_variant_count = 4U;
+
+	static_assert(
+		static_cast<std::size_t>(appearance_variant::high_contrast_dark) + 1U
+			== appearance_variant_count,
+		"appearance_variant_count must cover every declared variant");
+
+	/// \brief Returns the stable exchange identifier of the supplied variant.
+	[[nodiscard]] auto stable_name(appearance_variant aVariant) noexcept
+		-> std::string_view;
+
+	/// \brief Resolves a stable identifier back to its variant.
+	///
+	/// \returns The matching variant, or no value when the identifier is unknown.
+	[[nodiscard]] auto find_appearance_variant(std::string_view aName) noexcept
+		-> std::optional<appearance_variant>;
 
 	/// \brief Reports whether the supplied variant is a high-contrast variant.
 	[[nodiscard]] auto high_contrast(appearance_variant aVariant) noexcept -> bool;

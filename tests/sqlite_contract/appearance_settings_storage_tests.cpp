@@ -383,6 +383,277 @@ namespace {
 			   "and a cancelled store leaves the stored record untouched");
 	}
 
+	/// \brief Writes one database in the exact shape schema version 1 had.
+	///
+	/// \details The version-1 statements are restated here rather than reused
+	/// from the store, so this fixture stays a version-1 file however the
+	/// current statements move on. A fixture built from the current schema
+	/// would stop exercising the migration the moment the schema changed
+	/// again, and would keep passing while it did.
+	auto write_version_one_record(
+		const std::filesystem::path&            aPath,
+		const application::appearance_settings& aSettings,
+		const std::int64_t                      aIdentity) -> void
+	{
+		::sqlite3* raw = nullptr;
+		expect(
+			::sqlite3_open_v2(
+				aPath.string().c_str(),
+				&raw,
+				SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE,
+				nullptr)
+				== SQLITE_OK,
+			"a version-1 fixture database is created");
+
+		constexpr auto version1 = std::array{
+			std::string_view{
+				"CREATE TABLE appearance_meta("
+				"singleton INTEGER PRIMARY KEY CHECK(singleton = 1),"
+				"schema_format INTEGER NOT NULL"
+				") STRICT" },
+			std::string_view{
+				"CREATE TABLE appearance_settings("
+				"singleton INTEGER PRIMARY KEY CHECK(singleton = 1),"
+				"mode TEXT NOT NULL,"
+				"palette_document TEXT NOT NULL,"
+				"ui_family TEXT NOT NULL,"
+				"ui_point_size INTEGER NOT NULL,"
+				"ui_weight INTEGER NOT NULL,"
+				"ui_line_height INTEGER NOT NULL,"
+				"code_family TEXT NOT NULL,"
+				"code_point_size INTEGER NOT NULL,"
+				"code_weight INTEGER NOT NULL,"
+				"code_tab_width INTEGER NOT NULL,"
+				"code_ligatures INTEGER NOT NULL CHECK(code_ligatures IN (0, 1)),"
+				"code_syntax_bold INTEGER NOT NULL CHECK(code_syntax_bold IN (0, 1)),"
+				"code_syntax_italic INTEGER NOT NULL "
+				"CHECK(code_syntax_italic IN (0, 1))"
+				") STRICT" },
+			std::string_view{
+				"INSERT INTO appearance_meta(singleton, schema_format) "
+				"VALUES(1, 1)" },
+		};
+		for (const auto sql : version1) {
+			expect(
+				::sqlite3_exec(
+					raw, std::string{ sql }.c_str(), nullptr, nullptr, nullptr)
+					== SQLITE_OK,
+				"a version-1 statement runs");
+		}
+
+		::sqlite3_stmt* insert = nullptr;
+		const auto      insertSql
+			= std::string_view{ "INSERT INTO appearance_settings("
+								"singleton, mode, palette_document, ui_family,"
+								"ui_point_size, ui_weight, ui_line_height,"
+								"code_family, code_point_size, code_weight,"
+								"code_tab_width, code_ligatures,"
+								"code_syntax_bold, code_syntax_italic) "
+								"VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9,"
+								"?10, ?11, ?12, ?13)" };
+		expect(
+			::sqlite3_prepare_v2(
+				raw,
+				insertSql.data(),
+				static_cast<int>(insertSql.size()),
+				&insert,
+				nullptr)
+				== SQLITE_OK,
+			"the version-1 insert prepares");
+
+		const auto  mode     = std::string{ core::stable_name(aSettings.Mode) };
+		const auto  document = core::export_theme(aSettings.Palette);
+		const auto& ui       = aSettings.Typography.Ui;
+		const auto& code     = aSettings.Typography.Code;
+		expect(
+			::sqlite3_bind_text(insert, 1, mode.c_str(), -1, SQLITE_TRANSIENT)
+					== SQLITE_OK
+				&& ::sqlite3_bind_text(
+					   insert, 2, document.c_str(), -1, SQLITE_TRANSIENT)
+					== SQLITE_OK
+				&& ::sqlite3_bind_text(
+					   insert, 3, ui.Font.Family.c_str(), -1, SQLITE_TRANSIENT)
+					== SQLITE_OK
+				&& ::sqlite3_bind_int64(insert, 4, ui.Font.PointSizeCentipoints)
+					== SQLITE_OK
+				&& ::sqlite3_bind_int64(insert, 5, ui.Font.Weight) == SQLITE_OK
+				&& ::sqlite3_bind_int64(insert, 6, ui.LineHeightPercent)
+					== SQLITE_OK
+				&& ::sqlite3_bind_text(
+					   insert, 7, code.Font.Family.c_str(), -1, SQLITE_TRANSIENT)
+					== SQLITE_OK
+				&& ::sqlite3_bind_int64(insert, 8, code.Font.PointSizeCentipoints)
+					== SQLITE_OK
+				&& ::sqlite3_bind_int64(insert, 9, code.Font.Weight) == SQLITE_OK
+				&& ::sqlite3_bind_int64(insert, 10, code.TabWidth) == SQLITE_OK
+				&& ::sqlite3_bind_int64(insert, 11, code.Ligatures ? 1 : 0)
+					== SQLITE_OK
+				&& ::sqlite3_bind_int64(insert, 12, code.SyntaxBold ? 1 : 0)
+					== SQLITE_OK
+				&& ::sqlite3_bind_int64(insert, 13, code.SyntaxItalic ? 1 : 0)
+					== SQLITE_OK,
+			"every version-1 column binds");
+		expect(::sqlite3_step(insert) == SQLITE_DONE,
+			   "the version-1 record inserts");
+		(void)::sqlite3_finalize(insert);
+
+		const auto identity
+			= "PRAGMA application_id = " + std::to_string(aIdentity);
+		expect(
+			::sqlite3_exec(raw, identity.c_str(), nullptr, nullptr, nullptr)
+				== SQLITE_OK,
+			"the version-1 fixture carries this store's application identity");
+		expect(
+			::sqlite3_exec(
+				raw, "PRAGMA user_version = 1", nullptr, nullptr, nullptr)
+				== SQLITE_OK,
+			"and is stamped as schema version 1");
+		(void)::sqlite3_close_v2(raw);
+	}
+
+	/// \brief Returns the identity this store stamps, read from a real file.
+	[[nodiscard]] auto stamped_application_identity(
+		const scratch_directory& aScratch) -> std::int64_t
+	{
+		auto fresh = appearance_settings_database::open(
+			aScratch.file("identity.sqlite3"), { });
+		expect(fresh.has_value(), "a fresh store opens to report its identity");
+		const auto identity
+			= scalar_integer(fresh->handle(), "PRAGMA application_id");
+		expect(identity.has_value(), "and reports an application identity");
+		return *identity;
+	}
+
+	auto test_the_stored_variant_round_trips() -> void
+	{
+		const auto scratch = scratch_directory{ };
+		const auto path    = scratch.file("appearance.sqlite3");
+		auto       chosen  = distinct_settings();
+		// Not the variant the mode alone would suggest and not the default, so
+		// a store that dropped the column or wrote a derived value instead of
+		// the recorded one fails here.
+		chosen.PaletteVariant = core::appearance_variant::high_contrast_light;
+
+		{
+			auto opened = appearance_settings_database::open(path, { });
+			expect(opened.has_value(), "the store opens");
+			expect(opened->store(chosen, { }).has_value(), "the record stores");
+		}
+
+		auto reopened = appearance_settings_database::open(path, { });
+		expect(reopened.has_value(), "the store reopens");
+		const auto loaded = reopened->load({ });
+		expect(loaded.has_value() && loaded->has_value(), "the record loads");
+		expect(**loaded == chosen,
+			   "the variant the stored palette customizes survives a close and "
+			   "reopen with every other domain, compared whole");
+	}
+
+	auto test_an_unknown_variant_name_is_refused() -> void
+	{
+		const auto scratch = scratch_directory{ };
+		const auto path    = scratch.file("appearance.sqlite3");
+
+		{
+			auto opened = appearance_settings_database::open(path, { });
+			expect(opened.has_value(), "the store opens");
+			expect(opened->store(distinct_settings(), { }).has_value(),
+				   "a legal record stores");
+		}
+		{
+			::sqlite3* raw = nullptr;
+			expect(
+				::sqlite3_open_v2(
+					path.string().c_str(), &raw, SQLITE_OPEN_READWRITE, nullptr)
+					== SQLITE_OK,
+				"the database reopens directly");
+			expect(
+				::sqlite3_exec(
+					raw,
+					"UPDATE appearance_settings SET palette_variant = 'taupe' "
+					"WHERE singleton = 1",
+					nullptr,
+					nullptr,
+					nullptr)
+					== SQLITE_OK,
+				"a variant outside the vocabulary is written");
+			(void)::sqlite3_close_v2(raw);
+		}
+
+		auto reopened = appearance_settings_database::open(path, { });
+		expect(reopened.has_value(), "the tampered database still opens");
+		const auto loaded = reopened->load({ });
+		// Refused for the same reason an unknown mode is: a name the core does
+		// not publish names no variant, and adopting the ordinal it happens to
+		// sit near would silently recolour the record.
+		expect(!loaded.has_value()
+				   && loaded.error() == catalog_database_failure::integrity_failure,
+			   "a variant name the core does not publish is refused");
+	}
+
+	auto test_a_format_one_record_migrates_with_its_derived_variant() -> void
+	{
+		const auto scratch  = scratch_directory{ };
+		const auto identity = stamped_application_identity(scratch);
+
+		// The derived value is the variant the version-1 reader already
+		// assumed, which is what the core resolves for the stored mode under
+		// an empty observation. System therefore migrates to light, and an
+		// explicit dark mode to dark.
+		struct expectation
+		{
+			core::appearance_mode Mode;
+			std::string_view      Variant;
+			std::string_view      File;
+		};
+		constexpr auto expectations = std::array{
+			expectation{ core::appearance_mode::system, "light", "system.sqlite3" },
+			expectation{ core::appearance_mode::dark, "dark", "dark.sqlite3" },
+			expectation{ core::appearance_mode::high_contrast_light,
+						 "high_contrast_light",
+						 "hc-light.sqlite3" },
+		};
+
+		for (const auto& expected : expectations) {
+			const auto path     = scratch.file(expected.File);
+			auto       original = legal_baseline();
+			original.Mode       = expected.Mode;
+			write_version_one_record(path, original, identity);
+
+			auto migrated = appearance_settings_database::open(path, { });
+			expect(migrated.has_value(),
+				   "a format-1 database opens and migrates forward");
+
+			const auto version
+				= scalar_integer(migrated->handle(), "PRAGMA user_version");
+			expect(version.has_value() && *version == appearance_settings_schema_version,
+				   "the migrated file is stamped as the current format");
+			const auto format = scalar_integer(
+				migrated->handle(),
+				"SELECT schema_format FROM appearance_meta WHERE singleton = 1");
+			expect(format.has_value() && *format == appearance_settings_schema_version,
+				   "and its metadata row agrees with the stamp");
+
+			const auto variant = scalar_text(
+				migrated->handle(),
+				"SELECT palette_variant FROM appearance_settings "
+				"WHERE singleton = 1");
+			expect(variant.has_value() && *variant == expected.Variant,
+				   "the migrated row carries the variant its mode resolved to "
+				   "under an empty observation");
+
+			const auto loaded = migrated->load({ });
+			expect(loaded.has_value() && loaded->has_value(),
+				   "the migrated record loads");
+			expect((*loaded)->Mode == expected.Mode,
+				   "the migration changes no mode");
+			expect((*loaded)->Typography == original.Typography,
+				   "and no typography value");
+			expect((*loaded)->Palette == original.Palette,
+				   "and no palette colour");
+		}
+	}
+
 	auto test_the_schema_stores_no_review_content() -> void
 	{
 		const auto scratch = scratch_directory{ };
@@ -425,6 +696,9 @@ auto main() -> int
 	test_a_tampered_palette_is_refused();
 	test_an_unknown_mode_name_is_refused();
 	test_typography_the_core_rejects_is_refused_whole();
+	test_the_stored_variant_round_trips();
+	test_an_unknown_variant_name_is_refused();
+	test_a_format_one_record_migrates_with_its_derived_variant();
 	test_a_newer_schema_is_refused_for_the_right_reason();
 	test_cancellation_leaves_the_record_untouched();
 	test_the_schema_stores_no_review_content();

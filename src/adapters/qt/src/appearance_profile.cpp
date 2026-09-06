@@ -548,10 +548,12 @@ namespace bpr::qt {
 		, Typography{ adopted_typography(std::move(aSettings.Typography)) }
 	{
 		rebuild_typography();
-		// The durable record carries exactly one palette, so it is read as
-		// customisation relative to the built-in profile of the variant that
-		// record's own mode resolves to. A fresh record, whose palette is that
-		// profile, therefore carries no customisation at all.
+		// The durable record carries exactly one palette, and that palette
+		// customises exactly one variant. It is read as customisation relative
+		// to the built-in profile of *that* variant, which the record names,
+		// so a record whose palette is a built-in profile carries no
+		// customisation at all and the overrides it does carry apply only
+		// while their own variant resolves.
 		//
 		// Only a *stored* palette is read this way. A composed default is built
 		// under an empty observation and is therefore the light palette
@@ -560,9 +562,12 @@ namespace bpr::qt {
 		// desktop and banked forty-six overrides pinning light colours over a
 		// correctly resolved dark variant. That was BPR-0216, and the fix is to
 		// stop treating the absence of a record as a set of decisions.
+		// BPR-0645 is the same defect for a record that is present: a stored
+		// light palette diffed against the dark built-in is forty-six
+		// overrides again, so the variant travels with the palette.
 		if (aSettings.PaletteStored) {
-			const auto& builtin = builtin_appearance_palette(
-				core::resolve_appearance(Mode, Observation).Variant);
+			StoredVariant       = aSettings.PaletteVariant;
+			const auto& builtin = builtin_appearance_palette(StoredVariant);
 			for (auto index = std::size_t{ 0U };
 				 index < core::appearance_role_count;
 				 ++index) {
@@ -570,6 +575,8 @@ namespace bpr::qt {
 					Overrides[index] = aSettings.Palette[index];
 				}
 			}
+		} else {
+			StoredVariant = core::resolve_appearance(Mode, Observation).Variant;
 		}
 		rebuild();
 	}
@@ -638,7 +645,7 @@ namespace bpr::qt {
 	{
 		auto settings       = application::appearance_settings{ };
 		settings.Mode       = Mode;
-		settings.Palette    = CommittedPalette;
+		settings.Palette    = StoredPalette;
 		settings.Typography = Typography;
 		// This record is what gets written, so its palette is by definition a
 		// stored one. Without saying so, a round trip through the durable
@@ -646,6 +653,11 @@ namespace bpr::qt {
 		// any choice, which is the same confusion as BPR-0216 in the other
 		// direction.
 		settings.PaletteStored = true;
+		// The record is the reviewer's customisation of one variant, whatever
+		// the desktop resolves right now. Reporting the rendered palette here
+		// instead would let an observation flip write the other variant's
+		// built-in profile over the colours they chose.
+		settings.PaletteVariant = StoredVariant;
 		return settings;
 	}
 
@@ -759,6 +771,13 @@ namespace bpr::qt {
 		if (!in_vocabulary(aRole)) {
 			return false;
 		}
+		// Editing a colour is a statement about the variant on screen. Any
+		// override banked against another variant is not part of that
+		// statement and is discarded rather than silently adopted into it.
+		if (StoredVariant != Resolution.Variant) {
+			Overrides.fill(std::nullopt);
+			StoredVariant = Resolution.Variant;
+		}
 		auto& slot = Overrides[core::index_of(aRole)];
 		if (slot.has_value() && *slot == aColor) {
 			return false;
@@ -787,10 +806,11 @@ namespace bpr::qt {
 	}
 
 	auto appearance_profile::adopt_palette(
-		core::appearance_palette aPalette,
-		palette_preview_adoption aPreview) -> bool
+		core::appearance_palette                      aPalette,
+		palette_preview_adoption                      aPreview,
+		const std::optional<core::appearance_variant> aVariant) -> bool
 	{
-		set_committed_palette(aPalette);
+		set_committed_palette(aPalette, aVariant);
 		if (aPreview == palette_preview_adoption::commit) {
 			PreviewPalette.reset();
 		}
@@ -984,10 +1004,16 @@ namespace bpr::qt {
 	}
 
 	void appearance_profile::set_committed_palette(
-		const core::appearance_palette& aPalette)
+		const core::appearance_palette&         aPalette,
+		std::optional<core::appearance_variant> aVariant)
 	{
-		const auto& builtin = builtin_appearance_palette(
-			core::resolve_appearance(Mode, Observation).Variant);
+		// An adopted palette is a total set of colours for one variant: the
+		// one a durable record names, or the one on screen when a gesture
+		// supplies none. It becomes that variant's customisation and replaces
+		// whatever was banked for another one.
+		StoredVariant
+			= aVariant.value_or(core::resolve_appearance(Mode, Observation).Variant);
+		const auto& builtin = builtin_appearance_palette(StoredVariant);
 		for (auto index = std::size_t{ 0U };
 			 index < core::appearance_role_count;
 			 ++index) {
@@ -1001,10 +1027,23 @@ namespace bpr::qt {
 	{
 		Resolution          = core::resolve_appearance(Mode, Observation);
 		const auto& builtin = builtin_appearance_palette(Resolution.Variant);
+		// An override is a colour chosen against one built-in profile. Against
+		// any other profile it is not a preference, it is a leftover, so a
+		// variant the customisation does not belong to renders its built-in
+		// palette untouched.
+		const auto customised = Resolution.Variant == StoredVariant;
 		for (auto index = std::size_t{ 0U };
 			 index < core::appearance_role_count;
 			 ++index) {
-			CommittedPalette[index] = Overrides[index].value_or(builtin[index]);
+			CommittedPalette[index] = customised
+				? Overrides[index].value_or(builtin[index])
+				: builtin[index];
+		}
+		const auto& stored = builtin_appearance_palette(StoredVariant);
+		for (auto index = std::size_t{ 0U };
+			 index < core::appearance_role_count;
+			 ++index) {
+			StoredPalette[index] = Overrides[index].value_or(stored[index]);
 		}
 		Palette = PreviewPalette.value_or(CommittedPalette);
 		for (auto index = std::size_t{ 0U };

@@ -18,7 +18,7 @@ namespace bpr::adapters::sqlite::detail {
 		// table that is not there.
 		constexpr std::int32_t AppearanceApplicationId = 0x42505241;
 
-		/// \brief The statements that build schema version 1.
+		/// \brief The statements that build schema version 2.
 		///
 		/// \details One row. There is no column for a repository, a path, a
 		/// pull request, or any review content: an appearance is a reviewer's
@@ -26,7 +26,13 @@ namespace bpr::adapters::sqlite::detail {
 		///
 		/// `palette_document` holds a `core::export_theme` document rather than
 		/// decomposed colour components. See the header for why.
-		constexpr std::array SchemaVersion1{
+		///
+		/// `palette_variant` names which built-in profile the stored palette
+		/// customises. Version 1 had no such column, and a reader with only a
+		/// palette can do nothing but assume the variant the current desktop
+		/// resolves, which turned a light palette into forty-six overrides
+		/// pinned over the dark profile.
+		constexpr std::array SchemaVersion2{
 			std::string_view{
 				"CREATE TABLE appearance_meta("
 				"singleton INTEGER PRIMARY KEY CHECK(singleton = 1),"
@@ -37,6 +43,7 @@ namespace bpr::adapters::sqlite::detail {
 				"singleton INTEGER PRIMARY KEY CHECK(singleton = 1),"
 				"mode TEXT NOT NULL,"
 				"palette_document TEXT NOT NULL,"
+				"palette_variant TEXT NOT NULL,"
 				"ui_family TEXT NOT NULL,"
 				"ui_point_size INTEGER NOT NULL,"
 				"ui_weight INTEGER NOT NULL,"
@@ -74,6 +81,172 @@ namespace bpr::adapters::sqlite::detail {
 				aDatabase, "PRAGMA user_version = " + std::to_string(aVersion), aStop);
 		}
 
+		[[nodiscard]] auto text_of(::sqlite3_stmt* aStatement, const int aColumn)
+			-> std::string
+		{
+			const auto* const bytes = ::sqlite3_column_text(aStatement, aColumn);
+			if (bytes == nullptr) {
+				return { };
+			}
+			return std::string{ reinterpret_cast<const char*>(bytes) };
+		}
+
+		/// \brief Decodes one stored mode name against the published vocabulary.
+		///
+		/// \details Compared against `core::stable_name` for every declared mode
+		/// rather than against a list restated here, so a mode added to the core
+		/// is storable without editing this function, and a name the core does
+		/// not publish is refused rather than mapped to whatever sits at that
+		/// ordinal.
+		[[nodiscard]] auto mode_of(const std::string_view aName)
+			-> std::expected<core::appearance_mode, failure>
+		{
+			for (std::size_t index = 0U; index < core::appearance_mode_count;
+				 ++index) {
+				const auto candidate
+					= static_cast<core::appearance_mode>(
+						static_cast<std::uint8_t>(index));
+				if (core::stable_name(candidate) == aName) {
+					return candidate;
+				}
+			}
+			return std::unexpected(failure::integrity_failure);
+		}
+
+		/// \brief Decodes one stored variant name against the core vocabulary.
+		///
+		/// \details Resolved through the core's own lookup for the same reason
+		/// `mode_of` is: a name the core does not publish names no variant, and
+		/// is refused rather than mapped onto whatever sits at some ordinal.
+		[[nodiscard]] auto variant_of(const std::string_view aName)
+			-> std::expected<core::appearance_variant, failure>
+		{
+			if (const auto found = core::find_appearance_variant(aName)) {
+				return *found;
+			}
+			return std::unexpected(failure::integrity_failure);
+		}
+
+		[[nodiscard]] auto create_schema(
+			::sqlite3* aDatabase, std::stop_token aStop)
+			-> std::expected<void, failure>
+		{
+			if (auto created = run_all(aDatabase, SchemaVersion2, aStop); !created) {
+				return created;
+			}
+			if (auto app = execute(
+					aDatabase,
+					"PRAGMA application_id = "
+						+ std::to_string(AppearanceApplicationId),
+					aStop);
+				!app) {
+				return app;
+			}
+			return execute(
+				aDatabase,
+				"INSERT INTO appearance_meta(singleton, schema_format) "
+				"VALUES(1, "
+					+ std::to_string(appearance_settings_schema_version) + ")",
+				aStop);
+		}
+
+		/// \brief Adds `palette_variant` and fills it for the existing record.
+		///
+		/// \details The derived value is the variant the version-1 reader
+		/// already assumed, which is what `resolve_appearance` answers for the
+		/// stored mode under an empty observation. Deriving it here rather than
+		/// in SQL keeps the one authority on what a mode means in the core: SQL
+		/// restating the mapping would be a second copy of a rule, and the
+		/// second copy is the one that goes stale.
+		///
+		/// An unrecognised stored mode leaves the column at its `light`
+		/// default rather than failing the open. The load path is the authority
+		/// that refuses such a record, and it still does; a migration that
+		/// refused instead would turn a reported integrity failure into a
+		/// database that cannot be opened at all.
+		[[nodiscard]] auto migrate_version_1_to_2(
+			::sqlite3* aDatabase, std::stop_token aStop)
+			-> std::expected<void, failure>
+		{
+			// Rebuilt rather than altered. ALTER TABLE ADD COLUMN on a STRICT
+			// table runs SQLite's quick check through the pragma table-valued
+			// function, and the hardened connection policy refuses that
+			// function, so the row is carried across a fresh version-2 table.
+			constexpr std::string_view columns
+				= "singleton, mode, palette_document, ui_family, ui_point_size,"
+				  " ui_weight, ui_line_height, code_family, code_point_size,"
+				  " code_weight, code_tab_width, code_ligatures, code_syntax_bold,"
+				  " code_syntax_italic";
+			const auto rebuild = std::array{
+				std::string{ "CREATE TABLE appearance_settings_v1 AS SELECT " }
+					+ std::string{ columns } + " FROM appearance_settings",
+				std::string{ "DROP TABLE appearance_settings" },
+				std::string{ SchemaVersion2[1] },
+				std::string{ "INSERT INTO appearance_settings(singleton, mode,"
+							 " palette_document, palette_variant, ui_family,"
+							 " ui_point_size, ui_weight, ui_line_height,"
+							 " code_family, code_point_size, code_weight,"
+							 " code_tab_width, code_ligatures, code_syntax_bold,"
+							 " code_syntax_italic) SELECT singleton, mode,"
+							 " palette_document, 'light', ui_family,"
+							 " ui_point_size, ui_weight, ui_line_height,"
+							 " code_family, code_point_size, code_weight,"
+							 " code_tab_width, code_ligatures, code_syntax_bold,"
+							 " code_syntax_italic FROM appearance_settings_v1" },
+				std::string{ "DROP TABLE appearance_settings_v1" },
+			};
+			for (const auto& statement : rebuild) {
+				if (auto ran = execute(aDatabase, statement, aStop); !ran) {
+					return ran;
+				}
+			}
+
+			auto reader = prepare(
+				aDatabase,
+				"SELECT mode FROM appearance_settings WHERE singleton = 1");
+			if (!reader) {
+				return std::unexpected(reader.error());
+			}
+			const auto stepped = ::sqlite3_step(reader->Value);
+			if (stepped == SQLITE_DONE) {
+				// No record to carry forward. The column exists for the next
+				// write, which is all a fresh-but-versioned file needs.
+				return { };
+			}
+			if (stepped != SQLITE_ROW) {
+				return std::unexpected(catalog_sql_failure(aDatabase));
+			}
+			const auto stored = mode_of(text_of(reader->Value, 0));
+			if (!stored) {
+				return { };
+			}
+
+			const auto derived = std::string{ core::stable_name(
+				core::resolve_appearance(*stored, core::appearance_observation{ })
+					.Variant) };
+			auto       writer  = prepare(
+				aDatabase,
+				"UPDATE appearance_settings SET palette_variant = ?1 "
+				"WHERE singleton = 1");
+			if (!writer) {
+				return std::unexpected(writer.error());
+			}
+			if (::sqlite3_bind_text(
+					writer->Value, 1, derived.c_str(), -1, SQLITE_TRANSIENT)
+				!= SQLITE_OK) {
+				return std::unexpected(catalog_sql_failure(aDatabase));
+			}
+			if (::sqlite3_step(writer->Value) != SQLITE_DONE) {
+				return std::unexpected(catalog_sql_failure(aDatabase));
+			}
+			return execute(
+				aDatabase,
+				"UPDATE appearance_meta SET schema_format = "
+					+ std::to_string(appearance_settings_schema_version)
+					+ " WHERE singleton = 1",
+				aStop);
+		}
+
 		[[nodiscard]] auto establish_schema(
 			::sqlite3* aDatabase, std::stop_token aStop)
 			-> std::expected<void, failure>
@@ -91,6 +264,17 @@ namespace bpr::adapters::sqlite::detail {
 			if (*current > appearance_settings_schema_version) {
 				return std::unexpected(failure::schema_mismatch);
 			}
+			// A stamped file is about to be altered in place, so its identity
+			// is checked before the first write rather than by `validate`
+			// afterwards. Another application's database must leave here
+			// untouched, not carrying a column this store added to it.
+			if (*current != 0) {
+				const auto application
+					= scalar_integer(aDatabase, "PRAGMA application_id");
+				if (!application || *application != AppearanceApplicationId) {
+					return std::unexpected(failure::schema_mismatch);
+				}
+			}
 
 			if (auto begin = execute(aDatabase, "BEGIN IMMEDIATE", aStop); !begin) {
 				return begin;
@@ -100,28 +284,16 @@ namespace bpr::adapters::sqlite::detail {
 					aDatabase, "ROLLBACK", nullptr, nullptr, nullptr);
 			};
 
-			if (auto created = run_all(aDatabase, SchemaVersion1, aStop); !created) {
+			// An unstamped file has no tables at all and is created whole. A
+			// stamped one is migrated in place, inside this same transaction,
+			// so a file is never left carrying a column the version it claims
+			// does not have.
+			const auto established = *current == 0
+				? create_schema(aDatabase, aStop)
+				: migrate_version_1_to_2(aDatabase, aStop);
+			if (!established) {
 				rollback();
-				return created;
-			}
-			if (auto app = execute(
-					aDatabase,
-					"PRAGMA application_id = "
-						+ std::to_string(AppearanceApplicationId),
-					aStop);
-				!app) {
-				rollback();
-				return app;
-			}
-			if (auto meta = execute(
-					aDatabase,
-					"INSERT INTO appearance_meta(singleton, schema_format) "
-					"VALUES(1, "
-						+ std::to_string(appearance_settings_schema_version) + ")",
-					aStop);
-				!meta) {
-				rollback();
-				return meta;
+				return established;
 			}
 			if (auto stamped = set_version(
 					aDatabase, appearance_settings_schema_version, aStop);
@@ -156,38 +328,6 @@ namespace bpr::adapters::sqlite::detail {
 				return std::unexpected(failure::schema_mismatch);
 			}
 			return { };
-		}
-
-		[[nodiscard]] auto text_of(::sqlite3_stmt* aStatement, const int aColumn)
-			-> std::string
-		{
-			const auto* const bytes = ::sqlite3_column_text(aStatement, aColumn);
-			if (bytes == nullptr) {
-				return { };
-			}
-			return std::string{ reinterpret_cast<const char*>(bytes) };
-		}
-
-		/// \brief Decodes one stored mode name against the published vocabulary.
-		///
-		/// \details Compared against `core::stable_name` for every declared mode
-		/// rather than against a list restated here, so a mode added to the core
-		/// is storable without editing this function, and a name the core does
-		/// not publish is refused rather than mapped to whatever sits at that
-		/// ordinal.
-		[[nodiscard]] auto mode_of(const std::string_view aName)
-			-> std::expected<core::appearance_mode, failure>
-		{
-			for (std::size_t index = 0U; index < core::appearance_mode_count;
-				 ++index) {
-				const auto candidate
-					= static_cast<core::appearance_mode>(
-						static_cast<std::uint8_t>(index));
-				if (core::stable_name(candidate) == aName) {
-					return candidate;
-				}
-			}
-			return std::unexpected(failure::integrity_failure);
 		}
 
 		[[nodiscard]] auto bounded(
@@ -291,6 +431,8 @@ namespace bpr::adapters::sqlite::detail {
 
 		const auto document = core::export_theme(aSettings.Palette);
 		const auto mode     = std::string{ core::stable_name(aSettings.Mode) };
+		const auto variant
+			= std::string{ core::stable_name(aSettings.PaletteVariant) };
 
 		auto statement = prepare(
 			Handle,
@@ -298,8 +440,9 @@ namespace bpr::adapters::sqlite::detail {
 			"singleton, mode, palette_document, ui_family, ui_point_size,"
 			"ui_weight, ui_line_height, code_family, code_point_size,"
 			"code_weight, code_tab_width, code_ligatures, code_syntax_bold,"
-			"code_syntax_italic) "
-			"VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13) "
+			"code_syntax_italic, palette_variant) "
+			"VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13,"
+			"?14) "
 			"ON CONFLICT(singleton) DO UPDATE SET "
 			"mode = excluded.mode,"
 			"palette_document = excluded.palette_document,"
@@ -313,7 +456,8 @@ namespace bpr::adapters::sqlite::detail {
 			"code_tab_width = excluded.code_tab_width,"
 			"code_ligatures = excluded.code_ligatures,"
 			"code_syntax_bold = excluded.code_syntax_bold,"
-			"code_syntax_italic = excluded.code_syntax_italic");
+			"code_syntax_italic = excluded.code_syntax_italic,"
+			"palette_variant = excluded.palette_variant");
 		if (!statement) {
 			return std::unexpected(statement.error());
 		}
@@ -352,6 +496,9 @@ namespace bpr::adapters::sqlite::detail {
 			|| ::sqlite3_bind_int64(statement->Value, 12, code.SyntaxBold ? 1 : 0)
 				!= SQLITE_OK
 			|| ::sqlite3_bind_int64(statement->Value, 13, code.SyntaxItalic ? 1 : 0)
+				!= SQLITE_OK
+			|| ::sqlite3_bind_text(
+				   statement->Value, 14, variant.c_str(), -1, SQLITE_TRANSIENT)
 				!= SQLITE_OK) {
 			return std::unexpected(catalog_sql_failure(Handle));
 		}
@@ -381,7 +528,8 @@ namespace bpr::adapters::sqlite::detail {
 			"SELECT mode, palette_document, ui_family, ui_point_size, ui_weight,"
 			"ui_line_height, code_family, code_point_size, code_weight,"
 			"code_tab_width, code_ligatures, code_syntax_bold,"
-			"code_syntax_italic FROM appearance_settings WHERE singleton = 1");
+			"code_syntax_italic, palette_variant "
+			"FROM appearance_settings WHERE singleton = 1");
 		if (!statement) {
 			return std::unexpected(statement.error());
 		}
@@ -413,9 +561,19 @@ namespace bpr::adapters::sqlite::detail {
 			return std::unexpected(failure::integrity_failure);
 		}
 
-		auto settings    = application::appearance_settings{ };
-		settings.Mode    = *mode;
-		settings.Palette = *imported.Palette;
+		// The variant the stored palette customises. Without it a reader has
+		// only a palette and must guess which built-in profile it was chosen
+		// against, and the guess made from the current desktop is what pinned
+		// a light palette over the dark profile.
+		const auto variant = variant_of(text_of(statement->Value, 13));
+		if (!variant) {
+			return std::unexpected(variant.error());
+		}
+
+		auto settings           = application::appearance_settings{ };
+		settings.Mode           = *mode;
+		settings.Palette        = *imported.Palette;
+		settings.PaletteVariant = *variant;
 
 		const auto uiSize     = bounded(::sqlite3_column_int64(statement->Value, 3));
 		const auto uiWeight   = bounded(::sqlite3_column_int64(statement->Value, 4));

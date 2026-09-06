@@ -668,6 +668,50 @@ namespace {
 			   "an equal commit acknowledges without inventing a pixel invalidation");
 	}
 
+	void test_an_adopted_palette_records_the_variant_it_customises()
+	{
+		constexpr auto observedDark = core::appearance_observation{
+			.Scheme = core::os_color_scheme::dark
+		};
+
+		// A palette is one total set of colours for one variant, and the one it
+		// customises is the variant on screen when the reviewer chose them. A
+		// record that carried the palette without the variant left the reader
+		// to derive it from whatever desktop opened the file next, which is
+		// what pinned a light palette over the dark profile.
+		auto harnessed = harness{ };
+		harnessed.Host.observe(observedDark);
+		harnessed.settle();
+		expect(harnessed.Host.resolution().Variant == core::appearance_variant::dark,
+			   "the system mode resolves dark under an observed dark scheme");
+
+		harnessed.Host.apply(contrast_safe_palette());
+		harnessed.settle();
+		expect(harnessed.Host.settings().PaletteStored
+				   && harnessed.Host.settings().PaletteVariant
+					   == core::appearance_variant::dark,
+			   "an adopted palette records the variant it customises");
+		expect(harnessed.Settings.Stored.has_value()
+				   && harnessed.Settings.Stored->PaletteVariant
+					   == core::appearance_variant::dark,
+			   "and the durable record carries it");
+
+		// An explicit mode ignores the observation, so the recorded variant
+		// must ignore it too: reading the desktop here rather than the
+		// resolution would label a light palette dark.
+		auto explicitly = harness{ };
+		explicitly.Host.select(core::appearance_mode::light);
+		explicitly.settle();
+		explicitly.Host.observe(observedDark);
+		explicitly.settle();
+		explicitly.Host.apply(contrast_safe_palette());
+		explicitly.settle();
+		expect(explicitly.Host.settings().PaletteVariant
+				   == core::appearance_variant::light,
+			   "an explicit light mode records light however dark the desktop "
+			   "is");
+	}
+
 	void test_palette_commit_refuses_contrast_failures_without_writing()
 	{
 		auto harnessed = harness{ };
@@ -1045,6 +1089,7 @@ auto main() -> int
 	test_mode_selection_persists_and_publishes_bounded_changes();
 	test_illegal_typography_is_refused_without_clamping();
 	test_palette_change_publishes_only_the_palette();
+	test_an_adopted_palette_records_the_variant_it_customises();
 	test_palette_commit_refuses_contrast_failures_without_writing();
 	test_theme_import_is_bounded_typed_and_preview_only();
 	test_system_mode_follows_the_observation_and_explicit_mode_does_not();

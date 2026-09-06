@@ -307,6 +307,29 @@ namespace bpr::core {
 		return find_by_stable_name<appearance_mode>(aName, appearance_mode_count);
 	}
 
+	auto stable_name(const appearance_variant aVariant) noexcept -> std::string_view
+	{
+		switch (aVariant) {
+		case appearance_variant::light:
+			return "light";
+		case appearance_variant::dark:
+			return "dark";
+		case appearance_variant::high_contrast_light:
+			return "high_contrast_light";
+		case appearance_variant::high_contrast_dark:
+			return "high_contrast_dark";
+		}
+
+		return { };
+	}
+
+	auto find_appearance_variant(const std::string_view aName) noexcept
+		-> std::optional<appearance_variant>
+	{
+		return find_by_stable_name<appearance_variant>(
+			aName, appearance_variant_count);
+	}
+
 	auto high_contrast(const appearance_variant aVariant) noexcept -> bool
 	{
 		return aVariant == appearance_variant::high_contrast_light

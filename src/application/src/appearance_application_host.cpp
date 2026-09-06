@@ -843,6 +843,13 @@ namespace bpr::application {
 			auto next          = Settings;
 			next.Palette       = aPalette;
 			next.PaletteStored = true;
+			// A palette customises exactly one variant, and the one it
+			// customises is the variant on screen when the reviewer chose the
+			// colours. Recording it here is what lets the durable record be
+			// read back as overrides against the right built-in profile
+			// instead of against whatever the desktop resolves next time.
+			next.PaletteVariant
+				= core::resolve_appearance(next.Mode, Observation).Variant;
 			adopt(
 				std::move(next),
 				palette_adoption_publication{ .Palette = aPalette });

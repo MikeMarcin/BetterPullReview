@@ -313,9 +313,14 @@ namespace bpr::qt {
 		/// An unrelated mode, typography, or native-observation publication can
 		/// instead re-express the committed palette against another built-in
 		/// variant while retaining the exact visible, cancellable preview.
+		///
+		/// `aVariant` names the variant the palette customises. A durable
+		/// record supplies its own; a gesture omits it and the variant on
+		/// screen applies, because a reviewer edits what they are looking at.
 		auto adopt_palette(
-			core::appearance_palette aPalette,
-			palette_preview_adoption aPreview = palette_preview_adoption::commit)
+			core::appearance_palette                aPalette,
+			palette_preview_adoption                aPreview = palette_preview_adoption::commit,
+			std::optional<core::appearance_variant> aVariant = std::nullopt)
 			-> bool;
 		[[nodiscard]] auto previewing_palette() const noexcept -> bool;
 
@@ -383,7 +388,9 @@ namespace bpr::qt {
 	private:
 		void rebuild();
 		void rebuild_typography();
-		void set_committed_palette(const core::appearance_palette& aPalette);
+		void set_committed_palette(
+			const core::appearance_palette&         aPalette,
+			std::optional<core::appearance_variant> aVariant);
 		auto adopt() -> bool;
 		auto publish() -> bool;
 		void apply_code_metrics(QWidget& aSurface) const;
@@ -394,9 +401,24 @@ namespace bpr::qt {
 		QFont                        UiFont;
 		QFont                        CodeFont;
 		std::array<std::optional<core::appearance_color>, core::appearance_role_count>
-														Overrides;
-		core::appearance_resolution                     Resolution;
-		core::appearance_palette                        CommittedPalette{ };
+									Overrides;
+		core::appearance_resolution Resolution;
+		/// \brief The variant `Overrides` belongs to.
+		///
+		/// \details A palette customises exactly one variant, so an override
+		/// is a statement about one built-in profile and means nothing against
+		/// another. Applying the overrides only while this variant resolves is
+		/// what keeps a light customisation from colouring the dark profile.
+		core::appearance_variant StoredVariant
+			= core::appearance_variant::light;
+		core::appearance_palette CommittedPalette{ };
+		/// \brief The stored variant's built-in palette with the overrides applied.
+		///
+		/// \details What the durable record holds. It differs from
+		/// `CommittedPalette` whenever the desktop resolves a variant other than
+		/// the stored one, and it must, or an observation flip would write the
+		/// other variant's built-in profile over the reviewer's customisation.
+		core::appearance_palette                        StoredPalette{ };
 		std::optional<core::appearance_palette>         PreviewPalette;
 		core::appearance_palette                        Palette{ };
 		std::array<QColor, core::appearance_role_count> Colors;

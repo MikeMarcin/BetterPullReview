@@ -95,6 +95,15 @@ namespace bpr::application {
 		/// was read as forty-six deliberate overrides. Only a stored palette is
 		/// customisation; a default one is the absence of any.
 		bool PaletteStored = false;
+		/// \brief The variant the stored palette customizes.
+		///
+		/// \details Meaningful only when `PaletteStored`. A palette is one
+		/// total set of colours for one variant, so a record that carried the
+		/// palette without the variant left the reader to guess, and the guess
+		/// it made was the variant the *current* desktop resolves. A light
+		/// palette then read as forty-six deliberate overrides pinned over the
+		/// dark profile, which is BPR-0216 reappearing for stored records.
+		core::appearance_variant PaletteVariant = core::appearance_variant::light;
 
 		auto operator<=>(const appearance_settings&) const = default;
 	};

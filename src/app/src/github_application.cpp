@@ -4764,6 +4764,16 @@ namespace bpr::app {
 					Window.get(),
 					[this] { observe_native_appearance(); });
 			}
+			// [[BPR-0645]]. The scheme read above is taken before the event
+			// loop has run, and on macOS the platform theme can still answer
+			// `Unknown` at that point; `colorSchemeChanged` reports later
+			// changes only, never the first real answer. One deferred
+			// re-observation after startup asks again once the theme is
+			// settled, so a dark desktop is not rendered as light for the
+			// whole session.
+			QTimer::singleShot(0, Window.get(), [this] {
+				observe_native_appearance();
+			});
 			// The settings surface dispatches into the host, never into
 			// presentation. That is what makes the host the single
 			// authority on what is in effect: a gesture that reached the
@@ -8329,7 +8339,16 @@ namespace bpr::app {
 				observation.Scheme = core::os_color_scheme::dark;
 				break;
 			case Qt::ColorScheme::Unknown:
-				observation.Scheme = core::os_color_scheme::unknown;
+				// [[BPR-0645]]. The platform palette is derived from the
+				// same theme, so its window colour is the best remaining
+				// evidence of the scheme when the hint has no answer. A
+				// wrong guess here renders one scheme's palette on the
+				// other's chrome, which is exactly the defect this avoids.
+				observation.Scheme
+					= QGuiApplication::palette().color(QPalette::Window).lightness()
+						< 128
+					? core::os_color_scheme::dark
+					: core::os_color_scheme::light;
 				break;
 			}
 			return observation;
@@ -8413,10 +8432,14 @@ namespace bpr::app {
 			const auto settings = AppearanceHost->settings();
 			static_cast<void>(AppearanceProfile->select_mode(settings.Mode));
 			if (settings.PaletteStored) {
+				// [[BPR-0645]]. The record names the variant its palette
+				// customises; adopting it against the variant on screen would
+				// bank a light palette as the dark profile's overrides.
 				static_cast<void>(AppearanceProfile->adopt_palette(
 					settings.Palette,
 					aPaletteCommitted ? qt::palette_preview_adoption::commit
-									  : qt::palette_preview_adoption::retain));
+									  : qt::palette_preview_adoption::retain,
+					settings.PaletteVariant));
 			}
 			const auto selection
 				= AppearanceProfile->select_typography(settings.Typography);
