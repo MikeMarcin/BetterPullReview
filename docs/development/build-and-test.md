@@ -2619,3 +2619,23 @@ The focused verification is `github_mutation_contract`, including raw malformed
 numeric identities and Unicode responses, plus `live_review_mutation_provider`
 for the existing source-line publication path. This contract is not yet selected
 by the whole-review application/UI workflow.
+
+## Local Mac private alpha
+
+Use the `app-release` preset and `app_better_pull_review` target for ordinary
+work. The tests-enabled app refuses normal live publication. The Mac release
+post-build step seals the completed application bundle with `codesign`; the
+linker's executable-only signature was insufficient for the observed Keychain
+sign-in course. `BPR_MACOS_CODESIGN_IDENTITY` defaults to `-` (ad-hoc). For
+repeated local use, configure an existing stable signing identity once in the
+ignored build cache. `security find-identity -v -p codesigning` lists available
+identities without exporting keys. No timestamp service or notarization runs.
+
+```sh
+cmake --preset app-release -DBPR_MACOS_CODESIGN_IDENTITY="YOUR EXISTING SIGNING IDENTITY"
+cmake --build --preset app-release --target app_better_pull_review
+codesign --verify --deep --strict build/app-release/src/app/BetterPullReview.app
+```
+
+The [private-alpha route](private-alpha.md) defines the intentionally narrow
+delivery scope and the live-Enterprise verification deferral.

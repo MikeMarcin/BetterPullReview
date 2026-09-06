@@ -319,6 +319,8 @@ if(BPR_BUILD_QT)
                     MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
             )
         else()
+            set(BPR_MACOS_CODESIGN_IDENTITY "-" CACHE STRING
+                "Local Mac application signing identity; - uses ad-hoc signing")
             set_target_properties(
                 app_better_pull_review
                 PROPERTIES
@@ -333,6 +335,14 @@ if(BPR_BUILD_QT)
                         "${PROJECT_SOURCE_DIR}/packaging/macos/Info.plist.in"
                     MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
             )
+            # Seal the completed bundle, not only the linker's Mach-O image.
+            # A stable locally configured identity also survives rebuilds for
+            # Keychain trust. No timestamp service or notarization is contacted.
+            add_custom_command(TARGET app_better_pull_review POST_BUILD
+                COMMAND /usr/bin/codesign --force --deep
+                    --sign "${BPR_MACOS_CODESIGN_IDENTITY}" --timestamp=none
+                    "$<TARGET_BUNDLE_DIR:app_better_pull_review>"
+                VERBATIM)
         endif()
     endif()
 

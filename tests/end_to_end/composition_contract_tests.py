@@ -579,7 +579,8 @@ class CompositionContractTests(unittest.TestCase):
         )
         provider_success = (
             "\t\t\tif (provider.has_value()) {\n"
-            "\t\t\t\tauto erased = "
+            "\t\t\t\tInlineReviewBinding = *selection;\n"
+            "\t\t\t\tauto erased         = "
             "std::unique_ptr<application::review_mutation_port>{"
         )
         self.assertEqual(source.count(provider_success), 1)

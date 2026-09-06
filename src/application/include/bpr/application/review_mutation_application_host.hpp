@@ -77,13 +77,10 @@ namespace bpr::application {
 
 	/// \brief Opaque capability required before a mutation effect can be queued.
 	///
-	/// \details Production construction is private to the fully declared
-	/// application-layer bootstrap after it validates and consumes attended
-	/// approval. The host binds that one-shot carrier to
-	/// one exact session, generation, target, and actor, then atomically consumes
-	/// it only after the remaining exact request fields validate. Environment
-	/// variables, command-line flags, persisted values, and Qt gestures cannot
-	/// construct this capability.
+	/// \details Production construction is private to the attended bootstrap or
+	/// the normal user-publish issuer. Normal grants bind one complete request
+	/// to an exact session, generation, target and actor and expire after five
+	/// minutes. The host consumes a grant only after validating retained endpoints.
 	class review_mutation_execution_authority;
 	using review_mutation_execution_grant
 		= std::shared_ptr<review_mutation_execution_authority>;
@@ -91,10 +88,11 @@ namespace bpr::application {
 #if defined(BPR_APPLICATION_TESTING) || defined(BPR_BUILD_TESTING)
 	/// \brief Mints the bounded execution authority used only by fixture builds.
 	[[nodiscard]] auto make_review_mutation_testing_grant(
-		core::application_session_id    aSession,
-		core::request_generation        aGeneration,
-		review_mutation_target_binding  aTarget,
-		review_mutation_acting_identity aActingIdentity)
+		core::application_session_id                       aSession,
+		core::request_generation                           aGeneration,
+		review_mutation_target_binding                     aTarget,
+		review_mutation_acting_identity                    aActingIdentity,
+		std::optional<review_mutation_publication_request> aRequest = std::nullopt)
 		-> review_mutation_execution_grant;
 
 	/// \brief Mints the production-shaped one-shot carrier for host unit tests.
@@ -156,7 +154,8 @@ namespace bpr::application {
 		auto operator=(const review_mutation_application_host&)
 			-> review_mutation_application_host& = delete;
 
-		[[nodiscard]] auto publish(review_mutation_publication_request aRequest)
+		[[nodiscard]] auto publish(review_mutation_publication_request aRequest,
+								   review_mutation_execution_grant     aRequestGrant = { })
 			-> review_mutation_request_context;
 		void cancel(review_mutation_request_context aContext) noexcept;
 		void shutdown() noexcept;

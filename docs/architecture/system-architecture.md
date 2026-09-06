@@ -635,13 +635,17 @@ encoded baseline and SHA-256 digest commit together. An exact successful POST
 response is its own direct receipt only when its ID was absent from the durable
 baseline.
 
-The fixture build supplies a reusable testing grant. Tests-disabled production
-constructs the same asynchronous host only when the accepted handoff and
-snapshot match the compiled designated host, repository, pull request, base,
-and head tuple. The acting database ID, node ID, and login are not compiled
-constants: they come from the exact authenticated session, are cross-bound to
-its opaque accepted-snapshot transport lease, and are re-observed before a
-write. An ordinary production launch supplies no grant. The sole production
+Normal production inline publication composes the asynchronous host from the
+accepted authenticated handoff and snapshot. Acting identity and the native
+transport lease remain bound to that exact authority. BPR-0641 adds a private
+user-publish issuer: after the core accepts Publish, composition passes a
+five-minute, one-use grant bound to the entire publication request, session,
+generation, target and actor. Host validation still checks retained endpoints
+before consuming it. Test builds refuse this issuer; the real editor fixture
+uses exact request-bound testing grants. A subsequent deliberate gesture needs
+a fresh grant. Ordinary launches do not load an attended approval.
+
+The separately selected designated attended validation
 path has an outer stage-zero image owner around two authority stages. Stage
 zero captures the producer-bound launcher bytes under the fixed system Python,
 attaches the exact literal-digest image read-only below an owner-private mount
@@ -666,7 +670,7 @@ pathname-based, and the generated CTest manifest/cache remains the trusted
 same-UID execution plan. Each reviewed packet therefore binds its exact stored
 DMG; separate image builds are not expected to be byte-identical.
 
-The source-line production carrier is private and one-use. It first binds the application
+The attended source-line carrier is private and one-use. It first binds the application
 session, workbench generation, exact target, and authenticated actor. The host
 then validates comparison, file, right-side semantic anchor, resolved path,
 and current head before atomically consuming the carrier immediately before

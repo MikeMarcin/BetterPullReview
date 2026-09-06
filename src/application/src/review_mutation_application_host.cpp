@@ -48,12 +48,18 @@ namespace bpr::application {
 	} // namespace
 
 	review_mutation_execution_authority::review_mutation_execution_authority(
-		review_mutation_execution_scope aScope)
-		: Scope{ std::move(aScope) }
+		review_mutation_execution_scope                    aScope,
+		std::optional<review_mutation_publication_request> aRequest)
+		: Request{ std::move(aRequest) }
+		, Scope{ std::move(aScope) }
 		, Target{ Scope.Target }
 		, ActingIdentity{ Scope.ActingIdentity }
 		, Bound{ true }
 	{
+		if (Request) {
+			Kind      = kind::user_one_shot;
+			ExpiresAt = std::chrono::steady_clock::now() + std::chrono::minutes{ 5 };
+		}
 	}
 
 	review_mutation_execution_authority::review_mutation_execution_authority(
@@ -79,7 +85,7 @@ namespace bpr::application {
 		if (Revoked.load(std::memory_order_relaxed)) {
 			return false;
 		}
-		if (Kind == kind::attended_one_shot
+		if (Kind != kind::testing_reusable
 			&& std::chrono::steady_clock::now() >= ExpiresAt) {
 			Revoked.store(true, std::memory_order_release);
 			return false;
@@ -101,7 +107,8 @@ namespace bpr::application {
 	}
 
 	auto review_mutation_execution_authority::permits(
-		const review_mutation_execution_scope& aScope) noexcept -> bool
+		const review_mutation_execution_scope&     aScope,
+		const review_mutation_publication_request& aRequest) noexcept -> bool
 	{
 		if (!valid_execution_scope(aScope)
 			|| Revoked.load(std::memory_order_acquire)) {
@@ -114,6 +121,9 @@ namespace bpr::application {
 			|| Scope.WorkbenchGeneration != aScope.WorkbenchGeneration
 			|| Scope.Target != aScope.Target
 			|| *ActingIdentity != aScope.ActingIdentity) {
+			return false;
+		}
+		if (Kind == kind::user_one_shot && (!Request || *Request != aRequest)) {
 			return false;
 		}
 		if (Kind == kind::testing_reusable) {
@@ -134,17 +144,44 @@ namespace bpr::application {
 	void review_mutation_execution_authority::revoke() noexcept
 	{
 		std::scoped_lock lock{ Mutex };
-		if (Kind == kind::attended_one_shot) {
+		if (Kind != kind::testing_reusable) {
 			Revoked.store(true, std::memory_order_release);
 		}
 	}
 
+	auto detail::review_mutation_user_authority_issuer::issue(
+		core::application_session_id aSession, core::request_generation aGeneration,
+		review_mutation_target_binding aTarget, review_mutation_acting_identity aActor,
+		review_mutation_publication_request aRequest) -> review_mutation_execution_grant
+	{
+#if defined(BPR_APPLICATION_TESTING)
+		static_cast<void>(aSession);
+		static_cast<void>(aGeneration);
+		static_cast<void>(aTarget);
+		static_cast<void>(aActor);
+		static_cast<void>(aRequest);
+		return { };
+#else
+		if (aSession.value() == 0U || aGeneration.value() == 0U
+			|| !valid(aTarget) || !valid(aActor)) {
+			return { };
+		}
+		return review_mutation_execution_grant{ new review_mutation_execution_authority{
+			review_mutation_execution_scope{ .ApplicationSession  = aSession,
+											 .WorkbenchGeneration = aGeneration,
+											 .Target              = std::move(aTarget),
+											 .ActingIdentity      = std::move(aActor) },
+			std::move(aRequest) } };
+#endif
+	}
+
 #if defined(BPR_APPLICATION_TESTING)
 	auto make_review_mutation_testing_grant(
-		const core::application_session_id aSession,
-		const core::request_generation     aGeneration,
-		review_mutation_target_binding     aTarget,
-		review_mutation_acting_identity    aActingIdentity)
+		const core::application_session_id                 aSession,
+		const core::request_generation                     aGeneration,
+		review_mutation_target_binding                     aTarget,
+		review_mutation_acting_identity                    aActingIdentity,
+		std::optional<review_mutation_publication_request> aRequest)
 		-> review_mutation_execution_grant
 	{
 		return review_mutation_execution_grant{
@@ -154,7 +191,8 @@ namespace bpr::application {
 					.WorkbenchGeneration = aGeneration,
 					.Target              = std::move(aTarget),
 					.ActingIdentity      = aActingIdentity,
-				} }
+				},
+				std::move(aRequest) }
 		};
 	}
 
@@ -462,7 +500,7 @@ namespace bpr::application {
 					return review_mutation_failure::unavailable;
 				}
 				if (aRecord->Stop.stop_requested() || aGrant == nullptr
-					|| !aGrant->permits(aScope)) {
+					|| !aGrant->bind(aScope) || !aGrant->permits(aScope, aRecord->Request)) {
 					return review_mutation_failure::unavailable;
 				}
 				for (auto& entry : Outstanding) {
@@ -513,7 +551,8 @@ namespace bpr::application {
 			schedule_terminal(aRecord, aFailure);
 		}
 
-		[[nodiscard]] auto publish(review_mutation_publication_request aRequest)
+		[[nodiscard]] auto publish(review_mutation_publication_request aRequest,
+								   review_mutation_execution_grant     aRequestGrant)
 			-> review_mutation_request_context
 		{
 			auto record = std::make_shared<request_record>(request_record{
@@ -533,7 +572,7 @@ namespace bpr::application {
 						.Generation = Generation,
 					};
 				}
-				grant = Grant;
+				grant = aRequestGrant ? std::move(aRequestGrant) : Grant;
 			}
 
 			auto validated = validate(record->Request);
@@ -661,10 +700,11 @@ namespace bpr::application {
 	}
 
 	auto review_mutation_application_host::publish(
-		review_mutation_publication_request aRequest)
+		review_mutation_publication_request aRequest,
+		review_mutation_execution_grant     aRequestGrant)
 		-> review_mutation_request_context
 	{
-		return Implementation->publish(std::move(aRequest));
+		return Implementation->publish(std::move(aRequest), std::move(aRequestGrant));
 	}
 
 	void review_mutation_application_host::cancel(

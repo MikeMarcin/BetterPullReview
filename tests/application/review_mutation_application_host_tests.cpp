@@ -1,6 +1,8 @@
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/review_mutation_application_host.hpp"
 
+#include "../../src/application/src/review_mutation_execution_authority.hpp"
+
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -753,6 +755,68 @@ namespace {
 			   "shutdown retires the active and queued requests without stale terminals");
 	}
 
+	void test_user_grants_bind_exact_requests_and_allow_successive_gestures()
+	{
+		auto  provider   = std::make_unique<fake_provider>();
+		auto* observed   = provider.get();
+		auto  effects    = application::manual_executor{ };
+		auto  decisions  = application::manual_executor{ };
+		auto  projection = recording_projection{ };
+		auto  host       = application::review_mutation_application_host{
+			std::move(provider), live_target(), acting_identity(), core::application_session_id{ 3U }, core::request_generation{ 8U }, { }, effects, decisions, projection
+		};
+		auto request = publication_request();
+		auto issue   = [&](const application::review_mutation_publication_request& aRequest) {
+			return application::make_review_mutation_testing_grant(
+				core::application_session_id{ 3U }, core::request_generation{ 8U },
+				live_target(), acting_identity(), aRequest);
+		};
+		expect(!application::detail::review_mutation_user_authority_issuer::issue(
+				   core::application_session_id{ 3U }, core::request_generation{ 8U },
+				   live_target(), acting_identity(), request),
+			   "automated builds cannot issue normal production authority");
+		auto grant   = issue(request);
+		auto changed = request;
+		changed.Proposal.Body += " substituted";
+		static_cast<void>(host.publish(changed, grant));
+		changed                = request;
+		changed.Proposal.Draft = core::review_draft_id{ 900U };
+		static_cast<void>(host.publish(changed, grant));
+		changed              = request;
+		changed.Acknowledged = !request.Acknowledged;
+		static_cast<void>(host.publish(changed, grant));
+		changed                        = request;
+		changed.SelectedDiff.RightPath = "other.cpp";
+		static_cast<void>(host.publish(changed, grant));
+		expect(effects.pending() == 0U, "altered publication fields cannot consume the exact grant");
+		decisions.drain();
+		auto wrongActor = acting_identity();
+		wrongActor.Login += "-other";
+		auto wrongTarget = live_target();
+		wrongTarget.Repository.Name += "-other";
+		static_cast<void>(host.publish(request, application::make_review_mutation_testing_grant(core::application_session_id{ 3U }, core::request_generation{ 8U }, live_target(), wrongActor, request)));
+		static_cast<void>(host.publish(request, application::make_review_mutation_testing_grant(core::application_session_id{ 3U }, core::request_generation{ 8U }, wrongTarget, acting_identity(), request)));
+		static_cast<void>(host.publish(request, application::make_review_mutation_testing_grant(core::application_session_id{ 4U }, core::request_generation{ 8U }, live_target(), acting_identity(), request)));
+		static_cast<void>(host.publish(request, application::make_review_mutation_testing_grant(core::application_session_id{ 3U }, core::request_generation{ 9U }, live_target(), acting_identity(), request)));
+		expect(effects.pending() == 0U, "actor, target, session and generation cannot be substituted");
+		decisions.drain();
+		static_cast<void>(host.publish(request, grant));
+		static_cast<void>(host.publish(request, grant));
+		expect(effects.pending() == 1U, "one user grant admits exactly one request");
+		effects.drain();
+		decisions.drain();
+		expect(observed->Submitted.size() == 1U, "replaying a user grant does not duplicate publication");
+		request.Proposal.Body  = "A distinct second user comment.";
+		request.Proposal.Draft = core::review_draft_id{ 8U };
+		static_cast<void>(host.publish(request, issue(request)));
+		effects.drain();
+		decisions.drain();
+		expect(observed->Submitted.size() == 2U, "another deliberate user gesture can publish another comment");
+		host.shutdown();
+		static_cast<void>(host.publish(request, issue(request)));
+		expect(effects.pending() == 0U, "a fresh grant cannot revive a retired host");
+	}
+
 	void test_one_shot_authority_consumes_only_the_first_exact_admission()
 	{
 		auto  provider   = std::make_unique<fake_provider>();
@@ -1004,6 +1068,7 @@ namespace {
 
 auto main() -> int
 {
+	test_user_grants_bind_exact_requests_and_allow_successive_gestures();
 	test_live_binding_uses_exact_right_resolved_path_asynchronously();
 	test_attempted_failure_publishes_authoritative_reconciliation();
 	test_missing_grant_and_invalid_bindings_queue_no_effect();

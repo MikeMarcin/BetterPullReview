@@ -64,7 +64,7 @@
     {
       "name": "app-release",
       "displayName": "Release application (tests disabled)",
-      "description": "Production-shaped BetterPullReview application; unsigned and unpackaged until RFC-BPR-0014.",
+      "description": "Production-shaped BetterPullReview application; local Mac bundle signing, distribution packaging deferred to RFC-BPR-0014.",
       "inherits": "_ninja-common",
       "binaryDir": "${sourceDir}/build/app-release",
       "cacheVariables": {

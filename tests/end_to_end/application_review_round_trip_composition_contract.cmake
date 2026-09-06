@@ -39,7 +39,7 @@ function(bpr_verify_full_application_digest source_variable)
         "${bpr_full_application_source}"
     )
 	set(bpr_expected_full_application_digest
-		"f85b35d77b89876e5e3067128e2c0116fc4a1cb542e5965618beed68cf144668"
+		"824747e82713fa714478195d58485809fa4b2432e652e79d0d4f9950825b373f"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -153,7 +153,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "${bpr_production_app_manifest}"
     )
 	set(bpr_expected_production_app_manifest_digest
-		"abb745aaeee0ceafa801414c09a45b7c5056cb7e35ac6b0bf4402ab4bc09836e"
+		"8d4c94a400860bcafe67ad3c01e4ce7c2cd865c5197b6edd4b6dbae6ea299e70"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -250,6 +250,12 @@ function(bpr_verify_async_mutation_host_inventory source_variable)
     endforeach()
     bpr_require_literal_count(
         bpr_async_mutation_source
+        "application::detail::review_mutation_user_authority_issuer::issue("
+        1
+        "normal exact user-publish issuer"
+    )
+    bpr_require_literal_count(
+        bpr_async_mutation_source
         "make_live_review_mutation_provider("
         1
         "live review mutation provider factory call"
@@ -323,8 +329,8 @@ function(bpr_verify_async_mutation_host_inventory source_variable)
     bpr_require_literal_count(
         bpr_async_mutation_source
         "application::review_mutation_execution_grant{ }"
-        0
-        "production absent execution grant"
+        2
+        "per-gesture authority starts absent"
     )
     bpr_require_literal_count(
         bpr_async_mutation_source
@@ -463,7 +469,7 @@ function(bpr_verify_production_mutation_host_digest source_variable)
     # SHA-256 of the exact LF-normalized bytes after the branch's #else and
     # before its #endif. Tokens and horizontal whitespace remain unmodified.
     set(bpr_expected_mutation_production_digest
-        "d8274b712f6e4d5260e5df0c0d3e4b9f38cff80d0b3b4a93352a8732ac92875f"
+        "634a6d24117ab29d9c4712f73bce3d0e13bb55ff906756fceaf51af8f9805ca3"
     )
     if(NOT bpr_mutation_production_digest STREQUAL
         bpr_expected_mutation_production_digest
@@ -622,6 +628,8 @@ string(SUBSTRING
     production_mutation_source
 )
 foreach(required_production_host IN ITEMS
+    "select_observed_review_mutation("
+    "AttendedReviewMutationMode"
     "select_designated_review_mutation("
     "accepted_review_mutation_transport()"
 	"adapters::sqlite::make_review_mutation_recovery_store("

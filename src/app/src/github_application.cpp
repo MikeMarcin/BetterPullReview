@@ -3359,7 +3359,8 @@ namespace bpr::app {
 				if (!authority.has_value() || *authority == nullptr) {
 					throw std::runtime_error{ "attended live approval refused" };
 				}
-				LiveReviewMutationGrant = std::move(*authority);
+				LiveReviewMutationGrant    = std::move(*authority);
+				AttendedReviewMutationMode = true;
 			}
 #endif
 			if (aConfig.ExistingCheckout.has_value()) {
@@ -3380,9 +3381,10 @@ namespace bpr::app {
 			// [[BPR-0515]]. Adopted outside the fixture branch below, because
 			// the gate this exists for selects no fixture: it drives the
 			// shipped composition and only wants the connect denied.
-			NetworkDenied = aConfig.NetworkDenied;
+			NetworkDenied                = aConfig.NetworkDenied;
 			const auto diffComputeLimits = aFixture.has_value()
-				? aFixtureOptions.DiffComputeLimits : core::diff_compute_limits{ };
+				? aFixtureOptions.DiffComputeLimits
+				: core::diff_compute_limits{ };
 			// [[BPR-0316]]. Read outside the fixture branch below, because
 			// this is the one option that means something without a fixture:
 			// it forces the shipped selection available over the production
@@ -4260,7 +4262,8 @@ namespace bpr::app {
 				DecisionLane,
 				*DiffProjections
 #if defined(BPR_BUILD_TESTING)
-				, application::diff_host_limits{ }, diffComputeLimits
+				,
+				application::diff_host_limits{ }, diffComputeLimits
 #endif
 			);
 
@@ -5840,6 +5843,7 @@ namespace bpr::app {
 			const application::accepted_pull_request_handoff& aHandoff)
 		{
 			retire_review_mutation_host();
+			InlineReviewBinding.reset();
 			if (Window != nullptr && Window->review_editor() != nullptr) {
 				Window->review_editor()->present(
 					qt::review_draft_editor_clear_reason::composition_retired);
@@ -5870,7 +5874,8 @@ namespace bpr::app {
 			if (!selection.has_value()) {
 				return;
 			}
-			const auto target = selection->Target.Semantic;
+			InlineReviewBinding = *selection;
+			const auto target   = selection->Target.Semantic;
 			Fixture->prepare_review_mutation(target);
 			if (ReviewMutationDecisionGate == nullptr) {
 				ReviewMutationDecisionGate = std::make_unique<
@@ -5883,11 +5888,7 @@ namespace bpr::app {
 				selection->ActingIdentity,
 				aHandoff.ApplicationSession,
 				WorkbenchHost->generation(),
-				application::make_review_mutation_testing_grant(
-					aHandoff.ApplicationSession,
-					WorkbenchHost->generation(),
-					selection->Target,
-					selection->ActingIdentity),
+				application::review_mutation_execution_grant{ },
 				ReviewMutationEffects,
 				*ReviewMutationDecisionGate,
 				*this);
@@ -5897,13 +5898,14 @@ namespace bpr::app {
 				|| !Host->accepted_snapshot().has_value()) {
 				return;
 			}
-			auto selection = select_designated_review_mutation(
-				aHandoff, *Host->accepted_snapshot());
+			auto selection = AttendedReviewMutationMode
+				? select_designated_review_mutation(aHandoff, *Host->accepted_snapshot())
+				: select_observed_review_mutation(aHandoff, *Host->accepted_snapshot());
 			if (!selection.has_value()) {
 				LiveReviewMutationGrant.reset();
 				return;
 			}
-			if (LiveReviewMutationGrant == nullptr) {
+			if (AttendedReviewMutationMode && LiveReviewMutationGrant == nullptr) {
 				return;
 			}
 			auto lease = Host->accepted_review_mutation_transport();
@@ -5930,7 +5932,8 @@ namespace bpr::app {
 				selection->ActingIdentity,
 				std::move(*recovery));
 			if (provider.has_value()) {
-				auto erased = std::unique_ptr<application::review_mutation_port>{
+				InlineReviewBinding = *selection;
+				auto erased         = std::unique_ptr<application::review_mutation_port>{
 					std::move(*provider)
 				};
 				ReviewMutationHost = std::make_unique<
@@ -5953,13 +5956,14 @@ namespace bpr::app {
 				return;
 			}
 			auto* const editor = Window->review_editor();
-			editor->describe_target(QStringLiteral("%1/%2#%3 at %4 as account %5")
+			editor->describe_target(QStringLiteral("%1 · %2/%3#%4 at %5 as %6")
+										.arg(QString::fromStdString(std::string{ aHandoff.Hostname.value() }))
 										.arg(QString::fromStdString(aHandoff.Locator.Owner))
 										.arg(QString::fromStdString(aHandoff.Locator.Name))
 										.arg(aHandoff.Number.value())
 										.arg(QString::fromUtf8(
 											core::canonical_hex(aHandoff.Head).view()))
-										.arg(aHandoff.Account.value()));
+										.arg(QString::fromStdString(Host->accepted_snapshot()->Viewer.Login)));
 			editor->present(ReviewMutationHost->capabilities());
 		}
 
@@ -6035,12 +6039,30 @@ namespace bpr::app {
 					application::review_mutation_failure::undesignated_target);
 				return;
 			}
-			const auto context = ReviewMutationHost->publish(
-				application::review_mutation_publication_request{
-					.Proposal     = *proposal,
-					.Selection    = *SelectedSemanticSelection,
-					.SelectedDiff = *SelectedDiffPublication,
-				});
+			auto request = application::review_mutation_publication_request{
+				.Proposal     = *proposal,
+				.Selection    = *SelectedSemanticSelection,
+				.SelectedDiff = *SelectedDiffPublication,
+			};
+			auto grant = application::review_mutation_execution_grant{ };
+			if (!AttendedReviewMutationMode && Host && Host->accepted_snapshot()) {
+				const auto& authority = SelectedDiffPublication->Request.WorkbenchAuthority;
+				const auto& snapshot  = *Host->accepted_snapshot();
+				// Reuse the accepted handoff binding retained by the host composition.
+				if (InlineReviewBinding && snapshot.Account == authority.Account
+					&& snapshot.PullRequest.PullRequest == authority.PullRequest) {
+#if defined(BPR_BUILD_TESTING)
+					grant = application::make_review_mutation_testing_grant(
+						authority.ApplicationSession, WorkbenchHost->generation(),
+						InlineReviewBinding->Target, InlineReviewBinding->ActingIdentity, request);
+#else
+					grant = application::detail::review_mutation_user_authority_issuer::issue(
+						authority.ApplicationSession, WorkbenchHost->generation(),
+						InlineReviewBinding->Target, InlineReviewBinding->ActingIdentity, request);
+#endif
+				}
+			}
+			const auto context = ReviewMutationHost->publish(std::move(request), std::move(grant));
 			if (context.Request.value() == 0U) {
 				ReviewDraft = core::apply(
 								  *ReviewDraft,
@@ -9014,8 +9036,10 @@ namespace bpr::app {
 		bool                                                         ReviewLedgerAvailable = false;
 		std::vector<application::durable_defect_record>              DurableDefects;
 		std::unique_ptr<application::review_mutation_application_host>
-													 ReviewMutationHost;
-		application::review_mutation_execution_grant LiveReviewMutationGrant;
+															ReviewMutationHost;
+		application::review_mutation_execution_grant        LiveReviewMutationGrant;
+		std::optional<designated_review_mutation_selection> InlineReviewBinding;
+		bool                                                AttendedReviewMutationMode = false;
 		std::vector<std::unique_ptr<application::review_mutation_application_host>>
 			RetiredReviewMutationHosts;
 		std::optional<application::review_mutation_request_context>
@@ -9825,7 +9849,7 @@ namespace bpr::app {
 			return { };
 		}
 
-		const auto&     state                    = implementation->EpochHost->state();
+		const auto& state = implementation->EpochHost->state();
 		if (aRetainedComparison && (!core::valid(*aRetainedComparison) || !aRetainedComparison->LeftBlob || !core::valid(aTarget) || aTarget.Authority != aRetainedComparison->Authority.Scope || aTarget.Incarnation != aRetainedComparison->LeftAnchor.Incarnation || (state.Authority && *state.Authority != aRetainedComparison->Authority))) {
 			return { };
 		}
@@ -9964,9 +9988,9 @@ namespace bpr::app {
 				.Ordinal     = core::epoch_ordinal{ 1 },
 			};
 		}
-		const auto cache      = lowerHex(authority.Cache.bytes());
-		const auto scope      = lowerHex(aTarget.Authority.bytes());
-		const auto repository = root / "repositories" / "v1" / (cache + ".git");
+		const auto cache        = lowerHex(authority.Cache.bytes());
+		const auto scope        = lowerHex(aTarget.Authority.bytes());
+		const auto repository   = root / "repositories" / "v1" / (cache + ".git");
 		const auto ordinal_text = [&lowerHex](std::int64_t aOrdinal) {
 			std::array<std::uint8_t, 8U> bytes{ };
 			const auto                   ordinal = static_cast<std::uint64_t>(aOrdinal);

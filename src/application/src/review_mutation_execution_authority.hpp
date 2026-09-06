@@ -16,6 +16,17 @@
 #include <string_view>
 
 namespace bpr::application::detail {
+	/// \brief Issues a short-lived grant for one accepted normal Publish gesture.
+	class review_mutation_user_authority_issuer final
+	{
+	public:
+		review_mutation_user_authority_issuer() = delete;
+		[[nodiscard]] static auto issue(core::application_session_id aSession,
+										core::request_generation aGeneration, review_mutation_target_binding aTarget,
+										review_mutation_acting_identity aActor, review_mutation_publication_request aRequest)
+			-> review_mutation_execution_grant;
+	};
+
 	enum class designated_review_bootstrap_failure : std::uint8_t {
 		invalid_configuration,
 		artifact_absent,
@@ -179,10 +190,12 @@ namespace bpr::application {
 		enum class kind : std::uint8_t {
 			testing_reusable,
 			attended_one_shot,
+			user_one_shot,
 		};
 
 		explicit review_mutation_execution_authority(
-			review_mutation_execution_scope aScope);
+			review_mutation_execution_scope                    aScope,
+			std::optional<review_mutation_publication_request> aRequest = std::nullopt);
 		review_mutation_execution_authority(
 			review_mutation_target_binding        aTarget,
 			std::chrono::steady_clock::time_point aExpiresAt) noexcept;
@@ -190,17 +203,20 @@ namespace bpr::application {
 		[[nodiscard]] auto bind(
 			const review_mutation_execution_scope& aScope) noexcept -> bool;
 		[[nodiscard]] auto permits(
-			const review_mutation_execution_scope& aScope) noexcept -> bool;
+			const review_mutation_execution_scope&     aScope,
+			const review_mutation_publication_request& aRequest) noexcept -> bool;
 		void revoke() noexcept;
 
 		friend class review_mutation_application_host;
 		friend class detail::designated_review_authority_bootstrap;
+		friend class detail::review_mutation_user_authority_issuer;
 #if defined(BPR_APPLICATION_TESTING) || defined(BPR_BUILD_TESTING)
 		friend auto make_review_mutation_testing_grant(
 			core::application_session_id,
 			core::request_generation,
 			review_mutation_target_binding,
-			review_mutation_acting_identity)
+			review_mutation_acting_identity,
+			std::optional<review_mutation_publication_request>)
 			-> std::shared_ptr<review_mutation_execution_authority>;
 		friend auto make_review_mutation_one_shot_testing_grant(
 			review_mutation_target_binding,
@@ -208,15 +224,16 @@ namespace bpr::application {
 			-> std::shared_ptr<review_mutation_execution_authority>;
 #endif
 
-		mutable std::mutex                             Mutex;
-		review_mutation_execution_scope                Scope;
-		review_mutation_target_binding                 Target;
-		std::optional<review_mutation_acting_identity> ActingIdentity;
-		std::chrono::steady_clock::time_point          ExpiresAt{ };
-		kind                                           Kind     = kind::testing_reusable;
-		bool                                           Bound    = false;
-		std::atomic_bool                               Consumed = false;
-		std::atomic_bool                               Revoked  = false;
+		std::optional<review_mutation_publication_request> Request;
+		mutable std::mutex                                 Mutex;
+		review_mutation_execution_scope                    Scope;
+		review_mutation_target_binding                     Target;
+		std::optional<review_mutation_acting_identity>     ActingIdentity;
+		std::chrono::steady_clock::time_point              ExpiresAt{ };
+		kind                                               Kind     = kind::testing_reusable;
+		bool                                               Bound    = false;
+		std::atomic_bool                                   Consumed = false;
+		std::atomic_bool                                   Revoked  = false;
 	};
 } // namespace bpr::application
 

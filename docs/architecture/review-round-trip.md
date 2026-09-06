@@ -54,24 +54,27 @@ retirement. Typed Qt clearing removes stale body, receipt, actions, and terminal
 status without emitting an edit. Qt never treats a submitted request as server
 truth.
 
-The tests-disabled production composition retains the same asynchronous host
-shape. It can construct the live provider only after the accepted handoff and
-snapshot match the compiled designated host, owner/name, repository and
-pull-request database and node IDs, number/open state, base repository, base
-OID/ref, and head OID/ref. The acting database ID, node ID, and login are
-deliberately not compiled allowlist constants. They are taken from the exact
-authenticated session, cross-bound to its account/profile/host lease and
-accepted snapshot, and re-observed by the provider. An ordinary production
-launch has no source-line execution authority and refuses before queuing an effect. The
-only source-line production issuer is the attended bootstrap described below: it consumes
-one owner-private approval bound to the exact shipped executable, source
-surface, designated target, public target observation, and the schema, absolute
-normalized path, and random identity of one explicit replay namespace. The
-attended launch only loads that owner-private namespace and fails closed when it
-is absent or mismatched; it never creates or resets it. It then retains one
-opaque authority until the host validates and atomically admits one exact
-request. No boolean, environment variable, credential, raw nonce, persisted
-setting, IPC message, or ordinary Qt gesture can mint that authority.
+The tests-disabled production composition constructs the live provider for the
+exact accepted authenticated handoff and snapshot. The acting account and
+transport lease are bound to that target and re-observed before submission.
+The ordinary editor's core-accepted Publish gesture invokes the private
+`review_mutation_user_authority_issuer`. Its grant binds the complete proposal
+(including draft/body/disposition), selection and retained diff publication,
+session, generation, target and actor. It expires after five minutes and is
+consumed once, after host endpoint validation and before effect admission.
+Changing any bound request field or replaying the grant refuses without a write.
+Each subsequent deliberate Publish needs another exact grant. Cancellation and
+retired-host shutdown still stop queued work, and the existing durable provider
+reconciles an uncertain publication without a second POST.
+
+Automated builds refuse the production issuer. The public editor fixture uses
+request-bound testing grants against its isolated provider. The separately
+selected attended mode keeps the compiled designated target and bootstrap;
+it cannot fall back to ordinary issuance when its approval is spent or absent.
+That bootstrap consumes one approval bound to the exact executable, source,
+target and replay namespace. Ordinary application use requires none of those
+attended artifacts. These paths share the host and provider; Qt never issues
+credentials, grants or HTTP requests.
 
 ## Typed vocabulary
 
@@ -321,7 +324,7 @@ exact-target object. BPR-0255 now places that object behind the asynchronous
 application host and coordinator described above. BPR-0256 adds the sole
 attended one-shot issuer and registers a signed-capsule prelaunch supervisor
 around a separately built tests-disabled shipped application as the default-off
-live lane; ordinary launches still have no grant. The designated regression
+live lane. BPR-0641 adds the separate ordinary user-publish issuer described above. The designated regression
 runner still contains only its fixed
 harmless canary, and no live lane, credential, or write has been used. The
 `live_mutation_isolation` gate is now the standing proof that survives the
