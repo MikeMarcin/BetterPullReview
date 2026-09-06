@@ -16,7 +16,9 @@ area in `workbench_window.cpp` and the toolbar it carries.
 
 ## Scope
 
-- The 28-pixel strip with the listed controls; the existing next/previous
+- The 30-pixel strip as the full-surface asset draws it (full ink, bordered
+  buttons, two drawer toggles at the left, modality control alone in the
+  centre) with the listed controls; the existing next/previous
   change and file actions move into it with their positions; jump to next new
   comment reads the ledger's unread projection.
 - The epoch line over the existing epoch selectors: nodes per upload, labels

@@ -12,15 +12,18 @@ pack_version: "post-v2"
 
 ## Status and scope
 
-The owner locked this direction on 2026-09-06 after five mockup rounds; the
-accepted mockup is [docs/design/RFC-BPR-0028-workbench-direction-v5.html](../design/RFC-BPR-0028-workbench-direction-v5.html).
+The owner locked this direction on 2026-09-06 after five mockup rounds and
+shipped it the same day. The accepted assets are
+[the workbench states](../design/RFC-BPR-0028-workbench-direction-v5.html),
+[the full review surface](../design/RFC-BPR-0028-full-review-surface-v1.html),
+which is authoritative for the strip, and
+[Settings and the drawers](../design/RFC-BPR-0028-settings-and-drawers-v1.html).
 It is the owner-directed replacement for the workbench presentation and is
 the frontier exception the deferred UX RFCs name. It supersedes the layout and
 chrome sections of RFC-BPR-0025 and the Home presentation of RFC-BPR-0026 where
 they conflict; RFC-BPR-0025's browser-style file tabs are not part of this
-direction and stay registered but unscheduled. RFC-BPR-0018 (Settings), the
-repository/pull-request explorer and the file tree inside a pull request are
-the next design items and are not fixed by this RFC.
+direction and stay registered but unscheduled. The drawers and the first three
+Settings pages are fixed below; RFC-BPR-0018 keeps the remaining pages.
 
 The architecture rule is unchanged: the core decides, the host performs, Qt
 presents. Everything here is presentation over projections that already exist
@@ -41,11 +44,14 @@ what changed and who has signed off.
 
 ## Accepted design
 
-**Chrome.** One 28-pixel strip: files-rail toggle; repository and pull request
-identity; previous/next change with its position; previous/next file with its
-position; jump to the next new comment with the count; the modality control;
-refresh; comments-rail toggle; account; settings. Below it a 22-pixel epoch
-line. No toolbar with labels, no menu bar rows.
+**Chrome.** One 30-pixel strip in full ink, bordered buttons, three regions:
+left, the two drawer toggles (repositories, files), the repository and pull
+request identity, then the navigation groups (previous/next change with its
+position, previous/next file with its position, jump to the next new comment
+with the count); centre, alone, the modality control as a filled segmented
+control with its shortcuts; right, refresh, the comments toggle, a divider,
+account, settings. Below it the 22-pixel epoch line. No toolbar with labels,
+no menu bar rows. Nothing in the strip may read as disabled.
 
 **Epoch line.** A single line with one node per review epoch, that is each
 update (push) that changed the pull request, never a commit or a file's
@@ -94,6 +100,33 @@ its code excerpt on the theme, the root post and replies on a continuous rail,
 each post headed by author, role, "replying to", unread dot and time, and
 Reply, Resolve, Mark read and Open in code actions.
 
+**Drawers.** Left to right: repositories, files, comparison, comments. The
+repositories drawer is a tree: each repository the profile's accounts have
+saved is a bold row with a chevron and "needs you of total"; its pull requests
+of interest hang under it on a guide line, one per row with number, title, the
+unread dot and a one-word reason at the right (changed, requested, replied,
+waiting, approved, following), amber when it needs me; the account is named
+once in the drawer header and a host shows only where it differs. Selecting a
+row opens that pull request on its Overview. The files drawer shows the
+selected pull request's tree: chevrons, guide lines, nesting-only folders
+compacted into one row, file counts on folders, the read-state dots and line
+counts of the overview, tree/flat/changed-first orders and a filter that keeps
+parents visible. Each drawer has its own strip toggle, shortcut and 18-pixel
+rail with a label and count; collapsing one never moves the other; a modality
+sets both, a manual toggle overrides until the next modality change.
+
+**Settings.** RFC-BPR-0018's window and sidebar, with these pages fixed by the
+asset: Accounts & hosts (one card per server, device-grant sessions shown as
+remembered and self-renewing, enterprise tokens labelled session-only with a
+"remember this server" switch that keeps hostname and account), Appearance
+(theme as four previews from the real palette with a half-and-half System
+thumbnail, interface size, code font defaulting to JetBrains Mono NL as
+installed, code size and tab stops, ligatures, per-role colour customisation
+with preview, theme import and export, the tuned diff colours untouched), and
+Reviews & queue (modality rules, none on by default; reading behaviour;
+observer rules; saved repositories). The other four pages remain as
+RFC-BPR-0018 describes them.
+
 **Home.** An action list: grouped rows (needs you, waiting on others,
 following) with pull request, title, why the row is here, my progress, author,
 role and updated time. Open by URL or owner/repo#number in the bar. Rules and
@@ -126,6 +159,10 @@ follow in their own design rounds.
 - AC-06 Home shows the grouped action list from the queue and ledger
   projections.
 - AC-07 Sign-in remains reachable in every state without scrolling.
+- AC-09 The repositories and files drawers render the trees above from the
+  queue, ledger and snapshot projections and collapse independently.
+- AC-10 The three fixed Settings pages exist with live controls, and every
+  other page names where its settings will live.
 - AC-08 A recorded conversation with more than twenty posts and three branches
   reads correctly in Read and Discuss (the owner's stated stress case).
 
@@ -133,5 +170,5 @@ follow in their own design rounds.
 
 [[BPR-0646]] chrome, epoch line, modalities and rails; [[BPR-0647]] overview;
 [[BPR-0648]] aligned comment cards; [[BPR-0649]] Discuss; [[BPR-0650]] Home
-action list. Settings, explorers and the file tree get cards after their design
-rounds. Closeout follows the ordinary structure gate.
+action list; [[BPR-0651]] the repositories and files drawers; [[BPR-0652]] the
+three fixed Settings pages. Closeout follows the ordinary structure gate.

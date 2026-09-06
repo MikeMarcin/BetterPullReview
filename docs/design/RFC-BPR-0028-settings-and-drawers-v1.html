@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BetterPullReview settings and explorers v1</title>
+<style>
+  :root {
+    --bg: #1C2026; --side: #20252C; --panel: #242930; --panel-2: #2A3039; --rule: #343A44; --rule-2: #414955;
+    --ink: #E6EDF3; --ink-2: #A0A8B2; --ink-3: #6E7681;
+    --signal: #7FB0E8; --signal-soft: #26374F; --marker: #E0B15A; --marker-soft: #3A3120;
+    --code: #0D1117; --gutter: #141921; --add: #153622; --del: #3E1F1F; --unread: #58A6FF; --accepted: #3FB950; --defect: #FF7B72;
+    --kw: #F49795; --cf: #FFA198; --op: #C9D1D9; --fn: #D2A8FF; --var: #79C0FF; --ty: #CC99FF; --num: #A5D6FF; --cm: #A5B0BA; --nm: #E6EDF3;
+    --ui: -apple-system, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+    --mono: "JetBrains Mono NL", "JetBrainsMonoNL Nerd Font", "JetBrains Mono", "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 32px 28px 72px; background: #0F1114; color: var(--ink); font: 12px/1.4 var(--ui); }
+  h1 { font-size: 20px; font-weight: 600; margin: 0 0 6px; }
+  h2 { font-size: 14px; font-weight: 600; margin: 40px 0 6px; }
+  .lede, .why { color: var(--ink-2); max-width: 78ch; margin: 0 0 14px; }
+  .why b { color: var(--ink); font-weight: 600; }
+  .win { width: 1400px; max-width: 100%; background: var(--bg); border: 1px solid var(--rule); border-radius: 9px; overflow: hidden; box-shadow: 0 30px 60px rgba(0,0,0,.55); }
+  .win.settings { width: 980px; }
+  .title { height: 26px; display: flex; align-items: center; padding: 0 10px; background: var(--panel); color: var(--ink-3); font-size: 11px; gap: 8px; }
+  .dots { display: flex; gap: 6px; margin-right: 8px; }
+  .dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--rule-2); display: block; }
+  /* settings */
+  .sw { display: grid; grid-template-columns: 200px 1fr; height: 800px; }
+  .sb { background: var(--side); border-right: 1px solid var(--rule); padding: 10px 8px; }
+  .sb .it { display: grid; grid-template-columns: 18px 1fr; gap: 8px; align-items: center; height: 26px; padding: 0 8px; border-radius: 5px; color: var(--ink-2); }
+  .sb .it svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.7; }
+  .sb .it.on { background: var(--signal-soft); color: var(--ink); }
+  .sb .prof { margin: 8px 8px 12px; color: var(--ink-3); font-size: 11px; }
+  .sb .prof b { display: block; color: var(--ink); font-weight: 600; font-size: 12px; }
+  .pg { padding: 18px 24px; overflow: hidden; }
+  .pg h3 { margin: 0 0 2px; font-size: 16px; font-weight: 600; }
+  .pg .sub { color: var(--ink-2); margin: 0 0 14px; }
+  .card { border: 1px solid var(--rule); border-radius: 8px; background: var(--panel); margin-bottom: 14px; }
+  .card .hd { display: flex; align-items: baseline; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--rule); }
+  .card .hd b { font-weight: 600; }
+  .card .hd span { color: var(--ink-3); font-size: 11px; }
+  .card .hd .rs { margin-left: auto; color: var(--ink-3); font-size: 11px; }
+  .row { display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--rule); }
+  .row:last-child { border-bottom: 0; }
+  .row .l b { display: block; font-weight: 500; }
+  .row .l span { color: var(--ink-2); font-size: 11px; }
+  .row .l span.warn { color: var(--marker); }
+  .seg { display: inline-flex; border: 1px solid var(--rule-2); border-radius: 5px; overflow: hidden; }
+  .seg span { padding: 3px 10px; color: var(--ink-2); border-right: 1px solid var(--rule-2); }
+  .seg span:last-child { border-right: 0; }
+  .seg span.on { background: var(--signal-soft); color: var(--ink); }
+  .fld { border: 1px solid var(--rule-2); background: var(--bg); color: var(--ink); border-radius: 5px; padding: 3px 8px; min-width: 200px; display: inline-block; }
+  .fld.ghost { color: var(--ink-3); }
+  .btn { border: 1px solid var(--rule-2); background: var(--panel-2); color: var(--ink); border-radius: 5px; padding: 3px 10px; display: inline-block; }
+  .btn.primary { background: var(--signal); border-color: var(--signal); color: #0d1117; font-weight: 600; }
+  .btn.quiet { color: var(--ink-2); }
+  .sw2 { width: 30px; height: 16px; border-radius: 8px; background: var(--rule-2); position: relative; display: inline-block; }
+  .sw2.on { background: var(--signal); }
+  .sw2::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fff; }
+  .sw2.on::after { left: 16px; }
+  .acct { display: grid; grid-template-columns: 26px 1fr auto auto; gap: 12px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--rule); }
+  .acct .av { width: 26px; height: 26px; border-radius: 50%; background: var(--signal-soft); color: var(--signal); font-weight: 600; display: flex; align-items: center; justify-content: center; }
+  .acct .who b { display: block; font-weight: 600; }
+  .acct .who span { color: var(--ink-2); font-size: 11px; }
+  .acct .acst { color: var(--accepted); font-size: 11px; }
+  .acct .acst.warn { color: var(--marker); }
+  .acct .acst, .acct .acts { white-space: nowrap; }
+  .acct .acts { display: flex; gap: 6px; }
+  .themes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 12px 14px; }
+  .th { border: 1px solid var(--rule-2); border-radius: 6px; overflow: hidden; }
+  .th.on { border-color: var(--signal); box-shadow: 0 0 0 1px var(--signal); }
+  .th .prev { height: 54px; font-family: var(--mono); font-size: 9px; line-height: 13px; padding: 5px 8px; white-space: pre; }
+  .th .nm { padding: 4px 8px; font-size: 11px; color: var(--ink-2); display: flex; justify-content: space-between; }
+  .th.on .nm { color: var(--ink); }
+  .rule2 { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: center; padding: 6px 14px; border-bottom: 1px solid var(--rule); font-size: 12px; }
+  .rule2 .k { color: var(--ink-3); }
+  .rule2 .fld { min-width: 0; }
+  /* explorers */
+  .body { display: grid; grid-template-columns: 260px 1fr 18px; height: 640px; }
+  .exp { background: var(--side); border-right: 1px solid var(--rule); display: grid; grid-template-rows: auto 1fr auto 1.4fr; min-height: 0; }
+  .exp .h { display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 8px 0 10px; border-bottom: 1px solid var(--rule); border-top: 1px solid var(--rule); font-size: 11px; color: var(--ink-2); }
+  .exp .h b { color: var(--ink); font-weight: 600; }
+  .exp .h .sp { flex: 1; }
+  .exp .h .n { color: var(--ink-3); }
+  .exp .flt { margin: 6px 8px; border: 1px solid var(--rule-2); border-radius: 5px; padding: 2px 8px; color: var(--ink-3); background: var(--bg); font-size: 11px; }
+  .exp .list { overflow: hidden; font-size: 11px; }
+  .repo { padding: 4px 10px 2px; color: var(--ink-3); display: flex; gap: 6px; }
+  .repo .host { color: var(--ink-3); }
+  .pr { display: grid; grid-template-columns: 8px 1fr auto; gap: 6px; align-items: center; height: 22px; padding: 0 8px 0 14px; white-space: nowrap; }
+  .pr.on { background: var(--signal-soft); }
+  .pr .d { width: 6px; height: 6px; border-radius: 50%; }
+  .pr .d.u { background: var(--unread); }
+  .pr .t { overflow: hidden; text-overflow: ellipsis; }
+  .pr .t .num { color: var(--ink-3); font-family: var(--mono); margin-right: 6px; }
+  .pr .s { color: var(--ink-3); font-size: 10px; }
+  .dir { padding: 4px 10px 1px; color: var(--ink-3); font-family: var(--mono); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fi { display: grid; grid-template-columns: 10px 1fr auto; gap: 6px; align-items: center; height: 20px; padding: 0 8px 0 18px; white-space: nowrap; font-family: var(--mono); font-size: 11px; }
+  .fi.on { background: var(--signal-soft); }
+  .fi .n { overflow: hidden; text-overflow: ellipsis; }
+  .fi .c { color: var(--ink-3); font-size: 10px; }
+  .st { width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid var(--ink-3); }
+  .st.read { background: var(--accepted); border-color: var(--accepted); }
+  .st.part { background: linear-gradient(90deg, var(--accepted) 50%, transparent 50%); border-color: var(--accepted); }
+  .st.new { background: var(--unread); border-color: var(--unread); }
+  .center { background: var(--code); color: var(--ink-3); display: flex; align-items: center; justify-content: center; font-size: 12px; }
+  .rail { background: var(--side); border-left: 1px solid var(--rule); display: flex; flex-direction: column; align-items: center; padding-top: 8px; gap: 10px; color: var(--ink-3); font-size: 10px; }
+  .rail .v { writing-mode: vertical-rl; transform: rotate(180deg); }
+  .strip { display: grid; grid-template-columns: auto 1fr auto; align-items: center; height: 28px; padding: 0 8px; background: var(--panel); border-bottom: 1px solid var(--rule); font-size: 11px; }
+  .strip .l, .strip .r, .strip .c { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .strip .c { justify-content: center; gap: 10px; }
+  .ib { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 6px; border-radius: 4px; color: var(--ink-2); }
+  .ib.on { background: var(--panel-2); color: var(--ink); }
+  .id { color: var(--ink); font-weight: 600; }
+  .id span { color: var(--ink-2); font-weight: 400; margin-left: 6px; }
+  .mode { display: inline-flex; border: 1px solid var(--rule-2); border-radius: 4px; overflow: hidden; }
+  .mode span { padding: 0 9px; line-height: 18px; color: var(--ink-2); border-right: 1px solid var(--rule-2); }
+  .mode span:last-child { border-right: 0; }
+  .mode span.on { background: var(--signal-soft); color: var(--ink); }
+  .k { color: var(--ink-3); }
+  .notes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 12px; }
+  .notes div { border-top: 2px solid var(--rule-2); padding-top: 8px; color: var(--ink-2); }
+  .notes div b { display: block; color: var(--ink); margin-bottom: 4px; }
+
+  /* v1b: half-and-half system preview */
+  .th.sys .prev { position: relative; padding: 0; }
+  .th.sys .prev .half { position: absolute; inset: 0; padding: 5px 8px; }
+  .th.sys .prev .half.light { clip-path: polygon(0 0, 100% 0, 0 100%); }
+  /* v1b: navigator */
+  .nav { background: var(--side); border-right: 1px solid var(--rule); display: grid; grid-template-rows: auto auto 1.3fr auto auto 1fr; min-height: 0; }
+  .nav .h { display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 8px 0 10px; border-bottom: 1px solid var(--rule); border-top: 1px solid var(--rule); font-size: 11px; color: var(--ink-2); }
+  .nav .h b { color: var(--ink); font-weight: 600; }
+  .nav .h .sp { flex: 1; }
+  .nav .h .k { color: var(--ink-3); }
+  .nav .flt { margin: 6px 8px; border: 1px solid var(--rule-2); border-radius: 5px; padding: 2px 8px; color: var(--ink-3); background: var(--bg); font-size: 11px; }
+  .nav .list { overflow: hidden; font-size: 11px; }
+  .nr { display: grid; grid-template-columns: 12px 1fr auto; gap: 4px; align-items: center; height: 22px; padding: 0 8px 0 8px; white-space: nowrap; }
+  .nr .tw { color: var(--ink-3); text-align: center; font-size: 9px; }
+  .nr .n { overflow: hidden; text-overflow: ellipsis; }
+  .nr .c { color: var(--ink-3); font-size: 10px; }
+  .nr.acc .n { color: var(--ink-2); }
+  .nr.repo .n { font-weight: 600; }
+  .nr.grp { height: 18px; padding-left: 24px; }
+  .nr.grp .n { color: var(--ink-3); font-size: 10px; }
+  .nr.grp .n.hot { color: var(--marker); }
+  .nr.pr { padding-left: 32px; grid-template-columns: 8px 1fr auto; }
+  .nr.pr .d { width: 6px; height: 6px; border-radius: 50%; }
+  .nr.pr .d.u { background: var(--unread); }
+  .nr.pr .n .num { color: var(--ink-3); font-family: var(--mono); margin-right: 5px; }
+  .nr.pr .n .why { color: var(--ink-3); margin-left: 6px; }
+  .nr.pr.on { background: var(--signal-soft); }
+  .nr.pr.q .n { color: var(--ink-2); }
+  .tr { display: grid; grid-template-columns: 12px 10px 1fr auto; gap: 4px; align-items: center; height: 20px; padding: 0 8px; white-space: nowrap; font-size: 11px; }
+  .tr .tw { color: var(--ink-3); text-align: center; font-size: 9px; }
+  .tr .n { overflow: hidden; text-overflow: ellipsis; font-family: var(--mono); }
+  .tr .n.f { color: var(--ink-2); font-family: var(--ui); }
+  .tr .c { color: var(--ink-3); font-size: 10px; font-family: var(--mono); }
+  .tr.on { background: var(--signal-soft); }
+  .tr.l1 { padding-left: 8px; } .tr.l2 { padding-left: 22px; } .tr.l3 { padding-left: 36px; } .tr.l4 { padding-left: 50px; }
+
+  /* v1c: two-line pull request rows */
+  .nr.pr { height: 34px; grid-template-columns: 8px 1fr; align-items: start; padding-top: 4px; }
+  .nr.pr .d { margin-top: 5px; }
+  .nr.pr .n { white-space: nowrap; }
+  .nr.pr .n .why { display: block; margin-left: 0; font-size: 10px; color: var(--ink-3); }
+  .nr.pr .n .why b { color: var(--marker); font-weight: 500; }
+  .nr.pr.q .n .why b { color: var(--ink-3); }
+
+  /* v1d: two drawers side by side, an obvious tree */
+  .pane { background: var(--side); border-right: 1px solid var(--rule); display: grid; grid-template-rows: auto auto 1fr; min-height: 0; }
+  .pane .h { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 8px 0 10px; border-bottom: 1px solid var(--rule); font-size: 11px; color: var(--ink-2); }
+  .pane .h b { color: var(--ink); font-weight: 600; }
+  .pane .h .sp { flex: 1; }
+  .pane .h .k { color: var(--ink-3); }
+  .pane .flt { margin: 6px 8px; border: 1px solid var(--rule-2); border-radius: 5px; padding: 2px 8px; color: var(--ink-3); background: var(--bg); font-size: 11px; }
+  .pane .list { overflow: hidden; font-size: 12px; }
+  .rp { display: grid; grid-template-columns: 16px 1fr auto; gap: 6px; align-items: center; height: 26px; padding: 0 8px 0 6px; background: var(--panel); border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); white-space: nowrap; }
+  .rp + .rp { border-top: 0; }
+  .rp .ch { color: var(--ink-2); text-align: center; font-size: 10px; }
+  .rp .n { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+  .rp .n small { color: var(--ink-3); font-weight: 400; margin-left: 6px; }
+  .rp .c { color: var(--ink-3); font-size: 11px; }
+  .rp .c b { color: var(--unread); font-weight: 600; }
+  .pl { position: relative; display: grid; grid-template-columns: 8px 1fr auto; gap: 6px; align-items: center; height: 24px; padding: 0 8px 0 30px; white-space: nowrap; }
+  .pl::before { content: ""; position: absolute; left: 14px; top: 0; bottom: 0; width: 1px; background: var(--rule-2); }
+  .pl.on { background: var(--signal-soft); }
+  .pl .d { width: 6px; height: 6px; border-radius: 50%; }
+  .pl .d.u { background: var(--unread); }
+  .pl .n { overflow: hidden; text-overflow: ellipsis; }
+  .pl .n .num { color: var(--ink-3); font-family: var(--mono); font-size: 11px; margin-right: 6px; }
+  .pl .r { color: var(--ink-3); font-size: 10px; }
+  .pl .r.hot { color: var(--marker); }
+  .pl.q .n { color: var(--ink-2); }
+  .ft { position: relative; display: grid; grid-template-columns: 12px 10px 1fr auto; gap: 4px; align-items: center; height: 22px; padding: 0 8px; white-space: nowrap; font-size: 11px; }
+  .ft .ch { color: var(--ink-2); text-align: center; font-size: 9px; }
+  .ft .n { overflow: hidden; text-overflow: ellipsis; font-family: var(--mono); }
+  .ft .n.f { font-family: var(--ui); color: var(--ink); }
+  .ft .c { color: var(--ink-3); font-size: 10px; font-family: var(--mono); }
+  .ft.on { background: var(--signal-soft); }
+  .ft.d1 { padding-left: 8px; } .ft.d2 { padding-left: 24px; } .ft.d3 { padding-left: 40px; } .ft.d4 { padding-left: 56px; }
+  .ft.d2::before, .ft.d3::before, .ft.d4::before { content: ""; position: absolute; top: 0; bottom: 0; width: 1px; background: var(--rule-2); }
+  .ft.d2::before { left: 14px; } .ft.d3::before { left: 30px; } .ft.d4::before { left: 46px; }
+
+  /* epoch line, as locked in RFC-BPR-0028 */
+  .epoch { display: grid; grid-template-columns: 64px 1fr auto; align-items: start; gap: 12px; height: 34px; padding: 4px 12px 0; background: var(--panel); border-bottom: 1px solid var(--rule); font-size: 11px; }
+  .epoch .name { color: var(--ink-3); line-height: 16px; }
+  .rail-line { position: relative; height: 30px; }
+  .rail-line .track { position: absolute; left: 0; right: 0; top: 7px; height: 1px; background: var(--rule-2); }
+  .rail-line .span { position: absolute; top: 6px; height: 3px; background: var(--signal); }
+  .nd { position: absolute; top: 3px; width: 9px; height: 9px; border-radius: 50%; background: var(--panel); border: 1.5px solid var(--ink-3); transform: translateX(-50%); }
+  .hd { position: absolute; top: 1px; width: 7px; height: 13px; border: 1.5px solid var(--signal); background: var(--panel); transform: translateX(-50%); border-radius: 2px; }
+  .yt { position: absolute; top: 2px; width: 2px; height: 11px; background: var(--marker); transform: translateX(-50%); }
+  .lb { position: absolute; top: 17px; transform: translateX(-50%); color: var(--ink-3); font-size: 10px; white-space: nowrap; }
+  .lb.sel { color: var(--ink); }
+  .epoch .cmp { color: var(--ink-2); line-height: 16px; white-space: nowrap; }
+  .epoch .cmp b { color: var(--ink); font-weight: 500; }
+</style>
+</head>
+<body>
+<h1>Settings and explorers, first round</h1>
+<p class="lede">Settings follows RFC-BPR-0018's seven pages and its rules: a stable sidebar, headings separated from grouped cards, a label and its consequence on every row, a reset beside the group it resets, theme previews rendered from the real palette, and nothing optimistic. Three pages are drawn in full. The explorers are the left drawer of the locked workbench: pull requests open in this window above, the active pull request's files below, each with its own filter.</p>
+
+<h2>1. Settings, Accounts &amp; hosts</h2>
+<div class="win settings">
+  <div class="title"><div class="dots"><i></i><i></i><i></i></div>Settings</div>
+  <div class="sw">
+    <div class="sb">
+      <div class="prof"><b>Default profile</b>this Mac, MikeMarcin</div>
+      <div class="it"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>General</div>
+      <div class="it on"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>Accounts &amp; hosts</div>
+      <div class="it"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h7"/></svg>Reviews &amp; queue</div>
+      <div class="it"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>Appearance</div>
+      <div class="it"><svg viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 20h4"/></svg>Notifications</div>
+      <div class="it"><svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="2"/><path d="M8 12h8"/></svg>Agents &amp; context</div>
+      <div class="it"><svg viewBox="0 0 24 24"><path d="M4 7h16v4H4zM4 13h16v4H4z"/></svg>Storage &amp; privacy</div>
+    </div>
+    <div class="pg">
+      <h3>Accounts &amp; hosts</h3>
+      <p class="sub">One account per server. Credentials are never shown here.</p>
+      <div class="card">
+        <div class="hd"><b>github.com</b><span>GitHub.com, native HTTPS</span></div>
+        <div class="acct"><span class="av">M</span><div class="who"><b>MikeMarcin</b><span>Signed in with a device grant on Sep 6, renews itself; remembered on this Mac</span></div><span class="acst">Connected</span><div class="acts"><span class="btn quiet">Sign out</span></div></div>
+        <div class="row"><div class="l"><b>Access</b><span>Read and write to repositories the account can reach; publication uses this account.</span></div><span class="k">Checked 4 min ago</span></div>
+        <div class="row"><div class="l"><b>Rate limit</b><span>GitHub API 4,812 of 5,000 remaining, resets in 38 min.</span></div><span class="k">Details</span></div>
+      </div>
+      <div class="card">
+        <div class="hd"><b>ghe.example.com</b><span>GitHub Enterprise Server 3.18</span></div>
+        <div class="acct"><span class="av" style="background:var(--marker-soft);color:var(--marker)">M</span><div class="who"><b>mmarcin</b><span>Signed in with a token for this session only; enter it again after a restart.</span></div><span class="acst warn">Token expires with the app</span><div class="acts"><span class="btn quiet">Sign out</span></div></div>
+        <div class="row"><div class="l"><b>Server</b><span>Hostname only. Certificates and proxies come from the system.</span></div><span class="fld">ghe.example.com</span></div>
+        <div class="row"><div class="l"><b>Remember this server</b><span>Keeps the hostname and account name across launches. The token is still asked for.</span></div><span class="sw2 on"></span></div>
+      </div>
+      <div><span class="btn">Add enterprise server</span></div>
+    </div>
+  </div>
+</div>
+
+<h2>2. Settings, Appearance</h2>
+<div class="win settings">
+  <div class="title"><div class="dots"><i></i><i></i><i></i></div>Settings</div>
+  <div class="sw">
+    <div class="sb">
+      <div class="prof"><b>Default profile</b>this Mac, MikeMarcin</div>
+      <div class="it"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>General</div>
+      <div class="it"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>Accounts &amp; hosts</div>
+      <div class="it"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h7"/></svg>Reviews &amp; queue</div>
+      <div class="it on"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>Appearance</div>
+      <div class="it"><svg viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 20h4"/></svg>Notifications</div>
+      <div class="it"><svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="2"/><path d="M8 12h8"/></svg>Agents &amp; context</div>
+      <div class="it"><svg viewBox="0 0 24 24"><path d="M4 7h16v4H4zM4 13h16v4H4z"/></svg>Storage &amp; privacy</div>
+    </div>
+    <div class="pg">
+      <h3>Appearance</h3>
+      <p class="sub">Changes apply as you make them and show in the review window behind this one.</p>
+      <div class="card">
+        <div class="hd"><b>Theme</b><span>System follows the desktop</span><span class="rs">Reset</span></div>
+        <div class="themes">
+          <div class="th on sys"><div class="prev"><div class="half" style="background:#0D1117;color:#E6EDF3"><span style="color:#F49795">if</span> (!<span style="color:#79C0FF">bUse</span>)
+<span style="background:#153622;display:block">  <span style="color:#FFA198">return</span>;</span></div><div class="half light" style="background:#FFFFFF;color:#1F2328"><span style="color:#CF222E">if</span> (!<span style="color:#0550AE">bUse</span>)
+<span style="background:#E6F4EA;display:block">  <span style="color:#CF222E">return</span>;</span></div></div><div class="nm"><span>System</span><span>dark now</span></div></div>
+          <div class="th"><div class="prev" style="background:#FFFFFF;color:#1F2328"><span style="color:#CF222E">if</span> (!<span style="color:#0550AE">bUse</span>)
+<span style="background:#E6F4EA;display:block">  <span style="color:#CF222E">return</span>;</span></div><div class="nm"><span>Light</span></div></div>
+          <div class="th"><div class="prev" style="background:#0D1117;color:#E6EDF3"><span style="color:#F49795">if</span> (!<span style="color:#79C0FF">bUse</span>)
+<span style="background:#153622;display:block">  <span style="color:#FFA198">return</span>;</span></div><div class="nm"><span>Dark</span></div></div>
+          <div class="th"><div class="prev" style="background:#000;color:#fff"><span style="color:#FF9AA2">if</span> (!<span style="color:#9CD5FF">bUse</span>)
+<span style="background:#0B4A1E;display:block">  <span style="color:#FFB3A7">return</span>;</span></div><div class="nm"><span>High contrast</span><span>follows desktop</span></div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="hd"><b>Type</b><span>The interface font is the system's; the code font is yours</span><span class="rs">Reset</span></div>
+        <div class="row"><div class="l"><b>Interface size</b><span>Menus, drawers, headers. 13 pt is the system default.</span></div><span class="seg"><span>11</span><span>12</span><span class="on">13</span><span>14</span><span>15</span></span></div>
+        <div class="row"><div class="l"><b>Code font</b><span>Used for diffs, paths and identifiers.</span></div><span class="fld">JetBrains Mono NL</span></div>
+        <div class="row"><div class="l"><b>Code size and tabs</b><span>12 pt at line height 1.5; tab stops every 4 spaces.</span></div><span><span class="seg"><span>11</span><span class="on">12</span><span>13</span><span>14</span></span> <span class="seg" style="margin-left:8px"><span>2</span><span class="on">4</span><span>8</span></span></span></div>
+        <div class="row"><div class="l"><b>Ligatures</b><span>Off keeps every character visible in a diff.</span></div><span class="sw2"></span></div>
+      </div>
+      <div class="card">
+        <div class="hd"><b>Colours</b><span>The tuned diff and syntax colours are kept as they are</span><span class="rs">Reset all</span></div>
+        <div class="row"><div class="l"><b>Customise a role</b><span>Pick a role, preview the colour in the review window, then keep or cancel.</span></div><span><span class="fld ghost" style="min-width:160px">Added line background</span> <span class="fld" style="min-width:90px">#153622</span> <span class="btn">Preview</span></span></div>
+        <div class="row"><div class="l"><b>Theme file</b><span>Import or export a bpr-theme document. Imports preview first and never apply on failure.</span></div><span><span class="btn">Import</span> <span class="btn">Export</span></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>3. Settings, Reviews &amp; queue</h2>
+<div class="win settings">
+  <div class="title"><div class="dots"><i></i><i></i><i></i></div>Settings</div>
+  <div class="sw">
+    <div class="sb">
+      <div class="prof"><b>Default profile</b>this Mac, MikeMarcin</div>
+      <div class="it"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>General</div>
+      <div class="it"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>Accounts &amp; hosts</div>
+      <div class="it on"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h7"/></svg>Reviews &amp; queue</div>
+      <div class="it"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>Appearance</div>
+      <div class="it"><svg viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 20h4"/></svg>Notifications</div>
+      <div class="it"><svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="2"/><path d="M8 12h8"/></svg>Agents &amp; context</div>
+      <div class="it"><svg viewBox="0 0 24 24"><path d="M4 7h16v4H4zM4 13h16v4H4z"/></svg>Storage &amp; privacy</div>
+    </div>
+    <div class="pg">
+      <h3>Reviews &amp; queue</h3>
+      <p class="sub">Local behaviour only. Nothing here changes assignments or subscriptions on GitHub.</p>
+      <div class="card">
+        <div class="hd"><b>Modalities</b><span>Overview, Read, Review, Discuss</span><span class="rs">Reset</span></div>
+        <div class="row"><div class="l"><b>When a pull request opens</b><span>Which modality the window enters. Off keeps whatever was last used.</span></div><span class="seg"><span class="on">Overview</span><span>Read</span><span>Last used</span></span></div>
+        <div class="row"><div class="l"><b>When Continue review is pressed</b><span>From Overview into the first unseen change.</span></div><span class="seg"><span class="on">Read</span><span>Review</span></span></div>
+        <div class="row"><div class="l"><b>Other automatic transitions</b><span>Add a rule of the form "when X, switch to Y". None are on by default.</span></div><span class="btn">Add rule</span></div>
+      </div>
+      <div class="card">
+        <div class="hd"><b>Reading</b><span class="rs">Reset</span></div>
+        <div class="row"><div class="l"><b>Mark a file read</b><span>When its last change scrolls into view, or only when I say so.</span></div><span class="seg"><span class="on">When fully seen</span><span>Manually</span></span></div>
+        <div class="row"><div class="l"><b>Default comparison on return</b><span>What the epoch line selects when I come back to a pull request I have reviewed.</span></div><span class="seg"><span class="on">Since my last review</span><span>Since last upload</span><span>Whole PR</span></span></div>
+        <div class="row"><div class="l"><b>Comments drawer filter</b><span>What the Read drawer lists first.</span></div><span class="seg"><span class="on">This file</span><span>Whole PR</span></span></div>
+      </div>
+      <div class="card">
+        <div class="hd"><b>Observer rules</b><span>Which pull requests appear on Home and in this window's explorer</span></div>
+        <div class="rule2"><span>Review requested from me</span><span class="k">any saved repository</span><span class="btn quiet">Edit</span></div>
+        <div class="rule2"><span>I commented or was mentioned</span><span class="k">any saved repository</span><span class="btn quiet">Edit</span></div>
+        <div class="rule2"><span>Touches <span style="font-family:var(--mono)">Engine/Source/Runtime/Renderer</span></span><span class="k">EpicGames/UnrealEngine</span><span class="btn quiet">Edit</span></div>
+        <div class="rule2"><span class="fld ghost" style="min-width:0">New rule: when …</span><span class="fld ghost" style="min-width:0">in …</span><span class="btn">Add</span></div>
+      </div>
+      <div class="card">
+        <div class="hd"><b>Saved repositories</b><span>Where discovery looks; local only</span></div>
+        <div class="rule2"><span>EpicGames/UnrealEngine</span><span class="k">github.com</span><span class="btn quiet">Remove</span></div>
+        <div class="rule2"><span>MikeMarcin/BetterPullReview</span><span class="k">github.com</span><span class="btn quiet">Remove</span></div>
+        <div class="rule2"><span class="fld ghost" style="min-width:0">owner/repository</span><span class="fld ghost" style="min-width:0">github.com</span><span class="btn">Add</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="notes">
+  <div><b>General</b>Start on Home or on the last pull request; restore windows; what the status bar shows; check for updates. Short page.</div>
+  <div><b>Notifications</b>Local, metadata-only notifications with the platform permission state shown as a fact, a preview button, and quiet hours.</div>
+  <div><b>Storage &amp; privacy</b>Locations as facts, retention for the Git cache and ledger, purge per repository or all, diagnostics detail and export preview, and what remains after uninstall.</div>
+</div>
+
+<h2>4. Two drawers: repositories with their pull requests, then the file tree</h2>
+<p class="why"><b>Left to right: repositories, files, comparison, comments.</b> The repositories drawer is a tree and looks like one: a repository is a bold row with a chevron and a count, its pull requests hang under it on a guide line, one per row with number, title, the unread dot and a one-word reason. The files drawer stands beside it and shows the selected pull request's tree with chevrons and guide lines, nesting folders compacted into one row. Both drawers collapse to rails; Review mode opens both, Read mode opens neither.</p>
+<div class="win">
+  <div class="title"><div class="dots"><i></i><i></i><i></i></div>BetterPullReview</div>
+  <div class="strip">
+    <div class="l"><span class="ib on" title="Repositories">▤</span><span class="ib on" title="Files">▥</span><span class="id">EpicGames/UnrealEngine<span>#14366 Hair strand lighting fixes for LSS</span></span></div>
+    <div class="c"><span class="mode"><span>Overview</span><span>Read</span><span class="on">Review</span><span>Discuss</span></span></div>
+    <div class="r"><span class="ib">⟳</span><span class="ib on">▥</span><span class="ib">●</span><span class="ib">⚙</span></div>
+  </div>
+  <div class="epoch">
+    <span class="name">Updates</span>
+    <div class="rail-line">
+      <div class="track"></div>
+      <div class="span" style="left:52%; right:4%"></div>
+      <div class="nd" style="left:4%"></div><span class="lb" style="left:4%">Feb 4</span>
+      <div class="nd" style="left:28%"></div><span class="lb" style="left:28%">Feb 9</span>
+      <div class="hd" style="left:52%"></div><span class="lb sel" style="left:52%">Feb 12</span>
+      <div class="yt" style="left:58%"></div>
+      <div class="hd" style="left:96%"></div><span class="lb sel" style="left:96%">Feb 15, latest</span>
+    </div>
+    <span class="cmp">Comparing <b>since my last review</b> ▾</span>
+  </div>
+  <div class="body" style="grid-template-columns: 300px 320px 1fr 18px; height: 620px">
+    <div class="pane">
+      <div class="h"><b>Repositories</b><span class="k">github.com, MikeMarcin</span><span class="sp"></span><span class="k">Home</span></div>
+      <div class="flt">Filter repositories and pull requests</div>
+      <div class="list">
+        <div class="rp"><span class="ch">▾</span><span class="n">EpicGames/UnrealEngine</span><span class="c"><b>3</b> of 6</span></div>
+        <div class="pl on"><span class="d u"></span><span class="n"><span class="num">#14366</span>Hair strand lighting fixes for LSS</span><span class="r hot">changed</span></div>
+        <div class="pl"><span class="d u"></span><span class="n"><span class="num">#15157</span>Fix bindless uniform buffer CBV residency</span><span class="r hot">requested</span></div>
+        <div class="pl"><span class="d u"></span><span class="n"><span class="num">#15149</span>RHICore: fix transient heap range coalescing</span><span class="r hot">replied</span></div>
+        <div class="pl q"><span class="d"></span><span class="n"><span class="num">#15150</span>Fix copy constructor causing static shadows</span><span class="r">waiting</span></div>
+        <div class="pl q"><span class="d"></span><span class="n"><span class="num">#15141</span>Support multiple IHV frame gen solutions</span><span class="r">approved</span></div>
+        <div class="pl q"><span class="d"></span><span class="n"><span class="num">#15059</span>Fix crash during FUniqueNetIdRepl serialization</span><span class="r">following</span></div>
+        <div class="rp"><span class="ch">▾</span><span class="n">MikeMarcin/BetterPullReview</span><span class="c">1</span></div>
+        <div class="pl q"><span class="d"></span><span class="n"><span class="num">#1773</span>Stress test: 9,311 commits</span><span class="r">stress</span></div>
+        <div class="rp"><span class="ch">▸</span><span class="n">acme/engine-tools<small>ghe.example.com</small></span><span class="c">signed out</span></div>
+      </div>
+    </div>
+    <div class="pane">
+      <div class="h"><b>Files</b><span class="k">#14366</span><span class="sp"></span><span class="k">12 of 40 read</span><span class="k">Tree ▾</span></div>
+      <div class="flt">Filter by name or path</div>
+      <div class="list">
+        <div class="ft d1"><span class="ch">▾</span><span></span><span class="n f">Engine</span><span class="c"></span></div>
+        <div class="ft d2"><span class="ch">▾</span><span></span><span class="n f">Source/Runtime</span><span class="c"></span></div>
+        <div class="ft d3"><span class="ch">▾</span><span></span><span class="n f">Renderer/Private/HairStrands</span><span class="c">5</span></div>
+        <div class="ft d4"><span></span><span class="st new"></span><span class="n">HairStrandsVoxelization.cpp</span><span class="c">+88 −20</span></div>
+        <div class="ft d4 on"><span></span><span class="st part"></span><span class="n">HairStrandsLighting.cpp</span><span class="c">+212 −48</span></div>
+        <div class="ft d4"><span></span><span class="st"></span><span class="n">HairStrandsRendering.h</span><span class="c">+31 −4</span></div>
+        <div class="ft d4"><span></span><span class="st read"></span><span class="n">HairStrandsInterface.cpp</span><span class="c">+12 −12</span></div>
+        <div class="ft d4"><span></span><span class="st read"></span><span class="n">HairStrandsLegacyLighting.cpp</span><span class="c">−310</span></div>
+        <div class="ft d3"><span class="ch">▸</span><span></span><span class="n f">RenderCore/Public</span><span class="c">1</span></div>
+        <div class="ft d2"><span class="ch">▾</span><span></span><span class="n f">Shaders/Private/HairStrands</span><span class="c">2</span></div>
+        <div class="ft d3"><span></span><span class="st new"></span><span class="n">HairStrandsLightingCommon.ush</span><span class="c">+140 −60</span></div>
+        <div class="ft d3"><span></span><span class="st new"></span><span class="n">HairStrandsDeepShadow.usf</span><span class="c">+19</span></div>
+        <div class="ft d2"><span class="ch">▸</span><span></span><span class="n f">Plugins/Experimental/HairStrands</span><span class="c">32</span></div>
+      </div>
+    </div>
+    <div class="center">comparison, unchanged from the locked direction</div>
+    <div class="rail"><span class="v">Comments 9</span></div>
+  </div>
+</div>
+<h2>4b. The same window with the repository drawer collapsed and the file tree kept</h2>
+<div class="win">
+  <div class="title"><div class="dots"><i></i><i></i><i></i></div>BetterPullReview</div>
+  <div class="strip">
+    <div class="l"><span class="ib" title="Repositories">▤</span><span class="ib on" title="Files">▥</span><span class="id">EpicGames/UnrealEngine<span>#14366 Hair strand lighting fixes for LSS</span></span></div>
+    <div class="c"><span class="mode"><span>Overview</span><span>Read</span><span class="on">Review</span><span>Discuss</span></span></div>
+    <div class="r"><span class="ib">⟳</span><span class="ib on">▥</span><span class="ib">●</span><span class="ib">⚙</span></div>
+  </div>
+  <div class="epoch">
+    <span class="name">Updates</span>
+    <div class="rail-line">
+      <div class="track"></div>
+      <div class="span" style="left:52%; right:4%"></div>
+      <div class="nd" style="left:4%"></div><span class="lb" style="left:4%">Feb 4</span>
+      <div class="nd" style="left:28%"></div><span class="lb" style="left:28%">Feb 9</span>
+      <div class="hd" style="left:52%"></div><span class="lb sel" style="left:52%">Feb 12</span>
+      <div class="yt" style="left:58%"></div>
+      <div class="hd" style="left:96%"></div><span class="lb sel" style="left:96%">Feb 15, latest</span>
+    </div>
+    <span class="cmp">Comparing <b>since my last review</b> ▾</span>
+  </div>
+  <div class="body" style="grid-template-columns: 18px 320px 1fr 18px; height: 300px">
+    <div class="rail" style="border-right:1px solid var(--rule);border-left:0"><span class="v">Repositories</span><span class="badge" style="background:var(--signal-soft);color:var(--unread);border-radius:8px;min-width:14px;text-align:center;font-weight:600;padding:0 3px">3</span></div>
+    <div class="pane">
+      <div class="h"><b>Files</b><span class="k">#14366</span><span class="sp"></span><span class="k">12 of 40 read</span><span class="k">Tree ▾</span></div>
+      <div class="flt">Filter by name or path</div>
+      <div class="list">
+        <div class="ft d1"><span class="ch">▾</span><span></span><span class="n f">Engine</span><span class="c"></span></div>
+        <div class="ft d2"><span class="ch">▾</span><span></span><span class="n f">Source/Runtime</span><span class="c"></span></div>
+        <div class="ft d3"><span class="ch">▾</span><span></span><span class="n f">Renderer/Private/HairStrands</span><span class="c">5</span></div>
+        <div class="ft d4"><span></span><span class="st new"></span><span class="n">HairStrandsVoxelization.cpp</span><span class="c">+88 −20</span></div>
+        <div class="ft d4 on"><span></span><span class="st part"></span><span class="n">HairStrandsLighting.cpp</span><span class="c">+212 −48</span></div>
+        <div class="ft d4"><span></span><span class="st"></span><span class="n">HairStrandsRendering.h</span><span class="c">+31 −4</span></div>
+      </div>
+    </div>
+    <div class="center">comparison</div>
+    <div class="rail"><span class="v">Comments 9</span></div>
+  </div>
+</div>
+<p class="why"><b>The line is review epochs.</b> Each node is an update to the pull request, one push that changed what there is to review, never a commit or a file's history; the labels are the dates the review was updated. The handles compare two updates, and the amber tick is my last review. <b>Independent collapse.</b> Each drawer has its own toggle in the strip (the two icons at the left), its own shortcut, and its own rail with a label and a count. Collapsing one never moves the other. The modality presets set both at once; a manual toggle overrides the preset until the next preset change.</p>
+<div class="notes">
+  <div><b>Repositories are the roots.</b> The account is named once in the drawer header; a host shows on a repository only when it is not the header's host. A repository row counts pull requests that need you against the total. The Home link opens the full action list.</div>
+  <div><b>One line per pull request.</b> Number, title, unread dot, and a one-word reason at the right (changed, requested, replied, waiting, approved, following), amber when it needs you. The full sentence is the row's tooltip and the Overview's summary. Ordered by attention within the repository.</div>
+  <div><b>Files beside, not below.</b> The files drawer has its own rail and toggle. Compacted nesting folders expand a level at a time; counts on folders are files inside; the same read-state dots as the overview. Tree, flat and changed-first are the orders.</div>
+</div>
+</body>
+</html>
