@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0631"
 title: "Compile exact large-review epoch replays"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0630"]
 platforms: ["mac"]
