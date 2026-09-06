@@ -127,8 +127,10 @@ unusable as delivered, so the owner explicitly requested the deferred UX
 redesign now. This is the post-pack frontier exception RFC-BPR-0018,
 RFC-BPR-0024, RFC-BPR-0025 and RFC-BPR-0026 name. Work it in bounded slices
 that make the alpha usable first: BPR-0645 (one palette per resolved variant),
-BPR-0646 (fixed header, window-level sign-in, Settings window), then tabs and
-Home as further cards. Do not start CLI authentication, AI/agent expansion, private-thread composition,
+BPR-0646 (chrome, epoch line, modalities, rails), then BPR-0647 to BPR-0650
+(overview, aligned comments, Discuss, Home). The owner locked that direction
+on 2026-09-06 as RFC-BPR-0028; the Settings pages, the repository/pull-request
+explorer and the file tree are designed next. Do not start CLI authentication, AI/agent expansion, private-thread composition,
 off-hunk comments, historical conversation joins, mascots, notification polish,
 advanced diagnostics, schema discovery or broad refactoring for this alpha.
 BPR-0622 agent-workspace recovery and BPR-0635 cache-pressure verification are
