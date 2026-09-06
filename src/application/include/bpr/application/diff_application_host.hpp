@@ -36,6 +36,7 @@ namespace bpr::application {
 		void request(core::file_comparison_key aKey, core::diff_options aOptions);
 		void cancel();
 		void invalidate(const core::pull_request_authority& aAuthority);
+		void invalidate(const core::review_epoch_id& aEpoch);
 		void shutdown();
 
 		[[nodiscard]] auto state() const noexcept -> const core::diff_state&;

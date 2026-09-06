@@ -48,6 +48,11 @@ namespace bpr::application {
 			core::pull_request_authority Authority;
 		};
 
+		struct deferred_diff_epoch_invalidation
+		{
+			core::review_epoch_id Epoch;
+		};
+
 		struct deferred_diff_shutdown
 		{
 		};
@@ -55,6 +60,7 @@ namespace bpr::application {
 		using deferred_diff_ingress = std::variant<deferred_diff_request,
 												   deferred_diff_cancel,
 												   deferred_diff_invalidation,
+												   deferred_diff_epoch_invalidation,
 												   deferred_diff_shutdown>;
 
 		[[nodiscard]] auto validated_limits(const diff_host_limits aLimits)
@@ -319,6 +325,37 @@ namespace bpr::application {
 				[this, &aAuthority] { Projections.invalidate(aAuthority); });
 		}
 
+		void invalidate(const core::review_epoch_id& aEpoch)
+		{
+			enqueue(deferred_diff_epoch_invalidation{ aEpoch });
+		}
+
+		void invalidate_now(const core::review_epoch_id& aEpoch)
+		{
+			if (Closing) {
+				return;
+			}
+			// A newer pending selection owns the projection even when Current
+			// still names a previously published comparison from this authority.
+			const auto visible = State.Pending ? State.Pending : State.Current;
+			dispatch(core::invalidate_diff_epoch_intent{ aEpoch });
+			for (const auto& job : Jobs) {
+				if (core::uses_epoch(job->Request.Context.Key, aEpoch)) {
+					job->Stop.request_stop();
+				}
+			}
+			std::erase_if(Cache, [this, &aEpoch](const cache_entry& aEntry) {
+				if (!core::uses_epoch(aEntry.Key, aEpoch)) {
+					return false;
+				}
+				CachedBytes -= aEntry.Bytes;
+				return true;
+			});
+			if (visible && core::uses_epoch(visible->Key, aEpoch)) {
+				deliver_projection([this, &visible] { Projections.invalidate(visible->Key.Authority); });
+			}
+		}
+
 		void shutdown()
 		{
 			enqueue(deferred_diff_shutdown{ });
@@ -376,6 +413,8 @@ namespace bpr::application {
 											 ingress_type,
 											 deferred_diff_invalidation>) {
 						invalidate_now(aTypedIngress.Authority);
+					} else if constexpr (std::is_same_v<ingress_type, deferred_diff_epoch_invalidation>) {
+						invalidate_now(aTypedIngress.Epoch);
 					} else {
 						shutdown_now();
 					}
@@ -848,6 +887,11 @@ namespace bpr::application {
 		const core::pull_request_authority& aAuthority)
 	{
 		Implementation->invalidate(aAuthority);
+	}
+
+	void diff_application_host::invalidate(const core::review_epoch_id& aEpoch)
+	{
+		Implementation->invalidate(aEpoch);
 	}
 
 	void diff_application_host::shutdown()

@@ -162,6 +162,56 @@ namespace {
 			   "authority invalidation cancels matching pending work");
 	}
 
+	auto test_exact_epoch_invalidation() -> void
+	{
+		const auto original = key();
+		const auto epoch    = review_epoch_id{ original.LeftAnchor.Authority,
+											   original.LeftAnchor.Incarnation, original.LeftAnchor.Epoch };
+		expect(uses_epoch(original, epoch), "left retained epoch matches");
+		const auto right = review_epoch_id{ original.RightAnchor.Authority,
+											original.RightAnchor.Incarnation, original.RightAnchor.Epoch };
+		expect(uses_epoch(original, right), "right retained epoch matches");
+		for (auto changed : { 0, 1, 2 }) {
+			auto other = epoch;
+			if (changed == 0) {
+				other.Authority = opaque<pull_request_authority_scope_id>(90U);
+			}
+			if (changed == 1) {
+				other.Incarnation = opaque<epoch_catalog_incarnation_id>(90U);
+			}
+			if (changed == 2) {
+				other.Ordinal = epoch_ordinal{ 90U };
+			}
+			expect(!uses_epoch(original, other), "full epoch identity isolates prune");
+		}
+		auto review            = original;
+		review.LeftAnchor.Kind = comparison_anchor_kind::review_commit;
+		expect(!uses_epoch(review, epoch), "review anchor is not an epoch anchor");
+		auto other              = original;
+		other.LeftAnchor.Epoch  = epoch_ordinal{ 3U };
+		other.RightAnchor.Epoch = epoch_ordinal{ 4U };
+		auto       value        = state();
+		auto       output       = transition(value, request_file_diff_intent{ original, { } });
+		const auto old          = *value.Pending;
+		output                  = transition(value, file_diff_computed_event{ old });
+		output                  = transition(value, request_file_diff_intent{ other, { } });
+		const auto pending      = *value.Pending;
+		output                  = transition(value, invalidate_diff_epoch_intent{ epoch });
+		expect(!value.Current && value.Pending == pending && output.Requests.empty(),
+			   "pruning current epoch preserves a newer unrelated pending selection");
+		output = transition(value, file_diff_computed_event{ pending });
+		expect(output.Accepted.has_value(), "unrelated pending result still accepts");
+		output               = transition(value, request_file_diff_intent{ original, { } });
+		const auto cancelled = *value.Pending;
+		output               = transition(value, invalidate_diff_epoch_intent{ epoch });
+		expect(!value.Pending && value.Current == pending && output.Requests.size() == 1U
+				   && std::get<cancel_file_diff_request>(output.Requests.front()).Context == cancelled,
+			   "pruning pending work cancels only its exact request");
+		output = transition(value, file_diff_computed_event{ cancelled });
+		expect(output.Reason == diff_transition_reason::stale_completion && value.Current == pending,
+			   "late pruned completion cannot replace an unrelated current result");
+	}
+
 	auto test_invalid_and_unsupported_requests() -> void
 	{
 		auto value       = state();
@@ -230,6 +280,7 @@ int main()
 {
 	test_exact_generation_and_acceptance();
 	test_failure_cancel_and_invalidation();
+	test_exact_epoch_invalidation();
 	test_invalid_and_unsupported_requests();
 	return EXIT_SUCCESS;
 }

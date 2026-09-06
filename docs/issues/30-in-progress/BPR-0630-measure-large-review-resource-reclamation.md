@@ -49,3 +49,13 @@ many-epoch replay and Windows/Linux resource evidence remain RFC acceptance;
 this card cannot by itself close the memory or entire performance RFC claim.
 All work stays on this Mac. No GitHub Actions, push, paid CI, credentials or
 production app launch.
+
+## Demonstrated defect and focused fix
+
+The first resource course removed the selected epoch's refs and marked both
+anchors pruned, but retained the raw diff/index and visible source. Cache deletion
+subsequently released them. Extend this card's ownership to the existing core
+diff transition, diff application host and their focused tests: consume accepted
+prune completion, invalidate only comparisons using each exact epoch identity,
+and preserve other epochs, catalog incarnations and pending selections. No new
+subsystem or live operation is required.

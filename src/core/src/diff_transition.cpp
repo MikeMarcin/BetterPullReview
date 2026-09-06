@@ -92,6 +92,21 @@ namespace bpr::core {
 			return output;
 		}
 
+		[[nodiscard]] auto invalidate(
+			diff_state& aState, const invalidate_diff_epoch_intent& aIntent)
+			-> diff_transition_output
+		{
+			auto output = diff_transition_output{ };
+			if (aState.Pending && uses_epoch(aState.Pending->Key, aIntent.Epoch)) {
+				output.Requests.emplace_back(cancel_file_diff_request{ *aState.Pending });
+				aState.Pending.reset();
+			}
+			if (aState.Current && uses_epoch(aState.Current->Key, aIntent.Epoch)) {
+				aState.Current.reset();
+			}
+			return output;
+		}
+
 		[[nodiscard]] auto complete(diff_state&                     aState,
 									const file_diff_computed_event& aEvent)
 			-> diff_transition_output
@@ -135,6 +150,19 @@ namespace bpr::core {
 		}
 	} // namespace
 
+	auto uses_epoch(const file_comparison_key& aKey,
+					const review_epoch_id&     aEpoch) noexcept -> bool
+	{
+		const auto matches = [&aEpoch](const comparison_anchor_identity& aAnchor) {
+			return (aAnchor.Kind == comparison_anchor_kind::epoch_base
+					|| aAnchor.Kind == comparison_anchor_kind::epoch_head)
+				&& aAnchor.Authority == aEpoch.Authority
+				&& aAnchor.Incarnation == aEpoch.Incarnation
+				&& aAnchor.Epoch == aEpoch.Ordinal;
+		};
+		return matches(aKey.LeftAnchor) || matches(aKey.RightAnchor);
+	}
+
 	auto valid(const diff_request_context& aContext) noexcept -> bool
 	{
 		return aContext.Request.value() != 0U
@@ -156,7 +184,8 @@ namespace bpr::core {
 					return cancel(aState);
 				} else if constexpr (std::is_same_v<
 										 event_type,
-										 invalidate_diff_authority_intent>) {
+										 invalidate_diff_authority_intent>
+									 || std::is_same_v<event_type, invalidate_diff_epoch_intent>) {
 					return invalidate(aState, aTypedEvent);
 				} else if constexpr (std::is_same_v<event_type,
 													file_diff_computed_event>) {

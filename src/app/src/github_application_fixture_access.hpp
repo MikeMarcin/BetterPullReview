@@ -590,6 +590,8 @@ namespace bpr::app::detail {
 	{
 		std::size_t   OutstandingJobs              = 0U;
 		std::size_t   WorkbenchOutstandingRequests = 0U;
+		std::size_t   EpochOutstandingJobs         = 0U;
+		bool          EpochMaintenancePending      = false;
 		std::size_t   CacheEntries                 = 0U;
 		std::uint64_t CacheBytes                   = 0U;
 		std::size_t   FixtureDiffHelperInvocations = 0U;

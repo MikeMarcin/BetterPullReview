@@ -927,6 +927,49 @@ namespace {
 			   "projection exception is contained and recorded");
 	}
 
+	auto test_exact_epoch_cache_and_pending_invalidation() -> void
+	{
+		fixture    test;
+		const auto key          = comparison_key();
+		const auto epoch        = core::review_epoch_id{ key.LeftAnchor.Authority,
+														 key.LeftAnchor.Incarnation, key.LeftAnchor.Epoch };
+		auto       other        = key;
+		other.LeftAnchor.Epoch  = core::epoch_ordinal{ 3U };
+		other.RightAnchor.Epoch = core::epoch_ordinal{ 4U };
+		test.request(key);
+		test.run_effect_and_decision();
+		test.request(other);
+		const auto pending = test.Host->state().Pending;
+		test.Host->invalidate(epoch);
+		expect(test.Host->cache_entries() == 0U && test.Host->cache_bytes() == 0U
+				   && !test.Host->state().Current && test.Host->state().Pending == pending
+				   && test.Projections.Invalidated.empty(),
+			   "pruned current cache is released without invalidating the newer projection");
+		test.run_effect_and_decision();
+		expect(test.Host->state().Current == pending && test.Host->cache_entries() == 1U,
+			   "unrelated pending work completes and enters its cache");
+		const auto otherBytes = test.Host->cache_bytes();
+		test.request(key);
+		test.Effects.run_next();
+		test.Host->invalidate(epoch);
+		test.Decisions.run_next();
+		expect(test.Host->cache_entries() == 1U && test.Host->cache_bytes() == otherBytes
+				   && test.Host->state().Current == pending && !test.Host->state().Pending
+				   && test.Projections.Results.size() == 2U
+				   && test.Projections.Invalidated == std::vector{ key.Authority },
+			   "completed but undelivered pruned work cannot publish or reinsert cache");
+		test.request(other);
+		expect(test.Effects.pending() == 0U && test.Decisions.pending() == 1U,
+			   "unrelated epoch cache remains reusable");
+		test.Decisions.run_next();
+		expect(test.Projections.Results.back().CacheHit, "unrelated cache hit still publishes");
+		test.request(key);
+		test.Host->invalidate(epoch);
+		test.run_effect_and_decision();
+		expect(test.Host->outstanding_jobs() == 0U && test.Host->cache_bytes() == otherBytes,
+			   "cancelled prune work drains exactly once without retaining cache");
+	}
+
 	auto test_projection_reentry_is_deferred() -> void
 	{
 		fixture    test;
@@ -1244,6 +1287,7 @@ int main()
 	test_absent_and_empty_sides();
 	test_typed_failures_and_exact_echo();
 	test_invalidation_and_projection_exception();
+	test_exact_epoch_cache_and_pending_invalidation();
 	test_projection_reentry_is_deferred();
 	test_persistent_projection_feedback_yields_between_turns();
 	test_pending_effect_is_safe_after_host_destruction();

@@ -7924,6 +7924,19 @@ namespace bpr::app {
 			if (Closing || Window == nullptr) {
 				return;
 			}
+			if (DiffHost != nullptr && aUpdate.Catalog.has_value()
+				&& aUpdate.Catalog->AvailabilityChangedTo == core::anchor_availability::pruned) {
+				const auto& state          = DiffHost->state();
+				const auto  visible        = state.Pending ? state.Pending : state.Current;
+				auto        clearSelection = false;
+				for (const auto& epoch : aUpdate.Catalog->AvailabilityChangedEpochs) {
+					clearSelection = clearSelection || (visible && core::uses_epoch(visible->Key, epoch));
+					DiffHost->invalidate(epoch);
+				}
+				if (clearSelection) {
+					clear_diff_selection();
+				}
+			}
 			Window->publish(aUpdate);
 			refresh_agent_authority();
 			const auto* comparison = aUpdate.Transition.has_value()
@@ -9729,6 +9742,8 @@ namespace bpr::app {
 		return {
 			.OutstandingJobs              = host.outstanding_jobs(),
 			.WorkbenchOutstandingRequests = implementation.WorkbenchHost->outstanding_requests(),
+			.EpochOutstandingJobs         = implementation.EpochHost->outstanding_jobs(),
+			.EpochMaintenancePending      = implementation.EpochHost->state().PendingMaintenance.has_value(),
 			.CacheEntries                 = host.cache_entries(),
 			.CacheBytes                   = host.cache_bytes(),
 			.FixtureDiffHelperInvocations = implementation.FixtureDiffHelperInvocations,

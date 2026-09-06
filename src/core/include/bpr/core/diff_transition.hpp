@@ -43,6 +43,18 @@ namespace bpr::core {
 		auto operator<=>(const invalidate_diff_authority_intent&) const = default;
 	};
 
+	/// \brief Invalidates comparisons that use one pruned epoch.
+	struct invalidate_diff_epoch_intent
+	{
+		review_epoch_id Epoch;
+
+		auto operator<=>(const invalidate_diff_epoch_intent&) const = default;
+	};
+
+	/// \brief Checks either retained epoch anchor using its full catalog identity.
+	[[nodiscard]] auto uses_epoch(const file_comparison_key& aKey,
+								  const review_epoch_id&     aEpoch) noexcept -> bool;
+
 	/// \brief Describes the file diff computed event record.
 	struct file_diff_computed_event
 	{
@@ -63,6 +75,7 @@ namespace bpr::core {
 	using diff_event = std::variant<request_file_diff_intent,
 									cancel_file_diff_intent,
 									invalidate_diff_authority_intent,
+									invalidate_diff_epoch_intent,
 									file_diff_computed_event,
 									file_diff_failed_event>;
 
