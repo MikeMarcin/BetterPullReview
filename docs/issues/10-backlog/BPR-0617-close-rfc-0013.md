@@ -4,7 +4,7 @@ id: "BPR-0617"
 title: "Verify and close RFC-BPR-0013"
 status: "Backlog"
 rfcs: ["RFC-BPR-0013"]
-depends_on: ["BPR-0507","BPR-0616","BPR-0618","BPR-0619","BPR-0620","BPR-0621","BPR-0622","BPR-0623","BPR-0624","BPR-0626","BPR-0627","BPR-0628","BPR-0629","BPR-0630"]
+depends_on: ["BPR-0507","BPR-0616","BPR-0618","BPR-0619","BPR-0620","BPR-0621","BPR-0622","BPR-0623","BPR-0624","BPR-0626","BPR-0627","BPR-0628","BPR-0629","BPR-0630","BPR-0631","BPR-0632"]
 closeout_for: ["RFC-BPR-0013"]
 ---
 
@@ -220,3 +220,11 @@ loaded-close/cache-pressure, backoff/offline, fuzz/diagnostic and active-work
 criteria; select the narrowest uncovered Mac slice. BPR-0622's Windows/Linux
 work and earlier live gates remain open. No Actions, remote CI, push, paid work
 or production account operation is authorized by this continuation.
+
+
+The next many-epoch slices are BPR-0631 (compact independently checked per-head
+input deltas and exact Glaze replay) and BPR-0632 (32 real composed refreshes,
+historical/current selection, cancellation and measured Mac evidence). Existing
+32 Git objects do not establish 32 application epochs. Preserve the original
+latest-head workload and treat input/compiler evidence separately from the
+required composed benchmark.
