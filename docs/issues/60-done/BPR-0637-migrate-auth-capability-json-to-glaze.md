@@ -2,9 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0637"
 title: "Migrate authentication and capability JSON to Glaze"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0002"]
 depends_on: ["BPR-0636"]
+acceptance: [{"criterion":"Authentication wire contract","outcome":"pass","revision":"5a7494ab0ef6ef5c67096f8c1a6226eb29368c4c","evidence":{"kind":"observation","detail":"Device source 1211a9f0: exact duration/string parsing, form bytes, secret/error categories; device/public/native loopback tests pass as recorded on card."}},{"criterion":"Capability wire contract","outcome":"pass","revision":"5a7494ab0ef6ef5c67096f8c1a6226eb29368c4c","evidence":{"kind":"observation","detail":"Nine exact outgoing request bodies, GitHub/GHES facts, shape/duplicate/aggregate limits, invalid raw JSON and sanitized error tests pass in github_capability_probe (4.22s)."}},{"criterion":"Provider and public composition","outcome":"pass","revision":"5a7494ab0ef6ef5c67096f8c1a6226eb29368c4c","evidence":{"kind":"observation","detail":"Final local network-isolated integration 4/4 pass in 29.12s: provider, capability, registered sign-in and renewal courses. Development app and focused test targets build."}},{"criterion":"Architecture and scope","outcome":"pass","revision":"5a7494ab0ef6ef5c67096f8c1a6226eb29368c4c","evidence":{"kind":"observation","detail":"Both owned production files no longer use Qt JSON; representations stay private. Documentation gate and diff check pass. No production credentials, live GitHub, Actions or paid CI used. Full migration remains BPR-0612."}}]
 ---
 
 # Migrate authentication and capability JSON to Glaze
@@ -23,7 +24,7 @@ Preserve core/host boundaries and pinned dependency provenance. All execution
 is local with synthetic fixtures; no Actions, push, paid CI or production
 account/process operations. Full migration acceptance remains on BPR-0612.
 
-## Device portion implemented; capability portion remains
+## Device authorization implementation and evidence
 
 Device source `1211a9f0bb36f49cd3a4aec46df22d04bb06fbe7`. Selection `a9d3aad3`; claim `d6c9eda6`.
 No Qt JSON remains in `github_device_authorization_contract.cpp`. Glaze indexes
@@ -65,13 +66,47 @@ Local Mac evidence:
 - Touched C++ formatted; documentation gate and `git diff --check` pass.
   Owning architecture documentation describes the migrated parsing boundary.
 
-BPR-0637 remains In Progress. Next migrate `github_capability_probe.cpp`, which
-still contains Qt JSON schema/diagnostic/envelope parsing and request/part-merge
-serialization. Preserve nine exact query parts, independent rate observations,
-schema shape/limit checks, bounded sanitized diagnostics and request bytes;
-use capability/provider and synthetic sign-in composition evidence. Do not
-repeat unchanged device tests unless capability work changes their inputs.
-BPR-0612 full migration and later RFC work remain open; performance waits.
+## Capability implementation and evidence
+
+Capability source `5a7494ab0ef6ef5c67096f8c1a6226eb29368c4c` completes this slice. No Qt JSON
+remains in either owned production file. Outgoing queries use a typed Glaze
+record; the type-dependent introspection tree uses a private Glaze value with
+full-width integer storage and existing shape validators. No JSON representation
+crosses inward. The nine query documents, exact request bytes, required/null
+semantics, preflight and aggregate limits, rate observations, and promotion only
+after the complete batch remain intact. Batch serialization preserves explicit
+null members and sorted keys. Sanitized diagnostics distinguish missing from
+null fields and remove credential reflections before length checks.
+
+New raw tests reject malformed UTF-8, lone surrogates, trailing documents and
+invalid explicit null diagnostics. Every one of the nine request bodies matches
+the independent prior Qt serializer; BPR-0640 will replace this temporary test
+oracle with independent literal fixtures. Existing recorded GitHub/GHES schema
+facts, duplicate/member/wrapper/limit cases and encoded reflection checks pass.
+
+During implementation, the aggregate contract check caught an initializer-list
+construction that wrapped the merged object in an array. Explicit object
+construction fixes it; explicit null serialization is also retained. Only the
+rebuilt final binary's passing results below are acceptance evidence.
+
+Local Mac evidence:
+
+- Capability, provider and development app targets build successfully.
+- Final focused integration: 4/4 pass, 29.12s total. `github_provider` 10.71s;
+  `github_capability_probe` 4.22s;
+  `application_device_authorization_registered_course` 6.19s;
+  `application_device_authorization_refresh_course` 7.97s. All use registered
+  network-isolated synthetic paths; public composition exercises sign-in and
+  renewal with migrated capability activation.
+- Documentation gate, formatting and `git diff --check` pass. Owning architecture
+  documentation describes the migrated capability boundary.
+- Earlier device/native-loopback evidence above remains applicable; capability
+  changes do not alter the device parser or native transport inputs.
+
+BPR-0612 remains open. Five production/composed-fixture files still use Qt JSON.
+Next is BPR-0638 for read contracts, normalization and pagination, then BPR-0639
+composition and BPR-0640 test helpers/final inventory. Performance work waits
+for full migration completion.
 
 All work was local with synthetic fixtures. No production remembered session,
 credentials, GitHub, Actions, push or paid CI was touched. Task build/test logs
