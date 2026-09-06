@@ -228,3 +228,14 @@ historical/current selection, cancellation and measured Mac evidence). Existing
 32 Git objects do not establish 32 application epochs. Preserve the original
 latest-head workload and treat input/compiler evidence separately from the
 required composed benchmark.
+
+
+BPR-0631 completes exact earlier-head input/replay in `d0047177aa0305666b7ee811d445f3ea0b14621f`. A compact
+14,569-byte sidecar is independently checked against every stored Git transition;
+all 32 snapshots pass the production pager with complete 515-file/1,000-thread
+counts and exact PR/commit/GraphQL/check/file identities. Original stored inputs
+and the default latest-head course are preserved. Fixture, replay and latest-head
+application checks pass (7.43s / 5.84s / 22.17s); negatives reject substituted or
+missing epoch data. BPR-0632 is now dependency-ready for actual 32-epoch composed
+refresh/selection/cancellation and measured evidence. Do not promote fixture-only
+coverage to the whole many-epoch acceptance claim.
