@@ -122,8 +122,13 @@ constraint. No pushes or workflow dispatches are part of this route.
 
 ## Work deliberately excluded
 
-Do not start the Settings/profile/window/tab/Home redesign (RFC-0018,
-0024–0026), CLI authentication, AI/agent expansion, private-thread composition,
+Owner direction, 2026-09-06 (later the same day): the workbench UI is
+unusable as delivered, so the owner explicitly requested the deferred UX
+redesign now. This is the post-pack frontier exception RFC-BPR-0018,
+RFC-BPR-0024, RFC-BPR-0025 and RFC-BPR-0026 name. Work it in bounded slices
+that make the alpha usable first: BPR-0645 (one palette per resolved variant),
+BPR-0646 (fixed header, window-level sign-in, Settings window), then tabs and
+Home as further cards. Do not start CLI authentication, AI/agent expansion, private-thread composition,
 off-hunk comments, historical conversation joins, mascots, notification polish,
 advanced diagnostics, schema discovery or broad refactoring for this alpha.
 BPR-0622 agent-workspace recovery and BPR-0635 cache-pressure verification are
