@@ -1,0 +1,14 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0636",
+    "BPR-0637",
+    "BPR-0638",
+    "BPR-0639",
+    "BPR-0640"
+  ],
+  "reserve_for": "glaze-migration",
+  "purpose": "",
+  "created": "2026-09-06T06:00:49.231881+00:00",
+  "base": "b0712daf417d4202a9e1be618b91fd8bf4476f9d"
+}
