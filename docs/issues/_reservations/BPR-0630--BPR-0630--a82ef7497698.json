@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0630"
+  ],
+  "reserve_for": "bpr-rfc0013-large-resource-course",
+  "purpose": "",
+  "created": "2026-09-06T03:40:32.467305+00:00",
+  "base": "cb2b64bb84141830b58eba42aa3cb7300d3172bc"
+}
