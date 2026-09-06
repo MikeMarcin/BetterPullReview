@@ -4,7 +4,7 @@ id: "BPR-0617"
 title: "Verify and close RFC-BPR-0013"
 status: "Backlog"
 rfcs: ["RFC-BPR-0013"]
-depends_on: ["BPR-0507","BPR-0616","BPR-0618","BPR-0619","BPR-0620","BPR-0621","BPR-0622","BPR-0623","BPR-0624","BPR-0626","BPR-0627","BPR-0628","BPR-0629","BPR-0630","BPR-0631","BPR-0632","BPR-0633"]
+depends_on: ["BPR-0507","BPR-0616","BPR-0618","BPR-0619","BPR-0620","BPR-0621","BPR-0622","BPR-0623","BPR-0624","BPR-0626","BPR-0627","BPR-0628","BPR-0629","BPR-0630","BPR-0631","BPR-0632","BPR-0633","BPR-0634","BPR-0635"]
 closeout_for: ["RFC-BPR-0013"]
 ---
 
@@ -298,3 +298,7 @@ small-capacity eviction and byte refusal; they do not establish the full native
 application's default-capacity behavior. Reuse the stored large-review/epoch
 inputs and direct public paths. Backoff/offline, fuzz/diagnostic, broader active
 work, BPR-0622 Windows/Linux and earlier live/human gates remain open.
+
+BPR-0634 and BPR-0635 separately exercise the default entry and byte ceilings
+through real composed pressure. Both are required; small-capacity unit evidence
+or many small entries does not establish the 64-MiB byte-pressure criterion.
