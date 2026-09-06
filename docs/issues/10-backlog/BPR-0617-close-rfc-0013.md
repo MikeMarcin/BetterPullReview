@@ -4,7 +4,7 @@ id: "BPR-0617"
 title: "Verify and close RFC-BPR-0013"
 status: "Backlog"
 rfcs: ["RFC-BPR-0013"]
-depends_on: ["BPR-0507","BPR-0616","BPR-0618","BPR-0619","BPR-0620","BPR-0621","BPR-0622","BPR-0623","BPR-0624","BPR-0626","BPR-0627"]
+depends_on: ["BPR-0507","BPR-0616","BPR-0618","BPR-0619","BPR-0620","BPR-0621","BPR-0622","BPR-0623","BPR-0624","BPR-0626","BPR-0627","BPR-0628","BPR-0629"]
 closeout_for: ["RFC-BPR-0013"]
 ---
 
@@ -130,3 +130,15 @@ pane geometry/publication work identified in the retained profile observations,
 and establish justified local targets. BPR-0627 remains open. Keep RFC-0013 open for remaining memory/pruning,
 backoff/offline, fuzz/diagnostic, active-work scrolling and target-native
 criteria. Preserve the Windows/Linux BPR-0622 handoff and earlier live gates.
+
+
+Phase instrumentation now attributes that remaining initial pause: native pane
+measurement takes 164.10/163.25 ms; semantic index preparation takes 111.14 ms;
+text installation 62.12 ms; axis build/adoption 1.20/0.43 ms. These diagnostic
+numbers split the remaining work into BPR-0628 (cooperative native measurement)
+and BPR-0629 (index preparation outside the UI publication turn). The temporary
+instrumentation is removed. BPR-0627's file-switch correction and diagnosis are
+complete; the RFC responsiveness criterion remains open on these new cards and
+broader active-work/platform coverage. The provisional target for rapid file
+switch input on this recorded Mac is a maximum 100 ms event-loop interval,
+roughly twice the corrected 44.34 ms observation; it is not a portable CI limit.
