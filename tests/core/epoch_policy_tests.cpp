@@ -2483,6 +2483,38 @@ namespace {
 			"exact explicit pair remains selected when its object is unavailable");
 	}
 
+	auto test_pending_one_sided_selection_supersession() -> void
+	{
+		auto        fixture      = make_ready_fixture();
+		const auto  whole        = *fixture.State.AcceptedComparison;
+		const auto  alternate    = anchor(summary(fixture.Authority, fixture.Catalog, 2, 12U, 32U), comparison_anchor_kind::epoch_head);
+		const auto  first        = transition(fixture.State, select_comparison_anchor_intent{ .Side = comparison_side::left, .Anchor = alternate.Identity, .ExpectedCatalogRevision = fixture.Catalog.Revision });
+		const auto* firstRequest = request_from<resolve_comparison_request>(first);
+		expect(firstRequest && !fixture.State.AcceptedComparison, "first selector starts unresolved exact comparison");
+		const auto  second        = transition(fixture.State, select_comparison_anchor_intent{ .Side = comparison_side::right, .Anchor = whole.Left.Identity, .ExpectedCatalogRevision = fixture.Catalog.Revision });
+		const auto* secondRequest = request_from<resolve_comparison_request>(second);
+		const auto* cancelled     = request_from<cancel_epoch_work_request>(second);
+		expect(secondRequest && cancelled && cancelled->Request == firstRequest->Context.Request
+				   && fixture.State.RequestedSelection == explicit_selection(alternate.Identity, whole.Left.Identity),
+			   "enabled second selector supersedes pending resolution and preserves the requested opposite side");
+		const auto beforeLate = fixture.State;
+		const auto late       = transition(fixture.State, comparison_resolved_event{ .Context = firstRequest->Context, .Candidates = comparison_candidates{ .Catalog = fixture.Catalog, .ExplicitLeft = alternate, .ExplicitRight = whole.Right } });
+		expect(diagnostic_is(late, epoch_reason_code::stale_completion) && fixture.State == beforeLate,
+			   "superseded one-side result cannot replace the pending pair");
+		const auto beforeInvalid = fixture.State;
+		const auto invalid       = transition(fixture.State, select_comparison_anchor_intent{ .Side = comparison_side::right, .Anchor = whole.Right.Identity, .ExpectedCatalogRevision = epoch_catalog_revision{ 999 } });
+		expect(diagnostic_is(invalid, epoch_reason_code::catalog_revision_mismatch) && fixture.State == beforeInvalid,
+			   "pending selection still rejects a stale catalog revision");
+		const auto  third        = transition(fixture.State, select_comparison_anchor_intent{ .Side = comparison_side::left, .Anchor = whole.Right.Identity, .ExpectedCatalogRevision = fixture.Catalog.Revision });
+		const auto* thirdRequest = request_from<resolve_comparison_request>(third);
+		expect(thirdRequest && fixture.State.RequestedSelection == explicit_selection(whole.Right.Identity, whole.Left.Identity),
+			   "another pending edit preserves both latest requested sides");
+		const auto resolved = transition(fixture.State, comparison_resolved_event{ .Context = thirdRequest->Context, .Candidates = comparison_candidates{ .Catalog = fixture.Catalog, .ExplicitLeft = whole.Right, .ExplicitRight = whole.Left } });
+		expect(resolved.Comparison && resolved.Comparison->Pair && resolved.Comparison->Pair->Left == whole.Right
+				   && resolved.Comparison->Pair->Right == whole.Left && !fixture.State.PendingComparison,
+			   "latest pending selector pair alone becomes the accepted comparison");
+	}
+
 	auto test_overflow_is_checked_and_invalidation_fails_closed() -> void
 	{
 		{
@@ -3692,6 +3724,7 @@ auto main() -> int
 	test_fail_closed_comparison_exhaustion();
 	test_invalid_cross_facts_and_command_policy();
 	test_selection_transition_policy();
+	test_pending_one_sided_selection_supersession();
 	test_overflow_is_checked_and_invalidation_fails_closed();
 	test_bounded_epoch_history_paging();
 	test_core_authorized_epoch_maintenance();

@@ -10,6 +10,7 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QComboBox>
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QItemSelectionModel>
@@ -72,7 +73,7 @@ namespace bpr::e2e::large_review {
 		std::string Name;
 		double      ElapsedMs = 0, MaxPulseIntervalMs = 0, P95PulseIntervalMs = 0;
 		std::size_t Pulses = 0, PulsesWithDiffWork = 0, PulsesWithWorkbenchWork = 0;
-		std::size_t PeakDiffJobs = 0, PeakWorkbenchRequests = 0;
+		std::size_t PeakDiffJobs = 0, PeakWorkbenchRequests = 0, PeakEpochJobs = 0;
 	};
 	struct resource_sample
 	{
@@ -83,8 +84,15 @@ namespace bpr::e2e::large_review {
 
 	struct benchmark_report
 	{
-		std::string                  Schema         = "bpr.large-review-measurement.v1";
-		bool                         ResourceCourse = false;
+		std::string Schema         = "bpr.large-review-measurement.v1";
+		bool        ResourceCourse = false;
+		bool        HistoryCourse  = false;
+		std::size_t EpochsObserved = 0U, RetainedEpochsVerified = 0U, EpochSelections = 0U, EpochSelectionsWithOutstandingWork = 0U;
+		std::size_t HistoryPeakRows = 0U, HistoryModelResets = 0U;
+		// Same M4 Pro / Debug course: refresh max input interval 67.903 ms,
+		// refresh 9.165 s, source selection 1.113 s before these thresholds.
+		double                       HistoryInputIntervalLimitMs = 100.0;
+		double                       HistoryRefreshLimitMs = 12'000.0, HistorySourceSelectionLimitMs = 2'000.0;
 		std::vector<resource_sample> Resources;
 		// Provisional Mac fixture budgets from the measured Debug course. These
 		// bound sampled growth, not unsampled peaks or other platforms.
@@ -230,19 +238,20 @@ namespace bpr::e2e::large_review {
 			phase.PulsesWithDiffWork += work.OutstandingJobs != 0U ? 1U : 0U;
 			phase.PulsesWithWorkbenchWork += work.WorkbenchOutstandingRequests != 0U ? 1U : 0U;
 			phase.PeakDiffJobs          = std::max(phase.PeakDiffJobs, work.OutstandingJobs);
+			phase.PeakEpochJobs         = std::max(phase.PeakEpochJobs, work.EpochOutstandingJobs);
 			phase.PeakWorkbenchRequests = std::max(phase.PeakWorkbenchRequests, work.WorkbenchOutstandingRequests);
 		});
 		bool ready = false;
 		QObject::connect(&readiness, &QTimer::timeout, &loop, [&] {
 			ready = aReady();
-			if (ready || aBudget.elapsed() >= 90'000) {
+			if (ready || aBudget.elapsed() >= (aReport.HistoryCourse ? 540'000 : 90'000)) {
 				loop.quit();
 			}
 		});
 		pulse.start();
 		aAction();
 		ready = aReady();
-		if (!ready && aBudget.elapsed() < 90'000) {
+		if (!ready && aBudget.elapsed() < (aReport.HistoryCourse ? 540'000 : 90'000)) {
 			readiness.start();
 			loop.exec();
 		}
@@ -284,7 +293,7 @@ namespace bpr::e2e::large_review {
 		require(snapshot->Account.value() == 800001U && snapshot->Repository.Repository.value() == 800002U
 					&& snapshot->PullRequest.PullRequest.value() == 800003U && snapshot->PullRequest.Number.value() == 17U
 					&& snapshot->Repository.Owner == "bpr-fixtures" && snapshot->Repository.Name == "large-review"
-					&& snapshot->PullRequest.BaseOid.value() == aManifest.base && snapshot->PullRequest.HeadOid.value() == aManifest.heads.back(),
+					&& snapshot->PullRequest.BaseOid.value() == aManifest.base && snapshot->PullRequest.HeadOid.value() == aReport.Head,
 				"snapshot authority/head");
 		require(aManifest.files.size() == 515U && snapshot->Files.size() == 515U && snapshot->ReviewThreads.size() == 1000U, "accepted workload counts");
 		std::map<std::string, const application::github_file_record*> files;
@@ -325,7 +334,7 @@ namespace bpr::e2e::large_review {
 		aReport.Comments    = 1000U;
 		const auto evidence = access::evidence(aApplication);
 		require(evidence.RecordingConsumed && evidence.CapabilityProbeConsumed && evidence.BootstrapTransportSelected && evidence.AccountTransportSelected
-					&& evidence.RecordingFailure == -1 && evidence.AccountReadCount == 29 && evidence.SmartAcquireCount == 1
+					&& evidence.RecordingFailure == -1 && evidence.AccountReadCount == static_cast<int>(1U + 28U * std::max(std::size_t{ 1U }, aReport.EpochsObserved)) && evidence.SmartAcquireCount == 1
 					&& evidence.SmartDiscoveryCount == 1 && evidence.SmartLsRefsCount == 1 && evidence.SmartFetchCount == 1,
 				"selected provider/Git path or replay exhaustion");
 		aReport.AccountRequests = evidence.AccountReadCount;
@@ -347,9 +356,144 @@ namespace bpr::e2e::large_review {
 		}
 	}
 
+	void select_epoch(qt::epoch_comparison_control& aControl, std::int64_t aOrdinal, core::comparison_side aSide)
+	{
+		auto* const selector = aSide == core::comparison_side::left ? aControl.left_selector() : aControl.right_selector();
+		require(selector->isEnabled(), "requested epoch selector is disabled");
+		const auto* model = aControl.history_model();
+		const auto  kind  = aSide == core::comparison_side::left ? core::comparison_anchor_kind::epoch_base : core::comparison_anchor_kind::epoch_head;
+		for (int row = 0; row < model->rowCount(); ++row) {
+			const auto anchor = model->anchor_at(model->index(row, 0));
+			if (anchor && anchor->Identity.Epoch.value() == aOrdinal && anchor->Identity.Kind == kind) {
+				selector->setCurrentIndex(row);
+				return;
+			}
+		}
+		throw std::runtime_error{ "requested retained epoch is absent from public history" };
+	}
+
+	void run_history(app::github_application& aApplication, const fixture_manifest& aManifest,
+					 benchmark_report& aReport, QElapsedTimer& aBudget, const char* aImage)
+	{
+		auto&      window        = aApplication.window();
+		auto&      surface       = *window.comparison_surface();
+		auto&      controls      = *window.epoch_selectors();
+		auto*      history       = controls.history_model();
+		const auto initialResets = history->statistics().ModelResets;
+		const auto settled       = [&] {
+			return quiet(aApplication) && access::diff_work_evidence(aApplication).EpochOutstandingJobs == 0U;
+		};
+		const auto source_matches = [&](int aFile, std::int64_t aEpoch, int aValue) {
+			return selected(surface, source_path(aFile)) && surface.current_result()->Alignment.Key.RightAnchor.Epoch.value() == aEpoch
+				&& surface.left_pane()->document()->firstBlock().text() == QStringLiteral("int fixture_%1 = 0;").arg(aFile, 4, 10, QChar{ '0' })
+				&& surface.right_pane()->document()->firstBlock().text() == QStringLiteral("int fixture_%1 = %2;").arg(aFile, 4, 10, QChar{ '0' }).arg(aValue);
+		};
+		for (std::size_t index = 0U; index < aManifest.heads.size(); ++index) {
+			const auto ordinal = static_cast<std::int64_t>(index + 1U);
+			if (index != 0U) {
+				const auto expectedHead = QString::fromStdString(aManifest.heads[index]);
+				require(window.github_refresh_action()->isEnabled(), "public refresh unavailable");
+				const auto refreshPhase = "epoch_refresh_" + std::to_string(ordinal);
+				require(measure_wait(aApplication, aBudget, aReport, refreshPhase.c_str(), [&] { window.github_refresh_action()->trigger(); }, [&] { return controls.right_oid_editor()->text() == expectedHead && settled(); }), "epoch refresh did not adopt the exact stored head");
+			}
+			aReport.EpochsObserved = index + 1U;
+			aReport.Head           = aManifest.heads[index];
+			const auto evidence    = access::evidence(aApplication);
+			require(evidence.RecordingConsumed && evidence.RecordingFailure == -1
+						&& evidence.AccountReadCount == static_cast<int>(1 + 28 * ordinal),
+					"refresh did not exhaust exactly one recorded snapshot");
+			const auto file           = index == 0U ? 0 : static_cast<int>(index - 1U);
+			const auto value          = static_cast<int>(ordinal);
+			const auto selectionPhase = "epoch_source_selection_" + std::to_string(ordinal);
+			require(measure_wait(aApplication, aBudget, aReport, selectionPhase.c_str(), [&] { select_file(window, source_path(file)); }, [&] { return source_matches(file, ordinal, value) && settled(); }), "selected source did not match the new epoch's independent recipe");
+			if (index == 0U) {
+				const auto& selectedAnchor = surface.current_result()->Alignment.Key.RightAnchor;
+				const auto  initialStored  = access::maintenance_evidence(aApplication, core::review_epoch_id{ selectedAnchor.Authority, selectedAnchor.Incarnation, selectedAnchor.Epoch });
+				std::cerr << "initial-retained-epoch:" << *glz::write_json(initialStored) << '\n';
+				require(initialStored.TargetBaseRefOid == aManifest.base && initialStored.TargetHeadRefOid == aManifest.heads.front()
+							&& initialStored.TargetBaseCatalogOid == aManifest.base && initialStored.TargetHeadCatalogOid == aManifest.heads.front(),
+						"initial retained catalog/ref evidence mismatch");
+			}
+			aReport.HistoryPeakRows = std::max(aReport.HistoryPeakRows, static_cast<std::size_t>(history->rowCount()));
+			const auto cache        = access::diff_work_evidence(aApplication);
+			require(cache.CacheEntries <= application::diff_host_limits{ }.CacheEntries && cache.CacheBytes <= application::diff_host_limits{ }.CacheBytes,
+					"epoch refresh exceeded configured immutable diff cache budget");
+			std::cerr << "epoch-ready:" << ordinal << " account_reads=" << evidence.AccountReadCount << " cache=" << cache.CacheEntries << ':' << cache.CacheBytes << '\n';
+		}
+		require(controls.refresh_action()->isEnabled(), "public history refresh unavailable");
+		require(measure_wait(aApplication, aBudget, aReport, "load_epoch_history", [&] { controls.refresh_action()->trigger(); }, [&] { return history->epoch_count() == 32U && settled(); }), "retained history did not expose all 32 epochs");
+		aReport.HistoryPeakRows    = std::max(aReport.HistoryPeakRows, static_cast<std::size_t>(history->rowCount()));
+		aReport.HistoryModelResets = history->statistics().ModelResets - initialResets;
+		require(aReport.HistoryModelResets == 0U, "bounded epoch refresh reset the history model");
+		const auto anchor = history->anchor_at(history->index(controls.right_selector()->currentIndex(), 0));
+		require(anchor.has_value(), "selected epoch has no typed public anchor");
+		for (std::size_t index = 0U; index < aManifest.heads.size(); ++index) {
+			const auto stored = access::maintenance_evidence(aApplication, core::review_epoch_id{ anchor->Identity.Authority, anchor->Identity.Incarnation, core::epoch_ordinal{ static_cast<std::int64_t>(index + 1U) } });
+			std::cerr << "retained-epoch:" << index + 1U << ':' << *glz::write_json(stored) << '\n';
+			require(stored.TargetBaseRefPresent && stored.TargetHeadRefPresent
+						&& stored.TargetBaseRefOid == aManifest.base && stored.TargetHeadRefOid == aManifest.heads[index]
+						&& stored.TargetBaseCatalogOid == aManifest.base && stored.TargetHeadCatalogOid == aManifest.heads[index],
+					"retained catalog/ref pair differs from the independently stored Git head");
+			++aReport.RetainedEpochsVerified;
+		}
+		const auto historicalBaseReady = [&] {
+			return source_matches(30, 32, 32) && surface.current_result()->Alignment.Key.LeftAnchor.Epoch.value() == 1 && settled();
+		};
+		require(measure_wait(aApplication, aBudget, aReport, "historical_base_selection", [&] { select_epoch(controls, 1, core::comparison_side::left); }, historicalBaseReady), "historical base selection did not settle");
+		require(measure_wait(aApplication, aBudget, aReport, "historical_first_head", [&] { select_epoch(controls, 1, core::comparison_side::right); }, [&] { return source_matches(30, 1, 1) && settled(); }), "historical first-head source was replaced by current content");
+		require(window.grab().save(QString::fromLocal8Bit(aImage) + QStringLiteral(".historical.png")), "historical window render failed");
+		QTimer selections;
+		selections.setInterval(1);
+		std::int64_t next = 2;
+		QObject::connect(&selections, &QTimer::timeout, &window, [&] {
+			if (next > 32U) {
+				selections.stop();
+				return;
+			}
+			if (!controls.right_selector()->isEnabled()) {
+				return;
+			}
+			const auto work = access::diff_work_evidence(aApplication);
+			aReport.EpochSelectionsWithOutstandingWork += work.OutstandingJobs != 0U || work.EpochOutstandingJobs != 0U || work.WorkbenchOutstandingRequests != 0U ? 1U : 0U;
+			select_epoch(controls, next++, core::comparison_side::right);
+			++aReport.EpochSelections;
+		});
+		require(measure_wait(aApplication, aBudget, aReport, "epoch_selection_supersession", [&] { selections.start(); }, [&] { return next == 33U && source_matches(30, 32U, 32) && settled(); }), "late epoch result replaced final source");
+		require(aReport.EpochSelections == 31U && aReport.EpochSelectionsWithOutstandingWork != 0U,
+				"epoch selection did not exercise supersession during active work");
+		const auto previousUploadReady = [&] {
+			return selected(surface, source_path(30)) && surface.current_result()->Alignment.Key.LeftAnchor.Epoch.value() == 31
+				&& surface.current_result()->Alignment.Key.RightAnchor.Epoch.value() == 32 && settled();
+		};
+		require(controls.previous_upload_action()->isEnabled(), "previous upload action is disabled");
+		require(measure_wait(aApplication, aBudget, aReport, "previous_upload_comparison", [&] { controls.previous_upload_action()->trigger(); }, previousUploadReady), "previous upload did not select the two newest retained heads");
+		require(surface.left_pane()->document()->firstBlock().text() == "int fixture_0030 = 1;"
+					&& surface.right_pane()->document()->firstBlock().text() == "int fixture_0030 = 32;",
+				"previous upload lost its exact earlier/later source");
+		aReport.WindowWidth      = window.width();
+		aReport.WindowHeight     = window.height();
+		aReport.DevicePixelRatio = window.devicePixelRatioF();
+		aReport.Rendered         = window.grab().save(QString::fromLocal8Bit(aImage));
+		require(aReport.Rendered, "many-epoch public window render failed");
+		const auto work          = access::diff_work_evidence(aApplication);
+		aReport.DiffCacheEntries = work.CacheEntries;
+		aReport.DiffCacheBytes   = work.CacheBytes;
+		aReport.AccountRequests  = access::evidence(aApplication).AccountReadCount;
+		require(work.FixtureDiffHelperInvocations == 0U, "many-epoch course used a fixture diff bypass");
+		for (const auto& phase : aReport.Phases) {
+			if (phase.Name.starts_with("epoch_refresh_")) {
+				require(phase.MaxPulseIntervalMs <= aReport.HistoryInputIntervalLimitMs && phase.ElapsedMs <= aReport.HistoryRefreshLimitMs,
+						"epoch refresh exceeded the provisional measured Mac budget");
+			} else if (phase.Name.starts_with("epoch_source_selection_")) {
+				require(phase.MaxPulseIntervalMs <= aReport.HistoryInputIntervalLimitMs && phase.ElapsedMs <= aReport.HistorySourceSelectionLimitMs,
+						"epoch source selection exceeded the provisional measured Mac budget");
+			}
+		}
+	}
+
 	auto run_benchmark(QApplication& qtApplication, int argc, char** argv) -> int
 	{
-		if (argc != 4 && (argc != 5 || (std::string_view{ argv[4] } != "--unavailable" && std::string_view{ argv[4] } != "--resources"))) {
+		if (argc != 4 && (argc != 5 || (std::string_view{ argv[4] } != "--unavailable" && std::string_view{ argv[4] } != "--resources" && std::string_view{ argv[4] } != "--history"))) {
 			return EXIT_FAILURE;
 		}
 		QTemporaryDir data;
@@ -359,6 +503,7 @@ namespace bpr::e2e::large_review {
 		benchmark_report report;
 		report.UnavailableCourse = argc == 5 && std::string_view{ argv[4] } == "--unavailable";
 		report.ResourceCourse    = argc == 5 && std::string_view{ argv[4] } == "--resources";
+		report.HistoryCourse     = argc == 5 && std::string_view{ argv[4] } == "--history";
 		std::weak_ptr<const core::computed_file_diff>  resourceDiff;
 		std::weak_ptr<const core::diff_semantic_index> resourceIndex;
 		std::unique_ptr<app::github_application>       application;
@@ -368,7 +513,7 @@ namespace bpr::e2e::large_review {
 			fixture_manifest  manifest;
 			require(!glz::read<glz::opts{ .error_on_unknown_keys = false }>(manifest, bytes) && manifest.schema == "bpr.large-review-fixture.v1" && manifest.heads.size() == 32U, "stored manifest");
 			report.Base               = manifest.base;
-			report.Head               = manifest.heads.back();
+			report.Head                       = report.HistoryCourse ? manifest.heads.front() : manifest.heads.back();
 			report.PackBytes          = manifest.pack_bytes;
 			report.Platform           = QSysInfo::prettyProductName().toStdString();
 			report.Architecture       = QSysInfo::currentCpuArchitecture().toStdString();
@@ -377,6 +522,7 @@ namespace bpr::e2e::large_review {
 			report.BuildConfiguration = BPR_BENCH_BUILD_CONFIGURATION;
 			report.LogicalProcessors  = QThread::idealThreadCount();
 			auto fixtureOptions       = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = data.path().toStdString(), .GitExecutable = std::filesystem::path{ argv[1] } };
+			fixtureOptions.LargeReviewHistory = report.HistoryCourse;
 			if (report.UnavailableCourse) {
 				// Retain the production matrix ceiling and disable only its optional
 				// ordered index, so the stored 20,000-line file exceeds real limits.
@@ -398,7 +544,9 @@ namespace bpr::e2e::large_review {
 			require(measure_wait(*application, budget, report, "paged_review_and_git_load", [&] { window.github_open_action()->trigger(); }, [&] { return window.files_drawer()->contents_view()->model()->rowCount() == 515 && access::evidence(*application).SmartFetchCount == 1 && application->status().EpochStatus == core::epoch_status::ready && access::diff_work_evidence(*application).NavigationReady && quiet(*application); }), "review load timed out");
 			verify_snapshot(*application, manifest, report);
 			sample_resources(report, application.get(), "review_loaded");
-			if (report.UnavailableCourse) {
+			if (report.HistoryCourse) {
+				run_history(*application, manifest, report, budget, argv[3]);
+			} else if (report.UnavailableCourse) {
 				require(measure_wait(*application, budget, report, "unavailable_file_selection", [&] { select_file(window, QStringLiteral("large/comparison.cpp")); }, [&] { return selected(surface, QStringLiteral("large/comparison.cpp")) && quiet(*application); }), "unavailable selection timed out");
 				const auto& alignment = surface.current_result()->Alignment;
 				require(alignment.Content == core::diff_content_state::unavailable && alignment.Diagnostic.Code == core::diff_reason_code::compute_limit, "real host result must exceed the retained comparison limit");
@@ -604,12 +752,16 @@ namespace bpr::e2e::large_review {
 			output << *encoded << '\n';
 			output.close();
 			require(output.good(), "measurement write");
-			std::cout << (report.ResourceCourse ? "LARGE_REVIEW_RESOURCES_OK\n" : report.UnavailableCourse ? "UNAVAILABLE_DIFF_COMPOSED_OK\n"
-																										   : "LARGE_REVIEW_COMPOSED_BENCHMARK_OK\n")
+			std::cout << (report.HistoryCourse ? "LARGE_REVIEW_HISTORY_OK\n" : report.ResourceCourse ? "LARGE_REVIEW_RESOURCES_OK\n"
+							  : report.UnavailableCourse                                             ? "UNAVAILABLE_DIFF_COMPOSED_OK\n"
+																									 : "LARGE_REVIEW_COMPOSED_BENCHMARK_OK\n")
 					  << *encoded << '\n';
 			return EXIT_SUCCESS;
 		} catch (const std::exception& error) {
 			std::cerr << "large-review-benchmark-failed: " << error.what() << '\n';
+			if (const auto partial = glz::write_json(report); partial) {
+				std::cerr << "large-review-partial:" << *partial << '\n';
+			}
 			return EXIT_FAILURE;
 		}
 	}

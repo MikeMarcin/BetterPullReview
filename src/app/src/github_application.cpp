@@ -9959,16 +9959,20 @@ namespace bpr::app {
 		const auto cache      = lowerHex(authority.Cache.bytes());
 		const auto scope      = lowerHex(aTarget.Authority.bytes());
 		const auto repository = root / "repositories" / "v1" / (cache + ".git");
-		auto       ordinal    = std::to_string(aTarget.Ordinal.value());
-		if (ordinal.size() < 16U) {
-			ordinal.insert(0U, 16U - ordinal.size(), '0');
-		}
+		const auto ordinal_text = [&lowerHex](std::int64_t aOrdinal) {
+			std::array<std::uint8_t, 8U> bytes{ };
+			const auto                   ordinal = static_cast<std::uint64_t>(aOrdinal);
+			for (std::size_t index = 0U; index < bytes.size(); ++index) {
+				bytes[index] = static_cast<std::uint8_t>(ordinal >> ((bytes.size() - index - 1U) * 8U));
+			}
+			return lowerHex(bytes);
+		};
+		// Installed Git encodes retained ref ordinals as 16 lowercase hex digits.
+		const auto ordinal   = ordinal_text(aTarget.Ordinal.value());
 		const auto epochRoot = repository / "refs" / "betterpullreview" / "v1"
 			/ "scope" / scope / "epoch"
 			/ ordinal;
-		auto nonTargetOrdinal = std::to_string(2U);
-		nonTargetOrdinal.insert(
-			0U, 16U - nonTargetOrdinal.size(), '0');
+		const auto nonTargetOrdinal   = ordinal_text(2);
 		const auto nonTargetEpochRoot = repository / "refs"
 			/ "betterpullreview" / "v1" / "scope" / scope / "epoch"
 			/ nonTargetOrdinal;
@@ -9980,6 +9984,7 @@ namespace bpr::app {
 			return !error && result;
 		};
 
+		std::string baseCatalogOid, headCatalogOid;
 		auto        baseCacheDeleted = false;
 		auto        headCacheDeleted = false;
 		auto        baseAvailability = -1;
@@ -10036,6 +10041,8 @@ namespace bpr::app {
 					},
 					{ });
 				if (anchors && anchors->Anchors.size() == 2U) {
+					baseCatalogOid   = core::canonical_hex(anchors->Anchors[0].Commit).view();
+					headCatalogOid   = core::canonical_hex(anchors->Anchors[1].Commit).view();
 					baseAvailability = static_cast<int>(
 						anchors->Anchors[0].Availability);
 					headAvailability = static_cast<int>(
@@ -10048,6 +10055,12 @@ namespace bpr::app {
 			}
 		}
 
+		const auto ref_oid = [](const std::filesystem::path& aPath) {
+			std::ifstream input{ aPath };
+			std::string   oid;
+			input >> oid;
+			return oid;
+		};
 		return {
 			.PruneIntentDispatchCount          = implementation->EpochPruneIntentDispatchCount,
 			.DeleteIntentDispatchCount         = implementation->EpochDeleteIntentDispatchCount,
@@ -10055,6 +10068,10 @@ namespace bpr::app {
 			.CatalogRevision                   = state.Catalog
 				? state.Catalog->Revision.value()
 				: 0,
+			.TargetBaseCatalogOid              = std::move(baseCatalogOid),
+			.TargetHeadCatalogOid              = std::move(headCatalogOid),
+			.TargetBaseRefOid                  = ref_oid(epochRoot / "base"),
+			.TargetHeadRefOid                  = ref_oid(epochRoot / "head"),
 			.TargetBaseRefPresent              = present(epochRoot / "base"),
 			.TargetHeadRefPresent              = present(epochRoot / "head"),
 			.NonTargetBaseRefPresent           = present(nonTargetEpochRoot / "base"),

@@ -2053,18 +2053,24 @@ namespace bpr::core {
 			if (!anchor_belongs(aState, aIntent.Anchor)) {
 				return reject(epoch_reason_code::invalid_selection);
 			}
-			if (!aState.AcceptedComparison.has_value()) {
+			explicit_comparison_selection pair;
+			if (aState.AcceptedComparison.has_value()) {
+				pair = { aState.AcceptedComparison->Left.Identity, aState.AcceptedComparison->Right.Identity };
+			} else if (const auto* pending = std::get_if<explicit_comparison_selection>(&aState.RequestedSelection);
+					   aState.PendingComparison.has_value() && pending != nullptr
+					   && anchor_belongs(aState, pending->Left) && anchor_belongs(aState, pending->Right)) {
+				// Selection stays enabled during resolution. Preserve the latest
+				// requested opposite side rather than an absent or older result.
+				pair = *pending;
+			} else {
 				return reject(epoch_reason_code::no_resolved_comparison);
 			}
-
-			auto left  = aState.AcceptedComparison->Left.Identity;
-			auto right = aState.AcceptedComparison->Right.Identity;
 			if (aIntent.Side == comparison_side::left) {
-				left = aIntent.Anchor;
+				pair.Left = aIntent.Anchor;
 			} else {
-				right = aIntent.Anchor;
+				pair.Right = aIntent.Anchor;
 			}
-			return start_selection(aState, explicit_selection(left, right));
+			return start_selection(aState, pair);
 		}
 
 		[[nodiscard]] auto handle(

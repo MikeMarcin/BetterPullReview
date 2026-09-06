@@ -1028,6 +1028,16 @@ set_tests_properties(application_unavailable_diff_public_path PROPERTIES
 
 if(APPLE)
     bpr_add_network_isolated_test(
+        NAME application_large_review_history
+        COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
+            $<TARGET_FILE:Git::Git>
+            "${CMAKE_CURRENT_BINARY_DIR}/large-review-history.json"
+            "${CMAKE_CURRENT_BINARY_DIR}/large-review-history.png"
+            --history)
+    set_tests_properties(application_large_review_history PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 600
+        PASS_REGULAR_EXPRESSION "LARGE_REVIEW_HISTORY_OK")
+    bpr_add_network_isolated_test(
         NAME application_large_review_resources
         COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
             $<TARGET_FILE:Git::Git>

@@ -65,6 +65,7 @@ namespace bpr::app::detail {
 	{
 		std::optional<std::filesystem::path>             ApplicationDataRoot;
 		core::diff_compute_limits                        DiffComputeLimits;
+		bool                                             LargeReviewHistory             = false;
 		github_epoch_fixture_phase                       EpochPhase                     = github_epoch_fixture_phase::single;
 		bool                                             DisableWorkbenchSelectionWire  = false;
 		bool                                             DisableReviewLedgerGestureWire = false;
@@ -245,6 +246,7 @@ namespace bpr::app::detail {
 		std::size_t  DeleteIntentDispatchCount         = 0U;
 		std::size_t  CancelIntentDispatchCount         = 0U;
 		std::int64_t CatalogRevision                   = 0;
+		std::string  TargetBaseCatalogOid, TargetHeadCatalogOid, TargetBaseRefOid, TargetHeadRefOid;
 		bool         TargetBaseRefPresent              = false;
 		bool         TargetHeadRefPresent              = false;
 		bool         NonTargetBaseRefPresent           = false;

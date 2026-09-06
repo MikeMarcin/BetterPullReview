@@ -377,10 +377,7 @@ namespace bpr::app::detail {
 			-> std::vector<recorded_exchange>
 		{
 			if (aDescriptor.Paged) {
-				if (aHead != aDescriptor.HeadOneOid) {
-					throw std::runtime_error{ "Large-review fixture serves only its latest head" };
-				}
-				return large_review_fixture::load(std::filesystem::path{ BPR_GITHUB_PULL_REQUEST_FIXTURE_ROOT } / aDescriptor.ContractDirectory);
+				return large_review_fixture::load(std::filesystem::path{ BPR_GITHUB_PULL_REQUEST_FIXTURE_ROOT } / aDescriptor.ContractDirectory, aHead);
 			}
 			const auto root = std::filesystem::path{ BPR_GITHUB_CONTRACT_FIXTURE_ROOT }
 				/ aDescriptor.ContractDirectory;
@@ -641,6 +638,13 @@ namespace bpr::app::detail {
 			{
 				return Paged ? Paged->consumed_all() : Strict.consumed_all();
 			}
+			void replace_completed_paged_script(std::vector<recorded_exchange> aExchanges)
+			{
+				if (!Paged || !Paged->consumed_all()) {
+					throw std::logic_error{ "Only a completed paged fixture may advance" };
+				}
+				Paged.emplace(std::move(aExchanges));
+			}
 			void rewind() noexcept
 			{
 				if (Paged) {
@@ -655,21 +659,42 @@ namespace bpr::app::detail {
 			std::optional<large_review_fixture::sequential_replay> Paged;
 		};
 
+		[[nodiscard]] auto history_heads(const fixture_descriptor& aDescriptor, bool aEnabled) -> std::vector<std::string>
+		{
+			if (!aEnabled) {
+				return { };
+			}
+			if (!aDescriptor.Paged) {
+				throw std::runtime_error{ "History replay requires the stored large-review fixture" };
+			}
+			const auto               manifest = large_review_fixture::read_json(std::filesystem::path{ BPR_GITHUB_PULL_REQUEST_FIXTURE_ROOT } / aDescriptor.ContractDirectory / "manifest.json");
+			std::vector<std::string> heads;
+			for (const auto& head : manifest["heads"].get_array()) {
+				heads.push_back(head.get_string());
+			}
+			if (heads.size() != 32U || heads.back() != aDescriptor.HeadOneOid) {
+				throw std::runtime_error{ "History replay head inventory mismatch" };
+			}
+			return heads;
+		}
+
 		struct fixture_recording_state
 		{
 			fixture_recording_state(
 				const fixture_descriptor&                              aDescriptor,
 				const adapters::github::validated_github_host_profile& aSelectedProfile,
 				std::shared_ptr<deterministic_git_fixture>             aGit,
-				const github_epoch_fixture_phase                       aPhase)
+				const github_epoch_fixture_phase aPhase, bool aHistory)
 				: Descriptor{ aDescriptor }
 				, Profile{ aSelectedProfile }
 				, Git{ std::move(aGit) }
+				, HistoryHeads{ history_heads(aDescriptor, aHistory) }
 				, BootstrapRecording{ load_bootstrap_recording(Descriptor) }
 				, Recording{ [&] {
 								auto result = load_recording(
 									Descriptor,
-									aPhase == github_epoch_fixture_phase::reuse
+									!HistoryHeads.empty() ? std::string_view{ HistoryHeads.front() }
+										: aPhase == github_epoch_fixture_phase::reuse
 										? Descriptor.HeadTwoOid
 										: Descriptor.HeadOneOid);
 								if (aPhase == github_epoch_fixture_phase::seed) {
@@ -695,11 +720,36 @@ namespace bpr::app::detail {
 			{
 			}
 
+			void advance_history(const adapters::github::detail::wire_request& aRequest)
+			{
+				if (HistoryHeads.empty() || HistoryIndex + 1U == HistoryHeads.size()
+					|| !Recording.consumed_all() || aRequest.Operation != read_operation::get_repository) {
+					return;
+				}
+				// Compile one refresh at a time; retaining 32 duplicated comment
+				// scripts would distort the resource measurements of the app.
+				auto exchanges = load_recording(Descriptor, HistoryHeads[HistoryIndex + 1U]);
+				exchanges.erase(exchanges.begin()); // /user belongs to initial session establishment.
+				if (exchanges.front().Request != aRequest) {
+					return;
+				}
+				Recording.replace_completed_paged_script(std::move(exchanges));
+				++HistoryIndex;
+			}
+
+			[[nodiscard]] auto serves_head(std::string_view aHead) const -> bool
+			{
+				return aHead == Descriptor.HeadOneOid || (!Descriptor.HeadTwoOid.empty() && aHead == Descriptor.HeadTwoOid)
+					|| std::ranges::find(HistoryHeads, aHead) != HistoryHeads.end();
+			}
+
 			// Fixed at construction and read from the transport threads without the
 			// mutex, which the const keeps true.
 			const fixture_descriptor                        Descriptor;
 			adapters::github::validated_github_host_profile Profile;
 			std::shared_ptr<deterministic_git_fixture>      Git;
+			const std::vector<std::string>                  HistoryHeads;
+			std::size_t                                     HistoryIndex = 0U;
 			fixture_replay                                  BootstrapRecording;
 			fixture_replay                                  Recording;
 			// The signed-out script. A separate cursor as well as a separate
@@ -923,7 +973,7 @@ namespace bpr::app::detail {
 					core::canonical_hex(Context.Revision.Head).view()
 				};
 				const auto& fixture = State->Descriptor;
-				const auto& pack    = head == fixture.HeadOneOid
+				const auto& pack    = (head == fixture.HeadOneOid || (!State->HistoryHeads.empty() && State->serves_head(head)))
 					? State->Git->PackOne
 					: (!fixture.HeadTwoOid.empty() && head == fixture.HeadTwoOid)
 					? State->Git->PackTwo
@@ -990,6 +1040,9 @@ namespace bpr::app::detail {
 						.Error       = provider_error(
 							application::github_provider_failure::authentication),
 					};
+				}
+				if (Role == fixture_transport_role::account) {
+					State->advance_history(aRequest.Wire);
 				}
 				auto& recording = Role == fixture_transport_role::bootstrap
 					? State->BootstrapRecording
@@ -1089,11 +1142,9 @@ namespace bpr::app::detail {
 				// Every field below is compared exactly against the descriptor of the
 				// one fixture this transport serves. Nothing here is a wildcard.
 				const auto& fixture = State->Descriptor;
-				// The second head is the one optional identity, and absence is not
-				// permission: an empty `HeadTwoOid` describes a fixture that serves a
-				// single head, so it is matched only when present, and then exactly.
-				const auto acceptedHead = head == fixture.HeadOneOid
-					|| (!fixture.HeadTwoOid.empty() && head == fixture.HeadTwoOid);
+				// Ordinary fixtures serve one or two exact heads. History replay
+				// additionally accepts only the explicit stored head inventory.
+				const auto acceptedHead = State->serves_head(head);
 				if (Role != fixture_transport_role::account
 					|| !application::valid(aContext)
 					|| aContext.Authority.Account != fixture.AccountId
@@ -2227,7 +2278,7 @@ namespace bpr::app::detail {
 			const auto served = descriptor(aFixture);
 			Git               = make_git_fixture(served.Packs);
 			Recording         = std::make_shared<fixture_recording_state>(
-				served, aProfile, Git, aOptions.EpochPhase);
+				served, aProfile, Git, aOptions.EpochPhase, aOptions.LargeReviewHistory);
 			Recording->RepeatSessions = aOptions.DeviceRefreshCourse || aOptions.PersistDeviceBindings;
 			Factory                   = std::make_shared<fixture_transport_factory>(Recording);
 			VaultState                = aOptions.SharedDeviceVault ? aOptions.SharedDeviceVault : make_shared_github_fixture_vault();
