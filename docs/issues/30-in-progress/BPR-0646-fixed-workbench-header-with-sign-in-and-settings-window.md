@@ -32,6 +32,8 @@ area in `workbench_window.cpp` and the toolbar it carries.
   in the header without scrolling; the appearance settings panel moves into the
   Settings window drafted in `settings_window.{hpp,cpp}` under `Cmd+,` until the
   RFC-BPR-0018 design replaces it.
+- The appearance roles, the diff colour themes and the DiffLinkMap painting are
+  not changed by this or any RFC-BPR-0028 slice; the owner tuned them already.
 - Core decides, host performs, Qt presents; no new authority in Qt. Owned
   paths: `src/adapters/qt` workbench window, session and device panels, epoch
   line and settings window, `src/app` composition wiring, their focused tests
@@ -46,3 +48,31 @@ area in `workbench_window.cpp` and the toolbar it carries.
 - Attended capture on the Mac candidate showing the strip, epoch line, a
   collapsed and an open rail, and the device sign-in reachable while signed
   out.
+
+## Notes
+
+- Slice (a), settings window and signed-out sign-in. `settings_window.{hpp,cpp}`
+  mounts a modeless Settings window with the seven RFC-BPR-0018 pages under
+  `Cmd+,` (View menu, `QAction::PreferencesRole`); the appearance panel is
+  adopted onto its Appearance page and leaves `workbenchReviewHeader`. The
+  queue landing moves into the files drawer. The device sign-in panel is laid
+  first in the header column and is shown only while there is no accepted
+  session (`no_profile`, `establishing_session`, `session_failed`,
+  `session_cancelled`), so it fits inside the unscrolled 220-pixel header; the
+  focus order walks it before the session chrome, matching reading order.
+  `qt_composed_github_scale_100` now pins that placement, the fit, the
+  hide-on-session and the show-on-establishing transitions;
+  `qt_settings_window` pins the pages, the adoption and the shortcut. The
+  220-pixel `HeaderScroll` and the toolbar stay until the strip slice replaces
+  them, so the `qt_workbench_window_scale_*` link-map evidence and the app
+  composition digests are unchanged.
+- Slice (a) verification, 2026-09-06: `qt_composed_github_scale_100`,
+  `qt_settings_window`, `qt_workbench_window_scale_{100,125,200}`,
+  `qt_appearance_*`, `qt_device_authorization_*`, `qt_github_session_*`,
+  `application_composition_contract`, the appearance, queue, ledger,
+  round-trip and workbench composition contracts, the device authorization
+  course, the github.com public path and `architecture_boundaries` pass;
+  strict tidy over the touched translation units and `clang-format --Werror`
+  are clean; the signed `app-release` bundle builds. The attended capture of
+  the new build could not be taken in that session because the Mac's screen
+  was locked and the displays asleep; it stays owed to this card's acceptance.

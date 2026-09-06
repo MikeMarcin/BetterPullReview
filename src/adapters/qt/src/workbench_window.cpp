@@ -10,6 +10,7 @@
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
+#include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 
 #include <QAbstractItemView>
@@ -640,7 +641,7 @@ namespace bpr::qt {
 				if (ConversationPanel == nullptr || ComparisonSurface == nullptr) {
 					return;
 				}
-				const auto  endpointIsCurrent = aSelection.has_value()
+				const auto endpointIsCurrent = aSelection.has_value()
 					&& (aSelection->PreferredLine.Side == core::diff_side::left
 							? LeftConversationEndpointCurrent
 							: RightConversationEndpointCurrent);
@@ -662,9 +663,9 @@ namespace bpr::qt {
 				}
 			});
 		ReviewSubmissionEditor = new review_submission_editor{
-			[this](review_submission_editor_intent intent) {
+			[this](review_submission_editor_intent aIntent) {
 				if (ReviewSubmissionDispatch) {
-					ReviewSubmissionDispatch(std::move(intent));
+					ReviewSubmissionDispatch(std::move(aIntent));
 				}
 			},
 			Drawers[1].Panel
@@ -840,6 +841,14 @@ namespace bpr::qt {
 		CentralSplitter->addWidget(Drawers[0].Panel);
 		CentralSplitter->addWidget(CentreSurface);
 		CentralSplitter->addWidget(Drawers[1].Panel);
+		// [[BPR-0646]]. The queue landing leaves the review header, which is no
+		// longer a scroll area, and sits under the file list until the
+		// repositories drawer of RFC-BPR-0028 takes it over ([[BPR-0651]]).
+		if (auto* const filesColumn
+			= qobject_cast<QVBoxLayout*>(Drawers[0].Panel->layout());
+			filesColumn != nullptr) {
+			build_queue_landing(Drawers[0].Panel, *filesColumn);
+		}
 		// Only the centre absorbs a window resize, so a drawer keeps the width the
 		// host persisted until the user moves the handle.
 		CentralSplitter->setStretchFactor(0, 0);
@@ -951,8 +960,11 @@ namespace bpr::qt {
 		header->setAccessibleName(QStringLiteral("Pull request"));
 		auto* const column = new QVBoxLayout{ header };
 		column->setContentsMargins(0, 0, 0, 0);
-		column->addWidget(SessionPanel);
+		// [[BPR-0646]]. Sign-in first: while signed out the device panel is the
+		// top of the header, reachable without scrolling; once a session is
+		// accepted it hides (see update_github_presentation_state).
 		column->addWidget(DevicePanel);
+		column->addWidget(SessionPanel);
 		// The picker names the profile the Connect button acts on, so it names
 		// the profile a device code is asked for too. Two sign-in controls side
 		// by side that meant two different hosts would be the defect this mount
@@ -976,7 +988,6 @@ namespace bpr::qt {
 				rebind_device_authorization_profile();
 				DevicePanel->begin_button()->click();
 			});
-		build_queue_landing(header, *column);
 
 		// The empty state is not decoration. Without it a reviewer with no pull
 		// request open sees a comparison of nothing and no indication of what to
@@ -1033,21 +1044,23 @@ namespace bpr::qt {
 		// take the height the comparison needs -- the comparison is the review.
 		PullRequestPanel->body_editor()->setMaximumHeight(120);
 		column->addWidget(PullRequestPanel->body_editor());
-		column->addStretch(0);
 
-		// The settings surface lives with the presentation it governs rather than
-		// behind a modal dialog, so a reviewer sees a font or mode change take
-		// effect on the very comparison they are reading.
+		// [[BPR-0646]]. The appearance surface moves out of the review header
+		// into the Settings window, a modeless child of this window reached by
+		// the preferences shortcut. The composition still finds the same panel
+		// through appearance_settings(), so its wiring is unchanged.
 		AppearanceSettings = new appearance_settings_panel{ { } };
 		AppearanceSettings->setObjectName(
 			QStringLiteral("appearanceSettingsPanel"));
-		column->addWidget(AppearanceSettings);
+		SettingsWindow = new settings_window{ this };
+		SettingsWindow->adopt_panel(settings_page::appearance, AppearanceSettings);
 
 		// Scrolled and bounded rather than free to grow. The comparison is what a
 		// review is looking at, and a long description or a wide locator must not
 		// be able to take the height it needs -- at 820 high with the header
 		// unbounded the comparison became too short to hold a correspondence at
-		// all, which the composed link map assertion caught.
+		// all, which the composed link map assertion caught. RFC-BPR-0028's strip
+		// replaces this header; until then it stays bounded, with sign-in on top.
 		HeaderScroll = new QScrollArea{ this };
 		HeaderScroll->setObjectName(QStringLiteral("workbenchReviewHeaderScroll"));
 		HeaderScroll->setWidgetResizable(true);
@@ -1104,6 +1117,8 @@ namespace bpr::qt {
 	{
 		auto* const surface = new QWidget{ aParent };
 		surface->setObjectName(QStringLiteral("reviewQueueLanding"));
+		// Bounded so the file list above it keeps the drawer\'s height.
+		surface->setMaximumHeight(240);
 		surface->setAccessibleName(QStringLiteral("Local review queue"));
 		surface->setAccessibleDescription(QStringLiteral(
 			"Local observer rules and the pull requests they enrolled; rules never change GitHub assignments."));
@@ -1613,7 +1628,7 @@ namespace bpr::qt {
 		}
 		if (aProjection.Selection) {
 			const auto previousFile = conversation_anchor_file();
-			Cursor = aProjection.Selection->Cursor;
+			Cursor                  = aProjection.Selection->Cursor;
 			apply_file_selection();
 			if (ConversationPanel != nullptr && previousFile != conversation_anchor_file()) {
 				ApplyingConversationAnchor = true;
@@ -2429,6 +2444,17 @@ namespace bpr::qt {
 			return;
 		}
 		PullRequestStack->setCurrentIndex(HasGithubPullRequest ? 1 : 0);
+		// [[BPR-0646]]. Sign-in is a state of the window: the device panel is
+		// shown while there is no accepted session and hidden once there is,
+		// so it is reachable without scrolling and absent when it is noise.
+		if (DevicePanel != nullptr) {
+			const auto status = SessionPanel->status();
+			DevicePanel->setVisible(
+				status == core::github_status::no_profile
+				|| status == core::github_status::establishing_session
+				|| status == core::github_status::session_failed
+				|| status == core::github_status::session_cancelled);
+		}
 
 		QString state;
 		if (HasGithubPullRequest) {
@@ -2857,6 +2883,19 @@ namespace bpr::qt {
 			PrimaryToolbar->widgetForAction(Drawers[1].Toggle)));
 		// The review header sits under the toolbars and above the workbench, so
 		// its stops are declared there. Reading order and focus order agree.
+		// [[BPR-0646]]. Device sign-in reads first while signed out, above the
+		// session chrome, so it is walked first. The panel declares its own
+		// internal order; this places that run in the shell's. Qt's tab walk
+		// skips hidden widgets, so a signed-in window walks straight into the
+		// session chrome.
+		if (DevicePanel != nullptr) {
+			append(DevicePanel->user_code_field());
+			append(DevicePanel->address_field());
+			append(DevicePanel->begin_button());
+			append(DevicePanel->copy_button());
+			append(DevicePanel->open_button());
+			append(DevicePanel->cancel_button());
+		}
 		if (SessionPanel != nullptr) {
 			// The ring reads above the picker, so it is walked before it.
 			append(SessionPanel->usage_indicator());
@@ -2869,17 +2908,6 @@ namespace bpr::qt {
 			append(SessionPanel->pull_request_editor());
 			append(SessionPanel->open_button());
 			append(SessionPanel->refresh_button());
-		}
-		// Device sign-in reads directly under the session chrome, so it is
-		// walked directly after it. The panel declares its own internal order;
-		// this places that run in the shell's.
-		if (DevicePanel != nullptr) {
-			append(DevicePanel->user_code_field());
-			append(DevicePanel->address_field());
-			append(DevicePanel->begin_button());
-			append(DevicePanel->copy_button());
-			append(DevicePanel->open_button());
-			append(DevicePanel->cancel_button());
 		}
 		append(QueueView);
 		append(QueueRoleFilter);
@@ -3063,6 +3091,36 @@ namespace bpr::qt {
 		connect(LineNumbersAction, &QAction::triggered, this, [this] {
 			dispatch_line_numbers_toggle();
 		});
+		// [[BPR-0646]]. Settings is a window, reached by the platform's
+		// preferences shortcut; on macOS the role places it in the app menu.
+		SettingsAction = new QAction{ QStringLiteral("&Settings…"), this };
+		SettingsAction->setObjectName(QStringLiteral("openSettingsAction"));
+		SettingsAction->setMenuRole(QAction::PreferencesRole);
+		SettingsAction->setShortcut(QKeySequence::Preferences);
+		SettingsAction->setShortcutContext(Qt::ApplicationShortcut);
+		addAction(SettingsAction);
+		ViewMenu->addSeparator();
+		ViewMenu->addAction(SettingsAction);
+		connect(SettingsAction, &QAction::triggered, this, [this] {
+			open_settings(settings_page::appearance);
+		});
+	}
+
+	void workbench_window::open_settings(const settings_page aPage)
+	{
+		if (SettingsWindow != nullptr) {
+			SettingsWindow->present(aPage);
+		}
+	}
+
+	auto workbench_window::settings() const noexcept -> settings_window*
+	{
+		return SettingsWindow;
+	}
+
+	auto workbench_window::settings_action() const noexcept -> QAction*
+	{
+		return SettingsAction;
 	}
 
 	void workbench_window::dispatch_line_numbers_toggle()

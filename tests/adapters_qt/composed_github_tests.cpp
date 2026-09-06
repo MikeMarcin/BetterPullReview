@@ -2977,12 +2977,9 @@ namespace {
 			profiles(),
 			[](application::github_intent) { },
 		};
-		publish_session_ready(window);
-		publish_pull_request(window);
 		window.resize(1'100, 900);
 		window.show();
 		QApplication::processEvents();
-
 		auto* const header = required_child<QWidget>(
 			window, "workbenchReviewHeader");
 		auto* found = static_cast<QWidget*>(nullptr);
@@ -2996,7 +2993,6 @@ namespace {
 			found != nullptr && found == window.device_authorization(),
 			"the review header holds the device sign-in panel under its "
 			"accessible name");
-
 		auto* const panel = window.device_authorization();
 		expect(
 			panel->parentWidget() == header
@@ -3004,26 +3000,51 @@ namespace {
 				&& header->layout()->indexOf(panel) >= 0,
 			"the device panel is laid into the review header's own column, not "
 			"merely parented to it");
+		// [[BPR-0646]]. Signed out, sign-in is the first thing the header
+		// shows: it sits above the session chrome that offers the token prompt,
+		// so it is reached without scrolling the header.
 		auto* const session = window.session_panel();
 		expect(
 			session != nullptr && session->parentWidget() == header
-				&& header->layout()->indexOf(panel)
-					== header->layout()->indexOf(session) + 1,
-			"device sign-in is the stop directly after the session chrome that "
-			"offers the token prompt");
+				&& header->layout()->indexOf(panel) + 1
+					== header->layout()->indexOf(session),
+			"device sign-in is the header's first stop, directly above the "
+			"session chrome that offers the token prompt");
 		expect(
 			panel->isVisible() && panel->width() > 0 && panel->height() > 0
 				&& panel->mapTo(header, QPoint{ 0, 0 }).y()
-					> session->mapTo(header, QPoint{ 0, 0 }).y(),
-			"the mounted panel is a visible region under the Connect control");
+					< session->mapTo(header, QPoint{ 0, 0 }).y(),
+			"while signed out the mounted panel is a visible region above the "
+			"Connect control");
+		auto* const unscrolledHeader = required_child<QScrollArea>(
+			window, "workbenchReviewHeaderScroll");
+		expect(
+			unscrolledHeader->verticalScrollBar()->value() == 0
+				&& panel->mapTo(unscrolledHeader->viewport(), QPoint{ 0, 0 }).y()
+					>= 0
+				&& panel->mapTo(unscrolledHeader->viewport(), QPoint{ 0, 0 }).y()
+						+ panel->height()
+					<= unscrolledHeader->viewport()->height(),
+			"the signed-out sign-in panel fits inside the unscrolled header");
 
 		const auto declared = window.focus_order();
 		expect(
 			declared.contains(panel->begin_button())
 				&& declared.contains(panel->cancel_button())
-				&& declared.indexOf(panel->user_code_field())
-					== declared.indexOf(session->refresh_button()) + 1,
-			"the panel's stops are declared directly after the session chrome's");
+				&& declared.indexOf(panel->cancel_button()) + 1
+					< declared.size()
+				&& session->isAncestorOf(
+					declared[declared.indexOf(panel->cancel_button()) + 1]),
+			"the panel's stops are declared directly before the session "
+			"chrome's, matching reading order");
+
+		publish_session_ready(window);
+		publish_pull_request(window);
+		QApplication::processEvents();
+		expect(
+			!panel->isVisible(),
+			"once a session is accepted the sign-in panel is hidden rather than "
+			"left as noise above the pull request");
 
 		// The window sets no dispatch of its own, so this one is the test's,
 		// exactly as it is for the two agent surfaces above.
@@ -3051,6 +3072,17 @@ namespace {
 						.Profile
 					== *selected,
 			"pressing begin emits one intent naming the picker's own profile");
+		// The core answers a begin by moving the status; the shell shows the
+		// panel again for the flow it started, exactly as it does for a
+		// signed-out window.
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Status = core::github_status_delta{
+					.Status = core::github_status::establishing_session } } });
+		QApplication::processEvents();
+		expect(
+			panel->isVisible(),
+			"a flow the core is establishing shows the sign-in panel again");
 
 		// The picker names the host the Connect button acts on. Sign-in has to
 		// mean the same host through both doors, so changing it here changes

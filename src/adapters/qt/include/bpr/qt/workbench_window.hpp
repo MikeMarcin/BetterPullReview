@@ -17,6 +17,7 @@
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/review_landing_model.hpp"
 #include "bpr/qt/review_submission_editor.hpp"
+#include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 
 #include <QList>
@@ -374,6 +375,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto public_preview_refusal_text() const -> QString;
 
 		/// \brief The appearance surface, composed beside the review it governs.
+		/// \brief Shows the Settings window on a page; a no-op before composition.
+		void               open_settings(settings_page aPage);
+		[[nodiscard]] auto settings() const noexcept -> settings_window*;
+		[[nodiscard]] auto settings_action() const noexcept -> QAction*;
 		[[nodiscard]] auto appearance_settings() const noexcept
 			-> appearance_settings_panel*;
 		[[nodiscard]] auto files_drawer_toggle_action() const noexcept -> QAction*;
@@ -609,6 +614,8 @@ namespace bpr::qt {
 		application::device_authorization_gesture_dispatch         DeviceDispatch;
 		github_pull_request_panel*                                 PullRequestPanel     = nullptr;
 		appearance_settings_panel*                                 AppearanceSettings   = nullptr;
+		settings_window*                                           SettingsWindow       = nullptr;
+		QAction*                                                   SettingsAction       = nullptr;
 		QStackedWidget*                                            PullRequestStack     = nullptr;
 		QLabel*                                                    EmptyStateTitleLabel = nullptr;
 		QLabel*                                                    EmptyStateBodyLabel  = nullptr;
