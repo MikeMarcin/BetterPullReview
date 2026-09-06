@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0630"
 title: "Measure and verify large-review resource reclamation"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0629"]
 platforms: ["mac"]
