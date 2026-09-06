@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0612"
 title: "Replace all remaining Qt JSON parsing and serialization with Glaze"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0002"]
 depends_on: ["BPR-0610","BPR-0636","BPR-0637","BPR-0638","BPR-0639","BPR-0640"]
 ---
