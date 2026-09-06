@@ -77,7 +77,8 @@ not permission to leave a newly discovered caller behind.
 
 ## Status
 
-Not started. On 2026-09-05 the owner questioned doing performance work before
+Implementation is underway through the bounded cards below. On 2026-09-05 the
+owner questioned doing performance work before
 finishing this migration. This card is now selected for bounded planning and
 implementation ahead of further RFC-BPR-0013 performance work. Split the
 contracts and helpers into dependency-ordered slices before claiming source
@@ -101,3 +102,13 @@ Qt boundary guard, not a parser implementation.
 
 This is the migration closeout anchor; canonical RFC closure order is unchanged.
 Further performance work waits for completion of these slices.
+
+## Migration progress
+
+BPR-0636 completes the mutation contract in `25b72eaafbf6132937da00be67d59475e18a9c8d`: typed target/viewer/comment
+records, one-pass recovery parsing, exact uint64 identities and byte-compatible
+line-comment serialization. Contract, synthetic provider, restart recovery and
+public application round-trip evidence are recorded on that card, including a
+corrected stale composition-test link inventory. Seven production/composed-fixture
+files and the test/helper migration remain. Next: select BPR-0637 for device
+sign-in and capability contracts; preserve the remembered production session.
