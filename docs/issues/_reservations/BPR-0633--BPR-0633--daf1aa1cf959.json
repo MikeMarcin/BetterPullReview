@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0633"
+  ],
+  "reserve_for": "loaded-review-close",
+  "purpose": "",
+  "created": "2026-09-06T05:24:29.951793+00:00",
+  "base": "77bd3f26ef7266f27b62af6e35d89f5415d57684"
+}
