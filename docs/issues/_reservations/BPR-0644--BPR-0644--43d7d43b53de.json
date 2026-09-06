@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0644"
+  ],
+  "reserve_for": "bpr-alpha-launch-renewal",
+  "purpose": "",
+  "created": "2026-09-06T19:48:45.130923+00:00",
+  "base": "d5a42f1885e1bafd24487cf2801bbfd628ce0b85"
+}
