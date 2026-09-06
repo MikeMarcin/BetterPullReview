@@ -48,3 +48,11 @@ tests, and the RFC-BPR-0016 course inventory.
 - A refresh-expired or rejected binding tombstones and offers Begin.
 - The tests-disabled Mac app relaunched more than eight hours after a device
   sign-in resumes the session with no credential prompt (attended).
+
+Further observation, 2026-09-06 20:34 to 20:37 UTC: a launch restored the
+session from a durable binding (viewer and capability succeeded), the process
+was then ended with SIGTERM, and the next launch found the row tombstoned
+although its access lifetime had hours left. So restoration is also lost
+across an ordinary restart before expiry, through the shutdown or the next
+launch's cleanup path; reproduce with an orderly quit and with SIGTERM and
+include both in this card's acceptance.

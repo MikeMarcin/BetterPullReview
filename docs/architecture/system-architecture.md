@@ -550,7 +550,12 @@ roles, never colours, and consults no standard path.
 
 The Qt adapter turns a core-resolved variant plus a palette into applied
 presentation without installing a forced style or QSS, preserving the contract
-that the application inherits the native style and interface font.
+that the application inherits the native style and interface font. A stored
+palette customizes exactly one variant, which the durable record names
+(`palette_variant`, appearance schema format 2, BPR-0645): the adapter reads
+the record as overrides against that variant's built-in profile and applies
+them only while that variant resolves, so a light customization never colours
+the dark profile when the desktop scheme changes.
 
 The Qt-free `core-only` preset acquires neither KSyntaxHighlighting nor the
 syntax adapter; its resolved package set remains SQLite alone.
