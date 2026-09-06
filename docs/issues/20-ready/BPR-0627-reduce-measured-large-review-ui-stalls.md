@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0627"
 title: "Diagnose and reduce measured large-review UI stalls"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0624"]
 ---
