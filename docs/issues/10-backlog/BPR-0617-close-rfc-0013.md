@@ -52,9 +52,15 @@ Git fsck/ref identity, SQLite integrity/session identity, two no-replay reopens
 and explicit session #2 with new-workspace cleanup. The interrupted workspace
 retains 18 exact entries; complete resource recovery is still false.
 
-Next, scope and implement BPR-0622. Read the installed-Git parent/workspace
-identity and quarantine/removal operations, `agent_workspace` host/port
-lifecycle and `github_application.cpp` construction/shutdown. Current parent
+BPR-0622 is In Progress. Its Unix lifetime prerequisite (`e50edf77`) passes
+paused-supervisor lock exclusion after application PID/group death (25.15s),
+normal protocol/architecture checks (79.46s) and the tests-off application build.
+No production caller supplies the guard yet; this does not reclaim workspaces.
+
+Next implement its durable registry and host handoff on the effect lane. Read
+the installed-Git parent/workspace identity and quarantine/removal operations,
+`agent_workspace` host/port lifecycle and `github_application.cpp` construction/
+shutdown. Current parent
 and child cleanup capabilities are in memory; the SQLite session catalog
 intentionally has no filesystem paths. Establish bounded durable ownership,
 live-owner exclusion and exact recovery authority before source changes. Do

@@ -80,3 +80,70 @@ persist identity before materialization, and record a chosen quarantine path
 before rename. Keep all scans and recursive cleanup on the effect lane. Root
 construction, materialization and cleanup need crash checkpoints. This plan
 is not acceptance of an unwired lifetime guard or incomplete journal.
+
+## Lifetime prerequisite — implemented, card still In Progress
+
+Source `e50edf77cc0af477bdfdc7d0ef269108e7f61722` adds the optional host-owned guard reference and Unix
+launcher/supervisor retention described above. The adapter checks canonical
+path, exact regular-file identity, private ownership and single link, and
+retains a shared lock through a read-only descriptor. The supervisor inherits
+only the designated duplicate and closes it in the external child before exec.
+A requested guard on other platforms refuses; no production workspace owner
+supplies this reference yet. Durable registration, restart reclamation and
+non-Unix guard transfer remain unimplemented, so this card is not complete.
+
+The real parent-death test freezes the supervisor with SIGSTOP, then kills the
+application by PID or isolated process group. An independent exclusive lock
+must still fail while the paused supervisor owns the running agent. Resuming
+it stops the agent/descendant; exclusive access and a fresh launch then succeed.
+This test initially failed: application death orphaned the stopped supervisor's
+process group, causing a hangup/continue and supervisor exit. The launcher now
+starts the supervisor in its own session, avoiding that orphan transition.
+The fixture's failure cleanup was hardened to tolerate an already-dead
+supervisor; the two exact leaked fixture processes from the first attempt were
+identified, killed and independently confirmed absent.
+
+### Local verification — 2026-09-05
+
+- Dev canary target builds. `agent_parent_death` passes in 25.15s (25.16s total),
+  including live and dead-parent lock exclusion, both PID/group kill courses,
+  post-teardown release and fresh launches. Its preparatory public-launcher
+  course also passes busy-lock, same-path substitution and symlink refusals
+  before the external child side effect; successful guarded execution exposes
+  no guard descriptor to the agent.
+- Final `qt_agent_launch_canary` and `architecture_boundaries` pass 2/2 in
+  79.46s (71.46s and 7.99s). The isolation manifest passed in 3.38s before the
+  session-only repair; its registration inputs are unchanged.
+- Tests-off `app-release` application builds after the session repair. Built
+  and bundled supervisor SHA-256 both equal
+  `58a20eee115f95505844123074c8178a9f02ff7a334f2e1202d5ee99ec650fb3`.
+  `otool -L` lists only libc++ and libSystem. The application was not launched.
+- Documentation gate, changed C++ clang-format checks and `git diff --check`
+  pass. No GitHub Actions, push, live credentials, live agent or paid service.
+  Task build logs are removed after recording results; test roots are consumed
+  by their contained runners. No release application sign-out was performed.
+
+## Next implementation step
+
+Implement the durable registry and integrate its lifecycle on the effect lane.
+Carry its exact guard reference from the owned workspace into the process
+request; the native primitive above is ready for that handoff. Retain the
+owner's shared lock during preparation, materialization and normal cleanup;
+restart needs exclusive access plus durable original ownership and scope.
+
+Use the installed-Git native identity/quarantine operations. The current
+`quarantine_and_remove_exact` chooses a random destination and changes only an
+in-memory path; a durable cleanup record must publish its chosen quarantine
+path before rename and recognize both original and quarantine identities on
+restart. Do not substitute a post-crash pathname capture for original ownership.
+Reserve bounded journal capacity before creating a parent/root, persist exact
+identity before materialization, and leave unknown pre-ownership artifacts
+preserved with bounded refusal/repair. Recovery scans and recursive removal
+must not run on the Qt/decision lane. Preserve the immutable SQLite session
+catalog format; use a separate versioned Glaze record if choosing JSON.
+
+Add preparation/materialization/cleanup kill cases, live-owner and substitution
+negatives, then upgrade the composed BPR-0621 orphan observation to prove actual
+reclamation of a durably owned workspace. Run repeated ordinary recovery and
+session #2 with unchanged Git/SQLite identities. Keep safe preservation for
+historical roots without ownership receipts. Only then consider Done.
