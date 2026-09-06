@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0626",
+    "BPR-0627"
+  ],
+  "reserve_for": "rfc0013-measured-large-review-followups",
+  "purpose": "",
+  "created": "2026-09-06T02:12:28.935653+00:00",
+  "base": "f7163addc9d72c7b8df167a9789959453c7505f0"
+}
