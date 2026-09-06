@@ -2,9 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0612"
 title: "Replace all remaining Qt JSON parsing and serialization with Glaze"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0002"]
 depends_on: ["BPR-0610","BPR-0636","BPR-0637","BPR-0638","BPR-0639","BPR-0640"]
+acceptance: [{"criterion":"complete-inventory","outcome":"pass","revision":"e80f7a15c1bfcb98c123805d65b44efff5009feb","evidence":{"kind":"observation","detail":"All eight production/composed-fixture and nine test/helper Qt JSON migrations are complete in BPR-0636 through BPR-0640. Fresh src/tests inventory finds only the intentional Python boundary guard."}},{"criterion":"typed-boundaries-and-provenance","outcome":"pass","revision":"e80f7a15c1bfcb98c123805d65b44efff5009feb","evidence":{"kind":"observation","detail":"Scoped diff against migration base preserves pure core and public ports. Private Glaze wire records/raw ownership use exact integers; pinned Glaze 8.3.0 provider and MIT provenance are unchanged."}},{"criterion":"contract-compatibility","outcome":"pass","revision":"e80f7a15c1bfcb98c123805d65b44efff5009feb","evidence":{"kind":"observation","detail":"Slice records retain required/null/unknown/duplicate, Unicode, full-input, byte/depth/record/authority/pagination/error/privacy coverage. Frozen literal request bytes and restart recovery pass; runner overwritten-member review counterexamples are fixed and tested."}},{"criterion":"final-integration","outcome":"pass","revision":"e80f7a15c1bfcb98c123805d65b44efff5009feb","evidence":{"kind":"observation","detail":"Five final helper checks pass. Final integration retains twelve passing lanes plus the corrected round-trip source-binding rerun (50.97s), including local auth, refresh, read, anonymous, provider, two recovery paths, GitHub/GHES composition and large-review replay."}},{"criterion":"performance-order-and-closeout","outcome":"pass","revision":"e80f7a15c1bfcb98c123805d65b44efff5009feb","evidence":{"kind":"observation","detail":"Parser-sensitive benchmark and loaded-close timings/native memory refreshed on the unchanged large-review fixture before resuming RFC13 work. Existing 160/96 MiB budgets pass. Documentation and scoped board checks pass; no live session, Actions, push or paid CI operation."}}]
 ---
 
 # Replace all remaining Qt JSON parsing and serialization with Glaze
@@ -77,15 +78,12 @@ not permission to leave a newly discovered caller behind.
 
 ## Status
 
-Implementation is underway through the bounded cards below. On 2026-09-05 the
-owner questioned doing performance work before
-finishing this migration. This card is now selected for bounded planning and
-implementation ahead of further RFC-BPR-0013 performance work. Split the
-contracts and helpers into dependency-ordered slices before claiming source
-ownership. BPR-0610 is complete; preserve its typed whole-review contract.
-Existing cache-eviction and lifetime tests remain regression coverage. Refresh
-parser-sensitive timing and memory evidence after the migration rather than
-tuning the outgoing Qt JSON implementation.
+The full migration is complete through BPR-0636–BPR-0640. Repository-owned C++
+production code, composed fixtures and test/diagnostic helpers use Glaze. The
+final inventory, focused integration and refreshed parser-sensitive measurements
+are recorded below and on BPR-0640. This completes the owner's requested
+prerequisite for further RFC-BPR-0013 work; it does not reopen historical RFC
+acceptance or close unrelated attended/platform gates.
 
 ## Selected migration plan
 
@@ -199,5 +197,29 @@ platform context, source-binding audit and cleanup are recorded on BPR-0640.
 Parser-sensitive timing and memory observations have been refreshed on the
 unchanged 515-file/1,000-thread large-review fixture after the migration. The
 loaded-close course retains the existing 160/96 MiB growth/cleanup budgets and
-confirms object/cache/job release. This anchor is ready for final board closeout;
-it does not change historical RFC closure or outstanding attended/platform gates.
+confirms object/cache/job release. All five slices are Done. This closeout does not change historical RFC closure
+or outstanding attended/platform gates.
+
+## Migration closeout
+
+Selection `566cf5c3`; claim `d640a01d606570be6b83fb1ace3ec911855764e2`.
+Final source `e80f7a15c1bfcb98c123805d65b44efff5009feb`; BPR-0640 finish
+`879190668c6c7520e7cca13308d57c808241c01a`. The scoped source diff against
+`4e6a6013f3589711f614fba7b9c46b8967313796` contains the planned eight production
+and nine helper migrations, raw regression coverage and associated fixture/link
+checks. No functional core or public application port gained a provider type.
+The pinned Glaze 8.3.0 provider and MIT license hashes are unchanged.
+
+BPR-0636–BPR-0638 retain the detailed exact-integer, nullable/required/unknown,
+duplicate, Unicode, full-input, authority, bound and atomic-pagination evidence.
+BPR-0639 retains capture-field/identity compatibility. BPR-0640 retains the
+independent canonical request literals, final helper fidelity checks and actual
+public-path/recovery integration. The existing twelve passing integration lanes
+plus the corrected round-trip rerun establish all selected migration lanes;
+there is no claim that the initial aggregate run was all green.
+
+The final source inventory and documentation gate pass. All evidence is local
+to this Mac using synthetic fixtures, with the remembered production session
+preserved. No Actions, push or paid CI ran. Windows/Linux and unresolved human
+RFC acceptance remain outside this migration closeout. BPR-0635 may now proceed
+against Glaze using the refreshed timing/memory observations on BPR-0640.
