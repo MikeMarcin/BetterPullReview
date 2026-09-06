@@ -4,7 +4,7 @@ id: "BPR-0617"
 title: "Verify and close RFC-BPR-0013"
 status: "Backlog"
 rfcs: ["RFC-BPR-0013"]
-depends_on: ["BPR-0507","BPR-0616","BPR-0618","BPR-0619","BPR-0620","BPR-0621","BPR-0622","BPR-0623","BPR-0624","BPR-0626","BPR-0627","BPR-0628","BPR-0629"]
+depends_on: ["BPR-0507","BPR-0616","BPR-0618","BPR-0619","BPR-0620","BPR-0621","BPR-0622","BPR-0623","BPR-0624","BPR-0626","BPR-0627","BPR-0628","BPR-0629","BPR-0630"]
 closeout_for: ["RFC-BPR-0013"]
 ---
 
@@ -191,3 +191,11 @@ Next inventory and exercise the remaining RFC-0013 memory/pruning, many-epoch,
 backoff/offline, fuzz/diagnostic and broader active-work criteria, reusing earlier
 relevant checks. The BPR-0622 Windows/Linux handoff and earlier live gates remain
 open. All work remains local to this Mac; no remote CI or live account was used.
+
+
+The next available Mac slice is BPR-0630, a direct large-review resource course.
+Existing diff host ceilings and on-disk maintenance evidence remain relevant,
+but neither shows native memory or immutable diff/index release after public
+prune/delete/close. Measure those phases through the real composition, correct
+demonstrated stale ownership, and establish local evidence-based thresholds.
+Keep broader cache pressure, many-epoch and other native-platform claims open.
