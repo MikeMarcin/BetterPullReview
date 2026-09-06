@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0642"
+  ],
+  "reserve_for": "bpr-0641-load-failure-diagnostics",
+  "purpose": "",
+  "created": "2026-09-06T18:34:28.689454+00:00",
+  "base": "d616767463fc12f4ad2c9f641794715da42226e0"
+}
