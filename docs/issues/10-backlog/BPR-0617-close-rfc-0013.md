@@ -34,8 +34,8 @@ performance subsystem or fabricate timing budgets before measurement.
 
 | Criterion | Check / remaining work | Result and commit |
 |---|---|---|
-| Checked-in benchmark fixtures cover large file counts, large files, many comments, many epochs, and mixed binary/generated content. | BPR-0623 supplies a synthetic 515-file pack with a 20,000-line comparison, binary/generated content, 32 heads and 1,000 paged comments. Stored-object and semantic-drift checks pass. Serve it through the ordinary application and measure the workload next. | Input boundary passes in `ee1717c2`; application benchmark integration and thresholds remain open. |
-| UI input, scrolling, and navigation remain responsive while background work runs. | Measure ordinary application input, navigation and scrolling while its selected workers are active. | Open; no RFC-wide passing result claimed. |
+| Checked-in benchmark fixtures cover large file counts, large files, many comments, many epochs, and mixed binary/generated content. | BPR-0623 supplies a synthetic 515-file pack with a 20,000-line comparison, binary/generated content, 32 heads and 1,000 paged comments. Stored-object and semantic-drift checks pass. BPR-0624 serves the latest head through the ordinary provider/installed-Git/application path and measures it. | Input boundary passes in `ee1717c2`; latest-head composed course passes in `e9da7abc` (27.30s). Many-epoch application replay and justified budgets remain open. |
+| UI input, scrolling, and navigation remain responsive while background work runs. | BPR-0624 verifies 32 selections (31 with outstanding diff work), exact final source, change navigation and idle wheel invariants. Its Mac timer observes 387.48 ms/201.09 ms maximum intervals in large/rapid selection. BPR-0627 owns profiling/correction and active-work input follow-up. | Open; correctness passes in `e9da7abc`, but measured stalls prevent an RFC-wide responsiveness claim. |
 | Memory and cache usage remain within documented budgets and recover after closing/pruning reviews. | Measure process/cache retention through close and prune; justify hardware-specific thresholds before enforcing them. | Open; no RFC-wide passing result claimed. |
 | Primary and secondary rate-limit simulations produce bounded backoff and useful UI state. | Reuse and assess provider/host rate-limit fixtures and their visible projection; add uncovered backoff cases. | Open; no RFC-wide passing result claimed. |
 | Offline mode uses clearly labeled cached data and never implies freshness. | Inspect selected cached-data behavior and exercise explicit stale/offline presentation. | Open; no RFC-wide passing result claimed. |
@@ -88,18 +88,28 @@ and justified platform budgets. BPR-0622's remaining Windows/Linux work is now
 explicitly platform-filtered and remains open with its native handoff.
 
 
-Next Mac implementation: add a composed benchmark course that serves BPR-0623's
-actual pack and paged provider records, verifies the full file/comment inventory,
-selects and renders exact source content through installed Git, and records
-input/navigation/scroll/cancellation behavior under background work with host
-and workbench counters. Select measured hardware-specific limits only after
-observing that course. The current fixture contract proves the inputs and
-revision history; it is not an application-performance passing result.
+BPR-0624's composed latest-head course now passes in `e9da7abc`, including all
+29 paged account requests, 515 files, 1,000 exact source threads/comments,
+installed-Git blob identity, both 20,000-line displayed documents, full-window
+render, change actions, idle wheel invariants and rapid-selection precedence.
+BPR-0625's core fix `10520a43` extends the unchanged matrix ceiling with an exact
+ordered unique-line route, separately bounded by actual index/comparison work.
+Independent review's undercount finding is fixed; small reference equivalence,
+normalization, refusal and exact/exhausted limits pass in dev and core-only.
 
-BPR-0624 now owns that composed latest-head benchmark slice, including exact
-paged-provider exhaustion, installed-Git display, gestures, supersession and
-hardware-context measurements. No new remote or paid verification is authorized.
+BPR-0624 retains hardware and measured phase details. On this M4 Pro/48 GiB,
+macOS 26.6.2 arm64, Debug Qt 6.10.3 offscreen/Fusion Mac, the composed course
+passes in 27.30s. Maximum timer intervals of 387.48 ms during large selection
+and 201.09 ms during rapid selection are material remaining work, not passing
+responsiveness budgets. Final diff cache is two entries/3,517,512 bytes, which
+is not a process-memory or pruning proof. Only the latest application epoch
+is exercised. Core-only diff/architecture checks pass 4/4; dev architecture,
+fixture, isolation, retained single-page application and composition checks
+pass 6/6. Documentation and diff checks pass after recording the completed core
+dependency. Source changes are local; no paid/remote CI was used.
 
-BPR-0625 addresses the full-matrix limit exposed by the stored 20,000-line
-comparison. The composed benchmark remains open until exact source and
-interaction acceptance passes; loading the provider inventory alone is partial.
+Next Mac slices: BPR-0626 presents typed unavailable comparisons truthfully;
+BPR-0627 profiles and reduces the measured main-thread stalls before selecting
+justified local targets. Keep RFC-0013 open for remaining memory/pruning,
+backoff/offline, fuzz/diagnostic, active-work scrolling and target-native
+criteria. Preserve the Windows/Linux BPR-0622 handoff and earlier live gates.
