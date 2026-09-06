@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0624"
 title: "Measure large-review interactions through the composed application"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0623"]
 ---
