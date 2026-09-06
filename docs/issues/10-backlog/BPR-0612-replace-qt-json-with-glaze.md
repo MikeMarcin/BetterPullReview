@@ -4,7 +4,7 @@ id: "BPR-0612"
 title: "Replace all remaining Qt JSON parsing and serialization with Glaze"
 status: "Backlog"
 rfcs: ["RFC-BPR-0002"]
-depends_on: ["BPR-0610"]
+depends_on: ["BPR-0610","BPR-0636","BPR-0637","BPR-0638","BPR-0639","BPR-0640"]
 ---
 
 # Replace all remaining Qt JSON parsing and serialization with Glaze
@@ -85,3 +85,19 @@ ownership. BPR-0610 is complete; preserve its typed whole-review contract.
 Existing cache-eviction and lifetime tests remain regression coverage. Refresh
 parser-sensitive timing and memory evidence after the migration rather than
 tuning the outgoing Qt JSON implementation.
+
+## Selected migration plan
+
+Migration base `4e6a6013f3589711f614fba7b9c46b8967313796`; reservation commit `4e6a6013`.
+Refreshed inventory agrees with the eight production/composed-fixture and nine
+C++ test/helper files above. The architecture Python test contains an intentional
+Qt boundary guard, not a parser implementation.
+
+- BPR-0636: legacy mutation contracts and raw identity regression coverage.
+- BPR-0637: device authorization and capability discovery.
+- BPR-0638: read contracts, normalizer and pagination.
+- BPR-0639: application composition and stored public fixtures.
+- BPR-0640: remaining test helpers, final inventory and integration.
+
+This is the migration closeout anchor; canonical RFC closure order is unchanged.
+Further performance work waits for completion of these slices.
