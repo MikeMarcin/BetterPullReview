@@ -93,8 +93,13 @@ hostname without a URL path. Enter tokens only in the app's credential
 prompt. The tests-enabled `dev` app refuses ordinary live whole-review
 composition, so it is unsuitable as the work alpha.
 
-This route uses the local build tree and its installed dependencies. It does
-not promise a relocatable or signed package. If another machine is the first
+This route uses the local build tree and its installed dependencies. Mac release
+builds now seal the finished bundle locally. Configure
+`-DBPR_MACOS_CODESIGN_IDENTITY="YOUR EXISTING SIGNING IDENTITY"` once to retain
+Keychain trust across rebuilds; this Mac's ignored build cache already selects
+the owner's existing Developer ID identity. The default is ad-hoc signing.
+The build contacts no timestamp/notarization service. This is not a relocatable
+or notarized distribution package. If another machine is the first
 target, produce and smoke-test that target's app/dependencies before delivery;
 do not expand to the full release platform matrix.
 
@@ -135,3 +140,10 @@ bounded delivery work without completing the entire pack first; it does not
 mark open criteria passed or activate the deferred redesign RFCs. On resume,
 start with step 1, then allocate/claim only the next essential implementation
 slice through implement-rfc. Keep acceptance on its owning live card.
+
+## Implementation continuation — BPR-0641
+
+BPR-0641 owns ordinary inline publication and the Mac candidate. The owner
+named a private GitHub.com PR for a read-only smoke check; its content is not
+retained in this repository. No comment/review submission to that work PR is
+authorized. Authentication and live observation results belong on the card.
