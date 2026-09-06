@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0625"
 title: "Compare large files with bounded ordered unique-line matching"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0623"]
 ---
