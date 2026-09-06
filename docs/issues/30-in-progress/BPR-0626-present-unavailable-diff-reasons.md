@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0626"
 title: "Present unavailable diff reasons instead of zero changes"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0625"]
 ---
