@@ -108,8 +108,14 @@ fixture, isolation, retained single-page application and composition checks
 pass 6/6. Documentation and diff checks pass after recording the completed core
 dependency. Source changes are local; no paid/remote CI was used.
 
-Next Mac slices: BPR-0626 presents typed unavailable comparisons truthfully;
-BPR-0627 profiles and reduces the measured main-thread stalls before selecting
-justified local targets. Keep RFC-0013 open for remaining memory/pruning,
+BPR-0626 now presents typed unavailable/binary comparisons truthfully in
+`945043fd`, retaining selectable wording and genuine equal-text counts. The
+real composed compute-limit/binary/supported-recovery course passes (15.72s),
+with its full-window render inspected. Qt, default large-review, isolation and
+composition checks pass 5/5 in 98.80s; documentation/diff checks pass. Production
+limits and remembered sign-in are unchanged.
+
+Next Mac slice: BPR-0627 profiles and reduces the measured main-thread stalls
+before selecting justified local targets. Keep RFC-0013 open for remaining memory/pruning,
 backoff/offline, fuzz/diagnostic, active-work scrolling and target-native
 criteria. Preserve the Windows/Linux BPR-0622 handoff and earlier live gates.
