@@ -164,3 +164,30 @@ late-completion checks. Do not bypass validation or move Qt work to a worker.
 Native text installation remains a separate measured limit. Rapid selection
 remains below the provisional 100 ms local target (50.437 ms maximum here),
 which is not a universal responsiveness claim. RFC-0013 remains open.
+
+
+BPR-0629 completes prepared semantic-index publication in `fb55c7976715abb54dfda3ac65a551b1bbe05fa1`.
+The existing effect job performs full validation/index construction once, then
+host/Qt accept only the exact immutable index/result pair for the current
+request. Cache hits reuse that index and its retained vector/object bytes fit
+within unchanged cache ceilings. Missing/mismatched/stale Qt publication,
+cache-budget refusal, reordered/cancelled/shutdown terminals and core/Qt
+boundaries pass. Focused dev core/host checks pass 2/2 (0.95s), selected
+Qt/application lanes 4/4 (41.75s), fixture/boundary/composition checks 5/5
+(144.37s), and core-only semantic/boundary checks 3/3 (93.55s). The rendered
+public source/navigation/scroll/selection course is preserved.
+
+On the same recorded Mac, clean large-file maximum/p95 UI interval falls from
+297.119 ms to 65.308/5.786 ms, and rapid selection is 28.196/5.679 ms maximum/p95.
+A separate temporary timer attributes 64.730 ms to native text conversion and
+installation; its code is removed and the clean benchmark rebuilt. The
+provisional 100 ms same-Mac observation target covers that remaining measured
+cost with roughly 50% headroom, without becoming a universal/native-platform
+claim. The final two-result cache now accounts for both prepared indexes at
+3,521,008 bytes. Native measurement still yields: 82 batches, 81 input
+callbacks, maximum/p95 gap 5.236/4.209 ms.
+
+Next inventory and exercise the remaining RFC-0013 memory/pruning, many-epoch,
+backoff/offline, fuzz/diagnostic and broader active-work criteria, reusing earlier
+relevant checks. The BPR-0622 Windows/Linux handoff and earlier live gates remain
+open. All work remains local to this Mac; no remote CI or live account was used.
