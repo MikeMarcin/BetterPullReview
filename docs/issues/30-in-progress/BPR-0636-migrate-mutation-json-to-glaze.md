@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0636"
 title: "Migrate legacy mutation JSON contracts to Glaze"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0002"]
 depends_on: ["BPR-0610"]
 ---
