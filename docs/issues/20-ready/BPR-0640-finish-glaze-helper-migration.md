@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0640"
 title: "Finish Glaze test helpers and migration integration"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0002"]
 depends_on: ["BPR-0639"]
 ---
