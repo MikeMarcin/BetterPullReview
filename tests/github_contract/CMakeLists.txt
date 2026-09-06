@@ -639,6 +639,7 @@ bpr_add_executable(
 target_link_libraries(
     test_better_pull_review_github_device_authorization_contract_tests
     PRIVATE
+        glaze::glaze
         BetterPullReview::AdapterGitHub
         Qt6::Core
 )
@@ -671,6 +672,7 @@ bpr_add_executable(
 target_link_libraries(
     test_better_pull_review_github_mutation_contract_tests
     PRIVATE
+        glaze::glaze
         BetterPullReview::AdapterGitHub
         BetterPullReview::Application
         Qt6::Core
@@ -761,6 +763,7 @@ bpr_add_executable(
 target_link_libraries(
     test_better_pull_review_github_paged_read_tests
     PRIVATE
+        glaze::glaze
         BetterPullReview::AdapterGitHub
         BetterPullReview::Application
         Qt6::Core
@@ -857,6 +860,7 @@ bpr_add_executable(
 target_link_libraries(
     test_better_pull_review_github_capability_probe_tests
     PRIVATE
+        glaze::glaze
         BetterPullReview::AdapterGitHub
         Qt6::Core
 )

@@ -1,9 +1,11 @@
+#include "designated_live_identity_json.hpp"
 #include "designated_live_mutation_gate.hpp"
 
 #include <array>
 #include <chrono>
 #include <filesystem>
 #include <iostream>
+#include <limits>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -27,6 +29,57 @@ namespace bpr::tests::network_isolation {
 				++Failures;
 				std::cerr << "FAILED: " << aMessage << '\n';
 			}
+		}
+
+		void test_identity_json()
+		{
+			const std::string body     = R"({"id":9007199254740993,"number":1,"node_id":"PR_fixture","state":"open","head":{"sha":"head-oid","ref":"fixture-branch"},"base":{"sha":"base-oid","repo":{"id":18446744073709551615,"node_id":"R_fixture","name":"fixture-repo","owner":{"login":"fixture-owner"}}},"extension":{"ignored":true}})";
+			const auto        identity = parse_designated_live_identity(body);
+			expect(identity.has_value(), "local identity fixture parses without a live reader");
+			if (identity) {
+				expect(identity->Host == "github.com" && identity->Owner == "fixture-owner"
+						   && identity->Repository == "fixture-repo"
+						   && identity->RepositoryDatabaseId == std::numeric_limits<std::uint64_t>::max()
+						   && identity->BaseRepositoryDatabaseId == identity->RepositoryDatabaseId
+						   && identity->RepositoryNodeId == "R_fixture"
+						   && identity->PullRequestNumber == 1U
+						   && identity->PullRequestDatabaseId == 9'007'199'254'740'993U
+						   && identity->PullRequestNodeId == "PR_fixture" && identity->State == "open"
+						   && identity->HeadSha == "head-oid" && identity->BaseSha == "base-oid"
+						   && identity->HeadBranch == "fixture-branch",
+					   "all identity fields retain literal values and full uint64 precision");
+			}
+			for (const auto token : { "9007199254740993", "18446744073709551615", "1" }) {
+				const std::string_view key    = std::string_view{ token } == "1" ? "\"number\":" : "\"id\":";
+				const auto             offset = body.find(std::string{ key } + token) + key.size();
+				for (const auto bad : { "-1", "1.5", "1.0000000000000001", "18446744073709551616", "null", "\"1\"" }) {
+					auto changed = body;
+					changed.replace(offset, std::string_view{ token }.size(), bad);
+					expect(!parse_designated_live_identity(changed), "invalid identity number is refused without rounding");
+				}
+			}
+			for (const auto member : { "\"id\":9007199254740993,", "\"number\":1,", "\"node_id\":\"R_fixture\",", "\"sha\":\"head-oid\",", "\"name\":\"fixture-repo\",", "\"login\":\"fixture-owner\"" }) {
+				auto changed = body;
+				changed.erase(changed.find(member), std::string_view{ member }.size());
+				expect(!parse_designated_live_identity(changed), "missing root and nested identity fields refuse");
+			}
+			for (const auto previous : { "\"number\":2,", "\"number\":null,", "\"head\":{}," }) {
+				auto duplicate = body;
+				duplicate.insert(1U, previous);
+				const auto lastMember = parse_designated_live_identity(duplicate);
+				expect(lastMember && lastMember->PullRequestNumber == 1U && lastMember->HeadSha == "head-oid",
+					   "final member wins even after an earlier invalid scalar or incomplete object");
+			}
+			for (const auto& malformedString : { std::string{ "\\ud800" }, std::string{ "\xc0\xaf" }, std::string{ "\n" } }) {
+				auto changed = body;
+				changed.replace(changed.find("fixture-owner"), 13U, malformedString);
+				expect(!parse_designated_live_identity(changed), "malformed Unicode and unescaped control bytes refuse");
+			}
+			expect(!parse_designated_live_identity(body + " false"), "trailing non-whitespace refuses");
+			auto malformed = body;
+			malformed.replace(malformed.find("true"), 4U, R"("\uZZZZ")");
+			expect(!parse_designated_live_identity(malformed), "malformed skipped extension refuses");
+			expect(!parse_designated_live_identity("[]"), "identity root must be an object");
 		}
 
 #if !defined(_WIN32)
@@ -197,6 +250,7 @@ namespace bpr::tests::network_isolation {
 
 int main()
 {
+	bpr::tests::network_isolation::test_identity_json();
 	bpr::tests::network_isolation::test_fixed_forked_canary();
 	if (bpr::tests::network_isolation::Failures != 0) {
 		return 1;

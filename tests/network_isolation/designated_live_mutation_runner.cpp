@@ -1,9 +1,8 @@
+#include "designated_live_identity_json.hpp"
 #include "designated_live_mutation_gate.hpp"
 
 #include <QCoreApplication>
 #include <QEventLoop>
-#include <QJsonDocument>
-#include <QJsonObject>
 #include <QNetworkAccessManager>
 #include <QNetworkProxy>
 #include <QNetworkReply>
@@ -24,99 +23,6 @@ namespace bpr::tests::network_isolation {
 		constexpr std::string_view PullEndpoint               = "https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/1";
 		constexpr qsizetype        ResponseLimit              = 64 * 1024;
 		constexpr int              NetworkTimeoutMilliseconds = 10'000;
-
-		[[nodiscard]] std::optional<QJsonObject> required_object(
-			const QJsonObject& aParent,
-			const char*        aName)
-		{
-			const auto value = aParent.value(QLatin1StringView(aName));
-			if (!value.isObject()) {
-				return std::nullopt;
-			}
-			return value.toObject();
-		}
-
-		[[nodiscard]] std::optional<std::string> required_string(
-			const QJsonObject& aParent,
-			const char*        aName)
-		{
-			const auto value = aParent.value(QLatin1StringView(aName));
-			if (!value.isString()) {
-				return std::nullopt;
-			}
-			return value.toString().toStdString();
-		}
-
-		[[nodiscard]] std::optional<std::uint64_t> required_unsigned(
-			const QJsonObject& aParent,
-			const char*        aName)
-		{
-			const auto value = aParent.value(QLatin1StringView(aName));
-			if (!value.isDouble()) {
-				return std::nullopt;
-			}
-			const auto integer = value.toInteger(-1);
-			if (integer < 0) {
-				return std::nullopt;
-			}
-			return static_cast<std::uint64_t>(integer);
-		}
-
-		[[nodiscard]] std::optional<designated_live_identity> parse_identity(
-			const QByteArray& aBody)
-		{
-			QJsonParseError error{ };
-			const auto      document = QJsonDocument::fromJson(aBody, &error);
-			if (error.error != QJsonParseError::NoError || !document.isObject()) {
-				return std::nullopt;
-			}
-
-			const auto root = document.object();
-			const auto head = required_object(root, "head");
-			const auto base = required_object(root, "base");
-			if (!head || !base) {
-				return std::nullopt;
-			}
-			const auto repository = required_object(*base, "repo");
-			if (!repository) {
-				return std::nullopt;
-			}
-			const auto owner = required_object(*repository, "owner");
-			if (!owner) {
-				return std::nullopt;
-			}
-
-			const auto repositoryId      = required_unsigned(*repository, "id");
-			const auto repositoryNodeId  = required_string(*repository, "node_id");
-			const auto repositoryName    = required_string(*repository, "name");
-			const auto repositoryOwner   = required_string(*owner, "login");
-			const auto pullRequestNumber = required_unsigned(root, "number");
-			const auto pullRequestId     = required_unsigned(root, "id");
-			const auto pullRequestNodeId = required_string(root, "node_id");
-			const auto state             = required_string(root, "state");
-			const auto headSha           = required_string(*head, "sha");
-			const auto headBranch        = required_string(*head, "ref");
-			const auto baseSha           = required_string(*base, "sha");
-			if (!repositoryId || !repositoryNodeId || !repositoryName || !repositoryOwner || !pullRequestNumber || !pullRequestId || !pullRequestNodeId || !state || !headSha || !headBranch || !baseSha) {
-				return std::nullopt;
-			}
-
-			return designated_live_identity{
-				.Host                     = "github.com",
-				.Owner                    = *repositoryOwner,
-				.Repository               = *repositoryName,
-				.RepositoryDatabaseId     = *repositoryId,
-				.RepositoryNodeId         = *repositoryNodeId,
-				.PullRequestNumber        = *pullRequestNumber,
-				.PullRequestDatabaseId    = *pullRequestId,
-				.PullRequestNodeId        = *pullRequestNodeId,
-				.BaseRepositoryDatabaseId = *repositoryId,
-				.State                    = *state,
-				.HeadSha                  = *headSha,
-				.BaseSha                  = *baseSha,
-				.HeadBranch               = *headBranch,
-			};
-		}
 
 		class github_designated_identity_reader final : public remote_identity_port
 		{
@@ -176,7 +82,7 @@ namespace bpr::tests::network_isolation {
 				if (redirected || status != 200) {
 					return { .Status = remote_read_status::http_failure };
 				}
-				const auto identity = parse_identity(body);
+				const auto identity = parse_designated_live_identity(std::string_view{ body.constData(), static_cast<std::size_t>(body.size()) });
 				if (!identity) {
 					return { .Status = remote_read_status::malformed };
 				}

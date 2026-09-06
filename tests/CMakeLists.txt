@@ -72,6 +72,7 @@ if(BPR_BUILD_QT)
     target_link_libraries(
         tool_better_pull_review_designated_live_mutation_runner
         PRIVATE
+            glaze::glaze
             Qt6::Core
             Qt6::Network
     )
@@ -116,6 +117,7 @@ if(BPR_BUILD_QT)
     target_link_libraries(
         test_better_pull_review_designated_live_mutation_runner_digest_mismatch
         PRIVATE
+            glaze::glaze
             Threads::Threads
     )
     bpr_enable_hardening(test_better_pull_review_designated_live_mutation_runner_digest_mismatch)

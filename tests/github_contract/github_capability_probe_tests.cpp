@@ -1,12 +1,8 @@
 #include "canonical_json_expectations.hpp"
+#include "fixture_json.hpp"
 #include "github_capability_probe.hpp"
 
 #include <QCryptographicHash>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QJsonParseError>
-#include <QString>
 
 #include <cstdlib>
 #include <filesystem>
@@ -20,6 +16,7 @@
 
 namespace {
 	using namespace bpr;
+	using namespace bpr::tests;
 	using namespace bpr::adapters::github;
 	using namespace bpr::adapters::github::detail;
 
@@ -57,32 +54,7 @@ namespace {
 		};
 	}
 
-	[[nodiscard]] auto parse(const std::string& aText) -> QJsonDocument
-	{
-		QJsonParseError error;
-		const auto      document = QJsonDocument::fromJson(
-			QByteArray{
-				aText.data(),
-				static_cast<qsizetype>(aText.size()),
-			},
-			&error);
-		expect(
-			error.error == QJsonParseError::NoError
-				&& document.isObject(),
-			"test fixture JSON parses");
-		return document;
-	}
-
-	[[nodiscard]] auto compact(const QJsonDocument& aDocument) -> std::string
-	{
-		const auto bytes = aDocument.toJson(QJsonDocument::Compact);
-		return {
-			bytes.constData(),
-			static_cast<std::size_t>(bytes.size()),
-		};
-	}
-
-	[[nodiscard]] auto sha256(const std::string_view aValue) -> QString
+	[[nodiscard]] auto sha256(const std::string_view aValue) -> std::string
 	{
 		return QCryptographicHash::hash(
 				   QByteArray{
@@ -90,55 +62,54 @@ namespace {
 					   static_cast<qsizetype>(aValue.size()),
 				   },
 				   QCryptographicHash::Sha256)
-			.toHex();
+			.toHex()
+			.toStdString();
 	}
 
-	[[nodiscard]] auto reverse_arrays(const QJsonValue& aValue) -> QJsonValue
+	[[nodiscard]] auto reverse_arrays(const fixture_value& aValue) -> fixture_value
 	{
-		if (aValue.isArray()) {
-			const auto source   = aValue.toArray();
-			auto       reversed = QJsonArray{ };
-			for (auto index = source.size(); index > 0; --index) {
-				reversed.push_back(reverse_arrays(source.at(index - 1)));
+		if (aValue.is_array()) {
+			const auto&   source = aValue.get_array();
+			fixture_array reversed;
+			for (auto it = source.rbegin(); it != source.rend(); ++it) {
+				reversed.push_back(reverse_arrays(*it));
 			}
 			return reversed;
 		}
-		if (aValue.isObject()) {
-			auto       reversed = QJsonObject{ };
-			const auto source   = aValue.toObject();
-			for (auto iterator = source.begin(); iterator != source.end(); ++iterator) {
-				reversed.insert(iterator.key(), reverse_arrays(iterator.value()));
+		if (aValue.is_object()) {
+			fixture_object reversed;
+			for (const auto& [key, value] : aValue.get_object()) {
+				reversed.emplace(key, reverse_arrays(value));
 			}
 			return reversed;
 		}
 		return aValue;
 	}
 
-	[[nodiscard]] auto load_supported_fixture(
-		const std::filesystem::path& aPath) -> std::string
+	[[nodiscard]] auto load_supported_fixture(const std::filesystem::path& aPath) -> std::string
 	{
 		return read_file(aPath);
 	}
 
 	[[nodiscard]] auto load_manifest_fixture(
 		const std::filesystem::path& aDirectory,
-		const QString&               aExpectedProduct,
-		const QString&               aExpectedVersion,
-		const qsizetype              aExpectedQueryFields,
-		const qsizetype              aExpectedMutationFields,
-		const qsizetype              aExpectedRepositoryFields,
-		const qsizetype              aExpectedActorPossibleTypes,
-		const qsizetype              aExpectedNodePossibleTypes,
-		const qsizetype              aExpectedPullRequestFields) -> std::string
+		const std::string&           aExpectedProduct,
+		const std::string&           aExpectedVersion,
+		const std::size_t            aExpectedQueryFields,
+		const std::size_t            aExpectedMutationFields,
+		const std::size_t            aExpectedRepositoryFields,
+		const std::size_t            aExpectedActorPossibleTypes,
+		const std::size_t            aExpectedNodePossibleTypes,
+		const std::size_t            aExpectedPullRequestFields) -> std::string
 	{
-		const auto manifest     = parse(read_file(aDirectory / "manifest.json")).object();
-		const auto responseFile = manifest.value("response_file").toString();
-		const auto projection   = manifest.value("projection").toObject();
-		const auto expected     = manifest.value("expected").toObject();
-		expect(manifest.value("schema_revision").toInt() == 1
-				   && manifest.value("product").toString() == aExpectedProduct
-				   && manifest.value("version").toString() == aExpectedVersion
-				   && responseFile == QStringLiteral("supported.json"),
+		const auto manifest     = parse_fixture_object(read_file(aDirectory / "manifest.json"));
+		const auto responseFile = manifest.at("response_file").get_string();
+		const auto projection   = manifest.at("projection").get_object();
+		const auto expected     = manifest.at("expected").get_object();
+		expect(manifest.at("schema_revision").get<std::uint64_t>() == 1
+				   && manifest.at("product").get_string() == aExpectedProduct
+				   && manifest.at("version").get_string() == aExpectedVersion
+				   && responseFile == "supported.json",
 			   "capability fixture manifest identifies the exact host contract");
 		for (const auto key : {
 				 "review_threads",
@@ -146,61 +117,61 @@ namespace {
 				 "resolve_thread",
 				 "unresolve_thread",
 			 }) {
-			expect(expected.value(key).toString() == QStringLiteral("supported"),
+			expect(expected.at(key).get_string() == "supported",
 				   "fixture manifest records each expected capability");
 		}
 
-		const auto body                     = read_file(aDirectory / responseFile.toStdString());
-		const auto response                 = parse(body);
-		const auto data                     = response.object().value("data").toObject();
-		const auto actualQueryFields        = data.value("schemaRoot")
-												  .toObject()
-												  .value("queryType")
-												  .toObject()
-												  .value("fields")
-												  .toArray()
+		const auto body                     = read_file(aDirectory / responseFile);
+		const auto response                 = parse_fixture_object(body);
+		const auto data                     = response.at("data").get_object();
+		const auto actualQueryFields        = data.at("schemaRoot")
+												  .get_object()
+												  .at("queryType")
+												  .get_object()
+												  .at("fields")
+												  .get_array()
 												  .size();
-		const auto actualMutationFields     = data.value("schemaRoot")
-												  .toObject()
-												  .value("mutationType")
-												  .toObject()
-												  .value("fields")
-												  .toArray()
+		const auto actualMutationFields     = data.at("schemaRoot")
+												  .get_object()
+												  .at("mutationType")
+												  .get_object()
+												  .at("fields")
+												  .get_array()
 												  .size();
-		const auto actualRepositoryFields   = data.value("repository").toObject().value("fields").toArray().size();
-		const auto actualActorPossibleTypes = data.value("actorPossibleTypes")
-												  .toObject()
-												  .value("possibleTypes")
-												  .toArray()
+		const auto actualRepositoryFields   = data.at("repository").get_object().at("fields").get_array().size();
+		const auto actualActorPossibleTypes = data.at("actorPossibleTypes")
+												  .get_object()
+												  .at("possibleTypes")
+												  .get_array()
 												  .size();
-		const auto actualNodePossibleTypes  = data.value("nodePossibleTypes")
-												  .toObject()
-												  .value("possibleTypes")
-												  .toArray()
+		const auto actualNodePossibleTypes  = data.at("nodePossibleTypes")
+												  .get_object()
+												  .at("possibleTypes")
+												  .get_array()
 												  .size();
-		const auto actualPullRequestFields  = data.value("pullRequest").toObject().value("fields").toArray().size();
+		const auto actualPullRequestFields  = data.at("pullRequest").get_object().at("fields").get_array().size();
 		expect(actualQueryFields == aExpectedQueryFields
 				   && actualMutationFields == aExpectedMutationFields
 				   && actualRepositoryFields == aExpectedRepositoryFields
 				   && actualActorPossibleTypes == aExpectedActorPossibleTypes
 				   && actualNodePossibleTypes == aExpectedNodePossibleTypes
 				   && actualPullRequestFields == aExpectedPullRequestFields
-				   && projection.value("query_fields").toInt()
+				   && projection.at("query_fields").get<std::uint64_t>()
 					   == aExpectedQueryFields
-				   && projection.value("mutation_fields").toInt()
+				   && projection.at("mutation_fields").get<std::uint64_t>()
 					   == aExpectedMutationFields
-				   && projection.value("repository_fields").toInt()
+				   && projection.at("repository_fields").get<std::uint64_t>()
 					   == aExpectedRepositoryFields
-				   && projection.value("actor_possible_types").toInt()
+				   && projection.at("actor_possible_types").get<std::uint64_t>()
 					   == aExpectedActorPossibleTypes
-				   && projection.value("node_possible_types").toInt()
+				   && projection.at("node_possible_types").get<std::uint64_t>()
 					   == aExpectedNodePossibleTypes
-				   && projection.value("pull_request_fields").toInt()
+				   && projection.at("pull_request_fields").get<std::uint64_t>()
 					   == aExpectedPullRequestFields,
 			   "manifest field counts match its independent response");
-		expect(projection.value("query_sha256").toString()
+		expect(projection.at("query_sha256").get_string()
 					   == sha256(read_file(fixture_root().parent_path() / "v2-parts/original-v1-query.graphql"))
-				   && projection.value("response_sha256").toString()
+				   && projection.at("response_sha256").get_string()
 					   == sha256(body),
 			   "manifest hashes bind the exact query and response bytes");
 		expect(static_cast<std::size_t>(actualQueryFields)
@@ -220,62 +191,53 @@ namespace {
 		return body;
 	}
 
-	[[nodiscard]] auto set_mutation_fields(
-		QJsonDocument aDocument,
-		QJsonArray    aFields) -> QJsonDocument
+	[[nodiscard]] auto set_mutation_fields(fixture_object aDocument, fixture_array aFields) -> fixture_object
 	{
-		auto envelope = aDocument.object();
-		auto data     = envelope.value("data").toObject();
-		auto schema   = data.value("schemaRoot").toObject();
-		auto mutation = schema.value("mutationType").toObject();
-		mutation.insert("fields", std::move(aFields));
-		schema.insert("mutationType", mutation);
-		data.insert("schemaRoot", schema);
-		envelope.insert("data", data);
-		return QJsonDocument{ envelope };
+		aDocument.at("data").get_object().at("schemaRoot").get_object().at("mutationType").get_object().at("fields") = std::move(aFields);
+		return aDocument;
 	}
 
-	[[nodiscard]] auto mutation_fields(const QJsonDocument& aDocument)
-		-> QJsonArray
+	[[nodiscard]] auto mutation_fields(const fixture_object& aDocument)
+		-> fixture_array
 	{
-		return aDocument.object()
-			.value("data")
-			.toObject()
-			.value("schemaRoot")
-			.toObject()
-			.value("mutationType")
-			.toObject()
-			.value("fields")
-			.toArray();
+		return aDocument
+			.at("data")
+			.get_object()
+			.at("schemaRoot")
+			.get_object()
+			.at("mutationType")
+			.get_object()
+			.at("fields")
+			.get_array();
 	}
 
 	[[nodiscard]] auto synthetic_fixture(
 		const std::filesystem::path& aPath) -> std::string
 	{
-		const auto descriptor = parse(read_file(aPath)).object();
+		const auto descriptor = parse_fixture_object(read_file(aPath));
 		const auto base       = aPath.parent_path()
-			/ descriptor.value("base_response_file").toString().toStdString();
-		auto       document  = parse(read_file(base));
+			/ descriptor.at("base_response_file").get_string();
+		auto       document  = parse_fixture_object(read_file(base));
 		auto       fields    = mutation_fields(document);
-		const auto target    = descriptor.value("field").toString();
-		const auto operation = descriptor.value("operation").toString();
+		const auto target    = descriptor.at("field").get_string();
+		const auto operation = descriptor.at("operation").get_string();
 
-		QJsonArray changed;
+		fixture_array changed;
 		for (const auto& value : fields) {
-			auto field = value.toObject();
+			auto field = value.get_object();
 			if (
-				field.value("name").toString() == target
-				&& operation == QStringLiteral("remove_field")) {
+				field.at("name").get_string() == target
+				&& operation == "remove_field") {
 				continue;
 			}
 			if (
-				field.value("name").toString() == target
-				&& operation == QStringLiteral("replace_return_type")) {
-				field.insert("type", descriptor.value("replacement"));
+				field.at("name").get_string() == target
+				&& operation == "replace_return_type") {
+				field.insert_or_assign("type", descriptor.at("replacement"));
 			}
 			changed.push_back(field);
 		}
-		return compact(set_mutation_fields(document, std::move(changed)));
+		return fixture_json(set_mutation_fields(document, std::move(changed)));
 	}
 
 	[[nodiscard]] auto github_com_candidate() -> github_host_profile_candidate
@@ -457,11 +419,11 @@ namespace {
 				},
 			"probe uses the exact non-secret GraphQL headers");
 
-		const auto payload = parse(githubRequest->Body).object();
+		const auto payload = parse_fixture_object(githubRequest->Body);
 		expect(
-			payload.size() == 1 && payload.value("query").isString(),
+			payload.size() == 1 && payload.at("query").is_string(),
 			"probe body contains only the static query");
-		const auto query = payload.value("query").toString().toStdString();
+		const auto query = payload.at("query").get_string();
 		expect(query == capability_probe_graphql_document(),
 			   "probe payload contains the canonical query");
 		expect(query.starts_with("query BetterPullReviewCapabilityProbeV1"),
@@ -504,11 +466,11 @@ namespace {
 	{
 		const auto root       = fixture_root();
 		const auto githubBody = load_manifest_fixture(
-			root / "github-com", QStringLiteral("github.com"),
-			QStringLiteral("cloud"), 31, 271, 145, 5, 280, 113);
+			root / "github-com", "github.com",
+			"cloud", 31, 271, 145, 5, 280, 113);
 		const auto enterpriseBody = load_manifest_fixture(
-			root / "ghes-3.18", QStringLiteral("github-enterprise-server"),
-			QStringLiteral("3.18"), 24, 224, 133, 5, 244,
+			root / "ghes-3.18", "github-enterprise-server",
+			"3.18", 24, 224, 133, 5, 244,
 			109);
 		const auto github     = observe(githubBody);
 		const auto enterprise = observe(enterpriseBody);
@@ -520,8 +482,7 @@ namespace {
 			github == enterprise,
 			"paired host contracts normalize to identical evidence");
 
-		const auto reordered = observe(compact(QJsonDocument{
-			reverse_arrays(parse(githubBody).object()).toObject() }));
+		const auto reordered = observe(fixture_json(reverse_arrays(parse_fixture_object(githubBody)).get_object()));
 		expect_all_supported(
 			reordered,
 			"schema member names are independent of response order");
@@ -578,54 +539,54 @@ namespace {
 
 	[[nodiscard]] auto with_data_alias_removed(
 		const std::string& aBody,
-		const QString&     aAlias) -> std::string
+		const std::string& aAlias) -> std::string
 	{
-		auto envelope = parse(aBody).object();
-		auto data     = envelope.value("data").toObject();
-		data.remove(aAlias);
-		envelope.insert("data", data);
-		return compact(QJsonDocument{ envelope });
+		auto envelope = parse_fixture_object(aBody);
+		auto data     = envelope.at("data").get_object();
+		data.erase(aAlias);
+		envelope.insert_or_assign("data", data);
+		return fixture_json(envelope);
 	}
 
 	[[nodiscard]] auto with_data_alias_null(
 		const std::string& aBody,
-		const QString&     aAlias) -> std::string
+		const std::string& aAlias) -> std::string
 	{
-		auto envelope = parse(aBody).object();
-		auto data     = envelope.value("data").toObject();
-		data.insert(aAlias, QJsonValue::Null);
-		envelope.insert("data", data);
-		return compact(QJsonDocument{ envelope });
+		auto envelope = parse_fixture_object(aBody);
+		auto data     = envelope.at("data").get_object();
+		data.insert_or_assign(aAlias, nullptr);
+		envelope.insert_or_assign("data", data);
+		return fixture_json(envelope);
 	}
 
 	[[nodiscard]] auto with_alias_member(
-		const std::string& aBody,
-		const QString&     aAlias,
-		const QString&     aMember,
-		const QJsonValue&  aReplacement) -> std::string
+		const std::string&   aBody,
+		const std::string&   aAlias,
+		const std::string&   aMember,
+		const fixture_value& aReplacement) -> std::string
 	{
-		auto envelope = parse(aBody).object();
-		auto data     = envelope.value("data").toObject();
-		auto type     = data.value(aAlias).toObject();
-		type.insert(aMember, aReplacement);
-		data.insert(aAlias, type);
-		envelope.insert("data", data);
-		return compact(QJsonDocument{ envelope });
+		auto envelope = parse_fixture_object(aBody);
+		auto data     = envelope.at("data").get_object();
+		auto type     = data.at(aAlias).get_object();
+		type.insert_or_assign(aMember, aReplacement);
+		data.insert_or_assign(aAlias, type);
+		envelope.insert_or_assign("data", data);
+		return fixture_json(envelope);
 	}
 
 	[[nodiscard]] auto without_named_field(
 		const std::string& aBody,
-		const QString&     aAlias,
-		const QString&     aFieldName) -> std::string
+		const std::string& aAlias,
+		const std::string& aFieldName) -> std::string
 	{
-		auto       envelope = parse(aBody).object();
-		auto       data     = envelope.value("data").toObject();
-		auto       type     = data.value(aAlias).toObject();
-		const auto fields   = type.value("fields").toArray();
-		auto       retained = QJsonArray{ };
+		auto       envelope = parse_fixture_object(aBody);
+		auto       data     = envelope.at("data").get_object();
+		auto       type     = data.at(aAlias).get_object();
+		const auto fields   = type.at("fields").get_array();
+		auto       retained = fixture_array{ };
 		for (const auto& value : fields) {
 			if (
-				value.toObject().value("name").toString()
+				value.get_object().at("name").get_string()
 				!= aFieldName) {
 				retained.push_back(value);
 			}
@@ -633,136 +594,136 @@ namespace {
 		expect(
 			retained.size() + 1 == fields.size(),
 			"targeted schema field exists exactly once");
-		type.insert("fields", retained);
-		data.insert(aAlias, type);
-		envelope.insert("data", data);
-		return compact(QJsonDocument{ envelope });
+		type.insert_or_assign("fields", retained);
+		data.insert_or_assign(aAlias, type);
+		envelope.insert_or_assign("data", data);
+		return fixture_json(envelope);
 	}
 
 	[[nodiscard]] auto with_named_field_type(const std::string& aBody,
-											 const QString&     aAlias,
-											 const QString&     aFieldName,
-											 QJsonObject        aReplacement) -> std::string
+											 const std::string& aAlias,
+											 const std::string& aFieldName,
+											 fixture_object     aReplacement) -> std::string
 	{
-		auto envelope     = parse(aBody).object();
-		auto data         = envelope.value("data").toObject();
-		auto type         = data.value(aAlias).toObject();
-		auto fields       = type.value("fields").toArray();
+		auto envelope     = parse_fixture_object(aBody);
+		auto data         = envelope.at("data").get_object();
+		auto type         = data.at(aAlias).get_object();
+		auto fields       = type.at("fields").get_array();
 		auto replacements = 0;
-		for (auto index = 0; index < fields.size(); ++index) {
-			auto field = fields.at(index).toObject();
-			if (field.value("name").toString() == aFieldName) {
-				field.insert("type", aReplacement);
-				fields.replace(index, field);
+		for (std::size_t index = 0; index < fields.size(); ++index) {
+			auto field = fields.at(index).get_object();
+			if (field.at("name").get_string() == aFieldName) {
+				field.insert_or_assign("type", aReplacement);
+				fields.at(index) = field;
 				++replacements;
 			}
 		}
 		expect(replacements == 1, "targeted schema field exists exactly once");
-		type.insert("fields", fields);
-		data.insert(aAlias, type);
-		envelope.insert("data", data);
-		return compact(QJsonDocument{ envelope });
+		type.insert_or_assign("fields", fields);
+		data.insert_or_assign(aAlias, type);
+		envelope.insert_or_assign("data", data);
+		return fixture_json(envelope);
 	}
 
 	[[nodiscard]] auto without_schema_root_field(const std::string& aBody,
-												 const QString&     aRootName,
-												 const QString&     aFieldName)
+												 const std::string& aRootName,
+												 const std::string& aFieldName)
 		-> std::string
 	{
-		auto       envelope = parse(aBody).object();
-		auto       data     = envelope.value("data").toObject();
-		auto       schema   = data.value("schemaRoot").toObject();
-		auto       root     = schema.value(aRootName).toObject();
-		const auto fields   = root.value("fields").toArray();
-		auto       retained = QJsonArray{ };
+		auto       envelope = parse_fixture_object(aBody);
+		auto       data     = envelope.at("data").get_object();
+		auto       schema   = data.at("schemaRoot").get_object();
+		auto       root     = schema.at(aRootName).get_object();
+		const auto fields   = root.at("fields").get_array();
+		auto       retained = fixture_array{ };
 		for (const auto& value : fields) {
-			if (value.toObject().value("name").toString() != aFieldName) {
+			if (value.get_object().at("name").get_string() != aFieldName) {
 				retained.push_back(value);
 			}
 		}
 		expect(retained.size() + 1 == fields.size(),
 			   "targeted schema-root field exists exactly once");
-		root.insert("fields", retained);
-		schema.insert(aRootName, root);
-		data.insert("schemaRoot", schema);
-		envelope.insert("data", data);
-		return compact(QJsonDocument{ envelope });
+		root.insert_or_assign("fields", retained);
+		schema.insert_or_assign(aRootName, root);
+		data.insert_or_assign("schemaRoot", schema);
+		envelope.insert_or_assign("data", data);
+		return fixture_json(envelope);
 	}
 
-	[[nodiscard]] auto with_schema_root_field_type(const std::string& aBody,
-												   const QString&     aRootName,
-												   const QString&     aFieldName,
-												   const QJsonObject& aReplacement)
+	[[nodiscard]] auto with_schema_root_field_type(const std::string&    aBody,
+												   const std::string&    aRootName,
+												   const std::string&    aFieldName,
+												   const fixture_object& aReplacement)
 		-> std::string
 	{
-		auto envelope     = parse(aBody).object();
-		auto data         = envelope.value("data").toObject();
-		auto schema       = data.value("schemaRoot").toObject();
-		auto root         = schema.value(aRootName).toObject();
-		auto fields       = root.value("fields").toArray();
+		auto envelope     = parse_fixture_object(aBody);
+		auto data         = envelope.at("data").get_object();
+		auto schema       = data.at("schemaRoot").get_object();
+		auto root         = schema.at(aRootName).get_object();
+		auto fields       = root.at("fields").get_array();
 		auto replacements = 0;
-		for (auto index = 0; index < fields.size(); ++index) {
-			auto field = fields.at(index).toObject();
-			if (field.value("name").toString() == aFieldName) {
-				field.insert("type", aReplacement);
-				fields.replace(index, field);
+		for (std::size_t index = 0; index < fields.size(); ++index) {
+			auto field = fields.at(index).get_object();
+			if (field.at("name").get_string() == aFieldName) {
+				field.insert_or_assign("type", aReplacement);
+				fields.at(index) = field;
 				++replacements;
 			}
 		}
 		expect(replacements == 1, "targeted schema-root field exists exactly once");
-		root.insert("fields", fields);
-		schema.insert(aRootName, root);
-		data.insert("schemaRoot", schema);
-		envelope.insert("data", data);
-		return compact(QJsonDocument{ envelope });
+		root.insert_or_assign("fields", fields);
+		schema.insert_or_assign(aRootName, root);
+		data.insert_or_assign("schemaRoot", schema);
+		envelope.insert_or_assign("data", data);
+		return fixture_json(envelope);
 	}
 
 	[[nodiscard]] auto
-	without_named_type_member(const std::string& aBody, const QString& aAlias,
-							  const QString& aMemberName, const QString& aTypeName)
+	without_named_type_member(const std::string& aBody, const std::string& aAlias,
+							  const std::string& aMemberName, const std::string& aTypeName)
 		-> std::string
 	{
-		auto       envelope = parse(aBody).object();
-		auto       data     = envelope.value("data").toObject();
-		auto       type     = data.value(aAlias).toObject();
-		const auto members  = type.value(aMemberName).toArray();
-		auto       retained = QJsonArray{ };
+		auto       envelope = parse_fixture_object(aBody);
+		auto       data     = envelope.at("data").get_object();
+		auto       type     = data.at(aAlias).get_object();
+		const auto members  = type.at(aMemberName).get_array();
+		auto       retained = fixture_array{ };
 		for (const auto& value : members) {
-			if (value.toObject().value("name").toString() != aTypeName) {
+			if (value.get_object().at("name").get_string() != aTypeName) {
 				retained.push_back(value);
 			}
 		}
 		expect(retained.size() + 1 == members.size(),
 			   "targeted named type exists exactly once");
-		type.insert(aMemberName, retained);
-		data.insert(aAlias, type);
-		envelope.insert("data", data);
-		return compact(QJsonDocument{ envelope });
+		type.insert_or_assign(aMemberName, retained);
+		data.insert_or_assign(aAlias, type);
+		envelope.insert_or_assign("data", data);
+		return fixture_json(envelope);
 	}
 
 	[[nodiscard]] auto with_graphql_errors(const std::string& aBody) -> std::string
 	{
-		auto envelope = parse(aBody).object();
-		envelope.insert("errors",
-						QJsonArray{
-							QJsonObject{ { "message", "sanitized probe error" } },
-						});
-		return compact(QJsonDocument{ envelope });
+		auto envelope = parse_fixture_object(aBody);
+		envelope.insert_or_assign("errors",
+								  fixture_array{
+									  fixture_object{ { "message", "sanitized probe error" } },
+								  });
+		return fixture_json(envelope);
 	}
 
 	[[nodiscard]] auto with_rate_limited_graphql_errors(
 		const std::string& aBody) -> std::string
 	{
-		auto envelope = parse(aBody).object();
-		envelope.insert(
+		auto envelope = parse_fixture_object(aBody);
+		envelope.insert_or_assign(
 			"errors",
-			QJsonArray{
-				QJsonObject{
+			fixture_array{
+				fixture_object{
 					{ "message", "sanitized throttling error" },
 					{ "type", "RATE_LIMITED" },
 				},
 			});
-		return compact(QJsonDocument{ envelope });
+		return fixture_json(envelope);
 	}
 
 	auto test_partial_and_unavailable_evidence_stays_unknown() -> void
@@ -1019,25 +980,25 @@ namespace {
 		expect_all_unknown(
 			observe(with_alias_member(
 				supported,
-				QStringLiteral("reviewThread"),
-				QStringLiteral("fields"),
-				QJsonValue::Null)),
+				"reviewThread",
+				"fields",
+				nullptr)),
 			capability_probe_unavailability::malformed_response,
 			"null fields on an object cannot prove schema absence");
 		expect_all_unknown(
 			observe(with_alias_member(
 				supported,
-				QStringLiteral("markInput"),
-				QStringLiteral("inputFields"),
-				QJsonValue::Null)),
+				"markInput",
+				"inputFields",
+				nullptr)),
 			capability_probe_unavailability::malformed_response,
 			"null inputFields on an input object cannot prove absence");
 		expect_all_unknown(
 			observe(with_alias_member(
 				supported,
-				QStringLiteral("fileViewedState"),
-				QStringLiteral("enumValues"),
-				QJsonValue::Null)),
+				"fileViewedState",
+				"enumValues",
+				nullptr)),
 			capability_probe_unavailability::malformed_response,
 			"null enumValues on an enum cannot prove absence");
 	}
@@ -1048,8 +1009,8 @@ namespace {
 			fixture_root() / "github-com/supported.json");
 		const auto missingDiffSide = observe(without_named_field(
 			supported,
-			QStringLiteral("reviewThread"),
-			QStringLiteral("diffSide")));
+			"reviewThread",
+			"diffSide"));
 		expect(
 			missingDiffSide.Complete
 				&& missingDiffSide.Capabilities.ReviewThreads
@@ -1062,12 +1023,12 @@ namespace {
 
 		const auto wrongDiffSide = observe(with_named_field_type(
 			supported,
-			QStringLiteral("reviewThread"),
-			QStringLiteral("diffSide"),
-			QJsonObject{
+			"reviewThread",
+			"diffSide",
+			fixture_object{
 				{ "kind", "NON_NULL" },
-				{ "name", QJsonValue::Null },
-				{ "ofType", QJsonObject{ { "kind", "SCALAR" }, { "name", "String" } } },
+				{ "name", nullptr },
+				{ "ofType", fixture_object{ { "kind", "SCALAR" }, { "name", "String" } } },
 			}));
 		expect(
 			wrongDiffSide.Complete
@@ -1080,8 +1041,8 @@ namespace {
 			"wrong diffSide type makes review-thread reads incompatible");
 		const auto missingResolvePermission = observe(without_named_field(
 			supported,
-			QStringLiteral("reviewThread"),
-			QStringLiteral("viewerCanResolve")));
+			"reviewThread",
+			"viewerCanResolve"));
 		expect(
 			missingResolvePermission.Complete
 				&& missingResolvePermission.Capabilities.ReviewThreads
@@ -1099,8 +1060,8 @@ namespace {
 
 		const auto missingUnresolvePermission = observe(without_named_field(
 			supported,
-			QStringLiteral("reviewThread"),
-			QStringLiteral("viewerCanUnresolve")));
+			"reviewThread",
+			"viewerCanUnresolve"));
 		expect(
 			missingUnresolvePermission.Complete
 				&& missingUnresolvePermission.Capabilities.ReviewThreads
@@ -1118,8 +1079,8 @@ namespace {
 
 		const auto missingViewedState = observe(without_named_field(
 			supported,
-			QStringLiteral("changedFile"),
-			QStringLiteral("viewerViewedState")));
+			"changedFile",
+			"viewerViewedState"));
 		expect(
 			missingViewedState.Complete
 				&& missingViewedState.Capabilities.ReviewThreads
@@ -1141,12 +1102,12 @@ namespace {
 	auto test_compiled_connection_counts_are_required() -> void
 	{
 		const auto supported = load_supported_fixture(fixture_root() / "github-com/supported.json");
-		const auto wrongType = QJsonObject{
+		const auto wrongType = fixture_object{
 			{ "kind", "NON_NULL" },
-			{ "name", QJsonValue::Null },
+			{ "name", nullptr },
 			{
 				"ofType",
-				QJsonObject{
+				fixture_object{
 					{ "kind", "SCALAR" },
 					{ "name", "String" },
 				},
@@ -1154,11 +1115,11 @@ namespace {
 		};
 
 		for (const auto& alias : {
-				 QStringLiteral("threadConnection"),
-				 QStringLiteral("commentConnection"),
+				 "threadConnection",
+				 "commentConnection",
 			 }) {
 			const auto missing = observe(without_named_field(
-				supported, alias, QStringLiteral("totalCount")));
+				supported, alias, "totalCount"));
 			expect(missing.Complete
 					   && missing.Capabilities.ReviewThreads
 						   == core::github_capability_state::unsupported
@@ -1174,7 +1135,7 @@ namespace {
 				   "missing review connection totalCount disables its read shape");
 
 			const auto incompatible = observe(with_named_field_type(
-				supported, alias, QStringLiteral("totalCount"), wrongType));
+				supported, alias, "totalCount", wrongType));
 			expect(
 				incompatible.Complete
 					&& fact(incompatible,
@@ -1187,8 +1148,8 @@ namespace {
 		}
 
 		const auto missingFiles = observe(
-			without_named_field(supported, QStringLiteral("changedFileConnection"),
-								QStringLiteral("totalCount")));
+			without_named_field(supported, "changedFileConnection",
+								"totalCount"));
 		expect(missingFiles.Complete
 				   && missingFiles.Capabilities.ReviewThreads
 					   == core::github_capability_state::supported
@@ -1201,8 +1162,8 @@ namespace {
 			   "missing file connection totalCount disables viewed-state reads");
 
 		const auto incompatibleFiles = observe(with_named_field_type(
-			supported, QStringLiteral("changedFileConnection"),
-			QStringLiteral("totalCount"), wrongType));
+			supported, "changedFileConnection",
+			"totalCount", wrongType));
 		expect(
 			incompatibleFiles.Complete
 				&& incompatibleFiles.Capabilities.ReviewThreads
@@ -1219,12 +1180,12 @@ namespace {
 	auto test_compiled_graphql_baseline_is_required() -> void
 	{
 		const auto supported = load_supported_fixture(fixture_root() / "github-com/supported.json");
-		const auto wrongType = QJsonObject{
+		const auto wrongType = fixture_object{
 			{ "kind", "NON_NULL" },
-			{ "name", QJsonValue::Null },
+			{ "name", nullptr },
 			{
 				"ofType",
-				QJsonObject{
+				fixture_object{
 					{ "kind", "SCALAR" },
 					{ "name", "String" },
 				},
@@ -1247,32 +1208,32 @@ namespace {
 			};
 
 		expectFacts(observe(without_schema_root_field(
-						supported, QStringLiteral("queryType"),
-						QStringLiteral("repository"))),
+						supported, "queryType",
+						"repository")),
 					capability_schema_fact_state::missing,
 					capability_schema_fact_state::missing,
 					"missing Query.repository disables both compiled read shapes");
 		expectFacts(
 			observe(with_schema_root_field_type(
-				supported, QStringLiteral("queryType"),
-				QStringLiteral("repository"), wrongType)),
+				supported, "queryType",
+				"repository", wrongType)),
 			capability_schema_fact_state::incompatible,
 			capability_schema_fact_state::incompatible,
 			"incompatible Query.repository disables both compiled read shapes");
 
 		for (const auto& fieldName : {
-				 QStringLiteral("id"),
-				 QStringLiteral("pullRequest"),
+				 "id",
+				 "pullRequest",
 			 }) {
 			expectFacts(
-				observe(without_named_field(supported, QStringLiteral("repository"),
+				observe(without_named_field(supported, "repository",
 											fieldName)),
 				capability_schema_fact_state::missing,
 				capability_schema_fact_state::missing,
 				"missing Repository baseline field disables both read shapes");
 			expectFacts(
 				observe(with_named_field_type(supported,
-											  QStringLiteral("repository"),
+											  "repository",
 											  fieldName, wrongType)),
 				capability_schema_fact_state::incompatible,
 				capability_schema_fact_state::incompatible,
@@ -1280,81 +1241,81 @@ namespace {
 		}
 
 		expectFacts(
-			observe(without_named_field(supported, QStringLiteral("pullRequest"),
-										QStringLiteral("id"))),
+			observe(without_named_field(supported, "pullRequest",
+										"id")),
 			capability_schema_fact_state::missing,
 			capability_schema_fact_state::missing,
 			"missing PullRequest.id disables both compiled read shapes");
 		expectFacts(
-			observe(with_named_field_type(supported, QStringLiteral("pullRequest"),
-										  QStringLiteral("id"), wrongType)),
+			observe(with_named_field_type(supported, "pullRequest",
+										  "id", wrongType)),
 			capability_schema_fact_state::incompatible,
 			capability_schema_fact_state::incompatible,
 			"incompatible PullRequest.id disables both compiled read shapes");
 
 		expectFacts(
-			observe(without_named_field(supported, QStringLiteral("pullRequest"),
-										QStringLiteral("headRefOid"))),
+			observe(without_named_field(supported, "pullRequest",
+										"headRefOid")),
 			capability_schema_fact_state::missing,
 			capability_schema_fact_state::missing,
 			"missing PullRequest.headRefOid disables revision-bound read shapes");
 		expectFacts(
-			observe(with_named_field_type(supported, QStringLiteral("pullRequest"),
-										  QStringLiteral("headRefOid"), wrongType)),
+			observe(with_named_field_type(supported, "pullRequest",
+										  "headRefOid", wrongType)),
 			capability_schema_fact_state::incompatible,
 			capability_schema_fact_state::incompatible,
 			"incompatible PullRequest.headRefOid disables revision-bound read shapes");
 
 		expectFacts(observe(without_schema_root_field(supported,
-													  QStringLiteral("queryType"),
-													  QStringLiteral("node"))),
+													  "queryType",
+													  "node")),
 					capability_schema_fact_state::missing,
 					capability_schema_fact_state::matched,
 					"missing Query.node disables only comment paging");
 		expectFacts(observe(with_schema_root_field_type(
-						supported, QStringLiteral("queryType"),
-						QStringLiteral("node"), wrongType)),
+						supported, "queryType",
+						"node", wrongType)),
 					capability_schema_fact_state::incompatible,
 					capability_schema_fact_state::matched,
 					"incompatible Query.node disables only comment paging");
 
 		expectFacts(
 			observe(with_data_alias_null(supported,
-										 QStringLiteral("reviewThreadInterfaces"))),
+										 "reviewThreadInterfaces")),
 			capability_schema_fact_state::missing,
 			capability_schema_fact_state::matched,
 			"missing review-thread interface evidence disables comment paging");
 		expectFacts(
 			observe(without_named_type_member(
-				supported, QStringLiteral("reviewThreadInterfaces"),
-				QStringLiteral("interfaces"), QStringLiteral("Node"))),
+				supported, "reviewThreadInterfaces",
+				"interfaces", "Node")),
 			capability_schema_fact_state::incompatible,
 			capability_schema_fact_state::matched,
 			"review thread without Node compatibility disables comment paging");
 
 		expectFacts(
 			observe(with_data_alias_null(supported,
-										 QStringLiteral("actorPossibleTypes"))),
+										 "actorPossibleTypes")),
 			capability_schema_fact_state::missing,
 			capability_schema_fact_state::matched,
 			"missing Actor possible-type evidence disables author identity reads");
-		const auto actorType = parse(supported)
-								   .object()
-								   .value("data")
-								   .toObject()
-								   .value("actorPossibleTypes")
-								   .toObject()
-								   .value("possibleTypes")
-								   .toArray()
+		const auto actorType = parse_fixture_object(supported)
+
+								   .at("data")
+								   .get_object()
+								   .at("actorPossibleTypes")
+								   .get_object()
+								   .at("possibleTypes")
+								   .get_array()
 								   .at(0)
-								   .toObject()
-								   .value("name")
-								   .toString();
-		expect(!actorType.isEmpty(), "fixture has an Actor possible type");
+								   .get_object()
+								   .at("name")
+								   .get_string();
+		expect(!actorType.empty(), "fixture has an Actor possible type");
 		expectFacts(
 			observe(without_named_type_member(
-				supported, QStringLiteral("nodePossibleTypes"),
-				QStringLiteral("possibleTypes"), actorType)),
+				supported, "nodePossibleTypes",
+				"possibleTypes", actorType)),
 			capability_schema_fact_state::incompatible,
 			capability_schema_fact_state::matched,
 			"one non-Node Actor disables total author identity normalization");
@@ -1363,175 +1324,175 @@ namespace {
 	[[nodiscard]] auto with_duplicate_review_field(
 		const std::string& aBody) -> std::string
 	{
-		auto envelope = parse(aBody).object();
-		auto data     = envelope.value("data").toObject();
-		auto thread   = data.value("reviewThread").toObject();
-		auto fields   = thread.value("fields").toArray();
-		expect(!fields.isEmpty(), "review thread fixture has fields");
+		auto envelope = parse_fixture_object(aBody);
+		auto data     = envelope.at("data").get_object();
+		auto thread   = data.at("reviewThread").get_object();
+		auto fields   = thread.at("fields").get_array();
+		expect(!fields.empty(), "review thread fixture has fields");
 		fields.push_back(fields.at(0));
-		thread.insert("fields", fields);
-		data.insert("reviewThread", thread);
-		envelope.insert("data", data);
-		return compact(QJsonDocument{ envelope });
+		thread.insert_or_assign("fields", fields);
+		data.insert_or_assign("reviewThread", thread);
+		envelope.insert_or_assign("data", data);
+		return fixture_json(envelope);
 	}
 
 	[[nodiscard]] auto with_duplicate_alias_member(
 		const std::string& aBody,
-		const QString&     aAlias,
-		const QString&     aMemberName) -> std::string
+		const std::string& aAlias,
+		const std::string& aMemberName) -> std::string
 	{
-		auto envelope = parse(aBody).object();
-		auto data     = envelope.value("data").toObject();
-		auto type     = data.value(aAlias).toObject();
-		auto members  = type.value(aMemberName).toArray();
-		expect(!members.isEmpty(), "schema fixture member list is nonempty");
+		auto envelope = parse_fixture_object(aBody);
+		auto data     = envelope.at("data").get_object();
+		auto type     = data.at(aAlias).get_object();
+		auto members  = type.at(aMemberName).get_array();
+		expect(!members.empty(), "schema fixture member list is nonempty");
 		members.push_back(members.at(0));
-		type.insert(aMemberName, members);
-		data.insert(aAlias, type);
-		envelope.insert("data", data);
-		return compact(QJsonDocument{ envelope });
+		type.insert_or_assign(aMemberName, members);
+		data.insert_or_assign(aAlias, type);
+		envelope.insert_or_assign("data", data);
+		return fixture_json(envelope);
 	}
 
 	[[nodiscard]] auto with_duplicate_mark_argument(
 		const std::string& aBody) -> std::string
 	{
-		auto document = parse(aBody);
+		auto document = parse_fixture_object(aBody);
 		auto fields   = mutation_fields(document);
-		auto changed  = QJsonArray{ };
+		auto changed  = fixture_array{ };
 		for (const auto& value : fields) {
-			auto field = value.toObject();
+			auto field = value.get_object();
 			if (
-				field.value("name").toString()
-				== QStringLiteral("markFileAsViewed")) {
-				auto arguments = field.value("args").toArray();
-				expect(!arguments.isEmpty(), "mark mutation fixture has arguments");
+				field.at("name").get_string()
+				== "markFileAsViewed") {
+				auto arguments = field.at("args").get_array();
+				expect(!arguments.empty(), "mark mutation fixture has arguments");
 				arguments.push_back(arguments.at(0));
-				field.insert("args", arguments);
+				field.insert_or_assign("args", arguments);
 			}
 			changed.push_back(field);
 		}
-		return compact(set_mutation_fields(document, std::move(changed)));
+		return fixture_json(set_mutation_fields(document, std::move(changed)));
 	}
 
 	[[nodiscard]] auto with_extra_mark_argument(
 		const std::string& aBody,
 		const bool         aRequired) -> std::string
 	{
-		auto       document = parse(aBody);
-		auto       fields   = mutation_fields(document);
-		QJsonArray changed;
+		auto          document = parse_fixture_object(aBody);
+		auto          fields   = mutation_fields(document);
+		fixture_array changed;
 		for (const auto& value : fields) {
-			auto field = value.toObject();
+			auto field = value.get_object();
 			if (
-				field.value("name").toString()
-				== QStringLiteral("markFileAsViewed")) {
-				auto arguments = field.value("args").toArray();
-				arguments.push_back(QJsonObject{
+				field.at("name").get_string()
+				== "markFileAsViewed") {
+				auto arguments = field.at("args").get_array();
+				arguments.push_back(fixture_object{
 					{ "name", "futureArgument" },
-					{ "defaultValue", QJsonValue::Null },
+					{ "defaultValue", nullptr },
 					{
 						"type",
 						aRequired
-							? QJsonValue{ QJsonObject{
+							? fixture_value(fixture_object{
 								  { "kind", "NON_NULL" },
-								  { "name", QJsonValue::Null },
+								  { "name", nullptr },
 								  {
 									  "ofType",
-									  QJsonObject{
+									  fixture_object{
 										  { "kind", "SCALAR" },
 										  { "name", "String" },
 									  },
 								  },
-							  } }
-							: QJsonValue{ QJsonObject{
+							  })
+							: fixture_value(fixture_object{
 								  { "kind", "SCALAR" },
 								  { "name", "String" },
-								  { "ofType", QJsonValue::Null },
-							  } },
+								  { "ofType", nullptr },
+							  }),
 					},
 				});
-				field.insert("args", arguments);
+				field.insert_or_assign("args", arguments);
 			}
 			changed.push_back(field);
 		}
-		return compact(set_mutation_fields(document, std::move(changed)));
+		return fixture_json(set_mutation_fields(document, std::move(changed)));
 	}
 
 	[[nodiscard]] auto with_extra_mark_input_field(
 		const std::string& aBody,
 		const bool         aRequired) -> std::string
 	{
-		auto envelope = parse(aBody).object();
-		auto data     = envelope.value("data").toObject();
-		auto input    = data.value("markInput").toObject();
-		auto fields   = input.value("inputFields").toArray();
-		fields.push_back(QJsonObject{
+		auto envelope = parse_fixture_object(aBody);
+		auto data     = envelope.at("data").get_object();
+		auto input    = data.at("markInput").get_object();
+		auto fields   = input.at("inputFields").get_array();
+		fields.push_back(fixture_object{
 			{ "name", "futureInputField" },
-			{ "defaultValue", QJsonValue::Null },
+			{ "defaultValue", nullptr },
 			{
 				"type",
 				aRequired
-					? QJsonValue{ QJsonObject{
+					? fixture_value(fixture_object{
 						  { "kind", "NON_NULL" },
-						  { "name", QJsonValue::Null },
+						  { "name", nullptr },
 						  {
 							  "ofType",
-							  QJsonObject{
+							  fixture_object{
 								  { "kind", "SCALAR" },
 								  { "name", "String" },
 							  },
 						  },
-					  } }
-					: QJsonValue{ QJsonObject{
+					  })
+					: fixture_value(fixture_object{
 						  { "kind", "SCALAR" },
 						  { "name", "String" },
-						  { "ofType", QJsonValue::Null },
-					  } },
+						  { "ofType", nullptr },
+					  }),
 			},
 		});
-		input.insert("inputFields", fields);
-		data.insert("markInput", input);
-		envelope.insert("data", data);
-		return compact(QJsonDocument{ envelope });
+		input.insert_or_assign("inputFields", fields);
+		data.insert_or_assign("markInput", input);
+		envelope.insert_or_assign("data", data);
+		return fixture_json(envelope);
 	}
 
 	[[nodiscard]] auto without_enum_value(
 		const std::string& aBody,
-		const QString&     aAlias,
-		const QString&     aName) -> std::string
+		const std::string& aAlias,
+		const std::string& aName) -> std::string
 	{
-		auto       envelope = parse(aBody).object();
-		auto       data     = envelope.value("data").toObject();
-		auto       type     = data.value(aAlias).toObject();
-		const auto values   = type.value("enumValues").toArray();
-		auto       retained = QJsonArray{ };
+		auto       envelope = parse_fixture_object(aBody);
+		auto       data     = envelope.at("data").get_object();
+		auto       type     = data.at(aAlias).get_object();
+		const auto values   = type.at("enumValues").get_array();
+		auto       retained = fixture_array{ };
 		for (const auto& value : values) {
-			if (value.toObject().value("name").toString() != aName) {
+			if (value.get_object().at("name").get_string() != aName) {
 				retained.push_back(value);
 			}
 		}
 		expect(
 			retained.size() + 1 == values.size(),
 			"targeted enum value exists exactly once");
-		type.insert("enumValues", retained);
-		data.insert(aAlias, type);
-		envelope.insert("data", data);
-		return compact(QJsonDocument{ envelope });
+		type.insert_or_assign("enumValues", retained);
+		data.insert_or_assign(aAlias, type);
+		envelope.insert_or_assign("data", data);
+		return fixture_json(envelope);
 	}
 
 	[[nodiscard]] auto with_wrong_enum_member_shape(
 		const std::string& aBody) -> std::string
 	{
-		auto envelope = parse(aBody).object();
-		auto data     = envelope.value("data").toObject();
-		auto type     = data.value("fileViewedState").toObject();
-		auto values   = type.value("enumValues").toArray();
-		expect(!values.isEmpty(), "viewed-state enum fixture has values");
-		values.replace(0, QJsonObject{ { "name", 7 } });
-		type.insert("enumValues", values);
-		data.insert("fileViewedState", type);
-		envelope.insert("data", data);
-		return compact(QJsonDocument{ envelope });
+		auto envelope = parse_fixture_object(aBody);
+		auto data     = envelope.at("data").get_object();
+		auto type     = data.at("fileViewedState").get_object();
+		auto values   = type.at("enumValues").get_array();
+		expect(!values.empty(), "viewed-state enum fixture has values");
+		values.at(0) = fixture_object{ { "name", 7 } };
+		type.insert_or_assign("enumValues", values);
+		data.insert_or_assign("fileViewedState", type);
+		envelope.insert_or_assign("data", data);
+		return fixture_json(envelope);
 	}
 
 	auto test_malformed_duplicates_additions_and_limits() -> void
@@ -1558,15 +1519,15 @@ namespace {
 		expect_all_unknown(
 			observe(with_duplicate_alias_member(
 				supported,
-				QStringLiteral("markInput"),
-				QStringLiteral("inputFields"))),
+				"markInput",
+				"inputFields")),
 			capability_probe_unavailability::malformed_response,
 			"duplicate introspection input name rejects all evidence");
 		expect_all_unknown(
 			observe(with_duplicate_alias_member(
 				supported,
-				QStringLiteral("fileViewedState"),
-				QStringLiteral("enumValues"))),
+				"fileViewedState",
+				"enumValues")),
 			capability_probe_unavailability::malformed_response,
 			"duplicate introspection enum name rejects all evidence");
 		expect_all_unknown(
@@ -1576,8 +1537,8 @@ namespace {
 
 		const auto missingEnumValue = observe(without_enum_value(
 			supported,
-			QStringLiteral("fileViewedState"),
-			QStringLiteral("VIEWED")));
+			"fileViewedState",
+			"VIEWED"));
 		expect(
 			missingEnumValue.Complete
 				&& missingEnumValue.Capabilities.ViewedFileMutations
@@ -1769,55 +1730,55 @@ namespace {
 	{
 		using diagnostic = application::github_capability_diagnostic;
 		const std::array codes{
-			std::pair{ QStringLiteral("FORBIDDEN"), diagnostic::graphql_code_forbidden },
-			std::pair{ QStringLiteral("UNAUTHORIZED"), diagnostic::graphql_code_unauthorized },
-			std::pair{ QStringLiteral("NOT_FOUND"), diagnostic::graphql_code_not_found },
-			std::pair{ QStringLiteral("MAX_NODE_LIMIT_EXCEEDED"), diagnostic::graphql_code_max_node_limit_exceeded },
-			std::pair{ QStringLiteral("INTERNAL"), diagnostic::graphql_code_internal },
-			std::pair{ QStringLiteral("SERVICE_UNAVAILABLE"), diagnostic::graphql_code_service_unavailable },
-			std::pair{ QStringLiteral("GRAPHQL_PARSE_FAILED"), diagnostic::graphql_code_parse_failed },
-			std::pair{ QStringLiteral("GRAPHQL_VALIDATION_FAILED"), diagnostic::graphql_code_validation_failed },
-			std::pair{ QStringLiteral("undefinedField"), diagnostic::graphql_code_undefined_field },
-			std::pair{ QStringLiteral("argumentNotAccepted"), diagnostic::graphql_code_argument_not_accepted },
-			std::pair{ QStringLiteral("undefinedType"), diagnostic::graphql_code_undefined_type },
-			std::pair{ QStringLiteral("selectionMismatch"), diagnostic::graphql_code_selection_mismatch },
-			std::pair{ QStringLiteral("variableMismatch"), diagnostic::graphql_code_variable_mismatch },
-			std::pair{ QStringLiteral("variableNotUsed"), diagnostic::graphql_code_variable_not_used },
-			std::pair{ QStringLiteral("variableRequiresValidType"), diagnostic::graphql_code_variable_requires_valid_type },
-			std::pair{ QStringLiteral("variableNotDefined"), diagnostic::graphql_code_variable_not_defined }
+			std::pair{ "FORBIDDEN", diagnostic::graphql_code_forbidden },
+			std::pair{ "UNAUTHORIZED", diagnostic::graphql_code_unauthorized },
+			std::pair{ "NOT_FOUND", diagnostic::graphql_code_not_found },
+			std::pair{ "MAX_NODE_LIMIT_EXCEEDED", diagnostic::graphql_code_max_node_limit_exceeded },
+			std::pair{ "INTERNAL", diagnostic::graphql_code_internal },
+			std::pair{ "SERVICE_UNAVAILABLE", diagnostic::graphql_code_service_unavailable },
+			std::pair{ "GRAPHQL_PARSE_FAILED", diagnostic::graphql_code_parse_failed },
+			std::pair{ "GRAPHQL_VALIDATION_FAILED", diagnostic::graphql_code_validation_failed },
+			std::pair{ "undefinedField", diagnostic::graphql_code_undefined_field },
+			std::pair{ "argumentNotAccepted", diagnostic::graphql_code_argument_not_accepted },
+			std::pair{ "undefinedType", diagnostic::graphql_code_undefined_type },
+			std::pair{ "selectionMismatch", diagnostic::graphql_code_selection_mismatch },
+			std::pair{ "variableMismatch", diagnostic::graphql_code_variable_mismatch },
+			std::pair{ "variableNotUsed", diagnostic::graphql_code_variable_not_used },
+			std::pair{ "variableRequiresValidType", diagnostic::graphql_code_variable_requires_valid_type },
+			std::pair{ "variableNotDefined", diagnostic::graphql_code_variable_not_defined }
 		};
-		const auto check = [](const QJsonValue& aErrors, const diagnostic aExpected) {
-			const auto body        = compact(QJsonDocument{ QJsonObject{ { QStringLiteral("errors"), aErrors } } });
+		const auto check = [](const fixture_value& aErrors, const diagnostic aExpected) {
+			const auto body        = fixture_json(fixture_object{ { "errors", aErrors } });
 			const auto observation = observe(body);
 			expect_all_unknown(observation, capability_probe_unavailability::partial_response,
 							   "error-code refinement retains the existing non-rate refusal");
 			expect(observation.CapabilityDetail == aExpected, "error-code detail reports only the exact finite marker or shape");
 		};
 		for (const auto& [code, detail] : codes) {
-			check(QJsonArray{ QJsonObject{ { QStringLiteral("type"), code } } }, detail);
-			check(QJsonArray{ QJsonObject{ { QStringLiteral("extensions"), QJsonObject{ { QStringLiteral("type"), code } } } } }, detail);
-			check(QJsonArray{ QJsonObject{ { QStringLiteral("extensions"), QJsonObject{ { QStringLiteral("code"), code } } } } }, detail);
-			const QJsonObject agreeing{ { QStringLiteral("type"), code }, { QStringLiteral("extensions"), QJsonObject{ { QStringLiteral("type"), code }, { QStringLiteral("code"), code } } } };
-			check(QJsonArray{ agreeing, agreeing }, detail);
+			check(fixture_array{ fixture_object{ { "type", code } } }, detail);
+			check(fixture_array{ fixture_object{ { "extensions", fixture_object{ { "type", code } } } } }, detail);
+			check(fixture_array{ fixture_object{ { "extensions", fixture_object{ { "code", code } } } } }, detail);
+			const fixture_object agreeing{ { "type", code }, { "extensions", fixture_object{ { "type", code }, { "code", code } } } };
+			check(fixture_array{ agreeing, agreeing }, detail);
 		}
-		check(QJsonValue::Null, diagnostic::graphql_errors_not_array);
-		check(QJsonObject{ }, diagnostic::graphql_errors_not_array);
-		check(QJsonArray{ }, diagnostic::graphql_errors_empty);
-		check(QJsonArray{ QJsonValue::Null }, diagnostic::graphql_errors_malformed);
-		check(QJsonArray{ QJsonObject{ { QStringLiteral("type"), 42 } } }, diagnostic::graphql_errors_malformed);
-		check(QJsonArray{ QJsonObject{ { QStringLiteral("extensions"), 42 } } }, diagnostic::graphql_errors_malformed);
-		check(QJsonArray{ QJsonObject{ { QStringLiteral("extensions"), QJsonObject{ { QStringLiteral("code"), QJsonValue::Null } } } } }, diagnostic::graphql_errors_malformed);
-		const QJsonObject known{ { QStringLiteral("type"), QStringLiteral("FORBIDDEN") } };
-		const QJsonObject unknown{ { QStringLiteral("type"), QStringLiteral("fixture-secret-marker") } };
-		check(QJsonArray{ unknown }, diagnostic::graphql_errors);
-		check(QJsonArray{ QJsonObject{ { QStringLiteral("type"), QStringLiteral(" FORBIDDEN") } } }, diagnostic::graphql_errors);
-		check(QJsonArray{ QJsonObject{ { QStringLiteral("message"), QStringLiteral("FORBIDDEN fixture-secret-marker") }, { QStringLiteral("path"), QJsonArray{ QStringLiteral("UNAUTHORIZED") } }, { QStringLiteral("locations"), QJsonArray{ } } } }, diagnostic::graphql_errors);
-		check(QJsonArray{ known, unknown }, diagnostic::graphql_errors_mixed);
-		check(QJsonArray{ unknown, known }, diagnostic::graphql_errors_mixed);
-		check(QJsonArray{ known, QJsonObject{ } }, diagnostic::graphql_errors_mixed);
-		check(QJsonArray{ unknown, unknown }, diagnostic::graphql_errors_mixed);
-		check(QJsonArray{ known, QJsonObject{ { QStringLiteral("type"), QStringLiteral("UNAUTHORIZED") } } }, diagnostic::graphql_errors_mixed);
-		check(QJsonArray{ QJsonObject{ { QStringLiteral("type"), QStringLiteral("FORBIDDEN") }, { QStringLiteral("extensions"), QJsonObject{ { QStringLiteral("code"), QStringLiteral("UNAUTHORIZED") } } } } }, diagnostic::graphql_errors_mixed);
+		check(nullptr, diagnostic::graphql_errors_not_array);
+		check(fixture_object{ }, diagnostic::graphql_errors_not_array);
+		check(fixture_array{ }, diagnostic::graphql_errors_empty);
+		check(fixture_array{ nullptr }, diagnostic::graphql_errors_malformed);
+		check(fixture_array{ fixture_object{ { "type", 42 } } }, diagnostic::graphql_errors_malformed);
+		check(fixture_array{ fixture_object{ { "extensions", 42 } } }, diagnostic::graphql_errors_malformed);
+		check(fixture_array{ fixture_object{ { "extensions", fixture_object{ { "code", nullptr } } } } }, diagnostic::graphql_errors_malformed);
+		const fixture_object known{ { "type", "FORBIDDEN" } };
+		const fixture_object unknown{ { "type", "fixture-secret-marker" } };
+		check(fixture_array{ unknown }, diagnostic::graphql_errors);
+		check(fixture_array{ fixture_object{ { "type", " FORBIDDEN" } } }, diagnostic::graphql_errors);
+		check(fixture_array{ fixture_object{ { "message", "FORBIDDEN fixture-secret-marker" }, { "path", fixture_array{ "UNAUTHORIZED" } }, { "locations", fixture_array{ } } } }, diagnostic::graphql_errors);
+		check(fixture_array{ known, unknown }, diagnostic::graphql_errors_mixed);
+		check(fixture_array{ unknown, known }, diagnostic::graphql_errors_mixed);
+		check(fixture_array{ known, fixture_object{ } }, diagnostic::graphql_errors_mixed);
+		check(fixture_array{ unknown, unknown }, diagnostic::graphql_errors_mixed);
+		check(fixture_array{ known, fixture_object{ { "type", "UNAUTHORIZED" } } }, diagnostic::graphql_errors_mixed);
+		check(fixture_array{ fixture_object{ { "type", "FORBIDDEN" }, { "extensions", fixture_object{ { "code", "UNAUTHORIZED" } } } } }, diagnostic::graphql_errors_mixed);
 		const auto rate = observe(R"({"errors":[{"type":"FORBIDDEN"},{"type":"RATE_LIMITED"}]})");
 		expect_all_unknown(rate, capability_probe_unavailability::rate_limit, "existing rate-limit precedence is unchanged");
 		expect(rate.CapabilityDetail == diagnostic::graphql_errors, "rate-limit branch retains its existing detail");
@@ -1835,7 +1796,7 @@ namespace {
 			std::pair{ observe(R"({"data":null})"), diagnostic::graphql_data },
 			std::pair{ observe(R"({"data":{}})"), diagnostic::graphql_aliases },
 			std::pair{ observe(supported, true, 200, "text/plain"), diagnostic::transport_invalid_content_type },
-			std::pair{ observe(with_alias_member(supported, QStringLiteral("reviewThread"), QStringLiteral("fields"), QJsonValue::Null)), diagnostic::schema_shape },
+			std::pair{ observe(with_alias_member(supported, "reviewThread", "fields", nullptr)), diagnostic::schema_shape },
 			std::pair{ observe(supported, true, 200, "application/json", capability_probe_limits{ .MaximumResponseBytes = 1U }), diagnostic::normalizer_body_limit },
 			std::pair{ observe(supported, true, 200, "application/json", capability_probe_limits{ .MaximumDepth = 1U }), diagnostic::json_limits },
 			std::pair{ observe(supported, true, 200, "application/json", capability_probe_limits{ .MaximumMutationFields = 1U }), diagnostic::schema_limits },
@@ -1853,7 +1814,7 @@ namespace {
 	{
 		const std::string secret     = "runtime-only-secret-canary";
 		const auto        credential = std::as_bytes(std::span{ secret });
-		const auto        body       = QJsonDocument{ QJsonObject{ { "errors", QJsonArray{ QJsonObject{ { "message", QStringLiteral("Unknown schema field 'newField' is unavailable. ") + QString::fromStdString(secret) + QStringLiteral("\n\x1b[31m forged line https://example.invalid/private?token=x ghp_synthetic_secret_marker") }, { "type", QStringLiteral("UNFAMILIAR_SCHEMA_CODE") }, { "extensions", QJsonObject{ { "code", QString::fromStdString(secret) } } } } } } } }.toJson(QJsonDocument::Compact).toStdString();
+		const auto        body       = fixture_json(fixture_object{ { "errors", fixture_array{ fixture_object{ { "message", "Unknown schema field 'newField' is unavailable. " + secret + "\n\x1b[31m forged line https://example.invalid/private?token=x ghp_synthetic_secret_marker" }, { "type", "UNFAMILIAR_SCHEMA_CODE" }, { "extensions", fixture_object{ { "code", secret } } } } } } });
 		const auto        result     = sanitize_capability_error(body, credential);
 		expect(result.State == application::diagnostic_summary_state::sanitized, "sanitized bounded GraphQL prose");
 		expect(result.text().find("newField") != std::string_view::npos && result.text().find("UNFAMILIAR_SCHEMA_CODE") != std::string_view::npos, "unknown code and useful schema prose retained");
@@ -1909,17 +1870,17 @@ namespace {
 			for (std::uint8_t part = 0U; part < 9U; ++part) {
 				auto response = capability_probe_response{ .Status = 200, .Authenticated = true, .ContentType = "application/json", .Body = read_file(fixture_root().parent_path() / "v2-parts" / "github-com" / ("supported-" + std::to_string(part) + ".json")) };
 				if (valueLimit) {
-					auto       envelope = QJsonDocument::fromJson(QByteArray::fromStdString(response.Body)).object();
-					QJsonArray values;
+					auto          envelope = parse_fixture_object(response.Body);
+					fixture_array values;
 					for (unsigned index = 0U; index < 900U; ++index) {
-						values.append(0);
+						values.emplace_back(0);
 					}
-					QJsonArray groups;
+					fixture_array groups;
 					for (unsigned index = 0U; index < 10U; ++index) {
-						groups.append(values);
+						groups.emplace_back(values);
 					}
-					envelope.insert("extensions", groups);
-					response.Body = QJsonDocument{ envelope }.toJson(QJsonDocument::Compact).toStdString();
+					envelope.insert_or_assign("extensions", groups);
+					response.Body = fixture_json(envelope);
 				} else {
 					response.Body.append(180000U, ' ');
 				}
@@ -1936,15 +1897,15 @@ namespace {
 		auto response = capability_probe_response{ .Status = 200, .Authenticated = true, .ContentType = "application/json", .Body = read_file(fixture_root().parent_path() / "v2-parts" / "github-com" / "supported-0.json") };
 		for (const auto key : { "missing", "unexpected" }) {
 			auto changed  = response;
-			auto envelope = QJsonDocument::fromJson(QByteArray::fromStdString(changed.Body)).object();
-			auto data     = envelope.value("data").toObject();
+			auto envelope = parse_fixture_object(changed.Body);
+			auto data     = envelope.at("data").get_object();
 			if (std::string_view{ key } == "missing") {
-				data.remove("schemaRoot");
+				data.erase("schemaRoot");
 			} else {
-				data.insert("unexpected", QJsonObject{ });
+				data.insert_or_assign("unexpected", fixture_object{ });
 			}
-			envelope.insert("data", data);
-			changed.Body = QJsonDocument{ envelope }.toJson(QJsonDocument::Compact).toStdString();
+			envelope.insert_or_assign("data", data);
+			changed.Body = fixture_json(envelope);
 			capability_probe_batch batch;
 			expect(!batch.append(changed, 0U) && !batch.finish().Complete, "missing or unexpected part aliases refuse without partial facts");
 		}

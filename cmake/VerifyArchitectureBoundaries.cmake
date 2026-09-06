@@ -1434,7 +1434,7 @@ if(EXISTS "${designated_live_test_canary}")
     )
     set(
         designated_live_expected_runner_links
-        [=[target_link_libraries( tool_better_pull_review_designated_live_mutation_runner PRIVATE Qt6::Core Qt6::Network )]=]
+        [=[target_link_libraries( tool_better_pull_review_designated_live_mutation_runner PRIVATE glaze::glaze Qt6::Core Qt6::Network )]=]
     )
     set(
         designated_live_expected_runner_definitions

@@ -1,11 +1,8 @@
+#include "fixture_json.hpp"
 #include "github_anonymous_read_admission.hpp"
 #include "github_paged_read.hpp"
 
 #include "bpr/core/anonymous_read_policy.hpp"
-
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
 
 #include <algorithm>
 #include <array>
@@ -29,6 +26,7 @@
 
 namespace {
 	using namespace bpr;
+	using namespace bpr::tests;
 	using namespace bpr::adapters::github;
 	using namespace bpr::adapters::github::detail;
 
@@ -43,24 +41,13 @@ namespace {
 		}
 	}
 
-	[[nodiscard]] auto json(const QJsonObject& aValue) -> std::string
+	auto fill_to_member_count(fixture_object& aObject, const std::string& aPrefix,
+							  const std::size_t aTarget) -> void
 	{
-		return QJsonDocument{ aValue }.toJson(QJsonDocument::Compact).toStdString();
-	}
-
-	[[nodiscard]] auto json(const QJsonArray& aValue) -> std::string
-	{
-		return QJsonDocument{ aValue }.toJson(QJsonDocument::Compact).toStdString();
-	}
-
-	auto fill_to_member_count(QJsonObject&    aObject,
-							  const QString&  aPrefix,
-							  const qsizetype aTarget) -> void
-	{
-		qsizetype index = 0;
+		std::size_t index = 0;
 		while (aObject.size() < aTarget) {
-			aObject.insert(QString{ "%1_%2" }.arg(aPrefix).arg(index),
-						   QString{ "ignored raw GitHub field %1" }.arg(index));
+			aObject.insert_or_assign(aPrefix + "_" + std::to_string(index),
+									 "ignored raw GitHub field " + std::to_string(index));
 			++index;
 		}
 	}
@@ -267,55 +254,55 @@ namespace {
 	}
 
 	[[nodiscard]] auto rest_actor(const std::string_view aNode,
-								  const std::string_view aLogin) -> QJsonObject
+								  const std::string_view aLogin) -> fixture_object
 	{
 		return {
 			{ "avatar_url", "https://avatars.githubusercontent.com/u/123" },
 			{ "id", 123 },
-			{ "login", QString::fromUtf8(aLogin) },
-			{ "node_id", QString::fromUtf8(aNode) },
+			{ "login", std::string{ aLogin } },
+			{ "node_id", std::string{ aNode } },
 			{ "type", "User" },
 		};
 	}
 
-	[[nodiscard]] auto comment_node(const std::size_t aIndex) -> QJsonObject
+	[[nodiscard]] auto comment_node(const std::size_t aIndex) -> fixture_object
 	{
 		return {
-			{ "author", QJsonValue::Null },
-			{ "bodyText", QString{ "comment %1" }.arg(aIndex) },
-			{ "id", QString{ "C_%1" }.arg(aIndex) },
+			{ "author", nullptr },
+			{ "bodyText", std::string{ "comment " } + std::to_string(aIndex) },
+			{ "id", std::string{ "C_" } + std::to_string(aIndex) },
 			{ "line", 42 },
-			{ "originalLine", QJsonValue::Null },
+			{ "originalLine", nullptr },
 			{ "outdated", false },
 			{ "path", "src/file0.cpp" },
-			{ "replyTo", QJsonValue::Null },
+			{ "replyTo", nullptr },
 		};
 	}
 
 	[[nodiscard]] auto page_info(const bool                            aHasNext,
 								 const std::optional<std::string_view> aCursor)
-		-> QJsonObject
+		-> fixture_object
 	{
 		return {
 			{
 				"endCursor",
-				aCursor.has_value() ? QJsonValue{ QString::fromUtf8(*aCursor) }
-									: QJsonValue{ QJsonValue::Null },
+				aCursor.has_value() ? fixture_value(std::string{ *aCursor })
+									: fixture_value(nullptr),
 			},
 			{ "hasNextPage", aHasNext },
 		};
 	}
 
 	[[nodiscard]] auto connection(const std::uint64_t                   aTotal,
-								  QJsonArray                            aNodes,
+								  fixture_array                         aNodes,
 								  const bool                            aHasNext,
 								  const std::optional<std::string_view> aCursor)
-		-> QJsonObject
+		-> fixture_object
 	{
 		return {
 			{ "nodes", std::move(aNodes) },
 			{ "pageInfo", page_info(aHasNext, aCursor) },
-			{ "totalCount", static_cast<qint64>(aTotal) },
+			{ "totalCount", static_cast<std::uint64_t>(aTotal) },
 		};
 	}
 
@@ -588,9 +575,9 @@ namespace {
 				auto response = success_response(
 					Scenario == fixture_scenario::rest_secondary_duplicate_message
 						? R"({"message":"secondary rate limit","message":"permission"})"
-						: json(QJsonObject{
+						: fixture_json(fixture_object{
 							  { "message",
-								QString::fromStdString(operationalMessage) },
+								std::string(operationalMessage) },
 						  }));
 				response.Status = operationalStatus;
 				if (retryAfter.has_value()) {
@@ -609,11 +596,11 @@ namespace {
 				return response;
 			}
 			if (Scenario == fixture_scenario::raw_depth_ceiling_exceeded) {
-				QJsonValue nested = QJsonValue::Null;
+				fixture_value nested = nullptr;
 				for (std::size_t depth = 0U; depth < 33U; ++depth) {
-					nested = QJsonObject{ { "nested", nested } };
+					nested = fixture_object{ { "nested", nested } };
 				}
-				return success_response(json(nested.toObject()));
+				return success_response(fixture_json(nested.get_object()));
 			}
 			const auto canonicalCasing = Scenario == fixture_scenario::search_canonical_repository_casing;
 			const auto ownerName       = canonicalCasing ? std::string{ "Octo-Org" }
@@ -621,46 +608,46 @@ namespace {
 			const auto repositoryName  = canonicalCasing
 				? std::string{ "Review-Repository" }
 				: std::string{ "review-repository" };
-			auto       repository      = QJsonObject{
+			auto       repository      = fixture_object{
 				{ "archive_url",
 				  "https://api.github.com/repos/octo-org/review-repository/"
 				  "{archive_format}{/ref}" },
 				{ "default_branch", "main" },
 				{ "full_name",
-				  QString::fromStdString(ownerName + "/" + repositoryName) },
+				  std::string(ownerName + "/" + repositoryName) },
 				{ "html_url", "https://github.com/octo-org/review-repository" },
 				{ "id", 2001 },
-				{ "name", QString::fromStdString(repositoryName) },
+				{ "name", std::string(repositoryName) },
 				{ "node_id", "R_repository" },
 				{ "owner", rest_actor("O_organization", ownerName) },
 				{ "private", false },
 				{ "visibility", "private" },
 			};
-			QJsonArray ignoredTopics;
+			fixture_array ignoredTopics;
 			for (std::size_t index = 0U; index < 101U; ++index) {
-				ignoredTopics.push_back(QString{ "topic-%1" }.arg(index));
+				ignoredTopics.push_back(std::string{ "topic-" } + std::to_string(index));
 			}
-			repository.insert("ignored_topics", ignoredTopics);
+			repository.insert_or_assign("ignored_topics", ignoredTopics);
 			if (Scenario == fixture_scenario::aggregate_byte_ceiling) {
-				repository.insert("aggregate_padding",
-								  QString{ 70'000U, QLatin1Char{ 'r' } });
+				repository.insert_or_assign("aggregate_padding",
+											std::string(70'000U, 'r'));
 			}
 			if (Scenario == fixture_scenario::repository_missing_required) {
-				repository.remove("default_branch");
+				repository.erase("default_branch");
 			} else if (Scenario == fixture_scenario::repository_wrong_required) {
-				repository.insert("id", "not-an-integer");
+				repository.insert_or_assign("id", "not-an-integer");
 			}
 			fill_to_member_count(
 				repository,
 				"repository_surplus",
 				Scenario == fixture_scenario::raw_object_ceiling_exceeded ? 257
 																		  : 86);
-			return success_response(json(repository));
+			return success_response(fixture_json(repository));
 		}
 
 		[[nodiscard]] auto pull_request_response() const -> wire_response
 		{
-			auto baseRepository = QJsonObject{
+			auto baseRepository = fixture_object{
 				{ "full_name", "octo-org/review-repository" },
 				{ "html_url", "https://github.com/octo-org/review-repository" },
 				{ "id", 2001 },
@@ -669,32 +656,32 @@ namespace {
 			fill_to_member_count(baseRepository, "base_repo_surplus", 81);
 			auto headRepository = baseRepository;
 			fill_to_member_count(headRepository, "head_repo_surplus", 81);
-			const auto base = QJsonObject{
+			const auto base = fixture_object{
 				{ "label", "octo-org:main" },
 				{ "ref", "main" },
 				{ "repo", baseRepository },
-				{ "sha", QString::fromUtf8(base_oid) },
+				{ "sha", std::string{ base_oid } },
 				{ "user", rest_actor("O_organization", "octo-org") },
 			};
-			const auto head = QJsonObject{
+			const auto head = fixture_object{
 				{ "label", "octo-org:feature/paged-read" },
 				{ "ref", "feature/paged-read" },
 				{ "repo", headRepository },
-				{ "sha", QString::fromUtf8(head_oid) },
+				{ "sha", std::string{ head_oid } },
 				{ "user", rest_actor("O_organization", "octo-org") },
 			};
 			auto author = rest_actor("U_author", "octo-author");
 			if (Scenario == fixture_scenario::actor_missing_required) {
-				author.remove("node_id");
+				author.erase("node_id");
 			} else if (Scenario == fixture_scenario::actor_wrong_required) {
-				author.insert("login", 123);
+				author.insert_or_assign("login", 123);
 			}
-			auto pullRequest = QJsonObject{
+			auto pullRequest = fixture_object{
 				{ "base", base },
 				{ "body", "Synthetic body" },
-				{ "changed_files", static_cast<qint64>(advertised_file_count()) },
+				{ "changed_files", static_cast<std::uint64_t>(advertised_file_count()) },
 				{ "comments", 1 },
-				{ "commits", static_cast<qint64>(advertised_commit_count()) },
+				{ "commits", static_cast<std::uint64_t>(advertised_commit_count()) },
 				{ "created_at", "2026-07-30T12:00:00Z" },
 				{ "draft", false },
 				{ "head", head },
@@ -711,74 +698,68 @@ namespace {
 				{ "user", author },
 			};
 			if (Scenario == fixture_scenario::aggregate_byte_ceiling) {
-				pullRequest.insert("aggregate_padding",
-								   QString{ 70'000U, QLatin1Char{ 'p' } });
+				pullRequest.insert_or_assign("aggregate_padding",
+											 std::string(70'000U, 'p'));
 			}
 			if (Scenario == fixture_scenario::pull_request_missing_required) {
-				pullRequest.remove("title");
+				pullRequest.erase("title");
 			} else if (Scenario == fixture_scenario::pull_request_wrong_required) {
-				pullRequest.insert("draft", "false");
+				pullRequest.insert_or_assign("draft", "false");
 			} else if (Scenario == fixture_scenario::pull_request_missing_file_total) {
-				pullRequest.remove("changed_files");
+				pullRequest.erase("changed_files");
 			} else if (Scenario == fixture_scenario::pull_request_wrong_file_total) {
-				pullRequest.insert("changed_files", "101");
+				pullRequest.insert_or_assign("changed_files", "101");
 			} else if (Scenario == fixture_scenario::pull_request_missing_commit_total) {
-				pullRequest.remove("commits");
+				pullRequest.erase("commits");
 			} else if (Scenario == fixture_scenario::pull_request_wrong_commit_total) {
-				pullRequest.insert("commits", "1");
+				pullRequest.insert_or_assign("commits", "1");
 			} else if (Scenario == fixture_scenario::selected_title_over_limit) {
-				pullRequest.insert("title", QString{ 1'025U, QLatin1Char{ 't' } });
+				pullRequest.insert_or_assign("title", std::string(1'025U, 't'));
 			}
-			return success_response(json(pullRequest));
+			return success_response(fixture_json(pullRequest));
 		}
 
 		[[nodiscard]] auto files_response(const github_wire_request& aRequest) const
 			-> wire_response
 		{
-			QJsonArray files;
-			const auto page  = aRequest.Wire.Semantic.Page;
-			const auto total = Scenario == fixture_scenario::collection_cap_exact
+			fixture_array files;
+			const auto    page  = aRequest.Wire.Semantic.Page;
+			const auto    total = Scenario == fixture_scenario::collection_cap_exact
 				? std::size_t{ 3'000U }
 				: std::size_t{ 101U };
-			const auto begin = (static_cast<std::size_t>(page) - 1U) * std::size_t{ 100U };
-			const auto end   = Scenario == fixture_scenario::selected_page_records_exceeded
+			const auto    begin = (static_cast<std::size_t>(page) - 1U) * std::size_t{ 100U };
+			const auto    end   = Scenario == fixture_scenario::selected_page_records_exceeded
 					&& page == 1U
 				? total
 				: std::min(begin + std::size_t{ 100U }, total);
 			for (auto index = begin; index < end; ++index) {
-				auto file = QJsonObject{
+				auto file = fixture_object{
 					{ "additions", 1 },
 					{ "blob_url",
-					  QString{ "https://github.com/octo-org/review-repository/"
-							   "blob/head/src/file%1.cpp" }
-						  .arg(index) },
+					  std::string{ "https://github.com/octo-org/review-repository/blob/head/src/file" } + std::to_string(index) + ".cpp" },
 					{ "changes", 1 },
 					{ "contents_url",
-					  QString{ "https://api.github.com/repos/octo-org/"
-							   "review-repository/contents/src/file%1.cpp" }
-						  .arg(index) },
+					  std::string{ "https://api.github.com/repos/octo-org/review-repository/contents/src/file" } + std::to_string(index) + ".cpp" },
 					{ "deletions", 0 },
 					{
 						"filename",
-						QString{ "src/file%1.cpp" }.arg(index),
+						std::string{ "src/file" } + std::to_string(index) + ".cpp",
 					},
 					{ "patch", "@@ -1 +1 @@" },
 					{ "raw_url",
-					  QString{ "https://github.com/octo-org/review-repository/"
-							   "raw/head/src/file%1.cpp" }
-						  .arg(index) },
-					{ "sha", QString::fromUtf8(head_oid) },
+					  std::string{ "https://github.com/octo-org/review-repository/raw/head/src/file" } + std::to_string(index) + ".cpp" },
+					{ "sha", std::string{ head_oid } },
 					{ "status", "modified" },
 				};
 				if (index == 0U
 					&& Scenario == fixture_scenario::file_missing_required) {
-					file.remove("filename");
+					file.erase("filename");
 				} else if (index == 0U
 						   && Scenario == fixture_scenario::file_wrong_required) {
-					file.insert("additions", "one");
+					file.insert_or_assign("additions", "one");
 				} else if (index == 0U
 						   && Scenario == fixture_scenario::large_ignored_patch) {
-					file.insert("patch", QString{ 500U * 1'024U, QLatin1Char{ 'p' } });
+					file.insert_or_assign("patch", std::string(500U * 1'024U, 'p'));
 				}
 				files.push_back(std::move(file));
 			}
@@ -787,7 +768,7 @@ namespace {
 				const auto completeness = Scenario == fixture_scenario::unknown_completeness
 					? page_completeness::unknown
 					: page_completeness::complete;
-				return success_response(json(files), std::nullopt, completeness);
+				return success_response(fixture_json(files), std::nullopt, completeness);
 			}
 			auto authority = "https://" + Authority;
 			if (Scenario == fixture_scenario::cross_authority_link) {
@@ -826,19 +807,19 @@ namespace {
 			}
 			const auto link = "<" + authority + path + "?" + query + ">; rel=\"next\"";
 			return success_response(
-				json(files), link, page_completeness::has_next_page);
+				fixture_json(files), link, page_completeness::has_next_page);
 		}
 
 		[[nodiscard]] auto
 		commits_response(const github_wire_request& aRequest) const -> wire_response
 		{
-			const auto total = Scenario == fixture_scenario::collection_cap_exact
+			const auto    total = Scenario == fixture_scenario::collection_cap_exact
 				? std::size_t{ 250U }
 				: std::size_t{ 1U };
-			const auto page  = aRequest.Wire.Semantic.Page;
-			const auto begin = (static_cast<std::size_t>(page) - 1U) * std::size_t{ 100U };
-			const auto end   = std::min(begin + std::size_t{ 100U }, total);
-			QJsonArray commits;
+			const auto    page  = aRequest.Wire.Semantic.Page;
+			const auto    begin = (static_cast<std::size_t>(page) - 1U) * std::size_t{ 100U };
+			const auto    end   = std::min(begin + std::size_t{ 100U }, total);
+			fixture_array commits;
 			for (auto index = begin; index < end; ++index) {
 				const auto numeric = std::to_string(index + 1U);
 				auto       oid     = std::string(40U, '0');
@@ -846,10 +827,10 @@ namespace {
 				if (index + 1U == total) {
 					oid = head_oid;
 				}
-				auto commitDetails = QJsonObject{
+				auto commitDetails = fixture_object{
 					{
 						"author",
-						QJsonObject{
+						fixture_object{
 							{ "date", "2026-07-30T12:00:00Z" },
 							{ "email", "author@example.invalid" },
 							{ "name", "Octo Author" },
@@ -857,51 +838,51 @@ namespace {
 					},
 					{ "comment_count", 0 },
 					{ "message",
-					  index == 0U ? QString{ "Paged read\n\nBody" }
-								  : QString{ "Paged read %1\n\nBody" }.arg(index) },
+					  index == 0U ? std::string{ "Paged read\n\nBody" }
+								  : std::string{ "Paged read " } + std::to_string(index) + "\n\nBody" },
 					{
 						"tree",
-						QJsonObject{
-							{ "sha", QString::fromUtf8(base_oid) },
+						fixture_object{
+							{ "sha", std::string{ base_oid } },
 							{ "url", "https://api.github.com/tree" },
 						},
 					},
 					{ "url", "https://api.github.com/commit" },
 				};
-				auto commit = QJsonObject{
+				auto commit = fixture_object{
 					{ "author", rest_actor("U_commit_author", "octo-commit-author") },
 					{ "comments_url", "https://api.github.com/commit/comments" },
 					{ "commit", commitDetails },
 					{ "html_url", "https://github.com/commit" },
-					{ "node_id", QString{ "COMMIT_%1" }.arg(index) },
-					{ "sha", QString::fromStdString(oid) },
+					{ "node_id", std::string{ "COMMIT_" } + std::to_string(index) },
+					{ "sha", std::string(oid) },
 					{ "url", "https://api.github.com/commit" },
 				};
 				if (index == 0U
 					&& Scenario == fixture_scenario::commit_missing_required) {
-					commit.remove("commit");
+					commit.erase("commit");
 				} else if (index == 0U
 						   && Scenario == fixture_scenario::commit_wrong_required) {
-					commit.insert("sha", "not-a-commit-oid");
+					commit.insert_or_assign("sha", "not-a-commit-oid");
 				}
 				commits.push_back(std::move(commit));
 			}
 			if (end == total) {
-				return success_response(json(commits));
+				return success_response(fixture_json(commits));
 			}
 			const auto link = "<https://" + Authority + aRequest.Wire.Path
 				+ "?per_page=100&page=" + std::to_string(page + 1U)
 				+ ">; rel=\"next\"";
 			return success_response(
-				json(commits), link, page_completeness::has_next_page);
+				fixture_json(commits), link, page_completeness::has_next_page);
 		}
 
 		[[nodiscard]] auto reviews_response() const -> wire_response
 		{
-			auto review = QJsonObject{
+			auto review = fixture_object{
 				{ "author_association", "COLLABORATOR" },
 				{ "body", "Looks good" },
-				{ "commit_id", QString::fromUtf8(head_oid) },
+				{ "commit_id", std::string{ head_oid } },
 				{ "html_url",
 				  "https://github.com/octo-org/review-repository/pull/17#review" },
 				{ "id", 4001 },
@@ -911,16 +892,16 @@ namespace {
 				{ "user", rest_actor("U_reviewer", "octo-reviewer-2") },
 			};
 			if (Scenario == fixture_scenario::review_missing_required) {
-				review.remove("state");
+				review.erase("state");
 			} else if (Scenario == fixture_scenario::review_wrong_required) {
-				review.insert("body", 42);
+				review.insert_or_assign("body", 42);
 			}
-			return success_response(json(QJsonArray{ review }));
+			return success_response(fixture_json(fixture_array{ review }));
 		}
 
 		[[nodiscard]] auto issue_comments_response() const -> wire_response
 		{
-			auto comment = QJsonObject{
+			auto comment = fixture_object{
 				{ "author_association", "MEMBER" },
 				{ "body", "Tracking comment" },
 				{ "created_at", "2026-07-30T13:30:00Z" },
@@ -935,20 +916,20 @@ namespace {
 				{ "user", rest_actor("U_commenter", "octo-commenter") },
 			};
 			if (Scenario == fixture_scenario::issue_comment_missing_required) {
-				comment.remove("body");
+				comment.erase("body");
 			} else if (Scenario == fixture_scenario::issue_comment_wrong_required) {
-				comment.insert("user", "not-an-actor");
+				comment.insert_or_assign("user", "not-an-actor");
 			}
-			return success_response(json(QJsonArray{ comment }));
+			return success_response(fixture_json(fixture_array{ comment }));
 		}
 
 		[[nodiscard]] auto checks_response() const -> wire_response
 		{
-			auto check = QJsonObject{
+			auto check = fixture_object{
 				{ "completed_at", "2026-07-30T13:45:00Z" },
 				{ "conclusion", "success" },
 				{ "details_url", "https://checks.example.invalid/6001" },
-				{ "head_sha", QString::fromUtf8(head_oid) },
+				{ "head_sha", std::string{ head_oid } },
 				{ "html_url", "https://api.github.com/check-runs/6001" },
 				{ "id", 6001 },
 				{ "name", "native-build" },
@@ -957,23 +938,23 @@ namespace {
 				{ "status", "completed" },
 			};
 			if (Scenario == fixture_scenario::check_missing_required) {
-				check.remove("status");
+				check.erase("status");
 			} else if (Scenario == fixture_scenario::check_wrong_required) {
-				check.insert("head_sha", QString::fromUtf8(base_oid));
+				check.insert_or_assign("head_sha", std::string{ base_oid });
 			}
-			auto envelope = QJsonObject{
-				{ "check_runs", QJsonArray{ check } },
+			auto envelope = fixture_object{
+				{ "check_runs", fixture_array{ check } },
 				{ "total_count", 1 },
 				{ "url",
 				  "https://api.github.com/repos/octo-org/review-repository/"
 				  "commits/head/check-runs" },
 			};
 			if (Scenario == fixture_scenario::check_envelope_missing_required) {
-				envelope.remove("total_count");
+				envelope.erase("total_count");
 			} else if (Scenario == fixture_scenario::check_envelope_wrong_required) {
-				envelope.insert("check_runs", "not-an-array");
+				envelope.insert_or_assign("check_runs", "not-an-array");
 			}
-			return success_response(json(envelope));
+			return success_response(fixture_json(envelope));
 		}
 
 		[[nodiscard]] auto search_response(const github_wire_request& aRequest) const
@@ -1000,10 +981,10 @@ namespace {
 				repositoryUrl.append(Authority).append("/api/v3/repos/");
 			}
 			repositoryUrl.append(owner).append("/").append(repository);
-			const auto webAuthority = Authority == "api.github.com"
+			const auto    webAuthority = Authority == "api.github.com"
 				? std::string{ "github.com" }
 				: Authority;
-			QJsonArray items;
+			fixture_array items;
 			for (auto index = begin; index < end; ++index) {
 				const auto number  = 18U + index;
 				auto       itemUrl = std::string{ "https://" };
@@ -1014,83 +995,83 @@ namespace {
 					.append(repository)
 					.append("/pull/")
 					.append(std::to_string(number));
-				auto item = QJsonObject{
+				auto item = fixture_object{
 					{ "comments", 0 },
 					{ "draft", false },
 					{ "html_url",
-					  QString::fromStdString(itemUrl) },
-					{ "id", static_cast<qint64>(7'001U + index) },
-					{ "node_id", QString{ "PR_%1" }.arg(number) },
-					{ "number", static_cast<qint64>(number) },
+					  std::string(itemUrl) },
+					{ "id", static_cast<std::uint64_t>(7'001U + index) },
+					{ "node_id", std::string{ "PR_" } + std::to_string(number) },
+					{ "number", static_cast<std::uint64_t>(number) },
 					{
 						"pull_request",
-						QJsonObject{
+						fixture_object{
 							{ "diff_url", "https://github.com/pull.diff" },
 							{ "html_url", "https://github.com/pull" },
 							{ "patch_url", "https://github.com/pull.patch" },
 							{ "url",
-							  QString::fromStdString(repositoryUrl + "/pulls/"
-													 + std::to_string(number)) },
+							  std::string(repositoryUrl + "/pulls/"
+										  + std::to_string(number)) },
 						},
 					},
-					{ "repository_url", QString::fromStdString(repositoryUrl) },
+					{ "repository_url", std::string(repositoryUrl) },
 					{ "state", "open" },
-					{ "title", QString{ "Open pull request %1" }.arg(number) },
+					{ "title", std::string{ "Open pull request " } + std::to_string(number) },
 					{ "url", "https://api.github.com/issues" },
 				};
 				if (index == 0U
 					&& Scenario == fixture_scenario::search_missing_required) {
-					item.remove("number");
+					item.erase("number");
 				} else if (index == 0U
 						   && Scenario == fixture_scenario::search_wrong_required) {
-					item.insert("draft", "false");
+					item.insert_or_assign("draft", "false");
 				} else if (index == 0U
 						   && Scenario == fixture_scenario::search_wrong_authority) {
-					item.insert("repository_url",
-								"https://attacker.invalid/repos/octo-org/"
-								"review-repository");
+					item.insert_or_assign("repository_url",
+										  "https://attacker.invalid/repos/octo-org/"
+										  "review-repository");
 				} else if (index == 0U
 						   && Scenario == fixture_scenario::search_wrong_owner) {
-					item.insert(
+					item.insert_or_assign(
 						"repository_url",
 						"https://api.github.com/repos/other/review-repository");
 				} else if (index == 0U
 						   && Scenario == fixture_scenario::search_wrong_repository) {
-					item.insert("repository_url",
-								"https://api.github.com/repos/octo-org/other");
+					item.insert_or_assign("repository_url",
+										  "https://api.github.com/repos/octo-org/other");
 				} else if (index == 0U
 						   && Scenario == fixture_scenario::search_wrong_number_url) {
-					item.insert(
+					item.insert_or_assign(
 						"html_url",
 						"https://github.com/octo-org/review-repository/pull/999");
 				} else if (index == 0U
 						   && Scenario
 							   == fixture_scenario::search_missing_pull_request) {
-					item.remove("pull_request");
+					item.erase("pull_request");
 				} else if (index == 0U
 						   && Scenario
 							   == fixture_scenario::search_wrong_pull_request_url) {
-					auto pullRequest = item.value("pull_request").toObject();
-					pullRequest.insert("url",
-									   "https://api.github.com/repos/octo-org/"
-									   "review-repository/pulls/999");
-					item.insert("pull_request", pullRequest);
+					auto pullRequest = item.at("pull_request").get_object();
+					pullRequest.insert_or_assign("url",
+												 "https://api.github.com/repos/octo-org/"
+												 "review-repository/pulls/999");
+					item.insert_or_assign("pull_request", pullRequest);
 				}
 				items.push_back(std::move(item));
 			}
-			auto envelope = QJsonObject{
+			auto envelope = fixture_object{
 				{ "incomplete_results", false },
 				{ "items", items },
 				{ "repository_selection", "selected" },
-				{ "total_count", static_cast<qint64>(total) },
+				{ "total_count", static_cast<std::uint64_t>(total) },
 			};
 			if (Scenario == fixture_scenario::search_envelope_missing_required) {
-				envelope.remove("incomplete_results");
+				envelope.erase("incomplete_results");
 			} else if (Scenario == fixture_scenario::search_envelope_wrong_required) {
-				envelope.insert("items", QJsonObject{ });
+				envelope.insert_or_assign("items", fixture_object{ });
 			}
 			if (end == total) {
-				return success_response(json(envelope));
+				return success_response(fixture_json(envelope));
 			}
 
 			const auto marker = aRequest.Wire.Query.find("&q=");
@@ -1123,7 +1104,7 @@ namespace {
 				+ "?per_page=100&page=" + std::to_string(page + 1U)
 				+ "&q=" + queryValue + ">; rel=\"next\"";
 			return success_response(
-				json(envelope), link, page_completeness::has_next_page);
+				fixture_json(envelope), link, page_completeness::has_next_page);
 		}
 
 		[[nodiscard]] auto graphql_initial_response() const -> wire_response
@@ -1134,31 +1115,31 @@ namespace {
 			} else if (Scenario == fixture_scenario::truncated_total) {
 				total = 102U;
 			}
-			QJsonArray comments;
+			fixture_array comments;
 			for (std::size_t index = 0U; index < 100U; ++index) {
 				auto comment = comment_node(index);
 				if ((Scenario == fixture_scenario::line_comment_original_line_only
 					 || Scenario == fixture_scenario::line_comment_no_coordinates)
 					&& index == 0U) {
-					comment.insert("line", QJsonValue::Null);
-					comment.insert(
+					comment.insert_or_assign("line", nullptr);
+					comment.insert_or_assign(
 						"originalLine",
 						Scenario == fixture_scenario::line_comment_no_coordinates
-							? QJsonValue{ QJsonValue::Null }
-							: QJsonValue{ 42 });
+							? fixture_value(nullptr)
+							: fixture_value(42));
 				} else if (Scenario == fixture_scenario::file_comment_original_line) {
-					comment.insert("line", QJsonValue::Null);
-					comment.insert(
-						"originalLine", index == 0U ? QJsonValue{ 42 } : QJsonValue::Null);
+					comment.insert_or_assign("line", nullptr);
+					comment.insert_or_assign(
+						"originalLine", index == 0U ? fixture_value(42) : nullptr);
 				} else if (Scenario
 						   == fixture_scenario::paged_file_comment_original_line) {
-					comment.insert("line", QJsonValue::Null);
-					comment.insert("originalLine", QJsonValue::Null);
+					comment.insert_or_assign("line", nullptr);
+					comment.insert_or_assign("originalLine", nullptr);
 				}
 				comments.push_back(std::move(comment));
 			}
 			const auto missing = Scenario == fixture_scenario::missing_cursor;
-			auto       thread  = QJsonObject{
+			auto       thread  = fixture_object{
 				{
 					"comments",
 					connection(total,
@@ -1179,44 +1160,44 @@ namespace {
 				{ "viewerCanUnresolve", true },
 			};
 			if (Scenario == fixture_scenario::thread_side_missing) {
-				thread.remove("diffSide");
+				thread.erase("diffSide");
 			} else if (Scenario == fixture_scenario::thread_side_null) {
-				thread.insert("diffSide", QJsonValue::Null);
+				thread.insert_or_assign("diffSide", nullptr);
 			} else if (Scenario == fixture_scenario::thread_side_wrong) {
-				thread.insert("diffSide", 7);
+				thread.insert_or_assign("diffSide", 7);
 			} else if (Scenario == fixture_scenario::thread_side_unknown) {
-				thread.insert("diffSide", "UNCHANGED");
+				thread.insert_or_assign("diffSide", "UNCHANGED");
 			} else if (Scenario
 					   == fixture_scenario::current_thread_original_line_only) {
-				thread.insert("line", QJsonValue::Null);
+				thread.insert_or_assign("line", nullptr);
 			} else if (Scenario == fixture_scenario::file_comment_original_line
 					   || Scenario
 						   == fixture_scenario::paged_file_comment_original_line) {
-				thread.insert("subjectType", "FILE");
-				thread.insert("line", QJsonValue::Null);
-				thread.insert("originalLine", QJsonValue::Null);
+				thread.insert_or_assign("subjectType", "FILE");
+				thread.insert_or_assign("line", nullptr);
+				thread.insert_or_assign("originalLine", nullptr);
 			}
-			const auto pullRequest = QJsonObject{
+			const auto pullRequest = fixture_object{
 				{ "headRefOid",
 				  Scenario == fixture_scenario::graphql_head_moved
-					  ? QString::fromUtf8(base_oid)
-					  : QString::fromUtf8(head_oid) },
+					  ? std::string{ base_oid }
+					  : std::string{ head_oid } },
 				{ "id", "PR_17" },
 				{
 					"reviewThreads",
 					connection(1U,
-							   QJsonArray{ thread },
+							   fixture_array{ thread },
 							   false,
 							   std::optional<std::string_view>{ "THREAD_END" }),
 				},
 			};
-			auto envelope = QJsonObject{
+			auto envelope = fixture_object{
 				{
 					"data",
-					QJsonObject{
+					fixture_object{
 						{
 							"repository",
-							QJsonObject{
+							fixture_object{
 								{ "id", "R_repository" },
 								{ "pullRequest", pullRequest },
 							},
@@ -1225,15 +1206,15 @@ namespace {
 				},
 			};
 			if (Scenario == fixture_scenario::graphql_extensions) {
-				envelope.insert(
+				envelope.insert_or_assign(
 					"extensions",
-					QJsonObject{ { "requestId", "graphql-initial-request" } });
+					fixture_object{ { "requestId", "graphql-initial-request" } });
 			} else if (Scenario == fixture_scenario::graphql_errors_type_rate_limited) {
-				envelope = QJsonObject{
+				envelope = fixture_object{
 					{
 						"errors",
-						QJsonArray{
-							QJsonObject{
+						fixture_array{
+							fixture_object{
 								{ "message", "secondary limit" },
 								{ "type", "RATE_LIMITED" },
 							},
@@ -1242,42 +1223,42 @@ namespace {
 				};
 			} else if (Scenario
 					   == fixture_scenario::graphql_partial_errors_extension_type) {
-				envelope.insert("errors",
-								QJsonArray{
-									QJsonObject{
-										{
-											"extensions",
-											QJsonObject{ { "type", "RATE_LIMITED" } },
-										},
-										{ "message", "secondary limit" },
-									},
-								});
+				envelope.insert_or_assign("errors",
+										  fixture_array{
+											  fixture_object{
+												  {
+													  "extensions",
+													  fixture_object{ { "type", "RATE_LIMITED" } },
+												  },
+												  { "message", "secondary limit" },
+											  },
+										  });
 			} else if (Scenario
 					   == fixture_scenario::graphql_partial_errors_extension_code) {
-				envelope.insert("errors",
-								QJsonArray{
-									QJsonObject{
-										{
-											"extensions",
-											QJsonObject{ { "code", "RATE_LIMITED" } },
-										},
-										{ "message", "secondary limit" },
-									},
-								});
+				envelope.insert_or_assign("errors",
+										  fixture_array{
+											  fixture_object{
+												  {
+													  "extensions",
+													  fixture_object{ { "code", "RATE_LIMITED" } },
+												  },
+												  { "message", "secondary limit" },
+											  },
+										  });
 			} else if (Scenario == fixture_scenario::graphql_primary_rate_metadata) {
-				envelope.insert("errors",
-								QJsonArray{
-									QJsonObject{
-										{ "message", "primary quota exhausted" },
-										{ "type", "RATE_LIMITED" },
-									},
-								});
+				envelope.insert_or_assign("errors",
+										  fixture_array{
+											  fixture_object{
+												  { "message", "primary quota exhausted" },
+												  { "type", "RATE_LIMITED" },
+											  },
+										  });
 			} else if (Scenario == fixture_scenario::graphql_malformed_errors) {
-				envelope.insert("errors", QJsonObject{ { "type", "RATE_LIMITED" } });
+				envelope.insert_or_assign("errors", fixture_object{ { "type", "RATE_LIMITED" } });
 			} else if (Scenario == fixture_scenario::graphql_unknown_envelope_field) {
-				envelope.insert("trace", "not-selected");
+				envelope.insert_or_assign("trace", "not-selected");
 			}
-			auto response = success_response(json(envelope));
+			auto response = success_response(fixture_json(envelope));
 			if (Scenario == fixture_scenario::graphql_primary_rate_metadata) {
 				for (auto& header : response.Headers) {
 					if (header.Name == "X-RateLimit-Remaining") {
@@ -1290,9 +1271,9 @@ namespace {
 
 		[[nodiscard]] auto graphql_comments_response() const -> wire_response
 		{
-			const auto repeat = Scenario == fixture_scenario::repeated_cursor;
-			QJsonArray comments;
-			const auto count = repeat ? 100U : 1U;
+			const auto    repeat = Scenario == fixture_scenario::repeated_cursor;
+			fixture_array comments;
+			const auto    count = repeat ? 100U : 1U;
 			for (std::size_t index = 0U; index < count; ++index) {
 				auto comment = comment_node(100U + index);
 				if (index == 0U
@@ -1301,12 +1282,12 @@ namespace {
 						|| Scenario == fixture_scenario::paged_line_comment_no_coordinates
 						|| Scenario
 							== fixture_scenario::paged_file_comment_original_line)) {
-					comment.insert("line", QJsonValue::Null);
-					comment.insert(
+					comment.insert_or_assign("line", nullptr);
+					comment.insert_or_assign(
 						"originalLine",
 						Scenario == fixture_scenario::paged_line_comment_no_coordinates
-							? QJsonValue{ QJsonValue::Null }
-							: QJsonValue{ 42 });
+							? fixture_value(nullptr)
+							: fixture_value(42));
 				}
 				comments.push_back(std::move(comment));
 			}
@@ -1318,25 +1299,25 @@ namespace {
 													  repeat,
 													  repeat ? std::optional<std::string_view>{ "CURSOR_1" }
 															 : std::optional<std::string_view>{ "COMMENT_END" });
-			auto       envelope          = QJsonObject{
+			auto       envelope          = fixture_object{
 				{
 					"data",
-					QJsonObject{
+					fixture_object{
 						{
 							"node",
-							QJsonObject{
+							fixture_object{
 								{ "comments", commentConnection },
 								{ "id", "T_1" },
 							},
 						},
 						{
 							"repository",
-							QJsonObject{
+							fixture_object{
 								{ "id", "R_repository" },
 								{
 									"pullRequest",
-									QJsonObject{
-										{ "headRefOid", QString::fromUtf8(head_oid) },
+									fixture_object{
+										{ "headRefOid", std::string{ head_oid } },
 										{ "id", "PR_17" },
 									},
 								},
@@ -1346,11 +1327,11 @@ namespace {
 				},
 			};
 			if (Scenario == fixture_scenario::graphql_extensions) {
-				envelope.insert(
+				envelope.insert_or_assign(
 					"extensions",
-					QJsonObject{ { "requestId", "graphql-comments-request" } });
+					fixture_object{ { "requestId", "graphql-comments-request" } });
 			}
-			return success_response(json(envelope));
+			return success_response(fixture_json(envelope));
 		}
 
 		/// Serves the signed-out inline review-comment listing.
@@ -1377,7 +1358,7 @@ namespace {
 			const auto page  = aRequest.Wire.Semantic.Page;
 			const auto index = static_cast<std::size_t>(page) - 1U;
 			if (index >= ReviewCommentPages.size()) {
-				return success_response(json(QJsonArray{ }));
+				return success_response(fixture_json(fixture_array{ }));
 			}
 			if (index + 1U == ReviewCommentPages.size()) {
 				return success_response(ReviewCommentPages[index]);
@@ -1421,7 +1402,7 @@ namespace {
 				case read_operation::get_viewer_identity:
 					break;
 				}
-				return success_response(json(QJsonObject{ }));
+				return success_response(fixture_json(fixture_object{ }));
 			}();
 			const auto resource = aRequest.Wire.Operation == read_operation::list_review_threads
 				? "graphql"
@@ -1463,11 +1444,11 @@ namespace {
 
 	auto test_metadata_and_viewer() -> void
 	{
-		const auto response = success_response(json(QJsonObject{
+		const auto response = success_response(fixture_json(fixture_object{
 			{ "avatar_url", "https://avatars.githubusercontent.com/u/1001" },
 			{ "bio", "Reviews pull requests" },
 			{ "created_at", "2011-01-25T18:44:36Z" },
-			{ "email", QJsonValue::Null },
+			{ "email", nullptr },
 			{ "followers", 20 },
 			{ "following", 0 },
 			{ "html_url", "https://github.com/octo-reviewer" },
@@ -1567,7 +1548,7 @@ namespace {
 			   "metadata injection is rejected");
 
 		auto missing = response;
-		missing.Body = json(QJsonObject{
+		missing.Body = fixture_json(fixture_object{
 			{ "id", 1001 },
 			{ "login", "octo-reviewer" },
 			{ "name", "Octo Reviewer" },
@@ -1576,7 +1557,7 @@ namespace {
 			   "viewer normalization rejects a missing required field");
 
 		auto wrong = response;
-		wrong.Body = json(QJsonObject{
+		wrong.Body = fixture_json(fixture_object{
 			{ "id", "1001" },
 			{ "login", "octo-reviewer" },
 			{ "name", "Octo Reviewer" },

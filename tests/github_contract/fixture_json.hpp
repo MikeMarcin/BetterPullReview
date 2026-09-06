@@ -1,0 +1,47 @@
+#pragma once
+
+#include <glaze/json.hpp>
+
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <utility>
+
+namespace bpr::tests {
+	// For constructing valid test documents and injecting semantic faults.
+	// Raw malformed syntax and precision-boundary tokens must bypass this helper.
+	using fixture_value  = glz::generic_sorted_u64;
+	using fixture_object = fixture_value::object_t;
+	using fixture_array  = fixture_value::array_t;
+
+	struct fixture_json_options : glz::opts
+	{
+		bool escape_control_characters    = true;
+		bool validate_skipped             = true;
+		bool validate_trailing_whitespace = true;
+		constexpr fixture_json_options()
+		{
+			null_terminated   = false;
+			skip_null_members = false;
+		}
+	};
+
+	[[nodiscard]] inline auto parse_fixture_object(const std::string_view aBody) -> fixture_object
+	{
+		fixture_value value;
+		if (glz::read<fixture_json_options{ }>(value, aBody) || !value.is_object()) {
+			throw std::runtime_error{ "fixture JSON object is malformed" };
+		}
+		return std::move(value.get_object());
+	}
+
+	template <typename Value>
+	[[nodiscard]] auto fixture_json(const Value& aValue) -> std::string
+	{
+		std::string body;
+		if (glz::write<fixture_json_options{ }>(aValue, body)) {
+			throw std::runtime_error{ "fixture JSON cannot be serialized" };
+		}
+		return body;
+	}
+}

@@ -1,10 +1,8 @@
 #include "canonical_json_expectations.hpp"
+#include "fixture_json.hpp"
 #include "github_mutation_contract.hpp"
 
 #include "bpr/application/review_mutation_coordinator.hpp"
-
-#include <QJsonDocument>
-#include <QJsonObject>
 
 #include <array>
 #include <cstdint>
@@ -16,6 +14,7 @@
 
 namespace {
 	using namespace bpr;
+	using namespace bpr::tests;
 	using namespace bpr::adapters::github::detail;
 
 	void expect(const bool aCondition, const std::string_view aMessage)
@@ -226,11 +225,10 @@ namespace {
 		return R"({"id":45,"node_id":"PRR_fixture_45","user":{"login":"fixture-reviewer","id":22,"node_id":"MDQ6VXNlcjIy"},"body":"Review summary.","state":"COMMENTED","html_url":"https://github.com/MikeMarcin/BPR-Test/pull/1#pullrequestreview-45","pull_request_url":"https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/1","_links":{"html":{"href":"https://github.com/MikeMarcin/BPR-Test/pull/1#pullrequestreview-45"},"pull_request":{"href":"https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/1"}},"submitted_at":"2026-09-05T12:34:56Z","commit_id":"1111111111111111111111111111111111111111"})";
 	}
 
-	[[nodiscard]] auto review_response(const QJsonObject& aObject)
+	[[nodiscard]] auto review_response(const fixture_object& aObject)
 		-> review_mutation_wire_response
 	{
-		const auto bytes = QJsonDocument{ aObject }.toJson(QJsonDocument::Compact);
-		return { .Status = 200, .Body = { bytes.constData(), static_cast<std::size_t>(bytes.size()) } };
+		return { .Status = 200, .Body = fixture_json(aObject) };
 	}
 
 	void test_whole_review_dispositions_and_literal_summary()
@@ -239,7 +237,7 @@ namespace {
 		{
 			core::review_disposition Disposition;
 			std::string_view         Event;
-			QString                  State;
+			std::string              State;
 		};
 		const auto cases = std::array{
 			review_case{ core::review_disposition::comment, "COMMENT", "COMMENTED" },
@@ -258,8 +256,8 @@ namespace {
 					   && compiled->Body == std::string{ R"({"body":"Review summary.","commit_id":"1111111111111111111111111111111111111111","event":")" } + std::string{ entry.Event } + "\"}",
 				   "ordinary review wire contains only summary, exact head and explicit event");
 			expect(validate_outbound_review_mutation_request(*compiled).has_value(), "review wire revalidates");
-			auto object = QJsonDocument::fromJson(QByteArray::fromStdString(review_body())).object();
-			object.insert("state", entry.State);
+			auto object = parse_fixture_object(review_body());
+			object.insert_or_assign("state", entry.State);
 			const auto parsed = parse_review_submission_response(review_response(object), input);
 			expect(parsed.has_value() && parsed->ReviewDatabaseId == 45U
 					   && parsed->ReviewNodeId == "PRR_fixture_45" && parsed->Target == input.Target
@@ -269,7 +267,7 @@ namespace {
 
 			for (const auto& body : { std::string{ }, std::string{ " \t\r\n" }, std::string{ "\xE2\x80\x83" } }) {
 				input.Body = body;
-				object.insert("body", QString::fromUtf8(body));
+				object.insert_or_assign("body", body);
 				const auto allowed = entry.Disposition == core::review_disposition::approve;
 				expect(compile_review_submission_request(input).has_value() == allowed
 						   && parse_review_submission_response(review_response(object), input).has_value() == allowed,
@@ -281,9 +279,9 @@ namespace {
 		input.Body.append("\0\x01", 2U);
 		const auto compiled = compile_review_submission_request(input);
 		expect(compiled.has_value(), "escaped and non-ASCII summary compiles");
-		auto object = QJsonDocument::fromJson(QByteArray::fromStdString(review_body())).object();
-		object.insert("body", QString::fromUtf8(input.Body));
-		expect(QJsonDocument::fromJson(QByteArray::fromStdString(compiled->Body)).object().value("body").toString().toStdString() == input.Body
+		auto object = parse_fixture_object(review_body());
+		object.insert_or_assign("body", input.Body);
+		expect(parse_fixture_object(compiled->Body).at("body").get_string() == input.Body
 				   && parse_review_submission_response(review_response(object), input).has_value(),
 			   "summary bytes survive JSON escaping and response parsing");
 		const auto lineComment = parse_review_comment_response({ .Status = 201, .Body = comment_body() }, request());
@@ -359,9 +357,9 @@ namespace {
 		expect(ghes.has_value() && ghes->Path == "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1/reviews"
 				   && validate_outbound_review_mutation_request(*ghes).has_value(),
 			   "exact GHES authority compiles");
-		auto object = QJsonDocument::fromJson(QByteArray::fromStdString(review_body())).object();
+		auto object = parse_fixture_object(review_body());
 		expect(!parse_review_submission_response(review_response(object), input).has_value(), "GitHub.com response cannot satisfy GHES authority");
-		object.insert("pull_request_url", "https://ghe.example.com/api/v3/repos/MikeMarcin/BPR-Test/pulls/1");
+		object.insert_or_assign("pull_request_url", "https://ghe.example.com/api/v3/repos/MikeMarcin/BPR-Test/pulls/1");
 		expect(parse_review_submission_response(review_response(object), input).has_value(), "exact GHES response authority is accepted");
 	}
 
@@ -373,19 +371,19 @@ namespace {
 		auto tampered      = *compiled;
 		tampered.Operation = review_mutation_operation::create_review;
 		expect(!validate_outbound_review_mutation_request(tampered), "review list semantic/operation mismatch is refused");
-		auto object  = QJsonDocument::fromJson(QByteArray::fromStdString(review_body())).object();
+		auto object  = parse_fixture_object(review_body());
 		auto pending = object;
-		pending.insert("id", 46);
-		pending.insert("state", "PENDING");
-		pending.remove("submitted_at");
+		pending.insert_or_assign("id", 46);
+		pending.insert_or_assign("state", "PENDING");
+		pending.erase("submitted_at");
 		auto dismissed = object;
-		dismissed.insert("id", 47);
-		dismissed.insert("state", "DISMISSED");
+		dismissed.insert_or_assign("id", 47);
+		dismissed.insert_or_assign("state", "DISMISSED");
 		auto other = object;
-		other.insert("id", 48);
-		auto actor = other.value("user").toObject();
-		actor.insert("id", 23);
-		other.insert("user", actor);
+		other.insert_or_assign("id", 48);
+		auto actor = other.at("user").get_object();
+		actor.insert_or_assign("id", 23);
+		other.insert_or_assign("user", actor);
 		const auto body   = "[" + review_body() + "," + review_response(pending).Body + "," + review_response(dismissed).Body + "," + review_response(other).Body + "]";
 		const auto parsed = parse_review_submission_observations({ .Status = 200, .Body = body }, input);
 		expect(parsed && parsed->ReviewIds.size() == 4U && parsed->ExactReviews.size() == 1U && parsed->ExactReviews.front().ReviewDatabaseId == 45U, "baseline retains all reviews but only exact submitted reviews are candidates");
@@ -398,7 +396,7 @@ namespace {
 			if (index) {
 				oversized += ',';
 			}
-			object.insert("id", index + 1);
+			object.insert_or_assign("id", index + 1);
 			oversized += review_response(object).Body;
 		}
 		oversized += ']';
@@ -420,23 +418,23 @@ namespace {
 			expect(!parse_review_submission_response({ .Status = 200, .Body = fractionalId }, submission()).has_value(),
 				   "fractional provider identity cannot round into an exact integer");
 		}
-		const auto original = QJsonDocument::fromJson(QByteArray::fromStdString(review_body())).object();
+		const auto original = parse_fixture_object(review_body());
 		const auto fields   = std::array{
 			"id", "node_id", "commit_id", "body", "state", "submitted_at", "pull_request_url", "user"
 		};
 		for (const auto* field : fields) {
 			auto object = original;
-			object.remove(field);
+			object.erase(field);
 			expect(!parse_review_submission_response(review_response(object), submission()).has_value(), "missing review field is refused");
-			object.insert(field, QJsonValue::Null);
+			object.insert_or_assign(field, nullptr);
 			expect(!parse_review_submission_response(review_response(object), submission()).has_value(), "null review field is refused");
 		}
-		const auto mismatches = std::array<std::pair<QString, QJsonValue>, 19>{
-			std::pair{ "id", QJsonValue{ 0 } },
+		const auto mismatches = std::array<std::pair<std::string, fixture_value>, 19>{
+			std::pair{ "id", fixture_value(0) },
 			{ "id", -1 },
 			{ "id", 1.5 },
 			{ "node_id", "" },
-			{ "node_id", QString(257, 'x') },
+			{ "node_id", std::string(257U, 'x') },
 			{ "commit_id", "2222222222222222222222222222222222222222" },
 			{ "commit_id", "invalid" },
 			{ "body", "different summary" },
@@ -450,18 +448,18 @@ namespace {
 			{ "pull_request_url", "https://elsewhere.invalid/repos/MikeMarcin/BPR-Test/pulls/1" },
 			{ "pull_request_url", "https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/1?other" },
 			{ "pull_request_url", "https://github.com/MikeMarcin/BPR-Test/pull/1" },
-			{ "user", QJsonObject{ { "id", 23 }, { "node_id", "MDQ6VXNlcjIy" }, { "login", "fixture-reviewer" } } },
+			{ "user", fixture_object{ { "id", 23 }, { "node_id", "MDQ6VXNlcjIy" }, { "login", "fixture-reviewer" } } },
 		};
 		for (const auto& [field, value] : mismatches) {
 			auto object = original;
-			object.insert(field, value);
+			object.insert_or_assign(field, value);
 			expect(!parse_review_submission_response(review_response(object), submission()).has_value(), "mismatched or malformed review facts are refused");
 		}
 		for (const auto* field : { "id", "node_id", "login" }) {
 			auto object = original;
-			auto author = object.value("user").toObject();
-			author.insert(field, "different");
-			object.insert("user", author);
+			auto author = object.at("user").get_object();
+			author.insert_or_assign(field, "different");
+			object.insert_or_assign("user", author);
 			expect(!parse_review_submission_response(review_response(object), submission()).has_value(), "every author identity field must match");
 		}
 		for (const auto status : { 0, 201, 202, 301, 302, 307, 400, 422, 500 }) {
@@ -706,6 +704,15 @@ namespace {
 
 auto main() -> int
 {
+	const auto fixture = fixture_object{
+		{ "fraction", 1.5 },
+		{ "large", std::uint64_t{ 9'007'199'254'740'993U } },
+		{ "negative", -1 },
+		{ "null", nullptr },
+	};
+	expect(fixture_json(fixture)
+			   == R"({"fraction":1.5,"large":9007199254740993,"negative":-1,"null":null})",
+		   "semantic fixtures retain explicit null and signed, fractional and exact unsigned numbers");
 	test_exact_wire_compilation_and_tamper_rejection();
 	test_whole_review_dispositions_and_literal_summary();
 	test_whole_review_request_rejection();

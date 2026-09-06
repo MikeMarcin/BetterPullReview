@@ -1,11 +1,7 @@
+#include "fixture_json.hpp"
 #include "github_device_authorization_contract.hpp"
 
 #include <QCryptographicHash>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QJsonParseError>
-#include <QJsonValue>
 
 #include <algorithm>
 #include <cstdlib>
@@ -14,6 +10,7 @@
 #include <functional>
 #include <iostream>
 #include <iterator>
+#include <limits>
 #include <string>
 #include <string_view>
 #include <variant>
@@ -21,6 +18,7 @@
 
 namespace {
 	using namespace bpr::adapters::github::detail;
+	using namespace bpr::tests;
 
 	constexpr std::string_view synthetic_client_id   = "Iv23synthetic0000000";
 	constexpr std::string_view synthetic_device_code = "synthetic-device-code-708d";
@@ -52,19 +50,13 @@ namespace {
 	}
 
 	[[nodiscard]] auto parse_object(const std::filesystem::path& aPath)
-		-> QJsonObject
+		-> fixture_object
 	{
-		QJsonParseError error;
-		const auto      bytes    = QByteArray::fromStdString(read_all(aPath));
-		const auto      document = QJsonDocument::fromJson(bytes, &error);
-		expect(
-			error.error == QJsonParseError::NoError && document.isObject(),
-			"fixture is valid JSON");
-		return document.object();
+		return parse_fixture_object(read_all(aPath));
 	}
 
 	[[nodiscard]] auto outcome_fixture(const std::string_view aName)
-		-> QJsonObject
+		-> fixture_object
 	{
 		const auto root = std::filesystem::path{
 			BPR_GITHUB_DEVICE_AUTHORIZATION_FIXTURE_ROOT
@@ -72,10 +64,10 @@ namespace {
 		const auto fixture
 			= parse_object(root / "outcomes" / (std::string{ aName } + ".json"));
 		expect(
-			fixture.value(QLatin1StringView{ "schema_name" }).toString()
-					== QStringLiteral("bpr.rfc0016.device_contract")
-				&& fixture.value(QLatin1StringView{ "schema_version" })
-						.toInt()
+			fixture.at("schema_name").get_string()
+					== "bpr.rfc0016.device_contract"
+				&& fixture.at("schema_version")
+						.get<std::uint64_t>()
 					== 1,
 			"recorded outcome carries the device contract schema");
 		return fixture;
@@ -87,7 +79,7 @@ namespace {
 	/// renewal course: adding a tenth artifact to it would either break that
 	/// binding or forge membership in a sitting that never happened.
 	[[nodiscard]] auto documented_fixture(const std::string_view aName)
-		-> QJsonObject
+		-> fixture_object
 	{
 		const auto root = std::filesystem::path{
 			BPR_GITHUB_DEVICE_DOCUMENTED_FIXTURE_ROOT
@@ -95,20 +87,20 @@ namespace {
 		const auto fixture
 			= parse_object(root / "outcomes" / (std::string{ aName } + ".json"));
 		expect(
-			fixture.value(QLatin1StringView{ "schema_name" }).toString()
-					== QStringLiteral("bpr.rfc0016.device_documented_contract")
-				&& fixture.value(QLatin1StringView{ "schema_version" }).toInt()
+			fixture.at("schema_name").get_string()
+					== "bpr.rfc0016.device_documented_contract"
+				&& fixture.at("schema_version").get<std::uint64_t>()
 					== 1,
 			"documented outcome carries the documented contract schema");
 		const auto provenance
-			= fixture.value(QLatin1StringView{ "provenance" }).toObject();
+			= fixture.at("provenance").get_object();
 		expect(
-			provenance.value(QLatin1StringView{ "source_kind" }).toString()
-				== QStringLiteral("documented_not_recorded"),
+			provenance.at("source_kind").get_string()
+				== "documented_not_recorded",
 			"and says so in its provenance");
 		expect(
-			provenance.value(QLatin1StringView{ "recorded" }).isBool()
-				&& !provenance.value(QLatin1StringView{ "recorded" }).toBool(),
+			provenance.at("recorded").is_boolean()
+				&& !provenance.at("recorded").get_boolean(),
 			"and claims no recording");
 		return fixture;
 	}
@@ -117,32 +109,32 @@ namespace {
 	/// values verbatim, and synthetic bytes standing in for each recorded
 	/// observed-but-omitted transient field. The recorded field inventory is
 	/// authoritative; nothing else may appear.
-	[[nodiscard]] auto synthetic_body(const QJsonObject& aFixture) -> QJsonObject
+	[[nodiscard]] auto synthetic_body(const fixture_object& aFixture) -> fixture_object
 	{
 		const auto projection
-			= aFixture.value(QLatin1StringView{ "projection" }).toObject();
+			= aFixture.at("projection").get_object();
 		const auto values
-			= projection.value(QLatin1StringView{ "values" }).toObject();
-		auto body = QJsonObject{ };
+			= projection.at("values").get_object();
+		auto body = fixture_object{ };
 		for (const auto& field :
-			 projection.value(QLatin1StringView{ "observed_fields" }).toArray()) {
-			const auto name = field.toString();
+			 projection.at("observed_fields").get_array()) {
+			const auto name = field.get_string();
 			if (values.contains(name)) {
-				body.insert(name, values.value(name));
+				body.insert_or_assign(name, values.at(name));
 				continue;
 			}
-			if (name == QStringLiteral("device_code")) {
-				body.insert(name, QString::fromUtf8(synthetic_device_code));
-			} else if (name == QStringLiteral("user_code")) {
-				body.insert(name, QString::fromUtf8(synthetic_user_code));
-			} else if (name == QStringLiteral("access_token")) {
-				body.insert(name, QString::fromUtf8(synthetic_access_token));
-			} else if (name == QStringLiteral("refresh_token")) {
-				body.insert(name, QString::fromUtf8(synthetic_refresh_token));
-			} else if (name == QStringLiteral("error_description")) {
-				body.insert(name, QString::fromUtf8(synthetic_description));
-			} else if (name == QStringLiteral("error_uri")) {
-				body.insert(name, QString::fromUtf8(synthetic_official_uri));
+			if (name == "device_code") {
+				body.insert_or_assign(name, std::string{ synthetic_device_code });
+			} else if (name == "user_code") {
+				body.insert_or_assign(name, std::string{ synthetic_user_code });
+			} else if (name == "access_token") {
+				body.insert_or_assign(name, std::string{ synthetic_access_token });
+			} else if (name == "refresh_token") {
+				body.insert_or_assign(name, std::string{ synthetic_refresh_token });
+			} else if (name == "error_description") {
+				body.insert_or_assign(name, std::string{ synthetic_description });
+			} else if (name == "error_uri") {
+				body.insert_or_assign(name, std::string{ synthetic_official_uri });
 			} else {
 				expect(false, "every omitted transient field has a stand-in");
 			}
@@ -151,25 +143,25 @@ namespace {
 	}
 
 	[[nodiscard]] auto response_from(
-		const QJsonObject& aFixture,
-		const QJsonObject& aBody) -> wire_response
+		const fixture_object& aFixture,
+		const fixture_object& aBody) -> wire_response
 	{
+		const auto status = aFixture.at("http_status").get<std::uint64_t>();
+		expect(status <= static_cast<std::uint64_t>(std::numeric_limits<int>::max()), "fixture HTTP status fits the wire type");
 		return wire_response{
-			.Status = aFixture.value(QLatin1StringView{ "http_status" }).toInt(),
+			.Status = static_cast<int>(status),
 			.Headers
 			= { { .Name = "Content-Type", .Value = "application/json" } },
-			.Body = QJsonDocument{ aBody }
-						.toJson(QJsonDocument::Compact)
-						.toStdString(),
+			.Body = fixture_json(aBody),
 		};
 	}
 
-	[[nodiscard]] auto compiled_for(const QJsonObject& aFixture)
+	[[nodiscard]] auto compiled_for(const fixture_object& aFixture)
 		-> device_authorization_wire_request
 	{
 		const auto endpoint
-			= aFixture.value(QLatin1StringView{ "endpoint" }).toString();
-		if (endpoint == QStringLiteral("device_code")) {
+			= aFixture.at("endpoint").get_string();
+		if (endpoint == "device_code") {
 			const auto request = compile_device_code_request(
 				server_contract::github_com,
 				synthetic_client_id);
@@ -194,13 +186,12 @@ namespace {
 			const auto request = compiled_for(fixture);
 			expect(
 				request.Url
-					== fixture.value(QLatin1StringView{ "endpoint_url" })
-						   .toString()
-						   .toStdString(),
+					== fixture.at("endpoint_url")
+						   .get_string(),
 				"compiled URL equals the recorded endpoint URL");
 			expect(
-				fixture.value(QLatin1StringView{ "request_method" }).toString()
-						== QStringLiteral("POST")
+				fixture.at("request_method").get_string()
+						== "POST"
 					&& request.Method == http_method::post,
 				"the recorded and compiled methods are both POST");
 			const auto contentType = std::ranges::find_if(
@@ -212,10 +203,8 @@ namespace {
 				contentType != request.Headers.end()
 					&& contentType->Value
 						== fixture
-							   .value(QLatin1StringView{
-								   "request_content_type" })
-							   .toString()
-							   .toStdString(),
+							   .at("request_content_type")
+							   .get_string(),
 				"the compiled content type equals the recorded one");
 		}
 	}
@@ -298,9 +287,8 @@ namespace {
 		};
 		const auto registration = parse_object(root / "registration.json");
 		const auto clientId
-			= registration.value(QLatin1StringView{ "public_client_id" })
-				  .toString()
-				  .toStdString();
+			= registration.at("public_client_id")
+				  .get_string();
 		expect(
 			valid_device_client_id(clientId),
 			"the recorded public client id satisfies the compiled validation");
@@ -309,10 +297,10 @@ namespace {
 	void test_device_code_success_parses_to_the_recorded_grant()
 	{
 		const auto fixture = outcome_fixture("device_code_success");
-		const auto values  = fixture.value(QLatin1StringView{ "projection" })
-								 .toObject()
-								 .value(QLatin1StringView{ "values" })
-								 .toObject();
+		const auto values  = fixture.at("projection")
+								 .get_object()
+								 .at("values")
+								 .get_object();
 		const auto outcome = parse_device_code_response(
 			response_from(fixture, synthetic_body(fixture)));
 		expect(outcome.has_value(), "the recorded success shape parses");
@@ -324,15 +312,12 @@ namespace {
 			"the grant surfaces the transient codes to the host");
 		expect(
 			grant->VerificationUri
-					== values.value(QLatin1StringView{ "verification_uri" })
-						   .toString()
-						   .toStdString()
+					== values.at("verification_uri")
+						   .get_string()
 				&& grant->ExpiresInSeconds
-					== static_cast<std::uint32_t>(
-						values.value(QLatin1StringView{ "expires_in" }).toInt())
+					== values.at("expires_in").get<std::uint64_t>()
 				&& grant->IntervalSeconds
-					== static_cast<std::uint32_t>(
-						values.value(QLatin1StringView{ "interval" }).toInt()),
+					== values.at("interval").get<std::uint64_t>(),
 			"the grant carries exactly the recorded retained values");
 	}
 
@@ -340,7 +325,7 @@ namespace {
 	{
 		const auto fixture = outcome_fixture("device_flow_disabled");
 		expect(
-			fixture.value(QLatin1StringView{ "http_status" }).toInt() == 400,
+			fixture.at("http_status").get<std::uint64_t>() == 400,
 			"the recorded disabled refusal uses status 400");
 		const auto outcome = parse_device_code_response(
 			response_from(fixture, synthetic_body(fixture)));
@@ -360,7 +345,7 @@ namespace {
 			   "expired_token" }) {
 			const auto fixture = outcome_fixture(name);
 			expect(
-				fixture.value(QLatin1StringView{ "http_status" }).toInt() == 200,
+				fixture.at("http_status").get<std::uint64_t>() == 200,
 				"the recorded token errors use status 200");
 		}
 	}
@@ -421,8 +406,8 @@ namespace {
 	}
 
 	[[nodiscard]] auto mutated(
-		const QJsonObject&                       aBody,
-		const std::function<void(QJsonObject&)>& aMutate) -> QJsonObject
+		const fixture_object&                       aBody,
+		const std::function<void(fixture_object&)>& aMutate) -> fixture_object
 	{
 		auto body = aBody;
 		aMutate(body);
@@ -435,7 +420,7 @@ namespace {
 		const auto body    = synthetic_body(fixture);
 		const auto failure
 			= [&fixture](
-				  const QJsonObject&                          aBody,
+				  const fixture_object&                       aBody,
 				  const device_authorization_contract_failure aExpected,
 				  const std::string_view                      aMessage) {
 				  const auto outcome = parse_device_code_response(
@@ -448,72 +433,72 @@ namespace {
 		failure(
 			mutated(
 				body,
-				[](QJsonObject& aObject) {
-					aObject.insert(
-						QStringLiteral("verification_uri_complete"),
-						QStringLiteral("https://github.com/login/device"));
+				[](fixture_object& aObject) {
+					aObject.insert_or_assign(
+						"verification_uri_complete",
+						"https://github.com/login/device");
 				}),
 			device_authorization_contract_failure::unexpected_field,
 			"an unrecorded extra field is refused");
 		failure(
 			mutated(
 				body,
-				[](QJsonObject& aObject) {
-					aObject.remove(QStringLiteral("interval"));
+				[](fixture_object& aObject) {
+					aObject.erase("interval");
 				}),
 			device_authorization_contract_failure::unexpected_field,
 			"a missing recorded field is refused");
 		failure(
 			mutated(
 				body,
-				[](QJsonObject& aObject) {
-					aObject.insert(
-						QStringLiteral("interval"),
-						QStringLiteral("5"));
+				[](fixture_object& aObject) {
+					aObject.insert_or_assign(
+						"interval",
+						"5");
 				}),
 			device_authorization_contract_failure::invalid_field_value,
 			"a string interval is refused");
 		failure(
 			mutated(
 				body,
-				[](QJsonObject& aObject) {
-					aObject.insert(QStringLiteral("interval"), -5);
+				[](fixture_object& aObject) {
+					aObject.insert_or_assign("interval", -5);
 				}),
 			device_authorization_contract_failure::invalid_field_value,
 			"a negative interval is refused");
 		failure(
 			mutated(
 				body,
-				[](QJsonObject& aObject) {
-					aObject.insert(QStringLiteral("interval"), 5.5);
+				[](fixture_object& aObject) {
+					aObject.insert_or_assign("interval", 5.5);
 				}),
 			device_authorization_contract_failure::invalid_field_value,
 			"a fractional interval is refused");
 		failure(
 			mutated(
 				body,
-				[](QJsonObject& aObject) {
-					aObject.insert(
-						QStringLiteral("verification_uri"),
-						QStringLiteral("https://example.com/login/device"));
+				[](fixture_object& aObject) {
+					aObject.insert_or_assign(
+						"verification_uri",
+						"https://example.com/login/device");
 				}),
 			device_authorization_contract_failure::off_authority_verification_uri,
 			"an off-authority verification address is refused");
 		failure(
 			mutated(
 				body,
-				[](QJsonObject& aObject) {
-					aObject.insert(
-						QStringLiteral("verification_uri"),
-						QStringLiteral("http://github.com/login/device"));
+				[](fixture_object& aObject) {
+					aObject.insert_or_assign(
+						"verification_uri",
+						"http://github.com/login/device");
 				}),
 			device_authorization_contract_failure::off_authority_verification_uri,
 			"a non-https verification address is refused");
 		failure(
 			mutated(
 				body,
-				[](QJsonObject& aObject) {
-					aObject.insert(QStringLiteral("device_code"), QString{ });
+				[](fixture_object& aObject) {
+					aObject.insert_or_assign("device_code", std::string{ });
 				}),
 			device_authorization_contract_failure::invalid_field_value,
 			"an empty device code is refused");
@@ -554,7 +539,7 @@ namespace {
 		const auto successBody = synthetic_body(success);
 		const auto failure
 			= [&success](
-				  const QJsonObject&                          aBody,
+				  const fixture_object&                       aBody,
 				  const device_authorization_contract_failure aExpected,
 				  const std::string_view                      aMessage) {
 				  const auto outcome = parse_device_token_response(
@@ -567,28 +552,28 @@ namespace {
 		failure(
 			mutated(
 				successBody,
-				[](QJsonObject& aObject) {
-					aObject.insert(
-						QStringLiteral("token_type"),
-						QStringLiteral("Bearer"));
+				[](fixture_object& aObject) {
+					aObject.insert_or_assign(
+						"token_type",
+						"Bearer");
 				}),
 			device_authorization_contract_failure::invalid_field_value,
 			"a non-lowercase token type is refused");
 		failure(
 			mutated(
 				successBody,
-				[](QJsonObject& aObject) {
-					aObject.insert(
-						QStringLiteral("scope"),
-						QStringLiteral("repo"));
+				[](fixture_object& aObject) {
+					aObject.insert_or_assign(
+						"scope",
+						"repo");
 				}),
 			device_authorization_contract_failure::invalid_field_value,
 			"a non-empty scope contradicts the registration and is refused");
 		failure(
 			mutated(
 				successBody,
-				[](QJsonObject& aObject) {
-					aObject.remove(QStringLiteral("refresh_token"));
+				[](fixture_object& aObject) {
+					aObject.erase("refresh_token");
 				}),
 			device_authorization_contract_failure::unexpected_field,
 			"a success without a refresh token is refused");
@@ -598,39 +583,39 @@ namespace {
 		failure(
 			mutated(
 				slowBody,
-				[](QJsonObject& aObject) {
-					aObject.remove(QStringLiteral("interval"));
+				[](fixture_object& aObject) {
+					aObject.erase("interval");
 				}),
 			device_authorization_contract_failure::missing_field,
 			"slow_down without its interval is refused");
 		failure(
 			mutated(
 				slowBody,
-				[](QJsonObject& aObject) {
-					aObject.insert(
-						QStringLiteral("error"),
-						QStringLiteral("authorization_pending"));
+				[](fixture_object& aObject) {
+					aObject.insert_or_assign(
+						"error",
+						"authorization_pending");
 				}),
 			device_authorization_contract_failure::unexpected_field,
 			"an interval on a non-slow_down error is refused");
 		failure(
 			mutated(
 				slowBody,
-				[](QJsonObject& aObject) {
-					aObject.insert(
-						QStringLiteral("error_uri"),
-						QStringLiteral("https://example.com/errors"));
+				[](fixture_object& aObject) {
+					aObject.insert_or_assign(
+						"error_uri",
+						"https://example.com/errors");
 				}),
 			device_authorization_contract_failure::unofficial_error_uri,
 			"an unofficial error documentation authority is refused");
 		failure(
 			mutated(
 				slowBody,
-				[](QJsonObject& aObject) {
-					aObject.insert(
-						QStringLiteral("error"),
-						QStringLiteral("incorrect_client_credentials"));
-					aObject.remove(QStringLiteral("interval"));
+				[](fixture_object& aObject) {
+					aObject.insert_or_assign(
+						"error",
+						"incorrect_client_credentials");
+					aObject.erase("interval");
 				}),
 			device_authorization_contract_failure::unknown_error_code,
 			"an error outside the recorded closed set is refused");
@@ -652,41 +637,40 @@ namespace {
 
 		const auto manifest = parse_object(documented / "manifest.json");
 		expect(
-			manifest.value(QLatin1StringView{ "schema_name" }).toString()
-				== QStringLiteral(
-					"bpr.rfc0016.device_documented_contract_manifest"),
+			manifest.at("schema_name").get_string()
+				== "bpr.rfc0016.device_documented_contract_manifest",
 			"the documented manifest is its own schema");
 		expect(
-			manifest.value(QLatin1StringView{ "state" }).toString()
-				== QStringLiteral("documented_not_recorded"),
+			manifest.at("state").get_string()
+				== "documented_not_recorded",
 			"and its state never claims a capture");
 		expect(
-			manifest.value(QLatin1StringView{ "recorded" }).isBool()
-				&& !manifest.value(QLatin1StringView{ "recorded" }).toBool(),
+			manifest.at("recorded").is_boolean()
+				&& !manifest.at("recorded").get_boolean(),
 			"nor does its recorded flag");
 
 		// Every documented artifact is digest-pinned exactly as the recorded
 		// ones are, so an edit that changes a shape cannot pass unnoticed.
 		const auto artifacts
-			= manifest.value(QLatin1StringView{ "artifacts" }).toArray();
+			= manifest.at("artifacts").get_array();
 		expect(artifacts.size() == 2, "two documented artifacts are pinned");
 		for (const auto& entry : artifacts) {
-			const auto artifact = entry.toObject();
+			const auto artifact = entry.get_object();
 			const auto relative
-				= artifact.value(QLatin1StringView{ "path" }).toString();
+				= artifact.at("path").get_string();
 			expect(
-				artifact.value(QLatin1StringView{ "source_kind" }).toString()
-					== QStringLiteral("documented_not_recorded"),
+				artifact.at("source_kind").get_string()
+					== "documented_not_recorded",
 				"every documented artifact is labeled");
 			const auto bytes = read_all(
-				documented / std::filesystem::path{ relative.toStdString() });
+				documented / std::filesystem::path{ relative });
 			const auto digest = QCryptographicHash::hash(
 				QByteArray::fromStdString(bytes),
 				QCryptographicHash::Sha256);
 			expect(
-				artifact.value(QLatin1StringView{ "sha256" }).toString()
-					== QStringLiteral("sha256:")
-						+ QString::fromLatin1(digest.toHex()),
+				artifact.at("sha256").get_string()
+					== "sha256:"
+						+ digest.toHex().toStdString(),
 				"and its pinned digest matches its bytes");
 		}
 	}
@@ -698,22 +682,22 @@ namespace {
 		// attended sitting already recorded, and this proves that rather than
 		// asserting it in a comment.
 		const auto recorded   = outcome_fixture("token_success")
-									.value(QLatin1StringView{ "projection" })
-									.toObject();
+									.at("projection")
+									.get_object();
 		const auto documented = documented_fixture("refresh_success")
-									.value(QLatin1StringView{ "projection" })
-									.toObject();
+									.at("projection")
+									.get_object();
 		expect(
-			documented.value(QLatin1StringView{ "observed_fields" })
-				== recorded.value(QLatin1StringView{ "observed_fields" }),
+			fixture_json(documented.at("observed_fields"))
+				== fixture_json(recorded.at("observed_fields")),
 			"the documented renewal body has exactly the recorded fields");
 		expect(
-			documented.value(QLatin1StringView{ "omitted_transient_fields" })
-				== recorded.value(QLatin1StringView{ "omitted_transient_fields" }),
+			fixture_json(documented.at("omitted_transient_fields"))
+				== fixture_json(recorded.at("omitted_transient_fields")),
 			"omitting exactly the same transient material");
 		expect(
-			documented.value(QLatin1StringView{ "values" })
-				== recorded.value(QLatin1StringView{ "values" }),
+			fixture_json(documented.at("values"))
+				== fixture_json(recorded.at("values")),
 			"with the same retained non-secret values");
 	}
 
@@ -736,9 +720,8 @@ namespace {
 		expect(
 			request->Url
 				== documented_fixture("refresh_success")
-					   .value(QLatin1StringView{ "endpoint_url" })
-					   .toString()
-					   .toStdString(),
+					   .at("endpoint_url")
+					   .get_string(),
 			"at the documented endpoint URL");
 		expect(
 			request->Body.find("device_code") == std::string::npos
@@ -831,7 +814,7 @@ namespace {
 		const auto refusedBody = synthetic_body(refused);
 		const auto failure
 			= [&success](
-				  const QJsonObject&                          aBody,
+				  const fixture_object&                       aBody,
 				  const device_authorization_contract_failure aExpected,
 				  const std::string_view                      aMessage) {
 				  const auto outcome = parse_device_refresh_response(
@@ -844,36 +827,36 @@ namespace {
 		failure(
 			mutated(
 				successBody,
-				[](QJsonObject& aObject) {
-					aObject.remove(QStringLiteral("refresh_token"));
+				[](fixture_object& aObject) {
+					aObject.erase("refresh_token");
 				}),
 			device_authorization_contract_failure::unexpected_field,
 			"a renewal that rotates no refresh material is refused");
 		failure(
 			mutated(
 				successBody,
-				[](QJsonObject& aObject) {
-					aObject.insert(
-						QStringLiteral("scope"),
-						QStringLiteral("repo"));
+				[](fixture_object& aObject) {
+					aObject.insert_or_assign(
+						"scope",
+						"repo");
 				}),
 			device_authorization_contract_failure::invalid_field_value,
 			"a renewal that silently widens scope is refused");
 		failure(
 			mutated(
 				successBody,
-				[](QJsonObject& aObject) {
-					aObject.insert(
-						QStringLiteral("verification_uri"),
-						QStringLiteral("https://github.com/login/device"));
+				[](fixture_object& aObject) {
+					aObject.insert_or_assign(
+						"verification_uri",
+						"https://github.com/login/device");
 				}),
 			device_authorization_contract_failure::unexpected_field,
 			"an unrecorded extra field is refused");
 		failure(
 			mutated(
 				successBody,
-				[](QJsonObject& aObject) {
-					aObject.insert(QStringLiteral("expires_in"), -1);
+				[](fixture_object& aObject) {
+					aObject.insert_or_assign("expires_in", -1);
 				}),
 			device_authorization_contract_failure::invalid_field_value,
 			"a negative lifetime is refused");
@@ -886,10 +869,10 @@ namespace {
 			 { "authorization_pending", "access_denied", "expired_token" }) {
 			const auto body = mutated(
 				refusedBody,
-				[code](QJsonObject& aObject) {
-					aObject.insert(
-						QStringLiteral("error"),
-						QString::fromUtf8(code));
+				[code](fixture_object& aObject) {
+					aObject.insert_or_assign(
+						"error",
+						std::string{ code });
 				});
 			const auto outcome = parse_device_refresh_response(
 				response_from(refused, body));
@@ -903,20 +886,20 @@ namespace {
 		failure(
 			mutated(
 				refusedBody,
-				[](QJsonObject& aObject) {
-					aObject.insert(
-						QStringLiteral("error"),
-						QStringLiteral("slow_down"));
+				[](fixture_object& aObject) {
+					aObject.insert_or_assign(
+						"error",
+						"slow_down");
 				}),
 			device_authorization_contract_failure::missing_field,
 			"and neither is a slow-down, which the renewal has no use for");
 
 		const auto unofficial = parse_device_refresh_response(response_from(
 			refused,
-			mutated(refusedBody, [](QJsonObject& aObject) {
-				aObject.insert(
-					QStringLiteral("error_uri"),
-					QStringLiteral("https://evil.invalid/docs"));
+			mutated(refusedBody, [](fixture_object& aObject) {
+				aObject.insert_or_assign(
+					"error_uri",
+					"https://evil.invalid/docs");
 			})));
 		expect(
 			!unofficial.has_value()
