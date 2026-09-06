@@ -1,10 +1,6 @@
 #include "github_read_contract.hpp"
 #include "github_graphql_operation_policy.hpp"
 
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QJsonParseError>
 #include <QString>
 
 #include <glaze/json.hpp>
@@ -40,6 +36,18 @@ namespace bpr::adapters::github::detail {
 															 "pageInfo{hasNextPage endCursor}}} "
 															 "pageInfo{hasNextPage "
 															 "endCursor}}}}}";
+
+		struct read_request_json_options : glz::opts
+		{
+			bool escape_control_characters    = true;
+			bool validate_skipped             = true;
+			bool validate_trailing_whitespace = true;
+			constexpr read_request_json_options()
+			{
+				null_terminated       = false;
+				error_on_missing_keys = true;
+			}
+		};
 
 		enum class json_preflight_result : std::uint8_t {
 			valid,
@@ -291,8 +299,12 @@ namespace bpr::adapters::github::detail {
 						return json_preflight_result::malformed;
 					}
 				}
-				return Position != start ? json_preflight_result::valid
-										 : json_preflight_result::malformed;
+				double finite = 0.0;
+				return Position != start
+						&& !glz::read<read_request_json_options{ }>(finite, Input.substr(start, Position - start))
+						&& std::isfinite(finite)
+					? json_preflight_result::valid
+					: json_preflight_result::malformed;
 			}
 
 			[[nodiscard]] auto literal(const std::string_view aExpected) noexcept
@@ -459,18 +471,6 @@ namespace bpr::adapters::github::detail {
 				},
 			};
 		}
-
-		struct read_request_json_options : glz::opts
-		{
-			bool escape_control_characters    = true;
-			bool validate_skipped             = true;
-			bool validate_trailing_whitespace = true;
-			constexpr read_request_json_options()
-			{
-				null_terminated       = false;
-				error_on_missing_keys = true;
-			}
-		};
 
 		struct read_variables_json
 		{
@@ -828,21 +828,89 @@ namespace bpr::adapters::github::detail {
 			return { };
 		}
 
-		[[nodiscard]] auto sorted_keys(const QJsonObject& aObject)
+		using fixture_json_value  = glz::raw_json_view;
+		using fixture_json_object = std::map<std::string, fixture_json_value, std::less<>>;
+		using fixture_json_array  = std::vector<fixture_json_value>;
+
+		// These views borrow the caller's complete response for this synchronous
+		// validation only. Glaze owns all parsing; field inventories and semantic
+		// checks below retain the distinction between absence and explicit null.
+		[[nodiscard]] auto json_tag(const fixture_json_value& aValue) noexcept -> char
+		{
+			const auto begin = aValue.str.find_first_not_of(" \t\r\n");
+			return begin == std::string_view::npos ? '\0' : aValue.str[begin];
+		}
+		[[nodiscard]] auto json_is_object(const fixture_json_value& aValue) noexcept -> bool { return json_tag(aValue) == '{'; }
+		[[nodiscard]] auto json_is_array(const fixture_json_value& aValue) noexcept -> bool { return json_tag(aValue) == '['; }
+		[[nodiscard]] auto json_is_string(const fixture_json_value& aValue) noexcept -> bool { return json_tag(aValue) == '"'; }
+		[[nodiscard]] auto json_is_null(const fixture_json_value& aValue) noexcept -> bool { return json_tag(aValue) == 'n'; }
+		[[nodiscard]] auto json_is_undefined(const fixture_json_value& aValue) noexcept -> bool { return aValue.str.empty(); }
+		[[nodiscard]] auto json_is_bool(const fixture_json_value& aValue) noexcept -> bool { return json_tag(aValue) == 't' || json_tag(aValue) == 'f'; }
+		[[nodiscard]] auto json_is_number(const fixture_json_value& aValue) noexcept -> bool
+		{
+			const auto tag = json_tag(aValue);
+			return tag == '-' || (tag >= '0' && tag <= '9');
+		}
+		[[nodiscard]] auto json_object(const fixture_json_value& aValue) -> fixture_json_object
+		{
+			fixture_json_object result;
+			if (!json_is_object(aValue) || glz::read<read_request_json_options{ }>(result, aValue.str)) {
+				return { };
+			}
+			return result;
+		}
+		[[nodiscard]] auto json_array(const fixture_json_value& aValue) -> fixture_json_array
+		{
+			fixture_json_array result;
+			if (!json_is_array(aValue) || glz::read<read_request_json_options{ }>(result, aValue.str)) {
+				return { };
+			}
+			return result;
+		}
+		[[nodiscard]] auto json_member(const fixture_json_object& aObject, const std::string_view aKey) -> fixture_json_value
+		{
+			const auto found = aObject.find(aKey);
+			return found == aObject.end() ? fixture_json_value{ } : found->second;
+		}
+		[[nodiscard]] auto json_text(const fixture_json_value& aValue) -> QString
+		{
+			std::string result;
+			return json_is_string(aValue) && !glz::read<read_request_json_options{ }>(result, aValue.str)
+				? QString::fromStdString(result)
+				: QString{ };
+		}
+		[[nodiscard]] auto json_bool(const fixture_json_value& aValue) -> bool
+		{
+			bool result = false;
+			return json_is_bool(aValue) && !glz::read<read_request_json_options{ }>(result, aValue.str) && result;
+		}
+		[[nodiscard]] auto json_uint(const fixture_json_value& aValue) noexcept -> std::uint64_t
+		{
+			std::uint64_t result = 0U;
+			return !glz::read<read_request_json_options{ }>(result, aValue.str) ? result : 0U;
+		}
+		// Used only by the pre-existing incomplete-page classification, never IDs.
+		[[nodiscard]] auto json_real(const fixture_json_value& aValue) noexcept -> double
+		{
+			double result = 0.0;
+			return !glz::read<read_request_json_options{ }>(result, aValue.str) ? result : 0.0;
+		}
+
+		[[nodiscard]] auto sorted_keys(const fixture_json_object& aObject)
 			-> std::vector<std::string>
 		{
 			std::vector<std::string> keys;
 			keys.reserve(static_cast<std::size_t>(aObject.size()));
-			for (auto iterator = aObject.constBegin(); iterator != aObject.constEnd();
+			for (auto iterator = aObject.cbegin(); iterator != aObject.cend();
 				 ++iterator) {
-				keys.emplace_back(iterator.key().toStdString());
+				keys.emplace_back(iterator->first);
 			}
 			std::ranges::sort(keys);
 			return keys;
 		}
 
 		[[nodiscard]] auto has_exact_keys(
-			const QJsonObject&                            aObject,
+			const fixture_json_object&                    aObject,
 			const std::initializer_list<std::string_view> aExpected) -> bool
 		{
 			std::vector<std::string> keys;
@@ -855,62 +923,52 @@ namespace bpr::adapters::github::detail {
 		}
 
 		[[nodiscard]] auto has_required_fixture_keys(
-			const QJsonObject&                            aObject,
+			const fixture_json_object&                    aObject,
 			const std::initializer_list<std::string_view> aExpected) -> bool
 		{
 			return std::ranges::all_of(
 				aExpected,
 				[&aObject](const std::string_view aKey) {
-					return aObject.contains(
-						QString::fromUtf8(aKey.data(),
-										  static_cast<qsizetype>(aKey.size())));
+					return aObject.contains(aKey);
 				});
 		}
 
-		constexpr qsizetype maximum_fixture_page_records = 100;
-		constexpr double    maximum_exact_json_integer   = 9'007'199'254'740'991.0;
+		constexpr std::size_t maximum_fixture_page_records = 100U;
 
-		[[nodiscard]] auto exact_integer(
-			const QJsonValue& aValue,
-			const bool        aPositive = false) noexcept -> bool
+		[[nodiscard]] auto exact_integer(const fixture_json_value& aValue, const bool aPositive = false) noexcept -> bool
 		{
-			if (!aValue.isDouble()) {
-				return false;
-			}
-			const auto number = aValue.toDouble();
-			return std::isfinite(number) && std::trunc(number) == number
-				&& number >= (aPositive ? 1.0 : 0.0)
-				&& number <= maximum_exact_json_integer;
+			std::uint64_t value = 0U;
+			return !glz::read<read_request_json_options{ }>(value, aValue.str) && (!aPositive || value != 0U);
 		}
 
-		[[nodiscard]] auto nonempty_string(const QJsonValue& aValue) -> bool
+		[[nodiscard]] auto nonempty_string(const fixture_json_value& aValue) -> bool
 		{
-			return aValue.isString() && !aValue.toString().isEmpty();
+			return json_is_string(aValue) && !json_text(aValue).isEmpty();
 		}
 
-		[[nodiscard]] auto valid_line(const QJsonValue& aValue) noexcept -> bool
+		[[nodiscard]] auto valid_line(const fixture_json_value& aValue) noexcept -> bool
 		{
 			return exact_integer(aValue, true)
-				&& aValue.toDouble()
-				<= static_cast<double>(
+				&& json_uint(aValue)
+				<= static_cast<std::uint64_t>(
 					   std::numeric_limits<std::int32_t>::max());
 		}
 
 		[[nodiscard]] auto valid_pull_request_number(
-			const QJsonValue& aValue) noexcept -> bool
+			const fixture_json_value& aValue) noexcept -> bool
 		{
 			return exact_integer(aValue, true)
-				&& aValue.toDouble()
-				<= static_cast<double>(
+				&& json_uint(aValue)
+				<= static_cast<std::uint64_t>(
 					   core::maximum_pull_request_number);
 		}
 
-		[[nodiscard]] auto valid_json_oid(const QJsonValue& aValue) -> bool
+		[[nodiscard]] auto valid_json_oid(const fixture_json_value& aValue) -> bool
 		{
-			if (!aValue.isString()) {
+			if (!json_is_string(aValue)) {
 				return false;
 			}
-			const auto text = aValue.toString();
+			const auto text = json_text(aValue);
 			if (text.size() != 40 && text.size() != 64) {
 				return false;
 			}
@@ -923,110 +981,110 @@ namespace bpr::adapters::github::detail {
 		}
 
 		[[nodiscard]] auto one_of(
-			const QJsonValue&                             aValue,
+			const fixture_json_value&                     aValue,
 			const std::initializer_list<std::string_view> aAllowed) -> bool
 		{
-			if (!aValue.isString()) {
+			if (!json_is_string(aValue)) {
 				return false;
 			}
-			const auto text = aValue.toString();
+			const auto text = json_text(aValue);
 			return std::ranges::any_of(aAllowed, [&text](const auto aCandidate) {
 				return text == QString::fromUtf8(aCandidate.data(), static_cast<qsizetype>(aCandidate.size()));
 			});
 		}
 
-		[[nodiscard]] auto exact_rest_actor(const QJsonValue& aValue) -> bool
+		[[nodiscard]] auto exact_rest_actor(const fixture_json_value& aValue) -> bool
 		{
 			if (
-				!aValue.isObject()
+				!json_is_object(aValue)
 				|| !has_exact_keys(
-					aValue.toObject(),
+					json_object(aValue),
 					{ "login", "node_id" })) {
 				return false;
 			}
-			const auto object = aValue.toObject();
-			return nonempty_string(object.value("login"))
-				&& nonempty_string(object.value("node_id"));
+			const auto object = json_object(aValue);
+			return nonempty_string(json_member(object, "login"))
+				&& nonempty_string(json_member(object, "node_id"));
 		}
 
-		[[nodiscard]] auto optional_rest_actor(const QJsonValue& aValue) -> bool
+		[[nodiscard]] auto optional_rest_actor(const fixture_json_value& aValue) -> bool
 		{
-			return aValue.isNull() || exact_rest_actor(aValue);
+			return json_is_null(aValue) || exact_rest_actor(aValue);
 		}
 
-		[[nodiscard]] auto exact_graphql_author(const QJsonValue& aValue) -> bool
+		[[nodiscard]] auto exact_graphql_author(const fixture_json_value& aValue) -> bool
 		{
-			return aValue.isObject()
-				&& has_exact_keys(aValue.toObject(), { "id", "login" })
-				&& nonempty_string(aValue.toObject().value("id"))
-				&& nonempty_string(aValue.toObject().value("login"));
+			return json_is_object(aValue)
+				&& has_exact_keys(json_object(aValue), { "id", "login" })
+				&& nonempty_string(json_member(json_object(aValue), "id"))
+				&& nonempty_string(json_member(json_object(aValue), "login"));
 		}
 
 		[[nodiscard]] auto exact_page_info(
-			const QJsonValue& aValue,
-			const qsizetype   aNodeCount) -> bool
+			const fixture_json_value& aValue,
+			const std::size_t         aNodeCount) -> bool
 		{
 			if (
-				!aValue.isObject()
+				!json_is_object(aValue)
 				|| !has_exact_keys(
-					aValue.toObject(),
+					json_object(aValue),
 					{ "endCursor", "hasNextPage" })) {
 				return false;
 			}
-			const auto object = aValue.toObject();
+			const auto object = json_object(aValue);
 			if (
-				!object.value("hasNextPage").isBool()
-				|| object.value("hasNextPage").toBool()) {
+				!json_is_bool(json_member(object, "hasNextPage"))
+				|| json_bool(json_member(object, "hasNextPage"))) {
 				return false;
 			}
-			const auto cursor = object.value("endCursor");
+			const auto cursor = json_member(object, "endCursor");
 			if (aNodeCount == 0) {
-				return cursor.isNull();
+				return json_is_null(cursor);
 			}
 			return nonempty_string(cursor)
-				&& cursor.toString().toUtf8().size() <= maximum_cursor_bytes;
+				&& json_text(cursor).toUtf8().size() <= maximum_cursor_bytes;
 		}
 
 		[[nodiscard]] auto bounded_object_array(
-			const QJsonValue&                             aValue,
+			const fixture_json_value&                     aValue,
 			const std::initializer_list<std::string_view> aKeys) -> bool
 		{
-			if (!aValue.isArray()) {
+			if (!json_is_array(aValue)) {
 				return false;
 			}
-			const auto array = aValue.toArray();
+			const auto array = json_array(aValue);
 			return array.size() <= maximum_fixture_page_records
-				&& std::ranges::all_of(array, [aKeys](const QJsonValue& aItem) {
-					   return aItem.isObject()
-						   && has_exact_keys(aItem.toObject(), aKeys);
+				&& std::ranges::all_of(array, [aKeys](const fixture_json_value& aItem) {
+					   return json_is_object(aItem)
+						   && has_exact_keys(json_object(aItem), aKeys);
 				   });
 		}
 
-		[[nodiscard]] auto validate_viewer_fixture(const QJsonDocument& aDocument)
+		[[nodiscard]] auto validate_viewer_fixture(const fixture_json_value& aDocument)
 			-> bool
 		{
 			if (
-				!aDocument.isObject()
+				!json_is_object(aDocument)
 				|| !has_exact_keys(
-					aDocument.object(),
+					json_object(aDocument),
 					{ "id", "login", "name", "node_id" })) {
 				return false;
 			}
-			const auto object = aDocument.object();
-			return exact_integer(object.value("id"), true)
-				&& nonempty_string(object.value("login"))
-				&& (object.value("name").isNull()
-					|| object.value("name").isString())
-				&& nonempty_string(object.value("node_id"));
+			const auto object = json_object(aDocument);
+			return exact_integer(json_member(object, "id"), true)
+				&& nonempty_string(json_member(object, "login"))
+				&& (json_is_null(json_member(object, "name"))
+					|| json_is_string(json_member(object, "name")))
+				&& nonempty_string(json_member(object, "node_id"));
 		}
 
-		[[nodiscard]] auto validate_repository_fixture(const QJsonDocument& aDocument)
+		[[nodiscard]] auto validate_repository_fixture(const fixture_json_value& aDocument)
 			-> bool
 		{
 			if (
-				!aDocument.isObject()
+				!json_is_object(aDocument)
 				|| !has_exact_keys(
-					aDocument.object(),
+					json_object(aDocument),
 					{
 						"default_branch",
 						"full_name",
@@ -1038,56 +1096,56 @@ namespace bpr::adapters::github::detail {
 					})) {
 				return false;
 			}
-			const auto object = aDocument.object();
-			return exact_integer(object.value("id"), true)
-				&& nonempty_string(object.value("name"))
-				&& nonempty_string(object.value("full_name"))
-				&& nonempty_string(object.value("node_id"))
-				&& object.value("owner").isObject()
+			const auto object = json_object(aDocument);
+			return exact_integer(json_member(object, "id"), true)
+				&& nonempty_string(json_member(object, "name"))
+				&& nonempty_string(json_member(object, "full_name"))
+				&& nonempty_string(json_member(object, "node_id"))
+				&& json_is_object(json_member(object, "owner"))
 				&& has_exact_keys(
-					   object.value("owner").toObject(),
+					   json_object(json_member(object, "owner")),
 					   { "login" })
 				&& nonempty_string(
-					   object.value("owner").toObject().value("login"))
-				&& object.value("private").isBool()
-				&& nonempty_string(object.value("default_branch"));
+					   json_member(json_object(json_member(object, "owner")), "login"))
+				&& json_is_bool(json_member(object, "private"))
+				&& nonempty_string(json_member(object, "default_branch"));
 		}
 
 		[[nodiscard]] auto exact_pull_ref(
-			const QJsonValue& aValue,
-			const bool        aRepositoryRequired) -> bool
+			const fixture_json_value& aValue,
+			const bool                aRepositoryRequired) -> bool
 		{
 			if (
-				!aValue.isObject()
-				|| !has_exact_keys(aValue.toObject(), { "ref", "repo", "sha" })) {
+				!json_is_object(aValue)
+				|| !has_exact_keys(json_object(aValue), { "ref", "repo", "sha" })) {
 				return false;
 			}
-			const auto object     = aValue.toObject();
-			const auto repository = object.value("repo");
+			const auto object     = json_object(aValue);
+			const auto repository = json_member(object, "repo");
 			if (
-				!nonempty_string(object.value("ref"))
-				|| !valid_json_oid(object.value("sha"))) {
+				!nonempty_string(json_member(object, "ref"))
+				|| !valid_json_oid(json_member(object, "sha"))) {
 				return false;
 			}
-			if (repository.isNull()) {
+			if (json_is_null(repository)) {
 				return !aRepositoryRequired;
 			}
-			return repository.isObject()
+			return json_is_object(repository)
 				&& has_exact_keys(
-					   repository.toObject(),
+					   json_object(repository),
 					   { "full_name", "id" })
-				&& exact_integer(repository.toObject().value("id"), true)
+				&& exact_integer(json_member(json_object(repository), "id"), true)
 				&& nonempty_string(
-					   repository.toObject().value("full_name"));
+					   json_member(json_object(repository), "full_name"));
 		}
 
 		[[nodiscard]] auto validate_pull_request_fixture(
-			const QJsonDocument& aDocument) -> bool
+			const fixture_json_value& aDocument) -> bool
 		{
 			if (
-				!aDocument.isObject()
+				!json_is_object(aDocument)
 				|| !has_exact_keys(
-					aDocument.object(),
+					json_object(aDocument),
 					{
 						"base",
 						"body",
@@ -1105,39 +1163,39 @@ namespace bpr::adapters::github::detail {
 					})) {
 				return false;
 			}
-			const auto object = aDocument.object();
-			const auto merged = object.value("merged").toBool();
-			return exact_integer(object.value("id"), true)
-				&& valid_pull_request_number(object.value("number"))
-				&& exact_integer(object.value("changed_files"))
-				&& exact_integer(object.value("commits"), true)
-				&& nonempty_string(object.value("node_id"))
-				&& one_of(object.value("state"), { "open", "closed" })
-				&& nonempty_string(object.value("title"))
-				&& (object.value("body").isNull()
-					|| object.value("body").isString())
-				&& object.value("draft").isBool()
-				&& optional_rest_actor(object.value("user"))
-				&& exact_pull_ref(object.value("base"), true)
-				&& exact_pull_ref(object.value("head"), false)
-				&& object.value("merged").isBool()
-				&& (!merged || object.value("state").toString() == "closed");
+			const auto object = json_object(aDocument);
+			const auto merged = json_bool(json_member(object, "merged"));
+			return exact_integer(json_member(object, "id"), true)
+				&& valid_pull_request_number(json_member(object, "number"))
+				&& exact_integer(json_member(object, "changed_files"))
+				&& exact_integer(json_member(object, "commits"), true)
+				&& nonempty_string(json_member(object, "node_id"))
+				&& one_of(json_member(object, "state"), { "open", "closed" })
+				&& nonempty_string(json_member(object, "title"))
+				&& (json_is_null(json_member(object, "body"))
+					|| json_is_string(json_member(object, "body")))
+				&& json_is_bool(json_member(object, "draft"))
+				&& optional_rest_actor(json_member(object, "user"))
+				&& exact_pull_ref(json_member(object, "base"), true)
+				&& exact_pull_ref(json_member(object, "head"), false)
+				&& json_is_bool(json_member(object, "merged"))
+				&& (!merged || json_text(json_member(object, "state")) == "closed");
 		}
 
-		[[nodiscard]] auto validate_files_fixture(const QJsonDocument& aDocument)
+		[[nodiscard]] auto validate_files_fixture(const fixture_json_value& aDocument)
 			-> bool
 		{
 			if (
-				!aDocument.isArray()
-				|| aDocument.array().size() > maximum_fixture_page_records) {
+				!json_is_array(aDocument)
+				|| json_array(aDocument).size() > maximum_fixture_page_records) {
 				return false;
 			}
-			return std::ranges::all_of(aDocument.array(), [](const QJsonValue& aValue) {
+			return std::ranges::all_of(json_array(aDocument), [](const fixture_json_value& aValue) {
 				if (
-					!aValue.isObject()
+					!json_is_object(aValue)
 					|| !(
 						has_exact_keys(
-							aValue.toObject(),
+							json_object(aValue),
 							{
 								"additions",
 								"deletions",
@@ -1145,7 +1203,7 @@ namespace bpr::adapters::github::detail {
 								"status",
 							})
 						|| has_exact_keys(
-							aValue.toObject(),
+							json_object(aValue),
 							{
 								"additions",
 								"deletions",
@@ -1155,11 +1213,11 @@ namespace bpr::adapters::github::detail {
 							}))) {
 					return false;
 				}
-				const auto object = aValue.toObject();
+				const auto object = json_object(aValue);
 				if (
-					!nonempty_string(object.value("filename"))
+					!nonempty_string(json_member(object, "filename"))
 					|| !one_of(
-						object.value("status"),
+						json_member(object, "status"),
 						{
 							"added",
 							"modified",
@@ -1169,65 +1227,65 @@ namespace bpr::adapters::github::detail {
 							"changed",
 							"unchanged",
 						})
-					|| !exact_integer(object.value("additions"))
-					|| !exact_integer(object.value("deletions"))) {
+					|| !exact_integer(json_member(object, "additions"))
+					|| !exact_integer(json_member(object, "deletions"))) {
 					return false;
 				}
 				const auto hasPrevious = object.contains("previous_filename");
-				const auto status      = object.value("status").toString();
+				const auto status      = json_text(json_member(object, "status"));
 				if (
 					hasPrevious
 					&& ((
 							status != "renamed"
 							&& status != "copied")
 						|| !nonempty_string(
-							object.value("previous_filename")))) {
+							json_member(object, "previous_filename")))) {
 					return false;
 				}
 				return true;
 			});
 		}
 
-		[[nodiscard]] auto validate_commits_fixture(const QJsonDocument& aDocument)
+		[[nodiscard]] auto validate_commits_fixture(const fixture_json_value& aDocument)
 			-> bool
 		{
 			if (
-				!aDocument.isArray()
-				|| aDocument.array().size() > maximum_fixture_page_records) {
+				!json_is_array(aDocument)
+				|| json_array(aDocument).size() > maximum_fixture_page_records) {
 				return false;
 			}
-			return std::ranges::all_of(aDocument.array(), [](const QJsonValue& aValue) {
+			return std::ranges::all_of(json_array(aDocument), [](const fixture_json_value& aValue) {
 				if (
-					!aValue.isObject()
+					!json_is_object(aValue)
 					|| !has_exact_keys(
-						aValue.toObject(),
+						json_object(aValue),
 						{ "author", "commit", "node_id", "sha" })) {
 					return false;
 				}
-				const auto object = aValue.toObject();
-				const auto commit = object.value("commit");
-				return valid_json_oid(object.value("sha"))
-					&& nonempty_string(object.value("node_id"))
-					&& optional_rest_actor(object.value("author"))
-					&& commit.isObject()
-					&& has_exact_keys(commit.toObject(), { "message" })
-					&& commit.toObject().value("message").isString();
+				const auto object = json_object(aValue);
+				const auto commit = json_member(object, "commit");
+				return valid_json_oid(json_member(object, "sha"))
+					&& nonempty_string(json_member(object, "node_id"))
+					&& optional_rest_actor(json_member(object, "author"))
+					&& json_is_object(commit)
+					&& has_exact_keys(json_object(commit), { "message" })
+					&& json_is_string(json_member(json_object(commit), "message"));
 			});
 		}
 
-		[[nodiscard]] auto validate_reviews_fixture(const QJsonDocument& aDocument)
+		[[nodiscard]] auto validate_reviews_fixture(const fixture_json_value& aDocument)
 			-> bool
 		{
 			if (
-				!aDocument.isArray()
-				|| aDocument.array().size() > maximum_fixture_page_records) {
+				!json_is_array(aDocument)
+				|| json_array(aDocument).size() > maximum_fixture_page_records) {
 				return false;
 			}
-			return std::ranges::all_of(aDocument.array(), [](const QJsonValue& aValue) {
+			return std::ranges::all_of(json_array(aDocument), [](const fixture_json_value& aValue) {
 				if (
-					!aValue.isObject()
+					!json_is_object(aValue)
 					|| !has_exact_keys(
-						aValue.toObject(),
+						json_object(aValue),
 						{
 							"body",
 							"commit_id",
@@ -1238,13 +1296,13 @@ namespace bpr::adapters::github::detail {
 						})) {
 					return false;
 				}
-				const auto object = aValue.toObject();
-				return exact_integer(object.value("id"), true)
-					&& nonempty_string(object.value("node_id"))
-					&& optional_rest_actor(object.value("user"))
-					&& object.value("body").isString()
+				const auto object = json_object(aValue);
+				return exact_integer(json_member(object, "id"), true)
+					&& nonempty_string(json_member(object, "node_id"))
+					&& optional_rest_actor(json_member(object, "user"))
+					&& json_is_string(json_member(object, "body"))
 					&& one_of(
-						   object.value("state"),
+						   json_member(object, "state"),
 						   {
 							   "PENDING",
 							   "COMMENTED",
@@ -1252,17 +1310,17 @@ namespace bpr::adapters::github::detail {
 							   "CHANGES_REQUESTED",
 							   "DISMISSED",
 						   })
-					&& (object.value("commit_id").isNull()
-						|| valid_json_oid(object.value("commit_id")));
+					&& (json_is_null(json_member(object, "commit_id"))
+						|| valid_json_oid(json_member(object, "commit_id")));
 			});
 		}
 
-		[[nodiscard]] auto exact_graphql_comment(const QJsonValue& aValue) -> bool
+		[[nodiscard]] auto exact_graphql_comment(const fixture_json_value& aValue) -> bool
 		{
 			if (
-				!aValue.isObject()
+				!json_is_object(aValue)
 				|| !has_exact_keys(
-					aValue.toObject(),
+					json_object(aValue),
 					{
 						"author",
 						"bodyText",
@@ -1275,96 +1333,96 @@ namespace bpr::adapters::github::detail {
 					})) {
 				return false;
 			}
-			const auto object       = aValue.toObject();
-			const auto replyTo      = object.value("replyTo");
-			const auto line         = object.value("line");
-			const auto originalLine = object.value("originalLine");
-			return nonempty_string(object.value("id"))
-				&& object.value("bodyText").isString()
-				&& nonempty_string(object.value("path"))
-				&& (line.isNull() || valid_line(line))
-				&& (originalLine.isNull()
+			const auto object       = json_object(aValue);
+			const auto replyTo      = json_member(object, "replyTo");
+			const auto line         = json_member(object, "line");
+			const auto originalLine = json_member(object, "originalLine");
+			return nonempty_string(json_member(object, "id"))
+				&& json_is_string(json_member(object, "bodyText"))
+				&& nonempty_string(json_member(object, "path"))
+				&& (json_is_null(line) || valid_line(line))
+				&& (json_is_null(originalLine)
 					|| valid_line(originalLine))
-				&& object.value("outdated").isBool()
-				&& (object.value("author").isNull()
-					|| exact_graphql_author(object.value("author")))
-				&& (replyTo.isNull()
-					|| (replyTo.isObject()
-						&& has_exact_keys(replyTo.toObject(), { "id" })
-						&& nonempty_string(replyTo.toObject().value("id"))));
+				&& json_is_bool(json_member(object, "outdated"))
+				&& (json_is_null(json_member(object, "author"))
+					|| exact_graphql_author(json_member(object, "author")))
+				&& (json_is_null(replyTo)
+					|| (json_is_object(replyTo)
+						&& has_exact_keys(json_object(replyTo), { "id" })
+						&& nonempty_string(json_member(json_object(replyTo), "id"))));
 		}
 
 		[[nodiscard]] auto validate_review_threads_fixture(
-			const QJsonDocument& aDocument) -> bool
+			const fixture_json_value& aDocument) -> bool
 		{
 			if (
-				!aDocument.isObject()
-				|| !has_exact_keys(aDocument.object(), { "data" })) {
+				!json_is_object(aDocument)
+				|| !has_exact_keys(json_object(aDocument), { "data" })) {
 				return false;
 			}
-			const auto data = aDocument.object().value("data");
+			const auto data = json_member(json_object(aDocument), "data");
 			if (
-				!data.isObject()
-				|| !has_exact_keys(data.toObject(), { "repository" })) {
+				!json_is_object(data)
+				|| !has_exact_keys(json_object(data), { "repository" })) {
 				return false;
 			}
-			const auto repository = data.toObject().value("repository");
+			const auto repository = json_member(json_object(data), "repository");
 			if (
-				!repository.isObject()
+				!json_is_object(repository)
 				|| !has_exact_keys(
-					repository.toObject(),
+					json_object(repository),
 					{ "id", "pullRequest" })
-				|| !nonempty_string(repository.toObject().value("id"))) {
+				|| !nonempty_string(json_member(json_object(repository), "id"))) {
 				return false;
 			}
-			const auto pullRequest = repository.toObject().value("pullRequest");
+			const auto pullRequest = json_member(json_object(repository), "pullRequest");
 			if (
-				!pullRequest.isObject()
+				!json_is_object(pullRequest)
 				|| !has_exact_keys(
-					pullRequest.toObject(),
+					json_object(pullRequest),
 					{ "files", "headRefOid", "id", "reviewThreads" })
-				|| !nonempty_string(pullRequest.toObject().value("headRefOid"))
-				|| !nonempty_string(pullRequest.toObject().value("id"))) {
+				|| !nonempty_string(json_member(json_object(pullRequest), "headRefOid"))
+				|| !nonempty_string(json_member(json_object(pullRequest), "id"))) {
 				return false;
 			}
-			const auto files = pullRequest.toObject().value("files");
+			const auto files = json_member(json_object(pullRequest), "files");
 			if (
-				!files.isObject()
+				!json_is_object(files)
 				|| !has_exact_keys(
-					files.toObject(), { "nodes", "pageInfo", "totalCount" })
-				|| !exact_integer(files.toObject().value("totalCount"))
+					json_object(files), { "nodes", "pageInfo", "totalCount" })
+				|| !exact_integer(json_member(json_object(files), "totalCount"))
 				|| !bounded_object_array(
-					files.toObject().value("nodes"),
+					json_member(json_object(files), "nodes"),
 					{ "path", "viewerViewedState" })) {
 				return false;
 			}
-			const auto fileNodes = files.toObject().value("nodes").toArray();
+			const auto fileNodes = json_array(json_member(json_object(files), "nodes"));
 			if (
 				!exact_page_info(
-					files.toObject().value("pageInfo"),
+					json_member(json_object(files), "pageInfo"),
 					fileNodes.size())
-				|| files.toObject().value("totalCount").toDouble()
-					!= static_cast<double>(fileNodes.size())
+				|| json_uint(json_member(json_object(files), "totalCount"))
+					!= static_cast<std::uint64_t>(fileNodes.size())
 				|| !std::ranges::all_of(
 					fileNodes,
-					[](const QJsonValue& aValue) {
-						const auto object = aValue.toObject();
-						return nonempty_string(object.value("path"))
+					[](const fixture_json_value& aValue) {
+						const auto object = json_object(aValue);
+						return nonempty_string(json_member(object, "path"))
 							&& one_of(
-								   object.value("viewerViewedState"),
+								   json_member(object, "viewerViewedState"),
 								   { "DISMISSED", "UNVIEWED", "VIEWED" });
 					})) {
 				return false;
 			}
-			const auto threads = pullRequest.toObject().value("reviewThreads");
+			const auto threads = json_member(json_object(pullRequest), "reviewThreads");
 			if (
-				!threads.isObject()
+				!json_is_object(threads)
 				|| !has_exact_keys(
-					threads.toObject(),
+					json_object(threads),
 					{ "nodes", "pageInfo", "totalCount" })
-				|| !exact_integer(threads.toObject().value("totalCount"))
+				|| !exact_integer(json_member(json_object(threads), "totalCount"))
 				|| !bounded_object_array(
-					threads.toObject().value("nodes"),
+					json_member(json_object(threads), "nodes"),
 					{
 						"comments",
 						"diffSide",
@@ -1380,74 +1438,74 @@ namespace bpr::adapters::github::detail {
 					})) {
 				return false;
 			}
-			const auto threadNodes = threads.toObject().value("nodes").toArray();
+			const auto threadNodes = json_array(json_member(json_object(threads), "nodes"));
 			if (
 				!exact_page_info(
-					threads.toObject().value("pageInfo"),
+					json_member(json_object(threads), "pageInfo"),
 					threadNodes.size())
-				|| threads.toObject().value("totalCount").toDouble()
-					!= static_cast<double>(threadNodes.size())) {
+				|| json_uint(json_member(json_object(threads), "totalCount"))
+					!= static_cast<std::uint64_t>(threadNodes.size())) {
 				return false;
 			}
 
 			for (const auto& threadValue : threadNodes) {
-				const auto thread       = threadValue.toObject();
-				const auto comments     = thread.value("comments");
-				const auto diffSide     = thread.value("diffSide");
-				const auto line         = thread.value("line");
-				const auto originalLine = thread.value("originalLine");
-				const auto commentNodes = comments.toObject().value("nodes").toArray();
-				const auto fileSubject  = thread.value("subjectType").toString() == "FILE";
-				const auto lineSubject  = thread.value("subjectType").toString() == "LINE";
+				const auto thread       = json_object(threadValue);
+				const auto comments     = json_member(thread, "comments");
+				const auto diffSide     = json_member(thread, "diffSide");
+				const auto line         = json_member(thread, "line");
+				const auto originalLine = json_member(thread, "originalLine");
+				const auto commentNodes = json_array(json_member(json_object(comments), "nodes"));
+				const auto fileSubject  = json_text(json_member(thread, "subjectType")) == "FILE";
+				const auto lineSubject  = json_text(json_member(thread, "subjectType")) == "LINE";
 				if (
-					!nonempty_string(thread.value("id"))
-					|| !thread.value("isResolved").isBool()
-					|| !thread.value("isOutdated").isBool()
-					|| !thread.value("viewerCanResolve").isBool()
-					|| !thread.value("viewerCanUnresolve").isBool()
+					!nonempty_string(json_member(thread, "id"))
+					|| !json_is_bool(json_member(thread, "isResolved"))
+					|| !json_is_bool(json_member(thread, "isOutdated"))
+					|| !json_is_bool(json_member(thread, "viewerCanResolve"))
+					|| !json_is_bool(json_member(thread, "viewerCanUnresolve"))
 					|| !one_of(diffSide, { "LEFT", "RIGHT" })
 					|| (!fileSubject && !lineSubject)
-					|| !nonempty_string(thread.value("path"))
+					|| !nonempty_string(json_member(thread, "path"))
 					|| !(
-						line.isNull() || valid_line(line))
+						json_is_null(line) || valid_line(line))
 					|| !(
-						originalLine.isNull()
+						json_is_null(originalLine)
 						|| valid_line(originalLine))
 					|| (fileSubject
-						&& (!line.isNull() || !originalLine.isNull()))
+						&& (!json_is_null(line) || !json_is_null(originalLine)))
 					|| (lineSubject
-						&& ((!thread.value("isOutdated").toBool()
-							 && line.isNull())
-							|| (thread.value("isOutdated").toBool()
-								&& line.isNull() && originalLine.isNull())))
-					|| !comments.isObject()
+						&& ((!json_bool(json_member(thread, "isOutdated"))
+							 && json_is_null(line))
+							|| (json_bool(json_member(thread, "isOutdated"))
+								&& json_is_null(line) && json_is_null(originalLine))))
+					|| !json_is_object(comments)
 					|| !has_exact_keys(
-						comments.toObject(),
+						json_object(comments),
 						{ "nodes", "pageInfo", "totalCount" })
-					|| !exact_integer(comments.toObject().value("totalCount"))
-					|| !comments.toObject().value("nodes").isArray()
+					|| !exact_integer(json_member(json_object(comments), "totalCount"))
+					|| !json_is_array(json_member(json_object(comments), "nodes"))
 					|| commentNodes.size()
 						> maximum_fixture_page_records
 					|| !exact_page_info(
-						comments.toObject().value("pageInfo"),
+						json_member(json_object(comments), "pageInfo"),
 						commentNodes.size())
-					|| comments.toObject().value("totalCount").toDouble()
-						!= static_cast<double>(commentNodes.size())
+					|| json_uint(json_member(json_object(comments), "totalCount"))
+						!= static_cast<std::uint64_t>(commentNodes.size())
 					|| !std::ranges::all_of(
 						commentNodes,
 						exact_graphql_comment)) {
 					return false;
 				}
 				for (const auto& commentValue : commentNodes) {
-					const auto comment             = commentValue.toObject();
-					const auto commentLine         = comment.value("line");
-					const auto commentOriginalLine = comment.value("originalLine");
+					const auto comment             = json_object(commentValue);
+					const auto commentLine         = json_member(comment, "line");
+					const auto commentOriginalLine = json_member(comment, "originalLine");
 					if (
 						(
 							fileSubject
-							&& (!commentLine.isNull()
-								|| !commentOriginalLine.isNull()))
-						|| comment.value("path") != thread.value("path")) {
+							&& (!json_is_null(commentLine)
+								|| !json_is_null(commentOriginalLine)))
+						|| json_text(json_member(comment, "path")) != json_text(json_member(thread, "path"))) {
 						return false;
 					}
 				}
@@ -1456,18 +1514,18 @@ namespace bpr::adapters::github::detail {
 		}
 
 		[[nodiscard]] auto validate_issue_comments_fixture(
-			const QJsonDocument& aDocument) -> bool
+			const fixture_json_value& aDocument) -> bool
 		{
 			if (
-				!aDocument.isArray()
-				|| aDocument.array().size() > maximum_fixture_page_records) {
+				!json_is_array(aDocument)
+				|| json_array(aDocument).size() > maximum_fixture_page_records) {
 				return false;
 			}
-			return std::ranges::all_of(aDocument.array(), [](const QJsonValue& aValue) {
+			return std::ranges::all_of(json_array(aDocument), [](const fixture_json_value& aValue) {
 				if (
-					!aValue.isObject()
+					!json_is_object(aValue)
 					|| !has_exact_keys(
-						aValue.toObject(),
+						json_object(aValue),
 						{
 							"body",
 							"node_id",
@@ -1475,10 +1533,10 @@ namespace bpr::adapters::github::detail {
 						})) {
 					return false;
 				}
-				const auto object = aValue.toObject();
-				return nonempty_string(object.value("node_id"))
-					&& optional_rest_actor(object.value("user"))
-					&& object.value("body").isString();
+				const auto object = json_object(aValue);
+				return nonempty_string(json_member(object, "node_id"))
+					&& optional_rest_actor(json_member(object, "user"))
+					&& json_is_string(json_member(object, "body"));
 			});
 		}
 
@@ -1493,18 +1551,18 @@ namespace bpr::adapters::github::detail {
 		/// an exact positive integer when present, because reply linkage is
 		/// the only structure this response carries.
 		[[nodiscard]] auto validate_review_comments_fixture(
-			const QJsonDocument& aDocument) -> bool
+			const fixture_json_value& aDocument) -> bool
 		{
 			if (
-				!aDocument.isArray()
-				|| aDocument.array().size() > maximum_fixture_page_records) {
+				!json_is_array(aDocument)
+				|| json_array(aDocument).size() > maximum_fixture_page_records) {
 				return false;
 			}
-			return std::ranges::all_of(aDocument.array(), [](const QJsonValue& aValue) {
+			return std::ranges::all_of(json_array(aDocument), [](const fixture_json_value& aValue) {
 				if (
-					!aValue.isObject()
+					!json_is_object(aValue)
 					|| !has_required_fixture_keys(
-						aValue.toObject(),
+						json_object(aValue),
 						{
 							"body",
 							"id",
@@ -1513,40 +1571,40 @@ namespace bpr::adapters::github::detail {
 						})) {
 					return false;
 				}
-				const auto object = aValue.toObject();
-				const auto reply  = object.value("in_reply_to_id");
+				const auto object = json_object(aValue);
+				const auto reply  = json_member(object, "in_reply_to_id");
 				if (
-					!reply.isUndefined() && !reply.isNull()
+					!json_is_undefined(reply) && !json_is_null(reply)
 					&& !exact_integer(reply, true)) {
 					return false;
 				}
-				const auto user = object.value("user");
+				const auto user = json_member(object, "user");
 				if (
-					!user.isNull()
-					&& (!user.isObject()
-						|| !has_required_fixture_keys(user.toObject(),
+					!json_is_null(user)
+					&& (!json_is_object(user)
+						|| !has_required_fixture_keys(json_object(user),
 													  { "login", "node_id" })
-						|| !nonempty_string(user.toObject().value("login"))
-						|| !nonempty_string(user.toObject().value("node_id")))) {
+						|| !nonempty_string(json_member(json_object(user), "login"))
+						|| !nonempty_string(json_member(json_object(user), "node_id")))) {
 					return false;
 				}
-				return exact_integer(object.value("id"), true)
-					&& nonempty_string(object.value("path"))
-					&& object.value("body").isString();
+				return exact_integer(json_member(object, "id"), true)
+					&& nonempty_string(json_member(object, "path"))
+					&& json_is_string(json_member(object, "body"));
 			});
 		}
 
-		[[nodiscard]] auto validate_checks_fixture(const QJsonDocument& aDocument)
+		[[nodiscard]] auto validate_checks_fixture(const fixture_json_value& aDocument)
 			-> bool
 		{
 			if (
-				!aDocument.isObject()
+				!json_is_object(aDocument)
 				|| !has_exact_keys(
-					aDocument.object(),
+					json_object(aDocument),
 					{ "check_runs", "total_count" })
-				|| !exact_integer(aDocument.object().value("total_count"))
+				|| !exact_integer(json_member(json_object(aDocument), "total_count"))
 				|| !bounded_object_array(
-					aDocument.object().value("check_runs"),
+					json_member(json_object(aDocument), "check_runs"),
 					{
 						"conclusion",
 						"head_sha",
@@ -1556,20 +1614,20 @@ namespace bpr::adapters::github::detail {
 					})) {
 				return false;
 			}
-			const auto runs = aDocument.object().value("check_runs").toArray();
+			const auto runs = json_array(json_member(json_object(aDocument), "check_runs"));
 			if (
-				aDocument.object().value("total_count").toDouble()
-				!= static_cast<double>(runs.size())) {
+				json_uint(json_member(json_object(aDocument), "total_count"))
+				!= static_cast<std::uint64_t>(runs.size())) {
 				return false;
 			}
-			return std::ranges::all_of(runs, [](const QJsonValue& aValue) {
-				const auto object    = aValue.toObject();
-				const auto completed = object.value("status").toString() == "completed";
-				return nonempty_string(object.value("node_id"))
-					&& nonempty_string(object.value("name"))
-					&& valid_json_oid(object.value("head_sha"))
+			return std::ranges::all_of(runs, [](const fixture_json_value& aValue) {
+				const auto object    = json_object(aValue);
+				const auto completed = json_text(json_member(object, "status")) == "completed";
+				return nonempty_string(json_member(object, "node_id"))
+					&& nonempty_string(json_member(object, "name"))
+					&& valid_json_oid(json_member(object, "head_sha"))
 					&& one_of(
-						   object.value("status"),
+						   json_member(object, "status"),
 						   {
 							   "queued",
 							   "in_progress",
@@ -1578,9 +1636,9 @@ namespace bpr::adapters::github::detail {
 							   "requested",
 							   "pending",
 						   })
-					&& (object.value("conclusion").isNull()
+					&& (json_is_null(json_member(object, "conclusion"))
 						|| one_of(
-							object.value("conclusion"),
+							json_member(object, "conclusion"),
 							{
 								"success",
 								"failure",
@@ -1592,17 +1650,17 @@ namespace bpr::adapters::github::detail {
 								"stale",
 							}))
 					&& (completed
-							? !object.value("conclusion").isNull()
-							: object.value("conclusion").isNull());
+							? !json_is_null(json_member(object, "conclusion"))
+							: json_is_null(json_member(object, "conclusion")));
 			});
 		}
 
-		[[nodiscard]] auto exact_search_item(const QJsonValue& aValue) -> bool
+		[[nodiscard]] auto exact_search_item(const fixture_json_value& aValue) -> bool
 		{
 			if (
-				!aValue.isObject()
+				!json_is_object(aValue)
 				|| !has_exact_keys(
-					aValue.toObject(),
+					json_object(aValue),
 					{
 						"draft",
 						"html_url",
@@ -1615,111 +1673,93 @@ namespace bpr::adapters::github::detail {
 					})) {
 				return false;
 			}
-			const auto object      = aValue.toObject();
-			const auto pullRequest = object.value("pull_request");
-			return nonempty_string(object.value("node_id"))
-				&& valid_pull_request_number(object.value("number"))
-				&& one_of(object.value("state"), { "open" })
-				&& nonempty_string(object.value("title"))
-				&& object.value("draft").isBool()
-				&& nonempty_string(object.value("repository_url"))
-				&& nonempty_string(object.value("html_url"))
-				&& pullRequest.isObject()
-				&& has_exact_keys(pullRequest.toObject(), { "url" })
-				&& nonempty_string(pullRequest.toObject().value("url"));
+			const auto object      = json_object(aValue);
+			const auto pullRequest = json_member(object, "pull_request");
+			return nonempty_string(json_member(object, "node_id"))
+				&& valid_pull_request_number(json_member(object, "number"))
+				&& one_of(json_member(object, "state"), { "open" })
+				&& nonempty_string(json_member(object, "title"))
+				&& json_is_bool(json_member(object, "draft"))
+				&& nonempty_string(json_member(object, "repository_url"))
+				&& nonempty_string(json_member(object, "html_url"))
+				&& json_is_object(pullRequest)
+				&& has_exact_keys(json_object(pullRequest), { "url" })
+				&& nonempty_string(json_member(json_object(pullRequest), "url"));
 		}
 
-		[[nodiscard]] auto validate_search_fixture(const QJsonDocument& aDocument)
+		[[nodiscard]] auto validate_search_fixture(const fixture_json_value& aDocument)
 			-> bool
 		{
 			if (
-				!aDocument.isObject()
+				!json_is_object(aDocument)
 				|| !has_exact_keys(
-					aDocument.object(),
+					json_object(aDocument),
 					{ "incomplete_results", "items", "total_count" })
-				|| !aDocument.object().value("incomplete_results").isBool()
-				|| aDocument.object().value("incomplete_results").toBool()
-				|| !exact_integer(aDocument.object().value("total_count"))
-				|| !aDocument.object().value("items").isArray()
-				|| aDocument.object().value("items").toArray().size()
+				|| !json_is_bool(json_member(json_object(aDocument), "incomplete_results"))
+				|| json_bool(json_member(json_object(aDocument), "incomplete_results"))
+				|| !exact_integer(json_member(json_object(aDocument), "total_count"))
+				|| !json_is_array(json_member(json_object(aDocument), "items"))
+				|| json_array(json_member(json_object(aDocument), "items")).size()
 					> maximum_fixture_page_records) {
 				return false;
 			}
-			const auto items = aDocument.object().value("items").toArray();
-			return aDocument.object().value("total_count").toDouble()
-				== static_cast<double>(items.size())
+			const auto items = json_array(json_member(json_object(aDocument), "items"));
+			return json_uint(json_member(json_object(aDocument), "total_count"))
+				== static_cast<std::uint64_t>(items.size())
 				&& std::ranges::all_of(items, exact_search_item);
 		}
 
 		[[nodiscard]] auto response_is_incomplete(
-			const read_operation aOperation,
-			const QJsonDocument& aDocument) -> bool
+			const read_operation      aOperation,
+			const fixture_json_value& aDocument) -> bool
 		{
-			if (aOperation == read_operation::list_checks && aDocument.isObject()) {
-				const auto object = aDocument.object();
-				return object.value("total_count").isDouble()
-					&& object.value("check_runs").isArray()
-					&& object.value("total_count").toDouble()
+			if (aOperation == read_operation::list_checks && json_is_object(aDocument)) {
+				const auto object = json_object(aDocument);
+				return json_is_number(json_member(object, "total_count"))
+					&& json_is_array(json_member(object, "check_runs"))
+					&& json_real(json_member(object, "total_count"))
 					> static_cast<double>(
-						   object.value("check_runs").toArray().size());
+						   json_array(json_member(object, "check_runs")).size());
 			}
 			if (
 				aOperation == read_operation::search_pull_requests
-				&& aDocument.isObject()) {
-				const auto object = aDocument.object();
+				&& json_is_object(aDocument)) {
+				const auto object = json_object(aDocument);
 				return (
-						   object.value("incomplete_results").isBool()
-						   && object.value("incomplete_results").toBool())
-					|| (object.value("total_count").isDouble()
-						&& object.value("items").isArray()
-						&& object.value("total_count").toDouble()
+						   json_is_bool(json_member(object, "incomplete_results"))
+						   && json_bool(json_member(object, "incomplete_results")))
+					|| (json_is_number(json_member(object, "total_count"))
+						&& json_is_array(json_member(object, "items"))
+						&& json_real(json_member(object, "total_count"))
 							> static_cast<double>(
-								object.value("items").toArray().size()));
+								json_array(json_member(object, "items")).size()));
 			}
 			if (
 				aOperation != read_operation::list_review_threads
-				|| !aDocument.isObject()) {
+				|| !json_is_object(aDocument)) {
 				return false;
 			}
 
-			const auto pullRequest = aDocument.object()
-										 .value("data")
-										 .toObject()
-										 .value("repository")
-										 .toObject()
-										 .value("pullRequest")
-										 .toObject();
-			const auto files       = pullRequest.value("files").toObject();
-			if (files.value("pageInfo")
-					.toObject()
-					.value("hasNextPage")
-					.toBool()) {
+			const auto pullRequest = json_object(json_member(json_object(json_member(json_object(json_member(json_object(aDocument), "data")), "repository")), "pullRequest"));
+			const auto files       = json_object(json_member(pullRequest, "files"));
+			if (json_bool(json_member(json_object(json_member(files, "pageInfo")), "hasNextPage"))) {
 				return true;
 			}
 
-			const auto threads = pullRequest.value("reviewThreads").toObject();
-			if (threads.value("pageInfo")
-					.toObject()
-					.value("hasNextPage")
-					.toBool()) {
+			const auto threads = json_object(json_member(pullRequest, "reviewThreads"));
+			if (json_bool(json_member(json_object(json_member(threads, "pageInfo")), "hasNextPage"))) {
 				return true;
 			}
 			return std::ranges::any_of(
-				threads.value("nodes").toArray(),
-				[](const QJsonValue& aValue) {
-					return aValue.toObject()
-						.value("comments")
-						.toObject()
-						.value("pageInfo")
-						.toObject()
-						.value("hasNextPage")
-						.toBool();
+				json_array(json_member(threads, "nodes")),
+				[](const fixture_json_value& aValue) {
+					return json_bool(json_member(json_object(json_member(json_object(json_member(json_object(aValue), "comments")), "pageInfo")), "hasNextPage"));
 				});
 		}
 
 		[[nodiscard]] auto response_shape_is_valid(
-			const read_operation aOperation,
-			const QJsonDocument& aDocument) -> bool
+			const read_operation      aOperation,
+			const fixture_json_value& aDocument) -> bool
 		{
 			switch (aOperation) {
 			case read_operation::get_viewer_identity:
@@ -2072,14 +2112,12 @@ namespace bpr::adapters::github::detail {
 				return failure(contract_failure_code::malformed_response);
 			}
 
-			QJsonParseError parseError;
-			const auto      document = QJsonDocument::fromJson(
-				QByteArray{
-					aResponse.Body.data(),
-					static_cast<qsizetype>(aResponse.Body.size()),
-				},
-				&parseError);
-			if (parseError.error != QJsonParseError::NoError) {
+			glz::skip validated;
+			if (glz::read<read_request_json_options{ }>(validated, aResponse.Body)) {
+				return failure(contract_failure_code::malformed_response);
+			}
+			const fixture_json_value document{ std::string_view{ aResponse.Body } };
+			if (!json_is_object(document) && !json_is_array(document)) {
 				return failure(contract_failure_code::malformed_response);
 			}
 			if (response_is_incomplete(aOperation, document)) {

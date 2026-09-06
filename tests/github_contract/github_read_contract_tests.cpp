@@ -1971,10 +1971,65 @@ namespace {
 		expect(!normalize_github_read(context, missingLine, admission), "missing line retains the prior invalid-coordinate refusal");
 	}
 
+	auto test_glaze_strict_response_identity_and_syntax() -> void
+	{
+		for (const auto identity : { std::uint64_t{ 9007199254740993ULL }, std::uint64_t{ 18446744073709551615ULL } }) {
+			auto       recording = load_recording("github-com", server_contract::github_com);
+			const auto encoded   = std::to_string(identity);
+			replace_once(recording.Responses[0].Response.Body, "\"id\": 1001", "\"id\": " + encoded);
+			replace_once(recording.Responses[1].Response.Body, "\"id\": 2001", "\"id\": " + encoded);
+			replace_once(recording.Responses[2].Response.Body, "\"id\": 3001", "\"id\": " + encoded);
+			replace_once(recording.Responses[2].Response.Body, "\"id\": 2001", "\"id\": " + encoded);
+			replace_once(recording.Responses[2].Response.Body, "\"id\": 2001", "\"id\": " + encoded);
+			replace_once(recording.Responses[5].Response.Body, "\"id\": 4001", "\"id\": " + encoded);
+			auto context                                   = normalization_context(server_contract::github_com);
+			context.Account                                = core::github_account_id{ identity };
+			context.Repository                             = core::repository_id{ identity };
+			context.PullRequest                            = core::pull_request_id{ identity };
+			context.PullRequestRequest.Account             = context.Account;
+			context.PullRequestRequest.ExpectedRepository  = context.Repository;
+			context.PullRequestRequest.ExpectedPullRequest = context.PullRequest;
+			const auto result                              = normalize_github_read(context, recording.Responses);
+			expect(result && result->Session.Viewer.Account.value() == identity
+					   && result->PullRequest.Repository.Repository.value() == identity
+					   && result->PullRequest.PullRequest.PullRequest.value() == identity
+					   && result->PullRequest.Reviews.front().DatabaseId == identity,
+				   "strict validation and typed normalization retain IDs above 2^53 through UINT64_MAX");
+			context.Account                    = core::github_account_id{ identity - 1U };
+			context.PullRequestRequest.Account = context.Account;
+			const auto mismatch                = normalize_github_read(context, recording.Responses);
+			expect(!mismatch && mismatch.error().Code == contract_failure_code::identity_mismatch,
+				   "adjacent large identities cannot satisfy the wrong viewer binding");
+		}
+		auto recording = load_recording("github-com", server_contract::github_com);
+		for (const auto body : { R"(null)", R"(17)", R"("scalar")", R"({"id":1e400})", R"({"unknown":"\ud800"})", R"({"unknown":"\udc00"})", "{\"unknown\":\"\xc3\x28\"}", "{} {}" }) {
+			auto response      = recording.Responses.front().Response;
+			response.Body      = body;
+			const auto invalid = validate_strict_fixture_response(read_operation::get_viewer_identity, response);
+			expect(!invalid && invalid.error().Code == contract_failure_code::malformed_response,
+				   "scalar roots, nonfinite numbers, malformed Unicode and trailing documents keep the syntax failure category");
+		}
+		for (auto& response : recording.Responses) {
+			while (!response.Response.Body.empty() && (response.Response.Body.back() == '\n' || response.Response.Body.back() == '\r')) {
+				response.Response.Body.pop_back();
+			}
+		}
+		const auto eofResult = normalize_github_read(normalization_context(server_contract::github_com), recording.Responses);
+		expect(eofResult && *eofResult == canonical_normalized_read(), "object and array responses ending exactly at EOF retain complete normalized facts");
+		auto&                  graphql  = recording.Responses[6].Response.Body;
+		const std::string_view path     = "\"path\": \"review.cpp\"";
+		const auto             lastPath = graphql.rfind(path);
+		expect(lastPath != std::string::npos, "escaped-path fixture selects a comment path");
+		graphql.replace(lastPath, path.size(), R"("path": "\u0072eview.cpp")");
+		const auto escaped = normalize_github_read(normalization_context(server_contract::github_com), recording.Responses);
+		expect(escaped && *escaped == canonical_normalized_read(), "thread/comment path equality compares decoded strings rather than JSON spelling");
+	}
+
 }
 
 auto main() -> int
 {
+	test_glaze_strict_response_identity_and_syntax();
 	test_glaze_anonymous_comment_normalization();
 	test_glaze_normalization_keeps_raw_numbers_exact();
 	test_manifest_catalog_and_normalization_are_one_contract();

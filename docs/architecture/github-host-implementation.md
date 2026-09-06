@@ -1374,6 +1374,15 @@ JSON envelope, then applies the operation scanner before variable-type checks.
 Raw variable views stay inside that synchronous validation call. Exact canonical
 body equality remains the final admission requirement.
 
+Strict fixture-response validation uses Glaze indexes of borrowed JSON values
+so field inventories distinguish missing members from explicit null and retain
+the original numeric spelling. Bounded structural preflight and whole-document
+JSON validation run before field checks. Scalar roots, non-finite number tokens,
+malformed Unicode and trailing documents remain malformed responses. Identities
+decode directly to uint64, while PR numbers and lines retain their narrower
+bounds; decoded strings determine path equality. The pre-existing incomplete-page
+classification precedes shape checks and never supplies an identity.
+
 Recorded read normalization extracts Glaze wire records after strict fixture
 validation has established field inventories, nullable relationships and page
 completeness. Identities and counts decode directly to integer fields; lines
