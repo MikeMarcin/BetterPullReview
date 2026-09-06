@@ -47,13 +47,15 @@ position; jump to the next new comment with the count; the modality control;
 refresh; comments-rail toggle; account; settings. Below it a 22-pixel epoch
 line. No toolbar with labels, no menu bar rows.
 
-**Epoch line.** A single line with one node per upload, dates in their own row
-beneath the nodes, the two compared uploads drawn as bracket handles with a
-blue bar between them, and an amber tick for "my last review" with only a
+**Epoch line.** A single line with one node per review epoch, that is each
+update (push) that changed the pull request, never a commit or a file's
+history; the label reads "Updates" and the dates sit in their own row beneath
+the nodes. The two compared updates are drawn as bracket handles with a blue
+bar between them, and an amber tick marks "my last review" with only a
 tooltip. Handles drag. Click a node to compare from it, ⌘-click to compare to
 it, right-click for a menu (compare from here, compare to here, show this
-upload alone, copy commit). Hovering a node shows the upload's files and
-commit. Because dense histories make precise mouse selection hard (the owner's
+update alone, copy head commit). Hovering a node shows the update's files and
+head commit. Because dense histories make precise mouse selection hard (the owner's
 Perforce experience), each handle is also moved by keyboard one upload at a
 time when the line has focus, and the named comparisons (whole PR, since last
 upload, since my last review) remain in a dropdown at the line's right.
