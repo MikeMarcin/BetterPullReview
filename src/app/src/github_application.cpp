@@ -34,6 +34,7 @@
 	#include "github_read_contract.hpp"
 	#include "github_wire_transport.hpp"
 	#include "review_submission_fixture.hpp"
+	#include <glaze/json.hpp>
 #endif
 
 #include "bpr/adapters/agent/agent_process_launcher.hpp"
@@ -93,8 +94,6 @@
 #include <QGuiApplication>
 #include <QIcon>
 #include <QImage>
-#include <QJsonDocument>
-#include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
@@ -11945,32 +11944,53 @@ namespace bpr::app {
 			};
 		}
 
-		[[nodiscard]] auto rectangle_json(const QRect& aRect) -> QJsonObject
+		// Capture facts own every value, including strings returned by Qt.
+		struct capture_json_options : glz::opts
 		{
-			return {
-				{ QStringLiteral("x"), aRect.x() },
-				{ QStringLiteral("y"), aRect.y() },
-				{ QStringLiteral("width"), aRect.width() },
-				{ QStringLiteral("height"), aRect.height() },
-			};
+			std::uint8_t indentation_width         = 4U;
+			bool         escape_control_characters = true;
+			constexpr capture_json_options() { prettify = true; }
+		};
+
+		template <typename... Values>
+		[[nodiscard]] auto capture_object(Values... aValues)
+		{
+			return glz::obj_copy<Values...>{ .value = glz::make_tuple(std::move(aValues)...) };
 		}
 
-		[[nodiscard]] auto rectangle_json(const QRectF& aRect) -> QJsonObject
+		[[nodiscard]] auto rectangle_json(const QRect& aRect)
 		{
-			return {
-				{ QStringLiteral("x"), aRect.x() },
-				{ QStringLiteral("y"), aRect.y() },
-				{ QStringLiteral("width"), aRect.width() },
-				{ QStringLiteral("height"), aRect.height() },
-			};
+			return capture_object(
+				"x",
+				aRect.x(),
+				"y",
+				aRect.y(),
+				"width",
+				aRect.width(),
+				"height",
+				aRect.height());
 		}
 
-		[[nodiscard]] auto point_json(const QPointF& aPoint) -> QJsonObject
+		[[nodiscard]] auto rectangle_json(const QRectF& aRect)
 		{
-			return {
-				{ QStringLiteral("x"), aPoint.x() },
-				{ QStringLiteral("y"), aPoint.y() },
-			};
+			return capture_object(
+				"x",
+				aRect.x(),
+				"y",
+				aRect.y(),
+				"width",
+				aRect.width(),
+				"height",
+				aRect.height());
+		}
+
+		[[nodiscard]] auto point_json(const QPointF& aPoint)
+		{
+			return capture_object(
+				"x",
+				aPoint.x(),
+				"y",
+				aPoint.y());
 		}
 
 		[[nodiscard]] auto drawer_row(
@@ -13105,44 +13125,51 @@ namespace bpr::app {
 			core::appearance_role::diff_intraline_added_background);
 		const auto& key      = implementation->LastSelectedDiff->Key;
 		const auto  blobText = [](const core::git_blob_oid& aOid) {
-			const auto text = core::canonical_hex(aOid).view();
-			return QString::fromUtf8(
-				text.data(), static_cast<qsizetype>(text.size()));
+			const auto text = core::canonical_hex(aOid);
+			return std::string{ text.view() };
 		};
 		const auto identityText = []<typename Identity>(const Identity& aIdentity) {
 			const auto& bytes = aIdentity.bytes();
 			return QString::fromLatin1(
-				QByteArray{
-					reinterpret_cast<const char*>(bytes.data()),
-					static_cast<qsizetype>(bytes.size()) }
-					.toHex());
+					   QByteArray{
+						   reinterpret_cast<const char*>(bytes.data()),
+						   static_cast<qsizetype>(bytes.size()) }
+						   .toHex())
+				.toStdString();
 		};
 		const auto connectorJson = [](const connector_render_observation& aValue) {
-			return QJsonObject{
-				{ QStringLiteral("state"),
-				  aValue.Selected ? QStringLiteral("selected")
-								  : QStringLiteral("unselected") },
-				{ QStringLiteral("gutter_background"),
-				  aValue.Pixels.Background.name(QColor::HexArgb) },
-				{ QStringLiteral("dominant_path_pixel"),
-				  aValue.Pixels.Dominant.name(QColor::HexArgb) },
-				{ QStringLiteral("sampled_path_pixels"),
-				  static_cast<qint64>(aValue.Pixels.SampledPixels) },
-				{ QStringLiteral("contrast_pixels"),
-				  static_cast<qint64>(aValue.Pixels.ContrastPixels) },
-				{ QStringLiteral("dominant_path_pixels"),
-				  static_cast<qint64>(aValue.Pixels.DominantPixels) },
-				{ QStringLiteral("contrast_floor_hundredths"), 300 },
-				{ QStringLiteral("median_contrast_hundredths"),
-				  static_cast<qint64>(aValue.Pixels.MedianContrastHundredths) },
-				{ QStringLiteral("bounds"), rectangle_json(aValue.Bounds) },
-				{ QStringLiteral("start"), point_json(aValue.Start) },
-				{ QStringLiteral("end"), point_json(aValue.End) },
-				{ QStringLiteral("left_endpoint_at_pane_edge"), aValue.LeftEndpoint },
-				{ QStringLiteral("right_endpoint_at_pane_edge"), aValue.RightEndpoint },
-				{ QStringLiteral("left_target_row_overlap"), aValue.LeftOverlap },
-				{ QStringLiteral("right_target_row_overlap"), aValue.RightOverlap },
-			};
+			return capture_object(
+				"state",
+				aValue.Selected ? "selected"
+								: "unselected",
+				"gutter_background",
+				aValue.Pixels.Background.name(QColor::HexArgb).toStdString(),
+				"dominant_path_pixel",
+				aValue.Pixels.Dominant.name(QColor::HexArgb).toStdString(),
+				"sampled_path_pixels",
+				static_cast<qint64>(aValue.Pixels.SampledPixels),
+				"contrast_pixels",
+				static_cast<qint64>(aValue.Pixels.ContrastPixels),
+				"dominant_path_pixels",
+				static_cast<qint64>(aValue.Pixels.DominantPixels),
+				"contrast_floor_hundredths",
+				300,
+				"median_contrast_hundredths",
+				static_cast<qint64>(aValue.Pixels.MedianContrastHundredths),
+				"bounds",
+				rectangle_json(aValue.Bounds),
+				"start",
+				point_json(aValue.Start),
+				"end",
+				point_json(aValue.End),
+				"left_endpoint_at_pane_edge",
+				aValue.LeftEndpoint,
+				"right_endpoint_at_pane_edge",
+				aValue.RightEndpoint,
+				"left_target_row_overlap",
+				aValue.LeftOverlap,
+				"right_target_row_overlap",
+				aValue.RightOverlap);
 		};
 		const auto firstGroup = std::ranges::find(
 			result->Alignment.Groups, *firstPair->Group, &core::change_group::Id);
@@ -13159,28 +13186,39 @@ namespace bpr::app {
 									const connector_render_observation& aSelectedConnector,
 									const connector_render_observation& aUnselectedConnector,
 									const qint64                        aChangeIndex) {
-			return QJsonObject{
-				{ QStringLiteral("segment"), identityText(aTarget.Pair.Segment) },
-				{ QStringLiteral("group"),
-				  aTarget.Pair.Group.has_value()
-					  ? identityText(*aTarget.Pair.Group)
-					  : QString{ } },
-				{ QStringLiteral("left_line"), static_cast<qint64>(aTarget.Pair.Left) },
-				{ QStringLiteral("right_line"), static_cast<qint64>(aTarget.Pair.Right) },
-				{ QStringLiteral("left_rect_in_pane"), rectangle_json(aTarget.LeftRect) },
-				{ QStringLiteral("right_rect_in_pane"), rectangle_json(aTarget.RightRect) },
-				{ QStringLiteral("left_role_pixels"), static_cast<qint64>(aTarget.LeftRolePixels) },
-				{ QStringLiteral("right_role_pixels"), static_cast<qint64>(aTarget.RightRolePixels) },
-				{ QStringLiteral("selected_observed"), true },
-				{ QStringLiteral("selected_left_role_pixels"), static_cast<qint64>(aSelectedTarget.LeftRolePixels) },
-				{ QStringLiteral("selected_right_role_pixels"), static_cast<qint64>(aSelectedTarget.RightRolePixels) },
-				{ QStringLiteral("change_index"), aChangeIndex },
-				{ QStringLiteral("connector"), connectorJson(aConnector) },
-				{ QStringLiteral("selected_connector"),
-				  connectorJson(aSelectedConnector) },
-				{ QStringLiteral("unselected_connector"),
-				  connectorJson(aUnselectedConnector) },
-			};
+			return capture_object(
+				"segment",
+				identityText(aTarget.Pair.Segment),
+				"group",
+				aTarget.Pair.Group.has_value()
+					? identityText(*aTarget.Pair.Group)
+					: std::string{ },
+				"left_line",
+				static_cast<qint64>(aTarget.Pair.Left),
+				"right_line",
+				static_cast<qint64>(aTarget.Pair.Right),
+				"left_rect_in_pane",
+				rectangle_json(aTarget.LeftRect),
+				"right_rect_in_pane",
+				rectangle_json(aTarget.RightRect),
+				"left_role_pixels",
+				static_cast<qint64>(aTarget.LeftRolePixels),
+				"right_role_pixels",
+				static_cast<qint64>(aTarget.RightRolePixels),
+				"selected_observed",
+				true,
+				"selected_left_role_pixels",
+				static_cast<qint64>(aSelectedTarget.LeftRolePixels),
+				"selected_right_role_pixels",
+				static_cast<qint64>(aSelectedTarget.RightRolePixels),
+				"change_index",
+				aChangeIndex,
+				"connector",
+				connectorJson(aConnector),
+				"selected_connector",
+				connectorJson(aSelectedConnector),
+				"unselected_connector",
+				connectorJson(aUnselectedConnector));
 		};
 		const auto firstChangeIndex = static_cast<qint64>(
 			std::distance(result->Alignment.Groups.begin(), firstGroup));
@@ -13188,107 +13226,173 @@ namespace bpr::app {
 			std::distance(result->Alignment.Groups.begin(), secondGroup));
 		const auto iconContrastJson = [](
 										  const navigation_icon_contrast_observation& aValue) {
-			return QJsonObject{
-				{ QStringLiteral("background"),
-				  aValue.Background.name(QColor::HexArgb) },
-				{ QStringLiteral("normal_foreground"),
-				  aValue.NormalForeground.name(QColor::HexArgb) },
-				{ QStringLiteral("disabled_foreground"),
-				  aValue.DisabledForeground.name(QColor::HexArgb) },
-				{ QStringLiteral("normal_foreground_pixels"),
-				  static_cast<qint64>(aValue.NormalForegroundPixels) },
-				{ QStringLiteral("disabled_foreground_pixels"),
-				  static_cast<qint64>(aValue.DisabledForegroundPixels) },
-				{ QStringLiteral("normal_contrast_hundredths"),
-				  static_cast<qint64>(aValue.NormalContrastHundredths) },
-				{ QStringLiteral("disabled_contrast_hundredths"),
-				  static_cast<qint64>(aValue.DisabledContrastHundredths) },
-				{ QStringLiteral("states_distinct"), aValue.StatesDistinct },
-			};
+			return capture_object(
+				"background",
+				aValue.Background.name(QColor::HexArgb).toStdString(),
+				"normal_foreground",
+				aValue.NormalForeground.name(QColor::HexArgb).toStdString(),
+				"disabled_foreground",
+				aValue.DisabledForeground.name(QColor::HexArgb).toStdString(),
+				"normal_foreground_pixels",
+				static_cast<qint64>(aValue.NormalForegroundPixels),
+				"disabled_foreground_pixels",
+				static_cast<qint64>(aValue.DisabledForegroundPixels),
+				"normal_contrast_hundredths",
+				static_cast<qint64>(aValue.NormalContrastHundredths),
+				"disabled_contrast_hundredths",
+				static_cast<qint64>(aValue.DisabledContrastHundredths),
+				"states_distinct",
+				aValue.StatesDistinct);
 		};
-		auto facts = QJsonObject{
-			{ QStringLiteral("schema"), QStringLiteral("bpr.uiforetw_intraline_capture.v4") },
-			{ QStringLiteral("appearance"), appearance_mode_name(aMode) },
-			{ QStringLiteral("qt_platform"), QGuiApplication::platformName() },
-			{ QStringLiteral("qt_version"), QString::fromLatin1(qVersion()) },
-			{ QStringLiteral("style"), QString::fromLatin1(window->style()->metaObject()->className()) },
-			{ QStringLiteral("device_pixel_ratio"), full.devicePixelRatio() },
-			{ QStringLiteral("logical_width"), window->width() },
-			{ QStringLiteral("logical_height"), window->height() },
-			{ QStringLiteral("pixel_width"), full.width() },
-			{ QStringLiteral("pixel_height"), full.height() },
-			{ QStringLiteral("comparison_pixel_width"), comparison.width() },
-			{ QStringLiteral("comparison_pixel_height"), comparison.height() },
-			{ QStringLiteral("selected_path"), QString::fromUtf8(uiforetw_rc_path.data(), static_cast<qsizetype>(uiforetw_rc_path.size())) },
-			{ QStringLiteral("base_commit"), QString::fromUtf8(uiforetw_base_oid.data(), static_cast<qsizetype>(uiforetw_base_oid.size())) },
-			{ QStringLiteral("head_commit"), QString::fromUtf8(uiforetw_head_oid.data(), static_cast<qsizetype>(uiforetw_head_oid.size())) },
-			{ QStringLiteral("base_blob"), blobText(*key.LeftBlob) },
-			{ QStringLiteral("head_blob"), blobText(*key.RightBlob) },
-			{ QStringLiteral("removed_role"), removed.name(QColor::HexArgb) },
-			{ QStringLiteral("added_role"), added.name(QColor::HexArgb) },
-			{ QStringLiteral("intraline_edit_count"), static_cast<qint64>(workbench->current_result()->Intraline.size()) },
-			{ QStringLiteral("fixture_diff_helper_invocations"), static_cast<qint64>(implementation->FixtureDiffHelperInvocations) },
-			{ QStringLiteral("previous_file_navigation_exercised"), implementation->UIforEtwSelectedDiffProbe->Evidence.PreviousFileNavigation },
-			{ QStringLiteral("next_file_navigation_exercised"), implementation->UIforEtwSelectedDiffProbe->Evidence.NextFileNavigation },
-			{ QStringLiteral("previous_change_navigation_exercised"), implementation->UIforEtwSelectedDiffProbe->Evidence.PreviousChangeNavigation },
-			{ QStringLiteral("next_change_navigation_exercised"), implementation->UIforEtwSelectedDiffProbe->Evidence.NextChangeNavigation },
-			{ QStringLiteral("files_drawer_toggle_exercised"), implementation->UIforEtwSelectedDiffProbe->Evidence.FilesDrawerToggle },
-			{ QStringLiteral("conversations_drawer_toggle_exercised"), implementation->UIforEtwSelectedDiffProbe->Evidence.ConversationsDrawerToggle },
-			{ QStringLiteral("navigation_row_exact_order"), exactRowOrder },
-			{ QStringLiteral("navigation_actions_icon_only"), iconOnly },
-			{ QStringLiteral("navigation_actions_have_native_icons"), nativeIcons },
-			{ QStringLiteral("navigation_icons_palette_aware"), navigationIconsPaletteAware },
-			{ QStringLiteral("navigation_icon_contrast"),
-			  QJsonObject{
-				  { QStringLiteral("previous_file"),
-					iconContrastJson(navigationIconObservations[0]) },
-				  { QStringLiteral("next_file"),
-					iconContrastJson(navigationIconObservations[1]) },
-				  { QStringLiteral("previous_change"),
-					iconContrastJson(navigationIconObservations[2]) },
-				  { QStringLiteral("next_change"),
-					iconContrastJson(navigationIconObservations[3]) },
-			  } },
-			{ QStringLiteral("navigation_actions_accessible"), accessible },
-			{ QStringLiteral("navigation_accessible_names_unique"), uniqueNames },
-			{ QStringLiteral("files_drawer_visible"), false },
-			{ QStringLiteral("conversations_drawer_visible"), false },
-			{ QStringLiteral("review_details_visible"), false },
-			{ QStringLiteral("epoch_controls_visible"), false },
-			{ QStringLiteral("selected_change_detail_visible"), false },
-			{ QStringLiteral("full_window_rect"), rectangle_json(window->rect()) },
-			{ QStringLiteral("navigation_row_rect_in_window"), rectangle_json(inWindow(*toolbar)) },
-			{ QStringLiteral("files_toggle_rect_in_row"), rectangle_json(requiredPresenters[0]->geometry()) },
-			{ QStringLiteral("previous_file_rect_in_row"), rectangle_json(requiredPresenters[1]->geometry()) },
-			{ QStringLiteral("next_file_rect_in_row"), rectangle_json(requiredPresenters[2]->geometry()) },
-			{ QStringLiteral("previous_change_rect_in_row"), rectangle_json(requiredPresenters[3]->geometry()) },
-			{ QStringLiteral("next_change_rect_in_row"), rectangle_json(requiredPresenters[4]->geometry()) },
-			{ QStringLiteral("review_details_rect_in_row"), rectangle_json(toolbar->actionGeometry(reviewDetails)) },
-			{ QStringLiteral("private_progress_rect_in_row"), rectangle_json(reviewControls->geometry()) },
-			{ QStringLiteral("conversations_toggle_rect_in_row"), rectangle_json(requiredPresenters[5]->geometry()) },
-			{ QStringLiteral("comparison_rect_in_window"), rectangle_json(comparisonRect) },
-			{ QStringLiteral("left_pane_rect_in_window"), rectangle_json(leftPaneRect) },
-			{ QStringLiteral("right_pane_rect_in_window"), rectangle_json(rightPaneRect) },
-			{ QStringLiteral("gutter_rect_in_window"), rectangle_json(gutterRect) },
-			{ QStringLiteral("files_drawer_rect_in_splitter"), rectangle_json(window->files_drawer()->geometry()) },
-			{ QStringLiteral("conversations_drawer_rect_in_splitter"), rectangle_json(window->conversations_drawer()->geometry()) },
-			{ QStringLiteral("review_details_rect_in_window"), rectangle_json(inWindow(*header)) },
-			{ QStringLiteral("comparison_width_ratio_permille"), widthRatio },
-			{ QStringLiteral("comparison_height_ratio_permille"), heightRatio },
-			{ QStringLiteral("left_horizontal_offset"), workbench->left_pane()->horizontalScrollBar()->value() },
-			{ QStringLiteral("right_horizontal_offset"), workbench->right_pane()->horizontalScrollBar()->value() },
-			{ QStringLiteral("selected_change_index"), firstChangeIndex },
-			{ QStringLiteral("selected_segment"), identityText(first->Pair.Segment) },
-			{ QStringLiteral("selected_group"), identityText(*first->Pair.Group) },
-			{ QStringLiteral("replacement_28_to_24"), targetJson(*first, *firstSelected, *firstConnector, *firstSelectedConnector, *firstUnselectedConnector, firstChangeIndex) },
-			{ QStringLiteral("replacement_42_to_36"), targetJson(*second, *secondSelected, *secondConnector, *secondSelectedConnector, *secondUnselectedConnector, secondChangeIndex) },
-		};
-		auto file = QFile{ directory.filePath(QStringLiteral("capture-facts.json")) };
+		auto facts = capture_object(
+			"schema",
+			"bpr.uiforetw_intraline_capture.v4",
+			"appearance",
+			appearance_mode_name(aMode).toStdString(),
+			"qt_platform",
+			QGuiApplication::platformName().toStdString(),
+			"qt_version",
+			std::string{ qVersion() },
+			"style",
+			std::string{ window->style()->metaObject()->className() },
+			"device_pixel_ratio",
+			full.devicePixelRatio(),
+			"logical_width",
+			window->width(),
+			"logical_height",
+			window->height(),
+			"pixel_width",
+			full.width(),
+			"pixel_height",
+			full.height(),
+			"comparison_pixel_width",
+			comparison.width(),
+			"comparison_pixel_height",
+			comparison.height(),
+			"selected_path",
+			std::string{ uiforetw_rc_path },
+			"base_commit",
+			std::string{ uiforetw_base_oid },
+			"head_commit",
+			std::string{ uiforetw_head_oid },
+			"base_blob",
+			blobText(*key.LeftBlob),
+			"head_blob",
+			blobText(*key.RightBlob),
+			"removed_role",
+			removed.name(QColor::HexArgb).toStdString(),
+			"added_role",
+			added.name(QColor::HexArgb).toStdString(),
+			"intraline_edit_count",
+			static_cast<qint64>(workbench->current_result()->Intraline.size()),
+			"fixture_diff_helper_invocations",
+			static_cast<qint64>(implementation->FixtureDiffHelperInvocations),
+			"previous_file_navigation_exercised",
+			implementation->UIforEtwSelectedDiffProbe->Evidence.PreviousFileNavigation,
+			"next_file_navigation_exercised",
+			implementation->UIforEtwSelectedDiffProbe->Evidence.NextFileNavigation,
+			"previous_change_navigation_exercised",
+			implementation->UIforEtwSelectedDiffProbe->Evidence.PreviousChangeNavigation,
+			"next_change_navigation_exercised",
+			implementation->UIforEtwSelectedDiffProbe->Evidence.NextChangeNavigation,
+			"files_drawer_toggle_exercised",
+			implementation->UIforEtwSelectedDiffProbe->Evidence.FilesDrawerToggle,
+			"conversations_drawer_toggle_exercised",
+			implementation->UIforEtwSelectedDiffProbe->Evidence.ConversationsDrawerToggle,
+			"navigation_row_exact_order",
+			exactRowOrder,
+			"navigation_actions_icon_only",
+			iconOnly,
+			"navigation_actions_have_native_icons",
+			nativeIcons,
+			"navigation_icons_palette_aware",
+			navigationIconsPaletteAware,
+			"navigation_icon_contrast",
+			capture_object(
+				"previous_file",
+				iconContrastJson(navigationIconObservations[0]),
+				"next_file",
+				iconContrastJson(navigationIconObservations[1]),
+				"previous_change",
+				iconContrastJson(navigationIconObservations[2]),
+				"next_change",
+				iconContrastJson(navigationIconObservations[3])),
+			"navigation_actions_accessible",
+			accessible,
+			"navigation_accessible_names_unique",
+			uniqueNames,
+			"files_drawer_visible",
+			false,
+			"conversations_drawer_visible",
+			false,
+			"review_details_visible",
+			false,
+			"epoch_controls_visible",
+			false,
+			"selected_change_detail_visible",
+			false,
+			"full_window_rect",
+			rectangle_json(window->rect()),
+			"navigation_row_rect_in_window",
+			rectangle_json(inWindow(*toolbar)),
+			"files_toggle_rect_in_row",
+			rectangle_json(requiredPresenters[0]->geometry()),
+			"previous_file_rect_in_row",
+			rectangle_json(requiredPresenters[1]->geometry()),
+			"next_file_rect_in_row",
+			rectangle_json(requiredPresenters[2]->geometry()),
+			"previous_change_rect_in_row",
+			rectangle_json(requiredPresenters[3]->geometry()),
+			"next_change_rect_in_row",
+			rectangle_json(requiredPresenters[4]->geometry()),
+			"review_details_rect_in_row",
+			rectangle_json(toolbar->actionGeometry(reviewDetails)),
+			"private_progress_rect_in_row",
+			rectangle_json(reviewControls->geometry()),
+			"conversations_toggle_rect_in_row",
+			rectangle_json(requiredPresenters[5]->geometry()),
+			"comparison_rect_in_window",
+			rectangle_json(comparisonRect),
+			"left_pane_rect_in_window",
+			rectangle_json(leftPaneRect),
+			"right_pane_rect_in_window",
+			rectangle_json(rightPaneRect),
+			"gutter_rect_in_window",
+			rectangle_json(gutterRect),
+			"files_drawer_rect_in_splitter",
+			rectangle_json(window->files_drawer()->geometry()),
+			"conversations_drawer_rect_in_splitter",
+			rectangle_json(window->conversations_drawer()->geometry()),
+			"review_details_rect_in_window",
+			rectangle_json(inWindow(*header)),
+			"comparison_width_ratio_permille",
+			widthRatio,
+			"comparison_height_ratio_permille",
+			heightRatio,
+			"left_horizontal_offset",
+			workbench->left_pane()->horizontalScrollBar()->value(),
+			"right_horizontal_offset",
+			workbench->right_pane()->horizontalScrollBar()->value(),
+			"selected_change_index",
+			firstChangeIndex,
+			"selected_segment",
+			identityText(first->Pair.Segment),
+			"selected_group",
+			identityText(*first->Pair.Group),
+			"replacement_28_to_24",
+			targetJson(*first, *firstSelected, *firstConnector, *firstSelectedConnector, *firstUnselectedConnector, firstChangeIndex),
+			"replacement_42_to_36",
+			targetJson(*second, *secondSelected, *secondConnector, *secondSelectedConnector, *secondUnselectedConnector, secondChangeIndex));
+		auto file = QFile{ directory.filePath("capture-facts.json") };
 		if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
 			return false;
 		}
-		const auto bytes = QJsonDocument{ facts }.toJson(QJsonDocument::Indented);
-		return file.write(bytes) == bytes.size() && file.flush();
+		std::string bytes;
+		if (glz::write<capture_json_options{ }>(facts, bytes)) {
+			return false;
+		}
+		bytes.push_back('\n');
+		return file.write(bytes.data(), static_cast<qint64>(bytes.size())) == static_cast<qint64>(bytes.size()) && file.flush();
 	}
 
 	namespace {

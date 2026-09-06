@@ -15,11 +15,10 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
 #include <QStandardPaths>
 #include <QTemporaryDir>
+
+#include <glaze/json.hpp>
 
 #include <algorithm>
 #include <array>
@@ -153,21 +152,67 @@ namespace bpr::app::detail {
 			}
 		}
 
-		[[nodiscard]] auto parse_object(const std::filesystem::path& aPath)
-			-> QJsonObject
+		struct fixture_json_options : glz::opts
 		{
-			QJsonParseError error;
-			const auto      bytes    = QByteArray::fromStdString(read_all(aPath));
-			const auto      document = QJsonDocument::fromJson(bytes, &error);
-			if (error.error != QJsonParseError::NoError || !document.isObject()) {
+			bool escape_control_characters    = true;
+			bool validate_skipped             = true;
+			bool validate_trailing_whitespace = true;
+			constexpr fixture_json_options()
+			{
+				null_terminated       = false;
+				error_on_unknown_keys = false;
+				error_on_missing_keys = true;
+			}
+		};
+
+		struct interaction_json
+		{
+			std::string                                     Operation;
+			std::string                                     Method;
+			std::string                                     Path;
+			std::string                                     CanonicalQuery;
+			std::map<std::string, std::string, std::less<>> SafeHeaders;
+			std::optional<std::string>                      Body;
+			std::string                                     ResponseFile;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("operation", &interaction_json::Operation, "method", &interaction_json::Method, "path", &interaction_json::Path, "canonical_query", &interaction_json::CanonicalQuery, "safe_headers", &interaction_json::SafeHeaders, "body", &interaction_json::Body, "response_file", &interaction_json::ResponseFile);
+			};
+		};
+		struct recording_json
+		{
+			std::vector<interaction_json> Interactions;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("interactions", &recording_json::Interactions);
+			};
+		};
+		struct projection_json
+		{
+			std::vector<std::string>                          ObservedFields;
+			std::map<std::string, glz::raw_json, std::less<>> Values;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("observed_fields", &projection_json::ObservedFields, "values", &projection_json::Values);
+			};
+		};
+		struct device_recording_json
+		{
+			int             HttpStatus = 0;
+			projection_json Projection;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("http_status", &device_recording_json::HttpStatus, "projection", &device_recording_json::Projection);
+			};
+		};
+
+		[[nodiscard]] auto parse_recording(const std::filesystem::path& aPath) -> recording_json
+		{
+			recording_json recording;
+			if (glz::read<fixture_json_options{ }>(recording, read_all(aPath))) {
 				throw std::runtime_error{ "GitHub public-path fixture is malformed" };
 			}
-			return document.object();
-		}
-
-		[[nodiscard]] auto utf8(const QString& aValue) -> std::string
-		{
-			return aValue.toUtf8().toStdString();
+			return recording;
 		}
 
 		/// \brief Says where the packs one fixture serves come from.
@@ -381,19 +426,19 @@ namespace bpr::app::detail {
 			}
 			const auto root = std::filesystem::path{ BPR_GITHUB_CONTRACT_FIXTURE_ROOT }
 				/ aDescriptor.ContractDirectory;
-			const auto manifest     = parse_object(root / "manifest.json");
-			const auto interactions = manifest.value("interactions").toArray();
+			const auto  manifest     = parse_recording(root / "manifest.json");
+			const auto& interactions = manifest.Interactions;
 			if (interactions.size()
-				!= static_cast<qsizetype>(read_operation_catalog.size())) {
+				!= read_operation_catalog.size()) {
 				throw std::runtime_error{ "GitHub public-path fixture is incomplete" };
 			}
 
 			auto exchanges = std::vector<recorded_exchange>{ };
 			exchanges.reserve(read_operation_catalog.size());
-			for (qsizetype index = 0; index < interactions.size(); ++index) {
-				const auto interaction = interactions[index].toObject();
-				const auto operation   = read_operation_from_name(
-					utf8(interaction.value("operation").toString()));
+			for (std::size_t index = 0U; index < interactions.size(); ++index) {
+				const auto& interaction = interactions[index];
+				const auto  operation   = read_operation_from_name(
+					interaction.Operation);
 				if (!operation.has_value()
 					|| *operation
 						!= read_operation_catalog[static_cast<std::size_t>(index)]) {
@@ -402,34 +447,24 @@ namespace bpr::app::detail {
 					};
 				}
 
-				auto       headers     = std::vector<http_header>{ };
-				const auto safeHeaders = interaction.value("safe_headers").toObject();
-				headers.reserve(static_cast<std::size_t>(safeHeaders.size()));
-				for (auto item = safeHeaders.constBegin();
-					 item != safeHeaders.constEnd();
-					 ++item) {
-					headers.push_back(
-						{
-							.Name  = utf8(item.key()),
-							.Value = utf8(item.value().toString()),
-						});
+				auto headers = std::vector<http_header>{ };
+				headers.reserve(interaction.SafeHeaders.size());
+				for (const auto& [name, value] : interaction.SafeHeaders) {
+					headers.push_back({ .Name = name, .Value = value });
 				}
 
 				const auto responseFile = root
-					/ utf8(interaction.value("response_file").toString());
-				const auto body   = interaction.value("body");
+					/ interaction.ResponseFile;
 				const auto method = parse_recorded_http_method(
-					utf8(interaction.value("method").toString()));
+					interaction.Method);
 				if (!method.has_value()) {
 					throw std::runtime_error{
 						"GitHub public-path fixture method is invalid"
 					};
 				}
-				auto requestPath  = utf8(interaction.value("path").toString());
-				auto requestQuery = utf8(interaction.value("canonical_query").toString());
-				auto requestBody  = body.isNull()
-					? std::string{ }
-					: utf8(body.toString());
+				auto requestPath  = interaction.Path;
+				auto requestQuery = interaction.CanonicalQuery;
+				auto requestBody  = interaction.Body.value_or(std::string{ });
 				replace_all(requestPath,
 							"2222222222222222222222222222222222222222",
 							aHead);
@@ -1530,36 +1565,35 @@ namespace bpr::app::detail {
 				if (!file.open(QIODevice::ReadOnly)) {
 					return { };
 				}
-				const auto document = QJsonDocument::fromJson(file.readAll());
-				if (!document.isObject()) {
+				const auto            bytes = file.readAll();
+				device_recording_json fixture;
+				if (glz::read<fixture_json_options{ }>(fixture,
+													   std::string_view{ bytes.constData(), static_cast<std::size_t>(bytes.size()) })) {
 					return { };
 				}
-				const auto fixture    = document.object();
-				const auto projection = fixture
-											.value(QLatin1StringView{
-												"projection" })
-											.toObject();
-				const auto values
-					= projection.value(QLatin1StringView{ "values" }).toObject();
-				auto body = QJsonObject{ };
-				for (const auto& field :
-					 projection.value(QLatin1StringView{ "observed_fields" })
-						 .toArray()) {
-					const auto name = field.toString();
-					if (values.contains(name)) {
-						body.insert(name, values.value(name));
+				// Own the retained values and serialize omitted transient fields as
+				// strings. Sorted keys preserve the previous fixture wire order.
+				std::map<std::string, glz::raw_json, std::less<>> body;
+				for (const auto& name : fixture.Projection.ObservedFields) {
+					if (const auto found = fixture.Projection.Values.find(name);
+						found != fixture.Projection.Values.end()) {
+						body.emplace(name, found->second);
 						continue;
 					}
-					body.insert(name, stand_in(name, aSuffix));
+					std::string encoded;
+					if (glz::write<fixture_json_options{ }>(stand_in(QString::fromStdString(name), aSuffix).toStdString(), encoded)) {
+						return { };
+					}
+					body.emplace(name, glz::raw_json{ std::move(encoded) });
+				}
+				std::string encoded;
+				if (glz::write<fixture_json_options{ }>(body, encoded)) {
+					return { };
 				}
 				return {
-					.Status  = fixture.value(QLatin1StringView{ "http_status" })
-								   .toInt(),
-					.Headers = { { .Name  = "Content-Type",
-								   .Value = "application/json" } },
-					.Body    = QJsonDocument{ body }
-								   .toJson(QJsonDocument::Compact)
-								   .toStdString(),
+					.Status  = fixture.HttpStatus,
+					.Headers = { { .Name = "Content-Type", .Value = "application/json" } },
+					.Body    = std::move(encoded),
 				};
 			}
 

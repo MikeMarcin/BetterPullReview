@@ -1702,6 +1702,14 @@ projection, not a real-network native-HTTPS request. Tests-disabled
 composition inspection proves production selects the native transport factory,
 and the separate native loopback fixture directly verifies its wire behavior.
 
+Stored replay manifests and device-response projections use private typed Glaze
+records. Method parsing, operation order, canonical request bytes, source
+descriptors and fault injection remain part of replay admission. Device fixtures
+own retained JSON values and supply only synthetic stand-ins for omitted
+transient fields. Capture facts serialize owned strings and exact numeric values
+with Glaze while retaining the existing capture schema and field names. These
+readers and writers remain inside the test-enabled composition boundary.
+
 The fixture transport, fixture vault, fixture command-line choices, native
 appearance-probe choices and evidence, and fixture evidence types are compiled
 only into test-enabled targets. The public application header is
