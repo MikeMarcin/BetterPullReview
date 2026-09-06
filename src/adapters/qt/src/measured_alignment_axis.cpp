@@ -157,6 +157,9 @@ namespace bpr::qt {
 			value.Progress = pane_measurement_progress::invalidated;
 			return value.Progress;
 		}
+		if (value.Progress == pane_measurement_progress::complete) {
+			return value.Progress;
+		}
 		const auto count = std::min(aMaximumLines, value.LineCount - value.NextLine);
 		for (std::uint32_t index = 0U; index < count; ++index) {
 			if (!value.Block.isValid()) {

@@ -678,6 +678,16 @@ namespace {
 			originalInsertion.ComparisonBegin,
 			originalInsertion.ComparisonEnd,
 			0.25));
+		const auto retainedFrame      = harness.Controller.current_frame();
+		const auto retainedStatistics = harness.Controller.statistics();
+		harness.Controller.suspend_axis();
+		expect(!harness.Shared.isEnabled(), "pending geometry disables the shared bar");
+		expect(send_wheel(harness.Left, QPoint{ 0, -20 }), "pending geometry consumes native pane wheel input");
+		harness.Controller.end();
+		expect(!harness.Controller.reveal_segment(originalInsertion.Id), "pending geometry refuses coordinate reveal");
+		expect(harness.Controller.current_frame() == retainedFrame
+				   && harness.Controller.statistics().FramesApplied == retainedStatistics.FramesApplied,
+			   "suspended input cannot apply a stale frame or lose the retained anchor");
 		auto remeasured = build_axis(
 			"alpha\ncharlie\ndelta\n",
 			"alpha\nbravo-one\nbravo-two\ncharlie\ndelta\n",

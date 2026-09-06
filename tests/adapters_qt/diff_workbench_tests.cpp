@@ -20,6 +20,7 @@
 #include <QTextCursor>
 #include <QTextLayout>
 #include <QThread>
+#include <QTimer>
 #include <QToolButton>
 #include <QWheelEvent>
 
@@ -274,6 +275,17 @@ namespace {
 		for (auto count = 0; count < 4; ++count) {
 			QApplication::processEvents();
 		}
+	}
+
+	void settle_geometry(qt::diff_workbench& aWorkbench)
+	{
+		auto timer = QElapsedTimer{ };
+		timer.start();
+		do {
+			QApplication::processEvents();
+		} while (aWorkbench.geometry_pending() && timer.elapsed() < 5'000);
+		expect(!aWorkbench.geometry_pending(), "native measurement completes within the local test deadline");
+		process_events();
 	}
 
 	struct accessible_announcement
@@ -1393,6 +1405,93 @@ namespace {
 			   "a pane gesture clears the conversation-specific marker");
 	}
 
+	void test_measurement_yields_and_cancels()
+	{
+		const auto [leftText, rightText] = large_comparison_text(2'000U, 8U);
+		const auto diff                  = std::make_shared<const core::computed_file_diff>(computed(leftText, rightText, { }, 41U));
+		auto       workbench             = qt::diff_workbench{ };
+		workbench.resize(1'200, 760);
+		workbench.show();
+		process_events();
+		const auto selectedContext = context(*diff, 90U, 90U);
+		const auto publish         = [&] {
+			workbench.set_loading(selectedContext);
+			workbench.publish({ .Context = selectedContext, .Result = diff });
+		};
+		publish();
+		auto inputDelivered = false;
+		auto input          = QTimer{ };
+		input.setInterval(0);
+		QObject::connect(&input, &QTimer::timeout, &workbench, [&] {
+			if (workbench.statistics().MeasurementBatches == 0U) {
+				return;
+			}
+			input.stop();
+			expect(workbench.geometry_pending() && workbench.statistics().GeometryRebuilds == 0U,
+				   "an input callback runs between batches before any partial axis is published");
+			expect(send_wheel(*workbench.left_pane()->viewport(), QPoint{ 0, -20 }),
+				   "pending measurement consumes the native wheel without one-pane scrolling");
+			expect(workbench.statistics().FrameApplications == 0U, "input cannot apply an incomplete axis");
+			inputDelivered = workbench.reveal_conversation_line(core::diff_side::right, 1'600U);
+		});
+		input.start();
+		settle_geometry(workbench);
+		expect(inputDelivered && workbench.statistics().MeasurementBatches > 1U
+				   && workbench.statistics().MaximumMeasurementBatchLines <= 512U,
+			   "measurement yields between bounded batches and accepts semantic input");
+		expect(workbench.selection()->PreferredLine.Line == 1'600U
+				   && !workbench.conversation_anchor_marker_rect(core::diff_side::right).isEmpty(),
+			   "completed geometry reveals the exact line requested while pending");
+		const auto rebuilds = workbench.statistics().GeometryRebuilds;
+		const auto batches  = workbench.statistics().MeasurementBatches;
+		workbench.resize(1'180, 740);
+		auto changed = false;
+		QObject::disconnect(&input, nullptr, &workbench, nullptr);
+		QObject::connect(&input, &QTimer::timeout, &workbench, [&] {
+			if (workbench.statistics().MeasurementBatches == batches) {
+				return;
+			}
+			input.stop();
+			expect(workbench.statistics().GeometryRebuilds == rebuilds, "resize has not published partial geometry");
+			auto font = workbench.font();
+			font.setPointSizeF(font.pointSizeF() + 2.0);
+			workbench.setFont(font);
+			changed = true;
+		});
+		input.start();
+		settle_geometry(workbench);
+		expect(changed && workbench.statistics().MeasurementRestarts > 0U
+				   && workbench.statistics().GeometryRebuilds == rebuilds + 1U,
+			   "font change during measurement discards old layout and publishes only its replacement");
+		const auto currentRebuilds = workbench.statistics().GeometryRebuilds;
+		publish();
+		QApplication::processEvents();
+		expect(workbench.geometry_pending(), "large replacement is pending after one event turn");
+		workbench.clear();
+		process_events();
+		expect(!workbench.current_result() && !workbench.geometry_pending()
+				   && workbench.statistics().GeometryRebuilds == currentRebuilds
+				   && !workbench.scroll_controller()->current_frame(),
+			   "clear cancels queued measurement and prevents stale geometry adoption");
+		publish();
+		QApplication::processEvents();
+		const auto small = std::make_shared<const core::computed_file_diff>(computed("old\n", "new\n", { }, 42U));
+		const auto next  = context(*small, 91U, 91U);
+		workbench.set_loading(next);
+		workbench.publish({ .Context = next, .Result = small });
+		settle_geometry(workbench);
+		expect(workbench.current_result() == small
+				   && workbench.scroll_controller()->current_frame()->Comparison == small->Alignment.Digest
+				   && workbench.statistics().GeometryRebuilds == currentRebuilds + 1U,
+			   "superseding comparison cannot adopt any old measurement callback");
+		auto closing = std::make_unique<qt::diff_workbench>();
+		closing->set_loading(selectedContext);
+		closing->publish({ .Context = selectedContext, .Result = diff });
+		QApplication::processEvents();
+		closing.reset();
+		process_events();
+	}
+
 	void test_scale_and_high_frequency_evidence()
 	{
 		const auto [leftText, rightText] = large_comparison_text(2'000U, 8U);
@@ -1404,7 +1503,7 @@ namespace {
 		auto workbench = qt::diff_workbench{ };
 		workbench.resize(1'200, 760);
 		workbench.show();
-		process_events();
+		settle_geometry(workbench);
 		const auto selectedContext = context(diff, 80U, 80U);
 		workbench.set_loading(selectedContext);
 		auto timer = QElapsedTimer{ };
@@ -1413,7 +1512,7 @@ namespace {
 			.Context = selectedContext,
 			.Result  = std::make_shared<const core::computed_file_diff>(diff),
 		});
-		process_events();
+		settle_geometry(workbench);
 		const auto publicationMilliseconds = timer.elapsed();
 		const auto publicationStats        = workbench.statistics();
 		expect(
@@ -1428,7 +1527,7 @@ namespace {
 		auto* const linkMap    = workbench.link_map();
 		const auto  start      = controller->maximum_position() * 0.25;
 		controller->set_position(start);
-		process_events();
+		settle_geometry(workbench);
 		const auto unitStart = controller->position();
 		expect(
 			send_wheel(*workbench.left_pane()->viewport(), QPoint{ 0, -1 }),
@@ -1436,7 +1535,7 @@ namespace {
 		const auto unit = controller->position() - unitStart;
 		expect(!close(unit, 0.0), "one pixel input retains nonzero subpixel motion");
 		controller->set_position(start);
-		process_events();
+		settle_geometry(workbench);
 
 		const auto workbenchBefore  = workbench.statistics();
 		const auto controllerBefore = controller->statistics();
@@ -1458,7 +1557,7 @@ namespace {
 			"rapid input retains the exact summed and clamped subpixel position");
 		const auto beforeDrain = controller->statistics();
 		timer.restart();
-		process_events();
+		settle_geometry(workbench);
 		const auto eventDrainMilliseconds = timer.elapsed();
 		const auto workbenchAfter         = workbench.statistics();
 		const auto controllerAfter        = controller->statistics();
@@ -1509,7 +1608,7 @@ namespace {
 				1'180 + static_cast<int>(resize % 7U),
 				740 + static_cast<int>(resize % 5U));
 		}
-		process_events();
+		settle_geometry(workbench);
 		const auto resizeAfter = workbench.statistics();
 		expect(
 			resizeAfter.GeometryRebuilds == resizeBefore.GeometryRebuilds + 1U
@@ -1540,7 +1639,7 @@ namespace {
 			.Context = movedContext,
 			.Result  = std::make_shared<const core::computed_file_diff>(moved),
 		});
-		process_events();
+		settle_geometry(workbench);
 		expect(
 			workbench.link_map()->statistics().LastMoveOverlays
 				== moved.Alignment.Moves.size(),
@@ -1555,7 +1654,7 @@ namespace {
 			.Context = insertionContext,
 			.Result  = std::make_shared<const core::computed_file_diff>(insertion),
 		});
-		process_events();
+		settle_geometry(workbench);
 		expect(
 			insertion.Alignment.RightLineCount
 					> insertion.Alignment.LeftLineCount + 4'000U
@@ -2640,6 +2739,7 @@ auto main(int argc, char** argv) -> int
 	test_nontext_publication_status();
 	test_semantic_selection_callback_tracks_both_panes_and_clear();
 	test_conversation_anchor_reveals_and_paints_exact_line();
+	test_measurement_yields_and_cancels();
 	test_scale_and_high_frequency_evidence();
 	test_line_painting_stays_bounded_by_the_viewport();
 	test_syntax_spans_colour_the_panes();

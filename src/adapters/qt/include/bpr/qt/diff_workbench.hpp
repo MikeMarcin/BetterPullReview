@@ -91,6 +91,9 @@ namespace bpr::qt {
 		std::uint64_t SemanticIndexBuilds   = 0U;
 		std::uint64_t SemanticQueries       = 0U;
 		std::uint64_t PaneMeasurements      = 0U;
+		std::uint64_t MeasurementBatches           = 0U;
+		std::uint64_t MeasurementRestarts          = 0U;
+		std::uint32_t MaximumMeasurementBatchLines = 0U;
 		std::uint64_t TokenSpanAdoptions    = 0U;
 		std::uint64_t RejectedTokenSpans    = 0U;
 		std::uint64_t SyntaxBlocksFormatted = 0U;
@@ -182,6 +185,8 @@ namespace bpr::qt {
 			-> const std::optional<core::diff_request_context>&;
 		[[nodiscard]] auto current_result() const noexcept
 			-> const std::shared_ptr<const core::computed_file_diff>&;
+		/// \brief Whether native geometry is awaiting GUI continuations.
+		[[nodiscard]] auto geometry_pending() const noexcept -> bool;
 		[[nodiscard]] auto status_text() const -> QString;
 		[[nodiscard]] auto statistics() const noexcept
 			-> diff_workbench_statistics;
@@ -295,6 +300,7 @@ namespace bpr::qt {
 		void schedule_geometry_rebuild(
 			measured_geometry_change      aChange,
 			diff_geometry_rebuild_trigger aTrigger);
+		void               queue_geometry_continuation();
 		void               rebuild_geometry();
 		void               apply_frame(const comparison_scroll_frame& aFrame);
 		[[nodiscard]] auto select_line(
@@ -349,6 +355,9 @@ namespace bpr::qt {
 		std::optional<qreal>          AppliedTabStopDistance;
 		diff_geometry_rebuild_trigger PendingGeometryTriggers
 			= diff_geometry_rebuild_trigger::none;
+		struct geometry_measurement;
+		std::shared_ptr<geometry_measurement> PendingMeasurement;
+		bool                                  GeometryRevealPending = false;
 		bool GeometryScheduled = false;
 		bool ApplyingFrame     = false;
 	};

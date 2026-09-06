@@ -63,7 +63,7 @@ namespace bpr::qt {
 			&QScrollBar::valueChanged,
 			this,
 			[this](const int aValue) {
-				if (ApplyingFrame || !Axis.has_value()) {
+				if (AxisSuspended || ApplyingFrame || !Axis.has_value()) {
 					return;
 				}
 				if (PendingScrollbarTarget.has_value()
@@ -150,6 +150,7 @@ namespace bpr::qt {
 		const auto previousPosition = Q;
 		PendingAxis.reset();
 		ClearAxisPending = false;
+		AxisSuspended    = false;
 		Axis             = std::move(aAxis);
 		SegmentIndexes.clear();
 		const auto segments = Axis->segments();
@@ -169,6 +170,16 @@ namespace bpr::qt {
 			true);
 	}
 
+	void comparison_scroll_controller::suspend_axis()
+	{
+		AxisSuspended = true;
+		PendingAxis.reset();
+		PendingScrollbarTarget.reset();
+		if (SharedScrollBar != nullptr) {
+			SharedScrollBar->setEnabled(false);
+		}
+	}
+
 	void comparison_scroll_controller::clear_axis()
 	{
 		if (ApplyingFrame) {
@@ -180,6 +191,7 @@ namespace bpr::qt {
 		PendingAxis.reset();
 		PendingScrollbarTarget.reset();
 		ClearAxisPending = false;
+		AxisSuspended    = false;
 		Axis.reset();
 		SegmentIndexes.clear();
 		CurrentFrame.reset();
@@ -228,7 +240,7 @@ namespace bpr::qt {
 		const core::alignment_segment_id aSegment,
 		const qreal                      aFraction) -> bool
 	{
-		if (!Axis.has_value() || !std::isfinite(aFraction)) {
+		if (AxisSuspended || !Axis.has_value() || !std::isfinite(aFraction)) {
 			return false;
 		}
 		const auto found = SegmentIndexes.find(aSegment);
@@ -417,7 +429,7 @@ namespace bpr::qt {
 	void comparison_scroll_controller::apply_position(
 		const qreal aPosition, const bool aForce)
 	{
-		if (!Axis.has_value() || !std::isfinite(aPosition)) {
+		if (AxisSuspended || !Axis.has_value() || !std::isfinite(aPosition)) {
 			return;
 		}
 		if (ApplyingFrame) {
@@ -558,6 +570,11 @@ namespace bpr::qt {
 		const comparison_scroll_receiver aReceiver,
 		QWheelEvent&                     aEvent) -> bool
 	{
+		if (AxisSuspended) {
+			// Do not let a native pane scroll independently using stale geometry.
+			aEvent.accept();
+			return true;
+		}
 		if (!Axis.has_value()) {
 			return false;
 		}
@@ -611,7 +628,21 @@ namespace bpr::qt {
 
 	auto comparison_scroll_controller::handle_key_event(QKeyEvent& aEvent) -> bool
 	{
-		if (!Axis.has_value() || aEvent.modifiers() != Qt::NoModifier) {
+		if (AxisSuspended) {
+			switch (aEvent.key()) {
+			case Qt::Key_Up:
+			case Qt::Key_Down:
+			case Qt::Key_PageUp:
+			case Qt::Key_PageDown:
+			case Qt::Key_Home:
+			case Qt::Key_End:
+				aEvent.accept();
+				return true;
+			default:
+				break;
+			}
+		}
+		if ((!Axis.has_value() && !AxisSuspended) || aEvent.modifiers() != Qt::NoModifier) {
 			return false;
 		}
 		switch (aEvent.key()) {
@@ -636,7 +667,7 @@ namespace bpr::qt {
 
 	void comparison_scroll_controller::handle_scrollbar_action(const int aAction)
 	{
-		if (ApplyingFrame || !Axis.has_value() || SharedScrollBar == nullptr) {
+		if (AxisSuspended || ApplyingFrame || !Axis.has_value() || SharedScrollBar == nullptr) {
 			return;
 		}
 		auto target = std::optional<qreal>{ };

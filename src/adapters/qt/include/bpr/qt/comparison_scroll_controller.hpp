@@ -109,6 +109,8 @@ namespace bpr::qt {
 		void set_axis(measured_alignment_axis aAxis);
 		/// \brief Clears measured geometry and disables shared scrolling.
 		void clear_axis();
+		/// \brief Disables geometry-dependent input while retaining the remeasurement anchor.
+		void suspend_axis();
 		/// \brief Applies an exact comparison-space target after clamping.
 		void set_position(qreal aPosition);
 		/// \brief Applies a signed comparison-space delta without integer round-trip.
@@ -204,6 +206,7 @@ namespace bpr::qt {
 		std::optional<measured_alignment_axis>            PendingAxis;
 		std::optional<pending_scrollbar_target>           PendingScrollbarTarget;
 		qreal                                             Q                   = 0.0;
+		bool                                              AxisSuspended       = false;
 		bool                                              ApplyingFrame       = false;
 		bool                                              RepaintPending      = false;
 		bool                                              ClearAxisPending    = false;

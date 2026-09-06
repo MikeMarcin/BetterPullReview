@@ -2698,6 +2698,11 @@ namespace {
 		QElapsedTimer publishTimer;
 		publishTimer.start();
 		static_cast<void>(publish_fixture(aWindow, diff));
+		while (surface->geometry_pending() && publishTimer.elapsed() < 10'000) {
+			QApplication::processEvents();
+		}
+		expect(!surface->geometry_pending(), "sized publication completes its native measurement before scroll evidence");
+		process_events();
 		const auto published = publishTimer.elapsed();
 
 		auto* const left  = surface->left_pane();

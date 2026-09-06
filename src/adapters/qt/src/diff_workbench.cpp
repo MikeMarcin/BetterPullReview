@@ -3,6 +3,7 @@
 #include <QAbstractTextDocumentLayout>
 #include <QAccessible>
 #include <QApplication>
+#include <QElapsedTimer>
 #include <QEvent>
 #include <QFontMetricsF>
 #include <QLabel>
@@ -1246,6 +1247,13 @@ namespace bpr::qt {
 			diff_geometry_rebuild_trigger::workbench_resize);
 	}
 
+	struct diff_workbench::geometry_measurement
+	{
+		std::shared_ptr<const core::computed_file_diff> Result;
+		plain_text_pane_measurement                     Left;
+		plain_text_pane_measurement                     Right;
+	};
+
 	void diff_workbench::schedule_geometry_rebuild(
 		const measured_geometry_change      aChange,
 		const diff_geometry_rebuild_trigger aTrigger)
@@ -1257,6 +1265,22 @@ namespace bpr::qt {
 			AxisCache.invalidate(aChange);
 		}
 		PendingGeometryTriggers = PendingGeometryTriggers | aTrigger;
+		if (PendingMeasurement) {
+			++Statistics.MeasurementRestarts;
+			PendingMeasurement.reset();
+		}
+		Controller->suspend_axis();
+		LinkMap->clear_geometry();
+		queue_geometry_continuation();
+	}
+
+	auto diff_workbench::geometry_pending() const noexcept -> bool
+	{
+		return CurrentResult && (GeometryScheduled || PendingMeasurement);
+	}
+
+	void diff_workbench::queue_geometry_continuation()
+	{
 		if (GeometryScheduled) {
 			return;
 		}
@@ -1276,29 +1300,97 @@ namespace bpr::qt {
 			PendingGeometryTriggers = diff_geometry_rebuild_trigger::none;
 			return;
 		}
-		const auto changes      = AxisCache.pending_changes();
-		const auto triggers     = PendingGeometryTriggers;
-		PendingGeometryTriggers = diff_geometry_rebuild_trigger::none;
-		Statistics.PaneMeasurements += 2U;
-		const auto left = measure_plain_text_pane(
-			*Left, CurrentResult->Alignment.LeftLineCount);
-		const auto right = measure_plain_text_pane(
-			*Right, CurrentResult->Alignment.RightLineCount);
-		if (
-			!left.has_value() || !right.has_value()
-			|| AxisCache.rebuild(CurrentResult->Alignment, *left, *right)
+		if (!PendingMeasurement) {
+			PendingMeasurement = std::make_shared<geometry_measurement>(geometry_measurement{
+				.Result = CurrentResult,
+				.Left   = plain_text_pane_measurement{ *Left, CurrentResult->Alignment.LeftLineCount },
+				.Right  = plain_text_pane_measurement{ *Right, CurrentResult->Alignment.RightLineCount },
+			});
+			Statistics.PaneMeasurements += 2U;
+		}
+		// A shared local keeps state alive if native layout synchronously sends
+		// a resize event which cancels the member. Identity is the generation.
+		const auto measurement = PendingMeasurement;
+		const auto current     = [&] {
+			return PendingMeasurement == measurement && CurrentResult == measurement->Result;
+		};
+		auto timer = QElapsedTimer{ };
+		timer.start();
+		auto           lines        = std::uint32_t{ 0U };
+		auto           left         = measurement->Left.advance(0U);
+		auto           right        = measurement->Right.advance(0U);
+		constexpr auto GroupLines   = 16U;
+		constexpr auto MaximumLines = 512U;
+		while (current() && lines < MaximumLines
+			   && left != pane_measurement_progress::invalidated
+			   && right != pane_measurement_progress::invalidated
+			   && (left == pane_measurement_progress::pending || right == pane_measurement_progress::pending)) {
+			auto&      paneMeasurement = left == pane_measurement_progress::pending
+				? measurement->Left
+				: measurement->Right;
+			const auto before          = paneMeasurement.measured_lines();
+			const auto progress        = paneMeasurement.advance(std::min(GroupLines, MaximumLines - lines));
+			lines += paneMeasurement.measured_lines() - before;
+			if (left == pane_measurement_progress::pending) {
+				left = progress;
+			} else {
+				right = progress;
+			}
+			// An individual native block is indivisible; check time between groups.
+			if (timer.nsecsElapsed() >= 4'000'000) {
+				break;
+			}
+		}
+		++Statistics.MeasurementBatches;
+		Statistics.MaximumMeasurementBatchLines = std::max(Statistics.MaximumMeasurementBatchLines, lines);
+		if (!current()) {
+			return;
+		}
+		if (left == pane_measurement_progress::invalidated || right == pane_measurement_progress::invalidated) {
+			// Observable layout changes can occur without a workbench event.
+			// A state that cannot even start is an actual admission failure.
+			if (measurement->Left.measured_lines() + measurement->Right.measured_lines() > 0U) {
+				schedule_geometry_rebuild(measured_geometry_change::viewport_or_divider,
+										  diff_geometry_rebuild_trigger::pane_viewport_resize);
+			} else {
+				++Statistics.GeometryFailures;
+				PendingMeasurement.reset();
+				Controller->clear_axis();
+			}
+			return;
+		}
+		if (left == pane_measurement_progress::pending || right == pane_measurement_progress::pending) {
+			queue_geometry_continuation();
+			return;
+		}
+		const auto* leftResult  = measurement->Left.result();
+		const auto* rightResult = measurement->Right.result();
+		if (leftResult == nullptr || rightResult == nullptr) {
+			schedule_geometry_rebuild(measured_geometry_change::viewport_or_divider,
+									  diff_geometry_rebuild_trigger::pane_viewport_resize);
+			return;
+		}
+		const auto changes  = AxisCache.pending_changes();
+		const auto triggers = PendingGeometryTriggers;
+		if (AxisCache.rebuild(CurrentResult->Alignment, *leftResult, *rightResult)
 				!= measured_alignment_error::none
 			|| AxisCache.axis() == nullptr) {
 			++Statistics.GeometryFailures;
+			PendingMeasurement.reset();
 			Controller->clear_axis();
-			LinkMap->clear_geometry();
 			return;
 		}
 		const auto axis            = *AxisCache.axis();
-		const auto revealSelection = ConversationAnchor.has_value()
+		const auto revealSelection = GeometryRevealPending || ConversationAnchor.has_value()
 			|| !Controller->current_frame().has_value()
 			|| Controller->current_frame()->Comparison != axis.comparison();
 		declare_link_map_band();
+		if (!current()) {
+			return;
+		}
+		PendingMeasurement.reset();
+		PendingGeometryTriggers = diff_geometry_rebuild_trigger::none;
+		GeometryRevealPending   = false;
 		LinkMap->set_geometry(axis, CurrentResult->Alignment.Moves);
 		Controller->set_axis(axis);
 		++Statistics.GeometryRebuilds;
@@ -1456,6 +1548,7 @@ namespace bpr::qt {
 
 	void diff_workbench::synchronize_geometry_selection(const bool aReveal)
 	{
+		GeometryRevealPending = GeometryRevealPending || (aReveal && AxisCache.axis() == nullptr);
 		if (!CurrentResult || !Interaction.Selection.has_value()) {
 			LinkMap->set_selected(std::nullopt, false);
 			return;
@@ -2118,6 +2211,8 @@ namespace bpr::qt {
 	void diff_workbench::clear_projection(QString aStatus)
 	{
 		const auto hadSelection = Interaction.Selection.has_value();
+		PendingMeasurement.reset();
+		GeometryRevealPending = false;
 		CurrentDetail.reset();
 		SemanticIndex.reset();
 		CurrentResult.reset();

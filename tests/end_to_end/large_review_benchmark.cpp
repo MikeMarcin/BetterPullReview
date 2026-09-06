@@ -83,11 +83,14 @@ namespace bpr::e2e::large_review {
 		double                         WheelBatchMs = 0, SupersessionDrainMs = 0;
 		std::uint64_t                  WheelEvents = 0, ScrollFrames = 0, ScrollIndexBuilds = 0, ScrollGeometryRebuilds = 0, ScrollPaneMeasurements = 0;
 		std::size_t                    RapidSelections = 0, SelectionsWithOutstandingDiff = 0;
+		std::uint64_t                  LargeMeasurementBatches = 0, InputsDuringMeasurement = 0;
+		std::uint32_t                  MaximumMeasurementBatchLines  = 0;
+		double                         MaxMeasurementInputIntervalMs = 0, P95MeasurementInputIntervalMs = 0;
 		std::size_t                    DiffCacheEntries = 0;
 		std::size_t                    PeakConversationRootsDuringSelections = 0;
 		std::uint64_t                  DiffCacheBytes   = 0;
 		bool                           ExactLargeSource = false, ExactFinalSource = false, Rendered = false, ShutdownComplete = false;
-		std::string                    TimingScope = "Debug/local observation; 5 ms event-loop timer; outstanding jobs are sampled, not continuous CPU occupancy. Wheel batch is measured after classification settles. No cross-platform latency budget.";
+		std::string                    TimingScope = "Debug/local observation; 5 ms event-loop timer; outstanding jobs are sampled, not continuous CPU occupancy. Measurement input gaps span consecutive 1 ms timer callbacks after native batching has started; initial publication delay remains in the phase timer. Wheel batch is measured after classification settles. No cross-platform latency budget.";
 	};
 
 	void require(bool aCondition, const char* aReason)
@@ -186,7 +189,8 @@ namespace bpr::e2e::large_review {
 	{
 		const auto work   = access::diff_work_evidence(aApplication);
 		const auto status = aApplication.status();
-		return work.OutstandingJobs == 0U && !work.Pending && work.WorkbenchOutstandingRequests == 0U
+		return !aApplication.window().comparison_surface()->geometry_pending()
+			&& work.OutstandingJobs == 0U && !work.Pending && work.WorkbenchOutstandingRequests == 0U
 			&& status.ClassificationTerminals == status.ClassificationSubmissions;
 	}
 
@@ -331,7 +335,40 @@ auto main(int argc, char** argv) -> int
 			require(report.ExactFinalSource && surface.status_text().startsWith(QStringLiteral("Diff ready — 1 semantic changes")), "supported file must restore exact normal display");
 			require(access::diff_work_evidence(*application).FixtureDiffHelperInvocations == 0U, "unavailable course bypassed the real diff host");
 		} else {
+			const auto          beforeMeasurement = surface.statistics().MeasurementBatches;
+			QTimer              inputDuringMeasurement;
+			QElapsedTimer       measurementInputClock;
+			std::vector<double> measurementInputIntervals;
+			inputDuringMeasurement.setInterval(1);
+			QObject::connect(&inputDuringMeasurement, &QTimer::timeout, &window, [&] {
+				if (!surface.geometry_pending() || surface.statistics().MeasurementBatches <= beforeMeasurement
+					|| !selected(surface, QStringLiteral("large/comparison.cpp"))) {
+					return;
+				}
+				if (measurementInputClock.isValid()) {
+					measurementInputIntervals.push_back(static_cast<double>(measurementInputClock.nsecsElapsed()) / 1'000'000.0);
+				}
+				measurementInputClock.start();
+				const auto  frames = surface.statistics().FrameApplications;
+				QWheelEvent inputEvent{ QPointF{ 20, 20 }, QPointF{ 20, 20 }, QPoint{ 0, -1 }, QPoint{ }, Qt::NoButton, Qt::NoModifier, Qt::ScrollUpdate, false };
+				QApplication::sendEvent(surface.right_pane()->viewport(), &inputEvent);
+				require(inputEvent.isAccepted() && frames == surface.statistics().FrameApplications,
+						"input during measurement must not apply partial geometry");
+				++report.InputsDuringMeasurement;
+			});
+			inputDuringMeasurement.start();
 			require(measure_wait(*application, budget, report, "large_file_selection", [&] { select_file(window, QStringLiteral("large/comparison.cpp")); }, [&] { return selected(surface, QStringLiteral("large/comparison.cpp")) && quiet(*application) && surface.scroll_controller()->maximum_position() > 1000.0; }), "large selection timed out");
+			inputDuringMeasurement.stop();
+			if (!measurementInputIntervals.empty()) {
+				std::ranges::sort(measurementInputIntervals);
+				report.MaxMeasurementInputIntervalMs = measurementInputIntervals.back();
+				report.P95MeasurementInputIntervalMs = measurementInputIntervals[(measurementInputIntervals.size() - 1U) * 95U / 100U];
+			}
+			report.LargeMeasurementBatches      = surface.statistics().MeasurementBatches - beforeMeasurement;
+			report.MaximumMeasurementBatchLines = surface.statistics().MaximumMeasurementBatchLines;
+			require(report.InputsDuringMeasurement > 0U && report.LargeMeasurementBatches > 1U
+						&& report.MaximumMeasurementBatchLines <= 512U,
+					"large native measurement must yield bounded batches to real input");
 			verify_large(surface, manifest);
 			report.ExactLargeSource = true;
 			report.PrimaryIndexWork = surface.current_result()->PrimaryIndexWorkConsumed;
