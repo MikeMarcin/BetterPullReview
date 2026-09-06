@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0643"
+  ],
+  "reserve_for": "bpr-alpha-view-closed-pull-requests",
+  "purpose": "",
+  "created": "2026-09-06T19:25:51.561878+00:00",
+  "base": "d40b64ca1f81a947531fb289694bf8890e79e177"
+}
