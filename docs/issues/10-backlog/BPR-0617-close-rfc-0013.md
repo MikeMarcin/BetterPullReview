@@ -99,3 +99,7 @@ revision history; it is not an application-performance passing result.
 BPR-0624 now owns that composed latest-head benchmark slice, including exact
 paged-provider exhaustion, installed-Git display, gestures, supersession and
 hardware-context measurements. No new remote or paid verification is authorized.
+
+BPR-0625 addresses the full-matrix limit exposed by the stored 20,000-line
+comparison. The composed benchmark remains open until exact source and
+interaction acceptance passes; loading the provider inventory alone is partial.

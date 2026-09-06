@@ -4,7 +4,7 @@ id: "BPR-0624"
 title: "Measure large-review interactions through the composed application"
 status: "In Progress"
 rfcs: ["RFC-BPR-0013"]
-depends_on: ["BPR-0623"]
+depends_on: ["BPR-0623","BPR-0625"]
 ---
 
 # Measure large-review interactions through the composed application
@@ -43,3 +43,8 @@ This slice measures the latest head. The pack's 32 heads do not establish
 32 application epochs. Memory/cache retention, platform-native budgets,
 broader RFC resilience criteria and Windows/Linux runtime evidence remain
 open. Record any measured defect and its remaining scope truthfully.
+
+Initial execution exhausts all provider pages and loads installed Git. The
+large comparison then exceeds the current full LCS matrix ceiling. BPR-0625
+owns the bounded matching fix before this benchmark can pass. Initial harness
+waits were corrected to distinguish idle jobs from shutdown-only quiescence.
