@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0638"
 title: "Migrate GitHub read and pagination JSON to Glaze"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0002"]
 depends_on: ["BPR-0637"]
 ---
