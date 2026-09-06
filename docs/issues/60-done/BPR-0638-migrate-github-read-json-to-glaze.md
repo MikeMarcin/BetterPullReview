@@ -2,9 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0638"
 title: "Migrate GitHub read and pagination JSON to Glaze"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0002"]
 depends_on: ["BPR-0637"]
+acceptance: [{"criterion":"Replace Qt JSON on all three owned read surfaces","outcome":"pass","revision":"f1d1ed1545697db9bfb759f5f374b6fe7a29dfe1","evidence":{"kind":"observation","detail":"Inventory finds no QJson includes or API usage in github_read_contract.cpp, github_read_normalizer.cpp or github_paged_read.cpp. Private Glaze wire records/indexes stay at the adapter boundary. Prior request and normalization source evidence is retained on the card."}},{"criterion":"Preserve exact identities, nullable and unknown fields, full-input bounds and canonical requests","outcome":"pass","revision":"f1d1ed1545697db9bfb759f5f374b6fe7a29dfe1","evidence":{"kind":"observation","detail":"Final github_read_contract and github_paged_read pass. Raw fractional/overflow IDs and counts are refused; recorded and production viewer/repository/PR/review identities retain values above 2^53 and UINT64_MAX. Anonymous root/reply grouping and adjacent identity refusals pass. Required/unknown fields, missing/null, malformed Unicode, duplicates, EOF and trailing inputs are exercised. Canonical request evidence from 1e109cb2863100ef09b9253dfead04606a1e398e remains unchanged."}},{"criterion":"Preserve owned page lifetime, authority, exhaustion, atomic failure and rate tuples","outcome":"pass","revision":"f1d1ed1545697db9bfb759f5f374b6fe7a29dfe1","evidence":{"kind":"observation","detail":"Final pager course passes full REST and nested GraphQL continuations, cursor/count and aggregate bounds, exact authority, cancellation and rate/error cases. All 101 files and comments are examined after transport destruction; malformed late continuation yields no snapshot. Independent read-only source review found no regressions in these claims."}},{"criterion":"Exercise provider and composed application read path locally","outcome":"pass","revision":"f1d1ed1545697db9bfb759f5f374b6fe7a29dfe1","evidence":{"kind":"observation","detail":"Final registered network-isolated CTest selection passes 4/4 in 24.71s: github_read_contract 0.51s, github_paged_read 1.53s, github_provider 10.52s, application_github_public_path_github_com 12.14s. All four targets build. Documentation, touched-source formatting and diff checks pass. No live provider, production session, credential, Actions, push or paid CI operation ran."}}]
 ---
 
 # Migrate GitHub read and pagination JSON to Glaze
@@ -166,3 +167,51 @@ migration remain open; performance still waits.
 All execution was local and synthetic. No production session, credential, live
 GitHub, Actions, push or paid CI operation ran. The consumed migration script
 and public-course image were removed; reusable build trees remain.
+
+## Production pager completion and evidence
+
+Source `f1d1ed1545697db9bfb759f5f374b6fe7a29dfe1` removes all Qt JSON from
+`github_paged_read.cpp`, completing this card's three owned source surfaces.
+Glaze validates each bounded response and indexes its original values; every
+page and indexed child shares an immutable owned body, so copied connection
+nodes cannot borrow a destroyed transport completion. Field inventories,
+required/unknown and missing/null behavior, REST authority, GraphQL cursors and
+counts, complete resource-scoped rate tuples and atomic snapshot admission
+retain their existing checks. Typed uint64 extraction replaces the floating-point
+identity ceiling. Finite-number preflight remains syntax validation only.
+
+Direct new pager cases retain viewer, repository, PR, review and anonymous root
+IDs above 2^53 and at UINT64_MAX, verify exact anonymous reply grouping, and
+refuse adjacent wrong repository/PR/root identities. Raw fractional identities,
+reply links, file counts, coordinates and connection totals cannot round into
+valid records; uint64 overflow is refused. Viewer tests cover exact integer
+exponents, escaped Unicode, null names, unknown malformed values, duplicate
+keys, scalar roots and trailing documents. Malformed nested-comment continuation
+tails refuse the entire snapshot. All 101 files and 101 comment identities/text
+are checked after the fixture transport and its temporary completions are gone.
+Existing anonymous, GitHub/GHES, full REST/GraphQL exhaustion, bounds, authority,
+cancellation and rate-classification cases remain passing.
+
+Local Mac evidence on the source above:
+
+- Pager, read-contract, provider and development application targets build.
+- Final registered network-isolated integration: 4/4 pass in 24.71s:
+  `github_read_contract` 0.51s, `github_paged_read` 1.53s,
+  `github_provider` 10.52s and composed
+  `application_github_public_path_github_com` 12.14s.
+- Documentation gate, touched-source format check and `git diff --check` pass.
+- One independent read-only reviewer inspected page lifetime, exact scalar
+  decoding, missing/null behavior, authority, exhaustion and rate/error flow
+  against `7820e45e`; no blocking or non-blocking finding. That review did not
+  cover the new tests or duplicate execution; the final test evidence above
+  supplies their results.
+- Source inventory now contains only two Qt JSON files, both application
+  composition/fixtures owned by BPR-0639. Nine C++ test/helper files remain for
+  BPR-0640; the Python architecture guard is intentional, not parser usage.
+
+BPR-0638 is complete. BPR-0612 remains open for BPR-0639, BPR-0640 and final
+migration integration; performance work remains deferred. Earlier source
+revisions and their unchanged request/normalizer evidence remain applicable.
+All execution was local and synthetic; production session and credentials were
+untouched and no live GitHub, Actions, push or paid CI ran. The consumed migration
+script and public-course image were removed; reusable build trees remain.

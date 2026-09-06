@@ -141,3 +141,18 @@ normalization, including UINT64_MAX and adjacent-identity refusal. Three source
 files still use Qt JSON: production pager and the two composition/fixture files.
 The pager is the remaining BPR-0638 surface and still needs its own full-width,
 ownership, rate and pagination evidence before the card can close.
+
+BPR-0638 production paging is implemented in `f1d1ed1545697db9bfb759f5f374b6fe7a29dfe1`,
+completing read-contract, normalization and pagination migration. Owned immutable
+page buffers keep indexed Glaze values valid across transport completion and
+connection copies. Direct full-width identity, anonymous linkage, fractional
+refusal and malformed-continuation cases pass alongside the existing exhaustion,
+authority and rate tests. Final local read/pager/provider/composed-public-path
+integration passes 4/4 in 24.71s. A bounded independent source review found no
+regressions. Detailed evidence is retained on BPR-0638.
+
+Two source files still use Qt JSON: application composition and public fixtures
+in BPR-0639. Nine C++ test/helper files remain for BPR-0640; its final inventory
+and migration integration are still required. Further performance work remains
+deferred until BPR-0612 is complete. The production remembered session remains
+untouched; all migration verification is local and synthetic.
