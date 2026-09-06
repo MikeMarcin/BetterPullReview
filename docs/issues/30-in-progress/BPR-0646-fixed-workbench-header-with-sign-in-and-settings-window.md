@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0646"
 title: "Workbench chrome: strip, epoch line, modalities and rails"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
