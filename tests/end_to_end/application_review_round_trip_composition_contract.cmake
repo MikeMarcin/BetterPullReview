@@ -39,7 +39,7 @@ function(bpr_verify_full_application_digest source_variable)
         "${bpr_full_application_source}"
     )
 	set(bpr_expected_full_application_digest
-		"25270fe4d34e5f88a825924ff61cd3dbcd0f4445b0d2c6cdcd0d81b139fe168d"
+		"4a01b8013b0d9aaa0b42ccc7089f1c8d03005c6ce6579e8ad89d495ee8bb7156"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -78,6 +78,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/github_application_fixture_access.hpp"
         "src/github_public_path_fixture.cpp"
         "src/github_public_path_fixture.hpp"
+        "src/large_review_fixture.hpp"
         "src/review_submission_fixture.cpp"
         "src/review_submission_fixture.hpp"
         "src/review_submission_workflow.cpp"
@@ -152,7 +153,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "${bpr_production_app_manifest}"
     )
 	set(bpr_expected_production_app_manifest_digest
-		"0d917568be307a4e5ef6873af63668e9e3c5a3fccc6f835c273a6b11d1c93b73"
+		"f0de550b09822ec09e8f5f996ea696a1473edee81d846989ce15aa052bf92f50"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

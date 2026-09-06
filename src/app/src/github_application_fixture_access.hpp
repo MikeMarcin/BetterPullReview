@@ -9,6 +9,7 @@
 #include "bpr/application/agent_chat_session_host.hpp"
 #include "bpr/application/agent_comment_workshop_host.hpp"
 #include "bpr/application/agent_finding_host.hpp"
+#include "bpr/application/github_read_model.hpp"
 #include "bpr/application/mcp_context_helper_supervisor.hpp"
 
 #include <compare>
@@ -35,6 +36,8 @@ namespace bpr::app::detail {
 		/// like `github_com`, and unlike it serves a real pull request with a
 		/// single recorded head rather than a synthetic two-head graph.
 		uiforetw_74,
+		/// Synthetic 515-file, 1,000-thread latest-head workload.
+		large_review_v1,
 	};
 
 	/// \brief Reports whether the named fixture serves a second head.
@@ -581,9 +584,28 @@ namespace bpr::app::detail {
 			= default;
 	};
 
+	/// \brief Reports existing diff-host work without copying the accepted review.
+	struct diff_work_fixture_evidence
+	{
+		std::size_t   OutstandingJobs              = 0U;
+		std::size_t   WorkbenchOutstandingRequests = 0U;
+		std::size_t   CacheEntries                 = 0U;
+		std::uint64_t CacheBytes                   = 0U;
+		std::size_t   FixtureDiffHelperInvocations = 0U;
+		bool          Pending                      = false;
+		bool          NavigationReady              = false;
+		bool          Quiescent                    = false;
+	};
+
 	class github_application_fixture_access final
 	{
 	public:
+		/// \brief Copies the host-accepted records for independent fixture identity checks.
+		[[nodiscard]] static auto large_review_snapshot(const github_application& aApplication)
+			-> std::optional<application::github_pull_request_snapshot>;
+		/// \brief Samples existing diff-host work counters on the decision lane.
+		[[nodiscard]] static auto diff_work_evidence(const github_application& aApplication) noexcept
+			-> diff_work_fixture_evidence;
 		[[nodiscard]] static auto device_binding_store_idle(const github_application& aApplication) noexcept -> bool;
 		[[nodiscard]] static auto device_binding_durable(const github_application& aApplication) noexcept -> bool;
 		/// \brief Attempts one native HTTPS read through the shipped adapter.

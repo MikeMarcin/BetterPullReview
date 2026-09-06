@@ -1,4 +1,5 @@
 #include "github_public_path_fixture.hpp"
+#include "large_review_fixture.hpp"
 
 #include "github_capability_probe.hpp"
 #include "github_device_authorization_contract.hpp"
@@ -214,6 +215,7 @@ namespace bpr::app::detail {
 			std::string_view          HeadOneBlob;
 			std::string_view          HeadTwoBlob;
 			fixture_pack_source       Packs;
+			bool                      Paged = false;
 		};
 
 		/// \brief Selects the descriptor the named fixture serves.
@@ -264,6 +266,27 @@ namespace bpr::app::detail {
 					.HeadOneBlob         = "88979e3f655e5b605ffbfe52ef40f9ff4d4766a0",
 					.HeadTwoBlob         = "6492ffe72d75f6c783b8ea948f3a94732cbdd628",
 					.Packs               = { .File = std::nullopt },
+				};
+			case github_public_path_fixture::large_review_v1:
+				return {
+					.ContractDirectory   = "large-review-v1",
+					.CapabilityDirectory = "github-com",
+					.Server              = server_contract::github_com,
+					.AccountId           = core::github_account_id{ 800001U },
+					.RepositoryId        = core::repository_id{ 800002U },
+					.PullRequestId       = core::pull_request_id{ 800003U },
+					.Number              = core::pull_request_number{ 17U },
+					.Owner               = "bpr-fixtures",
+					.Name                = "large-review",
+					.BaseRef             = "refs/heads/main",
+					.BaseOid             = large_review_fixture::base_oid,
+					.HeadOneOid          = large_review_fixture::head_oid,
+					.HeadTwoOid          = "",
+					.BaseBlob            = "",
+					.HeadOneBlob         = "",
+					.HeadTwoBlob         = "",
+					.Packs               = { .File = "large-review-v1/objects.pack" },
+					.Paged               = true,
 				};
 			// google/UIforETW#74, recorded 2026-08-08 and replayed. The
 			// capability directory is `github-com` by reference rather than by
@@ -353,6 +376,12 @@ namespace bpr::app::detail {
 			const std::string_view    aHead)
 			-> std::vector<recorded_exchange>
 		{
+			if (aDescriptor.Paged) {
+				if (aHead != aDescriptor.HeadOneOid) {
+					throw std::runtime_error{ "Large-review fixture serves only its latest head" };
+				}
+				return large_review_fixture::load(std::filesystem::path{ BPR_GITHUB_PULL_REQUEST_FIXTURE_ROOT } / aDescriptor.ContractDirectory);
+			}
 			const auto root = std::filesystem::path{ BPR_GITHUB_CONTRACT_FIXTURE_ROOT }
 				/ aDescriptor.ContractDirectory;
 			const auto manifest     = parse_object(root / "manifest.json");
@@ -592,6 +621,40 @@ namespace bpr::app::detail {
 			return exchanges;
 		}
 
+		/// \brief Keeps legacy strict single-page validation behind an explicit replay choice.
+		class fixture_replay final
+		{
+		public:
+			explicit fixture_replay(std::vector<recorded_exchange> aExchanges, bool aPaged = false)
+				: Strict{ aPaged ? std::vector<recorded_exchange>{ } : std::move(aExchanges) }
+			{
+				if (aPaged) {
+					Paged.emplace(std::move(aExchanges));
+				}
+			}
+			[[nodiscard]] auto perform(const adapters::github::detail::wire_request& aRequest)
+				-> adapters::github::detail::response_result
+			{
+				return Paged ? Paged->perform(aRequest) : Strict.perform(aRequest);
+			}
+			[[nodiscard]] auto consumed_all() const noexcept -> bool
+			{
+				return Paged ? Paged->consumed_all() : Strict.consumed_all();
+			}
+			void rewind() noexcept
+			{
+				if (Paged) {
+					Paged->rewind();
+				} else {
+					Strict.rewind();
+				}
+			}
+
+		private:
+			strict_recorded_transport                              Strict;
+			std::optional<large_review_fixture::sequential_replay> Paged;
+		};
+
 		struct fixture_recording_state
 		{
 			fixture_recording_state(
@@ -604,32 +667,29 @@ namespace bpr::app::detail {
 				, Git{ std::move(aGit) }
 				, BootstrapRecording{ load_bootstrap_recording(Descriptor) }
 				, Recording{ [&] {
-					auto result = load_recording(
-						Descriptor,
-						aPhase == github_epoch_fixture_phase::reuse
-							? Descriptor.HeadTwoOid
-							: Descriptor.HeadOneOid);
-					if (aPhase == github_epoch_fixture_phase::seed) {
-						auto second = load_recording(
-							Descriptor, Descriptor.HeadTwoOid);
-						if (second.empty()) {
-							throw std::runtime_error{
-								"GitHub fixture refresh recording is empty"
-							};
-						}
-						second.erase(second.begin());
-						result.insert(result.end(),
-									  std::make_move_iterator(
-										  second.begin()),
-									  std::make_move_iterator(second.end()));
-					}
-					return result;
-				}() }
-				, AnonymousRecording{ load_anonymous_recording(
-					  Descriptor,
-					  aPhase == github_epoch_fixture_phase::reuse
-						  ? Descriptor.HeadTwoOid
-						  : Descriptor.HeadOneOid) }
+								auto result = load_recording(
+									Descriptor,
+									aPhase == github_epoch_fixture_phase::reuse
+										? Descriptor.HeadTwoOid
+										: Descriptor.HeadOneOid);
+								if (aPhase == github_epoch_fixture_phase::seed) {
+									auto second = load_recording(
+										Descriptor, Descriptor.HeadTwoOid);
+									if (second.empty()) {
+										throw std::runtime_error{
+											"GitHub fixture refresh recording is empty"
+										};
+									}
+									second.erase(second.begin());
+									result.insert(result.end(),
+												  std::make_move_iterator(
+													  second.begin()),
+												  std::make_move_iterator(second.end()));
+								}
+								return result;
+							}(),
+							 Descriptor.Paged }
+				, AnonymousRecording{ Descriptor.Paged ? std::vector<recorded_exchange>{ } : load_anonymous_recording(Descriptor, aPhase == github_epoch_fixture_phase::reuse ? Descriptor.HeadTwoOid : Descriptor.HeadOneOid) }
 				, CapabilityBody{ load_capability_response(
 					  Descriptor.CapabilityDirectory) }
 			{
@@ -640,12 +700,12 @@ namespace bpr::app::detail {
 			const fixture_descriptor                        Descriptor;
 			adapters::github::validated_github_host_profile Profile;
 			std::shared_ptr<deterministic_git_fixture>      Git;
-			strict_recorded_transport                       BootstrapRecording;
-			strict_recorded_transport                       Recording;
+			fixture_replay                                  BootstrapRecording;
+			fixture_replay                                  Recording;
 			// The signed-out script. A separate cursor as well as a separate
 			// order: the two authorities never share a position, so a course that
 			// ran both would not be able to advance one by driving the other.
-			strict_recorded_transport                                                      AnonymousRecording;
+			fixture_replay                                                                 AnonymousRecording;
 			std::array<std::string, adapters::github::detail::capability_probe_part_count> CapabilityBody;
 			std::size_t                                                                    CapabilityCalls       = 0U;
 			std::size_t                                                                    BootstrapFactoryCalls = 0U;
@@ -1155,7 +1215,7 @@ namespace bpr::app::detail {
 				-> github_wire_transport_factory_result override
 			{
 				const std::scoped_lock lock{ State->Mutex };
-				if (!same_profile(aProfile, State->Profile)
+				if (State->Descriptor.Paged || !same_profile(aProfile, State->Profile)
 					|| aContext.Profile != aProfile.profile()) {
 					return std::unexpected{ provider_error(
 						application::github_provider_failure::unavailable) };

@@ -997,6 +997,35 @@ if(UNIX AND NOT APPLE)
     )
 endif()
 
+bpr_add_executable(bench_better_pull_review_large_review large_review_benchmark.cpp)
+target_link_libraries(bench_better_pull_review_large_review PRIVATE BetterPullReview::Composition glaze::glaze)
+target_compile_definitions(bench_better_pull_review_large_review PRIVATE
+    BPR_BUILD_TESTING=1
+    "BPR_LARGE_REVIEW_FIXTURE_ROOT=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/pull-requests/large-review-v1\""
+    "BPR_BENCH_BUILD_CONFIGURATION=\"$<CONFIG>\"")
+bpr_enable_hardening(bench_better_pull_review_large_review)
+bpr_enable_warnings(bench_better_pull_review_large_review)
+bpr_add_network_isolated_test(
+    NAME application_large_review_benchmark
+    COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
+        $<TARGET_FILE:Git::Git>
+        "${CMAKE_CURRENT_BINARY_DIR}/large-review-measurement.json"
+        "${CMAKE_CURRENT_BINARY_DIR}/large-review-window.png")
+set_tests_properties(application_large_review_benchmark PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 120
+    PASS_REGULAR_EXPRESSION "LARGE_REVIEW_COMPOSED_BENCHMARK_OK")
+
+bpr_add_executable(test_better_pull_review_large_review_replay large_review_replay_tests.cpp)
+target_link_libraries(test_better_pull_review_large_review_replay PRIVATE BetterPullReview::AdapterGitHub glaze::glaze)
+target_include_directories(test_better_pull_review_large_review_replay PRIVATE "${PROJECT_SOURCE_DIR}/src/adapters/github/src")
+target_compile_definitions(test_better_pull_review_large_review_replay PRIVATE
+    BPR_BUILD_TESTING=1
+    "BPR_LARGE_REVIEW_FIXTURE_ROOT=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/pull-requests/large-review-v1\"")
+bpr_enable_hardening(test_better_pull_review_large_review_replay)
+bpr_enable_warnings(test_better_pull_review_large_review_replay)
+bpr_add_network_isolated_test(NAME large_review_replay_contract COMMAND $<TARGET_FILE:test_better_pull_review_large_review_replay>)
+set_tests_properties(large_review_replay_contract PROPERTIES TIMEOUT 30)
+
 bpr_add_executable(
     test_better_pull_review_git_diagnostic_wrapper
     "${PROJECT_SOURCE_DIR}/tests/fixtures/git/git_diagnostic_wrapper_main.cpp"

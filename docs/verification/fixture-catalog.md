@@ -1587,5 +1587,18 @@ checks strict fsck, trees, blobs, changes and the exact revision graph, then
 checks every comment/page/anchor. Wrong-anchor, duplicate-identity and corrupted-
 pack negatives update the corresponding digests so semantic validation has to
 reject them. The generator is separate from those acceptance observations.
-These inputs extend the retained focused workbench/epoch fixtures; ordinary
-application benchmark integration and measured platform budgets remain open.
+`application_large_review_benchmark` now serves that stored latest head through
+exact paged replay, the production provider/pager, installed Git and real
+application selection. It verifies 515 files and 1,000 threads/comments, all
+29 account requests, exact 20,000-line source panes and a rendered full window.
+It measures change navigation, 1,000 idle native wheel inputs and final-selection
+precedence across 32 rapid selections with background work. Glaze writes the
+platform/build/Qt/scale, phase/event-loop and host/scroll observations to
+`tests/end_to_end/large-review-measurement.json` in the build directory.
+`large_review_replay_contract` rejects skipped pages, changed cursors and
+noncanonical bodies while retaining strict single-page fixture validation.
+
+BPR-0624 records the initial Mac baseline; BPR-0627 tracks its measured UI stalls.
+These checks do not establish 32 application epochs, memory/pruning ceilings,
+scrolling responsiveness during active work, universal timing budgets or native
+Windows/Linux results. The tests run locally with denied network access.

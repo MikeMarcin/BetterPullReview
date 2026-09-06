@@ -754,6 +754,7 @@ namespace bpr::app {
 		{
 			switch (aFixture) {
 			case detail::github_public_path_fixture::github_com:
+			case detail::github_public_path_fixture::large_review_v1:
 				return {
 					.Profile = core::host_profile_id{ 1U },
 					.Host    = core::git_host_id{ 1U },
@@ -9706,6 +9707,29 @@ namespace bpr::app {
 	auto detail::github_application_fixture_access::device_binding_durable(const github_application& aApplication) noexcept -> bool
 	{
 		return aApplication.Implementation->Host->accepted_device_binding_durable();
+	}
+
+	auto detail::github_application_fixture_access::large_review_snapshot(
+		const github_application& aApplication) -> std::optional<application::github_pull_request_snapshot>
+	{
+		return aApplication.Implementation->Host->accepted_snapshot();
+	}
+
+	auto detail::github_application_fixture_access::diff_work_evidence(
+		const github_application& aApplication) noexcept -> diff_work_fixture_evidence
+	{
+		const auto& implementation = *aApplication.Implementation;
+		const auto& host           = *implementation.DiffHost;
+		return {
+			.OutstandingJobs              = host.outstanding_jobs(),
+			.WorkbenchOutstandingRequests = implementation.WorkbenchHost->outstanding_requests(),
+			.CacheEntries                 = host.cache_entries(),
+			.CacheBytes                   = host.cache_bytes(),
+			.FixtureDiffHelperInvocations = implementation.FixtureDiffHelperInvocations,
+			.Pending                      = host.state().Pending.has_value(),
+			.NavigationReady              = implementation.WorkbenchHost->state().Navigation.has_value(),
+			.Quiescent                    = host.is_quiescent(),
+		};
 	}
 
 	auto detail::github_application_fixture_access::evidence(

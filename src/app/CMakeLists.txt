@@ -9,6 +9,7 @@ if(BPR_BUILD_QT)
             src/worker_executor.cpp
     )
     if(BUILD_TESTING)
+        target_link_libraries(better_pull_review_composition PRIVATE glaze::glaze)
         target_sources(
             better_pull_review_composition
             PRIVATE

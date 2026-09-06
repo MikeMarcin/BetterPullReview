@@ -18,7 +18,7 @@ base/head blob IDs and sizes, Git additions/deletions, pack bytes/hash and
 comment page count/hash/continuation. Each comment anchors line one of a changed
 source file at the latest head. No replies, credentials or mutation requests
 are included. The comment pages have REST review-comment shapes; the manifest
-supplies their explicit pagination sequence for a future replay transport.
+supplies their explicit pagination sequence for the test-only composed replay.
 
 Regenerate with the repository helper and an explicit installed Git path:
 
@@ -40,9 +40,29 @@ rejects a wrong anchor, duplicate identity and corrupted pack even when their
 manifest hashes are updated. The check does not use the generator to recreate
 its acceptance observations.
 
-These are benchmark inputs. They do not demonstrate application latency,
-responsiveness, resident memory, cache ceilings, provider paging or an accepted
-hardware threshold. A following RFC-0013 slice must serve them through the
-ordinary provider/installed-Git/application path and measure actual interaction
-under load. Smaller retained workbench and epoch-model fixtures remain useful
-for focused structural checks.
+`application_large_review_benchmark` serves the latest head through the ordinary
+provider, installed Git and application selection path. Its test-only Glaze
+replay converts the stored comments to 1,000 source threads and serves six REST
+file pages plus GraphQL file/thread pages. All 29 account requests must match
+exact compiled requests in order; production paging validates continuations.
+`large_review_replay_contract` covers cursor/order/body refusal and preserves
+the legacy strict single-page transport boundary.
+
+The composed course verifies all files/comments and both exact 20,000-line
+source panes, renders the full window, navigates changes, sends 1,000 native
+wheel events after work settles, and checks final-selection precedence across
+32 rapid selections with outstanding work. Run it locally with:
+
+```sh
+ctest --test-dir build/dev --output-on-failure -R '^application_large_review_benchmark$'
+```
+
+The network-denied test writes `large-review-measurement.json` and
+`large-review-window.png` under the build's `tests/end_to_end/` directory. The
+report includes platform/Qt/build/scale context, elapsed phases, 5 ms event-loop
+intervals, work-overlap samples and cache/scroll counters. Timings are local
+observations. BPR-0624 records the initial Mac measurements; BPR-0627 tracks
+measured UI stalls. This is one application epoch, not 32 epoch refreshes.
+Memory/pruning ceilings, scrolling during active work, native Windows/Linux
+runtime evidence and justified responsiveness thresholds remain open. Smaller
+retained workbench and epoch-model fixtures remain useful for focused checks.
