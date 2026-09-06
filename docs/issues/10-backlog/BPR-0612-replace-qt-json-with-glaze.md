@@ -119,3 +119,10 @@ Five production/composed-fixture files still use Qt JSON, with test/helper
 migration also required. Next: BPR-0638 read contracts, normalizer and pagination.
 The remembered production session is preserved. Performance work remains waiting
 for the full migration.
+
+BPR-0638 request boundary is implemented in `1e109cb2863100ef09b9253dfead04606a1e398e`:
+typed GraphQL serialization and outbound JSON admission preserve canonical bytes
+and pass read/pager/provider/public-composition checks. Its response validators,
+normalizers and pagination JSON conversion remain In Progress; the full source
+inventory still has five files using Qt JSON. Performance remains deferred until
+all migration slices and final integration are complete.
