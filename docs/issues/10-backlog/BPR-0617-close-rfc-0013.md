@@ -34,7 +34,7 @@ performance subsystem or fabricate timing budgets before measurement.
 
 | Criterion | Check / remaining work | Result and commit |
 |---|---|---|
-| Checked-in benchmark fixtures cover large file counts, large files, many comments, many epochs, and mixed binary/generated content. | Inventory retained diff/workbench fixtures, then measure missing file-count/comment/epoch/mixed-content cases. | Open; no RFC-wide passing result claimed. |
+| Checked-in benchmark fixtures cover large file counts, large files, many comments, many epochs, and mixed binary/generated content. | BPR-0623 supplies a synthetic 515-file pack with a 20,000-line comparison, binary/generated content, 32 heads and 1,000 paged comments. Stored-object and semantic-drift checks pass. Serve it through the ordinary application and measure the workload next. | Input boundary passes in `ee1717c2`; application benchmark integration and thresholds remain open. |
 | UI input, scrolling, and navigation remain responsive while background work runs. | Measure ordinary application input, navigation and scrolling while its selected workers are active. | Open; no RFC-wide passing result claimed. |
 | Memory and cache usage remain within documented budgets and recover after closing/pruning reviews. | Measure process/cache retention through close and prune; justify hardware-specific thresholds before enforcing them. | Open; no RFC-wide passing result claimed. |
 | Primary and secondary rate-limit simulations produce bounded backoff and useful UI state. | Reuse and assess provider/host rate-limit fixtures and their visible projection; add uncovered backoff cases. | Open; no RFC-wide passing result claimed. |
@@ -79,10 +79,19 @@ RFCs. No GitHub Actions, workflow dispatch, push, paid CI or live mutation is
 part of this work. Production sign-in is preserved.
 
 
-Available Mac work continues with BPR-0623's deterministic large-review workload
-fixtures. The existing 2,000-line workbench and paged epoch model evidence is
+BPR-0623 completes the deterministic large-review workload fixture boundary
+in `ee1717c2`. The existing 2,000-line workbench and paged epoch model evidence is
 retained, but the two/five-file served PRs do not cover the RFC-wide workload.
 This slice supplies independently verified inputs; a following application
 benchmark slice must establish selected-path loading, interaction measurements
 and justified platform budgets. BPR-0622's remaining Windows/Linux work is now
 explicitly platform-filtered and remains open with its native handoff.
+
+
+Next Mac implementation: add a composed benchmark course that serves BPR-0623's
+actual pack and paged provider records, verifies the full file/comment inventory,
+selects and renders exact source content through installed Git, and records
+input/navigation/scroll/cancellation behavior under background work with host
+and workbench counters. Select measured hardware-specific limits only after
+observing that course. The current fixture contract proves the inputs and
+revision history; it is not an application-performance passing result.
