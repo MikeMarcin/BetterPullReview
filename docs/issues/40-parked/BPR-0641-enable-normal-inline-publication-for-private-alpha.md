@@ -136,3 +136,33 @@ session scratchpad were consumed and removed.
 
 Implementation commit: `50f364b8`. The card and the private-alpha continuation
 note are committed by finish.
+## Owner-named read-only smoke — 2026-09-06
+
+The owner named `EpicGames/UnrealEngine#1773` for a read-only check and
+signed the 01:55 release instance in with the `MikeMarcin` account through the
+device code flow; no comment, review or other write was authorized or made.
+That instance links the same compiled application object (built 01:50 from the
+unchanged source now at `50f364b8`); only the launcher was relinked and the
+bundle re-signed afterwards.
+
+Observed on the running instance's window: `Host profile: GitHub.com — Native
+HTTPS`, `Active host: github.com`, `@MikeMarcin`, owner and repository fields
+populated, status `The pull request could not be loaded.` and `No pull request
+is open in the workbench.` The diagnostics log records `github.viewer` and
+`github.capability` succeeding for that session and nothing afterwards; pull
+request load outcomes are not logged, so the failure class was not recoverable
+offline (BPR-0642).
+
+The target is atypical: opened in 2015 from a fork, 9311 commits of which
+GitHub lists only the newest 250, 1523 files, 111 issue comments, 19 review
+threads. Ruled out by read-only `gh` inspection against the read model at this
+revision: collection bounds (files 1523 of 3000, commits 250 of 250), body and
+title sizes, the largest patch (87 KB) and largest files page (0.9 MB), missing
+patches (optional), null commit authors (167, optional), file statuses (all
+accepted values), duplicate paths or commit OIDs (none), head presence in the
+listed commits (present), and the exact review-threads GraphQL document (no
+errors, 19 threads, nullable fields only). The cause remains undetermined.
+
+Result: sign-in and identity observation passed; the named PR did not open.
+AC4 stays pending. Next attended step: open the session panel's Details to
+read the load advisory, and retry with a representative current work PR.
