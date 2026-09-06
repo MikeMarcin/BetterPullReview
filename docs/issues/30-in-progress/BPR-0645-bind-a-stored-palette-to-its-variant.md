@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0645"
 title: "Bind a stored palette to the variant it customizes"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0018"]
 depends_on: []
 priority: "P1"
