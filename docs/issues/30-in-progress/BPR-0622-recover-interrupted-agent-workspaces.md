@@ -4,6 +4,7 @@ id: "BPR-0622"
 title: "Recover interrupted agent workspaces with durable exact ownership"
 status: "In Progress"
 rfcs: ["RFC-BPR-0013"]
+platforms: ["win","linux"]
 depends_on: ["BPR-0621"]
 ---
 
@@ -319,3 +320,39 @@ workspaces through preparation/cleanup journal checkpoints, actual Git
 materialization and running-agent application death. Unknown historical roots
 and the documented pre-identity mkdir window remain preserved repair cases,
 not deletion candidates. RFC-0013 closeout remains open for its other criteria.
+
+### Available-platform handoff
+
+The scheduling platforms now name the remaining Windows/Linux work; the Mac
+implementation and its evidence above are retained unchanged. This does not
+reduce acceptance or mark the card Done. The integrator on a Windows host must
+supply implementation plus native verification; a Linux host must supply the
+native verification of the selected Unix path. No remote run or CI is started
+by this handoff.
+
+Read-only scouting at `2a5fc976` identified these Windows boundaries:
+
+- `windows_agent_process.cpp` creates its job with kill-on-close, creates the
+  agent suspended, assigns it, then resumes. The only job owner is the app;
+  app death initiates teardown but does not retain a recovery guard through
+  confirmed completion. The explicit inherited-handle-list machinery is reusable.
+- The Git QProcess backend assigns the Windows job after process start. Guarded
+  materialization must gain assignment and lifetime transfer before writes can
+  begin, as well as the external-agent path.
+- `installed_git_process.cpp` already has handle-based identity, reparse refusal,
+  single-link regular-file checks and write-through non-replacing rename.
+  Its existing Windows private-directory check does not prove current-user ACL
+  ownership. The new registry needs that proof rather than inheriting the
+  weaker check silently.
+- A trusted holder outside the child job is a candidate for retaining the
+  exact guard through owner death and confirmed job-empty state. Duplicating
+  the job into that holder prevents last-handle kill-on-close, so explicit
+  termination and verified empty-state handling are required. This is a design
+  candidate, not implemented or tested Windows behavior. Confirm the actual
+  native wait/notification semantics before selecting it.
+
+The existing native launcher canary covers assignment-before-resume refusal
+and descendant timeout teardown. The Unix-only parent-death, journal and
+composed materialization tests identify the missing Windows test boundaries.
+Keep all live scopes, unknown-artifact preservation, capacity and session
+identity requirements from this card. Do not replace them with PID checks.

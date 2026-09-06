@@ -4,7 +4,7 @@ id: "BPR-0617"
 title: "Verify and close RFC-BPR-0013"
 status: "Backlog"
 rfcs: ["RFC-BPR-0013"]
-depends_on: ["BPR-0507","BPR-0616","BPR-0618","BPR-0619","BPR-0620","BPR-0621","BPR-0622"]
+depends_on: ["BPR-0507","BPR-0616","BPR-0618","BPR-0619","BPR-0620","BPR-0621","BPR-0622","BPR-0623"]
 closeout_for: ["RFC-BPR-0013"]
 ---
 
@@ -77,3 +77,12 @@ public-path scale, memory, backoff/offline and parser-fuzz coverage before
 allocating missing bounded slices; reuse unchanged direct evidence from earlier
 RFCs. No GitHub Actions, workflow dispatch, push, paid CI or live mutation is
 part of this work. Production sign-in is preserved.
+
+
+Available Mac work continues with BPR-0623's deterministic large-review workload
+fixtures. The existing 2,000-line workbench and paged epoch model evidence is
+retained, but the two/five-file served PRs do not cover the RFC-wide workload.
+This slice supplies independently verified inputs; a following application
+benchmark slice must establish selected-path loading, interaction measurements
+and justified platform budgets. BPR-0622's remaining Windows/Linux work is now
+explicitly platform-filtered and remains open with its native handoff.
