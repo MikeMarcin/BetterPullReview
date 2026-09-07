@@ -64,7 +64,7 @@ preferences and enrollment ports. Every other page shows its notice.
   its filters, and the workbench's focus order no longer declares the
   editor (it is another window's). Modality rules, reading behaviour and
   the default comparison are carded as
-  [BPR-0661](../20-ready/BPR-0661-review-behaviour-preferences.md) and
+  [BPR-0661](../30-in-progress/BPR-0661-review-behaviour-preferences.md) and
   saved repositories as BPR-0659; the page says so in one line rather than
   showing controls nothing honours. AC-10 is therefore met for what has an
   authority and open for the rest, named on the page.

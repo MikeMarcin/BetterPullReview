@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0661"
 title: "Review behaviour preferences on Reviews & queue"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P2"
