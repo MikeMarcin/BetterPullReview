@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0649"
 title: "Discuss mode: thread list, map and feed"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P2"
