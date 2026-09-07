@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0672"
 title: "The attended review packet loses answers and notes"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P1"
