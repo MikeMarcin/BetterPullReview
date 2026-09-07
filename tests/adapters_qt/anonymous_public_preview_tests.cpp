@@ -1,6 +1,7 @@
 #include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/github_session_panel.hpp"
+#include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/usage_ring.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
@@ -183,6 +184,10 @@ namespace {
 		device.adopt(window);
 		window.resize(1'280, 820);
 		window.show();
+		// [[BPR-0646]] moved the session chrome onto Settings > Accounts and
+		// hosts, so the ordinary connection controls are seen where a
+		// reviewer opens them.
+		window.open_settings(qt::settings_page::accounts_and_hosts);
 		QApplication::processEvents();
 		auto* const panel   = window.session_panel();
 		auto* const preview = panel->public_preview_button();
@@ -193,15 +198,30 @@ namespace {
 				   && accessible->text(QAccessible::Name) == QStringLiteral("Public preview")
 				   && !accessible->text(QAccessible::Description).isEmpty(),
 			   "public preview has an accessible name and explanation");
-		expect(window.focus_order().indexOf(preview)
-				   == window.focus_order().indexOf(panel->connect_button()) + 1,
-			   "preview follows Connect in the declared keyboard order");
-		window.resize(640, 820);
+		// The session chrome keeps its own reading order inside the Settings
+		// window, so the claim is the panel's focus chain rather than the
+		// workbench's declared order, which these controls left with
+		// [[BPR-0646]].
+		const auto nextFocusable = [](QWidget* const aFrom) -> QWidget* {
+			for (auto* candidate = aFrom->nextInFocusChain(); candidate != nullptr && candidate != aFrom;
+				 candidate       = candidate->nextInFocusChain()) {
+				if (candidate->focusPolicy() != Qt::NoFocus && candidate->isVisible()) {
+					return candidate;
+				}
+			}
+			return nullptr;
+		};
+		expect(nextFocusable(panel->connect_button()) == preview,
+			   "preview follows Connect in the panel's keyboard order");
+		// The panel decides its rows from its own width, wherever it is
+		// mounted; on the Settings page that width is the page's, not the
+		// workbench window's.
+		panel->resize(420, panel->height());
 		QApplication::processEvents();
 		expect(preview->mapTo(panel, QPoint{ }).y()
 				   > panel->profile_selector()->mapTo(panel, panel->profile_selector()->rect().bottomLeft()).y(),
 			   "compact connection buttons use a separate row below the profile");
-		window.resize(1'280, 820);
+		panel->resize(1'000, panel->height());
 		QApplication::processEvents();
 		const auto previewCenter = preview->mapTo(panel, preview->rect().center()).y();
 		expect(previewCenter >= panel->profile_selector()->mapTo(panel, QPoint{ }).y()
@@ -456,13 +476,21 @@ namespace {
 		expect(
 			ring->focusPolicy() != Qt::NoFocus,
 			"the ring can take keyboard focus");
-		expect(
-			window->focus_order().contains(ring),
-			"and the declared focus order walks it");
-		expect(
-			window->focus_order().indexOf(ring)
-				< window->focus_order().indexOf(window->profile_selector()),
-			"reading order and focus order agree: the mode is read first");
+		// [[BPR-0646]] moved the session chrome onto Settings > Accounts and
+		// hosts, so the ring is walked in that page's order, ahead of the
+		// profile selector, rather than in the workbench's declared order.
+		auto* const page = window->settings()->page_widget(qt::settings_page::accounts_and_hosts);
+		expect(page != nullptr && page->isAncestorOf(ring) && !window->focus_order().contains(ring),
+			   "and it is walked on the Accounts and hosts page, not in the workbench's order");
+		auto walked = false;
+		for (auto* candidate = ring->nextInFocusChain(); candidate != nullptr && candidate != ring;
+			 candidate       = candidate->nextInFocusChain()) {
+			if (candidate == window->profile_selector()) {
+				walked = true;
+				break;
+			}
+		}
+		expect(walked, "reading order and focus order agree: the mode is read first");
 	}
 
 	void test_an_unpublished_window_shows_nothing_of_the_mode(

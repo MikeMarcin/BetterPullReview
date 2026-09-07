@@ -12,6 +12,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <QResizeEvent>
 #include <QSignalBlocker>
 #include <QSpinBox>
 #include <QStyle>
@@ -778,6 +779,17 @@ namespace bpr::qt {
 			style()->standardIcon(QStyle::SP_DialogOpenButton));
 		RefreshAction->setIcon(
 			style()->standardIcon(QStyle::SP_BrowserReload));
+	}
+
+	void github_session_panel::resizeEvent(QResizeEvent* const aEvent)
+	{
+		QWidget::resizeEvent(aEvent);
+		// The identity row holds the profile, its selector and the connection
+		// actions side by side. Below what that row needs, the actions take a
+		// row of their own rather than squeezing the account out of view.
+		if (IdentityLayout != nullptr) {
+			apply_compact_layout(width() < IdentityLayout->sizeHint().width());
+		}
 	}
 
 	void github_session_panel::apply_compact_layout(const bool aCompact)

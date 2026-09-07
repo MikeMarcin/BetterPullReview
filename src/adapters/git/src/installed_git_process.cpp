@@ -1578,11 +1578,11 @@ namespace bpr::adapters::git {
 				}
 				const auto channel = Channel[1];
 				const auto guard   = Guard;
-				aProcess.setChildProcessModifier([process = &aProcess, channel, guard] {
+				aProcess.setChildProcessModifier([started = &aProcess, channel, guard] {
 					static_cast<void>(::umask(S_IRWXG | S_IRWXO));
 					if (::dup2(channel, 3) < 0 || ::fcntl(3, F_SETFD, 0) != 0
 						|| ::dup2(guard, 4) < 0 || ::fcntl(4, F_SETFD, 0) != 0) {
-						process->failChildProcessModifier("Git workspace lifetime", errno);
+						started->failChildProcessModifier("Git workspace lifetime", errno);
 					}
 				});
 				aProcess.setUnixProcessParameters({

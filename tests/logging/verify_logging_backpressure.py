@@ -3,9 +3,11 @@ import os
 from pathlib import Path
 import subprocess
 import sys
-import tempfile
 
-with tempfile.TemporaryDirectory(prefix="bpr-log-pipe-") as temporary:
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
+
+with contained_temporary_directory(prefix="bpr-log-pipe-") as temporary:
     root = Path(temporary).resolve()
     reader, writer = os.pipe()
     try:

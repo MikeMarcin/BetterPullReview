@@ -36,6 +36,15 @@ surfaced in the full matrix run at the pack's closeout head.
 - Owned paths: the Unix agent supervisor and its workspace guard,
   `tests/scripts/agent_parent_death_tests.py`.
 
+## Also in this file
+
+`src/adapters/git/src/installed_git_process.cpp` carries eleven strict-tidy
+errors that predate this card: one signed operand in a bitwise expression at
+the guard's own `fstat` check, three more of the same, and the rest naming
+style on parameters and a type alias. Nothing runs strict tidy over that
+translation unit today, so they accumulated. Clear them with the guard fix,
+since both are in the same file.
+
 ## Acceptance
 
 - `agent_parent_death` passes twenty consecutive runs on macOS, and the

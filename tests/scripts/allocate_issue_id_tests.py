@@ -5,18 +5,19 @@ import json
 import shutil
 import subprocess
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+from scripts.contained_temporary_support import ContainedTemporaryDirectory  # noqa: E402
 ALLOCATOR = ROOT / "scripts/allocate_issue_id.py"
 
 
 @unittest.skipUnless(shutil.which("git"), "Git required")
 class SharedBoardWrapperTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.temporary = tempfile.TemporaryDirectory()
+        self.temporary = ContainedTemporaryDirectory(prefix="bpr-allocate-issue-id-")
         self.addCleanup(self.temporary.cleanup)
         self.repo = Path(self.temporary.name).resolve()
         self.config = json.loads((ROOT / ".mask/skill-config/implement-rfc/project.json").read_text())

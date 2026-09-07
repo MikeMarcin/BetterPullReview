@@ -5,7 +5,10 @@ import argparse
 import fcntl
 import json
 from pathlib import Path
-import tempfile
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 from process_kill_support import kill_at_checkpoint, run
 
@@ -46,7 +49,7 @@ def main() -> None:
     parser.add_argument("--executable", required=True, type=Path)
     args = parser.parse_args()
     exe = args.executable.resolve(strict=True)
-    with tempfile.TemporaryDirectory(prefix="bpr-workspace-ownership-") as temporary:
+    with contained_temporary_directory(prefix="bpr-workspace-ownership-") as temporary:
         parent = Path(temporary).resolve()
         # Real SIGKILL between committed native phases, including both renames.
         for point in [*(f"journal-{i}" for i in range(7)), "child-quarantined", "parent-quarantined"]:

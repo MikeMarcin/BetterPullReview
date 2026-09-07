@@ -15006,8 +15006,8 @@ namespace bpr::app {
 				if (card.Id != threadIdentity) {
 					continue;
 				}
-				for (const auto& [action, rect] : card.Actions) {
-					if (action != aAction) {
+				for (const auto& [offered, rect] : card.Actions) {
+					if (offered != aAction) {
 						continue;
 					}
 					const auto point   = QPointF{ rect.center() };

@@ -165,6 +165,15 @@ namespace bpr::qt {
 		[[nodiscard]] auto statistics() const noexcept
 			-> github_session_panel_statistics;
 
+	protected:
+		/// \brief Chooses the compact rows from the width the panel is given.
+		///
+		/// \details [[BPR-0646]] moved the panel from the drawer's narrow top
+		/// region, where it was compact always, onto a Settings page that can
+		/// be any width. The rule is the panel's own: it knows what its rows
+		/// need.
+		void resizeEvent(QResizeEvent* aEvent) override;
+
 	private:
 		[[nodiscard]] auto profile_option(core::host_profile_id aProfile) const
 			-> const application::github_profile_option*;
