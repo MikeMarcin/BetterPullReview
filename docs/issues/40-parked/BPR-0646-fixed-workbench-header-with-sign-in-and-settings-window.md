@@ -302,7 +302,8 @@ the window's title row.
   platform inset, before Files, with ⌘0, checked while Home shows; pressed
   over an open review it shows Home with the modalities kept as the way
   back, and a modality or a newly opened pull request returns to the
-  review. Whether Home should instead be a fifth modality in the segmented
+  review. Decided by the owner on 2026-09-07: Home stays a view with its
+  button and is not a modality. Whether Home should instead be a fifth modality in the segmented
   control is left for the owner; the button answers the need either way.
   The width floor rises to 860 for the extra button; the UIforETW probe
   pins the twenty-one-entry row.
