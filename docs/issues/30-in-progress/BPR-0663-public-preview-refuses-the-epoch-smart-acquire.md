@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0663"
 title: "Public preview refuses the epoch smart acquire"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
