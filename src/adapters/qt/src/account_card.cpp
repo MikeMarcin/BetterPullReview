@@ -67,6 +67,14 @@ namespace bpr::qt {
 		Grant->setWordWrap(true);
 		Grant->hide();
 		grid->addWidget(Grant, 3, 1, 1, 2);
+		SignOut = new QToolButton{ this };
+		SignOut->setObjectName(QStringLiteral("accountSignOut"));
+		SignOut->setText(QStringLiteral("Sign out"));
+		SignOut->setAccessibleName(QStringLiteral("Sign out of this account"));
+		SignOut->setToolTip(QStringLiteral("Forgets the sign-in on this Mac and signs out"));
+		SignOut->setFocusPolicy(Qt::StrongFocus);
+		SignOut->hide();
+		grid->addWidget(SignOut, 3, 2, Qt::AlignRight);
 		grid->setColumnStretch(1, 1);
 		clear();
 	}
@@ -115,6 +123,7 @@ namespace bpr::qt {
 			Grant->clear();
 			Grant->hide();
 		}
+		SignOut->setVisible(SignedIn);
 		update();
 	}
 
@@ -140,6 +149,7 @@ namespace bpr::qt {
 		RateLimit->hide();
 		Grant->clear();
 		Grant->hide();
+		SignOut->hide();
 		set_status(QStringLiteral("Signed out"), false);
 	}
 
@@ -156,6 +166,11 @@ namespace bpr::qt {
 	auto account_card::status_label() const noexcept -> QLabel*
 	{
 		return Status;
+	}
+
+	auto account_card::sign_out_button() const noexcept -> QToolButton*
+	{
+		return SignOut;
 	}
 
 	auto account_card::grant_label() const noexcept -> QLabel*

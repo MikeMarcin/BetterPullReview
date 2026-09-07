@@ -4,6 +4,7 @@
 #include "bpr/application/github_projection.hpp"
 
 #include <QString>
+#include <QToolButton>
 #include <QWidget>
 
 class QLabel;
@@ -33,20 +34,24 @@ namespace bpr::qt {
 		[[nodiscard]] auto rate_limit_label() const noexcept -> QLabel*;
 		/// \brief [[BPR-0660]]. The grant line: kind, date, renewal and whether it is remembered.
 		[[nodiscard]] auto grant_label() const noexcept -> QLabel*;
+		/// \brief [[BPR-0660]]. Sign out, shown while an account is signed in; the
+		/// window binds it to the deactivation intent.
+		[[nodiscard]] auto sign_out_button() const noexcept -> QToolButton*;
 		[[nodiscard]] auto signed_in() const noexcept -> bool;
 
 	protected:
 		void paintEvent(QPaintEvent* aEvent) override;
 
 	private:
-		QLabel* Avatar    = nullptr;
-		QLabel* Login     = nullptr;
-		QLabel* Detail    = nullptr;
-		QLabel* Status    = nullptr;
-		QLabel* RateLimit = nullptr;
-		QLabel* Grant     = nullptr;
-		bool    SignedIn  = false;
-		bool    Connected = false;
+		QLabel*      Avatar    = nullptr;
+		QLabel*      Login     = nullptr;
+		QLabel*      Detail    = nullptr;
+		QLabel*      Status    = nullptr;
+		QLabel*      RateLimit = nullptr;
+		QLabel*      Grant     = nullptr;
+		QToolButton* SignOut   = nullptr;
+		bool         SignedIn  = false;
+		bool         Connected = false;
 	};
 } // namespace bpr::qt
 

@@ -1362,6 +1362,13 @@ namespace bpr::qt {
 		// host, connected or not, and the rate limit. Then the device sign-in
 		// and the session chrome as BPR-0646 placed them.
 		AccountCard = new account_card{ accounts };
+		// [[BPR-0660]]. The card's Sign out is the same deactivation the session
+		// panel's is: the host forgets the remembered grant and signs out.
+		connect(AccountCard->sign_out_button(), &QToolButton::clicked, this, [this] {
+			if (GithubDispatch) {
+				GithubDispatch(core::deactivate_github_identity_intent{ });
+			}
+		});
 		accountsColumn->addWidget(AccountCard);
 		accountsColumn->addWidget(DevicePanel);
 		accountsColumn->addWidget(SessionPanel);

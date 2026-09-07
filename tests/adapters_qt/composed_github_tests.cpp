@@ -2675,12 +2675,13 @@ namespace {
 	{
 		// [[BPR-0652]]. Accounts & hosts opens with the account card; Reviews &
 		// queue holds the observer-rule editor that used to sit on Home.
-		qt::workbench_window window{
+		std::vector<application::github_intent> intents;
+		qt::workbench_window                    window{
 			qt::workbench_intent_dispatch{ },
 			qt::workbench_change_dispatch{ },
 			qt::workbench_drawer_width_dispatch{ },
 			profiles(),
-			[](application::github_intent) { },
+			[&intents](application::github_intent aIntent) { intents.push_back(std::move(aIntent)); },
 		};
 		window.resize(1'280, 820);
 		window.show();
@@ -2703,6 +2704,16 @@ namespace {
 				   && card->grant_label()->text().startsWith(QStringLiteral("Signed in on 2025-09-0"))
 				   && card->grant_label()->text().endsWith(QStringLiteral(", renews itself; remembered on this Mac.")),
 			   "a durable device grant reads as signed in on its date, renewing, remembered on this Mac");
+		// [[BPR-0660]]. Sign out on the card leaves as the deactivation the host
+		// forgets the grant on; signed out it is gone.
+		expect(card->sign_out_button()->isVisibleTo(card), "signed in, the card offers Sign out");
+		card->sign_out_button()->click();
+		expect(intents.size() == 1U
+				   && std::holds_alternative<core::deactivate_github_identity_intent>(intents.back()),
+			   "Sign out on the card dispatches the deactivation intent");
+		card->clear();
+		expect(!card->sign_out_button()->isVisibleTo(card) && !card->grant_label()->isVisibleTo(card),
+			   "signed out, neither Sign out nor the grant line remains");
 		auto* const rules = window.rules_editor();
 		expect(rules != nullptr
 				   && window.settings()->page_widget(qt::settings_page::reviews_and_queue)->isAncestorOf(rules)
