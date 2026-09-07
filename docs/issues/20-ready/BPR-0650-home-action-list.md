@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0650"
 title: "Home action list"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0028","RFC-BPR-0026"]
 depends_on: []
 priority: "P2"
