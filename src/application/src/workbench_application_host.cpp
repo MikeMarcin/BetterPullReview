@@ -718,6 +718,7 @@ namespace bpr::application {
 			if (State.Navigation.has_value()) {
 				Layout.Files         = State.FilesDrawer;
 				Layout.Conversations = State.ConversationsDrawer;
+				Layout.Repositories  = State.RepositoriesDrawer;
 				Layout.LineNumbers   = State.LineNumbers;
 			}
 			retire(workbench_request_domain::settings_store,
@@ -924,10 +925,18 @@ namespace bpr::application {
 			if (Closing) {
 				return;
 			}
-			auto&      retained = aDrawer == core::workbench_drawer::files
-				? Layout.FilesWidth
-				: Layout.ConversationsWidth;
-			const auto width    = clamped_width(aWidth, Limits);
+			auto& retained = [this, aDrawer]() -> std::uint32_t& {
+				switch (aDrawer) {
+				case core::workbench_drawer::files:
+					return Layout.FilesWidth;
+				case core::workbench_drawer::conversations:
+					return Layout.ConversationsWidth;
+				case core::workbench_drawer::repositories:
+					return Layout.RepositoriesWidth;
+				}
+				return Layout.FilesWidth;
+			}();
+			const auto width = clamped_width(aWidth, Limits);
 			if (retained == width) {
 				return;
 			}
@@ -1133,6 +1142,7 @@ namespace bpr::application {
 			Layout                    = *aResult;
 			Layout.FilesWidth         = clamped_width(Layout.FilesWidth, Limits);
 			Layout.ConversationsWidth = clamped_width(Layout.ConversationsWidth, Limits);
+			Layout.RepositoriesWidth  = clamped_width(Layout.RepositoriesWidth, Limits);
 			RestorePending            = true;
 			apply_restored_drawers();
 			publish_changes(aContext);
@@ -1169,6 +1179,7 @@ namespace bpr::application {
 			RestorePending = false;
 			set_drawer(core::workbench_drawer::files, Layout.Files);
 			set_drawer(core::workbench_drawer::conversations, Layout.Conversations);
+			set_drawer(core::workbench_drawer::repositories, Layout.Repositories);
 			set_line_numbers(Layout.LineNumbers);
 		}
 
@@ -1215,6 +1226,7 @@ namespace bpr::application {
 			const auto drawers = core::workbench_drawer_delta{
 				.Files         = State.FilesDrawer,
 				.Conversations = State.ConversationsDrawer,
+				.Repositories  = State.RepositoriesDrawer,
 			};
 			if (PublishedDrawers != drawers) {
 				projection.Drawers = drawers;
@@ -1232,6 +1244,7 @@ namespace bpr::application {
 			const auto layout = workbench_layout_delta{
 				.FilesWidth         = Layout.FilesWidth,
 				.ConversationsWidth = Layout.ConversationsWidth,
+				.RepositoriesWidth  = Layout.RepositoriesWidth,
 			};
 			if (PublishedLayout != layout) {
 				projection.Layout = layout;

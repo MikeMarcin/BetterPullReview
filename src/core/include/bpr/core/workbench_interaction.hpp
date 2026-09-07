@@ -24,6 +24,8 @@ namespace bpr::core {
 	enum class workbench_drawer : std::uint8_t {
 		files,
 		conversations,
+		/// [[BPR-0651]]. The repositories tree, left of the files.
+		repositories,
 	};
 
 	enum class workbench_drawer_state : std::uint8_t {
@@ -216,9 +218,10 @@ namespace bpr::core {
 		toggle_files_drawer,
 		toggle_conversations_drawer,
 		toggle_line_numbers,
+		toggle_repositories_drawer,
 	};
 
-	inline constexpr std::size_t workbench_command_count = 7U;
+	inline constexpr std::size_t workbench_command_count = 8U;
 
 	/// \brief Describes the workbench command projection record.
 	struct workbench_command_projection
@@ -260,6 +263,7 @@ namespace bpr::core {
 	{
 		workbench_drawer_state Files         = workbench_drawer_state::expanded;
 		workbench_drawer_state Conversations = workbench_drawer_state::expanded;
+		workbench_drawer_state Repositories  = workbench_drawer_state::expanded;
 
 		auto operator<=>(const workbench_drawer_delta&) const = default;
 	};
@@ -305,6 +309,7 @@ namespace bpr::core {
 		std::optional<workbench_change_cursor>     Change;
 		workbench_drawer_state                     FilesDrawer         = workbench_drawer_state::expanded;
 		workbench_drawer_state                     ConversationsDrawer = workbench_drawer_state::expanded;
+		workbench_drawer_state                     RepositoriesDrawer  = workbench_drawer_state::expanded;
 		workbench_line_numbers                     LineNumbers         = workbench_line_numbers::shown;
 		change_navigation_policy                   NavigationPolicy    = change_navigation_policy::stop;
 

@@ -583,12 +583,11 @@ namespace {
 					: change_navigation_direction::next,
 			};
 		case workbench_command_id::toggle_files_drawer:
+			return toggle_workbench_drawer_intent{ .Drawer = workbench_drawer::files };
 		case workbench_command_id::toggle_conversations_drawer:
-			return toggle_workbench_drawer_intent{
-				.Drawer = aCommand == workbench_command_id::toggle_files_drawer
-					? workbench_drawer::files
-					: workbench_drawer::conversations,
-			};
+			return toggle_workbench_drawer_intent{ .Drawer = workbench_drawer::conversations };
+		case workbench_command_id::toggle_repositories_drawer:
+			return toggle_workbench_drawer_intent{ .Drawer = workbench_drawer::repositories };
 		case workbench_command_id::toggle_line_numbers:
 			return toggle_workbench_line_numbers_intent{ };
 		case workbench_command_id::previous_change:

@@ -43,6 +43,8 @@ namespace bpr::qt {
 		review_details,
 		private_progress,
 		home,
+		/// [[BPR-0651]]. The repositories drawer toggle.
+		repositories_drawer,
 	};
 
 	/// \brief Paints one strip glyph for a palette.

@@ -15,6 +15,7 @@
 #include "bpr/qt/github_pull_request_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
+#include "bpr/qt/repositories_drawer.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/review_landing_model.hpp"
 #include "bpr/qt/review_submission_editor.hpp"
@@ -429,6 +430,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto appearance_settings() const noexcept
 			-> appearance_settings_panel*;
 		[[nodiscard]] auto files_drawer_toggle_action() const noexcept -> QAction*;
+		/// \brief [[BPR-0651]]. The repositories drawer, left of the files.
+		[[nodiscard]] auto repositories_drawer() const noexcept -> workbench_drawer_panel*;
+		[[nodiscard]] auto repositories_drawer_toggle_action() const noexcept -> QAction*;
+		[[nodiscard]] auto repositories_tree() const noexcept -> repositories_tree_view*;
 		[[nodiscard]] auto conversations_drawer_toggle_action() const noexcept
 			-> QAction*;
 		/// \brief Shows or hides secondary review metadata around the comparison.
@@ -566,6 +571,7 @@ namespace bpr::qt {
 		void               update_rail_summaries();
 		void               infer_modality_from_drawers();
 		[[nodiscard]] auto presented_files_state() const -> core::workbench_drawer_state;
+		[[nodiscard]] auto presented_repositories_state() const -> core::workbench_drawer_state;
 		void               apply_focus_order();
 		void               update_action_state();
 		void               build_menu_bar();
@@ -663,8 +669,12 @@ namespace bpr::qt {
 
 		std::array<navigation_entry, 4> Navigation{ };
 		std::array<QAction*, 4>         ReceiptActions{ };
-		std::array<drawer_entry, 2>     Drawers{ };
-		github_conversation_panel*      ConversationPanel = nullptr;
+		std::array<drawer_entry, 3>     Drawers{ };
+		repositories_tree_view*         RepositoriesTree = nullptr;
+		/// Set when a pull request was chosen from the repositories tree, so
+		/// it opens on its overview when it arrives.
+		bool                       OpenOnOverview    = false;
+		github_conversation_panel* ConversationPanel = nullptr;
 		/// Prevents the drawer refilter from clearing the anchor that triggered it.
 		bool                                                       ApplyingConversationAnchor       = false;
 		bool                                                       LeftConversationEndpointCurrent  = false;

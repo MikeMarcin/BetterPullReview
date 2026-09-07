@@ -274,6 +274,7 @@ namespace {
 				offered(core::workbench_command_id::toggle_files_drawer),
 				offered(core::workbench_command_id::toggle_conversations_drawer),
 				offered(core::workbench_command_id::toggle_line_numbers),
+				offered(core::workbench_command_id::toggle_repositories_drawer),
 			},
 			.Policy = aPolicy,
 		};
@@ -571,11 +572,12 @@ namespace {
 				   && actions.front()->objectName()
 					   == QStringLiteral("workbenchStripInsetAction")
 				   && actions[1] == window.home_action()
-				   && actions[2] == files
+				   && actions[2] == window.repositories_drawer_toggle_action()
+				   && actions[3] == files
 				   && actions.back() == window.settings_action()
 				   && actions.indexOf(window.account_action())
 					   == actions.size() - 2,
-			   "after the platform inset and Home, Files is the far-left action and Settings, after Account, is the far-right action");
+			   "after the platform inset and Home, Repositories then Files are the far-left actions and Settings, after Account, is the far-right action");
 		expect(actions.indexOf(navigation[2]) < actions.indexOf(navigation[3])
 				   && actions.indexOf(navigation[3]) < actions.indexOf(navigation[0])
 				   && actions.indexOf(navigation[0]) < actions.indexOf(navigation[1])
@@ -813,11 +815,11 @@ namespace {
 				   && window.actions().contains(files)
 				   && window.actions().contains(conversations),
 			   "each drawer toggle is a checkable window action with a shortcut");
-		expect(window.primary_toolbar()->actions().indexOf(files) == 2
+		expect(window.primary_toolbar()->actions().indexOf(files) == 3
 				   && window.primary_toolbar()->actions().indexOf(conversations)
 					   > window.primary_toolbar()->actions().indexOf(
 						   window.review_details_toggle_action()),
-			   "Files opens the strip after the platform inset and Conversations sits in its right region");
+			   "Files opens the strip after the platform inset, Home and Repositories, and Conversations sits in its right region");
 		for (auto* const toggle : { files, conversations }) {
 			auto* const button = qobject_cast<QToolButton*>(
 				window.primary_toolbar()->widgetForAction(toggle));
@@ -977,7 +979,9 @@ namespace {
 			.FilesWidth         = 320U,
 			.ConversationsWidth = 260U,
 		};
-		window.resize(1'280, 720);
+		// [[BPR-0651]]. Wide enough for three open drawers and a centre above
+		// its minimum, so collapsing one returns exactly its width.
+		window.resize(1'600, 720);
 		window.show();
 		QApplication::processEvents();
 		window.publish(opened);
@@ -1492,15 +1496,15 @@ namespace {
 
 		auto* const splitter = window.findChild<QSplitter*>(
 			QStringLiteral("workbenchCentralSplitter"));
-		expect(splitter != nullptr && splitter->count() == 3,
-			   "the centre and both drawers share one resizable splitter");
+		expect(splitter != nullptr && splitter->count() == 4,
+			   "the centre and the three drawers share one resizable splitter");
 		expect(!splitter->childrenCollapsible(),
 			   "a drag can never collapse a drawer behind the core's back");
 
 		log.Width.clear();
 		log.Workbench.clear();
 		const auto sizes = splitter->sizes();
-		splitter->setSizes({ 400, sizes[1] - 80, sizes[2] });
+		splitter->setSizes({ sizes[0], 400, sizes[2] - 80, sizes[3] });
 		QApplication::processEvents();
 		expect(window.files_drawer()->width() == 400,
 			   "a splitter drag resizes the drawer");
@@ -3804,8 +3808,11 @@ namespace {
 					   == window.primary_toolbar()->widgetForAction(window.home_action())
 				   && compact[1]
 					   == window.primary_toolbar()->widgetForAction(
+						   window.repositories_drawer_toggle_action())
+				   && compact[2]
+					   == window.primary_toolbar()->widgetForAction(
 						   window.files_drawer_toggle_action()),
-			   "Home then Files remain the first interactive stops at the supported width floor");
+			   "Home, Repositories then Files remain the first interactive stops at the supported width floor");
 		for (auto* const stop : compact) {
 			expect(!stop->accessibleName().isEmpty()
 					   && !stop->accessibleDescription().isEmpty(),
@@ -3949,7 +3956,7 @@ namespace {
 		expect(splitter != nullptr, "the shell owns one central splitter");
 		const auto sizes = splitter->sizes();
 		log.Width.clear();
-		splitter->setSizes({ 380, sizes[1] - 60, sizes[2] });
+		splitter->setSizes({ sizes[0], 380, sizes[2] - 60, sizes[3] });
 		process_events();
 		expect(!log.Width.empty()
 				   && log.Width.back().Drawer == core::workbench_drawer::files
@@ -4514,6 +4521,62 @@ namespace {
 		window.hide();
 	}
 
+	void test_repositories_drawer_toggles_through_the_core_and_collapses_to_a_rail()
+	{
+		// [[BPR-0651]]. The third drawer is decided as the other two are: its
+		// toggle asks the core, the core's delta sets it, and collapsed it is
+		// an 18-pixel rail that reopens it.
+		intent_log           log;
+		qt::workbench_window window{
+			[&log](core::workbench_interaction_intent aIntent) {
+				log.Workbench.push_back(aIntent);
+			},
+			[&log](core::navigate_diff_change_intent aIntent) {
+				log.Change.push_back(aIntent);
+			}
+		};
+		window.resize(1'280, 820);
+		window.show();
+		process_events();
+		window.publish(every_primary_command_offered());
+		process_events();
+		expect(window.repositories_drawer_toggle_action()->isEnabled()
+				   && window.repositories_drawer_toggle_action()->isChecked()
+				   && window.repositories_drawer()->state() == core::workbench_drawer_state::expanded,
+			   "with the core offering the command the repositories toggle is enabled and checked");
+		log.Workbench.clear();
+		window.repositories_drawer_toggle_action()->trigger();
+		process_events();
+		expect(log.Workbench.size() == 1U
+				   && std::get_if<core::toggle_workbench_drawer_intent>(&log.Workbench.back()) != nullptr
+				   && std::get<core::toggle_workbench_drawer_intent>(log.Workbench.back()).Drawer
+					   == core::workbench_drawer::repositories
+				   && window.repositories_drawer_toggle_action()->isChecked(),
+			   "the toggle asks the core for the repositories drawer and keeps the decided state");
+		auto collapsed    = application::workbench_projection{ };
+		collapsed.Drawers = core::workbench_drawer_delta{
+			.Files         = core::workbench_drawer_state::expanded,
+			.Conversations = core::workbench_drawer_state::expanded,
+			.Repositories  = core::workbench_drawer_state::collapsed,
+		};
+		window.publish(collapsed);
+		process_events();
+		expect(window.repositories_drawer()->state() == core::workbench_drawer_state::collapsed
+				   && window.repositories_drawer()->width() == qt::workbench_drawer_rail::width_pixels
+				   && window.repositories_drawer()->rail()->isVisible()
+				   && !window.repositories_drawer_toggle_action()->isChecked()
+				   && window.files_drawer()->state() == core::workbench_drawer_state::expanded,
+			   "the core's delta collapses only the repositories drawer to its rail");
+		log.Workbench.clear();
+		window.repositories_drawer()->rail()->click();
+		process_events();
+		expect(log.Workbench.size() == 1U
+				   && std::get<core::toggle_workbench_drawer_intent>(log.Workbench.back()).Drawer
+					   == core::workbench_drawer::repositories,
+			   "the rail asks the core to reopen its drawer");
+		window.hide();
+	}
+
 	void test_large_queue_filters_through_the_composed_window()
 	{
 		qt::workbench_window window;
@@ -4628,6 +4691,7 @@ auto main(int argc, char** argv) -> int
 	test_queue_filter_controls_are_accessible_incremental_and_focus_stable();
 	test_notification_activation_selects_only_an_exact_visible_queue_row();
 	test_large_queue_filters_through_the_composed_window();
+	test_repositories_drawer_toggles_through_the_core_and_collapses_to_a_rail();
 	test_overview_shows_the_decided_page_and_continue_enters_read();
 	test_a_large_file_leaves_the_widget_count_bounded();
 	std::cout << "workbench-window-tests:pass\n";

@@ -56,7 +56,15 @@ namespace bpr::adapters::sqlite::detail {
 				  "CHECK(conversations_width BETWEEN "
 				+ minimum + " AND " + maximum
 				+ "),line_numbers INTEGER NOT NULL DEFAULT 1 "
-				  "CHECK(line_numbers BETWEEN 0 AND 1)) STRICT";
+				  "CHECK(line_numbers BETWEEN 0 AND 1),"
+				  // [[BPR-0651]]. The repositories drawer, schema version 3.
+				  // Defaulted so a rebuilt older row keeps the behaviour it had:
+				  // the drawer open at the design's width.
+				  "repositories_state INTEGER NOT NULL DEFAULT 1 "
+				  "CHECK(repositories_state BETWEEN 0 AND 1),"
+				  "repositories_width INTEGER NOT NULL DEFAULT 300 "
+				  "CHECK(repositories_width BETWEEN "
+				+ minimum + " AND " + maximum + ")) STRICT";
 		}
 
 		/// \brief Builds the statements that create the schema from nothing.
@@ -88,8 +96,12 @@ namespace bpr::adapters::sqlite::detail {
 		/// runs, and it has the better property anyway: the migrated table is
 		/// created from the same definition a fresh one is, so the two cannot
 		/// drift into merely resembling each other.
-		[[nodiscard]] auto migrate_version_1_to_2() -> std::vector<std::string>
+		[[nodiscard]] auto migrate_from(const std::int64_t aVersion) -> std::vector<std::string>
 		{
+			// Version one had no line_numbers column; version two has it.
+			// Either rebuild lands on the current table, whose defaults fill
+			// the columns the old row never had.
+			const auto lineNumbers = aVersion == 1 ? std::string{ "1" } : std::string{ "line_numbers" };
 			return {
 				layout_table("workbench_layout_migrating"),
 				std::string{
@@ -97,7 +109,8 @@ namespace bpr::adapters::sqlite::detail {
 					"singleton, files_state, conversations_state, files_width,"
 					"conversations_width, line_numbers) SELECT "
 					"singleton, files_state, conversations_state, files_width,"
-					"conversations_width, 1 FROM workbench_layout" },
+					"conversations_width, " }
+					+ lineNumbers + " FROM workbench_layout",
 				std::string{ "DROP TABLE workbench_layout" },
 				std::string{ "ALTER TABLE workbench_layout_migrating "
 							 "RENAME TO workbench_layout" },
@@ -169,13 +182,13 @@ namespace bpr::adapters::sqlite::detail {
 			// version this build has no step for is refused rather than handed
 			// to the wrong one — today that is unreachable, and the day a
 			// version three exists it stops being so.
-			if (*current != 0 && *current != 1) {
+			if (*current != 0 && *current != 1 && *current != 2) {
 				rollback();
 				return std::unexpected(failure::schema_mismatch);
 			}
 			const auto fresh      = *current == 0;
 			const auto statements = fresh ? schema_version_1()
-										  : migrate_version_1_to_2();
+										  : migrate_from(*current);
 			if (auto created = run_all(aDatabase, statements, aStop); !created) {
 				rollback();
 				return created;
@@ -378,13 +391,16 @@ namespace bpr::adapters::sqlite::detail {
 			Handle,
 			"INSERT INTO workbench_layout("
 			"singleton, files_state, conversations_state, files_width,"
-			"conversations_width, line_numbers) VALUES(1, ?1, ?2, ?3, ?4, ?5) "
+			"conversations_width, line_numbers, repositories_state,"
+			"repositories_width) VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6, ?7) "
 			"ON CONFLICT(singleton) DO UPDATE SET "
 			"files_state = excluded.files_state,"
 			"conversations_state = excluded.conversations_state,"
 			"files_width = excluded.files_width,"
 			"conversations_width = excluded.conversations_width,"
-			"line_numbers = excluded.line_numbers");
+			"line_numbers = excluded.line_numbers,"
+			"repositories_state = excluded.repositories_state,"
+			"repositories_width = excluded.repositories_width");
 		if (!statement) {
 			return std::unexpected(statement.error());
 		}
@@ -411,6 +427,16 @@ namespace bpr::adapters::sqlite::detail {
 				   statement->Value,
 				   5,
 				   static_cast<std::int64_t>(aSettings.LineNumbers))
+				!= SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   statement->Value,
+				   6,
+				   static_cast<std::int64_t>(aSettings.Repositories))
+				!= SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   statement->Value,
+				   7,
+				   static_cast<std::int64_t>(aSettings.RepositoriesWidth))
 				!= SQLITE_OK) {
 			return std::unexpected(catalog_sql_failure(Handle));
 		}
@@ -436,7 +462,8 @@ namespace bpr::adapters::sqlite::detail {
 		auto statement = prepare(
 			Handle,
 			"SELECT files_state, conversations_state, files_width,"
-			"conversations_width, line_numbers FROM workbench_layout "
+			"conversations_width, line_numbers, repositories_state,"
+			"repositories_width FROM workbench_layout "
 			"WHERE singleton = 1");
 		if (!statement) {
 			return std::unexpected(statement.error());
@@ -472,15 +499,23 @@ namespace bpr::adapters::sqlite::detail {
 		if (!lineNumbers) {
 			return std::unexpected(lineNumbers.error());
 		}
+		const auto repositories = drawer_state_of(
+			::sqlite3_column_int64(statement->Value, 5));
+		if (!repositories) {
+			return std::unexpected(repositories.error());
+		}
 
 		return application::workbench_layout_settings{
 			.Files         = *files,
 			.Conversations = *conversations,
+			.Repositories  = *repositories,
 			.LineNumbers   = *lineNumbers,
 			.FilesWidth    = static_cast<std::uint32_t>(
 				::sqlite3_column_int64(statement->Value, 2)),
 			.ConversationsWidth = static_cast<std::uint32_t>(
 				::sqlite3_column_int64(statement->Value, 3)),
+			.RepositoriesWidth = static_cast<std::uint32_t>(
+				::sqlite3_column_int64(statement->Value, 6)),
 		};
 	}
 

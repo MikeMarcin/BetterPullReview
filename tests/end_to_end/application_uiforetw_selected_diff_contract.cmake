@@ -173,6 +173,7 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
 		next_change_navigation_exercised
 		files_drawer_toggle_exercised
 		conversations_drawer_toggle_exercised
+		repositories_drawer_toggle_exercised
 		navigation_row_exact_order
 		navigation_actions_icon_only
 		navigation_actions_have_native_icons
@@ -288,6 +289,7 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
         gutter_rect_in_window
         files_drawer_rect_in_splitter
         conversations_drawer_rect_in_splitter
+        repositories_drawer_rect_in_splitter
         review_details_rect_in_window
     )
         foreach(component IN ITEMS x y width height)
@@ -366,7 +368,12 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
     # at its right edge.
     math(EXPR conversations_drawer_right
         "${conversations_drawer_rect_in_splitter_x} + ${conversations_drawer_rect_in_splitter_width}")
-    if(NOT files_drawer_rect_in_splitter_x EQUAL 0
+    # [[BPR-0651]]. The repositories rail is first, at the splitter's left
+    # edge; the files rail follows it past one handle.
+    if(NOT repositories_drawer_rect_in_splitter_x EQUAL 0
+            OR repositories_drawer_rect_in_splitter_width GREATER 18
+            OR files_drawer_rect_in_splitter_x LESS 18
+            OR files_drawer_rect_in_splitter_x GREATER 40
             OR files_drawer_rect_in_splitter_y LESS 0
             OR files_drawer_rect_in_splitter_width GREATER 18
             OR NOT conversations_drawer_right EQUAL 1280

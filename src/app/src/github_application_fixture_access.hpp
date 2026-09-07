@@ -242,10 +242,10 @@ namespace bpr::app::detail {
 
 	struct github_epoch_maintenance_fixture_evidence
 	{
-		std::size_t  PruneIntentDispatchCount          = 0U;
-		std::size_t  DeleteIntentDispatchCount         = 0U;
-		std::size_t  CancelIntentDispatchCount         = 0U;
-		std::int64_t CatalogRevision                   = 0;
+		std::size_t  PruneIntentDispatchCount  = 0U;
+		std::size_t  DeleteIntentDispatchCount = 0U;
+		std::size_t  CancelIntentDispatchCount = 0U;
+		std::int64_t CatalogRevision           = 0;
 		std::string  TargetBaseCatalogOid, TargetHeadCatalogOid, TargetBaseRefOid, TargetHeadRefOid;
 		bool         TargetBaseRefPresent              = false;
 		bool         TargetHeadRefPresent              = false;
@@ -560,6 +560,7 @@ namespace bpr::app::detail {
 		bool NextChangeNavigation      = false;
 		bool FilesDrawerToggle         = false;
 		bool ConversationsDrawerToggle = false;
+		bool RepositoriesDrawerToggle  = false;
 		bool FocusedReviewLayout       = false;
 		bool FixtureDiffHelperUnused   = false;
 

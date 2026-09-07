@@ -24,7 +24,7 @@ namespace bpr::adapters::sqlite::detail {
 	/// a version-one database gains the column and keeps its row, and a
 	/// database stamped newer still fails closed rather than being partially
 	/// understood.
-	inline constexpr std::int64_t workbench_settings_schema_version = 2;
+	inline constexpr std::int64_t workbench_settings_schema_version = 3;
 
 	/// \brief Owns the durable workbench layout database.
 	///

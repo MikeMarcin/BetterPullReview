@@ -19,6 +19,7 @@ add_library(
         src/workbench_landing.cpp
         src/pull_request_overview_page.cpp
         src/conversation_cards_view.cpp
+        src/repositories_drawer.cpp
         src/comparison_scroll_controller.cpp
         src/diff_link_map.cpp
 		src/diff_workbench.cpp

@@ -291,7 +291,7 @@ namespace bpr::qt {
 		// fit with nothing folded into an overflow menu. The identity and the
 		// two position labels are the only strip items that yield width, and
 		// they do so before the floor (see apply_strip_width).
-		setMinimumSize(860, 360);
+		setMinimumSize(900, 360);
 		resize(1'280, 820);
 
 		build_menu_bar();
@@ -380,6 +380,17 @@ namespace bpr::qt {
 			QStringLiteral("Hide the conversation drawer and give its width to the comparison."),
 			QStringLiteral("Show the conversation drawer at its saved width."),
 			QKeySequence{ QStringLiteral("Alt+Shift+2") });
+		// [[BPR-0651]]. The repositories drawer, left of the files. Alt+Shift+3
+		// to 5 are taken by the line numbers, review controls and review
+		// details, so this one is mnemonic.
+		Drawers[2] = makeDrawer(
+			QStringLiteral("&Repositories drawer"),
+			QStringLiteral("Repositories drawer"),
+			QStringLiteral("Repositories drawer toggle"),
+			QStringLiteral("toggleWorkbenchRepositoriesDrawerAction"),
+			QStringLiteral("Hide the repositories drawer and give its width to the comparison."),
+			QStringLiteral("Show the repositories drawer at its saved width."),
+			QKeySequence{ QStringLiteral("Alt+Shift+R") });
 
 		const auto make = [this](const QString&      aText,
 								 const QString&      aName,
@@ -595,6 +606,7 @@ namespace bpr::qt {
 			choose_home(aChecked);
 		});
 		PrimaryToolbar->addAction(HomeAction);
+		PrimaryToolbar->addAction(Drawers[2].Toggle);
 		PrimaryToolbar->addAction(Drawers[0].Toggle);
 		IdentityLabel = stripLabel(
 			QStringLiteral("workbenchStripIdentity"),
@@ -754,6 +766,32 @@ namespace bpr::qt {
 		Drawers[1].Panel = new workbench_drawer_panel{
 			core::workbench_drawer::conversations
 		};
+		// [[BPR-0651]]. The repositories tree: each repository the queue names
+		// with its pull requests of interest; choosing one opens it on its
+		// overview through the same intent the locator sends.
+		Drawers[2].Panel = new workbench_drawer_panel{
+			core::workbench_drawer::repositories
+		};
+		RepositoriesTree = new repositories_tree_view{ Drawers[2].Panel };
+		RepositoriesTree->set_open_dispatch([this](const core::queue_item& aItem) {
+			if (!GithubDispatch) {
+				return;
+			}
+			const auto repository = QString::fromStdString(aItem.Ref.Repository);
+			const auto slash      = repository.indexOf(QLatin1Char{ '/' });
+			if (slash <= 0 || aItem.Ref.Number <= 0) {
+				return;
+			}
+			OpenOnOverview = true;
+			GithubDispatch(core::open_pull_request_intent{
+				.Repository = core::repository_locator{
+					.Owner = repository.left(slash).toStdString(),
+					.Name  = repository.mid(slash + 1).toStdString(),
+				},
+				.Number = core::pull_request_number{ static_cast<std::uint32_t>(aItem.Ref.Number) },
+			});
+		});
+		Drawers[2].Panel->set_content_widget(RepositoriesTree, RepositoriesTree);
 		// [[BPR-0646]]. A rail is the collapsed drawer's one control, and
 		// pressing it is the same gesture as the strip's toggle: the action
 		// is triggered, and the core decides.
@@ -1029,6 +1067,7 @@ namespace bpr::qt {
 		conversationScroll->setWidget(conversationContents);
 		Drawers[1].Panel->set_content_widget(
 			conversationScroll, ConversationPanel->view());
+		CentralSplitter->addWidget(Drawers[2].Panel);
 		CentralSplitter->addWidget(Drawers[0].Panel);
 		CentralSplitter->addWidget(CentreSurface);
 		CentralSplitter->addWidget(Drawers[1].Panel);
@@ -1059,8 +1098,9 @@ namespace bpr::qt {
 		// Only the centre absorbs a window resize, so a drawer keeps the width the
 		// host persisted until the user moves the handle.
 		CentralSplitter->setStretchFactor(0, 0);
-		CentralSplitter->setStretchFactor(1, 1);
-		CentralSplitter->setStretchFactor(2, 0);
+		CentralSplitter->setStretchFactor(1, 0);
+		CentralSplitter->setStretchFactor(2, 1);
+		CentralSplitter->setStretchFactor(3, 0);
 
 		for (auto& entry : Drawers) {
 			entry.Panel->set_width_dispatch(
@@ -1804,6 +1844,10 @@ namespace bpr::qt {
 		QueueProjection = aProjection;
 		QueueRules      = aProjection.Rules;
 		QueueLanding->apply(aProjection.Items);
+		if (RepositoriesTree != nullptr) {
+			RepositoriesTree->apply(aProjection.Items);
+			update_rail_summaries();
+		}
 		rebuild_queue_repositories(
 			aProjection.Items, aProjection.Preferences.Repository);
 		apply_queue_preferences(aProjection.Preferences);
@@ -2737,6 +2781,33 @@ namespace bpr::qt {
 		return Drawers[0].Panel;
 	}
 
+	auto workbench_window::repositories_drawer() const noexcept -> workbench_drawer_panel*
+	{
+		return Drawers[2].Panel;
+	}
+
+	auto workbench_window::repositories_drawer_toggle_action() const noexcept -> QAction*
+	{
+		return Drawers[2].Toggle;
+	}
+
+	auto workbench_window::repositories_tree() const noexcept -> repositories_tree_view*
+	{
+		return RepositoriesTree;
+	}
+
+	auto workbench_window::presented_repositories_state() const
+		-> core::workbench_drawer_state
+	{
+		// As the files drawer: shown while the core offers no drawer command,
+		// so a reviewer with nothing open can still reach a pull request.
+		const auto toggle = command(core::workbench_command_id::toggle_repositories_drawer);
+		if (!toggle || !toggle->Enabled) {
+			return core::workbench_drawer_state::expanded;
+		}
+		return DrawerStates.Repositories;
+	}
+
 	auto workbench_window::conversations_drawer() const noexcept
 		-> workbench_drawer_panel*
 	{
@@ -2847,6 +2918,12 @@ namespace bpr::qt {
 		refresh_cards();
 		update_defect_surface();
 		HasGithubPullRequest = true;
+		// [[BPR-0651]]. A pull request chosen from the repositories tree
+		// opens on its overview, as the design says it does.
+		if (OpenOnOverview) {
+			OpenOnOverview = false;
+			choose_modality(review_modality::overview);
+		}
 		SessionPanel->apply_capabilities(aPullRequest.Capabilities);
 		SessionPanel->apply_rate_limits(aPullRequest.RateLimits);
 		update_github_presentation_state();
@@ -3511,6 +3588,7 @@ namespace bpr::qt {
 				PrimaryToolbar->widgetForAction(aAction));
 		};
 		append(presenter(HomeAction));
+		append(presenter(Drawers[2].Toggle));
 		append(presenter(Drawers[0].Toggle));
 		append(presenter(Navigation[2].Action));
 		append(presenter(Navigation[3].Action));
@@ -3552,6 +3630,8 @@ namespace bpr::qt {
 			append(PullRequestPanel->body_editor());
 		}
 		// A collapsed drawer's rail is its one stop; hidden while expanded.
+		append(Drawers[2].Panel->rail());
+		append(Drawers[2].Panel->focus_stop());
 		append(Drawers[0].Panel->rail());
 		append(Drawers[0].Panel->focus_stop());
 		// The line and its comparing menu first, then the two selectors on
@@ -3655,6 +3735,12 @@ namespace bpr::qt {
 		Drawers[1].Panel->rail()->set_summary(
 			ReviewThreadTotal > 0U ? QString::number(ReviewThreadTotal)
 								   : QString{ });
+		// The repositories rail: how many pull requests need me.
+		const auto needsMe = RepositoriesTree != nullptr
+			? RepositoriesTree->tree_model()->needs_me_count()
+			: std::size_t{ 0U };
+		Drawers[2].Panel->rail()->set_summary(
+			needsMe > 0U ? QString::number(needsMe) : QString{ });
 	}
 
 	void workbench_window::infer_modality_from_drawers()
@@ -3905,10 +3991,17 @@ namespace bpr::qt {
 		if (!Dispatch) {
 			return;
 		}
-		Dispatch(core::toggle_workbench_drawer_intent{
-			.Drawer = aIndex == 0U ? core::workbench_drawer::files
-								   : core::workbench_drawer::conversations,
-		});
+		const auto drawer = [aIndex] {
+			switch (aIndex) {
+			case 0U:
+				return core::workbench_drawer::files;
+			case 1U:
+				return core::workbench_drawer::conversations;
+			default:
+				return core::workbench_drawer::repositories;
+			}
+		}();
+		Dispatch(core::toggle_workbench_drawer_intent{ .Drawer = drawer });
 	}
 
 	void workbench_window::dispatch_receipt(const std::size_t aIndex)
@@ -3939,9 +4032,17 @@ namespace bpr::qt {
 		if (ApplyingLayout || !LayoutWidths) {
 			return;
 		}
-		auto& retained = aDrawer == core::workbench_drawer::files
-			? LayoutWidths->FilesWidth
-			: LayoutWidths->ConversationsWidth;
+		auto& retained = [this, aDrawer]() -> std::uint32_t& {
+			switch (aDrawer) {
+			case core::workbench_drawer::files:
+				return LayoutWidths->FilesWidth;
+			case core::workbench_drawer::conversations:
+				return LayoutWidths->ConversationsWidth;
+			case core::workbench_drawer::repositories:
+				return LayoutWidths->RepositoriesWidth;
+			}
+			return LayoutWidths->FilesWidth;
+		}();
 		if (retained == aWidth) {
 			return;
 		}
@@ -3958,7 +4059,14 @@ namespace bpr::qt {
 		ApplyingLayout = true;
 		Drawers[0].Panel->adopt(presented_files_state());
 		Drawers[1].Panel->adopt(DrawerStates.Conversations);
+		Drawers[2].Panel->adopt(presented_repositories_state());
 		if (LayoutWidths) {
+			// A layout from before the repositories drawer carries no width
+			// for it. The design's 300 is what the window grants, echoed here
+			// so the grant is not reported back as a resize.
+			if (LayoutWidths->RepositoriesWidth == 0U) {
+				LayoutWidths->RepositoriesWidth = 300U;
+			}
 			CentralSplitter->setSizes(central_sizes());
 		}
 		ApplyingLayout = false;
@@ -3996,10 +4104,14 @@ namespace bpr::qt {
 			= DrawerStates.Conversations == core::workbench_drawer_state::expanded
 			? granted(LayoutWidths->ConversationsWidth)
 			: workbench_drawer_rail::width_pixels;
-		const auto handles = 2 * CentralSplitter->handleWidth();
+		const auto repositories
+			= presented_repositories_state() == core::workbench_drawer_state::expanded
+			? granted(LayoutWidths->RepositoriesWidth)
+			: workbench_drawer_rail::width_pixels;
+		const auto handles = 3 * CentralSplitter->handleWidth();
 		const auto centre  = std::max(
-			1, CentralSplitter->width() - files - conversations - handles);
-		return { files, centre, conversations };
+			1, CentralSplitter->width() - repositories - files - conversations - handles);
+		return { repositories, files, centre, conversations };
 	}
 
 	void workbench_window::configure_tool_buttons()
@@ -4072,6 +4184,7 @@ namespace bpr::qt {
 			HomeAction->setIcon(strip_icon(strip_glyph::home, ink));
 		}
 		Drawers[0].Toggle->setIcon(strip_icon(strip_glyph::files_drawer, ink));
+		Drawers[2].Toggle->setIcon(strip_icon(strip_glyph::repositories_drawer, ink));
 		Navigation[0].Action->setIcon(strip_icon(strip_glyph::previous_file, ink));
 		Navigation[1].Action->setIcon(strip_icon(strip_glyph::next_file, ink));
 		Navigation[2].Action->setIcon(strip_icon(strip_glyph::previous_change, ink));
@@ -4153,6 +4266,13 @@ namespace bpr::qt {
 			1U,
 			core::workbench_command_id::toggle_conversations_drawer,
 			DrawerStates.Conversations);
+		update_drawer_action(
+			2U,
+			core::workbench_command_id::toggle_repositories_drawer,
+			DrawerStates.Repositories);
+		if (Drawers[2].Panel->state() != presented_repositories_state()) {
+			apply_drawer_layout();
+		}
 		apply_line_numbers();
 		update_receipt_actions();
 		// Last, and deliberately. The mode is not a second opinion about a

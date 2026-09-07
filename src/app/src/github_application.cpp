@@ -12833,10 +12833,21 @@ namespace bpr::app {
 			auto* const files = window->files_drawer_toggle_action();
 			auto* const conversations
 				= window->conversations_drawer_toggle_action();
-			auto* const details = window->review_details_toggle_action();
+			auto* const repositories = window->repositories_drawer_toggle_action();
+			auto* const details      = window->review_details_toggle_action();
 			if (files == nullptr || conversations == nullptr || details == nullptr
-				|| !files->isEnabled() || !conversations->isEnabled()) {
+				|| repositories == nullptr || !files->isEnabled()
+				|| !conversations->isEnabled() || !repositories->isEnabled()) {
 				return fail();
+			}
+			// [[BPR-0651]]. The third drawer collapses to its rail like the
+			// other two, so the focused layout is the comparison alone.
+			if (repositories->isChecked()) {
+				const auto dispatches = implementation->WorkbenchIntentDispatches;
+				repositories->trigger();
+				probe.Evidence.RepositoriesDrawerToggle
+					= implementation->WorkbenchIntentDispatches == dispatches + 1U
+					&& !repositories->isChecked();
 			}
 			if (files->isChecked()) {
 				const auto dispatches = implementation->WorkbenchIntentDispatches;
@@ -12856,7 +12867,8 @@ namespace bpr::app {
 				details->trigger();
 			}
 			if (!probe.Evidence.FilesDrawerToggle
-				|| !probe.Evidence.ConversationsDrawerToggle) {
+				|| !probe.Evidence.ConversationsDrawerToggle
+				|| !probe.Evidence.RepositoriesDrawerToggle) {
 				return fail();
 			}
 			probe.Waits = 0U;
@@ -12873,7 +12885,10 @@ namespace bpr::app {
 					<= qt::workbench_drawer_rail::width_pixels
 				&& window->conversations_drawer()->width()
 					<= qt::workbench_drawer_rail::width_pixels
+				&& window->repositories_drawer()->width()
+					<= qt::workbench_drawer_rail::width_pixels
 				&& !window->files_drawer_toggle_action()->isChecked()
+				&& !window->repositories_drawer_toggle_action()->isChecked()
 				&& !window->conversations_drawer_toggle_action()->isChecked()
 				&& !window->review_details_toggle_action()->isChecked()
 				&& !window->epoch_selectors()->details_visible()
@@ -13088,15 +13103,16 @@ namespace bpr::app {
 			return false;
 		}
 
-		auto* const detail            = workbench->detail_pane();
-		auto* const comparisonSurface = workbench->comparison_splitter();
-		auto* const linkMap           = workbench->link_map();
-		auto* const toolbar           = window->primary_toolbar();
-		auto* const filesAction       = window->files_drawer_toggle_action();
-		auto* const previousFile      = window->previous_file_action();
-		auto* const nextFile          = window->next_file_action();
-		auto* const previousChange    = window->previous_change_action();
-		auto* const nextChange        = window->next_change_action();
+		auto* const detail             = workbench->detail_pane();
+		auto* const comparisonSurface  = workbench->comparison_splitter();
+		auto* const linkMap            = workbench->link_map();
+		auto* const toolbar            = window->primary_toolbar();
+		auto* const filesAction        = window->files_drawer_toggle_action();
+		auto* const repositoriesAction = window->repositories_drawer_toggle_action();
+		auto* const previousFile       = window->previous_file_action();
+		auto* const nextFile           = window->next_file_action();
+		auto* const previousChange     = window->previous_change_action();
+		auto* const nextChange         = window->next_change_action();
 		auto* const conversationsAction
 			= window->conversations_drawer_toggle_action();
 		auto* const reviewDetails  = window->review_details_toggle_action();
@@ -13108,7 +13124,7 @@ namespace bpr::app {
 			|| window->conversations_drawer()->width()
 				> qt::workbench_drawer_rail::width_pixels
 			|| comparisonSurface == nullptr || linkMap == nullptr
-			|| toolbar == nullptr || filesAction == nullptr
+			|| toolbar == nullptr || filesAction == nullptr || repositoriesAction == nullptr
 			|| previousFile == nullptr || nextFile == nullptr
 			|| previousChange == nullptr || nextChange == nullptr
 			|| conversationsAction == nullptr || reviewDetails == nullptr
@@ -13167,7 +13183,7 @@ namespace bpr::app {
 				return toolbar->widgetForAction(aAction) == spacer;
 			});
 		// [[BPR-0646]]. RFC-BPR-0028's strip, left to right: the platform
-		// inset, Home, files, the identity, a rule, the change pair with its position, the file pair
+		// inset, Home, repositories, files, the identity, a rule, the change pair with its position, the file pair
 		// with its position, a spacer, the modality control, a spacer, the
 		// review details and private progress controls, refresh, comments, a
 		// rule, account, settings.
@@ -13177,28 +13193,29 @@ namespace bpr::app {
 					  && toolbarActions[static_cast<qsizetype>(aIndex)]->objectName()
 					  == QLatin1String{ aName };
 			  };
-		const auto exactRowOrder = toolbarActions.size() == 21U
+		const auto exactRowOrder = toolbarActions.size() == 22U
 			&& widgetActionNamed(0U, "workbenchStripInsetAction")
 			&& toolbarActions[1] == window->home_action()
-			&& toolbarActions[2] == filesAction
-			&& widgetActionNamed(3U, "workbenchStripIdentityAction")
-			&& widgetActionNamed(4U, "workbenchStripLeftDividerAction")
-			&& toolbarActions[5] == previousChange
-			&& toolbarActions[6] == nextChange
-			&& widgetActionNamed(7U, "workbenchStripChangePositionAction")
-			&& toolbarActions[8] == previousFile
-			&& toolbarActions[9] == nextFile
-			&& widgetActionNamed(10U, "workbenchStripFilePositionAction")
-			&& spacerAction == toolbarActions.begin() + 11
-			&& widgetActionNamed(12U, "workbenchModalityAction")
-			&& widgetActionNamed(13U, "workbenchModalitySpacerAction")
-			&& toolbarActions[14] == reviewDetails
-			&& reviewControlsAction == toolbarActions.begin() + 15
-			&& toolbarActions[16] == window->github_refresh_action()
-			&& toolbarActions[17] == conversationsAction
-			&& widgetActionNamed(18U, "workbenchStripRightDividerAction")
-			&& toolbarActions[19] == window->account_action()
-			&& toolbarActions[20] == window->settings_action();
+			&& toolbarActions[2] == repositoriesAction
+			&& toolbarActions[3] == filesAction
+			&& widgetActionNamed(4U, "workbenchStripIdentityAction")
+			&& widgetActionNamed(5U, "workbenchStripLeftDividerAction")
+			&& toolbarActions[6] == previousChange
+			&& toolbarActions[7] == nextChange
+			&& widgetActionNamed(8U, "workbenchStripChangePositionAction")
+			&& toolbarActions[9] == previousFile
+			&& toolbarActions[10] == nextFile
+			&& widgetActionNamed(11U, "workbenchStripFilePositionAction")
+			&& spacerAction == toolbarActions.begin() + 12
+			&& widgetActionNamed(13U, "workbenchModalityAction")
+			&& widgetActionNamed(14U, "workbenchModalitySpacerAction")
+			&& toolbarActions[15] == reviewDetails
+			&& reviewControlsAction == toolbarActions.begin() + 16
+			&& toolbarActions[17] == window->github_refresh_action()
+			&& toolbarActions[18] == conversationsAction
+			&& widgetActionNamed(19U, "workbenchStripRightDividerAction")
+			&& toolbarActions[20] == window->account_action()
+			&& toolbarActions[21] == window->settings_action();
 		auto iconOnly    = toolbar->toolButtonStyle() == Qt::ToolButtonIconOnly;
 		auto nativeIcons = true;
 		auto accessible  = true;
@@ -13440,6 +13457,8 @@ namespace bpr::app {
 			implementation->UIforEtwSelectedDiffProbe->Evidence.FilesDrawerToggle,
 			"conversations_drawer_toggle_exercised",
 			implementation->UIforEtwSelectedDiffProbe->Evidence.ConversationsDrawerToggle,
+			"repositories_drawer_toggle_exercised",
+			implementation->UIforEtwSelectedDiffProbe->Evidence.RepositoriesDrawerToggle,
 			"navigation_row_exact_order",
 			exactRowOrder,
 			"navigation_actions_icon_only",
@@ -13504,6 +13523,8 @@ namespace bpr::app {
 			rectangle_json(window->files_drawer()->geometry()),
 			"conversations_drawer_rect_in_splitter",
 			rectangle_json(window->conversations_drawer()->geometry()),
+			"repositories_drawer_rect_in_splitter",
+			rectangle_json(window->repositories_drawer()->geometry()),
 			"review_details_rect_in_window",
 			rectangle_json(inWindow(*window->epoch_selectors())),
 			"comparison_width_ratio_permille",

@@ -2483,6 +2483,83 @@ namespace {
 		window.hide();
 	}
 
+	auto test_repositories_drawer_lists_the_queue_and_opens_on_overview() -> void
+	{
+		// [[BPR-0651]]. The repositories drawer, left of the files: the queue's
+		// pull requests under their repositories, a toggle, a rail, and a row
+		// that opens its pull request on Overview.
+		std::vector<application::github_intent> intents;
+		qt::workbench_window                    window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			profiles(),
+			[&intents](application::github_intent aIntent) {
+				intents.push_back(aIntent);
+			},
+		};
+		window.resize(1'280, 820);
+		window.show();
+		QApplication::processEvents();
+		publish_session_ready(window);
+		publish_pull_request(window);
+		QApplication::processEvents();
+
+		auto* const drawer   = window.repositories_drawer();
+		auto* const tree     = window.repositories_tree();
+		auto* const splitter = window.findChild<QSplitter*>(QStringLiteral("workbenchCentralSplitter"));
+		expect(drawer != nullptr && tree != nullptr && drawer->isVisible() && splitter != nullptr
+				   && splitter->indexOf(drawer) == 0
+				   && splitter->indexOf(window.files_drawer()) == 1
+				   && splitter->indexOf(window.conversations_drawer()) == 3
+				   && drawer->isAncestorOf(tree),
+			   "the repositories drawer sits left of the files drawer with the tree inside");
+		expect(window.repositories_drawer_toggle_action()->shortcut()
+					   == QKeySequence{ QStringLiteral("Alt+Shift+R") }
+				   && window.primary_toolbar()->actions().indexOf(window.repositories_drawer_toggle_action())
+					   < window.primary_toolbar()->actions().indexOf(window.files_drawer_toggle_action()),
+			   "its toggle precedes Files in the strip with its own binding");
+
+		window.publish(application::queue_landing_projection{
+			.Status = application::queue_landing_status::ready,
+			.Items  = {
+				core::queue_item{
+					.Ref        = { .Host = "github.com", .Account = "octo-reviewer", .Repository = "better-pull-review/desktop", .Number = 73 },
+					.Membership = { .Role = core::github_role::requested_reviewer },
+					.Bucket     = core::attention_bucket::initial_review_requested,
+				},
+				core::queue_item{
+					.Ref        = { .Host = "github.com", .Account = "octo-reviewer", .Repository = "better-pull-review/desktop", .Number = 74 },
+					.Membership = { .Role = core::github_role::participant },
+					.Bucket     = core::attention_bucket::quiet,
+				},
+			},
+		});
+		QApplication::processEvents();
+		auto* const model = tree->tree_model();
+		expect(model->rowCount() == 1 && model->item_count() == 2U
+				   && model->index(0, 0).data().toString() == QStringLiteral("better-pull-review/desktop")
+				   && drawer->rail()->summary() == QStringLiteral("1"),
+			   "the queue's pull requests hang under their repository and the rail counts the ones that need me");
+
+		// Choosing a row opens its pull request, which arrives on Overview.
+		intents.clear();
+		const auto row = model->index(0, 0, model->index(0, 0));
+		tree->setCurrentIndex(row);
+		QApplication::processEvents();
+		const auto* const open = intents.empty() ? nullptr : std::get_if<core::open_pull_request_intent>(&intents.back());
+		expect(intents.size() == 1U && open != nullptr
+				   && open->Repository == core::repository_locator{ .Owner = "better-pull-review", .Name = "desktop" }
+				   && open->Number == core::pull_request_number{ 73U },
+			   "choosing a pull request row opens it through the GitHub intent");
+		window.choose_modality(qt::review_modality::read);
+		publish_pull_request(window);
+		QApplication::processEvents();
+		expect(window.current_modality() == qt::review_modality::overview,
+			   "the pull request chosen from the tree arrives on Overview");
+		window.hide();
+	}
+
 	auto test_agent_surfaces_are_placed_in_the_conversations_drawer() -> void
 	{
 		qt::workbench_window window{
@@ -3471,6 +3548,7 @@ auto main(int argc, char** argv) -> int
 	test_accessible_announcements_are_combined_and_deduplicated();
 	test_accessibility_minimum_geometry_and_render();
 	test_agent_surfaces_are_placed_in_the_conversations_drawer();
+	test_repositories_drawer_lists_the_queue_and_opens_on_overview();
 	test_read_drawer_shows_threads_as_cards_with_scope_and_actions();
 	test_drawer_controls_are_reachable_in_the_conversations_drawer();
 	test_home_landing_funnels_to_an_account_and_then_a_pull_request();

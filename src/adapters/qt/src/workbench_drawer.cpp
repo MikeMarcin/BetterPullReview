@@ -36,33 +36,50 @@ namespace bpr::qt {
 			return roles;
 		}
 
-		[[nodiscard]] auto is_files(const core::workbench_drawer aDrawer) noexcept
-			-> bool
-		{
-			return aDrawer == core::workbench_drawer::files;
-		}
-
 		[[nodiscard]] auto panel_object_name(const core::workbench_drawer aDrawer)
 			-> QString
 		{
-			return is_files(aDrawer) ? QStringLiteral("workbenchFilesDrawer")
-									 : QStringLiteral("workbenchConversationsDrawer");
+			// [[BPR-0651]]. Named by switch: a drawer this file does not know
+			// is a compile error, never the conversations' name twice.
+			switch (aDrawer) {
+			case core::workbench_drawer::files:
+				return QStringLiteral("workbenchFilesDrawer");
+			case core::workbench_drawer::conversations:
+				return QStringLiteral("workbenchConversationsDrawer");
+			case core::workbench_drawer::repositories:
+				return QStringLiteral("workbenchRepositoriesDrawer");
+			}
+			return QStringLiteral("workbenchFilesDrawer");
 		}
 
 		[[nodiscard]] auto panel_name(const core::workbench_drawer aDrawer) -> QString
 		{
-			return is_files(aDrawer) ? QStringLiteral("Files drawer")
-									 : QStringLiteral("Conversations drawer");
+			switch (aDrawer) {
+			case core::workbench_drawer::files:
+				return QStringLiteral("Files drawer");
+			case core::workbench_drawer::conversations:
+				return QStringLiteral("Conversations drawer");
+			case core::workbench_drawer::repositories:
+				return QStringLiteral("Repositories drawer");
+			}
+			return QStringLiteral("Files drawer");
 		}
 
 		[[nodiscard]] auto panel_description(const core::workbench_drawer aDrawer)
 			-> QString
 		{
-			return is_files(aDrawer)
-				? QStringLiteral(
-					  "Actionable pull-request files for the current review")
-				: QStringLiteral(
-					  "Review conversations anchored to the current comparison");
+			switch (aDrawer) {
+			case core::workbench_drawer::files:
+				return QStringLiteral(
+					"Actionable pull-request files for the current review");
+			case core::workbench_drawer::conversations:
+				return QStringLiteral(
+					"Review conversations anchored to the current comparison");
+			case core::workbench_drawer::repositories:
+				return QStringLiteral(
+					"Repositories with their pull requests of interest");
+			}
+			return QString{ };
 		}
 	}
 
@@ -255,13 +272,9 @@ namespace bpr::qt {
 		, Drawer{ aDrawer }
 	{
 		setObjectName(panel_object_name(aDrawer) + QStringLiteral("Rail"));
-		setAccessibleName(
-			is_files(aDrawer) ? QStringLiteral("Files rail")
-							  : QStringLiteral("Comments rail"));
+		setAccessibleName(label() + QStringLiteral(" rail"));
 		setAccessibleDescription(
-			is_files(aDrawer)
-				? QStringLiteral("Expand the files drawer.")
-				: QStringLiteral("Expand the comments drawer."));
+			QStringLiteral("Expand the %1 drawer.").arg(label().toLower()));
 		setFocusPolicy(Qt::StrongFocus);
 		setCursor(Qt::PointingHandCursor);
 		setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
@@ -287,8 +300,15 @@ namespace bpr::qt {
 
 	auto workbench_drawer_rail::label() const -> QString
 	{
-		return is_files(Drawer) ? QStringLiteral("Files")
-								: QStringLiteral("Comments");
+		switch (Drawer) {
+		case core::workbench_drawer::files:
+			return QStringLiteral("Files");
+		case core::workbench_drawer::conversations:
+			return QStringLiteral("Comments");
+		case core::workbench_drawer::repositories:
+			return QStringLiteral("Repositories");
+		}
+		return QStringLiteral("Files");
 	}
 
 	auto workbench_drawer_rail::sizeHint() const -> QSize
@@ -309,7 +329,9 @@ namespace bpr::qt {
 		painter.fillRect(rect(), palette().color(QPalette::Active, QPalette::Window));
 		// The rule sits on the edge the drawer reopens from.
 		painter.setPen(palette().color(QPalette::Active, QPalette::Mid));
-		const auto edge = is_files(Drawer) ? width() - 1 : 0;
+		// A left drawer draws its rule on its right edge, the comments drawer
+		// on its left.
+		const auto edge = Drawer != core::workbench_drawer::conversations ? width() - 1 : 0;
 		painter.drawLine(edge, 0, edge, height());
 		if (hasFocus()) {
 			painter.setPen(QPen{ palette().color(QPalette::Active, QPalette::Highlight), 1.0 });

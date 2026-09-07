@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0658",
+    "BPR-0659"
+  ],
+  "reserve_for": "bpr-drawers-followups",
+  "purpose": "Files tree drawer; repository projection with titles, unseen counts and saved repositories",
+  "created": "2026-09-07T06:52:12.182050+00:00",
+  "base": "f227072e986b1471f75b497e1f48bfb03b23c853"
+}

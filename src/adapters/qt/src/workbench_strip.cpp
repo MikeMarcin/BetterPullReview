@@ -67,6 +67,14 @@ namespace bpr::qt {
 				aPainter.drawRect(QRectF{ 4.0, 5.0, 16.0, 14.0 });
 				aPainter.drawLine(QPointF{ 15.0, 5.0 }, QPointF{ 15.0, 19.0 });
 				break;
+			case strip_glyph::repositories_drawer:
+				// A panel with a tree in it: a root row and two indented rows.
+				aPainter.drawRect(QRectF{ 4.0, 5.0, 16.0, 14.0 });
+				aPainter.drawLine(QPointF{ 7.0, 9.0 }, QPointF{ 12.0, 9.0 });
+				aPainter.drawLine(QPointF{ 9.0, 12.5 }, QPointF{ 14.0, 12.5 });
+				aPainter.drawLine(QPointF{ 9.0, 16.0 }, QPointF{ 14.0, 16.0 });
+				aPainter.drawLine(QPointF{ 8.0, 9.0 }, QPointF{ 8.0, 16.0 });
+				break;
 			case strip_glyph::previous_change:
 				chevron(9.5, true);
 				break;

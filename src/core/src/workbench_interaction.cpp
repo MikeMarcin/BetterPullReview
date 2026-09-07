@@ -201,6 +201,23 @@ namespace bpr::core {
 			};
 		}
 
+		/// \brief The one drawer state a drawer names; a switch, so a drawer
+		/// this function does not know is a compile error, never an alias.
+		[[nodiscard]] constexpr auto drawer_state_of(
+			workbench_interaction_state& aState,
+			const workbench_drawer       aDrawer) noexcept -> workbench_drawer_state&
+		{
+			switch (aDrawer) {
+			case workbench_drawer::files:
+				return aState.FilesDrawer;
+			case workbench_drawer::conversations:
+				return aState.ConversationsDrawer;
+			case workbench_drawer::repositories:
+				return aState.RepositoriesDrawer;
+			}
+			return aState.FilesDrawer;
+		}
+
 		[[nodiscard]] constexpr auto published_drawers(
 			const workbench_interaction_state& aState) noexcept
 			-> workbench_drawer_delta
@@ -208,6 +225,7 @@ namespace bpr::core {
 			return {
 				.Files         = aState.FilesDrawer,
 				.Conversations = aState.ConversationsDrawer,
+				.Repositories  = aState.RepositoriesDrawer,
 			};
 		}
 
@@ -267,9 +285,7 @@ namespace bpr::core {
 				return { .Reason = rejection };
 			}
 
-			auto& retained = aDrawer == workbench_drawer::files
-				? aState.FilesDrawer
-				: aState.ConversationsDrawer;
+			auto& retained = drawer_state_of(aState, aDrawer);
 			if (retained == aRequested) {
 				return { };
 			}
@@ -356,10 +372,8 @@ namespace bpr::core {
 			const toggle_workbench_drawer_intent& aIntent)
 			-> workbench_interaction_output
 		{
-			const auto retained = aIntent.Drawer == workbench_drawer::files
-				? aState.FilesDrawer
-				: aState.ConversationsDrawer;
-			return apply_drawer(aState, aIntent.Drawer, toggled(retained));
+			return apply_drawer(
+				aState, aIntent.Drawer, toggled(drawer_state_of(aState, aIntent.Drawer)));
 		}
 
 		[[nodiscard]] auto apply(
@@ -463,6 +477,7 @@ namespace bpr::core {
 					aState, workbench_command_id::toggle_conversations_drawer),
 				line_numbers_command(
 					aState, workbench_command_id::toggle_line_numbers),
+				drawer_command(aState, workbench_command_id::toggle_repositories_drawer),
 			},
 			.Policy = aState.NavigationPolicy,
 		};

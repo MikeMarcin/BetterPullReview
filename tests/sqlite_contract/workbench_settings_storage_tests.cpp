@@ -350,6 +350,82 @@ namespace {
 		return value;
 	}
 
+	/// \brief Builds the exact version-two database this store used to write.
+	auto establish_version_two(const std::filesystem::path& aPath) -> void
+	{
+		::sqlite3* raw = nullptr;
+		expect(::sqlite3_open_v2(
+				   aPath.string().c_str(),
+				   &raw,
+				   SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE,
+				   nullptr)
+				   == SQLITE_OK,
+			   "a version-two database is created directly");
+		const auto minimum
+			= std::to_string(application::minimum_workbench_drawer_width);
+		const auto maximum
+			= std::to_string(application::maximum_workbench_drawer_width);
+		const auto sql = std::string{
+			"CREATE TABLE workbench_meta("
+			"singleton INTEGER PRIMARY KEY CHECK(singleton = 1),"
+			"schema_format INTEGER NOT NULL) STRICT;"
+			"CREATE TABLE workbench_layout("
+			"singleton INTEGER PRIMARY KEY CHECK(singleton = 1),"
+			"files_state INTEGER NOT NULL CHECK(files_state BETWEEN 0 AND 1),"
+			"conversations_state INTEGER NOT NULL "
+			"CHECK(conversations_state BETWEEN 0 AND 1),"
+			"files_width INTEGER NOT NULL CHECK(files_width BETWEEN "
+		} + minimum
+			+ " AND " + maximum + "),conversations_width INTEGER NOT NULL "
+								  "CHECK(conversations_width BETWEEN "
+			+ minimum + " AND " + maximum + "),line_numbers INTEGER NOT NULL DEFAULT 1 "
+											"CHECK(line_numbers BETWEEN 0 AND 1)) STRICT;"
+											"INSERT INTO workbench_meta(singleton, schema_format) VALUES(1, 2);"
+											"INSERT INTO workbench_layout(singleton, files_state,"
+											"conversations_state, files_width, conversations_width, line_numbers) "
+											"VALUES(1, 1, 0, 400, 300, 0);"
+			+ "PRAGMA application_id = " + std::to_string(HistoricalApplicationId) + ";" + "PRAGMA user_version = 2;";
+		expect(::sqlite3_exec(raw, sql.c_str(), nullptr, nullptr, nullptr)
+				   == SQLITE_OK,
+			   "the version-two schema and its row are written");
+		(void)::sqlite3_close_v2(raw);
+	}
+
+	/// \brief [[BPR-0651]]. A version-two store gains the repositories drawer.
+	auto test_a_version_two_store_migrates_and_gains_the_repositories_drawer() -> void
+	{
+		const auto scratch = scratch_directory{ };
+		const auto path    = scratch.file("workbench.sqlite3");
+		establish_version_two(path);
+		{
+			auto opened = workbench_settings_database::open(path, { });
+			expect(opened.has_value(), "a version-two database opens rather than being refused");
+			const auto loaded = opened->load({ });
+			expect(loaded.has_value(), "the migrated layout loads");
+			expect(loaded->Files == core::workbench_drawer_state::expanded
+					   && loaded->Conversations == core::workbench_drawer_state::collapsed
+					   && loaded->FilesWidth == 400U && loaded->ConversationsWidth == 300U
+					   && loaded->LineNumbers == core::workbench_line_numbers::hidden,
+				   "every value the version-two row held survived the migration");
+			expect(loaded->Repositories == core::workbench_drawer_state::expanded
+					   && loaded->RepositoriesWidth == 300U,
+				   "the repositories drawer arrives open at the design's width");
+			auto changed              = *loaded;
+			changed.Repositories      = core::workbench_drawer_state::collapsed;
+			changed.RepositoriesWidth = 260U;
+			expect(opened->store(changed, { }).has_value(), "the migrated store takes the new columns");
+			const auto reloaded = opened->load({ });
+			expect(reloaded.has_value() && reloaded->Repositories == core::workbench_drawer_state::collapsed
+					   && reloaded->RepositoriesWidth == 260U,
+				   "the repositories drawer round-trips durably");
+		}
+		expect(integer_pragma(path, "PRAGMA user_version") == workbench_settings_schema_version,
+			   "the migrated database is stamped with the current version");
+		expect(integer_pragma(path, "SELECT schema_format FROM workbench_meta WHERE singleton = 1")
+				   == workbench_settings_schema_version,
+			   "the meta row agrees with the stamp");
+	}
+
 	auto test_a_version_one_store_migrates_and_keeps_its_row() -> void
 	{
 		const auto scratch = scratch_directory{ };
@@ -495,6 +571,7 @@ auto main() -> int
 	test_a_stored_state_outside_the_vocabulary_is_refused();
 	test_a_newer_schema_is_refused_for_the_right_reason();
 	test_a_version_one_store_migrates_and_keeps_its_row();
+	test_a_version_two_store_migrates_and_gains_the_repositories_drawer();
 	test_cancellation_is_reported_distinctly();
 	test_the_schema_stores_no_review_content();
 	std::cout << "workbench-settings-storage-tests:pass\n";

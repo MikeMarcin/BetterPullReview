@@ -395,11 +395,14 @@ namespace bpr::application {
 	/// no semantic meaning.
 	struct workbench_layout_settings
 	{
-		core::workbench_drawer_state Files              = core::workbench_drawer_state::expanded;
-		core::workbench_drawer_state Conversations      = core::workbench_drawer_state::expanded;
+		core::workbench_drawer_state Files         = core::workbench_drawer_state::expanded;
+		core::workbench_drawer_state Conversations = core::workbench_drawer_state::expanded;
+		/// [[BPR-0651]]. The repositories drawer, left of the files.
+		core::workbench_drawer_state Repositories       = core::workbench_drawer_state::expanded;
 		core::workbench_line_numbers LineNumbers        = core::workbench_line_numbers::shown;
 		std::uint32_t                FilesWidth         = 320U;
 		std::uint32_t                ConversationsWidth = 320U;
+		std::uint32_t                RepositoriesWidth  = 300U;
 
 		auto operator<=>(const workbench_layout_settings&) const = default;
 	};
@@ -447,6 +450,7 @@ namespace bpr::application {
 	{
 		std::uint32_t FilesWidth         = 0U;
 		std::uint32_t ConversationsWidth = 0U;
+		std::uint32_t RepositoriesWidth  = 0U;
 
 		auto operator<=>(const workbench_layout_delta&) const = default;
 	};
