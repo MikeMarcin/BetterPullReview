@@ -50,6 +50,7 @@ namespace bpr::adapters::sqlite {
 				auto rules       = Database->load_rules();
 				auto enrollments = Database->load_all();
 				auto preferences = Database->load_preferences();
+				auto saved       = Database->load_saved_repositories();
 				if (!rules) {
 					return std::unexpected(translate(rules.error()));
 				}
@@ -59,10 +60,14 @@ namespace bpr::adapters::sqlite {
 				if (!preferences) {
 					return std::unexpected(translate(preferences.error()));
 				}
+				if (!saved) {
+					return std::unexpected(translate(saved.error()));
+				}
 				return application::durable_queue_state{
-					.Rules       = std::move(*rules),
-					.Enrollments = std::move(*enrollments),
-					.Preferences = std::move(*preferences),
+					.Rules             = std::move(*rules),
+					.Enrollments       = std::move(*enrollments),
+					.Preferences       = std::move(*preferences),
+					.SavedRepositories = std::move(*saved),
 				};
 			}
 
@@ -82,6 +87,26 @@ namespace bpr::adapters::sqlite {
 				return stored
 					? std::expected<void, application::queue_store_failure>{ }
 					: std::unexpected(translate(stored.error()));
+			}
+
+			auto apply_saved_repository_change(
+				const application::saved_repository_intent& aIntent,
+				std::stop_token                             aStop)
+				-> std::expected<void, application::queue_store_failure> override
+			{
+				if (!application::valid(aIntent.Repository)) {
+					return std::unexpected(
+						application::queue_store_failure::integrity_failure);
+				}
+				if (auto ready = ensure_open(aStop); !ready) {
+					return ready;
+				}
+				auto changed = aIntent.Action == application::saved_repository_action::add
+					? Database->store_saved_repository(aIntent.Repository)
+					: Database->erase_saved_repository(aIntent.Repository);
+				return changed
+					? std::expected<void, application::queue_store_failure>{ }
+					: std::unexpected(translate(changed.error()));
 			}
 
 			auto apply_rule_change(

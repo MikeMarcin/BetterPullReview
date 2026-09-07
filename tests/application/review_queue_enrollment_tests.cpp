@@ -149,6 +149,28 @@ namespace {
 			return { };
 		}
 
+		[[nodiscard]] auto apply_saved_repository_change(
+			const application::saved_repository_intent& aIntent,
+			std::stop_token) -> std::expected<void, application::queue_store_failure> override
+		{
+			++SavedChanges;
+			if (FailEnrollmentStore) {
+				return std::unexpected(
+					application::queue_store_failure::unavailable);
+			}
+			if (aIntent.Action == application::saved_repository_action::add) {
+				if (std::ranges::find(State.SavedRepositories, aIntent.Repository)
+					== State.SavedRepositories.end()) {
+					State.SavedRepositories.push_back(aIntent.Repository);
+				}
+			} else {
+				std::erase(State.SavedRepositories, aIntent.Repository);
+			}
+			return { };
+		}
+
+		std::size_t SavedChanges = 0U;
+
 		application::durable_queue_state State;
 		std::size_t                      Loads               = 0U;
 		bool                             FailEnrollmentStore = false;
@@ -738,6 +760,78 @@ namespace {
 			"a report about an unenrolled ref moves nothing");
 	}
 
+	// [[BPR-0659]]. A saved repository is durable before it is projected, a
+	// refused write leaves the list as it was, and a save of what is saved or
+	// a forget of what is not is no write at all.
+	void test_saved_repositories_are_durable_before_projection()
+	{
+		auto       store       = memory_queue_store{ };
+		auto       refresh     = observed_refresh{ };
+		auto       effects     = application::manual_executor{ };
+		auto       decisions   = application::manual_executor{ };
+		auto       projections = landing_log{ };
+		const auto session     = application::queue_session_id{
+			.Host = "github.com", .Account = "reviewer", .Generation = 4U
+		};
+		const auto kept = application::saved_repository{
+			.Host = "github.com", .Account = "reviewer", .Repository = "octo/app"
+		};
+		store.State.SavedRepositories = { kept };
+		auto host                     = application::review_queue_application_host{
+			store, refresh, effects, decisions, projections, session
+		};
+		host.restore();
+		run_one(effects, decisions);
+		expect(host.saved_repositories().size() == 1U && host.saved_repositories().front() == kept
+				   && projections.Published.back().SavedRepositories == std::vector{ kept },
+			   "restore adopts the saved repositories and publishes them");
+
+		const auto other = application::saved_repository{
+			.Host = "github.com", .Account = "reviewer", .Repository = "octo/tools"
+		};
+		host.apply(application::saved_repository_intent{
+			.Action = application::saved_repository_action::add, .Repository = other });
+		expect(store.SavedChanges == 0U && host.saved_repositories().size() == 1U,
+			   "a save is not stored on the caller lane and is not shown before the store answers");
+		host.apply(application::saved_repository_intent{
+			.Action = application::saved_repository_action::add, .Repository = other });
+		expect(effects.pending() == 1U, "an identical save cannot overtake the pending one");
+		run_one(effects, decisions);
+		expect(store.SavedChanges == 1U && store.State.SavedRepositories == std::vector{ kept, other }
+				   && host.saved_repositories().size() == 2U
+				   && projections.Published.back().SavedRepositories == std::vector{ kept, other },
+			   "the saved repository is durable, then projected");
+
+		host.apply(application::saved_repository_intent{
+			.Action = application::saved_repository_action::add, .Repository = other });
+		host.apply(application::saved_repository_intent{
+			.Action     = application::saved_repository_action::remove,
+			.Repository = application::saved_repository{ .Host = "github.com", .Account = "reviewer", .Repository = "octo/never" } });
+		expect(effects.pending() == 0U, "saving what is saved and forgetting what is not are no writes");
+		host.apply(application::saved_repository_intent{
+			.Action     = application::saved_repository_action::add,
+			.Repository = application::saved_repository{ .Host = "github.com", .Account = "reviewer", .Repository = "no-slash" } });
+		expect(effects.pending() == 0U && host.statistics().Failures == 1U,
+			   "a repository that is not owner/name is refused before the store");
+
+		store.FailEnrollmentStore = true;
+		host.apply(application::saved_repository_intent{
+			.Action = application::saved_repository_action::remove, .Repository = kept });
+		run_one(effects, decisions);
+		expect(host.saved_repositories().size() == 2U
+				   && projections.Published.back().Status == application::queue_landing_status::unavailable,
+			   "a refused forget leaves the list as it was and reports the store unavailable");
+		store.FailEnrollmentStore = false;
+		host.apply(application::saved_repository_intent{
+			.Action = application::saved_repository_action::remove, .Repository = kept });
+		run_one(effects, decisions);
+		expect(host.saved_repositories().size() == 1U && host.saved_repositories().front() == other
+				   && store.State.SavedRepositories == std::vector{ other }
+				   && projections.Published.back().SavedRepositories == std::vector{ other },
+			   "a forget is durable, then projected");
+		host.shutdown();
+	}
+
 	void test_presentation_preferences_are_durable_before_projection()
 	{
 		auto store       = memory_queue_store{ };
@@ -886,6 +980,7 @@ auto main() -> int
 	test_rule_reconciliation_never_suppresses_a_github_role();
 	test_presentation_preferences_are_durable_before_projection();
 	test_a_rule_added_during_a_refresh_still_enrolls();
+	test_saved_repositories_are_durable_before_projection();
 
 	std::cout << "review-queue-enrollment-tests:pass\n";
 	return EXIT_SUCCESS;

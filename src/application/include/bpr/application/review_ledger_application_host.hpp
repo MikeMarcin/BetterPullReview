@@ -89,10 +89,16 @@ namespace bpr::application {
 	};
 
 	/// \brief What the reader has not seen in one conversation.
+	///
+	/// \details `SeenBefore` says a receipt exists: the reader has read this
+	/// conversation up to some post. Without one every post is unread, but
+	/// nothing is *newer than what I read*, which is what the queue counts
+	/// ([[BPR-0659]]).
 	struct conversation_read_projection
 	{
 		core::review_conversation_id         Conversation;
 		std::vector<core::review_comment_id> UnreadPosts;
+		bool                                 SeenBefore = false;
 
 		auto operator<=>(const conversation_read_projection&) const = default;
 	};

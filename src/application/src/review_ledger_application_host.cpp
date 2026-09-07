@@ -272,7 +272,10 @@ namespace bpr::application {
 			if (unread.empty()) {
 				continue;
 			}
-			auto projection = conversation_read_projection{ .Conversation = thread.Conversation };
+			auto projection = conversation_read_projection{
+				.Conversation = thread.Conversation,
+				.SeenBefore   = receipt != ConversationReceipts->end(),
+			};
 			for (const auto index : unread) {
 				projection.UnreadPosts.push_back(thread.Posts[index].Comment);
 			}

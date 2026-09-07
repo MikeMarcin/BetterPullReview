@@ -1,5 +1,6 @@
 #include "../../src/adapters/sqlite/src/queue_enrollment_database.hpp"
 #include "../../src/adapters/sqlite/src/review_ledger_database.hpp"
+#include "bpr/adapters/sqlite/queue_enrollment_store.hpp"
 
 #include <sqlite3.h>
 
@@ -61,6 +62,27 @@ namespace {
 			-> std::filesystem::path
 		{
 			return Path / aName;
+		}
+
+		[[nodiscard]] auto path() const -> const std::filesystem::path&
+		{
+			return Path;
+		}
+
+		/// \brief Narrows the root to owner-only, as the state directory requires.
+		[[nodiscard]] auto make_private() const -> bool
+		{
+#if defined(_WIN32)
+			return true;
+#else
+			std::error_code failed;
+			std::filesystem::permissions(
+				Path,
+				std::filesystem::perms::owner_all,
+				std::filesystem::perm_options::replace,
+				failed);
+			return !failed;
+#endif
 		}
 
 	private:
@@ -406,6 +428,7 @@ namespace {
 		execute_raw_sql(
 			path,
 			"DROP TABLE presentation_preferences;"
+			"DROP TABLE saved_repository;"
 			"UPDATE enrollment_meta SET schema_format = 2 WHERE singleton = 1;"
 			"PRAGMA user_version = 2;");
 
@@ -425,10 +448,127 @@ namespace {
 			"a version-two queue gains only default reviewer preferences");
 	}
 
+	// [[BPR-0659]]. A canonical version-three queue (no saved repositories)
+	// migrates forward keeping its rules, enrollments and preferences, and
+	// gains an empty saved-repository list.
+	void test_a_legal_version_three_database_migrates_without_dropping_queue_state()
+	{
+		const scratch_directory directory;
+		const auto              path = directory.file("version-three.db");
+		const auto              rule = core::observer_rule{
+			.Kind = core::observer_rule_kind::repository, .Pattern = "octo/app"
+		};
+		{
+			auto store = queue_enrollment_database::open(path, { });
+			expect(opened_ok(store), "the current queue fixture opens");
+			expect(store->store_rule(rule).has_value(), "the exact rule is stored");
+			expect(
+				store
+					->store(application::enrollment_record{
+						.Ref = ref(7), .Membership = watching("src/parser") })
+					.has_value(),
+				"the exact enrollment is stored");
+		}
+		execute_raw_sql(
+			path,
+			"DROP TABLE saved_repository;"
+			"UPDATE enrollment_meta SET schema_format = 3 WHERE singleton = 1;"
+			"PRAGMA user_version = 3;");
+
+		auto migrated = queue_enrollment_database::open(path, { });
+		expect(opened_ok(migrated), "a canonical version-three queue migrates");
+		const auto rules       = migrated->load_rules();
+		const auto enrollments = migrated->load_all();
+		const auto saved       = migrated->load_saved_repositories();
+		expect(
+			rules.has_value() && *rules == std::vector{ rule }
+				&& enrollments.has_value() && enrollments->size() == 1U
+				&& enrollments->front().Ref == ref(7),
+			"migration preserves rule authority and derived enrollment");
+		expect(saved.has_value() && saved->empty(),
+			   "a version-three queue gains an empty saved-repository list");
+	}
+
+	// [[BPR-0659]]. Saved repositories: one row per host, account and name,
+	// a second save is no second row, a forget removes exactly one, and the
+	// application port carries both.
+	void test_saved_repositories_round_trip_by_account()
+	{
+		const scratch_directory directory;
+		const auto              path = directory.file("saved.db");
+		const auto              app  = application::saved_repository{
+			.Host = "github.com", .Account = "octo", .Repository = "octo/app"
+		};
+		const auto tools = application::saved_repository{
+			.Host = "github.com", .Account = "octo", .Repository = "octo/tools"
+		};
+		const auto elsewhere = application::saved_repository{
+			.Host = "ghe.example.com", .Account = "octo", .Repository = "octo/app"
+		};
+		{
+			auto store = queue_enrollment_database::open(path, { });
+			expect(opened_ok(store), "the queue opens");
+			expect(store->store_saved_repository(tools).has_value()
+					   && store->store_saved_repository(app).has_value()
+					   && store->store_saved_repository(app).has_value()
+					   && store->store_saved_repository(elsewhere).has_value(),
+				   "saving stores, and saving again is accepted");
+			const auto loaded = store->load_saved_repositories();
+			expect(loaded.has_value() && *loaded == std::vector{ elsewhere, app, tools },
+				   "the list is every saved repository, ordered by host, account and name, once each");
+			expect(store->erase_saved_repository(app).has_value(),
+				   "forgetting a saved repository is accepted");
+			const auto after = store->load_saved_repositories();
+			expect(after.has_value() && *after == std::vector{ elsewhere, tools },
+				   "forgetting removes exactly the named row");
+			expect(!store->store_saved_repository(application::saved_repository{
+													  .Host = "github.com", .Account = "octo", .Repository = "no-slash" })
+						.has_value(),
+				   "a repository that is not owner/name is refused");
+		}
+		// The application port opens the queue under its own owner-private
+		// state directory beneath the root.
+		expect(directory.make_private(), "the scratch root becomes owner-private");
+		auto       port   = bpr::adapters::sqlite::make_queue_enrollment_store({ .StorageRoot = directory.path() });
+		const auto before = port->load({ });
+		expect(before.has_value() && before->SavedRepositories.empty(),
+			   "the application port loads the saved repositories with the rest of the queue state");
+		expect(port->apply_saved_repository_change(
+					   application::saved_repository_intent{
+						   .Action = application::saved_repository_action::add, .Repository = app },
+					   { })
+					   .has_value()
+				   && port->apply_saved_repository_change(
+							  application::saved_repository_intent{
+								  .Action = application::saved_repository_action::add, .Repository = tools },
+							  { })
+						  .has_value(),
+			   "the port saves repositories");
+		const auto saved2 = port->load({ });
+		expect(saved2.has_value() && saved2->SavedRepositories == std::vector{ app, tools },
+			   "the port's saves are what the next load reads");
+		expect(port->apply_saved_repository_change(
+					   application::saved_repository_intent{
+						   .Action = application::saved_repository_action::remove, .Repository = tools },
+					   { })
+				   .has_value(),
+			   "the port forgets a repository");
+		const auto after = port->load({ });
+		expect(after.has_value() && after->SavedRepositories == std::vector{ app },
+			   "the port's forget is what the next load reads");
+		expect(!port->apply_saved_repository_change(
+						application::saved_repository_intent{
+							.Action     = application::saved_repository_action::add,
+							.Repository = application::saved_repository{ .Host = "github.com", .Account = "octo", .Repository = "no-slash" } },
+						{ })
+					.has_value(),
+			   "the port refuses a repository that is not owner/name before the database");
+	}
+
 	void test_stamped_current_schema_is_validated_canonically()
 	{
 		const scratch_directory directory;
-		constexpr auto          tampering = std::array<std::string_view, 6>{
+		constexpr auto          tampering = std::array<std::string_view, 8>{
 			"ALTER TABLE enrollment_meta ADD COLUMN unexpected INTEGER NOT NULL DEFAULT 0",
 			"ALTER TABLE enrollment ADD COLUMN unexpected INTEGER",
 			"DROP TABLE observer_rule",
@@ -440,6 +580,8 @@ namespace {
 			"PRIMARY KEY(rule_kind, rule_pattern, rule_excluding)) STRICT",
 			"ALTER TABLE presentation_preferences ADD COLUMN unexpected INTEGER",
 			"DROP TABLE presentation_preferences",
+			"DROP TABLE saved_repository",
+			"ALTER TABLE saved_repository ADD COLUMN unexpected INTEGER",
 		};
 
 		for (std::size_t index = 0; index < tampering.size(); ++index) {
@@ -734,6 +876,8 @@ auto main() -> int
 	test_a_foreign_version_one_database_is_not_migrated();
 	test_a_legal_version_one_database_migrates_to_current();
 	test_a_legal_version_two_database_migrates_without_rewriting_queue_state();
+	test_a_legal_version_three_database_migrates_without_dropping_queue_state();
+	test_saved_repositories_round_trip_by_account();
 	test_stamped_current_schema_is_validated_canonically();
 	test_presentation_preferences_round_trip_without_a_derived_filter_result();
 	test_the_schema_holds_no_repository_content();

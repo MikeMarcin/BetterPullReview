@@ -3826,6 +3826,12 @@ namespace bpr::app {
 						QueueHost->apply(std::move(aIntent));
 					}
 				});
+			Window->set_saved_repository_dispatch(
+				[this](application::saved_repository_intent aIntent) {
+					if (!Closing && QueueHost != nullptr) {
+						QueueHost->apply(std::move(aIntent));
+					}
+				});
 			QueueHost->restore();
 
 			EpochHost = std::make_unique<application::epoch_application_host>(
@@ -6523,7 +6529,11 @@ namespace bpr::app {
 							}
 						}
 					}
-					observed.UnreadPosts += static_cast<std::uint32_t>(entry.UnreadPosts.size());
+					// The queue counts what is newer than what I read: a thread
+					// I never read has no cursor to be newer than.
+					if (projection.SeenBefore) {
+						observed.UnreadPosts += static_cast<std::uint32_t>(entry.UnreadPosts.size());
+					}
 					presented.push_back(std::move(entry));
 				}
 			}

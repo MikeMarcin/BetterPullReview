@@ -70,29 +70,39 @@ namespace bpr::qt {
 	{
 	}
 
-	void repositories_tree_model::apply(const std::span<const core::queue_item> aItems)
+	void repositories_tree_model::apply(
+		const std::span<const core::queue_item>              aItems,
+		const std::span<const application::saved_repository> aSaved)
 	{
 		beginResetModel();
 		Repositories.clear();
-		// Home's order, repositories in the order they first appear in it.
-		const auto ordered = core::ordered_queue(aItems);
-		for (const auto& item : ordered) {
-			auto found = std::ranges::find_if(Repositories, [&item](const repository_node& aNode) {
-				return aNode.Host == item.Ref.Host && aNode.Account == item.Ref.Account
-					&& aNode.Repository == item.Ref.Repository;
+		const auto nodeFor = [this](const std::string& aHost, const std::string& aAccount, const std::string& aRepository) {
+			auto found = std::ranges::find_if(Repositories, [&](const repository_node& aNode) {
+				return aNode.Host == aHost && aNode.Account == aAccount && aNode.Repository == aRepository;
 			});
 			if (found == Repositories.end()) {
 				Repositories.push_back(repository_node{
-					.Host       = item.Ref.Host,
-					.Account    = item.Ref.Account,
-					.Repository = item.Ref.Repository,
+					.Host       = aHost,
+					.Account    = aAccount,
+					.Repository = aRepository,
 				});
 				found = std::prev(Repositories.end());
 			}
+			return found;
+		};
+		// Home's order, repositories in the order they first appear in it.
+		const auto ordered = core::ordered_queue(aItems);
+		for (const auto& item : ordered) {
+			auto found = nodeFor(item.Ref.Host, item.Ref.Account, item.Ref.Repository);
 			found->Items.push_back(item);
 			if (repository_needs_me(item.Bucket)) {
 				++found->NeedsMe;
 			}
+		}
+		// [[BPR-0659]]. Then every saved repository, after the ones with pull
+		// requests of interest: a saved one with nothing in it is an empty row.
+		for (const auto& saved : aSaved) {
+			nodeFor(saved.Host, saved.Account, saved.Repository)->Saved = true;
 		}
 		endResetModel();
 	}
@@ -185,19 +195,25 @@ namespace bpr::qt {
 				return text(node.Account);
 			case needs_me_role:
 				return node.NeedsMe != 0U;
+			case saved_role:
+				return node.Saved;
 			case Qt::DisplayRole:
 			case Qt::AccessibleTextRole:
 				if (aIndex.column() == name_column) {
 					return text(node.Repository);
 				}
+				if (node.Items.empty()) {
+					return node.Saved ? QStringLiteral("saved") : QString{ };
+				}
 				return node.NeedsMe == 0U
 					? QString::number(node.Items.size())
 					: QStringLiteral("%1 of %2").arg(node.NeedsMe).arg(node.Items.size());
 			case Qt::ToolTipRole:
-				return QStringLiteral("%1 on %2 as %3: %4 of %5 need you")
+				return QStringLiteral("%1 on %2 as %3: %4 of %5 need you%6")
 					.arg(text(node.Repository), text(node.Host), text(node.Account))
 					.arg(node.NeedsMe)
-					.arg(node.Items.size());
+					.arg(node.Items.size())
+					.arg(node.Saved ? QStringLiteral(", saved") : QString{ });
 			case Qt::FontRole: {
 				auto font = QFont{ };
 				font.setWeight(QFont::DemiBold);
@@ -386,6 +402,67 @@ namespace bpr::qt {
 		header()->setStretchLastSection(false);
 		header()->setSectionResizeMode(repositories_tree_model::name_column, QHeaderView::Stretch);
 		header()->setSectionResizeMode(repositories_tree_model::reason_column, QHeaderView::ResizeToContents);
+		// [[BPR-0659]]. Save and Forget on the current repository row, as the
+		// tree's own context menu; the window carries them to the queue host.
+		SaveAction = new QAction{ QStringLiteral("Save repository"), this };
+		SaveAction->setObjectName(QStringLiteral("saveRepositoryAction"));
+		SaveAction->setStatusTip(QStringLiteral("Keep this repository in the drawer, even with nothing to review."));
+		ForgetAction = new QAction{ QStringLiteral("Forget repository"), this };
+		ForgetAction->setObjectName(QStringLiteral("forgetRepositoryAction"));
+		ForgetAction->setStatusTip(QStringLiteral("Stop keeping this repository in the drawer."));
+		addAction(SaveAction);
+		addAction(ForgetAction);
+		setContextMenuPolicy(Qt::ActionsContextMenu);
+		connect(SaveAction, &QAction::triggered, this, [this] { dispatch_saved(application::saved_repository_action::add); });
+		connect(ForgetAction, &QAction::triggered, this, [this] { dispatch_saved(application::saved_repository_action::remove); });
+		update_saved_actions();
+	}
+
+	void repositories_tree_view::set_saved_repository_dispatch(saved_repository_dispatch aDispatch)
+	{
+		SavedDispatch = std::move(aDispatch);
+		update_saved_actions();
+	}
+
+	auto repositories_tree_view::save_repository_action() const noexcept -> QAction*
+	{
+		return SaveAction;
+	}
+
+	auto repositories_tree_view::forget_repository_action() const noexcept -> QAction*
+	{
+		return ForgetAction;
+	}
+
+	void repositories_tree_view::update_saved_actions()
+	{
+		// Qt can report a current change while the view is still being built.
+		if (SaveAction == nullptr || ForgetAction == nullptr) {
+			return;
+		}
+		const auto current    = currentIndex();
+		const auto repository = current.isValid()
+			&& current.data(repositories_tree_model::is_repository_role).toBool();
+		const auto saved = repository && current.data(repositories_tree_model::saved_role).toBool();
+		SaveAction->setEnabled(repository && !saved && static_cast<bool>(SavedDispatch));
+		ForgetAction->setEnabled(saved && static_cast<bool>(SavedDispatch));
+	}
+
+	void repositories_tree_view::dispatch_saved(const application::saved_repository_action aAction)
+	{
+		const auto current = currentIndex();
+		if (!SavedDispatch || !current.isValid()
+			|| !current.data(repositories_tree_model::is_repository_role).toBool()) {
+			return;
+		}
+		SavedDispatch(application::saved_repository_intent{
+			.Action     = aAction,
+			.Repository = application::saved_repository{
+				.Host       = current.data(repositories_tree_model::host_role).toString().toStdString(),
+				.Account    = current.data(repositories_tree_model::account_role).toString().toStdString(),
+				.Repository = current.data(repositories_tree_model::repository_role).toString().toStdString(),
+			},
+		});
 	}
 
 	auto repositories_tree_view::tree_model() const noexcept -> repositories_tree_model*
@@ -403,15 +480,19 @@ namespace bpr::qt {
 		OpenDispatch = std::move(aDispatch);
 	}
 
-	void repositories_tree_view::apply(const std::span<const core::queue_item> aItems)
+	void repositories_tree_view::apply(
+		const std::span<const core::queue_item>              aItems,
+		const std::span<const application::saved_repository> aSaved)
 	{
-		Model->apply(aItems);
+		Model->apply(aItems, aSaved);
 		expandAll();
+		update_saved_actions();
 	}
 
 	void repositories_tree_view::currentChanged(const QModelIndex& aCurrent, const QModelIndex& aPrevious)
 	{
 		QTreeView::currentChanged(aCurrent, aPrevious);
+		update_saved_actions();
 		// A pull request row chosen by the reviewer opens it; a repository
 		// row is a heading and reports nothing.
 		if (const auto item = Model->item_at(aCurrent); item.has_value() && OpenDispatch) {

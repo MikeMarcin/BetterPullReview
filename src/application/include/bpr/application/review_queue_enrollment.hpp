@@ -208,12 +208,45 @@ namespace bpr::application {
 		auto operator<=>(const queue_preferences_intent&) const = default;
 	};
 
+	/// \brief A repository the reviewer keeps in the repositories drawer.
+	///
+	/// \details [[BPR-0659]]. Per account: the host and account the queue
+	/// session names, and the repository as "owner/name". Saving a repository
+	/// enrolls nothing and changes nothing on GitHub; the drawer lists it
+	/// even while no pull request of interest is in it.
+	struct saved_repository
+	{
+		std::string Host;
+		std::string Account;
+		std::string Repository;
+
+		auto operator<=>(const saved_repository&) const = default;
+	};
+
+	/// \brief Reports whether a saved repository can enter the store.
+	[[nodiscard]] auto valid(const saved_repository& aRepository) noexcept -> bool;
+
+	enum class saved_repository_action : std::uint8_t {
+		add,
+		remove,
+	};
+
+	/// \brief One save or forget gesture translated by Qt.
+	struct saved_repository_intent
+	{
+		saved_repository_action Action = saved_repository_action::add;
+		saved_repository        Repository;
+
+		auto operator<=>(const saved_repository_intent&) const = default;
+	};
+
 	/// \brief The complete bounded private queue state restored at launch.
 	struct durable_queue_state
 	{
 		std::vector<core::observer_rule> Rules;
 		std::vector<enrollment_record>   Enrollments;
 		queue_presentation_preferences   Preferences;
+		std::vector<saved_repository>    SavedRepositories;
 	};
 
 	enum class queue_rule_action : std::uint8_t {
@@ -251,6 +284,12 @@ namespace bpr::application {
 			const queue_presentation_preferences& aPreferences,
 			std::stop_token                       aStop)
 			-> std::expected<void, queue_store_failure> = 0;
+
+		/// \brief Saves or forgets one repository durably ([[BPR-0659]]).
+		[[nodiscard]] virtual auto apply_saved_repository_change(
+			const saved_repository_intent& aIntent,
+			std::stop_token                aStop)
+			-> std::expected<void, queue_store_failure> = 0;
 	};
 
 	/// \brief Performs one queue refresh away from the serialized decision lane.
@@ -280,6 +319,8 @@ namespace bpr::application {
 		queue_session_id                 Session;
 		bool                             Online         = true;
 		std::uint32_t                    BackoffSeconds = 0U;
+		/// [[BPR-0659]]. Every saved repository, by host, account and name.
+		std::vector<saved_repository> SavedRepositories;
 
 		auto operator<=>(const queue_landing_projection&) const = default;
 	};
@@ -293,16 +334,17 @@ namespace bpr::application {
 
 	struct review_queue_host_statistics
 	{
-		std::uint64_t RuleIntents          = 0U;
-		std::uint64_t PreferenceIntents    = 0U;
-		std::uint64_t PersistenceRequests  = 0U;
-		std::uint64_t RefreshRequests      = 0U;
-		std::uint64_t ConditionalRequests  = 0U;
-		std::uint64_t AppliedRefreshes     = 0U;
-		std::uint64_t StaleCompletions     = 0U;
-		std::uint64_t CancelledCompletions = 0U;
-		std::uint64_t Publications         = 0U;
-		std::uint64_t Failures             = 0U;
+		std::uint64_t RuleIntents            = 0U;
+		std::uint64_t PreferenceIntents      = 0U;
+		std::uint64_t SavedRepositoryIntents = 0U;
+		std::uint64_t PersistenceRequests    = 0U;
+		std::uint64_t RefreshRequests        = 0U;
+		std::uint64_t ConditionalRequests    = 0U;
+		std::uint64_t AppliedRefreshes       = 0U;
+		std::uint64_t StaleCompletions       = 0U;
+		std::uint64_t CancelledCompletions   = 0U;
+		std::uint64_t Publications           = 0U;
+		std::uint64_t Failures               = 0U;
 
 		auto operator<=>(const review_queue_host_statistics&) const = default;
 	};
@@ -330,6 +372,8 @@ namespace bpr::application {
 		void restore();
 		void apply(queue_rule_intent aIntent);
 		void apply(queue_preferences_intent aIntent);
+		/// \brief Saves or forgets a repository; the store answers first.
+		void apply(saved_repository_intent aIntent);
 		void adopt(queue_session_id aSession);
 		void refresh(
 			const core::pull_request_ref&    aRef,
@@ -339,6 +383,8 @@ namespace bpr::application {
 
 		[[nodiscard]] auto rules() const noexcept
 			-> std::span<const core::observer_rule>;
+		[[nodiscard]] auto saved_repositories() const noexcept
+			-> std::span<const saved_repository>;
 		[[nodiscard]] auto queue() const -> std::vector<core::queue_item>;
 		[[nodiscard]] auto statistics() const noexcept
 			-> review_queue_host_statistics;

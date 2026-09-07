@@ -100,6 +100,8 @@ namespace bpr::qt {
 	using workbench_queue_preferences_dispatch = std::function<void(application::queue_preferences_intent)>;
 	/// \brief Mark read for the thread whose root projection identity is given ([[BPR-0656]]).
 	using conversation_read_dispatch = std::function<void(const std::string&)>;
+	/// \brief Save or forget a repository ([[BPR-0659]]).
+	using workbench_saved_repository_dispatch = std::function<void(application::saved_repository_intent)>;
 
 	/// \brief Records directly observable workbench-window presentation activity.
 	struct workbench_window_statistics
@@ -289,6 +291,12 @@ namespace bpr::qt {
 		void set_queue_rule_dispatch(workbench_queue_rule_dispatch aDispatch);
 		void set_queue_preferences_dispatch(
 			workbench_queue_preferences_dispatch aDispatch);
+		/// \brief Where Save and Forget go, from the tree and from Settings.
+		void               set_saved_repository_dispatch(workbench_saved_repository_dispatch aDispatch);
+		[[nodiscard]] auto saved_repositories_editor() const noexcept -> QWidget*;
+		[[nodiscard]] auto saved_repository_name() const noexcept -> QLineEdit*;
+		[[nodiscard]] auto add_saved_repository_action() const noexcept -> QAction*;
+		[[nodiscard]] auto remove_saved_repository_action() const noexcept -> QAction*;
 		/// \brief Where a card's Mark read goes: the composition, then the ledger host.
 		void set_conversation_read_dispatch(conversation_read_dispatch aDispatch);
 		/// \brief Adopts the read state of the review's conversations.
@@ -642,6 +650,9 @@ namespace bpr::qt {
 		void rebind_device_authorization_profile();
 		void dispatch_queue_rule(application::queue_rule_action aAction);
 		void update_queue_rule_actions();
+		void build_saved_repositories_editor(QWidget* aParent, QVBoxLayout& aLayout);
+		void dispatch_saved_repository(application::saved_repository_action aAction);
+		void update_saved_repository_actions();
 		void dispatch_queue_preferences();
 		void apply_queue_preferences(
 			const application::queue_presentation_preferences& aPreferences);
@@ -757,8 +768,16 @@ namespace bpr::qt {
 		QLabel*                                                    QueueStatus           = nullptr;
 		std::vector<core::observer_rule>                           QueueRules;
 		application::queue_landing_projection                      QueueProjection;
-		github_session_panel*                                      SessionPanel = nullptr;
-		device_authorization_panel*                                DevicePanel  = nullptr;
+		workbench_saved_repository_dispatch                        SavedRepositoryDispatch;
+		QWidget*                                                   SavedRepositoriesEditor     = nullptr;
+		QComboBox*                                                 SavedRepositorySelector     = nullptr;
+		QLineEdit*                                                 SavedRepositoryName         = nullptr;
+		QAction*                                                   AddSavedRepository          = nullptr;
+		QAction*                                                   RemoveSavedRepository       = nullptr;
+		QToolButton*                                               AddSavedRepositoryButton    = nullptr;
+		QToolButton*                                               RemoveSavedRepositoryButton = nullptr;
+		github_session_panel*                                      SessionPanel                = nullptr;
+		device_authorization_panel*                                DevicePanel                 = nullptr;
 		application::device_authorization_gesture_dispatch         DeviceDispatch;
 		github_pull_request_panel*                                 PullRequestPanel     = nullptr;
 		appearance_settings_panel*                                 AppearanceSettings   = nullptr;

@@ -21,7 +21,7 @@ namespace bpr::adapters::sqlite::detail {
 	/// \details Version two adds the durable observer-rule authority. Version
 	/// three adds only reviewer-selected landing preferences; derived filtered
 	/// membership remains absent from that table.
-	inline constexpr std::int64_t queue_enrollment_schema_version = 3;
+	inline constexpr std::int64_t queue_enrollment_schema_version = 4;
 
 	/// \brief Owns the durable queue enrollment database.
 	///
@@ -80,6 +80,16 @@ namespace bpr::adapters::sqlite::detail {
 			-> std::expected<void, failure>;
 		[[nodiscard]] auto load_preferences()
 			-> std::expected<application::queue_presentation_preferences, failure>;
+
+		/// \brief Saves one repository; saving it again is not a second row.
+		[[nodiscard]] auto store_saved_repository(
+			const application::saved_repository& aRepository)
+			-> std::expected<void, failure>;
+		[[nodiscard]] auto erase_saved_repository(
+			const application::saved_repository& aRepository)
+			-> std::expected<void, failure>;
+		[[nodiscard]] auto load_saved_repositories()
+			-> std::expected<std::vector<application::saved_repository>, failure>;
 
 	private:
 		explicit queue_enrollment_database(::sqlite3* aHandle) noexcept;

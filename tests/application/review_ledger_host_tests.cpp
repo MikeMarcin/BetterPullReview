@@ -771,6 +771,7 @@ namespace {
 		expect(fresh.has_value() && fresh->UnreadThreads == 1U
 				   && fresh->Threads.size() == 1U
 				   && fresh->Threads[0].Conversation == thread
+				   && !fresh->Threads[0].SeenBefore
 				   && fresh->Threads[0].UnreadPosts
 					   == std::vector{ core::review_comment_id{ 1U }, core::review_comment_id{ 3U } },
 			   "with no receipt every post of someone else's is unread and my own "
@@ -807,8 +808,9 @@ namespace {
 		edited[0].Posts[2].Edit = core::comment_edit_version{ 14U };
 		const auto reopened     = host.observe_conversations(edited);
 		expect(reopened.has_value() && reopened->UnreadThreads == 1U
-				   && reopened->Threads[0].UnreadPosts == std::vector{ core::review_comment_id{ 3U } },
-			   "an edit to the seen post reopens exactly that post");
+				   && reopened->Threads[0].UnreadPosts == std::vector{ core::review_comment_id{ 3U } }
+				   && reopened->Threads[0].SeenBefore,
+			   "an edit to the seen post reopens exactly that post, in a conversation read before");
 
 		const auto repeat = host.mark_conversation_read(core::conversation_observation{
 			.Conversation  = thread,

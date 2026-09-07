@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_REPOSITORIES_DRAWER_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_REPOSITORIES_DRAWER_HPP
 
+#include "bpr/application/review_queue_enrollment.hpp"
 #include "bpr/core/review_queue.hpp"
 #include "bpr/core/review_queue_attention.hpp"
 
@@ -29,10 +30,12 @@ namespace bpr::qt {
 	/// \brief One repository of the tree, with its pull requests of interest.
 	struct repository_node
 	{
-		std::string                   Host;
-		std::string                   Account;
-		std::string                   Repository;
-		std::size_t                   NeedsMe = 0U;
+		std::string Host;
+		std::string Account;
+		std::string Repository;
+		std::size_t NeedsMe = 0U;
+		/// [[BPR-0659]]. Kept by the reviewer; listed even with no items.
+		bool                          Saved = false;
 		std::vector<core::queue_item> Items;
 	};
 
@@ -66,11 +69,15 @@ namespace bpr::qt {
 			title_role,
 			/// True when the pull request carries comments I have not seen.
 			unseen_role,
+			/// True for a repository the reviewer saved ([[BPR-0659]]).
+			saved_role,
 		};
 
 		explicit repositories_tree_model(QObject* aParent = nullptr);
 
-		void apply(std::span<const core::queue_item> aItems);
+		void apply(
+			std::span<const core::queue_item>              aItems,
+			std::span<const application::saved_repository> aSaved = { });
 		void clear();
 
 		[[nodiscard]] auto index(int aRow, int aColumn, const QModelIndex& aParent = { }) const
@@ -110,6 +117,8 @@ namespace bpr::qt {
 	};
 
 	using repository_open_dispatch = std::function<void(const core::queue_item&)>;
+	/// \brief Save or forget the repository row the reviewer chose ([[BPR-0659]]).
+	using saved_repository_dispatch = std::function<void(application::saved_repository_intent)>;
 
 	/// \brief The repositories drawer's tree view.
 	///
@@ -123,16 +132,28 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto tree_model() const noexcept -> repositories_tree_model*;
 		void               set_open_dispatch(repository_open_dispatch aDispatch);
-		void               apply(std::span<const core::queue_item> aItems);
+		void               set_saved_repository_dispatch(saved_repository_dispatch aDispatch);
+		void               apply(
+			std::span<const core::queue_item>              aItems,
+			std::span<const application::saved_repository> aSaved = { });
 		[[nodiscard]] auto delegate() const noexcept -> repositories_tree_delegate*;
+		/// \brief Save the current repository row; Forget the current saved one.
+		[[nodiscard]] auto save_repository_action() const noexcept -> QAction*;
+		[[nodiscard]] auto forget_repository_action() const noexcept -> QAction*;
 
 	protected:
 		void currentChanged(const QModelIndex& aCurrent, const QModelIndex& aPrevious) override;
 
 	private:
+		void update_saved_actions();
+		void dispatch_saved(application::saved_repository_action aAction);
+
 		repositories_tree_model*    Model    = nullptr;
 		repositories_tree_delegate* Delegate = nullptr;
 		repository_open_dispatch    OpenDispatch;
+		saved_repository_dispatch   SavedDispatch;
+		QAction*                    SaveAction   = nullptr;
+		QAction*                    ForgetAction = nullptr;
 	};
 } // namespace bpr::qt
 

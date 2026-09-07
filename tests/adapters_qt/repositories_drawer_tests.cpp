@@ -129,12 +129,80 @@ namespace {
 		expect(model->rowCount() == 0 && model->needs_me_count() == 0U, "an empty queue empties the tree");
 		view.hide();
 	}
+
+	// [[BPR-0659]]. Saved repositories: an empty row for one with nothing
+	// of interest, the saved mark on one that also has items, and Save and
+	// Forget on the current repository row leaving as intents.
+	auto test_saved_repositories_are_rows_with_save_and_forget() -> void
+	{
+		qt::repositories_tree_view view;
+		view.resize(300, 400);
+		view.show();
+		QApplication::processEvents();
+		const auto items = std::vector<core::queue_item>{
+			item("EpicGames/UnrealEngine", 15157, core::attention_bucket::initial_review_requested),
+		};
+		const auto saved = std::vector<application::saved_repository>{
+			{ .Host = "github.com", .Account = "mike", .Repository = "MikeMarcin/BetterPullReview" },
+			{ .Host = "github.com", .Account = "mike", .Repository = "EpicGames/UnrealEngine" },
+		};
+		auto intents = std::vector<application::saved_repository_intent>{ };
+		view.set_saved_repository_dispatch([&intents](application::saved_repository_intent aIntent) {
+			intents.push_back(std::move(aIntent));
+		});
+		view.apply(items, saved);
+		QApplication::processEvents();
+		auto* const model = view.tree_model();
+		expect(model->rowCount() == 2 && model->item_count() == 1U,
+			   "a saved repository with nothing of interest is a row of its own, after the ones with items");
+		const auto epic = model->index(0, qt::repositories_tree_model::name_column);
+		const auto mine = model->index(1, qt::repositories_tree_model::name_column);
+		expect(epic.data(qt::repositories_tree_model::saved_role).toBool()
+				   && mine.data(qt::repositories_tree_model::saved_role).toBool()
+				   && mine.data().toString() == QStringLiteral("MikeMarcin/BetterPullReview")
+				   && mine.siblingAtColumn(qt::repositories_tree_model::reason_column).data().toString()
+					   == QStringLiteral("saved")
+				   && model->rowCount(mine) == 0,
+			   "both are marked saved; the empty one reads saved with nothing beneath");
+		expect(!view.save_repository_action()->isEnabled() && !view.forget_repository_action()->isEnabled(),
+			   "with no current row neither Save nor Forget is offered");
+		view.setCurrentIndex(mine);
+		QApplication::processEvents();
+		expect(!view.save_repository_action()->isEnabled() && view.forget_repository_action()->isEnabled(),
+			   "a saved repository row offers Forget and not Save");
+		view.forget_repository_action()->trigger();
+		expect(intents.size() == 1U && intents.back().Action == application::saved_repository_action::remove
+				   && intents.back().Repository == saved.front(),
+			   "Forget leaves as a remove intent naming the row's host, account and repository");
+
+		view.apply(items, { });
+		QApplication::processEvents();
+		expect(model->rowCount() == 1 && !model->index(0, 0).data(qt::repositories_tree_model::saved_role).toBool(),
+			   "without saved repositories only the ones with items remain, unmarked");
+		view.setCurrentIndex(model->index(0, qt::repositories_tree_model::name_column));
+		QApplication::processEvents();
+		expect(view.save_repository_action()->isEnabled() && !view.forget_repository_action()->isEnabled(),
+			   "an unsaved repository row offers Save and not Forget");
+		view.save_repository_action()->trigger();
+		expect(intents.size() == 2U && intents.back().Action == application::saved_repository_action::add
+				   && intents.back().Repository
+					   == application::saved_repository{
+						   .Host = "github.com", .Account = "mike", .Repository = "EpicGames/UnrealEngine" },
+			   "Save leaves as an add intent for the row");
+		const auto item15157 = model->index(0, qt::repositories_tree_model::name_column, model->index(0, 0));
+		view.setCurrentIndex(item15157);
+		QApplication::processEvents();
+		expect(!view.save_repository_action()->isEnabled() && !view.forget_repository_action()->isEnabled(),
+			   "a pull request row offers neither");
+		view.hide();
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
 	test_tree_groups_the_queue_by_repository_with_reasons();
+	test_saved_repositories_are_rows_with_save_and_forget();
 	std::cout << "repositories-drawer-tests:pass\n";
 	return EXIT_SUCCESS;
 }

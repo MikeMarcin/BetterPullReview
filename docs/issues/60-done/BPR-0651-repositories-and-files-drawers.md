@@ -76,7 +76,7 @@ snapshot projections; any missing projection is added in the host.
   ([BPR-0658](../10-backlog/BPR-0658-files-tree-in-the-files-drawer.md); the
   flat list is read by about thirty probes and courses, so its replacement
   is its own slice) and the titles, unread dots and saved repositories
-  ([BPR-0659](../30-in-progress/BPR-0659-repository-projection-with-titles-unseen-and-saved-repositories.md);
+  ([BPR-0659](BPR-0659-repository-projection-with-titles-unseen-and-saved-repositories.md);
   no projection carries them). AC-09 is therefore met for the repositories
   drawer and open for the files tree.
 - Pins moved by the third drawer: the strip's row (Repositories between Home

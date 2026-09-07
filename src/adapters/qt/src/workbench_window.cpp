@@ -802,6 +802,12 @@ namespace bpr::qt {
 			core::workbench_drawer::repositories
 		};
 		RepositoriesTree = new repositories_tree_view{ Drawers[2].Panel };
+		RepositoriesTree->set_saved_repository_dispatch(
+			[this](application::saved_repository_intent aIntent) {
+				if (SavedRepositoryDispatch && QueueReady) {
+					SavedRepositoryDispatch(std::move(aIntent));
+				}
+			});
 		RepositoriesTree->set_open_dispatch([this](const core::queue_item& aItem) {
 			if (!GithubDispatch) {
 				return;
@@ -1286,9 +1292,16 @@ namespace bpr::qt {
 			RulesEditor->setParent(reviews);
 			reviewsColumn->addWidget(RulesEditor);
 		}
+		// [[BPR-0659]]. Saved repositories: the ones the drawer keeps, per
+		// the account the queue session names.
+		auto* const savedHeading = new QLabel{ QStringLiteral("Saved repositories"), reviews };
+		savedHeading->setObjectName(QStringLiteral("reviewsSavedHeading"));
+		savedHeading->setFont(headingFont);
+		reviewsColumn->addWidget(savedHeading);
+		build_saved_repositories_editor(reviews, *reviewsColumn);
 		auto* const reviewsNotice = new QLabel{
 			QStringLiteral("Modality rules, reading behaviour and the default comparison arrive with "
-						   "BPR-0661; saved repositories with BPR-0659."),
+						   "BPR-0661."),
 			reviews
 		};
 		reviewsNotice->setObjectName(QStringLiteral("reviewsNotice"));
@@ -1926,8 +1939,18 @@ namespace bpr::qt {
 		QueueRules      = aProjection.Rules;
 		QueueLanding->apply(aProjection.Items);
 		if (RepositoriesTree != nullptr) {
-			RepositoriesTree->apply(aProjection.Items);
+			RepositoriesTree->apply(aProjection.Items, aProjection.SavedRepositories);
 			update_rail_summaries();
+		}
+		if (SavedRepositorySelector != nullptr) {
+			const auto selected = SavedRepositorySelector->currentText();
+			SavedRepositorySelector->clear();
+			for (const auto& saved : aProjection.SavedRepositories) {
+				SavedRepositorySelector->addItem(QString::fromStdString(saved.Repository));
+			}
+			if (const auto restored = SavedRepositorySelector->findText(selected); restored >= 0) {
+				SavedRepositorySelector->setCurrentIndex(restored);
+			}
 		}
 		rebuild_queue_repositories(
 			aProjection.Items, aProjection.Preferences.Repository);
@@ -1961,7 +1984,138 @@ namespace bpr::qt {
 		update_queue_status(aProjection);
 		++Statistics.QueueUpdates;
 		update_queue_rule_actions();
+		update_saved_repository_actions();
 		apply_focus_order();
+	}
+
+	void workbench_window::build_saved_repositories_editor(QWidget* const aParent, QVBoxLayout& aLayout)
+	{
+		SavedRepositoriesEditor = new QWidget{ aParent };
+		SavedRepositoriesEditor->setObjectName(QStringLiteral("savedRepositoriesEditor"));
+		SavedRepositoriesEditor->setAccessibleName(QStringLiteral("Saved repositories"));
+		SavedRepositoriesEditor->setAccessibleDescription(QStringLiteral(
+			"The repositories the drawer keeps for this account; add one as owner/name or remove the selected one"));
+		auto* const controls = new QHBoxLayout{ SavedRepositoriesEditor };
+		controls->setContentsMargins(0, 0, 0, 0);
+		SavedRepositorySelector = new QComboBox{ SavedRepositoriesEditor };
+		SavedRepositorySelector->setObjectName(QStringLiteral("savedRepositorySelector"));
+		SavedRepositorySelector->setAccessibleName(QStringLiteral("Saved repositories list"));
+		SavedRepositorySelector->setAccessibleDescription(QStringLiteral("Select a saved repository to remove"));
+		controls->addWidget(SavedRepositorySelector, 1);
+		SavedRepositoryName = new QLineEdit{ SavedRepositoriesEditor };
+		SavedRepositoryName->setObjectName(QStringLiteral("savedRepositoryName"));
+		SavedRepositoryName->setAccessibleName(QStringLiteral("Repository to save"));
+		SavedRepositoryName->setAccessibleDescription(QStringLiteral("owner/name of a repository to keep in the drawer"));
+		SavedRepositoryName->setPlaceholderText(QStringLiteral("owner/name"));
+		SavedRepositoryName->setMaxLength(static_cast<int>(core::maximum_observer_rule_pattern_bytes));
+		controls->addWidget(SavedRepositoryName, 1);
+		AddSavedRepository = new QAction{ tr("Save repository"), this };
+		AddSavedRepository->setObjectName(QStringLiteral("addSavedRepository"));
+		RemoveSavedRepository = new QAction{ tr("Remove saved repository"), this };
+		RemoveSavedRepository->setObjectName(QStringLiteral("removeSavedRepository"));
+		AddSavedRepositoryButton = new QToolButton{ SavedRepositoriesEditor };
+		AddSavedRepositoryButton->setDefaultAction(AddSavedRepository);
+		AddSavedRepositoryButton->setObjectName(QStringLiteral("addSavedRepositoryButton"));
+		AddSavedRepositoryButton->setAccessibleName(QStringLiteral("Save repository"));
+		AddSavedRepositoryButton->setAccessibleDescription(QStringLiteral(
+			"Keep the named repository in the drawer for this account; nothing changes on GitHub"));
+		controls->addWidget(AddSavedRepositoryButton);
+		RemoveSavedRepositoryButton = new QToolButton{ SavedRepositoriesEditor };
+		RemoveSavedRepositoryButton->setDefaultAction(RemoveSavedRepository);
+		RemoveSavedRepositoryButton->setObjectName(QStringLiteral("removeSavedRepositoryButton"));
+		RemoveSavedRepositoryButton->setAccessibleName(QStringLiteral("Remove saved repository"));
+		RemoveSavedRepositoryButton->setAccessibleDescription(QStringLiteral(
+			"Stop keeping the selected repository in the drawer"));
+		controls->addWidget(RemoveSavedRepositoryButton);
+		connect(AddSavedRepository, &QAction::triggered, this, [this] {
+			dispatch_saved_repository(application::saved_repository_action::add);
+		});
+		connect(RemoveSavedRepository, &QAction::triggered, this, [this] {
+			dispatch_saved_repository(application::saved_repository_action::remove);
+		});
+		connect(SavedRepositoryName, &QLineEdit::textChanged, this, [this] { update_saved_repository_actions(); });
+		connect(SavedRepositorySelector, qOverload<int>(&QComboBox::currentIndexChanged), this,
+				[this] { update_saved_repository_actions(); });
+		aLayout.addWidget(SavedRepositoriesEditor);
+		update_saved_repository_actions();
+	}
+
+	void workbench_window::set_saved_repository_dispatch(workbench_saved_repository_dispatch aDispatch)
+	{
+		SavedRepositoryDispatch = std::move(aDispatch);
+		update_saved_repository_actions();
+	}
+
+	auto workbench_window::saved_repositories_editor() const noexcept -> QWidget*
+	{
+		return SavedRepositoriesEditor;
+	}
+
+	auto workbench_window::saved_repository_name() const noexcept -> QLineEdit*
+	{
+		return SavedRepositoryName;
+	}
+
+	auto workbench_window::add_saved_repository_action() const noexcept -> QAction*
+	{
+		return AddSavedRepository;
+	}
+
+	auto workbench_window::remove_saved_repository_action() const noexcept -> QAction*
+	{
+		return RemoveSavedRepository;
+	}
+
+	void workbench_window::dispatch_saved_repository(const application::saved_repository_action aAction)
+	{
+		if (!SavedRepositoryDispatch || !QueueReady) {
+			return;
+		}
+		auto repository = application::saved_repository{
+			.Host    = QueueProjection.Session.Host,
+			.Account = QueueProjection.Session.Account,
+		};
+		if (aAction == application::saved_repository_action::add) {
+			repository.Repository = SavedRepositoryName->text().trimmed().toStdString();
+		} else {
+			const auto index = SavedRepositorySelector->currentIndex();
+			if (index < 0
+				|| static_cast<std::size_t>(index) >= QueueProjection.SavedRepositories.size()) {
+				return;
+			}
+			repository = QueueProjection.SavedRepositories[static_cast<std::size_t>(index)];
+		}
+		if (!application::valid(repository)) {
+			return;
+		}
+		SavedRepositoryDispatch(application::saved_repository_intent{
+			.Action     = aAction,
+			.Repository = std::move(repository),
+		});
+	}
+
+	void workbench_window::update_saved_repository_actions()
+	{
+		if (AddSavedRepository == nullptr || RemoveSavedRepository == nullptr) {
+			return;
+		}
+		// An account is needed to save for: the queue session names it once
+		// a pull request has been opened signed in.
+		const auto account = QueueReady && static_cast<bool>(SavedRepositoryDispatch)
+			&& !QueueProjection.Session.Host.empty() && !QueueProjection.Session.Account.empty();
+		AddSavedRepository->setEnabled(
+			account
+			&& application::valid(application::saved_repository{
+				.Host       = QueueProjection.Session.Host,
+				.Account    = QueueProjection.Session.Account,
+				.Repository = SavedRepositoryName != nullptr ? SavedRepositoryName->text().trimmed().toStdString() : std::string{ },
+			}));
+		RemoveSavedRepository->setEnabled(
+			account && SavedRepositorySelector != nullptr && SavedRepositorySelector->currentIndex() >= 0);
+		AddSavedRepository->setToolTip(account
+										   ? QStringLiteral("Keep this repository in the drawer; this never changes GitHub.")
+										   : QStringLiteral("Open a pull request signed in first, so there is an account to save for."));
+		RemoveSavedRepository->setToolTip(QStringLiteral("Stop keeping the selected repository in the drawer."));
 	}
 
 	void workbench_window::publish(

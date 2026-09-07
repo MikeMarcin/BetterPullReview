@@ -70,6 +70,21 @@ namespace bpr::adapters::sqlite::detail {
 				") STRICT" },
 		};
 
+		/// \brief The statements that carry schema version 3 to version 4.
+		///
+		/// \details [[BPR-0659]]. The repositories the reviewer keeps in the
+		/// drawer, per host and account. Names only; nothing the repository
+		/// holds.
+		constexpr std::array SchemaVersion4{
+			std::string_view{
+				"CREATE TABLE saved_repository("
+				"host TEXT NOT NULL,"
+				"account TEXT NOT NULL,"
+				"repository TEXT NOT NULL,"
+				"PRIMARY KEY(host, account, repository)"
+				") STRICT" },
+		};
+
 		struct schema_table
 		{
 			std::string_view Name;
@@ -92,6 +107,14 @@ namespace bpr::adapters::sqlite::detail {
 			schema_table{ "enrollment_meta", SchemaVersion1[0] },
 			schema_table{ "observer_rule", SchemaVersion2[0] },
 			schema_table{ "presentation_preferences", SchemaVersion3[0] },
+		};
+
+		constexpr std::array SchemaVersion4Tables{
+			schema_table{ "enrollment", SchemaVersion1[1] },
+			schema_table{ "enrollment_meta", SchemaVersion1[0] },
+			schema_table{ "observer_rule", SchemaVersion2[0] },
+			schema_table{ "presentation_preferences", SchemaVersion3[0] },
+			schema_table{ "saved_repository", SchemaVersion4[0] },
 		};
 
 		[[nodiscard]] auto run_all(
@@ -206,7 +229,7 @@ namespace bpr::adapters::sqlite::detail {
 			return { };
 		}
 
-		[[nodiscard]] auto validate_version_three(::sqlite3* aDatabase)
+		[[nodiscard]] auto validate_exact_version(::sqlite3* aDatabase, const std::int64_t aVersion, const std::span<const schema_table> aTables)
 			-> std::expected<void, failure>
 		{
 			const auto application
@@ -216,8 +239,7 @@ namespace bpr::adapters::sqlite::detail {
 				aDatabase,
 				"SELECT schema_format FROM enrollment_meta WHERE singleton = 1");
 			if (!application || *application != QueueApplicationId || !version
-				|| *version != queue_enrollment_schema_version || !format
-				|| *format != queue_enrollment_schema_version) {
+				|| *version != aVersion || !format || *format != aVersion) {
 				return std::unexpected(failure::schema_mismatch);
 			}
 
@@ -234,7 +256,7 @@ namespace bpr::adapters::sqlite::detail {
 				if (row == SQLITE_DONE) {
 					break;
 				}
-				if (row != SQLITE_ROW || index >= SchemaVersion3Tables.size()) {
+				if (row != SQLITE_ROW || index >= aTables.size()) {
 					return std::unexpected(failure::schema_mismatch);
 				}
 				const auto text = [&objects](const int aColumn)
@@ -258,16 +280,29 @@ namespace bpr::adapters::sqlite::detail {
 				const auto name = text(1);
 				const auto sql  = text(2);
 				if (!type || !name || !sql || *type != "table"
-					|| *name != SchemaVersion3Tables[index].Name
+					|| *name != aTables[index].Name
 					|| canonical_sql(*sql)
-						!= canonical_sql(SchemaVersion3Tables[index].Sql)) {
+						!= canonical_sql(aTables[index].Sql)) {
 					return std::unexpected(failure::schema_mismatch);
 				}
 				++index;
 			}
-			return index == SchemaVersion3Tables.size()
+			return index == aTables.size()
 				? std::expected<void, failure>{ }
 				: std::unexpected(failure::schema_mismatch);
+		}
+
+		[[nodiscard]] auto validate_version_three(::sqlite3* aDatabase)
+			-> std::expected<void, failure>
+		{
+			return validate_exact_version(aDatabase, 3, SchemaVersion3Tables);
+		}
+
+		[[nodiscard]] auto validate_version_four(::sqlite3* aDatabase)
+			-> std::expected<void, failure>
+		{
+			return validate_exact_version(
+				aDatabase, queue_enrollment_schema_version, SchemaVersion4Tables);
 		}
 
 		[[nodiscard]] auto preflight_existing_database(::sqlite3* aDatabase)
@@ -291,8 +326,11 @@ namespace bpr::adapters::sqlite::detail {
 			if (*version == 2) {
 				return validate_version_two(aDatabase);
 			}
-			if (*version == queue_enrollment_schema_version) {
+			if (*version == 3) {
 				return validate_version_three(aDatabase);
+			}
+			if (*version == queue_enrollment_schema_version) {
+				return validate_version_four(aDatabase);
 			}
 			return std::unexpected(failure::schema_mismatch);
 		}
@@ -368,6 +406,13 @@ namespace bpr::adapters::sqlite::detail {
 					return migrated;
 				}
 			}
+			if (*current < 4) {
+				if (auto migrated = run_all(aDatabase, SchemaVersion4, aStop);
+					!migrated) {
+					rollback();
+					return migrated;
+				}
+			}
 			if (auto meta = execute(
 					aDatabase,
 					"UPDATE enrollment_meta SET schema_format = "
@@ -394,7 +439,7 @@ namespace bpr::adapters::sqlite::detail {
 		[[nodiscard]] auto validate(::sqlite3* aDatabase)
 			-> std::expected<void, failure>
 		{
-			return validate_version_three(aDatabase);
+			return validate_version_four(aDatabase);
 		}
 
 		[[nodiscard]] auto text_of(::sqlite3_stmt* aStatement, const int aColumn)
@@ -601,6 +646,84 @@ namespace bpr::adapters::sqlite::detail {
 			});
 		}
 		return records;
+	}
+
+	auto queue_enrollment_database::store_saved_repository(
+		const application::saved_repository& aRepository)
+		-> std::expected<void, failure>
+	{
+		if (!application::valid(aRepository)) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		auto statement = prepare(
+			Handle,
+			"INSERT INTO saved_repository(host, account, repository) "
+			"VALUES(?1, ?2, ?3) ON CONFLICT(host, account, repository) DO NOTHING");
+		if (!statement) {
+			return std::unexpected(statement.error());
+		}
+		if (::sqlite3_bind_text(statement->Value, 1, aRepository.Host.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK
+			|| ::sqlite3_bind_text(statement->Value, 2, aRepository.Account.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK
+			|| ::sqlite3_bind_text(statement->Value, 3, aRepository.Repository.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK
+			|| ::sqlite3_step(statement->Value) != SQLITE_DONE) {
+			return std::unexpected(failure::unavailable);
+		}
+		return { };
+	}
+
+	auto queue_enrollment_database::erase_saved_repository(
+		const application::saved_repository& aRepository)
+		-> std::expected<void, failure>
+	{
+		if (!application::valid(aRepository)) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		auto statement = prepare(
+			Handle,
+			"DELETE FROM saved_repository WHERE host = ?1 AND account = ?2 "
+			"AND repository = ?3");
+		if (!statement) {
+			return std::unexpected(statement.error());
+		}
+		if (::sqlite3_bind_text(statement->Value, 1, aRepository.Host.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK
+			|| ::sqlite3_bind_text(statement->Value, 2, aRepository.Account.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK
+			|| ::sqlite3_bind_text(statement->Value, 3, aRepository.Repository.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK
+			|| ::sqlite3_step(statement->Value) != SQLITE_DONE) {
+			return std::unexpected(failure::unavailable);
+		}
+		return { };
+	}
+
+	auto queue_enrollment_database::load_saved_repositories()
+		-> std::expected<std::vector<application::saved_repository>, failure>
+	{
+		auto statement = prepare(
+			Handle,
+			"SELECT host, account, repository FROM saved_repository "
+			"ORDER BY host, account, repository");
+		if (!statement) {
+			return std::unexpected(statement.error());
+		}
+		auto saved = std::vector<application::saved_repository>{ };
+		for (;;) {
+			const auto stepped = ::sqlite3_step(statement->Value);
+			if (stepped == SQLITE_DONE) {
+				break;
+			}
+			if (stepped != SQLITE_ROW) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			auto repository = application::saved_repository{
+				.Host       = text_of(statement->Value, 0),
+				.Account    = text_of(statement->Value, 1),
+				.Repository = text_of(statement->Value, 2),
+			};
+			if (!application::valid(repository)) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			saved.push_back(std::move(repository));
+		}
+		return saved;
 	}
 
 	auto queue_enrollment_database::store_rule(

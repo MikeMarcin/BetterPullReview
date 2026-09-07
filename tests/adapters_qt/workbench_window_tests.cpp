@@ -4484,6 +4484,69 @@ namespace {
 			"Remove still targets the rule the reviewer selected");
 	}
 
+	// [[BPR-0659]]. The saved-repositories editor on Reviews and queue: Save
+	// needs an account the queue session names and an owner/name, Remove the
+	// selected saved repository; both leave as intents, and the tree lists
+	// what the projection carries.
+	void test_saved_repository_gestures_round_trip_through_the_dispatch()
+	{
+		qt::workbench_window window;
+		auto                 intents = std::vector<application::saved_repository_intent>{ };
+		window.set_saved_repository_dispatch(
+			[&intents](application::saved_repository_intent aIntent) {
+				intents.push_back(std::move(aIntent));
+			});
+		auto* const editor = window.saved_repositories_editor();
+		expect(editor != nullptr
+				   && window.settings()->page_widget(qt::settings_page::reviews_and_queue)->isAncestorOf(editor)
+				   && !window.home_page()->isAncestorOf(editor)
+				   && !window.focus_order().contains(window.saved_repository_name()),
+			   "the saved-repositories editor lives on Reviews and queue, off Home and out of the workbench's order");
+		expect(!window.add_saved_repository_action()->isEnabled()
+				   && !window.remove_saved_repository_action()->isEnabled(),
+			   "before a ready projection neither Save nor Remove is offered");
+
+		const auto kept = application::saved_repository{
+			.Host = "github.com", .Account = "reviewer", .Repository = "octo/app"
+		};
+		auto projection = application::queue_landing_projection{
+			.Status  = application::queue_landing_status::ready,
+			.Session = application::queue_session_id{ .Host = "github.com", .Account = "reviewer", .Generation = 1U },
+		};
+		projection.SavedRepositories = { kept };
+		window.publish(projection);
+		auto* const tree = window.repositories_tree()->tree_model();
+		expect(tree->rowCount() == 1 && tree->index(0, 0).data(qt::repositories_tree_model::saved_role).toBool(),
+			   "the tree lists the saved repository the projection carries");
+		auto* const selector = window.findChild<QComboBox*>(QStringLiteral("savedRepositorySelector"));
+		expect(selector != nullptr && selector->count() == 1
+				   && selector->itemText(0) == QStringLiteral("octo/app"),
+			   "the editor lists the saved repository");
+		expect(!window.add_saved_repository_action()->isEnabled(),
+			   "Save waits for an owner/name");
+		window.saved_repository_name()->setText(QStringLiteral("nope"));
+		expect(!window.add_saved_repository_action()->isEnabled(),
+			   "a name that is not owner/name is not offered");
+		window.saved_repository_name()->setText(QStringLiteral(" octo/tools "));
+		expect(window.add_saved_repository_action()->isEnabled(), "an owner/name is offered");
+		window.add_saved_repository_action()->trigger();
+		expect(intents == std::vector{ application::saved_repository_intent{ .Action = application::saved_repository_action::add, .Repository = { .Host = "github.com", .Account = "reviewer", .Repository = "octo/tools" } } },
+			   "Save leaves as an add intent for the session's account, trimmed");
+		selector->setCurrentIndex(0);
+		expect(window.remove_saved_repository_action()->isEnabled(), "a selected saved repository can be removed");
+		window.remove_saved_repository_action()->trigger();
+		expect(intents.size() == 2U && intents.back().Action == application::saved_repository_action::remove
+				   && intents.back().Repository == kept,
+			   "Remove leaves as a remove intent for the selected saved repository");
+
+		auto signedOut    = projection;
+		signedOut.Session = application::queue_session_id{ };
+		window.publish(signedOut);
+		expect(!window.add_saved_repository_action()->isEnabled()
+				   && !window.remove_saved_repository_action()->isEnabled(),
+			   "without an account in the session there is nothing to save for");
+	}
+
 	void test_queue_filter_controls_are_accessible_incremental_and_focus_stable()
 	{
 		qt::workbench_window window;
@@ -4897,6 +4960,7 @@ auto main(int argc, char** argv) -> int
 	test_defect_queue_navigation_and_semantic_dispatch();
 	test_queue_rule_gestures_wait_for_the_accepted_projection();
 	test_queue_rule_selection_survives_unrelated_projection();
+	test_saved_repository_gestures_round_trip_through_the_dispatch();
 	test_queue_filter_controls_are_accessible_incremental_and_focus_stable();
 	test_notification_activation_selects_only_an_exact_visible_queue_row();
 	test_large_queue_filters_through_the_composed_window();
