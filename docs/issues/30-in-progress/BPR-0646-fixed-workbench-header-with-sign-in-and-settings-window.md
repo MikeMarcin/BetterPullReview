@@ -11,8 +11,9 @@ priority: "P1"
 # Workbench chrome: strip, epoch line, modalities and rails
 
 First slice of the owner-locked [RFC-BPR-0028](../../rfcs/RFC-BPR-0028-review-workbench-direction.md)
-direction (mockup states 1 to 3). Replaces the 220-pixel review header scroll
-area in `workbench_window.cpp` and the toolbar it carries.
+direction (mockup states 1 to 3). Replaced the 220-pixel review header scroll
+area in `workbench_window.cpp` and the toolbar it carried; the strip is now
+the window's title row.
 
 ## Scope
 
@@ -224,3 +225,15 @@ area in `workbench_window.cpp` and the toolbar it carries.
   their natural sizes with the files list beneath. The Review segment reads
   checked at launch (an instrumented run confirmed the button state; two
   earlier captures had shown it unfilled and could not be reproduced).
+- Standing at e9544893 (2026-09-06): slices (a) Settings window and sign-in
+  first, (b) the strip, (b2) the strip as the title row, (c) rails, (e) no
+  review header, (d) the epoch line are committed; 28 of 28 focused
+  selectors, the composition contracts, the public path, strict tidy on
+  every touched translation unit and the docs gate pass at this head. Owed
+  before this card can finish: the attended capture with a pull request open
+  (the rails with their counts, the epoch line with nodes and handles, the
+  change and file positions, 1280x852 and 1920x1080), which needs a signed-in
+  session; the stored device grant expired (BPR-0644) and the device flow
+  needs the owner's browser. Out of this card by design: the "next new
+  comment" group (BPR-0648, no unread projection yet), Discuss's widening
+  (BPR-0649), the Windows caption (BPR-0653).
