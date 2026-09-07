@@ -149,6 +149,22 @@ namespace {
 			return { };
 		}
 
+		[[nodiscard]] auto apply_saved_server_change(
+			const application::saved_server_intent& aIntent,
+			std::stop_token) -> std::expected<void, application::queue_store_failure> override
+		{
+			++SavedServerChanges;
+			if (FailEnrollmentStore) {
+				return std::unexpected(application::queue_store_failure::unavailable);
+			}
+			std::erase_if(State.SavedServers, [&aIntent](const application::saved_server& aServer) {
+				return aServer.Hostname == aIntent.Server.Hostname;
+			});
+			if (aIntent.Action == application::saved_server_action::add) {
+				State.SavedServers.push_back(aIntent.Server);
+			}
+			return { };
+		}
 		[[nodiscard]] auto apply_saved_repository_change(
 			const application::saved_repository_intent& aIntent,
 			std::stop_token) -> std::expected<void, application::queue_store_failure> override
@@ -170,6 +186,7 @@ namespace {
 		}
 
 		std::size_t SavedChanges = 0U;
+		std::size_t SavedServerChanges = 0U;
 
 		application::durable_queue_state State;
 		std::size_t                      Loads               = 0U;
@@ -763,6 +780,56 @@ namespace {
 	// [[BPR-0659]]. A saved repository is durable before it is projected, a
 	// refused write leaves the list as it was, and a save of what is saved or
 	// a forget of what is not is no write at all.
+	// [[BPR-0660]]. Remembered servers: restored and published with the
+	// queue, remembered durably before they are shown, forgotten the same
+	// way; remembering a known hostname again replaces its account.
+	void test_saved_servers_are_durable_before_projection()
+	{
+		auto       store       = memory_queue_store{ };
+		auto       refresh     = observed_refresh{ };
+		auto       effects     = application::manual_executor{ };
+		auto       decisions   = application::manual_executor{ };
+		auto       projections = landing_log{ };
+		const auto session     = application::queue_session_id{
+			.Host = "github.com", .Account = "reviewer", .Generation = 4U
+		};
+		const auto ghe = application::saved_server{ .Hostname = "ghe.example.com", .Account = "reviewer" };
+		store.State.SavedServers = { ghe };
+		auto host                = application::review_queue_application_host{
+			store, refresh, effects, decisions, projections, session
+		};
+		host.restore();
+		run_one(effects, decisions);
+		expect(host.saved_servers().size() == 1U && host.saved_servers().front() == ghe
+				   && projections.Published.back().SavedServers == std::vector{ ghe },
+			   "restore adopts the saved servers and publishes them");
+		const auto lab = application::saved_server{ .Hostname = "code.example.org", .Account = "" };
+		host.apply(application::saved_server_intent{ .Action = application::saved_server_action::add, .Server = lab });
+		expect(store.SavedServerChanges == 0U && host.saved_servers().size() == 1U,
+			   "a remember is not stored on the caller lane and is not shown before the store answers");
+		run_one(effects, decisions);
+		expect(store.SavedServerChanges == 1U && host.saved_servers().size() == 2U
+				   && host.saved_servers().front() == lab
+				   && projections.Published.back().SavedServers == std::vector{ lab, ghe },
+			   "once stored, the server is shown, ordered by hostname");
+		host.apply(application::saved_server_intent{
+			.Action = application::saved_server_action::add,
+			.Server = { .Hostname = "ghe.example.com", .Account = "other" } });
+		run_one(effects, decisions);
+		expect(store.SavedServerChanges == 2U && host.saved_servers().size() == 2U
+				   && host.saved_servers().back().Account == "other",
+			   "remembering a known hostname again replaces its account");
+		host.apply(application::saved_server_intent{ .Action = application::saved_server_action::remove, .Server = lab });
+		run_one(effects, decisions);
+		expect(store.SavedServerChanges == 3U && host.saved_servers().size() == 1U
+				   && projections.Published.back().SavedServers.size() == 1U,
+			   "forgetting removes the server once the store answers");
+		host.apply(application::saved_server_intent{
+			.Action = application::saved_server_action::add, .Server = { .Hostname = "https://bad" } });
+		expect(store.SavedServerChanges == 3U && host.statistics().Failures == 1U,
+			   "a hostname outside the vocabulary is refused before the store");
+	}
+
 	void test_saved_repositories_are_durable_before_projection()
 	{
 		auto       store       = memory_queue_store{ };
@@ -981,6 +1048,7 @@ auto main() -> int
 	test_presentation_preferences_are_durable_before_projection();
 	test_a_rule_added_during_a_refresh_still_enrolls();
 	test_saved_repositories_are_durable_before_projection();
+	test_saved_servers_are_durable_before_projection();
 
 	std::cout << "review-queue-enrollment-tests:pass\n";
 	return EXIT_SUCCESS;

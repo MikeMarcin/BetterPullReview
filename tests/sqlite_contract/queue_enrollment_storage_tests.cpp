@@ -429,6 +429,7 @@ namespace {
 			path,
 			"DROP TABLE presentation_preferences;"
 			"DROP TABLE saved_repository;"
+			"DROP TABLE saved_server;"
 			"UPDATE enrollment_meta SET schema_format = 2 WHERE singleton = 1;"
 			"PRAGMA user_version = 2;");
 
@@ -472,6 +473,7 @@ namespace {
 		execute_raw_sql(
 			path,
 			"DROP TABLE saved_repository;"
+			"DROP TABLE saved_server;"
 			"UPDATE enrollment_meta SET schema_format = 3 WHERE singleton = 1;"
 			"PRAGMA user_version = 3;");
 
@@ -487,6 +489,60 @@ namespace {
 			"migration preserves rule authority and derived enrollment");
 		expect(saved.has_value() && saved->empty(),
 			   "a version-three queue gains an empty saved-repository list");
+	}
+
+	// [[BPR-0660]]. A version-four queue gains an empty saved-server list and
+	// keeps its saved repositories; saved servers are one row per hostname,
+	// remembering again replaces the account, forgetting removes the row,
+	// and the application port carries them.
+	void test_a_legal_version_four_database_migrates_and_saved_servers_round_trip()
+	{
+		const scratch_directory directory;
+		const auto              path = directory.file("version-four.db");
+		const auto              kept = application::saved_repository{
+			.Host = "github.com", .Account = "octo", .Repository = "octo/app"
+		};
+		{
+			auto store = queue_enrollment_database::open(path, { });
+			expect(opened_ok(store) && store->store_saved_repository(kept).has_value(),
+				   "the current queue fixture opens and keeps a saved repository");
+		}
+		execute_raw_sql(
+			path,
+			"DROP TABLE saved_server;"
+			"UPDATE enrollment_meta SET schema_format = 4 WHERE singleton = 1;"
+			"PRAGMA user_version = 4;");
+		auto migrated = queue_enrollment_database::open(path, { });
+		expect(opened_ok(migrated), "a canonical version-four queue migrates");
+		const auto saved   = migrated->load_saved_repositories();
+		const auto servers = migrated->load_saved_servers();
+		expect(saved.has_value() && *saved == std::vector{ kept } && servers.has_value() && servers->empty(),
+			   "migration keeps the saved repositories and gains an empty saved-server list");
+		const auto ghe = application::saved_server{ .Hostname = "ghe.example.com", .Account = "octo" };
+		const auto lab = application::saved_server{ .Hostname = "code.example.org", .Account = "" };
+		expect(migrated->store_saved_server(ghe).has_value() && migrated->store_saved_server(lab).has_value()
+				   && migrated->store_saved_server(application::saved_server{ .Hostname = "ghe.example.com", .Account = "octo-two" }).has_value(),
+			   "remembering stores, and remembering again is accepted");
+		const auto listed = migrated->load_saved_servers();
+		expect(listed.has_value()
+				   && *listed == std::vector{ lab, application::saved_server{ .Hostname = "ghe.example.com", .Account = "octo-two" } },
+			   "the list is one row per hostname ordered by hostname, the account the latest remembered");
+		expect(migrated->erase_saved_server(ghe).has_value(), "forgetting a server is accepted");
+		const auto after = migrated->load_saved_servers();
+		expect(after.has_value() && *after == std::vector{ lab }, "forgetting removes exactly the named hostname");
+		expect(!migrated->store_saved_server(application::saved_server{ .Hostname = "https://ghe.example.com" }).has_value()
+				   && !migrated->store_saved_server(application::saved_server{ .Hostname = "" }).has_value(),
+			   "a hostname with a scheme, or none, is refused");
+		expect(directory.make_private(), "the scratch root becomes owner-private");
+		auto       port   = bpr::adapters::sqlite::make_queue_enrollment_store({ .StorageRoot = directory.path() });
+		const auto before = port->load({ });
+		expect(before.has_value() && before->SavedServers.empty(), "the application port loads the saved servers with the rest");
+		expect(port->apply_saved_server_change({ .Action = application::saved_server_action::add, .Server = ghe }, { }).has_value()
+				   && port->load({ })->SavedServers == std::vector{ ghe },
+			   "the port remembers a server");
+		expect(port->apply_saved_server_change({ .Action = application::saved_server_action::remove, .Server = ghe }, { }).has_value()
+				   && port->load({ })->SavedServers.empty(),
+			   "the port forgets it");
 	}
 
 	// [[BPR-0659]]. Saved repositories: one row per host, account and name,
@@ -878,6 +934,7 @@ auto main() -> int
 	test_a_legal_version_two_database_migrates_without_rewriting_queue_state();
 	test_a_legal_version_three_database_migrates_without_dropping_queue_state();
 	test_saved_repositories_round_trip_by_account();
+	test_a_legal_version_four_database_migrates_and_saved_servers_round_trip();
 	test_stamped_current_schema_is_validated_canonically();
 	test_presentation_preferences_round_trip_without_a_derived_filter_result();
 	test_the_schema_holds_no_repository_content();

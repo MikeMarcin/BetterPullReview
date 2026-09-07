@@ -63,11 +63,16 @@ namespace bpr::adapters::sqlite {
 				if (!saved) {
 					return std::unexpected(translate(saved.error()));
 				}
+				auto servers = Database->load_saved_servers();
+				if (!servers) {
+					return std::unexpected(translate(servers.error()));
+				}
 				return application::durable_queue_state{
 					.Rules             = std::move(*rules),
 					.Enrollments       = std::move(*enrollments),
 					.Preferences       = std::move(*preferences),
 					.SavedRepositories = std::move(*saved),
+					.SavedServers      = std::move(*servers),
 				};
 			}
 
@@ -104,6 +109,26 @@ namespace bpr::adapters::sqlite {
 				auto changed = aIntent.Action == application::saved_repository_action::add
 					? Database->store_saved_repository(aIntent.Repository)
 					: Database->erase_saved_repository(aIntent.Repository);
+				return changed
+					? std::expected<void, application::queue_store_failure>{ }
+					: std::unexpected(translate(changed.error()));
+			}
+
+			auto apply_saved_server_change(
+				const application::saved_server_intent& aIntent,
+				std::stop_token                         aStop)
+				-> std::expected<void, application::queue_store_failure> override
+			{
+				if (!application::valid(aIntent.Server)) {
+					return std::unexpected(
+						application::queue_store_failure::integrity_failure);
+				}
+				if (auto ready = ensure_open(aStop); !ready) {
+					return ready;
+				}
+				auto changed = aIntent.Action == application::saved_server_action::add
+					? Database->store_saved_server(aIntent.Server)
+					: Database->erase_saved_server(aIntent.Server);
 				return changed
 					? std::expected<void, application::queue_store_failure>{ }
 					: std::unexpected(translate(changed.error()));

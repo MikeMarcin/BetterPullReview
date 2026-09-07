@@ -5,9 +5,28 @@
 #include <cstddef>
 #include <memory>
 #include <stop_token>
+#include <cctype>
 #include <utility>
 
 namespace bpr::application {
+	auto valid(const saved_server& aServer) noexcept -> bool
+	{
+		// A hostname as typed into a browser's address bar: no scheme, no
+		// path, no port, no whitespace, bounded like a DNS name; the account
+		// name, when present, bounded like a login.
+		const auto& host = aServer.Hostname;
+		return !host.empty() && host.size() <= 253U && host.front() != '.' && host.back() != '.'
+			&& std::ranges::all_of(host, [](const char aCharacter) {
+				   const auto byte = static_cast<unsigned char>(aCharacter);
+				   return std::isalnum(byte) != 0 || aCharacter == '-' || aCharacter == '.';
+			   })
+			&& aServer.Account.size() <= 128U
+			&& std::ranges::all_of(aServer.Account, [](const char aCharacter) {
+				   const auto byte = static_cast<unsigned char>(aCharacter);
+				   return byte > 0x20U && byte < 0x7FU;
+			   });
+	}
+
 	auto valid(const saved_repository& aRepository) noexcept -> bool
 	{
 		// "owner/name": one slash, both halves present, the same bound and
@@ -208,6 +227,7 @@ namespace bpr::application {
 			refresh,
 			store_enrollment,
 			saved_repository,
+			saved_server,
 		};
 
 		struct completion_gate
@@ -337,6 +357,7 @@ namespace bpr::application {
 				.Online            = Scheduler.online(),
 				.BackoffSeconds    = Scheduler.backoff_seconds(),
 				.SavedRepositories = SavedRepositories,
+				.SavedServers      = SavedServers,
 			});
 			++Statistics.Publications;
 		}
@@ -383,6 +404,7 @@ namespace bpr::application {
 			Rules             = std::move(aResult->Rules);
 			Preferences       = std::move(aResult->Preferences);
 			SavedRepositories = std::move(aResult->SavedRepositories);
+			SavedServers      = std::move(aResult->SavedServers);
 			for (const auto& record : aResult->Enrollments) {
 				Enrollments.enroll(record.Ref, record.Membership);
 				if (!record.present()) {
@@ -442,6 +464,71 @@ namespace bpr::application {
 			}
 		}
 
+		// [[BPR-0660]]. Remembering a server is the saved-repository shape
+		// over its own list and its own pending flag.
+		void apply(saved_server_intent aIntent)
+		{
+			++Statistics.SavedServerIntents;
+			if (Closing || !Restored || !valid(aIntent.Server)) {
+				++Statistics.Failures;
+				return;
+			}
+			if (SavedServerMutationPending) {
+				return;
+			}
+			const auto known = std::ranges::find(SavedServers, aIntent.Server.Hostname, &saved_server::Hostname);
+			const auto exists = known != SavedServers.end();
+			if ((aIntent.Action == saved_server_action::add && exists && *known == aIntent.Server)
+				|| (aIntent.Action == saved_server_action::remove && !exists)) {
+				return;
+			}
+			auto next = SavedServers;
+			std::erase_if(next, [&aIntent](const saved_server& aServer) {
+				return aServer.Hostname == aIntent.Server.Hostname;
+			});
+			if (aIntent.Action == saved_server_action::add) {
+				next.push_back(aIntent.Server);
+				std::ranges::sort(next, { }, &saved_server::Hostname);
+			}
+			++Statistics.PersistenceRequests;
+			auto&      request         = begin(request_kind::saved_server);
+			const auto id              = request.Id;
+			const auto stop            = request.Stop.get_token();
+			const auto gate            = std::weak_ptr<completion_gate>{ Gate };
+			SavedServerMutationPending = true;
+			try {
+				Effects.post([this, gate, id, stop, intent = std::move(aIntent), pending = std::move(next)]() mutable {
+					auto result = Store.apply_saved_server_change(intent, stop);
+					DecisionLane.post(
+						[gate, id, published = std::move(pending), applyResult = std::move(result)]() mutable {
+							if (auto* const host = locked_host(gate); host != nullptr) {
+								host->finish_saved_server(id, std::move(published), std::move(applyResult));
+							}
+						});
+				});
+			} catch (...) {
+				SavedServerMutationPending = false;
+				(void)retire(id, request_kind::saved_server);
+				report_unavailable();
+			}
+		}
+		void finish_saved_server(
+			const std::uint64_t                             aId,
+			std::vector<saved_server>                       aSaved,
+			const std::expected<void, queue_store_failure>& aResult)
+		{
+			if (!retire(aId, request_kind::saved_server) || Closing) {
+				return;
+			}
+			SavedServerMutationPending = false;
+			if (!aResult) {
+				report_unavailable();
+				return;
+			}
+			SavedServers = std::move(aSaved);
+			Status       = queue_landing_status::ready;
+			publish();
+		}
 		void finish_saved_repository(
 			const std::uint64_t                             aId,
 			std::vector<saved_repository>                   aSaved,
@@ -893,6 +980,7 @@ namespace bpr::application {
 		std::vector<core::observer_rule>              Rules;
 		queue_presentation_preferences                Preferences;
 		std::vector<saved_repository>                 SavedRepositories;
+		std::vector<saved_server> SavedServers;
 		std::optional<queue_presentation_preferences> QueuedPreferences;
 		std::vector<queue_activity_report>            Activity;
 		std::vector<outstanding_request>              Outstanding;
@@ -908,6 +996,7 @@ namespace bpr::application {
 		bool                                          RuleMutationPending       = false;
 		bool                                          PreferenceMutationPending = false;
 		bool                                          SavedMutationPending      = false;
+		bool SavedServerMutationPending = false;
 	};
 
 	review_queue_application_host::review_queue_application_host(
@@ -942,6 +1031,17 @@ namespace bpr::application {
 	void review_queue_application_host::apply(queue_preferences_intent aIntent)
 	{
 		Implementation->apply(std::move(aIntent));
+	}
+
+	void review_queue_application_host::apply(saved_server_intent aIntent)
+	{
+		Implementation->apply(std::move(aIntent));
+	}
+
+	auto review_queue_application_host::saved_servers() const noexcept
+		-> std::span<const saved_server>
+	{
+		return Implementation->SavedServers;
 	}
 
 	void review_queue_application_host::apply(saved_repository_intent aIntent)

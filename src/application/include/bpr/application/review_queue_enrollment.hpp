@@ -240,6 +240,36 @@ namespace bpr::application {
 		auto operator<=>(const saved_repository_intent&) const = default;
 	};
 
+	/// \brief One enterprise server the reviewer keeps ([[BPR-0660]]).
+	///
+	/// \details The hostname as the reviewer typed it and the account name
+	/// signed in there, if any. Remembering a server stores no token: the
+	/// next launch offers the server's profiles and the reviewer signs in.
+	struct saved_server
+	{
+		std::string Hostname;
+		std::string Account;
+
+		auto operator<=>(const saved_server&) const = default;
+	};
+
+	/// \brief Reports whether a saved server can enter the store.
+	[[nodiscard]] auto valid(const saved_server& aServer) noexcept -> bool;
+
+	enum class saved_server_action : std::uint8_t {
+		add,
+		remove,
+	};
+
+	/// \brief One remember or forget gesture translated by Qt.
+	struct saved_server_intent
+	{
+		saved_server_action Action = saved_server_action::add;
+		saved_server        Server;
+
+		auto operator<=>(const saved_server_intent&) const = default;
+	};
+
 	/// \brief The complete bounded private queue state restored at launch.
 	struct durable_queue_state
 	{
@@ -247,6 +277,8 @@ namespace bpr::application {
 		std::vector<enrollment_record>   Enrollments;
 		queue_presentation_preferences   Preferences;
 		std::vector<saved_repository>    SavedRepositories;
+		/// [[BPR-0660]].
+		std::vector<saved_server> SavedServers;
 	};
 
 	enum class queue_rule_action : std::uint8_t {
@@ -290,6 +322,12 @@ namespace bpr::application {
 			const saved_repository_intent& aIntent,
 			std::stop_token                aStop)
 			-> std::expected<void, queue_store_failure> = 0;
+
+		/// \brief Remembers or forgets one enterprise server durably ([[BPR-0660]]).
+		[[nodiscard]] virtual auto apply_saved_server_change(
+			const saved_server_intent& aIntent,
+			std::stop_token            aStop)
+			-> std::expected<void, queue_store_failure> = 0;
 	};
 
 	/// \brief Performs one queue refresh away from the serialized decision lane.
@@ -321,6 +359,8 @@ namespace bpr::application {
 		std::uint32_t                    BackoffSeconds = 0U;
 		/// [[BPR-0659]]. Every saved repository, by host, account and name.
 		std::vector<saved_repository> SavedRepositories;
+		/// [[BPR-0660]]. Every remembered enterprise server, by hostname.
+		std::vector<saved_server> SavedServers;
 
 		auto operator<=>(const queue_landing_projection&) const = default;
 	};
@@ -337,6 +377,7 @@ namespace bpr::application {
 		std::uint64_t RuleIntents            = 0U;
 		std::uint64_t PreferenceIntents      = 0U;
 		std::uint64_t SavedRepositoryIntents = 0U;
+		std::uint64_t SavedServerIntents     = 0U;
 		std::uint64_t PersistenceRequests    = 0U;
 		std::uint64_t RefreshRequests        = 0U;
 		std::uint64_t ConditionalRequests    = 0U;
@@ -374,6 +415,8 @@ namespace bpr::application {
 		void apply(queue_preferences_intent aIntent);
 		/// \brief Saves or forgets a repository; the store answers first.
 		void apply(saved_repository_intent aIntent);
+		/// \brief [[BPR-0660]]. Remembers or forgets one enterprise server, durably before it is shown.
+		void apply(saved_server_intent aIntent);
 		void adopt(queue_session_id aSession);
 		void refresh(
 			const core::pull_request_ref&    aRef,
@@ -385,6 +428,8 @@ namespace bpr::application {
 			-> std::span<const core::observer_rule>;
 		[[nodiscard]] auto saved_repositories() const noexcept
 			-> std::span<const saved_repository>;
+		[[nodiscard]] auto saved_servers() const noexcept
+			-> std::span<const saved_server>;
 		[[nodiscard]] auto queue() const -> std::vector<core::queue_item>;
 		[[nodiscard]] auto statistics() const noexcept
 			-> review_queue_host_statistics;
