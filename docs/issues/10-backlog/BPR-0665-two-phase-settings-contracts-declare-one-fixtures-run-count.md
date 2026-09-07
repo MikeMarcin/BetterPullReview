@@ -14,7 +14,7 @@ priority: "P3"
 application's own budget with a stage, verdict and evidence, rather than
 by CTest with none. It checks that the runs a test permits itself fit in
 three quarters of the CTest timeout.
-[BPR-0654](../60-done/BPR-0654-overview-changed-since-my-last-review.md)'s
+[BPR-0654](../60-done/BPR-0654-resolve-the-files-changed-since-my-last-review.md)'s
 `application_overview_since_review_contract` and
 [BPR-0661](../60-done/BPR-0661-review-behaviour-preferences.md)'s
 `application_review_behaviour_contract` each run two phases over two
