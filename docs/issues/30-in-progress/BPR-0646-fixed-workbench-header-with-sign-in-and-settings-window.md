@@ -144,3 +144,22 @@ area in `workbench_window.cpp` and the toolbar it carries.
   60 by 80 point drag on the spacer moved the window by exactly that, a
   double-click on the same surface zoomed it to the screen and a second
   double-click restored 1280x820 at its previous position.
+- Slice (c), the rails. `workbench_drawer_rail` is an 18-pixel button the
+  drawer panel shows in its collapsed state instead of leaving the surface:
+  a rule on the edge the drawer reopens from, the drawer's name vertically
+  ("Files", "Comments") with a summary beside it, a focus ring, and a click
+  that the window turns into the drawer's own toggle action, so the core
+  still decides. The panel hides everything in its column but the rail and
+  fixes its width to the rail's; expanded restores the host's minimum and
+  the persisted width. The centre sizing gives a collapsed drawer the rail's
+  width. The files rail states the selected file's place among the
+  actionable files from the core's cursor; the comments rail states the
+  review thread count from the pull request projection; the unread count the
+  design names waits for its projection. A restored drawer layout sets the
+  modality segment (files open and comments collapsed reads Overview, files
+  collapsed and comments open reads Read unless Discuss is showing, both
+  open reads Review) until a modality is chosen in the window, after which
+  a manual toggle leaves the segment alone. Pins that said a collapsed
+  drawer is hidden now say it is its rail: the collapse tests, the restart
+  test, the composed agent-surface test, and the UIforETW focused-layout
+  probes.

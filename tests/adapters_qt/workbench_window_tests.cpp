@@ -993,10 +993,21 @@ namespace {
 										  core::workbench_drawer_state::expanded);
 		window.publish(collapsed);
 		QApplication::processEvents();
-		expect(centre->width() >= openCentre + 320,
-			   "collapsing a drawer returns its whole width to the centre");
-		expect(!window.files_drawer()->isVisible(),
-			   "a collapsed drawer leaves the central surface");
+		expect(centre->width()
+				   >= openCentre + 320 - qt::workbench_drawer_rail::width_pixels,
+			   "collapsing a drawer returns all but its rail's width to the centre");
+		expect(window.files_drawer()->isVisible()
+				   && window.files_drawer()->width()
+					   == qt::workbench_drawer_rail::width_pixels
+				   && window.files_drawer()->rail()->isVisible()
+				   && !window.files_drawer()->contents_view()->isVisible(),
+			   "a collapsed drawer narrows to its rail rather than leaving the "
+			   "central surface");
+		expect(window.files_drawer()->rail()->accessibleName()
+					   == QStringLiteral("Files rail")
+				   && window.files_drawer()->rail()->focusPolicy() == Qt::StrongFocus
+				   && window.focus_order().contains(window.files_drawer()->rail()),
+			   "the rail is a named, focusable stop");
 		expect(window.conversations_drawer()->width() == 260,
 			   "collapsing one drawer leaves the other drawer's width alone");
 
@@ -1189,6 +1200,75 @@ namespace {
 		expect(!window.identity_label()->isVisible()
 				   && !window.file_position_label()->isVisible(),
 			   "the identity and position text are what yield at the width floor");
+		window.hide();
+	}
+
+	void test_rails_reopen_their_drawers()
+	{
+		intent_log           log;
+		qt::workbench_window window{
+			[&log](core::workbench_interaction_intent aIntent) {
+				log.Workbench.push_back(aIntent);
+			},
+			{ },
+			{ },
+		};
+		auto collapsed    = both_files_enabled();
+		collapsed.Drawers = drawer_states(core::workbench_drawer_state::collapsed,
+										  core::workbench_drawer_state::collapsed);
+		collapsed.Layout  = application::workbench_layout_delta{
+			.FilesWidth         = 320U,
+			.ConversationsWidth = 260U,
+		};
+		window.resize(1'280, 720);
+		window.show();
+		QApplication::processEvents();
+		window.publish(collapsed);
+		QApplication::processEvents();
+
+		for (auto* const drawer : { window.files_drawer(), window.conversations_drawer() }) {
+			expect(drawer->width() == qt::workbench_drawer_rail::width_pixels
+					   && drawer->rail()->isVisible()
+					   && drawer->rail()->width()
+						   == qt::workbench_drawer_rail::width_pixels,
+				   "each collapsed drawer is its 18-pixel rail");
+		}
+		expect(window.files_drawer()->rail()->label() == QStringLiteral("Files")
+				   && window.conversations_drawer()->rail()->label()
+					   == QStringLiteral("Comments"),
+			   "the rails carry the drawers' names vertically");
+
+		log.Workbench.clear();
+		window.files_drawer()->rail()->click();
+		QApplication::processEvents();
+		expect(log.Workbench.size() == 1U
+				   && std::holds_alternative<core::toggle_workbench_drawer_intent>(
+					   log.Workbench.front())
+				   && std::get<core::toggle_workbench_drawer_intent>(
+						  log.Workbench.front())
+						   .Drawer
+					   == core::workbench_drawer::files,
+			   "pressing a rail asks the core to toggle that drawer and nothing "
+			   "else");
+		expect(window.files_drawer()->width()
+				   == qt::workbench_drawer_rail::width_pixels,
+			   "the rail does not reopen the drawer by itself; the core decides");
+
+		// The file position reaches the files rail from the same cursor the
+		// strip reads.
+		auto positioned      = both_files_enabled();
+		positioned.Selection = core::workbench_selection_delta{
+			.Cursor = core::workbench_navigation_cursor{
+				.Ordinal           = 12U,
+				.ActionableCount   = 40U,
+				.PreviousAvailable = true,
+				.NextAvailable     = true,
+			}
+		};
+		window.publish(positioned);
+		QApplication::processEvents();
+		expect(window.files_drawer()->rail()->summary() == QStringLiteral("12 of 40"),
+			   "the files rail states the selected file's position");
 		window.hide();
 	}
 
@@ -2815,9 +2895,9 @@ namespace {
 		window.publish(withoutFiles);
 		process_events();
 		expect(observe_full_central_width(window, "file drawer collapsed")
-				   >= openWidth + 320,
-			   "collapsing the file drawer gives its whole width to the lower "
-			   "detail pane");
+				   >= openWidth + 320 - qt::workbench_drawer_rail::width_pixels,
+			   "collapsing the file drawer gives all but its rail's width to the "
+			   "lower detail pane");
 		window.publish(opened);
 		process_events();
 		expect(observe_full_central_width(window, "file drawer reopened")
@@ -2832,9 +2912,9 @@ namespace {
 		window.publish(withoutConversations);
 		process_events();
 		expect(observe_full_central_width(window, "conversation drawer collapsed")
-				   >= openWidth + 260,
-			   "collapsing the conversation drawer gives its whole width to the "
-			   "lower detail pane");
+				   >= openWidth + 260 - qt::workbench_drawer_rail::width_pixels,
+			   "collapsing the conversation drawer gives all but its rail's width "
+			   "to the lower detail pane");
 		window.publish(opened);
 		process_events();
 		expect(observe_full_central_width(window, "conversation drawer reopened")
@@ -3863,10 +3943,15 @@ namespace {
 		expect(restarted.files_drawer()->width()
 				   == static_cast<int>(persistedWidth),
 			   "a restarted shell restores the drawer width the host persisted");
-		expect(!restarted.conversations_drawer()->isVisible()
+		expect(restarted.conversations_drawer()->width()
+					   == qt::workbench_drawer_rail::width_pixels
+				   && restarted.conversations_drawer()->rail()->isVisible()
 				   && !restarted.conversations_drawer_toggle_action()->isChecked(),
 			   "a restarted shell restores the persisted drawer state as well as "
 			   "its width");
+		expect(restarted.current_modality() == qt::review_modality::overview,
+			   "a restored layout with files open and comments collapsed reads "
+			   "as Overview until a modality is chosen");
 		restarted.hide();
 	}
 
@@ -4381,6 +4466,7 @@ auto main(int argc, char** argv) -> int
 	test_collapsing_a_drawer_returns_space_to_the_centre();
 	test_strip_modalities_positions_and_account();
 	test_strip_is_the_title_row();
+	test_rails_reopen_their_drawers();
 	test_review_details_return_height_to_the_comparison();
 	test_drawer_resize_emits_the_host_layout_path();
 	test_drawer_contents_use_incremental_model_signals();

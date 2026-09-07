@@ -8,6 +8,9 @@
 #include <QLabel>
 #include <QList>
 #include <QListView>
+#include <QPaintEvent>
+#include <QPainter>
+#include <QPen>
 #include <QResizeEvent>
 #include <QSizePolicy>
 #include <QVBoxLayout>
@@ -245,6 +248,93 @@ namespace bpr::qt {
 		++Statistics.RowsRemoved;
 	}
 
+	workbench_drawer_rail::workbench_drawer_rail(
+		const core::workbench_drawer aDrawer,
+		QWidget* const               aParent)
+		: QAbstractButton{ aParent }
+		, Drawer{ aDrawer }
+	{
+		setObjectName(panel_object_name(aDrawer) + QStringLiteral("Rail"));
+		setAccessibleName(
+			is_files(aDrawer) ? QStringLiteral("Files rail")
+							  : QStringLiteral("Comments rail"));
+		setAccessibleDescription(
+			is_files(aDrawer)
+				? QStringLiteral("Expand the files drawer.")
+				: QStringLiteral("Expand the comments drawer."));
+		setFocusPolicy(Qt::StrongFocus);
+		setCursor(Qt::PointingHandCursor);
+		setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
+		setFixedWidth(width_pixels);
+	}
+
+	void workbench_drawer_rail::set_summary(const QString& aSummary)
+	{
+		if (Summary == aSummary) {
+			return;
+		}
+		Summary = aSummary;
+		setToolTip(
+			Summary.isEmpty() ? label()
+							  : QStringLiteral("%1, %2").arg(label(), Summary));
+		update();
+	}
+
+	auto workbench_drawer_rail::summary() const -> QString
+	{
+		return Summary;
+	}
+
+	auto workbench_drawer_rail::label() const -> QString
+	{
+		return is_files(Drawer) ? QStringLiteral("Files")
+								: QStringLiteral("Comments");
+	}
+
+	auto workbench_drawer_rail::sizeHint() const -> QSize
+	{
+		return QSize{ width_pixels, 120 };
+	}
+
+	auto workbench_drawer_rail::minimumSizeHint() const -> QSize
+	{
+		return QSize{ width_pixels, 40 };
+	}
+
+	void workbench_drawer_rail::paintEvent(QPaintEvent* const aEvent)
+	{
+		static_cast<void>(aEvent);
+		auto painter = QPainter{ this };
+		painter.setRenderHint(QPainter::Antialiasing, true);
+		painter.fillRect(rect(), palette().color(QPalette::Active, QPalette::Window));
+		// The rule sits on the edge the drawer reopens from.
+		painter.setPen(palette().color(QPalette::Active, QPalette::Mid));
+		const auto edge = is_files(Drawer) ? width() - 1 : 0;
+		painter.drawLine(edge, 0, edge, height());
+		if (hasFocus()) {
+			painter.setPen(QPen{ palette().color(QPalette::Active, QPalette::Highlight), 1.0 });
+			painter.setBrush(Qt::NoBrush);
+			painter.drawRoundedRect(
+				QRectF{ rect() }.adjusted(1.5, 1.5, -1.5, -1.5), 3.0, 3.0);
+		}
+		// The label reads bottom to top, the count in the accent beneath it.
+		const auto text = Summary.isEmpty()
+			? label()
+			: QStringLiteral("%1  %2").arg(label(), Summary);
+		painter.setPen(palette().color(QPalette::Active, QPalette::WindowText));
+		painter.translate(
+			static_cast<qreal>(width()) / 2.0, static_cast<qreal>(height()) - 12.0);
+		painter.rotate(-90.0);
+		const auto metrics = painter.fontMetrics();
+		painter.drawText(
+			QRectF{ 0.0,
+					-static_cast<qreal>(metrics.height()) / 2.0,
+					static_cast<qreal>(height()) - 24.0,
+					static_cast<qreal>(metrics.height()) },
+			Qt::AlignLeft | Qt::AlignVCenter,
+			metrics.elidedText(text, Qt::ElideRight, height() - 24));
+	}
+
 	workbench_drawer_panel::workbench_drawer_panel(
 		const core::workbench_drawer aDrawer,
 		QWidget* const               aParent)
@@ -279,10 +369,14 @@ namespace bpr::qt {
 		View->setSelectionBehavior(QAbstractItemView::SelectRows);
 		View->setFocusPolicy(Qt::StrongFocus);
 
+		Rail = new workbench_drawer_rail{ aDrawer, this };
+		Rail->hide();
+
 		auto* const column = new QVBoxLayout{ this };
 		column->setContentsMargins(0, 0, 0, 0);
 		column->addWidget(Heading);
 		column->addWidget(View, 1);
+		column->addWidget(Rail, 1);
 	}
 
 	auto workbench_drawer_panel::drawer() const noexcept -> core::workbench_drawer
@@ -325,8 +419,15 @@ namespace bpr::qt {
 			Contents = nullptr;
 		}
 		aWidget->setParent(this);
-		column->addWidget(aWidget, 1);
+		column->insertWidget(column->indexOf(Rail), aWidget, 1);
+		Content      = aWidget;
 		ContentFocus = aFocusStop != nullptr ? aFocusStop : aWidget;
+		aWidget->setVisible(State == core::workbench_drawer_state::expanded);
+	}
+
+	auto workbench_drawer_panel::rail() const noexcept -> workbench_drawer_rail*
+	{
+		return Rail;
 	}
 
 	auto workbench_drawer_panel::focus_stop() const noexcept -> QWidget*
@@ -347,9 +448,30 @@ namespace bpr::qt {
 			return;
 		}
 		State = aState;
-		// Hiding is what returns the drawer's width to the centre: a splitter
-		// distributes a hidden child's space among the remaining children.
-		setVisible(State == core::workbench_drawer_state::expanded);
+		// [[BPR-0646]]. Collapsed narrows the panel to its rail rather than
+		// hiding it; the splitter gives the centre everything beyond the
+		// rail's width, and the rail keeps the drawer named and one click
+		// away. Expanded restores the width the host persists.
+		const auto expanded = State == core::workbench_drawer_state::expanded;
+		// Everything the column holds is the drawer's content, including what
+		// the window placed there itself; only the rail stays for the rail.
+		if (auto* const column = layout(); column != nullptr) {
+			for (auto index = 0; index < column->count(); ++index) {
+				auto* const item = column->itemAt(index);
+				if (item != nullptr && item->widget() != nullptr
+					&& item->widget() != Rail) {
+					item->widget()->setVisible(expanded);
+				}
+			}
+		}
+		Rail->setVisible(!expanded);
+		if (expanded) {
+			setMinimumWidth(
+				static_cast<int>(application::minimum_workbench_drawer_width));
+			setMaximumWidth(QWIDGETSIZE_MAX);
+		} else {
+			setFixedWidth(workbench_drawer_rail::width_pixels);
+		}
 	}
 
 	void workbench_drawer_panel::resizeEvent(QResizeEvent* const aEvent)

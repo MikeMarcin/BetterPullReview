@@ -3,6 +3,7 @@
 
 #include "bpr/core/workbench_interaction.hpp"
 
+#include <QAbstractButton>
 #include <QAbstractListModel>
 #include <QString>
 #include <QWidget>
@@ -16,6 +17,7 @@
 
 class QLabel;
 class QListView;
+class QPaintEvent;
 class QResizeEvent;
 
 namespace bpr::qt {
@@ -107,6 +109,39 @@ namespace bpr::qt {
 	/// Collapsed and expanded never travel here; they are core state.
 	using workbench_drawer_width_dispatch = std::function<void(core::workbench_drawer, std::uint32_t)>;
 
+	/// \brief The 18-pixel rail a collapsed drawer leaves in the surface.
+	///
+	/// \details [[BPR-0646]]. RFC-BPR-0028: a collapsed drawer does not leave
+	/// the surface; it narrows to a rail with a vertical label and a count,
+	/// so what it holds stays named and one click reopens it. The rail is a
+	/// button: pressing it is the drawer toggle, dispatched by the window
+	/// through the same action the strip's toggle uses, so the core still
+	/// decides the drawer state.
+	class workbench_drawer_rail final : public QAbstractButton
+	{
+	public:
+		explicit workbench_drawer_rail(
+			core::workbench_drawer aDrawer,
+			QWidget*               aParent = nullptr);
+
+		static constexpr int width_pixels = 18;
+
+		/// \brief The count or position shown after the label; empty hides it.
+		void               set_summary(const QString& aSummary);
+		[[nodiscard]] auto summary() const -> QString;
+		[[nodiscard]] auto label() const -> QString;
+
+		[[nodiscard]] auto sizeHint() const -> QSize override;
+		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
+
+	protected:
+		void paintEvent(QPaintEvent* aEvent) override;
+
+	private:
+		core::workbench_drawer Drawer;
+		QString                Summary;
+	};
+
 	/// \brief Presents one collapsible, resizable review drawer.
 	///
 	/// \details The panel is presentation only. It never decides whether it may
@@ -161,7 +196,13 @@ namespace bpr::qt {
 		void set_width_dispatch(workbench_drawer_width_dispatch aDispatch);
 
 		/// \brief Adopts the drawer state the core decided.
+		///
+		/// \details Collapsed is the rail, not absence: the panel stays in the
+		/// surface at the rail's width with only the rail shown.
 		void adopt(core::workbench_drawer_state aState);
+
+		/// \brief The rail shown while collapsed.
+		[[nodiscard]] auto rail() const noexcept -> workbench_drawer_rail*;
 
 	protected:
 		void resizeEvent(QResizeEvent* aEvent) override;
@@ -172,7 +213,9 @@ namespace bpr::qt {
 		QLabel*                         Heading      = nullptr;
 		QListView*                      View         = nullptr;
 		workbench_drawer_model*         Contents     = nullptr;
+		QWidget*                        Content      = nullptr;
 		QWidget*                        ContentFocus = nullptr;
+		workbench_drawer_rail*          Rail         = nullptr;
 		core::workbench_drawer_state    State        = core::workbench_drawer_state::expanded;
 	};
 } // namespace bpr::qt

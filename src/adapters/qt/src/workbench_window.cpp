@@ -14,6 +14,7 @@
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 
+#include <QAbstractButton>
 #include <QAbstractItemView>
 #include <QAccessible>
 #include <QAction>
@@ -699,6 +700,15 @@ namespace bpr::qt {
 		Drawers[1].Panel = new workbench_drawer_panel{
 			core::workbench_drawer::conversations
 		};
+		// [[BPR-0646]]. A rail is the collapsed drawer's one control, and
+		// pressing it is the same gesture as the strip's toggle: the action
+		// is triggered, and the core decides.
+		for (std::size_t index = 0U; index < Drawers.size(); ++index) {
+			connect(Drawers[index].Panel->rail(),
+					&QAbstractButton::clicked,
+					this,
+					[this, index] { Drawers[index].Toggle->trigger(); });
+		}
 
 		// Route 2 of BPR-0191. The conversations drawer shows RFC-BPR-0002's
 		// threaded review conversation, which is a forest and cannot be a list,
@@ -1729,6 +1739,9 @@ namespace bpr::qt {
 		if (aProjection.Drawers || aProjection.Layout) {
 			apply_drawer_layout();
 		}
+		if (aProjection.Drawers) {
+			infer_modality_from_drawers();
+		}
 		Failure.reset();
 		++Statistics.Publications;
 		update_action_state();
@@ -2152,6 +2165,7 @@ namespace bpr::qt {
 		if (Modality != nullptr) {
 			Modality->adopt(aModality);
 		}
+		ModalityChosen = true;
 		// A modality is two exact set-drawer intents; the core decides them
 		// as it decides a toggle. With no active workbench the drawers cannot
 		// change, so nothing is asked and the strip merely shows the preset.
@@ -2432,11 +2446,12 @@ namespace bpr::qt {
 		const application::github_pull_request_projection& aPullRequest)
 	{
 		PullRequestPanel->adopt(aPullRequest);
-		IdentityText = QStringLiteral("%1/%2  #%3 %4")
-						   .arg(QString::fromStdString(aPullRequest.Owner),
-								QString::fromStdString(aPullRequest.RepositoryName),
-								QString::number(aPullRequest.Number.value()),
-								QString::fromStdString(aPullRequest.Title));
+		ReviewThreadTotal = aPullRequest.ReviewThreadCount;
+		IdentityText      = QStringLiteral("%1/%2  #%3 %4")
+								.arg(QString::fromStdString(aPullRequest.Owner),
+									 QString::fromStdString(aPullRequest.RepositoryName),
+									 QString::number(aPullRequest.Number.value()),
+									 QString::fromStdString(aPullRequest.Title));
 		update_strip_identity();
 		// The gap BPR-0191 recorded closes here. In the two-window arrangement
 		// the anchor could only follow a conversation projection, because nothing
@@ -2489,8 +2504,10 @@ namespace bpr::qt {
 	void workbench_window::clear_github_pull_request()
 	{
 		HasGithubPullRequest = false;
+		ReviewThreadTotal    = 0U;
 		IdentityText.clear();
 		update_strip_identity();
+		update_rail_summaries();
 		PullRequestPanel->clear();
 		ConversationPanel->clear(QStringLiteral(
 			"Review threads are unavailable until a pull request is open."));
@@ -3169,6 +3186,8 @@ namespace bpr::qt {
 			append(PullRequestPanel->technical_details_button());
 			append(PullRequestPanel->body_editor());
 		}
+		// A collapsed drawer's rail is its one stop; hidden while expanded.
+		append(Drawers[0].Panel->rail());
 		append(Drawers[0].Panel->focus_stop());
 		// The two selectors sit on one grid row above their two exact OIDs, so
 		// the declared order is the row order the composed control already walks.
@@ -3181,6 +3200,7 @@ namespace bpr::qt {
 		// order, which the shell reports through that card rather than restating
 		// here.
 		append(ComparisonSurface->detail_pane());
+		append(Drawers[1].Panel->rail());
 		append(Drawers[1].Panel->focus_stop());
 		if (ReviewEditor != nullptr) {
 			append(ReviewEditor->body_editor());
@@ -3246,6 +3266,49 @@ namespace bpr::qt {
 		QMainWindow::showEvent(aEvent);
 		// The native window exists once shown; the title text goes then.
 		hide_native_title_text(*this);
+	}
+
+	void workbench_window::update_rail_summaries()
+	{
+		// The rails restate what the drawers hold: the selected file's place
+		// among the actionable files, and how many review threads there are.
+		// The unread count the design names waits for the projection that
+		// carries it; nothing is invented meanwhile.
+		auto files = QString{ };
+		if (Cursor && Cursor->ActionableCount > 0U) {
+			files = Cursor->Ordinal > 0U
+				? QStringLiteral("%1 of %2")
+					  .arg(Cursor->Ordinal)
+					  .arg(Cursor->ActionableCount)
+				: QString::number(Cursor->ActionableCount);
+		}
+		Drawers[0].Panel->rail()->set_summary(files);
+		Drawers[1].Panel->rail()->set_summary(
+			ReviewThreadTotal > 0U ? QString::number(ReviewThreadTotal)
+								   : QString{ });
+	}
+
+	void workbench_window::infer_modality_from_drawers()
+	{
+		// A restored layout arrives before any modality was chosen in this
+		// window, so the segment shows the preset the drawers already are.
+		// Once a modality has been chosen here, a manual toggle leaves the
+		// segment alone, as the accepted design requires.
+		if (Modality == nullptr || ModalityChosen) {
+			return;
+		}
+		const auto files = DrawerStates.Files == core::workbench_drawer_state::expanded;
+		const auto conversations
+			= DrawerStates.Conversations == core::workbench_drawer_state::expanded;
+		if (files && !conversations) {
+			Modality->adopt(review_modality::overview);
+		} else if (!files && conversations) {
+			if (Modality->current() != review_modality::discuss) {
+				Modality->adopt(review_modality::read);
+			}
+		} else if (files && conversations) {
+			Modality->adopt(review_modality::review);
+		}
 	}
 
 	void workbench_window::apply_strip_width()
@@ -3506,13 +3569,14 @@ namespace bpr::qt {
 			return static_cast<int>(
 				std::min(aWidth, application::maximum_workbench_drawer_width));
 		};
+		// A collapsed drawer is its rail, so the rail's width is what it keeps.
 		const auto files = DrawerStates.Files == core::workbench_drawer_state::expanded
 			? granted(LayoutWidths->FilesWidth)
-			: 0;
+			: workbench_drawer_rail::width_pixels;
 		const auto conversations
 			= DrawerStates.Conversations == core::workbench_drawer_state::expanded
 			? granted(LayoutWidths->ConversationsWidth)
-			: 0;
+			: workbench_drawer_rail::width_pixels;
 		const auto handles = 2 * CentralSplitter->handleWidth();
 		const auto centre  = std::max(
 			1, CentralSplitter->width() - files - conversations - handles);
@@ -3799,6 +3863,7 @@ namespace bpr::qt {
 		}
 		StatusLabel->setText(status);
 		update_strip_positions();
+		update_rail_summaries();
 	}
 
 	void workbench_window::announce_update()

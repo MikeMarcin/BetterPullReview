@@ -12796,9 +12796,13 @@ namespace bpr::app {
 		if (probe.Phase == state_type::phase::awaiting_focused_layout) {
 			auto* const header = window->findChild<QScrollArea*>(
 				QStringLiteral("workbenchReviewHeaderScroll"));
-			auto* const detail  = workbench->detail_pane();
-			const auto  focused = !window->files_drawer()->isVisible()
-				&& !window->conversations_drawer()->isVisible()
+			auto* const detail = workbench->detail_pane();
+			// [[BPR-0646]]. A collapsed drawer is its rail, so focused means
+			// both drawers are down to their rails.
+			const auto focused = window->files_drawer()->width()
+					<= qt::workbench_drawer_rail::width_pixels
+				&& window->conversations_drawer()->width()
+					<= qt::workbench_drawer_rail::width_pixels
 				&& !window->files_drawer_toggle_action()->isChecked()
 				&& !window->conversations_drawer_toggle_action()->isChecked()
 				&& !window->review_details_toggle_action()->isChecked()
@@ -13033,8 +13037,10 @@ namespace bpr::app {
 		if (header == nullptr || header->isVisible()
 			|| window->epoch_selectors()->isVisible()
 			|| detail == nullptr || detail->isVisible()
-			|| window->files_drawer()->isVisible()
-			|| window->conversations_drawer()->isVisible()
+			|| window->files_drawer()->width()
+				> qt::workbench_drawer_rail::width_pixels
+			|| window->conversations_drawer()->width()
+				> qt::workbench_drawer_rail::width_pixels
 			|| comparisonSurface == nullptr || linkMap == nullptr
 			|| toolbar == nullptr || filesAction == nullptr
 			|| previousFile == nullptr || nextFile == nullptr

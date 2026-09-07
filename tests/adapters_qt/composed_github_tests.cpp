@@ -2565,9 +2565,11 @@ namespace {
 		window.publish(collapsed);
 		QApplication::processEvents();
 		expect(
-			!drawer->isVisible() && !sideChat->isVisible()
-				&& !findingQueue->isVisible(),
-			"collapsing the drawer hides both placed agent surfaces with it");
+			drawer->rail()->isVisible()
+				&& drawer->width() == qt::workbench_drawer_rail::width_pixels
+				&& !sideChat->isVisible() && !findingQueue->isVisible(),
+			"collapsing the drawer to its rail hides both placed agent surfaces "
+			"with it");
 		window.publish(opened);
 		QApplication::processEvents();
 		expect(

@@ -525,6 +525,8 @@ namespace bpr::qt {
 		void update_strip_identity();
 		void update_account_action();
 		void apply_strip_width();
+		void update_rail_summaries();
+		void infer_modality_from_drawers();
 		void apply_focus_order();
 		void update_action_state();
 		void build_menu_bar();
@@ -588,6 +590,8 @@ namespace bpr::qt {
 		QLabel*           FilePositionLabel    = nullptr;
 		QWidget*          ModalitySpacer       = nullptr;
 		QWidget*          StripInset           = nullptr;
+		bool              ModalityChosen       = false;
+		std::size_t       ReviewThreadTotal    = 0U;
 		QAction*          IdentityAction       = nullptr;
 		QAction*          ChangePositionAction = nullptr;
 		QAction*          FilePositionAction   = nullptr;
