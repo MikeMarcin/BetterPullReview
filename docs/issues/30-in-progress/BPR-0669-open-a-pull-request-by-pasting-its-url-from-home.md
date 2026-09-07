@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0669"
 title: "Open a pull request by pasting its URL, from Home"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0028","RFC-BPR-0026"]
 depends_on: []
 priority: "P1"
