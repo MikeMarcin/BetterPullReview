@@ -51,12 +51,54 @@ namespace bpr::application {
 		auto operator==(const review_mutation_terminal&) const -> bool = default;
 	};
 
+	/// \brief [[BPR-0657]]. Asks the host to resolve or unresolve one thread.
+	struct review_thread_resolution_publication_request
+	{
+		std::string Thread;
+		bool        Resolve      = true;
+		bool        Acknowledged = false;
+
+		auto operator<=>(const review_thread_resolution_publication_request&) const = default;
+	};
+
+	/// \brief [[BPR-0657]]. One thread resolution's terminal.
+	struct review_thread_resolution_terminal
+	{
+		review_mutation_request_context                                          Context;
+		review_thread_resolution_publication_request                             Request;
+		std::expected<review_thread_resolution_receipt, review_mutation_failure> Result{
+			std::unexpected(review_mutation_failure::unavailable)
+		};
+
+		auto operator==(const review_thread_resolution_terminal&) const -> bool = default;
+	};
+
 	class review_mutation_projection_port
 	{
 	public:
 		virtual ~review_mutation_projection_port() = default;
 
 		virtual void publish(const review_mutation_terminal& aTerminal) = 0;
+		/// \brief [[BPR-0657]]. A sink that does not present resolutions ignores
+		/// them; named apart from `publish` so no sink's overload hides it.
+		virtual void publish_resolution(const review_thread_resolution_terminal& aTerminal)
+		{
+			static_cast<void>(aTerminal);
+		}
+	};
+
+	/// \brief [[BPR-0657]]. Host-validated scope of one thread resolution:
+	/// the session, generation, target and actor a publication is bound to,
+	/// and the thread, with no source line to anchor.
+	struct review_mutation_thread_scope
+	{
+		core::application_session_id    ApplicationSession;
+		core::request_generation        WorkbenchGeneration;
+		review_mutation_target_binding  Target;
+		review_mutation_acting_identity ActingIdentity;
+		std::string                     Thread;
+
+		auto operator<=>(const review_mutation_thread_scope&) const = default;
 	};
 
 	/// \brief Host-validated scope presented to an opaque execution authority.
@@ -112,6 +154,8 @@ namespace bpr::application {
 		std::uint64_t Superseded              = 0U;
 		std::uint64_t StaleTerminalsRejected  = 0U;
 		std::uint64_t ShutdownRequestsStopped = 0U;
+		/// [[BPR-0657]].
+		std::uint64_t ThreadResolutions = 0U;
 
 		auto operator<=>(const review_mutation_application_host_statistics&) const
 			= default;
@@ -156,6 +200,14 @@ namespace bpr::application {
 
 		[[nodiscard]] auto publish(review_mutation_publication_request aRequest,
 								   review_mutation_execution_grant     aRequestGrant = { })
+			-> review_mutation_request_context;
+		/// \brief [[BPR-0657]]. Resolves or unresolves one thread under a grant
+		/// bound to the accepted target and actor; refused before any effect
+		/// when the provider lacks the capability or the grant does not permit
+		/// the exact request.
+		[[nodiscard]] auto resolve(
+			review_thread_resolution_publication_request aRequest,
+			review_mutation_execution_grant              aRequestGrant = { })
 			-> review_mutation_request_context;
 		void cancel(review_mutation_request_context aContext) noexcept;
 		void shutdown() noexcept;

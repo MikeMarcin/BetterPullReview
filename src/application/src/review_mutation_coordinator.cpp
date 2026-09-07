@@ -96,6 +96,36 @@ namespace bpr::application {
 			.Result;
 	}
 
+	auto review_mutation_coordinator::resolve_thread(
+		const std::string&    aThread,
+		const bool            aResolve,
+		const std::stop_token aStop)
+		-> std::expected<review_thread_resolution_receipt, review_mutation_failure>
+	{
+		++Statistics.Attempts;
+		if (aStop.stop_requested()) {
+			++Statistics.RefusedBeforeSubmit;
+			return std::unexpected(review_mutation_failure::cancelled);
+		}
+		if (Provider == nullptr || aThread.empty()) {
+			++Statistics.RefusedBeforeSubmit;
+			return std::unexpected(review_mutation_failure::undesignated_target);
+		}
+		auto request = review_thread_resolution_request{
+			.Target         = Designated,
+			.ActingIdentity = ActingIdentity,
+			.Thread         = aThread,
+			.Resolve        = aResolve,
+		};
+		if (TargetBinding.has_value() && ActingIdentityBinding.has_value()) {
+			request.LiveBinding = review_mutation_live_binding{
+				.Target         = *TargetBinding,
+				.ActingIdentity = *ActingIdentityBinding,
+			};
+		}
+		return Provider->resolve_thread(request, aStop);
+	}
+
 	auto review_mutation_coordinator::publish_attempt(
 		const core::review_publication_proposal& aProposal,
 		review_mutation_anchor_binding           aAnchor,

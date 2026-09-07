@@ -336,7 +336,17 @@ namespace {
 		};
 		expect(actionsOf(view.cards()[2]) == std::vector{ qt::card_action::reply, qt::card_action::mark_read, qt::card_action::open_in_code }
 				   && actionsOf(view.cards()[0]) == std::vector{ qt::card_action::reply, qt::card_action::open_in_code },
-			   "the feed offers Reply, Mark read while unread, and Open in code; Resolve waits on its authority");
+			   "the feed offers Reply, Mark read while unread, and Open in code; Resolve only once offered");
+		// [[BPR-0657]]. Once the provider and the server both resolve threads,
+		// every thread card offers Resolve, or Unresolve on a resolved one.
+		view.set_resolution_offered(true);
+		expect(view.resolution_offered() && view.cards()[0].Resolved && !view.cards()[2].Resolved
+				   && actionsOf(view.cards()[0]) == std::vector{ qt::card_action::reply, qt::card_action::unresolve, qt::card_action::open_in_code }
+				   && actionsOf(view.cards()[2]) == std::vector{ qt::card_action::reply, qt::card_action::mark_read, qt::card_action::resolve, qt::card_action::open_in_code },
+			   "offered, a resolved thread's card gains Unresolve and an open one Resolve, before Open in code");
+		view.set_resolution_offered(false);
+		expect(actionsOf(view.cards()[0]) == std::vector{ qt::card_action::reply, qt::card_action::open_in_code },
+			   "withdrawn, the cards offer neither");
 		expect(view.thread_count() == 3U && view.unresolved_count() == 2U && view.unread_thread_count() == 1U,
 			   "the counts the summary restates");
 

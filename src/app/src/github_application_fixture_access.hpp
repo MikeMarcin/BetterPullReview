@@ -102,8 +102,16 @@ namespace bpr::app::detail {
 		// a rotation needs that the read-path fixture has no use for: a real
 		// second vault slot and the documented renewal answer on the
 		// transport. Only meaningful with a fixture.
-		bool                                        DeviceRefreshCourse     = false;
-		bool                                        PersistDeviceBindings   = false;
+		bool DeviceRefreshCourse   = false;
+		bool PersistDeviceBindings = false;
+		/// [[BPR-0657]]. Lets a course refresh the pull request: the recorded
+		/// read script is replayed for each session the product establishes,
+		/// with the fixture's replies and resolutions overlaid.
+		bool RepeatReadSessions = false;
+		/// [[BPR-0657]]. Whether the fixture's mutation provider resolves
+		/// threads. Off, the composed editor reports the degradation, which
+		/// the round-trip course pins; on, the threaded-reply course resolves.
+		bool                                        ResolvesThreads         = false;
 		std::int64_t                                DeviceWallOffsetSeconds = 0;
 		std::shared_ptr<github_fixture_vault_state> SharedDeviceVault;
 		// RFC-BPR-0016 construction cut. Composes the device host with no
@@ -322,6 +330,24 @@ namespace bpr::app::detail {
 		pending,
 		passed,
 		failed,
+	};
+
+	/// [[BPR-0657]]. The threaded-reply course over the fixture.
+	enum class threaded_reply_probe_result {
+		pending,
+		passed,
+		failed,
+	};
+
+	struct threaded_reply_probe_evidence
+	{
+		bool ReplyDrafted     = false;
+		bool ReplyPublished   = false;
+		bool ReplyUnderThread = false;
+		bool ResolveAsked     = false;
+		bool ThreadResolved   = false;
+
+		auto operator<=>(const threaded_reply_probe_evidence&) const = default;
 	};
 
 	enum class defect_composition_probe {
@@ -780,6 +806,16 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto review_round_trip_composition_evidence(
 			const github_application& aApplication) noexcept
 			-> review_round_trip_composition_probe_evidence;
+		/// \brief [[BPR-0657]]. Replies to a thread from its card, publishes, sees
+		/// the reply under the thread on the next read, resolves the thread and
+		/// sees it resolved.
+		[[nodiscard]] static auto exercise_threaded_reply(github_application& aApplication)
+			-> threaded_reply_probe_result;
+		[[nodiscard]] static auto threaded_reply_evidence(const github_application& aApplication)
+			-> threaded_reply_probe_evidence;
+		/// \brief The probe's phase and the facts it last saw, for the run summary.
+		[[nodiscard]] static auto threaded_reply_diagnostic(const github_application& aApplication)
+			-> std::string;
 		[[nodiscard]] static auto dormant_live_provider_selection_evidence_for(
 			const github_application& aApplication)
 			-> dormant_live_provider_selection_evidence;

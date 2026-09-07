@@ -970,6 +970,12 @@ namespace {
 		bool ReviewRoundTripCompositionPassed  = false;
 		bpr::app::detail::review_round_trip_composition_probe_evidence
 			ReviewRoundTripCompositionEvidence;
+		// [[BPR-0657]]. `--threaded-reply-probe`.
+		bool                                            ThreadedReplyProbe   = false;
+		bool                                            ThreadedReplyStarted = false;
+		bool                                            ThreadedReplyPassed  = false;
+		bpr::app::detail::threaded_reply_probe_evidence ThreadedReplyEvidence;
+		std::string                                     ThreadedReplyDiagnostic;
 		std::optional<bpr::app::detail::defect_composition_probe>
 			DefectCompositionProbe;
 		// [[BPR-0654]]. `--overview-since-review`.
@@ -4305,6 +4311,13 @@ namespace {
 				   << evidence.UnavailableVisible << evidence.HostOnlyProbe
 				   << evidence.ReadStateObserved << '\n';
 		}
+		if (aRun.ThreadedReplyProbe) {
+			const auto& evidence = aRun.ThreadedReplyEvidence;
+			stream << (aRun.ThreadedReplyPassed ? "THREADED_REPLY_OK\n" : "THREADED_REPLY_FAILED\n")
+				   << "THREADED_REPLY_EVIDENCE:" << evidence.ReplyDrafted << evidence.ReplyPublished
+				   << evidence.ReplyUnderThread << evidence.ResolveAsked << evidence.ThreadResolved << '\n';
+			stream << "THREADED_REPLY_DIAGNOSTIC:" << QString::fromStdString(aRun.ThreadedReplyDiagnostic) << '\n';
+		}
 		if (aRun.ReviewRoundTripCompositionProbe) {
 			const auto& evidence = aRun.ReviewRoundTripCompositionEvidence;
 			stream << (aRun.ReviewRoundTripCompositionPassed
@@ -4367,7 +4380,7 @@ namespace {
 		if (fixtureCourseRan && !aRun.WorkbenchCompositionProbe
 			&& !aRun.UIforEtwSelectedDiffProbe
 			&& !aRun.Appearance.Enabled
-			&& !aRun.ReviewRoundTripCompositionProbe
+			&& !aRun.ReviewRoundTripCompositionProbe && !aRun.ThreadedReplyProbe
 			&& !aRun.DefectCompositionProbe.has_value()) {
 			// After the render marker rather than inside its block: the
 			// public-path expectation matches its markers contiguously, so a
@@ -5339,6 +5352,26 @@ namespace {
 					advance_uiforetw_selected_diff_probe(aApplication, *aRun);
 					break;
 				}
+				if (aRun->ThreadedReplyProbe && aRun->ThreadedReplyStarted
+					&& !aRun->ThreadedReplyPassed) {
+					const auto result = bpr::app::detail::github_application_fixture_access::
+						exercise_threaded_reply(aApplication);
+					aRun->ThreadedReplyDiagnostic = bpr::app::detail::
+						github_application_fixture_access::threaded_reply_diagnostic(aApplication);
+					if (result == bpr::app::detail::threaded_reply_probe_result::pending) {
+						break;
+					}
+					aRun->ThreadedReplyEvidence = bpr::app::detail::
+						github_application_fixture_access::threaded_reply_evidence(aApplication);
+					aRun->ThreadedReplyPassed = result == bpr::app::detail::threaded_reply_probe_result::passed;
+					if (!aRun->ThreadedReplyPassed) {
+						fail_automated_run(aApplication, *aRun);
+						break;
+					}
+					aRun->PresentationPassed = true;
+					transition_to_shutdown(aApplication, *aRun);
+					break;
+				}
 				if (aRun->ReviewRoundTripCompositionProbe
 					&& aRun->ReviewRoundTripCompositionStarted
 					&& !aRun->ReviewRoundTripCompositionPassed) {
@@ -5449,6 +5482,26 @@ namespace {
 						aRun->LedgerRoundTripped
 							= aRun->ReviewLedgerCompositionEvidence.DurableReceipt;
 						if (!aRun->ReviewLedgerCompositionPassed) {
+							fail_automated_run(aApplication, *aRun);
+							break;
+						}
+						aRun->PresentationPassed = true;
+						transition_to_shutdown(aApplication, *aRun);
+						break;
+					}
+					if (aRun->ThreadedReplyProbe && !aRun->ThreadedReplyPassed) {
+						aRun->ThreadedReplyStarted = true;
+						const auto result          = bpr::app::detail::
+							github_application_fixture_access::exercise_threaded_reply(aApplication);
+						aRun->ThreadedReplyDiagnostic = bpr::app::detail::
+							github_application_fixture_access::threaded_reply_diagnostic(aApplication);
+						if (result == bpr::app::detail::threaded_reply_probe_result::pending) {
+							break;
+						}
+						aRun->ThreadedReplyEvidence = bpr::app::detail::
+							github_application_fixture_access::threaded_reply_evidence(aApplication);
+						aRun->ThreadedReplyPassed = result == bpr::app::detail::threaded_reply_probe_result::passed;
+						if (!aRun->ThreadedReplyPassed) {
 							fail_automated_run(aApplication, *aRun);
 							break;
 						}
@@ -7134,6 +7187,10 @@ auto main(int argc, char** argv) -> int
 			"--device-authorization-orphan-course");
 		fixtureOptions.DeviceRefreshCourse = fixtureOptions.DeviceRefreshCourse
 			|| fixtureOptions.SeedOrphanedRefreshMaterial;
+		// [[BPR-0657]]. The threaded-reply course refreshes the pull request
+		// after publishing, so the fixture replays its read script.
+		fixtureOptions.RepeatReadSessions = has_argument(argc, argv, "--threaded-reply-probe");
+		fixtureOptions.ResolvesThreads    = fixtureOptions.RepeatReadSessions;
 		// The renewal course is the registered course plus a renewal, so it
 		// composes the registered capability rather than a second one. Every
 		// stage up to the vault store is the same graph, which is what makes
@@ -7518,6 +7575,7 @@ auto main(int argc, char** argv) -> int
 		}
 		const auto reviewRoundTripCompositionProbe = has_argument(
 			argc, argv, "--review-round-trip-composition-probe");
+		const auto threadedReplyProbe         = has_argument(argc, argv, "--threaded-reply-probe");
 		const auto defectCompositionProbeName = argument_value(
 			argc, argv, "--defect-composition-probe");
 		auto defectCompositionProbe
@@ -7920,6 +7978,7 @@ auto main(int argc, char** argv) -> int
 						.UIforEtwSelectedDiffDirectory   = uiforetwSelectedDiffDirectory,
 						.ReviewLedgerCompositionProbe    = reviewLedgerCompositionProbe,
 						.ReviewRoundTripCompositionProbe = reviewRoundTripCompositionProbe,
+						.ThreadedReplyProbe              = threadedReplyProbe,
 						.DefectCompositionProbe          = defectCompositionProbe,
 						.OverviewSinceReviewRequested    = overviewSinceReview,
 						.ReviewBehaviourRequested        = reviewBehaviour,

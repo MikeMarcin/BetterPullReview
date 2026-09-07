@@ -25,6 +25,11 @@ namespace bpr::application::detail {
 										core::request_generation aGeneration, review_mutation_target_binding aTarget,
 										review_mutation_acting_identity aActor, review_mutation_publication_request aRequest)
 			-> review_mutation_execution_grant;
+		/// \brief [[BPR-0657]]. The one-shot grant for one exact thread resolution.
+		[[nodiscard]] static auto issue_thread(core::application_session_id aSession,
+											   core::request_generation aGeneration, review_mutation_target_binding aTarget,
+											   review_mutation_acting_identity aActor, review_thread_resolution_publication_request aRequest)
+			-> review_mutation_execution_grant;
 	};
 
 	enum class designated_review_bootstrap_failure : std::uint8_t {
@@ -205,6 +210,16 @@ namespace bpr::application {
 		[[nodiscard]] auto permits(
 			const review_mutation_execution_scope&     aScope,
 			const review_mutation_publication_request& aRequest) noexcept -> bool;
+		// [[BPR-0657]]. A thread resolution binds and is permitted on the same
+		// session, generation, target and actor as a publication; a user
+		// one-shot grant permits only the exact request it was issued for.
+		explicit review_mutation_execution_authority(
+			review_mutation_thread_scope                 aScope,
+			review_thread_resolution_publication_request aRequest);
+		[[nodiscard]] auto bind_thread(const review_mutation_thread_scope& aScope) noexcept -> bool;
+		[[nodiscard]] auto permits_thread(
+			const review_mutation_thread_scope&                 aScope,
+			const review_thread_resolution_publication_request& aRequest) noexcept -> bool;
 		void revoke() noexcept;
 
 		friend class review_mutation_application_host;
@@ -224,16 +239,17 @@ namespace bpr::application {
 			-> std::shared_ptr<review_mutation_execution_authority>;
 #endif
 
-		std::optional<review_mutation_publication_request> Request;
-		mutable std::mutex                                 Mutex;
-		review_mutation_execution_scope                    Scope;
-		review_mutation_target_binding                     Target;
-		std::optional<review_mutation_acting_identity>     ActingIdentity;
-		std::chrono::steady_clock::time_point              ExpiresAt{ };
-		kind                                               Kind     = kind::testing_reusable;
-		bool                                               Bound    = false;
-		std::atomic_bool                                   Consumed = false;
-		std::atomic_bool                                   Revoked  = false;
+		std::optional<review_mutation_publication_request>          Request;
+		std::optional<review_thread_resolution_publication_request> ThreadRequest;
+		mutable std::mutex                                          Mutex;
+		review_mutation_execution_scope                             Scope;
+		review_mutation_target_binding                              Target;
+		std::optional<review_mutation_acting_identity>              ActingIdentity;
+		std::chrono::steady_clock::time_point                       ExpiresAt{ };
+		kind                                                        Kind     = kind::testing_reusable;
+		bool                                                        Bound    = false;
+		std::atomic_bool                                            Consumed = false;
+		std::atomic_bool                                            Revoked  = false;
 	};
 } // namespace bpr::application
 

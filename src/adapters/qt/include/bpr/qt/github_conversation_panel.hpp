@@ -141,6 +141,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto filter_unread_button() const noexcept -> QToolButton*;
 		[[nodiscard]] auto filter_unresolved_button() const noexcept -> QToolButton*;
 		[[nodiscard]] auto discuss_summary() const noexcept -> QLabel*;
+		/// \brief [[BPR-0657]]. Says what a thread gesture came to: a refusal
+		/// named before any provider, or the provider's answer. Empty hides it.
+		void               present_notice(const QString& aNotice);
+		[[nodiscard]] auto notice_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto discuss_column() const noexcept -> QWidget*;
 
 	private:
@@ -173,6 +177,7 @@ namespace bpr::qt {
 		QToolButton*             FilterUnread     = nullptr;
 		QToolButton*             FilterUnresolved = nullptr;
 		QLabel*                  DiscussSummary   = nullptr;
+		QLabel*                  Notice           = nullptr;
 		bool                     Discuss          = false;
 		bool                     HasThreads       = false;
 		/// Expanded once, on the first projection that has anything to expand.

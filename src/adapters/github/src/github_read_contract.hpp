@@ -353,6 +353,11 @@ namespace bpr::adapters::github::detail {
 		// the same requests again, and the answers are the same answers. The
 		// cursor is the only state a replay has, so this is the whole of it.
 		void rewind() noexcept;
+		/// \brief [[BPR-0657]]. Moves the cursor forward to the next recorded
+		/// exchange of one operation, or to the end when there is none: a
+		/// fixture replaying its script for a refresh starts where the
+		/// refresh starts.
+		void skip_until(read_operation aOperation) noexcept;
 
 	private:
 		std::vector<recorded_exchange> Exchanges;

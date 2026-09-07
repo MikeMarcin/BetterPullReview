@@ -1203,8 +1203,10 @@ namespace bpr::adapters::github::detail {
 		const application::github_server_contract            aServer)
 		-> review_mutation_request_result
 	{
+		// A resolution binds the target and the actor; it has no source line.
 		if (!valid_server(aServer) || !aRequest.LiveBinding.has_value()
-			|| !application::valid(*aRequest.LiveBinding)
+			|| !application::valid(aRequest.LiveBinding->Target)
+			|| !application::valid(aRequest.LiveBinding->ActingIdentity)
 			|| aRequest.Target != aRequest.LiveBinding->Target.Semantic
 			|| aRequest.ActingIdentity != aRequest.LiveBinding->ActingIdentity.Account
 			|| !graphql_token(aRequest.Thread)) {
@@ -1786,7 +1788,6 @@ namespace bpr::adapters::github::detail {
 				return std::unexpected(application::review_mutation_failure::unavailable);
 			}
 			if (!valid(Configuration) || !aRequest.LiveBinding.has_value()
-				|| !application::valid(*aRequest.LiveBinding)
 				|| aRequest.LiveBinding->Target != Configuration.Target
 				|| aRequest.LiveBinding->ActingIdentity != Configuration.ActingIdentity) {
 				return std::unexpected(application::review_mutation_failure::undesignated_target);

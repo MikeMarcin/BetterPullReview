@@ -3785,6 +3785,8 @@ namespace bpr::app {
 				});
 			Window->set_review_reply_dispatch(
 				[this](const std::string& aIdentity) { begin_review_reply(aIdentity); });
+			Window->set_thread_resolution_dispatch(
+				[this](const qt::thread_resolution_gesture& aGesture) { resolve_review_thread(aGesture); });
 			// BPR-0533. The six comment-workshop controls reach the composed
 			// workshop host and nothing else: the editor asks for an operation
 			// on one exact draft, and this composition is what decides whether
@@ -6019,6 +6021,102 @@ namespace bpr::app {
 											core::canonical_hex(aHandoff.Head).view()))
 										.arg(QString::fromStdString(Host->accepted_snapshot()->Viewer.Login)));
 			editor->present(ReviewMutationHost->capabilities());
+			Window->set_thread_resolution_provider(ReviewMutationHost->capabilities().ResolvesThreads);
+		}
+
+		// [[BPR-0657]]. A card's Resolve or Unresolve: the core decides from
+		// the session's anonymity, the server's capability and the thread's
+		// state, before any provider is asked; a refusal is named on the
+		// panel. An allowed gesture goes to the mutation host under the same
+		// grant a publication gets, and its terminal re-reads the pull request
+		// so the thread's new state comes back the way every other fact does.
+		void resolve_review_thread(const qt::thread_resolution_gesture& aGesture)
+		{
+			constexpr auto prefix = std::string_view{ "review-thread:" };
+			if (Closing || Window == nullptr || ReviewMutationHost == nullptr
+				|| !aGesture.Identity.starts_with(prefix)) {
+				return;
+			}
+			auto* const panel  = Window->conversation_panel();
+			const auto  notice = [panel](const QString& aText) {
+				if (panel != nullptr) {
+					panel->present_notice(aText);
+				}
+			};
+			const auto anonymous = Host != nullptr
+				&& std::holds_alternative<core::anonymous_intent_refused>(Host->public_preview_legality(
+					aGesture.Resolve ? core::anonymous_read_intent::resolve_review_thread
+									 : core::anonymous_read_intent::unresolve_review_thread));
+			const auto refusal = core::decide_thread_resolution(core::thread_resolution_input{
+				.Capability    = aGesture.Capability,
+				.AnonymousRead = anonymous,
+				.Resolved      = aGesture.Resolved,
+				.Resolve       = aGesture.Resolve,
+			});
+			++ThreadResolutionGestures;
+			switch (refusal) {
+			case core::thread_resolution_refusal::anonymous_read:
+				++ThreadResolutionRefusals;
+				notice(QStringLiteral("Sign in to resolve threads; a public preview only reads."));
+				return;
+			case core::thread_resolution_refusal::capability_absent:
+				++ThreadResolutionRefusals;
+				notice(QStringLiteral("This server has not said it resolves threads."));
+				return;
+			case core::thread_resolution_refusal::already_in_state:
+				++ThreadResolutionRefusals;
+				notice(aGesture.Resolve ? QStringLiteral("This thread is already resolved.")
+										: QStringLiteral("This thread is already open."));
+				return;
+			case core::thread_resolution_refusal::none:
+				break;
+			}
+			auto request = application::review_thread_resolution_publication_request{
+				.Thread  = std::string{ aGesture.Identity.substr(prefix.size()) },
+				.Resolve = aGesture.Resolve,
+			};
+			auto grant = review_mutation_gesture_grant(
+				std::nullopt,
+				[&request](const core::application_session_id           aSession,
+						   const core::request_generation               aGeneration,
+						   application::review_mutation_target_binding  aTarget,
+						   application::review_mutation_acting_identity aActor) {
+					return application::detail::review_mutation_user_authority_issuer::issue_thread(
+						aSession, aGeneration, std::move(aTarget), std::move(aActor), request);
+				});
+			notice(aGesture.Resolve ? QStringLiteral("Resolving the thread…")
+									: QStringLiteral("Reopening the thread…"));
+			PendingThreadResolution = ReviewMutationHost->resolve(std::move(request), std::move(grant));
+		}
+
+		void publish_resolution(const application::review_thread_resolution_terminal& aTerminal) override
+		{
+			if (Closing || Window == nullptr
+				|| PendingThreadResolution != std::optional{ aTerminal.Context }) {
+				return;
+			}
+			PendingThreadResolution.reset();
+			auto* const panel = Window->conversation_panel();
+			if (!aTerminal.Result.has_value()) {
+				++ThreadResolutionFailures;
+				if (panel != nullptr) {
+					panel->present_notice(QStringLiteral("The thread could not be %1: %2.")
+											  .arg(aTerminal.Request.Resolve ? QStringLiteral("resolved")
+																			 : QStringLiteral("reopened"),
+												   QString::fromUtf8(application::name(aTerminal.Result.error()))));
+				}
+				return;
+			}
+			++ThreadResolutionCompletions;
+			if (panel != nullptr) {
+				panel->present_notice(aTerminal.Result->Resolved ? QStringLiteral("Thread resolved.")
+																 : QStringLiteral("Thread reopened."));
+			}
+			// The thread's new state comes back from the server the way every
+			// other fact does.
+			if (auto* const refresh = Window->github_refresh_action(); refresh != nullptr && refresh->isEnabled()) {
+				refresh->trigger();
+			}
 		}
 
 		void refresh_review_projection(
@@ -6041,6 +6139,48 @@ namespace bpr::app {
 				ReviewProjection, *aTerminal.Reconciliation, { });
 			ReviewProjection = ReviewReconciliation.Projection;
 #endif
+		}
+
+		// The grant a gesture publishes or resolves under is minted in one
+		// place: absent in attended mode, where the host's own designated
+		// authority answers; the fixture's testing grant in a fixture build
+		// (a one-shot for the exact publication when one is named, reusable
+		// for a resolution); the user issuer's one-shot in production, through
+		// the issuer the gesture names. Both gestures bind to the accepted
+		// pull request the selected diff was published for.
+		[[nodiscard]] auto review_mutation_gesture_grant(
+			const std::optional<application::review_mutation_publication_request>& aTestingRequest,
+			const std::function<application::review_mutation_execution_grant(
+				core::application_session_id,
+				core::request_generation,
+				application::review_mutation_target_binding,
+				application::review_mutation_acting_identity)>&                    aIssue)
+			-> application::review_mutation_execution_grant
+		{
+			auto grant = application::review_mutation_execution_grant{ };
+			if (AttendedReviewMutationMode || !Host || !Host->accepted_snapshot()
+				|| !InlineReviewBinding || WorkbenchHost == nullptr
+				|| !SelectedDiffPublication.has_value()) {
+				return grant;
+			}
+			const auto& authority = SelectedDiffPublication->Request.WorkbenchAuthority;
+			const auto& snapshot  = *Host->accepted_snapshot();
+			// Reuse the accepted handoff binding retained by the host composition.
+			if (snapshot.Account != authority.Account
+				|| snapshot.PullRequest.PullRequest != authority.PullRequest) {
+				return grant;
+			}
+#if defined(BPR_BUILD_TESTING)
+			static_cast<void>(aIssue);
+			grant = application::make_review_mutation_testing_grant(
+				authority.ApplicationSession, WorkbenchHost->generation(),
+				InlineReviewBinding->Target, InlineReviewBinding->ActingIdentity, aTestingRequest);
+#else
+			static_cast<void>(aTestingRequest);
+			grant = aIssue(authority.ApplicationSession, WorkbenchHost->generation(),
+						   InlineReviewBinding->Target, InlineReviewBinding->ActingIdentity);
+#endif
+			return grant;
 		}
 
 		// [[BPR-0657]]. A card's Reply names the thread the next draft
@@ -6138,24 +6278,15 @@ namespace bpr::app {
 				.Selection    = *SelectedSemanticSelection,
 				.SelectedDiff = *SelectedDiffPublication,
 			};
-			auto grant = application::review_mutation_execution_grant{ };
-			if (!AttendedReviewMutationMode && Host && Host->accepted_snapshot()) {
-				const auto& authority = SelectedDiffPublication->Request.WorkbenchAuthority;
-				const auto& snapshot  = *Host->accepted_snapshot();
-				// Reuse the accepted handoff binding retained by the host composition.
-				if (InlineReviewBinding && snapshot.Account == authority.Account
-					&& snapshot.PullRequest.PullRequest == authority.PullRequest) {
-#if defined(BPR_BUILD_TESTING)
-					grant = application::make_review_mutation_testing_grant(
-						authority.ApplicationSession, WorkbenchHost->generation(),
-						InlineReviewBinding->Target, InlineReviewBinding->ActingIdentity, request);
-#else
-					grant = application::detail::review_mutation_user_authority_issuer::issue(
-						authority.ApplicationSession, WorkbenchHost->generation(),
-						InlineReviewBinding->Target, InlineReviewBinding->ActingIdentity, request);
-#endif
-				}
-			}
+			auto grant = review_mutation_gesture_grant(
+				request,
+				[&request](const core::application_session_id           aSession,
+						   const core::request_generation               aGeneration,
+						   application::review_mutation_target_binding  aTarget,
+						   application::review_mutation_acting_identity aActor) {
+					return application::detail::review_mutation_user_authority_issuer::issue(
+						aSession, aGeneration, std::move(aTarget), std::move(aActor), request);
+				});
 			const auto context = ReviewMutationHost->publish(std::move(request), std::move(grant));
 			if (context.Request.value() == 0U) {
 				ReviewDraft = core::apply(
@@ -9354,6 +9485,24 @@ namespace bpr::app {
 		};
 		std::optional<review_round_trip_composition_probe_state>
 			ReviewRoundTripCompositionProbe;
+		// [[BPR-0657]].
+		struct threaded_reply_probe_state
+		{
+			enum class phase {
+				awaiting_ready,
+				awaiting_reply_draft,
+				awaiting_reply_body,
+				awaiting_reply_published,
+				awaiting_reply_seen,
+				awaiting_resolved,
+				passed,
+				failed,
+			};
+			detail::threaded_reply_probe_evidence Evidence;
+			phase                                 Phase = phase::awaiting_ready;
+			std::string                           Diagnostic;
+		};
+		std::optional<threaded_reply_probe_state> ThreadedReplyProbe;
 		struct defect_composition_probe_state
 		{
 			enum class phase {
@@ -9467,6 +9616,12 @@ namespace bpr::app {
 		bool                                                AttendedReviewMutationMode = false;
 		/// [[BPR-0657]]. The thread the next draft answers, named by a card's Reply.
 		std::optional<std::string> PendingReplyThread;
+		/// [[BPR-0657]]. The thread resolution in flight and what came of them.
+		std::optional<application::review_mutation_request_context> PendingThreadResolution;
+		std::size_t                                                 ThreadResolutionGestures    = 0U;
+		std::size_t                                                 ThreadResolutionRefusals    = 0U;
+		std::size_t                                                 ThreadResolutionCompletions = 0U;
+		std::size_t                                                 ThreadResolutionFailures    = 0U;
 		std::vector<std::unique_ptr<application::review_mutation_application_host>>
 			RetiredReviewMutationHosts;
 		std::optional<application::review_mutation_request_context>
@@ -14742,6 +14897,227 @@ namespace bpr::app {
 		}
 		probe.Phase = state_type::phase::passed;
 		return result::passed;
+	}
+
+	auto detail::github_application_fixture_access::exercise_threaded_reply(
+		github_application& aApplication) -> detail::threaded_reply_probe_result
+	{
+		using result               = detail::threaded_reply_probe_result;
+		using state_type           = github_application::implementation::threaded_reply_probe_state;
+		auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr) {
+			return result::failed;
+		}
+		if (!implementation->ThreadedReplyProbe.has_value()) {
+			implementation->ThreadedReplyProbe.emplace();
+		}
+		auto& probe = *implementation->ThreadedReplyProbe;
+		if (probe.Phase == state_type::phase::failed) {
+			return result::failed;
+		}
+		if (probe.Phase == state_type::phase::passed) {
+			return result::passed;
+		}
+		if (implementation->Fixture == nullptr || implementation->Window == nullptr
+			|| implementation->WorkbenchHost == nullptr
+			|| implementation->ReviewMutationHost == nullptr) {
+			return result::pending;
+		}
+		auto* const window = &*implementation->Window;
+		auto* const cards  = window->conversation_panel() != nullptr
+			? window->conversation_panel()->cards()
+			: nullptr;
+		auto* const editor = window->review_editor();
+		auto* const model  = window->conversation_model();
+		if (cards == nullptr || editor == nullptr || model == nullptr) {
+			return result::pending;
+		}
+		const auto fail = [&probe](const std::string_view aWhy) {
+			probe.Diagnostic += " | phase=" + std::to_string(static_cast<int>(probe.Phase)) + " failed=" + std::string{ aWhy };
+			probe.Phase = state_type::phase::failed;
+			return result::failed;
+		};
+		// One line per phase, the latest facts of each: a stalled course says
+		// where it stalled and what it last saw before.
+		const auto note = [&probe](std::string aFacts) {
+			const auto key   = "phase=" + std::to_string(static_cast<int>(probe.Phase)) + " ";
+			const auto start = probe.Diagnostic.find(key);
+			if (start == std::string::npos) {
+				probe.Diagnostic += (probe.Diagnostic.empty() ? "" : " | ") + key + std::move(aFacts);
+				return;
+			}
+			const auto end = probe.Diagnostic.find(" | ", start);
+			probe.Diagnostic.replace(start, end == std::string::npos ? std::string::npos : end - start, key + std::move(aFacts));
+		};
+		constexpr auto threadIdentity = std::string_view{ "review-thread:PRRT_fixture_1" };
+		constexpr auto replyBody      = std::string_view{ "Agreed, will do." };
+		// A press on one of the thread's card actions, as a reviewer's.
+		const auto press = [cards, threadIdentity](const qt::card_action aAction) {
+			for (const auto& card : cards->cards()) {
+				if (card.Id != threadIdentity) {
+					continue;
+				}
+				for (const auto& [action, rect] : card.Actions) {
+					if (action != aAction) {
+						continue;
+					}
+					const auto point   = QPointF{ rect.center() };
+					auto       pressed = QMouseEvent{
+						QEvent::MouseButtonPress, point, point, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier
+					};
+					QCoreApplication::sendEvent(cards->viewport(), &pressed);
+					return true;
+				}
+			}
+			return false;
+		};
+		switch (probe.Phase) {
+		case state_type::phase::awaiting_ready: {
+			note("outstanding=" + std::to_string(implementation->WorkbenchHost->outstanding_requests())
+				 + " diff=" + std::to_string(implementation->LastSelectedDiff.has_value() ? 1 : 0)
+				 + " thread=" + std::to_string(model->index_for_id(threadIdentity).isValid() ? 1 : 0));
+			if (implementation->WorkbenchHost->outstanding_requests() != 0U) {
+				return result::pending;
+			}
+			auto* const view = window->files_drawer()->contents_view();
+			if (view == nullptr || view->model() == nullptr || view->model()->rowCount() == 0) {
+				return result::pending;
+			}
+			if (!view->currentIndex().isValid()) {
+				view->setCurrentIndex(view->model()->index(0, 0));
+				return result::pending;
+			}
+			if (!implementation->LastSelectedDiff.has_value()
+				|| !model->index_for_id(threadIdentity).isValid()) {
+				return result::pending;
+			}
+			window->choose_modality(qt::review_modality::discuss);
+			QCoreApplication::processEvents();
+			if (!press(qt::card_action::reply)) {
+				return fail("no-reply-action");
+			}
+			probe.Phase = state_type::phase::awaiting_reply_draft;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_reply_draft: {
+			note("draft=" + std::to_string(implementation->ReviewDraft.has_value() ? 1 : 0) + " reply="
+				 + (implementation->ReviewDraft && implementation->ReviewDraft->ReplyToThread ? *implementation->ReviewDraft->ReplyToThread : std::string{ "-" })
+				 + " anchorSide=" + std::to_string(implementation->ReviewDraft ? static_cast<int>(implementation->ReviewDraft->Anchor.Side) : -1)
+				 + " anchorLine=" + std::to_string(implementation->ReviewDraft ? implementation->ReviewDraft->Anchor.Line : 0U)
+				 + " surfaceSide=" + std::to_string(window->comparison_surface()->selection() ? static_cast<int>(window->comparison_surface()->selection()->PreferredLine.Side) : -1)
+				 + " surfaceLine=" + std::to_string(window->comparison_surface()->selection() ? window->comparison_surface()->selection()->PreferredLine.Line : 0U)
+				 + " availability=" + std::to_string(model->index_for_id(threadIdentity).data(qt::github_conversation_model::anchor_availability_role).toInt())
+				 + " discuss=" + std::to_string(window->conversation_panel()->discuss() ? 1 : 0));
+			if (!implementation->ReviewDraft.has_value()
+				|| implementation->ReviewDraft->ReplyToThread
+					!= std::optional<std::string>{ "PRRT_fixture_1" }) {
+				return result::pending;
+			}
+			probe.Evidence.ReplyDrafted = !editor->reply_target_label()->isHidden();
+			editor->body_editor()->setPlainText(QString::fromUtf8(replyBody.data(), static_cast<qsizetype>(replyBody.size())));
+			probe.Phase = state_type::phase::awaiting_reply_body;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_reply_body: {
+			note("body=" + (implementation->ReviewDraft ? implementation->ReviewDraft->Body : std::string{ "-" })
+				 + " publish=" + std::to_string(editor->publish_action()->isEnabled() ? 1 : 0));
+			if (!implementation->ReviewDraft.has_value() || implementation->ReviewDraft->Body != replyBody
+				|| !editor->publish_action()->isEnabled()) {
+				return result::pending;
+			}
+			editor->publish_action()->trigger();
+			probe.Phase = state_type::phase::awaiting_reply_published;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_reply_published: {
+			note("pending=" + std::to_string(implementation->PendingReviewMutation.has_value() ? 1 : 0)
+				 + " replies=" + std::to_string(implementation->Fixture->review_mutation_evidence().Replies)
+				 + " submissions=" + std::to_string(implementation->Fixture->review_mutation_evidence().Submissions)
+				 + " status=" + editor->mutation_status_label()->text().toStdString());
+			if (implementation->PendingReviewMutation.has_value()
+				|| implementation->Fixture->review_mutation_evidence().Replies == 0U) {
+				return result::pending;
+			}
+			probe.Evidence.ReplyPublished = implementation->Fixture->review_mutation_evidence().Replies == 1U;
+			auto* const refresh           = window->github_refresh_action();
+			if (refresh == nullptr || !refresh->isEnabled()) {
+				return fail("refresh-unavailable");
+			}
+			refresh->trigger();
+			probe.Phase = state_type::phase::awaiting_reply_seen;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_reply_seen: {
+			const auto reply = model->index_for_id("review-comment:fixture-comment-1");
+			note("replyRow=" + std::to_string(reply.isValid() ? 1 : 0) + " rows=" + std::to_string(model->rowCount())
+				 + " threadChildren=" + std::to_string(model->rowCount(model->index_for_id(threadIdentity)))
+				 + " reads=" + std::to_string(implementation->Fixture->evidence().AccountReadCount)
+				 + " lastRead=" + std::to_string(implementation->Fixture->evidence().LastReadOperation));
+			if (!reply.isValid()) {
+				return result::pending;
+			}
+			const auto parent = reply.data(qt::github_conversation_model::parent_identity_role).toString();
+			probe.Evidence.ReplyUnderThread
+				= (parent == QString::fromUtf8(threadIdentity.data(), static_cast<qsizetype>(threadIdentity.size()))
+				   || parent == QStringLiteral("review-comment:PRRC_fixture_1"))
+				&& reply.data(qt::github_conversation_model::body_role).toString()
+					== QString::fromUtf8(replyBody.data(), static_cast<qsizetype>(replyBody.size()));
+			if (!probe.Evidence.ReplyUnderThread) {
+				return fail("reply-not-under-thread parent=" + parent.toStdString());
+			}
+			window->choose_modality(qt::review_modality::discuss);
+			QCoreApplication::processEvents();
+			if (!press(qt::card_action::resolve)) {
+				return fail("no-resolve-action offered=" + std::to_string(cards->resolution_offered() ? 1 : 0));
+			}
+			probe.Evidence.ResolveAsked = true;
+			probe.Phase                 = state_type::phase::awaiting_resolved;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_resolved: {
+			note("completions=" + std::to_string(implementation->ThreadResolutionCompletions)
+				 + " refusals=" + std::to_string(implementation->ThreadResolutionRefusals)
+				 + " failures=" + std::to_string(implementation->ThreadResolutionFailures)
+				 + " resolutions=" + std::to_string(implementation->Fixture->review_mutation_evidence().Resolutions));
+			if (implementation->ThreadResolutionFailures != 0U || implementation->ThreadResolutionRefusals != 0U) {
+				return fail("resolution refused-or-failed notice=" + (window->conversation_panel() != nullptr ? window->conversation_panel()->notice_label()->text().toStdString() : std::string{ }));
+			}
+			if (implementation->ThreadResolutionCompletions == 0U) {
+				return result::pending;
+			}
+			const auto thread = model->index_for_id(threadIdentity);
+			if (!thread.isValid() || !thread.data(qt::github_conversation_model::resolved_role).toBool()) {
+				return result::pending;
+			}
+			probe.Evidence.ThreadResolved = true;
+			probe.Phase                   = state_type::phase::passed;
+			return result::passed;
+		}
+		case state_type::phase::passed:
+		case state_type::phase::failed:
+			break;
+		}
+		return result::failed;
+	}
+
+	auto detail::github_application_fixture_access::threaded_reply_diagnostic(
+		const github_application& aApplication) -> std::string
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr || !implementation->ThreadedReplyProbe.has_value()) {
+			return { };
+		}
+		return implementation->ThreadedReplyProbe->Diagnostic;
+	}
+
+	auto detail::github_application_fixture_access::threaded_reply_evidence(
+		const github_application& aApplication) -> detail::threaded_reply_probe_evidence
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr || !implementation->ThreadedReplyProbe.has_value()) {
+			return { };
+		}
+		return implementation->ThreadedReplyProbe->Evidence;
 	}
 
 	auto detail::github_application_fixture_access::review_round_trip_composition_evidence(

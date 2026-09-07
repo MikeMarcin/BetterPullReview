@@ -208,6 +208,44 @@ namespace bpr::core {
 		auto operator<=>(const review_publication_proposal&) const = default;
 	};
 
+	/// \brief Why a thread resolution is refused before any provider is asked ([[BPR-0657]]).
+	enum class thread_resolution_refusal : std::uint8_t {
+		none,
+		/// The session reads anonymously; a mutation has no account to act as.
+		anonymous_read,
+		/// The server never said it resolves threads, or said it does not.
+		capability_absent,
+		/// The thread is already in the state asked for.
+		already_in_state,
+	};
+
+	/// \brief What decides whether a thread may be resolved or unresolved.
+	struct thread_resolution_input
+	{
+		github_capability_state Capability    = github_capability_state::unknown;
+		bool                    AnonymousRead = false;
+		bool                    Resolved      = false;
+		bool                    Resolve       = true;
+
+		auto operator<=>(const thread_resolution_input&) const = default;
+	};
+
+	/// \brief Decides a thread resolution from its inputs alone.
+	[[nodiscard]] constexpr auto decide_thread_resolution(
+		const thread_resolution_input& aInput) noexcept -> thread_resolution_refusal
+	{
+		if (aInput.AnonymousRead) {
+			return thread_resolution_refusal::anonymous_read;
+		}
+		if (aInput.Capability != github_capability_state::supported) {
+			return thread_resolution_refusal::capability_absent;
+		}
+		if (aInput.Resolved == aInput.Resolve) {
+			return thread_resolution_refusal::already_in_state;
+		}
+		return thread_resolution_refusal::none;
+	}
+
 	/// \brief Builds the proposal for a draft that has begun publishing.
 	///
 	/// \details Returns a proposal only in the `publishing` state. A draft

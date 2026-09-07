@@ -335,15 +335,28 @@ namespace {
 		[[nodiscard]] auto capabilities() const
 			-> application::review_provider_capabilities override
 		{
-			return { .ResolvesThreads = false, .RecordsViewedState = false };
+			return { .ResolvesThreads = Resolves, .RecordsViewedState = false };
+		}
+		auto resolve_thread(
+			const application::review_thread_resolution_request& aRequest,
+			const std::stop_token                                aStop)
+			-> std::expected<application::review_thread_resolution_receipt, application::review_mutation_failure> override
+		{
+			if (aStop.stop_requested()) {
+				return std::unexpected(application::review_mutation_failure::cancelled);
+			}
+			Resolved.push_back(aRequest);
+			return application::review_thread_resolution_receipt{ .Thread = aRequest.Thread, .Resolved = aRequest.Resolve };
 		}
 
-		core::review_mutation_target                           Reported     = target();
-		std::size_t                                            Observations = 0U;
-		std::vector<bool>                                      StopObserved;
-		std::vector<application::review_mutation_request>      Submitted;
-		std::function<void()>                                  OnObserve;
-		std::optional<application::review_mutation_submission> NextSubmission;
+		bool                                                       Resolves = false;
+		std::vector<application::review_thread_resolution_request> Resolved;
+		core::review_mutation_target                               Reported     = target();
+		std::size_t                                                Observations = 0U;
+		std::vector<bool>                                          StopObserved;
+		std::vector<application::review_mutation_request>          Submitted;
+		std::function<void()>                                      OnObserve;
+		std::optional<application::review_mutation_submission>     NextSubmission;
 	};
 
 	class recording_projection final
@@ -354,8 +367,13 @@ namespace {
 		{
 			Published.push_back(aTerminal);
 		}
+		void publish_resolution(const application::review_thread_resolution_terminal& aTerminal) override
+		{
+			Resolutions.push_back(aTerminal);
+		}
 
-		std::vector<application::review_mutation_terminal> Published;
+		std::vector<application::review_mutation_terminal>          Published;
+		std::vector<application::review_thread_resolution_terminal> Resolutions;
 	};
 
 	class parallel_executor final : public application::effect_executor
@@ -487,6 +505,129 @@ namespace {
 			core::request_generation{ 8U },
 			live_target(),
 			acting_identity());
+	}
+
+	// [[BPR-0657]]. A thread resolution: refused before any effect without
+	// the provider's capability, a nameless thread, or a grant that does not
+	// permit it (another session; a one-shot issued for a publication); with
+	// the capability and a permitting grant it reaches the provider bound to
+	// the target and actor and its terminal names the thread's new state.
+	// [[BPR-0657]]. A root comment drafted from a left-side selection is
+	// unsupported, since it is anchored where it is published; a reply drafted
+	// from the same selection is admitted, since its thread anchors it.
+	void test_a_reply_may_be_drafted_from_a_left_side_selection()
+	{
+		auto  provider   = std::make_unique<fake_provider>();
+		auto* observed   = provider.get();
+		auto  effects    = application::manual_executor{ };
+		auto  decisions  = application::manual_executor{ };
+		auto  projection = recording_projection{ };
+		auto  host       = application::review_mutation_application_host{
+			std::move(provider),
+			live_target(),
+			acting_identity(),
+			core::application_session_id{ 3U },
+			core::request_generation{ 8U },
+			testing_grant(),
+			effects,
+			decisions,
+			projection,
+		};
+		auto left                         = publication_request();
+		left.Selection.PreferredLine.Side = core::diff_side::left;
+		left.Proposal.Anchor              = left.Selection.PreferredLine;
+		static_cast<void>(host.publish(left));
+		expect(effects.pending() == 0U && decisions.pending() == 1U, "a left-side root comment is refused before any effect");
+		decisions.run_next();
+		expect(!projection.Published.empty() && !projection.Published.back().Result.has_value()
+				   && projection.Published.back().Result.error() == application::review_mutation_failure::unsupported,
+			   "the left-side root comment is unsupported");
+		auto reply                   = left;
+		reply.Proposal.ReplyToThread = "PRRT_fixture_1";
+		static_cast<void>(host.publish(reply));
+		expect(effects.pending() == 1U, "a reply from the same selection is admitted");
+		effects.run_next();
+		decisions.run_next();
+		expect(observed->Submitted.size() == 1U
+				   && observed->Submitted.front().Proposal.ReplyToThread == std::optional<std::string>{ "PRRT_fixture_1" }
+				   && observed->Submitted.front().LiveBinding.has_value()
+				   && observed->Submitted.front().LiveBinding->Anchor.Semantic.Side == core::diff_side::left
+				   && projection.Published.back().Result.has_value(),
+			   "the reply reaches the provider naming its thread, bound to the left-side line it was drafted from");
+		host.shutdown();
+	}
+
+	void test_thread_resolution_needs_the_capability_and_a_permitting_grant()
+	{
+		auto  provider   = std::make_unique<fake_provider>();
+		auto* observed   = provider.get();
+		auto  effects    = application::manual_executor{ };
+		auto  decisions  = application::manual_executor{ };
+		auto  projection = recording_projection{ };
+		auto  host       = application::review_mutation_application_host{
+			std::move(provider),
+			live_target(),
+			acting_identity(),
+			core::application_session_id{ 3U },
+			core::request_generation{ 8U },
+			testing_grant(),
+			effects,
+			decisions,
+			projection,
+		};
+		const auto request = application::review_thread_resolution_publication_request{
+			.Thread = "PRRT_fixture_1", .Resolve = true
+		};
+		const auto refused = [&](const application::review_mutation_failure aFailure, const char* const aWhy) {
+			expect(effects.pending() == 0U && decisions.pending() == 1U, aWhy);
+			decisions.run_next();
+			expect(!projection.Resolutions.empty() && !projection.Resolutions.back().Result.has_value()
+					   && projection.Resolutions.back().Result.error() == aFailure
+					   && projection.Resolutions.back().Request == request,
+				   aWhy);
+		};
+		static_cast<void>(host.resolve(request));
+		refused(application::review_mutation_failure::unsupported,
+				"without the provider's capability the resolution is refused before any effect");
+		observed->Resolves = true;
+		static_cast<void>(host.resolve({ .Thread = "", .Resolve = true }));
+		expect(decisions.pending() == 1U, "a nameless thread is refused before any effect");
+		decisions.run_next();
+		expect(projection.Resolutions.back().Result.error() == application::review_mutation_failure::undesignated_target,
+			   "a nameless thread is an undesignated target");
+		static_cast<void>(host.resolve(request, application::make_review_mutation_testing_grant(core::application_session_id{ 4U }, core::request_generation{ 8U }, live_target(), acting_identity())));
+		refused(application::review_mutation_failure::unavailable, "another session's grant permits nothing");
+		static_cast<void>(host.resolve(request, application::make_review_mutation_testing_grant(core::application_session_id{ 3U }, core::request_generation{ 8U }, live_target(), acting_identity(), publication_request())));
+		refused(application::review_mutation_failure::unavailable, "a one-shot grant issued for a publication permits no resolution");
+		expect(observed->Resolved.empty() && host.statistics().ThreadResolutions == 0U,
+			   "no refusal reached the provider");
+
+		const auto context = host.resolve(request);
+		expect(context.Request.value() != 0U && effects.pending() == 1U && observed->Resolved.empty(),
+			   "an admitted resolution is queued and returns immediately");
+		effects.run_next();
+		expect(observed->Resolved.size() == 1U && observed->Resolved.front().Thread == "PRRT_fixture_1"
+				   && observed->Resolved.front().Resolve && observed->Resolved.front().Target == target()
+				   && observed->Resolved.front().LiveBinding.has_value()
+				   && observed->Resolved.front().LiveBinding->Target == live_target()
+				   && observed->Resolved.front().LiveBinding->ActingIdentity == acting_identity(),
+			   "the effect asks the provider for the exact thread, bound to the target and the actor");
+		expect(decisions.pending() == 1U, "the effect posts its terminal to the decision lane");
+		decisions.run_next();
+		expect(projection.Resolutions.back().Context == context && projection.Resolutions.back().Result.has_value()
+				   && projection.Resolutions.back().Result->Thread == "PRRT_fixture_1"
+				   && projection.Resolutions.back().Result->Resolved
+				   && host.statistics().ThreadResolutions == 1U,
+			   "the terminal names the thread in its new state");
+		auto unresolve    = request;
+		unresolve.Resolve = false;
+		static_cast<void>(host.resolve(unresolve));
+		effects.run_next();
+		decisions.run_next();
+		expect(observed->Resolved.size() == 2U && !observed->Resolved.back().Resolve
+				   && projection.Resolutions.back().Result.has_value() && !projection.Resolutions.back().Result->Resolved,
+			   "unresolve reaches the provider and answers the open thread");
+		host.shutdown();
 	}
 
 	void test_live_binding_uses_exact_right_resolved_path_asynchronously()
@@ -1077,6 +1218,8 @@ auto main() -> int
 	test_one_shot_authority_consumes_only_the_first_exact_admission();
 	test_one_shot_authority_expiry_invalidation_and_shutdown_revoke_grants();
 	test_one_shot_authority_rejects_same_core_different_full_identity();
+	test_thread_resolution_needs_the_capability_and_a_permitting_grant();
+	test_a_reply_may_be_drafted_from_a_left_side_selection();
 	std::cout << "review-mutation-application-host-tests:pass\n";
 	return EXIT_SUCCESS;
 }

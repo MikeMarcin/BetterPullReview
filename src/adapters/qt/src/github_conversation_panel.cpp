@@ -272,11 +272,17 @@ namespace bpr::qt {
 		cardsLayout->addLayout(scopeRow);
 		Cards = new conversation_cards_view{ cardsPane };
 		cardsLayout->addWidget(Cards, 1);
+		Notice = new QLabel{ cardsPane };
+		Notice->setObjectName(QStringLiteral("conversationNotice"));
+		Notice->setAccessibleName(QStringLiteral("Thread notice"));
+		Notice->setWordWrap(true);
+		Notice->hide();
 		DiscussSummary = new QLabel{ cardsPane };
 		DiscussSummary->setObjectName(QStringLiteral("conversationDiscussSummary"));
 		DiscussSummary->setAccessibleName(QStringLiteral("Threads summary"));
 		detail::set_plain_text_label(DiscussSummary);
 		DiscussSummary->hide();
+		cardsLayout->addWidget(Notice);
 		cardsLayout->addWidget(DiscussSummary);
 		const auto applyFilters = [this] {
 			Cards->set_filters(discuss_filters{
@@ -537,6 +543,17 @@ namespace bpr::qt {
 	auto github_conversation_panel::filter_unresolved_button() const noexcept -> QToolButton*
 	{
 		return FilterUnresolved;
+	}
+
+	void github_conversation_panel::present_notice(const QString& aNotice)
+	{
+		Notice->setText(aNotice);
+		Notice->setVisible(!aNotice.isEmpty());
+	}
+
+	auto github_conversation_panel::notice_label() const noexcept -> QLabel*
+	{
+		return Notice;
 	}
 
 	auto github_conversation_panel::discuss_summary() const noexcept -> QLabel*

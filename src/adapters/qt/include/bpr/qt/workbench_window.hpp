@@ -87,7 +87,19 @@ namespace bpr::qt {
 	using workbench_review_draft_dispatch = std::function<void(core::review_draft_command)>;
 	/// [[BPR-0657]]. A card's Reply: the thread identity the next draft answers.
 	using workbench_review_reply_dispatch = std::function<void(const std::string&)>;
-	using workbench_defect_dispatch       = std::function<void(core::defect_command)>;
+	/// [[BPR-0657]]. A card's Resolve or Unresolve, with what the window knows
+	/// of the thread and the server so the composition can decide it.
+	struct thread_resolution_gesture
+	{
+		std::string                   Identity;
+		bool                          Resolve    = true;
+		bool                          Resolved   = false;
+		core::github_capability_state Capability = core::github_capability_state::unknown;
+
+		auto operator<=>(const thread_resolution_gesture&) const = default;
+	};
+	using workbench_thread_resolution_dispatch = std::function<void(const thread_resolution_gesture&)>;
+	using workbench_defect_dispatch            = std::function<void(core::defect_command)>;
 
 	/// \brief Carries the exact placeable conversation anchor chosen in Qt.
 	struct workbench_defect_classification
@@ -283,6 +295,11 @@ namespace bpr::qt {
 		void set_review_submission_dispatch(review_submission_editor_dispatch aDispatch);
 		/// \brief [[BPR-0657]]. Adopts the sink a card's Reply names its thread to.
 		void set_review_reply_dispatch(workbench_review_reply_dispatch aDispatch);
+		/// \brief [[BPR-0657]]. Adopts the sink a card's Resolve or Unresolve goes to.
+		void set_thread_resolution_dispatch(workbench_thread_resolution_dispatch aDispatch);
+		/// \brief [[BPR-0657]]. Whether the composed provider resolves threads; with
+		/// the server's capability this is what offers Resolve on the cards.
+		void set_thread_resolution_provider(bool aResolves);
 		void set_defect_dispatch(workbench_defect_dispatch aDefectDispatch);
 		void set_agent_dispatch(agent_intent_dispatch aAgentDispatch);
 		/// \brief Adopts the sink the mounted device-sign-in panel dispatches to.
@@ -636,6 +653,9 @@ namespace bpr::qt {
 		void step_to_next_new_comment();
 		/// \brief Selects the file and enters Read, from the overview.
 		void enter_read_at(const QString& aPath);
+		/// [[BPR-0657]]. Selects a thread's line on the comparison, as a click on
+		/// it would, so the draft a card starts anchors on the thread's line.
+		[[nodiscard]] auto select_thread_line(const std::string& aIdentity) -> bool;
 		// [[BPR-0661]]. The preference rows and what honours them.
 		void               build_behaviour_editor(QWidget* aPage, QVBoxLayout* aColumn);
 		void               apply_behaviour_controls();
@@ -807,6 +827,9 @@ namespace bpr::qt {
 		application::queue_landing_projection QueueProjection;
 		workbench_saved_repository_dispatch   SavedRepositoryDispatch;
 		workbench_review_reply_dispatch       ReviewReplyDispatch;
+		workbench_thread_resolution_dispatch  ThreadResolutionDispatch;
+		bool                                  ProviderResolvesThreads = false;
+		core::github_capabilities             Capabilities;
 		// [[BPR-0661]].
 		review_behaviour_dispatch                BehaviourDispatch;
 		application::review_behaviour_settings   Behaviour;

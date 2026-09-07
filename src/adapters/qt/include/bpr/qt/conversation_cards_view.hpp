@@ -46,6 +46,9 @@ namespace bpr::qt {
 		reply,
 		/// Return to Read at this thread's line ([[BPR-0649]]).
 		open_in_code,
+		/// Resolve or reopen this thread through the mutation port ([[BPR-0657]]).
+		resolve,
+		unresolve,
 	};
 
 	/// \brief Discuss's filters over the feed ([[BPR-0649]]).
@@ -182,6 +185,10 @@ namespace bpr::qt {
 		/// \details [[BPR-0656]]. Until a state arrives every post is drawn
 		/// plainly: the cards do not guess what is unread.
 		void set_read_state(std::vector<thread_read_state> aState);
+		/// \brief [[BPR-0657]]. Offers Resolve and Unresolve on the threads when the
+		/// provider and the server both resolve threads.
+		void               set_resolution_offered(bool aOffered);
+		[[nodiscard]] auto resolution_offered() const noexcept -> bool;
 		/// \brief The unread threads of the whole pull request, in file order.
 		[[nodiscard]] auto unread_threads_in_file_order() const -> std::vector<std::string>;
 		/// \brief The zero-based lines of the cards whose first post is unread.
@@ -226,8 +233,9 @@ namespace bpr::qt {
 		QString                                                  Viewer;
 		std::string                                              Current;
 		std::vector<thread_read_state>                           ReadState;
-		bool                                                     ReadStateKnown = false;
-		bool                                                     Feed           = false;
+		bool                                                     ReadStateKnown    = false;
+		bool                                                     Feed              = false;
+		bool                                                     ResolutionOffered = false;
 		discuss_filters                                          Filters;
 		QString                                                  PullRequestAuthor;
 		card_excerpt_locator                                     ExcerptLocator;

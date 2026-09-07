@@ -72,6 +72,13 @@ namespace bpr::application {
 			std::stop_token                          aStop = { })
 			-> std::expected<review_mutation_receipt, review_mutation_failure>;
 
+		/// \brief [[BPR-0657]]. Resolves or unresolves one thread through the provider,
+		/// bound to the designated target and the acting identity.
+		[[nodiscard]] auto resolve_thread(
+			const std::string& aThread,
+			bool               aResolve,
+			std::stop_token    aStop = { })
+			-> std::expected<review_thread_resolution_receipt, review_mutation_failure>;
 		[[nodiscard]] auto designated() const noexcept
 			-> const core::review_mutation_target&;
 		[[nodiscard]] auto capabilities() const -> review_provider_capabilities;

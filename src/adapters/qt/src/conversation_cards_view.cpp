@@ -62,6 +62,10 @@ namespace bpr::qt {
 				return QStringLiteral("Reply");
 			case card_action::open_in_code:
 				return QStringLiteral("Open in code");
+			case card_action::resolve:
+				return QStringLiteral("Resolve");
+			case card_action::unresolve:
+				return QStringLiteral("Unresolve");
 			case card_action::delete_draft:
 				break;
 			}
@@ -214,6 +218,20 @@ namespace bpr::qt {
 	auto conversation_cards_view::filters() const noexcept -> discuss_filters
 	{
 		return Filters;
+	}
+
+	void conversation_cards_view::set_resolution_offered(const bool aOffered)
+	{
+		if (ResolutionOffered == aOffered) {
+			return;
+		}
+		ResolutionOffered = aOffered;
+		relayout();
+	}
+
+	auto conversation_cards_view::resolution_offered() const noexcept -> bool
+	{
+		return ResolutionOffered;
 	}
 
 	void conversation_cards_view::set_pull_request_author(const QString& aLogin)
@@ -451,8 +469,11 @@ namespace bpr::qt {
 		if (!aCard.Draft && aCard.UnreadCount > 0U) {
 			actions.push_back(card_action::mark_read);
 		}
-		// Resolve waits on the mutation port BPR-0657 adds; the feed offers
-		// what has an authority today.
+		// [[BPR-0657]]. Resolve, or Unresolve on a resolved thread, once the
+		// provider and the server both resolve threads.
+		if (!aCard.Draft && ResolutionOffered) {
+			actions.push_back(aCard.Resolved ? card_action::unresolve : card_action::resolve);
+		}
 		if (!aCard.Draft && Feed) {
 			actions.push_back(card_action::open_in_code);
 		}

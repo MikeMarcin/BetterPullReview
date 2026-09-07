@@ -1536,6 +1536,11 @@ namespace bpr::qt {
 		}
 	}
 
+	auto diff_workbench::select_conversation_line(const core::diff_side aSide, const std::uint32_t aLine) -> bool
+	{
+		return select_line(aSide, aLine, true);
+	}
+
 	auto diff_workbench::select_line(
 		const core::diff_side aSide,
 		const std::uint32_t   aLine,

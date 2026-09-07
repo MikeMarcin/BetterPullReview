@@ -867,12 +867,13 @@ namespace bpr::qt {
 				switch (aAction) {
 				case card_action::comment_here: {
 					// A comment on the thread's line: the thread becomes
-					// current, which reveals its line, and the draft editor
-					// takes focus. Threaded replies wait on BPR-0657.
+					// current, which reveals its line, the line is selected as
+					// a click would, and the draft editor takes focus.
 					const auto index = ConversationPanel->model()->index_for_id(aIdentity);
 					if (index.isValid()) {
 						ConversationPanel->view()->setCurrentIndex(index);
 					}
+					static_cast<void>(select_thread_line(aIdentity));
 					if (ReviewEditor != nullptr) {
 						ReviewEditor->body_editor()->setFocus(Qt::OtherFocusReason);
 					}
@@ -900,6 +901,28 @@ namespace bpr::qt {
 						ConversationReadDispatch(aIdentity);
 					}
 					break;
+				case card_action::resolve:
+				case card_action::unresolve: {
+					// [[BPR-0657]]. What the window knows travels with the
+					// gesture: the thread's state as projected and the server's
+					// capability for the direction asked; the composition adds
+					// what only it knows and decides.
+					if (!ThreadResolutionDispatch) {
+						break;
+					}
+					const auto resolve  = aAction == card_action::resolve;
+					auto       resolved = false;
+					if (const auto index = ConversationPanel->model()->index_for_id(aIdentity); index.isValid()) {
+						resolved = index.data(github_conversation_model::resolved_role).toBool();
+					}
+					ThreadResolutionDispatch(thread_resolution_gesture{
+						.Identity   = aIdentity,
+						.Resolve    = resolve,
+						.Resolved   = resolved,
+						.Capability = resolve ? Capabilities.ResolveThread : Capabilities.UnresolveThread,
+					});
+					break;
+				}
 				case card_action::reply: {
 					// [[BPR-0649]], [[BPR-0657]]. The feed's Reply: the thread
 					// is named to the composition first, so the draft that
@@ -912,6 +935,7 @@ namespace bpr::qt {
 					if (index.isValid()) {
 						ConversationPanel->view()->setCurrentIndex(index);
 					}
+					static_cast<void>(select_thread_line(aIdentity));
 					if (ReviewEditor != nullptr) {
 						ReviewEditor->body_editor()->setFocus(Qt::OtherFocusReason);
 					}
@@ -2974,9 +2998,53 @@ namespace bpr::qt {
 							: review_modality::read);
 	}
 
+	auto workbench_window::select_thread_line(const std::string& aIdentity) -> bool
+	{
+		if (ConversationPanel == nullptr || ComparisonSurface == nullptr) {
+			return false;
+		}
+		auto root = ConversationPanel->model()->index_for_id(aIdentity);
+		while (root.isValid() && root.parent().isValid()) {
+			root = root.parent();
+		}
+		if (!root.isValid()
+			|| root.data(github_conversation_model::anchor_availability_role).toInt()
+				!= static_cast<int>(application::github_conversation_anchor_availability::current)) {
+			return false;
+		}
+		bool       validLine = false;
+		const auto oneBased  = root.data(github_conversation_model::line_role).toULongLong(&validLine);
+		const auto sideValue = root.data(github_conversation_model::diff_side_role);
+		if (!validLine || oneBased == 0U || oneBased > std::numeric_limits<std::uint32_t>::max()
+			|| !sideValue.isValid()) {
+			return false;
+		}
+		const auto side = github_conversation_source_side(sideValue.toInt());
+		if (!side.has_value()) {
+			return false;
+		}
+		return ComparisonSurface->select_conversation_line(*side, static_cast<std::uint32_t>(oneBased - 1U));
+	}
+
 	void workbench_window::set_review_reply_dispatch(workbench_review_reply_dispatch aDispatch)
 	{
 		ReviewReplyDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::set_thread_resolution_dispatch(workbench_thread_resolution_dispatch aDispatch)
+	{
+		ThreadResolutionDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::set_thread_resolution_provider(const bool aResolves)
+	{
+		ProviderResolvesThreads = aResolves;
+		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
+			ConversationPanel->cards()->set_resolution_offered(
+				ProviderResolvesThreads
+				&& (Capabilities.ResolveThread == core::github_capability_state::supported
+					|| Capabilities.UnresolveThread == core::github_capability_state::supported));
+		}
 	}
 
 	void workbench_window::set_behaviour_dispatch(review_behaviour_dispatch aDispatch)
@@ -3767,6 +3835,16 @@ namespace bpr::qt {
 		honour_return_comparison();
 		SessionPanel->apply_capabilities(aPullRequest.Capabilities);
 		SessionPanel->apply_rate_limits(aPullRequest.RateLimits);
+		// [[BPR-0657]]. Resolve is offered once the provider and the server
+		// both resolve threads; a notice from an earlier gesture is stale.
+		Capabilities = aPullRequest.Capabilities;
+		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
+			ConversationPanel->cards()->set_resolution_offered(
+				ProviderResolvesThreads
+				&& (Capabilities.ResolveThread == core::github_capability_state::supported
+					|| Capabilities.UnresolveThread == core::github_capability_state::supported));
+			ConversationPanel->present_notice(QString{ });
+		}
 		update_github_presentation_state();
 	}
 

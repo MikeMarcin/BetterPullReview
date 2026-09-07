@@ -166,6 +166,10 @@ namespace bpr::qt {
 		/// \brief Observes Qt-local selections without replacing the application sink.
 		void set_selection_observer(selection_observer aObserver);
 		/// \brief Selects and reveals one exact zero-based conversation anchor.
+		/// \brief [[BPR-0657]]. Selects a conversation's line as a click on it
+		/// would, so a draft started from its card anchors there; the anchor the
+		/// line carries is kept.
+		[[nodiscard]] auto select_conversation_line(core::diff_side aSide, std::uint32_t aLine) -> bool;
 		[[nodiscard]] auto reveal_conversation_line(
 			core::diff_side aSide,
 			std::uint32_t   aLine) -> bool;

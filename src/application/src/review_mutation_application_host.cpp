@@ -22,7 +22,11 @@ namespace bpr::application {
 				&& valid(aScope.Target) && valid(aScope.ActingIdentity)
 				&& aScope.Comparison.valid() && aScope.File.valid()
 				&& aScope.Anchor.Comparison == aScope.Comparison
-				&& aScope.Anchor.Side == core::diff_side::right
+				// [[BPR-0657]]. Either side: a reply is drafted from whichever
+				// line was selected; `validate` still holds a root comment to
+				// the right side.
+				&& (aScope.Anchor.Side == core::diff_side::left
+					|| aScope.Anchor.Side == core::diff_side::right)
 				&& !aScope.ResolvedPath.empty()
 				&& aScope.Commit == aScope.Target.Semantic.ExpectedHead;
 		}
@@ -141,6 +145,68 @@ namespace bpr::application {
 			std::memory_order_acquire);
 	}
 
+	review_mutation_execution_authority::review_mutation_execution_authority(
+		review_mutation_thread_scope                 aScope,
+		review_thread_resolution_publication_request aRequest)
+		: ThreadRequest{ std::move(aRequest) }
+		, Scope{ .ApplicationSession  = aScope.ApplicationSession,
+				 .WorkbenchGeneration = aScope.WorkbenchGeneration,
+				 .Target              = aScope.Target,
+				 .ActingIdentity      = aScope.ActingIdentity }
+		, Target{ aScope.Target }
+		, ActingIdentity{ aScope.ActingIdentity }
+		, ExpiresAt{ std::chrono::steady_clock::now() + std::chrono::minutes{ 5 } }
+		, Kind{ kind::user_one_shot }
+		, Bound{ true }
+	{
+	}
+	auto review_mutation_execution_authority::bind_thread(
+		const review_mutation_thread_scope& aScope) noexcept -> bool
+	{
+		return bind(review_mutation_execution_scope{
+			.ApplicationSession  = aScope.ApplicationSession,
+			.WorkbenchGeneration = aScope.WorkbenchGeneration,
+			.Target              = aScope.Target,
+			.ActingIdentity      = aScope.ActingIdentity,
+		});
+	}
+	auto review_mutation_execution_authority::permits_thread(
+		const review_mutation_thread_scope&                 aScope,
+		const review_thread_resolution_publication_request& aRequest) noexcept -> bool
+	{
+		if (aScope.ApplicationSession.value() == 0U || aScope.WorkbenchGeneration.value() == 0U
+			|| !valid(aScope.Target) || !valid(aScope.ActingIdentity) || aScope.Thread.empty()
+			|| aRequest.Thread != aScope.Thread || Revoked.load(std::memory_order_acquire)) {
+			return false;
+		}
+		std::scoped_lock lock{ Mutex };
+		if (!Bound || Revoked.load(std::memory_order_relaxed)
+			|| !ActingIdentity.has_value()
+			|| Scope.ApplicationSession != aScope.ApplicationSession
+			|| Scope.WorkbenchGeneration != aScope.WorkbenchGeneration
+			|| Scope.Target != aScope.Target
+			|| *ActingIdentity != aScope.ActingIdentity) {
+			return false;
+		}
+		// A one-shot grant issued for a publication permits no resolution,
+		// and one issued for a resolution permits only that resolution.
+		if (Kind == kind::user_one_shot && (Request.has_value() || !ThreadRequest || *ThreadRequest != aRequest)) {
+			return false;
+		}
+		if (Kind == kind::testing_reusable) {
+			return true;
+		}
+		if (std::chrono::steady_clock::now() >= ExpiresAt) {
+			Revoked.store(true, std::memory_order_release);
+			return false;
+		}
+		auto expected = false;
+		return Consumed.compare_exchange_strong(
+			expected,
+			true,
+			std::memory_order_acq_rel,
+			std::memory_order_acquire);
+	}
 	void review_mutation_execution_authority::revoke() noexcept
 	{
 		std::scoped_lock lock{ Mutex };
@@ -149,6 +215,32 @@ namespace bpr::application {
 		}
 	}
 
+	auto detail::review_mutation_user_authority_issuer::issue_thread(
+		core::application_session_id aSession, core::request_generation aGeneration,
+		review_mutation_target_binding aTarget, review_mutation_acting_identity aActor,
+		review_thread_resolution_publication_request aRequest) -> review_mutation_execution_grant
+	{
+#if defined(BPR_APPLICATION_TESTING)
+		static_cast<void>(aSession);
+		static_cast<void>(aGeneration);
+		static_cast<void>(aTarget);
+		static_cast<void>(aActor);
+		static_cast<void>(aRequest);
+		return { };
+#else
+		if (aSession.value() == 0U || aGeneration.value() == 0U
+			|| !valid(aTarget) || !valid(aActor) || aRequest.Thread.empty()) {
+			return { };
+		}
+		return review_mutation_execution_grant{ new review_mutation_execution_authority{
+			review_mutation_thread_scope{ .ApplicationSession  = aSession,
+										  .WorkbenchGeneration = aGeneration,
+										  .Target              = std::move(aTarget),
+										  .ActingIdentity      = std::move(aActor),
+										  .Thread              = aRequest.Thread },
+			std::move(aRequest) } };
+#endif
+	}
 	auto detail::review_mutation_user_authority_issuer::issue(
 		core::application_session_id aSession, core::request_generation aGeneration,
 		review_mutation_target_binding aTarget, review_mutation_acting_identity aActor,
@@ -225,6 +317,16 @@ namespace bpr::application {
 		{
 			review_mutation_anchor_binding  Anchor;
 			review_mutation_execution_scope Scope;
+		};
+
+		// [[BPR-0657]]. One thread resolution in flight: its own record and
+		// queue, beside the publications; a resolution neither supersedes a
+		// publication nor is superseded by one.
+		struct resolution_record final
+		{
+			review_mutation_request_context              Context;
+			review_thread_resolution_publication_request Request;
+			std::stop_source                             Stop;
 		};
 
 		implementation(
@@ -314,7 +416,12 @@ namespace bpr::application {
 			const auto& selected    = aRequest.Selection;
 			const auto& key         = publication.Key;
 			const auto& comparison  = publication.Request.Diff.Comparison;
-			if (selected.PreferredLine.Side != core::diff_side::right) {
+			// [[BPR-0657]]. A new root comment is anchored where it is
+			// published, so only the right side can carry one; a reply is
+			// anchored by the thread it answers, and the selection it was
+			// drafted from may be on either side.
+			if (selected.PreferredLine.Side != core::diff_side::right
+				&& !aRequest.Proposal.ReplyToThread.has_value()) {
 				return std::unexpected(review_mutation_failure::unsupported);
 			}
 			if (!publication.RightPath.has_value() || !key.RightBlob.has_value()
@@ -551,6 +658,139 @@ namespace bpr::application {
 			schedule_terminal(aRecord, aFailure);
 		}
 
+		[[nodiscard]] auto resolve(review_thread_resolution_publication_request aRequest,
+								   review_mutation_execution_grant              aRequestGrant)
+			-> review_mutation_request_context
+		{
+			auto record = std::make_shared<resolution_record>(resolution_record{
+				.Context = context(),
+				.Request = std::move(aRequest),
+				.Stop    = { },
+			});
+			auto grant  = review_mutation_execution_grant{ };
+			{
+				std::scoped_lock lock{ Mutex };
+				++Statistics.Attempts;
+				if (Closing) {
+					++Statistics.RefusedBeforeEffect;
+					return {
+						.Session    = Session,
+						.Generation = Generation,
+					};
+				}
+				grant = aRequestGrant ? std::move(aRequestGrant) : Grant;
+			}
+			if (record->Request.Thread.empty() || record->Request.Thread.size() > 256U) {
+				refuse_resolution(record, review_mutation_failure::undesignated_target);
+				return record->Context;
+			}
+			if (!Coordinator.capabilities().ResolvesThreads) {
+				refuse_resolution(record, review_mutation_failure::unsupported);
+				return record->Context;
+			}
+			if (!valid(TargetBinding) || !valid(ActingIdentityBinding)) {
+				refuse_resolution(record, review_mutation_failure::undesignated_target);
+				return record->Context;
+			}
+			const auto scope = review_mutation_thread_scope{
+				.ApplicationSession  = Session,
+				.WorkbenchGeneration = Generation,
+				.Target              = TargetBinding,
+				.ActingIdentity      = ActingIdentityBinding,
+				.Thread              = record->Request.Thread,
+			};
+			{
+				std::scoped_lock lock{ Mutex };
+				if (Closing || OutstandingResolutions.size() >= maximum_outstanding_review_mutations
+					|| grant == nullptr || !grant->bind_thread(scope)
+					|| !grant->permits_thread(scope, record->Request)) {
+					++Statistics.RefusedBeforeEffect;
+				} else {
+					OutstandingResolutions.emplace(record->Context.Request.value(), record);
+					ResolutionQueue.push_back(record);
+					++Statistics.EffectsQueued;
+					auto self = shared_from_this();
+					try {
+						Effects.post([self] { self->drain_resolutions(); });
+						return record->Context;
+					} catch (...) {
+						OutstandingResolutions.erase(record->Context.Request.value());
+						ResolutionQueue.pop_back();
+					}
+				}
+			}
+			refuse_resolution(record, review_mutation_failure::unavailable);
+			return record->Context;
+		}
+		void refuse_resolution(const std::shared_ptr<resolution_record>& aRecord,
+							   const review_mutation_failure             aFailure)
+		{
+			auto self = shared_from_this();
+			try {
+				DecisionLane.post([self, aRecord, aFailure] {
+					self->complete_resolution(aRecord, std::unexpected(aFailure));
+				});
+			} catch (...) {
+				complete_resolution(aRecord, std::unexpected(aFailure));
+			}
+		}
+		void drain_resolutions()
+		{
+			for (;;) {
+				auto record = std::shared_ptr<resolution_record>{ };
+				{
+					std::scoped_lock lock{ Mutex };
+					if (ResolutionQueue.empty()) {
+						return;
+					}
+					record = std::move(ResolutionQueue.front());
+					ResolutionQueue.pop_front();
+				}
+				auto result = std::expected<review_thread_resolution_receipt, review_mutation_failure>{
+					std::unexpected(review_mutation_failure::cancelled)
+				};
+				if (!record->Stop.stop_requested()) {
+					try {
+						result = Coordinator.resolve_thread(
+							record->Request.Thread, record->Request.Resolve, record->Stop.get_token());
+					} catch (...) {
+						result = std::unexpected(review_mutation_failure::unavailable);
+					}
+				}
+				auto self = shared_from_this();
+				DecisionLane.post([self, record, answer = std::move(result)]() mutable {
+					self->complete_resolution(record, std::move(answer));
+				});
+			}
+		}
+		void complete_resolution(
+			const std::shared_ptr<resolution_record>&                                aRecord,
+			std::expected<review_thread_resolution_receipt, review_mutation_failure> aResult)
+		{
+			auto publish = false;
+			{
+				std::scoped_lock lock{ Mutex };
+				OutstandingResolutions.erase(aRecord->Context.Request.value());
+				++Statistics.Completions;
+				publish = !Closing;
+				if (publish) {
+					++Statistics.TerminalsPublished;
+					if (aResult.has_value()) {
+						++Statistics.ThreadResolutions;
+					}
+				}
+			}
+			if (publish) {
+				try {
+					Projection.publish_resolution(review_thread_resolution_terminal{
+						.Context = aRecord->Context,
+						.Request = aRecord->Request,
+						.Result  = std::move(aResult),
+					});
+				} catch (...) {
+				}
+			}
+		}
 		[[nodiscard]] auto publish(review_mutation_publication_request aRequest,
 								   review_mutation_execution_grant     aRequestGrant)
 			-> review_mutation_request_context
@@ -621,6 +861,11 @@ namespace bpr::application {
 					++Statistics.ShutdownRequestsStopped;
 				}
 			}
+			for (auto& entry : OutstandingResolutions) {
+				if (entry.second->Stop.request_stop()) {
+					++Statistics.ShutdownRequestsStopped;
+				}
+			}
 		}
 
 		std::unique_ptr<review_mutation_port> OwnedProvider;
@@ -636,14 +881,16 @@ namespace bpr::application {
 		review_provider_capabilities          Capabilities;
 		bool                                  CompleteLiveBinding = false;
 
-		mutable std::mutex                                       Mutex;
-		std::map<std::uint64_t, std::shared_ptr<request_record>> Outstanding;
-		std::deque<std::shared_ptr<request_record>>              EffectQueue;
-		std::shared_ptr<request_record>                          Active;
-		review_mutation_application_host_statistics              Statistics;
-		std::atomic<std::uint64_t>                               NextRequest    = 1U;
-		bool                                                     Closing        = false;
-		bool                                                     DrainScheduled = false;
+		mutable std::mutex                                          Mutex;
+		std::map<std::uint64_t, std::shared_ptr<request_record>>    Outstanding;
+		std::deque<std::shared_ptr<request_record>>                 EffectQueue;
+		std::deque<std::shared_ptr<resolution_record>>              ResolutionQueue;
+		std::map<std::uint64_t, std::shared_ptr<resolution_record>> OutstandingResolutions;
+		std::shared_ptr<request_record>                             Active;
+		review_mutation_application_host_statistics                 Statistics;
+		std::atomic<std::uint64_t>                                  NextRequest    = 1U;
+		bool                                                        Closing        = false;
+		bool                                                        DrainScheduled = false;
 	};
 
 	review_mutation_application_host::review_mutation_application_host(
@@ -705,6 +952,14 @@ namespace bpr::application {
 		-> review_mutation_request_context
 	{
 		return Implementation->publish(std::move(aRequest), std::move(aRequestGrant));
+	}
+
+	auto review_mutation_application_host::resolve(
+		review_thread_resolution_publication_request aRequest,
+		review_mutation_execution_grant              aRequestGrant)
+		-> review_mutation_request_context
+	{
+		return Implementation->resolve(std::move(aRequest), std::move(aRequestGrant));
 	}
 
 	void review_mutation_application_host::cancel(

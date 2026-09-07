@@ -692,6 +692,17 @@ namespace bpr::app::detail {
 					Strict.rewind();
 				}
 			}
+			/// [[BPR-0657]]. Replays the strict script from the exchange one
+			/// operation starts at, for a refresh; a paged script has its own
+			/// history and is left alone.
+			void replay_from(const read_operation aOperation) noexcept
+			{
+				if (Paged) {
+					return;
+				}
+				Strict.rewind();
+				Strict.skip_until(aOperation);
+			}
 
 		private:
 			strict_recorded_transport                              Strict;
@@ -807,7 +818,11 @@ namespace bpr::app::detail {
 			// the same authority -- so under that course, and only there, the
 			// recorded transports serve each of them. The counts are still
 			// kept, so a course that reads them still reads the truth.
-			bool                                        RepeatSessions      = false;
+			bool RepeatSessions = false;
+			// [[BPR-0657]]. A refresh replays the recorded read script from
+			// its start once it is consumed, so the product's re-read is
+			// served with the mutation overlay rather than refused.
+			bool                                        RepeatReads         = false;
 			std::size_t                                 AccountReadCalls    = 0U;
 			std::size_t                                 SmartAcquireCalls   = 0U;
 			std::size_t                                 SmartDiscoveryCalls = 0U;
@@ -1163,7 +1178,14 @@ namespace bpr::app::detail {
 					: Role == fixture_transport_role::anonymous
 					? State->AnonymousRecording
 					: State->Recording;
-				auto  response  = recording.perform(aRequest.Wire);
+				// [[BPR-0657]]. A refresh asks for the repository first; the
+				// course that asked for repeat reads is served the script again
+				// from there, replies and resolutions overlaid.
+				if (Role == fixture_transport_role::account && State->RepeatReads
+					&& aRequest.Wire.Operation == read_operation::get_repository) {
+					recording.replay_from(read_operation::get_repository);
+				}
+				auto response = recording.perform(aRequest.Wire);
 				if (!response.has_value()) {
 					State->RecordingFailure = static_cast<int>(response.error().Code);
 					return github_wire_error{
@@ -2268,8 +2290,10 @@ namespace bpr::app::detail {
 		public:
 			explicit fixture_review_mutation_provider(
 				const bool                               aLoseFirst,
-				std::shared_ptr<fixture_recording_state> aState = { }) noexcept
+				std::shared_ptr<fixture_recording_state> aState           = { },
+				const bool                               aResolvesThreads = false) noexcept
 				: LoseFirst{ aLoseFirst }
+				, ResolvesThreads{ aResolvesThreads }
 				, State{ std::move(aState) }
 			{
 			}
@@ -2355,6 +2379,9 @@ namespace bpr::app::detail {
 					application::review_mutation_failure> override
 			{
 				++Evidence.Resolutions;
+				if (!ResolvesThreads) {
+					return std::unexpected{ application::review_mutation_failure::unsupported };
+				}
 				if (aRequest.Target != Designated || aRequest.Thread.empty()) {
 					return std::unexpected{
 						application::review_mutation_failure::undesignated_target
@@ -2374,7 +2401,7 @@ namespace bpr::app::detail {
 				-> application::review_provider_capabilities override
 			{
 				return {
-					.ResolvesThreads    = true,
+					.ResolvesThreads    = ResolvesThreads,
 					.RecordsViewedState = false,
 				};
 			}
@@ -2397,7 +2424,8 @@ namespace bpr::app::detail {
 			std::map<std::string, std::string>                  Identifiers;
 			std::vector<application::review_comment_projection> Comments;
 			review_mutation_fixture_evidence                    Evidence;
-			bool                                                LoseFirst = false;
+			bool                                                LoseFirst       = false;
+			bool                                                ResolvesThreads = false;
 			std::shared_ptr<fixture_recording_state>            State;
 		};
 	}
@@ -2436,6 +2464,7 @@ namespace bpr::app::detail {
 			Recording         = std::make_shared<fixture_recording_state>(
 				served, aProfile, Git, aOptions.EpochPhase, aOptions.LargeReviewHistory);
 			Recording->RepeatSessions = aOptions.DeviceRefreshCourse || aOptions.PersistDeviceBindings;
+			Recording->RepeatReads    = aOptions.RepeatReadSessions;
 			Factory                   = std::make_shared<fixture_transport_factory>(Recording);
 			VaultState                = aOptions.SharedDeviceVault ? aOptions.SharedDeviceVault : make_shared_github_fixture_vault();
 			// Every shipped platform vault has a real second slot since
@@ -2474,7 +2503,7 @@ namespace bpr::app::detail {
 						BPR_GITHUB_DEVICE_DOCUMENTED_FIXTURE_ROOT },
 					aOptions.DeviceRefreshCourse || aOptions.PersistDeviceBindings);
 			Mutation = std::make_unique<fixture_review_mutation_provider>(
-				aOptions.LoseFirstReviewMutationResult, Recording);
+				aOptions.LoseFirstReviewMutationResult, Recording, aOptions.ResolvesThreads);
 
 			if (aOptions.ApplicationDataRoot) {
 				ApplicationDataRoot = aOptions.ApplicationDataRoot->lexically_normal();

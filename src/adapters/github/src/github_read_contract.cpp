@@ -2144,6 +2144,14 @@ namespace bpr::adapters::github::detail {
 		NextExchange = 0U;
 	}
 
+	void strict_recorded_transport::skip_until(const read_operation aOperation) noexcept
+	{
+		while (NextExchange < Exchanges.size()
+			   && Exchanges[NextExchange].Request.Operation != aOperation) {
+			++NextExchange;
+		}
+	}
+
 	auto strict_recorded_transport::perform(const wire_request& aRequest)
 		-> response_result
 	{

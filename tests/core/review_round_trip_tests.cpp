@@ -248,6 +248,44 @@ namespace {
 			   "a draft answering a thread proposes the reply with the thread it answers");
 	}
 
+	// [[BPR-0657]]. A thread resolution is refused, in this order, for an
+	// anonymous read, an absent capability, and a thread already in the
+	// state asked for; otherwise it is allowed.
+	void test_a_thread_resolution_is_refused_for_exactly_three_reasons()
+	{
+		using core::decide_thread_resolution;
+		using core::thread_resolution_refusal;
+		const auto allowed = core::thread_resolution_input{
+			.Capability = core::github_capability_state::supported, .Resolved = false, .Resolve = true
+		};
+		expect(decide_thread_resolution(allowed) == thread_resolution_refusal::none,
+			   "a supported, signed-in resolution of an open thread is allowed");
+		auto anonymous          = allowed;
+		anonymous.AnonymousRead = true;
+		anonymous.Capability    = core::github_capability_state::unsupported;
+		expect(decide_thread_resolution(anonymous) == thread_resolution_refusal::anonymous_read,
+			   "an anonymous read is refused first, whatever else is wrong");
+		auto unknown           = allowed;
+		unknown.Capability     = core::github_capability_state::unknown;
+		auto unsupported       = allowed;
+		unsupported.Capability = core::github_capability_state::unsupported;
+		expect(decide_thread_resolution(unknown) == thread_resolution_refusal::capability_absent
+				   && decide_thread_resolution(unsupported) == thread_resolution_refusal::capability_absent,
+			   "a capability the server never claimed, or denied, refuses");
+		auto already     = allowed;
+		already.Resolved = true;
+		expect(decide_thread_resolution(already) == thread_resolution_refusal::already_in_state,
+			   "resolving a resolved thread is refused");
+		auto unresolveOpen    = allowed;
+		unresolveOpen.Resolve = false;
+		expect(decide_thread_resolution(unresolveOpen) == thread_resolution_refusal::already_in_state,
+			   "unresolving an open thread is refused");
+		auto unresolveResolved     = unresolveOpen;
+		unresolveResolved.Resolved = true;
+		expect(decide_thread_resolution(unresolveResolved) == thread_resolution_refusal::none,
+			   "unresolving a resolved thread is allowed");
+	}
+
 	[[nodiscard]] auto commit(const std::uint8_t aSeed) -> core::git_commit_oid
 	{
 		// A sha1 oid occupies the first twenty bytes and requires the rest to
@@ -393,6 +431,7 @@ auto main() -> int
 	test_a_published_comment_is_no_longer_a_draft();
 	test_illegal_commands_carry_their_own_reason();
 	test_a_proposal_exists_only_while_publishing();
+	test_a_thread_resolution_is_refused_for_exactly_three_reasons();
 	test_an_unchanged_target_publishes();
 	test_a_moved_head_stops_the_publication_until_acknowledged();
 	test_a_changed_target_can_never_be_acknowledged_away();
