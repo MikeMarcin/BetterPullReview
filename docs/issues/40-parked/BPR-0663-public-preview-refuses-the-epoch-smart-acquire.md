@@ -2,10 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0663"
 title: "Public preview refuses the epoch smart acquire"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
+parked_on: "human-review"
+acceptance: [{"criterion":"The anonymous binding admits the lease with the accepted revision's generation and still refuses an authenticated authority and a GHES profile","outcome":"pass","revision":"7506c87b","evidence":{"kind":"observation","detail":"At this head: native_git_smart_transport_contract and native_git_smart_transport_fixture pass, including the seam pin (a github.com anonymous wire built with the revision's generation is admitted; one built with the old constant is refused as invalid_request before any request) and the unchanged GHES and authenticated refusals. rfc0017_public_preview_decision_contract and the six application_anonymous_public_preview_* courses pass, as do application_composition_contract and the round-trip contract with both application digests repinned."}},{"criterion":"A public pull request opened through Public preview in the signed bundle shows its updates and an exact comparison, with smart_acquire succeeding in diagnostics.log","outcome":"pending","revision":"7506c87b","evidence":{"kind":"freeform","detail":"Owed, and not reachable from this session. The live-candidate course that drives a real public pull request is compiled only when BUILD_TESTING is on, so the signed bundle (tests disabled) has no automated path to it; the observation needs a URL typed into the locator of the running bundle, and this session must not inject input. The bundle is rebuilt at this head (executable sha256 dba2d952133ee18b28e458fb282fe8d9ad3930c68a76d1fd5c3f601d86fc88cf). Queued for the attended session with BPR-0646 and BPR-0662; microsoft/terminal#20607 is the pull request the defect was found on."}}]
 ---
 
 # Public preview refuses the epoch smart acquire
