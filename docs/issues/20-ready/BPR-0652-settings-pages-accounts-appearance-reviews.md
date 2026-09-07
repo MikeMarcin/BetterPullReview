@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0652"
 title: "Settings pages: Accounts & hosts, Appearance, Reviews & queue"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0018","RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
