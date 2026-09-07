@@ -6,6 +6,7 @@
 
 #include <compare>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string_view>
 #include <vector>
@@ -225,6 +226,43 @@ namespace bpr::core {
 	[[nodiscard]] auto unread(
 		const conversation_receipt&     aReceipt,
 		const conversation_observation& aObservation) noexcept -> bool;
+
+	/// \brief One post of a conversation as the host observed it.
+	///
+	/// \details [[BPR-0656]]. The host supplies the posts in thread order,
+	/// root first; the core never sees the text. `Mine` names a post the
+	/// reader wrote, which is never unread to them.
+	struct conversation_post_observation
+	{
+		review_comment_id    Comment;
+		comment_edit_version Edit;
+		bool                 Mine = false;
+
+		auto operator<=>(const conversation_post_observation&) const = default;
+	};
+
+	/// \brief Decides which posts of a conversation are newer than the cursor.
+	///
+	/// \details [[BPR-0656]]. The indices, in thread order, of the posts the
+	/// reader has not seen: every post after the seen one, the seen one
+	/// itself when it was edited since, and every post when nothing was
+	/// seen. A post the reader wrote is skipped. This is the per-post form
+	/// of `unread`: the conversation is unread exactly when this is nonempty
+	/// or the seen post is someone else's edited one.
+	[[nodiscard]] auto unread_posts(
+		const conversation_receipt&                    aReceipt,
+		std::span<const conversation_post_observation> aPosts)
+		-> std::vector<std::size_t>;
+
+	/// \brief The receipt that has read a conversation up to its latest post.
+	///
+	/// \details [[BPR-0656]]. Mark read moves the seen cursor to the latest
+	/// post and its edit; acceptance is a different statement and is left
+	/// where it was.
+	[[nodiscard]] auto mark_conversation_read(
+		const conversation_receipt&     aReceipt,
+		const conversation_observation& aObservation) noexcept
+		-> conversation_receipt;
 
 	/// \brief Names the single fact that decided one item's place in the queue.
 	///

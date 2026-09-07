@@ -4292,7 +4292,8 @@ namespace {
 				   << evidence.ReceiptLoadedOnEntry << evidence.GestureSequence
 				   << evidence.DurableReceipt << evidence.ActionabilityProjection
 				   << evidence.PrivateRecords << evidence.PublicPathAvailable
-				   << evidence.UnavailableVisible << evidence.HostOnlyProbe << '\n';
+				   << evidence.UnavailableVisible << evidence.HostOnlyProbe
+				   << evidence.ReadStateObserved << '\n';
 		}
 		if (aRun.ReviewRoundTripCompositionProbe) {
 			const auto& evidence = aRun.ReviewRoundTripCompositionEvidence;

@@ -87,6 +87,31 @@ namespace bpr::adapters::sqlite {
 				return *loaded;
 			}
 
+			auto store_conversation_receipt(const core::conversation_receipt& aReceipt)
+				-> std::expected<void, application::ledger_store_failure> override
+			{
+				if (!application::valid(aReceipt)) {
+					return std::unexpected(
+						application::ledger_store_failure::invalid_record);
+				}
+				auto stored = Database.store_conversation_receipt(Scope, aReceipt);
+				if (!stored) {
+					return std::unexpected(translate(stored.error()));
+				}
+				return { };
+			}
+
+			auto load_conversation_receipts() -> std::expected<
+				std::vector<core::conversation_receipt>,
+				application::ledger_store_failure> override
+			{
+				auto loaded = Database.load_conversation_receipts(Scope);
+				if (!loaded) {
+					return std::unexpected(translate(loaded.error()));
+				}
+				return std::move(*loaded);
+			}
+
 			auto store_note(const application::local_note_record& aNote)
 				-> std::expected<void, application::ledger_store_failure> override
 			{

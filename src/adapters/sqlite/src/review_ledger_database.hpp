@@ -96,6 +96,16 @@ namespace bpr::adapters::sqlite::detail {
 			const core::file_identity& aFile)
 			-> std::expected<std::optional<core::file_receipt>, failure>;
 
+		/// \brief Upserts one conversation receipt in a scope.
+		[[nodiscard]] auto store_conversation_receipt(
+			std::int64_t                      aScope,
+			const core::conversation_receipt& aReceipt)
+			-> std::expected<void, failure>;
+
+		/// \brief Loads every conversation receipt of a scope, by conversation.
+		[[nodiscard]] auto load_conversation_receipts(std::int64_t aScope)
+			-> std::expected<std::vector<core::conversation_receipt>, failure>;
+
 		[[nodiscard]] auto store_note(
 			std::int64_t                          aScope,
 			const application::local_note_record& aNote)

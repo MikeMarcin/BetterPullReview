@@ -98,6 +98,8 @@ namespace bpr::qt {
 		= std::function<void(workbench_defect_classification)>;
 	using workbench_queue_rule_dispatch        = std::function<void(application::queue_rule_intent)>;
 	using workbench_queue_preferences_dispatch = std::function<void(application::queue_preferences_intent)>;
+	/// \brief Mark read for the thread whose root projection identity is given ([[BPR-0656]]).
+	using conversation_read_dispatch = std::function<void(const std::string&)>;
 
 	/// \brief Records directly observable workbench-window presentation activity.
 	struct workbench_window_statistics
@@ -287,6 +289,16 @@ namespace bpr::qt {
 		void set_queue_rule_dispatch(workbench_queue_rule_dispatch aDispatch);
 		void set_queue_preferences_dispatch(
 			workbench_queue_preferences_dispatch aDispatch);
+		/// \brief Where a card's Mark read goes: the composition, then the ledger host.
+		void set_conversation_read_dispatch(conversation_read_dispatch aDispatch);
+		/// \brief Adopts the read state of the review's conversations.
+		///
+		/// \details [[BPR-0656]]. The cards draw it, the gutter marks a new
+		/// thread's line blue, and the strip's "next new comment" group
+		/// counts the unread threads and walks them in file order.
+		void               present_read_state(std::vector<thread_read_state> aState);
+		[[nodiscard]] auto next_new_comment_action() const noexcept -> QAction*;
+		[[nodiscard]] auto new_comment_count_label() const noexcept -> QLabel*;
 		/// \brief Adopts the complete bounded local defect queue.
 		void present_defects(std::vector<core::defect_history> aDefects);
 		void clear_defects();
@@ -591,6 +603,8 @@ namespace bpr::qt {
 		/// \brief [[BPR-0648]]. Re-aligns the comment cards and the gutter marks.
 		void refresh_cards();
 		void apply_thread_marks();
+		void update_new_comment_group();
+		void step_to_next_new_comment();
 		/// \brief Selects the file and enters Read, from the overview.
 		void               enter_read_at(const QString& aPath);
 		[[nodiscard]] auto file_for_path(const QString& aPath) const
@@ -695,6 +709,10 @@ namespace bpr::qt {
 		epoch_comparison_control* EpochSelectors = nullptr;
 
 		std::array<navigation_entry, 4> Navigation{ };
+		QAction*                        NextNewCommentAction  = nullptr;
+		QLabel*                         NewCommentCountLabel  = nullptr;
+		QAction*                        NewCommentCountAction = nullptr;
+		conversation_read_dispatch      ConversationReadDispatch;
 		std::array<QAction*, 4>         ReceiptActions{ };
 		std::array<drawer_entry, 3>     Drawers{ };
 		repositories_tree_view*         RepositoriesTree = nullptr;

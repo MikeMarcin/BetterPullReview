@@ -50,7 +50,7 @@ existing conversation model and delegate; no new authority.
   mutation host; and no recorded conversation had more than nine posts.
   The card's "no new authority" therefore bounds this slice to the
   presentation, and the two authorities the design needs are carded:
-  [BPR-0656](../30-in-progress/BPR-0656-post-read-state-through-conversation-receipts.md)
+  [BPR-0656](BPR-0656-post-read-state-through-conversation-receipts.md)
   (post read state: unread dots, dimming, Mark read, blue marks, the
   strip's next-new-comment group) and
   [BPR-0657](../10-backlog/BPR-0657-threaded-replies-and-resolve-through-the-mutation-port.md)

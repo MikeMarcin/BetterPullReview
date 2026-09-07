@@ -1701,6 +1701,75 @@ namespace {
 			"the receipt is still readable in the scope that wrote it");
 	}
 
+	// [[BPR-0656]]. Conversation receipts: one row per conversation and
+	// scope, replaced on a second store, invisible to another scope, and
+	// carried through the application port.
+	void test_conversation_receipts_round_trip_by_scope()
+	{
+		const scratch_directory directory;
+		expect(directory.make_private(), "the scratch root becomes owner-private");
+		auto opened = review_ledger_database::open(directory.file("c.db"), { });
+		expect(opened_ok(opened), "the ledger opens");
+		const auto here  = opened->scope_id(scope_of("github.com", "octo", "app", 7));
+		const auto there = opened->scope_id(scope_of("github.com", "octo", "app", 8));
+		expect(here && there, "both scopes resolve");
+
+		const auto first = core::conversation_receipt{
+			.Conversation    = core::review_conversation_id{ 501U },
+			.SeenComment     = core::review_comment_id{ 7U },
+			.SeenEdit        = core::comment_edit_version{ 70U },
+			.AcceptedComment = core::review_comment_id{ 6U },
+			.AcceptedEdit    = core::comment_edit_version{ 60U },
+		};
+		const auto second = core::conversation_receipt{
+			.Conversation = core::review_conversation_id{ 502U },
+			.SeenComment  = core::review_comment_id{ 9U },
+			.SeenEdit     = core::comment_edit_version{ 90U },
+		};
+		expect(opened->store_conversation_receipt(*here, second).has_value()
+				   && opened->store_conversation_receipt(*here, first).has_value()
+				   && opened->store_conversation_receipt(*there, first).has_value(),
+			   "receipts commit in both scopes");
+		const auto loaded = opened->load_conversation_receipts(*here);
+		expect(loaded.has_value() && *loaded == std::vector{ first, second },
+			   "a scope loads its own receipts ordered by conversation");
+
+		auto advanced        = first;
+		advanced.SeenComment = core::review_comment_id{ 8U };
+		advanced.SeenEdit    = core::comment_edit_version{ 80U };
+		expect(opened->store_conversation_receipt(*here, advanced).has_value(),
+			   "a second store of the same conversation is accepted");
+		const auto replaced = opened->load_conversation_receipts(*here);
+		expect(replaced.has_value() && *replaced == std::vector{ advanced, second },
+			   "the second store replaces the cursor rather than adding a row");
+		const auto other = opened->load_conversation_receipts(*there);
+		expect(other.has_value() && *other == std::vector{ first },
+			   "the other scope's receipt is untouched by the replacement");
+		expect(!opened->store_conversation_receipt(*here, core::conversation_receipt{ }).has_value(),
+			   "a nameless conversation is refused");
+		// The port opens the ledger in the state directory by itself; the
+		// direct handle is closed first so the two never share a file.
+		opened = std::unexpected(catalog_database_failure::unavailable);
+
+		auto port = bpr::adapters::sqlite::make_review_ledger_store({
+			.StorageRoot = directory.path(),
+			.Host        = "github.com",
+			.Account     = "octo",
+			.Repository  = "app",
+			.PullRequest = 9,
+		});
+		expect(port.has_value(), "the application port opens on its own scope");
+		const auto empty = (*port)->load_conversation_receipts();
+		expect(empty.has_value() && empty->empty(), "a new scope has no receipts");
+		expect((*port)->store_conversation_receipt(second).has_value(),
+			   "the port stores a receipt");
+		const auto viaPort = (*port)->load_conversation_receipts();
+		expect(viaPort.has_value() && *viaPort == std::vector{ second },
+			   "the port loads what it stored");
+		expect(!(*port)->store_conversation_receipt(core::conversation_receipt{ }).has_value(),
+			   "the port refuses a nameless conversation before the database");
+	}
+
 	void test_private_records_survive_restart_isolate_and_delete()
 	{
 		const scratch_directory directory;
@@ -2480,6 +2549,7 @@ auto main() -> int
 	test_reopening_is_idempotent();
 	test_every_receipt_state_survives_a_restart();
 	test_a_receipt_does_not_cross_scopes();
+	test_conversation_receipts_round_trip_by_scope();
 	test_private_records_survive_restart_isolate_and_delete();
 	test_private_record_bounds_and_anchor_honesty_are_enforced();
 #if !defined(_WIN32)

@@ -644,6 +644,26 @@ namespace bpr::qt {
 			QStringLiteral("The selected file's position among the actionable files"));
 		FilePositionAction = stripWidget(
 			FilePositionLabel, QStringLiteral("workbenchStripFilePositionAction"));
+		// [[BPR-0656]]. Next new comment with its count: the unread threads
+		// the ledger host decided, walked in file order.
+		NextNewCommentAction = new QAction{ QStringLiteral("Next new &comment"), this };
+		NextNewCommentAction->setObjectName(QStringLiteral("nextNewCommentAction"));
+		NextNewCommentAction->setIconText(QStringLiteral("Next new comment"));
+		NextNewCommentAction->setToolTip(QStringLiteral("Next new comment"));
+		NextNewCommentAction->setStatusTip(QStringLiteral(
+			"Reveal the next thread with a post newer than what you have read."));
+		NextNewCommentAction->setShortcut(QKeySequence{ QStringLiteral("Alt+N") });
+		NextNewCommentAction->setShortcutContext(Qt::WindowShortcut);
+		NextNewCommentAction->setEnabled(false);
+		addAction(NextNewCommentAction);
+		connect(NextNewCommentAction, &QAction::triggered, this, [this] { step_to_next_new_comment(); });
+		PrimaryToolbar->addAction(NextNewCommentAction);
+		NewCommentCountLabel = stripLabel(
+			QStringLiteral("workbenchStripNewCommentCount"),
+			QStringLiteral("New comments"),
+			QStringLiteral("How many threads carry a post newer than what you have read"));
+		NewCommentCountAction = stripWidget(
+			NewCommentCountLabel, QStringLiteral("workbenchStripNewCommentCountAction"));
 
 		ToolbarSpacer = stripSpacer(
 			QStringLiteral("workbenchNavigationSpacer"),
@@ -866,6 +886,13 @@ namespace bpr::qt {
 				case card_action::delete_draft:
 					if (ReviewEditor != nullptr) {
 						ReviewEditor->discard_action()->trigger();
+					}
+					break;
+				case card_action::mark_read:
+					// [[BPR-0656]]. The ledger host advances the cursor and
+					// the read state comes back through present_read_state.
+					if (ConversationReadDispatch) {
+						ConversationReadDispatch(aIdentity);
 					}
 					break;
 				}
@@ -2487,15 +2514,85 @@ namespace bpr::qt {
 		if (ComparisonSurface == nullptr || ConversationPanel == nullptr) {
 			return;
 		}
-		// Amber for a thread on the line. Blue for a new one waits on the
-		// post read state BPR-0656 adds.
+		// Amber for a thread on the line; blue for a thread whose first post
+		// is newer than what the reader has read ([[BPR-0656]]).
 		for (const auto side : { core::diff_side::left, core::diff_side::right }) {
-			auto marks = std::vector<diff_line_mark>{ };
+			auto       marks  = std::vector<diff_line_mark>{ };
+			const auto unread = ConversationPanel->cards()->unread_marked_lines(side);
 			for (const auto line : ConversationPanel->cards()->marked_lines(side)) {
-				marks.push_back(diff_line_mark{ .Line = line, .Kind = diff_line_mark_kind::thread });
+				const auto fresh = std::ranges::find(unread, line) != unread.end();
+				marks.push_back(diff_line_mark{
+					.Line = line,
+					.Kind = fresh ? diff_line_mark_kind::new_thread : diff_line_mark_kind::thread });
 			}
 			ComparisonSurface->set_line_marks(side, std::move(marks));
 		}
+		update_new_comment_group();
+	}
+
+	void workbench_window::set_conversation_read_dispatch(conversation_read_dispatch aDispatch)
+	{
+		ConversationReadDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::present_read_state(std::vector<thread_read_state> aState)
+	{
+		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
+			return;
+		}
+		ConversationPanel->cards()->set_read_state(std::move(aState));
+		apply_thread_marks();
+	}
+
+	auto workbench_window::next_new_comment_action() const noexcept -> QAction*
+	{
+		return NextNewCommentAction;
+	}
+
+	auto workbench_window::new_comment_count_label() const noexcept -> QLabel*
+	{
+		return NewCommentCountLabel;
+	}
+
+	void workbench_window::update_new_comment_group()
+	{
+		if (NextNewCommentAction == nullptr || NewCommentCountLabel == nullptr
+			|| ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
+			return;
+		}
+		const auto unread = ConversationPanel->cards()->unread_threads_in_file_order();
+		NextNewCommentAction->setEnabled(!unread.empty());
+		NewCommentCountLabel->setText(
+			unread.empty() ? QString{ } : QStringLiteral("%1 new").arg(unread.size()));
+		NextNewCommentAction->setToolTip(
+			unread.empty() ? QStringLiteral("Next new comment: nothing unread")
+						   : QStringLiteral("Next new comment (%1 threads)").arg(unread.size()));
+	}
+
+	void workbench_window::step_to_next_new_comment()
+	{
+		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
+			return;
+		}
+		const auto unread = ConversationPanel->cards()->unread_threads_in_file_order();
+		if (unread.empty()) {
+			return;
+		}
+		// The first unread thread after the current one in file order, and
+		// the first of all once the last is passed.
+		const auto& current = ConversationPanel->cards()->current_thread();
+		auto        next    = unread.front();
+		if (const auto at = std::ranges::find(unread, current); at != unread.end()) {
+			const auto following = std::next(at);
+			next                 = following != unread.end() ? *following : unread.front();
+		}
+		// The conversation view's current index is what reveals the line, as a
+		// press on a card does; the cards follow it.
+		const auto index = ConversationPanel->model()->index_for_id(next);
+		if (index.isValid()) {
+			ConversationPanel->view()->setCurrentIndex(index);
+		}
+		ConversationPanel->cards()->set_current_thread(next);
 	}
 
 	void workbench_window::apply_modality_surface()
@@ -3885,6 +3982,10 @@ namespace bpr::qt {
 		IdentityAction->setVisible(!StripHome && available >= 1'400);
 		ChangePositionAction->setVisible(!StripHome && available >= 960);
 		FilePositionAction->setVisible(!StripHome && available >= 960);
+		if (NextNewCommentAction != nullptr && NewCommentCountAction != nullptr) {
+			NextNewCommentAction->setVisible(!StripHome);
+			NewCommentCountAction->setVisible(!StripHome && available >= 960);
+		}
 		if (Modality != nullptr) {
 			// The segments keep their names and lose the shortcut beside them.
 			Modality->set_compact(available < 1'000);
@@ -4305,6 +4406,9 @@ namespace bpr::qt {
 		Navigation[1].Action->setIcon(strip_icon(strip_glyph::next_file, ink));
 		Navigation[2].Action->setIcon(strip_icon(strip_glyph::previous_change, ink));
 		Navigation[3].Action->setIcon(strip_icon(strip_glyph::next_change, ink));
+		if (NextNewCommentAction != nullptr) {
+			NextNewCommentAction->setIcon(strip_icon(strip_glyph::new_comment, ink));
+		}
 		ReviewDetailsAction->setIcon(strip_icon(strip_glyph::review_details, ink));
 		ReviewControlsButton->setIcon(strip_icon(strip_glyph::private_progress, ink));
 		Drawers[1].Toggle->setIcon(strip_icon(strip_glyph::comments_drawer, ink));

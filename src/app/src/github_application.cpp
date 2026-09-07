@@ -2696,6 +2696,19 @@ namespace bpr::app {
 			return std::unexpected(Failure);
 		}
 
+		auto store_conversation_receipt(const core::conversation_receipt&)
+			-> std::expected<void, application::ledger_store_failure> override
+		{
+			return std::unexpected(Failure);
+		}
+
+		auto load_conversation_receipts() -> std::expected<
+			std::vector<core::conversation_receipt>,
+			application::ledger_store_failure> override
+		{
+			return std::unexpected(Failure);
+		}
+
 		auto store_note(const application::local_note_record&)
 			-> std::expected<void, application::ledger_store_failure> override
 		{
@@ -3783,6 +3796,8 @@ namespace bpr::app {
 				[this](qt::workbench_defect_classification aClassification) {
 					classify_defect(std::move(aClassification));
 				});
+			Window->set_conversation_read_dispatch(
+				[this](const std::string& aThread) { mark_conversation_read(aThread); });
 
 			QueueStore   = adapters::sqlite::make_queue_enrollment_store({
 				.StorageRoot = applicationDataRoot,
@@ -4347,6 +4362,7 @@ namespace bpr::app {
 					bind_device_refresh_authority(aUpdate);
 					if (aUpdate.PullRequest.has_value()) {
 						publish_overview();
+						publish_read_state();
 					}
 				});
 			Host = std::make_unique<application::github_application_host>(
@@ -6342,6 +6358,7 @@ namespace bpr::app {
 			if (Window != nullptr) {
 				Window->clear_review_ledger(!available);
 			}
+			publish_read_state();
 		}
 
 		[[nodiscard]] auto matches_review_ledger(
@@ -6413,6 +6430,122 @@ namespace bpr::app {
 		/// notes and last-reviewed head, and the epoch host's update rows and
 		/// accepted head. The set of files changed since my last review is not
 		/// yet resolved by any host, so it is left unknown rather than guessed.
+		// [[BPR-0656]]. The identities the ledger keys a conversation's read
+		// state by: the same durable half the defects use for the thread, a
+		// half of the comment's projection identity for each post, and a
+		// half of the body's digest as the edit version, so an edited post
+		// is a different version without the provider naming a time.
+		[[nodiscard]] static auto comment_projection_id(
+			const application::github_review_comment_record& aComment) -> std::string
+		{
+			return "review-comment:" + std::string{ aComment.Comment.value() };
+		}
+
+		[[nodiscard]] static auto post_observation(
+			const application::github_review_comment_record& aComment,
+			const std::string_view                           aViewer)
+			-> core::conversation_post_observation
+		{
+			const auto id   = comment_projection_id(aComment);
+			const auto body = std::span{
+				reinterpret_cast<const std::uint8_t*>(aComment.Body.data()),
+				aComment.Body.size(),
+			};
+			return core::conversation_post_observation{
+				.Comment = core::review_comment_id{ defect_identity(id).Conversation },
+				.Edit    = core::comment_edit_version{ durable_identity_half(core::sha256(body), 8U) },
+				.Mine    = aComment.Author.has_value() && !aViewer.empty()
+					&& aComment.Author->Login == aViewer,
+			};
+		}
+
+		void publish_read_state()
+		{
+			if (Closing || Window == nullptr || Host == nullptr
+				|| ReviewLedgerHost == nullptr) {
+				return;
+			}
+			{
+				const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
+				if (!ReviewLedgerAvailable) {
+					return;
+				}
+			}
+			const auto& snapshot = Host->accepted_snapshot();
+			if (!snapshot.has_value()) {
+				return;
+			}
+			auto threads = std::vector<application::conversation_thread_observation>{ };
+			auto names   = std::vector<std::pair<std::string, std::vector<std::string>>>{ };
+			threads.reserve(snapshot->ReviewThreads.size());
+			for (const auto& thread : snapshot->ReviewThreads) {
+				auto observation = application::conversation_thread_observation{
+					.Conversation = core::review_conversation_id{
+						defect_identity(thread_identity(thread)).Conversation },
+				};
+				auto posts = std::vector<std::string>{ };
+				for (const auto& comment : thread.Comments) {
+					if (comment.Deleted) {
+						continue;
+					}
+					observation.Posts.push_back(post_observation(comment, snapshot->Viewer.Login));
+					posts.push_back(comment_projection_id(comment));
+				}
+				names.emplace_back(thread_identity(thread), std::move(posts));
+				threads.push_back(std::move(observation));
+			}
+			const auto state = ReviewLedgerHost->observe_conversations(threads);
+			if (!state.has_value()) {
+				return;
+			}
+			auto presented = std::vector<qt::thread_read_state>{ };
+			for (const auto& projection : state->Threads) {
+				for (std::size_t index = 0U; index < threads.size(); ++index) {
+					if (threads[index].Conversation != projection.Conversation) {
+						continue;
+					}
+					auto entry = qt::thread_read_state{ .Thread = names[index].first };
+					for (const auto unread : projection.UnreadPosts) {
+						for (std::size_t post = 0U; post < threads[index].Posts.size(); ++post) {
+							if (threads[index].Posts[post].Comment == unread) {
+								entry.UnreadPosts.push_back(names[index].second[post]);
+							}
+						}
+					}
+					presented.push_back(std::move(entry));
+				}
+			}
+			Window->present_read_state(std::move(presented));
+		}
+
+		void mark_conversation_read(const std::string& aThread)
+		{
+			if (Closing || ReviewLedgerHost == nullptr) {
+				return;
+			}
+			const auto* const thread = accepted_thread(aThread);
+			if (thread == nullptr) {
+				return;
+			}
+			auto latest = std::optional<core::conversation_post_observation>{ };
+			for (const auto& comment : thread->Comments) {
+				if (!comment.Deleted) {
+					latest = post_observation(comment, Host->accepted_snapshot()->Viewer.Login);
+				}
+			}
+			if (!latest.has_value()) {
+				return;
+			}
+			const auto marked = ReviewLedgerHost->mark_conversation_read(core::conversation_observation{
+				.Conversation  = core::review_conversation_id{ defect_identity(thread_identity(*thread)).Conversation },
+				.LatestComment = latest->Comment,
+				.LatestEdit    = latest->Edit,
+			});
+			if (marked.has_value()) {
+				publish_read_state();
+			}
+		}
+
 		void publish_overview()
 		{
 			if (Closing || Window == nullptr || Host == nullptr) {
@@ -13200,7 +13333,7 @@ namespace bpr::app {
 					  && toolbarActions[static_cast<qsizetype>(aIndex)]->objectName()
 					  == QLatin1String{ aName };
 			  };
-		const auto exactRowOrder = toolbarActions.size() == 22U
+		const auto exactRowOrder = toolbarActions.size() == 24U
 			&& widgetActionNamed(0U, "workbenchStripInsetAction")
 			&& toolbarActions[1] == window->home_action()
 			&& toolbarActions[2] == repositoriesAction
@@ -13213,16 +13346,18 @@ namespace bpr::app {
 			&& toolbarActions[9] == previousFile
 			&& toolbarActions[10] == nextFile
 			&& widgetActionNamed(11U, "workbenchStripFilePositionAction")
-			&& spacerAction == toolbarActions.begin() + 12
-			&& widgetActionNamed(13U, "workbenchModalityAction")
-			&& widgetActionNamed(14U, "workbenchModalitySpacerAction")
-			&& toolbarActions[15] == reviewDetails
-			&& reviewControlsAction == toolbarActions.begin() + 16
-			&& toolbarActions[17] == window->github_refresh_action()
-			&& toolbarActions[18] == conversationsAction
-			&& widgetActionNamed(19U, "workbenchStripRightDividerAction")
-			&& toolbarActions[20] == window->account_action()
-			&& toolbarActions[21] == window->settings_action();
+			&& toolbarActions[12] == window->next_new_comment_action()
+			&& widgetActionNamed(13U, "workbenchStripNewCommentCountAction")
+			&& spacerAction == toolbarActions.begin() + 14
+			&& widgetActionNamed(15U, "workbenchModalityAction")
+			&& widgetActionNamed(16U, "workbenchModalitySpacerAction")
+			&& toolbarActions[17] == reviewDetails
+			&& reviewControlsAction == toolbarActions.begin() + 18
+			&& toolbarActions[19] == window->github_refresh_action()
+			&& toolbarActions[20] == conversationsAction
+			&& widgetActionNamed(21U, "workbenchStripRightDividerAction")
+			&& toolbarActions[22] == window->account_action()
+			&& toolbarActions[23] == window->settings_action();
 		auto iconOnly    = toolbar->toolButtonStyle() == Qt::ToolButtonIconOnly;
 		auto nativeIcons = true;
 		auto accessible  = true;
@@ -13745,8 +13880,10 @@ namespace bpr::app {
 			probe.Evidence.PublicPathAvailable
 				= window->github_status_text() == "Pull request ready.";
 			probe.Evidence.HostOnlyProbe = true;
-			probe.InitialStatistics      = ledger->statistics();
-			auto* const view             = window->files_drawer()->contents_view();
+			probe.Evidence.ReadStateObserved
+				= ledger != nullptr && ledger->statistics().ConversationLoads >= 1U;
+			probe.InitialStatistics = ledger->statistics();
+			auto* const view        = window->files_drawer()->contents_view();
 			if (!probe.Evidence.ExactAuthority || !probe.Evidence.HostComposed
 				|| !probe.Evidence.PublicPathAvailable || view == nullptr
 				|| view->model() == nullptr || view->model()->rowCount() == 0) {

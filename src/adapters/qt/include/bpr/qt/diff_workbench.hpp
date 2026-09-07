@@ -183,7 +183,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto line_rect(core::diff_side aSide, std::uint32_t aLine) const
 			-> QRect;
 		/// \brief Marks lines that carry a thread (amber) or a new one (blue).
-		void set_line_marks(core::diff_side aSide, std::vector<diff_line_mark> aMarks);
+		void               set_line_marks(core::diff_side aSide, std::vector<diff_line_mark> aMarks);
+		[[nodiscard]] auto line_marks(core::diff_side aSide) const -> const std::vector<diff_line_mark>&;
 		/// \brief Told after every applied scroll frame and geometry rebuild.
 		void set_frame_observer(std::function<void()> aObserver);
 

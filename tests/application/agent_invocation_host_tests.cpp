@@ -318,6 +318,21 @@ namespace {
 			return std::optional<core::file_receipt>{ };
 		}
 
+		[[nodiscard]] auto store_conversation_receipt(const core::conversation_receipt&)
+			-> std::expected<void, application::ledger_store_failure> override
+		{
+			Touched.emplace_back("store_conversation_receipt");
+			return { };
+		}
+
+		[[nodiscard]] auto load_conversation_receipts() -> std::expected<
+			std::vector<core::conversation_receipt>,
+			application::ledger_store_failure> override
+		{
+			Touched.emplace_back("load_conversation_receipts");
+			return std::vector<core::conversation_receipt>{ };
+		}
+
 		[[nodiscard]] auto store_note(const application::local_note_record& aNote)
 			-> std::expected<void, application::ledger_store_failure> override
 		{

@@ -4100,6 +4100,115 @@ namespace {
 		restarted.hide();
 	}
 
+	// [[BPR-0656]]. The read state reaches the gutter and the strip: a new
+	// thread's line is marked blue, the group counts the unread threads and
+	// steps through them in file order, and a card's Mark read leaves through
+	// the conversation read dispatch.
+	void test_read_state_reaches_the_gutter_and_the_strip()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		process_events();
+		auto marked = std::vector<std::string>{ };
+		window.set_conversation_read_dispatch(
+			[&marked](const std::string& aThread) { marked.push_back(aThread); });
+		auto text = std::string{ };
+		for (auto line = 0U; line < 30U; ++line) {
+			text += "line " + std::to_string(line) + '\n';
+		}
+		const auto diff = computed_comparison(
+			text, text, 0U, core::file_identity_of("src/file.cpp"));
+		window.set_conversation_endpoint_placement(false, true);
+		auto* const strip = window.next_new_comment_action();
+		expect(strip != nullptr && !strip->isEnabled()
+				   && window.new_comment_count_label()->text().isEmpty(),
+			   "with nothing unread the next new comment group is disabled and unlabelled");
+		const auto thread = [](const std::string& aId, const std::uint32_t aLine) {
+			return application::github_conversation_projection{
+				.Id       = aId,
+				.Kind     = application::github_conversation_kind::review_thread,
+				.Path     = "src/file.cpp",
+				.Line     = aLine,
+				.DiffSide = application::github_conversation_diff_side::right,
+				.AnchorAvailability
+				= application::github_conversation_anchor_availability::current,
+			};
+		};
+		const auto post = [](const std::string& aId, const std::string& aParent) {
+			return application::github_conversation_projection{
+				.Id          = aId,
+				.ParentId    = aParent,
+				.Kind        = application::github_conversation_kind::review_comment,
+				.AuthorLogin = "someone",
+				.Body        = "a post",
+				.Path        = "src/file.cpp",
+			};
+		};
+		window.conversation_panel()->adopt(
+			{ thread("review-thread:late", 22U), post("review-comment:late-1", "review-thread:late"),
+			  thread("review-thread:early", 12U), post("review-comment:early-1", "review-thread:early"),
+			  post("review-comment:early-2", "review-thread:early") },
+			QStringLiteral("two conversations"));
+		// The comparison's publication is the frame the cards and the gutter
+		// marks follow, as it is when a pull request opens.
+		static_cast<void>(publish_fixture(window, diff));
+		process_events();
+		auto* const cards = window.conversation_panel()->cards();
+		expect(cards->marked_lines(core::diff_side::right) == std::vector<std::uint32_t>{ 11U, 21U },
+			   "both threads mark their lines");
+		const auto kinds = [&window] {
+			auto found = std::vector<qt::diff_line_mark_kind>{ };
+			for (const auto& mark : window.comparison_surface()->line_marks(core::diff_side::right)) {
+				found.push_back(mark.Kind);
+			}
+			return found;
+		};
+		expect(kinds() == std::vector{ qt::diff_line_mark_kind::thread, qt::diff_line_mark_kind::thread },
+			   "before any read state both marks are amber");
+
+		window.present_read_state({
+			qt::thread_read_state{ .Thread = "review-thread:late", .UnreadPosts = { "review-comment:late-1" } },
+			qt::thread_read_state{ .Thread = "review-thread:early", .UnreadPosts = { "review-comment:early-2" } },
+		});
+		process_events();
+		expect(kinds() == std::vector{ qt::diff_line_mark_kind::thread, qt::diff_line_mark_kind::new_thread },
+			   "the thread whose first post is unread is marked blue, the other stays amber");
+		expect(strip->isEnabled() && window.new_comment_count_label()->text() == QStringLiteral("2 new"),
+			   "the strip counts the unread threads");
+
+		strip->trigger();
+		process_events();
+		expect(cards->current_thread() == "review-thread:early"
+				   && window.conversation_model()->id_for_index(window.conversation_view()->currentIndex())
+					   == "review-thread:early",
+			   "next new comment steps to the first unread thread in file order and selects it");
+		strip->trigger();
+		process_events();
+		expect(cards->current_thread() == "review-thread:late", "and then to the next");
+		strip->trigger();
+		process_events();
+		expect(cards->current_thread() == "review-thread:early", "and wraps to the first");
+
+		const auto late = std::ranges::find(cards->cards(), "review-thread:late", &qt::thread_card::Id);
+		expect(late != cards->cards().end() && late->Actions.size() == 2U
+				   && late->Actions.back().first == qt::card_action::mark_read,
+			   "the unread card offers Mark read");
+		const auto point = late->Actions.back().second.center() - QPoint{ 0, cards->verticalScrollBar()->value() };
+		auto       press = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ point }, QPointF{ point },
+										Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(cards->viewport(), &press);
+		expect(marked == std::vector<std::string>{ "review-thread:late" },
+			   "Mark read leaves through the conversation read dispatch with the thread");
+
+		window.present_read_state({ });
+		process_events();
+		expect(!strip->isEnabled() && window.new_comment_count_label()->text().isEmpty()
+				   && kinds() == std::vector{ qt::diff_line_mark_kind::thread, qt::diff_line_mark_kind::thread },
+			   "an empty read state withdraws the count and the blue marks");
+		window.hide();
+	}
+
 	void test_defect_queue_navigation_and_semantic_dispatch()
 	{
 		qt::workbench_window window;
@@ -4784,6 +4893,7 @@ auto main(int argc, char** argv) -> int
 	test_focus_order_is_declared_named_and_walkable();
 	test_receipt_actions_follow_decided_projection_and_clear_while_loading();
 	test_selection_synchronisation_and_restart_persistence();
+	test_read_state_reaches_the_gutter_and_the_strip();
 	test_defect_queue_navigation_and_semantic_dispatch();
 	test_queue_rule_gestures_wait_for_the_accepted_projection();
 	test_queue_rule_selection_survives_unrelated_projection();

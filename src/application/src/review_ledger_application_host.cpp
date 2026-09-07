@@ -1,7 +1,9 @@
 #include "bpr/application/review_ledger_application_host.hpp"
 
+#include <algorithm>
 #include <array>
 #include <limits>
+#include <utility>
 
 namespace bpr::application {
 	namespace {
@@ -83,6 +85,11 @@ namespace bpr::application {
 			return "invalid_record";
 		}
 		return "unavailable";
+	}
+
+	auto valid(const core::conversation_receipt& aReceipt) noexcept -> bool
+	{
+		return aReceipt.Conversation.value() != 0U;
 	}
 
 	auto valid(const local_note_record& aNote) noexcept -> bool
@@ -224,6 +231,94 @@ namespace bpr::application {
 			++Statistics.StoreFailures;
 		}
 		return loaded;
+	}
+
+	auto review_ledger_application_host::conversation_receipts_locked()
+		-> std::expected<void, ledger_store_failure>
+	{
+		if (ConversationReceipts.has_value()) {
+			return { };
+		}
+		++Statistics.ConversationLoads;
+		auto loaded = Store->load_conversation_receipts();
+		if (!loaded) {
+			++Statistics.StoreFailures;
+			++Statistics.ConversationFailures;
+			return std::unexpected(loaded.error());
+		}
+		ConversationReceipts = std::move(*loaded);
+		return { };
+	}
+
+	auto review_ledger_application_host::observe_conversations(
+		const std::span<const conversation_thread_observation> aThreads)
+		-> std::expected<conversation_read_state, ledger_store_failure>
+	{
+		const auto lock = std::scoped_lock{ Mutex };
+		if (const auto loaded = conversation_receipts_locked(); !loaded) {
+			return std::unexpected(loaded.error());
+		}
+		auto state = conversation_read_state{ };
+		for (const auto& thread : aThreads) {
+			const auto receipt = std::ranges::find(
+				*ConversationReceipts,
+				thread.Conversation,
+				&core::conversation_receipt::Conversation);
+			const auto unread = core::unread_posts(
+				receipt != ConversationReceipts->end()
+					? *receipt
+					: core::conversation_receipt{ .Conversation = thread.Conversation },
+				thread.Posts);
+			if (unread.empty()) {
+				continue;
+			}
+			auto projection = conversation_read_projection{ .Conversation = thread.Conversation };
+			for (const auto index : unread) {
+				projection.UnreadPosts.push_back(thread.Posts[index].Comment);
+			}
+			state.Threads.push_back(std::move(projection));
+		}
+		state.UnreadThreads = static_cast<std::uint32_t>(state.Threads.size());
+		return state;
+	}
+
+	auto review_ledger_application_host::mark_conversation_read(
+		const core::conversation_observation& aLatest)
+		-> std::expected<void, ledger_store_failure>
+	{
+		const auto lock = std::scoped_lock{ Mutex };
+		if (const auto loaded = conversation_receipts_locked(); !loaded) {
+			return std::unexpected(loaded.error());
+		}
+		const auto existing = std::ranges::find(
+			*ConversationReceipts,
+			aLatest.Conversation,
+			&core::conversation_receipt::Conversation);
+		const auto read = core::mark_conversation_read(
+			existing != ConversationReceipts->end()
+				? *existing
+				: core::conversation_receipt{ .Conversation = aLatest.Conversation },
+			aLatest);
+		if (!valid(read)) {
+			return std::unexpected(ledger_store_failure::invalid_record);
+		}
+		if (existing != ConversationReceipts->end() && *existing == read) {
+			++Statistics.Unchanged;
+			return { };
+		}
+		++Statistics.ConversationWrites;
+		const auto stored = Store->store_conversation_receipt(read);
+		if (!stored) {
+			++Statistics.StoreFailures;
+			++Statistics.ConversationFailures;
+			return std::unexpected(stored.error());
+		}
+		if (existing != ConversationReceipts->end()) {
+			*existing = read;
+		} else {
+			ConversationReceipts->push_back(read);
+		}
+		return { };
 	}
 
 	auto review_ledger_application_host::retained() const noexcept

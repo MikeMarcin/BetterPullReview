@@ -126,6 +126,16 @@ namespace bpr::application {
 		auto operator<=>(const agent_session_catalog_state&) const = default;
 	};
 
+	/// \brief Bounds one review's retained conversation receipts.
+	inline constexpr std::size_t maximum_conversation_receipts = 4'096U;
+
+	/// \brief Reports whether one conversation receipt can enter the store.
+	///
+	/// \details [[BPR-0656]]. The conversation must be named; the cursors
+	/// may be absent (zero) for a conversation nothing has been seen in.
+	[[nodiscard]] auto valid(const core::conversation_receipt& aReceipt) noexcept
+		-> bool;
+
 	/// \brief Reports whether one note can enter the durable authority.
 	[[nodiscard]] auto valid(const local_note_record& aNote) noexcept -> bool;
 
@@ -177,6 +187,22 @@ namespace bpr::application {
 		/// \brief Reads one receipt back from durable storage.
 		[[nodiscard]] virtual auto load(const core::file_identity& aFile)
 			-> std::expected<std::optional<core::file_receipt>, ledger_store_failure>
+			= 0;
+
+		/// \brief Commits one conversation receipt, replacing the one it names.
+		///
+		/// \details [[BPR-0656]]. The reader's cursor through one
+		/// conversation of this review.
+		[[nodiscard]] virtual auto store_conversation_receipt(
+			const core::conversation_receipt& aReceipt)
+			-> std::expected<void, ledger_store_failure> = 0;
+
+		/// \brief Reads every conversation receipt of this review.
+		///
+		/// \details Bounded by `maximum_conversation_receipts`; the order is
+		/// by conversation identity.
+		[[nodiscard]] virtual auto load_conversation_receipts()
+			-> std::expected<std::vector<core::conversation_receipt>, ledger_store_failure>
 			= 0;
 
 		/// \brief Upserts one bounded private note.

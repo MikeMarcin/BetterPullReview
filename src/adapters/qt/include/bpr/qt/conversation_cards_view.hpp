@@ -39,6 +39,21 @@ namespace bpr::qt {
 		publish_draft,
 		edit_draft,
 		delete_draft,
+		/// Read this thread up to its latest post ([[BPR-0656]]).
+		mark_read,
+	};
+
+	/// \brief What the reader has not seen in one thread.
+	///
+	/// \details [[BPR-0656]]. The thread root's projection identity and the
+	/// projection identities of its unread posts, as the ledger host decided
+	/// them; a thread absent from the state is read.
+	struct thread_read_state
+	{
+		std::string              Thread;
+		std::vector<std::string> UnreadPosts;
+
+		auto operator<=>(const thread_read_state&) const = default;
 	};
 
 	/// \brief One post as the cards draw it.
@@ -50,6 +65,8 @@ namespace bpr::qt {
 		/// The post's depth beneath the root, one for the first reply.
 		std::size_t Depth = 0U;
 		bool        Mine  = false;
+		/// Newer than my cursor, as the ledger decided ([[BPR-0656]]).
+		bool Unread = false;
 		/// Where the post was drawn, in content coordinates.
 		QRect Rect;
 	};
@@ -66,6 +83,10 @@ namespace bpr::qt {
 		bool                         Resolved = false;
 		bool                         Outdated = false;
 		bool                         Draft    = false;
+		/// How many of the posts are unread; the first post unread makes the
+		/// thread new.
+		std::size_t UnreadCount = 0U;
+		bool        RootUnread  = false;
 		/// True while the thread's line is on the comparison and locatable.
 		bool Placed = false;
 		/// Where the line is, in content coordinates, when placed.
@@ -116,6 +137,16 @@ namespace bpr::qt {
 		void set_viewer_login(const QString& aLogin);
 		void set_thread_dispatch(card_thread_dispatch aDispatch);
 		void set_action_dispatch(card_action_dispatch aDispatch);
+		/// \brief Adopts the read state the ledger host decided.
+		///
+		/// \details [[BPR-0656]]. Until a state arrives every post is drawn
+		/// plainly: the cards do not guess what is unread.
+		void set_read_state(std::vector<thread_read_state> aState);
+		/// \brief The unread threads of the whole pull request, in file order.
+		[[nodiscard]] auto unread_threads_in_file_order() const -> std::vector<std::string>;
+		/// \brief The zero-based lines of the cards whose first post is unread.
+		[[nodiscard]] auto unread_marked_lines(core::diff_side aSide) const -> std::vector<std::uint32_t>;
+		[[nodiscard]] auto unread_post_count() const noexcept -> std::size_t;
 		/// \brief Makes a thread current without reporting it.
 		void set_current_thread(const std::string& aId);
 		/// \brief Lays the cards out again against the locator.
@@ -154,7 +185,9 @@ namespace bpr::qt {
 		card_action_dispatch                                     ActionDispatch;
 		QString                                                  Viewer;
 		std::string                                              Current;
-		cards_scope                                              Scope = cards_scope::this_file;
+		std::vector<thread_read_state>                           ReadState;
+		bool                                                     ReadStateKnown = false;
+		cards_scope                                              Scope          = cards_scope::this_file;
 		QColor                                                   Accent{ 0x09, 0x69, 0xDA };
 		QColor                                                   Marker{ 0xD2, 0x99, 0x22 };
 		int                                                      ContentHeight = 0;

@@ -513,6 +513,9 @@ namespace bpr::app::detail {
 		bool PublicPathAvailable           = false;
 		bool UnavailableVisible            = false;
 		bool HostOnlyProbe                 = false;
+		/// [[BPR-0656]]. The ledger host loaded the review's conversation
+		/// receipts when the pull request opened: the read state is composed.
+		bool ReadStateObserved = false;
 
 		auto operator<=>(const review_ledger_composition_probe_evidence&) const
 			= default;

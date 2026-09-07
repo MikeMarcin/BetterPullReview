@@ -1263,6 +1263,104 @@ namespace bpr::adapters::sqlite::detail {
 		} };
 	}
 
+	auto review_ledger_database::store_conversation_receipt(
+		const std::int64_t                aScope,
+		const core::conversation_receipt& aReceipt)
+		-> std::expected<void, failure>
+	{
+		// [[BPR-0656]]. The identities are 63-bit durable halves and the edit
+		// versions body digests; all fit the column as signed integers, and a
+		// zero cursor is a conversation nothing was seen in.
+		const auto fits = [](const std::uint64_t aValue) {
+			return aValue
+				<= static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max());
+		};
+		if (!application::valid(aReceipt) || !fits(aReceipt.Conversation.value())
+			|| !fits(aReceipt.SeenComment.value()) || !fits(aReceipt.SeenEdit.value())
+			|| !fits(aReceipt.AcceptedComment.value())
+			|| !fits(aReceipt.AcceptedEdit.value())) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		auto upsert = prepare(
+			Handle,
+			"INSERT INTO conversation_receipt(scope_id, conversation, "
+			"seen_comment, seen_edit, accepted_comment, accepted_edit) "
+			"VALUES(?1, ?2, ?3, ?4, ?5, ?6) "
+			"ON CONFLICT(scope_id, conversation) DO UPDATE SET "
+			"seen_comment = excluded.seen_comment, "
+			"seen_edit = excluded.seen_edit, "
+			"accepted_comment = excluded.accepted_comment, "
+			"accepted_edit = excluded.accepted_edit");
+		if (!upsert) {
+			return std::unexpected(upsert.error());
+		}
+		const auto bind = [&upsert](const int aIndex, const std::uint64_t aValue) {
+			return ::sqlite3_bind_int64(
+					   upsert->Value, aIndex, static_cast<std::int64_t>(aValue))
+				== SQLITE_OK;
+		};
+		if (::sqlite3_bind_int64(upsert->Value, 1, aScope) != SQLITE_OK
+			|| !bind(2, aReceipt.Conversation.value())
+			|| !bind(3, aReceipt.SeenComment.value())
+			|| !bind(4, aReceipt.SeenEdit.value())
+			|| !bind(5, aReceipt.AcceptedComment.value())
+			|| !bind(6, aReceipt.AcceptedEdit.value())) {
+			return std::unexpected(failure::unavailable);
+		}
+		if (::sqlite3_step(upsert->Value) != SQLITE_DONE) {
+			return std::unexpected(catalog_sql_failure(Handle));
+		}
+		return { };
+	}
+
+	auto review_ledger_database::load_conversation_receipts(
+		const std::int64_t aScope)
+		-> std::expected<std::vector<core::conversation_receipt>, failure>
+	{
+		auto select = prepare(
+			Handle,
+			"SELECT conversation, seen_comment, seen_edit, accepted_comment, "
+			"accepted_edit FROM conversation_receipt WHERE scope_id = ?1 "
+			"ORDER BY conversation LIMIT ?2");
+		if (!select) {
+			return std::unexpected(select.error());
+		}
+		if (::sqlite3_bind_int64(select->Value, 1, aScope) != SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   select->Value,
+				   2,
+				   static_cast<std::int64_t>(
+					   application::maximum_conversation_receipts))
+				!= SQLITE_OK) {
+			return std::unexpected(failure::unavailable);
+		}
+		auto receipts = std::vector<core::conversation_receipt>{ };
+		for (;;) {
+			const auto row = ::sqlite3_step(select->Value);
+			if (row == SQLITE_DONE) {
+				break;
+			}
+			if (row != SQLITE_ROW) {
+				return std::unexpected(catalog_sql_failure(Handle));
+			}
+			const auto column = [&select](const int aIndex) {
+				return ::sqlite3_column_int64(select->Value, aIndex);
+			};
+			if (column(0) <= 0 || column(1) < 0 || column(2) < 0 || column(3) < 0
+				|| column(4) < 0) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			receipts.push_back(core::conversation_receipt{
+				.Conversation    = core::review_conversation_id{ static_cast<std::uint64_t>(column(0)) },
+				.SeenComment     = core::review_comment_id{ static_cast<std::uint64_t>(column(1)) },
+				.SeenEdit        = core::comment_edit_version{ static_cast<std::uint64_t>(column(2)) },
+				.AcceptedComment = core::review_comment_id{ static_cast<std::uint64_t>(column(3)) },
+				.AcceptedEdit    = core::comment_edit_version{ static_cast<std::uint64_t>(column(4)) },
+			});
+		}
+		return receipts;
+	}
+
 	auto review_ledger_database::store_note(
 		const std::int64_t                    aScope,
 		const application::local_note_record& aNote)

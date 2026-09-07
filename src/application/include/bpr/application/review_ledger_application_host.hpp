@@ -9,6 +9,9 @@
 #include <cstdint>
 #include <expected>
 #include <mutex>
+#include <optional>
+#include <span>
+#include <vector>
 
 namespace bpr::application {
 	/// \brief Records directly observable ledger-host activity.
@@ -32,6 +35,9 @@ namespace bpr::application {
 		std::uint64_t SessionAdmissions    = 0U;
 		std::uint64_t SessionLoads         = 0U;
 		std::uint64_t SessionFailures      = 0U;
+		std::uint64_t ConversationLoads    = 0U;
+		std::uint64_t ConversationWrites   = 0U;
+		std::uint64_t ConversationFailures = 0U;
 
 		auto operator<=>(const review_ledger_host_statistics&) const = default;
 	};
@@ -67,6 +73,42 @@ namespace bpr::application {
 	[[nodiscard]] auto project_file_receipt_actions(
 		const core::file_receipt& aReceipt) noexcept
 		-> file_receipt_action_projection;
+
+	/// \brief One conversation of the accepted snapshot, as the host saw it.
+	///
+	/// \details [[BPR-0656]]. The posts in thread order, root first. The
+	/// identities are the durable halves the composition derives from the
+	/// GitHub node ids; the edit versions are digests of the bodies, so an
+	/// edit is a different version without the provider naming a time.
+	struct conversation_thread_observation
+	{
+		core::review_conversation_id                     Conversation;
+		std::vector<core::conversation_post_observation> Posts;
+
+		auto operator<=>(const conversation_thread_observation&) const = default;
+	};
+
+	/// \brief What the reader has not seen in one conversation.
+	struct conversation_read_projection
+	{
+		core::review_conversation_id         Conversation;
+		std::vector<core::review_comment_id> UnreadPosts;
+
+		auto operator<=>(const conversation_read_projection&) const = default;
+	};
+
+	/// \brief The read state of every conversation observed, unread first.
+	///
+	/// \details Conversations with nothing unread are omitted; a
+	/// presentation reads absence as read. `UnreadThreads` counts the
+	/// entries.
+	struct conversation_read_state
+	{
+		std::vector<conversation_read_projection> Threads;
+		std::uint32_t                             UnreadThreads = 0U;
+
+		auto operator<=>(const conversation_read_state&) const = default;
+	};
 
 	/// \brief Turns receipt commands into durable state and published projections.
 	///
@@ -152,16 +194,39 @@ namespace bpr::application {
 		/// receipt is an engaged optional's absence, not a failure.
 		[[nodiscard]] auto load_receipt(const core::file_identity& aFile)
 			-> std::expected<std::optional<core::file_receipt>, ledger_store_failure>;
+
+		/// \brief Decides the read state of the observed conversations.
+		///
+		/// \details [[BPR-0656]]. Loads the review's conversation receipts
+		/// from the store once and keeps them; each thread is judged by
+		/// `core::unread_posts` against its receipt, or against an empty
+		/// receipt when none was ever written. A store failure is typed and
+		/// leaves nothing cached, so the next observation asks again.
+		[[nodiscard]] auto observe_conversations(
+			std::span<const conversation_thread_observation> aThreads)
+			-> std::expected<conversation_read_state, ledger_store_failure>;
+
+		/// \brief Reads one conversation up to its latest post, durably.
+		///
+		/// \details The receipt the core builds is stored before it is kept,
+		/// so a refused write changes nothing the next observation reports.
+		[[nodiscard]] auto mark_conversation_read(
+			const core::conversation_observation& aLatest)
+			-> std::expected<void, ledger_store_failure>;
 		[[nodiscard]] auto retained() const noexcept -> core::file_receipt;
 		[[nodiscard]] auto statistics() const noexcept
 			-> review_ledger_host_statistics;
 
 	private:
-		review_ledger_store_port*     Store      = nullptr;
-		receipt_projection_port*      Projection = nullptr;
-		core::file_receipt            Retained;
-		review_ledger_host_statistics Statistics;
-		mutable std::mutex            Mutex;
+		review_ledger_store_port* Store      = nullptr;
+		receipt_projection_port*  Projection = nullptr;
+		[[nodiscard]] auto        conversation_receipts_locked()
+			-> std::expected<void, ledger_store_failure>;
+
+		core::file_receipt                                     Retained;
+		std::optional<std::vector<core::conversation_receipt>> ConversationReceipts;
+		review_ledger_host_statistics                          Statistics;
+		mutable std::mutex                                     Mutex;
 	};
 } // namespace bpr::application
 

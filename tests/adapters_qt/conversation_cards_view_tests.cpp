@@ -214,6 +214,74 @@ namespace {
 		view.hide();
 	}
 
+	// [[BPR-0656]]. The read state the ledger host decided: unread posts carry
+	// the dot and count, the thread offers Mark read, the first post unread
+	// makes the thread new for the gutter, and the strip walks the unread
+	// threads of the whole pull request in file order.
+	auto test_read_state_marks_unread_posts_and_offers_mark_read() -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(360, 900);
+		view.show();
+		QApplication::processEvents();
+		auto fixture = branching_fixture();
+		fixture.push_back(thread("t-after", "src/z.cpp", 5U));
+		fixture.push_back(reply("c-after", "t-after", "someone", "later file"));
+		fixture.push_back(thread("t-before", "src/a.cpp", 1U));
+		fixture.push_back(reply("c-before", "t-before", "someone", "earlier file"));
+		view.set_viewer_login(QStringLiteral("reviewer-one"));
+		view.adopt(fixture);
+		QApplication::processEvents();
+		const auto root = fixture.front().Id;
+		expect(view.unread_post_count() == 0U && view.unread_threads_in_file_order().empty()
+				   && view.cards().front().Actions.size() == 1U,
+			   "before any read state nothing is unread and there is nothing to mark");
+
+		view.set_read_state({
+			qt::thread_read_state{ .Thread = root, .UnreadPosts = { "review-comment:branching-thread-v1-c01", "review-comment:branching-thread-v1-a03" } },
+			qt::thread_read_state{ .Thread = "t-after", .UnreadPosts = { "c-after" } },
+		});
+		QApplication::processEvents();
+		const auto rootCard = std::ranges::find(view.cards(), root, &qt::thread_card::Id);
+		expect(rootCard != view.cards().end(), "the branching thread is one of the cards");
+		const auto& card = *rootCard;
+		expect(card.UnreadCount == 2U && card.RootUnread
+				   && card.Posts.front().Unread && !card.Posts[1].Unread,
+			   "the unread posts are the ones the state names, and the first post unread makes the thread new");
+		expect(view.unread_post_count() == 3U, "the count is over every card");
+		expect(card.Actions.size() == 2U && card.Actions.back().first == qt::card_action::mark_read,
+			   "a thread with unread posts offers Mark read after Comment here");
+		expect(view.unread_threads_in_file_order() == std::vector<std::string>{ root, "t-after" },
+			   "the unread threads of the whole pull request come in file order, the read one absent");
+		expect(view.unread_marked_lines(core::diff_side::right) == std::vector<std::uint32_t>{ 4U, 41U },
+			   "the lines of the new threads are the gutter's blue marks");
+
+		auto actions = std::vector<std::pair<qt::card_action, std::string>>{ };
+		view.set_action_dispatch([&actions](const qt::card_action aAction, const std::string& aId) {
+			actions.emplace_back(aAction, aId);
+		});
+		const auto markRead = card.Actions.back().second.center();
+		auto       press    = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ markRead }, QPointF{ markRead },
+										   Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(view.viewport(), &press);
+		expect(actions == std::vector<std::pair<qt::card_action, std::string>>{ { qt::card_action::mark_read, root } },
+			   "a press on Mark read reports the action for its thread");
+
+		view.set_read_state({ qt::thread_read_state{ .Thread = root, .UnreadPosts = { "review-comment:branching-thread-v1-a03" } } });
+		QApplication::processEvents();
+		const auto later = std::ranges::find(view.cards(), root, &qt::thread_card::Id);
+		expect(later != view.cards().end() && !later->RootUnread && later->UnreadCount == 1U
+				   && view.unread_marked_lines(core::diff_side::right).empty(),
+			   "a thread whose first post is read is no longer new, though a later post is unread");
+		view.set_read_state({ });
+		QApplication::processEvents();
+		const auto readCard = std::ranges::find(view.cards(), root, &qt::thread_card::Id);
+		expect(view.unread_post_count() == 0U && readCard != view.cards().end()
+				   && readCard->Actions.size() == 1U,
+			   "an empty state reads everything and withdraws Mark read");
+		view.hide();
+	}
+
 	auto test_cards_sit_at_their_lines_and_never_overlap() -> void
 	{
 		qt::conversation_cards_view view;
@@ -323,6 +391,7 @@ auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
 	test_branching_conversation_reads_as_one_card_in_order();
+	test_read_state_marks_unread_posts_and_offers_mark_read();
 	test_cards_sit_at_their_lines_and_never_overlap();
 	std::cout << "conversation-cards-view-tests:pass\n";
 	return EXIT_SUCCESS;

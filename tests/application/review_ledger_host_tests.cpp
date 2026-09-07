@@ -69,6 +69,35 @@ namespace {
 			return Committed;
 		}
 
+		auto store_conversation_receipt(const core::conversation_receipt& aReceipt)
+			-> std::expected<void, application::ledger_store_failure> override
+		{
+			if (const auto failure = take_failure()) {
+				Log->emplace_back("conversation-store-refused");
+				return std::unexpected(*failure);
+			}
+			Log->emplace_back("conversation-stored");
+			std::erase_if(ConversationReceipts, [&aReceipt](const core::conversation_receipt& aStored) {
+				return aStored.Conversation == aReceipt.Conversation;
+			});
+			ConversationReceipts.push_back(aReceipt);
+			return { };
+		}
+
+		auto load_conversation_receipts() -> std::expected<
+			std::vector<core::conversation_receipt>,
+			application::ledger_store_failure> override
+		{
+			if (const auto failure = take_failure()) {
+				Log->emplace_back("conversation-load-refused");
+				return std::unexpected(*failure);
+			}
+			Log->emplace_back("conversation-loaded");
+			return ConversationReceipts;
+		}
+
+		std::vector<core::conversation_receipt> ConversationReceipts;
+
 		auto store_note(const application::local_note_record& aNote)
 			-> std::expected<void, application::ledger_store_failure> override
 		{
@@ -708,6 +737,94 @@ namespace {
 			"session statistics distinguish admission, load, and pre-store refusal");
 	}
 
+	// [[BPR-0656]]. The read state of a review's conversations: receipts are
+	// loaded once, every post after the cursor is unread, Mark read writes the
+	// cursor through the store before the host keeps it, and a refused store
+	// leaves the next observation asking again.
+	void test_conversation_read_state_loads_once_and_marks_read_through_the_store()
+	{
+		auto       log        = event_log{ };
+		auto       store      = recording_store{ log };
+		auto       projection = recording_projection{ log };
+		auto       host       = application::review_ledger_application_host{ store, projection };
+		const auto thread     = core::review_conversation_id{ 41U };
+		const auto posts      = std::vector<core::conversation_post_observation>{
+			{ .Comment = core::review_comment_id{ 1U }, .Edit = core::comment_edit_version{ 11U } },
+			{ .Comment = core::review_comment_id{ 2U }, .Edit = core::comment_edit_version{ 12U }, .Mine = true },
+			{ .Comment = core::review_comment_id{ 3U }, .Edit = core::comment_edit_version{ 13U } },
+		};
+		const auto threads = std::vector<application::conversation_thread_observation>{
+			{ .Conversation = thread, .Posts = posts },
+			{ .Conversation = core::review_conversation_id{ 42U },
+			  .Posts        = { { .Comment = core::review_comment_id{ 9U }, .Edit = core::comment_edit_version{ 19U }, .Mine = true } } },
+		};
+
+		store.fail_next(application::ledger_store_failure::unavailable);
+		const auto refused = host.observe_conversations(threads);
+		expect(!refused.has_value()
+				   && refused.error() == application::ledger_store_failure::unavailable
+				   && log == event_log{ "conversation-load-refused" },
+			   "a refused receipt load is typed and caches nothing");
+		log.clear();
+
+		const auto fresh = host.observe_conversations(threads);
+		expect(fresh.has_value() && fresh->UnreadThreads == 1U
+				   && fresh->Threads.size() == 1U
+				   && fresh->Threads[0].Conversation == thread
+				   && fresh->Threads[0].UnreadPosts
+					   == std::vector{ core::review_comment_id{ 1U }, core::review_comment_id{ 3U } },
+			   "with no receipt every post of someone else's is unread and my own "
+			   "thread is not");
+		const auto again = host.observe_conversations(threads);
+		expect(again == fresh && log == event_log{ "conversation-loaded" },
+			   "the receipts are loaded once and reused");
+
+		store.fail_next(application::ledger_store_failure::quota_exceeded);
+		const auto refusedWrite = host.mark_conversation_read(core::conversation_observation{
+			.Conversation  = thread,
+			.LatestComment = core::review_comment_id{ 3U },
+			.LatestEdit    = core::comment_edit_version{ 13U },
+		});
+		expect(!refusedWrite.has_value()
+				   && refusedWrite.error() == application::ledger_store_failure::quota_exceeded
+				   && host.observe_conversations(threads) == fresh,
+			   "a refused Mark read changes nothing the host reports");
+
+		const auto marked = host.mark_conversation_read(core::conversation_observation{
+			.Conversation  = thread,
+			.LatestComment = core::review_comment_id{ 3U },
+			.LatestEdit    = core::comment_edit_version{ 13U },
+		});
+		expect(marked.has_value() && store.ConversationReceipts.size() == 1U
+				   && store.ConversationReceipts[0].SeenComment == core::review_comment_id{ 3U }
+				   && store.ConversationReceipts[0].AcceptedComment == core::review_comment_id{ },
+			   "Mark read stores the seen cursor at the latest post and leaves acceptance");
+		const auto read = host.observe_conversations(threads);
+		expect(read.has_value() && read->UnreadThreads == 0U && read->Threads.empty(),
+			   "a read conversation reports nothing unread");
+
+		auto edited             = threads;
+		edited[0].Posts[2].Edit = core::comment_edit_version{ 14U };
+		const auto reopened     = host.observe_conversations(edited);
+		expect(reopened.has_value() && reopened->UnreadThreads == 1U
+				   && reopened->Threads[0].UnreadPosts == std::vector{ core::review_comment_id{ 3U } },
+			   "an edit to the seen post reopens exactly that post");
+
+		const auto repeat = host.mark_conversation_read(core::conversation_observation{
+			.Conversation  = thread,
+			.LatestComment = core::review_comment_id{ 3U },
+			.LatestEdit    = core::comment_edit_version{ 13U },
+		});
+		expect(repeat.has_value() && store.ConversationReceipts.size() == 1U,
+			   "an unchanged Mark read is not a write");
+		expect(!host.mark_conversation_read(core::conversation_observation{ }).has_value(),
+			   "a nameless conversation is refused before the store");
+		const auto statistics = host.statistics();
+		expect(statistics.ConversationLoads == 2U && statistics.ConversationWrites == 2U
+				   && statistics.ConversationFailures == 2U && statistics.Unchanged == 1U,
+			   "statistics account for every conversation load, write and refusal");
+	}
+
 	void test_receipt_action_projection_contains_only_core_legal_changes()
 	{
 		auto receipt       = seeded_receipt();
@@ -741,6 +858,7 @@ auto main() -> int
 	test_material_load_failure_is_typed_and_changes_nothing();
 	test_agent_sessions_validate_admit_and_load_through_the_host();
 	test_receipt_action_projection_contains_only_core_legal_changes();
+	test_conversation_read_state_loads_once_and_marks_read_through_the_store();
 
 	std::cout << "review-ledger-host-tests:pass\n";
 	return EXIT_SUCCESS;

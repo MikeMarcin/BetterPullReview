@@ -280,6 +280,39 @@ namespace bpr::core {
 			|| aObservation.LatestEdit != aReceipt.SeenEdit;
 	}
 
+	auto unread_posts(
+		const conversation_receipt&                          aReceipt,
+		const std::span<const conversation_post_observation> aPosts)
+		-> std::vector<std::size_t>
+	{
+		auto result = std::vector<std::size_t>{ };
+		auto start  = std::size_t{ 0U };
+		for (std::size_t index = 0U; index < aPosts.size(); ++index) {
+			if (aPosts[index].Comment == aReceipt.SeenComment) {
+				start = aPosts[index].Edit == aReceipt.SeenEdit ? index + 1U : index;
+				break;
+			}
+		}
+		for (auto index = start; index < aPosts.size(); ++index) {
+			if (!aPosts[index].Mine) {
+				result.push_back(index);
+			}
+		}
+		return result;
+	}
+
+	auto mark_conversation_read(
+		const conversation_receipt&     aReceipt,
+		const conversation_observation& aObservation) noexcept
+		-> conversation_receipt
+	{
+		auto read         = aReceipt;
+		read.Conversation = aObservation.Conversation;
+		read.SeenComment  = aObservation.LatestComment;
+		read.SeenEdit     = aObservation.LatestEdit;
+		return read;
+	}
+
 	auto acceptance_outdated(
 		const conversation_receipt&     aReceipt,
 		const conversation_observation& aObservation) noexcept -> bool

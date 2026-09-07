@@ -45,6 +45,8 @@ namespace bpr::qt {
 				return QStringLiteral("Publish");
 			case card_action::edit_draft:
 				return QStringLiteral("Edit");
+			case card_action::mark_read:
+				return QStringLiteral("Mark read");
 			case card_action::delete_draft:
 				break;
 			}
@@ -171,6 +173,66 @@ namespace bpr::qt {
 		ActionDispatch = std::move(aDispatch);
 	}
 
+	void conversation_cards_view::set_read_state(std::vector<thread_read_state> aState)
+	{
+		if (ReadStateKnown && ReadState == aState) {
+			return;
+		}
+		ReadState      = std::move(aState);
+		ReadStateKnown = true;
+		relayout();
+	}
+
+	auto conversation_cards_view::unread_threads_in_file_order() const -> std::vector<std::string>
+	{
+		// Every thread of the pull request, whatever the scope shows, so the
+		// strip's next new comment walks the whole review in file order.
+		auto threads = std::vector<const application::github_conversation_projection*>{ };
+		for (const auto& node : Retained) {
+			if (node.Kind != application::github_conversation_kind::review_thread
+				|| node.ParentId.has_value()) {
+				continue;
+			}
+			const auto state = std::ranges::find(ReadState, node.Id, &thread_read_state::Thread);
+			if (state != ReadState.end() && !state->UnreadPosts.empty()) {
+				threads.push_back(&node);
+			}
+		}
+		std::ranges::stable_sort(threads, [](const auto* aLeft, const auto* aRight) {
+			return std::pair{ aLeft->Path, aLeft->Line.value_or(0U) }
+			< std::pair{ aRight->Path, aRight->Line.value_or(0U) };
+		});
+		auto ids = std::vector<std::string>{ };
+		for (const auto* thread : threads) {
+			ids.push_back(thread->Id);
+		}
+		return ids;
+	}
+
+	auto conversation_cards_view::unread_marked_lines(const core::diff_side aSide) const
+		-> std::vector<std::uint32_t>
+	{
+		auto lines = std::vector<std::uint32_t>{ };
+		for (const auto& card : Cards) {
+			if (!card.Draft && card.RootUnread && card.Side == aSide && card.Line.has_value()
+				&& *card.Line > 0U) {
+				lines.push_back(*card.Line - 1U);
+			}
+		}
+		std::ranges::sort(lines);
+		lines.erase(std::ranges::unique(lines).begin(), lines.end());
+		return lines;
+	}
+
+	auto conversation_cards_view::unread_post_count() const noexcept -> std::size_t
+	{
+		auto count = std::size_t{ 0U };
+		for (const auto& card : Cards) {
+			count += card.UnreadCount;
+		}
+		return count;
+	}
+
 	void conversation_cards_view::set_current_thread(const std::string& aId)
 	{
 		// A reply's identity names its card: the tree may be on a reply.
@@ -277,13 +339,23 @@ namespace bpr::qt {
 			y += height + post_gap;
 		}
 		aCard.Actions.clear();
-		auto       actionX       = card_padding + avatar_column;
-		const auto actions       = aCard.Draft
+		auto actionX = card_padding + avatar_column;
+		auto actions = aCard.Draft
 			? std::vector{ card_action::publish_draft, card_action::edit_draft, card_action::delete_draft }
 			: std::vector{ card_action::comment_here };
+		if (!aCard.Draft && aCard.UnreadCount > 0U) {
+			actions.push_back(card_action::mark_read);
+		}
 		const auto actionMetrics = QFontMetrics{ small_font(font()) };
+		const auto actionRight   = aWidth - card_padding;
 		for (const auto action : actions) {
 			const auto width = actionMetrics.horizontalAdvance(action_text(action)) + 4;
+			// A second action that does not fit beside the first starts a
+			// new row inside the card rather than leaving it.
+			if (actionX + width > actionRight && actionX > card_padding + avatar_column) {
+				actionX = card_padding + avatar_column;
+				y += action_height + 2;
+			}
 			aCard.Actions.emplace_back(action, QRect{ actionX, y, width, action_height });
 			actionX += width + 12;
 		}
@@ -361,12 +433,23 @@ namespace bpr::qt {
 				continue;
 			}
 			const auto author = text(node.AuthorLogin);
-			Cards[card->second].Posts.push_back(card_post{
+			auto&      target = Cards[card->second];
+			const auto state  = std::ranges::find(ReadState, root->Id, &thread_read_state::Thread);
+			const auto unread = state != ReadState.end()
+				&& std::ranges::find(state->UnreadPosts, node.Id) != state->UnreadPosts.end();
+			if (unread) {
+				if (target.Posts.empty()) {
+					target.RootUnread = true;
+				}
+				++target.UnreadCount;
+			}
+			target.Posts.push_back(card_post{
 				.Id     = node.Id,
 				.Author = author,
 				.Body   = text(node.Body),
 				.Depth  = depth,
 				.Mine   = !Viewer.isEmpty() && author == Viewer,
+				.Unread = unread,
 			});
 		}
 		// My draft, at its line, while it is on this comparison.
@@ -438,9 +521,10 @@ namespace bpr::qt {
 		verticalScrollBar()->setRange(0, std::max(0, ContentHeight - viewport()->height()));
 		verticalScrollBar()->setPageStep(viewport()->height());
 		setAccessibleDescription(QStringLiteral(
-									 "%1 threads as cards, %2 posts; Up and Down move between them, Return reveals the line")
+									 "%1 threads as cards, %2 posts, %3 unread; Up and Down move between them, Return reveals the line")
 									 .arg(Cards.size() - (Draft.has_value() ? 1U : 0U))
-									 .arg(post_count()));
+									 .arg(post_count())
+									 .arg(unread_post_count()));
 		viewport()->update();
 	}
 
@@ -505,9 +589,21 @@ namespace bpr::qt {
 				painter.drawText(avatar, Qt::AlignCenter, post.Author.left(1).toUpper());
 				const auto textLeft  = post.Rect.left() + avatar_column;
 				const auto textWidth = post.Rect.width() - avatar_column;
+				// [[BPR-0656]]. An unread post: a blue dot before a full-ink
+				// name. A read post, once the ledger has said so, steps its
+				// name back; before any read state every name is full ink.
+				const auto read = ReadStateKnown && !post.Unread && !post.Mine;
 				painter.setFont(bold);
-				painter.setPen(dim ? faint : ink);
+				painter.setPen(dim || read ? faint : ink);
 				const auto authorHeight = QFontMetrics{ font() }.height();
+				if (post.Unread) {
+					painter.save();
+					painter.setPen(Qt::NoPen);
+					painter.setBrush(Accent);
+					painter.drawEllipse(QRectF{ static_cast<qreal>(textLeft) - 8.5,
+												static_cast<qreal>(post.Rect.top()) + authorHeight / 2.0 - 3.0, 6.0, 6.0 });
+					painter.restore();
+				}
 				painter.drawText(QRect{ textLeft, post.Rect.top(), textWidth, authorHeight },
 								 Qt::AlignLeft | Qt::AlignVCenter, post.Author);
 				painter.setFont(font());

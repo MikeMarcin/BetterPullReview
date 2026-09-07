@@ -99,8 +99,8 @@ function(bpr_run_review_ledger_probe course epoch_phase root expected_evidence)
 endfunction()
 
 bpr_prepare_private_root("${BPR_ROOT}")
-bpr_run_review_ledger_probe(seed seed "${BPR_ROOT}" 11111101111101)
-bpr_run_review_ledger_probe(reopen reuse "${BPR_ROOT}" 11111111111101)
+bpr_run_review_ledger_probe(seed seed "${BPR_ROOT}" 111111011111011)
+bpr_run_review_ledger_probe(reopen reuse "${BPR_ROOT}" 111111111111011)
 
 set(bpr_unavailable_root "${BPR_ROOT}-unavailable")
 bpr_prepare_private_root("${bpr_unavailable_root}")
@@ -119,7 +119,7 @@ bpr_run_review_ledger_probe(
     unavailable
     single
     "${bpr_unavailable_root}"
-    11111101111111
+    111111011111110
 )
 if(NOT IS_DIRECTORY
     "${bpr_unavailable_root}/state/v1/review-ledger.sqlite3"

@@ -1,6 +1,7 @@
 #include "bpr/core/review_ledger.hpp"
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
@@ -406,6 +407,53 @@ namespace {
 		};
 	}
 
+	// [[BPR-0656]]. The per-post form of unread: everything after the seen
+	// post, the seen post when edited, everything when nothing was seen, and
+	// never a post of my own. Mark read moves only the seen cursor.
+	void test_unread_posts_follow_the_seen_cursor()
+	{
+		const auto conversation = core::review_conversation_id{ 5U };
+		const auto posts        = std::array{
+			core::conversation_post_observation{ .Comment = core::review_comment_id{ 1U }, .Edit = core::comment_edit_version{ 10U } },
+			core::conversation_post_observation{ .Comment = core::review_comment_id{ 2U }, .Edit = core::comment_edit_version{ 20U }, .Mine = true },
+			core::conversation_post_observation{ .Comment = core::review_comment_id{ 3U }, .Edit = core::comment_edit_version{ 30U } },
+		};
+		const auto never = core::conversation_receipt{ .Conversation = conversation };
+		expect(core::unread_posts(never, posts) == std::vector<std::size_t>{ 0U, 2U },
+			   "nothing seen: every post but my own is unread");
+
+		const auto seenFirst = core::conversation_receipt{
+			.Conversation = conversation,
+			.SeenComment  = core::review_comment_id{ 1U },
+			.SeenEdit     = core::comment_edit_version{ 10U },
+		};
+		expect(core::unread_posts(seenFirst, posts) == std::vector<std::size_t>{ 2U },
+			   "the posts after the seen one are unread, my own reply excepted");
+
+		const auto seenEdited = core::conversation_receipt{
+			.Conversation = conversation,
+			.SeenComment  = core::review_comment_id{ 1U },
+			.SeenEdit     = core::comment_edit_version{ 9U },
+		};
+		expect(core::unread_posts(seenEdited, posts) == std::vector<std::size_t>{ 0U, 2U },
+			   "an edit to the seen post makes it unread again");
+
+		const auto latest = core::conversation_observation{
+			.Conversation  = conversation,
+			.LatestComment = core::review_comment_id{ 3U },
+			.LatestEdit    = core::comment_edit_version{ 30U },
+		};
+		const auto read = core::mark_conversation_read(seenFirst, latest);
+		expect(read.SeenComment == latest.LatestComment && read.SeenEdit == latest.LatestEdit
+				   && read.AcceptedComment == seenFirst.AcceptedComment
+				   && read.AcceptedEdit == seenFirst.AcceptedEdit,
+			   "Mark read moves the seen cursor to the latest post and leaves acceptance");
+		expect(core::unread_posts(read, posts).empty() && !core::unread(read, latest),
+			   "a conversation read to its latest post has nothing unread");
+		expect(core::unread_posts(read, std::span<const core::conversation_post_observation>{ }).empty(),
+			   "an empty conversation has nothing unread");
+	}
+
 	void test_the_queue_order_is_deterministic_including_ties()
 	{
 		// Two files share the highest reason. Without an explicit tie-break
@@ -564,6 +612,7 @@ auto main() -> int
 	test_exclusion_survives_a_material_change();
 	test_an_observation_for_another_file_is_not_a_carry_over();
 	test_an_edited_comment_reopens_a_conversation();
+	test_unread_posts_follow_the_seen_cursor();
 	test_the_queue_order_is_deterministic_including_ties();
 	test_the_explanation_follows_the_deciding_fact();
 	test_exclusion_leaves_the_queue_rather_than_ranking_in_it();

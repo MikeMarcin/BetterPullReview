@@ -1098,6 +1098,11 @@ namespace bpr::qt {
 		pane(aSide == core::diff_side::left ? Left : Right)->set_line_marks(std::move(aMarks));
 	}
 
+	auto diff_workbench::line_marks(const core::diff_side aSide) const -> const std::vector<diff_line_mark>&
+	{
+		return pane(aSide == core::diff_side::left ? Left : Right)->line_marks();
+	}
+
 	void diff_workbench::set_frame_observer(std::function<void()> aObserver)
 	{
 		FrameObserver = std::move(aObserver);
