@@ -2290,9 +2290,20 @@ namespace bpr::qt {
 			++Statistics.LayoutUpdates;
 		}
 		if (aProjection.Behaviour) {
-			Behaviour = *aProjection.Behaviour;
+			Behaviour          = *aProjection.Behaviour;
+			BehaviourPublished = true;
 			apply_behaviour_controls();
 			consider_mark_read_when_fully_seen();
+			// A pull request that opened before the preferences landed takes
+			// them now, once each.
+			if (HasGithubPullRequest) {
+				apply_first_comments_filter();
+				if (!ReturnComparisonAsked) {
+					ReturnComparisonPending = Behaviour.ReturnComparison
+						!= application::review_return_comparison::whole_pr;
+					honour_return_comparison();
+				}
+			}
 		}
 		if (aProjection.Drawers || aProjection.Layout) {
 			apply_drawer_layout();
@@ -3175,9 +3186,11 @@ namespace bpr::qt {
 
 	void workbench_window::apply_first_comments_filter()
 	{
-		if (ConversationPanel != nullptr) {
-			ConversationPanel->apply_first_filter(Behaviour.CommentsFilter);
+		if (ConversationPanel == nullptr || FirstFilterApplied || !BehaviourPublished) {
+			return;
 		}
+		FirstFilterApplied = true;
+		ConversationPanel->apply_first_filter(Behaviour.CommentsFilter);
 	}
 
 	// The named comparison is dispatched through the control's own action,
@@ -3203,6 +3216,7 @@ namespace bpr::qt {
 			return;
 		}
 		ReturnComparisonPending = false;
+		ReturnComparisonAsked   = true;
 		if (!action->isChecked()) {
 			action->trigger();
 		}
@@ -3736,6 +3750,8 @@ namespace bpr::qt {
 		// [[BPR-0661]]. The drawer's first filter and the comparison on return
 		// are the reviewer's preferences too; the comparison waits until the
 		// history offers it.
+		FirstFilterApplied    = false;
+		ReturnComparisonAsked = false;
 		apply_first_comments_filter();
 		ReturnComparisonPending = Behaviour.ReturnComparison
 			!= application::review_return_comparison::whole_pr;

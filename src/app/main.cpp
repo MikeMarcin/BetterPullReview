@@ -697,6 +697,7 @@ namespace {
 			epoch_maintenance_delete_result,
 			appearance,
 			overview_since_review,
+			review_behaviour,
 #endif
 			shutdown,
 		};
@@ -973,8 +974,10 @@ namespace {
 			DefectCompositionProbe;
 		// [[BPR-0654]]. `--overview-since-review`.
 		bool OverviewSinceReviewRequested = false;
-		bool DefectCompositionStarted     = false;
-		bool DefectCompositionPassed      = false;
+		// [[BPR-0661]]. `--review-behaviour`.
+		bool ReviewBehaviourRequested = false;
+		bool DefectCompositionStarted = false;
+		bool DefectCompositionPassed  = false;
 		bpr::app::detail::defect_composition_probe_evidence
 			 DefectCompositionEvidence;
 		bool DiffProbe         = false;
@@ -6072,6 +6075,22 @@ namespace {
 						QApplication::processEvents();
 						advance_fixture_stage(
 							*aRun, automated_run::stage::overview_since_review);
+					} else if (aRun->ReviewBehaviourRequested) {
+						// [[BPR-0661]]. The seed run chooses two preferences
+						// on the page as a reviewer would; the reuse run opens
+						// over the same store and must find them honoured.
+						if (aRun->EpochPhase
+							== bpr::app::detail::github_epoch_fixture_phase::seed) {
+							auto* const continueReview
+								= window.findChild<QToolButton*>(QStringLiteral("continueModalityReview"));
+							auto* const unread
+								= window.findChild<QToolButton*>(QStringLiteral("commentsFilterUnread"));
+							if (continueReview != nullptr && unread != nullptr) {
+								continueReview->click();
+								unread->click();
+							}
+						}
+						advance_fixture_stage(*aRun, automated_run::stage::review_behaviour);
 					} else {
 						transition_to_shutdown(aApplication, *aRun);
 					}
@@ -6257,6 +6276,43 @@ namespace {
 									  << static_cast<unsigned long long>(*projection.SinceLastReview.FilesChanged)
 									  << ":changed=" << changed << ":entry=" << entry << '\n';
 				aRun->PresentationPassed = aRun->PresentationPassed && aRun->OverviewSinceReviewPassed;
+				transition_to_shutdown(aApplication, *aRun);
+				break;
+			}
+
+			case automated_run::stage::review_behaviour: {
+				// [[BPR-0661]]. Poll, do not race: the host stores the record
+				// and publishes it back, and the budget bounds a store that
+				// never answers. The seed run then requires Continue review to
+				// enter Review; the reuse run requires the drawer to have
+				// opened on the unread filter from the restored record.
+				const auto expected = bpr::application::review_behaviour_settings{
+					.ContinueModality = bpr::application::review_continue_modality::review,
+					.CommentsFilter   = bpr::application::review_comments_filter::unread,
+				};
+				if (window.behaviour() != expected) {
+					break;
+				}
+				const auto seed = aRun->EpochPhase
+					== bpr::app::detail::github_epoch_fixture_phase::seed;
+				auto passed = false;
+				if (seed) {
+					window.choose_modality(bpr::qt::review_modality::overview);
+					QApplication::processEvents();
+					auto* const overview = window.overview_page();
+					if (overview != nullptr && overview->presented()) {
+						overview->entry_button()->click();
+						QApplication::processEvents();
+					}
+					passed = window.current_modality() == bpr::qt::review_modality::review;
+				} else {
+					passed = window.conversation_panel()->filter_unread_button()->isChecked()
+						&& !window.conversation_panel()->filter_unresolved_button()->isChecked();
+				}
+				QTextStream{ stdout } << (seed ? "REVIEW_BEHAVIOUR_SEEDED" : "REVIEW_BEHAVIOUR")
+									  << ":continue=review:filter=unread:honoured="
+									  << (passed ? 1 : 0) << '\n';
+				aRun->PresentationPassed = aRun->PresentationPassed && passed;
 				transition_to_shutdown(aApplication, *aRun);
 				break;
 			}
@@ -7480,6 +7536,7 @@ auto main(int argc, char** argv) -> int
 			argc, argv, "--appearance-gesture-probe");
 		const auto overviewSinceReview = has_argument(
 			argc, argv, "--overview-since-review");
+		const auto reviewBehaviour                  = has_argument(argc, argv, "--review-behaviour");
 		const auto appearanceThemeCustomizationPath = argument_value(
 			argc, argv, "--appearance-theme-customization-probe");
 		const auto diffEvidenceAppearanceName = argument_value(
@@ -7865,6 +7922,7 @@ auto main(int argc, char** argv) -> int
 						.ReviewRoundTripCompositionProbe = reviewRoundTripCompositionProbe,
 						.DefectCompositionProbe          = defectCompositionProbe,
 						.OverviewSinceReviewRequested    = overviewSinceReview,
+						.ReviewBehaviourRequested        = reviewBehaviour,
 						.DiffProbe                       = diffWorkbenchProbe,
 						.DiffShutdownProbe               = diffWorkbenchShutdownProbe,
 						.StallProbe                      = automatedStallProbe,

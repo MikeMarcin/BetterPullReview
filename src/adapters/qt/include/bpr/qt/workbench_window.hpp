@@ -803,13 +803,18 @@ namespace bpr::qt {
 		application::queue_landing_projection QueueProjection;
 		workbench_saved_repository_dispatch   SavedRepositoryDispatch;
 		// [[BPR-0661]].
-		review_behaviour_dispatch                                  BehaviourDispatch;
-		application::review_behaviour_settings                     Behaviour;
-		QWidget*                                                   BehaviourEditor = nullptr;
-		std::array<std::vector<QToolButton*>, 5>                   BehaviourOptions{ };
-		bool                                                       ApplyingBehaviour = false;
-		std::optional<review_modality>                             LastUsedModality;
-		bool                                                       ReturnComparisonPending = false;
+		review_behaviour_dispatch                BehaviourDispatch;
+		application::review_behaviour_settings   Behaviour;
+		QWidget*                                 BehaviourEditor = nullptr;
+		std::array<std::vector<QToolButton*>, 5> BehaviourOptions{ };
+		bool                                     ApplyingBehaviour = false;
+		std::optional<review_modality>           LastUsedModality;
+		bool                                     ReturnComparisonPending = false;
+		/// Set once the host has published the preferences; until then a pull
+		/// request that opens takes the defaults and is revisited when they land.
+		bool                                                       BehaviourPublished    = false;
+		bool                                                       FirstFilterApplied    = false;
+		bool                                                       ReturnComparisonAsked = false;
 		std::optional<core::file_receipt_command>                  MarkedReadWhenSeen;
 		QWidget*                                                   SavedRepositoriesEditor     = nullptr;
 		QComboBox*                                                 SavedRepositorySelector     = nullptr;
