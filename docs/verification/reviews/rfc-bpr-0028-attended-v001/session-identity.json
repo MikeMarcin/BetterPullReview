@@ -1,35 +1,35 @@
 {
  "schema": "bpr.attended_review_identity",
  "schema_version": 1,
- "head": "9ec5eba3",
+ "head": "f492706b",
  "rfc": "RFC-BPR-0028",
  "session": "cbd48b91000b00f1e72e1ad62c7c384c",
  "bundle": {
   "path": "build/app-release/src/app/BetterPullReview.app",
-  "executable_sha256": "dba2d952133ee18b28e458fb282fe8d9ad3930c68a76d1fd5c3f601d86fc88cf",
+  "executable_sha256": "9e8af29a9bf43e5114b16e0fd3e1f2c62a0b0a12444bd91c97a321cb9faafc94",
   "build_testing": false
  },
  "page": {
   "path": "offline-package/index.html",
-  "digest": "sha256:8218568532ca2f64fb94489377f560c68c4ab19fcb7cf2c3a766b1c782539071"
+  "digest": "sha256:66e63bee2413ce2d8149dd1b7c9ea9fe40a9a2005fdb2a6551585aac01743938"
  },
  "candidates": [
   {
    "id": "BPR-0646-workbench-chrome",
-   "revision": "app-release-dba2d952-head-9ec5eba3",
-   "fingerprint": "d5499624d55bb7078e187ef7b7431a751eb916af356b2dfc7271f0b3fbabd4fa",
+   "revision": "app-release-9e8af29a-head-f492706b",
+   "fingerprint": "d5bbd7209b24a079be49935e94ef04ed9ccdbfcc78453888cbc9ae54be464dd8",
    "card": "docs/issues/40-parked/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md"
   },
   {
    "id": "BPR-0662-drawer-widths",
-   "revision": "app-release-dba2d952-head-9ec5eba3",
-   "fingerprint": "799de505ff3209c14cbbab370423e2c26ea120466017cf6a385fd4e4309082da",
+   "revision": "app-release-9e8af29a-head-f492706b",
+   "fingerprint": "2a75ed5b4dffaac36b632ff7f8945bd7afe41931079bd46f4a1715a710cbfd14",
    "card": "docs/issues/40-parked/BPR-0662-drawer-widths-survive-home-and-a-squeezed-splitter.md"
   },
   {
    "id": "BPR-0663-public-preview-epoch",
-   "revision": "app-release-dba2d952-head-9ec5eba3",
-   "fingerprint": "58ae94de32c45323eabbf6b3f1eda7e5d03baea9e9ab361b7464fb939dc8dfb9",
+   "revision": "app-release-9e8af29a-head-f492706b",
+   "fingerprint": "b44d5d50d6e8a73c591154d493cb7db86e0ee6f0e10852dbc5ef4592e623788e",
    "card": "docs/issues/40-parked/BPR-0663-public-preview-refuses-the-epoch-smart-acquire.md"
   }
  ]

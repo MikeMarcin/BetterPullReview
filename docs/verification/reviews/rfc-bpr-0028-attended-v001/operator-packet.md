@@ -7,8 +7,8 @@ anything on GitHub: the pull request is opened signed out through Public
 preview, which reads and never writes.
 
 - Bundle: `build/app-release/src/app/BetterPullReview.app`, executable
-  sha256 `dba2d952133ee18b28e458fb282fe8d9ad3930c68a76d1fd5c3f601d86fc88cf`,
-  built at 9ec5eba3 with tests disabled.
+  sha256 `9e8af29a9bf43e5114b16e0fd3e1f2c62a0b0a12444bd91c97a321cb9faafc94`,
+  built at f492706b with tests disabled.
 - Review page: [offline-package/index.html](offline-package/index.html). Open
   it in a browser, decide each candidate, then use Copy JSON or Download JSON.
 - Identity: [session-identity.json](session-identity.json) binds the bundle,
