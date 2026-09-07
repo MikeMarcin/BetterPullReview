@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0660"
 title: "Enterprise servers and session facts on Accounts & hosts"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0028","RFC-BPR-0018"]
 depends_on: []
 priority: "P2"
