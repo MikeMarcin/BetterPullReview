@@ -34,6 +34,11 @@ never taking it.
 - A verdict carries images, because a UI rejection is usually a picture.
 - The export contains every decision the page shows as saved, and the page
   cannot show a decision as saved that the export would omit.
+- The packet launches what it asks the reviewer to look at. The owner had to
+  navigate a Finder tree to a path in prose: "the packets instructions to
+  launch the app had me manually navigating my finder tree instead of a simple
+  command or click". A prepared candidate that names a built application offers
+  a one-click open or a copyable command.
 - The skill is shared, so the fix lands in both copies and their equality is
   proved.
 - Owned paths: the attended-review skill's script and page under
@@ -46,3 +51,4 @@ never taking it.
   before the fix.
 - A session run end to end records every verdict, note and image, and the
   export and the server intake agree.
+- Nothing in a packet asks the reviewer to find a file by hand.

@@ -332,7 +332,7 @@ Carded: [BPR-0669](../10-backlog/BPR-0669-open-a-pull-request-by-pasting-its-url
 for URL entry on Home, [BPR-0670](../10-backlog/BPR-0670-public-preview-is-buried-and-does-not-say-what-it-is.md)
 for the signed-out path, [BPR-0671](../10-backlog/BPR-0671-the-pull-request-summary-is-crammed-into-the-files-drawer.md)
 for the summary box this card left in the files drawer, and
-[BPR-0667](../10-backlog/BPR-0667-public-preview-cannot-open-a-merged-pull-request.md)
+[BPR-0667](../10-backlog/BPR-0667-the-epoch-refuses-any-pull-request-whose-base-branch-moved.md)
 and [BPR-0668](../10-backlog/BPR-0668-a-failed-comparison-leaves-an-empty-workbench-that-says-nothing-is-open.md)
 for the empty workbench. The capture is re-offered only once a reviewer can
 reach a comparison; there is nothing to photograph until then.

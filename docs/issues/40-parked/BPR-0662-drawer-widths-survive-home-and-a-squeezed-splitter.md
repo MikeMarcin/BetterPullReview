@@ -91,6 +91,6 @@ their own.
 
 The owner stopped the session before this candidate. The drawers cannot be
 judged while the comparison is empty
-([BPR-0667](../10-backlog/BPR-0667-public-preview-cannot-open-a-merged-pull-request.md)),
+([BPR-0667](../10-backlog/BPR-0667-the-epoch-refuses-any-pull-request-whose-base-branch-moved.md)),
 so the observation is re-offered with the others once a pull request opens
 completely.
