@@ -1778,6 +1778,89 @@ namespace {
 			"incremental reorder and host-selected row emit no false user selection");
 	}
 
+	// [[BPR-0658]]. The files drawer shows the tree over its list: the same
+	// rows, a row chosen in the tree selecting in the list (which is what
+	// dispatches), the core's cursor reaching the tree, the overview's facts
+	// reaching the rows, and the order and filter controls beside it.
+	void test_the_files_drawer_shows_the_tree_over_its_list()
+	{
+		intent_log           log;
+		qt::workbench_window window{
+			[&log](core::workbench_interaction_intent aIntent) {
+				log.Workbench.push_back(aIntent);
+			}
+		};
+		window.resize(1'280, 820);
+		window.show();
+		process_events();
+		const auto first  = core::file_identity_of("src/app/first.cpp");
+		const auto second = core::file_identity_of("src/app/second.cpp");
+		auto       opened = both_files_enabled();
+		opened.Files      = std::vector<application::workbench_file_projection>{
+			{ .File = first, .Path = "src/app/first.cpp" },
+			{ .File = second, .Path = "src/app/second.cpp" },
+		};
+		window.publish(opened);
+		process_events();
+		auto* const tree = window.files_tree();
+		expect(tree != nullptr && window.files_drawer()->isAncestorOf(tree)
+				   && window.files_order_selector() != nullptr && window.files_filter() != nullptr
+				   && tree->tree_model()->file_count() == 2U
+				   && window.files_drawer()->contents()->rowCount() == 2,
+			   "the tree lists the drawer's files and the list keeps them too");
+		expect(tree->tree_model()->rowCount() == 1
+				   && tree->tree_model()->index(0, 0).data().toString() == QStringLiteral("src/app"),
+			   "the two files share one compacted folder row");
+		log.Workbench.clear();
+		tree->setCurrentIndex(tree->tree_model()->index_for_file(second));
+		process_events();
+		expect(log.Workbench.size() == 1U
+				   && std::get<core::select_workbench_file_intent>(log.Workbench.back()).File == second
+				   && window.files_drawer()->contents()->file_at(window.files_drawer()->contents_view()->currentIndex())
+					   == std::optional{ second },
+			   "choosing a row in the tree selects it in the list, which dispatches the intent once");
+
+		auto selection      = application::workbench_projection{ };
+		selection.Selection = core::workbench_selection_delta{
+			.Cursor = core::workbench_navigation_cursor{
+				.File              = first,
+				.Ordinal           = 1U,
+				.ActionableCount   = 2U,
+				.PreviousAvailable = false,
+				.NextAvailable     = true,
+			},
+		};
+		log.Workbench.clear();
+		window.publish(selection);
+		process_events();
+		expect(log.Workbench.empty()
+				   && tree->tree_model()->file_at(tree->currentIndex()) == std::optional{ first },
+			   "the core's cursor reaches the tree without a second intent");
+
+		auto overview = application::pull_request_overview_projection{ };
+		overview.Files.push_back(application::overview_file_row{
+			.Path      = "src/app/first.cpp",
+			.Name      = "first.cpp",
+			.Operation = application::overview_file_operation::modified,
+			.Additions = 5U,
+			.Deletions = 1U,
+			.Changed   = application::overview_change_since_review::changed,
+		});
+		window.publish(overview);
+		process_events();
+		const auto row = tree->tree_model()->index_for_file(first);
+		expect(row.isValid() && row.data(qt::files_tree_model::additions_role).toULongLong() == 5U
+				   && row.data(qt::files_tree_model::changed_role).toBool()
+				   && tree->tree_model()->file_at(tree->currentIndex()) == std::optional{ first },
+			   "the overview's facts reach the tree's rows and the selection survives");
+		window.files_filter()->setText(QStringLiteral("second"));
+		process_events();
+		expect(tree->tree_model()->file_count() == 1U && !tree->tree_model()->index_for_file(first).isValid(),
+			   "the filter narrows the tree");
+		window.files_filter()->clear();
+		window.hide();
+	}
+
 	void test_the_conversations_drawer_hosts_the_threaded_conversation()
 	{
 		qt::workbench_window window;
@@ -1806,9 +1889,11 @@ namespace {
 		// window must not be reaching past the drawer to find it.
 		expect(window.conversations_drawer()->focus_stop() == panel->view(),
 			   "the drawer's one interactive stop is the conversation tree");
-		expect(window.files_drawer()->focus_stop()
-				   == window.files_drawer()->contents_view(),
-			   "the files drawer's stop is still its list view");
+		// [[BPR-0658]]. The files drawer's stop is its tree; the list it
+		// keeps as its authority is hidden.
+		expect(window.files_drawer()->focus_stop() == window.files_tree()
+				   && !window.files_drawer()->contents_view()->isVisibleTo(window.files_drawer()),
+			   "the files drawer's stop is its tree, over the retained list");
 
 		const auto order = window.focus_order();
 		expect(std::find(order.begin(), order.end(),
@@ -5017,6 +5102,7 @@ auto main(int argc, char** argv) -> int
 	test_a_clobbered_persisted_width_opens_at_the_design_width();
 	test_drawer_contents_use_incremental_model_signals();
 	test_file_rows_emit_only_semantic_user_selection();
+	test_the_files_drawer_shows_the_tree_over_its_list();
 	test_the_conversations_drawer_hosts_the_threaded_conversation();
 	test_the_centre_is_the_composed_rfc_0004_comparison_surface();
 	test_same_automatically_selected_line_click_filters_conversations();

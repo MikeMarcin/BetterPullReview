@@ -1373,6 +1373,55 @@ namespace bpr::qt {
 
 		auto* const filesColumn
 			= qobject_cast<QVBoxLayout*>(Drawers[0].Panel->layout());
+		// [[BPR-0658]]. The files tree over the flat list: the list stays
+		// the drawer's authority (the composition's courses select in it and
+		// its selection dispatches the intent); the tree is what is seen, and
+		// a row chosen in it becomes the list's selection.
+		{
+			auto* const filesSurface = new QWidget;
+			filesSurface->setObjectName(QStringLiteral("workbenchFilesSurface"));
+			auto* const surfaceColumn = new QVBoxLayout{ filesSurface };
+			surfaceColumn->setContentsMargins(0, 0, 0, 0);
+			surfaceColumn->setSpacing(2);
+			auto* const controls = new QHBoxLayout{ };
+			controls->setContentsMargins(4, 0, 4, 0);
+			FilesOrderSelector = new QComboBox{ filesSurface };
+			FilesOrderSelector->setObjectName(QStringLiteral("filesOrderSelector"));
+			FilesOrderSelector->setAccessibleName(QStringLiteral("Files order"));
+			FilesOrderSelector->setAccessibleDescription(QStringLiteral("Tree, flat, or the files changed since my last review first"));
+			FilesOrderSelector->addItem(QStringLiteral("Tree"), static_cast<int>(files_order::tree));
+			FilesOrderSelector->addItem(QStringLiteral("Flat"), static_cast<int>(files_order::flat));
+			FilesOrderSelector->addItem(QStringLiteral("Changed first"), static_cast<int>(files_order::changed_first));
+			controls->addWidget(FilesOrderSelector);
+			FilesFilter = new QLineEdit{ filesSurface };
+			FilesFilter->setObjectName(QStringLiteral("filesFilter"));
+			FilesFilter->setAccessibleName(QStringLiteral("Filter files"));
+			FilesFilter->setAccessibleDescription(QStringLiteral("Show only files whose path contains this; their folders stay visible"));
+			FilesFilter->setPlaceholderText(QStringLiteral("Filter"));
+			FilesFilter->setClearButtonEnabled(true);
+			controls->addWidget(FilesFilter, 1);
+			surfaceColumn->addLayout(controls);
+			FilesTree = new files_tree_view{ filesSurface };
+			surfaceColumn->addWidget(FilesTree, 1);
+			FilesTree->set_select_dispatch([this](const core::workbench_file_id& aFile) {
+				// The list's selection is the one that dispatches.
+				if (ApplyingFileSelection || Drawers[0].Panel->contents() == nullptr
+					|| Drawers[0].Panel->contents_view() == nullptr) {
+					return;
+				}
+				const auto index = Drawers[0].Panel->contents()->index_for_file(aFile);
+				if (index.isValid()) {
+					Drawers[0].Panel->contents_view()->setCurrentIndex(index);
+				}
+			});
+			connect(FilesOrderSelector, qOverload<int>(&QComboBox::currentIndexChanged), this, [this] {
+				FilesTree->set_order(static_cast<files_order>(FilesOrderSelector->currentData().toInt()));
+			});
+			connect(FilesFilter, &QLineEdit::textChanged, this, [this](const QString& aText) {
+				FilesTree->set_filter(aText);
+			});
+			Drawers[0].Panel->host_beside_list(filesSurface, FilesTree);
+		}
 		auto* const top = new QWidget;
 		top->setObjectName(QStringLiteral("workbenchDrawerTop"));
 		top->setAccessibleName(QStringLiteral("Pull request"));
@@ -2266,6 +2315,9 @@ namespace bpr::qt {
 		}
 		ApplyingFileSelection = true;
 		Drawers[0].Panel->contents()->apply(rows);
+		if (FilesTree != nullptr) {
+			FilesTree->apply(rows);
+		}
 		ApplyingFileSelection = false;
 		++Statistics.FileRowUpdates;
 		apply_file_selection();
@@ -2298,6 +2350,9 @@ namespace bpr::qt {
 			: QModelIndex{ };
 		ApplyingFileSelection = true;
 		Drawers[0].Panel->contents_view()->setCurrentIndex(index);
+		if (FilesTree != nullptr) {
+			FilesTree->select_file(Cursor ? Cursor->File : std::nullopt);
+		}
 		ApplyingFileSelection = false;
 	}
 
@@ -2705,6 +2760,12 @@ namespace bpr::qt {
 			return;
 		}
 		OverviewPage->present(aProjection);
+		if (FilesTree != nullptr) {
+			// [[BPR-0658]]. The tree draws the overview's per-file facts.
+			ApplyingFileSelection = true;
+			FilesTree->apply_overview(aProjection.Files);
+			ApplyingFileSelection = false;
+		}
 		apply_modality_surface();
 	}
 
@@ -2714,6 +2775,11 @@ namespace bpr::qt {
 			return;
 		}
 		OverviewPage->clear();
+		if (FilesTree != nullptr) {
+			ApplyingFileSelection = true;
+			FilesTree->apply_overview({ });
+			ApplyingFileSelection = false;
+		}
 		apply_modality_surface();
 	}
 
@@ -3182,6 +3248,21 @@ namespace bpr::qt {
 	auto workbench_window::files_drawer() const noexcept -> workbench_drawer_panel*
 	{
 		return Drawers[0].Panel;
+	}
+
+	auto workbench_window::files_tree() const noexcept -> files_tree_view*
+	{
+		return FilesTree;
+	}
+
+	auto workbench_window::files_order_selector() const noexcept -> QComboBox*
+	{
+		return FilesOrderSelector;
+	}
+
+	auto workbench_window::files_filter() const noexcept -> QLineEdit*
+	{
+		return FilesFilter;
 	}
 
 	auto workbench_window::central_splitter() const noexcept -> workbench_central_splitter*

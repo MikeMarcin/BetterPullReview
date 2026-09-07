@@ -229,6 +229,30 @@ set_tests_properties(
 )
 
 bpr_add_executable(
+    test_better_pull_review_qt_files_tree_tests
+    files_tree_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_qt_files_tree_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_files_tree_tests)
+bpr_enable_warnings(test_better_pull_review_qt_files_tree_tests)
+
+bpr_add_network_isolated_test(
+    NAME qt_files_tree
+    COMMAND test_better_pull_review_qt_files_tree_tests
+)
+set_tests_properties(
+    qt_files_tree
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION "files-tree-tests:pass"
+        TIMEOUT 60
+)
+
+bpr_add_executable(
     test_better_pull_review_qt_repositories_drawer_tests
     repositories_drawer_tests.cpp
 )

@@ -12,6 +12,7 @@
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/defect_card_view.hpp"
+#include "bpr/qt/files_tree.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/github_pull_request_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
@@ -363,6 +364,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto line_numbers_action() const noexcept -> QAction*;
 		[[nodiscard]] auto files_drawer() const noexcept
 			-> workbench_drawer_panel*;
+		/// \brief [[BPR-0658]]. The files drawer's tree and its order and filter.
+		[[nodiscard]] auto files_tree() const noexcept -> files_tree_view*;
+		[[nodiscard]] auto files_order_selector() const noexcept -> QComboBox*;
+		[[nodiscard]] auto files_filter() const noexcept -> QLineEdit*;
 		[[nodiscard]] auto central_splitter() const noexcept
 			-> workbench_central_splitter*;
 		[[nodiscard]] auto conversations_drawer() const noexcept
@@ -732,9 +737,12 @@ namespace bpr::qt {
 		conversation_read_dispatch      ConversationReadDispatch;
 		std::array<QAction*, 4>         ReceiptActions{ };
 		std::array<drawer_entry, 3>     Drawers{ };
-		repositories_tree_view*         RepositoriesTree = nullptr;
-		account_card*                   AccountCard      = nullptr;
-		QWidget*                        RulesEditor      = nullptr;
+		files_tree_view*                FilesTree          = nullptr;
+		QComboBox*                      FilesOrderSelector = nullptr;
+		QLineEdit*                      FilesFilter        = nullptr;
+		repositories_tree_view*         RepositoriesTree   = nullptr;
+		account_card*                   AccountCard        = nullptr;
+		QWidget*                        RulesEditor        = nullptr;
 		/// Set when a pull request was chosen from the repositories tree, so
 		/// it opens on its overview when it arrives.
 		bool                       OpenOnOverview    = false;

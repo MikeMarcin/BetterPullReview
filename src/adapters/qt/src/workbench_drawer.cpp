@@ -446,6 +446,23 @@ namespace bpr::qt {
 		aWidget->setVisible(State == core::workbench_drawer_state::expanded);
 	}
 
+	void workbench_drawer_panel::host_beside_list(
+		QWidget* const aWidget,
+		QWidget* const aFocusStop)
+	{
+		auto* const column = qobject_cast<QVBoxLayout*>(layout());
+		if (aWidget == nullptr || column == nullptr || View == nullptr) {
+			return;
+		}
+		aWidget->setParent(this);
+		column->insertWidget(column->indexOf(View), aWidget, 1);
+		View->hide();
+		ListRetired  = true;
+		Content      = aWidget;
+		ContentFocus = aFocusStop != nullptr ? aFocusStop : aWidget;
+		aWidget->setVisible(State == core::workbench_drawer_state::expanded);
+	}
+
 	auto workbench_drawer_panel::rail() const noexcept -> workbench_drawer_rail*
 	{
 		return Rail;
@@ -474,7 +491,8 @@ namespace bpr::qt {
 			for (auto index = 0; index < column->count(); ++index) {
 				auto* const item = column->itemAt(index);
 				if (item != nullptr && item->widget() != nullptr
-					&& item->widget() != Rail) {
+					&& item->widget() != Rail
+					&& !(ListRetired && item->widget() == View)) {
 					item->widget()->setVisible(expanded);
 				}
 			}

@@ -184,6 +184,15 @@ namespace bpr::qt {
 		/// or `nullptr` to use \p aWidget itself.
 		void set_content_widget(QWidget* aWidget, QWidget* aFocusStop = nullptr);
 
+		/// \brief Shows \p aWidget in the list's place while keeping the list.
+		///
+		/// \details [[BPR-0658]]. The list model and view stay the drawer's
+		/// authority (the composition's courses select in them); the widget is
+		/// what the reviewer sees, and \p aFocusStop the stop the drawer
+		/// contributes. The list is hidden and stays hidden through every
+		/// adopt.
+		void host_beside_list(QWidget* aWidget, QWidget* aFocusStop = nullptr);
+
 		/// \brief The one interactive stop this drawer contributes.
 		///
 		/// \details The list view for a list drawer, the supplied stop for a
@@ -208,6 +217,7 @@ namespace bpr::qt {
 		workbench_drawer_model*      Contents     = nullptr;
 		QWidget*                     Content      = nullptr;
 		QWidget*                     ContentFocus = nullptr;
+		bool                         ListRetired  = false;
 		workbench_drawer_rail*       Rail         = nullptr;
 		core::workbench_drawer_state State        = core::workbench_drawer_state::expanded;
 	};
