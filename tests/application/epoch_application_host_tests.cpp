@@ -4426,6 +4426,74 @@ namespace {
 			"matching invalidation revokes selected-diff publication authority");
 	}
 
+	// [[BPR-0654]]. The overview's changed-since-review set: one lookup per
+	// path per side through the retained cache session, exactly the paths
+	// whose blob differs (an absent side counts as a difference), delivered
+	// on the decision lane; refused before admission for a right commit that
+	// is not the accepted head, for another snapshot's authority, and once
+	// the host is closing.
+	void changed_paths_resolve_beside_the_selected_comparison()
+	{
+		fixture value;
+		establish_ready_comparison(value);
+		const auto authority = workbench_authority_for(value.Host->state());
+		const auto head      = value.Host->state().AcceptedRevision->Head;
+		const auto reviewed  = oid<core::git_commit_oid>(0x42U);
+		const auto same      = oid<core::git_blob_oid>(0x61U);
+		value.State.TreeEntryResults.emplace_back(same);
+		value.State.TreeEntryResults.emplace_back(same);
+		value.State.TreeEntryResults.emplace_back(oid<core::git_blob_oid>(0x62U));
+		value.State.TreeEntryResults.emplace_back(oid<core::git_blob_oid>(0x63U));
+		value.State.TreeEntryResults.emplace_back();
+		value.State.TreeEntryResults.emplace_back(oid<core::git_blob_oid>(0x64U));
+		auto       observations = std::vector<application::changed_paths_observation>{ };
+		const auto record       = [&observations](const application::changed_paths_observation& aObservation) {
+			observations.push_back(aObservation);
+		};
+		const auto request = application::changed_paths_request{
+			.WorkbenchAuthority = authority,
+			.Left               = reviewed,
+			.Right              = head,
+			.Paths              = { "a.cpp", "b.cpp", "c.cpp" },
+		};
+		const auto lookupsBefore = value.State.TreeEntryRequests.size();
+		expect(value.Host->resolve_changed_paths(request, record) && observations.empty(),
+			   "an exact request for the accepted head is admitted and answers later");
+		drain(value);
+		expect(observations.size() == 1U
+				   && observations.front().Status == application::changed_paths_status::resolved
+				   && observations.front().Request == request
+				   && observations.front().Changed
+					   == std::vector<std::filesystem::path>{ "b.cpp", "c.cpp" },
+			   "exactly the paths whose blob differs are named, in the request's order");
+		expect(value.State.TreeEntryRequests.size() == lookupsBefore + 6U
+				   && value.State.TreeEntryRequests[lookupsBefore]
+					   == application::git_cache_tree_entry_request{ .Commit = reviewed, .Path = "a.cpp" }
+				   && value.State.TreeEntryRequests[lookupsBefore + 1U]
+					   == application::git_cache_tree_entry_request{ .Commit = head, .Path = "a.cpp" }
+				   && value.State.CacheOpenRequests.size() == 1U
+				   && value.Host->state().AcceptedComparison.has_value()
+				   && value.Host->outstanding_jobs() == 0U,
+			   "one lookup per path per side through the one retained session, the "
+			   "selected comparison untouched and the job retired");
+		auto moved  = request;
+		moved.Right = reviewed;
+		expect(!value.Host->resolve_changed_paths(moved, record),
+			   "a right commit other than the accepted head is refused before admission");
+		auto other                        = request;
+		other.WorkbenchAuthority.Snapshot = core::provider_snapshot_id{ 2U };
+		expect(!value.Host->resolve_changed_paths(other, record),
+			   "another snapshot's authority is refused before admission");
+		value.Host->dispatch(core::refresh_epochs_intent{ });
+		expect(value.Host->state().PendingIngestion.has_value()
+				   && !value.Host->resolve_changed_paths(request, record),
+			   "an ingestion in flight refuses, since the head's objects may not be retained yet");
+		drain(value);
+		value.Host->shutdown();
+		expect(!value.Host->resolve_changed_paths(request, record) && observations.size() == 1U,
+			   "a closing host admits nothing and answers nothing more");
+	}
+
 	void selected_diff_resolves_each_endpoint_without_provider_direction()
 	{
 		fixture value;
@@ -6314,5 +6382,6 @@ int main()
 	a_cancelled_comparison_cache_open_is_reported_as_cancelled();
 	a_cancelled_commit_cache_open_is_reported_as_cancelled();
 	shutdown_waits_for_worker_and_decision_quiescence();
+	changed_paths_resolve_beside_the_selected_comparison();
 	return EXIT_SUCCESS;
 }

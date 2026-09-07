@@ -1732,6 +1732,31 @@ bpr_bound_automated_run(
     RESERVE_MS 4000
 )
 
+bpr_add_network_isolated_test(
+    NAME application_overview_since_review_contract
+    WINDOWS_UNCONTAINED
+    COMMAND
+        "${CMAKE_COMMAND}"
+        "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
+        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/overview-since-review-contract"
+        "-DBPR_RUN_BUDGET_MS=${bpr_fixture_run_budget_ms}"
+        -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/application_overview_since_review_contract.cmake"
+)
+set_tests_properties(
+    application_overview_since_review_contract
+    PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION "OVERVIEW_SINCE_REVIEW_CONTRACT_OK"
+)
+bpr_bound_automated_run(
+    application_overview_since_review_contract
+    TIMEOUT 120
+    BUDGET_MS ${bpr_fixture_run_budget_ms}
+    RUNS 2
+    RESERVE_MS 4000
+)
+
 set(bpr_appearance_theme_budget_ms 50000)
 bpr_add_network_isolated_test(
     NAME application_appearance_theme_customization_contract

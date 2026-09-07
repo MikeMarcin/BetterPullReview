@@ -97,6 +97,20 @@ namespace bpr::application {
 			const workbench_pull_request_authority& aAuthority,
 			const core::agent_revision_binding&     aBinding) const
 			-> std::optional<workbench_selected_diff_context>;
+		/// \brief Resolves which of a review's files differ between two exact commits.
+		///
+		/// \details [[BPR-0654]]. Admitted only for the accepted review with
+		/// `Right` its accepted head and no ingestion in flight, so the head's
+		/// objects are retained; `Left` must be a commit the retained cache
+		/// verifies. The lookups run on the review's cache actor and the
+		/// completion is delivered on the decision lane like every job's, so the
+		/// reviewer's selected comparison is neither replaced nor waited on.
+		/// Returns false when the request is refused before admission; an
+		/// admitted request always completes, with `stale`, `cancelled` or
+		/// `failure` when it cannot be answered.
+		[[nodiscard]] auto resolve_changed_paths(
+			changed_paths_request    aRequest,
+			changed_paths_completion aCompletion) -> bool;
 		void shutdown();
 
 		[[nodiscard]] auto state() const noexcept -> const core::epoch_state&;

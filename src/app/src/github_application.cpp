@@ -6635,7 +6635,78 @@ namespace bpr::app {
 			if (EpochHost != nullptr && EpochHost->state().AcceptedRevision.has_value()) {
 				context.Head = EpochHost->state().AcceptedRevision->Head;
 			}
+			if (context.Private.has_value() && context.Private->LastReviewedHead.has_value()
+				&& context.Head.has_value()
+				&& *context.Head != *context.Private->LastReviewedHead) {
+				auto paths = std::vector<std::filesystem::path>{ };
+				paths.reserve(snapshot->Files.size());
+				for (const auto& file : snapshot->Files) {
+					paths.emplace_back(file.Path);
+				}
+				context.ChangedSinceReviewPaths = changed_since_review(
+					*context.Private->LastReviewedHead, *context.Head, std::move(paths));
+			}
 			Window->publish(application::project_pull_request_overview(*snapshot, context));
+		}
+
+		// [[BPR-0654]]. Answers from the kept resolution when its inputs are
+		// the ones asked about; otherwise asks the epoch host once and answers
+		// "not yet". The host looks each file up at both heads on the review's
+		// cache actor, beside the selected comparison, and the completion
+		// republishes the overview with the exact set. A refusal before
+		// admission and a stale answer (the cache not yet serving the accepted
+		// head) are asked again on the next publish; a failure is not, until an
+		// input moves.
+		[[nodiscard]] auto changed_since_review(
+			const core::git_commit_oid&        aReviewed,
+			const core::git_commit_oid&        aHead,
+			std::vector<std::filesystem::path> aPaths)
+			-> std::optional<std::vector<std::string>>
+		{
+			auto authority = std::optional<application::workbench_pull_request_authority>{ };
+			{
+				const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
+				authority       = ReviewLedgerAuthority;
+			}
+			if (EpochHost == nullptr || !authority.has_value()) {
+				return std::nullopt;
+			}
+			auto request = application::changed_paths_request{
+				.WorkbenchAuthority = *authority,
+				.Left               = aReviewed,
+				.Right              = aHead,
+				.Paths              = std::move(aPaths),
+			};
+			if (ChangedSinceReview.has_value() && ChangedSinceReview->Request == request) {
+				return ChangedSinceReview->Changed;
+			}
+			ChangedSinceReview  = changed_since_review_state{ .Request = request };
+			const auto admitted = EpochHost->resolve_changed_paths(
+				request,
+				[this](const application::changed_paths_observation& aObservation) {
+					if (Closing || !ChangedSinceReview.has_value()
+						|| ChangedSinceReview->Request != aObservation.Request) {
+						return;
+					}
+					if (aObservation.Status == application::changed_paths_status::stale) {
+						ChangedSinceReview.reset();
+						return;
+					}
+					if (aObservation.Status != application::changed_paths_status::resolved) {
+						return;
+					}
+					auto changed = std::vector<std::string>{ };
+					changed.reserve(aObservation.Changed.size());
+					for (const auto& path : aObservation.Changed) {
+						changed.push_back(path.generic_string());
+					}
+					ChangedSinceReview->Changed = std::move(changed);
+					publish_overview();
+				});
+			if (!admitted) {
+				ChangedSinceReview.reset();
+			}
+			return std::nullopt;
 		}
 
 		void publish(const application::receipt_projection& aProjection) override
@@ -9324,7 +9395,17 @@ namespace bpr::app {
 		std::unique_ptr<application::review_ledger_application_host> ReviewLedgerHost;
 		mutable std::mutex                                           ReviewLedgerStateMutex;
 		std::optional<application::workbench_pull_request_authority> ReviewLedgerAuthority;
-		std::optional<core::file_receipt>                            ReviewLedgerReceipt;
+		// [[BPR-0654]]. The overview's changed-since-review set: asked of the
+		// epoch host once per (last-reviewed head, accepted head, file list)
+		// and kept until one of them moves. `Changed` is empty while the host
+		// is answering and after it could not answer.
+		struct changed_since_review_state final
+		{
+			application::changed_paths_request      Request;
+			std::optional<std::vector<std::string>> Changed;
+		};
+		std::optional<changed_since_review_state> ChangedSinceReview;
+		std::optional<core::file_receipt>         ReviewLedgerReceipt;
 		/// [[BPR-0647]]. The update rows the epoch host published, for the overview.
 		application::epoch_row_ledger                   EpochRows;
 		bool                                            ReviewLedgerAvailable = false;
@@ -15278,6 +15359,24 @@ namespace bpr::app {
 		}
 		implementation->accept(std::move(handoff));
 		return true;
+	}
+
+	auto detail::github_application_fixture_access::mark_head_reviewed(
+		github_application&    aApplication,
+		const std::string_view aHeadOid) -> bool
+	{
+		auto* const implementation = aApplication.Implementation.get();
+		const auto  head           = core::parse_git_commit_oid(aHeadOid);
+		if (implementation == nullptr || implementation->ReviewLedgerHost == nullptr
+			|| !head.has_value()) {
+			return false;
+		}
+		const auto persisted
+			= implementation->ReviewLedgerHost->persist_last_reviewed_head(*head).has_value();
+		if (persisted) {
+			implementation->publish_overview();
+		}
+		return persisted;
 	}
 
 	auto detail::github_application_fixture_access::seed_agent_private_context_canary(

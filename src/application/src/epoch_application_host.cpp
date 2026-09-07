@@ -3203,6 +3203,129 @@ namespace bpr::application {
 			return authorized_selected_diff_context(aAuthority, std::nullopt);
 		}
 
+		// [[BPR-0654]]. See `epoch_application_host::resolve_changed_paths`.
+		[[nodiscard]] auto resolve_changed_paths(
+			changed_paths_request    aRequest,
+			changed_paths_completion aCompletion) -> bool
+		{
+			if (!aCompletion || !aRequest.Left.valid() || !aRequest.Right.valid()
+				|| aRequest.Left == aRequest.Right
+				|| aRequest.Left.algorithm() != aRequest.Right.algorithm()
+				|| !authorized_selected_diff_context(aRequest.WorkbenchAuthority, std::nullopt)
+						.has_value()
+				|| State.AcceptedRevision->Head != aRequest.Right
+				|| State.PendingIngestion.has_value()) {
+				return false;
+			}
+			const auto& authority = *State.Authority;
+			const auto  key       = cache_actor_key{
+				.ApplicationSession = State.ApplicationSession,
+				.Profile            = authority.Profile,
+				.ProfileRevision    = authority.ProfileRevision,
+				.Host               = authority.Host,
+				.HostAuthority      = authority.HostAuthority,
+				.Account            = authority.Account,
+				.Repository         = authority.Repository,
+				.ObjectFormat       = aRequest.Right.algorithm(),
+			};
+			auto actor = std::shared_ptr<authority_effect_actor>{ };
+			{
+				std::scoped_lock lock{ CacheActorsMutex };
+				const auto       found = std::ranges::find(
+					CacheActors, key, &decltype(CacheActors)::value_type::first);
+				if (found != CacheActors.end()) {
+					actor = found->second;
+				}
+			}
+			if (!actor) {
+				return false;
+			}
+			const auto expected = git_cache_open_request{
+				.ApplicationSession = State.ApplicationSession,
+				.Authority          = authority,
+				.ObjectFormat       = aRequest.Right.algorithm(),
+			};
+			auto admitted = admit_job(
+				std::nullopt, std::nullopt, std::nullopt, std::nullopt, false);
+			if (!admitted.has_value()) {
+				return false;
+			}
+			auto        control      = std::move(*admitted);
+			const auto  gate         = std::weak_ptr<completion_gate>{ CompletionGate };
+			auto* const decisionLane = &DecisionLane;
+			try {
+				enqueue_actor_work(
+					actor,
+					[this,
+					 actor,
+					 expected,
+					 gate,
+					 decisionLane,
+					 control,
+					 request    = std::move(aRequest),
+					 completion = std::move(aCompletion)]() mutable {
+						auto observation = changed_paths_observation{
+							.Request = request,
+							.Status  = changed_paths_status::failure,
+						};
+						const auto workStop = control->Stop.get_token();
+						const auto statusOf = [](const git_cache_error& aError) {
+							return aError.Code == git_cache_failure::cancelled
+								? changed_paths_status::cancelled
+								: changed_paths_status::failure;
+						};
+						if (workStop.stop_requested()
+							|| BlobIngressClosing.load(std::memory_order_acquire)) {
+							observation.Status = changed_paths_status::cancelled;
+						} else if (actor->Cache == nullptr || actor->Cache->request() != expected) {
+							observation.Status = changed_paths_status::stale;
+						} else if (const auto inspected
+								   = actor->Cache->inspect_commit_object(request.Left, workStop);
+								   !inspected.has_value()) {
+							observation.Status = statusOf(inspected.error());
+						} else if (!application::valid(*inspected)
+								   || inspected->Commit != request.Left) {
+							observation.Status = changed_paths_status::failure;
+						} else {
+							observation.Status = changed_paths_status::resolved;
+							for (const auto& path : request.Paths) {
+								const auto left = actor->Cache->find_blob_at_path(
+									git_cache_tree_entry_request{ .Commit = request.Left, .Path = path },
+									workStop);
+								if (!left.has_value()) {
+									observation.Status = statusOf(left.error());
+									observation.Changed.clear();
+									break;
+								}
+								const auto right = actor->Cache->find_blob_at_path(
+									git_cache_tree_entry_request{ .Commit = request.Right, .Path = path },
+									workStop);
+								if (!right.has_value()) {
+									observation.Status = statusOf(right.error());
+									observation.Changed.clear();
+									break;
+								}
+								if (*left != *right) {
+									observation.Changed.push_back(path);
+								}
+							}
+						}
+						enqueue_completion(
+							gate,
+							decisionLane,
+							std::move(control),
+							[answer  = std::move(observation),
+							 deliver = std::move(completion)](implementation&) {
+								deliver(answer);
+							});
+					});
+			} catch (...) {
+				finish_job(control);
+				return false;
+			}
+			return true;
+		}
+
 		[[nodiscard]] auto resolve_selected_diff(
 			const workbench_selected_diff_request& aRequest,
 			const std::stop_token                  aStop)
@@ -6676,6 +6799,13 @@ namespace bpr::application {
 		-> workbench_selected_diff_observation
 	{
 		return Implementation->resolve_selected_diff(aRequest, aStop);
+	}
+
+	auto epoch_application_host::resolve_changed_paths(
+		changed_paths_request    aRequest,
+		changed_paths_completion aCompletion) -> bool
+	{
+		return Implementation->resolve_changed_paths(std::move(aRequest), std::move(aCompletion));
 	}
 
 	void epoch_application_host::shutdown()

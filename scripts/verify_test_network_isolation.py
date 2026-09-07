@@ -98,6 +98,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_review_round_trip_composition_contract": "dos-volume-name",
     "application_review_submission_composition_public_path": "dos-volume-name",
     "application_defect_composition_contract": "dos-volume-name",
+    "application_overview_since_review_contract": "dos-volume-name",
     "application_appearance_theme_customization_contract": "dos-volume-name",
     "application_fixture_verdict_contract": "dos-volume-name",
     "application_attended_launch_contract": "dos-volume-name",

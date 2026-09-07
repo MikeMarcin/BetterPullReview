@@ -666,6 +666,11 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto reaccept_fixture_revision(
 			github_application& aApplication,
 			bool                aChangeHead) -> bool;
+		/// \brief Persists the named commit as my last reviewed head and
+		/// republishes the overview ([[BPR-0654]]).
+		[[nodiscard]] static auto mark_head_reviewed(
+			github_application& aApplication,
+			std::string_view    aHeadOid) -> bool;
 		/// \brief Reports what the composed review ledger already holds.
 		///
 		/// \details Read before anything is written, so a second run against the

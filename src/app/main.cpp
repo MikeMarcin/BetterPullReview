@@ -696,6 +696,7 @@ namespace {
 			epoch_maintenance_prune_result,
 			epoch_maintenance_delete_result,
 			appearance,
+			overview_since_review,
 #endif
 			shutdown,
 		};
@@ -842,8 +843,12 @@ namespace {
 		bool                        PresentationPassed = false;
 		// [[BPR-0647]]. The overview course over the fixture: the page shown
 		// with every file, and Continue review back in Read.
-		bool                                      OverviewShown             = false;
-		bool                                      OverviewReturned          = false;
+		bool OverviewShown    = false;
+		bool OverviewReturned = false;
+		// [[BPR-0654]]. The head I have marked reviewed, the head moved to the
+		// fixture's second head, and the overview naming exactly the files
+		// that differ between the two; asked for by `OverviewSinceReviewRequested`.
+		bool                                      OverviewSinceReviewPassed = false;
 		bool                                      RenderSaved               = true;
 		bool                                      VerifyNativePlatformVault = false;
 		QString                                   LastEpochStatus;
@@ -965,9 +970,11 @@ namespace {
 		bpr::app::detail::review_round_trip_composition_probe_evidence
 			ReviewRoundTripCompositionEvidence;
 		std::optional<bpr::app::detail::defect_composition_probe>
-			 DefectCompositionProbe;
-		bool DefectCompositionStarted = false;
-		bool DefectCompositionPassed  = false;
+			DefectCompositionProbe;
+		// [[BPR-0654]]. `--overview-since-review`.
+		bool OverviewSinceReviewRequested = false;
+		bool DefectCompositionStarted     = false;
+		bool DefectCompositionPassed      = false;
 		bpr::app::detail::defect_composition_probe_evidence
 			 DefectCompositionEvidence;
 		bool DiffProbe         = false;
@@ -6040,7 +6047,34 @@ namespace {
 					aRun->PresentationPassed = true;
 					aRun->RenderSaved        = save_render_evidence(
 						window, aRun->RenderPath, aRun->RenderCollapsesFilesDrawer);
-					transition_to_shutdown(aApplication, *aRun);
+					// [[BPR-0654]]. Asked for, the epoch course goes on: the seed
+					// run marks the first head, the one it opened before its
+					// refresh brought the second, as reviewed and stops; the
+					// reuse run, open at the second head over the retained cache
+					// with both epochs in the history, asks the overview which
+					// files changed between the two. Left in Overview so the page
+					// is the one publishing.
+					if (aRun->OverviewSinceReviewRequested
+						&& aRun->EpochPhase
+							== bpr::app::detail::github_epoch_fixture_phase::seed) {
+						if (bpr::app::detail::github_application_fixture_access::
+								mark_head_reviewed(aApplication, evidence.HeadOneOid)) {
+							QTextStream{ stdout } << "OVERVIEW_SINCE_REVIEW_SEEDED\n";
+						} else {
+							aRun->PresentationPassed = false;
+							QTextStream{ stdout } << "OVERVIEW_SINCE_REVIEW_FAILED:seed\n";
+						}
+						transition_to_shutdown(aApplication, *aRun);
+					} else if (aRun->OverviewSinceReviewRequested
+							   && aRun->EpochPhase
+								   == bpr::app::detail::github_epoch_fixture_phase::reuse) {
+						window.choose_modality(bpr::qt::review_modality::overview);
+						QApplication::processEvents();
+						advance_fixture_stage(
+							*aRun, automated_run::stage::overview_since_review);
+					} else {
+						transition_to_shutdown(aApplication, *aRun);
+					}
 				}
 				break;
 			}
@@ -6174,6 +6208,44 @@ namespace {
 					aRun->PresentationPassed = true;
 					transition_to_shutdown(aApplication, *aRun);
 				}
+				break;
+			}
+
+			case automated_run::stage::overview_since_review: {
+				// [[BPR-0654]]. Poll, do not race: the second head is ingested
+				// over the seed's retained cache and looked up asynchronously, and
+				// the budget bounds a set that never resolves. Two epochs in the
+				// history say both heads are retained; a row still "unknown" says
+				// the set is not yet decided.
+				auto* const overview = window.overview_page();
+				if (overview == nullptr || !overview->presented()
+					|| window.epoch_selectors()->history_model()->epoch_count() < 2U) {
+					break;
+				}
+				const auto& projection = *overview->projection();
+				const auto  undecided  = std::ranges::any_of(
+					projection.Files, [](const bpr::application::overview_file_row& aRow) {
+						return aRow.Changed == bpr::application::overview_change_since_review::unknown;
+					});
+				if (undecided || !projection.SinceLastReview.FilesChanged.has_value()) {
+					break;
+				}
+				auto changed = QString{ };
+				for (const auto& row : projection.Files) {
+					if (row.Changed != bpr::application::overview_change_since_review::unchanged) {
+						changed += (changed.isEmpty() ? QString{ } : QStringLiteral(","))
+							+ QString::fromStdString(row.Path);
+					}
+				}
+				const auto entry                = QString::fromStdString(projection.EntryPath.value_or(""));
+				aRun->OverviewSinceReviewPassed = *projection.SinceLastReview.FilesChanged == 1U
+					&& changed == QStringLiteral("review.cpp") && entry == changed
+					&& projection.Entry == bpr::application::overview_entry_kind::continue_review;
+				QTextStream{ stdout } << "OVERVIEW_SINCE_REVIEW:files="
+									  << static_cast<unsigned long long>(*projection.SinceLastReview.FilesChanged)
+									  << ":changed=" << changed << ":entry=" << entry << '\n';
+				aRun->PresentationPassed = aRun->PresentationPassed && aRun->OverviewSinceReviewPassed;
+				transition_to_shutdown(aApplication, *aRun);
 				break;
 			}
 
@@ -7394,6 +7466,8 @@ auto main(int argc, char** argv) -> int
 			= reviewRoundTripCompositionProbe;
 		const auto appearanceGestureProbe = has_argument(
 			argc, argv, "--appearance-gesture-probe");
+		const auto overviewSinceReview = has_argument(
+			argc, argv, "--overview-since-review");
 		const auto appearanceThemeCustomizationPath = argument_value(
 			argc, argv, "--appearance-theme-customization-probe");
 		const auto diffEvidenceAppearanceName = argument_value(
@@ -7778,6 +7852,7 @@ auto main(int argc, char** argv) -> int
 						.ReviewLedgerCompositionProbe    = reviewLedgerCompositionProbe,
 						.ReviewRoundTripCompositionProbe = reviewRoundTripCompositionProbe,
 						.DefectCompositionProbe          = defectCompositionProbe,
+						.OverviewSinceReviewRequested    = overviewSinceReview,
 						.DiffProbe                       = diffWorkbenchProbe,
 						.DiffShutdownProbe               = diffWorkbenchShutdownProbe,
 						.StallProbe                      = automatedStallProbe,

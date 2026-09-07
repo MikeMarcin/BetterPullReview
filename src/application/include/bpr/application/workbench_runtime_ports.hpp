@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <expected>
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <stop_token>
 #include <string>
@@ -329,6 +330,44 @@ namespace bpr::application {
 
 		auto operator<=>(const workbench_selected_diff_observation&) const = default;
 	};
+
+	/// \brief Asks which of a review's files differ between two exact commits.
+	///
+	/// \details [[BPR-0654]]. The overview's "changed since my last review"
+	/// column: `Left` is the head I last reviewed, `Right` the accepted head,
+	/// and `Paths` the pull request's files as the snapshot names them. The
+	/// host answers beside the reviewer's selected comparison, never through
+	/// it, so what the reviewer is looking at is not disturbed.
+	struct changed_paths_request
+	{
+		workbench_pull_request_authority   WorkbenchAuthority;
+		core::git_commit_oid               Left;
+		core::git_commit_oid               Right;
+		std::vector<std::filesystem::path> Paths;
+
+		auto operator<=>(const changed_paths_request&) const = default;
+	};
+
+	enum class changed_paths_status : std::uint8_t {
+		/// `Changed` names exactly the paths whose blob differs.
+		resolved,
+		/// The retained cache no longer serves the accepted review.
+		stale,
+		cancelled,
+		failure,
+	};
+
+	/// \brief One exact answer to a `changed_paths_request`.
+	struct changed_paths_observation
+	{
+		changed_paths_request              Request;
+		changed_paths_status               Status = changed_paths_status::failure;
+		std::vector<std::filesystem::path> Changed;
+
+		auto operator<=>(const changed_paths_observation&) const = default;
+	};
+
+	using changed_paths_completion = std::function<void(const changed_paths_observation&)>;
 
 	/// \brief Resolves selected files through the retained epoch cache actor.
 	class workbench_selected_diff_port
