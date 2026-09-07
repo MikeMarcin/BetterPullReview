@@ -627,6 +627,10 @@ namespace {
 		auto* const addRuleButton     = required_child<QToolButton>(window, "addObserverRuleButton");
 		auto* const removeRuleButton  = required_child<QToolButton>(window, "removeObserverRuleButton");
 
+		// The status banner is the session chrome's, on the Settings window's
+		// accounts page, so that page is presented for the states it shows.
+		window.open_settings(qt::settings_page::accounts_and_hosts);
+		QApplication::processEvents();
 		expect(
 			banner->isVisible()
 				&& viewState->currentWidget() == emptyState
@@ -716,6 +720,9 @@ namespace {
 					window.conversation_view()),
 			"accepted pull-request content replaces the empty state");
 
+		// The session chrome is on the Settings window's accounts page.
+		window.open_settings(qt::settings_page::accounts_and_hosts);
+		QApplication::processEvents();
 		expect(
 			connectionButton->isVisible()
 				&& technicalButton->isVisible()
@@ -775,14 +782,18 @@ namespace {
 			}
 			return true;
 		};
+		// [[BPR-0646]]. The session controls are the Settings window's
+		// accounts page, another top-level window with its own tab chain, so
+		// the workbench declares none of them; the queue and the pull request
+		// details keep their order.
 		expect(
-			containsInOrder(
-				declaredTabStops,
-				{ window.profile_selector(), connectButton, connectionButton })
+			!declaredTabStops.contains(window.profile_selector())
+				&& !declaredTabStops.contains(connectButton)
+				&& !declaredTabStops.contains(connectionButton)
+				&& !declaredTabStops.contains(refreshButton)
 				&& containsInOrder(
 					declaredTabStops,
 					{
-						refreshButton,
 						window.queue_view(),
 						window.queue_role_filter(),
 						window.queue_observer_filter(),
@@ -823,6 +834,10 @@ namespace {
 				&& QApplication::focusWidget() == connectionButton,
 			"connection disclosure closes in place without moving focus");
 
+		// The technical details are the workbench's, in the files drawer;
+		// focus returns to that window before the disclosure is walked.
+		window.activateWindow();
+		QApplication::processEvents();
 		technicalButton->setFocus(Qt::TabFocusReason);
 		technicalButton->click();
 		QApplication::processEvents();
@@ -1210,6 +1225,8 @@ namespace {
 		};
 		firstLoadWindow.resize(960, 640);
 		firstLoadWindow.show();
+		// The diagnostic is the session chrome's, on the accounts page.
+		firstLoadWindow.open_settings(qt::settings_page::accounts_and_hosts);
 		QApplication::processEvents();
 		publish_session_ready(firstLoadWindow);
 		firstLoadWindow.publish(application::github_presentation_update{
@@ -1702,6 +1719,8 @@ namespace {
 			"identity switch removes old account, PR, and rate-limit content");
 
 		window.show();
+		// The locator is on the Settings window's accounts page.
+		window.open_settings(qt::settings_page::accounts_and_hosts);
 		QApplication::processEvents();
 		window.session_panel()->owner_editor()->setFocus(Qt::OtherFocusReason);
 		QApplication::processEvents();
@@ -2243,6 +2262,8 @@ namespace {
 				&& hasBuddy(window.session_panel()->repository_editor())
 				&& hasBuddy(window.session_panel()->pull_request_editor()),
 			"all pull-request locator editors expose label relationships");
+		window.open_settings(qt::settings_page::accounts_and_hosts);
+		QApplication::processEvents();
 		expect(
 			connectButton != nullptr && connectButton->isVisible()
 				&& !connectButton->accessibleName().isEmpty()
@@ -2982,11 +3003,12 @@ namespace {
 		window.resize(1'100, 900);
 		window.show();
 		QApplication::processEvents();
-		// [[BPR-0646]]. AC-01 left nothing above the comparison but the strip
-		// and the epoch line, so the sign-in and the session chrome live at
-		// the top of the files drawer until the accounts page takes them.
-		auto* const header = required_child<QWidget>(window, "workbenchDrawerTop");
-		auto*       found  = static_cast<QWidget*>(nullptr);
+		// [[BPR-0646]]. Accounts live in Settings: the sign-in and the session
+		// chrome are the Accounts and hosts page, sign-in first while signed
+		// out, and the strip's account button opens that page.
+		auto* const header
+			= required_child<QWidget>(window, "workbenchAccountsPage");
+		auto* found = static_cast<QWidget*>(nullptr);
 		for (auto* const widget : header->findChildren<QWidget*>()) {
 			if (widget->accessibleName()
 				== QStringLiteral("Sign in with a device code")) {
@@ -2995,52 +3017,49 @@ namespace {
 		}
 		expect(
 			found != nullptr && found == window.device_authorization(),
-			"the files drawer holds the device sign-in panel under its "
+			"the accounts page holds the device sign-in panel under its "
 			"accessible name");
 		auto* const panel = window.device_authorization();
 		expect(
 			panel->parentWidget() == header
 				&& header->layout() != nullptr
-				&& header->layout()->indexOf(panel) >= 0,
-			"the device panel is laid into the files drawer's own column, not "
-			"merely parented to it");
-		// Signed out, sign-in is the first thing under the drawer's heading:
-		// it sits above the session chrome that offers the token prompt, so
-		// it is reached without scrolling anything.
+				&& header->layout()->indexOf(panel) >= 0
+				&& window.settings() != nullptr
+				&& window.settings()
+					   ->page_widget(qt::settings_page::accounts_and_hosts)
+					   ->isAncestorOf(panel),
+			"the device panel is laid into the accounts page's own column on "
+			"the Settings window's Accounts and hosts page");
 		auto* const session = window.session_panel();
 		expect(
 			session != nullptr && session->parentWidget() == header
 				&& header->layout()->indexOf(panel) + 1
 					== header->layout()->indexOf(session),
-			"device sign-in is the drawer's first panel, directly above the "
+			"device sign-in is the page's first panel, directly above the "
 			"session chrome that offers the token prompt");
 		expect(
-			panel->isVisible() && panel->width() > 0 && panel->height() > 0
+			!window.files_drawer()->isAncestorOf(panel)
+				&& !window.files_drawer()->isAncestorOf(session),
+			"neither sign-in nor the session chrome is in the files drawer");
+		window.account_action()->trigger();
+		QApplication::processEvents();
+		expect(
+			window.settings()->isVisible()
+				&& window.settings()->current_page()
+					== qt::settings_page::accounts_and_hosts
+				&& panel->isVisible() && panel->width() > 0 && panel->height() > 0
 				&& panel->mapTo(header, QPoint{ 0, 0 }).y()
 					< session->mapTo(header, QPoint{ 0, 0 }).y()
-				&& panel->mapTo(&window, QPoint{ 0, 0 }).y()
+				&& panel->mapTo(window.settings(), QPoint{ 0, 0 }).y()
 						+ panel->height()
-					<= window.height(),
-			"while signed out the mounted panel is a visible region above the "
-			"Connect control, inside the window without scrolling");
+					<= window.settings()->height(),
+			"the strip's account button presents Accounts and hosts with the "
+			"sign-in panel visible above the Connect control, without "
+			"scrolling");
 		expect(
-			window.files_drawer()->isVisible()
-				&& window.files_drawer()->width()
-					> qt::workbench_drawer_rail::width_pixels
-				&& window.files_drawer()->isAncestorOf(header),
-			"with no workbench to offer a drawer command the files drawer "
-			"presents expanded, so sign-in cannot be shut behind a rail");
-
-		const auto declared = window.focus_order();
-		expect(
-			declared.contains(panel->begin_button())
-				&& declared.contains(panel->cancel_button())
-				&& declared.indexOf(panel->cancel_button()) + 1
-					< declared.size()
-				&& session->isAncestorOf(
-					declared[declared.indexOf(panel->cancel_button()) + 1]),
-			"the panel's stops are declared directly before the session "
-			"chrome's, matching reading order");
+			!window.focus_order().contains(panel->begin_button())
+				&& !window.focus_order().contains(session->connect_button()),
+			"the workbench declares no focus stops across windows");
 
 		publish_session_ready(window);
 		publish_pull_request(window);
@@ -3144,9 +3163,12 @@ namespace {
 			"and neither is performed here");
 		window.set_device_authorization_dispatch({ });
 
-		// The panel is at the top of the files drawer, so the capture is a
+		// The panel is at the top of the accounts page, so the capture is a
 		// picture of it without scrolling anything.
-		auto* const headerScroll = window.files_drawer();
+		auto* const headerScroll = window.settings()->page_widget(
+			qt::settings_page::accounts_and_hosts);
+		window.open_settings(qt::settings_page::accounts_and_hosts);
+		QApplication::processEvents();
 		const QRect placed{
 			panel->mapTo(headerScroll, QPoint{ 0, 0 }),
 			panel->size(),
@@ -3154,19 +3176,19 @@ namespace {
 		expect(
 			headerScroll->rect().intersected(placed).height()
 				>= placed.height() / 2,
-			"the files drawer shows the device panel inside it");
+			"the accounts page shows the device panel inside it");
 
-		// Cropped to the drawer the panel is in. A whole-window raster would
-		// pass on a repaint anywhere; this one is the drawer and only the
-		// drawer.
+		// Cropped to the page the panel is on. A whole-window raster would
+		// pass on a repaint anywhere; this one is the page and only the page.
 		QApplication::processEvents();
-		const auto rendered = window.grab();
-		const auto ratio    = window.devicePixelRatioF();
-		const auto scaled   = [ratio](const int aValue) {
+		auto* const settingsWindow = window.settings();
+		const auto  rendered       = settingsWindow->grab();
+		const auto  ratio          = settingsWindow->devicePixelRatioF();
+		const auto  scaled         = [ratio](const int aValue) {
 			return static_cast<int>(
 				std::lround(static_cast<double>(aValue) * ratio));
 		};
-		const auto origin = headerScroll->mapTo(&window, QPoint{ 0, 0 });
+		const auto origin = headerScroll->mapTo(settingsWindow, QPoint{ 0, 0 });
 		// Two rounded edges rather than a rounded origin plus a rounded size,
 		// for the reason BPR-0520 recorded one crop below.
 		const QRect region{
@@ -3178,7 +3200,7 @@ namespace {
 		expect(
 			rendered.rect().contains(region) && !cropped.isNull()
 				&& cropped.size() == region.size(),
-			"the files drawer crop has the drawer's exact device dimensions");
+			"the accounts page crop has the page's exact device dimensions");
 		const auto renderPath = qEnvironmentVariable("BPR_QT_RENDER_PATH");
 		if (!renderPath.isEmpty()) {
 			const QFileInfo configured{ renderPath };

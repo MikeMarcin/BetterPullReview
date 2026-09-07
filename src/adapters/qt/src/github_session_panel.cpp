@@ -924,7 +924,10 @@ namespace bpr::qt {
 
 	auto github_session_panel::showing_diagnostic() const -> bool
 	{
-		return DiagnosticLabel->isVisible() && !DiagnosticLabel->text().isEmpty();
+		// Relative to the panel, not to the screen: the panel answers for
+		// what it shows whether or not the window it sits in is open.
+		return DiagnosticLabel->isVisibleTo(this)
+			&& !DiagnosticLabel->text().isEmpty();
 	}
 
 	auto github_session_panel::status_banner() const noexcept -> QFrame*
@@ -935,7 +938,7 @@ namespace bpr::qt {
 	auto github_session_panel::summary_text() const -> QString
 	{
 		auto summary = StatusLabel->text();
-		if (DiagnosticLabel->isVisible() && !DiagnosticLabel->text().isEmpty()) {
+		if (showing_diagnostic()) {
 			summary.append(QStringLiteral(" %1").arg(DiagnosticLabel->text()));
 		}
 		return summary;

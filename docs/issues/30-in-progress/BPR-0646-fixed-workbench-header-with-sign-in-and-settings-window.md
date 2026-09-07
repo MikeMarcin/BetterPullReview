@@ -237,3 +237,22 @@ the window's title row.
   needs the owner's browser. Out of this card by design: the "next new
   comment" group (BPR-0648, no unread projection yet), Discuss's widening
   (BPR-0649), the Windows caption (BPR-0653).
+- Correction, 2026-09-06 (owner: "all the configuration moved to the files
+  drawer instead of the settings menu as designed"). The device sign-in and
+  the session chrome (host picker, Connect, sign out, public preview,
+  details, the locator and refresh) are now the Settings window's Accounts
+  and hosts page (`workbenchAccountsPage`), sign-in first while signed out;
+  the strip's account button presents that page and focuses "Get a code"
+  while signed out. Nothing presents the page on its own: an automatic
+  presentation on a begun flow took activation from the workbench in the
+  middle of the queue composition course, so a flow is begun from the page
+  the reviewer already opened. The drawer's top region scrolls
+  horizontally when the queue landing's rows need more than the drawer's
+  width, and the empty state's guidance now points at the account button. The files drawer's top region keeps only the pull request
+  list (the queue landing) and the pull request summary, which are not
+  configuration and which the repositories drawer and the overview will
+  take. The workbench declares no focus stops across windows. The session
+  panel's diagnostic report and summary now read their label relative to
+  the panel rather than to the screen, since the panel lives in a window
+  that is usually closed; the composed tests that inspect the session chrome
+  present the accounts page first.

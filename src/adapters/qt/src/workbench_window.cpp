@@ -523,11 +523,12 @@ namespace bpr::qt {
 		connect(AccountAction, &QAction::triggered, this, [this] {
 			// Signed out, the one way in is the device sign-in the header
 			// shows; signed in, the account lives on its settings page.
-			if (DevicePanel != nullptr && DevicePanel->isVisibleTo(this)) {
-				DevicePanel->begin_button()->setFocus(Qt::ShortcutFocusReason);
-				return;
-			}
+			// Signed out or in, the account lives on its settings page; while
+			// signed out the sign-in panel is that page's top and takes focus.
 			open_settings(settings_page::accounts_and_hosts);
+			if (DevicePanel != nullptr && DevicePanel->isVisibleTo(SettingsWindow)) {
+				DevicePanel->begin_button()->setFocus(Qt::ShortcutFocusReason);
+			}
 		});
 
 		const auto stripLabel = [this](const QString& aObjectName,
@@ -1019,17 +1020,25 @@ namespace bpr::qt {
 		};
 
 		// [[BPR-0646]]. RFC-BPR-0028 AC-01: the chrome above the comparison
-		// is the strip and the epoch line only. The session chrome, the device
-		// sign-in and the pull request summary live at the top of the files
-		// drawer until the repositories drawer (BPR-0651) and the accounts
-		// page (BPR-0652) take them: sign-in first while signed out, reachable
-		// without scrolling; then the host and locator; then the pull request;
-		// then the queue and the files. The drawer presents expanded whenever
-		// the core offers no drawer command, so none of this can be shut away
-		// behind a rail the reviewer cannot reopen (see apply_drawer_layout).
-		// The panels keep their natural heights inside a bounded, scrolling
-		// top region, so the files list beneath always keeps room and nothing
-		// is squeezed into anything else; sign-in is the top of that region.
+		// is the strip and the epoch line only, and accounts live in Settings.
+		// The device sign-in and the session chrome are the Accounts and
+		// hosts page of the Settings window: sign-in first while signed out,
+		// then the host picker, Connect and the locator. The strip's account
+		// button opens that page, and a flow the core begins presents it, so
+		// the code is seen. The pull request list (the queue landing) and the
+		// pull request summary stay in the files drawer's bounded top region
+		// until the repositories drawer (BPR-0651) and the overview
+		// (BPR-0647) take them.
+		SettingsWindow       = new settings_window{ this };
+		auto* const accounts = new QWidget;
+		accounts->setObjectName(QStringLiteral("workbenchAccountsPage"));
+		accounts->setAccessibleName(QStringLiteral("Accounts and hosts"));
+		auto* const accountsColumn = new QVBoxLayout{ accounts };
+		accountsColumn->setContentsMargins(0, 0, 0, 0);
+		accountsColumn->addWidget(DevicePanel);
+		accountsColumn->addWidget(SessionPanel);
+		SettingsWindow->adopt_panel(settings_page::accounts_and_hosts, accounts);
+
 		auto* const filesColumn
 			= qobject_cast<QVBoxLayout*>(Drawers[0].Panel->layout());
 		auto* const top = new QWidget;
@@ -1037,9 +1046,6 @@ namespace bpr::qt {
 		top->setAccessibleName(QStringLiteral("Pull request"));
 		auto* const topColumn = new QVBoxLayout{ top };
 		topColumn->setContentsMargins(0, 0, 0, 0);
-		topColumn->addWidget(DevicePanel);
-		topColumn->addWidget(SessionPanel);
-		SessionPanel->apply_compact_layout(true);
 		if (auto* const landing = Drawers[0].Panel->findChild<QWidget*>(
 				QStringLiteral("reviewQueueLanding"), Qt::FindDirectChildrenOnly);
 			landing != nullptr) {
@@ -1050,7 +1056,7 @@ namespace bpr::qt {
 		DrawerTopScroll->setObjectName(QStringLiteral("workbenchDrawerTopScroll"));
 		DrawerTopScroll->setWidgetResizable(true);
 		DrawerTopScroll->setFrameShape(QFrame::NoFrame);
-		DrawerTopScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		DrawerTopScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 		DrawerTopScroll->setFocusPolicy(Qt::NoFocus);
 		DrawerTopScroll->setMaximumHeight(420);
 		DrawerTopScroll->setWidget(top);
@@ -1141,7 +1147,6 @@ namespace bpr::qt {
 		AppearanceSettings = new appearance_settings_panel{ { } };
 		AppearanceSettings->setObjectName(
 			QStringLiteral("appearanceSettingsPanel"));
-		SettingsWindow = new settings_window{ this };
 		SettingsWindow->adopt_panel(settings_page::appearance, AppearanceSettings);
 
 		setCentralWidget(CentralSplitter);
@@ -2691,6 +2696,10 @@ namespace bpr::qt {
 				|| status == core::github_status::establishing_session
 				|| status == core::github_status::session_failed
 				|| status == core::github_status::session_cancelled);
+			// A flow begins from the accounts page itself -- the strip's
+			// account button opens it -- so nothing here presents a window;
+			// presenting one would take activation from the workbench in the
+			// middle of whatever began the flow.
 		}
 		update_account_action();
 
@@ -2721,7 +2730,7 @@ namespace bpr::qt {
 						? QStringLiteral(
 							  "No GitHub host profiles are configured.")
 						: QStringLiteral(
-							  "Choose a host profile above, then connect."));
+							  "Choose a host under the account button, then connect."));
 				break;
 			case core::github_status::establishing_session:
 				state = QStringLiteral("connecting");
@@ -3133,32 +3142,9 @@ namespace bpr::qt {
 		append(presenter(SettingsAction));
 		// The review header sits under the toolbars and above the workbench, so
 		// its stops are declared there. Reading order and focus order agree.
-		// [[BPR-0646]]. Device sign-in reads first while signed out, above the
-		// session chrome, so it is walked first. The panel declares its own
-		// internal order; this places that run in the shell's. Qt's tab walk
-		// skips hidden widgets, so a signed-in window walks straight into the
-		// session chrome.
-		if (DevicePanel != nullptr) {
-			append(DevicePanel->user_code_field());
-			append(DevicePanel->address_field());
-			append(DevicePanel->begin_button());
-			append(DevicePanel->copy_button());
-			append(DevicePanel->open_button());
-			append(DevicePanel->cancel_button());
-		}
-		if (SessionPanel != nullptr) {
-			// The ring reads above the picker, so it is walked before it.
-			append(SessionPanel->usage_indicator());
-			append(SessionPanel->profile_selector());
-			append(SessionPanel->connect_button());
-			append(SessionPanel->public_preview_button());
-			append(SessionPanel->connection_details_button());
-			append(SessionPanel->owner_editor());
-			append(SessionPanel->repository_editor());
-			append(SessionPanel->pull_request_editor());
-			append(SessionPanel->open_button());
-			append(SessionPanel->refresh_button());
-		}
+		// The session chrome and the device sign-in are the Accounts and
+		// hosts page of the Settings window, another top-level window with
+		// its own tab chain; the workbench declares nothing across windows.
 		append(QueueView);
 		append(QueueRoleFilter);
 		append(QueueObserverFilter);

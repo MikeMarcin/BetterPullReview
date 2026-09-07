@@ -1,5 +1,7 @@
 /// \file
 /// \brief Proves the Settings window places panels and holds no state of its own.
+#include "bpr/qt/device_authorization_panel.hpp"
+#include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
@@ -86,6 +88,13 @@ namespace {
 				   && !workbench.files_drawer()->isAncestorOf(appearance),
 			   "there is no review header any more, and the appearance panel is not "
 			   "in the files drawer either");
+		expect(workbench.session_panel() != nullptr && workbench.device_authorization() != nullptr
+				   && settings->page_widget(qt::settings_page::accounts_and_hosts)
+						  ->isAncestorOf(workbench.session_panel())
+				   && settings->page_widget(qt::settings_page::accounts_and_hosts)
+						  ->isAncestorOf(workbench.device_authorization()),
+			   "the session chrome and the device sign-in live on the Accounts and "
+			   "hosts page, as the design places them");
 		action->trigger();
 		QApplication::processEvents();
 		expect(settings->isVisible() && settings->current_page() == qt::settings_page::appearance,
