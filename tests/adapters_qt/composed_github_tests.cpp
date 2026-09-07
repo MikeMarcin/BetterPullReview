@@ -1,3 +1,4 @@
+#include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include "bpr/qt/device_authorization_panel.hpp"
@@ -2991,6 +2992,78 @@ namespace {
 	/// that pressing begin on the mounted panel emits exactly one typed intent
 	/// naming exactly the profile the session panel's picker names -- before and
 	/// after the reviewer changes that picker -- and that nothing else leaves.
+	/// \brief Home's landing funnels a reviewer with nothing open.
+	auto test_home_landing_funnels_to_an_account_and_then_a_pull_request() -> void
+	{
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			profiles(),
+			[](application::github_intent) { },
+		};
+		window.resize(1'280, 820);
+		window.show();
+		QApplication::processEvents();
+		auto* const landing = window.home_landing();
+		expect(
+			landing != nullptr && landing->isVisible()
+				&& landing->state() == qt::landing_state::sign_in
+				&& landing->title_label()->text()
+					== QStringLiteral("Connect a GitHub account")
+				&& landing->primary_button()->isVisible()
+				&& landing->primary_button()->text().startsWith(
+					QStringLiteral("Sign in"))
+				&& landing->mapTo(&window, QPoint{ 0, 0 }).y()
+					< window.epoch_selectors()->mapTo(&window, QPoint{ 0, 0 }).y()
+				&& window.focus_order().contains(landing->primary_button()),
+			"signed out with nothing open, Home offers sign-in above the epoch "
+			"line and its buttons are focus stops");
+
+		landing->primary_button()->click();
+		QApplication::processEvents();
+		expect(
+			window.settings()->isVisible()
+				&& window.settings()->current_page()
+					== qt::settings_page::accounts_and_hosts
+				&& window.device_authorization()->begin_button()->hasFocus(),
+			"the sign-in button opens Accounts and hosts with Get a code "
+			"focused");
+		window.settings()->hide();
+
+		publish_session_ready(window);
+		QApplication::processEvents();
+		expect(
+			landing->isVisible()
+				&& landing->state() == qt::landing_state::choose_pull_request
+				&& landing->title_label()->text()
+					== QStringLiteral("Open a pull request"),
+			"signed in with nothing open, Home offers the queue and the locator");
+		window.activateWindow();
+		landing->primary_button()->click();
+		QApplication::processEvents();
+		expect(
+			window.queue_view()->hasFocus(),
+			"choosing from the queue moves focus to the queue");
+		landing->secondary_button()->click();
+		QApplication::processEvents();
+		expect(
+			window.settings()->isVisible()
+				&& window.settings()->current_page()
+					== qt::settings_page::accounts_and_hosts
+				&& window.session_panel()->owner_editor()->hasFocus(),
+			"entering a pull request opens Accounts and hosts with the locator "
+			"focused");
+		window.settings()->hide();
+
+		publish_pull_request(window);
+		QApplication::processEvents();
+		expect(
+			!landing->isVisible(),
+			"with a pull request open Home's landing is gone");
+		window.hide();
+	}
+
 	auto test_device_sign_in_is_mounted_beside_the_session_chrome() -> void
 	{
 		qt::workbench_window window{
@@ -3234,6 +3307,7 @@ auto main(int argc, char** argv) -> int
 	test_accessibility_minimum_geometry_and_render();
 	test_agent_surfaces_are_placed_in_the_conversations_drawer();
 	test_drawer_controls_are_reachable_in_the_conversations_drawer();
+	test_home_landing_funnels_to_an_account_and_then_a_pull_request();
 	test_device_sign_in_is_mounted_beside_the_session_chrome();
 
 	std::cout << "All GitHub Qt presentation tests passed\n";

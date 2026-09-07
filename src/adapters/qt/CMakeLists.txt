@@ -16,6 +16,7 @@ add_library(
         src/workbench_strip.cpp
         src/native_window_chrome.cpp
         src/epoch_line.cpp
+        src/workbench_landing.cpp
         src/comparison_scroll_controller.cpp
         src/diff_link_map.cpp
 		src/diff_workbench.cpp

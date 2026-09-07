@@ -256,3 +256,16 @@ the window's title row.
   the panel rather than to the screen, since the panel lives in a window
   that is usually closed; the composed tests that inspect the session chrome
   present the accounts page first.
+- Home's landing (owner direction, 2026-09-06: the default landing, Home,
+  should carry a connect-account flow or funnel to the right settings page
+  when no account or repository is configured). `workbench_landing` is a
+  card at the top of the centre, above the epoch line, shown only while no
+  pull request is open, no comparison is held and no load is under way.
+  Signed out it reads "Connect a GitHub account" with "Sign in to GitHub…",
+  which opens Accounts and hosts with "Get a code" focused, and "Accounts &
+  hosts settings". Signed in with nothing open it reads "Open a pull
+  request" with "Choose from the queue" (focus moves to the queue) and
+  "Enter a pull request…" (Accounts and hosts with the locator focused).
+  Its buttons are focus stops before the epoch line. BPR-0650's Home
+  action list builds on this surface once there is something to act on.
+  Pinned by `test_home_landing_funnels_to_an_account_and_then_a_pull_request`.

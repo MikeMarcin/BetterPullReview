@@ -665,6 +665,30 @@ namespace bpr::qt {
 		ComparisonSurface  = new diff_workbench{ CentreSurface };
 		auto* const centre = new QVBoxLayout{ CentreSurface };
 		centre->setContentsMargins(0, 0, 0, 0);
+		// [[BPR-0646]]. Home's landing, above the epoch line while there is
+		// nothing to compare and no pull request: it funnels a reviewer to
+		// the account or to a pull request rather than showing empty panes.
+		HomeLanding = new workbench_landing{ CentreSurface };
+		HomeLanding->set_primary_dispatch([this] {
+			if (HomeLanding->state() == landing_state::sign_in) {
+				open_settings(settings_page::accounts_and_hosts);
+				if (DevicePanel != nullptr) {
+					DevicePanel->begin_button()->setFocus(Qt::OtherFocusReason);
+				}
+				return;
+			}
+			if (QueueView != nullptr) {
+				QueueView->setFocus(Qt::OtherFocusReason);
+			}
+		});
+		HomeLanding->set_secondary_dispatch([this] {
+			open_settings(settings_page::accounts_and_hosts);
+			if (HomeLanding->state() == landing_state::choose_pull_request
+				&& SessionPanel != nullptr) {
+				SessionPanel->owner_editor()->setFocus(Qt::OtherFocusReason);
+			}
+		});
+		centre->addWidget(HomeLanding);
 		centre->addWidget(EpochSelectors);
 		centre->addWidget(ComparisonSurface, 1);
 
@@ -716,6 +740,7 @@ namespace bpr::qt {
 					update_defect_surface();
 				}
 				update_strip_positions();
+				update_home_landing();
 			});
 		ReviewSubmissionEditor = new review_submission_editor{
 			[this](review_submission_editor_intent aIntent) {
@@ -2187,6 +2212,33 @@ namespace bpr::qt {
 		});
 	}
 
+	auto workbench_window::home_landing() const noexcept -> workbench_landing*
+	{
+		return HomeLanding;
+	}
+
+	void workbench_window::update_home_landing()
+	{
+		if (HomeLanding == nullptr || SessionPanel == nullptr) {
+			return;
+		}
+		// Shown only while the centre has nothing: no pull request open, no
+		// comparison held, and no load under way. Which way in it offers
+		// follows the session: an account first, then a pull request.
+		const auto status   = SessionPanel->status();
+		const auto signedIn = status == core::github_status::session_ready
+			|| status == core::github_status::loading_pull_request
+			|| status == core::github_status::pull_request_ready
+			|| status == core::github_status::pull_request_failed
+			|| status == core::github_status::pull_request_cancelled;
+		const auto comparing = ComparisonSurface != nullptr
+			&& ComparisonSurface->current_result() != nullptr;
+		const auto loading = status == core::github_status::loading_pull_request;
+		HomeLanding->set_state(
+			signedIn ? landing_state::choose_pull_request : landing_state::sign_in);
+		HomeLanding->setVisible(!HasGithubPullRequest && !comparing && !loading);
+	}
+
 	auto workbench_window::account_action() const noexcept -> QAction*
 	{
 		return AccountAction;
@@ -2702,6 +2754,7 @@ namespace bpr::qt {
 			// middle of whatever began the flow.
 		}
 		update_account_action();
+		update_home_landing();
 
 		QString state;
 		if (HasGithubPullRequest) {
@@ -3170,6 +3223,10 @@ namespace bpr::qt {
 		// The line and its comparing menu first, then the two selectors on
 		// one grid row above their two exact OIDs, the row order the composed
 		// control already walks.
+		if (HomeLanding != nullptr) {
+			append(HomeLanding->primary_button());
+			append(HomeLanding->secondary_button());
+		}
 		append(EpochSelectors->line());
 		append(EpochSelectors->comparing_button());
 		append(EpochSelectors->left_selector());
@@ -3654,6 +3711,7 @@ namespace bpr::qt {
 			button->setFocusPolicy(Qt::StrongFocus);
 		}
 		update_account_action();
+		update_home_landing();
 	}
 
 	void workbench_window::refresh_toolbar_icons()
@@ -3892,6 +3950,7 @@ namespace bpr::qt {
 		StatusLabel->setText(status);
 		update_strip_positions();
 		update_rail_summaries();
+		update_home_landing();
 	}
 
 	void workbench_window::announce_update()

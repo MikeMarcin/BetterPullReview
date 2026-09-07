@@ -19,6 +19,7 @@
 #include "bpr/qt/review_submission_editor.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
+#include "bpr/qt/workbench_landing.hpp"
 #include "bpr/qt/workbench_strip.hpp"
 
 #include <QList>
@@ -266,6 +267,8 @@ namespace bpr::qt {
 		/// core's exact set-drawer intents; the control shows the last chosen
 		/// preset until the next, whatever a manual toggle did in between.
 		[[nodiscard]] auto modality() const noexcept -> modality_control*;
+		/// \brief Home's landing while nothing is open: sign in, or choose.
+		[[nodiscard]] auto home_landing() const noexcept -> workbench_landing*;
 		[[nodiscard]] auto current_modality() const noexcept -> review_modality;
 		/// \brief Chooses a modality exactly as the strip or its shortcut would.
 		void choose_modality(review_modality aModality);
@@ -526,6 +529,7 @@ namespace bpr::qt {
 		void               update_account_action();
 		void               apply_strip_width();
 		void               apply_review_details_visibility();
+		void               update_home_landing();
 		void               update_rail_summaries();
 		void               infer_modality_from_drawers();
 		[[nodiscard]] auto presented_files_state() const -> core::workbench_drawer_state;
@@ -583,33 +587,34 @@ namespace bpr::qt {
 		workbench_queue_rule_dispatch            QueueRuleDispatch;
 		workbench_queue_preferences_dispatch     QueuePreferencesDispatch;
 
-		QToolBar*         PrimaryToolbar       = nullptr;
-		workbench_strip*  Strip                = nullptr;
-		modality_control* Modality             = nullptr;
-		QAction*          AccountAction        = nullptr;
-		QLabel*           IdentityLabel        = nullptr;
-		QLabel*           ChangePositionLabel  = nullptr;
-		QLabel*           FilePositionLabel    = nullptr;
-		QWidget*          ModalitySpacer       = nullptr;
-		QWidget*          StripInset           = nullptr;
-		QScrollArea*      DrawerTopScroll      = nullptr;
-		bool              ModalityChosen       = false;
-		std::size_t       ReviewThreadTotal    = 0U;
-		QAction*          IdentityAction       = nullptr;
-		QAction*          ChangePositionAction = nullptr;
-		QAction*          FilePositionAction   = nullptr;
-		QString           IdentityText;
-		QMenuBar*         PrimaryMenuBar       = nullptr;
-		QMenu*            ViewMenu             = nullptr;
-		QAction*          LineNumbersAction    = nullptr;
-		QAction*          ReviewDetailsAction  = nullptr;
-		QToolButton*      ReviewControlsButton = nullptr;
-		QMenu*            ReviewControlsMenu   = nullptr;
-		QWidget*          ToolbarSpacer        = nullptr;
-		QLabel*           StatusLabel          = nullptr;
-		QSplitter*        CentralSplitter      = nullptr;
-		QWidget*          CentreSurface        = nullptr;
-		diff_workbench*   ComparisonSurface    = nullptr;
+		QToolBar*          PrimaryToolbar       = nullptr;
+		workbench_strip*   Strip                = nullptr;
+		modality_control*  Modality             = nullptr;
+		QAction*           AccountAction        = nullptr;
+		QLabel*            IdentityLabel        = nullptr;
+		QLabel*            ChangePositionLabel  = nullptr;
+		QLabel*            FilePositionLabel    = nullptr;
+		QWidget*           ModalitySpacer       = nullptr;
+		QWidget*           StripInset           = nullptr;
+		QScrollArea*       DrawerTopScroll      = nullptr;
+		workbench_landing* HomeLanding          = nullptr;
+		bool               ModalityChosen       = false;
+		std::size_t        ReviewThreadTotal    = 0U;
+		QAction*           IdentityAction       = nullptr;
+		QAction*           ChangePositionAction = nullptr;
+		QAction*           FilePositionAction   = nullptr;
+		QString            IdentityText;
+		QMenuBar*          PrimaryMenuBar       = nullptr;
+		QMenu*             ViewMenu             = nullptr;
+		QAction*           LineNumbersAction    = nullptr;
+		QAction*           ReviewDetailsAction  = nullptr;
+		QToolButton*       ReviewControlsButton = nullptr;
+		QMenu*             ReviewControlsMenu   = nullptr;
+		QWidget*           ToolbarSpacer        = nullptr;
+		QLabel*            StatusLabel          = nullptr;
+		QSplitter*         CentralSplitter      = nullptr;
+		QWidget*           CentreSurface        = nullptr;
+		diff_workbench*    ComparisonSurface    = nullptr;
 
 		epoch_comparison_control* EpochSelectors = nullptr;
 

@@ -172,7 +172,9 @@ follow in their own design rounds.
 - AC-05 Read shows this file's threads aligned to their lines with unread state
   and drafts; Discuss shows the list, map and feed with the listed filters.
 - AC-06 Home shows the grouped action list from the queue and ledger
-  projections.
+  projections; with no account it funnels to sign-in, and with no pull
+  request open it funnels to the queue or the locator, rather than showing
+  empty panes.
 - AC-07 Sign-in remains reachable in every state without scrolling.
 - AC-09 The repositories and files drawers render the trees above from the
   queue, ledger and snapshot projections and collapse independently.
