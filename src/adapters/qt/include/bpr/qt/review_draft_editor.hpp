@@ -161,6 +161,7 @@ namespace bpr::qt {
 
 		QPlainTextEdit* Body           = nullptr;
 		QLabel*         TargetLabel    = nullptr;
+		QLabel*         ReplyTarget    = nullptr;
 		QLabel*         MutationStatus = nullptr;
 		/// The reviewer's own text, shown beside the proposal rather than
 		/// replaced by it. Read-only: the editable original is `Body`.
@@ -266,6 +267,9 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto body_editor() const noexcept -> QPlainTextEdit*;
 		[[nodiscard]] auto target_label() const noexcept -> QLabel*;
+		/// \brief [[BPR-0657]]. Names the thread the shown draft answers; shown only while it does.
+		[[nodiscard]] auto reply_target_label() const noexcept -> QLabel*;
+		void               describe_reply_target(const QString& aDescription);
 		[[nodiscard]] auto mutation_status_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto mutation_status_text() const -> QString;
 		[[nodiscard]] auto publish_action() const noexcept -> QAction*;

@@ -170,6 +170,10 @@ namespace bpr::app::detail {
 		std::size_t StoredComments     = 0U;
 		bool        LostResult         = false;
 		bool        DuplicateReturned  = false;
+		/// [[BPR-0657]]. Replies published under a thread and thread
+		/// resolutions asked of the provider.
+		std::size_t Replies     = 0U;
+		std::size_t Resolutions = 0U;
 
 		auto operator<=>(const review_mutation_fixture_evidence&) const = default;
 	};

@@ -69,6 +69,12 @@ namespace bpr::qt {
 			QStringLiteral("Publication target"));
 		Members.TargetLabel->setWordWrap(true);
 		layout->addWidget(Members.TargetLabel);
+		Members.ReplyTarget = new QLabel{ this };
+		Members.ReplyTarget->setObjectName(QStringLiteral("reviewReplyTarget"));
+		Members.ReplyTarget->setAccessibleName(QStringLiteral("Replying to"));
+		Members.ReplyTarget->setWordWrap(true);
+		Members.ReplyTarget->hide();
+		layout->addWidget(Members.ReplyTarget);
 		Members.MutationStatus = new QLabel{ this };
 		Members.MutationStatus->setObjectName(
 			QStringLiteral("reviewMutationStatus"));
@@ -456,10 +462,26 @@ namespace bpr::qt {
 		Members.WorkshopOperation->clear();
 	}
 
+	auto review_draft_editor::reply_target_label() const noexcept -> QLabel*
+	{
+		return Members.ReplyTarget;
+	}
+
+	void review_draft_editor::describe_reply_target(const QString& aDescription)
+	{
+		Members.ReplyTarget->setText(aDescription);
+		Members.ReplyTarget->setVisible(
+			!aDescription.isEmpty() && Members.ShownDraft.has_value()
+			&& Members.ShownDraft->ReplyToThread.has_value());
+	}
+
 	void review_draft_editor::present(const core::review_comment_draft& aDraft)
 	{
 		++Members.Statistics.Presentations;
 		Members.ShownDraft = aDraft;
+		// [[BPR-0657]]. The thread named is shown only while the draft answers one.
+		Members.ReplyTarget->setVisible(
+			aDraft.ReplyToThread.has_value() && !Members.ReplyTarget->text().isEmpty());
 		if (Members.Body->toPlainText().toStdString() != aDraft.Body) {
 			Members.ApplyingPresentation = true;
 			Members.Body->setPlainText(QString::fromStdString(aDraft.Body));

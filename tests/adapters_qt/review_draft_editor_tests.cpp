@@ -266,6 +266,31 @@ namespace {
 		delete editor;
 	}
 
+	// [[BPR-0657]]. The thread a draft answers is named beside the target,
+	// and only while the shown draft answers one.
+	void test_the_thread_a_reply_answers_is_named_only_while_it_does()
+	{
+		auto  log    = intent_log{ };
+		auto* editor = editor_for(log);
+		expect(!editor->reply_target_label()->isVisibleTo(editor), "no thread is named before one is described");
+		editor->describe_reply_target(QStringLiteral("Replying to octo-reviewer's thread"));
+		expect(!editor->reply_target_label()->isVisibleTo(editor),
+			   "a description alone names nothing: the shown draft answers no thread yet");
+		auto root = core::review_comment_draft{ .Id = core::review_draft_id{ 5U } };
+		editor->present(root);
+		expect(!editor->reply_target_label()->isVisibleTo(editor), "a root draft names no thread");
+		auto reply          = root;
+		reply.ReplyToThread = "PRRT_fixture_1";
+		editor->present(reply);
+		expect(editor->reply_target_label()->isVisibleTo(editor)
+				   && editor->reply_target_label()->text() == QStringLiteral("Replying to octo-reviewer's thread")
+				   && !editor->reply_target_label()->accessibleName().isEmpty(),
+			   "a draft answering a thread shows the thread it answers, announced too");
+		editor->present(root);
+		expect(!editor->reply_target_label()->isVisibleTo(editor), "back on a root draft the thread is gone");
+		delete editor;
+	}
+
 	void test_every_action_and_widget_is_distinctly_named()
 	{
 		auto  log    = intent_log{ };
@@ -906,6 +931,7 @@ namespace {
 					 workshopDispatch,
 					 body,
 					 targetLabel,
+					 replyTarget,
 					 mutationStatus,
 					 workshopOriginal,
 					 workshopProposal,
@@ -953,6 +979,7 @@ namespace {
 		static_assert(std::is_same_v<decltype(exclude), QAction* const>);
 		static_assert(std::is_same_v<decltype(acceptRevision), QAction* const>);
 		static_assert(std::is_same_v<decltype(rejectRevision), QAction* const>);
+		static_assert(std::is_same_v<decltype(replyTarget), QLabel* const>);
 		// One control per declared operation and no more: the array's own type
 		// says there are six, so a seventh operation offered from somewhere
 		// else fails here rather than appearing beside them.
@@ -1044,6 +1071,7 @@ auto main(int argc, char** argv) -> int
 	test_receipt_actions_emit_intents_and_change_nothing();
 	test_enablement_follows_the_projection_not_the_keystrokes();
 	test_the_publication_target_is_shown_before_publishing();
+	test_the_thread_a_reply_answers_is_named_only_while_it_does();
 	test_every_action_and_widget_is_distinctly_named();
 	test_typed_clear_removes_stale_selection_bound_state();
 	test_the_workshop_shows_both_texts_at_once_on_two_surfaces();

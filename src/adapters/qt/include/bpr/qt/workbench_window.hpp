@@ -85,6 +85,8 @@ namespace bpr::qt {
 	/// \brief Carries one already-decided receipt command out of presentation.
 	using workbench_receipt_dispatch      = std::function<void(core::file_receipt_command)>;
 	using workbench_review_draft_dispatch = std::function<void(core::review_draft_command)>;
+	/// [[BPR-0657]]. A card's Reply: the thread identity the next draft answers.
+	using workbench_review_reply_dispatch = std::function<void(const std::string&)>;
 	using workbench_defect_dispatch       = std::function<void(core::defect_command)>;
 
 	/// \brief Carries the exact placeable conversation anchor chosen in Qt.
@@ -279,6 +281,8 @@ namespace bpr::qt {
 		void set_review_draft_dispatch(
 			workbench_review_draft_dispatch aDraftDispatch);
 		void set_review_submission_dispatch(review_submission_editor_dispatch aDispatch);
+		/// \brief [[BPR-0657]]. Adopts the sink a card's Reply names its thread to.
+		void set_review_reply_dispatch(workbench_review_reply_dispatch aDispatch);
 		void set_defect_dispatch(workbench_defect_dispatch aDefectDispatch);
 		void set_agent_dispatch(agent_intent_dispatch aAgentDispatch);
 		/// \brief Adopts the sink the mounted device-sign-in panel dispatches to.
@@ -802,6 +806,7 @@ namespace bpr::qt {
 		std::vector<core::observer_rule>      QueueRules;
 		application::queue_landing_projection QueueProjection;
 		workbench_saved_repository_dispatch   SavedRepositoryDispatch;
+		workbench_review_reply_dispatch       ReviewReplyDispatch;
 		// [[BPR-0661]].
 		review_behaviour_dispatch                BehaviourDispatch;
 		application::review_behaviour_settings   Behaviour;

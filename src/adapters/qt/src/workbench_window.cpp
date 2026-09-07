@@ -901,9 +901,13 @@ namespace bpr::qt {
 					}
 					break;
 				case card_action::reply: {
-					// [[BPR-0649]]. The feed's Reply: the thread becomes
-					// current and the draft editor takes focus, as a comment
-					// on its line does; threaded replies wait on BPR-0657.
+					// [[BPR-0649]], [[BPR-0657]]. The feed's Reply: the thread
+					// is named to the composition first, so the draft that
+					// follows the selection answers it; then the thread becomes
+					// current and the draft editor takes focus.
+					if (ReviewReplyDispatch) {
+						ReviewReplyDispatch(aIdentity);
+					}
 					const auto index = ConversationPanel->model()->index_for_id(aIdentity);
 					if (index.isValid()) {
 						ConversationPanel->view()->setCurrentIndex(index);
@@ -2968,6 +2972,11 @@ namespace bpr::qt {
 		choose_modality(Behaviour.ContinueModality == application::review_continue_modality::review
 							? review_modality::review
 							: review_modality::read);
+	}
+
+	void workbench_window::set_review_reply_dispatch(workbench_review_reply_dispatch aDispatch)
+	{
+		ReviewReplyDispatch = std::move(aDispatch);
 	}
 
 	void workbench_window::set_behaviour_dispatch(review_behaviour_dispatch aDispatch)

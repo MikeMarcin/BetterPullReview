@@ -15,6 +15,10 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonValue>
 #include <QStandardPaths>
 #include <QTemporaryDir>
 
@@ -812,7 +816,18 @@ namespace bpr::app::detail {
 			std::optional<core::pull_request_authority> LastSmartAuthority;
 			int                                         LastReadOperation = -1;
 			int                                         RecordingFailure  = -1;
-			mutable std::mutex                          Mutex;
+			// [[BPR-0657]]. What the fixture's mutation provider changed on
+			// its threads, overlaid on the recorded review-thread answers so
+			// the projection the app reads shows a reply under its thread and
+			// a thread resolved or unresolved, as GitHub would on the next
+			// read.
+			struct thread_overlay
+			{
+				std::vector<std::pair<std::string, std::string>> Replies;
+				std::optional<bool>                              Resolved;
+			};
+			std::map<std::string, thread_overlay> ThreadOverlays;
+			mutable std::mutex                    Mutex;
 		};
 
 		enum class fixture_transport_role {
@@ -1037,6 +1052,70 @@ namespace bpr::app::detail {
 			std::atomic_bool                         Revoked = false;
 		};
 
+		/// \brief [[BPR-0657]]. Rewrites a recorded review-thread answer with
+		/// the fixture's replies and resolutions.
+		[[nodiscard]] auto overlay_review_threads(
+			const std::string&                                                    aBody,
+			const std::map<std::string, fixture_recording_state::thread_overlay>& aOverlays)
+			-> std::string
+		{
+			auto document = QJsonDocument::fromJson(QByteArray::fromStdString(aBody));
+			if (!document.isObject()) {
+				return aBody;
+			}
+			auto root        = document.object();
+			auto data        = root.value(QStringLiteral("data")).toObject();
+			auto repository  = data.value(QStringLiteral("repository")).toObject();
+			auto pullRequest = repository.value(QStringLiteral("pullRequest")).toObject();
+			auto threads     = pullRequest.value(QStringLiteral("reviewThreads")).toObject();
+			auto nodes       = threads.value(QStringLiteral("nodes")).toArray();
+			for (auto index = 0; index < nodes.size(); ++index) {
+				auto       node    = nodes.at(index).toObject();
+				const auto overlay = aOverlays.find(node.value(QStringLiteral("id")).toString().toStdString());
+				if (overlay == aOverlays.end()) {
+					continue;
+				}
+				if (overlay->second.Resolved.has_value()) {
+					node.insert(QStringLiteral("isResolved"), *overlay->second.Resolved);
+					node.insert(QStringLiteral("viewerCanResolve"), !*overlay->second.Resolved);
+					node.insert(QStringLiteral("viewerCanUnresolve"), *overlay->second.Resolved);
+				}
+				auto       comments = node.value(QStringLiteral("comments")).toObject();
+				auto       posts    = comments.value(QStringLiteral("nodes")).toArray();
+				const auto rootId   = posts.isEmpty()
+					? QString{ }
+					: posts.at(0).toObject().value(QStringLiteral("id")).toString();
+				for (const auto& [identifier, body] : overlay->second.Replies) {
+					auto author = QJsonObject{ };
+					author.insert(QStringLiteral("login"), QStringLiteral("octo-reviewer"));
+					author.insert(QStringLiteral("id"), QStringLiteral("U_fixture_viewer"));
+					auto replyTo = QJsonObject{ };
+					replyTo.insert(QStringLiteral("id"), rootId);
+					auto post = QJsonObject{ };
+					post.insert(QStringLiteral("id"), QString::fromStdString(identifier));
+					post.insert(QStringLiteral("bodyText"), QString::fromStdString(body));
+					post.insert(QStringLiteral("path"), node.value(QStringLiteral("path")));
+					post.insert(QStringLiteral("line"), node.value(QStringLiteral("line")));
+					post.insert(QStringLiteral("originalLine"), node.value(QStringLiteral("originalLine")));
+					post.insert(QStringLiteral("outdated"), false);
+					post.insert(QStringLiteral("author"), author);
+					post.insert(QStringLiteral("replyTo"),
+								rootId.isEmpty() ? QJsonValue{ QJsonValue::Null } : QJsonValue{ replyTo });
+					posts.append(post);
+				}
+				comments.insert(QStringLiteral("nodes"), posts);
+				comments.insert(QStringLiteral("totalCount"), posts.size());
+				node.insert(QStringLiteral("comments"), comments);
+				nodes.replace(index, node);
+			}
+			threads.insert(QStringLiteral("nodes"), nodes);
+			pullRequest.insert(QStringLiteral("reviewThreads"), threads);
+			repository.insert(QStringLiteral("pullRequest"), pullRequest);
+			data.insert(QStringLiteral("repository"), repository);
+			root.insert(QStringLiteral("data"), data);
+			return QJsonDocument{ root }.toJson(QJsonDocument::Compact).toStdString();
+		}
+
 		class fixture_recorded_wire_transport final
 			: public github_wire_transport_port,
 			  public application::git_smart_transport_factory_port
@@ -1098,6 +1177,10 @@ namespace bpr::app::detail {
 					State->LastReadOperation = static_cast<int>(aRequest.Wire.Operation);
 				}
 				append_rate_limit_headers(*response, aRequest.Wire.Operation);
+				if (aRequest.Wire.Operation == read_operation::list_review_threads
+					&& !State->ThreadOverlays.empty()) {
+					response->Body = overlay_review_threads(response->Body, State->ThreadOverlays);
+				}
 				return github_wire_success{
 					.Correlation = aRequest.Correlation,
 					.Response    = std::move(*response),
@@ -2183,8 +2266,11 @@ namespace bpr::app::detail {
 			: public application::review_mutation_port
 		{
 		public:
-			explicit fixture_review_mutation_provider(const bool aLoseFirst) noexcept
+			explicit fixture_review_mutation_provider(
+				const bool                               aLoseFirst,
+				std::shared_ptr<fixture_recording_state> aState = { }) noexcept
 				: LoseFirst{ aLoseFirst }
+				, State{ std::move(aState) }
 			{
 			}
 
@@ -2236,6 +2322,16 @@ namespace bpr::app::detail {
 					.Resolved    = false,
 				});
 				Evidence.StoredComments = Comments.size();
+				// [[BPR-0657]]. A reply lands under its thread on the next
+				// read, as GitHub's would.
+				if (aRequest.Proposal.ReplyToThread.has_value()) {
+					++Evidence.Replies;
+					if (State != nullptr) {
+						const std::scoped_lock lock{ State->Mutex };
+						State->ThreadOverlays[*aRequest.Proposal.ReplyToThread].Replies.emplace_back(
+							identifier, aRequest.Proposal.Body);
+					}
+				}
 				if (LoseFirst) {
 					LoseFirst           = false;
 					Evidence.LostResult = true;
@@ -2249,11 +2345,36 @@ namespace bpr::app::detail {
 				};
 			}
 
+			// [[BPR-0657]]. The thread flips on the next read; already in the
+			// state asked for is the core's refusal, not the provider's.
+			auto resolve_thread(
+				const application::review_thread_resolution_request& aRequest,
+				std::stop_token)
+				-> std::expected<
+					application::review_thread_resolution_receipt,
+					application::review_mutation_failure> override
+			{
+				++Evidence.Resolutions;
+				if (aRequest.Target != Designated || aRequest.Thread.empty()) {
+					return std::unexpected{
+						application::review_mutation_failure::undesignated_target
+					};
+				}
+				if (State != nullptr) {
+					const std::scoped_lock lock{ State->Mutex };
+					State->ThreadOverlays[aRequest.Thread].Resolved = aRequest.Resolve;
+				}
+				return application::review_thread_resolution_receipt{
+					.Thread   = aRequest.Thread,
+					.Resolved = aRequest.Resolve,
+				};
+			}
+
 			[[nodiscard]] auto capabilities() const
 				-> application::review_provider_capabilities override
 			{
 				return {
-					.ResolvesThreads    = false,
+					.ResolvesThreads    = true,
 					.RecordsViewedState = false,
 				};
 			}
@@ -2277,6 +2398,7 @@ namespace bpr::app::detail {
 			std::vector<application::review_comment_projection> Comments;
 			review_mutation_fixture_evidence                    Evidence;
 			bool                                                LoseFirst = false;
+			std::shared_ptr<fixture_recording_state>            State;
 		};
 	}
 
@@ -2352,7 +2474,7 @@ namespace bpr::app::detail {
 						BPR_GITHUB_DEVICE_DOCUMENTED_FIXTURE_ROOT },
 					aOptions.DeviceRefreshCourse || aOptions.PersistDeviceBindings);
 			Mutation = std::make_unique<fixture_review_mutation_provider>(
-				aOptions.LoseFirstReviewMutationResult);
+				aOptions.LoseFirstReviewMutationResult, Recording);
 
 			if (aOptions.ApplicationDataRoot) {
 				ApplicationDataRoot = aOptions.ApplicationDataRoot->lexically_normal();

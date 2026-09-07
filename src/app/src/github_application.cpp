@@ -3783,6 +3783,8 @@ namespace bpr::app {
 				[this](core::review_draft_command aCommand) {
 					dispatch_review_draft(std::move(aCommand));
 				});
+			Window->set_review_reply_dispatch(
+				[this](const std::string& aIdentity) { begin_review_reply(aIdentity); });
 			// BPR-0533. The six comment-workshop controls reach the composed
 			// workshop host and nothing else: the editor asks for an operation
 			// on one exact draft, and this composition is what decides whether
@@ -6041,6 +6043,46 @@ namespace bpr::app {
 #endif
 		}
 
+		// [[BPR-0657]]. A card's Reply names the thread the next draft
+		// answers: a draft already composing on the thread's line answers it
+		// at once; otherwise the draft the selection creates does. The thread
+		// identity the cards carry is the projection's prefixed one; the
+		// provider's is what the proposal names.
+		void begin_review_reply(const std::string& aIdentity)
+		{
+			constexpr auto prefix = std::string_view{ "review-thread:" };
+			if (Closing || Window == nullptr || !aIdentity.starts_with(prefix)) {
+				return;
+			}
+			auto thread = std::string{ aIdentity.substr(prefix.size()) };
+			if (thread.empty()) {
+				return;
+			}
+			auto author = QString{ };
+			if (auto* const model = Window->conversation_model(); model != nullptr) {
+				const auto index = model->index_for_id(aIdentity);
+				if (index.isValid()) {
+					author = index.data(qt::github_conversation_model::author_login_role).toString();
+				}
+			}
+			if (auto* const editor = Window->review_editor(); editor != nullptr) {
+				editor->describe_reply_target(
+					author.isEmpty() ? QStringLiteral("Replying in this thread")
+									 : QStringLiteral("Replying to %1's thread").arg(author));
+			}
+			if (ReviewDraft.has_value()
+				&& ReviewDraft->State == core::review_draft_state::drafting) {
+				ReviewDraft->ReplyToThread = thread;
+				++ReviewDraftRevision;
+				if (auto* const editor = Window->review_editor(); editor != nullptr) {
+					editor->present(*ReviewDraft);
+				}
+				PendingReplyThread.reset();
+				return;
+			}
+			PendingReplyThread = std::move(thread);
+		}
+
 		void dispatch_review_draft(core::review_draft_command aCommand)
 		{
 			if (Closing || !ReviewDraft.has_value()
@@ -6254,9 +6296,11 @@ namespace bpr::app {
 				return;
 			}
 			ReviewDraft = core::review_comment_draft{
-				.Id     = core::review_draft_id{ NextReviewDraft++ },
-				.Anchor = aSelection.PreferredLine,
+				.Id            = core::review_draft_id{ NextReviewDraft++ },
+				.Anchor        = aSelection.PreferredLine,
+				.ReplyToThread = PendingReplyThread,
 			};
+			PendingReplyThread.reset();
 			ReviewDraftRevision = 1U;
 			Window->review_editor()->present(*ReviewDraft);
 			refresh_agent_private_context_choices();
@@ -9421,6 +9465,8 @@ namespace bpr::app {
 		application::review_mutation_execution_grant        LiveReviewMutationGrant;
 		std::optional<designated_review_mutation_selection> InlineReviewBinding;
 		bool                                                AttendedReviewMutationMode = false;
+		/// [[BPR-0657]]. The thread the next draft answers, named by a card's Reply.
+		std::optional<std::string> PendingReplyThread;
 		std::vector<std::unique_ptr<application::review_mutation_application_host>>
 			RetiredReviewMutationHosts;
 		std::optional<application::review_mutation_request_context>
