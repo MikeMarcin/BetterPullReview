@@ -164,6 +164,13 @@ namespace bpr::application {
 		append(material, static_cast<std::uint64_t>(aProposal.Anchor.Side));
 		append(material, aProposal.Anchor.Line);
 		append(material, static_cast<std::uint64_t>(aProposal.Disposition));
+		// [[BPR-0657]]. A reply and a new root at the same line with the same
+		// body are different publications.
+		append(material, static_cast<std::uint64_t>(aProposal.ReplyToThread.has_value() ? 1U : 0U));
+		if (aProposal.ReplyToThread.has_value()) {
+			append(material, static_cast<std::uint64_t>(aProposal.ReplyToThread->size()));
+			material += *aProposal.ReplyToThread;
+		}
 		material += aProposal.Body;
 
 		const auto digest = core::sha256(std::span{

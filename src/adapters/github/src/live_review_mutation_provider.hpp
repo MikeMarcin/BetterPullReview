@@ -44,6 +44,10 @@ namespace bpr::adapters::github {
 			const application::review_mutation_request& aRequest,
 			std::stop_token                             aStop)
 			-> std::expected<application::review_mutation_receipt, application::review_mutation_failure> override;
+		[[nodiscard]] auto resolve_thread(
+			const application::review_thread_resolution_request& aRequest,
+			std::stop_token                                      aStop)
+			-> std::expected<application::review_thread_resolution_receipt, application::review_mutation_failure> override;
 		[[nodiscard]] auto capabilities() const
 			-> application::review_provider_capabilities override;
 

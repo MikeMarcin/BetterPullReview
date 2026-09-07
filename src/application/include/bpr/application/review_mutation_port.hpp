@@ -227,6 +227,32 @@ namespace bpr::application {
 	};
 
 	/// \brief The GitHub mutation surface, as the host sees it.
+	/// \brief Asks the provider to resolve or unresolve one review thread.
+	///
+	/// \details [[BPR-0657]]. `Thread` is the provider's opaque thread
+	/// identity as the read side reported it. Bound to the accepted target
+	/// and the acting identity like a publication, so a provider serving
+	/// another pull request or another account refuses it.
+	struct review_thread_resolution_request
+	{
+		core::review_mutation_target                Target;
+		core::github_account_id                     ActingIdentity;
+		std::string                                 Thread;
+		bool                                        Resolve = true;
+		std::optional<review_mutation_live_binding> LiveBinding;
+
+		auto operator<=>(const review_thread_resolution_request&) const = default;
+	};
+
+	/// \brief The provider's answer: the thread and the state it now has.
+	struct review_thread_resolution_receipt
+	{
+		std::string Thread;
+		bool        Resolved = false;
+
+		auto operator<=>(const review_thread_resolution_receipt&) const = default;
+	};
+
 	class review_mutation_port
 	{
 	public:
@@ -288,6 +314,17 @@ namespace bpr::application {
 			};
 		}
 
+		/// \brief [[BPR-0657]]. Resolves or unresolves one thread; a provider
+		/// without the capability answers `unavailable`.
+		[[nodiscard]] virtual auto resolve_thread(
+			const review_thread_resolution_request& aRequest,
+			std::stop_token                         aStop)
+			-> std::expected<review_thread_resolution_receipt, review_mutation_failure>
+		{
+			static_cast<void>(aRequest);
+			static_cast<void>(aStop);
+			return std::unexpected(review_mutation_failure::unavailable);
+		}
 		[[nodiscard]] virtual auto capabilities() const
 			-> review_provider_capabilities = 0;
 	};

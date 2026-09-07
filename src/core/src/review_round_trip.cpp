@@ -217,10 +217,11 @@ namespace bpr::core {
 			return std::nullopt;
 		}
 		return review_publication_proposal{
-			.Draft       = aDraft.Id,
-			.Anchor      = aDraft.Anchor,
-			.Body        = aDraft.Body,
-			.Disposition = aDisposition,
+			.Draft         = aDraft.Id,
+			.Anchor        = aDraft.Anchor,
+			.Body          = aDraft.Body,
+			.Disposition   = aDisposition,
+			.ReplyToThread = aDraft.ReplyToThread,
 		};
 	}
 } // namespace bpr::core

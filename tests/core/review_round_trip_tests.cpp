@@ -234,6 +234,18 @@ namespace {
 			!core::propose_publication(published, core::review_disposition::comment)
 				 .has_value(),
 			"a published comment is not proposed a second time");
+
+		// [[BPR-0657]]. A draft that answers a thread proposes a reply to it;
+		// a root draft proposes no thread.
+		expect(!proposal->ReplyToThread.has_value(), "a root draft proposes no thread");
+		auto answering          = composing;
+		answering.ReplyToThread = "PRRT_thread_1";
+		const auto reply        = core::propose_publication(
+			core::apply(answering, command(kind::begin_publish)).Draft,
+			core::review_disposition::comment);
+		expect(reply.has_value() && reply->ReplyToThread == std::optional<std::string>{ "PRRT_thread_1" }
+				   && reply->Anchor == composing.Anchor && reply->Body == "Text.",
+			   "a draft answering a thread proposes the reply with the thread it answers");
 	}
 
 	[[nodiscard]] auto commit(const std::uint8_t aSeed) -> core::git_commit_oid

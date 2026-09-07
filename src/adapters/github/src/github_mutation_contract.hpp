@@ -33,6 +33,11 @@ namespace bpr::adapters::github::detail {
 		create_review_comment,
 		create_review,
 		observe_reviews,
+		/// [[BPR-0657]]. GraphQL: a reply under an existing thread, and a
+		/// thread resolved or unresolved.
+		reply_review_thread,
+		resolve_review_thread,
+		unresolve_review_thread,
 	};
 
 	enum class review_mutation_contract_failure : std::uint8_t {
@@ -65,7 +70,8 @@ namespace bpr::adapters::github::detail {
 			application::review_mutation_target_binding,
 			application::review_mutation_acting_identity,
 			application::review_mutation_request,
-			review_submission_request>;
+			review_submission_request,
+			application::review_thread_resolution_request>;
 
 		semantic_type                       Semantic;
 		application::github_server_contract Server    = application::github_server_contract::github_com_2022_11_28;
@@ -133,6 +139,14 @@ namespace bpr::adapters::github::detail {
 		std::vector<application::review_database_id> ReviewIds;
 		std::vector<review_submission_observation>   ExactReviews;
 	};
+	/// \brief [[BPR-0657]]. The exact thread state the server answered with.
+	struct review_thread_resolution_observation
+	{
+		application::review_thread_resolution_receipt Receipt;
+
+		auto operator<=>(const review_thread_resolution_observation&) const = default;
+	};
+
 	struct review_mutation_server_reconciliation
 	{
 		std::vector<application::review_comment_projection> Projection;
@@ -168,6 +182,18 @@ namespace bpr::adapters::github::detail {
 		const review_submission_request&    aRequest,
 		application::github_server_contract aServer = application::github_server_contract::github_com_2022_11_28)
 		-> review_mutation_request_result;
+	/// \brief [[BPR-0657]]. Compiles the GraphQL mutation that resolves or
+	/// unresolves one thread; refused for an unbound or malformed request.
+	[[nodiscard]] auto compile_thread_resolution_request(
+		const application::review_thread_resolution_request& aRequest,
+		application::github_server_contract                  aServer
+		= application::github_server_contract::github_com_2022_11_28)
+		-> review_mutation_request_result;
+	/// \brief [[BPR-0657]]. Accepts only the exact thread in the state asked for.
+	[[nodiscard]] auto parse_thread_resolution_response(
+		const review_mutation_wire_response&                 aResponse,
+		const application::review_thread_resolution_request& aExpected)
+		-> review_mutation_parse_result<review_thread_resolution_observation>;
 	[[nodiscard]] auto compile_review_comment_observation_request(
 		const application::review_mutation_request& aRequest,
 		application::github_server_contract         aServer = application::github_server_contract::github_com_2022_11_28)
@@ -303,6 +329,12 @@ namespace bpr::adapters::github::detail {
 			const application::review_mutation_request& aRequest,
 			std::stop_token                             aStop = { })
 			-> application::review_mutation_submission;
+		/// \brief [[BPR-0657]]. Resolves or unresolves one thread through the
+		/// leased transport; idempotent on the server, so no recovery record.
+		[[nodiscard]] auto resolve_thread(
+			const application::review_thread_resolution_request& aRequest,
+			std::stop_token                                      aStop = { })
+			-> std::expected<application::review_thread_resolution_receipt, application::review_mutation_failure>;
 
 	private:
 		[[nodiscard]] auto observe_exact(std::stop_token aStop)

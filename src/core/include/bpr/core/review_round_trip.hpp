@@ -63,6 +63,9 @@ namespace bpr::core {
 		source_line_ref    Anchor;
 		std::string        Body;
 		review_draft_state State = review_draft_state::drafting;
+		/// [[BPR-0657]]. The thread this draft answers, by the provider's
+		/// opaque thread identity, or none for a new root comment at the line.
+		std::optional<std::string> ReplyToThread;
 
 		[[nodiscard]] auto shared() const noexcept -> bool
 		{
@@ -198,6 +201,9 @@ namespace bpr::core {
 		source_line_ref    Anchor;
 		std::string        Body;
 		review_disposition Disposition = review_disposition::comment;
+		/// [[BPR-0657]]. Carried from the draft: the thread the comment
+		/// answers, or none.
+		std::optional<std::string> ReplyToThread;
 
 		auto operator<=>(const review_publication_proposal&) const = default;
 	};

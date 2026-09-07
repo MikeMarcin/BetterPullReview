@@ -79,6 +79,42 @@ namespace bpr::adapters::github::detail {
 				: std::string_view{ };
 		}
 
+		/// [[BPR-0657]]. GitHub's GraphQL root: beside the REST root on
+		/// github.com, under `/api` on GitHub Enterprise Server.
+		[[nodiscard]] constexpr auto graphql_path(
+			const application::github_server_contract aServer) noexcept -> std::string_view
+		{
+			return aServer == application::github_server_contract::ghes_3_18_2022_11_28
+				? std::string_view{ "/api/graphql" }
+				: std::string_view{ "/graphql" };
+		}
+
+		/// The operation names are the ones the read contract reserves as
+		/// mutations, so a document that reaches the read transport is refused
+		/// by name.
+		constexpr auto reply_document = std::string_view{
+			"mutation ReplyToThread($thread:ID!,$body:String!){"
+			"addPullRequestReviewThreadReply(input:{pullRequestReviewThreadId:$thread,body:$body}){"
+			"comment{id databaseId body path line commit{oid} author{login} viewerDidAuthor}}}"
+		};
+		constexpr auto resolve_document = std::string_view{
+			"mutation ResolveThread($thread:ID!){resolveReviewThread(input:{threadId:$thread}){"
+			"thread{id isResolved}}}"
+		};
+		constexpr auto unresolve_document = std::string_view{
+			"mutation UnresolveThread($thread:ID!){unresolveReviewThread(input:{threadId:$thread}){"
+			"thread{id isResolved}}}"
+		};
+
+		[[nodiscard]] auto graphql_token(const std::string_view aValue) noexcept -> bool
+		{
+			return !aValue.empty() && aValue.size() <= 256U
+				&& std::ranges::all_of(aValue, [](const char aCharacter) {
+					   const auto byte = static_cast<unsigned char>(aCharacter);
+					   return byte >= 0x21U && byte <= 0x7eU && aCharacter != '"' && aCharacter != '\\';
+				   });
+		}
+
 		[[nodiscard]] auto utf8_round_trip(const std::string_view aText) -> bool
 		{
 			const auto decoded = QString::fromUtf8(
@@ -255,6 +291,162 @@ namespace bpr::adapters::github::detail {
 			};
 		};
 
+		// [[BPR-0657]]. The GraphQL envelopes, outbound and inbound.
+		struct reply_variables_json
+		{
+			std::string_view Thread;
+			std::string_view Body;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"thread", &reply_variables_json::Thread,
+					"body", &reply_variables_json::Body);
+			};
+		};
+		struct reply_query_json
+		{
+			std::string_view     Query;
+			reply_variables_json Variables;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"query", &reply_query_json::Query,
+					"variables", &reply_query_json::Variables);
+			};
+		};
+		struct resolution_variables_json
+		{
+			std::string_view Thread;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("thread", &resolution_variables_json::Thread);
+			};
+		};
+		struct resolution_query_json
+		{
+			std::string_view          Query;
+			resolution_variables_json Variables;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"query", &resolution_query_json::Query,
+					"variables", &resolution_query_json::Variables);
+			};
+		};
+		struct reply_commit_json
+		{
+			std::string Oid;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("oid", &reply_commit_json::Oid);
+			};
+		};
+		struct reply_author_json
+		{
+			std::string Login;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("login", &reply_author_json::Login);
+			};
+		};
+		struct reply_comment_json
+		{
+			std::string       Id;
+			std::uint64_t     DatabaseId = 0U;
+			std::string       Body;
+			std::string       Path;
+			std::uint64_t     Line = 0U;
+			reply_commit_json Commit;
+			reply_author_json Author;
+			bool              ViewerDidAuthor = false;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"id", &reply_comment_json::Id,
+					"databaseId", &reply_comment_json::DatabaseId,
+					"body", &reply_comment_json::Body,
+					"path", &reply_comment_json::Path,
+					"line", &reply_comment_json::Line,
+					"commit", &reply_comment_json::Commit,
+					"author", &reply_comment_json::Author,
+					"viewerDidAuthor", &reply_comment_json::ViewerDidAuthor);
+			};
+		};
+		struct reply_payload_json
+		{
+			reply_comment_json Comment;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("comment", &reply_payload_json::Comment);
+			};
+		};
+		struct reply_data_json
+		{
+			reply_payload_json Reply;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("addPullRequestReviewThreadReply", &reply_data_json::Reply);
+			};
+		};
+		struct reply_response_json
+		{
+			reply_data_json Data;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("data", &reply_response_json::Data);
+			};
+		};
+		struct resolution_thread_json
+		{
+			std::string Id;
+			bool        IsResolved = false;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"id", &resolution_thread_json::Id,
+					"isResolved", &resolution_thread_json::IsResolved);
+			};
+		};
+		struct resolution_payload_json
+		{
+			resolution_thread_json Thread;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("thread", &resolution_payload_json::Thread);
+			};
+		};
+		struct resolve_data_json
+		{
+			resolution_payload_json Resolve;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("resolveReviewThread", &resolve_data_json::Resolve);
+			};
+		};
+		struct unresolve_data_json
+		{
+			resolution_payload_json Unresolve;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("unresolveReviewThread", &unresolve_data_json::Unresolve);
+			};
+		};
+		struct resolve_response_json
+		{
+			resolve_data_json Data;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("data", &resolve_response_json::Data);
+			};
+		};
+		struct unresolve_response_json
+		{
+			unresolve_data_json Data;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("data", &unresolve_response_json::Data);
+			};
+		};
 		struct target_head_json
 		{
 			std::string Sha;
@@ -347,6 +539,32 @@ namespace bpr::adapters::github::detail {
 				}
 			}
 			return std::move(*bytes);
+		}
+
+		// [[BPR-0657]]. The reply's GraphQL envelope: the reserved document
+		// and the two variables, written by the same JSON rules as the REST
+		// body so the durable fingerprint is byte-stable.
+		[[nodiscard]] auto reply_body(const application::review_mutation_request& aRequest) -> std::string
+		{
+			const auto object = reply_query_json{
+				.Query     = reply_document,
+				.Variables = {
+					.Thread = *aRequest.Proposal.ReplyToThread,
+					.Body   = aRequest.Proposal.Body,
+				},
+			};
+			auto bytes = glz::write<review_json_options{ }>(object);
+			return bytes ? std::move(*bytes) : std::string{ };
+		}
+
+		[[nodiscard]] auto resolution_body(const application::review_thread_resolution_request& aRequest) -> std::string
+		{
+			const auto object = resolution_query_json{
+				.Query     = aRequest.Resolve ? resolve_document : unresolve_document,
+				.Variables = { .Thread = aRequest.Thread },
+			};
+			auto bytes = glz::write<review_json_options{ }>(object);
+			return bytes ? std::move(*bytes) : std::string{ };
 		}
 
 		[[nodiscard]] auto submission_names(const core::review_disposition aDisposition)
@@ -775,6 +993,36 @@ namespace bpr::adapters::github::detail {
 			};
 		}
 
+		// [[BPR-0657]]. A reply answered by GraphQL: the same identity checks a
+		// REST comment gets, over the fields the mutation returns.
+		[[nodiscard]] auto reply_observation(const reply_comment_json&                   aComment,
+											 const application::review_mutation_request& aExpected)
+			-> review_mutation_parse_result<review_mutation_comment_observation>
+		{
+			const auto     commit            = core::parse_git_commit_oid(aComment.Commit.Oid);
+			constexpr auto maximumGithubLine = static_cast<std::uint64_t>(std::numeric_limits<std::uint32_t>::max()) + 1U;
+			if (aComment.Id.empty() || aComment.DatabaseId == 0U || !commit
+				|| aComment.Line == 0U || aComment.Line > maximumGithubLine) {
+				return failed(review_mutation_contract_failure::malformed_response);
+			}
+			const auto& binding      = *aExpected.LiveBinding;
+			const auto  semanticLine = static_cast<std::uint32_t>(aComment.Line - 1U);
+			if (aComment.Path != binding.Anchor.Path || *commit != binding.Anchor.Commit
+				|| semanticLine != binding.Anchor.Semantic.Line
+				|| aComment.Body != aExpected.Proposal.Body || !aComment.ViewerDidAuthor
+				|| aComment.Author.Login != binding.ActingIdentity.Login) {
+				return failed(review_mutation_contract_failure::identity_mismatch);
+			}
+			return review_mutation_comment_observation{
+				.Receipt    = { .ServerCommentId = aComment.Id, .Duplicate = false },
+				.DatabaseId = aComment.DatabaseId,
+				.NodeId     = aComment.Id,
+				.Anchor     = binding.Anchor,
+				.Body       = aComment.Body,
+				.Author     = binding.ActingIdentity,
+			};
+		}
+
 		[[nodiscard]] auto response_headers_valid(
 			const review_mutation_wire_response& aResponse) noexcept -> bool
 		{
@@ -914,6 +1162,27 @@ namespace bpr::adapters::github::detail {
 		}
 		auto headers = common_headers();
 		headers.push_back({ .Name = "Content-Type", .Value = "application/json" });
+		// [[BPR-0657]]. A reply names its thread and goes by GraphQL, the only
+		// GitHub API that addresses a thread by the identity the read side
+		// reported; a new root comment keeps the REST form.
+		if (aRequest.Proposal.ReplyToThread.has_value()) {
+			if (!graphql_token(*aRequest.Proposal.ReplyToThread)) {
+				return failed(review_mutation_contract_failure::invalid_request);
+			}
+			auto body = reply_body(aRequest);
+			if (body.empty() || body.size() > maximum_review_mutation_body_bytes) {
+				return failed(review_mutation_contract_failure::invalid_request);
+			}
+			return review_mutation_wire_request{
+				.Semantic  = aRequest,
+				.Server    = aServer,
+				.Operation = review_mutation_operation::reply_review_thread,
+				.Method    = http_method::post,
+				.Path      = std::string{ graphql_path(aServer) },
+				.Headers   = std::move(headers),
+				.Body      = std::move(body),
+			};
+		}
 		auto body = mutation_body(aRequest);
 		if (body.empty() || body.size() > maximum_review_mutation_body_bytes) {
 			return failed(review_mutation_contract_failure::invalid_request);
@@ -924,6 +1193,36 @@ namespace bpr::adapters::github::detail {
 			.Operation = review_mutation_operation::create_review_comment,
 			.Method    = http_method::post,
 			.Path      = pull_request_path(aRequest.LiveBinding->Target, aServer) + "/comments",
+			.Headers   = std::move(headers),
+			.Body      = std::move(body),
+		};
+	}
+
+	auto compile_thread_resolution_request(
+		const application::review_thread_resolution_request& aRequest,
+		const application::github_server_contract            aServer)
+		-> review_mutation_request_result
+	{
+		if (!valid_server(aServer) || !aRequest.LiveBinding.has_value()
+			|| !application::valid(*aRequest.LiveBinding)
+			|| aRequest.Target != aRequest.LiveBinding->Target.Semantic
+			|| aRequest.ActingIdentity != aRequest.LiveBinding->ActingIdentity.Account
+			|| !graphql_token(aRequest.Thread)) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		auto headers = common_headers();
+		headers.push_back({ .Name = "Content-Type", .Value = "application/json" });
+		auto body = resolution_body(aRequest);
+		if (body.empty() || body.size() > maximum_review_mutation_body_bytes) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		return review_mutation_wire_request{
+			.Semantic  = aRequest,
+			.Server    = aServer,
+			.Operation = aRequest.Resolve ? review_mutation_operation::resolve_review_thread
+										  : review_mutation_operation::unresolve_review_thread,
+			.Method    = http_method::post,
+			.Path      = std::string{ graphql_path(aServer) },
 			.Headers   = std::move(headers),
 			.Body      = std::move(body),
 		};
@@ -1013,8 +1312,12 @@ namespace bpr::adapters::github::detail {
 						canonical = aRequest.Operation == review_mutation_operation::observe_reviews
 							? compile_review_submission_observation_request(aSemantic, aRequest.Server)
 							: compile_review_submission_request(aSemantic, aRequest.Server);
+					} else if constexpr (std::same_as<semantic_type, application::review_thread_resolution_request>) {
+						canonical = compile_thread_resolution_request(aSemantic, aRequest.Server);
 					} else if (aRequest.Operation
-							   == review_mutation_operation::create_review_comment) {
+								   == review_mutation_operation::create_review_comment
+							   || aRequest.Operation
+								   == review_mutation_operation::reply_review_thread) {
 						canonical = compile_review_comment_request(aSemantic, aRequest.Server);
 					} else if (aRequest.Operation
 							   == review_mutation_operation::observe_review_comments) {
@@ -1111,6 +1414,18 @@ namespace bpr::adapters::github::detail {
 		const application::review_mutation_request& aExpected)
 		-> review_mutation_parse_result<review_mutation_comment_observation>
 	{
+		// [[BPR-0657]]. A reply comes back from GraphQL as 200 with an
+		// envelope; a new root comment from REST as 201 with the comment.
+		if (aExpected.Proposal.ReplyToThread.has_value()) {
+			if (aResponse.Status != 200 || !response_headers_valid(aResponse) || !aExpected.LiveBinding) {
+				return failed(review_mutation_contract_failure::invalid_status);
+			}
+			const auto response = document<reply_response_json>(aResponse);
+			if (!response) {
+				return failed(review_mutation_contract_failure::malformed_response);
+			}
+			return reply_observation(response->Data.Reply.Comment, aExpected);
+		}
 		if (aResponse.Status != 201 || !response_headers_valid(aResponse) || !aExpected.LiveBinding) {
 			return failed(review_mutation_contract_failure::invalid_status);
 		}
@@ -1119,6 +1434,36 @@ namespace bpr::adapters::github::detail {
 			return failed(review_mutation_contract_failure::malformed_response);
 		}
 		return comment_observation(*response, aExpected);
+	}
+
+	auto parse_thread_resolution_response(
+		const review_mutation_wire_response&                 aResponse,
+		const application::review_thread_resolution_request& aExpected)
+		-> review_mutation_parse_result<review_thread_resolution_observation>
+	{
+		if (!compile_thread_resolution_request(aExpected, aExpected.LiveBinding ? aExpected.LiveBinding->Target.ServerContract : application::github_server_contract::github_com_2022_11_28).has_value()) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		if (aResponse.Status != 200 || !response_headers_valid(aResponse)) {
+			return failed(review_mutation_contract_failure::invalid_status);
+		}
+		auto thread = std::optional<resolution_thread_json>{ };
+		if (aExpected.Resolve) {
+			if (const auto response = document<resolve_response_json>(aResponse); response) {
+				thread = response->Data.Resolve.Thread;
+			}
+		} else if (const auto response = document<unresolve_response_json>(aResponse); response) {
+			thread = response->Data.Unresolve.Thread;
+		}
+		if (!thread.has_value()) {
+			return failed(review_mutation_contract_failure::malformed_response);
+		}
+		if (thread->Id != aExpected.Thread || thread->IsResolved != aExpected.Resolve) {
+			return failed(review_mutation_contract_failure::identity_mismatch);
+		}
+		return review_thread_resolution_observation{
+			.Receipt = { .Thread = thread->Id, .Resolved = thread->IsResolved },
+		};
 	}
 
 	auto parse_review_submission_response(
@@ -1425,6 +1770,44 @@ namespace bpr::adapters::github::detail {
 		-> std::expected<application::review_mutation_receipt, application::review_mutation_failure>
 	{
 		return submit_and_reconcile(aRequest, aStop).Result;
+	}
+
+	auto review_mutation_session::resolve_thread(
+		const application::review_thread_resolution_request& aRequest,
+		const std::stop_token                                aStop)
+		-> std::expected<application::review_thread_resolution_receipt, application::review_mutation_failure>
+	{
+		try {
+			std::scoped_lock lock{ Mutex };
+			if (aStop.stop_requested()) {
+				return std::unexpected(application::review_mutation_failure::cancelled);
+			}
+			if (Lease == nullptr || !Lease->active()) {
+				return std::unexpected(application::review_mutation_failure::unavailable);
+			}
+			if (!valid(Configuration) || !aRequest.LiveBinding.has_value()
+				|| !application::valid(*aRequest.LiveBinding)
+				|| aRequest.LiveBinding->Target != Configuration.Target
+				|| aRequest.LiveBinding->ActingIdentity != Configuration.ActingIdentity) {
+				return std::unexpected(application::review_mutation_failure::undesignated_target);
+			}
+			const auto wire = compile_thread_resolution_request(
+				aRequest, Configuration.CredentialContext.Authority.ServerContract);
+			if (!wire.has_value()) {
+				return std::unexpected(map_contract_failure(wire.error()));
+			}
+			auto response = perform(*wire, aStop, { });
+			if (!response.has_value()) {
+				return std::unexpected(response.error());
+			}
+			const auto observed = parse_thread_resolution_response(*response, aRequest);
+			if (!observed.has_value()) {
+				return std::unexpected(map_contract_failure(observed.error()));
+			}
+			return observed->Receipt;
+		} catch (const std::bad_alloc&) {
+			return std::unexpected(application::review_mutation_failure::unavailable);
+		}
 	}
 
 	auto review_mutation_session::submit_and_reconcile(

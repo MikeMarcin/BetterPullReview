@@ -231,6 +231,146 @@ namespace {
 		return { .Status = 200, .Body = fixture_json(aObject) };
 	}
 
+	// [[BPR-0657]]. A reply names its thread and goes by GraphQL with the
+	// reserved ReplyToThread document; a new root keeps REST. The reply's
+	// response is held to the same identity as a REST comment. Resolve and
+	// unresolve compile to the reserved documents and accept only the exact
+	// thread in the state asked for.
+	void test_replies_and_thread_resolution_go_by_graphql_exactly()
+	{
+		auto reply                   = request();
+		reply.Proposal.ReplyToThread = "PRRT_fixture_1";
+		reply.IdempotencyKey         = application::idempotency_key_for(reply.Proposal, reply.Target);
+		expect(reply.IdempotencyKey != request().IdempotencyKey,
+			   "a reply and a root at the same line with the same body are different publications");
+		const auto compiled = compile_review_comment_request(reply);
+		expect(compiled.has_value(), "reply request compiles");
+		const auto document = std::string{
+			"mutation ReplyToThread($thread:ID!,$body:String!){"
+			"addPullRequestReviewThreadReply(input:{pullRequestReviewThreadId:$thread,body:$body}){"
+			"comment{id databaseId body path line commit{oid} author{login} viewerDidAuthor}}}"
+		};
+		expect(compiled->Operation == review_mutation_operation::reply_review_thread
+				   && compiled->Method == http_method::post && compiled->Path == "/graphql"
+				   && compiled->Headers.size() == 4U
+				   && compiled->Body
+					   == "{\"query\":\"" + document
+						   + "\",\"variables\":{\"thread\":\"PRRT_fixture_1\",\"body\":\"Please rename this.\"}}",
+			   "reply request is the reserved document with exact variables at the GraphQL root");
+		expect(validate_outbound_review_mutation_request(*compiled).has_value(),
+			   "reply request revalidates canonically");
+		const auto ghes = compile_review_comment_request(
+			reply, application::github_server_contract::ghes_3_18_2022_11_28);
+		expect(ghes.has_value() && ghes->Path == "/api/graphql",
+			   "GHES replies use the exact GraphQL root");
+		for (const auto tamper : { 0, 1, 2 }) {
+			auto changed = *compiled;
+			switch (tamper) {
+			case 0:
+				changed.Operation = review_mutation_operation::create_review_comment;
+				break;
+			case 1:
+				changed.Path = "/repos/MikeMarcin/BPR-Test/pulls/1/comments";
+				break;
+			case 2:
+				changed.Body += ' ';
+				break;
+			default:
+				std::abort();
+			}
+			expect(!validate_outbound_review_mutation_request(changed).has_value(),
+				   "any reply wire tamper is rejected");
+		}
+		auto badThread                   = reply;
+		badThread.Proposal.ReplyToThread = "PRRT_\"fixture";
+		badThread.IdempotencyKey         = application::idempotency_key_for(badThread.Proposal, badThread.Target);
+		expect(!compile_review_comment_request(badThread).has_value(),
+			   "a thread identity outside the GraphQL token vocabulary is refused");
+
+		const auto replyBody = [](const std::string_view aLogin, const std::string_view aBody) {
+			return std::string{ "{\"data\":{\"addPullRequestReviewThreadReply\":{\"comment\":{"
+								"\"id\":\"PRRC_reply_45\",\"databaseId\":45,\"body\":\"" }
+			+ std::string{ aBody } + "\",\"path\":\"fixture/review.txt\",\"line\":13,\"commit\":{\"oid\":\""
+				+ std::string{ core::canonical_hex(target().Semantic.ExpectedHead).view() }
+			+ "\"},\"author\":{\"login\":\"" + std::string{ aLogin } + "\"},\"viewerDidAuthor\":true}}}}";
+		};
+		const auto parsed = parse_review_comment_response(
+			{ .Status = 200, .Body = replyBody("fixture-reviewer", "Please rename this.") }, reply);
+		expect(parsed.has_value() && parsed->NodeId == "PRRC_reply_45" && parsed->DatabaseId == 45U
+				   && parsed->Receipt.ServerCommentId == "PRRC_reply_45" && !parsed->Receipt.Duplicate
+				   && parsed->Anchor == reply.LiveBinding->Anchor,
+			   "an exact reply response yields the comment's node identity and the bound anchor");
+		expect(!parse_review_comment_response(
+					{ .Status = 201, .Body = replyBody("fixture-reviewer", "Please rename this.") }, reply)
+					.has_value(),
+			   "a reply is a 200 GraphQL envelope, never a 201 comment");
+		const auto otherAuthor = parse_review_comment_response(
+			{ .Status = 200, .Body = replyBody("someone-else", "Please rename this.") }, reply);
+		expect(!otherAuthor.has_value() && otherAuthor.error() == review_mutation_contract_failure::identity_mismatch,
+			   "a reply by another login is an identity mismatch");
+		const auto otherBody = parse_review_comment_response(
+			{ .Status = 200, .Body = replyBody("fixture-reviewer", "Something else.") }, reply);
+		expect(!otherBody.has_value() && otherBody.error() == review_mutation_contract_failure::identity_mismatch,
+			   "a reply with another body is an identity mismatch");
+		expect(!parse_review_comment_response({ .Status = 200, .Body = "{\"data\":null}" }, reply).has_value(),
+			   "a GraphQL error envelope is malformed for a reply");
+
+		const auto resolution = application::review_thread_resolution_request{
+			.Target         = target().Semantic,
+			.ActingIdentity = identity().Account,
+			.Thread         = "PRRT_fixture_1",
+			.Resolve        = true,
+			.LiveBinding    = reply.LiveBinding,
+		};
+		const auto resolve = compile_thread_resolution_request(resolution);
+		expect(resolve.has_value() && resolve->Operation == review_mutation_operation::resolve_review_thread
+				   && resolve->Method == http_method::post && resolve->Path == "/graphql"
+				   && resolve->Body
+					   == "{\"query\":\"mutation ResolveThread($thread:ID!){resolveReviewThread(input:{threadId:$thread}){"
+						  "thread{id isResolved}}}\",\"variables\":{\"thread\":\"PRRT_fixture_1\"}}",
+			   "resolve compiles to the reserved document with the exact thread");
+		expect(validate_outbound_review_mutation_request(*resolve).has_value(), "resolve revalidates canonically");
+		auto unresolution    = resolution;
+		unresolution.Resolve = false;
+		const auto unresolve = compile_thread_resolution_request(unresolution);
+		expect(unresolve.has_value() && unresolve->Operation == review_mutation_operation::unresolve_review_thread
+				   && unresolve->Body.find("unresolveReviewThread") != std::string::npos
+				   && unresolve->Body.find("mutation UnresolveThread") != std::string::npos,
+			   "unresolve compiles to its own reserved document");
+		auto unbound               = resolution;
+		unbound.LiveBinding        = std::nullopt;
+		auto foreign               = resolution;
+		foreign.Target.PullRequest = core::pull_request_id{ 99U };
+		auto blankThread           = resolution;
+		blankThread.Thread         = "";
+		expect(!compile_thread_resolution_request(unbound).has_value()
+				   && !compile_thread_resolution_request(foreign).has_value()
+				   && !compile_thread_resolution_request(blankThread).has_value(),
+			   "an unbound, foreign or nameless resolution is refused before the wire");
+
+		const auto resolved = parse_thread_resolution_response(
+			{ .Status = 200, .Body = "{\"data\":{\"resolveReviewThread\":{\"thread\":{\"id\":\"PRRT_fixture_1\",\"isResolved\":true}}}}" },
+			resolution);
+		expect(resolved.has_value() && resolved->Receipt.Thread == "PRRT_fixture_1" && resolved->Receipt.Resolved,
+			   "an exact resolve response yields the resolved thread");
+		const auto stillOpen = parse_thread_resolution_response(
+			{ .Status = 200, .Body = "{\"data\":{\"resolveReviewThread\":{\"thread\":{\"id\":\"PRRT_fixture_1\",\"isResolved\":false}}}}" },
+			resolution);
+		expect(!stillOpen.has_value() && stillOpen.error() == review_mutation_contract_failure::identity_mismatch,
+			   "a thread not in the state asked for is a mismatch, not a success");
+		const auto otherThread = parse_thread_resolution_response(
+			{ .Status = 200, .Body = "{\"data\":{\"resolveReviewThread\":{\"thread\":{\"id\":\"PRRT_fixture_2\",\"isResolved\":true}}}}" },
+			resolution);
+		expect(!otherThread.has_value() && otherThread.error() == review_mutation_contract_failure::identity_mismatch,
+			   "another thread's state is a mismatch");
+		const auto unresolved = parse_thread_resolution_response(
+			{ .Status = 200, .Body = "{\"data\":{\"unresolveReviewThread\":{\"thread\":{\"id\":\"PRRT_fixture_1\",\"isResolved\":false}}}}" },
+			unresolution);
+		expect(unresolved.has_value() && !unresolved->Receipt.Resolved, "an exact unresolve response yields the open thread");
+		expect(!parse_thread_resolution_response({ .Status = 401, .Body = "{}" }, resolution).has_value(),
+			   "a non-200 resolve answer is an invalid status");
+	}
+
 	void test_whole_review_dispositions_and_literal_summary()
 	{
 		struct review_case
@@ -714,6 +854,7 @@ auto main() -> int
 			   == R"({"fraction":1.5,"large":9007199254740993,"negative":-1,"null":null})",
 		   "semantic fixtures retain explicit null and signed, fractional and exact unsigned numbers");
 	test_exact_wire_compilation_and_tamper_rejection();
+	test_replies_and_thread_resolution_go_by_graphql_exactly();
 	test_whole_review_dispositions_and_literal_summary();
 	test_whole_review_request_rejection();
 	test_whole_review_response_rejection();

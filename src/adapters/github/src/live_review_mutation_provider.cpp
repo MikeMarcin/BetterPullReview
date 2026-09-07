@@ -53,11 +53,21 @@ namespace bpr::adapters::github {
 		return Session.submit_and_reconcile(aRequest, aStop);
 	}
 
+	auto live_review_mutation_provider::resolve_thread(
+		const application::review_thread_resolution_request& aRequest,
+		const std::stop_token                                aStop)
+		-> std::expected<application::review_thread_resolution_receipt, application::review_mutation_failure>
+	{
+		return Session.resolve_thread(aRequest, aStop);
+	}
+
 	auto live_review_mutation_provider::capabilities() const
 		-> application::review_provider_capabilities
 	{
+		// [[BPR-0657]]. Threads resolve through the leased GraphQL mutation;
+		// viewed state is still not recorded.
 		return {
-			.ResolvesThreads    = false,
+			.ResolvesThreads    = true,
 			.RecordsViewedState = false,
 		};
 	}
