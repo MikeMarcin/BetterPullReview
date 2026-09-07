@@ -763,17 +763,36 @@ namespace {
 				oid('3', core::git_hash_algorithm::sha1))
 				.view()
 		};
-		const auto mismatched = bytes(
+		// [[BPR-0667]]. The base branch has moved on, as it does whenever
+		// anything else merges; the advertisement says where it is now and the
+		// pull request keeps the base it recorded. Refusing this made the
+		// review history unavailable for nearly every real pull request.
+		const auto movedBase = bytes(
 			packet(std::string{ wrongOid } + " refs/heads/main\n")
 			+ packet(std::string{ head } + " refs/pull/81/head\n") + "0000");
-		const auto mismatchResult = application::detail::parse_git_protocol_v2_ls_refs(
-			mismatched,
+		const auto movedBaseResult = application::detail::parse_git_protocol_v2_ls_refs(
+			movedBase,
 			requestContext);
 		expect(
-			!mismatchResult.has_value()
-				&& mismatchResult.error().Failure
+			movedBaseResult.has_value()
+				&& movedBaseResult->Base
+					== oid('3', core::git_hash_algorithm::sha1)
+				&& movedBaseResult->Head == requestContext.Revision.Head,
+			"a base branch that has moved is reported where it is, not refused");
+
+		// The pull request's own head never moves. Another oid there is a
+		// different pull request, or a server substituting one.
+		const auto substitutedHead = bytes(
+			packet(std::string{ base } + " refs/heads/main\n")
+			+ packet(std::string{ wrongOid } + " refs/pull/81/head\n") + "0000");
+		const auto substitutedResult = application::detail::parse_git_protocol_v2_ls_refs(
+			substitutedHead,
+			requestContext);
+		expect(
+			!substitutedResult.has_value()
+				&& substitutedResult.error().Failure
 					== application::git_protocol_v2_failure::oid_mismatch,
-			"an advertised ref at the wrong accepted oid is rejected");
+			"a pull request head advertised at another oid is refused");
 
 		const auto noLf = bytes(
 			packet(std::string{ base } + " refs/heads/main")

@@ -705,10 +705,15 @@ namespace bpr::application {
 						return std::unexpected(
 							protocol_error(git_protocol_v2_failure::duplicate_ref));
 					}
-					if (*oid != aContext.Revision.Base) {
-						return std::unexpected(
-							protocol_error(git_protocol_v2_failure::oid_mismatch));
-					}
+					// [[BPR-0667]]. Where the base branch points now, which is
+					// not what the pull request recorded and must not be
+					// required to be: a base branch moves whenever anything
+					// else merges, and demanding equality here made the review
+					// history unavailable for nearly every pull request on an
+					// active repository. The base object's identity is
+					// guaranteed where it can be: the fetch wants that exact
+					// oid and `git_prepare_revision_request` prepares against
+					// it, so a substituted object is still refused.
 					refs.Base = *oid;
 					baseSeen  = true;
 				} else if (refName == prRef) {

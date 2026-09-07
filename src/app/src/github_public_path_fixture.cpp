@@ -913,10 +913,18 @@ namespace bpr::app::detail {
 			-> std::vector<std::byte>
 		{
 			auto result = std::vector<std::byte>{ };
+			// [[BPR-0667]]. A real remote advertises where the base branch is
+			// now, which is ahead of the base the pull request recorded as
+			// soon as anything else merges. Advertising the recorded base
+			// here made every course agree with a client that required them
+			// to be equal, and hid a product that could not open a pull
+			// request on any active repository.
+			constexpr auto movedBaseBranch
+				= std::string_view{ "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4" };
 			append_packet(
 				result,
-				std::string{ core::canonical_hex(aContext.Revision.Base).view() }
-					+ " " + std::string{ aContext.BaseRef.view() } + "\n");
+				std::string{ movedBaseBranch } + " "
+					+ std::string{ aContext.BaseRef.view() } + "\n");
 			append_packet(
 				result,
 				std::string{ core::canonical_hex(aContext.Revision.Head).view() }

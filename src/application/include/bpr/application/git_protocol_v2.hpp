@@ -58,7 +58,11 @@ namespace bpr::application {
 	/// \brief Describes the git protocol v2 refs record.
 	struct git_protocol_v2_refs
 	{
+		/// [[BPR-0667]]. Where the base branch points now, which is ordinarily
+		/// ahead of the base the pull request recorded.
 		core::git_commit_oid Base;
+		/// The pull request's own head, which never moves; an advertisement of
+		/// any other oid there is refused as `oid_mismatch`.
 		core::git_commit_oid Head;
 
 		auto operator<=>(const git_protocol_v2_refs&) const = default;
