@@ -2,6 +2,7 @@
 #include "bpr/qt/workbench_window.hpp"
 
 #include "bpr/qt/device_authorization_panel.hpp"
+#include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
@@ -787,13 +788,16 @@ namespace {
 		// accounts page, another top-level window with its own tab chain, so
 		// the workbench declares none of them; the queue and the pull request
 		// details keep their order.
+		// The queue is Home's, hidden while a pull request is open, so its
+		// order is a claim on the full declaration rather than on what is
+		// reachable now.
 		expect(
 			!declaredTabStops.contains(window.profile_selector())
 				&& !declaredTabStops.contains(connectButton)
 				&& !declaredTabStops.contains(connectionButton)
 				&& !declaredTabStops.contains(refreshButton)
 				&& containsInOrder(
-					declaredTabStops,
+					window.focus_order(),
 					{
 						window.queue_view(),
 						window.queue_role_filter(),
@@ -813,9 +817,9 @@ namespace {
 					}),
 			"session controls and available queue stops retain Exclude, Add, Remove, then technical-details order");
 		expect(
-			declaredTabStops.count(addRuleButton) == 1
-				&& declaredTabStops.count(removeRuleButton) == 1,
-			"each enabled observer-rule presenter appears once in the declared and live Qt chain");
+			window.focus_order().count(addRuleButton) == 1
+				&& window.focus_order().count(removeRuleButton) == 1,
+			"each enabled observer-rule presenter appears once in the declared chain");
 
 		connectionButton->setFocus(Qt::TabFocusReason);
 		connectionButton->click();
@@ -3007,6 +3011,16 @@ namespace {
 		QApplication::processEvents();
 		auto* const landing = window.home_landing();
 		expect(
+			window.showing_home() && window.home_page()->isVisible()
+				&& !window.files_drawer()->isVisible()
+				&& !window.conversations_drawer()->isVisible()
+				&& !window.epoch_selectors()->isVisible()
+				&& !window.comparison_surface()->isVisible()
+				&& window.queue_view()->isVisible()
+				&& window.home_page()->isAncestorOf(window.queue_view()),
+			"with nothing open the centre is Home -- the landing and the review "
+			"queue -- and none of the review chrome is shown");
+		expect(
 			landing != nullptr && landing->isVisible()
 				&& landing->state() == qt::landing_state::sign_in
 				&& landing->title_label()->text()
@@ -3014,11 +3028,9 @@ namespace {
 				&& landing->primary_button()->isVisible()
 				&& landing->primary_button()->text().startsWith(
 					QStringLiteral("Sign in"))
-				&& landing->mapTo(&window, QPoint{ 0, 0 }).y()
-					< window.epoch_selectors()->mapTo(&window, QPoint{ 0, 0 }).y()
 				&& window.focus_order().contains(landing->primary_button()),
-			"signed out with nothing open, Home offers sign-in above the epoch "
-			"line and its buttons are focus stops");
+			"signed out with nothing open, Home offers sign-in and its buttons "
+			"are focus stops");
 
 		landing->primary_button()->click();
 		QApplication::processEvents();
@@ -3056,11 +3068,63 @@ namespace {
 			"focused");
 		window.settings()->hide();
 
+		// On Home the strip keeps only Home, account and settings.
+		auto* const homeButton = qobject_cast<QToolButton*>(
+			window.primary_toolbar()->widgetForAction(window.home_action()));
+		expect(
+			window.home_action() != nullptr && window.home_action()->isChecked()
+				&& window.home_action()->shortcut()
+					== QKeySequence{ QStringLiteral("Ctrl+0") }
+				&& homeButton != nullptr && homeButton->isVisible()
+				&& homeButton->accessibleName() == QStringLiteral("Home")
+				&& !window.primary_toolbar()
+						->widgetForAction(window.files_drawer_toggle_action())
+						->isVisible()
+				&& !window.modality()->isVisible()
+				&& !window.primary_toolbar()
+						->widgetForAction(window.github_refresh_action())
+						->isVisible()
+				&& window.primary_toolbar()
+					   ->widgetForAction(window.account_action())
+					   ->isVisible()
+				&& window.primary_toolbar()
+					   ->widgetForAction(window.settings_action())
+					   ->isVisible(),
+			"on Home the strip shows Home checked, account and settings, and "
+			"none of a pull request's controls");
+
 		publish_pull_request(window);
 		QApplication::processEvents();
 		expect(
-			!landing->isVisible(),
-			"with a pull request open Home's landing is gone");
+			!window.showing_home() && !landing->isVisible()
+				&& !window.home_action()->isChecked()
+				&& window.files_drawer()->isVisible()
+				&& window.epoch_selectors()->isVisible()
+				&& window.comparison_surface()->isVisible()
+				&& window.primary_toolbar()
+					   ->widgetForAction(window.files_drawer_toggle_action())
+					   ->isVisible()
+				&& window.modality()->isVisible(),
+			"with a pull request open the centre is the review workbench, Home "
+			"is gone and the strip is whole again");
+
+		// Home on demand over an open review, and the modality brings the
+		// review back.
+		window.home_action()->trigger();
+		QApplication::processEvents();
+		expect(
+			window.showing_home() && window.home_action()->isChecked()
+				&& window.modality()->isVisible()
+				&& !window.primary_toolbar()
+						->widgetForAction(window.files_drawer_toggle_action())
+						->isVisible(),
+			"the Home button shows Home over an open review and keeps the "
+			"modalities as the way back");
+		window.modality()->action(qt::review_modality::review)->trigger();
+		QApplication::processEvents();
+		expect(
+			!window.showing_home() && !window.home_action()->isChecked(),
+			"choosing a modality returns to the review");
 		window.hide();
 	}
 

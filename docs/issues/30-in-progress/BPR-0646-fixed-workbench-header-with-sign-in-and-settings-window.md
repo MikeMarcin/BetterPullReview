@@ -96,7 +96,7 @@ the window's title row.
   commands; the segment stays where it was chosen through a manual toggle.
   The account button reaches the device sign-in while signed out and the
   accounts settings page once signed in; refresh is the session chrome's own
-  action. The window's width floor rises from 480 to 820 so no strip control
+  action. The window's width floor rises from 480 to 860 (820 before the Home button) so no strip control
   ever folds into an overflow menu; the identity yields below 1180, the
   positions below 960, and the modality segments drop the shortcut beside
   their names below 1000. Not in this slice: the "next new comment" group,
@@ -269,3 +269,38 @@ the window's title row.
   Its buttons are focus stops before the epoch line. BPR-0650's Home
   action list builds on this surface once there is something to act on.
   Pinned by `test_home_landing_funnels_to_an_account_and_then_a_pull_request`.
+- Home (owner, 2026-09-06: "that screen is so full of stuff that makes zero
+  sense until you've picked a PR it may as well be hidden"). The centre is
+  a stack: Home (`workbenchHome`) while no pull request is open, no
+  comparison is held, no load is under way and no workbench is active; the
+  review workbench (drawers, epoch line, panes, review editor) otherwise.
+  Home holds the landing card, the pull request stack (whose empty page is
+  where a failed load says why), a "Review queue" heading and the review
+  queue with its filters and rules, given the room the drawer never could.
+  The pull request stack is one widget moved between Home and the drawer's
+  top region as the page changes, so the projections it receives have one
+  target. The files drawer holds files only. Pins that expected the queue
+  in the reachable tab chain with a pull request open now claim its order
+  on the full declaration; the review-details test activates the workbench
+  first. BPR-0650's grouped action list builds on this page. Home is decided
+  by whether the core offers the drawer command (the host publishes every
+  command refused at launch, which is not an active workbench), and on Home
+  while signed out the pull request stack's empty page, which would only
+  restate the card, is shown only when it carries a diagnostic. Observed in
+  the signed bundle at 1280x820: the strip, then Home alone -- the card,
+  "Review queue", the queue's list, filters and rule editor -- with no
+  drawers, epoch line, panes or review editor.
+- Home's strip and the Home button (owner, 2026-09-06: the four modalities
+  make no sense on Home; there should at least be a Home button). On Home the
+  strip keeps only Home, account and settings (and the inset and spacers
+  that place them); drawers, navigation, the modalities, review details and
+  refresh are a pull request's and return with one. Hiding a QAction also
+  disables it, so "a workbench is active" now means any command the core
+  offers, not the drawer command alone. The Home button sits after the
+  platform inset, before Files, with ⌘0, checked while Home shows; pressed
+  over an open review it shows Home with the modalities kept as the way
+  back, and a modality or a newly opened pull request returns to the
+  review. Whether Home should instead be a fifth modality in the segmented
+  control is left for the owner; the button answers the need either way.
+  The width floor rises to 860 for the extra button; the UIforETW probe
+  pins the twenty-one-entry row.

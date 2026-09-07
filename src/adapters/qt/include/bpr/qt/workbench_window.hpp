@@ -269,6 +269,18 @@ namespace bpr::qt {
 		[[nodiscard]] auto modality() const noexcept -> modality_control*;
 		/// \brief Home's landing while nothing is open: sign in, or choose.
 		[[nodiscard]] auto home_landing() const noexcept -> workbench_landing*;
+		/// \brief The strip's Home button: Home on demand, checked while shown.
+		[[nodiscard]] auto home_action() const noexcept -> QAction*;
+		/// \brief Shows Home, or returns to the review when Home was asked for.
+		void choose_home(bool aHome);
+		/// \brief Home: the whole centre while nothing is open.
+		///
+		/// \details [[BPR-0646]] [[BPR-0650]]. Home carries the landing card and
+		/// the review queue; the review workbench (drawers, epoch line, panes,
+		/// review editor) is shown only once a pull request, a comparison or an
+		/// active workbench exists. Nothing of the workbench makes sense before.
+		[[nodiscard]] auto home_page() const noexcept -> QWidget*;
+		[[nodiscard]] auto showing_home() const -> bool;
 		[[nodiscard]] auto current_modality() const noexcept -> review_modality;
 		/// \brief Chooses a modality exactly as the strip or its shortcut would.
 		void choose_modality(review_modality aModality);
@@ -598,6 +610,13 @@ namespace bpr::qt {
 		QWidget*           StripInset           = nullptr;
 		QScrollArea*       DrawerTopScroll      = nullptr;
 		workbench_landing* HomeLanding          = nullptr;
+		QWidget*           HomePage             = nullptr;
+		bool               StripHome            = false;
+		bool               HomeRequested        = false;
+		QAction*           HomeAction           = nullptr;
+		QVBoxLayout*       HomeColumn           = nullptr;
+		QVBoxLayout*       DrawerTopColumn      = nullptr;
+		QStackedWidget*    CentralStack         = nullptr;
 		bool               ModalityChosen       = false;
 		std::size_t        ReviewThreadTotal    = 0U;
 		QAction*           IdentityAction       = nullptr;

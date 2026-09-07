@@ -13096,7 +13096,7 @@ namespace bpr::app {
 				return toolbar->widgetForAction(aAction) == spacer;
 			});
 		// [[BPR-0646]]. RFC-BPR-0028's strip, left to right: the platform
-		// inset, files, the identity, a rule, the change pair with its position, the file pair
+		// inset, Home, files, the identity, a rule, the change pair with its position, the file pair
 		// with its position, a spacer, the modality control, a spacer, the
 		// review details and private progress controls, refresh, comments, a
 		// rule, account, settings.
@@ -13106,27 +13106,28 @@ namespace bpr::app {
 					  && toolbarActions[static_cast<qsizetype>(aIndex)]->objectName()
 					  == QLatin1String{ aName };
 			  };
-		const auto exactRowOrder = toolbarActions.size() == 20U
+		const auto exactRowOrder = toolbarActions.size() == 21U
 			&& widgetActionNamed(0U, "workbenchStripInsetAction")
-			&& toolbarActions[1] == filesAction
-			&& widgetActionNamed(2U, "workbenchStripIdentityAction")
-			&& widgetActionNamed(3U, "workbenchStripLeftDividerAction")
-			&& toolbarActions[4] == previousChange
-			&& toolbarActions[5] == nextChange
-			&& widgetActionNamed(6U, "workbenchStripChangePositionAction")
-			&& toolbarActions[7] == previousFile
-			&& toolbarActions[8] == nextFile
-			&& widgetActionNamed(9U, "workbenchStripFilePositionAction")
-			&& spacerAction == toolbarActions.begin() + 10
-			&& widgetActionNamed(11U, "workbenchModalityAction")
-			&& widgetActionNamed(12U, "workbenchModalitySpacerAction")
-			&& toolbarActions[13] == reviewDetails
-			&& reviewControlsAction == toolbarActions.begin() + 14
-			&& toolbarActions[15] == window->github_refresh_action()
-			&& toolbarActions[16] == conversationsAction
-			&& widgetActionNamed(17U, "workbenchStripRightDividerAction")
-			&& toolbarActions[18] == window->account_action()
-			&& toolbarActions[19] == window->settings_action();
+			&& toolbarActions[1] == window->home_action()
+			&& toolbarActions[2] == filesAction
+			&& widgetActionNamed(3U, "workbenchStripIdentityAction")
+			&& widgetActionNamed(4U, "workbenchStripLeftDividerAction")
+			&& toolbarActions[5] == previousChange
+			&& toolbarActions[6] == nextChange
+			&& widgetActionNamed(7U, "workbenchStripChangePositionAction")
+			&& toolbarActions[8] == previousFile
+			&& toolbarActions[9] == nextFile
+			&& widgetActionNamed(10U, "workbenchStripFilePositionAction")
+			&& spacerAction == toolbarActions.begin() + 11
+			&& widgetActionNamed(12U, "workbenchModalityAction")
+			&& widgetActionNamed(13U, "workbenchModalitySpacerAction")
+			&& toolbarActions[14] == reviewDetails
+			&& reviewControlsAction == toolbarActions.begin() + 15
+			&& toolbarActions[16] == window->github_refresh_action()
+			&& toolbarActions[17] == conversationsAction
+			&& widgetActionNamed(18U, "workbenchStripRightDividerAction")
+			&& toolbarActions[19] == window->account_action()
+			&& toolbarActions[20] == window->settings_action();
 		auto iconOnly    = toolbar->toolButtonStyle() == Qt::ToolButtonIconOnly;
 		auto nativeIcons = true;
 		auto accessible  = true;

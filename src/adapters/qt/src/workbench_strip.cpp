@@ -124,6 +124,21 @@ namespace bpr::qt {
 				aPainter.drawLine(QPointF{ 12.0, 11.0 }, QPointF{ 12.0, 16.5 });
 				aPainter.drawLine(QPointF{ 12.0, 7.5 }, QPointF{ 12.0, 8.0 });
 				break;
+			case strip_glyph::home: {
+				auto house = QPainterPath{ };
+				house.moveTo(4.0, 11.5);
+				house.lineTo(12.0, 4.5);
+				house.lineTo(20.0, 11.5);
+				house.lineTo(20.0, 20.0);
+				house.lineTo(14.5, 20.0);
+				house.lineTo(14.5, 14.5);
+				house.lineTo(9.5, 14.5);
+				house.lineTo(9.5, 20.0);
+				house.lineTo(4.0, 20.0);
+				house.closeSubpath();
+				aPainter.drawPath(house);
+				break;
+			}
 			case strip_glyph::private_progress: {
 				auto check = QPainterPath{ };
 				check.moveTo(5.0, 12.5);

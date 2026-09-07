@@ -42,6 +42,7 @@ namespace bpr::qt {
 		settings,
 		review_details,
 		private_progress,
+		home,
 	};
 
 	/// \brief Paints one strip glyph for a palette.

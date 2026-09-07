@@ -566,14 +566,15 @@ namespace {
 		// action; Settings is the far-right one, after the account button;
 		// the change pair precedes the file pair, each followed by its
 		// position; Conversations sits in the right region after refresh.
-		expect(actions.size() >= 2
+		expect(actions.size() >= 3
 				   && actions.front()->objectName()
 					   == QStringLiteral("workbenchStripInsetAction")
-				   && actions[1] == files
+				   && actions[1] == window.home_action()
+				   && actions[2] == files
 				   && actions.back() == window.settings_action()
 				   && actions.indexOf(window.account_action())
 					   == actions.size() - 2,
-			   "after the platform inset Files is the far-left action and Settings, after Account, is the far-right action");
+			   "after the platform inset and Home, Files is the far-left action and Settings, after Account, is the far-right action");
 		expect(actions.indexOf(navigation[2]) < actions.indexOf(navigation[3])
 				   && actions.indexOf(navigation[3]) < actions.indexOf(navigation[0])
 				   && actions.indexOf(navigation[0]) < actions.indexOf(navigation[1])
@@ -811,7 +812,7 @@ namespace {
 				   && window.actions().contains(files)
 				   && window.actions().contains(conversations),
 			   "each drawer toggle is a checkable window action with a shortcut");
-		expect(window.primary_toolbar()->actions().indexOf(files) == 1
+		expect(window.primary_toolbar()->actions().indexOf(files) == 2
 				   && window.primary_toolbar()->actions().indexOf(conversations)
 					   > window.primary_toolbar()->actions().indexOf(
 						   window.review_details_toggle_action()),
@@ -1069,7 +1070,7 @@ namespace {
 					   && action->shortcut()
 						   == QKeySequence{ QStringLiteral("Ctrl+%1").arg(index + 1U) }
 					   && action->shortcutContext() == Qt::WindowShortcut
-					   && button != nullptr && button->isVisible()
+					   && button != nullptr && button->isVisibleTo(window.modality())
 					   && button->focusPolicy() == Qt::StrongFocus
 					   && !button->accessibleName().isEmpty()
 					   && !button->accessibleDescription().isEmpty()
@@ -1291,6 +1292,9 @@ namespace {
 		window.resize(1'280, 820);
 		window.move(200, 150);
 		window.show();
+		// [[BPR-0650]]. A control to press on: the strip is whole once a
+		// workbench is active; on Home it keeps only Home, account, settings.
+		window.publish(every_primary_command_offered());
 		QApplication::processEvents();
 
 		auto* const strip = window.primary_toolbar();
@@ -1406,6 +1410,9 @@ namespace {
 		qt::workbench_window window;
 		window.resize(1'280, 1'000);
 		window.show();
+		// [[BPR-0650]]. Home is the centre until a workbench is active; the
+		// review details are the workbench's.
+		window.publish(every_primary_command_offered());
 		QApplication::processEvents();
 
 		auto* const action     = window.review_details_toggle_action();
@@ -3717,6 +3724,9 @@ namespace {
 		qt::workbench_window window;
 		window.resize(1'280, 820);
 		window.show();
+		// [[BPR-0650]]. The declared order is the workbench's; Home shows
+		// until a workbench is active, so one is made active first.
+		window.publish(every_primary_command_offered());
 		process_events();
 
 		const auto expanded = window.focus_order();
@@ -3785,9 +3795,11 @@ namespace {
 		process_events();
 		const auto compact = window.focus_order();
 		expect(compact.front()
-				   == window.primary_toolbar()->widgetForAction(
-					   window.files_drawer_toggle_action()),
-			   "Files remains the first interactive stop at the supported width floor");
+					   == window.primary_toolbar()->widgetForAction(window.home_action())
+				   && compact[1]
+					   == window.primary_toolbar()->widgetForAction(
+						   window.files_drawer_toggle_action()),
+			   "Home then Files remain the first interactive stops at the supported width floor");
 		for (auto* const stop : compact) {
 			expect(!stop->accessibleName().isEmpty()
 					   && !stop->accessibleDescription().isEmpty(),

@@ -22,6 +22,7 @@
 #include <QCheckBox>
 #include <QClipboard>
 #include <QComboBox>
+#include <QFont>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QItemSelectionModel>
@@ -290,7 +291,7 @@ namespace bpr::qt {
 		// fit with nothing folded into an overflow menu. The identity and the
 		// two position labels are the only strip items that yield width, and
 		// they do so before the floor (see apply_strip_width).
-		setMinimumSize(820, 360);
+		setMinimumSize(860, 360);
 		resize(1'280, 820);
 
 		build_menu_bar();
@@ -578,6 +579,22 @@ namespace bpr::qt {
 		StripInset->setFixedWidth(0);
 #endif
 		stripWidget(StripInset, QStringLiteral("workbenchStripInsetAction"));
+		// [[BPR-0650]]. Home first: the way back to the landing and the queue
+		// from any review, checked while Home shows.
+		HomeAction = new QAction{ QStringLiteral("&Home"), this };
+		HomeAction->setObjectName(QStringLiteral("workbenchHomeAction"));
+		HomeAction->setCheckable(true);
+		HomeAction->setShortcut(QKeySequence{ QStringLiteral("Ctrl+0") });
+		HomeAction->setShortcutContext(Qt::WindowShortcut);
+		HomeAction->setIconText(QStringLiteral("Home"));
+		HomeAction->setToolTip(QStringLiteral(
+			"Show Home: sign-in or the review queue, and the way back to the review."));
+		HomeAction->setStatusTip(HomeAction->toolTip());
+		addAction(HomeAction);
+		connect(HomeAction, &QAction::triggered, this, [this](const bool aChecked) {
+			choose_home(aChecked);
+		});
+		PrimaryToolbar->addAction(HomeAction);
 		PrimaryToolbar->addAction(Drawers[0].Toggle);
 		IdentityLabel = stripLabel(
 			QStringLiteral("workbenchStripIdentity"),
@@ -668,7 +685,20 @@ namespace bpr::qt {
 		// [[BPR-0646]]. Home's landing, above the epoch line while there is
 		// nothing to compare and no pull request: it funnels a reviewer to
 		// the account or to a pull request rather than showing empty panes.
-		HomeLanding = new workbench_landing{ CentreSurface };
+		// [[BPR-0646]] [[BPR-0650]]. Home is the whole centre while nothing
+		// is open: the landing card and the review queue, and none of the
+		// review chrome that means nothing before a pull request is chosen.
+		HomePage = new QWidget;
+		HomePage->setObjectName(QStringLiteral("workbenchHome"));
+		HomePage->setAccessibleName(QStringLiteral("Home"));
+		HomePage->setAccessibleDescription(QStringLiteral(
+			"The landing while nothing is open: sign in or choose a pull "
+			"request, and the local review queue"));
+		auto* const home = new QVBoxLayout{ HomePage };
+		home->setContentsMargins(0, 0, 0, 0);
+		home->setSpacing(0);
+		HomeColumn  = home;
+		HomeLanding = new workbench_landing{ HomePage };
 		HomeLanding->set_primary_dispatch([this] {
 			if (HomeLanding->state() == landing_state::sign_in) {
 				open_settings(settings_page::accounts_and_hosts);
@@ -688,7 +718,7 @@ namespace bpr::qt {
 				SessionPanel->owner_editor()->setFocus(Qt::OtherFocusReason);
 			}
 		});
-		centre->addWidget(HomeLanding);
+		home->addWidget(HomeLanding);
 		centre->addWidget(EpochSelectors);
 		centre->addWidget(ComparisonSurface, 1);
 
@@ -924,18 +954,25 @@ namespace bpr::qt {
 		// [[BPR-0646]]. The queue landing leaves the review header, which is no
 		// longer a scroll area, and sits under the file list until the
 		// repositories drawer of RFC-BPR-0028 takes it over ([[BPR-0651]]).
-		if (auto* const filesColumn
-			= qobject_cast<QVBoxLayout*>(Drawers[0].Panel->layout());
-			filesColumn != nullptr) {
-			build_queue_landing(Drawers[0].Panel, *filesColumn);
-			// Before the files list: the queue is how a pull request is
-			// chosen, the list is what it holds.
-			if (auto* const landing = Drawers[0].Panel->findChild<QWidget*>(
+		// The review queue is how a pull request is chosen, so it is Home's
+		// list, under the landing card, with the room the drawer could not
+		// give it. The files drawer holds files.
+		if (auto* const homeColumn = qobject_cast<QVBoxLayout*>(HomePage->layout());
+			homeColumn != nullptr) {
+			auto* const queueHeading = new QLabel{ QStringLiteral("Review queue"), HomePage };
+			queueHeading->setObjectName(QStringLiteral("workbenchHomeQueueHeading"));
+			queueHeading->setContentsMargins(24, 12, 24, 4);
+			auto headingFont = queueHeading->font();
+			headingFont.setWeight(QFont::DemiBold);
+			queueHeading->setFont(headingFont);
+			homeColumn->addWidget(queueHeading);
+			build_queue_landing(HomePage, *homeColumn);
+			if (auto* const landing = HomePage->findChild<QWidget*>(
 					QStringLiteral("reviewQueueLanding"), Qt::FindDirectChildrenOnly);
-				landing != nullptr && Drawers[0].Panel->contents_view() != nullptr) {
-				filesColumn->removeWidget(landing);
-				filesColumn->insertWidget(
-					filesColumn->indexOf(Drawers[0].Panel->contents_view()), landing);
+				landing != nullptr) {
+				landing->setMaximumHeight(QWIDGETSIZE_MAX);
+				landing->setContentsMargins(24, 0, 24, 12);
+				homeColumn->setStretchFactor(landing, 1);
 			}
 		}
 		// Only the centre absorbs a window resize, so a drawer keeps the width the
@@ -1071,12 +1108,7 @@ namespace bpr::qt {
 		top->setAccessibleName(QStringLiteral("Pull request"));
 		auto* const topColumn = new QVBoxLayout{ top };
 		topColumn->setContentsMargins(0, 0, 0, 0);
-		if (auto* const landing = Drawers[0].Panel->findChild<QWidget*>(
-				QStringLiteral("reviewQueueLanding"), Qt::FindDirectChildrenOnly);
-			landing != nullptr) {
-			filesColumn->removeWidget(landing);
-			topColumn->addWidget(landing);
-		}
+		DrawerTopColumn = topColumn;
 		DrawerTopScroll = new QScrollArea{ Drawers[0].Panel };
 		DrawerTopScroll->setObjectName(QStringLiteral("workbenchDrawerTopScroll"));
 		DrawerTopScroll->setWidgetResizable(true);
@@ -1156,8 +1188,8 @@ namespace bpr::qt {
 		// Bounded: the drawer's files list is what the drawer is for, and a
 		// long summary must not be able to take the height it needs.
 		PullRequestStack->setMaximumHeight(200);
-		// Under the queue, at the bottom of the top region: choose, then see.
-		topColumn->addWidget(PullRequestStack);
+		// Placed by update_home_landing: on Home while nothing is open, at
+		// the top of the drawer's region once a pull request is.
 		// The panel builds the description but deliberately does not lay it out:
 		// where a description belongs is a decision for whoever assembles the
 		// window, and this one puts it under the metadata it describes. Bounded
@@ -1174,7 +1206,11 @@ namespace bpr::qt {
 			QStringLiteral("appearanceSettingsPanel"));
 		SettingsWindow->adopt_panel(settings_page::appearance, AppearanceSettings);
 
-		setCentralWidget(CentralSplitter);
+		CentralStack = new QStackedWidget{ this };
+		CentralStack->setObjectName(QStringLiteral("workbenchCentralStack"));
+		CentralStack->addWidget(HomePage);
+		CentralStack->addWidget(CentralSplitter);
+		setCentralWidget(CentralStack);
 
 		// [[BPR-0646]]. Refresh sits in the strip's right region, before the
 		// comments toggle, as the design places it. Same action as the
@@ -2185,6 +2221,10 @@ namespace bpr::qt {
 			Modality->adopt(aModality);
 		}
 		ModalityChosen = true;
+		if (HomeRequested) {
+			HomeRequested = false;
+			update_home_landing();
+		}
 		// A modality is two exact set-drawer intents; the core decides them
 		// as it decides a toggle. With no active workbench the drawers cannot
 		// change, so nothing is asked and the strip merely shows the preset.
@@ -2236,7 +2276,105 @@ namespace bpr::qt {
 		const auto loading = status == core::github_status::loading_pull_request;
 		HomeLanding->set_state(
 			signedIn ? landing_state::choose_pull_request : landing_state::sign_in);
-		HomeLanding->setVisible(!HasGithubPullRequest && !comparing && !loading);
+		// Home is the centre until a pull request, a comparison or an active
+		// workbench gives the review chrome something to be about.
+		// "Active" is the core's word for it: the drawer command is offered
+		// only while a workbench is published. A projection with every
+		// command refused, which the host sends at launch, is not one.
+		// Any command the core offers means a workbench; hiding a QAction
+		// also disables it, so a partly refused projection must keep the
+		// review chrome and its enabled toggles.
+		auto active = false;
+		for (std::size_t index = 0U; index < core::workbench_command_count; ++index) {
+			const auto projection = command(static_cast<core::workbench_command_id>(index));
+			active                = active || (projection && projection->Enabled);
+		}
+		const auto nothing = !HasGithubPullRequest && !comparing && !loading && !active;
+		const auto home    = nothing || HomeRequested;
+		if (HomeAction != nullptr && HomeAction->isChecked() != home) {
+			HomeAction->setChecked(home);
+		}
+		if (CentralStack != nullptr) {
+			CentralStack->setCurrentWidget(home ? HomePage : static_cast<QWidget*>(CentralSplitter));
+		}
+		// On Home the strip keeps only what Home can use: the account and
+		// settings at its right, the inset and the spacers that place them.
+		// Drawers, navigation, the modalities, review details and refresh
+		// are a pull request's, and return with one.
+		if (PrimaryToolbar != nullptr && (StripHome != home || home)) {
+			StripHome = home;
+			for (auto* const action : PrimaryToolbar->actions()) {
+				const auto name = action->objectName();
+				const auto kept = action == AccountAction || action == SettingsAction
+					|| action == HomeAction
+					|| name == QLatin1String{ "workbenchStripInsetAction" }
+					|| name == QLatin1String{ "workbenchNavigationSpacerAction" }
+					|| name == QLatin1String{ "workbenchModalitySpacerAction" }
+					// With a review open behind Home, the modalities are the
+					// way back to it.
+					|| (HasGithubPullRequest
+						&& name == QLatin1String{ "workbenchModalityAction" });
+				action->setVisible(!home || kept);
+			}
+			apply_strip_width();
+			// The toolbar shows and hides a widget action's widget on its
+			// next layout; take it now so what the strip shows is settled
+			// when this returns.
+			if (auto* const layout = PrimaryToolbar->layout(); layout != nullptr) {
+				layout->invalidate();
+				layout->activate();
+			}
+		}
+		// The pull request stack is Home's while nothing is open -- its empty
+		// page is where a failed load says why -- and the drawer's once a pull
+		// request is, where its summary heads the files. One widget, moved,
+		// so what the projections write to it never has two homes.
+		if (PullRequestStack != nullptr && HomeColumn != nullptr
+			&& DrawerTopColumn != nullptr) {
+			auto* const wanted = home ? HomeColumn : DrawerTopColumn;
+			if (PullRequestStack->parentWidget() != wanted->parentWidget()) {
+				if (auto* const current = PullRequestStack->parentWidget();
+					current != nullptr && current->layout() != nullptr) {
+					current->layout()->removeWidget(PullRequestStack);
+				}
+				if (home) {
+					// Under the landing card, above the queue heading.
+					wanted->insertWidget(1, PullRequestStack);
+				} else {
+					wanted->insertWidget(0, PullRequestStack);
+				}
+				PullRequestStack->show();
+			}
+			// On Home while signed out, the stack's empty page would only
+			// restate the card; it earns its place when it carries a load
+			// failure or a diagnostic, or once there is a session.
+			PullRequestStack->setVisible(
+				!home || signedIn || SessionPanel->showing_diagnostic());
+		}
+	}
+
+	auto workbench_window::home_action() const noexcept -> QAction*
+	{
+		return HomeAction;
+	}
+
+	void workbench_window::choose_home(const bool aHome)
+	{
+		// Asked for, Home shows over an open review until a modality or a
+		// pull request brings the review back; with nothing open Home is
+		// simply where the window is, and cannot be left.
+		HomeRequested = aHome;
+		update_home_landing();
+	}
+
+	auto workbench_window::home_page() const noexcept -> QWidget*
+	{
+		return HomePage;
+	}
+
+	auto workbench_window::showing_home() const -> bool
+	{
+		return CentralStack != nullptr && CentralStack->currentWidget() == HomePage;
 	}
 
 	auto workbench_window::account_action() const noexcept -> QAction*
@@ -2493,6 +2631,7 @@ namespace bpr::qt {
 	{
 		PullRequestPanel->adopt(aPullRequest);
 		ReviewThreadTotal = aPullRequest.ReviewThreadCount;
+		HomeRequested     = false;
 		IdentityText      = QStringLiteral("%1/%2  #%3 %4")
 								.arg(QString::fromStdString(aPullRequest.Owner),
 									 QString::fromStdString(aPullRequest.RepositoryName),
@@ -3177,6 +3316,7 @@ namespace bpr::qt {
 			return qobject_cast<QToolButton*>(
 				PrimaryToolbar->widgetForAction(aAction));
 		};
+		append(presenter(HomeAction));
 		append(presenter(Drawers[0].Toggle));
 		append(presenter(Navigation[2].Action));
 		append(presenter(Navigation[3].Action));
@@ -3388,9 +3528,9 @@ namespace bpr::qt {
 			return;
 		}
 		const auto available = width();
-		IdentityAction->setVisible(available >= 1'180);
-		ChangePositionAction->setVisible(available >= 960);
-		FilePositionAction->setVisible(available >= 960);
+		IdentityAction->setVisible(!StripHome && available >= 1'180);
+		ChangePositionAction->setVisible(!StripHome && available >= 960);
+		FilePositionAction->setVisible(!StripHome && available >= 960);
 		if (Modality != nullptr) {
 			// The segments keep their names and lose the shortcut beside them.
 			Modality->set_compact(available < 1'000);
@@ -3703,6 +3843,13 @@ namespace bpr::qt {
 			button->setFocusPolicy(Qt::StrongFocus);
 		}
 		if (auto* const button = qobject_cast<QToolButton*>(
+				PrimaryToolbar->widgetForAction(HomeAction));
+			button != nullptr) {
+			button->setAccessibleName(QStringLiteral("Home"));
+			button->setAccessibleDescription(HomeAction->toolTip());
+			button->setFocusPolicy(Qt::StrongFocus);
+		}
+		if (auto* const button = qobject_cast<QToolButton*>(
 				PrimaryToolbar->widgetForAction(SettingsAction));
 			button != nullptr) {
 			button->setAccessibleName(QStringLiteral("Settings"));
@@ -3723,6 +3870,9 @@ namespace bpr::qt {
 		// [[BPR-0646]]. The strip's glyphs are painted in the live palette's
 		// ink, so a theme change repaints them here exactly as the arrows were.
 		const auto& ink = palette();
+		if (HomeAction != nullptr) {
+			HomeAction->setIcon(strip_icon(strip_glyph::home, ink));
+		}
 		Drawers[0].Toggle->setIcon(strip_icon(strip_glyph::files_drawer, ink));
 		Navigation[0].Action->setIcon(strip_icon(strip_glyph::previous_file, ink));
 		Navigation[1].Action->setIcon(strip_icon(strip_glyph::next_file, ink));

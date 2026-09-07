@@ -171,7 +171,9 @@ follow in their own design rounds.
   summary, and Continue review lands on the first unseen change.
 - AC-05 Read shows this file's threads aligned to their lines with unread state
   and drafts; Discuss shows the list, map and feed with the listed filters.
-- AC-06 Home shows the grouped action list from the queue and ledger
+- AC-06 Home is the whole centre while nothing is open, with none of the
+  review chrome, and the strip then shows only Home, account and settings;
+  a Home button (⌘0) at the strip's left returns to Home from any review; it shows the grouped action list from the queue and ledger
   projections; with no account it funnels to sign-in, and with no pull
   request open it funnels to the queue or the locator, rather than showing
   empty panes.
