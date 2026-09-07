@@ -426,6 +426,74 @@ namespace bpr::application {
 			-> workbench_file_observation = 0;
 	};
 
+	/// \brief Which modality a pull request opens in ([[BPR-0661]]).
+	enum class review_open_modality : std::uint8_t {
+		overview,
+		read,
+		/// The modality the reviewer last used in this session.
+		last_used,
+	};
+
+	/// \brief Which modality Continue review enters ([[BPR-0661]]).
+	enum class review_continue_modality : std::uint8_t {
+		read,
+		review,
+	};
+
+	/// \brief When a file is marked read ([[BPR-0661]]).
+	enum class review_mark_read_behaviour : std::uint8_t {
+		by_hand,
+		when_fully_seen,
+	};
+
+	/// \brief The comparison selected on return to a pull request ([[BPR-0661]]).
+	enum class review_return_comparison : std::uint8_t {
+		whole_pr,
+		since_last_review,
+		since_last_upload,
+	};
+
+	/// \brief The comments drawer's first filter ([[BPR-0661]]).
+	enum class review_comments_filter : std::uint8_t {
+		all,
+		unread,
+		unresolved,
+	};
+
+	/// \brief The reviewer's durable review-behaviour preferences.
+	///
+	/// \details [[BPR-0661]]. RFC-BPR-0028's Reviews & queue rows. Stored
+	/// beside the layout in the workbench settings record, validated by the
+	/// host, honoured by the window: the modality on open and on Continue
+	/// review, whether a file marks itself read once fully seen, the
+	/// comparison on return, and the comments drawer's first filter. Every
+	/// default is the behaviour the window had before the preference existed.
+	struct review_behaviour_settings
+	{
+		review_open_modality       OpenModality     = review_open_modality::overview;
+		review_continue_modality   ContinueModality = review_continue_modality::read;
+		review_mark_read_behaviour MarkRead         = review_mark_read_behaviour::by_hand;
+		review_return_comparison   ReturnComparison = review_return_comparison::whole_pr;
+		review_comments_filter     CommentsFilter   = review_comments_filter::all;
+
+		auto operator<=>(const review_behaviour_settings&) const = default;
+	};
+
+	/// \brief Checks whether every preference names a value of its vocabulary.
+	[[nodiscard]] constexpr auto valid(const review_behaviour_settings& aSettings) noexcept -> bool
+	{
+		return static_cast<std::uint8_t>(aSettings.OpenModality)
+			<= static_cast<std::uint8_t>(review_open_modality::last_used)
+			&& static_cast<std::uint8_t>(aSettings.ContinueModality)
+			<= static_cast<std::uint8_t>(review_continue_modality::review)
+			&& static_cast<std::uint8_t>(aSettings.MarkRead)
+			<= static_cast<std::uint8_t>(review_mark_read_behaviour::when_fully_seen)
+			&& static_cast<std::uint8_t>(aSettings.ReturnComparison)
+			<= static_cast<std::uint8_t>(review_return_comparison::since_last_upload)
+			&& static_cast<std::uint8_t>(aSettings.CommentsFilter)
+			<= static_cast<std::uint8_t>(review_comments_filter::unresolved);
+	}
+
 	/// \brief Describes the workbench layout settings record.
 	///
 	/// \details This is the whole durable workbench layout: the semantic drawer
@@ -442,6 +510,9 @@ namespace bpr::application {
 		std::uint32_t                FilesWidth         = 320U;
 		std::uint32_t                ConversationsWidth = 320U;
 		std::uint32_t                RepositoriesWidth  = 300U;
+		/// [[BPR-0661]]. The review-behaviour preferences, durable beside the
+		/// layout because they are one reviewer's, not one review's.
+		review_behaviour_settings Behaviour;
 
 		auto operator<=>(const workbench_layout_settings&) const = default;
 	};
@@ -517,6 +588,10 @@ namespace bpr::application {
 		std::optional<core::workbench_command_delta>          Commands;
 		std::optional<workbench_layout_delta>                 Layout;
 		std::optional<std::vector<workbench_file_projection>> Files;
+		/// [[BPR-0661]]. Published when the preferences change, when they are
+		/// first loaded, and again when a change was refused so the page
+		/// reverts to what the host holds.
+		std::optional<review_behaviour_settings> Behaviour;
 
 		auto operator<=>(const workbench_projection&) const = default;
 	};
@@ -530,7 +605,8 @@ namespace bpr::application {
 			&& !aProjection.LineNumbers.has_value()
 			&& !aProjection.Commands.has_value()
 			&& !aProjection.Layout.has_value()
-			&& !aProjection.Files.has_value();
+			&& !aProjection.Files.has_value()
+			&& !aProjection.Behaviour.has_value();
 	}
 
 	enum class workbench_host_failure : std::uint8_t {

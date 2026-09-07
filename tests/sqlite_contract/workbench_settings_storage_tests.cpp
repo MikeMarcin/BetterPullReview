@@ -391,6 +391,115 @@ namespace {
 		(void)::sqlite3_close_v2(raw);
 	}
 
+	/// \brief Builds the exact version-three database this store used to write.
+	auto establish_version_three(const std::filesystem::path& aPath) -> void
+	{
+		::sqlite3* raw = nullptr;
+		expect(::sqlite3_open_v2(
+				   aPath.string().c_str(),
+				   &raw,
+				   SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE,
+				   nullptr)
+				   == SQLITE_OK,
+			   "a version-three database is created directly");
+		const auto minimum
+			= std::to_string(application::minimum_workbench_drawer_width);
+		const auto maximum
+			= std::to_string(application::maximum_workbench_drawer_width);
+		const auto sql = std::string{
+			"CREATE TABLE workbench_meta("
+			"singleton INTEGER PRIMARY KEY CHECK(singleton = 1),"
+			"schema_format INTEGER NOT NULL) STRICT;"
+			"CREATE TABLE workbench_layout("
+			"singleton INTEGER PRIMARY KEY CHECK(singleton = 1),"
+			"files_state INTEGER NOT NULL CHECK(files_state BETWEEN 0 AND 1),"
+			"conversations_state INTEGER NOT NULL "
+			"CHECK(conversations_state BETWEEN 0 AND 1),"
+			"files_width INTEGER NOT NULL CHECK(files_width BETWEEN "
+		} + minimum
+			+ " AND " + maximum + "),conversations_width INTEGER NOT NULL "
+								  "CHECK(conversations_width BETWEEN "
+			+ minimum + " AND " + maximum + "),line_numbers INTEGER NOT NULL DEFAULT 1 "
+											"CHECK(line_numbers BETWEEN 0 AND 1),"
+											"repositories_state INTEGER NOT NULL DEFAULT 1 "
+											"CHECK(repositories_state BETWEEN 0 AND 1),"
+											"repositories_width INTEGER NOT NULL DEFAULT 300 "
+											"CHECK(repositories_width BETWEEN "
+			+ minimum + " AND " + maximum + ")) STRICT;"
+											"INSERT INTO workbench_meta(singleton, schema_format) VALUES(1, 3);"
+											"INSERT INTO workbench_layout(singleton, files_state,"
+											"conversations_state, files_width, conversations_width, line_numbers,"
+											"repositories_state, repositories_width) "
+											"VALUES(1, 1, 0, 400, 300, 0, 0, 260);"
+			+ "PRAGMA application_id = " + std::to_string(HistoricalApplicationId) + ";" + "PRAGMA user_version = 3;";
+		expect(::sqlite3_exec(raw, sql.c_str(), nullptr, nullptr, nullptr)
+				   == SQLITE_OK,
+			   "the version-three schema and its row are written");
+		(void)::sqlite3_close_v2(raw);
+	}
+
+	/// \brief [[BPR-0661]]. A version-three store gains the review-behaviour
+	/// preferences at their defaults and keeps every value it held, the
+	/// preferences round-trip, and a value past a vocabulary is refused.
+	auto test_a_version_three_store_migrates_and_gains_the_behaviour_preferences() -> void
+	{
+		const auto scratch = scratch_directory{ };
+		const auto path    = scratch.file("workbench.sqlite3");
+		establish_version_three(path);
+		{
+			auto opened = workbench_settings_database::open(path, { });
+			expect(opened.has_value(), "a version-three database opens rather than being refused");
+			const auto loaded = opened->load({ });
+			expect(loaded.has_value(), "the migrated layout loads");
+			expect(loaded->Files == core::workbench_drawer_state::expanded
+					   && loaded->Conversations == core::workbench_drawer_state::collapsed
+					   && loaded->FilesWidth == 400U && loaded->ConversationsWidth == 300U
+					   && loaded->LineNumbers == core::workbench_line_numbers::hidden
+					   && loaded->Repositories == core::workbench_drawer_state::collapsed
+					   && loaded->RepositoriesWidth == 260U,
+				   "every value the version-three row held survived the migration, the "
+				   "repositories drawer included");
+			expect(loaded->Behaviour == application::review_behaviour_settings{ },
+				   "the preferences arrive at their defaults, the behaviour the window had");
+			auto changed      = *loaded;
+			changed.Behaviour = application::review_behaviour_settings{
+				.OpenModality     = application::review_open_modality::last_used,
+				.ContinueModality = application::review_continue_modality::review,
+				.MarkRead         = application::review_mark_read_behaviour::when_fully_seen,
+				.ReturnComparison = application::review_return_comparison::since_last_upload,
+				.CommentsFilter   = application::review_comments_filter::unresolved,
+			};
+			expect(opened->store(changed, { }).has_value(), "the migrated store takes the new columns");
+			const auto reloaded = opened->load({ });
+			expect(reloaded.has_value() && *reloaded == changed,
+				   "every preference round-trips durably beside the layout");
+		}
+		expect(integer_pragma(path, "PRAGMA user_version") == workbench_settings_schema_version,
+			   "the migrated database is stamped with the current version");
+		expect(integer_pragma(path, "SELECT schema_format FROM workbench_meta WHERE singleton = 1")
+				   == workbench_settings_schema_version,
+			   "the meta row agrees with the stamp");
+		{
+			::sqlite3* raw = nullptr;
+			expect(::sqlite3_open_v2(path.string().c_str(), &raw, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK,
+				   "the stored database reopens directly");
+			expect(::sqlite3_exec(raw,
+								  "PRAGMA ignore_check_constraints = ON;"
+								  "UPDATE workbench_layout SET return_comparison = 3 WHERE singleton = 1",
+								  nullptr,
+								  nullptr,
+								  nullptr)
+					   == SQLITE_OK,
+				   "a preference past its vocabulary is written past the check");
+			(void)::sqlite3_close_v2(raw);
+		}
+		auto reopened = workbench_settings_database::open(path, { });
+		expect(reopened.has_value(), "the tampered database still opens");
+		const auto tampered = reopened->load({ });
+		expect(!tampered.has_value() && tampered.error() == catalog_database_failure::integrity_failure,
+			   "a preference past its closed vocabulary is refused as an integrity failure");
+	}
+
 	/// \brief [[BPR-0651]]. A version-two store gains the repositories drawer.
 	auto test_a_version_two_store_migrates_and_gains_the_repositories_drawer() -> void
 	{
@@ -572,6 +681,7 @@ auto main() -> int
 	test_a_newer_schema_is_refused_for_the_right_reason();
 	test_a_version_one_store_migrates_and_keeps_its_row();
 	test_a_version_two_store_migrates_and_gains_the_repositories_drawer();
+	test_a_version_three_store_migrates_and_gains_the_behaviour_preferences();
 	test_cancellation_is_reported_distinctly();
 	test_the_schema_stores_no_review_content();
 	std::cout << "workbench-settings-storage-tests:pass\n";

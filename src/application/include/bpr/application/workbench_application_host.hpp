@@ -68,6 +68,10 @@ namespace bpr::application {
 		void apply(core::workbench_interaction_intent aIntent);
 		// Host-owned drawer width, clamped to the configured bound and persisted.
 		void resize(core::workbench_drawer aDrawer, std::uint32_t aWidth);
+		// [[BPR-0661]]. Host-owned review-behaviour preferences, validated and
+		// persisted; a refused record republishes the one held so the page
+		// reverts.
+		void apply_behaviour(review_behaviour_settings aSettings);
 		void cancel();
 		void shutdown();
 

@@ -64,7 +64,20 @@ namespace bpr::adapters::sqlite::detail {
 				  "CHECK(repositories_state BETWEEN 0 AND 1),"
 				  "repositories_width INTEGER NOT NULL DEFAULT 300 "
 				  "CHECK(repositories_width BETWEEN "
-				+ minimum + " AND " + maximum + ")) STRICT";
+				+ minimum + " AND " + maximum
+				// [[BPR-0661]]. The review-behaviour preferences, schema
+				// version 4. Each default is the behaviour the window had
+				// before the preference existed.
+				+ "),open_modality INTEGER NOT NULL DEFAULT 0 "
+				  "CHECK(open_modality BETWEEN 0 AND 2),"
+				  "continue_modality INTEGER NOT NULL DEFAULT 0 "
+				  "CHECK(continue_modality BETWEEN 0 AND 1),"
+				  "mark_read INTEGER NOT NULL DEFAULT 0 "
+				  "CHECK(mark_read BETWEEN 0 AND 1),"
+				  "return_comparison INTEGER NOT NULL DEFAULT 0 "
+				  "CHECK(return_comparison BETWEEN 0 AND 2),"
+				  "drawer_filter INTEGER NOT NULL DEFAULT 0 "
+				  "CHECK(drawer_filter BETWEEN 0 AND 2)) STRICT";
 		}
 
 		/// \brief Builds the statements that create the schema from nothing.
@@ -102,15 +115,21 @@ namespace bpr::adapters::sqlite::detail {
 			// Either rebuild lands on the current table, whose defaults fill
 			// the columns the old row never had.
 			const auto lineNumbers = aVersion == 1 ? std::string{ "1" } : std::string{ "line_numbers" };
+			// Version three added the repositories drawer; a version-three row
+			// carries it forward, an older row takes the defaults.
+			const auto repositories = aVersion == 3
+				? std::string{ ", repositories_state, repositories_width" }
+				: std::string{ };
 			return {
 				layout_table("workbench_layout_migrating"),
 				std::string{
 					"INSERT INTO workbench_layout_migrating("
 					"singleton, files_state, conversations_state, files_width,"
-					"conversations_width, line_numbers) SELECT "
-					"singleton, files_state, conversations_state, files_width,"
-					"conversations_width, " }
-					+ lineNumbers + " FROM workbench_layout",
+					"conversations_width, line_numbers" }
+					+ repositories + ") SELECT "
+									 "singleton, files_state, conversations_state, files_width,"
+									 "conversations_width, "
+					+ lineNumbers + repositories + " FROM workbench_layout",
 				std::string{ "DROP TABLE workbench_layout" },
 				std::string{ "ALTER TABLE workbench_layout_migrating "
 							 "RENAME TO workbench_layout" },
@@ -182,7 +201,7 @@ namespace bpr::adapters::sqlite::detail {
 			// version this build has no step for is refused rather than handed
 			// to the wrong one — today that is unreachable, and the day a
 			// version three exists it stops being so.
-			if (*current != 0 && *current != 1 && *current != 2) {
+			if (*current != 0 && *current != 1 && *current != 2 && *current != 3) {
 				rollback();
 				return std::unexpected(failure::schema_mismatch);
 			}
@@ -281,6 +300,21 @@ namespace bpr::adapters::sqlite::detail {
 			default:
 				return std::unexpected(failure::integrity_failure);
 			}
+		}
+
+		/// \brief Reads one stored preference, refusing a value past its last.
+		///
+		/// \details [[BPR-0661]]. The vocabularies are closed and contiguous
+		/// from zero, so the last enumerator bounds each column the way the
+		/// `CHECK` does; a value past it is refused rather than cast.
+		template <typename Preference>
+		[[nodiscard]] auto preference_of(const std::int64_t aValue, const Preference aLast)
+			-> std::expected<Preference, failure>
+		{
+			if (aValue < 0 || aValue > static_cast<std::int64_t>(aLast)) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			return static_cast<Preference>(aValue);
 		}
 
 		/// \brief Reads one stored drawer state, refusing an unknown value.
@@ -392,7 +426,9 @@ namespace bpr::adapters::sqlite::detail {
 			"INSERT INTO workbench_layout("
 			"singleton, files_state, conversations_state, files_width,"
 			"conversations_width, line_numbers, repositories_state,"
-			"repositories_width) VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6, ?7) "
+			"repositories_width, open_modality, continue_modality, mark_read,"
+			"return_comparison, drawer_filter) "
+			"VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12) "
 			"ON CONFLICT(singleton) DO UPDATE SET "
 			"files_state = excluded.files_state,"
 			"conversations_state = excluded.conversations_state,"
@@ -400,7 +436,12 @@ namespace bpr::adapters::sqlite::detail {
 			"conversations_width = excluded.conversations_width,"
 			"line_numbers = excluded.line_numbers,"
 			"repositories_state = excluded.repositories_state,"
-			"repositories_width = excluded.repositories_width");
+			"repositories_width = excluded.repositories_width,"
+			"open_modality = excluded.open_modality,"
+			"continue_modality = excluded.continue_modality,"
+			"mark_read = excluded.mark_read,"
+			"return_comparison = excluded.return_comparison,"
+			"drawer_filter = excluded.drawer_filter");
 		if (!statement) {
 			return std::unexpected(statement.error());
 		}
@@ -437,6 +478,31 @@ namespace bpr::adapters::sqlite::detail {
 				   statement->Value,
 				   7,
 				   static_cast<std::int64_t>(aSettings.RepositoriesWidth))
+				!= SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   statement->Value,
+				   8,
+				   static_cast<std::int64_t>(aSettings.Behaviour.OpenModality))
+				!= SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   statement->Value,
+				   9,
+				   static_cast<std::int64_t>(aSettings.Behaviour.ContinueModality))
+				!= SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   statement->Value,
+				   10,
+				   static_cast<std::int64_t>(aSettings.Behaviour.MarkRead))
+				!= SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   statement->Value,
+				   11,
+				   static_cast<std::int64_t>(aSettings.Behaviour.ReturnComparison))
+				!= SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   statement->Value,
+				   12,
+				   static_cast<std::int64_t>(aSettings.Behaviour.CommentsFilter))
 				!= SQLITE_OK) {
 			return std::unexpected(catalog_sql_failure(Handle));
 		}
@@ -463,7 +529,8 @@ namespace bpr::adapters::sqlite::detail {
 			Handle,
 			"SELECT files_state, conversations_state, files_width,"
 			"conversations_width, line_numbers, repositories_state,"
-			"repositories_width FROM workbench_layout "
+			"repositories_width, open_modality, continue_modality, mark_read,"
+			"return_comparison, drawer_filter FROM workbench_layout "
 			"WHERE singleton = 1");
 		if (!statement) {
 			return std::unexpected(statement.error());
@@ -504,6 +571,25 @@ namespace bpr::adapters::sqlite::detail {
 		if (!repositories) {
 			return std::unexpected(repositories.error());
 		}
+		const auto openModality = preference_of(
+			::sqlite3_column_int64(statement->Value, 7),
+			application::review_open_modality::last_used);
+		const auto continueModality = preference_of(
+			::sqlite3_column_int64(statement->Value, 8),
+			application::review_continue_modality::review);
+		const auto markRead = preference_of(
+			::sqlite3_column_int64(statement->Value, 9),
+			application::review_mark_read_behaviour::when_fully_seen);
+		const auto returnComparison = preference_of(
+			::sqlite3_column_int64(statement->Value, 10),
+			application::review_return_comparison::since_last_upload);
+		const auto commentsFilter = preference_of(
+			::sqlite3_column_int64(statement->Value, 11),
+			application::review_comments_filter::unresolved);
+		if (!openModality || !continueModality || !markRead || !returnComparison
+			|| !commentsFilter) {
+			return std::unexpected(failure::integrity_failure);
+		}
 
 		return application::workbench_layout_settings{
 			.Files         = *files,
@@ -516,6 +602,13 @@ namespace bpr::adapters::sqlite::detail {
 				::sqlite3_column_int64(statement->Value, 3)),
 			.RepositoriesWidth = static_cast<std::uint32_t>(
 				::sqlite3_column_int64(statement->Value, 6)),
+			.Behaviour = {
+				.OpenModality     = *openModality,
+				.ContinueModality = *continueModality,
+				.MarkRead         = *markRead,
+				.ReturnComparison = *returnComparison,
+				.CommentsFilter   = *commentsFilter,
+			},
 		};
 	}
 

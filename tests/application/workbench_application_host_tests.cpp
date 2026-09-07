@@ -993,6 +993,66 @@ namespace {
 			   "an unchanged width persists nothing");
 	}
 
+	// [[BPR-0661]]. The review-behaviour preferences: a valid record is
+	// persisted and published as its own domain, an unchanged one does
+	// nothing, a record past a vocabulary is refused and the held record
+	// republished so the page reverts, and a restart restores and publishes
+	// what was stored.
+	void test_review_behaviour_persists_publishes_and_refuses_outside_the_vocabulary()
+	{
+		auto       durable = fake_settings{ };
+		const auto chosen  = application::review_behaviour_settings{
+			.OpenModality     = application::review_open_modality::read,
+			.ContinueModality = application::review_continue_modality::review,
+			.MarkRead         = application::review_mark_read_behaviour::when_fully_seen,
+			.ReturnComparison = application::review_return_comparison::since_last_review,
+			.CommentsFilter   = application::review_comments_filter::unread,
+		};
+		{
+			auto harnessed = harness{ { }, &durable };
+			harnessed.Host.apply_behaviour(chosen);
+			expect(harnessed.Projections.Published.size() == 1U
+					   && harnessed.Projections.Published.back().Behaviour == std::optional{ chosen },
+				   "a behaviour change publishes the chosen record");
+			harnessed.settle();
+			expect(durable.Stores == 1U && durable.Stored.Behaviour == chosen,
+				   "the change is persisted beside the layout");
+			auto narrowed           = chosen;
+			narrowed.CommentsFilter = application::review_comments_filter::unresolved;
+			harnessed.Host.apply_behaviour(narrowed);
+			const auto& only = harnessed.Projections.Published.back();
+			expect(harnessed.Projections.Published.size() == 2U
+					   && only.Behaviour == std::optional{ narrowed } && !only.Drawers.has_value()
+					   && !only.Selection.has_value() && !only.Layout.has_value()
+					   && !only.Commands.has_value() && !only.Files.has_value(),
+				   "a later change publishes the behaviour domain only");
+			harnessed.settle();
+			harnessed.Host.apply_behaviour(narrowed);
+			harnessed.settle();
+			expect(harnessed.Projections.Published.size() == 2U && durable.Stores == 2U,
+				   "an unchanged record publishes nothing and persists nothing");
+			auto outside             = narrowed;
+			outside.ReturnComparison = static_cast<application::review_return_comparison>(9);
+			harnessed.Host.apply_behaviour(outside);
+			harnessed.settle();
+			expect(harnessed.Projections.Published.size() == 3U
+					   && harnessed.Projections.Published.back().Behaviour == std::optional{ narrowed }
+					   && durable.Stores == 2U && harnessed.Host.layout().Behaviour == narrowed,
+				   "a record past a vocabulary is refused: nothing stored, the held record republished");
+		}
+		const auto stored = durable.Stored.Behaviour;
+		auto       second = harness{ { }, &durable };
+		second.Host.restore();
+		second.settle();
+		expect(stored.CommentsFilter == application::review_comments_filter::unresolved
+				   && second.Host.layout().Behaviour == stored,
+			   "a restarted host restores the preferences");
+		expect(!second.Projections.Published.empty()
+				   && second.Projections.Published.back().Behaviour
+					   == std::optional{ stored },
+			   "the restored preferences are published so the window can honour them");
+	}
+
 	void test_superseded_terminal_cannot_publish()
 	{
 		auto harnessed               = harness{ };
@@ -1323,6 +1383,7 @@ auto main() -> int
 	test_failed_and_inexact_observations();
 	test_restore_applies_when_the_workbench_activates();
 	test_layout_survives_a_restart();
+	test_review_behaviour_persists_publishes_and_refuses_outside_the_vocabulary();
 	test_settings_failure_is_reported();
 	test_shutdown_withholds_publication_and_quiesces();
 	std::cout << "workbench application host tests passed\n";

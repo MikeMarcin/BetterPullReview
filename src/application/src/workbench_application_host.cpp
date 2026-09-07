@@ -87,6 +87,11 @@ namespace bpr::application {
 			std::uint32_t          Width  = 0U;
 		};
 
+		struct deferred_workbench_behaviour
+		{
+			review_behaviour_settings Settings;
+		};
+
 		struct deferred_workbench_cancel
 		{
 		};
@@ -103,6 +108,7 @@ namespace bpr::application {
 														deferred_workbench_change_navigation,
 														deferred_workbench_intent,
 														deferred_workbench_resize,
+														deferred_workbench_behaviour,
 														deferred_workbench_cancel,
 														deferred_workbench_shutdown,
 														staged_observation,
@@ -330,6 +336,8 @@ namespace bpr::application {
 						apply_now(aTyped.Intent);
 					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_resize>) {
 						resize_now(aTyped.Drawer, aTyped.Width);
+					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_behaviour>) {
+						apply_behaviour_now(aTyped.Settings);
 					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_cancel>) {
 						cancel_now();
 					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_shutdown>) {
@@ -945,6 +953,26 @@ namespace bpr::application {
 			publish_changes(local_context());
 		}
 
+		// [[BPR-0661]]. A record outside its vocabulary is refused; the held
+		// record is republished so the page reverts to it.
+		void apply_behaviour_now(const review_behaviour_settings& aSettings)
+		{
+			if (Closing) {
+				return;
+			}
+			if (!valid(aSettings)) {
+				RepublishBehaviour = true;
+				publish_changes(local_context());
+				return;
+			}
+			if (Layout.Behaviour == aSettings) {
+				return;
+			}
+			Layout.Behaviour = aSettings;
+			submit_settings_store();
+			publish_changes(local_context());
+		}
+
 		void cancel_now()
 		{
 			if (Closing) {
@@ -1249,6 +1277,9 @@ namespace bpr::application {
 			if (PublishedLayout != layout) {
 				projection.Layout = layout;
 			}
+			if (PublishedBehaviour != std::optional{ Layout.Behaviour } || RepublishBehaviour) {
+				projection.Behaviour = Layout.Behaviour;
+			}
 			auto files = std::vector<workbench_file_projection>{ };
 			files.reserve(Files.size());
 			std::ranges::transform(
@@ -1272,6 +1303,8 @@ namespace bpr::application {
 			PublishedCommands    = commands;
 			PublishedLayout      = layout;
 			PublishedFiles       = std::move(files);
+			PublishedBehaviour   = Layout.Behaviour;
+			RepublishBehaviour   = false;
 			deliver_projection(
 				[this, &projection] { Projections.publish(projection); });
 		}
@@ -1330,6 +1363,8 @@ namespace bpr::application {
 		std::optional<core::workbench_line_numbers_delta>     PublishedLineNumbers;
 		std::optional<core::workbench_command_delta>          PublishedCommands;
 		std::optional<workbench_layout_delta>                 PublishedLayout;
+		std::optional<review_behaviour_settings>              PublishedBehaviour;
+		bool                                                  RepublishBehaviour = false;
 		std::optional<std::vector<workbench_file_projection>> PublishedFiles;
 
 		std::size_t                  RejectedTerminals        = 0U;
@@ -1419,6 +1454,11 @@ namespace bpr::application {
 			.Drawer = aDrawer,
 			.Width  = aWidth,
 		});
+	}
+
+	void workbench_application_host::apply_behaviour(review_behaviour_settings aSettings)
+	{
+		Implementation->enqueue(deferred_workbench_behaviour{ .Settings = aSettings });
 	}
 
 	void workbench_application_host::cancel()

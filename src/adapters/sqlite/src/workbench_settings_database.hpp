@@ -24,7 +24,11 @@ namespace bpr::adapters::sqlite::detail {
 	/// a version-one database gains the column and keeps its row, and a
 	/// database stamped newer still fails closed rather than being partially
 	/// understood.
-	inline constexpr std::int64_t workbench_settings_schema_version = 3;
+	///
+	/// Four since [[BPR-0661]]: the review-behaviour preferences joined the
+	/// singleton row, defaulted so a rebuilt older row keeps the behaviour it
+	/// had.
+	inline constexpr std::int64_t workbench_settings_schema_version = 4;
 
 	/// \brief Owns the durable workbench layout database.
 	///
