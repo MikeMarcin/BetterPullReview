@@ -2,10 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0662"
 title: "Drawer widths survive Home and a squeezed splitter"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
+parked_on: "human-review"
+acceptance: [{"criterion":"Focused suites pass; a squeeze reports no width and a floor layout opens at the design widths; a handle drag reports exactly the dragged drawer","outcome":"pass","revision":"7506c87b","evidence":{"kind":"observation","detail":"At this head: qt_workbench_window_scale_{100,125,200}, qt_composed_github_scale_100, application_composition_contract, application_review_round_trip_composition_contract, application_github_public_path_uiforetw_74 and application_uiforetw_selected_diff_contract pass. Reporting a width from the squeeze fails 'a squeeze reports no width to the host'; dropping the lift fails 'a width at the host's floor opens at the drawer's design width'."}},{"criterion":"Observed in the signed bundle: the workbench opens with the drawers at usable widths after the clobbered layout","outcome":"pending","revision":"7506c87b","evidence":{"kind":"freeform","detail":"Owed. The signed app-release bundle is rebuilt at this head (BetterPullReview.app, executable sha256 dba2d952133ee18b28e458fb282fe8d9ad3930c68a76d1fd5c3f601d86fc88cf) and the owner's workbench-settings.sqlite3 still holds the clobbered 64-pixel widths, so the observation is one launch away. It needs a pull request opened in the bundle, which needs typing into the locator; this session must not inject input (System Events automation revoked the terminal's permissions once before), so it is queued for the attended session with BPR-0646 and BPR-0663."}}]
 ---
 
 # Drawer widths survive Home and a squeezed splitter
