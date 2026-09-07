@@ -126,6 +126,6 @@ computed in Qt.
   toggle, and a collapsed drawer as its 18-pixel rail at the splitter's
   edge rather than nothing. The probe itself was already BPR-0646's; the
   contract passes again. The second is
-  carded as [BPR-0655](../20-ready/BPR-0655-defect-composition-seed-stalls-resolving-the-comparison.md)
+  carded as [BPR-0655](../30-in-progress/BPR-0655-defect-composition-seed-stalls-resolving-the-comparison.md)
   with its reproduction.
 
