@@ -14968,7 +14968,19 @@ namespace bpr::app {
 
 		if (probe.Phase
 			== github_application::implementation::defect_composition_probe_state::phase::awaiting_reverse_right) {
+			// [[BPR-0655]]. The control blanks the left selector the moment
+			// the core starts resolving the anchor it dispatched, so reading a
+			// blank selector as "not applied" and dispatching again on the
+			// next 10 ms tick superseded every resolution slower than a tick:
+			// each completion arrived one generation stale and the course
+			// never left `resolving`. Wait while the core resolves; only a
+			// settled core showing another left anchor is asked again.
 			auto* const control = window->epoch_selectors();
+			if (implementation->EpochHost == nullptr
+				|| implementation->EpochHost->state().Status
+					== core::epoch_status::resolving) {
+				return result::pending;
+			}
 			if (control->left_selector()->currentIndex() != probe.ReverseLeftRow) {
 				control->left_selector()->setCurrentIndex(probe.ReverseLeftRow);
 				return result::pending;
