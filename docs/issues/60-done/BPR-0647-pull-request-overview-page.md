@@ -57,7 +57,7 @@ computed in Qt.
   [BPR-0648](BPR-0648-aligned-comment-cards-in-read.md)), new
   comments since (the read model carries no post times), uploads since when
   the reviewed update is not among the retained rows, and the changed set
-  ([BPR-0654](../10-backlog/BPR-0654-resolve-the-files-changed-since-my-last-review.md)).
+  ([BPR-0654](../20-ready/BPR-0654-resolve-the-files-changed-since-my-last-review.md)).
   `epoch_row_ledger` mirrors the review-history model's row reconciliation so
   the composition holds the same update rows the epoch line shows. Pinned by
   `application_pull_request_overview`.
