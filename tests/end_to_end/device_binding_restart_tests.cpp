@@ -1,5 +1,6 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "bpr/qt/github_session_panel.hpp"
+#include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include <QApplication>
@@ -72,9 +73,17 @@ int main(int aArgc, char** aArgv)
 		second->window().show();
 		QApplication::processEvents();
 		expect(!second->window().grab().isNull(), "rendered composed session panel");
+		// [[BPR-0646]] moved the session chrome and [[BPR-0660]] the account
+		// card onto Settings > Accounts and hosts, so the reviewer opens that
+		// page to sign out. Both controls are the same deactivation.
+		second->window().open_settings(qt::settings_page::accounts_and_hosts);
+		QApplication::processEvents();
 		auto* signOut = second->window().findChild<QToolButton*>(QStringLiteral("signOutGithubButton"));
 		expect(signOut != nullptr && signOut->isVisible() && signOut->text() == QStringLiteral("Sign out"), "visible Sign out action exists");
-		signOut->click();
+		auto* cardSignOut = second->window().findChild<QToolButton*>(QStringLiteral("accountSignOut"));
+		expect(cardSignOut != nullptr && cardSignOut->isVisible() && cardSignOut->text() == QStringLiteral("Sign out"),
+			   "the account card offers Sign out while the session is accepted");
+		cardSignOut->click();
 		wait_for([&second] {const auto evidence=github_application_fixture_access::evidence(*second);return !evidence.SecretRetained && !evidence.RefreshRetained; }, "Sign out exact-deletes both slots");
 		shutdown(*second);
 	}

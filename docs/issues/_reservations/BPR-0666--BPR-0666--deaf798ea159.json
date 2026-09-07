@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0666"
+  ],
+  "reserve_for": "agent-guard-race",
+  "purpose": "Agent supervisor workspace guard outlives the killed application",
+  "created": "2026-09-07T16:49:43.283889+00:00",
+  "base": "ffad54f6c1018d89ecd7d835e23f864c299ccf04"
+}

@@ -335,12 +335,15 @@ bpr_add_network_isolated_test(
         "${PROJECT_SOURCE_DIR}/tests/scripts/attended_review_verdict_tests.py"
 )
 
+# The operator-packet validator moved with the rest of the retained RFC-0016
+# authority when the shared skills were adopted; its own contract tests moved
+# beside it, and this registration named the deleted source until then.
 bpr_add_network_isolated_test(
     NAME operator_response_validation_contract
     WINDOWS_UNCONTAINED
     COMMAND
         Python3::Interpreter
-        "${PROJECT_SOURCE_DIR}/.agents/skills/bpr-attended-review/scripts/test_validate_operator_packet.py"
+        "${PROJECT_SOURCE_DIR}/scripts/verification/rfc0016_attended_contract/scripts/test_validate_operator_packet.py"
 )
 
 bpr_add_network_isolated_test(
