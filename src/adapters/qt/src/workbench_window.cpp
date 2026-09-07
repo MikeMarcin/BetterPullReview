@@ -764,6 +764,24 @@ namespace bpr::qt {
 				QueueView->setFocus(Qt::OtherFocusReason);
 			}
 		});
+		// [[BPR-0670]]. The signed-out read, from Home, in one press: the
+		// same profile activation the Settings button sends, and then the
+		// bar that names the pull request, so the reviewer with no account
+		// has one path and it is the one in front of them.
+		HomeLanding->set_read_signed_out_dispatch([this] {
+			if (SessionPanel != nullptr && GithubDispatch) {
+				if (const auto profile = SessionPanel->selected_profile();
+					profile.has_value()) {
+					GithubDispatch(core::activate_host_profile_intent{
+						.Profile = *profile,
+						.Mode    = core::github_access_mode::public_preview,
+					});
+				}
+			}
+			if (HomeOpenBar != nullptr) {
+				HomeOpenBar->setFocus(Qt::OtherFocusReason);
+			}
+		});
 		HomeLanding->set_secondary_dispatch([this] {
 			if (HomeLanding->state() == landing_state::back_to_review) {
 				if (QueueView != nullptr) {

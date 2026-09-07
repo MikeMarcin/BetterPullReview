@@ -46,6 +46,14 @@ namespace bpr::qt {
 		[[nodiscard]] auto primary_button() const noexcept -> QPushButton*;
 		/// \brief Open Accounts and hosts, for the settings or the locator.
 		[[nodiscard]] auto secondary_button() const noexcept -> QPushButton*;
+		/// \brief [[BPR-0670]]. Read a public pull request without an account.
+		///
+		/// \details Shown only while signed out, where the reviewer who has no
+		/// account is standing. It was a button named "Public preview" beside
+		/// Connect on a Settings page, which the owner could barely find and
+		/// could not tell from a build channel.
+		[[nodiscard]] auto read_signed_out_button() const noexcept -> QPushButton*;
+		void               set_read_signed_out_dispatch(std::function<void()> aDispatch);
 		[[nodiscard]] auto title_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto body_label() const noexcept -> QLabel*;
 
@@ -58,6 +66,8 @@ namespace bpr::qt {
 	private:
 		landing_state         State = landing_state::sign_in;
 		QString               ReviewIdentity;
+		QPushButton*          ReadSignedOut = nullptr;
+		std::function<void()> ReadSignedOutDispatch;
 		QLabel*               Title     = nullptr;
 		QLabel*               Body      = nullptr;
 		QPushButton*          Primary   = nullptr;

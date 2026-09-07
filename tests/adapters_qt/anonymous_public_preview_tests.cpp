@@ -147,7 +147,7 @@ namespace {
 			window->session_panel()->public_preview_signed_out(),
 			"and the mode strip is on screen rather than blank");
 		expect(
-			window->active_account_text().find("Public preview")
+			window->active_account_text().find("Reading without signing in")
 				== std::string::npos,
 			"the mode is not presented as an authenticated account");
 	}
@@ -195,7 +195,7 @@ namespace {
 			   "public preview is available beside ordinary connection controls");
 		auto* const accessible = QAccessible::queryAccessibleInterface(preview);
 		expect(accessible != nullptr
-				   && accessible->text(QAccessible::Name) == QStringLiteral("Public preview")
+				   && accessible->text(QAccessible::Name) == QStringLiteral("Read without signing in")
 				   && !accessible->text(QAccessible::Description).isEmpty(),
 			   "public preview has an accessible name and explanation");
 		// The session chrome keeps its own reading order inside the Settings

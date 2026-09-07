@@ -94,13 +94,15 @@ namespace bpr::qt {
 			case application::public_preview_refusal_reason::mode_unavailable:
 				break;
 			}
-			return QStringLiteral("Public preview is unavailable in this build.");
+			return QStringLiteral("Reading without signing in is unavailable in this build.");
 		}
 	} // namespace
 
 	auto public_preview_mode_text() -> QString
 	{
-		return QStringLiteral("Public preview — signed out");
+		// [[BPR-0670]]. The banner says the state in the same words the
+		// control that entered it used.
+		return QStringLiteral("Reading without signing in");
 	}
 
 	auto public_preview_budget_text(

@@ -48,6 +48,23 @@ namespace bpr::qt {
 		Secondary->setObjectName(QStringLiteral("workbenchHomeSecondaryButton"));
 		Secondary->setFlat(true);
 		Secondary->setFocusPolicy(Qt::StrongFocus);
+		// [[BPR-0670]]. The way in for a reviewer with no account, named for
+		// what it does and standing where they are.
+		ReadSignedOut = new QPushButton{ this };
+		ReadSignedOut->setObjectName(QStringLiteral("workbenchHomeReadSignedOutButton"));
+		ReadSignedOut->setFlat(true);
+		ReadSignedOut->setFocusPolicy(Qt::StrongFocus);
+		ReadSignedOut->setText(QStringLiteral("Read without signing in"));
+		ReadSignedOut->setAccessibleName(QStringLiteral("Read without signing in"));
+		ReadSignedOut->setAccessibleDescription(QStringLiteral(
+			"Reads a public pull request without an account. Comments and review "
+			"actions stay read-only."));
+		ReadSignedOut->setToolTip(ReadSignedOut->accessibleDescription());
+		connect(ReadSignedOut, &QPushButton::clicked, this, [this] {
+			if (ReadSignedOutDispatch) {
+				ReadSignedOutDispatch();
+			}
+		});
 		connect(Primary, &QPushButton::clicked, this, [this] {
 			if (PrimaryDispatch) {
 				PrimaryDispatch();
@@ -63,6 +80,7 @@ namespace bpr::qt {
 		buttons->setContentsMargins(0, 0, 0, 0);
 		buttons->setSpacing(8);
 		buttons->addWidget(Primary);
+		buttons->addWidget(ReadSignedOut);
 		buttons->addWidget(Secondary);
 		buttons->addStretch(1);
 
@@ -138,6 +156,9 @@ namespace bpr::qt {
 		}
 		Primary->setToolTip(Primary->accessibleDescription());
 		Secondary->setToolTip(Secondary->accessibleDescription());
+		// Only the reviewer with no account is offered it; signed in, it would
+		// be a way to read less than they already can.
+		ReadSignedOut->setVisible(aState == landing_state::sign_in);
 		updateGeometry();
 		update();
 	}
@@ -198,5 +219,14 @@ namespace bpr::qt {
 		painter.setBrush(palette().color(QPalette::Active, QPalette::Button));
 		painter.drawRoundedRect(
 			QRectF{ rect() }.adjusted(12.5, 8.5, -12.5, -8.5), 8.0, 8.0);
+	}
+	auto workbench_landing::read_signed_out_button() const noexcept -> QPushButton*
+	{
+		return ReadSignedOut;
+	}
+
+	void workbench_landing::set_read_signed_out_dispatch(std::function<void()> aDispatch)
+	{
+		ReadSignedOutDispatch = std::move(aDispatch);
 	}
 } // namespace bpr::qt

@@ -2504,6 +2504,52 @@ namespace {
 	// [[BPR-0650]]. Home's action list: rows grouped under their headings
 	// with the columns the design names, a click opening the pull request on
 	// Overview, and the open bar sending the locator's intent.
+	// [[BPR-0670]]. The reviewer with no account is offered the signed-out
+	// read where they are standing, named for what it does, and it enters the
+	// mode for the selected host and leaves them at the bar that names a pull
+	// request. Signed in, it is not offered at all.
+	auto test_home_offers_reading_without_signing_in() -> void
+	{
+		std::vector<application::github_intent> intents;
+		qt::workbench_window                    window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			profiles(),
+			[&intents](application::github_intent aIntent) {
+				intents.push_back(aIntent);
+			},
+		};
+		window.resize(1'280, 820);
+		window.show();
+		QApplication::processEvents();
+		auto* const read = window.home_landing()->read_signed_out_button();
+		expect(read != nullptr && read->isVisible()
+				   && read->text() == QStringLiteral("Read without signing in")
+				   && read->accessibleDescription().contains(QStringLiteral("read-only")),
+			   "signed out, Home offers reading without an account and says what it costs");
+		expect(window.home_page()->isAncestorOf(read),
+			   "it is on Home, not behind Settings");
+		intents.clear();
+		read->click();
+		QApplication::processEvents();
+		const auto* const activate = intents.empty()
+			? nullptr
+			: std::get_if<core::activate_host_profile_intent>(&intents.back());
+		expect(intents.size() == 1U && activate != nullptr
+				   && activate->Mode == core::github_access_mode::public_preview
+				   && activate->Profile == window.session_panel()->selected_profile(),
+			   "it enters the signed-out read for the selected host, and nothing else");
+		expect(QApplication::focusWidget() == window.home_open_bar(),
+			   "and leaves the reviewer at the bar that names a pull request");
+
+		publish_session_ready(window);
+		QApplication::processEvents();
+		expect(!read->isVisible(),
+			   "signed in, reading without an account is not offered");
+		window.hide();
+	}
+
 	auto test_home_action_list_opens_rows_and_the_bar_on_overview() -> void
 	{
 		std::vector<application::github_intent> intents;
@@ -3748,6 +3794,7 @@ auto main(int argc, char** argv) -> int
 	test_settings_pages_carry_the_account_card_and_the_rule_editor();
 	test_repositories_drawer_lists_the_queue_and_opens_on_overview();
 	test_home_action_list_opens_rows_and_the_bar_on_overview();
+	test_home_offers_reading_without_signing_in();
 	test_read_drawer_shows_threads_as_cards_with_scope_and_actions();
 	test_drawer_controls_are_reachable_in_the_conversations_drawer();
 	test_home_landing_funnels_to_an_account_and_then_a_pull_request();

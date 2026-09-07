@@ -203,11 +203,17 @@ namespace bpr::qt {
 		ConnectButton->setFocusPolicy(Qt::StrongFocus);
 		ConnectButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 
-		PublicPreviewAction = new QAction{ QStringLiteral("Public preview"), this };
+		// [[BPR-0670]]. Named for what it does. "Public preview" read as a
+		// build channel, and the owner could not tell whether it meant
+		// staged data or continuing without an account.
+		PublicPreviewAction = new QAction{ QStringLiteral("Read without signing in"), this };
 		PublicPreviewButton = new QToolButton{ identityGroup };
 		PublicPreviewButton->setDefaultAction(PublicPreviewAction);
 		PublicPreviewButton->setObjectName(QStringLiteral("publicPreviewButton"));
-		PublicPreviewButton->setAccessibleName(QStringLiteral("Public preview"));
+		PublicPreviewButton->setAccessibleName(QStringLiteral("Read without signing in"));
+		PublicPreviewButton->setAccessibleDescription(QStringLiteral(
+			"Reads a public pull request on this host without an account. Comments "
+			"and review actions stay read-only."));
 		PublicPreviewButton->setFocusPolicy(Qt::StrongFocus);
 		PublicPreviewButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 
