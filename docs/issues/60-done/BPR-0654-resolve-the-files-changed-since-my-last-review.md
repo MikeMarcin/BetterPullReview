@@ -85,4 +85,3 @@ review falls back to the first file not read.
   the left selector on every tick while the core is resolving the anchor it
   just dispatched, the same race BPR-0655 fixed in the defect probe. Carded
   separately.
-
