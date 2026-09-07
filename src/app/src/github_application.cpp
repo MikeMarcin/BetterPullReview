@@ -1726,6 +1726,11 @@ namespace bpr::app {
 					application::git_smart_transport> override
 			{
 				++Acquisitions;
+				// [[BPR-0663]]. The binding admits a lease only for the
+				// identity generation the accepted revision was read in, so
+				// the wire carries that generation rather than a constant of
+				// its own; the request id is this factory's correlation and
+				// nothing judges it.
 				auto wire = adapters::github::detail::
 					make_native_https_anonymous_smart_transport(
 						*Profile,
@@ -1734,7 +1739,7 @@ namespace bpr::app {
 							.ApplicationSession = aContext.ApplicationSession,
 							.Profile            = Profile->profile(),
 							.IdentityGeneration
-							= core::github_identity_generation{ 918U },
+							= aContext.Revision.Source.IdentityGeneration,
 						});
 				if (!wire.has_value()) {
 					return std::unexpected{

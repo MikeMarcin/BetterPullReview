@@ -332,6 +332,32 @@ namespace {
 						   anonymous_read_contract_unsupported,
 			   "ghes-anonymous-smart-loopback");
 
+		// [[BPR-0663]]. The anonymous binding admits a lease only for the
+		// identity generation the accepted revision names: the generation the
+		// wire was built with must be the revision's, not a constant. The
+		// shipped factory once passed a constant and every public-preview
+		// acquisition was refused before a request was made.
+		{
+			auto anonymousWire = make_native_https_anonymous_smart_transport_for_test(
+				*githubComProfile, anonymous_session_context(*githubComProfile), configuration);
+			expect(anonymousWire.has_value(), "github-com-anonymous-smart-loopback");
+			auto exact                      = anonymous_smart_context();
+			exact.Authority.Profile         = githubComProfile->profile();
+			exact.Authority.ProfileRevision = core::github_profile_revision{ githubComProfile->revision().value() };
+			exact.Authority.Host            = githubComProfile->host();
+			auto       wire                 = std::shared_ptr<native_https_transport>{ std::move(*anonymousWire) };
+			const auto admitted             = make_native_git_smart_transport(wire, exact);
+			expect(admitted.has_value(), "anonymous-exact-generation-acquisition");
+			auto drifted                               = exact;
+			drifted.Revision.Source.IdentityGeneration = core::github_identity_generation{ 918U };
+			const auto refused                         = make_native_git_smart_transport(wire, drifted);
+			expect(!refused.has_value(), "anonymous-generation-drift-acquisition-refused");
+			expect_failure(
+				refused.error(),
+				application::git_smart_transport_failure::invalid_request,
+				"anonymous-generation-drift-failure");
+		}
+
 		auto transport = make_transport(*profile, "BPR0043ContractToken", configuration);
 		auto context   = smart_context();
 

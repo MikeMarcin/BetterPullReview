@@ -51,3 +51,27 @@ courses run over fixture transports and did not catch it.
   `diagnostics.log` records `smart_acquire` succeeding.
 - The anonymous binding still refuses an authenticated authority and a
   GHES profile.
+
+## Notes
+
+- Fix, 2026-09-07. `anonymous_git_smart_transport_factory::acquire` in
+  `github_application.cpp` builds the anonymous wire with the accepted
+  revision's identity generation (`aContext.Revision.Source.IdentityGeneration`)
+  instead of the constant 918; the binding's admission compares exactly that
+  generation, so the lease it refused for every public-preview pull request
+  is admitted. The request id stays the factory's own correlation, which
+  nothing judges. `native_git_smart_transport_contract` gained the seam
+  pin: a github.com anonymous loopback wire built with the revision's
+  generation admits `make_native_git_smart_transport`, and a wire built with
+  a drifted generation (the old constant) is refused as `invalid_request`
+  before any request; the GHES and authenticated refusals are unchanged.
+- The fixture courses (`application_anonymous_public_preview_*`) run over
+  fixture and loopback read transports and stop before the epoch's smart
+  acquire, so they neither caught the defect nor prove the fix; the proof
+  in the signed bundle (updates on the epoch line, a comparison,
+  `smart_acquire` succeeding in `diagnostics.log`) is owed and waits for
+  the Mac's screen, locked since the smoke that found the defect. Both
+  application digests were repinned; `application_composition_contract`,
+  the round-trip contract, the six public-preview courses,
+  `check_boundaries`, strict tidy, `clang-format --Werror` and
+  `verify_documentation.py` pass.
