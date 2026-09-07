@@ -17,6 +17,7 @@
 #include <optional>
 #include <vector>
 
+class QHBoxLayout;
 class QLabel;
 class QPaintEvent;
 class QPlainTextEdit;
@@ -174,6 +175,9 @@ namespace bpr::qt {
 		void               present(const application::pull_request_overview_projection& aProjection);
 		void               clear();
 		[[nodiscard]] auto presented() const noexcept -> bool;
+		/// \brief [[BPR-0671]]. Takes the commit-oid disclosure the drawer's
+		/// summary box used to carry, and puts it under the branches.
+		void               adopt_technical_details(QWidget* aButton, QWidget* aDetails);
 		[[nodiscard]] auto projection() const noexcept
 			-> const std::optional<application::pull_request_overview_projection>&;
 
@@ -207,6 +211,7 @@ namespace bpr::qt {
 		overview_colours                                             Colours;
 		overview_path_dispatch                                       EntryDispatch;
 		overview_path_dispatch                                       FileDispatch;
+		QHBoxLayout*                                                 TechnicalRow = nullptr;
 		QLabel*                                                      Title        = nullptr;
 		QLabel*                                                      Summary      = nullptr;
 		QPlainTextEdit*                                              Body         = nullptr;

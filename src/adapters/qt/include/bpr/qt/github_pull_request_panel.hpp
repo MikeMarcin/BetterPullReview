@@ -54,6 +54,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto body_editor() const noexcept -> QPlainTextEdit*;
 		[[nodiscard]] auto technical_details_button() const noexcept
 			-> QToolButton*;
+		/// \brief [[BPR-0671]]. The disclosed commit oids, for the overview to adopt.
+		[[nodiscard]] auto technical_details() const noexcept -> QWidget*;
 
 	private:
 		QLabel*         IdentityLabel    = nullptr;

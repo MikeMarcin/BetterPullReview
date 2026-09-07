@@ -756,7 +756,6 @@ namespace bpr::qt {
 		QLabel*                     FilePositionLabel    = nullptr;
 		QWidget*                    ModalitySpacer       = nullptr;
 		QWidget*                    StripInset           = nullptr;
-		QScrollArea*                DrawerTopScroll      = nullptr;
 		workbench_landing*          HomeLanding          = nullptr;
 		QWidget*                    HomePage             = nullptr;
 		bool                        StripHome            = false;

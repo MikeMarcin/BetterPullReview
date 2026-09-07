@@ -1487,8 +1487,7 @@ namespace bpr::qt {
 		reviewsColumn->addWidget(reviewsNotice);
 		SettingsWindow->adopt_panel(settings_page::reviews_and_queue, reviews);
 
-		auto* const filesColumn
-			= qobject_cast<QVBoxLayout*>(Drawers[0].Panel->layout());
+		static_cast<void>(Drawers[0].Panel->layout());
 		// [[BPR-0658]]. The files tree over the flat list: the list stays
 		// the drawer's authority (the composition's courses select in it and
 		// its selection dispatches the intent); the tree is what is seen, and
@@ -1538,21 +1537,26 @@ namespace bpr::qt {
 			});
 			Drawers[0].Panel->host_beside_list(filesSurface, FilesTree);
 		}
-		auto* const top = new QWidget;
+		// [[BPR-0671]]. The pull request's identity, author, branches, state
+		// and description are the overview's, and the strip already names the
+		// repository, the number and the title. [[BPR-0646]] parked them in a
+		// bounded box at the top of the files drawer until the overview
+		// ([[BPR-0647]]) took them, and the placeholder shipped: the owner met
+		// "the entire set of information for this PR crammed into a tiny box
+		// in files browser", above the files it was covering. The box is gone;
+		// the widget survives as Home's, where its empty page says why a load
+		// failed. The files drawer holds files.
+		// The description lives in this column, which no longer has a place
+		// in the window: the overview presents it. The widget is kept, parented
+		// and hidden, so the panel it belongs to keeps its shape and nothing
+		// that writes to it has to learn a new one.
+		auto* const top = new QWidget{ this };
 		top->setObjectName(QStringLiteral("workbenchDrawerTop"));
 		top->setAccessibleName(QStringLiteral("Pull request"));
+		top->hide();
 		auto* const topColumn = new QVBoxLayout{ top };
 		topColumn->setContentsMargins(0, 0, 0, 0);
 		DrawerTopColumn = topColumn;
-		DrawerTopScroll = new QScrollArea{ Drawers[0].Panel };
-		DrawerTopScroll->setObjectName(QStringLiteral("workbenchDrawerTopScroll"));
-		DrawerTopScroll->setWidgetResizable(true);
-		DrawerTopScroll->setFrameShape(QFrame::NoFrame);
-		DrawerTopScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-		DrawerTopScroll->setFocusPolicy(Qt::NoFocus);
-		DrawerTopScroll->setMaximumHeight(420);
-		DrawerTopScroll->setWidget(top);
-		filesColumn->insertWidget(1, DrawerTopScroll);
 		connect(
 			SessionPanel->profile_selector(),
 			&QComboBox::currentIndexChanged,
@@ -1631,6 +1635,13 @@ namespace bpr::qt {
 		// rather than stretching, for the same reason.
 		PullRequestPanel->body_editor()->setMaximumHeight(120);
 		topColumn->addWidget(PullRequestPanel->body_editor());
+		// [[BPR-0671]]. The one thing the summary box carried that the
+		// overview did not: the commit oids behind the branches.
+		if (OverviewPage != nullptr) {
+			OverviewPage->adopt_technical_details(
+				PullRequestPanel->technical_details_button(),
+				PullRequestPanel->technical_details());
+		}
 
 		// [[BPR-0646]]. The appearance surface moves out of the review header
 		// into the Settings window, a modeless child of this window reached by
@@ -3662,31 +3673,24 @@ namespace bpr::qt {
 				layout->activate();
 			}
 		}
-		// The pull request stack is Home's while nothing is open -- its empty
-		// page is where a failed load says why -- and the drawer's once a pull
-		// request is, where its summary heads the files. One widget, moved,
-		// so what the projections write to it never has two homes.
-		if (PullRequestStack != nullptr && HomeColumn != nullptr
-			&& DrawerTopColumn != nullptr) {
-			auto* const wanted = home ? HomeColumn : DrawerTopColumn;
-			if (PullRequestStack->parentWidget() != wanted->parentWidget()) {
+		// [[BPR-0671]]. The pull request stack is Home's, and only Home's: its
+		// empty page is where a failed load says why. Once a pull request is
+		// open its summary is the overview's, so the stack has nowhere else to
+		// be and is not shown over the files.
+		if (PullRequestStack != nullptr && HomeColumn != nullptr) {
+			if (PullRequestStack->parentWidget() != HomeColumn->parentWidget()) {
 				if (auto* const current = PullRequestStack->parentWidget();
 					current != nullptr && current->layout() != nullptr) {
 					current->layout()->removeWidget(PullRequestStack);
 				}
-				if (home) {
-					// Under the landing card, above the queue heading.
-					wanted->insertWidget(1, PullRequestStack);
-				} else {
-					wanted->insertWidget(0, PullRequestStack);
-				}
-				PullRequestStack->show();
+				// Under the landing card, above the queue heading.
+				HomeColumn->insertWidget(1, PullRequestStack);
 			}
 			// On Home while signed out, the stack's empty page would only
 			// restate the card; it earns its place when it carries a load
 			// failure or a diagnostic, or once there is a session.
 			PullRequestStack->setVisible(
-				!home || signedIn || SessionPanel->showing_diagnostic());
+				home && (signedIn || SessionPanel->showing_diagnostic()));
 		}
 	}
 

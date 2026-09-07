@@ -200,4 +200,9 @@ namespace bpr::qt {
 	{
 		return DetailsButton;
 	}
+
+	auto github_pull_request_panel::technical_details() const noexcept -> QWidget*
+	{
+		return TechnicalDetails;
+	}
 } // namespace bpr::qt

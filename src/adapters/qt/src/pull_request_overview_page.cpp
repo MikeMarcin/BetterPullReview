@@ -774,6 +774,13 @@ namespace bpr::qt {
 		Summary->setWordWrap(true);
 		Summary->setForegroundRole(QPalette::PlaceholderText);
 		mainColumn->addWidget(Summary);
+		// [[BPR-0671]]. The commit oids behind the branches, disclosed. They
+		// were in the files drawer's summary box, which the overview replaces;
+		// they belong beside the branches they identify.
+		TechnicalRow = new QHBoxLayout;
+		TechnicalRow->setContentsMargins(0, 0, 0, 0);
+		TechnicalRow->setSpacing(6);
+		mainColumn->addLayout(TechnicalRow);
 
 		Body = new QPlainTextEdit{ main };
 		Body->setObjectName(QStringLiteral("overviewBody"));
@@ -1011,6 +1018,22 @@ namespace bpr::qt {
 		}
 		Entry->setText(QStringLiteral("Start review"));
 		Entry->setEnabled(false);
+	}
+
+	void pull_request_overview_page::adopt_technical_details(
+		QWidget* const aButton, QWidget* const aDetails)
+	{
+		if (TechnicalRow == nullptr) {
+			return;
+		}
+		for (auto* const adopted : { aButton, aDetails }) {
+			if (adopted == nullptr) {
+				continue;
+			}
+			adopted->setParent(this);
+			TechnicalRow->addWidget(adopted);
+		}
+		TechnicalRow->addStretch(1);
 	}
 
 	auto pull_request_overview_page::presented() const noexcept -> bool

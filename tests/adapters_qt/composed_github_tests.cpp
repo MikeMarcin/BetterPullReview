@@ -744,19 +744,30 @@ namespace {
 				&& conversationState->currentWidget()->isAncestorOf(
 					window.conversation_view()),
 			"accepted pull-request content replaces the empty state");
+		// [[BPR-0671]]. The owner met "the entire set of information for this
+		// PR crammed into a tiny box in files browser". The summary is the
+		// overview's; the files drawer holds files, and the box that carried
+		// it is not in the drawer and is not shown over a review.
+		expect(!window.files_drawer()->isAncestorOf(viewState) && !viewState->isVisible()
+				   && window.files_drawer()->isAncestorOf(window.files_tree()),
+			   "the pull request summary is not in the files drawer while a review is open");
 
 		// The session chrome is on the Settings window's accounts page.
 		window.open_settings(qt::settings_page::accounts_and_hosts);
 		QApplication::processEvents();
+		// [[BPR-0671]]. The two disclosures no longer share a surface: the
+		// connection is the session chrome's, on Settings, and the commit oids
+		// are the overview's, beside the branches they identify.
 		expect(
-			connectionButton->isVisible()
-				&& technicalButton->isVisible()
-				&& !connectionDetails->isVisible()
-				&& !technicalDetails->isVisible()
-				&& (connectionButton->focusPolicy() & Qt::TabFocus) != 0
+			connectionButton->isVisible() && !connectionDetails->isVisible()
+				&& (connectionButton->focusPolicy() & Qt::TabFocus) != 0,
+			"the connection disclosure is focusable and collapsed where the session chrome is");
+		expect(
+			window.overview_page()->isAncestorOf(technicalButton)
+				&& window.overview_page()->isAncestorOf(technicalDetails)
+				&& !technicalDetails->isVisibleTo(window.overview_page())
 				&& (technicalButton->focusPolicy() & Qt::TabFocus) != 0,
-			"both disclosure controls are naturally focusable and initially "
-			"collapsed");
+			"the commit-oid disclosure is on the overview, focusable and collapsed");
 
 		const auto nextVisibleTabStop = [](QWidget* const aStart) {
 			auto* current = aStart->nextInFocusChain();
@@ -862,15 +873,17 @@ namespace {
 				&& QApplication::focusWidget() == connectionButton,
 			"connection disclosure closes in place without moving focus");
 
-		// The technical details are the workbench's, in the files drawer;
-		// focus returns to that window before the disclosure is walked.
+		// [[BPR-0671]]. The technical details are the overview's; focus
+		// returns to that window and the overview is shown before the
+		// disclosure is walked.
 		window.activateWindow();
+		window.choose_modality(qt::review_modality::overview);
 		QApplication::processEvents();
 		technicalButton->setFocus(Qt::TabFocusReason);
 		technicalButton->click();
 		QApplication::processEvents();
 		expect(
-			technicalDetails->isVisible()
+			technicalDetails->isVisibleTo(window.overview_page())
 				&& technicalButton->arrowType() == Qt::DownArrow
 				&& technicalButton->accessibleName().contains(
 					QStringLiteral("Hide"))
@@ -879,7 +892,7 @@ namespace {
 		technicalButton->click();
 		QApplication::processEvents();
 		expect(
-			!technicalDetails->isVisible()
+			!technicalDetails->isVisibleTo(window.overview_page())
 				&& technicalButton->arrowType() == Qt::RightArrow
 				&& QApplication::focusWidget() == technicalButton,
 			"technical disclosure closes in place without moving focus");
