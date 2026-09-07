@@ -316,3 +316,23 @@ the window's title row.
   "Choose another pull request", which moves to the queue. This is the
   first row of BPR-0650's action list arriving early. Pinned in the
   composed Home test.
+
+## Attended verdict, 2026-09-07: rejected
+
+The owner ran the session at f492706b and rejected the capture. They did not
+judge the chrome itself, because the way in defeated them first and the
+workbench they reached was empty. In their words: "the app is so shit I cannot
+judge it", "The public preview is buried deep in menus and looks innocuous, I
+could barely find it", "we had described the UX as allowing pasting a URL but I
+still have to manually split it myself", "that PR entry process is in the
+settings menu instead of on the home", and "the entire set of information for
+this PR is being crammed into a tiny box in files browser".
+
+Carded: [BPR-0669](../10-backlog/BPR-0669-open-a-pull-request-by-pasting-its-url-from-home.md)
+for URL entry on Home, [BPR-0670](../10-backlog/BPR-0670-public-preview-is-buried-and-does-not-say-what-it-is.md)
+for the signed-out path, [BPR-0671](../10-backlog/BPR-0671-the-pull-request-summary-is-crammed-into-the-files-drawer.md)
+for the summary box this card left in the files drawer, and
+[BPR-0667](../10-backlog/BPR-0667-public-preview-cannot-open-a-merged-pull-request.md)
+and [BPR-0668](../10-backlog/BPR-0668-a-failed-comparison-leaves-an-empty-workbench-that-says-nothing-is-open.md)
+for the empty workbench. The capture is re-offered only once a reviewer can
+reach a comparison; there is nothing to photograph until then.

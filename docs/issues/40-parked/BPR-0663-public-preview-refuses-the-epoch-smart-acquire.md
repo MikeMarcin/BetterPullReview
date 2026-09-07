@@ -77,3 +77,16 @@ courses run over fixture transports and did not catch it.
   the round-trip contract, the six public-preview courses,
   `check_boundaries`, strict tidy, `clang-format --Werror` and
   `verify_documentation.py` pass.
+
+## Attended verdict, 2026-09-07: the fix is confirmed, the criterion is not met
+
+The owner's run at 17:47 reached the wire, and the diagnostics log records
+`epoch_stage=smart_acquire outcome=succeeded` with no `invalid_request`: the
+generation this card corrected is right, and the refusal it was written for is
+gone. The next stage then failed,
+`epoch_stage=protocol_acquire failure_domain=protocol failure=oid_mismatch`,
+so the epoch line still read "No updates loaded." and no comparison resolved.
+
+The card's acceptance names all three, so it stays open behind
+[BPR-0667](../10-backlog/BPR-0667-public-preview-cannot-open-a-merged-pull-request.md),
+which owns the new failure. This card's own change is not in question.

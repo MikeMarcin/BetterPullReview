@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0672"
+  ],
+  "reserve_for": "review-packet-intake",
+  "purpose": "Attended review packet intake defects",
+  "created": "2026-09-07T17:56:26.687746+00:00",
+  "base": "61cf9c5e243f310e69a7cee49768ebe7a61c3303"
+}

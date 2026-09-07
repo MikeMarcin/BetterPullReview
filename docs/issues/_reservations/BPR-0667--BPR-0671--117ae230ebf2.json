@@ -1,0 +1,14 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0667",
+    "BPR-0668",
+    "BPR-0669",
+    "BPR-0670",
+    "BPR-0671"
+  ],
+  "reserve_for": "owner-rejection-20260907",
+  "purpose": "Owner rejection of the attended session: entry UX, epoch protocol acquire, workbench emptiness, review tooling",
+  "created": "2026-09-07T17:56:13.907657+00:00",
+  "base": "61cf9c5e243f310e69a7cee49768ebe7a61c3303"
+}
