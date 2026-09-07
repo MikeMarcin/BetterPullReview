@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0670"
 title: "Public preview is buried and does not say what it is"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0028","RFC-BPR-0017"]
 depends_on: []
 priority: "P1"
