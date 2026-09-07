@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0673"
+  ],
+  "reserve_for": "epoch-refresh-stall",
+  "purpose": "Epoch refresh stalls the event loop past its responsiveness bound",
+  "created": "2026-09-07T20:36:00.195446+00:00",
+  "base": "42cec0f6f49e5b7977c4e0d3774dda1e163c7516"
+}
