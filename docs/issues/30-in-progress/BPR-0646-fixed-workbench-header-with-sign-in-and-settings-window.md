@@ -76,3 +76,45 @@ area in `workbench_window.cpp` and the toolbar it carries.
   are clean; the signed `app-release` bundle builds. The attended capture of
   the new build could not be taken in that session because the Mac's screen
   was locked and the displays asleep; it stays owed to this card's acceptance.
+- Slice (b), the strip. `workbench_strip.{hpp,cpp}` replaces the icon toolbar
+  with RFC-BPR-0028's 30-pixel row: a `QToolBar` subclass that paints the bar
+  and its rule, a `QProxyStyle` its presenters adopt (22-pixel bordered
+  buttons, soft accent fill when checked, solid accent for the modality
+  segments, disabled ink at 140 alpha rather than the platform's grey, an
+  inset focus ring), painted line glyphs in the palette's ink, a divider, and
+  the `modality_control`. Row order, left to right: files, identity, rule,
+  previous and next change with "change 3 of 11", previous and next file with
+  "file 3 of 40", spacer, the modality control, spacer, review details,
+  private progress, refresh, comments, rule, account, settings. The change
+  position is derived from the comparison surface's held result and
+  selection exactly as the host derives the cursor it observes; the file
+  position is the core's navigation cursor. Overview, Read, Review and
+  Discuss (⌘1 to ⌘4) dispatch two exact `set_workbench_drawer_intent`s
+  (Overview: files open, comments closed; Read and Discuss: files collapsed,
+  comments open; Review: both open) and only when the core offers the drawer
+  commands; the segment stays where it was chosen through a manual toggle.
+  The account button reaches the device sign-in while signed out and the
+  accounts settings page once signed in; refresh is the session chrome's own
+  action. The window's width floor rises from 480 to 820 so no strip control
+  ever folds into an overflow menu; the identity yields below 1180, the
+  positions below 960, and the modality segments drop the shortcut beside
+  their names below 1000. Not in this slice: the "next new comment" group,
+  because no unread projection reaches the Qt layer yet (the ledger's
+  `UnreadConversations` is never set by the host and the queue's unseen
+  count collapses to a bucket); it lands with the unread projection under
+  BPR-0648. Rails, the 18-pixel collapsed drawers, Discuss's widening and
+  per-window persistence of the modality are the next slice. The
+  `workbench_window_tests` widget-count sanity bound moved from a hundredfold
+  to a fiftyfold ratio (609 widgets against 60,000 lines); the equalities
+  that make the claim are unchanged. The UIforETW capture probe pins the new
+  nineteen-entry row; both application digests repinned.
+- Slice (b) observation, 2026-09-06, signed `app-release` bundle at 1280x852
+  on the dark palette, signed out: the strip is one 30-pixel row under the
+  title bar with the files toggle checked at the left, the change and file
+  pairs as bordered chevron buttons, the four segments "Overview ⌘1", "Read
+  ⌘2", "Review ⌘3" (filled) and "Discuss ⌘4" alone at the centre, and
+  review details, private progress with its menu arrow, refresh, comments
+  (checked), a rule, account and settings at the right; the identity and
+  positions are absent because no pull request is open. The device sign-in
+  panel is the top of the header beneath it. Captured with the computer-use
+  window screenshot; no image retained.

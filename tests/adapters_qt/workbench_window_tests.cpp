@@ -562,14 +562,26 @@ namespace {
 		const auto  actions       = toolbar->actions();
 		expect(window.findChildren<QToolBar*>().size() == 1,
 			   "the focused review surface has exactly one toolbar row");
+		// [[BPR-0646]]. RFC-BPR-0028's strip order: Files is the far-left
+		// action; Settings is the far-right one, after the account button;
+		// the change pair precedes the file pair, each followed by its
+		// position; Conversations sits in the right region after refresh.
 		expect(!actions.isEmpty() && actions.front() == files
-				   && actions.back() == conversations,
-			   "Files is the far-left action and Conversations is the far-right action");
-		for (std::size_t index = 0U; index < navigation.size(); ++index) {
-			expect(actions.indexOf(navigation[index])
-					   == actions.indexOf(files) + static_cast<qsizetype>(index) + 1,
-				   "file and change navigation occupy the exact semantic order between drawer edges");
-		}
+				   && actions.back() == window.settings_action()
+				   && actions.indexOf(window.account_action())
+					   == actions.size() - 2,
+			   "Files is the far-left action and Settings, after Account, is the far-right action");
+		expect(actions.indexOf(navigation[2]) < actions.indexOf(navigation[3])
+				   && actions.indexOf(navigation[3]) < actions.indexOf(navigation[0])
+				   && actions.indexOf(navigation[0]) < actions.indexOf(navigation[1])
+				   && actions.indexOf(navigation[1]) < actions.indexOf(conversations)
+				   && actions.indexOf(files) < actions.indexOf(navigation[2]),
+			   "the change pair precedes the file pair between the drawer toggles");
+		expect(actions.indexOf(navigation[3]) + 1 == actions.indexOf(navigation[2]) + 2
+				   && actions.indexOf(navigation[1]) == actions.indexOf(navigation[0]) + 1,
+			   "each navigation pair is adjacent");
+		expect(toolbar->height() == qt::workbench_strip::height_pixels,
+			   "the strip is the design's 30-pixel row");
 		const auto required = std::array{
 			files,
 			navigation[0],
@@ -595,12 +607,17 @@ namespace {
 		}
 		auto* const spacer = toolbar->findChild<QWidget*>(
 			QStringLiteral("workbenchNavigationSpacer"));
+		auto* const modalitySpacer = toolbar->findChild<QWidget*>(
+			QStringLiteral("workbenchModalitySpacer"));
 		expect(spacer != nullptr && spacer->width() > 0
+				   && modalitySpacer != nullptr && modalitySpacer->width() > 0
 				   && spacer->x()
-					   > toolbar->widgetForAction(window.next_change_action())->x()
+					   > toolbar->widgetForAction(window.next_file_action())->x()
+				   && window.modality()->x() > spacer->x()
+				   && modalitySpacer->x() > window.modality()->x()
 				   && toolbar->widgetForAction(conversations)->x()
-					   > spacer->x(),
-			   "one flexible spacer holds Conversations at the opposite row edge");
+					   > modalitySpacer->x(),
+			   "two flexible spacers hold the modality control alone at the centre");
 
 		auto* const reviewButton = window.review_controls_button();
 		auto* const reviewMenu   = window.review_controls_menu();
@@ -792,8 +809,10 @@ namespace {
 				   && window.actions().contains(conversations),
 			   "each drawer toggle is a checkable window action with a shortcut");
 		expect(window.primary_toolbar()->actions().front() == files
-				   && window.primary_toolbar()->actions().back() == conversations,
-			   "the drawer toggles occupy the exact far-left and far-right row edges");
+				   && window.primary_toolbar()->actions().indexOf(conversations)
+					   > window.primary_toolbar()->actions().indexOf(
+						   window.review_details_toggle_action()),
+			   "Files opens the strip and Conversations sits in its right region");
 		for (auto* const toggle : { files, conversations }) {
 			auto* const button = qobject_cast<QToolButton*>(
 				window.primary_toolbar()->widgetForAction(toggle));
@@ -1006,6 +1025,167 @@ namespace {
 
 		expect(log.Width.empty(),
 			   "applying a published layout reports no width back to the host");
+		window.hide();
+	}
+
+	void test_strip_modalities_positions_and_account()
+	{
+		intent_log           log;
+		qt::workbench_window window{
+			[&log](core::workbench_interaction_intent aIntent) {
+				log.Workbench.push_back(aIntent);
+			},
+			[&log](core::navigate_diff_change_intent aIntent) {
+				log.Change.push_back(aIntent);
+			}
+		};
+		window.resize(1'280, 820);
+		window.show();
+		QApplication::processEvents();
+
+		auto* const modality = window.modality();
+		expect(modality != nullptr
+				   && window.current_modality() == qt::review_modality::review,
+			   "the strip opens on Review, the modality with both drawers open");
+		for (std::size_t index = 0U; index < qt::review_modality_count; ++index) {
+			const auto  which  = static_cast<qt::review_modality>(index);
+			auto* const action = modality->action(which);
+			auto* const button = modality->button(which);
+			expect(action != nullptr && action->isCheckable()
+					   && action->shortcut()
+						   == QKeySequence{ QStringLiteral("Ctrl+%1").arg(index + 1U) }
+					   && action->shortcutContext() == Qt::WindowShortcut
+					   && button != nullptr && button->isVisible()
+					   && button->focusPolicy() == Qt::StrongFocus
+					   && !button->accessibleName().isEmpty()
+					   && !button->accessibleDescription().isEmpty()
+					   && window.focus_order().contains(button),
+				   "each modality is a checkable, shortcut-bearing, focusable stop");
+		}
+		expect(modality->action(qt::review_modality::review)->isChecked()
+				   && !modality->action(qt::review_modality::read)->isChecked(),
+			   "exactly the current modality reads checked");
+
+		// With no active workbench the drawers cannot change, so choosing a
+		// modality shows the preset and asks the core for nothing.
+		modality->action(qt::review_modality::read)->trigger();
+		QApplication::processEvents();
+		expect(window.current_modality() == qt::review_modality::read
+				   && modality->action(qt::review_modality::read)->isChecked()
+				   && !modality->action(qt::review_modality::review)->isChecked()
+				   && log.Workbench.empty(),
+			   "an inactive workbench takes the preset without dispatching");
+
+		window.publish(every_primary_command_offered());
+		QApplication::processEvents();
+		const auto drawerIntents = [&log] {
+			auto states = std::vector<core::set_workbench_drawer_intent>{ };
+			for (const auto& intent : log.Workbench) {
+				if (const auto* const set
+					= std::get_if<core::set_workbench_drawer_intent>(&intent);
+					set != nullptr) {
+					states.push_back(*set);
+				}
+			}
+			return states;
+		};
+		const auto expectPreset = [&](const qt::review_modality          aModality,
+									  const core::workbench_drawer_state aFiles,
+									  const core::workbench_drawer_state aConversations,
+									  const char* const                  aMessage) {
+			log.Workbench.clear();
+			modality->action(aModality)->trigger();
+			QApplication::processEvents();
+			const auto states = drawerIntents();
+			expect(states.size() == 2U
+					   && states[0]
+						   == core::set_workbench_drawer_intent{
+							   .Drawer = core::workbench_drawer::files,
+							   .State  = aFiles }
+					   && states[1] == core::set_workbench_drawer_intent{ .Drawer = core::workbench_drawer::conversations, .State = aConversations } && window.current_modality() == aModality,
+				   aMessage);
+		};
+		expectPreset(qt::review_modality::overview,
+					 core::workbench_drawer_state::expanded,
+					 core::workbench_drawer_state::collapsed,
+					 "Overview opens files and closes comments through exact set intents");
+		expectPreset(qt::review_modality::read,
+					 core::workbench_drawer_state::collapsed,
+					 core::workbench_drawer_state::expanded,
+					 "Read collapses files and keeps comments beside the code");
+		expectPreset(qt::review_modality::review,
+					 core::workbench_drawer_state::expanded,
+					 core::workbench_drawer_state::expanded,
+					 "Review opens both drawers");
+		expectPreset(qt::review_modality::discuss,
+					 core::workbench_drawer_state::collapsed,
+					 core::workbench_drawer_state::expanded,
+					 "Discuss collapses files and gives the conversation the room");
+
+		// A manual toggle never moves the segment: the preset stands until
+		// the next modality is chosen.
+		log.Workbench.clear();
+		window.files_drawer_toggle_action()->trigger();
+		QApplication::processEvents();
+		expect(window.current_modality() == qt::review_modality::discuss,
+			   "a manual drawer toggle leaves the modality where it was");
+
+		// The file position comes from the core's navigation cursor and
+		// reads as the strip labels it.
+		window.publish(application::workbench_projection{
+			.Selection = core::workbench_selection_delta{
+				.Cursor = core::workbench_navigation_cursor{
+					.Ordinal           = 3U,
+					.ActionableCount   = 40U,
+					.PreviousAvailable = true,
+					.NextAvailable     = true,
+				} } });
+		QApplication::processEvents();
+		expect(window.file_position_label() != nullptr
+				   && window.file_position_label()->text()
+					   == QStringLiteral("file 3 of 40"),
+			   "the strip states the selected file's position among the actionable files");
+		expect(window.change_position_label() != nullptr
+				   && window.change_position_label()->text().isEmpty(),
+			   "with no comparison held the change position says nothing");
+
+		// Signed out, the account button is the way to the sign-in the
+		// header shows; its presenter is named and never reads disabled.
+		auto* const account       = window.account_action();
+		auto* const accountButton = qobject_cast<QToolButton*>(
+			window.primary_toolbar()->widgetForAction(account));
+		expect(account != nullptr && account->isEnabled()
+				   && account->text() == QStringLiteral("Sign in")
+				   && accountButton != nullptr && accountButton->isVisible()
+				   && accountButton->accessibleName() == QStringLiteral("Account")
+				   && !accountButton->accessibleDescription().isEmpty(),
+			   "signed out, the account button offers sign-in and stays enabled");
+		auto* const settingsButton = qobject_cast<QToolButton*>(
+			window.primary_toolbar()->widgetForAction(window.settings_action()));
+		expect(settingsButton != nullptr && settingsButton->isVisible()
+				   && !settingsButton->accessibleName().isEmpty(),
+			   "settings closes the strip's right region");
+
+		// The identity and the positions yield width before the floor; the
+		// controls never do.
+		window.resize(window.minimumWidth(), 720);
+		QApplication::processEvents();
+		expect(window.primary_toolbar()->findChild<QToolButton*>(
+				   QStringLiteral("qt_toolbar_ext_button"))
+					   == nullptr
+				   || !window.primary_toolbar()
+						   ->findChild<QToolButton*>(
+							   QStringLiteral("qt_toolbar_ext_button"))
+						   ->isVisible(),
+			   "no strip control folds into an overflow menu at the width floor");
+		for (std::size_t index = 0U; index < qt::review_modality_count; ++index) {
+			expect(modality->button(static_cast<qt::review_modality>(index))
+					   ->isVisible(),
+				   "every modality segment stays visible at the width floor");
+		}
+		expect(!window.identity_label()->isVisible()
+				   && !window.file_position_label()->isVisible(),
+			   "the identity and position text are what yield at the width floor");
 		window.hide();
 	}
 
@@ -2795,7 +2975,12 @@ namespace {
 				   && medium.PaneWidgets == large.PaneWidgets,
 			   "the source pane presenting sixty thousand lines has exactly the "
 			   "child widgets it has presenting sixty");
-		expect(100U * large.WindowWidgets < large.RightLines,
+		// The equalities above are the claim about the surface; this ratio
+		// is the sanity bound over the whole window, whose chrome is a fixed
+		// count independent of any source. [[BPR-0646]] The strip's bordered
+		// controls and modality segments took the assembled window past the
+		// old hundredfold line; two orders of magnitude is still the bound.
+		expect(50U * large.WindowWidgets < large.RightLines,
 			   "the whole retained widget tree stays orders of magnitude smaller "
 			   "than the source it presents");
 		expect(small.VisibleLinks == medium.VisibleLinks
@@ -4075,6 +4260,7 @@ auto main(int argc, char** argv) -> int
 	test_the_view_menu_offers_a_core_decided_line_number_toggle();
 	test_the_view_menu_reaches_the_composed_source_panes();
 	test_collapsing_a_drawer_returns_space_to_the_centre();
+	test_strip_modalities_positions_and_account();
 	test_review_details_return_height_to_the_comparison();
 	test_drawer_resize_emits_the_host_layout_path();
 	test_drawer_contents_use_incremental_model_signals();

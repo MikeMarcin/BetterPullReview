@@ -108,59 +108,6 @@ namespace bpr::qt {
 		/// what the product opens at.
 		constexpr int conversation_drawer_default_width = 375;
 
-		/// \brief Recolours one native icon silhouette for the live widget palette.
-		///
-		/// \details Some styles return fixed black arrow pixels even when a widget
-		/// has adopted a dark local palette. Reusing the style's normal pixmap as an
-		/// alpha mask preserves its platform-specific arrow geometry while making
-		/// the foreground follow the palette. Disabled mode is populated explicitly
-		/// so Qt does not synthesize another black or unreadably faded variant.
-		[[nodiscard]] auto palette_aware_icon(
-			QStyle&                      aStyle,
-			const QStyle::StandardPixmap aPixmap,
-			const QPalette&              aPalette,
-			QWidget* const               aWidget) -> QIcon
-		{
-			auto source = aStyle.standardIcon(aPixmap, nullptr, aWidget);
-			if (source.isNull()) {
-				return source;
-			}
-
-			auto           result       = QIcon{ };
-			constexpr auto logicalSizes = std::array{ 16, 20, 24, 32 };
-			constexpr auto scales       = std::array{ 1.0, 1.25, 2.0 };
-			constexpr auto modes        = std::array{
-				std::pair{ QIcon::Normal, QPalette::Active },
-				std::pair{ QIcon::Active, QPalette::Active },
-				std::pair{ QIcon::Selected, QPalette::Active },
-				std::pair{ QIcon::Disabled, QPalette::Disabled },
-			};
-			for (const auto& [mode, group] : modes) {
-				for (const auto logicalSize : logicalSizes) {
-					for (const auto scale : scales) {
-						auto pixels = source.pixmap(
-							QSize{ logicalSize, logicalSize },
-							scale,
-							QIcon::Normal,
-							QIcon::Off);
-						if (pixels.isNull()) {
-							continue;
-						}
-						{
-							auto painter = QPainter{ &pixels };
-							painter.setCompositionMode(
-								QPainter::CompositionMode_SourceIn);
-							painter.fillRect(
-								pixels.rect(),
-								aPalette.color(group, QPalette::ButtonText));
-						}
-						result.addPixmap(pixels, mode, QIcon::Off);
-					}
-				}
-			}
-			return result.isNull() ? source : result;
-		}
-
 		[[nodiscard]] auto reason_text(const core::workbench_reason_code aReason)
 			-> QString
 		{
@@ -321,9 +268,12 @@ namespace bpr::qt {
 	{
 		setObjectName(QStringLiteral("workbenchWindow"));
 		setWindowTitle(QStringLiteral("BetterPullReview"));
-		// The six primary icon controls remain top-level at this supported floor;
-		// text never consumes their persistent row width.
-		setMinimumSize(480, 360);
+		// [[BPR-0646]]. Every strip control stays top-level at this supported
+		// floor: the eleven bordered buttons and the four modality segments
+		// fit with nothing folded into an overflow menu. The identity and the
+		// two position labels are the only strip items that yield width, and
+		// they do so before the floor (see apply_strip_width).
+		setMinimumSize(820, 360);
 		resize(1'280, 820);
 
 		build_menu_bar();
@@ -357,14 +307,18 @@ namespace bpr::qt {
 
 	void workbench_window::build_primary_toolbar()
 	{
-		PrimaryToolbar = addToolBar(QStringLiteral("Review navigation"));
+		// [[BPR-0646]]. RFC-BPR-0028's strip: one 30-pixel row in full ink
+		// with bordered buttons, three regions. It stays the window's one
+		// toolbar so every action keeps its presenter, shortcut and place in
+		// the declared focus order.
+		Strip = new workbench_strip{ QStringLiteral("Review strip"), this };
+		addToolBar(Strip);
+		PrimaryToolbar = Strip;
 		PrimaryToolbar->setObjectName(QStringLiteral("workbenchPrimaryToolbar"));
-		PrimaryToolbar->setAccessibleName(QStringLiteral("Focused review navigation"));
+		PrimaryToolbar->setAccessibleName(QStringLiteral("Review strip"));
 		PrimaryToolbar->setAccessibleDescription(QStringLiteral(
-			"Files drawer, file and change navigation, secondary review controls, and conversations drawer"));
-		PrimaryToolbar->setMovable(false);
-		PrimaryToolbar->setFloatable(false);
-		PrimaryToolbar->setToolButtonStyle(Qt::ToolButtonIconOnly);
+			"Drawer toggles, pull request identity, change and file navigation, "
+			"the review modality, refresh, account and settings"));
 
 		const auto makeDrawer = [this](const QString&      aText,
 									   const QString&      aName,
@@ -567,23 +521,112 @@ namespace bpr::qt {
 		ReviewControlsButton->setFocusPolicy(Qt::StrongFocus);
 		ReviewControlsButton->setMenu(ReviewControlsMenu);
 
-		// Exact persistent order: the two semantic drawer edges enclose all four
-		// navigation actions. Secondary review controls stay bounded, and the
-		// expanding widget is the only item allowed to consume surplus width.
+		AccountAction = new QAction{ QStringLiteral("&Account"), this };
+		AccountAction->setObjectName(QStringLiteral("workbenchAccountAction"));
+		AccountAction->setIconText(QStringLiteral("Account"));
+		addAction(AccountAction);
+		connect(AccountAction, &QAction::triggered, this, [this] {
+			// Signed out, the one way in is the device sign-in the header
+			// shows; signed in, the account lives on its settings page.
+			if (DevicePanel != nullptr && DevicePanel->isVisibleTo(this)) {
+				if (ReviewDetailsAction != nullptr
+					&& !ReviewDetailsAction->isChecked()) {
+					ReviewDetailsAction->setChecked(true);
+				}
+				if (HeaderScroll != nullptr) {
+					HeaderScroll->ensureWidgetVisible(DevicePanel);
+				}
+				DevicePanel->begin_button()->setFocus(Qt::ShortcutFocusReason);
+				return;
+			}
+			open_settings(settings_page::accounts_and_hosts);
+		});
+
+		const auto stripLabel = [this](const QString& aObjectName,
+									   const QString& aAccessible,
+									   const QString& aDescription) {
+			auto* const label = new QLabel{ PrimaryToolbar };
+			label->setObjectName(aObjectName);
+			label->setAccessibleName(aAccessible);
+			label->setAccessibleDescription(aDescription);
+			label->setTextFormat(Qt::PlainText);
+			label->setFocusPolicy(Qt::NoFocus);
+			label->setContentsMargins(2, 0, 4, 0);
+			return label;
+		};
+		const auto stripWidget = [this](QWidget* const aWidget, const QString& aActionName) {
+			auto* const action = PrimaryToolbar->addWidget(aWidget);
+			action->setObjectName(aActionName);
+			return action;
+		};
+		const auto stripSpacer = [this, &stripWidget](
+									 const QString& aObjectName, const QString& aActionName) {
+			auto* const spacer = new QWidget{ PrimaryToolbar };
+			spacer->setObjectName(aObjectName);
+			spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+			spacer->setFocusPolicy(Qt::NoFocus);
+			stripWidget(spacer, aActionName);
+			return spacer;
+		};
+
+		// Exact persistent order, the design's three regions left to right.
+		// Left: the files drawer toggle, the identity, a rule, the change
+		// navigation with its position, the file navigation with its position.
+		// Centre: the modality control alone between two expanding spacers.
+		// Right: the secondary review controls, refresh (inserted once the
+		// session chrome has made it), the comments drawer toggle, a rule,
+		// account, settings.
 		PrimaryToolbar->addAction(Drawers[0].Toggle);
-		for (const auto& entry : Navigation) {
-			PrimaryToolbar->addAction(entry.Action);
-		}
-		PrimaryToolbar->addSeparator();
+		IdentityLabel = stripLabel(
+			QStringLiteral("workbenchStripIdentity"),
+			QStringLiteral("Open pull request"),
+			QStringLiteral("Repository and pull request the strip navigates"));
+		IdentityLabel->setContentsMargins(4, 0, 4, 0);
+		IdentityAction = stripWidget(
+			IdentityLabel, QStringLiteral("workbenchStripIdentityAction"));
+		stripWidget(
+			new strip_divider{ PrimaryToolbar },
+			QStringLiteral("workbenchStripLeftDividerAction"));
+		PrimaryToolbar->addAction(Navigation[2].Action);
+		PrimaryToolbar->addAction(Navigation[3].Action);
+		ChangePositionLabel = stripLabel(
+			QStringLiteral("workbenchStripChangePosition"),
+			QStringLiteral("Change position"),
+			QStringLiteral("The selected change's position among the comparison's changes"));
+		ChangePositionAction = stripWidget(
+			ChangePositionLabel,
+			QStringLiteral("workbenchStripChangePositionAction"));
+		PrimaryToolbar->addAction(Navigation[0].Action);
+		PrimaryToolbar->addAction(Navigation[1].Action);
+		FilePositionLabel = stripLabel(
+			QStringLiteral("workbenchStripFilePosition"),
+			QStringLiteral("File position"),
+			QStringLiteral("The selected file's position among the actionable files"));
+		FilePositionAction = stripWidget(
+			FilePositionLabel, QStringLiteral("workbenchStripFilePositionAction"));
+
+		ToolbarSpacer = stripSpacer(
+			QStringLiteral("workbenchNavigationSpacer"),
+			QStringLiteral("workbenchNavigationSpacerAction"));
+		Modality = new modality_control{ *Strip, PrimaryToolbar };
+		Modality->set_dispatch(
+			[this](const review_modality aModality) { choose_modality(aModality); });
+		stripWidget(Modality, QStringLiteral("workbenchModalityAction"));
+		ModalitySpacer = stripSpacer(
+			QStringLiteral("workbenchModalitySpacer"),
+			QStringLiteral("workbenchModalitySpacerAction"));
+
 		PrimaryToolbar->addAction(ReviewDetailsAction);
-		auto* const reviewControlsAction = PrimaryToolbar->addWidget(ReviewControlsButton);
-		reviewControlsAction->setObjectName(QStringLiteral("workbenchReviewControlsAction"));
-		ToolbarSpacer = new QWidget{ PrimaryToolbar };
-		ToolbarSpacer->setObjectName(QStringLiteral("workbenchNavigationSpacer"));
-		ToolbarSpacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-		auto* const spacerAction = PrimaryToolbar->addWidget(ToolbarSpacer);
-		spacerAction->setObjectName(QStringLiteral("workbenchNavigationSpacerAction"));
+		stripWidget(ReviewControlsButton, QStringLiteral("workbenchReviewControlsAction"));
 		PrimaryToolbar->addAction(Drawers[1].Toggle);
+		stripWidget(
+			new strip_divider{ PrimaryToolbar },
+			QStringLiteral("workbenchStripRightDividerAction"));
+		PrimaryToolbar->addAction(AccountAction);
+		PrimaryToolbar->addAction(SettingsAction);
+		update_strip_positions();
+		update_strip_identity();
+		apply_strip_width();
 	}
 
 	void workbench_window::build_central_surface()
@@ -661,6 +704,7 @@ namespace bpr::qt {
 				if (aInteractive && !line.has_value()) {
 					update_defect_surface();
 				}
+				update_strip_positions();
 			});
 		ReviewSubmissionEditor = new review_submission_editor{
 			[this](review_submission_editor_intent aIntent) {
@@ -1076,6 +1120,11 @@ namespace bpr::qt {
 		stack->addWidget(HeaderScroll);
 		stack->addWidget(CentralSplitter, 1);
 		setCentralWidget(host);
+
+		// [[BPR-0646]]. Refresh sits in the strip's right region, before the
+		// comments toggle, as the design places it. Same action as the
+		// session chrome's button, so there is one refresh with one state.
+		PrimaryToolbar->insertAction(Drawers[1].Toggle, GithubRefreshAction);
 
 		ConversationPanel->set_reveal_action(ShowReviewThreadsAction);
 		connect(ShowReviewThreadsAction, &QAction::triggered, this, [this] {
@@ -2059,6 +2108,150 @@ namespace bpr::qt {
 		return PrimaryToolbar;
 	}
 
+	auto workbench_window::modality() const noexcept -> modality_control*
+	{
+		return Modality;
+	}
+
+	auto workbench_window::current_modality() const noexcept -> review_modality
+	{
+		return Modality != nullptr ? Modality->current() : review_modality::review;
+	}
+
+	void workbench_window::choose_modality(const review_modality aModality)
+	{
+		if (Modality != nullptr) {
+			Modality->adopt(aModality);
+		}
+		// A modality is two exact set-drawer intents; the core decides them
+		// as it decides a toggle. With no active workbench the drawers cannot
+		// change, so nothing is asked and the strip merely shows the preset.
+		const auto files = command(core::workbench_command_id::toggle_files_drawer);
+		const auto conversations
+			= command(core::workbench_command_id::toggle_conversations_drawer);
+		if (!Dispatch || !files || !files->Enabled || !conversations
+			|| !conversations->Enabled) {
+			return;
+		}
+		const auto filesState         = aModality == review_modality::read
+				|| aModality == review_modality::discuss
+			? core::workbench_drawer_state::collapsed
+			: core::workbench_drawer_state::expanded;
+		const auto conversationsState = aModality == review_modality::overview
+			? core::workbench_drawer_state::collapsed
+			: core::workbench_drawer_state::expanded;
+		Dispatch(core::set_workbench_drawer_intent{
+			.Drawer = core::workbench_drawer::files,
+			.State  = filesState,
+		});
+		Dispatch(core::set_workbench_drawer_intent{
+			.Drawer = core::workbench_drawer::conversations,
+			.State  = conversationsState,
+		});
+	}
+
+	auto workbench_window::account_action() const noexcept -> QAction*
+	{
+		return AccountAction;
+	}
+
+	auto workbench_window::identity_label() const noexcept -> QLabel*
+	{
+		return IdentityLabel;
+	}
+
+	auto workbench_window::change_position_label() const noexcept -> QLabel*
+	{
+		return ChangePositionLabel;
+	}
+
+	auto workbench_window::file_position_label() const noexcept -> QLabel*
+	{
+		return FilePositionLabel;
+	}
+
+	void workbench_window::update_strip_positions()
+	{
+		if (FilePositionLabel == nullptr || ChangePositionLabel == nullptr) {
+			return;
+		}
+		auto fileText = QString{ };
+		if (Cursor && Cursor->ActionableCount > 0U) {
+			fileText = Cursor->Ordinal > 0U
+				? QStringLiteral("file %1 of %2")
+					  .arg(Cursor->Ordinal)
+					  .arg(Cursor->ActionableCount)
+				: QStringLiteral("%1 files").arg(Cursor->ActionableCount);
+		}
+		FilePositionLabel->setText(fileText);
+
+		// Derived from the comparison the surface holds, exactly as the host
+		// derives the change cursor it observes for the core: the group the
+		// selection names, counted among the alignment's groups. No second
+		// authority, and nothing when the selection is for another comparison.
+		auto changeText = QString{ };
+		if (ComparisonSurface != nullptr) {
+			const auto& result    = ComparisonSurface->current_result();
+			const auto& selection = ComparisonSurface->selection();
+			if (result != nullptr) {
+				const auto& groups  = result->Alignment.Groups;
+				auto        ordinal = std::size_t{ 0U };
+				if (selection.has_value() && selection->Group.has_value()
+					&& selection->Comparison == result->Alignment.Digest) {
+					const auto found = std::ranges::find(
+						groups, *selection->Group, &core::change_group::Id);
+					if (found != groups.end()) {
+						ordinal = static_cast<std::size_t>(
+							std::ranges::distance(groups.begin(), found) + 1);
+					}
+				}
+				changeText = ordinal > 0U
+					? QStringLiteral("change %1 of %2").arg(ordinal).arg(groups.size())
+					: groups.empty() ? QStringLiteral("no changes")
+									 : QStringLiteral("%1 changes").arg(groups.size());
+			}
+		}
+		ChangePositionLabel->setText(changeText);
+	}
+
+	void workbench_window::update_strip_identity()
+	{
+		if (IdentityLabel == nullptr) {
+			return;
+		}
+		IdentityLabel->setText(IdentityLabel->fontMetrics().elidedText(
+			IdentityText, Qt::ElideRight, 360));
+		IdentityLabel->setToolTip(IdentityText);
+	}
+
+	void workbench_window::update_account_action()
+	{
+		if (AccountAction == nullptr || SessionPanel == nullptr) {
+			return;
+		}
+		const auto status   = SessionPanel->status();
+		const auto signedIn = status == core::github_status::session_ready
+			|| status == core::github_status::loading_pull_request
+			|| status == core::github_status::pull_request_ready
+			|| status == core::github_status::pull_request_failed
+			|| status == core::github_status::pull_request_cancelled;
+		const auto account     = QString::fromStdString(SessionPanel->active_account_text());
+		const auto description = signedIn
+			? QStringLiteral("Signed in as %1. Open the accounts and hosts settings.")
+				  .arg(account)
+			: QStringLiteral("Sign in with a device code.");
+		AccountAction->setText(signedIn ? account : QStringLiteral("Sign in"));
+		AccountAction->setToolTip(description);
+		AccountAction->setStatusTip(description);
+		if (auto* const button = qobject_cast<QToolButton*>(
+				PrimaryToolbar->widgetForAction(AccountAction));
+			button != nullptr) {
+			button->setAccessibleName(QStringLiteral("Account"));
+			button->setAccessibleDescription(description);
+			button->setFocusPolicy(Qt::StrongFocus);
+		}
+	}
+
 	auto workbench_window::previous_file_action() const noexcept -> QAction*
 	{
 		return Navigation[0].Action;
@@ -2210,6 +2403,12 @@ namespace bpr::qt {
 		const application::github_pull_request_projection& aPullRequest)
 	{
 		PullRequestPanel->adopt(aPullRequest);
+		IdentityText = QStringLiteral("%1/%2  #%3 %4")
+						   .arg(QString::fromStdString(aPullRequest.Owner),
+								QString::fromStdString(aPullRequest.RepositoryName),
+								QString::number(aPullRequest.Number.value()),
+								QString::fromStdString(aPullRequest.Title));
+		update_strip_identity();
 		// The gap BPR-0191 recorded closes here. In the two-window arrangement
 		// the anchor could only follow a conversation projection, because nothing
 		// observed a comparison context change. The shell composes both surfaces,
@@ -2261,6 +2460,8 @@ namespace bpr::qt {
 	void workbench_window::clear_github_pull_request()
 	{
 		HasGithubPullRequest = false;
+		IdentityText.clear();
+		update_strip_identity();
 		PullRequestPanel->clear();
 		ConversationPanel->clear(QStringLiteral(
 			"Review threads are unavailable until a pull request is open."));
@@ -2455,6 +2656,7 @@ namespace bpr::qt {
 				|| status == core::github_status::session_failed
 				|| status == core::github_status::session_cancelled);
 		}
+		update_account_action();
 
 		QString state;
 		if (HasGithubPullRequest) {
@@ -2870,17 +3072,29 @@ namespace bpr::qt {
 			}
 		};
 
-		append(qobject_cast<QToolButton*>(
-			PrimaryToolbar->widgetForAction(Drawers[0].Toggle)));
-		for (const auto& entry : Navigation) {
-			append(qobject_cast<QToolButton*>(
-				PrimaryToolbar->widgetForAction(entry.Action)));
+		// The strip's stops in the strip's reading order: files, the change
+		// pair, the file pair, the four modalities, the secondary review
+		// controls, refresh, comments, account, settings.
+		const auto presenter = [this](QAction* const aAction) {
+			return qobject_cast<QToolButton*>(
+				PrimaryToolbar->widgetForAction(aAction));
+		};
+		append(presenter(Drawers[0].Toggle));
+		append(presenter(Navigation[2].Action));
+		append(presenter(Navigation[3].Action));
+		append(presenter(Navigation[0].Action));
+		append(presenter(Navigation[1].Action));
+		if (Modality != nullptr) {
+			for (std::size_t index = 0U; index < review_modality_count; ++index) {
+				append(Modality->button(static_cast<review_modality>(index)));
+			}
 		}
-		append(qobject_cast<QToolButton*>(
-			PrimaryToolbar->widgetForAction(ReviewDetailsAction)));
+		append(presenter(ReviewDetailsAction));
 		append(ReviewControlsButton);
-		append(qobject_cast<QToolButton*>(
-			PrimaryToolbar->widgetForAction(Drawers[1].Toggle)));
+		append(presenter(GithubRefreshAction));
+		append(presenter(Drawers[1].Toggle));
+		append(presenter(AccountAction));
+		append(presenter(SettingsAction));
 		// The review header sits under the toolbars and above the workbench, so
 		// its stops are declared there. Reading order and focus order agree.
 		// [[BPR-0646]]. Device sign-in reads first while signed out, above the
@@ -2994,6 +3208,28 @@ namespace bpr::qt {
 		QMainWindow::resizeEvent(aEvent);
 		if (SessionPanel != nullptr) {
 			SessionPanel->apply_compact_layout(width() < 900);
+		}
+		apply_strip_width();
+	}
+
+	void workbench_window::apply_strip_width()
+	{
+		// The strip never folds a control into an overflow menu: a control
+		// that disappears at one width and returns at another is exactly the
+		// chrome the accepted design rejects. What yields first is the text
+		// that restates what the panes already show -- the identity, then the
+		// two positions -- and it yields before the window's floor is reached.
+		if (IdentityAction == nullptr || ChangePositionAction == nullptr
+			|| FilePositionAction == nullptr) {
+			return;
+		}
+		const auto available = width();
+		IdentityAction->setVisible(available >= 1'180);
+		ChangePositionAction->setVisible(available >= 960);
+		FilePositionAction->setVisible(available >= 960);
+		if (Modality != nullptr) {
+			// The segments keep their names and lose the shortcut beside them.
+			Modality->set_compact(available < 1'000);
 		}
 	}
 
@@ -3276,6 +3512,24 @@ namespace bpr::qt {
 			button->setAccessibleDescription(ReviewDetailsAction->toolTip());
 			button->setFocusPolicy(Qt::StrongFocus);
 		}
+		Strip->adopt_button(ReviewControlsButton);
+		if (auto* const button = qobject_cast<QToolButton*>(
+				PrimaryToolbar->widgetForAction(GithubRefreshAction));
+			button != nullptr) {
+			button->setAccessibleName(QStringLiteral("Refresh"));
+			button->setAccessibleDescription(QStringLiteral(
+				"Reload the open pull request from its host."));
+			button->setFocusPolicy(Qt::StrongFocus);
+		}
+		if (auto* const button = qobject_cast<QToolButton*>(
+				PrimaryToolbar->widgetForAction(SettingsAction));
+			button != nullptr) {
+			button->setAccessibleName(QStringLiteral("Settings"));
+			button->setAccessibleDescription(QStringLiteral(
+				"Open the Settings window."));
+			button->setFocusPolicy(Qt::StrongFocus);
+		}
+		update_account_action();
 	}
 
 	void workbench_window::refresh_toolbar_icons()
@@ -3284,22 +3538,26 @@ namespace bpr::qt {
 		if (nativeStyle == nullptr) {
 			return;
 		}
-		Drawers[0].Toggle->setIcon(nativeStyle->standardIcon(
-			QStyle::SP_DirOpenIcon, nullptr, this));
-		Navigation[0].Action->setIcon(palette_aware_icon(
-			*nativeStyle, QStyle::SP_ArrowUp, palette(), this));
-		Navigation[1].Action->setIcon(palette_aware_icon(
-			*nativeStyle, QStyle::SP_ArrowDown, palette(), this));
-		Navigation[2].Action->setIcon(palette_aware_icon(
-			*nativeStyle, QStyle::SP_ArrowBack, palette(), this));
-		Navigation[3].Action->setIcon(palette_aware_icon(
-			*nativeStyle, QStyle::SP_ArrowForward, palette(), this));
-		ReviewDetailsAction->setIcon(nativeStyle->standardIcon(
-			QStyle::SP_FileDialogInfoView, nullptr, this));
-		ReviewControlsButton->setIcon(nativeStyle->standardIcon(
-			QStyle::SP_DialogApplyButton, nullptr, this));
-		Drawers[1].Toggle->setIcon(nativeStyle->standardIcon(
-			QStyle::SP_FileDialogListView, nullptr, this));
+		// [[BPR-0646]]. The strip's glyphs are painted in the live palette's
+		// ink, so a theme change repaints them here exactly as the arrows were.
+		const auto& ink = palette();
+		Drawers[0].Toggle->setIcon(strip_icon(strip_glyph::files_drawer, ink));
+		Navigation[0].Action->setIcon(strip_icon(strip_glyph::previous_file, ink));
+		Navigation[1].Action->setIcon(strip_icon(strip_glyph::next_file, ink));
+		Navigation[2].Action->setIcon(strip_icon(strip_glyph::previous_change, ink));
+		Navigation[3].Action->setIcon(strip_icon(strip_glyph::next_change, ink));
+		ReviewDetailsAction->setIcon(strip_icon(strip_glyph::review_details, ink));
+		ReviewControlsButton->setIcon(strip_icon(strip_glyph::private_progress, ink));
+		Drawers[1].Toggle->setIcon(strip_icon(strip_glyph::comments_drawer, ink));
+		if (GithubRefreshAction != nullptr) {
+			GithubRefreshAction->setIcon(strip_icon(strip_glyph::refresh, ink));
+		}
+		if (AccountAction != nullptr) {
+			AccountAction->setIcon(strip_icon(strip_glyph::account, ink));
+		}
+		if (SettingsAction != nullptr) {
+			SettingsAction->setIcon(strip_icon(strip_glyph::settings, ink));
+		}
 
 		constexpr auto receiptIcons = std::array{
 			QStyle::SP_DialogYesButton,
@@ -3504,6 +3762,7 @@ namespace bpr::qt {
 			}
 		}
 		StatusLabel->setText(status);
+		update_strip_positions();
 	}
 
 	void workbench_window::announce_update()

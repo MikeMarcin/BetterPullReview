@@ -13094,17 +13094,37 @@ namespace bpr::app {
 			[toolbar, spacer](QAction* const aAction) {
 				return toolbar->widgetForAction(aAction) == spacer;
 			});
-		const auto exactRowOrder = toolbarActions.size() == 10U
+		// [[BPR-0646]]. RFC-BPR-0028's strip, left to right: files, the
+		// identity, a rule, the change pair with its position, the file pair
+		// with its position, a spacer, the modality control, a spacer, the
+		// review details and private progress controls, refresh, comments, a
+		// rule, account, settings.
+		const auto widgetActionNamed
+			= [&toolbarActions](const std::size_t aIndex, const char* const aName) {
+				  return aIndex < static_cast<std::size_t>(toolbarActions.size())
+					  && toolbarActions[static_cast<qsizetype>(aIndex)]->objectName()
+					  == QLatin1String{ aName };
+			  };
+		const auto exactRowOrder = toolbarActions.size() == 19U
 			&& toolbarActions[0] == filesAction
-			&& toolbarActions[1] == previousFile
-			&& toolbarActions[2] == nextFile
+			&& widgetActionNamed(1U, "workbenchStripIdentityAction")
+			&& widgetActionNamed(2U, "workbenchStripLeftDividerAction")
 			&& toolbarActions[3] == previousChange
 			&& toolbarActions[4] == nextChange
-			&& toolbarActions[5]->isSeparator()
-			&& toolbarActions[6] == reviewDetails
-			&& reviewControlsAction == toolbarActions.begin() + 7
-			&& spacerAction == toolbarActions.begin() + 8
-			&& toolbarActions[9] == conversationsAction;
+			&& widgetActionNamed(5U, "workbenchStripChangePositionAction")
+			&& toolbarActions[6] == previousFile
+			&& toolbarActions[7] == nextFile
+			&& widgetActionNamed(8U, "workbenchStripFilePositionAction")
+			&& spacerAction == toolbarActions.begin() + 9
+			&& widgetActionNamed(10U, "workbenchModalityAction")
+			&& widgetActionNamed(11U, "workbenchModalitySpacerAction")
+			&& toolbarActions[12] == reviewDetails
+			&& reviewControlsAction == toolbarActions.begin() + 13
+			&& toolbarActions[14] == window->github_refresh_action()
+			&& toolbarActions[15] == conversationsAction
+			&& widgetActionNamed(16U, "workbenchStripRightDividerAction")
+			&& toolbarActions[17] == window->account_action()
+			&& toolbarActions[18] == window->settings_action();
 		auto iconOnly    = toolbar->toolButtonStyle() == Qt::ToolButtonIconOnly;
 		auto nativeIcons = true;
 		auto accessible  = true;

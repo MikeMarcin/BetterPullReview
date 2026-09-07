@@ -13,6 +13,7 @@ add_library(
         src/review_draft_editor.cpp
         src/review_submission_editor.cpp
         src/settings_window.cpp
+        src/workbench_strip.cpp
         src/comparison_scroll_controller.cpp
         src/diff_link_map.cpp
 		src/diff_workbench.cpp

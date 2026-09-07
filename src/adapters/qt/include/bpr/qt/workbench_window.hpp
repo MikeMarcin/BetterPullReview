@@ -19,6 +19,7 @@
 #include "bpr/qt/review_submission_editor.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
+#include "bpr/qt/workbench_strip.hpp"
 
 #include <QList>
 #include <QMainWindow>
@@ -258,6 +259,25 @@ namespace bpr::qt {
 		void clear_defects();
 
 		[[nodiscard]] auto primary_toolbar() const noexcept -> QToolBar*;
+		/// \brief The strip's modality control, alone at its centre.
+		///
+		/// \details [[BPR-0646]]. Overview, Read, Review and Discuss are
+		/// presets for which drawers are open. Choosing one dispatches the
+		/// core's exact set-drawer intents; the control shows the last chosen
+		/// preset until the next, whatever a manual toggle did in between.
+		[[nodiscard]] auto modality() const noexcept -> modality_control*;
+		[[nodiscard]] auto current_modality() const noexcept -> review_modality;
+		/// \brief Chooses a modality exactly as the strip or its shortcut would.
+		void choose_modality(review_modality aModality);
+		/// \brief The strip's account button: sign-in while signed out,
+		/// the accounts settings page once signed in.
+		[[nodiscard]] auto account_action() const noexcept -> QAction*;
+		/// \brief The repository and pull request identity at the strip's left.
+		[[nodiscard]] auto identity_label() const noexcept -> QLabel*;
+		/// \brief "change 3 of 11", derived from the comparison the surface holds.
+		[[nodiscard]] auto change_position_label() const noexcept -> QLabel*;
+		/// \brief "file 3 of 40", from the core's navigation cursor.
+		[[nodiscard]] auto file_position_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto previous_file_action() const noexcept -> QAction*;
 		[[nodiscard]] auto next_file_action() const noexcept -> QAction*;
 		[[nodiscard]] auto previous_change_action() const noexcept -> QAction*;
@@ -500,6 +520,10 @@ namespace bpr::qt {
 		void apply_drawer_layout();
 		void configure_tool_buttons();
 		void refresh_toolbar_icons();
+		void update_strip_positions();
+		void update_strip_identity();
+		void update_account_action();
+		void apply_strip_width();
 		void apply_focus_order();
 		void update_action_state();
 		void build_menu_bar();
@@ -554,18 +578,29 @@ namespace bpr::qt {
 		workbench_queue_rule_dispatch            QueueRuleDispatch;
 		workbench_queue_preferences_dispatch     QueuePreferencesDispatch;
 
-		QToolBar*       PrimaryToolbar       = nullptr;
-		QMenuBar*       PrimaryMenuBar       = nullptr;
-		QMenu*          ViewMenu             = nullptr;
-		QAction*        LineNumbersAction    = nullptr;
-		QAction*        ReviewDetailsAction  = nullptr;
-		QToolButton*    ReviewControlsButton = nullptr;
-		QMenu*          ReviewControlsMenu   = nullptr;
-		QWidget*        ToolbarSpacer        = nullptr;
-		QLabel*         StatusLabel          = nullptr;
-		QSplitter*      CentralSplitter      = nullptr;
-		QWidget*        CentreSurface        = nullptr;
-		diff_workbench* ComparisonSurface    = nullptr;
+		QToolBar*         PrimaryToolbar       = nullptr;
+		workbench_strip*  Strip                = nullptr;
+		modality_control* Modality             = nullptr;
+		QAction*          AccountAction        = nullptr;
+		QLabel*           IdentityLabel        = nullptr;
+		QLabel*           ChangePositionLabel  = nullptr;
+		QLabel*           FilePositionLabel    = nullptr;
+		QWidget*          ModalitySpacer       = nullptr;
+		QAction*          IdentityAction       = nullptr;
+		QAction*          ChangePositionAction = nullptr;
+		QAction*          FilePositionAction   = nullptr;
+		QString           IdentityText;
+		QMenuBar*         PrimaryMenuBar       = nullptr;
+		QMenu*            ViewMenu             = nullptr;
+		QAction*          LineNumbersAction    = nullptr;
+		QAction*          ReviewDetailsAction  = nullptr;
+		QToolButton*      ReviewControlsButton = nullptr;
+		QMenu*            ReviewControlsMenu   = nullptr;
+		QWidget*          ToolbarSpacer        = nullptr;
+		QLabel*           StatusLabel          = nullptr;
+		QSplitter*        CentralSplitter      = nullptr;
+		QWidget*          CentreSurface        = nullptr;
+		diff_workbench*   ComparisonSurface    = nullptr;
 
 		epoch_comparison_control* EpochSelectors = nullptr;
 
