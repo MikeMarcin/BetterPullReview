@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0648"
 title: "Aligned comment cards in the Read drawer"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
