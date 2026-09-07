@@ -418,6 +418,12 @@ namespace {
 			.Capabilities       = capabilities(),
 			.CapabilityRevision = core::capability_revision{ 7U },
 			.RateLimits         = rate_limits(),
+			.Grant              = application::github_grant_projection{
+				.Kind       = application::github_grant_kind_projection::device_grant,
+				.SignedInAt = 1'757'000'000,
+				.Renews     = true,
+				.Remembered = true,
+			},
 		};
 	}
 
@@ -2692,6 +2698,11 @@ namespace {
 				   && card->rate_limit_label()->isVisibleTo(card)
 				   && card->rate_limit_label()->text().startsWith(QStringLiteral("GitHub API")),
 			   "signed in, the card names the account, reads Connected and states the rate limit");
+		// [[BPR-0660]]. The grant line as the design states it.
+		expect(card->grant_label()->isVisibleTo(card)
+				   && card->grant_label()->text().startsWith(QStringLiteral("Signed in on 2025-09-0"))
+				   && card->grant_label()->text().endsWith(QStringLiteral(", renews itself; remembered on this Mac.")),
+			   "a durable device grant reads as signed in on its date, renewing, remembered on this Mac");
 		auto* const rules = window.rules_editor();
 		expect(rules != nullptr
 				   && window.settings()->page_widget(qt::settings_page::reviews_and_queue)->isAncestorOf(rules)

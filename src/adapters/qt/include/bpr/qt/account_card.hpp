@@ -31,6 +31,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto detail_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto status_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto rate_limit_label() const noexcept -> QLabel*;
+		/// \brief [[BPR-0660]]. The grant line: kind, date, renewal and whether it is remembered.
+		[[nodiscard]] auto grant_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto signed_in() const noexcept -> bool;
 
 	protected:
@@ -42,6 +44,7 @@ namespace bpr::qt {
 		QLabel* Detail    = nullptr;
 		QLabel* Status    = nullptr;
 		QLabel* RateLimit = nullptr;
+		QLabel* Grant     = nullptr;
 		bool    SignedIn  = false;
 		bool    Connected = false;
 	};

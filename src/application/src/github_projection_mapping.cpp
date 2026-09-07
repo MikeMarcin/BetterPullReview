@@ -218,6 +218,15 @@ namespace bpr::application {
 		};
 	}
 
+	auto project_github_session(
+		const github_session_read_model&       aSession,
+		std::optional<github_grant_projection> aGrant) -> github_session_projection
+	{
+		auto projection  = project_github_session(aSession);
+		projection.Grant = std::move(aGrant);
+		return projection;
+	}
+
 	auto project_github_pull_request(
 		const github_pull_request_snapshot& aSnapshot)
 		-> github_pull_request_projection

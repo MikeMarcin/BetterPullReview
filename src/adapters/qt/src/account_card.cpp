@@ -2,6 +2,7 @@
 
 #include "github_presentation_text.hpp"
 
+#include <QDateTime>
 #include <QFont>
 #include <QGridLayout>
 #include <QLabel>
@@ -60,6 +61,12 @@ namespace bpr::qt {
 		grid->addWidget(Status, 0, 2, Qt::AlignRight);
 		grid->addWidget(Detail, 1, 1, 1, 2);
 		grid->addWidget(RateLimit, 2, 1, 1, 2);
+		Grant = new QLabel{ this };
+		Grant->setObjectName(QStringLiteral("accountGrant"));
+		Grant->setAccessibleName(QStringLiteral("Sign-in grant"));
+		Grant->setWordWrap(true);
+		Grant->hide();
+		grid->addWidget(Grant, 3, 1, 1, 2);
 		grid->setColumnStretch(1, 1);
 		clear();
 	}
@@ -85,6 +92,29 @@ namespace bpr::qt {
 			RateLimit->clear();
 			RateLimit->hide();
 		}
+		// [[BPR-0660]]. The grant as the design states it: a device grant with
+		// its date, whether it renews itself and whether this Mac remembers
+		// it; a token for this session only.
+		if (aSession.Grant.has_value() && SignedIn) {
+			const auto& grant = *aSession.Grant;
+			auto        line  = QString{ };
+			if (grant.Kind == application::github_grant_kind_projection::token) {
+				line = QStringLiteral("Signed in with a token for this session only.");
+			} else {
+				line = grant.SignedInAt.has_value()
+					? QStringLiteral("Signed in on %1")
+						  .arg(QDateTime::fromSecsSinceEpoch(*grant.SignedInAt).toLocalTime().date().toString(Qt::ISODate))
+					: QStringLiteral("Signed in with a device code");
+				line += grant.Renews ? QStringLiteral(", renews itself") : QStringLiteral(", does not renew");
+				line += grant.Remembered ? QStringLiteral("; remembered on this Mac.")
+										 : QStringLiteral("; for this session only.");
+			}
+			Grant->setText(line);
+			Grant->show();
+		} else {
+			Grant->clear();
+			Grant->hide();
+		}
 		update();
 	}
 
@@ -108,6 +138,8 @@ namespace bpr::qt {
 		Detail->setText(QStringLiteral("Sign in with a device code to review from an account."));
 		RateLimit->clear();
 		RateLimit->hide();
+		Grant->clear();
+		Grant->hide();
 		set_status(QStringLiteral("Signed out"), false);
 	}
 
@@ -124,6 +156,11 @@ namespace bpr::qt {
 	auto account_card::status_label() const noexcept -> QLabel*
 	{
 		return Status;
+	}
+
+	auto account_card::grant_label() const noexcept -> QLabel*
+	{
+		return Grant;
 	}
 
 	auto account_card::rate_limit_label() const noexcept -> QLabel*

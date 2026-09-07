@@ -1291,7 +1291,7 @@ namespace bpr::application {
 			try {
 				std::optional<github_session_projection> sessionProjection;
 				if (aSession != nullptr) {
-					sessionProjection = project_github_session(*aSession);
+					sessionProjection = project_github_session(*aSession, grant_projection());
 				}
 				std::optional<github_pull_request_projection>
 					pullRequestProjection;
@@ -2545,6 +2545,28 @@ namespace bpr::application {
 		// more when it learns. Every reader keyed on the transition sees
 		// nothing new -- there is none -- and the one reader that asks whether
 		// this credential can renew itself now gets a settled answer.
+		// [[BPR-0660]]. The grant facts the card states, from what the host
+		// already holds: the provenance, the device lifetime and whether the
+		// binding is durable. No credential leaves here.
+		[[nodiscard]] auto grant_projection() const noexcept
+			-> std::optional<github_grant_projection>
+		{
+			if (!AcceptedSession.has_value()) {
+				return std::nullopt;
+			}
+			if (CredentialProvenance != github_credential_provenance::device_grant) {
+				return github_grant_projection{ .Kind = github_grant_kind_projection::token };
+			}
+			return github_grant_projection{
+				.Kind       = github_grant_kind_projection::device_grant,
+				.SignedInAt = DeviceLifetime.has_value() && DeviceLifetime->IssuedAt > 0
+					? std::optional<std::int64_t>{ DeviceLifetime->IssuedAt }
+					: std::nullopt,
+				.Renews     = DeviceLifetime.has_value() && DeviceLifetime->RefreshExpiresAt > 0,
+				.Remembered = DeviceBindingDurable,
+			};
+		}
+
 		void republish_accepted_session() noexcept
 		{
 			if (!AcceptedSession.has_value()) {
@@ -2553,7 +2575,7 @@ namespace bpr::application {
 			try {
 				const github_presentation_update update{
 					.Transition      = std::nullopt,
-					.Session         = project_github_session(*AcceptedSession),
+					.Session         = project_github_session(*AcceptedSession, grant_projection()),
 					.PullRequest     = std::nullopt,
 					.HostDiagnostics = { },
 				};
@@ -4106,6 +4128,10 @@ namespace bpr::application {
 									   return;
 								   }
 								   DeviceBindingDurable = true;
+								   // [[BPR-0660]]. "Remembered on this Mac" is a fact the
+								   // card states, so the session is published again once
+								   // it is one.
+								   republish_accepted_session();
 							   }));
 		}
 

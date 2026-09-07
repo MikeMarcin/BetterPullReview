@@ -21,6 +21,10 @@ namespace bpr::application {
 		-> github_transition_projection;
 	[[nodiscard]] auto project_github_session(
 		const github_session_read_model& aSession) -> github_session_projection;
+	/// \brief [[BPR-0660]]. The session with the grant facts the host decided.
+	[[nodiscard]] auto project_github_session(
+		const github_session_read_model&       aSession,
+		std::optional<github_grant_projection> aGrant) -> github_session_projection;
 	[[nodiscard]] auto project_github_pull_request(
 		const github_pull_request_snapshot& aSnapshot)
 		-> github_pull_request_projection;

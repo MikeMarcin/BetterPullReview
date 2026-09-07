@@ -5217,6 +5217,16 @@ namespace {
 			expect(!fixture.Host.accepted_device_binding_durable(), "effect terminal cannot mutate decision state");
 			fixture.Lane.drain();
 			expect(fixture.Host.accepted_device_binding_durable(), "settled exact pair becomes durable after decision terminal");
+			// [[BPR-0660]]. The grant facts reach the session projection with no
+			// credential: the kind, the issue instant, renewal and durability.
+			{
+				const auto& updates = fixture.Projections.Updates;
+				expect(!updates.empty() && updates.back().Session.has_value() && updates.back().Session->Grant.has_value()
+						   && updates.back().Session->Grant->Kind == application::github_grant_kind_projection::device_grant
+						   && updates.back().Session->Grant->SignedInAt == std::optional<std::int64_t>{ 1000 }
+						   && updates.back().Session->Grant->Renews && updates.back().Session->Grant->Remembered,
+					   "a durable device grant projects its kind, issue instant, renewal and durability");
+			}
 			fixture.Host.shutdown();
 			fixture.Lane.drain();
 			expect(fixture.Vault.Deletes.empty() && fixture.Host.is_quiescent(), "new shutdown policy retains accepted durable device grant");

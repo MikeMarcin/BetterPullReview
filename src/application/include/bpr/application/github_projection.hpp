@@ -86,6 +86,29 @@ namespace bpr::application {
 		auto operator<=>(const github_transition_projection&) const = default;
 	};
 
+	/// \brief What kind of credential the accepted session acts under ([[BPR-0660]]).
+	enum class github_grant_kind_projection : std::uint8_t {
+		/// A device grant this host enrolled, or a binding restored from one.
+		device_grant,
+		/// A token the reviewer supplied; nothing renews it and nothing remembers it.
+		token,
+	};
+
+	/// \brief The accepted session's grant facts, with no credential material.
+	///
+	/// \details [[BPR-0660]]. What RFC-BPR-0028's account card states: the
+	/// kind, when a device grant was issued (seconds since the epoch), whether
+	/// it renews itself, and whether it is remembered on this Mac.
+	struct github_grant_projection
+	{
+		github_grant_kind_projection Kind = github_grant_kind_projection::token;
+		std::optional<std::int64_t>  SignedInAt;
+		bool                         Renews     = false;
+		bool                         Remembered = false;
+
+		auto operator<=>(const github_grant_projection&) const = default;
+	};
+
 	/// \brief Describes the github session projection record.
 	struct github_session_projection
 	{
@@ -97,6 +120,8 @@ namespace bpr::application {
 		core::github_capabilities     Capabilities{ };
 		core::capability_revision     CapabilityRevision{ };
 		github_rate_limits_projection RateLimits{ };
+		/// [[BPR-0660]]. Absent while the host has not decided the grant.
+		std::optional<github_grant_projection> Grant;
 
 		auto operator<=>(const github_session_projection&) const = default;
 	};
