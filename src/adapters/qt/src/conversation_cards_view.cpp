@@ -1,0 +1,621 @@
+#include "bpr/qt/conversation_cards_view.hpp"
+
+#include <QFont>
+#include <QFontMetrics>
+#include <QKeyEvent>
+#include <QMouseEvent>
+#include <QPaintEvent>
+#include <QPainter>
+#include <QPalette>
+#include <QPen>
+#include <QResizeEvent>
+#include <QScrollBar>
+
+#include <algorithm>
+#include <cstddef>
+#include <map>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
+namespace bpr::qt {
+	namespace {
+		constexpr int card_margin     = 8;
+		constexpr int card_padding    = 10;
+		constexpr int card_gap        = 8;
+		constexpr int avatar_size     = 18;
+		constexpr int avatar_column   = 26;
+		constexpr int post_gap        = 6;
+		constexpr int action_height   = 18;
+		constexpr int header_height   = 18;
+		constexpr int path_row_height = 20;
+
+		[[nodiscard]] auto text(const std::string& aValue) -> QString
+		{
+			return QString::fromUtf8(aValue.data(), static_cast<qsizetype>(aValue.size()));
+		}
+
+		[[nodiscard]] auto action_text(const card_action aAction) -> QString
+		{
+			switch (aAction) {
+			case card_action::comment_here:
+				return QStringLiteral("Comment here");
+			case card_action::publish_draft:
+				return QStringLiteral("Publish");
+			case card_action::edit_draft:
+				return QStringLiteral("Edit");
+			case card_action::delete_draft:
+				break;
+			}
+			return QStringLiteral("Delete");
+		}
+
+		[[nodiscard]] auto small_font(const QFont& aFont) -> QFont
+		{
+			auto font = aFont;
+			font.setPointSizeF(font.pointSizeF() * 0.85);
+			return font;
+		}
+
+		[[nodiscard]] auto bold_font(const QFont& aFont) -> QFont
+		{
+			auto font = aFont;
+			font.setWeight(QFont::DemiBold);
+			return font;
+		}
+
+		[[nodiscard]] auto side_of(const application::github_conversation_projection& aNode)
+			-> std::optional<core::diff_side>
+		{
+			if (!aNode.DiffSide.has_value()) {
+				return std::nullopt;
+			}
+			switch (*aNode.DiffSide) {
+			case application::github_conversation_diff_side::left:
+				return core::diff_side::left;
+			case application::github_conversation_diff_side::right:
+				return core::diff_side::right;
+			}
+			return std::nullopt;
+		}
+	} // namespace
+
+	conversation_cards_view::conversation_cards_view(QWidget* const aParent)
+		: QAbstractScrollArea{ aParent }
+	{
+		setObjectName(QStringLiteral("conversationCards"));
+		setAccessibleName(QStringLiteral("Comment cards"));
+		setAccessibleDescription(QStringLiteral(
+			"This file's threads as cards at their lines; Up and Down move "
+			"between them, Return reveals the line"));
+		setFocusPolicy(Qt::StrongFocus);
+		setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+		viewport()->setAutoFillBackground(true);
+		viewport()->setBackgroundRole(QPalette::Window);
+		connect(verticalScrollBar(), &QScrollBar::valueChanged, this, [this](int) {
+			viewport()->update();
+		});
+	}
+
+	void conversation_cards_view::adopt(
+		const std::vector<application::github_conversation_projection>& aConversations)
+	{
+		Retained = aConversations;
+		relayout();
+	}
+
+	void conversation_cards_view::clear()
+	{
+		Retained.clear();
+		Draft.reset();
+		Current.clear();
+		relayout();
+	}
+
+	void conversation_cards_view::set_scope(const cards_scope aScope)
+	{
+		if (Scope == aScope) {
+			return;
+		}
+		Scope = aScope;
+		relayout();
+	}
+
+	auto conversation_cards_view::scope() const noexcept -> cards_scope
+	{
+		return Scope;
+	}
+
+	void conversation_cards_view::set_anchor_file(std::optional<core::file_identity> aFile)
+	{
+		if (AnchorFile == aFile) {
+			return;
+		}
+		AnchorFile = std::move(aFile);
+		relayout();
+	}
+
+	void conversation_cards_view::set_line_locator(card_line_locator aLocator)
+	{
+		Locator = std::move(aLocator);
+		relayout();
+	}
+
+	void conversation_cards_view::set_draft(
+		std::optional<core::review_comment_draft>   aDraft,
+		std::optional<core::file_comparison_digest> aCurrentComparison)
+	{
+		if (Draft == aDraft && CurrentComparison == aCurrentComparison) {
+			return;
+		}
+		Draft             = std::move(aDraft);
+		CurrentComparison = std::move(aCurrentComparison);
+		relayout();
+	}
+
+	void conversation_cards_view::set_viewer_login(const QString& aLogin)
+	{
+		Viewer = aLogin;
+		viewport()->update();
+	}
+
+	void conversation_cards_view::set_thread_dispatch(card_thread_dispatch aDispatch)
+	{
+		ThreadDispatch = std::move(aDispatch);
+	}
+
+	void conversation_cards_view::set_action_dispatch(card_action_dispatch aDispatch)
+	{
+		ActionDispatch = std::move(aDispatch);
+	}
+
+	void conversation_cards_view::set_current_thread(const std::string& aId)
+	{
+		// A reply's identity names its card: the tree may be on a reply.
+		Current = aId;
+		for (const auto& card : Cards) {
+			if (card.Draft) {
+				continue;
+			}
+			if (card.Id == aId) {
+				break;
+			}
+			if (std::ranges::any_of(card.Posts, [&aId](const card_post& aPost) { return aPost.Id == aId; })) {
+				Current = card.Id;
+				break;
+			}
+		}
+		viewport()->update();
+	}
+
+	void conversation_cards_view::set_colours(const QColor& aAccent, const QColor& aMarker)
+	{
+		Accent = aAccent;
+		Marker = aMarker;
+		viewport()->update();
+	}
+
+	auto conversation_cards_view::cards() const noexcept -> const std::vector<thread_card>&
+	{
+		return Cards;
+	}
+
+	auto conversation_cards_view::current_thread() const noexcept -> const std::string&
+	{
+		return Current;
+	}
+
+	auto conversation_cards_view::layouts() const noexcept -> std::uint64_t
+	{
+		return Layouts;
+	}
+
+	auto conversation_cards_view::post_count() const noexcept -> std::size_t
+	{
+		auto count = std::size_t{ 0U };
+		for (const auto& card : Cards) {
+			count += card.Draft ? 0U : card.Posts.size();
+		}
+		return count;
+	}
+
+	auto conversation_cards_view::marked_lines(const core::diff_side aSide) const
+		-> std::vector<std::uint32_t>
+	{
+		auto lines = std::vector<std::uint32_t>{ };
+		for (const auto& card : Cards) {
+			if (!card.Draft && card.Side == aSide && card.Line.has_value() && *card.Line > 0U) {
+				lines.push_back(*card.Line - 1U);
+			}
+		}
+		std::ranges::sort(lines);
+		lines.erase(std::ranges::unique(lines).begin(), lines.end());
+		return lines;
+	}
+
+	auto conversation_cards_view::to_content(const QPoint aViewportPoint) const -> QPoint
+	{
+		return { aViewportPoint.x(), aViewportPoint.y() + verticalScrollBar()->value() };
+	}
+
+	auto conversation_cards_view::hit_test(const QPoint aViewportPoint) const
+		-> std::optional<std::pair<std::size_t, std::optional<card_action>>>
+	{
+		const auto point = to_content(aViewportPoint);
+		for (std::size_t index = 0U; index < Cards.size(); ++index) {
+			const auto& card = Cards[index];
+			if (!card.Rect.contains(point)) {
+				continue;
+			}
+			for (const auto& [action, rect] : card.Actions) {
+				if (rect.contains(point)) {
+					return std::pair{ index, std::optional{ action } };
+				}
+			}
+			return std::pair{ index, std::optional<card_action>{ } };
+		}
+		return std::nullopt;
+	}
+
+	void conversation_cards_view::measure(thread_card& aCard, const int aWidth) const
+	{
+		const auto metrics   = QFontMetrics{ font() };
+		const auto bodyWidth = std::max(40, aWidth - 2 * card_padding - avatar_column);
+		auto       y         = card_padding;
+		if (aCard.Resolved || aCard.Outdated || aCard.Draft) {
+			y += header_height;
+		}
+		for (auto& post : aCard.Posts) {
+			const auto authorHeight = metrics.height();
+			const auto bodyHeight   = post.Body.isEmpty()
+				? 0
+				: metrics.boundingRect(QRect{ 0, 0, bodyWidth, 100'000 }, Qt::TextWordWrap, post.Body).height();
+			const auto height       = std::max(avatar_size, authorHeight + bodyHeight + 2);
+			post.Rect               = QRect{ card_padding, y, aWidth - 2 * card_padding, height };
+			y += height + post_gap;
+		}
+		aCard.Actions.clear();
+		auto       actionX       = card_padding + avatar_column;
+		const auto actions       = aCard.Draft
+			? std::vector{ card_action::publish_draft, card_action::edit_draft, card_action::delete_draft }
+			: std::vector{ card_action::comment_here };
+		const auto actionMetrics = QFontMetrics{ small_font(font()) };
+		for (const auto action : actions) {
+			const auto width = actionMetrics.horizontalAdvance(action_text(action)) + 4;
+			aCard.Actions.emplace_back(action, QRect{ actionX, y, width, action_height });
+			actionX += width + 12;
+		}
+		y += action_height + card_padding;
+		aCard.Rect.setHeight(y);
+	}
+
+	auto conversation_cards_view::card_height(const thread_card& aCard, const int aWidth) const -> int
+	{
+		auto copy = aCard;
+		measure(copy, aWidth);
+		return copy.Rect.height();
+	}
+
+	void conversation_cards_view::relayout()
+	{
+		++Layouts;
+		Cards.clear();
+		// The forest: review threads are roots, their comments hang beneath
+		// by ParentId. Reviews and pull request comments are not threads on
+		// a line and are not cards.
+		auto byId = std::map<std::string, const application::github_conversation_projection*>{ };
+		for (const auto& node : Retained) {
+			byId.emplace(node.Id, &node);
+		}
+		auto rootOf = [&byId](const application::github_conversation_projection& aNode)
+			-> std::pair<const application::github_conversation_projection*, std::size_t> {
+			const auto* current = &aNode;
+			auto        depth   = std::size_t{ 0U };
+			auto        seen    = std::size_t{ 0U };
+			while (current->ParentId.has_value() && seen < byId.size()) {
+				const auto parent = byId.find(*current->ParentId);
+				if (parent == byId.end()) {
+					return { nullptr, 0U };
+				}
+				current = parent->second;
+				++depth;
+				++seen;
+			}
+			return { current, depth };
+		};
+		auto cardsById = std::map<std::string, std::size_t>{ };
+		for (const auto& node : Retained) {
+			if (node.Kind != application::github_conversation_kind::review_thread
+				|| node.ParentId.has_value()) {
+				continue;
+			}
+			if (Scope == cards_scope::this_file && AnchorFile.has_value()
+				&& core::file_identity_of(node.Path) != *AnchorFile) {
+				continue;
+			}
+			auto card     = thread_card{ };
+			card.Id       = node.Id;
+			card.Path     = text(node.Path);
+			card.Side     = side_of(node);
+			card.Line     = node.Line;
+			card.Resolved = node.Resolved;
+			card.Outdated = node.Outdated
+				|| node.AnchorAvailability
+					!= application::github_conversation_anchor_availability::current;
+			cardsById.emplace(node.Id, Cards.size());
+			Cards.push_back(std::move(card));
+		}
+		for (const auto& node : Retained) {
+			if (node.Kind == application::github_conversation_kind::review_thread
+				|| !node.ParentId.has_value() || node.Deleted) {
+				continue;
+			}
+			const auto [root, depth] = rootOf(node);
+			if (root == nullptr) {
+				continue;
+			}
+			const auto card = cardsById.find(root->Id);
+			if (card == cardsById.end()) {
+				continue;
+			}
+			const auto author = text(node.AuthorLogin);
+			Cards[card->second].Posts.push_back(card_post{
+				.Id     = node.Id,
+				.Author = author,
+				.Body   = text(node.Body),
+				.Depth  = depth,
+				.Mine   = !Viewer.isEmpty() && author == Viewer,
+			});
+		}
+		// My draft, at its line, while it is on this comparison.
+		if (Scope == cards_scope::this_file && Draft.has_value() && CurrentComparison.has_value()
+			&& Draft->Anchor.Comparison == *CurrentComparison && !Draft->shared()) {
+			auto card  = thread_card{ };
+			card.Draft = true;
+			card.Side  = Draft->Anchor.Side;
+			card.Line  = Draft->Anchor.Line + 1U;
+			card.Posts.push_back(card_post{
+				.Author = QStringLiteral("Your note, not published"),
+				.Body   = text(Draft->Body),
+				.Mine   = true,
+			});
+			Cards.push_back(std::move(card));
+		}
+
+		const auto width  = std::max(120, viewport()->width());
+		const auto scroll = verticalScrollBar()->value();
+		for (auto& card : Cards) {
+			card.Rect = QRect{ card_margin, 0, width - 2 * card_margin, 0 };
+			measure(card, width - 2 * card_margin);
+			card.Placed = false;
+			if (Scope == cards_scope::this_file && Locator && card.Side.has_value()
+				&& card.Line.has_value() && *card.Line > 0U && !card.Outdated) {
+				if (const auto y = Locator(*card.Side, *card.Line); y.has_value()) {
+					card.Placed  = true;
+					card.TargetY = *y + scroll;
+				}
+			}
+		}
+		// Placed cards in line order, then the rest; whole PR in file order.
+		std::ranges::stable_sort(Cards, [this](const thread_card& aLeft, const thread_card& aRight) {
+			if (Scope == cards_scope::whole_pull_request) {
+				return std::pair{ aLeft.Path, aLeft.Line.value_or(0U) }
+				< std::pair{ aRight.Path, aRight.Line.value_or(0U) };
+			}
+			if (aLeft.Placed != aRight.Placed) {
+				return aLeft.Placed;
+			}
+			if (aLeft.Placed) {
+				return aLeft.TargetY < aRight.TargetY;
+			}
+			return std::pair{ aLeft.Path, aLeft.Line.value_or(0U) }
+			< std::pair{ aRight.Path, aRight.Line.value_or(0U) };
+		});
+		auto bottom   = card_margin / 2;
+		auto lastPath = QString{ };
+		for (auto& card : Cards) {
+			if (Scope == cards_scope::whole_pull_request && card.Path != lastPath) {
+				bottom += path_row_height;
+				lastPath = card.Path;
+			}
+			auto top = bottom + (bottom == card_margin / 2 ? 0 : card_gap);
+			if (card.Placed) {
+				// At its line, or beneath the card above: never over it.
+				top = std::max(top, card.TargetY);
+			}
+			card.Rect.moveTop(top);
+			for (auto& post : card.Posts) {
+				post.Rect.translate(card.Rect.left(), top);
+			}
+			for (auto& [action, rect] : card.Actions) {
+				rect.translate(card.Rect.left(), top);
+			}
+			bottom = card.Rect.bottom();
+		}
+		ContentHeight = bottom + card_margin;
+		verticalScrollBar()->setRange(0, std::max(0, ContentHeight - viewport()->height()));
+		verticalScrollBar()->setPageStep(viewport()->height());
+		setAccessibleDescription(QStringLiteral(
+									 "%1 threads as cards, %2 posts; Up and Down move between them, Return reveals the line")
+									 .arg(Cards.size() - (Draft.has_value() ? 1U : 0U))
+									 .arg(post_count()));
+		viewport()->update();
+	}
+
+	void conversation_cards_view::paintEvent(QPaintEvent* const aEvent)
+	{
+		static_cast<void>(aEvent);
+		auto painter = QPainter{ viewport() };
+		painter.setRenderHint(QPainter::Antialiasing, true);
+		painter.translate(0, -verticalScrollBar()->value());
+		const auto& colours  = palette();
+		const auto  ink      = colours.color(QPalette::Active, QPalette::Text);
+		const auto  faint    = colours.color(QPalette::Active, QPalette::PlaceholderText);
+		const auto  rule     = colours.color(QPalette::Active, QPalette::Mid);
+		const auto  surface  = colours.color(QPalette::Active, QPalette::Base);
+		auto        lastPath = QString{ };
+		const auto  small    = small_font(font());
+		const auto  bold     = bold_font(font());
+		for (const auto& card : Cards) {
+			if (Scope == cards_scope::whole_pull_request && card.Path != lastPath) {
+				lastPath = card.Path;
+				painter.setFont(small);
+				painter.setPen(faint);
+				painter.drawText(QRect{ card_margin, card.Rect.top() - path_row_height, width() - 2 * card_margin, path_row_height },
+								 Qt::AlignLeft | Qt::AlignVCenter, QFontMetrics{ small }.elidedText(card.Path, Qt::ElideMiddle, width() - 2 * card_margin));
+			}
+			const auto current = !card.Draft && card.Id == Current;
+			auto       pen     = QPen{ current ? Accent : rule, current ? 1.5 : 1.0 };
+			if (card.Draft) {
+				pen = QPen{ Accent, 1.0, Qt::DashLine };
+			}
+			painter.setPen(pen);
+			painter.setBrush(surface);
+			painter.drawRoundedRect(QRectF{ card.Rect }.adjusted(0.5, 0.5, -0.5, -0.5), 7.0, 7.0);
+			const auto dim  = card.Resolved;
+			auto       tagY = card.Rect.top() + card_padding;
+			if (card.Resolved || card.Outdated || card.Draft) {
+				painter.setFont(small);
+				painter.setPen(card.Draft ? Accent : faint);
+				const auto tag = card.Draft
+					? QStringLiteral("Draft on line %1").arg(card.Line.value_or(0U))
+					: card.Resolved && card.Outdated ? QStringLiteral("Resolved, outdated")
+					: card.Resolved                  ? QStringLiteral("Resolved")
+													 : QStringLiteral("Outdated");
+				painter.drawText(QRect{ card.Rect.left() + card_padding, tagY, card.Rect.width() - 2 * card_padding, header_height },
+								 Qt::AlignLeft | Qt::AlignVCenter, tag);
+			}
+			// The rail: a line between the first and last avatars.
+			if (card.Posts.size() > 1U) {
+				const auto x = card.Posts.front().Rect.left() + avatar_size / 2;
+				painter.setPen(QPen{ rule, 2.0 });
+				painter.drawLine(QPoint{ x, card.Posts.front().Rect.top() + avatar_size },
+								 QPoint{ x, card.Posts.back().Rect.top() });
+			}
+			for (const auto& post : card.Posts) {
+				const auto avatar = QRectF{ static_cast<qreal>(post.Rect.left()), static_cast<qreal>(post.Rect.top()),
+											static_cast<qreal>(avatar_size), static_cast<qreal>(avatar_size) };
+				painter.setPen(Qt::NoPen);
+				painter.setBrush(post.Mine ? Accent : rule);
+				painter.drawEllipse(avatar);
+				painter.setFont(small);
+				painter.setPen(post.Mine ? surface : ink);
+				painter.drawText(avatar, Qt::AlignCenter, post.Author.left(1).toUpper());
+				const auto textLeft  = post.Rect.left() + avatar_column;
+				const auto textWidth = post.Rect.width() - avatar_column;
+				painter.setFont(bold);
+				painter.setPen(dim ? faint : ink);
+				const auto authorHeight = QFontMetrics{ font() }.height();
+				painter.drawText(QRect{ textLeft, post.Rect.top(), textWidth, authorHeight },
+								 Qt::AlignLeft | Qt::AlignVCenter, post.Author);
+				painter.setFont(font());
+				painter.setPen(dim ? faint : ink);
+				painter.drawText(QRect{ textLeft, post.Rect.top() + authorHeight + 2, textWidth, post.Rect.height() - authorHeight },
+								 Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, post.Body);
+			}
+			painter.setFont(small);
+			for (const auto& [action, rect] : card.Actions) {
+				painter.setPen(Accent);
+				painter.drawText(rect, Qt::AlignLeft | Qt::AlignVCenter, action_text(action));
+			}
+		}
+		if (Cards.empty()) {
+			painter.setFont(font());
+			painter.setPen(faint);
+			painter.drawText(QRect{ card_margin, card_margin, width() - 2 * card_margin, 60 },
+							 Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap,
+							 Scope == cards_scope::this_file
+								 ? QStringLiteral("No threads on this file.")
+								 : QStringLiteral("No threads on this pull request."));
+		}
+	}
+
+	void conversation_cards_view::resizeEvent(QResizeEvent* const aEvent)
+	{
+		QAbstractScrollArea::resizeEvent(aEvent);
+		relayout();
+	}
+
+	void conversation_cards_view::choose(const std::size_t aCard)
+	{
+		if (aCard >= Cards.size() || Cards[aCard].Draft) {
+			return;
+		}
+		Current = Cards[aCard].Id;
+		viewport()->update();
+		if (ThreadDispatch) {
+			ThreadDispatch(Current);
+		}
+	}
+
+	void conversation_cards_view::mousePressEvent(QMouseEvent* const aEvent)
+	{
+		if (aEvent->button() != Qt::LeftButton) {
+			QAbstractScrollArea::mousePressEvent(aEvent);
+			return;
+		}
+		const auto hit = hit_test(aEvent->position().toPoint());
+		if (!hit.has_value()) {
+			QAbstractScrollArea::mousePressEvent(aEvent);
+			return;
+		}
+		const auto& [index, action] = *hit;
+		setFocus(Qt::MouseFocusReason);
+		if (action.has_value()) {
+			if (!Cards[index].Draft) {
+				Current = Cards[index].Id;
+				viewport()->update();
+			}
+			if (ActionDispatch) {
+				ActionDispatch(*action, Cards[index].Id);
+			}
+			aEvent->accept();
+			return;
+		}
+		choose(index);
+		aEvent->accept();
+	}
+
+	void conversation_cards_view::keyPressEvent(QKeyEvent* const aEvent)
+	{
+		auto threads = std::vector<std::size_t>{ };
+		for (std::size_t index = 0U; index < Cards.size(); ++index) {
+			if (!Cards[index].Draft) {
+				threads.push_back(index);
+			}
+		}
+		const auto position = std::ranges::find_if(threads, [this](const std::size_t aIndex) {
+			return Cards[aIndex].Id == Current;
+		});
+		switch (aEvent->key()) {
+		case Qt::Key_Down:
+			if (!threads.empty()) {
+				choose(position == threads.end() || std::next(position) == threads.end()
+						   ? threads.front()
+						   : *std::next(position));
+			}
+			aEvent->accept();
+			return;
+		case Qt::Key_Up:
+			if (!threads.empty()) {
+				choose(position == threads.end() || position == threads.begin()
+						   ? threads.back()
+						   : *std::prev(position));
+			}
+			aEvent->accept();
+			return;
+		case Qt::Key_Return:
+		case Qt::Key_Enter:
+			if (position != threads.end()) {
+				choose(*position);
+			}
+			aEvent->accept();
+			return;
+		default:
+			break;
+		}
+		QAbstractScrollArea::keyPressEvent(aEvent);
+	}
+} // namespace bpr::qt

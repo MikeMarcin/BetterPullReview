@@ -80,23 +80,23 @@ namespace bpr::qt {
 	/// \brief Records directly observable composed-workbench activity.
 	struct diff_workbench_statistics
 	{
-		std::uint64_t Publications          = 0U;
-		std::uint64_t Failures              = 0U;
-		std::uint64_t Invalidations         = 0U;
-		std::uint64_t GeometryRebuilds      = 0U;
-		std::uint64_t GeometryFailures      = 0U;
-		std::uint64_t FrameApplications     = 0U;
-		std::uint64_t SelectionChanges      = 0U;
-		std::uint64_t RejectedStaleInput    = 0U;
+		std::uint64_t Publications                 = 0U;
+		std::uint64_t Failures                     = 0U;
+		std::uint64_t Invalidations                = 0U;
+		std::uint64_t GeometryRebuilds             = 0U;
+		std::uint64_t GeometryFailures             = 0U;
+		std::uint64_t FrameApplications            = 0U;
+		std::uint64_t SelectionChanges             = 0U;
+		std::uint64_t RejectedStaleInput           = 0U;
 		std::uint64_t SemanticIndexAdoptions       = 0U;
-		std::uint64_t SemanticQueries       = 0U;
-		std::uint64_t PaneMeasurements      = 0U;
+		std::uint64_t SemanticQueries              = 0U;
+		std::uint64_t PaneMeasurements             = 0U;
 		std::uint64_t MeasurementBatches           = 0U;
 		std::uint64_t MeasurementRestarts          = 0U;
 		std::uint32_t MaximumMeasurementBatchLines = 0U;
-		std::uint64_t TokenSpanAdoptions    = 0U;
-		std::uint64_t RejectedTokenSpans    = 0U;
-		std::uint64_t SyntaxBlocksFormatted = 0U;
+		std::uint64_t TokenSpanAdoptions           = 0U;
+		std::uint64_t RejectedTokenSpans           = 0U;
+		std::uint64_t SyntaxBlocksFormatted        = 0U;
 		/// Classified spans the painter stepped over or consumed. Counted
 		/// separately from the blocks it formatted because those two can come
 		/// apart: a painter that scanned the list from the front would format
@@ -121,6 +121,20 @@ namespace bpr::qt {
 	};
 
 	/// \brief Presents one immutable computed diff through the selected Qt path.
+	/// \brief A line's mark in the gutter edge: a thread sits there.
+	enum class diff_line_mark_kind : std::uint8_t {
+		thread,
+		new_thread,
+	};
+
+	struct diff_line_mark
+	{
+		std::uint32_t       Line = 0U;
+		diff_line_mark_kind Kind = diff_line_mark_kind::thread;
+
+		auto operator<=>(const diff_line_mark&) const = default;
+	};
+
 	class diff_workbench final
 		: public QWidget,
 		  public application::diff_projection_port
@@ -160,6 +174,18 @@ namespace bpr::qt {
 			-> const std::optional<core::source_line_ref>&;
 		[[nodiscard]] auto conversation_anchor_marker_rect(
 			core::diff_side aSide) const -> QRect;
+		/// \brief Where one zero-based line of a pane is, in this widget's
+		/// coordinates; empty while the line is not laid out or not visible.
+		///
+		/// \details [[BPR-0648]]. The comments drawer aligns its cards to the
+		/// lines their threads sit on, and follows the shared scroll through
+		/// `set_frame_observer`. This is the only geometry it reads.
+		[[nodiscard]] auto line_rect(core::diff_side aSide, std::uint32_t aLine) const
+			-> QRect;
+		/// \brief Marks lines that carry a thread (amber) or a new one (blue).
+		void set_line_marks(core::diff_side aSide, std::vector<diff_line_mark> aMarks);
+		/// \brief Told after every applied scroll frame and geometry rebuild.
+		void set_frame_observer(std::function<void()> aObserver);
 
 		[[nodiscard]] auto left_pane() const noexcept -> QPlainTextEdit*;
 		[[nodiscard]] auto right_pane() const noexcept -> QPlainTextEdit*;
@@ -339,19 +365,20 @@ namespace bpr::qt {
 		/// per publication. `file_alignment::Moves` is unordered with respect
 		/// to the segment list, so answering per segment by searching it would
 		/// make painting one screenful cost the whole move table.
-		std::set<core::alignment_segment_id>            MovedSegments;
-		application::shared_token_spans                 LeftSpans;
-		application::shared_token_spans                 RightSpans;
-		std::shared_ptr<const core::computed_file_diff> CurrentResult;
+		std::set<core::alignment_segment_id>             MovedSegments;
+		application::shared_token_spans                  LeftSpans;
+		application::shared_token_spans                  RightSpans;
+		std::shared_ptr<const core::computed_file_diff>  CurrentResult;
 		std::shared_ptr<const core::diff_semantic_index> SemanticIndex;
-		std::optional<core::line_detail_input>          CurrentDetail;
-		core::diff_interaction_state                    Interaction;
-		selection_sink                                  SelectionSink;
-		selection_observer                              SelectionObserver;
-		std::optional<core::source_line_ref>            ConversationAnchor;
-		measured_alignment_axis_cache                   AxisCache;
-		diff_workbench_statistics                       Statistics;
-		QString                                         LastAnnouncement;
+		std::optional<core::line_detail_input>           CurrentDetail;
+		core::diff_interaction_state                     Interaction;
+		selection_sink                                   SelectionSink;
+		selection_observer                               SelectionObserver;
+		std::function<void()>                            FrameObserver;
+		std::optional<core::source_line_ref>             ConversationAnchor;
+		measured_alignment_axis_cache                    AxisCache;
+		diff_workbench_statistics                        Statistics;
+		QString                                          LastAnnouncement;
 		/// The last published tab stop. Absent until the first publication, so
 		/// adopting the initial typography is not mistaken for a change.
 		std::optional<qreal>          AppliedTabStopDistance;
@@ -360,8 +387,8 @@ namespace bpr::qt {
 		struct geometry_measurement;
 		std::shared_ptr<geometry_measurement> PendingMeasurement;
 		bool                                  GeometryRevealPending = false;
-		bool GeometryScheduled = false;
-		bool ApplyingFrame     = false;
+		bool                                  GeometryScheduled     = false;
+		bool                                  ApplyingFrame         = false;
 	};
 } // namespace bpr::qt
 

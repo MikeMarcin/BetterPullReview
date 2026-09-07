@@ -3,6 +3,7 @@
 
 #include "bpr/application/github_projection.hpp"
 #include "bpr/core/diff_model.hpp"
+#include "bpr/qt/conversation_cards_view.hpp"
 
 #include <optional>
 
@@ -125,6 +126,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto model() const noexcept -> github_conversation_model*;
 		[[nodiscard]] auto availability_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto reveal_button() const noexcept -> QToolButton*;
+		/// \brief [[BPR-0648]]. The threads as cards at their lines, above the map.
+		[[nodiscard]] auto cards() const noexcept -> conversation_cards_view*;
+		[[nodiscard]] auto scope_this_file_button() const noexcept -> QToolButton*;
+		[[nodiscard]] auto scope_whole_pull_request_button() const noexcept -> QToolButton*;
 
 	private:
 		/// \brief Puts the map and the drawer's tree on the same node.
@@ -140,9 +145,12 @@ namespace bpr::qt {
 		/// a second source of it, so it holds no selection authority: a click
 		/// on the map moves the tree's current index and the tree's selection
 		/// is what everything downstream still reads.
-		github_thread_map* ThreadMap        = nullptr;
-		QLabel*            ThreadMapSummary = nullptr;
-		QLabel*            ThreadMapBranch  = nullptr;
+		github_thread_map*       ThreadMap        = nullptr;
+		conversation_cards_view* Cards            = nullptr;
+		QToolButton*             ScopeThisFile    = nullptr;
+		QToolButton*             ScopeWholePr     = nullptr;
+		QLabel*                  ThreadMapSummary = nullptr;
+		QLabel*                  ThreadMapBranch  = nullptr;
 		/// Expanded once, on the first projection that has anything to expand.
 		/// A reviewer who then collapses a thread keeps it collapsed across the
 		/// next refresh, which re-expanding on every projection would undo.

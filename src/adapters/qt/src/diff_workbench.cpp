@@ -96,19 +96,48 @@ namespace bpr::qt {
 				viewport()->update();
 			}
 
+			/// \brief One line's row in viewport coordinates, or empty.
+			[[nodiscard]] auto line_row_rect(const std::uint32_t aLine) const -> QRect
+			{
+				const auto block = document()->findBlockByNumber(static_cast<int>(aLine));
+				if (!block.isValid() || !block.isVisible()) {
+					return { };
+				}
+				const auto geometry = blockBoundingGeometry(block).translated(contentOffset());
+				return QRect{ 0, qRound(geometry.top()), viewport()->width(),
+							  std::max(1, qRound(geometry.height())) };
+			}
+
 			[[nodiscard]] auto conversation_anchor_rect() const -> QRect
 			{
 				if (!ConversationAnchor.has_value()) {
 					return { };
 				}
-				const auto block = document()->findBlockByNumber(
-					static_cast<int>(*ConversationAnchor));
-				if (!block.isValid() || !block.isVisible()) {
+				const auto row = line_row_rect(*ConversationAnchor);
+				if (row.isEmpty()) {
 					return { };
 				}
-				const auto geometry = blockBoundingGeometry(block).translated(contentOffset());
-				return QRect{ 1, qRound(geometry.top()), 4,
-							  std::max(1, qRound(geometry.height())) };
+				return QRect{ 1, row.top(), 4, row.height() };
+			}
+
+			/// \brief [[BPR-0648]]. The lines carrying a thread, painted at the edge.
+			void set_line_marks(std::vector<diff_line_mark> aMarks)
+			{
+				std::ranges::sort(aMarks);
+				Marks = std::move(aMarks);
+				viewport()->update();
+			}
+
+			[[nodiscard]] auto line_marks() const noexcept -> const std::vector<diff_line_mark>&
+			{
+				return Marks;
+			}
+
+			void set_mark_colors(const QColor& aThread, const QColor& aNewThread)
+			{
+				ThreadMarkColor    = aThread;
+				NewThreadMarkColor = aNewThread;
+				viewport()->update();
 			}
 
 			[[nodiscard]] auto painted_rules() const noexcept -> std::uint64_t
@@ -207,6 +236,20 @@ namespace bpr::qt {
 						block = block.next();
 					}
 				}
+				// [[BPR-0648]]. A thread's line carries a mark at the edge:
+				// amber for a thread, blue for a new one, beneath the anchor
+				// marker so the current line's marker still reads.
+				for (const auto& mark : Marks) {
+					const auto row = line_row_rect(mark.Line);
+					if (row.isEmpty() || row.top() > viewport()->height() || row.bottom() < 0) {
+						continue;
+					}
+					painter.setPen(Qt::NoPen);
+					painter.setBrush(mark.Kind == diff_line_mark_kind::new_thread
+										 ? NewThreadMarkColor
+										 : ThreadMarkColor);
+					painter.drawRoundedRect(QRect{ 1, row.top() + 1, 4, std::max(1, row.height() - 2) }, 2.0, 2.0);
+				}
 				if (const auto marker = conversation_anchor_rect(); !marker.isEmpty()) {
 					auto color = palette().color(QPalette::Highlight);
 					color.setAlpha(220);
@@ -233,6 +276,9 @@ namespace bpr::qt {
 			std::vector<std::uint32_t>   Boundaries;
 			QColor                       RuleColor;
 			std::optional<std::uint32_t> ConversationAnchor;
+			std::vector<diff_line_mark>  Marks;
+			QColor                       ThreadMarkColor{ 0xD2, 0x99, 0x22 };
+			QColor                       NewThreadMarkColor{ 0x09, 0x69, 0xDA };
 			std::uint64_t                PaintedRules       = 0U;
 			std::uint64_t                PaintedLineNumbers = 0U;
 		};
@@ -1037,6 +1083,26 @@ namespace bpr::qt {
 			->conversation_anchor_rect();
 	}
 
+	auto diff_workbench::line_rect(const core::diff_side aSide, const std::uint32_t aLine) const -> QRect
+	{
+		auto* const source = pane(aSide == core::diff_side::left ? Left : Right);
+		const auto  row    = source->line_row_rect(aLine);
+		if (row.isEmpty()) {
+			return { };
+		}
+		return QRect{ source->viewport()->mapTo(this, row.topLeft()), row.size() };
+	}
+
+	void diff_workbench::set_line_marks(const core::diff_side aSide, std::vector<diff_line_mark> aMarks)
+	{
+		pane(aSide == core::diff_side::left ? Left : Right)->set_line_marks(std::move(aMarks));
+	}
+
+	void diff_workbench::set_frame_observer(std::function<void()> aObserver)
+	{
+		FrameObserver = std::move(aObserver);
+	}
+
 	auto diff_workbench::left_pane() const noexcept -> QPlainTextEdit*
 	{
 		return Left;
@@ -1324,9 +1390,9 @@ namespace bpr::qt {
 		auto           lines        = std::uint32_t{ 0U };
 		auto           left         = measurement->Left.advance(0U);
 		auto           right        = measurement->Right.advance(0U);
-		constexpr auto GroupLines   = 16U;
-		constexpr auto MaximumLines = 512U;
-		while (current() && lines < MaximumLines
+		constexpr auto groupLines   = 16U;
+		constexpr auto maximumLines = 512U;
+		while (current() && lines < maximumLines
 			   && left != pane_measurement_progress::invalidated
 			   && right != pane_measurement_progress::invalidated
 			   && (left == pane_measurement_progress::pending || right == pane_measurement_progress::pending)) {
@@ -1334,7 +1400,7 @@ namespace bpr::qt {
 				? measurement->Left
 				: measurement->Right;
 			const auto before          = paneMeasurement.measured_lines();
-			const auto progress        = paneMeasurement.advance(std::min(GroupLines, MaximumLines - lines));
+			const auto progress        = paneMeasurement.advance(std::min(groupLines, maximumLines - lines));
 			lines += paneMeasurement.measured_lines() - before;
 			if (left == pane_measurement_progress::pending) {
 				left = progress;
@@ -1460,6 +1526,9 @@ namespace bpr::qt {
 		// scroll into a changed region and find it untinted.
 		update_diff_paint();
 		++Statistics.FrameApplications;
+		if (FrameObserver) {
+			FrameObserver();
+		}
 	}
 
 	auto diff_workbench::select_line(

@@ -43,6 +43,11 @@
 #include <QTreeView>
 #include <QWidget>
 
+#include "bpr/qt/conversation_cards_view.hpp"
+#include "bpr/qt/github_conversation_panel.hpp"
+
+#include <QMouseEvent>
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -2396,6 +2401,88 @@ namespace {
 	/// a panel constructed as a child of the column but never added to it is
 	/// still a `findChild` hit, and would still be painted, at the default
 	/// geometry, on top of the conversation tree.
+	auto test_read_drawer_shows_threads_as_cards_with_scope_and_actions() -> void
+	{
+		// [[BPR-0648]]. The comments drawer's cards: this file's threads, the
+		// whole-PR scope, and Comment here landing in the draft editor.
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			profiles(),
+			[](application::github_intent) { },
+		};
+		window.resize(1'280, 820);
+		window.show();
+		QApplication::processEvents();
+		publish_session_ready(window);
+		auto pullRequest = pull_request_projection();
+		auto placed      = conversation("review-thread:t-placed",
+										application::github_conversation_kind::review_thread);
+		placed.AuthorLogin.clear();
+		placed.DiffSide           = application::github_conversation_diff_side::right;
+		placed.AnchorAvailability = application::github_conversation_anchor_availability::current;
+		auto placedReply          = conversation("review-comment:c-placed",
+												 application::github_conversation_kind::review_comment,
+												 "A reply on the placed thread.",
+												 "review-thread:t-placed");
+		auto elsewhere            = conversation("review-thread:t-elsewhere",
+												 application::github_conversation_kind::review_thread);
+		elsewhere.AuthorLogin.clear();
+		elsewhere.Path               = "src/other.cpp";
+		elsewhere.Line               = 7U;
+		elsewhere.DiffSide           = application::github_conversation_diff_side::right;
+		elsewhere.AnchorAvailability = application::github_conversation_anchor_availability::current;
+		pullRequest.Conversations    = { placed, placedReply, elsewhere };
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Commands = enabled_commands(),
+				.Status   = core::github_status_delta{
+					.Status = core::github_status::pull_request_ready,
+				},
+			},
+			.PullRequest = pullRequest,
+		});
+		QApplication::processEvents();
+
+		auto* const panel = window.conversation_panel();
+		auto* const cards = panel->cards();
+		expect(cards != nullptr && cards->isVisible()
+				   && panel->scope_this_file_button()->isChecked()
+				   && window.conversations_drawer()->isAncestorOf(cards),
+			   "the comments drawer shows the cards with This file chosen");
+		expect(cards->cards().size() == 2U && cards->post_count() == 1U,
+			   "with no file selected every thread of the pull request is a card");
+		expect(!cards->cards().front().Placed,
+			   "without a comparison no card is placed at a line");
+
+		panel->scope_whole_pull_request_button()->click();
+		QApplication::processEvents();
+		expect(cards->scope() == qt::cards_scope::whole_pull_request
+				   && cards->cards().size() == 2U
+				   && cards->cards().front().Path == QStringLiteral("src/other.cpp"),
+			   "Whole PR lists every thread in file order");
+		panel->scope_this_file_button()->click();
+		QApplication::processEvents();
+
+		window.activateWindow();
+		const auto placedCard = std::ranges::find_if(cards->cards(), [](const qt::thread_card& aCard) {
+			return aCard.Id == "review-thread:t-placed";
+		});
+		expect(placedCard != cards->cards().end() && placedCard->Actions.size() == 1U,
+			   "a thread's card offers one action, a comment on its line");
+		const auto action = placedCard->Actions.front().second.center();
+		auto       press  = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ action }, QPointF{ action },
+										 Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(cards->viewport(), &press);
+		QApplication::processEvents();
+		expect(window.conversation_model()->id_for_index(window.conversation_view()->currentIndex())
+					   == "review-thread:t-placed"
+				   && window.review_editor()->body_editor()->hasFocus(),
+			   "Comment here makes the thread current and moves focus to the draft editor");
+		window.hide();
+	}
+
 	auto test_agent_surfaces_are_placed_in_the_conversations_drawer() -> void
 	{
 		qt::workbench_window window{
@@ -3384,6 +3471,7 @@ auto main(int argc, char** argv) -> int
 	test_accessible_announcements_are_combined_and_deduplicated();
 	test_accessibility_minimum_geometry_and_render();
 	test_agent_surfaces_are_placed_in_the_conversations_drawer();
+	test_read_drawer_shows_threads_as_cards_with_scope_and_actions();
 	test_drawer_controls_are_reachable_in_the_conversations_drawer();
 	test_home_landing_funnels_to_an_account_and_then_a_pull_request();
 	test_device_sign_in_is_mounted_beside_the_session_chrome();

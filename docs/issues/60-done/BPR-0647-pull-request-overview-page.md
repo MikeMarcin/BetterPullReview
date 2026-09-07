@@ -54,7 +54,7 @@ computed in Qt.
   summary; the checks by outcome; my progress; and the one action with the
   file it lands on. Where the inputs cannot answer, the field is absent or
   `unknown` rather than zero: unread post counts (no post read state until
-  [BPR-0648](../30-in-progress/BPR-0648-aligned-comment-cards-in-read.md)), new
+  [BPR-0648](BPR-0648-aligned-comment-cards-in-read.md)), new
   comments since (the read model carries no post times), uploads since when
   the reviewed update is not among the retained rows, and the changed set
   ([BPR-0654](../10-backlog/BPR-0654-resolve-the-files-changed-since-my-last-review.md)).

@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0656",
+    "BPR-0657"
+  ],
+  "reserve_for": "bpr-read-cards-followups",
+  "purpose": "Post read state through conversation receipts; threaded replies and resolve through the mutation port",
+  "created": "2026-09-07T06:09:25.243946+00:00",
+  "base": "d04a15c1abe466d17a31fd462914f59bd1f18699"
+}

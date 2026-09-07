@@ -556,6 +556,9 @@ namespace bpr::qt {
 		void update_home_landing();
 		/// \brief Shows the overview or the comparison for the current modality.
 		void apply_modality_surface();
+		/// \brief [[BPR-0648]]. Re-aligns the comment cards and the gutter marks.
+		void refresh_cards();
+		void apply_thread_marks();
 		/// \brief Selects the file and enters Read, from the overview.
 		void               enter_read_at(const QString& aPath);
 		[[nodiscard]] auto file_for_path(const QString& aPath) const

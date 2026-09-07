@@ -199,6 +199,36 @@ set_tests_properties(
 )
 
 bpr_add_executable(
+    test_better_pull_review_qt_conversation_cards_view_tests
+    conversation_cards_view_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_qt_conversation_cards_view_tests
+    PRIVATE
+        glaze::glaze
+        BetterPullReview::AdapterQt
+)
+target_compile_definitions(
+    test_better_pull_review_qt_conversation_cards_view_tests
+    PRIVATE
+        "BPR_BRANCHING_THREAD_FIXTURE=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/conversations/branching-thread-v1/projection.json\""
+)
+bpr_enable_hardening(test_better_pull_review_qt_conversation_cards_view_tests)
+bpr_enable_warnings(test_better_pull_review_qt_conversation_cards_view_tests)
+
+bpr_add_network_isolated_test(
+    NAME qt_conversation_cards_view
+    COMMAND test_better_pull_review_qt_conversation_cards_view_tests
+)
+set_tests_properties(
+    qt_conversation_cards_view
+    PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        PASS_REGULAR_EXPRESSION "conversation-cards-view-tests:pass"
+        TIMEOUT 60
+)
+
+bpr_add_executable(
     test_better_pull_review_qt_github_thread_map_tests
     github_thread_map_tests.cpp
 )

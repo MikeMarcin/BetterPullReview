@@ -7,6 +7,7 @@
 #include "github_presentation_text.hpp"
 
 #include <QAction>
+#include <QHBoxLayout>
 #include <QHeaderView>
 #include <QItemSelectionModel>
 #include <QLabel>
@@ -18,6 +19,7 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <string>
 #include <unordered_map>
 #include <utility>
 
@@ -213,6 +215,60 @@ namespace bpr::qt {
 		loaded->setObjectName(QStringLiteral("githubConversationLoaded"));
 		loaded->setChildrenCollapsible(true);
 
+		// [[BPR-0648]]. The cards first: this file's threads at their lines,
+		// or every thread of the pull request in file order, with the scope
+		// chosen by the two buttons above them. The map and the tree keep
+		// their places beneath as the detail of the current thread.
+		auto* const cardsPane = new QWidget{ loaded };
+		cardsPane->setObjectName(QStringLiteral("conversationCardsPane"));
+		auto* const cardsLayout = new QVBoxLayout{ cardsPane };
+		cardsLayout->setContentsMargins(0, 0, 0, 0);
+		cardsLayout->setSpacing(2);
+		auto* const scopeRow = new QHBoxLayout;
+		scopeRow->setContentsMargins(4, 0, 4, 0);
+		scopeRow->setSpacing(4);
+		ScopeThisFile = new QToolButton{ cardsPane };
+		ScopeThisFile->setObjectName(QStringLiteral("conversationScopeThisFile"));
+		ScopeThisFile->setText(QStringLiteral("This file"));
+		ScopeThisFile->setAccessibleName(QStringLiteral("This file"));
+		ScopeThisFile->setAccessibleDescription(QStringLiteral(
+			"Shows the threads of the file the comparison shows, at their lines"));
+		ScopeThisFile->setCheckable(true);
+		ScopeThisFile->setChecked(true);
+		ScopeThisFile->setAutoExclusive(true);
+		ScopeThisFile->setFocusPolicy(Qt::StrongFocus);
+		ScopeWholePr = new QToolButton{ cardsPane };
+		ScopeWholePr->setObjectName(QStringLiteral("conversationScopeWholePullRequest"));
+		ScopeWholePr->setText(QStringLiteral("Whole PR"));
+		ScopeWholePr->setAccessibleName(QStringLiteral("Whole pull request"));
+		ScopeWholePr->setAccessibleDescription(QStringLiteral(
+			"Lists every thread of the pull request in file order"));
+		ScopeWholePr->setCheckable(true);
+		ScopeWholePr->setAutoExclusive(true);
+		ScopeWholePr->setFocusPolicy(Qt::StrongFocus);
+		scopeRow->addWidget(ScopeThisFile);
+		scopeRow->addWidget(ScopeWholePr);
+		scopeRow->addStretch(1);
+		cardsLayout->addLayout(scopeRow);
+		Cards = new conversation_cards_view{ cardsPane };
+		cardsLayout->addWidget(Cards, 1);
+		connect(ScopeThisFile, &QToolButton::toggled, this, [this](const bool aChecked) {
+			if (aChecked) {
+				Cards->set_scope(cards_scope::this_file);
+			}
+		});
+		connect(ScopeWholePr, &QToolButton::toggled, this, [this](const bool aChecked) {
+			if (aChecked) {
+				Cards->set_scope(cards_scope::whole_pull_request);
+			}
+		});
+		Cards->set_thread_dispatch([this](const std::string& aIdentity) {
+			const auto target = Model->index_for_id(aIdentity);
+			if (target.isValid()) {
+				View->setCurrentIndex(target);
+			}
+		});
+		loaded->addWidget(cardsPane);
 		auto* const mapPane   = new QWidget{ loaded };
 		auto* const mapLayout = new QVBoxLayout{ mapPane };
 		mapLayout->setContentsMargins(0, 0, 0, 0);
@@ -263,8 +319,9 @@ namespace bpr::qt {
 		// minimum in an ordinary window, which showed a highlighted branch
 		// whose end was off-screen - the exact failure the owner's
 		// "show the full branch" direction is about.
-		loaded->setStretchFactor(0, 0);
-		loaded->setStretchFactor(1, 1);
+		loaded->setStretchFactor(0, 2);
+		loaded->setStretchFactor(1, 0);
+		loaded->setStretchFactor(2, 1);
 		Stack->addWidget(loaded);
 		layout->addWidget(Stack, 1);
 
@@ -284,7 +341,10 @@ namespace bpr::qt {
 			this,
 			[this](const QModelIndex&) { synchronize_map_focus(); });
 
-		setTabOrder(RevealButton, ThreadMap);
+		setTabOrder(RevealButton, ScopeThisFile);
+		setTabOrder(ScopeThisFile, ScopeWholePr);
+		setTabOrder(ScopeWholePr, Cards);
+		setTabOrder(Cards, ThreadMap);
 		setTabOrder(ThreadMap, View);
 	}
 
@@ -295,6 +355,7 @@ namespace bpr::qt {
 		ThreadMap->set_focus_identity(
 			Model->id_for_index(View->currentIndex()), false);
 		ThreadMapBranch->setText(ThreadMap->branch_text());
+		Cards->set_current_thread(Model->id_for_index(View->currentIndex()));
 	}
 
 	void github_conversation_panel::adopt(
@@ -324,6 +385,8 @@ namespace bpr::qt {
 			RightHasCurrentDiffRevision);
 		Model->apply(shown);
 		ThreadMap->adopt(shown);
+		Cards->set_anchor_file(AnchorFile);
+		Cards->adopt(Retained);
 		ThreadMapSummary->setText(ThreadMap->summary_text());
 		Stack->setCurrentIndex(shown.empty() ? 0 : 1);
 		View->doItemsLayout();
@@ -354,6 +417,7 @@ namespace bpr::qt {
 		AvailabilityLabel->setText(std::move(aAvailabilityText));
 		Model->clear();
 		ThreadMap->clear();
+		Cards->clear();
 		ThreadMapSummary->setText(ThreadMap->summary_text());
 		ThreadMapBranch->setText(ThreadMap->branch_text());
 		Stack->setCurrentIndex(0);
@@ -473,5 +537,19 @@ namespace bpr::qt {
 	auto github_conversation_panel::reveal_button() const noexcept -> QToolButton*
 	{
 		return RevealButton;
+	}
+	auto github_conversation_panel::cards() const noexcept -> conversation_cards_view*
+	{
+		return Cards;
+	}
+
+	auto github_conversation_panel::scope_this_file_button() const noexcept -> QToolButton*
+	{
+		return ScopeThisFile;
+	}
+
+	auto github_conversation_panel::scope_whole_pull_request_button() const noexcept -> QToolButton*
+	{
+		return ScopeWholePr;
 	}
 } // namespace bpr::qt

@@ -18,6 +18,7 @@ add_library(
         src/epoch_line.cpp
         src/workbench_landing.cpp
         src/pull_request_overview_page.cpp
+        src/conversation_cards_view.cpp
         src/comparison_scroll_controller.cpp
         src/diff_link_map.cpp
 		src/diff_workbench.cpp

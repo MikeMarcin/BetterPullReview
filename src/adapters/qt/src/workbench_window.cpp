@@ -771,6 +771,58 @@ namespace bpr::qt {
 		// a file list is a list.
 		ConversationPanel = new github_conversation_panel{ Drawers[1].Panel };
 		ConversationPanel->set_current_endpoint_placement(false, false);
+		// [[BPR-0648]]. The cards read one geometry from the comparison: where
+		// a line is. The window relays it, and relays every applied scroll
+		// frame, so the cards sit at their lines and follow the shared scroll
+		// without the drawer ever reading the panes itself.
+		ConversationPanel->cards()->set_line_locator(
+			[this](const core::diff_side aSide, const std::uint32_t aOneBasedLine)
+				-> std::optional<int> {
+				if (ComparisonSurface == nullptr || aOneBasedLine == 0U
+					|| ConversationPanel == nullptr) {
+					return std::nullopt;
+				}
+				const auto rect = ComparisonSurface->line_rect(aSide, aOneBasedLine - 1U);
+				if (rect.isEmpty()) {
+					return std::nullopt;
+				}
+				const auto inWindow = ComparisonSurface->mapTo(this, rect.topLeft());
+				return ConversationPanel->cards()->viewport()->mapFrom(this, inWindow).y();
+			});
+		ComparisonSurface->set_frame_observer([this] { refresh_cards(); });
+		ConversationPanel->cards()->set_action_dispatch(
+			[this](const card_action aAction, const std::string& aIdentity) {
+				switch (aAction) {
+				case card_action::comment_here: {
+					// A comment on the thread's line: the thread becomes
+					// current, which reveals its line, and the draft editor
+					// takes focus. Threaded replies wait on BPR-0657.
+					const auto index = ConversationPanel->model()->index_for_id(aIdentity);
+					if (index.isValid()) {
+						ConversationPanel->view()->setCurrentIndex(index);
+					}
+					if (ReviewEditor != nullptr) {
+						ReviewEditor->body_editor()->setFocus(Qt::OtherFocusReason);
+					}
+					break;
+				}
+				case card_action::publish_draft:
+					if (ReviewEditor != nullptr) {
+						ReviewEditor->publish_action()->trigger();
+					}
+					break;
+				case card_action::edit_draft:
+					if (ReviewEditor != nullptr) {
+						ReviewEditor->body_editor()->setFocus(Qt::OtherFocusReason);
+					}
+					break;
+				case card_action::delete_draft:
+					if (ReviewEditor != nullptr) {
+						ReviewEditor->discard_action()->trigger();
+					}
+					break;
+				}
+			});
 		ComparisonSurface->set_selection_observer(
 			[this](const std::optional<core::semantic_selection>& aSelection,
 				   const bool                                     aInteractive) {
@@ -789,6 +841,7 @@ namespace bpr::qt {
 				ApplyingConversationAnchor = true;
 				ConversationPanel->set_anchor_file(conversation_anchor_file());
 				ConversationPanel->set_anchor_line(line);
+				refresh_cards();
 				if (aInteractive && !line.has_value()) {
 					ConversationPanel->view()->setCurrentIndex({ });
 					ConversationPanel->view()->selectionModel()->clearSelection();
@@ -1806,6 +1859,7 @@ namespace bpr::qt {
 				ConversationPanel->set_anchor_file(conversation_anchor_file());
 				ConversationPanel->set_anchor_line(std::nullopt);
 				ApplyingConversationAnchor = false;
+				refresh_cards();
 			}
 		}
 		if (aProjection.Drawers) {
@@ -2315,6 +2369,37 @@ namespace bpr::qt {
 		return CentreStack != nullptr && CentreStack->currentWidget() == OverviewPage;
 	}
 
+	void workbench_window::refresh_cards()
+	{
+		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
+			return;
+		}
+		auto* const cards = ConversationPanel->cards();
+		cards->set_draft(
+			ReviewEditor != nullptr ? ReviewEditor->shown_draft() : std::nullopt,
+			ComparisonSurface != nullptr && ComparisonSurface->current_result() != nullptr
+				? std::optional{ ComparisonSurface->current_result()->Alignment.Digest }
+				: std::nullopt);
+		cards->relayout();
+		apply_thread_marks();
+	}
+
+	void workbench_window::apply_thread_marks()
+	{
+		if (ComparisonSurface == nullptr || ConversationPanel == nullptr) {
+			return;
+		}
+		// Amber for a thread on the line. Blue for a new one waits on the
+		// post read state BPR-0656 adds.
+		for (const auto side : { core::diff_side::left, core::diff_side::right }) {
+			auto marks = std::vector<diff_line_mark>{ };
+			for (const auto line : ConversationPanel->cards()->marked_lines(side)) {
+				marks.push_back(diff_line_mark{ .Line = line, .Kind = diff_line_mark_kind::thread });
+			}
+			ComparisonSurface->set_line_marks(side, std::move(marks));
+		}
+	}
+
 	void workbench_window::apply_modality_surface()
 	{
 		if (CentreStack == nullptr || OverviewPage == nullptr) {
@@ -2666,6 +2751,10 @@ namespace bpr::qt {
 		}
 		if (aUpdate.Session.has_value()) {
 			SessionPanel->apply_session(*aUpdate.Session);
+			if (ConversationPanel != nullptr) {
+				ConversationPanel->cards()->set_viewer_login(
+					QString::fromStdString(aUpdate.Session->Login));
+			}
 		}
 		if (aUpdate.PullRequest.has_value()) {
 			apply_github_pull_request(*aUpdate.PullRequest);
@@ -2755,6 +2844,7 @@ namespace bpr::qt {
 		ApplyingConversationAnchor = false;
 		synchronize_selected_conversation(
 			ConversationPanel->view()->currentIndex());
+		refresh_cards();
 		update_defect_surface();
 		HasGithubPullRequest = true;
 		SessionPanel->apply_capabilities(aPullRequest.Capabilities);
@@ -2799,6 +2889,7 @@ namespace bpr::qt {
 		clear_overview();
 		ConversationPanel->clear(QStringLiteral(
 			"Review threads are unavailable until a pull request is open."));
+		refresh_cards();
 		update_github_presentation_state();
 	}
 

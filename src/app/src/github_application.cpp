@@ -8593,6 +8593,14 @@ namespace bpr::app {
 			if (auto* const overview = Window->overview_page(); overview != nullptr) {
 				overview->adopt_appearance(*AppearanceProfile);
 			}
+			if (auto* const conversations = Window->conversation_panel();
+				conversations != nullptr && conversations->cards() != nullptr) {
+				// [[BPR-0648]]. The accent for my posts and the thread marks'
+				// amber; the diff's own marks take the same two colours.
+				conversations->cards()->set_colours(
+					AppearanceProfile->color(core::appearance_role::state_unread),
+					QColor{ 0xD2, 0x99, 0x22 });
+			}
 
 			// Read back off the window rather than off the profile. The claim
 			// is that the palette reached the window; asking the profile what
