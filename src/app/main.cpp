@@ -6106,6 +6106,18 @@ namespace {
 
 			case automated_run::stage::epoch_maintenance_select_right: {
 				auto* const control = window.epoch_selectors();
+				// [[BPR-0664]]. The control blanks the left selector the moment
+				// the core starts resolving the anchor the previous stage
+				// dispatched, so reading a blank selector as "not applied" and
+				// re-asserting on the next 10 ms tick superseded every
+				// resolution slower than a tick: each completion arrived one
+				// generation stale and the course never left `resolving`.
+				// Wait while the core resolves; only a settled core showing
+				// another row is asked again (BPR-0655's cure for the defect
+				// probe).
+				if (aApplication.status().EpochStatus == bpr::core::epoch_status::resolving) {
+					break;
+				}
 				if (control->left_selector()->currentIndex()
 					!= aRun->MaintenanceLeftRow) {
 					// The previous stage set this index and then advanced. An
