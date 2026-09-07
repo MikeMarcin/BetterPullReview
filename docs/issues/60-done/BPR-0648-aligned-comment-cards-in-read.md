@@ -53,7 +53,7 @@ existing conversation model and delegate; no new authority.
   [BPR-0656](BPR-0656-post-read-state-through-conversation-receipts.md)
   (post read state: unread dots, dimming, Mark read, blue marks, the
   strip's next-new-comment group) and
-  [BPR-0657](../10-backlog/BPR-0657-threaded-replies-and-resolve-through-the-mutation-port.md)
+  [BPR-0657](../20-ready/BPR-0657-threaded-replies-and-resolve-through-the-mutation-port.md)
   (threaded replies and resolve). Until they land no post is drawn read or
   unread, every thread mark is amber, and a card's one action is "Comment
   here", which starts a draft on the thread's line rather than claiming to
