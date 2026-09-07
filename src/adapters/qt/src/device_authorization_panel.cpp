@@ -4,6 +4,7 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QFormLayout>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
@@ -223,12 +224,15 @@ namespace bpr::qt {
 		fields->addRow(tr("Code"), UserCodeField);
 		fields->addRow(tr("Address"), AddressField);
 
-		auto* const actions = new QHBoxLayout{ };
-		actions->addWidget(BeginButton);
-		actions->addWidget(CopyButton);
-		actions->addWidget(OpenButton);
-		actions->addWidget(CancelButton);
-		actions->addStretch(1);
+		// [[BPR-0646]]. Two rows of two: the panel lives in a 320-pixel drawer
+		// until the accounts page takes it, and four buttons in one row do
+		// not fit that width without clipping the last of them.
+		auto* const actions = new QGridLayout{ };
+		actions->addWidget(BeginButton, 0, 0);
+		actions->addWidget(CopyButton, 0, 1);
+		actions->addWidget(OpenButton, 1, 0);
+		actions->addWidget(CancelButton, 1, 1);
+		actions->setColumnStretch(2, 1);
 
 		auto* const layout = new QVBoxLayout{ this };
 		layout->addWidget(HeadingLabel);

@@ -441,6 +441,12 @@ namespace bpr::qt {
 		return Catalog;
 	}
 
+	auto epoch_history_model::rows() const noexcept
+		-> const std::vector<application::epoch_row_projection>&
+	{
+		return Rows;
+	}
+
 	auto epoch_history_model::epoch_count() const noexcept -> std::size_t
 	{
 		return Rows.size();

@@ -525,6 +525,7 @@ namespace bpr::qt {
 		void               update_strip_identity();
 		void               update_account_action();
 		void               apply_strip_width();
+		void               apply_review_details_visibility();
 		void               update_rail_summaries();
 		void               infer_modality_from_drawers();
 		[[nodiscard]] auto presented_files_state() const -> core::workbench_drawer_state;
@@ -591,6 +592,7 @@ namespace bpr::qt {
 		QLabel*           FilePositionLabel    = nullptr;
 		QWidget*          ModalitySpacer       = nullptr;
 		QWidget*          StripInset           = nullptr;
+		QScrollArea*      DrawerTopScroll      = nullptr;
 		bool              ModalityChosen       = false;
 		std::size_t       ReviewThreadTotal    = 0U;
 		QAction*          IdentityAction       = nullptr;

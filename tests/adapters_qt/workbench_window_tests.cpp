@@ -1077,8 +1077,21 @@ namespace {
 				   "each modality is a checkable, shortcut-bearing, focusable stop");
 		}
 		expect(modality->action(qt::review_modality::review)->isChecked()
-				   && !modality->action(qt::review_modality::read)->isChecked(),
-			   "exactly the current modality reads checked");
+				   && !modality->action(qt::review_modality::read)->isChecked()
+				   && modality->button(qt::review_modality::review)->isChecked()
+				   && !modality->button(qt::review_modality::read)->isChecked(),
+			   "exactly the current modality reads checked, on the action and "
+			   "on its segment");
+		// The host's first projection carries the drawers; the segment must
+		// still read checked after the window infers the modality from them.
+		window.publish(application::workbench_projection{
+			.Drawers = drawer_states(core::workbench_drawer_state::expanded,
+									 core::workbench_drawer_state::expanded) });
+		QApplication::processEvents();
+		expect(window.current_modality() == qt::review_modality::review
+				   && modality->button(qt::review_modality::review)->isChecked(),
+			   "a restored layout with both drawers open keeps Review checked on "
+			   "its segment");
 
 		// With no active workbench the drawers cannot change, so choosing a
 		// modality shows the preset and asks the core for nothing.
@@ -1401,7 +1414,7 @@ namespace {
 		auto* const detail     = window.detail_pane();
 		auto* const button     = qobject_cast<QToolButton*>(
 			window.primary_toolbar()->widgetForAction(action));
-		expect(action != nullptr && action->isCheckable() && action->isChecked()
+		expect(action != nullptr && action->isCheckable() && !action->isChecked()
 				   && !action->shortcut().isEmpty()
 				   && window.primary_toolbar()->actions().contains(action)
 				   && button != nullptr && button->focusPolicy() == Qt::StrongFocus
@@ -1409,29 +1422,37 @@ namespace {
 				   && !button->accessibleDescription().isEmpty()
 				   && window.focus_order().contains(button),
 			   "review details have a visible, checkable, keyboard-accessible action");
+		// [[BPR-0646]]. Off by default: the epoch line is chrome and always
+		// shows; the exact anchors and the selected-change details are the
+		// review details, shown on request.
 		expect(window.findChild<QScrollArea*>(
 				   QStringLiteral("workbenchReviewHeaderScroll"))
 					   == nullptr
-				   && comparison != nullptr
-				   && epochs != nullptr && epochs->isVisible()
-				   && detail != nullptr && detail->isVisible(),
-			   "review details begin visible around the composed comparison, "
-			   "with no review header above it");
-		const auto expandedHeight = comparison->height();
+				   && comparison != nullptr && epochs != nullptr
+				   && epochs->isVisible() && epochs->line() != nullptr
+				   && epochs->line()->isVisible() && !epochs->details_visible()
+				   && detail != nullptr && !detail->isVisible(),
+			   "the epoch line shows above the comparison with the review details "
+			   "hidden, and no review header above either");
+		const auto focusedHeight = comparison->height();
+		expect(action->toolTip().contains(
+				   QStringLiteral("Show the exact review anchors")),
+			   "the retained action explains what it reveals");
 
 		action->trigger();
 		QApplication::processEvents();
-		expect(!action->isChecked() && !epochs->isVisible() && !detail->isVisible(),
-			   "the focused-review gesture hides only the secondary detail region");
-		expect(comparison->height() > expandedHeight,
-			   "hiding review details returns their height to the comparison");
-		expect(action->toolTip().contains(QStringLiteral("Show the epoch line")),
-			   "the retained action explains how to reopen every hidden detail");
+		expect(action->isChecked() && epochs->details_visible()
+				   && epochs->line()->isVisible() && detail->isVisible(),
+			   "the review details gesture shows the exact anchors and the detail "
+			   "pane and keeps the epoch line");
+		expect(comparison->height() < focusedHeight,
+			   "showing review details takes their height from the comparison");
 
 		action->trigger();
 		QApplication::processEvents();
-		expect(action->isChecked() && epochs->isVisible() && detail->isVisible(),
-			   "the same shipped action restores the review details");
+		expect(!action->isChecked() && !epochs->details_visible()
+				   && !detail->isVisible() && comparison->height() == focusedHeight,
+			   "the same shipped action hides the details and returns the height");
 		window.hide();
 	}
 
@@ -2886,6 +2907,9 @@ namespace {
 			   "the lower detail pane is RFC-BPR-0004's composed detail surface "
 			   "rather than a second pane the shell invented");
 
+		// [[BPR-0646]]. The detail pane is a review detail, shown on request.
+		window.review_details_toggle_action()->setChecked(true);
+		process_events();
 		const auto openWidth = observe_full_central_width(window, "drawers open");
 
 		auto withoutFiles    = application::workbench_projection{ };
@@ -2995,6 +3019,8 @@ namespace {
 				   && !run_index(cleared, lastLater, 0).has_value(),
 			   "a cleared selection leaves no selected rows in the lower detail "
 			   "pane");
+		window.review_details_toggle_action()->setChecked(true);
+		process_events();
 		static_cast<void>(observe_full_central_width(window, "selection cleared"));
 		window.hide();
 	}

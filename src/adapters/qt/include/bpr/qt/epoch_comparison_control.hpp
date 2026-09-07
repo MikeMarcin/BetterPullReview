@@ -3,6 +3,7 @@
 
 #include "bpr/application/epoch_projection.hpp"
 #include "bpr/qt/epoch_history_model.hpp"
+#include "bpr/qt/epoch_line.hpp"
 
 #include <QWidget>
 
@@ -41,6 +42,14 @@ namespace bpr::qt {
 		void set_dispatch(application::epoch_intent_dispatch aDispatch);
 
 		[[nodiscard]] auto history_model() const noexcept -> epoch_history_model*;
+		/// \brief RFC-BPR-0028's epoch line, the control's one always-shown row.
+		[[nodiscard]] auto line() const noexcept -> epoch_line*;
+		/// \brief "Comparing ..." with the named comparisons and history actions.
+		[[nodiscard]] auto comparing_button() const noexcept -> QToolButton*;
+		/// \brief The exact anchors, OIDs, status and maintenance, shown on request.
+		[[nodiscard]] auto details() const noexcept -> QWidget*;
+		void               set_details_visible(bool aVisible);
+		[[nodiscard]] auto details_visible() const -> bool;
 		[[nodiscard]] auto left_selector() const noexcept -> QComboBox*;
 		[[nodiscard]] auto right_selector() const noexcept -> QComboBox*;
 		[[nodiscard]] auto left_oid_editor() const noexcept -> QLineEdit*;
@@ -66,6 +75,10 @@ namespace bpr::qt {
 	private:
 		void dispatch_alias(core::named_comparison aAlias);
 		void dispatch_anchor(core::comparison_side aSide, int aRow);
+		void dispatch_identity(
+			core::comparison_side                   aSide,
+			const core::comparison_anchor_identity& aIdentity);
+		void update_line();
 		void dispatch_older_history_page();
 		void dispatch_newest_history_page();
 		void dispatch_prune();
@@ -87,6 +100,9 @@ namespace bpr::qt {
 
 		application::epoch_intent_dispatch Dispatch;
 		epoch_history_model*               HistoryModel            = nullptr;
+		epoch_line*                        Line                    = nullptr;
+		QToolButton*                       ComparingButton         = nullptr;
+		QWidget*                           Details                 = nullptr;
 		QComboBox*                         LeftSelector            = nullptr;
 		QComboBox*                         RightSelector           = nullptr;
 		QLineEdit*                         LeftOid                 = nullptr;
@@ -110,6 +126,7 @@ namespace bpr::qt {
 		QToolButton*                       MaintenanceButton       = nullptr;
 
 		std::optional<core::pull_request_authority>             Authority;
+		std::optional<core::git_commit_oid>                     LastReviewCommit;
 		std::optional<core::comparison_selection>               Selection;
 		std::optional<application::epoch_comparison_projection> Comparison;
 		std::optional<core::epoch_history_cursor>               Continuation;

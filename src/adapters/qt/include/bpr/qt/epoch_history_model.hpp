@@ -61,6 +61,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto catalog() const noexcept
 			-> std::optional<core::epoch_catalog_identity>;
 		[[nodiscard]] auto epoch_count() const noexcept -> std::size_t;
+		/// \brief The loaded epochs, newest first, as the pages delivered them.
+		[[nodiscard]] auto rows() const noexcept
+			-> const std::vector<application::epoch_row_projection>&;
 		[[nodiscard]] auto statistics() const noexcept
 			-> epoch_history_model_statistics;
 

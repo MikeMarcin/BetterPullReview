@@ -2985,7 +2985,7 @@ namespace {
 		// [[BPR-0646]]. AC-01 left nothing above the comparison but the strip
 		// and the epoch line, so the sign-in and the session chrome live at
 		// the top of the files drawer until the accounts page takes them.
-		auto* const header = window.files_drawer();
+		auto* const header = required_child<QWidget>(window, "workbenchDrawerTop");
 		auto*       found  = static_cast<QWidget*>(nullptr);
 		for (auto* const widget : header->findChildren<QWidget*>()) {
 			if (widget->accessibleName()
@@ -3024,8 +3024,10 @@ namespace {
 			"while signed out the mounted panel is a visible region above the "
 			"Connect control, inside the window without scrolling");
 		expect(
-			header->isVisible()
-				&& header->width() > qt::workbench_drawer_rail::width_pixels,
+			window.files_drawer()->isVisible()
+				&& window.files_drawer()->width()
+					> qt::workbench_drawer_rail::width_pixels
+				&& window.files_drawer()->isAncestorOf(header),
 			"with no workbench to offer a drawer command the files drawer "
 			"presents expanded, so sign-in cannot be shut behind a rail");
 

@@ -445,39 +445,20 @@ namespace bpr::qt {
 		ReviewDetailsAction->setObjectName(
 			QStringLiteral("toggleWorkbenchReviewDetailsAction"));
 		ReviewDetailsAction->setCheckable(true);
-		ReviewDetailsAction->setChecked(true);
+		// [[BPR-0646]]. Off by default: the chrome above the comparison is
+		// the strip and the epoch line; the exact anchors and the selected
+		// change's details are shown on request.
+		ReviewDetailsAction->setChecked(false);
 		ReviewDetailsAction->setShortcut(
 			QKeySequence{ QStringLiteral("Alt+Shift+3") });
 		ReviewDetailsAction->setShortcutContext(Qt::WindowShortcut);
 		ReviewDetailsAction->setToolTip(QStringLiteral(
-			"Hide the epoch line and the selected-change details and give their height to the comparison."));
+			"Show the exact review anchors and the selected-change details."));
 		ReviewDetailsAction->setStatusTip(ReviewDetailsAction->toolTip());
 		addAction(ReviewDetailsAction);
-		connect(
-			ReviewDetailsAction,
-			&QAction::toggled,
-			this,
-			[this](const bool aVisible) {
-				if (EpochSelectors != nullptr) {
-					EpochSelectors->setVisible(aVisible);
-				}
-				if (ComparisonSurface != nullptr
-					&& ComparisonSurface->detail_pane() != nullptr) {
-					ComparisonSurface->detail_pane()->setVisible(aVisible);
-				}
-				const auto description = aVisible
-					? QStringLiteral(
-						  "Hide the epoch line and the selected-change details and give their height to the comparison.")
-					: QStringLiteral(
-						  "Show the epoch line and the selected-change details.");
-				ReviewDetailsAction->setToolTip(description);
-				ReviewDetailsAction->setStatusTip(description);
-				if (auto* const button = qobject_cast<QToolButton*>(
-						PrimaryToolbar->widgetForAction(ReviewDetailsAction));
-					button != nullptr) {
-					button->setAccessibleDescription(description);
-				}
-			});
+		connect(ReviewDetailsAction, &QAction::toggled, this, [this](const bool) {
+			apply_review_details_visibility();
+		});
 
 		ReviewControlsMenu = new QMenu{ this };
 		ReviewControlsMenu->setObjectName(QStringLiteral("workbenchReviewControlsMenu"));
@@ -1046,12 +1027,34 @@ namespace bpr::qt {
 		// then the queue and the files. The drawer presents expanded whenever
 		// the core offers no drawer command, so none of this can be shut away
 		// behind a rail the reviewer cannot reopen (see apply_drawer_layout).
+		// The panels keep their natural heights inside a bounded, scrolling
+		// top region, so the files list beneath always keeps room and nothing
+		// is squeezed into anything else; sign-in is the top of that region.
 		auto* const filesColumn
 			= qobject_cast<QVBoxLayout*>(Drawers[0].Panel->layout());
-		auto placeAt = 1;
-		filesColumn->insertWidget(placeAt++, DevicePanel);
-		filesColumn->insertWidget(placeAt++, SessionPanel);
+		auto* const top = new QWidget;
+		top->setObjectName(QStringLiteral("workbenchDrawerTop"));
+		top->setAccessibleName(QStringLiteral("Pull request"));
+		auto* const topColumn = new QVBoxLayout{ top };
+		topColumn->setContentsMargins(0, 0, 0, 0);
+		topColumn->addWidget(DevicePanel);
+		topColumn->addWidget(SessionPanel);
 		SessionPanel->apply_compact_layout(true);
+		if (auto* const landing = Drawers[0].Panel->findChild<QWidget*>(
+				QStringLiteral("reviewQueueLanding"), Qt::FindDirectChildrenOnly);
+			landing != nullptr) {
+			filesColumn->removeWidget(landing);
+			topColumn->addWidget(landing);
+		}
+		DrawerTopScroll = new QScrollArea{ Drawers[0].Panel };
+		DrawerTopScroll->setObjectName(QStringLiteral("workbenchDrawerTopScroll"));
+		DrawerTopScroll->setWidgetResizable(true);
+		DrawerTopScroll->setFrameShape(QFrame::NoFrame);
+		DrawerTopScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		DrawerTopScroll->setFocusPolicy(Qt::NoFocus);
+		DrawerTopScroll->setMaximumHeight(420);
+		DrawerTopScroll->setWidget(top);
+		filesColumn->insertWidget(1, DrawerTopScroll);
 		connect(
 			SessionPanel->profile_selector(),
 			&QComboBox::currentIndexChanged,
@@ -1077,7 +1080,7 @@ namespace bpr::qt {
 		// do, which is what the shell shipped for exactly one commit before this
 		// restored it. The session chrome stays visible either way, because
 		// connecting is the action the empty state is asking for.
-		PullRequestStack = new QStackedWidget{ Drawers[0].Panel };
+		PullRequestStack = new QStackedWidget{ top };
 		PullRequestStack->setObjectName(QStringLiteral("githubViewState"));
 		auto* const emptyState = new QWidget{ PullRequestStack };
 		emptyState->setObjectName(QStringLiteral("githubEmptyState"));
@@ -1122,19 +1125,14 @@ namespace bpr::qt {
 		// Bounded: the drawer's files list is what the drawer is for, and a
 		// long summary must not be able to take the height it needs.
 		PullRequestStack->setMaximumHeight(200);
-		// Under the queue and above the files list: choose, then see.
-		const auto beforeFiles = [filesColumn, this] {
-			return Drawers[0].Panel->contents_view() != nullptr
-				? filesColumn->indexOf(Drawers[0].Panel->contents_view())
-				: filesColumn->count();
-		};
-		filesColumn->insertWidget(beforeFiles(), PullRequestStack);
+		// Under the queue, at the bottom of the top region: choose, then see.
+		topColumn->addWidget(PullRequestStack);
 		// The panel builds the description but deliberately does not lay it out:
 		// where a description belongs is a decision for whoever assembles the
 		// window, and this one puts it under the metadata it describes. Bounded
 		// rather than stretching, for the same reason.
 		PullRequestPanel->body_editor()->setMaximumHeight(120);
-		filesColumn->insertWidget(beforeFiles(), PullRequestPanel->body_editor());
+		topColumn->addWidget(PullRequestPanel->body_editor());
 
 		// [[BPR-0646]]. The appearance surface moves out of the review header
 		// into the Settings window, a modeless child of this window reached by
@@ -1152,6 +1150,9 @@ namespace bpr::qt {
 		// comments toggle, as the design places it. Same action as the
 		// session chrome's button, so there is one refresh with one state.
 		PrimaryToolbar->insertAction(Drawers[1].Toggle, GithubRefreshAction);
+		// The action's default state is applied once everything it governs
+		// exists; a default that is never applied is a default in name only.
+		apply_review_details_visibility();
 
 		ConversationPanel->set_reveal_action(ShowReviewThreadsAction);
 		connect(ShowReviewThreadsAction, &QAction::triggered, this, [this] {
@@ -3180,8 +3181,11 @@ namespace bpr::qt {
 		// A collapsed drawer's rail is its one stop; hidden while expanded.
 		append(Drawers[0].Panel->rail());
 		append(Drawers[0].Panel->focus_stop());
-		// The two selectors sit on one grid row above their two exact OIDs, so
-		// the declared order is the row order the composed control already walks.
+		// The line and its comparing menu first, then the two selectors on
+		// one grid row above their two exact OIDs, the row order the composed
+		// control already walks.
+		append(EpochSelectors->line());
+		append(EpochSelectors->comparing_button());
 		append(EpochSelectors->left_selector());
 		append(EpochSelectors->right_selector());
 		append(EpochSelectors->left_oid_editor());
@@ -3296,6 +3300,36 @@ namespace bpr::qt {
 			}
 		} else if (files && conversations) {
 			Modality->adopt(review_modality::review);
+		}
+	}
+
+	void workbench_window::apply_review_details_visibility()
+	{
+		if (ReviewDetailsAction == nullptr) {
+			return;
+		}
+		const auto visible = ReviewDetailsAction->isChecked();
+		// The epoch line is chrome and stays; the exact anchors, OIDs and
+		// history maintenance beneath it and the selected-change detail pane
+		// are the review details.
+		if (EpochSelectors != nullptr) {
+			EpochSelectors->set_details_visible(visible);
+		}
+		if (ComparisonSurface != nullptr
+			&& ComparisonSurface->detail_pane() != nullptr) {
+			ComparisonSurface->detail_pane()->setVisible(visible);
+		}
+		const auto description = visible
+			? QStringLiteral(
+				  "Hide the exact review anchors and the selected-change details and give their height to the comparison.")
+			: QStringLiteral(
+				  "Show the exact review anchors and the selected-change details.");
+		ReviewDetailsAction->setToolTip(description);
+		ReviewDetailsAction->setStatusTip(description);
+		if (auto* const button = qobject_cast<QToolButton*>(
+				PrimaryToolbar->widgetForAction(ReviewDetailsAction));
+			button != nullptr) {
+			button->setAccessibleDescription(description);
 		}
 	}
 

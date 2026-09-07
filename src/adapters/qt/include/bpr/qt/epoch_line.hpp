@@ -1,0 +1,131 @@
+#ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_EPOCH_LINE_HPP
+#define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_EPOCH_LINE_HPP
+
+#include "bpr/application/epoch_projection.hpp"
+#include "bpr/core/epoch_model.hpp"
+
+#include <QPoint>
+#include <QString>
+#include <QWidget>
+
+#include <cstddef>
+#include <functional>
+#include <optional>
+#include <vector>
+
+class QContextMenuEvent;
+class QEvent;
+class QFocusEvent;
+class QKeyEvent;
+class QMouseEvent;
+class QPaintEvent;
+
+namespace bpr::qt {
+	/// \brief Reports one anchor the reviewer chose on the line.
+	using epoch_line_dispatch = std::function<void(
+		core::comparison_side,
+		core::comparison_anchor_identity)>;
+
+	/// \brief One stop a handle can rest on: an update's base or head.
+	struct epoch_line_stop
+	{
+		std::size_t                  Update = 0U;
+		core::comparison_anchor_kind Kind   = core::comparison_anchor_kind::epoch_head;
+
+		auto operator<=>(const epoch_line_stop&) const = default;
+	};
+
+	/// \brief RFC-BPR-0028's epoch line: one node per update, two handles.
+	///
+	/// \details [[BPR-0646]]. A node is a review epoch -- each update (push)
+	/// that changed the pull request -- never a commit or a file's history.
+	/// The two compared anchors are bracket handles with the accent span
+	/// between them; an amber tick marks "my last review" with only a
+	/// tooltip; the dates sit in their own row beneath the nodes. The line
+	/// decides nothing: every gesture leaves as one exact anchor choice
+	/// through the dispatch, and what is drawn is what was published back.
+	///
+	/// Gestures: click a node to compare from it (its head on the left),
+	/// Cmd-click to compare to it (its head on the right), right-click for
+	/// compare from here, compare to here, show this update alone and copy
+	/// head commit, drag either handle, and -- because dense histories make
+	/// precise mouse selection hard -- Left and Right step the left handle
+	/// one stop at a time while the line has focus, Shift+Left and
+	/// Shift+Right step the right handle. The left handle's stops begin with
+	/// the oldest update's base, so the whole pull request is reachable.
+	class epoch_line final : public QWidget
+	{
+	public:
+		explicit epoch_line(QWidget* aParent = nullptr);
+
+		static constexpr int height_pixels = 34;
+
+		/// \brief Adopts the updates, oldest first.
+		void set_updates(std::vector<application::epoch_row_projection> aOldestFirst);
+		/// \brief Adopts the compared anchors the core published.
+		void set_selection(
+			std::optional<core::comparison_anchor_identity> aLeft,
+			std::optional<core::comparison_anchor_identity> aRight);
+		/// \brief Adopts the head commit of my last review, if any.
+		void set_last_review(std::optional<core::git_commit_oid> aCommit);
+		/// \brief Whether the core currently offers anchor selection.
+		void set_selection_offered(bool aOffered);
+		void set_dispatch(epoch_line_dispatch aDispatch);
+
+		[[nodiscard]] auto update_count() const noexcept -> std::size_t;
+		[[nodiscard]] auto left_stop() const noexcept -> std::optional<epoch_line_stop>;
+		[[nodiscard]] auto right_stop() const noexcept -> std::optional<epoch_line_stop>;
+		[[nodiscard]] auto last_review_update() const noexcept -> std::optional<std::size_t>;
+		[[nodiscard]] auto selection_offered() const noexcept -> bool;
+		/// \brief Centre of an update's node, in widget coordinates.
+		[[nodiscard]] auto node_centre(std::size_t aUpdate) const -> QPoint;
+		/// \brief Where a stop's handle is drawn, in widget coordinates.
+		[[nodiscard]] auto stop_position(const epoch_line_stop& aStop) const -> QPoint;
+		[[nodiscard]] auto label_text(std::size_t aUpdate) const -> QString;
+		[[nodiscard]] auto label_shown(std::size_t aUpdate) const -> bool;
+		[[nodiscard]] auto node_tooltip(std::size_t aUpdate) const -> QString;
+		[[nodiscard]] auto identity_of(const epoch_line_stop& aStop) const
+			-> core::comparison_anchor_identity;
+		/// \brief The handle the arrow keys move without Shift.
+		[[nodiscard]] auto active_side() const noexcept -> core::comparison_side;
+
+		[[nodiscard]] auto sizeHint() const -> QSize override;
+		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
+
+	protected:
+		void paintEvent(QPaintEvent* aEvent) override;
+		void mousePressEvent(QMouseEvent* aEvent) override;
+		void mouseMoveEvent(QMouseEvent* aEvent) override;
+		void mouseReleaseEvent(QMouseEvent* aEvent) override;
+		void keyPressEvent(QKeyEvent* aEvent) override;
+		void contextMenuEvent(QContextMenuEvent* aEvent) override;
+		void focusInEvent(QFocusEvent* aEvent) override;
+		void focusOutEvent(QFocusEvent* aEvent) override;
+		auto event(QEvent* aEvent) -> bool override;
+
+	private:
+		[[nodiscard]] auto node_x(std::size_t aUpdate) const -> int;
+		[[nodiscard]] auto update_at(const QPoint& aPoint) const -> std::optional<std::size_t>;
+		[[nodiscard]] auto handle_at(const QPoint& aPoint) const -> std::optional<core::comparison_side>;
+		[[nodiscard]] auto nearest_stop(core::comparison_side aSide, int aX) const
+			-> std::optional<epoch_line_stop>;
+		[[nodiscard]] auto stops_for(core::comparison_side aSide) const
+			-> std::vector<epoch_line_stop>;
+		[[nodiscard]] auto stop_for(const core::comparison_anchor_identity& aIdentity) const
+			-> std::optional<epoch_line_stop>;
+		void choose(core::comparison_side aSide, const epoch_line_stop& aStop);
+		void step(core::comparison_side aSide, int aDirection);
+
+		std::vector<application::epoch_row_projection>  Updates;
+		std::optional<core::comparison_anchor_identity> Left;
+		std::optional<core::comparison_anchor_identity> Right;
+		std::optional<core::git_commit_oid>             LastReview;
+		epoch_line_dispatch                             Dispatch;
+		std::optional<core::comparison_side>            Dragging;
+		std::optional<epoch_line_stop>                  DragStop;
+		core::comparison_side                           ActiveSide = core::comparison_side::left;
+		bool                                            Offered    = false;
+	};
+} // namespace bpr::qt
+
+#endif

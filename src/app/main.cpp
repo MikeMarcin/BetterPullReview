@@ -2350,6 +2350,14 @@ namespace {
 			return fail(QStringLiteral("capture-ribbon-selection"));
 		}
 
+		// [[BPR-0646]]. The detail pane is a review detail, off by default;
+		// the course shows it before dragging the splitter that bounds it,
+		// exactly as a reviewer would.
+		if (auto* const details = aWindow.review_details_toggle_action();
+			details != nullptr && !details->isChecked()) {
+			details->setChecked(true);
+			QApplication::processEvents();
+		}
 		const auto selectionBeforeResize  = workbench->selection();
 		const auto statisticsBeforeResize = workbench->statistics();
 		const auto sizes                  = vertical->sizes();

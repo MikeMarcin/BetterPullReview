@@ -179,6 +179,48 @@ area in `workbench_window.cpp` and the toolbar it carries.
   crop, the review-details test, the settings window test and the UIforETW
   probes moved with the panels; the probe's "review_details_rect_in_window"
   now measures the epoch line.
-  The attended look at this slice in the signed bundle is owed: the screen
-  was locked again when it was built (25 of 25 focused selectors and the
-  contracts pass).
+  Observed in the signed bundle once the screen was back: the chrome above
+  the panes is the strip and the "Updates" row only, and the detail pane is
+  hidden by default; the files drawer, however, had its sign-in, session
+  chrome, queue and pull request panels squeezed into each other because the
+  column exceeded the window height. The top region is now a bounded
+  scrolling area (`workbenchDrawerTopScroll`, 420 pixels at most) holding
+  those panels at their natural heights, sign-in first, with the files list
+  beneath it.
+- Slice (d), the epoch line. `epoch_line.{hpp,cpp}` is RFC-BPR-0028's line:
+  one node per review epoch (each update that changed the pull request,
+  never a commit or a file's history), oldest at the left, the two compared
+  anchors as bracket handles with the accent span between them, the dates in
+  their own row beneath the nodes ("Sep 6", the newest ", latest"), thinned
+  to the ends, the handles and my last review when the history is dense,
+  and an amber tick for my last review with only a tooltip (the head commit
+  of the current viewer's review from the authority projection). Click a
+  node compares from it (its head on the left), ⌘-click compares to it,
+  right-click offers compare from here, compare to here, show this update
+  alone and copy head commit, either handle drags, and with the line focused
+  Left and Right step the left handle one stop at a time while Shift+Left
+  and Shift+Right step the right handle; the left handle's stops begin with
+  the oldest update's base so the whole pull request is one step from its
+  first head. Hovering a node states the update's ordinal, cause, time and
+  head commit (the projection carries no per-update file list yet). Every
+  gesture leaves as one exact `select_comparison_anchor_intent` through the
+  control's dispatch and the line draws what the core publishes back. The
+  epoch control now shows the line as its one always-visible row, with
+  "Updates" at its left and a "Comparing …" menu at its right that carries
+  the three named comparisons and the history and maintenance actions; the
+  exact selectors, OIDs, status and maintenance buttons are its details
+  region, shown by the review details action, which is off by default and
+  now also governs the selected-change detail pane. The epoch and workbench
+  tests that assumed the selectors or the detail pane visible turn review
+  details on first.
+  The device sign-in panel's four buttons wrap to two rows of two, because
+  the 320-pixel drawer clipped the last of them in one row. The public-path
+  course in the application's main turns review details on before it drags
+  the vertical splitter, since the detail pane it bounds is now off by
+  default; both application digests repinned. Observed in the signed bundle
+  at 1280x820: the "Updates" row reads "No updates loaded." with "Comparing
+  exact anchors" at its right when nothing is open, the detail pane is
+  hidden, and the drawer's top region shows sign-in, host and locator at
+  their natural sizes with the files list beneath. The Review segment reads
+  checked at launch (an instrumented run confirmed the button state; two
+  earlier captures had shown it unfilled and could not be reproduced).

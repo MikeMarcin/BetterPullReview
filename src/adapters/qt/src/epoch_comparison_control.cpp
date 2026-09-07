@@ -290,7 +290,67 @@ namespace bpr::qt {
 
 		auto* const layout = new QVBoxLayout{ this };
 		layout->setContentsMargins(0, 0, 0, 0);
-		layout->setSpacing(style()->pixelMetric(QStyle::PM_LayoutVerticalSpacing));
+		layout->setSpacing(0);
+
+		// [[BPR-0646]]. RFC-BPR-0028's epoch line is the one row this control
+		// always shows: "Updates", the line, and a menu that carries the
+		// named comparisons and the history actions. Everything the control
+		// showed before -- the exact anchors, their OIDs, the status and the
+		// maintenance -- is the details region, shown on request.
+		auto* const lineRow = new QHBoxLayout;
+		lineRow->setContentsMargins(12, 0, 8, 0);
+		lineRow->setSpacing(10);
+		auto* const lineName = new QLabel{ QStringLiteral("Updates"), this };
+		lineName->setObjectName(QStringLiteral("epochLineName"));
+		lineName->setFixedWidth(52);
+		Line = new epoch_line{ this };
+		Line->set_dispatch(
+			[this](const core::comparison_side             aSide,
+				   const core::comparison_anchor_identity& aIdentity) {
+				dispatch_identity(aSide, aIdentity);
+			});
+		auto* const comparingMenu = new QMenu{ this };
+		comparingMenu->setObjectName(QStringLiteral("epochComparingMenu"));
+		comparingMenu->addAction(WholePrAction);
+		comparingMenu->addAction(PreviousUploadAction);
+		comparingMenu->addAction(LastReviewedAction);
+		comparingMenu->addSeparator();
+		comparingMenu->addAction(LoadHistoryAction);
+		comparingMenu->addAction(ReturnNewestAction);
+		comparingMenu->addAction(RefreshAction);
+		comparingMenu->addAction(CancelAction);
+		comparingMenu->addSeparator();
+		comparingMenu->addAction(PruneAction);
+		comparingMenu->addAction(DeleteCacheAction);
+		comparingMenu->addAction(CancelMaintenanceAction);
+		auto* const comparing = new menu_tool_button{ this };
+		comparing->setObjectName(QStringLiteral("epochComparingButton"));
+		comparing->setAccessibleName(QStringLiteral("Comparing"));
+		comparing->setAccessibleDescription(QStringLiteral(
+			"The named comparison in force; opens the named comparisons and "
+			"the review-history actions"));
+		comparing->setMenu(comparingMenu);
+		comparing->setPopupMode(QToolButton::InstantPopup);
+		comparing->setToolButtonStyle(Qt::ToolButtonTextOnly);
+		comparing->setFocusPolicy(Qt::StrongFocus);
+		comparing->setText(QStringLiteral("Comparing whole PR"));
+		ComparingButton = comparing;
+		lineRow->addWidget(lineName);
+		lineRow->addWidget(Line, 1);
+		lineRow->addWidget(ComparingButton);
+		layout->addLayout(lineRow);
+
+		Details = new QWidget{ this };
+		Details->setObjectName(QStringLiteral("epochDetails"));
+		Details->setAccessibleName(QStringLiteral("Review epoch details"));
+		Details->setAccessibleDescription(QStringLiteral(
+			"Exact left and right anchors, their commit OIDs, the review-history "
+			"status and its maintenance"));
+		auto* const detailsLayout = new QVBoxLayout{ Details };
+		detailsLayout->setContentsMargins(0, 0, 0, 0);
+		detailsLayout->setSpacing(style()->pixelMetric(QStyle::PM_LayoutVerticalSpacing));
+		layout->addWidget(Details);
+		Details->hide();
 
 		auto* const aliasRow = new QHBoxLayout;
 		aliasRow->setContentsMargins(0, 0, 0, 0);
@@ -305,7 +365,7 @@ namespace bpr::qt {
 		makeButton(PreviousUploadAction);
 		makeButton(LastReviewedAction);
 		aliasRow->addStretch(1);
-		layout->addLayout(aliasRow);
+		detailsLayout->addLayout(aliasRow);
 
 		auto* const selectorGrid = new QGridLayout;
 		selectorGrid->setContentsMargins(0, 0, 0, 0);
@@ -355,7 +415,7 @@ namespace bpr::qt {
 		selectorGrid->addWidget(LeftOid, 1, 1);
 		selectorGrid->addWidget(rightOidLabel, 1, 2);
 		selectorGrid->addWidget(RightOid, 1, 3);
-		layout->addLayout(selectorGrid);
+		detailsLayout->addLayout(selectorGrid);
 
 		auto* const footer = new QHBoxLayout;
 		footer->setContentsMargins(0, 0, 0, 0);
@@ -416,7 +476,7 @@ namespace bpr::qt {
 		footer->addWidget(RefreshButton);
 		footer->addWidget(CancelButton);
 		footer->addWidget(MaintenanceButton);
-		layout->addLayout(footer);
+		detailsLayout->addLayout(footer);
 
 		connect(WholePrAction, &QAction::triggered, this, [this] {
 			dispatch_alias(core::named_comparison::whole_pr);
@@ -498,6 +558,94 @@ namespace bpr::qt {
 		-> epoch_history_model*
 	{
 		return HistoryModel;
+	}
+
+	auto epoch_comparison_control::line() const noexcept -> epoch_line*
+	{
+		return Line;
+	}
+
+	auto epoch_comparison_control::comparing_button() const noexcept -> QToolButton*
+	{
+		return ComparingButton;
+	}
+
+	auto epoch_comparison_control::details() const noexcept -> QWidget*
+	{
+		return Details;
+	}
+
+	void epoch_comparison_control::set_details_visible(const bool aVisible)
+	{
+		if (Details != nullptr) {
+			Details->setVisible(aVisible);
+			updateGeometry();
+		}
+	}
+
+	auto epoch_comparison_control::details_visible() const -> bool
+	{
+		return Details != nullptr && !Details->isHidden();
+	}
+
+	void epoch_comparison_control::dispatch_identity(
+		const core::comparison_side             aSide,
+		const core::comparison_anchor_identity& aIdentity)
+	{
+		if (ApplyingProjection || !Dispatch) {
+			return;
+		}
+		const auto catalog = HistoryModel->catalog();
+		if (!catalog) {
+			return;
+		}
+		Dispatch(core::select_comparison_anchor_intent{
+			.Side                    = aSide,
+			.Anchor                  = aIdentity,
+			.ExpectedCatalogRevision = catalog->Revision,
+		});
+	}
+
+	void epoch_comparison_control::update_line()
+	{
+		if (Line == nullptr) {
+			return;
+		}
+		// The model keeps its pages newest first; the line reads left to
+		// right in time.
+		auto updates = HistoryModel->rows();
+		std::ranges::reverse(updates);
+		Line->set_updates(std::move(updates));
+		if (Comparison && Comparison->Pair) {
+			Line->set_selection(
+				Comparison->Pair->Left.Identity, Comparison->Pair->Right.Identity);
+		} else {
+			Line->set_selection(std::nullopt, std::nullopt);
+		}
+		Line->set_last_review(LastReviewCommit);
+		const auto select = command(core::epoch_command_id::select_comparison);
+		Line->set_selection_offered(select && select->Enabled && !HistoryWindowStale);
+		auto comparing = QStringLiteral("Comparing exact anchors");
+		if (Selection) {
+			if (const auto* const named
+				= std::get_if<core::named_comparison_selection>(&*Selection);
+				named != nullptr) {
+				switch (named->Alias) {
+				case core::named_comparison::whole_pr:
+					comparing = QStringLiteral("Comparing whole PR");
+					break;
+				case core::named_comparison::previous_upload_to_latest:
+					comparing = QStringLiteral("Comparing since last upload");
+					break;
+				case core::named_comparison::my_last_reviewed_to_latest:
+					comparing = QStringLiteral("Comparing since my last review");
+					break;
+				}
+			}
+		}
+		if (ComparingButton != nullptr && ComparingButton->text() != comparing) {
+			ComparingButton->setText(comparing);
+		}
 	}
 
 	auto epoch_comparison_control::left_selector() const noexcept -> QComboBox*
@@ -796,6 +944,13 @@ namespace bpr::qt {
 	{
 		if (aProjection.Authority) {
 			Authority = aProjection.Authority->Authority;
+			// The head commit of my last review, for the line's amber tick.
+			LastReviewCommit.reset();
+			if (aProjection.Authority->Revision
+				&& aProjection.Authority->Revision->CurrentViewerReview) {
+				LastReviewCommit
+					= aProjection.Authority->Revision->CurrentViewerReview->Commit;
+			}
 			if (!aProjection.Authority->Authority) {
 				HistoryModel->clear();
 				Selection.reset();
@@ -837,6 +992,7 @@ namespace bpr::qt {
 		update_selection_controls();
 		update_status_text();
 		update_action_state();
+		update_line();
 	}
 
 	void epoch_comparison_control::update_selection_controls()

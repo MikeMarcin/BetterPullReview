@@ -12805,7 +12805,7 @@ namespace bpr::app {
 				&& !window->files_drawer_toggle_action()->isChecked()
 				&& !window->conversations_drawer_toggle_action()->isChecked()
 				&& !window->review_details_toggle_action()->isChecked()
-				&& !window->epoch_selectors()->isVisible()
+				&& !window->epoch_selectors()->details_visible()
 				&& detail != nullptr && !detail->isVisible();
 			if (!focused) {
 				if (++probe.Waits > 64U) {
@@ -13030,7 +13030,7 @@ namespace bpr::app {
 			= window->conversations_drawer_toggle_action();
 		auto* const reviewDetails  = window->review_details_toggle_action();
 		auto* const reviewControls = window->review_controls_button();
-		if (window->epoch_selectors()->isVisible()
+		if (window->epoch_selectors()->details_visible()
 			|| detail == nullptr || detail->isVisible()
 			|| window->files_drawer()->width()
 				> qt::workbench_drawer_rail::width_pixels

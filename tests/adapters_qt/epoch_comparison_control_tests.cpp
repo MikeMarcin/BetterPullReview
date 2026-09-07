@@ -6,9 +6,11 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QFont>
+#include <QKeyEvent>
 #include <QLineEdit>
 #include <QMenu>
 #include <QMessageBox>
+#include <QMouseEvent>
 #include <QPersistentModelIndex>
 #include <QPixmap>
 #include <QPushButton>
@@ -734,6 +736,236 @@ namespace {
 			   "identified after both anchors leave the one-page working set");
 	}
 
+	/// \brief RFC-BPR-0028's epoch line over the same projections the
+	/// selectors read.
+	auto test_epoch_line_selects_updates_by_click_drag_and_keys() -> void
+	{
+		std::vector<application::epoch_intent> intents;
+		qt::epoch_comparison_control           control{
+			[&intents](application::epoch_intent aIntent) {
+				intents.push_back(std::move(aIntent));
+			},
+		};
+		control.resize(700, 80);
+		control.show();
+		QApplication::processEvents();
+		auto* const line = control.line();
+		expect(line != nullptr && line->isVisible() && !control.details_visible()
+				   && control.details() != nullptr && !control.details()->isVisible()
+				   && line->height() == qt::epoch_line::height_pixels
+				   && line->update_count() == 0U,
+			   "the control shows the epoch line and hides the exact selectors "
+			   "until they are asked for");
+
+		// Three updates, newest first as the pages deliver them.
+		const auto third  = epoch_row(3, '1', '4');
+		const auto second = epoch_row(2, '1', '3');
+		const auto first  = epoch_row(1, '1', '2');
+		control.publish(loaded_catalog_update({ third, second, first }));
+		control.publish(comparison_update(
+			core::named_selection(core::named_comparison::whole_pr),
+			{
+				.Left  = anchor(first, core::comparison_anchor_kind::epoch_base),
+				.Right = anchor(third, core::comparison_anchor_kind::epoch_head),
+			}));
+		QApplication::processEvents();
+		expect(line->update_count() == 3U
+				   && line->left_stop()
+					   == qt::epoch_line_stop{
+						   .Update = 0U,
+						   .Kind   = core::comparison_anchor_kind::epoch_base }
+				   && line->right_stop() == qt::epoch_line_stop{ .Update = 2U, .Kind = core::comparison_anchor_kind::epoch_head } && line->node_centre(0).x() < line->node_centre(1).x() && line->node_centre(1).x() < line->node_centre(2).x() && line->stop_position(*line->left_stop()).x() < line->node_centre(0).x(),
+			   "the line reads oldest to newest with the whole-PR handles on the "
+			   "oldest base and the newest head");
+		expect(line->label_text(2).endsWith(QStringLiteral(", latest"))
+				   && !line->label_text(0).endsWith(QStringLiteral(", latest"))
+				   && line->label_shown(0) && line->label_shown(1)
+				   && line->label_shown(2)
+				   && line->node_tooltip(1).contains(QStringLiteral("Update 2 of 3"))
+				   && line->node_tooltip(1).contains(QStringLiteral("upload")),
+			   "labels sit beneath every node when there is room, the newest "
+			   "says so, and a node's tooltip names the update");
+		expect(control.comparing_button() != nullptr
+				   && control.comparing_button()->text()
+					   == QStringLiteral("Comparing whole PR")
+				   && control.comparing_button()->menu() != nullptr
+				   && control.comparing_button()->menu()->actions().contains(
+					   control.last_reviewed_action()),
+			   "the comparing menu names the alias in force and carries the "
+			   "named comparisons");
+		expect(line->selection_offered(),
+			   "with the select command offered the line takes gestures");
+
+		// Click a node: compare from it, its head on the left.
+		const auto clickAt = [line](const QPoint& aPoint, const Qt::KeyboardModifiers aModifiers) {
+			auto press = QMouseEvent{
+				QEvent::MouseButtonPress,
+				QPointF{ aPoint },
+				QPointF{ line->mapToGlobal(aPoint) },
+				Qt::LeftButton,
+				Qt::LeftButton,
+				aModifiers,
+			};
+			QApplication::sendEvent(line, &press);
+			auto release = QMouseEvent{
+				QEvent::MouseButtonRelease,
+				QPointF{ aPoint },
+				QPointF{ line->mapToGlobal(aPoint) },
+				Qt::LeftButton,
+				Qt::NoButton,
+				aModifiers,
+			};
+			QApplication::sendEvent(line, &release);
+		};
+		intents.clear();
+		clickAt(line->node_centre(1), Qt::NoModifier);
+		const auto* fromHere = intents.size() == 1U
+			? std::get_if<core::select_comparison_anchor_intent>(&intents.back())
+			: nullptr;
+		expect(fromHere != nullptr && fromHere->Side == core::comparison_side::left
+				   && fromHere->Anchor
+					   == anchor(second, core::comparison_anchor_kind::epoch_head).Identity
+				   && fromHere->ExpectedCatalogRevision == catalog().Revision,
+			   "clicking a node asks to compare from that update's head, once, "
+			   "bound to the catalog revision");
+		expect(line->left_stop()->Update == 0U,
+			   "the line shows what was published, not what was asked");
+
+		// Cmd-click: compare to it.
+		intents.clear();
+		clickAt(line->node_centre(1), Qt::ControlModifier);
+		const auto* toHere = intents.size() == 1U
+			? std::get_if<core::select_comparison_anchor_intent>(&intents.back())
+			: nullptr;
+		expect(toHere != nullptr && toHere->Side == core::comparison_side::right
+				   && toHere->Anchor
+					   == anchor(second, core::comparison_anchor_kind::epoch_head).Identity,
+			   "Cmd-clicking a node asks to compare to that update's head");
+
+		// Keyboard: Right steps the left handle from the oldest base to its
+		// head; Shift+Left steps the right handle back one update.
+		intents.clear();
+		line->setFocus();
+		auto right = QKeyEvent{ QEvent::KeyPress, Qt::Key_Right, Qt::NoModifier };
+		QApplication::sendEvent(line, &right);
+		const auto* stepped = intents.size() == 1U
+			? std::get_if<core::select_comparison_anchor_intent>(&intents.back())
+			: nullptr;
+		expect(stepped != nullptr && stepped->Side == core::comparison_side::left
+				   && stepped->Anchor
+					   == anchor(first, core::comparison_anchor_kind::epoch_head).Identity,
+			   "Right steps the left handle one stop, from the oldest base to "
+			   "its head");
+		intents.clear();
+		auto shiftLeft = QKeyEvent{ QEvent::KeyPress, Qt::Key_Left, Qt::ShiftModifier };
+		QApplication::sendEvent(line, &shiftLeft);
+		const auto* steppedRight = intents.size() == 1U
+			? std::get_if<core::select_comparison_anchor_intent>(&intents.back())
+			: nullptr;
+		expect(steppedRight != nullptr
+				   && steppedRight->Side == core::comparison_side::right
+				   && steppedRight->Anchor
+					   == anchor(second, core::comparison_anchor_kind::epoch_head).Identity,
+			   "Shift+Left steps the right handle back one update");
+		intents.clear();
+		auto left = QKeyEvent{ QEvent::KeyPress, Qt::Key_Left, Qt::NoModifier };
+		QApplication::sendEvent(line, &left);
+		expect(intents.empty(),
+			   "the left handle at its first stop has nowhere further left to go");
+
+		// Drag the right handle onto the middle node.
+		intents.clear();
+		const auto rightHandle = line->stop_position(*line->right_stop());
+		auto       press       = QMouseEvent{
+			QEvent::MouseButtonPress,
+			QPointF{ rightHandle },
+			QPointF{ line->mapToGlobal(rightHandle) },
+			Qt::LeftButton,
+			Qt::LeftButton,
+			Qt::NoModifier,
+		};
+		QApplication::sendEvent(line, &press);
+		const auto target = line->node_centre(1);
+		auto       move   = QMouseEvent{
+			QEvent::MouseMove,
+			QPointF{ target },
+			QPointF{ line->mapToGlobal(target) },
+			Qt::NoButton,
+			Qt::LeftButton,
+			Qt::NoModifier,
+		};
+		QApplication::sendEvent(line, &move);
+		auto release = QMouseEvent{
+			QEvent::MouseButtonRelease,
+			QPointF{ target },
+			QPointF{ line->mapToGlobal(target) },
+			Qt::LeftButton,
+			Qt::NoButton,
+			Qt::NoModifier,
+		};
+		QApplication::sendEvent(line, &release);
+		const auto* dragged = intents.size() == 1U
+			? std::get_if<core::select_comparison_anchor_intent>(&intents.back())
+			: nullptr;
+		expect(dragged != nullptr && dragged->Side == core::comparison_side::right
+				   && dragged->Anchor
+					   == anchor(second, core::comparison_anchor_kind::epoch_head).Identity,
+			   "dragging the right handle onto a node asks for that update's head "
+			   "on the right, once, on release");
+
+		// The published pair moves the handles; my last review gets its tick.
+		control.publish(comparison_update(
+			core::named_selection(core::named_comparison::my_last_reviewed_to_latest),
+			{
+				.Left  = anchor(second, core::comparison_anchor_kind::epoch_head),
+				.Right = anchor(third, core::comparison_anchor_kind::epoch_head),
+			}));
+		control.publish(application::epoch_presentation_update{
+			.Transition = application::epoch_transition_projection{
+				.Changed   = core::epoch_changed_domain::authority,
+				.Authority = application::epoch_authority_projection{
+					.Authority = authority(),
+					.Revision  = application::epoch_revision_projection{
+						.Base                = commit('1'),
+						.Head                = commit('4'),
+						.CurrentViewerReview = core::current_viewer_review_candidate{
+							.Commit = commit('3') },
+					},
+					.Generation = core::epoch_generation{ 9U },
+				} } });
+		QApplication::processEvents();
+		expect(line->left_stop()->Update == 1U && line->right_stop()->Update == 2U
+				   && line->last_review_update() == std::optional<std::size_t>{ 1U }
+				   && line->node_tooltip(1).contains(QStringLiteral("My last review"))
+				   && control.comparing_button()->text()
+					   == QStringLiteral("Comparing since my last review"),
+			   "the line draws the published pair, marks my last review on the "
+			   "update whose head I reviewed, and the menu names the alias");
+
+		// Dense: forty updates in 700 pixels keep the meaningful labels only.
+		auto dense = std::vector<application::epoch_row_projection>{ };
+		for (std::int64_t ordinal = 40; ordinal >= 1; --ordinal) {
+			dense.push_back(epoch_row(ordinal, '1', '2'));
+		}
+		control.publish(loaded_catalog_update(dense));
+		QApplication::processEvents();
+		auto shown = std::size_t{ 0U };
+		for (std::size_t index = 0U; index < line->update_count(); ++index) {
+			shown += line->label_shown(index) ? 1U : 0U;
+		}
+		expect(line->update_count() == 40U && line->label_shown(0)
+				   && line->label_shown(39) && shown < 40U && shown >= 2U,
+			   "a dense history keeps the end labels and thins the rest");
+
+		control.set_details_visible(true);
+		QApplication::processEvents();
+		expect(control.details_visible() && control.left_selector()->isVisible()
+				   && line->isVisible(),
+			   "the details region brings the exact selectors back beneath the "
+			   "line without hiding the line");
+		control.hide();
+	}
+
 	auto test_confirmed_public_maintenance_actions() -> void
 	{
 		std::vector<application::epoch_intent> intents;
@@ -1237,8 +1469,12 @@ namespace {
 			}));
 		window.resize(1'100, 820);
 		window.show();
+		// [[BPR-0646]]. The exact selectors are review details, shown on
+		// request; the epoch line is what always shows.
+		window.epoch_selectors()->set_details_visible(true);
 		QApplication::processEvents();
 		expect(window.epoch_selectors()->isVisible()
+				   && window.epoch_selectors()->line()->isVisible()
 				   && window.epoch_selectors()->left_selector()->isVisible()
 				   && window.epoch_selectors()->right_selector()->isVisible()
 				   && window.epoch_selectors()->history_model()->epoch_count()
@@ -1277,6 +1513,7 @@ auto main(int argc, char** argv) -> int
 	test_explicit_loading_empty_failure_and_availability_states();
 	test_focus_appearance_accessibility_and_announcements();
 	test_real_loaded_window_composition_renders();
+	test_epoch_line_selects_updates_by_click_drag_and_keys();
 	std::cout << "epoch-comparison-control-tests:pass\n";
 	return EXIT_SUCCESS;
 }
