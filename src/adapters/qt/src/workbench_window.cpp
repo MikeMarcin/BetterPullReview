@@ -1,4 +1,5 @@
 #include "bpr/qt/workbench_window.hpp"
+#include "bpr/qt/github_thread_map.hpp"
 
 #include "github_presentation_text.hpp"
 
@@ -42,7 +43,10 @@
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QStatusBar>
+#include <QStringList>
 #include <QStyle>
+#include <QTextBlock>
+#include <QTextDocument>
 #include <QToolBar>
 #include <QToolButton>
 #include <QTreeView>
@@ -110,6 +114,8 @@ namespace bpr::qt {
 		/// a row cannot put its last control out of reach; this number is only
 		/// what the product opens at.
 		constexpr int conversation_drawer_default_width = 375;
+		/// \brief The least width the conversation takes in Discuss ([[BPR-0649]]).
+		constexpr int discuss_conversation_width = 640;
 		/// \brief Narrowest width a drawer is ever presented at when expanded.
 		///
 		/// \details [[BPR-0662]]. The host's floor is 64 pixels, the least it
@@ -901,7 +907,59 @@ namespace bpr::qt {
 						ConversationReadDispatch(aIdentity);
 					}
 					break;
+				case card_action::reply: {
+					// [[BPR-0649]]. The feed's Reply: the thread becomes
+					// current and the draft editor takes focus, as a comment
+					// on its line does; threaded replies wait on BPR-0657.
+					const auto index = ConversationPanel->model()->index_for_id(aIdentity);
+					if (index.isValid()) {
+						ConversationPanel->view()->setCurrentIndex(index);
+					}
+					if (ReviewEditor != nullptr) {
+						ReviewEditor->body_editor()->setFocus(Qt::OtherFocusReason);
+					}
+					break;
 				}
+				case card_action::open_in_code: {
+					// [[BPR-0649]]. Back to Read at the thread's line: the
+					// file the thread names is selected through the same
+					// intent the files drawer sends, Read is entered, and the
+					// thread made current so the line is revealed.
+					const auto index = ConversationPanel->model()->index_for_id(aIdentity);
+					if (index.isValid()) {
+						enter_read_at(index.data(github_conversation_model::path_role).toString());
+						ConversationPanel->view()->setCurrentIndex(index);
+					}
+					break;
+				}
+				}
+			});
+		ConversationPanel->cards()->set_excerpt_locator(
+			[this](const QString& aPath, const core::diff_side aSide, const std::uint32_t aLine)
+				-> std::optional<QString> {
+				// Only the compared file's text is on hand: one line each
+				// side of the thread's, from the pane on the thread's side.
+				if (ComparisonSurface == nullptr || ComparisonSurface->current_result() == nullptr
+					|| !ComparisonSurface->current_context().has_value()
+					|| ComparisonSurface->current_context()->Key.File != core::file_identity_of(aPath.toStdString())) {
+					return std::nullopt;
+				}
+				auto* const pane = aSide == core::diff_side::left ? ComparisonSurface->left_pane()
+																  : ComparisonSurface->right_pane();
+				if (pane == nullptr || pane->document() == nullptr) {
+					return std::nullopt;
+				}
+				auto lines = QStringList{ };
+				for (auto number = static_cast<int>(aLine) - 2; number <= static_cast<int>(aLine); ++number) {
+					if (number < 0) {
+						continue;
+					}
+					const auto block = pane->document()->findBlockByNumber(number);
+					if (block.isValid()) {
+						lines.push_back(block.text());
+					}
+				}
+				return lines.isEmpty() ? std::nullopt : std::optional{ lines.join(QLatin1Char{ '\n' }) };
 			});
 		ComparisonSurface->set_selection_observer(
 			[this](const std::optional<core::semantic_selection>& aSelection,
@@ -2694,6 +2752,14 @@ namespace bpr::qt {
 		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
 			return;
 		}
+		// [[BPR-0649]]. The map fills the same posts the cards mark.
+		auto unread = std::vector<std::string>{ };
+		for (const auto& thread : aState) {
+			unread.insert(unread.end(), thread.UnreadPosts.begin(), thread.UnreadPosts.end());
+		}
+		if (ConversationPanel->thread_map() != nullptr) {
+			ConversationPanel->thread_map()->set_unread(std::move(unread));
+		}
 		ConversationPanel->cards()->set_read_state(std::move(aState));
 		apply_thread_marks();
 	}
@@ -2761,6 +2827,13 @@ namespace bpr::qt {
 			&& Modality->current() == review_modality::overview
 			&& OverviewPage->presented();
 		CentreStack->setCurrentWidget(overview ? static_cast<QWidget*>(OverviewPage) : ComparisonPage);
+		// [[BPR-0649]]. Discuss widens the conversation over the code: the
+		// drawer takes its Discuss width and its panel the Discuss arrangement.
+		if (ConversationPanel != nullptr) {
+			ConversationPanel->set_discuss(
+				Modality != nullptr && Modality->current() == review_modality::discuss);
+		}
+		apply_drawer_widths();
 	}
 
 	void workbench_window::enter_read_at(const QString& aPath)
@@ -3221,11 +3294,15 @@ namespace bpr::qt {
 		PullRequestPanel->adopt(aPullRequest);
 		ReviewThreadTotal = aPullRequest.ReviewThreadCount;
 		HomeRequested     = false;
-		IdentityText      = QStringLiteral("%1/%2  #%3 %4")
-								.arg(QString::fromStdString(aPullRequest.Owner),
-									 QString::fromStdString(aPullRequest.RepositoryName),
-									 QString::number(aPullRequest.Number.value()),
-									 QString::fromStdString(aPullRequest.Title));
+		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
+			ConversationPanel->cards()->set_pull_request_author(
+				QString::fromStdString(aPullRequest.AuthorLogin));
+		}
+		IdentityText = QStringLiteral("%1/%2  #%3 %4")
+						   .arg(QString::fromStdString(aPullRequest.Owner),
+								QString::fromStdString(aPullRequest.RepositoryName),
+								QString::number(aPullRequest.Number.value()),
+								QString::fromStdString(aPullRequest.Title));
 		update_strip_identity();
 		// The gap BPR-0191 recorded closes here. In the two-window arrangement
 		// the anchor could only follow a conversation projection, because nothing
@@ -4471,9 +4548,13 @@ namespace bpr::qt {
 		const auto files = presented_files_state() == core::workbench_drawer_state::expanded
 			? granted(LayoutWidths->FilesWidth, defaults.FilesWidth)
 			: workbench_drawer_rail::width_pixels;
+		// [[BPR-0649]]. In Discuss the conversation is at least its Discuss
+		// width; the persisted width is not changed by it.
+		const auto discuss = Modality != nullptr && Modality->current() == review_modality::discuss;
 		const auto conversations
 			= DrawerStates.Conversations == core::workbench_drawer_state::expanded
-			? granted(LayoutWidths->ConversationsWidth, conversation_drawer_default_width)
+			? std::max(granted(LayoutWidths->ConversationsWidth, conversation_drawer_default_width),
+					   discuss ? discuss_conversation_width : 0)
 			: workbench_drawer_rail::width_pixels;
 		const auto repositories
 			= presented_repositories_state() == core::workbench_drawer_state::expanded

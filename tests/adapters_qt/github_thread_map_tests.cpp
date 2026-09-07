@@ -592,6 +592,36 @@ namespace {
 		}
 	}
 
+	// [[BPR-0649]]. The ledger's per-post read state fills nodes; nothing
+	// else does, and withdrawing it restores the plain node.
+	void test_unread_nodes_are_filled_from_the_ledger_state()
+	{
+		const auto deep = fixture_case("valid-deep-wide-tree");
+		auto       map  = qt::github_thread_map{ };
+		map.resize(900, 400);
+		map.adopt(deep);
+		map.show();
+		process_events();
+		const auto* const filled = map.node_for("review-comment:deep-thread-v1-c03");
+		const auto* const plain  = map.node_for("review-comment:deep-thread-v1-c02-sibling");
+		expect(filled != nullptr && plain != nullptr, "both compared nodes are on the map");
+		const auto before = map.grab().toImage();
+		map.set_unread({ "review-comment:deep-thread-v1-c03" });
+		process_events();
+		const auto after = map.grab().toImage();
+		expect(map.unread("review-comment:deep-thread-v1-c03") && !map.unread("review-comment:deep-thread-v1-c02-sibling"),
+			   "the map answers which nodes the ledger called unread");
+		expect(patch(after, filled->Bounds) != patch(before, filled->Bounds),
+			   "an unread node is repainted");
+		expect(patch(after, plain->Bounds) == patch(before, plain->Bounds),
+			   "a read node is left exactly as it was");
+		map.set_unread({ });
+		process_events();
+		const auto restored = map.grab().toImage();
+		expect(patch(restored, filled->Bounds) == patch(before, filled->Bounds),
+			   "withdrawing the read state restores the plain node");
+	}
+
 	void test_the_keyboard_walks_the_tree()
 	{
 		const auto deep = fixture_case("valid-deep-wide-tree");
@@ -784,6 +814,7 @@ auto main(int argc, char** argv) -> int
 	test_an_unexpected_shape_costs_nesting_and_never_a_row();
 	test_a_press_selects_and_reports_the_node_under_it();
 	test_the_highlight_is_actually_painted();
+	test_unread_nodes_are_filled_from_the_ledger_state();
 	test_the_keyboard_walks_the_tree();
 	test_the_map_says_where_it_is_to_a_screen_reader();
 	test_the_shipped_workbench_composes_the_map();

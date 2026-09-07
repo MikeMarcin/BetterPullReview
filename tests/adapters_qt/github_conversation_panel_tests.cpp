@@ -1,10 +1,12 @@
 #include "bpr/qt/github_conversation_panel.hpp"
 
 #include "bpr/qt/github_conversation_model.hpp"
+#include "bpr/qt/github_thread_map.hpp"
 
 #include <QApplication>
 #include <QImage>
 #include <QLabel>
+#include <QToolButton>
 #include <QTreeView>
 
 #include <algorithm>
@@ -133,6 +135,50 @@ namespace {
 	/// feed grouped by root, because the staircase spends the width the
 	/// comment text needs. Depth is still in the model, and BPR-0418's thread
 	/// map is where it is read.
+	// [[BPR-0649]]. Discuss moves the same widgets: the tree above the map
+	// at the left, the feed at the right, the filters over it and the
+	// summary beneath; leaving Discuss puts them back.
+	auto test_discuss_widens_into_list_map_and_feed() -> void
+	{
+		auto panel = qt::github_conversation_panel{ };
+		panel.resize(720, 600);
+		panel.show();
+		process_events();
+		panel.adopt({ root("thread", "src/file.cpp"), reply("c1", "thread") },
+					QStringLiteral("1 review thread available."));
+		process_events();
+		expect(!panel.discuss() && !panel.cards()->feed()
+				   && !panel.discuss_column()->isAncestorOf(panel.view()),
+			   "the drawer opens in the Read arrangement");
+		expect(panel.filter_unread_button() != nullptr && panel.filter_unresolved_button() != nullptr
+				   && panel.filter_unread_button()->isCheckable() && !panel.filter_unread_button()->isChecked(),
+			   "the Unread and Unresolved filters are checkable and off");
+
+		panel.set_discuss(true);
+		process_events();
+		expect(panel.discuss() && panel.cards()->feed()
+				   && panel.discuss_column()->isAncestorOf(panel.view())
+				   && panel.discuss_column()->isAncestorOf(panel.thread_map())
+				   && !panel.discuss_column()->isAncestorOf(panel.cards())
+				   && panel.cards()->isVisibleTo(&panel) && panel.view()->isVisibleTo(&panel),
+			   "Discuss puts the tree and the map in the left column and the feed beside them");
+		expect(panel.discuss_summary()->isVisibleTo(&panel)
+				   && panel.discuss_summary()->text() == QStringLiteral("1 threads, 1 unresolved, 0 new"),
+			   "the summary restates the feed's counts");
+		panel.filter_unread_button()->setChecked(true);
+		process_events();
+		expect(panel.cards()->filters().UnreadOnly && panel.cards()->cards().empty(),
+			   "Unread filters the feed to what has a post newer than what I read");
+		panel.filter_unread_button()->setChecked(false);
+		panel.set_discuss(false);
+		process_events();
+		expect(!panel.discuss() && !panel.cards()->feed()
+				   && !panel.discuss_column()->isAncestorOf(panel.view())
+				   && !panel.discuss_summary()->isVisibleTo(&panel)
+				   && panel.view()->isVisibleTo(&panel) && panel.cards()->isVisibleTo(&panel),
+			   "leaving Discuss restores the Read arrangement");
+	}
+
 	auto test_replies_are_a_flat_feed_under_their_root() -> void
 	{
 		auto panel = qt::github_conversation_panel{ };
@@ -410,6 +456,7 @@ auto main(int argc, char** argv) -> int
 	QApplication::setApplicationName(
 		QStringLiteral("BetterPullReviewConversationPanelTests"));
 	test_replies_are_a_flat_feed_under_their_root();
+	test_discuss_widens_into_list_map_and_feed();
 	test_anchoring_keeps_one_file();
 	test_replies_have_no_anchor_of_their_own();
 	test_changing_the_anchor_follows_immediately();

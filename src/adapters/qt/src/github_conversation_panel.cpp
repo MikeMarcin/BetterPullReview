@@ -212,6 +212,7 @@ namespace bpr::qt {
 		// does this comment say". A splitter, because which of those a reviewer
 		// wants more is not a decision this panel gets to make for them.
 		auto* const loaded = new QSplitter{ Qt::Vertical, Stack };
+		Loaded             = loaded;
 		loaded->setObjectName(QStringLiteral("githubConversationLoaded"));
 		loaded->setChildrenCollapsible(true);
 
@@ -220,6 +221,7 @@ namespace bpr::qt {
 		// chosen by the two buttons above them. The map and the tree keep
 		// their places beneath as the detail of the current thread.
 		auto* const cardsPane = new QWidget{ loaded };
+		CardsPane             = cardsPane;
 		cardsPane->setObjectName(QStringLiteral("conversationCardsPane"));
 		auto* const cardsLayout = new QVBoxLayout{ cardsPane };
 		cardsLayout->setContentsMargins(0, 0, 0, 0);
@@ -248,10 +250,43 @@ namespace bpr::qt {
 		ScopeWholePr->setFocusPolicy(Qt::StrongFocus);
 		scopeRow->addWidget(ScopeThisFile);
 		scopeRow->addWidget(ScopeWholePr);
+		// [[BPR-0649]]. Discuss's two other filters, over the same feed.
+		FilterUnread = new QToolButton{ cardsPane };
+		FilterUnread->setObjectName(QStringLiteral("conversationFilterUnread"));
+		FilterUnread->setText(QStringLiteral("Unread"));
+		FilterUnread->setAccessibleName(QStringLiteral("Unread only"));
+		FilterUnread->setAccessibleDescription(QStringLiteral(
+			"Show only threads with a post newer than what you have read"));
+		FilterUnread->setCheckable(true);
+		FilterUnread->setFocusPolicy(Qt::StrongFocus);
+		FilterUnresolved = new QToolButton{ cardsPane };
+		FilterUnresolved->setObjectName(QStringLiteral("conversationFilterUnresolved"));
+		FilterUnresolved->setText(QStringLiteral("Unresolved"));
+		FilterUnresolved->setAccessibleName(QStringLiteral("Unresolved only"));
+		FilterUnresolved->setAccessibleDescription(QStringLiteral("Show only threads that are not resolved"));
+		FilterUnresolved->setCheckable(true);
+		FilterUnresolved->setFocusPolicy(Qt::StrongFocus);
+		scopeRow->addWidget(FilterUnread);
+		scopeRow->addWidget(FilterUnresolved);
 		scopeRow->addStretch(1);
 		cardsLayout->addLayout(scopeRow);
 		Cards = new conversation_cards_view{ cardsPane };
 		cardsLayout->addWidget(Cards, 1);
+		DiscussSummary = new QLabel{ cardsPane };
+		DiscussSummary->setObjectName(QStringLiteral("conversationDiscussSummary"));
+		DiscussSummary->setAccessibleName(QStringLiteral("Threads summary"));
+		detail::set_plain_text_label(DiscussSummary);
+		DiscussSummary->hide();
+		cardsLayout->addWidget(DiscussSummary);
+		const auto applyFilters = [this] {
+			Cards->set_filters(discuss_filters{
+				.UnreadOnly     = FilterUnread->isChecked(),
+				.UnresolvedOnly = FilterUnresolved->isChecked(),
+			});
+		};
+		connect(FilterUnread, &QToolButton::toggled, this, [applyFilters](bool) { applyFilters(); });
+		connect(FilterUnresolved, &QToolButton::toggled, this, [applyFilters](bool) { applyFilters(); });
+		Cards->set_layout_observer([this] { refresh_summary(); });
 		connect(ScopeThisFile, &QToolButton::toggled, this, [this](const bool aChecked) {
 			if (aChecked) {
 				Cards->set_scope(cards_scope::this_file);
@@ -270,6 +305,7 @@ namespace bpr::qt {
 		});
 		loaded->addWidget(cardsPane);
 		auto* const mapPane   = new QWidget{ loaded };
+		MapPane               = mapPane;
 		auto* const mapLayout = new QVBoxLayout{ mapPane };
 		mapLayout->setContentsMargins(0, 0, 0, 0);
 		ThreadMapSummary = new QLabel{ mapPane };
@@ -323,6 +359,18 @@ namespace bpr::qt {
 		loaded->setStretchFactor(1, 0);
 		loaded->setStretchFactor(2, 1);
 		Stack->addWidget(loaded);
+		// [[BPR-0649]]. Discuss's arrangement, one more page of the stack:
+		// the tree above the map at the left, the feed at the right. The
+		// widgets are the same ones; `set_discuss` moves them.
+		DiscussSplitter = new QSplitter{ Qt::Horizontal, Stack };
+		DiscussSplitter->setObjectName(QStringLiteral("conversationDiscussSplitter"));
+		DiscussSplitter->setChildrenCollapsible(false);
+		DiscussColumn = new QWidget{ DiscussSplitter };
+		DiscussColumn->setObjectName(QStringLiteral("conversationDiscussColumn"));
+		auto* const column = new QVBoxLayout{ DiscussColumn };
+		column->setContentsMargins(0, 0, 0, 0);
+		DiscussSplitter->addWidget(DiscussColumn);
+		Stack->addWidget(DiscussSplitter);
 		layout->addWidget(Stack, 1);
 
 		// Selection has one owner. A map node press moves the tree's current
@@ -388,7 +436,8 @@ namespace bpr::qt {
 		Cards->set_anchor_file(AnchorFile);
 		Cards->adopt(Retained);
 		ThreadMapSummary->setText(ThreadMap->summary_text());
-		Stack->setCurrentIndex(shown.empty() ? 0 : 1);
+		HasThreads = !shown.empty();
+		show_loaded_page();
 		View->doItemsLayout();
 		if (ExpandOnNextProjection && !shown.empty()) {
 			View->expandAll();
@@ -420,7 +469,75 @@ namespace bpr::qt {
 		Cards->clear();
 		ThreadMapSummary->setText(ThreadMap->summary_text());
 		ThreadMapBranch->setText(ThreadMap->branch_text());
+		HasThreads = false;
 		Stack->setCurrentIndex(0);
+	}
+
+	void github_conversation_panel::show_loaded_page()
+	{
+		Stack->setCurrentIndex(!HasThreads ? 0 : Discuss ? 2
+														 : 1);
+	}
+
+	void github_conversation_panel::refresh_summary()
+	{
+		if (DiscussSummary == nullptr || Cards == nullptr) {
+			return;
+		}
+		DiscussSummary->setText(QStringLiteral("%1 threads, %2 unresolved, %3 new")
+									.arg(Cards->thread_count())
+									.arg(Cards->unresolved_count())
+									.arg(Cards->unread_thread_count()));
+	}
+
+	void github_conversation_panel::set_discuss(const bool aDiscuss)
+	{
+		if (Discuss == aDiscuss) {
+			return;
+		}
+		Discuss = aDiscuss;
+		if (Discuss) {
+			auto* const column = qobject_cast<QVBoxLayout*>(DiscussColumn->layout());
+			column->addWidget(View, 1);
+			column->addWidget(MapPane, 0);
+			DiscussSplitter->insertWidget(1, CardsPane);
+			DiscussSplitter->setStretchFactor(0, 0);
+			DiscussSplitter->setStretchFactor(1, 1);
+			DiscussSummary->show();
+			Cards->set_feed(true);
+		} else {
+			Loaded->insertWidget(0, CardsPane);
+			Loaded->insertWidget(1, MapPane);
+			Loaded->insertWidget(2, View);
+			DiscussSummary->hide();
+			Cards->set_feed(false);
+		}
+		show_loaded_page();
+	}
+
+	auto github_conversation_panel::discuss() const noexcept -> bool
+	{
+		return Discuss;
+	}
+
+	auto github_conversation_panel::filter_unread_button() const noexcept -> QToolButton*
+	{
+		return FilterUnread;
+	}
+
+	auto github_conversation_panel::filter_unresolved_button() const noexcept -> QToolButton*
+	{
+		return FilterUnresolved;
+	}
+
+	auto github_conversation_panel::discuss_summary() const noexcept -> QLabel*
+	{
+		return DiscussSummary;
+	}
+
+	auto github_conversation_panel::discuss_column() const noexcept -> QWidget*
+	{
+		return DiscussColumn;
 	}
 
 	void github_conversation_panel::set_anchor_file(

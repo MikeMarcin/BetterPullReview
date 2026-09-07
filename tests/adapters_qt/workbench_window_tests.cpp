@@ -4104,6 +4104,81 @@ namespace {
 	// thread's line is marked blue, the group counts the unread threads and
 	// steps through them in file order, and a card's Mark read leaves through
 	// the conversation read dispatch.
+	// [[BPR-0649]]. Discuss widens the conversation over the code and puts
+	// its panel in the Discuss arrangement; Open in code on a card returns
+	// to Read at that thread's line.
+	void test_discuss_widens_the_conversation_and_open_in_code_returns_to_read()
+	{
+		qt::workbench_window window;
+		window.resize(1'600, 820);
+		window.show();
+		process_events();
+		auto opened    = both_files_enabled();
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded,
+									   core::workbench_drawer_state::expanded);
+		opened.Layout  = application::workbench_layout_delta{
+			.FilesWidth         = 320U,
+			.ConversationsWidth = 375U,
+		};
+		window.publish(opened);
+		process_events();
+		auto text = std::string{ };
+		for (auto line = 0U; line < 30U; ++line) {
+			text += "line " + std::to_string(line) + '\n';
+		}
+		const auto diff = computed_comparison(
+			text, text, 0U, core::file_identity_of("src/file.cpp"));
+		window.conversation_panel()->adopt(
+			{ application::github_conversation_projection{
+				  .Id       = "review-thread:late",
+				  .Kind     = application::github_conversation_kind::review_thread,
+				  .Path     = "src/file.cpp",
+				  .Line     = 22U,
+				  .DiffSide = application::github_conversation_diff_side::right,
+				  .AnchorAvailability
+				  = application::github_conversation_anchor_availability::current },
+			  application::github_conversation_projection{
+				  .Id          = "review-comment:late-1",
+				  .ParentId    = "review-thread:late",
+				  .Kind        = application::github_conversation_kind::review_comment,
+				  .AuthorLogin = "someone",
+				  .Body        = "a post",
+				  .Path        = "src/file.cpp" } },
+			QStringLiteral("one conversation"));
+		static_cast<void>(publish_fixture(window, diff));
+		process_events();
+		expect(window.conversations_drawer()->width() == 375 && !window.conversation_panel()->discuss(),
+			   "Review keeps the persisted conversation width and the Read arrangement");
+
+		window.choose_modality(qt::review_modality::discuss);
+		process_events();
+		expect(window.current_modality() == qt::review_modality::discuss
+				   && window.conversation_panel()->discuss()
+				   && window.conversation_panel()->cards()->feed()
+				   && window.conversations_drawer()->width() >= 640,
+			   "Discuss widens the conversation to its Discuss width and arranges the panel");
+		const auto& cards = window.conversation_panel()->cards()->cards();
+		expect(cards.size() == 1U && cards.front().Excerpt == QStringLiteral("line 20\nline 21\nline 22"),
+			   "the feed's card carries the code at its line from the compared file");
+		const auto open = std::ranges::find(cards.front().Actions, qt::card_action::open_in_code,
+											&std::pair<qt::card_action, QRect>::first);
+		expect(open != cards.front().Actions.end(), "the feed offers Open in code");
+		const auto point = open->second.center()
+			- QPoint{ 0, window.conversation_panel()->cards()->verticalScrollBar()->value() };
+		auto press = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ point }, QPointF{ point },
+								  Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(window.conversation_panel()->cards()->viewport(), &press);
+		process_events();
+		expect(window.current_modality() == qt::review_modality::read
+				   && !window.conversation_panel()->discuss()
+				   && window.conversation_model()->id_for_index(window.conversation_view()->currentIndex())
+					   == "review-thread:late",
+			   "Open in code returns to Read with the thread current, so its line is revealed");
+		expect(window.conversations_drawer()->width() == 375,
+			   "leaving Discuss returns the conversation to its persisted width");
+		window.hide();
+	}
+
 	void test_read_state_reaches_the_gutter_and_the_strip()
 	{
 		qt::workbench_window window;
@@ -4957,6 +5032,7 @@ auto main(int argc, char** argv) -> int
 	test_receipt_actions_follow_decided_projection_and_clear_while_loading();
 	test_selection_synchronisation_and_restart_persistence();
 	test_read_state_reaches_the_gutter_and_the_strip();
+	test_discuss_widens_the_conversation_and_open_in_code_returns_to_read();
 	test_defect_queue_navigation_and_semantic_dispatch();
 	test_queue_rule_gestures_wait_for_the_accepted_projection();
 	test_queue_rule_selection_survives_unrelated_projection();

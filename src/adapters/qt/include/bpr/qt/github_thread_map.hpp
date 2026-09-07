@@ -4,6 +4,7 @@
 #include "bpr/application/github_projection.hpp"
 
 #include <QAbstractScrollArea>
+#include <QColor>
 #include <QPainterPath>
 #include <QRectF>
 #include <QString>
@@ -94,10 +95,10 @@ namespace bpr::qt {
 	/// reads the same `github_conversation_projection` forest the drawer's tree
 	/// already shows and adds nothing to it: no second fetch, no second parent
 	/// rule, and no state the projection does not carry. In particular the
-	/// accepted mockup legends a per-node read/unread distinction that
-	/// **nothing in this product carries** — the review ledger's unread notion
-	/// is a per-conversation cursor, not a per-comment flag — so that legend is
-	/// deliberately absent here rather than approximated.
+	/// accepted mockup legends a per-node read/unread distinction; until
+	/// [[BPR-0656]] nothing carried it, and now the ledger's per-post read
+	/// state is the only thing that fills a node (`set_unread`), never a
+	/// guess of the map's own.
 	///
 	/// The shape is a forest of trees: `ParentId` is single and optional. A
 	/// parent naming a node that is not present, and a parent chain that never
@@ -166,7 +167,11 @@ namespace bpr::qt {
 		/// \brief Returns the path to the focused reply and what follows it.
 		[[nodiscard]] auto branch_text() const -> QString;
 
-		void               set_selection_sink(thread_map_selection_sink aSink);
+		void set_selection_sink(thread_map_selection_sink aSink);
+		/// \brief Fills the nodes the ledger says are unread ([[BPR-0649]]).
+		void               set_unread(std::vector<std::string> aIdentities);
+		[[nodiscard]] auto unread(std::string_view aIdentity) const noexcept -> bool;
+		void               set_unread_colour(const QColor& aColour);
 		[[nodiscard]] auto hit_test(QPointF aPosition) const noexcept
 			-> std::string;
 		[[nodiscard]] auto statistics() const noexcept -> thread_map_statistics;
@@ -226,6 +231,8 @@ namespace bpr::qt {
 		std::vector<thread_map_edge>                             Edges;
 		std::vector<application::github_conversation_projection> Retained;
 		std::string                                              FocusIdentity;
+		std::vector<std::string>                                 Unread;
+		QColor                                                   UnreadColour{ 0x09, 0x69, 0xDA };
 		std::size_t                                              CommentCount = 0U;
 		std::size_t                                              ReplyDepth   = 0U;
 		QSize                                                    Content;

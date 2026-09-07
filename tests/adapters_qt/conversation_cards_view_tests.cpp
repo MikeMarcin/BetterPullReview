@@ -282,6 +282,92 @@ namespace {
 		view.hide();
 	}
 
+	// [[BPR-0649]]. Discuss's feed: file order, a header per post with the
+	// role and whom it answers, the code excerpt where the feed can read it,
+	// Reply / Mark read / Open in code, and the Unread and Unresolved filters.
+	// AC-08: the twenty-four-post, three-branch conversation reads in the
+	// feed as one card in the projection's order with every reply's answer named.
+	auto test_the_feed_heads_posts_excerpts_code_and_filters() -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(420, 900);
+		view.show();
+		QApplication::processEvents();
+		auto fixture = branching_fixture();
+		fixture.push_back(thread("t-resolved", "src/a.cpp", 3U, true, true));
+		fixture.push_back(reply("c-resolved", "t-resolved", "someone", "settled"));
+		fixture.push_back(thread("t-open", "src/z.cpp", 9U));
+		fixture.push_back(reply("c-open", "t-open", "someone", "open"));
+		view.set_viewer_login(QStringLiteral("reviewer-one"));
+		view.set_pull_request_author(QStringLiteral("reviewer-one"));
+		view.set_excerpt_locator([](const QString& aPath, core::diff_side, const std::uint32_t aLine) -> std::optional<QString> {
+			if (aPath != QStringLiteral("src/z.cpp")) {
+				return std::nullopt;
+			}
+			return QStringLiteral("line %1\nline %2\nline %3").arg(aLine - 1).arg(aLine).arg(aLine + 1);
+		});
+		view.adopt(fixture);
+		view.set_read_state({ qt::thread_read_state{ .Thread = "t-open", .UnreadPosts = { "c-open" } } });
+		view.set_feed(true);
+		QApplication::processEvents();
+		expect(view.feed() && view.cards().size() == 3U
+				   && view.cards()[0].Id == "t-resolved" && view.cards()[2].Id == "t-open",
+			   "the feed lists every thread in file order, never placed at a line");
+		const auto& branching = view.cards()[1];
+		expect(branching.Posts.size() == 24U && branching.Posts.front().Role == QStringLiteral("author")
+				   && branching.Posts[1].Role == QStringLiteral("reviewer"),
+			   "the pull request's author is headed author and everyone else reviewer");
+		auto answered = std::size_t{ 0U };
+		for (const auto& post : branching.Posts) {
+			answered += post.ReplyingTo.isEmpty() ? 0U : 1U;
+		}
+		expect(branching.Posts.front().ReplyingTo.isEmpty() && answered == 23U,
+			   "every reply but the first names whom it answers");
+		expect(branching.Excerpt.isEmpty() && view.cards()[2].Excerpt == QStringLiteral("line 8\nline 9\nline 10"),
+			   "a thread on the compared file carries its excerpt; another file's carries none");
+		expect(view.cards()[2].Rect.height() > view.cards()[2].Posts.front().Rect.height() + 3 * 18,
+			   "the excerpt takes its own room above the posts");
+		const auto actionsOf = [](const qt::thread_card& aCard) {
+			auto found = std::vector<qt::card_action>{ };
+			for (const auto& [action, rect] : aCard.Actions) {
+				found.push_back(action);
+			}
+			return found;
+		};
+		expect(actionsOf(view.cards()[2]) == std::vector{ qt::card_action::reply, qt::card_action::mark_read, qt::card_action::open_in_code }
+				   && actionsOf(view.cards()[0]) == std::vector{ qt::card_action::reply, qt::card_action::open_in_code },
+			   "the feed offers Reply, Mark read while unread, and Open in code; Resolve waits on its authority");
+		expect(view.thread_count() == 3U && view.unresolved_count() == 2U && view.unread_thread_count() == 1U,
+			   "the counts the summary restates");
+
+		auto actions = std::vector<std::pair<qt::card_action, std::string>>{ };
+		view.set_action_dispatch([&actions](const qt::card_action aAction, const std::string& aId) {
+			actions.emplace_back(aAction, aId);
+		});
+		const auto open  = view.cards()[2].Actions.back().second.center() - QPoint{ 0, view.verticalScrollBar()->value() };
+		auto       press = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ open }, QPointF{ open },
+										Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(view.viewport(), &press);
+		expect(actions == std::vector<std::pair<qt::card_action, std::string>>{ { qt::card_action::open_in_code, "t-open" } },
+			   "a press on Open in code reports it for its thread");
+
+		view.set_filters(qt::discuss_filters{ .UnreadOnly = true });
+		QApplication::processEvents();
+		expect(view.cards().size() == 1U && view.cards().front().Id == "t-open",
+			   "Unread keeps only the threads with a post newer than what I read");
+		view.set_filters(qt::discuss_filters{ .UnresolvedOnly = true });
+		QApplication::processEvents();
+		expect(view.cards().size() == 2U && view.cards().front().Id != "t-resolved",
+			   "Unresolved drops the resolved thread");
+		view.set_filters(qt::discuss_filters{ });
+		view.set_feed(false);
+		QApplication::processEvents();
+		expect(!view.feed() && view.cards().size() == 3U && view.cards()[0].Posts.front().Role.isEmpty()
+				   && actionsOf(view.cards()[0]).front() == qt::card_action::comment_here,
+			   "leaving the feed restores the Read cards");
+		view.hide();
+	}
+
 	auto test_cards_sit_at_their_lines_and_never_overlap() -> void
 	{
 		qt::conversation_cards_view view;
@@ -392,6 +478,7 @@ auto main(int argc, char** argv) -> int
 	QApplication application{ argc, argv };
 	test_branching_conversation_reads_as_one_card_in_order();
 	test_read_state_marks_unread_posts_and_offers_mark_read();
+	test_the_feed_heads_posts_excerpts_code_and_filters();
 	test_cards_sit_at_their_lines_and_never_overlap();
 	std::cout << "conversation-cards-view-tests:pass\n";
 	return EXIT_SUCCESS;

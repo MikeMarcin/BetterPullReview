@@ -30,6 +30,17 @@ namespace bpr::qt {
 		constexpr int action_height   = 18;
 		constexpr int header_height   = 18;
 		constexpr int path_row_height = 20;
+		constexpr int excerpt_padding = 6;
+
+		/// \brief The code font the excerpt is set in.
+		[[nodiscard]] auto code_font(const QFont& aFont) -> QFont
+		{
+			auto code = aFont;
+			code.setFamily(QStringLiteral("JetBrainsMonoNL Nerd Font"));
+			code.setStyleHint(QFont::Monospace);
+			code.setPointSizeF(aFont.pointSizeF() * 0.9);
+			return code;
+		}
 
 		[[nodiscard]] auto text(const std::string& aValue) -> QString
 		{
@@ -47,6 +58,10 @@ namespace bpr::qt {
 				return QStringLiteral("Edit");
 			case card_action::mark_read:
 				return QStringLiteral("Mark read");
+			case card_action::reply:
+				return QStringLiteral("Reply");
+			case card_action::open_in_code:
+				return QStringLiteral("Open in code");
 			case card_action::delete_draft:
 				break;
 			}
@@ -171,6 +186,88 @@ namespace bpr::qt {
 	void conversation_cards_view::set_action_dispatch(card_action_dispatch aDispatch)
 	{
 		ActionDispatch = std::move(aDispatch);
+	}
+
+	void conversation_cards_view::set_feed(const bool aFeed)
+	{
+		if (Feed == aFeed) {
+			return;
+		}
+		Feed = aFeed;
+		relayout();
+	}
+
+	auto conversation_cards_view::feed() const noexcept -> bool
+	{
+		return Feed;
+	}
+
+	void conversation_cards_view::set_filters(const discuss_filters aFilters)
+	{
+		if (Filters == aFilters) {
+			return;
+		}
+		Filters = aFilters;
+		relayout();
+	}
+
+	auto conversation_cards_view::filters() const noexcept -> discuss_filters
+	{
+		return Filters;
+	}
+
+	void conversation_cards_view::set_pull_request_author(const QString& aLogin)
+	{
+		if (PullRequestAuthor == aLogin) {
+			return;
+		}
+		PullRequestAuthor = aLogin;
+		relayout();
+	}
+
+	void conversation_cards_view::set_excerpt_locator(card_excerpt_locator aLocator)
+	{
+		ExcerptLocator = std::move(aLocator);
+		relayout();
+	}
+
+	void conversation_cards_view::set_layout_observer(std::function<void()> aObserver)
+	{
+		LayoutObserver = std::move(aObserver);
+	}
+
+	auto conversation_cards_view::thread_count() const noexcept -> std::size_t
+	{
+		auto count = std::size_t{ 0U };
+		for (const auto& card : Cards) {
+			count += card.Draft ? 0U : 1U;
+		}
+		return count;
+	}
+
+	auto conversation_cards_view::unresolved_count() const noexcept -> std::size_t
+	{
+		auto count = std::size_t{ 0U };
+		for (const auto& card : Cards) {
+			count += !card.Draft && !card.Resolved ? 1U : 0U;
+		}
+		return count;
+	}
+
+	auto conversation_cards_view::unread_thread_count() const noexcept -> std::size_t
+	{
+		auto count = std::size_t{ 0U };
+		for (const auto& card : Cards) {
+			count += card.UnreadCount > 0U ? 1U : 0U;
+		}
+		return count;
+	}
+
+	void conversation_cards_view::set_code_colours(const QColor& aBackground, const QColor& aInk)
+	{
+		CodeBackground = aBackground;
+		CodeInk        = aInk;
+		viewport()->update();
 	}
 
 	void conversation_cards_view::set_read_state(std::vector<thread_read_state> aState)
@@ -329,7 +426,15 @@ namespace bpr::qt {
 		if (aCard.Resolved || aCard.Outdated || aCard.Draft) {
 			y += header_height;
 		}
+		// [[BPR-0649]]. The code at the thread's line, one line each side,
+		// in the code font on the code background.
+		if (Feed && !aCard.Excerpt.isEmpty()) {
+			const auto lines = static_cast<int>(aCard.Excerpt.count(QLatin1Char{ '\n' })) + 1;
+			y += lines * QFontMetrics{ code_font(font()) }.height() + 2 * excerpt_padding + post_gap;
+		}
 		for (auto& post : aCard.Posts) {
+			// In the feed the header line carries role and "replying to"
+			// beside the author; the small font keeps it on one line.
 			const auto authorHeight = metrics.height();
 			const auto bodyHeight   = post.Body.isEmpty()
 				? 0
@@ -342,9 +447,14 @@ namespace bpr::qt {
 		auto actionX = card_padding + avatar_column;
 		auto actions = aCard.Draft
 			? std::vector{ card_action::publish_draft, card_action::edit_draft, card_action::delete_draft }
-			: std::vector{ card_action::comment_here };
+			: std::vector{ Feed ? card_action::reply : card_action::comment_here };
 		if (!aCard.Draft && aCard.UnreadCount > 0U) {
 			actions.push_back(card_action::mark_read);
+		}
+		// Resolve waits on the mutation port BPR-0657 adds; the feed offers
+		// what has an authority today.
+		if (!aCard.Draft && Feed) {
+			actions.push_back(card_action::open_in_code);
 		}
 		const auto actionMetrics = QFontMetrics{ small_font(font()) };
 		const auto actionRight   = aWidth - card_padding;
@@ -443,14 +553,44 @@ namespace bpr::qt {
 				}
 				++target.UnreadCount;
 			}
+			// [[BPR-0649]]. The feed's header: the pull request's author is
+			// "author", anyone else "reviewer" (the projection carries no
+			// finer role); a reply to a reply names whom it answers.
+			auto replyingTo = QString{ };
+			if (Feed && node.ParentId.has_value() && *node.ParentId != root->Id) {
+				if (const auto parent = byId.find(*node.ParentId); parent != byId.end()) {
+					replyingTo = text(parent->second->AuthorLogin);
+				}
+			}
 			target.Posts.push_back(card_post{
-				.Id     = node.Id,
-				.Author = author,
-				.Body   = text(node.Body),
-				.Depth  = depth,
-				.Mine   = !Viewer.isEmpty() && author == Viewer,
-				.Unread = unread,
+				.Id         = node.Id,
+				.Author     = author,
+				.Body       = text(node.Body),
+				.Depth      = depth,
+				.Mine       = !Viewer.isEmpty() && author == Viewer,
+				.Unread     = unread,
+				.Role       = !Feed ? QString{ }
+					: !PullRequestAuthor.isEmpty() && author == PullRequestAuthor
+					? QStringLiteral("author")
+					: QStringLiteral("reviewer"),
+				.ReplyingTo = replyingTo,
 			});
+		}
+		// [[BPR-0649]]. Discuss's filters: only threads with unread posts,
+		// only unresolved threads. The draft card is never filtered out.
+		if (Filters.UnreadOnly || Filters.UnresolvedOnly) {
+			std::erase_if(Cards, [this](const thread_card& aCard) {
+				return !aCard.Draft
+					&& ((Filters.UnreadOnly && aCard.UnreadCount == 0U)
+						|| (Filters.UnresolvedOnly && aCard.Resolved));
+			});
+		}
+		if (Feed && ExcerptLocator) {
+			for (auto& card : Cards) {
+				if (!card.Draft && card.Side.has_value() && card.Line.has_value() && *card.Line > 0U) {
+					card.Excerpt = ExcerptLocator(card.Path, *card.Side, *card.Line).value_or(QString{ });
+				}
+			}
 		}
 		// My draft, at its line, while it is on this comparison.
 		if (Scope == cards_scope::this_file && Draft.has_value() && CurrentComparison.has_value()
@@ -473,7 +613,8 @@ namespace bpr::qt {
 			card.Rect = QRect{ card_margin, 0, width - 2 * card_margin, 0 };
 			measure(card, width - 2 * card_margin);
 			card.Placed = false;
-			if (Scope == cards_scope::this_file && Locator && card.Side.has_value()
+			// The feed is a list in file order, never placed at lines.
+			if (!Feed && Scope == cards_scope::this_file && Locator && card.Side.has_value()
 				&& card.Line.has_value() && *card.Line > 0U && !card.Outdated) {
 				if (const auto y = Locator(*card.Side, *card.Line); y.has_value()) {
 					card.Placed  = true;
@@ -483,7 +624,7 @@ namespace bpr::qt {
 		}
 		// Placed cards in line order, then the rest; whole PR in file order.
 		std::ranges::stable_sort(Cards, [this](const thread_card& aLeft, const thread_card& aRight) {
-			if (Scope == cards_scope::whole_pull_request) {
+			if (Feed || Scope == cards_scope::whole_pull_request) {
 				return std::pair{ aLeft.Path, aLeft.Line.value_or(0U) }
 				< std::pair{ aRight.Path, aRight.Line.value_or(0U) };
 			}
@@ -520,6 +661,9 @@ namespace bpr::qt {
 		ContentHeight = bottom + card_margin;
 		verticalScrollBar()->setRange(0, std::max(0, ContentHeight - viewport()->height()));
 		verticalScrollBar()->setPageStep(viewport()->height());
+		if (LayoutObserver) {
+			LayoutObserver();
+		}
 		setAccessibleDescription(QStringLiteral(
 									 "%1 threads as cards, %2 posts, %3 unread; Up and Down move between them, Return reveals the line")
 									 .arg(Cards.size() - (Draft.has_value() ? 1U : 0U))
@@ -571,6 +715,22 @@ namespace bpr::qt {
 				painter.drawText(QRect{ card.Rect.left() + card_padding, tagY, card.Rect.width() - 2 * card_padding, header_height },
 								 Qt::AlignLeft | Qt::AlignVCenter, tag);
 			}
+			// [[BPR-0649]]. The excerpt sits above the posts on the code
+			// background, in the code font; the theme's own colours.
+			if (Feed && !card.Excerpt.isEmpty()) {
+				const auto code   = code_font(font());
+				const auto lines  = static_cast<int>(card.Excerpt.count(QLatin1Char{ '\n' })) + 1;
+				const auto height = lines * QFontMetrics{ code }.height() + 2 * excerpt_padding;
+				const auto top    = tagY + (card.Resolved || card.Outdated || card.Draft ? header_height : 0);
+				const auto box    = QRect{ card.Rect.left() + card_padding, top, card.Rect.width() - 2 * card_padding, height };
+				painter.setPen(Qt::NoPen);
+				painter.setBrush(CodeBackground);
+				painter.drawRoundedRect(box, 4.0, 4.0);
+				painter.setFont(code);
+				painter.setPen(CodeInk);
+				painter.drawText(box.adjusted(excerpt_padding, excerpt_padding, -excerpt_padding, -excerpt_padding),
+								 Qt::AlignLeft | Qt::AlignTop, card.Excerpt);
+			}
 			// The rail: a line between the first and last avatars.
 			if (card.Posts.size() > 1U) {
 				const auto x = card.Posts.front().Rect.left() + avatar_size / 2;
@@ -606,6 +766,18 @@ namespace bpr::qt {
 				}
 				painter.drawText(QRect{ textLeft, post.Rect.top(), textWidth, authorHeight },
 								 Qt::AlignLeft | Qt::AlignVCenter, post.Author);
+				if (Feed && (!post.Role.isEmpty() || !post.ReplyingTo.isEmpty())) {
+					auto header = post.Role;
+					if (!post.ReplyingTo.isEmpty()) {
+						header += QStringLiteral("  replying to %1").arg(post.ReplyingTo);
+					}
+					const auto after = QFontMetrics{ bold }.horizontalAdvance(post.Author) + 8;
+					painter.setFont(small);
+					painter.setPen(faint);
+					painter.drawText(QRect{ textLeft + after, post.Rect.top(), std::max(0, textWidth - after), authorHeight },
+									 Qt::AlignLeft | Qt::AlignVCenter,
+									 QFontMetrics{ small }.elidedText(header, Qt::ElideRight, std::max(0, textWidth - after)));
+				}
 				painter.setFont(font());
 				painter.setPen(dim ? faint : ink);
 				painter.drawText(QRect{ textLeft, post.Rect.top() + authorHeight + 2, textWidth, post.Rect.height() - authorHeight },

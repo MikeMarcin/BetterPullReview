@@ -13,6 +13,7 @@
 
 class QAction;
 class QLabel;
+class QSplitter;
 class QStackedWidget;
 class QToolButton;
 class QTreeView;
@@ -130,10 +131,20 @@ namespace bpr::qt {
 		[[nodiscard]] auto cards() const noexcept -> conversation_cards_view*;
 		[[nodiscard]] auto scope_this_file_button() const noexcept -> QToolButton*;
 		[[nodiscard]] auto scope_whole_pull_request_button() const noexcept -> QToolButton*;
+		/// \brief [[BPR-0649]]. Discuss: the tree and the map at the left, the
+		/// feed at the right, the filters over the feed and a summary beneath.
+		void               set_discuss(bool aDiscuss);
+		[[nodiscard]] auto discuss() const noexcept -> bool;
+		[[nodiscard]] auto filter_unread_button() const noexcept -> QToolButton*;
+		[[nodiscard]] auto filter_unresolved_button() const noexcept -> QToolButton*;
+		[[nodiscard]] auto discuss_summary() const noexcept -> QLabel*;
+		[[nodiscard]] auto discuss_column() const noexcept -> QWidget*;
 
 	private:
 		/// \brief Puts the map and the drawer's tree on the same node.
 		void synchronize_map_focus();
+		void show_loaded_page();
+		void refresh_summary();
 
 		QLabel*                    AvailabilityLabel = nullptr;
 		QToolButton*               RevealButton      = nullptr;
@@ -151,6 +162,16 @@ namespace bpr::qt {
 		QToolButton*             ScopeWholePr     = nullptr;
 		QLabel*                  ThreadMapSummary = nullptr;
 		QLabel*                  ThreadMapBranch  = nullptr;
+		QSplitter*               Loaded           = nullptr;
+		QSplitter*               DiscussSplitter  = nullptr;
+		QWidget*                 DiscussColumn    = nullptr;
+		QWidget*                 CardsPane        = nullptr;
+		QWidget*                 MapPane          = nullptr;
+		QToolButton*             FilterUnread     = nullptr;
+		QToolButton*             FilterUnresolved = nullptr;
+		QLabel*                  DiscussSummary   = nullptr;
+		bool                     Discuss          = false;
+		bool                     HasThreads       = false;
 		/// Expanded once, on the first projection that has anything to expand.
 		/// A reviewer who then collapses a thread keeps it collapsed across the
 		/// next refresh, which re-expanding on every projection would undo.

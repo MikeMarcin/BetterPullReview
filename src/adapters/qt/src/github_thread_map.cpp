@@ -797,6 +797,26 @@ namespace bpr::qt {
 		}
 	}
 
+	void github_thread_map::set_unread(std::vector<std::string> aIdentities)
+	{
+		if (Unread == aIdentities) {
+			return;
+		}
+		Unread = std::move(aIdentities);
+		viewport()->update();
+	}
+
+	auto github_thread_map::unread(const std::string_view aIdentity) const noexcept -> bool
+	{
+		return std::ranges::find(Unread, aIdentity) != Unread.end();
+	}
+
+	void github_thread_map::set_unread_colour(const QColor& aColour)
+	{
+		UnreadColour = aColour;
+		viewport()->update();
+	}
+
 	void github_thread_map::paintEvent(QPaintEvent* const aEvent)
 	{
 		static_cast<void>(aEvent);
@@ -812,7 +832,17 @@ namespace bpr::qt {
 		}
 
 		for (const auto& node : Nodes) {
-			const auto ink = node_paint(node.Relation, palette());
+			auto ink = node_paint(node.Relation, palette());
+			// [[BPR-0649]]. An unread post's node is filled with the unread
+			// accent, whatever its relation to the focus; the focus keeps its
+			// heavier border, so the two readings compose.
+			if (unread(node.Identity)) {
+				ink.Fill  = UnreadColour;
+				ink.Label = palette().color(QPalette::HighlightedText);
+				if (node.Relation == thread_map_relation::unrelated) {
+					ink.Border = UnreadColour;
+				}
+			}
 			painter.setPen(QPen{ ink.Border, ink.Stroke });
 			painter.setBrush(ink.Fill);
 			painter.drawRoundedRect(node.Bounds, 4.0, 4.0);

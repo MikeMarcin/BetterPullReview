@@ -41,6 +41,20 @@ namespace bpr::qt {
 		delete_draft,
 		/// Read this thread up to its latest post ([[BPR-0656]]).
 		mark_read,
+		/// Start a reply on this thread ([[BPR-0649]]; the feed's name for
+		/// a comment on its line).
+		reply,
+		/// Return to Read at this thread's line ([[BPR-0649]]).
+		open_in_code,
+	};
+
+	/// \brief Discuss's filters over the feed ([[BPR-0649]]).
+	struct discuss_filters
+	{
+		bool UnreadOnly     = false;
+		bool UnresolvedOnly = false;
+
+		auto operator<=>(const discuss_filters&) const = default;
 	};
 
 	/// \brief What the reader has not seen in one thread.
@@ -67,6 +81,11 @@ namespace bpr::qt {
 		bool        Mine  = false;
 		/// Newer than my cursor, as the ledger decided ([[BPR-0656]]).
 		bool Unread = false;
+		/// The feed's header ([[BPR-0649]]): "author" for the pull request's
+		/// author, "reviewer" otherwise; and whom the post replies to when it
+		/// answers another reply rather than the thread.
+		QString Role;
+		QString ReplyingTo;
 		/// Where the post was drawn, in content coordinates.
 		QRect Rect;
 	};
@@ -87,6 +106,9 @@ namespace bpr::qt {
 		/// thread new.
 		std::size_t UnreadCount = 0U;
 		bool        RootUnread  = false;
+		/// The code at the thread's line, when the feed can read it
+		/// ([[BPR-0649]]); empty otherwise.
+		QString Excerpt;
 		/// True while the thread's line is on the comparison and locatable.
 		bool Placed = false;
 		/// Where the line is, in content coordinates, when placed.
@@ -101,6 +123,9 @@ namespace bpr::qt {
 	using card_line_locator    = std::function<std::optional<int>(core::diff_side, std::uint32_t)>;
 	using card_thread_dispatch = std::function<void(const std::string&)>;
 	using card_action_dispatch = std::function<void(card_action, const std::string&)>;
+	/// \brief Answers the code around a one-based line of a path, for the feed.
+	using card_excerpt_locator
+		= std::function<std::optional<QString>(const QString&, core::diff_side, std::uint32_t)>;
 
 	/// \brief RFC-BPR-0028's Read drawer: threads as cards at their lines.
 	///
@@ -137,6 +162,21 @@ namespace bpr::qt {
 		void set_viewer_login(const QString& aLogin);
 		void set_thread_dispatch(card_thread_dispatch aDispatch);
 		void set_action_dispatch(card_action_dispatch aDispatch);
+		/// \brief Discuss's feed ([[BPR-0649]]): every thread as a card in
+		/// file order with its code excerpt, each post headed by author,
+		/// role and "replying to", and Reply, Mark read and Open in code.
+		void               set_feed(bool aFeed);
+		[[nodiscard]] auto feed() const noexcept -> bool;
+		void               set_filters(discuss_filters aFilters);
+		[[nodiscard]] auto filters() const noexcept -> discuss_filters;
+		void               set_pull_request_author(const QString& aLogin);
+		void               set_excerpt_locator(card_excerpt_locator aLocator);
+		/// \brief Told after every relayout, so a summary can restate the counts.
+		void               set_layout_observer(std::function<void()> aObserver);
+		[[nodiscard]] auto thread_count() const noexcept -> std::size_t;
+		[[nodiscard]] auto unresolved_count() const noexcept -> std::size_t;
+		[[nodiscard]] auto unread_thread_count() const noexcept -> std::size_t;
+		void               set_code_colours(const QColor& aBackground, const QColor& aInk);
 		/// \brief Adopts the read state the ledger host decided.
 		///
 		/// \details [[BPR-0656]]. Until a state arrives every post is drawn
@@ -187,7 +227,14 @@ namespace bpr::qt {
 		std::string                                              Current;
 		std::vector<thread_read_state>                           ReadState;
 		bool                                                     ReadStateKnown = false;
-		cards_scope                                              Scope          = cards_scope::this_file;
+		bool                                                     Feed           = false;
+		discuss_filters                                          Filters;
+		QString                                                  PullRequestAuthor;
+		card_excerpt_locator                                     ExcerptLocator;
+		std::function<void()>                                    LayoutObserver;
+		QColor                                                   CodeBackground{ 0xF6, 0xF8, 0xFA };
+		QColor                                                   CodeInk{ 0x1F, 0x23, 0x28 };
+		cards_scope                                              Scope = cards_scope::this_file;
 		QColor                                                   Accent{ 0x09, 0x69, 0xDA };
 		QColor                                                   Marker{ 0xD2, 0x99, 0x22 };
 		int                                                      ContentHeight = 0;

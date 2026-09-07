@@ -6,6 +6,7 @@
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/epoch_history_model.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
+#include "bpr/qt/github_thread_map.hpp"
 #include "live_review_submission_provider.hpp"
 #include "review_mutation_execution_authority.hpp"
 #include "review_submission_execution_authority.hpp"
@@ -8788,6 +8789,15 @@ namespace bpr::app {
 				conversations->cards()->set_colours(
 					AppearanceProfile->color(core::appearance_role::state_unread),
 					QColor{ 0xD2, 0x99, 0x22 });
+				// [[BPR-0649]]. The feed's code excerpt on the theme's own
+				// code background and ink.
+				conversations->cards()->set_code_colours(
+					AppearanceProfile->color(core::appearance_role::code_background),
+					AppearanceProfile->color(core::appearance_role::syntax_normal));
+				if (conversations->thread_map() != nullptr) {
+					conversations->thread_map()->set_unread_colour(
+						AppearanceProfile->color(core::appearance_role::state_unread));
+				}
 			}
 
 			// Read back off the window rather than off the profile. The claim
