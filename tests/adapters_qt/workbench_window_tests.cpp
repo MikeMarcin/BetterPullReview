@@ -20,6 +20,7 @@
 #include <QImage>
 #include <QKeySequence>
 #include <QLabel>
+#include <QLayout>
 #include <QLineEdit>
 #include <QList>
 #include <QListView>
@@ -3717,18 +3718,6 @@ namespace {
 		return walked;
 	}
 
-	/// \brief Returns only declared stops a keyboard user can reach now.
-	[[nodiscard]] auto available_focus_order(const qt::workbench_window& aWindow)
-		-> QList<QWidget*>
-	{
-		auto available = aWindow.focus_order();
-		available.removeIf([](const QWidget* const aStop) {
-			return !aStop->isVisible() || !aStop->isEnabled()
-				|| (aStop->focusPolicy() & Qt::TabFocus) == 0;
-		});
-		return available;
-	}
-
 	void test_focus_order_is_declared_named_and_walkable()
 	{
 		qt::workbench_window window;
@@ -4149,16 +4138,23 @@ namespace {
 				&& !removeButton->accessibleName().isEmpty()
 				&& !removeButton->accessibleDescription().isEmpty(),
 			"both retained rule presenters are explicitly named and described");
-		const auto declared       = window.focus_order();
-		const auto exclusionIndex = declared.indexOf(
-			window.queue_rule_exclusion());
+		// [[BPR-0652]]. The rule editor is Reviews and queue's: off Home, out
+		// of the workbench's declared order, and its own row keeps Exclude,
+		// Add, Remove in that order.
+		const auto declared = window.focus_order();
 		expect(
-			exclusionIndex >= 0
-				&& declared.indexOf(addButton) == exclusionIndex + 1
-				&& declared.indexOf(removeButton) == exclusionIndex + 2
-				&& declared.count(addButton) == 1
-				&& declared.count(removeButton) == 1,
-			"the structural shell order retains each exact rule presenter once after Exclude");
+			!declared.contains(window.queue_rule_exclusion())
+				&& !declared.contains(addButton) && !declared.contains(removeButton)
+				&& window.rules_editor() != nullptr
+				&& window.rules_editor()->isAncestorOf(window.queue_rule_exclusion())
+				&& window.rules_editor()->isAncestorOf(addButton)
+				&& window.rules_editor()->isAncestorOf(removeButton)
+				&& !window.home_page()->isAncestorOf(addButton)
+				&& window.rules_editor()->layout()->indexOf(window.queue_rule_exclusion())
+					< window.rules_editor()->layout()->indexOf(addButton)
+				&& window.rules_editor()->layout()->indexOf(addButton)
+					< window.rules_editor()->layout()->indexOf(removeButton),
+			"the rule presenters live on Reviews and queue, off the workbench's order, Exclude then Add then Remove");
 
 		window.set_queue_rule_dispatch(
 			[&intents](application::queue_rule_intent aIntent) {
@@ -4166,18 +4162,18 @@ namespace {
 			});
 		window.publish({ .Status = application::queue_landing_status::ready });
 		process_events();
-		auto available = available_focus_order(window);
+		// [[BPR-0652]]. The presenters are Reviews and queue's; what the
+		// workbench decides is the actions' availability.
 		expect(
-			!available.contains(addButton) && !available.contains(removeButton),
-			"blank input and no selected persisted rule omit both disabled presenters from the available chain");
+			!window.add_queue_rule_action()->isEnabled() && !window.remove_queue_rule_action()->isEnabled(),
+			"blank input and no selected persisted rule leave both presenters unavailable");
 		window.queue_rule_kind_selector()->setCurrentIndex(2);
 		window.queue_rule_pattern_editor()->setText(QStringLiteral("src/parser"));
 		window.queue_rule_exclusion()->setChecked(true);
 		process_events();
-		available = available_focus_order(window);
 		expect(
-			available.count(addButton) == 1 && !available.contains(removeButton),
-			"valid input restores Add exactly once while absent persisted selection keeps Remove unavailable");
+			window.add_queue_rule_action()->isEnabled() && !window.remove_queue_rule_action()->isEnabled(),
+			"valid input restores Add while absent persisted selection keeps Remove unavailable");
 		window.add_queue_rule_action()->trigger();
 		const auto rule = core::observer_rule{
 			.Kind      = core::observer_rule_kind::path,
@@ -4209,22 +4205,19 @@ namespace {
 		process_events();
 		expect(window.queue_landing()->rowCount() == 1,
 			   "an accepted projection inserts the matched review");
-		available = available_focus_order(window);
 		expect(
-			available.count(addButton) == 1 && available.count(removeButton) == 1,
-			"accepted prerequisites restore both exact presenters without duplicate stops");
+			window.add_queue_rule_action()->isEnabled() && window.remove_queue_rule_action()->isEnabled(),
+			"accepted prerequisites restore both presenters");
 		window.queue_rule_pattern_editor()->clear();
 		process_events();
-		available = available_focus_order(window);
 		expect(
-			!available.contains(addButton) && available.count(removeButton) == 1,
-			"blank input omits only disabled Add while accepted selection retains Remove");
+			!window.add_queue_rule_action()->isEnabled() && window.remove_queue_rule_action()->isEnabled(),
+			"blank input disables only Add while accepted selection retains Remove");
 		window.queue_rule_pattern_editor()->setText(QStringLiteral("src/parser"));
 		process_events();
-		available = available_focus_order(window);
 		expect(
-			available.count(addButton) == 1 && available.count(removeButton) == 1,
-			"restoring valid input restores Add at its single declared position");
+			window.add_queue_rule_action()->isEnabled() && window.remove_queue_rule_action()->isEnabled(),
+			"restoring valid input restores Add");
 		window.remove_queue_rule_action()->trigger();
 		expect(intents.size() == 2U
 				   && intents.back() == application::queue_rule_intent{ .Action = application::queue_rule_action::remove, .Rule = rule },
@@ -4235,10 +4228,9 @@ namespace {
 		process_events();
 		expect(window.queue_landing()->rowCount() == 0,
 			   "the accepted cut-match projection removes the row");
-		available = available_focus_order(window);
 		expect(
-			available.count(addButton) == 1 && !available.contains(removeButton),
-			"removing the accepted selection omits only Remove from the available chain");
+			window.add_queue_rule_action()->isEnabled() && !window.remove_queue_rule_action()->isEnabled(),
+			"removing the accepted selection disables only Remove");
 		window.hide();
 	}
 

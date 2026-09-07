@@ -3916,13 +3916,15 @@ namespace {
 				   // where the run ends regardless of which fact was false.
 				   << "PUBLIC_PATH_VERDICT:"
 				   << "presentation=" << (aRun.PresentationPassed ? 1 : 0)
-				   << " overview=" << (aRun.OverviewShown && aRun.OverviewReturned ? 1 : 0)
 				   << " shutdown_complete=" << (status.ShutdownComplete ? 1 : 0)
 				   << " cleanup_failed=" << (status.ShutdownCleanupFailed ? 1 : 0)
 				   << " epoch_projection_failed="
 				   << (status.EpochProjectionDeliveryFailed ? 1 : 0)
 				   << " epoch_handoff_failed="
-				   << (status.EpochHandoffDeliveryFailed ? 1 : 0) << '\n'
+				   << (status.EpochHandoffDeliveryFailed ? 1 : 0)
+				   // [[BPR-0647]]. Last, because the native appearance contract
+				   // matches the first three facts as one literal.
+				   << " overview=" << (aRun.OverviewShown && aRun.OverviewReturned ? 1 : 0) << '\n'
 				   // Which of the four narrowing groups rejected the run. The
 				   // first `0` names the group to look in.
 				   << "PUBLIC_PATH_GROUPS:"

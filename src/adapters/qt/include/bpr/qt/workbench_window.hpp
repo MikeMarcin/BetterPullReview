@@ -8,6 +8,7 @@
 #include "bpr/application/review_queue_enrollment.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/diff_interaction.hpp"
+#include "bpr/qt/account_card.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/defect_card_view.hpp"
@@ -434,6 +435,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto repositories_drawer() const noexcept -> workbench_drawer_panel*;
 		[[nodiscard]] auto repositories_drawer_toggle_action() const noexcept -> QAction*;
 		[[nodiscard]] auto repositories_tree() const noexcept -> repositories_tree_view*;
+		/// \brief [[BPR-0652]]. Accounts & hosts' account card.
+		[[nodiscard]] auto account_card_view() const noexcept -> account_card*;
+		/// \brief [[BPR-0652]]. The observer-rule editor, on Reviews & queue.
+		[[nodiscard]] auto rules_editor() const noexcept -> QWidget*;
 		[[nodiscard]] auto conversations_drawer_toggle_action() const noexcept
 			-> QAction*;
 		/// \brief Shows or hides secondary review metadata around the comparison.
@@ -671,6 +676,8 @@ namespace bpr::qt {
 		std::array<QAction*, 4>         ReceiptActions{ };
 		std::array<drawer_entry, 3>     Drawers{ };
 		repositories_tree_view*         RepositoriesTree = nullptr;
+		account_card*                   AccountCard      = nullptr;
+		QWidget*                        RulesEditor      = nullptr;
 		/// Set when a pull request was chosen from the repositories tree, so
 		/// it opens on its overview when it arrives.
 		bool                       OpenOnOverview    = false;

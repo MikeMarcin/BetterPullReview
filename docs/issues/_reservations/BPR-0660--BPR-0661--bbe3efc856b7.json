@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0660",
+    "BPR-0661"
+  ],
+  "reserve_for": "bpr-settings-followups",
+  "purpose": "Enterprise servers and session facts on Accounts & hosts; review behaviour preferences",
+  "created": "2026-09-07T07:25:14.144729+00:00",
+  "base": "f2a5be24bd32c19115fa1ba0025499d5bf74d766"
+}

@@ -258,7 +258,27 @@ namespace bpr::qt {
 		colorActions->addWidget(ImportButton);
 		colorForm->addRow(colorActions);
 
-		auto* const layout   = new QVBoxLayout{ this };
+		auto* const layout = new QVBoxLayout{ this };
+		// [[BPR-0652]]. The accepted page opens with the theme as four
+		// previews drawn from the palettes themselves; choosing one is the
+		// same gesture as the mode selector beneath, which stays for the
+		// modes the previews do not name.
+		auto* const subtitle = new QLabel{
+			QStringLiteral("Changes apply as you make them and show in the review window behind this one."),
+			this
+		};
+		subtitle->setObjectName(QStringLiteral("appearanceSubtitle"));
+		subtitle->setWordWrap(true);
+		layout->addWidget(subtitle);
+		ThemePreviews = new theme_preview_strip{ this };
+		ThemePreviews->set_dispatch([this](const core::appearance_mode aMode) {
+			const auto index = static_cast<int>(aMode);
+			if (ModeSelector->currentIndex() == index) {
+				return;
+			}
+			ModeSelector->setCurrentIndex(index);
+		});
+		layout->addWidget(ThemePreviews);
 		auto* const modeForm = new QFormLayout{ };
 		modeForm->addRow(QStringLiteral("Appearance"), ModeSelector);
 		layout->addLayout(modeForm);
@@ -451,6 +471,11 @@ namespace bpr::qt {
 							reason_text(rejection.Reason));
 		}
 		Status->setText(with_persistence_status(std::move(text)));
+	}
+
+	auto appearance_settings_panel::theme_previews() const noexcept -> theme_preview_strip*
+	{
+		return ThemePreviews;
 	}
 
 	auto appearance_settings_panel::mode_selector() const noexcept -> QComboBox*
@@ -713,6 +738,7 @@ namespace bpr::qt {
 		Echoing            = true;
 		const auto& record = AdoptedSettings;
 		ModeSelector->setCurrentIndex(static_cast<int>(record.Mode));
+		ThemePreviews->set_current(record.Mode);
 		UiFamily->setText(QString::fromStdString(record.Typography.Ui.Font.Family));
 		UiSize->setValue(
 			static_cast<int>(record.Typography.Ui.Font.PointSizeCentipoints));

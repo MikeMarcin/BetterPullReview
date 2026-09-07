@@ -811,20 +811,20 @@ namespace {
 						window.queue_repository_filter(),
 						window.queue_quiet_filter(),
 						window.queue_sort_selector(),
-						required_child<QComboBox>(
-							window, "observerRuleSelector"),
-						window.queue_rule_kind_selector(),
-						window.queue_rule_pattern_editor(),
-						window.queue_rule_exclusion(),
-						addRuleButton,
-						removeRuleButton,
 						technicalButton,
-					}),
-			"session controls and available queue stops retain Exclude, Add, Remove, then technical-details order");
+					})
+				// [[BPR-0652]]. The rule editor is Reviews and queue's now, in the
+				// Settings window; the workbench declares no stops across windows.
+				&& !window.focus_order().contains(window.queue_rule_kind_selector())
+				&& !window.focus_order().contains(addRuleButton)
+				&& window.rules_editor()->isAncestorOf(addRuleButton)
+				&& window.rules_editor()->isAncestorOf(removeRuleButton),
+			"session controls and available queue stops keep their order, and the rule editor lives on Reviews and queue");
 		expect(
-			window.focus_order().count(addRuleButton) == 1
-				&& window.focus_order().count(removeRuleButton) == 1,
-			"each enabled observer-rule presenter appears once in the declared chain");
+			window.focus_order().count(addRuleButton) == 0
+				&& window.focus_order().count(removeRuleButton) == 0
+				&& addRuleButton->isEnabled() == window.add_queue_rule_action()->isEnabled(),
+			"the observer-rule presenters are another window's stops and follow their actions");
 
 		connectionButton->setFocus(Qt::TabFocusReason);
 		connectionButton->click();
@@ -2560,6 +2560,45 @@ namespace {
 		window.hide();
 	}
 
+	auto test_settings_pages_carry_the_account_card_and_the_rule_editor() -> void
+	{
+		// [[BPR-0652]]. Accounts & hosts opens with the account card; Reviews &
+		// queue holds the observer-rule editor that used to sit on Home.
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			profiles(),
+			[](application::github_intent) { },
+		};
+		window.resize(1'280, 820);
+		window.show();
+		QApplication::processEvents();
+		auto* const card = window.account_card_view();
+		expect(card != nullptr && !card->signed_in()
+				   && card->login_label()->text() == QStringLiteral("No account")
+				   && card->status_label()->text() == QStringLiteral("Signed out")
+				   && window.settings()->page_widget(qt::settings_page::accounts_and_hosts)->isAncestorOf(card),
+			   "signed out, the account card on Accounts and hosts says so");
+		publish_session_ready(window);
+		QApplication::processEvents();
+		expect(card->signed_in() && card->login_label()->text() == QStringLiteral("octo-reviewer")
+				   && card->status_label()->text() == QStringLiteral("Connected")
+				   && card->rate_limit_label()->isVisibleTo(card)
+				   && card->rate_limit_label()->text().startsWith(QStringLiteral("GitHub API")),
+			   "signed in, the card names the account, reads Connected and states the rate limit");
+		auto* const rules = window.rules_editor();
+		expect(rules != nullptr
+				   && window.settings()->page_widget(qt::settings_page::reviews_and_queue)->isAncestorOf(rules)
+				   && !window.home_page()->isAncestorOf(rules)
+				   && rules->isAncestorOf(window.queue_rule_kind_selector())
+				   && rules->isAncestorOf(window.queue_rule_pattern_editor())
+				   && !window.focus_order().contains(window.queue_rule_kind_selector())
+				   && window.focus_order().contains(window.queue_view()),
+			   "the observer-rule editor lives on Reviews and queue, off Home and out of the workbench's focus order");
+		window.hide();
+	}
+
 	auto test_agent_surfaces_are_placed_in_the_conversations_drawer() -> void
 	{
 		qt::workbench_window window{
@@ -3548,6 +3587,7 @@ auto main(int argc, char** argv) -> int
 	test_accessible_announcements_are_combined_and_deduplicated();
 	test_accessibility_minimum_geometry_and_render();
 	test_agent_surfaces_are_placed_in_the_conversations_drawer();
+	test_settings_pages_carry_the_account_card_and_the_rule_editor();
 	test_repositories_drawer_lists_the_queue_and_opens_on_overview();
 	test_read_drawer_shows_threads_as_cards_with_scope_and_actions();
 	test_drawer_controls_are_reachable_in_the_conversations_drawer();

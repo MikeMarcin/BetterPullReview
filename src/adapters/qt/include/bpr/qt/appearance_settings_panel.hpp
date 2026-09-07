@@ -3,6 +3,7 @@
 
 #include "bpr/application/appearance_runtime_ports.hpp"
 #include "bpr/core/appearance_model.hpp"
+#include "bpr/qt/theme_preview_strip.hpp"
 
 #include <QString>
 #include <QWidget>
@@ -102,6 +103,8 @@ namespace bpr::qt {
 		void request_theme_import(const QString& aPath);
 
 		[[nodiscard]] auto mode_selector() const noexcept -> QComboBox*;
+		/// \brief [[BPR-0652]]. The four theme previews above the mode selector.
+		[[nodiscard]] auto theme_previews() const noexcept -> theme_preview_strip*;
 		[[nodiscard]] auto ui_family_editor() const noexcept -> QLineEdit*;
 		[[nodiscard]] auto ui_size_editor() const noexcept -> QSpinBox*;
 		[[nodiscard]] auto ui_weight_editor() const noexcept -> QSpinBox*;
@@ -176,6 +179,7 @@ namespace bpr::qt {
 		QPushButton*                            CancelButton  = nullptr;
 		QPushButton*                            ImportButton  = nullptr;
 		QLabel*                                 Status        = nullptr;
+		theme_preview_strip*                    ThemePreviews = nullptr;
 		std::optional<core::appearance_palette> PreviewPalette;
 		bool                                    Echoing              = false;
 		bool                                    PersistenceAvailable = true;

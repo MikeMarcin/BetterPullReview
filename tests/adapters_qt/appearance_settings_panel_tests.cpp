@@ -10,6 +10,7 @@
 #include <QColor>
 #include <QComboBox>
 #include <QLineEdit>
+#include <QMouseEvent>
 #include <QPushButton>
 #include <QSpinBox>
 
@@ -137,6 +138,35 @@ namespace {
 					 .empty(),
 				"every offered mode has a stable name in the core");
 		}
+
+		// [[BPR-0652]]. The four previews above the selector are the same
+		// gesture: adopting marks the current mode, choosing a card sends it.
+		auto* const previews = panel.theme_previews();
+		expect(previews != nullptr && previews->cards().size() == qt::theme_preview_count
+				   && previews->cards()[0].Mode == core::appearance_mode::system
+				   && previews->cards()[1].Mode == core::appearance_mode::light
+				   && previews->cards()[2].Mode == core::appearance_mode::dark
+				   && previews->cards()[3].Mode == core::appearance_mode::high_contrast_system,
+			   "the previews are System, Light, Dark and High contrast");
+		auto adopted = legal_settings();
+		adopted.Mode = core::appearance_mode::light;
+		panel.adopt(adopted);
+		recorded.clear();
+		expect(previews->current() == core::appearance_mode::light,
+			   "adoption marks the adopted mode's preview without dispatching");
+		expect(!recorded.last_mode().has_value(), "adoption dispatches nothing");
+		panel.show();
+		QApplication::processEvents();
+		const auto dark  = previews->cards()[2].Rect.center();
+		auto       press = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ dark }, QPointF{ dark },
+										Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(previews, &press);
+		QApplication::processEvents();
+		expect(recorded.last_mode() == std::optional{ core::appearance_mode::dark }
+				   && panel.mode_selector()->currentIndex() == static_cast<int>(core::appearance_mode::dark)
+				   && previews->current() == core::appearance_mode::dark,
+			   "choosing a preview dispatches its mode once, through the selector");
+		panel.hide();
 	}
 
 	/// \brief Every font gesture must leave as an intent, carrying its value.

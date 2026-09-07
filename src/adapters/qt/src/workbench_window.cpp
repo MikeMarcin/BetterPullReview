@@ -1218,9 +1218,47 @@ namespace bpr::qt {
 		accounts->setAccessibleName(QStringLiteral("Accounts and hosts"));
 		auto* const accountsColumn = new QVBoxLayout{ accounts };
 		accountsColumn->setContentsMargins(0, 0, 0, 0);
+		// [[BPR-0652]]. The account card first: who is signed in, on what
+		// host, connected or not, and the rate limit. Then the device sign-in
+		// and the session chrome as BPR-0646 placed them.
+		AccountCard = new account_card{ accounts };
+		accountsColumn->addWidget(AccountCard);
 		accountsColumn->addWidget(DevicePanel);
 		accountsColumn->addWidget(SessionPanel);
 		SettingsWindow->adopt_panel(settings_page::accounts_and_hosts, accounts);
+		// [[BPR-0652]]. Reviews & queue: the observer rules, and a plain
+		// statement of what the page will hold once its authorities exist.
+		auto* const reviews = new QWidget;
+		reviews->setObjectName(QStringLiteral("workbenchReviewsPage"));
+		reviews->setAccessibleName(QStringLiteral("Reviews and queue"));
+		auto* const reviewsColumn = new QVBoxLayout{ reviews };
+		reviewsColumn->setContentsMargins(0, 0, 0, 0);
+		auto* const reviewsSubtitle = new QLabel{
+			QStringLiteral("Local behaviour only. Nothing here changes assignments or subscriptions on GitHub."),
+			reviews
+		};
+		reviewsSubtitle->setObjectName(QStringLiteral("reviewsSubtitle"));
+		reviewsSubtitle->setWordWrap(true);
+		reviewsColumn->addWidget(reviewsSubtitle);
+		auto* const rulesHeading = new QLabel{ QStringLiteral("Observer rules"), reviews };
+		rulesHeading->setObjectName(QStringLiteral("reviewsRulesHeading"));
+		auto headingFont = rulesHeading->font();
+		headingFont.setWeight(QFont::DemiBold);
+		rulesHeading->setFont(headingFont);
+		reviewsColumn->addWidget(rulesHeading);
+		if (RulesEditor != nullptr) {
+			RulesEditor->setParent(reviews);
+			reviewsColumn->addWidget(RulesEditor);
+		}
+		auto* const reviewsNotice = new QLabel{
+			QStringLiteral("Modality rules, reading behaviour and the default comparison arrive with "
+						   "BPR-0661; saved repositories with BPR-0659."),
+			reviews
+		};
+		reviewsNotice->setObjectName(QStringLiteral("reviewsNotice"));
+		reviewsNotice->setWordWrap(true);
+		reviewsColumn->addWidget(reviewsNotice);
+		SettingsWindow->adopt_panel(settings_page::reviews_and_queue, reviews);
 
 		auto* const filesColumn
 			= qobject_cast<QVBoxLayout*>(Drawers[0].Panel->layout());
@@ -1594,7 +1632,14 @@ namespace bpr::qt {
 				qOverload<int>(&QComboBox::currentIndexChanged),
 				this,
 				[this] { update_queue_rule_actions(); });
-		layout->addLayout(controls);
+		// [[BPR-0652]]. The rule editor is a settings surface: it lives on
+		// Reviews & queue, adopted there once the Settings window exists.
+		// Home keeps the queue and its filters.
+		RulesEditor = new QWidget;
+		RulesEditor->setObjectName(QStringLiteral("observerRulesEditor"));
+		RulesEditor->setAccessibleName(QStringLiteral("Observer rules"));
+		controls->setContentsMargins(0, 0, 0, 0);
+		RulesEditor->setLayout(controls);
 		aLayout.addWidget(surface);
 		update_queue_rule_actions();
 	}
@@ -2701,6 +2746,10 @@ namespace bpr::qt {
 		AccountAction->setText(signedIn ? account : QStringLiteral("Sign in"));
 		AccountAction->setToolTip(description);
 		AccountAction->setStatusTip(description);
+		if (AccountCard != nullptr) {
+			AccountCard->set_status(
+				signedIn ? QStringLiteral("Connected") : QStringLiteral("Signed out"), signedIn);
+		}
 		if (auto* const button = qobject_cast<QToolButton*>(
 				PrimaryToolbar->widgetForAction(AccountAction));
 			button != nullptr) {
@@ -2796,6 +2845,16 @@ namespace bpr::qt {
 		return RepositoriesTree;
 	}
 
+	auto workbench_window::account_card_view() const noexcept -> account_card*
+	{
+		return AccountCard;
+	}
+
+	auto workbench_window::rules_editor() const noexcept -> QWidget*
+	{
+		return RulesEditor;
+	}
+
 	auto workbench_window::presented_repositories_state() const
 		-> core::workbench_drawer_state
 	{
@@ -2822,6 +2881,9 @@ namespace bpr::qt {
 		}
 		if (aUpdate.Session.has_value()) {
 			SessionPanel->apply_session(*aUpdate.Session);
+			if (AccountCard != nullptr) {
+				AccountCard->apply(*aUpdate.Session, QString::fromStdString(SessionPanel->active_host_text()));
+			}
 			if (ConversationPanel != nullptr) {
 				ConversationPanel->cards()->set_viewer_login(
 					QString::fromStdString(aUpdate.Session->Login));
@@ -3617,12 +3679,6 @@ namespace bpr::qt {
 		append(QueueRepositoryFilter);
 		append(QueueQuietFilter);
 		append(QueueSort);
-		append(QueueRuleSelector);
-		append(QueueRuleKind);
-		append(QueueRulePattern);
-		append(QueueRuleExcluding);
-		append(AddQueueRuleButton);
-		append(RemoveQueueRuleButton);
 		// The files drawer's column, top to bottom: sign-in, the session
 		// chrome, the queue, the pull request, then the files list.
 		if (PullRequestPanel != nullptr) {
