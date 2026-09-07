@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0675"
 title: "A drawer cannot be collapsed by anyone who has not read the code"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
