@@ -232,7 +232,7 @@ namespace {
 			.Kind = core::observer_rule_kind::repository, .Pattern = "octo/app"
 		};
 		refresh.Observation = core::pull_request_observation{
-			.Ref = ref(7), .Author = "octocat", .ChangedPaths = { "src/parser.cpp" }
+			.Ref = ref(7), .Author = "octocat", .ChangedPaths = { "src/parser.cpp" }, .Title = "Parse faster"
 		};
 
 		auto host = application::review_queue_application_host{
@@ -252,13 +252,18 @@ namespace {
 		expect(store.State.Rules == std::vector{ rule }, "the exact rule is durable");
 		expect(host.rules().size() == 1U, "the in-memory rule is not duplicated");
 
-		host.refresh(ref(7));
+		host.refresh(ref(7), core::queue_activity_observation{ .UnseenComments = 2U });
 		run_one(effects, decisions);
 		expect(
 			projections.Published.back().Items.empty(),
 			"a match is not published before persistence");
 		run_one(effects, decisions);
 		expect(host.queue().size() == 1U, "the persisted match reaches the queue");
+		// [[BPR-0659]]. The refresh's observation names the title and author;
+		// the activity names what I have not seen; the item carries all three.
+		expect(host.queue().front().Facts
+				   == core::queue_item_facts{ .Title = "Parse faster", .Author = "octocat", .UnseenComments = 2U },
+			   "the queue item carries the title, author and unseen count the refresh read");
 		expect(
 			store.State.Enrollments.front().Membership.Rule == rule,
 			"the durable enrollment keeps its exact matched reason");
@@ -684,7 +689,10 @@ namespace {
 		};
 		const auto forward = std::array{
 			application::queue_activity_report{ .Ref = ref(7) },
-			application::queue_activity_report{ .Ref = ref(8), .Observation = moved },
+			application::queue_activity_report{
+				.Ref         = ref(8),
+				.Observation = moved,
+				.Facts       = core::queue_item_facts{ .Title = "Moved", .Author = "octocat" } },
 			application::queue_activity_report{ .Ref = ref(9) },
 		};
 		const auto shuffled = std::array{ forward[2], forward[0], forward[1] };
@@ -699,6 +707,23 @@ namespace {
 			item != expected.end()
 				&& item->Bucket != core::attention_bucket::quiet,
 			"and the moved head lands on the pull request it was read about");
+		// [[BPR-0659]]. The facts the report carries reach the item, and the
+		// unseen count is the observation's, never a second copy.
+		expect(
+			item != expected.end() && item->Facts.Title == "Moved"
+				&& item->Facts.Author == "octocat" && item->Facts.UnseenComments == 0U,
+			"the title and author travel with the activity onto the item");
+		const auto unseen = std::array{
+			application::queue_activity_report{
+				.Ref         = ref(7),
+				.Observation = core::queue_activity_observation{ .UnseenComments = 4U },
+				.Facts       = core::queue_item_facts{ .UnseenComments = 1U } },
+		};
+		const auto counted = records.project(unseen);
+		const auto seven   = std::ranges::find(counted, ref(7), &core::queue_item::Ref);
+		expect(
+			seven != counted.end() && seven->Facts.UnseenComments == 4U,
+			"the item's unseen count is the observation's");
 
 		const auto unenrolled = std::array{
 			application::queue_activity_report{ .Ref = ref(99), .Observation = moved },

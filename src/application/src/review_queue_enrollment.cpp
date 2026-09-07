@@ -169,13 +169,16 @@ namespace bpr::application {
 			// quiet, which is what `bucket_for` says about an empty one.
 			const auto found = std::ranges::find(
 				aActivity, record.Ref, &queue_activity_report::Ref);
-			const auto activity = found == aActivity.end()
+			const auto activity  = found == aActivity.end()
 				? core::queue_activity_observation{ }
 				: found->Observation;
+			auto       facts     = found == aActivity.end() ? core::queue_item_facts{ } : found->Facts;
+			facts.UnseenComments = activity.UnseenComments;
 			items.push_back(core::queue_item{
 				.Ref        = record.Ref,
 				.Membership = record.Membership,
 				.Bucket     = core::bucket_for(record.Membership, activity),
+				.Facts      = std::move(facts),
 			});
 		}
 		return core::ordered_queue(items);
@@ -640,17 +643,27 @@ namespace bpr::application {
 
 		void remember_activity(
 			const core::pull_request_ref&           aRef,
-			const core::queue_activity_observation& aObservation)
+			const core::queue_activity_observation& aObservation,
+			const core::pull_request_observation&   aRead)
 		{
+			// [[BPR-0659]]. The title and author travel with the activity so
+			// the projection can say them beside the number.
+			auto facts = core::queue_item_facts{
+				.Title          = aRead.Title,
+				.Author         = aRead.Author,
+				.UnseenComments = aObservation.UnseenComments,
+			};
 			const auto found = std::ranges::find(
 				Activity, aRef, &queue_activity_report::Ref);
 			if (found == Activity.end()) {
 				Activity.push_back(queue_activity_report{
 					.Ref         = aRef,
 					.Observation = aObservation,
+					.Facts       = std::move(facts),
 				});
 			} else {
 				found->Observation = aObservation;
+				found->Facts       = std::move(facts);
 			}
 		}
 
@@ -693,7 +706,7 @@ namespace bpr::application {
 
 			++Statistics.AppliedRefreshes;
 			LastObservation = *aCompletion.Observation;
-			remember_activity(aCompletion.Ref, aActivity);
+			remember_activity(aCompletion.Ref, aActivity, *aCompletion.Observation);
 			const auto membership = core::enrollment_for(
 				*aCompletion.Observation, Rules);
 			if (membership.enrolled()) {

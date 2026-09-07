@@ -102,6 +102,9 @@ namespace bpr::core {
 		// Paths the pull request touches, in the order the host read them.
 		std::vector<std::string> ChangedPaths;
 
+		// The title as the host read it ([[BPR-0659]]); presentation only.
+		std::string Title;
+
 		auto operator<=>(const pull_request_observation&) const = default;
 	};
 

@@ -537,6 +537,7 @@ namespace bpr::app {
 				// a substitute for an assignment supplied by the provider.
 				.Role         = core::github_role::none,
 				.ChangedPaths = std::move(paths),
+				.Title        = aSnapshot.PullRequest.Title,
 			};
 		}
 
@@ -618,6 +619,9 @@ namespace bpr::app {
 			application::queue_session_id    Session;
 			core::pull_request_ref           Ref;
 			core::queue_activity_observation Activity;
+			/// The observation the queue was refreshed from, kept so a later
+			/// change in what I have seen can refresh it again ([[BPR-0659]]).
+			core::pull_request_observation Observation;
 		};
 
 #if defined(BPR_BUILD_TESTING)
@@ -6459,21 +6463,27 @@ namespace bpr::app {
 			};
 		}
 
-		void publish_read_state()
+		/// \brief The read state of the accepted snapshot, as the cards take it.
+		struct observed_read_state
 		{
-			if (Closing || Window == nullptr || Host == nullptr
-				|| ReviewLedgerHost == nullptr) {
-				return;
+			std::vector<qt::thread_read_state> Presented;
+			std::uint32_t                      UnreadPosts = 0U;
+		};
+
+		[[nodiscard]] auto observe_read_state() -> std::optional<observed_read_state>
+		{
+			if (Closing || Host == nullptr || ReviewLedgerHost == nullptr) {
+				return std::nullopt;
 			}
 			{
 				const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
 				if (!ReviewLedgerAvailable) {
-					return;
+					return std::nullopt;
 				}
 			}
 			const auto& snapshot = Host->accepted_snapshot();
 			if (!snapshot.has_value()) {
-				return;
+				return std::nullopt;
 			}
 			auto threads = std::vector<application::conversation_thread_observation>{ };
 			auto names   = std::vector<std::pair<std::string, std::vector<std::string>>>{ };
@@ -6496,9 +6506,10 @@ namespace bpr::app {
 			}
 			const auto state = ReviewLedgerHost->observe_conversations(threads);
 			if (!state.has_value()) {
-				return;
+				return std::nullopt;
 			}
-			auto presented = std::vector<qt::thread_read_state>{ };
+			auto  observed  = observed_read_state{ };
+			auto& presented = observed.Presented;
 			for (const auto& projection : state->Threads) {
 				for (std::size_t index = 0U; index < threads.size(); ++index) {
 					if (threads[index].Conversation != projection.Conversation) {
@@ -6512,10 +6523,35 @@ namespace bpr::app {
 							}
 						}
 					}
+					observed.UnreadPosts += static_cast<std::uint32_t>(entry.UnreadPosts.size());
 					presented.push_back(std::move(entry));
 				}
 			}
-			Window->present_read_state(std::move(presented));
+			return observed;
+		}
+
+		void publish_read_state()
+		{
+			auto observed = observe_read_state();
+			if (!observed.has_value() || Window == nullptr) {
+				return;
+			}
+			Window->present_read_state(std::move(observed->Presented));
+		}
+
+		/// \brief Tells the queue how many comments of the open pull request
+		/// I have not seen, from the same read state the cards draw
+		/// ([[BPR-0659]]).
+		void refresh_queue_unseen(const std::uint32_t aUnseen)
+		{
+			if (Closing || !QueueActivity.has_value() || QueueHost == nullptr
+				|| QueueRefresh == nullptr
+				|| QueueActivity->Activity.UnseenComments == aUnseen) {
+				return;
+			}
+			QueueActivity->Activity.UnseenComments = aUnseen;
+			QueueRefresh->retain(QueueActivity->Session, QueueActivity->Observation);
+			QueueHost->refresh(QueueActivity->Ref, QueueActivity->Activity);
 		}
 
 		void mark_conversation_read(const std::string& aThread)
@@ -6543,6 +6579,9 @@ namespace bpr::app {
 			});
 			if (marked.has_value()) {
 				publish_read_state();
+				if (const auto observed = observe_read_state(); observed.has_value()) {
+					refresh_queue_unseen(observed->UnreadPosts);
+				}
 			}
 		}
 
@@ -6722,10 +6761,16 @@ namespace bpr::app {
 						};
 						ActiveQueueNotifications.clear();
 					}
+					// [[BPR-0659]]. The unseen count is the ledger's read state
+					// of this pull request's threads, composed a moment ago.
+					if (const auto observed = observe_read_state(); observed.has_value()) {
+						activity.UnseenComments = observed->UnreadPosts;
+					}
 					QueueActivity = queue_activity_fact{
-						.Session  = session,
-						.Ref      = observation.Ref,
-						.Activity = activity,
+						.Session     = session,
+						.Ref         = observation.Ref,
+						.Activity    = activity,
+						.Observation = observation,
 					};
 					QueueHost->adopt(session);
 					QueueRefresh->retain(

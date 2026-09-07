@@ -81,6 +81,9 @@ namespace bpr::application {
 	{
 		core::pull_request_ref           Ref;
 		core::queue_activity_observation Observation;
+		/// [[BPR-0659]]. The title and author the refresh read; the unseen
+		/// count is the observation's and is not repeated here.
+		core::queue_item_facts Facts;
 
 		auto operator<=>(const queue_activity_report&) const = default;
 	};

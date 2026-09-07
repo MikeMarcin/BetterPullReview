@@ -26,7 +26,9 @@ namespace {
 		const std::string&           aRepository,
 		const std::int64_t           aNumber,
 		const core::attention_bucket aBucket,
-		const core::github_role      aRole = core::github_role::requested_reviewer) -> core::queue_item
+		const core::github_role      aRole   = core::github_role::requested_reviewer,
+		const std::string&           aTitle  = { },
+		const std::uint32_t          aUnseen = 0U) -> core::queue_item
 	{
 		return core::queue_item{
 			.Ref = core::pull_request_ref{
@@ -37,6 +39,7 @@ namespace {
 			},
 			.Membership = core::queue_membership{ .Role = aRole },
 			.Bucket     = aBucket,
+			.Facts      = core::queue_item_facts{ .Title = aTitle, .Author = "octocat", .UnseenComments = aUnseen },
 		};
 	}
 
@@ -48,7 +51,8 @@ namespace {
 		QApplication::processEvents();
 		const auto items = std::vector<core::queue_item>{
 			item("EpicGames/UnrealEngine", 15150, core::attention_bucket::authored_awaiting_reviewer_action, core::github_role::author),
-			item("EpicGames/UnrealEngine", 14366, core::attention_bucket::changed_since_my_review),
+			item("EpicGames/UnrealEngine", 14366, core::attention_bucket::changed_since_my_review,
+				 core::github_role::requested_reviewer, "Preserve the DRCS font", 3U),
 			item("MikeMarcin/BetterPullReview", 1773, core::attention_bucket::quiet, core::github_role::participant),
 			item("EpicGames/UnrealEngine", 15157, core::attention_bucket::initial_review_requested),
 			item("EpicGames/UnrealEngine", 15059, core::attention_bucket::observed_with_new_activity, core::github_role::none),
@@ -87,6 +91,22 @@ namespace {
 		expect(reasons == std::vector<QString>{ QStringLiteral("requested"), QStringLiteral("changed"), QStringLiteral("waiting"), QStringLiteral("following") },
 			   "the reason words follow the buckets in Home's order");
 		expect(model->needs_me_count() == 2U, "the rail's count is the pull requests that need me");
+		// [[BPR-0659]]. The title after the number, the unread dot's role, and
+		// both absent when the host read nothing.
+		const auto titled = model->index(1, qt::repositories_tree_model::name_column, epic);
+		expect(titled.data(qt::repositories_tree_model::number_role).toLongLong() == 14366
+				   && titled.data().toString() == QStringLiteral("#14366 Preserve the DRCS font")
+				   && titled.data(qt::repositories_tree_model::title_role).toString() == QStringLiteral("Preserve the DRCS font")
+				   && titled.data(qt::repositories_tree_model::unseen_role).toBool()
+				   && titled.data(Qt::ToolTipRole).toString().contains(QStringLiteral("3 unseen comments")),
+			   "a pull request the host read reads as number and title, and carries the unread dot");
+		expect(first.data().toString() == QStringLiteral("#15157")
+				   && !first.data(qt::repositories_tree_model::unseen_role).toBool()
+				   && first.data(qt::repositories_tree_model::title_role).toString().isEmpty(),
+			   "a pull request without a title reads as its number alone, with no dot");
+		expect(epic.data(qt::repositories_tree_model::title_role).isNull()
+				   && !epic.data(qt::repositories_tree_model::unseen_role).toBool(),
+			   "a repository row has no title and no dot");
 		const auto stress = model->index_for(core::pull_request_ref{
 			.Host = "github.com", .Account = "mike", .Repository = "MikeMarcin/BetterPullReview", .Number = 1773 });
 		expect(stress.isValid() && model->item_at(stress).has_value()

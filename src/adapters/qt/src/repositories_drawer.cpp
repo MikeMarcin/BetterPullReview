@@ -22,6 +22,8 @@ namespace bpr::qt {
 		}
 
 		constexpr quintptr repository_id = 0U;
+		/// The room the unread dot takes before a pull request's number.
+		constexpr int unread_dot_inset = 12;
 	} // namespace
 
 	auto repository_reason_word(const core::attention_bucket aBucket) -> QString
@@ -224,16 +226,35 @@ namespace bpr::qt {
 			return text(item->Ref.Host);
 		case account_role:
 			return text(item->Ref.Account);
+		case title_role:
+			return text(item->Facts.Title);
+		case unseen_role:
+			return item->Facts.UnseenComments > 0U;
 		case Qt::DisplayRole:
 		case Qt::AccessibleTextRole:
+			// [[BPR-0659]]. "#n title" when the host read a title; the view
+			// elides a long one.
 			return aIndex.column() == name_column
-				? QStringLiteral("#%1").arg(item->Ref.Number)
+				? (item->Facts.Title.empty()
+					   ? QStringLiteral("#%1").arg(item->Ref.Number)
+					   : QStringLiteral("#%1 %2").arg(item->Ref.Number).arg(text(item->Facts.Title)))
 				: repository_reason_word(item->Bucket);
-		case Qt::ToolTipRole:
-			return QStringLiteral("%1 #%2: %3")
-				.arg(text(item->Ref.Repository))
-				.arg(item->Ref.Number)
-				.arg(text(std::string{ core::explanation(item->Bucket) }));
+		case Qt::ToolTipRole: {
+			auto tip = QStringLiteral("%1 #%2: %3")
+						   .arg(text(item->Ref.Repository))
+						   .arg(item->Ref.Number)
+						   .arg(text(std::string{ core::explanation(item->Bucket) }));
+			if (!item->Facts.Title.empty()) {
+				tip += QStringLiteral("\n%1").arg(text(item->Facts.Title));
+			}
+			if (!item->Facts.Author.empty()) {
+				tip += QStringLiteral("\nby %1").arg(text(item->Facts.Author));
+			}
+			if (item->Facts.UnseenComments > 0U) {
+				tip += QStringLiteral("\n%1 unseen comments").arg(item->Facts.UnseenComments);
+			}
+			return tip;
+		}
 		default:
 			return { };
 		}
@@ -287,6 +308,11 @@ namespace bpr::qt {
 		Marker = aMarker;
 	}
 
+	void repositories_tree_delegate::set_accent(const QColor& aAccent)
+	{
+		Accent = aAccent;
+	}
+
 	void repositories_tree_delegate::paint(
 		QPainter* const             aPainter,
 		const QStyleOptionViewItem& aOption,
@@ -309,11 +335,29 @@ namespace bpr::qt {
 				option.palette.setColor(QPalette::Text, option.palette.color(QPalette::Active, QPalette::Text));
 			}
 		}
+		// [[BPR-0659]]. The unread dot before a pull request with comments I
+		// have not seen; the text moves right to leave it room.
+		const auto unseen = aIndex.column() == repositories_tree_model::name_column
+			&& !aIndex.data(repositories_tree_model::is_repository_role).toBool()
+			&& aIndex.data(repositories_tree_model::unseen_role).toBool();
+		if (unseen) {
+			option.rect.adjust(unread_dot_inset, 0, 0, 0);
+		}
 		const auto* const style = option.widget != nullptr ? option.widget->style() : nullptr;
 		if (style != nullptr) {
 			style->drawControl(QStyle::CE_ItemViewItem, &option, aPainter, option.widget);
 		} else {
 			QStyledItemDelegate::paint(aPainter, option, aIndex);
+		}
+		if (unseen) {
+			aPainter->save();
+			aPainter->setRenderHint(QPainter::Antialiasing, true);
+			aPainter->setPen(Qt::NoPen);
+			aPainter->setBrush(Accent);
+			const auto centre = QPointF{ static_cast<qreal>(aOption.rect.left()) + unread_dot_inset / 2.0,
+										 static_cast<qreal>(aOption.rect.center().y()) + 0.5 };
+			aPainter->drawEllipse(centre, 3.0, 3.0);
+			aPainter->restore();
 		}
 	}
 

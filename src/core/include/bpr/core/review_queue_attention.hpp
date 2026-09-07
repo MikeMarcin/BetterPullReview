@@ -6,6 +6,7 @@
 #include <compare>
 #include <cstdint>
 #include <span>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -80,11 +81,27 @@ namespace bpr::core {
 	/// recomputed it from the same observation might agree today and disagree
 	/// after either side is edited, and the reviewer would have no way to tell
 	/// which was right.
+	/// \brief What the host read about a pull request, carried on its item.
+	///
+	/// \details [[BPR-0659]]. The title and author come from the observation
+	/// the host refreshed the item from; the unseen count is the activity
+	/// it observed. None of it ranks the item: `bucket_for` decides that,
+	/// and these are what the presentation says beside the number.
+	struct queue_item_facts
+	{
+		std::string   Title;
+		std::string   Author;
+		std::uint32_t UnseenComments = 0U;
+
+		auto operator<=>(const queue_item_facts&) const = default;
+	};
+
 	struct queue_item
 	{
 		pull_request_ref Ref;
 		queue_membership Membership;
 		attention_bucket Bucket = attention_bucket::quiet;
+		queue_item_facts Facts;
 
 		auto operator<=>(const queue_item&) const = default;
 	};

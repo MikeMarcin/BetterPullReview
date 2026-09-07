@@ -62,6 +62,10 @@ namespace bpr::qt {
 			is_repository_role,
 			host_role,
 			account_role,
+			/// The pull request's title ([[BPR-0659]]); empty for a repository.
+			title_role,
+			/// True when the pull request carries comments I have not seen.
+			unseen_role,
 		};
 
 		explicit repositories_tree_model(QObject* aParent = nullptr);
@@ -97,9 +101,12 @@ namespace bpr::qt {
 			override;
 
 		void set_marker(const QColor& aMarker);
+		/// \brief The unread dot's colour ([[BPR-0659]]).
+		void set_accent(const QColor& aAccent);
 
 	private:
 		QColor Marker{ 0xD2, 0x99, 0x22 };
+		QColor Accent{ 0x09, 0x69, 0xDA };
 	};
 
 	using repository_open_dispatch = std::function<void(const core::queue_item&)>;
