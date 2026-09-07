@@ -3117,14 +3117,28 @@ namespace {
 				&& window.modality()->isVisible()
 				&& !window.primary_toolbar()
 						->widgetForAction(window.files_drawer_toggle_action())
-						->isVisible(),
-			"the Home button shows Home over an open review and keeps the "
-			"modalities as the way back");
+						->isVisible()
+				&& landing->isVisible()
+				&& landing->state() == qt::landing_state::back_to_review
+				&& landing->title_label()->text().startsWith(
+					QStringLiteral("Reviewing "))
+				&& landing->title_label()->text().contains(QStringLiteral("#"))
+				&& landing->primary_button()->text()
+					== QStringLiteral("Back to the review"),
+			"the Home button shows Home over an open review, names the review "
+			"at the top with the way back, and keeps the modalities");
+		landing->primary_button()->click();
+		QApplication::processEvents();
+		expect(
+			!window.showing_home() && !window.home_action()->isChecked(),
+			"Back to the review returns to the review");
+		window.home_action()->trigger();
+		QApplication::processEvents();
 		window.modality()->action(qt::review_modality::review)->trigger();
 		QApplication::processEvents();
 		expect(
 			!window.showing_home() && !window.home_action()->isChecked(),
-			"choosing a modality returns to the review");
+			"choosing a modality returns to the review too");
 		window.hide();
 	}
 

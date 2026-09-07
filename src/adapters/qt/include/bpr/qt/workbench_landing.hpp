@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_WORKBENCH_LANDING_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_WORKBENCH_LANDING_HPP
 
+#include <QString>
 #include <QWidget>
 
 #include <cstdint>
@@ -17,6 +18,8 @@ namespace bpr::qt {
 		sign_in,
 		/// A session but no pull request: the way in is the queue or the locator.
 		choose_pull_request,
+		/// A review is open behind Home: the way back is one press.
+		back_to_review,
 	};
 
 	/// \brief The centre's landing while there is nothing to review.
@@ -34,7 +37,9 @@ namespace bpr::qt {
 	public:
 		explicit workbench_landing(QWidget* aParent = nullptr);
 
-		void               set_state(landing_state aState);
+		void set_state(landing_state aState);
+		/// \brief The open review\'s identity, named by the back-to-review state.
+		void               set_review_identity(const QString& aIdentity);
 		[[nodiscard]] auto state() const noexcept -> landing_state;
 
 		/// \brief Sign in (signed out) or choose from the queue (signed in).
@@ -51,7 +56,8 @@ namespace bpr::qt {
 		void paintEvent(QPaintEvent* aEvent) override;
 
 	private:
-		landing_state         State     = landing_state::sign_in;
+		landing_state         State = landing_state::sign_in;
+		QString               ReviewIdentity;
 		QLabel*               Title     = nullptr;
 		QLabel*               Body      = nullptr;
 		QPushButton*          Primary   = nullptr;

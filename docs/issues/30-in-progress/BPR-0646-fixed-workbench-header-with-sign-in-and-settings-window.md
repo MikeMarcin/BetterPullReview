@@ -304,3 +304,12 @@ the window's title row.
   control is left for the owner; the button answers the need either way.
   The width floor rises to 860 for the extra button; the UIforETW probe
   pins the twenty-one-entry row.
+- Back to the review (owner, 2026-09-06: an accidental Home must not leave
+  a reviewer hunting for the pull request they just left; a prev/next pull
+  request cycle was raised and deferred to the repositories drawer's list
+  order under BPR-0651). Home over an open review closes nothing, and now
+  says so: the card at the top reads "Reviewing owner/repo #n title" with
+  "Back to the review", which returns to the same file and change, and
+  "Choose another pull request", which moves to the queue. This is the
+  first row of BPR-0650's action list arriving early. Pinned in the
+  composed Home test.

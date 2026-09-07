@@ -700,6 +700,10 @@ namespace bpr::qt {
 		HomeColumn  = home;
 		HomeLanding = new workbench_landing{ HomePage };
 		HomeLanding->set_primary_dispatch([this] {
+			if (HomeLanding->state() == landing_state::back_to_review) {
+				choose_home(false);
+				return;
+			}
 			if (HomeLanding->state() == landing_state::sign_in) {
 				open_settings(settings_page::accounts_and_hosts);
 				if (DevicePanel != nullptr) {
@@ -712,6 +716,12 @@ namespace bpr::qt {
 			}
 		});
 		HomeLanding->set_secondary_dispatch([this] {
+			if (HomeLanding->state() == landing_state::back_to_review) {
+				if (QueueView != nullptr) {
+					QueueView->setFocus(Qt::OtherFocusReason);
+				}
+				return;
+			}
 			open_settings(settings_page::accounts_and_hosts);
 			if (HomeLanding->state() == landing_state::choose_pull_request
 				&& SessionPanel != nullptr) {
@@ -2274,8 +2284,11 @@ namespace bpr::qt {
 		const auto comparing = ComparisonSurface != nullptr
 			&& ComparisonSurface->current_result() != nullptr;
 		const auto loading = status == core::github_status::loading_pull_request;
+		HomeLanding->set_review_identity(IdentityText);
 		HomeLanding->set_state(
-			signedIn ? landing_state::choose_pull_request : landing_state::sign_in);
+			HasGithubPullRequest ? landing_state::back_to_review
+				: signedIn       ? landing_state::choose_pull_request
+								 : landing_state::sign_in);
 		// Home is the centre until a pull request, a comparison or an active
 		// workbench gives the review chrome something to be about.
 		// "Active" is the core's word for it: the drawer command is offered

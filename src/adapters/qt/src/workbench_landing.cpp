@@ -97,6 +97,24 @@ namespace bpr::qt {
 			Secondary->setAccessibleDescription(QStringLiteral(
 				"Opens the Accounts and hosts page of Settings."));
 			break;
+		case landing_state::back_to_review:
+			// Home over an open review closes nothing; the first thing on the
+			// page is the way back, so an accidental Home costs one press.
+			Title->setText(
+				ReviewIdentity.isEmpty()
+					? QStringLiteral("Reviewing a pull request")
+					: QStringLiteral("Reviewing %1").arg(ReviewIdentity));
+			Body->setText(QStringLiteral(
+				"The review is still open behind Home, exactly where you left it."));
+			Primary->setText(QStringLiteral("Back to the review"));
+			Primary->setAccessibleName(QStringLiteral("Back to the review"));
+			Primary->setAccessibleDescription(QStringLiteral(
+				"Returns to the open pull request at the same file and change."));
+			Secondary->setText(QStringLiteral("Choose another pull request"));
+			Secondary->setAccessibleName(QStringLiteral("Choose another pull request"));
+			Secondary->setAccessibleDescription(QStringLiteral(
+				"Moves to the review queue below."));
+			break;
 		case landing_state::choose_pull_request:
 			Title->setText(QStringLiteral("Open a pull request"));
 			Body->setText(QStringLiteral(
@@ -116,6 +134,17 @@ namespace bpr::qt {
 		Secondary->setToolTip(Secondary->accessibleDescription());
 		updateGeometry();
 		update();
+	}
+
+	void workbench_landing::set_review_identity(const QString& aIdentity)
+	{
+		if (ReviewIdentity == aIdentity) {
+			return;
+		}
+		ReviewIdentity = aIdentity;
+		if (State == landing_state::back_to_review) {
+			set_state(State);
+		}
 	}
 
 	auto workbench_landing::state() const noexcept -> landing_state
