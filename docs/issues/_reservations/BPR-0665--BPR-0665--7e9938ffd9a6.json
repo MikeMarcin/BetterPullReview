@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0665"
+  ],
+  "reserve_for": "bpr-0660-followup",
+  "purpose": "Two-phase settings contracts declare one fixture's run count",
+  "created": "2026-09-07T16:24:19.385462+00:00",
+  "base": "949ed45e318e02437efb9f03b37560a38bb7a3a0"
+}
