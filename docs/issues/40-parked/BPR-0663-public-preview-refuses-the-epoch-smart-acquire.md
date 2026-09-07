@@ -88,5 +88,5 @@ gone. The next stage then failed,
 so the epoch line still read "No updates loaded." and no comparison resolved.
 
 The card's acceptance names all three, so it stays open behind
-[BPR-0667](../20-ready/BPR-0667-the-epoch-refuses-any-pull-request-whose-base-branch-moved.md),
+[BPR-0667](../30-in-progress/BPR-0667-the-epoch-refuses-any-pull-request-whose-base-branch-moved.md),
 which owns the new failure. This card's own change is not in question.

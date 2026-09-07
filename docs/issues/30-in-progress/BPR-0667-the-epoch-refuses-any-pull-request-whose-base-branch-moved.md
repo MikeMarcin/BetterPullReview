@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0667"
 title: "The epoch refuses any pull request whose base branch has moved"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P0"
