@@ -58,7 +58,7 @@ preferences and enrollment ports. Every other page shows its notice.
   placed them. The device-grant date and self-renewal, the remembered fact,
   Sign out, enterprise server cards and Add enterprise server have no
   authority and are carded as
-  [BPR-0660](../30-in-progress/BPR-0660-enterprise-servers-and-session-facts-on-accounts-and-hosts.md).
+  [BPR-0660](BPR-0660-enterprise-servers-and-session-facts-on-accounts-and-hosts.md).
 - Reviews & queue: the observer-rule editor moves from Home to the page
   under "Observer rules" with the page's subtitle; Home keeps the queue and
   its filters, and the workbench's focus order no longer declares the

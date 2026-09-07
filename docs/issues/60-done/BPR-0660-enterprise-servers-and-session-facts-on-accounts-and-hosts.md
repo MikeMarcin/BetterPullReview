@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0660"
 title: "Enterprise servers and session facts on Accounts & hosts"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0028","RFC-BPR-0018"]
 depends_on: []
 priority: "P2"
+acceptance: [{"criterion":"The card states the grant kind, date and remembered fact from the projection","outcome":"pass","revision":"23e5fe25","evidence":{"kind":"observation","detail":"application_github_host and qt_composed_github_scale_100 pass: the GitHub host projects the credential kind, the accepted date, self-renewal and the remembered fact onto the session, republishing the accepted session once the vault confirms the binding is durable, and the account card states that line (a token session says it lasts for this session only)."}},{"criterion":"Sign out revokes through the host","outcome":"pass","revision":"23e5fe25","evidence":{"kind":"observation","detail":"qt_composed_github_scale_100 passes: the account card's Sign out is present while a session is accepted and dispatches the deactivation intent the core already decided, which revokes the accepted session and its stored grant."}},{"criterion":"An enterprise server added and remembered survives a restart without its token","outcome":"pass","revision":"23e5fe25","evidence":{"kind":"observation","detail":"application_saved_server_contract passes over github-com and ghes-3.18: the seed run remembers ghe.kept.example on Accounts & hosts and the reuse run, over the same application data root, finds it kept and offered as a host profile (SAVED_SERVER:host=ghe.kept.example:kept=1:offered=1). The record is a hostname and an account name in the queue database at schema five; no credential is stored on this path. sqlite_queue_enrollment_storage, application_review_queue_enrollment and qt_workbench_window_scale_100 cover the store, the store-before-show host and the page. Dropping the profile registration, which no unit test reaches, fails the contract's reuse run."}}]
 ---
 
 # Enterprise servers and session facts on Accounts & hosts
@@ -15,7 +16,7 @@ device grant "signed in on <date>, renews itself; remembered on this Mac"
 with Sign out; for an enterprise server the hostname, "signed in with a
 token for this session only", and a "Remember this server" switch that
 keeps the hostname and account across launches; and an "Add enterprise
-server" action. [BPR-0652](../60-done/BPR-0652-settings-pages-accounts-appearance-reviews.md)
+server" action. [BPR-0652](BPR-0652-settings-pages-accounts-appearance-reviews.md)
 placed the account card with what the session projection carries (login,
 display name, host, the connection state and the rate limit) and left the
 rest, because none of it has an authority: `github_session_projection`
