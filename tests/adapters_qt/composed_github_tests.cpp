@@ -2521,6 +2521,54 @@ namespace {
 	// read where they are standing, named for what it does, and it enters the
 	// mode for the selected host and leaves them at the bar that names a pull
 	// request. Signed in, it is not offered at all.
+	// [[BPR-0668]]. A comparison that could not be prepared used to leave the
+	// reviewer with two empty panes, an empty file tree and a status line
+	// claiming no pull request was open while the strip named one. The files
+	// come from the pull request's own file set, and the line says what is
+	// true and what to do.
+	auto test_a_pull_request_without_a_comparison_still_lists_its_files() -> void
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		QApplication::processEvents();
+		expect(window.status_text().contains(QStringLiteral("Open a pull request")),
+			   "with nothing open the line asks for a pull request");
+		publish_session_ready(window);
+		publish_pull_request(window);
+		QApplication::processEvents();
+
+		auto overview = application::pull_request_overview_projection{ };
+		overview.Files.push_back(application::overview_file_row{
+			.Path      = "src/host/ConptyConnection.cpp",
+			.Name      = "ConptyConnection.cpp",
+			.Operation = application::overview_file_operation::modified,
+			.Additions = 12U,
+			.Deletions = 3U,
+		});
+		overview.Files.push_back(application::overview_file_row{
+			.Path      = "src/terminal/adapter/adaptDispatch.cpp",
+			.Name      = "adaptDispatch.cpp",
+			.Operation = application::overview_file_operation::modified,
+			.Additions = 4U,
+			.Deletions = 0U,
+		});
+		window.publish(overview);
+		QApplication::processEvents();
+		auto* const tree = window.files_tree();
+		expect(tree != nullptr && tree->tree_model()->file_count() == 2U
+				   && tree->tree_model()
+						  ->index_for_file(core::file_identity_of("src/host/ConptyConnection.cpp"))
+						  .isValid(),
+			   "the files the pull request names are listed without a comparison");
+		expect(!window.status_text().contains(QStringLiteral("No pull request is open")),
+			   "the line never says nothing is open while a pull request is");
+		expect(window.status_text().contains(QStringLiteral("This pull request is open"))
+				   && window.status_text().contains(QStringLiteral("Refresh")),
+			   "it says what is true and names the way to try again");
+		window.hide();
+	}
+
 	auto test_home_offers_reading_without_signing_in() -> void
 	{
 		std::vector<application::github_intent> intents;
@@ -3808,6 +3856,7 @@ auto main(int argc, char** argv) -> int
 	test_repositories_drawer_lists_the_queue_and_opens_on_overview();
 	test_home_action_list_opens_rows_and_the_bar_on_overview();
 	test_home_offers_reading_without_signing_in();
+	test_a_pull_request_without_a_comparison_still_lists_its_files();
 	test_read_drawer_shows_threads_as_cards_with_scope_and_actions();
 	test_drawer_controls_are_reachable_in_the_conversations_drawer();
 	test_home_landing_funnels_to_an_account_and_then_a_pull_request();

@@ -2631,6 +2631,7 @@ namespace bpr::qt {
 		if (FilesTree != nullptr) {
 			FilesTree->apply(rows);
 		}
+		FileRowsPresent       = !rows.empty();
 		ApplyingFileSelection = false;
 		++Statistics.FileRowUpdates;
 		apply_file_selection();
@@ -3083,6 +3084,25 @@ namespace bpr::qt {
 		if (FilesTree != nullptr) {
 			// [[BPR-0658]]. The tree draws the overview's per-file facts.
 			ApplyingFileSelection = true;
+			// [[BPR-0668]]. A comparison that could not be prepared leaves the
+			// workbench with no file rows, and the drawer was empty beside a
+			// pull request that plainly has files. The pull request's own file
+			// set is enough to list them; opening one still needs the
+			// comparison, and the status line says so.
+			if (!FileRowsPresent) {
+				auto rows = std::vector<workbench_drawer_row>{ };
+				rows.reserve(aProjection.Files.size());
+				for (const auto& file : aProjection.Files) {
+					const auto path = QString::fromStdString(file.Path);
+					rows.push_back(workbench_drawer_row{
+						.Identity = path,
+						.Title    = path,
+						.Detail   = path,
+						.File     = core::file_identity_of(file.Path),
+					});
+				}
+				FilesTree->apply(rows);
+			}
 			FilesTree->apply_overview(aProjection.Files);
 			ApplyingFileSelection = false;
 		}
@@ -4099,6 +4119,12 @@ namespace bpr::qt {
 			ConversationPanel->present_notice(QString{ });
 		}
 		update_github_presentation_state();
+		// [[BPR-0668]]. The line states what is open, so it is written when
+		// what is open changes, not only when a workbench projection lands.
+		// Guarded: this runs while the window is still being assembled.
+		if (StatusLabel != nullptr && SessionPanel != nullptr && EpochSelectors != nullptr) {
+			update_status_text();
+		}
 	}
 
 	void workbench_window::apply_github_content_command(
@@ -4140,6 +4166,9 @@ namespace bpr::qt {
 			"Review threads are unavailable until a pull request is open."));
 		refresh_cards();
 		update_github_presentation_state();
+		if (StatusLabel != nullptr && SessionPanel != nullptr && EpochSelectors != nullptr) {
+			update_status_text();
+		}
 	}
 
 	void workbench_window::publish(
@@ -5654,7 +5683,15 @@ namespace bpr::qt {
 	void workbench_window::update_status_text()
 	{
 		auto status = QString{ };
-		if (!HasCommands) {
+		// [[BPR-0668]]. A cursor is a position in a comparison, and commands
+		// are a workbench; neither is a pull request. Saying nothing was open
+		// while the strip, the drawer and the conversations all named one told
+		// the owner the product was broken and gave them nothing to do.
+		if (HasGithubPullRequest && (!HasCommands || !Cursor)) {
+			status = QStringLiteral(
+				"This pull request is open. Its comparison is not ready; "
+				"Refresh to try again.");
+		} else if (!HasCommands) {
 			status = QStringLiteral("Open a pull request to begin reviewing.");
 		} else if (!Cursor) {
 			status = QStringLiteral("No pull request is open in the workbench.");
