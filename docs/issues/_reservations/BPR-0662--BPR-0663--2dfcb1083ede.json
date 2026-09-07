@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0662",
+    "BPR-0663"
+  ],
+  "reserve_for": "bpr-0028-smoke-defects",
+  "purpose": "Drawer widths clobbered under Home and a squeezed splitter; public preview refuses the epoch smart acquire",
+  "created": "2026-09-07T08:24:36.822248+00:00",
+  "base": "bc5512407c2d55677e49ba553b8b67624993e9a3"
+}
