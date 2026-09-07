@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0658"
 title: "Files tree in the files drawer"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P1"

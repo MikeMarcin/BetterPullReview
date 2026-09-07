@@ -73,7 +73,7 @@ snapshot projections; any missing projection is added in the host.
   `qt_repositories_drawer`, the composed repositories test and the window
   drawer test.
 - Not delivered, carded with the findings: the files tree
-  ([BPR-0658](../10-backlog/BPR-0658-files-tree-in-the-files-drawer.md); the
+  ([BPR-0658](../20-ready/BPR-0658-files-tree-in-the-files-drawer.md); the
   flat list is read by about thirty probes and courses, so its replacement
   is its own slice) and the titles, unread dots and saved repositories
   ([BPR-0659](BPR-0659-repository-projection-with-titles-unseen-and-saved-repositories.md);
