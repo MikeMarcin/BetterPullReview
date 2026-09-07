@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0671"
 title: "The pull request summary is crammed into the files drawer"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P2"

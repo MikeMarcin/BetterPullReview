@@ -330,7 +330,7 @@ this PR is being crammed into a tiny box in files browser".
 
 Carded: [BPR-0669](../60-done/BPR-0669-open-a-pull-request-by-pasting-its-url-from-home.md)
 for URL entry on Home, [BPR-0670](../60-done/BPR-0670-public-preview-is-buried-and-does-not-say-what-it-is.md)
-for the signed-out path, [BPR-0671](../20-ready/BPR-0671-the-pull-request-summary-is-crammed-into-the-files-drawer.md)
+for the signed-out path, [BPR-0671](../30-in-progress/BPR-0671-the-pull-request-summary-is-crammed-into-the-files-drawer.md)
 for the summary box this card left in the files drawer, and
 [BPR-0667](BPR-0667-the-epoch-refuses-any-pull-request-whose-base-branch-moved.md)
 and [BPR-0668](../10-backlog/BPR-0668-a-failed-comparison-leaves-an-empty-workbench-that-says-nothing-is-open.md)
