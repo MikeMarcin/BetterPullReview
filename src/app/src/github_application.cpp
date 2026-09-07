@@ -3832,6 +3832,12 @@ namespace bpr::app {
 						QueueHost->apply(std::move(aIntent));
 					}
 				});
+			Window->set_behaviour_dispatch(
+				[this](const application::review_behaviour_settings& aSettings) {
+					if (!Closing && WorkbenchHost != nullptr) {
+						WorkbenchHost->apply_behaviour(aSettings);
+					}
+				});
 			Window->set_saved_repository_dispatch(
 				[this](application::saved_repository_intent aIntent) {
 					if (!Closing && QueueHost != nullptr) {

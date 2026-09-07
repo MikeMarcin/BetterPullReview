@@ -2,6 +2,7 @@
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_GITHUB_CONVERSATION_PANEL_HPP
 
 #include "bpr/application/github_projection.hpp"
+#include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/diff_model.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 
@@ -135,6 +136,8 @@ namespace bpr::qt {
 		/// feed at the right, the filters over the feed and a summary beneath.
 		void               set_discuss(bool aDiscuss);
 		[[nodiscard]] auto discuss() const noexcept -> bool;
+		/// \brief [[BPR-0661]]. Sets the drawer's first filter as the preference names it.
+		void               apply_first_filter(application::review_comments_filter aFilter);
 		[[nodiscard]] auto filter_unread_button() const noexcept -> QToolButton*;
 		[[nodiscard]] auto filter_unresolved_button() const noexcept -> QToolButton*;
 		[[nodiscard]] auto discuss_summary() const noexcept -> QLabel*;

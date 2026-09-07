@@ -104,6 +104,8 @@ namespace bpr::qt {
 	using conversation_read_dispatch = std::function<void(const std::string&)>;
 	/// \brief Save or forget a repository ([[BPR-0659]]).
 	using workbench_saved_repository_dispatch = std::function<void(application::saved_repository_intent)>;
+	/// [[BPR-0661]]. The review-behaviour preferences the page dispatches.
+	using review_behaviour_dispatch = std::function<void(const application::review_behaviour_settings&)>;
 
 	/// \brief Records directly observable workbench-window presentation activity.
 	struct workbench_window_statistics
@@ -301,6 +303,12 @@ namespace bpr::qt {
 		[[nodiscard]] auto remove_saved_repository_action() const noexcept -> QAction*;
 		/// \brief Where a card's Mark read goes: the composition, then the ledger host.
 		void set_conversation_read_dispatch(conversation_read_dispatch aDispatch);
+		/// \brief [[BPR-0661]]. Adopts the sink the Reviews & queue preference rows dispatch to.
+		void set_behaviour_dispatch(review_behaviour_dispatch aDispatch);
+		/// \brief The review-behaviour preferences the host last published.
+		[[nodiscard]] auto behaviour() const noexcept -> const application::review_behaviour_settings&;
+		/// \brief The Reviews & queue preference editor ([[BPR-0661]]).
+		[[nodiscard]] auto behaviour_editor() const noexcept -> QWidget*;
 		/// \brief Adopts the read state of the review's conversations.
 		///
 		/// \details [[BPR-0656]]. The cards draw it, the gutter marks a new
@@ -623,7 +631,16 @@ namespace bpr::qt {
 		void update_new_comment_group();
 		void step_to_next_new_comment();
 		/// \brief Selects the file and enters Read, from the overview.
-		void               enter_read_at(const QString& aPath);
+		void enter_read_at(const QString& aPath);
+		// [[BPR-0661]]. The preference rows and what honours them.
+		void               build_behaviour_editor(QWidget* aPage, QVBoxLayout* aColumn);
+		void               apply_behaviour_controls();
+		void               dispatch_behaviour_from_controls();
+		[[nodiscard]] auto behaviour_from_controls() const -> application::review_behaviour_settings;
+		[[nodiscard]] auto opening_modality() const -> review_modality;
+		void               apply_first_comments_filter();
+		void               honour_return_comparison();
+		void               consider_mark_read_when_fully_seen();
 		[[nodiscard]] auto file_for_path(const QString& aPath) const
 			-> std::optional<core::workbench_file_id>;
 		void               update_rail_summaries();
@@ -748,43 +765,52 @@ namespace bpr::qt {
 		bool                       OpenOnOverview    = false;
 		github_conversation_panel* ConversationPanel = nullptr;
 		/// Prevents the drawer refilter from clearing the anchor that triggered it.
-		bool                                                       ApplyingConversationAnchor       = false;
-		bool                                                       LeftConversationEndpointCurrent  = false;
-		bool                                                       RightConversationEndpointCurrent = false;
-		agent_launch_panel*                                        AgentPanel                       = nullptr;
-		side_chat_panel*                                           SideChat                         = nullptr;
-		finding_queue_view*                                        FindingQueue                     = nullptr;
-		review_draft_editor*                                       ReviewEditor                     = nullptr;
-		defect_card_view*                                          DefectCard                       = nullptr;
-		QLabel*                                                    DefectCountLabel                 = nullptr;
-		QAction*                                                   ClassifyDefect                   = nullptr;
-		QAction*                                                   PreviousDefect                   = nullptr;
-		QAction*                                                   NextDefect                       = nullptr;
-		std::vector<core::defect_history>                          Defects;
-		std::optional<std::size_t>                                 ShownDefectIndex;
-		review_landing_model*                                      QueueLanding          = nullptr;
-		review_landing_filter_model*                               QueueFilterModel      = nullptr;
-		QListView*                                                 QueueView             = nullptr;
-		QComboBox*                                                 QueueRoleFilter       = nullptr;
-		QComboBox*                                                 QueueObserverFilter   = nullptr;
-		QComboBox*                                                 QueueBucketFilter     = nullptr;
-		QComboBox*                                                 QueueRepositoryFilter = nullptr;
-		QComboBox*                                                 QueueQuietFilter      = nullptr;
-		QComboBox*                                                 QueueSort             = nullptr;
-		QComboBox*                                                 QueueRuleSelector     = nullptr;
-		QComboBox*                                                 QueueRuleKind         = nullptr;
-		QLineEdit*                                                 QueueRulePattern      = nullptr;
-		QCheckBox*                                                 QueueRuleExcluding    = nullptr;
-		QAction*                                                   AddQueueRule          = nullptr;
-		QAction*                                                   RemoveQueueRule       = nullptr;
-		QToolButton*                                               AddQueueRuleButton    = nullptr;
-		QToolButton*                                               RemoveQueueRuleButton = nullptr;
-		QLabel*                                                    QueueStatus           = nullptr;
-		QLineEdit*                                                 HomeOpenBar           = nullptr;
-		review_landing_delegate*                                   QueueDelegate         = nullptr;
-		std::vector<core::observer_rule>                           QueueRules;
-		application::queue_landing_projection                      QueueProjection;
-		workbench_saved_repository_dispatch                        SavedRepositoryDispatch;
+		bool                                  ApplyingConversationAnchor       = false;
+		bool                                  LeftConversationEndpointCurrent  = false;
+		bool                                  RightConversationEndpointCurrent = false;
+		agent_launch_panel*                   AgentPanel                       = nullptr;
+		side_chat_panel*                      SideChat                         = nullptr;
+		finding_queue_view*                   FindingQueue                     = nullptr;
+		review_draft_editor*                  ReviewEditor                     = nullptr;
+		defect_card_view*                     DefectCard                       = nullptr;
+		QLabel*                               DefectCountLabel                 = nullptr;
+		QAction*                              ClassifyDefect                   = nullptr;
+		QAction*                              PreviousDefect                   = nullptr;
+		QAction*                              NextDefect                       = nullptr;
+		std::vector<core::defect_history>     Defects;
+		std::optional<std::size_t>            ShownDefectIndex;
+		review_landing_model*                 QueueLanding          = nullptr;
+		review_landing_filter_model*          QueueFilterModel      = nullptr;
+		QListView*                            QueueView             = nullptr;
+		QComboBox*                            QueueRoleFilter       = nullptr;
+		QComboBox*                            QueueObserverFilter   = nullptr;
+		QComboBox*                            QueueBucketFilter     = nullptr;
+		QComboBox*                            QueueRepositoryFilter = nullptr;
+		QComboBox*                            QueueQuietFilter      = nullptr;
+		QComboBox*                            QueueSort             = nullptr;
+		QComboBox*                            QueueRuleSelector     = nullptr;
+		QComboBox*                            QueueRuleKind         = nullptr;
+		QLineEdit*                            QueueRulePattern      = nullptr;
+		QCheckBox*                            QueueRuleExcluding    = nullptr;
+		QAction*                              AddQueueRule          = nullptr;
+		QAction*                              RemoveQueueRule       = nullptr;
+		QToolButton*                          AddQueueRuleButton    = nullptr;
+		QToolButton*                          RemoveQueueRuleButton = nullptr;
+		QLabel*                               QueueStatus           = nullptr;
+		QLineEdit*                            HomeOpenBar           = nullptr;
+		review_landing_delegate*              QueueDelegate         = nullptr;
+		std::vector<core::observer_rule>      QueueRules;
+		application::queue_landing_projection QueueProjection;
+		workbench_saved_repository_dispatch   SavedRepositoryDispatch;
+		// [[BPR-0661]].
+		review_behaviour_dispatch                                  BehaviourDispatch;
+		application::review_behaviour_settings                     Behaviour;
+		QWidget*                                                   BehaviourEditor = nullptr;
+		std::array<std::vector<QToolButton*>, 5>                   BehaviourOptions{ };
+		bool                                                       ApplyingBehaviour = false;
+		std::optional<review_modality>                             LastUsedModality;
+		bool                                                       ReturnComparisonPending = false;
+		std::optional<core::file_receipt_command>                  MarkedReadWhenSeen;
 		QWidget*                                                   SavedRepositoriesEditor     = nullptr;
 		QComboBox*                                                 SavedRepositorySelector     = nullptr;
 		QLineEdit*                                                 SavedRepositoryName         = nullptr;

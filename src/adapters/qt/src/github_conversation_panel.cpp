@@ -520,6 +520,15 @@ namespace bpr::qt {
 		return Discuss;
 	}
 
+	void github_conversation_panel::apply_first_filter(const application::review_comments_filter aFilter)
+	{
+		if (FilterUnread == nullptr || FilterUnresolved == nullptr) {
+			return;
+		}
+		FilterUnread->setChecked(aFilter == application::review_comments_filter::unread);
+		FilterUnresolved->setChecked(aFilter == application::review_comments_filter::unresolved);
+	}
+
 	auto github_conversation_panel::filter_unread_button() const noexcept -> QToolButton*
 	{
 		return FilterUnread;

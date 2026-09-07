@@ -18,6 +18,7 @@
 #include <QEvent>
 #include <QIcon>
 #include <QImage>
+#include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLayout>
@@ -4648,6 +4649,229 @@ namespace {
 	// needs an account the queue session names and an owner/name, Remove the
 	// selected saved repository; both leave as intents, and the tree lists
 	// what the projection carries.
+	// [[BPR-0661]]. The Reviews & queue preference rows: a row dispatches the
+	// whole record, the page follows what the host publishes (so a refused
+	// change reverts), and each group's Reset returns only its own rows.
+	void test_review_behaviour_rows_dispatch_follow_the_projection_and_reset_by_group()
+	{
+		qt::workbench_window window;
+		auto                 records = std::vector<application::review_behaviour_settings>{ };
+		window.set_behaviour_dispatch([&records](const application::review_behaviour_settings& aSettings) {
+			records.push_back(aSettings);
+		});
+		auto* const editor = window.behaviour_editor();
+		expect(editor != nullptr
+				   && window.settings()->page_widget(qt::settings_page::reviews_and_queue)->isAncestorOf(editor)
+				   && !window.home_page()->isAncestorOf(editor),
+			   "the preference rows live on Reviews and queue, off Home");
+		const auto button = [&window](const char* const aName) {
+			auto* const found = window.findChild<QToolButton*>(QString::fromLatin1(aName));
+			expect(found != nullptr, "every preference option is a named button");
+			return found;
+		};
+		expect(button("openModalityOverview")->isChecked() && button("continueModalityRead")->isChecked()
+				   && button("markReadByHand")->isChecked() && button("returnComparisonWholePr")->isChecked()
+				   && button("commentsFilterAll")->isChecked(),
+			   "the rows start at the defaults, the behaviour the window had");
+		button("openModalityRead")->click();
+		expect(records.size() == 1U && records.back().OpenModality == application::review_open_modality::read
+				   && records.back().ContinueModality == application::review_continue_modality::read,
+			   "choosing an option dispatches the whole record with that one change");
+
+		auto published             = application::review_behaviour_settings{ };
+		published.ContinueModality = application::review_continue_modality::review;
+		published.CommentsFilter   = application::review_comments_filter::unread;
+		auto projection            = application::workbench_projection{ };
+		projection.Behaviour       = published;
+		window.publish(projection);
+		expect(records.size() == 1U && window.behaviour() == published
+				   && button("openModalityOverview")->isChecked() && button("continueModalityReview")->isChecked()
+				   && button("commentsFilterUnread")->isChecked(),
+			   "the page follows what the host publishes without dispatching again, so a refused change reverts");
+
+		button("resetReadingBehaviour")->click();
+		expect(records.size() == 2U
+				   && records.back() == application::review_behaviour_settings{ .ContinueModality = application::review_continue_modality::review },
+			   "Reset on the reading group returns its rows to the defaults and leaves the modality rules alone");
+		button("resetModalityRules")->click();
+		expect(records.size() == 3U
+				   && records.back() == application::review_behaviour_settings{ .CommentsFilter = application::review_comments_filter::unread },
+			   "Reset on the modality group returns its rows and leaves the reading rows as shown");
+	}
+
+	// [[BPR-0661]]. Continue review enters the modality the preference names,
+	// and a pull request opened from Home opens in the preferred one: Read, or
+	// the modality last used while a pull request was open.
+	void test_continue_review_and_opening_honour_the_modality_preferences()
+	{
+		intent_log           log;
+		auto                 opened = std::size_t{ 0U };
+		qt::workbench_window window{
+			[&log](core::workbench_interaction_intent aIntent) { log.Workbench.push_back(aIntent); },
+			[&log](core::navigate_diff_change_intent aIntent) { log.Change.push_back(aIntent); },
+			{ },
+			{ },
+			[&opened](application::github_intent) { ++opened; }
+		};
+		window.resize(1'280, 820);
+		window.show();
+		process_events();
+		auto files  = application::workbench_projection{ };
+		files.Files = std::vector<application::workbench_file_projection>{
+			{ .File = workbench_file(1U), .Path = "src/a.cpp" },
+		};
+		window.publish(files);
+		window.publish(every_primary_command_offered());
+		auto overview        = application::pull_request_overview_projection{ };
+		overview.Title       = "Fix the thing";
+		overview.AuthorLogin = "author";
+		overview.Files       = { application::overview_file_row{ .Path = "src/a.cpp", .Folder = "src", .Name = "a.cpp" } };
+		overview.Progress    = { .FilesTotal = 1U };
+		overview.Entry       = application::overview_entry_kind::continue_review;
+		overview.EntryPath   = "src/a.cpp";
+		window.publish(overview);
+		process_events();
+
+		auto behaviour      = application::workbench_projection{ };
+		behaviour.Behaviour = application::review_behaviour_settings{
+			.ContinueModality = application::review_continue_modality::review,
+		};
+		window.publish(behaviour);
+		window.choose_modality(qt::review_modality::overview);
+		process_events();
+		window.overview_page()->entry_button()->click();
+		process_events();
+		expect(window.current_modality() == qt::review_modality::review,
+			   "Continue review enters Review when the preference says so");
+
+		const auto openFromHome = [&window, &opened] {
+			const auto before = opened;
+			window.home_open_bar()->setText(QStringLiteral("octo/app#7"));
+			auto pressed = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+			QApplication::sendEvent(window.home_open_bar(), &pressed);
+			process_events();
+			expect(opened == before + 1U, "the home bar dispatches the open intent");
+			window.publish(application::github_presentation_update{
+				.PullRequest = application::github_pull_request_projection{
+					.ReviewThreadCount      = 0U,
+					.ReviewThreadsAvailable = true,
+				},
+			});
+			process_events();
+		};
+		behaviour.Behaviour = application::review_behaviour_settings{ .OpenModality = application::review_open_modality::read };
+		window.publish(behaviour);
+		openFromHome();
+		expect(window.current_modality() == qt::review_modality::read,
+			   "a pull request opened from Home opens in Read when the preference says so");
+
+		behaviour.Behaviour = application::review_behaviour_settings{ .OpenModality = application::review_open_modality::last_used };
+		window.publish(behaviour);
+		window.choose_modality(qt::review_modality::discuss);
+		process_events();
+		openFromHome();
+		expect(window.current_modality() == qt::review_modality::discuss,
+			   "with \"last used\" a pull request opens in the modality last chosen while one was open");
+		window.hide();
+	}
+
+	// [[BPR-0661]]. On open the comments drawer starts on the preferred filter,
+	// and the preferred comparison is asked for through the epoch control's
+	// own action once the history offers it.
+	void test_comments_filter_and_return_comparison_preferences_apply_on_open()
+	{
+		qt::workbench_window window;
+		auto                 intents = std::vector<application::epoch_intent>{ };
+		window.epoch_selectors()->set_dispatch([&intents](application::epoch_intent aIntent) {
+			intents.push_back(std::move(aIntent));
+		});
+		auto behaviour      = application::workbench_projection{ };
+		behaviour.Behaviour = application::review_behaviour_settings{
+			.ReturnComparison = application::review_return_comparison::since_last_review,
+			.CommentsFilter   = application::review_comments_filter::unresolved,
+		};
+		window.publish(behaviour);
+		window.publish(application::github_presentation_update{
+			.PullRequest = application::github_pull_request_projection{
+				.ReviewThreadCount      = 0U,
+				.ReviewThreadsAvailable = true,
+			},
+		});
+		process_events();
+		auto* const panel = window.conversation_panel();
+		expect(panel->filter_unresolved_button()->isChecked() && !panel->filter_unread_button()->isChecked(),
+			   "the comments drawer opens on the preferred filter");
+		expect(intents.empty(), "the comparison waits until the history offers a selection");
+
+		auto offered       = retained_epochs({ });
+		offered.Transition = application::epoch_transition_projection{ .Commands = enabled_epoch_commands() };
+		window.publish(offered);
+		process_events();
+		const auto named = std::ranges::find_if(intents, [](const application::epoch_intent& aIntent) {
+			const auto* const alias = std::get_if<core::select_named_comparison_intent>(&aIntent);
+			return alias != nullptr && alias->Alias == core::named_comparison::my_last_reviewed_to_latest;
+		});
+		expect(named != intents.end(), "once offered, the preferred named comparison is asked for exactly as the action asks");
+		const auto asked = intents.size();
+		window.publish(offered);
+		process_events();
+		expect(intents.size() == asked, "a later epoch publish does not ask again");
+	}
+
+	// [[BPR-0661]]. With "when fully seen", reaching the end of the shared
+	// scrollbar dispatches the file's own mark-read command once; by hand,
+	// never.
+	void test_mark_read_when_fully_seen_dispatches_once_at_the_end_of_the_comparison()
+	{
+		const auto [leftText, rightText] = comparison_fixture_text();
+		const auto           diff        = computed_comparison(leftText, rightText);
+		intent_log           log;
+		qt::workbench_window window;
+		window.set_receipt_dispatch([&log](core::file_receipt_command aCommand) { log.Receipt.push_back(std::move(aCommand)); });
+		window.resize(1'280, 1'040);
+		window.show();
+		process_events();
+		auto* const surface = publish_fixture(window, diff);
+		const auto  receipt = core::file_receipt{
+			.File     = core::file_identity_of("review.cpp"),
+			.Material = file_material(73U),
+		};
+		window.publish(application::project_file_receipt_actions(receipt));
+		process_events();
+		expect(window.read_action()->isEnabled() && surface->shared_scrollbar()->maximum() > 0,
+			   "the file can be marked read and the comparison has travel");
+		auto behaviour      = application::workbench_projection{ };
+		behaviour.Behaviour = application::review_behaviour_settings{
+			.MarkRead = application::review_mark_read_behaviour::when_fully_seen,
+		};
+		window.publish(behaviour);
+		process_events();
+		expect(log.Receipt.empty(), "a comparison not yet scrolled to its end marks nothing");
+		auto* const shared = surface->shared_scrollbar();
+		shared->setValue(shared->maximum());
+		process_events();
+		expect(log.Receipt == std::vector{ core::file_receipt_command{
+				   .File     = receipt.File,
+				   .Material = receipt.Material,
+				   .Kind     = core::file_receipt_command_kind::mark_read,
+			   } },
+			   "reaching the end dispatches the file's own mark-read command");
+		shared->setValue(0);
+		shared->setValue(shared->maximum());
+		process_events();
+		expect(log.Receipt.size() == 1U, "the same file and material is marked once");
+		behaviour.Behaviour = application::review_behaviour_settings{ };
+		window.publish(behaviour);
+		auto another     = receipt;
+		another.Material = file_material(74U);
+		window.publish(application::project_file_receipt_actions(another));
+		shared->setValue(0);
+		shared->setValue(shared->maximum());
+		process_events();
+		expect(log.Receipt.size() == 1U, "by hand, reaching the end marks nothing");
+		window.hide();
+	}
+
 	void test_saved_repository_gestures_round_trip_through_the_dispatch()
 	{
 		qt::workbench_window window;
@@ -5123,6 +5347,10 @@ auto main(int argc, char** argv) -> int
 	test_queue_rule_gestures_wait_for_the_accepted_projection();
 	test_queue_rule_selection_survives_unrelated_projection();
 	test_saved_repository_gestures_round_trip_through_the_dispatch();
+	test_review_behaviour_rows_dispatch_follow_the_projection_and_reset_by_group();
+	test_continue_review_and_opening_honour_the_modality_preferences();
+	test_comments_filter_and_return_comparison_preferences_apply_on_open();
+	test_mark_read_when_fully_seen_dispatches_once_at_the_end_of_the_comparison();
 	test_queue_filter_controls_are_accessible_incremental_and_focus_stable();
 	test_notification_activation_selects_only_an_exact_visible_queue_row();
 	test_large_queue_filters_through_the_composed_window();

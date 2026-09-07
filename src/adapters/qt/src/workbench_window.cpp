@@ -20,6 +20,7 @@
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
+#include <QButtonGroup>
 #include <QCheckBox>
 #include <QClipboard>
 #include <QComboBox>
@@ -38,6 +39,7 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QSizePolicy>
 #include <QSpinBox>
 #include <QSplitter>
@@ -854,6 +856,12 @@ namespace bpr::qt {
 				return ConversationPanel->cards()->viewport()->mapFrom(this, inWindow).y();
 			});
 		ComparisonSurface->set_frame_observer([this] { refresh_cards(); });
+		// [[BPR-0661]]. A file marks itself read once fully seen only when the
+		// preference says so; the shared scrollbar is what says "fully".
+		if (auto* const scrollbar = ComparisonSurface->shared_scrollbar(); scrollbar != nullptr) {
+			connect(scrollbar, &QScrollBar::valueChanged, this, [this](int) { consider_mark_read_when_fully_seen(); });
+			connect(scrollbar, &QScrollBar::rangeChanged, this, [this](int, int) { consider_mark_read_when_fully_seen(); });
+		}
 		ConversationPanel->cards()->set_action_dispatch(
 			[this](const card_action aAction, const std::string& aIdentity) {
 				switch (aAction) {
@@ -1344,6 +1352,7 @@ namespace bpr::qt {
 		reviewsSubtitle->setObjectName(QStringLiteral("reviewsSubtitle"));
 		reviewsSubtitle->setWordWrap(true);
 		reviewsColumn->addWidget(reviewsSubtitle);
+		build_behaviour_editor(reviews, reviewsColumn);
 		auto* const rulesHeading = new QLabel{ QStringLiteral("Observer rules"), reviews };
 		rulesHeading->setObjectName(QStringLiteral("reviewsRulesHeading"));
 		auto headingFont = rulesHeading->font();
@@ -2280,6 +2289,11 @@ namespace bpr::qt {
 			LayoutWidths = *aProjection.Layout;
 			++Statistics.LayoutUpdates;
 		}
+		if (aProjection.Behaviour) {
+			Behaviour = *aProjection.Behaviour;
+			apply_behaviour_controls();
+			consider_mark_read_when_fully_seen();
+		}
 		if (aProjection.Drawers || aProjection.Layout) {
 			apply_drawer_layout();
 		}
@@ -2375,6 +2389,7 @@ namespace bpr::qt {
 		// The composed control owns every review-history decision, so the update
 		// reaches it unchanged and the shell only quotes the wording it produced.
 		EpochSelectors->publish(aUpdate);
+		honour_return_comparison();
 		HasEpochState = true;
 		++Statistics.EpochUpdates;
 		update_status_text();
@@ -2406,6 +2421,7 @@ namespace bpr::qt {
 		LedgerUnavailable = false;
 		++Statistics.ReceiptUpdates;
 		update_receipt_actions();
+		consider_mark_read_when_fully_seen();
 		update_status_text();
 		announce_update();
 	}
@@ -2715,6 +2731,11 @@ namespace bpr::qt {
 		if (Modality != nullptr) {
 			Modality->adopt(aModality);
 		}
+		// [[BPR-0661]]. "Last used" is the modality chosen while a pull
+		// request was open.
+		if (HasGithubPullRequest) {
+			LastUsedModality = aModality;
+		}
 		ModalityChosen = true;
 		apply_modality_surface();
 		if (HomeRequested) {
@@ -2931,7 +2952,287 @@ namespace bpr::qt {
 		if (const auto file = file_for_path(aPath); file.has_value() && Dispatch) {
 			Dispatch(core::select_workbench_file_intent{ .File = *file });
 		}
-		choose_modality(review_modality::read);
+		// [[BPR-0661]]. Read unless the reviewer asked Continue review to
+		// enter Review.
+		choose_modality(Behaviour.ContinueModality == application::review_continue_modality::review
+							? review_modality::review
+							: review_modality::read);
+	}
+
+	void workbench_window::set_behaviour_dispatch(review_behaviour_dispatch aDispatch)
+	{
+		BehaviourDispatch = std::move(aDispatch);
+	}
+
+	auto workbench_window::behaviour() const noexcept -> const application::review_behaviour_settings&
+	{
+		return Behaviour;
+	}
+
+	auto workbench_window::behaviour_editor() const noexcept -> QWidget*
+	{
+		return BehaviourEditor;
+	}
+
+	// [[BPR-0661]]. Two groups of segmented rows: the modality rules (which
+	// modality a pull request opens in; which one Continue review enters) and
+	// the reading behaviour (when a file is marked read; the comparison on
+	// return; the comments drawer's first filter). Each group resets on its
+	// own. A row dispatches the whole record; the host validates, persists and
+	// publishes it, and the page follows what is published, so a refused
+	// record reverts.
+	void workbench_window::build_behaviour_editor(QWidget* const aPage, QVBoxLayout* const aColumn)
+	{
+		BehaviourEditor = new QWidget{ aPage };
+		BehaviourEditor->setObjectName(QStringLiteral("reviewBehaviourEditor"));
+		BehaviourEditor->setAccessibleName(QStringLiteral("Review behaviour"));
+		auto* const column = new QVBoxLayout{ BehaviourEditor };
+		column->setContentsMargins(0, 0, 0, 0);
+		column->setSpacing(6);
+
+		struct option
+		{
+			QString Label;
+			QString Name;
+		};
+		struct row
+		{
+			std::size_t         Index;
+			QString             Label;
+			QString             Name;
+			std::vector<option> Options;
+		};
+		const auto addGroup = [this, column](const QString&          aHeading,
+											 const QString&          aResetName,
+											 const std::vector<row>& aRows,
+											 auto                    aReset) {
+			auto* const headingRow = new QHBoxLayout{ };
+			auto* const heading    = new QLabel{ aHeading, BehaviourEditor };
+			heading->setObjectName(aResetName + QStringLiteral("Heading"));
+			headingRow->addWidget(heading, 1);
+			auto* const reset = new QToolButton{ BehaviourEditor };
+			reset->setObjectName(aResetName);
+			reset->setText(QStringLiteral("Reset"));
+			reset->setAccessibleName(QStringLiteral("Reset %1").arg(aHeading.toLower()));
+			reset->setAccessibleDescription(
+				QStringLiteral("Returns this group to its defaults; the other group is left alone"));
+			reset->setFocusPolicy(Qt::StrongFocus);
+			connect(reset, &QToolButton::clicked, this, [this, aReset] {
+				if (!BehaviourDispatch) {
+					return;
+				}
+				auto next = behaviour_from_controls();
+				aReset(next);
+				BehaviourDispatch(next);
+			});
+			headingRow->addWidget(reset);
+			column->addLayout(headingRow);
+			for (const auto& one : aRows) {
+				auto* const line  = new QHBoxLayout{ };
+				auto* const label = new QLabel{ one.Label, BehaviourEditor };
+				label->setObjectName(one.Name + QStringLiteral("Label"));
+				label->setMinimumWidth(180);
+				line->addWidget(label);
+				auto& buttons = BehaviourOptions[one.Index];
+				// One exclusive group per row: autoExclusive would make every
+				// button under the editor one group.
+				auto* const group = new QButtonGroup{ BehaviourEditor };
+				group->setExclusive(true);
+				for (const auto& choice : one.Options) {
+					auto* const button = new QToolButton{ BehaviourEditor };
+					button->setObjectName(choice.Name);
+					button->setText(choice.Label);
+					button->setAccessibleName(one.Label + QStringLiteral(": ") + choice.Label);
+					button->setCheckable(true);
+					group->addButton(button);
+					button->setFocusPolicy(Qt::StrongFocus);
+					connect(button, &QToolButton::toggled, this, [this](const bool aChecked) {
+						if (aChecked && !ApplyingBehaviour) {
+							dispatch_behaviour_from_controls();
+						}
+					});
+					line->addWidget(button);
+					buttons.push_back(button);
+				}
+				line->addStretch(1);
+				column->addLayout(line);
+			}
+		};
+		addGroup(
+			QStringLiteral("Modality rules"),
+			QStringLiteral("resetModalityRules"),
+			{
+				row{ 0U,
+					 QStringLiteral("A pull request opens in"),
+					 QStringLiteral("openModality"),
+					 { { QStringLiteral("Overview"), QStringLiteral("openModalityOverview") },
+					   { QStringLiteral("Read"), QStringLiteral("openModalityRead") },
+					   { QStringLiteral("Last used"), QStringLiteral("openModalityLastUsed") } } },
+				row{ 1U,
+					 QStringLiteral("Continue review enters"),
+					 QStringLiteral("continueModality"),
+					 { { QStringLiteral("Read"), QStringLiteral("continueModalityRead") },
+					   { QStringLiteral("Review"), QStringLiteral("continueModalityReview") } } },
+			},
+			[](application::review_behaviour_settings& aNext) {
+				aNext.OpenModality     = application::review_behaviour_settings{ }.OpenModality;
+				aNext.ContinueModality = application::review_behaviour_settings{ }.ContinueModality;
+			});
+		addGroup(
+			QStringLiteral("Reading"),
+			QStringLiteral("resetReadingBehaviour"),
+			{
+				row{ 2U,
+					 QStringLiteral("Mark a file read"),
+					 QStringLiteral("markRead"),
+					 { { QStringLiteral("By hand"), QStringLiteral("markReadByHand") },
+					   { QStringLiteral("When fully seen"), QStringLiteral("markReadWhenFullySeen") } } },
+				row{ 3U,
+					 QStringLiteral("On return, compare"),
+					 QStringLiteral("returnComparison"),
+					 { { QStringLiteral("Whole PR"), QStringLiteral("returnComparisonWholePr") },
+					   { QStringLiteral("Since my last review"), QStringLiteral("returnComparisonSinceLastReview") },
+					   { QStringLiteral("Since last upload"), QStringLiteral("returnComparisonSinceLastUpload") } } },
+				row{ 4U,
+					 QStringLiteral("Comments drawer opens on"),
+					 QStringLiteral("commentsFilter"),
+					 { { QStringLiteral("All"), QStringLiteral("commentsFilterAll") },
+					   { QStringLiteral("Unread"), QStringLiteral("commentsFilterUnread") },
+					   { QStringLiteral("Unresolved"), QStringLiteral("commentsFilterUnresolved") } } },
+			},
+			[](application::review_behaviour_settings& aNext) {
+				aNext.MarkRead         = application::review_behaviour_settings{ }.MarkRead;
+				aNext.ReturnComparison = application::review_behaviour_settings{ }.ReturnComparison;
+				aNext.CommentsFilter   = application::review_behaviour_settings{ }.CommentsFilter;
+			});
+		aColumn->addWidget(BehaviourEditor);
+		apply_behaviour_controls();
+	}
+
+	void workbench_window::apply_behaviour_controls()
+	{
+		if (BehaviourEditor == nullptr) {
+			return;
+		}
+		ApplyingBehaviour = true;
+		const auto check  = [this](const std::size_t aRow, const std::size_t aChoice) {
+			auto& buttons = BehaviourOptions[aRow];
+			if (aChoice < buttons.size()) {
+				buttons[aChoice]->setChecked(true);
+			}
+		};
+		check(0U, static_cast<std::size_t>(Behaviour.OpenModality));
+		check(1U, static_cast<std::size_t>(Behaviour.ContinueModality));
+		check(2U, static_cast<std::size_t>(Behaviour.MarkRead));
+		check(3U, static_cast<std::size_t>(Behaviour.ReturnComparison));
+		check(4U, static_cast<std::size_t>(Behaviour.CommentsFilter));
+		ApplyingBehaviour = false;
+	}
+
+	auto workbench_window::behaviour_from_controls() const -> application::review_behaviour_settings
+	{
+		const auto chosen = [this](const std::size_t aRow) -> std::size_t {
+			const auto& buttons = BehaviourOptions[aRow];
+			for (std::size_t index = 0U; index < buttons.size(); ++index) {
+				if (buttons[index]->isChecked()) {
+					return index;
+				}
+			}
+			return 0U;
+		};
+		return application::review_behaviour_settings{
+			.OpenModality     = static_cast<application::review_open_modality>(chosen(0U)),
+			.ContinueModality = static_cast<application::review_continue_modality>(chosen(1U)),
+			.MarkRead         = static_cast<application::review_mark_read_behaviour>(chosen(2U)),
+			.ReturnComparison = static_cast<application::review_return_comparison>(chosen(3U)),
+			.CommentsFilter   = static_cast<application::review_comments_filter>(chosen(4U)),
+		};
+	}
+
+	void workbench_window::dispatch_behaviour_from_controls()
+	{
+		if (!BehaviourDispatch) {
+			return;
+		}
+		const auto next = behaviour_from_controls();
+		if (next != Behaviour) {
+			BehaviourDispatch(next);
+		}
+	}
+
+	auto workbench_window::opening_modality() const -> review_modality
+	{
+		switch (Behaviour.OpenModality) {
+		case application::review_open_modality::read:
+			return review_modality::read;
+		case application::review_open_modality::last_used:
+			return LastUsedModality.value_or(review_modality::overview);
+		case application::review_open_modality::overview:
+			break;
+		}
+		return review_modality::overview;
+	}
+
+	void workbench_window::apply_first_comments_filter()
+	{
+		if (ConversationPanel != nullptr) {
+			ConversationPanel->apply_first_filter(Behaviour.CommentsFilter);
+		}
+	}
+
+	// The named comparison is dispatched through the control's own action,
+	// which is what carries the catalog revision the core expects; until the
+	// history offers it the preference waits, and a later epoch publish asks
+	// again.
+	void workbench_window::honour_return_comparison()
+	{
+		if (!ReturnComparisonPending || EpochSelectors == nullptr) {
+			return;
+		}
+		auto* const action = Behaviour.ReturnComparison
+				== application::review_return_comparison::since_last_review
+			? EpochSelectors->last_reviewed_action()
+			: Behaviour.ReturnComparison == application::review_return_comparison::since_last_upload
+			? EpochSelectors->previous_upload_action()
+			: nullptr;
+		if (action == nullptr) {
+			ReturnComparisonPending = false;
+			return;
+		}
+		if (!action->isEnabled()) {
+			return;
+		}
+		ReturnComparisonPending = false;
+		if (!action->isChecked()) {
+			action->trigger();
+		}
+	}
+
+	// "Fully seen" is the shared scrollbar at its end (or nothing to scroll)
+	// with a comparison shown; the file's own mark-read command is dispatched
+	// once per file and material, only while the ledger offers it.
+	void workbench_window::consider_mark_read_when_fully_seen()
+	{
+		if (Behaviour.MarkRead != application::review_mark_read_behaviour::when_fully_seen
+			|| !ReceiptDispatch || !Receipt.has_value() || ComparisonSurface == nullptr
+			|| ComparisonSurface->current_result() == nullptr) {
+			return;
+		}
+		const auto* const scrollbar = ComparisonSurface->shared_scrollbar();
+		if (scrollbar == nullptr || scrollbar->value() < scrollbar->maximum()) {
+			return;
+		}
+		for (const auto& action : Receipt->Actions) {
+			if (action.Command.Kind != core::file_receipt_command_kind::mark_read || !action.Enabled) {
+				continue;
+			}
+			if (MarkedReadWhenSeen == std::optional{ action.Command }) {
+				return;
+			}
+			MarkedReadWhenSeen = action.Command;
+			ReceiptDispatch(action.Command);
+			return;
+		}
 	}
 
 	auto workbench_window::file_for_path(const QString& aPath) const
@@ -3428,8 +3729,17 @@ namespace bpr::qt {
 		// opens on its overview, as the design says it does.
 		if (OpenOnOverview) {
 			OpenOnOverview = false;
-			choose_modality(review_modality::overview);
+			// [[BPR-0661]]. The modality is the reviewer's preference: the
+			// overview the design opens on, Read, or the one last used here.
+			choose_modality(opening_modality());
 		}
+		// [[BPR-0661]]. The drawer's first filter and the comparison on return
+		// are the reviewer's preferences too; the comparison waits until the
+		// history offers it.
+		apply_first_comments_filter();
+		ReturnComparisonPending = Behaviour.ReturnComparison
+			!= application::review_return_comparison::whole_pr;
+		honour_return_comparison();
 		SessionPanel->apply_capabilities(aPullRequest.Capabilities);
 		SessionPanel->apply_rate_limits(aPullRequest.RateLimits);
 		update_github_presentation_state();
