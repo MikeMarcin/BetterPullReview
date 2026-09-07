@@ -2382,7 +2382,7 @@ namespace bpr::qt {
 				.Hostname = SavedServerHostname != nullptr
 					? SavedServerHostname->text().trimmed().toLower().toStdString()
 					: std::string{ },
-				.Account = SavedServerAccount != nullptr
+				.Account  = SavedServerAccount != nullptr
 					? SavedServerAccount->text().trimmed().toStdString()
 					: std::string{ },
 			}));

@@ -4893,7 +4893,7 @@ namespace {
 				   && !window.forget_saved_server_action()->isEnabled(),
 			   "before a ready projection neither Remember nor Forget is offered");
 
-		const auto kept = application::saved_server{ .Hostname = "ghe.example.com", .Account = "reviewer" };
+		const auto kept       = application::saved_server{ .Hostname = "ghe.example.com", .Account = "reviewer" };
 		auto       projection = application::queue_landing_projection{
 			.Status = application::queue_landing_status::ready,
 		};

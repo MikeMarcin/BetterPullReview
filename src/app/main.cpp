@@ -984,7 +984,7 @@ namespace {
 		// [[BPR-0661]]. `--review-behaviour`.
 		bool ReviewBehaviourRequested = false;
 		// [[BPR-0660]]. `--saved-server`.
-		bool SavedServerRequested = false;
+		bool SavedServerRequested     = false;
 		bool DefectCompositionStarted = false;
 		bool DefectCompositionPassed  = false;
 		bpr::app::detail::defect_composition_probe_evidence
@@ -6416,7 +6416,7 @@ namespace {
 					= window.findChild<QComboBox*>(QStringLiteral("githubProfileSelector"));
 				const auto offered = profiles != nullptr
 					&& profiles->findText(QStringLiteral("ghe.kept.example"), Qt::MatchContains) >= 0;
-				const auto passed  = kept && (seed || offered);
+				const auto passed = kept && (seed || offered);
 				QTextStream{ stdout } << (seed ? "SAVED_SERVER_SEEDED" : "SAVED_SERVER")
 									  << ":host=ghe.kept.example:kept=" << (kept ? 1 : 0)
 									  << ":offered=" << (offered ? 1 : 0) << '\n';

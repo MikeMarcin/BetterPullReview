@@ -319,7 +319,7 @@ namespace bpr::qt {
 		void set_queue_preferences_dispatch(
 			workbench_queue_preferences_dispatch aDispatch);
 		/// \brief Where Save and Forget go, from the tree and from Settings.
-		void               set_saved_repository_dispatch(workbench_saved_repository_dispatch aDispatch);
+		void set_saved_repository_dispatch(workbench_saved_repository_dispatch aDispatch);
 		/// \brief [[BPR-0660]]. Receives the enterprise servers the reviewer keeps.
 		void               set_saved_server_dispatch(workbench_saved_server_dispatch aDispatch);
 		[[nodiscard]] auto enterprise_servers_editor() const noexcept -> QWidget*;

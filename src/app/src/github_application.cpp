@@ -3588,7 +3588,7 @@ namespace bpr::app {
 			// and never a token, so the server is offered and the sign-in
 			// is still the device flow.
 			{
-				auto servers = adapters::sqlite::make_queue_enrollment_store({
+				auto servers  = adapters::sqlite::make_queue_enrollment_store({
 					.StorageRoot = applicationDataRoot,
 				});
 				auto restored = servers != nullptr

@@ -2,10 +2,10 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <cstddef>
 #include <memory>
 #include <stop_token>
-#include <cctype>
 #include <utility>
 
 namespace bpr::application {
@@ -20,8 +20,7 @@ namespace bpr::application {
 				   const auto byte = static_cast<unsigned char>(aCharacter);
 				   return std::isalnum(byte) != 0 || aCharacter == '-' || aCharacter == '.';
 			   })
-			&& aServer.Account.size() <= 128U
-			&& std::ranges::all_of(aServer.Account, [](const char aCharacter) {
+			&& aServer.Account.size() <= 128U && std::ranges::all_of(aServer.Account, [](const char aCharacter) {
 				   const auto byte = static_cast<unsigned char>(aCharacter);
 				   return byte > 0x20U && byte < 0x7FU;
 			   });
@@ -476,7 +475,7 @@ namespace bpr::application {
 			if (SavedServerMutationPending) {
 				return;
 			}
-			const auto known = std::ranges::find(SavedServers, aIntent.Server.Hostname, &saved_server::Hostname);
+			const auto known  = std::ranges::find(SavedServers, aIntent.Server.Hostname, &saved_server::Hostname);
 			const auto exists = known != SavedServers.end();
 			if ((aIntent.Action == saved_server_action::add && exists && *known == aIntent.Server)
 				|| (aIntent.Action == saved_server_action::remove && !exists)) {
@@ -980,7 +979,7 @@ namespace bpr::application {
 		std::vector<core::observer_rule>              Rules;
 		queue_presentation_preferences                Preferences;
 		std::vector<saved_repository>                 SavedRepositories;
-		std::vector<saved_server> SavedServers;
+		std::vector<saved_server>                     SavedServers;
 		std::optional<queue_presentation_preferences> QueuedPreferences;
 		std::vector<queue_activity_report>            Activity;
 		std::vector<outstanding_request>              Outstanding;
@@ -990,13 +989,13 @@ namespace bpr::application {
 		queue_landing_status                          Status = queue_landing_status::restoring;
 		review_queue_host_statistics                  Statistics;
 		std::shared_ptr<completion_gate>              Gate;
-		std::uint64_t                                 NextRequest               = 1U;
-		bool                                          Restored                  = false;
-		bool                                          Closing                   = false;
-		bool                                          RuleMutationPending       = false;
-		bool                                          PreferenceMutationPending = false;
-		bool                                          SavedMutationPending      = false;
-		bool SavedServerMutationPending = false;
+		std::uint64_t                                 NextRequest                = 1U;
+		bool                                          Restored                   = false;
+		bool                                          Closing                    = false;
+		bool                                          RuleMutationPending        = false;
+		bool                                          PreferenceMutationPending  = false;
+		bool                                          SavedMutationPending       = false;
+		bool                                          SavedServerMutationPending = false;
 	};
 
 	review_queue_application_host::review_queue_application_host(

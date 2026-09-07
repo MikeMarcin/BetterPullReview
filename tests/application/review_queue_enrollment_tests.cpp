@@ -185,7 +185,7 @@ namespace {
 			return { };
 		}
 
-		std::size_t SavedChanges = 0U;
+		std::size_t SavedChanges       = 0U;
 		std::size_t SavedServerChanges = 0U;
 
 		application::durable_queue_state State;
@@ -793,7 +793,7 @@ namespace {
 		const auto session     = application::queue_session_id{
 			.Host = "github.com", .Account = "reviewer", .Generation = 4U
 		};
-		const auto ghe = application::saved_server{ .Hostname = "ghe.example.com", .Account = "reviewer" };
+		const auto ghe           = application::saved_server{ .Hostname = "ghe.example.com", .Account = "reviewer" };
 		store.State.SavedServers = { ghe };
 		auto host                = application::review_queue_application_host{
 			store, refresh, effects, decisions, projections, session
