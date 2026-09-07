@@ -846,6 +846,12 @@ namespace bpr::qt {
 					&QAbstractButton::clicked,
 					this,
 					[this, index] { Drawers[index].Toggle->trigger(); });
+			// [[BPR-0675]]. And the same gesture from the drawer's own
+			// control, which is where a reviewer looks for it.
+			connect(Drawers[index].Panel->collapse_button(),
+					&QAbstractButton::clicked,
+					this,
+					[this, index] { Drawers[index].Toggle->trigger(); });
 		}
 
 		// Route 2 of BPR-0191. The conversations drawer shows RFC-BPR-0002's
@@ -5666,9 +5672,13 @@ namespace bpr::qt {
 		const auto  expanded   = aState == core::workbench_drawer_state::expanded;
 		entry.Toggle->setChecked(expanded);
 		const auto enabledText = expanded ? entry.Collapse : entry.Expand;
+		// [[BPR-0675]]. A drawer's room is the reviewer's before the core has
+		// published any command at all: a pull request whose comparison never
+		// arrived publishes none, and the toggles were dead for exactly the
+		// reviewer who most wanted the room back.
 		describe_action(
 			entry.Toggle,
-			projection && projection->Enabled,
+			projection ? projection->Enabled : true,
 			enabledText,
 			drawer_reason_text(projection
 								   ? projection->DisabledReason

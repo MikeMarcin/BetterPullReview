@@ -15,6 +15,7 @@
 #include <optional>
 #include <vector>
 
+class QToolButton;
 class QLabel;
 class QListView;
 class QPaintEvent;
@@ -209,6 +210,8 @@ namespace bpr::qt {
 
 		/// \brief The rail shown while collapsed.
 		[[nodiscard]] auto rail() const noexcept -> workbench_drawer_rail*;
+		/// \brief [[BPR-0675]]. Gives this drawer's room back, from the drawer.
+		[[nodiscard]] auto collapse_button() const noexcept -> QToolButton*;
 
 	private:
 		core::workbench_drawer       Drawer;
@@ -219,6 +222,7 @@ namespace bpr::qt {
 		QWidget*                     ContentFocus = nullptr;
 		bool                         ListRetired  = false;
 		workbench_drawer_rail*       Rail         = nullptr;
+		QToolButton*                 Collapse     = nullptr;
 		core::workbench_drawer_state State        = core::workbench_drawer_state::expanded;
 	};
 } // namespace bpr::qt

@@ -831,13 +831,17 @@ namespace {
 				   "each drawer toggle is named, described, and focusable");
 		}
 
-		expect(!files->isEnabled() && !conversations->isEnabled(),
-			   "no published projection offers no drawer gesture");
+		// [[BPR-0675]]. With nothing open the window is Home, which has no
+		// drawers, so the strip does not show their toggles. The state that
+		// mattered to the owner, a pull request open whose comparison failed,
+		// is pinned in the composed suite: there the toggles are offered and
+		// each drawer carries its own collapse.
+		expect(!files->isVisible() && !conversations->isVisible(),
+			   "Home shows no drawer toggles, because Home has no drawers");
 		expect(files->toolTip()
 				   == QStringLiteral(
-					   "Open a pull request to use its review drawers."),
-			   "an unprojected drawer toggle carries the inactive-workbench "
-			   "reason");
+					   "Hide the file drawer and give its width to the comparison."),
+			   "and the toggle is described by what it does, not by a refusal");
 
 		auto       projection = both_files_enabled();
 		auto&      commands   = *projection.Commands;

@@ -661,19 +661,35 @@ namespace {
 			check_command_agreement(state);
 		}
 
-		const auto inactive = project_workbench_commands(workbench_interaction_state{ });
+		// [[BPR-0675]]. Every command except the three that give a drawer's
+		// room back: those are about the window, not about a comparison, and
+		// gating them left a reviewer unable to collapse a full drawer.
+		const auto     inactive      = project_workbench_commands(workbench_interaction_state{ });
+		constexpr auto drawerCommand = [](const workbench_command_id aId) {
+			return aId == workbench_command_id::toggle_files_drawer
+				|| aId == workbench_command_id::toggle_conversations_drawer
+				|| aId == workbench_command_id::toggle_repositories_drawer;
+		};
 		expect(std::ranges::none_of(inactive.Commands,
-									[](const workbench_command_projection& aCommand) {
-										return aCommand.Enabled;
+									[&drawerCommand](const workbench_command_projection& aCommand) {
+										return aCommand.Enabled && !drawerCommand(aCommand.Id);
 									}),
-			   "an inactive workbench disables every workbench command");
+			   "an inactive workbench disables every workbench command but its drawers");
+		expect(std::ranges::all_of(inactive.Commands,
+								   [&drawerCommand](const workbench_command_projection& aCommand) {
+									   return !drawerCommand(aCommand.Id) || aCommand.Enabled;
+								   }),
+			   "and offers all three of those");
 		expect(std::ranges::all_of(
 				   inactive.Commands,
-				   [](const workbench_command_projection& aCommand) {
-					   return aCommand.DisabledReason
-						   == workbench_reason_code::no_active_workbench;
+				   [&drawerCommand](const workbench_command_projection& aCommand) {
+					   return drawerCommand(aCommand.Id)
+						   ? aCommand.DisabledReason == workbench_reason_code::none
+						   : aCommand.DisabledReason
+							   == workbench_reason_code::no_active_workbench;
 				   }),
-			   "an inactive workbench explains every disabled command the same way");
+			   "an inactive workbench explains every disabled command the same way, and "
+			   "names no reason for the ones it offers");
 
 		expect(inactive
 					   .Commands[static_cast<std::size_t>(
@@ -802,13 +818,17 @@ namespace {
 			   "a malformed cursor is rejected without changing retained facts");
 
 		const auto cleared = observe_workbench_navigation(state, std::nullopt);
+		// Index 4 is the files drawer, which [[BPR-0675]] keeps offered
+		// through a deactivation; index 6 is the line numbers, which the
+		// deactivation still disables because there are no panes to number.
 		expect(cleared.Selection.has_value()
 				   && !cleared.Selection->Cursor.has_value()
 				   && cleared.Commands.has_value()
 				   && !cleared.Commands->Commands[0].Enabled
-				   && !cleared.Commands->Commands[4].Enabled
+				   && !cleared.Commands->Commands[6].Enabled
+				   && cleared.Commands->Commands[4].Enabled
 				   && !state.Navigation.has_value(),
-			   "an absent observation deactivates the workbench");
+			   "an absent observation deactivates the workbench and leaves its drawers");
 	}
 
 	auto test_change_observations() -> void
@@ -931,12 +951,28 @@ namespace {
 		expect(inactive.FilesDrawer == workbench_drawer_state::expanded
 				   && inactive.ConversationsDrawer == workbench_drawer_state::expanded,
 			   "both drawers start expanded");
-		const auto refused = transition(
+		// [[BPR-0675]]. A drawer holds the pull request's files, its threads
+		// and the reviewer's repositories, all of which exist before any
+		// comparison does, and the room it takes is the reviewer's to give
+		// back whenever they like. Refusing this left an owner with three
+		// full drawers, no way to collapse one, and two strip toggles that
+		// did nothing.
+		const auto collapsedWithoutASurface = transition(
 			inactive,
 			toggle_workbench_drawer_intent{ .Drawer = workbench_drawer::files });
-		expect(rejected(refused, workbench_reason_code::no_active_workbench)
-				   && inactive == workbench_interaction_state{ },
-			   "an inactive workbench refuses a drawer gesture");
+		expect(collapsedWithoutASurface.Reason == workbench_reason_code::none
+				   && collapsedWithoutASurface.Drawers.has_value()
+				   && collapsedWithoutASurface.Drawers->Files == workbench_drawer_state::collapsed
+				   && inactive.FilesDrawer == workbench_drawer_state::collapsed,
+			   "a drawer collapses with no comparison open");
+		expect(std::ranges::any_of(
+				   project_workbench_commands(inactive).Commands,
+				   [](const workbench_command_projection& aCommand) {
+					   return aCommand.Id == workbench_command_id::toggle_files_drawer
+						   && aCommand.Enabled;
+				   }),
+			   "and the command that does it is offered, not disabled");
+		inactive = workbench_interaction_state{ };
 
 		auto       state          = active(resident(2U, 3U));
 		const auto collapsedFiles = transition(

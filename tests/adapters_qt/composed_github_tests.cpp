@@ -2566,6 +2566,32 @@ namespace {
 		expect(window.status_text().contains(QStringLiteral("This pull request is open"))
 				   && window.status_text().contains(QStringLiteral("Refresh")),
 			   "it says what is true and names the way to try again");
+		// [[BPR-0675]]. The owner met three full drawers and two strip toggles
+		// that did nothing, because the core refused every drawer gesture
+		// without a comparison. The room a drawer takes is theirs to give back
+		// whenever they like, and the control is on the drawer.
+		auto* const files = window.files_drawer();
+		expect(files->collapse_button() != nullptr && files->collapse_button()->isVisible()
+				   && files->collapse_button()->accessibleName().contains(QStringLiteral("Files")),
+			   "the files drawer offers its own collapse, named");
+		expect(window.files_drawer_toggle_action()->isEnabled(),
+			   "and the strip's toggle is offered with no comparison open");
+		// The core owns the state, so what the window owes is the gesture. It
+		// leaves once from the drawer's control and once from the strip, for
+		// the drawer the reviewer pressed.
+		auto drawerGestures = std::vector<core::workbench_drawer>{ };
+		window.set_dispatch([&drawerGestures](core::workbench_interaction_intent aIntent) {
+			if (const auto* const toggle = std::get_if<core::toggle_workbench_drawer_intent>(&aIntent);
+				toggle != nullptr) {
+				drawerGestures.push_back(toggle->Drawer);
+			}
+		});
+		files->collapse_button()->click();
+		window.files_drawer_toggle_action()->trigger();
+		QApplication::processEvents();
+		expect(drawerGestures
+				   == std::vector{ core::workbench_drawer::files, core::workbench_drawer::files },
+			   "the drawer's own control and the strip send the same gesture for that drawer");
 		window.hide();
 	}
 

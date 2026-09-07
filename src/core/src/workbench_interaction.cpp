@@ -188,16 +188,25 @@ namespace bpr::core {
 			};
 		}
 
+		/// \brief [[BPR-0675]]. A drawer can always be collapsed.
+		///
+		/// \details A drawer is not the comparison. It holds the pull
+		/// request's files, its threads and the reviewer's repositories,
+		/// which exist whether or not a comparison could be prepared, and
+		/// the room it takes is the reviewer's to give back at any time.
+		/// This was gated on an active workbench, so a pull request whose
+		/// comparison failed left three drawers full of content that could
+		/// not be collapsed and two strip toggles that did nothing. Line
+		/// numbers keep the gate: there are no source panes to number.
 		[[nodiscard]] constexpr auto drawer_command(
-			const workbench_interaction_state& aState,
-			const workbench_command_id         aId) noexcept
+			const workbench_interaction_state&,
+			const workbench_command_id aId) noexcept
 			-> workbench_command_projection
 		{
-			const auto rejection = surface_rejection(aState);
 			return {
 				.Id             = aId,
-				.Enabled        = rejection == workbench_reason_code::none,
-				.DisabledReason = rejection,
+				.Enabled        = true,
+				.DisabledReason = workbench_reason_code::none,
 			};
 		}
 
@@ -280,11 +289,9 @@ namespace bpr::core {
 			const workbench_drawer_state aRequested)
 			-> workbench_interaction_output
 		{
-			const auto rejection = surface_rejection(aState);
-			if (rejection != workbench_reason_code::none) {
-				return { .Reason = rejection };
-			}
-
+			// [[BPR-0675]]. No surface rejection: see `drawer_command`. The
+			// gesture is about the room a drawer takes, not about what is
+			// being compared inside it.
 			auto& retained = drawer_state_of(aState, aDrawer);
 			if (retained == aRequested) {
 				return { };

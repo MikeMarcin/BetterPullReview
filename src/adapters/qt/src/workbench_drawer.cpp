@@ -4,6 +4,7 @@
 
 #include <QAbstractItemView>
 #include <QByteArray>
+#include <QHBoxLayout>
 #include <QHash>
 #include <QLabel>
 #include <QList>
@@ -12,6 +13,7 @@
 #include <QPainter>
 #include <QPen>
 #include <QSizePolicy>
+#include <QToolButton>
 #include <QVBoxLayout>
 #include <QVariant>
 
@@ -395,7 +397,24 @@ namespace bpr::qt {
 
 		auto* const column = new QVBoxLayout{ this };
 		column->setContentsMargins(0, 0, 0, 0);
-		column->addWidget(Heading);
+		// [[BPR-0675]]. The way to give a drawer's room back is on the drawer.
+		// It was two icons in the strip, unlabelled, for three drawers, and the
+		// owner who wrote the acceptance criterion could not find them.
+		Collapse = new QToolButton{ this };
+		Collapse->setObjectName(panel_object_name(aDrawer) + QStringLiteral("Collapse"));
+		Collapse->setText(QStringLiteral("Hide"));
+		Collapse->setToolButtonStyle(Qt::ToolButtonTextOnly);
+		Collapse->setAccessibleName(QStringLiteral("Hide the %1").arg(panel_name(aDrawer)));
+		Collapse->setAccessibleDescription(
+			QStringLiteral("Collapses this drawer to its rail; the rail brings it back."));
+		Collapse->setToolTip(Collapse->accessibleDescription());
+		Collapse->setFocusPolicy(Qt::StrongFocus);
+		auto* const headingRow = new QHBoxLayout;
+		headingRow->setContentsMargins(0, 0, 0, 0);
+		headingRow->setSpacing(6);
+		headingRow->addWidget(Heading, 1);
+		headingRow->addWidget(Collapse);
+		column->addLayout(headingRow);
 		column->addWidget(View, 1);
 		column->addWidget(Rail, 1);
 	}
@@ -461,6 +480,11 @@ namespace bpr::qt {
 		Content      = aWidget;
 		ContentFocus = aFocusStop != nullptr ? aFocusStop : aWidget;
 		aWidget->setVisible(State == core::workbench_drawer_state::expanded);
+	}
+
+	auto workbench_drawer_panel::collapse_button() const noexcept -> QToolButton*
+	{
+		return Collapse;
 	}
 
 	auto workbench_drawer_panel::rail() const noexcept -> workbench_drawer_rail*
