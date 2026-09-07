@@ -11,25 +11,25 @@
  },
  "page": {
   "path": "offline-package/index.html",
-  "digest": "sha256:115c0db537c71819a0bd638c69b6dc9d1f2dbef0a580f4ee66672175d321e9ae"
+  "digest": "sha256:752a4fc9a801f2f5ae1eed882dba676849f73422462000fa7dd23bd6acae15de"
  },
  "candidates": [
   {
    "id": "BPR-0646-workbench-chrome",
    "revision": "app-release-a066705f-head-8ba0cb52",
-   "fingerprint": "5dd49fcda263b2bd333c5b0f1899a04d85521554dfa3fe48d3c0ba11cb3d723d",
+   "fingerprint": "18bfa1ea8fd9d7b2b79363c94f3fbbd686cfd2a192ab277bec044c0176a598aa",
    "card": "docs/issues/40-parked/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md"
   },
   {
    "id": "BPR-0662-drawer-widths",
    "revision": "app-release-a066705f-head-8ba0cb52",
-   "fingerprint": "905097f1000e9157b237df84da236d276058ac7b7734c3d1f4156737fea42aad",
+   "fingerprint": "236d208b826ca1ca89f20a9ef6be073581ba20fd5b2911f25e0beef0861933b8",
    "card": "docs/issues/40-parked/BPR-0662-drawer-widths-survive-home-and-a-squeezed-splitter.md"
   },
   {
    "id": "BPR-0663-public-preview-epoch",
    "revision": "app-release-a066705f-head-8ba0cb52",
-   "fingerprint": "9a6329620a7d77729e99d200aa226febbc5e83469b87d8002f4cb1a9811da6cf",
+   "fingerprint": "22b4f9a8455b08efe674b06d57dcc7b0c8fc80f0df5bb57ecd918b2f353ade03",
    "card": "docs/issues/40-parked/BPR-0663-public-preview-refuses-the-epoch-smart-acquire.md"
   }
  ],

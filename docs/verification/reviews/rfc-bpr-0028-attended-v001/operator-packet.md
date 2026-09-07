@@ -11,9 +11,10 @@ reads and never writes.
   as recorded in [session-identity.json](session-identity.json), built at
   8ba0cb52 with tests disabled.
 - Review page: [offline-package/index.html](offline-package/index.html), or
-  ask for the live URL. Each candidate carries the command that opens the
-  build, with a Copy button; the page keeps your note, takes screenshots,
-  and lets you change or clear an answer.
+  ask for the live URL. Each candidate offers the command that opens the
+  build and the pull request link, both with Copy buttons. The page keeps
+  your note, takes a pasted screenshot, lets you change or clear an answer,
+  and has "Finish and hand back" when you are done.
 
 ## The run
 
@@ -23,8 +24,8 @@ Open the build with the command on the page, or:
 
 1. Quit the BetterPullReview already running. It is an older build.
 2. Stay signed out. On Home press "Read without signing in".
-3. Paste `https://github.com/microsoft/terminal/pull/20607` into the bar
-   above the queue and press Open.
+3. Copy the pull request link from the page and paste it into the bar above
+   the queue, then press Open.
 4. Wait for the pull request, then let the review history settle.
 5. Look at the window at its default size and again at about 1280x820.
 6. Afterwards, if the history fails again, read
