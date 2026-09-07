@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0662"
 title: "Drawer widths survive Home and a squeezed splitter"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
