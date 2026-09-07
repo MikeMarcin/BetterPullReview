@@ -57,6 +57,7 @@ class QToolButton;
 class QVBoxLayout;
 
 namespace bpr::qt {
+	class review_landing_delegate;
 	class diff_workbench;
 	class epoch_comparison_control;
 	// RFC-BPR-0012's two agent surfaces. Declared rather than included: the
@@ -403,6 +404,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto queue_filter_model() const noexcept
 			-> review_landing_filter_model*;
 		[[nodiscard]] auto queue_view() const noexcept -> QListView*;
+		/// \brief [[BPR-0650]]. Home's open bar and the action list's delegate.
+		[[nodiscard]] auto home_open_bar() const noexcept -> QLineEdit*;
+		[[nodiscard]] auto queue_delegate() const noexcept -> review_landing_delegate*;
 		/// \brief Selects and focuses one exact visible local-queue identity.
 		///
 		/// \details A hidden or absent identity reports a visible local failure and
@@ -650,6 +654,8 @@ namespace bpr::qt {
 		void rebind_device_authorization_profile();
 		void dispatch_queue_rule(application::queue_rule_action aAction);
 		void update_queue_rule_actions();
+		void open_pull_request_item(const core::queue_item& aItem);
+		void open_from_home_bar();
 		void build_saved_repositories_editor(QWidget* aParent, QVBoxLayout& aLayout);
 		void dispatch_saved_repository(application::saved_repository_action aAction);
 		void update_saved_repository_actions();
@@ -766,6 +772,8 @@ namespace bpr::qt {
 		QToolButton*                                               AddQueueRuleButton    = nullptr;
 		QToolButton*                                               RemoveQueueRuleButton = nullptr;
 		QLabel*                                                    QueueStatus           = nullptr;
+		QLineEdit*                                                 HomeOpenBar           = nullptr;
+		review_landing_delegate*                                   QueueDelegate         = nullptr;
 		std::vector<core::observer_rule>                           QueueRules;
 		application::queue_landing_projection                      QueueProjection;
 		workbench_saved_repository_dispatch                        SavedRepositoryDispatch;

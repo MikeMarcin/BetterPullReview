@@ -2,10 +2,13 @@
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_REVIEW_LANDING_MODEL_HPP
 
 #include "bpr/application/review_queue_enrollment.hpp"
+#include "bpr/core/github_model.hpp"
 #include "bpr/core/review_queue_attention.hpp"
 
 #include <QAbstractListModel>
+#include <QColor>
 #include <QSortFilterProxyModel>
+#include <QStyledItemDelegate>
 
 #include <optional>
 #include <span>
@@ -14,6 +17,32 @@
 namespace bpr::qt {
 	/// \brief Returns the bucket badge, readable without colour.
 	[[nodiscard]] auto badge_for(core::attention_bucket aBucket) -> QString;
+
+	/// \brief Home's three groups ([[BPR-0650]]): what needs me, what waits
+	/// on somebody else, and what I follow.
+	enum class home_group : std::uint8_t {
+		needs_you,
+		waiting_on_others,
+		following,
+	};
+
+	/// \brief Which of Home's groups a bucket belongs to.
+	///
+	/// \details The first four buckets are the ones that need me, exactly
+	/// the set the repositories drawer marks amber; authored-and-waiting is
+	/// waiting on others; observed activity and quiet are following.
+	[[nodiscard]] auto home_group_of(core::attention_bucket aBucket) noexcept -> home_group;
+	/// \brief The group's heading, first person and one line.
+	[[nodiscard]] auto home_group_label(home_group aGroup) -> QString;
+
+	/// \brief Reads "owner/name#123", "owner/name/pull/123" or a pull request
+	/// link into the open intent the locator would send ([[BPR-0650]]).
+	///
+	/// \details Any host is accepted in a link; the host the intent is sent
+	/// to is the active profile's, as it is for the locator. Nothing else
+	/// parses: a bare number names no repository.
+	[[nodiscard]] auto parse_pull_request_locator(const QString& aText)
+		-> std::optional<core::open_pull_request_intent>;
 
 	/// \brief Returns the sentence saying why an item is in the queue.
 	///
@@ -41,6 +70,13 @@ namespace bpr::qt {
 			repository_role,
 			number_role,
 			bucket_role,
+			/// [[BPR-0650]]. The action list's columns: title, author, my
+			/// role, the group the row is in, and the unread dot.
+			title_role,
+			author_role,
+			role_role,
+			group_role,
+			unseen_role,
 		};
 
 		explicit review_landing_model(QObject* aParent = nullptr);
@@ -82,6 +118,35 @@ namespace bpr::qt {
 	/// run only when the reviewer selects one. Qt's proxy mapping retains stable
 	/// source identity and emits incremental filter/layout signals rather than a
 	/// routine model reset.
+	/// \brief Draws Home's action list ([[BPR-0650]]).
+	///
+	/// \details One row per pull request: "repository #n", the title, the
+	/// one-word reason (amber when it needs me), the author and my role;
+	/// a group heading above the first row of each group. It reads the
+	/// model's roles and decides nothing; the group order is the core's
+	/// bucket order, which is what the priority sort gives.
+	class review_landing_delegate final : public QStyledItemDelegate
+	{
+	public:
+		explicit review_landing_delegate(QObject* aParent = nullptr);
+
+		void paint(QPainter* aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const
+			override;
+		[[nodiscard]] auto sizeHint(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const
+			-> QSize override;
+		/// \brief True when the row is the first of its group and carries the heading.
+		[[nodiscard]] static auto heads_group(const QModelIndex& aIndex) -> bool;
+		void                      set_marker(const QColor& aMarker);
+		void                      set_accent(const QColor& aAccent);
+
+		static constexpr int row_height     = 26;
+		static constexpr int heading_height = 22;
+
+	private:
+		QColor Marker{ 0xD2, 0x99, 0x22 };
+		QColor Accent{ 0x09, 0x69, 0xDA };
+	};
+
 	class review_landing_filter_model final : public QSortFilterProxyModel
 	{
 	public:

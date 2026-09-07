@@ -815,22 +815,7 @@ namespace bpr::qt {
 				}
 			});
 		RepositoriesTree->set_open_dispatch([this](const core::queue_item& aItem) {
-			if (!GithubDispatch) {
-				return;
-			}
-			const auto repository = QString::fromStdString(aItem.Ref.Repository);
-			const auto slash      = repository.indexOf(QLatin1Char{ '/' });
-			if (slash <= 0 || aItem.Ref.Number <= 0) {
-				return;
-			}
-			OpenOnOverview = true;
-			GithubDispatch(core::open_pull_request_intent{
-				.Repository = core::repository_locator{
-					.Owner = repository.left(slash).toStdString(),
-					.Name  = repository.mid(slash + 1).toStdString(),
-				},
-				.Number = core::pull_request_number{ static_cast<std::uint32_t>(aItem.Ref.Number) },
-			});
+			open_pull_request_item(aItem);
 		});
 		Drawers[2].Panel->set_content_widget(RepositoriesTree, RepositoriesTree);
 		// [[BPR-0646]]. A rail is the collapsed drawer's one control, and
@@ -1179,6 +1164,21 @@ namespace bpr::qt {
 		// give it. The files drawer holds files.
 		if (auto* const homeColumn = qobject_cast<QVBoxLayout*>(HomePage->layout());
 			homeColumn != nullptr) {
+			// [[BPR-0650]]. Open by link or owner/name#number, in the bar
+			// above the list: the same intent the locator sends, and the
+			// pull request arrives on Overview.
+			HomeOpenBar = new QLineEdit{ HomePage };
+			HomeOpenBar->setObjectName(QStringLiteral("homeOpenBar"));
+			HomeOpenBar->setAccessibleName(QStringLiteral("Open a pull request"));
+			HomeOpenBar->setAccessibleDescription(QStringLiteral(
+				"Type a pull request link or owner/name#number and press Return to open it on its overview"));
+			HomeOpenBar->setPlaceholderText(QStringLiteral("Open by link or owner/name#number"));
+			HomeOpenBar->setClearButtonEnabled(true);
+			auto* const openRow = new QHBoxLayout{ };
+			openRow->setContentsMargins(24, 8, 24, 0);
+			openRow->addWidget(HomeOpenBar, 1);
+			homeColumn->addLayout(openRow);
+			connect(HomeOpenBar, &QLineEdit::returnPressed, this, [this] { open_from_home_bar(); });
 			auto* const queueHeading = new QLabel{ QStringLiteral("Review queue"), HomePage };
 			queueHeading->setObjectName(QStringLiteral("workbenchHomeQueueHeading"));
 			queueHeading->setContentsMargins(24, 12, 24, 4);
@@ -1193,6 +1193,10 @@ namespace bpr::qt {
 				landing->setMaximumHeight(QWIDGETSIZE_MAX);
 				landing->setContentsMargins(24, 0, 24, 12);
 				homeColumn->setStretchFactor(landing, 1);
+			}
+			// The list had the drawer's 84-pixel bound; Home gives it the room.
+			if (QueueView != nullptr) {
+				QueueView->setMaximumHeight(QWIDGETSIZE_MAX);
 			}
 		}
 		// Only the centre absorbs a window resize, so a drawer keeps the width the
@@ -1549,6 +1553,23 @@ namespace bpr::qt {
 			"Pull requests enrolled by a GitHub role or a local observer rule"));
 		QueueView->setModel(QueueFilterModel);
 		QueueView->setMaximumHeight(84);
+		// [[BPR-0650]]. Home's action list: the grouped rows are this
+		// delegate's drawing of the same decided queue; a click or Return
+		// on a row opens its pull request on Overview, as a row of the
+		// repositories tree does.
+		QueueDelegate = new review_landing_delegate{ QueueView };
+		QueueView->setItemDelegate(QueueDelegate);
+		QueueView->setUniformItemSizes(false);
+		connect(QueueView, &QAbstractItemView::clicked, this, [this](const QModelIndex& aIndex) {
+			if (const auto item = QueueFilterModel->item_at(aIndex); item.has_value()) {
+				open_pull_request_item(*item);
+			}
+		});
+		connect(QueueView, &QAbstractItemView::activated, this, [this](const QModelIndex& aIndex) {
+			if (const auto item = QueueFilterModel->item_at(aIndex); item.has_value()) {
+				open_pull_request_item(*item);
+			}
+		});
 		layout->addWidget(QueueView);
 
 		auto* const primaryFilters = new QHBoxLayout{ };
@@ -3857,6 +3878,52 @@ namespace bpr::qt {
 	auto workbench_window::queue_view() const noexcept -> QListView*
 	{
 		return QueueView;
+	}
+
+	auto workbench_window::home_open_bar() const noexcept -> QLineEdit*
+	{
+		return HomeOpenBar;
+	}
+
+	auto workbench_window::queue_delegate() const noexcept -> review_landing_delegate*
+	{
+		return QueueDelegate;
+	}
+
+	void workbench_window::open_pull_request_item(const core::queue_item& aItem)
+	{
+		if (!GithubDispatch) {
+			return;
+		}
+		const auto repository = QString::fromStdString(aItem.Ref.Repository);
+		const auto slash      = repository.indexOf(QLatin1Char{ '/' });
+		if (slash <= 0 || aItem.Ref.Number <= 0) {
+			return;
+		}
+		// [[BPR-0651]] [[BPR-0650]]. A pull request chosen from a list
+		// arrives on Overview.
+		OpenOnOverview = true;
+		GithubDispatch(core::open_pull_request_intent{
+			.Repository = core::repository_locator{
+				.Owner = repository.left(slash).toStdString(),
+				.Name  = repository.mid(slash + 1).toStdString(),
+			},
+			.Number = core::pull_request_number{ static_cast<std::uint32_t>(aItem.Ref.Number) },
+		});
+	}
+
+	void workbench_window::open_from_home_bar()
+	{
+		if (HomeOpenBar == nullptr || !GithubDispatch) {
+			return;
+		}
+		const auto intent = parse_pull_request_locator(HomeOpenBar->text());
+		if (!intent.has_value()) {
+			return;
+		}
+		OpenOnOverview = true;
+		GithubDispatch(*intent);
+		HomeOpenBar->clear();
 	}
 
 	auto workbench_window::select_queue_item(

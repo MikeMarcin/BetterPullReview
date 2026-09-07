@@ -46,6 +46,7 @@
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
 
+#include <QKeyEvent>
 #include <QMouseEvent>
 
 #include <algorithm>
@@ -2483,6 +2484,110 @@ namespace {
 		window.hide();
 	}
 
+	// [[BPR-0650]]. Home's action list: rows grouped under their headings
+	// with the columns the design names, a click opening the pull request on
+	// Overview, and the open bar sending the locator's intent.
+	auto test_home_action_list_opens_rows_and_the_bar_on_overview() -> void
+	{
+		std::vector<application::github_intent> intents;
+		qt::workbench_window                    window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			profiles(),
+			[&intents](application::github_intent aIntent) {
+				intents.push_back(aIntent);
+			},
+		};
+		window.resize(1'280, 820);
+		window.show();
+		QApplication::processEvents();
+		publish_session_ready(window);
+		QApplication::processEvents();
+		expect(window.showing_home() && window.home_open_bar() != nullptr
+				   && window.home_page()->isAncestorOf(window.home_open_bar())
+				   && window.home_page()->isAncestorOf(window.queue_view())
+				   && window.queue_view()->maximumHeight() == QWIDGETSIZE_MAX,
+			   "Home carries the open bar and the list, with the list given room");
+		auto needsMe = core::queue_item{
+			.Ref        = { .Host = "github.com", .Account = "octo-reviewer", .Repository = "better-pull-review/desktop", .Number = 73 },
+			.Membership = { .Role = core::github_role::requested_reviewer },
+			.Bucket     = core::attention_bucket::initial_review_requested,
+		};
+		needsMe.Facts    = core::queue_item_facts{ .Title = "Preserve the DRCS font", .Author = "octocat", .UnseenComments = 1U };
+		const auto quiet = core::queue_item{
+			.Ref        = { .Host = "github.com", .Account = "octo-reviewer", .Repository = "better-pull-review/desktop", .Number = 74 },
+			.Membership = { .Role = core::github_role::participant },
+			.Bucket     = core::attention_bucket::quiet,
+		};
+		window.publish(application::queue_landing_projection{
+			.Status = application::queue_landing_status::ready,
+			.Items  = { needsMe, quiet },
+		});
+		QApplication::processEvents();
+		auto* const view     = window.queue_view();
+		auto* const delegate = window.queue_delegate();
+		expect(delegate != nullptr && view->itemDelegate() == delegate && view->model()->rowCount() == 2,
+			   "the list draws through the action-list delegate");
+		const auto first  = view->model()->index(0, 0);
+		const auto second = view->model()->index(1, 0);
+		expect(qt::review_landing_delegate::heads_group(first) && qt::review_landing_delegate::heads_group(second)
+				   && first.data(qt::review_landing_model::group_role).toInt() == static_cast<int>(qt::home_group::needs_you)
+				   && second.data(qt::review_landing_model::group_role).toInt() == static_cast<int>(qt::home_group::following)
+				   && delegate->sizeHint({ }, first).height()
+					   == qt::review_landing_delegate::row_height + qt::review_landing_delegate::heading_height,
+			   "each group's first row carries its heading and the extra height for it");
+		expect(first.data(qt::review_landing_model::title_role).toString() == QStringLiteral("Preserve the DRCS font")
+				   && first.data(qt::review_landing_model::unseen_role).toBool(),
+			   "the title and the unread dot reach the row");
+
+		intents.clear();
+		const auto rowRect = view->visualRect(first);
+		expect(!rowRect.isEmpty(), "the first row is on screen");
+		{
+			const auto at      = QPointF{ rowRect.center() };
+			auto       press   = QMouseEvent{ QEvent::MouseButtonPress, at, at, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+			auto       release = QMouseEvent{ QEvent::MouseButtonRelease, at, at, Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+			QApplication::sendEvent(view->viewport(), &press);
+			QApplication::sendEvent(view->viewport(), &release);
+		}
+		QApplication::processEvents();
+		const auto* const open = intents.empty() ? nullptr : std::get_if<core::open_pull_request_intent>(&intents.back());
+		expect(intents.size() == 1U && open != nullptr
+				   && open->Repository == core::repository_locator{ .Owner = "better-pull-review", .Name = "desktop" }
+				   && open->Number == core::pull_request_number{ 73U },
+			   "clicking a row opens its pull request through the GitHub intent");
+		window.choose_modality(qt::review_modality::read);
+		publish_pull_request(window);
+		QApplication::processEvents();
+		expect(window.current_modality() == qt::review_modality::overview,
+			   "the pull request chosen from Home arrives on Overview");
+
+		window.choose_home(true);
+		intents.clear();
+		window.home_open_bar()->setText(QStringLiteral("https://github.com/octo/app/pull/9"));
+		{
+			auto pressed = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+			QApplication::sendEvent(window.home_open_bar(), &pressed);
+		}
+		QApplication::processEvents();
+		const auto* const fromBar = intents.empty() ? nullptr : std::get_if<core::open_pull_request_intent>(&intents.back());
+		expect(intents.size() == 1U && fromBar != nullptr
+				   && fromBar->Repository == core::repository_locator{ .Owner = "octo", .Name = "app" }
+				   && fromBar->Number == core::pull_request_number{ 9U } && window.home_open_bar()->text().isEmpty(),
+			   "Return in the open bar sends the locator's intent and clears the bar");
+		intents.clear();
+		window.home_open_bar()->setText(QStringLiteral("not a pull request"));
+		{
+			auto pressed = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+			QApplication::sendEvent(window.home_open_bar(), &pressed);
+		}
+		QApplication::processEvents();
+		expect(intents.empty() && window.home_open_bar()->text() == QStringLiteral("not a pull request"),
+			   "text that names no pull request sends nothing and stays for correction");
+		window.hide();
+	}
+
 	auto test_repositories_drawer_lists_the_queue_and_opens_on_overview() -> void
 	{
 		// [[BPR-0651]]. The repositories drawer, left of the files: the queue's
@@ -3589,6 +3694,7 @@ auto main(int argc, char** argv) -> int
 	test_agent_surfaces_are_placed_in_the_conversations_drawer();
 	test_settings_pages_carry_the_account_card_and_the_rule_editor();
 	test_repositories_drawer_lists_the_queue_and_opens_on_overview();
+	test_home_action_list_opens_rows_and_the_bar_on_overview();
 	test_read_drawer_shows_threads_as_cards_with_scope_and_actions();
 	test_drawer_controls_are_reachable_in_the_conversations_drawer();
 	test_home_landing_funnels_to_an_account_and_then_a_pull_request();

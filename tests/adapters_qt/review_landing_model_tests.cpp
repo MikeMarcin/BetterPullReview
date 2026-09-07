@@ -103,6 +103,59 @@ namespace {
 	// A positional diff would report the same change as a run of data changes
 	// on rows that did not change. That is correct only in the sense a reset is
 	// correct: the view re-reads everything and the reviewer loses their place.
+	// [[BPR-0650]]. Home's groups follow the buckets, the action list's
+	// columns come from the item's facts and membership, and the open bar
+	// reads exactly the forms the design names.
+	void test_home_groups_columns_and_the_open_bar_grammar()
+	{
+		using bucket = core::attention_bucket;
+		expect(qt::home_group_of(bucket::initial_review_requested) == qt::home_group::needs_you
+				   && qt::home_group_of(bucket::changed_since_my_review) == qt::home_group::needs_you
+				   && qt::home_group_of(bucket::new_comments_or_author_replies) == qt::home_group::needs_you
+				   && qt::home_group_of(bucket::fixes_awaiting_verification) == qt::home_group::needs_you
+				   && qt::home_group_of(bucket::authored_awaiting_reviewer_action) == qt::home_group::waiting_on_others
+				   && qt::home_group_of(bucket::observed_with_new_activity) == qt::home_group::following
+				   && qt::home_group_of(bucket::quiet) == qt::home_group::following,
+			   "the four buckets that need me, the one that waits on others, and the two I follow");
+		expect(qt::home_group_label(qt::home_group::needs_you) == QStringLiteral("Needs me")
+				   && qt::home_group_label(qt::home_group::waiting_on_others) == QStringLiteral("Waiting on others")
+				   && qt::home_group_label(qt::home_group::following) == QStringLiteral("Following"),
+			   "the headings are first person and one line");
+
+		qt::review_landing_model model;
+		auto                     titled = item(7, bucket::changed_since_my_review,
+											   core::queue_membership{ .Role = core::github_role::reviewer });
+		titled.Facts                    = core::queue_item_facts{ .Title = "Parse faster", .Author = "octocat", .UnseenComments = 2U };
+		model.apply(std::vector{ titled, item(8, bucket::quiet) });
+		const auto first = model.index(0);
+		expect(first.data(qt::review_landing_model::title_role).toString() == QStringLiteral("Parse faster")
+				   && first.data(qt::review_landing_model::author_role).toString() == QStringLiteral("octocat")
+				   && first.data(qt::review_landing_model::role_role).toString() == QStringLiteral("reviewer")
+				   && first.data(qt::review_landing_model::group_role).toInt() == static_cast<int>(qt::home_group::needs_you)
+				   && first.data(qt::review_landing_model::unseen_role).toBool(),
+			   "the columns read the facts and the membership");
+		const auto second = model.index(1);
+		expect(second.data(qt::review_landing_model::title_role).toString().isEmpty()
+				   && second.data(qt::review_landing_model::role_role).toString().isEmpty()
+				   && second.data(qt::review_landing_model::group_role).toInt() == static_cast<int>(qt::home_group::following)
+				   && !second.data(qt::review_landing_model::unseen_role).toBool(),
+			   "a role of none reads as nothing, and a quiet item follows");
+
+		const auto expected = core::open_pull_request_intent{
+			.Repository = core::repository_locator{ .Owner = "octo", .Name = "app" },
+			.Number     = core::pull_request_number{ 42U },
+		};
+		for (const auto* const text : { "octo/app#42", " octo/app#42 ", "octo/app/pull/42",
+										"https://github.com/octo/app/pull/42", "https://ghe.example.com/octo/app/pull/42/files" }) {
+			const auto parsed = qt::parse_pull_request_locator(QString::fromUtf8(text));
+			expect(parsed.has_value() && *parsed == expected, "every named form opens the same pull request");
+		}
+		for (const auto* const text : { "", "42", "#42", "octo#42", "octo/app", "octo/app#zero", "octo/app/issues/42", "https://github.com" }) {
+			expect(!qt::parse_pull_request_locator(QString::fromUtf8(text)).has_value(),
+				   "a form that names no repository and number opens nothing");
+		}
+	}
+
 	void test_a_reordered_item_moves_rather_than_being_replaced()
 	{
 		qt::review_landing_model model;
@@ -507,6 +560,7 @@ auto main(int argc, char** argv) -> int
 {
 	QCoreApplication application{ argc, argv };
 
+	test_home_groups_columns_and_the_open_bar_grammar();
 	test_a_reordered_item_moves_rather_than_being_replaced();
 	test_an_added_item_inserts_and_a_departed_one_removes();
 	test_reapplying_an_unchanged_queue_says_nothing();
