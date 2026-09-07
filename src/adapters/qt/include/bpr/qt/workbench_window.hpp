@@ -450,6 +450,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto queue_view() const noexcept -> QListView*;
 		/// \brief [[BPR-0650]]. Home's open bar and the action list's delegate.
 		[[nodiscard]] auto home_open_bar() const noexcept -> QLineEdit*;
+		/// \brief [[BPR-0669]]. Opens what the bar names; disabled until it names one.
+		[[nodiscard]] auto home_open_action() const noexcept -> QAction*;
+		/// \brief [[BPR-0669]]. States a refusal beside the bar rather than doing nothing.
+		[[nodiscard]] auto home_open_notice() const noexcept -> QLabel*;
 		[[nodiscard]] auto queue_delegate() const noexcept -> review_landing_delegate*;
 		/// \brief Selects and focuses one exact visible local-queue identity.
 		///
@@ -835,6 +839,9 @@ namespace bpr::qt {
 		QToolButton*                          RemoveQueueRuleButton = nullptr;
 		QLabel*                               QueueStatus           = nullptr;
 		QLineEdit*                            HomeOpenBar           = nullptr;
+		QToolButton*                          HomeOpenButton        = nullptr;
+		QAction*                              HomeOpenAction        = nullptr;
+		QLabel*                               HomeOpenNotice        = nullptr;
 		review_landing_delegate*              QueueDelegate         = nullptr;
 		std::vector<core::observer_rule>      QueueRules;
 		application::queue_landing_projection QueueProjection;

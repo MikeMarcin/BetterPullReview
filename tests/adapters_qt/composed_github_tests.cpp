@@ -506,8 +506,19 @@ namespace {
 				&& activate->Profile == core::host_profile_id{ 12U },
 			"Connect emits only the selected opaque profile identity");
 
+		// [[BPR-0669]]. A link pasted into the first field fills all three; a
+		// reviewer never splits a URL by hand. Typing an owner, which names no
+		// pull request, is left alone.
+		window.session_panel()->owner_editor()->setText(
+			QStringLiteral("https://github.com/better-pull-review/desktop/pull/73"));
+		expect(window.session_panel()->owner_editor()->text() == QStringLiteral("better-pull-review")
+				   && window.session_panel()->repository_editor()->text() == QStringLiteral("desktop")
+				   && window.session_panel()->pull_request_editor()->value() == 73,
+			   "a pasted link fills the owner, the repository and the number");
 		window.session_panel()->owner_editor()->setText(QStringLiteral("better-pull-review"));
-		window.session_panel()->repository_editor()->setText(QStringLiteral("desktop"));
+		expect(window.session_panel()->owner_editor()->text() == QStringLiteral("better-pull-review")
+				   && window.session_panel()->repository_editor()->text() == QStringLiteral("desktop"),
+			   "an owner typed on its own is left where it was typed");
 		window.session_panel()->pull_request_editor()->setValue(73);
 		window.github_open_action()->trigger();
 		expect(intents.size() == 2U, "Open emits exactly one semantic intent");
@@ -2591,6 +2602,26 @@ namespace {
 		QApplication::processEvents();
 		expect(intents.empty() && window.home_open_bar()->text() == QStringLiteral("not a pull request"),
 			   "text that names no pull request sends nothing and stays for correction");
+		// [[BPR-0669]]. Silence was indistinguishable from a product that does
+		// nothing, and Return was the only affordance the bar had.
+		expect(window.home_open_notice() != nullptr && window.home_open_notice()->isVisible()
+				   && window.home_open_notice()->text().contains(QStringLiteral("owner/name#number")),
+			   "a paste that names no pull request is answered beside the bar");
+		expect(window.home_open_action() != nullptr && !window.home_open_action()->isEnabled(),
+			   "Open is not offered while the bar names no pull request");
+		intents.clear();
+		window.home_open_bar()->setText(QStringLiteral("  https://github.example.com/octo/app/pull/42  "));
+		expect(window.home_open_action()->isEnabled() && !window.home_open_notice()->isVisible(),
+			   "a pasted link on any host offers Open and clears the refusal");
+		window.home_open_action()->trigger();
+		QApplication::processEvents();
+		const auto* const fromButton = intents.empty()
+			? nullptr
+			: std::get_if<core::open_pull_request_intent>(&intents.back());
+		expect(intents.size() == 1U && fromButton != nullptr
+				   && fromButton->Repository == core::repository_locator{ .Owner = "octo", .Name = "app" }
+				   && fromButton->Number == core::pull_request_number{ 42U },
+			   "Open sends the same intent Return does, from a link that was pasted whole");
 		window.hide();
 	}
 

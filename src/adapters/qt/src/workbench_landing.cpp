@@ -83,10 +83,14 @@ namespace bpr::qt {
 		switch (aState) {
 		case landing_state::sign_in:
 			Title->setText(QStringLiteral("Connect a GitHub account"));
+			// [[BPR-0669]]. The bar directly below this card opens a pull
+			// request from a pasted link, so the card says so rather than
+			// sending a reviewer into Settings to split a link by hand.
 			Body->setText(QStringLiteral(
 				"BetterPullReview reviews pull requests from your GitHub accounts. "
 				"Sign in once with a device code; the session is remembered on "
-				"this Mac."));
+				"this Mac. To open a public pull request without signing in, "
+				"paste its link in the bar below."));
 			Primary->setText(QStringLiteral("Sign in to GitHub…"));
 			Primary->setAccessibleName(QStringLiteral("Sign in to GitHub"));
 			Primary->setAccessibleDescription(QStringLiteral(
@@ -117,17 +121,19 @@ namespace bpr::qt {
 			break;
 		case landing_state::choose_pull_request:
 			Title->setText(QStringLiteral("Open a pull request"));
+			// [[BPR-0669]]. The bar below takes a pasted link; the locator in
+			// Settings is no longer the way a pull request is named.
 			Body->setText(QStringLiteral(
-				"Pick one from the review queue in the files drawer, or enter its "
-				"owner, repository and number under Accounts and hosts."));
+				"Paste a pull request link in the bar below, or pick one from the "
+				"review queue."));
 			Primary->setText(QStringLiteral("Choose from the queue"));
 			Primary->setAccessibleName(QStringLiteral("Choose from the queue"));
 			Primary->setAccessibleDescription(QStringLiteral(
 				"Moves to the review queue in the files drawer."));
-			Secondary->setText(QStringLiteral("Enter a pull request…"));
-			Secondary->setAccessibleName(QStringLiteral("Enter a pull request"));
+			Secondary->setText(QStringLiteral("Paste a link"));
+			Secondary->setAccessibleName(QStringLiteral("Paste a pull request link"));
 			Secondary->setAccessibleDescription(QStringLiteral(
-				"Opens Accounts and hosts in Settings with the locator ready."));
+				"Moves to the bar below, which takes a pull request link or owner/name#number."));
 			break;
 		}
 		Primary->setToolTip(Primary->accessibleDescription());

@@ -1203,18 +1203,61 @@ namespace bpr::qt {
 			// [[BPR-0650]]. Open by link or owner/name#number, in the bar
 			// above the list: the same intent the locator sends, and the
 			// pull request arrives on Overview.
+			// [[BPR-0669]]. The bar is the way a pull request is named: it
+			// takes what a reviewer has on the clipboard, whole. It had no
+			// label and no button, so the only affordance was a placeholder
+			// and the Return key, and the owner went looking in Settings.
+			auto* const openLabel = new QLabel{ QStringLiteral("Open a pull request"), HomePage };
+			openLabel->setObjectName(QStringLiteral("workbenchHomeOpenLabel"));
+			openLabel->setContentsMargins(24, 12, 24, 0);
+			auto openLabelFont = openLabel->font();
+			openLabelFont.setWeight(QFont::DemiBold);
+			openLabel->setFont(openLabelFont);
+			homeColumn->addWidget(openLabel);
 			HomeOpenBar = new QLineEdit{ HomePage };
 			HomeOpenBar->setObjectName(QStringLiteral("homeOpenBar"));
 			HomeOpenBar->setAccessibleName(QStringLiteral("Open a pull request"));
 			HomeOpenBar->setAccessibleDescription(QStringLiteral(
-				"Type a pull request link or owner/name#number and press Return to open it on its overview"));
-			HomeOpenBar->setPlaceholderText(QStringLiteral("Open by link or owner/name#number"));
+				"Paste a pull request link, or owner/name#number, and press Open"));
+			HomeOpenBar->setPlaceholderText(
+				QStringLiteral("Paste a pull request link, or write owner/name#123"));
 			HomeOpenBar->setClearButtonEnabled(true);
+			openLabel->setBuddy(HomeOpenBar);
+			HomeOpenAction = new QAction{ tr("Open"), this };
+			HomeOpenAction->setObjectName(QStringLiteral("homeOpenAction"));
+			HomeOpenButton = new QToolButton{ HomePage };
+			HomeOpenButton->setDefaultAction(HomeOpenAction);
+			HomeOpenButton->setObjectName(QStringLiteral("homeOpenButton"));
+			HomeOpenButton->setAccessibleName(QStringLiteral("Open the pull request"));
+			HomeOpenButton->setAccessibleDescription(
+				QStringLiteral("Opens the pull request named in the bar, on its overview"));
+			HomeOpenButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
+			HomeOpenButton->setFocusPolicy(Qt::StrongFocus);
 			auto* const openRow = new QHBoxLayout{ };
-			openRow->setContentsMargins(24, 8, 24, 0);
+			openRow->setContentsMargins(24, 4, 24, 0);
 			openRow->addWidget(HomeOpenBar, 1);
+			openRow->addWidget(HomeOpenButton);
 			homeColumn->addLayout(openRow);
+			// A refusal belongs beside what was refused. Silence on Return was
+			// indistinguishable from a product that does nothing.
+			HomeOpenNotice = new QLabel{ HomePage };
+			HomeOpenNotice->setObjectName(QStringLiteral("homeOpenNotice"));
+			HomeOpenNotice->setContentsMargins(24, 2, 24, 0);
+			HomeOpenNotice->setWordWrap(true);
+			HomeOpenNotice->hide();
+			homeColumn->addWidget(HomeOpenNotice);
 			connect(HomeOpenBar, &QLineEdit::returnPressed, this, [this] { open_from_home_bar(); });
+			connect(HomeOpenAction, &QAction::triggered, this, [this] { open_from_home_bar(); });
+			connect(HomeOpenBar, &QLineEdit::textChanged, this, [this] {
+				if (HomeOpenNotice != nullptr && HomeOpenNotice->isVisible()) {
+					HomeOpenNotice->hide();
+				}
+				if (HomeOpenAction != nullptr) {
+					HomeOpenAction->setEnabled(
+						parse_pull_request_locator(HomeOpenBar->text()).has_value());
+				}
+			});
+			HomeOpenAction->setEnabled(false);
 			auto* const queueHeading = new QLabel{ QStringLiteral("Review queue"), HomePage };
 			queueHeading->setObjectName(QStringLiteral("workbenchHomeQueueHeading"));
 			queueHeading->setContentsMargins(24, 12, 24, 4);
@@ -4594,6 +4637,16 @@ namespace bpr::qt {
 		});
 	}
 
+	auto workbench_window::home_open_action() const noexcept -> QAction*
+	{
+		return HomeOpenAction;
+	}
+
+	auto workbench_window::home_open_notice() const noexcept -> QLabel*
+	{
+		return HomeOpenNotice;
+	}
+
 	void workbench_window::open_from_home_bar()
 	{
 		if (HomeOpenBar == nullptr || !GithubDispatch) {
@@ -4601,6 +4654,13 @@ namespace bpr::qt {
 		}
 		const auto intent = parse_pull_request_locator(HomeOpenBar->text());
 		if (!intent.has_value()) {
+			// [[BPR-0669]]. What was typed stays where it is; a reviewer who
+			// pasted the wrong thing needs to see it to fix it.
+			if (HomeOpenNotice != nullptr && !HomeOpenBar->text().trimmed().isEmpty()) {
+				HomeOpenNotice->setText(QStringLiteral(
+					"That is not a pull request. Paste its link, or write owner/name#number."));
+				HomeOpenNotice->show();
+			}
 			return;
 		}
 		OpenOnOverview = true;

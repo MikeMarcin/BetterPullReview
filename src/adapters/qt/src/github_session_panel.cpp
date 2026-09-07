@@ -1,5 +1,7 @@
 #include "bpr/qt/github_session_panel.hpp"
 
+#include "bpr/qt/review_landing_model.hpp"
+
 #include "github_presentation_text.hpp"
 
 #include <QAction>
@@ -342,8 +344,22 @@ namespace bpr::qt {
 			QStringLiteral("The account or organisation that owns the repository"));
 		OwnerEditor->setMaxLength(
 			static_cast<int>(core::maximum_repository_owner_length));
+		OwnerEditor->setPlaceholderText(QStringLiteral("owner, or paste a link"));
 		auto* const ownerLabel = new QLabel{ QStringLiteral("&Owner:"), locatorGroup };
 		ownerLabel->setBuddy(OwnerEditor);
+		// [[BPR-0669]]. A reviewer has a link on the clipboard, not three
+		// fields. Pasting one here fills all three; typing an owner, which
+		// never parses as a reference, is untouched.
+		connect(OwnerEditor, &QLineEdit::textChanged, this, [this](const QString& aText) {
+			const auto reference = parse_pull_request_locator(aText);
+			if (!reference.has_value()) {
+				return;
+			}
+			const QSignalBlocker ownerBlock{ OwnerEditor };
+			OwnerEditor->setText(QString::fromStdString(reference->Repository.Owner));
+			RepositoryEditor->setText(QString::fromStdString(reference->Repository.Name));
+			PullRequestEditor->setValue(static_cast<int>(reference->Number.value()));
+		});
 
 		RepositoryEditor = new QLineEdit{ locatorGroup };
 		RepositoryEditor->setObjectName(QStringLiteral("repositoryNameEditor"));
