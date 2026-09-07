@@ -4,7 +4,9 @@
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/epoch_history_model.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
+#include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_landing_model.hpp"
+#include "bpr/qt/workbench_drawer.hpp"
 
 #if defined(BPR_BUILD_TESTING)
 	#include "github_application_fixture_access.hpp"
@@ -834,10 +836,14 @@ namespace {
 		std::size_t Attempts = 0U;
 		// When the run started, and how long it may take. See
 		// `default_automated_run_budget`.
-		automated_clock::time_point               Started;
-		std::chrono::milliseconds                 Budget                    = default_automated_run_budget;
-		bool                                      BudgetExpired             = false;
-		bool                                      PresentationPassed        = false;
+		automated_clock::time_point Started;
+		std::chrono::milliseconds   Budget             = default_automated_run_budget;
+		bool                        BudgetExpired      = false;
+		bool                        PresentationPassed = false;
+		// [[BPR-0647]]. The overview course over the fixture: the page shown
+		// with every file, and Continue review back in Read.
+		bool                                      OverviewShown             = false;
+		bool                                      OverviewReturned          = false;
 		bool                                      RenderSaved               = true;
 		bool                                      VerifyNativePlatformVault = false;
 		QString                                   LastEpochStatus;
@@ -3910,6 +3916,7 @@ namespace {
 				   // where the run ends regardless of which fact was false.
 				   << "PUBLIC_PATH_VERDICT:"
 				   << "presentation=" << (aRun.PresentationPassed ? 1 : 0)
+				   << " overview=" << (aRun.OverviewShown && aRun.OverviewReturned ? 1 : 0)
 				   << " shutdown_complete=" << (status.ShutdownComplete ? 1 : 0)
 				   << " cleanup_failed=" << (status.ShutdownCleanupFailed ? 1 : 0)
 				   << " epoch_projection_failed="
@@ -5772,8 +5779,41 @@ namespace {
 								== QStringLiteral("Select a file comparison");
 						transition_to_shutdown(aApplication, *aRun);
 					} else {
-						aRun->PresentationPassed = true;
-						aRun->RenderSaved        = save_render_evidence(
+						// [[BPR-0647]]. The overview over the fixture: Overview
+						// shows the host-decided page with every file of the
+						// pull request and its one action enabled; Continue
+						// review returns to Read. The modality the course had
+						// is restored before the render evidence, so that
+						// evidence is of the state the course reached.
+						const auto modalityBefore = window.current_modality();
+						window.choose_modality(bpr::qt::review_modality::overview);
+						QApplication::processEvents();
+						auto* const overview = window.overview_page();
+						aRun->OverviewShown  = overview != nullptr && window.showing_overview()
+							&& overview->presented()
+							&& overview->file_model()->file_count()
+								== static_cast<std::size_t>(
+									window.files_drawer()->contents()->rowCount())
+							&& overview->entry_button()->isEnabled();
+						if (overview != nullptr) {
+							overview->entry_button()->click();
+						}
+						QApplication::processEvents();
+						aRun->OverviewReturned = !window.showing_overview()
+							&& window.current_modality() == bpr::qt::review_modality::read;
+						window.choose_modality(modalityBefore);
+						QApplication::processEvents();
+						aRun->PresentationPassed = aRun->OverviewShown && aRun->OverviewReturned;
+						if (!aRun->PresentationPassed) {
+							QTextStream{ stdout }
+								<< "OVERVIEW_COURSE_FAILED shown="
+								<< (aRun->OverviewShown ? 1 : 0)
+								<< " returned=" << (aRun->OverviewReturned ? 1 : 0)
+								<< " files=" << static_cast<unsigned long long>(overview != nullptr ? overview->file_model()->file_count() : 0U)
+								<< " drawer=" << window.files_drawer()->contents()->rowCount()
+								<< '\n';
+						}
+						aRun->RenderSaved = save_render_evidence(
 							window, aRun->RenderPath, aRun->RenderCollapsesFilesDrawer);
 						transition_to_shutdown(aApplication, *aRun);
 					}

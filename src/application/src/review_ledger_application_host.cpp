@@ -214,6 +214,18 @@ namespace bpr::application {
 		return publication.Receipt;
 	}
 
+	auto review_ledger_application_host::load_receipt(const core::file_identity& aFile)
+		-> std::expected<std::optional<core::file_receipt>, ledger_store_failure>
+	{
+		const auto lock = std::scoped_lock{ Mutex };
+		++Statistics.ReceiptLoads;
+		auto loaded = Store->load(aFile);
+		if (!loaded) {
+			++Statistics.StoreFailures;
+		}
+		return loaded;
+	}
+
 	auto review_ledger_application_host::retained() const noexcept
 		-> core::file_receipt
 	{

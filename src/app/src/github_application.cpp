@@ -66,6 +66,7 @@
 #include "bpr/application/github_credential_vault.hpp"
 #include "bpr/application/mcp_context_helper_supervisor.hpp"
 #include "bpr/application/notification_delivery.hpp"
+#include "bpr/application/pull_request_overview.hpp"
 #include "bpr/application/review_ledger_application_host.hpp"
 #include "bpr/application/review_mutation_application_host.hpp"
 #include "bpr/application/review_queue_enrollment.hpp"
@@ -4344,6 +4345,9 @@ namespace bpr::app {
 				*Window,
 				[this](const application::github_presentation_update& aUpdate) {
 					bind_device_refresh_authority(aUpdate);
+					if (aUpdate.PullRequest.has_value()) {
+						publish_overview();
+					}
 				});
 			Host = std::make_unique<application::github_application_host>(
 				initial_github_state(),
@@ -6402,6 +6406,50 @@ namespace bpr::app {
 			}
 		}
 
+		/// \brief Decides and publishes the overview of the accepted pull request.
+		///
+		/// \details [[BPR-0647]]. Joined here because no single host holds all
+		/// of it: the GitHub host's accepted snapshot, the ledger's receipts,
+		/// notes and last-reviewed head, and the epoch host's update rows and
+		/// accepted head. The set of files changed since my last review is not
+		/// yet resolved by any host, so it is left unknown rather than guessed.
+		void publish_overview()
+		{
+			if (Closing || Window == nullptr || Host == nullptr) {
+				return;
+			}
+			const auto& snapshot = Host->accepted_snapshot();
+			if (!snapshot.has_value()) {
+				Window->clear_overview();
+				return;
+			}
+			auto context = application::overview_context{ };
+			{
+				const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
+				if (ReviewLedgerAvailable && ReviewLedgerHost != nullptr) {
+					context.Receipts.reserve(snapshot->Files.size());
+					for (const auto& file : snapshot->Files) {
+						const auto identity = core::file_identity_of(file.Path);
+						if (const auto loaded = ReviewLedgerHost->load_receipt(identity);
+							loaded.has_value() && loaded->has_value()) {
+							context.Receipts.push_back(**loaded);
+						}
+					}
+				}
+			}
+			if (ReviewLedgerHost != nullptr) {
+				if (auto privateState = ReviewLedgerHost->private_observation();
+					privateState.has_value()) {
+					context.Private = std::move(*privateState);
+				}
+			}
+			context.Updates = EpochRows.rows();
+			if (EpochHost != nullptr && EpochHost->state().AcceptedRevision.has_value()) {
+				context.Head = EpochHost->state().AcceptedRevision->Head;
+			}
+			Window->publish(application::project_pull_request_overview(*snapshot, context));
+		}
+
 		void publish(const application::receipt_projection& aProjection) override
 		{
 			auto authority = std::optional<
@@ -6424,6 +6472,7 @@ namespace bpr::app {
 			if (Window != nullptr) {
 				Window->publish(application::project_file_receipt_actions(
 					aProjection.Receipt));
+				publish_overview();
 			}
 			if (WorkbenchHost != nullptr && authority.has_value()
 				&& actionabilityChanged) {
@@ -7968,7 +8017,13 @@ namespace bpr::app {
 					clear_diff_selection();
 				}
 			}
+			if (aUpdate.Catalog.has_value()) {
+				EpochRows.apply(*aUpdate.Catalog);
+			}
 			Window->publish(aUpdate);
+			if (aUpdate.Catalog.has_value()) {
+				publish_overview();
+			}
 			refresh_agent_authority();
 			const auto* comparison = aUpdate.Transition.has_value()
 					&& aUpdate.Transition->Comparison.has_value()
@@ -8535,6 +8590,9 @@ namespace bpr::app {
 				workbench != nullptr) {
 				workbench->adopt_appearance(*AppearanceProfile);
 			}
+			if (auto* const overview = Window->overview_page(); overview != nullptr) {
+				overview->adopt_appearance(*AppearanceProfile);
+			}
 
 			// Read back off the window rather than off the profile. The claim
 			// is that the palette reached the window; asking the profile what
@@ -9056,8 +9114,10 @@ namespace bpr::app {
 		mutable std::mutex                                           ReviewLedgerStateMutex;
 		std::optional<application::workbench_pull_request_authority> ReviewLedgerAuthority;
 		std::optional<core::file_receipt>                            ReviewLedgerReceipt;
-		bool                                                         ReviewLedgerAvailable = false;
-		std::vector<application::durable_defect_record>              DurableDefects;
+		/// [[BPR-0647]]. The update rows the epoch host published, for the overview.
+		application::epoch_row_ledger                   EpochRows;
+		bool                                            ReviewLedgerAvailable = false;
+		std::vector<application::durable_defect_record> DurableDefects;
 		std::unique_ptr<application::review_mutation_application_host>
 															ReviewMutationHost;
 		application::review_mutation_execution_grant        LiveReviewMutationGrant;
@@ -10011,10 +10071,10 @@ namespace bpr::app {
 				.Ordinal     = core::epoch_ordinal{ 1 },
 			};
 		}
-		const auto cache        = lowerHex(authority.Cache.bytes());
-		const auto scope        = lowerHex(aTarget.Authority.bytes());
-		const auto repository   = root / "repositories" / "v1" / (cache + ".git");
-		const auto ordinal_text = [&lowerHex](std::int64_t aOrdinal) {
+		const auto cache       = lowerHex(authority.Cache.bytes());
+		const auto scope       = lowerHex(aTarget.Authority.bytes());
+		const auto repository  = root / "repositories" / "v1" / (cache + ".git");
+		const auto ordinalText = [&lowerHex](std::int64_t aOrdinal) {
 			std::array<std::uint8_t, 8U> bytes{ };
 			const auto                   ordinal = static_cast<std::uint64_t>(aOrdinal);
 			for (std::size_t index = 0U; index < bytes.size(); ++index) {
@@ -10023,11 +10083,11 @@ namespace bpr::app {
 			return lowerHex(bytes);
 		};
 		// Installed Git encodes retained ref ordinals as 16 lowercase hex digits.
-		const auto ordinal   = ordinal_text(aTarget.Ordinal.value());
+		const auto ordinal   = ordinalText(aTarget.Ordinal.value());
 		const auto epochRoot = repository / "refs" / "betterpullreview" / "v1"
 			/ "scope" / scope / "epoch"
 			/ ordinal;
-		const auto nonTargetOrdinal   = ordinal_text(2);
+		const auto nonTargetOrdinal   = ordinalText(2);
 		const auto nonTargetEpochRoot = repository / "refs"
 			/ "betterpullreview" / "v1" / "scope" / scope / "epoch"
 			/ nonTargetOrdinal;
@@ -10113,7 +10173,7 @@ namespace bpr::app {
 			}
 		}
 
-		const auto ref_oid = [](const std::filesystem::path& aPath) {
+		const auto refOid = [](const std::filesystem::path& aPath) {
 			std::ifstream input{ aPath };
 			std::string   oid;
 			input >> oid;
@@ -10128,8 +10188,8 @@ namespace bpr::app {
 				: 0,
 			.TargetBaseCatalogOid              = std::move(baseCatalogOid),
 			.TargetHeadCatalogOid              = std::move(headCatalogOid),
-			.TargetBaseRefOid                  = ref_oid(epochRoot / "base"),
-			.TargetHeadRefOid                  = ref_oid(epochRoot / "head"),
+			.TargetBaseRefOid                  = refOid(epochRoot / "base"),
+			.TargetHeadRefOid                  = refOid(epochRoot / "head"),
 			.TargetBaseRefPresent              = present(epochRoot / "base"),
 			.TargetHeadRefPresent              = present(epochRoot / "head"),
 			.NonTargetBaseRefPresent           = present(nonTargetEpochRoot / "base"),
@@ -11994,8 +12054,11 @@ namespace bpr::app {
 		// Capture facts own every value, including strings returned by Qt.
 		struct capture_json_options : glz::opts
 		{
-			std::uint8_t indentation_width         = 4U;
-			bool         escape_control_characters = true;
+			// Glaze reads its options by these exact member names.
+			// NOLINTNEXTLINE(readability-identifier-naming)
+			std::uint8_t indentation_width = 4U;
+			// NOLINTNEXTLINE(readability-identifier-naming)
+			bool escape_control_characters = true;
 			constexpr capture_json_options() { prettify = true; }
 		};
 

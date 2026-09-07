@@ -36,6 +36,7 @@ add_library(
         src/github_application_host.cpp
         src/github_credential_vault.cpp
         src/github_projection_mapping.cpp
+        src/pull_request_overview.cpp
         src/git_protocol_v2.cpp
         src/git_smart_transport_port.cpp
         src/host.cpp

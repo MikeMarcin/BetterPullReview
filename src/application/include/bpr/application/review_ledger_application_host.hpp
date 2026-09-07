@@ -144,6 +144,14 @@ namespace bpr::application {
 		[[nodiscard]] auto session_catalog()
 			-> std::expected<agent_session_catalog_state, ledger_store_failure> override;
 
+		/// \brief Reads one file's durable receipt without retaining or publishing it.
+		///
+		/// \details [[BPR-0647]]. The overview names every file's read state,
+		/// which is the ledger's to answer; this is a read of the store through
+		/// the host, so no composition reaches for the store itself. An absent
+		/// receipt is an engaged optional's absence, not a failure.
+		[[nodiscard]] auto load_receipt(const core::file_identity& aFile)
+			-> std::expected<std::optional<core::file_receipt>, ledger_store_failure>;
 		[[nodiscard]] auto retained() const noexcept -> core::file_receipt;
 		[[nodiscard]] auto statistics() const noexcept
 			-> review_ledger_host_statistics;

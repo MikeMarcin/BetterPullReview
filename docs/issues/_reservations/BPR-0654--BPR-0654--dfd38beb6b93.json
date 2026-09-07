@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0654"
+  ],
+  "reserve_for": "bpr-overview-changed-set",
+  "purpose": "Resolve the set of files changed since my last review for the overview",
+  "created": "2026-09-07T05:28:11.618621+00:00",
+  "base": "3d83daae68f4c98a69f654b65f1f5d3dbbab6941"
+}

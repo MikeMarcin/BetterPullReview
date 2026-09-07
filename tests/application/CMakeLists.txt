@@ -720,6 +720,29 @@ set_tests_properties(
         TIMEOUT 60
 )
 
+bpr_add_executable(
+    test_better_pull_review_pull_request_overview_tests
+    pull_request_overview_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_pull_request_overview_tests
+    PRIVATE
+        BetterPullReview::Application
+)
+bpr_enable_hardening(test_better_pull_review_pull_request_overview_tests)
+bpr_enable_warnings(test_better_pull_review_pull_request_overview_tests)
+
+bpr_add_network_isolated_test(
+    NAME application_pull_request_overview
+    COMMAND test_better_pull_review_pull_request_overview_tests
+)
+set_tests_properties(
+    application_pull_request_overview
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "pull-request-overview-tests:pass"
+        TIMEOUT 60
+)
+
 # The MCP context helper's evidence is what a separate process reaches, so the
 # canary drives the shipped executable over real stdio rather than calling the
 # library in-process. It links the adapter as well, because the advertised tool

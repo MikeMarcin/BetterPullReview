@@ -332,21 +332,27 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
 		"${private_progress_rect_in_row_x} + ${private_progress_rect_in_row_width}")
 	math(EXPR conversations_toggle_right
 		"${conversations_toggle_rect_in_row_x} + ${conversations_toggle_rect_in_row_width}")
+	# [[BPR-0646]] [[BPR-0647]]. RFC-BPR-0028's strip is the title row: the
+	# platform inset for the window controls and the Home button precede the
+	# files toggle, the change pair comes before the file pair, the two
+	# flexible spacers flank the modality control between the file pair and
+	# the review details, and refresh, the divider, account and settings
+	# follow the comments toggle at the right.
 	math(EXPR left_edge_gap "${files_toggle_rect_in_row_x}")
 	math(EXPR right_edge_gap
 		"${navigation_row_rect_in_window_width} - ${conversations_toggle_right}")
-	math(EXPR flexible_spacer_width
-		"${conversations_toggle_rect_in_row_x} - ${private_progress_right}")
-	if(left_edge_gap GREATER 12
-			OR right_edge_gap GREATER 12
-			OR files_toggle_right GREATER previous_file_rect_in_row_x
-			OR previous_file_right GREATER next_file_rect_in_row_x
-			OR next_file_right GREATER previous_change_rect_in_row_x
+	math(EXPR centre_region_width
+		"${review_details_rect_in_row_x} - ${next_file_right}")
+	if(left_edge_gap GREATER 160
+			OR right_edge_gap GREATER 110
+			OR files_toggle_right GREATER previous_change_rect_in_row_x
 			OR previous_change_right GREATER next_change_rect_in_row_x
-			OR next_change_right GREATER review_details_rect_in_row_x
+			OR next_change_right GREATER previous_file_rect_in_row_x
+			OR previous_file_right GREATER next_file_rect_in_row_x
+			OR next_file_right GREATER review_details_rect_in_row_x
 			OR review_details_right_in_row GREATER private_progress_rect_in_row_x
 			OR private_progress_right GREATER conversations_toggle_rect_in_row_x
-			OR flexible_spacer_width LESS 100)
+			OR centre_region_width LESS 100)
 		message(FATAL_ERROR
 			"UIforETW ${profile} compact navigation order/edges/spacer drifted"
 		)
@@ -355,9 +361,16 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
         "${review_details_rect_in_window_x} + ${review_details_rect_in_window_width}")
     math(EXPR review_details_bottom
         "${review_details_rect_in_window_y} + ${review_details_rect_in_window_height}")
+    # [[BPR-0646]]. A collapsed drawer is an 18-pixel rail, not nothing: the
+    # files rail sits at the splitter's left edge and the comments rail ends
+    # at its right edge.
+    math(EXPR conversations_drawer_right
+        "${conversations_drawer_rect_in_splitter_x} + ${conversations_drawer_rect_in_splitter_width}")
     if(NOT files_drawer_rect_in_splitter_x EQUAL 0
             OR files_drawer_rect_in_splitter_y LESS 0
-            OR conversations_drawer_rect_in_splitter_x LESS 1280
+            OR files_drawer_rect_in_splitter_width GREATER 18
+            OR NOT conversations_drawer_right EQUAL 1280
+            OR conversations_drawer_rect_in_splitter_width GREATER 18
             OR conversations_drawer_rect_in_splitter_y LESS 0
             OR review_details_rect_in_window_x LESS 0
             OR review_details_rect_in_window_y LESS 0

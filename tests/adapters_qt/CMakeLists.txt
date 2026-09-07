@@ -336,6 +336,32 @@ foreach(bpr_epoch_scale IN ITEMS 100 125 200)
 endforeach()
 
 bpr_add_executable(
+    test_better_pull_review_qt_pull_request_overview_page_tests
+    pull_request_overview_page_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_qt_pull_request_overview_page_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_pull_request_overview_page_tests)
+bpr_enable_warnings(test_better_pull_review_qt_pull_request_overview_page_tests)
+
+bpr_add_network_isolated_test(
+    NAME qt_pull_request_overview_page
+    COMMAND test_better_pull_review_qt_pull_request_overview_page_tests
+)
+set_tests_properties(
+    qt_pull_request_overview_page
+    PROPERTIES
+        ENVIRONMENT
+            "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0"
+        PASS_REGULAR_EXPRESSION "pull-request-overview-page-tests:pass"
+        TIMEOUT 120
+)
+
+bpr_add_executable(
     test_better_pull_review_qt_comparison_scroll_controller_tests
     comparison_scroll_controller_tests.cpp
 )

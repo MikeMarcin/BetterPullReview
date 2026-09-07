@@ -29,6 +29,7 @@
 #include <QPersistentModelIndex>
 #include <QPlainTextEdit>
 #include <QPoint>
+#include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSplitter>
@@ -2663,10 +2664,15 @@ namespace {
 		process_events();
 
 		auto* const surface = window.comparison_surface();
+		// [[BPR-0647]]. The surface sits on the comparison page of the
+		// centre's stack, beneath the epoch line, inside the central surface.
 		expect(surface != nullptr
+				   && window.findChild<QWidget*>(
+								QStringLiteral("workbenchCentralSurface"))
+						  ->isAncestorOf(surface)
 				   && surface->parentWidget()
 					   == window.findChild<QWidget*>(
-						   QStringLiteral("workbenchCentralSurface")),
+						   QStringLiteral("workbenchComparisonPage")),
 			   "the composed comparison surface is the workbench centre");
 		expect(static_cast<application::diff_projection_port*>(surface)
 				   != nullptr,
@@ -4415,6 +4421,99 @@ namespace {
 			"absent activation also leaves preferences untouched");
 	}
 
+	void test_overview_shows_the_decided_page_and_continue_enters_read()
+	{
+		// [[BPR-0647]]. The Overview modality shows the host-decided overview in
+		// place of the comparison; Continue review and a file row select the
+		// file through the core and enter Read.
+		intent_log           log;
+		qt::workbench_window window{
+			[&log](core::workbench_interaction_intent aIntent) {
+				log.Workbench.push_back(aIntent);
+			},
+			[&log](core::navigate_diff_change_intent aIntent) {
+				log.Change.push_back(aIntent);
+			}
+		};
+		window.resize(1'280, 820);
+		window.show();
+		process_events();
+		auto files  = application::workbench_projection{ };
+		files.Files = std::vector<application::workbench_file_projection>{
+			{ .File = workbench_file(1U), .Path = "src/a.cpp" },
+			{ .File = workbench_file(2U), .Path = "src/b.cpp" },
+		};
+		window.publish(files);
+		window.publish(every_primary_command_offered());
+		process_events();
+
+		window.choose_modality(qt::review_modality::overview);
+		process_events();
+		expect(!window.showing_overview() && window.comparison_surface()->isVisible()
+				   && !window.overview_page()->isVisible(),
+			   "Overview before the host decided an overview keeps the comparison");
+
+		auto overview        = application::pull_request_overview_projection{ };
+		overview.Title       = "Fix the thing";
+		overview.AuthorLogin = "author";
+		overview.Files       = {
+			application::overview_file_row{ .Path = "src/a.cpp", .Folder = "src", .Name = "a.cpp" },
+			application::overview_file_row{ .Path = "src/b.cpp", .Folder = "src", .Name = "b.cpp" },
+		};
+		overview.Progress  = { .FilesTotal = 2U };
+		overview.Entry     = application::overview_entry_kind::continue_review;
+		overview.EntryPath = "src/b.cpp";
+		window.publish(overview);
+		process_events();
+		expect(window.showing_overview() && window.overview_page()->isVisible()
+				   && !window.comparison_surface()->isVisible()
+				   && window.epoch_selectors()->isVisible()
+				   && window.overview_page()->title_label()->text() == QStringLiteral("Fix the thing"),
+			   "once decided, Overview shows the page beneath the epoch line in place "
+			   "of the comparison");
+
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		expect(!window.showing_overview() && window.comparison_surface()->isVisible(),
+			   "every other modality shows the comparison");
+		window.choose_modality(qt::review_modality::overview);
+		process_events();
+		expect(window.showing_overview(), "Overview returns to the page");
+
+		log.Workbench.clear();
+		window.overview_page()->entry_button()->click();
+		process_events();
+		// The selection comes first; Read's two set-drawer intents follow it.
+		expect(!log.Workbench.empty()
+				   && std::get_if<core::select_workbench_file_intent>(&log.Workbench.front()) != nullptr
+				   && std::get<core::select_workbench_file_intent>(log.Workbench.front()).File
+					   == workbench_file(2U),
+			   "Continue review selects the entry file through the core");
+		expect(window.current_modality() == qt::review_modality::read,
+			   "Continue review enters Read");
+		expect(!window.showing_overview() && window.comparison_surface()->isVisible(),
+			   "Continue review shows the comparison");
+
+		window.choose_modality(qt::review_modality::overview);
+		log.Workbench.clear();
+		const auto first = window.overview_page()->file_model()->index_for_path(QStringLiteral("src/a.cpp"));
+		window.overview_page()->files_view()->activated(first);
+		process_events();
+		expect(!log.Workbench.empty()
+				   && std::get_if<core::select_workbench_file_intent>(&log.Workbench.front()) != nullptr
+				   && std::get<core::select_workbench_file_intent>(log.Workbench.front()).File
+					   == workbench_file(1U)
+				   && window.current_modality() == qt::review_modality::read,
+			   "activating a file row selects that file and enters Read");
+
+		window.choose_modality(qt::review_modality::overview);
+		window.clear_overview();
+		process_events();
+		expect(!window.showing_overview() && !window.overview_page()->presented(),
+			   "clearing the overview returns Overview to the comparison");
+		window.hide();
+	}
+
 	void test_large_queue_filters_through_the_composed_window()
 	{
 		qt::workbench_window window;
@@ -4529,6 +4628,7 @@ auto main(int argc, char** argv) -> int
 	test_queue_filter_controls_are_accessible_incremental_and_focus_stable();
 	test_notification_activation_selects_only_an_exact_visible_queue_row();
 	test_large_queue_filters_through_the_composed_window();
+	test_overview_shows_the_decided_page_and_continue_enters_read();
 	test_a_large_file_leaves_the_widget_count_bounded();
 	std::cout << "workbench-window-tests:pass\n";
 	return EXIT_SUCCESS;

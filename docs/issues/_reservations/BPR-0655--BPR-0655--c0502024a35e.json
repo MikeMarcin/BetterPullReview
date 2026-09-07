@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0655"
+  ],
+  "reserve_for": "bpr-defect-seed-stall",
+  "purpose": "Defect composition contract stalls resolving the seed comparison",
+  "created": "2026-09-07T05:47:32.869948+00:00",
+  "base": "3d83daae68f4c98a69f654b65f1f5d3dbbab6941"
+}

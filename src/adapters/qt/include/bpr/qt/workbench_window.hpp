@@ -14,6 +14,7 @@
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/github_pull_request_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
+#include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/review_landing_model.hpp"
 #include "bpr/qt/review_submission_editor.hpp"
@@ -227,6 +228,17 @@ namespace bpr::qt {
 		/// \brief Adopts the selected file's core-decided private receipt actions.
 		void publish(
 			const application::file_receipt_action_projection& aProjection);
+		/// \brief Adopts the host-decided overview of the open pull request.
+		///
+		/// \details [[BPR-0647]]. The Overview modality shows it in the centre
+		/// beneath the epoch line, in place of the comparison; the other
+		/// modalities keep the comparison. Its one action and its file rows
+		/// enter Read at the named file through the core's file selection.
+		void               publish(const application::pull_request_overview_projection& aProjection);
+		void               clear_overview();
+		[[nodiscard]] auto overview_page() const noexcept -> pull_request_overview_page*;
+		/// \brief Whether the centre shows the overview rather than the comparison.
+		[[nodiscard]] auto showing_overview() const -> bool;
 		/// \brief Presents one typed receipt refusal without changing the model.
 		void fail(const application::receipt_failure_publication& aFailure);
 		/// \brief Retires receipt actions, optionally naming unavailable storage.
@@ -533,15 +545,21 @@ namespace bpr::qt {
 		void observe_drawer_width(
 			core::workbench_drawer aDrawer,
 			std::uint32_t          aWidth);
-		void               apply_drawer_layout();
-		void               configure_tool_buttons();
-		void               refresh_toolbar_icons();
-		void               update_strip_positions();
-		void               update_strip_identity();
-		void               update_account_action();
-		void               apply_strip_width();
-		void               apply_review_details_visibility();
-		void               update_home_landing();
+		void apply_drawer_layout();
+		void configure_tool_buttons();
+		void refresh_toolbar_icons();
+		void update_strip_positions();
+		void update_strip_identity();
+		void update_account_action();
+		void apply_strip_width();
+		void apply_review_details_visibility();
+		void update_home_landing();
+		/// \brief Shows the overview or the comparison for the current modality.
+		void apply_modality_surface();
+		/// \brief Selects the file and enters Read, from the overview.
+		void               enter_read_at(const QString& aPath);
+		[[nodiscard]] auto file_for_path(const QString& aPath) const
+			-> std::optional<core::workbench_file_id>;
 		void               update_rail_summaries();
 		void               infer_modality_from_drawers();
 		[[nodiscard]] auto presented_files_state() const -> core::workbench_drawer_state;
@@ -599,41 +617,44 @@ namespace bpr::qt {
 		workbench_queue_rule_dispatch            QueueRuleDispatch;
 		workbench_queue_preferences_dispatch     QueuePreferencesDispatch;
 
-		QToolBar*          PrimaryToolbar       = nullptr;
-		workbench_strip*   Strip                = nullptr;
-		modality_control*  Modality             = nullptr;
-		QAction*           AccountAction        = nullptr;
-		QLabel*            IdentityLabel        = nullptr;
-		QLabel*            ChangePositionLabel  = nullptr;
-		QLabel*            FilePositionLabel    = nullptr;
-		QWidget*           ModalitySpacer       = nullptr;
-		QWidget*           StripInset           = nullptr;
-		QScrollArea*       DrawerTopScroll      = nullptr;
-		workbench_landing* HomeLanding          = nullptr;
-		QWidget*           HomePage             = nullptr;
-		bool               StripHome            = false;
-		bool               HomeRequested        = false;
-		QAction*           HomeAction           = nullptr;
-		QVBoxLayout*       HomeColumn           = nullptr;
-		QVBoxLayout*       DrawerTopColumn      = nullptr;
-		QStackedWidget*    CentralStack         = nullptr;
-		bool               ModalityChosen       = false;
-		std::size_t        ReviewThreadTotal    = 0U;
-		QAction*           IdentityAction       = nullptr;
-		QAction*           ChangePositionAction = nullptr;
-		QAction*           FilePositionAction   = nullptr;
-		QString            IdentityText;
-		QMenuBar*          PrimaryMenuBar       = nullptr;
-		QMenu*             ViewMenu             = nullptr;
-		QAction*           LineNumbersAction    = nullptr;
-		QAction*           ReviewDetailsAction  = nullptr;
-		QToolButton*       ReviewControlsButton = nullptr;
-		QMenu*             ReviewControlsMenu   = nullptr;
-		QWidget*           ToolbarSpacer        = nullptr;
-		QLabel*            StatusLabel          = nullptr;
-		QSplitter*         CentralSplitter      = nullptr;
-		QWidget*           CentreSurface        = nullptr;
-		diff_workbench*    ComparisonSurface    = nullptr;
+		QToolBar*                   PrimaryToolbar       = nullptr;
+		workbench_strip*            Strip                = nullptr;
+		modality_control*           Modality             = nullptr;
+		QAction*                    AccountAction        = nullptr;
+		QLabel*                     IdentityLabel        = nullptr;
+		QLabel*                     ChangePositionLabel  = nullptr;
+		QLabel*                     FilePositionLabel    = nullptr;
+		QWidget*                    ModalitySpacer       = nullptr;
+		QWidget*                    StripInset           = nullptr;
+		QScrollArea*                DrawerTopScroll      = nullptr;
+		workbench_landing*          HomeLanding          = nullptr;
+		QWidget*                    HomePage             = nullptr;
+		bool                        StripHome            = false;
+		bool                        HomeRequested        = false;
+		QAction*                    HomeAction           = nullptr;
+		QVBoxLayout*                HomeColumn           = nullptr;
+		QVBoxLayout*                DrawerTopColumn      = nullptr;
+		QStackedWidget*             CentralStack         = nullptr;
+		bool                        ModalityChosen       = false;
+		std::size_t                 ReviewThreadTotal    = 0U;
+		QAction*                    IdentityAction       = nullptr;
+		QAction*                    ChangePositionAction = nullptr;
+		QAction*                    FilePositionAction   = nullptr;
+		QString                     IdentityText;
+		QMenuBar*                   PrimaryMenuBar       = nullptr;
+		QMenu*                      ViewMenu             = nullptr;
+		QAction*                    LineNumbersAction    = nullptr;
+		QAction*                    ReviewDetailsAction  = nullptr;
+		QToolButton*                ReviewControlsButton = nullptr;
+		QMenu*                      ReviewControlsMenu   = nullptr;
+		QWidget*                    ToolbarSpacer        = nullptr;
+		QLabel*                     StatusLabel          = nullptr;
+		QSplitter*                  CentralSplitter      = nullptr;
+		QWidget*                    CentreSurface        = nullptr;
+		diff_workbench*             ComparisonSurface    = nullptr;
+		pull_request_overview_page* OverviewPage         = nullptr;
+		QStackedWidget*             CentreStack          = nullptr;
+		QWidget*                    ComparisonPage       = nullptr;
 
 		epoch_comparison_control* EpochSelectors = nullptr;
 

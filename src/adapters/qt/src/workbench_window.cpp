@@ -730,7 +730,25 @@ namespace bpr::qt {
 		});
 		home->addWidget(HomeLanding);
 		centre->addWidget(EpochSelectors);
-		centre->addWidget(ComparisonSurface, 1);
+		// [[BPR-0647]]. Beneath the epoch line the centre is a stack: the
+		// overview for the Overview modality, the comparison for the rest.
+		// The comparison keeps a page of its own with no margins, so every
+		// geometry the probes pin on it is what it was.
+		CentreStack = new QStackedWidget{ CentreSurface };
+		CentreStack->setObjectName(QStringLiteral("workbenchCentreStack"));
+		ComparisonPage = new QWidget{ CentreStack };
+		ComparisonPage->setObjectName(QStringLiteral("workbenchComparisonPage"));
+		auto* const comparisonColumn = new QVBoxLayout{ ComparisonPage };
+		comparisonColumn->setContentsMargins(0, 0, 0, 0);
+		comparisonColumn->setSpacing(0);
+		comparisonColumn->addWidget(ComparisonSurface, 1);
+		OverviewPage = new pull_request_overview_page{ CentreStack };
+		OverviewPage->set_entry_dispatch([this](const QString& aPath) { enter_read_at(aPath); });
+		OverviewPage->set_file_dispatch([this](const QString& aPath) { enter_read_at(aPath); });
+		CentreStack->addWidget(ComparisonPage);
+		CentreStack->addWidget(OverviewPage);
+		CentreStack->setCurrentWidget(ComparisonPage);
+		centre->addWidget(CentreStack, 1);
 
 		Drawers[0].Panel = new workbench_drawer_panel{ core::workbench_drawer::files };
 		Drawers[1].Panel = new workbench_drawer_panel{
@@ -2231,6 +2249,7 @@ namespace bpr::qt {
 			Modality->adopt(aModality);
 		}
 		ModalityChosen = true;
+		apply_modality_surface();
 		if (HomeRequested) {
 			HomeRequested = false;
 			update_home_landing();
@@ -2265,6 +2284,76 @@ namespace bpr::qt {
 	auto workbench_window::home_landing() const noexcept -> workbench_landing*
 	{
 		return HomeLanding;
+	}
+
+	void workbench_window::publish(
+		const application::pull_request_overview_projection& aProjection)
+	{
+		if (OverviewPage == nullptr) {
+			return;
+		}
+		OverviewPage->present(aProjection);
+		apply_modality_surface();
+	}
+
+	void workbench_window::clear_overview()
+	{
+		if (OverviewPage == nullptr) {
+			return;
+		}
+		OverviewPage->clear();
+		apply_modality_surface();
+	}
+
+	auto workbench_window::overview_page() const noexcept -> pull_request_overview_page*
+	{
+		return OverviewPage;
+	}
+
+	auto workbench_window::showing_overview() const -> bool
+	{
+		return CentreStack != nullptr && CentreStack->currentWidget() == OverviewPage;
+	}
+
+	void workbench_window::apply_modality_surface()
+	{
+		if (CentreStack == nullptr || OverviewPage == nullptr) {
+			return;
+		}
+		// The overview is shown for the Overview modality once the host has
+		// decided one; before that, and in every other modality, the centre
+		// is the comparison. An empty overview would say less than the panes.
+		const auto overview = Modality != nullptr
+			&& Modality->current() == review_modality::overview
+			&& OverviewPage->presented();
+		CentreStack->setCurrentWidget(overview ? static_cast<QWidget*>(OverviewPage) : ComparisonPage);
+	}
+
+	void workbench_window::enter_read_at(const QString& aPath)
+	{
+		// The overview names a path; the core knows the file by identity.
+		// Selecting it is the same intent the files drawer sends, and Read is
+		// the modality the accepted design enters from Continue review.
+		if (const auto file = file_for_path(aPath); file.has_value() && Dispatch) {
+			Dispatch(core::select_workbench_file_intent{ .File = *file });
+		}
+		choose_modality(review_modality::read);
+	}
+
+	auto workbench_window::file_for_path(const QString& aPath) const
+		-> std::optional<core::workbench_file_id>
+	{
+		const auto* const model = Drawers[0].Panel != nullptr ? Drawers[0].Panel->contents() : nullptr;
+		if (model == nullptr) {
+			return std::nullopt;
+		}
+		for (int row = 0; row < model->rowCount(); ++row) {
+			const auto index = model->index(row, 0);
+			if (model->data(index, Qt::DisplayRole).toString() == aPath) {
+				return model->file_at(index);
+			}
+		}
+		return std::nullopt;
 	}
 
 	void workbench_window::update_home_landing()
@@ -2707,6 +2796,7 @@ namespace bpr::qt {
 		update_strip_identity();
 		update_rail_summaries();
 		PullRequestPanel->clear();
+		clear_overview();
 		ConversationPanel->clear(QStringLiteral(
 			"Review threads are unavailable until a pull request is open."));
 		update_github_presentation_state();
@@ -3497,6 +3587,7 @@ namespace bpr::qt {
 		} else if (files && conversations) {
 			Modality->adopt(review_modality::review);
 		}
+		apply_modality_surface();
 	}
 
 	void workbench_window::apply_review_details_visibility()
@@ -3541,7 +3632,10 @@ namespace bpr::qt {
 			return;
 		}
 		const auto available = width();
-		IdentityAction->setVisible(!StripHome && available >= 1'180);
+		// [[BPR-0647]]. 1400, not 1180: with the Home button in the row, a
+		// long identity at 1280 pushed the right region into the overflow
+		// menu the design forbids (the UIforETW contract's compact row).
+		IdentityAction->setVisible(!StripHome && available >= 1'400);
 		ChangePositionAction->setVisible(!StripHome && available >= 960);
 		FilePositionAction->setVisible(!StripHome && available >= 960);
 		if (Modality != nullptr) {
