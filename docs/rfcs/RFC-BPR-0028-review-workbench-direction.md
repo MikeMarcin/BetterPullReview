@@ -193,3 +193,23 @@ follow in their own design rounds.
 [[BPR-0648]] aligned comment cards; [[BPR-0649]] Discuss; [[BPR-0650]] Home
 action list; [[BPR-0651]] the repositories and files drawers; [[BPR-0652]] the
 three fixed Settings pages. Closeout follows the ordinary structure gate.
+
+The pack grew as the direction was carried in: [[BPR-0653]] the strip as the
+Windows title row (Windows only, not eligible on this Mac); [[BPR-0654]] the
+files changed since my last review; [[BPR-0655]] and [[BPR-0664]], two course
+defects the slices exposed; [[BPR-0656]] read state through conversation
+receipts; [[BPR-0657]] threaded replies and resolve through the mutation port;
+[[BPR-0658]] the files tree; [[BPR-0659]] the repository projection and saved
+repositories; [[BPR-0660]] enterprise servers and the session's grant facts;
+[[BPR-0661]] the review behaviour preferences; [[BPR-0662]] drawer widths and
+[[BPR-0663]] the public-preview review history, two defects the signed bundle
+found; and [[BPR-0665]], an understated automated-run bound left for later.
+
+Status, 2026-09-07. Fifteen cards are Done with direct passing evidence.
+BPR-0646, BPR-0662 and BPR-0663 are complete except for what a person has to
+look at, and are parked on one attended session prepared at this head
+([the operator packet](../verification/reviews/rfc-bpr-0028-attended-v001/operator-packet.md)):
+the workbench chrome with a pull request open, the drawer widths in the signed
+bundle, and the review history over Public preview. The RFC stays open until
+those three verdicts land; BPR-0653 waits for the Windows station and BPR-0665
+is an ordinary follow-up.
