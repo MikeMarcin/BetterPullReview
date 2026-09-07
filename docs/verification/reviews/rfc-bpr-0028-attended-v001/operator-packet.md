@@ -2,58 +2,56 @@
 
 Status: **prepared; three decisions pending**.
 
-Three parked cards wait on one run of the signed bundle. Nothing here changes
-anything on GitHub: the pull request is opened signed out through Public
-preview, which reads and never writes.
+Three parked cards wait on one run of the signed bundle. Nothing here
+changes anything on GitHub: the pull request is opened signed out, which
+reads and never writes.
 
 - Bundle: `build/app-release/src/app/BetterPullReview.app`, executable
-  sha256 `9e8af29a9bf43e5114b16e0fd3e1f2c62a0b0a12444bd91c97a321cb9faafc94`,
-  built at f492706b with tests disabled.
-- Review page: [offline-package/index.html](offline-package/index.html). Open
-  it in a browser, decide each candidate, then use Copy JSON or Download JSON.
-- Identity: [session-identity.json](session-identity.json) binds the bundle,
-  the page and the three candidate fingerprints.
+  sha256 `a066705f24e9ea527e21f1eba4ee765ca90eeedc8b8a76747a01235789622b76`
+  as recorded in [session-identity.json](session-identity.json), built at
+  8ba0cb52 with tests disabled.
+- Review page: [offline-package/index.html](offline-package/index.html), or
+  ask for the live URL. Each candidate carries the command that opens the
+  build, with a Copy button; the page keeps your note, takes screenshots,
+  and lets you change or clear an answer.
 
 ## The run
 
-1. Quit the BetterPullReview already running. It is the older bundle.
-2. Open the bundle above.
-3. Stay signed out. From Home choose Public preview and open
-   `https://github.com/microsoft/terminal/pull/20607`.
+Open the build with the command on the page, or:
+
+    open build/app-release/src/app/BetterPullReview.app
+
+1. Quit the BetterPullReview already running. It is an older build.
+2. Stay signed out. On Home press "Read without signing in".
+3. Paste `https://github.com/microsoft/terminal/pull/20607` into the bar
+   above the queue and press Open.
 4. Wait for the pull request, then let the review history settle.
 5. Look at the window at its default size and again at about 1280x820.
-6. Afterwards, read
-   `~/Library/Application Support/BetterPullReview/logs/diagnostics.log`.
+6. Afterwards, if the history fails again, read
+   `~/Library/Application Support/BetterPullReview/BetterPullReview/logs/diagnostics.log`.
 
 ## What each candidate asks
 
 - **BPR-0646, workbench chrome.** The strip is the title row beside the
   traffic lights with the epoch line beneath and nothing else above the
-  comparison; the epoch line draws a node per upload and a handle changes the
-  comparison; one drawer collapsed to its rail shows a vertical label and an
-  unread count while the other stays open; signed out, the strip's account
-  button reaches sign-in without scrolling.
+  comparison; a handle on the epoch line changes the comparison; one drawer
+  collapsed to its rail carries a vertical label and an unread count; signed
+  out, sign-in is reachable without scrolling.
 - **BPR-0662, drawer widths.** The drawers are at usable widths, they do not
-  move on their own when the window is narrowed and widened again, and a width
-  you drag survives a trip to Home and back. The persisted layout file is
-  currently empty, so this run starts at the design widths rather than at the
-  64-pixel widths the defect wrote.
-- **BPR-0663, public preview epoch.** The epoch line shows the updates rather
-  than "No updates loaded.", the comparison resolves to an exact pair, and the
-  diagnostics log records `epoch_stage=smart_acquire` succeeding with no
-  `failure=invalid_request`.
+  move on their own when the window narrows and widens, and a width you drag
+  survives a trip to Home.
+- **BPR-0663, public preview.** The epoch line shows the updates rather than
+  "No updates loaded.", and the comparison resolves to an exact pair.
 
-## After the decisions
+## What changed since the rejected session
 
-Hand the exported JSON back and it is imported into the session; the three
-cards are then closed or reopened from what you decided. A rejection is as
-useful as an acceptance: it names the next card.
-
-## What was verified without you
-
-Every automated criterion on the three cards passes at this head, including
-the focused Qt suites at all three scales, the composition and round-trip
-contracts with both application digests repinned, the six anonymous
-public-preview courses, the native git smart transport contract with its new
-seam pin, and both UIforETW courses. What is owed is exactly what a person
-has to look at.
+- The review history failed because the acquire refused any pull request
+  whose base branch had moved, which is nearly all of them. Fixed.
+- Home takes a pasted link and has an Open button; the signed-out path is
+  on Home as "Read without signing in" rather than buried in Settings as
+  "Public preview".
+- The pull request summary has left the files drawer for the overview.
+- A failed comparison names what is open and lists the files instead of
+  claiming nothing is open.
+- The page itself keeps notes, takes images, and lets an answer be changed
+  or cleared.
