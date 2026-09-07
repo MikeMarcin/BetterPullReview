@@ -518,21 +518,22 @@ namespace bpr::qt {
 		void observe_drawer_width(
 			core::workbench_drawer aDrawer,
 			std::uint32_t          aWidth);
-		void apply_drawer_layout();
-		void configure_tool_buttons();
-		void refresh_toolbar_icons();
-		void update_strip_positions();
-		void update_strip_identity();
-		void update_account_action();
-		void apply_strip_width();
-		void update_rail_summaries();
-		void infer_modality_from_drawers();
-		void apply_focus_order();
-		void update_action_state();
-		void build_menu_bar();
-		void dispatch_line_numbers_toggle();
-		void apply_line_numbers();
-		void update_drawer_action(
+		void               apply_drawer_layout();
+		void               configure_tool_buttons();
+		void               refresh_toolbar_icons();
+		void               update_strip_positions();
+		void               update_strip_identity();
+		void               update_account_action();
+		void               apply_strip_width();
+		void               update_rail_summaries();
+		void               infer_modality_from_drawers();
+		[[nodiscard]] auto presented_files_state() const -> core::workbench_drawer_state;
+		void               apply_focus_order();
+		void               update_action_state();
+		void               build_menu_bar();
+		void               dispatch_line_numbers_toggle();
+		void               apply_line_numbers();
+		void               update_drawer_action(
 			std::size_t                  aIndex,
 			core::workbench_command_id   aId,
 			core::workbench_drawer_state aState);
@@ -649,7 +650,6 @@ namespace bpr::qt {
 		QLabel*                                                    QueueStatus           = nullptr;
 		std::vector<core::observer_rule>                           QueueRules;
 		application::queue_landing_projection                      QueueProjection;
-		QScrollArea*                                               HeaderScroll = nullptr;
 		github_session_panel*                                      SessionPanel = nullptr;
 		device_authorization_panel*                                DevicePanel  = nullptr;
 		application::device_authorization_gesture_dispatch         DeviceDispatch;

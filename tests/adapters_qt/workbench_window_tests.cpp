@@ -1395,9 +1395,7 @@ namespace {
 		window.show();
 		QApplication::processEvents();
 
-		auto* const action = window.review_details_toggle_action();
-		auto* const header = window.findChild<QScrollArea*>(
-			QStringLiteral("workbenchReviewHeaderScroll"));
+		auto* const action     = window.review_details_toggle_action();
 		auto* const comparison = window.comparison_surface();
 		auto* const epochs     = window.epoch_selectors();
 		auto* const detail     = window.detail_pane();
@@ -1411,26 +1409,28 @@ namespace {
 				   && !button->accessibleDescription().isEmpty()
 				   && window.focus_order().contains(button),
 			   "review details have a visible, checkable, keyboard-accessible action");
-		expect(header != nullptr && header->isVisible() && comparison != nullptr
+		expect(window.findChild<QScrollArea*>(
+				   QStringLiteral("workbenchReviewHeaderScroll"))
+					   == nullptr
+				   && comparison != nullptr
 				   && epochs != nullptr && epochs->isVisible()
 				   && detail != nullptr && detail->isVisible(),
-			   "review details begin visible above the composed comparison");
+			   "review details begin visible around the composed comparison, "
+			   "with no review header above it");
 		const auto expandedHeight = comparison->height();
 
 		action->trigger();
 		QApplication::processEvents();
-		expect(!action->isChecked() && !header->isVisible() && !epochs->isVisible()
-				   && !detail->isVisible(),
+		expect(!action->isChecked() && !epochs->isVisible() && !detail->isVisible(),
 			   "the focused-review gesture hides only the secondary detail region");
 		expect(comparison->height() > expandedHeight,
 			   "hiding review details returns their height to the comparison");
-		expect(action->toolTip().contains(QStringLiteral("Show session")),
+		expect(action->toolTip().contains(QStringLiteral("Show the epoch line")),
 			   "the retained action explains how to reopen every hidden detail");
 
 		action->trigger();
 		QApplication::processEvents();
-		expect(action->isChecked() && header->isVisible() && epochs->isVisible()
-				   && detail->isVisible(),
+		expect(action->isChecked() && epochs->isVisible() && detail->isVisible(),
 			   "the same shipped action restores the review details");
 		window.hide();
 	}

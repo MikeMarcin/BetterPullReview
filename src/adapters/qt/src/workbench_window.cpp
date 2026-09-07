@@ -450,7 +450,7 @@ namespace bpr::qt {
 			QKeySequence{ QStringLiteral("Alt+Shift+3") });
 		ReviewDetailsAction->setShortcutContext(Qt::WindowShortcut);
 		ReviewDetailsAction->setToolTip(QStringLiteral(
-			"Hide secondary review details and give their height to the comparison."));
+			"Hide the epoch line and the selected-change details and give their height to the comparison."));
 		ReviewDetailsAction->setStatusTip(ReviewDetailsAction->toolTip());
 		addAction(ReviewDetailsAction);
 		connect(
@@ -458,9 +458,6 @@ namespace bpr::qt {
 			&QAction::toggled,
 			this,
 			[this](const bool aVisible) {
-				if (HeaderScroll != nullptr) {
-					HeaderScroll->setVisible(aVisible);
-				}
 				if (EpochSelectors != nullptr) {
 					EpochSelectors->setVisible(aVisible);
 				}
@@ -470,9 +467,9 @@ namespace bpr::qt {
 				}
 				const auto description = aVisible
 					? QStringLiteral(
-						  "Hide secondary review details and give their height to the comparison.")
+						  "Hide the epoch line and the selected-change details and give their height to the comparison.")
 					: QStringLiteral(
-						  "Show session, queue, pull-request, epoch, appearance, and selected-change details.");
+						  "Show the epoch line and the selected-change details.");
 				ReviewDetailsAction->setToolTip(description);
 				ReviewDetailsAction->setStatusTip(description);
 				if (auto* const button = qobject_cast<QToolButton*>(
@@ -546,13 +543,6 @@ namespace bpr::qt {
 			// Signed out, the one way in is the device sign-in the header
 			// shows; signed in, the account lives on its settings page.
 			if (DevicePanel != nullptr && DevicePanel->isVisibleTo(this)) {
-				if (ReviewDetailsAction != nullptr
-					&& !ReviewDetailsAction->isChecked()) {
-					ReviewDetailsAction->setChecked(true);
-				}
-				if (HeaderScroll != nullptr) {
-					HeaderScroll->ensureWidgetVisible(DevicePanel);
-				}
 				DevicePanel->begin_button()->setFocus(Qt::ShortcutFocusReason);
 				return;
 			}
@@ -931,6 +921,15 @@ namespace bpr::qt {
 			= qobject_cast<QVBoxLayout*>(Drawers[0].Panel->layout());
 			filesColumn != nullptr) {
 			build_queue_landing(Drawers[0].Panel, *filesColumn);
+			// Before the files list: the queue is how a pull request is
+			// chosen, the list is what it holds.
+			if (auto* const landing = Drawers[0].Panel->findChild<QWidget*>(
+					QStringLiteral("reviewQueueLanding"), Qt::FindDirectChildrenOnly);
+				landing != nullptr && Drawers[0].Panel->contents_view() != nullptr) {
+				filesColumn->removeWidget(landing);
+				filesColumn->insertWidget(
+					filesColumn->indexOf(Drawers[0].Panel->contents_view()), landing);
+			}
 		}
 		// Only the centre absorbs a window resize, so a drawer keeps the width the
 		// host persisted until the user moves the handle.
@@ -1038,20 +1037,21 @@ namespace bpr::qt {
 			nullptr,
 		};
 
-		auto* const header = new QWidget;
-		header->setObjectName(QStringLiteral("workbenchReviewHeader"));
-		header->setAccessibleName(QStringLiteral("Pull request"));
-		auto* const column = new QVBoxLayout{ header };
-		column->setContentsMargins(0, 0, 0, 0);
-		// [[BPR-0646]]. Sign-in first: while signed out the device panel is the
-		// top of the header, reachable without scrolling; once a session is
-		// accepted it hides (see update_github_presentation_state).
-		column->addWidget(DevicePanel);
-		column->addWidget(SessionPanel);
-		// The picker names the profile the Connect button acts on, so it names
-		// the profile a device code is asked for too. Two sign-in controls side
-		// by side that meant two different hosts would be the defect this mount
-		// is most likely to introduce.
+		// [[BPR-0646]]. RFC-BPR-0028 AC-01: the chrome above the comparison
+		// is the strip and the epoch line only. The session chrome, the device
+		// sign-in and the pull request summary live at the top of the files
+		// drawer until the repositories drawer (BPR-0651) and the accounts
+		// page (BPR-0652) take them: sign-in first while signed out, reachable
+		// without scrolling; then the host and locator; then the pull request;
+		// then the queue and the files. The drawer presents expanded whenever
+		// the core offers no drawer command, so none of this can be shut away
+		// behind a rail the reviewer cannot reopen (see apply_drawer_layout).
+		auto* const filesColumn
+			= qobject_cast<QVBoxLayout*>(Drawers[0].Panel->layout());
+		auto placeAt = 1;
+		filesColumn->insertWidget(placeAt++, DevicePanel);
+		filesColumn->insertWidget(placeAt++, SessionPanel);
+		SessionPanel->apply_compact_layout(true);
 		connect(
 			SessionPanel->profile_selector(),
 			&QComboBox::currentIndexChanged,
@@ -1077,7 +1077,7 @@ namespace bpr::qt {
 		// do, which is what the shell shipped for exactly one commit before this
 		// restored it. The session chrome stays visible either way, because
 		// connecting is the action the empty state is asking for.
-		PullRequestStack = new QStackedWidget{ header };
+		PullRequestStack = new QStackedWidget{ Drawers[0].Panel };
 		PullRequestStack->setObjectName(QStringLiteral("githubViewState"));
 		auto* const emptyState = new QWidget{ PullRequestStack };
 		emptyState->setObjectName(QStringLiteral("githubEmptyState"));
@@ -1119,14 +1119,22 @@ namespace bpr::qt {
 		contentLayout->setContentsMargins(0, 0, 0, 0);
 		contentLayout->addWidget(PullRequestPanel);
 		PullRequestStack->addWidget(content);
-		column->addWidget(PullRequestStack);
+		// Bounded: the drawer's files list is what the drawer is for, and a
+		// long summary must not be able to take the height it needs.
+		PullRequestStack->setMaximumHeight(200);
+		// Under the queue and above the files list: choose, then see.
+		const auto beforeFiles = [filesColumn, this] {
+			return Drawers[0].Panel->contents_view() != nullptr
+				? filesColumn->indexOf(Drawers[0].Panel->contents_view())
+				: filesColumn->count();
+		};
+		filesColumn->insertWidget(beforeFiles(), PullRequestStack);
 		// The panel builds the description but deliberately does not lay it out:
 		// where a description belongs is a decision for whoever assembles the
 		// window, and this one puts it under the metadata it describes. Bounded
-		// rather than stretching, because a long description must not be able to
-		// take the height the comparison needs -- the comparison is the review.
+		// rather than stretching, for the same reason.
 		PullRequestPanel->body_editor()->setMaximumHeight(120);
-		column->addWidget(PullRequestPanel->body_editor());
+		filesColumn->insertWidget(beforeFiles(), PullRequestPanel->body_editor());
 
 		// [[BPR-0646]]. The appearance surface moves out of the review header
 		// into the Settings window, a modeless child of this window reached by
@@ -1138,27 +1146,7 @@ namespace bpr::qt {
 		SettingsWindow = new settings_window{ this };
 		SettingsWindow->adopt_panel(settings_page::appearance, AppearanceSettings);
 
-		// Scrolled and bounded rather than free to grow. The comparison is what a
-		// review is looking at, and a long description or a wide locator must not
-		// be able to take the height it needs -- at 820 high with the header
-		// unbounded the comparison became too short to hold a correspondence at
-		// all, which the composed link map assertion caught. RFC-BPR-0028's strip
-		// replaces this header; until then it stays bounded, with sign-in on top.
-		HeaderScroll = new QScrollArea{ this };
-		HeaderScroll->setObjectName(QStringLiteral("workbenchReviewHeaderScroll"));
-		HeaderScroll->setWidgetResizable(true);
-		HeaderScroll->setFrameShape(QFrame::NoFrame);
-		HeaderScroll->setMaximumHeight(220);
-		HeaderScroll->setFocusPolicy(Qt::NoFocus);
-		HeaderScroll->setWidget(header);
-
-		auto* const host = new QWidget{ this };
-		host->setObjectName(QStringLiteral("workbenchReviewHost"));
-		auto* const stack = new QVBoxLayout{ host };
-		stack->setContentsMargins(0, 0, 0, 0);
-		stack->addWidget(HeaderScroll);
-		stack->addWidget(CentralSplitter, 1);
-		setCentralWidget(host);
+		setCentralWidget(CentralSplitter);
 
 		// [[BPR-0646]]. Refresh sits in the strip's right region, before the
 		// comments toggle, as the design places it. Same action as the
@@ -2691,6 +2679,7 @@ namespace bpr::qt {
 			return;
 		}
 		PullRequestStack->setCurrentIndex(HasGithubPullRequest ? 1 : 0);
+		PullRequestPanel->body_editor()->setVisible(HasGithubPullRequest);
 		// [[BPR-0646]]. Sign-in is a state of the window: the device panel is
 		// shown while there is no accepted session and hidden once there is,
 		// so it is reachable without scrolling and absent when it is noise.
@@ -3182,6 +3171,8 @@ namespace bpr::qt {
 		append(QueueRuleExcluding);
 		append(AddQueueRuleButton);
 		append(RemoveQueueRuleButton);
+		// The files drawer's column, top to bottom: sign-in, the session
+		// chrome, the queue, the pull request, then the files list.
 		if (PullRequestPanel != nullptr) {
 			append(PullRequestPanel->technical_details_button());
 			append(PullRequestPanel->body_editor());
@@ -3255,9 +3246,6 @@ namespace bpr::qt {
 	void workbench_window::resizeEvent(QResizeEvent* const aEvent)
 	{
 		QMainWindow::resizeEvent(aEvent);
-		if (SessionPanel != nullptr) {
-			SessionPanel->apply_compact_layout(width() < 900);
-		}
 		apply_strip_width();
 	}
 
@@ -3553,12 +3541,28 @@ namespace bpr::qt {
 	void workbench_window::apply_drawer_layout()
 	{
 		ApplyingLayout = true;
-		Drawers[0].Panel->adopt(DrawerStates.Files);
+		Drawers[0].Panel->adopt(presented_files_state());
 		Drawers[1].Panel->adopt(DrawerStates.Conversations);
 		if (LayoutWidths) {
 			CentralSplitter->setSizes(central_sizes());
 		}
 		ApplyingLayout = false;
+	}
+
+	auto workbench_window::presented_files_state() const
+		-> core::workbench_drawer_state
+	{
+		// The core decides the drawer while it offers the drawer command. When
+		// it offers none -- no workbench is active -- the files drawer holds
+		// the sign-in, the host chrome and the queue that would make one, so it
+		// presents expanded: a rail the reviewer could not reopen would shut
+		// the way in. The core's state is untouched and returns with the
+		// command.
+		const auto toggle = command(core::workbench_command_id::toggle_files_drawer);
+		if (!toggle || !toggle->Enabled) {
+			return core::workbench_drawer_state::expanded;
+		}
+		return DrawerStates.Files;
 	}
 
 	auto workbench_window::central_sizes() const -> QList<int>
@@ -3570,7 +3574,7 @@ namespace bpr::qt {
 				std::min(aWidth, application::maximum_workbench_drawer_width));
 		};
 		// A collapsed drawer is its rail, so the rail's width is what it keeps.
-		const auto files = DrawerStates.Files == core::workbench_drawer_state::expanded
+		const auto files = presented_files_state() == core::workbench_drawer_state::expanded
 			? granted(LayoutWidths->FilesWidth)
 			: workbench_drawer_rail::width_pixels;
 		const auto conversations
@@ -3715,6 +3719,10 @@ namespace bpr::qt {
 		update_drawer_action(0U,
 							 core::workbench_command_id::toggle_files_drawer,
 							 DrawerStates.Files);
+		// The presented files state depends on whether the command is offered.
+		if (Drawers[0].Panel->state() != presented_files_state()) {
+			apply_drawer_layout();
+		}
 		update_drawer_action(
 			1U,
 			core::workbench_command_id::toggle_conversations_drawer,

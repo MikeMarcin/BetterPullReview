@@ -12794,11 +12794,10 @@ namespace bpr::app {
 		}
 
 		if (probe.Phase == state_type::phase::awaiting_focused_layout) {
-			auto* const header = window->findChild<QScrollArea*>(
-				QStringLiteral("workbenchReviewHeaderScroll"));
 			auto* const detail = workbench->detail_pane();
 			// [[BPR-0646]]. A collapsed drawer is its rail, so focused means
-			// both drawers are down to their rails.
+			// both drawers are down to their rails; there is no review header
+			// above the comparison any more.
 			const auto focused = window->files_drawer()->width()
 					<= qt::workbench_drawer_rail::width_pixels
 				&& window->conversations_drawer()->width()
@@ -12806,7 +12805,6 @@ namespace bpr::app {
 				&& !window->files_drawer_toggle_action()->isChecked()
 				&& !window->conversations_drawer_toggle_action()->isChecked()
 				&& !window->review_details_toggle_action()->isChecked()
-				&& header != nullptr && !header->isVisible()
 				&& !window->epoch_selectors()->isVisible()
 				&& detail != nullptr && !detail->isVisible();
 			if (!focused) {
@@ -13019,8 +13017,6 @@ namespace bpr::app {
 			return false;
 		}
 
-		auto* const header = window->findChild<QScrollArea*>(
-			QStringLiteral("workbenchReviewHeaderScroll"));
 		auto* const detail            = workbench->detail_pane();
 		auto* const comparisonSurface = workbench->comparison_splitter();
 		auto* const linkMap           = workbench->link_map();
@@ -13034,8 +13030,7 @@ namespace bpr::app {
 			= window->conversations_drawer_toggle_action();
 		auto* const reviewDetails  = window->review_details_toggle_action();
 		auto* const reviewControls = window->review_controls_button();
-		if (header == nullptr || header->isVisible()
-			|| window->epoch_selectors()->isVisible()
+		if (window->epoch_selectors()->isVisible()
 			|| detail == nullptr || detail->isVisible()
 			|| window->files_drawer()->width()
 				> qt::workbench_drawer_rail::width_pixels
@@ -13438,7 +13433,7 @@ namespace bpr::app {
 			"conversations_drawer_rect_in_splitter",
 			rectangle_json(window->conversations_drawer()->geometry()),
 			"review_details_rect_in_window",
-			rectangle_json(inWindow(*header)),
+			rectangle_json(inWindow(*window->epoch_selectors())),
 			"comparison_width_ratio_permille",
 			widthRatio,
 			"comparison_height_ratio_permille",

@@ -2982,9 +2982,11 @@ namespace {
 		window.resize(1'100, 900);
 		window.show();
 		QApplication::processEvents();
-		auto* const header = required_child<QWidget>(
-			window, "workbenchReviewHeader");
-		auto* found = static_cast<QWidget*>(nullptr);
+		// [[BPR-0646]]. AC-01 left nothing above the comparison but the strip
+		// and the epoch line, so the sign-in and the session chrome live at
+		// the top of the files drawer until the accounts page takes them.
+		auto* const header = window.files_drawer();
+		auto*       found  = static_cast<QWidget*>(nullptr);
 		for (auto* const widget : header->findChildren<QWidget*>()) {
 			if (widget->accessibleName()
 				== QStringLiteral("Sign in with a device code")) {
@@ -2993,41 +2995,39 @@ namespace {
 		}
 		expect(
 			found != nullptr && found == window.device_authorization(),
-			"the review header holds the device sign-in panel under its "
+			"the files drawer holds the device sign-in panel under its "
 			"accessible name");
 		auto* const panel = window.device_authorization();
 		expect(
 			panel->parentWidget() == header
 				&& header->layout() != nullptr
 				&& header->layout()->indexOf(panel) >= 0,
-			"the device panel is laid into the review header's own column, not "
+			"the device panel is laid into the files drawer's own column, not "
 			"merely parented to it");
-		// [[BPR-0646]]. Signed out, sign-in is the first thing the header
-		// shows: it sits above the session chrome that offers the token prompt,
-		// so it is reached without scrolling the header.
+		// Signed out, sign-in is the first thing under the drawer's heading:
+		// it sits above the session chrome that offers the token prompt, so
+		// it is reached without scrolling anything.
 		auto* const session = window.session_panel();
 		expect(
 			session != nullptr && session->parentWidget() == header
 				&& header->layout()->indexOf(panel) + 1
 					== header->layout()->indexOf(session),
-			"device sign-in is the header's first stop, directly above the "
+			"device sign-in is the drawer's first panel, directly above the "
 			"session chrome that offers the token prompt");
 		expect(
 			panel->isVisible() && panel->width() > 0 && panel->height() > 0
 				&& panel->mapTo(header, QPoint{ 0, 0 }).y()
-					< session->mapTo(header, QPoint{ 0, 0 }).y(),
-			"while signed out the mounted panel is a visible region above the "
-			"Connect control");
-		auto* const unscrolledHeader = required_child<QScrollArea>(
-			window, "workbenchReviewHeaderScroll");
-		expect(
-			unscrolledHeader->verticalScrollBar()->value() == 0
-				&& panel->mapTo(unscrolledHeader->viewport(), QPoint{ 0, 0 }).y()
-					>= 0
-				&& panel->mapTo(unscrolledHeader->viewport(), QPoint{ 0, 0 }).y()
+					< session->mapTo(header, QPoint{ 0, 0 }).y()
+				&& panel->mapTo(&window, QPoint{ 0, 0 }).y()
 						+ panel->height()
-					<= unscrolledHeader->viewport()->height(),
-			"the signed-out sign-in panel fits inside the unscrolled header");
+					<= window.height(),
+			"while signed out the mounted panel is a visible region above the "
+			"Connect control, inside the window without scrolling");
+		expect(
+			header->isVisible()
+				&& header->width() > qt::workbench_drawer_rail::width_pixels,
+			"with no workbench to offer a drawer command the files drawer "
+			"presents expanded, so sign-in cannot be shut behind a rail");
 
 		const auto declared = window.focus_order();
 		expect(
@@ -3142,18 +3142,9 @@ namespace {
 			"and neither is performed here");
 		window.set_device_authorization_dispatch({ });
 
-		// The header column is taller than the bound its scroll area keeps, so
-		// the panel has to be scrolled into that region before the capture is a
-		// picture of it rather than of the chrome above it.
-		auto* const headerScroll = window.findChild<QScrollArea*>(
-			QStringLiteral("workbenchReviewHeaderScroll"));
-		expect(
-			headerScroll != nullptr,
-			"the review header column scrolls rather than squeezing its panels");
-		headerScroll->verticalScrollBar()->setValue(
-			headerScroll->verticalScrollBar()->value()
-			+ panel->mapTo(headerScroll->viewport(), QPoint{ 0, 0 }).y());
-		QApplication::processEvents();
+		// The panel is at the top of the files drawer, so the capture is a
+		// picture of it without scrolling anything.
+		auto* const headerScroll = window.files_drawer();
 		const QRect placed{
 			panel->mapTo(headerScroll, QPoint{ 0, 0 }),
 			panel->size(),
@@ -3161,11 +3152,11 @@ namespace {
 		expect(
 			headerScroll->rect().intersected(placed).height()
 				>= placed.height() / 2,
-			"scrolling the header column shows the device panel inside it");
+			"the files drawer shows the device panel inside it");
 
-		// Cropped to the header the panel is in. A whole-window raster would
-		// pass on a repaint anywhere; this one is the header and only the
-		// header.
+		// Cropped to the drawer the panel is in. A whole-window raster would
+		// pass on a repaint anywhere; this one is the drawer and only the
+		// drawer.
 		QApplication::processEvents();
 		const auto rendered = window.grab();
 		const auto ratio    = window.devicePixelRatioF();
@@ -3185,7 +3176,7 @@ namespace {
 		expect(
 			rendered.rect().contains(region) && !cropped.isNull()
 				&& cropped.size() == region.size(),
-			"the review header crop has the header's exact device dimensions");
+			"the files drawer crop has the drawer's exact device dimensions");
 		const auto renderPath = qEnvironmentVariable("BPR_QT_RENDER_PATH");
 		if (!renderPath.isEmpty()) {
 			const QFileInfo configured{ renderPath };

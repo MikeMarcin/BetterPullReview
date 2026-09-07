@@ -82,10 +82,10 @@ namespace {
 				   && appearance->parentWidget() == settings->page_widget(qt::settings_page::appearance),
 			   "the appearance panel lives on the Settings window's Appearance page");
 		expect(workbench.findChild<QWidget*>(QStringLiteral("appearanceSettingsPanel")) == appearance
-				   && !workbench.findChild<QWidget*>(QStringLiteral("workbenchReviewHeader"))
-						   ->findChildren<QWidget*>(QStringLiteral("appearanceSettingsPanel"))
-						   .contains(appearance),
-			   "the appearance panel is no longer inside the review header");
+				   && workbench.findChild<QWidget*>(QStringLiteral("workbenchReviewHeader")) == nullptr
+				   && !workbench.files_drawer()->isAncestorOf(appearance),
+			   "there is no review header any more, and the appearance panel is not "
+			   "in the files drawer either");
 		action->trigger();
 		QApplication::processEvents();
 		expect(settings->isVisible() && settings->current_page() == qt::settings_page::appearance,

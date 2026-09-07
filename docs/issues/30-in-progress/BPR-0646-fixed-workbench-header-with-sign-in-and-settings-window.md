@@ -163,3 +163,22 @@ area in `workbench_window.cpp` and the toolbar it carries.
   drawer is hidden now say it is its rail: the collapse tests, the restart
   test, the composed agent-surface test, and the UIforETW focused-layout
   probes.
+- Slice (e), no review header (AC-01). The 220-pixel scroll area and its
+  host widget are gone: the central widget is the splitter, so the chrome
+  above the comparison is the strip and the epoch line only. The device
+  sign-in, the session chrome (in its compact layout), the queue landing,
+  the pull request summary (bounded to 200 pixels) and its description
+  (hidden until a pull request is open) live at the top of the files drawer,
+  in that order, above the files list, until the repositories drawer
+  (BPR-0651) and the accounts page (BPR-0652) take them. The files drawer
+  presents expanded whenever the core offers no drawer command, so sign-in
+  and the locator can never be shut behind a rail the reviewer could not
+  reopen; the core's drawer state is untouched and returns with the
+  command. Review details now toggles the epoch line and the selected-change
+  details only, and says so. The composed device sign-in test, its render
+  crop, the review-details test, the settings window test and the UIforETW
+  probes moved with the panels; the probe's "review_details_rect_in_window"
+  now measures the epoch line.
+  The attended look at this slice in the signed bundle is owed: the screen
+  was locked again when it was built (25 of 25 focused selectors and the
+  contracts pass).
