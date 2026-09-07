@@ -336,3 +336,41 @@ for the summary box this card left in the files drawer, and
 and [BPR-0668](../60-done/BPR-0668-a-failed-comparison-leaves-an-empty-workbench-that-says-nothing-is-open.md)
 for the empty workbench. The capture is re-offered only once a reviewer can
 reach a comparison; there is nothing to photograph until then.
+
+## Attended verdict, 2026-09-07 (second run): rejected
+
+The owner ran the session again on the repaired build (a066705f, head
+8ba0cb52) and rejected the capture a second time, with a screenshot kept
+at
+[captures/owner-overview-2026-09-07.png](../../verification/reviews/rfc-bpr-0028-attended-v001/captures/owner-overview-2026-09-07.png)
+and this note, in full:
+
+> Homepage flow is better. Although it'd be nice of this review page put
+> the url it wants me to paste in a copy box like it did the command. It'd
+> also be nice if for a screenshot I could just paste an image into this
+> comment box rather than having to save one as a file and search my
+> computer to attach it.
+>
+> As for the actual criteria the title row looks pretty good.
+> The epoch line is quite hard to see if it's working properly or not.
+> I cannot figure out how to collapse a drawer at all.
+> Overview mode should have all drawers collapsed by default, or maybe
+> always. Those drawers don't really make sense in overview imo.
+
+What the capture also shows, which the note does not name: the pull
+request loads and the review history is ready, so
+[BPR-0667](BPR-0667-the-epoch-refuses-any-pull-request-whose-base-branch-moved.md)
+worked, but the status line still reads "Its comparison is not ready" and
+the overview is squeezed into a column about 150 pixels wide between the
+two drawers, with its own headings truncated to "Techni…etails" and
+"Compari…hole PR".
+
+Carried forward: [BPR-0674](../10-backlog/BPR-0674-overview-is-starved-by-the-drawers.md)
+for the overview's width and the drawers in Overview,
+[BPR-0675](../10-backlog/BPR-0675-a-drawer-cannot-be-collapsed-by-anyone-who-has-not-read-the-code.md)
+for collapsing a drawer,
+[BPR-0676](../10-backlog/BPR-0676-the-epoch-line-does-not-show-whether-it-is-working.md)
+for the epoch line, and
+[BPR-0677](../10-backlog/BPR-0677-the-comparison-stays-unavailable-after-the-history-is-ready.md)
+for the comparison. The two review-page requests are AgentSkills ASK-0020.
+The title row is accepted: "the title row looks pretty good".

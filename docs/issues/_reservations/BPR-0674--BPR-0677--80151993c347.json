@@ -1,0 +1,13 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0674",
+    "BPR-0675",
+    "BPR-0676",
+    "BPR-0677"
+  ],
+  "reserve_for": "owner-verdict-20260907",
+  "purpose": "Overview starved by drawers, collapse discoverability, epoch line legibility, comparison not ready",
+  "created": "2026-09-07T21:08:30.726830+00:00",
+  "base": "2821aa7e27542916dee386acc76f3fcdcb1277bb"
+}

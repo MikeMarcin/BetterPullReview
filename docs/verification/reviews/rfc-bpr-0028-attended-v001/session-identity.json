@@ -32,5 +32,17 @@
    "fingerprint": "9a6329620a7d77729e99d200aa226febbc5e83469b87d8002f4cb1a9811da6cf",
    "card": "docs/issues/40-parked/BPR-0663-public-preview-refuses-the-epoch-smart-acquire.md"
   }
+ ],
+ "owner_verdicts": [
+  {
+   "candidate": "BPR-0646-workbench-chrome",
+   "outcome": "reject",
+   "saved_at": "2026-09-07T21:04:08.848025+00:00",
+   "capture": {
+    "path": "captures/owner-overview-2026-09-07.png",
+    "digest": "sha256:d8d7f66b70aee869b5297f907cffb3eb7867ade0c0bbf76cfbe4efcf954f3225",
+    "byte_length": 998663
+   }
+  }
  ]
 }
