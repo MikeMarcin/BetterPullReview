@@ -462,6 +462,7 @@ namespace bpr::qt {
 	protected:
 		void changeEvent(QEvent* aEvent) override;
 		void resizeEvent(QResizeEvent* aEvent) override;
+		void showEvent(QShowEvent* aEvent) override;
 
 	private:
 		/// \brief Binds one primary action to its presentation wording.
@@ -586,6 +587,7 @@ namespace bpr::qt {
 		QLabel*           ChangePositionLabel  = nullptr;
 		QLabel*           FilePositionLabel    = nullptr;
 		QWidget*          ModalitySpacer       = nullptr;
+		QWidget*          StripInset           = nullptr;
 		QAction*          IdentityAction       = nullptr;
 		QAction*          ChangePositionAction = nullptr;
 		QAction*          FilePositionAction   = nullptr;

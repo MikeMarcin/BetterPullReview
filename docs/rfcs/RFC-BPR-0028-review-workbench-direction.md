@@ -54,6 +54,19 @@ control with its shortcuts; right, refresh, the comments toggle, a divider,
 account, settings. Below it the 22-pixel epoch line. No toolbar with labels,
 no menu bar rows. Nothing in the strip may read as disabled.
 
+The strip is the title row. The owner's references (Fork and Visual Studio
+Code on both platforms, Windows Terminal, Ghostty, the Claude app) share one
+pattern: the window controls sit at the edges of the first row and the
+application's own navigation fills it, with the document's identity standing
+in for a title. A separate title bar that names only the application is
+wasted height. On macOS the traffic lights occupy the strip's left inset and
+the title text is hidden; the identity is the title, exactly as Fork shows the
+repository and branch there. On Windows, where Visual Studio Code is the
+closest reference, the strip carries a compact menu at its left, the same
+regions, and the minimise, maximise and close buttons at its right, with the
+system's snap layouts and drag behaviour preserved. Empty strip space drags
+the window and double-clicking it zooms, as the platform title bar would.
+
 **Epoch line.** A single line with one node per review epoch, that is each
 update (push) that changed the pull request, never a commit or a file's
 history; the label reads "Updates" and the dates sit in their own row beneath
@@ -146,7 +159,8 @@ follow in their own design rounds.
 ## Acceptance criteria
 
 - AC-01 The chrome above the comparison is the strip and the epoch line only,
-  with no scroll area, at every window size the workbench supports.
+  with no scroll area and no separate title bar, at every window size the
+  workbench supports; the strip is the row the window controls sit in.
 - AC-02 The epoch line selects any two uploads by drag, click, ⌘-click, menu and
   keyboard stepping, shows my last review, and drives the comparison the
   existing epoch host already resolves.

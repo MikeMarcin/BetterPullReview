@@ -118,3 +118,29 @@ area in `workbench_window.cpp` and the toolbar it carries.
   positions are absent because no pull request is open. The device sign-in
   panel is the top of the header beneath it. Captured with the computer-use
   window screenshot; no image retained.
+- Slice (b2), the strip as the title row (owner direction, 2026-09-06: "This
+  title bar is wasting a ton of space, even on windows title bars tend to be
+  ultra compact now", with Fork, Visual Studio Code on both platforms,
+  Windows Terminal, Ghostty and the Claude app as references, Windows Visual
+  Studio Code the closest). RFC-BPR-0028's chrome paragraph and AC-01 now say
+  the strip is the row the window controls sit in. On macOS the window takes
+  `Qt::ExpandedClientAreaHint` and `Qt::NoTitleBarBackgroundHint`, declines
+  the safe-area margin, and hides the title text once shown through
+  `native_window_chrome.cpp` (the Objective-C runtime from C++, guarded to the
+  Cocoa platform so the offscreen tests are untouched; the title stays set for
+  the Dock and Mission Control). The strip's first item is a platform inset,
+  78 pixels on macOS and zero elsewhere, so the traffic lights sit in the
+  strip and Files follows them; the strip tracks a drag that starts on its
+  bare surface (spacers, inset, dividers, labels; never a control) and moves
+  the window under the hold, and double-clicking that surface zooms and
+  restores. Qt's system move was tried first and did nothing for a real
+  drag on this Mac, and it cannot be proved offscreen; the tracked drag is
+  pinned by `test_strip_is_the_title_row`. The Windows form (compact menu
+  at the left, caption buttons at the right, snap layouts through
+  `WM_NCHITTEST`) is platform work of its own under BPR-0653. Observed in the
+  signed bundle at 1280x820: no title bar, the traffic lights in the strip's
+  left inset, Files at 86 pixels, the segments centred, settings at the
+  right edge; the window is 32 pixels shorter in chrome than before. A real
+  60 by 80 point drag on the spacer moved the window by exactly that, a
+  double-click on the same surface zoomed it to the screen and a second
+  double-click restored 1280x820 at its previous position.

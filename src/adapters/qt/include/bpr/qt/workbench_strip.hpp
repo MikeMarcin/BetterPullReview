@@ -8,13 +8,17 @@
 #include <QToolBar>
 #include <QWidget>
 
+#include <QPoint>
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <optional>
 
 class QAction;
 class QActionEvent;
+class QMouseEvent;
 class QPaintEvent;
 class QToolButton;
 
@@ -104,9 +108,19 @@ namespace bpr::qt {
 	protected:
 		void paintEvent(QPaintEvent* aEvent) override;
 		void actionEvent(QActionEvent* aEvent) override;
+		/// \brief Empty strip space drags the window, as a title bar would.
+		void mousePressEvent(QMouseEvent* aEvent) override;
+		void mouseMoveEvent(QMouseEvent* aEvent) override;
+		void mouseReleaseEvent(QMouseEvent* aEvent) override;
+		/// \brief Double-clicking empty strip space zooms the window.
+		void mouseDoubleClickEvent(QMouseEvent* aEvent) override;
 
 	private:
+		[[nodiscard]] auto over_empty_space(const QMouseEvent& aEvent) const -> bool;
+
 		strip_style* Style = nullptr;
+		/// \brief Where inside the window frame the drag took hold, while held.
+		std::optional<QPoint> DragHold;
 	};
 
 	/// \brief The 1 by 18 pixel rule between strip regions.

@@ -1,5 +1,6 @@
 #include "bpr/qt/workbench_strip.hpp"
 
+#include <QAbstractButton>
 #include <QAction>
 #include <QActionEvent>
 #include <QColor>
@@ -7,6 +8,7 @@
 #include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QKeySequence>
+#include <QMouseEvent>
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -420,6 +422,84 @@ namespace bpr::qt {
 			adopt_button(qobject_cast<QToolButton*>(
 				widgetForAction(aEvent->action())));
 		}
+	}
+
+	auto workbench_strip::over_empty_space(const QMouseEvent& aEvent) const -> bool
+	{
+		// Empty means no control: the spacers, the inset, the dividers and
+		// the labels are the strip's title-bar surface, so a press on any of
+		// them counts, while a press inside a button or another focusable
+		// control belongs to that control.
+		if (aEvent.button() != Qt::LeftButton) {
+			return false;
+		}
+		for (auto* child = childAt(aEvent.position().toPoint());
+			 child != nullptr && child != this;
+			 child = child->parentWidget()) {
+			if (qobject_cast<QAbstractButton*>(child) != nullptr
+				|| child->focusPolicy() != Qt::NoFocus) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	void workbench_strip::mousePressEvent(QMouseEvent* const aEvent)
+	{
+		// [[BPR-0646]]. The strip is the title row: with the platform title
+		// bar folded away, empty strip space has to do what that bar did.
+		// The strip tracks the drag itself: the hold is where inside the
+		// frame the press landed, and every move puts the frame back under
+		// it. This is the same on every platform and provable offscreen,
+		// where a system move cannot be.
+		if (over_empty_space(*aEvent) && window() != nullptr) {
+			DragHold = aEvent->globalPosition().toPoint()
+				- window()->frameGeometry().topLeft();
+			aEvent->accept();
+			return;
+		}
+		QToolBar::mousePressEvent(aEvent);
+	}
+
+	void workbench_strip::mouseMoveEvent(QMouseEvent* const aEvent)
+	{
+		if (DragHold.has_value() && window() != nullptr
+			&& (aEvent->buttons() & Qt::LeftButton) != 0) {
+			if (window()->isMaximized()) {
+				// Dragging a zoomed window out of its zoom, as the platform
+				// title bar does: restore first, then follow the pointer.
+				window()->showNormal();
+			}
+			window()->move(aEvent->globalPosition().toPoint() - *DragHold);
+			aEvent->accept();
+			return;
+		}
+		QToolBar::mouseMoveEvent(aEvent);
+	}
+
+	void workbench_strip::mouseReleaseEvent(QMouseEvent* const aEvent)
+	{
+		if (DragHold.has_value()) {
+			DragHold.reset();
+			aEvent->accept();
+			return;
+		}
+		QToolBar::mouseReleaseEvent(aEvent);
+	}
+
+	void workbench_strip::mouseDoubleClickEvent(QMouseEvent* const aEvent)
+	{
+		if (over_empty_space(*aEvent) && window() != nullptr) {
+			DragHold.reset();
+			if (window()->isMaximized()) {
+				window()->showNormal();
+			} else {
+				window()->showMaximized();
+			}
+			aEvent->accept();
+			return;
+		}
+		QToolBar::mouseDoubleClickEvent(aEvent);
 	}
 
 	strip_divider::strip_divider(QWidget* const aParent)

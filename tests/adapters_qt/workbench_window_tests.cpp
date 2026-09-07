@@ -566,11 +566,14 @@ namespace {
 		// action; Settings is the far-right one, after the account button;
 		// the change pair precedes the file pair, each followed by its
 		// position; Conversations sits in the right region after refresh.
-		expect(!actions.isEmpty() && actions.front() == files
+		expect(actions.size() >= 2
+				   && actions.front()->objectName()
+					   == QStringLiteral("workbenchStripInsetAction")
+				   && actions[1] == files
 				   && actions.back() == window.settings_action()
 				   && actions.indexOf(window.account_action())
 					   == actions.size() - 2,
-			   "Files is the far-left action and Settings, after Account, is the far-right action");
+			   "after the platform inset Files is the far-left action and Settings, after Account, is the far-right action");
 		expect(actions.indexOf(navigation[2]) < actions.indexOf(navigation[3])
 				   && actions.indexOf(navigation[3]) < actions.indexOf(navigation[0])
 				   && actions.indexOf(navigation[0]) < actions.indexOf(navigation[1])
@@ -808,11 +811,11 @@ namespace {
 				   && window.actions().contains(files)
 				   && window.actions().contains(conversations),
 			   "each drawer toggle is a checkable window action with a shortcut");
-		expect(window.primary_toolbar()->actions().front() == files
+		expect(window.primary_toolbar()->actions().indexOf(files) == 1
 				   && window.primary_toolbar()->actions().indexOf(conversations)
 					   > window.primary_toolbar()->actions().indexOf(
 						   window.review_details_toggle_action()),
-			   "Files opens the strip and Conversations sits in its right region");
+			   "Files opens the strip after the platform inset and Conversations sits in its right region");
 		for (auto* const toggle : { files, conversations }) {
 			auto* const button = qobject_cast<QToolButton*>(
 				window.primary_toolbar()->widgetForAction(toggle));
@@ -1186,6 +1189,122 @@ namespace {
 		expect(!window.identity_label()->isVisible()
 				   && !window.file_position_label()->isVisible(),
 			   "the identity and position text are what yield at the width floor");
+		window.hide();
+	}
+
+	void test_strip_is_the_title_row()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.move(200, 150);
+		window.show();
+		QApplication::processEvents();
+
+		auto* const strip = window.primary_toolbar();
+		// A point on the expanding spacer before the modality control: strip
+		// surface with no control under it.
+		auto* const spacer = strip->findChild<QWidget*>(
+			QStringLiteral("workbenchNavigationSpacer"));
+		expect(spacer != nullptr && spacer->width() > 8,
+			   "the strip has bare surface to take hold of");
+		const auto hold       = spacer->mapTo(strip, QPoint{ spacer->width() / 2, 11 });
+		const auto before     = window.frameGeometry().topLeft();
+		const auto globalHold = strip->mapToGlobal(hold);
+		auto       press      = QMouseEvent{
+			QEvent::MouseButtonPress,
+			QPointF{ hold },
+			QPointF{ globalHold },
+			Qt::LeftButton,
+			Qt::LeftButton,
+			Qt::NoModifier,
+		};
+		QApplication::sendEvent(strip, &press);
+		const auto moved = hold + QPoint{ 60, 80 };
+		auto       move  = QMouseEvent{
+			QEvent::MouseMove,
+			QPointF{ moved },
+			QPointF{ globalHold + QPoint{ 60, 80 } },
+			Qt::NoButton,
+			Qt::LeftButton,
+			Qt::NoModifier,
+		};
+		QApplication::sendEvent(strip, &move);
+		auto release = QMouseEvent{
+			QEvent::MouseButtonRelease,
+			QPointF{ moved },
+			QPointF{ globalHold + QPoint{ 60, 80 } },
+			Qt::LeftButton,
+			Qt::NoButton,
+			Qt::NoModifier,
+		};
+		QApplication::sendEvent(strip, &release);
+		QApplication::processEvents();
+		expect(press.isAccepted() && move.isAccepted() && release.isAccepted(),
+			   "the strip takes a drag that starts on its bare surface");
+		expect(window.frameGeometry().topLeft() == before + QPoint{ 60, 80 },
+			   "dragging bare strip surface moves the window by the drag, as a "
+			   "title bar would");
+
+		// A press on a control is that control's, never a drag.
+		auto* const files = qobject_cast<QToolButton*>(
+			strip->widgetForAction(window.files_drawer_toggle_action()));
+		const auto onFiles      = files->mapTo(strip, files->rect().center());
+		auto       controlPress = QMouseEvent{
+			QEvent::MouseButtonPress,
+			QPointF{ onFiles },
+			QPointF{ strip->mapToGlobal(onFiles) },
+			Qt::LeftButton,
+			Qt::LeftButton,
+			Qt::NoModifier,
+		};
+		const auto beforeControl = window.frameGeometry().topLeft();
+		QApplication::sendEvent(strip, &controlPress);
+		auto controlMove = QMouseEvent{
+			QEvent::MouseMove,
+			QPointF{ onFiles + QPoint{ 30, 30 } },
+			QPointF{ strip->mapToGlobal(onFiles + QPoint{ 30, 30 }) },
+			Qt::NoButton,
+			Qt::LeftButton,
+			Qt::NoModifier,
+		};
+		QApplication::sendEvent(strip, &controlMove);
+		expect(window.frameGeometry().topLeft() == beforeControl,
+			   "a drag that starts on a strip control never moves the window");
+
+		// Double-clicking bare surface zooms the window and back.
+		auto zoom = QMouseEvent{
+			QEvent::MouseButtonDblClick,
+			QPointF{ hold },
+			QPointF{ globalHold },
+			Qt::LeftButton,
+			Qt::LeftButton,
+			Qt::NoModifier,
+		};
+		QApplication::sendEvent(strip, &zoom);
+		QApplication::processEvents();
+		expect(zoom.isAccepted() && window.isMaximized(),
+			   "double-clicking bare strip surface zooms the window");
+		// Zoomed, the strip has relaid its items, so the bare surface is
+		// found again rather than assumed where it was.
+		const auto zoomedHold
+			= spacer->mapTo(strip, QPoint{ spacer->width() / 2, 11 });
+		auto unzoom = QMouseEvent{
+			QEvent::MouseButtonDblClick,
+			QPointF{ zoomedHold },
+			QPointF{ strip->mapToGlobal(zoomedHold) },
+			Qt::LeftButton,
+			Qt::LeftButton,
+			Qt::NoModifier,
+		};
+		QApplication::sendEvent(strip, &unzoom);
+		QApplication::processEvents();
+		expect(unzoom.isAccepted() && !window.isMaximized(),
+			   "double-clicking again restores the window");
+
+		expect(strip->height() == qt::workbench_strip::height_pixels
+				   && strip->actions().front()->objectName()
+					   == QStringLiteral("workbenchStripInsetAction"),
+			   "the strip keeps its height and opens with the platform inset");
 		window.hide();
 	}
 
@@ -4261,6 +4380,7 @@ auto main(int argc, char** argv) -> int
 	test_the_view_menu_reaches_the_composed_source_panes();
 	test_collapsing_a_drawer_returns_space_to_the_centre();
 	test_strip_modalities_positions_and_account();
+	test_strip_is_the_title_row();
 	test_review_details_return_height_to_the_comparison();
 	test_drawer_resize_emits_the_host_layout_path();
 	test_drawer_contents_use_incremental_model_signals();

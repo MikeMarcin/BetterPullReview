@@ -14,6 +14,7 @@ add_library(
         src/review_submission_editor.cpp
         src/settings_window.cpp
         src/workbench_strip.cpp
+        src/native_window_chrome.cpp
         src/comparison_scroll_controller.cpp
         src/diff_link_map.cpp
 		src/diff_workbench.cpp
@@ -55,3 +56,9 @@ target_compile_features(better_pull_review_adapter_qt PUBLIC cxx_std_23)
 
 bpr_enable_hardening(better_pull_review_adapter_qt)
 bpr_enable_warnings(better_pull_review_adapter_qt)
+
+if(APPLE)
+    # native_window_chrome.cpp reaches the NSWindow through the Objective-C
+    # runtime from C++; the runtime is not linked by the Qt targets.
+    target_link_libraries(better_pull_review_adapter_qt PRIVATE objc)
+endif()

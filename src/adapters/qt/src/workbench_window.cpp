@@ -10,6 +10,7 @@
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
+#include "bpr/qt/native_window_chrome.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 
@@ -107,6 +108,10 @@ namespace bpr::qt {
 		/// a row cannot put its last control out of reach; this number is only
 		/// what the product opens at.
 		constexpr int conversation_drawer_default_width = 375;
+#if defined(__APPLE__)
+		/// \brief Width the macOS window buttons occupy at the strip's left.
+		constexpr int traffic_light_inset = 78;
+#endif
 
 		[[nodiscard]] auto reason_text(const core::workbench_reason_code aReason)
 			-> QString
@@ -268,6 +273,17 @@ namespace bpr::qt {
 	{
 		setObjectName(QStringLiteral("workbenchWindow"));
 		setWindowTitle(QStringLiteral("BetterPullReview"));
+#if defined(__APPLE__)
+		// [[BPR-0646]]. The strip is the title row. The window's content
+		// extends under a transparent title bar whose text is hidden, so the
+		// traffic lights sit in the strip's left inset and the identity the
+		// strip shows is the title, as Fork and Visual Studio Code do. The
+		// safe-area margin Qt would otherwise add above the content is
+		// declined: the strip takes that row itself.
+		setWindowFlag(Qt::ExpandedClientAreaHint, true);
+		setWindowFlag(Qt::NoTitleBarBackgroundHint, true);
+		setAttribute(Qt::WA_ContentsMarginsRespectsSafeArea, false);
+#endif
 		// [[BPR-0646]]. Every strip control stays top-level at this supported
 		// floor: the eleven bordered buttons and the four modality segments
 		// fit with nothing folded into an overflow menu. The identity and the
@@ -576,6 +592,19 @@ namespace bpr::qt {
 		// Right: the secondary review controls, refresh (inserted once the
 		// session chrome has made it), the comments drawer toggle, a rule,
 		// account, settings.
+		// The platform inset comes first: on macOS the width the three window
+		// buttons occupy plus the gap Fork and Visual Studio Code leave before
+		// their first control; nothing elsewhere. A widget item rather than a
+		// margin, because the toolbar layout lays its items from its own edge.
+		StripInset = new QWidget{ PrimaryToolbar };
+		StripInset->setObjectName(QStringLiteral("workbenchStripInset"));
+		StripInset->setFocusPolicy(Qt::NoFocus);
+#if defined(__APPLE__)
+		StripInset->setFixedWidth(traffic_light_inset);
+#else
+		StripInset->setFixedWidth(0);
+#endif
+		stripWidget(StripInset, QStringLiteral("workbenchStripInsetAction"));
 		PrimaryToolbar->addAction(Drawers[0].Toggle);
 		IdentityLabel = stripLabel(
 			QStringLiteral("workbenchStripIdentity"),
@@ -3210,6 +3239,13 @@ namespace bpr::qt {
 			SessionPanel->apply_compact_layout(width() < 900);
 		}
 		apply_strip_width();
+	}
+
+	void workbench_window::showEvent(QShowEvent* const aEvent)
+	{
+		QMainWindow::showEvent(aEvent);
+		// The native window exists once shown; the title text goes then.
+		hide_native_title_text(*this);
 	}
 
 	void workbench_window::apply_strip_width()

@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0653"
+  ],
+  "reserve_for": "bpr-workbench-direction-windows-caption",
+  "purpose": "Windows: the strip as the title row with a compact menu and the caption buttons",
+  "created": "2026-09-07T00:43:51.060248+00:00",
+  "base": "a98059490f1231fa1dec71f8f2aaa01c33536372"
+}
