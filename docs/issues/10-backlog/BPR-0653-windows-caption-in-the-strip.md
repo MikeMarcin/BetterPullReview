@@ -4,7 +4,7 @@ id: "BPR-0653"
 title: "Windows: the strip as the title row"
 status: "Backlog"
 rfcs: ["RFC-BPR-0028"]
-depends_on: ["BPR-0646"]
+depends_on: []
 priority: "P2"
 ---
 
@@ -52,3 +52,12 @@ strip never carries it.
   new uncontained registration, if any, is pinned by name in the same commit.
 - Attended capture on the Windows station showing the strip with the caption
   buttons and the snap layout flyout.
+
+## Dependency
+
+- 2026-09-06: `depends_on` cleared from `["BPR-0646"]`. BPR-0646's chrome, epoch line,
+  modalities and rails are integrated at f01f34ad; only its attended capture is
+  owed and it is parked under human-review (fbc64dad). The board counts only
+  Done as satisfying a dependency, and the attended capture is planned as one
+  session at the RFC-BPR-0028 pack head, so this card builds on the integrated
+  chrome rather than waiting for that session.

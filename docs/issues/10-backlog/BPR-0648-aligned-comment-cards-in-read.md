@@ -4,7 +4,7 @@ id: "BPR-0648"
 title: "Aligned comment cards in the Read drawer"
 status: "Backlog"
 rfcs: ["RFC-BPR-0028"]
-depends_on: ["BPR-0646"]
+depends_on: []
 priority: "P1"
 ---
 
@@ -26,3 +26,12 @@ existing conversation model and delegate; no new authority.
 - The twenty-post, three-branch recorded conversation (AC-08) reads correctly.
 - Focused delegate and drawer tests; the round-trip composition contract stays
   green with its digests repinned.
+
+## Dependency
+
+- 2026-09-06: `depends_on` cleared from `["BPR-0646"]`. BPR-0646's chrome, epoch line,
+  modalities and rails are integrated at f01f34ad; only its attended capture is
+  owed and it is parked under human-review (fbc64dad). The board counts only
+  Done as satisfying a dependency, and the attended capture is planned as one
+  session at the RFC-BPR-0028 pack head, so this card builds on the integrated
+  chrome rather than waiting for that session.

@@ -4,7 +4,7 @@ id: "BPR-0649"
 title: "Discuss mode: thread list, map and feed"
 status: "Backlog"
 rfcs: ["RFC-BPR-0028"]
-depends_on: ["BPR-0646"]
+depends_on: []
 priority: "P2"
 ---
 
@@ -24,3 +24,12 @@ Resolve, Mark read and Open in code.
 - RFC-BPR-0028 AC-05 for Discuss and AC-08.
 - Open in code returns to Read at the thread's line.
 - Focused tests for the list model, map selection and feed delegate.
+
+## Dependency
+
+- 2026-09-06: `depends_on` cleared from `["BPR-0646"]`. BPR-0646's chrome, epoch line,
+  modalities and rails are integrated at f01f34ad; only its attended capture is
+  owed and it is parked under human-review (fbc64dad). The board counts only
+  Done as satisfying a dependency, and the attended capture is planned as one
+  session at the RFC-BPR-0028 pack head, so this card builds on the integrated
+  chrome rather than waiting for that session.

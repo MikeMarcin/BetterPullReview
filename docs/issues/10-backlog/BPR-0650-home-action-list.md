@@ -4,7 +4,7 @@ id: "BPR-0650"
 title: "Home action list"
 status: "Backlog"
 rfcs: ["RFC-BPR-0028","RFC-BPR-0026"]
-depends_on: ["BPR-0646"]
+depends_on: []
 priority: "P2"
 ---
 
@@ -22,3 +22,12 @@ are not reimplemented here.
 - RFC-BPR-0028 AC-06 with the mockup's groups and columns.
 - Opening a row lands on that pull request's Overview.
 - Focused model tests and a composed course over the queue fixture.
+
+## Dependency
+
+- 2026-09-06: `depends_on` cleared from `["BPR-0646"]`. BPR-0646's chrome, epoch line,
+  modalities and rails are integrated at f01f34ad; only its attended capture is
+  owed and it is parked under human-review (fbc64dad). The board counts only
+  Done as satisfying a dependency, and the attended capture is planned as one
+  session at the RFC-BPR-0028 pack head, so this card builds on the integrated
+  chrome rather than waiting for that session.

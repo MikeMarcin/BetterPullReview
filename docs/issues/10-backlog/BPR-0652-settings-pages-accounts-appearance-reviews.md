@@ -4,7 +4,7 @@ id: "BPR-0652"
 title: "Settings pages: Accounts & hosts, Appearance, Reviews & queue"
 status: "Backlog"
 rfcs: ["RFC-BPR-0018","RFC-BPR-0028"]
-depends_on: ["BPR-0646"]
+depends_on: []
 priority: "P1"
 ---
 
@@ -27,3 +27,12 @@ preferences and enrollment ports. Every other page shows its notice.
 - Every control is host-validated and reverts on refusal; resets act on their
   own group only.
 - Focused page tests, the appearance courses, and the boundary gate pass.
+
+## Dependency
+
+- 2026-09-06: `depends_on` cleared from `["BPR-0646"]`. BPR-0646's chrome, epoch line,
+  modalities and rails are integrated at f01f34ad; only its attended capture is
+  owed and it is parked under human-review (fbc64dad). The board counts only
+  Done as satisfying a dependency, and the attended capture is planned as one
+  session at the RFC-BPR-0028 pack head, so this card builds on the integrated
+  chrome rather than waiting for that session.
