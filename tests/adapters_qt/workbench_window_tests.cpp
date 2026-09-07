@@ -962,6 +962,20 @@ namespace {
 			   "the entry's enabled state follows the core command projection");
 	}
 
+	void process_events();
+
+	/// \brief Drags the handle between the files drawer and the centre.
+	///
+	/// \details [[BPR-0662]]. The only way a reviewer changes a width is a
+	/// handle drag, which ends in the splitter's own move; a direct resize of a
+	/// panel is a squeeze the window answers with the persisted widths.
+	void drag_files_handle(qt::workbench_window& aWindow, const int aFilesWidth)
+	{
+		auto* const splitter = aWindow.central_splitter();
+		const auto  sizes    = splitter->sizes();
+		splitter->move_handle(2, sizes[0] + splitter->handleWidth() + aFilesWidth);
+	}
+
 	void test_collapsing_a_drawer_returns_space_to_the_centre()
 	{
 		intent_log           log;
@@ -1504,8 +1518,7 @@ namespace {
 
 		log.Width.clear();
 		log.Workbench.clear();
-		const auto sizes = splitter->sizes();
-		splitter->setSizes({ sizes[0], 400, sizes[2] - 80, sizes[3] });
+		drag_files_handle(window, 400);
 		QApplication::processEvents();
 		expect(window.files_drawer()->width() == 400,
 			   "a splitter drag resizes the drawer");
@@ -1531,6 +1544,99 @@ namespace {
 			   "the resized width is the width the drawer reopens at");
 		expect(log.Width.empty(),
 			   "collapsing and reopening reports no new width to the host");
+		window.hide();
+	}
+
+	void test_a_squeezed_splitter_never_reports_a_width()
+	{
+		// [[BPR-0662]]. A hidden page laid out at its default size, a window
+		// narrower than the persisted widths: the splitter squeezes the
+		// drawers, and none of it is a width the reviewer chose.
+		intent_log           log;
+		qt::workbench_window window{
+			{ },
+			{ },
+			[&log](core::workbench_drawer aDrawer, std::uint32_t aWidth) {
+				log.Width.push_back({ .Drawer = aDrawer, .Width = aWidth });
+			}
+		};
+		auto opened    = both_files_enabled();
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded,
+									   core::workbench_drawer_state::expanded);
+		opened.Layout  = application::workbench_layout_delta{
+			.FilesWidth         = 320U,
+			.ConversationsWidth = 375U,
+		};
+		// Published before the window is shown, as the composed host restores
+		// the layout before presentation: the splitter has only its default
+		// size to lay out in.
+		window.publish(opened);
+		window.resize(1'600, 720);
+		window.show();
+		process_events();
+		expect(log.Width.empty(),
+			   "laying out a hidden splitter reports no width to the host");
+		expect(window.files_drawer()->width() == 320
+				   && window.conversations_drawer()->width() == 375,
+			   "shown, the drawers take the widths the host persisted");
+
+		// Narrower than the drawers and the centre's minimum together: the
+		// drawers give way for as long as the window is that narrow.
+		window.resize(900, 720);
+		process_events();
+		expect(log.Width.empty(),
+			   "a squeeze reports no width to the host");
+		window.resize(1'600, 720);
+		process_events();
+		expect(window.files_drawer()->width() == 320
+				   && window.conversations_drawer()->width() == 375,
+			   "the drawers return to the persisted widths once there is room");
+		expect(log.Width.empty(),
+			   "returning to the persisted widths reports nothing either");
+
+		// The reviewer's own drag is what the host hears.
+		drag_files_handle(window, 360);
+		process_events();
+		expect(log.Width.size() == 1U
+				   && log.Width[0].Drawer == core::workbench_drawer::files
+				   && log.Width[0].Width == 360U,
+			   "a handle drag reports exactly the dragged drawer's width");
+		window.hide();
+	}
+
+	void test_a_clobbered_persisted_width_opens_at_the_design_width()
+	{
+		// [[BPR-0662]]. The host's floor is 64; a layout persisted at the
+		// floor for every drawer was written by a squeeze, and opening at 64
+		// would leave three unreadable slivers. The window grants the
+		// design widths and reports nothing until the reviewer drags.
+		intent_log           log;
+		qt::workbench_window window{
+			{ },
+			{ },
+			[&log](core::workbench_drawer aDrawer, std::uint32_t aWidth) {
+				log.Width.push_back({ .Drawer = aDrawer, .Width = aWidth });
+			}
+		};
+		auto opened    = both_files_enabled();
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded,
+									   core::workbench_drawer_state::expanded);
+		opened.Layout  = application::workbench_layout_delta{
+			.FilesWidth         = 64U,
+			.ConversationsWidth = 64U,
+			.RepositoriesWidth  = 64U,
+		};
+		window.resize(1'600, 720);
+		window.show();
+		process_events();
+		window.publish(opened);
+		process_events();
+		expect(window.files_drawer()->width() == 320
+				   && window.conversations_drawer()->width() == 375
+				   && window.central_splitter()->sizes()[0] == 300,
+			   "a width at the host's floor opens at the drawer's design width");
+		expect(log.Width.empty(),
+			   "granting the design width reports nothing to the host");
 		window.hide();
 	}
 
@@ -3943,9 +4049,8 @@ namespace {
 		auto* const splitter = window->findChild<QSplitter*>(
 			QStringLiteral("workbenchCentralSplitter"));
 		expect(splitter != nullptr, "the shell owns one central splitter");
-		const auto sizes = splitter->sizes();
 		log.Width.clear();
-		splitter->setSizes({ sizes[0], 380, sizes[2] - 60, sizes[3] });
+		drag_files_handle(*window, 380);
 		process_events();
 		expect(!log.Width.empty()
 				   && log.Width.back().Drawer == core::workbench_drawer::files
@@ -4661,6 +4766,8 @@ auto main(int argc, char** argv) -> int
 	test_rails_reopen_their_drawers();
 	test_review_details_return_height_to_the_comparison();
 	test_drawer_resize_emits_the_host_layout_path();
+	test_a_squeezed_splitter_never_reports_a_width();
+	test_a_clobbered_persisted_width_opens_at_the_design_width();
 	test_drawer_contents_use_incremental_model_signals();
 	test_file_rows_emit_only_semantic_user_selection();
 	test_the_conversations_drawer_hosts_the_threaded_conversation();

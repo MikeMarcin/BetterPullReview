@@ -55,3 +55,32 @@ their own.
   widths.
 - Observed in the signed bundle: the workbench opens with the drawers at
   usable widths after the clobbered layout.
+
+## Notes
+
+- Fix, 2026-09-07. `workbench_central_splitter` (a `QSplitter` subclass in
+  `workbench_window.hpp`, no Q_OBJECT) is the centre's splitter; the window
+  connects `splitterMoved` to `observe_handle_drag`, which reads the
+  splitter's sizes and reports each expanded drawer whose width changed.
+  `workbench_drawer_panel` no longer reports from its own `resizeEvent`
+  and has no width dispatch. `central_sizes` grants the drawer's design
+  width for a persisted width beneath the 160-pixel presented floor
+  (`minimum_presented_drawer_width`); the host's 64-pixel floor and the
+  SQLite check are untouched, so no migration. `move_handle(index, pos)`
+  is the splitter's own `moveSplitter`, the call a handle drag ends in; the
+  window tests and the UIforETW probe drive it instead of `setSizes` or a
+  panel resize.
+- A re-application of the persisted widths on the splitter's own resize
+  was drafted and removed: Qt's splitter keeps the sizes it was given and
+  restores them itself once there is room, and a mutation that dropped the
+  re-application left every test green. What the tests do catch: reporting
+  a width from the squeeze (the old path) fails "a squeeze reports no width
+  to the host", and dropping the lift fails "a width at the host's floor
+  opens at the drawer's design width".
+- Verification at the fix: `qt_workbench_window_scale_{100,125,200}`,
+  `qt_composed_github_scale_100`, `application_composition_contract`,
+  `application_review_round_trip_composition_contract` (both application
+  digests repinned), `application_github_public_path_uiforetw_74`,
+  `application_uiforetw_selected_diff_contract`, `check_boundaries`,
+  strict tidy on the three touched translation units, `clang-format
+  --Werror` and `verify_documentation.py` pass.

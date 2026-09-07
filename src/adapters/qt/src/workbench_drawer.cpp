@@ -11,7 +11,6 @@
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPen>
-#include <QResizeEvent>
 #include <QSizePolicy>
 #include <QVBoxLayout>
 #include <QVariant>
@@ -458,12 +457,6 @@ namespace bpr::qt {
 									   : static_cast<QWidget*>(View);
 	}
 
-	void workbench_drawer_panel::set_width_dispatch(
-		workbench_drawer_width_dispatch aDispatch)
-	{
-		WidthDispatch = std::move(aDispatch);
-	}
-
 	void workbench_drawer_panel::adopt(const core::workbench_drawer_state aState)
 	{
 		if (State == aState) {
@@ -494,16 +487,5 @@ namespace bpr::qt {
 		} else {
 			setFixedWidth(workbench_drawer_rail::width_pixels);
 		}
-	}
-
-	void workbench_drawer_panel::resizeEvent(QResizeEvent* const aEvent)
-	{
-		QWidget::resizeEvent(aEvent);
-		if (State != core::workbench_drawer_state::expanded
-			|| aEvent->oldSize().width() == aEvent->size().width()
-			|| aEvent->size().width() <= 0 || !WidthDispatch) {
-			return;
-		}
-		WidthDispatch(Drawer, static_cast<std::uint32_t>(aEvent->size().width()));
 	}
 }

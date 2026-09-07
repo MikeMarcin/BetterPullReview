@@ -27,6 +27,7 @@
 
 #include <QList>
 #include <QMainWindow>
+#include <QSplitter>
 #include <QString>
 
 #include <array>
@@ -50,7 +51,6 @@ class QMenu;
 class QMenuBar;
 class QPlainTextEdit;
 class QScrollArea;
-class QSplitter;
 class QStackedWidget;
 class QToolBar;
 class QToolButton;
@@ -131,6 +131,24 @@ namespace bpr::qt {
 		std::uint64_t GithubDiagnosticUpdates = 0U;
 
 		auto operator<=>(const workbench_window_statistics&) const = default;
+	};
+
+	/// \brief The central splitter: three drawers and the centre.
+	///
+	/// \details [[BPR-0662]]. A drawer's width reaches the host only from a
+	/// drag of one of these handles: `QSplitter::splitterMoved` is emitted for
+	/// nothing else. A width the splitter merely granted -- a hidden page laid
+	/// out at its default size, a window narrower than the persisted widths
+	/// -- is a squeeze, not a choice, and is never persisted. `move_handle` is
+	/// the same call a handle drag ends in, so a course or a test drives the
+	/// user's path rather than resizing a panel directly.
+	class workbench_central_splitter final : public QSplitter
+	{
+	public:
+		explicit workbench_central_splitter(QWidget* aParent = nullptr);
+
+		/// \brief Moves handle `aIndex` so its left edge sits at `aPosition`.
+		void move_handle(int aIndex, int aPosition);
 	};
 
 	/// \brief Presents the native workbench shell and its focused review row.
@@ -324,6 +342,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto line_numbers_action() const noexcept -> QAction*;
 		[[nodiscard]] auto files_drawer() const noexcept
 			-> workbench_drawer_panel*;
+		[[nodiscard]] auto central_splitter() const noexcept
+			-> workbench_central_splitter*;
 		[[nodiscard]] auto conversations_drawer() const noexcept
 			-> workbench_drawer_panel*;
 
@@ -556,6 +576,8 @@ namespace bpr::qt {
 			core::workbench_drawer aDrawer,
 			std::uint32_t          aWidth);
 		void apply_drawer_layout();
+		void apply_drawer_widths();
+		void observe_handle_drag();
 		void configure_tool_buttons();
 		void refresh_toolbar_icons();
 		void update_strip_positions();
@@ -663,7 +685,7 @@ namespace bpr::qt {
 		QMenu*                      ReviewControlsMenu   = nullptr;
 		QWidget*                    ToolbarSpacer        = nullptr;
 		QLabel*                     StatusLabel          = nullptr;
-		QSplitter*                  CentralSplitter      = nullptr;
+		workbench_central_splitter* CentralSplitter      = nullptr;
 		QWidget*                    CentreSurface        = nullptr;
 		diff_workbench*             ComparisonSurface    = nullptr;
 		pull_request_overview_page* OverviewPage         = nullptr;

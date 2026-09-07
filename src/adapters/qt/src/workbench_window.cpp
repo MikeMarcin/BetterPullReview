@@ -110,6 +110,15 @@ namespace bpr::qt {
 		/// a row cannot put its last control out of reach; this number is only
 		/// what the product opens at.
 		constexpr int conversation_drawer_default_width = 375;
+		/// \brief Narrowest width a drawer is ever presented at when expanded.
+		///
+		/// \details [[BPR-0662]]. The host's floor is 64 pixels, the least it
+		/// will retain; a persisted width beneath this one was not chosen by a
+		/// reviewer but written by a squeeze (a hidden splitter laid out at
+		/// its default size wrote 64 for every drawer), so the window grants
+		/// the drawer's design width instead and the next drag persists a
+		/// real one.
+		constexpr std::uint32_t minimum_presented_drawer_width = 160U;
 #if defined(__APPLE__)
 		/// \brief Width the macOS window buttons occupy at the strip's left.
 		constexpr int traffic_light_inset = 78;
@@ -662,7 +671,7 @@ namespace bpr::qt {
 
 	void workbench_window::build_central_surface()
 	{
-		CentralSplitter = new QSplitter{ Qt::Horizontal, this };
+		CentralSplitter = new workbench_central_splitter{ this };
 		CentralSplitter->setObjectName(QStringLiteral("workbenchCentralSplitter"));
 		CentralSplitter->setAccessibleName(QStringLiteral("Review workbench"));
 		CentralSplitter->setAccessibleDescription(QStringLiteral(
@@ -1102,13 +1111,13 @@ namespace bpr::qt {
 		CentralSplitter->setStretchFactor(2, 1);
 		CentralSplitter->setStretchFactor(3, 0);
 
-		for (auto& entry : Drawers) {
-			entry.Panel->set_width_dispatch(
-				[this](const core::workbench_drawer aDrawer,
-					   const std::uint32_t          aWidth) {
-					observe_drawer_width(aDrawer, aWidth);
-				});
-		}
+		// [[BPR-0662]]. A width leaves for the host only from a handle drag.
+		// Whatever the splitter is given by a resize -- the window, the
+		// stack showing it, a hidden page laid out at its default size -- is
+		// a squeeze the splitter itself undoes once there is room, and it is
+		// never written back.
+		connect(CentralSplitter, &QSplitter::splitterMoved, this,
+				[this](int, int) { observe_handle_drag(); });
 		connect(
 			Drawers[0].Panel->contents_view()->selectionModel(),
 			&QItemSelectionModel::currentChanged,
@@ -2830,6 +2839,11 @@ namespace bpr::qt {
 		return Drawers[0].Panel;
 	}
 
+	auto workbench_window::central_splitter() const noexcept -> workbench_central_splitter*
+	{
+		return CentralSplitter;
+	}
+
 	auto workbench_window::repositories_drawer() const noexcept -> workbench_drawer_panel*
 	{
 		return Drawers[2].Panel;
@@ -4116,16 +4130,56 @@ namespace bpr::qt {
 		Drawers[0].Panel->adopt(presented_files_state());
 		Drawers[1].Panel->adopt(DrawerStates.Conversations);
 		Drawers[2].Panel->adopt(presented_repositories_state());
-		if (LayoutWidths) {
-			// A layout from before the repositories drawer carries no width
-			// for it. The design's 300 is what the window grants, echoed here
-			// so the grant is not reported back as a resize.
-			if (LayoutWidths->RepositoriesWidth == 0U) {
-				LayoutWidths->RepositoriesWidth = 300U;
-			}
-			CentralSplitter->setSizes(central_sizes());
-		}
 		ApplyingLayout = false;
+		apply_drawer_widths();
+	}
+
+	void workbench_window::apply_drawer_widths()
+	{
+		if (!LayoutWidths || ApplyingLayout) {
+			return;
+		}
+		ApplyingLayout = true;
+		// A layout from before the repositories drawer carries no width
+		// for it. The design's 300 is what the window grants, echoed here
+		// so the grant is not reported back as a resize.
+		if (LayoutWidths->RepositoriesWidth == 0U) {
+			LayoutWidths->RepositoriesWidth = 300U;
+		}
+		CentralSplitter->setSizes(central_sizes());
+		ApplyingLayout = false;
+	}
+
+	void workbench_window::observe_handle_drag()
+	{
+		// [[BPR-0662]]. The handle moved under the reviewer's hold: each
+		// expanded drawer's width is now theirs, and the host persists it.
+		if (ApplyingLayout || !LayoutWidths) {
+			return;
+		}
+		const auto sizes = CentralSplitter->sizes();
+		if (sizes.size() != 4) {
+			return;
+		}
+		const auto report = [this, &sizes](const int aIndex, const core::workbench_drawer aDrawer,
+										   const core::workbench_drawer_state aState) {
+			if (aState == core::workbench_drawer_state::expanded && sizes[aIndex] > 0) {
+				observe_drawer_width(aDrawer, static_cast<std::uint32_t>(sizes[aIndex]));
+			}
+		};
+		report(0, core::workbench_drawer::repositories, presented_repositories_state());
+		report(1, core::workbench_drawer::files, presented_files_state());
+		report(3, core::workbench_drawer::conversations, DrawerStates.Conversations);
+	}
+
+	workbench_central_splitter::workbench_central_splitter(QWidget* const aParent)
+		: QSplitter{ Qt::Horizontal, aParent }
+	{
+	}
+
+	void workbench_central_splitter::move_handle(const int aIndex, const int aPosition)
+	{
+		moveSplitter(aPosition, aIndex);
 	}
 
 	auto workbench_window::presented_files_state() const
@@ -4146,23 +4200,29 @@ namespace bpr::qt {
 
 	auto workbench_window::central_sizes() const -> QList<int>
 	{
-		const auto granted = [](const std::uint32_t aWidth) {
+		const auto granted = [](const std::uint32_t aWidth, const std::uint32_t aDefault) {
 			// An arithmetic guard on a host-owned value, not a second clamp: the
-			// host already refuses to retain a width outside its own bound.
+			// host already refuses to retain a width outside its own bound. A
+			// width beneath the presented floor is a squeeze that was written
+			// back, not a choice; the drawer opens at its design width.
+			if (aWidth < minimum_presented_drawer_width) {
+				return static_cast<int>(aDefault);
+			}
 			return static_cast<int>(
 				std::min(aWidth, application::maximum_workbench_drawer_width));
 		};
+		const auto defaults = application::workbench_layout_settings{ };
 		// A collapsed drawer is its rail, so the rail's width is what it keeps.
 		const auto files = presented_files_state() == core::workbench_drawer_state::expanded
-			? granted(LayoutWidths->FilesWidth)
+			? granted(LayoutWidths->FilesWidth, defaults.FilesWidth)
 			: workbench_drawer_rail::width_pixels;
 		const auto conversations
 			= DrawerStates.Conversations == core::workbench_drawer_state::expanded
-			? granted(LayoutWidths->ConversationsWidth)
+			? granted(LayoutWidths->ConversationsWidth, conversation_drawer_default_width)
 			: workbench_drawer_rail::width_pixels;
 		const auto repositories
 			= presented_repositories_state() == core::workbench_drawer_state::expanded
-			? granted(LayoutWidths->RepositoriesWidth)
+			? granted(LayoutWidths->RepositoriesWidth, defaults.RepositoriesWidth)
 			: workbench_drawer_rail::width_pixels;
 		const auto handles = 3 * CentralSplitter->handleWidth();
 		const auto centre  = std::max(

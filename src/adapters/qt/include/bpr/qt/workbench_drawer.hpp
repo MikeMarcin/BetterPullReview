@@ -18,7 +18,6 @@
 class QLabel;
 class QListView;
 class QPaintEvent;
-class QResizeEvent;
 
 namespace bpr::qt {
 	/// \brief Describes one drawer row by its stable presentation identity.
@@ -193,8 +192,6 @@ namespace bpr::qt {
 		/// does not silently contribute a null stop.
 		[[nodiscard]] auto focus_stop() const noexcept -> QWidget*;
 
-		void set_width_dispatch(workbench_drawer_width_dispatch aDispatch);
-
 		/// \brief Adopts the drawer state the core decided.
 		///
 		/// \details Collapsed is the rail, not absence: the panel stays in the
@@ -204,19 +201,15 @@ namespace bpr::qt {
 		/// \brief The rail shown while collapsed.
 		[[nodiscard]] auto rail() const noexcept -> workbench_drawer_rail*;
 
-	protected:
-		void resizeEvent(QResizeEvent* aEvent) override;
-
 	private:
-		core::workbench_drawer          Drawer;
-		workbench_drawer_width_dispatch WidthDispatch;
-		QLabel*                         Heading      = nullptr;
-		QListView*                      View         = nullptr;
-		workbench_drawer_model*         Contents     = nullptr;
-		QWidget*                        Content      = nullptr;
-		QWidget*                        ContentFocus = nullptr;
-		workbench_drawer_rail*          Rail         = nullptr;
-		core::workbench_drawer_state    State        = core::workbench_drawer_state::expanded;
+		core::workbench_drawer       Drawer;
+		QLabel*                      Heading      = nullptr;
+		QListView*                   View         = nullptr;
+		workbench_drawer_model*      Contents     = nullptr;
+		QWidget*                     Content      = nullptr;
+		QWidget*                     ContentFocus = nullptr;
+		workbench_drawer_rail*       Rail         = nullptr;
+		core::workbench_drawer_state State        = core::workbench_drawer_state::expanded;
 	};
 } // namespace bpr::qt
 

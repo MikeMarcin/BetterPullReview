@@ -11125,8 +11125,15 @@ namespace bpr::app {
 			const auto target       = static_cast<int>(std::min<std::uint32_t>(
 				probe.InitialFilesWidth + 41U,
 				application::maximum_workbench_drawer_width));
-			window->files_drawer()->resize(
-				target, std::max(1, window->files_drawer()->height()));
+			// [[BPR-0662]]. The reviewer's path: a drag of the handle
+			// between the files drawer and the centre. A direct resize of
+			// the panel is a squeeze the window answers with the persisted
+			// widths and never reports.
+			{
+				auto* const splitter = window->central_splitter();
+				const auto  sizes    = splitter->sizes();
+				splitter->move_handle(2, sizes[0] + splitter->handleWidth() + target);
+			}
 			probe.Phase = state_type::phase::awaiting_width_store;
 			return result::pending;
 		}
