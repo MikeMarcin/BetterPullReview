@@ -100,6 +100,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_defect_composition_contract": "dos-volume-name",
     "application_overview_since_review_contract": "dos-volume-name",
     "application_review_behaviour_contract": "dos-volume-name",
+    "application_saved_server_contract": "dos-volume-name",
     "application_threaded_reply_contract": "dos-volume-name",
     "application_appearance_theme_customization_contract": "dos-volume-name",
     "application_fixture_verdict_contract": "dos-volume-name",

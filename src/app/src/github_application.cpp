@@ -3582,6 +3582,48 @@ namespace bpr::app {
 				static_cast<void>(DiagnosticLog->record({ .Operation = application::diagnostic_operation::application, .Outcome = application::diagnostic_outcome::started }));
 			}
 
+			// [[BPR-0660]]. The enterprise servers the reviewer kept are
+			// offered beside the configured ones. The queue's own durable
+			// state is the record; it holds a hostname and an account name
+			// and never a token, so the server is offered and the sign-in
+			// is still the device flow.
+			{
+				auto servers = adapters::sqlite::make_queue_enrollment_store({
+					.StorageRoot = applicationDataRoot,
+				});
+				auto restored = servers != nullptr
+					? servers->load({ })
+					: std::expected<application::durable_queue_state, application::queue_store_failure>{ };
+				if (restored.has_value()) {
+					auto next = std::uint64_t{ 0U };
+					for (const auto& profile : Profiles) {
+						next = std::max(next, profile.profile().value());
+					}
+					for (const auto& server : restored->SavedServers) {
+						const auto known = std::ranges::any_of(
+							Profiles, [&server](const validated_github_host_profile& aProfile) {
+								return aProfile.hostname() == server.Hostname;
+							});
+						if (known) {
+							continue;
+						}
+						++next;
+						append_profile(
+							Profiles,
+							ProfileOptions,
+							native_profile_candidate(
+								core::host_profile_id{ next },
+								core::git_host_id{ 2U },
+								application::github_profile_revision{ 1U },
+								application::github_server_contract::ghes_3_18_2022_11_28,
+								application::github_authentication_transport::native_https,
+								server.Hostname,
+								github_profile_provenance::explicit_user),
+							"GHES 3.18 — " + server.Hostname);
+					}
+				}
+			}
+
 			auto profilePointers = std::vector<const validated_github_host_profile*>{ };
 			profilePointers.reserve(Profiles.size());
 			for (const auto& profile : Profiles) {
@@ -3844,6 +3886,13 @@ namespace bpr::app {
 				});
 			Window->set_saved_repository_dispatch(
 				[this](application::saved_repository_intent aIntent) {
+					if (!Closing && QueueHost != nullptr) {
+						QueueHost->apply(std::move(aIntent));
+					}
+				});
+			// [[BPR-0660]]. Remembering a server is the same durable path.
+			Window->set_saved_server_dispatch(
+				[this](application::saved_server_intent aIntent) {
 					if (!Closing && QueueHost != nullptr) {
 						QueueHost->apply(std::move(aIntent));
 					}

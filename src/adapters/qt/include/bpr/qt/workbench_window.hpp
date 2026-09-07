@@ -118,6 +118,8 @@ namespace bpr::qt {
 	using conversation_read_dispatch = std::function<void(const std::string&)>;
 	/// \brief Save or forget a repository ([[BPR-0659]]).
 	using workbench_saved_repository_dispatch = std::function<void(application::saved_repository_intent)>;
+	/// \brief [[BPR-0660]]. One remember or forget gesture for an enterprise server.
+	using workbench_saved_server_dispatch = std::function<void(application::saved_server_intent)>;
 	/// [[BPR-0661]]. The review-behaviour preferences the page dispatches.
 	using review_behaviour_dispatch = std::function<void(const application::review_behaviour_settings&)>;
 
@@ -318,6 +320,14 @@ namespace bpr::qt {
 			workbench_queue_preferences_dispatch aDispatch);
 		/// \brief Where Save and Forget go, from the tree and from Settings.
 		void               set_saved_repository_dispatch(workbench_saved_repository_dispatch aDispatch);
+		/// \brief [[BPR-0660]]. Receives the enterprise servers the reviewer keeps.
+		void               set_saved_server_dispatch(workbench_saved_server_dispatch aDispatch);
+		[[nodiscard]] auto enterprise_servers_editor() const noexcept -> QWidget*;
+		[[nodiscard]] auto saved_server_hostname() const noexcept -> QLineEdit*;
+		[[nodiscard]] auto saved_server_account() const noexcept -> QLineEdit*;
+		[[nodiscard]] auto saved_server_selector() const noexcept -> QComboBox*;
+		[[nodiscard]] auto add_saved_server_action() const noexcept -> QAction*;
+		[[nodiscard]] auto forget_saved_server_action() const noexcept -> QAction*;
 		[[nodiscard]] auto saved_repositories_editor() const noexcept -> QWidget*;
 		[[nodiscard]] auto saved_repository_name() const noexcept -> QLineEdit*;
 		[[nodiscard]] auto add_saved_repository_action() const noexcept -> QAction*;
@@ -703,7 +713,10 @@ namespace bpr::qt {
 		void open_pull_request_item(const core::queue_item& aItem);
 		void open_from_home_bar();
 		void build_saved_repositories_editor(QWidget* aParent, QVBoxLayout& aLayout);
+		void build_enterprise_servers_editor(QWidget* aParent, QVBoxLayout& aLayout);
 		void dispatch_saved_repository(application::saved_repository_action aAction);
+		void dispatch_saved_server(application::saved_server_action aAction);
+		void update_saved_server_actions();
 		void update_saved_repository_actions();
 		void dispatch_queue_preferences();
 		void apply_queue_preferences(
@@ -826,6 +839,7 @@ namespace bpr::qt {
 		std::vector<core::observer_rule>      QueueRules;
 		application::queue_landing_projection QueueProjection;
 		workbench_saved_repository_dispatch   SavedRepositoryDispatch;
+		workbench_saved_server_dispatch       SavedServerDispatch;
 		workbench_review_reply_dispatch       ReviewReplyDispatch;
 		workbench_thread_resolution_dispatch  ThreadResolutionDispatch;
 		bool                                  ProviderResolvesThreads = false;
@@ -851,6 +865,14 @@ namespace bpr::qt {
 		QAction*                                                   RemoveSavedRepository       = nullptr;
 		QToolButton*                                               AddSavedRepositoryButton    = nullptr;
 		QToolButton*                                               RemoveSavedRepositoryButton = nullptr;
+		QWidget*                                                   EnterpriseServersEditor     = nullptr;
+		QComboBox*                                                 SavedServerSelector         = nullptr;
+		QLineEdit*                                                 SavedServerHostname         = nullptr;
+		QLineEdit*                                                 SavedServerAccount          = nullptr;
+		QAction*                                                   AddSavedServer              = nullptr;
+		QAction*                                                   ForgetSavedServer           = nullptr;
+		QToolButton*                                               AddSavedServerButton        = nullptr;
+		QToolButton*                                               ForgetSavedServerButton     = nullptr;
 		github_session_panel*                                      SessionPanel                = nullptr;
 		device_authorization_panel*                                DevicePanel                 = nullptr;
 		application::device_authorization_gesture_dispatch         DeviceDispatch;

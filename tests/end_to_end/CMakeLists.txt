@@ -1783,6 +1783,32 @@ bpr_bound_automated_run(
 )
 
 bpr_add_network_isolated_test(
+    NAME application_saved_server_contract
+    WINDOWS_UNCONTAINED
+    COMMAND
+        "${CMAKE_COMMAND}"
+        "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
+        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/saved-server-contract"
+        "-DBPR_RUN_BUDGET_MS=${bpr_fixture_run_budget_ms}"
+        -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/application_saved_server_contract.cmake"
+)
+set_tests_properties(
+    application_saved_server_contract
+    PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION "SAVED_SERVER_CONTRACT_OK"
+        TIMEOUT 240
+)
+bpr_bound_automated_run(
+    application_saved_server_contract
+    TIMEOUT 240
+    BUDGET_MS ${bpr_fixture_run_budget_ms}
+    RUNS 4
+    RESERVE_MS 4000
+)
+
+bpr_add_network_isolated_test(
     NAME application_threaded_reply_contract
     WINDOWS_UNCONTAINED
     COMMAND

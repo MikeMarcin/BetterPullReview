@@ -698,6 +698,7 @@ namespace {
 			appearance,
 			overview_since_review,
 			review_behaviour,
+			saved_server,
 #endif
 			shutdown,
 		};
@@ -982,6 +983,8 @@ namespace {
 		bool OverviewSinceReviewRequested = false;
 		// [[BPR-0661]]. `--review-behaviour`.
 		bool ReviewBehaviourRequested = false;
+		// [[BPR-0660]]. `--saved-server`.
+		bool SavedServerRequested = false;
 		bool DefectCompositionStarted = false;
 		bool DefectCompositionPassed  = false;
 		bpr::app::detail::defect_composition_probe_evidence
@@ -6144,6 +6147,26 @@ namespace {
 							}
 						}
 						advance_fixture_stage(*aRun, automated_run::stage::review_behaviour);
+					} else if (aRun->SavedServerRequested) {
+						// [[BPR-0660]]. The seed run remembers an enterprise
+						// server on Accounts & hosts as a reviewer would; the
+						// reuse run opens over the same store and must find it
+						// kept and offered as a host to sign in on.
+						if (aRun->EpochPhase
+							== bpr::app::detail::github_epoch_fixture_phase::seed) {
+							auto* const hostname
+								= window.findChild<QLineEdit*>(QStringLiteral("savedServerHostname"));
+							auto* const account
+								= window.findChild<QLineEdit*>(QStringLiteral("savedServerAccount"));
+							auto* const remember
+								= window.findChild<QAction*>(QStringLiteral("addSavedServer"));
+							if (hostname != nullptr && account != nullptr && remember != nullptr) {
+								hostname->setText(QStringLiteral("ghe.kept.example"));
+								account->setText(QStringLiteral("reviewer"));
+								remember->trigger();
+							}
+						}
+						advance_fixture_stage(*aRun, automated_run::stage::saved_server);
 					} else {
 						transition_to_shutdown(aApplication, *aRun);
 					}
@@ -6365,6 +6388,38 @@ namespace {
 				QTextStream{ stdout } << (seed ? "REVIEW_BEHAVIOUR_SEEDED" : "REVIEW_BEHAVIOUR")
 									  << ":continue=review:filter=unread:honoured="
 									  << (passed ? 1 : 0) << '\n';
+				aRun->PresentationPassed = aRun->PresentationPassed && passed;
+				transition_to_shutdown(aApplication, *aRun);
+				break;
+			}
+
+			case automated_run::stage::saved_server: {
+				// [[BPR-0660]]. Poll, do not race: the queue host stores the
+				// server and publishes it back. The seed run requires the
+				// stored server to reach the page; the reuse run opens over
+				// the same store and requires it both listed and offered as a
+				// host profile, which is what a remembered server is for.
+				auto* const selector
+					= window.findChild<QComboBox*>(QStringLiteral("savedServerSelector"));
+				if (selector == nullptr) {
+					transition_to_shutdown(aApplication, *aRun);
+					break;
+				}
+				const auto kept
+					= selector->findText(QStringLiteral("ghe.kept.example - reviewer")) >= 0;
+				if (!kept) {
+					break;
+				}
+				const auto seed = aRun->EpochPhase
+					== bpr::app::detail::github_epoch_fixture_phase::seed;
+				auto* const profiles
+					= window.findChild<QComboBox*>(QStringLiteral("githubProfileSelector"));
+				const auto offered = profiles != nullptr
+					&& profiles->findText(QStringLiteral("ghe.kept.example"), Qt::MatchContains) >= 0;
+				const auto passed  = kept && (seed || offered);
+				QTextStream{ stdout } << (seed ? "SAVED_SERVER_SEEDED" : "SAVED_SERVER")
+									  << ":host=ghe.kept.example:kept=" << (kept ? 1 : 0)
+									  << ":offered=" << (offered ? 1 : 0) << '\n';
 				aRun->PresentationPassed = aRun->PresentationPassed && passed;
 				transition_to_shutdown(aApplication, *aRun);
 				break;
@@ -7595,6 +7650,7 @@ auto main(int argc, char** argv) -> int
 		const auto overviewSinceReview = has_argument(
 			argc, argv, "--overview-since-review");
 		const auto reviewBehaviour                  = has_argument(argc, argv, "--review-behaviour");
+		const auto savedServerCourse                = has_argument(argc, argv, "--saved-server");
 		const auto appearanceThemeCustomizationPath = argument_value(
 			argc, argv, "--appearance-theme-customization-probe");
 		const auto diffEvidenceAppearanceName = argument_value(
@@ -7982,6 +8038,7 @@ auto main(int argc, char** argv) -> int
 						.DefectCompositionProbe          = defectCompositionProbe,
 						.OverviewSinceReviewRequested    = overviewSinceReview,
 						.ReviewBehaviourRequested        = reviewBehaviour,
+						.SavedServerRequested            = savedServerCourse,
 						.DiffProbe                       = diffWorkbenchProbe,
 						.DiffShutdownProbe               = diffWorkbenchShutdownProbe,
 						.StallProbe                      = automatedStallProbe,

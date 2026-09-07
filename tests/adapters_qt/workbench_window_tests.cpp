@@ -4872,6 +4872,59 @@ namespace {
 		window.hide();
 	}
 
+	// [[BPR-0660]]. The enterprise servers the reviewer keeps: on Accounts
+	// and hosts, listed from the projection, remembered and forgotten as
+	// intents, and offered without an account or a signed-in session.
+	void test_enterprise_server_gestures_round_trip_through_the_dispatch()
+	{
+		qt::workbench_window window;
+		auto                 intents = std::vector<application::saved_server_intent>{ };
+		window.set_saved_server_dispatch(
+			[&intents](application::saved_server_intent aIntent) {
+				intents.push_back(std::move(aIntent));
+			});
+		auto* const editor = window.enterprise_servers_editor();
+		expect(editor != nullptr
+				   && window.settings()->page_widget(qt::settings_page::accounts_and_hosts)->isAncestorOf(editor)
+				   && !window.home_page()->isAncestorOf(editor)
+				   && !window.focus_order().contains(window.saved_server_hostname()),
+			   "the servers editor lives on Accounts and hosts, off Home and out of the workbench's order");
+		expect(!window.add_saved_server_action()->isEnabled()
+				   && !window.forget_saved_server_action()->isEnabled(),
+			   "before a ready projection neither Remember nor Forget is offered");
+
+		const auto kept = application::saved_server{ .Hostname = "ghe.example.com", .Account = "reviewer" };
+		auto       projection = application::queue_landing_projection{
+			.Status = application::queue_landing_status::ready,
+		};
+		projection.SavedServers = { kept };
+		window.publish(projection);
+		expect(window.saved_server_selector() != nullptr && window.saved_server_selector()->count() == 1
+				   && window.saved_server_selector()->itemText(0)
+					   == QStringLiteral("ghe.example.com - reviewer"),
+			   "the editor lists the remembered server by hostname and account, with no session of its own");
+		expect(!window.add_saved_server_action()->isEnabled(), "Remember waits for a hostname");
+		window.saved_server_hostname()->setText(QStringLiteral("https://ghe.example.com"));
+		expect(!window.add_saved_server_action()->isEnabled(), "a hostname with a scheme is not offered");
+		window.saved_server_hostname()->setText(QStringLiteral(" GHE.Example.Org "));
+		window.saved_server_account()->setText(QStringLiteral(" reviewer "));
+		expect(window.add_saved_server_action()->isEnabled(), "a hostname is offered");
+		window.add_saved_server_action()->trigger();
+		expect(intents
+				   == std::vector{ application::saved_server_intent{
+					   .Action = application::saved_server_action::add,
+					   .Server = { .Hostname = "ghe.example.org", .Account = "reviewer" } } },
+			   "Remember leaves as an add intent, trimmed and lowercased");
+		expect(window.saved_server_hostname()->text().isEmpty() && window.saved_server_account()->text().isEmpty(),
+			   "the fields clear once the gesture has left");
+		window.saved_server_selector()->setCurrentIndex(0);
+		expect(window.forget_saved_server_action()->isEnabled(), "a selected server can be forgotten");
+		window.forget_saved_server_action()->trigger();
+		expect(intents.size() == 2U && intents.back().Action == application::saved_server_action::remove
+				   && intents.back().Server == kept,
+			   "Forget leaves as a remove intent for the selected server");
+	}
+
 	void test_saved_repository_gestures_round_trip_through_the_dispatch()
 	{
 		qt::workbench_window window;
@@ -5347,6 +5400,7 @@ auto main(int argc, char** argv) -> int
 	test_queue_rule_gestures_wait_for_the_accepted_projection();
 	test_queue_rule_selection_survives_unrelated_projection();
 	test_saved_repository_gestures_round_trip_through_the_dispatch();
+	test_enterprise_server_gestures_round_trip_through_the_dispatch();
 	test_review_behaviour_rows_dispatch_follow_the_projection_and_reset_by_group();
 	test_continue_review_and_opening_honour_the_modality_preferences();
 	test_comments_filter_and_return_comparison_preferences_apply_on_open();
