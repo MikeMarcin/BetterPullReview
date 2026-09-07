@@ -328,7 +328,7 @@ still have to manually split it myself", "that PR entry process is in the
 settings menu instead of on the home", and "the entire set of information for
 this PR is being crammed into a tiny box in files browser".
 
-Carded: [BPR-0669](../30-in-progress/BPR-0669-open-a-pull-request-by-pasting-its-url-from-home.md)
+Carded: [BPR-0669](../60-done/BPR-0669-open-a-pull-request-by-pasting-its-url-from-home.md)
 for URL entry on Home, [BPR-0670](../10-backlog/BPR-0670-public-preview-is-buried-and-does-not-say-what-it-is.md)
 for the signed-out path, [BPR-0671](../10-backlog/BPR-0671-the-pull-request-summary-is-crammed-into-the-files-drawer.md)
 for the summary box this card left in the files drawer, and
