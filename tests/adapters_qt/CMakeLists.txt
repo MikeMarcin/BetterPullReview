@@ -989,3 +989,25 @@ foreach(scale IN ITEMS 100 125 200)
         ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${scale_factor}"
         PASS_REGULAR_EXPRESSION "review-submission-editor:pass")
 endforeach()
+
+bpr_add_executable(
+    test_better_pull_review_qt_settings_effect_boundary_tests
+    settings_effect_boundary_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_qt_settings_effect_boundary_tests
+    PRIVATE BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_settings_effect_boundary_tests)
+bpr_enable_warnings(test_better_pull_review_qt_settings_effect_boundary_tests)
+bpr_add_network_isolated_test(
+    NAME qt_settings_effect_boundary
+    COMMAND test_better_pull_review_qt_settings_effect_boundary_tests
+)
+set_tests_properties(
+    qt_settings_effect_boundary
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment}"
+        PASS_REGULAR_EXPRESSION "settings-effect-boundary-tests:pass"
+        TIMEOUT 120
+)

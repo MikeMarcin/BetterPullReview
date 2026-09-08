@@ -34,3 +34,11 @@ target-native interaction and Windows/Linux packaged inventory remain unobserved
 Do not finish this card as Done or close RFC0018 from partial automated evidence.
 
 BPR-0684 repairs the Settings-close preview/import lifecycle discovered during integration preparation.
+
+The focused `qt_settings_effect_boundary` course passed0.82s with canonical
+tidy. Real Settings preference/theme gestures invoke real owning hosts;
+recorded capability ports enter worker threads and return results through the
+GUI decision lane. It covers queue preference, appearance persistence, theme
+import/export and Settings-close import cancellation. Test harness joins happen
+after gestures return. This is not a claim of exhaustive OS syscall, native
+chooser, vault, process or network instrumentation.
