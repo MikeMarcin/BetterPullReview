@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0684"
 title: "Cancel Settings preview and pending import on close"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0018"]
 depends_on: ["BPR-0682"]
 ---
