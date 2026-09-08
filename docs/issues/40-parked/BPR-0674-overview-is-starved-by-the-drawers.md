@@ -2,10 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0674"
 title: "Overview is starved by the drawers"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
+parked_on: "human-review"
+acceptance: [{"criterion":"Choosing Overview collapses the three drawers to rails and the overview fills the centre","outcome":"pass","revision":"6213c1e0","evidence":{"kind":"observation","detail":"The presets returned early whenever the core refused a drawer command, which was whenever no comparison had resolved, so no preset ever ran in the owner's state. They now run regardless, Overview asks for all three drawers collapsed, and every modality names the repositories drawer that no preset had mentioned. qt_workbench_window_scale_{100,125,200} pin both; leaving files open in Overview, or never asking about repositories, each fail a named assertion. Eighty-five Qt, core, composition, overview and behaviour selectors pass."}},{"criterion":"No heading on the overview is elided at the window sizes the workbench supports","outcome":"pending","revision":"6213c1e0","evidence":{"kind":"freeform","detail":"Not closed here. A width floor on the overview page would become a floor on the whole centre, because a hidden page of a stacked widget sets the stack's minimum. With every drawer collapsed the page has the centre, which is what the owner asked for; whether the headings still elide at a narrow window is for them to see, and the floor would then belong to the stack rather than the page. Their other question, whether Overview should refuse a drawer opened by hand, is recorded on the card unanswered."}}]
 ---
 
 # Overview is starved by the drawers
@@ -23,7 +25,7 @@ description and file table are unreadable. The page RFC-BPR-0028 gives the
 whole centre to is the narrowest thing on screen.
 
 The modality presets already decide drawer state per modality
-([BPR-0646](../40-parked/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md),
+([BPR-0646](BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md),
 AC-03). Overview's preset is what is wrong, not the drawers.
 
 ## Scope

@@ -365,7 +365,7 @@ the overview is squeezed into a column about 150 pixels wide between the
 two drawers, with its own headings truncated to "Techni…etails" and
 "Compari…hole PR".
 
-Carried forward: [BPR-0674](../30-in-progress/BPR-0674-overview-is-starved-by-the-drawers.md)
+Carried forward: [BPR-0674](BPR-0674-overview-is-starved-by-the-drawers.md)
 for the overview's width and the drawers in Overview,
 [BPR-0675](BPR-0675-a-drawer-cannot-be-collapsed-by-anyone-who-has-not-read-the-code.md)
 for collapsing a drawer,
