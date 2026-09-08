@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0693"
 title: "Scope credentials and remembered bindings to BPR profiles"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0690"]
 ---
