@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0676"
 title: "The epoch line does not show whether it is working"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P2"
