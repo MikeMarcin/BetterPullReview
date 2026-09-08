@@ -1645,6 +1645,7 @@ namespace bpr::qt {
 		AppearanceSettings->setObjectName(
 			QStringLiteral("appearanceSettingsPanel"));
 		SettingsWindow->adopt_panel(settings_page::appearance, AppearanceSettings);
+		SettingsWindow->set_close_handler([this] { AppearanceSettings->cancel_preview(); });
 
 		CentralStack = new QStackedWidget{ this };
 		CentralStack->setObjectName(QStringLiteral("workbenchCentralStack"));

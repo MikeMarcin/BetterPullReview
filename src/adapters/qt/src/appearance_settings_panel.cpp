@@ -704,11 +704,13 @@ namespace bpr::qt {
 		}
 	}
 
+	void appearance_settings_panel::cancel_preview()
+	{
+		dispatch_palette_cancel();
+	}
+
 	void appearance_settings_panel::dispatch_palette_cancel()
 	{
-		if (!PreviewPalette.has_value()) {
-			return;
-		}
 		PreviewPalette.reset();
 		++Statistics.PaletteCancels;
 		show_selected_color();

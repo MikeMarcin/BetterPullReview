@@ -1142,6 +1142,29 @@ namespace {
 		expect(restarted.Host.settings() == defaults, "reset survives a new host lifetime");
 	}
 
+	void test_preview_cancellation_retires_only_import()
+	{
+		auto h                    = harness{ };
+		h.ThemeDocuments.Document = core::export_theme(contrast_safe_palette());
+		h.Host.import_theme_file("late-preview.json");
+		h.Effects.drain();
+		h.Host.select(core::appearance_mode::dark);
+		h.Host.classify(key(1U));
+		h.Host.cancel_theme_import();
+		h.settle();
+		expect(h.Host.last_rejection() == application::appearance_terminal_rejection::cancelled,
+			   "closing rejects an already staged import terminal");
+		expect(std::ranges::none_of(h.Projections.Published, [](const auto& aProjection) { return aProjection.ThemePreview.has_value(); }),
+			   "no late preview reaches the closed Settings surface");
+		expect(h.Settings.Stored.has_value() && h.Settings.Stored->Mode == core::appearance_mode::dark
+				   && h.Host.cached(key(1U)) != nullptr,
+			   "accepted preference writes and unrelated syntax work survive closing Settings");
+		h.Host.import_theme_file("new-preview.json");
+		h.settle();
+		expect(h.Projections.Published.back().ThemePreview.has_value(),
+			   "a new import after reopening has a fresh accepted identity");
+	}
+
 	void test_shutdown_withholds_publication_and_quiesces()
 	{
 		auto harnessed = harness{ };
@@ -1184,6 +1207,7 @@ auto main() -> int
 	test_cancellation_refuses_the_terminal_and_keeps_the_cache();
 	test_export_round_trip_refusal_and_cancellation();
 	test_resets_are_scoped_durable_and_retire_import();
+	test_preview_cancellation_retires_only_import();
 	test_shutdown_withholds_publication_and_quiesces();
 	std::cout << "appearance application host tests passed\n";
 	return EXIT_SUCCESS;

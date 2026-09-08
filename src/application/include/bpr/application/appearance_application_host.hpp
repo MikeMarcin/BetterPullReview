@@ -67,6 +67,8 @@ namespace bpr::application {
 		/// core parser, and validates the result against every appearance variant.
 		/// Success publishes a candidate and never changes or persists settings.
 		void import_theme_file(std::string aPath);
+		/// Retires only the pending preview import; accepted durable work continues.
+		void cancel_theme_import();
 		void export_theme_file(std::string aPath, core::appearance_palette aPalette);
 		void reset(appearance_reset_scope aScope);
 		// Answers from the retained cache when the key is present and runs the

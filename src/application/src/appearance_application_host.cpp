@@ -112,7 +112,7 @@ namespace bpr::application {
 		{
 		};
 
-		using deferred_appearance_ingress = std::variant<reset_appearance_intent, deferred_appearance_theme_export, staged_theme_export, deferred_appearance_restore,
+		using deferred_appearance_ingress = std::variant<cancel_appearance_palette_preview_intent, reset_appearance_intent, deferred_appearance_theme_export, staged_theme_export, deferred_appearance_restore,
 														 deferred_appearance_select,
 														 deferred_appearance_observe,
 														 deferred_appearance_palette,
@@ -282,7 +282,9 @@ namespace bpr::application {
 			std::visit(
 				[this](auto&& aTyped) {
 					using ingress_type = std::decay_t<decltype(aTyped)>;
-					if constexpr (std::is_same_v<ingress_type, reset_appearance_intent>) {
+					if constexpr (std::is_same_v<ingress_type, cancel_appearance_palette_preview_intent>) {
+						retire(appearance_request_domain::theme_import, appearance_terminal_rejection::cancelled);
+					} else if constexpr (std::is_same_v<ingress_type, reset_appearance_intent>) {
 						reset_now(aTyped.Scope);
 					} else if constexpr (std::is_same_v<ingress_type, deferred_appearance_theme_export>) {
 						if (!Closing) {
@@ -1417,6 +1419,11 @@ namespace bpr::application {
 	{
 		Implementation->enqueue(
 			deferred_appearance_theme_import{ .Path = std::move(aPath) });
+	}
+
+	void appearance_application_host::cancel_theme_import()
+	{
+		Implementation->enqueue(cancel_appearance_palette_preview_intent{ });
 	}
 
 	void appearance_application_host::export_theme_file(std::string aPath, core::appearance_palette aPalette)

@@ -9033,6 +9033,7 @@ namespace bpr::app {
 					} else if constexpr (std::is_same_v<
 											 intent,
 											 application::cancel_appearance_palette_preview_intent>) {
+						AppearanceHost->cancel_theme_import();
 						if (AppearanceProfile) {
 							AppearanceProfile->cancel_palette_preview();
 						}
@@ -11180,7 +11181,7 @@ namespace bpr::app {
 				|| !unchanged()) {
 				return fail();
 			}
-			panel->cancel_button()->click();
+			implementation->Window->settings()->close();
 			if (implementation->AppearanceProfile->previewing_palette()
 				|| panel->preview_palette().has_value()
 				|| implementation->AppearanceProfile->palette()
@@ -11192,6 +11193,7 @@ namespace bpr::app {
 				return fail();
 			}
 			reportStage("manual-cancelled");
+			implementation->Window->open_settings(qt::settings_page::appearance);
 			panel->preview_button()->click();
 			if (!implementation->AppearanceProfile->previewing_palette()) {
 				return fail();

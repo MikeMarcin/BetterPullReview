@@ -2,9 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0684"
 title: "Cancel Settings preview and pending import on close"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0018"]
 depends_on: ["BPR-0682"]
+acceptance: [{"criterion":"AC-03/04/09","outcome":"pass","revision":"3e11134e plus this finish","evidence":{"kind":"observation","detail":"qt_settings_window passed native close and Escape: one cancellation intent, stable controls on reopen. The actual application theme customization course passed 39.16s with Settings close replacing manual Cancel, preserving diff identity, position, lexical work and accepted palette."}},{"criterion":"AC-10","outcome":"pass","revision":"3e11134e plus this finish","evidence":{"kind":"observation","detail":"application_appearance_host passed staged late-import rejection, new import after reopen, accepted durable write and syntax completion surviving preview cancellation. Only theme-import request records retire; exports/writes are untouched."}},{"criterion":"Quality","outcome":"pass","revision":"3e11134e plus this finish","evidence":{"kind":"observation","detail":"Five selected TUs passed canonical tidy; reviewed composition digests and hostile-bypass test passed; documentation and diff checks passed. Attended conflict scan empty."}}]
 ---
 
 # Cancel Settings preview and pending import on close

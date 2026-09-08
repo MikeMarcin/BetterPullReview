@@ -7,6 +7,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 
 class QLabel;
 class QKeyEvent;
@@ -54,6 +55,7 @@ namespace bpr::qt {
 
 		/// \brief Shows the window, raises it, and selects a page.
 		void present(settings_page aPage);
+		void set_close_handler(std::function<void()> aHandler);
 
 		[[nodiscard]] auto current_page() const noexcept -> settings_page;
 		[[nodiscard]] auto sidebar() const noexcept -> QListWidget*;
@@ -67,9 +69,10 @@ namespace bpr::qt {
 	private:
 		void select_page(int aRow);
 
-		QPointer<QWidget> ReturnFocus;
-		QListWidget*      Sidebar = nullptr;
-		QStackedWidget*   Pages   = nullptr;
+		std::function<void()> CloseHandler;
+		QPointer<QWidget>     ReturnFocus;
+		QListWidget*          Sidebar = nullptr;
+		QStackedWidget*       Pages   = nullptr;
 	};
 
 	[[nodiscard]] auto settings_page_title(settings_page aPage) -> QString;

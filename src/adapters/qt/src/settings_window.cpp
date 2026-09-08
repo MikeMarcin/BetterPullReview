@@ -208,9 +208,17 @@ namespace bpr::qt {
 		return scroll != nullptr ? scroll->widget() : nullptr;
 	}
 
+	void settings_window::set_close_handler(std::function<void()> aHandler)
+	{
+		CloseHandler = std::move(aHandler);
+	}
+
 	void settings_window::closeEvent(QCloseEvent* const aEvent)
 	{
 		QWidget::closeEvent(aEvent);
+		if (aEvent->isAccepted() && CloseHandler) {
+			CloseHandler();
+		}
 		if (aEvent->isAccepted() && ReturnFocus != nullptr && ReturnFocus->isVisible()) {
 			ReturnFocus->window()->activateWindow();
 			ReturnFocus->setFocus(Qt::OtherFocusReason);

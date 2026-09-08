@@ -64,6 +64,8 @@ namespace bpr::qt {
 			QWidget*                                aParent   = nullptr);
 
 		void set_dispatch(application::appearance_intent_dispatch aDispatch);
+		/// Cancels visible preview and pending import, even before a preview arrives.
+		void cancel_preview();
 		/// \brief Reports that an accepted session change could not be persisted.
 		void report_persistence_unavailable();
 

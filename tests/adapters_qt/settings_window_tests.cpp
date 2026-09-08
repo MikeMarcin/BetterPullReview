@@ -1,5 +1,7 @@
 /// \file
 /// \brief Proves the Settings window places panels and holds no state of its own.
+#include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/settings_window.hpp"
@@ -136,6 +138,30 @@ namespace {
 		expect(settings->windowTitle().contains(QStringLiteral("Default profile")), "Settings identifies the profile being edited");
 	}
 
+	void test_close_cancels_preview_without_destroying_accepted_controls()
+	{
+		qt::workbench_window workbench;
+		auto* const          settings = workbench.settings();
+		auto* const          panel    = workbench.appearance_settings();
+		auto                 cancels  = 0U;
+		panel->set_dispatch([&](application::appearance_intent aIntent) {
+			expect(std::holds_alternative<application::cancel_appearance_palette_preview_intent>(aIntent),
+				   "closing emits only the preview cancellation intent");
+			++cancels;
+		});
+		settings->present(qt::settings_page::appearance);
+		QApplication::processEvents();
+		panel->preview_import(qt::builtin_appearance_palette(core::appearance_variant::dark));
+		QKeyEvent escape{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
+		QApplication::sendEvent(settings, &escape);
+		expect(!settings->isVisible() && !panel->preview_palette().has_value() && cancels == 1U,
+			   "Escape cancels the visible preview");
+		settings->present(qt::settings_page::appearance);
+		settings->close();
+		expect(cancels == 2U && workbench.appearance_settings() == panel,
+			   "native close also cancels pending imports before a preview arrives and keeps the same controls");
+	}
+
 	void test_the_workbench_mounts_settings_with_the_preferences_shortcut()
 	{
 		qt::workbench_window workbench;
@@ -174,6 +200,7 @@ auto main(int argc, char** argv) -> int
 	QApplication application{ argc, argv };
 	test_composed_pages_fit_and_render_at_minimum_size();
 	test_large_page_scrolls_without_growing_the_window();
+	test_close_cancels_preview_without_destroying_accepted_controls();
 	test_every_page_exists_with_a_notice();
 	test_adopting_a_panel_replaces_the_notice();
 	test_the_workbench_mounts_settings_with_the_preferences_shortcut();
