@@ -25,3 +25,10 @@ depend on a controller connection, reversing the immediate-visibility behavior
 recorded in [[BPR-0491]]. That behavior change is not adopted with this merge.
 The original implementation and tests remain recoverable from `39063364` in
 the merged history. No shared-source update or live station launch was made.
+
+
+The owner subsequently requested the reset controls and compact server mode in
+shared AgentSkills. ASK-0047 ports them into the canonical source, preserving
+consumer context and clearing old Claude bindings before a fresh launch. The
+station usage document now follows that shared implementation. The earlier
+merge disposition above records the decision before this explicit follow-up.

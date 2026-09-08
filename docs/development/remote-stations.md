@@ -49,20 +49,12 @@ its `station_id` on relaunch; until then the Codex hook guard
 (`.codex/hooks.json`) stays inactive for that checkout and says so on stderr,
 because a v1 file carries no Codex task binding to enforce.
 
-A row is real once its host is launched through
-`scripts/launch_remote_station.py` and the name shows up, bare and exact, in
-a peer's agent list — which now happens at launch. The launcher runs the
-interactive form, `claude --remote-control <station>`: the running process is
-the served session, so the name binds the moment the supervisor starts and
-nobody has to open anything. Until 2026-09-01 it ran the `claude
-remote-control --spawn session` server instead, and every mode of that
-server creates its session only when a controller connects — so every
-station launched before the fix sat at "Ready" with an environment URL and
-no session, absent from every peer list, and the 2026-08-29 launch of
-`bpr-win-jaegaw` was that state misread as a registration failure. The
-same-launcher control group that settled it, and the four flag probes that
-found the working form, are on [[BPR-0491]]. A station launched before the
-fix is relaunched once through the corrected launcher; nothing else changes.
+A row is real once its endpoint is reachable under the exact recorded name.
+The 2026-09-02 interactive launches recorded above are historical evidence
+([[BPR-0491]]). The current launcher uses the compact Remote Control server
+interface; a fresh session can wait for a controller connection before it
+appears in peer lists. Verify real visibility after connecting.
+
 
 Dispatch is not the silent misroute this document once feared. Sending to a
 name that no live session carries is refused loudly (`No agent named
@@ -114,20 +106,44 @@ authoritative everywhere else, and the station file is authoritative always.
 3. **Claude settings.** On each worker machine, set
    `"crossSessionInbound": "accept"` in `~/.claude/settings.json`, and remove
    any stale `"remoteControlSpawnMode"` from the project entries in
-   `~/.claude.json` (the launcher's interactive form does not read it, but
+   `~/.claude.json` (the launcher passes `--spawn session` explicitly, but
    the stale value should not survive to confuse a manual server launch).
 
 4. **Launch.** From the station checkout, with the host's own Python —
    `py -3` in a native-Windows shell (PowerShell or cmd), `python3`
    everywhere else:
 
-   ```sh
-   py -3 scripts/launch_remote_station.py                    # native Windows station
-   python3 scripts/launch_remote_station.py                  # WSL2/Linux station, or the Mac integrator
-   py -3 scripts/launch_remote_station.py --continue         # reattach after restart
-   py -3 scripts/launch_remote_station.py --fresh-station    # forget this station and start over
-   python3 scripts/launch_remote_station.py --no-server      # Codex: provision only
+   ```powershell
+   py -3 scripts/launch_remote_station.py                 # start or resume both
+   py -3 scripts/launch_remote_station.py --fresh         # fresh context in both
+   py -3 scripts/launch_remote_station.py --fresh codex   # fresh Codex only
+   py -3 scripts/launch_remote_station.py --fresh claude  # fresh Claude only
+   py -3 scripts/launch_remote_station.py --no-claude     # Codex only
+   py -3 scripts/launch_remote_station.py --no-codex      # Claude only
    ```
+
+   On macOS, Linux, and WSL2 use `python3` instead of `py -3`. Native Windows
+   runs directly in PowerShell. `--help-all` explains machine naming, read-only
+   authority, pairing, and troubleshooting; older flags remain accepted.
+
+   `--fresh` resets context while keeping the station identity and name.
+   Codex's previous task is archived, not deleted. With a service disabled,
+   `--fresh` resets only the enabled service and retains the skipped binding.
+   Codex-only mode holds the writer lease until Ctrl+C; keep the terminal open.
+   Skipping a service does not stop an already running endpoint.
+
+   Claude uses the compact `claude remote-control --name ... --spawn session`
+   interface. A new session may appear only after a controller connects; the
+   launcher watches for its exact bridge session ID until Claude exits.
+   Restarts use that recorded ID, never a worktree-wide `--continue` guess.
+   `--require-claude-resume` is the strict troubleshooting option; normal
+   launches already attempt resumption automatically.
+
+   Codex bootstrap failures include the server's error message, such as an
+   upgrade requirement. If Desktop owns an idle task's writer, archive that
+   exact task in Desktop and retry the fresh command. The launcher recognizes
+   the archived catalog even when `thread/read` omits the archived flag.
+
 
    That is the whole command. The workstream is inferred: from
    `.remote-station.json` when the checkout was launched before, otherwise
@@ -155,13 +171,10 @@ authoritative everywhere else, and the station file is authoritative always.
    respectively need the session it discards and cannot release the old task
    at all.
 
-   **What you will see.** After the Codex task is provisioned, Claude opens
-   in that terminal. That interactive session *is* the station: it is the
-   only form that exists, and is named, from the moment it starts, which is
-   what makes the name bind. Leave it running. Work arrives as messages from
-   the integrator; you can also drive it from claude.ai/code, the mobile
-   app, or by typing there. The old server form showed a status screen
-   instead — and never created a session.
+   **What you will see.** Claude shows the compact Remote Control status,
+   session link, and QR-code controls. Drive the session from claude.ai/code or
+   the mobile app. Codex-only mode instead prints its task identity and waits
+   for Ctrl+C while holding the writer lease.
 
    The launcher refuses a wrong repository, wrong branch, or a
    platform-bound workstream that does not match the host (WSL2 counts as
@@ -335,11 +348,11 @@ proposed `Auto-Verified` status on `main`.
 Deferred from local verification; run once per newly provisioned machine:
 
 - the station credential pushes its station branch and is refused on `main`;
-- at launch, with no controller connected, the station appears in another
+- after a controller connects, the station appears in another
   machine's agent list under its exact name (no auto-variant suffix);
 - a well-formed envelope is accepted and a mismatched one refused by name;
 - the mobile app can drive the station;
-- `--continue` reattaches after a reboot with the same station identity;
+- a normal restart reattaches using the recorded session identity;
 - on native Windows, `py -3 scripts/launch_remote_station.py` detects
   `windows-native` from PowerShell or cmd with no POSIX shell involved;
   under WSL2 it detects `wsl2` and refuses role `win`.
