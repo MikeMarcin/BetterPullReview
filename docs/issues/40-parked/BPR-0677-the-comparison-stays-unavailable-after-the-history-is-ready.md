@@ -2,16 +2,18 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0677"
 title: "The comparison stays unavailable after the history is ready"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
+parked_on: "human-review"
+acceptance: [{"criterion":"The status line never advises a refresh while the comparison is being prepared","outcome":"pass","revision":"bb99c12e","evidence":{"kind":"observation","detail":"The epoch control exposes the state behind its wording and the status line reads it: loading, preparing, committing, resolving and maintaining all produce 'Its comparison is being prepared.' with no advice; only a settled history with no comparison advises a refresh. qt_composed_github_scale_{100,125,200} pin both sentences, and making the preparing branch unreachable fails the first. Fifty-six Qt, core and composition selectors pass with boundaries, strict tidy, format and docs."}},{"criterion":"A public pull request opened signed out reaches an exact comparison with files that can be selected and read","outcome":"pending","revision":"bb99c12e","evidence":{"kind":"freeform","detail":"Unobserved. The owner's log shows revision_prepare succeeding at 20:58:25 and their screenshot is stamped 20:58:28, so nobody has yet seen what the workbench does with the comparison that followed. It needs one more run of the signed bundle, which is queued with the rest of the attended work."}}]
 ---
 
 # The comparison stays unavailable after the history is ready
 
 The owner's 2026-09-07 capture, on the build carrying
-[BPR-0667](../40-parked/BPR-0667-the-epoch-refuses-any-pull-request-whose-base-branch-moved.md),
+[BPR-0667](BPR-0667-the-epoch-refuses-any-pull-request-whose-base-branch-moved.md),
 shows the pull request loaded, four files listed, participants and
 since-my-last-review populated, and this status line:
 
@@ -41,7 +43,7 @@ after it.
 - Ninety-five seconds of silent preparation is the rest of it: the reviewer
   is owed some sign that something is happening, and the wait itself is
   worth measuring against
-  [BPR-0673](BPR-0673-epoch-refresh-stalls-the-event-loop.md).
+  [BPR-0673](../30-in-progress/BPR-0673-epoch-refresh-stalls-the-event-loop.md).
 - Whether a comparison actually arrives after a successful
   `revision_prepare` on the public path is still unobserved: the owner's
   screenshot was taken three seconds after it and they stopped there. A
