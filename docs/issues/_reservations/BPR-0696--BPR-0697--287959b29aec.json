@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0696",
+    "BPR-0697"
+  ],
+  "reserve_for": "profile-management-and-auth-session-split",
+  "purpose": "",
+  "created": "2026-09-08T09:47:45.779954+00:00",
+  "base": "47de7ae855a9571abeba16d53fd0a829885006bc"
+}
