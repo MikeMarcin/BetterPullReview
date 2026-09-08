@@ -2,9 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0690"
 title: "Introduce typed BPR profile and window lifecycle"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0594"]
+acceptance: [{"criterion":"Typed bounded profile/window lifecycle policy and exact stale-context refusal","outcome":"pass","revision":"2b40da44 plus BPR-0690 finish paths","evidence":{"kind":"observation","detail":"Primary inspected model/tests. Standalone strict C++23 test and canonical tidy2TUs/format pass. cmake core-only configure/build passed (initial unrelated setup fixture compile corrected). core_profile_window passed0.25s; full core-only run125/128 in445.72s. Two setup URL boundary failures repaired by moving parser to Application, rechecked core_dependency_boundary and architecture_boundaries2/2pass7.51s; architecture_boundary_contract passed80.67s. Remaining unrelated designated_live_macos_capsule_contract SIGTERM cleanup timeout is not profile evidence; isolated recheck pending, process/mount absence confirmed. No profile persistence/UI/multi-window composition acceptance claimed."}}]
 ---
 
 # Introduce typed BPR profile and window lifecycle
