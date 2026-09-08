@@ -159,6 +159,8 @@ namespace bpr::app::detail {
 		// live-candidate and forced-selection flags set it.
 		bool                 PublicPreviewSelectionAvailable = false;
 		core::bpr_profile_id Profile                         = core::default_bpr_profile_id;
+		/// Bounded recorded PR 17/18 reads, independently repeatable per request.
+		bool IndependentWindowReads = false;
 	};
 
 	struct queue_notification_fixture_evidence
@@ -647,6 +649,10 @@ namespace bpr::app::detail {
 		/// \brief Copies the host-accepted records for independent fixture identity checks.
 		[[nodiscard]] static auto large_review_snapshot(const github_application& aApplication)
 			-> std::optional<application::github_pull_request_snapshot>;
+		[[nodiscard]] static auto large_review_snapshot(const github_application& aApplication, core::bpr_window_context aContext) -> std::optional<application::github_pull_request_snapshot>;
+		static void               hold_window_read_terminal(github_application& aApplication, core::bpr_window_context aContext, bool aHold);
+		[[nodiscard]] static auto held_window_read_terminals(const github_application& aApplication, core::bpr_window_context aContext) noexcept -> std::size_t;
+		[[nodiscard]] static auto diff_work_evidence(const github_application& aApplication, core::bpr_window_context aContext) noexcept -> diff_work_fixture_evidence;
 		/// \brief Samples existing diff-host work counters on the decision lane.
 		[[nodiscard]] static auto diff_work_evidence(const github_application& aApplication) noexcept
 			-> diff_work_fixture_evidence;
@@ -661,6 +667,8 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto network_isolation_probe() -> bool;
 		[[nodiscard]] static auto start_desktop(github_public_path_fixture aFixture, github_public_path_fixture_options aOptions, profile_desktop_startup_completion aCompletion) -> std::unique_ptr<profile_desktop>;
 		[[nodiscard]] static auto start_desktop_public_preview_selection_available(github_application_config aConfig, profile_desktop_startup_completion aCompletion) -> std::unique_ptr<profile_desktop>;
+		[[nodiscard]] static auto start_profile(github_public_path_fixture aFixture, github_public_path_fixture_options aOptions, github_application_startup_completion aCompletion) -> std::unique_ptr<github_application_startup>;
+		[[nodiscard]] static auto start_profile_public_preview_selection_available(github_application_config aConfig, github_application_startup_completion aCompletion) -> std::unique_ptr<github_application_startup>;
 		[[nodiscard]] static auto start(
 			github_public_path_fixture aFixture, github_public_path_fixture_options aOptions, github_application_startup_completion aCompletion)
 			-> std::unique_ptr<github_application_startup>;

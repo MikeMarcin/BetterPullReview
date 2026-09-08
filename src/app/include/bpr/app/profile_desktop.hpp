@@ -7,7 +7,7 @@ namespace bpr::qt {
 namespace bpr::app {
 	using profile_desktop_startup_result     = std::expected<github_application*, github_application_startup_failure>;
 	using profile_desktop_startup_completion = std::function<void(profile_desktop_startup_result)>;
-	/// Owns different-profile runtimes independently of any one window.
+	/// Owns profile runtimes and exact window lifetimes independently of any one window.
 	class profile_desktop final
 	{
 	public:
@@ -16,6 +16,8 @@ namespace bpr::app {
 		profile_desktop(const profile_desktop&)                                  = delete;
 		auto               operator=(const profile_desktop&) -> profile_desktop& = delete;
 		[[nodiscard]] auto runtime(core::bpr_profile_id aProfile) const noexcept -> github_application*;
+		[[nodiscard]] auto windows(core::bpr_profile_id aProfile) const -> std::vector<core::bpr_window_context>;
+		[[nodiscard]] auto window(core::bpr_window_context aContext) const noexcept -> qt::workbench_window*;
 		[[nodiscard]] auto management_window() const noexcept -> qt::profile_management_window*;
 		void               quit(int aExitCode = 0);
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;

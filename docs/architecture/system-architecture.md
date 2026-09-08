@@ -75,6 +75,29 @@ Implementation Architecture](github-host-implementation.md).
           └──────────────────────────────────────────────┘
 ```
 
+## Profile and window ownership
+
+The desktop admits one runtime for each BPR profile before requesting its first
+core window context. The profile runtime owns private storage roots,
+authentication, provider capabilities, queue refresh, preferences, logging,
+epoch cache actors, shared drafts and workspace recovery. A window session owns
+its read host, epoch and diff state, selected review, navigation, Qt surface,
+mutation jobs and agent session. Closing a window drains its consumers; quitting
+drains all windows before profile services. The first window has no special
+ownership of shared services or projection delivery.
+
+Window read requests retain their exact application session. Authenticated
+provider requests additionally carry the accepted profile authentication session
+as separate provenance, checked against the opaque account transport lease.
+This lets sibling windows share a sign-in without changing request or completion
+identity. Replacing the accepted account retires the old session before existing
+windows can adopt the new authority.
+
+Settings has one presentation per profile and mounts the invoking window's
+controls over shared accepted preferences. Window geometry remains independent.
+Live window composition does not yet supply durable window restoration or
+cross-process activation; those RFC-BPR-0024 criteria remain open.
+
 ## Diagnostic logging boundary
 
 BPR-0602 adds a bounded `application::diagnostic_log_port`. Composition constructs

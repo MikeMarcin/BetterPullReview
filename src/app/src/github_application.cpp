@@ -31,11 +31,17 @@
 #endif
 
 #if defined(BPR_BUILD_TESTING)
+	#include "bpr/application/appearance_preferences_application_host.hpp"
+	#include "bpr/application/github_window_read_host.hpp"
+	#include "bpr/application/profile_epoch_actor_registry.hpp"
+	#include "bpr/application/workbench_preferences_host.hpp"
+	#include "bpr/qt/settings_window.hpp"
 	#include "github_public_path_fixture.hpp"
 	#include "github_read_contract.hpp"
 	#include "github_wire_transport.hpp"
 	#include "review_submission_fixture.hpp"
 	#include <glaze/json.hpp>
+	#include <map>
 #endif
 
 #include "bpr/adapters/agent/agent_process_launcher.hpp"
@@ -2066,6 +2072,9 @@ namespace bpr::app {
 			: public application::workbench_settings_port
 		{
 		public:
+			explicit session_workbench_settings(application::workbench_layout_settings aSettings = { })
+				: Settings{ std::move(aSettings) }
+			{ }
 			[[nodiscard]] auto load(const std::stop_token aStop)
 				-> application::workbench_settings_result<
 					application::workbench_layout_settings> override
@@ -3370,25 +3379,262 @@ namespace bpr::app {
 
 #endif
 
-	class github_application::implementation final
-		: public application::github_epoch_handoff_port,
-		  public application::epoch_projection_port,
-		  public application::workbench_selected_diff_projection_port,
-		  public application::review_mutation_projection_port,
-		  public application::receipt_projection_port,
-		  public application::queue_landing_projection_port,
-		  public application::agent_session_catalog_port,
-		  public application::setup_destination_port,
-		  public application::shared_draft_context_port
+	class window_queue_projection final : public application::queue_window_projection_port
 	{
-		friend class github_application;
-		// Declared first so fixture cleanup runs after every private service releases its root.
-		std::shared_ptr<void>    StartupScratch;
-		std::filesystem::path    RegistryRoot;
-		std::function<void(int)> DesktopQuit;
-
 	public:
-		explicit implementation(
+		using sink = std::function<void(const core::bpr_window_context&, const application::queue_landing_projection&)>;
+		explicit window_queue_projection(sink aSink)
+			: Sink{ std::move(aSink) }
+		{ }
+		void publish(const core::bpr_window_context& aContext, const application::queue_landing_projection& aProjection) override { Sink(aContext, aProjection); }
+
+	private:
+		sink Sink;
+	};
+
+	class window_read_decision_lane final : public application::decision_executor
+	{
+	public:
+		explicit window_read_decision_lane(application::decision_executor& aDecision)
+			: Decision{ aDecision }
+		{ }
+		void post(std::function<void()> aTask) override
+		{
+			auto state = State;
+			Decision.post([state, task = std::move(aTask)]() mutable {
+				if (state->Held) {
+					state->Pending.push_back(std::move(task));
+				} else {
+					task();
+				}
+			});
+		}
+		void hold(bool aHold)
+		{
+			State->Held = aHold;
+			if (!aHold) {
+				auto pending = std::move(State->Pending);
+				State->Pending.clear();
+				for (auto& task : pending) {
+					Decision.post(std::move(task));
+				}
+			}
+		}
+		[[nodiscard]] auto held() const noexcept -> std::size_t { return State->Pending.size(); }
+
+	private:
+		struct state
+		{
+			bool                               Held = false;
+			std::vector<std::function<void()>> Pending;
+		};
+		application::decision_executor& Decision;
+		std::shared_ptr<state>          State = std::make_shared<state>();
+	};
+
+	/// Shared services outlive every window session that borrows them.
+	class github_profile_runtime final : public application::github_projection_port, public application::queue_window_context_port, public application::queue_landing_projection_port, public application::shared_draft_context_port
+	{
+	public:
+		// Root lease and execution lanes outlive all services and their callbacks.
+		std::shared_ptr<void>   StartupScratch;
+		worker_executor         ProviderEffects;
+		worker_executor         VaultEffects;
+		worker_executor         DeviceBindingEffects;
+		worker_executor         DeviceTransportEffects;
+		worker_executor         EpochEffects;
+		worker_executor         DiffEffects;
+		worker_executor         AgentEffects;
+		worker_executor         McpEffects;
+		worker_executor         WorkbenchEffects;
+		worker_executor         AppearanceEffects;
+		worker_executor         QueueEffects;
+		worker_executor         ReviewMutationEffects;
+		worker_executor         ReviewSubmissionEffects;
+		qt::event_loop_executor DecisionLane;
+		struct window_observer
+		{
+			std::weak_ptr<const void>                                                         Lifetime;
+			std::function<void(const application::github_presentation_update&)>               Github;
+			std::function<void(const application::device_authorization_presentation&)>        Device;
+			std::function<void(const application::device_authorization_refresh_observation&)> Refresh;
+			std::function<void(const application::public_preview_presentation&)>              Preview;
+			std::function<void(core::host_profile_id)>                                        SignIn;
+			std::function<bool(const core::pull_request_ref&)>                                SelectQueue;
+			std::function<void(qt::settings_window&, qt::settings_page)>                      Settings;
+			std::function<void()>                                                             UnmountSettings;
+		};
+		void publish(const application::github_presentation_update& aUpdate) override;
+		template <class Function>
+		void for_each_window(Function aFunction)
+		{
+			const auto observers = Observers;
+			for (const auto& [context, observer] : observers) {
+				if (!observer.Lifetime.expired() && Observers.contains(context)) {
+					aFunction(observer);
+				}
+			}
+		}
+		std::map<core::bpr_window_context, window_observer, detail::window_context_less> Observers;
+		std::unique_ptr<qt::settings_window>                                             Settings;
+		std::optional<core::bpr_window_context>                                          SettingsOwner;
+		void                                                                             present_settings(core::bpr_window_context aContext, qt::settings_page aPage)
+		{
+			if (!current_window(aContext)) {
+				return;
+			}
+			if (!Settings) {
+				Settings = std::make_unique<qt::settings_window>();
+				Settings->set_profile_label(QString::fromStdString(Admission.Label));
+			}
+			if (SettingsOwner && *SettingsOwner != aContext) {
+				const auto previous = Observers.find(*SettingsOwner);
+				if (previous != Observers.end() && previous->second.UnmountSettings) {
+					previous->second.UnmountSettings();
+				}
+			}
+			SettingsOwner    = aContext;
+			const auto found = Observers.find(aContext);
+			if (found != Observers.end() && found->second.Settings) {
+				found->second.Settings(*Settings, aPage);
+			}
+		}
+		std::optional<core::bpr_window_context> Focused;
+		[[nodiscard]] auto                      current(const core::bpr_window_context& aContext) const noexcept -> bool override { return current_window(aContext); }
+		void                                    publish(const application::queue_landing_projection& aProjection) override;
+		class epoch_contexts final : public application::epoch_window_context_port
+		{
+		public:
+			explicit epoch_contexts(github_profile_runtime& aOwner)
+				: Owner{ aOwner }
+			{ }
+			[[nodiscard]] auto current(core::bpr_window_context aContext) const noexcept -> bool override { return Owner.current_window(aContext); }
+
+		private:
+			github_profile_runtime& Owner;
+		};
+		epoch_contexts                                EpochContexts{ *this };
+		std::function<bool(core::bpr_window_context)> WindowAdmission;
+		[[nodiscard]] auto                            current_window(core::bpr_window_context aContext) const noexcept -> bool
+		{
+			if (Closing || aContext.Profile != Admission.Authority.profile() || !Observers.contains(aContext)) {
+				return false;
+			}
+			try {
+				return !WindowAdmission || WindowAdmission(aContext);
+			} catch (...) {
+				return false;
+			}
+		}
+		struct draft_owner
+		{
+			core::review_draft_scope_id                                 Scope;
+			std::shared_ptr<application::shared_draft_application_host> Host;
+		};
+		std::vector<draft_owner> DraftOwners;
+		std::uint64_t            LastDraftScope = 0;
+		[[nodiscard]] auto       drafts(const application::shared_draft_authority& aAuthority) -> std::optional<draft_owner>
+		{
+			for (const auto& owner : DraftOwners) {
+				if (owner.Host->authority() == aAuthority) {
+					return owner;
+				}
+			}
+			if (Closing || DraftOwners.size() >= application::maximum_shared_drafts || LastDraftScope == std::numeric_limits<std::uint64_t>::max()) {
+				return std::nullopt;
+			}
+			auto scope = core::review_draft_scope_id{ ++LastDraftScope };
+			auto owner = draft_owner{ scope, std::make_shared<application::shared_draft_application_host>(aAuthority, scope, *this) };
+			DraftOwners.push_back(owner);
+			return owner;
+		}
+		github_application_config               Config;
+		core::github_identity_generation        QueueIdentityGeneration;
+		std::optional<core::bpr_window_context> FirstWindow;
+		application::profile_startup_admission  Admission;
+		bool                                    Closing          = false;
+		bool                                    ServicesClosing  = false;
+		bool                                    ShutdownComplete = false;
+		bool                                    CleanupFailed    = false;
+		void                                    begin_shutdown()
+		{
+			Closing = true;
+			if (ServicesClosing) {
+				return;
+			}
+			ServicesClosing = true;
+			for (auto& owner : DraftOwners) {
+				owner.Host->shutdown();
+			}
+			if (DeviceHost) {
+				DeviceHost->shutdown();
+			}
+			if (Host) {
+				Host->shutdown();
+			}
+			if (QueueHost) {
+				QueueHost->shutdown();
+			}
+			if (AppearancePreferences) {
+				AppearancePreferences->shutdown();
+			}
+			if (WorkbenchPreferences) {
+				WorkbenchPreferences->shutdown();
+			}
+			if (EpochActors) {
+				EpochActors->shutdown();
+			}
+		}
+		void poll_shutdown()
+		{
+			if (!ServicesClosing || ShutdownComplete) {
+				return;
+			}
+			if ((Host && !Host->is_quiescent()) || (DeviceHost && !DeviceHost->is_quiescent())
+				|| (DevicePersistence && !DevicePersistence->is_quiescent()) || (QueueHost && !QueueHost->is_quiescent())
+				|| (AppearancePreferences && !AppearancePreferences->is_quiescent()) || (WorkbenchPreferences && !WorkbenchPreferences->is_quiescent())
+				|| (EpochActors && !EpochActors->is_quiescent()) || AgentWorkspaceRecoveryPending.load(std::memory_order_acquire)) {
+				return;
+			}
+			if (!ProviderEffects.idle() || !VaultEffects.idle() || !DeviceBindingEffects.idle() || !DeviceTransportEffects.idle()
+				|| !EpochEffects.idle() || !DiffEffects.idle() || !AgentEffects.idle() || !McpEffects.idle()
+				|| !WorkbenchEffects.idle() || !AppearanceEffects.idle() || !QueueEffects.idle()
+				|| !ReviewMutationEffects.idle() || !ReviewSubmissionEffects.idle()) {
+				return;
+			}
+			if (!AgentWorkspaceCleanupAttempted) {
+				AgentWorkspaceCleanupAttempted = true;
+				if (AgentWorkspaceParent) {
+					AgentWorkspaceCleanupFailed = !adapters::git::remove_installed_agent_workspace_parent(*AgentWorkspaceParent);
+				}
+			}
+			CleanupFailed = CleanupFailed || AgentWorkspaceCleanupFailed || AgentWorkspaceRecoveryPostFailed.load(std::memory_order_acquire) || (Host && Host->shutdown_cleanup_failed());
+			Provider->shutdown();
+			AnonymousProvider->shutdown();
+			ProfileCatalog->shutdown();
+			DiffEffects.close_and_drain();
+			EpochEffects.close_and_drain();
+			AgentEffects.close_and_drain();
+			McpEffects.close_and_drain();
+			WorkbenchEffects.close_and_drain();
+			AppearanceEffects.close_and_drain();
+			QueueEffects.close_and_drain();
+			ReviewMutationEffects.close_and_drain();
+			ReviewSubmissionEffects.close_and_drain();
+			ProviderEffects.close_and_drain();
+			VaultEffects.close_and_drain();
+			DeviceTransportEffects.close_and_drain();
+			DeviceBindingEffects.close_and_drain();
+			if (DiagnosticLog) {
+				static_cast<void>(DiagnosticLog->record({ .Operation = application::diagnostic_operation::application, .Outcome = application::diagnostic_outcome::shutdown }));
+			}
+			if (OwnedDiagnosticLog) {
+				OwnedDiagnosticLog->close();
+			}
+			ShutdownComplete = true;
+		}
+
+		explicit github_profile_runtime(
 			github_application_config aConfig, application::profile_startup_admission aAdmission, std::filesystem::path aRegistryRoot,
 			std::optional<application::durable_queue_state> aSavedQueue, std::shared_ptr<void> aScratch
 #if defined(BPR_BUILD_TESTING)
@@ -3396,29 +3642,15 @@ namespace bpr::app {
 			const std::optional<detail::github_public_path_fixture> aFixture        = std::nullopt,
 			detail::github_public_path_fixture_options              aFixtureOptions = { }
 #endif
-		)
+			)
+			: Config{ aConfig }
+			, Admission{ aAdmission }
 		{
 			StartupScratch              = std::move(aScratch);
 			RegistryRoot                = std::move(aRegistryRoot);
 			aConfig.ApplicationDataRoot = aAdmission.StorageRoot;
 			aConfig.Profile             = aAdmission.Authority.profile();
-			// The compatibility facade has a core-admitted, process-local window.
-			// Durable window admission is supplied by the later desktop runtime.
-			auto draftWindows = core::profile_window_state{ };
-			if (aConfig.Profile != core::default_bpr_profile_id) {
-				draftWindows.Profiles.push_back({ { aConfig.Profile, "Profile" }, { }, { } });
-				draftWindows.LastProfileId = aConfig.Profile.value();
-			}
-			auto admittedDraftWindows = core::profile_window_catalog::restore(std::move(draftWindows));
-			if (!admittedDraftWindows) {
-				throw std::runtime_error{ "draft window admission unavailable" };
-			}
-			DraftWindows     = std::move(*admittedDraftWindows);
-			auto draftLaunch = DraftWindows.launch(aConfig.Profile, core::profile_launch_intent::activate);
-			if (!draftLaunch) {
-				throw std::runtime_error{ "draft window admission unavailable" };
-			}
-			DraftWindow = draftLaunch->Activated;
+			Config                      = aConfig;
 
 #if defined(BPR_BUILD_TESTING)
 			aFixtureOptions.ApplicationDataRoot = aAdmission.StorageRoot;
@@ -3481,8 +3713,8 @@ namespace bpr::app {
 			// [[BPR-0515]]. Adopted outside the fixture branch below, because
 			// the gate this exists for selects no fixture: it drives the
 			// shipped composition and only wants the connect denied.
-			NetworkDenied                = aConfig.NetworkDenied;
-			const auto diffComputeLimits = aFixture.has_value()
+			NetworkDenied     = aConfig.NetworkDenied;
+			DiffComputeLimits = aFixture.has_value()
 				? aFixtureOptions.DiffComputeLimits
 				: core::diff_compute_limits{ };
 			// [[BPR-0316]]. Read outside the fixture branch below, because
@@ -3848,6 +4080,934 @@ namespace bpr::app {
 				throw std::runtime_error{ "Epoch runtime ports are unavailable" };
 			}
 
+			EpochActors           = std::make_unique<application::profile_epoch_actor_registry>(Config.Profile, EpochContexts, *GitCaches, EpochEffects);
+			WorkbenchPreferences  = std::make_unique<application::workbench_preferences_host>(*WorkbenchSettings, WorkbenchEffects, DecisionLane, Config.Profile);
+			AppearancePreferences = std::make_shared<application::appearance_preferences_application_host>(qt::default_appearance_settings(), *AppearanceSettings, ThemeDocuments, AppearanceEffects, DecisionLane, core::application_session_id{ 1U });
+			SyntaxDefinitions     = std::make_unique<adapters::syntax::packaged_definition_catalog>();
+			QueueStore            = adapters::sqlite::make_queue_enrollment_store({
+				.StorageRoot = applicationDataRoot,
+			});
+			QueueRefresh          = std::make_unique<composition_queue_refresh>();
+			QueueHost             = std::make_unique<application::review_queue_application_host>(
+				*QueueStore,
+				*QueueRefresh,
+				QueueEffects,
+				DecisionLane,
+				Config.Profile, *this, application::queue_session_id{ },
+				std::shared_ptr<application::queue_landing_projection_port>(this, [](auto*) { }));
+			// Queue projections arrive at this composition first. It forwards the
+			// accepted value unchanged to the real window, then asks this notifier
+			// only for newly warranting session/ref/bucket transitions.
+#if defined(BPR_BUILD_TESTING)
+			if (UseGrantedNotificationSink) {
+				auto sink               = std::make_unique<fixture_notification_sink>();
+				FixtureNotificationSink = sink.get();
+				NotificationSink        = std::move(sink);
+			}
+#endif
+			if (NotificationSink == nullptr) {
+				auto sink = std::unique_ptr<qt::system_tray_notification_sink>{ };
+#if defined(BPR_BUILD_TESTING)
+				// A fixture run also takes the captured boundary when the
+				// platform truthfully reports no tray — the offscreen
+				// platform on Windows — because the courses that leave
+				// capture off assert what reaches the sink, not the native
+				// display mechanics; where a tray exists, nothing changes
+				// (BPR-0442). Production composition is untouched.
+				if (CaptureSystemNotificationDisplay
+					|| (Fixture != nullptr
+						&& !QSystemTrayIcon::isSystemTrayAvailable())) {
+					sink = std::make_unique<qt::system_tray_notification_sink>(
+						[this](QSystemTrayIcon&, const QString&, const QString&) {
+							++CapturedNotificationDisplays;
+						},
+						nullptr);
+				}
+#endif
+				if (sink == nullptr) {
+					sink = std::make_unique<qt::system_tray_notification_sink>(
+						nullptr);
+				}
+				SystemNotificationSink = sink.get();
+				NotificationSink       = std::move(sink);
+#if defined(BPR_BUILD_TESTING)
+#endif
+			}
+			Notifications = std::make_unique<application::review_queue_notifier>(*NotificationSink,
+																				 [this](application::queue_notification_target aTarget) {
+																					 if (Closing || !Focused) {
+																						 return;
+																					 }
+																					 const auto found = Observers.find(*Focused);
+																					 if (found == Observers.end() || found->second.Lifetime.expired() || !found->second.SelectQueue) {
+																						 return;
+																					 }
+#if defined(BPR_BUILD_TESTING)
+																					 if (DisableNotificationSelectionWire) {
+																						 return;
+																					 }
+#endif
+																					 if (found->second.SelectQueue(aTarget.Ref)) {
+																						 ++NotificationSelections;
+																					 } else {
+																						 ++NotificationSelectionFailures;
+																					 }
+																				 });
+			const auto activation = [this](
+										application::queue_notification_target aTarget) {
+				if (Notifications) {
+					Notifications->activate(aTarget);
+				}
+			};
+			if (SystemNotificationSink != nullptr) {
+				SystemNotificationSink->set_activation_sink(activation);
+			}
+#if defined(BPR_BUILD_TESTING)
+			if (FixtureNotificationSink != nullptr) {
+				FixtureNotificationSink->set_activation_sink(activation);
+			}
+#endif
+#if defined(Q_OS_UNIX)
+			// Persistent private neighbourhood on the cache filesystem, outside
+			// its isolation root. Only effect workers create or recover children.
+			const auto agentWorkspacePath = ApplicationDataRoot.parent_path()
+				/ (ApplicationDataRoot.filename().string() + "-agent-workspaces-v1");
+#else
+			// git pack-objects creates its temporary pack inside the --git-dir's
+			// own object store and renames it onto the requested output base.
+			// A workspace on another filesystem makes that rename EXDEV, and
+			// git reports "Invalid cross-device link" rather than anything this
+			// side can interpret. So the workspace has to share a filesystem
+			// with the retained cache.
+			//
+			// The system temporary directory does not, on a stock Linux host:
+			// /tmp is tmpfs and an ordinary checkout is not. macOS never showed
+			// it because the per-user temporary directory and a checkout are on
+			// one APFS volume.
+			//
+			// A sibling of the application data root shares that filesystem and
+			// stays disjoint from the cache, which the guard below still checks
+			// rather than assumes.
+			const auto workspaceNeighbourhood
+				= std::filesystem::weakly_canonical(ApplicationDataRoot)
+					  .parent_path();
+			const auto workspaceTemplate = workspaceNeighbourhood.empty()
+				? std::filesystem::path{ QDir::tempPath().toStdString() }
+					/ "betterpullreview-agent-XXXXXX"
+				: workspaceNeighbourhood / "betterpullreview-agent-XXXXXX";
+			AgentWorkspaceRoot           = std::make_unique<QTemporaryDir>(
+				QString::fromStdString(workspaceTemplate.string()));
+			if (!AgentWorkspaceRoot->isValid()) {
+				throw std::runtime_error{ "Agent workspace root is unavailable" };
+			}
+			// Exact installed-Git cleanup must be the only recursive authority.
+			// A generic temporary-directory sweep could delete a same-path
+			// substitute after exact cleanup correctly refused it.
+			AgentWorkspaceRoot->setAutoRemove(false);
+			const auto agentWorkspacePath = std::filesystem::canonical(
+				AgentWorkspaceRoot->path().toStdString());
+			AgentWorkspaceParent
+				= adapters::git::capture_installed_agent_workspace_parent(
+					agentWorkspacePath);
+			if (!AgentWorkspaceParent.has_value()) {
+				throw std::runtime_error{
+					"Agent workspace root identity is unavailable"
+				};
+			}
+			const auto cachePath = std::filesystem::canonical(ApplicationDataRoot);
+			const auto within    = [](const std::filesystem::path& aPath,
+									  const std::filesystem::path& aPrefix) {
+				auto path   = aPath.begin();
+				auto prefix = aPrefix.begin();
+				for (; prefix != aPrefix.end(); ++prefix, ++path) {
+					if (path == aPath.end() || *path != *prefix) {
+						return false;
+					}
+				}
+				return true;
+			};
+			if (within(agentWorkspacePath, cachePath)
+				|| within(cachePath, agentWorkspacePath)) {
+				throw std::runtime_error{ "Agent workspace root crosses Git cache" };
+			}
+#endif
+			AgentWorkspaceNeighbourhood = agentWorkspacePath;
+
+			initialize_identity();
+		}
+		void start_services()
+		{
+			QueueHost->restore();
+#if defined(Q_OS_UNIX)
+			AgentWorkspaceRecoveryPending.store(true, std::memory_order_release);
+			try {
+				EpochEffects.post([this, registry = ApplicationDataRoot / "agent-workspace-ownership-v1", neighbourhood = AgentWorkspaceNeighbourhood] {
+					auto recovered = adapters::git::recover_installed_agent_workspaces(registry, neighbourhood);
+					try {
+						DecisionLane.post([this, result = std::move(recovered)] {
+							AgentWorkspaceCleanupFailed = !result.has_value();
+
+							AgentWorkspaceRecoveryPending.store(false, std::memory_order_release);
+						});
+					} catch (...) {
+						AgentWorkspaceRecoveryPostFailed.store(true, std::memory_order_release);
+						AgentWorkspaceRecoveryPending.store(false, std::memory_order_release);
+					}
+				});
+			} catch (...) {
+				AgentWorkspaceCleanupFailed = true;
+				AgentWorkspaceRecoveryPending.store(false, std::memory_order_release);
+			}
+#endif
+			if (RememberDeviceSignIn) {
+				const auto& profile = Profiles.front();
+				Host->restore_device_profile(application::github_profile_authority{
+					.Profile = profile.profile(), .ProfileRevision = profile.revision(), .Host = profile.host(), .Hostname = application::github_canonical_hostname{ profile.hostname() }, .ServerContract = profile.server_contract(), .Authentication = profile.authentication_transport(), .ProbeContractRevision = application::github_probe_contract_revision{ 1U } });
+			}
+		}
+		void initialize_identity()
+		{
+			const auto& aConfig             = Config;
+			const auto& applicationDataRoot = ApplicationDataRoot;
+			PublicPreviewProjectionFanOut   = std::make_unique<composition_public_preview_projection>(PublicPreviewProjections,
+																									  [this](const application::public_preview_presentation& aPresentation) {
+																										for_each_window([&](const window_observer& aObserver) { if (aObserver.Preview){ aObserver.Preview(aPresentation);
+} });
+																									  });
+			// A platform whose shipped selection is unavailable supplies no
+			// anonymous authority, so the host refuses before any request.
+			auto publicPreview = shipped_public_preview_capability();
+#if defined(BPR_BUILD_TESTING)
+			// The forced courses. A tests-enabled build with the recorded
+			// fixture overrides the shipped selection so the composed
+			// anonymous authority runs through the real host, the real
+			// provider and the real anonymous admission rules, which is the
+			// only place "no header, no vault, and a public snapshot" can be
+			// observed rather than argued.
+			if ((PublicPreviewEnabledCourse || PublicPreviewGhesCourse)
+				&& Fixture != nullptr) {
+				publicPreview = public_preview_capability{ .Available = true };
+			}
+			// [[BPR-0316]]. The same override with no fixture underneath it:
+			// the authority handed to the host is the production one, so a
+			// read issued through it leaves the machine. Nothing here issues
+			// one; the run driving the composition decides that.
+			if (PublicPreviewSelectionAvailable && Fixture == nullptr) {
+				publicPreview = public_preview_capability{ .Available = true };
+			}
+#endif
+			PublicPreviewComposed = publicPreview.Available;
+			// The session fan-out. The window keeps its place at the front, and
+			// composition reads acceptances behind it so the device host's
+			// refresh authority can be bound the moment one exists.
+			GithubProjectionFanOut = std::make_unique<composition_github_projection>(*this, composition_github_projection::accepted_sink{ });
+			Host                   = std::make_unique<application::github_application_host>(
+				initial_github_state(),
+				*Provider,
+				*Provider,
+				*Provider,
+				*Provider,
+				credential_vault(),
+				CredentialBindings,
+				DecisionLane,
+				*GithubProjectionFanOut,
+				RememberDeviceSignIn ? application::github_credential_shutdown_policy::retain_accepted_device_grants : application::github_credential_shutdown_policy::delete_retained_on_shutdown,
+				nullptr,
+				PublicPreviewComposed
+					? static_cast<application::github_pull_request_port*>(
+						  CountedAnonymousPullRequests.get())
+					: nullptr,
+				PublicPreviewComposed
+					? static_cast<application::git_smart_transport_factory_port*>(
+						  AnonymousSmartGit.get())
+					: nullptr,
+				PublicPreviewProjectionFanOut.get(), aConfig.Profile);
+			// The switch-to-sign-in gesture, end to end. The ring in the
+			// review header dispatches it, the host names the profile the
+			// signed-out session was activated for, and the device flow for
+			// that same profile begins -- so sign-in returns the reviewer to
+			// the pull request they were reading rather than to a picker.
+			Host->set_public_preview_sign_in([this](core::host_profile_id aProfile) {
+				if (Focused) {
+					const auto found = Observers.find(*Focused);
+					if (found != Observers.end() && !found->second.Lifetime.expired() && found->second.SignIn) {
+						found->second.SignIn(aProfile);
+					}
+				}
+			});
+
+			// The device-authorization path. It is composed on every platform,
+			// registered or not, because the visible choice and its typed
+			// answer are the product behaviour the RFC asks for: on an
+			// unregistered platform selecting device sign-in must say
+			// `device_flow_unavailable`, not do nothing, and the capability
+			// gate refuses before a request is built.
+			DeviceEnrollment = std::make_unique<
+				application::github_host_device_authorization_enrollment>(*Host);
+			SetupDeviceEnrollment = std::make_unique<setup_device_enrollment>(*DeviceEnrollment,
+																			  [this](core::host_profile_id aProfile, application::github_credential_material aCredential, std::optional<application::device_binding_lifetime> aLifetime, bool aSettled) {
+																				  if (SetupCredential) {
+																					  auto accept = std::move(SetupCredential);
+																					  accept(aProfile, std::move(aCredential), aLifetime, aSettled);
+																				  } else {
+																					  Host->enroll_profile(aProfile, std::move(aCredential), application::github_credential_provenance::device_grant, aLifetime, aSettled);
+																				  }
+																			  });
+
+#if defined(BPR_BUILD_TESTING)
+			CountedDeviceEnrollment = std::make_unique<
+				counting_device_authorization_enrollment>(*SetupDeviceEnrollment);
+			auto& deviceEnrollment
+				= static_cast<application::device_authorization_enrollment_port&>(
+					*CountedDeviceEnrollment);
+#else
+			auto& deviceEnrollment
+				= static_cast<application::device_authorization_enrollment_port&>(
+					*SetupDeviceEnrollment);
+#endif
+			DeviceClock = application::make_system_device_authorization_clock();
+#if defined(BPR_BUILD_TESTING)
+			if (Fixture != nullptr && RememberDeviceSignIn) {
+				DeviceClock = std::make_unique<composition_device_wall_clock>(std::move(DeviceClock), DeviceWallOffsetSeconds);
+			}
+#endif
+
+#if defined(BPR_BUILD_TESTING)
+			// [[BPR-0536]]. The one input a fixture cannot supply is time.
+			// A renewal is armed a lead before an eight-hour access token
+			// expires, and no course can wait that out; the transport seam
+			// beside this one replaces the network, and this replaces the
+			// wait. Tests-enabled only, and composed only under the refresh
+			// course, so a shipped image has one clock and it is the system's.
+			//
+			// It steps on the binding rather than on the authorized stage. The
+			// host captures `AuthorizedAt` from this same clock at the moment
+			// the stage turns, so an offset that stepped there would move both
+			// ends of `elapsed` and change nothing. Composition's
+			// `bind_refresh_authority` falls strictly between that capture and
+			// the `schedule_refresh` that reads the clock again, which is the
+			// only window where a one-way step shortens the wait to zero.
+			//
+			// [[BPR-0547]]. The host arms every renewal after the first one for
+			// itself, and composition is told about it only once the timer is
+			// already set -- too late to shorten anything. What it can read in
+			// time is the host's own live rotation count, which the re-arm
+			// raises inside that same window, between the capture and the read.
+			// So the armings are the bind plus the rotations, and each one buys
+			// one more step until the course has the rotations it drives.
+			if (DeviceRefreshCourse && Fixture != nullptr) {
+				DeviceClock = std::make_unique<composition_device_refresh_clock>(
+					std::move(DeviceClock),
+					[this]() noexcept -> std::size_t {
+						const auto bound = DeviceRefreshBindings > 0U
+							? std::size_t{ 1U }
+							: std::size_t{ 0U };
+						if (DeviceHost == nullptr) {
+							return bound;
+						}
+						return bound
+							+ static_cast<std::size_t>(
+								   DeviceHost->refresh_observation().Rotations);
+					},
+					device_refresh_course_step,
+					device_refresh_course_rotations);
+			}
+#endif
+			// The shipped selection. A registered platform composes the real
+			// credential-free wire bound to the recorded distributable client;
+			// an unregistered platform composes the refusing transport whose
+			// reached() count proves the gate held. A composition failure
+			// fails closed to the refusal: a half-wired flow must answer
+			// `device_flow_unavailable`, not invent one.
+			auto* deviceTransport
+				= static_cast<application::device_authorization_transport_port*>(
+					&UnregisteredDeviceTransport);
+			auto deviceCapability
+				= application::device_authorization_capability{ .Registered
+																= false };
+			if constexpr (shipped_device_authorization_capability().Registered) {
+				const auto deviceContext = core::github_session_request_context{
+					.Request            = core::request_id{ 907U },
+					.ApplicationSession = core::application_session_id{ 908U },
+					.Profile            = Profiles.front().profile(),
+					.IdentityGeneration = core::github_identity_generation{ 909U },
+				};
+				auto deviceWire = [this, &deviceContext]() {
+#if defined(BPR_BUILD_TESTING)
+					// [[BPR-0515]]. The same binding, the same credential-free
+					// request, the same headers - only the proxy policy differs,
+					// and it differs into a closed port. Selected by nothing but
+					// `--network-denied`, which exists only here.
+					if (NetworkDenied) {
+						return adapters::github::detail::
+							make_native_https_credential_free_transport_for_test(
+								Profiles.front(),
+								deviceContext,
+								denied_loopback_network());
+					}
+#endif
+					return adapters::github::detail::
+						make_native_https_credential_free_transport(
+							Profiles.front(), deviceContext);
+				}();
+				if (deviceWire.has_value()) {
+					auto deviceAdapter = adapters::github::detail::
+						make_github_device_authorization_transport(
+							std::shared_ptr<
+								adapters::github::detail::native_https_transport>{
+								std::move(*deviceWire) },
+							std::string{ production_device_client_id },
+							DeviceTransportEffects);
+					if (deviceAdapter.has_value()) {
+						DeviceWireTransport = std::move(*deviceAdapter);
+						deviceTransport     = DeviceWireTransport.get();
+						deviceCapability
+							= shipped_device_authorization_capability();
+						// The identity is registered for one host, and the
+						// wire above is bound to that host's profile. The
+						// capability names the same profile so the host can
+						// refuse a begin for any other one before it builds
+						// a request ([[BPR-0535]]); the picker can bind the
+						// mounted panel to a GHES profile, and this is what
+						// keeps that gesture out of GitHub.com's flow.
+						deviceCapability.Profile
+							= Profiles.front().profile();
+					}
+				}
+			}
+#if defined(BPR_BUILD_TESTING)
+			// The registered course. A tests-enabled build with the recorded
+			// fixture overrides the shipped selection with BPR-0276's private
+			// recorded grant: it runs through the real host, the real
+			// enrollment boundary, and the real vault, which is the only place
+			// "exactly one enrollment, and no settings or SQLite copy" can be
+			// observed rather than argued.
+			if (RegisteredDeviceCourse && Fixture != nullptr
+				&& !Profiles.empty()) {
+				deviceTransport  = &Fixture->device_authorization_transport();
+				deviceCapability = application::device_authorization_capability{
+					.Registered = true,
+					// The same profile the course begins for, by the same
+					// rule as the shipped selection above.
+					.Profile = Profiles.front().profile(),
+				};
+			}
+#endif
+			DeviceCapabilityRegistered = deviceCapability.Registered;
+			// The browser handoff, under the same seam as the transport above
+			// and for the same reason: the shipped graph gets the real
+			// capability, a tests-enabled graph gets a recording one. The
+			// seam is total here rather than fixture-conditional, because a
+			// fixture transport that is reached by mistake writes a line to a
+			// log and a browser that is opened by mistake opens a browser.
+			//
+			// `SystemBrowser` is constructed either way. Its constructor is
+			// the anchor `verify_composed_hosts.py` requires in both
+			// profiles, so a build that stopped composing the opener fails
+			// the audit rather than silently going back to answering
+			// `unavailable` forever, which is the defect [[BPR-0516]] found.
+#if defined(BPR_BUILD_TESTING)
+			auto* deviceBrowser = SuppressDeviceBrowser
+				? nullptr
+				: static_cast<application::device_authorization_browser_port*>(
+					  &RecordingBrowser);
+#else
+			auto* deviceBrowser
+				= static_cast<application::device_authorization_browser_port*>(
+					&SystemBrowser);
+#endif
+			DeviceBrowserComposed = deviceBrowser != nullptr;
+			// One port, two readers. The recording sink keeps its place at the
+			// front of the fan-out, so every existing device contract still
+			// observes the identical sequence of publications; the mounted
+			// panel is told the same thing afterwards when the composition
+			// adopted one.
+			DeviceProjectionFanOut = std::make_unique<
+				composition_device_authorization_projection>(
+				DeviceProjections,
+				[this](
+					const application::device_authorization_presentation&
+						aPresentation) {
+					const auto authorized = aPresentation.Stage == core::device_authorization_stage::authorized;
+					if (authorized && !DeviceStageAuthorized) {
+						DeviceRefreshAuthority.reset();
+					}
+					DeviceStageAuthorized = authorized;
+					for_each_window([&](const window_observer& aObserver) { if (aObserver.Device){ aObserver.Device(aPresentation);
+} });
+				},
+				[this](
+					const application::device_authorization_refresh_observation&
+						aObservation) {
+					DeviceRefreshObservation = aObservation;
+					++DeviceRefreshPublications;
+					for_each_window([&](const window_observer& aObserver) { if (aObserver.Refresh){ aObserver.Refresh(aObservation);
+} });
+				});
+			DeviceHost = std::make_unique<
+				application::device_authorization_application_host>(
+				initial_device_authorization_state(),
+				*deviceTransport,
+				credential_vault(),
+				deviceEnrollment,
+				*DeviceClock,
+				DeviceTimer,
+				DecisionLane,
+				*DeviceProjectionFanOut,
+				application::device_authorization_host_limits{ },
+				application::device_authorization_browser_handoff{
+					// Null only under the construction cut, where the host
+					// reports `unavailable` rather than inventing an address.
+					// The authority travels with the pointer so a profile
+					// that is not GitHub.com cannot inherit GitHub.com's.
+					.Browser   = deviceBrowser,
+					.Authority = std::string{
+						application::default_device_verification_authority },
+				},
+				deviceCapability);
+			if (RememberDeviceSignIn) {
+				DeviceBindingStore = adapters::sqlite::make_device_binding_store(applicationDataRoot, aConfig.Profile);
+				DevicePersistence  = std::make_unique<application::device_binding_persistence>(*DeviceBindingStore, DeviceBindingEffects, DecisionLane);
+				Host->configure_device_persistence(*DevicePersistence, [this] { return DeviceClock->observe_wall_seconds(); });
+			}
+		}
+		[[nodiscard]] auto credential_vault() noexcept
+			-> application::github_credential_vault_port&
+		{
+#if defined(BPR_BUILD_TESTING)
+			if (Fixture != nullptr) {
+				return Fixture->credential_vault();
+			}
+#endif
+			return *OwnedVault;
+		}
+		void bind_device_refresh_authority(
+			const application::github_presentation_update& aUpdate)
+		{
+			if (
+				Closing || Host == nullptr || DeviceHost == nullptr
+				|| Profiles.empty() || !aUpdate.Session.has_value()) {
+				return;
+			}
+			if (aUpdate.Session->Profile != Profiles.front().profile()) {
+				return;
+			}
+			const auto authority = Host->accepted_credential_authority();
+			if (!authority.has_value()) {
+				return;
+			}
+			// [[BPR-0546]]. The slot's authority and the identity generation
+			// that owns it travel together. The device host's own state carries
+			// the generation this composition seeded the device flow with,
+			// which is zero and stays zero, and every platform vault refuses a
+			// context carrying it -- so before this the composed refresh
+			// lifecycle stored nothing on any platform.
+			const auto generation = Host->accepted_identity_generation();
+			if (generation.value() == 0U) {
+				return;
+			}
+			if (
+				DeviceRefreshAuthority.has_value()
+				&& *DeviceRefreshAuthority == *authority && DeviceRefreshGeneration == generation) {
+				return;
+			}
+			if (DeviceRefreshAuthority == authority && Host->accepted_device_lifetime()) {
+				// A rotation established a new access session for this same chain.
+				// Rebind its generation; this is not another startup resume.
+				DeviceRefreshGeneration = generation;
+				DeviceHost->bind_refresh_authority(*authority, generation);
+				return;
+			}
+			if (!Host->accepted_device_lifetime()) {
+				DeviceRefreshAuthority.reset();
+				DeviceHost->release_refresh_authority();
+				return;
+			}
+			if (
+				DeviceHost->state().Stage
+				== core::device_authorization_stage::authorized) {
+				DeviceRefreshAuthority  = *authority;
+				DeviceRefreshGeneration = generation;
+				++DeviceRefreshBindings;
+				DeviceHost->bind_refresh_authority(*authority, generation);
+				return;
+			}
+			// The restart. Nothing about this run says a device flow happened,
+			// so the question goes to the host that owns the vault: is there
+			// material beside this credential that renews it? Only a device
+			// grant leaves any, so an affirmative answer is the enrollment
+			// evidence the stage cannot supply after a restart.
+			if (!Host->accepted_credential_renewable()) {
+				// A pasted token, or an answer the vault has not given yet.
+				// Nothing is recorded either way, so the republication that
+				// follows a settled answer is still free to act.
+				return;
+			}
+			DeviceRefreshAuthority  = *authority;
+			DeviceRefreshGeneration = generation;
+			++DeviceRefreshResumes;
+			DeviceHost->resume_refresh(*authority, generation, Host->accepted_device_lifetime());
+		}
+		setup_device_enrollment::enrollment               SetupCredential;
+		std::optional<core::bpr_window_context>           SetupWindow;
+		std::uint64_t                                     LastSetupOwner = 0;
+		std::atomic<bool>                                 AgentWorkspaceRecoveryPending{ false };
+		std::atomic<bool>                                 AgentWorkspaceRecoveryPostFailed{ false };
+		core::diff_compute_limits                         DiffComputeLimits;
+		std::filesystem::path                             RegistryRoot;
+		std::function<void(int)>                          DesktopQuit;
+		std::shared_ptr<adapters::logging::quill_log>     OwnedDiagnosticLog;
+		std::shared_ptr<application::diagnostic_log_port> DiagnosticLog;
+		std::deque<validated_github_host_profile>         Profiles;
+		std::vector<application::github_profile_option>   ProfileOptions;
+#if defined(BPR_BUILD_TESTING)
+		std::unique_ptr<detail::github_public_path_fixture_components> Fixture;
+#endif
+#if defined(BPR_BUILD_TESTING)
+		std::shared_ptr<detail::review_submission_fixture_state> ReviewSubmissionServer;
+#endif
+		std::unique_ptr<application::github_credential_vault_port> OwnedVault;
+		std::shared_ptr<github_wire_transport_factory_port>        TransportFactory;
+		std::shared_ptr<github_wire_transport_factory_port>
+			AnonymousTransportFactory;
+#if defined(BPR_BUILD_TESTING)
+		std::shared_ptr<shipped_anonymous_wire_transport_factory>
+			ShippedAnonymousTransports;
+#endif
+#if defined(BPR_BUILD_TESTING)
+		bool PublicPreviewSelectionAvailable = false;
+#endif
+		std::unique_ptr<github_provider>                                  Provider;
+		std::unique_ptr<github_provider>                                  AnonymousProvider;
+		std::unique_ptr<counting_anonymous_pull_requests>                 CountedAnonymousPullRequests;
+		std::unique_ptr<anonymous_git_smart_transport_factory>            AnonymousSmartGit;
+		bool                                                              PublicPreviewComposed = false;
+		application::github_credential_binding_catalog                    CredentialBindings;
+		std::unique_ptr<application::git_cache_port>                      GitCaches;
+		std::unique_ptr<application::epoch_catalog_port>                  EpochCatalogs;
+		std::filesystem::path                                             ApplicationDataRoot;
+		std::unique_ptr<application::workbench_settings_port>             WorkbenchSettings;
+		bool                                                              WorkbenchPersistenceAvailable = false;
+		std::unique_ptr<application::appearance_settings_port>            AppearanceSettings;
+		bool                                                              AppearancePersistenceAvailable = false;
+		bounded_theme_document_reader                                     ThemeDocuments;
+		std::unique_ptr<application::epoch_entropy_port>                  EpochEntropy;
+		std::unique_ptr<application::epoch_clock_port>                    EpochClock;
+		std::optional<application::checkout_observation>                  ExistingCheckout;
+		bool                                                              NativePlatformVaultSelected = false;
+		application::review_mutation_execution_grant                      LiveReviewMutationGrant;
+		bool                                                              AttendedReviewMutationMode = false;
+		std::shared_ptr<adapters::github::detail::github_profile_catalog> ProfileCatalog;
+		bool                                                              RememberDeviceSignIn = true;
+#if defined(BPR_BUILD_TESTING)
+		std::int64_t DeviceWallOffsetSeconds = 0;
+#endif
+#if defined(BPR_BUILD_TESTING)
+		bool RegisteredDeviceCourse = false;
+#endif
+#if defined(BPR_BUILD_TESTING)
+		bool DeviceRefreshCourse = false;
+#endif
+#if defined(BPR_BUILD_TESTING)
+		bool SuppressDeviceBrowser = false;
+#endif
+#if defined(BPR_BUILD_TESTING)
+		bool DisableDeviceAuthorizationPanelComposition = false;
+#endif
+#if defined(BPR_BUILD_TESTING)
+		bool NetworkDenied = false;
+#endif
+#if defined(BPR_BUILD_TESTING)
+		bool PublicPreviewEnabledCourse = false;
+#endif
+#if defined(BPR_BUILD_TESTING)
+		bool PublicPreviewGhesCourse = false;
+#endif
+#if defined(BPR_BUILD_TESTING)
+		bool DisableWorkbenchSelectionWire = false;
+#endif
+#if defined(BPR_BUILD_TESTING)
+		bool DisableReviewLedgerGestureWire = false;
+#endif
+#if defined(BPR_BUILD_TESTING)
+		bool DisableAgentProcessLauncherComposition = false;
+#endif
+#if defined(BPR_BUILD_TESTING)
+		bool DisableAgentHostComposition = false;
+#endif
+#if defined(BPR_BUILD_TESTING)
+		bool DisableAgentGestureWire = false;
+#endif
+#if defined(BPR_BUILD_TESTING)
+		bool DisableAgentFindingHostComposition = false;
+#endif
+#if defined(BPR_BUILD_TESTING)
+		bool DisableChatSessionHostComposition = false;
+#endif
+#if defined(BPR_BUILD_TESTING)
+		bool DisableCommentWorkshopComposition = false;
+#endif
+#if defined(BPR_BUILD_TESTING)
+		bool DisableMcpHelperComposition = false;
+#endif
+#if defined(BPR_BUILD_TESTING)
+		bool DisableSideChatPanelComposition = false;
+#endif
+#if defined(BPR_BUILD_TESTING)
+		bool DisableFindingQueueComposition = false;
+#endif
+#if defined(BPR_BUILD_TESTING)
+		std::optional<std::filesystem::path> ExternalAgentExecutable;
+#endif
+#if defined(BPR_BUILD_TESTING)
+		std::optional<std::filesystem::path> CodexAgentExecutable;
+#endif
+#if defined(BPR_BUILD_TESTING)
+		bool UseGrantedNotificationSink = false;
+#endif
+#if defined(BPR_BUILD_TESTING)
+		bool CaptureSystemNotificationDisplay = false;
+#endif
+#if defined(BPR_BUILD_TESTING)
+		bool DisableNotificationRequestWire = false;
+#endif
+#if defined(BPR_BUILD_TESTING)
+		bool DisableNotificationSelectionWire = false;
+#endif
+		std::unique_ptr<composition_github_projection> GithubProjectionFanOut;
+		public_preview_projection_sink                 PublicPreviewProjections;
+		std::unique_ptr<composition_public_preview_projection>
+																 PublicPreviewProjectionFanOut;
+		std::unique_ptr<application::device_binding_store_port>  DeviceBindingStore;
+		std::unique_ptr<application::device_binding_persistence> DevicePersistence;
+		core::github_identity_generation                         DeviceRefreshGeneration;
+		unregistered_device_authorization_transport              UnregisteredDeviceTransport;
+		std::unique_ptr<adapters::github::detail::github_device_authorization_transport>
+							  DeviceWireTransport;
+		bool                  DeviceCapabilityRegistered = false;
+		bool                  DeviceBrowserComposed      = false;
+		system_browser_opener SystemBrowser;
+#if defined(BPR_BUILD_TESTING)
+		recording_device_authorization_browser RecordingBrowser;
+#endif
+		qt::event_loop_device_timer          DeviceTimer;
+		device_authorization_projection_sink DeviceProjections;
+		std::unique_ptr<composition_device_authorization_projection>
+			DeviceProjectionFanOut;
+		std::optional<application::github_credential_authority_key>
+					DeviceRefreshAuthority;
+		bool        DeviceStageAuthorized     = false;
+		std::size_t DeviceRefreshBindings     = 0U;
+		std::size_t DeviceRefreshResumes      = 0U;
+		std::size_t DeviceRefreshPublications = 0U;
+		application::device_authorization_refresh_observation
+			DeviceRefreshObservation;
+		std::unique_ptr<application::device_authorization_clock_port>
+																  DeviceClock;
+		std::unique_ptr<application::queue_enrollment_store_port> QueueStore;
+		std::unique_ptr<composition_queue_refresh>                QueueRefresh;
+		std::optional<queue_activity_baseline>                    QueueActivityBaseline;
+		std::optional<queue_activity_fact>                        QueueActivity;
+		std::vector<queue_notification_transition>                ActiveQueueNotifications;
+		std::unique_ptr<application::notification_sink_port>      NotificationSink;
+		qt::system_tray_notification_sink*                        SystemNotificationSink = nullptr;
+		std::unique_ptr<application::review_queue_notifier>       Notifications;
+		std::size_t                                               NotificationRequestsAttempted = 0U;
+		std::size_t                                               NotificationSelections        = 0U;
+		std::size_t                                               NotificationSelectionFailures = 0U;
+#if defined(BPR_BUILD_TESTING)
+		fixture_notification_sink* FixtureNotificationSink = nullptr;
+#endif
+#if defined(BPR_BUILD_TESTING)
+		std::size_t CapturedNotificationDisplays = 0U;
+#endif
+		std::unique_ptr<adapters::syntax::packaged_definition_catalog> SyntaxDefinitions;
+		std::unique_ptr<QTemporaryDir>                                 AgentWorkspaceRoot;
+		std::filesystem::path                                          AgentWorkspaceNeighbourhood;
+		std::optional<adapters::git::installed_agent_workspace_parent>
+			 AgentWorkspaceParent;
+		bool AgentWorkspaceCleanupAttempted = false;
+		bool AgentWorkspaceCleanupFailed    = false;
+		// Dependents are destroyed before their retained ports and execution lanes.
+		std::unique_ptr<application::github_application_host> Host;
+		std::unique_ptr<application::github_host_device_authorization_enrollment>
+												 DeviceEnrollment;
+		std::unique_ptr<setup_device_enrollment> SetupDeviceEnrollment;
+#if defined(BPR_BUILD_TESTING)
+		std::unique_ptr<counting_device_authorization_enrollment>
+			CountedDeviceEnrollment;
+#endif
+		std::unique_ptr<application::device_authorization_application_host>
+																			  DeviceHost;
+		std::unique_ptr<application::profile_epoch_actor_registry>            EpochActors;
+		std::unique_ptr<application::workbench_preferences_host>              WorkbenchPreferences;
+		std::shared_ptr<application::appearance_preferences_application_host> AppearancePreferences;
+		std::unique_ptr<application::review_queue_application_host>           QueueHost;
+	};
+
+	void github_profile_runtime::publish(const application::github_presentation_update& aUpdate)
+	{
+		if (aUpdate.Transition && aUpdate.Transition->Identity && aUpdate.Transition->Identity->Generation != QueueIdentityGeneration) {
+			QueueIdentityGeneration = aUpdate.Transition->Identity->Generation;
+			if (QueueHost) {
+				QueueHost->cancel();
+			}
+			if (QueueRefresh) {
+				QueueRefresh->clear();
+			}
+			QueueActivity.reset();
+			QueueActivityBaseline.reset();
+			ActiveQueueNotifications.clear();
+		}
+		bind_device_refresh_authority(aUpdate);
+		for_each_window([&](const window_observer& aObserver) { if (aObserver.Github){ aObserver.Github(aUpdate);
+} });
+	}
+
+	void github_profile_runtime::publish(
+		const application::queue_landing_projection& aProjection)
+	{
+		if (Closing) {
+			return;
+		}
+
+		// Presentation receives the exact accepted projection before any
+		// notification can activate back into it.
+
+		auto active = std::vector<queue_notification_transition>{ };
+		active.reserve(aProjection.Items.size());
+		for (const auto& item : aProjection.Items) {
+			const auto trustedActivity = QueueActivity.has_value()
+				&& QueueActivity->Session == aProjection.Session
+				&& QueueActivity->Ref == item.Ref
+				&& item.Bucket
+					== core::bucket_for(
+						item.Membership, QueueActivity->Activity);
+			if (!trustedActivity
+				|| !application::warrants_notification(item.Bucket)) {
+				continue;
+			}
+			const auto transition = queue_notification_transition{
+				.Session = aProjection.Session,
+				.Ref     = item.Ref,
+				.Bucket  = item.Bucket,
+			};
+			active.push_back(transition);
+			if (std::ranges::binary_search(
+					ActiveQueueNotifications, transition)) {
+				continue;
+			}
+#if defined(BPR_BUILD_TESTING)
+			if (DisableNotificationRequestWire) {
+				continue;
+			}
+#endif
+			const auto unseen  = QueueActivity->Activity.UnseenComments;
+			const auto request = application::notification_for(item, unseen);
+			if (!request.has_value() || !core::permits_notification(aProjection.Preferences.Notifications, item.Bucket)) {
+				continue;
+			}
+			++NotificationRequestsAttempted;
+			if (Notifications != nullptr) {
+				static_cast<void>(Notifications->deliver(*request));
+			}
+		}
+		std::ranges::sort(active);
+		const auto unique = std::ranges::unique(active);
+		active.erase(unique.begin(), unique.end());
+		ActiveQueueNotifications = std::move(active);
+	}
+
+	class github_application::implementation final
+		: public application::github_epoch_handoff_port,
+		  public application::epoch_projection_port,
+		  public application::workbench_selected_diff_projection_port,
+		  public application::review_mutation_projection_port,
+		  public application::receipt_projection_port,
+		  public application::queue_landing_projection_port,
+		  public application::agent_session_catalog_port,
+		  public application::setup_destination_port,
+		  public application::shared_draft_context_port
+	{
+		friend class github_application;
+		std::shared_ptr<github_profile_runtime> Profile;
+		// Declared first so fixture cleanup runs after every private service releases its root.
+		decltype(github_profile_runtime::StartupScratch)& StartupScratch = Profile->StartupScratch;
+		decltype(github_profile_runtime::RegistryRoot)&   RegistryRoot   = Profile->RegistryRoot;
+		decltype(github_profile_runtime::DesktopQuit)&    DesktopQuit    = Profile->DesktopQuit;
+
+	public:
+		std::function<void()>                                 OnClosed;
+		std::shared_ptr<const int>                            WindowLifetime = std::make_shared<const int>(0);
+		std::unique_ptr<window_read_decision_lane>            ReadDecision;
+		std::shared_ptr<application::github_window_read_host> WindowRead;
+		std::optional<application::queue_consumer_id>         QueueConsumer;
+		void                                                  start()
+		{
+			ReadDecision = std::make_unique<window_read_decision_lane>(DecisionLane);
+			auto weak    = std::weak_ptr<const int>{ WindowLifetime };
+			WindowRead   = std::make_shared<application::github_window_read_host>(DraftWindow, WindowSession, *Provider, *ReadDecision, [this, weak](const application::github_window_read_update& aUpdate) {
+					if (weak.expired() || Closing || aUpdate.Window != DraftWindow || !Profile->current_window(DraftWindow)){ return;
+}
+					Window->publish(aUpdate.Presentation);
+					if (aUpdate.Presentation.PullRequest) { publish_overview(); publish_read_state(); } }, this, PublicPreviewComposed ? static_cast<application::github_pull_request_port*>(CountedAnonymousPullRequests.get()) : nullptr, PublicPreviewComposed ? static_cast<application::git_smart_transport_factory_port*>(AnonymousSmartGit.get()) : nullptr);
+			Profile->Observers.insert_or_assign(DraftWindow, github_profile_runtime::window_observer{ .Lifetime = weak, .Github = [this, weak](const application::github_presentation_update& aUpdate) {
+					if (weak.expired() || Closing){ return;
+}
+					auto presentation = aUpdate;
+					if (WindowRead->accepted_snapshot()){ presentation.Transition.reset();
+}
+					Window->publish(presentation);
+					observe_setup_session(aUpdate); }, .Device = [this, weak](const application::device_authorization_presentation& aPresentation) {
+					if (weak.expired() || Closing){ return;
+}
+					observe_device_stage(aPresentation);
+					if (DevicePanel){ DevicePanel->apply(aPresentation);
+} }, .Refresh = [this, weak](const application::device_authorization_refresh_observation& aObservation) {
+					if (!weak.expired() && !Closing && DevicePanel){ DevicePanel->apply_refresh(aObservation);
+} }, .Preview = [this, weak](const application::public_preview_presentation& aPresentation) {
+					if (!weak.expired() && !Closing){ Window->publish(aPresentation);
+} }, .SignIn = [this, weak](core::host_profile_id aProfile) { if (!weak.expired() && !Closing){ begin_public_preview_sign_in(aProfile);
+} }, .SelectQueue = [this, weak](const core::pull_request_ref& aRef) { return !weak.expired() && !Closing && Window->select_queue_item(aRef); }, .Settings = [this, weak](qt::settings_window& aShell, qt::settings_page aPage) {
+					if (!weak.expired() && !Closing) { Window->mount_settings(aShell); aShell.present(aPage); } }, .UnmountSettings = [this, weak] { if (!weak.expired() && Window){ Window->unmount_settings();
+} } });
+			Window->set_settings_presenter([this, weak](qt::settings_page aPage) { if (!weak.expired() && !Closing){ Profile->present_settings(DraftWindow, aPage);
+} });
+			auto queue = QueueHost->attach(DraftWindow, std::make_shared<window_queue_projection>([this, weak](const core::bpr_window_context& aContext, const application::queue_landing_projection& aProjection) {
+											   if (!weak.expired() && !Closing && aContext == DraftWindow) {
+												   publish(aProjection);
+											   }
+										   }));
+			if (!queue) {
+				throw std::runtime_error{ "queue window admission unavailable" };
+			}
+			QueueConsumer = *queue;
+			if (!Host->attach_window(WindowRead)) {
+				throw std::runtime_error{ "window read admission unavailable" };
+			}
+			WorkbenchHost->restore();
+			AppearanceHost->restore();
+			if (Window->session_panel()) {
+				Window->session_panel()->set_public_preview_dispatch([this, weak](application::public_preview_gesture) {
+					if (!weak.expired() && !Closing) {
+						begin_public_preview_sign_in(Host->state().ActiveProfile.value_or(core::host_profile_id{ }));
+					}
+				});
+			}
+		}
+		[[nodiscard]] auto status() const noexcept -> github_application_status;
+		explicit implementation(std::shared_ptr<github_profile_runtime> aProfile, core::bpr_window_context aContext)
+			: Profile{ std::move(aProfile) }
+		{
+			const auto& aConfig    = Profile->Config;
+			const auto& aAdmission = Profile->Admission;
+			DraftWindow            = aContext;
+			if (aContext.Window.value() == std::numeric_limits<std::uint64_t>::max()) {
+				throw std::runtime_error{ "window identity exhausted" };
+			}
+			WindowSession = core::application_session_id{ aContext.Window.value() + 1U };
+			SetupOwner    = next_setup_owner();
+			Profile->Observers.emplace(DraftWindow, github_profile_runtime::window_observer{ .Lifetime = WindowLifetime });
 			// BPR-0191: the application shows RFC-BPR-0005's shell. Until this
 			// line changed, the shell existed only in its own tests and every
 			// reviewer saw the RFC-BPR-0002 window instead.
@@ -3959,17 +5119,6 @@ namespace bpr::app {
 			Window->set_conversation_read_dispatch(
 				[this](const std::string& aThread) { mark_conversation_read(aThread); });
 
-			QueueStore   = adapters::sqlite::make_queue_enrollment_store({
-				.StorageRoot = applicationDataRoot,
-			});
-			QueueRefresh = std::make_unique<composition_queue_refresh>();
-			QueueHost    = std::make_unique<application::review_queue_application_host>(
-				*QueueStore,
-				*QueueRefresh,
-				QueueEffects,
-				DecisionLane,
-				*this,
-				application::queue_session_id{ });
 			Window->set_queue_rule_dispatch(
 				[this](application::queue_rule_intent aIntent) {
 					if (!Closing && QueueHost != nullptr) {
@@ -4001,13 +5150,12 @@ namespace bpr::app {
 						QueueHost->apply(std::move(aIntent));
 					}
 				});
-			QueueHost->restore();
 
 			EpochHost = std::make_unique<application::epoch_application_host>(
 				core::epoch_state{
-					.ApplicationSession = core::application_session_id{ 1U },
+					.ApplicationSession = WindowSession,
 				},
-				*GitCaches,
+				*Profile->EpochActors, DraftWindow,
 				*EpochCatalogs,
 				*EpochEntropy,
 				*EpochClock,
@@ -4015,71 +5163,6 @@ namespace bpr::app {
 				DecisionLane,
 				*this, application::epoch_host_limits{ }, DiagnosticLog);
 
-#if defined(Q_OS_UNIX)
-			// Persistent private neighbourhood on the cache filesystem, outside
-			// its isolation root. Only effect workers create or recover children.
-			const auto agentWorkspacePath = ApplicationDataRoot.parent_path()
-				/ (ApplicationDataRoot.filename().string() + "-agent-workspaces-v1");
-#else
-			// git pack-objects creates its temporary pack inside the --git-dir's
-			// own object store and renames it onto the requested output base.
-			// A workspace on another filesystem makes that rename EXDEV, and
-			// git reports "Invalid cross-device link" rather than anything this
-			// side can interpret. So the workspace has to share a filesystem
-			// with the retained cache.
-			//
-			// The system temporary directory does not, on a stock Linux host:
-			// /tmp is tmpfs and an ordinary checkout is not. macOS never showed
-			// it because the per-user temporary directory and a checkout are on
-			// one APFS volume.
-			//
-			// A sibling of the application data root shares that filesystem and
-			// stays disjoint from the cache, which the guard below still checks
-			// rather than assumes.
-			const auto workspaceNeighbourhood
-				= std::filesystem::weakly_canonical(ApplicationDataRoot)
-					  .parent_path();
-			const auto workspaceTemplate = workspaceNeighbourhood.empty()
-				? std::filesystem::path{ QDir::tempPath().toStdString() }
-					/ "betterpullreview-agent-XXXXXX"
-				: workspaceNeighbourhood / "betterpullreview-agent-XXXXXX";
-			AgentWorkspaceRoot           = std::make_unique<QTemporaryDir>(
-				QString::fromStdString(workspaceTemplate.string()));
-			if (!AgentWorkspaceRoot->isValid()) {
-				throw std::runtime_error{ "Agent workspace root is unavailable" };
-			}
-			// Exact installed-Git cleanup must be the only recursive authority.
-			// A generic temporary-directory sweep could delete a same-path
-			// substitute after exact cleanup correctly refused it.
-			AgentWorkspaceRoot->setAutoRemove(false);
-			const auto agentWorkspacePath = std::filesystem::canonical(
-				AgentWorkspaceRoot->path().toStdString());
-			AgentWorkspaceParent
-				= adapters::git::capture_installed_agent_workspace_parent(
-					agentWorkspacePath);
-			if (!AgentWorkspaceParent.has_value()) {
-				throw std::runtime_error{
-					"Agent workspace root identity is unavailable"
-				};
-			}
-			const auto cachePath = std::filesystem::canonical(ApplicationDataRoot);
-			const auto within    = [](const std::filesystem::path& aPath,
-									  const std::filesystem::path& aPrefix) {
-				auto path   = aPath.begin();
-				auto prefix = aPrefix.begin();
-				for (; prefix != aPrefix.end(); ++prefix, ++path) {
-					if (path == aPath.end() || *path != *prefix) {
-						return false;
-					}
-				}
-				return true;
-			};
-			if (within(agentWorkspacePath, cachePath)
-				|| within(cachePath, agentWorkspacePath)) {
-				throw std::runtime_error{ "Agent workspace root crosses Git cache" };
-			}
-#endif
-			AgentWorkspaceNeighbourhood = agentWorkspacePath;
 			// The one new edge out of the agent host. The launch panel still
 			// receives every projection it already did; this adds the typed
 			// finding delivery, and nothing else. There is deliberately no
@@ -4217,7 +5300,7 @@ namespace bpr::app {
 				AgentHost = std::make_unique<application::agent_invocation_host>(
 					agentProfiles,
 					agentPolicies,
-					agentWorkspacePath,
+					AgentWorkspaceNeighbourhood,
 					*this,
 					*EpochHost,
 #if defined(BPR_BUILD_TESTING)
@@ -4260,7 +5343,7 @@ namespace bpr::app {
 			// operation, and one shared between an agent run and a helper
 			// lifetime would stop whichever the reviewer did not mean.
 			McpProcess      = std::make_unique<adapters::agent::agent_process_launcher>();
-			McpSnapshotRoot = ApplicationDataRoot / "mcp-snapshot";
+			McpSnapshotRoot = ApplicationDataRoot / "mcp-snapshot" / ("window-" + std::to_string(DraftWindow.Window.value()) + "-generation-" + std::to_string(DraftWindow.Generation.value()));
 #if defined(BPR_BUILD_TESTING)
 			if (!DisableMcpHelperComposition)
 #endif
@@ -4450,7 +5533,7 @@ namespace bpr::app {
 				});
 			DiffHost = std::make_unique<application::diff_application_host>(
 				core::diff_state{
-					.ApplicationSession = core::application_session_id{ 1U },
+					.ApplicationSession = WindowSession,
 				},
 				*EpochHost,
 				DiffEffects,
@@ -4458,7 +5541,7 @@ namespace bpr::app {
 				*DiffProjections
 #if defined(BPR_BUILD_TESTING)
 				,
-				application::diff_host_limits{ }, diffComputeLimits
+				application::diff_host_limits{ }, Profile->DiffComputeLimits
 #endif
 			);
 
@@ -4498,402 +5581,35 @@ namespace bpr::app {
 			// mode being unavailable is a typed answer a reviewer must see,
 			// not a silence, so the projection is bound even where the
 			// authorities below are withheld.
-			PublicPreviewProjectionFanOut = std::make_unique<
-				composition_public_preview_projection>(
-				PublicPreviewProjections,
-				[this](const application::public_preview_presentation&
-						   aPresentation) {
-					if (Window == nullptr) {
-						return;
-					}
-					Window->set_public_preview_now(public_preview_now());
-					Window->publish(aPresentation);
-				});
-			// A platform whose shipped selection is unavailable supplies no
-			// anonymous authority, so the host refuses before any request.
-			auto publicPreview = shipped_public_preview_capability();
-#if defined(BPR_BUILD_TESTING)
-			// The forced courses. A tests-enabled build with the recorded
-			// fixture overrides the shipped selection so the composed
-			// anonymous authority runs through the real host, the real
-			// provider and the real anonymous admission rules, which is the
-			// only place "no header, no vault, and a public snapshot" can be
-			// observed rather than argued.
-			if ((PublicPreviewEnabledCourse || PublicPreviewGhesCourse)
-				&& Fixture != nullptr) {
-				publicPreview = public_preview_capability{ .Available = true };
-			}
-			// [[BPR-0316]]. The same override with no fixture underneath it:
-			// the authority handed to the host is the production one, so a
-			// read issued through it leaves the machine. Nothing here issues
-			// one; the run driving the composition decides that.
-			if (PublicPreviewSelectionAvailable && Fixture == nullptr) {
-				publicPreview = public_preview_capability{ .Available = true };
-			}
-#endif
-			PublicPreviewComposed = publicPreview.Available;
-			// The session fan-out. The window keeps its place at the front, and
-			// composition reads acceptances behind it so the device host's
-			// refresh authority can be bound the moment one exists.
-			GithubProjectionFanOut = std::make_unique<composition_github_projection>(
-				*Window,
-				[this](const application::github_presentation_update& aUpdate) {
-					bind_device_refresh_authority(aUpdate);
-					observe_setup_session(aUpdate);
-					if (aUpdate.PullRequest.has_value()) {
-						publish_overview();
-						publish_read_state();
-					}
-				});
-			Host = std::make_unique<application::github_application_host>(
-				initial_github_state(),
-				*Provider,
-				*Provider,
-				*Provider,
-				*Provider,
-				credential_vault(),
-				CredentialBindings,
-				DecisionLane,
-				*GithubProjectionFanOut,
-				RememberDeviceSignIn ? application::github_credential_shutdown_policy::retain_accepted_device_grants : application::github_credential_shutdown_policy::delete_retained_on_shutdown,
-				this,
-				PublicPreviewComposed
-					? static_cast<application::github_pull_request_port*>(
-						  CountedAnonymousPullRequests.get())
-					: nullptr,
-				PublicPreviewComposed
-					? static_cast<application::git_smart_transport_factory_port*>(
-						  AnonymousSmartGit.get())
-					: nullptr,
-				PublicPreviewProjectionFanOut.get(), aConfig.Profile);
-			// The switch-to-sign-in gesture, end to end. The ring in the
-			// review header dispatches it, the host names the profile the
-			// signed-out session was activated for, and the device flow for
-			// that same profile begins -- so sign-in returns the reviewer to
-			// the pull request they were reading rather than to a picker.
-			Host->set_public_preview_sign_in(
-				[this](const core::host_profile_id aProfile) {
-					begin_public_preview_sign_in(aProfile);
-				});
-			if (Window->session_panel() != nullptr) {
-				Window->session_panel()->set_public_preview_dispatch(
-					[this](application::public_preview_gesture aGesture) {
-						static_cast<void>(aGesture);
-						Host->request_public_preview_sign_in();
-					});
-			}
-
-			// The device-authorization path. It is composed on every platform,
-			// registered or not, because the visible choice and its typed
-			// answer are the product behaviour the RFC asks for: on an
-			// unregistered platform selecting device sign-in must say
-			// `device_flow_unavailable`, not do nothing, and the capability
-			// gate refuses before a request is built.
-			DeviceEnrollment = std::make_unique<
-				application::github_host_device_authorization_enrollment>(*Host);
-			SetupDeviceEnrollment = std::make_unique<setup_device_enrollment>(*DeviceEnrollment,
-																			  [this](core::host_profile_id aProfile, application::github_credential_material aCredential, std::optional<application::device_binding_lifetime> aLifetime, bool aSettled) {
-																				  if (DeviceHost && SetupDeviceGeneration && DeviceHost->state().Generation == *SetupDeviceGeneration) {
-																					  const auto pending = SetupDestination->pending();
-																					  if (pending && SetupDeviceRequest == pending->Request && pending->Profile == aProfile && pending->Owner == SetupOwner) {
-																						  stage_setup_credential(*pending, std::move(aCredential), application::github_credential_provenance::device_grant, aLifetime, aSettled);
-																					  }
-																					  return;
-																				  }
-																				  Host->enroll_profile(aProfile, std::move(aCredential), application::github_credential_provenance::device_grant, aLifetime, aSettled);
-																			  });
-#if defined(BPR_BUILD_TESTING)
-			CountedDeviceEnrollment = std::make_unique<
-				counting_device_authorization_enrollment>(*SetupDeviceEnrollment);
-			auto& deviceEnrollment
-				= static_cast<application::device_authorization_enrollment_port&>(
-					*CountedDeviceEnrollment);
-#else
-			auto& deviceEnrollment
-				= static_cast<application::device_authorization_enrollment_port&>(
-					*SetupDeviceEnrollment);
-#endif
-			DeviceClock = application::make_system_device_authorization_clock();
-#if defined(BPR_BUILD_TESTING)
-			if (Fixture != nullptr && RememberDeviceSignIn) {
-				DeviceClock = std::make_unique<composition_device_wall_clock>(std::move(DeviceClock), DeviceWallOffsetSeconds);
-			}
-#endif
-
-#if defined(BPR_BUILD_TESTING)
-			// [[BPR-0536]]. The one input a fixture cannot supply is time.
-			// A renewal is armed a lead before an eight-hour access token
-			// expires, and no course can wait that out; the transport seam
-			// beside this one replaces the network, and this replaces the
-			// wait. Tests-enabled only, and composed only under the refresh
-			// course, so a shipped image has one clock and it is the system's.
-			//
-			// It steps on the binding rather than on the authorized stage. The
-			// host captures `AuthorizedAt` from this same clock at the moment
-			// the stage turns, so an offset that stepped there would move both
-			// ends of `elapsed` and change nothing. Composition's
-			// `bind_refresh_authority` falls strictly between that capture and
-			// the `schedule_refresh` that reads the clock again, which is the
-			// only window where a one-way step shortens the wait to zero.
-			//
-			// [[BPR-0547]]. The host arms every renewal after the first one for
-			// itself, and composition is told about it only once the timer is
-			// already set -- too late to shorten anything. What it can read in
-			// time is the host's own live rotation count, which the re-arm
-			// raises inside that same window, between the capture and the read.
-			// So the armings are the bind plus the rotations, and each one buys
-			// one more step until the course has the rotations it drives.
-			if (DeviceRefreshCourse && Fixture != nullptr) {
-				DeviceClock = std::make_unique<composition_device_refresh_clock>(
-					std::move(DeviceClock),
-					[this]() noexcept -> std::size_t {
-						const auto bound = DeviceRefreshBindings > 0U
-							? std::size_t{ 1U }
-							: std::size_t{ 0U };
-						if (DeviceHost == nullptr) {
-							return bound;
-						}
-						return bound
-							+ static_cast<std::size_t>(
-								   DeviceHost->refresh_observation().Rotations);
-					},
-					device_refresh_course_step,
-					device_refresh_course_rotations);
-			}
-#endif
-			// The shipped selection. A registered platform composes the real
-			// credential-free wire bound to the recorded distributable client;
-			// an unregistered platform composes the refusing transport whose
-			// reached() count proves the gate held. A composition failure
-			// fails closed to the refusal: a half-wired flow must answer
-			// `device_flow_unavailable`, not invent one.
-			auto* deviceTransport
-				= static_cast<application::device_authorization_transport_port*>(
-					&UnregisteredDeviceTransport);
-			auto deviceCapability
-				= application::device_authorization_capability{ .Registered
-																= false };
-			if constexpr (shipped_device_authorization_capability().Registered) {
-				const auto deviceContext = core::github_session_request_context{
-					.Request            = core::request_id{ 907U },
-					.ApplicationSession = core::application_session_id{ 908U },
-					.Profile            = Profiles.front().profile(),
-					.IdentityGeneration = core::github_identity_generation{ 909U },
-				};
-				auto deviceWire = [this, &deviceContext]() {
-#if defined(BPR_BUILD_TESTING)
-					// [[BPR-0515]]. The same binding, the same credential-free
-					// request, the same headers - only the proxy policy differs,
-					// and it differs into a closed port. Selected by nothing but
-					// `--network-denied`, which exists only here.
-					if (NetworkDenied) {
-						return adapters::github::detail::
-							make_native_https_credential_free_transport_for_test(
-								Profiles.front(),
-								deviceContext,
-								denied_loopback_network());
-					}
-#endif
-					return adapters::github::detail::
-						make_native_https_credential_free_transport(
-							Profiles.front(), deviceContext);
-				}();
-				if (deviceWire.has_value()) {
-					auto deviceAdapter = adapters::github::detail::
-						make_github_device_authorization_transport(
-							std::shared_ptr<
-								adapters::github::detail::native_https_transport>{
-								std::move(*deviceWire) },
-							std::string{ production_device_client_id },
-							DeviceTransportEffects);
-					if (deviceAdapter.has_value()) {
-						DeviceWireTransport = std::move(*deviceAdapter);
-						deviceTransport     = DeviceWireTransport.get();
-						deviceCapability
-							= shipped_device_authorization_capability();
-						// The identity is registered for one host, and the
-						// wire above is bound to that host's profile. The
-						// capability names the same profile so the host can
-						// refuse a begin for any other one before it builds
-						// a request ([[BPR-0535]]); the picker can bind the
-						// mounted panel to a GHES profile, and this is what
-						// keeps that gesture out of GitHub.com's flow.
-						deviceCapability.Profile
-							= Profiles.front().profile();
-					}
-				}
-			}
-#if defined(BPR_BUILD_TESTING)
-			// The registered course. A tests-enabled build with the recorded
-			// fixture overrides the shipped selection with BPR-0276's private
-			// recorded grant: it runs through the real host, the real
-			// enrollment boundary, and the real vault, which is the only place
-			// "exactly one enrollment, and no settings or SQLite copy" can be
-			// observed rather than argued.
-			if (RegisteredDeviceCourse && Fixture != nullptr
-				&& !Profiles.empty()) {
-				deviceTransport  = &Fixture->device_authorization_transport();
-				deviceCapability = application::device_authorization_capability{
-					.Registered = true,
-					// The same profile the course begins for, by the same
-					// rule as the shipped selection above.
-					.Profile = Profiles.front().profile(),
-				};
-			}
-#endif
-			DeviceCapabilityRegistered = deviceCapability.Registered;
-			// The browser handoff, under the same seam as the transport above
-			// and for the same reason: the shipped graph gets the real
-			// capability, a tests-enabled graph gets a recording one. The
-			// seam is total here rather than fixture-conditional, because a
-			// fixture transport that is reached by mistake writes a line to a
-			// log and a browser that is opened by mistake opens a browser.
-			//
-			// `SystemBrowser` is constructed either way. Its constructor is
-			// the anchor `verify_composed_hosts.py` requires in both
-			// profiles, so a build that stopped composing the opener fails
-			// the audit rather than silently going back to answering
-			// `unavailable` forever, which is the defect [[BPR-0516]] found.
-#if defined(BPR_BUILD_TESTING)
-			auto* deviceBrowser = SuppressDeviceBrowser
-				? nullptr
-				: static_cast<application::device_authorization_browser_port*>(
-					  &RecordingBrowser);
-#else
-			auto* deviceBrowser
-				= static_cast<application::device_authorization_browser_port*>(
-					&SystemBrowser);
-#endif
-			DeviceBrowserComposed = deviceBrowser != nullptr;
-			// One port, two readers. The recording sink keeps its place at the
-			// front of the fan-out, so every existing device contract still
-			// observes the identical sequence of publications; the mounted
-			// panel is told the same thing afterwards when the composition
-			// adopted one.
-			DeviceProjectionFanOut = std::make_unique<
-				composition_device_authorization_projection>(
-				DeviceProjections,
-				[this](
-					const application::device_authorization_presentation&
-						aPresentation) {
-					observe_device_stage(aPresentation);
-					if (DevicePanel != nullptr) {
-						DevicePanel->apply(aPresentation);
-					}
-				},
-				[this](
-					const application::device_authorization_refresh_observation&
-						aObservation) {
-					observe_device_refresh(aObservation);
-				});
-			DeviceHost = std::make_unique<
-				application::device_authorization_application_host>(
-				initial_device_authorization_state(),
-				*deviceTransport,
-				credential_vault(),
-				deviceEnrollment,
-				*DeviceClock,
-				DeviceTimer,
-				DecisionLane,
-				*DeviceProjectionFanOut,
-				application::device_authorization_host_limits{ },
-				application::device_authorization_browser_handoff{
-					// Null only under the construction cut, where the host
-					// reports `unavailable` rather than inventing an address.
-					// The authority travels with the pointer so a profile
-					// that is not GitHub.com cannot inherit GitHub.com's.
-					.Browser   = deviceBrowser,
-					.Authority = std::string{
-						application::default_device_verification_authority },
-				},
-				deviceCapability);
-			if (RememberDeviceSignIn) {
-				DeviceBindingStore = adapters::sqlite::make_device_binding_store(applicationDataRoot, aConfig.Profile);
-				DevicePersistence  = std::make_unique<application::device_binding_persistence>(*DeviceBindingStore, DeviceBindingEffects, DecisionLane);
-				Host->configure_device_persistence(*DevicePersistence, [this] { return DeviceClock->observe_wall_seconds(); });
-				const auto& profile = Profiles.front();
-				Host->restore_device_profile(application::github_profile_authority{
-					.Profile = profile.profile(), .ProfileRevision = profile.revision(), .Host = profile.host(), .Hostname = application::github_canonical_hostname{ profile.hostname() }, .ServerContract = profile.server_contract(), .Authentication = profile.authentication_transport(), .ProbeContractRevision = application::github_probe_contract_revision{ 1U } });
-			}
-
 			// Composed last, because its observation supplier receives accepted
 			// snapshots from `Host`. The settings port is always present: either
 			// the durable adapter opened or composition supplied session defaults.
 			// The real window is the projection port, so success and failure both
 			// terminate at the shipped surface rather than at an intermediate sink.
+			if (Profile->FirstWindow) {
+				auto initial = application::workbench_layout_settings{ };
+				if (const auto& accepted = Profile->WorkbenchPreferences->accepted(); accepted) {
+					initial = application::combined_layout(accepted->NewWindowDefaults, accepted->Behaviour);
+				}
+				SessionWorkbenchSettings = std::make_unique<session_workbench_settings>(std::move(initial));
+			}
 			WorkbenchHost = std::make_unique<
 				application::workbench_application_host>(
 				core::workbench_interaction_state{ },
 				*WorkbenchObservations,
-				*WorkbenchSettings,
+				SessionWorkbenchSettings ? *SessionWorkbenchSettings : *WorkbenchSettings,
 				WorkbenchEffects,
 				DecisionLane,
 				*Window,
-				core::application_session_id{ 1U },
+				WindowSession,
 				application::workbench_host_limits{ },
 				EpochHost.get(),
 				this,
-				nullptr,
+				Profile->WorkbenchPreferences.get(),
 				aConfig.Profile);
 			// Reads the current durable or session layout. Restoring never writes
 			// it back, so merely launching still leaves a fresh store fresh.
-			WorkbenchHost->restore();
 
-			// Queue projections arrive at this composition first. It forwards the
-			// accepted value unchanged to the real window, then asks this notifier
-			// only for newly warranting session/ref/bucket transitions.
-#if defined(BPR_BUILD_TESTING)
-			if (UseGrantedNotificationSink) {
-				auto sink               = std::make_unique<fixture_notification_sink>();
-				FixtureNotificationSink = sink.get();
-				NotificationSink        = std::move(sink);
-			}
-#endif
-			if (NotificationSink == nullptr) {
-				auto sink = std::unique_ptr<qt::system_tray_notification_sink>{ };
-#if defined(BPR_BUILD_TESTING)
-				// A fixture run also takes the captured boundary when the
-				// platform truthfully reports no tray — the offscreen
-				// platform on Windows — because the courses that leave
-				// capture off assert what reaches the sink, not the native
-				// display mechanics; where a tray exists, nothing changes
-				// (BPR-0442). Production composition is untouched.
-				if (CaptureSystemNotificationDisplay
-					|| (Fixture != nullptr
-						&& !QSystemTrayIcon::isSystemTrayAvailable())) {
-					sink = std::make_unique<qt::system_tray_notification_sink>(
-						[this](QSystemTrayIcon&, const QString&, const QString&) {
-							++CapturedNotificationDisplays;
-						},
-						Window.get());
-				}
-#endif
-				if (sink == nullptr) {
-					sink = std::make_unique<qt::system_tray_notification_sink>(
-						Window.get());
-				}
-				SystemNotificationSink = sink.get();
-				NotificationSink       = std::move(sink);
-#if defined(BPR_BUILD_TESTING)
-#endif
-			}
-			Notifications = std::make_unique<application::review_queue_notifier>(
-				*NotificationSink,
-				[this](application::queue_notification_target aTarget) {
-					if (Closing || Window == nullptr) {
-						return;
-					}
-#if defined(BPR_BUILD_TESTING)
-					if (DisableNotificationSelectionWire) {
-						return;
-					}
-#endif
-					if (Window->select_queue_item(aTarget.Ref)) {
-						++NotificationSelections;
-					} else {
-						++NotificationSelectionFailures;
-					}
-				});
 			Window->set_notification_preview_dispatch([this](const core::pull_request_ref& aRef) {
 				if (Closing || QueueHost == nullptr || Notifications == nullptr) {
 					return false;
@@ -4909,26 +5625,10 @@ namespace bpr::app {
 				const auto request = application::notification_for(*item, QueueActivity->Activity.UnseenComments);
 				return request && Notifications->deliver(*request);
 			});
-			const auto activation = [this](
-										application::queue_notification_target aTarget) {
-				if (Notifications) {
-					Notifications->activate(aTarget);
-				}
-			};
-			if (SystemNotificationSink != nullptr) {
-				SystemNotificationSink->set_activation_sink(activation);
-			}
-#if defined(BPR_BUILD_TESTING)
-			if (FixtureNotificationSink != nullptr) {
-				FixtureNotificationSink->set_activation_sink(activation);
-			}
-#endif
 
 			// Composed before the appearance host, which needs a live
 			// classification port. The blob source reads through the epoch
 			// host rather than opening a second Git cache session.
-			SyntaxDefinitions = std::make_unique<
-				adapters::syntax::packaged_definition_catalog>();
 			SyntaxBlobs          = std::make_unique<composition_blob_source>(*EpochHost);
 			SyntaxClassification = std::make_unique<
 				adapters::syntax::packaged_syntax_classifier>(
@@ -4960,19 +5660,16 @@ namespace bpr::app {
 						   aFailure) { report_appearance_refusal(aFailure); });
 			AppearanceHost = std::make_unique<
 				application::appearance_application_host>(
-				qt::default_appearance_settings(),
-				*AppearanceSettings,
-				ThemeDocuments,
+				Profile->AppearancePreferences,
 				*SyntaxClassification,
 				AppearanceEffects,
 				DecisionLane,
 				AppearanceProjections,
-				core::application_session_id{ 1U });
+				WindowSession);
 			// Loads the durable record. An absent record keeps the composed
 			// settings and is never written back, so a fresh installation
 			// stays a fresh installation until the reviewer chooses
 			// something.
-			AppearanceHost->restore();
 
 			// The Qt adapter is the presentation authority for appearance;
 			// the host owns the durable record and the span cache. The
@@ -5026,51 +5723,11 @@ namespace bpr::app {
 			// settings actually in effect rather than on its own defaults.
 			adopt_appearance_settings();
 			apply_appearance();
-#if defined(Q_OS_UNIX)
-			AgentWorkspaceRecoveryPending.store(true, std::memory_order_release);
-			try {
-				EpochEffects.post([this, registry = ApplicationDataRoot / "agent-workspace-ownership-v1", neighbourhood = AgentWorkspaceNeighbourhood] {
-					auto recovered = adapters::git::recover_installed_agent_workspaces(registry, neighbourhood);
-					try {
-						DecisionLane.post([this, result = std::move(recovered)] {
-							AgentWorkspaceCleanupFailed = !result.has_value();
-							if (!result && !Closing && Window && Window->agent_panel()) {
-								Window->agent_panel()->refuse("Disposable workspace recovery needs repair or has reached its limit.");
-							}
-							AgentWorkspaceRecoveryPending.store(false, std::memory_order_release);
-						});
-					} catch (...) {
-						AgentWorkspaceRecoveryPostFailed.store(true, std::memory_order_release);
-						AgentWorkspaceRecoveryPending.store(false, std::memory_order_release);
-					}
-				});
-			} catch (...) {
-				AgentWorkspaceCleanupFailed = true;
-				AgentWorkspaceRecoveryPending.store(false, std::memory_order_release);
-			}
-#endif
 		}
 
-		~implementation() override
-		{
-			begin_shutdown();
-			while (!ShutdownComplete) {
-				poll_shutdown();
-				QCoreApplication::processEvents(QEventLoop::AllEvents);
-				std::this_thread::yield();
-			}
-		}
+		~implementation() override { WindowLifetime.reset(); }
 
-		[[nodiscard]] auto credential_vault() noexcept
-			-> application::github_credential_vault_port&
-		{
-#if defined(BPR_BUILD_TESTING)
-			if (Fixture != nullptr) {
-				return Fixture->credential_vault();
-			}
-#endif
-			return *OwnedVault;
-		}
+		[[nodiscard]] auto credential_vault() noexcept -> application::github_credential_vault_port& { return Profile->credential_vault(); }
 
 		// Registered-course evidence. Zero outside a tests-enabled build with
 		// the recorded grant, because nothing else can enroll.
@@ -5279,7 +5936,7 @@ namespace bpr::app {
 		[[nodiscard]] auto public_preview_budget() const noexcept
 			-> std::optional<application::github_rate_limit_record>
 		{
-			return Host == nullptr ? std::nullopt : Host->rate_limits().Core;
+			return WindowRead == nullptr ? std::nullopt : WindowRead->rate_limits().Core;
 		}
 
 		// The accepted snapshot's own discriminant, not the session's: a
@@ -5291,7 +5948,7 @@ namespace bpr::app {
 			if (Host == nullptr) {
 				return false;
 			}
-			const auto& snapshot = Host->accepted_snapshot();
+			const auto& snapshot = WindowRead->accepted_snapshot();
 			return snapshot.has_value()
 				&& snapshot->Mode == core::github_access_mode::public_preview;
 		}
@@ -5302,7 +5959,7 @@ namespace bpr::app {
 			if (Host == nullptr) {
 				return { };
 			}
-			const auto& snapshot = Host->accepted_snapshot();
+			const auto& snapshot = WindowRead->accepted_snapshot();
 			return snapshot.has_value()
 				? std::string{ snapshot->PullRequest.HeadOid.value() }
 				: std::string{ };
@@ -5334,33 +5991,46 @@ namespace bpr::app {
 			if (token.empty()) {
 				return 0U;
 			}
-			const auto&     root = Fixture->application_data_root();
+			constexpr auto  unavailable = std::numeric_limits<std::size_t>::max();
+			const auto&     root        = Fixture->application_data_root();
 			std::error_code error;
-			if (root.empty() || !std::filesystem::is_directory(root, error)) {
-				return 0U;
+			if (root.empty() || !std::filesystem::is_directory(std::filesystem::symlink_status(root, error)) || error) {
+				return unavailable;
 			}
-			auto copies = std::size_t{ 0U };
-			for (const auto& entry :
-				 std::filesystem::recursive_directory_iterator{
-					 root, std::filesystem::directory_options::skip_permission_denied,
-					 error }) {
-				if (error || !entry.is_regular_file(error) || error) {
-					error.clear();
+			auto copies = std::size_t{ 0 };
+			auto files  = std::size_t{ 0 };
+			auto bytes  = std::uintmax_t{ 0 };
+			for (auto iterator = std::filesystem::recursive_directory_iterator{ root, std::filesystem::directory_options::none, error };
+				 iterator != std::filesystem::recursive_directory_iterator{ } && !error; iterator.increment(error)) {
+				const auto& entry = *iterator;
+				const auto  type  = entry.symlink_status(error);
+				if (error) {
+					return unavailable;
+				}
+				if (!std::filesystem::is_regular_file(type)) {
 					continue;
 				}
+				const auto size = entry.file_size(error);
+				if (error || ++files > 4096U || size > 1024U * 1024U || bytes + size > 16U * 1024U * 1024U) {
+					return unavailable;
+				}
+				bytes += size;
 				auto file = std::ifstream{ entry.path(), std::ios::binary };
 				if (!file) {
-					continue;
+					return unavailable;
 				}
-				const auto contents = std::string{
-					std::istreambuf_iterator<char>{ file },
-					std::istreambuf_iterator<char> { }
-				};
+				auto contents = std::string(static_cast<std::size_t>(size), '\0');
+				file.read(contents.data(), static_cast<std::streamsize>(contents.size()));
+				const auto readBytes = file.gcount();
+				const auto trailing  = file.peek();
+				if (readBytes != static_cast<std::streamsize>(contents.size()) || file.bad() || trailing != std::char_traits<char>::eof()) {
+					return unavailable;
+				}
 				if (contents.find(token) != std::string::npos) {
 					++copies;
 				}
 			}
-			return copies;
+			return error ? unavailable : copies;
 #else
 			return 0U;
 #endif
@@ -5420,73 +6090,7 @@ namespace bpr::app {
 			}
 		}
 
-		void bind_device_refresh_authority(
-			const application::github_presentation_update& aUpdate)
-		{
-			if (
-				Closing || Host == nullptr || DeviceHost == nullptr
-				|| Profiles.empty() || !aUpdate.Session.has_value()) {
-				return;
-			}
-			if (aUpdate.Session->Profile != Profiles.front().profile()) {
-				return;
-			}
-			const auto authority = Host->accepted_credential_authority();
-			if (!authority.has_value()) {
-				return;
-			}
-			// [[BPR-0546]]. The slot's authority and the identity generation
-			// that owns it travel together. The device host's own state carries
-			// the generation this composition seeded the device flow with,
-			// which is zero and stays zero, and every platform vault refuses a
-			// context carrying it -- so before this the composed refresh
-			// lifecycle stored nothing on any platform.
-			const auto generation = Host->accepted_identity_generation();
-			if (generation.value() == 0U) {
-				return;
-			}
-			if (
-				DeviceRefreshAuthority.has_value()
-				&& *DeviceRefreshAuthority == *authority && DeviceRefreshGeneration == generation) {
-				return;
-			}
-			if (DeviceRefreshAuthority == authority && Host->accepted_device_lifetime()) {
-				// A rotation established a new access session for this same chain.
-				// Rebind its generation; this is not another startup resume.
-				DeviceRefreshGeneration = generation;
-				DeviceHost->bind_refresh_authority(*authority, generation);
-				return;
-			}
-			if (!Host->accepted_device_lifetime()) {
-				DeviceRefreshAuthority.reset();
-				DeviceHost->release_refresh_authority();
-				return;
-			}
-			if (
-				DeviceHost->state().Stage
-				== core::device_authorization_stage::authorized) {
-				DeviceRefreshAuthority  = *authority;
-				DeviceRefreshGeneration = generation;
-				++DeviceRefreshBindings;
-				DeviceHost->bind_refresh_authority(*authority, generation);
-				return;
-			}
-			// The restart. Nothing about this run says a device flow happened,
-			// so the question goes to the host that owns the vault: is there
-			// material beside this credential that renews it? Only a device
-			// grant leaves any, so an affirmative answer is the enrollment
-			// evidence the stage cannot supply after a restart.
-			if (!Host->accepted_credential_renewable()) {
-				// A pasted token, or an answer the vault has not given yet.
-				// Nothing is recorded either way, so the republication that
-				// follows a settled answer is still free to act.
-				return;
-			}
-			DeviceRefreshAuthority  = *authority;
-			DeviceRefreshGeneration = generation;
-			++DeviceRefreshResumes;
-			DeviceHost->resume_refresh(*authority, generation, Host->accepted_device_lifetime());
-		}
+		void bind_device_refresh_authority(const application::github_presentation_update& aUpdate) { Profile->bind_device_refresh_authority(aUpdate); }
 
 		// Renewal, as presentation is told it. The panel is the reader that
 		// matters; the counters are what a composed course states.
@@ -5709,10 +6313,10 @@ namespace bpr::app {
 		[[nodiscard]] auto accepted_thread(const std::string_view aIdentity) const
 			-> const application::github_review_thread_record*
 		{
-			if (Host == nullptr || !Host->accepted_snapshot().has_value()) {
+			if (Host == nullptr || !WindowRead->accepted_snapshot().has_value()) {
 				return nullptr;
 			}
-			const auto&                                     threads = Host->accepted_snapshot()->ReviewThreads;
+			const auto&                                     threads = WindowRead->accepted_snapshot()->ReviewThreads;
 			const application::github_review_thread_record* result  = nullptr;
 			for (const auto& thread : threads) {
 				const auto identity = thread_identity(thread);
@@ -5758,10 +6362,10 @@ namespace bpr::app {
 			const std::span<const core::source_line_ref> aChangedAnchors = { })
 		{
 			if (ReviewLedgerHost == nullptr || Host == nullptr
-				|| !Host->accepted_snapshot().has_value()) {
+				|| !WindowRead->accepted_snapshot().has_value()) {
 				return;
 			}
-			const auto& snapshot = *Host->accepted_snapshot();
+			const auto& snapshot = *WindowRead->accepted_snapshot();
 			auto        records  = std::vector<core::defect_record>{ };
 			auto        links    = std::vector<application::defect_thread_link>{ };
 			auto        observations
@@ -5883,7 +6487,7 @@ namespace bpr::app {
 			if (aSide == core::diff_side::left || Host == nullptr) {
 				return false;
 			}
-			const auto& snapshot = Host->accepted_snapshot();
+			const auto& snapshot = WindowRead->accepted_snapshot();
 			const auto  head     = snapshot.has_value()
 				? core::parse_git_commit_oid(snapshot->PullRequest.HeadOid.value())
 				: std::nullopt;
@@ -6041,7 +6645,7 @@ namespace bpr::app {
 
 		void compose_review_submission(const application::accepted_pull_request_handoff& aHandoff)
 		{
-			if (!ReviewSubmission || !Host || !Host->accepted_snapshot()) {
+			if (!ReviewSubmission || !Host || !WindowRead->accepted_snapshot()) {
 				return;
 			}
 #if defined(BPR_BUILD_TESTING)
@@ -6050,7 +6654,7 @@ namespace bpr::app {
 				return;
 			}
 #endif
-			auto selection = select_observed_review_mutation(aHandoff, *Host->accepted_snapshot());
+			auto selection = select_observed_review_mutation(aHandoff, *WindowRead->accepted_snapshot());
 			if (!selection) {
 				ReviewSubmission->invalidate();
 				return;
@@ -6068,7 +6672,7 @@ namespace bpr::app {
 				return detail::make_review_submission_fixture_provider(server, std::move(*store), binding);
 			};
 #else
-			auto acceptedLease = Host->accepted_review_mutation_transport();
+			auto acceptedLease = WindowRead->mutation_transport();
 			if (!acceptedLease) {
 				ReviewSubmission->invalidate();
 				return;
@@ -6090,7 +6694,7 @@ namespace bpr::app {
 
 		[[nodiscard]] auto current(const core::bpr_window_context& aContext) const noexcept -> bool override
 		{
-			return !Closing && DraftWindows.accepts(aContext);
+			return !Closing && aContext == DraftWindow && Profile->current_window(aContext);
 		}
 
 		void accept_shared_draft(const core::revisioned_review_draft& aAccepted)
@@ -6112,11 +6716,18 @@ namespace bpr::app {
 			if (!profile || profile->revision().value() != aHandoff.ProfileRevision.value() || profile->host() != aHandoff.Host) {
 				return false;
 			}
+			const auto& accepted = Host->accepted_session();
+			if (!accepted || accepted->Profile != aHandoff.Profile || accepted->Host != aHandoff.Host
+				|| accepted->Viewer.Account != aHandoff.Account || accepted->Mode != aHandoff.Mode
+				|| Host->accepted_identity_generation() != aHandoff.IdentityGeneration
+				|| aHandoff.ApplicationSession != WindowSession || !current(DraftWindow)) {
+				return false;
+			}
 			auto authority = application::shared_draft_authority{
 				.BprProfile       = DraftWindow.Profile,
 				.ProfileAuthority = { profile->profile(), profile->revision(), profile->host(), application::github_canonical_hostname{ profile->hostname() }, profile->server_contract(), profile->authentication_transport(), application::github_probe_contract_revision{ 1U } },
 				.HostAuthority    = aHandoff.HostAuthority,
-				.Session          = aHandoff.ApplicationSession,
+				.Session          = Host->state().ApplicationSession,
 				.Generation       = aHandoff.IdentityGeneration,
 				.Account          = aHandoff.Account,
 				.Mode             = aHandoff.Mode,
@@ -6126,15 +6737,16 @@ namespace bpr::app {
 				return true;
 			}
 			if (SharedDrafts) {
-				SharedDrafts->shutdown();
+				SharedDrafts->detach(DraftConsumer);
 			}
 			PublishingDraft.reset();
-			if (LastDraftScope == std::numeric_limits<std::uint64_t>::max()) {
+			auto owner = Profile->drafts(authority);
+			if (!owner) {
 				SharedDrafts.reset();
 				return false;
 			}
-			DraftScope    = core::review_draft_scope_id{ ++LastDraftScope };
-			SharedDrafts  = std::make_unique<application::shared_draft_application_host>(std::move(authority), DraftScope, *this);
+			DraftScope    = owner->Scope;
+			SharedDrafts  = owner->Host;
 			auto attached = SharedDrafts->attach(SharedDrafts->authority(), DraftWindow,
 												 [this](const core::revisioned_review_draft& aAccepted) {
 													 if (!Closing && ReviewDraft && ReviewDraft->Id == aAccepted.Draft.Id) {
@@ -6194,7 +6806,7 @@ namespace bpr::app {
 #if defined(BPR_BUILD_TESTING)
 			if (Fixture == nullptr || Window == nullptr
 				|| Window->review_editor() == nullptr || WorkbenchHost == nullptr
-				|| Host == nullptr || !Host->accepted_snapshot().has_value()) {
+				|| Host == nullptr || !WindowRead->accepted_snapshot().has_value()) {
 				return;
 			}
 			if (!RetiredReviewMutationHosts.empty()) {
@@ -6208,7 +6820,7 @@ namespace bpr::app {
 				return;
 			}
 			auto selection = select_observed_review_mutation(
-				aHandoff, *Host->accepted_snapshot());
+				aHandoff, *WindowRead->accepted_snapshot());
 			if (!selection.has_value()) {
 				return;
 			}
@@ -6233,12 +6845,12 @@ namespace bpr::app {
 			FixtureReviewMutationHostComposed = true;
 #else
 			if (Host == nullptr || WorkbenchHost == nullptr
-				|| !Host->accepted_snapshot().has_value()) {
+				|| !WindowRead->accepted_snapshot().has_value()) {
 				return;
 			}
 			auto selection = AttendedReviewMutationMode
-				? select_designated_review_mutation(aHandoff, *Host->accepted_snapshot())
-				: select_observed_review_mutation(aHandoff, *Host->accepted_snapshot());
+				? select_designated_review_mutation(aHandoff, *WindowRead->accepted_snapshot())
+				: select_observed_review_mutation(aHandoff, *WindowRead->accepted_snapshot());
 			if (!selection.has_value()) {
 				LiveReviewMutationGrant.reset();
 				return;
@@ -6246,7 +6858,7 @@ namespace bpr::app {
 			if (AttendedReviewMutationMode && LiveReviewMutationGrant == nullptr) {
 				return;
 			}
-			auto lease = Host->accepted_review_mutation_transport();
+			auto lease = WindowRead->mutation_transport();
 			if (lease == nullptr) {
 				return;
 			}
@@ -6304,7 +6916,7 @@ namespace bpr::app {
 										.arg(aHandoff.Number.value())
 										.arg(QString::fromUtf8(
 											core::canonical_hex(aHandoff.Head).view()))
-										.arg(QString::fromStdString(Host->accepted_snapshot()->Viewer.Login)));
+										.arg(QString::fromStdString(WindowRead->accepted_snapshot()->Viewer.Login)));
 			editor->present(ReviewMutationHost->capabilities());
 			Window->set_thread_resolution_provider(ReviewMutationHost->capabilities().ResolvesThreads);
 		}
@@ -6443,13 +7055,13 @@ namespace bpr::app {
 			-> application::review_mutation_execution_grant
 		{
 			auto grant = application::review_mutation_execution_grant{ };
-			if (AttendedReviewMutationMode || !Host || !Host->accepted_snapshot()
+			if (AttendedReviewMutationMode || !Host || !WindowRead->accepted_snapshot()
 				|| !InlineReviewBinding || WorkbenchHost == nullptr
 				|| !SelectedDiffPublication.has_value()) {
 				return grant;
 			}
 			const auto& authority = SelectedDiffPublication->Request.WorkbenchAuthority;
-			const auto& snapshot  = *Host->accepted_snapshot();
+			const auto& snapshot  = *WindowRead->accepted_snapshot();
 			// Reuse the accepted handoff binding retained by the host composition.
 			if (snapshot.Account != authority.Account
 				|| snapshot.PullRequest.PullRequest != authority.PullRequest) {
@@ -6955,7 +7567,7 @@ namespace bpr::app {
 					return std::nullopt;
 				}
 			}
-			const auto& snapshot = Host->accepted_snapshot();
+			const auto& snapshot = WindowRead->accepted_snapshot();
 			if (!snapshot.has_value()) {
 				return std::nullopt;
 			}
@@ -7044,7 +7656,7 @@ namespace bpr::app {
 			auto latest = std::optional<core::conversation_post_observation>{ };
 			for (const auto& comment : thread->Comments) {
 				if (!comment.Deleted) {
-					latest = post_observation(comment, Host->accepted_snapshot()->Viewer.Login);
+					latest = post_observation(comment, WindowRead->accepted_snapshot()->Viewer.Login);
 				}
 			}
 			if (!latest.has_value()) {
@@ -7068,7 +7680,7 @@ namespace bpr::app {
 			if (Closing || Window == nullptr || Host == nullptr) {
 				return;
 			}
-			const auto& snapshot = Host->accepted_snapshot();
+			const auto& snapshot = WindowRead->accepted_snapshot();
 			if (!snapshot.has_value()) {
 				Window->clear_overview();
 				return;
@@ -7201,60 +7813,13 @@ namespace bpr::app {
 			}
 		}
 
-		void publish(
-			const application::queue_landing_projection& aProjection) override
+		void publish(const application::queue_landing_projection& aProjection) override
 		{
-			if (Closing || Window == nullptr) {
+			if (Closing || !Window) {
 				return;
 			}
-
-			// Presentation receives the exact accepted projection before any
-			// notification can activate back into it.
 			Window->publish(aProjection);
 			synchronize_setup_servers(aProjection);
-
-			auto active = std::vector<queue_notification_transition>{ };
-			active.reserve(aProjection.Items.size());
-			for (const auto& item : aProjection.Items) {
-				const auto trustedActivity = QueueActivity.has_value()
-					&& QueueActivity->Session == aProjection.Session
-					&& QueueActivity->Ref == item.Ref
-					&& item.Bucket
-						== core::bucket_for(
-							item.Membership, QueueActivity->Activity);
-				if (!trustedActivity
-					|| !application::warrants_notification(item.Bucket)) {
-					continue;
-				}
-				const auto transition = queue_notification_transition{
-					.Session = aProjection.Session,
-					.Ref     = item.Ref,
-					.Bucket  = item.Bucket,
-				};
-				active.push_back(transition);
-				if (std::ranges::binary_search(
-						ActiveQueueNotifications, transition)) {
-					continue;
-				}
-#if defined(BPR_BUILD_TESTING)
-				if (DisableNotificationRequestWire) {
-					continue;
-				}
-#endif
-				const auto unseen  = QueueActivity->Activity.UnseenComments;
-				const auto request = application::notification_for(item, unseen);
-				if (!request.has_value() || !core::permits_notification(aProjection.Preferences.Notifications, item.Bucket)) {
-					continue;
-				}
-				++NotificationRequestsAttempted;
-				if (Notifications != nullptr) {
-					static_cast<void>(Notifications->deliver(*request));
-				}
-			}
-			std::ranges::sort(active);
-			const auto unique = std::ranges::unique(active);
-			active.erase(unique.begin(), unique.end());
-			ActiveQueueNotifications = std::move(active);
 		}
 
 		void fail(
@@ -7280,7 +7845,7 @@ namespace bpr::app {
 				};
 				const auto authority = workbench_authority(aHandoff);
 				const auto snapshot  = Host != nullptr
-					? Host->accepted_snapshot()
+					? WindowRead->accepted_snapshot()
 					: std::optional<application::github_pull_request_snapshot>{ };
 				compose_review_ledger(aHandoff);
 				WorkbenchReview.adopt(
@@ -7358,15 +7923,6 @@ namespace bpr::app {
 			if (AgentHost != nullptr) {
 				AgentHost->clear();
 			}
-			if (QueueHost != nullptr) {
-				QueueHost->cancel();
-			}
-			if (QueueRefresh != nullptr) {
-				QueueRefresh->clear();
-			}
-			QueueActivity.reset();
-			QueueActivityBaseline.reset();
-			ActiveQueueNotifications.clear();
 			const auto retiresLedger = matches_review_ledger(aInvalidation);
 			if (auto authority = WorkbenchReview.invalidate(aInvalidation);
 				authority.has_value() && WorkbenchHost != nullptr) {
@@ -7392,7 +7948,7 @@ namespace bpr::app {
 				retire_review_ledger();
 				retire_review_mutation_host();
 				if (SharedDrafts) {
-					SharedDrafts->shutdown();
+					SharedDrafts->detach(DraftConsumer);
 					SharedDrafts.reset();
 				}
 				ReviewDraft.reset();
@@ -7477,8 +8033,10 @@ namespace bpr::app {
 				}
 				Profiles.push_back(*candidate);
 				auto option = profile_option(*candidate, "GHES 3.18 — " + server.Hostname);
-				ProfileOptions.push_back(option);
-				Window->add_setup_profile(std::move(option));
+				ProfileOptions.push_back(std::move(option));
+			}
+			for (const auto& option : ProfileOptions) {
+				Window->add_setup_profile(option);
 			}
 			if (const auto pending = SetupDestination->pending(); pending && pending->Stage == core::setup_destination_stage::add_server) {
 				SetupDestination->configured(pending->Request);
@@ -7490,15 +8048,27 @@ namespace bpr::app {
 				}
 			}
 		}
+		[[nodiscard]] auto next_setup_owner() -> core::setup_owner_id
+		{
+			if (Profile->LastSetupOwner == std::numeric_limits<std::uint64_t>::max()) {
+				throw std::runtime_error{ "setup identity exhausted" };
+			}
+			return core::setup_owner_id{ ++Profile->LastSetupOwner };
+		}
 		void retire_setup_effects()
 		{
 			SetupConfigurationRequest.reset();
 			SetupConfigurationSubmitted = false;
 			SetupAcceptedGeneration.reset();
-			if (Host) {
-				Host->cancel_setup_enrollment();
+			const auto ownsSetup = Profile->SetupWindow == DraftWindow;
+			if (ownsSetup) {
+				Profile->SetupWindow.reset();
+				Profile->SetupCredential = { };
+				if (Host) {
+					Host->cancel_setup_enrollment();
+				}
 			}
-			const auto device = SetupDeviceRequest.has_value();
+			const auto device = ownsSetup && SetupDeviceRequest.has_value();
 			SetupDeviceRequest.reset();
 			if (device && DeviceHost) {
 				DeviceHost->dispatch(core::cancel_device_authorization_intent{ });
@@ -7508,8 +8078,11 @@ namespace bpr::app {
 									const application::github_credential_provenance     aProvenance = application::github_credential_provenance::manual,
 									std::optional<application::device_binding_lifetime> aLifetime = std::nullopt, const bool aSettled = false)
 		{
-			Host->stage_setup_enrollment(aPending, std::move(aCredential), [this](const core::pending_setup_destination& aExpected, const bool aSuccess) {
-				if (Closing || !SetupDestination || !aExpected.Profile) { return false; }
+			Profile->SetupWindow = DraftWindow;
+			auto weak            = std::weak_ptr<const int>{ WindowLifetime };
+			Host->stage_setup_enrollment(aPending, std::move(aCredential), [this, weak](const core::pending_setup_destination& aExpected, const bool aSuccess) {
+				if (weak.expired()) { return false; }
+				if (Closing || !Profile->current_window(DraftWindow) || Profile->SetupWindow != DraftWindow || !SetupDestination || !aExpected.Profile) { return false; }
 				const auto accepted = core::accept_setup_destination(SetupDestination->pending(), aExpected.Request, SetupOwner, *aExpected.Profile, aExpected.Destination.Hostname);
 				if (!accepted) { return false; }
 				if (!aSuccess) {
@@ -7531,7 +8104,15 @@ namespace bpr::app {
 				return;
 			}
 			if (profile->product_kind() == application::github_product_kind::github_com) {
-				SetupDeviceRequest = aPending.Request;
+				SetupDeviceRequest       = aPending.Request;
+				Profile->SetupWindow     = DraftWindow;
+				auto weak                = std::weak_ptr<const int>{ WindowLifetime };
+				Profile->SetupCredential = [this, weak, aPending](core::host_profile_id aProfile, application::github_credential_material aCredential, std::optional<application::device_binding_lifetime> aLifetime, bool aSettled) {
+					if (weak.expired() || Closing || !Profile->current_window(DraftWindow) || Profile->SetupWindow != DraftWindow || aPending.Profile != aProfile || SetupDeviceRequest != aPending.Request) {
+						return;
+					}
+					stage_setup_credential(aPending, std::move(aCredential), application::github_credential_provenance::device_grant, aLifetime, aSettled);
+				};
 				Window->open_settings(qt::settings_page::accounts_and_hosts);
 				DeviceHost->dispatch(core::begin_device_authorization_intent{ .Profile = *aPending.Profile });
 				SetupDeviceGeneration = DeviceHost->state().Generation;
@@ -7565,7 +8146,7 @@ namespace bpr::app {
 			if (!authority || authority->Profile != aProfile || authority->Hostname.value() != aDestination.Hostname || !Host->accepted_session()) {
 				return;
 			}
-			Host->dispatch(core::open_pull_request_intent{ .Repository = aDestination.Repository, .Number = aDestination.Number });
+			WindowRead->dispatch(core::open_pull_request_intent{ .Repository = aDestination.Repository, .Number = aDestination.Number });
 		}
 		void observe_setup_session(const application::github_presentation_update& aUpdate)
 		{
@@ -7575,7 +8156,7 @@ namespace bpr::app {
 			if (aUpdate.Transition && aUpdate.Transition->Identity
 				&& (!SetupAcceptedGeneration || aUpdate.Transition->Identity->Generation != *SetupAcceptedGeneration)) {
 				retire_setup_effects();
-				SetupOwner = core::setup_owner_id{ SetupOwner.value() + 1U };
+				SetupOwner = next_setup_owner();
 				SetupDestination->cancel();
 				return;
 			}
@@ -7601,7 +8182,7 @@ namespace bpr::app {
 		void dispatch_intent(application::github_intent aIntent)
 		{
 			retire_setup_effects();
-			SetupOwner = core::setup_owner_id{ SetupOwner.value() + 1U };
+			SetupOwner = next_setup_owner();
 			if (SetupDestination) {
 				SetupDestination->cancel();
 			}
@@ -7659,7 +8240,11 @@ namespace bpr::app {
 							DeviceHost->release_refresh_authority();
 							DeviceRefreshAuthority.reset();
 						}
-						Host->dispatch(core::github_event{ std::move(aValue) });
+						if constexpr (std::is_same_v<intent_type, core::open_pull_request_intent> || std::is_same_v<intent_type, core::refresh_pull_request_intent>) {
+							WindowRead->dispatch(core::github_window_read_event{ std::move(aValue) });
+						} else {
+							Host->dispatch(core::github_event{ std::move(aValue) });
+						}
 					}
 				},
 				std::move(aIntent));
@@ -9591,6 +10176,32 @@ namespace bpr::app {
 			if (Closing) {
 				return;
 			}
+			Window->unmount_settings();
+			if (Profile->SettingsOwner == DraftWindow) {
+				if (Profile->Settings) {
+					Profile->Settings->hide();
+				}
+				Profile->SettingsOwner.reset();
+			}
+			Profile->Observers.erase(DraftWindow);
+			if (QueueConsumer) {
+				QueueHost->detach(*QueueConsumer);
+				QueueConsumer.reset();
+			}
+			if (SharedDrafts) {
+				SharedDrafts->detach(DraftConsumer);
+			}
+			if (ReadDecision) {
+				ReadDecision->hold(false);
+			}
+			if (WindowRead) {
+				WindowRead->shutdown();
+				Host->detach_window(DraftWindow);
+			}
+			if (McpHelper) {
+				McpHelper->stop();
+				McpHelper->unpin();
+			}
 			retire_setup_effects();
 			if (SetupDestination) {
 				SetupDestination->cancel();
@@ -9635,9 +10246,6 @@ namespace bpr::app {
 			if (WorkbenchHost) {
 				WorkbenchHost->shutdown();
 			}
-			if (QueueHost) {
-				QueueHost->shutdown();
-			}
 			if (AppearanceHost) {
 				AppearanceHost->shutdown();
 			}
@@ -9649,10 +10257,6 @@ namespace bpr::app {
 			}
 			DiffHost->shutdown();
 			EpochHost->shutdown();
-			if (DeviceHost) {
-				DeviceHost->shutdown();
-			}
-			Host->shutdown();
 		}
 
 		void schedule_shutdown_poll()
@@ -9680,30 +10284,14 @@ namespace bpr::app {
 				schedule_shutdown_poll();
 				return;
 			}
-			if (AgentWorkspaceRecoveryPending.load(std::memory_order_acquire)) {
-				schedule_shutdown_poll();
-				return;
-			}
-			if (AgentWorkspaceRecoveryPostFailed.load(std::memory_order_acquire)) {
-				AgentWorkspaceCleanupFailed = true;
-			}
-			if (!AgentWorkspaceCleanupAttempted) {
-				AgentWorkspaceCleanupAttempted = true;
-				if (AgentWorkspaceParent.has_value()) {
-					AgentWorkspaceCleanupFailed = !adapters::git::remove_installed_agent_workspace_parent(*AgentWorkspaceParent);
-				}
-			}
 			begin_other_shutdown();
 			if (
 				!DiffHost->is_quiescent() || !EpochHost->is_quiescent()
-				|| !Host->is_quiescent()
+				|| (WindowRead && !WindowRead->is_quiescent()) || (McpHelper && McpHelper->running())
 				|| ContinuationRealignmentsInFlight.load(
 					   std::memory_order_acquire)
 					!= 0U
-				|| (DeviceHost && !DeviceHost->is_quiescent())
-				|| (DevicePersistence && !DevicePersistence->is_quiescent())
 				|| (WorkbenchHost && !WorkbenchHost->is_quiescent())
-				|| (QueueHost && !QueueHost->is_quiescent())
 				|| (AppearanceHost && !AppearanceHost->is_quiescent())
 				|| (ReviewSubmission && !ReviewSubmission->is_quiescent())
 				|| (ReviewMutationHost && !ReviewMutationHost->is_quiescent())
@@ -9714,66 +10302,52 @@ namespace bpr::app {
 				return;
 			}
 
-			ShutdownCleanupFailed         = Host->shutdown_cleanup_failed();
 			EpochProjectionDeliveryFailed = EpochHost->projection_delivery_failed();
 			ReviewSubmission.reset();
 			ReviewMutationHost.reset();
 			RetiredReviewMutationHosts.clear();
-			AppearanceEffects.close_and_drain();
-			AgentEffects.close_and_drain();
-			QueueEffects.close_and_drain();
-			WorkbenchEffects.close_and_drain();
-			DiffEffects.close_and_drain();
-			ReviewMutationEffects.close_and_drain();
-			ReviewSubmissionEffects.close_and_drain();
-			EpochEffects.close_and_drain();
-			Provider->shutdown();
-			ProfileCatalog->shutdown();
-			ProviderEffects.close_and_drain();
-			VaultEffects.close_and_drain();
-			DeviceTransportEffects.close_and_drain();
-			DeviceBindingEffects.close_and_drain();
-			if (DiagnosticLog) {
-				static_cast<void>(DiagnosticLog->record({ .Operation = application::diagnostic_operation::application, .Outcome = application::diagnostic_outcome::shutdown }));
-			}
-			if (OwnedDiagnosticLog) {
-				OwnedDiagnosticLog->close();
+			if (!McpSnapshotRoot.empty()) {
+				std::error_code error;
+				std::filesystem::remove_all(McpSnapshotRoot, error);
+				ShutdownCleanupFailed = error.operator bool();
 			}
 			ShutdownComplete = true;
+			if (OnClosed) {
+				DecisionLane.post(std::exchange(OnClosed, { }));
+			}
 		}
 
-		std::shared_ptr<adapters::logging::quill_log>     OwnedDiagnosticLog;
-		std::shared_ptr<application::diagnostic_log_port> DiagnosticLog;
+		decltype(github_profile_runtime::OwnedDiagnosticLog)& OwnedDiagnosticLog = Profile->OwnedDiagnosticLog;
+		decltype(github_profile_runtime::DiagnosticLog)&      DiagnosticLog      = Profile->DiagnosticLog;
 
-		bool RememberDeviceSignIn = true;
+		decltype(github_profile_runtime::RememberDeviceSignIn)& RememberDeviceSignIn = Profile->RememberDeviceSignIn;
 #if defined(BPR_BUILD_TESTING)
-		std::int64_t DeviceWallOffsetSeconds = 0;
+		decltype(github_profile_runtime::DeviceWallOffsetSeconds)& DeviceWallOffsetSeconds = Profile->DeviceWallOffsetSeconds;
 #endif
-		worker_executor                                          DeviceBindingEffects;
-		std::unique_ptr<application::device_binding_store_port>  DeviceBindingStore;
-		std::unique_ptr<application::device_binding_persistence> DevicePersistence;
-		core::github_identity_generation                         DeviceRefreshGeneration;
-		unregistered_device_authorization_transport              UnregisteredDeviceTransport;
+		decltype(github_profile_runtime::DeviceBindingEffects)&        DeviceBindingEffects        = Profile->DeviceBindingEffects;
+		decltype(github_profile_runtime::DeviceBindingStore)&          DeviceBindingStore          = Profile->DeviceBindingStore;
+		decltype(github_profile_runtime::DevicePersistence)&           DevicePersistence           = Profile->DevicePersistence;
+		decltype(github_profile_runtime::DeviceRefreshGeneration)&     DeviceRefreshGeneration     = Profile->DeviceRefreshGeneration;
+		decltype(github_profile_runtime::UnregisteredDeviceTransport)& UnregisteredDeviceTransport = Profile->UnregisteredDeviceTransport;
 		// The registered platforms' real wire, and the executor its background
 		// work runs on. Declared executor-first so the transport can never
 		// outlive the lanes it posts to. Both stay empty on unregistered
 		// platforms.
-		worker_executor DeviceTransportEffects;
-		std::unique_ptr<adapters::github::detail::github_device_authorization_transport>
-			DeviceWireTransport;
+		decltype(github_profile_runtime::DeviceTransportEffects)& DeviceTransportEffects = Profile->DeviceTransportEffects;
+		decltype(github_profile_runtime::DeviceWireTransport)&    DeviceWireTransport    = Profile->DeviceWireTransport;
 		// What the composition actually selected, for the status report: the
 		// shipped capability where the real wire composed, the refusal where
 		// it did not, and the fixture course's override in a tests-enabled
 		// build.
-		bool DeviceCapabilityRegistered = false;
+		decltype(github_profile_runtime::DeviceCapabilityRegistered)& DeviceCapabilityRegistered = Profile->DeviceCapabilityRegistered;
 #if defined(BPR_BUILD_TESTING)
-		bool RegisteredDeviceCourse                     = false;
-		bool DeviceRefreshCourse                        = false;
-		bool SuppressDeviceBrowser                      = false;
-		bool DisableDeviceAuthorizationPanelComposition = false;
+		decltype(github_profile_runtime::RegisteredDeviceCourse)&                     RegisteredDeviceCourse                     = Profile->RegisteredDeviceCourse;
+		decltype(github_profile_runtime::DeviceRefreshCourse)&                        DeviceRefreshCourse                        = Profile->DeviceRefreshCourse;
+		decltype(github_profile_runtime::SuppressDeviceBrowser)&                      SuppressDeviceBrowser                      = Profile->SuppressDeviceBrowser;
+		decltype(github_profile_runtime::DisableDeviceAuthorizationPanelComposition)& DisableDeviceAuthorizationPanelComposition = Profile->DisableDeviceAuthorizationPanelComposition;
 		// [[BPR-0515]]. Whether this run composes its device wire against the
 		// closed loopback port rather than the discovered system proxy.
-		bool NetworkDenied = false;
+		decltype(github_profile_runtime::NetworkDenied)& NetworkDenied = Profile->NetworkDenied;
 #endif
 #if defined(BPR_BUILD_TESTING)
 		// RFC-BPR-0017 courses. The first forces the shipped selection
@@ -9781,69 +10355,62 @@ namespace bpr::app {
 		// authority can be driven end to end; the second does the same and
 		// then activates an enterprise profile, where the refusal is the
 		// core policy's rather than the composition's.
-		bool PublicPreviewEnabledCourse = false;
-		bool PublicPreviewGhesCourse    = false;
+		decltype(github_profile_runtime::PublicPreviewEnabledCourse)& PublicPreviewEnabledCourse = Profile->PublicPreviewEnabledCourse;
+		decltype(github_profile_runtime::PublicPreviewGhesCourse)&    PublicPreviewGhesCourse    = Profile->PublicPreviewGhesCourse;
 #endif
 		// Whether a browser capability was bound at all, which is the fact the
 		// handoff's `unavailable` answer reports and the construction cut
 		// removes.
-		bool                  DeviceBrowserComposed = false;
-		system_browser_opener SystemBrowser;
+		decltype(github_profile_runtime::DeviceBrowserComposed)& DeviceBrowserComposed = Profile->DeviceBrowserComposed;
+		decltype(github_profile_runtime::SystemBrowser)&         SystemBrowser         = Profile->SystemBrowser;
 #if defined(BPR_BUILD_TESTING)
-		recording_device_authorization_browser RecordingBrowser;
+		decltype(github_profile_runtime::RecordingBrowser)& RecordingBrowser = Profile->RecordingBrowser;
 #endif
-		qt::event_loop_device_timer          DeviceTimer;
-		device_authorization_projection_sink DeviceProjections;
+		decltype(github_profile_runtime::DeviceTimer)&       DeviceTimer       = Profile->DeviceTimer;
+		decltype(github_profile_runtime::DeviceProjections)& DeviceProjections = Profile->DeviceProjections;
 		// The window's panel, adopted rather than owned: the window built it
 		// and keeps it alive. Null under the construction cut, and read on
 		// every publication, which is why the fan-out asks rather than binds.
-		qt::device_authorization_panel* DevicePanel = nullptr;
-		std::unique_ptr<composition_device_authorization_projection>
-			DeviceProjectionFanOut;
+		qt::device_authorization_panel*                           DevicePanel            = nullptr;
+		decltype(github_profile_runtime::DeviceProjectionFanOut)& DeviceProjectionFanOut = Profile->DeviceProjectionFanOut;
 		// The vault slot this run's renewable material belongs to, and what
 		// composition did with it. Held so a republication of the same
 		// acceptance cannot bind twice or renew on every update.
-		std::optional<application::github_credential_authority_key>
-			DeviceRefreshAuthority;
+		decltype(github_profile_runtime::DeviceRefreshAuthority)& DeviceRefreshAuthority = Profile->DeviceRefreshAuthority;
 		// [[BPR-0550]]. Whether the device presentation last seen was
 		// `authorized`, so the memo above is dropped on the transition into it.
-		bool        DeviceStageAuthorized     = false;
-		std::size_t DeviceRefreshBindings     = 0U;
-		std::size_t DeviceRefreshResumes      = 0U;
-		std::size_t DeviceRefreshPublications = 0U;
-		application::device_authorization_refresh_observation
-			DeviceRefreshObservation;
-		std::unique_ptr<application::device_authorization_clock_port>
-			DeviceClock;
-		std::unique_ptr<application::github_host_device_authorization_enrollment>
-			DeviceEnrollment;
+		decltype(github_profile_runtime::DeviceStageAuthorized)&     DeviceStageAuthorized     = Profile->DeviceStageAuthorized;
+		decltype(github_profile_runtime::DeviceRefreshBindings)&     DeviceRefreshBindings     = Profile->DeviceRefreshBindings;
+		decltype(github_profile_runtime::DeviceRefreshResumes)&      DeviceRefreshResumes      = Profile->DeviceRefreshResumes;
+		decltype(github_profile_runtime::DeviceRefreshPublications)& DeviceRefreshPublications = Profile->DeviceRefreshPublications;
+		decltype(github_profile_runtime::DeviceRefreshObservation)&  DeviceRefreshObservation  = Profile->DeviceRefreshObservation;
+		decltype(github_profile_runtime::DeviceClock)&               DeviceClock               = Profile->DeviceClock;
+		decltype(github_profile_runtime::DeviceEnrollment)&          DeviceEnrollment          = Profile->DeviceEnrollment;
 #if defined(BPR_BUILD_TESTING)
-		std::unique_ptr<counting_device_authorization_enrollment>
-			CountedDeviceEnrollment;
+		decltype(github_profile_runtime::CountedDeviceEnrollment)& CountedDeviceEnrollment = Profile->CountedDeviceEnrollment;
 #endif
-		std::unique_ptr<application::device_authorization_application_host>
-																		  DeviceHost;
-		std::shared_ptr<adapters::github::detail::github_profile_catalog> ProfileCatalog;
-		std::unique_ptr<setup_device_enrollment>                          SetupDeviceEnrollment;
-		std::optional<core::device_authorization_generation>              SetupDeviceGeneration;
-		std::unique_ptr<application::setup_destination_host>              SetupDestination;
-		std::optional<core::setup_request_id>                             SetupConfigurationRequest;
-		bool                                                              SetupQueueReady             = false;
-		bool                                                              SetupConfigurationSubmitted = false;
-		core::setup_owner_id                                              SetupOwner{ 1U };
-		std::optional<core::setup_request_id>                             SetupDeviceRequest;
-		std::optional<core::github_identity_generation>                   SetupAcceptedGeneration;
+		decltype(github_profile_runtime::DeviceHost)&            DeviceHost            = Profile->DeviceHost;
+		decltype(github_profile_runtime::ProfileCatalog)&        ProfileCatalog        = Profile->ProfileCatalog;
+		decltype(github_profile_runtime::SetupDeviceEnrollment)& SetupDeviceEnrollment = Profile->SetupDeviceEnrollment;
+		std::optional<core::device_authorization_generation>     SetupDeviceGeneration;
+		std::unique_ptr<application::setup_destination_host>     SetupDestination;
+		std::optional<core::setup_request_id>                    SetupConfigurationRequest;
+		bool                                                     SetupQueueReady             = false;
+		bool                                                     SetupConfigurationSubmitted = false;
+		core::setup_owner_id                                     SetupOwner{ 1U };
+		std::optional<core::setup_request_id>                    SetupDeviceRequest;
+		std::optional<core::github_identity_generation>          SetupAcceptedGeneration;
 
-		std::deque<validated_github_host_profile>       Profiles;
-		std::vector<application::github_profile_option> ProfileOptions;
-		worker_executor                                 ProviderEffects;
-		worker_executor                                 VaultEffects;
-		worker_executor                                 ReviewMutationEffects;
-		worker_executor                                 ReviewSubmissionEffects;
+		decltype(github_profile_runtime::Profiles)&                Profiles                = Profile->Profiles;
+		decltype(github_profile_runtime::ProfileOptions)&          ProfileOptions          = Profile->ProfileOptions;
+		decltype(github_profile_runtime::ProviderEffects)&         ProviderEffects         = Profile->ProviderEffects;
+		decltype(github_profile_runtime::VaultEffects)&            VaultEffects            = Profile->VaultEffects;
+		decltype(github_profile_runtime::ReviewMutationEffects)&   ReviewMutationEffects   = Profile->ReviewMutationEffects;
+		decltype(github_profile_runtime::ReviewSubmissionEffects)& ReviewSubmissionEffects = Profile->ReviewSubmissionEffects;
 #if defined(BPR_BUILD_TESTING)
-		std::unique_ptr<detail::github_public_path_fixture_components> Fixture;
-		std::shared_ptr<detail::review_submission_fixture_state>       ReviewSubmissionServer;
-		std::unique_ptr<gated_review_mutation_decision_executor>       ReviewSubmissionDecisionGate;
+		decltype(github_profile_runtime::Fixture)&                Fixture                = Profile->Fixture;
+		decltype(github_profile_runtime::ReviewSubmissionServer)& ReviewSubmissionServer = Profile->ReviewSubmissionServer;
+		std::unique_ptr<gated_review_mutation_decision_executor>  ReviewSubmissionDecisionGate;
 		std::unique_ptr<gated_review_mutation_decision_executor>
 																  ReviewMutationDecisionGate;
 		std::optional<application::accepted_pull_request_handoff> LastAcceptedHandoff;
@@ -10059,67 +10626,64 @@ namespace bpr::app {
 		std::size_t                                   SelectedDiffPublications  = 0U;
 		std::size_t                                   SelectedDiffFailures      = 0U;
 		std::optional<application::workbench_selected_diff_publication>
-											 LastSelectedDiff;
-		std::size_t                          FixtureDiffHelperInvocations           = 0U;
-		bool                                 DisableWorkbenchSelectionWire          = false;
-		bool                                 DisableReviewLedgerGestureWire         = false;
-		bool                                 DisableAgentProcessLauncherComposition = false;
-		bool                                 DisableAgentHostComposition            = false;
-		bool                                 DisableAgentGestureWire                = false;
-		bool                                 DisableAgentFindingHostComposition     = false;
-		bool                                 DisableChatSessionHostComposition      = false;
-		bool                                 DisableCommentWorkshopComposition      = false;
-		bool                                 DisableMcpHelperComposition            = false;
-		bool                                 DisableSideChatPanelComposition        = false;
-		bool                                 DisableFindingQueueComposition         = false;
-		std::optional<std::filesystem::path> ExternalAgentExecutable;
-		std::optional<std::filesystem::path> CodexAgentExecutable;
-		bool                                 ReviewLedgerWasPresentOnEntry     = false;
-		bool                                 ReviewLedgerRoundTripPassed       = false;
-		bool                                 FixtureReviewMutationHostComposed = false;
+																				  LastSelectedDiff;
+		std::size_t                                                               FixtureDiffHelperInvocations           = 0U;
+		decltype(github_profile_runtime::DisableWorkbenchSelectionWire)&          DisableWorkbenchSelectionWire          = Profile->DisableWorkbenchSelectionWire;
+		decltype(github_profile_runtime::DisableReviewLedgerGestureWire)&         DisableReviewLedgerGestureWire         = Profile->DisableReviewLedgerGestureWire;
+		decltype(github_profile_runtime::DisableAgentProcessLauncherComposition)& DisableAgentProcessLauncherComposition = Profile->DisableAgentProcessLauncherComposition;
+		decltype(github_profile_runtime::DisableAgentHostComposition)&            DisableAgentHostComposition            = Profile->DisableAgentHostComposition;
+		decltype(github_profile_runtime::DisableAgentGestureWire)&                DisableAgentGestureWire                = Profile->DisableAgentGestureWire;
+		decltype(github_profile_runtime::DisableAgentFindingHostComposition)&     DisableAgentFindingHostComposition     = Profile->DisableAgentFindingHostComposition;
+		decltype(github_profile_runtime::DisableChatSessionHostComposition)&      DisableChatSessionHostComposition      = Profile->DisableChatSessionHostComposition;
+		decltype(github_profile_runtime::DisableCommentWorkshopComposition)&      DisableCommentWorkshopComposition      = Profile->DisableCommentWorkshopComposition;
+		decltype(github_profile_runtime::DisableMcpHelperComposition)&            DisableMcpHelperComposition            = Profile->DisableMcpHelperComposition;
+		decltype(github_profile_runtime::DisableSideChatPanelComposition)&        DisableSideChatPanelComposition        = Profile->DisableSideChatPanelComposition;
+		decltype(github_profile_runtime::DisableFindingQueueComposition)&         DisableFindingQueueComposition         = Profile->DisableFindingQueueComposition;
+		decltype(github_profile_runtime::ExternalAgentExecutable)&                ExternalAgentExecutable                = Profile->ExternalAgentExecutable;
+		decltype(github_profile_runtime::CodexAgentExecutable)&                   CodexAgentExecutable                   = Profile->CodexAgentExecutable;
+		bool                                                                      ReviewLedgerWasPresentOnEntry          = false;
+		bool                                                                      ReviewLedgerRoundTripPassed            = false;
+		bool                                                                      FixtureReviewMutationHostComposed      = false;
 #endif
-		std::unique_ptr<application::github_credential_vault_port> OwnedVault;
-		std::shared_ptr<github_wire_transport_factory_port>        TransportFactory;
+		decltype(github_profile_runtime::OwnedVault)&       OwnedVault       = Profile->OwnedVault;
+		decltype(github_profile_runtime::TransportFactory)& TransportFactory = Profile->TransportFactory;
 		// [[BPR-0316]]. What the anonymous provider was constructed with, kept
 		// so the live-candidate evidence can compare it against the shipped
 		// factory this composition built rather than assert a call site.
-		std::shared_ptr<github_wire_transport_factory_port>
-			AnonymousTransportFactory;
+		decltype(github_profile_runtime::AnonymousTransportFactory)& AnonymousTransportFactory = Profile->AnonymousTransportFactory;
 #if defined(BPR_BUILD_TESTING)
-		std::shared_ptr<shipped_anonymous_wire_transport_factory>
-			 ShippedAnonymousTransports;
-		bool PublicPreviewSelectionAvailable = false;
+		decltype(github_profile_runtime::ShippedAnonymousTransports)&      ShippedAnonymousTransports      = Profile->ShippedAnonymousTransports;
+		decltype(github_profile_runtime::PublicPreviewSelectionAvailable)& PublicPreviewSelectionAvailable = Profile->PublicPreviewSelectionAvailable;
 #endif
-		std::unique_ptr<github_provider> Provider;
+		decltype(github_profile_runtime::Provider)& Provider = Profile->Provider;
 		// RFC-BPR-0017's credential-free authorities. Declared beside the
 		// authenticated provider they are constructed beside, and after it, so
 		// they are destroyed first and the counting wrapper can never outlive
 		// the provider it forwards to.
-		std::unique_ptr<github_provider>                       AnonymousProvider;
-		std::unique_ptr<counting_anonymous_pull_requests>      CountedAnonymousPullRequests;
-		std::unique_ptr<anonymous_git_smart_transport_factory> AnonymousSmartGit;
+		decltype(github_profile_runtime::AnonymousProvider)&            AnonymousProvider            = Profile->AnonymousProvider;
+		decltype(github_profile_runtime::CountedAnonymousPullRequests)& CountedAnonymousPullRequests = Profile->CountedAnonymousPullRequests;
+		decltype(github_profile_runtime::AnonymousSmartGit)&            AnonymousSmartGit            = Profile->AnonymousSmartGit;
 		// Whether the selection handed those authorities to the host. False on
 		// every shipped platform in this slice, which is what makes the mode
 		// answer `public_preview_unavailable` with nothing sent.
-		bool PublicPreviewComposed = false;
+		decltype(github_profile_runtime::PublicPreviewComposed)& PublicPreviewComposed = Profile->PublicPreviewComposed;
 		// Sign-in gestures the host forwarded. Evidence that the refusal
 		// leaves the reviewer somewhere to go rather than nowhere.
-		std::size_t                    PublicPreviewSignInRequests = 0U;
-		std::size_t                    PublicPreviewWriteRefusals  = 0U;
-		public_preview_projection_sink PublicPreviewProjections;
-		std::unique_ptr<composition_public_preview_projection>
-																	 PublicPreviewProjectionFanOut;
-		qt::event_loop_executor                                      DecisionLane;
-		std::unique_ptr<qt::workbench_window>                        Window;
-		std::unique_ptr<review_submission_workflow>                  ReviewSubmission;
-		application::github_credential_binding_catalog               CredentialBindings;
-		std::unique_ptr<application::git_cache_port>                 GitCaches;
-		std::unique_ptr<application::epoch_catalog_port>             EpochCatalogs;
-		std::filesystem::path                                        ApplicationDataRoot;
-		std::unique_ptr<application::review_ledger_store_port>       ReviewLedger;
-		std::unique_ptr<application::review_ledger_application_host> ReviewLedgerHost;
-		mutable std::mutex                                           ReviewLedgerStateMutex;
-		std::optional<application::workbench_pull_request_authority> ReviewLedgerAuthority;
+		std::size_t                                                      PublicPreviewSignInRequests   = 0U;
+		std::size_t                                                      PublicPreviewWriteRefusals    = 0U;
+		decltype(github_profile_runtime::PublicPreviewProjections)&      PublicPreviewProjections      = Profile->PublicPreviewProjections;
+		decltype(github_profile_runtime::PublicPreviewProjectionFanOut)& PublicPreviewProjectionFanOut = Profile->PublicPreviewProjectionFanOut;
+		decltype(github_profile_runtime::DecisionLane)&                  DecisionLane                  = Profile->DecisionLane;
+		std::unique_ptr<qt::workbench_window>                            Window;
+		std::unique_ptr<review_submission_workflow>                      ReviewSubmission;
+		decltype(github_profile_runtime::CredentialBindings)&            CredentialBindings  = Profile->CredentialBindings;
+		decltype(github_profile_runtime::GitCaches)&                     GitCaches           = Profile->GitCaches;
+		decltype(github_profile_runtime::EpochCatalogs)&                 EpochCatalogs       = Profile->EpochCatalogs;
+		decltype(github_profile_runtime::ApplicationDataRoot)&           ApplicationDataRoot = Profile->ApplicationDataRoot;
+		std::unique_ptr<application::review_ledger_store_port>           ReviewLedger;
+		std::unique_ptr<application::review_ledger_application_host>     ReviewLedgerHost;
+		mutable std::mutex                                               ReviewLedgerStateMutex;
+		std::optional<application::workbench_pull_request_authority>     ReviewLedgerAuthority;
 		// [[BPR-0654]]. The overview's changed-since-review set: asked of the
 		// epoch host once per (last-reviewed head, accepted head, file list)
 		// and kept until one of them moves. `Changed` is empty while the host
@@ -10136,10 +10700,10 @@ namespace bpr::app {
 		bool                                            ReviewLedgerAvailable = false;
 		std::vector<application::durable_defect_record> DurableDefects;
 		std::unique_ptr<application::review_mutation_application_host>
-															ReviewMutationHost;
-		application::review_mutation_execution_grant        LiveReviewMutationGrant;
-		std::optional<designated_review_mutation_selection> InlineReviewBinding;
-		bool                                                AttendedReviewMutationMode = false;
+																	  ReviewMutationHost;
+		decltype(github_profile_runtime::LiveReviewMutationGrant)&    LiveReviewMutationGrant = Profile->LiveReviewMutationGrant;
+		std::optional<designated_review_mutation_selection>           InlineReviewBinding;
+		decltype(github_profile_runtime::AttendedReviewMutationMode)& AttendedReviewMutationMode = Profile->AttendedReviewMutationMode;
 		/// [[BPR-0657]]. The thread the next draft answers, named by a card's Reply.
 		std::optional<std::string> PendingReplyThread;
 		/// [[BPR-0657]]. The thread resolution in flight and what came of them.
@@ -10160,49 +10724,47 @@ namespace bpr::app {
 		std::uint64_t                                                ReviewDraftRevision = 0U;
 		std::vector<application::review_comment_projection>          ReviewProjection;
 		application::reconciliation_result                           ReviewReconciliation;
-		core::profile_window_catalog                                 DraftWindows;
 		core::bpr_window_context                                     DraftWindow;
+		core::application_session_id                                 WindowSession;
 		core::review_draft_scope_id                                  DraftScope;
-		std::uint64_t                                                LastDraftScope = 0;
-		std::unique_ptr<application::shared_draft_application_host>  SharedDrafts;
+		std::shared_ptr<application::shared_draft_application_host>  SharedDrafts;
 		application::shared_draft_consumer                           DraftConsumer;
 		std::optional<core::revisioned_review_draft>                 PublishingDraft;
-		std::unique_ptr<application::workbench_settings_port>        WorkbenchSettings;
+		decltype(github_profile_runtime::WorkbenchSettings)&         WorkbenchSettings = Profile->WorkbenchSettings;
 		composition_workbench_review                                 WorkbenchReview;
 		std::unique_ptr<application::snapshot_workbench_observation> WorkbenchObservations;
-		std::unique_ptr<application::appearance_settings_port>       AppearanceSettings;
-		bounded_theme_document_reader                                ThemeDocuments;
+		decltype(github_profile_runtime::AppearanceSettings)&        AppearanceSettings = Profile->AppearanceSettings;
+		decltype(github_profile_runtime::ThemeDocuments)&            ThemeDocuments     = Profile->ThemeDocuments;
 		// Built once and shared. The catalog is immutable after construction
 		// and the classifier holds no theme, palette, or font, so neither has
 		// to be rebuilt when appearance changes.
-		std::unique_ptr<adapters::syntax::packaged_definition_catalog> SyntaxDefinitions;
-		std::unique_ptr<composition_blob_source>                       SyntaxBlobs;
-		std::unique_ptr<adapters::syntax::packaged_syntax_classifier>  SyntaxClassification;
-		composition_appearance_projections                             AppearanceProjections;
-		std::unique_ptr<qt::appearance_profile>                        AppearanceProfile;
-		std::string                                                    AppliedSelectionColor;
-		std::string                                                    AppliedBaseColor;
-		bool                                                           AppliedFromProfile             = false;
-		bool                                                           WorkbenchPersistenceAvailable  = false;
-		bool                                                           AppearancePersistenceAvailable = false;
-		std::unique_ptr<application::epoch_entropy_port>               EpochEntropy;
-		std::unique_ptr<application::epoch_clock_port>                 EpochClock;
-		worker_executor                                                EpochEffects;
-		worker_executor                                                DiffEffects;
-		worker_executor                                                AgentEffects;
-		worker_executor                                                McpEffects;
-		worker_executor                                                WorkbenchEffects;
-		worker_executor                                                AppearanceEffects;
-		worker_executor                                                QueueEffects;
-		std::unique_ptr<application::epoch_application_host>           EpochHost;
-		std::unique_ptr<QTemporaryDir>                                 AgentWorkspaceRoot;
-		std::filesystem::path                                          AgentWorkspaceNeighbourhood;
-		std::string                                                    LastAgentWorkspacePath;
-		std::atomic<bool>                                              AgentWorkspaceRecoveryPending{ false };
-		std::atomic<bool>                                              AgentWorkspaceRecoveryPostFailed{ false };
-		std::optional<adapters::git::installed_agent_workspace_parent>
-																 AgentWorkspaceParent;
-		std::unique_ptr<adapters::agent::agent_process_launcher> AgentProcess;
+		decltype(github_profile_runtime::SyntaxDefinitions)&                SyntaxDefinitions = Profile->SyntaxDefinitions;
+		std::unique_ptr<composition_blob_source>                            SyntaxBlobs;
+		std::unique_ptr<adapters::syntax::packaged_syntax_classifier>       SyntaxClassification;
+		composition_appearance_projections                                  AppearanceProjections;
+		std::unique_ptr<qt::appearance_profile>                             AppearanceProfile;
+		std::string                                                         AppliedSelectionColor;
+		std::string                                                         AppliedBaseColor;
+		bool                                                                AppliedFromProfile             = false;
+		decltype(github_profile_runtime::WorkbenchPersistenceAvailable)&    WorkbenchPersistenceAvailable  = Profile->WorkbenchPersistenceAvailable;
+		decltype(github_profile_runtime::AppearancePersistenceAvailable)&   AppearancePersistenceAvailable = Profile->AppearancePersistenceAvailable;
+		decltype(github_profile_runtime::EpochEntropy)&                     EpochEntropy                   = Profile->EpochEntropy;
+		decltype(github_profile_runtime::EpochClock)&                       EpochClock                     = Profile->EpochClock;
+		decltype(github_profile_runtime::EpochEffects)&                     EpochEffects                   = Profile->EpochEffects;
+		decltype(github_profile_runtime::DiffEffects)&                      DiffEffects                    = Profile->DiffEffects;
+		decltype(github_profile_runtime::AgentEffects)&                     AgentEffects                   = Profile->AgentEffects;
+		decltype(github_profile_runtime::McpEffects)&                       McpEffects                     = Profile->McpEffects;
+		decltype(github_profile_runtime::WorkbenchEffects)&                 WorkbenchEffects               = Profile->WorkbenchEffects;
+		decltype(github_profile_runtime::AppearanceEffects)&                AppearanceEffects              = Profile->AppearanceEffects;
+		decltype(github_profile_runtime::QueueEffects)&                     QueueEffects                   = Profile->QueueEffects;
+		std::unique_ptr<application::epoch_application_host>                EpochHost;
+		decltype(github_profile_runtime::AgentWorkspaceRoot)&               AgentWorkspaceRoot          = Profile->AgentWorkspaceRoot;
+		decltype(github_profile_runtime::AgentWorkspaceNeighbourhood)&      AgentWorkspaceNeighbourhood = Profile->AgentWorkspaceNeighbourhood;
+		std::string                                                         LastAgentWorkspacePath;
+		decltype(github_profile_runtime::AgentWorkspaceRecoveryPending)&    AgentWorkspaceRecoveryPending    = Profile->AgentWorkspaceRecoveryPending;
+		decltype(github_profile_runtime::AgentWorkspaceRecoveryPostFailed)& AgentWorkspaceRecoveryPostFailed = Profile->AgentWorkspaceRecoveryPostFailed;
+		decltype(github_profile_runtime::AgentWorkspaceParent)&             AgentWorkspaceParent             = Profile->AgentWorkspaceParent;
+		std::unique_ptr<adapters::agent::agent_process_launcher>            AgentProcess;
 #if defined(BPR_BUILD_TESTING)
 		std::unique_ptr<composition_agent_process_launcher_probe> AgentProcessProbe;
 #endif
@@ -10261,16 +10823,17 @@ namespace bpr::app {
 		std::size_t                                                     FrozenSnapshotWrites     = 0U;
 		std::unique_ptr<composition_diff_projection>                    DiffProjections;
 		std::unique_ptr<application::diff_application_host>             DiffHost;
+		std::unique_ptr<application::workbench_settings_port>           SessionWorkbenchSettings;
 		std::unique_ptr<application::workbench_application_host>        WorkbenchHost;
 		std::unique_ptr<application::appearance_application_host>       AppearanceHost;
-		std::unique_ptr<application::queue_enrollment_store_port>       QueueStore;
-		std::unique_ptr<composition_queue_refresh>                      QueueRefresh;
-		std::unique_ptr<application::review_queue_application_host>     QueueHost;
-		std::optional<queue_activity_baseline>                          QueueActivityBaseline;
-		std::optional<queue_activity_fact>                              QueueActivity;
-		std::vector<queue_notification_transition>                      ActiveQueueNotifications;
-		std::unique_ptr<composition_github_projection>                  GithubProjectionFanOut;
-		std::unique_ptr<application::github_application_host>           Host;
+		decltype(github_profile_runtime::QueueStore)&                   QueueStore               = Profile->QueueStore;
+		decltype(github_profile_runtime::QueueRefresh)&                 QueueRefresh             = Profile->QueueRefresh;
+		decltype(github_profile_runtime::QueueHost)&                    QueueHost                = Profile->QueueHost;
+		decltype(github_profile_runtime::QueueActivityBaseline)&        QueueActivityBaseline    = Profile->QueueActivityBaseline;
+		decltype(github_profile_runtime::QueueActivity)&                QueueActivity            = Profile->QueueActivity;
+		decltype(github_profile_runtime::ActiveQueueNotifications)&     ActiveQueueNotifications = Profile->ActiveQueueNotifications;
+		decltype(github_profile_runtime::GithubProjectionFanOut)&       GithubProjectionFanOut   = Profile->GithubProjectionFanOut;
+		decltype(github_profile_runtime::Host)&                         Host                     = Profile->Host;
 		std::optional<application::workbench_selected_diff_publication> SelectedDiffPublication;
 		struct agent_review_facts
 		{
@@ -10283,17 +10846,17 @@ namespace bpr::app {
 			std::string                      Hostname;
 			core::repository_locator         Locator;
 		};
-		std::optional<agent_review_facts>                AgentReview;
-		std::optional<application::checkout_observation> ExistingCheckout;
-		bool                                             Closing                        = false;
-		bool                                             OtherShutdownBegun             = false;
-		bool                                             ShutdownPollScheduled          = false;
-		bool                                             ShutdownComplete               = false;
-		bool                                             ShutdownCleanupFailed          = false;
-		bool                                             AgentWorkspaceCleanupAttempted = false;
-		bool                                             AgentWorkspaceCleanupFailed    = false;
-		bool                                             NativePlatformVaultSelected    = false;
-		bool                                             EpochProjectionDeliveryFailed  = false;
+		std::optional<agent_review_facts>                                 AgentReview;
+		decltype(github_profile_runtime::ExistingCheckout)&               ExistingCheckout               = Profile->ExistingCheckout;
+		bool                                                              Closing                        = false;
+		bool                                                              OtherShutdownBegun             = false;
+		bool                                                              ShutdownPollScheduled          = false;
+		bool                                                              ShutdownComplete               = false;
+		bool                                                              ShutdownCleanupFailed          = false;
+		decltype(github_profile_runtime::AgentWorkspaceCleanupAttempted)& AgentWorkspaceCleanupAttempted = Profile->AgentWorkspaceCleanupAttempted;
+		decltype(github_profile_runtime::AgentWorkspaceCleanupFailed)&    AgentWorkspaceCleanupFailed    = Profile->AgentWorkspaceCleanupFailed;
+		decltype(github_profile_runtime::NativePlatformVaultSelected)&    NativePlatformVaultSelected    = Profile->NativePlatformVaultSelected;
+		bool                                                              EpochProjectionDeliveryFailed  = false;
 		// Classifications the panes actually took. Counted because "the
 		// classifier is linked" and "a pane received its answer" are different
 		// claims, and only the second one shows a reviewer anything.
@@ -10314,20 +10877,20 @@ namespace bpr::app {
 		// Times the presentation profile refused typography the host accepted.
 		// Both validate with the same core function, so this must stay zero;
 		// it exists so that if it ever does not, something says so.
-		std::size_t                                          AppearanceDivergences = 0U;
-		std::unique_ptr<application::notification_sink_port> NotificationSink;
-		qt::system_tray_notification_sink*                   SystemNotificationSink = nullptr;
-		std::unique_ptr<application::review_queue_notifier>  Notifications;
-		std::size_t                                          NotificationRequestsAttempted = 0U;
-		std::size_t                                          NotificationSelections        = 0U;
-		std::size_t                                          NotificationSelectionFailures = 0U;
+		std::size_t                                                      AppearanceDivergences         = 0U;
+		decltype(github_profile_runtime::NotificationSink)&              NotificationSink              = Profile->NotificationSink;
+		decltype(github_profile_runtime::SystemNotificationSink)&        SystemNotificationSink        = Profile->SystemNotificationSink;
+		decltype(github_profile_runtime::Notifications)&                 Notifications                 = Profile->Notifications;
+		decltype(github_profile_runtime::NotificationRequestsAttempted)& NotificationRequestsAttempted = Profile->NotificationRequestsAttempted;
+		decltype(github_profile_runtime::NotificationSelections)&        NotificationSelections        = Profile->NotificationSelections;
+		decltype(github_profile_runtime::NotificationSelectionFailures)& NotificationSelectionFailures = Profile->NotificationSelectionFailures;
 #if defined(BPR_BUILD_TESTING)
-		fixture_notification_sink* FixtureNotificationSink          = nullptr;
-		bool                       UseGrantedNotificationSink       = false;
-		bool                       CaptureSystemNotificationDisplay = false;
-		bool                       DisableNotificationRequestWire   = false;
-		bool                       DisableNotificationSelectionWire = false;
-		std::size_t                CapturedNotificationDisplays     = 0U;
+		decltype(github_profile_runtime::FixtureNotificationSink)&          FixtureNotificationSink          = Profile->FixtureNotificationSink;
+		decltype(github_profile_runtime::UseGrantedNotificationSink)&       UseGrantedNotificationSink       = Profile->UseGrantedNotificationSink;
+		decltype(github_profile_runtime::CaptureSystemNotificationDisplay)& CaptureSystemNotificationDisplay = Profile->CaptureSystemNotificationDisplay;
+		decltype(github_profile_runtime::DisableNotificationRequestWire)&   DisableNotificationRequestWire   = Profile->DisableNotificationRequestWire;
+		decltype(github_profile_runtime::DisableNotificationSelectionWire)& DisableNotificationSelectionWire = Profile->DisableNotificationSelectionWire;
+		decltype(github_profile_runtime::CapturedNotificationDisplays)&     CapturedNotificationDisplays     = Profile->CapturedNotificationDisplays;
 
 		/// The last turn this composition handed to the launch path, kept so a
 		/// course can read what was dispatched. It cannot be read back off the
@@ -10351,6 +10914,24 @@ namespace bpr::app {
 		} catch (...) {
 			return false;
 		}
+	}
+
+	[[nodiscard]] auto compatibility_window_context(core::bpr_profile_id aProfile) -> core::bpr_window_context
+	{
+		auto state = core::profile_window_state{ };
+		if (aProfile != core::default_bpr_profile_id) {
+			state.Profiles.push_back({ { aProfile, "Profile" }, { }, { } });
+			state.LastProfileId = aProfile.value();
+		}
+		auto catalog = core::profile_window_catalog::restore(std::move(state));
+		if (!catalog) {
+			throw std::runtime_error{ "compatibility window admission unavailable" };
+		}
+		auto launch = catalog->launch(aProfile, core::profile_launch_intent::activate);
+		if (!launch) {
+			throw std::runtime_error{ "compatibility window admission unavailable" };
+		}
+		return launch->Activated;
 	}
 
 	class github_application_startup::implementation final
@@ -10433,8 +11014,8 @@ namespace bpr::app {
 			if (!base) {
 				return std::unexpected(aStop.stop_requested() ? application::profile_registry_failure::cancelled : application::profile_registry_failure::unavailable);
 			}
-			RegistryStore = adapters::sqlite::make_profile_registry_store(*base);
-			return RegistryStore->load(aStop);
+			auto registryStore = adapters::sqlite::make_profile_registry_store(*base);
+			return registryStore->load(aStop);
 		}
 		auto save(const application::profile_registry_snapshot&, std::uint64_t, std::stop_token) -> application::profile_registry_result<application::profile_registry_snapshot> override
 		{
@@ -10458,6 +11039,7 @@ namespace bpr::app {
 			}
 			return *root;
 		}
+		bool OwnerOnly = false;
 		void publish(const application::profile_startup_terminal& aTerminal) override
 		{
 			if (Cancelled || (!aTerminal.Result && aTerminal.Result.error() == application::profile_startup_failure::cancelled)) {
@@ -10472,13 +11054,21 @@ namespace bpr::app {
 				return;
 			}
 			try {
-				auto runtime = std::unique_ptr<github_application>{ new github_application{ std::make_unique<github_application::implementation>(
-					std::move(Config), *aTerminal.Result, RegistryRoot, std::move(SavedQueue), std::move(Scratch)
+				auto profile = std::make_shared<github_profile_runtime>(std::move(Config), *aTerminal.Result, RegistryRoot, std::move(SavedQueue), std::move(Scratch)
 #if defined(BPR_BUILD_TESTING)
-																								   ,
-					Fixture, std::move(Options)
+																																					   ,
+																		Fixture, std::move(Options)
 #endif
-						) } };
+				);
+				auto runtime = std::unique_ptr<github_application>{ new github_application{ std::move(profile) } };
+				runtime->Profile->start_services();
+				if (!OwnerOnly) {
+					const auto context = compatibility_window_context(aTerminal.Result->Authority.profile());
+					if (!runtime->open_window(context)) {
+						throw std::runtime_error{ "initial window unavailable" };
+					}
+					runtime->Profile->Focused = context;
+				}
 				finish(std::move(runtime));
 			} catch (...) {
 				finish(std::unexpected(github_application_startup_failure::unavailable));
@@ -10498,12 +11088,11 @@ namespace bpr::app {
 				completion(std::move(aResult));
 			}
 		}
-		github_application_config                           Config;
-		github_application_startup_completion               Completion;
-		std::filesystem::path                               RegistryRoot;
-		std::shared_ptr<void>                               Scratch;
-		std::optional<application::durable_queue_state>     SavedQueue;
-		std::unique_ptr<application::profile_registry_port> RegistryStore;
+		github_application_config                       Config;
+		github_application_startup_completion           Completion;
+		std::filesystem::path                           RegistryRoot;
+		std::shared_ptr<void>                           Scratch;
+		std::optional<application::durable_queue_state> SavedQueue;
 #if defined(BPR_BUILD_TESTING)
 		std::optional<detail::github_public_path_fixture> Fixture;
 		detail::github_public_path_fixture_options        Options;
@@ -10527,54 +11116,179 @@ namespace bpr::app {
 		state->begin();
 		return handle;
 	}
-
-	github_application::github_application(
-		std::unique_ptr<implementation> aImplementation) noexcept
-		: Implementation{ std::move(aImplementation) }
+	auto github_application::start_profile(github_application_config aConfig, github_application_startup_completion aCompletion) -> std::unique_ptr<github_application_startup>
 	{
+		auto state       = std::make_shared<github_application_startup::implementation>(std::move(aConfig), std::move(aCompletion));
+		auto handle      = std::unique_ptr<github_application_startup>{ new github_application_startup{ state } };
+		state->OwnerOnly = true;
+		state->begin();
+		return handle;
 	}
 
+	github_application::github_application(std::shared_ptr<github_profile_runtime> aProfile) noexcept
+		: Profile{ std::move(aProfile) }
+	{ }
 	github_application::~github_application()
 	{
-		// Before any member is destroyed, so a callback delivered by the pump
-		// inside `~implementation` sees an expired token rather than a null
-		// `Implementation`.
+		begin_shutdown();
+		// The existing fallback drain now belongs to the profile facade, after all
+		// window sessions have been told to stop. Normal desktop close is already quiescent.
+		while (!profile_shutdown_complete()) {
+			QCoreApplication::processEvents(QEventLoop::AllEvents);
+			std::this_thread::yield();
+		}
 		Liveness.reset();
 	}
-
-	auto github_application::liveness() const noexcept -> std::weak_ptr<const void>
-	{
-		return Liveness;
-	}
-
+	auto github_application::liveness() const noexcept -> std::weak_ptr<const void> { return Liveness; }
 	void github_application::show()
 	{
-		Implementation->Window->show();
+		if (!InitialRetired && Implementation) {
+			Implementation->Window->show();
+		}
 	}
-
-	auto github_application::desktop_registry_root() const -> std::filesystem::path { return Implementation->RegistryRoot; }
-	auto github_application::desktop_scratch() const -> std::shared_ptr<void> { return Implementation->StartupScratch; }
-	void github_application::set_desktop_quit_handler(std::function<void(int)> aHandler) { Implementation->DesktopQuit = std::move(aHandler); }
+	auto github_application::desktop_registry_root() const -> std::filesystem::path { return Profile->RegistryRoot; }
+	auto github_application::desktop_scratch() const -> std::shared_ptr<void> { return Profile->StartupScratch; }
+	void github_application::set_desktop_quit_handler(std::function<void(int)> aHandler) { Profile->DesktopQuit = std::move(aHandler); }
+	void github_application::set_profile_label(std::string aLabel)
+	{
+		Profile->Admission.Label = std::move(aLabel);
+		const auto label         = QString::fromStdString(Profile->Admission.Label);
+		if (Profile->Settings) {
+			Profile->Settings->set_profile_label(label);
+		}
+		for (const auto& [context, session] : Sessions) {
+			if (!session->Closing) {
+				session->Window->set_profile_label(label);
+			}
+		}
+	}
+	void github_application::set_window_admission(std::function<bool(core::bpr_window_context)> aAdmission) { Profile->WindowAdmission = std::move(aAdmission); }
 	void github_application::request_quit(int aExitCode)
 	{
-		if (Implementation->DesktopQuit) {
-			Implementation->DesktopQuit(aExitCode);
+		if (Profile->DesktopQuit) {
+			Profile->DesktopQuit(aExitCode);
 		} else {
 			QCoreApplication::exit(aExitCode);
 		}
 	}
-
-	void github_application::begin_shutdown()
+	auto github_application::open_window(core::bpr_window_context aContext) -> bool
 	{
-		Implementation->begin_shutdown();
+		if (Profile->Closing || aContext.Profile != Profile->Admission.Authority.profile() || aContext.Window.value() == 0 || aContext.Generation.value() == 0 || Sessions.contains(aContext)) {
+			return false;
+		}
+		if (Profile->WindowAdmission && !Profile->WindowAdmission(aContext)) {
+			return false;
+		}
+		for (const auto& [context, session] : Sessions) {
+			if (context.Window == aContext.Window) {
+				return false;
+			}
+		}
+		try {
+			auto session = std::make_shared<implementation>(Profile, aContext);
+			Sessions.emplace(aContext, session);
+			auto weak         = liveness();
+			session->OnClosed = [this, weak, aContext] {
+				if (weak.expired()) {
+					return;
+				}
+				const auto found = Sessions.find(aContext);
+				if (found == Sessions.end()) {
+					return;
+				}
+				Profile->CleanupFailed = Profile->CleanupFailed || found->second->ShutdownCleanupFailed;
+				Sessions.erase(found);
+				if (Profile->Closing && Sessions.empty()) {
+					Profile->begin_shutdown();
+				}
+			};
+			session->start();
+			if (!Implementation) {
+				Implementation       = std::move(session);
+				Profile->FirstWindow = aContext;
+			}
+			return true;
+		} catch (...) {
+			Profile->Observers.erase(aContext);
+			const auto found = Sessions.find(aContext);
+			if (found != Sessions.end()) {
+				found->second->begin_shutdown();
+			}
+			return false;
+		}
 	}
-
-	auto github_application::window() noexcept -> qt::workbench_window&
+	void github_application::close_window(core::bpr_window_context aContext)
 	{
+		const auto found = Sessions.find(aContext);
+		if (found == Sessions.end()) {
+			return;
+		}
+		if (found->second == Implementation) {
+			InitialRetired = true;
+		}
+		found->second->begin_shutdown();
+	}
+	void github_application::focus_window(core::bpr_window_context aContext)
+	{
+		auto* selected = window(aContext);
+		if (!selected) {
+			return;
+		}
+		Profile->Focused = aContext;
+		selected->show();
+		if (!selected->isActiveWindow()) {
+			selected->raise();
+			selected->activateWindow();
+		}
+	}
+	auto github_application::window_quiescent(core::bpr_window_context aContext) const noexcept -> bool
+	{
+		const auto found = Sessions.find(aContext);
+		return found == Sessions.end() || found->second->ShutdownComplete;
+	}
+	auto github_application::windows() const -> std::vector<core::bpr_window_context>
+	{
+		auto result = std::vector<core::bpr_window_context>{ };
+		for (const auto& [context, session] : Sessions) {
+			if (!session->Closing) {
+				result.push_back(context);
+			}
+		}
+		return result;
+	}
+	auto github_application::window(core::bpr_window_context aContext) noexcept -> qt::workbench_window*
+	{
+		const auto found = Sessions.find(aContext);
+		return found == Sessions.end() || found->second->Closing || !Profile->current_window(aContext) ? nullptr : found->second->Window.get();
+	}
+	auto github_application::window() -> qt::workbench_window&
+	{
+		if (InitialRetired || !Implementation || !Implementation->Window) {
+			throw std::logic_error{ "initial window retired" };
+		}
 		return *Implementation->Window;
 	}
+	void github_application::begin_shutdown()
+	{
+		if (Profile->Closing) {
+			return;
+		}
+		Profile->Closing = true;
+		for (const auto& [context, session] : Sessions) {
+			session->begin_shutdown();
+		}
+		if (Sessions.empty()) {
+			Profile->begin_shutdown();
+		}
+	}
+	auto github_application::profile_shutdown_complete() const noexcept -> bool
+	{
+		Profile->poll_shutdown();
+		return Profile->ShutdownComplete;
+	}
+	auto github_application::profile_shutdown_cleanup_failed() const noexcept -> bool { return Profile->CleanupFailed; }
 
-	auto github_application::status() const noexcept -> github_application_status
+	auto github_application::implementation::status() const noexcept -> github_application_status
 	{
 		// How many spans the pane on screen carries right now. Read here rather
 		// than counted as it is adopted, because the question is about the
@@ -10582,198 +11296,220 @@ namespace bpr::app {
 		// agree with it by luck. BPR-0390.
 		const auto displayedSpanCount
 			= [this](const core::diff_side aSide) noexcept -> std::size_t {
-			if (Implementation->Window == nullptr) {
+			if (this->Window == nullptr) {
 				return 0U;
 			}
 			const auto& spans
-				= Implementation->Window->comparison_surface()->token_spans(aSide);
+				= this->Window->comparison_surface()->token_spans(aSide);
 			return spans ? spans->size() : 0U;
 		};
 		return {
-			.Closing                        = Implementation->Closing,
-			.ShutdownComplete               = Implementation->ShutdownComplete,
-			.ShutdownCleanupFailed          = Implementation->ShutdownCleanupFailed,
-			.AgentWorkspaceCleanupFailed    = Implementation->AgentWorkspaceCleanupFailed,
-			.NativePlatformVaultSelected    = Implementation->NativePlatformVaultSelected,
-			.EpochProjectionDeliveryFailed  = Implementation->EpochProjectionDeliveryFailed,
-			.EpochHandoffDeliveryFailed     = Implementation->Host->epoch_handoff_delivery_failed(),
-			.WorkbenchHostComposed          = Implementation->WorkbenchHost != nullptr,
-			.AppearanceHostComposed         = Implementation->AppearanceHost != nullptr,
-			.AgentHostComposed              = Implementation->AgentHost != nullptr,
-			.AppearancePersistenceAvailable = Implementation->AppearancePersistenceAvailable,
-			.AppearanceDurableWrites        = Implementation->AppearanceHost != nullptr
-				? Implementation->AppearanceHost->persisted_settings()
+			.Closing                        = this->Closing,
+			.ShutdownComplete               = this->ShutdownComplete,
+			.ShutdownCleanupFailed          = this->ShutdownCleanupFailed,
+			.AgentWorkspaceCleanupFailed    = this->AgentWorkspaceCleanupFailed,
+			.NativePlatformVaultSelected    = this->NativePlatformVaultSelected,
+			.EpochProjectionDeliveryFailed  = this->EpochProjectionDeliveryFailed,
+			.EpochHandoffDeliveryFailed     = this->WindowRead && this->WindowRead->epoch_handoff_delivery_failed(),
+			.WorkbenchHostComposed          = this->WorkbenchHost != nullptr,
+			.AppearanceHostComposed         = this->AppearanceHost != nullptr,
+			.AgentHostComposed              = this->AgentHost != nullptr,
+			.AppearancePersistenceAvailable = this->AppearancePersistenceAvailable,
+			.AppearanceDurableWrites        = this->AppearanceHost != nullptr
+				? this->AppearanceHost->persisted_settings()
 				: 0U,
-			.AppliedSelectionColor          = Implementation->AppliedSelectionColor,
-			.AppliedBaseColor               = Implementation->AppliedBaseColor,
-			.AppliedFromProfile             = Implementation->AppliedFromProfile,
-			.ObservedScheme                 = Implementation->AppearanceProfile
-				? Implementation->AppearanceProfile->observation().Scheme
+			.AppliedSelectionColor          = this->AppliedSelectionColor,
+			.AppliedBaseColor               = this->AppliedBaseColor,
+			.AppliedFromProfile             = this->AppliedFromProfile,
+			.ObservedScheme                 = this->AppearanceProfile
+				? this->AppearanceProfile->observation().Scheme
 				: core::os_color_scheme::unknown,
-			.ResolvedVariant                = Implementation->AppearanceProfile
-				? Implementation->AppearanceProfile->variant()
+			.ResolvedVariant                = this->AppearanceProfile
+				? this->AppearanceProfile->variant()
 				: core::appearance_variant::light,
-			.CustomisedRoles                = Implementation->AppearanceProfile
-				? Implementation->AppearanceProfile->customised_roles()
+			.CustomisedRoles                = this->AppearanceProfile
+				? this->AppearanceProfile->customised_roles()
 				: 0U,
-			.SyntaxClassifierComposed       = Implementation->SyntaxClassification != nullptr,
-			.AdoptedClassifications         = Implementation->AdoptedClassifications,
-			.ClassificationSubmissions      = Implementation->AppearanceHost != nullptr
-				? Implementation->AppearanceHost->classification_submissions()
+			.SyntaxClassifierComposed       = this->SyntaxClassification != nullptr,
+			.AdoptedClassifications         = this->AdoptedClassifications,
+			.ClassificationSubmissions      = this->AppearanceHost != nullptr
+				? this->AppearanceHost->classification_submissions()
 				: 0U,
-			.ClassificationCacheHits        = Implementation->AppearanceHost != nullptr
-				? Implementation->AppearanceHost->cache_hits()
+			.ClassificationCacheHits        = this->AppearanceHost != nullptr
+				? this->AppearanceHost->cache_hits()
 				: 0U,
-			.CoalescedClassifications       = Implementation->AppearanceHost != nullptr
-				? Implementation->AppearanceHost->coalesced_classifications()
+			.CoalescedClassifications       = this->AppearanceHost != nullptr
+				? this->AppearanceHost->coalesced_classifications()
 				: 0U,
-			.DroppedClassifications         = Implementation->DroppedClassifications,
-			.ClassificationFailures         = Implementation->AppearanceHost != nullptr
-				? Implementation->AppearanceHost->classification_failures()
+			.DroppedClassifications         = this->DroppedClassifications,
+			.ClassificationFailures         = this->AppearanceHost != nullptr
+				? this->AppearanceHost->classification_failures()
 				: 0U,
-			.ClassificationTerminals        = Implementation->AppearanceHost != nullptr
-				? Implementation->AppearanceHost->classification_terminals()
+			.ClassificationTerminals        = this->AppearanceHost != nullptr
+				? this->AppearanceHost->classification_terminals()
 				: 0U,
-			.DisplayedLeftClassified        = Implementation->Window != nullptr
-				&& static_cast<bool>(Implementation->Window->comparison_surface()
+			.DisplayedLeftClassified        = this->Window != nullptr
+				&& static_cast<bool>(this->Window->comparison_surface()
 										 ->token_spans(core::diff_side::left)),
-			.DisplayedRightClassified = Implementation->Window != nullptr
-				&& static_cast<bool>(Implementation->Window->comparison_surface()
+			.DisplayedRightClassified = this->Window != nullptr
+				&& static_cast<bool>(this->Window->comparison_surface()
 										 ->token_spans(core::diff_side::right)),
 			.DisplayedLeftSpans = displayedSpanCount(
 				core::diff_side::left),
 			.DisplayedRightSpans = displayedSpanCount(
 				core::diff_side::right),
-			.DisplayedComparison = Implementation->Window != nullptr
-				&& static_cast<bool>(Implementation->Window->comparison_surface()
+			.DisplayedComparison = this->Window != nullptr
+				&& static_cast<bool>(this->Window->comparison_surface()
 										 ->current_result()),
 			.DisplayAdoptedClassifications
-			= Implementation->DisplayAdoptedClassifications,
-			.AppearanceMode                = Implementation->AppearanceHost != nullptr
+			= this->DisplayAdoptedClassifications,
+			.AppearanceMode                = this->AppearanceHost != nullptr
 				? std::string{ core::stable_name(
-					  Implementation->AppearanceHost->settings().Mode) }
+					  this->AppearanceHost->settings().Mode) }
 				: std::string{ },
-			.AppearanceTabWidth            = Implementation->AppearanceHost != nullptr
-				? Implementation->AppearanceHost->settings().Typography.Code.TabWidth
+			.AppearanceTabWidth            = this->AppearanceHost != nullptr
+				? this->AppearanceHost->settings().Typography.Code.TabWidth
 				: 0U,
-			.AppearanceDivergences         = Implementation->AppearanceDivergences,
-			.ProfileMode                   = Implementation->AppearanceProfile
-				? Implementation->AppearanceProfile->mode()
+			.AppearanceDivergences         = this->AppearanceDivergences,
+			.ProfileMode                   = this->AppearanceProfile
+				? this->AppearanceProfile->mode()
 				: core::appearance_mode::system,
-			.ProfileVariant                = Implementation->AppearanceProfile
-				? Implementation->AppearanceProfile->variant()
+			.ProfileVariant                = this->AppearanceProfile
+				? this->AppearanceProfile->variant()
 				: core::appearance_variant::light,
-			.NotificationDeliveryComposed  = Implementation->Notifications != nullptr,
-			.NotificationPermission        = Implementation->NotificationSink != nullptr
-				? Implementation->NotificationSink->permission()
+			.NotificationDeliveryComposed  = this->Notifications != nullptr,
+			.NotificationPermission        = this->NotificationSink != nullptr
+				? this->NotificationSink->permission()
 				: application::notification_permission::refused,
-			.NotificationRequestsAttempted = Implementation->NotificationRequestsAttempted,
-			.NotificationRequestsSubmitted = Implementation->Notifications != nullptr
-				? Implementation->Notifications->statistics().Submitted
+			.NotificationRequestsAttempted = this->NotificationRequestsAttempted,
+			.NotificationRequestsSubmitted = this->Notifications != nullptr
+				? this->Notifications->statistics().Submitted
 				: 0U,
 			.NotificationRequestsSuppressedUnattributable
-			= Implementation->Notifications != nullptr
-				? Implementation->Notifications->statistics()
+			= this->Notifications != nullptr
+				? this->Notifications->statistics()
 					  .SuppressedUnattributableActivation
 				: 0U,
-			.NotificationActivations       = Implementation->Notifications != nullptr
-				? Implementation->Notifications->statistics().Activations
+			.NotificationActivations       = this->Notifications != nullptr
+				? this->Notifications->statistics().Activations
 				: 0U,
-			.NotificationSelections        = Implementation->NotificationSelections,
-			.NotificationSelectionFailures = Implementation->NotificationSelectionFailures,
-			.EpochStatus                   = Implementation->EpochHost->state().Status,
+			.NotificationSelections        = this->NotificationSelections,
+			.NotificationSelectionFailures = this->NotificationSelectionFailures,
+			.EpochStatus                   = this->EpochHost->state().Status,
 			.DeviceAuthorizationHostComposed
-			= Implementation->DeviceHost != nullptr,
+			= this->DeviceHost != nullptr,
 			.DeviceAuthorizationStage
-			= Implementation->DeviceProjections.last().Stage,
+			= this->DeviceProjections.last().Stage,
 			.DeviceAuthorizationCapabilityRegistered
-			= Implementation->DeviceCapabilityRegistered,
+			= this->DeviceCapabilityRegistered,
 			.DeviceAuthorizationTransportReached
-			= Implementation->UnregisteredDeviceTransport.reached(),
+			= this->UnregisteredDeviceTransport.reached(),
 			.DeviceAuthorizationPublications
-			= Implementation->DeviceProjections.published(),
+			= this->DeviceProjections.published(),
 			.DeviceAuthorizationBrowserComposed
-			= Implementation->DeviceBrowserComposed,
+			= this->DeviceBrowserComposed,
 			.DeviceAuthorizationHandoff
-			= Implementation->DeviceProjections.last_attempt(),
+			= this->DeviceProjections.last_attempt(),
 			.DeviceAuthorizationBrowserOpens
-			= Implementation->device_browser_opens(),
+			= this->device_browser_opens(),
 			.DeviceAuthorizationVaultStores
-			= Implementation->device_vault_stores(),
+			= this->device_vault_stores(),
 			.DeviceAuthorizationDurableCopies
-			= Implementation->device_durable_copies(),
+			= this->device_durable_copies(),
 			.DeviceAuthorizationTransportSubmissions
-			= Implementation->device_transport_submissions(),
+			= this->device_transport_submissions(),
 			.DeviceAuthorizationVaultStoredDigest
-			= Implementation->device_vault_stored_digest(),
+			= this->device_vault_stored_digest(),
 			.DeviceAuthorizationVaultStoredIsGrant
-			= Implementation->device_vault_stored_is_grant(),
+			= this->device_vault_stored_is_grant(),
 			.DeviceAuthorizationEnrollments
-			= Implementation->device_enrollments(),
+			= this->device_enrollments(),
 			.DeviceAuthorizationPanelComposed
-			= Implementation->DevicePanel != nullptr,
+			= this->DevicePanel != nullptr,
 			.DeviceAuthorizationRefreshRotations
-			= Implementation->DeviceRefreshObservation.Rotations,
+			= this->DeviceRefreshObservation.Rotations,
 			.DeviceAuthorizationRefreshState
-			= Implementation->DeviceRefreshObservation.State,
+			= this->DeviceRefreshObservation.State,
 			.DeviceAuthorizationRefreshBindings
-			= Implementation->DeviceRefreshBindings,
+			= this->DeviceRefreshBindings,
 			.DeviceAuthorizationRefreshResumes
-			= Implementation->DeviceRefreshResumes,
-			.PublicPreviewComposed = Implementation->PublicPreviewComposed,
+			= this->DeviceRefreshResumes,
+			.PublicPreviewComposed = this->PublicPreviewComposed,
 			.PublicPreviewUnavailable
-			= Implementation->public_preview_unavailable(),
+			= this->public_preview_unavailable(),
 			.PublicPreviewPolicyRefused
-			= Implementation->public_preview_policy_refused(),
-			.PublicPreviewSignedOut = Implementation->public_preview_signed_out(),
+			= this->public_preview_policy_refused(),
+			.PublicPreviewSignedOut = this->public_preview_signed_out(),
 			.PublicPreviewPublications
-			= Implementation->PublicPreviewProjections.published(),
-			.PublicPreviewRequests = Implementation->public_preview_requests(),
+			= this->PublicPreviewProjections.published(),
+			.PublicPreviewRequests = this->public_preview_requests(),
 			.PublicPreviewHeaderEffects
-			= Implementation->public_preview_header_effects(),
+			= this->public_preview_header_effects(),
 			.PublicPreviewVaultEffects
-			= Implementation->public_preview_vault_effects(),
+			= this->public_preview_vault_effects(),
 			.PublicPreviewSmartAcquisitions
-			= Implementation->AnonymousSmartGit == nullptr
+			= this->AnonymousSmartGit == nullptr
 				? 0U
-				: Implementation->AnonymousSmartGit->acquisitions(),
+				: this->AnonymousSmartGit->acquisitions(),
 			.PublicPreviewSignInRequests
-			= Implementation->PublicPreviewSignInRequests,
+			= this->PublicPreviewSignInRequests,
 			.PublicPreviewReviewCommentsObserved
-			= Implementation->PublicPreviewProjections.last().ReviewComments
+			= this->PublicPreviewProjections.last().ReviewComments
 				== application::public_preview_observation::observed,
 			.PublicPreviewReviewCommentGroups
-			= Implementation->PublicPreviewProjections.last()
+			= this->PublicPreviewProjections.last()
 				  .ReviewCommentGroups.size(),
 			.PublicPreviewWriteRefusals
-			= Implementation->PublicPreviewWriteRefusals,
+			= this->PublicPreviewWriteRefusals,
 			.PublicPreviewLiveCandidateProductionFactories
-			= Implementation->public_preview_production_factories(),
+			= this->public_preview_production_factories(),
 			.PublicPreviewWireRequests
-			= Implementation->public_preview_wire_requests(),
+			= this->public_preview_wire_requests(),
 			.PublicPreviewWireCapabilityProbes
-			= Implementation->public_preview_wire_capability_probes(),
+			= this->public_preview_wire_capability_probes(),
 			.PublicPreviewWireCredentialedRefusals
-			= Implementation->public_preview_wire_credentialed_refusals(),
+			= this->public_preview_wire_credentialed_refusals(),
 			.PublicPreviewBudgetObserved
-			= Implementation->public_preview_budget().has_value(),
+			= this->public_preview_budget().has_value(),
 			.PublicPreviewBudgetLimit
-			= Implementation->public_preview_budget().has_value()
-				? Implementation->public_preview_budget()->Limit
+			= this->public_preview_budget().has_value()
+				? this->public_preview_budget()->Limit
 				: 0U,
 			.PublicPreviewBudgetRemaining
-			= Implementation->public_preview_budget().has_value()
-				? Implementation->public_preview_budget()->Remaining
+			= this->public_preview_budget().has_value()
+				? this->public_preview_budget()->Remaining
 				: 0U,
 			.PublicPreviewBudgetResetUnixSeconds
-			= Implementation->public_preview_budget().has_value()
-				? Implementation->public_preview_budget()->ResetUnixSeconds
+			= this->public_preview_budget().has_value()
+				? this->public_preview_budget()->ResetUnixSeconds
 				: 0U,
 			.PublicPreviewSnapshotPublicPreview
-			= Implementation->public_preview_snapshot_signed_out(),
+			= this->public_preview_snapshot_signed_out(),
 			.PublicPreviewSnapshotHeadOid
-			= Implementation->public_preview_snapshot_head_oid(),
+			= this->public_preview_snapshot_head_oid(),
 		};
+	}
+
+	auto github_application::status() const noexcept -> github_application_status
+	{
+		if (Implementation) {
+			auto result = Implementation->status();
+			if (Profile->Closing) {
+				result.ShutdownComplete      = profile_shutdown_complete();
+				result.ShutdownCleanupFailed = Profile->CleanupFailed;
+			}
+			return result;
+		}
+		return { .Closing = true, .ShutdownComplete = true };
+	}
+
+	auto github_application::status(core::bpr_window_context aContext) const noexcept -> std::optional<github_application_status>
+	{
+		const auto found = Sessions.find(aContext);
+		if (found == Sessions.end()) {
+			return std::nullopt;
+		}
+		return found->second->status();
 	}
 
 	void github_application::select_device_authorization()
@@ -11003,14 +11739,14 @@ namespace bpr::app {
             auto next = aProfile == options.Profile ? options : detail::github_public_path_fixture_options{};
             if (!aRoot.empty()) { next.ApplicationDataRoot = aRoot; next.GitExecutable = options.GitExecutable; }
             next.Profile = aProfile;
-            return detail::github_application_fixture_access::start(aFixture, std::move(next), std::move(aDone)); }, std::move(aCompletion));
+            return detail::github_application_fixture_access::start_profile(aFixture, std::move(next), std::move(aDone)); }, std::move(aCompletion));
 	}
 	auto detail::github_application_fixture_access::start_desktop_public_preview_selection_available(github_application_config aConfig, profile_desktop_startup_completion aCompletion) -> std::unique_ptr<profile_desktop>
 	{
 		const auto profile = aConfig.Profile;
 		return profile_desktop::start_with_factory(profile, [config = std::move(aConfig)](core::bpr_profile_id aProfile, const std::filesystem::path& aRoot, github_application_startup_completion aDone) {
             auto next = profile_desktop::configuration_for_profile(config, aProfile, aRoot);
-            return detail::github_application_fixture_access::start_public_preview_selection_available(std::move(next), std::move(aDone)); }, std::move(aCompletion));
+            return detail::github_application_fixture_access::start_profile_public_preview_selection_available(std::move(next), std::move(aDone)); }, std::move(aCompletion));
 	}
 
 	auto detail::github_application_fixture_access::start(detail::github_public_path_fixture aFixture, detail::github_public_path_fixture_options aOptions, github_application_startup_completion aCompletion) -> std::unique_ptr<github_application_startup>
@@ -11020,10 +11756,26 @@ namespace bpr::app {
 		state->begin();
 		return handle;
 	}
+	auto detail::github_application_fixture_access::start_profile(detail::github_public_path_fixture aFixture, detail::github_public_path_fixture_options aOptions, github_application_startup_completion aCompletion) -> std::unique_ptr<github_application_startup>
+	{
+		auto state       = std::make_shared<github_application_startup::implementation>(github_application_config{ }, std::move(aCompletion), aFixture, std::move(aOptions));
+		auto handle      = std::unique_ptr<github_application_startup>{ new github_application_startup{ state } };
+		state->OwnerOnly = true;
+		state->begin();
+		return handle;
+	}
 	auto detail::github_application_fixture_access::start_public_preview_selection_available(github_application_config aConfig, github_application_startup_completion aCompletion) -> std::unique_ptr<github_application_startup>
 	{
 		auto state  = std::make_shared<github_application_startup::implementation>(std::move(aConfig), std::move(aCompletion), std::nullopt, detail::github_public_path_fixture_options{ .PublicPreviewSelectionAvailable = true });
 		auto handle = std::unique_ptr<github_application_startup>{ new github_application_startup{ state } };
+		state->begin();
+		return handle;
+	}
+	auto detail::github_application_fixture_access::start_profile_public_preview_selection_available(github_application_config aConfig, github_application_startup_completion aCompletion) -> std::unique_ptr<github_application_startup>
+	{
+		auto state       = std::make_shared<github_application_startup::implementation>(std::move(aConfig), std::move(aCompletion), std::nullopt, detail::github_public_path_fixture_options{ .PublicPreviewSelectionAvailable = true });
+		auto handle      = std::unique_ptr<github_application_startup>{ new github_application_startup{ state } };
+		state->OwnerOnly = true;
 		state->begin();
 		return handle;
 	}
@@ -11058,13 +11810,56 @@ namespace bpr::app {
 	auto detail::github_application_fixture_access::large_review_snapshot(
 		const github_application& aApplication) -> std::optional<application::github_pull_request_snapshot>
 	{
-		return aApplication.Implementation->Host->accepted_snapshot();
+		return aApplication.Implementation->WindowRead->accepted_snapshot();
+	}
+
+	auto detail::github_application_fixture_access::large_review_snapshot(const github_application& aApplication, core::bpr_window_context aContext) -> std::optional<application::github_pull_request_snapshot>
+	{
+		const auto found = aApplication.Sessions.find(aContext);
+		if (found == aApplication.Sessions.end() || found->second->Closing || !found->second->WindowRead) {
+			return std::nullopt;
+		}
+		return found->second->WindowRead->accepted_snapshot();
+	}
+	void detail::github_application_fixture_access::hold_window_read_terminal(github_application& aApplication, core::bpr_window_context aContext, bool aHold)
+	{
+		const auto found = aApplication.Sessions.find(aContext);
+		if (found != aApplication.Sessions.end() && !found->second->Closing && found->second->ReadDecision) {
+			found->second->ReadDecision->hold(aHold);
+		}
+	}
+	auto detail::github_application_fixture_access::held_window_read_terminals(const github_application& aApplication, core::bpr_window_context aContext) noexcept -> std::size_t
+	{
+		const auto found = aApplication.Sessions.find(aContext);
+		return found == aApplication.Sessions.end() || !found->second->ReadDecision ? 0U : found->second->ReadDecision->held();
 	}
 
 	auto detail::github_application_fixture_access::diff_work_evidence(
 		const github_application& aApplication) noexcept -> diff_work_fixture_evidence
 	{
 		const auto& implementation = *aApplication.Implementation;
+		const auto& host           = *implementation.DiffHost;
+		return {
+			.OutstandingJobs              = host.outstanding_jobs(),
+			.WorkbenchOutstandingRequests = implementation.WorkbenchHost->outstanding_requests(),
+			.EpochOutstandingJobs         = implementation.EpochHost->outstanding_jobs(),
+			.EpochMaintenancePending      = implementation.EpochHost->state().PendingMaintenance.has_value(),
+			.CacheEntries                 = host.cache_entries(),
+			.CacheBytes                   = host.cache_bytes(),
+			.FixtureDiffHelperInvocations = implementation.FixtureDiffHelperInvocations,
+			.Pending                      = host.state().Pending.has_value(),
+			.NavigationReady              = implementation.WorkbenchHost->state().Navigation.has_value(),
+			.Quiescent                    = host.is_quiescent(),
+		};
+	}
+	auto detail::github_application_fixture_access::diff_work_evidence(
+		const github_application& aApplication, core::bpr_window_context aContext) noexcept -> diff_work_fixture_evidence
+	{
+		const auto found = aApplication.Sessions.find(aContext);
+		if (found == aApplication.Sessions.end()) {
+			return { };
+		}
+		const auto& implementation = *found->second;
 		const auto& host           = *implementation.DiffHost;
 		return {
 			.OutstandingJobs              = host.outstanding_jobs(),
@@ -11325,7 +12120,7 @@ namespace bpr::app {
 		auto        headCacheDeleted = false;
 		auto        baseAvailability = -1;
 		auto        headAvailability = -1;
-		const auto& acceptedSnapshot = implementation->Host->accepted_snapshot();
+		const auto& acceptedSnapshot = implementation->WindowRead->accepted_snapshot();
 		const auto  acceptedBase     = acceptedSnapshot
 			? core::parse_git_commit_oid(
 				  acceptedSnapshot->PullRequest.BaseOid.value())
@@ -12158,7 +12953,7 @@ namespace bpr::app {
 
 		if (probe.Phase == state_type::phase::awaiting_observation) {
 			const auto& handoff  = *implementation->LastAcceptedHandoff;
-			const auto& snapshot = implementation->Host->accepted_snapshot();
+			const auto& snapshot = implementation->WindowRead->accepted_snapshot();
 			if (!snapshot.has_value() || host->outstanding_requests() != 0U
 				|| !host->state().Navigation.has_value()) {
 				return result::pending;
@@ -13527,7 +14322,7 @@ namespace bpr::app {
 		const auto& fixture   = implementation->Fixture->evidence();
 
 		if (probe.Phase == state_type::phase::awaiting_observation) {
-			const auto& snapshot = implementation->Host->accepted_snapshot();
+			const auto& snapshot = implementation->WindowRead->accepted_snapshot();
 			if (!snapshot.has_value() || host->outstanding_requests() != 0U
 				|| !host->state().Navigation.has_value()) {
 				return pending(reason::awaiting_workbench_observation);
@@ -13777,7 +14572,7 @@ namespace bpr::app {
 			&& fixture.HeadTwoOid.empty();
 
 		if (probe.Phase == state_type::phase::awaiting_observation) {
-			const auto& snapshot = implementation->Host->accepted_snapshot();
+			const auto& snapshot = implementation->WindowRead->accepted_snapshot();
 			const auto  resource = drawer_row(*window, uiforetw_resource_path);
 			const auto  rc       = drawer_row(*window, uiforetw_rc_path);
 			if (!snapshot.has_value()
@@ -15006,7 +15801,7 @@ namespace bpr::app {
 
 		if (probe.Phase == state_type::phase::awaiting_observation) {
 			const auto& handoff  = *implementation->LastAcceptedHandoff;
-			const auto& snapshot = implementation->Host->accepted_snapshot();
+			const auto& snapshot = implementation->WindowRead->accepted_snapshot();
 			if (!snapshot.has_value() || host->outstanding_requests() != 0U
 				|| host->actionable().empty()) {
 				return result::pending;

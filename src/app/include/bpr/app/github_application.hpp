@@ -6,11 +6,13 @@
 #include "bpr/application/notification_delivery.hpp"
 #include "bpr/application/profile_startup_admission.hpp"
 #include "bpr/core/device_authorization_model.hpp"
+#include "bpr/core/profile_window.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include <cstdint>
 #include <filesystem>
 #include <functional>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -19,6 +21,19 @@
 namespace bpr::app {
 	namespace detail {
 		class github_application_fixture_access;
+		struct window_context_less
+		{
+			[[nodiscard]] auto operator()(const core::bpr_window_context& aLeft, const core::bpr_window_context& aRight) const noexcept -> bool
+			{
+				if (aLeft.Profile != aRight.Profile) {
+					return aLeft.Profile.value() < aRight.Profile.value();
+				}
+				if (aLeft.Window != aRight.Window) {
+					return aLeft.Window.value() < aRight.Window.value();
+				}
+				return aLeft.Generation.value() < aRight.Generation.value();
+			}
+		};
 	}
 
 	/// \brief Describes the github application config record.
@@ -396,6 +411,7 @@ namespace bpr::app {
 
 	class github_application;
 	class profile_desktop;
+	class github_profile_runtime;
 	enum class github_application_startup_failure { invalid_profile,
 													registry,
 													root,
@@ -510,7 +526,12 @@ namespace bpr::app {
 		/// do in the middle of a read.
 		void attempt_public_preview_writes();
 
-		[[nodiscard]] auto window() noexcept -> qt::workbench_window&;
+		/// The compatibility accessor names the initial session only.
+		/// Throws after that session retires; it never selects a sibling.
+		[[nodiscard]] auto window() -> qt::workbench_window&;
+		[[nodiscard]] auto windows() const -> std::vector<core::bpr_window_context>;
+		[[nodiscard]] auto window(core::bpr_window_context aContext) noexcept -> qt::workbench_window*;
+		[[nodiscard]] auto status(core::bpr_window_context aContext) const noexcept -> std::optional<github_application_status>;
 		[[nodiscard]] auto status() const noexcept -> github_application_status;
 
 		/// \brief Reports what the signed-out live-candidate transport
@@ -527,20 +548,32 @@ namespace bpr::app {
 	private:
 		class implementation;
 		explicit github_application(
-			std::unique_ptr<implementation> aImplementation) noexcept;
+			std::shared_ptr<github_profile_runtime> aProfile) noexcept;
 
 		friend class detail::github_application_fixture_access;
 		friend class github_application_startup;
 		friend class profile_desktop;
-		[[nodiscard]] auto desktop_registry_root() const -> std::filesystem::path;
-		[[nodiscard]] auto desktop_scratch() const -> std::shared_ptr<void>;
-		void               set_desktop_quit_handler(std::function<void(int)> aHandler);
+		[[nodiscard]] auto        desktop_registry_root() const -> std::filesystem::path;
+		[[nodiscard]] auto        desktop_scratch() const -> std::shared_ptr<void>;
+		void                      set_desktop_quit_handler(std::function<void(int)> aHandler);
+		[[nodiscard]] static auto start_profile(github_application_config aConfig, github_application_startup_completion aCompletion) -> std::unique_ptr<github_application_startup>;
+		[[nodiscard]] auto        open_window(core::bpr_window_context aContext) -> bool;
+		void                      close_window(core::bpr_window_context aContext);
+		void                      focus_window(core::bpr_window_context aContext);
+		[[nodiscard]] auto        window_quiescent(core::bpr_window_context aContext) const noexcept -> bool;
+		[[nodiscard]] auto        profile_shutdown_complete() const noexcept -> bool;
+		[[nodiscard]] auto        profile_shutdown_cleanup_failed() const noexcept -> bool;
+		void                      set_window_admission(std::function<bool(core::bpr_window_context)> aAdmission);
+		void                      set_profile_label(std::string aLabel);
 
 		// Declared before `Implementation` only for readability; what matters is
 		// that the destructor body clears it, which precedes member destruction
 		// regardless of order.
-		std::shared_ptr<const int>      Liveness = std::make_shared<const int>(0);
-		std::unique_ptr<implementation> Implementation;
+		std::shared_ptr<const int>                                                                       Liveness = std::make_shared<const int>(0);
+		std::shared_ptr<github_profile_runtime>                                                          Profile;
+		std::map<core::bpr_window_context, std::shared_ptr<implementation>, detail::window_context_less> Sessions;
+		std::shared_ptr<implementation>                                                                  Implementation;
+		bool                                                                                             InitialRetired = false;
 	};
 }
 

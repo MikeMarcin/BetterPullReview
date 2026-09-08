@@ -157,8 +157,12 @@ namespace bpr::app::detail {
 
 		struct fixture_json_options : glz::opts
 		{
-			bool escape_control_characters    = true;
-			bool validate_skipped             = true;
+			// Glaze discovers these option overrides by their exact library-defined names.
+			// NOLINTNEXTLINE(readability-identifier-naming)
+			bool escape_control_characters = true;
+			// NOLINTNEXTLINE(readability-identifier-naming)
+			bool validate_skipped = true;
+			// NOLINTNEXTLINE(readability-identifier-naming)
 			bool validate_trailing_whitespace = true;
 			constexpr fixture_json_options()
 			{
@@ -510,6 +514,71 @@ namespace bpr::app::detail {
 			return exchanges;
 		}
 
+		/// \brief The two exact synthetic reviews available to independent windows.
+		[[nodiscard]] auto independent_window_recording(const fixture_descriptor& aDescriptor)
+			-> std::vector<recorded_exchange>
+		{
+			if (aDescriptor.Paged || aDescriptor.Number.value() != 17U
+				|| aDescriptor.PullRequestId.value() != 3001U) {
+				throw std::runtime_error{ "Independent windows require the bounded synthetic review fixture" };
+			}
+			auto result = load_recording(aDescriptor, aDescriptor.HeadOneOid);
+			auto second = result;
+			for (auto& exchange : second) {
+				const auto oldPath = exchange.Request.Path;
+				const auto oldBody = exchange.Request.Body;
+				replace_all(exchange.Request.Path, "/pulls/17", "/pulls/18");
+				replace_all(exchange.Request.Path, "/issues/17/", "/issues/18/");
+				replace_all(exchange.Request.Body, "\"number\":17", "\"number\":18");
+				if (exchange.Request.Path == oldPath && exchange.Request.Body == oldBody) {
+					continue; // Viewer, repository, checks and search have one exact shared answer.
+				}
+				replace_all(exchange.Response.Body, "PR_fixture_17", "PR_fixture_18");
+				replace_all(exchange.Response.Body, "PRR_fixture_", "PRR_fixture_18_");
+				replace_all(exchange.Response.Body, "PRRT_fixture_", "PRRT_fixture_18_");
+				replace_all(exchange.Response.Body, "PRRC_fixture_", "PRRC_fixture_18_");
+				replace_all(exchange.Response.Body, "IC_fixture_", "IC_fixture_18_");
+				if (exchange.Request.Operation == read_operation::list_reviews) {
+					auto reviews = QJsonDocument::fromJson(QByteArray::fromStdString(exchange.Response.Body)).array();
+					if (reviews.size() != 1) {
+						throw std::runtime_error{ "Independent review recording must contain one review" };
+					}
+					auto review = reviews.at(0).toObject();
+					review.insert(QStringLiteral("id"), 4002);
+					reviews.replace(0, review);
+					exchange.Response.Body = QJsonDocument{ reviews }.toJson(QJsonDocument::Compact).toStdString();
+				}
+				if (exchange.Request.Operation == read_operation::get_pull_request) {
+					auto body = QJsonDocument::fromJson(QByteArray::fromStdString(exchange.Response.Body)).object();
+					body.insert(QStringLiteral("id"), 3002);
+					body.insert(QStringLiteral("number"), 18);
+					exchange.Response.Body = QJsonDocument{ body }.toJson(QJsonDocument::Compact).toStdString();
+				}
+				result.push_back(std::move(exchange));
+			}
+			return result;
+		}
+
+		/// \brief Replays one exact request without consuming another window's position.
+		[[nodiscard]] auto perform_independent_read(
+			const std::vector<recorded_exchange>&         aExchanges,
+			const adapters::github::detail::wire_request& aRequest)
+			-> adapters::github::detail::response_result
+		{
+			const auto found = std::ranges::find_if(aExchanges, [&aRequest](const recorded_exchange& aExchange) {
+				const auto& expected = aExchange.Request;
+				return expected.Operation == aRequest.Operation && expected.Method == aRequest.Method
+					&& expected.Server == aRequest.Server && expected.Path == aRequest.Path
+					&& expected.Query == aRequest.Query && expected.Body == aRequest.Body;
+			});
+			// Keep the ordinary strict validator authoritative for headers, semantic
+			// request validity and response bounds, including unknown-request refusal.
+			auto replay = strict_recorded_transport{ found == aExchanges.end()
+														 ? std::vector<recorded_exchange>{ }
+														 : std::vector<recorded_exchange>{ *found } };
+			return replay.perform(aRequest);
+		}
+
 		/// \brief Builds the recording a signed-out read replays.
 		///
 		/// \details One recording rather than a second fixture. Every REST body
@@ -661,7 +730,7 @@ namespace bpr::app::detail {
 		{
 		public:
 			explicit fixture_replay(std::vector<recorded_exchange> aExchanges, bool aPaged = false)
-				: Strict{ aPaged ? std::vector<recorded_exchange>{ } : std::move(aExchanges) }
+				: Strict{ aPaged ? std::vector<recorded_exchange>{ } : std::exchange(aExchanges, { }) }
 			{
 				if (aPaged) {
 					Paged.emplace(std::move(aExchanges));
@@ -733,10 +802,13 @@ namespace bpr::app::detail {
 				const fixture_descriptor&                              aDescriptor,
 				const adapters::github::validated_github_host_profile& aSelectedProfile,
 				std::shared_ptr<deterministic_git_fixture>             aGit,
-				const github_epoch_fixture_phase aPhase, bool aHistory)
+				const github_epoch_fixture_phase aPhase, bool aHistory, bool aIndependentWindowReads)
 				: Descriptor{ aDescriptor }
 				, Profile{ aSelectedProfile }
 				, Git{ std::move(aGit) }
+				, IndependentWindowReads{ aIndependentWindowReads }
+				, IndependentRecording{ aIndependentWindowReads ? independent_window_recording(aDescriptor) : std::vector<recorded_exchange>{ } }
+				, IndependentBootstrap{ aIndependentWindowReads ? load_bootstrap_recording(aDescriptor) : std::vector<recorded_exchange>{ } }
 				, HistoryHeads{ history_heads(aDescriptor, aHistory) }
 				, BootstrapRecording{ load_bootstrap_recording(Descriptor) }
 				, Recording{ [&] {
@@ -797,6 +869,9 @@ namespace bpr::app::detail {
 			const fixture_descriptor                        Descriptor;
 			adapters::github::validated_github_host_profile Profile;
 			std::shared_ptr<deterministic_git_fixture>      Git;
+			const bool                                      IndependentWindowReads;
+			const std::vector<recorded_exchange>            IndependentRecording;
+			const std::vector<recorded_exchange>            IndependentBootstrap;
 			const std::vector<std::string>                  HistoryHeads;
 			std::size_t                                     HistoryIndex = 0U;
 			fixture_replay                                  BootstrapRecording;
@@ -817,7 +892,8 @@ namespace bpr::app::detail {
 			// the same authority -- so under that course, and only there, the
 			// recorded transports serve each of them. The counts are still
 			// kept, so a course that reads them still reads the truth.
-			bool RepeatSessions = false;
+			bool                                        RepeatSessions = false;
+			std::optional<core::application_session_id> AuthenticationSession;
 			// [[BPR-0657]]. A refresh replays the recorded read script from
 			// its start once it is consumed, so the product's re-read is
 			// served with the mutation overlay rather than refused.
@@ -1168,6 +1244,12 @@ namespace bpr::app::detail {
 							application::github_provider_failure::malformed_response),
 					};
 				}
+				const auto parentSession = std::visit([](const auto& aParent) { return aParent.ApplicationSession; }, aRequest.Correlation.Parent);
+				if ((aRequest.Correlation.AuthenticationSession && (Role != fixture_transport_role::account || aRequest.Correlation.AuthenticationSession->value() == 0U))
+					|| (Role == fixture_transport_role::account && (!State->AuthenticationSession || aRequest.Correlation.AuthenticationSession.value_or(parentSession) != *State->AuthenticationSession))) {
+					State->RecordingFailure = -4;
+					return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::authentication) };
+				}
 				if (Role == fixture_transport_role::anonymous
 					&& carries_credential(aRequest.Wire.Headers)) {
 					State->RecordingFailure = -3;
@@ -1192,7 +1274,9 @@ namespace bpr::app::detail {
 					&& aRequest.Wire.Operation == read_operation::get_repository) {
 					recording.replay_from(read_operation::get_repository);
 				}
-				auto response = recording.perform(aRequest.Wire);
+				auto response = State->IndependentWindowReads && Role != fixture_transport_role::anonymous
+					? perform_independent_read(Role == fixture_transport_role::bootstrap ? State->IndependentBootstrap : State->IndependentRecording, aRequest.Wire)
+					: recording.perform(aRequest.Wire);
 				if (!response.has_value()) {
 					State->RecordingFailure = static_cast<int>(response.error().Code);
 					return github_wire_error{
@@ -1240,7 +1324,7 @@ namespace bpr::app::detail {
 					// above, and for the same session: the host invalidates
 					// the identity's cached capabilities when the generation
 					// advances, so a second establishment probes again.
-					|| aRequest.Correlation.Part != State->CapabilityCalls % adapters::github::detail::capability_probe_part_count
+					|| (!State->IndependentWindowReads && aRequest.Correlation.Part != State->CapabilityCalls % adapters::github::detail::capability_probe_part_count)
 					|| (!State->RepeatSessions && State->CapabilityCalls >= adapters::github::detail::capability_probe_part_count)) {
 					return github_capability_probe_wire_error{
 						.Correlation = aRequest.Correlation,
@@ -1291,13 +1375,15 @@ namespace bpr::app::detail {
 				const auto& fixture = State->Descriptor;
 				// Ordinary fixtures serve one or two exact heads. History replay
 				// additionally accepts only the explicit stored head inventory.
-				const auto acceptedHead = State->serves_head(head);
+				const auto acceptedHead   = State->IndependentWindowReads ? head == fixture.HeadOneOid : State->serves_head(head);
+				const auto acceptedReview = (aContext.Authority.PullRequest == fixture.PullRequestId && aContext.Authority.Number == fixture.Number)
+					|| (State->IndependentWindowReads && aContext.Authority.PullRequest == core::pull_request_id{ 3002U }
+						&& aContext.Authority.Number == core::pull_request_number{ 18U });
 				if (Role != fixture_transport_role::account
 					|| !application::valid(aContext)
 					|| aContext.Authority.Account != fixture.AccountId
 					|| aContext.Authority.Repository != fixture.RepositoryId
-					|| aContext.Authority.PullRequest != fixture.PullRequestId
-					|| aContext.Authority.Number != fixture.Number
+					|| !acceptedReview
 					|| aContext.Repository
 						!= core::repository_locator{
 							.Owner = std::string{ fixture.Owner },
@@ -1397,6 +1483,7 @@ namespace bpr::app::detail {
 				if (State->RepeatSessions && State->AccountFactoryCalls != 0U) {
 					State->Recording.rewind();
 				}
+				State->AuthenticationSession = aCredential.Context.ApplicationSession;
 				++State->AccountFactoryCalls;
 				return AccountTransport;
 			}
@@ -2471,8 +2558,8 @@ namespace bpr::app::detail {
 			const auto served = descriptor(aFixture);
 			Git               = make_git_fixture(served.Packs);
 			Recording         = std::make_shared<fixture_recording_state>(
-				served, aProfile, Git, aOptions.EpochPhase, aOptions.LargeReviewHistory);
-			Recording->RepeatSessions = aOptions.DeviceRefreshCourse || aOptions.PersistDeviceBindings;
+				served, aProfile, Git, aOptions.EpochPhase, aOptions.LargeReviewHistory, aOptions.IndependentWindowReads);
+			Recording->RepeatSessions = aOptions.DeviceRefreshCourse || aOptions.PersistDeviceBindings || aOptions.IndependentWindowReads;
 			Recording->RepeatReads    = aOptions.RepeatReadSessions;
 			Factory                   = std::make_shared<fixture_transport_factory>(Recording);
 			VaultState                = aOptions.SharedDeviceVault ? aOptions.SharedDeviceVault : make_shared_github_fixture_vault();

@@ -151,9 +151,11 @@ namespace bpr::application {
 		auto operator=(github_application_host&&)
 			-> github_application_host& = delete;
 
-		void               dispatch(const core::github_event& aEvent);
+		void dispatch(const core::github_event& aEvent);
+		/// \brief Attaches an exact read window before or after authentication; accepted identity binds it until exact retirement.
 		[[nodiscard]] auto attach_window(const std::shared_ptr<github_window_read_host>& aWindow) -> bool;
-		void               detach_window(core::bpr_window_context aWindow);
+		/// \brief Retires an explicit attachment before considering the standalone legacy read slot.
+		void detach_window(core::bpr_window_context aWindow);
 		// The provenance is the caller's statement about where the material
 		// came from, and only the device-authorization enrollment boundary
 		// says `device_grant`. It decides nothing about the session: it

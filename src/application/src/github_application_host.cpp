@@ -1027,8 +1027,11 @@ namespace bpr::application {
 				static_cast<void>(ReadWindow->retire(*PublishedSession));
 			}
 			for (auto& slot : AttachedWindows) {
-				if (auto window = slot.Host) {
-					static_cast<void>(window->retire(*PublishedSession));
+				if (slot.Host->retire(*PublishedSession)) {
+					// Only exact retirement authorizes this live attachment to bind
+					// the profile owner's next accepted authentication identity.
+					slot.Authority.reset();
+					slot.Account = { };
 				}
 			}
 			PublishedSession.reset();
@@ -1043,6 +1046,9 @@ namespace bpr::application {
 			const auto session = current_profile_session();
 			if (!session) {
 				std::visit([this](const auto& aTyped) { dispatch_core(core::github_event{ aTyped }); }, aEvent);
+				return;
+			}
+			if (!ReadWindow && (ExplicitPrimaryAttached || AttachedWindows.size() >= 32U)) {
 				return;
 			}
 			if (!ReadWindow) {
@@ -1079,7 +1085,7 @@ namespace bpr::application {
 		{
 			core::bpr_window_context                 Context;
 			core::application_session_id             Session;
-			github_profile_authority                 Authority;
+			std::optional<github_profile_authority>  Authority;
 			core::github_account_id                  Account;
 			std::shared_ptr<github_window_read_host> Host;
 			bool                                     Detaching = false;
@@ -1088,8 +1094,10 @@ namespace bpr::application {
 		{
 			std::erase_if(AttachedWindows, [](const auto& aSlot) { return (aSlot.Detaching && aSlot.Host->is_quiescent()); });
 			const auto session = current_profile_session();
-			if (Closing || !session || !aWindow || aWindow->window().Profile != BprProfile
-				|| aWindow->window().Window.value() <= LastAttachedWindow.value() || AttachedWindows.size() >= 31U
+			if (Closing || !aWindow || aWindow->window().Profile != BprProfile
+				|| aWindow->window().Generation.value() == 0U || aWindow->state().ApplicationSession.value() == 0U
+				|| (!session && aWindow->state().ActiveProfile.has_value())
+				|| aWindow->window().Window.value() <= LastAttachedWindow.value() || AttachedWindows.size() + (ReadWindow ? 1U : 0U) >= 32U
 				|| aWindow->state().ApplicationSession == State.ApplicationSession) {
 				return false;
 			}
@@ -1098,17 +1106,29 @@ namespace bpr::application {
 					return false;
 				}
 			}
-			if (!aWindow->adopt(*session)) {
+			if (session && !aWindow->adopt(*session)) {
 				return false;
 			}
-			AttachedWindows.push_back({ aWindow->window(), aWindow->state().ApplicationSession, session->ProfileAuthority, session->Session.Viewer.Account, aWindow });
-			LastAttachedWindow = aWindow->window().Window;
-			PublishedSession   = session;
+			AttachedWindows.push_back({ aWindow->window(), aWindow->state().ApplicationSession,
+										session ? std::optional{ session->ProfileAuthority } : std::nullopt,
+										session ? session->Session.Viewer.Account : core::github_account_id{ }, aWindow });
+			ExplicitPrimaryAttached = ExplicitPrimaryAttached || aWindow->window() == core::bpr_window_context{ BprProfile, core::bpr_window_id{ 1 }, core::bpr_window_generation{ 1 } };
+			LastAttachedWindow      = aWindow->window().Window;
+			if (session) {
+				PublishedSession = session;
+			}
 			return true;
 		}
 		void detach_window(const core::bpr_window_context aContext)
 		{
-			if (aContext == core::bpr_window_context{ BprProfile, core::bpr_window_id{ 1 }, core::bpr_window_generation{ 1 } }) {
+			const auto attached = std::ranges::find_if(AttachedWindows, [aContext](const auto& aSlot) { return aSlot.Context == aContext; });
+			if (attached != AttachedWindows.end()) {
+				attached->Host->shutdown();
+				attached->Detaching = true;
+				std::erase_if(AttachedWindows, [](const auto& aSlot) { return aSlot.Detaching && aSlot.Host->is_quiescent(); });
+				return;
+			}
+			if (!ExplicitPrimaryAttached && aContext == core::bpr_window_context{ BprProfile, core::bpr_window_id{ 1 }, core::bpr_window_generation{ 1 } }) {
 				if (ReadWindow) {
 					ReadWindow->shutdown();
 				}
@@ -1118,19 +1138,9 @@ namespace bpr::application {
 				Epochs              = nullptr;
 				AcceptedSnapshot.reset();
 				ReviewMutationTransport.reset();
-				return;
 			}
-			for (auto& slot : AttachedWindows) {
-				if (slot.Context == aContext) {
-					if (auto window = slot.Host) {
-						window->shutdown();
-					}
-					slot.Detaching = true;
-					break;
-				}
-			}
-			std::erase_if(AttachedWindows, [](const auto& aSlot) { return (aSlot.Detaching && aSlot.Host->is_quiescent()); });
 		}
+
 		void publish_profile_session()
 		{
 			const auto session = current_profile_session();
@@ -1142,11 +1152,12 @@ namespace bpr::application {
 				static_cast<void>(ReadWindow->adopt(*session));
 			}
 			for (auto& slot : AttachedWindows) {
-				if (slot.Detaching || slot.Authority != session->ProfileAuthority || slot.Account != session->Session.Viewer.Account) {
+				if (slot.Detaching || (slot.Authority && (*slot.Authority != session->ProfileAuthority || slot.Account != session->Session.Viewer.Account))) {
 					continue;
 				}
-				if (auto window = slot.Host) {
-					static_cast<void>(window->adopt(*session));
+				if (slot.Host->adopt(*session) && !slot.Authority) {
+					slot.Authority = session->ProfileAuthority;
+					slot.Account   = session->Session.Viewer.Account;
 				}
 			}
 		}
@@ -3868,8 +3879,9 @@ namespace bpr::application {
 		std::shared_ptr<github_window_read_host> ReadWindow;
 		std::vector<window_slot>                 AttachedWindows;
 		std::optional<github_profile_session>    PublishedSession;
-		bool                                     PrimaryReadClosed = false;
-		core::bpr_window_id                      LastAttachedWindow{ 1 };
+		bool                                     PrimaryReadClosed       = false;
+		bool                                     ExplicitPrimaryAttached = false;
+		core::bpr_window_id                      LastAttachedWindow{ };
 		core::github_state                       State;
 		github_profile_port&                     Profiles;
 		github_viewer_port&                      Viewers;

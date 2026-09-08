@@ -348,6 +348,9 @@ namespace {
 			auto       wire                 = std::shared_ptr<native_https_transport>{ std::move(*anonymousWire) };
 			const auto admitted             = make_native_git_smart_transport(wire, exact);
 			expect(admitted.has_value(), "anonymous-exact-generation-acquisition");
+			expect(!make_native_git_smart_transport(wire, exact, exact.ApplicationSession)
+					   && !make_native_git_smart_transport(wire, exact, core::application_session_id{ }),
+				   "anonymous-smart-refuses-any-authentication-provenance");
 			auto drifted                               = exact;
 			drifted.Revision.Source.IdentityGeneration = core::github_identity_generation{ 918U };
 			const auto refused                         = make_native_git_smart_transport(wire, drifted);
@@ -365,6 +368,17 @@ namespace {
 		wrongAuthority.ApplicationSession = core::application_session_id{ 999U };
 		const auto mismatched             = make_native_git_smart_transport(transport, wrongAuthority);
 		expect(!mismatched.has_value(), "mismatched-acquisition");
+		const auto windowLease = make_native_git_smart_transport(transport, wrongAuthority, context.ApplicationSession);
+		expect(windowLease.has_value(), "distinct-window-smart-acquisition-with-exact-authentication-provenance");
+		expect(!make_native_git_smart_transport(transport, wrongAuthority, core::application_session_id{ 888U })
+				   && !make_native_git_smart_transport(transport, wrongAuthority, core::application_session_id{ }),
+			   "forged-and-zero-smart-authentication-provenance-refused");
+		auto wrongGeneration                               = wrongAuthority;
+		wrongGeneration.Revision.Source.IdentityGeneration = core::github_identity_generation{ 999U };
+		expect(!make_native_git_smart_transport(transport, wrongGeneration, context.ApplicationSession), "smart-authentication-provenance-does-not-relax-generation");
+		auto wrongAccount              = wrongAuthority;
+		wrongAccount.Authority.Account = core::github_account_id{ 999U };
+		expect(!make_native_git_smart_transport(transport, wrongAccount, context.ApplicationSession), "smart-authentication-provenance-does-not-relax-account");
 
 		auto lease = make_native_git_smart_transport(transport, context);
 		expect(lease.has_value(), "exact-acquisition");
@@ -427,8 +441,12 @@ namespace {
 			: make_transport(*profile, credential, configuration);
 		std::fill(credential.begin(), credential.end(), '\0');
 		credential.clear();
-		const auto context = anonymous ? anonymous_smart_context() : smart_context();
-		auto       lease   = make_native_git_smart_transport(transport, context);
+		auto       context               = anonymous ? anonymous_smart_context() : smart_context();
+		const auto authenticationSession = anonymous ? std::optional<core::application_session_id>{ } : std::optional{ context.ApplicationSession };
+		if (!anonymous) {
+			context.ApplicationSession = core::application_session_id{ 900U };
+		}
+		auto lease = make_native_git_smart_transport(transport, context, authenticationSession);
 		expect(lease.has_value(), "fixture-lease");
 
 		if (anonymous) {
@@ -468,7 +486,7 @@ namespace {
 		}
 
 		if (aScenario == "revoke-isolation") {
-			auto other = make_native_git_smart_transport(transport, context);
+			auto other = make_native_git_smart_transport(transport, context, authenticationSession);
 			expect(other.has_value(), "isolation-other-lease");
 			const auto request = application::git_smart_discovery_request{ .Context = context };
 			application::git_smart_transport_result<

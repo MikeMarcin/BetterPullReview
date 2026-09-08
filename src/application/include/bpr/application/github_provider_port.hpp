@@ -327,6 +327,10 @@ namespace bpr::application {
 		// refuses a request naming the other rather than answering it.
 		core::github_access_mode Mode{ };
 
+		/// Trusted accepted profile session that owns the opaque credential lease.
+		/// Absence preserves the original same-session contract; Context remains window-local.
+		std::optional<core::application_session_id> AuthenticationSession;
+
 		auto operator<=>(const github_pull_request_provider_request&) const = default;
 	};
 

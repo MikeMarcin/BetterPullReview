@@ -638,13 +638,16 @@ namespace bpr::application {
 				return;
 			}
 			submit_pull_request(github_pull_request_provider_request{
-				.Context            = aContext,
-				.ProfileAuthority   = *AcceptedProfileAuthority,
-				.Viewer             = AcceptedSession->Viewer,
-				.CapabilityEvidence = *AcceptedCapabilityEvidence,
-				.AccountTransport   = AccountTransport,
-				.Attempt            = github_provider_attempt{ 1U },
-				.Mode               = AcceptedSession->Mode,
+				.Context               = aContext,
+				.ProfileAuthority      = *AcceptedProfileAuthority,
+				.Viewer                = AcceptedSession->Viewer,
+				.CapabilityEvidence    = *AcceptedCapabilityEvidence,
+				.AccountTransport      = AccountTransport,
+				.Attempt               = github_provider_attempt{ 1U },
+				.Mode                  = AcceptedSession->Mode,
+				.AuthenticationSession = AcceptedSession->Mode == core::github_access_mode::authenticated
+					? std::optional{ Session->ApplicationSession }
+					: std::nullopt,
 			});
 		}
 

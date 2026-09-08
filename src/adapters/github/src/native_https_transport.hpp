@@ -169,7 +169,8 @@ namespace bpr::adapters::github::detail {
 		friend class native_git_smart_transport;
 
 		[[nodiscard]] auto can_acquire_smart(
-			const application::git_smart_request_context& aContext) const noexcept
+			const application::git_smart_request_context& aContext,
+			std::optional<core::application_session_id>   aAuthenticationSession) const noexcept
 			-> bool;
 
 		[[nodiscard]] auto discover_for_lease(
@@ -204,7 +205,8 @@ namespace bpr::adapters::github::detail {
 
 	[[nodiscard]] auto make_native_git_smart_transport(
 		std::shared_ptr<native_https_transport>       aTransport,
-		const application::git_smart_request_context& aContext) noexcept
+		const application::git_smart_request_context& aContext,
+		std::optional<core::application_session_id>   aAuthenticationSession = std::nullopt) noexcept
 		-> application::git_smart_transport_result<
 			application::git_smart_transport>;
 

@@ -102,7 +102,7 @@ namespace bpr::app::detail::large_review_fixture {
 		const auto            end = std::min(aStart + 100U, aFiles.size());
 		glz::generic::array_t nodes;
 		for (auto index = aStart; index < end; ++index) {
-			nodes.emplace_back(glz::generic{ { "path", aFiles[index]["path"] }, { "viewerViewedState", "UNVIEWED" } });
+			nodes.emplace_back(glz::generic::object_t{ { "path", aFiles[index]["path"] }, { "viewerViewedState", "UNVIEWED" } });
 		}
 		return connection(std::move(nodes), aFiles.size(), end, "files-");
 	}
@@ -131,7 +131,7 @@ namespace bpr::app::detail::large_review_fixture {
 				{ "path", comment["path"] },
 				{ "replyTo", nullptr },
 			};
-			nodes.emplace_back(glz::generic{
+			nodes.emplace_back(glz::generic::object_t{
 				{ "comments", connection(glz::generic::array_t{ std::move(normalized) }, 1U, 1U, "comment-") },
 				{ "diffSide", comment["side"] },
 				{ "id", "SYNTHETIC_THREAD_" + id },
@@ -155,7 +155,7 @@ namespace bpr::app::detail::large_review_fixture {
 			glz::generic::array_t nodes;
 			for (auto index = start; index < end; ++index) {
 				const auto& file = aFiles[index];
-				nodes.emplace_back(glz::generic{
+				nodes.emplace_back(glz::generic::object_t{
 					{ "filename", file["path"] },
 					{ "status", "modified" },
 					{ "additions", file["additions"].is_null() ? glz::generic(0) : file["additions"] },

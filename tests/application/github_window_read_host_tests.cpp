@@ -105,7 +105,10 @@ namespace {
 		};
 		expect(host.adopt(session()), "presentation fixture adopts authenticated session");
 		host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 1 } });
-		const auto first    = provider.Calls.back();
+		const auto first = provider.Calls.back();
+		expect(first.Request.Context.ApplicationSession == core::application_session_id{ 2U }
+				   && first.Request.AuthenticationSession == session().ApplicationSession,
+			   "window causal session and trusted authentication provenance remain distinct");
 		const auto accepted = snapshot(first.Request);
 		first.Complete(application::github_pull_request_success{ first.Request, accepted });
 		lane.drain();

@@ -7,20 +7,30 @@
 #include <QEvent>
 #include <QObject>
 #include <QTimer>
+#include <limits>
 #include <map>
 #include <utility>
 
 namespace bpr::app {
+
 	class profile_desktop::implementation final : public QObject,
 												  public application::profile_management_projection_port,
 												  public std::enable_shared_from_this<implementation>
 	{
+		struct window_entry
+		{
+			core::bpr_window_context Context;
+			bool                     Opened  = false;
+			bool                     Closing = false;
+		};
 		struct runtime_entry
 		{
-			std::optional<core::bpr_window_context>     Context;
 			std::unique_ptr<github_application_startup> Startup;
 			std::unique_ptr<github_application>         Runtime;
-			bool                                        Closing = false;
+			std::map<core::bpr_window_id, window_entry> Windows;
+			std::uint64_t                               StartupSerial = 0;
+			bool                                        Started       = false;
+			bool                                        Closing       = false;
 		};
 
 	public:
@@ -48,6 +58,41 @@ namespace bpr::app {
 			const auto found = Runtimes.find(aProfile);
 			return found == Runtimes.end() ? nullptr : found->second.Runtime.get();
 		}
+		auto windows(core::bpr_profile_id aProfile) const -> std::vector<core::bpr_window_context>
+		{
+			std::vector<core::bpr_window_context> result;
+			const auto                            found = Runtimes.find(aProfile);
+			if (found != Runtimes.end()) {
+				for (const auto& [id, entry] : found->second.Windows) {
+					static_cast<void>(id);
+					if (entry.Opened && !entry.Closing) {
+						result.push_back(entry.Context);
+					}
+				}
+			}
+			return result;
+		}
+		auto window(core::bpr_window_context aContext) const noexcept -> qt::workbench_window*
+		{
+			const auto found = Runtimes.find(aContext.Profile);
+			if (found == Runtimes.end() || !found->second.Runtime) {
+				return nullptr;
+			}
+			const auto selected = found->second.Windows.find(aContext.Window);
+			if (selected == found->second.Windows.end() || selected->second.Context != aContext || selected->second.Closing) {
+				return nullptr;
+			}
+			return found->second.Runtime->window(aContext);
+		}
+		auto current(core::bpr_window_context aContext) const noexcept -> bool
+		{
+			const auto found = Runtimes.find(aContext.Profile);
+			if (Quitting || !Host || !Host->current(aContext) || found == Runtimes.end() || found->second.Closing) {
+				return false;
+			}
+			const auto selected = found->second.Windows.find(aContext.Window);
+			return selected != found->second.Windows.end() && selected->second.Context == aContext && !selected->second.Closing;
+		}
 		auto management_window() const noexcept -> qt::profile_management_window* { return Management.get(); }
 		void quit(int aExitCode)
 		{
@@ -70,11 +115,18 @@ namespace bpr::app {
 				if (entry.Startup) {
 					entry.Startup->cancel();
 				}
-				if (entry.Runtime) {
-					entry.Runtime->window().hide();
+				for (auto& [id, selected] : entry.Windows) {
+					static_cast<void>(id);
+					selected.Closing = true;
+					if (entry.Runtime && selected.Opened) {
+						entry.Runtime->close_window(selected.Context);
+					}
+				}
+				if (entry.Runtime && entry.Windows.empty()) {
 					entry.Runtime->begin_shutdown();
 				}
 			}
+			finish_initial(std::unexpected(github_application_startup_failure::cancelled));
 		}
 		auto is_quiescent() const noexcept -> bool { return Quitting && Runtimes.empty() && (!Host || Host->is_quiescent()) && Effects.idle(); }
 		auto exit_code() const noexcept -> int { return ExitCode; }
@@ -88,80 +140,127 @@ namespace bpr::app {
 				if (!entry.Runtime) {
 					continue;
 				}
-				entry.Runtime->window().adopt_profile_management(aProjection, profile);
-				for (const auto& item : aProjection.Profiles) {
-					if (item.Profile == profile) {
-						entry.Runtime->window().set_profile_label(QString::fromStdString(item.Label));
-						break;
+				for (const auto context : windows(profile)) {
+					auto* presented = window(context);
+					if (!presented) {
+						continue;
+					}
+					presented->adopt_profile_management(aProjection, profile);
+					for (const auto& item : aProjection.Profiles) {
+						if (item.Profile == profile) {
+							presented->set_profile_label(QString::fromStdString(item.Label));
+							break;
+						}
 					}
 				}
 			}
-			if (!InitialRegistered && aProjection.Ready && !aProjection.Closing) {
-				InitialRegistered  = true;
-				const auto initial = Runtimes.find(Initial);
-				if (initial != Runtimes.end() && initial->second.Runtime && !initial->second.Closing) {
-					Host->apply(application::open_bpr_profile_intent{ Initial });
-				}
+			if (!InitialRegistered && aProjection.Ready && !aProjection.Closing && !Quitting) {
+				InitialRegistered = true;
+				Host->apply(application::open_bpr_profile_intent{ Initial });
+			} else if (!InitialRegistered && aProjection.Failure && Completion && !Quitting) {
+				finish_initial(std::unexpected(github_application_startup_failure::registry));
+				quit(1);
 			}
 		}
 		void perform(const application::profile_runtime_command& aCommand) override
 		{
+			if (Quitting || !Host || !Host->current(aCommand.Context)) {
+				return;
+			}
 			const auto profile = aCommand.Context.Profile;
 			auto       found   = Runtimes.find(profile);
 			if (aCommand.Kind == application::profile_runtime_command_kind::activate) {
-				if (found != Runtimes.end() && found->second.Runtime && found->second.Context == aCommand.Context && !found->second.Closing) {
-					auto& window = found->second.Runtime->window();
-					if (window.isMinimized()) {
-						window.showNormal();
-					} else {
-						window.show();
-					}
-					window.raise();
-					window.activateWindow();
+				if (current(aCommand.Context) && found != Runtimes.end() && found->second.Runtime) {
+					found->second.Runtime->focus_window(aCommand.Context);
 				}
 				return;
 			}
-			if (found != Runtimes.end() && found->second.Runtime && !found->second.Context && !found->second.Closing) {
-				found->second.Context = aCommand.Context;
-				static_cast<void>(Host->complete_open(aCommand.Context));
+			if (found == Runtimes.end()) {
+				start_runtime(profile, aCommand.Context);
 				return;
 			}
-			start_runtime(profile, aCommand.Context);
+			auto& entry = found->second;
+			if (entry.Closing || entry.Windows.contains(aCommand.Context.Window)) {
+				static_cast<void>(Host->complete_open(aCommand.Context, std::unexpected(application::profile_management_failure::busy)));
+				return;
+			}
+			entry.Windows.emplace(aCommand.Context.Window, window_entry{ aCommand.Context });
+			if (entry.Runtime) {
+				open_window(aCommand.Context);
+			}
 		}
 
 	protected:
 		auto eventFilter(QObject* aObject, QEvent* aEvent) -> bool override
 		{
-			if (aEvent->type() == QEvent::Close) {
-				if (aObject == Management.get() && Runtimes.empty()) {
-					quit(0);
+			if (aEvent->type() == QEvent::Close && aObject == Management.get() && Runtimes.empty()) {
+				quit(0);
+			}
+			if (aEvent->type() != QEvent::Close && aEvent->type() != QEvent::WindowActivate) {
+				return QObject::eventFilter(aObject, aEvent);
+			}
+			for (auto& [profile, entry] : Runtimes) {
+				static_cast<void>(profile);
+				if (!entry.Runtime) {
+					continue;
 				}
-				for (auto& [profile, entry] : Runtimes) {
-					static_cast<void>(profile);
-					if (entry.Runtime && &entry.Runtime->window() == aObject && !entry.Closing) {
-						entry.Closing = true;
-						if (entry.Context && Host) {
-							static_cast<void>(Host->begin_close(*entry.Context));
-						}
-						entry.Runtime->begin_shutdown();
-						break;
+				for (auto& [id, selected] : entry.Windows) {
+					static_cast<void>(id);
+					if (selected.Closing || !selected.Opened || entry.Runtime->window(selected.Context) != aObject) {
+						continue;
 					}
+					const auto context = selected.Context;
+					if (aEvent->type() == QEvent::Close) {
+						selected.Closing = true;
+						if (Host) {
+							static_cast<void>(Host->begin_close(context));
+						}
+						entry.Runtime->close_window(context);
+					} else if (!Focusing && current(context)) {
+						Focusing = true;
+						static_cast<void>(Host->focus(context));
+						if (current(context)) {
+							entry.Runtime->focus_window(context);
+						}
+						Focusing = false;
+					}
+					return QObject::eventFilter(aObject, aEvent);
 				}
 			}
 			return QObject::eventFilter(aObject, aEvent);
 		}
 
 	private:
-		void wire(github_application& aRuntime, core::bpr_profile_id aProfile)
+		void finish_initial(profile_desktop_startup_result aResult)
 		{
+			if (!Completion) {
+				return;
+			}
+			auto completion = std::move(Completion);
+			completion(std::move(aResult));
+		}
+		void wire(github_application& aRuntime, core::bpr_window_context aContext)
+		{
+			auto* presented = aRuntime.window(aContext);
+			if (!presented) {
+				return;
+			}
 			const auto weak = weak_from_this();
-			aRuntime.window().installEventFilter(this);
-			aRuntime.window().set_profile_management_dispatch(
-				[weak](application::profile_management_intent aIntent) { if (const auto self = weak.lock(); self && self->Host && !self->Quitting) { self->Host->apply(std::move(aIntent)); } },
-				[weak] { if (const auto self = weak.lock(); self && self->Management && !self->Quitting) { self->Management->present(); } },
-				[weak] { if (const auto self = weak.lock()) { self->quit(0); } });
-			aRuntime.set_desktop_quit_handler([weak](int aExitCode) { if (const auto self = weak.lock()) { self->quit(aExitCode); } });
-			aRuntime.window().adopt_profile_management(Projection, aProfile);
+			presented->installEventFilter(this);
+			presented->set_profile_management_dispatch(
+				[weak, aContext](application::profile_management_intent aIntent) {if (const auto self=weak.lock();self && self->current(aContext)){ self->Host->apply(std::move(aIntent));
+} },
+				[weak, aContext] {if (const auto self=weak.lock();self && self->current(aContext) && self->Management){ self->Management->present();
+} },
+				[weak, aContext] {if (const auto self=weak.lock();self && self->current(aContext)){ self->quit(0);
+} });
+			presented->adopt_profile_management(Projection, aContext.Profile);
+			for (const auto& item : Projection.Profiles) {
+				if (item.Profile == aContext.Profile) {
+					presented->set_profile_label(QString::fromStdString(item.Label));
+					break;
+				}
+			}
 		}
 		void initialize_management(github_application& aRuntime)
 		{
@@ -171,87 +270,169 @@ namespace bpr::app {
 			Management   = std::make_unique<qt::profile_management_window>();
 			Management->installEventFilter(this);
 			Host = std::make_unique<application::profile_management_host>(*Registry, Effects, Decisions, *this, core::application_session_id{ 1U });
-			Management->set_dispatch([weak = weak_from_this()](application::profile_management_intent aIntent) {
-				if (const auto self = weak.lock(); self && !self->Quitting) {
-					self->Host->apply(std::move(aIntent));
-				}
-			});
+			Management->set_dispatch([weak = weak_from_this()](application::profile_management_intent aIntent) {if (const auto self=weak.lock();self && !self->Quitting){ self->Host->apply(std::move(aIntent));
+} });
 			Host->reload();
 		}
-		void start_runtime(core::bpr_profile_id aProfile, std::optional<core::bpr_window_context> aContext)
+		void open_window(core::bpr_window_context aContext)
 		{
-			auto [position, inserted] = Runtimes.try_emplace(aProfile);
-			if (!inserted) {
-				if (aContext && Host) {
-					static_cast<void>(Host->complete_open(*aContext, std::unexpected(application::profile_management_failure::busy)));
-				}
+			auto found = Runtimes.find(aContext.Profile);
+			if (found == Runtimes.end() || !found->second.Runtime) {
 				return;
 			}
-			position->second.Context = aContext;
+			auto& entry    = found->second;
+			auto  selected = entry.Windows.find(aContext.Window);
+			if (selected == entry.Windows.end() || selected->second.Context != aContext || selected->second.Opened) {
+				return;
+			}
+			bool opened = false;
 			try {
-				position->second.Startup = Factory(aProfile, RegistryRoot, [weak = weak_from_this(), aProfile, aContext](github_application_startup_result aResult) mutable {
-					if (const auto self = weak.lock()) {
-						self->started(aProfile, aContext, std::move(aResult));
-					}
-				});
-			} catch (...) {
-				Decisions.post([weak = weak_from_this(), aProfile, aContext] { if (const auto self = weak.lock()) { self->started(aProfile, aContext, std::unexpected(github_application_startup_failure::unavailable)); } });
-			}
-		}
-		void started(core::bpr_profile_id aProfile, std::optional<core::bpr_window_context> aContext, github_application_startup_result aResult)
-		{
-			auto found = Runtimes.find(aProfile);
-			if (found == Runtimes.end() || found->second.Context != aContext) {
-				return;
-			}
-			auto& entry = found->second;
-			if (!aResult) {
-				if (aContext && Host) {
-					static_cast<void>(Host->complete_open(*aContext, std::unexpected(application::profile_management_failure::runtime_unavailable)));
+				if (current(aContext)) {
+					opened = entry.Runtime->open_window(aContext);
 				}
-				entry.Context.reset();
-				entry.Closing = true;
-				if (aProfile == Initial && Completion) {
-					auto completion = std::move(Completion);
-					completion(std::unexpected(aResult.error()));
+			} catch (...) { }
+			if (!opened) {
+				selected->second.Closing = true;
+				if (Host) {
+					static_cast<void>(Host->complete_open(aContext, std::unexpected(application::profile_management_failure::runtime_unavailable)));
+				}
+				if (aContext.Profile == Initial && Completion) {
+					finish_initial(std::unexpected(github_application_startup_failure::unavailable));
 					quit(1);
 				}
 				return;
 			}
-			entry.Runtime = std::move(*aResult);
-			if (Quitting || entry.Closing) {
-				if (aContext && Host) {
-					static_cast<void>(Host->complete_open(*aContext));
+			selected->second.Opened = true;
+			try {
+				wire(*entry.Runtime, aContext);
+				if (!Host->complete_open(aContext) || !current(aContext)) {
+					selected->second.Closing = true;
+					entry.Runtime->close_window(aContext);
+					if (aContext.Profile == Initial && Completion) {
+						finish_initial(std::unexpected(github_application_startup_failure::cancelled));
+						quit(0);
+					}
+					return;
 				}
+				entry.Runtime->focus_window(aContext);
+				if (aContext.Profile == Initial && Completion) {
+					if (current(aContext)) {
+						finish_initial(entry.Runtime.get());
+					} else {
+						finish_initial(std::unexpected(github_application_startup_failure::cancelled));
+						quit(0);
+					}
+				}
+			} catch (...) {
+				selected->second.Closing = true;
+				entry.Runtime->close_window(aContext);
+				static_cast<void>(Host->complete_open(aContext, std::unexpected(application::profile_management_failure::runtime_unavailable)));
+				static_cast<void>(Host->begin_close(aContext));
+				if (aContext.Profile == Initial && Completion) {
+					finish_initial(std::unexpected(github_application_startup_failure::unavailable));
+					quit(1);
+				}
+			}
+		}
+		void start_runtime(core::bpr_profile_id aProfile, std::optional<core::bpr_window_context> aContext)
+		{
+			if (NextStartup == std::numeric_limits<std::uint64_t>::max()) {
+				if (aContext && Host) {
+					static_cast<void>(Host->complete_open(*aContext, std::unexpected(application::profile_management_failure::identity_exhausted)));
+				}
+				if (aProfile == Initial && Completion) {
+					finish_initial(std::unexpected(github_application_startup_failure::unavailable));
+					quit(1);
+				}
+				return;
+			}
+			auto [position, inserted] = Runtimes.try_emplace(aProfile);
+			if (!inserted) {
+				return;
+			}
+			auto& entry = position->second;
+			if (aContext) {
+				entry.Windows.emplace(aContext->Window, window_entry{ *aContext });
+			}
+			const auto serial   = ++NextStartup;
+			entry.StartupSerial = serial;
+			try {
+				entry.Startup = Factory(aProfile, RegistryRoot, [weak = weak_from_this(), aProfile, serial](github_application_startup_result aResult) {if (const auto self=weak.lock()){ self->started(aProfile,serial,std::move(aResult));
+} });
+				if (!entry.Startup && !entry.Started) {
+					Decisions.post([weak = weak_from_this(), aProfile, serial] {if (const auto self=weak.lock()){ self->started(aProfile,serial,std::unexpected(github_application_startup_failure::unavailable));
+} });
+				}
+			} catch (...) {
+				Decisions.post([weak = weak_from_this(), aProfile, serial] {if (const auto self=weak.lock()){ self->started(aProfile,serial,std::unexpected(github_application_startup_failure::unavailable));
+} });
+			}
+		}
+		void started(core::bpr_profile_id aProfile, std::uint64_t aSerial, github_application_startup_result aResult)
+		{
+			auto found = Runtimes.find(aProfile);
+			if (found == Runtimes.end() || found->second.StartupSerial != aSerial || found->second.Started) {
+				return;
+			}
+			auto& entry   = found->second;
+			entry.Started = true;
+			if (!aResult) {
 				entry.Closing = true;
-				entry.Runtime->begin_shutdown();
+				for (auto& [id, selected] : entry.Windows) {
+					static_cast<void>(id);
+					selected.Closing = true;
+					if (Host) {
+						static_cast<void>(Host->complete_open(selected.Context, std::unexpected(application::profile_management_failure::runtime_unavailable)));
+					}
+				}
+				if (aProfile == Initial && Completion) {
+					finish_initial(std::unexpected(aResult.error()));
+					quit(1);
+				}
+				return;
+			}
+			entry.Runtime   = std::move(*aResult);
+			const auto weak = weak_from_this();
+			entry.Runtime->set_window_admission([weak](core::bpr_window_context aContext) {const auto self=weak.lock();return self && self->current(aContext); });
+			entry.Runtime->set_desktop_quit_handler([weak](int aExitCode) {if (const auto self=weak.lock()){ self->quit(aExitCode);
+} });
+			if (Quitting || entry.Closing) {
+				entry.Closing = true;
+				if (entry.Windows.empty()) {
+					entry.Runtime->begin_shutdown();
+				}
 				return;
 			}
 			try {
 				if (!Host) {
 					initialize_management(*entry.Runtime);
 				}
-				wire(*entry.Runtime, aProfile);
-				if (aContext && !Host->complete_open(*aContext)) {
-					entry.Closing = true;
-					entry.Runtime->begin_shutdown();
-					return;
+				std::vector<core::bpr_window_context> pending;
+				for (const auto& [id, selected] : entry.Windows) {
+					static_cast<void>(id);
+					pending.push_back(selected.Context);
 				}
-				entry.Runtime->show();
-				if (aProfile == Initial && Completion) {
-					auto completion = std::move(Completion);
-					completion(entry.Runtime.get());
+				for (const auto context : pending) {
+					open_window(context);
 				}
 			} catch (...) {
 				entry.Closing = true;
-				entry.Runtime->begin_shutdown();
-				if (aContext && Host) {
-					static_cast<void>(Host->complete_open(*aContext, std::unexpected(application::profile_management_failure::runtime_unavailable)));
-					entry.Context.reset();
+				for (auto& [id, selected] : entry.Windows) {
+					static_cast<void>(id);
+					selected.Closing = true;
+					if (selected.Opened) {
+						entry.Runtime->close_window(selected.Context);
+					}
+					if (Host) {
+						static_cast<void>(Host->complete_open(selected.Context, std::unexpected(application::profile_management_failure::runtime_unavailable)));
+						static_cast<void>(Host->begin_close(selected.Context));
+					}
+				}
+				if (entry.Windows.empty()) {
+					entry.Runtime->begin_shutdown();
 				}
 				if (aProfile == Initial && Completion) {
-					auto completion = std::move(Completion);
-					completion(std::unexpected(github_application_startup_failure::unavailable));
+					finish_initial(std::unexpected(github_application_startup_failure::unavailable));
 					quit(1);
 				}
 			}
@@ -264,21 +445,33 @@ namespace bpr::app {
 				if (entry.Startup && entry.Startup->is_quiescent()) {
 					entry.Startup.reset();
 				}
-				if (!entry.Closing || entry.Startup || (entry.Runtime && !entry.Runtime->status().ShutdownComplete)) {
+				for (auto selected = entry.Windows.begin(); selected != entry.Windows.end();) {
+					if (!selected->second.Closing || (entry.Runtime && selected->second.Opened && !entry.Runtime->window_quiescent(selected->second.Context))) {
+						++selected;
+						continue;
+					}
+					const auto context = selected->second.Context;
+					selected           = entry.Windows.erase(selected);
+					if (entry.Windows.empty()) {
+						entry.Closing = true;
+						if (entry.Runtime) {
+							entry.Runtime->begin_shutdown();
+						}
+					}
+					if (Host) {
+						static_cast<void>(Host->complete_close(context));
+					}
+				}
+				if (!entry.Closing || entry.Startup || (entry.Runtime && !entry.Runtime->profile_shutdown_complete())) {
 					++position;
 					continue;
 				}
-				if (entry.Runtime && entry.Runtime->status().ShutdownCleanupFailed) {
+				if (entry.Runtime && entry.Runtime->profile_shutdown_cleanup_failed()) {
 					ExitCode = 1;
 				}
-				const auto context = entry.Context;
-				entry.Runtime.reset();
 				position = Runtimes.erase(position);
 				if (Runtimes.empty() && !Quitting && Management) {
 					Management->present();
-				}
-				if (context && Host) {
-					static_cast<void>(Host->complete_close(*context));
 				}
 			}
 			if (is_quiescent()) {
@@ -300,10 +493,11 @@ namespace bpr::app {
 		application::profile_management_projection            Projection;
 		QTimer                                                Poll;
 		std::shared_ptr<implementation>                       Lifetime;
-		bool                                                  InitialRegistered = false;
-		bool                                                  Quitting          = false;
-		int                                                   ExitCode          = 0;
+		std::uint64_t                                         NextStartup       = 0;
+		bool                                                  InitialRegistered = false, Quitting = false, Focusing = false;
+		int                                                   ExitCode = 0;
 	};
+
 	profile_desktop::profile_desktop(std::shared_ptr<implementation> aImplementation)
 		: Implementation{ std::move(aImplementation) }
 	{ }
@@ -339,9 +533,11 @@ namespace bpr::app {
 		const auto profile = aConfig.Profile;
 		return start_with_factory(profile, [config = std::move(aConfig)](core::bpr_profile_id aProfile, const std::filesystem::path& aRoot, github_application_startup_completion aDone) {
             auto next = configuration_for_profile(config, aProfile, aRoot);
-            return github_application::start(std::move(next), std::move(aDone)); }, std::move(aCompletion));
+            return github_application::start_profile(std::move(next), std::move(aDone)); }, std::move(aCompletion));
 	}
 	auto profile_desktop::runtime(core::bpr_profile_id aProfile) const noexcept -> github_application* { return Implementation->runtime(aProfile); }
+	auto profile_desktop::windows(core::bpr_profile_id aProfile) const -> std::vector<core::bpr_window_context> { return Implementation->windows(aProfile); }
+	auto profile_desktop::window(core::bpr_window_context aContext) const noexcept -> qt::workbench_window* { return Implementation->window(aContext); }
 	auto profile_desktop::management_window() const noexcept -> qt::profile_management_window* { return Implementation->management_window(); }
 	void profile_desktop::quit(int aExitCode) { Implementation->quit(aExitCode); }
 	auto profile_desktop::is_quiescent() const noexcept -> bool { return Implementation->is_quiescent(); }

@@ -170,9 +170,19 @@ isolation77.84s passes after building eleven missing dev artifacts; its duplicat
 invocation was removed from the shorter editor course, preserving source guards
 and independent isolation coverage. Actual multi-window construction is next.
 
-Next: BPR-0705 is the vertical live New Window composition, using completed
-shared owners. Durable window destinations/restoration, cross-process admission
-and same-review ledger projection fanout remain subsequent required work.
+BPR-0705 completes live New Window composition with one profile runtime and
+independent window sessions. The rendered two-window course passes70.93s,
+including close-during-sibling-read, fresh context, shared drafts and one-owner
+Quit. Existing diff14.70s, ledger40.16s, epoch51.86s, appearance84.70s,
+setup7.37s/startup1.87s/management1.80s pass. Corrected standalone queue activation
+passes4.20s and exact review roundtrip13.49s. Independent medium review's lifetime,
+auth-rebinding and fixture-scan findings are repaired and narrowly rechecked.
+Strict bypass0.761s, architecture8.17s/80.83s, canonical tidy, tests-disabled
+Release151.50s, dedicated mutation isolation81.21s and documentation gates pass.
+Rendered window-a/window-b PNGs remain in build/dev/profile-multi-window-review.
+Durable window destinations/restoration, cross-process admission and same-review
+ledger projection fanout remain subsequent required work; native criteria remain
+open. No provider mutations or live vault operations were used.
 
 Restoration preparation during BPR-0705 confirmed that core lifecycle policy
 already distinguishes explicit close from quit and increments generations on

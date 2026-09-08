@@ -41,8 +41,12 @@ namespace bpr::adapters::github::detail {
 
 		struct page_json_options : glz::opts
 		{
-			bool escape_control_characters    = true;
-			bool validate_skipped             = true;
+			// Glaze discovers these option overrides by their exact library-defined names.
+			// NOLINTNEXTLINE(readability-identifier-naming)
+			bool escape_control_characters = true;
+			// NOLINTNEXTLINE(readability-identifier-naming)
+			bool validate_skipped = true;
+			// NOLINTNEXTLINE(readability-identifier-naming)
 			bool validate_trailing_whitespace = true;
 			constexpr page_json_options()
 			{
@@ -1007,18 +1011,20 @@ namespace bpr::adapters::github::detail {
 		class production_read_execution
 		{
 		public:
-			production_read_execution(github_wire_transport_port&               aTransport,
-									  const validated_github_host_profile&      aProfile,
-									  const core::pull_request_request_context& aParent,
-									  const github_paged_read_limits&           aLimits,
-									  const std::stop_token                     aStop,
-									  application::github_rate_limit_state&     aRateLimits)
+			production_read_execution(github_wire_transport_port&                 aTransport,
+									  const validated_github_host_profile&        aProfile,
+									  const core::pull_request_request_context&   aParent,
+									  const github_paged_read_limits&             aLimits,
+									  const std::stop_token                       aStop,
+									  application::github_rate_limit_state&       aRateLimits,
+									  std::optional<core::application_session_id> aAuthenticationSession)
 				: Transport{ aTransport }
 				, Profile{ aProfile }
 				, Parent{ aParent }
 				, Limits{ aLimits }
 				, Stop{ aStop }
 				, RateLimits{ aRateLimits }
+				, AuthenticationSession{ aAuthenticationSession }
 			{
 			}
 
@@ -1076,11 +1082,12 @@ namespace bpr::adapters::github::detail {
 						application::github_provider_failure::malformed_response);
 				}
 				const github_wire_correlation correlation{
-					.Parent          = Parent,
-					.ProfileRevision = Profile.revision(),
-					.Host            = Profile.host(),
-					.Operation       = aSemantic.Operation,
-					.Page            = aSemantic.Page,
+					.Parent                = Parent,
+					.ProfileRevision       = Profile.revision(),
+					.Host                  = Profile.host(),
+					.Operation             = aSemantic.Operation,
+					.Page                  = aSemantic.Page,
+					.AuthenticationSession = AuthenticationSession,
 				};
 				const auto completion = Transport.perform(
 					github_wire_request{
@@ -1272,15 +1279,16 @@ namespace bpr::adapters::github::detail {
 			}
 
 		private:
-			github_wire_transport_port&               Transport;
-			const validated_github_host_profile&      Profile;
-			const core::pull_request_request_context& Parent;
-			const github_paged_read_limits&           Limits;
-			std::stop_token                           Stop;
-			std::size_t                               Pages          = 0U;
-			std::size_t                               AggregateBytes = 0U;
-			application::github_rate_limit_state&     RateLimits;
-			std::optional<core::repository_id>        BoundRepository;
+			github_wire_transport_port&                 Transport;
+			const validated_github_host_profile&        Profile;
+			const core::pull_request_request_context&   Parent;
+			const github_paged_read_limits&             Limits;
+			std::stop_token                             Stop;
+			std::size_t                                 Pages          = 0U;
+			std::size_t                                 AggregateBytes = 0U;
+			application::github_rate_limit_state&       RateLimits;
+			std::optional<core::repository_id>          BoundRepository;
+			std::optional<core::application_session_id> AuthenticationSession;
 		};
 
 		[[nodiscard]] auto
@@ -2167,6 +2175,7 @@ namespace bpr::adapters::github::detail {
 					== github_provider_read_authority::anonymous_public
 				&& signed_out_read_identity(aRequest);
 			return limits_valid(aLimits) && aSnapshot.value() != 0U
+				&& (!aRequest.AuthenticationSession || (aRequest.AuthenticationSession->value() != 0U && aReadAuthority != github_provider_read_authority::anonymous_public))
 				&& application::detail::valid_context(context)
 				&& application::valid(authority) && aRequest.Attempt.valid()
 				// An anonymous read holds no account, so it holds no account
@@ -3563,7 +3572,7 @@ namespace bpr::adapters::github::detail {
 												 aRequest.Context,
 												 aLimits,
 												 aStop,
-												 observedRateLimits };
+												 observedRateLimits, aRequest.AuthenticationSession };
 
 			auto repositoryPage = execution.fetch(semantic_request_for(
 				*server, aRequest.Context, read_operation::get_repository));

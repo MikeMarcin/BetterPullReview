@@ -39,7 +39,7 @@ function(bpr_verify_full_application_digest source_variable)
         "${bpr_full_application_source}"
     )
 	set(bpr_expected_full_application_digest
-		"f07df63a8097997dfabeccbbbf6b933d8c0e212533611e808bc2d597cb7f773d"
+		"16ad6d6e2cac0200a172795922aadbc23ef8d27e145ae06d99ef8069e8c2d0df"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -157,7 +157,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "${bpr_production_app_manifest}"
     )
 	set(bpr_expected_production_app_manifest_digest
-		"0bc00083b44450963981dcbccdb428534a81bae846e5edc3a1e60617e537a979"
+		"12311c4542e33ad3ef195fff2adc348bdb37ced570b2648762ec0f27fccef22d"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -242,7 +242,7 @@ function(bpr_verify_async_mutation_host_inventory source_variable)
         "ReviewMutationHost = std::make_unique<"
         "application::review_mutation_application_host>("
         "std::move(LiveReviewMutationGrant)"
-        "worker_executor                                 ReviewMutationEffects;"
+        "worker_executor         ReviewMutationEffects;"
         "std::unique_ptr<application::review_mutation_application_host>"
     )
         string(FIND "${bpr_async_mutation_source}" "${required}" found)
@@ -479,7 +479,7 @@ function(bpr_verify_production_mutation_host_digest source_variable)
     # SHA-256 of the exact LF-normalized bytes after the branch's #else and
     # before its #endif. Tokens and horizontal whitespace remain unmodified.
     set(bpr_expected_mutation_production_digest
-        "634a6d24117ab29d9c4712f73bce3d0e13bb55ff906756fceaf51af8f9805ca3"
+        "a7e2081e57d4344efdf0caf8d6ad63568ba5717a6a9b0a61d6e57ddf053d1e8a"
     )
     if(NOT bpr_mutation_production_digest STREQUAL
         bpr_expected_mutation_production_digest
@@ -638,7 +638,7 @@ foreach(required_production_host IN ITEMS
     "select_observed_review_mutation("
     "AttendedReviewMutationMode"
     "select_designated_review_mutation("
-    "accepted_review_mutation_transport()"
+    "WindowRead->mutation_transport()"
 	"adapters::sqlite::make_review_mutation_recovery_store("
     "make_live_review_mutation_provider("
 	"std::move(*recovery)"

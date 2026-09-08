@@ -172,7 +172,7 @@ namespace bpr::adapters::github::detail {
 								unavailable }
 					};
 				}
-				return make_native_git_smart_transport(native, aContext);
+				return make_native_git_smart_transport(native, aContext, CredentialContext.ApplicationSession);
 			}
 
 			[[nodiscard]] auto acquire_review_mutation_transport() noexcept
@@ -348,7 +348,8 @@ namespace bpr::adapters::github::detail {
 			const application::github_pull_request_provider_request& aRequest) noexcept
 			-> bool
 		{
-			return application::detail::valid_context(aRequest.Context)
+			return (!aRequest.AuthenticationSession || aRequest.AuthenticationSession->value() != 0U)
+				&& application::detail::valid_context(aRequest.Context)
 				&& application::valid(aRequest.ProfileAuthority)
 				&& aRequest.Context.Profile == aRequest.ProfileAuthority.Profile
 				&& aRequest.Context.Host == aRequest.ProfileAuthority.Host
@@ -384,7 +385,8 @@ namespace bpr::adapters::github::detail {
 			const application::github_pull_request_provider_request& aRequest) noexcept
 			-> bool
 		{
-			return application::detail::valid_context(aRequest.Context)
+			return !aRequest.AuthenticationSession
+				&& application::detail::valid_context(aRequest.Context)
 				&& application::valid(aRequest.ProfileAuthority)
 				&& aRequest.Context.Profile == aRequest.ProfileAuthority.Profile
 				&& aRequest.Context.Host == aRequest.ProfileAuthority.Host
@@ -1618,7 +1620,7 @@ namespace bpr::adapters::github::detail {
 		} else {
 			accountTransport = exact_account_transport(aRequest.AccountTransport,
 													   aRequest.ProfileAuthority,
-													   aRequest.Context.ApplicationSession,
+													   aRequest.AuthenticationSession.value_or(aRequest.Context.ApplicationSession),
 													   aRequest.Context.IdentityGeneration,
 													   aRequest.Context.Account);
 			if (accountTransport != nullptr) {

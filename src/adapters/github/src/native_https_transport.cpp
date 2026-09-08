@@ -60,13 +60,16 @@ namespace bpr::adapters::github::detail {
 	{
 	public:
 		explicit native_git_smart_lease_state(
-			application::git_smart_request_context aContext) noexcept
+			application::git_smart_request_context      aContext,
+			std::optional<core::application_session_id> aAuthenticationSession) noexcept
 			: Context{ std::move(aContext) }
+			, AuthenticationSession{ aAuthenticationSession }
 		{
 		}
 
-		application::git_smart_request_context Context;
-		std::atomic_bool                       Revoked = false;
+		application::git_smart_request_context            Context;
+		const std::optional<core::application_session_id> AuthenticationSession;
+		std::atomic_bool                                  Revoked = false;
 	};
 
 	namespace {
@@ -2168,17 +2171,18 @@ namespace bpr::adapters::github::detail {
 	public:
 		[[nodiscard]] static auto acquire(
 			std::shared_ptr<native_https_transport>       aTransport,
-			const application::git_smart_request_context& aContext) noexcept
+			const application::git_smart_request_context& aContext,
+			std::optional<core::application_session_id>   aAuthenticationSession) noexcept
 			-> application::git_smart_transport_result<
 				application::git_smart_transport>
 		{
 			if (aTransport == nullptr || !application::valid(aContext)
-				|| !aTransport->can_acquire_smart(aContext)) {
+				|| !aTransport->can_acquire_smart(aContext, aAuthenticationSession)) {
 				return std::unexpected{ smart_error(
 					application::git_smart_transport_failure::invalid_request) };
 			}
 			try {
-				auto state = std::make_shared<native_git_smart_lease_state>(aContext);
+				auto state = std::make_shared<native_git_smart_lease_state>(aContext, aAuthenticationSession);
 				return application::git_smart_transport{
 					new native_git_smart_transport{
 						std::move(aTransport), std::move(state) }
@@ -2562,7 +2566,8 @@ namespace bpr::adapters::github::detail {
 		}
 
 		[[nodiscard]] auto can_acquire_smart(
-			const application::git_smart_request_context& aContext) const noexcept
+			const application::git_smart_request_context&     aContext,
+			const std::optional<core::application_session_id> aAuthenticationSession) const noexcept
 			-> bool
 		{
 			// Exactly two bindings lease the Git smart surface, and both are
@@ -2576,7 +2581,7 @@ namespace bpr::adapters::github::detail {
 			// read binding are both refused: neither names this surface.
 			return !Closing.load(std::memory_order_acquire)
 				&& admits_smart_binding() && application::valid(aContext)
-				&& credential_matches(aContext);
+				&& credential_matches(aContext, aAuthenticationSession);
 		}
 
 		void cancel_lease(
@@ -2745,7 +2750,7 @@ namespace bpr::adapters::github::detail {
 				return smart_failure(
 					application::git_smart_transport_failure::invalid_request);
 			}
-			if (!credential_matches(aNative.Context)) {
+			if (!credential_matches(aNative.Context, aLease->AuthenticationSession)) {
 				return smart_failure(
 					application::git_smart_transport_failure::unavailable);
 			}
@@ -2997,6 +3002,10 @@ namespace bpr::adapters::github::detail {
 		[[nodiscard]] auto credential_matches(
 			const github_wire_request& aRequest) const noexcept -> bool
 		{
+			if (aRequest.Correlation.AuthenticationSession
+				&& (aRequest.Correlation.AuthenticationSession->value() == 0U || !std::holds_alternative<account_credential>(Credential))) {
+				return false;
+			}
 			return std::visit(
 				[&aRequest, this](const auto& aCredential) noexcept {
 					using credential_type = std::remove_cvref_t<decltype(aCredential)>;
@@ -3078,9 +3087,9 @@ namespace bpr::adapters::github::detail {
 #endif
 					} else {
 						return std::visit(
-							[&aCredential, this](const auto& aParent) noexcept {
+							[&aCredential, &aRequest, this](const auto& aParent) noexcept {
 								if (
-									aParent.ApplicationSession
+									aRequest.Correlation.AuthenticationSession.value_or(aParent.ApplicationSession)
 										!= aCredential.Context.ApplicationSession
 									|| aParent.Profile != Profile.profile()
 									|| aParent.IdentityGeneration
@@ -3138,9 +3147,13 @@ namespace bpr::adapters::github::detail {
 		}
 
 		[[nodiscard]] auto credential_matches(
-			const application::git_smart_request_context& aContext) const noexcept
+			const application::git_smart_request_context&     aContext,
+			const std::optional<core::application_session_id> aAuthenticationSession) const noexcept
 			-> bool
 		{
+			if (aAuthenticationSession && (aAuthenticationSession->value() == 0U || !std::holds_alternative<account_credential>(Credential))) {
+				return false;
+			}
 			if (
 				const auto* anonymous
 				= std::get_if<anonymous_smart_request>(&Credential);
@@ -3181,7 +3194,7 @@ namespace bpr::adapters::github::detail {
 				// namespace, which is the aliasing this card forbids.
 				&& aContext.Authority.Mode
 				== core::github_access_mode::authenticated
-				&& aContext.ApplicationSession
+				&& aAuthenticationSession.value_or(aContext.ApplicationSession)
 				== credential->Context.ApplicationSession
 				&& aContext.Authority.Profile == Profile.profile()
 				&& aContext.Authority.ProfileRevision.value()
@@ -4244,11 +4257,12 @@ namespace bpr::adapters::github::detail {
 	native_https_transport::~native_https_transport() = default;
 
 	auto native_https_transport::can_acquire_smart(
-		const application::git_smart_request_context& aContext) const noexcept
+		const application::git_smart_request_context&     aContext,
+		const std::optional<core::application_session_id> aAuthenticationSession) const noexcept
 		-> bool
 	{
 		return Implementation != nullptr
-			&& Implementation->can_acquire_smart(aContext);
+			&& Implementation->can_acquire_smart(aContext, aAuthenticationSession);
 	}
 
 	auto native_https_transport::discover_for_lease(
@@ -4302,13 +4316,14 @@ namespace bpr::adapters::github::detail {
 	}
 
 	auto make_native_git_smart_transport(
-		std::shared_ptr<native_https_transport>       aTransport,
-		const application::git_smart_request_context& aContext) noexcept
+		std::shared_ptr<native_https_transport>           aTransport,
+		const application::git_smart_request_context&     aContext,
+		const std::optional<core::application_session_id> aAuthenticationSession) noexcept
 		-> application::git_smart_transport_result<
 			application::git_smart_transport>
 	{
 		return native_git_smart_transport::acquire(
-			std::move(aTransport), aContext);
+			std::move(aTransport), aContext, aAuthenticationSession);
 	}
 
 	auto native_https_transport::perform(const github_wire_request& aRequest,

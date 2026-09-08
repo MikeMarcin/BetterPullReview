@@ -1862,10 +1862,57 @@ namespace {
 				   && fixture.Effects.PostCalls == 0U,
 			   "CLI unavailability cannot be bypassed with credential material");
 	}
+	void test_window_read_authentication_provenance()
+	{
+		auto       fixture                 = provider_fixture{ application::github_authentication_transport::native_https };
+		const auto lease                   = account_lease(fixture);
+		auto       request                 = pull_request_for(fixture, lease);
+		request.AuthenticationSession      = request.Context.ApplicationSession;
+		request.Context.ApplicationSession = core::application_session_id{ 900U };
+		fixture.Transport->ReadHandler     = [](const github_wire_request& aWire, std::stop_token) -> github_wire_completion {
+			return github_wire_cancelled{ .Correlation = aWire.Correlation };
+		};
+		auto completions = std::vector<application::github_pull_request_completion>{ };
+		fixture.Provider->fetch_pull_request(request, [&](auto aResult) { completions.push_back(std::move(aResult)); });
+		expect(fixture.Effects.pending() == 1U, "distinct window read admitted under exact authentication provenance");
+		fixture.Effects.run_next();
+		expect(completions.size() == 1U && std::holds_alternative<application::github_pull_request_cancelled>(completions.front()), "window read reaches transport and terminates exactly once");
+		const auto& wire = fixture.Transport->ReadRequests.back();
+		expect(wire.Correlation.Parent == github_wire_parent_context{ request.Context }
+				   && wire.Correlation.AuthenticationSession == request.AuthenticationSession
+				   && std::get<application::github_pull_request_cancelled>(completions.front()).Request == request,
+			   "wire and completion preserve original window context and explicit credential provenance");
+		for (const auto variant : { 0, 1, 2, 3, 4 }) {
+			auto forged = request;
+			if (variant == 0) {
+				forged.AuthenticationSession = core::application_session_id{ 999U };
+			}
+			if (variant == 1) {
+				forged.AuthenticationSession = core::application_session_id{ };
+			}
+			if (variant == 2) {
+				forged.AuthenticationSession.reset();
+			}
+			if (variant == 3) {
+				forged.Context.IdentityGeneration = core::github_identity_generation{ 999U };
+			}
+			if (variant == 4) {
+				forged.Context.Account = core::github_account_id{ 999U };
+			}
+			completions.clear();
+			const auto calls = fixture.Transport->ReadRequests.size();
+			fixture.Provider->fetch_pull_request(forged, [&](auto aResult) { completions.push_back(std::move(aResult)); });
+			expect(completions.size() == 1U && std::holds_alternative<application::github_pull_request_error>(completions.front())
+					   && fixture.Effects.pending() == 0U && fixture.Transport->ReadRequests.size() == calls,
+				   "forged or missing credential provenance and foreign identity refuse before effects");
+		}
+	}
+
 }
 
 int main()
 {
+	test_window_read_authentication_provenance();
 	test_sanitized_provider_logging();
 	test_logging_wrapper_failure_preserves_terminal();
 	test_profile_set_validation();

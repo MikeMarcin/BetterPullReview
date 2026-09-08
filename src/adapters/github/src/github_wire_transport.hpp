@@ -18,11 +18,12 @@ namespace bpr::adapters::github::detail {
 
 	struct github_wire_correlation
 	{
-		github_wire_parent_context           Parent;
-		application::github_profile_revision ProfileRevision;
-		core::git_host_id                    Host;
-		read_operation                       Operation = read_operation::get_viewer_identity;
-		std::uint32_t                        Page      = 1U;
+		github_wire_parent_context                  Parent;
+		application::github_profile_revision        ProfileRevision;
+		core::git_host_id                           Host;
+		read_operation                              Operation = read_operation::get_viewer_identity;
+		std::uint32_t                               Page      = 1U;
+		std::optional<core::application_session_id> AuthenticationSession;
 
 		auto operator==(const github_wire_correlation&) const -> bool = default;
 	};

@@ -697,6 +697,11 @@ namespace {
 			},
 			configuration);
 		expect(account.has_value(), "account-transport");
+		for (const auto provenance : { core::application_session_id{ }, core::application_session_id{ 999U } }) {
+			auto forged                              = repository;
+			forged.Correlation.AuthenticationSession = provenance;
+			expect_unavailable((*account)->perform(forged, { }), forged.Correlation, "invalid-authentication-provenance-preflight");
+		}
 
 		const auto mutationTarget = application::review_mutation_target_binding{
 			.Semantic = {
@@ -1782,7 +1787,7 @@ namespace {
 			const auto anonymousProfile = validate_github_host_profile(
 				github_com_profile_candidate());
 			expect(anonymousProfile.has_value(), "anonymous-profile");
-			const auto request = anonymous_wire_request_for(
+			auto request = anonymous_wire_request_for(
 				*anonymousProfile, read_operation::get_repository);
 			if (aScenario == fixture_scenario::anonymous_read) {
 				// This process is handed no credential at all, so there is
@@ -1796,6 +1801,11 @@ namespace {
 					anonymous_session_context(*anonymousProfile),
 					configuration);
 				expect(transport.has_value(), "anonymous-read-transport");
+				for (const auto provenance : { core::application_session_id{ }, core::application_session_id{ 1U } }) {
+					auto forged                              = request;
+					forged.Correlation.AuthenticationSession = provenance;
+					expect_unavailable((*transport)->perform(forged, { }), forged.Correlation, "anonymous-read-refuses-authentication-provenance");
+				}
 				const auto  completion = (*transport)->perform(request, std::stop_token{ });
 				const auto* success    = std::get_if<github_wire_success>(&completion);
 				expect(success != nullptr
@@ -1829,6 +1839,25 @@ namespace {
 				configuration);
 			wipe(framedCredential);
 			expect(transport.has_value(), "anonymous-canary-transport");
+			request.Correlation.AuthenticationSession = parent.ApplicationSession;
+			auto windowParent                         = parent;
+			windowParent.ApplicationSession           = core::application_session_id{ 900U };
+			request.Correlation.Parent                = windowParent;
+			for (const auto variant : { 0, 1, 2 }) {
+				auto forged  = request;
+				auto changed = windowParent;
+				if (variant == 0) {
+					forged.Correlation.AuthenticationSession = core::application_session_id{ 999U };
+				}
+				if (variant == 1) {
+					changed.IdentityGeneration = core::github_identity_generation{ 999U };
+				}
+				if (variant == 2) {
+					changed.Account = core::github_account_id{ 999U };
+				}
+				forged.Correlation.Parent = changed;
+				expect_unavailable((*transport)->perform(forged, { }), forged.Correlation, "window-read-forged-provenance-refuses-before-fixture-request");
+			}
 			const auto  completion = (*transport)->perform(request, std::stop_token{ });
 			const auto* success    = std::get_if<github_wire_success>(&completion);
 			expect(success != nullptr
