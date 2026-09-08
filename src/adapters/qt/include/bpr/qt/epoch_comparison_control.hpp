@@ -64,6 +64,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto prune_action() const noexcept -> QAction*;
 		[[nodiscard]] auto delete_cache_action() const noexcept -> QAction*;
 		[[nodiscard]] auto cancel_maintenance_action() const noexcept -> QAction*;
+		/// \brief [[BPR-0676]]. What is being compared, in words, on the line.
+		[[nodiscard]] auto line_summary() const noexcept -> QLabel*;
 		[[nodiscard]] auto status_text() const -> QString;
 		/// \brief [[BPR-0677]]. The state behind the wording, for a caller that
 		/// must tell work in progress from work that failed.
@@ -137,6 +139,7 @@ namespace bpr::qt {
 		std::optional<core::epoch_history_page_phase>           HistoryPhase;
 		core::epoch_reason_code                                 HistoryReason    = core::epoch_reason_code::none;
 		core::epoch_reason_code                                 DiagnosticReason = core::epoch_reason_code::none;
+		QLabel*                                                 LineSummary      = nullptr;
 		core::epoch_status                                      Status           = core::epoch_status::inactive;
 		std::array<core::epoch_command_projection, 6>           Commands{ };
 		bool                                                    HasCommands        = false;

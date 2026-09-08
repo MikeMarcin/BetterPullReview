@@ -7,6 +7,7 @@
 #include <QComboBox>
 #include <QFont>
 #include <QKeyEvent>
+#include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
 #include <QMessageBox>
@@ -508,6 +509,11 @@ namespace {
 				intents.push_back(std::move(aIntent));
 			},
 		};
+		// [[BPR-0676]]. Before anything is compared the line says so, rather
+		// than leaving a reviewer to read two marks and guess.
+		expect(control.line_summary() != nullptr
+				   && control.line_summary()->text() == QStringLiteral("no pair yet"),
+			   "the line says when nothing is being compared yet");
 		const auto third        = epoch_row(3, '1', '2');
 		const auto second       = epoch_row(2, '1', '3');
 		const auto continuation = core::epoch_history_cursor{
@@ -643,6 +649,13 @@ namespace {
 				   && control.comparison_text().contains(
 					   QStringLiteral("Exact epoch pair")),
 			   "reverse exact pairs remain visible without alias remapping");
+		// [[BPR-0676]]. The owner could not tell whether the line was working.
+		// It says so on the line now, in three words, with the long sentence
+		// from the details region as its tooltip.
+		expect(control.line_summary() != nullptr
+				   && control.line_summary()->text() == QStringLiteral("pair ready")
+				   && control.line_summary()->toolTip() == control.comparison_text(),
+			   "the line says a readable pair is compared, and carries the detail");
 		const auto identical = core::comparison_pair{
 			.Left  = reverse.Right,
 			.Right = reverse.Right,
@@ -672,6 +685,10 @@ namespace {
 				   && control.comparison_text().contains(QStringLiteral("pruned"))
 				   && control.comparison_text().contains(QStringLiteral("unavailable")),
 			   "an unavailable alias retains its exact selected candidate and reason");
+		// [[BPR-0676]]. A pair that cannot be read says so on the line, not
+		// only inside the details a reviewer has to open.
+		expect(control.line_summary()->text() == QStringLiteral("pair not readable"),
+			   "the line says when the pair it names cannot be read");
 
 		const auto reviewAnchor = core::comparison_anchor{
 			.Identity = {

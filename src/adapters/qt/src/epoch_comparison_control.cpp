@@ -335,8 +335,21 @@ namespace bpr::qt {
 		comparing->setFocusPolicy(Qt::StrongFocus);
 		comparing->setText(QStringLiteral("Comparing whole PR"));
 		ComparingButton = comparing;
+		// [[BPR-0676]]. The nodes say which uploads exist; they do not say
+		// whether the thing is working. The owner: "The epoch line is quite
+		// hard to see if it's working properly or not." This says it in
+		// words, on the line, from the same facts the details region states
+		// at length behind a disclosure nobody had opened.
+		LineSummary = new QLabel{ this };
+		LineSummary->setObjectName(QStringLiteral("epochLineSummary"));
+		LineSummary->setAccessibleName(QStringLiteral("What is being compared"));
+		LineSummary->setTextFormat(Qt::PlainText);
+		LineSummary->setForegroundRole(QPalette::PlaceholderText);
+		LineSummary->setTextInteractionFlags(Qt::TextSelectableByKeyboard
+											 | Qt::TextSelectableByMouse);
 		lineRow->addWidget(lineName);
 		lineRow->addWidget(Line, 1);
+		lineRow->addWidget(LineSummary);
 		lineRow->addWidget(ComparingButton);
 		layout->addLayout(lineRow);
 
@@ -729,6 +742,11 @@ namespace bpr::qt {
 	auto epoch_comparison_control::status() const noexcept -> core::epoch_status
 	{
 		return Status;
+	}
+
+	auto epoch_comparison_control::line_summary() const noexcept -> QLabel*
+	{
+		return LineSummary;
 	}
 
 	auto epoch_comparison_control::comparison_text() const -> QString
@@ -1152,6 +1170,18 @@ namespace bpr::qt {
 			}
 		}
 		ComparisonLabel->setText(comparison);
+		if (LineSummary != nullptr) {
+			// [[BPR-0676]]. Three states and no jargon: nothing chosen yet, a
+			// pair that can be read, a pair that cannot. Written here, from
+			// the same sentence the details region gets, so the two can never
+			// disagree; the sentence itself is the tooltip.
+			LineSummary->setText(!Comparison || !Comparison->Pair
+									 ? QStringLiteral("no pair yet")
+									 : Comparison->AvailableForDiff
+									 ? QStringLiteral("pair ready")
+									 : QStringLiteral("pair not readable"));
+			LineSummary->setToolTip(comparison);
+		}
 	}
 
 	void epoch_comparison_control::update_action_state()
