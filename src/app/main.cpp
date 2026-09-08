@@ -2905,8 +2905,17 @@ namespace {
 				if (!button->isEnabled()) {
 					return false;
 				}
-				button->click();
-				return true;
+				// Exercise the reviewer entry, not the second button that the
+				// old flow required after opening Settings.
+				auto* const homeSignIn = aWindow.findChild<QPushButton*>(
+					QStringLiteral("workbenchHomePrimaryButton"));
+				if (homeSignIn == nullptr || !homeSignIn->isEnabled()
+					|| homeSignIn->accessibleName() != QStringLiteral("Sign in to GitHub")) {
+					return false;
+				}
+				homeSignIn->click();
+				const auto* const settings = aWindow.findChild<QWidget*>(QStringLiteral("settingsWindow"));
+				return settings != nullptr && settings->isVisible();
 			}
 			return false;
 		}

@@ -712,6 +712,7 @@ namespace bpr::qt {
 		void build_queue_landing(QWidget* aParent, QVBoxLayout& aLayout);
 		/// \brief Points device sign-in at the host profile the picker names.
 		void rebind_device_authorization_profile();
+		void begin_selected_sign_in();
 		void dispatch_queue_rule(application::queue_rule_action aAction);
 		void update_queue_rule_actions();
 		void open_pull_request_item(const core::queue_item& aItem);

@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0018"
 title: "Robust Settings Center and Preference Ownership"
-status: "Deferred"
+status: "Proposed"
 area: "BPR"
 milestone: "Post-Pack v2"
 depends_on: ["RFC-BPR-0014"]
@@ -15,13 +15,15 @@ pack_version: "post-v2"
 This is a deferred post-pack RFC. It does not alter the canonical fourteen-RFC
 sequence and blocks no pack-v2 implementation or closeout.
 
-**Design accepted; registration only; implementation requires a later request.**
+**Implementation resumed by owner direction, 2026-09-07.**
 The product owner's 2026-09-04 daily-workbench amendment adds direct sign-in,
 remembered server management, and one Settings window per BPR profile. The
 requested sequence is RFC-BPR-0018, RFC-BPR-0024, RFC-BPR-0025, RFC-BPR-0026.
 Registration waives no existing eligibility or canonical closeout requirement.
 Registration baseline: `e851eb8a851ab605cf5a85260a1317ecdf66773b`.
-Entry: [[BPR-0592]]. Closeout: [[BPR-0593]]. Both are unstarted backlog cards.
+Entry: [[BPR-0592]] is complete. Closeout: [[BPR-0593]]. The
+[authority inventory](../development/settings-authority-inventory.md) maps
+remaining work to BPR-0678 through BPR-0683; 0028 supplied the existing three pages.
 
 This RFC first composes Settings in the existing default environment.
 RFC-BPR-0024 later supplies multiple independent BPR profiles and windows;

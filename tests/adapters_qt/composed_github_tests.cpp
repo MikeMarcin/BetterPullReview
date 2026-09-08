@@ -3547,6 +3547,10 @@ namespace {
 			"signed out with nothing open, Home offers sign-in and its buttons "
 			"are focus stops");
 
+		auto signInGestures = std::vector<application::device_authorization_gesture>{ };
+		window.set_device_authorization_dispatch([&signInGestures](application::device_authorization_gesture aGesture) {
+			signInGestures.push_back(std::move(aGesture));
+		});
 		landing->primary_button()->click();
 		QApplication::processEvents();
 		expect(
@@ -3554,8 +3558,40 @@ namespace {
 				&& window.settings()->current_page()
 					== qt::settings_page::accounts_and_hosts
 				&& window.device_authorization()->begin_button()->hasFocus(),
-			"the sign-in button opens Accounts and hosts with Get a code "
+			"the sign-in button opens Accounts and hosts with Sign in "
 			"focused");
+		expect(signInGestures.size() == 1U
+				   && std::holds_alternative<core::begin_device_authorization_intent>(signInGestures.front())
+				   && std::get<core::begin_device_authorization_intent>(signInGestures.front()).Profile == *window.session_panel()->selected_profile(),
+			   "Home Sign in begins once for the selected host without a second gesture");
+		auto waiting = application::device_authorization_presentation{
+			.Stage                    = core::device_authorization_stage::awaiting_authorization,
+			.UserCode                 = "TEST-CODE",
+			.VerificationUri          = "fixture-sign-in",
+			.RemainingValiditySeconds = 300U,
+		};
+		waiting.Commands = core::device_authorization_commands(core::device_authorization_state{
+			.Stage = core::device_authorization_stage::awaiting_authorization,
+		});
+		window.device_authorization()->apply(waiting);
+		landing->primary_button()->click();
+		expect(signInGestures.size() == 1U, "another Home gesture cannot restart a running sign-in");
+		window.device_authorization()->cancel_button()->click();
+		expect(signInGestures.size() == 2U && std::holds_alternative<core::cancel_device_authorization_intent>(signInGestures.back()),
+			   "cancellation remains reachable through the existing device intent");
+		auto expired = application::device_authorization_presentation{
+			.Stage = core::device_authorization_stage::expired,
+		};
+		expired.Commands = core::device_authorization_commands(core::device_authorization_state{
+			.Stage = core::device_authorization_stage::expired,
+		});
+		window.device_authorization()->apply(expired);
+		window.session_panel()->profile_selector()->setCurrentIndex(1);
+		landing->primary_button()->click();
+		expect(signInGestures.size() == 3U
+				   && std::get<core::begin_device_authorization_intent>(signInGestures.back()).Profile == *window.session_panel()->selected_profile(),
+			   "retry after expiry names the newly selected host rather than the old grant");
+		window.set_device_authorization_dispatch({ });
 		window.settings()->hide();
 
 		publish_session_ready(window);

@@ -456,7 +456,7 @@ namespace {
 			!panel->cancel_button()->isEnabled(),
 			"and has nothing left to cancel");
 		expect(
-			panel->begin_button()->text() == QStringLiteral("Get a new code"),
+			panel->begin_button()->text() == QStringLiteral("Sign in again"),
 			"the retry says it is a retry");
 		expect(
 			!panel->open_button()->isEnabled()

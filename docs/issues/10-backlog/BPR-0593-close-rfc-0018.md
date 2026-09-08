@@ -88,3 +88,12 @@ partial AC-01/02/07/08/09/10 evidence, not a full platform/accessibility verdict
 Two affected attended candidates (chrome and widths) were released by the
 owner's resume-development authorization and need preparation after integration;
 public-preview's separate candidate remains protected. Next: BPR-0679.
+
+BPR-0679: Home and the signed-out account action now start the existing device
+flow directly. The executable panel course exercises Home, and the GHES
+negative retains its no-request refusal. Running-flow duplicate, cancellation,
+expiry and selected-host retry checks pass. Saved server authority/store and
+session-only manual-token evidence from BPR-0660 remain unchanged. The
+isolated tests-disabled build passed; one digest assertion was updated for
+the reviewed course change and its bypass test passed separately. See the
+card for commands and revision. Next: BPR-0680 appearance export/reset.

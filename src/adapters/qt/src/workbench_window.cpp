@@ -550,13 +550,9 @@ namespace bpr::qt {
 		AccountAction->setIconText(QStringLiteral("Account"));
 		addAction(AccountAction);
 		connect(AccountAction, &QAction::triggered, this, [this] {
-			// Signed out, the one way in is the device sign-in the header
-			// shows; signed in, the account lives on its settings page.
-			// Signed out or in, the account lives on its settings page; while
-			// signed out the sign-in panel is that page's top and takes focus.
 			open_settings(settings_page::accounts_and_hosts);
 			if (DevicePanel != nullptr && DevicePanel->isVisibleTo(SettingsWindow)) {
-				DevicePanel->begin_button()->setFocus(Qt::ShortcutFocusReason);
+				begin_selected_sign_in();
 			}
 		});
 
@@ -754,10 +750,7 @@ namespace bpr::qt {
 				return;
 			}
 			if (HomeLanding->state() == landing_state::sign_in) {
-				open_settings(settings_page::accounts_and_hosts);
-				if (DevicePanel != nullptr) {
-					DevicePanel->begin_button()->setFocus(Qt::OtherFocusReason);
-				}
+				begin_selected_sign_in();
 				return;
 			}
 			if (QueueView != nullptr) {
@@ -1568,11 +1561,7 @@ namespace bpr::qt {
 		SessionPanel->set_public_preview_dispatch(
 			[this](application::public_preview_gesture aGesture) {
 				static_cast<void>(aGesture);
-				if (DevicePanel == nullptr) {
-					return;
-				}
-				rebind_device_authorization_profile();
-				DevicePanel->begin_button()->click();
+				begin_selected_sign_in();
 			});
 
 		// The empty state is not decoration. Without it a reviewer with no pull
@@ -4548,6 +4537,19 @@ namespace bpr::qt {
 		-> device_authorization_panel*
 	{
 		return DevicePanel;
+	}
+
+	void workbench_window::begin_selected_sign_in()
+	{
+		open_settings(settings_page::accounts_and_hosts);
+		if (DevicePanel == nullptr) {
+			return;
+		}
+		rebind_device_authorization_profile();
+		// The same command-projected button owns admission and profile binding
+		// for Home, the strip and Settings. A running flow cannot begin twice.
+		DevicePanel->begin_button()->setFocus(Qt::OtherFocusReason);
+		DevicePanel->begin_button()->click();
 	}
 
 	void workbench_window::rebind_device_authorization_profile()

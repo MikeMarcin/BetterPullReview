@@ -192,7 +192,7 @@ namespace bpr::qt {
 		RenewalLabel->setAccessibleName(tr("Sign-in renewal"));
 		RenewalLabel->setWordWrap(true);
 
-		BeginButton  = new QPushButton{ tr("Get a code") };
+		BeginButton  = new QPushButton{ tr("Sign in") };
 		CopyButton   = new QPushButton{ tr("Copy code") };
 		OpenButton   = new QPushButton{ tr("Open browser") };
 		CancelButton = new QPushButton{ tr("Cancel") };
@@ -354,8 +354,8 @@ namespace bpr::qt {
 		// "Get a code" after a denial reads as though nothing happened.
 		BeginButton->setText(
 			Presentation.Stage == core::device_authorization_stage::idle
-				? tr("Get a code")
-				: tr("Get a new code"));
+				? tr("Sign in")
+				: tr("Sign in again"));
 	}
 
 	void device_authorization_panel::bind_profile(
