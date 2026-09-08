@@ -21,7 +21,7 @@ allocated required slice dependencies before it can become startable.
 RFC base: `e851eb8a851ab605cf5a85260a1317ecdf66773b`.
 
 Requested RFC set: RFC-BPR-0018, RFC-BPR-0024, RFC-BPR-0025, RFC-BPR-0026; workstream position: 2 of 4.
-Planned cards: BPR-0594, BPR-0595, BPR-0690, BPR-0691, BPR-0693. Allocate additional implementation cards only
+Planned cards: BPR-0594, BPR-0595, BPR-0690, BPR-0691, BPR-0693, BPR-0694, BPR-0695. Allocate additional implementation cards only
 when the later bounded-slice planning pass needs them, and update this list and
 closeout dependencies before implementation. The RFC index remains the order
 authority; this requested subset waives no intervening eligibility/closeout gate.
@@ -63,10 +63,12 @@ Canonical terminal prerequisites remain required.
 ## Resume
 
 BPR-0594 records the live authority inventory. BPR-0690 and BPR-0691 are the
-first independent foundations alongside remaining Settings integration. Later runtime, vault,
-shared-edit, restoration, admission and public composition slices remain to be
-allocated. Native and human criteria remain open; no profile implementation
-acceptance or RFC closeout is claimed.
+first independent foundations alongside remaining Settings integration. Registry
+and credential isolation are committed; BPR-0694 owns private root admission and
+BPR-0695 will construct the selected runtime asynchronously. Shared services,
+profile management, shared-edit conflicts, restoration and process admission
+remain later work. Native and human criteria remain open; no full profile RFC
+acceptance or closeout is claimed.
 
 ## Foundation evidence
 
@@ -75,5 +77,12 @@ Core-only configure/build and focused profile test pass; both architecture
 checks passed after the setup parser boundary repair. The broader run had
 125/128 passes; the two corrected boundaries passed narrow rechecks and an
 unrelated native capsule cleanup timeout remains tracked in BPR-0692. Do not
-report an entirely green core-only suite. Registry persistence remains BPR-0691;
-profile/window UI and shared services are not implemented by this foundation.
+report an entirely green core-only suite. Registry persistence passed focused host/storage contracts in BPR-0691
+(commit22e88f0f), including bounded preflight and interrupted/CAS adoption.
+BPR-0693 (commit69d4b587) isolates profile credentials and schema2 remembered
+bindings while preserving Default vault namespaces. Host/storage/shared-authority
+checks pass, and injected platform contracts compiled/executed successfully on
+macOS, native Windows and Ubuntu WSL. Independent review findings in both
+preflight paths were corrected and narrowly rechecked. No live vault operation
+or full native application course was used.
+Profile/window UI and shared services are not implemented by these foundations.
