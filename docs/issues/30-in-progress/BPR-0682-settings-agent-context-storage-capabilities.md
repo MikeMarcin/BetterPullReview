@@ -26,3 +26,19 @@ Routing: standard | Reason: default implementation.
 ## Evidence
 
 Not run. Created by the authorized BPR-0592 planning pass.
+
+## Selected implementation
+
+Project the existing agent panel's offered profile model and opaque private-note
+model into Settings, with synchronized per-request draft and working-copy choices.
+An observer only refreshes presentation; existing start intents remain the sole
+launch path, host allowlists stay authoritative, and new context offers remain
+unchecked. No agent output, note body or credential enters Settings.
+Storage displays composition-supplied read-only location/privacy facts. Its
+maintenance buttons share the existing epoch actions and capture the same exact
+catalog/cache authority before confirmation. Add authority-tagged human scope
+labels and ensure a confirmation opened from Settings belongs to that window.
+Unsupported relocation, global purge and advanced diagnostics remain explicit.
+Test offered-model refresh, no automatic dispatch, opt-in propagation, changed
+scope refusal, and Cancel through the composed maintenance path. Attended
+conflict scan returned no conflicts for these owned paths.
