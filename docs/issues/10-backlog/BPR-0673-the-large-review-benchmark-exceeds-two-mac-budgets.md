@@ -1,14 +1,14 @@
 ---
 schema: "implement-rfc.card.v1"
 id: "BPR-0673"
-title: "Epoch refresh stalls the event loop past its responsiveness bound"
+title: "The large-review benchmark exceeds two of its Mac budgets"
 status: "Backlog"
 rfcs: []
 depends_on: []
 priority: "P2"
 ---
 
-# Epoch refresh stalls the event loop past its responsiveness bound
+# The large-review benchmark exceeds two of its Mac budgets
 
 `application_large_review_history` fails on macOS at 42cec0f6, alone and
 under load, on its responsiveness bound rather than its duration. Each
