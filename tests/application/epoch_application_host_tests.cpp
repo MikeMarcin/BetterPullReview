@@ -306,6 +306,7 @@ namespace {
 		std::vector<application::git_operation_recovery_request>
 																RecoveryCompletionRequests;
 		std::vector<application::git_cache_open_request>        CacheOpenRequests;
+		std::function<void()>                                   DuringCacheDestruction;
 		std::vector<application::git_cache_blob_request>        BlobRequests;
 		std::vector<application::git_cache_tree_entry_request>  TreeEntryRequests;
 		std::deque<std::optional<core::git_blob_oid>>           TreeEntryResults;
@@ -1316,6 +1317,9 @@ namespace {
 
 		~fake_cache_session() override
 		{
+			if (State.DuringCacheDestruction) {
+				State.DuringCacheDestruction();
+			}
 			State.Calls.emplace_back(
 				"cache.session-close:"
 				+ std::to_string(Request.Authority.PullRequest.value()));
@@ -6306,10 +6310,260 @@ namespace {
 			value.Host->is_quiescent(),
 			"shutdown becomes quiescent after terminal decision retirement");
 	}
+	class epoch_test_windows final : public application::epoch_window_context_port
+	{
+	public:
+		core::profile_window_catalog Catalog;
+		[[nodiscard]] auto           current(const core::bpr_window_context aContext) const noexcept -> bool override
+		{
+			return Catalog.accepts(aContext);
+		}
+		[[nodiscard]] auto launch() -> core::bpr_window_context
+		{
+			const auto launched = Catalog.launch(core::default_bpr_profile_id, core::profile_launch_intent::new_window);
+			expect(launched.has_value(), "test window is admitted by the catalog");
+			return launched->Activated;
+		}
+	};
+
+	[[nodiscard]] auto profile_actor_key() -> application::profile_epoch_actor_key
+	{
+		const auto owner = authority();
+		return { .Profile = owner.Profile, .ProfileRevision = owner.ProfileRevision, .Host = owner.Host, .HostAuthority = owner.HostAuthority, .Account = owner.Account, .Repository = owner.Repository, .ObjectFormat = core::git_hash_algorithm::sha1, .Mode = owner.Mode };
+	}
+
+	void profile_actor_registry_bounds_authority_and_draining_leases()
+	{
+		epoch_test_windows                        windows;
+		queued_executor                           effects{ false };
+		shared_state                              state;
+		fake_cache_port                           caches{ state };
+		application::profile_epoch_actor_registry registry{ core::default_bpr_profile_id, windows, caches, effects };
+		auto                                      window   = windows.launch();
+		auto                                      consumer = registry.attach(window);
+		expect(consumer.has_value(), "live window attaches");
+		expect(!registry.attach(window), "one exact window cannot attach twice");
+		auto foreign    = window;
+		foreign.Profile = core::bpr_profile_id{ 2U };
+		expect(!registry.attach(foreign), "foreign profile has no consumer");
+		const auto key   = profile_actor_key();
+		auto       first = (*consumer)->acquire(key);
+		auto       same  = (*consumer)->acquire(key);
+		expect(first && same && *first == *same, "equal authority reuses one actor");
+		auto variants               = std::vector<application::profile_epoch_actor_key>(6U, key);
+		variants[0].Host            = core::git_host_id{ key.Host.value() + 1U };
+		variants[1].ProfileRevision = core::github_profile_revision{ key.ProfileRevision.value() + 1U };
+		variants[2].HostAuthority   = opaque<core::host_authority_fingerprint>(0x96U);
+		variants[3].Account         = core::github_account_id{ key.Account.value() + 1U };
+		variants[4].ObjectFormat    = core::git_hash_algorithm::sha256;
+		variants[5].Mode            = core::github_access_mode::public_preview;
+		variants[5].Account         = { };
+		for (const auto& variant : variants) {
+			const auto distinct = (*consumer)->acquire(variant);
+			expect(distinct && *distinct != *first, "foreign cache authority and access mode never reuse actor");
+		}
+		auto invalid       = key;
+		invalid.Repository = { };
+		expect(!(*consumer)->acquire(invalid), "invalid actor authority is refused");
+		for (std::size_t index = 0U; index < 40U; ++index) {
+			(*consumer)->retire();
+			expect(windows.Catalog.close(window).has_value(), "retired window closes");
+			window   = windows.launch();
+			consumer = registry.attach(window);
+			expect(consumer.has_value(), "lifetime churn is not concurrent capacity");
+		}
+		auto actors = std::vector<std::shared_ptr<application::profile_epoch_actor>>{ *first };
+		for (std::size_t index = 1U; index < 1'000U; ++index) {
+			auto next       = key;
+			next.Repository = core::repository_id{ key.Repository.value() + index };
+			auto actor      = (*consumer)->acquire(next);
+			expect(actor.has_value(), "actor boundary admits exactly one thousand live leases");
+			actors.push_back(std::move(*actor));
+		}
+		auto excess       = key;
+		excess.Repository = core::repository_id{ key.Repository.value() + 1'000U };
+		expect(!(*consumer)->acquire(excess), "actor count plus one is refused");
+		actors.clear();
+		int calls = 0;
+		(*first)->enqueue([&calls] { ++calls; });
+		first->reset();
+		same->reset();
+		registry.shutdown();
+		expect(!(*consumer)->active() && !registry.is_quiescent(), "shutdown retires admission but queued work retains actor");
+		effects.run_next();
+		expect(calls == 1 && registry.is_quiescent(), "final FIFO drain releases actor despite retained inert consumer handle");
+	}
+
+	void profile_actor_replacement_waits_for_session_destruction()
+	{
+		epoch_test_windows                        windows;
+		queued_executor                           effects{ false };
+		shared_state                              state;
+		fake_cache_port                           caches{ state };
+		application::profile_epoch_actor_registry registry{ core::default_bpr_profile_id, windows, caches, effects };
+		const auto                                consumer = registry.attach(windows.launch());
+		expect(consumer.has_value(), "destruction test attaches one window");
+		auto acquired = (*consumer)->acquire(profile_actor_key());
+		expect(acquired.has_value(), "destruction test acquires cache actor");
+		auto actor = std::move(*acquired);
+		actor->enqueue([actor, &caches] {
+			auto opened = caches.open(application::git_cache_open_request{
+										  .ApplicationSession = core::application_session_id{ 91U },
+										  .Authority          = authority(),
+										  .ObjectFormat       = core::git_hash_algorithm::sha1 },
+									  { });
+			expect(opened.has_value(), "destruction test opens the retained session");
+			actor->cache() = std::move(*opened);
+		});
+		effects.run_next();
+		std::mutex              mutex;
+		std::condition_variable changed;
+		bool                    entered = false;
+		bool                    release = false;
+		state.DuringCacheDestruction    = [&] {
+			std::unique_lock lock{ mutex };
+			entered = true;
+			changed.notify_all();
+			changed.wait(lock, [&] { return release; });
+		};
+		std::jthread worker{ [retiring = std::move(actor)]() mutable { retiring.reset(); } };
+		{
+			std::unique_lock lock{ mutex };
+			changed.wait(lock, [&] { return entered; });
+		}
+		const auto refused = (*consumer)->acquire(profile_actor_key());
+		expect(!refused && refused.error() == application::profile_epoch_actor_failure::actor_draining,
+			   "weak expiration does not permit overlapping native session destruction and reopen");
+		{
+			std::scoped_lock lock{ mutex };
+			release = true;
+		}
+		changed.notify_all();
+		worker.join();
+		state.DuringCacheDestruction = { };
+		auto reopened                = (*consumer)->acquire(profile_actor_key());
+		expect(reopened.has_value() && state.ActiveCacheSessions == 0U,
+			   "replacement admission resumes after exact session destruction completes");
+		reopened->reset();
+		registry.shutdown();
+		expect(registry.is_quiescent(), "destruction marker participates in profile quiescence");
+	}
+
+	void profile_windows_share_one_cache_without_sharing_selection_or_lifetime()
+	{
+		fixture                                   first;
+		fixture                                   second;
+		epoch_test_windows                        windows;
+		application::profile_epoch_actor_registry registry{ core::default_bpr_profile_id, windows, first.Caches, first.Effects };
+		const auto                                firstWindow  = windows.launch();
+		const auto                                secondWindow = windows.launch();
+		first.Host.reset();
+		second.Host.reset();
+		second.State.Binding.Authority.PullRequest = core::pull_request_id{ 72U };
+		second.State.Binding.Authority.Number      = core::pull_request_number{ 82U };
+		second.State.Binding.Authority.Scope       = opaque<core::pull_request_authority_scope_id>(0x44U);
+		second.State.Snapshot.Binding              = second.State.Binding;
+		const auto attach                          = [&](fixture& aFixture, const core::bpr_window_context aWindow,
+														 const core::application_session_id aSession) {
+			aFixture.Host = std::make_unique<application::epoch_application_host>(
+				core::epoch_state{ .ApplicationSession = aSession }, registry, aWindow,
+				aFixture.Catalogs, aFixture.Entropy, aFixture.Clock,
+				first.Effects, aFixture.Decisions, aFixture.Projections);
+		};
+		attach(first, firstWindow, core::application_session_id{ 91U });
+		attach(second, secondWindow, core::application_session_id{ 92U });
+		const auto drainBoth = [&] {
+			while (first.Effects.pending() || first.Decisions.pending() || second.Decisions.pending()) {
+				if (first.Effects.pending()) {
+					first.Effects.run_next();
+				}
+				if (first.Decisions.pending()) {
+					first.Decisions.run_next();
+				}
+				if (second.Decisions.pending()) {
+					second.Decisions.run_next();
+				}
+			}
+		};
+		first.Host->accept(make_handoff(first.State, 1U, 20U, true));
+		drainBoth();
+		const auto firstSelection        = selected_diff_request_for(first);
+		auto       secondHandoff         = make_handoff(second.State, 1U, 20U, true);
+		secondHandoff.ApplicationSession = core::application_session_id{ 92U };
+		secondHandoff.PullRequest        = second.State.Binding.Authority.PullRequest;
+		secondHandoff.Number             = second.State.Binding.Authority.Number;
+		secondHandoff.SmartGit           = std::make_unique<fake_smart_authority>(second.State, application::authority_binding(secondHandoff), 1U);
+		second.Host->accept(std::move(secondHandoff));
+		drainBoth();
+		expect(second.Host->state().AcceptedComparison.has_value(), "second window independently ingests and selects its PR");
+		auto       secondSelection = selected_diff_request_for(second);
+		const auto resolve         = [&](fixture& aFixture, const application::workbench_selected_diff_request& aRequest) {
+			std::optional<application::workbench_selected_diff_observation> result;
+			std::jthread                                                    worker{ [&] { result = aFixture.Host->resolve(aRequest, { }); } };
+			first.Effects.wait_for_pending();
+			first.Effects.run_next();
+			worker.join();
+			expect(result && result->Status == application::workbench_selected_diff_status::available,
+				   "window selection remains usable after sibling cache request switch");
+			expect(first.State.CacheOpenRequests.back().ApplicationSession == aRequest.Diff.ApplicationSession
+					   && first.State.CacheOpenRequests.back().Authority == aRequest.Diff.Authority,
+				   "FIFO selects the calling window's exact immutable cache request");
+		};
+		resolve(first, firstSelection);
+		const auto openCount = first.State.CacheOpenRequests.size();
+		resolve(first, firstSelection);
+		expect(first.State.CacheOpenRequests.size() == openCount, "equal exact request reuses session");
+		resolve(second, secondSelection);
+		resolve(first, firstSelection);
+		expect(first.State.MaximumActiveCacheSessions == 1U, "interleaved windows never open competing cache sessions");
+		const auto callsBefore = first.State.Calls.size();
+		const auto foreign     = second.Host->resolve(firstSelection, { });
+		expect(foreign.Status != application::workbench_selected_diff_status::available
+				   && first.State.Calls.size() == callsBefore,
+			   "another window's selected warrant is refused without effects");
+		const auto oldPair = *second.Host->state().AcceptedComparison;
+		second.Host->dispatch(core::select_comparison_anchors_intent{
+			.Left = oldPair.Right.Identity, .Right = oldPair.Left.Identity, .ExpectedCatalogRevision = second.Host->state().Catalog->Revision });
+		const auto secondProjections = second.State.Updates.size();
+		first.Host->shutdown();
+		expect(first.Host->is_quiescent() && first.Effects.pending() != 0U,
+			   "A quiescence does not wait for B's queued work on the shared FIFO");
+		expect(windows.Catalog.close(firstWindow).has_value(), "first catalog window closes after retirement");
+		drainBoth();
+		expect(first.Host->is_quiescent(), "first host quiesces independently of surviving window");
+		expect(second.State.Updates.size() > secondProjections
+				   && second.Host->state().AcceptedComparison->Left.Identity == oldPair.Right.Identity,
+			   "B queued selection and projection complete after A closes");
+		secondSelection = selected_diff_request_for(second);
+		resolve(second, secondSelection);
+		const auto staleWindow = secondWindow;
+		second.Host->shutdown();
+		expect(windows.Catalog.close(secondWindow).has_value(), "final window closes");
+		drainBoth();
+		expect(second.Host->is_quiescent() && first.State.ActiveCacheSessions == 0U,
+			   "final window drain releases the lifetime-exclusive cache session");
+		expect(!registry.attach(staleWindow), "closed exact generation cannot reattach");
+		const auto reopened = windows.launch();
+		attach(second, reopened, core::application_session_id{ 92U });
+		auto again               = make_handoff(second.State, 2U, 20U);
+		again.ApplicationSession = core::application_session_id{ 92U };
+		again.PullRequest        = second.State.Binding.Authority.PullRequest;
+		again.Number             = second.State.Binding.Authority.Number;
+		second.Host->accept(std::move(again));
+		drainBoth();
+		expect(second.Host->state().AcceptedRevision.has_value(), "reopened consumer can reacquire drained actor");
+		second.Host->shutdown();
+		drainBoth();
+		registry.shutdown();
+		expect(registry.is_quiescent(), "profile registry drains separately from its window facades");
+	}
 } // namespace
 
 int main()
 {
+	profile_actor_registry_bounds_authority_and_draining_leases();
+	profile_actor_replacement_waits_for_session_destruction();
+	profile_windows_share_one_cache_without_sharing_selection_or_lifetime();
 	epoch_preparation_diagnostics_preserve_results();
 	invalid_handoff_has_no_effects();
 	source_collision_retries_before_core_acceptance();

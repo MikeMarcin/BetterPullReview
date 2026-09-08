@@ -97,32 +97,20 @@ namespace bpr::application {
 			return aLimits;
 		}
 
-		struct cache_actor_key
-		{
-			core::application_session_id     ApplicationSession;
-			core::host_profile_id            Profile;
-			core::github_profile_revision    ProfileRevision;
-			core::git_host_id                Host;
-			core::host_authority_fingerprint HostAuthority;
-			core::github_account_id          Account;
-			core::repository_id              Repository;
-			core::git_hash_algorithm         ObjectFormat = core::git_hash_algorithm::invalid;
-
-			auto operator<=>(const cache_actor_key&) const = default;
-		};
+		using cache_actor_key = profile_epoch_actor_key;
 
 		[[nodiscard]] auto actor_key(
 			const accepted_pull_request_handoff& aHandoff) noexcept -> cache_actor_key
 		{
 			return {
-				.ApplicationSession = aHandoff.ApplicationSession,
-				.Profile            = aHandoff.Profile,
-				.ProfileRevision    = aHandoff.ProfileRevision,
-				.Host               = aHandoff.Host,
-				.HostAuthority      = aHandoff.HostAuthority,
-				.Account            = aHandoff.Account,
-				.Repository         = aHandoff.Repository,
-				.ObjectFormat       = aHandoff.ObjectFormat,
+				.Profile         = aHandoff.Profile,
+				.ProfileRevision = aHandoff.ProfileRevision,
+				.Host            = aHandoff.Host,
+				.HostAuthority   = aHandoff.HostAuthority,
+				.Account         = aHandoff.Account,
+				.Repository      = aHandoff.Repository,
+				.ObjectFormat    = aHandoff.ObjectFormat,
+				.Mode            = aHandoff.Mode,
 			};
 		}
 
@@ -140,14 +128,14 @@ namespace bpr::application {
 			}
 			const auto& authority = aRequest.Context.Key.Authority;
 			return cache_actor_key{
-				.ApplicationSession = aRequest.Context.ApplicationSession,
-				.Profile            = authority.Profile,
-				.ProfileRevision    = authority.ProfileRevision,
-				.Host               = authority.Host,
-				.HostAuthority      = authority.HostAuthority,
-				.Account            = authority.Account,
-				.Repository         = authority.Repository,
-				.ObjectFormat       = algorithm,
+				.Profile         = authority.Profile,
+				.ProfileRevision = authority.ProfileRevision,
+				.Host            = authority.Host,
+				.HostAuthority   = authority.HostAuthority,
+				.Account         = authority.Account,
+				.Repository      = authority.Repository,
+				.ObjectFormat    = algorithm,
+				.Mode            = authority.Mode,
 			};
 		}
 
@@ -159,14 +147,14 @@ namespace bpr::application {
 				return std::nullopt;
 			}
 			return cache_actor_key{
-				.ApplicationSession = aRequest.ApplicationSession,
-				.Profile            = aRequest.Authority.Profile,
-				.ProfileRevision    = aRequest.Authority.ProfileRevision,
-				.Host               = aRequest.Authority.Host,
-				.HostAuthority      = aRequest.Authority.HostAuthority,
-				.Account            = aRequest.Authority.Account,
-				.Repository         = aRequest.Authority.Repository,
-				.ObjectFormat       = aRequest.Session.Binding.HeadOid.algorithm(),
+				.Profile         = aRequest.Authority.Profile,
+				.ProfileRevision = aRequest.Authority.ProfileRevision,
+				.Host            = aRequest.Authority.Host,
+				.HostAuthority   = aRequest.Authority.HostAuthority,
+				.Account         = aRequest.Authority.Account,
+				.Repository      = aRequest.Authority.Repository,
+				.ObjectFormat    = aRequest.Session.Binding.HeadOid.algorithm(),
+				.Mode            = aRequest.Authority.Mode,
 			};
 		}
 
@@ -178,14 +166,14 @@ namespace bpr::application {
 				return std::nullopt;
 			}
 			return cache_actor_key{
-				.ApplicationSession = aWorkspace.ApplicationSession,
-				.Profile            = aWorkspace.Authority.Profile,
-				.ProfileRevision    = aWorkspace.Authority.ProfileRevision,
-				.Host               = aWorkspace.Authority.Host,
-				.HostAuthority      = aWorkspace.Authority.HostAuthority,
-				.Account            = aWorkspace.Authority.Account,
-				.Repository         = aWorkspace.Authority.Repository,
-				.ObjectFormat       = aWorkspace.Workspace.PinnedHead->algorithm(),
+				.Profile         = aWorkspace.Authority.Profile,
+				.ProfileRevision = aWorkspace.Authority.ProfileRevision,
+				.Host            = aWorkspace.Authority.Host,
+				.HostAuthority   = aWorkspace.Authority.HostAuthority,
+				.Account         = aWorkspace.Authority.Account,
+				.Repository      = aWorkspace.Authority.Repository,
+				.ObjectFormat    = aWorkspace.Workspace.PinnedHead->algorithm(),
+				.Mode            = aWorkspace.Authority.Mode,
 			};
 		}
 
@@ -236,14 +224,14 @@ namespace bpr::application {
 			}
 			const auto& authority = aRequest.Diff.Authority;
 			return cache_actor_key{
-				.ApplicationSession = aRequest.Diff.ApplicationSession,
-				.Profile            = authority.Profile,
-				.ProfileRevision    = authority.ProfileRevision,
-				.Host               = authority.Host,
-				.HostAuthority      = authority.HostAuthority,
-				.Account            = authority.Account,
-				.Repository         = authority.Repository,
-				.ObjectFormat       = algorithm,
+				.Profile         = authority.Profile,
+				.ProfileRevision = authority.ProfileRevision,
+				.Host            = authority.Host,
+				.HostAuthority   = authority.HostAuthority,
+				.Account         = authority.Account,
+				.Repository      = authority.Repository,
+				.ObjectFormat    = algorithm,
+				.Mode            = authority.Mode,
 			};
 		}
 
@@ -868,10 +856,12 @@ namespace bpr::application {
 		// remains independently discardable.
 		struct authority_effect_actor final
 		{
-			std::mutex                             QueueMutex;
-			std::deque<std::function<void()>>      Queue;
-			bool                                   Scheduled = false;
-			std::unique_ptr<git_cache_session>     Cache;
+			explicit authority_effect_actor(std::shared_ptr<profile_epoch_actor> aShared)
+				: Shared{ std::move(aShared) }
+				, Cache{ Shared->cache() }
+			{ }
+			std::shared_ptr<profile_epoch_actor>   Shared;
+			std::unique_ptr<git_cache_session>&    Cache;
 			std::mutex                             BlobAuthorityMutex;
 			std::optional<blob_authority>          BlobAuthority;
 			std::optional<selected_diff_authority> SelectedDiffAuthority;
@@ -1054,7 +1044,8 @@ namespace bpr::application {
 			effect_executor&        aEffects,
 			decision_executor&      aDecisionLane,
 			epoch_projection_port&  aProjections,
-			const epoch_host_limits aLimits, std::shared_ptr<diagnostic_log_port> aDiagnosticLog)
+			const epoch_host_limits aLimits, std::shared_ptr<diagnostic_log_port> aDiagnosticLog,
+			std::shared_ptr<profile_epoch_actor_consumer> aConsumer, const bool aLegacy = false)
 			: State{ std::move(aInitialState) }
 			, Caches{ aCaches }
 			, Catalogs{ aCatalogs }
@@ -1066,6 +1057,9 @@ namespace bpr::application {
 			, Limits{ validated_limits(aLimits) }
 			, DiagnosticLog{ std::move(aDiagnosticLog) }
 			, CompletionGate{ std::make_shared<completion_gate>() }
+			, Consumer{ std::move(aConsumer) }
+			, WindowApplicationSession{ State.ApplicationSession }
+			, Legacy{ aLegacy }
 		{
 			Jobs.reserve(Limits.OutstandingJobs);
 			CompletionGate->Host.store(this, std::memory_order_release);
@@ -1430,47 +1424,26 @@ namespace bpr::application {
 			}
 		}
 
-		static void drain_actor(
-			const std::shared_ptr<authority_effect_actor>& aActor) noexcept
-		{
-			while (true) {
-				std::function<void()> work;
-				{
-					std::scoped_lock lock{ aActor->QueueMutex };
-					if (aActor->Queue.empty()) {
-						aActor->Scheduled = false;
-						return;
-					}
-					work = std::move(aActor->Queue.front());
-					aActor->Queue.pop_front();
-				}
-				try {
-					work();
-				} catch (...) {
-					// submit_effect workers contain their own typed exception
-					// boundary. Keep the actor live if an allocator or foreign
-					// callable violates that boundary unexpectedly.
-				}
-			}
-		}
-
 		void enqueue_actor_work(
 			const std::shared_ptr<authority_effect_actor>& aActor,
 			std::function<void()>                          aWork)
 		{
-			std::scoped_lock lock{ aActor->QueueMutex };
-			aActor->Queue.push_back(std::move(aWork));
-			if (aActor->Scheduled) {
-				return;
-			}
-			aActor->Scheduled = true;
+			const auto workState = ActorWork;
+			++workState->Pending;
+			++workState->Queued;
 			try {
-				Effects.post([aActor] {
-					drain_actor(aActor);
+				aActor->Shared->enqueue([aActor, workState, work = std::move(aWork)] {
+					--workState->Queued;
+					struct work_guard final
+					{
+						std::atomic_size_t& Pending;
+						~work_guard() { --Pending; }
+					} guard{ workState->Pending };
+					work();
 				});
 			} catch (...) {
-				aActor->Scheduled = false;
-				aActor->Queue.pop_back();
+				--workState->Queued;
+				--workState->Pending;
 				throw;
 			}
 		}
@@ -1503,9 +1476,13 @@ namespace bpr::application {
 				auto work = [gate,
 							 decisionLane,
 							 control,
+							 consumer = Consumer,
 							 aExceptionCompletion,
 							 task = std::move(aTask)]() mutable {
 					auto completion = worker_completion{ };
+					if (!consumer->active() && !control->MandatoryCleanup) {
+						static_cast<void>(control->Stop.request_stop());
+					}
 					try {
 						completion = task(control->Stop.get_token());
 					} catch (...) {
@@ -1628,6 +1605,9 @@ namespace bpr::application {
 						return;
 					}
 					auto completion = std::move(lockedControl->Completion);
+					if (!host->Consumer->current() && !host->Closing) {
+						host->shutdown();
+					}
 					host->run_turn(
 						[host,
 						 terminalControl    = std::move(lockedControl),
@@ -1779,15 +1759,7 @@ namespace bpr::application {
 
 		[[nodiscard]] auto actors_idle() const noexcept -> bool
 		{
-			std::scoped_lock actorsLock{ CacheActorsMutex };
-			for (const auto& [key, actor] : CacheActors) {
-				static_cast<void>(key);
-				std::scoped_lock lock{ actor->QueueMutex };
-				if (actor->Scheduled || !actor->Queue.empty()) {
-					return false;
-				}
-			}
-			return true;
+			return ActorWork->Pending.load(std::memory_order_acquire) == 0U;
 		}
 
 		void cancel_authority_jobs() noexcept
@@ -1835,7 +1807,7 @@ namespace bpr::application {
 		[[nodiscard]] auto begin_blob_call() noexcept -> bool
 		{
 			std::scoped_lock lock{ JobsMutex };
-			if (BlobIngressClosing.load(std::memory_order_acquire)) {
+			if (!Consumer->active() || BlobIngressClosing.load(std::memory_order_acquire)) {
 				return false;
 			}
 			++InFlightBlobCalls;
@@ -1865,14 +1837,7 @@ namespace bpr::application {
 
 		[[nodiscard]] auto queued_actor_work() const noexcept -> std::size_t
 		{
-			std::scoped_lock actorsLock{ CacheActorsMutex };
-			auto             total = std::size_t{ 0U };
-			for (const auto& [key, actor] : CacheActors) {
-				static_cast<void>(key);
-				std::scoped_lock queueLock{ actor->QueueMutex };
-				total += actor->Queue.size();
-			}
-			return total;
+			return ActorWork->Queued.load(std::memory_order_acquire);
 		}
 
 		[[nodiscard]] static auto advance_append(
@@ -2396,6 +2361,9 @@ namespace bpr::application {
 				.Authority          = aCatalog.binding().Authority,
 				.ObjectFormat       = aHandoff.ObjectFormat,
 			};
+			if (aCache && aCache->request() != expectedCache) {
+				aCache.reset();
+			}
 			const auto durableToken  = aRecord.Operation.bytes();
 			const auto postPointStop = std::stop_token{ };
 
@@ -2710,7 +2678,7 @@ namespace bpr::application {
 
 		[[nodiscard]] static auto abort_preparation(
 			authority_context&  aContext,
-			prepared_operation& aOperation) -> bool
+			prepared_operation& aOperation, git_cache_port& aCaches) -> bool
 		{
 			if (aOperation.Kind == prepared_kind::observation_only) {
 				return true;
@@ -2753,6 +2721,15 @@ namespace bpr::application {
 				record = *requested;
 			}
 			if (aContext.Actor->Cache) {
+				const auto cache = open_actor_cache(*aContext.Actor, aCaches,
+													git_cache_open_request{ .ApplicationSession = aContext.Handoff.ApplicationSession,
+																			.Authority          = aContext.Authority,
+																			.ObjectFormat       = aContext.Handoff.ObjectFormat },
+													{ });
+				if (!cache) {
+					markRepair();
+					return false;
+				}
 				const auto request = recovery_request(record);
 				if (!request) {
 					markRepair();
@@ -2834,7 +2811,7 @@ namespace bpr::application {
 						auto operation = context->take(*aExpected);
 						if (operation) {
 							static_cast<void>(
-								abort_preparation(*context, *operation));
+								abort_preparation(*context, *operation, *caches));
 						}
 					} else {
 						while (!context->Preparations.empty()) {
@@ -2842,7 +2819,7 @@ namespace bpr::application {
 								context->Preparations.back().Operation);
 							if (operation) {
 								static_cast<void>(
-									abort_preparation(*context, *operation));
+									abort_preparation(*context, *operation, *caches));
 							}
 						}
 					}
@@ -2879,6 +2856,9 @@ namespace bpr::application {
 
 		void publish(const epoch_presentation_update& aUpdate) noexcept
 		{
+			if (!Legacy && !Consumer->current()) {
+				return;
+			}
 			try {
 				Projections.publish(aUpdate);
 			} catch (...) {
@@ -3093,7 +3073,11 @@ namespace bpr::application {
 			if (CacheActors.size() >= maximum_cache_actors) {
 				return { };
 			}
-			auto actor = std::make_shared<authority_effect_actor>();
+			auto shared = Consumer->acquire(key);
+			if (!shared) {
+				return { };
+			}
+			auto actor = std::make_shared<authority_effect_actor>(std::move(*shared));
 			CacheActors.emplace_back(key, actor);
 			return actor;
 		}
@@ -3121,7 +3105,7 @@ namespace bpr::application {
 			const std::optional<core::agent_revision_binding>& aBinding) const
 			-> std::optional<workbench_selected_diff_context>
 		{
-			if (!application::valid(aAuthority)
+			if (!Consumer->current() || !application::valid(aAuthority)
 				|| !State.Authority.has_value()
 				|| !State.AcceptedRevision.has_value()
 				|| !State.AcceptedComparison.has_value()
@@ -3219,14 +3203,14 @@ namespace bpr::application {
 			}
 			const auto& authority = *State.Authority;
 			const auto  key       = cache_actor_key{
-				.ApplicationSession = State.ApplicationSession,
-				.Profile            = authority.Profile,
-				.ProfileRevision    = authority.ProfileRevision,
-				.Host               = authority.Host,
-				.HostAuthority      = authority.HostAuthority,
-				.Account            = authority.Account,
-				.Repository         = authority.Repository,
-				.ObjectFormat       = aRequest.Right.algorithm(),
+				.Profile         = authority.Profile,
+				.ProfileRevision = authority.ProfileRevision,
+				.Host            = authority.Host,
+				.HostAuthority   = authority.HostAuthority,
+				.Account         = authority.Account,
+				.Repository      = authority.Repository,
+				.ObjectFormat    = aRequest.Right.algorithm(),
+				.Mode            = authority.Mode,
 			};
 			auto actor = std::shared_ptr<authority_effect_actor>{ };
 			{
@@ -3275,9 +3259,9 @@ namespace bpr::application {
 								: changed_paths_status::failure;
 						};
 						if (workStop.stop_requested()
-							|| BlobIngressClosing.load(std::memory_order_acquire)) {
+							|| !Consumer->active() || BlobIngressClosing.load(std::memory_order_acquire)) {
 							observation.Status = changed_paths_status::cancelled;
-						} else if (actor->Cache == nullptr || actor->Cache->request() != expected) {
+						} else if (!open_actor_cache(*actor, Caches, expected, workStop)) {
 							observation.Status = changed_paths_status::stale;
 						} else if (const auto inspected
 								   = actor->Cache->inspect_commit_object(request.Left, workStop);
@@ -3419,13 +3403,12 @@ namespace bpr::application {
 							};
 							const auto workStop = control->Stop.get_token();
 							if (workStop.stop_requested()
-								|| BlobIngressClosing.load(std::memory_order_acquire)) {
+								|| !Consumer->active() || BlobIngressClosing.load(std::memory_order_acquire)) {
 								observation.Status = workbench_selected_diff_status::cancelled;
 							} else if (selected_diff_authorization_generation(actor, aRequest)
 									   != admittedGeneration) {
 								observation.Status = workbench_selected_diff_status::stale;
-							} else if (actor->Cache != nullptr
-									   && actor->Cache->request() == expected) {
+							} else if (open_actor_cache(*actor, Caches, expected, workStop).has_value()) {
 								const auto lookup = [&](const std::filesystem::path& aPath,
 														const core::git_commit_oid   aCommit)
 									-> git_cache_result<std::optional<core::git_blob_oid>> {
@@ -3596,7 +3579,7 @@ namespace bpr::application {
 										actor->BlobAuthorityMutex
 									};
 									if (workStop.stop_requested()
-										|| BlobIngressClosing.load(std::memory_order_acquire)) {
+										|| !Consumer->active() || BlobIngressClosing.load(std::memory_order_acquire)) {
 										observation.Status = workbench_selected_diff_status::cancelled;
 									} else if (const auto held = std::optional{ selected_diff_authority{
 												   .Workbench = aRequest.WorkbenchAuthority,
@@ -3784,15 +3767,14 @@ namespace bpr::application {
 							const auto workStop = control->Stop.get_token();
 							if (
 								workStop.stop_requested()
-								|| BlobIngressClosing.load(std::memory_order_acquire)) {
+								|| !Consumer->active() || BlobIngressClosing.load(std::memory_order_acquire)) {
 								observation.Status = diff_blob_status::cancelled;
 							} else if (
 								blob_authorization_generation(actor, authorization)
 								!= admittedGeneration) {
 								observation.Status = diff_blob_status::failure;
 							} else if (
-								actor->Cache != nullptr
-								&& actor->Cache->request() == expected) {
+								open_actor_cache(*actor, Caches, expected, workStop).has_value()) {
 								auto bytes = actor->Cache->materialize_blob(
 									git_cache_blob_request{
 										.Blob         = aRequest.Blob,
@@ -3805,8 +3787,7 @@ namespace bpr::application {
 									};
 									if (
 										workStop.stop_requested()
-										|| BlobIngressClosing.load(
-											std::memory_order_acquire)) {
+										|| !Consumer->active() || BlobIngressClosing.load(std::memory_order_acquire)) {
 										observation.Status = diff_blob_status::cancelled;
 									} else if (
 										actor->BlobAuthority
@@ -3976,7 +3957,7 @@ namespace bpr::application {
 							const auto workStop = control->Stop.get_token();
 							if (
 								workStop.stop_requested()
-								|| BlobIngressClosing.load(std::memory_order_acquire)) {
+								|| !Consumer->active() || BlobIngressClosing.load(std::memory_order_acquire)) {
 								result = std::unexpected{
 									agent_workspace_failure::cancelled
 								};
@@ -3985,8 +3966,7 @@ namespace bpr::application {
 								!= admittedGeneration) {
 								result = std::unexpected{ agent_workspace_failure::stale };
 							} else if (
-								actor->Cache != nullptr
-								&& actor->Cache->request() == expected) {
+								open_actor_cache(*actor, Caches, expected, workStop).has_value()) {
 								auto materialized = actor->Cache->materialize_agent_workspace(
 									aRequest,
 									workStop);
@@ -3996,6 +3976,7 @@ namespace bpr::application {
 									};
 									if (
 										workStop.stop_requested()
+										|| !Consumer->active()
 										|| actor->BlobAuthority
 											!= std::optional{ authorization }
 										|| actor->BlobAuthorityGeneration
@@ -4099,6 +4080,9 @@ namespace bpr::application {
 			const std::stop_token        aStop)
 			-> std::expected<void, agent_workspace_error>
 		{
+			if (!Consumer->active() || aWorkspace.ApplicationSession != WindowApplicationSession) {
+				return std::unexpected{ agent_workspace_failure::cleanup_failed };
+			}
 			static_cast<void>(begin_cleanup_call());
 			struct cleanup_call_guard final
 			{
@@ -4162,8 +4146,7 @@ namespace bpr::application {
 								}
 							};
 							if (
-								actor->Cache == nullptr
-								|| actor->Cache->request() != expected) {
+								!open_actor_cache(*actor, Caches, expected, control->Stop.get_token())) {
 								result = std::unexpected{
 									agent_workspace_failure::cleanup_failed
 								};
@@ -4231,7 +4214,7 @@ namespace bpr::application {
 
 		void accept(accepted_pull_request_handoff aHandoff)
 		{
-			if (!application::valid(aHandoff)
+			if (!Consumer->current() || !application::valid(aHandoff)
 				|| aHandoff.ApplicationSession != State.ApplicationSession) {
 				if (aHandoff.SmartGit) {
 					aHandoff.SmartGit->revoke();
@@ -4271,7 +4254,7 @@ namespace bpr::application {
 
 		void accept_now(accepted_pull_request_handoff aHandoff)
 		{
-			if (Closing) {
+			if (!Consumer->current() || Closing) {
 				if (aHandoff.SmartGit) {
 					aHandoff.SmartGit->revoke();
 				}
@@ -4758,7 +4741,7 @@ namespace bpr::application {
 
 		void dispatch(const epoch_intent aIntent)
 		{
-			if (Closing) {
+			if (!Consumer->current() || Closing) {
 				return;
 			}
 			if (TurnActive || deferred_work_pending()) {
@@ -4772,7 +4755,7 @@ namespace bpr::application {
 
 		void dispatch_now(const epoch_intent& aIntent)
 		{
-			if (Closing) {
+			if (!Consumer->current() || Closing) {
 				return;
 			}
 			std::visit(
@@ -4784,6 +4767,7 @@ namespace bpr::application {
 
 		void shutdown()
 		{
+			Consumer->retire();
 			close_blob_ingress_and_cancel_jobs();
 			if (TurnActive || deferred_work_pending()) {
 				defer_shutdown();
@@ -4818,6 +4802,8 @@ namespace bpr::application {
 				});
 				Active.reset();
 			}
+			std::scoped_lock actorsLock{ CacheActorsMutex };
+			CacheActors.clear();
 		}
 
 		void start_catalog_load(const core::load_epoch_catalog_request& aRequest)
@@ -5164,12 +5150,12 @@ namespace bpr::application {
 					const auto failPrepared =
 						[&](const core::epoch_failure aFailure)
 						-> worker_completion {
-						const auto safe = abort_preparation(*context, prepared);
+						const auto safe = abort_preparation(*context, prepared, *caches);
 						return failed(
 							safe ? aFailure : core::epoch_failure::repair_required);
 					};
 					const auto cancelPrepared = [&]() -> worker_completion {
-						const auto safe = abort_preparation(*context, prepared);
+						const auto safe = abort_preparation(*context, prepared, *caches);
 						return safe
 							? cancelled()
 							: failed(core::epoch_failure::repair_required);
@@ -5475,7 +5461,7 @@ namespace bpr::application {
 								   : review.error());
 					}
 					if (!context->store(prepared)) {
-						const auto safe = abort_preparation(*context, prepared);
+						const auto safe = abort_preparation(*context, prepared, *caches);
 						return failed(
 							safe ? core::epoch_failure::unavailable
 								 : core::epoch_failure::repair_required);
@@ -5598,12 +5584,12 @@ namespace bpr::application {
 					const auto abortAndFail =
 						[&](const core::epoch_failure aFailure)
 						-> worker_completion {
-						const auto safe = abort_preparation(*context, operation);
+						const auto safe = abort_preparation(*context, operation, *caches);
 						return failed(
 							safe ? aFailure : core::epoch_failure::repair_required);
 					};
 					const auto abortAndCancel = [&]() -> worker_completion {
-						const auto safe = abort_preparation(*context, operation);
+						const auto safe = abort_preparation(*context, operation, *caches);
 						return safe
 							? cancelled(
 								  core::epoch_commit_progress::before_ref_commit)
@@ -5778,7 +5764,7 @@ namespace bpr::application {
 							}
 							operation.Record = durable;
 							if (!point_of_no_cancellation(durable.Phase)) {
-								const auto safe = abort_preparation(*context, operation);
+								const auto safe = abort_preparation(*context, operation, *caches);
 								if (!safe) {
 									return failed(
 										core::epoch_failure::repair_required);
@@ -6671,17 +6657,26 @@ namespace bpr::application {
 				std::move(actor));
 		}
 
-		core::epoch_state                    State;
-		git_cache_port&                      Caches;
-		epoch_catalog_port&                  Catalogs;
-		epoch_entropy_port&                  Entropy;
-		epoch_clock_port&                    Clock;
-		effect_executor&                     Effects;
-		decision_executor&                   DecisionLane;
-		epoch_projection_port&               Projections;
-		epoch_host_limits                    Limits;
-		std::shared_ptr<diagnostic_log_port> DiagnosticLog;
-		std::shared_ptr<completion_gate>     CompletionGate;
+		core::epoch_state                             State;
+		git_cache_port&                               Caches;
+		epoch_catalog_port&                           Catalogs;
+		epoch_entropy_port&                           Entropy;
+		epoch_clock_port&                             Clock;
+		effect_executor&                              Effects;
+		decision_executor&                            DecisionLane;
+		epoch_projection_port&                        Projections;
+		epoch_host_limits                             Limits;
+		std::shared_ptr<diagnostic_log_port>          DiagnosticLog;
+		std::shared_ptr<completion_gate>              CompletionGate;
+		std::shared_ptr<profile_epoch_actor_consumer> Consumer;
+		const core::application_session_id            WindowApplicationSession;
+		const bool                                    Legacy;
+		struct actor_work_state
+		{
+			std::atomic_size_t Pending = 0U;
+			std::atomic_size_t Queued  = 0U;
+		};
+		std::shared_ptr<actor_work_state> ActorWork = std::make_shared<actor_work_state>();
 		std::vector<
 			std::pair<cache_actor_key, std::shared_ptr<authority_effect_actor>>>
 														   CacheActors;
@@ -6720,7 +6715,8 @@ namespace bpr::application {
 		decision_executor&      aDecisionLane,
 		epoch_projection_port&  aProjections,
 		const epoch_host_limits aLimits, std::shared_ptr<diagnostic_log_port> aDiagnosticLog)
-		: Implementation{ std::make_unique<implementation>(
+		: OwnedRegistry{ new profile_epoch_actor_registry{ aCaches, aEffects } }
+		, Implementation{ std::make_unique<implementation>(
 			  std::move(aInitialState),
 			  aCaches,
 			  aCatalogs,
@@ -6729,8 +6725,25 @@ namespace bpr::application {
 			  aEffects,
 			  aDecisionLane,
 			  aProjections,
-			  aLimits, std::move(aDiagnosticLog)) }
+			  aLimits, std::move(aDiagnosticLog), OwnedRegistry->attach_legacy(), true) }
 	{
+	}
+
+	epoch_application_host::epoch_application_host(
+		core::epoch_state aInitialState, profile_epoch_actor_registry& aRegistry,
+		const core::bpr_window_context aWindow,
+		epoch_catalog_port& aCatalogs, epoch_entropy_port& aEntropy,
+		epoch_clock_port& aClock, effect_executor& aEffects,
+		decision_executor& aDecisionLane, epoch_projection_port& aProjections,
+		const epoch_host_limits aLimits, std::shared_ptr<diagnostic_log_port> aDiagnosticLog)
+	{
+		auto consumer = aRegistry.attach(aWindow);
+		if (!consumer) {
+			throw std::invalid_argument{ "Epoch window attachment refused" };
+		}
+		Implementation = std::make_unique<implementation>(std::move(aInitialState),
+														  aRegistry.caches(), aCatalogs, aEntropy, aClock, aEffects, aDecisionLane, aProjections,
+														  aLimits, std::move(aDiagnosticLog), std::move(*consumer));
 	}
 
 	epoch_application_host::~epoch_application_host()

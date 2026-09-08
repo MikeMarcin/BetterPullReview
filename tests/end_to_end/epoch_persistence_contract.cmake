@@ -13,6 +13,8 @@ math(EXPR bpr_phase_timeout "${BPR_RUN_BUDGET_MS} / 1000 + 30")
 
 file(REMOVE_RECURSE "${BPR_ROOT}")
 file(MAKE_DIRECTORY "${BPR_ROOT}")
+include("${CMAKE_CURRENT_LIST_DIR}/bpr_narrow_owner_private.cmake")
+bpr_narrow_owner_private("${BPR_ROOT}")
 
 function(run_epoch_phase phase marker)
     execute_process(

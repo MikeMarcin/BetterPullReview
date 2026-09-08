@@ -9,6 +9,7 @@
 #include "bpr/application/git_cache_port.hpp"
 #include "bpr/application/github_epoch_handoff.hpp"
 #include "bpr/application/port.hpp"
+#include "bpr/application/profile_epoch_actor_registry.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/agent_session.hpp"
 #include "bpr/core/epoch_transition.hpp"
@@ -43,6 +44,23 @@ namespace bpr::application {
 			epoch_projection_port&               aProjections,
 			epoch_host_limits                    aLimits        = { },
 			std::shared_ptr<diagnostic_log_port> aDiagnosticLog = { });
+		/// \brief Attaches a window to its externally owned profile cache actors.
+		/// \details Construction refuses stale/foreign contexts. Shutdown retires
+		/// concurrent ingress before catalog removal; all referenced ports and the
+		/// registry must outlive host quiescence. Catalog sessions remain window-local.
+		epoch_application_host(
+			core::epoch_state                    aInitialState,
+			profile_epoch_actor_registry&        aRegistry,
+			core::bpr_window_context             aWindow,
+			epoch_catalog_port&                  aCatalogs,
+			epoch_entropy_port&                  aEntropy,
+			epoch_clock_port&                    aClock,
+			effect_executor&                     aEffects,
+			decision_executor&                   aDecisionLane,
+			epoch_projection_port&               aProjections,
+			epoch_host_limits                    aLimits        = { },
+			std::shared_ptr<diagnostic_log_port> aDiagnosticLog = { });
+
 		~epoch_application_host() override;
 
 		epoch_application_host(const epoch_application_host&) = delete;
@@ -131,7 +149,8 @@ namespace bpr::application {
 			-> workbench_selected_diff_endpoint;
 
 		struct implementation;
-		std::unique_ptr<implementation> Implementation;
+		std::unique_ptr<profile_epoch_actor_registry> OwnedRegistry;
+		std::unique_ptr<implementation>               Implementation;
 	};
 } // namespace bpr::application
 

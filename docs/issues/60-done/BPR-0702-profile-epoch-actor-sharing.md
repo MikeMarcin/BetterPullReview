@@ -2,9 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0702"
 title: "Share profile cache actors with independent window epoch state"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0697", "BPR-0698"]
+acceptance: [{"criterion":"Bounded profile cache sharing and window isolation criteria","outcome":"pass","revision":"HEAD plus explicit finish paths","evidence":{"kind":"observation","detail":"Core-only epochhost0.61s tests pass A/B/A, exact immutable FIFO switches/max1live session, Aclose/Bqueued survival, release/reopen/destructoroverlap. ThreeTUs tidy/format/diff pass. Mediumreview no blockers. Rebuilt public epochpersistencegithub-com seed/reopen52.01s pass after existing owner-private fixture helper; no live repository or actual multiwindow UI claim."}}]
 ---
 
 # Share profile cache actors with independent window epoch state
@@ -40,5 +41,16 @@ Existing epoch host contracts and a composed epoch path remain passing.
 
 ## Evidence
 
-Bounded read-only ownership investigation identified this slice. No new code
-or acceptance check has run. Full same-profile multi-window criteria remain open.
+The profile registry binds one cache capability and bounded weak actor entries;
+window consumers keep independent warrants, requests, cancellation and projection.
+FIFO request switching preserves immutable authority with at most one live cache
+session. A release marker prevents replacement while a session destructor drains.
+
+Core-only epoch host tests pass (0.61s), including A/B/A exact requests, A shutdown
+while B has queued work, final release/reopen and destructor-overlap admission.
+All three changed TUs pass warnings-as-errors tidy, formatting and diff checks.
+Independent medium review found no evidence-backed blocker. The rebuilt public
+GitHub epoch persistence seed/reopen course passes (52.01s). Its fixture now uses
+the existing owner-private directory helper; production root refusal is unchanged.
+Native Git effects are exercised by that fixture course, not a live repository.
+Actual same-profile Qt multiple-window construction remains later integration.

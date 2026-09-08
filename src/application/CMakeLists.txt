@@ -39,6 +39,7 @@ add_library(
         src/device_authorization_schedule.cpp
         src/github_capability_cache.cpp
         src/epoch_application_host.cpp
+        src/profile_epoch_actor_registry.cpp
         src/epoch_runtime_ports.cpp
         src/github_application_host.cpp
         src/github_window_read_host.cpp

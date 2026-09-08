@@ -152,3 +152,10 @@ rejected candidate until explicit dismissal. Two-connection race/ABA/migration
 and hostile-observation tests pass; composed ledger40.86s and agent invocation
 0.40s pass. Review finding on Current validation is corrected and narrowly
 rechecked. Private-note editor UX is not claimed; shared drafts remain BPR-0704.
+
+BPR-0702 shares profile cache actors while retaining window warrants/jobs. Exact
+requests switch only through the shared FIFO; tests prove no overlapping session
+and independent A/B/A selections, queued sibling survival and final destructor
+drainage. Epoch host0.61s and public persistence seed/reopen52.01s pass; tidy
+passes and independent review found no blocker. Actual multi-window composition
+remains open. Public fixture root preparation now honors owner-private admission.
