@@ -3,11 +3,13 @@
 #include "github_capability_probe.hpp"
 #include <QFileInfo>
 #include <QTemporaryDir>
+#include <barrier>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <iterator>
 #include <thread>
+#include <vector>
 namespace {
 	void expect(bool aCondition, const char* aMessage)
 	{
@@ -56,6 +58,82 @@ int main(int aArgc, char** aArgv)
 	{
 		adapters::logging::quill_log log{ root };
 		expect(log.record({ .Operation = application::diagnostic_operation::epoch, .Outcome = application::diagnostic_outcome::failed, .Request = 19U, .EpochStage = application::diagnostic_epoch_stage::protocol_acquire, .EpochFailure = application::git_protocol_v2_failure::pack_sink, .EpochPackFailure = application::git_pack_stream_failure::input_limit }) == status::available, "typed epoch detail accepted by real sink");
+	}
+	{
+		const auto                   firstRoot  = root / "profile-first";
+		const auto                   secondRoot = root / "profile-second";
+		adapters::logging::quill_log firstLog{ firstRoot };
+		adapters::logging::quill_log secondLog{ secondRoot };
+		expect(firstLog.status() == status::available && secondLog.status() == status::available, "concurrent profiles both have logging");
+		expect(firstLog.record({ .Request = 7001 }) == status::available, "first profile event");
+		expect(secondLog.record({ .Request = 7002 }) == status::available, "second profile event");
+		{
+			adapters::logging::quill_log unavailable{ "relative" };
+			expect(unavailable.status() == status::unavailable, "invalid sibling stays unavailable");
+			adapters::logging::quill_log full{ root / "profile-full", 1U };
+			static_cast<void>(full.record({ }));
+			full.close();
+			expect(full.status() == status::full, "one profile's cap is isolated");
+		}
+		firstLog.close();
+		{
+			adapters::logging::quill_log reopened{ firstRoot };
+			expect(reopened.record({ .Request = 7003 }) == status::available, "closed profile releases its file while sibling remains live");
+		}
+		expect(secondLog.record({ .Request = 7004 }) == status::available, "closing initial logger leaves sibling recording");
+		secondLog.close();
+		const auto firstText  = read(firstRoot / "logs/diagnostics.log");
+		const auto secondText = read(secondRoot / "logs/diagnostics.log");
+		expect(firstText.find("request=7001 ") != std::string::npos && firstText.find("request=7003 ") != std::string::npos
+				   && firstText.find("request=7002 ") == std::string::npos && firstText.find("request=7004 ") == std::string::npos,
+			   "first log contains only its own events");
+		expect(secondText.find("request=7002 ") != std::string::npos && secondText.find("request=7004 ") != std::string::npos
+				   && secondText.find("request=7001 ") == std::string::npos && secondText.find("request=7003 ") == std::string::npos,
+			   "second log contains only its own events");
+		adapters::logging::quill_log firstAgain{ firstRoot };
+		adapters::logging::quill_log secondAgain{ secondRoot };
+		secondAgain.close();
+		expect(firstAgain.record({ .Request = 7005 }) == status::available, "reverse close order also keeps survivor live");
+		firstAgain.close();
+		expect(read(firstRoot / "logs/diagnostics.log").find("request=7005 ") != std::string::npos, "backend restarts after final owner closes");
+	}
+	{
+		std::barrier              ready{ 4 };
+		std::vector<std::jthread> writers;
+		writers.reserve(4);
+		for (auto index = 0; index < 4; ++index) {
+			writers.emplace_back([&, index] {
+				adapters::logging::quill_log log{ root / ("concurrent-" + std::to_string(index)) };
+				expect(log.status() == status::available, "concurrent logger admission");
+				ready.arrive_and_wait();
+				expect(log.record({ .Request = static_cast<std::uint64_t>(8000 + index) }) == status::available, "concurrent logger record");
+				log.close();
+			});
+		}
+		writers.clear();
+		for (auto index = 0; index < 4; ++index) {
+			const auto text = read(root / ("concurrent-" + std::to_string(index)) / "logs/diagnostics.log");
+			expect(text.find("request=" + std::to_string(8000 + index) + " ") != std::string::npos, "concurrent close drains each owned logger");
+		}
+	}
+	{
+		adapters::logging::quill_log busy{ root / "busy-profile", 256U * 1024U * 1024U };
+		adapters::logging::quill_log healthy{ root / "healthy-profile" };
+		auto                         event = application::diagnostic_event{ };
+		event.Summary.Text.fill('x');
+		event.Summary.Size  = static_cast<std::uint16_t>(event.Summary.Text.size());
+		event.Summary.State = application::diagnostic_summary_state::sanitized;
+		auto dropped        = false;
+		for (auto index = 0; index < 100000 && !dropped; ++index) {
+			dropped = busy.record(event) == status::dropped;
+		}
+		expect(dropped, "actual bounded frontend queue overflow exercised");
+		busy.close();
+		expect(healthy.record({ .Request = 9001 }) == status::available, "overflow does not disable healthy sibling ingress");
+		healthy.close();
+		// Final backend drainage checks Quill's delayed failure counters too.
+		expect(healthy.status() == status::available, "informational queue-drop report is not a shared backend failure");
+		expect(read(root / "healthy-profile/logs/diagnostics.log").find("request=9001 ") != std::string::npos, "healthy sibling event survives overflow drainage");
 	}
 	const auto first = read(file);
 	expect(first.find("epoch_stage=protocol_acquire failure_domain=protocol failure=pack_sink pack_failure=input_limit") != std::string::npos, "fixed protocol and pack failure names persisted");

@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cstdio>
+#include <limits>
 #include <mutex>
 #include <quill/Backend.h>
 #include <quill/Frontend.h>
@@ -136,8 +137,86 @@ namespace bpr::adapters::logging {
 			return "unknown";
 		}
 
-		using status_type              = application::diagnostic_log_status;
-		std::atomic_flag backend_owned = ATOMIC_FLAG_INIT;
+		using status_type = application::diagnostic_log_status;
+		struct backend_status
+		{
+			std::atomic<bool> Failed{ false };
+		};
+		struct backend_lifetime
+		{
+			std::mutex                      Mutex;
+			std::size_t                     Users      = 0;
+			std::uint64_t                   LastLogger = 0;
+			std::shared_ptr<backend_status> Status;
+		};
+		auto shared_backend() -> backend_lifetime&
+		{
+			static backend_lifetime lifetime;
+			return lifetime;
+		}
+		// Quill has one process backend. Its lifetime is shared, while each
+		// admitted log retains a separate sink and backend logger identity.
+		class backend_lease final
+		{
+		public:
+			backend_lease()
+			{
+				auto&                 lifetime = shared_backend();
+				const std::lock_guard lock{ lifetime.Mutex };
+				if (lifetime.Users == 64U || lifetime.LastLogger == std::numeric_limits<std::uint64_t>::max()) {
+					return;
+				}
+				auto name = std::string{ "bpr.diagnostics." } + std::to_string(++lifetime.LastLogger);
+				if (lifetime.Users == 0U) {
+					auto                  status = std::make_shared<backend_status>();
+					quill::BackendOptions options;
+					options.transit_event_buffer_initial_capacity = 32;
+					options.transit_events_soft_limit             = 128;
+					options.transit_events_hard_limit             = 128;
+					// Backend failures cannot be attributed to one sink. File/cap
+					// failures remain in capped_sink's own status instead.
+					options.error_notifier = [status](const std::string& aMessage) {
+						// Quill also reports ordinary dropping/backpressure and
+						// nonfatal thread setup warnings through this callback.
+						if (aMessage.find(" Quill INFO: ") == std::string::npos
+							&& aMessage.find(" Quill WARNING: ") == std::string::npos) {
+							status->Failed.store(true);
+						}
+					};
+					quill::Backend::start(options);
+					lifetime.Status = std::move(status);
+				}
+				Status = lifetime.Status;
+				Name   = std::move(name);
+				++lifetime.Users;
+				Active = true;
+			}
+			~backend_lease() { release(); }
+			backend_lease(const backend_lease&)                    = delete;
+			auto operator=(const backend_lease&) -> backend_lease& = delete;
+			void release() noexcept
+			{
+				if (!Active) {
+					return;
+				}
+				try {
+					auto&                 lifetime = shared_backend();
+					const std::lock_guard lock{ lifetime.Mutex };
+					Active = false;
+					if (--lifetime.Users == 0U) {
+						quill::Backend::stop();
+						lifetime.Status.reset();
+					}
+				} catch (...) {
+					Status->Failed.store(true);
+				}
+			}
+			std::shared_ptr<backend_status> Status;
+			std::string                     Name;
+
+		private:
+			bool Active = false;
+		};
 		struct frontend_options : quill::FrontendOptions
 		{
 			static constexpr auto        queue_type             = quill::QueueType::BoundedDropping;
@@ -279,23 +358,18 @@ namespace bpr::adapters::logging {
 		explicit implementation(const std::filesystem::path& aRoot, const std::uint64_t aMaximumBytes)
 			: State{ std::make_shared<sink_state>() }
 		{
-			if (backend_owned.test_and_set()) {
-				return;
-			}
-			OwnsBackend = true;
 			try {
 				Sink = std::make_shared<capped_sink>(aRoot, aMaximumBytes, State);
 				if (State->Status != status_type::available) {
 					return;
 				}
-				quill::BackendOptions options;
-				options.transit_event_buffer_initial_capacity = 32;
-				options.transit_events_soft_limit             = 128;
-				options.transit_events_hard_limit             = 128;
-				options.error_notifier                        = [state = State](const std::string&) { state->fail(status_type::unavailable); };
-				quill::Backend::start(options);
-				Started = true;
-				Logger  = frontend::create_or_get_logger("bpr.diagnostics", Sink, quill::PatternFormatterOptions{ "%(time) %(message)", "%Y-%m-%dT%H:%M:%S.%QnsZ", quill::Timezone::GmtTime });
+				Backend       = std::make_unique<backend_lease>();
+				BackendStatus = Backend->Status;
+				if (!BackendStatus) {
+					State->fail(status_type::unavailable);
+					return;
+				}
+				Logger = frontend::create_or_get_logger(Backend->Name, Sink, quill::PatternFormatterOptions{ "%(time) %(message)", "%Y-%m-%dT%H:%M:%S.%QnsZ", quill::Timezone::GmtTime });
 			} catch (...) {
 				State->fail(status_type::unavailable);
 			}
@@ -314,17 +388,11 @@ namespace bpr::adapters::logging {
 					frontend::remove_logger_blocking(Logger);
 					Logger = nullptr;
 				}
-				if (Started) {
-					quill::Backend::stop();
-				}
 			} catch (...) {
 				State->fail(status_type::unavailable);
 			}
+			Backend.reset();
 			Sink.reset();
-			if (OwnsBackend) {
-				backend_owned.clear();
-				OwnsBackend = false;
-			}
 		}
 		auto record(const application::diagnostic_event& aEvent) noexcept -> status_type
 		{
@@ -336,8 +404,8 @@ namespace bpr::adapters::logging {
 			if (Closed) {
 				return status_type::closed;
 			}
-			if (State->Status != status_type::available || Logger == nullptr) {
-				return State->Status;
+			if (status() != status_type::available || Logger == nullptr) {
+				return status();
 			}
 			const auto                                        operation = static_cast<std::size_t>(aEvent.Operation);
 			const auto                                        outcome   = static_cast<std::size_t>(aEvent.Outcome);
@@ -370,6 +438,13 @@ namespace bpr::adapters::logging {
 				return status_type::dropped;
 			}
 		}
+		auto status() const noexcept -> status_type
+		{
+			const auto result = State->Status.load();
+			return result == status_type::available && BackendStatus && BackendStatus->Failed.load()
+				? status_type::unavailable
+				: result;
+		}
 		std::shared_ptr<sink_state> State;
 
 	private:
@@ -377,10 +452,11 @@ namespace bpr::adapters::logging {
 		std::array<std::thread::id, 16> Threads{ };
 		std::size_t                     ThreadCount = 0;
 		std::shared_ptr<capped_sink>    Sink;
-		frontend::logger_t*             Logger      = nullptr;
-		bool                            OwnsBackend = false;
-		bool                            Started     = false;
-		bool                            Closed      = false;
+		frontend::logger_t*             Logger = nullptr;
+		std::unique_ptr<backend_lease>  Backend;
+		// Retained after close so concurrent status reads never race pointer reset.
+		std::shared_ptr<backend_status> BackendStatus;
+		bool                            Closed = false;
 	};
 	quill_log::quill_log(const std::filesystem::path& aRoot, const std::uint64_t aMaximumBytes) noexcept
 	{
@@ -390,7 +466,7 @@ namespace bpr::adapters::logging {
 	}
 	quill_log::~quill_log() = default;
 	auto quill_log::record(const application::diagnostic_event& aEvent) noexcept -> status_type { return Implementation ? Implementation->record(aEvent) : status_type::unavailable; }
-	auto quill_log::status() const noexcept -> status_type { return Implementation ? Implementation->State->Status.load() : status_type::unavailable; }
+	auto quill_log::status() const noexcept -> status_type { return Implementation ? Implementation->status() : status_type::unavailable; }
 	void quill_log::close() noexcept
 	{
 		if (Implementation) {

@@ -22,8 +22,10 @@
 
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <functional>
 #include <iostream>
+#include <iterator>
 
 namespace {
 	using namespace bpr;
@@ -160,6 +162,13 @@ auto main(int aArgc, char** aArgv) -> int
 	quit->trigger();
 	wait_for([&] { return desktop->is_quiescent(); }, "desktop Quit drains every profile and startup");
 	desktop.reset();
+	for (const auto& logRoot : { root, root / "profiles" / ("profile-" + std::to_string(workId.value())), root / "profiles" / ("profile-" + std::to_string(personalId.value())) }) {
+		std::ifstream     stream{ logRoot / "logs/diagnostics.log" };
+		const std::string text{ std::istreambuf_iterator<char>{ stream }, { } };
+		expect(text.find("op=application outcome=started") != std::string::npos
+				   && text.find("op=application outcome=shutdown") != std::string::npos,
+			   "each concurrent profile retains its own startup and shutdown diagnostics");
+	}
 
 	// Closing the last visible management surface must drain the desktop too.
 	initial  = nullptr;
