@@ -16,6 +16,7 @@ add_library(
         src/epoch_transition.cpp
         src/github_model.cpp
         src/github_transition.cpp
+        src/github_window_read.cpp
         src/model.cpp
         src/review_ledger.cpp
         src/review_queue.cpp

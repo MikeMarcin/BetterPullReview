@@ -1,0 +1,97 @@
+#ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_WINDOW_READ_HOST_HPP
+#define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_WINDOW_READ_HOST_HPP
+
+#include "bpr/application/github_epoch_handoff.hpp"
+#include "bpr/application/github_projection.hpp"
+#include "bpr/application/github_provider_port.hpp"
+#include "bpr/application/port.hpp"
+#include "bpr/application/public_preview_projection.hpp"
+#include "bpr/application/review_mutation_port.hpp"
+#include "bpr/core/anonymous_read_policy.hpp"
+#include "bpr/core/github_window_read.hpp"
+
+#include <functional>
+#include <memory>
+
+namespace bpr::application {
+	enum class github_public_preview_refusal_cause : std::uint8_t {
+		/// No anonymous read authority is composed, so the mode cannot be
+		/// entered at all. This is a composition fact the host reports
+		/// rather than a policy the core decided.
+		public_preview_unavailable,
+		/// The core policy refused. `Policy` carries its typed refusal.
+		policy_refused,
+	};
+
+	/// \brief Describes a refused public-preview activation or read.
+	///
+	/// Sign-in is offered from every refusal, because `core::anonymous_refusal`
+	/// makes that a property of the type rather than a flag a caller sets.
+	struct github_public_preview_refusal
+	{
+		github_public_preview_refusal_cause Cause
+			= github_public_preview_refusal_cause::public_preview_unavailable;
+		std::optional<core::anonymous_refusal> Policy;
+
+		auto operator<=>(const github_public_preview_refusal&) const = default;
+	};
+
+	/// Trusted observation published only after the profile owner accepts identity.
+	struct github_profile_session
+	{
+		core::bpr_profile_id             BprProfile;
+		core::application_session_id     ApplicationSession;
+		github_profile_authority         ProfileAuthority;
+		github_session_read_model        Session;
+		core::github_identity_generation Generation;
+		github_capability_cache_entry    CapabilityEvidence;
+		github_account_transport         AccountTransport;
+		auto                             operator==(const github_profile_session&) const -> bool = default;
+	};
+
+	struct github_window_read_update
+	{
+		core::bpr_window_context                     Window;
+		core::github_transition_output               Transition;
+		std::optional<github_provider_error>         ProviderError;
+		std::optional<github_public_preview_refusal> PublicPreviewRefusal;
+	};
+
+	/// Owns one PR request, accepted snapshot and its revocable epoch authorities.
+	/// All commands and publications run on the decision lane. Provider terminals
+	/// post to that lane; ports and lane remain alive until quiescent.
+	class github_window_read_host
+	{
+	public:
+		using publication = std::function<void(const github_window_read_update&)>;
+		github_window_read_host(core::bpr_window_context     aWindow,
+								core::application_session_id aSession, github_pull_request_port& aReads,
+								decision_executor& aDecision, publication aPublication,
+								github_epoch_handoff_port*        aEpochs         = nullptr,
+								github_pull_request_port*         aAnonymousReads = nullptr,
+								git_smart_transport_factory_port* aAnonymousGit   = nullptr);
+		~github_window_read_host();
+		github_window_read_host(const github_window_read_host&)                                  = delete;
+		auto               operator=(const github_window_read_host&) -> github_window_read_host& = delete;
+		[[nodiscard]] auto adopt(const github_profile_session& aSession) -> bool;
+		[[nodiscard]] auto retire(const github_profile_session& aSession) -> bool;
+		void               advance_request_floor(core::request_id aNext) noexcept;
+		void               dispatch(const core::github_window_read_event& aEvent);
+		void               cancel();
+		void               shutdown();
+		[[nodiscard]] auto state() const noexcept -> const core::github_state&;
+		[[nodiscard]] auto window() const noexcept -> core::bpr_window_context;
+		[[nodiscard]] auto accepted_snapshot() const noexcept -> const std::optional<github_pull_request_snapshot>&;
+		[[nodiscard]] auto mutation_transport() const noexcept -> review_mutation_transport;
+		[[nodiscard]] auto rate_limits() const noexcept -> const github_rate_limit_state&;
+		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
+		[[nodiscard]] auto projection_delivery_failed() const noexcept -> bool;
+		[[nodiscard]] auto epoch_handoff_delivery_failed() const noexcept -> bool;
+		[[nodiscard]] auto epoch_handoff_unavailable() const noexcept -> bool;
+
+	private:
+		struct implementation;
+		std::shared_ptr<implementation> Implementation;
+	};
+}
+#endif

@@ -106,3 +106,8 @@ owner admission still require implementation and evidence.
 BPR-0698 independently separates profile appearance preferences from window
 classification alongside BPR-0697. Shared Settings and actual same-profile
 window composition remain later slices; no full AC-03/08 acceptance is claimed.
+
+BPR-0697 separates the actual GitHub PR read lane from profile authentication.
+Focused shared-session/churn/reauthentication/shutdown tests and the reentrant
+replacement regression pass; rebuilt setup and anonymous public paths pass.
+This is the auth/read portion of AC-03/08/09, not complete multi-window UI.

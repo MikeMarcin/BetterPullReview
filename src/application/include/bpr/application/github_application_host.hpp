@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_APPLICATION_HOST_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_APPLICATION_HOST_HPP
 
+#include "bpr/application/github_window_read_host.hpp"
 #include "bpr/core/setup_destination.hpp"
 
 #include "bpr/application/device_binding_store.hpp"
@@ -53,28 +54,6 @@ namespace bpr::application {
 	};
 
 	/// Why a public-preview activation or read was refused.
-	enum class github_public_preview_refusal_cause : std::uint8_t {
-		/// No anonymous read authority is composed, so the mode cannot be
-		/// entered at all. This is a composition fact the host reports
-		/// rather than a policy the core decided.
-		public_preview_unavailable,
-		/// The core policy refused. `Policy` carries its typed refusal.
-		policy_refused,
-	};
-
-	/// \brief Describes a refused public-preview activation or read.
-	///
-	/// Sign-in is offered from every refusal, because `core::anonymous_refusal`
-	/// makes that a property of the type rather than a flag a caller sets.
-	struct github_public_preview_refusal
-	{
-		github_public_preview_refusal_cause Cause
-			= github_public_preview_refusal_cause::public_preview_unavailable;
-		std::optional<core::anonymous_refusal> Policy;
-
-		auto operator<=>(const github_public_preview_refusal&) const = default;
-	};
-
 	/// Where a switch-to-sign-in gesture goes. The host does not own the
 	/// device-authorization flow, so it forwards the profile the signed-out
 	/// session was activated for and lets composition begin the flow that
@@ -172,7 +151,9 @@ namespace bpr::application {
 		auto operator=(github_application_host&&)
 			-> github_application_host& = delete;
 
-		void dispatch(const core::github_event& aEvent);
+		void               dispatch(const core::github_event& aEvent);
+		[[nodiscard]] auto attach_window(const std::shared_ptr<github_window_read_host>& aWindow) -> bool;
+		void               detach_window(core::bpr_window_context aWindow);
 		// The provenance is the caller's statement about where the material
 		// came from, and only the device-authorization enrollment boundary
 		// says `device_grant`. It decides nothing about the session: it

@@ -1296,7 +1296,8 @@ namespace {
 														aResolvedProfile = std::nullopt,
 		const application::github_credential_provenance aProvenance
 		= application::github_credential_provenance::manual,
-		std::optional<application::device_binding_lifetime> aLifetime = std::nullopt)
+		std::optional<application::device_binding_lifetime> aLifetime        = std::nullopt,
+		const bool                                          aPrimaryAttached = true)
 		-> std::shared_ptr<fake_lease>
 	{
 		aFixture.Host.enroll_profile(aProfile, credential(), aProvenance, aLifetime);
@@ -1387,7 +1388,7 @@ namespace {
 		aFixture.Lane.run_next();
 		expect(aFixture.Host.accepted_session().has_value()
 				   && aFixture.Host.capability_cache_size() == 1U
-				   && aFixture.Projections.session_count() == 1U,
+				   && aFixture.Projections.session_count() == (aPrimaryAttached ? 1U : 0U),
 			   "core acceptance precedes one exact capability-cache commit");
 		return lease;
 	}
@@ -5719,10 +5720,113 @@ namespace {
 		}
 	}
 
+	void test_profile_authentication_shared_by_independent_windows()
+	{
+		host_fixture fixture;
+		const auto   transport    = establish_native_session(fixture);
+		const auto   profileReads = fixture.Provider.Profiles.size();
+		auto         sibling      = std::make_shared<application::github_window_read_host>(
+			core::bpr_window_context{ core::default_bpr_profile_id, core::bpr_window_id{ 2 }, core::bpr_window_generation{ 1 } },
+			core::application_session_id{ 200 }, fixture.Provider, fixture.Lane,
+			[](const application::github_window_read_update&) { });
+		expect(fixture.Host.attach_window(sibling), "authenticated profile admits second window without authentication");
+		expect(!fixture.Host.attach_window(sibling), "duplicate window owner is refused");
+		fixture.Host.dispatch(core::open_pull_request_intent{ { "openai", "better-pull-review" }, core::pull_request_number{ 27 } });
+		sibling->dispatch(core::open_pull_request_intent{ { "openai", "better-pull-review" }, core::pull_request_number{ 28 } });
+		expect(fixture.Provider.PullRequests.size() == 2 && fixture.Provider.Profiles.size() == profileReads,
+			   "two windows issue independent reads through one authenticated profile");
+		const auto first  = fixture.Provider.PullRequests[0];
+		const auto second = fixture.Provider.PullRequests[1];
+		expect(first.Request.AccountTransport == second.Request.AccountTransport
+				   && first.Request.Context.ApplicationSession != second.Request.Context.ApplicationSession,
+			   "account transport is shared but read correlation is window-local");
+		second.Completion(application::github_pull_request_success{ second.Request, snapshot(second.Request) });
+		fixture.Lane.drain();
+		expect(sibling->accepted_snapshot().has_value() && !fixture.Host.accepted_snapshot(),
+			   "second window completion cannot install first window snapshot");
+		first.Completion(application::github_pull_request_success{ first.Request, snapshot(first.Request) });
+		fixture.Lane.drain();
+		expect(fixture.Host.accepted_snapshot() && sibling->accepted_snapshot()
+				   && fixture.Host.accepted_snapshot()->PullRequest.Number != sibling->accepted_snapshot()->PullRequest.Number,
+			   "interleaved snapshots retain independent selected pull requests");
+		const auto primaryLease = fixture.Host.accepted_review_mutation_transport();
+		const auto siblingLease = sibling->mutation_transport();
+		fixture.Host.detach_window({ core::default_bpr_profile_id, core::bpr_window_id{ 1 }, core::bpr_window_generation{ 1 } });
+		expect(!primaryLease->active() && siblingLease->active() && fixture.Host.accepted_session(),
+			   "closing initial read revokes only its lease and leaves shared authentication alive");
+		sibling->dispatch(core::refresh_pull_request_intent{ });
+		const auto late = fixture.Provider.PullRequests.back();
+		fixture.Host.dispatch(core::deactivate_github_identity_intent{ });
+		expect(!siblingLease->active() && !sibling->accepted_snapshot(),
+			   "profile signout synchronously retires every attached read and lease");
+		late.Completion(application::github_pull_request_success{ late.Request, snapshot(late.Request) });
+		fixture.Lane.drain();
+		expect(!sibling->accepted_snapshot() && sibling->is_quiescent(),
+			   "late shared-session read cannot revive retired window authority");
+		expect(transport->MutationLeases.size() == 2, "windows acquired distinct mutation leases from shared transport");
+		const auto deletion = fixture.Vault.Deletes.back();
+		deletion.Completion(application::github_credential_delete_success{ deletion.Context,
+																		   application::github_credential_delete_disposition::deleted });
+		fixture.Lane.drain();
+		fixture.Provider.Profiles.clear();
+		fixture.Provider.Viewers.clear();
+		fixture.Provider.Capabilities.clear();
+		fixture.Vault.Stores.clear();
+		fixture.Vault.Retrieves.clear();
+		fixture.Projections.Updates.clear();
+		establish_native_session(fixture, core::host_profile_id{ 11 }, core::github_account_id{ 51 }, std::nullopt, application::github_credential_provenance::manual, std::nullopt, false);
+		expect(sibling->state().Account == viewer().Account && sibling->state().IdentityGeneration == fixture.Host.accepted_identity_generation(),
+			   "same authority reauthentication broadcasts a fresh identity to retained sibling");
+		const auto readsBefore = fixture.Provider.PullRequests.size();
+		sibling->dispatch(core::open_pull_request_intent{ { "openai", "better-pull-review" }, core::pull_request_number{ 29 } });
+		expect(fixture.Provider.PullRequests.size() == readsBefore + 1, "reauthenticated sibling can issue a new independent read");
+		const auto reopened = fixture.Provider.PullRequests.back();
+		fixture.Host.detach_window(sibling->window());
+		sibling.reset();
+		fixture.Host.shutdown();
+		fixture.Lane.drain();
+		expect(!fixture.Host.is_quiescent(), "detached pending read remains counted after external owner releases it");
+		reopened.Completion(application::github_pull_request_cancelled{ reopened.Request });
+		fixture.Lane.drain();
+		expect(fixture.Host.is_quiescent(), "profile shutdown drains detached terminal before releasing shared ports");
+	}
+
+	void test_pending_primary_read_blocks_profile_quiescence()
+	{
+		host_fixture fixture;
+		establish_native_session(fixture);
+		fixture.Host.dispatch(core::open_pull_request_intent{ { "openai", "better-pull-review" }, core::pull_request_number{ 27 } });
+		const auto pending = fixture.Provider.PullRequests.back();
+		fixture.Host.shutdown();
+		fixture.Lane.drain();
+		expect(!fixture.Host.is_quiescent(), "pending primary read remains part of profile lifetime");
+		pending.Completion(application::github_pull_request_cancelled{ pending.Request });
+		fixture.Lane.drain();
+		expect(fixture.Host.is_quiescent(), "primary cancellation terminal completes profile drain");
+	}
+
+	void test_profile_window_attachment_churn_is_bounded_by_live_consumers()
+	{
+		host_fixture fixture;
+		establish_native_session(fixture);
+		for (std::uint64_t index = 2; index < 70; ++index) {
+			auto window = std::make_shared<application::github_window_read_host>(
+				core::bpr_window_context{ core::default_bpr_profile_id, core::bpr_window_id{ index }, core::bpr_window_generation{ 1 } },
+				core::application_session_id{ 1000 + index }, fixture.Provider, fixture.Lane,
+				[](const application::github_window_read_update&) { });
+			expect(fixture.Host.attach_window(window), "sequential closed windows do not exhaust live attachment capacity");
+			fixture.Host.detach_window(window->window());
+			expect(!fixture.Host.attach_window(window), "retired stable window identity cannot be attached again");
+		}
+	}
+
 }
 
 auto main() -> int
 {
+	test_profile_authentication_shared_by_independent_windows();
+	test_profile_window_attachment_churn_is_bounded_by_live_consumers();
+	test_pending_primary_read_blocks_profile_quiescence();
 	test_bpr_profile_credential_admission();
 	test_bootstrap_failure_stages_are_exact_and_replacement_safe();
 	test_local_capability_refusal_details();

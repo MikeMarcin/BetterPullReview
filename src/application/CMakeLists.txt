@@ -39,6 +39,7 @@ add_library(
         src/epoch_application_host.cpp
         src/epoch_runtime_ports.cpp
         src/github_application_host.cpp
+        src/github_window_read_host.cpp
         src/github_credential_vault.cpp
         src/github_projection_mapping.cpp
         src/pull_request_overview.cpp
