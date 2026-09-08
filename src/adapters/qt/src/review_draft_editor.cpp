@@ -83,6 +83,40 @@ namespace bpr::qt {
 		Members.MutationStatus->setWordWrap(true);
 		layout->addWidget(Members.MutationStatus);
 
+		Members.Revisioned.Reload  = make_action(this, tr("Reload accepted draft"), QStringLiteral("reviewDraftReload"));
+		Members.Revisioned.Reapply = make_action(this, tr("Reapply my text"), QStringLiteral("reviewDraftReapply"));
+		auto* conflictActions      = new QHBoxLayout;
+		for (auto* action : { Members.Revisioned.Reload, Members.Revisioned.Reapply }) {
+			auto* button = new QToolButton{ this };
+			button->setDefaultAction(action);
+			conflictActions->addWidget(button);
+		}
+		layout->addLayout(conflictActions);
+		connect(Members.Revisioned.Reload, &QAction::triggered, this, [this] {
+			auto& state = Members.Revisioned;
+			if (state.Replacement) {
+				state.Accepted = std::exchange(state.Replacement, std::nullopt);
+				state.Selected = true;
+			}
+			if (!state.Selected || !state.Accepted) {
+				return;
+			}
+			state.Candidate.reset();
+			state.Conflict = false;
+			render_draft(state.Accepted->Draft);
+		});
+		connect(Members.Revisioned.Reapply, &QAction::triggered, this, [this] {
+			auto& state = Members.Revisioned;
+			if (!state.Selected || !state.Accepted || !state.Candidate || !state.Dispatch || state.Candidate->Scope != state.Accepted->Scope || state.Candidate->Command.Id != state.Accepted->Draft.Id) {
+				return;
+			}
+			auto command             = *state.Candidate;
+			command.ExpectedRevision = state.Accepted->Revision;
+			state.Candidate          = command;
+			state.Conflict           = false;
+			refresh_enablement();
+			state.Dispatch(command);
+		});
 		Members.Body = new QPlainTextEdit{ this };
 		Members.Body->setObjectName(QStringLiteral("reviewDraftBody"));
 		Members.Body->setAccessibleName(QStringLiteral("Review comment body"));
@@ -367,6 +401,24 @@ namespace bpr::qt {
 	void review_draft_editor::emit_draft(
 		const core::review_draft_command_kind aKind)
 	{
+		auto& revisioned = Members.Revisioned;
+		if (revisioned.Dispatch) {
+			if (!revisioned.Selected || !revisioned.Accepted || revisioned.Conflict) {
+				return;
+			}
+			auto body = Members.Body->toPlainText().toStdString();
+			if (body.size() > core::maximum_shared_draft_body_bytes) {
+				Members.MutationStatus->setText(tr("Draft text exceeds the size limit."));
+				return;
+			}
+			auto command = core::revisioned_review_draft_command{ { revisioned.Accepted->Draft.Id, aKind, std::move(body) }, revisioned.Accepted->Revision, false, { }, revisioned.Accepted->Scope };
+			if (aKind == core::review_draft_command_kind::edit) {
+				revisioned.Candidate = command;
+			}
+			++Members.Statistics.DraftIntents;
+			revisioned.Dispatch(command);
+			return;
+		}
 		if (!Members.ShownDraft || !Members.DraftDispatch) {
 			return;
 		}
@@ -394,6 +446,18 @@ namespace bpr::qt {
 
 	void review_draft_editor::accept_revision()
 	{
+		if (Members.Revisioned.Dispatch) {
+			auto& state = Members.Revisioned;
+			if (!state.Selected || state.Conflict || !state.Accepted || !Members.ShownProposal || Members.ShownProposal->Draft != state.Accepted->Draft.Id || Members.ShownProposal->Proposed.size() > core::maximum_shared_draft_body_bytes) {
+				return;
+			}
+			auto command    = core::revisioned_review_draft_command{ { state.Accepted->Draft.Id, core::review_draft_command_kind::edit, Members.ShownProposal->Proposed }, state.Accepted->Revision, false, { }, state.Accepted->Scope };
+			state.Candidate = command;
+			++Members.Statistics.DraftIntents;
+			state.Dispatch(command);
+			return;
+		}
+
 		if (!Members.ShownProposal || !Members.ShownDraft
 			|| !Members.DraftDispatch
 			|| Members.ShownDraft->Id != Members.ShownProposal->Draft) {
@@ -476,6 +540,80 @@ namespace bpr::qt {
 	}
 
 	void review_draft_editor::present(const core::review_comment_draft& aDraft)
+	{
+		if (Members.Revisioned.Dispatch) {
+			return;
+		}
+		render_draft(aDraft);
+	}
+	void review_draft_editor::set_revisioned_dispatch(std::function<void(core::revisioned_review_draft_command)> aDispatch)
+	{
+		Members.Revisioned.Dispatch = std::move(aDispatch);
+		refresh_enablement();
+	}
+	auto review_draft_editor::reload_draft_action() const noexcept -> QAction* { return Members.Revisioned.Reload; }
+	auto review_draft_editor::reapply_draft_action() const noexcept -> QAction* { return Members.Revisioned.Reapply; }
+	auto review_draft_editor::rejected_candidate() const noexcept -> const std::optional<core::revisioned_review_draft_command>& { return Members.Revisioned.Candidate; }
+	void review_draft_editor::present(const core::revisioned_review_draft& aDraft)
+	{
+		auto& state = Members.Revisioned;
+		if (!state.Dispatch || aDraft.Revision == 0 || aDraft.Scope.value() == 0) {
+			return;
+		}
+		if (state.Accepted && state.Accepted->Scope == aDraft.Scope && state.Accepted->Draft.Id == aDraft.Draft.Id && aDraft.Revision < state.Accepted->Revision) {
+			return;
+		}
+		if (state.Candidate && (state.Candidate->Scope != aDraft.Scope || state.Candidate->Command.Id != aDraft.Draft.Id)) {
+			state.Conflict    = true;
+			state.Selected    = false;
+			state.Replacement = aDraft;
+			Members.MutationStatus->setText(tr("Your draft text is retained. Reload to discard it and show the selected draft, or return to reapply it."));
+			refresh_enablement();
+			return;
+		}
+		state.Replacement.reset();
+		state.Accepted = aDraft;
+		state.Selected = true;
+		if (state.Candidate) {
+			state.Conflict     = true;
+			Members.ShownDraft = aDraft.Draft;
+			Members.MutationStatus->setText(tr("Draft changed in another window. Reload accepted text or reapply your text."));
+			refresh_enablement();
+			return;
+		}
+		render_draft(aDraft.Draft);
+	}
+	void review_draft_editor::acknowledge(const core::revisioned_review_draft_command& aCommand, const core::revisioned_review_draft& aAccepted)
+	{
+		auto& state = Members.Revisioned;
+		if (!state.Dispatch || !state.Selected || state.Replacement || !state.Candidate || !state.Accepted) {
+			return;
+		}
+		const auto& candidate = *state.Candidate;
+		if (candidate.Command != aCommand.Command || candidate.Scope != aCommand.Scope || candidate.ExpectedRevision != aCommand.ExpectedRevision
+			|| candidate.ChangeReplyTarget != aCommand.ChangeReplyTarget || candidate.ReplyToThread != aCommand.ReplyToThread
+			|| aCommand.Command.Kind != core::review_draft_command_kind::edit || aCommand.ChangeReplyTarget
+			|| aAccepted.Scope != aCommand.Scope || aAccepted.Draft.Id != aCommand.Command.Id || aAccepted.Draft.Body != aCommand.Command.Body
+			|| aAccepted.Revision < aCommand.ExpectedRevision || aAccepted.Revision - aCommand.ExpectedRevision > 1
+			|| state.Accepted->Scope != aAccepted.Scope || state.Accepted->Draft.Id != aAccepted.Draft.Id || state.Accepted->Revision > aAccepted.Revision) {
+			return;
+		}
+		state.Candidate.reset();
+		state.Conflict = false;
+		state.Accepted = aAccepted;
+		render_draft(aAccepted.Draft);
+	}
+
+	void review_draft_editor::present_conflict(const core::revisioned_draft_outcome& aOutcome)
+	{
+		auto& state = Members.Revisioned;
+		if (!state.Candidate || state.Candidate->Scope != aOutcome.Accepted.Scope || state.Candidate->Command.Id != aOutcome.Accepted.Draft.Id) {
+			return;
+		}
+		state.Conflict = true;
+		present(aOutcome.Accepted);
+	}
+	void review_draft_editor::render_draft(const core::review_comment_draft& aDraft)
 	{
 		++Members.Statistics.Presentations;
 		Members.ShownDraft = aDraft;
@@ -614,7 +752,10 @@ namespace bpr::qt {
 		Members.ShownDraft.reset();
 		Members.ShownReceipt.reset();
 		Members.ApplyingPresentation = true;
-		Members.Body->clear();
+		if (!Members.Revisioned.Candidate) {
+			Members.Body->clear();
+		}
+		Members.Revisioned.Selected  = false;
 		Members.ApplyingPresentation = false;
 		// A proposal is about a draft that is no longer selected, so it goes
 		// with it rather than sitting beside a body nobody is editing.
@@ -648,7 +789,12 @@ namespace bpr::qt {
 		// Enablement follows the accepted projection, never the local edit.
 		// A publish button enabled because the user typed something would be
 		// the widget deciding legality the core owns.
-		const auto drafting = Members.ShownDraft
+		const auto revisionReady = !Members.Revisioned.Dispatch || (Members.Revisioned.Selected && !Members.Revisioned.Conflict);
+		Members.Revisioned.Reload->setEnabled((Members.Revisioned.Selected || Members.Revisioned.Replacement.has_value()) && Members.Revisioned.Candidate.has_value());
+		Members.Revisioned.Reapply->setEnabled(Members.Revisioned.Selected && Members.Revisioned.Candidate.has_value());
+		Members.Revisioned.Reload->setVisible(Members.Revisioned.Dispatch != nullptr);
+		Members.Revisioned.Reapply->setVisible(Members.Revisioned.Dispatch != nullptr);
+		const auto drafting = revisionReady && Members.ShownDraft
 			&& Members.ShownDraft->State == core::review_draft_state::drafting;
 		Members.Publish->setEnabled(drafting);
 		Members.Discard->setEnabled(drafting);

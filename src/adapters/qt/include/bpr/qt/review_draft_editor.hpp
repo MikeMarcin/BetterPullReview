@@ -6,6 +6,7 @@
 #include "bpr/core/agent_chat_scope.hpp"
 #include "bpr/core/review_ledger.hpp"
 #include "bpr/core/review_round_trip.hpp"
+#include "bpr/core/revisioned_review_draft.hpp"
 
 #include <QString>
 #include <QWidget>
@@ -140,6 +141,17 @@ namespace bpr::qt {
 	/// What is here is two presentation flags, three dispatch callbacks, the
 	/// accepted projections, seven counters, and the widgets that show them.
 	/// The only way out is a semantic command or a workshop request.
+	struct revisioned_draft_editor_state
+	{
+		std::function<void(core::revisioned_review_draft_command)> Dispatch;
+		std::optional<core::revisioned_review_draft>               Accepted;
+		std::optional<core::revisioned_review_draft>               Replacement;
+		std::optional<core::revisioned_review_draft_command>       Candidate;
+		bool                                                       Conflict = false;
+		bool                                                       Selected = false;
+		QAction*                                                   Reload   = nullptr;
+		QAction*                                                   Reapply  = nullptr;
+	};
 	struct review_draft_editor_members
 	{
 		/// True only while `present` is writing an accepted body into the
@@ -190,6 +202,7 @@ namespace bpr::qt {
 		std::optional<core::file_receipt>         ShownReceipt;
 		std::optional<comment_workshop_proposal>  ShownProposal;
 		review_draft_editor_statistics            Statistics;
+		revisioned_draft_editor_state             Revisioned;
 	};
 
 	/// \brief Composes a review comment and asks for it to be published.
@@ -225,6 +238,14 @@ namespace bpr::qt {
 
 		/// \brief Adopts one accepted draft projection.
 		void present(const core::review_comment_draft& aDraft);
+		void set_revisioned_dispatch(std::function<void(core::revisioned_review_draft_command)> aDispatch);
+		void present(const core::revisioned_review_draft& aDraft);
+		void present_conflict(const core::revisioned_draft_outcome& aOutcome);
+		/// Acknowledges only the exact command the host accepted, including no-op edits.
+		void               acknowledge(const core::revisioned_review_draft_command& aCommand, const core::revisioned_review_draft& aAccepted);
+		[[nodiscard]] auto reload_draft_action() const noexcept -> QAction*;
+		[[nodiscard]] auto reapply_draft_action() const noexcept -> QAction*;
+		[[nodiscard]] auto rejected_candidate() const noexcept -> const std::optional<core::revisioned_review_draft_command>&;
 
 		/// \brief Adopts one accepted receipt projection.
 		void present(const core::file_receipt& aReceipt);
@@ -326,6 +347,7 @@ namespace bpr::qt {
 			-> review_draft_editor_statistics;
 
 	private:
+		void render_draft(const core::review_comment_draft& aDraft);
 		void emit_draft(core::review_draft_command_kind aKind);
 		void emit_receipt(core::file_receipt_command_kind aKind);
 		void accept_revision();

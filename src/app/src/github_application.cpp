@@ -77,6 +77,7 @@
 #include "bpr/application/review_mutation_application_host.hpp"
 #include "bpr/application/review_queue_enrollment.hpp"
 #include "bpr/application/review_synchronization.hpp"
+#include "bpr/application/shared_draft_application_host.hpp"
 #include "bpr/application/workbench_application_host.hpp"
 #include "bpr/application/workbench_snapshot_observation.hpp"
 #include "bpr/core/sha256.hpp"
@@ -3377,7 +3378,8 @@ namespace bpr::app {
 		  public application::receipt_projection_port,
 		  public application::queue_landing_projection_port,
 		  public application::agent_session_catalog_port,
-		  public application::setup_destination_port
+		  public application::setup_destination_port,
+		  public application::shared_draft_context_port
 	{
 		friend class github_application;
 		// Declared first so fixture cleanup runs after every private service releases its root.
@@ -3400,6 +3402,24 @@ namespace bpr::app {
 			RegistryRoot                = std::move(aRegistryRoot);
 			aConfig.ApplicationDataRoot = aAdmission.StorageRoot;
 			aConfig.Profile             = aAdmission.Authority.profile();
+			// The compatibility facade has a core-admitted, process-local window.
+			// Durable window admission is supplied by the later desktop runtime.
+			auto draftWindows = core::profile_window_state{ };
+			if (aConfig.Profile != core::default_bpr_profile_id) {
+				draftWindows.Profiles.push_back({ { aConfig.Profile, "Profile" }, { }, { } });
+				draftWindows.LastProfileId = aConfig.Profile.value();
+			}
+			auto admittedDraftWindows = core::profile_window_catalog::restore(std::move(draftWindows));
+			if (!admittedDraftWindows) {
+				throw std::runtime_error{ "draft window admission unavailable" };
+			}
+			DraftWindows     = std::move(*admittedDraftWindows);
+			auto draftLaunch = DraftWindows.launch(aConfig.Profile, core::profile_launch_intent::activate);
+			if (!draftLaunch) {
+				throw std::runtime_error{ "draft window admission unavailable" };
+			}
+			DraftWindow = draftLaunch->Activated;
+
 #if defined(BPR_BUILD_TESTING)
 			aFixtureOptions.ApplicationDataRoot = aAdmission.StorageRoot;
 			aFixtureOptions.Profile             = aConfig.Profile;
@@ -3905,8 +3925,10 @@ namespace bpr::app {
 			});
 			Window->set_review_draft_dispatch(
 				[this](core::review_draft_command aCommand) {
-					dispatch_review_draft(std::move(aCommand));
+					dispatch_review_draft(core::revisioned_review_draft_command{ .Command = std::move(aCommand) });
 				});
+			Window->review_editor()->set_revisioned_dispatch(
+				[this](core::revisioned_review_draft_command aCommand) { dispatch_review_draft(std::move(aCommand)); });
 			Window->set_review_reply_dispatch(
 				[this](const std::string& aIdentity) { begin_review_reply(aIdentity); });
 			Window->set_thread_resolution_dispatch(
@@ -6066,8 +6088,82 @@ namespace bpr::app {
 			ReviewSubmission->adopt(std::move(binding), workbench_authority(aHandoff), std::move(factory));
 		}
 
+		[[nodiscard]] auto current(const core::bpr_window_context& aContext) const noexcept -> bool override
+		{
+			return !Closing && DraftWindows.accepts(aContext);
+		}
+
+		void accept_shared_draft(const core::revisioned_review_draft& aAccepted)
+		{
+			if (Closing || aAccepted.Scope != DraftScope) {
+				return;
+			}
+			ReviewDraft         = aAccepted.Draft;
+			ReviewDraftRevision = aAccepted.Revision;
+			if (Window && Window->review_editor()) {
+				Window->review_editor()->present(aAccepted);
+			}
+			refresh_agent_private_context_choices();
+		}
+
+		[[nodiscard]] auto ensure_shared_drafts(const application::accepted_pull_request_handoff& aHandoff) -> bool
+		{
+			const auto* profile = find_profile(aHandoff.Profile);
+			if (!profile || profile->revision().value() != aHandoff.ProfileRevision.value() || profile->host() != aHandoff.Host) {
+				return false;
+			}
+			auto authority = application::shared_draft_authority{
+				.BprProfile       = DraftWindow.Profile,
+				.ProfileAuthority = { profile->profile(), profile->revision(), profile->host(), application::github_canonical_hostname{ profile->hostname() }, profile->server_contract(), profile->authentication_transport(), application::github_probe_contract_revision{ 1U } },
+				.HostAuthority    = aHandoff.HostAuthority,
+				.Session          = aHandoff.ApplicationSession,
+				.Generation       = aHandoff.IdentityGeneration,
+				.Account          = aHandoff.Account,
+				.Mode             = aHandoff.Mode,
+				.Target           = review_mutation_target(aHandoff),
+			};
+			if (SharedDrafts && SharedDrafts->authority() == authority) {
+				return true;
+			}
+			if (SharedDrafts) {
+				SharedDrafts->shutdown();
+			}
+			PublishingDraft.reset();
+			if (LastDraftScope == std::numeric_limits<std::uint64_t>::max()) {
+				SharedDrafts.reset();
+				return false;
+			}
+			DraftScope    = core::review_draft_scope_id{ ++LastDraftScope };
+			SharedDrafts  = std::make_unique<application::shared_draft_application_host>(std::move(authority), DraftScope, *this);
+			auto attached = SharedDrafts->attach(SharedDrafts->authority(), DraftWindow,
+												 [this](const core::revisioned_review_draft& aAccepted) {
+													 if (!Closing && ReviewDraft && ReviewDraft->Id == aAccepted.Draft.Id) {
+														 accept_shared_draft(aAccepted);
+													 }
+												 });
+			if (!attached) {
+				SharedDrafts.reset();
+				return false;
+			}
+			DraftConsumer = *attached;
+			return true;
+		}
+
+		void complete_shared_draft(const bool aSuccess)
+		{
+			if (!SharedDrafts || !PublishingDraft) {
+				return;
+			}
+			const auto publishing = std::exchange(PublishingDraft, std::nullopt);
+			auto       outcome    = SharedDrafts->complete(SharedDrafts->authority(), publishing->Draft.Id, publishing->Revision, aSuccess);
+			if (!outcome.Failure && outcome.Accepted) {
+				accept_shared_draft(*outcome.Accepted);
+			}
+		}
+
 		void retire_review_mutation_host()
 		{
+			complete_shared_draft(false);
 			if (ReviewMutationHost != nullptr) {
 				ReviewMutationHost->shutdown();
 				RetiredReviewMutationHosts.push_back(
@@ -6195,6 +6291,9 @@ namespace bpr::app {
 #endif
 			if (ReviewMutationHost == nullptr || Window == nullptr
 				|| Window->review_editor() == nullptr) {
+				return;
+			}
+			if (!ensure_shared_drafts(aHandoff)) {
 				return;
 			}
 			auto* const editor = Window->review_editor();
@@ -6398,32 +6497,44 @@ namespace bpr::app {
 			}
 			if (ReviewDraft.has_value()
 				&& ReviewDraft->State == core::review_draft_state::drafting) {
-				ReviewDraft->ReplyToThread = thread;
-				++ReviewDraftRevision;
-				if (auto* const editor = Window->review_editor(); editor != nullptr) {
-					editor->present(*ReviewDraft);
+				if (!SharedDrafts) {
+					return;
 				}
+				auto outcome = SharedDrafts->apply(DraftConsumer, { .Command = { .Id = ReviewDraft->Id, .Kind = core::review_draft_command_kind::edit, .Body = ReviewDraft->Body }, .ExpectedRevision = ReviewDraftRevision, .ChangeReplyTarget = true, .ReplyToThread = thread, .Scope = DraftScope });
+				if (outcome.Failure || !outcome.Accepted) {
+					return;
+				}
+				accept_shared_draft(*outcome.Accepted);
 				PendingReplyThread.reset();
 				return;
 			}
 			PendingReplyThread = std::move(thread);
 		}
 
-		void dispatch_review_draft(core::review_draft_command aCommand)
+		void dispatch_review_draft(core::revisioned_review_draft_command aRevisionedCommand)
 		{
 			if (Closing || !ReviewDraft.has_value()
 				|| ReviewMutationHost == nullptr || Window == nullptr
 				|| Window->review_editor() == nullptr) {
 				return;
 			}
-			const auto outcome = core::apply(*ReviewDraft, aCommand);
-			if (outcome.Rejection != core::review_draft_rejection::none) {
+			if (!SharedDrafts) {
 				return;
 			}
-			ReviewDraft = outcome.Draft;
-			if (outcome.Changed) {
-				++ReviewDraftRevision;
+			const auto& aCommand = aRevisionedCommand.Command;
+			const auto  outcome  = SharedDrafts->apply(DraftConsumer, aRevisionedCommand);
+			if (outcome.Failure || !outcome.Accepted) {
+				if (outcome.Accepted && outcome.Refusal == core::revisioned_draft_refusal::conflict) {
+					Window->review_editor()->present_conflict({ .Accepted = *outcome.Accepted, .Refusal = outcome.Refusal });
+				}
+				return;
 			}
+			Window->review_editor()->acknowledge(aRevisionedCommand, *outcome.Accepted);
+			accept_shared_draft(*outcome.Accepted);
+			if (aCommand.Kind == core::review_draft_command_kind::begin_publish) {
+				PublishingDraft = *outcome.Accepted;
+			}
+
 			if (RetryableReviewDraft.has_value()
 				&& RetryableReviewDraft->Draft.Id == ReviewDraft->Id) {
 				if (ReviewDraft->State == core::review_draft_state::discarded) {
@@ -6433,7 +6544,7 @@ namespace bpr::app {
 				}
 			}
 			auto* const editor = Window->review_editor();
-			editor->present(*ReviewDraft);
+			editor->present(core::revisioned_review_draft{ *ReviewDraft, ReviewDraftRevision, DraftScope });
 			refresh_agent_private_context_choices();
 			if (aCommand.Kind != core::review_draft_command_kind::begin_publish) {
 				return;
@@ -6441,19 +6552,13 @@ namespace bpr::app {
 			const auto proposal = core::propose_publication(
 				*ReviewDraft, core::review_disposition::comment);
 			if (!proposal.has_value()) {
+				complete_shared_draft(false);
 				return;
 			}
 			if (!SelectedDiffPublication.has_value()
 				|| !SelectedSemanticSelection.has_value()) {
-				ReviewDraft = core::apply(
-								  *ReviewDraft,
-								  core::review_draft_command{
-									  .Id   = ReviewDraft->Id,
-									  .Kind = core::review_draft_command_kind::fail_publish,
-								  })
-								  .Draft;
-				++ReviewDraftRevision;
-				editor->present(*ReviewDraft);
+				complete_shared_draft(false);
+				editor->present(core::revisioned_review_draft{ *ReviewDraft, ReviewDraftRevision, DraftScope });
 				refresh_agent_private_context_choices();
 				editor->present(
 					application::review_mutation_failure::undesignated_target);
@@ -6475,15 +6580,8 @@ namespace bpr::app {
 				});
 			const auto context = ReviewMutationHost->publish(std::move(request), std::move(grant));
 			if (context.Request.value() == 0U) {
-				ReviewDraft = core::apply(
-								  *ReviewDraft,
-								  core::review_draft_command{
-									  .Id   = ReviewDraft->Id,
-									  .Kind = core::review_draft_command_kind::fail_publish,
-								  })
-								  .Draft;
-				++ReviewDraftRevision;
-				editor->present(*ReviewDraft);
+				complete_shared_draft(false);
+				editor->present(core::revisioned_review_draft{ *ReviewDraft, ReviewDraftRevision, DraftScope });
 				editor->present(application::review_mutation_failure::unavailable);
 				return;
 			}
@@ -6606,20 +6704,26 @@ namespace bpr::app {
 					*RetryableReviewDraft,
 					aSelection,
 					SelectedDiffPublication->Request.WorkbenchAuthority)) {
-				ReviewDraft         = RetryableReviewDraft->Draft;
-				ReviewDraftRevision = 1U;
-				Window->review_editor()->present(*ReviewDraft);
+				if (!SharedDrafts) {
+					return;
+				}
+				const auto retained = SharedDrafts->read(DraftConsumer, RetryableReviewDraft->Draft.Id);
+				if (retained.Failure || !retained.Accepted) {
+					return;
+				}
+				accept_shared_draft(*retained.Accepted);
 				refresh_agent_private_context_choices();
 				return;
 			}
-			ReviewDraft = core::review_comment_draft{
-				.Id            = core::review_draft_id{ NextReviewDraft++ },
-				.Anchor        = aSelection.PreferredLine,
-				.ReplyToThread = PendingReplyThread,
-			};
+			if (!SharedDrafts) {
+				return;
+			}
+			const auto created = SharedDrafts->select(DraftConsumer, aSelection.PreferredLine, PendingReplyThread);
+			if (!created.Accepted || (created.Failure && created.Failure != application::shared_draft_failure::conflict)) {
+				return;
+			}
 			PendingReplyThread.reset();
-			ReviewDraftRevision = 1U;
-			Window->review_editor()->present(*ReviewDraft);
+			accept_shared_draft(*created.Accepted);
 			refresh_agent_private_context_choices();
 		}
 
@@ -6643,16 +6747,7 @@ namespace bpr::app {
 				}
 				return;
 			}
-			ReviewDraft = core::apply(
-							  *ReviewDraft,
-							  core::review_draft_command{
-								  .Id   = ReviewDraft->Id,
-								  .Kind = aTerminal.Result.has_value()
-									  ? core::review_draft_command_kind::complete_publish
-									  : core::review_draft_command_kind::fail_publish,
-							  })
-							  .Draft;
-			++ReviewDraftRevision;
+			complete_shared_draft(aTerminal.Result.has_value());
 			const auto sameRetry = RetryableReviewDraft.has_value()
 				&& RetryableReviewDraft->Draft.Id == ReviewDraft->Id;
 			if (aTerminal.Result.has_value()) {
@@ -6683,7 +6778,7 @@ namespace bpr::app {
 				return;
 			}
 			auto* const editor = Window->review_editor();
-			editor->present(*ReviewDraft);
+			editor->present(core::revisioned_review_draft{ *ReviewDraft, ReviewDraftRevision, DraftScope });
 			if (aTerminal.Result.has_value()) {
 				editor->present(*aTerminal.Result, ReviewReconciliation);
 			} else {
@@ -7296,6 +7391,10 @@ namespace bpr::app {
 			if (retiresLedger) {
 				retire_review_ledger();
 				retire_review_mutation_host();
+				if (SharedDrafts) {
+					SharedDrafts->shutdown();
+					SharedDrafts.reset();
+				}
 				ReviewDraft.reset();
 				ReviewDraftRevision = 0U;
 				ReviewProjection.clear();
@@ -10061,7 +10160,13 @@ namespace bpr::app {
 		std::uint64_t                                                ReviewDraftRevision = 0U;
 		std::vector<application::review_comment_projection>          ReviewProjection;
 		application::reconciliation_result                           ReviewReconciliation;
-		std::uint64_t                                                NextReviewDraft = 1U;
+		core::profile_window_catalog                                 DraftWindows;
+		core::bpr_window_context                                     DraftWindow;
+		core::review_draft_scope_id                                  DraftScope;
+		std::uint64_t                                                LastDraftScope = 0;
+		std::unique_ptr<application::shared_draft_application_host>  SharedDrafts;
+		application::shared_draft_consumer                           DraftConsumer;
+		std::optional<core::revisioned_review_draft>                 PublishingDraft;
 		std::unique_ptr<application::workbench_settings_port>        WorkbenchSettings;
 		composition_workbench_review                                 WorkbenchReview;
 		std::unique_ptr<application::snapshot_workbench_observation> WorkbenchObservations;
@@ -15337,7 +15442,8 @@ namespace bpr::app {
 				return fail();
 			}
 
-			const auto draftIntents = editor->statistics().DraftIntents;
+			const auto draftIntents       = editor->statistics().DraftIntents;
+			const auto priorDraftRevision = implementation->ReviewDraftRevision;
 			editor->body_editor()->setPlainText(
 				QStringLiteral("BPR-0229 fixture publication."));
 			probe.Evidence.SemanticEdit
@@ -15345,6 +15451,25 @@ namespace bpr::app {
 				&& implementation->ReviewDraft->Body
 					== "BPR-0229 fixture publication.";
 			if (!probe.Evidence.SemanticEdit) {
+				return fail();
+			}
+
+			// Stale revision and foreign scope stop at draft admission, before
+			// the real mutation host receives any publication request.
+			const auto beforeDraftRefusals = implementation->ReviewMutationHost->statistics();
+			const auto acceptedRevision    = implementation->ReviewDraftRevision;
+			implementation->dispatch_review_draft(core::revisioned_review_draft_command{
+				.Command          = { .Id = implementation->ReviewDraft->Id, .Kind = core::review_draft_command_kind::begin_publish },
+				.ExpectedRevision = priorDraftRevision,
+				.Scope            = implementation->DraftScope });
+			implementation->dispatch_review_draft(core::revisioned_review_draft_command{
+				.Command          = { .Id = implementation->ReviewDraft->Id, .Kind = core::review_draft_command_kind::begin_publish },
+				.ExpectedRevision = acceptedRevision,
+				.Scope            = core::review_draft_scope_id{ implementation->DraftScope.value() + 1U } });
+			if (implementation->ReviewMutationHost->statistics() != beforeDraftRefusals
+				|| implementation->ReviewDraftRevision != acceptedRevision
+				|| implementation->ReviewDraft->State != core::review_draft_state::drafting
+				|| implementation->ReviewDraft->Body != "BPR-0229 fixture publication.") {
 				return fail();
 			}
 

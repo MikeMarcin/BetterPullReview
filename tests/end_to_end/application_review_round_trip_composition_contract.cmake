@@ -39,7 +39,7 @@ function(bpr_verify_full_application_digest source_variable)
         "${bpr_full_application_source}"
     )
 	set(bpr_expected_full_application_digest
-		"ec223ac4bf5a8390f354065a42700a4a14ca63760fd453c27acd2df800800c0f"
+		"f07df63a8097997dfabeccbbbf6b933d8c0e212533611e808bc2d597cb7f773d"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -157,7 +157,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "${bpr_production_app_manifest}"
     )
 	set(bpr_expected_production_app_manifest_digest
-		"89db6adc550c6f1d90be2b80bb78af374cc1e671cecc197c8a0d82b5a5b7a3a4"
+		"0bc00083b44450963981dcbccdb428534a81bae846e5edc3a1e60617e537a979"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -520,9 +520,6 @@ endif()
 foreach(required IN ITEMS
     BPR_APPLICATION
     BPR_APP_SOURCE
-    BPR_ISOLATION_SCRIPT
-    BPR_MANIFEST
-    BPR_PYTHON
     BPR_ROOT
     BPR_RUN_BUDGET_MS
     BPR_SOURCE_ROOT
@@ -681,6 +678,8 @@ endforeach()
 
 file(REMOVE_RECURSE "${BPR_ROOT}")
 file(MAKE_DIRECTORY "${BPR_ROOT}")
+include("${CMAKE_CURRENT_LIST_DIR}/bpr_narrow_owner_private.cmake")
+bpr_narrow_owner_private("${BPR_ROOT}")
 math(EXPR bpr_timeout "${BPR_RUN_BUDGET_MS} / 1000 + 30")
 execute_process(
     COMMAND
@@ -735,29 +734,9 @@ if(NOT live_marker EQUAL -1)
     )
 endif()
 
-execute_process(
-    COMMAND
-        "${BPR_PYTHON}"
-        "${BPR_ISOLATION_SCRIPT}"
-        --root
-        "${BPR_SOURCE_ROOT}"
-        --manifest
-        "${BPR_MANIFEST}"
-        --object-manifest
-        "${BPR_OBJECT_MANIFEST}"
-    RESULT_VARIABLE isolation_result
-    OUTPUT_VARIABLE isolation_output
-    ERROR_VARIABLE isolation_error
-)
-if(NOT isolation_result EQUAL 0
-    OR NOT isolation_output MATCHES "LIVE_MUTATION_ISOLATION_OK"
-)
-    message(FATAL_ERROR
-        "live mutation isolation failed (${isolation_result})\n"
-        "stdout:\n${isolation_output}\n"
-        "stderr:\n${isolation_error}"
-    )
-endif()
+# The independent live_mutation_isolation CTest owns the exhaustive executable
+# and object-symbol scan with its own 300-second bound. This course keeps its
+# source-boundary checks and exercises the editor/provider path once.
 
 file(REMOVE_RECURSE "${BPR_ROOT}")
 message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")

@@ -159,3 +159,13 @@ and independent A/B/A selections, queued sibling survival and final destructor
 drainage. Epoch host0.61s and public persistence seed/reopen52.01s pass; tidy
 passes and independent review found no blocker. Actual multi-window composition
 remains open. Public fixture root preparation now honors owner-private admission.
+
+BPR-0704 integrates scope/revision-aware accepted drafts and protected editor
+candidates into the current facade. Same-text acknowledgement and reentrant
+admission review findings are corrected; detached publication returns to drafting
+for surviving consumers. Core/host/Qt tests, all changed-TU tidy, both architecture
+checks and the real editor/publication course13.12s pass. That course proves stale
+revision/foreign scope never reach the mutation host. Dedicated exhaustive
+isolation77.84s passes after building eleven missing dev artifacts; its duplicate
+invocation was removed from the shorter editor course, preserving source guards
+and independent isolation coverage. Actual multi-window construction is next.

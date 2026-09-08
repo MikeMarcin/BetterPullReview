@@ -28,6 +28,7 @@ add_library(
         src/agent_session.cpp
         src/review_queue_attention.cpp
         src/review_round_trip.cpp
+        src/revisioned_review_draft.cpp
         src/review_submission.cpp
         src/sha256.cpp
         src/theme_exchange.cpp

@@ -78,6 +78,82 @@ namespace {
 		};
 	}
 
+	void test_revision_conflicts_retain_exact_candidate()
+	{
+		intent_log                                         legacy;
+		auto*                                              editor = editor_for(legacy);
+		std::vector<core::revisioned_review_draft_command> commands;
+		editor->set_revisioned_dispatch([&](auto aCommand) { commands.push_back(std::move(aCommand)); });
+		const auto initial = core::revisioned_review_draft{ a_draft("accepted"), 1, core::review_draft_scope_id{ 1 } };
+		editor->present(initial);
+		const auto candidate = std::string{ "local candidate\n  exact bytes  " };
+		editor->body_editor()->setPlainText(QString::fromStdString(candidate));
+		expect(commands.size() == 1 && commands.back().ExpectedRevision == 1, "typed edit carries accepted revision");
+		auto remote       = initial;
+		remote.Revision   = 2;
+		remote.Draft.Body = "other window";
+		editor->present_conflict({ remote, core::revisioned_draft_refusal::conflict });
+		expect(editor->body_editor()->toPlainText().toStdString() == candidate && editor->rejected_candidate()->Command.Body == candidate, "conflict retains exact editor candidate");
+		editor->publish_action()->trigger();
+		expect(commands.size() == 1, "conflict cannot publish");
+		auto foreign       = remote;
+		foreign.Scope      = core::review_draft_scope_id{ 2 };
+		foreign.Draft.Body = candidate;
+		editor->present(foreign);
+		expect(editor->rejected_candidate() && editor->rejected_candidate()->Scope == core::review_draft_scope_id{ 1 } && !editor->reapply_draft_action()->isEnabled(), "different owner with same draft ID cannot acknowledge or reapply old candidate");
+		editor->reapply_draft_action()->trigger();
+		expect(commands.size() == 1, "foreign scope never receives retained candidate command");
+		editor->present(qt::review_draft_editor_clear_reason::selection_cleared);
+		auto other       = remote;
+		other.Draft.Id   = core::review_draft_id{ 2 };
+		other.Draft.Body = "different draft";
+		editor->present(other);
+		editor->present(initial);
+		expect(editor->body_editor()->toPlainText().toStdString() == candidate, "selection replacement and late state cannot erase candidate");
+		editor->present(remote);
+		editor->reapply_draft_action()->trigger();
+		expect(commands.size() == 2 && commands.back().ExpectedRevision == 2 && commands.back().Command.Body == candidate, "explicit reapply uses latest revision and exact candidate");
+		auto reapplied       = remote;
+		reapplied.Revision   = 3;
+		reapplied.Draft.Body = candidate;
+		editor->present(reapplied);
+		editor->acknowledge(commands.back(), reapplied);
+		expect(!editor->rejected_candidate(), "exact accepted reapply releases candidate");
+		editor->body_editor()->setPlainText(QStringLiteral("same text conflict"));
+		auto matching       = reapplied;
+		matching.Revision   = 4;
+		matching.Draft.Body = "same text conflict";
+		editor->present(matching);
+		editor->reapply_draft_action()->trigger();
+		const auto sameText = commands.back();
+		editor->present(matching);
+		expect(editor->rejected_candidate().has_value(), "unsolicited same-text state cannot acknowledge a command");
+		auto wrong             = sameText;
+		wrong.ExpectedRevision = 3;
+		editor->acknowledge(wrong, matching);
+		expect(editor->rejected_candidate().has_value(), "wrong command acknowledgement preserves candidate");
+		editor->acknowledge(sameText, matching);
+		expect(!editor->rejected_candidate() && editor->publish_action()->isEnabled(), "exact successful no-op reapply resolves conflict at unchanged revision");
+		editor->body_editor()->setPlainText(QStringLiteral("another candidate"));
+		auto newer       = reapplied;
+		newer.Revision   = 5;
+		newer.Draft.Body = "new accepted";
+		editor->present(newer);
+		editor->reload_draft_action()->trigger();
+		expect(!editor->rejected_candidate() && editor->body_editor()->toPlainText() == QStringLiteral("new accepted"), "explicit reload alone replaces conflicting text");
+		editor->body_editor()->setPlainText(QStringLiteral("old scope text"));
+		auto replacement       = newer;
+		replacement.Scope      = core::review_draft_scope_id{ 2 };
+		replacement.Revision   = 1;
+		replacement.Draft.Body = "new scope accepted";
+		editor->present(replacement);
+		const auto commandCount = commands.size();
+		editor->reload_draft_action()->trigger();
+		expect(!editor->rejected_candidate() && editor->body_editor()->toPlainText() == QStringLiteral("new scope accepted") && commands.size() == commandCount, "explicit reload can discard old-scope candidate without transferring its text");
+		expect(legacy.Drafts.empty(), "revisioned editor never falls through legacy command dispatch");
+		delete editor;
+	}
+
 	// The rule: an action emits an intent and changes nothing. A widget that
 	// updated itself optimistically would show a comment as published while the
 	// request was in flight, and keep showing it if the request failed.
@@ -923,7 +999,7 @@ namespace {
 	/// out of this widget is a semantic command" a property of the type.
 	void test_the_editor_holds_no_provider_endpoint_store_or_process()
 	{
-		const auto members       = qt::review_draft_editor_members{ };
+		const auto members                   = qt::review_draft_editor_members{ };
 		const auto& [applying,
 					 workshopAsked,
 					 draftDispatch,
@@ -947,7 +1023,8 @@ namespace {
 					 shownDraft,
 					 shownReceipt,
 					 shownProposal,
-					 statistics] = members;
+					 statistics, revisioned] = members;
+		static_assert(std::is_same_v<decltype(revisioned), const qt::revisioned_draft_editor_state>);
 
 		static_assert(std::is_same_v<decltype(applying), const bool>);
 		static_assert(std::is_same_v<decltype(workshopAsked), const bool>);
@@ -1065,6 +1142,7 @@ auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
 	QApplication::setQuitOnLastWindowClosed(false);
+	test_revision_conflicts_retain_exact_candidate();
 
 	test_publishing_emits_an_intent_and_changes_nothing();
 	test_typing_emits_a_semantic_edit_and_waits_for_projection();

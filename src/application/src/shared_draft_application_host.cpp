@@ -1,0 +1,200 @@
+#include "bpr/application/shared_draft_application_host.hpp"
+#include "bpr/core/anonymous_read_policy.hpp"
+#include <algorithm>
+#include <limits>
+#include <vector>
+namespace bpr::application {
+	struct shared_draft_application_host::implementation
+	{
+		struct consumer
+		{
+			shared_draft_consumer    Id;
+			core::bpr_window_context Window;
+			publication              Publish;
+			bool                     Active = true;
+		};
+		shared_draft_authority                     Authority;
+		core::review_draft_scope_id                Scope;
+		shared_draft_context_port&                 Contexts;
+		std::vector<std::shared_ptr<consumer>>     Consumers    = { };
+		std::vector<core::revisioned_review_draft> Drafts       = { };
+		std::uint64_t                              NextConsumer = 1, NextDraft = 1;
+		bool                                       Closing = false;
+		auto                                       admitted(shared_draft_consumer aConsumer) const -> bool
+		{
+			return !Closing && std::ranges::any_of(Consumers, [&](const auto& aEntry) { return aEntry->Active && aEntry->Id == aConsumer && Contexts.current(aEntry->Window); });
+		}
+		auto find(core::review_draft_id aDraft) -> core::revisioned_review_draft*
+		{
+			const auto found = std::ranges::find_if(Drafts, [&](const auto& aEntry) { return aEntry.Draft.Id == aDraft; });
+			return found == Drafts.end() ? nullptr : &*found;
+		}
+		void publish(const core::revisioned_review_draft& aDraft)
+		{
+			const auto& snapshot  = aDraft;
+			const auto  consumers = Consumers;
+			for (const auto& subscriber : consumers) {
+				const auto* latest = find(snapshot.Draft.Id);
+				if (Closing || !latest || latest->Revision != snapshot.Revision) {
+					return;
+				}
+				if (!subscriber->Active || !Contexts.current(subscriber->Window)) {
+					continue;
+				}
+				try {
+					subscriber->Publish(snapshot);
+				} catch (...) {
+					subscriber->Active = false;
+				}
+			}
+		}
+		auto change(const core::revisioned_review_draft_command& aCommand) -> shared_draft_result
+		{
+			auto* record = find(aCommand.Command.Id);
+			if (!record) {
+				return { .Failure = shared_draft_failure::unknown_draft };
+			}
+			const auto outcome = core::apply(*record, aCommand);
+			if (outcome.Refusal != core::revisioned_draft_refusal::none) {
+				return { *record, outcome.Refusal == core::revisioned_draft_refusal::conflict ? shared_draft_failure::conflict : shared_draft_failure::policy, outcome.Refusal };
+			}
+			*record             = outcome.Accepted;
+			const auto accepted = *record;
+			if (outcome.Changed) {
+				publish(accepted);
+			}
+			const auto* latest = find(accepted.Draft.Id);
+			if (Closing || !latest) {
+				return { .Failure = shared_draft_failure::retired };
+			}
+			if (latest->Revision != accepted.Revision) {
+				return { *latest, shared_draft_failure::conflict, core::revisioned_draft_refusal::conflict };
+			}
+			return { accepted };
+		}
+	};
+	shared_draft_application_host::shared_draft_application_host(shared_draft_authority aAuthority, core::review_draft_scope_id aScope, shared_draft_context_port& aContexts)
+		: Implementation{ std::make_unique<implementation>(implementation{ std::move(aAuthority), aScope, aContexts }) }
+	{ }
+	shared_draft_application_host::~shared_draft_application_host() { shutdown(); }
+	auto shared_draft_application_host::attach(const shared_draft_authority& aAuthority, core::bpr_window_context aWindow, publication aPublish) -> std::expected<shared_draft_consumer, shared_draft_failure>
+	{
+		auto& host = *Implementation;
+		if (host.Closing) {
+			return std::unexpected(shared_draft_failure::closing);
+		}
+		if (host.Scope.value() == 0 || aAuthority != host.Authority || !valid(aAuthority.ProfileAuthority) || !aAuthority.HostAuthority.valid()
+			|| aAuthority.BprProfile.value() == 0 || aAuthority.Session.value() == 0 || aAuthority.Generation.value() == 0 || aAuthority.Account.value() == 0
+			|| aAuthority.Mode != core::github_access_mode::authenticated || aAuthority.Target.Host != aAuthority.ProfileAuthority.Host
+			|| aAuthority.Target.Repository.value() == 0 || aAuthority.Target.PullRequest.value() == 0 || !aAuthority.Target.ExpectedHead.valid()
+			|| aWindow.Profile != aAuthority.BprProfile || aWindow.Window.value() == 0 || aWindow.Generation.value() == 0 || !aPublish) {
+			return std::unexpected(shared_draft_failure::invalid_authority);
+		}
+		if (!host.Contexts.current(aWindow)) {
+			return std::unexpected(shared_draft_failure::retired);
+		}
+		std::erase_if(host.Consumers, [&](const auto& aEntry) { return !aEntry->Active || !host.Contexts.current(aEntry->Window); });
+		if (host.Consumers.size() >= maximum_shared_draft_consumers || std::ranges::any_of(host.Consumers, [&](const auto& aEntry) { return aEntry->Window.Window == aWindow.Window; })) {
+			return std::unexpected(shared_draft_failure::capacity);
+		}
+		if (host.NextConsumer == std::numeric_limits<std::uint64_t>::max()) {
+			return std::unexpected(shared_draft_failure::exhausted);
+		}
+		const auto id = shared_draft_consumer{ host.NextConsumer++ };
+		host.Consumers.push_back(std::make_shared<implementation::consumer>(implementation::consumer{ id, aWindow, std::move(aPublish) }));
+		return id;
+	}
+	void shared_draft_application_host::detach(shared_draft_consumer aConsumer)
+	{
+		for (auto& entry : Implementation->Consumers) {
+			if (entry->Id == aConsumer) {
+				entry->Active = false;
+			}
+		}
+	}
+	auto shared_draft_application_host::allocate(shared_draft_consumer aConsumer, core::source_line_ref aAnchor, std::string aBody, std::optional<std::string> aReply) -> shared_draft_result
+	{
+		auto& host = *Implementation;
+		if (!host.admitted(aConsumer)) {
+			return { .Failure = shared_draft_failure::retired };
+		}
+		if (host.Drafts.size() >= maximum_shared_drafts) {
+			return { .Failure = shared_draft_failure::capacity };
+		}
+		if (host.NextDraft == std::numeric_limits<std::uint64_t>::max()) {
+			return { .Failure = shared_draft_failure::exhausted };
+		}
+		if (!aAnchor.Comparison.valid() || aAnchor.Side > core::diff_side::right || aBody.size() > core::maximum_shared_draft_body_bytes || (aReply && (aReply->empty() || aReply->size() > core::maximum_shared_draft_reply_bytes))) {
+			return { .Failure = shared_draft_failure::policy };
+		}
+		const auto record = core::revisioned_review_draft{ core::review_comment_draft{ core::review_draft_id{ host.NextDraft++ }, aAnchor, std::move(aBody), core::review_draft_state::drafting, std::move(aReply) }, 1, host.Scope };
+		host.Drafts.push_back(record);
+		host.publish(record);
+		if (!host.admitted(aConsumer)) {
+			return { .Failure = shared_draft_failure::retired };
+		}
+		const auto* latest = host.find(record.Draft.Id);
+		if (!latest) {
+			return { .Failure = shared_draft_failure::unknown_draft };
+		}
+		if (latest->Revision != record.Revision) {
+			return { *latest, shared_draft_failure::conflict, core::revisioned_draft_refusal::conflict };
+		}
+		return { record };
+	}
+	auto shared_draft_application_host::select(shared_draft_consumer aConsumer, core::source_line_ref aAnchor, std::optional<std::string> aReply) -> shared_draft_result
+	{
+		if (!Implementation->admitted(aConsumer)) {
+			return { .Failure = shared_draft_failure::retired };
+		}
+		const auto found = std::ranges::find_if(Implementation->Drafts, [&](const auto& aRecord) {
+			return aRecord.Draft.Anchor == aAnchor && aRecord.Draft.ReplyToThread == aReply
+				&& (aRecord.Draft.State == core::review_draft_state::drafting || aRecord.Draft.State == core::review_draft_state::publishing);
+		});
+		if (found != Implementation->Drafts.end()) {
+			return { *found };
+		}
+		return allocate(aConsumer, aAnchor, { }, std::move(aReply));
+	}
+
+	auto shared_draft_application_host::read(shared_draft_consumer aConsumer, core::review_draft_id aDraft) const -> shared_draft_result
+	{
+		if (!Implementation->admitted(aConsumer)) {
+			return { .Failure = shared_draft_failure::retired };
+		}
+		const auto* record = Implementation->find(aDraft);
+		return record ? shared_draft_result{ *record } : shared_draft_result{ .Failure = shared_draft_failure::unknown_draft };
+	}
+	auto shared_draft_application_host::apply(shared_draft_consumer aConsumer, const core::revisioned_review_draft_command& aCommand) -> shared_draft_result
+	{
+		if (!Implementation->admitted(aConsumer)) {
+			return { .Failure = shared_draft_failure::retired };
+		}
+		if (aCommand.Command.Kind == core::review_draft_command_kind::complete_publish || aCommand.Command.Kind == core::review_draft_command_kind::fail_publish) {
+			return { .Failure = shared_draft_failure::policy };
+		}
+		auto result = Implementation->change(aCommand);
+		if (!Implementation->admitted(aConsumer)) {
+			if (!Implementation->Closing && !result.Failure && result.Accepted && aCommand.Command.Kind == core::review_draft_command_kind::begin_publish) {
+				static_cast<void>(Implementation->change({ { result.Accepted->Draft.Id, core::review_draft_command_kind::fail_publish, { } }, result.Accepted->Revision, false, { }, result.Accepted->Scope }));
+			}
+			return { .Failure = shared_draft_failure::retired };
+		}
+		return result;
+	}
+	auto shared_draft_application_host::complete(const shared_draft_authority& aAuthority, core::review_draft_id aDraft, std::uint64_t aPublishingRevision, bool aSuccess) -> shared_draft_result
+	{
+		if (Implementation->Closing || aAuthority != Implementation->Authority) {
+			return { .Failure = shared_draft_failure::retired };
+		}
+		return Implementation->change({ { aDraft, aSuccess ? core::review_draft_command_kind::complete_publish : core::review_draft_command_kind::fail_publish, { } }, aPublishingRevision, false, { }, Implementation->Scope });
+	}
+	void shared_draft_application_host::shutdown()
+	{
+		Implementation->Closing = true;
+		for (auto& entry : Implementation->Consumers) {
+			entry->Active = false;
+		}
+	}
+	auto shared_draft_application_host::authority() const noexcept -> const shared_draft_authority& { return Implementation->Authority; }
+}

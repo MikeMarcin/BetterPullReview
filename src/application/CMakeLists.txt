@@ -6,6 +6,7 @@ add_library(
         src/syntax_classification_application_host.cpp
 		src/designated_review_authority_bootstrap.cpp
         src/review_ledger_application_host.cpp
+        src/shared_draft_application_host.cpp
 		src/review_mutation_contract.cpp
         src/review_submission_application_host.cpp
         src/review_submission_contract.cpp
