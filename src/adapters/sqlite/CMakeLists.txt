@@ -1,6 +1,7 @@
 add_library(
     better_pull_review_adapter_sqlite
     STATIC
+        src/window_review_restoration_store.cpp
         src/catalog_database.cpp
         src/sqlite_connection.cpp
         src/review_ledger_database.cpp

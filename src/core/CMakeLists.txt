@@ -1,6 +1,7 @@
 add_library(
     better_pull_review_core
     STATIC
+        src/window_review_restoration.cpp
         src/anonymous_read_policy.cpp
         src/appearance_contrast.cpp
         src/appearance_model.cpp

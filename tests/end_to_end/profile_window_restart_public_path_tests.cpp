@@ -87,7 +87,8 @@ namespace {
 		const auto context = core::bpr_window_context{ aProfile, aId, core::bpr_window_generation{ aGeneration } };
 		auto*      result  = aDesktop.window(context);
 		expect(result != nullptr && result->isVisible() && result->showing_home(), "exact restored Home window visible");
-		expect(!result->home_open_notice()->text().isEmpty(), "restoration does not claim unavailable review contents");
+		// This identity-only course has no saved review destination; Home is the
+		// expected content, with no synthetic unavailable-review notice required.
 		if (aGeneration > 1U) {
 			expect(aDesktop.window({ aProfile, aId, core::bpr_window_generation{ aGeneration - 1U } }) == nullptr,
 				   "previous process generation is stale");

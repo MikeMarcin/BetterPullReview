@@ -3691,6 +3691,7 @@ namespace bpr::application {
 
 		void shutdown()
 		{
+			RestoreIngressClosing = true;
 			cancel_setup_enrollment();
 			if (TurnActive) {
 				DeferredIngress.emplace_back(deferred_shutdown{ });
@@ -3771,6 +3772,54 @@ namespace bpr::application {
 			AcceptedSnapshot.reset();
 			AcceptedProfileAuthority.reset();
 			AcceptedCapabilityEvidence.reset();
+		}
+
+		struct restore_completion
+		{
+			std::function<void(device_profile_restore_status)> Callback;
+			bool                                               Scheduled = false;
+		};
+
+		void complete_restore(const std::shared_ptr<restore_completion>& aCompletion,
+							  const device_profile_restore_status        aStatus) noexcept
+		{
+			if (!aCompletion || aCompletion->Scheduled) {
+				return;
+			}
+			aCompletion->Scheduled = true;
+			if (!aCompletion->Callback) {
+				--OutstandingRestoreCompletions;
+				return;
+			}
+			try {
+				DecisionLane.post([gate = std::weak_ptr<completion_gate>{ CompletionGate }, aCompletion, aStatus] {
+					const auto locked = gate.lock();
+					if (!locked) {
+						return;
+					}
+					const std::lock_guard barrier{ locked->Barrier };
+					auto*                 host = locked->Host.load(std::memory_order_acquire);
+					if (!host) {
+						return;
+					}
+					auto callback = std::move(aCompletion->Callback);
+					try {
+						host->run_turn([&] {
+							try {
+								callback(host->Closing ? device_profile_restore_status::cancelled : aStatus);
+							} catch (...) {
+								host->ProjectionDeliveryFailed = true;
+							}
+						});
+					} catch (...) {
+						host->ProjectionDeliveryFailed = true;
+					}
+					--host->OutstandingRestoreCompletions;
+				});
+			} catch (...) {
+				--OutstandingRestoreCompletions;
+				ProjectionDeliveryFailed = true;
+			}
 		}
 
 		template <typename TCallback>
@@ -3886,7 +3935,9 @@ namespace bpr::application {
 		std::optional<github_viewer_success>                    AcceptedSetupBootstrap;
 		std::size_t                                             OutstandingSetup = 0U;
 
-		std::size_t                              OutstandingBindings = 0;
+		std::size_t                              OutstandingBindings           = 0;
+		std::size_t                              OutstandingRestoreCompletions = 0;
+		bool                                     RestoreIngressClosing         = false;
 		core::github_identity_generation         BindingDeleteGeneration;
 		std::optional<deferred_session_terminal> BindingDeleteTerminal;
 		refresh_disposition                      BindingDeleteRefresh = refresh_disposition::erase;
@@ -4079,95 +4130,137 @@ namespace bpr::application {
 		Implementation->WallClock   = std::move(aWallClock);
 	}
 
-	void github_application_host::restore_device_profile(const github_profile_authority aCompiledProfile)
+	auto github_application_host::restore_device_profile(const github_profile_authority                     aCompiledProfile,
+														 std::function<void(device_profile_restore_status)> aCompletion, std::function<bool()> aCurrent) -> bool
 	{
 		auto& initialHost = *Implementation;
-		if (initialHost.Closing || initialHost.BindingLoadUnresolved || initialHost.Persistence == nullptr || !initialHost.WallClock || initialHost.State.ActiveProfile || initialHost.OutstandingBindings != 0U
+		if (initialHost.Closing || initialHost.RestoreIngressClosing || initialHost.OutstandingRestoreCompletions >= maximum_pending_device_profile_restores) {
+			return false;
+		}
+		auto completion      = std::make_shared<implementation::restore_completion>();
+		completion->Callback = std::move(aCompletion);
+		++initialHost.OutstandingRestoreCompletions;
+		if (initialHost.BindingLoadUnresolved || initialHost.Persistence == nullptr || !initialHost.WallClock || initialHost.State.ActiveProfile || initialHost.OutstandingBindings != 0U
 			|| !valid(aCompiledProfile) || aCompiledProfile.Authentication != github_authentication_transport::native_https
 			|| aCompiledProfile.ServerContract != github_server_contract::github_com_2022_11_28) {
-			return;
+			initialHost.complete_restore(completion, device_profile_restore_status::unavailable);
+			return true;
 		}
 		initialHost.BindingLoadPending = true;
 		++initialHost.OutstandingBindings;
-		initialHost.Persistence->load(initialHost.binding_callback([this, aCompiledProfile](device_binding_load_result aResult) {
-			auto& host = *Implementation;
-			--host.OutstandingBindings;
-			host.BindingLoadPending = false;
-			const auto cleanup      = std::exchange(host.PendingRestoreCleanup, std::nullopt);
-			if (host.Closing && !cleanup) {
-				return;
-			}
-			const auto fail = [&host, &cleanup] {
-				host.BindingLoadUnresolved = true;
-				host.binding_failure();
-				if (host.Closing && cleanup) {
-					host.ShutdownCleanupFailed = true;
+		const auto generation = initialHost.BindingGeneration;
+		try {
+			initialHost.Persistence->load(initialHost.binding_callback([this, aCompiledProfile, completion, generation, current = std::move(aCurrent)](device_binding_load_result aResult) {
+				struct terminal_guard
+				{
+					implementation&                                     Host;
+					std::shared_ptr<implementation::restore_completion> Completion;
+					device_profile_restore_status                       Status = device_profile_restore_status::unavailable;
+					~terminal_guard() { Host.complete_restore(Completion, Status); }
+				} terminal{ *Implementation, completion };
+				auto& host = *Implementation;
+				--host.OutstandingBindings;
+				host.BindingLoadPending = false;
+				const auto cleanup      = std::exchange(host.PendingRestoreCleanup, std::nullopt);
+				auto       admitted     = true;
+				try {
+					if (current) {
+						admitted = current();
+					}
+				} catch (...) {
+					admitted = false;
 				}
-				if (host.DeferredSession) {
-					const auto context = *host.DeferredSession;
-					host.DeferredSession.reset();
-					host.fail_session(context, core::github_failure::vault);
+				const auto superseded = generation != host.BindingGeneration || host.State.ActiveProfile.has_value()
+					|| host.RestoreIngressClosing || host.BindingLoadPending || !host.DeferredIngress.empty();
+				if (!admitted || host.Closing || cleanup || superseded || (!aResult && aResult.error() == device_binding_failure::cancelled)) {
+					terminal.Status = device_profile_restore_status::cancelled;
 				}
-			};
-			if (!aResult || aResult->size() > maximum_device_bindings) {
-				fail();
-				return;
-			}
-			std::optional<device_binding_record> selected;
-			for (const auto& record : *aResult) {
-				if (!valid(record) || record.Authority.BprProfile != host.BprProfile) {
+				if ((!admitted || host.Closing || host.RestoreIngressClosing) && !cleanup) {
+					return;
+				}
+				const auto fail = [&host, &cleanup] {
+					host.BindingLoadUnresolved = true;
+					host.binding_failure();
+					if (host.Closing && cleanup) {
+						host.ShutdownCleanupFailed = true;
+					}
+					if (host.DeferredSession) {
+						const auto context = *host.DeferredSession;
+						host.DeferredSession.reset();
+						host.fail_session(context, core::github_failure::vault);
+					}
+				};
+				if (!aResult || aResult->size() > maximum_device_bindings) {
 					fail();
 					return;
 				}
-				if (record.Authority.Profile == aCompiledProfile.Profile) {
-					if (selected) {
+				std::optional<device_binding_record> selected;
+				for (const auto& record : *aResult) {
+					if (!valid(record) || record.Authority.BprProfile != host.BprProfile) {
 						fail();
 						return;
 					}
-					selected = record;
+					if (record.Authority.Profile == aCompiledProfile.Profile) {
+						if (selected) {
+							fail();
+							return;
+						}
+						selected = record;
+					}
 				}
-			}
-			if (!selected) {
-				host.start_deferred_session();
-				return;
-			}
-			const auto& authority = selected->Authority;
-			if (authority.ProfileRevision != aCompiledProfile.ProfileRevision || authority.Host != aCompiledProfile.Host
-				|| authority.Hostname != aCompiledProfile.Hostname || authority.ServerContract != aCompiledProfile.ServerContract) {
-				fail();
-				return;
-			}
-			if (cleanup) {
-				// No session is established. The compiled profile validates the loaded
-				// authority; the core's invalidation owns this exact cleanup request.
-				host.CredentialAuthority      = authority;
-				host.CredentialSessionContext = core::github_session_request_context{
-					.Request = cleanup->Request, .ApplicationSession = cleanup->ApplicationSession, .Profile = authority.Profile, .IdentityGeneration = cleanup->NewGeneration
-				};
-				host.CredentialLifecycle     = implementation::credential_lifecycle::persistent;
-				host.CredentialProvenance    = github_credential_provenance::device_grant;
-				host.StartupCleanupOperation = github_credential_operation_context{
-					.Request = cleanup->Request, .ApplicationSession = cleanup->ApplicationSession, .Authority = authority, .IdentityGeneration = cleanup->NewGeneration
-				};
-				host.start_delete(cleanup->NewGeneration, std::nullopt);
-				return;
-			}
-			if (selected->Tombstone) {
-				return;
-			}
-			if (remaining_access_lifetime(selected->Lifetime, host.WallClock()) == 0U) {
-				host.binding_failure();
-				++host.OutstandingBindings;
-				host.Persistence->erase(authority, host.binding_callback([&host](device_binding_result) { --host.OutstandingBindings; }));
-				return;
-			}
-			if (!host.CredentialBindings.remember(authority, github_credential_provenance::device_grant)) {
-				fail();
-				return;
-			}
-			host.PendingDeviceRestore = selected;
-			host.resume_profile(aCompiledProfile.Profile);
-		}));
+				if (!selected) {
+					host.start_deferred_session();
+					return;
+				}
+				const auto& authority = selected->Authority;
+				if (authority.ProfileRevision != aCompiledProfile.ProfileRevision || authority.Host != aCompiledProfile.Host
+					|| authority.Hostname != aCompiledProfile.Hostname || authority.ServerContract != aCompiledProfile.ServerContract) {
+					fail();
+					return;
+				}
+				if (cleanup) {
+					// No session is established. The compiled profile validates the loaded
+					// authority; the core's invalidation owns this exact cleanup request.
+					host.CredentialAuthority      = authority;
+					host.CredentialSessionContext = core::github_session_request_context{
+						.Request = cleanup->Request, .ApplicationSession = cleanup->ApplicationSession, .Profile = authority.Profile, .IdentityGeneration = cleanup->NewGeneration
+					};
+					host.CredentialLifecycle     = implementation::credential_lifecycle::persistent;
+					host.CredentialProvenance    = github_credential_provenance::device_grant;
+					host.StartupCleanupOperation = github_credential_operation_context{
+						.Request = cleanup->Request, .ApplicationSession = cleanup->ApplicationSession, .Authority = authority, .IdentityGeneration = cleanup->NewGeneration
+					};
+					host.start_delete(cleanup->NewGeneration, std::nullopt);
+					return;
+				}
+				if (superseded) {
+					host.start_deferred_session();
+					return;
+				}
+				if (selected->Tombstone) {
+					return;
+				}
+				if (remaining_access_lifetime(selected->Lifetime, host.WallClock()) == 0U) {
+					host.binding_failure();
+					++host.OutstandingBindings;
+					host.Persistence->erase(authority, host.binding_callback([&host](device_binding_result) { --host.OutstandingBindings; }));
+					return;
+				}
+				if (!host.CredentialBindings.remember(authority, github_credential_provenance::device_grant)) {
+					fail();
+					return;
+				}
+				host.PendingDeviceRestore = selected;
+				host.resume_profile(aCompiledProfile.Profile);
+				terminal.Status = device_profile_restore_status::ready_for_session;
+			}));
+		} catch (...) {
+			--initialHost.OutstandingBindings;
+			initialHost.BindingLoadPending = false;
+			initialHost.complete_restore(completion, device_profile_restore_status::unavailable);
+			initialHost.binding_failure();
+		}
+		return true;
 	}
 
 	void github_application_host::invalidate_device_grant(github_credential_authority_key aAuthority, const core::github_identity_generation aGeneration)
@@ -4341,6 +4434,7 @@ namespace bpr::application {
 						   [](const auto& aSlot) { return aSlot.Host->is_quiescent(); })
 			&& Implementation->OutstandingSetup == 0U
 			&& Implementation->OutstandingBindings == 0U
+			&& Implementation->OutstandingRestoreCompletions == 0U
 			&& !Implementation->BindingErasePending
 			&& std::holds_alternative<std::monostate>(
 				   Implementation->PendingProvider)

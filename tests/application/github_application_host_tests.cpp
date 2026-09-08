@@ -5416,6 +5416,215 @@ namespace {
 			expect(fixture.Host.is_quiescent(), "cancelled save and protected tombstone fully drain");
 		}
 	}
+	void test_restore_device_profile_exact_predicate_cancels_before_authentication()
+	{
+		using status                                     = application::device_profile_restore_status;
+		const auto                               profile = native_profile(core::host_profile_id{ 11U });
+		const application::device_binding_record record{ .Authority = { .Profile = profile.Profile, .ProfileRevision = profile.ProfileRevision, .Host = profile.Host, .Hostname = profile.Hostname, .Account = core::github_account_id{ 51U }, .ServerContract = profile.ServerContract }, .Lifetime = binding_lifetime() };
+		for (int scenario = 0; scenario < 3; ++scenario) {
+			host_fixture  fixture;
+			binding_store store;
+			store.Rows = { record };
+			application::manual_executor            effects;
+			application::device_binding_persistence persistence{ store, effects, fixture.Lane };
+			fixture.Host.configure_device_persistence(persistence, [] { return std::int64_t{ 1000 }; });
+			std::vector<status> results;
+			std::uint64_t       currentRequest = 1U;
+			const auto          request        = currentRequest;
+			expect(fixture.Host.restore_device_profile(profile, [&](status aStatus) { results.push_back(aStatus); }, [&] {
+				if (scenario == 1) { throw std::runtime_error{ "predicate refusal" }; }
+				if (scenario == 2) { fixture.Host.shutdown(); return true; }
+				return currentRequest == request; }), "exact startup request reserves a restore slot");
+			currentRequest = 2U;
+			effects.drain();
+			fixture.Lane.drain();
+			expect(results == std::vector{ status::cancelled }
+					   && fixture.Provider.Profiles.empty() && fixture.Vault.Retrieves.empty()
+					   && fixture.Bindings.size() == 0U
+					   && store.Operations == std::vector<std::string>{ "load" },
+				   "stale, throwing and reentrant-closing predicate cancels before binding or auth mutation");
+			if (scenario == 0) {
+				const auto nextRequest = currentRequest;
+				expect(fixture.Host.restore_device_profile(profile, [&](status aStatus) { results.push_back(aStatus); }, [&, nextRequest] { return currentRequest == nextRequest; }), "new exact request can restore after older request retires");
+				effects.drain();
+				fixture.Lane.drain();
+				expect(results == std::vector{ status::cancelled, status::ready_for_session }
+						   && fixture.Provider.Profiles.size() == 1U,
+					   "retired predicate cannot cancel a newer attempt");
+			}
+			fixture.Host.shutdown();
+			fixture.Lane.drain();
+		}
+	}
+
+	void test_restore_device_profile_bounds_pending_and_delivering_terminals()
+	{
+		using status = application::device_profile_restore_status;
+		host_fixture                            fixture;
+		binding_store                           store;
+		application::manual_executor            effects;
+		application::device_binding_persistence persistence{ store, effects, fixture.Lane };
+		fixture.Host.configure_device_persistence(persistence, [] { return std::int64_t{ 1000 }; });
+		const auto  profile   = native_profile(core::host_profile_id{ 11U });
+		std::size_t callbacks = 0U;
+		expect(fixture.Host.restore_device_profile(profile, [&](status) { ++callbacks; }), "one load reserves one restore slot");
+		for (std::size_t index = 1U; index < application::maximum_pending_device_profile_restores; ++index) {
+			expect(fixture.Host.restore_device_profile(profile, [&](status) {
+				if (callbacks == 0U) {
+					expect(!fixture.Host.restore_device_profile(profile, [&](status) { ++callbacks; }),
+						   "active delivery still owns its slot during reentrant admission");
+				}
+				++callbacks;
+			}),
+				   "bounded refusal terminal reserves a slot");
+		}
+		const auto queued = fixture.Lane.pending();
+		for (std::size_t index = 0U; index < 100U; ++index) {
+			expect(!fixture.Host.restore_device_profile(profile, [&](status) { ++callbacks; }), "restore overflow refuses admission without callback");
+		}
+		expect(effects.pending() == 1U && queued == 31U && fixture.Lane.pending() == queued,
+			   "overflow grows neither load effects nor terminal queue");
+		fixture.Lane.drain();
+		expect(callbacks == 31U, "only admitted refusal observers ran");
+		fixture.Host.shutdown();
+		const auto pendingAfterClose = fixture.Lane.pending();
+		expect(!fixture.Host.restore_device_profile(profile, [&](status) { ++callbacks; })
+				   && fixture.Lane.pending() == pendingAfterClose,
+			   "closing refuses new restore work without a terminal");
+		effects.drain();
+		fixture.Lane.drain();
+		expect(callbacks == 32U && fixture.Host.is_quiescent(), "accepted load supplies final cancelled terminal and releases every slot");
+		expect(!fixture.Host.restore_device_profile(profile) && fixture.Host.is_quiescent(), "legacy call cannot reopen quiescent shutdown ingress");
+		{
+			fake_provider                                  provider;
+			fake_vault                                     vault;
+			throwing_once_lane                             lane;
+			recording_projections                          projections;
+			application::github_credential_binding_catalog bindings;
+			application::github_application_host           host{ initial_state(), provider, provider, provider, provider, vault, bindings, lane, projections };
+			expect(host.restore_device_profile(profile, [](status) { }), "delivery failure follows admitted call");
+			host.shutdown();
+			expect(host.projection_delivery_failed() && host.is_quiescent(), "rejected decision post reports delivery failure and releases slot");
+		}
+	}
+
+	void test_restore_device_profile_has_one_terminal_for_missing_invalid_and_ready()
+	{
+		using status                                     = application::device_profile_restore_status;
+		const auto                               profile = native_profile(core::host_profile_id{ 11U });
+		const application::device_binding_record record{ .Authority = { .Profile = profile.Profile, .ProfileRevision = profile.ProfileRevision, .Host = profile.Host, .Hostname = profile.Hostname, .Account = core::github_account_id{ 51U }, .ServerContract = profile.ServerContract }, .Lifetime = binding_lifetime() };
+		for (int scenario = 0; scenario < 7; ++scenario) {
+			host_fixture                            fixture;
+			binding_store                           store;
+			application::manual_executor            effects;
+			application::device_binding_persistence persistence{ store, effects, fixture.Lane };
+			fixture.Host.configure_device_persistence(persistence, [scenario] { return std::int64_t{ scenario == 4 ? 4600 : 1000 }; });
+			if (scenario != 0) {
+				store.Rows = { record };
+			}
+			if (scenario == 1) {
+				store.Rows.front().Authority.Account = { };
+			}
+			if (scenario == 2) {
+				store.Rows.push_back(record);
+			}
+			if (scenario == 3) {
+				store.Rows.front().Tombstone = true;
+			}
+			if (scenario == 5) {
+				store.RefuseLoad = true;
+			}
+			std::vector<status> results;
+			fixture.Host.restore_device_profile(profile, [&](const status aStatus) { results.push_back(aStatus); });
+			expect(results.empty(), "restore callback never runs during ingress");
+			effects.drain();
+			expect(results.empty(), "restore worker does not deliver decision observation");
+			fixture.Lane.run_next();
+			expect(results.empty(), "load turn queues its terminal instead of invoking it recursively");
+			fixture.Lane.drain();
+			effects.drain();
+			fixture.Lane.drain();
+			expect(results == std::vector{ scenario == 6 ? status::ready_for_session : status::unavailable },
+				   "missing, malformed, duplicate, tombstoned, expired and refused loads each terminate once");
+			expect(fixture.Vault.Retrieves.empty() && fixture.Vault.Stores.empty(), "binding terminal carries no credential effect or enrollment");
+			if (scenario == 6) {
+				expect(fixture.Provider.Profiles.size() == 1U && !fixture.Host.accepted_session(),
+					   "ready terminal reports queued resume, never accepted authentication");
+			}
+			fixture.Host.shutdown();
+			fixture.Lane.drain();
+			expect(results.size() == 1U, "shutdown cannot redeliver a retired terminal");
+		}
+	}
+
+	void test_restore_device_profile_refusal_reentrancy_and_shutdown_terminals()
+	{
+		using status       = application::device_profile_restore_status;
+		const auto profile = native_profile(core::host_profile_id{ 11U });
+		{
+			host_fixture        fixture;
+			std::vector<status> results;
+			fixture.Host.restore_device_profile(profile, [&](const status aStatus) {
+				results.push_back(aStatus);
+				fixture.Host.shutdown();
+				expect(!fixture.Host.is_quiescent(), "terminal delivery stays accounted through reentrant shutdown");
+			});
+			expect(results.empty(), "unconfigured restore refusal is also deferred");
+			fixture.Lane.drain();
+			expect(results == std::vector{ status::unavailable } && fixture.Host.is_quiescent(), "refusal terminal drains after callback returns");
+		}
+		{
+			host_fixture                            fixture;
+			binding_store                           store;
+			application::manual_executor            effects;
+			application::device_binding_persistence persistence{ store, effects, fixture.Lane };
+			fixture.Host.configure_device_persistence(persistence, [] { return std::int64_t{ 1000 }; });
+			std::vector<status> results;
+			fixture.Host.restore_device_profile(profile, [&](const status aStatus) {
+				results.push_back(aStatus);
+				fixture.Host.restore_device_profile(profile, [&](const status aNext) { results.push_back(aNext); });
+			});
+			effects.drain();
+			fixture.Lane.drain();
+			expect(results.size() == 1U && effects.pending() == 1U, "reentrant restore is a distinct bounded load");
+			fixture.Host.shutdown();
+			expect(!fixture.Host.is_quiescent(), "pending load and terminal prevent early shutdown quiescence");
+			effects.drain();
+			fixture.Lane.run_next();
+			expect(!fixture.Host.is_quiescent() && results.size() == 1U, "load cancellation still owes one terminal");
+			fixture.Lane.drain();
+			expect(results == std::vector{ status::unavailable, status::cancelled } && fixture.Host.is_quiescent(), "reentrant pending restore terminates cancelled on shutdown");
+		}
+		{
+			host_fixture fixture;
+			fixture.Host.restore_device_profile(profile, [&](status) { fixture.Host.shutdown(); throw std::runtime_error{ "observer refusal" }; });
+			fixture.Lane.drain();
+			fixture.Host.shutdown();
+			expect(fixture.Host.projection_delivery_failed() && fixture.Host.is_quiescent(), "throwing observer is reported without stranding quiescence");
+		}
+	}
+
+	void test_restore_device_profile_superseded_load_terminates_without_resuming()
+	{
+		using status = application::device_profile_restore_status;
+		host_fixture                            fixture;
+		const auto                              profile = native_profile(core::host_profile_id{ 11U });
+		binding_store                           store;
+		application::manual_executor            effects;
+		application::device_binding_persistence persistence{ store, effects, fixture.Lane };
+		fixture.Host.configure_device_persistence(persistence, [] { return std::int64_t{ 1000 }; });
+		std::vector<status> results;
+		fixture.Host.restore_device_profile(profile, [&](const status aStatus) { results.push_back(aStatus); });
+		fixture.Host.restore_device_profile(profile, [&](const status aStatus) { results.push_back(aStatus); });
+		fixture.Host.dispatch(core::deactivate_github_identity_intent{ });
+		effects.drain();
+		fixture.Lane.drain();
+		expect(results == std::vector{ status::unavailable, status::cancelled }, "overlapping call refuses and superseded admitted load cancels exactly once");
+		expect(fixture.Provider.Profiles.empty() && fixture.Vault.Retrieves.empty(), "stale load cannot resume or read credentials");
+		fixture.Host.shutdown();
+		expect(fixture.Host.is_quiescent(), "stale terminal fully drains");
+	}
+
 	void test_restored_binding_is_validated_before_resume()
 	{
 		const auto                               profile = native_profile(core::host_profile_id{ 11U });
@@ -5498,7 +5707,7 @@ namespace {
 	{
 		const auto                               profile = native_profile(core::host_profile_id{ 11U });
 		const application::device_binding_record record{ .Authority = { .Profile = profile.Profile, .ProfileRevision = profile.ProfileRevision, .Host = profile.Host, .Hostname = profile.Hostname, .Account = core::github_account_id{ 51U }, .ServerContract = profile.ServerContract }, .Lifetime = binding_lifetime() };
-		for (const auto action : { 0U, 1U, 2U }) {
+		for (const auto action : { 0U, 1U, 2U, 3U }) {
 			const auto    signOut = action != 0U;
 			host_fixture  fixture{ application::github_credential_shutdown_policy::retain_accepted_device_grants };
 			binding_store store;
@@ -5506,7 +5715,12 @@ namespace {
 			application::manual_executor            effects;
 			application::device_binding_persistence persistence{ store, effects, fixture.Lane };
 			fixture.Host.configure_device_persistence(persistence, [] { return std::int64_t{ 1000 }; });
-			fixture.Host.restore_device_profile(profile);
+			std::vector<application::device_profile_restore_status> results;
+			if (action == 3U) {
+				fixture.Host.restore_device_profile(profile, [&](auto aStatus) { results.push_back(aStatus); }, [] { return false; });
+			} else {
+				fixture.Host.restore_device_profile(profile);
+			}
 			if (signOut) {
 				fixture.Host.dispatch(core::deactivate_github_identity_intent{ });
 				if (action == 2U) {
@@ -5520,6 +5734,9 @@ namespace {
 			effects.drain();
 			fixture.Lane.drain();
 			expect(fixture.Provider.Profiles.empty(), "retired startup load cannot activate a profile");
+			if (action == 3U) {
+				expect(results == std::vector{ application::device_profile_restore_status::cancelled }, "predicate cancellation preserves the core-owned Sign out cleanup");
+			}
 			if (!signOut) {
 				expect(!store.Rows.front().Tombstone && fixture.Vault.Deletes.empty() && fixture.Host.is_quiescent(), "ordinary shutdown during startup load preserves remembered grant");
 				continue;
@@ -5983,6 +6200,11 @@ auto main() -> int
 	test_replacement_during_binding_load_waits_for_exact_cleanup();
 	test_startup_cleanup_refuses_a_mismatched_compiled_profile();
 	test_renewal_failure_invalidates_only_its_accepted_grant();
+	test_restore_device_profile_exact_predicate_cancels_before_authentication();
+	test_restore_device_profile_bounds_pending_and_delivering_terminals();
+	test_restore_device_profile_has_one_terminal_for_missing_invalid_and_ready();
+	test_restore_device_profile_refusal_reentrancy_and_shutdown_terminals();
+	test_restore_device_profile_superseded_load_terminates_without_resuming();
 	test_restored_binding_is_validated_before_resume();
 	test_device_binding_persistence_barriers();
 	test_binding_load_cancellation_and_stale_terminal();

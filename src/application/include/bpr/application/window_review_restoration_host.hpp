@@ -1,0 +1,43 @@
+#ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_WINDOW_REVIEW_RESTORATION_HOST_HPP
+#define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_WINDOW_REVIEW_RESTORATION_HOST_HPP
+#include "bpr/application/port.hpp"
+#include "bpr/application/window_review_restoration_ports.hpp"
+#include <memory>
+
+namespace bpr::application {
+	/// Decision-lane owner. Ports/executors outlive quiescence; all storage runs on the effect lane.
+	class window_review_restoration_host final
+	{
+	public:
+		window_review_restoration_host(core::bpr_profile_id aProfile, std::vector<core::bpr_window_context> aContexts,
+									   std::vector<std::string> aConfiguredHosts, window_review_restoration_port& aStore,
+									   effect_executor& aEffects, decision_executor& aDecision, window_review_restoration_projection_port& aProjection);
+		~window_review_restoration_host();
+		window_review_restoration_host(const window_review_restoration_host&)                                  = delete;
+		auto               operator=(const window_review_restoration_host&) -> window_review_restoration_host& = delete;
+		void               start();
+		[[nodiscard]] auto attach(core::bpr_window_context aContext) -> bool;
+		void               mark_window_ready(core::bpr_window_context aContext);
+		void               cancel_restore(core::bpr_window_context aContext);
+		void               cancel_startup();
+		[[nodiscard]] auto current_startup(core::request_id aRequest) const noexcept -> bool;
+		void               complete_startup(core::request_id aRequest, std::expected<core::window_review_authority, core::window_review_failure> aResult);
+		[[nodiscard]] auto current_restore(core::bpr_window_context aContext, core::request_id aRequest) const noexcept -> bool;
+		void               complete_restore(core::bpr_window_context aContext, core::request_id aRequest, std::expected<void, core::window_review_failure> aResult);
+		/// Composition supplies only an exact read already accepted by the window host.
+		void               accepted_read(core::bpr_window_context aContext, const core::window_review_destination& aDestination);
+		void               close(core::bpr_window_context aContext);
+		[[nodiscard]] auto window_quiescent(core::bpr_window_context aContext) const noexcept -> bool;
+		/// Explicit recovery reloads revision authority; preserves trusted pending records, never retries conflict blindly.
+		void               retry_persistence();
+		void               shutdown_orderly();
+		void               shutdown();
+		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
+		[[nodiscard]] auto projection_delivery_failed() const noexcept -> bool;
+
+	private:
+		struct implementation;
+		std::shared_ptr<implementation> Implementation;
+	};
+}
+#endif

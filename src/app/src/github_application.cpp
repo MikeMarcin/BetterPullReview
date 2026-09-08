@@ -58,10 +58,12 @@
 #include "bpr/adapters/sqlite/review_ledger_store.hpp"
 #include "bpr/adapters/sqlite/review_mutation_recovery_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
+#include "bpr/adapters/sqlite/window_review_restoration_store.hpp"
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
 #include "bpr/application/profile_startup_admission.hpp"
 #include "bpr/application/setup_destination.hpp"
+#include "bpr/application/window_review_restoration_host.hpp"
 
 #include "bpr/application/agent_chat_session_host.hpp"
 #include "bpr/application/agent_comment_workshop_host.hpp"
@@ -3538,8 +3540,29 @@ namespace bpr::app {
 		std::shared_ptr<state>          State = std::make_shared<state>();
 	};
 
+	class effect_window_review_store final : public application::window_review_restoration_port
+	{
+	public:
+		explicit effect_window_review_store(std::filesystem::path aRoot)
+			: Root{ std::move(aRoot) }
+		{ }
+		auto load(std::stop_token aStop) -> application::window_review_store_result<application::window_review_snapshot> override
+		{
+			auto store = adapters::sqlite::make_window_review_restoration_store(Root);
+			return store->load(aStop);
+		}
+		auto save(const application::window_review_snapshot& aCandidate, std::uint64_t aRevision, std::stop_token aStop) -> application::window_review_store_result<application::window_review_snapshot> override
+		{
+			auto store = adapters::sqlite::make_window_review_restoration_store(Root);
+			return store->save(aCandidate, aRevision, aStop);
+		}
+
+	private:
+		std::filesystem::path Root;
+	};
+
 	/// Shared services outlive every window session that borrows them.
-	class github_profile_runtime final : public application::github_projection_port, public application::queue_window_context_port, public application::queue_landing_projection_port, public application::shared_draft_context_port
+	class github_profile_runtime final : public std::enable_shared_from_this<github_profile_runtime>, public application::github_projection_port, public application::queue_window_context_port, public application::queue_landing_projection_port, public application::shared_draft_context_port, public application::window_review_restoration_projection_port
 	{
 	public:
 		// Root lease and execution lanes outlive all services and their callbacks.
@@ -3569,6 +3592,8 @@ namespace bpr::app {
 			std::function<bool(const core::pull_request_ref&)>                                SelectQueue;
 			std::function<void(qt::settings_window&, qt::settings_page)>                      Settings;
 			std::function<void()>                                                             UnmountSettings;
+			std::function<void(const core::window_review_open_request&)>                      RestoreReview;
+			std::function<void(const QString&)>                                               RestoreNotice;
 		};
 		void publish(const application::github_presentation_update& aUpdate) override;
 		template <class Function>
@@ -3654,22 +3679,152 @@ namespace bpr::app {
 			DraftOwners.push_back(owner);
 			return owner;
 		}
-		github_application_config                      Config;
-		core::github_identity_generation               QueueIdentityGeneration;
-		std::optional<core::bpr_window_context>        FirstWindow;
-		std::shared_ptr<profile_window_layout_service> WindowLayouts;
-		application::profile_startup_admission         Admission;
-		bool                                           Closing          = false;
-		bool                                           ServicesClosing  = false;
-		bool                                           ShutdownComplete = false;
-		bool                                           CleanupFailed    = false;
-		void                                           begin_shutdown()
+		github_application_config                                                Config;
+		core::github_identity_generation                                         QueueIdentityGeneration;
+		std::optional<core::bpr_window_context>                                  FirstWindow;
+		std::shared_ptr<profile_window_layout_service>                           WindowLayouts;
+		application::profile_startup_admission                                   Admission;
+		bool                                                                     Desktop                  = false;
+		bool                                                                     RememberedStartupStarted = false;
+		bool                                                                     RestorationOrderly       = false;
+		std::unique_ptr<effect_window_review_store>                              ReviewRestorationStore;
+		std::unique_ptr<application::window_review_restoration_host>             ReviewRestoration;
+		std::optional<core::window_review_startup_request>                       RestorationStartup;
+		std::map<core::bpr_window_context, QString, detail::window_context_less> RestorationNotices;
+		std::optional<QString>                                                   RestorationGlobalNotice;
+		void                                                                     remember_startup(std::optional<core::request_id> aRequest = std::nullopt)
+		{
+			if (!RememberDeviceSignIn || RememberedStartupStarted || Closing) {
+				return;
+			}
+			RememberedStartupStarted = true;
+			const auto& profile      = Profiles.front();
+			auto        current      = std::function<bool()>{ };
+			if (aRequest) {
+				current = [weak = weak_from_this(), request = *aRequest] {
+					const auto self = weak.lock();
+					return self && !self->Closing && self->ReviewRestoration && self->ReviewRestoration->current_startup(request);
+				};
+			}
+			Host->restore_device_profile(application::github_profile_authority{
+											 .Profile = profile.profile(), .ProfileRevision = profile.revision(), .Host = profile.host(), .Hostname = application::github_canonical_hostname{ profile.hostname() }, .ServerContract = profile.server_contract(), .Authentication = profile.authentication_transport(), .ProbeContractRevision = application::github_probe_contract_revision{ 1U } },
+										 { }, std::move(current));
+		}
+		void select_startup(const core::window_review_startup_request& aRequest) override
+		{
+			if (Closing || !ReviewRestoration || !ReviewRestoration->current_startup(aRequest.Request)) {
+				return;
+			}
+			if (!aRequest.Authority) {
+				remember_startup(aRequest.Request);
+				return;
+			}
+			RestorationStartup = aRequest;
+			const auto found   = std::ranges::find_if(Profiles, [&](const auto& aProfile) { return aProfile.hostname() == aRequest.Authority->Hostname; });
+			if (found == Profiles.end()) {
+				ReviewRestoration->complete_startup(aRequest.Request, std::unexpected(core::window_review_failure::missing_server));
+				return;
+			}
+			if (aRequest.Authority->Mode == core::github_access_mode::public_preview) {
+				Host->activate_public_preview(found->profile());
+				observe_restoration_preview();
+				observe_restoration_session();
+				return;
+			}
+			if (!RememberDeviceSignIn) {
+				ReviewRestoration->complete_startup(aRequest.Request, std::unexpected(core::window_review_failure::unavailable));
+				return;
+			}
+			const auto& profile  = *found;
+			const auto  admitted = Host->restore_device_profile(application::github_profile_authority{ .Profile = profile.profile(), .ProfileRevision = profile.revision(), .Host = profile.host(), .Hostname = application::github_canonical_hostname{ profile.hostname() }, .ServerContract = profile.server_contract(), .Authentication = profile.authentication_transport(), .ProbeContractRevision = application::github_probe_contract_revision{ 1U } }, [weak = weak_from_this(), request = aRequest.Request](application::device_profile_restore_status aStatus) {
+					const auto self = weak.lock();
+					if (!self || self->Closing || !self->ReviewRestoration || !self->ReviewRestoration->current_startup(request)) { return; }
+					if (aStatus != application::device_profile_restore_status::ready_for_session) {
+						self->ReviewRestoration->complete_startup(request, std::unexpected(aStatus == application::device_profile_restore_status::cancelled ? core::window_review_failure::cancelled : core::window_review_failure::unavailable));
+					} else { self->observe_restoration_session(); } }, [weak = weak_from_this(), request = aRequest.Request] {
+					const auto self = weak.lock();
+					return self && !self->Closing && self->ReviewRestoration && self->ReviewRestoration->current_startup(request); });
+			if (!admitted) {
+				ReviewRestoration->complete_startup(aRequest.Request, std::unexpected(core::window_review_failure::unavailable));
+			}
+		}
+		void observe_restoration_preview()
+		{
+			if (ReviewRestoration && RestorationStartup && RestorationStartup->Authority
+				&& RestorationStartup->Authority->Mode == core::github_access_mode::public_preview
+				&& ReviewRestoration->current_startup(RestorationStartup->Request) && Host->public_preview_refusal()) {
+				ReviewRestoration->complete_startup(RestorationStartup->Request, std::unexpected(core::window_review_failure::unavailable));
+			}
+		}
+		void observe_restoration_session()
+		{
+			if (!ReviewRestoration || !RestorationStartup || !ReviewRestoration->current_startup(RestorationStartup->Request)) {
+				return;
+			}
+			const auto& session = Host->accepted_session();
+			if (!session) {
+				return;
+			}
+			const auto found = std::ranges::find_if(Profiles, [&](const auto& aProfile) { return aProfile.profile() == session->Profile && aProfile.host() == session->Host; });
+			if (found == Profiles.end() || !RestorationStartup->Authority || session->Mode != RestorationStartup->Authority->Mode || found->hostname() != RestorationStartup->Authority->Hostname) {
+				return;
+			}
+			ReviewRestoration->complete_startup(RestorationStartup->Request, core::window_review_authority{ session->Mode, std::string{ found->hostname() } });
+		}
+		void open_review(const core::window_review_open_request& aRequest) override
+		{
+			const auto found = Observers.find(aRequest.Context);
+			if (!Closing && found != Observers.end() && !found->second.Lifetime.expired() && found->second.RestoreReview) {
+				found->second.RestoreReview(aRequest);
+			}
+		}
+		void fail(const core::window_review_error& aError) override
+		{
+			if (RestorationOrderly && aError.Reason != core::window_review_failure::cancelled) {
+				CleanupFailed = true;
+			}
+			auto message = QStringLiteral("The previous review could not be restored. Choose a review to continue.");
+			switch (aError.Reason) {
+			case core::window_review_failure::missing_server:        message = QStringLiteral("The previous review's server is not configured. Choose a review to continue."); break;
+			case core::window_review_failure::conflicting_authority: message = QStringLiteral("The previous review uses a different server or access mode. Choose a review to continue."); break;
+			case core::window_review_failure::corrupt:
+			case core::window_review_failure::unsupported_schema:
+			case core::window_review_failure::conflict:              message = QStringLiteral("Saved window reviews are unavailable. Choose a review to continue."); break;
+			case core::window_review_failure::cancelled:             return;
+			default:                                                 break;
+			}
+			if (aError.Context) {
+				if (aError.Context->Profile != Admission.Authority.profile() || (WindowAdmission && !WindowAdmission(*aError.Context))) {
+					return;
+				}
+				RestorationNotices.insert_or_assign(*aError.Context, message);
+				const auto found = Observers.find(*aError.Context);
+				if (found != Observers.end() && !found->second.Lifetime.expired() && found->second.RestoreNotice) {
+					found->second.RestoreNotice(message);
+				}
+			} else {
+				RestorationGlobalNotice = message;
+				for_each_window([&](const window_observer& aObserver) { if (aObserver.RestoreNotice) { aObserver.RestoreNotice(message); } });
+			}
+		}
+		bool Closing          = false;
+		bool ServicesClosing  = false;
+		bool ShutdownComplete = false;
+		bool CleanupFailed    = false;
+		void begin_shutdown()
 		{
 			Closing = true;
 			if (ServicesClosing) {
 				return;
 			}
 			ServicesClosing = true;
+			if (ReviewRestoration) {
+				if (RestorationOrderly) {
+					ReviewRestoration->shutdown_orderly();
+				} else {
+					ReviewRestoration->shutdown();
+				}
+			}
 			for (auto& owner : DraftOwners) {
 				owner.Host->shutdown();
 			}
@@ -3697,7 +3852,7 @@ namespace bpr::app {
 			if (!ServicesClosing || ShutdownComplete) {
 				return;
 			}
-			if ((Host && !Host->is_quiescent()) || (DeviceHost && !DeviceHost->is_quiescent())
+			if ((ReviewRestoration && !ReviewRestoration->is_quiescent()) || (Host && !Host->is_quiescent()) || (DeviceHost && !DeviceHost->is_quiescent())
 				|| (DevicePersistence && !DevicePersistence->is_quiescent()) || (QueueHost && !QueueHost->is_quiescent())
 				|| (AppearancePreferences && !AppearancePreferences->is_quiescent()) || (WorkbenchPreferences && !WorkbenchPreferences->is_quiescent())
 				|| (EpochActors && !EpochActors->is_quiescent()) || AgentWorkspaceRecoveryPending.load(std::memory_order_acquire)) {
@@ -3715,7 +3870,7 @@ namespace bpr::app {
 					AgentWorkspaceCleanupFailed = !adapters::git::remove_installed_agent_workspace_parent(*AgentWorkspaceParent);
 				}
 			}
-			CleanupFailed = CleanupFailed || AgentWorkspaceCleanupFailed || AgentWorkspaceRecoveryPostFailed.load(std::memory_order_acquire) || (Host && Host->shutdown_cleanup_failed());
+			CleanupFailed = CleanupFailed || (ReviewRestoration && ReviewRestoration->projection_delivery_failed()) || AgentWorkspaceCleanupFailed || AgentWorkspaceRecoveryPostFailed.load(std::memory_order_acquire) || (Host && Host->shutdown_cleanup_failed());
 			Provider->shutdown();
 			AnonymousProvider->shutdown();
 			ProfileCatalog->shutdown();
@@ -3753,6 +3908,7 @@ namespace bpr::app {
 			: Config{ aConfig }
 			, Admission{ aAdmission }
 		{
+			Desktop                     = aDesktop;
 			StartupScratch              = std::move(aScratch);
 			RegistryRoot                = std::move(aRegistryRoot);
 			aConfig.ApplicationDataRoot = aAdmission.StorageRoot;
@@ -4371,10 +4527,8 @@ namespace bpr::app {
 				AgentWorkspaceRecoveryPending.store(false, std::memory_order_release);
 			}
 #endif
-			if (RememberDeviceSignIn) {
-				const auto& profile = Profiles.front();
-				Host->restore_device_profile(application::github_profile_authority{
-					.Profile = profile.profile(), .ProfileRevision = profile.revision(), .Host = profile.host(), .Hostname = application::github_canonical_hostname{ profile.hostname() }, .ServerContract = profile.server_contract(), .Authentication = profile.authentication_transport(), .ProbeContractRevision = application::github_probe_contract_revision{ 1U } });
+			if (!Desktop) {
+				remember_startup();
 			}
 		}
 		void initialize_identity()
@@ -4383,6 +4537,7 @@ namespace bpr::app {
 			const auto& applicationDataRoot = ApplicationDataRoot;
 			PublicPreviewProjectionFanOut   = std::make_unique<composition_public_preview_projection>(PublicPreviewProjections,
 																									  [this](const application::public_preview_presentation& aPresentation) {
+																										observe_restoration_preview();
 																										for_each_window([&](const window_observer& aObserver) { if (aObserver.Preview){ aObserver.Preview(aPresentation);
 } });
 																									  });
@@ -4972,6 +5127,12 @@ namespace bpr::app {
 			ActiveQueueNotifications.clear();
 		}
 		bind_device_refresh_authority(aUpdate);
+		observe_restoration_session();
+		if (ReviewRestoration && RestorationStartup && ReviewRestoration->current_startup(RestorationStartup->Request)
+			&& aUpdate.Transition && aUpdate.Transition->Status
+			&& (aUpdate.Transition->Status->Status == core::github_status::session_failed || aUpdate.Transition->Status->Status == core::github_status::session_cancelled)) {
+			ReviewRestoration->complete_startup(RestorationStartup->Request, std::unexpected(core::window_review_failure::unavailable));
+		}
 		for_each_window([&](const window_observer& aObserver) { if (aObserver.Github){ aObserver.Github(aUpdate);
 } });
 	}
@@ -5054,7 +5215,90 @@ namespace bpr::app {
 		std::unique_ptr<window_read_decision_lane>            ReadDecision;
 		std::shared_ptr<application::github_window_read_host> WindowRead;
 		std::optional<application::queue_consumer_id>         QueueConsumer;
-		void                                                  start()
+		std::optional<core::window_review_open_request>       PendingRestoration;
+		std::optional<core::request_id>                       RestorationReadRequest;
+		void                                                  restoration_notice(const QString& aText)
+		{
+			if (Closing || !Window) {
+				return;
+			}
+			if (auto* notice = Window->home_open_notice()) {
+				notice->setText(aText);
+				notice->setVisible(!aText.isEmpty());
+			}
+		}
+		void cancel_restoration(bool aStartup)
+		{
+			if (!Profile->ReviewRestoration) {
+				return;
+			}
+			Profile->ReviewRestoration->cancel_restore(DraftWindow);
+			if (aStartup) {
+				Profile->ReviewRestoration->cancel_startup();
+			}
+			if (PendingRestoration && WindowRead) {
+				WindowRead->cancel();
+			}
+			PendingRestoration.reset();
+			RestorationReadRequest.reset();
+			restoration_notice({ });
+		}
+		void restore_review(const core::window_review_open_request& aRequest)
+		{
+			if (Closing || aRequest.Context != DraftWindow || !Profile->current_window(DraftWindow)
+				|| !Profile->ReviewRestoration || !Profile->ReviewRestoration->current_restore(DraftWindow, aRequest.Request)) {
+				return;
+			}
+			const auto& session = Host->accepted_session();
+			const auto* profile = session ? find_profile(session->Profile) : nullptr;
+			if (!session || !profile || profile->hostname() != aRequest.Destination.Hostname || session->Mode != aRequest.Destination.Mode
+				|| WindowRead->state().ActiveProfile != session->Profile || WindowRead->state().AccessMode != session->Mode
+				|| WindowRead->state().IdentityGeneration != Host->accepted_identity_generation()) {
+				Profile->ReviewRestoration->complete_restore(DraftWindow, aRequest.Request, std::unexpected(core::window_review_failure::conflicting_authority));
+				return;
+			}
+			PendingRestoration     = aRequest;
+			RestorationReadRequest = WindowRead->state().NextRequest;
+			restoration_notice(QStringLiteral("Restoring the previous review…"));
+			WindowRead->dispatch(core::open_pull_request_intent{ .Repository = aRequest.Destination.Repository, .Number = aRequest.Destination.Number });
+			if (PendingRestoration && !WindowRead->state().PendingPullRequest && WindowRead->state().NextRequest == *RestorationReadRequest) {
+				Profile->ReviewRestoration->complete_restore(DraftWindow, aRequest.Request, std::unexpected(core::window_review_failure::unavailable));
+				PendingRestoration.reset();
+				RestorationReadRequest.reset();
+			}
+		}
+		void observe_restoration_read(const application::github_window_read_update& aUpdate)
+		{
+			if (!Profile->ReviewRestoration) {
+				return;
+			}
+			const auto& accepted = aUpdate.Transition.AcceptedSnapshot;
+			const auto& snapshot = WindowRead->accepted_snapshot();
+			if (accepted && snapshot && accepted->Context.ApplicationSession == WindowSession
+				&& accepted->Snapshot == snapshot->Snapshot && accepted->Repository == snapshot->Repository.Repository
+				&& accepted->PullRequest == snapshot->PullRequest.PullRequest && accepted->Context.Profile == snapshot->Profile
+				&& accepted->Context.Mode == snapshot->Mode && accepted->Context.IdentityGeneration == WindowRead->state().IdentityGeneration) {
+				const auto* profile = find_profile(snapshot->Profile);
+				if (profile && profile->host() == snapshot->Host) {
+					const auto destination = core::window_review_destination{ snapshot->Mode, std::string{ profile->hostname() }, { snapshot->Repository.Owner, snapshot->Repository.Name }, snapshot->PullRequest.Number };
+					Profile->ReviewRestoration->accepted_read(DraftWindow, destination);
+					if (PendingRestoration && RestorationReadRequest == accepted->Context.Request
+						&& destination == PendingRestoration->Destination && Profile->ReviewRestoration->current_restore(DraftWindow, PendingRestoration->Request)) {
+						Profile->ReviewRestoration->complete_restore(DraftWindow, PendingRestoration->Request, { });
+						PendingRestoration.reset();
+						RestorationReadRequest.reset();
+						restoration_notice({ });
+					}
+				}
+			} else if (PendingRestoration && RestorationReadRequest && aUpdate.Transition.Status
+					   && !WindowRead->state().PendingPullRequest && WindowRead->state().NextRequest.value() == RestorationReadRequest->value() + 1U
+					   && (aUpdate.Transition.Status->Status == core::github_status::pull_request_failed || aUpdate.Transition.Status->Status == core::github_status::pull_request_cancelled)) {
+				Profile->ReviewRestoration->complete_restore(DraftWindow, PendingRestoration->Request, std::unexpected(core::window_review_failure::unavailable));
+				PendingRestoration.reset();
+				RestorationReadRequest.reset();
+			}
+		}
+		void start()
 		{
 			ReadDecision = std::make_unique<window_read_decision_lane>(DecisionLane);
 			auto weak    = std::weak_ptr<const int>{ WindowLifetime };
@@ -5062,6 +5306,7 @@ namespace bpr::app {
 					if (weak.expired() || Closing || aUpdate.Window != DraftWindow || !Profile->current_window(DraftWindow)){ return;
 }
 					Window->publish(aUpdate.Presentation);
+					observe_restoration_read(aUpdate);
 					if (aUpdate.Presentation.PullRequest) { publish_overview(); publish_read_state(); } }, this, PublicPreviewComposed ? static_cast<application::github_pull_request_port*>(CountedAnonymousPullRequests.get()) : nullptr, PublicPreviewComposed ? static_cast<application::git_smart_transport_factory_port*>(AnonymousSmartGit.get()) : nullptr);
 			Profile->Observers.insert_or_assign(DraftWindow, github_profile_runtime::window_observer{ .Lifetime = weak, .Github = [this, weak](const application::github_presentation_update& aUpdate) {
 					if (weak.expired() || Closing){ return;
@@ -5082,7 +5327,8 @@ namespace bpr::app {
 } }, .SignIn = [this, weak](core::host_profile_id aProfile) { if (!weak.expired() && !Closing){ begin_public_preview_sign_in(aProfile);
 } }, .SelectQueue = [this, weak](const core::pull_request_ref& aRef) { return !weak.expired() && !Closing && Window->select_queue_item(aRef); }, .Settings = [this, weak](qt::settings_window& aShell, qt::settings_page aPage) {
 					if (!weak.expired() && !Closing) { Window->mount_settings(aShell); aShell.present(aPage); } }, .UnmountSettings = [this, weak] { if (!weak.expired() && Window){ Window->unmount_settings();
-} } });
+} }, .RestoreReview = [this, weak](const core::window_review_open_request& aRequest) { if (!weak.expired() && !Closing) { restore_review(aRequest); } }, .RestoreNotice = [this, weak](const QString& aText) { if (!weak.expired() && !Closing) { restoration_notice(aText); } } });
+			QObject::connect(Window->home_action(), &QAction::triggered, Window.get(), [this, weak](bool aChecked) { if (!weak.expired() && !Closing && aChecked) { cancel_restoration(false); } });
 			Window->set_settings_presenter([this, weak](qt::settings_page aPage) { if (!weak.expired() && !Closing){ Profile->present_settings(DraftWindow, aPage);
 } });
 			auto queue = QueueHost->attach(DraftWindow, std::make_shared<window_queue_projection>([this, weak](const core::bpr_window_context& aContext, const application::queue_landing_projection& aProjection) {
@@ -5156,6 +5402,7 @@ namespace bpr::app {
 					} else {
 						retire_setup_effects();
 						if constexpr (std::is_same_v<intent_type, application::submit_setup_destination>) {
+							cancel_restoration(true);
 							SetupDestination->submit(aValue.Text);
 						} else {
 							SetupDestination->cancel();
@@ -6235,6 +6482,7 @@ namespace bpr::app {
 			if (const auto* const begin
 				= std::get_if<core::begin_device_authorization_intent>(
 					&aGesture)) {
+				cancel_restoration(true);
 				retire_setup_effects();
 				if (SetupDestination) {
 					SetupDestination->cancel();
@@ -6340,6 +6588,7 @@ namespace bpr::app {
 		// dispatches; nothing here knows how the flow works.
 		void begin_public_preview_sign_in(const core::host_profile_id aProfile)
 		{
+			cancel_restoration(true);
 			++PublicPreviewSignInRequests;
 			if (Closing || DeviceHost == nullptr || aProfile.value() == 0U) {
 				return;
@@ -8297,6 +8546,7 @@ namespace bpr::app {
 
 		void dispatch_intent(application::github_intent aIntent)
 		{
+			cancel_restoration(true);
 			retire_setup_effects();
 			SetupOwner = next_setup_owner();
 			if (SetupDestination) {
@@ -10291,7 +10541,11 @@ namespace bpr::app {
 		{
 			if (Closing) {
 				if (aMode == window_retirement::forced && Retirement == window_retirement::orderly_quit) {
-					Retirement = aMode;
+					Retirement                  = aMode;
+					Profile->RestorationOrderly = false;
+					if (Profile->ReviewRestoration) {
+						Profile->ReviewRestoration->shutdown();
+					}
 					if (WorkbenchHost) {
 						WorkbenchHost->shutdown();
 					}
@@ -10299,6 +10553,18 @@ namespace bpr::app {
 				return;
 			}
 			Retirement = aMode;
+			if (Profile->ReviewRestoration) {
+				if (aMode == window_retirement::explicit_close) {
+					Profile->ReviewRestoration->close(DraftWindow);
+				} else if (aMode == window_retirement::orderly_quit) {
+					Profile->RestorationOrderly = true;
+					Profile->ReviewRestoration->shutdown_orderly();
+				} else {
+					Profile->ReviewRestoration->cancel_restore(DraftWindow);
+				}
+			}
+			PendingRestoration.reset();
+			RestorationReadRequest.reset();
 			Window->unmount_settings();
 			if (Profile->SettingsOwner == DraftWindow) {
 				if (Profile->Settings) {
@@ -10307,6 +10573,7 @@ namespace bpr::app {
 				Profile->SettingsOwner.reset();
 			}
 			Profile->Observers.erase(DraftWindow);
+			Profile->RestorationNotices.erase(DraftWindow);
 			if (QueueConsumer) {
 				QueueHost->detach(*QueueConsumer);
 				QueueConsumer.reset();
@@ -10429,6 +10696,10 @@ namespace bpr::app {
 				return;
 			}
 
+			if (Profile->ReviewRestoration && Retirement == window_retirement::explicit_close && !Profile->ReviewRestoration->window_quiescent(DraftWindow)) {
+				schedule_shutdown_poll();
+				return;
+			}
 			if (DurableWindowLayout && Retirement == window_retirement::orderly_quit) {
 				ShutdownCleanupFailed = ShutdownCleanupFailed || DurableWindowLayout->write_failed();
 			}
@@ -11379,6 +11650,16 @@ namespace bpr::app {
 				}
 			};
 			session->start();
+			if (Profile->ReviewRestoration) {
+				static_cast<void>(Profile->ReviewRestoration->attach(aContext));
+				if (Profile->RestorationGlobalNotice) {
+					session->restoration_notice(*Profile->RestorationGlobalNotice);
+				}
+				if (const auto notice = Profile->RestorationNotices.find(aContext); notice != Profile->RestorationNotices.end()) {
+					session->restoration_notice(notice->second);
+				}
+				Profile->ReviewRestoration->mark_window_ready(aContext);
+			}
 			if (!Implementation) {
 				Implementation       = std::move(session);
 				Profile->FirstWindow = aContext;
@@ -11409,6 +11690,13 @@ namespace bpr::app {
 			keep.push_back(context.Window);
 		}
 		Profile->WindowLayouts = std::make_shared<profile_window_layout_service>(Profile->ApplicationDataRoot, std::move(keep));
+		auto hosts             = std::vector<std::string>{ };
+		for (const auto& profile : Profile->Profiles) {
+			hosts.emplace_back(profile.hostname());
+		}
+		Profile->ReviewRestorationStore = std::make_unique<effect_window_review_store>(Profile->ApplicationDataRoot);
+		Profile->ReviewRestoration      = std::make_unique<application::window_review_restoration_host>(Profile->Admission.Authority.profile(), aWindows, std::move(hosts), *Profile->ReviewRestorationStore, Profile->WorkbenchEffects, Profile->DecisionLane, *Profile);
+		Profile->ReviewRestoration->start();
 		return true;
 	}
 
@@ -11469,6 +11757,9 @@ namespace bpr::app {
 			return;
 		}
 		Profile->Closing = true;
+		if (Profile->ReviewRestoration && !Profile->RestorationOrderly) {
+			Profile->ReviewRestoration->shutdown();
+		}
 		for (const auto& [context, session] : Sessions) {
 			session->begin_shutdown();
 		}

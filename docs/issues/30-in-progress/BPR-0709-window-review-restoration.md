@@ -77,3 +77,38 @@ BPR0707 restores identities and BPR0708 restores drawer layouts. Current restore
 windows still show an unavailable-content notice. Existing setup destinations,
 accepted read snapshots, validated server catalog and remembered/anonymous session
 APIs provide the concrete path; none constitutes saved review restoration yet.
+
+
+## Landed checkpoint — implementation paused at user request
+
+The current implementation adds deterministic core startup/cancellation policy,
+a bounded serialized restoration host, a lazy profile-private SQLite destination
+store, and desktop composition for accepted reads and exact window retirement.
+Remembered binding restoration now has bounded terminal callbacks and an exact
+startup admission predicate so superseded startup cannot resume authentication.
+No new device enrollment is part of restoration.
+
+Focused checks pass: core restoration 0.40s, application restoration 0.33s,
+SQLite restoration 0.44s, and the rebuilt GitHub host 0.61s. The independent
+Astra medium review found no confirmed material blocker in authority,
+cancellation, persistence or lifecycle handling. These checks do not establish
+actual authenticated or anonymous process-restart acceptance.
+
+The card remains In Progress. Resume by adding the planned actual-process
+restoration courses: two authenticated PRs with retained fixture vault input,
+anonymous restart with zero credential/account effects, missing grant/server/
+capability/store errors, latest destination persistence, and stale user-navigation
+refusal. Complete the remaining public/production checks before moving Done.
+No further UX card was started after the request to land and stop.
+
+
+Checkpoint integration: existing rendered four-process layout regression passes
+19.98s. The identity-only restart course no longer requires the obsolete generic
+unavailable-review notice when there is no saved destination; exact visible Home
+and stale-generation assertions remain. Changed-TU tidy, strict composition
+inventory and the hostile direct-bypass check (0.974s) pass. The tests-disabled
+Release check remains part of the pending completion boundary.
+
+Final rebuilt identity restart passes 7.24s; its changed test also passes tidy.
+Documentation and whitespace gates pass. Task-created temporary check logs were
+consumed and removed; existing rendered fixture artifacts remain under build/dev.

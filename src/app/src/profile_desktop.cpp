@@ -400,12 +400,6 @@ namespace bpr::app {
 				wire(*entry.Runtime, aContext);
 				if (auto* restored = entry.Runtime->window(aContext)) {
 					restored->choose_home(true);
-					if (selected->second.Restore) {
-						if (auto* notice = restored->home_open_notice()) {
-							notice->setText(QStringLiteral("Window restored. Its previous review content is unavailable; choose a review to continue."));
-							notice->show();
-						}
-					}
 				}
 				if (!Host->complete_open(aContext) || !current(aContext)) {
 					selected->second.Closing = true;

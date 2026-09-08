@@ -21,11 +21,18 @@
 #include <compare>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 
 namespace bpr::application {
-	inline constexpr std::size_t maximum_github_credential_bindings = 64U;
+	inline constexpr std::size_t maximum_github_credential_bindings      = 64U;
+	inline constexpr std::size_t maximum_pending_device_profile_restores = 32U;
+
+	/// \brief Startup binding selection only; ready does not mean an accepted session.
+	enum class device_profile_restore_status { ready_for_session,
+											   unavailable,
+											   cancelled };
 
 	enum class github_credential_shutdown_policy {
 		retain,
@@ -189,7 +196,18 @@ namespace bpr::application {
 		/// \brief Configures metadata persistence before any enrollment or startup restore.
 		void configure_device_persistence(device_binding_persistence& aPersistence, std::function<std::int64_t()> aWallClock);
 		/// \brief Loads the trusted device binding for a compiled native profile, then resumes normally.
-		void restore_device_profile(github_profile_authority aCompiledProfile);
+		/// \details An admitted observer receives one terminal on the decision lane
+		/// after the current turn. Ready means a trusted binding selected normal
+		/// resume; session acceptance remains a separate projection. Observers and
+		/// the lane must outlive quiescence. Observer/post exceptions set delivery
+		/// failure; a rejected lane cannot promise delivery, but does not strand shutdown.
+		/// Returns false without a callback or post when closing or all 32 slots are
+		/// occupied. Slots include pending loads and queued/active terminal delivery.
+		/// Optional read-only aCurrent binds startup to the coordinator request;
+		/// false or throwing cancels before remembering a binding or queuing resume.
+		auto restore_device_profile(github_profile_authority                           aCompiledProfile,
+									std::function<void(device_profile_restore_status)> aCompletion = { },
+									std::function<bool()>                              aCurrent    = { }) -> bool;
 		/// \brief Deactivates only the accepted device grant that owns a renewal failure.
 		void invalidate_device_grant(github_credential_authority_key aAuthority, core::github_identity_generation aGeneration);
 		/// \brief Records the exact refresh slot's successful store after access acceptance.

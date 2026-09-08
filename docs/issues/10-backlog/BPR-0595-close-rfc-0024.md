@@ -263,3 +263,11 @@ read across Close), durable identity restart7.03s and management1.93s.
 
 BPR-0709 is planned for accepted PR destinations, deterministic one-profile
 startup authority, authenticated/anonymous reopen and stale-navigation refusal.
+
+
+BPR-0709 is landed as an incomplete checkpoint at the user's request to stop.
+Core, asynchronous host, SQLite and desktop restoration wiring are present;
+focused core/host/storage/GitHub-host checks and independent medium review pass.
+Its card remains In Progress pending actual authenticated/anonymous restart
+acceptance and failure-path evidence. No RFC completion is claimed. Continue
+from that card rather than starting the next UX slice.
