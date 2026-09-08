@@ -4,7 +4,7 @@ id: "BPR-0683"
 title: "Verify Settings integration and native acceptance"
 status: "Backlog"
 rfcs: ["RFC-BPR-0018"]
-depends_on: ["BPR-0678", "BPR-0679", "BPR-0680", "BPR-0681", "BPR-0682"]
+depends_on: ["BPR-0678", "BPR-0679", "BPR-0680", "BPR-0681", "BPR-0682","BPR-0684"]
 ---
 
 # Verify Settings integration and native acceptance
@@ -26,3 +26,5 @@ Routing: standard | Reason: default implementation.
 ## Evidence
 
 Not run. Created by the authorized BPR-0592 planning pass.
+
+BPR-0684 repairs the Settings-close preview/import lifecycle discovered during integration preparation.

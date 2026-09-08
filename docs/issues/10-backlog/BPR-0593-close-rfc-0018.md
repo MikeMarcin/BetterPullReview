@@ -4,7 +4,7 @@ id: "BPR-0593"
 title: "Verify and close RFC-BPR-0018"
 status: "Backlog"
 rfcs: ["RFC-BPR-0018"]
-depends_on: ["BPR-0592","BPR-0678","BPR-0679","BPR-0680","BPR-0681","BPR-0682","BPR-0683"]
+depends_on: ["BPR-0592","BPR-0678","BPR-0679","BPR-0680","BPR-0681","BPR-0682","BPR-0683","BPR-0684"]
 milestone: "Post-Pack v2"
 closeout_for: ["RFC-BPR-0018"]
 ---
@@ -97,3 +97,5 @@ session-only manual-token evidence from BPR-0660 remain unchanged. The
 isolated tests-disabled build passed; one digest assertion was updated for
 the reviewed course change and its bypass test passed separately. See the
 card for commands and revision. Next: BPR-0680 appearance export/reset.
+
+BPR-0684 repairs the Settings-close preview/import lifecycle discovered during integration preparation.
