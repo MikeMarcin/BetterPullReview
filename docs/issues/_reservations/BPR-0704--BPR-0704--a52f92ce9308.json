@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0704"
+  ],
+  "reserve_for": "ux-shared-draft-conflicts",
+  "purpose": "Revision-aware shared draft owner and preserved Qt conflict candidates",
+  "created": "2026-09-08T11:33:33.564721+00:00",
+  "base": "2a2152c11288e400bec8f6f677a04a5d2013acd7"
+}
