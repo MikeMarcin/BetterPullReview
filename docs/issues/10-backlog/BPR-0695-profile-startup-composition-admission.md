@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0695"
 title: "Admit one profile before constructing its private runtime"
-status: "Ready"
+status: "Backlog"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0694", "BPR-0693"]
 ---
