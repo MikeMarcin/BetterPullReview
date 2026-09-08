@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0681"
 title: "Compose General review and notification preferences"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0018"]
 depends_on: ["BPR-0592"]
 ---
