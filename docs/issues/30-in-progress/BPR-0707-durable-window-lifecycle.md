@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0707"
 title: "Commit window lifecycle before runtime effects"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0706"]
 ---
