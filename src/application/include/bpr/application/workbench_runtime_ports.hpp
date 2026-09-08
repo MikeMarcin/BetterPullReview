@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_WORKBENCH_RUNTIME_PORTS_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_WORKBENCH_RUNTIME_PORTS_HPP
 
+#include "bpr/core/profile_window.hpp"
 #include "bpr/core/workbench_interaction.hpp"
 
 #include <compare>
@@ -517,6 +518,46 @@ namespace bpr::application {
 		auto operator<=>(const workbench_layout_settings&) const = default;
 	};
 
+	/// Profile defaults are separate from each admitted window's geometry.
+	struct workbench_window_layout
+	{
+		core::workbench_drawer_state Files         = core::workbench_drawer_state::expanded;
+		core::workbench_drawer_state Conversations = core::workbench_drawer_state::expanded;
+		core::workbench_drawer_state Repositories  = core::workbench_drawer_state::expanded;
+		core::workbench_line_numbers LineNumbers   = core::workbench_line_numbers::shown;
+		std::uint32_t                FilesWidth = 320U, ConversationsWidth = 320U, RepositoriesWidth = 300U;
+		auto                         operator<=>(const workbench_window_layout&) const = default;
+	};
+	struct workbench_profile_preferences
+	{
+		review_behaviour_settings Behaviour;
+		workbench_window_layout   NewWindowDefaults;
+		auto                      operator<=>(const workbench_profile_preferences&) const = default;
+	};
+	[[nodiscard]] inline auto window_layout(const workbench_layout_settings& aSettings) -> workbench_window_layout
+	{
+		return { aSettings.Files, aSettings.Conversations, aSettings.Repositories, aSettings.LineNumbers,
+				 aSettings.FilesWidth, aSettings.ConversationsWidth, aSettings.RepositoriesWidth };
+	}
+	[[nodiscard]] inline auto combined_layout(const workbench_window_layout&   aLayout,
+											  const review_behaviour_settings& aBehaviour) -> workbench_layout_settings
+	{
+		return { aLayout.Files, aLayout.Conversations, aLayout.Repositories, aLayout.LineNumbers,
+				 aLayout.FilesWidth, aLayout.ConversationsWidth, aLayout.RepositoriesWidth, aBehaviour };
+	}
+	[[nodiscard]] inline auto valid(const workbench_window_layout& aLayout) noexcept -> bool
+	{
+		const auto drawer = [](const core::workbench_drawer_state aValue) { return aValue == core::workbench_drawer_state::expanded || aValue == core::workbench_drawer_state::collapsed; };
+		const auto width  = [](const std::uint32_t aValue) { return aValue >= minimum_workbench_drawer_width && aValue <= maximum_workbench_drawer_width; };
+		return drawer(aLayout.Files) && drawer(aLayout.Conversations) && drawer(aLayout.Repositories)
+			&& (aLayout.LineNumbers == core::workbench_line_numbers::shown || aLayout.LineNumbers == core::workbench_line_numbers::hidden)
+			&& width(aLayout.FilesWidth) && width(aLayout.ConversationsWidth) && width(aLayout.RepositoriesWidth);
+	}
+	[[nodiscard]] inline auto valid(const workbench_profile_preferences& aPreferences) noexcept -> bool
+	{
+		return valid(aPreferences.Behaviour) && valid(aPreferences.NewWindowDefaults);
+	}
+	inline constexpr std::size_t maximum_workbench_window_layouts = 32U;
 	enum class workbench_settings_failure : std::uint8_t {
 		unavailable,
 		cancelled,
@@ -543,6 +584,28 @@ namespace bpr::application {
 	{
 	public:
 		virtual ~workbench_settings_port() = default;
+		/// An adapter binds this legacy surface to an explicitly admitted window.
+		[[nodiscard]] virtual auto window() const noexcept -> core::bpr_window_id { return { }; }
+		[[nodiscard]] virtual auto profile_scoped() const noexcept -> bool { return false; }
+		[[nodiscard]] virtual auto load_preferences(std::stop_token aStop) -> workbench_settings_result<workbench_profile_preferences>
+		{
+			auto loaded = load(aStop);
+			if (!loaded) {
+				return std::unexpected(loaded.error());
+			}
+			return workbench_profile_preferences{ loaded->Behaviour, window_layout(*loaded) };
+		}
+		[[nodiscard]] virtual auto store_preferences(const workbench_profile_preferences& aPreferences,
+													 std::stop_token                      aStop) -> workbench_settings_result<void>
+		{
+			// Compatibility for legacy in-memory ports. Durable adapters override
+			// this operation; window stores never invoke it.
+			return store(combined_layout(aPreferences.NewWindowDefaults, aPreferences.Behaviour), aStop);
+		}
+		[[nodiscard]] virtual auto erase_window(core::bpr_window_id, std::stop_token) -> workbench_settings_result<void>
+		{
+			return std::unexpected(workbench_settings_error{ });
+		}
 
 		[[nodiscard]] virtual auto load(std::stop_token aStop)
 			-> workbench_settings_result<workbench_layout_settings> = 0;

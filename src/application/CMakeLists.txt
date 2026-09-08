@@ -50,6 +50,7 @@ add_library(
         src/host.cpp
         src/manual_executor.cpp
         src/workbench_application_host.cpp
+        src/workbench_preferences_host.cpp
 )
 add_library(BetterPullReview::Application ALIAS better_pull_review_application)
 

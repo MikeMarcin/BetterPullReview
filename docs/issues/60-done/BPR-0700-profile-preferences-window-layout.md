@@ -2,9 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0700"
 title: "Separate profile behaviour preferences and window layout persistence"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0696","BPR-0698"]
+acceptance: [{"criterion":"Bounded preference sharing, keyed layout migration, compatibility and refusal acceptance","outcome":"pass","revision":"HEAD plus explicit finish paths","evidence":{"kind":"observation","detail":"Host0.43s, consumers0.31s, storage0.47s pass with migration rollback/preflight/cap32/independent window rows and foreign/full/closed zero-write regressions. All7TUs plus final corrections tidy pass. Rebuilt composed workbench25.18s and source-mutation inventory0.727s pass; documentation gate passes. Medium review blocker corrected; actual multiwindow app binding remains later."}}]
 ---
 
 # Separate profile behaviour preferences and window layout persistence
@@ -43,6 +44,21 @@ Existing workbench/SQLite checks and one composed workbench gesture path pass.
 
 ## Evidence
 
-Read-only ownership inventory established this bounded split. No implementation
-or new acceptance check has run for this card. BPR-0697/0698 extraction logs and
-finish decisions were consumed and removed; shared build outputs remain.
+The application now uses an explicit defaults store and passes the actual BPR
+profile to the preference owner. This compatibility path does not invent a
+persistent window identity. Schema5 separates preferences/defaults from at most
+32 keyed window layouts; legacy migrations create zero window rows. Missing
+window rows use defaults without writing, and typed erase preserves siblings.
+
+Focused host tests pass (0.38s), shared consumers including reentrant fan-out
+pass (0.29s), and storage migration/bounds/cancellation tests pass (0.47s).
+All seven changed translation units and final cancellation changes pass tidy.
+The rebuilt composed workbench gesture course passes (25.18s); the strict app
+source/mutation-bypass inventory passes (0.727s) with updated source pins.
+
+Independent medium review found one refused-subscription authority bug. The
+correction fences preference effects and accepted-owner reads when attachment
+fails; foreign/full/closed owner regressions pass with zero writes. Host and
+consumer tests pass (0.43s/0.31s), and both changed TUs pass tidy. No additional
+migration blocker was found. The documentation gate passes. Actual multiple-window
+runtime/restore remains later.

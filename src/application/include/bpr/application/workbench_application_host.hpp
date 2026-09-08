@@ -2,6 +2,7 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_WORKBENCH_APPLICATION_HOST_HPP
 
 #include "bpr/application/port.hpp"
+#include "bpr/application/workbench_preferences_host.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 
 #include <cstddef>
@@ -36,7 +37,9 @@ namespace bpr::application {
 			core::application_session_id             aSession,
 			workbench_host_limits                    aLimits                  = { },
 			workbench_selected_diff_port*            aSelectedDiffs           = nullptr,
-			workbench_selected_diff_projection_port* aSelectedDiffProjections = nullptr);
+			workbench_selected_diff_projection_port* aSelectedDiffProjections = nullptr,
+			workbench_preferences_host*              aPreferences             = nullptr,
+			core::bpr_profile_id                     aProfile                 = core::default_bpr_profile_id);
 		~workbench_application_host();
 
 		workbench_application_host(const workbench_application_host&) = delete;

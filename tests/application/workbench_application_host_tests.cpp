@@ -1010,7 +1010,12 @@ namespace {
 		};
 		{
 			auto harnessed = harness{ { }, &durable };
+			harnessed.Host.restore();
+			harnessed.settle();
+			harnessed.Projections.Published.clear();
 			harnessed.Host.apply_behaviour(chosen);
+			expect(harnessed.Host.layout().Behaviour != chosen && durable.Stores == 0U, "behaviour is accepted only after durable completion");
+			harnessed.settle();
 			expect(harnessed.Projections.Published.size() == 1U
 					   && harnessed.Projections.Published.back().Behaviour == std::optional{ chosen },
 				   "a behaviour change publishes the chosen record");
@@ -1020,6 +1025,7 @@ namespace {
 			auto narrowed           = chosen;
 			narrowed.CommentsFilter = application::review_comments_filter::unresolved;
 			harnessed.Host.apply_behaviour(narrowed);
+			harnessed.settle();
 			const auto& only = harnessed.Projections.Published.back();
 			expect(harnessed.Projections.Published.size() == 2U
 					   && only.Behaviour == std::optional{ narrowed } && !only.Drawers.has_value()

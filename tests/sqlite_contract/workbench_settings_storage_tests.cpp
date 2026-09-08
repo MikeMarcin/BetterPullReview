@@ -1,12 +1,15 @@
 #include "../../src/adapters/sqlite/src/workbench_settings_database.hpp"
+#include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 
 #include <sqlite3.h>
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
+#include <limits>
 #include <stop_token>
 #include <string>
 #include <string_view>
@@ -142,7 +145,7 @@ namespace {
 			"a second layout replaces rather than accumulates");
 
 		const auto rows = scalar_integer(
-			opened->handle(), "SELECT count(*) FROM workbench_layout");
+			opened->handle(), "SELECT count(*) FROM workbench_preferences");
 		expect(
 			rows.has_value() && *rows == 1,
 			"a second store leaves exactly one row, so no earlier layout can "
@@ -216,7 +219,7 @@ namespace {
 				::sqlite3_exec(
 					raw,
 					"PRAGMA ignore_check_constraints = ON;"
-					"UPDATE workbench_layout SET files_state = 7 "
+					"UPDATE workbench_preferences SET files_state = 7 "
 					"WHERE singleton = 1",
 					nullptr,
 					nullptr,
@@ -227,14 +230,9 @@ namespace {
 		}
 
 		auto reopened = workbench_settings_database::open(path, { });
-		expect(reopened.has_value(), "the tampered database still opens");
-		const auto loaded = reopened->load({ });
+		expect(!reopened, "malformed stored drawer value is refused during non-mutating admission");
 		expect(
-			!loaded.has_value(),
-			"a drawer state outside the closed vocabulary is refused rather "
-			"than cast into a state the core would be asked to reason about");
-		expect(
-			loaded.error() == catalog_database_failure::integrity_failure,
+			reopened.error() == catalog_database_failure::schema_mismatch,
 			"and it is refused as an integrity failure, naming what is wrong");
 	}
 
@@ -485,7 +483,7 @@ namespace {
 				   "the stored database reopens directly");
 			expect(::sqlite3_exec(raw,
 								  "PRAGMA ignore_check_constraints = ON;"
-								  "UPDATE workbench_layout SET return_comparison = 3 WHERE singleton = 1",
+								  "UPDATE workbench_preferences SET return_comparison = 3 WHERE singleton = 1",
 								  nullptr,
 								  nullptr,
 								  nullptr)
@@ -494,10 +492,8 @@ namespace {
 			(void)::sqlite3_close_v2(raw);
 		}
 		auto reopened = workbench_settings_database::open(path, { });
-		expect(reopened.has_value(), "the tampered database still opens");
-		const auto tampered = reopened->load({ });
-		expect(!tampered.has_value() && tampered.error() == catalog_database_failure::integrity_failure,
-			   "a preference past its closed vocabulary is refused as an integrity failure");
+		expect(!reopened.has_value() && reopened.error() == catalog_database_failure::schema_mismatch,
+			   "a preference past its closed vocabulary is refused before writable admission");
 	}
 
 	/// \brief [[BPR-0651]]. A version-two store gains the repositories drawer.
@@ -669,10 +665,191 @@ namespace {
 		}
 		expect(!columns->empty(), "the schema declares columns at all");
 	}
+	void test_window_rows_are_independent_from_profile_defaults()
+	{
+		const auto scratch  = scratch_directory{ };
+		auto       database = workbench_settings_database::open(scratch.file("windows.sqlite3"), { });
+		expect(database.has_value(), "window store opens");
+		auto defaults                   = distinct_layout();
+		defaults.Behaviour.OpenModality = application::review_open_modality::read;
+		expect(database->store(defaults, { }).has_value(), "profile defaults and behaviour are durable");
+		const auto first  = core::bpr_window_id{ std::numeric_limits<std::uint64_t>::max() };
+		const auto second = core::bpr_window_id{ 2 };
+		expect(database->load_window(first, { }) == database->load({ }), "missing window reads profile defaults without invention");
+		expect(*scalar_integer(database->handle(), "SELECT count(*) FROM window_layout") == 0, "reading defaults creates zero window records");
+		auto left         = application::window_layout(defaults);
+		left.FilesWidth   = 444;
+		auto right        = left;
+		right.FilesWidth  = 777;
+		right.LineNumbers = core::workbench_line_numbers::shown;
+		right.Files       = core::workbench_drawer_state::expanded;
+		expect(database->store_window(first, left, { }).has_value() && database->store_window(second, right, { }).has_value(), "full-width stable window IDs persist independent layouts");
+		expect(application::window_layout(*database->load_window(first, { })) == left && application::window_layout(*database->load_window(second, { })) == right, "drawer width/state and numbering remain window-local");
+		expect(database->load({ }) == std::expected<application::workbench_layout_settings, failure>{ defaults }, "window writes cannot replace profile behaviour or defaults");
+		expect(!database->store_window({ }, left, { }), "zero is not a persisted window identity");
+		for (std::uint64_t id = 3; id <= 32; ++id) {
+			expect(database->store_window(core::bpr_window_id{ id }, left, { }).has_value(), "window rows fill bounded capacity");
+		}
+		expect(!database->store_window(core::bpr_window_id{ 33 }, left, { }), "one beyond window capacity refuses without eviction");
+		expect(database->store_window(first, right, { }).has_value(), "full capacity still permits exact existing-window update");
+		expect(database->erase_window(second, { }).has_value(), "typed erase removes only requested window");
+		expect(application::window_layout(*database->load_window(first, { })) == right && database->load_window(second, { }) == database->load({ }), "erase preserves sibling and restores missing row defaults");
+		expect(database->store_window(core::bpr_window_id{ 33 }, left, { }).has_value(), "explicit erase releases capacity");
+		auto stop = std::stop_source{ };
+		stop.request_stop();
+		expect(!database->erase_window(first, stop.get_token()) && application::window_layout(*database->load_window(first, { })) == right, "cancelled erase leaves exact window untouched");
+	}
+	void create_version_four(const std::filesystem::path& aPath)
+	{
+		{
+			auto database                   = workbench_settings_database::open(aPath, { });
+			auto record                     = distinct_layout();
+			record.Behaviour.CommentsFilter = application::review_comments_filter::unresolved;
+			expect(database && database->store(record, { }).has_value(), "canonical v4 fixture seeds all legacy fields");
+		}
+		sqlite3* raw = nullptr;
+		expect(sqlite3_open(aPath.string().c_str(), &raw) == SQLITE_OK, "legacy fixture raw opens");
+		expect(sqlite3_exec(raw, "ALTER TABLE workbench_preferences RENAME TO workbench_layout; DROP TABLE window_layout; UPDATE workbench_meta SET schema_format=4; PRAGMA user_version=4", nullptr, nullptr, nullptr) == SQLITE_OK, "canonical legacy singleton fixture is isolated");
+		sqlite3_close(raw);
+	}
+	auto logical_snapshot(const std::filesystem::path& aPath, const bool aLegacy) -> std::vector<std::string>
+	{
+		sqlite3* raw = nullptr;
+		expect(sqlite3_open(aPath.string().c_str(), &raw) == SQLITE_OK, "snapshot raw opens");
+		std::vector<std::string> cells;
+		const auto               collect = [](void* aContext, int aCount, char** aValues, char**) -> int {
+			auto& output = *static_cast<std::vector<std::string>*>(aContext);
+			for (int index = 0; index < aCount; ++index) {
+				output.emplace_back(aValues[index] ? aValues[index] : "<NULL>");
+			}
+			return 0;
+		};
+		const auto sql = std::string{ "PRAGMA application_id; PRAGMA user_version; SELECT type,name,sql FROM sqlite_schema ORDER BY name; SELECT * FROM workbench_meta; SELECT * FROM " }
+			+ (aLegacy ? "workbench_layout" : "workbench_preferences; SELECT * FROM window_layout ORDER BY window_id");
+		expect(sqlite3_exec(raw, sql.c_str(), collect, &cells, nullptr) == SQLITE_OK, "complete schema and rows captured");
+		sqlite3_close(raw);
+		return cells;
+	}
+	void test_hostile_window_rows_refuse_unchanged()
+	{
+		for (const auto mutation : {
+				 "WITH RECURSIVE ids(id) AS (VALUES(1) UNION ALL SELECT id+1 FROM ids WHERE id<33) INSERT INTO window_layout SELECT CAST(id AS TEXT),0,0,300,300,0,0,300 FROM ids",
+				 "PRAGMA ignore_check_constraints=ON; INSERT INTO window_layout VALUES(printf('%020000d',1),0,0,300,300,0,0,300)" }) {
+			const auto scratch = scratch_directory{ };
+			const auto path    = scratch.file("hostile.sqlite3");
+			{
+				const auto database = workbench_settings_database::open(path, { });
+				expect(database.has_value(), "hostile fixture begins canonical");
+			}
+			sqlite3* raw = nullptr;
+			expect(sqlite3_open(path.string().c_str(), &raw) == SQLITE_OK, "hostile fixture opens");
+			expect(sqlite3_exec(raw, mutation, nullptr, nullptr, nullptr) == SQLITE_OK, "hostile window fixture seeds");
+			sqlite3_close(raw);
+			const auto before = logical_snapshot(path, false);
+			expect(!workbench_settings_database::open(path, { }), "over-capacity or oversized window data refuses admission");
+			expect(logical_snapshot(path, false) == before, "hostile row refusal preserves schema and every original value");
+		}
+	}
+
+	void test_legacy_metadata_and_shape_refuse_before_migration()
+	{
+		for (const auto mutation : { "UPDATE workbench_meta SET schema_format=99", "DELETE FROM workbench_meta", "PRAGMA application_id=42", "PRAGMA user_version=99", "ALTER TABLE workbench_layout ADD COLUMN unexpected INTEGER", "PRAGMA ignore_check_constraints=ON; UPDATE workbench_layout SET files_width=2" }) {
+			const auto scratch = scratch_directory{ };
+			const auto path    = scratch.file("legacy.sqlite3");
+			create_version_four(path);
+			sqlite3* raw = nullptr;
+			expect(sqlite3_open(path.string().c_str(), &raw) == SQLITE_OK, "tamper fixture opens");
+			expect(sqlite3_exec(raw, mutation, nullptr, nullptr, nullptr) == SQLITE_OK, "legacy malformed fixture seeded");
+			sqlite3_close(raw);
+			const auto before = logical_snapshot(path, true);
+			expect(!workbench_settings_database::open(path, { }), "future or malformed legacy identity/shape/rows refuse");
+			expect(logical_snapshot(path, true) == before, "refusal preserves exact original tables, columns, versions and values");
+		}
+		const auto scratch = scratch_directory{ };
+		const auto path    = scratch.file("canonical.sqlite3");
+		create_version_four(path);
+		auto migrated = workbench_settings_database::open(path, { });
+		expect(migrated && migrated->load({ })->Behaviour.CommentsFilter == application::review_comments_filter::unresolved, "v4 behaviour migrates into profile preferences");
+		expect(*scalar_integer(migrated->handle(), "SELECT count(*) FROM window_layout") == 0, "migration creates no invented legacy window ID");
+		expect(migrated->load_window(core::bpr_window_id{ 9 }, { }) == migrated->load({ }), "future window uses migrated default layout");
+	}
+
+	struct interrupted_migration
+	{
+		static inline std::stop_source* Stop = nullptr;
+		static inline std::string_view  Prefix;
+		static auto                     trace(unsigned int, void*, void* aStatement, void*) -> int
+		{
+			const auto* sql = sqlite3_sql(static_cast<sqlite3_stmt*>(aStatement));
+			if (Stop && sql && std::string_view{ sql }.starts_with(Prefix)) {
+				Stop->request_stop();
+			}
+			return 0;
+		}
+		static auto install(sqlite3* aDatabase, char**, const sqlite3_api_routines*) -> int
+		{
+			return sqlite3_trace_v2(aDatabase, SQLITE_TRACE_STMT, trace, nullptr);
+		}
+	};
+	void test_interrupted_migration_preserves_legacy_and_reopens()
+	{
+		expect(sqlite3_auto_extension(reinterpret_cast<void (*)()>(interrupted_migration::install)) == SQLITE_OK, "migration interruption fixture registers");
+		for (const auto prefix : { "SELECT name,sql FROM sqlite_schema", "CREATE TABLE workbench_preferences", "INSERT INTO workbench_preferences", "DROP TABLE workbench_layout", "UPDATE workbench_meta", "PRAGMA user_version = 5", "COMMIT" }) {
+			const auto scratch = scratch_directory{ };
+			const auto path    = scratch.file("interrupted.sqlite3");
+			create_version_four(path);
+			const auto before             = logical_snapshot(path, true);
+			auto       stop               = std::stop_source{ };
+			interrupted_migration::Stop   = &stop;
+			interrupted_migration::Prefix = prefix;
+			const auto refused            = workbench_settings_database::open(path, stop.get_token());
+			interrupted_migration::Stop   = nullptr;
+			expect(stop.stop_requested() && !refused && refused.error() == failure::cancelled, "injected preflight or migration stage reports typed cancellation");
+			expect(logical_snapshot(path, true) == before, "interrupted migration restores original schema and all legacy values");
+			const auto reopened = workbench_settings_database::open(path, { });
+			expect(reopened.has_value(), "interrupted legacy file migrates on the next uncancelled open");
+		}
+		expect(sqlite3_cancel_auto_extension(reinterpret_cast<void (*)()>(interrupted_migration::install)) == 1, "migration interruption fixture unregisters");
+	}
+
+	void test_explicit_defaults_and_bound_factory_views()
+	{
+		const auto scratch = scratch_directory{ };
+		const auto root    = scratch.file("private-root");
+		std::filesystem::create_directory(root);
+		std::filesystem::permissions(root, std::filesystem::perms::owner_all);
+		auto defaults = adapters::sqlite::make_workbench_defaults_store({ root, { } });
+		expect(defaults.has_value(), "explicit defaults factory creates private storage");
+		expect(!adapters::sqlite::make_workbench_settings_store({ root, { } }), "bound factory refuses absent window identity");
+		expect(!adapters::sqlite::make_workbench_defaults_store({ root, core::bpr_window_id{ 4 } }), "defaults factory refuses a window identity");
+		auto preferences = (*defaults)->load_preferences({ });
+		expect(preferences.has_value(), "default preferences load");
+		preferences->NewWindowDefaults.FilesWidth = 432;
+		expect((*defaults)->store_preferences(*preferences, { }).has_value(), "defaults persist through preference seam");
+		auto window = adapters::sqlite::make_workbench_settings_store({ root, core::bpr_window_id{ 4 } });
+		expect(window.has_value(), "exact bound window factory opens");
+		auto layout = (*window)->load({ });
+		expect(layout && layout->FilesWidth == 432, "missing bound window receives profile defaults");
+		layout->FilesWidth             = 654;
+		layout->Behaviour.OpenModality = application::review_open_modality::read;
+		expect((*window)->store(*layout, { }).has_value(), "bound geometry stores");
+		const auto retained = (*defaults)->load_preferences({ });
+		expect(retained && *retained == *preferences, "bound write cannot rewrite defaults or behaviour");
+		expect((*window)->erase_window(core::bpr_window_id{ 4 }, { }).has_value(), "exact bound row erases");
+		const auto erased = (*window)->load({ });
+		expect(erased && erased->FilesWidth == 432, "erased row returns current defaults");
+	}
+
 } // namespace
 
 auto main() -> int
 {
+	expect(sqlite_runtime_ready(), "SQLite runtime initializes before trace injection");
+	test_hostile_window_rows_refuse_unchanged();
+	test_explicit_defaults_and_bound_factory_views();
+	test_interrupted_migration_preserves_legacy_and_reopens();
+	test_window_rows_are_independent_from_profile_defaults();
+	test_legacy_metadata_and_shape_refuse_before_migration();
 	test_nothing_stored_answers_the_defaults();
 	test_the_layout_round_trips_whole();
 	test_the_layout_is_a_singleton();

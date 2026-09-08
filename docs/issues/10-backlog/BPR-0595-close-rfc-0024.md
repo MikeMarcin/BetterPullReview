@@ -136,3 +136,10 @@ foundations; the full multi-window criteria above remain open.
 Next bounded services: BPR-0702 shares cache actors while preserving window
 epoch warrants; BPR-0703 adds durable private-note expected-revision conflicts.
 Shared editable drafts and their conflict UI remain separate implementation work.
+
+BPR-0700 separates accepted profile behaviour/defaults from bounded schema5
+window layout rows. Legacy migrations preserve defaults without inventing rows.
+Focused host/consumer/storage tests, composed workbench course (25.18s), strict
+mutation-source inventory (0.727s), tidy and documentation gate pass. Reviewed
+refused-attachment authority failure is corrected with zero-write regressions.
+Current app explicitly uses defaults view until actual window binding is integrated.

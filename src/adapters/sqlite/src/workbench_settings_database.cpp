@@ -2,6 +2,10 @@
 
 #include <sqlite3.h>
 
+#include <algorithm>
+#include <array>
+#include <cctype>
+#include <charconv>
 #include <span>
 #include <string_view>
 #include <utility>
@@ -80,65 +84,230 @@ namespace bpr::adapters::sqlite::detail {
 				  "CHECK(drawer_filter BETWEEN 0 AND 2)) STRICT";
 		}
 
-		/// \brief Builds the statements that create the schema from nothing.
+		constexpr std::string_view MetaSql = "CREATE TABLE workbench_meta(singleton INTEGER PRIMARY KEY CHECK(singleton = 1),schema_format INTEGER NOT NULL) STRICT";
+		[[nodiscard]] auto         window_table() -> std::string
+		{
+			auto       sql   = layout_table("window_layout");
+			const auto first = sql.find("singleton INTEGER PRIMARY KEY CHECK(singleton = 1)");
+			sql.replace(first, std::string_view{ "singleton INTEGER PRIMARY KEY CHECK(singleton = 1)" }.size(),
+						"window_id TEXT PRIMARY KEY NOT NULL CHECK(length(window_id) BETWEEN 1 AND 20 AND window_id NOT GLOB '*[^0-9]*' AND substr(window_id,1,1) != '0')");
+			sql.resize(sql.find(",open_modality"));
+			return sql + ") STRICT";
+		}
+		[[nodiscard]] auto legacy_table(const std::int64_t aVersion) -> std::string
+		{
+			auto       sql = layout_table("workbench_layout");
+			const auto cut = aVersion == 1 ? ",line_numbers" : aVersion == 2 ? ",repositories_state"
+				: aVersion == 3                                              ? ",open_modality"
+																			 : "";
+			if (aVersion < 4) {
+				sql.resize(sql.find(cut));
+				sql += ") STRICT";
+			}
+			return sql;
+		}
 		[[nodiscard]] auto schema_version_1() -> std::vector<std::string>
 		{
-			return {
-				std::string{
-					"CREATE TABLE workbench_meta("
-					"singleton INTEGER PRIMARY KEY CHECK(singleton = 1),"
-					"schema_format INTEGER NOT NULL"
-					") STRICT" },
-				layout_table("workbench_layout"),
-			};
+			return { std::string{ MetaSql }, layout_table("workbench_preferences"), window_table() };
 		}
-
-		/// \brief Carries a version-one store forward to the current schema.
-		///
-		/// \details Forward only, and against rows that already exist. The new
-		/// column's value is `shown`, which is both the record's own default
-		/// and the behaviour every existing database was built under, so a
-		/// reviewer who upgrades sees no numbering change they did not ask for.
-		///
-		/// This is SQLite's table-rebuild rather than the one-line
-		/// `ALTER TABLE ... ADD COLUMN` it looks like it should be, because
-		/// this connection prepares with `SQLITE_PREPARE_NO_VTAB` and adding a
-		/// constrained column makes SQLite verify the result through
-		/// `pragma_quick_check` — a pragma virtual table, which that flag
-		/// refuses. The rebuild uses only statements this connection already
-		/// runs, and it has the better property anyway: the migrated table is
-		/// created from the same definition a fresh one is, so the two cannot
-		/// drift into merely resembling each other.
 		[[nodiscard]] auto migrate_from(const std::int64_t aVersion) -> std::vector<std::string>
 		{
-			// Version one had no line_numbers column; version two has it.
-			// Either rebuild lands on the current table, whose defaults fill
-			// the columns the old row never had.
-			const auto lineNumbers = aVersion == 1 ? std::string{ "1" } : std::string{ "line_numbers" };
-			// Version three added the repositories drawer; a version-three row
-			// carries it forward, an older row takes the defaults.
-			const auto repositories = aVersion == 3
-				? std::string{ ", repositories_state, repositories_width" }
-				: std::string{ };
-			return {
-				layout_table("workbench_layout_migrating"),
-				std::string{
-					"INSERT INTO workbench_layout_migrating("
-					"singleton, files_state, conversations_state, files_width,"
-					"conversations_width, line_numbers" }
-					+ repositories + ") SELECT "
-									 "singleton, files_state, conversations_state, files_width,"
-									 "conversations_width, "
-					+ lineNumbers + repositories + " FROM workbench_layout",
-				std::string{ "DROP TABLE workbench_layout" },
-				std::string{ "ALTER TABLE workbench_layout_migrating "
-							 "RENAME TO workbench_layout" },
-				"UPDATE workbench_meta SET schema_format = "
-					+ std::to_string(workbench_settings_schema_version)
-					+ " WHERE singleton = 1",
-			};
+			const auto columns = std::string{ "singleton,files_state,conversations_state,files_width,conversations_width" }
+				+ (aVersion >= 2 ? ",line_numbers" : "") + (aVersion >= 3 ? ",repositories_state,repositories_width" : "")
+				+ (aVersion >= 4 ? ",open_modality,continue_modality,mark_read,return_comparison,drawer_filter" : "");
+			return { layout_table("workbench_preferences"),
+					 "INSERT INTO workbench_preferences(" + columns + ") SELECT " + columns + " FROM workbench_layout",
+					 "DROP TABLE workbench_layout", window_table(), "UPDATE workbench_meta SET schema_format=5 WHERE singleton=1" };
+		}
+		[[nodiscard]] auto normalized_sql(const std::string_view aSql) -> std::string
+		{
+			std::string result;
+			for (const auto value : aSql) {
+				const auto byte = static_cast<unsigned char>(value);
+				if (!std::isspace(byte) && value != '"' && value != ';') {
+					result.push_back(static_cast<char>(std::tolower(byte)));
+				}
+			}
+			return result;
+		}
+		class bounded_read_scope final
+		{
+		public:
+			bounded_read_scope(::sqlite3* aDatabase, std::stop_token aStop)
+				: Database{ aDatabase }
+				, Stop{ aStop }
+			{
+				sqlite3_progress_handler(Database, 100, progress, this);
+			}
+			~bounded_read_scope() { sqlite3_progress_handler(Database, 0, nullptr, nullptr); }
+			bounded_read_scope(const bounded_read_scope&)                    = delete;
+			auto operator=(const bounded_read_scope&) -> bounded_read_scope& = delete;
+
+		private:
+			static auto progress(void* aContext) -> int
+			{
+				auto& scope = *static_cast<bounded_read_scope*>(aContext);
+				return scope.Stop.stop_requested() || ++scope.Steps >= 400U ? 1 : 0;
+			}
+			::sqlite3*      Database;
+			std::stop_token Stop;
+			std::size_t     Steps = 0;
+		};
+		void limit_connection(::sqlite3* aDatabase)
+		{
+			static_cast<void>(sqlite3_limit(aDatabase, SQLITE_LIMIT_LENGTH, 16384));
+			static_cast<void>(sqlite3_limit(aDatabase, SQLITE_LIMIT_SQL_LENGTH, 16384));
+			static_cast<void>(sqlite3_limit(aDatabase, SQLITE_LIMIT_COLUMN, 16));
+			static_cast<void>(sqlite3_limit(aDatabase, SQLITE_LIMIT_VDBE_OP, 10000));
+		}
+		[[nodiscard]] auto bounded_rows(::sqlite3* aDatabase, const std::string_view aTable,
+										const std::size_t aMaximum) -> bool
+		{
+			auto rows = prepare(aDatabase, "SELECT * FROM " + std::string{ aTable } + " LIMIT " + std::to_string(aMaximum + 1U));
+			if (!rows) {
+				return false;
+			}
+			std::size_t count = 0;
+			for (auto step = sqlite3_step(rows->Value); step != SQLITE_DONE; step = sqlite3_step(rows->Value)) {
+				if (step != SQLITE_ROW || ++count > aMaximum) {
+					return false;
+				}
+				const auto window  = aTable == "window_layout";
+				const auto columns = sqlite3_column_count(rows->Value);
+				for (int column = 0; column < columns; ++column) {
+					if (window && column == 0) {
+						if (sqlite3_column_type(rows->Value, column) != SQLITE_TEXT) {
+							return false;
+						}
+						const auto* bytes = reinterpret_cast<const char*>(sqlite3_column_text(rows->Value, column));
+						const auto  size  = sqlite3_column_bytes(rows->Value, column);
+						if (!bytes || size < 1 || size > 20) {
+							return false;
+						}
+						std::uint64_t id     = 0;
+						const auto    parsed = std::from_chars(bytes, bytes + size, id);
+						if (parsed.ec != std::errc{ } || parsed.ptr != bytes + size || id == 0 || std::to_string(id) != std::string_view{ bytes, static_cast<std::size_t>(size) }) {
+							return false;
+						}
+						continue;
+					}
+					if (sqlite3_column_type(rows->Value, column) != SQLITE_INTEGER) {
+						return false;
+					}
+					const auto value = sqlite3_column_int64(rows->Value, column);
+					if (aTable == "workbench_meta") {
+						if (column == 0 && value != 1) {
+							return false;
+						}
+						continue;
+					}
+					if (column == 0) {
+						if (value != 1) {
+							return false;
+						}
+					} else if (column == 3 || column == 4 || column == 7) {
+						if (value < application::minimum_workbench_drawer_width || value > application::maximum_workbench_drawer_width) {
+							return false;
+						}
+					} else if (value < 0 || value > ((column == 8 || column == 11 || column == 12) ? 2 : 1)) {
+						return false;
+					}
+				}
+			}
+			return aTable != "workbench_meta" || count == 1;
+		}
+		[[nodiscard]] auto preflight_schema(::sqlite3* aDatabase, std::stop_token aStop) -> std::expected<void, failure>
+		{
+			if (aStop.stop_requested()) {
+				return std::unexpected(failure::cancelled);
+			}
+			const bounded_read_scope guard{ aDatabase, aStop };
+			const auto               version = scalar_integer(aDatabase, "PRAGMA user_version");
+			const auto               app     = scalar_integer(aDatabase, "PRAGMA application_id");
+			if (!version || !app || *version < 0 || *version > workbench_settings_schema_version) {
+				return std::unexpected(failure::schema_mismatch);
+			}
+			auto schema = prepare(aDatabase, "SELECT name,sql FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' LIMIT 4");
+			if (!schema) {
+				return std::unexpected(failure::schema_mismatch);
+			}
+			std::size_t count = 0;
+			for (auto step = sqlite3_step(schema->Value); step != SQLITE_DONE; step = sqlite3_step(schema->Value)) {
+				if (step != SQLITE_ROW || ++count > 3U || *version == 0) {
+					return std::unexpected(failure::schema_mismatch);
+				}
+				const auto* name = reinterpret_cast<const char*>(sqlite3_column_text(schema->Value, 0));
+				const auto* sql  = reinterpret_cast<const char*>(sqlite3_column_text(schema->Value, 1));
+				if (!name || !sql) {
+					return std::unexpected(failure::schema_mismatch);
+				}
+				const auto  table = std::string_view{ name };
+				std::string expected;
+				if (table == "workbench_meta") {
+					expected = MetaSql;
+				} else if (*version < 5 && table == "workbench_layout") {
+					expected = legacy_table(*version);
+				} else if (*version == 5 && table == "workbench_preferences") {
+					expected = layout_table("workbench_preferences");
+				} else if (*version == 5 && table == "window_layout") {
+					expected = window_table();
+				} else {
+					return std::unexpected(failure::schema_mismatch);
+				}
+				if (normalized_sql(sql) != normalized_sql(expected)
+					|| !bounded_rows(aDatabase, table, table == "window_layout" ? application::maximum_workbench_window_layouts : 1U)) {
+					return std::unexpected(failure::schema_mismatch);
+				}
+			}
+			if (*version == 0) {
+				return *app == 0 && count == 0 ? std::expected<void, failure>{ } : std::unexpected(failure::schema_mismatch);
+			}
+			const auto meta = scalar_integer(aDatabase, "SELECT schema_format FROM workbench_meta WHERE singleton=1");
+			if (*app != WorkbenchApplicationId || count != (*version == 5 ? 3U : 2U) || !meta || *meta != *version) {
+				return std::unexpected(failure::schema_mismatch);
+			}
+			return { };
+		}
+		[[nodiscard]] auto preflight(::sqlite3* aDatabase, std::stop_token aStop) -> std::expected<void, failure>
+		{
+			auto result = preflight_schema(aDatabase, aStop);
+			return aStop.stop_requested() ? std::unexpected(failure::cancelled) : result;
 		}
 
+		[[nodiscard]] auto commit_transaction(::sqlite3* aDatabase, std::stop_token aStop) -> std::expected<void, failure>
+		{
+			sqlite3_commit_hook(aDatabase, [](void* aContext) -> int { return static_cast<std::stop_token*>(aContext)->stop_requested() ? 1 : 0; }, &aStop);
+			auto result = execute(aDatabase, "COMMIT", aStop);
+			sqlite3_commit_hook(aDatabase, nullptr, nullptr);
+			return aStop.stop_requested() ? std::unexpected(failure::cancelled) : result;
+		}
+		class write_transaction final
+		{
+		public:
+			explicit write_transaction(::sqlite3* aDatabase)
+				: Database{ aDatabase }
+			{ }
+			~write_transaction()
+			{
+				if (Active) {
+					static_cast<void>(sqlite3_exec(Database, "ROLLBACK", nullptr, nullptr, nullptr));
+				}
+			}
+			write_transaction(const write_transaction&)                    = delete;
+			auto operator=(const write_transaction&) -> write_transaction& = delete;
+			auto commit(std::stop_token aStop) -> std::expected<void, failure>
+			{
+				auto result = commit_transaction(Database, aStop);
+				if (result) {
+					Active = false;
+				}
+				return result;
+			}
+
+		private:
+			::sqlite3* Database;
+			bool       Active = true;
+		};
 		[[nodiscard]] auto run_all(
 			::sqlite3*                         aDatabase,
 			const std::span<const std::string> aStatements,
@@ -201,7 +370,7 @@ namespace bpr::adapters::sqlite::detail {
 			// version this build has no step for is refused rather than handed
 			// to the wrong one — today that is unreachable, and the day a
 			// version three exists it stops being so.
-			if (*current != 0 && *current != 1 && *current != 2 && *current != 3) {
+			if (*current != 0 && *current != 1 && *current != 2 && *current != 3 && *current != 4) {
 				rollback();
 				return std::unexpected(failure::schema_mismatch);
 			}
@@ -242,7 +411,11 @@ namespace bpr::adapters::sqlite::detail {
 				rollback();
 				return stamped;
 			}
-			if (auto commit = execute(aDatabase, "COMMIT", aStop); !commit) {
+			if (auto admitted = preflight(aDatabase, aStop); !admitted) {
+				rollback();
+				return admitted;
+			}
+			if (auto commit = commit_transaction(aDatabase, aStop); !commit) {
 				rollback();
 				return commit;
 			}
@@ -369,6 +542,9 @@ namespace bpr::adapters::sqlite::detail {
 		const std::filesystem::path& aPath, std::stop_token aStop)
 		-> std::expected<workbench_settings_database, failure>
 	{
+		if (aStop.stop_requested()) {
+			return std::unexpected(failure::cancelled);
+		}
 		if (aPath.empty() || !aPath.is_absolute()) {
 			return std::unexpected(failure::invalid_path);
 		}
@@ -389,9 +565,14 @@ namespace bpr::adapters::sqlite::detail {
 			return std::unexpected(catalog_failure_from_sqlite_result(code));
 		}
 
+		limit_connection(database);
+		if (auto admitted = preflight(database, aStop); !admitted) {
+			return std::unexpected(admitted.error());
+		}
 		if (auto configured = configure_connection(database); !configured) {
 			return std::unexpected(configured.error());
 		}
+		limit_connection(database);
 		if (auto established = establish_schema(database, aStop); !established) {
 			return std::unexpected(established.error());
 		}
@@ -419,11 +600,18 @@ namespace bpr::adapters::sqlite::detail {
 		if (aStop.stop_requested()) {
 			return std::unexpected(failure::cancelled);
 		}
-		const auto guard = progress_scope{ Handle, aStop };
+		if (!application::valid(application::window_layout(aSettings)) || !application::valid(aSettings.Behaviour)) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		if (auto begin = execute(Handle, "BEGIN IMMEDIATE", aStop); !begin) {
+			return begin;
+		}
+		write_transaction transaction{ Handle };
+		const auto        guard = progress_scope{ Handle, aStop };
 
 		auto statement = prepare(
 			Handle,
-			"INSERT INTO workbench_layout("
+			"INSERT INTO workbench_preferences("
 			"singleton, files_state, conversations_state, files_width,"
 			"conversations_width, line_numbers, repositories_state,"
 			"repositories_width, open_modality, continue_modality, mark_read,"
@@ -514,9 +702,128 @@ namespace bpr::adapters::sqlite::detail {
 		if (code != SQLITE_DONE) {
 			return std::unexpected(catalog_sql_failure(Handle));
 		}
-		return { };
+		return transaction.commit(aStop);
 	}
 
+	auto workbench_settings_database::load_window(const core::bpr_window_id aWindow, std::stop_token aStop)
+		-> std::expected<application::workbench_layout_settings, failure>
+	{
+		if (aWindow.value() == 0) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		auto defaults = load(aStop);
+		if (!defaults) {
+			return std::unexpected(defaults.error());
+		}
+		const bounded_read_scope guard{ Handle, aStop };
+		auto                     statement = prepare(Handle, "SELECT files_state,conversations_state,files_width,conversations_width,line_numbers,repositories_state,repositories_width FROM window_layout WHERE window_id=?1");
+		const auto               key       = std::to_string(aWindow.value());
+		if (!statement || sqlite3_bind_text(statement->Value, 1, key.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		const auto stepped = sqlite3_step(statement->Value);
+		if (stepped == SQLITE_DONE) {
+			return defaults;
+		}
+		if (stepped != SQLITE_ROW) {
+			return std::unexpected(catalog_failure_from_sqlite_result(stepped));
+		}
+		for (int column = 0; column < 7; ++column) {
+			if (sqlite3_column_type(statement->Value, column) != SQLITE_INTEGER) {
+				return std::unexpected(failure::integrity_failure);
+			}
+		}
+		const auto files         = drawer_state_of(sqlite3_column_int64(statement->Value, 0));
+		const auto conversations = drawer_state_of(sqlite3_column_int64(statement->Value, 1));
+		const auto lines         = line_numbers_of(sqlite3_column_int64(statement->Value, 4));
+		const auto repositories  = drawer_state_of(sqlite3_column_int64(statement->Value, 5));
+		if (!files || !conversations || !lines || !repositories) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		for (const auto column : { 2, 3, 6 }) {
+			const auto width = sqlite3_column_int64(statement->Value, column);
+			if (width < 0 || width > 16384) {
+				return std::unexpected(failure::integrity_failure);
+			}
+		}
+		const application::workbench_window_layout layout{ *files, *conversations, *repositories, *lines,
+														   static_cast<std::uint32_t>(sqlite3_column_int64(statement->Value, 2)),
+														   static_cast<std::uint32_t>(sqlite3_column_int64(statement->Value, 3)),
+														   static_cast<std::uint32_t>(sqlite3_column_int64(statement->Value, 6)) };
+		if (!application::valid(layout)) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		return application::combined_layout(layout, defaults->Behaviour);
+	}
+	auto workbench_settings_database::store_window(const core::bpr_window_id                   aWindow,
+												   const application::workbench_window_layout& aLayout, std::stop_token aStop) -> std::expected<void, failure>
+	{
+		if (aWindow.value() == 0 || !application::valid(aLayout)) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		if (auto admitted = preflight(Handle, aStop); !admitted) {
+			return admitted;
+		}
+		if (auto begin = execute(Handle, "BEGIN IMMEDIATE", aStop); !begin) {
+			return begin;
+		}
+		write_transaction        transaction{ Handle };
+		const bounded_read_scope guard{ Handle, aStop };
+		const auto               key      = std::to_string(aWindow.value());
+		auto                     existing = prepare(Handle, "SELECT 1 FROM window_layout WHERE window_id=?1");
+		if (!existing || sqlite3_bind_text(existing->Value, 1, key.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		const auto found = sqlite3_step(existing->Value);
+		if (found != SQLITE_ROW && found != SQLITE_DONE) {
+			return std::unexpected(catalog_failure_from_sqlite_result(found));
+		}
+		if (found == SQLITE_DONE) {
+			const auto count = scalar_integer(Handle, "SELECT count(*) FROM (SELECT window_id FROM window_layout LIMIT 33)");
+			if (!count || *count >= static_cast<std::int64_t>(application::maximum_workbench_window_layouts)) {
+				return std::unexpected(failure::integrity_failure);
+			}
+		}
+		static_cast<void>(sqlite3_reset(existing->Value));
+		auto statement = prepare(Handle, "INSERT INTO window_layout(window_id,files_state,conversations_state,files_width,conversations_width,line_numbers,repositories_state,repositories_width) VALUES(?1,?2,?3,?4,?5,?6,?7,?8) ON CONFLICT(window_id) DO UPDATE SET files_state=excluded.files_state,conversations_state=excluded.conversations_state,files_width=excluded.files_width,conversations_width=excluded.conversations_width,line_numbers=excluded.line_numbers,repositories_state=excluded.repositories_state,repositories_width=excluded.repositories_width");
+		if (!statement || sqlite3_bind_text(statement->Value, 1, key.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		const std::array<std::int64_t, 7> values{ static_cast<std::int64_t>(aLayout.Files), static_cast<std::int64_t>(aLayout.Conversations), aLayout.FilesWidth, aLayout.ConversationsWidth, static_cast<std::int64_t>(aLayout.LineNumbers), static_cast<std::int64_t>(aLayout.Repositories), aLayout.RepositoriesWidth };
+		for (std::size_t index = 0; index < values.size(); ++index) {
+			if (sqlite3_bind_int64(statement->Value, static_cast<int>(index + 2U), values[index]) != SQLITE_OK) {
+				return std::unexpected(failure::integrity_failure);
+			}
+		}
+		const auto stepped = sqlite3_step(statement->Value);
+		if (stepped != SQLITE_DONE) {
+			return std::unexpected(catalog_failure_from_sqlite_result(stepped));
+		}
+		return transaction.commit(aStop);
+	}
+	auto workbench_settings_database::erase_window(const core::bpr_window_id aWindow, std::stop_token aStop) -> std::expected<void, failure>
+	{
+		if (aWindow.value() == 0) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		if (auto admitted = preflight(Handle, aStop); !admitted) {
+			return admitted;
+		}
+		if (auto begin = execute(Handle, "BEGIN IMMEDIATE", aStop); !begin) {
+			return begin;
+		}
+		write_transaction transaction{ Handle };
+		auto              statement = prepare(Handle, "DELETE FROM window_layout WHERE window_id=?1");
+		const auto        key       = std::to_string(aWindow.value());
+		if (!statement || sqlite3_bind_text(statement->Value, 1, key.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		const auto stepped = sqlite3_step(statement->Value);
+		if (stepped != SQLITE_DONE) {
+			return std::unexpected(catalog_failure_from_sqlite_result(stepped));
+		}
+		return transaction.commit(aStop);
+	}
 	auto workbench_settings_database::load(std::stop_token aStop)
 		-> std::expected<application::workbench_layout_settings, failure>
 	{
@@ -530,7 +837,7 @@ namespace bpr::adapters::sqlite::detail {
 			"SELECT files_state, conversations_state, files_width,"
 			"conversations_width, line_numbers, repositories_state,"
 			"repositories_width, open_modality, continue_modality, mark_read,"
-			"return_comparison, drawer_filter FROM workbench_layout "
+			"return_comparison, drawer_filter FROM workbench_preferences "
 			"WHERE singleton = 1");
 		if (!statement) {
 			return std::unexpected(statement.error());
@@ -618,7 +925,7 @@ namespace bpr::adapters::sqlite::detail {
 		auto tables = prepare(
 			aDatabase,
 			"SELECT name FROM sqlite_schema WHERE type = 'table' "
-			"AND name NOT LIKE 'sqlite_%' ORDER BY name");
+			"AND name NOT LIKE 'sqlite_%' LIMIT 4");
 		if (!tables) {
 			return std::unexpected(tables.error());
 		}
@@ -633,9 +940,17 @@ namespace bpr::adapters::sqlite::detail {
 			if (stepped != SQLITE_ROW) {
 				return std::unexpected(failure::integrity_failure);
 			}
-			names.push_back(text_of(tables->Value, 0));
+			if (names.size() >= 3U) {
+				return std::unexpected(failure::schema_mismatch);
+			}
+			const auto name = text_of(tables->Value, 0);
+			if (name != "workbench_meta" && name != "workbench_preferences" && name != "window_layout" && name != "workbench_layout") {
+				return std::unexpected(failure::schema_mismatch);
+			}
+			names.push_back(name);
 		}
 
+		std::ranges::sort(names);
 		for (const auto& table : names) {
 			// `PRAGMA table_info` rather than the `pragma_table_info`
 			// table-valued function, because `prepare` refuses a virtual table
@@ -651,6 +966,9 @@ namespace bpr::adapters::sqlite::detail {
 				}
 				if (stepped != SQLITE_ROW) {
 					return std::unexpected(failure::integrity_failure);
+				}
+				if (found.size() >= 32U) {
+					return std::unexpected(failure::schema_mismatch);
 				}
 				found.push_back(table + "." + text_of(columns->Value, 1));
 			}

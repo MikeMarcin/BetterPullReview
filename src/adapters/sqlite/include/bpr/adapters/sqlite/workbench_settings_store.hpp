@@ -18,6 +18,8 @@ namespace bpr::adapters::sqlite {
 		// store, so that deleting one kind of local state cannot take another
 		// with it.
 		std::filesystem::path StorageRoot;
+		// Explicit admitted runtime identity; migration never creates this row.
+		core::bpr_window_id Window;
 	};
 
 	/// \brief Creates the durable workbench layout settings store.
@@ -33,6 +35,11 @@ namespace bpr::adapters::sqlite {
 		-> std::expected<
 			std::unique_ptr<application::workbench_settings_port>,
 			application::workbench_settings_failure>;
+	/// Explicit legacy/defaults view: no window row is read or created.
+	[[nodiscard]] auto make_workbench_defaults_store(
+		const workbench_settings_configuration& aConfiguration, std::stop_token aStop = { })
+		-> std::expected<std::unique_ptr<application::workbench_settings_port>, application::workbench_settings_failure>;
+
 } // namespace bpr::adapters::sqlite
 
 #endif // BPR_SRC_ADAPTERS_SQLITE_INCLUDE_BPR_ADAPTERS_SQLITE_WORKBENCH_SETTINGS_STORE_HPP

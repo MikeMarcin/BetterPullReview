@@ -3797,7 +3797,7 @@ namespace bpr::app {
 			// width must not lose reading progress. Composition failure is not
 			// fatal - a reviewer whose layout cannot be stored still gets the
 			// composed defaults.
-			auto layout = adapters::sqlite::make_workbench_settings_store({
+			auto layout = adapters::sqlite::make_workbench_defaults_store({
 				.StorageRoot = applicationDataRoot,
 			});
 			if (layout) {
@@ -4810,7 +4810,9 @@ namespace bpr::app {
 				core::application_session_id{ 1U },
 				application::workbench_host_limits{ },
 				EpochHost.get(),
-				this);
+				this,
+				nullptr,
+				aConfig.Profile);
 			// Reads the current durable or session layout. Restoring never writes
 			// it back, so merely launching still leaves a fresh store fresh.
 			WorkbenchHost->restore();

@@ -92,6 +92,10 @@ namespace bpr::application {
 			review_behaviour_settings Settings;
 		};
 
+		struct deferred_workbench_preferences
+		{
+			workbench_profile_preferences Preferences;
+		};
 		struct deferred_workbench_cancel
 		{
 		};
@@ -108,7 +112,7 @@ namespace bpr::application {
 														deferred_workbench_change_navigation,
 														deferred_workbench_intent,
 														deferred_workbench_resize,
-														deferred_workbench_behaviour,
+														deferred_workbench_behaviour, deferred_workbench_preferences,
 														deferred_workbench_cancel,
 														deferred_workbench_shutdown,
 														staged_observation,
@@ -264,7 +268,8 @@ namespace bpr::application {
 					   const core::application_session_id       aSession,
 					   const workbench_host_limits              aLimits,
 					   workbench_selected_diff_port*            aSelectedDiffs,
-					   workbench_selected_diff_projection_port* aSelectedDiffProjections)
+					   workbench_selected_diff_projection_port* aSelectedDiffProjections,
+					   workbench_preferences_host* aPreferences, const core::bpr_profile_id aProfile)
 			: State{ aInitialState }
 			, Observations{ aObservations }
 			, Settings{ aSettings }
@@ -278,10 +283,28 @@ namespace bpr::application {
 			, Gate{ std::make_shared<completion_gate>() }
 		{
 			Gate->Host.store(this, std::memory_order_release);
+			if (aPreferences) {
+				Preferences = aPreferences;
+			} else {
+				OwnedPreferences = std::make_unique<workbench_preferences_host>(Settings, Effects, DecisionLane, aProfile);
+				Preferences      = OwnedPreferences.get();
+			}
+			const auto gate        = std::weak_ptr<completion_gate>{ Gate };
+			PreferenceSubscription = Preferences->subscribe(aProfile, [gate](const workbench_profile_preferences& aAccepted) {
+				if (const auto locked = gate.lock()) {
+					if (auto* host = locked->Host.load(std::memory_order_acquire)) {
+						host->enqueue(deferred_workbench_preferences{ aAccepted });
+					}
+				}
+			});
 		}
 
 		~implementation()
 		{
+			Preferences->unsubscribe(PreferenceSubscription);
+			if (OwnedPreferences) {
+				OwnedPreferences->shutdown();
+			}
 			Gate->Host.store(nullptr, std::memory_order_release);
 		}
 
@@ -338,6 +361,8 @@ namespace bpr::application {
 						resize_now(aTyped.Drawer, aTyped.Width);
 					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_behaviour>) {
 						apply_behaviour_now(aTyped.Settings);
+					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_preferences>) {
+						accept_preferences(aTyped.Preferences);
 					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_cancel>) {
 						cancel_now();
 					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_shutdown>) {
@@ -723,11 +748,24 @@ namespace bpr::application {
 		/// overwritten with defaults.
 		void submit_settings_store()
 		{
+			if (PreferenceSubscription == 0) {
+				publish_failure(local_context(), workbench_host_failure::settings_unavailable);
+				return;
+			}
 			if (State.Navigation.has_value()) {
 				Layout.Files         = State.FilesDrawer;
 				Layout.Conversations = State.ConversationsDrawer;
 				Layout.Repositories  = State.RepositoriesDrawer;
 				Layout.LineNumbers   = State.LineNumbers;
+			}
+			if (Settings.profile_scoped() && Settings.window().value() == 0) {
+				PendingPreferences        = workbench_profile_preferences{ Layout.Behaviour, window_layout(Layout) };
+				PendingPreferenceDefaults = true;
+				if (!Preferences->apply_defaults(PendingPreferences->NewWindowDefaults)) {
+					PendingPreferences.reset();
+					publish_failure(local_context(), workbench_host_failure::settings_unavailable);
+				}
+				return;
 			}
 			retire(workbench_request_domain::settings_store,
 				   workbench_terminal_rejection::superseded);
@@ -780,11 +818,18 @@ namespace bpr::application {
 
 		void restore_now()
 		{
+			if (PreferenceSubscription == 0) {
+				publish_failure(local_context(), workbench_host_failure::settings_unavailable);
+				return;
+			}
 			if (Closing) {
 				return;
 			}
 			retire(workbench_request_domain::settings_load,
 				   workbench_terminal_rejection::superseded);
+			if (Settings.profile_scoped() && Settings.window().value() != 0) {
+				Preferences->restore();
+			}
 			submit_settings_load();
 		}
 
@@ -957,6 +1002,10 @@ namespace bpr::application {
 		// record is republished so the page reverts to it.
 		void apply_behaviour_now(const review_behaviour_settings& aSettings)
 		{
+			if (PreferenceSubscription == 0) {
+				publish_failure(local_context(), workbench_host_failure::settings_unavailable);
+				return;
+			}
 			if (Closing) {
 				return;
 			}
@@ -968,11 +1017,35 @@ namespace bpr::application {
 			if (Layout.Behaviour == aSettings) {
 				return;
 			}
-			Layout.Behaviour = aSettings;
-			submit_settings_store();
-			publish_changes(local_context());
+			if (!Preferences->apply_behaviour(aSettings)) {
+				RepublishBehaviour = true;
+				publish_failure(local_context(), workbench_host_failure::settings_unavailable);
+				publish_changes(local_context());
+				return;
+			}
+			auto candidate            = *Preferences->accepted();
+			candidate.Behaviour       = aSettings;
+			PendingPreferences        = candidate;
+			PendingPreferenceDefaults = false;
 		}
 
+		void accept_preferences(const workbench_profile_preferences& aPreferences)
+		{
+			if (Closing) {
+				return;
+			}
+			Layout.Behaviour = aPreferences.Behaviour;
+			if (PendingPreferences && !Preferences->is_busy()) {
+				if (PendingPreferenceDefaults ? PendingPreferences->NewWindowDefaults == aPreferences.NewWindowDefaults : PendingPreferences->Behaviour == aPreferences.Behaviour) {
+					++PersistedLayouts;
+				} else {
+					RepublishBehaviour = true;
+					publish_failure(local_context(), workbench_host_failure::settings_unavailable);
+				}
+				PendingPreferences.reset();
+			}
+			publish_changes(local_context());
+		}
 		void cancel_now()
 		{
 			if (Closing) {
@@ -980,6 +1053,10 @@ namespace bpr::application {
 			}
 			retire_all(workbench_terminal_rejection::cancelled);
 			Generation = core::request_generation{ Generation.value() + 1U };
+			if (OwnedPreferences) {
+				OwnedPreferences->cancel();
+			}
+			PendingPreferences.reset();
 		}
 
 		void shutdown_now()
@@ -988,6 +1065,10 @@ namespace bpr::application {
 				return;
 			}
 			Closing = true;
+			Preferences->unsubscribe(PreferenceSubscription);
+			if (OwnedPreferences) {
+				OwnedPreferences->shutdown();
+			}
 			retire_all(workbench_terminal_rejection::cancelled);
 		}
 
@@ -1167,7 +1248,13 @@ namespace bpr::application {
 								workbench_host_failure::settings_unavailable);
 				return;
 			}
-			Layout                    = *aResult;
+			if (PreferenceSubscription != 0 && OwnedPreferences && (!Settings.profile_scoped() || Settings.window().value() == 0)) {
+				Preferences->adopt_loaded({ aResult->Behaviour, window_layout(*aResult) });
+			}
+			Layout = *aResult;
+			if (PreferenceSubscription != 0 && Preferences->accepted()) {
+				Layout.Behaviour = Preferences->accepted()->Behaviour;
+			}
 			Layout.FilesWidth         = clamped_width(Layout.FilesWidth, Limits);
 			Layout.ConversationsWidth = clamped_width(Layout.ConversationsWidth, Limits);
 			Layout.RepositoriesWidth  = clamped_width(Layout.RepositoriesWidth, Limits);
@@ -1333,17 +1420,22 @@ namespace bpr::application {
 			}
 		}
 
-		core::workbench_interaction_state        State;
-		workbench_observation_port&              Observations;
-		workbench_settings_port&                 Settings;
-		effect_executor&                         Effects;
-		decision_executor&                       DecisionLane;
-		workbench_projection_port&               Projections;
-		workbench_selected_diff_port*            SelectedDiffs;
-		workbench_selected_diff_projection_port* SelectedDiffProjections;
-		core::application_session_id             Session;
-		workbench_host_limits                    Limits;
-		std::shared_ptr<completion_gate>         Gate;
+		core::workbench_interaction_state            State;
+		workbench_observation_port&                  Observations;
+		workbench_settings_port&                     Settings;
+		std::unique_ptr<workbench_preferences_host>  OwnedPreferences;
+		workbench_preferences_host*                  Preferences            = nullptr;
+		std::uint64_t                                PreferenceSubscription = 0;
+		std::optional<workbench_profile_preferences> PendingPreferences;
+		bool                                         PendingPreferenceDefaults = false;
+		effect_executor&                             Effects;
+		decision_executor&                           DecisionLane;
+		workbench_projection_port&                   Projections;
+		workbench_selected_diff_port*                SelectedDiffs;
+		workbench_selected_diff_projection_port*     SelectedDiffProjections;
+		core::application_session_id                 Session;
+		workbench_host_limits                        Limits;
+		std::shared_ptr<completion_gate>             Gate;
 
 		std::vector<core::workbench_file_id>            Actionable;
 		std::vector<workbench_file_observation_entry>   Files;
@@ -1388,7 +1480,8 @@ namespace bpr::application {
 		const core::application_session_id       aSession,
 		const workbench_host_limits              aLimits,
 		workbench_selected_diff_port*            aSelectedDiffs,
-		workbench_selected_diff_projection_port* aSelectedDiffProjections)
+		workbench_selected_diff_projection_port* aSelectedDiffProjections,
+		workbench_preferences_host* aPreferences, const core::bpr_profile_id aProfile)
 		: Implementation{ std::make_unique<implementation>(aInitialState,
 														   aObservations,
 														   aSettings,
@@ -1398,7 +1491,7 @@ namespace bpr::application {
 														   aSession,
 														   aLimits,
 														   aSelectedDiffs,
-														   aSelectedDiffProjections) }
+														   aSelectedDiffProjections, aPreferences, aProfile) }
 	{
 	}
 
@@ -1539,6 +1632,7 @@ namespace bpr::application {
 	auto workbench_application_host::is_quiescent() const noexcept -> bool
 	{
 		return Implementation->Closing && Implementation->Outstanding.empty()
+			&& (!Implementation->OwnedPreferences || Implementation->OwnedPreferences->is_quiescent())
 			&& Implementation->DeferredIngress.empty()
 			&& !Implementation->DeferredIngressScheduled
 			&& !Implementation->TurnActive;

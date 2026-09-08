@@ -28,7 +28,7 @@ namespace bpr::adapters::sqlite::detail {
 	/// Four since [[BPR-0661]]: the review-behaviour preferences joined the
 	/// singleton row, defaulted so a rebuilt older row keeps the behaviour it
 	/// had.
-	inline constexpr std::int64_t workbench_settings_schema_version = 4;
+	inline constexpr std::int64_t workbench_settings_schema_version = 5;
 
 	/// \brief Owns the durable workbench layout database.
 	///
@@ -79,6 +79,13 @@ namespace bpr::adapters::sqlite::detail {
 		/// deliberately stored default, and RFC-BPR-0005 has no such claim.
 		[[nodiscard]] auto load(std::stop_token aStop)
 			-> std::expected<application::workbench_layout_settings, failure>;
+
+		[[nodiscard]] auto load_window(core::bpr_window_id aWindow, std::stop_token aStop)
+			-> std::expected<application::workbench_layout_settings, failure>;
+		[[nodiscard]] auto store_window(core::bpr_window_id aWindow, const application::workbench_window_layout& aLayout, std::stop_token aStop)
+			-> std::expected<void, failure>;
+		[[nodiscard]] auto erase_window(core::bpr_window_id aWindow, std::stop_token aStop)
+			-> std::expected<void, failure>;
 
 	private:
 		explicit workbench_settings_database(::sqlite3* aHandle) noexcept;

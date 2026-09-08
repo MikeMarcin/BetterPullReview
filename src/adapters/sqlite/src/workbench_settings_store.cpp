@@ -4,6 +4,7 @@
 #include "workbench_settings_database.hpp"
 
 #include <memory>
+#include <mutex>
 #include <utility>
 
 namespace bpr::adapters::sqlite {
@@ -38,8 +39,9 @@ namespace bpr::adapters::sqlite {
 		{
 		public:
 			explicit sqlite_workbench_settings_store(
-				detail::workbench_settings_database aDatabase) noexcept
+				detail::workbench_settings_database aDatabase, core::bpr_window_id aWindow) noexcept
 				: Database{ std::move(aDatabase) }
+				, Window{ aWindow }
 			{
 			}
 
@@ -47,7 +49,8 @@ namespace bpr::adapters::sqlite {
 				-> application::workbench_settings_result<
 					application::workbench_layout_settings> override
 			{
-				auto loaded = Database.load(std::move(aStop));
+				const std::scoped_lock lock{ Mutex };
+				auto                   loaded = Window.value() == 0 ? Database.load(aStop) : Database.load_window(Window, aStop);
 				if (!loaded) {
 					return std::unexpected(application::workbench_settings_error{
 						.Failure = translate(loaded.error()) });
@@ -60,7 +63,17 @@ namespace bpr::adapters::sqlite {
 				std::stop_token                               aStop)
 				-> application::workbench_settings_result<void> override
 			{
-				auto stored = Database.store(aSettings, std::move(aStop));
+				const std::scoped_lock lock{ Mutex };
+				auto                   stored = [&]() -> std::expected<void, detail::failure> {
+					if (Window.value() != 0) {
+						return Database.store_window(Window, application::window_layout(aSettings), aStop);
+					}
+					auto preferences = Database.load(aStop);
+					if (!preferences) {
+						return std::unexpected(preferences.error());
+					}
+					return Database.store(application::combined_layout(application::window_layout(aSettings), preferences->Behaviour), aStop);
+				}();
 				if (!stored) {
 					return std::unexpected(application::workbench_settings_error{
 						.Failure = translate(stored.error()) });
@@ -68,18 +81,53 @@ namespace bpr::adapters::sqlite {
 				return { };
 			}
 
+			[[nodiscard]] auto profile_scoped() const noexcept -> bool override { return true; }
+			[[nodiscard]] auto window() const noexcept -> core::bpr_window_id override { return Window; }
+			[[nodiscard]] auto load_preferences(std::stop_token aStop) -> application::workbench_settings_result<application::workbench_profile_preferences> override
+			{
+				const std::scoped_lock lock{ Mutex };
+				auto                   loaded = Database.load(aStop);
+				if (!loaded) {
+					return std::unexpected(application::workbench_settings_error{ translate(loaded.error()) });
+				}
+				return application::workbench_profile_preferences{ loaded->Behaviour, application::window_layout(*loaded) };
+			}
+			[[nodiscard]] auto store_preferences(const application::workbench_profile_preferences& aPreferences, std::stop_token aStop) -> application::workbench_settings_result<void> override
+			{
+				const std::scoped_lock lock{ Mutex };
+				auto                   stored = Database.store(application::combined_layout(aPreferences.NewWindowDefaults, aPreferences.Behaviour), aStop);
+				if (!stored) {
+					return std::unexpected(application::workbench_settings_error{ translate(stored.error()) });
+				}
+				return { };
+			}
+			[[nodiscard]] auto erase_window(core::bpr_window_id aWindow, std::stop_token aStop) -> application::workbench_settings_result<void> override
+			{
+				const std::scoped_lock lock{ Mutex };
+				auto                   erased = Database.erase_window(aWindow, aStop);
+				if (!erased) {
+					return std::unexpected(application::workbench_settings_error{ translate(erased.error()) });
+				}
+				return { };
+			}
+
 		private:
 			detail::workbench_settings_database Database;
+			core::bpr_window_id                 Window;
+			std::mutex                          Mutex;
 		};
 	} // namespace
 
-	auto make_workbench_settings_store(
+	static auto make_store(
 		const workbench_settings_configuration& aConfiguration,
 		std::stop_token                         aStop)
 		-> std::expected<
 			std::unique_ptr<application::workbench_settings_port>,
 			application::workbench_settings_failure>
 	{
+		if (aStop.stop_requested()) {
+			return std::unexpected(application::workbench_settings_failure::cancelled);
+		}
 		// The same bootstrap every other store uses, rather than creating the
 		// directory here. Whichever store opens first would otherwise decide
 		// what the directory is, and the weakest policy would win the race.
@@ -96,6 +144,23 @@ namespace bpr::adapters::sqlite {
 		}
 
 		return std::make_unique<sqlite_workbench_settings_store>(
-			std::move(*opened));
+			std::move(*opened), aConfiguration.Window);
 	}
+	auto make_workbench_settings_store(const workbench_settings_configuration& aConfiguration, std::stop_token aStop)
+		-> std::expected<std::unique_ptr<application::workbench_settings_port>, application::workbench_settings_failure>
+	{
+		if (aConfiguration.Window.value() == 0) {
+			return std::unexpected(application::workbench_settings_failure::unavailable);
+		}
+		return make_store(aConfiguration, aStop);
+	}
+	auto make_workbench_defaults_store(const workbench_settings_configuration& aConfiguration, std::stop_token aStop)
+		-> std::expected<std::unique_ptr<application::workbench_settings_port>, application::workbench_settings_failure>
+	{
+		if (aConfiguration.Window.value() != 0) {
+			return std::unexpected(application::workbench_settings_failure::unavailable);
+		}
+		return make_store(aConfiguration, aStop);
+	}
+
 } // namespace bpr::adapters::sqlite
