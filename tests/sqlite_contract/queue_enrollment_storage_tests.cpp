@@ -942,10 +942,61 @@ namespace {
 				"first, middle, and final row failures roll back the rule and every enrollment");
 		}
 	}
+	void test_collection_limits_on_load_and_write()
+	{
+		auto scratch = scratch_directory{ };
+		expect(scratch.make_private(), "queue limit fixture is private");
+		auto port = adapters::sqlite::make_queue_enrollment_store({ .StorageRoot = scratch.path() });
+		expect(port->load({ }).has_value(), "queue port creates its state directory");
+		auto database = queue_enrollment_database::open(scratch.path() / "state" / "v1" / "review-queue.sqlite3", { });
+		expect(opened_ok(database), "queue limit database opens");
+		const auto seed = [&](const std::string& aSql) {
+			expect(::sqlite3_exec(database->handle(), aSql.c_str(), nullptr, nullptr, nullptr) == SQLITE_OK, "bounded hostile fixture is seeded");
+		};
+		seed("WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x < " + std::to_string(application::maximum_queue_rules - 1) + ") INSERT INTO observer_rule SELECT x, 0, 'repo' || x, 0 FROM n");
+		seed("WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x < " + std::to_string(application::maximum_saved_repositories - 1) + ") INSERT INTO saved_repository SELECT 'github.com', 'reviewer', 'octo/repo' || x FROM n");
+		seed("WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x < " + std::to_string(application::maximum_saved_servers - 1) + ") INSERT INTO saved_server SELECT 'server' || x || '.example', 'reviewer' FROM n");
+		seed("WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x < " + std::to_string(application::maximum_queue_enrollments - 1) + ") INSERT INTO enrollment SELECT 'github.com', 'reviewer', 'octo/app', x, 1, 0, 0, '', 0, 0 FROM n");
+		expect(port->apply_rule_change({ .Rule = { .Kind = core::observer_rule_kind::repository, .Pattern = "last-rule" } }, { }, { }).has_value(), "last rule slot is writable");
+		expect(port->apply_saved_repository_change({ .Repository = { "github.com", "reviewer", "octo/last" } }, { }).has_value(), "last repository slot is writable");
+		expect(port->apply_saved_server_change({ .Server = { "last.example", "reviewer" } }, { }).has_value(), "last server slot is writable");
+		expect(port->store_enrollment({ .Ref = ref(static_cast<std::int64_t>(application::maximum_queue_enrollments)), .Membership = { .Role = core::github_role::reviewer } }, { }).has_value(), "last enrollment slot is writable");
+		const auto accepted = port->load({ });
+		expect(accepted.has_value() && accepted->Rules.size() == application::maximum_queue_rules && accepted->SavedRepositories.size() == application::maximum_saved_repositories && accepted->SavedServers.size() == application::maximum_saved_servers && accepted->Enrollments.size() == application::maximum_queue_enrollments, "maximum durable collections load in full");
+		const auto rule       = core::observer_rule{ .Kind = core::observer_rule_kind::repository, .Pattern = "overflow" };
+		const auto repository = application::saved_repository{ "github.com", "reviewer", "octo/overflow" };
+		const auto server     = application::saved_server{ "overflow.example", "reviewer" };
+		const auto record     = application::enrollment_record{ .Ref = ref(20000), .Membership = { .Role = core::github_role::reviewer } };
+		const auto refused    = [](const auto& aResult) { return !aResult && aResult.error() == application::queue_store_failure::collection_limit; };
+		expect(refused(port->apply_rule_change({ .Rule = rule }, { }, { })) && refused(port->apply_saved_repository_change({ .Repository = repository }, { })) && refused(port->apply_saved_server_change({ .Server = server }, { })) && refused(port->store_enrollment(record, { })), "every new row at capacity has a typed refusal");
+		expect(port->apply_rule_change({ .Rule = accepted->Rules.front() }, { }, { }).has_value() && port->apply_saved_repository_change({ .Repository = accepted->SavedRepositories.front() }, { }).has_value() && port->apply_saved_server_change({ .Server = accepted->SavedServers.front() }, { }).has_value() && port->store_enrollment(accepted->Enrollments.front(), { }).has_value(), "existing identities remain writable at capacity");
+		const auto after = port->load({ });
+		expect(after.has_value() && after->Rules == accepted->Rules && after->SavedRepositories == accepted->SavedRepositories && after->SavedServers == accepted->SavedServers && after->Enrollments == accepted->Enrollments && after->Preferences == accepted->Preferences, "refused additions preserve every accepted domain");
+		expect(database->erase_rule(accepted->Rules.front()).has_value(), "one rule slot is available for atomic enrollment refusal");
+		const auto changed = std::array{ record };
+		expect(refused(port->apply_rule_change({ .Rule = rule }, changed, { })), "enrollment capacity rejects an otherwise legal rule transaction");
+		const auto rolledBack = database->load_rules();
+		expect(rolledBack.has_value() && rolledBack->size() == application::maximum_queue_rules - 1 && std::ranges::find(*rolledBack, rule) == rolledBack->end(), "enrollment overflow rolls the rule back");
+		expect(database->store_rule(accepted->Rules.front()).has_value(), "rule capacity is restored");
+		const auto oversized = std::vector<application::enrollment_record>(application::maximum_queue_enrollments + 1, accepted->Enrollments.front());
+		expect(refused(port->apply_rule_change({ .Rule = rule }, oversized, { })), "oversized enrollment edit batch is refused even for repeated identities");
+		const auto hostile = [&](const std::string& aInsert, const std::string& aDelete) {
+			seed(aInsert);
+			expect(refused(port->load({ })), "hostile limit plus one load is refused without truncation");
+			seed(aDelete);
+			expect(port->load({ }).has_value(), "removing overflow makes maximum state usable again");
+		};
+		hostile("INSERT INTO observer_rule VALUES(20000,0,'overflow',0)", "DELETE FROM observer_rule WHERE ordinal=20000");
+		hostile("INSERT INTO saved_repository VALUES('github.com','reviewer','octo/overflow')", "DELETE FROM saved_repository WHERE repository='octo/overflow'");
+		hostile("INSERT INTO saved_server VALUES('overflow.example','reviewer')", "DELETE FROM saved_server WHERE hostname='overflow.example'");
+		hostile("INSERT INTO enrollment VALUES('github.com','reviewer','octo/app',20000,1,0,0,'',0,0)", "DELETE FROM enrollment WHERE pull_request=20000");
+	}
+
 } // namespace
 
 auto main() -> int
 {
+	test_collection_limits_on_load_and_write();
 #if !defined(_WIN32)
 	test_enrollment_survives_a_separate_process();
 #endif

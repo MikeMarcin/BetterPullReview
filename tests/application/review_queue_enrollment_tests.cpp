@@ -1064,10 +1064,83 @@ namespace {
 		host.shutdown();
 	}
 
+	[[nodiscard]] auto full_queue_state() -> application::durable_queue_state
+	{
+		auto state = application::durable_queue_state{ };
+		for (std::size_t index = 0; index < application::maximum_queue_rules; ++index) {
+			state.Rules.push_back(path_rule("path/" + std::to_string(index)));
+		}
+		for (std::size_t index = 0; index < application::maximum_saved_repositories; ++index) {
+			state.SavedRepositories.push_back({ "github.com", "reviewer", "octo/repo" + std::to_string(index) });
+		}
+		for (std::size_t index = 0; index < application::maximum_saved_servers; ++index) {
+			state.SavedServers.push_back({ "server" + std::to_string(index) + ".example", "reviewer" });
+		}
+		for (std::size_t index = 0; index < application::maximum_queue_enrollments; ++index) {
+			state.Enrollments.push_back({ .Ref = ref(static_cast<std::int64_t>(index) + 1), .Membership = by_role(core::github_role::reviewer) });
+		}
+		state.Preferences.Notifications.Paused = true;
+		return state;
+	}
+
+	void test_collection_boundaries_preserve_accepted_state()
+	{
+		auto store       = memory_queue_store{ };
+		store.State      = full_queue_state();
+		auto refresh     = observed_refresh{ };
+		auto effects     = application::manual_executor{ };
+		auto decisions   = application::manual_executor{ };
+		auto projections = landing_log{ };
+		auto host        = application::review_queue_application_host{ store, refresh, effects, decisions, projections, { } };
+		host.restore();
+		run_one(effects, decisions);
+		const auto accepted = projections.Published.back();
+		expect(accepted.Status == application::queue_landing_status::ready && accepted.Items.size() == application::maximum_queue_enrollments, "maximum collections are admitted");
+		host.apply(application::queue_rule_intent{ .Rule = path_rule("overflow") });
+		host.apply(application::saved_repository_intent{ .Repository = { "github.com", "reviewer", "octo/overflow" } });
+		host.apply(application::saved_server_intent{ .Server = { "overflow.example", "reviewer" } });
+		expect(effects.pending() == 0 && host.statistics().PersistenceRequests == 0, "overflow edits never reach persistence");
+		expect(projections.Published.back().Failure == application::queue_store_failure::collection_limit && projections.Published.back().Status == application::queue_landing_status::ready, "overflow is a typed refusal that leaves accepted controls usable");
+		expect(projections.Published.back().Rules == accepted.Rules && projections.Published.back().SavedRepositories == accepted.SavedRepositories && projections.Published.back().SavedServers == accepted.SavedServers && projections.Published.back().Items == accepted.Items && host.preferences() == accepted.Preferences, "overflow preserves accepted collections and unrelated preferences");
+		refresh.Observation = { .Ref = ref(20000), .Role = core::github_role::author };
+		host.adopt({ .Host = "github.com", .Account = "reviewer", .Generation = 1 });
+		host.refresh(ref(20000), { });
+		run_one(effects, decisions);
+		expect(effects.pending() == 0 && store.State.Enrollments.size() == application::maximum_queue_enrollments && projections.Published.back().Failure == application::queue_store_failure::collection_limit, "new enrollment at capacity is refused before write");
+		host.apply(application::saved_server_intent{ .Server = { "server0.example", "other" } });
+		run_one(effects, decisions);
+		expect(host.saved_servers().size() == application::maximum_saved_servers && !projections.Published.back().Failure.has_value(), "existing server remains editable at capacity");
+	}
+
+	void test_oversized_restores_are_atomic()
+	{
+		for (int domain = 0; domain < 4; ++domain) {
+			auto store  = memory_queue_store{ };
+			store.State = full_queue_state();
+			switch (domain) {
+			case 0:  store.State.Rules.push_back(path_rule("overflow")); break;
+			case 1:  store.State.SavedRepositories.push_back({ "github.com", "reviewer", "octo/overflow" }); break;
+			case 2:  store.State.SavedServers.push_back({ "overflow.example", "reviewer" }); break;
+			default: store.State.Enrollments.push_back({ .Ref = ref(20000) }); break;
+			}
+			auto refresh     = observed_refresh{ };
+			auto effects     = application::manual_executor{ };
+			auto decisions   = application::manual_executor{ };
+			auto projections = landing_log{ };
+			auto host        = application::review_queue_application_host{ store, refresh, effects, decisions, projections, { } };
+			host.restore();
+			run_one(effects, decisions);
+			const auto& rejected = projections.Published.back();
+			expect(rejected.Failure == application::queue_store_failure::collection_limit && rejected.Rules.empty() && rejected.Items.empty() && rejected.SavedRepositories.empty() && rejected.SavedServers.empty() && !rejected.Preferences.Notifications.Paused, "each limit plus one restore is rejected atomically before projection");
+		}
+	}
+
 } // namespace
 
 auto main() -> int
 {
+	test_collection_boundaries_preserve_accepted_state();
+	test_oversized_restores_are_atomic();
 	test_enrollment_survives_the_path_that_matched();
 	test_re_enrolling_keeps_both_reasons();
 	test_losing_access_and_being_gone_are_distinguished();

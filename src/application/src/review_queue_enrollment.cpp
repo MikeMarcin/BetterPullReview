@@ -338,10 +338,22 @@ namespace bpr::application {
 			return true;
 		}
 
-		void report_unavailable()
+		void report_unavailable(const queue_store_failure aFailure = queue_store_failure::unavailable)
+		{
+			if (aFailure == queue_store_failure::collection_limit && Status == queue_landing_status::ready) {
+				report_collection_limit();
+				return;
+			}
+			++Statistics.Failures;
+			Failure = aFailure;
+			Status  = queue_landing_status::unavailable;
+			publish();
+		}
+
+		void report_collection_limit()
 		{
 			++Statistics.Failures;
-			Status = queue_landing_status::unavailable;
+			Failure = queue_store_failure::collection_limit;
 			publish();
 		}
 
@@ -357,6 +369,7 @@ namespace bpr::application {
 				.BackoffSeconds    = Scheduler.backoff_seconds(),
 				.SavedRepositories = SavedRepositories,
 				.SavedServers      = SavedServers,
+				.Failure           = Failure,
 			});
 			++Statistics.Publications;
 		}
@@ -397,7 +410,12 @@ namespace bpr::application {
 			}
 			Restored = true;
 			if (!aResult) {
-				report_unavailable();
+				report_unavailable(aResult.error());
+				return;
+			}
+			if (aResult->Rules.size() > maximum_queue_rules || aResult->SavedRepositories.size() > maximum_saved_repositories
+				|| aResult->SavedServers.size() > maximum_saved_servers || aResult->Enrollments.size() > maximum_queue_enrollments) {
+				report_unavailable(queue_store_failure::collection_limit);
 				return;
 			}
 			Rules             = std::move(aResult->Rules);
@@ -410,6 +428,7 @@ namespace bpr::application {
 					Enrollments.depart(record.Ref, record.Departed);
 				}
 			}
+			Failure.reset();
 			Status = queue_landing_status::ready;
 			publish();
 			reconcile_last();
@@ -432,6 +451,10 @@ namespace bpr::application {
 				!= SavedRepositories.end();
 			if ((aIntent.Action == saved_repository_action::add && exists)
 				|| (aIntent.Action == saved_repository_action::remove && !exists)) {
+				return;
+			}
+			if (aIntent.Action == saved_repository_action::add && SavedRepositories.size() >= maximum_saved_repositories) {
+				report_collection_limit();
 				return;
 			}
 			auto next = SavedRepositories;
@@ -481,6 +504,10 @@ namespace bpr::application {
 				|| (aIntent.Action == saved_server_action::remove && !exists)) {
 				return;
 			}
+			if (aIntent.Action == saved_server_action::add && !exists && SavedServers.size() >= maximum_saved_servers) {
+				report_collection_limit();
+				return;
+			}
 			auto next = SavedServers;
 			std::erase_if(next, [&aIntent](const saved_server& aServer) {
 				return aServer.Hostname == aIntent.Server.Hostname;
@@ -521,11 +548,12 @@ namespace bpr::application {
 			}
 			SavedServerMutationPending = false;
 			if (!aResult) {
-				report_unavailable();
+				report_unavailable(aResult.error());
 				return;
 			}
 			SavedServers = std::move(aSaved);
-			Status       = queue_landing_status::ready;
+			Failure.reset();
+			Status = queue_landing_status::ready;
 			publish();
 		}
 		void finish_saved_repository(
@@ -538,11 +566,12 @@ namespace bpr::application {
 			}
 			SavedMutationPending = false;
 			if (!aResult) {
-				report_unavailable();
+				report_unavailable(aResult.error());
 				return;
 			}
 			SavedRepositories = std::move(aSaved);
-			Status            = queue_landing_status::ready;
+			Failure.reset();
+			Status = queue_landing_status::ready;
 			publish();
 		}
 
@@ -633,7 +662,8 @@ namespace bpr::application {
 				return;
 			}
 			Preferences = std::move(aPreferences);
-			Status      = queue_landing_status::ready;
+			Failure.reset();
+			Status = queue_landing_status::ready;
 			publish();
 			if (QueuedPreferences.has_value()) {
 				auto queued = std::exchange(QueuedPreferences, std::nullopt);
@@ -658,6 +688,10 @@ namespace bpr::application {
 				|| (aIntent.Action == queue_rule_action::remove && !exists)) {
 				return;
 			}
+			if (aIntent.Action == queue_rule_action::add && Rules.size() >= maximum_queue_rules) {
+				report_collection_limit();
+				return;
+			}
 			auto nextRules       = Rules;
 			auto nextEnrollments = Enrollments;
 			if (aIntent.Action == queue_rule_action::add) {
@@ -674,6 +708,9 @@ namespace bpr::application {
 				}
 			}
 			if (LastObservation.has_value()) {
+				if (!can_enroll(LastObservation->Ref, core::enrollment_for(*LastObservation, nextRules))) {
+					return;
+				}
 				nextEnrollments.reconcile_rule_change(
 					LastObservation->Ref,
 					core::enrollment_for(*LastObservation, nextRules));
@@ -734,12 +771,13 @@ namespace bpr::application {
 			}
 			RuleMutationPending = false;
 			if (!aResult) {
-				report_unavailable();
+				report_unavailable(aResult.error());
 				return;
 			}
 			Rules       = std::move(aRules);
 			Enrollments = std::move(aEnrollments);
-			Status      = queue_landing_status::ready;
+			Failure.reset();
+			Status = queue_landing_status::ready;
 			publish();
 			// `reconcile_last`, not a bare `refresh_last` for the missing case.
 			// The enrollments just adopted were computed when the intent was
@@ -756,11 +794,23 @@ namespace bpr::application {
 			reconcile_last();
 		}
 
+		[[nodiscard]] auto can_enroll(const core::pull_request_ref& aRef, const core::queue_membership& aMembership) -> bool
+		{
+			if (aMembership.enrolled() && Enrollments.records().size() >= maximum_queue_enrollments && !Enrollments.record_for(aRef).has_value()) {
+				report_collection_limit();
+				return false;
+			}
+			return true;
+		}
+
 		void reconcile_last()
 		{
 			if (LastObservation.has_value()) {
 				auto       prior      = Enrollments;
 				const auto membership = core::enrollment_for(*LastObservation, Rules);
+				if (!can_enroll(LastObservation->Ref, membership)) {
+					return;
+				}
 				Enrollments.reconcile_rule_change(
 					LastObservation->Ref, membership);
 				persist_record(LastObservation->Ref, std::move(prior));
@@ -906,6 +956,9 @@ namespace bpr::application {
 			const auto membership = core::enrollment_for(
 				*aCompletion.Observation, Rules);
 			if (membership.enrolled()) {
+				if (!can_enroll(aCompletion.Ref, membership)) {
+					return;
+				}
 				auto prior = Enrollments;
 				Enrollments.enroll(aCompletion.Ref, membership);
 				persist_record(aCompletion.Ref, std::move(prior));
@@ -967,9 +1020,10 @@ namespace bpr::application {
 			}
 			if (!aResult) {
 				Enrollments = *aRollback;
-				report_unavailable();
+				report_unavailable(aResult.error());
 				return;
 			}
+			Failure.reset();
 			Status = queue_landing_status::ready;
 			publish();
 		}
@@ -1015,6 +1069,7 @@ namespace bpr::application {
 		core::queue_activity_observation              LastActivity;
 		queue_landing_status                          Status = queue_landing_status::restoring;
 		review_queue_host_statistics                  Statistics;
+		std::optional<queue_store_failure>            Failure;
 		std::shared_ptr<completion_gate>              Gate;
 		std::uint64_t                                 NextRequest                = 1U;
 		bool                                          Restored                   = false;

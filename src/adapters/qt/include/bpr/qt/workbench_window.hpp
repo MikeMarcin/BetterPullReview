@@ -853,6 +853,7 @@ namespace bpr::qt {
 		QToolButton*                                       AddQueueRuleButton    = nullptr;
 		QToolButton*                                       RemoveQueueRuleButton = nullptr;
 		QLabel*                                            QueueStatus           = nullptr;
+		QLabel*                                            SettingsQueueStatus   = nullptr;
 		QLineEdit*                                         HomeOpenBar           = nullptr;
 		QToolButton*                                       HomeOpenButton        = nullptr;
 		QAction*                                           HomeOpenAction        = nullptr;

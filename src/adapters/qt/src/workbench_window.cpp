@@ -2063,6 +2063,11 @@ namespace bpr::qt {
 			QueuePreferencesDispatch(application::queue_preferences_intent{ std::move(defaults), application::queue_preference_field::queue_filters });
 		});
 		aColumn->addWidget(group);
+		SettingsQueueStatus = new QLabel{ aReviews };
+		SettingsQueueStatus->setObjectName(QStringLiteral("settingsQueueStatus"));
+		SettingsQueueStatus->setAccessibleName(QStringLiteral("Queue settings status"));
+		SettingsQueueStatus->setWordWrap(true);
+		aColumn->addWidget(SettingsQueueStatus);
 
 		auto* const notifications = new QWidget;
 		auto* const column        = new QVBoxLayout{ notifications };
@@ -2312,6 +2317,14 @@ namespace bpr::qt {
 			}
 			break;
 		}
+		if (aProjection.Failure == application::queue_store_failure::collection_limit) {
+			QueueStatus->setText(aProjection.Status == application::queue_landing_status::ready
+									 ? tr("The local queue configuration limit was reached. Existing settings are unchanged; remove an entry before adding another.")
+									 : tr("Stored queue configuration exceeds this build's supported limits. It was not loaded or changed."));
+		}
+		if (SettingsQueueStatus != nullptr) {
+			SettingsQueueStatus->setText(QueueStatus->text());
+		}
 	}
 
 	void workbench_window::dispatch_queue_rule(
@@ -2382,6 +2395,10 @@ namespace bpr::qt {
 			&& static_cast<std::size_t>(selectedIndex) < QueueRules.size()) {
 			selectedRule = QueueRules[static_cast<std::size_t>(selectedIndex)];
 		}
+		const auto rulesChanged        = QueueRules != aProjection.Rules;
+		const auto serversChanged      = QueueProjection.SavedServers != aProjection.SavedServers;
+		const auto repositoriesChanged = QueueProjection.SavedRepositories != aProjection.SavedRepositories;
+
 		QueueReady                = aProjection.Status == application::queue_landing_status::ready;
 		const auto filtersEnabled = QueueReady
 			&& static_cast<bool>(QueuePreferencesDispatch);
@@ -2402,7 +2419,7 @@ namespace bpr::qt {
 		}
 		// [[BPR-0660]]. The remembered servers, hostname first so the list
 		// reads as the reviewer typed them.
-		if (SavedServerSelector != nullptr) {
+		if (SavedServerSelector != nullptr && serversChanged) {
 			const auto selectedServer = SavedServerSelector->currentText();
 			SavedServerSelector->clear();
 			for (const auto& server : aProjection.SavedServers) {
@@ -2417,7 +2434,7 @@ namespace bpr::qt {
 				SavedServerSelector->setCurrentIndex(restored);
 			}
 		}
-		if (SavedRepositorySelector != nullptr) {
+		if (SavedRepositorySelector != nullptr && repositoriesChanged) {
 			const auto selected = SavedRepositorySelector->currentText();
 			SavedRepositorySelector->clear();
 			for (const auto& saved : aProjection.SavedRepositories) {
@@ -2440,21 +2457,23 @@ namespace bpr::qt {
 				}
 			}
 		}
-		QueueRuleSelector->clear();
-		auto restoredIndex = -1;
-		for (std::size_t index = 0U; index < QueueRules.size(); ++index) {
-			const auto& rule = QueueRules[index];
-			QueueRuleSelector->addItem(
-				QStringLiteral("%1 %2%3")
-					.arg(QString::fromUtf8(core::name(rule.Kind).data()))
-					.arg(rule.Excluding ? QStringLiteral("not ") : QString{ })
-					.arg(QString::fromStdString(rule.Pattern)));
-			if (selectedRule == std::optional{ rule }) {
-				restoredIndex = static_cast<int>(index);
+		if (rulesChanged) {
+			QueueRuleSelector->clear();
+			auto restoredIndex = -1;
+			for (std::size_t index = 0U; index < QueueRules.size(); ++index) {
+				const auto& rule = QueueRules[index];
+				QueueRuleSelector->addItem(
+					QStringLiteral("%1 %2%3")
+						.arg(QString::fromUtf8(core::name(rule.Kind).data()))
+						.arg(rule.Excluding ? QStringLiteral("not ") : QString{ })
+						.arg(QString::fromStdString(rule.Pattern)));
+				if (selectedRule == std::optional{ rule }) {
+					restoredIndex = static_cast<int>(index);
+				}
 			}
-		}
-		if (restoredIndex >= 0) {
-			QueueRuleSelector->setCurrentIndex(restoredIndex);
+			if (restoredIndex >= 0) {
+				QueueRuleSelector->setCurrentIndex(restoredIndex);
+			}
 		}
 		update_queue_status(aProjection);
 		++Statistics.QueueUpdates;

@@ -2,9 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0687"
 title: "Bound Settings queue collections"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0018"]
 depends_on: ["BPR-0681"]
+acceptance: [{"criterion":"AC-10 bounded queue collections and retained accepted state","outcome":"pass","revision":"29bb2980 plus BPR-0687 finish paths","evidence":{"kind":"observation","detail":"Host and SQLite fixtures passed: application_review_queue_enrollment 8.21s; sqlite_queue_enrollment_storage 0.82s. Exact maximum and limit+1 load/edit coverage for rules, saved repositories, servers and enrollments; atomic rollback and existing identity writes at capacity. Qt workbench scales 100/125/200 passed 12.47s total: max collections, persistent model indexes unchanged on refusal, removal actions enabled, visible status. Canonical tidy passed five worker TUs and two Qt TUs; git diff --check passed. Primary inspected changed host/store/Qt diff."}}]
 ---
 
 # Bound Settings queue collections

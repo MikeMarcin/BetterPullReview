@@ -18,6 +18,12 @@
 #include <vector>
 
 namespace bpr::application {
+	/// \brief Maximum admitted durable queue collection sizes, including departed enrollments.
+	inline constexpr std::size_t maximum_queue_rules        = 1024U;
+	inline constexpr std::size_t maximum_saved_repositories = 1024U;
+	inline constexpr std::size_t maximum_saved_servers      = 64U;
+	inline constexpr std::size_t maximum_queue_enrollments  = 16384U;
+
 	/// \brief Why an enrolled pull request left the queue.
 	///
 	/// \details A pull request that simply disappeared would leave the reviewer
@@ -163,6 +169,7 @@ namespace bpr::application {
 		integrity_failure,
 		cancelled,
 		invalid_rule,
+		collection_limit,
 	};
 
 	/// \brief Selects which quiet/current rows the Qt landing surface presents.
@@ -378,6 +385,8 @@ namespace bpr::application {
 		std::vector<saved_repository> SavedRepositories;
 		/// [[BPR-0660]]. Every remembered enterprise server, by hostname.
 		std::vector<saved_server> SavedServers;
+
+		std::optional<queue_store_failure> Failure;
 
 		auto operator<=>(const queue_landing_projection&) const = default;
 	};

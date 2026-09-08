@@ -77,6 +77,52 @@ namespace {
 		}
 	}
 
+	void test_settings_collection_limit_keeps_accepted_models_and_recovery_actions()
+	{
+		auto window = qt::workbench_window{ };
+		window.set_queue_rule_dispatch([](application::queue_rule_intent) { });
+		window.set_saved_repository_dispatch([](application::saved_repository_intent) { });
+		window.set_saved_server_dispatch([](application::saved_server_intent) { });
+		auto projection = application::queue_landing_projection{
+			.Status  = application::queue_landing_status::ready,
+			.Session = application::queue_session_id{ .Host = "github.com", .Account = "reviewer", .Generation = 1U }
+		};
+		for (auto i = std::size_t{ 0U }; i < application::maximum_queue_rules; ++i) {
+			projection.Rules.push_back(core::observer_rule{ .Pattern = "fixture-" + std::to_string(i) });
+		}
+		for (auto i = std::size_t{ 0U }; i < application::maximum_saved_repositories; ++i) {
+			projection.SavedRepositories.push_back(application::saved_repository{ .Host = "github.com", .Account = "reviewer", .Repository = "fixture/repo-" + std::to_string(i) });
+		}
+		for (auto i = std::size_t{ 0U }; i < application::maximum_saved_servers; ++i) {
+			projection.SavedServers.push_back(application::saved_server{ .Hostname = "fixture-" + std::to_string(i) + ".example.com" });
+		}
+		const auto widgets = window.findChildren<QWidget*>().size();
+		window.publish(projection);
+		auto* rules        = window.findChild<QComboBox*>(QStringLiteral("observerRuleSelector"));
+		auto* repositories = window.findChild<QComboBox*>(QStringLiteral("savedRepositorySelector"));
+		auto* servers      = window.saved_server_selector();
+		expect(rules->count() == static_cast<int>(application::maximum_queue_rules)
+				   && repositories->count() == static_cast<int>(application::maximum_saved_repositories)
+				   && servers->count() == static_cast<int>(application::maximum_saved_servers)
+				   && window.findChildren<QWidget*>().size() <= widgets + 4,
+			   "maximum admitted Settings collections use bounded models, not widgets per row");
+		const auto ruleIndex       = QPersistentModelIndex{ rules->model()->index(0, 0) };
+		const auto repositoryIndex = QPersistentModelIndex{ repositories->model()->index(0, 0) };
+		const auto serverIndex     = QPersistentModelIndex{ servers->model()->index(0, 0) };
+		projection.Failure         = application::queue_store_failure::collection_limit;
+		window.publish(projection);
+		expect(ruleIndex.isValid() && repositoryIndex.isValid() && serverIndex.isValid()
+				   && window.remove_saved_repository_action()->isEnabled() && window.forget_saved_server_action()->isEnabled(),
+			   "limit refusal preserves accepted model identities and remove actions");
+		auto* status = window.settings()->findChild<QLabel*>(QStringLiteral("settingsQueueStatus"));
+		expect(status != nullptr && status->text().contains(QStringLiteral("limit")),
+			   "the Settings page explains the typed collection refusal");
+		projection.Failure.reset();
+		window.publish(projection);
+		expect(!status->text().contains(QStringLiteral("limit")) && ruleIndex.isValid(),
+			   "recovery clears the refusal without rebuilding unchanged models");
+	}
+
 	void test_settings_share_only_offered_agent_context_and_maintenance_actions()
 	{
 		auto  window  = qt::workbench_window{ };
@@ -5501,6 +5547,7 @@ namespace {
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	test_settings_collection_limit_keeps_accepted_models_and_recovery_actions();
 	test_settings_share_only_offered_agent_context_and_maintenance_actions();
 	test_all_four_primary_actions_follow_one_core_projection();
 	test_every_primary_action_translates_to_a_semantic_intent();

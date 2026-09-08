@@ -621,7 +621,9 @@ namespace bpr::adapters::sqlite::detail {
 			"INSERT INTO enrollment("
 			"host, account, repository, pull_request, role, matched_rule,"
 			"rule_kind, rule_pattern, rule_excluding, departed) "
-			"VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10) "
+			"SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10 "
+			"WHERE (SELECT COUNT(*) FROM (SELECT 1 FROM enrollment LIMIT ?11)) < ?11 "
+			"OR EXISTS(SELECT 1 FROM enrollment WHERE host = ?1 AND account = ?2 AND repository = ?3 AND pull_request = ?4) "
 			"ON CONFLICT(host, account, repository, pull_request) DO UPDATE SET "
 			"role = excluded.role, matched_rule = excluded.matched_rule,"
 			"rule_kind = excluded.rule_kind, rule_pattern = excluded.rule_pattern,"
@@ -633,6 +635,9 @@ namespace bpr::adapters::sqlite::detail {
 
 		const auto& ref  = aRecord.Ref;
 		const auto& rule = aRecord.Membership.Rule;
+		if (::sqlite3_bind_int64(statement->Value, 11, static_cast<std::int64_t>(application::maximum_queue_enrollments)) != SQLITE_OK) {
+			return std::unexpected(failure::unavailable);
+		}
 		if (::sqlite3_bind_text(
 				statement->Value, 1, ref.Host.c_str(), -1, SQLITE_TRANSIENT)
 				!= SQLITE_OK
@@ -679,6 +684,9 @@ namespace bpr::adapters::sqlite::detail {
 		if (::sqlite3_step(statement->Value) != SQLITE_DONE) {
 			return std::unexpected(failure::unavailable);
 		}
+		if (::sqlite3_changes(Handle) == 0) {
+			return std::unexpected(failure::quota_exceeded);
+		}
 		return { };
 	}
 
@@ -699,6 +707,9 @@ namespace bpr::adapters::sqlite::detail {
 			const auto stepped = ::sqlite3_step(statement->Value);
 			if (stepped == SQLITE_DONE) {
 				break;
+			}
+			if (records.size() >= application::maximum_queue_enrollments) {
+				return std::unexpected(failure::quota_exceeded);
 			}
 			if (stepped != SQLITE_ROW) {
 				return std::unexpected(failure::integrity_failure);
@@ -735,15 +746,24 @@ namespace bpr::adapters::sqlite::detail {
 		auto statement = prepare(
 			Handle,
 			"INSERT INTO saved_repository(host, account, repository) "
-			"VALUES(?1, ?2, ?3) ON CONFLICT(host, account, repository) DO NOTHING");
+			"SELECT ?1, ?2, ?3 "
+			"WHERE (SELECT COUNT(*) FROM (SELECT 1 FROM saved_repository LIMIT ?4)) < ?4 "
+			"OR EXISTS(SELECT 1 FROM saved_repository WHERE host = ?1 AND account = ?2 AND repository = ?3) "
+			"ON CONFLICT(host, account, repository) DO UPDATE SET repository = excluded.repository");
 		if (!statement) {
 			return std::unexpected(statement.error());
+		}
+		if (::sqlite3_bind_int64(statement->Value, 4, static_cast<std::int64_t>(application::maximum_saved_repositories)) != SQLITE_OK) {
+			return std::unexpected(failure::unavailable);
 		}
 		if (::sqlite3_bind_text(statement->Value, 1, aRepository.Host.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK
 			|| ::sqlite3_bind_text(statement->Value, 2, aRepository.Account.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK
 			|| ::sqlite3_bind_text(statement->Value, 3, aRepository.Repository.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK
 			|| ::sqlite3_step(statement->Value) != SQLITE_DONE) {
 			return std::unexpected(failure::unavailable);
+		}
+		if (::sqlite3_changes(Handle) == 0) {
+			return std::unexpected(failure::quota_exceeded);
 		}
 		return { };
 	}
@@ -787,6 +807,9 @@ namespace bpr::adapters::sqlite::detail {
 			if (stepped == SQLITE_DONE) {
 				break;
 			}
+			if (saved.size() >= application::maximum_saved_repositories) {
+				return std::unexpected(failure::quota_exceeded);
+			}
 			if (stepped != SQLITE_ROW) {
 				return std::unexpected(failure::integrity_failure);
 			}
@@ -811,15 +834,23 @@ namespace bpr::adapters::sqlite::detail {
 		}
 		auto statement = prepare(
 			Handle,
-			"INSERT INTO saved_server(hostname, account) VALUES(?1, ?2) "
+			"INSERT INTO saved_server(hostname, account) SELECT ?1, ?2 "
+			"WHERE (SELECT COUNT(*) FROM (SELECT 1 FROM saved_server LIMIT ?3)) < ?3 "
+			"OR EXISTS(SELECT 1 FROM saved_server WHERE hostname = ?1) "
 			"ON CONFLICT(hostname) DO UPDATE SET account = excluded.account");
 		if (!statement) {
 			return std::unexpected(statement.error());
+		}
+		if (::sqlite3_bind_int64(statement->Value, 3, static_cast<std::int64_t>(application::maximum_saved_servers)) != SQLITE_OK) {
+			return std::unexpected(failure::unavailable);
 		}
 		if (::sqlite3_bind_text(statement->Value, 1, aServer.Hostname.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK
 			|| ::sqlite3_bind_text(statement->Value, 2, aServer.Account.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK
 			|| ::sqlite3_step(statement->Value) != SQLITE_DONE) {
 			return std::unexpected(failure::unavailable);
+		}
+		if (::sqlite3_changes(Handle) == 0) {
+			return std::unexpected(failure::quota_exceeded);
 		}
 		return { };
 	}
@@ -852,6 +883,9 @@ namespace bpr::adapters::sqlite::detail {
 			if (stepped == SQLITE_DONE) {
 				break;
 			}
+			if (saved.size() >= application::maximum_saved_servers) {
+				return std::unexpected(failure::quota_exceeded);
+			}
 			if (stepped != SQLITE_ROW) {
 				return std::unexpected(failure::integrity_failure);
 			}
@@ -875,11 +909,15 @@ namespace bpr::adapters::sqlite::detail {
 		auto statement = prepare(
 			Handle,
 			"INSERT INTO observer_rule(ordinal, rule_kind, rule_pattern, rule_excluding) "
-			"VALUES((SELECT COALESCE(MAX(ordinal), 0) + 1 FROM observer_rule), "
-			"?1, ?2, ?3) "
-			"ON CONFLICT(rule_kind, rule_pattern, rule_excluding) DO NOTHING");
+			"SELECT (SELECT COALESCE(MAX(ordinal), 0) + 1 FROM observer_rule), ?1, ?2, ?3 "
+			"WHERE (SELECT COUNT(*) FROM (SELECT 1 FROM observer_rule LIMIT ?4)) < ?4 "
+			"OR EXISTS(SELECT 1 FROM observer_rule WHERE rule_kind = ?1 AND rule_pattern = ?2 AND rule_excluding = ?3) "
+			"ON CONFLICT(rule_kind, rule_pattern, rule_excluding) DO UPDATE SET rule_pattern = excluded.rule_pattern");
 		if (!statement) {
 			return std::unexpected(statement.error());
+		}
+		if (::sqlite3_bind_int64(statement->Value, 4, static_cast<std::int64_t>(application::maximum_queue_rules)) != SQLITE_OK) {
+			return std::unexpected(failure::unavailable);
 		}
 		if (::sqlite3_bind_int64(
 				statement->Value,
@@ -898,6 +936,9 @@ namespace bpr::adapters::sqlite::detail {
 				!= SQLITE_OK
 			|| ::sqlite3_step(statement->Value) != SQLITE_DONE) {
 			return std::unexpected(failure::unavailable);
+		}
+		if (::sqlite3_changes(Handle) == 0) {
+			return std::unexpected(failure::quota_exceeded);
 		}
 		return { };
 	}
@@ -942,6 +983,9 @@ namespace bpr::adapters::sqlite::detail {
 		std::stop_token                                       aStop)
 		-> std::expected<void, failure>
 	{
+		if (aEnrollments.size() > application::maximum_queue_enrollments) {
+			return std::unexpected(failure::quota_exceeded);
+		}
 		if (!core::valid(aIntent.Rule)) {
 			return std::unexpected(failure::integrity_failure);
 		}
@@ -990,6 +1034,9 @@ namespace bpr::adapters::sqlite::detail {
 			const auto stepped = ::sqlite3_step(statement->Value);
 			if (stepped == SQLITE_DONE) {
 				break;
+			}
+			if (rules.size() >= application::maximum_queue_rules) {
+				return std::unexpected(failure::quota_exceeded);
 			}
 			if (stepped != SQLITE_ROW) {
 				return std::unexpected(failure::integrity_failure);

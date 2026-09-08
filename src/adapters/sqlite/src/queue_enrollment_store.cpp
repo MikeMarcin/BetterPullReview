@@ -15,6 +15,8 @@ namespace bpr::adapters::sqlite {
 			-> application::queue_store_failure
 		{
 			switch (aFailure) {
+			case detail::catalog_database_failure::quota_exceeded:
+				return application::queue_store_failure::collection_limit;
 			case detail::catalog_database_failure::integrity_failure:
 			case detail::catalog_database_failure::schema_mismatch:
 				return application::queue_store_failure::integrity_failure;
@@ -22,7 +24,6 @@ namespace bpr::adapters::sqlite {
 				return application::queue_store_failure::cancelled;
 			case detail::catalog_database_failure::invalid_path:
 			case detail::catalog_database_failure::invalid_permissions:
-			case detail::catalog_database_failure::quota_exceeded:
 			case detail::catalog_database_failure::unavailable:
 			case detail::catalog_database_failure::platform_unsupported:
 				return application::queue_store_failure::unavailable;
