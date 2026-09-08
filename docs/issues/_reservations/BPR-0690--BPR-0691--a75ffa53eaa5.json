@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0690",
+    "BPR-0691"
+  ],
+  "reserve_for": "ux-profile-foundation",
+  "purpose": "",
+  "created": "2026-09-08T08:25:00.179982+00:00",
+  "base": "85724e29fd8e9ec65ce04e91c2898bed0d884bff"
+}
