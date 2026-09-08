@@ -18,8 +18,12 @@ namespace bpr::adapters::sqlite {
 		using application::profile_registry_failure;
 		using application::profile_registry_result;
 		using application::profile_registry_snapshot;
-		constexpr std::int64_t     ApplicationId  = 0x42505250;
-		constexpr std::string_view MetaSchema     = "CREATE TABLE profile_registry_meta(singleton INTEGER PRIMARY KEY CHECK(singleton=1),schema_format INTEGER NOT NULL CHECK(schema_format=1),revision TEXT NOT NULL,last_profile_id TEXT NOT NULL,default_adopted INTEGER NOT NULL CHECK(default_adopted=1)) STRICT";
+		constexpr std::int64_t     ApplicationId          = 0x42505250;
+		constexpr std::string_view LegacyMetaSchema       = "CREATE TABLE profile_registry_meta(singleton INTEGER PRIMARY KEY CHECK(singleton=1),schema_format INTEGER NOT NULL CHECK(schema_format=1),revision TEXT NOT NULL,last_profile_id TEXT NOT NULL,default_adopted INTEGER NOT NULL CHECK(default_adopted=1)) STRICT";
+		constexpr std::string_view MetaSchema             = "CREATE TABLE profile_registry_meta(singleton INTEGER PRIMARY KEY CHECK(singleton=1),schema_format INTEGER NOT NULL CHECK(schema_format=2),revision TEXT NOT NULL,last_profile_id TEXT NOT NULL,default_adopted INTEGER NOT NULL CHECK(default_adopted=1),last_window_id TEXT NOT NULL) STRICT";
+		constexpr std::string_view WindowsSchema          = "CREATE TABLE profile_registry_windows(window_id TEXT PRIMARY KEY,profile_id TEXT NOT NULL REFERENCES profile_registry_profiles(profile_id),generation TEXT NOT NULL,ordinal INTEGER NOT NULL CHECK(ordinal>=0 AND ordinal<32),UNIQUE(profile_id,ordinal)) STRICT";
+		constexpr auto             MaximumRetainedWindows = core::maximum_bpr_profiles * core::maximum_bpr_windows_per_profile;
+
 		constexpr std::string_view ProfilesSchema = "CREATE TABLE profile_registry_profiles(profile_id TEXT PRIMARY KEY,label TEXT NOT NULL,root_mode INTEGER NOT NULL CHECK(root_mode IN(0,1)),root_identity TEXT NOT NULL UNIQUE) STRICT";
 
 		// These connection-local limits perform no SQL and cannot change a refused file.
@@ -48,7 +52,7 @@ namespace bpr::adapters::sqlite {
 			static auto progress(void* aContext) -> int
 			{
 				auto& scope = *static_cast<registry_read_scope*>(aContext);
-				return scope.Stop.stop_requested() || ++scope.Steps >= 200U ? 1 : 0;
+				return scope.Stop.stop_requested() || ++scope.Steps >= MaximumRetainedWindows ? 1 : 0;
 			}
 			sqlite3*        Database;
 			std::stop_token Stop;
@@ -101,19 +105,25 @@ namespace bpr::adapters::sqlite {
 			sqlite3* Database;
 		};
 
-		[[nodiscard]] auto validate_schema(sqlite3* aDatabase) -> profile_registry_result<void>
+		[[nodiscard]] auto validate_schema(sqlite3* aDatabase) -> profile_registry_result<std::int64_t>
 		{
 			const auto version  = detail::scalar_integer(aDatabase, "PRAGMA user_version");
 			const auto identity = detail::scalar_integer(aDatabase, "PRAGMA application_id");
-			const auto count    = detail::scalar_integer(aDatabase, "SELECT count(*) FROM (SELECT 1 FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' LIMIT 3)");
+			const auto count    = detail::scalar_integer(aDatabase, "SELECT count(*) FROM (SELECT 1 FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' LIMIT 4)");
 			const auto meta     = detail::scalar_text(aDatabase, "SELECT sql FROM sqlite_schema WHERE type='table' AND name='profile_registry_meta'");
 			const auto profiles = detail::scalar_text(aDatabase, "SELECT sql FROM sqlite_schema WHERE type='table' AND name='profile_registry_profiles'");
-			if (!version || *version != 1 || !identity || *identity != ApplicationId || !count || *count != 2
-				|| !meta || detail::canonical_sql(*meta) != detail::canonical_sql(MetaSchema)
+			if (!version || (*version != 1 && *version != 2) || !identity || *identity != ApplicationId || !count || *count != *version + 1
+				|| !meta || detail::canonical_sql(*meta) != detail::canonical_sql(*version == 1 ? LegacyMetaSchema : MetaSchema)
 				|| !profiles || detail::canonical_sql(*profiles) != detail::canonical_sql(ProfilesSchema)) {
 				return std::unexpected(profile_registry_failure::schema_mismatch);
 			}
-			return { };
+			if (*version == 2) {
+				const auto windows = detail::scalar_text(aDatabase, "SELECT sql FROM sqlite_schema WHERE type='table' AND name='profile_registry_windows'");
+				if (!windows || detail::canonical_sql(*windows) != detail::canonical_sql(WindowsSchema)) {
+					return std::unexpected(profile_registry_failure::schema_mismatch);
+				}
+			}
+			return *version;
 		}
 
 		[[nodiscard]] auto read_profiles(sqlite3* aDatabase, const std::stop_token aStop,
@@ -149,28 +159,85 @@ namespace bpr::adapters::sqlite {
 			}
 		}
 
+		[[nodiscard]] auto read_windows(sqlite3* aDatabase, const std::stop_token aStop,
+										profile_registry_snapshot& aSnapshot) -> profile_registry_result<void>
+		{
+			struct retained_row
+			{
+				core::bpr_window_record Window;
+				core::bpr_profile_id    Profile;
+				std::int64_t            Ordinal;
+			};
+			std::vector<retained_row> retained;
+			auto                      rows = detail::prepare(aDatabase, "SELECT window_id,profile_id,generation,ordinal FROM profile_registry_windows LIMIT 2049");
+			if (!rows) {
+				return std::unexpected(profile_registry_failure::corrupt);
+			}
+			for (;;) {
+				if (aStop.stop_requested()) {
+					return std::unexpected(profile_registry_failure::cancelled);
+				}
+				const auto step = sqlite3_step(rows->Value);
+				if (step == SQLITE_DONE) {
+					break;
+				}
+				if (step != SQLITE_ROW || retained.size() >= MaximumRetainedWindows
+					|| sqlite3_column_type(rows->Value, 3) != SQLITE_INTEGER) {
+					return std::unexpected(profile_registry_failure::corrupt);
+				}
+				retained.push_back({ { core::bpr_window_id{ id_of(rows->Value, 0) }, core::bpr_window_generation{ id_of(rows->Value, 2) } },
+									 core::bpr_profile_id{ id_of(rows->Value, 1) },
+									 sqlite3_column_int64(rows->Value, 3) });
+			}
+			std::ranges::sort(retained, [](const auto& aLeft, const auto& aRight) {
+				return std::pair{ aLeft.Profile, aLeft.Ordinal } < std::pair{ aRight.Profile, aRight.Ordinal };
+			});
+			for (const auto& row : retained) {
+				auto profile = std::ranges::find(aSnapshot.Profiles, row.Profile, [](const auto& aEntry) { return aEntry.Profile.Id; });
+				if (profile == aSnapshot.Profiles.end() || row.Ordinal < 0
+					|| static_cast<std::uint64_t>(row.Ordinal) != profile->RetainedWindows.size()
+					|| profile->RetainedWindows.size() >= core::maximum_bpr_windows_per_profile) {
+					return std::unexpected(profile_registry_failure::corrupt);
+				}
+				profile->RetainedWindows.push_back(row.Window);
+			}
+			return { };
+		}
+
 		[[nodiscard]] auto read_snapshot(sqlite3* aDatabase, const std::stop_token aStop) -> profile_registry_result<profile_registry_snapshot>
 		{
 			if (aStop.stop_requested()) {
 				return std::unexpected(profile_registry_failure::cancelled);
 			}
 			const auto readScope = registry_read_scope{ aDatabase, aStop };
-			if (auto schema = validate_schema(aDatabase); !schema) {
+			const auto schema    = validate_schema(aDatabase);
+			if (!schema) {
 				return std::unexpected(aStop.stop_requested() ? profile_registry_failure::cancelled : schema.error());
 			}
-			auto meta = detail::prepare(aDatabase, "SELECT singleton,schema_format,revision,last_profile_id,default_adopted FROM profile_registry_meta LIMIT 2");
+			auto meta = detail::prepare(aDatabase, *schema == 1 ? "SELECT singleton,schema_format,revision,last_profile_id,default_adopted FROM profile_registry_meta LIMIT 2" : "SELECT singleton,schema_format,revision,last_profile_id,default_adopted,last_window_id FROM profile_registry_meta LIMIT 2");
 			if (!meta || sqlite3_step(meta->Value) != SQLITE_ROW || sqlite3_column_int64(meta->Value, 0) != 1
-				|| sqlite3_column_int64(meta->Value, 1) != 1 || sqlite3_column_int64(meta->Value, 4) != 1) {
+				|| sqlite3_column_int64(meta->Value, 1) != *schema || sqlite3_column_int64(meta->Value, 4) != 1) {
 				return std::unexpected(aStop.stop_requested() ? profile_registry_failure::cancelled : profile_registry_failure::corrupt);
 			}
 			auto result          = profile_registry_snapshot{ };
 			result.Revision      = id_of(meta->Value, 2);
 			result.LastProfileId = id_of(meta->Value, 3);
+			if (*schema == 2) {
+				result.LastWindowId = id_of(meta->Value, 5);
+				if (result.LastWindowId == 0U && text_of(meta->Value, 5) != "0") {
+					return std::unexpected(profile_registry_failure::corrupt);
+				}
+			}
 			if (sqlite3_step(meta->Value) != SQLITE_DONE) {
 				return std::unexpected(aStop.stop_requested() ? profile_registry_failure::cancelled : profile_registry_failure::corrupt);
 			}
 			if (auto rows = read_profiles(aDatabase, aStop, result); !rows) {
 				return std::unexpected(rows.error());
+			}
+			if (*schema == 2) {
+				if (auto windows = read_windows(aDatabase, aStop, result); !windows) {
+					return std::unexpected(aStop.stop_requested() ? profile_registry_failure::cancelled : windows.error());
+				}
 			}
 			if (!application::valid(result)) {
 				return std::unexpected(aStop.stop_requested() ? profile_registry_failure::cancelled : profile_registry_failure::corrupt);
@@ -194,6 +261,22 @@ namespace bpr::adapters::sqlite {
 					|| sqlite3_bind_int(row->Value, 3, static_cast<int>(entry.RootMode)) != SQLITE_OK
 					|| !bind_text(row->Value, 4, entry.RootIdentity) || sqlite3_step(row->Value) != SQLITE_DONE) {
 					return std::unexpected(aStop.stop_requested() ? profile_registry_failure::cancelled : profile_registry_failure::unavailable);
+				}
+			}
+			for (const auto& entry : aSnapshot.Profiles) {
+				for (std::size_t index = 0; index < entry.RetainedWindows.size(); ++index) {
+					if (aStop.stop_requested()) {
+						return std::unexpected(profile_registry_failure::cancelled);
+					}
+					const auto& window = entry.RetainedWindows[index];
+					auto        row    = detail::prepare(aDatabase, "INSERT INTO profile_registry_windows(window_id,profile_id,generation,ordinal) VALUES(?1,?2,?3,?4)");
+					if (!row || !bind_text(row->Value, 1, std::to_string(window.Id.value()))
+						|| !bind_text(row->Value, 2, std::to_string(entry.Profile.Id.value()))
+						|| !bind_text(row->Value, 3, std::to_string(window.Generation.value()))
+						|| sqlite3_bind_int64(row->Value, 4, static_cast<sqlite3_int64>(index)) != SQLITE_OK
+						|| sqlite3_step(row->Value) != SQLITE_DONE) {
+						return std::unexpected(aStop.stop_requested() ? profile_registry_failure::cancelled : profile_registry_failure::unavailable);
+					}
 				}
 			}
 			return { };
@@ -259,15 +342,19 @@ namespace bpr::adapters::sqlite {
 				if (!application::valid_profile_registry_update(*current, aCandidate)) {
 					return std::unexpected(profile_registry_failure::corrupt);
 				}
+				if (auto erased = run(Database, "DELETE FROM profile_registry_windows", aStop); !erased) {
+					return std::unexpected(erased.error());
+				}
 				if (auto erased = run(Database, "DELETE FROM profile_registry_profiles", aStop); !erased) {
 					return std::unexpected(erased.error());
 				}
 				if (auto rows = insert_profiles(Database, aCandidate, aStop); !rows) {
 					return std::unexpected(rows.error());
 				}
-				auto meta = detail::prepare(Database, "UPDATE profile_registry_meta SET revision=?1,last_profile_id=?2 WHERE singleton=1");
+				auto meta = detail::prepare(Database, "UPDATE profile_registry_meta SET revision=?1,last_profile_id=?2,last_window_id=?3 WHERE singleton=1");
 				if (!meta || !bind_text(meta->Value, 1, std::to_string(aCandidate.Revision))
-					|| !bind_text(meta->Value, 2, std::to_string(aCandidate.LastProfileId)) || sqlite3_step(meta->Value) != SQLITE_DONE) {
+					|| !bind_text(meta->Value, 2, std::to_string(aCandidate.LastProfileId))
+					|| !bind_text(meta->Value, 3, std::to_string(aCandidate.LastWindowId)) || sqlite3_step(meta->Value) != SQLITE_DONE) {
 					return std::unexpected(aStop.stop_requested() ? profile_registry_failure::cancelled : profile_registry_failure::unavailable);
 				}
 				if (auto commit = run(Database, "COMMIT", aStop); !commit) {
@@ -297,9 +384,25 @@ namespace bpr::adapters::sqlite {
 				// Recheck under the write transaction: another opener may have adopted Default.
 				if (!pristine(Database, aStop)) {
 					const auto existing = read_snapshot(Database, aStop);
-					return existing ? profile_registry_result<void>{ } : std::unexpected(existing.error());
+					if (!existing) {
+						return std::unexpected(existing.error());
+					}
+					const auto version = detail::scalar_integer(Database, "PRAGMA user_version");
+					if (!version || *version != 1) {
+						return { };
+					}
+					for (const auto sql : { std::string_view{ "ALTER TABLE profile_registry_meta RENAME TO profile_registry_legacy_meta" },
+											MetaSchema, WindowsSchema,
+											std::string_view{ "INSERT INTO profile_registry_meta SELECT singleton,2,revision,last_profile_id,default_adopted,'0' FROM profile_registry_legacy_meta" },
+											std::string_view{ "DROP TABLE profile_registry_legacy_meta" },
+											std::string_view{ "PRAGMA user_version=2" }, std::string_view{ "COMMIT" } }) {
+						if (auto migrated = run(Database, sql, aStop); !migrated) {
+							return migrated;
+						}
+					}
+					return { };
 				}
-				for (const auto schema : { MetaSchema, ProfilesSchema }) {
+				for (const auto schema : { MetaSchema, ProfilesSchema, WindowsSchema }) {
 					if (auto created = run(Database, schema, aStop); !created) {
 						return created;
 					}
@@ -307,8 +410,8 @@ namespace bpr::adapters::sqlite {
 				if (auto rows = insert_profiles(Database, profile_registry_snapshot{ }, aStop); !rows) {
 					return rows;
 				}
-				for (const auto sql : { "INSERT INTO profile_registry_meta VALUES(1,1,'1','1',1)",
-										"PRAGMA application_id=1112560208", "PRAGMA user_version=1", "COMMIT" }) {
+				for (const auto sql : { "INSERT INTO profile_registry_meta VALUES(1,2,'1','1',1,'0')",
+										"PRAGMA application_id=1112560208", "PRAGMA user_version=2", "COMMIT" }) {
 					if (auto stored = run(Database, sql, aStop); !stored) {
 						return stored;
 					}

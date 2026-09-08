@@ -200,3 +200,21 @@ Next: BPR-0706 adds durable window identities to schema2 of the existing global
 registry CAS. It deliberately excludes private destinations and runtime lifecycle
 admission; the subsequent host slice must save before start/close/quit effects.
 This keeps allocator corruption distinct from optional restoration-payload errors.
+
+Lifecycle integration preparation: current management emits only the activated
+window from `launch.Created`, so restoration must emit each admitted context and
+preserve the core least-to-most-focused order. The desktop already queues window
+requests while a profile owner starts. Native close currently calls runtime close
+immediately; it must instead hold the close event until an exact durable-close
+command arrives. User Quit similarly requires a committed retained set before
+runtime teardown, with storage failure keeping current windows usable. Forced
+lifetime cleanup must remain distinct from successful orderly-Quit acceptance.
+Registry profile edits must not erase durable window metadata, and synchronizing
+accepted metadata must not duplicate retained IDs that are already live.
+
+BPR-0706 completes schema2 durable window metadata in the existing registry CAS.
+Application0.38s, SQLite0.59s and management0.35s pass, including schema1 preservation,
+full64×32 bounds, identity/generation/ownership refusals and six transactional
+interruption points. Canonical tidy passes and independent medium review found no
+material finding. Native and full restart criteria stay open. BPR-0707 is reserved
+for the required asynchronous lifecycle admission and desktop integration.

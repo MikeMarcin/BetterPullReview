@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <map>
 #include <stdexcept>
 #include <utility>
 
@@ -13,8 +14,9 @@ namespace bpr::application {
 			auto state = core::profile_window_state{ };
 			state.Profiles.clear();
 			state.LastProfileId = aSnapshot.LastProfileId;
+			state.LastWindowId  = aSnapshot.LastWindowId;
 			for (const auto& entry : aSnapshot.Profiles) {
-				state.Profiles.push_back({ entry.Profile, { }, { } });
+				state.Profiles.push_back({ entry.Profile, { }, entry.RetainedWindows });
 			}
 			return core::profile_window_catalog::restore(std::move(state));
 		}
@@ -64,6 +66,27 @@ namespace bpr::application {
 		for (std::size_t index = 0U; index < aBefore.Profiles.size(); ++index) {
 			if (aBefore.Profiles[index].Profile.Id != aAfter.Profiles[index].Profile.Id) {
 				return false;
+			}
+		}
+		if (aAfter.LastWindowId < aBefore.LastWindowId) {
+			return false;
+		}
+		std::map<core::bpr_window_id, std::pair<core::bpr_profile_id, core::bpr_window_generation>> previousWindows;
+		for (const auto& entry : aBefore.Profiles) {
+			for (const auto& window : entry.RetainedWindows) {
+				previousWindows.emplace(window.Id, std::pair{ entry.Profile.Id, window.Generation });
+			}
+		}
+		for (const auto& entry : aAfter.Profiles) {
+			for (const auto& window : entry.RetainedWindows) {
+				const auto previous = previousWindows.find(window.Id);
+				if (previous == previousWindows.end()) {
+					if (window.Id.value() <= aBefore.LastWindowId) {
+						return false;
+					}
+				} else if (previous->second.first != entry.Profile.Id || window.Generation < previous->second.second) {
+					return false;
+				}
 			}
 		}
 		if (aAfter.Profiles.size() == aBefore.Profiles.size()) {
@@ -204,11 +227,12 @@ namespace bpr::application {
 			auto candidate = *Accepted;
 			candidate.Revision += 1U;
 			candidate.LastProfileId = catalog->state().LastProfileId;
+			candidate.LastWindowId  = catalog->state().LastWindowId;
 			candidate.Profiles.clear();
 			for (const auto& profile : catalog->state().Profiles) {
 				candidate.Profiles.push_back({ profile.Profile,
 											   profile.Profile.Id == core::default_bpr_profile_id ? profile_root_mode::legacy : profile_root_mode::isolated,
-											   profile_root_identity(profile.Profile.Id) });
+											   profile_root_identity(profile.Profile.Id), profile.Retained });
 			}
 			return submit(std::move(candidate), id);
 		}

@@ -2,9 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0706"
 title: "Persist bounded window identities in the profile registry"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0705"]
+acceptance: [{"criterion":"Bounded schema2 durable window metadata and migration foundation","outcome":"pass","revision":"HEAD plus explicit BPR-0706 finish paths","evidence":{"kind":"observation","detail":"Registry0.38s, SQLite0.59s, management0.35s pass including exact64x32capacity, schema1profiles/revisionpreservation, MRU/CAS, noIDreuse/authoritytransfer/generationregression and3DDL+3replacement interruptions. FourchangedTUs canonicaltidy, diff/docgates pass; independentmedium review no materialfindings. RuntimeClose/Quit persistence and private restoration remain nextscope."}}]
 ---
 
 # Persist bounded window identities in the profile registry
@@ -55,4 +56,13 @@ acceptance. Focused current management/storage checks and documentation pass.
 ## Evidence
 
 Read-only scout traced the existing global registry CAS and core retained-window
-policy. No schema2 implementation or acceptance has run for this card.
+policy. Schema2 implementation and focused acceptance are complete.
+
+Application registry contracts pass0.38s; SQLite storage contracts pass0.59s,
+including exact64×32 capacity, MRU/CAS, identity/authority refusals, canonical
+schema1 migration and actual interruption at three DDL and three replacement
+statements. Existing management compatibility passes0.35s. Canonical tidy for all
+four changed translation units and diff checks pass. Independent medium review
+found no material counterexample in the migration, CAS or authority boundary.
+Temporary fixture roots are cleaned. Runtime lifecycle admission and private
+restoration payload remain subsequent work; this card does not claim restart UX.

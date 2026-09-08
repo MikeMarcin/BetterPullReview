@@ -77,7 +77,9 @@ namespace {
 
 	void test_durable_acceptance_and_cancellation()
 	{
-		memory_store          store;
+		memory_store store;
+		store.Durable.LastWindowId                = 4;
+		store.Durable.Profiles[0].RetainedWindows = { { core::bpr_window_id{ 4 }, core::bpr_window_generation{ 7 } } };
 		manual_executor       effects;
 		manual_executor       decisions;
 		projection            output;
@@ -95,12 +97,14 @@ namespace {
 		effects.drain();
 		expect(*host.accepted() == before && store.Durable.Profiles.size() == 2U, "durable write and decision acceptance are distinct");
 		decisions.drain();
+		expect(host.accepted()->LastWindowId == before.LastWindowId && host.accepted()->Profiles[0].RetainedWindows == before.Profiles[0].RetainedWindows, "create preserves retained allocation and order");
 		const auto work = host.accepted()->Profiles.back();
 		expect(work.Profile.Label == "../Work" && work.RootIdentity == "profile-2" && work.RootMode == profile_root_mode::isolated, "new profile root authority is independent of path-looking label data");
 		expect(host.rename(work.Profile.Id, "Personal").has_value(), "rename submits");
 		effects.drain();
 		decisions.drain();
 		expect(host.accepted()->Profiles.back().Profile.Id == work.Profile.Id && host.accepted()->Profiles.back().RootIdentity == work.RootIdentity, "rename preserves identity and isolated root");
+		expect(host.accepted()->LastWindowId == before.LastWindowId && host.accepted()->Profiles[0].RetainedWindows == before.Profiles[0].RetainedWindows, "rename preserves retained metadata");
 		expect(host.create("Committed before cancellation").has_value(), "next edit submits");
 		effects.drain();
 		host.cancel();
@@ -198,10 +202,48 @@ namespace {
 		wrong.Profiles.pop_back();
 		expect(!valid_profile_registry_update(store.Durable, wrong), "save cannot delete an existing profile");
 	}
+	void test_window_update_authority()
+	{
+		auto before          = profile_registry_snapshot{ };
+		before.LastProfileId = 2;
+		before.Profiles.push_back({ { core::bpr_profile_id{ 2 }, "Work" }, profile_root_mode::isolated, "profile-2" });
+		before.LastWindowId                = 8;
+		before.Profiles[0].RetainedWindows = { { core::bpr_window_id{ 7 }, core::bpr_window_generation{ 3 } } };
+		auto after                         = before;
+		++after.Revision;
+		expect(valid_profile_registry_update(before, after), "unchanged window facts permit profile edit");
+		after.LastWindowId = 7;
+		expect(!valid_profile_registry_update(before, after), "allocator cannot regress even above retained IDs");
+		after = before;
+		++after.Revision;
+		after.Profiles[0].RetainedWindows[0].Generation = core::bpr_window_generation{ 2 };
+		expect(!valid_profile_registry_update(before, after), "surviving generation cannot regress");
+		after.Profiles[0].RetainedWindows[0].Generation = core::bpr_window_generation{ 4 };
+		expect(valid_profile_registry_update(before, after), "generation advance accepted");
+		after.Profiles[1].RetainedWindows = after.Profiles[0].RetainedWindows;
+		after.Profiles[0].RetainedWindows.clear();
+		expect(valid(after) && !valid_profile_registry_update(before, after), "stable ID cannot transfer profile ownership");
+		after.Profiles[1].RetainedWindows.clear();
+		expect(valid_profile_registry_update(before, after), "retained window removal accepted");
+		auto reused = after;
+		++reused.Revision;
+		reused.Profiles[0].RetainedWindows = before.Profiles[0].RetainedWindows;
+		expect(!valid_profile_registry_update(after, reused), "removed ID cannot return below high-water mark");
+		reused.LastWindowId                      = 9;
+		reused.Profiles[0].RetainedWindows[0].Id = core::bpr_window_id{ 9 };
+		expect(valid_profile_registry_update(after, reused), "fresh ID above high-water mark accepted");
+		reused.Profiles[1].RetainedWindows = reused.Profiles[0].RetainedWindows;
+		expect(!valid(reused), "duplicate global window ID rejected");
+		reused.Profiles[1].RetainedWindows.clear();
+		reused.Profiles[0].RetainedWindows[0].Generation = core::bpr_window_generation{ 0 };
+		expect(!valid(reused), "zero generation rejected");
+	}
+
 }
 
 int main()
 {
+	test_window_update_authority();
 	test_durable_acceptance_and_cancellation();
 	test_failures_and_shutdown();
 	test_stale_terminals_and_catalog_validation();

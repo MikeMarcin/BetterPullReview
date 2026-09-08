@@ -18,10 +18,11 @@ namespace bpr::application {
 	/// \brief Root authority is derived from profile identity, never from its label.
 	struct profile_registry_entry
 	{
-		core::bpr_profile_record Profile;
-		profile_root_mode        RootMode = profile_root_mode::isolated;
-		std::string              RootIdentity;
-		auto                     operator==(const profile_registry_entry&) const -> bool = default;
+		core::bpr_profile_record             Profile;
+		profile_root_mode                    RootMode = profile_root_mode::isolated;
+		std::string                          RootIdentity;
+		std::vector<core::bpr_window_record> RetainedWindows{ };
+		auto                                 operator==(const profile_registry_entry&) const -> bool = default;
 	};
 
 	/// \brief Complete bounded registry; adoption records no movement of existing domain data.
@@ -31,6 +32,7 @@ namespace bpr::application {
 		std::uint64_t                       LastProfileId  = 1U;
 		bool                                DefaultAdopted = true;
 		std::vector<profile_registry_entry> Profiles{ { { core::default_bpr_profile_id, "Default" }, profile_root_mode::legacy, "legacy" } };
+		std::uint64_t                       LastWindowId                                               = 0U;
 		auto                                operator==(const profile_registry_snapshot&) const -> bool = default;
 	};
 
