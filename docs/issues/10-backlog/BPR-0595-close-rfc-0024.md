@@ -4,7 +4,7 @@ id: "BPR-0595"
 title: "Verify and close RFC-BPR-0024"
 status: "Backlog"
 rfcs: ["RFC-BPR-0024"]
-depends_on: ["BPR-0594","BPR-0593","BPR-0242","BPR-0690","BPR-0691","BPR-0693", "BPR-0694", "BPR-0695", "BPR-0696", "BPR-0697", "BPR-0698", "BPR-0699", "BPR-0700", "BPR-0701", "BPR-0702", "BPR-0703", "BPR-0704", "BPR-0705"]
+depends_on: ["BPR-0594","BPR-0593","BPR-0242","BPR-0690","BPR-0691","BPR-0693", "BPR-0694", "BPR-0695", "BPR-0696", "BPR-0697", "BPR-0698", "BPR-0699", "BPR-0700", "BPR-0701", "BPR-0702", "BPR-0703", "BPR-0704", "BPR-0705", "BPR-0706"]
 milestone: "Post-Pack v2"
 closeout_for: ["RFC-BPR-0024"]
 ---
@@ -21,7 +21,7 @@ allocated required slice dependencies before it can become startable.
 RFC base: `e851eb8a851ab605cf5a85260a1317ecdf66773b`.
 
 Requested RFC set: RFC-BPR-0018, RFC-BPR-0024, RFC-BPR-0025, RFC-BPR-0026; workstream position: 2 of 4.
-Planned cards: BPR-0594, BPR-0595, BPR-0690, BPR-0691, BPR-0693, BPR-0694, BPR-0695, BPR-0696, BPR-0697, BPR-0698, BPR-0699, BPR-0700, BPR-0701, BPR-0702, BPR-0703, BPR-0704, BPR-0705. Allocate additional implementation cards only
+Planned cards: BPR-0594, BPR-0595, BPR-0690, BPR-0691, BPR-0693, BPR-0694, BPR-0695, BPR-0696, BPR-0697, BPR-0698, BPR-0699, BPR-0700, BPR-0701, BPR-0702, BPR-0703, BPR-0704, BPR-0705, BPR-0706. Allocate additional implementation cards only
 when the later bounded-slice planning pass needs them, and update this list and
 closeout dependencies before implementation. The RFC index remains the order
 authority; this requested subset waives no intervening eligibility/closeout gate.
@@ -195,3 +195,8 @@ Default has no legacy active-review record: missing session storage must not
 invent a PR or Resume target. The eventual restart course must cover quit versus
 close, independent layouts, stale generations and unavailable comparisons without
 substitution. Storage/API design and integration remain unimplemented.
+
+Next: BPR-0706 adds durable window identities to schema2 of the existing global
+registry CAS. It deliberately excludes private destinations and runtime lifecycle
+admission; the subsequent host slice must save before start/close/quit effects.
+This keeps allocator corruption distinct from optional restoration-payload errors.
