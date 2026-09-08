@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0702"
 title: "Share profile cache actors with independent window epoch state"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0697", "BPR-0698"]
 ---
