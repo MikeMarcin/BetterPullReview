@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0702",
+    "BPR-0703"
+  ],
+  "reserve_for": "ux-profile-shared-services",
+  "purpose": "Profile epoch actor sharing and private note revision conflicts",
+  "created": "2026-09-08T11:21:10.597945+00:00",
+  "base": "316f842a2ae3785e88c46d935008b2b9a4a12bfd"
+}
