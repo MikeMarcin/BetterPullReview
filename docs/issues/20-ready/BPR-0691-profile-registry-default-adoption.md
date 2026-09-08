@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0691"
 title: "Persist profile registry and Default adoption"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0690"]
 ---
