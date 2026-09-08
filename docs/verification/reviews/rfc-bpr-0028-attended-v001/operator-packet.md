@@ -7,7 +7,7 @@ changes anything on GitHub: the pull request is opened signed out, which
 reads and never writes.
 
 - Bundle: `build/app-release/src/app/BetterPullReview.app`, executable
-  sha256 `a066705f24e9ea527e21f1eba4ee765ca90eeedc8b8a76747a01235789622b76`
+  sha256 `884ad09b61e1804ce0726efe06a1682158edce2247871b859757c613ef7840ba`
   as recorded in [session-identity.json](session-identity.json), built at
   8ba0cb52 with tests disabled.
 - Review page: [offline-package/index.html](offline-package/index.html), or
@@ -44,7 +44,19 @@ Open the build with the command on the page, or:
 - **BPR-0663, public preview.** The epoch line shows the updates rather than
   "No updates loaded.", and the comparison resolves to an exact pair.
 
-## What changed since the rejected session
+## What changed since your second run
+
+- The drawer toggles were not merely hard to find: the core refused every
+  drawer gesture whenever no comparison had resolved, so they did nothing.
+  Fixed, and each drawer now carries its own Hide beside its heading.
+- Overview collapses all three drawers, including the repositories drawer
+  that was in no preset at all.
+- The epoch line says whether a pair resolved: "no pair yet", "pair ready"
+  or "pair not readable".
+- A comparison that is still being prepared no longer reads as one that
+  failed, and no longer advises a refresh that would throw the work away.
+
+## What changed since the first rejected session
 
 - The review history failed because the acquire refused any pull request
   whose base branch had moved, which is nearly all of them. Fixed.
