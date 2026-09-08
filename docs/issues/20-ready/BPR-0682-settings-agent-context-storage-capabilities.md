@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0682"
 title: "Compose agent context and storage capability pages"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0018"]
 depends_on: ["BPR-0592"]
 ---
