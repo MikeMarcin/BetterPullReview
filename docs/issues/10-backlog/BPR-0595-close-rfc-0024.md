@@ -244,3 +244,19 @@ restored ID1 retirement. Changed-TU tidy and documentation pass.
 BPR-0708 is the next bounded vertical slice: bind existing window layout rows
 to actual stable desktop IDs, flush before Quit and clean closed/orphan rows.
 Private PR destinations and comparison/location restoration follow separately.
+
+
+BPR-0708 integrates independent drawer layout persistence through the actual
+desktop: lazy effect-local stores, complete-set orphan reconciliation, final
+accepted-write flush on Quit and exact row erase after Close writers drain. The
+four-process rendered public course passes18.96s, including fresh profile defaults
+and an unsupported optional layout schema that remains intact while its visible
+error leaves windows/allocator usable. Direct host0.41s and storage0.51s,
+changed-TU tidy, independent medium review, strict bypass0.795s and tests-disabled
+Release135.177s pass. Actual fresh windows now explicitly retain Home during a
+layout load. Two inspected rasters remain in `build/dev/profile-window-layout-review/`.
+Full PR/comparison/location and native-geometry restoration remain open; the next
+vertical slice is the retained active PR destination through exact window reads.
+
+Final existing lifecycle checks pass: live multi-window70.36s (pending sibling
+read across Close), durable identity restart7.03s and management1.93s.

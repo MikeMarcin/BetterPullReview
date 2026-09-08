@@ -558,13 +558,17 @@ namespace bpr::app {
 		void                      set_desktop_quit_handler(std::function<void(int)> aHandler);
 		[[nodiscard]] static auto start_profile(github_application_config aConfig, github_application_startup_completion aCompletion) -> std::unique_ptr<github_application_startup>;
 		[[nodiscard]] auto        open_window(core::bpr_window_context aContext) -> bool;
-		void                      close_window(core::bpr_window_context aContext);
-		void                      focus_window(core::bpr_window_context aContext);
-		[[nodiscard]] auto        window_quiescent(core::bpr_window_context aContext) const noexcept -> bool;
-		[[nodiscard]] auto        profile_shutdown_complete() const noexcept -> bool;
-		[[nodiscard]] auto        profile_shutdown_cleanup_failed() const noexcept -> bool;
-		void                      set_window_admission(std::function<bool(core::bpr_window_context)> aAdmission);
-		void                      set_profile_label(std::string aLabel);
+		enum class window_retirement { forced,
+									   explicit_close,
+									   orderly_quit };
+		void               close_window(core::bpr_window_context aContext, window_retirement aMode = window_retirement::forced);
+		[[nodiscard]] auto configure_desktop_layouts(const std::vector<core::bpr_window_context>& aWindows) -> bool;
+		void               focus_window(core::bpr_window_context aContext);
+		[[nodiscard]] auto window_quiescent(core::bpr_window_context aContext) const noexcept -> bool;
+		[[nodiscard]] auto profile_shutdown_complete() const noexcept -> bool;
+		[[nodiscard]] auto profile_shutdown_cleanup_failed() const noexcept -> bool;
+		void               set_window_admission(std::function<bool(core::bpr_window_context)> aAdmission);
+		void               set_profile_label(std::string aLabel);
 
 		// Declared before `Implementation` only for readability; what matters is
 		// that the destructor body clears it, which precedes member destruction

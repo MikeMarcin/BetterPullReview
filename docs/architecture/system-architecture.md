@@ -101,8 +101,15 @@ closing windows, and before orderly Quit drains services. Failed saves preserve
 the usable windows and offer explicit registry reload. Restart restores retained
 identities with fresh generations in focus order; explicit Close removes only
 that window, while Quit retains survivors. Restored windows currently show Home
-with an unavailable-content notice. Private review destinations, layout restore
-and cross-process activation remain open RFC-BPR-0024 work.
+with an unavailable-content notice. Each desktop window restores its own
+workbench drawer states and widths and line-number visibility from the
+profile-private window-keyed layout store. Fresh windows use profile defaults.
+Orderly Quit drains the latest accepted layout write; explicit Close erases its
+row after writers drain. Startup reconciliation removes orphan layout rows
+using the complete accepted live set without changing profile defaults or the
+global allocator. Optional layout failure is visible and leaves windows usable.
+Private review destinations, native window geometry and cross-process activation
+remain open RFC-BPR-0024 work.
 
 ## Diagnostic logging boundary
 

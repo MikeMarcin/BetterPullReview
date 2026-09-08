@@ -1350,6 +1350,81 @@ namespace {
 			   "a failed restore publishes no layout");
 	}
 
+	void test_orderly_shutdown_flushes_latest_layout_serially()
+	{
+		auto value = harness{ };
+		value.Host.resize(core::workbench_drawer::files, 400U);
+		value.Host.resize(core::workbench_drawer::files, 500U);
+		value.Host.resize(core::workbench_drawer::files, 600U);
+		expect(value.Effects.pending() == 1 && value.Host.outstanding_requests() == 1,
+			   "layout bursts retain one active writer and one latest candidate");
+		value.Host.shutdown_orderly();
+		const auto publications = value.Projections.Published.size();
+		value.Host.resize(core::workbench_drawer::files, 700U);
+		value.Host.restore();
+		value.Host.observe(authority());
+		expect(value.Host.is_closing() && !value.Host.is_quiescent() && value.Host.layout().FilesWidth == 600U,
+			   "orderly close rejects ingress while final accepted layout drains");
+		value.Effects.drain();
+		expect(value.Settings->Stores == 1 && value.Settings->Stored.FilesWidth == 400U && value.Effects.pending() == 0,
+			   "later writer cannot overtake the first write before its decision terminal");
+		value.Lane.run_twice(0);
+		expect(value.Effects.pending() == 1 && value.Host.persisted_layouts() == 1,
+			   "exact store terminal schedules latest candidate once despite duplicate completion");
+		value.settle();
+		expect(value.Settings->Stores == 2 && value.Settings->Stored.FilesWidth == 600U
+				   && value.Host.persisted_layouts() == 2 && value.Host.is_quiescent(),
+			   "orderly shutdown persists only active and final accepted width before quiescence");
+		expect(value.Projections.Published.size() == publications && value.Projections.Failed.empty(),
+			   "draining layout terminals cannot republish a closing window");
+	}
+
+	void test_orderly_shutdown_drains_layout_at_request_capacity()
+	{
+		auto limits                = application::workbench_host_limits{ };
+		limits.OutstandingRequests = 1;
+		auto value                 = harness{ limits };
+		value.Host.restore();
+		value.Host.resize(core::workbench_drawer::files, 530U);
+		value.Host.shutdown_orderly();
+		expect(value.Host.outstanding_requests() == 1 && !value.Host.is_quiescent(),
+			   "latest layout remains retained while cancelled load occupies the request cap");
+		value.settle();
+		expect(value.Settings->Stores == 1 && value.Settings->Stored.FilesWidth == 530U
+				   && value.Host.persisted_layouts() == 1 && value.Host.is_quiescent(),
+			   "retired load terminal frees capacity for final orderly layout write");
+		expect(value.Projections.Failed.empty(), "cancelled load cannot publish a late restore failure");
+	}
+
+	void test_orderly_shutdown_failure_and_forced_escalation()
+	{
+		auto failed                = harness{ };
+		failed.Settings->Available = false;
+		failed.Host.resize(core::workbench_drawer::files, 550U);
+		failed.Host.shutdown_orderly();
+		failed.settle();
+		expect(failed.Host.is_quiescent() && failed.Host.persisted_layouts() == 0
+				   && failed.Projections.Failed.size() == 1
+				   && failed.Projections.Failed.back().Failure == application::workbench_host_failure::settings_unavailable,
+			   "failed orderly write preserves safe failure without retrying indefinitely or claiming persistence");
+		auto forced = harness{ };
+		forced.Host.resize(core::workbench_drawer::files, 450U);
+		forced.Host.resize(core::workbench_drawer::files, 650U);
+		forced.Host.shutdown_orderly();
+		forced.Host.shutdown();
+		forced.settle();
+		expect(forced.Host.is_quiescent() && forced.Settings->Stores == 0 && forced.Projections.Failed.empty(),
+			   "forced shutdown escalates orderly drain by cancelling active and queued layout writes");
+		auto late = harness{ };
+		late.Host.resize(core::workbench_drawer::files, 450U);
+		late.Effects.drain();
+		late.Host.shutdown_orderly();
+		late.Host.shutdown();
+		late.Lane.run_twice(0);
+		expect(late.Host.is_quiescent() && late.Host.persisted_layouts() == 0 && late.Projections.Failed.empty(),
+			   "late committed terminal after forced escalation cannot revive closing acceptance");
+	}
+
 	void test_shutdown_withholds_publication_and_quiesces()
 	{
 		auto harnessed               = harness{ };
@@ -1370,6 +1445,9 @@ namespace {
 
 auto main() -> int
 {
+	test_orderly_shutdown_flushes_latest_layout_serially();
+	test_orderly_shutdown_drains_layout_at_request_capacity();
+	test_orderly_shutdown_failure_and_forced_escalation();
 	test_invalid_limits_are_rejected();
 	test_first_observation_publishes_bounded_cursor_facts();
 	test_change_navigation_observation_is_exact_and_bounded();

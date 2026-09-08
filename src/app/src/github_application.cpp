@@ -2108,6 +2108,112 @@ namespace bpr::app {
 			application::workbench_layout_settings Settings;
 		};
 
+		class lazy_workbench_defaults_port final : public application::workbench_settings_port
+		{
+		public:
+			explicit lazy_workbench_defaults_port(std::filesystem::path aRoot)
+				: Root{ std::move(aRoot) }
+			{ }
+			auto profile_scoped() const noexcept -> bool override { return true; }
+			template <class Result, class Operation>
+			auto perform(std::stop_token aStop, Operation aOperation) -> Result
+			{
+				auto store = adapters::sqlite::make_workbench_defaults_store({ .StorageRoot = Root }, aStop);
+				if (!store) {
+					return std::unexpected(application::workbench_settings_error{ .Failure = store.error() });
+				}
+				return aOperation(**store);
+			}
+			auto load(std::stop_token aStop) -> application::workbench_settings_result<application::workbench_layout_settings> override
+			{
+				return perform<application::workbench_settings_result<application::workbench_layout_settings>>(aStop, [aStop](auto& aStore) { return aStore.load(aStop); });
+			}
+			auto store(const application::workbench_layout_settings& aSettings, std::stop_token aStop) -> application::workbench_settings_result<void> override
+			{
+				return perform<application::workbench_settings_result<void>>(aStop, [&](auto& aStore) { return aStore.store(aSettings, aStop); });
+			}
+			auto load_preferences(std::stop_token aStop) -> application::workbench_settings_result<application::workbench_profile_preferences> override
+			{
+				return perform<application::workbench_settings_result<application::workbench_profile_preferences>>(aStop, [aStop](auto& aStore) { return aStore.load_preferences(aStop); });
+			}
+			auto store_preferences(const application::workbench_profile_preferences& aSettings, std::stop_token aStop) -> application::workbench_settings_result<void> override
+			{
+				return perform<application::workbench_settings_result<void>>(aStop, [&](auto& aStore) { return aStore.store_preferences(aSettings, aStop); });
+			}
+
+		private:
+			const std::filesystem::path Root;
+		};
+
+		/// Owns only immutable routing data; every adapter lifetime stays inside an effect call.
+		class profile_window_layout_service final
+		{
+		public:
+			profile_window_layout_service(std::filesystem::path aRoot, std::vector<core::bpr_window_id> aKeep)
+				: Root{ std::move(aRoot) }
+				, Keep{ std::move(aKeep) }
+			{ }
+			template <class Result, class Operation>
+			auto perform(core::bpr_window_id aWindow, std::stop_token aStop, Operation aOperation) -> Result
+			{
+				const auto lock = std::scoped_lock{ Mutex };
+				if (!Reconciled) {
+					auto defaults = adapters::sqlite::make_workbench_defaults_store({ .StorageRoot = Root }, aStop);
+					if (!defaults) {
+						return std::unexpected(application::workbench_settings_error{ .Failure = defaults.error() });
+					}
+					auto retained = (*defaults)->retain_windows(Keep, aStop);
+					if (!retained) {
+						return std::unexpected(retained.error());
+					}
+					Reconciled = true;
+				}
+				auto store = adapters::sqlite::make_workbench_settings_store({ .StorageRoot = Root, .Window = aWindow }, aStop);
+				if (!store) {
+					return std::unexpected(application::workbench_settings_error{ .Failure = store.error() });
+				}
+				return aOperation(**store);
+			}
+			auto erase(core::bpr_window_id aWindow) -> application::workbench_settings_result<void>
+			{
+				return perform<application::workbench_settings_result<void>>(aWindow, { }, [aWindow](auto& aStore) { return aStore.erase_window(aWindow, { }); });
+			}
+
+		private:
+			std::filesystem::path                  Root;
+			const std::vector<core::bpr_window_id> Keep;
+			std::mutex                             Mutex;
+			bool                                   Reconciled = false;
+		};
+
+		class profile_window_layout_port final : public application::workbench_settings_port
+		{
+		public:
+			profile_window_layout_port(std::shared_ptr<profile_window_layout_service> aService, core::bpr_window_id aWindow)
+				: Service{ std::move(aService) }
+				, Window{ aWindow }
+			{ }
+			auto window() const noexcept -> core::bpr_window_id override { return Window; }
+			auto profile_scoped() const noexcept -> bool override { return true; }
+			auto load(std::stop_token aStop) -> application::workbench_settings_result<application::workbench_layout_settings> override
+			{
+				return Service->perform<application::workbench_settings_result<application::workbench_layout_settings>>(Window, aStop, [aStop](auto& aStore) { return aStore.load(aStop); });
+			}
+			auto store(const application::workbench_layout_settings& aSettings, std::stop_token aStop) -> application::workbench_settings_result<void> override
+			{
+				WriteFailed.store(true, std::memory_order_release);
+				auto result = Service->perform<application::workbench_settings_result<void>>(Window, aStop, [&](auto& aStore) { return aStore.store(aSettings, aStop); });
+				WriteFailed.store(!result.has_value(), std::memory_order_release);
+				return result;
+			}
+			auto write_failed() const noexcept -> bool { return WriteFailed.load(std::memory_order_acquire); }
+
+		private:
+			std::shared_ptr<profile_window_layout_service> Service;
+			core::bpr_window_id                            Window;
+			std::atomic_bool                               WriteFailed = false;
+		};
+
 		[[nodiscard]] auto unavailable_theme_document()
 			-> application::theme_document_result<std::string>
 		{
@@ -3548,15 +3654,16 @@ namespace bpr::app {
 			DraftOwners.push_back(owner);
 			return owner;
 		}
-		github_application_config               Config;
-		core::github_identity_generation        QueueIdentityGeneration;
-		std::optional<core::bpr_window_context> FirstWindow;
-		application::profile_startup_admission  Admission;
-		bool                                    Closing          = false;
-		bool                                    ServicesClosing  = false;
-		bool                                    ShutdownComplete = false;
-		bool                                    CleanupFailed    = false;
-		void                                    begin_shutdown()
+		github_application_config                      Config;
+		core::github_identity_generation               QueueIdentityGeneration;
+		std::optional<core::bpr_window_context>        FirstWindow;
+		std::shared_ptr<profile_window_layout_service> WindowLayouts;
+		application::profile_startup_admission         Admission;
+		bool                                           Closing          = false;
+		bool                                           ServicesClosing  = false;
+		bool                                           ShutdownComplete = false;
+		bool                                           CleanupFailed    = false;
+		void                                           begin_shutdown()
 		{
 			Closing = true;
 			if (ServicesClosing) {
@@ -3636,7 +3743,7 @@ namespace bpr::app {
 
 		explicit github_profile_runtime(
 			github_application_config aConfig, application::profile_startup_admission aAdmission, std::filesystem::path aRegistryRoot,
-			std::optional<application::durable_queue_state> aSavedQueue, std::shared_ptr<void> aScratch
+			std::optional<application::durable_queue_state> aSavedQueue, std::shared_ptr<void> aScratch, bool aDesktop
 #if defined(BPR_BUILD_TESTING)
 			,
 			const std::optional<detail::github_public_path_fixture> aFixture        = std::nullopt,
@@ -4049,15 +4156,20 @@ namespace bpr::app {
 			// width must not lose reading progress. Composition failure is not
 			// fatal - a reviewer whose layout cannot be stored still gets the
 			// composed defaults.
-			auto layout = adapters::sqlite::make_workbench_defaults_store({
-				.StorageRoot = applicationDataRoot,
-			});
-			if (layout) {
-				WorkbenchSettings             = std::move(*layout);
+			if (aDesktop) {
+				WorkbenchSettings             = std::make_unique<lazy_workbench_defaults_port>(applicationDataRoot);
 				WorkbenchPersistenceAvailable = true;
 			} else {
-				WorkbenchSettings
-					= std::make_unique<session_workbench_settings>();
+				auto layout = adapters::sqlite::make_workbench_defaults_store({
+					.StorageRoot = applicationDataRoot,
+				});
+				if (layout) {
+					WorkbenchSettings             = std::move(*layout);
+					WorkbenchPersistenceAvailable = true;
+				} else {
+					WorkbenchSettings
+						= std::make_unique<session_workbench_settings>();
+				}
 			}
 
 			// A fourth database, kept apart for the same reason as the rest.
@@ -5586,7 +5698,11 @@ namespace bpr::app {
 			// the durable adapter opened or composition supplied session defaults.
 			// The real window is the projection port, so success and failure both
 			// terminate at the shipped surface rather than at an intermediate sink.
-			if (Profile->FirstWindow) {
+			if (Profile->WindowLayouts) {
+				auto layout              = std::make_unique<profile_window_layout_port>(Profile->WindowLayouts, DraftWindow.Window);
+				DurableWindowLayout      = layout.get();
+				SessionWorkbenchSettings = std::move(layout);
+			} else if (Profile->FirstWindow) {
 				auto initial = application::workbench_layout_settings{ };
 				if (const auto& accepted = Profile->WorkbenchPreferences->accepted(); accepted) {
 					initial = application::combined_layout(accepted->NewWindowDefaults, accepted->Behaviour);
@@ -10171,11 +10287,18 @@ namespace bpr::app {
 						core::appearance_role::code_background);
 		}
 
-		void begin_shutdown()
+		void begin_shutdown(window_retirement aMode = window_retirement::forced)
 		{
 			if (Closing) {
+				if (aMode == window_retirement::forced && Retirement == window_retirement::orderly_quit) {
+					Retirement = aMode;
+					if (WorkbenchHost) {
+						WorkbenchHost->shutdown();
+					}
+				}
 				return;
 			}
+			Retirement = aMode;
 			Window->unmount_settings();
 			if (Profile->SettingsOwner == DraftWindow) {
 				if (Profile->Settings) {
@@ -10244,7 +10367,11 @@ namespace bpr::app {
 			// a hang, not a leak, and it presents as a test timeout rather than
 			// as anything that names the cause.
 			if (WorkbenchHost) {
-				WorkbenchHost->shutdown();
+				if (Retirement == window_retirement::orderly_quit) {
+					WorkbenchHost->shutdown_orderly();
+				} else {
+					WorkbenchHost->shutdown();
+				}
 			}
 			if (AppearanceHost) {
 				AppearanceHost->shutdown();
@@ -10302,6 +10429,50 @@ namespace bpr::app {
 				return;
 			}
 
+			if (DurableWindowLayout && Retirement == window_retirement::orderly_quit) {
+				ShutdownCleanupFailed = ShutdownCleanupFailed || DurableWindowLayout->write_failed();
+			}
+			if (Profile->WindowLayouts && Retirement == window_retirement::explicit_close && !LayoutEraseComplete) {
+				if (!LayoutEraseStarted) {
+					LayoutEraseStarted = true;
+					auto  weak         = std::weak_ptr<const int>{ WindowLifetime };
+					auto  service      = Profile->WindowLayouts;
+					auto  context      = DraftWindow;
+					auto* lane         = &DecisionLane;
+					auto  delivery     = LayoutEraseDeliveryFailed;
+					try {
+						WorkbenchEffects.post([this, weak, service, context, lane, delivery] {
+							auto success = false;
+							try {
+								success = service->erase(context.Window).has_value();
+							} catch (...) { }
+							try {
+								lane->post([this, weak, context, success] {
+									if (weak.expired() || DraftWindow != context) {
+										return;
+									}
+									ShutdownCleanupFailed = ShutdownCleanupFailed || !success;
+									LayoutEraseComplete   = true;
+								});
+							} catch (...) {
+								delivery->store(true, std::memory_order_release);
+							}
+						});
+					} catch (...) {
+						LayoutEraseComplete   = true;
+						ShutdownCleanupFailed = true;
+					}
+				}
+				if (LayoutEraseDeliveryFailed->load(std::memory_order_acquire)) {
+					LayoutEraseComplete   = true;
+					ShutdownCleanupFailed = true;
+				}
+				if (!LayoutEraseComplete) {
+					schedule_shutdown_poll();
+					return;
+				}
+			}
+
 			EpochProjectionDeliveryFailed = EpochHost->projection_delivery_failed();
 			ReviewSubmission.reset();
 			ReviewMutationHost.reset();
@@ -10309,7 +10480,7 @@ namespace bpr::app {
 			if (!McpSnapshotRoot.empty()) {
 				std::error_code error;
 				std::filesystem::remove_all(McpSnapshotRoot, error);
-				ShutdownCleanupFailed = error.operator bool();
+				ShutdownCleanupFailed = ShutdownCleanupFailed || error.operator bool();
 			}
 			ShutdownComplete = true;
 			if (OnClosed) {
@@ -10824,6 +10995,11 @@ namespace bpr::app {
 		std::unique_ptr<composition_diff_projection>                    DiffProjections;
 		std::unique_ptr<application::diff_application_host>             DiffHost;
 		std::unique_ptr<application::workbench_settings_port>           SessionWorkbenchSettings;
+		profile_window_layout_port*                                     DurableWindowLayout       = nullptr;
+		window_retirement                                               Retirement                = window_retirement::forced;
+		bool                                                            LayoutEraseStarted        = false;
+		bool                                                            LayoutEraseComplete       = false;
+		std::shared_ptr<std::atomic_bool>                               LayoutEraseDeliveryFailed = std::make_shared<std::atomic_bool>(false);
 		std::unique_ptr<application::workbench_application_host>        WorkbenchHost;
 		std::unique_ptr<application::appearance_application_host>       AppearanceHost;
 		decltype(github_profile_runtime::QueueStore)&                   QueueStore               = Profile->QueueStore;
@@ -11054,9 +11230,9 @@ namespace bpr::app {
 				return;
 			}
 			try {
-				auto profile = std::make_shared<github_profile_runtime>(std::move(Config), *aTerminal.Result, RegistryRoot, std::move(SavedQueue), std::move(Scratch)
+				auto profile = std::make_shared<github_profile_runtime>(std::move(Config), *aTerminal.Result, RegistryRoot, std::move(SavedQueue), std::move(Scratch), OwnerOnly
 #if defined(BPR_BUILD_TESTING)
-																																					   ,
+																		,
 																		Fixture, std::move(Options)
 #endif
 				);
@@ -11217,7 +11393,26 @@ namespace bpr::app {
 			return false;
 		}
 	}
-	void github_application::close_window(core::bpr_window_context aContext)
+	auto github_application::configure_desktop_layouts(const std::vector<core::bpr_window_context>& aWindows) -> bool
+	{
+		if (Profile->WindowLayouts) {
+			return true;
+		}
+		if (Profile->FirstWindow || aWindows.empty() || aWindows.size() > core::maximum_bpr_windows_per_profile) {
+			return false;
+		}
+		auto keep = std::vector<core::bpr_window_id>{ };
+		for (const auto& context : aWindows) {
+			if (context.Profile != Profile->Admission.Authority.profile() || context.Window.value() == 0 || context.Generation.value() == 0 || std::ranges::find(keep, context.Window) != keep.end()) {
+				return false;
+			}
+			keep.push_back(context.Window);
+		}
+		Profile->WindowLayouts = std::make_shared<profile_window_layout_service>(Profile->ApplicationDataRoot, std::move(keep));
+		return true;
+	}
+
+	void github_application::close_window(core::bpr_window_context aContext, window_retirement aMode)
 	{
 		const auto found = Sessions.find(aContext);
 		if (found == Sessions.end()) {
@@ -11226,7 +11421,7 @@ namespace bpr::app {
 		if (found->second == Implementation) {
 			InitialRetired = true;
 		}
-		found->second->begin_shutdown();
+		found->second->begin_shutdown(aMode);
 	}
 	void github_application::focus_window(core::bpr_window_context aContext)
 	{

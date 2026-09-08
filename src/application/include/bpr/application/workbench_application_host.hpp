@@ -77,6 +77,9 @@ namespace bpr::application {
 		void apply_behaviour(review_behaviour_settings aSettings);
 		void cancel();
 		void shutdown();
+		// Closes ingress while draining the latest accepted window layout. Ports and
+		// the decision lane remain live through quiescence; shutdown() can force cancellation.
+		void shutdown_orderly();
 
 		[[nodiscard]] auto state() const noexcept
 			-> const core::workbench_interaction_state&;

@@ -496,6 +496,21 @@ namespace bpr::application {
 	auto profile_management_host::complete_open(const core::bpr_window_context aContext, const std::expected<void, profile_management_failure> aResult) -> bool { return Implementation->complete_open(aContext, aResult); }
 	auto profile_management_host::begin_close(const core::bpr_window_context aContext) -> bool { return Implementation->begin_close(aContext); }
 	auto profile_management_host::complete_close(const core::bpr_window_context aContext) -> bool { return Implementation->complete_close(aContext); }
+	auto profile_management_host::live_windows(core::bpr_profile_id aProfile) const -> std::vector<core::bpr_window_context>
+	{
+		auto result = std::vector<core::bpr_window_context>{ };
+		for (const auto& profile : Implementation->Catalog.state().Profiles) {
+			if (profile.Profile.Id != aProfile) {
+				continue;
+			}
+			for (const auto& window : profile.Live) {
+				result.push_back({ aProfile, window.Id, window.Generation });
+			}
+			break;
+		}
+		return result;
+	}
+
 	auto profile_management_host::current(const core::bpr_window_context aContext) const noexcept -> bool { return Implementation->current(aContext); }
 	auto profile_management_host::focus(const core::bpr_window_context aContext) -> bool { return Implementation->focus(aContext); }
 

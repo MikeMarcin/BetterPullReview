@@ -11,6 +11,7 @@
 #include <filesystem>
 #include <functional>
 #include <optional>
+#include <span>
 #include <stop_token>
 #include <string>
 #include <utility>
@@ -602,6 +603,12 @@ namespace bpr::application {
 			// this operation; window stores never invoke it.
 			return store(combined_layout(aPreferences.NewWindowDefaults, aPreferences.Behaviour), aStop);
 		}
+		/// Retains only explicitly authoritative stable window IDs; empty removes all layout rows.
+		[[nodiscard]] virtual auto retain_windows(std::span<const core::bpr_window_id>, std::stop_token) -> workbench_settings_result<void>
+		{
+			return std::unexpected(workbench_settings_error{ });
+		}
+
 		[[nodiscard]] virtual auto erase_window(core::bpr_window_id, std::stop_token) -> workbench_settings_result<void>
 		{
 			return std::unexpected(workbench_settings_error{ });

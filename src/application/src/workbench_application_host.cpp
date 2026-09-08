@@ -103,6 +103,9 @@ namespace bpr::application {
 		struct deferred_workbench_shutdown
 		{
 		};
+		struct deferred_workbench_orderly_shutdown
+		{
+		};
 
 		using deferred_workbench_ingress = std::variant<deferred_workbench_restore,
 														deferred_workbench_observe,
@@ -114,7 +117,7 @@ namespace bpr::application {
 														deferred_workbench_resize,
 														deferred_workbench_behaviour, deferred_workbench_preferences,
 														deferred_workbench_cancel,
-														deferred_workbench_shutdown,
+														deferred_workbench_shutdown, deferred_workbench_orderly_shutdown,
 														staged_observation,
 														staged_settings_load,
 														staged_settings_store,
@@ -367,6 +370,8 @@ namespace bpr::application {
 						cancel_now();
 					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_shutdown>) {
 						shutdown_now();
+					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_orderly_shutdown>) {
+						shutdown_orderly_now();
 					} else if constexpr (std::is_same_v<ingress_type, staged_observation>) {
 						finish_observation(std::move(aTyped.Observation));
 					} else if constexpr (std::is_same_v<ingress_type, staged_settings_load>) {
@@ -378,6 +383,7 @@ namespace bpr::application {
 					}
 				},
 				std::move(aIngress));
+			flush_settings_store();
 		}
 
 		template <typename Action>
@@ -516,8 +522,9 @@ namespace bpr::application {
 			if (retirement != workbench_terminal_rejection::none) {
 				return retirement;
 			}
-			return Closing ? workbench_terminal_rejection::cancelled
-						   : workbench_terminal_rejection::none;
+			return Closing && !(OrderlyClosing && aDomain == workbench_request_domain::settings_store)
+				? workbench_terminal_rejection::cancelled
+				: workbench_terminal_rejection::none;
 		}
 
 		void refuse(const workbench_terminal_rejection aRejection) noexcept
@@ -767,8 +774,16 @@ namespace bpr::application {
 				}
 				return;
 			}
-			retire(workbench_request_domain::settings_store,
-				   workbench_terminal_rejection::superseded);
+			PendingLayout = Layout;
+		}
+
+		void flush_settings_store()
+		{
+			if (!PendingLayout || (Closing && !OrderlyClosing)
+				|| Outstanding.size() >= Limits.OutstandingRequests
+				|| std::ranges::any_of(Outstanding, [](const auto& aRecord) { return aRecord.Domain == workbench_request_domain::settings_store; })) {
+				return;
+			}
 			auto* const record = reserve(workbench_request_domain::settings_store);
 			if (record == nullptr) {
 				publish_failure(local_context(), workbench_host_failure::host_failure);
@@ -776,7 +791,7 @@ namespace bpr::application {
 			}
 			const auto  context  = record->Context;
 			const auto  stop     = record->Stop.get_token();
-			const auto  settings = Layout;
+			const auto  settings = std::exchange(PendingLayout, std::nullopt).value();
 			const auto  gate     = std::weak_ptr<completion_gate>{ Gate };
 			auto* const port     = &Settings;
 			auto* const lane     = &DecisionLane;
@@ -792,7 +807,7 @@ namespace bpr::application {
 				});
 			} catch (...) {
 				abandon(context.Request);
-				publish_failure(context, workbench_host_failure::settings_unavailable);
+				publish_failure(context, workbench_host_failure::settings_unavailable, true);
 			}
 		}
 
@@ -1051,6 +1066,7 @@ namespace bpr::application {
 			if (Closing) {
 				return;
 			}
+			PendingLayout.reset();
 			retire_all(workbench_terminal_rejection::cancelled);
 			Generation = core::request_generation{ Generation.value() + 1U };
 			if (OwnedPreferences) {
@@ -1059,12 +1075,30 @@ namespace bpr::application {
 			PendingPreferences.reset();
 		}
 
-		void shutdown_now()
+		void shutdown_orderly_now()
 		{
 			if (Closing) {
 				return;
 			}
-			Closing = true;
+			Closing        = true;
+			OrderlyClosing = true;
+			Preferences->unsubscribe(PreferenceSubscription);
+			if (OwnedPreferences) {
+				OwnedPreferences->shutdown();
+			}
+			retire(workbench_request_domain::observation, workbench_terminal_rejection::cancelled);
+			retire(workbench_request_domain::settings_load, workbench_terminal_rejection::cancelled);
+			retire(workbench_request_domain::selected_diff, workbench_terminal_rejection::cancelled);
+		}
+
+		void shutdown_now()
+		{
+			if (Closing && !OrderlyClosing) {
+				return;
+			}
+			Closing        = true;
+			OrderlyClosing = false;
+			PendingLayout.reset();
 			Preferences->unsubscribe(PreferenceSubscription);
 			if (OwnedPreferences) {
 				OwnedPreferences->shutdown();
@@ -1274,7 +1308,7 @@ namespace bpr::application {
 			}
 			if (!aResult.has_value()) {
 				publish_failure(aContext,
-								workbench_host_failure::settings_unavailable);
+								workbench_host_failure::settings_unavailable, true);
 				return;
 			}
 			++PersistedLayouts;
@@ -1397,9 +1431,9 @@ namespace bpr::application {
 		}
 
 		void publish_failure(const workbench_request_context& aContext,
-							 const workbench_host_failure     aFailure)
+							 const workbench_host_failure aFailure, const bool aDuringOrderly = false)
 		{
-			if (Closing) {
+			if (Closing && !(OrderlyClosing && aDuringOrderly)) {
 				return;
 			}
 			deliver_projection([this, &aContext, aFailure] {
@@ -1444,6 +1478,7 @@ namespace bpr::application {
 		std::optional<workbench_pull_request_authority> Authority;
 		std::optional<workbench_selected_diff_request>  AcceptedSelectedDiff;
 		workbench_layout_settings                       Layout;
+		std::optional<workbench_layout_settings>        PendingLayout;
 
 		std::vector<outstanding_request>       Outstanding;
 		std::deque<deferred_workbench_ingress> DeferredIngress;
@@ -1465,6 +1500,7 @@ namespace bpr::application {
 		core::workbench_reason_code  LastReason               = core::workbench_reason_code::none;
 		bool                         RestorePending           = false;
 		bool                         Closing                  = false;
+		bool                         OrderlyClosing           = false;
 		bool                         TurnActive               = false;
 		bool                         DeferredIngressScheduled = false;
 		bool                         ProjectionDeliveryFailed = false;
@@ -1570,6 +1606,8 @@ namespace bpr::application {
 		return Implementation->State;
 	}
 
+	void workbench_application_host::shutdown_orderly() { Implementation->enqueue(deferred_workbench_orderly_shutdown{ }); }
+
 	auto workbench_application_host::layout() const noexcept
 		-> const workbench_layout_settings&
 	{
@@ -1631,7 +1669,7 @@ namespace bpr::application {
 
 	auto workbench_application_host::is_quiescent() const noexcept -> bool
 	{
-		return Implementation->Closing && Implementation->Outstanding.empty()
+		return Implementation->Closing && Implementation->Outstanding.empty() && !Implementation->PendingLayout
 			&& (!Implementation->OwnedPreferences || Implementation->OwnedPreferences->is_quiescent())
 			&& Implementation->DeferredIngress.empty()
 			&& !Implementation->DeferredIngressScheduled

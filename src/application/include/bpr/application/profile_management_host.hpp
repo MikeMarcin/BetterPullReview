@@ -39,6 +39,8 @@ namespace bpr::application {
 		[[nodiscard]] auto complete_close(core::bpr_window_context aContext) -> bool;
 		/// \brief Admits only exact opening/open contexts; closing and retired windows are stale.
 		[[nodiscard]] auto current(core::bpr_window_context aContext) const noexcept -> bool;
+		/// \brief Complete accepted live set, including startup contexts before commands are delivered.
+		[[nodiscard]] auto live_windows(core::bpr_profile_id aProfile) const -> std::vector<core::bpr_window_context>;
 		/// \brief Records native focus for an exact open window, preserving core MRU order.
 		[[nodiscard]] auto focus(core::bpr_window_context aContext) -> bool;
 

@@ -84,6 +84,9 @@ namespace bpr::adapters::sqlite::detail {
 			-> std::expected<application::workbench_layout_settings, failure>;
 		[[nodiscard]] auto store_window(core::bpr_window_id aWindow, const application::workbench_window_layout& aLayout, std::stop_token aStop)
 			-> std::expected<void, failure>;
+		[[nodiscard]] auto retain_windows(std::span<const core::bpr_window_id> aWindows, std::stop_token aStop)
+			-> std::expected<void, failure>;
+
 		[[nodiscard]] auto erase_window(core::bpr_window_id aWindow, std::stop_token aStop)
 			-> std::expected<void, failure>;
 

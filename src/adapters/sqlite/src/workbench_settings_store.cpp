@@ -101,6 +101,16 @@ namespace bpr::adapters::sqlite {
 				}
 				return { };
 			}
+			[[nodiscard]] auto retain_windows(std::span<const core::bpr_window_id> aWindows, std::stop_token aStop) -> application::workbench_settings_result<void> override
+			{
+				const std::scoped_lock lock{ Mutex };
+				const auto             retained = Database.retain_windows(aWindows, aStop);
+				if (!retained) {
+					return std::unexpected(application::workbench_settings_error{ translate(retained.error()) });
+				}
+				return { };
+			}
+
 			[[nodiscard]] auto erase_window(core::bpr_window_id aWindow, std::stop_token aStop) -> application::workbench_settings_result<void> override
 			{
 				const std::scoped_lock lock{ Mutex };

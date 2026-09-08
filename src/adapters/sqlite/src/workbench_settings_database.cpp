@@ -801,6 +801,51 @@ namespace bpr::adapters::sqlite::detail {
 		}
 		return transaction.commit(aStop);
 	}
+	auto workbench_settings_database::retain_windows(const std::span<const core::bpr_window_id> aWindows, const std::stop_token aStop) -> std::expected<void, failure>
+	{
+		if (aWindows.size() > core::maximum_bpr_windows_per_profile) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		for (std::size_t index = 0; index < aWindows.size(); ++index) {
+			if (aWindows[index].value() == 0 || std::ranges::find(aWindows.first(index), aWindows[index]) != aWindows.first(index).end()) {
+				return std::unexpected(failure::integrity_failure);
+			}
+		}
+		if (auto admitted = preflight(Handle, aStop); !admitted) {
+			return admitted;
+		}
+		if (auto begin = execute(Handle, "BEGIN IMMEDIATE", aStop); !begin) {
+			return begin;
+		}
+		write_transaction transaction{ Handle };
+		std::string       sql = "DELETE FROM window_layout";
+		if (!aWindows.empty()) {
+			sql += " WHERE window_id NOT IN (";
+			for (std::size_t index = 0; index < aWindows.size(); ++index) {
+				if (index != 0) {
+					sql += ',';
+				}
+				sql += '?' + std::to_string(index + 1U);
+			}
+			sql += ')';
+		}
+		auto statement = prepare(Handle, sql);
+		if (!statement) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		for (std::size_t index = 0; index < aWindows.size(); ++index) {
+			const auto key = std::to_string(aWindows[index].value());
+			if (sqlite3_bind_text(statement->Value, static_cast<int>(index + 1U), key.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
+				return std::unexpected(failure::integrity_failure);
+			}
+		}
+		const auto stepped = sqlite3_step(statement->Value);
+		if (stepped != SQLITE_DONE) {
+			return std::unexpected(catalog_failure_from_sqlite_result(stepped));
+		}
+		return transaction.commit(aStop);
+	}
+
 	auto workbench_settings_database::erase_window(const core::bpr_window_id aWindow, std::stop_token aStop) -> std::expected<void, failure>
 	{
 		if (aWindow.value() == 0) {

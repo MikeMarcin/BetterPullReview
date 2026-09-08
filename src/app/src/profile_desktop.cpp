@@ -124,12 +124,24 @@ namespace bpr::app {
 				Host->shutdown();
 			}
 		}
-		void drain(int aExitCode)
+		void drain(int aExitCode, bool aOrderly = false)
 		{
 			if (aExitCode != 0) {
 				ExitCode = aExitCode;
 			}
 			if (Quitting) {
+				if (!aOrderly) {
+					for (auto& [profile, entry] : Runtimes) {
+						static_cast<void>(profile);
+						if (!entry.Runtime) {
+							continue;
+						}
+						for (const auto& [id, selected] : entry.Windows) {
+							static_cast<void>(id);
+							entry.Runtime->close_window(selected.Context);
+						}
+					}
+				}
 				return;
 			}
 			Quitting = true;
@@ -146,7 +158,7 @@ namespace bpr::app {
 					static_cast<void>(id);
 					selected.Closing = true;
 					if (entry.Runtime && selected.Opened) {
-						entry.Runtime->close_window(selected.Context);
+						entry.Runtime->close_window(selected.Context, aOrderly ? github_application::window_retirement::orderly_quit : github_application::window_retirement::forced);
 					}
 				}
 				if (entry.Runtime && entry.Windows.empty()) {
@@ -197,7 +209,7 @@ namespace bpr::app {
 		void perform(const application::profile_runtime_command& aCommand) override
 		{
 			if (aCommand.Kind == application::profile_runtime_command_kind::quit) {
-				drain(ExitCode);
+				drain(ExitCode, true);
 				return;
 			}
 			if (aCommand.Kind == application::profile_runtime_command_kind::close) {
@@ -214,7 +226,7 @@ namespace bpr::app {
 					if (selected->second.Presented) {
 						selected->second.Presented->hide();
 					}
-					found->second.Runtime->close_window(aCommand.Context);
+					found->second.Runtime->close_window(aCommand.Context, github_application::window_retirement::explicit_close);
 				}
 				return;
 			}
@@ -369,7 +381,7 @@ namespace bpr::app {
 			bool opened = false;
 			try {
 				if (current(aContext)) {
-					opened = entry.Runtime->open_window(aContext);
+					opened = entry.Runtime->configure_desktop_layouts(Host->live_windows(aContext.Profile)) && entry.Runtime->open_window(aContext);
 				}
 			} catch (...) { }
 			if (!opened) {
@@ -386,9 +398,9 @@ namespace bpr::app {
 			selected->second.Opened = true;
 			try {
 				wire(*entry.Runtime, aContext);
-				if (selected->second.Restore) {
-					if (auto* restored = entry.Runtime->window(aContext)) {
-						restored->choose_home(true);
+				if (auto* restored = entry.Runtime->window(aContext)) {
+					restored->choose_home(true);
+					if (selected->second.Restore) {
 						if (auto* notice = restored->home_open_notice()) {
 							notice->setText(QStringLiteral("Window restored. Its previous review content is unavailable; choose a review to continue."));
 							notice->show();

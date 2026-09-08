@@ -791,6 +791,50 @@ namespace {
 			return sqlite3_trace_v2(aDatabase, SQLITE_TRACE_STMT, trace, nullptr);
 		}
 	};
+	void test_authoritative_window_retention()
+	{
+		const auto scratch  = scratch_directory{ };
+		auto       database = workbench_settings_database::open(scratch.file("retention.sqlite3"), { });
+		expect(database.has_value(), "retention database opens");
+		auto defaults       = application::workbench_layout_settings{ };
+		defaults.FilesWidth = 432;
+		expect(database->store(defaults, { }).has_value(), "profile defaults persist");
+		const auto                       layout = application::window_layout(defaults);
+		std::vector<core::bpr_window_id> keep;
+		for (std::uint64_t id = 1; id <= core::maximum_bpr_windows_per_profile; ++id) {
+			keep.emplace_back(id);
+			expect(database->store_window(keep.back(), layout, { }).has_value(), "retention fixture fills32 rows");
+		}
+		expect(database->retain_windows(keep, { }).has_value() && *scalar_integer(database->handle(), "SELECT count(*) FROM window_layout") == 32, "full authoritative set preserves every row");
+		keep.emplace_back(33);
+		expect(!database->retain_windows(keep, { }), "overbound keep refuses");
+		keep = { core::bpr_window_id{ 1 }, core::bpr_window_id{ 1 } };
+		expect(!database->retain_windows(keep, { }), "duplicate keep refuses");
+		keep = { core::bpr_window_id{ 0 } };
+		expect(!database->retain_windows(keep, { }) && *scalar_integer(database->handle(), "SELECT count(*) FROM window_layout") == 32, "invalid keep cannot delete rows");
+		keep      = { core::bpr_window_id{ 1 }, core::bpr_window_id{ 32 } };
+		auto stop = std::stop_source{ };
+		stop.request_stop();
+		expect(!database->retain_windows(keep, stop.get_token()), "pre-cancelled retention refuses");
+		stop                          = std::stop_source{ };
+		interrupted_migration::Stop   = &stop;
+		interrupted_migration::Prefix = "DELETE FROM window_layout";
+		expect(sqlite3_trace_v2(database->handle(), SQLITE_TRACE_STMT, interrupted_migration::trace, nullptr) == SQLITE_OK, "retention interruption installs");
+		const auto refused          = database->retain_windows(keep, stop.get_token());
+		interrupted_migration::Stop = nullptr;
+		static_cast<void>(sqlite3_trace_v2(database->handle(), 0, nullptr, nullptr));
+		expect(stop.stop_requested() && !refused && refused.error() == failure::cancelled
+				   && *scalar_integer(database->handle(), "SELECT count(*) FROM window_layout") == 32,
+			   "post-delete cancellation rolls back all orphan deletions");
+		expect(database->retain_windows(keep, { }).has_value() && *scalar_integer(database->handle(), "SELECT count(*) FROM window_layout") == 2, "authoritative set deletes only orphan rows");
+		expect(application::window_layout(*database->load_window(keep[0], { })) == layout
+				   && application::window_layout(*database->load_window(keep[1], { })) == layout,
+			   "retained layouts remain exact");
+		expect(database->store_window(core::bpr_window_id{ 33 }, layout, { }).has_value(), "orphan cleanup releases capacity");
+		expect(database->retain_windows({ }, { }).has_value() && *scalar_integer(database->handle(), "SELECT count(*) FROM window_layout") == 0, "empty authority removes all layouts");
+		expect(database->load({ }) == std::expected<application::workbench_layout_settings, failure>{ defaults }, "retention preserves profile defaults and behaviour");
+	}
+
 	void test_interrupted_migration_preserves_legacy_and_reopens()
 	{
 		expect(sqlite3_auto_extension(reinterpret_cast<void (*)()>(interrupted_migration::install)) == SQLITE_OK, "migration interruption fixture registers");
@@ -845,6 +889,7 @@ namespace {
 auto main() -> int
 {
 	expect(sqlite_runtime_ready(), "SQLite runtime initializes before trace injection");
+	test_authoritative_window_retention();
 	test_hostile_window_rows_refuse_unchanged();
 	test_explicit_defaults_and_bound_factory_views();
 	test_interrupted_migration_preserves_legacy_and_reopens();
