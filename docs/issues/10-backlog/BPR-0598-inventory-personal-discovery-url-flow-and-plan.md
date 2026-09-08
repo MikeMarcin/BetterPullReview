@@ -54,3 +54,20 @@ Not run; entry work and product implementation are deferred. When authorized,
 run the documentation gate on the planning slice, record exact focused selectors
 for its implementation consumers, and commit with explicit paths. This card is
 not satisfied merely by the initial RFC registration.
+
+## Scoped reconnaissance, 2026-09-08
+
+The original broad repository search still exists in
+`src/adapters/github/src/github_paged_read.cpp`: the full PR read constructs
+`search_pull_requests` with `SearchTerms = "is:open"` and reads SearchResults
+before returning its snapshot. A saved-repository personal discovery scheduler
+must be independent of this full-review path; filtering that snapshot is not
+AC03/05 evidence. Existing core queue roles distinguish author/requested reviewer
+but do not by themselves prove discovery before opening a PR.
+
+BPR-0689 supplies the exact unknown-server/signed-out pending destination bridge
+under RFC0018. It preserves unsupported sublocation context with an explanation;
+exact accepted file/comment/commit mapping, profile/window Resume and personal
+discovery remain RFC0026 work. Query parameters must not route credentials or
+provider requests. This note is intake evidence, not a completed inventory or
+product acceptance. No source or product check ran for this reconnaissance.

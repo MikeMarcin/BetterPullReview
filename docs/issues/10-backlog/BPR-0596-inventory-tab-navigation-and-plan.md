@@ -54,3 +54,25 @@ Not run; entry work and product implementation are deferred. When authorized,
 run the documentation gate on the planning slice, record exact focused selectors
 for its implementation consumers, and commit with explicit paths. This card is
 not satisfied merely by the initial RFC registration.
+
+## Scoped reconnaissance, 2026-09-08
+
+A read-only scout reconciled RFC0025 against RFC0028. Existing modalities,
+three drawers, strip navigation and file/repository selection remain the shipped
+authority. Browser-style file tabs, the old Reviews drawer and separate focus
+mode remain superseded or unscheduled under the index direction.
+
+Remaining resident filtering: `files_tree_model::rebuild` uses literal
+case-insensitive path substring matching; repositories_tree_model has no text
+filter. Plan one bounded resident fuzzy matcher, repository filter control,
+ancestor retention, explicit empty/clear state and selection restoration by
+semantic identity. No provider search or replacement active comparison may
+result from filtering. The file tree currently resets on each filter; no measured
+latency failure is claimed. Choose matcher ownership against the core/host/Qt
+contract during this entry, then allocate the bounded slice.
+
+Relevant selectors: core_workbench_interaction, application_workbench_host,
+application_workbench_snapshot_observation, qt_files_tree,
+qt_repositories_drawer, qt_workbench_window_scale_100/125/200 and
+qt_composed_github_scale_100. No new test or product implementation ran for this
+reconnaissance; entry and terminal dependencies remain in force.
