@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0686"
 title: "Validate legacy appearance before migration"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0018"]
 depends_on: ["BPR-0680"]
 ---
