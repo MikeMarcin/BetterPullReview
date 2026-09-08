@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0678"
 title: "Keep Settings usable at minimum size"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0018", "RFC-BPR-0028"]
 depends_on: ["BPR-0592"]
 ---
