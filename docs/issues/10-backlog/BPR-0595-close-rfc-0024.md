@@ -4,7 +4,7 @@ id: "BPR-0595"
 title: "Verify and close RFC-BPR-0024"
 status: "Backlog"
 rfcs: ["RFC-BPR-0024"]
-depends_on: ["BPR-0594","BPR-0593","BPR-0242","BPR-0690","BPR-0691","BPR-0693", "BPR-0694", "BPR-0695", "BPR-0696", "BPR-0697", "BPR-0698", "BPR-0699", "BPR-0700", "BPR-0701", "BPR-0702", "BPR-0703", "BPR-0704"]
+depends_on: ["BPR-0594","BPR-0593","BPR-0242","BPR-0690","BPR-0691","BPR-0693", "BPR-0694", "BPR-0695", "BPR-0696", "BPR-0697", "BPR-0698", "BPR-0699", "BPR-0700", "BPR-0701", "BPR-0702", "BPR-0703", "BPR-0704", "BPR-0705"]
 milestone: "Post-Pack v2"
 closeout_for: ["RFC-BPR-0024"]
 ---
@@ -21,7 +21,7 @@ allocated required slice dependencies before it can become startable.
 RFC base: `e851eb8a851ab605cf5a85260a1317ecdf66773b`.
 
 Requested RFC set: RFC-BPR-0018, RFC-BPR-0024, RFC-BPR-0025, RFC-BPR-0026; workstream position: 2 of 4.
-Planned cards: BPR-0594, BPR-0595, BPR-0690, BPR-0691, BPR-0693, BPR-0694, BPR-0695, BPR-0696, BPR-0697, BPR-0698, BPR-0699, BPR-0700, BPR-0701, BPR-0702, BPR-0703, BPR-0704. Allocate additional implementation cards only
+Planned cards: BPR-0594, BPR-0595, BPR-0690, BPR-0691, BPR-0693, BPR-0694, BPR-0695, BPR-0696, BPR-0697, BPR-0698, BPR-0699, BPR-0700, BPR-0701, BPR-0702, BPR-0703, BPR-0704, BPR-0705. Allocate additional implementation cards only
 when the later bounded-slice planning pass needs them, and update this list and
 closeout dependencies before implementation. The RFC index remains the order
 authority; this requested subset waives no intervening eligibility/closeout gate.
@@ -169,3 +169,7 @@ revision/foreign scope never reach the mutation host. Dedicated exhaustive
 isolation77.84s passes after building eleven missing dev artifacts; its duplicate
 invocation was removed from the shorter editor course, preserving source guards
 and independent isolation coverage. Actual multi-window construction is next.
+
+Next: BPR-0705 is the vertical live New Window composition, using completed
+shared owners. Durable window destinations/restoration, cross-process admission
+and same-review ledger projection fanout remain subsequent required work.
