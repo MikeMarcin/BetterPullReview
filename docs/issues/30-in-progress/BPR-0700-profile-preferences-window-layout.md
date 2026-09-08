@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0700"
 title: "Separate profile behaviour preferences and window layout persistence"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0696","BPR-0698"]
 ---
