@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0698"
 title: "Separate profile appearance preferences from window classification"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0696"]
 ---
