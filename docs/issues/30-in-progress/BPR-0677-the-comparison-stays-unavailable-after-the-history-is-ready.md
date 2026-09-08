@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0677"
 title: "The comparison stays unavailable after the history is ready"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
