@@ -11069,9 +11069,16 @@ namespace bpr::app {
 			color.Red             = color.Red == 0U ? 1U : 0U;
 			panel->role_selector()->setCurrentIndex(
 				static_cast<int>(core::index_of(role)));
+			panel->color_editor()->setText(QStringLiteral("#112233"));
+			panel->preview_button()->click();
+			panel->color_editor()->setText(QStringLiteral("#445566"));
+			panel->preview_button()->click();
 			panel->color_editor()->setText(
 				qt::to_presentation_color(color).name(QColor::HexArgb));
 			panel->preview_button()->click();
+			if (implementation->AppearanceProfile->generation() != probe.ProfileGeneration) {
+				return fail();
+			}
 			probe.Phase = github_application::implementation::
 				appearance_theme_probe_state::phase::awaiting_manual_preview;
 			reportStage("manual-preview-requested");
@@ -11095,7 +11102,7 @@ namespace bpr::app {
 				== probe.PersistedSettings;
 			const auto generationChanged
 				= implementation->AppearanceProfile->generation()
-				> probe.ProfileGeneration;
+				== probe.ProfileGeneration + 1U;
 			const auto paintChanged = statistics.AlignmentSegmentsVisited
 				> probe.Statistics.AlignmentSegmentsVisited;
 			const auto identityUnchanged = unchanged();
@@ -11194,8 +11201,18 @@ namespace bpr::app {
 			}
 			reportStage("manual-cancelled");
 			implementation->Window->open_settings(qt::settings_page::appearance);
+			panel->color_editor()->setText(QStringLiteral("#112233"));
 			panel->preview_button()->click();
-			if (!implementation->AppearanceProfile->previewing_palette()) {
+			implementation->Window->settings()->close();
+			QCoreApplication::sendPostedEvents(panel, QEvent::MetaCall);
+			if (implementation->AppearanceProfile->previewing_palette()
+				|| panel->preview_palette().has_value()
+				|| implementation->AppearanceProfile->palette() != probe.BeforePalette) {
+				return fail();
+			}
+			implementation->Window->open_settings(qt::settings_page::appearance);
+			panel->preview_button()->click();
+			if (implementation->AppearanceProfile->previewing_palette() || !panel->preview_palette()) {
 				return fail();
 			}
 			auto* reset = static_cast<QPushButton*>(nullptr);
@@ -11208,6 +11225,7 @@ namespace bpr::app {
 				return fail();
 			}
 			reset->click();
+			QCoreApplication::sendPostedEvents(panel, QEvent::MetaCall);
 			if (implementation->AppearanceProfile->previewing_palette() || panel->preview_palette().has_value()
 				|| implementation->AppearanceProfile->palette() != probe.BeforePalette
 				|| implementation->AppearanceHost->settings() != probe.BeforeSettings

@@ -356,6 +356,7 @@ namespace {
 		panel.role_selector()->setCurrentIndex(static_cast<int>(roleIndex));
 		panel.color_editor()->setText(QStringLiteral("#aabbccdd"));
 		panel.preview_button()->click();
+		QApplication::processEvents();
 
 		const auto* const preview
 			= recorded.last<application::preview_appearance_palette_intent>();
@@ -428,6 +429,64 @@ namespace {
 			"a terminal palette adoption clears the preview and both actions");
 	}
 
+	void test_preview_bursts_and_invalidation()
+	{
+		auto recorded = recorder{ };
+		auto panel    = qt::appearance_settings_panel{ recorded.sink() };
+		panel.adopt(legal_settings());
+		const auto offer = [&panel](const QString& aColor) {
+			panel.color_editor()->setText(aColor);
+			panel.preview_button()->click();
+		};
+		offer(QStringLiteral("#112233"));
+		offer(QStringLiteral("#445566"));
+		offer(QStringLiteral("#778899"));
+		const auto latest = *panel.preview_palette();
+		expect(recorded.count() == 0U, "a preview burst waits for event delivery");
+		QApplication::processEvents();
+		expect(recorded.count() == 1U && recorded.last<application::preview_appearance_palette_intent>()->Palette == latest,
+			   "three distinct candidates dispatch only the latest total palette once");
+		expect(panel.statistics().PalettePreviews == 1U, "preview statistics count delivered candidates");
+		panel.cancel_preview();
+		recorded.clear();
+
+		offer(QStringLiteral("#112233"));
+		panel.cancel_preview();
+		QApplication::processEvents();
+		expect(recorded.count() == 1U && recorded.last<application::preview_appearance_palette_intent>() == nullptr,
+			   "cancel invalidates a candidate before delivery");
+		recorded.clear();
+		offer(QStringLiteral("#445566"));
+		const auto committed = *panel.preview_palette();
+		panel.commit_button()->click();
+		QApplication::processEvents();
+		expect(recorded.count() == 1U && recorded.last<application::commit_appearance_palette_intent>()->Palette == committed,
+			   "commit offers the latest candidate without a delayed preview");
+		recorded.clear();
+		offer(QStringLiteral("#112233"));
+		panel.request_theme_import(QStringLiteral("/fixture/replacement.bprtheme"));
+		QApplication::processEvents();
+		expect(recorded.count() == 1U && recorded.last<application::preview_appearance_palette_intent>() == nullptr,
+			   "import replacement invalidates a pending manual candidate");
+		recorded.clear();
+		offer(QStringLiteral("#445566"));
+		panel.preview_import(legal_settings().Palette);
+		QApplication::processEvents();
+		expect(recorded.count() == 0U, "an imported preview supersedes a pending candidate");
+		offer(QStringLiteral("#112233"));
+		panel.adopt(legal_settings());
+		QApplication::processEvents();
+		expect(recorded.count() == 0U && !panel.preview_palette(), "adoption invalidates a pending candidate");
+		{
+			auto temporary = qt::appearance_settings_panel{ recorded.sink() };
+			temporary.adopt(legal_settings());
+			temporary.color_editor()->setText(QStringLiteral("#112233"));
+			temporary.preview_button()->click();
+		}
+		QApplication::processEvents();
+		expect(recorded.count() == 0U, "destroying the widget discards deferred delivery");
+	}
+
 	void test_theme_and_contrast_refusals_remain_typed_and_visible()
 	{
 		auto       panel      = qt::appearance_settings_panel{ };
@@ -496,6 +555,7 @@ auto main(int argc, char** argv) -> int
 	QApplication application{ argc, argv };
 	QApplication::setApplicationName(
 		QStringLiteral("BetterPullReviewAppearanceSettingsPanelTests"));
+	test_preview_bursts_and_invalidation();
 	test_scoped_resets_and_export_are_intents();
 	test_the_mode_control_offers_the_core_vocabulary();
 	test_font_gestures_translate_to_intents();

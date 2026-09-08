@@ -2,9 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0688"
 title: "Coalesce palette preview bursts"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0018"]
 depends_on: ["BPR-0684"]
+acceptance: [{"criterion":"AC-10/03/09","outcome":"pass","revision":"b04d7deb plus this finish","evidence":{"kind":"observation","detail":"Latest of three distinct candidates dispatches once per UI event burst; queued Cancel, Settings close, commit, import/adoption and reset invalidate pending work. Widget lifetime owns delivery. Focused panel passed 0.79s; real application theme course passed35.48s, proving one profile generation for three candidates plus close/reset invalidation."}},{"criterion":"Quality","outcome":"pass","revision":"b04d7deb plus this finish","evidence":{"kind":"observation","detail":"Worker canonical tidy passed all three changed TUs including final composition rerun; format/diff pass. Primary reviewed bounded diff. Updated reviewed composition digest pins; matching hostile-bypass test below. No additional review loop; other state review remains applicable."}}]
 ---
 
 # Coalesce palette preview bursts

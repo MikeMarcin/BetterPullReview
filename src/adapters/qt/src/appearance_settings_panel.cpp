@@ -11,6 +11,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMetaObject>
 #include <QPushButton>
 #include <QSpinBox>
 #include <QVBoxLayout>
@@ -295,6 +296,7 @@ namespace bpr::qt {
 			button->setAccessibleName(aLabel);
 			aForm.addRow(button);
 			QObject::connect(button, &QPushButton::clicked, this, [this, aScope] {
+				PendingPreview.reset();
 				if (Dispatch) {
 					Dispatch(application::reset_appearance_intent{ aScope });
 				}
@@ -387,6 +389,7 @@ namespace bpr::qt {
 		const core::appearance_palette&         aResolvedPalette,
 		std::optional<core::appearance_palette> aActivePreview)
 	{
+		PendingPreview.reset();
 		AdoptedSettings  = aSettings;
 		CommittedPalette = aResolvedPalette;
 		PreviewPalette   = std::move(aActivePreview);
@@ -401,6 +404,7 @@ namespace bpr::qt {
 	void appearance_settings_panel::preview_import(
 		const core::appearance_palette& aPalette)
 	{
+		PendingPreview.reset();
 		PreviewPalette = aPalette;
 		show_selected_color();
 		CommitButton->setEnabled(true);
@@ -478,6 +482,7 @@ namespace bpr::qt {
 		if (aPath.isEmpty()) {
 			return;
 		}
+		PendingPreview.reset();
 		++Statistics.ThemeImports;
 		if (Dispatch) {
 			Dispatch(application::import_appearance_theme_intent{
@@ -679,15 +684,23 @@ namespace bpr::qt {
 		auto palette                             = PreviewPalette.value_or(CommittedPalette);
 		palette[static_cast<std::size_t>(index)] = to_appearance_color(color);
 		PreviewPalette                           = palette;
-		++Statistics.PalettePreviews;
+		PendingPreview                           = palette;
 		CommitButton->setEnabled(true);
 		CancelButton->setEnabled(true);
 		Status->setText(with_persistence_status(
 			QStringLiteral("Palette is previewed only; commit to save it.")));
-		if (Dispatch) {
-			Dispatch(application::preview_appearance_palette_intent{
-				.Palette = std::move(palette),
-			});
+		if (!PreviewDeliveryQueued) {
+			PreviewDeliveryQueued = true;
+			// One widget-bound delivery consumes the latest candidate in this event burst.
+			QMetaObject::invokeMethod(this, [this] {
+				PreviewDeliveryQueued = false;
+				auto pending = std::exchange(PendingPreview, std::nullopt);
+				if (pending && Dispatch) {
+					++Statistics.PalettePreviews;
+					Dispatch(application::preview_appearance_palette_intent{
+						.Palette = std::move(*pending),
+					});
+				} }, Qt::QueuedConnection);
 		}
 	}
 
@@ -696,6 +709,7 @@ namespace bpr::qt {
 		if (!PreviewPalette.has_value()) {
 			return;
 		}
+		PendingPreview.reset();
 		++Statistics.PaletteCommits;
 		if (Dispatch) {
 			Dispatch(application::commit_appearance_palette_intent{
@@ -711,6 +725,7 @@ namespace bpr::qt {
 
 	void appearance_settings_panel::dispatch_palette_cancel()
 	{
+		PendingPreview.reset();
 		PreviewPalette.reset();
 		++Statistics.PaletteCancels;
 		show_selected_color();

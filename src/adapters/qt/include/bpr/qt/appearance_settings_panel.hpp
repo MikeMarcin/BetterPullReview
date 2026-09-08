@@ -185,8 +185,10 @@ namespace bpr::qt {
 		QLabel*                                 Status        = nullptr;
 		theme_preview_strip*                    ThemePreviews = nullptr;
 		std::optional<core::appearance_palette> PreviewPalette;
-		bool                                    Echoing              = false;
-		bool                                    PersistenceAvailable = true;
+		std::optional<core::appearance_palette> PendingPreview;
+		bool                                    PreviewDeliveryQueued = false;
+		bool                                    Echoing               = false;
+		bool                                    PersistenceAvailable  = true;
 
 		appearance_settings_panel_statistics Statistics;
 	};
