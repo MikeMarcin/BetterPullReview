@@ -38,3 +38,11 @@ timeout for the same shape.
 
 - Every automated-run bound names the number of application processes its
   script starts, and configuration passes with those numbers.
+
+## Implementation anchor
+
+RFC_BASE_SHA: `9a175e81` (review-resume baseline, 2026-09-07).
+Routing: standard | Reason: coupled CMake run-count audit retained by integrator.
+Owned path: `tests/end_to_end/CMakeLists.txt`. Audit each bound against its
+selected script, correct process counts and corresponding timeout, then configure
+the dev graph and run the affected direct contracts. No product behavior change.
