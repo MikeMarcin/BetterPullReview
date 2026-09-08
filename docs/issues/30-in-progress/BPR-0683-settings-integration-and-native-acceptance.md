@@ -4,7 +4,7 @@ id: "BPR-0683"
 title: "Verify Settings integration and native acceptance"
 status: "In Progress"
 rfcs: ["RFC-BPR-0018"]
-depends_on: ["BPR-0678", "BPR-0679", "BPR-0680", "BPR-0681", "BPR-0682","BPR-0684","BPR-0685","BPR-0686","BPR-0687","BPR-0688","BPR-0689"]
+depends_on: ["BPR-0678", "BPR-0679", "BPR-0680", "BPR-0681", "BPR-0682","BPR-0684","BPR-0685","BPR-0686","BPR-0687","BPR-0688"]
 ---
 
 # Verify Settings integration and native acceptance
