@@ -4,7 +4,7 @@ id: "BPR-0683"
 title: "Verify Settings integration and native acceptance"
 status: "In Progress"
 rfcs: ["RFC-BPR-0018"]
-depends_on: ["BPR-0678", "BPR-0679", "BPR-0680", "BPR-0681", "BPR-0682","BPR-0684","BPR-0685"]
+depends_on: ["BPR-0678", "BPR-0679", "BPR-0680", "BPR-0681", "BPR-0682","BPR-0684","BPR-0685","BPR-0686","BPR-0687","BPR-0688","BPR-0689"]
 ---
 
 # Verify Settings integration and native acceptance
@@ -25,6 +25,12 @@ Routing: standard | Reason: default implementation.
 
 ## Evidence
 
-Not run. Created by the authorized BPR-0592 planning pass.
+Integration evidence is retained in BPR-0593. Architecture checks and composed
+GitHub passed; Settings minimum-size/four-appearance/four-scale rendered cases
+passed, with representative rasters inspected. Migration preflight, queue bounds
+and preview burst defects are fixed in BPR-0686/0687/0688. BPR-0689 exact setup
+and a focused runtime effect-boundary fixture remain in progress. Screen-reader,
+target-native interaction and Windows/Linux packaged inventory remain unobserved.
+Do not finish this card as Done or close RFC0018 from partial automated evidence.
 
 BPR-0684 repairs the Settings-close preview/import lifecycle discovered during integration preparation.

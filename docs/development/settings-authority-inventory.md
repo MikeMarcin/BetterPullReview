@@ -3,7 +3,7 @@
 BPR-0592, audited 2026-09-07 at `8c66a42c`. This inventories the default
 application environment before RFC-BPR-0024 introduces profile isolation.
 RFC-BPR-0028 owns the current three-page presentation. RFC-BPR-0018 owns the
-remaining Settings work. Planned checks below are not completed evidence.
+remaining Settings work. The table maps ownership; actual criterion evidence belongs to BPR-0593.
 
 ## Existing adjustable values
 
@@ -26,7 +26,7 @@ remaining Settings work. Planned checks below are not completed evidence.
 | Review details disclosure, modality selection, drawer filters/tree order, focused view/selection | Local interaction or retained layout according to its owner; Qt presentation plus workbench intents | Not a universal settings record. Preserve current selection and projections. Independent windows and restoration are 0024/0025 work. |
 | Startup landing and session restoration | No composed user preference yet | General must describe present behavior until 0024 provides typed profile/window restoration. Automatic update controls are outside scope. |
 
-## Selected paths and gaps
+## Baseline gaps (before BPR-0678)
 
 `workbench_window` owns one `settings_window`, adopts the existing appearance
 panel and Accounts/Reviews panels, and routes the platform Preferences action.
@@ -34,7 +34,7 @@ The shell holds seven fixed pages, but currently provides no scroll container,
 Escape close behavior, or visible default-profile identity. The pages are stable
 objects; retain them while adding bounded scrolling and focus behavior.
 
-The current three pages reuse domain dispatch. General, Notifications,
+At that baseline the three pages reused domain dispatch. General, Notifications,
 Agents & context, Storage & privacy are notices. Several notices still name
 completed issue IDs. Direct Sign in currently opens Accounts with Get a code
 focused; it does not satisfy RFC-0018's single-gesture begin criterion. Appearance
@@ -61,3 +61,19 @@ unchanged claims and selected paths. Full RFC-0018 acceptance is not established
 by those partial cards. BPR-0593 remains the canonical closeout and owns the
 actual criterion/check/result/revision ledger. Required native platform or human
 observations remain pending until obtained; this inventory invents no verdict.
+
+## Integrated Settings surfaces
+
+BPR-0678 through BPR-0682 now compose all seven categories in the Default
+environment. The shell scrolls each stable page, identifies the edited profile,
+returns focus on close and uses measured category widths in small windows
+(BPR-0685). Appearance export/scoped resets and notification preferences use
+their existing owning hosts. Agent/context rows share offered identities and
+per-request opt-ins; Storage actions share exact existing maintenance commands.
+BPR-0684 closes visible previews and retires pending imports while allowing
+accepted durable work to finish. General reports that window restoration is
+not yet available; RFC-0024 owns its later implementation.
+
+The source inventory above remains domain-specific. This is not a second status
+board: BPR-0593 holds the integration criterion ledger, BPR-0683 the native/human
+handoff, and BPR-0686 the migration-preflight defect found by independent review.
