@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0703"
 title: "Reject stale private note edits and retain rejected candidates"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0691"]
 ---
