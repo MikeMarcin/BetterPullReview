@@ -153,6 +153,10 @@ namespace bpr::application {
 
 		void dispatch(const core::github_event& aEvent);
 		/// \brief Attaches an exact read window before or after authentication; accepted identity binds it until exact retirement.
+		/// Startup restoration may attach up to 32 generation>1 stable IDs once,
+		/// in any order. Composition delivers all restored contexts before fresh
+		/// generation1 windows; the first fresh admission seals restoration.
+		/// Fresh IDs increase beyond every admitted ID; retired IDs never reattach.
 		[[nodiscard]] auto attach_window(const std::shared_ptr<github_window_read_host>& aWindow) -> bool;
 		/// \brief Retires an explicit attachment before considering the standalone legacy read slot.
 		void detach_window(core::bpr_window_context aWindow);

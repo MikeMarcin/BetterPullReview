@@ -5897,6 +5897,58 @@ namespace {
 		expect(fixture.Host.is_quiescent(), "primary cancellation terminal completes profile drain");
 	}
 
+	void test_restored_windows_admit_descending_ids_once_before_fresh_windows()
+	{
+		host_fixture fixture;
+		const auto   window = [&](std::uint64_t aId, std::uint64_t aGeneration) {
+			return std::make_shared<application::github_window_read_host>(
+				core::bpr_window_context{ core::default_bpr_profile_id, core::bpr_window_id{ aId }, core::bpr_window_generation{ aGeneration } },
+				core::application_session_id{ 1000 + aId }, fixture.Provider, fixture.Lane,
+				[](const application::github_window_read_update&) { });
+		};
+		auto second = window(2, 2);
+		auto first  = window(1, 2);
+		expect(fixture.Host.attach_window(second) && fixture.Host.attach_window(first), "restored MRU order2,1 retains exact IDs");
+		establish_native_session(fixture);
+		fixture.Host.detach_window(first->window());
+		fixture.Host.dispatch(core::open_pull_request_intent{ { "openai", "better-pull-review" }, core::pull_request_number{ 30 } });
+		expect(fixture.Provider.PullRequests.empty(), "retired restored ID1 cannot reenter as an implicit legacy reader");
+		fixture.Host.detach_window(second->window());
+		expect(!fixture.Host.attach_window(window(2, 2)), "retired restored context cannot reattach through a new reader");
+		expect(!fixture.Host.attach_window(window(2, 3)), "retired restored stable ID cannot change generation to reattach");
+		expect(!fixture.Host.attach_window(window(2, 1)), "restored highwater rejects fresh reuse");
+		auto fresh = window(3, 1);
+		expect(fixture.Host.attach_window(fresh), "fresh window follows maximum restored ID");
+		fixture.Host.detach_window(fresh->window());
+		expect(!fixture.Host.attach_window(window(3, 2)), "retired fresh ID cannot masquerade as restored");
+		expect(!fixture.Host.attach_window(window(4, 2)), "fresh admission permanently seals restoration phase");
+		expect(fixture.Host.attach_window(window(4, 1)), "fresh monotonic admission remains available");
+		fixture.Host.shutdown();
+		fixture.Lane.drain();
+		expect(fixture.Host.is_quiescent(), "restored and fresh windows drain together");
+	}
+
+	void test_restored_window_history_is_bounded_independently_of_live_capacity()
+	{
+		host_fixture fixture;
+		const auto   window = [&](std::uint64_t aId, std::uint64_t aGeneration) {
+			return std::make_shared<application::github_window_read_host>(
+				core::bpr_window_context{ core::default_bpr_profile_id, core::bpr_window_id{ aId }, core::bpr_window_generation{ aGeneration } },
+				core::application_session_id{ 1000 + aId }, fixture.Provider, fixture.Lane,
+				[](const application::github_window_read_update&) { });
+		};
+		for (std::uint64_t id = 32; id > 0; --id) {
+			expect(fixture.Host.attach_window(window(id, 2)), "all32 restored windows admit in descending order");
+		}
+		expect(!fixture.Host.attach_window(window(33, 2)), "restoration respects live capacity");
+		fixture.Host.detach_window({ core::default_bpr_profile_id, core::bpr_window_id{ 1 }, core::bpr_window_generation{ 2 } });
+		expect(!fixture.Host.attach_window(window(33, 2)), "retirement does not grow the bounded restored history");
+		expect(fixture.Host.attach_window(window(33, 1)), "fresh window uses released live capacity after32 restores");
+		fixture.Host.shutdown();
+		fixture.Lane.drain();
+		expect(fixture.Host.is_quiescent(), "full restored history does not prevent shutdown");
+	}
+
 	void test_profile_window_attachment_churn_is_bounded_by_live_consumers()
 	{
 		host_fixture fixture;
@@ -5920,6 +5972,8 @@ auto main() -> int
 	test_explicit_first_detach_preserves_existing_legacy_reader();
 	test_profile_authentication_shared_by_independent_windows();
 	test_profile_window_attachment_churn_is_bounded_by_live_consumers();
+	test_restored_windows_admit_descending_ids_once_before_fresh_windows();
+	test_restored_window_history_is_bounded_independently_of_live_capacity();
 	test_pending_primary_read_blocks_profile_quiescence();
 	test_bpr_profile_credential_admission();
 	test_bootstrap_failure_stages_are_exact_and_replacement_safe();

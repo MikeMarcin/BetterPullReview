@@ -18,7 +18,9 @@ namespace bpr::application {
 															 create,
 															 rename,
 															 open,
-															 new_window };
+															 new_window,
+															 close,
+															 quit };
 	enum class profile_management_failure : std::uint8_t {
 		registry_unavailable,
 		invalid_registry,
@@ -85,13 +87,16 @@ namespace bpr::application {
 	using profile_management_dispatch = std::function<void(profile_management_intent)>;
 
 	enum class profile_runtime_command_kind : std::uint8_t { start,
-															 activate };
+															 activate,
+															 close,
+															 quit };
 	/// \brief Composition performs runtime work under the exact reserved window context.
 	struct profile_runtime_command
 	{
 		profile_runtime_command_kind Kind;
 		core::bpr_window_context     Context;
 		std::string                  Label;
+		bool                         Restore = false;
 	};
 }
 #endif

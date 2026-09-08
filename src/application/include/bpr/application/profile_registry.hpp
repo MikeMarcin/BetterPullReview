@@ -103,6 +103,8 @@ namespace bpr::application {
 		[[nodiscard]] auto reload() -> profile_registry_result<void>;
 		[[nodiscard]] auto create(std::string_view aLabel) -> profile_registry_result<void>;
 		[[nodiscard]] auto rename(core::bpr_profile_id aProfile, std::string_view aLabel) -> profile_registry_result<void>;
+		/// \brief Saves only validated window metadata and allocation high-water, preserving profile roots and labels.
+		[[nodiscard]] auto save_window_state(const core::profile_window_state& aState) -> profile_registry_result<void>;
 		void               cancel();
 		void               shutdown();
 		[[nodiscard]] auto accepted() const noexcept -> const std::optional<profile_registry_snapshot>&;

@@ -34,6 +34,7 @@ namespace bpr::application {
 		/// \brief Accepts one startup completion; false means composition must dispose any late runtime.
 		[[nodiscard]] auto complete_open(core::bpr_window_context                        aContext,
 										 std::expected<void, profile_management_failure> aResult = { }) -> bool;
+		/// \brief Queues durable close admission; only the eventual close command authorizes runtime teardown.
 		[[nodiscard]] auto begin_close(core::bpr_window_context aContext) -> bool;
 		[[nodiscard]] auto complete_close(core::bpr_window_context aContext) -> bool;
 		/// \brief Admits only exact opening/open contexts; closing and retired windows are stale.
@@ -41,6 +42,9 @@ namespace bpr::application {
 		/// \brief Records native focus for an exact open window, preserving core MRU order.
 		[[nodiscard]] auto focus(core::bpr_window_context aContext) -> bool;
 
+		/// \brief Saves the retained set before emitting an orderly quit command. Busy/failure leaves live windows usable.
+		[[nodiscard]] auto request_quit() -> bool;
+		/// \brief Forced lifetime cleanup; never substitutes for successful orderly Quit persistence.
 		void               shutdown();
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
 		[[nodiscard]] auto projection_delivery_failed() const noexcept -> bool;

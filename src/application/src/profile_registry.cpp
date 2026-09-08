@@ -196,6 +196,39 @@ namespace bpr::application {
 			return { };
 		}
 
+		[[nodiscard]] auto save_window_state(const core::profile_window_state& aState) -> profile_registry_result<void>
+		{
+			if (auto admitted = ready(); !admitted) {
+				return admitted;
+			}
+			if (!Accepted) {
+				return std::unexpected(profile_registry_failure::not_loaded);
+			}
+			if (Accepted->Revision == std::numeric_limits<std::uint64_t>::max()) {
+				return std::unexpected(profile_registry_failure::identity_exhausted);
+			}
+			if (!core::profile_window_catalog::restore(aState) || aState.LastProfileId != Accepted->LastProfileId
+				|| aState.Profiles.size() != Accepted->Profiles.size()) {
+				return std::unexpected(profile_registry_failure::corrupt);
+			}
+			auto candidate = *Accepted;
+			++candidate.Revision;
+			candidate.LastWindowId = aState.LastWindowId;
+			for (std::size_t index = 0; index < aState.Profiles.size(); ++index) {
+				const auto& profile = aState.Profiles[index];
+				auto&       entry   = candidate.Profiles[index];
+				if (profile.Profile != entry.Profile) {
+					return std::unexpected(profile_registry_failure::corrupt);
+				}
+				entry.RetainedWindows = profile.Retained;
+				entry.RetainedWindows.insert(entry.RetainedWindows.end(), profile.Live.begin(), profile.Live.end());
+			}
+			if (!valid_profile_registry_update(*Accepted, candidate)) {
+				return std::unexpected(profile_registry_failure::corrupt);
+			}
+			return submit(std::move(candidate), { });
+		}
+
 		[[nodiscard]] auto edit(const std::optional<core::bpr_profile_id> aProfile, const std::string_view aLabel) -> profile_registry_result<void>
 		{
 			if (auto admitted = ready(); !admitted) {
@@ -250,6 +283,7 @@ namespace bpr::application {
 	auto profile_registry_host::reload() -> profile_registry_result<void> { return Implementation->submit({ }, { }); }
 	auto profile_registry_host::create(const std::string_view aLabel) -> profile_registry_result<void> { return Implementation->edit({ }, aLabel); }
 	auto profile_registry_host::rename(const core::bpr_profile_id aProfile, const std::string_view aLabel) -> profile_registry_result<void> { return Implementation->edit(aProfile, aLabel); }
+	auto profile_registry_host::save_window_state(const core::profile_window_state& aState) -> profile_registry_result<void> { return Implementation->save_window_state(aState); }
 	void profile_registry_host::cancel()
 	{
 		Implementation->Stop.request_stop();

@@ -5,6 +5,7 @@
 #include "bpr/core/sha256.hpp"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -1095,10 +1096,19 @@ namespace bpr::application {
 			std::erase_if(AttachedWindows, [](const auto& aSlot) { return (aSlot.Detaching && aSlot.Host->is_quiescent()); });
 			const auto session = current_profile_session();
 			if (Closing || !aWindow || aWindow->window().Profile != BprProfile
-				|| aWindow->window().Generation.value() == 0U || aWindow->state().ApplicationSession.value() == 0U
+				|| aWindow->window().Window.value() == 0U || aWindow->window().Generation.value() == 0U || aWindow->state().ApplicationSession.value() == 0U
 				|| (!session && aWindow->state().ActiveProfile.has_value())
-				|| aWindow->window().Window.value() <= LastAttachedWindow.value() || AttachedWindows.size() + (ReadWindow ? 1U : 0U) >= 32U
+				|| AttachedWindows.size() + (ReadWindow ? 1U : 0U) >= 32U
 				|| aWindow->state().ApplicationSession == State.ApplicationSession) {
+				return false;
+			}
+			const auto restored = aWindow->window().Generation.value() > 1U;
+			if (restored) {
+				if (RestorationSealed || ReadWindow || RestoredWindowCount == RestoredWindows.size()
+					|| std::ranges::find(RestoredWindows, aWindow->window().Window) != RestoredWindows.end()) {
+					return false;
+				}
+			} else if (aWindow->window().Window.value() <= LastAttachedWindow.value()) {
 				return false;
 			}
 			for (const auto& slot : AttachedWindows) {
@@ -1112,8 +1122,13 @@ namespace bpr::application {
 			AttachedWindows.push_back({ aWindow->window(), aWindow->state().ApplicationSession,
 										session ? std::optional{ session->ProfileAuthority } : std::nullopt,
 										session ? session->Session.Viewer.Account : core::github_account_id{ }, aWindow });
-			ExplicitPrimaryAttached = ExplicitPrimaryAttached || aWindow->window() == core::bpr_window_context{ BprProfile, core::bpr_window_id{ 1 }, core::bpr_window_generation{ 1 } };
-			LastAttachedWindow      = aWindow->window().Window;
+			ExplicitPrimaryAttached = ExplicitPrimaryAttached || aWindow->window().Window == core::bpr_window_id{ 1 };
+			LastAttachedWindow      = std::max(LastAttachedWindow, aWindow->window().Window);
+			if (restored) {
+				RestoredWindows[RestoredWindowCount++] = aWindow->window().Window;
+			} else {
+				RestorationSealed = true;
+			}
 			if (session) {
 				PublishedSession = session;
 			}
@@ -3882,6 +3897,9 @@ namespace bpr::application {
 		bool                                     PrimaryReadClosed       = false;
 		bool                                     ExplicitPrimaryAttached = false;
 		core::bpr_window_id                      LastAttachedWindow{ };
+		std::array<core::bpr_window_id, 32>      RestoredWindows{ };
+		std::size_t                              RestoredWindowCount = 0;
+		bool                                     RestorationSealed   = false;
 		core::github_state                       State;
 		github_profile_port&                     Profiles;
 		github_viewer_port&                      Viewers;

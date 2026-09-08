@@ -38,6 +38,7 @@ namespace bpr::application {
 			core::bpr_window_context     Context;
 			profile_management_runtime   State;
 			bool                         StartupPending = true;
+			bool                         StartupIssued  = false;
 			profile_management_operation Operation      = profile_management_operation::open;
 		};
 	}
@@ -52,7 +53,18 @@ namespace bpr::application {
 		bool                                        Closing        = false;
 		bool                                        DeliveryFailed = false;
 		std::optional<profile_management_operation> PendingOperation;
-		profile_registry_host                       Registry;
+		struct lifecycle_save
+		{
+			core::profile_window_catalog         Candidate;
+			std::vector<profile_runtime_command> Commands;
+			profile_management_operation         Operation;
+			std::optional<core::bpr_profile_id>  Profile;
+		};
+		std::optional<lifecycle_save>         PendingLifecycle;
+		std::vector<core::bpr_window_context> PendingFocus;
+		std::vector<core::bpr_window_context> PendingRetirements;
+		bool                                  Delivering = false;
+		profile_registry_host                 Registry;
 
 		implementation(profile_registry_port& aRegistry, effect_executor& aEffects,
 					   decision_executor& aDecision, profile_management_projection_port& aProjection,
@@ -93,7 +105,14 @@ namespace bpr::application {
 		[[nodiscard]] auto focus(const core::bpr_window_context aContext) -> bool
 		{
 			const auto slot = exact_slot(aContext);
-			return !Closing && slot != Slots.end() && slot->State == profile_management_runtime::open && Catalog.focus(aContext).has_value();
+			if (Closing || slot == Slots.end() || slot->State != profile_management_runtime::open || !Catalog.focus(aContext)) {
+				return false;
+			}
+			if (PendingLifecycle) {
+				std::erase(PendingFocus, aContext);
+				PendingFocus.push_back(aContext);
+			}
+			return true;
 		}
 
 		void focus_latest_open(const core::bpr_profile_id aProfile)
@@ -111,7 +130,7 @@ namespace bpr::application {
 
 		void emit(std::optional<profile_management_error> aFailure = { }, std::optional<profile_management_edit> aEdit = { })
 		{
-			auto result = profile_management_projection{ { }, Ready, !Registry.is_quiescent(), Closing, aFailure, aEdit };
+			auto result = profile_management_projection{ { }, Ready, !Registry.is_quiescent() || Delivering, Closing, aFailure, aEdit };
 			if (HaveCatalog) {
 				for (const auto& entry : Catalog.state().Profiles) {
 					result.Profiles.push_back({ entry.Profile.Id, entry.Profile.Label, runtime_state(entry.Profile.Id) });
@@ -133,22 +152,42 @@ namespace bpr::application {
 		[[nodiscard]] auto synchronize() -> bool
 		{
 			const auto& accepted = Registry.accepted();
-			if (!accepted || accepted->LastProfileId < Catalog.state().LastProfileId) {
+			if (!accepted || accepted->LastProfileId < Catalog.state().LastProfileId
+				|| accepted->LastWindowId < Catalog.state().LastWindowId) {
 				return false;
 			}
 			auto state = Catalog.state();
-			for (const auto& slot : Slots) {
-				if (std::ranges::none_of(accepted->Profiles, [&slot](const auto& aEntry) { return aEntry.Profile.Id == slot.Context.Profile; })) {
-					return false;
-				}
-			}
 			state.Profiles.clear();
 			state.LastProfileId = accepted->LastProfileId;
+			state.LastWindowId  = accepted->LastWindowId;
 			for (const auto& entry : accepted->Profiles) {
 				const auto previous = std::ranges::find_if(Catalog.state().Profiles, [&entry](const auto& aPrevious) { return aPrevious.Profile.Id == entry.Profile.Id; });
-				auto       profile  = previous == Catalog.state().Profiles.end() ? core::bpr_profile_windows{ entry.Profile, { }, { } } : *previous;
-				profile.Profile     = entry.Profile;
+				auto       profile  = core::bpr_profile_windows{ entry.Profile, { }, { } };
+				if (previous != Catalog.state().Profiles.end()) {
+					profile.Live = previous->Live;
+					for (const auto& live : profile.Live) {
+						const auto durable = std::ranges::find_if(entry.RetainedWindows, [&live](const auto& aWindow) { return aWindow.Id == live.Id; });
+						if (durable != entry.RetainedWindows.end() && *durable != live) {
+							return false;
+						}
+					}
+				}
+				for (const auto& window : entry.RetainedWindows) {
+					if (std::ranges::find(profile.Live, window) != profile.Live.end()) {
+						continue;
+					}
+					const auto wasRetained = previous != Catalog.state().Profiles.end()
+						&& std::ranges::any_of(previous->Retained, [&window](const auto& aWindow) { return aWindow.Id == window.Id; });
+					if (!HaveCatalog || wasRetained || window.Id.value() > Catalog.state().LastWindowId) {
+						profile.Retained.push_back(window);
+					}
+				}
 				state.Profiles.push_back(std::move(profile));
+			}
+			for (const auto& slot : Slots) {
+				if (std::ranges::none_of(state.Profiles, [&slot](const auto& aEntry) { return aEntry.Profile.Id == slot.Context.Profile; })) {
+					return false;
+				}
 			}
 			auto restored = core::profile_window_catalog::restore(std::move(state));
 			if (!restored) {
@@ -158,9 +197,38 @@ namespace bpr::application {
 			return true;
 		}
 
+		void deliver(const std::vector<profile_runtime_command>& aCommands, const profile_management_operation aOperation)
+		{
+			Delivering = true;
+			std::optional<profile_management_error> failure;
+			emit();
+			for (const auto& command : aCommands) {
+				const auto slot = exact_slot(command.Context);
+				if (command.Kind != profile_runtime_command_kind::quit
+					&& (slot == Slots.end() || (command.Kind == profile_runtime_command_kind::start && (Closing || slot->State != profile_management_runtime::opening)))) {
+					continue;
+				}
+				if (command.Kind == profile_runtime_command_kind::start) {
+					slot->StartupIssued = true;
+				}
+				try {
+					Projection.perform(command);
+				} catch (...) {
+					DeliveryFailed = true;
+					if (command.Kind == profile_runtime_command_kind::start) {
+						retire(command.Context);
+					}
+					failure = profile_management_error{ aOperation, command.Context.Profile.value() == 0U ? std::nullopt : std::optional{ command.Context.Profile }, profile_management_failure::runtime_unavailable };
+				}
+			}
+			Delivering = false;
+			emit(failure);
+		}
+
 		void publish(const profile_registry_publication& aPublication) override
 		{
-			const auto operation = PendingOperation.value_or(profile_management_operation::reload);
+			auto       lifecycle = std::exchange(PendingLifecycle, std::nullopt);
+			const auto operation = lifecycle ? lifecycle->Operation : PendingOperation.value_or(profile_management_operation::reload);
 			PendingOperation.reset();
 			if (Closing) {
 				emit();
@@ -168,7 +236,37 @@ namespace bpr::application {
 			}
 			if (aPublication.Failure) {
 				Ready = false;
-				fail(operation, aPublication.Profile, translate(*aPublication.Failure));
+				fail(operation, lifecycle ? lifecycle->Profile : aPublication.Profile, translate(*aPublication.Failure));
+				return;
+			}
+			if (lifecycle) {
+				Catalog = std::move(lifecycle->Candidate);
+				for (const auto context : PendingRetirements) {
+					static_cast<void>(Catalog.close(context));
+				}
+				PendingRetirements.clear();
+				for (const auto context : PendingFocus) {
+					static_cast<void>(Catalog.focus(context));
+				}
+				PendingFocus.clear();
+				Ready = true;
+				for (const auto& command : lifecycle->Commands) {
+					if (command.Kind == profile_runtime_command_kind::start) {
+						Slots.push_back({ command.Context, profile_management_runtime::opening, true, false, operation });
+					} else if (command.Kind == profile_runtime_command_kind::close) {
+						const auto slot = exact_slot(command.Context);
+						if (slot != Slots.end()) {
+							slot->State = profile_management_runtime::closing;
+						}
+					} else if (command.Kind == profile_runtime_command_kind::quit) {
+						Closing = true;
+						Ready   = false;
+						for (auto& slot : Slots) {
+							slot.State = profile_management_runtime::closing;
+						}
+					}
+				}
+				deliver(lifecycle->Commands, operation);
 				return;
 			}
 			Ready       = synchronize();
@@ -187,7 +285,7 @@ namespace bpr::application {
 				fail(aOperation, aProfile, profile_management_failure::closing);
 				return;
 			}
-			if (!Registry.is_quiescent()) {
+			if (!Registry.is_quiescent() || Delivering) {
 				fail(aOperation, aProfile, profile_management_failure::busy);
 				return;
 			}
@@ -212,6 +310,9 @@ namespace bpr::application {
 
 		void retire(const core::bpr_window_context aContext)
 		{
+			if (PendingLifecycle && Catalog.accepts(aContext)) {
+				PendingRetirements.push_back(aContext);
+			}
 			static_cast<void>(Catalog.close(aContext));
 			const auto found = exact_slot(aContext);
 			if (found != Slots.end()) {
@@ -219,15 +320,37 @@ namespace bpr::application {
 			}
 		}
 
+		[[nodiscard]] auto lifecycle_ready(const profile_management_operation aOperation, const std::optional<core::bpr_profile_id> aProfile) -> bool
+		{
+			if (Closing || !Ready || !Registry.is_quiescent() || Delivering) {
+				fail(aOperation, aProfile, Closing ? profile_management_failure::closing : !Registry.is_quiescent() || Delivering ? profile_management_failure::busy
+																																  : profile_management_failure::registry_unavailable);
+				return false;
+			}
+			return true;
+		}
+
+		[[nodiscard]] auto save(lifecycle_save aSave) -> bool
+		{
+			PendingFocus.clear();
+			PendingRetirements.clear();
+			PendingLifecycle  = std::move(aSave);
+			const auto result = Registry.save_window_state(PendingLifecycle->Candidate.state());
+			if (!result) {
+				const auto rejected = std::exchange(PendingLifecycle, std::nullopt);
+				fail(rejected->Operation, rejected->Profile, translate(result.error()));
+				return false;
+			}
+			if (PendingLifecycle) {
+				emit();
+			}
+			return true;
+		}
+
 		void open(const core::bpr_profile_id aProfile, const core::profile_launch_intent aIntent)
 		{
 			const auto operation = aIntent == core::profile_launch_intent::new_window ? profile_management_operation::new_window : profile_management_operation::open;
-			if (Closing) {
-				fail(operation, aProfile, profile_management_failure::closing);
-				return;
-			}
-			if (!Ready) {
-				fail(operation, aProfile, profile_management_failure::registry_unavailable);
+			if (!lifecycle_ready(operation, aProfile)) {
 				return;
 			}
 			const auto state = runtime_state(aProfile);
@@ -239,42 +362,35 @@ namespace bpr::application {
 			if (aIntent == core::profile_launch_intent::activate) {
 				focus_latest_open(aProfile);
 			}
-			const auto launched = Catalog.launch(aProfile, aIntent);
+			auto       candidate = Catalog;
+			const auto launched  = candidate.launch(aProfile, aIntent);
 			if (!launched) {
 				fail(operation, aProfile, translate(launched.error()));
 				return;
 			}
-			const auto starting = !launched->Created.empty();
-			if (starting) {
-				Slots.push_back({ launched->Activated, profile_management_runtime::opening, true, operation });
-			}
-			const auto profile = std::ranges::find_if(Catalog.state().Profiles, [aProfile](const auto& aEntry) { return aEntry.Profile.Id == aProfile; });
-			const auto command = profile_runtime_command{ starting ? profile_runtime_command_kind::start : profile_runtime_command_kind::activate, launched->Activated, profile->Profile.Label };
-			emit();
-			// Reentrant status adoption may close the reservation before command delivery.
-			const auto current = exact_slot(command.Context);
-			if (Closing || current == Slots.end() || current->State != (starting ? profile_management_runtime::opening : profile_management_runtime::open)) {
-				if (starting) {
-					retire(command.Context);
-					emit();
-				}
+			const auto profile = std::ranges::find_if(candidate.state().Profiles, [aProfile](const auto& aEntry) { return aEntry.Profile.Id == aProfile; });
+			const auto label   = profile->Profile.Label;
+			if (launched->Created.empty()) {
+				Catalog = std::move(candidate);
+				deliver({ { profile_runtime_command_kind::activate, launched->Activated, label } }, operation);
 				return;
 			}
-			try {
-				Projection.perform(command);
-			} catch (...) {
-				DeliveryFailed = true;
-				if (starting) {
-					retire(command.Context);
-				}
-				fail(operation, aProfile, profile_management_failure::runtime_unavailable);
+			const auto reserved = static_cast<std::size_t>(std::ranges::count_if(Slots, [aProfile](const auto& aSlot) { return aSlot.Context.Profile == aProfile; }));
+			if (reserved + launched->Created.size() > core::maximum_bpr_windows_per_profile) {
+				fail(operation, aProfile, profile_management_failure::busy);
+				return;
 			}
+			auto pending = lifecycle_save{ std::move(candidate), { }, operation, aProfile };
+			for (const auto& created : launched->Created) {
+				pending.Commands.push_back({ profile_runtime_command_kind::start, created.Context, label, created.Restore });
+			}
+			static_cast<void>(save(std::move(pending)));
 		}
 
 		[[nodiscard]] auto complete_open(const core::bpr_window_context aContext, const std::expected<void, profile_management_failure> aResult) -> bool
 		{
 			const auto slot = exact_slot(aContext);
-			if (slot == Slots.end() || !slot->StartupPending) {
+			if (slot == Slots.end() || !slot->StartupPending || !slot->StartupIssued) {
 				return false;
 			}
 			slot->StartupPending = false;
@@ -294,7 +410,7 @@ namespace bpr::application {
 				return true;
 			}
 			slot->State = profile_management_runtime::open;
-			static_cast<void>(Catalog.focus(aContext));
+			static_cast<void>(focus(aContext));
 			emit();
 			const auto current = exact_slot(aContext);
 			return !Closing && current != Slots.end() && current->State == profile_management_runtime::open;
@@ -302,14 +418,33 @@ namespace bpr::application {
 
 		[[nodiscard]] auto begin_close(const core::bpr_window_context aContext) -> bool
 		{
-			const auto slot = exact_slot(aContext);
-			if (slot == Slots.end() || slot->State == profile_management_runtime::closing) {
+			if (!current(aContext)) {
 				return false;
 			}
-			slot->State = profile_management_runtime::closing;
-			emit();
-			return true;
+			if (!lifecycle_ready(profile_management_operation::close, aContext.Profile)) {
+				return false;
+			}
+			auto candidate = Catalog;
+			if (!candidate.close(aContext)) {
+				return false;
+			}
+			return save({ std::move(candidate), { { profile_runtime_command_kind::close, aContext, { } } }, profile_management_operation::close, aContext.Profile });
 		}
+
+		[[nodiscard]] auto request_quit() -> bool
+		{
+			if (!lifecycle_ready(profile_management_operation::quit, { })) {
+				return false;
+			}
+			auto candidate = Catalog;
+			for (const auto& profile : Catalog.state().Profiles) {
+				if (!candidate.quit(profile.Profile.Id)) {
+					return false;
+				}
+			}
+			return save({ std::move(candidate), { { profile_runtime_command_kind::quit, { }, { } } }, profile_management_operation::quit, { } });
+		}
+
 		[[nodiscard]] auto complete_close(const core::bpr_window_context aContext) -> bool
 		{
 			const auto slot = exact_slot(aContext);
@@ -328,6 +463,7 @@ namespace bpr::application {
 			Closing = true;
 			Ready   = false;
 			Registry.cancel();
+			std::erase_if(Slots, [](const auto& aSlot) { return aSlot.StartupPending && !aSlot.StartupIssued; });
 			for (auto& slot : Slots) {
 				slot.State = profile_management_runtime::closing;
 			}
@@ -363,6 +499,7 @@ namespace bpr::application {
 	auto profile_management_host::current(const core::bpr_window_context aContext) const noexcept -> bool { return Implementation->current(aContext); }
 	auto profile_management_host::focus(const core::bpr_window_context aContext) -> bool { return Implementation->focus(aContext); }
 
+	auto profile_management_host::request_quit() -> bool { return Implementation->request_quit(); }
 	void profile_management_host::shutdown() { Implementation->shutdown(); }
 	auto profile_management_host::is_quiescent() const noexcept -> bool { return Implementation->Registry.is_quiescent() && Implementation->Slots.empty(); }
 	auto profile_management_host::projection_delivery_failed() const noexcept -> bool { return Implementation->DeliveryFailed || Implementation->Registry.projection_delivery_failed(); }

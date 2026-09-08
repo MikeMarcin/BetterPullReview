@@ -77,8 +77,8 @@ Implementation Architecture](github-host-implementation.md).
 
 ## Profile and window ownership
 
-The desktop admits one runtime for each BPR profile before requesting its first
-core window context. The profile runtime owns private storage roots,
+The desktop admits one runtime for each BPR profile after the management host
+commits its first core window context. The profile runtime owns private storage roots,
 authentication, provider capabilities, queue refresh, preferences, logging,
 epoch cache actors, shared drafts and workspace recovery. A window session owns
 its read host, epoch and diff state, selected review, navigation, Qt surface,
@@ -95,8 +95,14 @@ windows can adopt the new authority.
 
 Settings has one presentation per profile and mounts the invoking window's
 controls over shared accepted preferences. Window geometry remains independent.
-Live window composition does not yet supply durable window restoration or
-cross-process activation; those RFC-BPR-0024 criteria remain open.
+The global profile registry retains bounded stable window identities and focus
+order. The management host saves core lifecycle decisions before starting or
+closing windows, and before orderly Quit drains services. Failed saves preserve
+the usable windows and offer explicit registry reload. Restart restores retained
+identities with fresh generations in focus order; explicit Close removes only
+that window, while Quit retains survivors. Restored windows currently show Home
+with an unavailable-content notice. Private review destinations, layout restore
+and cross-process activation remain open RFC-BPR-0024 work.
 
 ## Diagnostic logging boundary
 

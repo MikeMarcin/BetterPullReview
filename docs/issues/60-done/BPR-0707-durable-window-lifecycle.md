@@ -2,9 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0707"
 title: "Commit window lifecycle before runtime effects"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0706"]
+acceptance: [{"criterion":"Durable lifecycle before window effects and actual process restart","outcome":"pass","revision":"e9b1b217 plus explicit BPR-0707 finish paths","evidence":{"kind":"observation","detail":"Manual-executor lifecycle/CAS failures/reentrant/retirement/capacity tests0.46s pass. Actual four-process restart6.78s restores MRU identities/fresh generations and independent profile sets, distinguishes Close/Quit and global highwater; real SQLite locks keep both windows usable and explicit Reload never retries destruction. Live multiwindow70.43s/management1.47s pass. Focused read-host restored-ID/stale/legacy/churn tests0.31s and all changed TU tidy pass. Independentmedium findings resolved; strictsource inventory and bypass0.703s/docs/diff pass. Inspected restored-home.png retained. Private destinations/layout/crossprocess/native criteria remain outside this slice."}}]
 ---
 
 # Commit window lifecycle before runtime effects
@@ -66,6 +67,37 @@ remain open on the RFC closeout.
 
 ## Evidence
 
-BPR-0706 provides passing durable metadata/CAS/migration contracts. The current
-management and desktop paths still perform lifecycle effects before persistence;
-no BPR-0707 implementation or restart acceptance has run.
+Implemented core-candidate lifecycle saves before typed start/close/quit effects,
+explicit reload recovery, deferred focus and exact failed-start retirement replay.
+Manual-executor registry/management tests pass (0.46s), including failed or
+uncertain persistence, stale/reentrant completions and physical closing capacity.
+The actual four-process restart course passes (6.78s final): two retained Default
+windows restore in MRU order with fresh generations; Work stays independent;
+Close omits only its window; Quit retains survivors; fresh IDs exceed global
+high-water. Real SQLite write locks prove failed Close and Quit preserve both
+windows and explicit Reload never retries the action automatically.
+
+The public course found descending restored IDs were rejected by the read-host
+attachment high-water rule. A fixed32 startup-only restored-ID history now
+admits MRU order while refusing retired IDs and changed-generation reattachment;
+the first fresh attachment seals restoration. Focused host tests pass (0.31s final),
+including descending32/capacity/churn; independent medium review has no remaining
+material finding. Earlier close-widget and pending-start retirement findings
+were fixed and narrowly rechecked.
+
+Retained and inspected rendered artifact:
+`build/dev/profile-window-restart-review/restored-home.png`. Its unavailable-
+content notice is visible; private destination/layout restoration remains next.
+Strict production source inventory and direct-mutation bypass rejection pass
+(0.703s). Unchanged schema2 storage/migration evidence is reused from BPR-0706.
+
+The existing live multi-window course passes (70.43s), including pending sibling
+read completion and accepted-close visibility; profile management passes (1.47s).
+Restored stable ID1 is also marked explicit to prevent the older standalone read
+slot from reviving it after retirement. That compatibility-only guard receives
+a focused host regression; the public course uses explicit window readers.
+
+Final changed-TU tidy, documentation and diff checks pass. The four-process
+runner removes its exact private temporary root, including failure cases.
+Unchanged relevant BPR-0705 architecture and tests-disabled isolation evidence
+is reused; this slice introduces no fixture seam in production.

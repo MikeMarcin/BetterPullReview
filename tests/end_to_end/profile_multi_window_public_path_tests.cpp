@@ -227,6 +227,7 @@ auto main(int aArgc, char** aArgv) -> int
 	windowA->close();
 	wait_for([&] { return owner->window(first) == nullptr && owner->windows().size() == 1U; }, "closing first window retires only its session");
 	expect(desktop->runtime(first.Profile) == owner && owner->window(second) == windowB, "profile services survive first window close");
+	expect(!windowA->isVisible(), "accepted close hides initial retained shell while sibling survives");
 	app::detail::github_application_fixture_access::hold_window_read_terminal(*owner, second, false);
 	wait_for([&] { return windowB->session_panel()->status() == core::github_status::pull_request_ready; }, "surviving read completes after first window closes");
 	const auto resumed = app::detail::github_application_fixture_access::large_review_snapshot(*owner, second);

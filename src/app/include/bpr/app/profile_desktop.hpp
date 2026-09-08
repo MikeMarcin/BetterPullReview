@@ -19,6 +19,7 @@ namespace bpr::app {
 		[[nodiscard]] auto windows(core::bpr_profile_id aProfile) const -> std::vector<core::bpr_window_context>;
 		[[nodiscard]] auto window(core::bpr_window_context aContext) const noexcept -> qt::workbench_window*;
 		[[nodiscard]] auto management_window() const noexcept -> qt::profile_management_window*;
+		/// Requests durable orderly Quit; failed admission leaves windows usable.
 		void               quit(int aExitCode = 0);
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
 		[[nodiscard]] auto exit_code() const noexcept -> int;

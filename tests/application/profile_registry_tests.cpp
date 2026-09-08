@@ -239,10 +239,43 @@ namespace {
 		expect(!valid(reused), "zero generation rejected");
 	}
 
+	void test_narrow_window_state_save()
+	{
+		memory_store          store;
+		manual_executor       effects;
+		manual_executor       decisions;
+		projection            output;
+		profile_registry_host host{ store, effects, decisions, output, core::application_session_id{ 1 } };
+		expect(host.reload().has_value(), "window save fixture loads");
+		effects.drain();
+		decisions.drain();
+		core::profile_window_catalog catalog;
+		expect(catalog.launch(core::default_bpr_profile_id, core::profile_launch_intent::new_window).has_value(), "core allocates window candidate");
+		auto invalid                      = catalog.state();
+		invalid.Profiles[0].Profile.Label = "Not a window edit";
+		expect(!host.save_window_state(invalid) && effects.pending() == 0, "window API cannot rename profile labels");
+		invalid = catalog.state();
+		++invalid.LastProfileId;
+		expect(!host.save_window_state(invalid), "window API cannot change profile allocator authority");
+		expect(host.save_window_state(catalog.state()).has_value() && host.accepted()->LastWindowId == 0,
+			   "window save has no optimistic registry acceptance");
+		effects.drain();
+		expect(host.accepted()->LastWindowId == 0 && store.Durable.LastWindowId == 1, "window CAS completion stays on effect lane until decision");
+		decisions.drain();
+		expect(host.accepted()->Profiles[0].RetainedWindows == catalog.state().Profiles[0].Live
+				   && host.accepted()->Profiles[0].RootIdentity == "legacy",
+			   "durable representation retains live metadata without root authority changes");
+		expect(host.rename(core::default_bpr_profile_id, "Renamed").has_value(), "ordinary label editing remains available");
+		effects.drain();
+		decisions.drain();
+		expect(host.accepted()->Profiles[0].RetainedWindows == catalog.state().Profiles[0].Live, "ordinary profile edit retains exact window state");
+	}
+
 }
 
 int main()
 {
+	test_narrow_window_state_save();
 	test_window_update_authority();
 	test_durable_acceptance_and_cancellation();
 	test_failures_and_shutdown();

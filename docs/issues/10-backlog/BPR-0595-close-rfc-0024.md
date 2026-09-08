@@ -218,3 +218,25 @@ full64×32 bounds, identity/generation/ownership refusals and six transactional
 interruption points. Canonical tidy passes and independent medium review found no
 material finding. Native and full restart criteria stay open. BPR-0707 is reserved
 for the required asynchronous lifecycle admission and desktop integration.
+
+BPR-0707 integrates durable lifecycle admission before start, Close and Quit.
+The four-process actual desktop course passes (6.78s final), including two-profile
+retention, MRU generations, explicit Close versus Quit, global high-water and
+real SQLite-lock failure/reload recovery. The read host now admits bounded
+startup restoration in focus order while retaining stale-ID refusal; direct
+host regression passes (0.31s final), independent medium review and strict source/
+bypass guards pass. The inspected restored Home raster is retained under
+`build/dev/profile-window-restart-review/`. This is identity/count/order
+acceptance, not restoration of discarded private review contents.
+
+Next bounded vertical slice: persist a profile-private active PR destination
+under stable window ID, restore through the exact window read host and bind
+already-supported window layout rows. Resolve only an existing configured server
+and accepted profile authentication; never start setup, fabricate Resume or
+substitute unavailable content. Comparison/file and semantic reading-location
+restoration then need their own bounded acceptance. Cross-process activation,
+same-review ledger fan-out and full two-account isolation remain open.
+
+BPR-0707 live multi-window recheck passes70.43s and management1.47s; final
+focused host regression also seals the legacy single-window alias after
+restored ID1 retirement. Changed-TU tidy and documentation pass.
