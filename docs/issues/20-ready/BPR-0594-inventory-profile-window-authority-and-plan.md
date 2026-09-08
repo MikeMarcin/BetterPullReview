@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0594"
 title: "Inventory profile and window authority and plan RFC-BPR-0024"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0592"]
 milestone: "Post-Pack v2"
@@ -15,7 +15,7 @@ milestone: "Post-Pack v2"
 Inventory application-data roots, vault bindings, domain stores, shared review records, singleton runtime assumptions, and window shutdown/restore paths. Specify Default adoption and profile/window identity propagation against the live implementation. Allocate the first bounded profile foundation slice with migration and composed-path selectors.
 
 Governing design: [RFC-BPR-0024](../../rfcs/RFC-BPR-0024-bpr-profiles-multiple-windows.md).
-Closeout: [BPR-0595](BPR-0595-close-rfc-0024.md).
+Closeout: [BPR-0595](../10-backlog/BPR-0595-close-rfc-0024.md).
 
 RFC base: `e851eb8a851ab605cf5a85260a1317ecdf66773b`.
 

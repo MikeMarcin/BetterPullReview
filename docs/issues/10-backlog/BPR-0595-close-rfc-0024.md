@@ -63,6 +63,6 @@ history, not evidence of interrupted product implementation.
 
 ## Resume
 
-Next task: [BPR-0594](BPR-0594-inventory-profile-window-authority-and-plan.md) after a later explicit implementation
+Next task: [BPR-0594](../20-ready/BPR-0594-inventory-profile-window-authority-and-plan.md) after a later explicit implementation
 request and the applicable RFC eligibility/dependency checks. No product check
 has run, no product slice is complete, and no temporary worktree is retained.
