@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0696"
 title: "Expose profile creation, rename and open in the desktop"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0695"]
 ---
