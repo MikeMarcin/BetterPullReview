@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0687"
 title: "Bound Settings queue collections"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0018"]
 depends_on: ["BPR-0681"]
 ---
