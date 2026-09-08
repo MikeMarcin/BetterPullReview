@@ -1,0 +1,60 @@
+#ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_APPEARANCE_PREFERENCES_APPLICATION_HOST_HPP
+#define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_APPEARANCE_PREFERENCES_APPLICATION_HOST_HPP
+#include "bpr/application/appearance_runtime_ports.hpp"
+#include "bpr/application/port.hpp"
+#include "bpr/core/profile_window.hpp"
+#include <span>
+namespace bpr::application {
+	struct appearance_consumer_id_tag;
+	using appearance_consumer_id = core::strong_id<appearance_consumer_id_tag>;
+	enum class appearance_attachment_failure { invalid_consumer,
+											   capacity,
+											   closing,
+											   identity_exhausted };
+	/// \brief One profile's durable preferences and bounded window subscriptions.
+	/// \details All public calls run on the decision lane. Attach owns the consumer port
+	/// until detach; detach immediately fences callbacks, including reentrant fan-out.
+	/// Referenced settings/document ports and executors outlive shutdown/is_quiescent.
+	/// Observations and derived publications are per attachment, never durable settings.
+	class appearance_preferences_application_host final
+	{
+	public:
+		appearance_preferences_application_host(appearance_settings aInitialSettings, appearance_settings_port& aSettings,
+												theme_document_port& aThemeDocuments, effect_executor& aEffects, decision_executor& aDecisionLane,
+												core::application_session_id aSession, appearance_host_limits aLimits = { });
+		~appearance_preferences_application_host();
+		appearance_preferences_application_host(const appearance_preferences_application_host&)                                  = delete;
+		auto               operator=(const appearance_preferences_application_host&) -> appearance_preferences_application_host& = delete;
+		[[nodiscard]] auto attach(std::shared_ptr<appearance_projection_port> aPort, bool aPublishInitial = true) -> std::expected<appearance_consumer_id, appearance_attachment_failure>;
+		void               detach(appearance_consumer_id aConsumer);
+		void               restore(appearance_consumer_id aConsumer);
+		void               select(appearance_consumer_id aConsumer, core::appearance_mode aMode);
+		void               observe(appearance_consumer_id aConsumer, core::appearance_observation aObservation);
+		void               apply(appearance_consumer_id aConsumer, core::appearance_palette aPalette);
+		void               apply(appearance_consumer_id aConsumer, core::typography_settings aTypography);
+		void               import_theme_file(appearance_consumer_id aConsumer, std::string aPath);
+		void               cancel_theme_import(appearance_consumer_id aConsumer);
+		void               export_theme_file(appearance_consumer_id aConsumer, std::string aPath, core::appearance_palette aPalette);
+		void               reset(appearance_consumer_id aConsumer, appearance_reset_scope aScope);
+		void               cancel();
+		void               shutdown();
+		[[nodiscard]] auto settings() const noexcept -> const appearance_settings&;
+		[[nodiscard]] auto resolution(appearance_consumer_id aConsumer) const noexcept -> core::appearance_resolution;
+		[[nodiscard]] auto observation(appearance_consumer_id aConsumer) const noexcept -> const core::appearance_observation&;
+		[[nodiscard]] auto epoch(appearance_consumer_id aConsumer) const noexcept -> appearance_epoch;
+		[[nodiscard]] auto last_rejections() const noexcept -> std::span<const core::typography_rejection>;
+		[[nodiscard]] auto attached_consumers() const noexcept -> std::size_t;
+		[[nodiscard]] auto persisted_settings() const noexcept -> std::size_t;
+		[[nodiscard]] auto outstanding_requests() const noexcept -> std::size_t;
+		[[nodiscard]] auto rejected_terminals() const noexcept -> std::size_t;
+		[[nodiscard]] auto last_rejection() const noexcept -> appearance_terminal_rejection;
+		[[nodiscard]] auto is_closing() const noexcept -> bool;
+		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
+		[[nodiscard]] auto projection_delivery_failed() const noexcept -> bool;
+
+	private:
+		struct implementation;
+		std::unique_ptr<implementation> Implementation;
+	};
+}
+#endif

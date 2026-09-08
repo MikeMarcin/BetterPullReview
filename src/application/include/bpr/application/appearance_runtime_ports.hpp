@@ -437,6 +437,14 @@ namespace bpr::application {
 		auto operator<=>(const appearance_failure_publication&) const = default;
 	};
 
+	enum class appearance_terminal_rejection : std::uint8_t {
+		none,
+		unknown_request,
+		inexact_terminal,
+		superseded,
+		cancelled,
+	};
+
 	/// \brief Provides the appearance projection port contract.
 	///
 	/// \details Both operations run on the decision lane inside the host's
@@ -449,14 +457,8 @@ namespace bpr::application {
 
 		virtual void publish(const appearance_projection& aProjection)    = 0;
 		virtual void fail(const appearance_failure_publication& aFailure) = 0;
-	};
-
-	enum class appearance_terminal_rejection : std::uint8_t {
-		none,
-		unknown_request,
-		inexact_terminal,
-		superseded,
-		cancelled,
+		/// \brief Reports only the typed rejection category for host diagnostics.
+		virtual void rejected(appearance_terminal_rejection) { }
 	};
 
 	/// \brief Asks for one appearance mode.

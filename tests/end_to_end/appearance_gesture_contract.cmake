@@ -22,6 +22,7 @@ endforeach()
 # and reports what it was doing; this only catches a process that never reached
 # its own limit, and is derived from that limit so it can never fire first.
 math(EXPR bpr_phase_timeout "${BPR_RUN_BUDGET_MS} / 1000 + 30")
+include("${CMAKE_CURRENT_LIST_DIR}/bpr_narrow_owner_private.cmake")
 
 function(run_phase label expected)
     execute_process(
@@ -83,6 +84,7 @@ endfunction()
 # happened to be dark with a tab width of eight would satisfy it.
 file(REMOVE_RECURSE "${BPR_ROOT}")
 file(MAKE_DIRECTORY "${BPR_ROOT}")
+bpr_narrow_owner_private("${BPR_ROOT}")
 run_phase(
     "fresh composition"
     "PUBLIC_PATH_OK;APPEARANCE_SETTINGS:system:4"
@@ -94,6 +96,7 @@ run_phase(
 # have moved the settings off the default phase one just established.
 file(REMOVE_RECURSE "${BPR_ROOT}")
 file(MAKE_DIRECTORY "${BPR_ROOT}")
+bpr_narrow_owner_private("${BPR_ROOT}")
 run_phase(
     "settings gesture"
     "PUBLIC_PATH_OK;APPEARANCE_GESTURE_OK;APPEARANCE_REFUSAL_OK;APPEARANCE_SETTINGS:dark:8"

@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_APPEARANCE_APPLICATION_HOST_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_APPEARANCE_APPLICATION_HOST_HPP
 
+#include "bpr/application/appearance_preferences_application_host.hpp"
 #include "bpr/application/appearance_runtime_ports.hpp"
 #include "bpr/application/port.hpp"
 
@@ -11,18 +12,10 @@
 namespace bpr::application {
 	/// \brief Provides the appearance application host contract.
 	///
-	/// \details The host owns durable appearance persistence and the token-span
-	/// cache; the core owns mode resolution, typography legality, and the role
-	/// vocabulary. Every value the host adopts has passed the core's own
-	/// validator, and a value the core refuses is refused whole with the core's
-	/// typed reasons rather than clamped into range.
-	///
-	/// An appearance change publishes a bounded presentation invalidation and
-	/// touches nothing else. In particular it does not disturb the token-span
-	/// cache: spans are keyed by blob identity and definition version alone, so
-	/// switching theme, palette, mode, or font cannot re-run lexical
-	/// classification, and cannot alter review semantics, which this host does not
-	/// hold at all.
+	/// \details Compatibility facade over one preferences owner and one window classifier.
+	/// Existing composition creates a private preferences owner; a shared owner may be
+	/// supplied to attach another window without creating another durable store.
+	/// Appearance gestures never enter the classifier or invalidate its token cache.
 	///
 	/// Public operations and inspection are confined to the supplied decision
 	/// lane. Effect work runs on the effect executor and posts immutable terminals
@@ -43,6 +36,11 @@ namespace bpr::application {
 			appearance_projection_port&  aProjections,
 			core::application_session_id aSession,
 			appearance_host_limits       aLimits = { });
+		/// \brief Attaches a window to an existing profile preference owner.
+		appearance_application_host(std::shared_ptr<appearance_preferences_application_host> aPreferences,
+									syntax_classification_port& aClassification, effect_executor& aEffects, decision_executor& aDecisionLane,
+									appearance_projection_port& aProjections, core::application_session_id aSession, appearance_host_limits aLimits = { });
+
 		~appearance_application_host();
 
 		appearance_application_host(const appearance_application_host&) = delete;

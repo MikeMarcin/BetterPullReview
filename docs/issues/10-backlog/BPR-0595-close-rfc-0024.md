@@ -111,3 +111,8 @@ BPR-0697 separates the actual GitHub PR read lane from profile authentication.
 Focused shared-session/churn/reauthentication/shutdown tests and the reentrant
 replacement regression pass; rebuilt setup and anonymous public paths pass.
 This is the auth/read portion of AC-03/08/09, not complete multi-window UI.
+
+BPR-0698 separates shared accepted appearance preferences from each window's
+classification and native observation. Existing/new host tests, independent
+review and composed appearance persistence/Settings effect checks pass. Actual
+shared Settings presentation and multi-window runtime ownership remain open.
