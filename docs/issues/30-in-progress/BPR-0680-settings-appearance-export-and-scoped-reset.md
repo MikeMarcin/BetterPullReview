@@ -26,3 +26,16 @@ Routing: standard | Reason: default implementation.
 ## Evidence
 
 Not run. Created by the authorized BPR-0592 planning pass.
+
+## Selected implementation
+
+Extend the existing appearance host's serialized ingress and request records.
+Add a bounded optional document-write port and an export completion projection;
+Qt chooses a destination and composition supplies the current accepted palette.
+Reset names mode, interface font, code font or palette and restores only that
+part of the initial composed defaults. Palette reset clears stored overrides
+and preview through an accepted publication; it never deletes settings files.
+Exercise export bytes, cancellation/refusal, independent resets and persistence
+in host tests, then the composed appearance path. The public-preview attended
+candidate was released under the owner's resume-development authorization;
+its prior verdict history remains bound to its original build.
