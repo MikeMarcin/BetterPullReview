@@ -4,7 +4,7 @@ id: "BPR-0595"
 title: "Verify and close RFC-BPR-0024"
 status: "Backlog"
 rfcs: ["RFC-BPR-0024"]
-depends_on: ["BPR-0594","BPR-0593","BPR-0242","BPR-0690","BPR-0691","BPR-0693"]
+depends_on: ["BPR-0594","BPR-0593","BPR-0242","BPR-0690","BPR-0691","BPR-0693", "BPR-0694", "BPR-0695"]
 milestone: "Post-Pack v2"
 closeout_for: ["RFC-BPR-0024"]
 ---
