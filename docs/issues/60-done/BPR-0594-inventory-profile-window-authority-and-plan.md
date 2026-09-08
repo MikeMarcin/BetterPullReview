@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0594"
 title: "Inventory profile and window authority and plan RFC-BPR-0024"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0592"]
 milestone: "Post-Pack v2"
+acceptance: [{"criterion":"Authority inventory and bounded implementation planning","outcome":"pass","revision":"48d7c5e7 plus BPR-0594 finish paths","evidence":{"kind":"observation","detail":"Read-only scout inspected composition roots, credential identity, shared ledger, Settings, window and shutdown ownership. Primary read RFC0024 and mapped AC01-09 to direct planned checks. Reserved0690/0691 receipt committed48d7c5e7 before cards; closeout includes foundation and original terminal dependencies. python3 scripts/verify_documentation.py --root . DOCUMENTATION_OK; git diff --check passed. No product/native verification claimed."}}]
 ---
 
 # Inventory profile and window authority and plan RFC-BPR-0024
@@ -20,7 +21,7 @@ Closeout: [BPR-0595](../10-backlog/BPR-0595-close-rfc-0024.md).
 RFC base: `e851eb8a851ab605cf5a85260a1317ecdf66773b`.
 
 Requested RFC set: RFC-BPR-0018, RFC-BPR-0024, RFC-BPR-0025, RFC-BPR-0026; workstream position: 2 of 4.
-Planned cards: BPR-0594, BPR-0595. Allocate additional implementation cards only
+Planned cards: BPR-0594, BPR-0595, BPR-0690, BPR-0691. Allocate additional implementation cards only
 when the later bounded-slice planning pass needs them, and update this list and
 closeout dependencies before implementation. The RFC index remains the order
 authority; this requested subset waives no intervening eligibility/closeout gate.
@@ -50,7 +51,9 @@ existing dependency/eligibility rules.
 
 ## Verification record
 
-Not run; entry work and product implementation are deferred. When authorized,
-run the documentation gate on the planning slice, record exact focused selectors
-for its implementation consumers, and commit with explicit paths. This card is
-not satisfied merely by the initial RFC registration.
+[The live authority inventory](../../development/profile-window-authority-inventory.md)
+records root/vault/host/window ownership, Default adoption decisions and a
+criterion-to-slice check map. BPR-0690 and BPR-0691 were reserved before use;
+closeout dependencies include both. Remaining runtime slices are named but not
+prematurely allocated. Documentation gate and diff check pass. No product
+implementation or native acceptance is claimed by this planning card.
