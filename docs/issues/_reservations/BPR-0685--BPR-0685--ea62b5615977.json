@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0685"
+  ],
+  "reserve_for": "settings-minimum-layout",
+  "purpose": "",
+  "created": "2026-09-08T07:47:59.465466+00:00",
+  "base": "d67f22284d8ec7f3d0d2a812c17a00254ac55689"
+}
