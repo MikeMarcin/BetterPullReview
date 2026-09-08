@@ -3048,23 +3048,30 @@ namespace bpr::qt {
 			HomeRequested = false;
 			update_home_landing();
 		}
-		// A modality is two exact set-drawer intents; the core decides them
-		// as it decides a toggle. With no active workbench the drawers cannot
-		// change, so nothing is asked and the strip merely shows the preset.
-		const auto files = command(core::workbench_command_id::toggle_files_drawer);
-		const auto conversations
-			= command(core::workbench_command_id::toggle_conversations_drawer);
-		if (!Dispatch || !files || !files->Enabled || !conversations
-			|| !conversations->Enabled) {
+		// A modality is three exact set-drawer intents; the core decides them
+		// as it decides a toggle. [[BPR-0675]] made those decisions reachable
+		// without a comparison, which is when a preset matters most.
+		if (!Dispatch) {
 			return;
 		}
-		const auto filesState         = aModality == review_modality::read
+		// [[BPR-0674]]. Overview is a page about the whole pull request and it
+		// is the centre'''s, not a column between three drawers. The owner met
+		// it about 150 pixels wide with its own headings elided, and said the
+		// drawers "don'''t really make sense in overview".
+		const auto overview           = aModality == review_modality::overview;
+		const auto filesState         = overview || aModality == review_modality::read
 				|| aModality == review_modality::discuss
 			? core::workbench_drawer_state::collapsed
 			: core::workbench_drawer_state::expanded;
-		const auto conversationsState = aModality == review_modality::overview
+		const auto conversationsState = overview
 			? core::workbench_drawer_state::collapsed
 			: core::workbench_drawer_state::expanded;
+		// The repositories drawer was never part of a preset, so it stayed
+		// open across every modality, taking the width it takes in the
+		// capture while holding nothing.
+		const auto repositoriesState = overview
+			? core::workbench_drawer_state::collapsed
+			: DrawerStates.Repositories;
 		Dispatch(core::set_workbench_drawer_intent{
 			.Drawer = core::workbench_drawer::files,
 			.State  = filesState,
@@ -3072,6 +3079,10 @@ namespace bpr::qt {
 		Dispatch(core::set_workbench_drawer_intent{
 			.Drawer = core::workbench_drawer::conversations,
 			.State  = conversationsState,
+		});
+		Dispatch(core::set_workbench_drawer_intent{
+			.Drawer = core::workbench_drawer::repositories,
+			.State  = repositoriesState,
 		});
 	}
 

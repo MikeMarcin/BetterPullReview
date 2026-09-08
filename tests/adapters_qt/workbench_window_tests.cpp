@@ -1119,15 +1119,41 @@ namespace {
 			   "a restored layout with both drawers open keeps Review checked on "
 			   "its segment");
 
-		// With no active workbench the drawers cannot change, so choosing a
-		// modality shows the preset and asks the core for nothing.
+		// [[BPR-0675]] [[BPR-0674]]. A drawer'''s room does not depend on a
+		// comparison, so a modality asks for its preset whether or not one has
+		// resolved. That is the case that matters: a reviewer whose comparison
+		// is still coming is exactly who wants the room arranged.
+		log.Workbench.clear();
 		modality->action(qt::review_modality::read)->trigger();
 		QApplication::processEvents();
+		const auto drawerRequests = [&log] {
+			auto asked = std::vector<std::pair<core::workbench_drawer, core::workbench_drawer_state>>{ };
+			for (const auto& intent : log.Workbench) {
+				if (const auto* const set = std::get_if<core::set_workbench_drawer_intent>(&intent);
+					set != nullptr) {
+					asked.emplace_back(set->Drawer, set->State);
+				}
+			}
+			return asked;
+		};
 		expect(window.current_modality() == qt::review_modality::read
 				   && modality->action(qt::review_modality::read)->isChecked()
 				   && !modality->action(qt::review_modality::review)->isChecked()
-				   && log.Workbench.empty(),
-			   "an inactive workbench takes the preset without dispatching");
+				   && drawerRequests().size() == 3U,
+			   "a modality asks for its three drawers with no comparison open");
+
+		// [[BPR-0674]]. Overview is the centre'''s page, so it asks for every
+		// drawer to be collapsed. The owner met it 150 pixels wide between
+		// three of them.
+		log.Workbench.clear();
+		modality->action(qt::review_modality::overview)->trigger();
+		QApplication::processEvents();
+		expect(drawerRequests()
+				   == std::vector<std::pair<core::workbench_drawer, core::workbench_drawer_state>>{
+					   { core::workbench_drawer::files, core::workbench_drawer_state::collapsed },
+					   { core::workbench_drawer::conversations, core::workbench_drawer_state::collapsed },
+					   { core::workbench_drawer::repositories, core::workbench_drawer_state::collapsed } },
+			   "Overview asks for all three drawers collapsed");
 
 		window.publish(every_primary_command_offered());
 		QApplication::processEvents();
@@ -1142,37 +1168,44 @@ namespace {
 			}
 			return states;
 		};
+		// [[BPR-0674]]. Three drawers, three exact set intents, in that order.
 		const auto expectPreset = [&](const qt::review_modality          aModality,
 									  const core::workbench_drawer_state aFiles,
 									  const core::workbench_drawer_state aConversations,
+									  const core::workbench_drawer_state aRepositories,
 									  const char* const                  aMessage) {
 			log.Workbench.clear();
 			modality->action(aModality)->trigger();
 			QApplication::processEvents();
 			const auto states = drawerIntents();
-			expect(states.size() == 2U
+			expect(states.size() == 3U
 					   && states[0]
 						   == core::set_workbench_drawer_intent{
 							   .Drawer = core::workbench_drawer::files,
 							   .State  = aFiles }
-					   && states[1] == core::set_workbench_drawer_intent{ .Drawer = core::workbench_drawer::conversations, .State = aConversations } && window.current_modality() == aModality,
+					   && states[1] == core::set_workbench_drawer_intent{ .Drawer = core::workbench_drawer::conversations, .State = aConversations } && states[2] == core::set_workbench_drawer_intent{ .Drawer = core::workbench_drawer::repositories, .State = aRepositories } && window.current_modality() == aModality,
 				   aMessage);
 		};
+		// Overview is the centre's own page and takes the whole centre.
 		expectPreset(qt::review_modality::overview,
-					 core::workbench_drawer_state::expanded,
 					 core::workbench_drawer_state::collapsed,
-					 "Overview opens files and closes comments through exact set intents");
+					 core::workbench_drawer_state::collapsed,
+					 core::workbench_drawer_state::collapsed,
+					 "Overview closes every drawer through exact set intents");
 		expectPreset(qt::review_modality::read,
 					 core::workbench_drawer_state::collapsed,
 					 core::workbench_drawer_state::expanded,
+					 window.repositories_drawer()->state(),
 					 "Read collapses files and keeps comments beside the code");
 		expectPreset(qt::review_modality::review,
 					 core::workbench_drawer_state::expanded,
 					 core::workbench_drawer_state::expanded,
+					 window.repositories_drawer()->state(),
 					 "Review opens both drawers");
 		expectPreset(qt::review_modality::discuss,
 					 core::workbench_drawer_state::collapsed,
 					 core::workbench_drawer_state::expanded,
+					 window.repositories_drawer()->state(),
 					 "Discuss collapses files and gives the conversation the room");
 
 		// A manual toggle never moves the segment: the preset stands until

@@ -43,7 +43,7 @@ after it.
 - Ninety-five seconds of silent preparation is the rest of it: the reviewer
   is owed some sign that something is happening, and the wait itself is
   worth measuring against
-  [BPR-0673](../30-in-progress/BPR-0673-epoch-refresh-stalls-the-event-loop.md).
+  [BPR-0673](../10-backlog/BPR-0673-epoch-refresh-stalls-the-event-loop.md).
 - Whether a comparison actually arrives after a successful
   `revision_prepare` on the public path is still unobserved: the owner's
   screenshot was taken three seconds after it and they stopped there. A
