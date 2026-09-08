@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0679"
 title: "Start sign-in directly and retain exact server recovery"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0018"]
 depends_on: ["BPR-0592"]
 ---
