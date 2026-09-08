@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0709"
+  ],
+  "reserve_for": "ux-window-review-restore",
+  "purpose": "Restore accepted per-window pull request destinations without setup or stale navigation",
+  "created": "2026-09-08T15:07:10.087447+00:00",
+  "base": "ad3abf50ccac9a3b7afb1df3192a020a069a4ab2"
+}
