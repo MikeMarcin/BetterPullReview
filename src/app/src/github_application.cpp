@@ -46,12 +46,15 @@
 #include "bpr/adapters/sqlite/appearance_settings_store.hpp"
 #include "bpr/adapters/sqlite/device_binding_store.hpp"
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
+#include "bpr/adapters/sqlite/profile_registry_store.hpp"
+#include "bpr/adapters/sqlite/profile_storage_root.hpp"
 #include "bpr/adapters/sqlite/queue_enrollment_store.hpp"
 #include "bpr/adapters/sqlite/review_ledger_store.hpp"
 #include "bpr/adapters/sqlite/review_mutation_recovery_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
+#include "bpr/application/profile_startup_admission.hpp"
 #include "bpr/application/setup_destination.hpp"
 
 #include "bpr/application/agent_chat_session_host.hpp"
@@ -828,29 +831,6 @@ namespace bpr::app {
 			};
 		}
 #endif
-
-		[[nodiscard]] auto prepare_application_data_root(
-			const std::filesystem::path& aRoot) -> std::filesystem::path
-		{
-			if (aRoot.empty() || !aRoot.is_absolute()) {
-				return { };
-			}
-			std::error_code error;
-			static_cast<void>(std::filesystem::create_directories(aRoot, error));
-			if (error) {
-				return { };
-			}
-			// The stores refuse a root another local principal can reach, and
-			// what private means is the adapter's definition: mode 0700 on
-			// POSIX, and on Windows an owner-only protected DACL that
-			// std::filesystem::permissions cannot express (BPR-0436).
-			if (!adapters::sqlite::make_storage_root_owner_private(aRoot)) {
-				return { };
-			}
-			const auto canonical = std::filesystem::canonical(aRoot, error);
-			return !error && canonical == aRoot.lexically_normal() ? canonical
-																   : std::filesystem::path{ };
-		}
 
 		[[nodiscard]] auto windows_system_root()
 			-> std::optional<std::filesystem::path>
@@ -1987,17 +1967,18 @@ namespace bpr::app {
 		}
 
 		[[nodiscard]] auto make_platform_vault(
-			application::effect_executor& aEffects)
+			application::effect_executor& aEffects, core::bpr_profile_id aProfile)
 			-> std::unique_ptr<application::github_credential_vault_port>
 		{
 #if defined(__APPLE__)
-			auto vault = adapters::github::make_macos_keychain_vault(aEffects);
+			auto vault = adapters::github::make_macos_keychain_vault(aEffects, aProfile);
 #elif defined(_WIN32)
-			auto vault = adapters::github::make_windows_credential_manager_vault(aEffects);
+			auto vault = adapters::github::make_windows_credential_manager_vault(aEffects, aProfile);
 #elif defined(__linux__)
-			auto vault = adapters::github::make_linux_secret_service_vault(aEffects);
+			auto vault = adapters::github::make_linux_secret_service_vault(aEffects, aProfile);
 #else
 			static_cast<void>(aEffects);
+			static_cast<void>(aProfile);
 			return { };
 #endif
 #if defined(__APPLE__) || defined(_WIN32) || defined(__linux__)
@@ -3398,9 +3379,13 @@ namespace bpr::app {
 		  public application::agent_session_catalog_port,
 		  public application::setup_destination_port
 	{
+		// Declared first so fixture cleanup runs after every private service releases its root.
+		std::shared_ptr<void> StartupScratch;
+
 	public:
 		explicit implementation(
-			github_application_config aConfig
+			github_application_config aConfig, application::profile_startup_admission aAdmission,
+			std::optional<application::durable_queue_state> aSavedQueue, std::shared_ptr<void> aScratch
 #if defined(BPR_BUILD_TESTING)
 			,
 			const std::optional<detail::github_public_path_fixture> aFixture        = std::nullopt,
@@ -3408,7 +3393,12 @@ namespace bpr::app {
 #endif
 		)
 		{
+			StartupScratch              = std::move(aScratch);
+			aConfig.ApplicationDataRoot = aAdmission.StorageRoot;
+			aConfig.Profile             = aAdmission.Authority.profile();
 #if defined(BPR_BUILD_TESTING)
+			aFixtureOptions.ApplicationDataRoot = aAdmission.StorageRoot;
+			aFixtureOptions.Profile             = aConfig.Profile;
 			if (aConfig.AttendedDesignatedLiveApproval.has_value()) {
 				throw std::invalid_argument{
 					"attended live approval is unavailable in a tests-enabled composition"
@@ -3631,9 +3621,8 @@ namespace bpr::app {
 			} else
 #endif
 			{
-				applicationDataRoot = prepare_application_data_root(
-					native_application_data_root(aConfig));
-				gitExecutable = native_git_executable(aConfig);
+				applicationDataRoot = aAdmission.StorageRoot;
+				gitExecutable       = native_git_executable(aConfig);
 			}
 			if (applicationDataRoot.empty() || gitExecutable.empty()) {
 				throw std::runtime_error{
@@ -3659,12 +3648,7 @@ namespace bpr::app {
 			// and never a token, so the server is offered and the sign-in
 			// is still the device flow.
 			{
-				auto servers  = adapters::sqlite::make_queue_enrollment_store({
-					.StorageRoot = applicationDataRoot,
-				});
-				auto restored = servers != nullptr
-					? servers->load({ })
-					: std::expected<application::durable_queue_state, application::queue_store_failure>{ };
+				auto restored = std::move(aSavedQueue);
 				if (restored.has_value()) {
 					auto next = std::uint64_t{ 0U };
 					for (const auto& profile : Profiles) {
@@ -3765,7 +3749,7 @@ namespace bpr::app {
 			if (Fixture == nullptr)
 #endif
 			{
-				OwnedVault                  = make_platform_vault(VaultEffects);
+				OwnedVault                  = make_platform_vault(VaultEffects, aConfig.Profile);
 				NativePlatformVaultSelected = OwnedVault != nullptr;
 				if (OwnedVault == nullptr) {
 					OwnedVault = std::make_unique<unavailable_credential_vault>(
@@ -3884,6 +3868,7 @@ namespace bpr::app {
 				},
 						   aIntent);
 			});
+			Window->set_profile_label(QString::fromStdString(aAdmission.Label));
 			Window->set_storage_location(QString::fromStdString(ApplicationDataRoot.string()));
 			Window->set_receipt_dispatch(
 				[this](core::file_receipt_command aCommand) {
@@ -4554,7 +4539,7 @@ namespace bpr::app {
 					? static_cast<application::git_smart_transport_factory_port*>(
 						  AnonymousSmartGit.get())
 					: nullptr,
-				PublicPreviewProjectionFanOut.get());
+				PublicPreviewProjectionFanOut.get(), aConfig.Profile);
 			// The switch-to-sign-in gesture, end to end. The ring in the
 			// review header dispatches it, the host names the profile the
 			// signed-out session was activated for, and the device flow for
@@ -4797,7 +4782,7 @@ namespace bpr::app {
 				},
 				deviceCapability);
 			if (RememberDeviceSignIn) {
-				DeviceBindingStore = adapters::sqlite::make_device_binding_store(applicationDataRoot);
+				DeviceBindingStore = adapters::sqlite::make_device_binding_store(applicationDataRoot, aConfig.Profile);
 				DevicePersistence  = std::make_unique<application::device_binding_persistence>(*DeviceBindingStore, DeviceBindingEffects, DecisionLane);
 				Host->configure_device_persistence(*DevicePersistence, [this] { return DeviceClock->observe_wall_seconds(); });
 				const auto& profile = Profiles.front();
@@ -10257,11 +10242,179 @@ namespace bpr::app {
 		}
 	}
 
-	github_application::github_application(github_application_config aConfig)
-		: Implementation{
-			std::make_unique<implementation>(std::move(aConfig))
-		}
+	class github_application_startup::implementation final
+		: public application::profile_registry_port,
+		  public application::profile_startup_root_port,
+		  public application::profile_startup_projection_port,
+		  public std::enable_shared_from_this<implementation>
 	{
+	public:
+		implementation(github_application_config aConfig, github_application_startup_completion aCompletion
+#if defined(BPR_BUILD_TESTING)
+					   ,
+					   std::optional<detail::github_public_path_fixture> aFixture = std::nullopt,
+					   detail::github_public_path_fixture_options        aOptions = { }
+#endif
+					   )
+			: Config{ std::move(aConfig) }
+			, Completion{ std::move(aCompletion) }
+			, Host{ *this, *this, Effects, Decisions, *this, core::application_session_id{ 1U } }
+		{
+#if defined(BPR_BUILD_TESTING)
+			Fixture = aFixture;
+			Options = std::move(aOptions);
+			if (Fixture) {
+				Config.Profile             = Options.Profile;
+				Config.ApplicationDataRoot = Options.ApplicationDataRoot;
+				if (!Config.ApplicationDataRoot) {
+					auto temporary             = std::make_shared<QTemporaryDir>(QDir::temp().filePath(QStringLiteral("bpr-public-path-XXXXXX")));
+					Config.ApplicationDataRoot = temporary->isValid() ? std::filesystem::path{ QFileInfo{ temporary->path() }.canonicalFilePath().toStdString() } / "data" : std::filesystem::path{ };
+					Scratch                    = std::move(temporary);
+				}
+			}
+#endif
+			RegistryRoot = native_application_data_root(Config);
+		}
+		~implementation() override
+		{
+			Host.shutdown();
+			Effects.close_and_drain();
+		}
+		void begin()
+		{
+			const auto started = Host.start(Config.Profile);
+			if (!started) {
+				Decisions.post([self = shared_from_this()] { self->finish(std::unexpected(github_application_startup_failure::invalid_profile)); });
+			}
+		}
+		void cancel()
+		{
+			Cancelled = true;
+			Host.cancel();
+		}
+		auto is_quiescent() const noexcept -> bool { return Terminal && Host.is_quiescent() && Effects.idle(); }
+		auto load(std::stop_token aStop) -> application::profile_registry_result<application::profile_registry_snapshot> override
+		{
+			if (aStop.stop_requested()) {
+				return std::unexpected(application::profile_registry_failure::cancelled);
+			}
+			if (RegistryRoot.empty() || !RegistryRoot.is_absolute() || RegistryRoot.lexically_normal() != RegistryRoot) {
+				return std::unexpected(application::profile_registry_failure::unavailable);
+			}
+			std::error_code error;
+			const auto      status = std::filesystem::symlink_status(RegistryRoot, error);
+			if (!std::filesystem::exists(status)) {
+				auto ancestor = RegistryRoot.parent_path();
+				while (!ancestor.empty() && !std::filesystem::exists(ancestor, error) && !error) {
+					ancestor = ancestor.parent_path();
+				}
+				if (error || ancestor.empty() || std::filesystem::canonical(ancestor, error) != ancestor || error) {
+					return std::unexpected(application::profile_registry_failure::unavailable);
+				}
+				if (!std::filesystem::create_directories(RegistryRoot, error) || error
+					|| !adapters::sqlite::make_storage_root_owner_private(RegistryRoot)) {
+					return std::unexpected(application::profile_registry_failure::unavailable);
+				}
+			}
+			// This only validates the registry base; it does not admit Default for runtime use.
+			const auto baseAuthority = application::profile_storage_authority::select(application::profile_registry_snapshot{ }, core::default_bpr_profile_id);
+			const auto base          = adapters::sqlite::resolve_profile_storage_root(RegistryRoot, *baseAuthority, aStop);
+			if (!base) {
+				return std::unexpected(aStop.stop_requested() ? application::profile_registry_failure::cancelled : application::profile_registry_failure::unavailable);
+			}
+			RegistryStore = adapters::sqlite::make_profile_registry_store(*base);
+			return RegistryStore->load(aStop);
+		}
+		auto save(const application::profile_registry_snapshot&, std::uint64_t, std::stop_token) -> application::profile_registry_result<application::profile_registry_snapshot> override
+		{
+			return std::unexpected(application::profile_registry_failure::unavailable);
+		}
+		auto resolve(const application::profile_storage_authority& aAuthority, std::stop_token aStop) -> application::profile_startup_result<std::filesystem::path> override
+		{
+			const auto root = adapters::sqlite::resolve_profile_storage_root(RegistryRoot, aAuthority, aStop);
+			if (!root) {
+				return std::unexpected(aStop.stop_requested() ? application::profile_startup_failure::cancelled : application::profile_startup_failure::root_unavailable);
+			}
+			auto store  = adapters::sqlite::make_queue_enrollment_store({ .StorageRoot = *root });
+			auto loaded = store ? store->load(aStop) : std::unexpected(application::queue_store_failure::unavailable);
+			if (aStop.stop_requested()) {
+				return std::unexpected(application::profile_startup_failure::cancelled);
+			}
+			if (loaded) {
+				SavedQueue = std::move(*loaded);
+			} else {
+				SavedQueue.reset();
+			}
+			return *root;
+		}
+		void publish(const application::profile_startup_terminal& aTerminal) override
+		{
+			if (Cancelled || (!aTerminal.Result && aTerminal.Result.error() == application::profile_startup_failure::cancelled)) {
+				finish(std::unexpected(github_application_startup_failure::cancelled));
+				return;
+			}
+			if (!aTerminal.Result) {
+				const auto failure = aTerminal.Result.error();
+				finish(std::unexpected(failure == application::profile_startup_failure::unknown_profile        ? github_application_startup_failure::invalid_profile
+										   : failure == application::profile_startup_failure::root_unavailable ? github_application_startup_failure::root
+																											   : github_application_startup_failure::registry));
+				return;
+			}
+			try {
+				auto runtime = std::unique_ptr<github_application>{ new github_application{ std::make_unique<github_application::implementation>(
+					std::move(Config), *aTerminal.Result, std::move(SavedQueue), std::move(Scratch)
+#if defined(BPR_BUILD_TESTING)
+																					 ,
+					Fixture, std::move(Options)
+#endif
+						) } };
+				finish(std::move(runtime));
+			} catch (...) {
+				finish(std::unexpected(github_application_startup_failure::unavailable));
+			}
+		}
+
+	private:
+		void finish(github_application_startup_result aResult)
+		{
+			if (Terminal) {
+				return;
+			}
+			auto keepAlive  = shared_from_this();
+			Terminal        = true;
+			auto completion = std::move(Completion);
+			if (completion) {
+				completion(std::move(aResult));
+			}
+		}
+		github_application_config                           Config;
+		github_application_startup_completion               Completion;
+		std::filesystem::path                               RegistryRoot;
+		std::shared_ptr<void>                               Scratch;
+		std::optional<application::durable_queue_state>     SavedQueue;
+		std::unique_ptr<application::profile_registry_port> RegistryStore;
+#if defined(BPR_BUILD_TESTING)
+		std::optional<detail::github_public_path_fixture> Fixture;
+		detail::github_public_path_fixture_options        Options;
+#endif
+		worker_executor                   Effects;
+		qt::event_loop_executor           Decisions;
+		application::profile_startup_host Host;
+		bool                              Cancelled = false;
+		bool                              Terminal  = false;
+	};
+	github_application_startup::github_application_startup(std::shared_ptr<implementation> aImplementation)
+		: Implementation{ std::move(aImplementation) }
+	{ }
+	github_application_startup::~github_application_startup() { Implementation->cancel(); }
+	void github_application_startup::cancel() { Implementation->cancel(); }
+	auto github_application_startup::is_quiescent() const noexcept -> bool { return Implementation->is_quiescent(); }
+	auto github_application::start(github_application_config aConfig, github_application_startup_completion aCompletion) -> std::unique_ptr<github_application_startup>
+	{
+		auto state  = std::make_shared<github_application_startup::implementation>(std::move(aConfig), std::move(aCompletion));
+		auto handle = std::unique_ptr<github_application_startup>{ new github_application_startup{ state } };
+		state->begin();
+		return handle;
 	}
 
 	github_application::github_application(
@@ -10720,28 +10873,19 @@ namespace bpr::app {
 			== application::github_provider_failure::network;
 	}
 
-	auto detail::github_application_fixture_access::make(
-		const detail::github_public_path_fixture   aFixture,
-		detail::github_public_path_fixture_options aOptions)
-		-> std::unique_ptr<github_application>
+	auto detail::github_application_fixture_access::start(detail::github_public_path_fixture aFixture, detail::github_public_path_fixture_options aOptions, github_application_startup_completion aCompletion) -> std::unique_ptr<github_application_startup>
 	{
-		return std::unique_ptr<github_application>{ new github_application{
-			std::make_unique<github_application::implementation>(
-				github_application_config{ }, aFixture, std::move(aOptions)) } };
+		auto state  = std::make_shared<github_application_startup::implementation>(github_application_config{ }, std::move(aCompletion), aFixture, std::move(aOptions));
+		auto handle = std::unique_ptr<github_application_startup>{ new github_application_startup{ state } };
+		state->begin();
+		return handle;
 	}
-
-	auto detail::github_application_fixture_access::
-		make_public_preview_selection_available(
-			github_application_config aConfig)
-			-> std::unique_ptr<github_application>
+	auto detail::github_application_fixture_access::start_public_preview_selection_available(github_application_config aConfig, github_application_startup_completion aCompletion) -> std::unique_ptr<github_application_startup>
 	{
-		return std::unique_ptr<github_application>{ new github_application{
-			std::make_unique<github_application::implementation>(
-				std::move(aConfig),
-				std::nullopt,
-				detail::github_public_path_fixture_options{
-					.PublicPreviewSelectionAvailable = true,
-				}) } };
+		auto state  = std::make_shared<github_application_startup::implementation>(std::move(aConfig), std::move(aCompletion), std::nullopt, detail::github_public_path_fixture_options{ .PublicPreviewSelectionAvailable = true });
+		auto handle = std::unique_ptr<github_application_startup>{ new github_application_startup{ state } };
+		state->begin();
+		return handle;
 	}
 
 	void detail::github_application_fixture_access::hold_review_submission_terminals(github_application& aApplication, bool aHold)

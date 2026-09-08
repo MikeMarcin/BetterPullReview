@@ -1,5 +1,7 @@
 #include "bpr/app/github_application.hpp"
 
+#include "public_path_poll.hpp"
+
 #include <QApplication>
 #include <QFileInfo>
 #include <QTemporaryDir>
@@ -10,6 +12,7 @@
 #include <iostream>
 #include <memory>
 #include <string_view>
+#include <utility>
 
 namespace {
 	[[noreturn]] void fail(const std::string_view aMessage)
@@ -46,10 +49,23 @@ namespace {
 		expect(!canonicalDataRoot.isEmpty(),
 			   "the data root resolves to a canonical path");
 
-		auto application = std::make_unique<bpr::app::github_application>(
+		std::unique_ptr<bpr::app::github_application> application;
+		auto                                          startupTerminal = false;
+		auto                                          startup         = bpr::app::github_application::start(
 			bpr::app::github_application_config{
-				.ApplicationDataRoot
-				= std::filesystem::path{ canonicalDataRoot.toStdU16String() } });
+				.ApplicationDataRoot = std::filesystem::path{ canonicalDataRoot.toStdU16String() } },
+			[&](auto aResult) {
+				startupTerminal = true;
+				if (aResult) {
+					application = std::move(*aResult);
+				}
+			});
+		expect(bpr::e2e::wait_until_plain([&] {
+				   return startupTerminal && startup && startup->is_quiescent();
+			   },
+										  bpr::e2e::default_queue_budget),
+			   "application startup reaches a quiescent terminal");
+		expect(application != nullptr, "application startup succeeds");
 		// A token born expired would make every production poller a permanent
 		// no-op and every assertion below vacuously true.
 		expect(!application->liveness().expired(),

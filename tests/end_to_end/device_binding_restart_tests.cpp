@@ -13,7 +13,9 @@
 #include <cstdlib>
 #include <functional>
 #include <iostream>
+#include <memory>
 #include <string_view>
+#include <utility>
 
 namespace {
 	using namespace bpr;
@@ -52,7 +54,16 @@ int main(int aArgc, char** aArgv)
 	options.PersistDeviceBindings  = true;
 	options.SharedDeviceVault      = app::detail::make_shared_github_fixture_vault();
 	{
-		auto first = github_application_fixture_access::make(app::detail::github_public_path_fixture::github_com, options);
+		std::unique_ptr<bpr::app::github_application> first;
+		auto                                          startupTerminal = false;
+		auto                                          startup         = github_application_fixture_access::start(app::detail::github_public_path_fixture::github_com, options, [&](auto aResult) {
+			startupTerminal = true;
+			if (aResult) {
+				first = std::move(*aResult);
+			}
+		});
+		wait_for([&] { return startupTerminal && startup && startup->is_quiescent(); }, "application startup reaches a terminal");
+		expect(first != nullptr, "application startup succeeds");
 		first->select_device_authorization();
 		wait_for([&first] { return github_application_fixture_access::device_binding_durable(*first); }, "first lifetime persists a settled grant");
 		expect(first->status().DeviceAuthorizationRefreshRotations == 0U, "first lifetime does not rotate early");
@@ -64,7 +75,16 @@ int main(int aArgc, char** aArgv)
 	// only this test's runtime vault object survives. No token is serialized.
 	options.DeviceWallOffsetSeconds = 28790;
 	{
-		auto second = github_application_fixture_access::make(app::detail::github_public_path_fixture::github_com, options);
+		std::unique_ptr<bpr::app::github_application> second;
+		auto                                          startupTerminal = false;
+		auto                                          startup         = github_application_fixture_access::start(app::detail::github_public_path_fixture::github_com, options, [&](auto aResult) {
+			startupTerminal = true;
+			if (aResult) {
+				second = std::move(*aResult);
+			}
+		});
+		wait_for([&] { return startupTerminal && startup && startup->is_quiescent(); }, "application startup reaches a terminal");
+		expect(second != nullptr, "application startup succeeds");
 		wait_for([&second] { return second->status().DeviceAuthorizationRefreshResumes == 1U; }, "fresh hosts resume durable exact binding");
 		expect(second->status().DeviceAuthorizationRefreshRotations == 0U, "first refresh remains deferred after resume");
 		expect(github_application_fixture_access::evidence(*second).DeviceTransportSubmissions == 0U, "resume sends no immediate token exchange");
@@ -88,7 +108,16 @@ int main(int aArgc, char** aArgv)
 		shutdown(*second);
 	}
 	{
-		auto third = github_application_fixture_access::make(app::detail::github_public_path_fixture::github_com, options);
+		std::unique_ptr<bpr::app::github_application> third;
+		auto                                          startupTerminal = false;
+		auto                                          startup         = github_application_fixture_access::start(app::detail::github_public_path_fixture::github_com, options, [&](auto aResult) {
+			startupTerminal = true;
+			if (aResult) {
+				third = std::move(*aResult);
+			}
+		});
+		wait_for([&] { return startupTerminal && startup && startup->is_quiescent(); }, "application startup reaches a terminal");
+		expect(third != nullptr, "application startup succeeds");
 		wait_for([&third] { return github_application_fixture_access::device_binding_store_idle(*third); }, "third lifetime completes startup metadata load");
 		expect(third->window().session_panel()->status() == core::github_status::no_profile, "completed startup load leaves signed-out identity inactive");
 		shutdown(*third);
@@ -96,7 +125,16 @@ int main(int aArgc, char** aArgv)
 		expect(!github_application_fixture_access::evidence(*third).SecretRetained, "third lifetime retains no material");
 	}
 	{
-		auto manual = github_application_fixture_access::make(app::detail::github_public_path_fixture::github_com, options);
+		std::unique_ptr<bpr::app::github_application> manual;
+		auto                                          startupTerminal = false;
+		auto                                          startup         = github_application_fixture_access::start(app::detail::github_public_path_fixture::github_com, options, [&](auto aResult) {
+			startupTerminal = true;
+			if (aResult) {
+				manual = std::move(*aResult);
+			}
+		});
+		wait_for([&] { return startupTerminal && startup && startup->is_quiescent(); }, "application startup reaches a terminal");
+		expect(manual != nullptr, "application startup succeeds");
 		manual->select_device_authorization();
 		wait_for([&manual] { return github_application_fixture_access::device_binding_durable(*manual); }, "replacement course earns a durable device grant");
 		manual->window().session_panel()->connect_button()->click();
@@ -106,21 +144,48 @@ int main(int aArgc, char** aArgv)
 		expect(!github_application_fixture_access::evidence(*manual).SecretRetained, "manual access is deleted on shutdown");
 	}
 	{
-		auto last = github_application_fixture_access::make(app::detail::github_public_path_fixture::github_com, options);
+		std::unique_ptr<bpr::app::github_application> last;
+		auto                                          startupTerminal = false;
+		auto                                          startup         = github_application_fixture_access::start(app::detail::github_public_path_fixture::github_com, options, [&](auto aResult) {
+			startupTerminal = true;
+			if (aResult) {
+				last = std::move(*aResult);
+			}
+		});
+		wait_for([&] { return startupTerminal && startup && startup->is_quiescent(); }, "application startup reaches a terminal");
+		expect(last != nullptr, "application startup succeeds");
 		wait_for([&last] { return github_application_fixture_access::device_binding_store_idle(*last); }, "post-manual startup load completes");
 		expect(last->window().session_panel()->status() == core::github_status::no_profile && last->status().DeviceAuthorizationRefreshResumes == 0U, "manual replacement cannot resume after restart");
 		shutdown(*last);
 	}
 	options.DeviceWallOffsetSeconds = 0;
 	{
-		auto seed = github_application_fixture_access::make(app::detail::github_public_path_fixture::github_com, options);
+		std::unique_ptr<bpr::app::github_application> seed;
+		auto                                          startupTerminal = false;
+		auto                                          startup         = github_application_fixture_access::start(app::detail::github_public_path_fixture::github_com, options, [&](auto aResult) {
+			startupTerminal = true;
+			if (aResult) {
+				seed = std::move(*aResult);
+			}
+		});
+		wait_for([&] { return startupTerminal && startup && startup->is_quiescent(); }, "application startup reaches a terminal");
+		expect(seed != nullptr, "application startup succeeds");
 		seed->select_device_authorization();
 		wait_for([&seed] { return github_application_fixture_access::device_binding_durable(*seed); }, "preview regression seeds a remembered grant");
 		shutdown(*seed);
 	}
 	options.DeviceWallOffsetSeconds = 28790;
 	{
-		auto preview = github_application_fixture_access::make(app::detail::github_public_path_fixture::github_com, options);
+		std::unique_ptr<bpr::app::github_application> preview;
+		auto                                          startupTerminal = false;
+		auto                                          startup         = github_application_fixture_access::start(app::detail::github_public_path_fixture::github_com, options, [&](auto aResult) {
+			startupTerminal = true;
+			if (aResult) {
+				preview = std::move(*aResult);
+			}
+		});
+		wait_for([&] { return startupTerminal && startup && startup->is_quiescent(); }, "application startup reaches a terminal");
+		expect(preview != nullptr, "application startup succeeds");
 		wait_for([&preview] { return preview->status().DeviceAuthorizationRefreshResumes == 1U; }, "preview regression resumes near-expiry device grant");
 		preview->activate_public_preview();
 		wait_for([&preview] { return preview->window().session_panel()->public_preview_signed_out(); }, "ordinary Public preview selection becomes active");

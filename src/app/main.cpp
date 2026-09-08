@@ -7940,147 +7940,149 @@ auto main(int argc, char** argv) -> int
 		}
 #endif
 
-		auto application =
-#if defined(BPR_BUILD_TESTING)
-			selectedFixture.has_value()
-			? bpr::app::detail::github_application_fixture_access::make(
-				  *selectedFixture, fixtureOptions)
-			: (publicPreviewSelectionForced
-				   // [[BPR-0316]]. The shipped graph with one thing changed:
-				   // the public-preview selection is available. Every factory
-				   // below it is the production one.
-				   ? bpr::app::detail::github_application_fixture_access::
-						 make_public_preview_selection_available(
-							 std::move(config))
-				   :
-#endif
-				   std::make_unique<bpr::app::github_application>(
-					   std::move(config))
-#if defined(BPR_BUILD_TESTING)
-			  )
-#endif
-			;
-		application->show();
+		std::unique_ptr<bpr::app::github_application> application;
+		auto                                          completed = [&](bpr::app::github_application_startup_result aResult) {
+			if (!aResult) {
+				QTextStream{ stdout } << "STARTUP_FAILED\n";
+				QCoreApplication::exit(EXIT_FAILURE);
+				return;
+			}
+			application = std::move(*aResult);
+			try {
+				application->show();
 
-		// Closing the last window starts the shutdown poll rather than letting
-		// Qt quit under an application that is still running effects.
-		QObject::connect(
-			&qtApplication,
-			&QGuiApplication::lastWindowClosed,
-			&application->window(),
-			[&application] { schedule_interactive_shutdown(*application); });
+				// Closing the last window starts the shutdown poll rather than letting
+				// Qt quit under an application that is still running effects.
+				QObject::connect(
+					&qtApplication,
+					&QGuiApplication::lastWindowClosed,
+					&application->window(),
+					[&application] { schedule_interactive_shutdown(*application); });
 
-		auto       verifyNativePlatformVault = selfTest;
-		auto       verifyCliUnavailable      = selfTest;
-		const auto verifyDeviceAuthorization = selfTest && deviceProbe;
-		const auto verifyPublicPreview       = selfTest
-			&& (publicPreviewProbe || publicPreviewSelectionForced);
-		const auto previewEnterprise = publicPreviewGhesCourse
-			|| (publicPreviewProbe && enterpriseHostname.has_value());
+				auto       verifyNativePlatformVault = selfTest;
+				auto       verifyCliUnavailable      = selfTest;
+				const auto verifyDeviceAuthorization = selfTest && deviceProbe;
+				const auto verifyPublicPreview       = selfTest
+					&& (publicPreviewProbe || publicPreviewSelectionForced);
+				const auto previewEnterprise = publicPreviewGhesCourse
+					|| (publicPreviewProbe && enterpriseHostname.has_value());
 #if defined(BPR_BUILD_TESTING)
-		verifyNativePlatformVault = verifyNativePlatformVault && fixtureName.empty();
-		verifyCliUnavailable      = verifyCliUnavailable && fixtureName.empty();
+				verifyNativePlatformVault = verifyNativePlatformVault && fixtureName.empty();
+				verifyCliUnavailable      = verifyCliUnavailable && fixtureName.empty();
 #endif
-		// The person is the run. Everything else about the composition is
-		// unchanged - same fixture-backed application, same window - so what
-		// is inspected is what the automated courses drive.
-		//
-		// Guarded, not merely false, in a tests-disabled build: the flag does
-		// not exist there and neither does the fixture it requires, so the
-		// seam leaves no trace for the Release composition contract to find.
+				// The person is the run. Everything else about the composition is
+				// unchanged - same fixture-backed application, same window - so what
+				// is inspected is what the automated courses drive.
+				//
+				// Guarded, not merely false, in a tests-disabled build: the flag does
+				// not exist there and neither does the fixture it requires, so the
+				// seam leaves no trace for the Release composition contract to find.
 #if defined(BPR_BUILD_TESTING)
-		const auto heldOpenForInspection         = attendedLaunch;
-		const auto scheduleNativeNotificationRun = nativeNotificationCourse;
+				const auto heldOpenForInspection         = attendedLaunch;
+				const auto scheduleNativeNotificationRun = nativeNotificationCourse;
 #else
-		constexpr auto heldOpenForInspection         = false;
-		constexpr auto scheduleNativeNotificationRun = false;
+				constexpr auto heldOpenForInspection         = false;
+				constexpr auto scheduleNativeNotificationRun = false;
 #endif
-		const auto scheduleAutomatedRun = !heldOpenForInspection
-			&& !scheduleNativeNotificationRun
-			&& (selfTest || renderPath.has_value()
+				const auto scheduleAutomatedRun = !heldOpenForInspection
+					&& !scheduleNativeNotificationRun
+					&& (selfTest || renderPath.has_value()
 #if defined(BPR_BUILD_TESTING)
-				|| !fixtureName.empty()
+						|| !fixtureName.empty()
 #endif
-			);
+					);
 #if defined(BPR_BUILD_TESTING)
-		if (scheduleNativeNotificationRun) {
-			schedule_native_notification_run(
-				*application,
-				std::make_shared<native_notification_run>(native_notification_run{
-					.Budget        = automatedRunBudget,
-					.Attended      = nativeNotificationAttended,
-					.RequestCut    = nativeNotificationRequestCut,
-					.ActivationCut = nativeNotificationActivationCut,
-					.SignalObservationCut
-					= nativeNotificationSignalObservationCut,
-				}));
-		} else
+				if (scheduleNativeNotificationRun) {
+					schedule_native_notification_run(
+						*application,
+						std::make_shared<native_notification_run>(native_notification_run{
+							.Budget        = automatedRunBudget,
+							.Attended      = nativeNotificationAttended,
+							.RequestCut    = nativeNotificationRequestCut,
+							.ActivationCut = nativeNotificationActivationCut,
+							.SignalObservationCut
+							= nativeNotificationSignalObservationCut,
+						}));
+				} else
 #endif
-			if (scheduleAutomatedRun) {
-			schedule_automated_run(
-				*application,
-				std::make_shared<automated_run>(
-					automated_run{
-						.Stage                     = automated_run::stage::start,
-						.Attempts                  = 0U,
-						.Budget                    = automatedRunBudget,
-						.PresentationPassed        = false,
-						.RenderSaved               = true,
-						.VerifyNativePlatformVault = verifyNativePlatformVault,
-						.Cli                       = automated_run::cli_unavailable_probe_state{
-							.Enabled            = verifyCliUnavailable,
-							.EnterpriseHostname = std::move(enterpriseHostname),
-						},
-						.Device = automated_run::device_authorization_probe_state{
-							.Enabled       = verifyDeviceAuthorization,
-							.Registered    = registeredDeviceCourse || deviceRefreshCourse,
-							.BrowserProbe  = verifyDeviceAuthorization && deviceBrowserProbe,
-							.PanelCourse   = verifyDeviceAuthorization && devicePanelCourse,
-							.GhesCourse    = verifyDeviceAuthorization && deviceGhesCourse,
-							.RefreshCourse = verifyDeviceAuthorization && deviceRefreshCourse,
-							.OrphanCourse  = verifyDeviceAuthorization && deviceOrphanCourse,
-						},
-						.PublicPreview = automated_run::public_preview_probe_state{
-							.Enabled         = verifyPublicPreview,
-							.Course          = verifyPublicPreview && publicPreviewEnabledCourse,
-							.Enterprise      = verifyPublicPreview && previewEnterprise,
-							.SelectionForced = publicPreviewSelectionForced,
-							.LiveCandidate   = publicPreviewLiveCandidate,
-							.DryRun          = publicPreviewLiveDryRun,
-						},
+					if (scheduleAutomatedRun) {
+					schedule_automated_run(
+						*application,
+						std::make_shared<automated_run>(
+							automated_run{
+								.Stage                     = automated_run::stage::start,
+								.Attempts                  = 0U,
+								.Budget                    = automatedRunBudget,
+								.PresentationPassed        = false,
+								.RenderSaved               = true,
+								.VerifyNativePlatformVault = verifyNativePlatformVault,
+								.Cli                       = automated_run::cli_unavailable_probe_state{
+									.Enabled            = verifyCliUnavailable,
+									.EnterpriseHostname = std::move(enterpriseHostname),
+								},
+								.Device = automated_run::device_authorization_probe_state{
+									.Enabled       = verifyDeviceAuthorization,
+									.Registered    = registeredDeviceCourse || deviceRefreshCourse,
+									.BrowserProbe  = verifyDeviceAuthorization && deviceBrowserProbe,
+									.PanelCourse   = verifyDeviceAuthorization && devicePanelCourse,
+									.GhesCourse    = verifyDeviceAuthorization && deviceGhesCourse,
+									.RefreshCourse = verifyDeviceAuthorization && deviceRefreshCourse,
+									.OrphanCourse  = verifyDeviceAuthorization && deviceOrphanCourse,
+								},
+								.PublicPreview = automated_run::public_preview_probe_state{
+									.Enabled         = verifyPublicPreview,
+									.Course          = verifyPublicPreview && publicPreviewEnabledCourse,
+									.Enterprise      = verifyPublicPreview && previewEnterprise,
+									.SelectionForced = publicPreviewSelectionForced,
+									.LiveCandidate   = publicPreviewLiveCandidate,
+									.DryRun          = publicPreviewLiveDryRun,
+								},
 #if defined(BPR_BUILD_TESTING)
-						.Fixture                         = !fixtureName.empty(),
-						.WorkbenchCompositionProbe       = workbenchCompositionProbe,
-						.UIforEtwSelectedDiffProbe       = uiforetwSelectedDiffProbe,
-						.UIforEtwSelectedDiffDirectory   = uiforetwSelectedDiffDirectory,
-						.ReviewLedgerCompositionProbe    = reviewLedgerCompositionProbe,
-						.ReviewRoundTripCompositionProbe = reviewRoundTripCompositionProbe,
-						.ThreadedReplyProbe              = threadedReplyProbe,
-						.DefectCompositionProbe          = defectCompositionProbe,
-						.OverviewSinceReviewRequested    = overviewSinceReview,
-						.ReviewBehaviourRequested        = reviewBehaviour,
-						.SavedServerRequested            = savedServerCourse,
-						.DiffProbe                       = diffWorkbenchProbe,
-						.DiffShutdownProbe               = diffWorkbenchShutdownProbe,
-						.StallProbe                      = automatedStallProbe,
-						.ThemeCustomizationPath          = appearanceThemeCustomizationPath.has_value() ? std::optional<std::string>{ std::string{ *appearanceThemeCustomizationPath } } : std::nullopt,
-						.AppearanceGestureProbe          = appearanceGestureProbe,
-						.FixtureName                     = std::move(fixtureName),
-						.ExpectedActiveHostText          = std::move(expectedActiveHostText),
-						.Expectations                    = std::move(fixtureExpectations),
-						.EpochPhase                      = fixtureOptions.EpochPhase,
-						.MaintenanceProbe                = selectedMaintenanceProbe,
-						.Appearance                      = automated_run::native_appearance_probe_state{
-							.Enabled       = nativeAppearanceProbe,
-							.EvidencePaths = nativeAppearancePaths.value_or(native_appearance_evidence_paths{ }),
-						},
-						.DiffEvidenceDirectory  = diffEvidenceDirectory,
-						.DiffEvidenceAppearance = *diffEvidenceAppearance,
+								.Fixture                         = !fixtureName.empty(),
+								.WorkbenchCompositionProbe       = workbenchCompositionProbe,
+								.UIforEtwSelectedDiffProbe       = uiforetwSelectedDiffProbe,
+								.UIforEtwSelectedDiffDirectory   = uiforetwSelectedDiffDirectory,
+								.ReviewLedgerCompositionProbe    = reviewLedgerCompositionProbe,
+								.ReviewRoundTripCompositionProbe = reviewRoundTripCompositionProbe,
+								.ThreadedReplyProbe              = threadedReplyProbe,
+								.DefectCompositionProbe          = defectCompositionProbe,
+								.OverviewSinceReviewRequested    = overviewSinceReview,
+								.ReviewBehaviourRequested        = reviewBehaviour,
+								.SavedServerRequested            = savedServerCourse,
+								.DiffProbe                       = diffWorkbenchProbe,
+								.DiffShutdownProbe               = diffWorkbenchShutdownProbe,
+								.StallProbe                      = automatedStallProbe,
+								.ThemeCustomizationPath          = appearanceThemeCustomizationPath.has_value() ? std::optional<std::string>{ std::string{ *appearanceThemeCustomizationPath } } : std::nullopt,
+								.AppearanceGestureProbe          = appearanceGestureProbe,
+								.FixtureName                     = std::move(fixtureName),
+								.ExpectedActiveHostText          = std::move(expectedActiveHostText),
+								.Expectations                    = std::move(fixtureExpectations),
+								.EpochPhase                      = fixtureOptions.EpochPhase,
+								.MaintenanceProbe                = selectedMaintenanceProbe,
+								.Appearance                      = automated_run::native_appearance_probe_state{
+									.Enabled       = nativeAppearanceProbe,
+									.EvidencePaths = nativeAppearancePaths.value_or(native_appearance_evidence_paths{ }),
+								},
+								.DiffEvidenceDirectory  = diffEvidenceDirectory,
+								.DiffEvidenceAppearance = *diffEvidenceAppearance,
 #endif
-						.RenderPath                 = renderPath,
-						.RenderCollapsesFilesDrawer = renderCollapsesFilesDrawer,
-					}));
-		}
+								.RenderPath                 = renderPath,
+								.RenderCollapsesFilesDrawer = renderCollapsesFilesDrawer,
+							}));
+				}
+
+			} catch (...) {
+				QTextStream{ stdout } << "STARTUP_FAILED\n";
+				QCoreApplication::exit(EXIT_FAILURE);
+			}
+		};
+		auto startup =
+#if defined(BPR_BUILD_TESTING)
+			selectedFixture                ? bpr::app::detail::github_application_fixture_access::start(*selectedFixture, fixtureOptions, completed)
+			: publicPreviewSelectionForced ? bpr::app::detail::github_application_fixture_access::start_public_preview_selection_available(std::move(config), completed)
+										   :
+#endif
+										   bpr::app::github_application::start(std::move(config), completed);
 
 		return QApplication::exec();
 	} catch (const std::exception& error) {

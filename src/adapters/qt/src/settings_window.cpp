@@ -86,6 +86,13 @@ namespace bpr::qt {
 		return { };
 	}
 
+	void settings_window::set_profile_label(const QString& aLabel)
+	{
+		const auto title = QStringLiteral("Settings — %1 profile").arg(aLabel);
+		setWindowTitle(title);
+		setAccessibleName(title);
+	}
+
 	settings_window::settings_window(QWidget* const aParent)
 		: QWidget{ aParent, Qt::Window }
 	{

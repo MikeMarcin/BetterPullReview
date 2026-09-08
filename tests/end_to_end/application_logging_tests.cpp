@@ -13,6 +13,8 @@
 #include <functional>
 #include <iostream>
 #include <iterator>
+#include <memory>
+#include <utility>
 namespace {
 	void expect(bool aCondition, const char* aMessage)
 	{
@@ -42,7 +44,16 @@ int main(int aArgc, char** aArgv)
 	options.ApplicationDataRoot    = root;
 	options.RegisteredDeviceCourse = true;
 	{
-		auto app = bpr::app::detail::github_application_fixture_access::make(bpr::app::detail::github_public_path_fixture::github_com, options);
+		std::unique_ptr<bpr::app::github_application> app;
+		auto                                          startupTerminal = false;
+		auto                                          startup         = bpr::app::detail::github_application_fixture_access::start(bpr::app::detail::github_public_path_fixture::github_com, options, [&](auto aResult) {
+			startupTerminal = true;
+			if (aResult) {
+				app = std::move(*aResult);
+			}
+		});
+		wait_for([&] { return startupTerminal && startup && startup->is_quiescent(); });
+		expect(app != nullptr, "application startup succeeds");
 		app->select_device_authorization();
 		wait_for([&app] { return app->window().session_panel()->status() == bpr::core::github_status::session_ready; });
 

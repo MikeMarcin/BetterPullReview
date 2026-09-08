@@ -475,6 +475,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto queue_quiet_filter() const noexcept -> QComboBox*;
 		[[nodiscard]] auto queue_sort_selector() const noexcept -> QComboBox*;
 		void               set_storage_location(const QString& aPath);
+		void               set_profile_label(const QString& aLabel);
 		void               set_notification_preview_dispatch(std::function<bool(const core::pull_request_ref&)> aDispatch);
 		[[nodiscard]] auto queue_rule_kind_selector() const noexcept -> QComboBox*;
 		[[nodiscard]] auto queue_rule_pattern_editor() const noexcept -> QLineEdit*;
@@ -603,6 +604,7 @@ namespace bpr::qt {
 		void showEvent(QShowEvent* aEvent) override;
 
 	private:
+		QString ProfileLabel = QStringLiteral("Default");
 		/// \brief Binds one primary action to its presentation wording.
 		///
 		/// \details `Name` is retained action wording for native menus and platform

@@ -1,4 +1,5 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "bpr/adapters/sqlite/storage_root.hpp"
 
 #include "public_path_poll.hpp"
 
@@ -18,9 +19,11 @@
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace {
 	using namespace bpr;
@@ -155,18 +158,39 @@ auto main(int argc, char** argv) -> int
 		&& course != "activation-cut") {
 		return EXIT_FAILURE;
 	}
-	const auto refreshCourse = course != "reopen";
-	auto       application   = app::detail::github_application_fixture_access::make(
+	const auto dataRoot = std::filesystem::path{ argv[2] };
+	if (!adapters::sqlite::make_storage_root_owner_private(dataRoot)) {
+		std::cerr << "queue-composition-failed:private-test-root\n";
+		return EXIT_FAILURE;
+	}
+	const auto                               refreshCourse = course != "reopen";
+	std::unique_ptr<app::github_application> application;
+	auto                                     startupTerminal = false;
+	auto                                     startup         = app::detail::github_application_fixture_access::start(
 		app::detail::github_public_path_fixture::github_com,
 		{
-			.ApplicationDataRoot              = std::filesystem::path{ argv[2] },
+			.ApplicationDataRoot              = dataRoot,
 			.EpochPhase                       = refreshCourse
 				? app::detail::github_epoch_fixture_phase::seed
 				: app::detail::github_epoch_fixture_phase::reuse,
 			.UseGrantedNotificationSink       = true,
 			.DisableNotificationRequestWire   = course == "request-cut",
 			.DisableNotificationSelectionWire = course == "activation-cut",
+		},
+		[&](auto aResult) {
+			startupTerminal = true;
+			if (aResult) {
+				application = std::move(*aResult);
+			}
 		});
+	auto startupTerms = wait_terms{ };
+	if (!wait_until_reporting(startupTerms, [&](wait_terms& aTerms) {
+			return aTerms.require("startup-terminal", startupTerminal && startup && startup->is_quiescent());
+		})
+		|| !application) {
+		std::cerr << "application-startup-failed:" << startupTerms.render() << '\n';
+		return EXIT_FAILURE;
+	}
 	application->show();
 	auto& window = application->window();
 	window.github_connect_action()->trigger();

@@ -46,6 +46,7 @@ namespace bpr::qt {
 	public:
 		explicit settings_window(QWidget* aParent = nullptr);
 		~settings_window() override;
+		void set_profile_label(const QString& aLabel);
 
 		settings_window(const settings_window&)                    = delete;
 		auto operator=(const settings_window&) -> settings_window& = delete;

@@ -20,7 +20,6 @@
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QStandardPaths>
-#include <QTemporaryDir>
 
 #include <glaze/json.hpp>
 
@@ -1875,11 +1874,12 @@ namespace bpr::app::detail {
 				application::effect_executor&               aEffects,
 				std::shared_ptr<github_fixture_vault_state> aState,
 				const bool                                  aRefreshSlot,
-				const bool                                  aAuthorityKeyed)
+				const bool aAuthorityKeyed, core::bpr_profile_id aProfile)
 				: Effects{ aEffects }
 				, State{ std::move(aState) }
 				, RefreshSlot{ aRefreshSlot }
 				, AuthorityKeyed{ aAuthorityKeyed }
+				, Profile{ aProfile }
 			{
 			}
 
@@ -2202,7 +2202,7 @@ namespace bpr::app::detail {
 					aCompletion) -> bool
 			{
 				const auto context = aEnrollment.Context;
-				if (application::valid(aEnrollment) && aCompletion
+				if (application::valid(aEnrollment) && aEnrollment.Context.Authority.BprProfile == Profile && aCompletion
 					&& claim_pending(State, context)) {
 					return true;
 				}
@@ -2226,7 +2226,7 @@ namespace bpr::app::detail {
 				application::github_credential_retrieve_completion_handler&
 					aCompletion) -> bool
 			{
-				if (application::valid(aContext) && aCompletion
+				if (application::valid(aContext) && aContext.Authority.BprProfile == Profile && aCompletion
 					&& claim_pending(State, aContext)) {
 					return true;
 				}
@@ -2249,7 +2249,7 @@ namespace bpr::app::detail {
 				application::github_credential_delete_completion_handler&
 					aCompletion) -> bool
 			{
-				if (application::valid(aContext) && aCompletion
+				if (application::valid(aContext) && aContext.Authority.BprProfile == Profile && aCompletion
 					&& claim_pending(State, aContext)) {
 					return true;
 				}
@@ -2271,6 +2271,7 @@ namespace bpr::app::detail {
 			std::shared_ptr<github_fixture_vault_state> State;
 			bool                                        RefreshSlot    = false;
 			bool                                        AuthorityKeyed = false;
+			core::bpr_profile_id                        Profile;
 		};
 
 		[[nodiscard]] auto make_fixture_credential()
@@ -2485,7 +2486,7 @@ namespace bpr::app::detail {
 				aVaultEffects,
 				VaultState,
 				true,
-				aOptions.RegisteredDeviceCourse);
+				aOptions.RegisteredDeviceCourse, aOptions.Profile);
 			if (aOptions.SeedOrphanedRefreshMaterial) {
 				// The shape a grant leaves behind: the documented refresh
 				// token this fixture's own recorded exchange answers with.
@@ -2513,69 +2514,10 @@ namespace bpr::app::detail {
 			Mutation = std::make_unique<fixture_review_mutation_provider>(
 				aOptions.LoseFirstReviewMutationResult, Recording, aOptions.ResolvesThreads);
 
-			if (aOptions.ApplicationDataRoot) {
-				ApplicationDataRoot = aOptions.ApplicationDataRoot->lexically_normal();
-				std::error_code error;
-				static_cast<void>(std::filesystem::create_directories(
-					ApplicationDataRoot, error));
-				if (error
-					|| !adapters::sqlite::make_storage_root_owner_private(
-						ApplicationDataRoot)) {
-					throw std::runtime_error{
-						"GitHub public-path application data is unavailable"
-					};
-				}
-				ApplicationDataRoot = std::filesystem::canonical(ApplicationDataRoot, error);
-				if (error) {
-					throw std::runtime_error{
-						"GitHub public-path application data is unavailable"
-					};
-				}
-				return;
+			if (!aOptions.ApplicationDataRoot) {
+				throw std::runtime_error{ "fixture requires admitted storage root" };
 			}
-
-			// Absolute, because a relative template resolves against the
-			// process working directory: launched from the repository root,
-			// this fixture wrote its scratch state into the repository. A
-			// clean run auto-removes it and hid that, so what survived was
-			// exactly the crash runs.
-			ApplicationData = std::make_unique<QTemporaryDir>(
-				QDir::temp().filePath(QStringLiteral("bpr-public-path-XXXXXX")));
-			if (!ApplicationData->isValid()) {
-				throw std::runtime_error{
-					"GitHub public-path application data is unavailable"
-				};
-			}
-			ApplicationDataRoot = QFileInfo{ ApplicationData->path() }.canonicalFilePath().toStdString();
-			if (ApplicationDataRoot.empty()) {
-				throw std::runtime_error{
-					"GitHub public-path installed Git is unavailable"
-				};
-			}
-			// Keep the persistent workspace neighbourhood beside the cache but
-			// inside this fixture's temporary ownership boundary.
-			ApplicationDataRoot /= "data";
-			std::error_code createError;
-			if (!std::filesystem::create_directory(ApplicationDataRoot, createError) || createError) {
-				throw std::runtime_error{ "GitHub public-path application data is unavailable" };
-			}
-			// A QTemporaryDir carries the entries its parent grants; the stores
-			// refuse that, so it is narrowed the way every other root is
-			// (BPR-0436).
-			if (!adapters::sqlite::make_storage_root_owner_private(ApplicationDataRoot)) {
-				throw std::runtime_error{
-					"GitHub public-path application data is unavailable"
-				};
-			}
-			// The Git cache accepts a root only in its canonical native
-			// spelling; Qt's forward slashes are not that on Windows.
-			std::error_code canonicalError;
-			ApplicationDataRoot = std::filesystem::canonical(ApplicationDataRoot, canonicalError);
-			if (canonicalError) {
-				throw std::runtime_error{
-					"GitHub public-path application data is unavailable"
-				};
-			}
+			ApplicationDataRoot = *aOptions.ApplicationDataRoot;
 		}
 
 		std::shared_ptr<fixture_recording_state>                 Recording;
@@ -2585,7 +2527,6 @@ namespace bpr::app::detail {
 		std::unique_ptr<fixture_credential_vault>                Vault;
 		std::unique_ptr<recorded_device_authorization_transport> DeviceTransport;
 		std::unique_ptr<fixture_review_mutation_provider>        Mutation;
-		std::unique_ptr<QTemporaryDir>                           ApplicationData;
 		std::filesystem::path                                    ApplicationDataRoot;
 		std::filesystem::path                                    GitExecutable;
 	};

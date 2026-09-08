@@ -17,6 +17,7 @@ add_library(
         src/setup_destination.cpp
         src/profile_registry.cpp
         src/profile_storage_authority.cpp
+        src/profile_startup_admission.cpp
         src/agent_chat_session_host.cpp
         src/agent_comment_workshop_host.cpp
         src/agent_finding_delivery.cpp

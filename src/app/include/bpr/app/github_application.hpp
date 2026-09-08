@@ -4,11 +4,13 @@
 #include "bpr/application/device_authorization_projection.hpp"
 #include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/notification_delivery.hpp"
+#include "bpr/application/profile_startup_admission.hpp"
 #include "bpr/core/device_authorization_model.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -51,7 +53,8 @@ namespace bpr::app {
 		/// included by a target that links the composition without defining
 		/// the guard, and a conditionally-sized record passed by value across
 		/// that seam would disagree about its own layout.
-		bool NetworkDenied = false;
+		bool                 NetworkDenied = false;
+		core::bpr_profile_id Profile       = core::default_bpr_profile_id;
 	};
 
 	/// \brief Initializes or deliberately resets the designated-live replay
@@ -391,11 +394,36 @@ namespace bpr::app {
 	[[nodiscard]] auto public_preview_single_attempt_self_check() noexcept
 		-> bool;
 
+	class github_application;
+	enum class github_application_startup_failure { invalid_profile,
+													registry,
+													root,
+													unavailable,
+													cancelled };
+	using github_application_startup_result     = std::expected<std::unique_ptr<github_application>, github_application_startup_failure>;
+	using github_application_startup_completion = std::function<void(github_application_startup_result)>;
+	class github_application_startup final
+	{
+	public:
+		~github_application_startup();
+		github_application_startup(const github_application_startup&)                                  = delete;
+		auto               operator=(const github_application_startup&) -> github_application_startup& = delete;
+		void               cancel();
+		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
+
+	private:
+		class implementation;
+		explicit github_application_startup(std::shared_ptr<implementation> aImplementation);
+		std::shared_ptr<implementation> Implementation;
+		friend class github_application;
+		friend class detail::github_application_fixture_access;
+	};
+
 	/// \brief Provides the github application contract.
 	class github_application final
 	{
 	public:
-		explicit github_application(github_application_config aConfig = { });
+		[[nodiscard]] static auto start(github_application_config aConfig, github_application_startup_completion aCompletion) -> std::unique_ptr<github_application_startup>;
 		~github_application();
 
 		/// \brief Expires the moment this application stops being usable.
@@ -500,6 +528,7 @@ namespace bpr::app {
 			std::unique_ptr<implementation> aImplementation) noexcept;
 
 		friend class detail::github_application_fixture_access;
+		friend class github_application_startup;
 
 		// Declared before `Implementation` only for readability; what matters is
 		// that the destructor body clears it, which precedes member destruction

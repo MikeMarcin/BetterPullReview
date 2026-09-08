@@ -1,6 +1,7 @@
 #include "public_path_poll.hpp"
 
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "bpr/adapters/sqlite/storage_root.hpp"
 
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/diff_workbench.hpp"
@@ -35,6 +36,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -528,7 +530,8 @@ auto main(int argc, char** argv) -> int
 																														 : std::filesystem::path{ data->path().toStdString() } / "data";
 	std::error_code dataError;
 	std::filesystem::create_directories(dataRoot, dataError);
-	if (dataError) {
+	if (dataError || !adapters::sqlite::make_storage_root_owner_private(dataRoot)) {
+		std::cerr << "agent-invocation-composition-failure:private-test-root\n";
 		return EXIT_FAILURE;
 	}
 	auto diagnosticGitRoot = workspaceDiagnostic ? std::make_unique<QTemporaryDir>() : nullptr;
@@ -608,7 +611,9 @@ auto main(int argc, char** argv) -> int
 			return EXIT_FAILURE;
 		}
 	}
-	auto application = app::detail::github_application_fixture_access::make(
+	std::unique_ptr<app::github_application> application;
+	auto                                     startupTerminal = false;
+	auto                                     startup         = app::detail::github_application_fixture_access::start(
 		app::detail::github_public_path_fixture::github_com,
 		{
 			.ApplicationDataRoot = dataRoot,
@@ -619,7 +624,21 @@ auto main(int argc, char** argv) -> int
 			.DisableAgentGestureWire     = course == "gesture-cut",
 			.ExternalAgentExecutable     = externalExecutable,
 			.GitExecutable               = diagnosticGit,
+		},
+		[&](auto aResult) {
+			startupTerminal = true;
+			if (aResult) {
+				application = std::move(*aResult);
+			}
 		});
+	auto startupTerms = wait_terms{ };
+	if (!wait_until_reporting(startupTerms, [&](wait_terms& aTerms) {
+			return aTerms.require("startup-terminal", startupTerminal && startup && startup->is_quiescent());
+		})
+		|| !application) {
+		std::cerr << "application-startup-failed:" << startupTerms.render() << '\n';
+		return EXIT_FAILURE;
+	}
 	application->show();
 	auto& window = application->window();
 	if (course == "startup-recover" || course == "startup-repair") {

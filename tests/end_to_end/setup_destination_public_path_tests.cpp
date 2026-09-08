@@ -18,6 +18,8 @@
 #include <cstdlib>
 #include <functional>
 #include <iostream>
+#include <memory>
+#include <utility>
 
 namespace {
 	using namespace bpr;
@@ -75,8 +77,17 @@ namespace {
 		options.SetupUnconfiguredEnterprise = aEnterprise;
 		options.RegisteredDeviceCourse      = !aEnterprise;
 		options.RepeatReadSessions          = true;
-		auto  application                   = github_application_fixture_access::make(aEnterprise ? app::detail::github_public_path_fixture::ghes_3_18 : app::detail::github_public_path_fixture::github_com, options);
-		auto& window                        = application->window();
+		std::unique_ptr<bpr::app::github_application> application;
+		auto                                          startupTerminal = false;
+		auto                                          startup         = github_application_fixture_access::start(aEnterprise ? app::detail::github_public_path_fixture::ghes_3_18 : app::detail::github_public_path_fixture::github_com, options, [&](auto aResult) {
+			startupTerminal = true;
+			if (aResult) {
+				application = std::move(*aResult);
+			}
+		});
+		wait_for([&] { return startupTerminal && startup && startup->is_quiescent(); }, "application startup reaches a terminal");
+		expect(application != nullptr, "application startup succeeds");
+		auto& window = application->window();
 		window.show();
 		QApplication::processEvents();
 		const auto url = aEnterprise ? QStringLiteral("https://ghe.example.invalid/octo-org/review-repository/pull/17/files#diff-abcd") : QStringLiteral("https://github.com/octo-org/review-repository/pull/17");

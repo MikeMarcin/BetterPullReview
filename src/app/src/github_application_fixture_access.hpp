@@ -156,7 +156,8 @@ namespace bpr::app::detail {
 		// production factories and a read issued through it would leave the
 		// machine. Only the tests-enabled binary has it, and only the
 		// live-candidate and forced-selection flags set it.
-		bool PublicPreviewSelectionAvailable = false;
+		bool                 PublicPreviewSelectionAvailable = false;
+		core::bpr_profile_id Profile                         = core::default_bpr_profile_id;
 	};
 
 	struct queue_notification_fixture_evidence
@@ -657,10 +658,9 @@ namespace bpr::app::detail {
 		/// fail earlier as a typed network error from the production application
 		/// binary.
 		[[nodiscard]] static auto network_isolation_probe() -> bool;
-		[[nodiscard]] static auto make(
-			github_public_path_fixture         aFixture,
-			github_public_path_fixture_options aOptions = { })
-			-> std::unique_ptr<github_application>;
+		[[nodiscard]] static auto start(
+			github_public_path_fixture aFixture, github_public_path_fixture_options aOptions, github_application_startup_completion aCompletion)
+			-> std::unique_ptr<github_application_startup>;
 		/// \brief Composes the shipped graph with the public-preview selection
 		/// forced available and no fixture.
 		///
@@ -668,9 +668,9 @@ namespace bpr::app::detail {
 		/// one, so a read issued through the authority it composes reaches the
 		/// real service. Construction sends nothing; what the caller does with
 		/// the composed application decides whether anything is issued at all.
-		[[nodiscard]] static auto make_public_preview_selection_available(
-			github_application_config aConfig)
-			-> std::unique_ptr<github_application>;
+		[[nodiscard]] static auto start_public_preview_selection_available(
+			github_application_config aConfig, github_application_startup_completion aCompletion)
+			-> std::unique_ptr<github_application_startup>;
 		[[nodiscard]] static auto evidence(
 			const github_application& aApplication) noexcept
 			-> github_public_path_fixture_evidence;

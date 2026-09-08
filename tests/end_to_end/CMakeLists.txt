@@ -2312,3 +2312,14 @@ set_tests_properties(
         TIMEOUT 60
         PASS_REGULAR_EXPRESSION "setup-destination-public-path:pass"
 )
+
+bpr_add_executable(test_profile_startup_public_path profile_startup_public_path_tests.cpp)
+target_link_libraries(test_profile_startup_public_path PRIVATE BetterPullReview::Composition BetterPullReview::AdapterSQLite)
+target_compile_definitions(test_profile_startup_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_profile_startup_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_profile_startup_public_path)
+bpr_enable_warnings(test_profile_startup_public_path)
+bpr_add_network_isolated_test(NAME application_profile_startup_public_path COMMAND test_profile_startup_public_path)
+set_tests_properties(application_profile_startup_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 90
+    PASS_REGULAR_EXPRESSION "profile-startup-public-path:pass")

@@ -4457,13 +4457,19 @@ namespace bpr::qt {
 		}
 	}
 
+	void workbench_window::set_profile_label(const QString& aLabel)
+	{
+		ProfileLabel = aLabel;
+		SettingsWindow->set_profile_label(aLabel);
+		update_public_preview_title();
+	}
+
 	void workbench_window::update_public_preview_title()
 	{
-		setWindowTitle(
-			PublicPreviewSignedOut
-				? QStringLiteral("BetterPullReview — %1")
-					  .arg(public_preview_mode_text())
-				: QStringLiteral("BetterPullReview"));
+		const auto title = PublicPreviewSignedOut ? QStringLiteral("BetterPullReview — %1 — %2 profile").arg(public_preview_mode_text(), ProfileLabel)
+												  : QStringLiteral("BetterPullReview — %1 profile").arg(ProfileLabel);
+		setWindowTitle(title);
+		setAccessibleName(title);
 	}
 
 	void workbench_window::apply_public_preview_availability()
