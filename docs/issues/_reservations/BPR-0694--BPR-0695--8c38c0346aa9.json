@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0694",
+    "BPR-0695"
+  ],
+  "reserve_for": "profile-startup-admission",
+  "purpose": "",
+  "created": "2026-09-08T09:18:14.274488+00:00",
+  "base": "352d476f3d562642baa0b2cb24a7b5fb9a96ac7b"
+}
