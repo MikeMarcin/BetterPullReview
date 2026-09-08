@@ -1382,11 +1382,12 @@ set_tests_properties(
         ENVIRONMENT "${bpr_public_path_fixture_environment}"
         PASS_REGULAR_EXPRESSION "QUEUE_COMPOSITION_CONTRACT_OK"
 )
+# Four courses: seed, reopen, request-cut and activation-cut.
 bpr_bound_automated_run(
     application_queue_composition_contract
-    TIMEOUT 75
+    TIMEOUT 150
     BUDGET_MS 25000
-    RUNS 2
+    RUNS 4
     RESERVE_MS 4000
 )
 
@@ -1412,11 +1413,12 @@ else()
         PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}"
     )
 endif()
+# Three delivery courses plus the signal-observation cut.
 bpr_bound_automated_run(
     application_native_notification_attended_contract
-    TIMEOUT 120
+    TIMEOUT 150
     BUDGET_MS 25000
-    RUNS 3
+    RUNS 4
     RESERVE_MS 4000
 )
 
@@ -1642,11 +1644,12 @@ set_tests_properties(
         ENVIRONMENT "${bpr_public_path_fixture_environment}"
         PASS_REGULAR_EXPRESSION "WORKBENCH_COMPOSITION_CONTRACT_OK"
 )
+# The normal selection course and its cut-selection-wire counterexample.
 bpr_bound_automated_run(
     application_workbench_composition_contract
-    TIMEOUT 60
+    TIMEOUT 120
     BUDGET_MS ${bpr_fixture_run_budget_ms}
-    RUNS 1
+    RUNS 2
     RESERVE_MS 2000
 )
 
@@ -1724,11 +1727,12 @@ set_tests_properties(
         ENVIRONMENT "${bpr_public_path_fixture_environment}"
         PASS_REGULAR_EXPRESSION "DEFECT_COMPOSITION_CONTRACT_OK"
 )
+# Seed and reopen for each of the GitHub.com and GHES fixtures.
 bpr_bound_automated_run(
     application_defect_composition_contract
-    TIMEOUT 120
+    TIMEOUT 240
     BUDGET_MS ${bpr_fixture_run_budget_ms}
-    RUNS 2
+    RUNS 4
     RESERVE_MS 4000
 )
 
@@ -1749,11 +1753,12 @@ set_tests_properties(
         ENVIRONMENT "${bpr_public_path_fixture_environment}"
         PASS_REGULAR_EXPRESSION "OVERVIEW_SINCE_REVIEW_CONTRACT_OK"
 )
+# Seed and reuse for each of the GitHub.com and GHES fixtures.
 bpr_bound_automated_run(
     application_overview_since_review_contract
-    TIMEOUT 120
+    TIMEOUT 240
     BUDGET_MS ${bpr_fixture_run_budget_ms}
-    RUNS 2
+    RUNS 4
     RESERVE_MS 4000
 )
 
@@ -1774,11 +1779,12 @@ set_tests_properties(
         ENVIRONMENT "${bpr_public_path_fixture_environment}"
         PASS_REGULAR_EXPRESSION "REVIEW_BEHAVIOUR_CONTRACT_OK"
 )
+# Seed and reuse for each of the GitHub.com and GHES fixtures.
 bpr_bound_automated_run(
     application_review_behaviour_contract
-    TIMEOUT 120
+    TIMEOUT 240
     BUDGET_MS ${bpr_fixture_run_budget_ms}
-    RUNS 2
+    RUNS 4
     RESERVE_MS 4000
 )
 
