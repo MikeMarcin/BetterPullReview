@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0706"
+  ],
+  "reserve_for": "ux-window-registry",
+  "purpose": "RFC0024 durable window identity registry foundation",
+  "created": "2026-09-08T13:53:52.995218+00:00",
+  "base": "826fb871ea81fbc9bab3fe0733b6bbbb962c309f"
+}
