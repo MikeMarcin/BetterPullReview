@@ -295,6 +295,15 @@ namespace {
 
 auto main() -> int
 {
+	for (const auto enabled : { false, true }) {
+		for (const auto paused : { false, true }) {
+			for (auto bucket = 0U; bucket < 8U; ++bucket) {
+				expect(core::permits_notification({ enabled, paused }, static_cast<core::attention_bucket>(bucket))
+						   == (enabled && !paused && bucket < 6U),
+					   "notification choices suppress quiet and unknown buckets without changing attention");
+			}
+		}
+	}
 	test_every_bucket_is_reachable();
 	test_an_unanswered_request_outranks_everything();
 	test_authored_never_displaces_work_the_reviewer_can_do();

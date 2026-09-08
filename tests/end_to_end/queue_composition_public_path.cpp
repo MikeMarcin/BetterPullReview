@@ -6,9 +6,11 @@
 #include "bpr/qt/workbench_window.hpp"
 
 #include <QApplication>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QLineEdit>
 #include <QListView>
+#include <QPushButton>
 #include <QSpinBox>
 #include <QThread>
 
@@ -92,6 +94,7 @@ namespace {
 			.Repository     = "octo-org/review-repository",
 			.Quiet          = application::queue_quiet_filter::all,
 			.Sort           = application::queue_sort_order::pull_request_number,
+			.Notifications  = { .Enabled = true, .Paused = true },
 		};
 	}
 
@@ -373,6 +376,17 @@ auto main(int argc, char** argv) -> int
 		}
 
 		if (course == "seed") {
+			auto* const preview = window.findChild<QPushButton*>(QStringLiteral("notificationPreview"));
+			auto* const paused  = window.findChild<QCheckBox*>(QStringLiteral("notificationsPaused"));
+			if (preview == nullptr || paused == nullptr || !preview->isEnabled()) {
+				return fail(*application, "notification-settings-missing");
+			}
+			preview->click();
+			const auto previewEvidence = app::detail::github_application_fixture_access::queue_notification_evidence(*application);
+			if (previewEvidence.Submitted != 1U || previewEvidence.SuppressedUnattributableActivation != 1U) {
+				return fail(*application, "notification-preview-refusal-wire");
+			}
+			paused->click();
 			const auto preferences = fixture_preferences();
 			window.queue_role_filter()->setCurrentIndex(
 				window.queue_role_filter()->findData(
@@ -409,6 +423,14 @@ auto main(int argc, char** argv) -> int
 					})) {
 				return fail(
 					*application, "preference-gesture-persist", persisted.render());
+			}
+			if (!paused->isChecked() || preview->isEnabled()) {
+				return fail(*application, "paused-preview-enabled");
+			}
+			preview->click();
+			const auto pausedEvidence = app::detail::github_application_fixture_access::queue_notification_evidence(*application);
+			if (pausedEvidence.Submitted != 1U || pausedEvidence.SuppressedUnattributableActivation != 1U) {
+				return fail(*application, "paused-preview-delivered");
 			}
 		}
 	} else {

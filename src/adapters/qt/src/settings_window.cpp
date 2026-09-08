@@ -38,8 +38,8 @@ namespace bpr::qt {
 			switch (aPage) {
 			case settings_page::general:
 				return QStringLiteral(
-					"Startup and window restoration preferences will live here. "
-					"Nothing to change yet.");
+					"New windows open Home. Window restoration is not available in this build. "
+					"Review navigation defaults are in Reviews & Queue; colours and fonts are in Appearance.");
 			case settings_page::accounts_and_hosts:
 				return QStringLiteral(
 					"Sign in, sign out and enterprise servers are in the review window's "

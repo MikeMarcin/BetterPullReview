@@ -70,6 +70,21 @@ namespace bpr::adapters::sqlite::detail {
 				") STRICT" },
 		};
 
+		constexpr std::array SchemaVersion6{
+			std::string_view{
+				"CREATE TABLE presentation_preferences("
+				"singleton INTEGER PRIMARY KEY CHECK(singleton = 1),"
+				"role_filter INTEGER NOT NULL CHECK(role_filter BETWEEN -1 AND 4),"
+				"observer_filter INTEGER NOT NULL CHECK(observer_filter BETWEEN -1 AND 2),"
+				"bucket_filter INTEGER NOT NULL CHECK(bucket_filter BETWEEN -1 AND 6),"
+				"repository_filter TEXT NOT NULL,"
+				"quiet_filter INTEGER NOT NULL CHECK(quiet_filter BETWEEN 0 AND 2),"
+				"sort_order INTEGER NOT NULL CHECK(sort_order BETWEEN 0 AND 2),"
+				"notifications_enabled INTEGER NOT NULL CHECK(notifications_enabled IN (0, 1)),"
+				"notifications_paused INTEGER NOT NULL CHECK(notifications_paused IN (0, 1))"
+				") STRICT" },
+		};
+
 		/// \brief The statements that carry schema version 3 to version 4.
 		///
 		/// \details [[BPR-0659]]. The repositories the reviewer keeps in the
@@ -133,6 +148,15 @@ namespace bpr::adapters::sqlite::detail {
 			schema_table{ "enrollment_meta", SchemaVersion1[0] },
 			schema_table{ "observer_rule", SchemaVersion2[0] },
 			schema_table{ "presentation_preferences", SchemaVersion3[0] },
+			schema_table{ "saved_repository", SchemaVersion4[0] },
+			schema_table{ "saved_server", SchemaVersion5[0] },
+		};
+
+		constexpr std::array SchemaVersion6Tables{
+			schema_table{ "enrollment", SchemaVersion1[1] },
+			schema_table{ "enrollment_meta", SchemaVersion1[0] },
+			schema_table{ "observer_rule", SchemaVersion2[0] },
+			schema_table{ "presentation_preferences", SchemaVersion6[0] },
 			schema_table{ "saved_repository", SchemaVersion4[0] },
 			schema_table{ "saved_server", SchemaVersion5[0] },
 		};
@@ -327,7 +351,7 @@ namespace bpr::adapters::sqlite::detail {
 			-> std::expected<void, failure>
 		{
 			return validate_exact_version(
-				aDatabase, queue_enrollment_schema_version, SchemaVersion5Tables);
+				aDatabase, 5, SchemaVersion5Tables);
 		}
 
 		[[nodiscard]] auto preflight_existing_database(::sqlite3* aDatabase)
@@ -357,8 +381,11 @@ namespace bpr::adapters::sqlite::detail {
 			if (*version == 4) {
 				return validate_version_four(aDatabase);
 			}
-			if (*version == queue_enrollment_schema_version) {
+			if (*version == 5) {
 				return validate_version_five(aDatabase);
+			}
+			if (*version == queue_enrollment_schema_version) {
+				return validate_exact_version(aDatabase, queue_enrollment_schema_version, SchemaVersion6Tables);
 			}
 			return std::unexpected(failure::schema_mismatch);
 		}
@@ -448,6 +475,21 @@ namespace bpr::adapters::sqlite::detail {
 					return migrated;
 				}
 			}
+			if (*current < 6) {
+				const auto migration = std::array{
+					std::string{ "CREATE TABLE previous_preferences AS SELECT * FROM presentation_preferences" },
+					std::string{ "DROP TABLE presentation_preferences" },
+					std::string{ SchemaVersion6[0] },
+					std::string{ "INSERT INTO presentation_preferences SELECT singleton, role_filter, observer_filter, bucket_filter, repository_filter, quiet_filter, sort_order, 1, 0 FROM previous_preferences" },
+					std::string{ "DROP TABLE previous_preferences" },
+				};
+				for (const auto& sql : migration) {
+					if (auto migrated = execute(aDatabase, sql, aStop); !migrated) {
+						rollback();
+						return migrated;
+					}
+				}
+			}
 			if (auto meta = execute(
 					aDatabase,
 					"UPDATE enrollment_meta SET schema_format = "
@@ -474,7 +516,7 @@ namespace bpr::adapters::sqlite::detail {
 		[[nodiscard]] auto validate(::sqlite3* aDatabase)
 			-> std::expected<void, failure>
 		{
-			return validate_version_five(aDatabase);
+			return validate_exact_version(aDatabase, queue_enrollment_schema_version, SchemaVersion6Tables);
 		}
 
 		[[nodiscard]] auto text_of(::sqlite3_stmt* aStatement, const int aColumn)
@@ -977,15 +1019,17 @@ namespace bpr::adapters::sqlite::detail {
 			Handle,
 			"INSERT INTO presentation_preferences("
 			"singleton, role_filter, observer_filter, bucket_filter,"
-			"repository_filter, quiet_filter, sort_order) "
-			"VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6) "
+			"repository_filter, quiet_filter, sort_order, notifications_enabled, notifications_paused) "
+			"VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8) "
 			"ON CONFLICT(singleton) DO UPDATE SET "
 			"role_filter = excluded.role_filter,"
 			"observer_filter = excluded.observer_filter,"
 			"bucket_filter = excluded.bucket_filter,"
 			"repository_filter = excluded.repository_filter,"
 			"quiet_filter = excluded.quiet_filter,"
-			"sort_order = excluded.sort_order");
+			"sort_order = excluded.sort_order,"
+			"notifications_enabled = excluded.notifications_enabled,"
+			"notifications_paused = excluded.notifications_paused");
 		if (!statement) {
 			return std::unexpected(statement.error());
 		}
@@ -1022,6 +1066,8 @@ namespace bpr::adapters::sqlite::detail {
 				   6,
 				   static_cast<std::int64_t>(aPreferences.Sort))
 				!= SQLITE_OK
+			|| ::sqlite3_bind_int64(statement->Value, 7, aPreferences.Notifications.Enabled ? 1 : 0) != SQLITE_OK
+			|| ::sqlite3_bind_int64(statement->Value, 8, aPreferences.Notifications.Paused ? 1 : 0) != SQLITE_OK
 			|| ::sqlite3_step(statement->Value) != SQLITE_DONE) {
 			return std::unexpected(failure::unavailable);
 		}
@@ -1034,7 +1080,7 @@ namespace bpr::adapters::sqlite::detail {
 		auto statement = prepare(
 			Handle,
 			"SELECT role_filter, observer_filter, bucket_filter,"
-			"repository_filter, quiet_filter, sort_order "
+			"repository_filter, quiet_filter, sort_order, notifications_enabled, notifications_paused "
 			"FROM presentation_preferences WHERE singleton = 1");
 		if (!statement) {
 			return std::unexpected(statement.error());
@@ -1081,6 +1127,7 @@ namespace bpr::adapters::sqlite::detail {
 				::sqlite3_column_int64(statement->Value, 4)),
 			.Sort = static_cast<application::queue_sort_order>(
 				::sqlite3_column_int64(statement->Value, 5)),
+			.Notifications = { ::sqlite3_column_int64(statement->Value, 6) == 1, ::sqlite3_column_int64(statement->Value, 7) == 1 },
 		};
 		if (!application::valid(preferences)) {
 			return std::unexpected(failure::integrity_failure);

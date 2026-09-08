@@ -552,6 +552,29 @@ namespace bpr::application {
 			if (Closing || !Restored || !valid(aIntent.Preferences)) {
 				return;
 			}
+			if (aIntent.Field != queue_preference_field::all) {
+				auto        next    = QueuedPreferences.value_or(PendingPreferences.value_or(Preferences));
+				const auto& offered = aIntent.Preferences;
+				switch (aIntent.Field) {
+				case queue_preference_field::role:                  next.Role = offered.Role; break;
+				case queue_preference_field::observer:              next.ObserverReason = offered.ObserverReason; break;
+				case queue_preference_field::bucket:                next.Bucket = offered.Bucket; break;
+				case queue_preference_field::repository:            next.Repository = offered.Repository; break;
+				case queue_preference_field::quiet:                 next.Quiet = offered.Quiet; break;
+				case queue_preference_field::sort:                  next.Sort = offered.Sort; break;
+				case queue_preference_field::notifications_enabled: next.Notifications.Enabled = offered.Notifications.Enabled; break;
+				case queue_preference_field::notifications_paused:  next.Notifications.Paused = offered.Notifications.Paused; break;
+				case queue_preference_field::notifications:         next.Notifications = offered.Notifications; break;
+				case queue_preference_field::queue_filters:         {
+					const auto notifications = next.Notifications;
+					next                     = offered;
+					next.Notifications       = notifications;
+					break;
+				}
+				default: return;
+				}
+				aIntent.Preferences = std::move(next);
+			}
 			if (PreferenceMutationPending) {
 				QueuedPreferences = std::move(aIntent.Preferences);
 				return;
@@ -565,6 +588,7 @@ namespace bpr::application {
 			const auto stop           = request.Stop.get_token();
 			const auto gate           = std::weak_ptr<completion_gate>{ Gate };
 			PreferenceMutationPending = true;
+			PendingPreferences        = aIntent.Preferences;
 			try {
 				Effects.post([this,
 							  gate,
@@ -587,6 +611,7 @@ namespace bpr::application {
 				});
 			} catch (...) {
 				PreferenceMutationPending = false;
+				PendingPreferences.reset();
 				(void)retire(id, request_kind::preferences);
 				report_unavailable();
 			}
@@ -601,6 +626,7 @@ namespace bpr::application {
 				return;
 			}
 			PreferenceMutationPending = false;
+			PendingPreferences.reset();
 			if (!aResult) {
 				QueuedPreferences.reset();
 				report_unavailable();
@@ -981,6 +1007,7 @@ namespace bpr::application {
 		std::vector<saved_repository>                 SavedRepositories;
 		std::vector<saved_server>                     SavedServers;
 		std::optional<queue_presentation_preferences> QueuedPreferences;
+		std::optional<queue_presentation_preferences> PendingPreferences;
 		std::vector<queue_activity_report>            Activity;
 		std::vector<outstanding_request>              Outstanding;
 		std::optional<core::pull_request_ref>         LastRef;
@@ -1080,6 +1107,11 @@ namespace bpr::application {
 		-> std::span<const core::observer_rule>
 	{
 		return Implementation->Rules;
+	}
+
+	auto review_queue_application_host::preferences() const noexcept -> const queue_presentation_preferences&
+	{
+		return Implementation->Preferences;
 	}
 
 	auto review_queue_application_host::queue() const

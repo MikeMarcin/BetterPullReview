@@ -899,6 +899,35 @@ namespace {
 		host.shutdown();
 	}
 
+	void test_rapid_independent_preference_gestures_merge_in_the_host()
+	{
+		auto store       = memory_queue_store{ };
+		auto refresh     = observed_refresh{ };
+		auto effects     = application::manual_executor{ };
+		auto decisions   = application::manual_executor{ };
+		auto projections = landing_log{ };
+		auto host        = application::review_queue_application_host{ store, refresh, effects, decisions, projections, { } };
+		host.restore();
+		run_one(effects, decisions);
+		auto first                  = application::queue_presentation_preferences{ };
+		first.Notifications.Enabled = false;
+		host.apply({ first, application::queue_preference_field::notifications_enabled });
+		auto second                 = application::queue_presentation_preferences{ };
+		second.Notifications.Paused = true;
+		host.apply({ second, application::queue_preference_field::notifications_paused });
+		auto third = application::queue_presentation_preferences{ };
+		third.Role = core::github_role::author;
+		host.apply({ third, application::queue_preference_field::role });
+		while (!host.is_quiescent()) {
+			run_one(effects, decisions);
+		}
+		expect(!host.preferences().Notifications.Enabled && host.preferences().Notifications.Paused
+				   && host.preferences().Role == core::github_role::author
+				   && store.State.Preferences == host.preferences(),
+			   "rapid independent gestures retain every edited field through persistence");
+		host.shutdown();
+	}
+
 	void test_presentation_preferences_are_durable_before_projection()
 	{
 		auto store       = memory_queue_store{ };
@@ -918,6 +947,7 @@ namespace {
 			.Repository     = "octo/app",
 			.Quiet          = application::queue_quiet_filter::attention,
 			.Sort           = application::queue_sort_order::repository,
+			.Notifications  = { .Enabled = false, .Paused = true },
 		};
 		host.apply(application::queue_preferences_intent{
 			.Preferences = preferences,
@@ -935,6 +965,14 @@ namespace {
 			store.State.Preferences == preferences
 				&& projections.Published.back().Preferences == preferences,
 			"the accepted preference is stored and projected together");
+		auto refused              = preferences;
+		refused.Notifications     = { };
+		store.FailEnrollmentStore = true;
+		host.apply(application::queue_preferences_intent{ refused });
+		run_one(effects, decisions);
+		expect(host.preferences() == preferences && projections.Published.back().Preferences == preferences,
+			   "a failed notification preference store leaves the accepted choices intact");
+		store.FailEnrollmentStore = false;
 		host.shutdown();
 
 		auto restartEffects     = application::manual_executor{ };
@@ -1045,6 +1083,7 @@ auto main() -> int
 	test_refresh_identity_and_cancellation_are_authoritative();
 	test_failed_rule_reconciliation_rolls_back_before_unavailable_projection();
 	test_rule_reconciliation_never_suppresses_a_github_role();
+	test_rapid_independent_preference_gestures_merge_in_the_host();
 	test_presentation_preferences_are_durable_before_projection();
 	test_a_rule_added_during_a_refresh_still_enrolls();
 	test_saved_repositories_are_durable_before_projection();

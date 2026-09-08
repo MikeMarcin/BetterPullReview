@@ -28,6 +28,21 @@ namespace bpr::core {
 		quiet,
 	};
 
+	/// \brief Durable local notification choices; pause preserves enablement.
+	struct notification_preferences
+	{
+		bool Enabled                                            = true;
+		bool Paused                                             = false;
+		auto operator<=>(const notification_preferences&) const = default;
+	};
+
+	[[nodiscard]] constexpr auto permits_notification(const notification_preferences& aPreferences,
+													  const attention_bucket          aBucket) noexcept -> bool
+	{
+		return aPreferences.Enabled && !aPreferences.Paused
+			&& static_cast<std::uint8_t>(aBucket) < static_cast<std::uint8_t>(attention_bucket::quiet);
+	}
+
 	/// \brief Returns the stable name for the supplied value.
 	[[nodiscard]] auto name(attention_bucket aBucket) noexcept
 		-> std::string_view;

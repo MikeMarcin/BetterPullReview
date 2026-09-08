@@ -4816,6 +4816,21 @@ namespace bpr::app {
 						++NotificationSelectionFailures;
 					}
 				});
+			Window->set_notification_preview_dispatch([this](const core::pull_request_ref& aRef) {
+				if (Closing || QueueHost == nullptr || Notifications == nullptr) {
+					return false;
+				}
+				const auto queue = QueueHost->queue();
+				const auto item  = std::ranges::find(queue, aRef, &core::queue_item::Ref);
+				if (item == queue.end() || !core::permits_notification(QueueHost->preferences().Notifications, item->Bucket)) {
+					return false;
+				}
+				if (!QueueActivity || QueueActivity->Ref != aRef) {
+					return false;
+				}
+				const auto request = application::notification_for(*item, QueueActivity->Activity.UnseenComments);
+				return request && Notifications->deliver(*request);
+			});
 			const auto activation = [this](
 										application::queue_notification_target aTarget) {
 				if (Notifications) {
@@ -7055,7 +7070,7 @@ namespace bpr::app {
 #endif
 				const auto unseen  = QueueActivity->Activity.UnseenComments;
 				const auto request = application::notification_for(item, unseen);
-				if (!request.has_value()) {
+				if (!request.has_value() || !core::permits_notification(aProjection.Preferences.Notifications, item.Bucket)) {
 					continue;
 				}
 				++NotificationRequestsAttempted;

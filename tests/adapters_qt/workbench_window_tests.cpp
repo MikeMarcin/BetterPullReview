@@ -5057,6 +5057,8 @@ namespace {
 				&& intents.back().Preferences.Role
 					== core::github_role::requested_reviewer,
 			"the real role control emits one typed reviewer-preference intent");
+		expect(window.queue_filter_model()->rowCount() == 2, "unaccepted filter intent leaves the projected queue intact");
+		window.publish({ .Status = application::queue_landing_status::ready, .Items = { urgent, quiet }, .Preferences = intents.back().Preferences });
 		expect(
 			window.queue_filter_model()->rowCount() == 1,
 			"the presentation filter changes without mutating the source queue");
@@ -5064,6 +5066,7 @@ namespace {
 		window.queue_bucket_filter()->setCurrentIndex(
 			window.queue_bucket_filter()->findData(
 				static_cast<int>(core::attention_bucket::quiet)));
+		window.publish({ .Status = application::queue_landing_status::ready, .Items = { urgent, quiet }, .Preferences = intents.back().Preferences });
 		expect(
 			window.queue_filter_model()->rowCount() == 0
 				&& window.queue_status_label()->text().contains(
@@ -5128,6 +5131,7 @@ namespace {
 		window.queue_role_filter()->setCurrentIndex(
 			window.queue_role_filter()->findData(
 				static_cast<int>(core::github_role::requested_reviewer)));
+		window.publish({ .Status = application::queue_landing_status::ready, .Items = { visible, hidden }, .Preferences = intents.back().Preferences });
 		const auto preferences = window.queue_filter_model()->preferences();
 		const auto intentCount = intents.size();
 
@@ -5320,11 +5324,52 @@ namespace {
 		window.hide();
 	}
 
+	void test_notification_settings_wait_for_acceptance_and_reset_only_their_domain()
+	{
+		qt::workbench_window window;
+		auto                 intents = std::vector<application::queue_preferences_intent>{ };
+		window.set_queue_preferences_dispatch([&intents](application::queue_preferences_intent aIntent) { intents.push_back(std::move(aIntent)); });
+		auto projection             = application::queue_landing_projection{ .Status = application::queue_landing_status::ready };
+		projection.Preferences.Role = core::github_role::requested_reviewer;
+		window.publish(projection);
+		auto* const enabled = window.findChild<QCheckBox*>(QStringLiteral("notificationsEnabled"));
+		auto* const paused  = window.findChild<QCheckBox*>(QStringLiteral("notificationsPaused"));
+		expect(enabled && paused && enabled->isChecked() && !paused->isChecked(), "notification controls show the accepted defaults");
+		paused->click();
+		expect(intents.size() == 1U && intents.back().Preferences.Notifications.Paused && !paused->isChecked(), "pause leaves as a single typed intent and waits for acceptance");
+		projection.Preferences = intents.back().Preferences;
+		window.publish(projection);
+		expect(paused->isChecked(), "accepted pause is projected");
+		enabled->click();
+		expect(enabled->isChecked() && !intents.back().Preferences.Notifications.Enabled, "enablement also waits for accepted storage");
+		projection.Status = application::queue_landing_status::unavailable;
+		window.publish(projection);
+		expect(enabled->isChecked() && paused->isChecked(), "storage failure preserves both accepted values");
+		projection.Status = application::queue_landing_status::ready;
+		window.publish(projection);
+		for (auto* button : window.findChildren<QPushButton*>()) {
+			if (button->text() == QStringLiteral("Reset notification preferences")) {
+				button->click();
+			}
+		}
+		expect(intents.back().Preferences.Notifications == core::notification_preferences{ }
+				   && intents.back().Preferences.Role == projection.Preferences.Role,
+			   "notification reset leaves queue filters intact");
+		for (auto* button : window.findChildren<QPushButton*>()) {
+			if (button->text() == QStringLiteral("Reset queue defaults")) {
+				button->click();
+			}
+		}
+		expect(!intents.back().Preferences.Role && intents.back().Preferences.Notifications.Paused,
+			   "queue reset leaves accepted notification choices intact");
+	}
+
 	void test_large_queue_filters_through_the_composed_window()
 	{
 		qt::workbench_window window;
+		auto                 intents = std::vector<application::queue_preferences_intent>{ };
 		window.set_queue_preferences_dispatch(
-			[](application::queue_preferences_intent) { });
+			[&intents](application::queue_preferences_intent aIntent) { intents.push_back(std::move(aIntent)); });
 		auto items = std::vector<core::queue_item>{ };
 		items.reserve(2'048U);
 		for (auto number = std::int64_t{ 1 }; number <= 2'048; ++number) {
@@ -5371,6 +5416,7 @@ namespace {
 		window.queue_role_filter()->setCurrentIndex(
 			window.queue_role_filter()->findData(
 				static_cast<int>(core::github_role::requested_reviewer)));
+		window.publish({ .Status = application::queue_landing_status::ready, .Items = items, .Preferences = intents.back().Preferences });
 		window.queue_sort_selector()->setCurrentIndex(
 			window.queue_sort_selector()->findData(
 				static_cast<int>(application::queue_sort_order::pull_request_number)));
@@ -5384,6 +5430,7 @@ namespace {
 		expect(
 			selected.has_value() && selected->Ref.Number == 1'000,
 			"the selected pull request survives the large filter and alternate sort");
+		window.publish({ .Status = application::queue_landing_status::ready, .Items = items, .Preferences = intents.back().Preferences });
 		expect(
 			QApplication::focusWidget() == focused,
 			"the focused control survives the large filter and alternate sort");
@@ -5444,6 +5491,7 @@ auto main(int argc, char** argv) -> int
 	test_mark_read_when_fully_seen_dispatches_once_at_the_end_of_the_comparison();
 	test_queue_filter_controls_are_accessible_incremental_and_focus_stable();
 	test_notification_activation_selects_only_an_exact_visible_queue_row();
+	test_notification_settings_wait_for_acceptance_and_reset_only_their_domain();
 	test_large_queue_filters_through_the_composed_window();
 	test_repositories_drawer_toggles_through_the_core_and_collapses_to_a_rail();
 	test_overview_shows_the_decided_page_and_continue_enters_read();

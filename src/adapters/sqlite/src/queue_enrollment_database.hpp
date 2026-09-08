@@ -22,7 +22,8 @@ namespace bpr::adapters::sqlite::detail {
 	/// three adds only reviewer-selected landing preferences; derived filtered
 	/// membership remains absent from that table.
 	/// Five since [[BPR-0660]]: the remembered enterprise servers.
-	inline constexpr std::int64_t queue_enrollment_schema_version = 5;
+	/// Six since [[BPR-0681]]: notification enablement and pause.
+	inline constexpr std::int64_t queue_enrollment_schema_version = 6;
 
 	/// \brief Owns the durable queue enrollment database.
 	///

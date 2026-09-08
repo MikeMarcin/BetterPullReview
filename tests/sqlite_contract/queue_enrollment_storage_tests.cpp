@@ -474,6 +474,8 @@ namespace {
 			path,
 			"DROP TABLE saved_repository;"
 			"DROP TABLE saved_server;"
+			"ALTER TABLE presentation_preferences DROP COLUMN notifications_enabled;"
+			"ALTER TABLE presentation_preferences DROP COLUMN notifications_paused;"
 			"UPDATE enrollment_meta SET schema_format = 3 WHERE singleton = 1;"
 			"PRAGMA user_version = 3;");
 
@@ -510,6 +512,8 @@ namespace {
 		execute_raw_sql(
 			path,
 			"DROP TABLE saved_server;"
+			"ALTER TABLE presentation_preferences DROP COLUMN notifications_enabled;"
+			"ALTER TABLE presentation_preferences DROP COLUMN notifications_paused;"
 			"UPDATE enrollment_meta SET schema_format = 4 WHERE singleton = 1;"
 			"PRAGMA user_version = 4;");
 		auto migrated = queue_enrollment_database::open(path, { });
@@ -657,6 +661,22 @@ namespace {
 		}
 	}
 
+	void test_version_five_retains_filters_and_adds_notification_defaults()
+	{
+		const scratch_directory directory;
+		const auto              path        = directory.file("version-five.db");
+		auto                    preferences = application::queue_presentation_preferences{ };
+		preferences.Repository              = "octo/app";
+		preferences.Sort                    = application::queue_sort_order::repository;
+		{
+			auto store = queue_enrollment_database::open(path, { });
+			expect(opened_ok(store) && store->store_preferences(preferences).has_value(), "version-five fixture starts with nondefault preferences");
+		}
+		execute_raw_sql(path, "ALTER TABLE presentation_preferences DROP COLUMN notifications_enabled; ALTER TABLE presentation_preferences DROP COLUMN notifications_paused; UPDATE enrollment_meta SET schema_format = 5 WHERE singleton = 1; PRAGMA user_version = 5;");
+		auto migrated = queue_enrollment_database::open(path, { });
+		expect(opened_ok(migrated) && migrated->load_preferences() == preferences, "version-five filters survive with enabled, unpaused notification defaults");
+	}
+
 	void test_presentation_preferences_round_trip_without_a_derived_filter_result()
 	{
 		const scratch_directory directory;
@@ -668,6 +688,7 @@ namespace {
 			.Repository     = "octo/app",
 			.Quiet          = application::queue_quiet_filter::attention,
 			.Sort           = application::queue_sort_order::pull_request_number,
+			.Notifications  = { .Enabled = false, .Paused = true },
 		};
 		{
 			auto store = queue_enrollment_database::open(path, { });
@@ -936,6 +957,7 @@ auto main() -> int
 	test_saved_repositories_round_trip_by_account();
 	test_a_legal_version_four_database_migrates_and_saved_servers_round_trip();
 	test_stamped_current_schema_is_validated_canonically();
+	test_version_five_retains_filters_and_adds_notification_defaults();
 	test_presentation_preferences_round_trip_without_a_derived_filter_result();
 	test_the_schema_holds_no_repository_content();
 	test_deleting_the_queue_leaves_the_ledger_intact();

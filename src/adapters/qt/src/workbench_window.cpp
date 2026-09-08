@@ -25,6 +25,8 @@
 #include <QClipboard>
 #include <QComboBox>
 #include <QFont>
+#include <QFormLayout>
+#include <QGroupBox>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QItemSelectionModel>
@@ -1459,6 +1461,7 @@ namespace bpr::qt {
 		reviewsSubtitle->setWordWrap(true);
 		reviewsColumn->addWidget(reviewsSubtitle);
 		build_behaviour_editor(reviews, reviewsColumn);
+		build_queue_settings(reviews, reviewsColumn);
 		auto* const rulesHeading = new QLabel{ QStringLiteral("Observer rules"), reviews };
 		rulesHeading->setObjectName(QStringLiteral("reviewsRulesHeading"));
 		auto headingFont = rulesHeading->font();
@@ -1846,7 +1849,7 @@ namespace bpr::qt {
 				selector,
 				qOverload<int>(&QComboBox::currentIndexChanged),
 				this,
-				[this] { dispatch_queue_preferences(); });
+				[this, selector] { dispatch_queue_preferences(selector); });
 		}
 
 		auto* const controls = new QHBoxLayout{ };
@@ -1942,6 +1945,111 @@ namespace bpr::qt {
 		update_queue_rule_actions();
 	}
 
+	void workbench_window::build_queue_settings(QWidget* const aReviews, QVBoxLayout* const aColumn)
+	{
+		auto* const group   = new QGroupBox{ QStringLiteral("Queue defaults"), aReviews };
+		auto* const form    = new QFormLayout{ group };
+		const auto  sources = std::array{ QueueRoleFilter, QueueObserverFilter, QueueBucketFilter, QueueRepositoryFilter, QueueQuietFilter, QueueSort };
+		const auto  labels  = std::array{ QStringLiteral("Role"), QStringLiteral("Observer reason"), QStringLiteral("Attention"), QStringLiteral("Repository"), QStringLiteral("Quiet reviews"), QStringLiteral("Sort") };
+		for (auto i = std::size_t{ 0U }; i < sources.size(); ++i) {
+			auto* const selector      = new QComboBox{ group };
+			SettingsQueueSelectors[i] = selector;
+			selector->setModel(sources[i]->model());
+			selector->setAccessibleName(QStringLiteral("Default queue %1").arg(labels[i].toLower()));
+			form->addRow(labels[i], selector);
+			connect(selector, &QComboBox::currentIndexChanged, this, [this, source = sources[i]](const int aIndex) {
+				if (!ApplyingQueuePreferences && QueueReady && QueuePreferencesDispatch) {
+					source->setCurrentIndex(aIndex);
+				}
+			});
+		}
+		QueueDefaultsReset = new QPushButton{ QStringLiteral("Reset queue defaults"), group };
+		form->addRow(QueueDefaultsReset);
+		connect(QueueDefaultsReset, &QPushButton::clicked, this, [this] {
+			if (!QueueReady || !QueuePreferencesDispatch) {
+				return;
+			}
+			auto defaults          = application::queue_presentation_preferences{ };
+			defaults.Notifications = QueueProjection.Preferences.Notifications;
+			QueuePreferencesDispatch(application::queue_preferences_intent{ std::move(defaults), application::queue_preference_field::queue_filters });
+		});
+		aColumn->addWidget(group);
+
+		auto* const notifications = new QWidget;
+		auto* const column        = new QVBoxLayout{ notifications };
+		NotificationsEnabled      = new QCheckBox{ QStringLiteral("Enable review notifications"), notifications };
+		NotificationsEnabled->setObjectName(QStringLiteral("notificationsEnabled"));
+		NotificationsPaused = new QCheckBox{ QStringLiteral("Pause notifications"), notifications };
+		NotificationsPaused->setObjectName(QStringLiteral("notificationsPaused"));
+		column->addWidget(NotificationsEnabled);
+		column->addWidget(NotificationsPaused);
+		auto* const explanation = new QLabel{ QStringLiteral("Notifications contain the repository, review number, attention category and unread count. They never include titles, source code or comment text. Choosing a notification selects that review in Home.\n\nYour operating system controls permission and presentation. BetterPullReview cannot confirm every system permission setting."), notifications };
+		explanation->setWordWrap(true);
+		column->addWidget(explanation);
+		NotificationPreview = new QPushButton{ QStringLiteral("Preview for selected Home review"), notifications };
+		NotificationPreview->setObjectName(QStringLiteral("notificationPreview"));
+		column->addWidget(NotificationPreview);
+		NotificationReset = new QPushButton{ QStringLiteral("Reset notification preferences"), notifications };
+		column->addWidget(NotificationReset);
+		NotificationStatus = new QLabel{ notifications };
+		NotificationStatus->setWordWrap(true);
+		NotificationStatus->setAccessibleName(QStringLiteral("Notification status"));
+		column->addWidget(NotificationStatus);
+		const auto change = [this](const application::queue_preference_field aField) {
+			if (ApplyingQueuePreferences || !QueueReady || !QueuePreferencesDispatch) {
+				return;
+			}
+			auto next          = QueueProjection.Preferences;
+			next.Notifications = { NotificationsEnabled->isChecked(), NotificationsPaused->isChecked() };
+			apply_queue_preferences(QueueProjection.Preferences);
+			QueuePreferencesDispatch(application::queue_preferences_intent{ std::move(next), aField });
+		};
+		connect(NotificationsEnabled, &QCheckBox::toggled, this, [change] { change(application::queue_preference_field::notifications_enabled); });
+		connect(NotificationsPaused, &QCheckBox::toggled, this, [change] { change(application::queue_preference_field::notifications_paused); });
+		connect(NotificationReset, &QPushButton::clicked, this, [this] {
+			if (!QueueReady || !QueuePreferencesDispatch) {
+				return;
+			}
+			auto next          = QueueProjection.Preferences;
+			next.Notifications = { };
+			QueuePreferencesDispatch(application::queue_preferences_intent{ std::move(next), application::queue_preference_field::notifications });
+		});
+		connect(NotificationPreview, &QPushButton::clicked, this, [this] {
+			const auto item = QueueFilterModel->item_at(QueueView->currentIndex());
+			if (!item) {
+				NotificationStatus->setText(QStringLiteral("Select a review in Home first."));
+				return;
+			}
+			const auto submitted = NotificationPreviewDispatch && NotificationPreviewDispatch(item->Ref);
+			NotificationStatus->setText(submitted ? QStringLiteral("Preview submitted to the operating system.") : QStringLiteral("Preview was not submitted. Notifications may be paused, permission unavailable, or this review may have no new activity."));
+		});
+		SettingsWindow->adopt_panel(settings_page::notifications, notifications);
+		update_notification_controls();
+	}
+
+	void workbench_window::set_notification_preview_dispatch(std::function<bool(const core::pull_request_ref&)> aDispatch)
+	{
+		NotificationPreviewDispatch = std::move(aDispatch);
+		update_notification_controls();
+	}
+
+	void workbench_window::update_notification_controls()
+	{
+		if (NotificationsEnabled == nullptr) {
+			return;
+		}
+		const auto writable = QueueReady && static_cast<bool>(QueuePreferencesDispatch);
+		NotificationsEnabled->setEnabled(writable);
+		NotificationsPaused->setEnabled(writable);
+		NotificationReset->setEnabled(writable);
+		QueueDefaultsReset->setEnabled(writable);
+		NotificationPreview->setEnabled(writable && static_cast<bool>(NotificationPreviewDispatch)
+										&& QueueProjection.Preferences.Notifications.Enabled && !QueueProjection.Preferences.Notifications.Paused);
+		NotificationStatus->setText(!writable                         ? QStringLiteral("Preferences are unavailable or could not be saved; the last accepted choices remain in effect.")
+										: NotificationPreviewDispatch ? QStringLiteral("Notification delivery is available. System permission may still prevent presentation.")
+																	  : QStringLiteral("Notification delivery is unavailable in this environment."));
+	}
+
 	void workbench_window::set_queue_preferences_dispatch(
 		workbench_queue_preferences_dispatch aDispatch)
 	{
@@ -1956,9 +2064,10 @@ namespace bpr::qt {
 									  QueueSort }) {
 			selector->setEnabled(enabled);
 		}
+		apply_queue_preferences(QueueProjection.Preferences);
 	}
 
-	void workbench_window::dispatch_queue_preferences()
+	void workbench_window::dispatch_queue_preferences(QComboBox* const aSource)
 	{
 		if (ApplyingQueuePreferences || !QueueReady
 			|| !QueuePreferencesDispatch) {
@@ -1997,11 +2106,17 @@ namespace bpr::qt {
 		if (!application::valid(preferences)) {
 			return;
 		}
-		QueueFilterModel->apply(preferences);
-		QueueProjection.Preferences = preferences;
-		update_queue_status(QueueProjection);
+		const auto field          = aSource == QueueRoleFilter ? application::queue_preference_field::role
+			: aSource == QueueObserverFilter                   ? application::queue_preference_field::observer
+			: aSource == QueueBucketFilter                     ? application::queue_preference_field::bucket
+			: aSource == QueueRepositoryFilter                 ? application::queue_preference_field::repository
+			: aSource == QueueQuietFilter                      ? application::queue_preference_field::quiet
+															   : application::queue_preference_field::sort;
+		preferences.Notifications = QueueProjection.Preferences.Notifications;
+		apply_queue_preferences(QueueProjection.Preferences);
 		QueuePreferencesDispatch(application::queue_preferences_intent{
 			.Preferences = std::move(preferences),
+			.Field       = field,
 		});
 	}
 
@@ -2035,7 +2150,19 @@ namespace bpr::qt {
 		select(QueueQuietFilter, static_cast<int>(aPreferences.Quiet));
 		select(QueueSort, static_cast<int>(aPreferences.Sort));
 		QueueFilterModel->apply(aPreferences);
+		const auto sources = std::array{ QueueRoleFilter, QueueObserverFilter, QueueBucketFilter, QueueRepositoryFilter, QueueQuietFilter, QueueSort };
+		for (auto i = std::size_t{ 0U }; i < sources.size(); ++i) {
+			if (SettingsQueueSelectors[i] != nullptr) {
+				SettingsQueueSelectors[i]->setCurrentIndex(sources[i]->currentIndex());
+				SettingsQueueSelectors[i]->setEnabled(QueueReady && static_cast<bool>(QueuePreferencesDispatch));
+			}
+		}
+		if (NotificationsEnabled != nullptr) {
+			NotificationsEnabled->setChecked(aPreferences.Notifications.Enabled);
+			NotificationsPaused->setChecked(aPreferences.Notifications.Paused);
+		}
 		ApplyingQueuePreferences = false;
+		update_notification_controls();
 	}
 
 	void workbench_window::rebuild_queue_repositories(

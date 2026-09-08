@@ -192,6 +192,7 @@ namespace bpr::application {
 		std::string                             Repository;
 		queue_quiet_filter                      Quiet = queue_quiet_filter::all;
 		queue_sort_order                        Sort  = queue_sort_order::core_priority;
+		core::notification_preferences          Notifications;
 
 		auto operator<=>(const queue_presentation_preferences&) const = default;
 	};
@@ -200,10 +201,26 @@ namespace bpr::application {
 	[[nodiscard]] auto valid(
 		const queue_presentation_preferences& aPreferences) noexcept -> bool;
 
+	/// \brief Names the edited domain so the host can merge rapid independent gestures.
+	enum class queue_preference_field : std::uint8_t {
+		all,
+		role,
+		observer,
+		bucket,
+		repository,
+		quiet,
+		sort,
+		notifications_enabled,
+		notifications_paused,
+		notifications,
+		queue_filters,
+	};
+
 	/// \brief One filter or sorting gesture translated by Qt.
 	struct queue_preferences_intent
 	{
 		queue_presentation_preferences Preferences;
+		queue_preference_field         Field = queue_preference_field::all;
 
 		auto operator<=>(const queue_preferences_intent&) const = default;
 	};
@@ -431,6 +448,7 @@ namespace bpr::application {
 		[[nodiscard]] auto saved_servers() const noexcept
 			-> std::span<const saved_server>;
 		[[nodiscard]] auto queue() const -> std::vector<core::queue_item>;
+		[[nodiscard]] auto preferences() const noexcept -> const queue_presentation_preferences&;
 		[[nodiscard]] auto statistics() const noexcept
 			-> review_queue_host_statistics;
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
