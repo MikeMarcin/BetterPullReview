@@ -2,6 +2,7 @@
 
 #include "sqlite_connection.hpp"
 #include "state_directory.hpp"
+#include "storage_internal.hpp"
 
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/adapters/sqlite/testing.hpp"
@@ -4200,6 +4201,82 @@ namespace bpr::adapters::sqlite::detail {
 			return failure::unavailable;
 		}
 	} // namespace
+
+	auto validate_private_storage_root(const std::filesystem::path& aRoot)
+		-> std::expected<void, state_directory_failure>
+	{
+		if (aRoot.empty() || !aRoot.is_absolute() || aRoot != aRoot.lexically_normal()) {
+			return std::unexpected(state_directory_failure::invalid_path);
+		}
+#if defined(_WIN32)
+		auto canonicalRoot = canonical_windows_root(aRoot);
+		if (!canonicalRoot) {
+			return std::unexpected(as_state_directory_failure(canonicalRoot.error()));
+		}
+		auto ancestors = validate_ancestor_chain(*canonicalRoot);
+		if (!ancestors) {
+			return std::unexpected(as_state_directory_failure(ancestors.error()));
+		}
+		auto security = private_security::load();
+		if (!security) {
+			return std::unexpected(as_state_directory_failure(security.error()));
+		}
+		auto root = open_private_directory(*canonicalRoot, *security, false);
+#else
+		std::error_code error;
+		const auto      canonicalRoot = std::filesystem::canonical(aRoot, error);
+		if (error || canonicalRoot != aRoot.lexically_normal()) {
+			return std::unexpected(state_directory_failure::invalid_path);
+		}
+		auto root = open_private_directory(aRoot);
+#endif
+		if (!root) {
+			return std::unexpected(as_state_directory_failure(root.error()));
+		}
+		if (!reliable_local_filesystem(*root)) {
+			return std::unexpected(state_directory_failure::platform_unsupported);
+		}
+		return { };
+	}
+
+	auto ensure_private_storage_child(const std::filesystem::path& aParent, const std::string_view aName)
+		-> std::expected<std::filesystem::path, state_directory_failure>
+	{
+		if (aName.empty() || aName.size() > 64U || !std::ranges::all_of(aName, [](const char aCharacter) {
+				return (aCharacter >= 'a' && aCharacter <= 'z') || (aCharacter >= '0' && aCharacter <= '9') || aCharacter == '-';
+			})) {
+			return std::unexpected(state_directory_failure::invalid_path);
+		}
+		if (auto valid = validate_private_storage_root(aParent); !valid) {
+			return std::unexpected(valid.error());
+		}
+#if defined(_WIN32)
+		auto canonicalParent = canonical_windows_root(aParent);
+		if (!canonicalParent) {
+			return std::unexpected(as_state_directory_failure(canonicalParent.error()));
+		}
+		auto security = private_security::load();
+		if (!security) {
+			return std::unexpected(as_state_directory_failure(security.error()));
+		}
+		auto parent = open_private_directory(*canonicalParent, *security, false);
+		if (!parent) {
+			return std::unexpected(as_state_directory_failure(parent.error()));
+		}
+		const auto name  = std::wstring{ aName.begin(), aName.end() };
+		auto       child = ensure_private_child(*parent, name, *security);
+#else
+		auto parent = open_private_directory(aParent);
+		if (!parent) {
+			return std::unexpected(as_state_directory_failure(parent.error()));
+		}
+		auto child = ensure_private_child(*parent, aName);
+#endif
+		if (!child) {
+			return std::unexpected(as_state_directory_failure(child.error()));
+		}
+		return aParent / std::string{ aName };
+	}
 
 	auto open_state_directory(const std::filesystem::path& aRoot)
 		-> std::expected<state_directory, state_directory_failure>

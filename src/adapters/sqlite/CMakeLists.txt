@@ -8,6 +8,7 @@ add_library(
         src/queue_enrollment_store.cpp
         src/device_binding_store.cpp
         src/profile_registry_store.cpp
+        src/profile_storage_root.cpp
         src/appearance_settings_database.cpp
         src/appearance_settings_store.cpp
         src/workbench_settings_database.cpp
