@@ -146,3 +146,9 @@ Current app explicitly uses defaults view until actual window binding is integra
 
 BPR-0704 owns shared in-memory draft revision admission and preserved editor
 conflict candidates. It adds no new durable editable-draft storage.
+
+BPR-0703 adds schema6 private-note expected-revision CAS and protects the first
+rejected candidate until explicit dismissal. Two-connection race/ABA/migration
+and hostile-observation tests pass; composed ledger40.86s and agent invocation
+0.40s pass. Review finding on Current validation is corrected and narrowly
+rechecked. Private-note editor UX is not claimed; shared drafts remain BPR-0704.

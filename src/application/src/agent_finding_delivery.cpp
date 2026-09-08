@@ -62,8 +62,8 @@ namespace bpr::application {
 		const auto stored = aStore.store_note(record);
 		if (!stored) {
 			return std::unexpected(
-				agent_note_promotion_failure{ .Store = stored.error() });
+				agent_note_promotion_failure{ .Store = stored.error().Reason });
 		}
-		return record;
+		return *stored;
 	}
 } // namespace bpr::application

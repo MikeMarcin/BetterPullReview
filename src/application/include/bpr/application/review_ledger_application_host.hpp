@@ -156,12 +156,18 @@ namespace bpr::application {
 			-> core::file_receipt_outcome;
 
 		/// \brief Persists one validated local note.
-		[[nodiscard]] auto persist(const local_note_record& aNote)
-			-> std::expected<void, ledger_store_failure>;
+		[[nodiscard]] auto persist(const local_note_record&           aNote,
+								   std::optional<local_note_revision> aExpectedRevision = std::nullopt)
+			-> std::expected<local_note_record, local_note_failure>;
 
 		/// \brief Deletes one local note identity.
-		[[nodiscard]] auto erase(local_note_id aNote)
-			-> std::expected<void, ledger_store_failure>;
+		[[nodiscard]] auto erase(local_note_id aNote, local_note_revision aExpectedRevision)
+			-> std::expected<void, local_note_failure>;
+
+		/// \brief Returns the first rejected candidate, retained until explicit dismissal.
+		[[nodiscard]] auto rejected_note() const -> std::optional<rejected_local_note_mutation>;
+		/// \brief Explicitly dismisses this window's retained rejected candidate.
+		void dismiss_rejected_note();
 
 		/// \brief Persists the exact head last reviewed by this reviewer.
 		[[nodiscard]] auto persist_last_reviewed_head(
@@ -233,6 +239,7 @@ namespace bpr::application {
 		std::optional<std::vector<core::conversation_receipt>> ConversationReceipts;
 		review_ledger_host_statistics                          Statistics;
 		mutable std::mutex                                     Mutex;
+		std::optional<rejected_local_note_mutation>            RejectedNote;
 	};
 } // namespace bpr::application
 

@@ -202,7 +202,8 @@ namespace {
 				.Comparison = opaque<core::file_comparison_digest>(
 					static_cast<std::uint8_t>(aSeed + 1U)),
 			},
-			.Note = { .Text = std::string{ aText } },
+			.Note     = { .Text = std::string{ aText } },
+			.Revision = application::local_note_revision{ 1U },
 		};
 	}
 
@@ -881,6 +882,8 @@ namespace {
 			for (const auto sql : {
 					 std::string_view{ "DROP TABLE agent_session" },
 					 std::string_view{ "DROP TABLE agent_session_sequence" },
+					 std::string_view{ "ALTER TABLE local_note DROP COLUMN revision" },
+					 std::string_view{ "DROP TABLE local_note_sequence" },
 					 std::string_view{ "UPDATE ledger_meta SET schema_format = 3" },
 					 std::string_view{ "PRAGMA user_version = 3" },
 				 }) {
@@ -977,6 +980,8 @@ namespace {
 					&& opened->store_note(scope, storedNote),
 				"the unsafe legacy anchor shapes and unrelated private state are seeded");
 			for (const auto sql : {
+					 std::string_view{ "ALTER TABLE local_note DROP COLUMN revision" },
+					 std::string_view{ "DROP TABLE local_note_sequence" },
 					 std::string_view{ "UPDATE ledger_meta SET schema_format = 4" },
 					 std::string_view{ "PRAGMA user_version = 4" },
 				 }) {
@@ -1057,6 +1062,8 @@ namespace {
 			for (const auto sql : {
 					 std::string_view{ "DROP TABLE agent_session" },
 					 std::string_view{ "DROP TABLE agent_session_sequence" },
+					 std::string_view{ "ALTER TABLE local_note DROP COLUMN revision" },
+					 std::string_view{ "DROP TABLE local_note_sequence" },
 					 std::string_view{ "UPDATE ledger_meta SET schema_format = 3" },
 					 std::string_view{ "PRAGMA user_version = 3" },
 					 std::string_view{ "PRAGMA application_id = 305419896" },
@@ -1782,7 +1789,8 @@ namespace {
 		};
 		auto reviewNote = note(2U, 90U, "Review-level reminder");
 		reviewNote.Attachment.reset();
-		const auto fileNote    = note(1U, 91U, "Exact comparison reminder");
+		auto fileNote          = note(1U, 91U, "Exact comparison reminder");
+		fileNote.Revision      = application::local_note_revision{ 2U };
 		const auto firstDefect = defect(
 			1U, 101U, 92U, core::defect_state::needs_verification);
 		const auto secondDefect = defect(
@@ -1854,8 +1862,8 @@ namespace {
 			"the refused thread collision leaves the original defect history intact");
 
 		expect(
-			reopened->erase_note(here, fileNote.Id).has_value()
-				&& reopened->erase_note(here, reviewNote.Id).has_value()
+			reopened->erase_note(here, fileNote.Id, fileNote.Revision).has_value()
+				&& reopened->erase_note(here, reviewNote.Id, reviewNote.Revision).has_value()
 				&& reopened->erase_last_reviewed_head(here).has_value()
 				&& reopened->erase_defect(
 							   here, firstDefect.History.Defect.Id)
@@ -1908,11 +1916,11 @@ namespace {
 		const auto oversized = opened->store_note(*scope, oversizedNote);
 		expect(
 			!oversized
-				&& oversized.error()
-					== catalog_database_failure::integrity_failure,
+				&& oversized.error().Reason
+					== application::ledger_store_failure::invalid_record,
 			"an exact 16,385-byte private note is refused");
 		expect(
-			opened->erase_note(*scope, maximumNote.Id).has_value(),
+			opened->erase_note(*scope, maximumNote.Id, maximumNote.Revision).has_value(),
 			"the boundary note is removed before filling the exact scope cap");
 
 		expect(
@@ -1920,8 +1928,8 @@ namespace {
 				opened->handle(),
 				"WITH RECURSIVE ids(value) AS (SELECT 1 UNION ALL SELECT "
 				"value + 1 FROM ids WHERE value < 4096) INSERT INTO local_note"
-				"(scope_id, note_id, note_text) SELECT "
-					+ std::to_string(*scope) + ", value, 'bounded' FROM ids",
+				"(scope_id, note_id, note_text, revision) SELECT "
+					+ std::to_string(*scope) + ", value, 'bounded', 1 FROM ids",
 				{ })
 				.has_value(),
 			"the note-cap fixture fills one exact scope in one transaction");
@@ -1938,7 +1946,7 @@ namespace {
 		const auto extra = opened->store_note(
 			*scope, note(4'097U, 114U, "one too many"));
 		expect(
-			!extra && extra.error() == catalog_database_failure::quota_exceeded,
+			!extra && extra.error().Reason == application::ledger_store_failure::quota_exceeded,
 			"the store refuses a note beyond the declared observation cap");
 		auto port = bpr::adapters::sqlite::make_review_ledger_store({
 			.StorageRoot = directory.path(),
@@ -1952,11 +1960,11 @@ namespace {
 			note(4'097U, 115U, "still one too many"));
 		if (!portExtra) {
 			std::cerr << "  bounded port refusal: "
-					  << application::name(portExtra.error()) << '\n';
+					  << application::name(portExtra.error().Reason) << '\n';
 		}
 		expect(
 			!portExtra
-				&& portExtra.error()
+				&& portExtra.error().Reason
 					== application::ledger_store_failure::quota_exceeded,
 			"the application port preserves the typed quota refusal");
 
@@ -2119,7 +2127,7 @@ namespace {
 		if (!scope || !execute(opened->handle(), "BEGIN IMMEDIATE", { })) {
 			::_exit(3);
 		}
-		if (!opened->store_note(*scope, note(2U, 132U, "abandoned"))
+		if (!execute(opened->handle(), "INSERT INTO local_note(scope_id,note_id,note_text,revision) VALUES(" + std::to_string(*scope) + ",2,'abandoned',2)", { })
 			|| !opened->store_last_reviewed_head(*scope, head('2'))
 			|| !opened->store_defect(*scope, defect(2U, 202U, 134U))) {
 			::_exit(4);
@@ -2522,10 +2530,160 @@ namespace {
 			"and so does the catalog, as it always did");
 	}
 #endif
+	void test_simultaneous_note_edits_have_one_winner()
+	{
+		const scratch_directory directory;
+		const auto              path   = directory.file("simultaneous-notes.db");
+		auto                    first  = review_ledger_database::open(path, { });
+		auto                    second = review_ledger_database::open(path, { });
+		expect(first && second, "simultaneous note connections open");
+		const auto scope = first->scope_id(scope_of("github.com", "octo", "app", 7));
+		expect(scope.has_value(), "simultaneous note scope resolves");
+		const auto initial = first->store_note(*scope, note(1U, 29U, "original"));
+		expect(initial.has_value(), "simultaneous note base commits");
+		auto left       = *initial;
+		auto right      = *initial;
+		left.Note.Text  = "left winner";
+		right.Note.Text = "right winner";
+		auto leftResult = std::expected<application::local_note_record, application::local_note_failure>{
+			std::unexpected(application::local_note_failure{ .Reason = application::ledger_store_failure::unavailable })
+		};
+		auto         rightResult = leftResult;
+		std::barrier start{ 3 };
+		std::thread  leftThread{ [&] {start.arrive_and_wait(); leftResult=first->store_note(*scope,left,initial->Revision); } };
+		std::thread  rightThread{ [&] {start.arrive_and_wait(); rightResult=second->store_note(*scope,right,initial->Revision); } };
+		start.arrive_and_wait();
+		leftThread.join();
+		rightThread.join();
+		expect(leftResult.has_value() != rightResult.has_value(), "exactly one simultaneous expected-revision edit wins");
+		const auto& accepted = leftResult ? *leftResult : *rightResult;
+		const auto& refused  = leftResult ? rightResult.error() : leftResult.error();
+		expect(refused.Reason == application::ledger_store_failure::conflict && refused.Current == accepted
+				   && accepted.Revision.value() == 2U,
+			   "the losing connection observes the same committed competitor without advancing the sequence");
+		auto reopened = review_ledger_database::open(path, { });
+		expect(reopened.has_value(), "the simultaneous result reopens");
+		const auto durable = reopened->load_private(*scope);
+		expect(durable && durable->Notes == std::vector{ accepted }, "only the simultaneous winner survives restart");
+		expect(execute(first->handle(), "DELETE FROM local_note_sequence", { }).has_value(), "the sequence corruption fixture is designated");
+		const auto corruptDelete = second->erase_note(*scope, accepted.Id, accepted.Revision);
+		expect(!corruptDelete && corruptDelete.error().Reason == application::ledger_store_failure::integrity_failure,
+			   "a missing allocator cannot erase the evidence needed to prevent revision reuse");
+	}
+
+	void test_version_five_note_migration_is_atomic_and_repeatable()
+	{
+		const scratch_directory directory;
+		const auto              path  = directory.file("note-migrate.db");
+		std::int64_t            scope = 0;
+		{
+			auto database = review_ledger_database::open(path, { });
+			expect(database.has_value(), "the note migration fixture opens");
+			const auto id = database->scope_id(scope_of("github.com", "octo", "app", 7));
+			expect(id.has_value(), "the migration scope resolves");
+			scope = *id;
+			expect(database->store_note(scope, note(1U, 55U, "preserved")).has_value(), "the old note is seeded");
+			for (const auto sql : { "ALTER TABLE local_note DROP COLUMN revision",
+									"DROP TABLE local_note_sequence", "UPDATE ledger_meta SET schema_format=5",
+									"PRAGMA user_version=5", "PRAGMA ignore_check_constraints=ON",
+									"UPDATE local_note SET note_text=''" }) {
+				expect(execute(database->handle(), sql, { }).has_value(), "the malformed legacy-row fixture is assembled");
+			}
+		}
+		const auto before  = read_binary(path);
+		const auto refused = review_ledger_database::open(path, { });
+		expect(!refused, "migration refuses a legacy note that cannot satisfy current bounds");
+		::sqlite3* raw = nullptr;
+		expect(::sqlite3_open(path.string().c_str(), &raw) == SQLITE_OK, "the rollback fixture opens for inspection");
+		const auto version = scalar_integer(raw, "PRAGMA user_version");
+		const auto oldRows = scalar_integer(raw, "SELECT COUNT(*) FROM local_note WHERE note_text='' ");
+		const auto partial = scalar_integer(raw, "SELECT COUNT(*) FROM sqlite_schema WHERE name IN ('local_note_v5','local_note_sequence')");
+		expect(version && *version == 5 && oldRows && *oldRows == 1 && partial && *partial == 0,
+			   "failed migration rolls back table replacement, sequence allocation and schema stamp together");
+		expect(!before.empty(), "the legacy database held durable bytes before refusal");
+		expect(execute(raw, "UPDATE local_note SET note_text='preserved'", { }).has_value(), "the designated fixture repairs only its invalid legacy text");
+		(void)::sqlite3_close(raw);
+		{
+			auto migrated = review_ledger_database::open(path, { });
+			expect(migrated.has_value(), "a retried valid migration succeeds");
+			const auto state = migrated->load_private(scope);
+			expect(state && state->Notes.size() == 1U && state->Notes.front().Revision.value() == 1U
+					   && state->Notes.front().Note.Text == "preserved",
+				   "legacy notes retain content and receive revision one");
+			auto edit           = state->Notes.front();
+			edit.Note.Text      = "after migration";
+			const auto accepted = migrated->store_note(scope, edit, edit.Revision);
+			expect(accepted && accepted->Revision.value() == 2U, "the migrated allocator exceeds every accepted legacy revision");
+		}
+		auto reopened = review_ledger_database::open(path, { });
+		expect(reopened.has_value(), "schema-six reopen is idempotent");
+		const auto state = reopened->load_private(scope);
+		expect(state && state->Notes.front().Revision.value() == 2U
+				   && state->Notes.front().Note.Text == "after migration",
+			   "reopening never remigrates accepted revisions");
+	}
+
+	void test_two_connections_compare_note_revisions_without_aba()
+	{
+		const scratch_directory directory;
+		const auto              path   = directory.file("note-cas.db");
+		auto                    first  = review_ledger_database::open(path, { });
+		auto                    second = review_ledger_database::open(path, { });
+		expect(first && second, "two independent note connections open");
+		const auto scope = first->scope_id(scope_of("github.com", "octo", "app", 7));
+		expect(scope.has_value(), "the note conflict scope resolves");
+		auto candidate      = note(1U, 22U, "original");
+		candidate.Revision  = { };
+		const auto original = first->store_note(*scope, candidate);
+		expect(original && original->Revision.value() == 1U, "create allocates the first durable revision");
+		const auto duplicate = second->store_note(*scope, *original);
+		expect(!duplicate && duplicate.error().Reason == application::ledger_store_failure::conflict
+				   && duplicate.error().Current == *original,
+			   "implicit create never becomes an overwrite even with a candidate revision");
+		auto winner         = *original;
+		winner.Note.Text    = "winner";
+		const auto accepted = first->store_note(*scope, winner, original->Revision);
+		expect(accepted && accepted->Revision.value() == 2U, "the first expected-revision edit wins");
+		auto loser             = *original;
+		loser.Note.Text        = "loser";
+		const auto stale       = second->store_note(*scope, loser, original->Revision);
+		const auto staleDelete = second->erase_note(*scope, original->Id, original->Revision);
+		expect(!stale && stale.error().Current == *accepted
+				   && !staleDelete && staleDelete.error().Current == *accepted,
+			   "the second connection rejects stale edits and deletes with the accepted record");
+		for (const auto foreign : { scope_of("other.example", "octo", "app", 7),
+									scope_of("github.com", "other", "app", 7), scope_of("github.com", "octo", "other", 7),
+									scope_of("github.com", "octo", "app", 8) }) {
+			const auto other = second->scope_id(foreign);
+			expect(other.has_value(), "each foreign note scope resolves");
+			const auto refused = second->store_note(*other, loser, accepted->Revision);
+			expect(!refused && !refused.error().Current
+					   && refused.error().Reason == application::ledger_store_failure::conflict,
+				   "revision knowledge cannot create a note in a foreign review scope");
+		}
+		expect(first->erase_note(*scope, accepted->Id, accepted->Revision).has_value(), "the exact revision deletes");
+		const auto missing = second->store_note(*scope, loser, accepted->Revision);
+		expect(!missing && !missing.error().Current, "editing a deleted note conflicts with absence");
+		const auto recreated = second->store_note(*scope, candidate);
+		expect(recreated && recreated->Revision.value() > accepted->Revision.value(), "recreation never reuses an accepted revision");
+		const auto aba = first->store_note(*scope, loser, original->Revision);
+		expect(!aba && aba.error().Current == *recreated, "the original revision cannot overwrite the recreated identity");
+		auto       reopened = review_ledger_database::open(path, { });
+		const auto durable  = reopened->load_private(*scope);
+		expect(durable && durable->Notes == std::vector{ *recreated }, "restart retains only the accepted note and revision");
+		expect(execute(first->handle(), "UPDATE local_note_sequence SET last_revision=9223372036854775807", { }).has_value(), "the exhaustion fixture advances its sequence");
+		const auto exhausted = second->store_note(*scope, loser, recreated->Revision);
+		expect(!exhausted && exhausted.error().Reason == application::ledger_store_failure::quota_exceeded,
+			   "revision exhaustion refuses instead of wrapping");
+	}
+
 } // namespace
 
 auto main() -> int
 {
+	test_simultaneous_note_edits_have_one_winner();
+	test_version_five_note_migration_is_atomic_and_repeatable();
+	test_two_connections_compare_note_revisions_without_aba();
 	test_a_directory_in_the_ledgers_place_is_a_typed_refusal();
 	test_the_schema_stores_no_presentation_coordinate();
 	test_receipts_do_not_leak_across_identity();

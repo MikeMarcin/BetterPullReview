@@ -333,21 +333,39 @@ namespace {
 			return std::vector<core::conversation_receipt>{ };
 		}
 
-		[[nodiscard]] auto store_note(const application::local_note_record& aNote)
-			-> std::expected<void, application::ledger_store_failure> override
+		[[nodiscard]] auto store_note(const application::local_note_record&           aNote,
+									  std::optional<application::local_note_revision> aExpectedRevision = std::nullopt)
+			-> std::expected<application::local_note_record, application::local_note_failure> override
 		{
 			Touched.emplace_back("store_note");
-			Notes.push_back(aNote);
 			if (Refusal.has_value()) {
-				return std::unexpected(*Refusal);
+				return std::unexpected(application::local_note_failure{ .Reason = *Refusal });
 			}
-			return { };
+			const auto found = std::ranges::find(Notes, aNote.Id, &application::local_note_record::Id);
+			if ((found == Notes.end() && aExpectedRevision) || (found != Notes.end() && (!aExpectedRevision || found->Revision != *aExpectedRevision))) {
+				return std::unexpected(application::local_note_failure{ .Reason  = application::ledger_store_failure::conflict,
+																		.Current = found == Notes.end() ? std::nullopt : std::optional{ *found } });
+			}
+			auto accepted     = aNote;
+			accepted.Revision = application::local_note_revision{ NextNoteRevision++ };
+			if (found == Notes.end()) {
+				Notes.push_back(accepted);
+			} else {
+				*found = accepted;
+			}
+			return accepted;
 		}
 
-		[[nodiscard]] auto erase_note(application::local_note_id)
-			-> std::expected<void, application::ledger_store_failure> override
+		[[nodiscard]] auto erase_note(application::local_note_id aNote, application::local_note_revision aExpectedRevision)
+			-> std::expected<void, application::local_note_failure> override
 		{
 			Touched.emplace_back("erase_note");
+			const auto found = std::ranges::find(Notes, aNote, &application::local_note_record::Id);
+			if (found == Notes.end() || found->Revision != aExpectedRevision) {
+				return std::unexpected(application::local_note_failure{ .Reason  = application::ledger_store_failure::conflict,
+																		.Current = found == Notes.end() ? std::nullopt : std::optional{ *found } });
+			}
+			Notes.erase(found);
 			return { };
 		}
 
@@ -406,6 +424,7 @@ namespace {
 
 		std::vector<std::string>                         Touched;
 		std::vector<application::local_note_record>      Notes;
+		std::uint64_t                                    NextNoteRevision = 1U;
 		std::optional<application::ledger_store_failure> Refusal;
 	};
 
@@ -1491,6 +1510,7 @@ namespace {
 			});
 		expect(
 			stored.has_value() && stored->Id == application::local_note_id{ 7U }
+				&& stored->Revision == application::local_note_revision{ 1U }
 				&& stored->Note.Text == finding.Claim,
 			"a promoted note carries the claim verbatim into the durable record");
 		expect(

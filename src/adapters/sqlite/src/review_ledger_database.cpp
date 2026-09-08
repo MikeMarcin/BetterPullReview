@@ -267,6 +267,27 @@ namespace bpr::adapters::sqlite::detail {
 				"END, availability = 1 WHERE conversation > 0" },
 		};
 
+		constexpr std::string_view SchemaVersion6Note     = "CREATE TABLE local_note("
+															"scope_id INTEGER NOT NULL REFERENCES review_scope(scope_id) ON DELETE CASCADE,"
+															"note_id INTEGER NOT NULL CHECK(note_id > 0),"
+															"file_identity BLOB,comparison_id BLOB,"
+															"note_text TEXT NOT NULL CHECK(length(CAST(note_text AS BLOB)) BETWEEN 1 AND 16384),"
+															"revision INTEGER NOT NULL CHECK(revision > 0),"
+															"CHECK((file_identity IS NULL AND comparison_id IS NULL) OR "
+															"(length(file_identity) = 32 AND length(comparison_id) = 32)),"
+															"PRIMARY KEY(scope_id, note_id)) STRICT";
+		constexpr std::string_view SchemaVersion6Sequence = "CREATE TABLE local_note_sequence("
+															"scope_id INTEGER PRIMARY KEY REFERENCES review_scope(scope_id) ON DELETE CASCADE,"
+															"last_revision INTEGER NOT NULL CHECK(last_revision > 0)) STRICT";
+		constexpr std::array       SchemaVersion5To6{
+			std::string_view{ "ALTER TABLE local_note RENAME TO local_note_v5" },
+			SchemaVersion6Note,
+			std::string_view{ "INSERT INTO local_note SELECT scope_id,note_id,file_identity,comparison_id,note_text,1 FROM local_note_v5" },
+			SchemaVersion6Sequence,
+			std::string_view{ "INSERT INTO local_note_sequence SELECT scope_id,MAX(revision) FROM local_note GROUP BY scope_id" },
+			std::string_view{ "DROP TABLE local_note_v5" },
+		};
+
 		struct schema_table
 		{
 			std::string_view Name;
@@ -315,6 +336,19 @@ namespace bpr::adapters::sqlite::detail {
 		};
 
 		constexpr auto SchemaVersion5Tables = SchemaVersion4Tables;
+
+		constexpr std::array SchemaVersion6Tables{
+			schema_table{ "agent_session", SchemaVersion3To4[1] },
+			schema_table{ "agent_session_sequence", SchemaVersion3To4[0] },
+			schema_table{ "conversation_receipt", SchemaVersion1To2[0] },
+			schema_table{ "file_receipt", SchemaVersion1[2] },
+			schema_table{ "last_reviewed_head", SchemaVersion2To3[1] },
+			schema_table{ "ledger_meta", SchemaVersion1[0] },
+			schema_table{ "local_defect", SchemaVersion2To3[2] },
+			schema_table{ "local_note", SchemaVersion6Note },
+			schema_table{ "local_note_sequence", SchemaVersion6Sequence },
+			schema_table{ "review_scope", SchemaVersion1[1] },
+		};
 
 		[[nodiscard]] auto run_all(
 			::sqlite3*                              aDatabase,
@@ -444,6 +478,14 @@ namespace bpr::adapters::sqlite::detail {
 				version = 5;
 			}
 
+			if (version == 5) {
+				if (auto migrated = run_all(aDatabase, SchemaVersion5To6, aStop); !migrated) {
+					rollback();
+					return migrated;
+				}
+				version = 6;
+			}
+
 			if (auto recorded = execute(
 					aDatabase,
 					"UPDATE ledger_meta SET schema_format = "
@@ -548,7 +590,7 @@ namespace bpr::adapters::sqlite::detail {
 			return validate_at_version(
 				aDatabase,
 				review_ledger_schema_version,
-				SchemaVersion5Tables);
+				SchemaVersion6Tables);
 		}
 
 		struct preflight_file_image
@@ -987,6 +1029,8 @@ namespace bpr::adapters::sqlite::detail {
 						expected = SchemaVersion4Tables;
 					} else if (*version == 5) {
 						expected = SchemaVersion5Tables;
+					} else if (*version == 6) {
+						expected = SchemaVersion6Tables;
 					} else {
 						validation = std::unexpected(failure::schema_mismatch);
 					}
@@ -1361,93 +1405,179 @@ namespace bpr::adapters::sqlite::detail {
 		return receipts;
 	}
 
-	auto review_ledger_database::store_note(
-		const std::int64_t                    aScope,
-		const application::local_note_record& aNote)
-		-> std::expected<void, failure>
-	{
-		if (!application::valid(aNote)) {
-			return std::unexpected(failure::integrity_failure);
-		}
-		auto upsert = prepare(
-			Handle,
-			"INSERT INTO local_note(scope_id, note_id, file_identity, "
-			"comparison_id, note_text) "
-			"SELECT ?1, ?2, ?3, ?4, ?5 WHERE "
-			"EXISTS(SELECT 1 FROM local_note WHERE scope_id = ?1 AND note_id = ?2) "
-			"OR (SELECT COUNT(*) FROM local_note WHERE scope_id = ?1) < ?6 "
-			"ON CONFLICT(scope_id, note_id) DO UPDATE SET "
-			"file_identity = excluded.file_identity, "
-			"comparison_id = excluded.comparison_id, "
-			"note_text = excluded.note_text");
-		if (!upsert) {
-			return std::unexpected(upsert.error());
-		}
-		if (::sqlite3_bind_int64(upsert->Value, 1, aScope) != SQLITE_OK
-			|| ::sqlite3_bind_int64(
-				   upsert->Value,
-				   2,
-				   static_cast<std::int64_t>(aNote.Id.value()))
-				!= SQLITE_OK) {
-			return std::unexpected(failure::unavailable);
-		}
-		if (aNote.Attachment) {
-			const auto& file       = aNote.Attachment->File.bytes();
-			const auto& comparison = aNote.Attachment->Comparison.bytes();
-			if (bind_blob(upsert->Value, 3, file) != SQLITE_OK
-				|| bind_blob(upsert->Value, 4, comparison) != SQLITE_OK) {
-				return std::unexpected(failure::unavailable);
+	namespace {
+		[[nodiscard]] auto note_failure(const failure aFailure) -> application::local_note_failure
+		{
+			using enum application::ledger_store_failure;
+			switch (aFailure) {
+			case failure::integrity_failure:
+			case failure::schema_mismatch:   return { .Reason = integrity_failure };
+			case failure::quota_exceeded:    return { .Reason = quota_exceeded };
+			case failure::cancelled:         return { .Reason = cancelled };
+			default:                         return { .Reason = unavailable };
 			}
-		} else if (::sqlite3_bind_null(upsert->Value, 3) != SQLITE_OK
-				   || ::sqlite3_bind_null(upsert->Value, 4) != SQLITE_OK) {
-			return std::unexpected(failure::unavailable);
 		}
-		if (::sqlite3_bind_text(
-				upsert->Value,
-				5,
-				aNote.Note.Text.data(),
-				static_cast<int>(aNote.Note.Text.size()),
-				SQLITE_TRANSIENT)
-				!= SQLITE_OK
-			|| ::sqlite3_bind_int64(
-				   upsert->Value,
-				   6,
-				   static_cast<std::int64_t>(application::maximum_private_notes))
-				!= SQLITE_OK) {
-			return std::unexpected(failure::unavailable);
+
+		[[nodiscard]] auto read_note(::sqlite3* aDatabase, const std::int64_t aScope,
+									 const application::local_note_id aId)
+			-> std::expected<std::optional<application::local_note_record>, failure>
+		{
+			auto query = prepare(aDatabase,
+								 "SELECT file_identity,comparison_id,note_text,revision FROM local_note WHERE scope_id=?1 AND note_id=?2");
+			if (!query || ::sqlite3_bind_int64(query->Value, 1, aScope) != SQLITE_OK
+				|| ::sqlite3_bind_int64(query->Value, 2, static_cast<std::int64_t>(aId.value())) != SQLITE_OK) {
+				return std::unexpected(query ? failure::unavailable : query.error());
+			}
+			const auto row = ::sqlite3_step(query->Value);
+			if (row == SQLITE_DONE) {
+				return std::nullopt;
+			}
+			if (row != SQLITE_ROW) {
+				return std::unexpected(catalog_sql_failure(aDatabase));
+			}
+			const auto  bytes    = ::sqlite3_column_bytes(query->Value, 2);
+			const auto* text     = ::sqlite3_column_text(query->Value, 2);
+			const auto  revision = ::sqlite3_column_int64(query->Value, 3);
+			if (bytes <= 0 || static_cast<std::size_t>(bytes) > core::maximum_note_bytes
+				|| text == nullptr || revision <= 0) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			auto       result         = application::local_note_record{ .Id       = aId,
+																		.Note     = { .Text = std::string{ reinterpret_cast<const char*>(text), static_cast<std::size_t>(bytes) } },
+																		.Revision = application::local_note_revision{ static_cast<std::uint64_t>(revision) } };
+			const auto fileNull       = ::sqlite3_column_type(query->Value, 0) == SQLITE_NULL;
+			const auto comparisonNull = ::sqlite3_column_type(query->Value, 1) == SQLITE_NULL;
+			if (fileNull != comparisonNull) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			if (!fileNull) {
+				const auto file       = read_digest(query->Value, 0);
+				const auto comparison = read_digest(query->Value, 1);
+				if (!file || !comparison) {
+					return std::unexpected(failure::integrity_failure);
+				}
+				result.Attachment = application::local_note_attachment{ .File       = core::file_identity{ *file },
+																		.Comparison = core::file_comparison_digest{ *comparison } };
+			}
+			if (!application::valid(result) || ::sqlite3_step(query->Value) != SQLITE_DONE) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			return result;
 		}
-		if (::sqlite3_step(upsert->Value) != SQLITE_DONE) {
-			return std::unexpected(catalog_sql_failure(Handle));
+
+		/// \brief Serializes compare, allocation and write across independent connections.
+		[[nodiscard]] auto mutate_note(::sqlite3* aDatabase, const std::int64_t aScope,
+									   const application::local_note_id aId, const application::local_note_record* aCandidate,
+									   const std::optional<application::local_note_revision> aExpectedRevision)
+			-> std::expected<std::optional<application::local_note_record>, application::local_note_failure>
+		{
+			using application::ledger_store_failure;
+			using application::local_note_failure;
+			if (aScope <= 0 || !durable_integer(aId.value())
+				|| (aCandidate != nullptr && !application::valid(*aCandidate))
+				|| (aExpectedRevision && !durable_integer(aExpectedRevision->value()))
+				|| (aCandidate == nullptr && !aExpectedRevision)) {
+				return std::unexpected(local_note_failure{ .Reason = ledger_store_failure::invalid_record });
+			}
+			if (auto begin = execute(aDatabase, "BEGIN IMMEDIATE"); !begin) {
+				return std::unexpected(note_failure(begin.error()));
+			}
+			const auto rollback = [](::sqlite3* aHandle) noexcept {
+				(void)::sqlite3_exec(aHandle, "ROLLBACK", nullptr, nullptr, nullptr);
+			};
+			auto transaction = std::unique_ptr<::sqlite3, decltype(rollback)>{ aDatabase, rollback };
+			auto current     = read_note(aDatabase, aScope, aId);
+			if (!current) {
+				return std::unexpected(note_failure(current.error()));
+			}
+			if ((!aExpectedRevision && current->has_value())
+				|| (aExpectedRevision && (!*current || (*current)->Revision != *aExpectedRevision))) {
+				return std::unexpected(local_note_failure{ .Reason = ledger_store_failure::conflict, .Current = std::move(*current) });
+			}
+			auto accepted = std::optional<application::local_note_record>{ };
+			auto sequence = prepare(aDatabase,
+									"SELECT COALESCE((SELECT last_revision FROM local_note_sequence WHERE scope_id=?1),0),"
+									"COALESCE(MAX(revision),0),COUNT(*) FROM (SELECT revision FROM local_note WHERE scope_id=?1 LIMIT ?2)");
+			if (!sequence || ::sqlite3_bind_int64(sequence->Value, 1, aScope) != SQLITE_OK
+				|| ::sqlite3_bind_int64(sequence->Value, 2, static_cast<std::int64_t>(application::maximum_private_notes) + 1) != SQLITE_OK
+				|| ::sqlite3_step(sequence->Value) != SQLITE_ROW) {
+				return std::unexpected(note_failure(sequence ? catalog_sql_failure(aDatabase) : sequence.error()));
+			}
+			const auto last    = ::sqlite3_column_int64(sequence->Value, 0);
+			const auto maximum = ::sqlite3_column_int64(sequence->Value, 1);
+			const auto count   = ::sqlite3_column_int64(sequence->Value, 2);
+			if (last < maximum || last < 0 || ::sqlite3_step(sequence->Value) != SQLITE_DONE) {
+				return std::unexpected(local_note_failure{ .Reason = ledger_store_failure::integrity_failure });
+			}
+			if (count > static_cast<std::int64_t>(application::maximum_private_notes)) {
+				return std::unexpected(local_note_failure{ .Reason = ledger_store_failure::quota_exceeded });
+			}
+			if (aCandidate != nullptr) {
+				if (last == std::numeric_limits<std::int64_t>::max()
+					|| (!*current && count >= static_cast<std::int64_t>(application::maximum_private_notes))) {
+					return std::unexpected(local_note_failure{ .Reason = ledger_store_failure::quota_exceeded });
+				}
+				accepted           = *aCandidate;
+				accepted->Revision = application::local_note_revision{ static_cast<std::uint64_t>(last + 1) };
+				auto write         = prepare(aDatabase,
+											 "INSERT INTO local_note(scope_id,note_id,file_identity,comparison_id,note_text,revision) VALUES(?1,?2,?3,?4,?5,?6) "
+											 "ON CONFLICT(scope_id,note_id) DO UPDATE SET file_identity=excluded.file_identity,comparison_id=excluded.comparison_id,note_text=excluded.note_text,revision=excluded.revision");
+				if (!write || ::sqlite3_bind_int64(write->Value, 1, aScope) != SQLITE_OK
+					|| ::sqlite3_bind_int64(write->Value, 2, static_cast<std::int64_t>(aId.value())) != SQLITE_OK
+					|| ::sqlite3_bind_text(write->Value, 5, aCandidate->Note.Text.data(), static_cast<int>(aCandidate->Note.Text.size()), SQLITE_TRANSIENT) != SQLITE_OK
+					|| ::sqlite3_bind_int64(write->Value, 6, last + 1) != SQLITE_OK) {
+					return std::unexpected(note_failure(write ? failure::unavailable : write.error()));
+				}
+				if (aCandidate->Attachment) {
+					if (bind_blob(write->Value, 3, aCandidate->Attachment->File.bytes()) != SQLITE_OK
+						|| bind_blob(write->Value, 4, aCandidate->Attachment->Comparison.bytes()) != SQLITE_OK) {
+						return std::unexpected(note_failure(failure::unavailable));
+					}
+				}
+				if (::sqlite3_step(write->Value) != SQLITE_DONE) {
+					return std::unexpected(note_failure(catalog_sql_failure(aDatabase)));
+				}
+				auto advance = prepare(aDatabase, "INSERT INTO local_note_sequence(scope_id,last_revision) VALUES(?1,?2) ON CONFLICT(scope_id) DO UPDATE SET last_revision=excluded.last_revision");
+				if (!advance || ::sqlite3_bind_int64(advance->Value, 1, aScope) != SQLITE_OK
+					|| ::sqlite3_bind_int64(advance->Value, 2, last + 1) != SQLITE_OK
+					|| ::sqlite3_step(advance->Value) != SQLITE_DONE) {
+					return std::unexpected(note_failure(advance ? catalog_sql_failure(aDatabase) : advance.error()));
+				}
+			} else {
+				auto erase = prepare(aDatabase, "DELETE FROM local_note WHERE scope_id=?1 AND note_id=?2");
+				if (!erase || ::sqlite3_bind_int64(erase->Value, 1, aScope) != SQLITE_OK
+					|| ::sqlite3_bind_int64(erase->Value, 2, static_cast<std::int64_t>(aId.value())) != SQLITE_OK
+					|| ::sqlite3_step(erase->Value) != SQLITE_DONE) {
+					return std::unexpected(note_failure(erase ? catalog_sql_failure(aDatabase) : erase.error()));
+				}
+			}
+			if (auto commit = execute(aDatabase, "COMMIT"); !commit) {
+				return std::unexpected(note_failure(commit.error()));
+			}
+			(void)transaction.release();
+			return accepted;
 		}
-		if (::sqlite3_changes(Handle) == 0) {
-			return std::unexpected(failure::quota_exceeded);
+	} // namespace
+
+	auto review_ledger_database::store_note(const std::int64_t                                    aScope,
+											const application::local_note_record&                 aNote,
+											const std::optional<application::local_note_revision> aExpectedRevision)
+		-> std::expected<application::local_note_record, application::local_note_failure>
+	{
+		auto result = mutate_note(Handle, aScope, aNote.Id, &aNote, aExpectedRevision);
+		if (!result) {
+			return std::unexpected(result.error());
 		}
-		return { };
+		return std::move(**result);
 	}
 
-	auto review_ledger_database::erase_note(
-		const std::int64_t               aScope,
-		const application::local_note_id aNote) -> std::expected<void, failure>
+	auto review_ledger_database::erase_note(const std::int64_t               aScope,
+											const application::local_note_id aNote, const application::local_note_revision aExpectedRevision)
+		-> std::expected<void, application::local_note_failure>
 	{
-		if (!durable_integer(aNote.value())) {
-			return std::unexpected(failure::integrity_failure);
-		}
-		auto erase = prepare(
-			Handle,
-			"DELETE FROM local_note WHERE scope_id = ?1 AND note_id = ?2");
-		if (!erase) {
-			return std::unexpected(erase.error());
-		}
-		if (::sqlite3_bind_int64(erase->Value, 1, aScope) != SQLITE_OK
-			|| ::sqlite3_bind_int64(
-				   erase->Value,
-				   2,
-				   static_cast<std::int64_t>(aNote.value()))
-				!= SQLITE_OK) {
-			return std::unexpected(failure::unavailable);
-		}
-		if (::sqlite3_step(erase->Value) != SQLITE_DONE) {
-			return std::unexpected(catalog_sql_failure(Handle));
+		auto result = mutate_note(Handle, aScope, aNote, nullptr, aExpectedRevision);
+		if (!result) {
+			return std::unexpected(result.error());
 		}
 		return { };
 	}
@@ -1650,7 +1780,7 @@ namespace bpr::adapters::sqlite::detail {
 
 		auto notes = prepare(
 			Handle,
-			"SELECT note_id, file_identity, comparison_id, note_text FROM "
+			"SELECT note_id, file_identity, comparison_id, note_text, revision FROM "
 			"local_note WHERE scope_id = ?1 ORDER BY note_id LIMIT ?2");
 		if (!notes
 			|| ::sqlite3_bind_int64(notes->Value, 1, aScope) != SQLITE_OK
@@ -1672,16 +1802,17 @@ namespace bpr::adapters::sqlite::detail {
 			const auto  comparisonType = ::sqlite3_column_type(notes->Value, 2);
 			const auto  textBytes      = ::sqlite3_column_bytes(notes->Value, 3);
 			const auto* text           = ::sqlite3_column_text(notes->Value, 3);
-			if (id <= 0 || text == nullptr || textBytes <= 0
+			if (id <= 0 || ::sqlite3_column_int64(notes->Value, 4) <= 0 || text == nullptr || textBytes <= 0
 				|| static_cast<std::size_t>(textBytes) > core::maximum_note_bytes
 				|| ((fileType == SQLITE_NULL) != (comparisonType == SQLITE_NULL))) {
 				return std::unexpected(failure::integrity_failure);
 			}
 			auto note = application::local_note_record{
-				.Id   = application::local_note_id{ static_cast<std::uint64_t>(id) },
-				.Note = { .Text = std::string{
-							  reinterpret_cast<const char*>(text),
-							  static_cast<std::size_t>(textBytes) } },
+				.Id       = application::local_note_id{ static_cast<std::uint64_t>(id) },
+				.Note     = { .Text = std::string{
+								  reinterpret_cast<const char*>(text),
+								  static_cast<std::size_t>(textBytes) } },
+				.Revision = application::local_note_revision{ static_cast<std::uint64_t>(::sqlite3_column_int64(notes->Value, 4)) },
 			};
 			if (fileType != SQLITE_NULL) {
 				const auto file       = read_digest(notes->Value, 1);

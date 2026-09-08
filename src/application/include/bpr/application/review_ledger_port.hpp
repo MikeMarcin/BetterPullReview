@@ -54,7 +54,8 @@ namespace bpr::application {
 	inline constexpr std::size_t maximum_private_defects         = 4'096U;
 	inline constexpr std::size_t maximum_retained_agent_sessions = 128U;
 
-	using local_note_id = core::strong_id<struct local_note_id_tag>;
+	using local_note_id       = core::strong_id<struct local_note_id_tag>;
+	using local_note_revision = core::strong_id<struct local_note_revision_tag>;
 
 	/// \brief Binds a private note to exact compared material.
 	struct local_note_attachment
@@ -71,14 +72,35 @@ namespace bpr::application {
 	/// comparison. It never stores a path, source body, or presentation
 	/// coordinate. The text uses the same bound as an explicitly selected agent
 	/// note so persistence cannot create a value that downstream context must
-	/// silently truncate.
+	/// silently truncate. Revision zero denotes an unpersisted candidate.
+	/// Only the separate expected revision grants edit or delete authority; the
+	/// store assigns each accepted record its positive durable revision.
 	struct local_note_record
 	{
 		local_note_id                        Id;
 		std::optional<local_note_attachment> Attachment;
 		core::supplement_note                Note;
+		local_note_revision                  Revision;
 
 		auto operator<=>(const local_note_record&) const = default;
+	};
+
+	/// \brief A refused note mutation and its current durable competitor.
+	struct local_note_failure
+	{
+		ledger_store_failure             Reason;
+		std::optional<local_note_record> Current;
+		auto                             operator<=>(const local_note_failure&) const = default;
+	};
+
+	/// \brief One window's rejected mutation, separate from accepted records.
+	struct rejected_local_note_mutation
+	{
+		local_note_id                      Id;
+		std::optional<local_note_record>   Candidate;
+		std::optional<local_note_revision> ExpectedRevision;
+		local_note_failure                 Failure;
+		auto                               operator<=>(const rejected_local_note_mutation&) const = default;
 	};
 
 	/// \brief A local defect bound to its ordinary shared review thread.
@@ -205,13 +227,14 @@ namespace bpr::application {
 			-> std::expected<std::vector<core::conversation_receipt>, ledger_store_failure>
 			= 0;
 
-		/// \brief Upserts one bounded private note.
-		[[nodiscard]] virtual auto store_note(const local_note_record& aNote)
-			-> std::expected<void, ledger_store_failure> = 0;
+		/// \brief Creates a note when no revision is supplied, otherwise compares and replaces.
+		[[nodiscard]] virtual auto store_note(const local_note_record&           aNote,
+											  std::optional<local_note_revision> aExpectedRevision = std::nullopt)
+			-> std::expected<local_note_record, local_note_failure> = 0;
 
-		/// \brief Removes one note identity. Missing is an idempotent success.
-		[[nodiscard]] virtual auto erase_note(local_note_id aNote)
-			-> std::expected<void, ledger_store_failure> = 0;
+		/// \brief Removes only the exact accepted note revision.
+		[[nodiscard]] virtual auto erase_note(local_note_id aNote, local_note_revision aExpectedRevision)
+			-> std::expected<void, local_note_failure> = 0;
 
 		/// \brief Replaces the review's last-reviewed head.
 		[[nodiscard]] virtual auto store_last_reviewed_head(

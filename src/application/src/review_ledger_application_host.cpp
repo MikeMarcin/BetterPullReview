@@ -94,7 +94,8 @@ namespace bpr::application {
 
 	auto valid(const local_note_record& aNote) noexcept -> bool
 	{
-		if (!durable_integer(aNote.Id.value()) || aNote.Note.Text.empty()
+		if (!durable_integer(aNote.Id.value())
+			|| (aNote.Revision.value() != 0U && !durable_integer(aNote.Revision.value())) || aNote.Note.Text.empty()
 			|| aNote.Note.Text.size() > core::maximum_note_bytes) {
 			return false;
 		}
@@ -399,36 +400,63 @@ namespace bpr::application {
 	}
 
 	auto review_ledger_application_host::persist(
-		const local_note_record& aNote)
-		-> std::expected<void, ledger_store_failure>
+		const local_note_record&                 aNote,
+		const std::optional<local_note_revision> aExpectedRevision)
+		-> std::expected<local_note_record, local_note_failure>
 	{
 		const auto lock = std::scoped_lock{ Mutex };
-		if (!valid(aNote)) {
+		if (!valid(aNote) || (aExpectedRevision && !durable_integer(aExpectedRevision->value()))) {
 			++Statistics.PrivateFailures;
-			return std::unexpected(ledger_store_failure::invalid_record);
+			return std::unexpected(local_note_failure{ .Reason = ledger_store_failure::invalid_record });
 		}
 		++Statistics.PrivateWrites;
-		auto stored = Store->store_note(aNote);
+		auto stored = Store->store_note(aNote, aExpectedRevision);
 		if (!stored) {
 			++Statistics.PrivateFailures;
+			if (stored.error().Current && (stored.error().Current->Id != aNote.Id || !valid(*stored.error().Current) || !durable_integer(stored.error().Current->Revision.value()))) {
+				stored = std::unexpected(local_note_failure{ .Reason = ledger_store_failure::integrity_failure });
+			}
+			if (!RejectedNote) {
+				RejectedNote = rejected_local_note_mutation{ .Id = aNote.Id, .Candidate = aNote, .ExpectedRevision = aExpectedRevision, .Failure = stored.error() };
+			}
 		}
 		return stored;
 	}
 
-	auto review_ledger_application_host::erase(const local_note_id aNote)
-		-> std::expected<void, ledger_store_failure>
+	auto review_ledger_application_host::erase(const local_note_id       aNote,
+											   const local_note_revision aExpectedRevision)
+		-> std::expected<void, local_note_failure>
 	{
 		const auto lock = std::scoped_lock{ Mutex };
-		if (!durable_integer(aNote.value())) {
+		if (!durable_integer(aNote.value()) || !durable_integer(aExpectedRevision.value())) {
 			++Statistics.PrivateFailures;
-			return std::unexpected(ledger_store_failure::invalid_record);
+			return std::unexpected(local_note_failure{ .Reason = ledger_store_failure::invalid_record });
 		}
 		++Statistics.PrivateDeletes;
-		auto erased = Store->erase_note(aNote);
+		auto erased = Store->erase_note(aNote, aExpectedRevision);
 		if (!erased) {
 			++Statistics.PrivateFailures;
+			if (erased.error().Current && (erased.error().Current->Id != aNote || !valid(*erased.error().Current) || !durable_integer(erased.error().Current->Revision.value()))) {
+				erased = std::unexpected(local_note_failure{ .Reason = ledger_store_failure::integrity_failure });
+			}
+			if (!RejectedNote) {
+				RejectedNote = rejected_local_note_mutation{ .Id = aNote, .ExpectedRevision = aExpectedRevision, .Failure = erased.error() };
+			}
 		}
 		return erased;
+	}
+
+	auto review_ledger_application_host::rejected_note() const
+		-> std::optional<rejected_local_note_mutation>
+	{
+		const auto lock = std::scoped_lock{ Mutex };
+		return RejectedNote;
+	}
+
+	void review_ledger_application_host::dismiss_rejected_note()
+	{
+		const auto lock = std::scoped_lock{ Mutex };
+		RejectedNote.reset();
 	}
 
 	auto review_ledger_application_host::persist_last_reviewed_head(

@@ -98,33 +98,49 @@ namespace {
 
 		std::vector<core::conversation_receipt> ConversationReceipts;
 
-		auto store_note(const application::local_note_record& aNote)
-			-> std::expected<void, application::ledger_store_failure> override
+		std::optional<application::local_note_record> HostileCurrent;
+		std::uint64_t                                 NextNoteRevision = 1U;
+		auto                                          store_note(const application::local_note_record&                 aNote,
+																 const std::optional<application::local_note_revision> aExpectedRevision)
+			-> std::expected<application::local_note_record, application::local_note_failure> override
 		{
 			if (const auto failure = take_failure()) {
-				return std::unexpected(*failure);
+				return std::unexpected(application::local_note_failure{ .Reason = *failure });
 			}
-			const auto found = std::ranges::find(
-				Private.Notes, aNote.Id, &application::local_note_record::Id);
+			if (HostileCurrent) {
+				return std::unexpected(application::local_note_failure{ .Reason = application::ledger_store_failure::conflict, .Current = HostileCurrent });
+			}
+			const auto found   = std::ranges::find(Private.Notes, aNote.Id, &application::local_note_record::Id);
+			const auto current = found == Private.Notes.end() ? std::optional<application::local_note_record>{ } : *found;
+			if ((!aExpectedRevision && current) || (aExpectedRevision && (!current || current->Revision != *aExpectedRevision))) {
+				return std::unexpected(application::local_note_failure{ .Reason = application::ledger_store_failure::conflict, .Current = current });
+			}
+			auto accepted     = aNote;
+			accepted.Revision = application::local_note_revision{ NextNoteRevision++ };
 			if (found == Private.Notes.end()) {
-				Private.Notes.push_back(aNote);
+				Private.Notes.push_back(accepted);
 			} else {
-				*found = aNote;
+				*found = accepted;
 			}
-			return { };
+			return accepted;
 		}
 
-		auto erase_note(const application::local_note_id aNote)
-			-> std::expected<void, application::ledger_store_failure> override
+		auto erase_note(const application::local_note_id       aNote,
+						const application::local_note_revision aExpectedRevision)
+			-> std::expected<void, application::local_note_failure> override
 		{
 			if (const auto failure = take_failure()) {
-				return std::unexpected(*failure);
+				return std::unexpected(application::local_note_failure{ .Reason = *failure });
 			}
-			std::erase_if(
-				Private.Notes,
-				[aNote](const application::local_note_record& aRecord) {
-					return aRecord.Id == aNote;
-				});
+			if (HostileCurrent) {
+				return std::unexpected(application::local_note_failure{ .Reason = application::ledger_store_failure::conflict, .Current = HostileCurrent });
+			}
+			const auto found   = std::ranges::find(Private.Notes, aNote, &application::local_note_record::Id);
+			const auto current = found == Private.Notes.end() ? std::optional<application::local_note_record>{ } : *found;
+			if (!current || current->Revision != aExpectedRevision) {
+				return std::unexpected(application::local_note_failure{ .Reason = application::ledger_store_failure::conflict, .Current = current });
+			}
+			Private.Notes.erase(found);
 			return { };
 		}
 
@@ -545,11 +561,11 @@ namespace {
 		auto       defect  = private_defect();
 		defect.History.Defect.Anchor.Line += 1U;
 		const auto badDefect = host.persist(defect);
-		const auto badErase  = host.erase(application::local_note_id{ });
+		const auto badErase  = host.erase(application::local_note_id{ }, application::local_note_revision{ 1U });
 
 		expect(
 			!badNote
-				&& badNote.error()
+				&& badNote.error().Reason
 					== application::ledger_store_failure::invalid_record
 				&& !badHead
 				&& badHead.error()
@@ -558,7 +574,7 @@ namespace {
 				&& badDefect.error()
 					== application::ledger_store_failure::invalid_record
 				&& !badErase
-				&& badErase.error()
+				&& badErase.error().Reason
 					== application::ledger_store_failure::invalid_record,
 			"invalid private records are refused with one exact reason");
 		expect(
@@ -573,13 +589,14 @@ namespace {
 
 	void test_private_records_round_trip_and_delete_through_the_host()
 	{
-		auto       log        = event_log{ };
-		auto       store      = recording_store{ log };
-		auto       projection = recording_projection{ log };
-		auto       host       = application::review_ledger_application_host{ store, projection };
-		const auto note       = private_note();
-		const auto head       = reviewed_head();
-		const auto defect     = private_defect();
+		auto log          = event_log{ };
+		auto store        = recording_store{ log };
+		auto projection   = recording_projection{ log };
+		auto host         = application::review_ledger_application_host{ store, projection };
+		auto note         = private_note();
+		note.Revision     = application::local_note_revision{ 1U };
+		const auto head   = reviewed_head();
+		const auto defect = private_defect();
 
 		expect(host.persist(note).has_value(), "the note commits");
 		expect(
@@ -604,13 +621,13 @@ namespace {
 		const auto refused = host.persist(changed);
 		expect(
 			!refused
-				&& refused.error() == application::ledger_store_failure::conflict,
+				&& refused.error().Reason == application::ledger_store_failure::conflict,
 			"a private store failure remains typed");
 		expect(
 			store.Private.Notes == std::vector{ note },
 			"a failed private write leaves the durable observation unchanged");
 
-		expect(host.erase(note.Id).has_value(), "the note deletes");
+		expect(host.erase(note.Id, note.Revision).has_value(), "the note deletes");
 		expect(
 			host.erase_last_reviewed_head().has_value(),
 			"the reviewed head deletes");
@@ -845,10 +862,92 @@ namespace {
 				   && !actions.Actions[3].Enabled,
 			   "the four compact slots carry the inverse gestures and core legality");
 	}
+	void test_hostile_note_competitors_are_bounded_before_projection()
+	{
+		auto       log        = event_log{ };
+		auto       store      = recording_store{ log };
+		auto       projection = recording_projection{ log };
+		auto       host       = application::review_ledger_application_host{ store, projection };
+		const auto candidate  = private_note();
+		for (const auto kind : { 0, 1, 2 }) {
+			auto competitor     = candidate;
+			competitor.Revision = application::local_note_revision{ 1U };
+			if (kind == 0) {
+				competitor.Id = application::local_note_id{ candidate.Id.value() + 1U };
+			}
+			if (kind == 1) {
+				competitor.Revision = { };
+			}
+			if (kind == 2) {
+				competitor.Note.Text = std::string(core::maximum_note_bytes + 1U, 'x');
+			}
+			store.HostileCurrent = competitor;
+			const auto refused   = host.persist(candidate);
+			const auto retained  = host.rejected_note();
+			expect(!refused && refused.error().Reason == application::ledger_store_failure::integrity_failure
+					   && !refused.error().Current && retained && retained->Candidate == candidate
+					   && !retained->Failure.Current,
+				   "foreign, unrevisioned and oversized competitors never enter the write projection");
+			host.dismiss_rejected_note();
+			const auto erased = host.erase(candidate.Id, application::local_note_revision{ 1U });
+			expect(!erased && erased.error().Reason == application::ledger_store_failure::integrity_failure
+					   && !erased.error().Current && host.rejected_note() && !host.rejected_note()->Failure.Current,
+				   "delete conflicts apply the same bounded exact-identity observation guard");
+			host.dismiss_rejected_note();
+		}
+	}
+
+	void test_note_conflicts_retain_exact_window_candidate()
+	{
+		auto       log        = event_log{ };
+		auto       store      = recording_store{ log };
+		auto       projection = recording_projection{ log };
+		auto       first      = application::review_ledger_application_host{ store, projection };
+		auto       second     = application::review_ledger_application_host{ store, projection };
+		const auto created    = first.persist(private_note());
+		expect(created.has_value(), "the initial note is accepted");
+		auto winner         = *created;
+		winner.Note.Text    = "accepted elsewhere";
+		const auto accepted = first.persist(winner, created->Revision);
+		expect(accepted.has_value(), "the first window advances the durable note");
+		auto candidate      = *created;
+		candidate.Note.Text = std::string{ "local\0candidate\n", 16U };
+		const auto refused  = second.persist(candidate, created->Revision);
+		const auto retained = second.rejected_note();
+		const auto durable  = second.private_observation();
+		expect(!refused && refused.error().Reason == application::ledger_store_failure::conflict
+				   && refused.error().Current == *accepted && retained
+				   && retained->Candidate == candidate && retained->Failure == refused.error()
+				   && retained->ExpectedRevision == created->Revision,
+			   "conflict retains every candidate byte separately from the accepted competitor");
+		expect(durable && durable->Notes == std::vector{ *accepted } && !first.rejected_note(),
+			   "a rejected window cannot overwrite shared durable state or another window projection");
+		expect(second.rejected_note() == retained, "reading durable state does not discard the local candidate");
+		const auto laterDelete    = second.erase(created->Id, created->Revision);
+		auto       laterCandidate = candidate;
+		laterCandidate.Note.Text  = "another refused edit";
+		const auto laterEdit      = second.persist(laterCandidate, created->Revision);
+		expect(!laterDelete && !laterEdit && second.rejected_note() == retained,
+			   "later rejected edits and deletes cannot replace protected candidate bytes");
+		auto resolved            = *accepted;
+		resolved.Note.Text       = "explicit later accepted edit";
+		const auto laterAccepted = second.persist(resolved, accepted->Revision);
+		expect(laterAccepted && second.rejected_note() == retained,
+			   "even a successful durable write does not implicitly dismiss the protected candidate");
+		second.dismiss_rejected_note();
+		expect(!second.rejected_note(), "candidate dismissal is explicit");
+		const auto deleted = second.erase(created->Id, created->Revision);
+		expect(!deleted && second.rejected_note() && !second.rejected_note()->Candidate
+				   && second.rejected_note()->Failure.Current == *laterAccepted,
+			   "stale deletion has a distinct typed projection with its accepted competitor");
+	}
+
 } // namespace
 
 auto main() -> int
 {
+	test_hostile_note_competitors_are_bounded_before_projection();
+	test_note_conflicts_retain_exact_window_candidate();
 	test_the_projection_follows_the_commit();
 	test_a_refused_command_never_reaches_the_store();
 	test_a_failed_commit_changes_nothing();

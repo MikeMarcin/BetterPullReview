@@ -112,32 +112,18 @@ namespace bpr::adapters::sqlite {
 				return std::move(*loaded);
 			}
 
-			auto store_note(const application::local_note_record& aNote)
-				-> std::expected<void, application::ledger_store_failure> override
+			auto store_note(const application::local_note_record&                 aNote,
+							const std::optional<application::local_note_revision> aExpectedRevision)
+				-> std::expected<application::local_note_record, application::local_note_failure> override
 			{
-				if (!application::valid(aNote)) {
-					return std::unexpected(
-						application::ledger_store_failure::invalid_record);
-				}
-				auto stored = Database.store_note(Scope, aNote);
-				if (!stored) {
-					return std::unexpected(translate(stored.error()));
-				}
-				return { };
+				return Database.store_note(Scope, aNote, aExpectedRevision);
 			}
 
-			auto erase_note(const application::local_note_id aNote)
-				-> std::expected<void, application::ledger_store_failure> override
+			auto erase_note(const application::local_note_id       aNote,
+							const application::local_note_revision aExpectedRevision)
+				-> std::expected<void, application::local_note_failure> override
 			{
-				if (!durable_integer(aNote.value())) {
-					return std::unexpected(
-						application::ledger_store_failure::invalid_record);
-				}
-				auto erased = Database.erase_note(Scope, aNote);
-				if (!erased) {
-					return std::unexpected(translate(erased.error()));
-				}
-				return { };
+				return Database.erase_note(Scope, aNote, aExpectedRevision);
 			}
 
 			auto store_last_reviewed_head(const core::git_commit_oid& aHead)
