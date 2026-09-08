@@ -4,7 +4,7 @@ id: "BPR-0594"
 title: "Inventory profile and window authority and plan RFC-BPR-0024"
 status: "Backlog"
 rfcs: ["RFC-BPR-0024"]
-depends_on: ["BPR-0593","BPR-0242"]
+depends_on: ["BPR-0592"]
 milestone: "Post-Pack v2"
 ---
 
@@ -25,11 +25,11 @@ when the later bounded-slice planning pass needs them, and update this list and
 closeout dependencies before implementation. The RFC index remains the order
 authority; this requested subset waives no intervening eligibility/closeout gate.
 
-**Design accepted; registration only; implementation requires a later request.**
-This unstarted backlog card records the 2026-09-04 registration, not an execution
-grant or completed product work. The immutable base is the pre-registration
-commit for this approved workstream; registration commits after it are planning
-history, not evidence of interrupted product implementation.
+The owner activated this work on 2026-09-07. Independent read-only planning may
+proceed alongside the remaining Settings integration; product implementation
+follows that automated boundary. BPR-0593 and BPR-0242 remain terminal
+prerequisites on BPR-0595 under the canonical index's implementation-frontier
+exception. This scheduling split does not waive native or human acceptance.
 
 ## Acceptance
 
