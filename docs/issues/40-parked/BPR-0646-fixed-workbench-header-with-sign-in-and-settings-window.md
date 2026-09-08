@@ -369,7 +369,7 @@ Carried forward: [BPR-0674](BPR-0674-overview-is-starved-by-the-drawers.md)
 for the overview's width and the drawers in Overview,
 [BPR-0675](BPR-0675-a-drawer-cannot-be-collapsed-by-anyone-who-has-not-read-the-code.md)
 for collapsing a drawer,
-[BPR-0676](../30-in-progress/BPR-0676-the-epoch-line-does-not-show-whether-it-is-working.md)
+[BPR-0676](BPR-0676-the-epoch-line-does-not-show-whether-it-is-working.md)
 for the epoch line, and
 [BPR-0677](BPR-0677-the-comparison-stays-unavailable-after-the-history-is-ready.md)
 for the comparison. The two review-page requests are AgentSkills ASK-0020.

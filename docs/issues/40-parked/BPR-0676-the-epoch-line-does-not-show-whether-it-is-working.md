@@ -2,10 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0676"
 title: "The epoch line does not show whether it is working"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P2"
+parked_on: "human-review"
+acceptance: [{"criterion":"The line states its own state in words: whether a pair resolved and can be read","outcome":"pass","revision":"d212f7c2","evidence":{"kind":"observation","detail":"Three words on the line itself: 'no pair yet', 'pair ready', 'pair not readable', written in the same place as the long sentence the details region shows so the two cannot disagree, with that sentence as the tooltip. qt_epoch_comparison_control_scale_{100,125,200} pin all three states and the tooltip; a summary that always says ready, or that carries no detail, each fail a named assertion. Fifty-six Qt and composition selectors pass with boundaries, tidy, format and docs."}},{"criterion":"The nodes, the span and the amber tick are legible at the widths the workbench supports, and the line says whether the pair is the default or a choice","outcome":"pending","revision":"d212f7c2","evidence":{"kind":"freeform","detail":"Not closed. Most of the illegibility in the owner's capture was the drawers squeezing the control, which BPR-0674 now collapses in Overview; whether what remains is legible is a judgement against a real window. Saying whether the pair is the default or the reviewer's choice is knowable from the selection and is worth adding once they have seen whether the three-word summary is enough."}}]
 ---
 
 # The epoch line does not show whether it is working
