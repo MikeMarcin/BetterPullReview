@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0665"
 title: "Two-phase settings contracts declare one fixture's run count"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P3"
