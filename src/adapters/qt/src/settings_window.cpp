@@ -7,10 +7,12 @@
 #include <QKeySequence>
 #include <QLabel>
 #include <QListWidget>
+#include <QResizeEvent>
 #include <QScrollArea>
 #include <QStackedWidget>
 #include <QVBoxLayout>
 
+#include <algorithm>
 #include <array>
 
 namespace bpr::qt {
@@ -211,6 +213,18 @@ namespace bpr::qt {
 	void settings_window::set_close_handler(std::function<void()> aHandler)
 	{
 		CloseHandler = std::move(aHandler);
+	}
+
+	void settings_window::resizeEvent(QResizeEvent* const aEvent)
+	{
+		QWidget::resizeEvent(aEvent);
+		auto labelWidth = 0;
+		for (auto index = 0; index < Sidebar->count(); ++index) {
+			labelWidth = std::max(labelWidth, Sidebar->fontMetrics().horizontalAdvance(Sidebar->item(index)->text()));
+		}
+		// Keep category names visible while returning unused sidebar width to
+		// the page in a small window. Native font metrics own the minimum.
+		Sidebar->setFixedWidth(std::max(labelWidth + 20, width() < 900 ? 0 : 196));
 	}
 
 	void settings_window::closeEvent(QCloseEvent* const aEvent)

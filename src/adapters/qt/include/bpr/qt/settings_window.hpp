@@ -65,6 +65,7 @@ namespace bpr::qt {
 	protected:
 		void keyPressEvent(QKeyEvent* aEvent) override;
 		void closeEvent(QCloseEvent* aEvent) override;
+		void resizeEvent(QResizeEvent* aEvent) override;
 
 	private:
 		void select_page(int aRow);

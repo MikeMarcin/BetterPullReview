@@ -561,6 +561,22 @@ set_tests_properties(
         TIMEOUT 120
 )
 
+foreach(bpr_settings_scale IN ITEMS 125 150 200)
+    math(EXPR bpr_settings_scale_whole "${bpr_settings_scale} / 100")
+    math(EXPR bpr_settings_scale_fraction "${bpr_settings_scale} % 100")
+    bpr_add_network_isolated_test(
+        NAME qt_settings_window_scale_${bpr_settings_scale}
+        COMMAND test_better_pull_review_qt_settings_window_tests
+    )
+    set_tests_properties(
+        qt_settings_window_scale_${bpr_settings_scale}
+        PROPERTIES
+            ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_settings_scale_whole}.${bpr_settings_scale_fraction}"
+            PASS_REGULAR_EXPRESSION "settings-window-tests:pass"
+            TIMEOUT 120
+    )
+endforeach()
+
 bpr_add_executable(
     test_better_pull_review_qt_agent_launch_panel_tests
     agent_launch_panel_tests.cpp

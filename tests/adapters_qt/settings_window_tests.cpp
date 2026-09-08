@@ -17,6 +17,7 @@
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QStackedWidget>
+#include <QSysInfo>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -121,20 +122,43 @@ namespace {
 		qt::workbench_window workbench;
 		auto* const          settings = workbench.settings();
 		settings->resize(760, 480);
-		for (const auto page : { qt::settings_page::accounts_and_hosts, qt::settings_page::reviews_and_queue, qt::settings_page::appearance }) {
-			settings->present(page);
-			QApplication::processEvents();
-			expect(settings->size() == QSize(760, 480), "every live composed page fits the minimum Settings window");
-			auto* const scroll = qobject_cast<QScrollArea*>(settings->pages()->currentWidget());
-			expect(scroll != nullptr && scroll->viewport()->height() <= 480,
-				   "real account, review and appearance controls stay in the page viewport");
-			const auto raster = settings->grab();
-			expect(!raster.isNull(), "each live composed page renders");
-			const auto root = qEnvironmentVariable("BPR_SETTINGS_RENDER_ROOT");
-			if (!root.isEmpty()) {
-				expect(raster.save(root + QStringLiteral("/settings-%1.png").arg(static_cast<int>(page))), "save composed Settings evidence");
+
+		workbench.set_storage_location(QStringLiteral("/fixture/") + QString(500, QLatin1Char('x')));
+		workbench.publish(application::queue_landing_projection{
+			.Status            = application::queue_landing_status::ready,
+			.Session           = application::queue_session_id{ .Host = "github.com", .Account = "reviewer", .Generation = 1U },
+			.SavedRepositories = { application::saved_repository{ .Host = "github.com", .Account = "reviewer", .Repository = "long-fixture-owner/" + std::string(100, 'r') } },
+			.SavedServers      = { application::saved_server{ .Hostname = std::string(60, 'h') + ".example.com", .Account = std::string(39, 'a') } } });
+
+		for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark,
+								 core::appearance_mode::high_contrast_light, core::appearance_mode::high_contrast_dark }) {
+			auto appearance = qt::appearance_profile{ };
+			appearance.select_mode(mode);
+			appearance.apply_to(workbench);
+			appearance.apply_to(*settings);
+			for (auto index = 0; index < static_cast<int>(qt::settings_page_count); ++index) {
+				const auto page = static_cast<qt::settings_page>(index);
+				settings->present(page);
+				QApplication::processEvents();
+				expect(settings->size() == QSize(760, 480), "every live composed page fits the minimum Settings window");
+				auto* const scroll = qobject_cast<QScrollArea*>(settings->pages()->currentWidget());
+				expect(scroll != nullptr && scroll->viewport()->height() <= 480,
+					   "composed controls stay in a bounded page viewport");
+				std::cout << "settings-layout: page=" << index << " mode=" << static_cast<int>(mode)
+						  << " horizontal=" << scroll->horizontalScrollBar()->maximum() << '\n';
+				expect(scroll->horizontalScrollBar()->maximum() == 0, "minimum-size Settings does not require sideways scrolling, including long metadata");
+				const auto raster = settings->grab();
+				expect(!raster.isNull(), "each live composed page renders");
+				const auto root = qEnvironmentVariable("BPR_SETTINGS_RENDER_ROOT");
+				if (!root.isEmpty()) {
+					expect(raster.save(root + QStringLiteral("/settings-%1-%2.png").arg(index).arg(static_cast<int>(mode))), "save composed Settings evidence");
+				}
 			}
 		}
+		std::cout << "settings-platform: " << QSysInfo::productType().toStdString() << ' '
+				  << QSysInfo::currentCpuArchitecture().toStdString() << " Qt=" << qVersion()
+				  << " scale=" << settings->devicePixelRatioF() << " pages=" << settings->pages()->count() << '\n';
+
 		expect(settings->windowTitle().contains(QStringLiteral("Default profile")), "Settings identifies the profile being edited");
 	}
 
