@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0704"
 title: "Share revision-aware drafts and retain conflicting editor candidates"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0690", "BPR-0697"]
 ---
