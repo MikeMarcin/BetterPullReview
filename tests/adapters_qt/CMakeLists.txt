@@ -1011,3 +1011,10 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "settings-effect-boundary-tests:pass"
         TIMEOUT 120
 )
+
+bpr_add_executable(test_better_pull_review_qt_profile_management_window_tests profile_management_window_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_profile_management_window_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_profile_management_window_tests)
+bpr_enable_warnings(test_better_pull_review_qt_profile_management_window_tests)
+bpr_add_network_isolated_test(NAME qt_profile_management_window COMMAND test_better_pull_review_qt_profile_management_window_tests)
+set_tests_properties(qt_profile_management_window PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" TIMEOUT 60)

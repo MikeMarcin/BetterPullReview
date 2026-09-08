@@ -21,14 +21,14 @@ allocated required slice dependencies before it can become startable.
 RFC base: `e851eb8a851ab605cf5a85260a1317ecdf66773b`.
 
 Requested RFC set: RFC-BPR-0018, RFC-BPR-0024, RFC-BPR-0025, RFC-BPR-0026; workstream position: 2 of 4.
-Planned cards: BPR-0594, BPR-0595, BPR-0690, BPR-0691, BPR-0693, BPR-0694, BPR-0695. Allocate additional implementation cards only
+Planned cards: BPR-0594, BPR-0595, BPR-0690, BPR-0691, BPR-0693, BPR-0694, BPR-0695, BPR-0696, BPR-0697. Allocate additional implementation cards only
 when the later bounded-slice planning pass needs them, and update this list and
 closeout dependencies before implementation. The RFC index remains the order
 authority; this requested subset waives no intervening eligibility/closeout gate.
 
 Owner activation is recorded in the canonical RFC index. The [authority
 inventory](../../development/profile-window-authority-inventory.md) maps all
-criteria and the first bounded foundations. No profile product check has run.
+criteria and the first bounded foundations. Partial profile product checks are recorded below; full criteria remain open.
 Canonical terminal prerequisites remain required.
 
 ## Closeout checklist
@@ -95,3 +95,10 @@ and optional queue failure isolation. Eight migrated courses and the isolated
 tests-disabled Release contract pass. BPR-0696 now owns the management/menu and
 desktop owner; BPR-0697 starts the auth/read split needed before same-profile
 multiple windows. Full multi-window criteria above remain unverified.
+
+BPR-0696 adds the actual profile menu, durable Create/Rename, Open/activate,
+and independent desktop lifetime. Its rendered public course passes including
+initial-profile closure, private preference reopen, Quit and last-management
+close. The executable shutdown course passes. This covers the different-profile
+portion of AC-01/06; same-profile New Window, shared services, restore and process
+owner admission still require implementation and evidence.

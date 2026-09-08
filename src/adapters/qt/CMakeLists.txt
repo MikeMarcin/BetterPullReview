@@ -13,6 +13,7 @@ add_library(
         src/review_draft_editor.cpp
         src/review_submission_editor.cpp
         src/settings_window.cpp
+        src/profile_management_window.cpp
         src/workbench_strip.cpp
         src/native_window_chrome.cpp
         src/epoch_line.cpp

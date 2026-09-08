@@ -395,6 +395,7 @@ namespace bpr::app {
 		-> bool;
 
 	class github_application;
+	class profile_desktop;
 	enum class github_application_startup_failure { invalid_profile,
 													registry,
 													root,
@@ -453,6 +454,7 @@ namespace bpr::app {
 
 		void show();
 		void begin_shutdown();
+		void request_quit(int aExitCode = 0);
 
 		/// \brief Selects the device-authorization path once, as a reviewer
 		/// would.
@@ -529,6 +531,10 @@ namespace bpr::app {
 
 		friend class detail::github_application_fixture_access;
 		friend class github_application_startup;
+		friend class profile_desktop;
+		[[nodiscard]] auto desktop_registry_root() const -> std::filesystem::path;
+		[[nodiscard]] auto desktop_scratch() const -> std::shared_ptr<void>;
+		void               set_desktop_quit_handler(std::function<void(int)> aHandler);
 
 		// Declared before `Implementation` only for readability; what matters is
 		// that the destructor body clears it, which precedes member destruction

@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_WORKBENCH_WINDOW_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_WORKBENCH_WINDOW_HPP
 
+#include "bpr/application/profile_management_projection.hpp"
 #include "bpr/application/setup_destination_projection.hpp"
 
 #include "bpr/application/device_authorization_projection.hpp"
@@ -38,6 +39,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <optional>
 #include <span>
 #include <string>
@@ -294,6 +296,14 @@ namespace bpr::qt {
 		void add_setup_profile(application::github_profile_option aProfile);
 		void set_setup_destination_dispatch(application::setup_destination_dispatch aDispatch);
 		void present_setup_destination(const application::setup_destination_projection& aProjection);
+
+		/// \brief Routes profile gestures and desktop management/quit to their composition owner.
+		void set_profile_management_dispatch(application::profile_management_dispatch aDispatch,
+											 std::function<void()> aManage, std::function<void()> aQuit = { });
+		/// \brief Updates native menu rows by profile ID and marks this window's profile.
+		void               adopt_profile_management(const application::profile_management_projection& aProjection,
+													core::bpr_profile_id                              aCurrentProfile);
+		[[nodiscard]] auto profiles_menu() const noexcept -> QMenu*;
 
 		void set_dispatch(workbench_intent_dispatch aDispatch);
 		void set_change_dispatch(workbench_change_dispatch aChangeDispatch);
@@ -762,31 +772,40 @@ namespace bpr::qt {
 		workbench_queue_rule_dispatch            QueueRuleDispatch;
 		workbench_queue_preferences_dispatch     QueuePreferencesDispatch;
 
-		QToolBar*                   PrimaryToolbar       = nullptr;
-		workbench_strip*            Strip                = nullptr;
-		modality_control*           Modality             = nullptr;
-		QAction*                    AccountAction        = nullptr;
-		QLabel*                     IdentityLabel        = nullptr;
-		QLabel*                     ChangePositionLabel  = nullptr;
-		QLabel*                     FilePositionLabel    = nullptr;
-		QWidget*                    ModalitySpacer       = nullptr;
-		QWidget*                    StripInset           = nullptr;
-		workbench_landing*          HomeLanding          = nullptr;
-		QWidget*                    HomePage             = nullptr;
-		bool                        StripHome            = false;
-		bool                        HomeRequested        = false;
-		QAction*                    HomeAction           = nullptr;
-		QVBoxLayout*                HomeColumn           = nullptr;
-		QVBoxLayout*                DrawerTopColumn      = nullptr;
-		QStackedWidget*             CentralStack         = nullptr;
-		bool                        ModalityChosen       = false;
-		std::size_t                 ReviewThreadTotal    = 0U;
-		QAction*                    IdentityAction       = nullptr;
-		QAction*                    ChangePositionAction = nullptr;
-		QAction*                    FilePositionAction   = nullptr;
-		QString                     IdentityText;
-		QMenuBar*                   PrimaryMenuBar       = nullptr;
-		QMenu*                      ViewMenu             = nullptr;
+		QToolBar*                                PrimaryToolbar       = nullptr;
+		workbench_strip*                         Strip                = nullptr;
+		modality_control*                        Modality             = nullptr;
+		QAction*                                 AccountAction        = nullptr;
+		QLabel*                                  IdentityLabel        = nullptr;
+		QLabel*                                  ChangePositionLabel  = nullptr;
+		QLabel*                                  FilePositionLabel    = nullptr;
+		QWidget*                                 ModalitySpacer       = nullptr;
+		QWidget*                                 StripInset           = nullptr;
+		workbench_landing*                       HomeLanding          = nullptr;
+		QWidget*                                 HomePage             = nullptr;
+		bool                                     StripHome            = false;
+		bool                                     HomeRequested        = false;
+		QAction*                                 HomeAction           = nullptr;
+		QVBoxLayout*                             HomeColumn           = nullptr;
+		QVBoxLayout*                             DrawerTopColumn      = nullptr;
+		QStackedWidget*                          CentralStack         = nullptr;
+		bool                                     ModalityChosen       = false;
+		std::size_t                              ReviewThreadTotal    = 0U;
+		QAction*                                 IdentityAction       = nullptr;
+		QAction*                                 ChangePositionAction = nullptr;
+		QAction*                                 FilePositionAction   = nullptr;
+		QString                                  IdentityText;
+		QMenuBar*                                PrimaryMenuBar       = nullptr;
+		QMenu*                                   ViewMenu             = nullptr;
+		QMenu*                                   ProfilesMenu         = nullptr;
+		QAction*                                 ManageProfilesAction = nullptr;
+		QAction*                                 QuitProfilesAction   = nullptr;
+		std::map<core::bpr_profile_id, QAction*> ProfileActions;
+		core::bpr_profile_id                     CurrentBprProfile;
+		application::profile_management_dispatch ProfileManagementDispatch;
+		std::function<void()>                    ManageProfiles;
+		std::function<void()>                    QuitProfiles;
+
 		QAction*                    LineNumbersAction    = nullptr;
 		QAction*                    ReviewDetailsAction  = nullptr;
 		QToolButton*                ReviewControlsButton = nullptr;

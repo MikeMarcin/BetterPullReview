@@ -6,6 +6,7 @@
 #endif
 
 #include "bpr/app/github_application.hpp"
+#include "bpr/app/profile_desktop.hpp"
 #include "bpr/application/agent_chat_session_host.hpp"
 #include "bpr/application/agent_comment_workshop_host.hpp"
 #include "bpr/application/agent_finding_host.hpp"
@@ -658,6 +659,8 @@ namespace bpr::app::detail {
 		/// fail earlier as a typed network error from the production application
 		/// binary.
 		[[nodiscard]] static auto network_isolation_probe() -> bool;
+		[[nodiscard]] static auto start_desktop(github_public_path_fixture aFixture, github_public_path_fixture_options aOptions, profile_desktop_startup_completion aCompletion) -> std::unique_ptr<profile_desktop>;
+		[[nodiscard]] static auto start_desktop_public_preview_selection_available(github_application_config aConfig, profile_desktop_startup_completion aCompletion) -> std::unique_ptr<profile_desktop>;
 		[[nodiscard]] static auto start(
 			github_public_path_fixture aFixture, github_public_path_fixture_options aOptions, github_application_startup_completion aCompletion)
 			-> std::unique_ptr<github_application_startup>;

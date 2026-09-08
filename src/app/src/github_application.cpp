@@ -3379,12 +3379,15 @@ namespace bpr::app {
 		  public application::agent_session_catalog_port,
 		  public application::setup_destination_port
 	{
+		friend class github_application;
 		// Declared first so fixture cleanup runs after every private service releases its root.
-		std::shared_ptr<void> StartupScratch;
+		std::shared_ptr<void>    StartupScratch;
+		std::filesystem::path    RegistryRoot;
+		std::function<void(int)> DesktopQuit;
 
 	public:
 		explicit implementation(
-			github_application_config aConfig, application::profile_startup_admission aAdmission,
+			github_application_config aConfig, application::profile_startup_admission aAdmission, std::filesystem::path aRegistryRoot,
 			std::optional<application::durable_queue_state> aSavedQueue, std::shared_ptr<void> aScratch
 #if defined(BPR_BUILD_TESTING)
 			,
@@ -3394,6 +3397,7 @@ namespace bpr::app {
 		)
 		{
 			StartupScratch              = std::move(aScratch);
+			RegistryRoot                = std::move(aRegistryRoot);
 			aConfig.ApplicationDataRoot = aAdmission.StorageRoot;
 			aConfig.Profile             = aAdmission.Authority.profile();
 #if defined(BPR_BUILD_TESTING)
@@ -10362,9 +10366,9 @@ namespace bpr::app {
 			}
 			try {
 				auto runtime = std::unique_ptr<github_application>{ new github_application{ std::make_unique<github_application::implementation>(
-					std::move(Config), *aTerminal.Result, std::move(SavedQueue), std::move(Scratch)
+					std::move(Config), *aTerminal.Result, RegistryRoot, std::move(SavedQueue), std::move(Scratch)
 #if defined(BPR_BUILD_TESTING)
-																					 ,
+																								   ,
 					Fixture, std::move(Options)
 #endif
 						) } };
@@ -10439,6 +10443,18 @@ namespace bpr::app {
 	void github_application::show()
 	{
 		Implementation->Window->show();
+	}
+
+	auto github_application::desktop_registry_root() const -> std::filesystem::path { return Implementation->RegistryRoot; }
+	auto github_application::desktop_scratch() const -> std::shared_ptr<void> { return Implementation->StartupScratch; }
+	void github_application::set_desktop_quit_handler(std::function<void(int)> aHandler) { Implementation->DesktopQuit = std::move(aHandler); }
+	void github_application::request_quit(int aExitCode)
+	{
+		if (Implementation->DesktopQuit) {
+			Implementation->DesktopQuit(aExitCode);
+		} else {
+			QCoreApplication::exit(aExitCode);
+		}
 	}
 
 	void github_application::begin_shutdown()
@@ -10871,6 +10887,23 @@ namespace bpr::app {
 		return failure != nullptr
 			&& failure->Error.Failure
 			== application::github_provider_failure::network;
+	}
+
+	auto detail::github_application_fixture_access::start_desktop(detail::github_public_path_fixture aFixture, detail::github_public_path_fixture_options aOptions, profile_desktop_startup_completion aCompletion) -> std::unique_ptr<profile_desktop>
+	{
+		const auto profile = aOptions.Profile;
+		return profile_desktop::start_with_factory(profile, [aFixture, options = std::move(aOptions)](core::bpr_profile_id aProfile, const std::filesystem::path& aRoot, github_application_startup_completion aDone) {
+            auto next = aProfile == options.Profile ? options : detail::github_public_path_fixture_options{};
+            if (!aRoot.empty()) { next.ApplicationDataRoot = aRoot; next.GitExecutable = options.GitExecutable; }
+            next.Profile = aProfile;
+            return detail::github_application_fixture_access::start(aFixture, std::move(next), std::move(aDone)); }, std::move(aCompletion));
+	}
+	auto detail::github_application_fixture_access::start_desktop_public_preview_selection_available(github_application_config aConfig, profile_desktop_startup_completion aCompletion) -> std::unique_ptr<profile_desktop>
+	{
+		const auto profile = aConfig.Profile;
+		return profile_desktop::start_with_factory(profile, [config = std::move(aConfig)](core::bpr_profile_id aProfile, const std::filesystem::path& aRoot, github_application_startup_completion aDone) {
+            auto next = profile_desktop::configuration_for_profile(config, aProfile, aRoot);
+            return detail::github_application_fixture_access::start_public_preview_selection_available(std::move(next), std::move(aDone)); }, std::move(aCompletion));
 	}
 
 	auto detail::github_application_fixture_access::start(detail::github_public_path_fixture aFixture, detail::github_public_path_fixture_options aOptions, github_application_startup_completion aCompletion) -> std::unique_ptr<github_application_startup>

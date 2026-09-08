@@ -39,7 +39,7 @@ function(bpr_verify_full_application_digest source_variable)
         "${bpr_full_application_source}"
     )
 	set(bpr_expected_full_application_digest
-		"3c9399aa66823a5c9b9697dd78e7bba4951ad60df07313eb86c86cd64edc505d"
+		"bdfe5918e04b6ec762fe7d11fa80d957a5a9fdf6c53bccf677b4c38dfdc8999a"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -62,6 +62,7 @@ function(bpr_verify_app_source_tree app_source_root)
     set(bpr_expected_app_sources
         "include/bpr/app/foundation_application.hpp"
         "include/bpr/app/github_application.hpp"
+        "include/bpr/app/profile_desktop.hpp"
         "include/bpr/app/worker_executor.hpp"
         "main.cpp"
 		"src/designated_live_macos_capsule_identity.cpp"
@@ -79,6 +80,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/github_public_path_fixture.cpp"
         "src/github_public_path_fixture.hpp"
         "src/large_review_fixture.hpp"
+        "src/profile_desktop.cpp"
         "src/review_submission_fixture.cpp"
         "src/review_submission_fixture.hpp"
         "src/review_submission_workflow.cpp"
@@ -108,6 +110,7 @@ function(bpr_verify_app_source_tree app_source_root)
     set(bpr_production_app_sources
         "include/bpr/app/foundation_application.hpp"
         "include/bpr/app/github_application.hpp"
+        "include/bpr/app/profile_desktop.hpp"
         "include/bpr/app/worker_executor.hpp"
 		"main.cpp"
 		"src/designated_live_macos_supervisor.cpp"
@@ -117,6 +120,7 @@ function(bpr_verify_app_source_tree app_source_root)
 		"src/designated_live_macos_supervisor_launch.hpp"
         "src/foundation_application.cpp"
         "src/github_application.cpp"
+        "src/profile_desktop.cpp"
         "src/review_submission_workflow.cpp"
         "src/review_submission_workflow.hpp"
 		"src/worker_executor.cpp"
@@ -153,7 +157,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "${bpr_production_app_manifest}"
     )
 	set(bpr_expected_production_app_manifest_digest
-		"bf0ee789a9858deeae7b6054ee0f220984a3a3b23d1a8715e64621c61b1d8e5d"
+		"565ec3ee9817c085a41cc36a88cbb1c3834b71c6cc614fc745f4a694ac239f47"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

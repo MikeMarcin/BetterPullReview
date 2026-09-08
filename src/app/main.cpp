@@ -1,4 +1,5 @@
 #include "bpr/app/github_application.hpp"
+#include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/diff_link_map.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
@@ -4679,7 +4680,7 @@ namespace {
 			}
 		}
 #endif
-		QCoreApplication::exit(passed ? EXIT_SUCCESS : EXIT_FAILURE);
+		aApplication.request_quit(passed ? EXIT_SUCCESS : EXIT_FAILURE);
 	}
 
 	void transition_to_shutdown(
@@ -6976,7 +6977,7 @@ namespace {
 					QTextStream{ stdout }
 						<< "NATIVE_NOTIFICATION_REFUSED:shutdown_cleanup_failed\n";
 				}
-				QCoreApplication::exit(
+				aApplication.request_quit(
 					aRun->Failed || aApplication.status().ShutdownCleanupFailed
 						? EXIT_FAILURE
 						: EXIT_SUCCESS);
@@ -6988,47 +6989,6 @@ namespace {
 	}
 #endif
 
-	/// \brief Drives an interactive shutdown, and can be disarmed.
-	///
-	/// \details The poll re-arms every 10 ms until shutdown completes, so when
-	/// it calls `QCoreApplication::exit` there is normally still one armed timer
-	/// behind it. That timer survives `exec()` returning, and
-	/// `~github_application::implementation` pumps `processEvents` in its own
-	/// shutdown loop -- which delivers it. By then the owning
-	/// `unique_ptr<implementation>` has already been nulled, because libc++'s
-	/// `reset` assigns the new pointer before running the deleter, so
-	/// `status()` read a member off a null `Implementation` and the process
-	/// segfaulted on Command-Q.
-	///
-	/// `github_application::liveness()` is what stops that. The poll holds a
-	/// weak reference and does nothing once it has expired, and the application
-	/// clears it in its destructor body before any member is destroyed, so a
-	/// late delivery becomes a no-op instead of a crash. Nothing about the
-	/// shutdown sequence itself changes.
-	///
-	/// This first shipped as a token local to this function, which left
-	/// `schedule_automated_run` — the same shape, the same crash — untouched.
-	/// BPR-0217 replaced it with one mechanism owned by the object whose
-	/// lifetime it describes.
-	void schedule_interactive_shutdown(
-		bpr::app::github_application& aApplication)
-	{
-		aApplication.begin_shutdown();
-		auto poll = std::make_shared<std::function<void()>>();
-		*poll     = [&aApplication, poll, watch = aApplication.liveness()] {
-			if (watch.expired()) {
-				return;
-			}
-			const auto status = aApplication.status();
-			if (status.ShutdownComplete) {
-				QCoreApplication::exit(
-					status.ShutdownCleanupFailed ? EXIT_FAILURE : EXIT_SUCCESS);
-				return;
-			}
-			QTimer::singleShot(10, &aApplication.window(), *poll);
-		};
-		QTimer::singleShot(0, &aApplication.window(), *poll);
-	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -7940,24 +7900,17 @@ auto main(int argc, char** argv) -> int
 		}
 #endif
 
-		std::unique_ptr<bpr::app::github_application> application;
-		auto                                          completed = [&](bpr::app::github_application_startup_result aResult) {
+		bpr::app::github_application*              application = nullptr;
+		std::unique_ptr<bpr::app::profile_desktop> desktop;
+		auto                                       completed = [&](bpr::app::profile_desktop_startup_result aResult) {
 			if (!aResult) {
 				QTextStream{ stdout } << "STARTUP_FAILED\n";
-				QCoreApplication::exit(EXIT_FAILURE);
+				desktop->quit(EXIT_FAILURE);
 				return;
 			}
-			application = std::move(*aResult);
+			application = *aResult;
 			try {
 				application->show();
-
-				// Closing the last window starts the shutdown poll rather than letting
-				// Qt quit under an application that is still running effects.
-				QObject::connect(
-					&qtApplication,
-					&QGuiApplication::lastWindowClosed,
-					&application->window(),
-					[&application] { schedule_interactive_shutdown(*application); });
 
 				auto       verifyNativePlatformVault = selfTest;
 				auto       verifyCliUnavailable      = selfTest;
@@ -8073,17 +8026,20 @@ auto main(int argc, char** argv) -> int
 
 			} catch (...) {
 				QTextStream{ stdout } << "STARTUP_FAILED\n";
-				QCoreApplication::exit(EXIT_FAILURE);
+				desktop->quit(EXIT_FAILURE);
 			}
 		};
-		auto startup =
+		desktop =
 #if defined(BPR_BUILD_TESTING)
-			selectedFixture                ? bpr::app::detail::github_application_fixture_access::start(*selectedFixture, fixtureOptions, completed)
-			: publicPreviewSelectionForced ? bpr::app::detail::github_application_fixture_access::start_public_preview_selection_available(std::move(config), completed)
+			selectedFixture                ? bpr::app::detail::github_application_fixture_access::start_desktop(*selectedFixture, fixtureOptions, completed)
+			: publicPreviewSelectionForced ? bpr::app::detail::github_application_fixture_access::start_desktop_public_preview_selection_available(std::move(config), completed)
 										   :
 #endif
-										   bpr::app::github_application::start(std::move(config), completed);
+										   bpr::app::profile_desktop::start(std::move(config), completed);
 
+		QTimer desktopPoll;
+		QObject::connect(&desktopPoll, &QTimer::timeout, &qtApplication, [&desktop] { if (desktop->is_quiescent()) { QCoreApplication::exit(desktop->exit_code()); } });
+		desktopPoll.start(10);
 		return QApplication::exec();
 	} catch (const std::exception& error) {
 #if defined(BPR_BUILD_TESTING)
