@@ -2,9 +2,9 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0683"
 title: "Verify Settings integration and native acceptance"
-status: "In Progress"
+status: "Backlog"
 rfcs: ["RFC-BPR-0018"]
-depends_on: ["BPR-0678", "BPR-0679", "BPR-0680", "BPR-0681", "BPR-0682","BPR-0684"]
+depends_on: ["BPR-0678", "BPR-0679", "BPR-0680", "BPR-0681", "BPR-0682","BPR-0684","BPR-0685"]
 ---
 
 # Verify Settings integration and native acceptance
