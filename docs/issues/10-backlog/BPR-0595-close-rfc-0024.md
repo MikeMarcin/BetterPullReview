@@ -63,7 +63,7 @@ Canonical terminal prerequisites remain required.
 ## Resume
 
 BPR-0594 records the live authority inventory. BPR-0690 and BPR-0691 are the
-first foundations after automated Settings integration. Later runtime, vault,
+first independent foundations alongside remaining Settings integration. Later runtime, vault,
 shared-edit, restoration, admission and public composition slices remain to be
 allocated. Native and human criteria remain open; no profile implementation
 acceptance or RFC closeout is claimed.

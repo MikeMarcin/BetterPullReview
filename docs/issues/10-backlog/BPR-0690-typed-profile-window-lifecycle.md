@@ -16,8 +16,9 @@ Core-only distinct profile/window identities, bounded catalog and lifecycle poli
 Closeout: [[BPR-0595]]. RFC_BASE_SHA: `e851eb8a851ab605cf5a85260a1317ecdf66773b`.
 [Authority inventory](../../development/profile-window-authority-inventory.md).
 Routing: standard | Reason: default implementation.
-Product work follows the automated Settings integration boundary; native/human
-terminal prerequisites remain on BPR-0595.
+This independent foundation may proceed alongside Settings integration; it does
+not change Settings or setup composition. Native/human terminal prerequisites
+remain on BPR-0595.
 
 ## Acceptance
 
