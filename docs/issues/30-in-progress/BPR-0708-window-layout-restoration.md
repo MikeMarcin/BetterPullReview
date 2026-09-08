@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0708"
 title: "Restore independent window drawer layouts"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0707", "BPR-0700"]
 ---
