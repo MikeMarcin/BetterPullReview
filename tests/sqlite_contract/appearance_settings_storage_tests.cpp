@@ -651,6 +651,9 @@ namespace {
 				   "and no typography value");
 			expect((*loaded)->Palette == original.Palette,
 				   "and no palette colour");
+			auto reopened = appearance_settings_database::open(path, { });
+			expect(reopened.has_value() && reopened->load({ }) == loaded,
+				   "the migrated version-one record reopens with every value preserved");
 		}
 	}
 
@@ -683,6 +686,74 @@ namespace {
 		expect(reopened.has_value(), "reset database reopens");
 		const auto loaded = reopened->load({ });
 		expect(loaded && loaded->has_value() && **loaded == chosen, "reset survives SQLite close and reopen without changing other domains");
+	}
+
+	[[nodiscard]] auto legacy_snapshot(::sqlite3* aDatabase) -> std::vector<std::string>
+	{
+		auto       cells   = std::vector<std::string>{ };
+		const auto collect = [](void* aContext, int aCount, char** aValues, char**) -> int {
+			auto& values = *static_cast<std::vector<std::string>*>(aContext);
+			for (int index = 0; index < aCount; ++index) {
+				values.emplace_back(aValues[index] == nullptr ? "<NULL>" : aValues[index]);
+			}
+			return 0;
+		};
+		expect(::sqlite3_exec(aDatabase,
+							  "PRAGMA application_id; PRAGMA user_version;"
+							  "SELECT type,name,tbl_name,sql FROM sqlite_schema ORDER BY name;"
+							  "PRAGMA table_xinfo(appearance_settings);"
+							  "SELECT * FROM appearance_settings ORDER BY singleton;",
+							  collect, &cells, nullptr)
+				   == SQLITE_OK,
+			   "legacy schema, columns and rows can be captured");
+		return cells;
+	}
+
+	auto test_legacy_refusal_preserves_schema_and_rows() -> void
+	{
+		const auto     scratch   = scratch_directory{ };
+		const auto     identity  = stamped_application_identity(scratch);
+		constexpr auto mutations = std::array{
+			"UPDATE appearance_meta SET schema_format = 99",
+			"DELETE FROM appearance_meta",
+			"DROP TABLE appearance_meta",
+			"ALTER TABLE appearance_settings ADD COLUMN future_setting TEXT",
+			"ALTER TABLE appearance_settings RENAME COLUMN ui_weight TO unknown_weight",
+			"ALTER TABLE appearance_settings RENAME TO old_settings; CREATE TABLE appearance_settings AS SELECT * FROM old_settings; DROP TABLE old_settings",
+			"PRAGMA application_id = 123",
+			"PRAGMA ignore_check_constraints = ON; UPDATE appearance_settings SET code_ligatures = 7"
+		};
+		for (const auto version : { 1, 2 }) {
+			for (std::size_t index = 0; index < mutations.size(); ++index) {
+				const auto path = scratch.file("legacy-" + std::to_string(version) + "-" + std::to_string(index) + ".sqlite3");
+				write_version_one_record(path, distinct_settings(), identity);
+				::sqlite3* raw = nullptr;
+				expect(::sqlite3_open(path.string().c_str(), &raw) == SQLITE_OK, "legacy fixture opens raw");
+				if (version == 2) {
+					expect(::sqlite3_exec(raw,
+										  "ALTER TABLE appearance_settings ADD COLUMN palette_variant TEXT NOT NULL DEFAULT 'dark';"
+										  "UPDATE appearance_meta SET schema_format = 2; PRAGMA user_version = 2",
+										  nullptr, nullptr, nullptr)
+							   == SQLITE_OK,
+						   "fixture upgrades to canonical version two");
+				}
+				expect(::sqlite3_exec(raw, mutations[index], nullptr, nullptr, nullptr) == SQLITE_OK, "legacy mutation runs");
+				const auto before = legacy_snapshot(raw);
+				(void)::sqlite3_close(raw);
+				const auto refused = appearance_settings_database::open(path, { });
+				expect(!refused, "invalid legacy admission or failed migration is refused");
+				if (index + 1 < mutations.size()) {
+					expect(refused.error() == catalog_database_failure::schema_mismatch, "invalid legacy shape or identity reports schema mismatch");
+				}
+				expect(::sqlite3_open(path.string().c_str(), &raw) == SQLITE_OK, "refused fixture reopens raw");
+				expect(legacy_snapshot(raw) == before, "refusal retains original identity, version, schema SQL, columns and every settings value");
+				if (index != 2) {
+					const auto format = scalar_integer(raw, "SELECT schema_format FROM appearance_meta WHERE singleton = 1");
+					expect(index == 1 ? !format : format && *format == (index == 0 ? 99 : version), "metadata is not normalized by a refused migration");
+				}
+				(void)::sqlite3_close(raw);
+			}
+		}
 	}
 
 	auto test_the_schema_stores_no_review_content() -> void
@@ -733,6 +804,7 @@ auto main() -> int
 	test_a_newer_schema_is_refused_for_the_right_reason();
 	test_cancellation_leaves_the_record_untouched();
 	test_version_two_preserves_customization_and_reset();
+	test_legacy_refusal_preserves_schema_and_rows();
 	test_the_schema_stores_no_review_content();
 	std::cout << "appearance-settings-storage-tests:pass\n";
 	return EXIT_SUCCESS;

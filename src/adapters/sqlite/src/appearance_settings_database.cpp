@@ -4,6 +4,7 @@
 
 #include <sqlite3.h>
 
+#include <algorithm>
 #include <array>
 #include <limits>
 #include <span>
@@ -248,6 +249,77 @@ namespace bpr::adapters::sqlite::detail {
 			return { };
 		}
 
+		[[nodiscard]] auto legacy_columns_match(
+			::sqlite3* aDatabase, const std::string_view aTable,
+			const std::span<const std::string_view> aNames) -> bool
+		{
+			// Use the PRAGMA statement, as sibling stores do: the hardened
+			// connection does not admit pragma table-valued functions.
+			auto columns = prepare(aDatabase, "PRAGMA table_xinfo(" + std::string{ aTable } + ")");
+			if (!columns) {
+				return false;
+			}
+			std::size_t count = 0;
+			for (auto step = ::sqlite3_step(columns->Value);; step = ::sqlite3_step(columns->Value)) {
+				if (step == SQLITE_DONE) {
+					return count == aNames.size();
+				}
+				if (step != SQLITE_ROW) {
+					return false;
+				}
+				const auto name = text_of(columns->Value, 1);
+				const auto text = name == "mode" || name == "palette_document"
+					|| name == "palette_variant" || name == "ui_family" || name == "code_family";
+				const auto singleton = name == "singleton";
+				if (std::ranges::find(aNames, name) == aNames.end()
+					|| text_of(columns->Value, 2) != (text ? "TEXT" : "INTEGER")
+					|| ::sqlite3_column_int(columns->Value, 3) != (singleton ? 0 : 1)
+					|| ::sqlite3_column_int(columns->Value, 5) != (singleton ? 1 : 0)
+					|| ::sqlite3_column_int(columns->Value, 6) != 0) {
+					return false;
+				}
+				++count;
+			}
+		}
+
+		[[nodiscard]] auto validate_legacy(::sqlite3* aDatabase, const std::int64_t aVersion)
+			-> std::expected<void, failure>
+		{
+			constexpr std::array<std::string_view, 2>  metaNames{ "singleton", "schema_format" };
+			constexpr std::array<std::string_view, 15> settingsNames{
+				"singleton", "mode", "palette_document", "ui_family", "ui_point_size",
+				"ui_weight", "ui_line_height", "code_family", "code_point_size",
+				"code_weight", "code_tab_width", "code_ligatures", "code_syntax_bold",
+				"code_syntax_italic", "palette_variant"
+			};
+			const auto objects = scalar_integer(aDatabase,
+												"SELECT count(*) FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%'");
+			if ((aVersion != 1 && aVersion != 2) || !objects || *objects != 2
+				|| !legacy_columns_match(aDatabase, "appearance_meta", metaNames)
+				|| !legacy_columns_match(aDatabase, "appearance_settings",
+										 std::span{ settingsNames }.first(aVersion == 1 ? 14U : 15U))) {
+				return std::unexpected(failure::schema_mismatch);
+			}
+			for (const auto table : { "appearance_meta", "appearance_settings" }) {
+				auto shape = prepare(aDatabase, "PRAGMA table_list(" + std::string{ table } + ")");
+				if (!shape || ::sqlite3_step(shape->Value) != SQLITE_ROW
+					|| text_of(shape->Value, 2) != "table"
+					|| ::sqlite3_column_int(shape->Value, 4) != 0
+					|| ::sqlite3_column_int(shape->Value, 5) != 1
+					|| ::sqlite3_step(shape->Value) != SQLITE_DONE) {
+					return std::unexpected(failure::schema_mismatch);
+				}
+			}
+			auto meta = prepare(aDatabase, "SELECT singleton, schema_format FROM appearance_meta");
+			if (!meta || ::sqlite3_step(meta->Value) != SQLITE_ROW
+				|| ::sqlite3_column_int64(meta->Value, 0) != 1
+				|| ::sqlite3_column_int64(meta->Value, 1) != aVersion
+				|| ::sqlite3_step(meta->Value) != SQLITE_DONE) {
+				return std::unexpected(failure::schema_mismatch);
+			}
+			return { };
+		}
+
 		[[nodiscard]] auto establish_schema(
 			::sqlite3* aDatabase, std::stop_token aStop)
 			-> std::expected<void, failure>
@@ -284,6 +356,13 @@ namespace bpr::adapters::sqlite::detail {
 				(void)::sqlite3_exec(
 					aDatabase, "ROLLBACK", nullptr, nullptr, nullptr);
 			};
+
+			if (*current != 0) {
+				if (auto admitted = validate_legacy(aDatabase, *current); !admitted) {
+					rollback();
+					return admitted;
+				}
+			}
 
 			// An unstamped file has no tables at all and is created whole. A
 			// stamped one is migrated in place, inside this same transaction,

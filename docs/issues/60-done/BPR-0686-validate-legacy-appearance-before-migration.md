@@ -2,9 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0686"
 title: "Validate legacy appearance before migration"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0018"]
 depends_on: ["BPR-0680"]
+acceptance: [{"criterion":"AC-05 preflight","outcome":"pass","revision":"7de6d649 plus this finish","evidence":{"kind":"observation","detail":"Incoming v1/v2 metadata and structural shape are validated inside the transaction before rebuild. Future/missing metadata, extra/missing columns, malformed tables and wrong identity are refused with original schema, version, columns and rows retained. Constraint-failure rollback and canonical v1/v2 migration/reopen checks pass."}},{"criterion":"Verification","outcome":"pass","revision":"7de6d649 plus this finish","evidence":{"kind":"observation","detail":"Worker built the focused target and sqlite_appearance_settings_storage passed 0.53s. Canonical tidy passed both owned TUs (test TU rerun after explicit v1 reopen assertion); formatting/diff checks pass. Primary reviewed the final bounded diff and consumed the medium-review finding. No changes outside the two owned files; no external services."}}]
 ---
 
 # Validate legacy appearance before migration
