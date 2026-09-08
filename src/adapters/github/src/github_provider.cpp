@@ -50,11 +50,11 @@ namespace bpr::adapters::github::detail {
 			std::shared_ptr<github_wire_transport_factory_port> TransportFactory;
 			github_provider_read_authority                      ReadAuthority
 				= github_provider_read_authority::authenticated;
-			std::vector<std::shared_ptr<const validated_github_host_profile>> Profiles;
-			std::mutex                                                        Mutex;
-			std::vector<std::shared_ptr<provider_job>>                        Jobs;
-			std::atomic<std::uint64_t>                                        NextSnapshot{ 1U };
-			bool                                                              Closing = false;
+			std::shared_ptr<github_profile_catalog>    Profiles;
+			std::mutex                                 Mutex;
+			std::vector<std::shared_ptr<provider_job>> Jobs;
+			std::atomic<std::uint64_t>                 NextSnapshot{ 1U };
+			bool                                       Closing = false;
 		};
 
 		enum class make_job_failure : std::uint8_t {
@@ -275,10 +275,7 @@ namespace bpr::adapters::github::detail {
 					 const core::host_profile_id aIdentity) noexcept
 			-> std::shared_ptr<const validated_github_host_profile>
 		{
-			const auto match = std::ranges::find_if(
-				aState.Profiles,
-				[aIdentity](const auto& aProfile) { return aProfile->profile() == aIdentity; });
-			return match == aState.Profiles.end() ? nullptr : *match;
+			return aState.Profiles->find_profile(aIdentity);
 		}
 
 		[[nodiscard]] auto
@@ -1793,6 +1790,81 @@ namespace bpr::adapters::github::detail {
 		}
 	}
 
+	auto github_profile_catalog::register_profile(const validated_github_host_profile& aProfile) noexcept
+		-> std::expected<void, github_provider_configuration_failure>
+	{
+		try {
+			if (!application::valid(profile_authority(aProfile))) {
+				return std::unexpected{ github_provider_configuration_failure::invalid_profile };
+			}
+			auto       entry = std::make_shared<const validated_github_host_profile>(aProfile);
+			const auto lock  = std::lock_guard{ Mutex };
+			if (Closing) {
+				return std::unexpected{ github_provider_configuration_failure::closing };
+			}
+			for (const auto& profile : Profiles) {
+				if (profile->profile() != aProfile.profile()) {
+					continue;
+				}
+				if (profile_authority(*profile) == profile_authority(aProfile)
+					&& profile->rest_root() == aProfile.rest_root()
+					&& profile->graphql_root() == aProfile.graphql_root()
+					&& profile->proxy_mode() == aProfile.proxy_mode()
+					&& profile->trust_mode() == aProfile.trust_mode()
+					&& profile->provenance() == aProfile.provenance()) {
+					return { };
+				}
+				return std::unexpected{ github_provider_configuration_failure::duplicate_profile };
+			}
+			if (Profiles.size() >= maximum_github_profile_catalog_entries) {
+				return std::unexpected{ github_provider_configuration_failure::collection_limit };
+			}
+			Profiles.push_back(std::move(entry));
+			return { };
+		} catch (...) {
+			return std::unexpected{ github_provider_configuration_failure::allocation_failure };
+		}
+	}
+
+	auto github_profile_catalog::find_profile(const core::host_profile_id aIdentity) const noexcept
+		-> std::shared_ptr<const validated_github_host_profile>
+	{
+		const auto lock  = std::lock_guard{ Mutex };
+		const auto match = std::ranges::find_if(Profiles,
+												[aIdentity](const auto& aProfile) { return aProfile->profile() == aIdentity; });
+		return match == Profiles.end() ? nullptr : *match;
+	}
+
+	void github_profile_catalog::shutdown() noexcept
+	{
+		const auto lock = std::lock_guard{ Mutex };
+		Closing         = true;
+	}
+
+	auto make_github_provider(std::shared_ptr<github_profile_catalog>             aProfiles,
+							  application::effect_executor&                       aEffects,
+							  std::shared_ptr<github_wire_transport_factory_port> aTransportFactory,
+							  const github_provider_read_authority                aReadAuthority,
+							  std::shared_ptr<application::diagnostic_log_port>   aLog) noexcept
+		-> github_provider_factory_result
+	{
+		if (!aProfiles || !aTransportFactory) {
+			return std::unexpected{ github_provider_configuration_failure::invalid_profile };
+		}
+		try {
+			auto state              = std::make_shared<provider_state>();
+			state->Effects          = &aEffects;
+			state->TransportFactory = std::move(aTransportFactory);
+			state->ReadAuthority    = aReadAuthority;
+			state->Log              = std::move(aLog);
+			state->Profiles         = std::move(aProfiles);
+			auto implementation     = std::make_unique<github_provider::implementation>(std::move(state));
+			return std::make_unique<github_provider>(std::move(implementation));
+		} catch (...) {
+			return std::unexpected{ github_provider_configuration_failure::allocation_failure };
+		}
+	}
+
 	namespace {
 		auto make_github_provider_from_pointers(
 			const std::span<const validated_github_host_profile* const> aProfiles,
@@ -1833,19 +1905,15 @@ namespace bpr::adapters::github::detail {
 				}
 			}
 			try {
-				auto state              = std::make_shared<provider_state>();
-				state->Effects          = &aEffects;
-				state->TransportFactory = std::move(aTransportFactory);
-				state->ReadAuthority    = aReadAuthority;
-				state->Log              = std::move(aLog);
-				state->Profiles.reserve(aProfiles.size());
+				auto catalog = std::make_shared<github_profile_catalog>();
 				for (const auto* const profile : aProfiles) {
-					state->Profiles.push_back(
-						std::make_shared<const validated_github_host_profile>(
-							*profile));
+					const auto registered = catalog->register_profile(*profile);
+					if (!registered) {
+						return std::unexpected{ registered.error() };
+					}
 				}
-				auto implementation = std::make_unique<github_provider::implementation>(std::move(state));
-				return std::make_unique<github_provider>(std::move(implementation));
+				return make_github_provider(std::move(catalog), aEffects,
+											std::move(aTransportFactory), aReadAuthority, std::move(aLog));
 			} catch (...) {
 				return std::unexpected{
 					github_provider_configuration_failure::allocation_failure

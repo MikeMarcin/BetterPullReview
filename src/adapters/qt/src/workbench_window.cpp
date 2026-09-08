@@ -1268,15 +1268,41 @@ namespace bpr::qt {
 			HomeOpenNotice->setWordWrap(true);
 			HomeOpenNotice->hide();
 			homeColumn->addWidget(HomeOpenNotice);
+			HomeOpenNotice->setTextFormat(Qt::PlainText);
+			auto* setupRow = new QHBoxLayout{ };
+			setupRow->setContentsMargins(24, 2, 24, 4);
+			SetupContinueButton = new QPushButton{ HomePage };
+			SetupContinueButton->setObjectName(QStringLiteral("homeSetupContinue"));
+			SetupCancelButton = new QPushButton{ tr("Cancel setup"), HomePage };
+			SetupCancelButton->setObjectName(QStringLiteral("homeSetupCancel"));
+			setupRow->addWidget(SetupContinueButton);
+			setupRow->addWidget(SetupCancelButton);
+			setupRow->addStretch();
+			homeColumn->addLayout(setupRow);
+			SetupContinueButton->hide();
+			SetupCancelButton->hide();
+			connect(SetupContinueButton, &QPushButton::clicked, this, [this] {
+				if (SetupDestinationDispatch && SetupDestinationRequest) {
+					SetupDestinationDispatch(application::continue_setup_destination{ *SetupDestinationRequest });
+				}
+			});
+			connect(SetupCancelButton, &QPushButton::clicked, this, [this] {
+				if (SetupDestinationDispatch) {
+					SetupDestinationDispatch(application::cancel_setup_destination{ });
+				}
+			});
 			connect(HomeOpenBar, &QLineEdit::returnPressed, this, [this] { open_from_home_bar(); });
 			connect(HomeOpenAction, &QAction::triggered, this, [this] { open_from_home_bar(); });
 			connect(HomeOpenBar, &QLineEdit::textChanged, this, [this] {
+				if (!ApplyingSetupProjection && SetupDestinationRequest && SetupDestinationDispatch) {
+					SetupDestinationDispatch(application::cancel_setup_destination{ });
+				}
 				if (HomeOpenNotice != nullptr && HomeOpenNotice->isVisible()) {
 					HomeOpenNotice->hide();
 				}
 				if (HomeOpenAction != nullptr) {
 					HomeOpenAction->setEnabled(
-						parse_pull_request_locator(HomeOpenBar->text()).has_value());
+						!HomeOpenBar->text().trimmed().isEmpty());
 				}
 			});
 			HomeOpenAction->setEnabled(false);
@@ -3891,7 +3917,7 @@ namespace bpr::qt {
 			active                = active || (projection && projection->Enabled);
 		}
 		const auto nothing = !HasGithubPullRequest && !comparing && !loading && !active;
-		const auto home    = nothing || HomeRequested;
+		const auto home    = nothing || HomeRequested || SetupDestinationRequest.has_value();
 		if (HomeAction != nullptr && HomeAction->isChecked() != home) {
 			HomeAction->setChecked(home);
 		}
@@ -4944,25 +4970,48 @@ namespace bpr::qt {
 		return HomeOpenNotice;
 	}
 
+	void workbench_window::add_setup_profile(application::github_profile_option aProfile)
+	{
+		if (std::ranges::any_of(GithubProfiles, [&](const auto& aExisting) { return aExisting.Profile == aProfile.Profile; })) {
+			return;
+		}
+		GithubProfiles.push_back(aProfile);
+		SessionPanel->add_profile(std::move(aProfile));
+	}
+
+	void workbench_window::set_setup_destination_dispatch(application::setup_destination_dispatch aDispatch)
+	{
+		SetupDestinationDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::present_setup_destination(const application::setup_destination_projection& aProjection)
+	{
+		ApplyingSetupProjection = true;
+		SetupDestinationRequest = aProjection.Pending ? std::optional{ aProjection.Pending->Request } : std::nullopt;
+		if (aProjection.Opened) {
+			OpenOnOverview = true;
+			HomeOpenBar->clear();
+		}
+		HomeOpenNotice->setText(QString::fromStdString(aProjection.Notice));
+		HomeOpenNotice->setVisible(!aProjection.Notice.empty());
+		if (aProjection.Opened && !aProjection.Notice.empty()) {
+			statusBar()->showMessage(QString::fromStdString(aProjection.Notice));
+		} else {
+			statusBar()->clearMessage();
+		}
+		const auto actionable = aProjection.Pending && (aProjection.Pending->Stage == core::setup_destination_stage::add_server || aProjection.Pending->Stage == core::setup_destination_stage::sign_in);
+		SetupContinueButton->setVisible(actionable);
+		SetupContinueButton->setText(aProjection.Pending && aProjection.Pending->Stage == core::setup_destination_stage::add_server ? tr("Add server and continue") : tr("Sign in and continue"));
+		SetupCancelButton->setVisible(aProjection.Pending && aProjection.Pending->Stage != core::setup_destination_stage::opening);
+		update_home_landing();
+		ApplyingSetupProjection = false;
+	}
+
 	void workbench_window::open_from_home_bar()
 	{
-		if (HomeOpenBar == nullptr || !GithubDispatch) {
-			return;
+		if (HomeOpenBar && SetupDestinationDispatch) {
+			SetupDestinationDispatch(application::submit_setup_destination{ HomeOpenBar->text().toStdString() });
 		}
-		const auto intent = parse_pull_request_locator(HomeOpenBar->text());
-		if (!intent.has_value()) {
-			// [[BPR-0669]]. What was typed stays where it is; a reviewer who
-			// pasted the wrong thing needs to see it to fix it.
-			if (HomeOpenNotice != nullptr && !HomeOpenBar->text().trimmed().isEmpty()) {
-				HomeOpenNotice->setText(QStringLiteral(
-					"That is not a pull request. Paste its link, or write owner/name#number."));
-				HomeOpenNotice->show();
-			}
-			return;
-		}
-		OpenOnOverview = true;
-		GithubDispatch(*intent);
-		HomeOpenBar->clear();
 	}
 
 	auto workbench_window::select_queue_item(

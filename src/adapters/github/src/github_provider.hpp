@@ -9,11 +9,14 @@
 #include "bpr/application/port.hpp"
 #include "bpr/application/review_mutation_port.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <span>
+#include <vector>
 
 namespace bpr::adapters::github::detail {
 	class github_mutation_wire_transport;
@@ -111,6 +114,29 @@ namespace bpr::adapters::github::detail {
 		invalid_profile,
 		duplicate_profile,
 		allocation_failure,
+		closing,
+		collection_limit,
+	};
+
+	inline constexpr std::size_t maximum_github_profile_catalog_entries = 128U;
+
+	/// \brief Shared, append-only catalog; retained entries survive registration and shutdown.
+	class github_profile_catalog final
+	{
+	public:
+		/// \brief Adds a validated profile; exact duplicates succeed without replacement.
+		[[nodiscard]] auto register_profile(const validated_github_host_profile& aProfile) noexcept
+			-> std::expected<void, github_provider_configuration_failure>;
+		/// \brief Copies immutable ownership under the catalog lock.
+		[[nodiscard]] auto find_profile(core::host_profile_id aIdentity) const noexcept
+			-> std::shared_ptr<const validated_github_host_profile>;
+		/// \brief Closes registration while preserving existing entries and provider jobs.
+		void shutdown() noexcept;
+
+	private:
+		mutable std::mutex                                                Mutex;
+		std::vector<std::shared_ptr<const validated_github_host_profile>> Profiles;
+		bool                                                              Closing = false;
 	};
 
 	class github_provider final : public application::github_provider_port
@@ -158,6 +184,14 @@ namespace bpr::adapters::github::detail {
 
 	using github_provider_factory_result = std::expected<std::unique_ptr<github_provider>,
 														 github_provider_configuration_failure>;
+
+	[[nodiscard]] auto make_github_provider(
+		std::shared_ptr<github_profile_catalog>             aProfiles,
+		application::effect_executor&                       aEffects,
+		std::shared_ptr<github_wire_transport_factory_port> aTransportFactory,
+		github_provider_read_authority                      aReadAuthority = github_provider_read_authority::authenticated,
+		std::shared_ptr<application::diagnostic_log_port>   aLog           = { }) noexcept
+		-> github_provider_factory_result;
 
 	[[nodiscard]] auto
 	make_github_provider(std::span<const validated_github_host_profile> aProfiles,

@@ -148,8 +148,11 @@ namespace {
 		for (const auto* const text : { "octo/app#42", " octo/app#42 ", "octo/app/pull/42",
 										"https://github.com/octo/app/pull/42", "https://ghe.example.com/octo/app/pull/42/files" }) {
 			const auto parsed = qt::parse_pull_request_locator(QString::fromUtf8(text));
-			expect(parsed.has_value() && *parsed == expected, "every named form opens the same pull request");
+			expect(parsed.has_value() && parsed->Repository == expected.Repository && parsed->Number == expected.Number, "every named form opens the same pull request");
 		}
+		const auto exact = qt::parse_pull_request_locator(QStringLiteral("https://ghe.example.com/octo/app/pull/42/files#diff-abcd"));
+		expect(exact && exact->Hostname == "ghe.example.com" && exact->Location == "/files#diff-abcd", "Qt translation preserves exact server and requested location");
+
 		for (const auto* const text : { "", "42", "#42", "octo#42", "octo/app", "octo/app#zero", "octo/app/issues/42", "https://github.com" }) {
 			expect(!qt::parse_pull_request_locator(QString::fromUtf8(text)).has_value(),
 				   "a form that names no repository and number opens nothing");

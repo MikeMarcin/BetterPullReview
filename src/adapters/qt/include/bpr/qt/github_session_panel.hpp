@@ -85,6 +85,8 @@ namespace bpr::qt {
 			github_session_environment                      aEnvironment,
 			QWidget*                                        aParent = nullptr);
 
+		void add_profile(application::github_profile_option aProfile);
+
 		/// \brief Applies one command projection if it names a chrome command.
 		///
 		/// \returns Whether this panel owns the command. The composing window

@@ -1,6 +1,8 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_APPLICATION_HOST_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_APPLICATION_HOST_HPP
 
+#include "bpr/core/setup_destination.hpp"
+
 #include "bpr/application/device_binding_store.hpp"
 #include "bpr/application/git_smart_transport_port.hpp"
 #include "bpr/application/github_capability_cache.hpp"
@@ -181,6 +183,16 @@ namespace bpr::application {
 							= github_credential_provenance::manual,
 							std::optional<device_binding_lifetime> aLifetime       = std::nullopt,
 							bool                                   aRefreshSettled = false);
+		/// \brief Validates setup credentials without replacing the active review or writing the vault.
+		/// The decision-lane callback must accept the exact still-current owner/request before commit.
+		void stage_setup_enrollment(core::pending_setup_destination                                   aPending,
+									github_credential_material                                        aCredential,
+									std::function<bool(const core::pending_setup_destination&, bool)> aAccept,
+									github_credential_provenance                                      aProvenance     = github_credential_provenance::manual,
+									std::optional<device_binding_lifetime>                            aLifetime       = std::nullopt,
+									bool                                                              aRefreshSettled = false);
+		void cancel_setup_enrollment();
+
 		// Resume asks only for a profile. The host-owned trusted binding catalog,
 		// populated from prior accepted /user observations, selects the exact
 		// account authority. Public account and login values never select vault

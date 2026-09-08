@@ -97,6 +97,9 @@ namespace bpr::app::detail {
 		// recorded BPR-0276 grant so the enrollment reaches the real vault.
 		// Only meaningful with a fixture; a shipped build has no identity to
 		// register and this option does not exist there.
+		/// Starts the GHES fixture behind real server onboarding instead of a configured profile.
+		bool SetupUnconfiguredEnterprise = false;
+
 		bool RegisteredDeviceCourse = false;
 		// RFC-BPR-0016 renewal. The same registered grant, plus the two things
 		// a rotation needs that the read-path fixture has no use for: a real

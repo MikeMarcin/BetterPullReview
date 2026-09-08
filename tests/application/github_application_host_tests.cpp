@@ -1599,6 +1599,99 @@ namespace {
 		}
 	}
 
+	auto test_setup_authentication_preserves_review_until_exact_acceptance() -> void
+	{
+		host_fixture fixture;
+		establish_native_session(fixture);
+		fixture.Host.dispatch(core::open_pull_request_intent{ .Repository = { "openai", "better-pull-review" }, .Number = core::pull_request_number{ 27U } });
+		const auto reviewRequest = fixture.Provider.PullRequests.back().Request;
+		fixture.Provider.PullRequests.back().Completion(application::github_pull_request_success{ .Request = reviewRequest, .Snapshot = snapshot(reviewRequest) });
+		fixture.Lane.drain();
+		const auto state         = fixture.Host.state();
+		const auto review        = fixture.Host.accepted_snapshot();
+		const auto stores        = fixture.Vault.Stores.size();
+		const auto pending       = core::pending_setup_destination{ .Request = core::setup_request_id{ 1U }, .Owner = core::setup_owner_id{ 1U }, .Destination = { .Hostname = "github.com", .Repository = { "other", "repo" }, .Number = core::pull_request_number{ 42U }, .Location = { } }, .Profile = core::host_profile_id{ 12U }, .Stage = core::setup_destination_stage::authenticating };
+		auto       acceptedCalls = std::size_t{ 0U };
+		fixture.Host.stage_setup_enrollment(pending, credential(), [&](const auto&, bool) { ++acceptedCalls; return true; });
+		const auto profileRequest = fixture.Provider.Profiles.back().Request;
+		fixture.Provider.Profiles.back().Completion(application::github_profile_success{ .Request = profileRequest, .Authority = native_profile(core::host_profile_id{ 12U }) });
+		fixture.Lane.drain();
+		const auto viewerRequest = fixture.Provider.Viewers.back().Request;
+		fixture.Provider.Viewers.back().Completion(application::github_viewer_success{ .Request = viewerRequest, .Viewer = viewer(core::github_account_id{ 52U }), .RateLimits = rate_limits_for(application::github_rate_limit_resource::core), .AccountTransport = { } });
+		fixture.Host.cancel_setup_enrollment();
+		fixture.Lane.drain();
+		expect(acceptedCalls == 0U && fixture.Host.state() == state && fixture.Host.accepted_snapshot() == review
+				   && fixture.Vault.Stores.size() == stores,
+			   "cancelled staged /user leaves active review and vault untouched");
+		fixture.Host.stage_setup_enrollment(pending, credential(), [&](const auto&, bool) { ++acceptedCalls; return false; });
+		const auto secondProfile = fixture.Provider.Profiles.back().Request;
+		fixture.Provider.Profiles.back().Completion(application::github_profile_success{ .Request = secondProfile, .Authority = native_profile(core::host_profile_id{ 12U }) });
+		fixture.Lane.drain();
+		const auto secondViewer = fixture.Provider.Viewers.back().Request;
+		fixture.Provider.Viewers.back().Completion(application::github_viewer_success{ .Request = secondViewer, .Viewer = viewer(core::github_account_id{ 52U }), .RateLimits = rate_limits_for(application::github_rate_limit_resource::core), .AccountTransport = { } });
+		fixture.Lane.drain();
+		expect(acceptedCalls == 1U && fixture.Host.state() == state && fixture.Host.accepted_snapshot() == review
+				   && fixture.Vault.Stores.size() == stores,
+			   "obsolete owner refuses commit without replacing review");
+	}
+
+	auto test_setup_restage_same_destination_has_fresh_attempt() -> void
+	{
+		for (const auto mode : { 0, 1, 2 }) {
+			host_fixture fixture;
+			const auto   pending = core::pending_setup_destination{ .Request = core::setup_request_id{ 1U }, .Owner = core::setup_owner_id{ 1U }, .Destination = { .Hostname = "github.com", .Repository = { "other", "repo" }, .Number = core::pull_request_number{ 42U }, .Location = { } }, .Profile = core::host_profile_id{ 11U }, .Stage = core::setup_destination_stage::authenticating };
+			const auto   restage = [&] {
+				fixture.Host.cancel_setup_enrollment();
+				auto secondCredential = application::github_credential_material::create(std::as_bytes(std::span{ "second-setup-token", std::size_t{ 18U } }));
+				expect(secondCredential.has_value(), "synthetic second token");
+				fixture.Host.stage_setup_enrollment(pending, std::move(*secondCredential), [](const auto&, bool) { return false; });
+			};
+			fixture.Host.stage_setup_enrollment(pending, credential(), [&](const auto&, bool) { if (mode == 1) { restage(); } else if (mode == 2) { fixture.Host.dispatch(core::deactivate_github_identity_intent{}); } return true; });
+			const auto firstProfile = fixture.Provider.Profiles.back().Request;
+			fixture.Provider.Profiles.back().Completion(application::github_profile_success{ .Request = firstProfile, .Authority = native_profile(core::host_profile_id{ 11U }) });
+			fixture.Lane.drain();
+			const auto firstViewer = fixture.Provider.Viewers.back();
+			if (mode == 0) {
+				restage();
+			}
+			firstViewer.Completion(application::github_viewer_success{ .Request = firstViewer.Request, .Viewer = viewer(), .RateLimits = rate_limits_for(application::github_rate_limit_resource::core), .AccountTransport = { } });
+			fixture.Lane.drain();
+			if (mode == 2) {
+				expect(!fixture.Host.state().ActiveProfile && fixture.Vault.Stores.empty() && fixture.Provider.Profiles.size() == 1U, "reentrant authority replacement retires stage before deferred dispatch");
+				continue;
+			}
+			expect(fixture.Provider.Profiles.size() == 2U && fixture.Provider.Profiles.back().Request.Context != firstProfile.Context,
+				   "each stage attempt has distinct provider request identity");
+			expect(!fixture.Host.state().ActiveProfile && fixture.Vault.Stores.empty(), "old bootstrap cannot commit replacement material, including reentrant restage");
+			const auto secondProfile = fixture.Provider.Profiles.back().Request;
+			fixture.Provider.Profiles.back().Completion(application::github_profile_success{ .Request = secondProfile, .Authority = native_profile(core::host_profile_id{ 11U }) });
+			fixture.Lane.drain();
+			expect(fixture.Provider.Viewers.size() == 2U && fixture.Provider.Viewers.back().Request.Context != firstViewer.Request.Context, "replacement continues under its own attempt");
+			fixture.Host.cancel_setup_enrollment();
+		}
+	}
+
+	auto test_setup_acceptance_reuses_validated_bootstrap() -> void
+	{
+		host_fixture fixture;
+		const auto   pending = core::pending_setup_destination{ .Request = core::setup_request_id{ 1U }, .Owner = core::setup_owner_id{ 1U }, .Destination = { .Hostname = "github.com", .Repository = { "other", "repo" }, .Number = core::pull_request_number{ 42U }, .Location = { } }, .Profile = core::host_profile_id{ 11U }, .Stage = core::setup_destination_stage::authenticating };
+		fixture.Host.stage_setup_enrollment(pending, credential(), [&](const auto& aPending, const bool aSuccess) { return aSuccess && aPending == pending; });
+		const auto profile = fixture.Provider.Profiles.back().Request;
+		fixture.Provider.Profiles.back().Completion(application::github_profile_success{ .Request = profile, .Authority = native_profile(core::host_profile_id{ 11U }) });
+		fixture.Lane.drain();
+		const auto request = fixture.Provider.Viewers.back().Request;
+		expect(!fixture.Host.state().ActiveProfile && fixture.Vault.Stores.empty(), "staged bootstrap changes no authority");
+		fixture.Provider.Viewers.back().Completion(application::github_viewer_success{ .Request = request, .Viewer = viewer(), .RateLimits = rate_limits_for(application::github_rate_limit_resource::core), .AccountTransport = { } });
+		fixture.Lane.drain();
+		expect(fixture.Host.state().ActiveProfile == core::host_profile_id{ 11U } && fixture.Provider.Profiles.size() == 2U, "accepted continuation activates exact authority");
+		const auto committedProfile = fixture.Provider.Profiles.back().Request;
+		fixture.Provider.Profiles.back().Completion(application::github_profile_success{ .Request = committedProfile, .Authority = native_profile(core::host_profile_id{ 11U }) });
+		fixture.Lane.drain();
+		expect(fixture.Provider.Viewers.size() == 1U && fixture.Vault.Stores.size() == 1U
+				   && fixture.Vault.Stores.back().Context.Authority.Account == viewer().Account,
+			   "commit uses accepted bootstrap once and stores under its exact viewer");
+	}
+
 	auto test_enrollment_acceptance_snapshot_and_exact_delete() -> void
 	{
 		host_fixture fixture;
@@ -5592,6 +5685,9 @@ auto main() -> int
 	test_restored_binding_is_validated_before_resume();
 	test_device_binding_persistence_barriers();
 	test_binding_load_cancellation_and_stale_terminal();
+	test_setup_authentication_preserves_review_until_exact_acceptance();
+	test_setup_acceptance_reuses_validated_bootstrap();
+	test_setup_restage_same_destination_has_fresh_attempt();
 	test_enrollment_acceptance_snapshot_and_exact_delete();
 	test_retained_mutation_lease_is_revoked_on_shutdown();
 	test_accepted_snapshot_handoff_and_exact_invalidation();

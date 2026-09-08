@@ -60,53 +60,12 @@ namespace bpr::qt {
 	}
 
 	auto parse_pull_request_locator(const QString& aText)
-		-> std::optional<core::open_pull_request_intent>
+		-> std::optional<core::setup_destination>
 	{
-		auto text = aText.trimmed();
-		// A link: keep the path after the host.
-		if (const auto scheme = text.indexOf(QStringLiteral("://")); scheme >= 0) {
-			const auto afterHost = text.indexOf(QLatin1Char{ '/' }, scheme + 3);
-			if (afterHost < 0) {
-				return std::nullopt;
-			}
-			text = text.mid(afterHost + 1);
-		}
-		auto owner  = QString{ };
-		auto name   = QString{ };
-		auto number = QString{ };
-		if (const auto hash = text.indexOf(QLatin1Char{ '#' }); hash >= 0) {
-			// owner/name#123
-			const auto repository = text.left(hash);
-			const auto slash      = repository.indexOf(QLatin1Char{ '/' });
-			if (slash <= 0) {
-				return std::nullopt;
-			}
-			owner  = repository.left(slash);
-			name   = repository.mid(slash + 1);
-			number = text.mid(hash + 1);
-		} else {
-			// owner/name/pull/123, with anything after the number ignored.
-			const auto parts = text.split(QLatin1Char{ '/' }, Qt::SkipEmptyParts);
-			if (parts.size() < 4 || parts[2] != QStringLiteral("pull")) {
-				return std::nullopt;
-			}
-			owner  = parts[0];
-			name   = parts[1];
-			number = parts[3];
-		}
-		auto       ok    = false;
-		const auto value = number.trimmed().toUInt(&ok);
-		if (!ok || value == 0U || owner.isEmpty() || name.isEmpty() || owner.contains(QLatin1Char{ '/' })
-			|| name.contains(QLatin1Char{ '/' }) || name.contains(QLatin1Char{ '#' })) {
+		if (aText.size() > 4096) {
 			return std::nullopt;
 		}
-		return core::open_pull_request_intent{
-			.Repository = core::repository_locator{
-				.Owner = owner.trimmed().toStdString(),
-				.Name  = name.trimmed().toStdString(),
-			},
-			.Number = core::pull_request_number{ value },
-		};
+		return application::parse_setup_destination(aText.toStdString());
 	}
 
 	auto reason_for(const core::queue_item& aItem) -> QString

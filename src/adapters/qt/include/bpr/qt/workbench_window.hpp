@@ -1,6 +1,8 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_WORKBENCH_WINDOW_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_WORKBENCH_WINDOW_HPP
 
+#include "bpr/application/setup_destination_projection.hpp"
+
 #include "bpr/application/device_authorization_projection.hpp"
 #include "bpr/application/epoch_projection.hpp"
 #include "bpr/application/public_preview_projection.hpp"
@@ -288,6 +290,10 @@ namespace bpr::qt {
 		void fail(const application::receipt_failure_publication& aFailure);
 		/// \brief Retires receipt actions, optionally naming unavailable storage.
 		void clear_review_ledger(bool aUnavailable = false);
+
+		void add_setup_profile(application::github_profile_option aProfile);
+		void set_setup_destination_dispatch(application::setup_destination_dispatch aDispatch);
+		void present_setup_destination(const application::setup_destination_projection& aProjection);
 
 		void set_dispatch(workbench_intent_dispatch aDispatch);
 		void set_change_dispatch(workbench_change_dispatch aChangeDispatch);
@@ -911,6 +917,11 @@ namespace bpr::qt {
 		QAction*                                           GithubOpenAction        = nullptr;
 		QAction*                                           GithubRefreshAction     = nullptr;
 		QAction*                                           ShowReviewThreadsAction = nullptr;
+		application::setup_destination_dispatch            SetupDestinationDispatch;
+		std::optional<core::setup_request_id>              SetupDestinationRequest;
+		QPushButton*                                       SetupContinueButton     = nullptr;
+		QPushButton*                                       SetupCancelButton       = nullptr;
+		bool                                               ApplyingSetupProjection = false;
 		std::vector<application::github_profile_option>    GithubProfiles;
 		application::github_intent_dispatch                GithubDispatch;
 		application::public_preview_presentation           PublicPreview;

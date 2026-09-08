@@ -2,7 +2,7 @@
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_REVIEW_LANDING_MODEL_HPP
 
 #include "bpr/application/review_queue_enrollment.hpp"
-#include "bpr/core/github_model.hpp"
+#include "bpr/application/setup_destination_projection.hpp"
 #include "bpr/core/review_queue_attention.hpp"
 
 #include <QAbstractListModel>
@@ -35,14 +35,9 @@ namespace bpr::qt {
 	/// \brief The group's heading, first person and one line.
 	[[nodiscard]] auto home_group_label(home_group aGroup) -> QString;
 
-	/// \brief Reads "owner/name#123", "owner/name/pull/123" or a pull request
-	/// link into the open intent the locator would send ([[BPR-0650]]).
-	///
-	/// \details Any host is accepted in a link; the host the intent is sent
-	/// to is the active profile's, as it is for the locator. Nothing else
-	/// parses: a bare number names no repository.
+	/// \brief Translates locator text through the bounded core parser, retaining its exact host.
 	[[nodiscard]] auto parse_pull_request_locator(const QString& aText)
-		-> std::optional<core::open_pull_request_intent>;
+		-> std::optional<core::setup_destination>;
 
 	/// \brief Returns the sentence saying why an item is in the queue.
 	///

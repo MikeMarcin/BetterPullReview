@@ -2291,3 +2291,24 @@ bpr_add_network_isolated_test(NAME application_review_submission_composition_pub
 set_tests_properties(application_review_submission_composition_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}"
     TIMEOUT 90 PASS_REGULAR_EXPRESSION "review-submission-composition:pass")
+
+bpr_add_executable(
+    test_setup_destination_public_path
+    setup_destination_public_path_tests.cpp
+)
+target_link_libraries(test_setup_destination_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_setup_destination_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_setup_destination_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_setup_destination_public_path)
+bpr_enable_warnings(test_setup_destination_public_path)
+bpr_add_network_isolated_test(
+    NAME application_setup_destination_public_path
+    COMMAND test_setup_destination_public_path
+)
+set_tests_properties(
+    application_setup_destination_public_path
+    PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        TIMEOUT 60
+        PASS_REGULAR_EXPRESSION "setup-destination-public-path:pass"
+)

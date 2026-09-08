@@ -39,7 +39,7 @@ function(bpr_verify_full_application_digest source_variable)
         "${bpr_full_application_source}"
     )
 	set(bpr_expected_full_application_digest
-		"d9bff267d51cf47ff9eee56a23783c7acaf4cfbd55bdebd10002282af7d54957"
+		"033e56c807a72394461be7afd1eb67865f0d0c0bc0d30ee0d776b74fb8800cf7"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -153,7 +153,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "${bpr_production_app_manifest}"
     )
 	set(bpr_expected_production_app_manifest_digest
-		"17afa04a820974ba5209c99c12c9f230f50814ce7a4041d074c9dec5cf119c35"
+		"9f6f5833fb1c6667fe09c3066d5e373f6c468e97b46eb5b69bd91a897c0ad1ba"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -359,7 +359,7 @@ function(bpr_verify_async_mutation_host_inventory source_variable)
     bpr_require_literal_count(
         bpr_async_mutation_source
         "->submit("
-        1
+        2
         "whole-app pointer submit allowlist"
     )
     bpr_require_literal_count(
@@ -367,6 +367,12 @@ function(bpr_verify_async_mutation_host_inventory source_variable)
         "ReviewLedgerHost->submit("
         1
         "review-ledger pointer submit allowlist"
+    )
+    bpr_require_literal_count(
+        bpr_async_mutation_source
+        "SetupDestination->submit(aValue.Text)"
+        1
+        "local setup text navigation is not review publication"
     )
     foreach(forbidden IN ITEMS
         "LiveReviewMutationProvider"

@@ -4853,6 +4853,13 @@ namespace {
 			{ },
 			[&opened](application::github_intent) { ++opened; }
 		};
+		window.set_setup_destination_dispatch([&](application::setup_destination_intent aIntent) {
+			if (std::holds_alternative<application::submit_setup_destination>(aIntent)) {
+				++opened;
+				window.present_setup_destination({ .Pending = std::nullopt, .Notice = { }, .Opened = true });
+			}
+		});
+
 		window.resize(1'280, 820);
 		window.show();
 		process_events();

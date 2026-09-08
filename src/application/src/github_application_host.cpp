@@ -584,6 +584,19 @@ namespace bpr::application {
 			core::github_access_mode                     Mode{ };
 		};
 
+		struct staged_enrollment
+		{
+			core::pending_setup_destination                                   Pending;
+			std::uint64_t                                                     Attempt;
+			core::github_identity_generation                                  OriginGeneration;
+			github_credential_material                                        Credential;
+			std::function<bool(const core::pending_setup_destination&, bool)> Accept;
+			github_credential_provenance                                      Provenance;
+			std::optional<device_binding_lifetime>                            Lifetime;
+			bool                                                              RefreshSettled;
+			std::variant<github_profile_request, github_viewer_request>       Operation;
+		};
+
 		struct deferred_dispatch
 		{
 			core::github_event Event;
@@ -753,6 +766,7 @@ namespace bpr::application {
 
 		void dispatch(const core::github_event& aEvent)
 		{
+			cancel_setup_enrollment();
 			if (Closing) {
 				return;
 			}
@@ -794,6 +808,8 @@ namespace bpr::application {
 				NextEnrollment.reset();
 				NextResumeProfile.reset();
 			}
+			cancel_setup_enrollment();
+			AcceptedSetupBootstrap.reset();
 			dispatch_core(aEvent);
 		}
 
@@ -803,6 +819,8 @@ namespace bpr::application {
 							const std::optional<device_binding_lifetime> aLifetime,
 							const bool                                   aRefreshSettled)
 		{
+			cancel_setup_enrollment();
+			AcceptedSetupBootstrap.reset();
 			if (Closing) {
 				return;
 			}
@@ -868,8 +886,164 @@ namespace bpr::application {
 			NextEnrollmentProfile.reset();
 		}
 
+		void cancel_setup_enrollment()
+		{
+			if (!StagedEnrollment) {
+				return;
+			}
+			const auto operation = StagedEnrollment->Operation;
+			StagedEnrollment.reset();
+			try {
+				std::visit([this](const auto& aRequest) {
+					if constexpr (std::is_same_v<std::decay_t<decltype(aRequest)>, github_profile_request>) {
+						Profiles.cancel_profile(aRequest);
+					} else {
+						Viewers.cancel_viewer(aRequest);
+					}
+				},
+						   operation);
+			} catch (...) { }
+		}
+
+		template <typename TCompletion, typename THandler>
+		auto setup_callback(THandler aHandler) -> std::function<void(TCompletion)>
+		{
+			++OutstandingSetup;
+			const auto gate      = std::weak_ptr<completion_gate>{ CompletionGate };
+			auto*      lane      = &DecisionLane;
+			const auto delivered = std::make_shared<std::atomic<bool>>(false);
+			return [gate, lane, delivered, handler = std::move(aHandler)](TCompletion aCompletion) mutable {
+				if (delivered->exchange(true)) {
+					return;
+				}
+				const auto locked = gate.lock();
+				if (!locked) {
+					return;
+				}
+				const std::lock_guard barrier{ locked->Barrier };
+				if (locked->Host.load() == nullptr) {
+					return;
+				}
+				const auto payload = std::make_shared<TCompletion>(std::move(aCompletion));
+				lane->post([gate, payload, laneHandler = std::move(handler)]() mutable {
+					const auto target = gate.lock();
+					if (!target) {
+						return;
+					}
+					const std::lock_guard callbackBarrier{ target->Barrier };
+					auto*                 host = target->Host.load();
+					if (!host) {
+						return;
+					}
+					--host->OutstandingSetup;
+					host->run_turn([&] { laneHandler(*host, std::move(*payload)); });
+				});
+			};
+		}
+
+		void finish_setup_failure(const core::setup_request_id aRequest)
+		{
+			if (!StagedEnrollment || StagedEnrollment->Pending.Request != aRequest) {
+				return;
+			}
+			auto staged = std::move(*StagedEnrollment);
+			StagedEnrollment.reset();
+			if (!Closing && staged.Accept) {
+				static_cast<void>(staged.Accept(staged.Pending, false));
+			}
+		}
+
+		void stage_setup_enrollment(core::pending_setup_destination aPending, github_credential_material aCredential,
+									std::function<bool(const core::pending_setup_destination&, bool)> aAccept,
+									const github_credential_provenance aProvenance, std::optional<device_binding_lifetime> aLifetime,
+									const bool aRefreshSettled)
+		{
+			cancel_setup_enrollment();
+			if (Closing || !aPending.Profile || !valid(aCredential) || !aAccept
+				|| NextSetupAttempt >= (std::uint64_t{ 1U } << 63U)) {
+				return;
+			}
+			const auto attempt = NextSetupAttempt++;
+			// Setup requests use the upper request namespace and their own callback slot.
+			// They cannot cancel an ordinary review operation with the same request number.
+			const auto request = github_profile_request{
+				.Context = { .Request            = core::request_id{ (std::uint64_t{ 1U } << 63U) | attempt },
+							 .ApplicationSession = State.ApplicationSession,
+							 .Profile            = *aPending.Profile,
+							 .IdentityGeneration = core::github_identity_generation{ State.IdentityGeneration.value() + 1U } },
+			};
+			const auto identity = aPending.Request;
+			StagedEnrollment.emplace(staged_enrollment{ std::move(aPending), attempt, State.IdentityGeneration,
+														std::move(aCredential), std::move(aAccept), aProvenance, std::move(aLifetime), aRefreshSettled, request });
+			auto callback = setup_callback<github_profile_completion>([identity, request, attempt](implementation& aHost, github_profile_completion aCompletion) {
+				if (!aHost.StagedEnrollment || aHost.StagedEnrollment->Pending.Request != identity || aHost.StagedEnrollment->Attempt != attempt) {
+					return;
+				}
+				auto* success = std::get_if<github_profile_success>(&aCompletion);
+				if (aHost.Closing || aHost.State.IdentityGeneration != aHost.StagedEnrollment->OriginGeneration
+					|| !success || success->Request != request || !valid(success->Authority)
+					|| success->Authority.Profile != request.Context.Profile
+					|| success->Authority.Hostname.value() != aHost.StagedEnrollment->Pending.Destination.Hostname
+					|| success->Authority.Authentication != github_authentication_transport::native_https) {
+					aHost.finish_setup_failure(identity);
+					return;
+				}
+				aHost.stage_setup_viewer(identity, success->Authority, request.Context);
+			});
+			try {
+				Profiles.resolve_profile(request, callback);
+			} catch (...) {
+				callback(github_profile_cancelled{ .Request = request });
+			}
+		}
+
+		void stage_setup_viewer(const core::setup_request_id aIdentity, const github_profile_authority& aAuthority,
+								const core::github_session_request_context& aContext)
+		{
+			auto credential = github_credential_material::create(StagedEnrollment->Credential.bytes());
+			if (!credential) {
+				finish_setup_failure(aIdentity);
+				return;
+			}
+			const auto attempt          = StagedEnrollment->Attempt;
+			const auto request          = github_viewer_request{ .Context = aContext, .Authority = aAuthority };
+			StagedEnrollment->Operation = request;
+			auto callback               = setup_callback<github_viewer_completion>([aIdentity, request, attempt](implementation& aHost, github_viewer_completion aCompletion) {
+				if (!aHost.StagedEnrollment || aHost.StagedEnrollment->Pending.Request != aIdentity || aHost.StagedEnrollment->Attempt != attempt) {
+					return;
+				}
+				auto* success = std::get_if<github_viewer_success>(&aCompletion);
+				if (aHost.Closing || aHost.State.IdentityGeneration != aHost.StagedEnrollment->OriginGeneration
+					|| !success || success->Request != request || success->AccountTransport
+					|| !valid_viewer(request.Authority, request.Context, success->Viewer, success->RateLimits)) {
+					aHost.finish_setup_failure(aIdentity);
+					return;
+				}
+				const auto pending  = aHost.StagedEnrollment->Pending;
+				const auto accept   = aHost.StagedEnrollment->Accept;
+				const auto accepted = accept(pending, true);
+				if (!aHost.StagedEnrollment || aHost.StagedEnrollment->Pending != pending || aHost.StagedEnrollment->Attempt != attempt) {
+					return;
+				}
+				if (!accepted || aHost.State.IdentityGeneration != aHost.StagedEnrollment->OriginGeneration) {
+					aHost.StagedEnrollment.reset();
+					return;
+				}
+				auto staged = std::move(*aHost.StagedEnrollment);
+				aHost.StagedEnrollment.reset();
+				aHost.AcceptedSetupBootstrap = *success;
+				aHost.enroll_profile_now(*pending.Profile, std::move(staged.Credential), staged.Provenance, staged.Lifetime, staged.RefreshSettled);
+			});
+			try {
+				Viewers.observe_viewer({ .Request = request, .Authentication = github_bootstrap_credential{ .Credential = std::move(*credential) } }, callback);
+			} catch (...) {
+				callback(github_viewer_cancelled{ .Request = request });
+			}
+		}
+
 		void resume_profile(const core::host_profile_id aProfile)
 		{
+			cancel_setup_enrollment();
 			if (Closing) {
 				return;
 			}
@@ -909,6 +1083,7 @@ namespace bpr::application {
 
 		void activate_public_preview(const core::host_profile_id aProfile)
 		{
+			cancel_setup_enrollment();
 			if (Closing) {
 				return;
 			}
@@ -1954,6 +2129,19 @@ namespace bpr::application {
 		{
 			if (!SessionEnrollment.has_value()) {
 				fail_session(aRequest.Context, core::github_failure::vault);
+				return;
+			}
+			if (AcceptedSetupBootstrap) {
+				auto accepted = std::move(*AcceptedSetupBootstrap);
+				AcceptedSetupBootstrap.reset();
+				if (accepted.Request.Authority != aRequest.Authority) {
+					fail_session(aRequest.Context, core::github_failure::malformed_response);
+					return;
+				}
+				accepted.Request = aRequest;
+				PendingProvider  = aRequest;
+				const auto token = ++ProviderOperationToken;
+				handle_viewer_now(token, std::move(accepted));
 				return;
 			}
 			auto copy = github_credential_material::create(SessionEnrollment->bytes());
@@ -4013,6 +4201,7 @@ namespace bpr::application {
 
 		void shutdown()
 		{
+			cancel_setup_enrollment();
 			if (TurnActive) {
 				DeferredIngress.emplace_back(deferred_shutdown{ });
 				return;
@@ -4022,6 +4211,8 @@ namespace bpr::application {
 
 		void shutdown_now()
 		{
+			cancel_setup_enrollment();
+			AcceptedSetupBootstrap.reset();
 			{
 				const std::lock_guard barrier{ CompletionGate->Barrier };
 				if (Closing) {
@@ -4193,10 +4384,15 @@ namespace bpr::application {
 		bool                                                    BindingErasePending   = false;
 		bool                                                    RestoredDeviceBinding = false;
 		std::uint64_t                                           BindingGeneration     = 0;
-		std::size_t                                             OutstandingBindings   = 0;
-		core::github_identity_generation                        BindingDeleteGeneration;
-		std::optional<deferred_session_terminal>                BindingDeleteTerminal;
-		refresh_disposition                                     BindingDeleteRefresh = refresh_disposition::erase;
+		std::uint64_t                                           NextSetupAttempt      = 1U;
+		std::optional<staged_enrollment>                        StagedEnrollment;
+		std::optional<github_viewer_success>                    AcceptedSetupBootstrap;
+		std::size_t                                             OutstandingSetup = 0U;
+
+		std::size_t                              OutstandingBindings = 0;
+		core::github_identity_generation         BindingDeleteGeneration;
+		std::optional<deferred_session_terminal> BindingDeleteTerminal;
+		refresh_disposition                      BindingDeleteRefresh = refresh_disposition::erase;
 
 		core::github_state                 State;
 		github_profile_port&               Profiles;
@@ -4355,6 +4551,16 @@ namespace bpr::application {
 		Implementation->enroll_profile(
 			aProfile, std::move(aCredential), aProvenance, aLifetime, aRefreshSettled);
 	}
+
+	void github_application_host::stage_setup_enrollment(core::pending_setup_destination                                   aPending,
+														 github_credential_material                                        aCredential,
+														 std::function<bool(const core::pending_setup_destination&, bool)> aAccept,
+														 const github_credential_provenance aProvenance, std::optional<device_binding_lifetime> aLifetime,
+														 const bool aRefreshSettled)
+	{
+		Implementation->stage_setup_enrollment(std::move(aPending), std::move(aCredential), std::move(aAccept), aProvenance, std::move(aLifetime), aRefreshSettled);
+	}
+	void github_application_host::cancel_setup_enrollment() { Implementation->cancel_setup_enrollment(); }
 
 	void github_application_host::resume_profile(
 		const core::host_profile_id aProfile)
@@ -4622,6 +4828,7 @@ namespace bpr::application {
 	auto github_application_host::is_quiescent() const noexcept -> bool
 	{
 		return Implementation->Closing
+			&& Implementation->OutstandingSetup == 0U
 			&& Implementation->OutstandingBindings == 0U
 			&& !Implementation->BindingErasePending
 			&& std::holds_alternative<std::monostate>(

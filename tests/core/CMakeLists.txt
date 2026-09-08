@@ -468,6 +468,18 @@ bpr_add_network_isolated_test(
 )
 
 bpr_add_executable(
+    test_better_pull_review_core_setup_destination_tests
+    setup_destination_tests.cpp
+)
+target_link_libraries(test_better_pull_review_core_setup_destination_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_core_setup_destination_tests)
+bpr_enable_warnings(test_better_pull_review_core_setup_destination_tests)
+bpr_add_network_isolated_test(
+    NAME core_setup_destination
+    COMMAND test_better_pull_review_core_setup_destination_tests
+)
+
+bpr_add_executable(
     test_better_pull_review_core_profile_window_tests
     profile_window_tests.cpp
 )

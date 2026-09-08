@@ -52,6 +52,8 @@
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
+#include "bpr/application/setup_destination.hpp"
+
 #include "bpr/application/agent_chat_session_host.hpp"
 #include "bpr/application/agent_comment_workshop_host.hpp"
 #include "bpr/application/agent_finding_host.hpp"
@@ -1076,6 +1078,25 @@ namespace bpr::app {
 			std::size_t                                        Enrollments = 0U;
 		};
 #endif
+
+		class setup_device_enrollment final : public application::device_authorization_enrollment_port
+		{
+		public:
+			using enrollment = std::function<void(core::host_profile_id, application::github_credential_material, std::optional<application::device_binding_lifetime>, bool)>;
+			setup_device_enrollment(application::device_authorization_enrollment_port& aInner, enrollment aEnroll)
+				: Inner{ aInner }
+				, Enroll{ std::move(aEnroll) }
+			{ }
+			void enroll(core::host_profile_id aProfile, application::github_credential_material aCredential) override { Enroll(aProfile, std::move(aCredential), std::nullopt, false); }
+			void enroll_grant(core::host_profile_id aProfile, application::github_credential_material aCredential, application::device_binding_lifetime aLifetime, bool aSettled) override { Enroll(aProfile, std::move(aCredential), aLifetime, aSettled); }
+			void settle_binding(application::github_credential_authority_key aAuthority, core::github_identity_generation aGeneration, application::device_binding_lifetime aLifetime) override { Inner.settle_binding(std::move(aAuthority), aGeneration, aLifetime); }
+			void prepare_refresh(application::github_credential_authority_key aAuthority, core::github_identity_generation aGeneration, std::function<void(bool)> aCompletion) override { Inner.prepare_refresh(std::move(aAuthority), aGeneration, std::move(aCompletion)); }
+			void invalidate_grant(application::github_credential_authority_key aAuthority, core::github_identity_generation aGeneration) override { Inner.invalidate_grant(std::move(aAuthority), aGeneration); }
+
+		private:
+			application::device_authorization_enrollment_port& Inner;
+			enrollment                                         Enroll;
+		};
 
 		// Records what presentation was told. The device panel is a Qt surface
 		// [[BPR-0280]] owns and tests at the adapter boundary; what composition
@@ -3374,7 +3395,8 @@ namespace bpr::app {
 		  public application::review_mutation_projection_port,
 		  public application::receipt_projection_port,
 		  public application::queue_landing_projection_port,
-		  public application::agent_session_catalog_port
+		  public application::agent_session_catalog_port,
+		  public application::setup_destination_port
 	{
 	public:
 		explicit implementation(
@@ -3513,12 +3535,21 @@ namespace bpr::app {
 						host.Server,
 						application::github_authentication_transport::native_https,
 						std::string{ host.Hostname },
-						github_profile_provenance::builtin),
+						aFixtureOptions.SetupUnconfiguredEnterprise ? github_profile_provenance::explicit_user : github_profile_provenance::builtin),
 					std::string{ host.Label });
+				const auto recordedProfile = Profiles.front();
+				if (aFixtureOptions.SetupUnconfiguredEnterprise) {
+					Profiles.clear();
+					ProfileOptions.clear();
+					for (const auto id : { 1U, 2U }) {
+						append_profile(Profiles, ProfileOptions, native_profile_candidate(core::host_profile_id{ id }, core::git_host_id{ 1U }, application::github_profile_revision{ 1U }, application::github_server_contract::github_com_2022_11_28, id == 1U ? application::github_authentication_transport::native_https : application::github_authentication_transport::github_cli, "github.com", github_profile_provenance::builtin), "GitHub.com");
+					}
+				}
+
 				Fixture = std::make_unique<
 					detail::github_public_path_fixture_components>(
 					*aFixture,
-					Profiles.front(),
+					recordedProfile,
 					VaultEffects,
 					std::move(aFixtureOptions));
 			} else
@@ -3664,14 +3695,15 @@ namespace bpr::app {
 				}
 			}
 
-			auto profilePointers = std::vector<const validated_github_host_profile*>{ };
-			profilePointers.reserve(Profiles.size());
+			ProfileCatalog = std::make_shared<adapters::github::detail::github_profile_catalog>();
 			for (const auto& profile : Profiles) {
-				profilePointers.push_back(&profile);
+				if (!ProfileCatalog->register_profile(profile)) {
+					throw std::runtime_error{ "GitHub profile catalog initialization failed" };
+				}
 			}
+
 			auto provider = make_github_provider(
-				std::span<const validated_github_host_profile* const>{
-					profilePointers },
+				ProfileCatalog,
 				ProviderEffects,
 				TransportFactory, adapters::github::detail::github_provider_read_authority::authenticated, DiagnosticLog);
 			if (!provider.has_value()) {
@@ -3708,8 +3740,7 @@ namespace bpr::app {
 			}
 #endif
 			auto anonymousProvider = make_github_provider(
-				std::span<const validated_github_host_profile* const>{
-					profilePointers },
+				ProfileCatalog,
 				ProviderEffects,
 				AnonymousTransportFactory,
 				adapters::github::detail::github_provider_read_authority::
@@ -3832,6 +3863,27 @@ namespace bpr::app {
 				},
 				ProfileOptions,
 				[this](application::github_intent aIntent) { dispatch_intent(std::move(aIntent)); });
+
+			SetupDestination = std::make_unique<application::setup_destination_host>(*this);
+			Window->set_setup_destination_dispatch([this](application::setup_destination_intent aIntent) {
+				if (Closing || !SetupDestination) {
+					return;
+				}
+				std::visit([this](const auto& aValue) {
+					using intent_type = std::decay_t<decltype(aValue)>;
+					if constexpr (std::is_same_v<intent_type, application::continue_setup_destination>) {
+						SetupDestination->continue_setup(aValue.Request);
+					} else {
+						retire_setup_effects();
+						if constexpr (std::is_same_v<intent_type, application::submit_setup_destination>) {
+							SetupDestination->submit(aValue.Text);
+						} else {
+							SetupDestination->cancel();
+						}
+					}
+				},
+						   aIntent);
+			});
 			Window->set_storage_location(QString::fromStdString(ApplicationDataRoot.string()));
 			Window->set_receipt_dispatch(
 				[this](core::file_receipt_command aCommand) {
@@ -4476,6 +4528,7 @@ namespace bpr::app {
 				*Window,
 				[this](const application::github_presentation_update& aUpdate) {
 					bind_device_refresh_authority(aUpdate);
+					observe_setup_session(aUpdate);
 					if (aUpdate.PullRequest.has_value()) {
 						publish_overview();
 						publish_read_state();
@@ -4527,16 +4580,27 @@ namespace bpr::app {
 			// gate refuses before a request is built.
 			DeviceEnrollment = std::make_unique<
 				application::github_host_device_authorization_enrollment>(*Host);
+			SetupDeviceEnrollment = std::make_unique<setup_device_enrollment>(*DeviceEnrollment,
+																			  [this](core::host_profile_id aProfile, application::github_credential_material aCredential, std::optional<application::device_binding_lifetime> aLifetime, bool aSettled) {
+																				  if (DeviceHost && SetupDeviceGeneration && DeviceHost->state().Generation == *SetupDeviceGeneration) {
+																					  const auto pending = SetupDestination->pending();
+																					  if (pending && SetupDeviceRequest == pending->Request && pending->Profile == aProfile && pending->Owner == SetupOwner) {
+																						  stage_setup_credential(*pending, std::move(aCredential), application::github_credential_provenance::device_grant, aLifetime, aSettled);
+																					  }
+																					  return;
+																				  }
+																				  Host->enroll_profile(aProfile, std::move(aCredential), application::github_credential_provenance::device_grant, aLifetime, aSettled);
+																			  });
 #if defined(BPR_BUILD_TESTING)
 			CountedDeviceEnrollment = std::make_unique<
-				counting_device_authorization_enrollment>(*DeviceEnrollment);
+				counting_device_authorization_enrollment>(*SetupDeviceEnrollment);
 			auto& deviceEnrollment
 				= static_cast<application::device_authorization_enrollment_port&>(
 					*CountedDeviceEnrollment);
 #else
 			auto& deviceEnrollment
 				= static_cast<application::device_authorization_enrollment_port&>(
-					*DeviceEnrollment);
+					*SetupDeviceEnrollment);
 #endif
 			DeviceClock = application::make_system_device_authorization_clock();
 #if defined(BPR_BUILD_TESTING)
@@ -5328,6 +5392,19 @@ namespace bpr::app {
 				DeviceRefreshAuthority.reset();
 			}
 			DeviceStageAuthorized = authorized;
+			if (SetupDeviceRequest && SetupDestination && !authorized && core::terminal(aPresentation.Stage)) {
+				const auto request = *SetupDeviceRequest;
+				SetupDeviceRequest.reset();
+				if (aPresentation.Stage == core::device_authorization_stage::unavailable || aPresentation.Stage == core::device_authorization_stage::disabled) {
+					DecisionLane.post([this, request] {
+						if (!Closing && SetupDestination->pending() && SetupDestination->pending()->Request == request) {
+							authenticate_manual(*SetupDestination->pending());
+						}
+					});
+				} else {
+					SetupDestination->cancel();
+				}
+			}
 		}
 
 		void bind_device_refresh_authority(
@@ -5425,12 +5502,20 @@ namespace bpr::app {
 			if (const auto* const begin
 				= std::get_if<core::begin_device_authorization_intent>(
 					&aGesture)) {
+				retire_setup_effects();
+				if (SetupDestination) {
+					SetupDestination->cancel();
+				}
 				DeviceHost->dispatch(*begin);
 				return;
 			}
 			if (const auto* const cancel
 				= std::get_if<core::cancel_device_authorization_intent>(
 					&aGesture)) {
+				retire_setup_effects();
+				if (SetupDestination) {
+					SetupDestination->cancel();
+				}
 				DeviceHost->dispatch(*cancel);
 				return;
 			}
@@ -7040,6 +7125,7 @@ namespace bpr::app {
 			// Presentation receives the exact accepted projection before any
 			// notification can activate back into it.
 			Window->publish(aProjection);
+			synchronize_setup_servers(aProjection);
 
 			auto active = std::vector<queue_notification_transition>{ };
 			active.reserve(aProjection.Items.size());
@@ -7235,8 +7321,200 @@ namespace bpr::app {
 			return found == Profiles.end() ? nullptr : &*found;
 		}
 
+		[[nodiscard]] auto owner() const -> core::setup_owner_id override { return SetupOwner; }
+		[[nodiscard]] auto profiles() const -> std::vector<application::setup_profile_observation> override
+		{
+			auto       result    = std::vector<application::setup_profile_observation>{ };
+			const auto authority = Host ? Host->accepted_credential_authority() : std::nullopt;
+			for (const auto& profile : Profiles) {
+				if (profile.authentication_transport() != application::github_authentication_transport::native_https) {
+					continue;
+				}
+				result.push_back({ profile.profile(), std::string{ profile.hostname() }, authority && authority->Profile == profile.profile() && Host->accepted_session().has_value() });
+			}
+			return result;
+		}
+		[[nodiscard]] auto shorthand_hostname() const -> std::string override
+		{
+			const auto  selected = Host && Host->state().ActiveProfile ? Host->state().ActiveProfile : Window->session_panel()->selected_profile();
+			const auto* profile  = selected ? find_profile(*selected) : nullptr;
+			return profile ? std::string{ profile->hostname() } : std::string{ };
+		}
+		void present(const application::setup_destination_projection& aProjection) override
+		{
+			if (Window && !Closing) {
+				Window->present_setup_destination(aProjection);
+			}
+		}
+		void configure(const core::pending_setup_destination& aPending) override
+		{
+			if (!QueueHost || aPending.Owner != SetupOwner) {
+				return;
+			}
+			SetupConfigurationRequest = aPending.Request;
+			if (SetupQueueReady && !SetupConfigurationSubmitted) {
+				SetupConfigurationSubmitted = true;
+				QueueHost->apply(application::saved_server_intent{ .Action = application::saved_server_action::add, .Server = { .Hostname = aPending.Destination.Hostname, .Account = { } } });
+			}
+		}
+
+		void synchronize_setup_servers(const application::queue_landing_projection& aProjection)
+		{
+			if (!ProfileCatalog || !SetupDestination) {
+				return;
+			}
+			SetupQueueReady = aProjection.Status == application::queue_landing_status::ready;
+			if (SetupConfigurationRequest && aProjection.Failure) {
+				SetupConfigurationRequest.reset();
+				SetupConfigurationSubmitted = false;
+				present({ .Pending = SetupDestination->pending(), .Notice = "The server could not be saved. Retry Add server and continue.", .Opened = false });
+				return;
+			}
+
+			for (const auto& server : aProjection.SavedServers) {
+				if (std::ranges::any_of(Profiles, [&](const auto& aProfile) { return aProfile.hostname() == server.Hostname; })) {
+					continue;
+				}
+				auto nextProfile = std::uint64_t{ 1U };
+				auto nextHost    = std::uint64_t{ 1U };
+				for (const auto& profile : Profiles) {
+					nextProfile = std::max(nextProfile, profile.profile().value() + 1U);
+					nextHost    = std::max(nextHost, profile.host().value() + 1U);
+				}
+				const auto candidate = validate_github_host_profile(native_profile_candidate(core::host_profile_id{ nextProfile }, core::git_host_id{ nextHost }, application::github_profile_revision{ 1U }, application::github_server_contract::ghes_3_18_2022_11_28, application::github_authentication_transport::native_https, server.Hostname, github_profile_provenance::explicit_user));
+				if (!candidate || !ProfileCatalog->register_profile(*candidate)) {
+					continue;
+				}
+				Profiles.push_back(*candidate);
+				auto option = profile_option(*candidate, "GHES 3.18 — " + server.Hostname);
+				ProfileOptions.push_back(option);
+				Window->add_setup_profile(std::move(option));
+			}
+			if (const auto pending = SetupDestination->pending(); pending && pending->Stage == core::setup_destination_stage::add_server) {
+				SetupDestination->configured(pending->Request);
+				if (SetupDestination->pending() && SetupDestination->pending()->Stage != core::setup_destination_stage::add_server) {
+					SetupConfigurationRequest.reset();
+					SetupConfigurationSubmitted = false;
+				} else if (SetupConfigurationRequest == pending->Request && SetupQueueReady && !SetupConfigurationSubmitted) {
+					configure(*pending);
+				}
+			}
+		}
+		void retire_setup_effects()
+		{
+			SetupConfigurationRequest.reset();
+			SetupConfigurationSubmitted = false;
+			SetupAcceptedGeneration.reset();
+			if (Host) {
+				Host->cancel_setup_enrollment();
+			}
+			const auto device = SetupDeviceRequest.has_value();
+			SetupDeviceRequest.reset();
+			if (device && DeviceHost) {
+				DeviceHost->dispatch(core::cancel_device_authorization_intent{ });
+			}
+		}
+		void stage_setup_credential(const core::pending_setup_destination& aPending, application::github_credential_material aCredential,
+									const application::github_credential_provenance     aProvenance = application::github_credential_provenance::manual,
+									std::optional<application::device_binding_lifetime> aLifetime = std::nullopt, const bool aSettled = false)
+		{
+			Host->stage_setup_enrollment(aPending, std::move(aCredential), [this](const core::pending_setup_destination& aExpected, const bool aSuccess) {
+				if (Closing || !SetupDestination || !aExpected.Profile) { return false; }
+				const auto accepted = core::accept_setup_destination(SetupDestination->pending(), aExpected.Request, SetupOwner, *aExpected.Profile, aExpected.Destination.Hostname);
+				if (!accepted) { return false; }
+				if (!aSuccess) {
+					SetupDestination->cancel();
+					present({.Pending=std::nullopt, .Notice="Sign-in did not complete. The current review is unchanged; retry the pull request link.", .Opened=false});
+					return false;
+				}
+				SetupAcceptedGeneration = core::github_identity_generation{Host->state().IdentityGeneration.value() + 1U};
+				SetupDestination->committed(aExpected.Request);
+				return SetupDestination->pending() && SetupDestination->pending()->Request == aExpected.Request && SetupOwner == aExpected.Owner; }, aProvenance, std::move(aLifetime), aSettled);
+		}
+		void authenticate(const core::pending_setup_destination& aPending) override
+		{
+			if (!aPending.Profile || !Host || !DeviceHost) {
+				return;
+			}
+			const auto* profile = find_profile(*aPending.Profile);
+			if (!profile) {
+				return;
+			}
+			if (profile->product_kind() == application::github_product_kind::github_com) {
+				SetupDeviceRequest = aPending.Request;
+				Window->open_settings(qt::settings_page::accounts_and_hosts);
+				DeviceHost->dispatch(core::begin_device_authorization_intent{ .Profile = *aPending.Profile });
+				SetupDeviceGeneration = DeviceHost->state().Generation;
+				return;
+			}
+			authenticate_manual(aPending);
+		}
+		void authenticate_manual(core::pending_setup_destination aPending)
+		{
+			auto material = std::optional<application::github_credential_material>{ };
+#if defined(BPR_BUILD_TESTING)
+			if (Fixture) {
+				material.emplace(Fixture->take_enrollment_credential());
+			} else
+#endif
+			{
+				material = prompt_for_credential(Window.get());
+			}
+			if (!material) {
+				retire_setup_effects();
+				SetupDestination->cancel();
+				return;
+			}
+			if (SetupDestination->pending() && SetupDestination->pending()->Request == aPending.Request && SetupOwner == aPending.Owner) {
+				stage_setup_credential(aPending, std::move(*material));
+			}
+		}
+		void open(const core::host_profile_id aProfile, const core::setup_destination& aDestination) override
+		{
+			const auto authority = Host ? Host->accepted_credential_authority() : std::nullopt;
+			if (!authority || authority->Profile != aProfile || authority->Hostname.value() != aDestination.Hostname || !Host->accepted_session()) {
+				return;
+			}
+			Host->dispatch(core::open_pull_request_intent{ .Repository = aDestination.Repository, .Number = aDestination.Number });
+		}
+		void observe_setup_session(const application::github_presentation_update& aUpdate)
+		{
+			if (!SetupDestination || !SetupDestination->pending() || !Host) {
+				return;
+			}
+			if (aUpdate.Transition && aUpdate.Transition->Identity
+				&& (!SetupAcceptedGeneration || aUpdate.Transition->Identity->Generation != *SetupAcceptedGeneration)) {
+				retire_setup_effects();
+				SetupOwner = core::setup_owner_id{ SetupOwner.value() + 1U };
+				SetupDestination->cancel();
+				return;
+			}
+			if (aUpdate.Transition && aUpdate.Transition->Status
+				&& (aUpdate.Transition->Status->Status == core::github_status::session_failed || aUpdate.Transition->Status->Status == core::github_status::session_cancelled)) {
+				retire_setup_effects();
+				SetupDestination->cancel();
+				present({ .Pending = std::nullopt, .Notice = "Sign-in could not finish. The requested link is retained; choose Open to retry.", .Opened = false });
+				return;
+			}
+
+			const auto pending = *SetupDestination->pending();
+			if (aUpdate.Session && SetupAcceptedGeneration && Host->accepted_identity_generation() == *SetupAcceptedGeneration && pending.Profile == aUpdate.Session->Profile) {
+				const auto* profile = find_profile(aUpdate.Session->Profile);
+				SetupAcceptedGeneration.reset();
+				SetupDeviceRequest.reset();
+				if (profile) {
+					SetupDestination->authenticated(pending.Request, profile->profile(), profile->hostname());
+				}
+			}
+		}
+
 		void dispatch_intent(application::github_intent aIntent)
 		{
+			retire_setup_effects();
+			SetupOwner = core::setup_owner_id{ SetupOwner.value() + 1U };
+			if (SetupDestination) {
+				SetupDestination->cancel();
+			}
 			if (Closing || Host == nullptr) {
 				return;
 			}
@@ -9223,6 +9501,10 @@ namespace bpr::app {
 			if (Closing) {
 				return;
 			}
+			retire_setup_effects();
+			if (SetupDestination) {
+				SetupDestination->cancel();
+			}
 			Closing = true;
 			RetryableReviewDraft.reset();
 			// The one outstanding re-alignment is told to stop here rather
@@ -9356,6 +9638,7 @@ namespace bpr::app {
 			ReviewSubmissionEffects.close_and_drain();
 			EpochEffects.close_and_drain();
 			Provider->shutdown();
+			ProfileCatalog->shutdown();
 			ProviderEffects.close_and_drain();
 			VaultEffects.close_and_drain();
 			DeviceTransportEffects.close_and_drain();
@@ -9449,7 +9732,18 @@ namespace bpr::app {
 			CountedDeviceEnrollment;
 #endif
 		std::unique_ptr<application::device_authorization_application_host>
-														DeviceHost;
+																		  DeviceHost;
+		std::shared_ptr<adapters::github::detail::github_profile_catalog> ProfileCatalog;
+		std::unique_ptr<setup_device_enrollment>                          SetupDeviceEnrollment;
+		std::optional<core::device_authorization_generation>              SetupDeviceGeneration;
+		std::unique_ptr<application::setup_destination_host>              SetupDestination;
+		std::optional<core::setup_request_id>                             SetupConfigurationRequest;
+		bool                                                              SetupQueueReady             = false;
+		bool                                                              SetupConfigurationSubmitted = false;
+		core::setup_owner_id                                              SetupOwner{ 1U };
+		std::optional<core::setup_request_id>                             SetupDeviceRequest;
+		std::optional<core::github_identity_generation>                   SetupAcceptedGeneration;
+
 		std::deque<validated_github_host_profile>       Profiles;
 		std::vector<application::github_profile_option> ProfileOptions;
 		worker_executor                                 ProviderEffects;

@@ -434,9 +434,12 @@ namespace {
 
 	struct fixture_json_options : glz::opts
 	{
+		// Glaze discovers these options by their required library member names.
+		// NOLINTBEGIN(readability-identifier-naming)
 		bool validate_skipped             = true;
 		bool validate_trailing_whitespace = true;
 		bool escape_control_characters    = true;
+		// NOLINTEND(readability-identifier-naming)
 		constexpr fixture_json_options()
 		{
 			null_terminated       = false;
@@ -703,6 +706,69 @@ namespace {
 				&& effects.PostCalls == 0U && factory->BootstrapCalls == 0U
 				&& factory->AccountCalls == 0U,
 			"provider rejects duplicate profile identities before any effect");
+	}
+
+	void test_profile_catalog_capacity()
+	{
+		auto catalog = github_profile_catalog{ };
+		for (std::size_t index = 1U; index <= maximum_github_profile_catalog_entries; ++index) {
+			const auto profile = test_enterprise_profile(application::github_authentication_transport::native_https,
+														 core::host_profile_id{ index });
+			expect(catalog.register_profile(profile).has_value(), "catalog admits every entry through exact capacity");
+		}
+		const auto duplicate = test_enterprise_profile(application::github_authentication_transport::native_https,
+													   core::host_profile_id{ maximum_github_profile_catalog_entries });
+		const auto retained  = catalog.find_profile(duplicate.profile());
+		expect(catalog.register_profile(duplicate).has_value()
+				   && catalog.find_profile(duplicate.profile()) == retained,
+			   "exact duplicate at capacity preserves immutable entry");
+		const auto overflow = test_enterprise_profile(application::github_authentication_transport::native_https,
+													  core::host_profile_id{ maximum_github_profile_catalog_entries + 1U });
+		const auto refused  = catalog.register_profile(overflow);
+		expect(!refused && refused.error() == github_provider_configuration_failure::collection_limit
+				   && catalog.find_profile(overflow.profile()) == nullptr
+				   && catalog.find_profile(duplicate.profile()) == retained,
+			   "capacity plus one is refused atomically without replacing existing authority");
+	}
+
+	void test_live_profile_catalog()
+	{
+		const auto github     = test_profile(application::github_authentication_transport::native_https);
+		const auto enterprise = test_enterprise_profile(application::github_authentication_transport::native_https);
+		auto       catalog    = std::make_shared<github_profile_catalog>();
+		expect(catalog->register_profile(github).has_value(), "initial profile registers");
+		const auto retained = catalog->find_profile(github.profile());
+		expect(catalog->register_profile(github).has_value()
+				   && catalog->find_profile(github.profile()) == retained,
+			   "exact duplicate preserves immutable entry identity");
+		const auto collision = test_enterprise_profile(application::github_authentication_transport::native_https, github.profile());
+		const auto refused   = catalog->register_profile(collision);
+		expect(!refused && refused.error() == github_provider_configuration_failure::duplicate_profile,
+			   "same identity cannot replace authority");
+		auto effects   = controlled_executor{ };
+		auto factory   = std::make_shared<fake_transport_factory>();
+		auto provider  = make_github_provider(catalog, effects, factory);
+		auto anonymous = make_github_provider(catalog, effects, factory, github_provider_read_authority::anonymous_public);
+		expect(provider.has_value() && anonymous.has_value(), "both providers share catalog");
+		auto oldCompletions = std::vector<application::github_profile_completion>{ };
+		auto newCompletions = std::vector<application::github_profile_completion>{ };
+		(*provider)->resolve_profile({ .Context = session_context(github), .Attempt = application::github_provider_attempt{ 1U } },
+									 [&](auto aCompletion) { oldCompletions.push_back(std::move(aCompletion)); });
+		expect(effects.pending() == 1U, "old profile job remains pending during registration");
+		expect(catalog->register_profile(enterprise).has_value(), "new profile registers live");
+		(*anonymous)->resolve_profile({ .Context = session_context(enterprise), .Attempt = application::github_provider_attempt{ 1U } }, [&](auto aCompletion) { newCompletions.push_back(std::move(aCompletion)); });
+		effects.run_next();
+		effects.run_next();
+		expect(require_one<application::github_profile_success>(oldCompletions, "old job completes").Authority == profile_authority_for(github)
+				   && require_one<application::github_profile_success>(newCompletions, "new job completes").Authority == profile_authority_for(enterprise),
+			   "registration preserves pending authority and exposes new authority to shared provider");
+		(*provider)->shutdown();
+		expect(catalog->register_profile(enterprise).has_value(), "one provider shutdown does not close shared catalog");
+		catalog->shutdown();
+		const auto closed = catalog->register_profile(github);
+		expect(!closed && closed.error() == github_provider_configuration_failure::closing
+				   && catalog->find_profile(github.profile()) == retained,
+			   "closed catalog refuses registration while retained profile remains valid");
 	}
 
 	void test_multi_profile_routing_and_authority_rejection()
@@ -1803,6 +1869,8 @@ int main()
 	test_sanitized_provider_logging();
 	test_logging_wrapper_failure_preserves_terminal();
 	test_profile_set_validation();
+	test_live_profile_catalog();
+	test_profile_catalog_capacity();
 	test_multi_profile_routing_and_authority_rejection();
 	test_multi_profile_cancellation_is_profile_scoped();
 	test_profile_resolution();

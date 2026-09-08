@@ -538,6 +538,16 @@ namespace bpr::qt {
 		update_connect_enabled();
 	}
 
+	void github_session_panel::add_profile(application::github_profile_option aProfile)
+	{
+		if (std::ranges::any_of(Profiles, [&](const auto& aExisting) { return aExisting.Profile == aProfile.Profile; })) {
+			return;
+		}
+		const auto blocker = QSignalBlocker{ ProfileSelector };
+		ProfileSelector->addItem(QString::fromStdString(aProfile.Label), QVariant::fromValue<qulonglong>(aProfile.Profile.value()));
+		Profiles.push_back(std::move(aProfile));
+	}
+
 	auto github_session_panel::apply_command(
 		const core::github_command_projection& aCommand) -> bool
 	{
