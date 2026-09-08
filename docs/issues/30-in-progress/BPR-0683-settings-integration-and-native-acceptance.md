@@ -28,8 +28,8 @@ Routing: standard | Reason: default implementation.
 Integration evidence is retained in BPR-0593. Architecture checks and composed
 GitHub passed; Settings minimum-size/four-appearance/four-scale rendered cases
 passed, with representative rasters inspected. Migration preflight, queue bounds
-and preview burst defects are fixed in BPR-0686/0687/0688. BPR-0689 exact setup
-and a focused runtime effect-boundary fixture remain in progress. Screen-reader,
+and preview burst defects are fixed in BPR-0686/0687/0688. BPR-0689 exact setup is implemented and its visible public course passes
+(commit554564f8). The focused runtime effect-boundary fixture also passes. Screen-reader,
 target-native interaction and Windows/Linux packaged inventory remain unobserved.
 Do not finish this card as Done or close RFC0018 from partial automated evidence.
 
