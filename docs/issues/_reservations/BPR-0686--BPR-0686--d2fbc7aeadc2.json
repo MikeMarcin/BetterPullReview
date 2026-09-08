@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0686"
+  ],
+  "reserve_for": "settings-appearance-migration-preflight",
+  "purpose": "",
+  "created": "2026-09-08T07:57:54.432087+00:00",
+  "base": "3d36ce70a44735584fa723569f7200a398328fe2"
+}
