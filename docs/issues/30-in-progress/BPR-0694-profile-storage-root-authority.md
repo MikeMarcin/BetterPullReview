@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0694"
 title: "Resolve private storage roots from admitted profile identities"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0691"]
 ---
