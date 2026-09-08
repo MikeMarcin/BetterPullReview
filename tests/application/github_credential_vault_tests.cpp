@@ -970,6 +970,12 @@ namespace {
 		const auto baseContext   = context(baseAuthority);
 		expect(valid(baseAuthority), "complete credential authority is valid");
 		expect(valid(baseContext), "complete operation context is valid");
+		expect(baseAuthority.BprProfile == core::default_bpr_profile_id,
+			   "legacy authority construction retains Default profile");
+		auto unscopedAuthority       = baseAuthority;
+		unscopedAuthority.BprProfile = core::bpr_profile_id{ };
+		expect(!valid(unscopedAuthority) && !valid(context(unscopedAuthority)),
+			   "zero BPR profile rejects authority and operation");
 
 		auto invalidAuthority    = baseAuthority;
 		invalidAuthority.Profile = core::host_profile_id{ };
@@ -1241,8 +1247,11 @@ namespace {
 	void test_authority_isolation()
 	{
 		queued_fake_vault vault;
-		const auto        authorities = std::vector<authority_key>{
+		auto              siblingProfile = authority();
+		siblingProfile.BprProfile        = core::bpr_profile_id{ 2U };
+		const auto authorities           = std::vector<authority_key>{
 			authority(),
+			siblingProfile,
 			authority(21U, 2U, 3U, 4U),
 			authority(1U, 22U, 3U, 4U),
 			authority(1U, 2U, 23U, 4U),

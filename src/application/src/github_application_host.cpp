@@ -15,6 +15,7 @@
 #include <mutex>
 #include <new>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -278,8 +279,8 @@ namespace bpr::application {
 			};
 		}
 
-		[[nodiscard]] auto credential_key(const github_profile_authority& aProfile,
-										  const core::github_account_id   aAccount)
+		[[nodiscard]] auto credential_key(const core::bpr_profile_id aBprProfile, const github_profile_authority& aProfile,
+										  const core::github_account_id aAccount)
 			-> github_credential_authority_key
 		{
 			return {
@@ -289,6 +290,7 @@ namespace bpr::application {
 				.Hostname        = aProfile.Hostname,
 				.Account         = aAccount,
 				.ServerContract  = aProfile.ServerContract,
+				.BprProfile      = aBprProfile,
 			};
 		}
 
@@ -664,7 +666,7 @@ namespace bpr::application {
 					   github_epoch_handoff_port* const  aEpochs,
 					   github_pull_request_port* const   aAnonymousPullRequests,
 					   git_smart_transport_factory_port* aAnonymousSmartGit,
-					   public_preview_projection_port*   aPublicPreview)
+					   public_preview_projection_port* aPublicPreview, core::bpr_profile_id aBprProfile)
 			: State{ std::move(aInitialState) }
 			, Profiles{ aProfiles }
 			, Viewers{ aViewers }
@@ -672,6 +674,7 @@ namespace bpr::application {
 			, PullRequests{ aPullRequests }
 			, Credentials{ aCredentials }
 			, CredentialBindings{ aCredentialBindings }
+			, BprProfile{ aBprProfile }
 			, CapabilityCache{ create_host_capability_cache() }
 			, DecisionLane{ aDecisionLane }
 			, Projections{ aProjections }
@@ -682,6 +685,9 @@ namespace bpr::application {
 			, PublicPreview{ aPublicPreview }
 			, CompletionGate{ std::make_shared<completion_gate>() }
 		{
+			if (BprProfile.value() == 0U) {
+				throw std::invalid_argument("BPR profile admission requires a nonzero identity");
+			}
 			CompletionGate->Host.store(this, std::memory_order_release);
 		}
 
@@ -1065,7 +1071,7 @@ namespace bpr::application {
 
 		void resume_profile_now(const core::host_profile_id aProfile)
 		{
-			if (Closing || aProfile.value() == 0U) {
+			if (Closing || aProfile.value() == 0U || (CredentialBindings.find(aProfile) != nullptr && CredentialBindings.find(aProfile)->BprProfile != BprProfile)) {
 				return;
 			}
 			NextEnrollment.reset();
@@ -1105,7 +1111,7 @@ namespace bpr::application {
 
 		void activate_public_preview_now(const core::host_profile_id aProfile)
 		{
-			if (Closing || aProfile.value() == 0U) {
+			if (Closing || aProfile.value() == 0U || (CredentialBindings.find(aProfile) != nullptr && CredentialBindings.find(aProfile)->BprProfile != BprProfile)) {
 				return;
 			}
 			PublicPreviewRefusal.reset();
@@ -1838,10 +1844,13 @@ namespace bpr::application {
 			}
 		}
 
-		void select_persistent_credential(
+		auto select_persistent_credential(
 			const github_credential_authority_key&      aAuthority,
-			const core::github_session_request_context& aContext)
+			const core::github_session_request_context& aContext) -> bool
 		{
+			if (aAuthority.BprProfile != BprProfile) {
+				return false;
+			}
 			resolve_retained_refresh(aAuthority);
 			CredentialAuthority      = aAuthority;
 			CredentialSessionContext = aContext;
@@ -1852,6 +1861,7 @@ namespace bpr::application {
 			// about to be established from came from a device grant.
 			CredentialProvenance        = CredentialBindings.provenance(aAuthority.Profile);
 			CredentialBindingRemembered = true;
+			return true;
 		}
 
 		void start_deferred_session()
@@ -1863,6 +1873,10 @@ namespace bpr::application {
 
 			const auto context = *DeferredSession;
 			DeferredSession.reset();
+			if (const auto* binding = CredentialBindings.find(context.Profile); binding != nullptr && binding->BprProfile != BprProfile) {
+				fail_session(context, core::github_failure::vault);
+				return;
+			}
 			if (BindingLoadUnresolved) {
 				// An unread binding may still describe retained vault material.
 				// Refuse replacement for this lifetime instead of overwriting it.
@@ -1873,7 +1887,10 @@ namespace bpr::application {
 			if (SessionResumeProfile.has_value()) {
 				if (const auto* retained = CredentialBindings.find(*SessionResumeProfile);
 					retained != nullptr) {
-					select_persistent_credential(*retained, context);
+					if (!select_persistent_credential(*retained, context)) {
+						fail_session(context, core::github_failure::vault);
+						return;
+					}
 				}
 			}
 			const github_profile_request request{
@@ -2012,7 +2029,10 @@ namespace bpr::application {
 						|| SessionResumeProfile.has_value();
 					if (const auto* retained = CredentialBindings.find(context.Profile);
 						retained != nullptr) {
-						select_persistent_credential(*retained, context);
+						if (!select_persistent_credential(*retained, context)) {
+							fail_session(context, core::github_failure::vault);
+							return;
+						}
 						if (hasNativeMaterial) {
 							SessionEnrollment.reset();
 							SessionEnrollmentProvenance = github_credential_provenance::manual;
@@ -2053,7 +2073,10 @@ namespace bpr::application {
 				if (SessionEnrollment.has_value()) {
 					if (const auto* retained = CredentialBindings.find(context.Profile);
 						retained != nullptr) {
-						select_persistent_credential(*retained, context);
+						if (!select_persistent_credential(*retained, context)) {
+							fail_session(context, core::github_failure::vault);
+							return;
+						}
 						DeferredSession = context;
 						start_delete(context.IdentityGeneration, std::nullopt);
 						return;
@@ -2078,7 +2101,10 @@ namespace bpr::application {
 					return;
 				}
 				const auto resumeAuthority = *retained;
-				select_persistent_credential(resumeAuthority, context);
+				if (!select_persistent_credential(resumeAuthority, context)) {
+					fail_session(context, core::github_failure::vault);
+					return;
+				}
 				SessionResumeProfile.reset();
 				if (resumeAuthority.Profile != success->Authority.Profile
 					|| resumeAuthority.ProfileRevision
@@ -2283,7 +2309,7 @@ namespace bpr::application {
 					}
 					static_cast<void>(merge(RateLimits, success->RateLimits));
 					BootstrapViewer    = success->Viewer;
-					const auto adopted = credential_key(authority, success->Viewer.Account);
+					const auto adopted = credential_key(BprProfile, authority, success->Viewer.Account);
 					resolve_retained_refresh(adopted);
 					CredentialAuthority      = adopted;
 					CredentialSessionContext = context;
@@ -4401,6 +4427,7 @@ namespace bpr::application {
 		github_pull_request_port&          PullRequests;
 		github_credential_vault_port&      Credentials;
 		github_credential_binding_catalog& CredentialBindings;
+		const core::bpr_profile_id         BprProfile;
 		github_capability_cache            CapabilityCache;
 		decision_executor&                 DecisionLane;
 		github_projection_port&            Projections;
@@ -4513,7 +4540,7 @@ namespace bpr::application {
 		github_epoch_handoff_port* const        aEpochs,
 		github_pull_request_port* const         aAnonymousPullRequests,
 		git_smart_transport_factory_port* const aAnonymousSmartGit,
-		public_preview_projection_port* const   aPublicPreview)
+		public_preview_projection_port* const aPublicPreview, core::bpr_profile_id aBprProfile)
 		: Implementation{ std::make_unique<implementation>(std::move(aInitialState),
 														   aProfiles,
 														   aViewers,
@@ -4527,7 +4554,7 @@ namespace bpr::application {
 														   aEpochs,
 														   aAnonymousPullRequests,
 														   aAnonymousSmartGit,
-														   aPublicPreview) }
+														   aPublicPreview, aBprProfile) }
 	{
 	}
 
@@ -4610,7 +4637,7 @@ namespace bpr::application {
 			}
 			std::optional<device_binding_record> selected;
 			for (const auto& record : *aResult) {
-				if (!valid(record)) {
+				if (!valid(record) || record.Authority.BprProfile != host.BprProfile) {
 					fail();
 					return;
 				}
@@ -4668,7 +4695,7 @@ namespace bpr::application {
 	void github_application_host::invalidate_device_grant(github_credential_authority_key aAuthority, const core::github_identity_generation aGeneration)
 	{
 		auto& host = *Implementation;
-		if (host.Closing) {
+		if (host.Closing || aAuthority.BprProfile != host.BprProfile) {
 			return;
 		}
 		if (host.TurnActive || host.DeferredIngressScheduled || !host.DeferredIngress.empty()) {

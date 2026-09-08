@@ -3,6 +3,7 @@
 
 #include "bpr/application/github_host_authority.hpp"
 #include "bpr/core/github_model.hpp"
+#include "bpr/core/profile_window.hpp"
 
 #include <compare>
 #include <cstddef>
@@ -86,6 +87,7 @@ namespace bpr::application {
 		github_canonical_hostname Hostname;
 		core::github_account_id   Account;
 		github_server_contract    ServerContract = github_server_contract::github_com_2022_11_28;
+		core::bpr_profile_id      BprProfile     = core::default_bpr_profile_id;
 
 		auto operator<=>(const github_credential_authority_key&) const = default;
 	};
@@ -94,7 +96,8 @@ namespace bpr::application {
 	[[nodiscard]] constexpr auto valid(
 		const github_credential_authority_key& aAuthority) noexcept -> bool
 	{
-		return aAuthority.Profile.value() != 0U
+		return aAuthority.BprProfile.value() != 0U
+			&& aAuthority.Profile.value() != 0U
 			&& aAuthority.ProfileRevision.valid()
 			&& aAuthority.Host.value() != 0U
 			&& aAuthority.Account.value() != 0U

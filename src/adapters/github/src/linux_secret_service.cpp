@@ -3,6 +3,7 @@
 #include <libsecret/secret.h>
 
 #include <array>
+#include <charconv>
 #include <cstring>
 #include <map>
 #include <mutex>
@@ -593,9 +594,13 @@ namespace bpr::adapters::github {
 		public:
 			explicit native_linux_secret_service_backend(
 				const linux_secret_service_schema_scope scope,
-				const linux_secret_service_slot         slot) noexcept
+				const linux_secret_service_slot         slot,
+				const core::bpr_profile_id              aBprProfile)
 				: Scope{ scope }
 				, Slot{ slot }
+				, BprProfile{ aBprProfile }
+				, SchemaName{ linux_secret_service_profile_schema_identifier(scope, slot, aBprProfile) }
+				, ProfileSchema{ make_schema(SchemaName.c_str()) }
 			{
 			}
 
@@ -612,7 +617,7 @@ namespace bpr::adapters::github {
 				-> linux_secret_service_backend_store_result override
 			{
 				const auto lock = std::scoped_lock{ OperationMutex };
-				if (!application::valid(authority) || !application::valid(credential)
+				if (!application::valid(authority) || authority.BprProfile != BprProfile || !application::valid(credential)
 					|| !valid(Scope) || !valid(Slot)) {
 					return std::unexpected{
 						application::github_credential_vault_failure::invalid_request
@@ -644,7 +649,9 @@ namespace bpr::adapters::github {
 					};
 				}
 
-				const auto* schema = schema_for(Scope, Slot);
+				const auto* schema = BprProfile == core::default_bpr_profile_id
+					? schema_for(Scope, Slot)
+					: &ProfileSchema;
 				if (schema == nullptr) {
 					return std::unexpected{
 						application::github_credential_vault_failure::invalid_request
@@ -706,7 +713,7 @@ namespace bpr::adapters::github {
 				-> linux_secret_service_backend_retrieve_result override
 			{
 				const auto lock = std::scoped_lock{ OperationMutex };
-				if (!application::valid(authority) || !valid(Scope)
+				if (!application::valid(authority) || authority.BprProfile != BprProfile || !valid(Scope)
 					|| !valid(Slot)) {
 					return application::github_credential_vault_failure::
 						invalid_request;
@@ -735,7 +742,9 @@ namespace bpr::adapters::github {
 					return application::github_credential_vault_failure::locked;
 				}
 
-				const auto* schema = schema_for(Scope, Slot);
+				const auto* schema = BprProfile == core::default_bpr_profile_id
+					? schema_for(Scope, Slot)
+					: &ProfileSchema;
 				if (schema == nullptr) {
 					return application::github_credential_vault_failure::
 						invalid_request;
@@ -802,7 +811,7 @@ namespace bpr::adapters::github {
 				-> linux_secret_service_backend_delete_result override
 			{
 				const auto lock = std::scoped_lock{ OperationMutex };
-				if (!application::valid(authority) || !valid(Scope)
+				if (!application::valid(authority) || authority.BprProfile != BprProfile || !valid(Scope)
 					|| !valid(Slot)) {
 					return std::unexpected{
 						application::github_credential_vault_failure::invalid_request
@@ -834,7 +843,9 @@ namespace bpr::adapters::github {
 					};
 				}
 
-				const auto* schema = schema_for(Scope, Slot);
+				const auto* schema = BprProfile == core::default_bpr_profile_id
+					? schema_for(Scope, Slot)
+					: &ProfileSchema;
 				if (schema == nullptr) {
 					return std::unexpected{
 						application::github_credential_vault_failure::invalid_request
@@ -940,17 +951,22 @@ namespace bpr::adapters::github {
 
 			linux_secret_service_schema_scope Scope;
 			linux_secret_service_slot         Slot;
-			std::mutex                        OperationMutex;
-			SecretService*                    Service = nullptr;
+			const core::bpr_profile_id        BprProfile;
+			// The schema borrows this immutable string; neither can move with this backend.
+			const std::string  SchemaName;
+			const SecretSchema ProfileSchema;
+			std::mutex         OperationMutex;
+			SecretService*     Service = nullptr;
 		};
 
 		[[nodiscard]] auto make_native_backend(
 			const linux_secret_service_schema_scope scope,
-			const linux_secret_service_slot         slot) noexcept
+			const linux_secret_service_slot         slot,
+			const core::bpr_profile_id              aBprProfile) noexcept
 			-> std::expected<std::shared_ptr<linux_secret_service_backend>,
 							 application::github_credential_vault_failure>
 		{
-			if (!valid(scope) || !valid(slot)) {
+			if (!valid(scope) || !valid(slot) || aBprProfile.value() == 0U) {
 				return std::unexpected{
 					application::github_credential_vault_failure::invalid_request
 				};
@@ -958,7 +974,7 @@ namespace bpr::adapters::github {
 
 			try {
 				return std::shared_ptr<linux_secret_service_backend>{
-					std::make_shared<native_linux_secret_service_backend>(scope, slot)
+					std::make_shared<native_linux_secret_service_backend>(scope, slot, aBprProfile)
 				};
 			} catch (const std::bad_alloc&) {
 				return std::unexpected{
@@ -1132,8 +1148,10 @@ namespace bpr::adapters::github {
 		public:
 			linux_secret_service_vault(application::effect_executor&                 effect_lane,
 									   std::shared_ptr<linux_secret_service_backend> backend,
-									   std::shared_ptr<linux_secret_service_backend> refresh_backend)
-				: EffectLane{ effect_lane }
+									   std::shared_ptr<linux_secret_service_backend> refresh_backend,
+									   const core::bpr_profile_id                    aBprProfile)
+				: BprProfile{ aBprProfile }
+				, EffectLane{ effect_lane }
 				, State{ std::make_shared<shared_state>(std::move(backend),
 														std::move(refresh_backend)) }
 			{
@@ -1254,7 +1272,7 @@ namespace bpr::adapters::github {
 				application::github_credential_store_completion_handler completion)
 			{
 				const auto context = enrollment.Context;
-				if (!application::valid(enrollment) || !completion) {
+				if (!application::valid(enrollment) || context.Authority.BprProfile != BprProfile || !completion) {
 					enrollment.Credential.reset();
 					if (completion) {
 						completion(application::github_credential_store_error{
@@ -1279,7 +1297,7 @@ namespace bpr::adapters::github {
 				application::github_credential_operation_context           context,
 				application::github_credential_retrieve_completion_handler completion)
 			{
-				if (!application::valid(context) || !completion) {
+				if (!application::valid(context) || context.Authority.BprProfile != BprProfile || !completion) {
 					if (completion) {
 						completion(application::github_credential_retrieve_error{
 							.Context = context,
@@ -1303,7 +1321,7 @@ namespace bpr::adapters::github {
 				application::github_credential_operation_context         context,
 				application::github_credential_delete_completion_handler completion)
 			{
-				if (!application::valid(context) || !completion) {
+				if (!application::valid(context) || context.Authority.BprProfile != BprProfile || !completion) {
 					if (completion) {
 						completion(application::github_credential_delete_error{
 							.Context = context,
@@ -1569,16 +1587,18 @@ namespace bpr::adapters::github {
 				}
 			}
 
+			const core::bpr_profile_id    BprProfile;
 			application::effect_executor& EffectLane;
 			std::shared_ptr<shared_state> State;
 		};
 
 		[[nodiscard]] auto make_vault(application::effect_executor&                 effect_lane,
 									  std::shared_ptr<linux_secret_service_backend> backend,
-									  std::shared_ptr<linux_secret_service_backend> refresh_backend) noexcept
+									  std::shared_ptr<linux_secret_service_backend> refresh_backend,
+									  const core::bpr_profile_id                    aBprProfile) noexcept
 			-> linux_secret_service_vault_factory_result
 		{
-			if (backend == nullptr) {
+			if (backend == nullptr || aBprProfile.value() == 0U) {
 				return std::unexpected{
 					application::github_credential_vault_failure::invalid_request
 				};
@@ -1589,7 +1609,7 @@ namespace bpr::adapters::github {
 					std::make_unique<linux_secret_service_vault>(
 						effect_lane,
 						std::move(backend),
-						std::move(refresh_backend))
+						std::move(refresh_backend), aBprProfile)
 				};
 			} catch (const std::bad_alloc&) {
 				return std::unexpected{
@@ -1625,6 +1645,25 @@ namespace bpr::adapters::github {
 			return integration_test_refresh_schema_identifier;
 		}
 		return { };
+	}
+
+	auto linux_secret_service_profile_schema_identifier(
+		const linux_secret_service_schema_scope scope,
+		const linux_secret_service_slot         slot,
+		const core::bpr_profile_id              aBprProfile) -> std::string
+	{
+		if (!valid(scope) || !valid(slot) || aBprProfile.value() == 0U) {
+			return { };
+		}
+		const auto legacy = slot == linux_secret_service_slot::credential
+			? linux_secret_service_schema_identifier(scope)
+			: linux_secret_service_refresh_schema_identifier(scope);
+		if (aBprProfile == core::default_bpr_profile_id) {
+			return std::string{ legacy };
+		}
+		std::array<char, 20U> profileDigits{ };
+		const auto            encoded = std::to_chars(profileDigits.data(), profileDigits.data() + profileDigits.size(), aBprProfile.value());
+		return std::string{ legacy } + ".profile.v1." + std::string{ profileDigits.data(), encoded.ptr };
 	}
 
 	auto encode_linux_secret_service_authority_account(
@@ -1763,53 +1802,54 @@ namespace bpr::adapters::github {
 		return failure::operation_failed;
 	}
 
-	auto make_linux_secret_service_vault(application::effect_executor& effect_lane)
+	auto make_linux_secret_service_vault(application::effect_executor& effect_lane, const core::bpr_profile_id aBprProfile)
 		-> linux_secret_service_vault_factory_result
 	{
 		auto backend = make_native_backend(
 			linux_secret_service_schema_scope::production,
-			linux_secret_service_slot::credential);
+			linux_secret_service_slot::credential, aBprProfile);
 		if (!backend.has_value()) {
 			return std::unexpected{ backend.error() };
 		}
 		auto refresh_backend = make_native_backend(
 			linux_secret_service_schema_scope::production,
-			linux_secret_service_slot::refresh);
+			linux_secret_service_slot::refresh, aBprProfile);
 		if (!refresh_backend.has_value()) {
 			return std::unexpected{ refresh_backend.error() };
 		}
 		return make_vault(
-			effect_lane, std::move(*backend), std::move(*refresh_backend));
+			effect_lane, std::move(*backend), std::move(*refresh_backend), aBprProfile);
 	}
 
 	auto make_linux_secret_service_integration_test_vault(
-		application::effect_executor& effect_lane)
+		application::effect_executor& effect_lane, const core::bpr_profile_id aBprProfile)
 		-> linux_secret_service_vault_factory_result
 	{
 		auto backend = make_native_backend(
 			linux_secret_service_schema_scope::integration_test,
-			linux_secret_service_slot::credential);
+			linux_secret_service_slot::credential, aBprProfile);
 		if (!backend.has_value()) {
 			return std::unexpected{ backend.error() };
 		}
 		auto refresh_backend = make_native_backend(
 			linux_secret_service_schema_scope::integration_test,
-			linux_secret_service_slot::refresh);
+			linux_secret_service_slot::refresh, aBprProfile);
 		if (!refresh_backend.has_value()) {
 			return std::unexpected{ refresh_backend.error() };
 		}
 		return make_vault(
-			effect_lane, std::move(*backend), std::move(*refresh_backend));
+			effect_lane, std::move(*backend), std::move(*refresh_backend), aBprProfile);
 	}
 
 	auto make_linux_secret_service_vault_with_backend(
 		application::effect_executor&                 effect_lane,
 		std::shared_ptr<linux_secret_service_backend> backend,
-		std::shared_ptr<linux_secret_service_backend> refresh_backend) noexcept
+		std::shared_ptr<linux_secret_service_backend> refresh_backend,
+		const core::bpr_profile_id                    aBprProfile) noexcept
 		-> linux_secret_service_vault_factory_result
 	{
 		return make_vault(
-			effect_lane, std::move(backend), std::move(refresh_backend));
+			effect_lane, std::move(backend), std::move(refresh_backend), aBprProfile);
 	}
 }
 // NOLINTEND(readability-identifier-naming)

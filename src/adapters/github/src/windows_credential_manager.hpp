@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <expected>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <variant>
 
@@ -46,6 +47,11 @@ namespace bpr::adapters::github {
 	[[nodiscard]] auto windows_credential_manager_target_prefix(
 		windows_credential_manager_target_scope scope) noexcept
 		-> std::wstring_view;
+
+	/// \brief Owns a profile-specific prefix; Default retains the existing namespace verbatim.
+	[[nodiscard]] auto windows_credential_manager_target_prefix(
+		windows_credential_manager_target_scope aScope, core::bpr_profile_id aBprProfile) noexcept
+		-> std::expected<std::wstring, application::github_credential_vault_failure>;
 
 	[[nodiscard]] auto encode_windows_credential_manager_authority_account(
 		const application::github_credential_authority_key& authority) noexcept
@@ -116,12 +122,14 @@ namespace bpr::adapters::github {
 		application::github_credential_vault_failure>;
 
 	[[nodiscard]] auto make_windows_credential_manager_vault(
-		application::effect_executor& effect_lane)
+		application::effect_executor& effect_lane,
+		core::bpr_profile_id          aBprProfile = core::default_bpr_profile_id)
 		-> windows_credential_manager_vault_factory_result;
 
 	[[nodiscard]] auto
 	make_windows_credential_manager_integration_test_vault(
-		application::effect_executor& effect_lane)
+		application::effect_executor& effect_lane,
+		core::bpr_profile_id          aBprProfile = core::default_bpr_profile_id)
 		-> windows_credential_manager_vault_factory_result;
 
 	// A vault built without a refresh backend answers every refresh-slot
@@ -131,7 +139,8 @@ namespace bpr::adapters::github {
 		application::effect_executor&                       effect_lane,
 		std::shared_ptr<windows_credential_manager_backend> backend,
 		std::shared_ptr<windows_credential_manager_backend> aRefreshBackend
-		= nullptr) noexcept -> windows_credential_manager_vault_factory_result;
+		= nullptr,
+		core::bpr_profile_id aBprProfile = core::default_bpr_profile_id) noexcept -> windows_credential_manager_vault_factory_result;
 }
 
 #endif // BPR_SRC_ADAPTERS_GITHUB_SRC_WINDOWS_CREDENTIAL_MANAGER_HPP

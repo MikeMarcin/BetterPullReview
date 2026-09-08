@@ -9,6 +9,7 @@
 #include <Windows.h>
 #include <wincred.h>
 
+#include <charconv>
 #include <map>
 #include <mutex>
 #include <new>
@@ -185,13 +186,13 @@ namespace bpr::adapters::github {
 		}
 
 		[[nodiscard]] auto make_target_name(
-			const windows_credential_manager_target_scope       scope,
+			const std::wstring_view                             aPrefix,
 			const application::github_credential_authority_key& authority) noexcept
 			-> std::expected<
 				std::wstring,
 				application::github_credential_vault_failure>
 		{
-			if (!valid(scope)) {
+			if (aPrefix.empty() || aPrefix.size() + windows_credential_manager_authority_account_chars > CRED_MAX_GENERIC_TARGET_NAME_LENGTH) {
 				return std::unexpected{
 					application::github_credential_vault_failure::invalid_request
 				};
@@ -202,11 +203,10 @@ namespace bpr::adapters::github {
 				return std::unexpected{ encoded.error() };
 			}
 
-			const auto prefix = windows_credential_manager_target_prefix(scope);
 			try {
 				std::wstring target;
-				target.reserve(prefix.size() + encoded->size());
-				target.append(prefix);
+				target.reserve(aPrefix.size() + encoded->size());
+				target.append(aPrefix);
 				target.append(encoded->data(), encoded->size());
 				return target;
 			} catch (const std::bad_alloc&) {
@@ -280,8 +280,9 @@ namespace bpr::adapters::github {
 		{
 		public:
 			explicit native_windows_credential_manager_backend(
-				const windows_credential_manager_target_scope scope) noexcept
-				: Scope{ scope }
+				std::wstring aPrefix, const core::bpr_profile_id aBprProfile) noexcept
+				: Prefix{ std::move(aPrefix) }
+				, BprProfile{ aBprProfile }
 			{
 			}
 
@@ -293,14 +294,14 @@ namespace bpr::adapters::github {
 				-> windows_credential_manager_backend_store_result override
 			{
 				const auto lock = std::scoped_lock{ OperationMutex };
-				if (!application::valid(authority) || !application::valid(credential)) {
+				if (authority.BprProfile != BprProfile || !application::valid(authority) || !application::valid(credential)) {
 					return std::unexpected{
 						application::github_credential_vault_failure::
 							invalid_request
 					};
 				}
 
-				const auto target = make_target_name(Scope, authority);
+				const auto target = make_target_name(Prefix, authority);
 				if (!target.has_value()) {
 					return std::unexpected{ target.error() };
 				}
@@ -335,12 +336,12 @@ namespace bpr::adapters::github {
 				-> windows_credential_manager_backend_retrieve_result override
 			{
 				const auto lock = std::scoped_lock{ OperationMutex };
-				if (!application::valid(authority)) {
+				if (authority.BprProfile != BprProfile || !application::valid(authority)) {
 					return application::github_credential_vault_failure::
 						invalid_request;
 				}
 
-				const auto target = make_target_name(Scope, authority);
+				const auto target = make_target_name(Prefix, authority);
 				if (!target.has_value()) {
 					return target.error();
 				}
@@ -396,14 +397,14 @@ namespace bpr::adapters::github {
 				-> windows_credential_manager_backend_delete_result override
 			{
 				const auto lock = std::scoped_lock{ OperationMutex };
-				if (!application::valid(authority)) {
+				if (authority.BprProfile != BprProfile || !application::valid(authority)) {
 					return std::unexpected{
 						application::github_credential_vault_failure::
 							invalid_request
 					};
 				}
 
-				const auto target = make_target_name(Scope, authority);
+				const auto target = make_target_name(Prefix, authority);
 				if (!target.has_value()) {
 					return std::unexpected{ target.error() };
 				}
@@ -431,26 +432,28 @@ namespace bpr::adapters::github {
 			}
 
 		private:
-			windows_credential_manager_target_scope Scope;
-			std::mutex                              OperationMutex;
+			const std::wstring         Prefix;
+			const core::bpr_profile_id BprProfile;
+			std::mutex                 OperationMutex;
 		};
 
 		[[nodiscard]] auto make_native_backend(
-			const windows_credential_manager_target_scope scope) noexcept
+			const windows_credential_manager_target_scope scope, const core::bpr_profile_id aBprProfile) noexcept
 			-> std::expected<
 				std::shared_ptr<windows_credential_manager_backend>,
 				application::github_credential_vault_failure>
 		{
-			if (!valid(scope)) {
+			auto prefix = windows_credential_manager_target_prefix(scope, aBprProfile);
+			if (!prefix) {
 				return std::unexpected{
-					application::github_credential_vault_failure::invalid_request
+					prefix.error()
 				};
 			}
 
 			try {
 				return std::shared_ptr<windows_credential_manager_backend>{
 					std::make_shared<native_windows_credential_manager_backend>(
-						scope)
+						std::move(*prefix), aBprProfile)
 				};
 			} catch (const std::bad_alloc&) {
 				return std::unexpected{
@@ -641,8 +644,9 @@ namespace bpr::adapters::github {
 			windows_credential_manager_vault(
 				application::effect_executor&                       effect_lane,
 				std::shared_ptr<windows_credential_manager_backend> backend,
-				std::shared_ptr<windows_credential_manager_backend> aRefreshBackend)
+				std::shared_ptr<windows_credential_manager_backend> aRefreshBackend, core::bpr_profile_id aBprProfile)
 				: EffectLane{ effect_lane }
+				, BprProfile{ aBprProfile }
 				, State{ std::make_shared<shared_state>(
 					  std::move(backend),
 					  std::move(aRefreshBackend)) }
@@ -758,7 +762,7 @@ namespace bpr::adapters::github {
 				application::github_credential_store_completion_handler aCompletion)
 			{
 				const auto operation = aEnrollment.Context;
-				if (!application::valid(aEnrollment) || !aCompletion) {
+				if (aEnrollment.Context.Authority.BprProfile != BprProfile || !application::valid(aEnrollment) || !aCompletion) {
 					aEnrollment.Credential.reset();
 					if (aCompletion) {
 						aCompletion(application::github_credential_store_error{
@@ -784,7 +788,7 @@ namespace bpr::adapters::github {
 				const application::github_credential_operation_context&    aContext,
 				application::github_credential_retrieve_completion_handler aCompletion)
 			{
-				if (!application::valid(aContext) || !aCompletion) {
+				if (aContext.Authority.BprProfile != BprProfile || !application::valid(aContext) || !aCompletion) {
 					if (aCompletion) {
 						aCompletion(application::github_credential_retrieve_error{
 							.Context = aContext,
@@ -809,7 +813,7 @@ namespace bpr::adapters::github {
 				const application::github_credential_operation_context&  aContext,
 				application::github_credential_delete_completion_handler aCompletion)
 			{
-				if (!application::valid(aContext) || !aCompletion) {
+				if (aContext.Authority.BprProfile != BprProfile || !application::valid(aContext) || !aCompletion) {
 					if (aCompletion) {
 						aCompletion(application::github_credential_delete_error{
 							.Context = aContext,
@@ -1113,16 +1117,17 @@ namespace bpr::adapters::github {
 			}
 
 			application::effect_executor& EffectLane;
+			const core::bpr_profile_id    BprProfile;
 			std::shared_ptr<shared_state> State;
 		};
 
 		[[nodiscard]] auto make_vault(
 			application::effect_executor&                       effect_lane,
 			std::shared_ptr<windows_credential_manager_backend> backend,
-			std::shared_ptr<windows_credential_manager_backend> aRefreshBackend) noexcept
+			std::shared_ptr<windows_credential_manager_backend> aRefreshBackend, core::bpr_profile_id aBprProfile) noexcept
 			-> windows_credential_manager_vault_factory_result
 		{
-			if (backend == nullptr) {
+			if (backend == nullptr || aBprProfile.value() == 0U) {
 				return std::unexpected{
 					application::github_credential_vault_failure::invalid_request
 				};
@@ -1133,7 +1138,7 @@ namespace bpr::adapters::github {
 					std::make_unique<windows_credential_manager_vault>(
 						effect_lane,
 						std::move(backend),
-						std::move(aRefreshBackend))
+						std::move(aRefreshBackend), aBprProfile)
 				};
 			} catch (const std::bad_alloc&) {
 				return std::unexpected{
@@ -1164,6 +1169,39 @@ namespace bpr::adapters::github {
 			return integration_test_refresh_target_prefix;
 		}
 		return { };
+	}
+
+	auto windows_credential_manager_target_prefix(const windows_credential_manager_target_scope aScope, const core::bpr_profile_id aBprProfile) noexcept
+		-> std::expected<std::wstring, application::github_credential_vault_failure>
+	{
+		if (!valid(aScope) || aBprProfile.value() == 0U) {
+			return std::unexpected{ application::github_credential_vault_failure::invalid_request };
+		}
+		try {
+			auto prefix = std::wstring{ windows_credential_manager_target_prefix(aScope) };
+			if (aBprProfile != core::default_bpr_profile_id) {
+				// The version changes before the profile component, so scoped targets
+				// never probe the Default slot, even after a missing-item result.
+				const auto version = prefix.rfind(L".v");
+				prefix.resize(version);
+				prefix.append(L".v3/profile/");
+				auto       digits  = std::array<char, 20U>{ };
+				const auto encoded = std::to_chars(digits.data(), digits.data() + digits.size(), aBprProfile.value());
+				if (encoded.ec != std::errc{ }) {
+					return std::unexpected{ application::github_credential_vault_failure::invalid_request };
+				}
+				prefix.append(digits.data(), encoded.ptr);
+				prefix.push_back(L'/');
+			}
+			if (prefix.size() + windows_credential_manager_authority_account_chars > CRED_MAX_GENERIC_TARGET_NAME_LENGTH) {
+				return std::unexpected{ application::github_credential_vault_failure::invalid_request };
+			}
+			return prefix;
+		} catch (const std::bad_alloc&) {
+			return std::unexpected{ application::github_credential_vault_failure::allocation_failure };
+		} catch (...) {
+			return std::unexpected{ application::github_credential_vault_failure::operation_failed };
+		}
 	}
 
 	auto encode_windows_credential_manager_authority_account(
@@ -1250,54 +1288,54 @@ namespace bpr::adapters::github {
 	}
 
 	auto make_windows_credential_manager_vault(
-		application::effect_executor& effect_lane)
+		application::effect_executor& effect_lane, core::bpr_profile_id aBprProfile)
 		-> windows_credential_manager_vault_factory_result
 	{
 		auto backend = make_native_backend(
-			windows_credential_manager_target_scope::production);
+			windows_credential_manager_target_scope::production, aBprProfile);
 		if (!backend.has_value()) {
 			return std::unexpected{ backend.error() };
 		}
 		auto refresh = make_native_backend(
-			windows_credential_manager_target_scope::production_refresh);
+			windows_credential_manager_target_scope::production_refresh, aBprProfile);
 		if (!refresh.has_value()) {
 			return std::unexpected{ refresh.error() };
 		}
 		return make_vault(
 			effect_lane,
 			std::move(*backend),
-			std::move(*refresh));
+			std::move(*refresh), aBprProfile);
 	}
 
 	auto make_windows_credential_manager_integration_test_vault(
-		application::effect_executor& effect_lane)
+		application::effect_executor& effect_lane, core::bpr_profile_id aBprProfile)
 		-> windows_credential_manager_vault_factory_result
 	{
 		auto backend = make_native_backend(
-			windows_credential_manager_target_scope::integration_test);
+			windows_credential_manager_target_scope::integration_test, aBprProfile);
 		if (!backend.has_value()) {
 			return std::unexpected{ backend.error() };
 		}
 		auto refresh = make_native_backend(
-			windows_credential_manager_target_scope::integration_test_refresh);
+			windows_credential_manager_target_scope::integration_test_refresh, aBprProfile);
 		if (!refresh.has_value()) {
 			return std::unexpected{ refresh.error() };
 		}
 		return make_vault(
 			effect_lane,
 			std::move(*backend),
-			std::move(*refresh));
+			std::move(*refresh), aBprProfile);
 	}
 
 	auto make_windows_credential_manager_vault_with_backend(
 		application::effect_executor&                       effect_lane,
 		std::shared_ptr<windows_credential_manager_backend> backend,
-		std::shared_ptr<windows_credential_manager_backend> aRefreshBackend) noexcept
+		std::shared_ptr<windows_credential_manager_backend> aRefreshBackend, core::bpr_profile_id aBprProfile) noexcept
 		-> windows_credential_manager_vault_factory_result
 	{
 		return make_vault(
 			effect_lane,
 			std::move(backend),
-			std::move(aRefreshBackend));
+			std::move(aRefreshBackend), aBprProfile);
 	}
 }

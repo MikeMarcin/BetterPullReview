@@ -5,7 +5,7 @@
 #include <memory>
 namespace bpr::adapters::sqlite {
 	/// \brief Constructs a lazy metadata-only device binding store under the private state root.
-	[[nodiscard]] auto make_device_binding_store(std::filesystem::path aStorageRoot)
+	[[nodiscard]] auto make_device_binding_store(std::filesystem::path aStorageRoot, core::bpr_profile_id aBprProfile = core::default_bpr_profile_id)
 		-> std::unique_ptr<application::device_binding_store_port>;
 }
 #endif

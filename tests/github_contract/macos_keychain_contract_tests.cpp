@@ -45,12 +45,12 @@ namespace {
 	static_assert(
 		std::move_constructible<macos_keychain_backend_retrieve_result>);
 	using native_factory_signature = auto (*)(
-		application::effect_executor&)
+		application::effect_executor&, core::bpr_profile_id)
 		-> macos_keychain_vault_factory_result;
 	using injected_factory_signature = auto (*)(
 		application::effect_executor&,
 		std::shared_ptr<macos_keychain_backend>,
-		std::shared_ptr<macos_keychain_backend>) noexcept
+		std::shared_ptr<macos_keychain_backend>, core::bpr_profile_id) noexcept
 		-> macos_keychain_vault_factory_result;
 	static_assert(std::is_same_v<
 				  decltype(&make_macos_keychain_vault),
@@ -897,6 +897,86 @@ namespace {
 			errSecInternalComponent,
 			macos_keychain_status_kind::failure,
 			vault_failure::operation_failed);
+	}
+
+	void test_bpr_profile_namespaces_and_admission()
+	{
+		for (const auto scope : { macos_keychain_service_scope::production,
+								  macos_keychain_service_scope::integration_test,
+								  macos_keychain_service_scope::production_refresh,
+								  macos_keychain_service_scope::integration_test_refresh }) {
+			const auto legacy         = macos_keychain_service_identifier(scope);
+			const auto defaultService = macos_keychain_service_identifier(scope, core::default_bpr_profile_id);
+			const auto first          = macos_keychain_service_identifier(scope, core::bpr_profile_id{ 2U });
+			const auto second         = macos_keychain_service_identifier(scope, core::bpr_profile_id{ 3U });
+			expect(defaultService && *defaultService == legacy, "Default service preserves exact existing bytes");
+			expect(first && second && *first != legacy && *first != *second
+					   && first->ends_with(".bpr-profile.0000000000000002")
+					   && second->ends_with(".bpr-profile.0000000000000003"),
+				   "profile services use distinct canonical fixed-width identities");
+		}
+		const auto access  = macos_keychain_service_identifier(macos_keychain_service_scope::production, core::bpr_profile_id{ 2U });
+		const auto refresh = macos_keychain_service_identifier(macos_keychain_service_scope::production_refresh, core::bpr_profile_id{ 2U });
+		expect(access && refresh && *access != *refresh
+				   && access->find(".v3.bpr-profile.") != std::string::npos
+				   && refresh->find(".v2.bpr-profile.") != std::string::npos,
+			   "profile access and refresh have separate versioned services");
+		auto       key           = authority();
+		const auto legacyAccount = encode_macos_keychain_authority_account(key);
+		key.BprProfile           = core::bpr_profile_id{ 2U };
+		expect(legacyAccount && legacyAccount->size() == 574U
+				   && encode_macos_keychain_authority_account(key) == legacyAccount,
+			   "profile scope lives in service while the 574-byte account codec stays unchanged");
+
+		application::manual_executor lane;
+		auto                         observation    = std::make_shared<wipe_observation>();
+		auto                         backend        = std::make_shared<wiping_fake_backend>(observation);
+		auto                         refreshBackend = std::make_shared<wiping_fake_backend>(observation);
+		auto                         made           = make_macos_keychain_vault_with_backend(lane, backend, refreshBackend, core::bpr_profile_id{ 2U });
+		expect(made.has_value(), "profile-bound injected vault constructs");
+		auto&      vault = **made;
+		const auto bytes = generated_bytes(3U);
+		for (const auto foreignProfile : { core::default_bpr_profile_id, core::bpr_profile_id{ 3U } }) {
+			key.BprProfile              = foreignProfile;
+			const auto        operation = context(key);
+			store_recorder    stored;
+			retrieve_recorder retrieved;
+			delete_recorder   deleted;
+			submit_store(vault, operation, bytes, stored);
+			submit_retrieve(vault, operation, retrieved);
+			submit_delete(vault, operation, deleted);
+			expect_store_error(stored, operation, vault_failure::invalid_request);
+			expect_retrieve_error(retrieved, operation, vault_failure::invalid_request);
+			expect_delete_error(deleted, operation, vault_failure::invalid_request);
+			store_recorder    refreshStored;
+			retrieve_recorder refreshRetrieved;
+			delete_recorder   refreshDeleted;
+			vault.store_refresh({ .Context = operation, .Credential = material_from(bytes) },
+								[&](auto aTerminal) { refreshStored.record(std::move(aTerminal)); });
+			vault.retrieve_refresh(operation,
+								   [&](auto aTerminal) { refreshRetrieved.record(std::move(aTerminal)); });
+			vault.delete_refresh(operation,
+								 [&](auto aTerminal) { refreshDeleted.record(std::move(aTerminal)); });
+			vault.cancel(operation);
+			expect_store_error(refreshStored, operation, vault_failure::invalid_request);
+			expect_retrieve_error(refreshRetrieved, operation, vault_failure::invalid_request);
+			expect_delete_error(refreshDeleted, operation, vault_failure::invalid_request);
+		}
+		expect(lane.pending() == 0U && backend->Calls.empty() && refreshBackend->Calls.empty(),
+			   "foreign access and refresh operations never reach lane or backend");
+		key.BprProfile = core::bpr_profile_id{ 2U };
+		store_recorder accepted;
+		submit_store(vault, context(key), bytes, accepted);
+		lane.run_next();
+		expect_store_success(accepted, context(key));
+		expect(backend->Calls.size() == 1U, "bound profile retains normal access");
+		const auto invalid            = make_macos_keychain_vault_with_backend(lane, backend, refreshBackend, core::bpr_profile_id{ });
+		const auto invalidNative      = make_macos_keychain_vault(lane, core::bpr_profile_id{ });
+		const auto invalidIntegration = make_macos_keychain_integration_test_vault(lane, core::bpr_profile_id{ });
+		expect(!invalid && invalid.error() == vault_failure::invalid_request
+				   && !invalidNative && invalidNative.error() == vault_failure::invalid_request
+				   && !invalidIntegration && invalidIntegration.error() == vault_failure::invalid_request,
+			   "invalid profile factories refuse before opening native Keychain");
 	}
 
 	void test_invalid_and_duplicate_requests()
@@ -1785,6 +1865,7 @@ auto main() -> int
 	test_service_and_authority_encoding();
 	test_complete_status_classification();
 	test_invalid_and_duplicate_requests();
+	test_bpr_profile_namespaces_and_admission();
 	test_replacement_absence_delete_and_reordering();
 	test_failures_preserve_existing_material();
 	test_executor_and_backend_exceptions();

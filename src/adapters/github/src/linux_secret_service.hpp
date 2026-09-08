@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <expected>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <variant>
 
@@ -76,6 +77,12 @@ namespace bpr::adapters::github {
 	[[nodiscard]] auto linux_secret_service_refresh_schema_identifier(
 		linux_secret_service_schema_scope scope) noexcept -> std::string_view;
 
+	/// \brief Resolves the immutable profile namespace; Default preserves legacy bytes.
+	[[nodiscard]] auto linux_secret_service_profile_schema_identifier(
+		linux_secret_service_schema_scope scope,
+		linux_secret_service_slot         slot,
+		core::bpr_profile_id              aBprProfile) -> std::string;
+
 	[[nodiscard]] auto encode_linux_secret_service_authority_account(
 		const application::github_credential_authority_key& authority) noexcept
 		-> std::expected<linux_secret_service_authority_account,
@@ -139,12 +146,16 @@ namespace bpr::adapters::github {
 	using linux_secret_service_vault_factory_result = std::expected<std::unique_ptr<application::github_credential_vault_port>,
 																	application::github_credential_vault_failure>;
 
+	/// \brief Binds access and refresh namespaces and admission to one BPR profile.
 	[[nodiscard]] auto make_linux_secret_service_vault(
-		application::effect_executor& effect_lane)
+		application::effect_executor& effect_lane,
+		core::bpr_profile_id          aBprProfile = core::default_bpr_profile_id)
 		-> linux_secret_service_vault_factory_result;
 
+	/// \brief Uses isolated integration namespaces for the immutable BPR profile.
 	[[nodiscard]] auto make_linux_secret_service_integration_test_vault(
-		application::effect_executor& effect_lane)
+		application::effect_executor& effect_lane,
+		core::bpr_profile_id          aBprProfile = core::default_bpr_profile_id)
 		-> linux_secret_service_vault_factory_result;
 
 	/// @brief Builds a vault over injected backends.
@@ -158,7 +169,8 @@ namespace bpr::adapters::github {
 		application::effect_executor&                 effect_lane,
 		std::shared_ptr<linux_secret_service_backend> backend,
 		std::shared_ptr<linux_secret_service_backend> refresh_backend
-		= nullptr) noexcept -> linux_secret_service_vault_factory_result;
+		= nullptr,
+		core::bpr_profile_id aBprProfile = core::default_bpr_profile_id) noexcept -> linux_secret_service_vault_factory_result;
 }
 
 // NOLINTEND(readability-identifier-naming)

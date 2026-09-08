@@ -10,6 +10,7 @@
 	#define WIN32_LEAN_AND_MEAN
 #endif
 #include <Windows.h>
+#include <wincred.h>
 
 #include <array>
 #include <chrono>
@@ -55,14 +56,14 @@ namespace {
 		std::move_constructible<
 			windows_credential_manager_backend_retrieve_result>);
 	using native_factory_signature = auto (*)(
-		application::effect_executor&)
+		application::effect_executor&, core::bpr_profile_id)
 		-> windows_credential_manager_vault_factory_result;
 	// BPR-0543. The second backend is the refresh slot's; it defaults to null,
 	// so a caller that wants only the base slot is unchanged.
 	using injected_factory_signature = auto (*)(
 		application::effect_executor&,
 		std::shared_ptr<windows_credential_manager_backend>,
-		std::shared_ptr<windows_credential_manager_backend>) noexcept
+		std::shared_ptr<windows_credential_manager_backend>, core::bpr_profile_id) noexcept
 		-> windows_credential_manager_vault_factory_result;
 	static_assert(std::is_same_v<
 				  decltype(&make_windows_credential_manager_vault),
@@ -1997,10 +1998,84 @@ namespace {
 			backend->Calls.empty(),
 			"and the credential backend was never asked to hold it");
 	}
+	void test_bpr_profile_target_namespaces()
+	{
+		using scope = windows_credential_manager_target_scope;
+		for (const auto selected : { scope::production, scope::integration_test, scope::production_refresh, scope::integration_test_refresh }) {
+			const auto legacy  = windows_credential_manager_target_prefix(selected);
+			const auto adopted = windows_credential_manager_target_prefix(selected, core::default_bpr_profile_id);
+			const auto first   = windows_credential_manager_target_prefix(selected, core::bpr_profile_id{ 2U });
+			const auto second  = windows_credential_manager_target_prefix(selected, core::bpr_profile_id{ 3U });
+			const auto maximum = windows_credential_manager_target_prefix(selected, core::bpr_profile_id{ UINT64_MAX });
+			expect(adopted.has_value() && *adopted == legacy, "Default preserves every existing access/refresh namespace byte");
+			expect(first.has_value() && second.has_value() && maximum.has_value(), "valid profile namespaces can be constructed");
+			expect(*first != *second && *first != *adopted && first->ends_with(L".v3/profile/2/") && second->ends_with(L".v3/profile/3/"), "non-Default namespaces contain distinct canonical profile identities");
+			expect(maximum->ends_with(L"/18446744073709551615/") && maximum->size() + windows_credential_manager_authority_account_chars <= CRED_MAX_GENERIC_TARGET_NAME_LENGTH, "maximum profile identity retains the Windows generic target bound");
+			const auto invalid = windows_credential_manager_target_prefix(selected, core::bpr_profile_id{ });
+			expect(!invalid && invalid.error() == vault_failure::invalid_request, "zero profile cannot form a namespace");
+		}
+		const auto access  = windows_credential_manager_target_prefix(scope::production, core::bpr_profile_id{ 2U });
+		const auto refresh = windows_credential_manager_target_prefix(scope::production_refresh, core::bpr_profile_id{ 2U });
+		expect(access.has_value() && refresh.has_value() && *access != *refresh && !access->starts_with(*refresh) && !refresh->starts_with(*access), "profile access and refresh targets stay disjoint");
+		const auto legacy  = encode_windows_credential_manager_authority_account(authority());
+		auto       scoped  = authority();
+		scoped.BprProfile  = core::bpr_profile_id{ 2U };
+		const auto encoded = encode_windows_credential_manager_authority_account(scoped);
+		expect(legacy.has_value() && encoded.has_value() && *encoded == *legacy && encoded->size() == 574U, "profile namespace does not rewrite the existing 574-character authority codec");
+	}
+
+	void test_profile_scope_refuses_foreign_work_before_effects()
+	{
+		for (const auto profile : { core::default_bpr_profile_id, core::bpr_profile_id{ 2U } }) {
+			application::manual_executor lane;
+			auto                         observation    = std::make_shared<wipe_observation>();
+			auto                         backend        = std::make_shared<wiping_fake_backend>(observation);
+			auto                         refreshBackend = std::make_shared<wiping_fake_backend>(observation);
+			auto                         vault          = make_windows_credential_manager_vault_with_backend(lane, backend, refreshBackend, profile);
+			expect(vault.has_value(), "profile-bound injected vault is available");
+			auto foreign                 = context();
+			foreign.Authority.BprProfile = profile == core::default_bpr_profile_id ? core::bpr_profile_id{ 2U } : core::default_bpr_profile_id;
+			const auto        bytes      = generated_bytes(3U);
+			store_recorder    stored;
+			retrieve_recorder retrieved;
+			delete_recorder   deleted;
+			submit_store(**vault, foreign, bytes, stored);
+			submit_retrieve(**vault, foreign, retrieved);
+			submit_delete(**vault, foreign, deleted);
+			expect_store_error(stored, foreign, vault_failure::invalid_request);
+			expect_retrieve_error(retrieved, foreign, vault_failure::invalid_request);
+			expect_delete_error(deleted, foreign, vault_failure::invalid_request);
+			store_recorder    refreshStored;
+			retrieve_recorder refreshRetrieved;
+			delete_recorder   refreshDeleted;
+			(*vault)->store_refresh({ .Context = foreign, .Credential = material_from(bytes) }, [&refreshStored](application::github_credential_store_completion aTerminal) { refreshStored.record(std::move(aTerminal)); });
+			(*vault)->retrieve_refresh(foreign, [&refreshRetrieved](application::github_credential_retrieve_completion aTerminal) { refreshRetrieved.record(std::move(aTerminal)); });
+			(*vault)->delete_refresh(foreign, [&refreshDeleted](application::github_credential_delete_completion aTerminal) { refreshDeleted.record(std::move(aTerminal)); });
+			expect_store_error(refreshStored, foreign, vault_failure::invalid_request);
+			expect_retrieve_error(refreshRetrieved, foreign, vault_failure::invalid_request);
+			expect_delete_error(refreshDeleted, foreign, vault_failure::invalid_request);
+			expect(lane.pending() == 0U && backend->Calls.empty() && refreshBackend->Calls.empty(), "foreign access and refresh operations reach neither effect lane nor backend");
+			auto admitted                 = foreign;
+			admitted.Authority.BprProfile = profile;
+			store_recorder accepted;
+			submit_store(**vault, admitted, bytes, accepted);
+			lane.drain();
+			expect(backend->Calls.size() == 1U && refreshBackend->Calls.empty(), "the same vault admits its own immutable profile");
+			const auto invalid = make_windows_credential_manager_vault_with_backend(lane, backend, refreshBackend, core::bpr_profile_id{ });
+			expect(!invalid && invalid.error() == vault_failure::invalid_request, "injected factory refuses zero scope");
+		}
+		application::manual_executor lane;
+		const auto                   production  = make_windows_credential_manager_vault(lane, core::bpr_profile_id{ });
+		const auto                   integration = make_windows_credential_manager_integration_test_vault(lane, core::bpr_profile_id{ });
+		expect(!production && production.error() == vault_failure::invalid_request && !integration && integration.error() == vault_failure::invalid_request, "native factories refuse zero scope before any native operation");
+	}
+
 }
 
 auto main() -> int
 {
+	test_bpr_profile_target_namespaces();
+	test_profile_scope_refuses_foreign_work_before_effects();
 	test_target_and_authority_encoding();
 	test_complete_status_classification();
 	test_invalid_and_duplicate_requests();

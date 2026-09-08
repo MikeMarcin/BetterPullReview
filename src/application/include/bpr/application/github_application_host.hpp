@@ -161,7 +161,8 @@ namespace bpr::application {
 			// The signed-out presentation sink. Null until composition
 			// supplies one, which leaves the mode working but unpresented
 			// rather than silently authenticated.
-			public_preview_projection_port* aPublicPreview = nullptr);
+			public_preview_projection_port* aPublicPreview = nullptr,
+			core::bpr_profile_id            aBprProfile    = core::default_bpr_profile_id);
 		~github_application_host();
 
 		github_application_host(const github_application_host&) = delete;

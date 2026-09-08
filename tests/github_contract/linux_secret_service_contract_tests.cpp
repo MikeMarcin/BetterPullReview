@@ -50,7 +50,7 @@ namespace {
 		std::move_constructible<
 			linux_secret_service_backend_retrieve_result>);
 	using native_factory_signature = auto (*)(
-		application::effect_executor&)
+		application::effect_executor&, core::bpr_profile_id)
 		-> linux_secret_service_vault_factory_result;
 	// [[BPR-0542]] The injected factory takes both stores. The second is
 	// defaulted so every existing single-slot caller still reads the same, and
@@ -59,7 +59,7 @@ namespace {
 	using injected_factory_signature = auto (*)(
 		application::effect_executor&,
 		std::shared_ptr<linux_secret_service_backend>,
-		std::shared_ptr<linux_secret_service_backend>) noexcept
+		std::shared_ptr<linux_secret_service_backend>, core::bpr_profile_id) noexcept
 		-> linux_secret_service_vault_factory_result;
 	static_assert(std::is_same_v<
 				  decltype(&make_linux_secret_service_vault),
@@ -829,6 +829,73 @@ namespace {
 			encode_linux_secret_service_authority_account(malformed)
 				== std::unexpected{ vault_failure::invalid_request },
 			"malformed contract is rejected before Secret Service");
+	}
+
+	void test_profile_namespaces_and_admission()
+	{
+		const auto first  = core::bpr_profile_id{ 2U };
+		const auto second = core::bpr_profile_id{ 3U };
+		for (const auto scope : { linux_secret_service_schema_scope::production, linux_secret_service_schema_scope::integration_test }) {
+			const auto access  = linux_secret_service_profile_schema_identifier(scope, linux_secret_service_slot::credential, first);
+			const auto refresh = linux_secret_service_profile_schema_identifier(scope, linux_secret_service_slot::refresh, first);
+			expect(linux_secret_service_profile_schema_identifier(scope, linux_secret_service_slot::credential, core::default_bpr_profile_id)
+					   == linux_secret_service_schema_identifier(scope),
+				   "Default access namespace bytes remain unchanged");
+			expect(linux_secret_service_profile_schema_identifier(scope, linux_secret_service_slot::refresh, core::default_bpr_profile_id)
+					   == linux_secret_service_refresh_schema_identifier(scope),
+				   "Default refresh namespace bytes remain unchanged");
+			expect(access.ends_with(".profile.v1.2") && refresh.ends_with(".profile.v1.2") && access != refresh,
+				   "profile slots have canonical IDs and separate versioned namespaces");
+			expect(access != linux_secret_service_profile_schema_identifier(scope, linux_secret_service_slot::credential, second)
+					   && refresh != linux_secret_service_profile_schema_identifier(scope, linux_secret_service_slot::refresh, second),
+				   "two profiles never share access or refresh namespaces");
+			expect(linux_secret_service_profile_schema_identifier(scope, linux_secret_service_slot::credential, { }).empty(), "zero profile has no namespace");
+		}
+		application::manual_executor lane;
+		auto                         observation    = std::make_shared<wipe_observation>();
+		auto                         backend        = std::make_shared<wiping_fake_backend>(observation);
+		auto                         refreshBackend = std::make_shared<wiping_fake_backend>(observation);
+		auto                         created        = make_linux_secret_service_vault_with_backend(lane, backend, refreshBackend, first);
+		expect(created.has_value(), "profile-bound injected vault is created");
+		auto&      vault = **created;
+		const auto bytes = generated_bytes(3U);
+		for (const auto foreign : { core::default_bpr_profile_id, second, core::bpr_profile_id{ } }) {
+			auto operation                 = context();
+			operation.Authority.BprProfile = foreign;
+			store_recorder    stored;
+			store_recorder    refreshStored;
+			retrieve_recorder retrieved;
+			retrieve_recorder refreshRetrieved;
+			delete_recorder   deleted;
+			delete_recorder   refreshDeleted;
+			submit_store(vault, operation, bytes, stored);
+			submit_store_refresh(vault, operation, bytes, refreshStored);
+			submit_retrieve(vault, operation, retrieved);
+			submit_delete(vault, operation, deleted);
+			vault.retrieve_refresh(operation, [&refreshRetrieved](auto aTerminal) { refreshRetrieved.record(std::move(aTerminal)); });
+			vault.delete_refresh(operation, [&refreshDeleted](auto aTerminal) { refreshDeleted.record(std::move(aTerminal)); });
+			expect_store_error(stored, operation, vault_failure::invalid_request);
+			expect_store_error(refreshStored, operation, vault_failure::invalid_request);
+			expect_retrieve_error(retrieved, operation, vault_failure::invalid_request);
+			expect_retrieve_error(refreshRetrieved, operation, vault_failure::invalid_request);
+			expect_delete_error(deleted, operation, vault_failure::invalid_request);
+			expect_delete_error(refreshDeleted, operation, vault_failure::invalid_request);
+		}
+		expect(lane.pending() == 0U && backend->Calls.empty() && refreshBackend->Calls.empty(), "foreign profile operations have zero queued or backend effects");
+		auto operation                 = context();
+		operation.Authority.BprProfile = first;
+		store_recorder accepted;
+		submit_store(vault, operation, bytes, accepted);
+		lane.run_next();
+		expect_store_success(accepted, operation);
+		expect(backend->Calls.size() == 1U, "matching profile reaches its own backend");
+		const auto invalidInjected    = make_linux_secret_service_vault_with_backend(lane, backend, refreshBackend, { });
+		const auto invalidProduction  = make_linux_secret_service_vault(lane, { });
+		const auto invalidIntegration = make_linux_secret_service_integration_test_vault(lane, { });
+		expect(!invalidInjected && invalidInjected.error() == vault_failure::invalid_request
+				   && !invalidProduction && invalidProduction.error() == vault_failure::invalid_request
+				   && !invalidIntegration && invalidIntegration.error() == vault_failure::invalid_request,
+			   "all factories reject invalid profiles before native effects");
 	}
 
 	void test_status_classification()
@@ -1742,6 +1809,7 @@ namespace {
 auto main() -> int
 {
 	test_schema_and_authority_encoding();
+	test_profile_namespaces_and_admission();
 	test_status_classification();
 	test_invalid_duplicate_and_exact_authority();
 	test_replacement_absence_delete_and_reordering();

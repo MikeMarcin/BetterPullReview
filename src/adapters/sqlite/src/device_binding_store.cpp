@@ -14,7 +14,9 @@ namespace bpr::adapters::sqlite {
 	namespace {
 		using application::device_binding_failure;
 		using application::device_binding_result;
-		constexpr std::string_view Schema        = "CREATE TABLE device_binding(profile TEXT PRIMARY KEY,revision TEXT NOT NULL,host TEXT NOT NULL,hostname TEXT NOT NULL,account TEXT NOT NULL,server INTEGER NOT NULL CHECK(server BETWEEN 0 AND 1),provenance INTEGER NOT NULL CHECK(provenance=1),issued INTEGER NOT NULL CHECK(issued>0),access_expiry INTEGER NOT NULL CHECK(access_expiry>issued),refresh_expiry INTEGER NOT NULL CHECK(refresh_expiry>issued),tombstone INTEGER NOT NULL CHECK(tombstone IN(0,1))) STRICT";
+		constexpr std::string_view LegacySchema  = "CREATE TABLE device_binding(profile TEXT PRIMARY KEY,revision TEXT NOT NULL,host TEXT NOT NULL,hostname TEXT NOT NULL,account TEXT NOT NULL,server INTEGER NOT NULL CHECK(server BETWEEN 0 AND 1),provenance INTEGER NOT NULL CHECK(provenance=1),issued INTEGER NOT NULL CHECK(issued>0),access_expiry INTEGER NOT NULL CHECK(access_expiry>issued),refresh_expiry INTEGER NOT NULL CHECK(refresh_expiry>issued),tombstone INTEGER NOT NULL CHECK(tombstone IN(0,1))) STRICT";
+		constexpr std::string_view Schema        = "CREATE TABLE device_binding(profile TEXT PRIMARY KEY,revision TEXT NOT NULL,host TEXT NOT NULL,hostname TEXT NOT NULL,account TEXT NOT NULL,server INTEGER NOT NULL CHECK(server BETWEEN 0 AND 1),provenance INTEGER NOT NULL CHECK(provenance=1),issued INTEGER NOT NULL CHECK(issued>0),access_expiry INTEGER NOT NULL CHECK(access_expiry>issued),refresh_expiry INTEGER NOT NULL CHECK(refresh_expiry>issued),tombstone INTEGER NOT NULL CHECK(tombstone IN(0,1)),bpr_profile TEXT NOT NULL) STRICT";
+		constexpr std::string_view ScopeSchema   = "CREATE TABLE binding_scope(profile TEXT PRIMARY KEY) STRICT";
 		constexpr std::int64_t     ApplicationId = 0x42505242;
 		constexpr auto             corrupt() { return std::unexpected(device_binding_failure::corrupt); }
 		auto                       text_of(sqlite3_stmt* aStatement, int aColumn) -> std::string_view
@@ -49,11 +51,42 @@ namespace bpr::adapters::sqlite {
 				&& sqlite3_bind_int(aStatement, 6, static_cast<int>(aAuthority.ServerContract)) == SQLITE_OK;
 		}
 
+		// Connection-local limits and progress checks must precede all untrusted reads.
+		// Unlike configure_connection, these cannot mutate a refused database.
+		class binding_read_scope final
+		{
+		public:
+			binding_read_scope(sqlite3* aDatabase, std::stop_token aStop)
+				: Database{ aDatabase }
+				, Stop{ aStop }
+			{
+				static_cast<void>(sqlite3_limit(Database, SQLITE_LIMIT_LENGTH, 1'048'576));
+				static_cast<void>(sqlite3_limit(Database, SQLITE_LIMIT_SQL_LENGTH, 8'192));
+				static_cast<void>(sqlite3_limit(Database, SQLITE_LIMIT_COLUMN, 16));
+				static_cast<void>(sqlite3_limit(Database, SQLITE_LIMIT_VDBE_OP, 10'000));
+				sqlite3_progress_handler(Database, 100, progress, this);
+			}
+			~binding_read_scope() { sqlite3_progress_handler(Database, 0, nullptr, nullptr); }
+			binding_read_scope(const binding_read_scope&)                    = delete;
+			auto operator=(const binding_read_scope&) -> binding_read_scope& = delete;
+
+		private:
+			static auto progress(void* aContext) -> int
+			{
+				auto& scope = *static_cast<binding_read_scope*>(aContext);
+				return scope.Stop.stop_requested() || ++scope.Steps >= 200U ? 1 : 0;
+			}
+			sqlite3*        Database;
+			std::stop_token Stop;
+			std::size_t     Steps = 0U;
+		};
+
 		class sqlite_device_binding_store final : public application::device_binding_store_port
 		{
 		public:
-			explicit sqlite_device_binding_store(std::filesystem::path aRoot)
+			explicit sqlite_device_binding_store(std::filesystem::path aRoot, core::bpr_profile_id aBprProfile)
 				: Root{ std::move(aRoot) }
+				, BprProfile{ aBprProfile }
 			{ }
 			~sqlite_device_binding_store() override
 			{
@@ -70,7 +103,7 @@ namespace bpr::adapters::sqlite {
 			}
 			auto store(const application::device_binding_record& aRecord, std::stop_token aStop) -> device_binding_result override
 			{
-				if (!application::valid(aRecord) || aRecord.Tombstone) {
+				if (!application::valid(aRecord) || aRecord.Authority.BprProfile != BprProfile || aRecord.Tombstone) {
 					return corrupt();
 				}
 				if (auto ready = ensure_open(aStop); !ready) {
@@ -90,23 +123,23 @@ namespace bpr::adapters::sqlite {
 			}
 			auto erase(const application::github_credential_authority_key& aAuthority, std::stop_token aStop) -> device_binding_result override
 			{
-				if (!application::valid(aAuthority)) {
+				if (!application::valid(aAuthority) || aAuthority.BprProfile != BprProfile) {
 					return corrupt();
 				}
 				if (auto ready = ensure_open(aStop); !ready) {
 					return ready;
 				}
-				auto statement = detail::prepare(Database, "UPDATE device_binding SET tombstone=1 WHERE profile=?1 AND revision=?2 AND host=?3 AND hostname=?4 AND account=?5 AND server=?6");
-				if (!statement || !bind_authority(statement->Value, aAuthority) || sqlite3_step(statement->Value) != SQLITE_DONE) {
+				auto statement = detail::prepare(Database, "UPDATE device_binding SET tombstone=1 WHERE profile=?1 AND revision=?2 AND host=?3 AND hostname=?4 AND account=?5 AND server=?6 AND bpr_profile=?7");
+				if (!statement || !bind_authority(statement->Value, aAuthority) || !bind_text(statement->Value, 7, std::to_string(BprProfile.value())) || !read_rows(aStop) || sqlite3_step(statement->Value) != SQLITE_DONE) {
 					return std::unexpected(device_binding_failure::unavailable);
 				}
 				return { };
 			}
 
 		private:
-			auto read_rows(std::stop_token aStop) -> application::device_binding_load_result
+			auto read_rows(std::stop_token aStop, bool aLegacy = false) -> application::device_binding_load_result
 			{
-				auto statement = detail::prepare(Database, "SELECT profile,revision,host,hostname,account,server,provenance,issued,access_expiry,refresh_expiry,tombstone FROM device_binding LIMIT 65");
+				auto statement = detail::prepare(Database, aLegacy ? "SELECT profile,revision,host,hostname,account,server,provenance,issued,access_expiry,refresh_expiry,tombstone FROM device_binding LIMIT 65" : "SELECT profile,revision,host,hostname,account,server,provenance,issued,access_expiry,refresh_expiry,tombstone,bpr_profile FROM device_binding LIMIT 65");
 				if (!statement) {
 					return corrupt();
 				}
@@ -128,11 +161,11 @@ namespace bpr::adapters::sqlite {
 						return corrupt();
 					}
 					application::device_binding_record record{
-						.Authority = { .Profile = core::host_profile_id{ id_of(statement->Value, 0) }, .ProfileRevision = application::github_profile_revision{ id_of(statement->Value, 1) }, .Host = core::git_host_id{ id_of(statement->Value, 2) }, .Hostname = application::github_canonical_hostname{ text_of(statement->Value, 3) }, .Account = core::github_account_id{ id_of(statement->Value, 4) }, .ServerContract = static_cast<application::github_server_contract>(server) },
+						.Authority = { .Profile = core::host_profile_id{ id_of(statement->Value, 0) }, .ProfileRevision = application::github_profile_revision{ id_of(statement->Value, 1) }, .Host = core::git_host_id{ id_of(statement->Value, 2) }, .Hostname = application::github_canonical_hostname{ text_of(statement->Value, 3) }, .Account = core::github_account_id{ id_of(statement->Value, 4) }, .ServerContract = static_cast<application::github_server_contract>(server), .BprProfile = aLegacy ? core::default_bpr_profile_id : core::bpr_profile_id{ id_of(statement->Value, 11) } },
 						.Lifetime  = { .IssuedAt = sqlite3_column_int64(statement->Value, 7), .AccessExpiresAt = sqlite3_column_int64(statement->Value, 8), .RefreshExpiresAt = sqlite3_column_int64(statement->Value, 9) },
 						.Tombstone = tombstone == 1
 					};
-					if (!application::valid(record) || std::ranges::any_of(rows, [&record](const auto& aRow) { return aRow.Authority.Profile == record.Authority.Profile; })) {
+					if (!application::valid(record) || record.Authority.BprProfile != BprProfile || std::ranges::any_of(rows, [&record](const auto& aRow) { return aRow.Authority.Profile == record.Authority.Profile; })) {
 						return corrupt();
 					}
 					rows.push_back(record);
@@ -151,11 +184,12 @@ namespace bpr::adapters::sqlite {
 				if (existing != rows->end() && !existing->Tombstone && existing->Authority != aRecord.Authority) {
 					return corrupt();
 				}
-				auto statement = detail::prepare(Database, "INSERT INTO device_binding VALUES(?1,?2,?3,?4,?5,?6,1,?7,?8,?9,0) ON CONFLICT(profile) DO UPDATE SET revision=excluded.revision,host=excluded.host,hostname=excluded.hostname,account=excluded.account,server=excluded.server,issued=excluded.issued,access_expiry=excluded.access_expiry,refresh_expiry=excluded.refresh_expiry,tombstone=0");
+				auto statement = detail::prepare(Database, "INSERT INTO device_binding VALUES(?1,?2,?3,?4,?5,?6,1,?7,?8,?9,0,?10) ON CONFLICT(profile) DO UPDATE SET revision=excluded.revision,host=excluded.host,hostname=excluded.hostname,account=excluded.account,server=excluded.server,issued=excluded.issued,access_expiry=excluded.access_expiry,refresh_expiry=excluded.refresh_expiry,tombstone=0");
 				if (!statement || !bind_authority(statement->Value, aRecord.Authority)
 					|| sqlite3_bind_int64(statement->Value, 7, aRecord.Lifetime.IssuedAt) != SQLITE_OK
 					|| sqlite3_bind_int64(statement->Value, 8, aRecord.Lifetime.AccessExpiresAt) != SQLITE_OK
 					|| sqlite3_bind_int64(statement->Value, 9, aRecord.Lifetime.RefreshExpiresAt) != SQLITE_OK
+					|| !bind_text(statement->Value, 10, std::to_string(BprProfile.value()))
 					|| sqlite3_step(statement->Value) != SQLITE_DONE) {
 					return std::unexpected(device_binding_failure::unavailable);
 				}
@@ -166,7 +200,7 @@ namespace bpr::adapters::sqlite {
 				if (aStop.stop_requested()) {
 					return std::unexpected(device_binding_failure::cancelled);
 				}
-				if (Failed) {
+				if (Failed || BprProfile.value() == 0U) {
 					return corrupt();
 				}
 				if (Database != nullptr) {
@@ -187,6 +221,7 @@ namespace bpr::adapters::sqlite {
 					Failed = true;
 					return std::unexpected(device_binding_failure::unavailable);
 				}
+				const auto readScope = binding_read_scope{ Database, aStop };
 				std::filesystem::permissions(path, std::filesystem::perms::owner_read | std::filesystem::perms::owner_write, std::filesystem::perm_options::replace, error);
 				if (error) {
 					Failed = true;
@@ -194,6 +229,9 @@ namespace bpr::adapters::sqlite {
 				}
 				auto established = establish(aStop);
 				Failed           = !established.has_value();
+				if (!established && aStop.stop_requested()) {
+					return std::unexpected(device_binding_failure::cancelled);
+				}
 				return established;
 			}
 			auto establish(std::stop_token aStop) -> device_binding_result
@@ -204,38 +242,65 @@ namespace bpr::adapters::sqlite {
 				if (!version || !identity || !count) {
 					return corrupt();
 				}
-				const auto fresh = *version == 0 && *identity == 0 && *count == 0;
-				if (!fresh && (*version != 1 || *identity != ApplicationId)) {
+				const auto fresh  = *version == 0 && *identity == 0 && *count == 0;
+				const auto legacy = *version == 1 && *identity == ApplicationId;
+				if (!fresh && ((*version != 2 && !legacy) || *identity != ApplicationId)) {
 					return corrupt();
+				}
+				if (legacy && BprProfile != core::default_bpr_profile_id) {
+					return corrupt();
+				}
+				if (!fresh) {
+					auto schema    = detail::scalar_text(Database, "SELECT sql FROM sqlite_schema WHERE name='device_binding' AND type='table'");
+					auto objects   = detail::scalar_integer(Database, "SELECT count(*) FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%'");
+					auto integrity = detail::scalar_text(Database, "PRAGMA quick_check");
+					if (!schema || *schema != (legacy ? LegacySchema : std::string_view{ Schema }) || !objects || *objects != (legacy ? 1 : 2) || !integrity || *integrity != "ok") {
+						return corrupt();
+					}
+					if (!legacy) {
+						auto scopeSchema = detail::scalar_text(Database, "SELECT sql FROM sqlite_schema WHERE name='binding_scope' AND type='table'");
+						auto scope       = detail::scalar_text(Database, "SELECT profile FROM binding_scope");
+						auto scopes      = detail::scalar_integer(Database, "SELECT count(*) FROM binding_scope");
+						if (!scopeSchema || *scopeSchema != ScopeSchema || !scope || *scope != std::to_string(BprProfile.value()) || !scopes || *scopes != 1) {
+							return corrupt();
+						}
+					}
+					if (!read_rows(aStop, legacy)) {
+						return corrupt();
+					}
 				}
 				if (!detail::configure_connection(Database)) {
 					return std::unexpected(device_binding_failure::unavailable);
 				}
-				if (fresh) {
-					if (!detail::execute(Database, "BEGIN IMMEDIATE", aStop) || !detail::execute(Database, Schema, aStop)
-						|| !detail::execute(Database, "PRAGMA application_id=1112560194", aStop)
-						|| !detail::execute(Database, "PRAGMA user_version=1", aStop) || !detail::execute(Database, "COMMIT", aStop)) {
+				if (fresh || legacy) {
+					auto succeeded = detail::execute(Database, "BEGIN IMMEDIATE", aStop).has_value();
+					if (succeeded && legacy) {
+						succeeded = detail::execute(Database, "ALTER TABLE device_binding RENAME TO legacy_binding", aStop).has_value();
+					}
+					succeeded = succeeded && detail::execute(Database, Schema, aStop) && detail::execute(Database, ScopeSchema, aStop)
+						&& detail::execute(Database, "INSERT INTO binding_scope VALUES('" + std::to_string(BprProfile.value()) + "')", aStop);
+					if (succeeded && legacy) {
+						succeeded = detail::execute(Database, "INSERT INTO device_binding SELECT *, '1' FROM legacy_binding", aStop)
+							&& detail::execute(Database, "DROP TABLE legacy_binding", aStop);
+					}
+					if (!succeeded || !read_rows(aStop) || !detail::execute(Database, "PRAGMA application_id=1112560194", aStop)
+						|| !detail::execute(Database, "PRAGMA user_version=2", aStop) || !detail::execute(Database, "COMMIT", aStop)) {
 						static_cast<void>(detail::execute(Database, "ROLLBACK"));
 						return corrupt();
 					}
-				}
-				auto schema    = detail::scalar_text(Database, "SELECT sql FROM sqlite_schema WHERE name='device_binding' AND type='table'");
-				auto objects   = detail::scalar_integer(Database, "SELECT count(*) FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%'");
-				auto integrity = detail::scalar_text(Database, "PRAGMA quick_check");
-				if (!schema || *schema != Schema || !objects || *objects != 1 || !integrity || *integrity != "ok") {
-					return corrupt();
 				}
 				auto rows = read_rows(aStop);
 				return rows ? device_binding_result{ } : device_binding_result{ std::unexpected(rows.error()) };
 			}
 			std::filesystem::path                  Root;
+			const core::bpr_profile_id             BprProfile;
 			std::optional<detail::state_directory> Directory;
 			sqlite3*                               Database = nullptr;
 			bool                                   Failed   = false;
 		};
 	}
-	auto make_device_binding_store(std::filesystem::path aStorageRoot) -> std::unique_ptr<application::device_binding_store_port>
+	auto make_device_binding_store(std::filesystem::path aStorageRoot, core::bpr_profile_id aBprProfile) -> std::unique_ptr<application::device_binding_store_port>
 	{
-		return std::make_unique<sqlite_device_binding_store>(std::move(aStorageRoot));
+		return std::make_unique<sqlite_device_binding_store>(std::move(aStorageRoot), aBprProfile);
 	}
 }

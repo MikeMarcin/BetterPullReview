@@ -238,12 +238,14 @@ namespace bpr::adapters::github {
 		{
 		public:
 			native_macos_keychain_backend(
-				SecKeychainRef aKeychain,
-				CFArrayRef     aSearchList,
-				CFStringRef    aService) noexcept
+				SecKeychainRef             aKeychain,
+				CFArrayRef                 aSearchList,
+				CFStringRef                aService,
+				const core::bpr_profile_id aBprProfile) noexcept
 				: Keychain{ aKeychain }
 				, SearchList{ aSearchList }
 				, Service{ aService }
+				, BprProfile{ aBprProfile }
 			{
 			}
 
@@ -255,7 +257,7 @@ namespace bpr::adapters::github {
 				-> macos_keychain_backend_store_result override
 			{
 				const auto lock = std::scoped_lock{ OperationMutex };
-				if (!application::valid(aAuthority) || !application::valid(aCredential)) {
+				if (!application::valid(aAuthority) || aAuthority.BprProfile != BprProfile || !application::valid(aCredential)) {
 					return std::unexpected{
 						application::github_credential_vault_failure::
 							invalid_request
@@ -332,7 +334,7 @@ namespace bpr::adapters::github {
 				-> macos_keychain_backend_retrieve_result override
 			{
 				const auto lock = std::scoped_lock{ OperationMutex };
-				if (!application::valid(aAuthority)) {
+				if (!application::valid(aAuthority) || aAuthority.BprProfile != BprProfile) {
 					return application::github_credential_vault_failure::
 						invalid_request;
 				}
@@ -408,7 +410,7 @@ namespace bpr::adapters::github {
 				-> macos_keychain_backend_delete_result override
 			{
 				const auto lock = std::scoped_lock{ OperationMutex };
-				if (!application::valid(aAuthority)) {
+				if (!application::valid(aAuthority) || aAuthority.BprProfile != BprProfile) {
 					return std::unexpected{
 						application::github_credential_vault_failure::
 							invalid_request
@@ -523,22 +525,29 @@ namespace bpr::adapters::github {
 				return dictionary;
 			}
 
-			cf_owner<SecKeychainRef> Keychain;
-			cf_owner<CFArrayRef>     SearchList;
-			cf_owner<CFStringRef>    Service;
-			std::mutex               OperationMutex;
+			cf_owner<SecKeychainRef>   Keychain;
+			cf_owner<CFArrayRef>       SearchList;
+			cf_owner<CFStringRef>      Service;
+			const core::bpr_profile_id BprProfile;
+			std::mutex                 OperationMutex;
 		};
 
 		[[nodiscard]] auto make_native_backend(
-			const macos_keychain_service_scope aScope) noexcept
+			const macos_keychain_service_scope aScope,
+			const core::bpr_profile_id         aBprProfile) noexcept
 			-> std::expected<
 				std::shared_ptr<macos_keychain_backend>,
 				application::github_credential_vault_failure>
 		{
-			if (!valid(aScope)) {
+			if (!valid(aScope) || aBprProfile.value() == 0U) {
 				return std::unexpected{
 					application::github_credential_vault_failure::invalid_request
 				};
+			}
+
+			const auto serviceIdentifier = macos_keychain_service_identifier(aScope, aBprProfile);
+			if (!serviceIdentifier) {
+				return std::unexpected{ serviceIdentifier.error() };
 			}
 
 			SecKeychainRef rawKeychain = nullptr;
@@ -578,8 +587,7 @@ namespace bpr::adapters::github {
 				};
 			}
 
-			const auto serviceIdentifier = macos_keychain_service_identifier(aScope);
-			auto       service           = make_cf_string(serviceIdentifier);
+			auto service = make_cf_string(std::string_view{ *serviceIdentifier });
 			if (service.get() == nullptr) {
 				return std::unexpected{
 					application::github_credential_vault_failure::
@@ -590,7 +598,7 @@ namespace bpr::adapters::github {
 			auto* backend = new (std::nothrow) native_macos_keychain_backend{
 				keychain.release(),
 				searchList.release(),
-				service.release()
+				service.release(), aBprProfile
 			};
 			if (backend == nullptr) {
 				return std::unexpected{
@@ -776,9 +784,11 @@ namespace bpr::adapters::github {
 			{
 				shared_state(
 					std::shared_ptr<macos_keychain_backend> aBackend,
-					std::shared_ptr<macos_keychain_backend> aRefreshBackend) noexcept
+					std::shared_ptr<macos_keychain_backend> aRefreshBackend,
+					const core::bpr_profile_id              aBprProfile) noexcept
 					: Backend{ std::move(aBackend) }
 					, RefreshBackend{ std::move(aRefreshBackend) }
+					, BprProfile{ aBprProfile }
 				{
 				}
 
@@ -789,6 +799,7 @@ namespace bpr::adapters::github {
 				// slot then reports itself unavailable, which is the same answer
 				// the platforms without one give.
 				std::shared_ptr<macos_keychain_backend> RefreshBackend;
+				const core::bpr_profile_id              BprProfile;
 				bool                                    Closing = false;
 			};
 
@@ -796,11 +807,12 @@ namespace bpr::adapters::github {
 			macos_keychain_vault(
 				application::effect_executor&           aEffectLane,
 				std::shared_ptr<macos_keychain_backend> aBackend,
-				std::shared_ptr<macos_keychain_backend> aRefreshBackend)
+				std::shared_ptr<macos_keychain_backend> aRefreshBackend,
+				const core::bpr_profile_id              aBprProfile)
 				: EffectLane{ aEffectLane }
 				, State{ std::make_shared<shared_state>(
 					  std::move(aBackend),
-					  std::move(aRefreshBackend)) }
+					  std::move(aRefreshBackend), aBprProfile) }
 			{
 			}
 
@@ -891,6 +903,9 @@ namespace bpr::adapters::github {
 			void cancel(
 				application::github_credential_operation_context aContext) override
 			{
+				if (aContext.Authority.BprProfile != State->BprProfile) {
+					return;
+				}
 				std::optional<pending_operation> pending;
 				{
 					const auto lock = std::scoped_lock{ State->Mutex };
@@ -909,7 +924,7 @@ namespace bpr::adapters::github {
 				application::github_credential_store_completion_handler aCompletion)
 			{
 				const auto context = aEnrollment.Context;
-				if (!application::valid(aEnrollment) || !aCompletion) {
+				if (!application::valid(aEnrollment) || context.Authority.BprProfile != State->BprProfile || !aCompletion) {
 					aEnrollment.Credential.reset();
 					if (aCompletion) {
 						aCompletion(application::github_credential_store_error{
@@ -935,7 +950,7 @@ namespace bpr::adapters::github {
 				application::github_credential_operation_context           aContext,
 				application::github_credential_retrieve_completion_handler aCompletion)
 			{
-				if (!application::valid(aContext) || !aCompletion) {
+				if (!application::valid(aContext) || aContext.Authority.BprProfile != State->BprProfile || !aCompletion) {
 					if (aCompletion) {
 						aCompletion(application::github_credential_retrieve_error{
 							.Context = aContext,
@@ -960,7 +975,7 @@ namespace bpr::adapters::github {
 				application::github_credential_operation_context         aContext,
 				application::github_credential_delete_completion_handler aCompletion)
 			{
-				if (!application::valid(aContext) || !aCompletion) {
+				if (!application::valid(aContext) || aContext.Authority.BprProfile != State->BprProfile || !aCompletion) {
 					if (aCompletion) {
 						aCompletion(application::github_credential_delete_error{
 							.Context = aContext,
@@ -1267,10 +1282,11 @@ namespace bpr::adapters::github {
 		// vault instead would take account credentials away from a reviewer over
 		// a slot they may never use.
 		[[nodiscard]] auto optional_refresh_backend(
-			const macos_keychain_service_scope aScope) noexcept
+			const macos_keychain_service_scope aScope,
+			const core::bpr_profile_id         aBprProfile) noexcept
 			-> std::shared_ptr<macos_keychain_backend>
 		{
-			auto backend = make_native_backend(aScope);
+			auto backend = make_native_backend(aScope, aBprProfile);
 			if (!backend.has_value()) {
 				return nullptr;
 			}
@@ -1280,10 +1296,11 @@ namespace bpr::adapters::github {
 		[[nodiscard]] auto make_vault(
 			application::effect_executor&           aEffectLane,
 			std::shared_ptr<macos_keychain_backend> aBackend,
-			std::shared_ptr<macos_keychain_backend> aRefreshBackend) noexcept
+			std::shared_ptr<macos_keychain_backend> aRefreshBackend,
+			const core::bpr_profile_id              aBprProfile) noexcept
 			-> macos_keychain_vault_factory_result
 		{
-			if (aBackend == nullptr) {
+			if (aBackend == nullptr || aBprProfile.value() == 0U) {
 				return std::unexpected{
 					application::github_credential_vault_failure::invalid_request
 				};
@@ -1294,7 +1311,7 @@ namespace bpr::adapters::github {
 					std::make_unique<macos_keychain_vault>(
 						aEffectLane,
 						std::move(aBackend),
-						std::move(aRefreshBackend))
+						std::move(aRefreshBackend), aBprProfile)
 				};
 			} catch (const std::bad_alloc&) {
 				return std::unexpected{
@@ -1324,6 +1341,35 @@ namespace bpr::adapters::github {
 			return integration_test_refresh_service;
 		}
 		return { };
+	}
+
+	auto macos_keychain_service_identifier(
+		const macos_keychain_service_scope aScope, const core::bpr_profile_id aBprProfile) noexcept
+		-> std::expected<std::string, application::github_credential_vault_failure>
+	{
+		if (!valid(aScope) || aBprProfile.value() == 0U) {
+			return std::unexpected{ application::github_credential_vault_failure::invalid_request };
+		}
+		try {
+			auto service = std::string{ macos_keychain_service_identifier(aScope) };
+			if (aBprProfile == core::default_bpr_profile_id) {
+				return service;
+			}
+			// Access v3 and refresh v2 are separate, profile-bound namespaces.
+			service.back() = (aScope == macos_keychain_service_scope::production
+							  || aScope == macos_keychain_service_scope::integration_test)
+				? '3'
+				: '2';
+			service += ".bpr-profile.";
+			constexpr std::string_view digits = "0123456789abcdef";
+			for (std::size_t index = 0U; index < 16U; ++index) {
+				const auto shift = (15U - index) * 4U;
+				service.push_back(digits[(aBprProfile.value() >> shift) & 0xfU]);
+			}
+			return service;
+		} catch (...) {
+			return std::unexpected{ application::github_credential_vault_failure::allocation_failure };
+		}
 	}
 
 	auto encode_macos_keychain_authority_account(
@@ -1427,10 +1473,11 @@ namespace bpr::adapters::github {
 	}
 
 	auto make_macos_keychain_vault(
-		application::effect_executor& aEffectLane)
+		application::effect_executor& aEffectLane,
+		const core::bpr_profile_id    aBprProfile)
 		-> macos_keychain_vault_factory_result
 	{
-		auto backend = make_native_backend(macos_keychain_service_scope::production);
+		auto backend = make_native_backend(macos_keychain_service_scope::production, aBprProfile);
 		if (!backend.has_value()) {
 			return std::unexpected{ backend.error() };
 		}
@@ -1438,14 +1485,16 @@ namespace bpr::adapters::github {
 			aEffectLane,
 			std::move(*backend),
 			optional_refresh_backend(
-				macos_keychain_service_scope::production_refresh));
+				macos_keychain_service_scope::production_refresh, aBprProfile),
+			aBprProfile);
 	}
 
 	auto make_macos_keychain_integration_test_vault(
-		application::effect_executor& aEffectLane)
+		application::effect_executor& aEffectLane,
+		const core::bpr_profile_id    aBprProfile)
 		-> macos_keychain_vault_factory_result
 	{
-		auto backend = make_native_backend(macos_keychain_service_scope::integration_test);
+		auto backend = make_native_backend(macos_keychain_service_scope::integration_test, aBprProfile);
 		if (!backend.has_value()) {
 			return std::unexpected{ backend.error() };
 		}
@@ -1453,18 +1502,20 @@ namespace bpr::adapters::github {
 			aEffectLane,
 			std::move(*backend),
 			optional_refresh_backend(
-				macos_keychain_service_scope::integration_test_refresh));
+				macos_keychain_service_scope::integration_test_refresh, aBprProfile),
+			aBprProfile);
 	}
 
 	auto make_macos_keychain_vault_with_backend(
 		application::effect_executor&           aEffectLane,
 		std::shared_ptr<macos_keychain_backend> aBackend,
-		std::shared_ptr<macos_keychain_backend> aRefreshBackend) noexcept
+		std::shared_ptr<macos_keychain_backend> aRefreshBackend,
+		const core::bpr_profile_id              aBprProfile) noexcept
 		-> macos_keychain_vault_factory_result
 	{
 		return make_vault(
 			aEffectLane,
 			std::move(aBackend),
-			std::move(aRefreshBackend));
+			std::move(aRefreshBackend), aBprProfile);
 	}
 }

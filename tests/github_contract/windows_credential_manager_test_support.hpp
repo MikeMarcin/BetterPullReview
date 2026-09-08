@@ -46,7 +46,8 @@ namespace bpr::tests::windows_credential_manager {
 		const std::uint64_t                       account          = 4U,
 		const application::github_server_contract server           = application::github_server_contract::
 			github_com_2022_11_28,
-		const std::string_view hostname = { })
+		const std::string_view     hostname    = { },
+		const core::bpr_profile_id aBprProfile = core::default_bpr_profile_id)
 		-> application::github_credential_authority_key
 	{
 		return {
@@ -63,6 +64,7 @@ namespace bpr::tests::windows_credential_manager {
 					: hostname },
 			.Account        = core::github_account_id{ account },
 			.ServerContract = server,
+			.BprProfile     = aBprProfile,
 		};
 	}
 

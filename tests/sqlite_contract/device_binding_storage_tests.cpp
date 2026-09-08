@@ -59,6 +59,156 @@ namespace {
 		}
 		expect(!store->store(record(65U), { }), "capacity refuses profile 65");
 	}
+	auto database_bytes(const std::filesystem::path& aRoot) -> std::string
+	{
+		std::ifstream input{ aRoot / "state/v1/device-bindings.sqlite3", std::ios::binary };
+		return { std::istreambuf_iterator<char>{ input }, std::istreambuf_iterator<char>{ } };
+	}
+
+	auto version(const std::filesystem::path& aRoot) -> std::int64_t
+	{
+		sqlite3* database = nullptr;
+		expect(sqlite3_open((aRoot / "state/v1/device-bindings.sqlite3").string().c_str(), &database) == SQLITE_OK, "open version observation");
+		const auto result = adapters::sqlite::detail::scalar_integer(database, "PRAGMA user_version");
+		sqlite3_close(database);
+		expect(result.has_value(), "read version");
+		return *result;
+	}
+	void legacy(const std::filesystem::path& aRoot)
+	{
+		std::filesystem::create_directory(aRoot);
+		std::filesystem::permissions(aRoot, std::filesystem::perms::owner_all);
+		seed(aRoot);
+		mutate(aRoot, "DROP TABLE binding_scope; DROP TABLE device_binding; CREATE TABLE device_binding(profile TEXT PRIMARY KEY,revision TEXT NOT NULL,host TEXT NOT NULL,hostname TEXT NOT NULL,account TEXT NOT NULL,server INTEGER NOT NULL CHECK(server BETWEEN 0 AND 1),provenance INTEGER NOT NULL CHECK(provenance=1),issued INTEGER NOT NULL CHECK(issued>0),access_expiry INTEGER NOT NULL CHECK(access_expiry>issued),refresh_expiry INTEGER NOT NULL CHECK(refresh_expiry>issued),tombstone INTEGER NOT NULL CHECK(tombstone IN(0,1))) STRICT; INSERT INTO device_binding VALUES('1','2','3','github.com','4',0,1,1000,4600,10000,0); PRAGMA user_version=1");
+	}
+	struct migration_interruption
+	{
+		static inline std::stop_source* Stop = nullptr;
+		static auto                     trace(unsigned int, void*, void* aStatement, void*) -> int
+		{
+			const auto* sql = sqlite3_sql(static_cast<sqlite3_stmt*>(aStatement));
+			if (Stop != nullptr && sql != nullptr && std::string_view{ sql }.starts_with("INSERT INTO device_binding SELECT")) {
+				Stop->request_stop();
+			}
+			return 0;
+		}
+		static auto install(sqlite3* aDatabase, char**, const sqlite3_api_routines*) -> int
+		{
+			return sqlite3_trace_v2(aDatabase, SQLITE_TRACE_STMT, trace, nullptr);
+		}
+	};
+	struct preflight_observer
+	{
+		static inline std::stop_source* Stop        = nullptr;
+		static inline int               LengthLimit = 0;
+		static inline int               QuickSteps  = 0;
+		static auto                     trace(unsigned int aEvent, void*, void* aStatement, void*) -> int
+		{
+			auto*       statement = static_cast<sqlite3_stmt*>(aStatement);
+			const auto* sql       = sqlite3_sql(statement);
+			if (sql != nullptr && std::string_view{ sql } == "PRAGMA quick_check") {
+				if (aEvent == SQLITE_TRACE_STMT) {
+					LengthLimit = sqlite3_limit(sqlite3_db_handle(statement), SQLITE_LIMIT_LENGTH, -1);
+					if (Stop != nullptr) {
+						Stop->request_stop();
+					}
+				} else if (aEvent == SQLITE_TRACE_PROFILE) {
+					QuickSteps = sqlite3_stmt_status(statement, SQLITE_STMTSTATUS_VM_STEP, 0);
+				}
+			}
+			return 0;
+		}
+		static auto install(sqlite3* aDatabase, char**, const sqlite3_api_routines*) -> int
+		{
+			return sqlite3_trace_v2(aDatabase, SQLITE_TRACE_STMT | SQLITE_TRACE_PROFILE, trace, nullptr);
+		}
+	};
+	void bounded_preflight(const std::filesystem::path& aRoot)
+	{
+		expect(adapters::sqlite::detail::sqlite_runtime_ready(), "initialize parent runtime before installing observer");
+		const auto bytes = database_bytes(aRoot);
+		expect(sqlite3_auto_extension(reinterpret_cast<void (*)()>(preflight_observer::install)) == SQLITE_OK, "observe preflight connection locally");
+		std::stop_source stop;
+		preflight_observer::Stop = &stop;
+		const auto cancelled     = adapters::sqlite::make_device_binding_store(aRoot)->load(stop.get_token());
+		preflight_observer::Stop = nullptr;
+		expect(!cancelled && cancelled.error() == application::device_binding_failure::cancelled && stop.stop_requested(), "cancellation during current-schema quick_check refuses explicitly");
+		expect(preflight_observer::LengthLimit == (1'048'576) && preflight_observer::QuickSteps <= 256, "preflight has 1MiB bound and interrupts quick_check within a bounded short instruction budget");
+		expect(database_bytes(aRoot) == bytes, "cancelled preflight leaves database bytes unchanged");
+		expect(sqlite3_cancel_auto_extension(reinterpret_cast<void (*)()>(preflight_observer::install)) == 1, "remove preflight observer");
+		for (const auto legacyVersion : { false, true }) {
+			const auto hostileRoot = aRoot / (legacyVersion ? "hostile-legacy" : "hostile-current");
+			if (legacyVersion) {
+				legacy(hostileRoot);
+			} else {
+				std::filesystem::create_directory(hostileRoot);
+				std::filesystem::permissions(hostileRoot, std::filesystem::perms::owner_all);
+				seed(hostileRoot);
+			}
+			mutate(hostileRoot, "UPDATE device_binding SET hostname=CAST(zeroblob(2097152) AS TEXT)");
+			const auto hostileBytes         = database_bytes(hostileRoot);
+			preflight_observer::LengthLimit = 0;
+			expect(sqlite3_auto_extension(reinterpret_cast<void (*)()>(preflight_observer::install)) == SQLITE_OK, "observe hostile preflight");
+			expect(!adapters::sqlite::make_device_binding_store(hostileRoot)->load({ }), "oversized hostile legacy/current field refuses");
+			expect(preflight_observer::LengthLimit == (1'048'576) && database_bytes(hostileRoot) == hostileBytes, "hostile preflight applies length bound before reads without rewriting file");
+			expect(sqlite3_cancel_auto_extension(reinterpret_cast<void (*)()>(preflight_observer::install)) == 1, "remove hostile observer");
+		}
+	}
+
+	void scoped_storage_and_migration(const std::filesystem::path& aRoot)
+	{
+		const auto firstRoot              = aRoot / "first";
+		const auto secondRoot             = aRoot / "second";
+		auto       firstRecord            = record();
+		firstRecord.Authority.BprProfile  = core::bpr_profile_id{ 2U };
+		auto secondRecord                 = record();
+		secondRecord.Authority.BprProfile = core::bpr_profile_id{ 3U };
+		auto first                        = adapters::sqlite::make_device_binding_store(firstRoot, core::bpr_profile_id{ 2U });
+		auto second                       = adapters::sqlite::make_device_binding_store(secondRoot, core::bpr_profile_id{ 3U });
+		expect(!first->store(secondRecord, { }) && !first->erase(secondRecord.Authority, { }) && !std::filesystem::exists(firstRoot), "foreign writes refuse before creating a root");
+		std::filesystem::create_directory(firstRoot);
+		std::filesystem::permissions(firstRoot, std::filesystem::perms::owner_all);
+		std::filesystem::create_directory(secondRoot);
+		std::filesystem::permissions(secondRoot, std::filesystem::perms::owner_all);
+		expect(first->store(firstRecord, { }).has_value() && second->store(secondRecord, { }).has_value(), "separate BPR profiles store identical host and account");
+		expect(first->load({ })->front() == firstRecord && second->load({ })->front() == secondRecord, "scope survives independent store reads");
+		first.reset();
+		second.reset();
+		expect(!adapters::sqlite::make_device_binding_store(firstRoot, core::bpr_profile_id{ 3U })->load({ }), "foreign store owner refuses whole catalog");
+		mutate(firstRoot, "UPDATE device_binding SET bpr_profile='3'");
+		expect(!adapters::sqlite::make_device_binding_store(firstRoot, core::bpr_profile_id{ 2U })->load({ }), "foreign row refuses whole catalog");
+		const auto invalidRoot = aRoot / "invalid";
+		expect(!adapters::sqlite::make_device_binding_store(invalidRoot, core::bpr_profile_id{ 0U })->load({ }) && !std::filesystem::exists(invalidRoot), "invalid scope refuses before filesystem effects");
+		const auto legacyRoot = aRoot / "legacy";
+		legacy(legacyRoot);
+		const auto legacyBytes = database_bytes(legacyRoot);
+		expect(!adapters::sqlite::make_device_binding_store(legacyRoot, core::bpr_profile_id{ 2U })->load({ }) && version(legacyRoot) == 1, "nonDefault refuses legacy without migration");
+		expect(database_bytes(legacyRoot) == legacyBytes, "nonDefault refusal leaves legacy database bytes unchanged");
+		expect(sqlite3_auto_extension(reinterpret_cast<void (*)()>(migration_interruption::install)) == SQLITE_OK, "register migration interruption");
+		std::stop_source stop;
+		migration_interruption::Stop = &stop;
+		expect(!adapters::sqlite::make_device_binding_store(legacyRoot)->load(stop.get_token()) && stop.stop_requested(), "interrupt Default adoption after row copy begins");
+		migration_interruption::Stop = nullptr;
+		expect(sqlite3_cancel_auto_extension(reinterpret_cast<void (*)()>(migration_interruption::install)) == 1, "remove migration interruption");
+		expect(version(legacyRoot) == 1, "interrupted migration rolls back schema version");
+		auto       adopted = adapters::sqlite::make_device_binding_store(legacyRoot);
+		const auto rows    = adopted->load({ });
+		expect(rows && rows->size() == 1U && rows->front() == record() && version(legacyRoot) == 2, "restart adopts legacy row exactly into Default schema2");
+		expect(adopted->erase(record().Authority, { }).has_value(), "adopted authority tombstones exactly");
+		adopted.reset();
+		expect(adapters::sqlite::make_device_binding_store(legacyRoot)->load({ })->front().Tombstone, "adopted tombstone survives restart");
+		mutate(legacyRoot, "PRAGMA user_version=3");
+		const auto futureBytes = database_bytes(legacyRoot);
+		expect(!adapters::sqlite::make_device_binding_store(legacyRoot)->load({ }) && version(legacyRoot) == 3, "future store refuses without fallback");
+		expect(database_bytes(legacyRoot) == futureBytes, "future refusal leaves database bytes unchanged");
+		const auto malformedRoot = aRoot / "malformed";
+		legacy(malformedRoot);
+		mutate(malformedRoot, "PRAGMA ignore_check_constraints=ON; UPDATE device_binding SET access_expiry=issued");
+		const auto malformedBytes = database_bytes(malformedRoot);
+		expect(!adapters::sqlite::make_device_binding_store(malformedRoot)->load({ }) && version(malformedRoot) == 1, "malformed legacy row refuses without migration");
+		expect(database_bytes(malformedRoot) == malformedBytes, "malformed refusal leaves legacy database bytes unchanged");
+	}
+
 #if !defined(_WIN32)
 	void in_child(void (*aPhase)(const std::filesystem::path&), const std::filesystem::path& aRoot)
 	{
@@ -85,6 +235,8 @@ int main()
 	seed(root);
 	reopen(root);
 #endif
+	bounded_preflight(root);
+	scoped_storage_and_migration(root);
 	mutate(root, "CREATE TABLE extra(value TEXT)");
 	expect(!adapters::sqlite::make_device_binding_store(root)->load({ }), "unknown schema object refuses whole catalog");
 	mutate(root, "DROP TABLE extra; PRAGMA ignore_check_constraints=ON; UPDATE device_binding SET access_expiry=issued");

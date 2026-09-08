@@ -1222,7 +1222,8 @@ namespace {
 
 		explicit host_fixture(
 			application::github_credential_binding_catalog&      aBindings,
-			const application::github_credential_shutdown_policy aShutdownPolicy = application::github_credential_shutdown_policy::retain)
+			const application::github_credential_shutdown_policy aShutdownPolicy = application::github_credential_shutdown_policy::retain,
+			core::bpr_profile_id                                 aBprProfile     = core::default_bpr_profile_id)
 			: Bindings{ aBindings }
 			, Host{ initial_state(),
 					Provider,
@@ -1233,7 +1234,7 @@ namespace {
 					Bindings,
 					Lane,
 					Projections,
-					aShutdownPolicy }
+					aShutdownPolicy, nullptr, nullptr, nullptr, nullptr, aBprProfile }
 		{
 		}
 
@@ -1494,6 +1495,37 @@ namespace {
 				   && source.Vault.Deletes.empty(),
 			   "real enrollment seeds one retained host-observed binding");
 		return authority;
+	}
+
+	void test_bpr_profile_credential_admission()
+	{
+		application::github_credential_binding_catalog firstBindings;
+		application::github_credential_binding_catalog secondBindings;
+		host_fixture                                   first{ firstBindings, application::github_credential_shutdown_policy::retain, core::bpr_profile_id{ 2U } };
+		host_fixture                                   second{ secondBindings, application::github_credential_shutdown_policy::retain, core::bpr_profile_id{ 3U } };
+		establish_native_session(first);
+		establish_native_session(second);
+		auto       firstKey  = first.Vault.Stores.front().Context.Authority;
+		const auto secondKey = second.Vault.Stores.front().Context.Authority;
+		expect(firstKey.BprProfile == core::bpr_profile_id{ 2U } && secondKey.BprProfile == core::bpr_profile_id{ 3U } && firstKey != secondKey, "same host/account enrollment mints disjoint admitted BPR authorities");
+		firstKey.BprProfile = secondKey.BprProfile;
+		expect(firstKey == secondKey, "only admitted BPR scope differs for identical accepted viewers");
+		host_fixture foreign{ firstBindings };
+		foreign.Host.resume_profile(core::host_profile_id{ 11U });
+		expect(foreign.Provider.Profiles.empty() && foreign.Vault.Retrieves.empty() && foreign.Vault.Deletes.empty(), "foreign remembered authority refuses before provider or vault effects");
+		bool accepted = true;
+		first.Host.prepare_device_rotation(secondKey, first.Host.state().IdentityGeneration, [&accepted](bool aResult) { accepted = aResult; });
+		expect(!accepted, "foreign refresh authority cannot prepare rotation");
+		first.Host.shutdown();
+		second.Host.shutdown();
+		foreign.Host.shutdown();
+		bool rejected = false;
+		try {
+			host_fixture invalid{ firstBindings, application::github_credential_shutdown_policy::retain, core::bpr_profile_id{ 0U } };
+		} catch (const std::invalid_argument&) {
+			rejected = true;
+		}
+		expect(rejected, "zero BPR profile admission is invalid");
 	}
 
 	auto test_bootstrap_failure_stages_are_exact_and_replacement_safe() -> void
@@ -5387,6 +5419,22 @@ namespace {
 	{
 		const auto                               profile = native_profile(core::host_profile_id{ 11U });
 		const application::device_binding_record record{ .Authority = { .Profile = profile.Profile, .ProfileRevision = profile.ProfileRevision, .Host = profile.Host, .Hostname = profile.Hostname, .Account = core::github_account_id{ 51U }, .ServerContract = profile.ServerContract }, .Lifetime = binding_lifetime() };
+
+		for (const auto scope : { core::bpr_profile_id{ 0U }, core::bpr_profile_id{ 2U } }) {
+			host_fixture  fixture;
+			binding_store store;
+			auto          foreign        = record;
+			foreign.Authority.BprProfile = scope;
+			store.Rows                   = { foreign };
+			application::manual_executor            effects;
+			application::device_binding_persistence persistence{ store, effects, fixture.Lane };
+			fixture.Host.configure_device_persistence(persistence, [] { return std::int64_t{ 1000 }; });
+			fixture.Host.restore_device_profile(profile);
+			effects.drain();
+			fixture.Lane.drain();
+			expect(fixture.Provider.Profiles.empty() && fixture.Vault.Retrieves.empty() && fixture.Vault.Deletes.empty() && store.Operations == std::vector<std::string>{ "load" }, "foreign or invalid restored scope refuses before provider, vault or tombstone effects");
+			fixture.Host.shutdown();
+		}
 		for (const auto invalidTime : { std::int64_t{ 999 }, std::int64_t{ 4600 } }) {
 			host_fixture  fixture;
 			binding_store store;
@@ -5675,6 +5723,7 @@ namespace {
 
 auto main() -> int
 {
+	test_bpr_profile_credential_admission();
 	test_bootstrap_failure_stages_are_exact_and_replacement_safe();
 	test_local_capability_refusal_details();
 	test_failed_startup_load_keeps_repeated_replacement_blocked();

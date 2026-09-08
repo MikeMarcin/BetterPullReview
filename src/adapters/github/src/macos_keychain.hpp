@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <expected>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <variant>
 
@@ -41,6 +42,11 @@ namespace bpr::adapters::github {
 
 	[[nodiscard]] auto macos_keychain_service_identifier(
 		macos_keychain_service_scope aScope) noexcept -> std::string_view;
+
+	/// \brief Returns the exact profile-bound service; Default preserves legacy bytes.
+	[[nodiscard]] auto macos_keychain_service_identifier(
+		macos_keychain_service_scope aScope, core::bpr_profile_id aBprProfile) noexcept
+		-> std::expected<std::string, application::github_credential_vault_failure>;
 
 	[[nodiscard]] auto encode_macos_keychain_authority_account(
 		const application::github_credential_authority_key& aAuthority) noexcept
@@ -109,11 +115,13 @@ namespace bpr::adapters::github {
 		application::github_credential_vault_failure>;
 
 	[[nodiscard]] auto make_macos_keychain_vault(
-		application::effect_executor& aEffectLane)
+		application::effect_executor& aEffectLane,
+		core::bpr_profile_id          aBprProfile = core::default_bpr_profile_id)
 		-> macos_keychain_vault_factory_result;
 
 	[[nodiscard]] auto make_macos_keychain_integration_test_vault(
-		application::effect_executor& aEffectLane)
+		application::effect_executor& aEffectLane,
+		core::bpr_profile_id          aBprProfile = core::default_bpr_profile_id)
 		-> macos_keychain_vault_factory_result;
 
 	// A vault built without a refresh backend answers every refresh-slot
@@ -122,7 +130,8 @@ namespace bpr::adapters::github {
 	[[nodiscard]] auto make_macos_keychain_vault_with_backend(
 		application::effect_executor&           aEffectLane,
 		std::shared_ptr<macos_keychain_backend> aBackend,
-		std::shared_ptr<macos_keychain_backend> aRefreshBackend = nullptr) noexcept
+		std::shared_ptr<macos_keychain_backend> aRefreshBackend = nullptr,
+		core::bpr_profile_id                    aBprProfile     = core::default_bpr_profile_id) noexcept
 		-> macos_keychain_vault_factory_result;
 }
 
