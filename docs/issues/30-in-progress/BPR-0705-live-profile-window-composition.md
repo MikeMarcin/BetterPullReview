@@ -66,3 +66,15 @@ full RFC restoration/cross-process acceptance remain open.
 Read-only runtime scout identified the existing single-window map, missing menu
 intent and first-window-owned callbacks/cleanup. Service foundations are complete;
 no implementation or new two-window acceptance check has run for this card.
+
+Control/UI and read-presentation work is source-complete in the current working
+candidate. Focused management, Qt management and Settings tests pass (1.87s);
+window-read host tests pass (0.36s), including accepted PR/error/clear projection
+and preservation of profile-owned session/grant presentation. Canonical tidy and
+format checks pass for those changed translation units. Independent medium
+review found no evidence-backed blocker in these bounded paths; it did not
+inspect the still-changing application runtime. Settings mounting requires the
+profile owner to unmount the prior session before mounting another and to unmount
+all sessions before shell teardown. Full application/two-window acceptance has
+not run. The primary-owned public course and independent PR17/18 recording are
+prepared for that integration checkpoint.

@@ -22,6 +22,7 @@ namespace bpr::qt {
 			case failure::invalid_label:        return QStringLiteral("Choose a nonblank profile name within the supported length. Your text has been kept.");
 			case failure::unknown_profile:      return QStringLiteral("That profile is no longer available. Your text has been kept.");
 			case failure::profile_limit:        return QStringLiteral("The profile limit has been reached. Your text has been kept.");
+			case failure::window_limit:         return QStringLiteral("This profile has reached its window limit. Close a window and try again.");
 			case failure::identity_exhausted:   return QStringLiteral("No more profile identities are available. Your text has been kept.");
 			case failure::busy:                 return QStringLiteral("Another profile change is in progress. Your text has been kept; try again when it finishes.");
 			case failure::closing:              return QStringLiteral("Profiles are closing. Your text has been kept.");

@@ -343,7 +343,10 @@ namespace bpr::qt {
 		update_status_text();
 	}
 
-	workbench_window::~workbench_window() = default;
+	workbench_window::~workbench_window()
+	{
+		unmount_settings();
+	}
 
 	void workbench_window::build_primary_toolbar()
 	{
@@ -556,7 +559,7 @@ namespace bpr::qt {
 		addAction(AccountAction);
 		connect(AccountAction, &QAction::triggered, this, [this] {
 			open_settings(settings_page::accounts_and_hosts);
-			if (DevicePanel != nullptr && DevicePanel->isVisibleTo(SettingsWindow)) {
+			if (DevicePanel != nullptr && DevicePanel->isVisibleTo(settings())) {
 				begin_selected_sign_in();
 			}
 		});
@@ -4461,6 +4464,9 @@ namespace bpr::qt {
 	{
 		ProfileLabel = aLabel;
 		SettingsWindow->set_profile_label(aLabel);
+		if (MountedSettings) {
+			MountedSettings->set_profile_label(aLabel);
+		}
 		update_public_preview_title();
 	}
 
@@ -5460,6 +5466,14 @@ namespace bpr::qt {
 		ProfilesMenu = PrimaryMenuBar->addMenu(QStringLiteral("&Profiles"));
 		ProfilesMenu->setObjectName(QStringLiteral("workbenchProfilesMenu"));
 		ProfilesMenu->setAccessibleName(QStringLiteral("Profiles"));
+		NewBprWindowAction = ProfilesMenu->addAction(QStringLiteral("New Window"));
+		NewBprWindowAction->setObjectName(QStringLiteral("newBprWindowAction"));
+		NewBprWindowAction->setEnabled(false);
+		connect(NewBprWindowAction, &QAction::triggered, this, [this] {
+			if (ProfileManagementDispatch && CurrentBprProfile.value() != 0U) {
+				ProfileManagementDispatch(application::new_bpr_window_intent{ CurrentBprProfile });
+			}
+		});
 		ManageProfilesAction = ProfilesMenu->addAction(QStringLiteral("Manage Profiles…"));
 		ManageProfilesAction->setObjectName(QStringLiteral("manageProfilesAction"));
 		ManageProfilesAction->setEnabled(false);
@@ -5536,6 +5550,10 @@ namespace bpr::qt {
 			return;
 		}
 		CurrentBprProfile = aCurrentProfile;
+		NewBprWindowAction->setEnabled(aProjection.Ready && !aProjection.Closing
+									   && std::ranges::any_of(aProjection.Profiles, [aCurrentProfile](const auto& aProfile) {
+											  return aProfile.Profile == aCurrentProfile && aProfile.Runtime == application::profile_management_runtime::open;
+										  }));
 		for (auto iterator = ProfileActions.begin(); iterator != ProfileActions.end();) {
 			if (std::ranges::none_of(aProjection.Profiles, [iterator](const auto& aProfile) { return aProfile.Profile == iterator->first; })) {
 				delete iterator->second;
@@ -5544,7 +5562,7 @@ namespace bpr::qt {
 				++iterator;
 			}
 		}
-		auto* before = ManageProfilesAction;
+		auto* before = NewBprWindowAction;
 		for (auto iterator = aProjection.Profiles.rbegin(); iterator != aProjection.Profiles.rend(); ++iterator) {
 			const auto& profile    = *iterator;
 			auto [entry, inserted] = ProfileActions.try_emplace(profile.Profile, nullptr);
@@ -5580,16 +5598,71 @@ namespace bpr::qt {
 		return ProfilesMenu;
 	}
 
+	void workbench_window::set_settings_presenter(std::function<void(settings_page)> aPresenter)
+	{
+		SettingsPresenter = std::move(aPresenter);
+	}
+
+	namespace {
+		void swap_settings_pages(settings_window& aFirst, settings_window& aSecond)
+		{
+			auto*      first      = aFirst.pages();
+			auto*      second     = aSecond.pages();
+			const auto firstPage  = first->currentIndex();
+			const auto secondPage = second->currentIndex();
+			for (int index = 0; index < static_cast<int>(settings_page_count); ++index) {
+				auto* firstPageWidget  = first->widget(index);
+				auto* secondPageWidget = second->widget(index);
+				first->removeWidget(firstPageWidget);
+				second->removeWidget(secondPageWidget);
+				first->insertWidget(index, secondPageWidget);
+				second->insertWidget(index, firstPageWidget);
+			}
+			first->setCurrentIndex(firstPage);
+			second->setCurrentIndex(secondPage);
+		}
+	}
+
+	void workbench_window::mount_settings(settings_window& aSettings)
+	{
+		if (&aSettings == SettingsWindow || MountedSettings == &aSettings) {
+			return;
+		}
+		unmount_settings();
+		SettingsWindow->hide();
+		swap_settings_pages(*SettingsWindow, aSettings);
+		MountedSettings = &aSettings;
+		aSettings.set_close_handler([panel = QPointer<appearance_settings_panel>{ AppearanceSettings }] {
+			if (panel) {
+				panel->cancel_preview();
+			}
+		});
+	}
+
+	void workbench_window::unmount_settings()
+	{
+		if (!MountedSettings) {
+			return;
+		}
+		auto* shell     = MountedSettings.data();
+		MountedSettings = nullptr;
+		shell->set_close_handler({ });
+		swap_settings_pages(*SettingsWindow, *shell);
+		AppearanceSettings->cancel_preview();
+	}
+
 	void workbench_window::open_settings(const settings_page aPage)
 	{
-		if (SettingsWindow != nullptr) {
+		if (SettingsPresenter) {
+			SettingsPresenter(aPage);
+		} else if (SettingsWindow != nullptr) {
 			SettingsWindow->present(aPage);
 		}
 	}
 
 	auto workbench_window::settings() const noexcept -> settings_window*
 	{
-		return SettingsWindow;
+		return MountedSettings ? MountedSettings.data() : SettingsWindow;
 	}
 
 	auto workbench_window::settings_action() const noexcept -> QAction*

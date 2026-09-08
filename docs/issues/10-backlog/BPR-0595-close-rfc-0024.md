@@ -173,3 +173,15 @@ and independent isolation coverage. Actual multi-window construction is next.
 Next: BPR-0705 is the vertical live New Window composition, using completed
 shared owners. Durable window destinations/restoration, cross-process admission
 and same-review ledger projection fanout remain subsequent required work.
+
+Restoration preparation during BPR-0705 confirmed that core lifecycle policy
+already distinguishes explicit close from quit and increments generations on
+restoration. Workbench schema5 already supports bounded window layout rows;
+those rows must remain free of review content. The next bounded persistence
+slice must retain the window allocation high-water mark and focus/retained order,
+plus private per-profile destinations with exact comparison identities. Do not
+serialize runtime leases, provider snapshots, request generations or credentials.
+Default has no legacy active-review record: missing session storage must not
+invent a PR or Resume target. The eventual restart course must cover quit versus
+close, independent layouts, stale generations and unavailable comparisons without
+substitution. Storage/API design and integration remain unimplemented.

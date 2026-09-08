@@ -31,6 +31,7 @@
 
 #include <QList>
 #include <QMainWindow>
+#include <QPointer>
 #include <QSplitter>
 #include <QString>
 
@@ -537,6 +538,14 @@ namespace bpr::qt {
 
 		/// \brief The appearance surface, composed beside the review it governs.
 		/// \brief Shows the Settings window on a page; a no-op before composition.
+		/// \brief Lets the profile owner route every Settings gesture to its single shell.
+		void set_settings_presenter(std::function<void(settings_page)> aPresenter);
+		/// \brief Mounts this live window's pages into a profile-owned shell.
+		/// \details The shell must outlive this mount; unmount its previous session first.
+		/// Destruction restores pages before destroying their callback-owning workbench.
+		void mount_settings(settings_window& aSettings);
+		void unmount_settings();
+
 		void               open_settings(settings_page aPage);
 		[[nodiscard]] auto settings() const noexcept -> settings_window*;
 		[[nodiscard]] auto settings_action() const noexcept -> QAction*;
@@ -798,6 +807,7 @@ namespace bpr::qt {
 		QMenuBar*                                PrimaryMenuBar       = nullptr;
 		QMenu*                                   ViewMenu             = nullptr;
 		QMenu*                                   ProfilesMenu         = nullptr;
+		QAction*                                 NewBprWindowAction   = nullptr;
 		QAction*                                 ManageProfilesAction = nullptr;
 		QAction*                                 QuitProfilesAction   = nullptr;
 		std::map<core::bpr_profile_id, QAction*> ProfileActions;
@@ -926,8 +936,10 @@ namespace bpr::qt {
 		github_session_panel*                              SessionPanel                = nullptr;
 		device_authorization_panel*                        DevicePanel                 = nullptr;
 		application::device_authorization_gesture_dispatch DeviceDispatch;
-		github_pull_request_panel*                         PullRequestPanel     = nullptr;
-		appearance_settings_panel*                         AppearanceSettings   = nullptr;
+		github_pull_request_panel*                         PullRequestPanel   = nullptr;
+		appearance_settings_panel*                         AppearanceSettings = nullptr;
+		QPointer<settings_window>                          MountedSettings;
+		std::function<void(settings_page)>                 SettingsPresenter;
 		settings_window*                                   SettingsWindow       = nullptr;
 		QAction*                                           SettingsAction       = nullptr;
 		QStackedWidget*                                    PullRequestStack     = nullptr;

@@ -17,13 +17,15 @@ namespace bpr::application {
 	enum class profile_management_operation : std::uint8_t { reload,
 															 create,
 															 rename,
-															 open };
+															 open,
+															 new_window };
 	enum class profile_management_failure : std::uint8_t {
 		registry_unavailable,
 		invalid_registry,
 		invalid_label,
 		unknown_profile,
 		profile_limit,
+		window_limit,
 		identity_exhausted,
 		busy,
 		closing,
@@ -73,7 +75,13 @@ namespace bpr::application {
 	{
 		core::bpr_profile_id Profile;
 	};
-	using profile_management_intent   = std::variant<reload_bpr_profiles_intent, create_bpr_profile_intent, rename_bpr_profile_intent, open_bpr_profile_intent>;
+	/// \brief Requests another live window in the named profile runtime.
+	struct new_bpr_window_intent
+	{
+		core::bpr_profile_id Profile;
+	};
+
+	using profile_management_intent   = std::variant<reload_bpr_profiles_intent, create_bpr_profile_intent, rename_bpr_profile_intent, open_bpr_profile_intent, new_bpr_window_intent>;
 	using profile_management_dispatch = std::function<void(profile_management_intent)>;
 
 	enum class profile_runtime_command_kind : std::uint8_t { start,

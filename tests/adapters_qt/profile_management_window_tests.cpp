@@ -8,7 +8,9 @@
 #include <QListWidget>
 #include <QMenu>
 #include <QMenuBar>
+#include <QPointer>
 #include <QPushButton>
+#include <memory>
 
 #include <cstdlib>
 #include <iostream>
@@ -111,6 +113,56 @@ namespace {
 		expect(!window.isVisible() && intents.size() == 1U, "Escape hides management without closing a profile");
 	}
 
+	void test_profile_owned_settings_mount_and_session_lifetime()
+	{
+		qt::settings_window shell;
+		auto                first       = std::make_unique<qt::workbench_window>();
+		auto                second      = std::make_unique<qt::workbench_window>();
+		auto*               firstLocal  = first->settings();
+		auto                firstPanel  = QPointer<qt::appearance_settings_panel>{ first->appearance_settings() };
+		auto                secondPanel = QPointer<qt::appearance_settings_panel>{ second->appearance_settings() };
+		first->set_settings_presenter([&first, &shell](const qt::settings_page aPage) {
+			first->mount_settings(shell);
+			shell.present(aPage);
+		});
+		first->open_settings(qt::settings_page::accounts_and_hosts);
+		expect(first->settings() == &shell && shell.current_page() == qt::settings_page::accounts_and_hosts
+				   && shell.isAncestorOf(firstPanel) && !firstLocal->isVisible(),
+			   "all Settings gestures mount the invoking live session in one profile shell");
+		auto firstCancels  = 0U;
+		auto firstPreviews = 0U;
+		first->appearance_settings()->set_dispatch([&firstCancels, &firstPreviews](const auto& aIntent) {
+			if (std::holds_alternative<application::cancel_appearance_palette_preview_intent>(aIntent)) {
+				++firstCancels;
+			}
+			if (std::holds_alternative<application::preview_appearance_palette_intent>(aIntent)) {
+				++firstPreviews;
+			}
+		});
+		first->appearance_settings()->color_editor()->setText(QStringLiteral("#112233"));
+		first->appearance_settings()->preview_button()->click();
+		first->unmount_settings();
+		QApplication::processEvents();
+		expect(firstCancels == 1U && firstPreviews == 0U && !first->appearance_settings()->preview_palette(),
+			   "switching the mounted session cancels even a preview queued before delivery");
+		expect(first->settings() == firstLocal && firstLocal->isAncestorOf(firstPanel) && !shell.isAncestorOf(firstPanel), "unmount restores every live panel to its callback owner");
+		auto cancels = 0U;
+		second->appearance_settings()->set_dispatch([&cancels](const auto& aIntent) {
+			if (std::holds_alternative<application::cancel_appearance_palette_preview_intent>(aIntent)) {
+				++cancels;
+			}
+		});
+		second->mount_settings(shell);
+		first.reset();
+		expect(!firstPanel && secondPanel && shell.isAncestorOf(secondPanel), "closing the first session leaves the second session's mounted Settings alive");
+		shell.close();
+		expect(cancels == 1U, "the shared shell closes through only its currently mounted live panel");
+		second.reset();
+		expect(!secondPanel && shell.page_widget(qt::settings_page::appearance) != nullptr,
+			   "session destruction unmounts before destroying callbacks and leaves the independent Settings shell intact");
+		shell.close();
+	}
+
 	void test_native_profiles_menu_keeps_action_identity()
 	{
 		qt::workbench_window                                window;
@@ -134,7 +186,11 @@ namespace {
 		window.findChild<QAction*>(QStringLiteral("manageProfilesAction"))->trigger();
 		window.findChild<QAction*>(QStringLiteral("quitProfilesAction"))->trigger();
 		expect(managed == 1U && quit == 1U, "management and Quit invoke their desktop owner callbacks");
-		expect(menu->actions().size() == 3, "Profiles advertises existing profiles and management only");
+		auto* newWindow = window.findChild<QAction*>(QStringLiteral("newBprWindowAction"));
+		expect(newWindow != nullptr && newWindow->isEnabled(), "New Window is reachable in the real profile menu");
+		newWindow->trigger();
+		expect(std::get<application::new_bpr_window_intent>(intents.back()).Profile == core::default_bpr_profile_id, "New Window dispatches this window's current profile identity");
+		expect(menu->actions().size() == 4, "Profiles includes existing profiles, New Window and management");
 	}
 }
 
@@ -144,6 +200,7 @@ auto main(int argc, char** argv) -> int
 	test_management_keeps_identity_and_rejected_candidates();
 	test_keyboard_accessibility_and_compact_layout();
 	test_native_profiles_menu_keeps_action_identity();
+	test_profile_owned_settings_mount_and_session_lifetime();
 	std::cout << "profile-management-window-tests:pass\n";
 	return EXIT_SUCCESS;
 }

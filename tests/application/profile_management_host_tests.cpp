@@ -169,6 +169,77 @@ namespace {
 		expect(test.Output.Commands.size() == count && test.Output.last().Failure->Reason == profile_management_failure::unknown_profile, "unknown profile cannot produce a fallback start");
 	}
 
+	void test_multiple_live_windows_and_exact_retirement()
+	{
+		fixture test;
+		test.load();
+		const auto profile = core::default_bpr_profile_id;
+		test.Host.apply(open_bpr_profile_intent{ profile });
+		const auto first = test.Output.Commands.back().Context;
+		expect(test.Host.current(first) && test.Host.complete_open(first), "opening and open contexts are current");
+		test.Host.apply(new_bpr_window_intent{ profile });
+		const auto second = test.Output.Commands.back().Context;
+		expect(second.Profile == first.Profile && second.Window != first.Window
+				   && test.Host.current(first) && test.Host.current(second),
+			   "New Window reserves a distinct current context in the same profile");
+		expect(test.Output.last().Profiles.front().Runtime == profile_management_runtime::open, "a live sibling keeps profile status open while another starts");
+		expect(test.Host.complete_open(second), "second window opens independently");
+		expect(test.Host.focus(first), "native focus updates the core MRU order");
+		test.Host.apply(open_bpr_profile_intent{ profile });
+		expect(test.Output.Commands.back().Kind == profile_runtime_command_kind::activate && test.Output.Commands.back().Context == first, "ordinary Open activates the focused MRU window without allocation");
+		expect(test.Host.begin_close(first) && !test.Host.current(first) && test.Host.current(second), "begin close rejects A callbacks while B remains current");
+		test.Host.apply(open_bpr_profile_intent{ profile });
+		expect(test.Output.Commands.back().Kind == profile_runtime_command_kind::activate && test.Output.Commands.back().Context == second, "ordinary Open skips a closing MRU sibling");
+		expect(test.Host.complete_close(first) && test.Host.current(second), "A drainage retires only A");
+		test.Host.apply(new_bpr_window_intent{ profile });
+		const auto failed = test.Output.Commands.back().Context;
+		expect(test.Host.complete_open(failed, std::unexpected(profile_management_failure::runtime_unavailable)), "failed new-window reservation retires exactly once");
+		expect(!test.Host.current(failed) && test.Host.current(second)
+				   && test.Output.last().Profiles.front().Runtime == profile_management_runtime::open
+				   && test.Output.last().Failure->Operation == profile_management_operation::new_window,
+			   "failed new window leaves the sibling open and names its operation");
+		auto stale              = second;
+		stale.Generation        = core::bpr_window_generation{ second.Generation.value() + 1U };
+		auto foreign            = second;
+		foreign.Profile         = core::bpr_profile_id{ 99U };
+		const auto publications = test.Output.States.size();
+		const auto commands     = test.Output.Commands.size();
+		for (const auto context : { first, failed, stale, foreign }) {
+			expect(!test.Host.current(context) && !test.Host.focus(context) && !test.Host.begin_close(context)
+					   && !test.Host.complete_close(context) && !test.Host.complete_open(context),
+				   "retired, stale and foreign contexts cannot mutate live siblings");
+		}
+		expect(test.Output.States.size() == publications && test.Output.Commands.size() == commands, "rejected lifecycle callbacks have no projection or runtime effects");
+		expect(test.Store.Saves == 0U, "live window allocation and retirement never persist synthetic session rows");
+	}
+
+	void test_live_window_cap_and_independent_pending_startups()
+	{
+		fixture test;
+		test.load();
+		std::vector<core::bpr_window_context> windows;
+		for (std::size_t index = 0U; index < core::maximum_bpr_windows_per_profile; ++index) {
+			test.Host.apply(new_bpr_window_intent{ core::default_bpr_profile_id });
+			windows.push_back(test.Output.Commands.back().Context);
+			expect(test.Host.current(windows.back()), "every bounded pending startup has its own admitted context");
+		}
+		const auto count = test.Output.Commands.size();
+		test.Host.apply(new_bpr_window_intent{ core::default_bpr_profile_id });
+		expect(test.Output.Commands.size() == count && test.Output.last().Failure->Reason == profile_management_failure::window_limit,
+			   "the thirty-third live reservation fails with the core window cap");
+		expect(test.Host.complete_open(windows.back()) && test.Host.complete_open(windows.front()), "out-of-order startup terminals remain independently admissible");
+		expect(test.Host.begin_close(windows.front()) && test.Host.complete_close(windows.front()), "one exact close releases one cap slot");
+		test.Host.apply(new_bpr_window_intent{ core::default_bpr_profile_id });
+		expect(test.Output.Commands.size() == count + 1U && test.Output.Commands.back().Context.Window.value() > windows.back().Window.value(),
+			   "replacement uses a fresh window identity after one slot drains");
+		test.Host.shutdown();
+		for (const auto context : windows) {
+			expect(!test.Host.current(context), "shutdown revokes every sibling context immediately");
+			static_cast<void>(test.Host.complete_close(context));
+		}
+		expect(test.Host.complete_close(test.Output.Commands.back().Context) && test.Host.is_quiescent(), "all closing reservations must drain before host quiescence");
+	}
+
 	void test_shutdown_and_reentrant_projection()
 	{
 		fixture test;
@@ -202,6 +273,8 @@ int main()
 	test_one_owner_pending_open_and_closing();
 	test_failed_and_foreign_completions();
 	test_shutdown_and_reentrant_projection();
+	test_multiple_live_windows_and_exact_retirement();
+	test_live_window_cap_and_independent_pending_startups();
 	std::cout << "profile-management-host-tests:pass\n";
 	return EXIT_SUCCESS;
 }

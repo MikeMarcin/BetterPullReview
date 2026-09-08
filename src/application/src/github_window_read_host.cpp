@@ -1,6 +1,8 @@
 #include "bpr/application/github_window_read_host.hpp"
+
 #include "bpr/core/anonymous_read_policy.hpp"
 #include "bpr/core/sha256.hpp"
+#include "github_projection_mapping.hpp"
 #include <algorithm>
 #include <atomic>
 #include <mutex>
@@ -342,13 +344,29 @@ namespace bpr::application {
 			return std::move(result.Projection);
 		}
 		void publish_transition(const core::github_transition_output& aOutput,
-								const github_session_read_model* = nullptr, const github_pull_request_snapshot* = nullptr)
+								const github_session_read_model* aSession = nullptr, const github_pull_request_snapshot* aSnapshot = nullptr)
 		{
 			if (!Publish || Closing || SuppressPublication) {
 				return;
 			}
 			try {
-				Publish({ Policy.window(), aOutput, std::exchange(LastError, std::nullopt), PublicPreviewRefusal });
+				auto error        = std::exchange(LastError, std::nullopt);
+				auto presentation = github_presentation_update{ .Transition = project_github_transition(aOutput) };
+				if (aSession != nullptr) {
+					presentation.Session = project_github_session(*aSession);
+				}
+				if (aSnapshot != nullptr) {
+					presentation.PullRequest = project_github_pull_request(*aSnapshot);
+				}
+				if (error && (error->RetryAfterSeconds || has_observations(error->RateLimits))) {
+					presentation.HostDiagnostics.push_back(project_github_host_diagnostic({
+						.Reason            = core::reason_for(mapped_failure(error->Failure)),
+						.RetryAfterSeconds = error->RetryAfterSeconds,
+						.RateLimits        = RateLimits,
+						.RateLimitCause    = error->RateLimitCause,
+					}));
+				}
+				Publish({ Policy.window(), aOutput, std::move(error), PublicPreviewRefusal, std::move(presentation) });
 			} catch (...) {
 				ProjectionDeliveryFailed = true;
 			}

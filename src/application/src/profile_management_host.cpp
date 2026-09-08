@@ -23,11 +23,22 @@ namespace bpr::application {
 			default:                                           return profile_management_failure::registry_unavailable;
 			}
 		}
+		[[nodiscard]] auto translate(const core::profile_window_failure aFailure) -> profile_management_failure
+		{
+			switch (aFailure) {
+			case core::profile_window_failure::unknown_profile:    return profile_management_failure::unknown_profile;
+			case core::profile_window_failure::window_limit:       return profile_management_failure::window_limit;
+			case core::profile_window_failure::identity_exhausted: return profile_management_failure::identity_exhausted;
+			default:                                               return profile_management_failure::runtime_unavailable;
+			}
+		}
+
 		struct runtime_slot
 		{
-			core::bpr_window_context   Context;
-			profile_management_runtime State;
-			bool                       StartupPending = true;
+			core::bpr_window_context     Context;
+			profile_management_runtime   State;
+			bool                         StartupPending = true;
+			profile_management_operation Operation      = profile_management_operation::open;
 		};
 	}
 
@@ -50,13 +61,52 @@ namespace bpr::application {
 			, Registry{ aRegistry, aEffects, aDecision, *this, aSession }
 		{ }
 
-		[[nodiscard]] auto slot_for(const core::bpr_profile_id aProfile)
-		{
-			return std::ranges::find_if(Slots, [aProfile](const auto& aSlot) { return aSlot.Context.Profile == aProfile; });
-		}
 		[[nodiscard]] auto exact_slot(const core::bpr_window_context aContext)
 		{
 			return std::ranges::find_if(Slots, [aContext](const auto& aSlot) { return aSlot.Context == aContext; });
+		}
+
+		[[nodiscard]] auto current(const core::bpr_window_context aContext) const noexcept -> bool
+		{
+			return !Closing && Catalog.accepts(aContext) && std::ranges::any_of(Slots, [aContext](const auto& aSlot) {
+				return aSlot.Context == aContext && (aSlot.State == profile_management_runtime::opening || aSlot.State == profile_management_runtime::open);
+			});
+		}
+
+		[[nodiscard]] auto runtime_state(const core::bpr_profile_id aProfile) const -> profile_management_runtime
+		{
+			auto state = profile_management_runtime::closed;
+			for (const auto& slot : Slots) {
+				if (slot.Context.Profile != aProfile) {
+					continue;
+				}
+				if (slot.State == profile_management_runtime::open) {
+					return profile_management_runtime::open;
+				}
+				if (state != profile_management_runtime::opening) {
+					state = slot.State;
+				}
+			}
+			return state;
+		}
+
+		[[nodiscard]] auto focus(const core::bpr_window_context aContext) -> bool
+		{
+			const auto slot = exact_slot(aContext);
+			return !Closing && slot != Slots.end() && slot->State == profile_management_runtime::open && Catalog.focus(aContext).has_value();
+		}
+
+		void focus_latest_open(const core::bpr_profile_id aProfile)
+		{
+			const auto profile = std::ranges::find_if(Catalog.state().Profiles, [aProfile](const auto& aEntry) { return aEntry.Profile.Id == aProfile; });
+			if (profile == Catalog.state().Profiles.end()) {
+				return;
+			}
+			for (auto window = profile->Live.rbegin(); window != profile->Live.rend(); ++window) {
+				if (focus({ aProfile, window->Id, window->Generation })) {
+					return;
+				}
+			}
 		}
 
 		void emit(std::optional<profile_management_error> aFailure = { }, std::optional<profile_management_edit> aEdit = { })
@@ -64,9 +114,7 @@ namespace bpr::application {
 			auto result = profile_management_projection{ { }, Ready, !Registry.is_quiescent(), Closing, aFailure, aEdit };
 			if (HaveCatalog) {
 				for (const auto& entry : Catalog.state().Profiles) {
-					const auto slot = slot_for(entry.Profile.Id);
-					result.Profiles.push_back({ entry.Profile.Id, entry.Profile.Label,
-												slot == Slots.end() ? profile_management_runtime::closed : slot->State });
+					result.Profiles.push_back({ entry.Profile.Id, entry.Profile.Label, runtime_state(entry.Profile.Id) });
 				}
 			}
 			try {
@@ -171,9 +219,9 @@ namespace bpr::application {
 			}
 		}
 
-		void open(const core::bpr_profile_id aProfile)
+		void open(const core::bpr_profile_id aProfile, const core::profile_launch_intent aIntent)
 		{
-			constexpr auto operation = profile_management_operation::open;
+			const auto operation = aIntent == core::profile_launch_intent::new_window ? profile_management_operation::new_window : profile_management_operation::open;
 			if (Closing) {
 				fail(operation, aProfile, profile_management_failure::closing);
 				return;
@@ -182,19 +230,23 @@ namespace bpr::application {
 				fail(operation, aProfile, profile_management_failure::registry_unavailable);
 				return;
 			}
-			const auto slot = slot_for(aProfile);
-			if (slot != Slots.end() && slot->State != profile_management_runtime::open) {
+			const auto state = runtime_state(aProfile);
+			if (state == profile_management_runtime::closing
+				|| (aIntent == core::profile_launch_intent::activate && state == profile_management_runtime::opening)) {
 				fail(operation, aProfile, profile_management_failure::busy);
 				return;
 			}
-			const auto launched = Catalog.launch(aProfile, core::profile_launch_intent::activate);
+			if (aIntent == core::profile_launch_intent::activate) {
+				focus_latest_open(aProfile);
+			}
+			const auto launched = Catalog.launch(aProfile, aIntent);
 			if (!launched) {
-				fail(operation, aProfile, launched.error() == core::profile_window_failure::unknown_profile ? profile_management_failure::unknown_profile : profile_management_failure::identity_exhausted);
+				fail(operation, aProfile, translate(launched.error()));
 				return;
 			}
 			const auto starting = !launched->Created.empty();
 			if (starting) {
-				Slots.push_back({ launched->Activated, profile_management_runtime::opening });
+				Slots.push_back({ launched->Activated, profile_management_runtime::opening, true, operation });
 			}
 			const auto profile = std::ranges::find_if(Catalog.state().Profiles, [aProfile](const auto& aEntry) { return aEntry.Profile.Id == aProfile; });
 			const auto command = profile_runtime_command{ starting ? profile_runtime_command_kind::start : profile_runtime_command_kind::activate, launched->Activated, profile->Profile.Label };
@@ -236,11 +288,13 @@ namespace bpr::application {
 				return false;
 			}
 			if (!aResult) {
+				const auto operation = slot->Operation;
 				retire(aContext);
-				fail(profile_management_operation::open, aContext.Profile, aResult.error());
+				fail(operation, aContext.Profile, aResult.error());
 				return true;
 			}
 			slot->State = profile_management_runtime::open;
+			static_cast<void>(Catalog.focus(aContext));
 			emit();
 			const auto current = exact_slot(aContext);
 			return !Closing && current != Slots.end() && current->State == profile_management_runtime::open;
@@ -297,7 +351,7 @@ namespace bpr::application {
 			} else if constexpr (std::is_same_v<intent, rename_bpr_profile_intent>) {
 				Implementation->edit(profile_management_operation::rename, aValue.Profile, aValue.Label);
 			} else {
-				Implementation->open(aValue.Profile);
+				Implementation->open(aValue.Profile, std::is_same_v<intent, new_bpr_window_intent> ? core::profile_launch_intent::new_window : core::profile_launch_intent::activate);
 			}
 		},
 				   aIntent);
@@ -306,6 +360,9 @@ namespace bpr::application {
 	auto profile_management_host::complete_open(const core::bpr_window_context aContext, const std::expected<void, profile_management_failure> aResult) -> bool { return Implementation->complete_open(aContext, aResult); }
 	auto profile_management_host::begin_close(const core::bpr_window_context aContext) -> bool { return Implementation->begin_close(aContext); }
 	auto profile_management_host::complete_close(const core::bpr_window_context aContext) -> bool { return Implementation->complete_close(aContext); }
+	auto profile_management_host::current(const core::bpr_window_context aContext) const noexcept -> bool { return Implementation->current(aContext); }
+	auto profile_management_host::focus(const core::bpr_window_context aContext) -> bool { return Implementation->focus(aContext); }
+
 	void profile_management_host::shutdown() { Implementation->shutdown(); }
 	auto profile_management_host::is_quiescent() const noexcept -> bool { return Implementation->Registry.is_quiescent() && Implementation->Slots.empty(); }
 	auto profile_management_host::projection_delivery_failed() const noexcept -> bool { return Implementation->DeliveryFailed || Implementation->Registry.projection_delivery_failed(); }

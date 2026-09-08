@@ -35,6 +35,112 @@ namespace {
 		};
 		return result;
 	}
+	[[nodiscard]] auto
+	snapshot(const application::github_pull_request_provider_request& aRequest)
+		-> application::github_pull_request_snapshot
+	{
+		return {
+			.Profile = aRequest.Context.Profile,
+			.Host    = aRequest.Context.Host,
+			.Account = aRequest.Context.Account,
+			.Viewer  = {
+				.Actor = aRequest.Viewer.Node,
+				.Login = aRequest.Viewer.Login,
+			},
+			.Snapshot   = core::provider_snapshot_id{ 91U },
+			.Repository = {
+				.Repository    = core::repository_id{ 71U },
+				.Node          = application::github_node_id{ "repository-node" },
+				.Owner         = aRequest.Context.Repository.Owner,
+				.Name          = aRequest.Context.Repository.Name,
+				.DefaultBranch = "main",
+			},
+			.PullRequest = {
+				.PullRequest = core::pull_request_id{ 81U },
+				.Repository  = core::repository_id{ 71U },
+				.Number      = aRequest.Context.Number,
+				.Node        = application::github_node_id{ "pull-request-node" },
+				.Title       = "Host orchestration",
+				.Body        = "Bounded.",
+				.State       = application::github_pull_request_state::open,
+				.Draft       = false,
+				.Author      = std::nullopt,
+				.BaseOid     = application::commit_oid{ "1111111111111111111111111111111111111111" },
+				.HeadOid     = application::commit_oid{ "2222222222222222222222222222222222222222" },
+				.BaseRef     = "main",
+				.HeadRef     = "host",
+			},
+			.Files                     = { },
+			.Commits                   = { },
+			.Reviews                   = { },
+			.ReviewThreadsAvailability = application::github_collection_availability::unavailable,
+			.ReviewThreads             = { },
+			.IssueComments             = { },
+			.Checks                    = { },
+			.SearchResults             = { },
+			.CapabilityEvidence        = {
+				.Capabilities    = aRequest.CapabilityEvidence.Capabilities,
+				.Revision        = aRequest.CapabilityEvidence.Revision,
+				.ReadShape       = aRequest.CapabilityEvidence.ReadShape,
+				.ContractVersion = 1U,
+			},
+			.RateLimits = {
+				.Core   = application::github_rate_limit_record{ application::github_rate_limit_resource::core, 5000U, 4999U, 100U },
+				.Search = application::github_rate_limit_record{ application::github_rate_limit_resource::search, 30U, 29U, 100U },
+			},
+		};
+	}
+
+	void test_safe_read_presentation_matches_accepted_state()
+	{
+		reads                                               provider;
+		application::manual_executor                        lane;
+		std::vector<application::github_window_read_update> updates;
+		application::github_window_read_host                host{
+			{ core::default_bpr_profile_id, core::bpr_window_id{ 2 }, core::bpr_window_generation{ 1 } },
+			core::application_session_id{ 2 },
+			provider,
+			lane,
+			[&updates](const auto& aUpdate) { updates.push_back(aUpdate); }
+		};
+		expect(host.adopt(session()), "presentation fixture adopts authenticated session");
+		host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 1 } });
+		const auto first    = provider.Calls.back();
+		const auto accepted = snapshot(first.Request);
+		first.Complete(application::github_pull_request_success{ first.Request, accepted });
+		lane.drain();
+		expect(host.accepted_snapshot().has_value() && updates.back().Presentation.PullRequest.has_value(), "accepted read publishes its safe PR projection");
+		const auto& shown = *updates.back().Presentation.PullRequest;
+		expect(shown.Snapshot == host.accepted_snapshot()->Snapshot && shown.Repository == accepted.Repository.Repository
+				   && shown.PullRequest == accepted.PullRequest.PullRequest && shown.Title == accepted.PullRequest.Title
+				   && shown.Body == accepted.PullRequest.Body && shown.Number == accepted.PullRequest.Number
+				   && shown.RateLimits.Core->Remaining == accepted.RateLimits.Core->Remaining,
+			   "safe accepted fields match the exact authoritative snapshot");
+		host.dispatch(core::open_pull_request_intent{ { "owner", "other" }, core::pull_request_number{ 2 } });
+		expect(!host.accepted_snapshot() && !updates.back().Presentation.PullRequest,
+			   "a replacement read clears raw snapshot and publishes no stale PR payload");
+		const auto second = provider.Calls.back();
+		const auto error  = application::github_provider_error{
+			.Failure           = application::github_provider_failure::unavailable,
+			.RetryAfterSeconds = 9U,
+		};
+		second.Complete(application::github_pull_request_error{ second.Request, error });
+		lane.drain();
+		expect(updates.back().ProviderError == error && updates.back().Presentation.HostDiagnostics.size() == 1U
+				   && updates.back().Presentation.HostDiagnostics.front().Reason == core::reason_for(core::github_failure::network)
+				   && updates.back().Presentation.HostDiagnostics.front().RetryAfterSeconds == error.RetryAfterSeconds,
+			   "accepted provider advisory maps typed failure and retry facts in the same update");
+		for (const auto& update : updates) {
+			expect(update.Presentation.Transition && update.Presentation.Transition->Status == update.Transition.Status
+					   && update.Presentation.Transition->PullRequest == update.Transition.PullRequest
+					   && update.Presentation.Transition->Identity == update.Transition.Identity
+					   && update.Presentation.Transition->Diagnostics == update.Transition.Diagnostics,
+				   "every safe transition preserves exact status, clear, identity and diagnostics deltas");
+			expect(!update.Presentation.Session, "read updates do not overwrite profile-owned session and grant presentation");
+		}
+		expect(!host.projection_delivery_failed(), "mapping and delivery stay inside the successful host boundary");
+	}
+
 	void test_reentrant_read_publication()
 	{
 		reads                        provider;
@@ -100,6 +206,7 @@ namespace {
 int main()
 {
 	test_reentrant_read_publication();
+	test_safe_read_presentation_matches_accepted_state();
 	reads                                provider;
 	application::manual_executor         lane;
 	std::size_t                          publications = 0;

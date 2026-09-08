@@ -55,6 +55,8 @@ namespace bpr::application {
 		core::github_transition_output               Transition;
 		std::optional<github_provider_error>         ProviderError;
 		std::optional<github_public_preview_refusal> PublicPreviewRefusal;
+		/// Provider-free presentation mapped inside the window host publication boundary.
+		github_presentation_update Presentation;
 	};
 
 	/// Owns one PR request, accepted snapshot and its revocable epoch authorities.

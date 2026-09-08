@@ -15,7 +15,7 @@ namespace bpr::application {
 		virtual void perform(const profile_runtime_command& aCommand) = 0;
 	};
 
-	/// \brief Durable management with one in-process runtime reservation per profile.
+	/// \brief Durable profile management with bounded live window reservations per profile.
 	/// \details All methods and callbacks run on the decision lane. Runtime commands are
 	/// performed by composition, which must report exact completions. Closing reservations
 	/// remain occupied until complete_close. Shutdown cancels registry work and marks every
@@ -36,6 +36,11 @@ namespace bpr::application {
 										 std::expected<void, profile_management_failure> aResult = { }) -> bool;
 		[[nodiscard]] auto begin_close(core::bpr_window_context aContext) -> bool;
 		[[nodiscard]] auto complete_close(core::bpr_window_context aContext) -> bool;
+		/// \brief Admits only exact opening/open contexts; closing and retired windows are stale.
+		[[nodiscard]] auto current(core::bpr_window_context aContext) const noexcept -> bool;
+		/// \brief Records native focus for an exact open window, preserving core MRU order.
+		[[nodiscard]] auto focus(core::bpr_window_context aContext) -> bool;
+
 		void               shutdown();
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
 		[[nodiscard]] auto projection_delivery_failed() const noexcept -> bool;
