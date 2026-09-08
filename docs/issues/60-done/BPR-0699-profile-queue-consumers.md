@@ -2,9 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0699"
 title: "Share one profile queue with bounded window consumers"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0696"]
+acceptance: [{"criterion":"All bounded card acceptance criteria","outcome":"pass","revision":"HEAD plus explicit finish paths","evidence":{"kind":"observation","detail":"Core-only queue contracts 6.53s, changed-TU tidy and composed application_queue_composition_contract 3.68s pass. Medium review found two corrected reentrancy failures, both narrowly rechecked. Shared notification observation is singular; actual multi-window runtime remains later."}}]
 ---
 
 # Share one profile queue with bounded window consumers
@@ -36,6 +37,13 @@ the fan-out implementation; one composed queue path verifies compatibility.
 
 ## Evidence
 
-Read-only ownership inventory established this bounded split. No implementation
-or new acceptance check has run for this card. BPR-0697/0698 extraction logs and
-finish decisions were consumed and removed; shared build outputs remain.
+The queue host now admits at most 32 exact-context consumers with monotonic
+attachment identities, accepted-state replay and reentrant delivery checks.
+One fresh-publication observer remains separate from coalesced window delivery;
+legacy combined notification/UI observation preserves all fresh transitions.
+Independent medium review found lost reentrant legacy transitions and effects
+started after callback shutdown. Both were corrected with discriminating narrow
+regressions. Core-only queue tests pass (6.53s); both changed translation units
+pass tidy and formatting. No queue storage schema changed.
+
+Core-only queue contracts 6.53s, changed-TU tidy and composed application_queue_composition_contract 3.68s pass. Medium review found two corrected reentrancy failures, both narrowly rechecked. Shared notification observation is singular; actual multi-window runtime remains later.

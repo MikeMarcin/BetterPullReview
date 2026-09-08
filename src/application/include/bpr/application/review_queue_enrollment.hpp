@@ -3,6 +3,7 @@
 
 #include "bpr/application/port.hpp"
 #include "bpr/application/review_queue_refresh.hpp"
+#include "bpr/core/profile_window.hpp"
 #include "bpr/core/review_queue.hpp"
 #include "bpr/core/review_queue_attention.hpp"
 
@@ -398,6 +399,35 @@ namespace bpr::application {
 		virtual void publish(const queue_landing_projection& aProjection) = 0;
 	};
 
+	struct queue_consumer_id_tag;
+	using queue_consumer_id = core::strong_id<queue_consumer_id_tag>;
+
+	enum class queue_attachment_failure : std::uint8_t {
+		closing,
+		invalid_consumer,
+		stale_window,
+		capacity,
+		identity_exhausted,
+	};
+
+	/// \brief Reads exact live-window admission from the profile's core catalog.
+	/// \details The owner keeps this read-only port alive through host shutdown. It must
+	/// not reenter the host. Admission is checked on attach, replay and every delivery.
+	class queue_window_context_port
+	{
+	public:
+		virtual ~queue_window_context_port()                                                                = default;
+		[[nodiscard]] virtual auto current(const core::bpr_window_context& aContext) const noexcept -> bool = 0;
+	};
+
+	/// \brief Receives one profile queue through an exact live-window attachment.
+	class queue_window_projection_port
+	{
+	public:
+		virtual ~queue_window_projection_port()                                                                     = default;
+		virtual void publish(const core::bpr_window_context& aContext, const queue_landing_projection& aProjection) = 0;
+	};
+
 	struct review_queue_host_statistics
 	{
 		std::uint64_t RuleIntents            = 0U;
@@ -427,6 +457,27 @@ namespace bpr::application {
 			decision_executor&             aDecisionLane,
 			queue_landing_projection_port& aProjection,
 			queue_session_id               aSession);
+		/// \brief Constructs a profile owner with no permanent first-window dependency.
+		/// \details All calls run on the decision lane. Ports and executors outlive the
+		/// owner through quiescence. The optional profile observer receives each fresh
+		/// publication once, never attachment replay. Window callbacks may attach/detach
+		/// or issue gestures, but must keep the owner alive until the callback returns.
+		review_queue_application_host(queue_enrollment_store_port& aStore, queue_refresh_effect_port& aRefresh,
+									  effect_executor& aEffects, decision_executor& aDecisionLane, core::bpr_profile_id aProfile,
+									  queue_window_context_port& aWindows, queue_session_id aSession,
+									  std::shared_ptr<queue_landing_projection_port> aProfileObserver = { });
+
+		/// \brief Attaches one exact live window and replays its latest accepted projection.
+		[[nodiscard]] auto attach(core::bpr_window_context aContext, std::shared_ptr<queue_window_projection_port> aProjection)
+			-> std::expected<queue_consumer_id, queue_attachment_failure>;
+		/// \brief Retires only this attachment token; repeated or stale detach is harmless.
+		void               detach(queue_consumer_id aConsumer);
+		[[nodiscard]] auto attached_consumers() const noexcept -> std::size_t;
+		/// \brief Reports callback failure or observer feedback exceeding 32 pending publications.
+		/// \details A failing consumer is detached; a failing/overflowing observer is retired.
+		/// Other live window consumers continue receiving the latest queue.
+		[[nodiscard]] auto projection_delivery_failed() const noexcept -> bool;
+
 		~review_queue_application_host();
 
 		review_queue_application_host(const review_queue_application_host&) = delete;

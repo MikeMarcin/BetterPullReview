@@ -4,9 +4,11 @@
 #include <algorithm>
 #include <array>
 #include <cstdlib>
+#include <functional>
 #include <iostream>
 #include <optional>
 #include <ranges>
+#include <stdexcept>
 #include <stop_token>
 #include <string_view>
 #include <utility>
@@ -1135,10 +1137,276 @@ namespace {
 		}
 	}
 
+	struct admitted_queue_windows final : application::queue_window_context_port
+	{
+		[[nodiscard]] auto current(const core::bpr_window_context& aContext) const noexcept -> bool override
+		{
+			return std::ranges::find(Live, aContext) != Live.end();
+		}
+		std::vector<core::bpr_window_context> Live;
+	};
+
+	[[nodiscard]] auto queue_window(const std::uint64_t aWindow, const std::uint64_t aGeneration = 1U) -> core::bpr_window_context
+	{
+		return { core::bpr_profile_id{ 2U }, core::bpr_window_id{ aWindow }, core::bpr_window_generation{ aGeneration } };
+	}
+
+	struct window_queue_log final : application::queue_window_projection_port
+	{
+		void publish(const core::bpr_window_context& aContext, const application::queue_landing_projection& aProjection) override
+		{
+			expect(!Delivering, "window callbacks are never recursive");
+			Delivering = true;
+			Contexts.push_back(aContext);
+			Published.push_back(aProjection);
+			const auto callback = Callback;
+			if (callback) {
+				callback();
+			}
+			Delivering = false;
+		}
+		std::vector<core::bpr_window_context>              Contexts;
+		std::vector<application::queue_landing_projection> Published;
+		std::function<void()>                              Callback;
+		bool                                               Delivering = false;
+	};
+
+	struct profile_queue_log final : application::queue_landing_projection_port
+	{
+		void publish(const application::queue_landing_projection&) override
+		{
+			expect(!Delivering, "profile observer is never recursive");
+			Delivering = true;
+			++Publications;
+			const auto callback = Callback;
+			if (callback) {
+				callback();
+			}
+			Delivering = false;
+		}
+		std::function<void()> Callback;
+		std::size_t           Publications = 0U;
+		bool                  Delivering   = false;
+	};
+
+	struct legacy_queue_log final : application::queue_landing_projection_port
+	{
+		void publish(const application::queue_landing_projection& aProjection) override
+		{
+			expect(!Delivering, "legacy combined sink is never called recursively");
+			Delivering = true;
+			Accounts.push_back(aProjection.Session.Account);
+			const auto callback = Callback;
+			if (callback) {
+				callback();
+			}
+			Delivering = false;
+		}
+		std::vector<std::string> Accounts;
+		std::function<void()>    Callback;
+		bool                     Delivering = false;
+	};
+
+	void test_legacy_combined_sink_keeps_every_reentrant_observation()
+	{
+		auto store     = memory_queue_store{ };
+		auto refresh   = observed_refresh{ };
+		auto effects   = application::manual_executor{ };
+		auto decisions = application::manual_executor{ };
+		auto sink      = legacy_queue_log{ };
+		auto host      = application::review_queue_application_host{ store, refresh, effects, decisions, sink, { } };
+		sink.Callback  = [&] {
+			sink.Callback = { };
+			host.adopt({ .Host = "github.com", .Account = "B", .Generation = 2U });
+			host.adopt({ .Host = "github.com", .Account = "C", .Generation = 3U });
+		};
+		host.adopt({ .Host = "github.com", .Account = "A", .Generation = 1U });
+		expect(sink.Accounts == std::vector<std::string>{ "A", "B", "C" }, "legacy notification/projection sink receives every fresh state exactly once in order");
+		expect(host.statistics().Publications == 3U && effects.pending() == 0U, "fanout introduces neither duplicate publication nor effects");
+	}
+
+	void test_rule_publication_shutdown_never_posts_reconciliation()
+	{
+		auto store     = memory_queue_store{ };
+		auto refresh   = observed_refresh{ };
+		auto effects   = application::manual_executor{ };
+		auto decisions = application::manual_executor{ };
+		auto sink      = legacy_queue_log{ };
+		auto host      = application::review_queue_application_host{ store, refresh, effects, decisions, sink, { } };
+		host.restore();
+		run_one(effects, decisions);
+		refresh.Observation = { .Ref = ref(7), .Role = core::github_role::reviewer };
+		host.refresh(ref(7));
+		run_one(effects, decisions);
+		run_one(effects, decisions);
+		sink.Callback = [&] { host.shutdown(); };
+		host.apply(application::queue_rule_intent{ .Rule = path_rule("unrelated") });
+		run_one(effects, decisions);
+		expect(host.is_quiescent() && effects.pending() == 0U && decisions.pending() == 0U, "shutdown during accepted rule publication cannot launch a later enrollment reconciliation");
+	}
+
+	void test_restore_publication_shutdown_never_posts_a_later_load()
+	{
+		auto store     = memory_queue_store{ };
+		auto refresh   = observed_refresh{ };
+		auto effects   = application::manual_executor{ };
+		auto decisions = application::manual_executor{ };
+		auto windows   = admitted_queue_windows{ };
+		windows.Live   = { queue_window(1U) };
+		auto host      = application::review_queue_application_host{ store, refresh, effects, decisions, core::bpr_profile_id{ 2U }, windows, { } };
+		auto sink      = std::make_shared<window_queue_log>();
+		expect(host.attach(queue_window(1U), sink).has_value(), "window attaches before initial restore");
+		sink->Callback = [&] { host.shutdown(); expect(host.is_quiescent(), "shutdown is safe before any restore effect is reserved"); };
+		host.restore();
+		expect(effects.pending() == 0U && decisions.pending() == 0U && store.Loads == 0U && host.is_quiescent(), "restore cannot schedule work after shutdown reported quiescence");
+		host.restore();
+		expect(effects.pending() == 0U && store.Loads == 0U, "closed restore remains effect-free");
+	}
+
+	void test_profile_queue_fanout_replays_without_repeating_effects()
+	{
+		auto store     = memory_queue_store{ };
+		auto refresh   = observed_refresh{ };
+		auto effects   = application::manual_executor{ };
+		auto decisions = application::manual_executor{ };
+		auto windows   = admitted_queue_windows{ };
+		windows.Live   = { queue_window(1U), queue_window(2U) };
+		auto observer  = std::make_shared<profile_queue_log>();
+		auto host      = application::review_queue_application_host{ store, refresh, effects, decisions, core::bpr_profile_id{ 2U }, windows, { }, observer };
+		host.restore();
+		run_one(effects, decisions);
+		expect(store.Loads == 1U && observer->Publications == 2U, "owner restores once without any initial window");
+		auto       first  = std::make_shared<window_queue_log>();
+		auto       second = std::make_shared<window_queue_log>();
+		const auto one    = host.attach(queue_window(1U), first);
+		const auto two    = host.attach(queue_window(2U), second);
+		expect(one.has_value() && two.has_value() && first->Published.size() == 1U && second->Published == first->Published && observer->Publications == 2U, "two initial replays do not repeat notification observations");
+		auto preferences                 = host.preferences();
+		preferences.Notifications.Paused = true;
+		host.apply(application::queue_preferences_intent{ preferences });
+		run_one(effects, decisions);
+		expect(host.statistics().PersistenceRequests == 1U && observer->Publications == 3U && first->Published.size() == 2U && second->Published == first->Published, "one durable mutation reaches both windows and one profile observer");
+		refresh.Observation = { .Ref = ref(7), .Role = core::github_role::reviewer };
+		host.refresh(ref(7));
+		run_one(effects, decisions);
+		run_one(effects, decisions);
+		expect(refresh.Requests.size() == 1U && store.State.Enrollments.size() == 1U && observer->Publications == 4U && first->Published.back().Items.size() == 1U && second->Published == first->Published, "one refresh and enrollment observation feed both consumers");
+		const auto weakFirst = std::weak_ptr{ first };
+		host.detach(*one);
+		first.reset();
+		expect(weakFirst.expired(), "profile owner releases the first window entirely on detach");
+		host.detach(*two);
+		host.refresh(ref(8));
+		host.shutdown();
+		run_one(effects, decisions);
+		expect(host.is_quiescent() && host.attached_consumers() == 0U && observer->Publications == 4U, "last-consumer shutdown rejects late refresh publication");
+		const auto closed = host.attach(queue_window(1U), second);
+		expect(!closed && closed.error() == application::queue_attachment_failure::closing, "shutdown cannot acquire new windows");
+	}
+
+	void test_queue_consumers_recheck_exact_generation_and_reentrant_detach()
+	{
+		auto store     = memory_queue_store{ };
+		auto refresh   = observed_refresh{ };
+		auto effects   = application::manual_executor{ };
+		auto decisions = application::manual_executor{ };
+		auto windows   = admitted_queue_windows{ };
+		windows.Live   = { queue_window(1U), queue_window(2U) };
+		auto host      = application::review_queue_application_host{ store, refresh, effects, decisions, core::bpr_profile_id{ 2U }, windows, { } };
+		host.restore();
+		run_one(effects, decisions);
+		auto       first  = std::make_shared<window_queue_log>();
+		auto       second = std::make_shared<window_queue_log>();
+		const auto one    = host.attach(queue_window(1U), first);
+		const auto two    = host.attach(queue_window(2U), second);
+		expect(one.has_value() && two.has_value(), "both exact windows attach");
+		first->Callback = [&] { first->Callback = {}; host.detach(*two); host.adopt({.Host = "github.com", .Account = "new", .Generation = 2U}); };
+		host.adopt({ .Host = "github.com", .Account = "reviewer", .Generation = 1U });
+		expect(second->Published.size() == 1U && first->Published.back().Session.Account == "new", "reentrant detach prevents stale sibling callbacks and queues newer delivery");
+		windows.Live[0] = queue_window(1U, 2U);
+		host.adopt({ .Host = "github.com", .Account = "later", .Generation = 3U });
+		expect(first->Published.back().Session.Account == "new", "retired generation receives no later callback even without explicit detach");
+		const auto stale          = host.attach(queue_window(1U), first);
+		auto       foreignContext = queue_window(3U);
+		foreignContext.Profile    = core::default_bpr_profile_id;
+		windows.Live.push_back(foreignContext);
+		const auto foreign = host.attach(foreignContext, first);
+		expect(!stale && stale.error() == application::queue_attachment_failure::stale_window && !foreign, "stale and foreign attachment authority are refused");
+		const auto replacement = host.attach(queue_window(1U, 2U), first);
+		expect(replacement.has_value() && first->Contexts.back() == queue_window(1U, 2U), "fresh generation receives exact-context initial replay");
+		host.detach(*one);
+		expect(host.attached_consumers() == 1U, "stale token cannot detach replacement generation");
+		const auto duplicate = host.attach(queue_window(1U, 2U), second);
+		expect(!duplicate && duplicate.error() == application::queue_attachment_failure::invalid_consumer, "same live window cannot duplicate a consumer");
+	}
+
+	void test_queue_consumer_capacity_counts_only_live_attachments()
+	{
+		auto store     = memory_queue_store{ };
+		auto refresh   = observed_refresh{ };
+		auto effects   = application::manual_executor{ };
+		auto decisions = application::manual_executor{ };
+		auto windows   = admitted_queue_windows{ };
+		auto host      = application::review_queue_application_host{ store, refresh, effects, decisions, core::bpr_profile_id{ 2U }, windows, { } };
+		auto sink      = std::make_shared<window_queue_log>();
+		for (std::uint64_t index = 1U; index <= 100U; ++index) {
+			windows.Live        = { queue_window(index) };
+			const auto attached = host.attach(queue_window(index), sink);
+			expect(attached.has_value(), "repeated lifetime churn does not exhaust concurrent capacity");
+			host.detach(*attached);
+		}
+		for (std::uint64_t index = 1U; index <= core::maximum_bpr_windows_per_profile + 1U; ++index) {
+			windows.Live.push_back(queue_window(index));
+			const auto attached = host.attach(queue_window(index), sink);
+			if (index <= core::maximum_bpr_windows_per_profile) {
+				expect(attached.has_value(), "all32 live consumer slots are usable");
+			} else {
+				expect(!attached && attached.error() == application::queue_attachment_failure::capacity, "concurrent consumer33 is explicitly refused");
+			}
+		}
+	}
+
+	void test_queue_callback_failure_and_observer_backlog_are_isolated()
+	{
+		auto store        = memory_queue_store{ };
+		auto refresh      = observed_refresh{ };
+		auto effects      = application::manual_executor{ };
+		auto decisions    = application::manual_executor{ };
+		auto windows      = admitted_queue_windows{ };
+		windows.Live      = { queue_window(1U), queue_window(2U) };
+		auto observer     = std::make_shared<profile_queue_log>();
+		auto host         = application::review_queue_application_host{ store, refresh, effects, decisions, core::bpr_profile_id{ 2U }, windows, { }, observer };
+		auto failing      = std::make_shared<window_queue_log>();
+		auto healthy      = std::make_shared<window_queue_log>();
+		failing->Callback = [] { throw std::runtime_error{ "fixture callback" }; };
+		expect(host.attach(queue_window(1U), failing).has_value() && host.attach(queue_window(2U), healthy).has_value(), "consumers attach before first publication");
+		host.restore();
+		run_one(effects, decisions);
+		expect(host.projection_delivery_failed() && healthy->Published.size() == 2U && host.attached_consumers() == 1U, "throwing window is retired without skipping healthy consumers");
+		observer->Callback = [&] {
+			observer->Callback = { };
+			for (std::uint64_t generation = 1U; generation <= core::maximum_bpr_windows_per_profile + 1U; ++generation) {
+				host.adopt({ .Host = "github.com", .Account = "feedback", .Generation = generation });
+			}
+		};
+		host.adopt({ .Host = "github.com", .Account = "begin", .Generation = 100U });
+		expect(healthy->Published.back().Session.Generation == core::maximum_bpr_windows_per_profile + 1U && !healthy->Delivering, "bounded observer feedback still delivers latest state without recursive callbacks");
+		const auto retired = observer->Publications;
+		host.adopt({ .Host = "github.com", .Account = "after", .Generation = 101U });
+		expect(observer->Publications == retired && healthy->Published.back().Session.Account == "after", "overflow retires only the observer while healthy windows continue");
+	}
+
 } // namespace
 
 auto main() -> int
 {
+	test_legacy_combined_sink_keeps_every_reentrant_observation();
+	test_restore_publication_shutdown_never_posts_a_later_load();
+	test_rule_publication_shutdown_never_posts_reconciliation();
+	test_profile_queue_fanout_replays_without_repeating_effects();
+	test_queue_consumers_recheck_exact_generation_and_reentrant_detach();
+	test_queue_consumer_capacity_counts_only_live_attachments();
+	test_queue_callback_failure_and_observer_backlog_are_isolated();
 	test_collection_boundaries_preserve_accepted_state();
 	test_oversized_restores_are_atomic();
 	test_enrollment_survives_the_path_that_matched();

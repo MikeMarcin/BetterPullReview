@@ -4,7 +4,10 @@
 #include <atomic>
 #include <cctype>
 #include <cstddef>
+#include <deque>
+#include <limits>
 #include <memory>
+#include <stdexcept>
 #include <stop_token>
 #include <utility>
 
@@ -217,6 +220,184 @@ namespace bpr::application {
 		return core::ordered_queue(items);
 	}
 
+	namespace {
+		class compatibility_queue_observer final : public queue_landing_projection_port
+		{
+		public:
+			explicit compatibility_queue_observer(queue_landing_projection_port& aPort)
+				: Port{ aPort }
+			{ }
+			void publish(const queue_landing_projection& aProjection) override { Port.publish(aProjection); }
+
+		private:
+			queue_landing_projection_port& Port;
+		};
+
+		/// \brief Owns consumer lifetimes and serializes callbacks independently of queue effects.
+		class queue_projection_hub final
+		{
+			struct consumer
+			{
+				queue_consumer_id                             Id;
+				core::bpr_window_context                      Context;
+				std::shared_ptr<queue_window_projection_port> Port;
+				std::uint64_t                                 Delivered = 0U;
+			};
+
+		public:
+			explicit queue_projection_hub(queue_landing_projection_port& aPort)
+				: Profile{ core::default_bpr_profile_id }
+				, Observer{ std::make_shared<compatibility_queue_observer>(aPort) }
+			{
+				// The shipped sink combines notification observation and projection;
+				// it must see every fresh state, never latest-only window replay.
+			}
+			queue_projection_hub(core::bpr_profile_id aProfile, queue_window_context_port& aWindows, std::shared_ptr<queue_landing_projection_port> aObserver)
+				: Profile{ aProfile }
+				, Windows{ &aWindows }
+				, Observer{ std::move(aObserver) }
+			{
+				if (Profile.value() == 0U) {
+					throw std::invalid_argument{ "invalid queue profile" };
+				}
+			}
+
+			[[nodiscard]] auto attach(core::bpr_window_context aContext, std::shared_ptr<queue_window_projection_port> aPort)
+				-> std::expected<queue_consumer_id, queue_attachment_failure>
+			{
+				if (Closing) {
+					return std::unexpected{ queue_attachment_failure::closing };
+				}
+				if (!aPort) {
+					return std::unexpected{ queue_attachment_failure::invalid_consumer };
+				}
+				if (!current(aContext)) {
+					return std::unexpected{ queue_attachment_failure::stale_window };
+				}
+				prune();
+				if (std::ranges::any_of(Consumers, [&aContext](const consumer& aConsumer) { return aConsumer.Context.Window == aContext.Window; })) {
+					return std::unexpected{ queue_attachment_failure::invalid_consumer };
+				}
+				if (Consumers.size() >= core::maximum_bpr_windows_per_profile) {
+					return std::unexpected{ queue_attachment_failure::capacity };
+				}
+				if (NextConsumer == std::numeric_limits<std::uint64_t>::max()) {
+					return std::unexpected{ queue_attachment_failure::identity_exhausted };
+				}
+				const auto id = queue_consumer_id{ NextConsumer++ };
+				Consumers.push_back({ id, aContext, std::move(aPort) });
+				drain();
+				return id;
+			}
+			void detach(queue_consumer_id aId)
+			{
+				std::erase_if(Consumers, [aId](const consumer& aConsumer) { return aConsumer.Id == aId; });
+			}
+			void publish(queue_landing_projection aProjection)
+			{
+				if (Closing) {
+					return;
+				}
+				Latest = std::make_shared<const queue_landing_projection>(std::move(aProjection));
+				++Revision;
+				if (Observer) {
+					if (Observations.size() >= core::maximum_bpr_windows_per_profile) {
+						Failed = true;
+						Observer.reset();
+						Observations.clear();
+					} else {
+						Observations.push_back(Latest);
+					}
+				}
+				drain();
+			}
+			void shutdown()
+			{
+				Closing = true;
+				Consumers.clear();
+				Observations.clear();
+				Observer.reset();
+			}
+			[[nodiscard]] auto size() const noexcept -> std::size_t { return Consumers.size(); }
+			[[nodiscard]] auto failed() const noexcept -> bool { return Failed; }
+
+		private:
+			[[nodiscard]] auto current(const core::bpr_window_context& aContext) const noexcept -> bool
+			{
+				return aContext.Profile == Profile && aContext.Window.value() != 0U && aContext.Generation.value() != 0U
+					&& (Windows ? Windows->current(aContext) : aContext == core::bpr_window_context{ Profile, core::bpr_window_id{ 1U }, core::bpr_window_generation{ 1U } });
+			}
+			void prune()
+			{
+				std::erase_if(Consumers, [this](const consumer& aConsumer) { return !current(aConsumer.Context); });
+			}
+			void observe_one()
+			{
+				const auto projection = Observations.front();
+				Observations.pop_front();
+				const auto observer = Observer;
+				try {
+					if (observer) {
+						observer->publish(*projection);
+					}
+				} catch (...) {
+					Failed = true;
+					Observer.reset();
+					Observations.clear();
+				}
+			}
+			[[nodiscard]] auto deliver_one() -> bool
+			{
+				prune();
+				const auto found = std::ranges::find_if(Consumers, [this](const consumer& aConsumer) { return aConsumer.Delivered != Revision; });
+				if (found == Consumers.end() || !Latest) {
+					return false;
+				}
+				// Copy only the exact attachment and shared immutable payload. A callback
+				// can erase/reallocate the live list or publish a newer revision safely.
+				const auto selected   = *found; // NOLINT(performance-unnecessary-copy-initialization): callbacks may erase the referenced consumer.
+				const auto projection = Latest;
+				found->Delivered      = Revision;
+				try {
+					if (current(selected.Context)) {
+						selected.Port->publish(selected.Context, *projection);
+					}
+				} catch (...) {
+					Failed = true;
+					detach(selected.Id);
+				}
+				return true;
+			}
+			void drain()
+			{
+				if (Delivering || Closing) {
+					return;
+				}
+				Delivering = true;
+				while (!Closing) {
+					if (!Observations.empty()) {
+						observe_one();
+					} else if (!deliver_one()) {
+						break;
+					}
+				}
+				Delivering = false;
+			}
+
+			const core::bpr_profile_id                                  Profile;
+			queue_window_context_port*                                  Windows = nullptr;
+			std::shared_ptr<queue_landing_projection_port>              Observer;
+			std::vector<consumer>                                       Consumers;
+			std::shared_ptr<const queue_landing_projection>             Latest;
+			std::deque<std::shared_ptr<const queue_landing_projection>> Observations;
+			std::uint64_t                                               NextConsumer = 1U;
+			std::uint64_t                                               Revision     = 0U;
+			bool                                                        Closing      = false;
+			bool                                                        Delivering   = false;
+			bool                                                        Failed       = false;
+		};
+	}
+
 	struct review_queue_application_host::implementation
 	{
 		enum class request_kind : std::uint8_t {
@@ -256,6 +437,20 @@ namespace bpr::application {
 			, Effects{ aEffects }
 			, DecisionLane{ aDecisionLane }
 			, Projection{ aProjection }
+			, Scheduler{ std::move(aSession) }
+			, Gate{ std::make_shared<completion_gate>() }
+		{
+			Gate->Host.store(this, std::memory_order_release);
+		}
+
+		implementation(queue_enrollment_store_port& aStore, queue_refresh_effect_port& aRefresh,
+					   effect_executor& aEffects, decision_executor& aDecisionLane, core::bpr_profile_id aProfile,
+					   queue_window_context_port& aWindows, queue_session_id aSession, std::shared_ptr<queue_landing_projection_port> aObserver)
+			: Store{ aStore }
+			, Refresh{ aRefresh }
+			, Effects{ aEffects }
+			, DecisionLane{ aDecisionLane }
+			, Projection{ aProfile, aWindows, std::move(aObserver) }
 			, Scheduler{ std::move(aSession) }
 			, Gate{ std::make_shared<completion_gate>() }
 		{
@@ -381,6 +576,9 @@ namespace bpr::application {
 			}
 			Status = queue_landing_status::restoring;
 			publish();
+			if (Closing) {
+				return;
+			}
 			auto&      request = begin(request_kind::load);
 			const auto id      = request.Id;
 			const auto stop    = request.Stop.get_token();
@@ -805,6 +1003,9 @@ namespace bpr::application {
 
 		void reconcile_last()
 		{
+			if (Closing) {
+				return;
+			}
 			if (LastObservation.has_value()) {
 				auto       prior      = Enrollments;
 				const auto membership = core::enrollment_for(*LastObservation, Rules);
@@ -1044,6 +1245,7 @@ namespace bpr::application {
 				return;
 			}
 			Closing = true;
+			Projection.shutdown();
 			for (auto& request : Outstanding) {
 				request.Stop.request_stop();
 			}
@@ -1053,7 +1255,7 @@ namespace bpr::application {
 		queue_refresh_effect_port&                    Refresh;
 		effect_executor&                              Effects;
 		decision_executor&                            DecisionLane;
-		queue_landing_projection_port&                Projection;
+		queue_projection_hub                          Projection;
 		queue_refresh_scheduler                       Scheduler;
 		queue_enrollment_register                     Enrollments;
 		std::vector<core::observer_rule>              Rules;
@@ -1096,6 +1298,21 @@ namespace bpr::application {
 			  std::move(aSession)) }
 	{
 	}
+
+	review_queue_application_host::review_queue_application_host(queue_enrollment_store_port& aStore, queue_refresh_effect_port& aRefresh,
+																 effect_executor& aEffects, decision_executor& aDecisionLane, core::bpr_profile_id aProfile,
+																 queue_window_context_port& aWindows, queue_session_id aSession, std::shared_ptr<queue_landing_projection_port> aProfileObserver)
+		: Implementation{ std::make_unique<implementation>(aStore, aRefresh, aEffects, aDecisionLane, aProfile, aWindows, std::move(aSession), std::move(aProfileObserver)) }
+	{ }
+
+	auto review_queue_application_host::attach(core::bpr_window_context aContext, std::shared_ptr<queue_window_projection_port> aProjection)
+		-> std::expected<queue_consumer_id, queue_attachment_failure>
+	{
+		return Implementation->Projection.attach(aContext, std::move(aProjection));
+	}
+	void review_queue_application_host::detach(queue_consumer_id aConsumer) { Implementation->Projection.detach(aConsumer); }
+	auto review_queue_application_host::attached_consumers() const noexcept -> std::size_t { return Implementation->Projection.size(); }
+	auto review_queue_application_host::projection_delivery_failed() const noexcept -> bool { return Implementation->Projection.failed(); }
 
 	review_queue_application_host::~review_queue_application_host() = default;
 

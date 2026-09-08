@@ -125,3 +125,10 @@ composition. They do not implement restoration or shared-edit conflict policy.
 BPR-0701 fixes the logging adapter's existing single-backend-owner refusal so
 concurrent different profiles each retain diagnostic logging. Same-profile
 logger sharing remains part of runtime composition.
+
+BPR-0699 introduces bounded queue consumers and singular fresh notification
+observation; its composed queue course passes (3.68s) after reviewed reentrancy
+fixes. BPR-0701 restores concurrent private profile logging with shared backend
+lifetime; logging/backpressure tests (0.61s) and the three-profile public course
+(1.38s) pass, including real overflow isolation. These are bounded service
+foundations; the full multi-window criteria above remain open.
