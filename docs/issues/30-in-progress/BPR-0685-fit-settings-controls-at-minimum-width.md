@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0685"
 title: "Fit Settings controls at minimum width"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0018"]
 depends_on: ["BPR-0684"]
 ---
