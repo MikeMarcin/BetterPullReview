@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0706"
 title: "Persist bounded window identities in the profile registry"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0705"]
 ---
