@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0708"
+  ],
+  "reserve_for": "ux-window-layout",
+  "purpose": "Restore independent window layouts through actual profile lifecycle",
+  "created": "2026-09-08T14:43:15.502552+00:00",
+  "base": "8380e6f83458ae6133c1db8a2a745f092c29c982"
+}
