@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0707"
+  ],
+  "reserve_for": "ux-window-lifecycle",
+  "purpose": "RFC0024 durable window lifecycle admission and restart",
+  "created": "2026-09-08T14:04:09.359689+00:00",
+  "base": "9833c314e291719c50cf6e7b01c464abb0b473c0"
+}
