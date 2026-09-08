@@ -31,7 +31,7 @@ idempotent. Newly created profiles use derived private child roots and standard
 empty defaults. Labels are display data and never paths or authority keys.
 
 The registry is bounded, versioned and failure-closed. Only Default may request
-legacy vault adoption, under a versioned vault-key migration; a future or failed
+legacy vault adoption, through an explicitly profile-bound compatibility namespace; a future or failed
 registry never falls back to another profile. Root selection belongs to the
 application/adapter boundary and must retain owner-private and canonical-path
 checks already used by domain stores.
@@ -60,3 +60,9 @@ are allocated when their source contracts are established; BPR-0595 must acquire
 each required dependency. Core-only and architecture checks accompany new core
 boundaries. Native window behavior and subjective interaction remain explicit
 native/attended evidence, not conclusions from offscreen unit tests.
+
+BPR-0693 refines credential adoption: immutable Default keeps the legacy native
+namespace/codec as canonical in place. Non-Default vault instances use new
+versioned namespaces containing profile identity and reject all foreign profile
+keys before native effects. Schema2 binding metadata scopes rows and permits
+schema1 adoption only by Default. No secret-copy/promotion transaction is needed.
