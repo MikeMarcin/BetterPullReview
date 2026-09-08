@@ -4,7 +4,7 @@ id: "BPR-0595"
 title: "Verify and close RFC-BPR-0024"
 status: "Backlog"
 rfcs: ["RFC-BPR-0024"]
-depends_on: ["BPR-0594","BPR-0593","BPR-0242","BPR-0690","BPR-0691","BPR-0693", "BPR-0694", "BPR-0695"]
+depends_on: ["BPR-0594","BPR-0593","BPR-0242","BPR-0690","BPR-0691","BPR-0693", "BPR-0694", "BPR-0695", "BPR-0696", "BPR-0697"]
 milestone: "Post-Pack v2"
 closeout_for: ["RFC-BPR-0024"]
 ---
@@ -86,3 +86,12 @@ macOS, native Windows and Ubuntu WSL. Independent review findings in both
 preflight paths were corrected and narrowly rechecked. No live vault operation
 or full native application course was used.
 Profile/window UI and shared services are not implemented by these foundations.
+
+BPR-0694 committed97bfa79f establishes immutable registry-derived private roots;
+BPR-0695 committed47de7ae8 integrates asynchronous exact-profile startup. Its
+public course proves two-profile appearance/root isolation, rename/reopen,
+independent close, no unknown/cancelled window, unchanged unsafe-root refusal
+and optional queue failure isolation. Eight migrated courses and the isolated
+tests-disabled Release contract pass. BPR-0696 now owns the management/menu and
+desktop owner; BPR-0697 starts the auth/read split needed before same-profile
+multiple windows. Full multi-window criteria above remain unverified.
