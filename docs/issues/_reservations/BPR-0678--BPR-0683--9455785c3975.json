@@ -1,0 +1,15 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0678",
+    "BPR-0679",
+    "BPR-0680",
+    "BPR-0681",
+    "BPR-0682",
+    "BPR-0683"
+  ],
+  "reserve_for": "ux-settings-resume",
+  "purpose": "",
+  "created": "2026-09-08T06:17:56.779078+00:00",
+  "base": "8c66a42cd9cb4484175d128085ff2cfbd9c51abc"
+}
