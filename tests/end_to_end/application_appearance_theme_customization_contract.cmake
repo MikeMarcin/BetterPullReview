@@ -52,6 +52,7 @@ endfunction()
 
 file(REMOVE_RECURSE "${BPR_ROOT}")
 file(MAKE_DIRECTORY "${BPR_ROOT}")
+file(COPY_FILE "${BPR_THEME}" "${BPR_ROOT}/theme.bprtheme")
 
 # Process one uses the real fixture-selected workbench and the real local-file
 # import path. The application probe refuses success unless preview and cancel
@@ -71,7 +72,7 @@ run_phase(
     --diff-interaction-evidence
     "${BPR_ROOT}/diff-evidence"
     --appearance-theme-customization-probe
-    "${BPR_THEME}"
+    "${BPR_ROOT}/theme.bprtheme"
     --render-evidence
     "${BPR_ROOT}/customized-window.png"
 )
@@ -80,8 +81,10 @@ foreach(marker IN ITEMS
     "DIFF_WORKBENCH_OK"
     "SYNTAX_THEME_REPAINT_OK"
     "APPEARANCE_THEME_CUSTOMIZATION_OK"
+    "APPEARANCE_THEME_PROBE_STAGE:export-and-directory-refusal-acknowledged"
     "APPEARANCE_THEME_PROBE_STAGE:manual-preview"
     "APPEARANCE_THEME_PROBE_STAGE:manual-cancelled"
+    "APPEARANCE_THEME_PROBE_STAGE:palette-reset-cleared-preview"
     "APPEARANCE_THEME_PROBE_MANUAL_FACTS:11111111"
     "APPEARANCE_THEME_PROBE_ADOPTION_FACTS:11111111"
     "APPEARANCE_THEME_PROBE_STORED_ADOPTION_FACTS:111111111"
@@ -105,6 +108,12 @@ require_regex(
     "${customization_output}"
     "APPEARANCE_OBSERVED:[a-z]+:[a-z-]+:[1-9][0-9]*"
 )
+
+file(READ "${BPR_ROOT}/theme.bprtheme" original_theme)
+file(READ "${BPR_ROOT}/theme.bprtheme.exported.bprtheme" exported_theme)
+if(NOT original_theme STREQUAL exported_theme)
+    message(FATAL_ERROR "Export must preserve the accepted complete palette document")
+endif()
 
 # Process two opens the same real appearance database without importing or
 # committing anything. The exact black semantic canvas can only come from

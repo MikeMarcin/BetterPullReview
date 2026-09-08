@@ -555,7 +555,11 @@ palette customizes exactly one variant, which the durable record names
 (`palette_variant`, appearance schema format 2, BPR-0645): the adapter reads
 the record as overrides against that variant's built-in profile and applies
 them only while that variant resolves, so a light customization never colours
-the dark profile when the desktop scheme changes.
+the dark profile when the desktop scheme changes. Format 3 also persists
+`palette_stored`: scoped palette reset removes overrides without deleting other
+appearance preferences. Formats 1 and 2 migrate with customization retained.
+Theme export runs through the appearance host and an atomic bounded document
+writer; it exports the accepted palette and excludes unsaved previews.
 
 The Qt-free `core-only` preset acquires neither KSyntaxHighlighting nor the
 syntax adapter; its resolved package set remains SQLite alone.

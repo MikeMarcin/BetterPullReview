@@ -464,6 +464,31 @@ namespace {
 				   && panel.status_text().contains(QStringLiteral("7.00:1")),
 			   "the contrast refusal preserves variant, roles, ratio, and threshold");
 	}
+	void test_scoped_resets_and_export_are_intents()
+	{
+		auto       intents  = recorder{ };
+		auto       panel    = qt::appearance_settings_panel{ intents.sink() };
+		const auto settings = qt::default_appearance_settings();
+		panel.adopt(settings);
+		const auto labels = std::array{ QStringLiteral("Reset appearance mode"), QStringLiteral("Reset interface font"), QStringLiteral("Reset code font"), QStringLiteral("Reset semantic colours") };
+		const auto scopes = std::array{ application::appearance_reset_scope::mode, application::appearance_reset_scope::interface_font, application::appearance_reset_scope::code_font, application::appearance_reset_scope::palette };
+		for (auto i = std::size_t{ 0U }; i < labels.size(); ++i) {
+			auto* found = static_cast<QPushButton*>(nullptr);
+			for (auto* button : panel.findChildren<QPushButton*>()) {
+				if (button->accessibleName() == labels[i]) {
+					found = button;
+				}
+			}
+			expect(found != nullptr, "each reset is exposed as a named native button");
+			found->click();
+			expect(intents.last<application::reset_appearance_intent>()->Scope == scopes[i], "reset dispatch names only its selected scope");
+		}
+		const auto count = intents.count();
+		panel.request_theme_export({ });
+		expect(intents.count() == count, "cancelled destination selection dispatches nothing");
+		panel.request_theme_export(QStringLiteral("chosen.bprtheme"));
+		expect(intents.last<application::export_appearance_theme_intent>()->Path == "chosen.bprtheme", "export dispatches only the chosen path");
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -471,6 +496,7 @@ auto main(int argc, char** argv) -> int
 	QApplication application{ argc, argv };
 	QApplication::setApplicationName(
 		QStringLiteral("BetterPullReviewAppearanceSettingsPanelTests"));
+	test_scoped_resets_and_export_are_intents();
 	test_the_mode_control_offers_the_core_vocabulary();
 	test_font_gestures_translate_to_intents();
 	test_numeric_controls_carry_the_core_bounds();

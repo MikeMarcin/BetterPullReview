@@ -99,8 +99,10 @@ namespace bpr::qt {
 		void report(
 			std::span<const application::appearance_contrast_rejection> aRejections);
 		void report_theme_document_unavailable();
+		void report_theme_export(bool aSucceeded);
 		/// \brief Dispatches a path selected by Qt; this widget never opens it.
 		void request_theme_import(const QString& aPath);
+		void request_theme_export(const QString& aPath);
 
 		[[nodiscard]] auto mode_selector() const noexcept -> QComboBox*;
 		/// \brief [[BPR-0652]]. The four theme previews above the mode selector.

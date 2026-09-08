@@ -205,6 +205,19 @@ namespace {
 			return Document;
 		}
 
+		[[nodiscard]] auto write(const std::string_view aPath, const std::string_view aDocument,
+								 const std::stop_token aStop) -> application::theme_document_result<void> override
+		{
+			++Writes;
+			if (!Available || aStop.stop_requested()) {
+				return std::unexpected{ application::theme_document_error{ } };
+			}
+			Path     = aPath;
+			Document = aDocument;
+			return { };
+		}
+
+		std::size_t Writes = 0U;
 		std::string Document;
 		std::string Path;
 		std::size_t MaximumBytes = 0U;
@@ -1060,6 +1073,75 @@ namespace {
 			   "a cancelled classification publishes nothing");
 	}
 
+	void test_export_round_trip_refusal_and_cancellation()
+	{
+		auto       h       = harness{ };
+		const auto palette = contrast_safe_palette();
+		h.Host.export_theme_file("chosen.json", palette);
+		expect(h.ThemeDocuments.Writes == 0U, "export performs no synchronous file effect");
+		h.settle();
+		expect(h.ThemeDocuments.Path == "chosen.json"
+				   && core::import_theme(h.ThemeDocuments.Document).Palette == palette,
+			   "exported complete palette round-trips through the core parser");
+		expect(h.Projections.Published.back().ThemeExported, "success is acknowledged after write completion");
+		expect(h.Settings.Stores == 0U && h.Host.settings() == base_settings(), "export changes no durable settings");
+		h.ThemeDocuments.Available = false;
+		h.Host.export_theme_file("refused.json", palette);
+		h.settle();
+		expect(h.Projections.Failed.back().Failure == application::appearance_host_failure::theme_export_unavailable,
+			   "writer refusal produces an export-specific failure");
+		const auto publications = h.Projections.Published.size();
+		const auto failures     = h.Projections.Failed.size();
+		h.Host.export_theme_file("cancelled.json", palette);
+		h.Host.cancel();
+		h.settle();
+		expect(h.ThemeDocuments.Writes == 2U && h.Projections.Published.size() == publications
+				   && h.Projections.Failed.size() == failures,
+			   "cancel before effect prevents a write and suppresses its terminal");
+	}
+
+	void test_resets_are_scoped_durable_and_retire_import()
+	{
+		auto       h                = harness{ };
+		const auto defaults         = base_settings();
+		auto       typography       = defaults.Typography;
+		typography.Ui.Font.Family   = "Chosen UI";
+		typography.Code.Font.Family = "Chosen Code";
+		h.Host.apply(typography);
+		h.Host.select(core::appearance_mode::dark);
+		h.Host.apply(contrast_safe_palette());
+		h.settle();
+		h.Host.reset(application::appearance_reset_scope::interface_font);
+		h.settle();
+		expect(h.Host.settings().Typography.Ui == defaults.Typography.Ui
+				   && h.Host.settings().Typography.Code == typography.Code
+				   && h.Host.settings().Mode == core::appearance_mode::dark
+				   && h.Host.settings().PaletteStored,
+			   "interface reset preserves code, mode and custom palette");
+		h.Host.reset(application::appearance_reset_scope::code_font);
+		h.Host.reset(application::appearance_reset_scope::mode);
+		h.settle();
+		expect(h.Host.settings().Typography == defaults.Typography && h.Host.settings().Mode == defaults.Mode
+				   && h.Host.settings().PaletteStored,
+			   "code and mode resets preserve palette");
+		h.ThemeDocuments.Document = core::export_theme(contrast_safe_palette());
+		h.Host.import_theme_file("late.json");
+		h.Effects.drain();
+		h.Host.reset(application::appearance_reset_scope::palette);
+		h.settle();
+		expect(h.Host.settings() == defaults && h.Settings.Stored == defaults,
+			   "palette reset persists the absence of overrides and exact composed defaults");
+		expect(h.Host.last_rejection() == application::appearance_terminal_rejection::superseded,
+			   "reset prevents late import from recreating a preview");
+		expect(std::ranges::none_of(h.Projections.Published, [](const auto& aProjection) { return aProjection.ThemePreview.has_value(); }),
+			   "the retired import never reaches presentation");
+		auto restarted            = harness{ };
+		restarted.Settings.Stored = h.Settings.Stored;
+		restarted.Host.restore();
+		restarted.settle();
+		expect(restarted.Host.settings() == defaults, "reset survives a new host lifetime");
+	}
+
 	void test_shutdown_withholds_publication_and_quiesces()
 	{
 		auto harnessed = harness{ };
@@ -1100,6 +1182,8 @@ auto main() -> int
 	test_classification_failures_are_reported();
 	test_duplicate_in_flight_classification_is_coalesced();
 	test_cancellation_refuses_the_terminal_and_keeps_the_cache();
+	test_export_round_trip_refusal_and_cancellation();
+	test_resets_are_scoped_durable_and_retire_import();
 	test_shutdown_withholds_publication_and_quiesces();
 	std::cout << "appearance application host tests passed\n";
 	return EXIT_SUCCESS;

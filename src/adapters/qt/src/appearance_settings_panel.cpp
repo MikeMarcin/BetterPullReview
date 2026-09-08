@@ -255,7 +255,16 @@ namespace bpr::qt {
 		colorActions->addWidget(PreviewButton);
 		colorActions->addWidget(CommitButton);
 		colorActions->addWidget(CancelButton);
-		colorActions->addWidget(ImportButton);
+		auto* const exchangeActions = new QHBoxLayout{ };
+		exchangeActions->addWidget(ImportButton);
+		auto* const exportButton = new QPushButton{ QStringLiteral("Export saved theme…"), this };
+		exportButton->setObjectName(QStringLiteral("appearanceExportTheme"));
+		exchangeActions->addWidget(exportButton);
+		colorForm->addRow(exchangeActions);
+		QObject::connect(exportButton, &QPushButton::clicked, this, [this] {
+			const auto path = QFileDialog::getSaveFileName(this, QStringLiteral("Export saved theme"), QStringLiteral("theme.bprtheme"), QStringLiteral("Theme files (*.bprtheme)"));
+			request_theme_export(path);
+		});
 		colorForm->addRow(colorActions);
 
 		auto* const layout = new QVBoxLayout{ this };
@@ -281,6 +290,20 @@ namespace bpr::qt {
 		layout->addWidget(ThemePreviews);
 		auto* const modeForm = new QFormLayout{ };
 		modeForm->addRow(QStringLiteral("Appearance"), ModeSelector);
+		const auto addReset = [this](QFormLayout& aForm, const QString& aLabel, const application::appearance_reset_scope aScope) {
+			auto* const button = new QPushButton{ aLabel, this };
+			button->setAccessibleName(aLabel);
+			aForm.addRow(button);
+			QObject::connect(button, &QPushButton::clicked, this, [this, aScope] {
+				if (Dispatch) {
+					Dispatch(application::reset_appearance_intent{ aScope });
+				}
+			});
+		};
+		addReset(*modeForm, QStringLiteral("Reset appearance mode"), application::appearance_reset_scope::mode);
+		addReset(*uiForm, QStringLiteral("Reset interface font"), application::appearance_reset_scope::interface_font);
+		addReset(*codeForm, QStringLiteral("Reset code font"), application::appearance_reset_scope::code_font);
+		addReset(*colorForm, QStringLiteral("Reset semantic colours"), application::appearance_reset_scope::palette);
 		layout->addLayout(modeForm);
 		layout->addWidget(colorGroup);
 		layout->addWidget(uiGroup);
@@ -426,6 +449,20 @@ namespace bpr::qt {
 							 2);
 		}
 		Status->setText(with_persistence_status(std::move(text)));
+	}
+
+	void appearance_settings_panel::request_theme_export(const QString& aPath)
+	{
+		if (!aPath.isEmpty() && Dispatch) {
+			Dispatch(application::export_appearance_theme_intent{ aPath.toStdString() });
+		}
+	}
+
+	void appearance_settings_panel::report_theme_export(const bool aSucceeded)
+	{
+		Status->setText(with_persistence_status(aSucceeded
+													? QStringLiteral("Saved theme exported. Unsaved previews are excluded.")
+													: QStringLiteral("Theme export failed. Choose a writable regular file and try again.")));
 	}
 
 	void appearance_settings_panel::report_theme_document_unavailable()

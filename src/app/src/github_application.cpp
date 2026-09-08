@@ -106,6 +106,7 @@
 #include <QPoint>
 #include <QPushButton>
 #include <QRect>
+#include <QSaveFile>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSpinBox>
@@ -2286,6 +2287,36 @@ namespace bpr::app {
 				return read_bounded_regular_theme_document(
 					aPath, aMaximumBytes, aStop);
 			}
+
+			[[nodiscard]] auto write(const std::string_view aPath,
+									 const std::string_view aDocument, const std::stop_token aStop)
+				-> application::theme_document_result<void> override
+			{
+				const auto refused = [] { return std::unexpected{ application::theme_document_error{ } }; };
+				if (aPath.empty() || aPath.find('\0') != std::string_view::npos
+					|| aDocument.size() > core::theme_document_byte_limit || aStop.stop_requested()) {
+					return refused();
+				}
+				const auto path = QString::fromUtf8(aPath.data(), static_cast<qsizetype>(aPath.size()));
+				const auto info = QFileInfo{ path };
+				if (info.isSymLink() || (info.exists() && !info.isFile())) {
+					return refused();
+				}
+				auto file = QSaveFile{ path };
+				file.setDirectWriteFallback(false);
+				if (!file.open(QIODevice::WriteOnly)) {
+					return refused();
+				}
+				const auto size = static_cast<qint64>(aDocument.size());
+				if (file.write(aDocument.data(), static_cast<qint64>(aDocument.size())) != size || aStop.stop_requested()) {
+					file.cancelWriting();
+					return refused();
+				}
+				if (!file.commit()) {
+					return refused();
+				}
+				return { };
+			}
 		};
 
 		[[nodiscard]] auto prompt_for_credential(
@@ -2503,9 +2534,17 @@ namespace bpr::app {
 			PaletteAdoptionSink = std::move(aSink);
 		}
 
+		void set_theme_export_sink(std::function<void()> aSink)
+		{
+			ThemeExportSink = std::move(aSink);
+		}
+
 		void publish(const application::appearance_projection& aProjection) override
 		{
 			++Published;
+			if (aProjection.ThemeExported && ThemeExportSink) {
+				ThemeExportSink();
+			}
 			if (aProjection.Spans.has_value() && SpanSink) {
 				SpanSink(*aProjection.Spans);
 			}
@@ -2544,6 +2583,7 @@ namespace bpr::app {
 		}
 
 	private:
+		std::function<void()> ThemeExportSink;
 		span_sink             SpanSink;
 		presentation_sink     PresentationSink;
 		theme_preview_sink    ThemePreviewSink;
@@ -4817,6 +4857,11 @@ namespace bpr::app {
 				[this](const application::theme_preview_publication& aPreview) {
 					preview_imported_theme(aPreview.Palette);
 				});
+			AppearanceProjections.set_theme_export_sink([this] {
+				if (!Closing && Window != nullptr && Window->appearance_settings() != nullptr) {
+					Window->appearance_settings()->report_theme_export(true);
+				}
+			});
 			AppearanceProjections.set_refusal_sink(
 				[this](const application::appearance_failure_publication&
 						   aFailure) { report_appearance_refusal(aFailure); });
@@ -8960,6 +9005,12 @@ namespace bpr::app {
 						if (AppearanceProfile) {
 							AppearanceProfile->cancel_palette_preview();
 						}
+					} else if constexpr (std::is_same_v<intent, application::reset_appearance_intent>) {
+						AppearanceHost->reset(aValue.Scope);
+					} else if constexpr (std::is_same_v<intent, application::export_appearance_theme_intent>) {
+						if (AppearanceProfile) {
+							AppearanceHost->export_theme_file(std::move(aValue.Path), AppearanceProfile->settings().Palette);
+						}
 					} else {
 						AppearanceHost->import_theme_file(std::move(aValue.Path));
 					}
@@ -8990,6 +9041,11 @@ namespace bpr::app {
 					aPaletteCommitted ? qt::palette_preview_adoption::commit
 									  : qt::palette_preview_adoption::retain,
 					settings.PaletteVariant));
+			} else {
+				static_cast<void>(AppearanceProfile->restore_all());
+				if (aPaletteCommitted) {
+					AppearanceProfile->cancel_palette_preview();
+				}
 			}
 			const auto selection
 				= AppearanceProfile->select_typography(settings.Typography);
@@ -9045,6 +9101,9 @@ namespace bpr::app {
 					break;
 				case application::appearance_host_failure::settings_rejected:
 					panel->report(aFailure.Rejections);
+					break;
+				case application::appearance_host_failure::theme_export_unavailable:
+					panel->report_theme_export(false);
 					break;
 				case application::appearance_host_failure::theme_document_unavailable:
 					panel->report_theme_document_unavailable();
@@ -9390,6 +9449,8 @@ namespace bpr::app {
 				awaiting_stored_preview_restoration,
 				awaiting_equal_stored_preview,
 				awaiting_equal_stored_commit,
+				awaiting_export,
+				awaiting_export_refusal,
 				passed,
 				failed,
 			};
@@ -11098,6 +11159,27 @@ namespace bpr::app {
 				return fail();
 			}
 			reportStage("manual-cancelled");
+			panel->preview_button()->click();
+			if (!implementation->AppearanceProfile->previewing_palette()) {
+				return fail();
+			}
+			auto* reset = static_cast<QPushButton*>(nullptr);
+			for (auto* button : panel->findChildren<QPushButton*>()) {
+				if (button->accessibleName() == QStringLiteral("Reset semantic colours")) {
+					reset = button;
+				}
+			}
+			if (reset == nullptr) {
+				return fail();
+			}
+			reset->click();
+			if (implementation->AppearanceProfile->previewing_palette() || panel->preview_palette().has_value()
+				|| implementation->AppearanceProfile->palette() != probe.BeforePalette
+				|| implementation->AppearanceHost->settings() != probe.BeforeSettings
+				|| implementation->AppearanceHost->persisted_settings() != probe.PersistedSettings) {
+				return fail();
+			}
+			reportStage("palette-reset-cleared-preview");
 			probe.Statistics = workbench->statistics();
 			probe.ProfileGeneration
 				= implementation->AppearanceProfile->generation();
@@ -11382,8 +11464,26 @@ namespace bpr::app {
 		if (!std::ranges::all_of(equalCommitFacts, std::identity{ })) {
 			return fail();
 		}
-		probe.Phase = github_application::implementation::
-			appearance_theme_probe_state::phase::passed;
+		using phase = github_application::implementation::appearance_theme_probe_state::phase;
+		if (probe.Phase == phase::awaiting_equal_stored_commit) {
+			probe.Phase = phase::awaiting_export;
+			panel->request_theme_export(QString::fromStdString(probe.Path + ".exported.bprtheme"));
+			return result::pending;
+		}
+		if (probe.Phase == phase::awaiting_export) {
+			if (!panel->status_text().startsWith(QStringLiteral("Saved theme exported."))) {
+				return fail();
+			}
+			probe.Phase = phase::awaiting_export_refusal;
+			// The existing source's parent directory is a nonregular destination.
+			panel->request_theme_export(QFileInfo{ QString::fromStdString(probe.Path) }.absolutePath());
+			return result::pending;
+		}
+		if (!panel->status_text().startsWith(QStringLiteral("Theme export failed."))) {
+			return fail();
+		}
+		reportStage("export-and-directory-refusal-acknowledged");
+		probe.Phase = phase::passed;
 		reportStage("equal-stored-commit-acknowledged");
 		return result::passed;
 	}

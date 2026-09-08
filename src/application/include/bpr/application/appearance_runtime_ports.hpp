@@ -86,14 +86,14 @@ namespace bpr::application {
 		core::appearance_mode     Mode = core::appearance_mode::system;
 		core::appearance_palette  Palette{ };
 		core::typography_settings Typography;
-		/// \brief Whether `Palette` came from a durable record.
+		/// \brief Whether `Palette` is a deliberate customization.
 		///
 		/// \details A composed default and a stored palette are different
 		/// facts, and a record that could not tell them apart is BPR-0216: the
 		/// default palette is built under an empty observation, so on a dark
 		/// desktop it differs from the built-in dark palette in every role and
-		/// was read as forty-six deliberate overrides. Only a stored palette is
-		/// customisation; a default one is the absence of any.
+		/// was read as forty-six deliberate overrides. An explicit palette reset
+		/// persists false, preserving the absence of overrides across restart.
 		bool PaletteStored = false;
 		/// \brief The variant the stored palette customizes.
 		///
@@ -161,7 +161,7 @@ namespace bpr::application {
 		cancelled,
 	};
 
-	/// \brief Describes a bounded local theme-document read failure.
+	/// \brief Describes a bounded local theme-document operation failure.
 	struct theme_document_error
 	{
 		theme_document_failure Failure = theme_document_failure::unavailable;
@@ -172,7 +172,7 @@ namespace bpr::application {
 	template <typename Value>
 	using theme_document_result = std::expected<Value, theme_document_error>;
 
-	/// \brief Reads one local theme document for the appearance host.
+	/// \brief Exchanges local theme documents for the appearance host.
 	///
 	/// \details The composition owns the filesystem effect. Qt selects a path but
 	/// never opens it. `MaximumBytes` is inclusive of the one overflow byte the
@@ -187,6 +187,14 @@ namespace bpr::application {
 			std::string_view aPath,
 			std::size_t      aMaximumBytes,
 			std::stop_token  aStop) -> theme_document_result<std::string> = 0;
+
+		/// \brief Atomically replaces one bounded theme document on the effect executor.
+		[[nodiscard]] virtual auto write(
+			std::string_view, std::string_view, std::stop_token)
+			-> theme_document_result<void>
+		{
+			return std::unexpected{ theme_document_error{ } };
+		}
 	};
 
 	/// \brief Describes one syntax definition and the revision that produced it.
@@ -385,6 +393,7 @@ namespace bpr::application {
 		std::optional<token_span_publication>               Spans;
 		std::optional<theme_preview_publication>            ThemePreview;
 		std::optional<palette_adoption_publication>         PaletteAdoption;
+		bool                                                ThemeExported = false;
 	};
 
 	/// \brief Checks whether the supplied projection carries no changed domain.
@@ -394,7 +403,7 @@ namespace bpr::application {
 		return !aProjection.Presentation.has_value()
 			&& !aProjection.Spans.has_value()
 			&& !aProjection.ThemePreview.has_value()
-			&& !aProjection.PaletteAdoption.has_value();
+			&& !aProjection.PaletteAdoption.has_value() && !aProjection.ThemeExported;
 	}
 
 	enum class appearance_host_failure : std::uint8_t {
@@ -402,6 +411,7 @@ namespace bpr::application {
 		settings_rejected,
 		theme_document_unavailable,
 		theme_import_rejected,
+		theme_export_unavailable,
 		palette_contrast_rejected,
 		unknown_appearance_mode,
 		classification_unavailable,
@@ -502,6 +512,22 @@ namespace bpr::application {
 		auto operator<=>(const import_appearance_theme_intent&) const = default;
 	};
 
+	/// \brief Identifies an independently resettable durable appearance group.
+	enum class appearance_reset_scope : std::uint8_t { mode,
+													   interface_font,
+													   code_font,
+													   palette };
+
+	struct reset_appearance_intent
+	{
+		appearance_reset_scope Scope = appearance_reset_scope::mode;
+	};
+
+	struct export_appearance_theme_intent
+	{
+		std::string Path;
+	};
+
 	/// \brief Every gesture an appearance surface can express.
 	///
 	/// \details A closed set, so a surface cannot invent a way to change
@@ -513,7 +539,7 @@ namespace bpr::application {
 										   preview_appearance_palette_intent,
 										   commit_appearance_palette_intent,
 										   cancel_appearance_palette_preview_intent,
-										   import_appearance_theme_intent>;
+										   import_appearance_theme_intent, reset_appearance_intent, export_appearance_theme_intent>;
 
 	using appearance_intent_dispatch = std::function<void(appearance_intent)>;
 } // namespace bpr::application

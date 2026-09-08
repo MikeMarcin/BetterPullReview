@@ -21,8 +21,9 @@ namespace bpr::adapters::sqlite::detail {
 	/// \details Version 2 added `palette_variant`. A palette customises exactly
 	/// one variant, and a version-1 record did not say which, so the reader was
 	/// left to derive it from the current desktop and pinned a light palette
-	/// over the dark profile.
-	inline constexpr std::int64_t appearance_settings_schema_version = 2;
+	/// over the dark profile. Version 3 preserves `palette_stored`, including
+	/// an explicit reset to the built-in palettes.
+	inline constexpr std::int64_t appearance_settings_schema_version = 3;
 
 	/// \brief Owns the durable appearance settings database.
 	///

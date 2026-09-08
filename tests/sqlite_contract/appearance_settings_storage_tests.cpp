@@ -654,6 +654,37 @@ namespace {
 		}
 	}
 
+	auto test_version_two_preserves_customization_and_reset() -> void
+	{
+		const auto scratch = scratch_directory{ };
+		const auto path    = scratch.file("v2.sqlite3");
+		auto       chosen  = distinct_settings();
+		{
+			auto database = appearance_settings_database::open(path, { });
+			expect(database.has_value() && database->store(chosen, { }).has_value(), "legacy fixture starts with a durable record");
+		}
+		{
+			::sqlite3* raw = nullptr;
+			expect(::sqlite3_open(path.string().c_str(), &raw) == SQLITE_OK, "legacy fixture opens raw");
+			expect(::sqlite3_exec(raw, "ALTER TABLE appearance_settings DROP COLUMN palette_stored; UPDATE appearance_meta SET schema_format = 2; PRAGMA user_version = 2", nullptr, nullptr, nullptr) == SQLITE_OK,
+				   "fixture has the exact version-two column set and stamps");
+			expect(::sqlite3_close(raw) == SQLITE_OK, "legacy fixture closes");
+		}
+		chosen.PaletteStored = true;
+		{
+			auto migrated = appearance_settings_database::open(path, { });
+			expect(migrated.has_value(), "version two migrates");
+			const auto loaded = migrated->load({ });
+			expect(loaded && loaded->has_value() && **loaded == chosen, "legacy palettes retain customization and every stored value");
+			chosen.PaletteStored = false;
+			expect(migrated->store(chosen, { }).has_value(), "reset can persist an empty override set");
+		}
+		auto reopened = appearance_settings_database::open(path, { });
+		expect(reopened.has_value(), "reset database reopens");
+		const auto loaded = reopened->load({ });
+		expect(loaded && loaded->has_value() && **loaded == chosen, "reset survives SQLite close and reopen without changing other domains");
+	}
+
 	auto test_the_schema_stores_no_review_content() -> void
 	{
 		const auto scratch = scratch_directory{ };
@@ -701,6 +732,7 @@ auto main() -> int
 	test_a_format_one_record_migrates_with_its_derived_variant();
 	test_a_newer_schema_is_refused_for_the_right_reason();
 	test_cancellation_leaves_the_record_untouched();
+	test_version_two_preserves_customization_and_reset();
 	test_the_schema_stores_no_review_content();
 	std::cout << "appearance-settings-storage-tests:pass\n";
 	return EXIT_SUCCESS;

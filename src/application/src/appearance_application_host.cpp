@@ -24,6 +24,7 @@ namespace bpr::application {
 			settings_load,
 			settings_store,
 			theme_import,
+			theme_export,
 			classification,
 		};
 
@@ -86,6 +87,18 @@ namespace bpr::application {
 			std::string Path;
 		};
 
+		struct deferred_appearance_theme_export
+		{
+			std::string              Path;
+			core::appearance_palette Palette;
+		};
+
+		struct staged_theme_export
+		{
+			appearance_request_context  Context;
+			theme_document_result<void> Result;
+		};
+
 		struct deferred_appearance_classify
 		{
 			token_span_cache_key Key;
@@ -99,7 +112,7 @@ namespace bpr::application {
 		{
 		};
 
-		using deferred_appearance_ingress = std::variant<deferred_appearance_restore,
+		using deferred_appearance_ingress = std::variant<reset_appearance_intent, deferred_appearance_theme_export, staged_theme_export, deferred_appearance_restore,
 														 deferred_appearance_select,
 														 deferred_appearance_observe,
 														 deferred_appearance_palette,
@@ -222,6 +235,7 @@ namespace bpr::application {
 					   const core::application_session_id aSession,
 					   const appearance_host_limits       aLimits)
 			: Settings{ validated_settings(std::move(aInitialSettings)) }
+			, Defaults{ Settings }
 			, SettingsPort{ aSettings }
 			, ThemeDocuments{ aThemeDocuments }
 			, Classifier{ aClassification }
@@ -268,7 +282,15 @@ namespace bpr::application {
 			std::visit(
 				[this](auto&& aTyped) {
 					using ingress_type = std::decay_t<decltype(aTyped)>;
-					if constexpr (std::is_same_v<ingress_type, deferred_appearance_restore>) {
+					if constexpr (std::is_same_v<ingress_type, reset_appearance_intent>) {
+						reset_now(aTyped.Scope);
+					} else if constexpr (std::is_same_v<ingress_type, deferred_appearance_theme_export>) {
+						if (!Closing) {
+							submit_theme_export(std::move(aTyped.Path), aTyped.Palette);
+						}
+					} else if constexpr (std::is_same_v<ingress_type, staged_theme_export>) {
+						finish_theme_export(aTyped.Context, aTyped.Result);
+					} else if constexpr (std::is_same_v<ingress_type, deferred_appearance_restore>) {
 						restore_now();
 					} else if constexpr (std::is_same_v<ingress_type, deferred_appearance_select>) {
 						select_now(aTyped.Mode);
@@ -568,6 +590,75 @@ namespace bpr::application {
 				return std::unexpected{ appearance_settings_error{
 					.Failure = appearance_settings_failure::unavailable } };
 			}
+		}
+
+		void submit_theme_export(std::string aPath, const core::appearance_palette& aPalette)
+		{
+			retire(appearance_request_domain::theme_export, appearance_terminal_rejection::superseded);
+			auto* const record = reserve(appearance_request_domain::theme_export);
+			if (record == nullptr) {
+				publish_failure(local_context(), appearance_host_failure::host_failure);
+				return;
+			}
+			const auto  context = record->Context;
+			const auto  stop    = record->Stop.get_token();
+			const auto  gate    = std::weak_ptr<completion_gate>{ Gate };
+			auto* const port    = &ThemeDocuments;
+			auto* const lane    = &DecisionLane;
+			try {
+				Effects.post([gate, lane, port, context, path = std::move(aPath), palette = aPalette, stop] {
+					auto result = theme_document_result<void>{ std::unexpected{ theme_document_error{ } } };
+					try {
+						if (!stop.stop_requested()) {
+							result = port->write(path, core::export_theme(palette), stop);
+						}
+					} catch (...) { }
+					lane->post([gate, staged = staged_theme_export{ context, result }]() mutable {
+						deliver_terminal(gate, std::move(staged));
+					});
+				});
+			} catch (...) {
+				abandon(context.Request);
+				publish_failure(context, appearance_host_failure::theme_export_unavailable);
+			}
+		}
+
+		void finish_theme_export(const appearance_request_context& aContext, theme_document_result<void> aResult)
+		{
+			const auto claimed = claim(aContext, appearance_request_domain::theme_export);
+			if (claimed.Rejection != appearance_terminal_rejection::none) {
+				refuse(claimed.Rejection);
+				return;
+			}
+			if (!aResult) {
+				publish_failure(aContext, appearance_host_failure::theme_export_unavailable);
+				return;
+			}
+			const auto projection = appearance_projection{ .Context = aContext, .ThemeExported = true };
+			deliver_projection([this, &projection] { Projections.publish(projection); });
+		}
+
+		void reset_now(const appearance_reset_scope aScope)
+		{
+			if (Closing) {
+				return;
+			}
+			auto next            = Settings;
+			auto acknowledgement = std::optional<palette_adoption_publication>{ };
+			switch (aScope) {
+			case appearance_reset_scope::mode:           next.Mode = Defaults.Mode; break;
+			case appearance_reset_scope::interface_font: next.Typography.Ui = Defaults.Typography.Ui; break;
+			case appearance_reset_scope::code_font:      next.Typography.Code = Defaults.Typography.Code; break;
+			case appearance_reset_scope::palette:
+				retire(appearance_request_domain::theme_import, appearance_terminal_rejection::superseded);
+				next.Palette        = Defaults.Palette;
+				next.PaletteStored  = false;
+				next.PaletteVariant = Defaults.PaletteVariant;
+				acknowledgement     = palette_adoption_publication{ .Palette = next.Palette };
+				break;
+			default: return;
+			}
+			adopt(std::move(next), acknowledgement);
 		}
 
 		void submit_theme_import(std::string aPath)
@@ -961,10 +1052,8 @@ namespace bpr::application {
 				return;
 			}
 			auto loaded = std::move(**aResult);
-			// A record that came off disk carries a palette a reviewer chose,
-			// which a composed default does not. BPR-0216 is what happens when
-			// nothing can tell the two apart.
-			loaded.PaletteStored = true;
+			// The store preserves whether the palette is customized. Reset
+			// records intentionally retain an empty override set across restart.
 			if (!known(loaded.Mode)) {
 				publish_failure(aContext,
 								appearance_host_failure::unknown_appearance_mode);
@@ -1228,6 +1317,7 @@ namespace bpr::application {
 		}
 
 		appearance_settings              Settings;
+		const appearance_settings        Defaults;
 		appearance_settings_port&        SettingsPort;
 		theme_document_port&             ThemeDocuments;
 		syntax_classification_port&      Classifier;
@@ -1327,6 +1417,16 @@ namespace bpr::application {
 	{
 		Implementation->enqueue(
 			deferred_appearance_theme_import{ .Path = std::move(aPath) });
+	}
+
+	void appearance_application_host::export_theme_file(std::string aPath, core::appearance_palette aPalette)
+	{
+		Implementation->enqueue(deferred_appearance_theme_export{ std::move(aPath), aPalette });
+	}
+
+	void appearance_application_host::reset(const appearance_reset_scope aScope)
+	{
+		Implementation->enqueue(reset_appearance_intent{ aScope });
 	}
 
 	void appearance_application_host::classify(token_span_cache_key aKey)
