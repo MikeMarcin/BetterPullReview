@@ -5,7 +5,7 @@ Current delivery priority (owner direction, 2026-09-06): follow the
 for GitHub.com and GitHub Enterprise. Reuse implemented surfaces, address only
 the essential reading/publication gaps, and defer nonessential features and
 hardening. This bounded delivery priority does not change RFC statuses or
-canonical closeout order, and does not activate the deferred redesign RFCs.
+canonical closeout order, and does not by itself activate the deferred redesign RFCs.
 
 The RFCs normally begin and always close in the order below. A dependent RFC
 does not become `Auto-Verified` before every listed dependency is
@@ -92,6 +92,16 @@ canonical order above; it does not authorize bypassing earlier eligibility or
 closeout gates. Start later with `$implement-rfc` for that exact sequence.
 [[BPR-0592]] through [[BPR-0599]] are the unstarted entry/closeout pairs; the
 later planning pass allocates additional bounded implementation cards as needed.
+
+Owner direction, 2026-09-07: review and implement Claude's RFC-BPR-0028
+redesign **and** the broader RFC-BPR-0018/0024/0025/0026 work. This explicitly
+activates the post-pack implementation frontier in the requested order
+0018 → 0024 → 0025 → 0026 on available targets. Reconcile existing 0028
+implementation before adding new authority. Its superseding layout and Home
+decisions remain authoritative; browser-style file tabs remain unscheduled.
+Earlier dependency and target-native/human criteria still govern terminal
+closeout. RFC statuses remain nonterminal while the entry inventories establish
+bounded implementation cards and reuse relevant existing evidence.
 
 The ownership split is Settings/direct sign-in/server management (0018), BPR
 profile and window isolation/restoration (0024), independent browser-style

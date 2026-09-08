@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0592"
 title: "Inventory settings authority and plan RFC-BPR-0018"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0018"]
 depends_on: []
 milestone: "Post-Pack v2"
@@ -15,7 +15,7 @@ milestone: "Post-Pack v2"
 Inventory every adjustable value, its typed owner, projection, store/migration, reset scope, durability, capability, and secrecy class. Include direct sign-in, server configuration, remembered grants, and the existing default environment. Identify the smallest composed Settings slice and its exact focused verification selectors.
 
 Governing design: [RFC-BPR-0018](../../rfcs/RFC-BPR-0018-robust-settings-center.md).
-Closeout: [BPR-0593](BPR-0593-close-rfc-0018.md).
+Closeout: [BPR-0593](../10-backlog/BPR-0593-close-rfc-0018.md).
 
 RFC base: `e851eb8a851ab605cf5a85260a1317ecdf66773b`.
 
@@ -54,3 +54,11 @@ Not run; entry work and product implementation are deferred. When authorized,
 run the documentation gate on the planning slice, record exact focused selectors
 for its implementation consumers, and commit with explicit paths. This card is
 not satisfied merely by the initial RFC registration.
+
+## Activation, 2026-09-07
+
+The owner explicitly requested the broader UX RFC implementation after being
+asked to distinguish it from finishing RFC-0028. The canonical index records
+the implementation frontier exception. Retain the registration baseline above;
+reconcile the already integrated 0028 Settings work before allocating slices.
+Routing: standard | Reason: coupled ownership inventory retained by integrator.
