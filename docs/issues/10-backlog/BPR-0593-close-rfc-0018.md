@@ -4,7 +4,7 @@ id: "BPR-0593"
 title: "Verify and close RFC-BPR-0018"
 status: "Backlog"
 rfcs: ["RFC-BPR-0018"]
-depends_on: ["BPR-0592"]
+depends_on: ["BPR-0592","BPR-0678","BPR-0679","BPR-0680","BPR-0681","BPR-0682","BPR-0683"]
 milestone: "Post-Pack v2"
 closeout_for: ["RFC-BPR-0018"]
 ---
@@ -68,6 +68,14 @@ history, not evidence of interrupted product implementation.
 
 ## Resume
 
-Next task: [BPR-0592](../30-in-progress/BPR-0592-inventory-settings-authority-and-plan.md) after a later explicit implementation
+Next task: [BPR-0592](../60-done/BPR-0592-inventory-settings-authority-and-plan.md) after a later explicit implementation
 request and the applicable RFC eligibility/dependency checks. No product check
 has run, no product slice is complete, and no temporary worktree is retained.
+
+## Resumed implementation, 2026-09-07
+
+The owner activated the broader UX frontier. [The authority inventory](../../development/settings-authority-inventory.md)
+reconciles the integrated 0028 work and maps every criterion to BPR-0678 through
+BPR-0683. These join BPR-0592 and BPR-0593 as the planned cards. Existing
+partial implementation is not full criterion acceptance; not-run rows above
+remain truthful until each selected path is exercised. Next slice: BPR-0678.

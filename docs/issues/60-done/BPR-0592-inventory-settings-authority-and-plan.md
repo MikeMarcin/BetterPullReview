@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0592"
 title: "Inventory settings authority and plan RFC-BPR-0018"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0018"]
 depends_on: []
 milestone: "Post-Pack v2"
+acceptance: [{"criterion":"Inventory ownership, migration, reset, failure and secrecy; map all criteria and allocate bounded slices","outcome":"pass","revision":"137ba6171c18df425c08a26fbc8422112ca61476 plus planning files in finish","evidence":{"kind":"observation","detail":"docs/development/settings-authority-inventory.md audits existing appearance/workbench/queue/device/agent/notification/storage owners and identifies unimplemented capabilities. Maps AC-01 through AC-14 to reserved BPR-0678..0683 and direct checks; closeout dependencies updated; immutable registration base retained. python3 scripts/verify_documentation.py --root . and git diff --check pass. No product acceptance inferred from inventory."}}]
 ---
 
 # Inventory settings authority and plan RFC-BPR-0018
@@ -62,3 +63,11 @@ asked to distinguish it from finishing RFC-0028. The canonical index records
 the implementation frontier exception. Retain the registration baseline above;
 reconcile the already integrated 0028 Settings work before allocating slices.
 Routing: standard | Reason: coupled ownership inventory retained by integrator.
+
+## Inventory and bounded plan
+
+[The authority inventory](../../development/settings-authority-inventory.md)
+records adjustable values, default scope, stores/schema versions, resets,
+failures and secrecy. It maps all fourteen criteria to allocated BPR-0678
+through BPR-0683; BPR-0593 now depends on them. Reuse the existing appearance,
+workbench and queue hosts. Begin with the shell's missing scrolling and focus.
