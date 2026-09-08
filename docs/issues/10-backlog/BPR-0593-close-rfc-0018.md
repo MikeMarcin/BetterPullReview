@@ -68,6 +68,6 @@ history, not evidence of interrupted product implementation.
 
 ## Resume
 
-Next task: [BPR-0592](../20-ready/BPR-0592-inventory-settings-authority-and-plan.md) after a later explicit implementation
+Next task: [BPR-0592](../30-in-progress/BPR-0592-inventory-settings-authority-and-plan.md) after a later explicit implementation
 request and the applicable RFC eligibility/dependency checks. No product check
 has run, no product slice is complete, and no temporary worktree is retained.

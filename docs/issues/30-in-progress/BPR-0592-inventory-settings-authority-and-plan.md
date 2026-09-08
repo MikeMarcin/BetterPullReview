@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0592"
 title: "Inventory settings authority and plan RFC-BPR-0018"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0018"]
 depends_on: []
 milestone: "Post-Pack v2"
