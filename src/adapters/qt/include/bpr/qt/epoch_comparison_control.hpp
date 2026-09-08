@@ -65,6 +65,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto delete_cache_action() const noexcept -> QAction*;
 		[[nodiscard]] auto cancel_maintenance_action() const noexcept -> QAction*;
 		[[nodiscard]] auto status_text() const -> QString;
+		/// \brief [[BPR-0677]]. The state behind the wording, for a caller that
+		/// must tell work in progress from work that failed.
+		[[nodiscard]] auto status() const noexcept -> core::epoch_status;
 		[[nodiscard]] auto comparison_text() const -> QString;
 		[[nodiscard]] auto statistics() const noexcept
 			-> epoch_comparison_control_statistics;

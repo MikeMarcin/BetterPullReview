@@ -726,6 +726,11 @@ namespace bpr::qt {
 		return StatusLabel->text();
 	}
 
+	auto epoch_comparison_control::status() const noexcept -> core::epoch_status
+	{
+		return Status;
+	}
+
 	auto epoch_comparison_control::comparison_text() const -> QString
 	{
 		return ComparisonLabel->text();

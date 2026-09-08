@@ -5698,9 +5698,22 @@ namespace bpr::qt {
 		// while the strip, the drawer and the conversations all named one told
 		// the owner the product was broken and gave them nothing to do.
 		if (HasGithubPullRequest && (!HasCommands || !Cursor)) {
-			status = QStringLiteral(
-				"This pull request is open. Its comparison is not ready; "
-				"Refresh to try again.");
+			// [[BPR-0677]]. Work in progress is not failure. The owner'''s
+			// comparison spent ninety-five seconds in revision_prepare while
+			// the line told them to refresh, which would have thrown that
+			// work away and started it again.
+			const auto working = HasEpochState
+				&& (EpochSelectors->status() == core::epoch_status::loading_catalog
+					|| EpochSelectors->status() == core::epoch_status::preparing
+					|| EpochSelectors->status() == core::epoch_status::committing
+					|| EpochSelectors->status() == core::epoch_status::resolving
+					|| EpochSelectors->status() == core::epoch_status::maintaining);
+			status = working
+				? QStringLiteral(
+					  "This pull request is open. Its comparison is being prepared.")
+				: QStringLiteral(
+					  "This pull request is open. Its comparison is not ready; "
+					  "Refresh to try again.");
 		} else if (!HasCommands) {
 			status = QStringLiteral("Open a pull request to begin reviewing.");
 		} else if (!Cursor) {

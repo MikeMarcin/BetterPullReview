@@ -2566,6 +2566,27 @@ namespace {
 		expect(window.status_text().contains(QStringLiteral("This pull request is open"))
 				   && window.status_text().contains(QStringLiteral("Refresh")),
 			   "it says what is true and names the way to try again");
+		// [[BPR-0677]]. Work in progress is not failure. The owner's comparison
+		// spent ninety-five seconds being prepared while the line told them to
+		// refresh, which would have thrown that work away.
+		window.publish(application::epoch_presentation_update{
+			.Transition = application::epoch_transition_projection{
+				.Status = core::epoch_status_delta{ .Status = core::epoch_status::preparing },
+			},
+		});
+		QApplication::processEvents();
+		expect(window.status_text().contains(QStringLiteral("is being prepared"))
+				   && !window.status_text().contains(QStringLiteral("Refresh to try again")),
+			   "while the comparison is being prepared the line says so and asks for nothing");
+		window.publish(application::epoch_presentation_update{
+			.Transition = application::epoch_transition_projection{
+				.Status = core::epoch_status_delta{ .Status = core::epoch_status::ready },
+			},
+		});
+		QApplication::processEvents();
+		expect(window.status_text().contains(QStringLiteral("Refresh to try again")),
+			   "and once the history has settled with no comparison, Refresh is the advice");
+
 		// [[BPR-0675]]. The owner met three full drawers and two strip toggles
 		// that did nothing, because the core refused every drawer gesture
 		// without a comparison. The room a drawer takes is theirs to give back
