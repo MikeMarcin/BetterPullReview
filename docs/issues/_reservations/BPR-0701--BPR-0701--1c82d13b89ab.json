@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0701"
+  ],
+  "reserve_for": "concurrent-profile-logging",
+  "purpose": "",
+  "created": "2026-09-08T10:56:46.481416+00:00",
+  "base": "a666c849218673dcbadb15ebfe4c995fce0e538f"
+}
