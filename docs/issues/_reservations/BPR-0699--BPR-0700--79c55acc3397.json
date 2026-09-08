@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0699",
+    "BPR-0700"
+  ],
+  "reserve_for": "profile-queue-and-window-layout",
+  "purpose": "",
+  "created": "2026-09-08T10:48:55.554392+00:00",
+  "base": "72a8e78fee6640bf049cbc1ddb8d7508bb73288c"
+}
