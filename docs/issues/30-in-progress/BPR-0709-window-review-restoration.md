@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0709"
 title: "Restore each window's accepted pull request"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0708"]
 ---
