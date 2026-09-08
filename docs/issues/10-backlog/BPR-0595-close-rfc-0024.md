@@ -67,3 +67,13 @@ first independent foundations alongside remaining Settings integration. Later ru
 shared-edit, restoration, admission and public composition slices remain to be
 allocated. Native and human criteria remain open; no profile implementation
 acceptance or RFC closeout is claimed.
+
+## Foundation evidence
+
+BPR-0690 committed6c91f007 introduces only pure typed lifecycle policy.
+Core-only configure/build and focused profile test pass; both architecture
+checks passed after the setup parser boundary repair. The broader run had
+125/128 passes; the two corrected boundaries passed narrow rechecks and an
+unrelated native capsule cleanup timeout remains tracked in BPR-0692. Do not
+report an entirely green core-only suite. Registry persistence remains BPR-0691;
+profile/window UI and shared services are not implemented by this foundation.
