@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0705"
 title: "Compose multiple live windows over one profile runtime"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0696", "BPR-0697", "BPR-0698", "BPR-0699", "BPR-0700", "BPR-0701", "BPR-0702", "BPR-0703", "BPR-0704"]
 ---
