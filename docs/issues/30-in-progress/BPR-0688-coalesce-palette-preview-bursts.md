@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0688"
 title: "Coalesce palette preview bursts"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0018"]
 depends_on: ["BPR-0684"]
 ---
