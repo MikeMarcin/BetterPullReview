@@ -55,5 +55,5 @@ documentation gates pass. No live credentials or provider mutations used.
 No same-profile multiple-window, management menu, process-owner arbitration,
 or native Windows/Linux application interaction acceptance is claimed.
 Normal build outputs remain in use; fixture and contained Release build roots
-cleaned themselves. Consumed /tmp logs retain only fixture diagnostics until
-integration cleanup.
+cleaned themselves. Consumed task-created /tmp diagnostic logs and the scoped fixture tidy filter
+were removed after integration; retained evidence is recorded above.
