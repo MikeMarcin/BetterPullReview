@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0689"
 title: "Retain exact setup destination"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0018", "RFC-BPR-0026"]
 depends_on: ["BPR-0679"]
 ---
