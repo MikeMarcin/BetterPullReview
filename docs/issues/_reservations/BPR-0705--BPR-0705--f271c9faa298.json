@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0705"
+  ],
+  "reserve_for": "ux-profile-live-windows",
+  "purpose": "Compose multiple live window sessions over one profile runtime",
+  "created": "2026-09-08T12:12:53.442469+00:00",
+  "base": "fd270e3362446b98cbfcf2c929e1f1d6261c8992"
+}
