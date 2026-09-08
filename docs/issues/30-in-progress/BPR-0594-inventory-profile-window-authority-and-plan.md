@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0594"
 title: "Inventory profile and window authority and plan RFC-BPR-0024"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0592"]
 milestone: "Post-Pack v2"
