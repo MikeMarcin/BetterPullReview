@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_SETTINGS_WINDOW_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_SETTINGS_WINDOW_HPP
 
+#include <QPointer>
 #include <QString>
 #include <QWidget>
 
@@ -8,6 +9,8 @@
 #include <cstdint>
 
 class QLabel;
+class QKeyEvent;
+class QCloseEvent;
 class QListWidget;
 class QStackedWidget;
 
@@ -15,7 +18,7 @@ namespace bpr::qt {
 	/// \brief Names one page of the Settings window, in sidebar order.
 	///
 	/// \details The order is RFC-BPR-0018's: the pages a reviewer reaches first
-	/// come first. Only `appearance` hosts a live surface today; the others name
+	/// come first. Accounts, reviews and appearance host live surfaces; other pages name
 	/// where a setting will live so a reviewer looking for it is told, rather
 	/// than shown an empty page.
 	enum class settings_page : std::uint8_t {
@@ -57,11 +60,16 @@ namespace bpr::qt {
 		[[nodiscard]] auto pages() const noexcept -> QStackedWidget*;
 		[[nodiscard]] auto page_widget(settings_page aPage) const noexcept -> QWidget*;
 
+	protected:
+		void keyPressEvent(QKeyEvent* aEvent) override;
+		void closeEvent(QCloseEvent* aEvent) override;
+
 	private:
 		void select_page(int aRow);
 
-		QListWidget*    Sidebar = nullptr;
-		QStackedWidget* Pages   = nullptr;
+		QPointer<QWidget> ReturnFocus;
+		QListWidget*      Sidebar = nullptr;
+		QStackedWidget*   Pages   = nullptr;
 	};
 
 	[[nodiscard]] auto settings_page_title(settings_page aPage) -> QString;

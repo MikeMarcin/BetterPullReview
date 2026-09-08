@@ -7,10 +7,15 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
 #include <QListWidget>
+#include <QPushButton>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QStackedWidget>
+#include <QVBoxLayout>
 #include <QWidget>
 
 #include <cstdlib>
@@ -69,6 +74,68 @@ namespace {
 			   "closing hides the window and keeps the adopted panel");
 	}
 
+	void test_large_page_scrolls_without_growing_the_window()
+	{
+		qt::workbench_window workbench;
+		auto* const          settings = workbench.settings();
+		auto* const          panel    = new QWidget;
+		auto* const          layout   = new QVBoxLayout{ panel };
+		auto* const          first    = new QPushButton{ QStringLiteral("First setting"), panel };
+		auto* const          last     = new QPushButton{ QStringLiteral("Last setting"), panel };
+		layout->addWidget(first);
+		layout->addSpacing(1200);
+		layout->addWidget(last);
+		settings->adopt_panel(qt::settings_page::general, panel);
+		settings->resize(760, 480);
+		settings->present(qt::settings_page::general);
+		QApplication::processEvents();
+		expect(settings->size() == QSize(760, 480), "a tall page does not force Settings beyond its requested size");
+		auto* const scroll = qobject_cast<QScrollArea*>(settings->pages()->currentWidget());
+		expect(scroll != nullptr && scroll->verticalScrollBar()->maximum() > 0,
+			   "the page scrolls inside the bounded Settings window");
+		first->setFocus();
+		QKeyEvent tab{ QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier };
+		QApplication::sendEvent(first, &tab);
+		QApplication::processEvents();
+		expect(last->hasFocus() && scroll->viewport()->rect().contains(last->mapTo(scroll->viewport(), last->rect().center())),
+			   "keyboard navigation scrolls the last setting into view");
+		const auto position = scroll->verticalScrollBar()->value();
+		settings->sidebar()->setCurrentRow(static_cast<int>(qt::settings_page::appearance));
+		settings->sidebar()->setCurrentRow(static_cast<int>(qt::settings_page::general));
+		QApplication::processEvents();
+		expect(scroll->verticalScrollBar()->value() == position && panel->parentWidget() == settings->page_widget(qt::settings_page::general),
+			   "switching pages retains scroll and panel identity");
+		const auto raster = settings->grab();
+		expect(!raster.isNull(), "the composed Settings window renders at minimum size");
+		QKeyEvent escape{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
+		QApplication::sendEvent(last, &escape);
+		QApplication::processEvents();
+		expect(!settings->isVisible() && panel->parentWidget() != nullptr,
+			   "Escape hides Settings without deleting its panels");
+	}
+
+	void test_composed_pages_fit_and_render_at_minimum_size()
+	{
+		qt::workbench_window workbench;
+		auto* const          settings = workbench.settings();
+		settings->resize(760, 480);
+		for (const auto page : { qt::settings_page::accounts_and_hosts, qt::settings_page::reviews_and_queue, qt::settings_page::appearance }) {
+			settings->present(page);
+			QApplication::processEvents();
+			expect(settings->size() == QSize(760, 480), "every live composed page fits the minimum Settings window");
+			auto* const scroll = qobject_cast<QScrollArea*>(settings->pages()->currentWidget());
+			expect(scroll != nullptr && scroll->viewport()->height() <= 480,
+				   "real account, review and appearance controls stay in the page viewport");
+			const auto raster = settings->grab();
+			expect(!raster.isNull(), "each live composed page renders");
+			const auto root = qEnvironmentVariable("BPR_SETTINGS_RENDER_ROOT");
+			if (!root.isEmpty()) {
+				expect(raster.save(root + QStringLiteral("/settings-%1.png").arg(static_cast<int>(page))), "save composed Settings evidence");
+			}
+		}
+		expect(settings->windowTitle().contains(QStringLiteral("Default profile")), "Settings identifies the profile being edited");
+	}
+
 	void test_the_workbench_mounts_settings_with_the_preferences_shortcut()
 	{
 		qt::workbench_window workbench;
@@ -105,6 +172,8 @@ namespace {
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	test_composed_pages_fit_and_render_at_minimum_size();
+	test_large_page_scrolls_without_growing_the_window();
 	test_every_page_exists_with_a_notice();
 	test_adopting_a_panel_replaces_the_notice();
 	test_the_workbench_mounts_settings_with_the_preferences_shortcut();

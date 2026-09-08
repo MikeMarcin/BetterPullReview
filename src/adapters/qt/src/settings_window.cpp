@@ -1,9 +1,13 @@
 #include "bpr/qt/settings_window.hpp"
 
+#include <QApplication>
+#include <QCloseEvent>
 #include <QHBoxLayout>
+#include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
 #include <QListWidget>
+#include <QScrollArea>
 #include <QStackedWidget>
 #include <QVBoxLayout>
 
@@ -34,7 +38,7 @@ namespace bpr::qt {
 			switch (aPage) {
 			case settings_page::general:
 				return QStringLiteral(
-					"Startup, window restoration and update preferences will live here. "
+					"Startup and window restoration preferences will live here. "
 					"Nothing to change yet.");
 			case settings_page::accounts_and_hosts:
 				return QStringLiteral(
@@ -84,14 +88,15 @@ namespace bpr::qt {
 		: QWidget{ aParent, Qt::Window }
 	{
 		setObjectName(QStringLiteral("settingsWindow"));
-		setWindowTitle(QStringLiteral("Settings"));
-		setAccessibleName(QStringLiteral("Settings"));
+		setWindowTitle(QStringLiteral("Settings — Default profile"));
+		setAccessibleName(QStringLiteral("Settings — Default profile"));
 		setAccessibleDescription(QStringLiteral(
 			"Application settings grouped by page; changes apply as they are made"));
 		// A modeless window that a reviewer opens beside the comparison, so
 		// closing it must not destroy the panels it adopted: hide, never delete.
 		setAttribute(Qt::WA_DeleteOnClose, false);
 		setMinimumSize(760, 480);
+		resize(960, 640);
 
 		Sidebar = new QListWidget{ this };
 		Sidebar->setObjectName(QStringLiteral("settingsSidebar"));
@@ -106,7 +111,12 @@ namespace bpr::qt {
 
 		for (const auto page : page_order) {
 			Sidebar->addItem(settings_page_title(page));
-			auto* const surface = new QWidget{ Pages };
+			auto* const scroll = new QScrollArea{ Pages };
+			scroll->setObjectName(QStringLiteral("settingsPageScroll-%1").arg(page_index(page)));
+			scroll->setAccessibleName(settings_page_title(page));
+			scroll->setWidgetResizable(true);
+			scroll->setFrameShape(QFrame::NoFrame);
+			auto* const surface = new QWidget;
 			surface->setObjectName(
 				QStringLiteral("settingsPage-%1").arg(page_index(page)));
 			auto* const column = new QVBoxLayout{ surface };
@@ -123,7 +133,8 @@ namespace bpr::qt {
 			notice->setWordWrap(true);
 			column->addWidget(notice);
 			column->addStretch(1);
-			Pages->addWidget(surface);
+			scroll->setWidget(surface);
+			Pages->addWidget(scroll);
 		}
 
 		auto* const row = new QHBoxLayout{ this };
@@ -163,6 +174,9 @@ namespace bpr::qt {
 
 	void settings_window::present(const settings_page aPage)
 	{
+		if (!isVisible()) {
+			ReturnFocus = QApplication::focusWidget();
+		}
 		Sidebar->setCurrentRow(page_index(aPage));
 		show();
 		raise();
@@ -190,7 +204,29 @@ namespace bpr::qt {
 
 	auto settings_window::page_widget(const settings_page aPage) const noexcept -> QWidget*
 	{
-		return Pages->widget(page_index(aPage));
+		auto* const scroll = qobject_cast<QScrollArea*>(Pages->widget(page_index(aPage)));
+		return scroll != nullptr ? scroll->widget() : nullptr;
+	}
+
+	void settings_window::closeEvent(QCloseEvent* const aEvent)
+	{
+		QWidget::closeEvent(aEvent);
+		if (aEvent->isAccepted() && ReturnFocus != nullptr && ReturnFocus->isVisible()) {
+			ReturnFocus->window()->activateWindow();
+			ReturnFocus->setFocus(Qt::OtherFocusReason);
+		}
+	}
+
+	void settings_window::keyPressEvent(QKeyEvent* const aEvent)
+	{
+		// Child pickers and editors receive Escape first. Only an unhandled
+		// key reaches the window, so closing cannot steal their cancellation.
+		if (aEvent->key() == Qt::Key_Escape && aEvent->modifiers() == Qt::NoModifier) {
+			close();
+			aEvent->accept();
+			return;
+		}
+		QWidget::keyPressEvent(aEvent);
 	}
 
 	void settings_window::select_page(const int aRow)

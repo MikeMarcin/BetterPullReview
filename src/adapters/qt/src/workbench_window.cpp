@@ -1483,14 +1483,6 @@ namespace bpr::qt {
 		savedHeading->setFont(headingFont);
 		reviewsColumn->addWidget(savedHeading);
 		build_saved_repositories_editor(reviews, *reviewsColumn);
-		auto* const reviewsNotice = new QLabel{
-			QStringLiteral("Modality rules, reading behaviour and the default comparison arrive with "
-						   "BPR-0661."),
-			reviews
-		};
-		reviewsNotice->setObjectName(QStringLiteral("reviewsNotice"));
-		reviewsNotice->setWordWrap(true);
-		reviewsColumn->addWidget(reviewsNotice);
 		SettingsWindow->adopt_panel(settings_page::reviews_and_queue, reviews);
 
 		static_cast<void>(Drawers[0].Panel->layout());

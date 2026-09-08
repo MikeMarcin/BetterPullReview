@@ -79,3 +79,12 @@ reconciles the integrated 0028 work and maps every criterion to BPR-0678 through
 BPR-0683. These join BPR-0592 and BPR-0593 as the planned cards. Existing
 partial implementation is not full criterion acceptance; not-run rows above
 remain truthful until each selected path is exercised. Next slice: BPR-0678.
+
+BPR-0678: default-profile shell now uses stable per-page scroll containers,
+retains panel identity and category scroll, identifies its default profile and
+handles unconsumed Escape. Composed Qt checks pass at 100/125/200%; actual
+760x480 offscreen Accounts/Reviews/Appearance captures inspected. This is
+partial AC-01/02/07/08/09/10 evidence, not a full platform/accessibility verdict.
+Two affected attended candidates (chrome and widths) were released by the
+owner's resume-development authorization and need preparation after integration;
+public-preview's separate candidate remains protected. Next: BPR-0679.
