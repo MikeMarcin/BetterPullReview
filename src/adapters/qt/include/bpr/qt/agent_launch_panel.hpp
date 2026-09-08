@@ -82,6 +82,7 @@ namespace bpr::qt {
 			QWidget*              aParent   = nullptr);
 
 		void set_dispatch(agent_intent_dispatch aDispatch);
+		void set_configuration_observer(std::function<void()> aObserver);
 
 		/// \brief Offers the profiles this host permits, and no others.
 		///
@@ -136,6 +137,7 @@ namespace bpr::qt {
 	private:
 		void update_actions();
 
+		std::function<void()>                          ConfigurationObserver;
 		agent_intent_dispatch                          Dispatch;
 		QComboBox*                                     ProfileSelector        = nullptr;
 		QAction*                                       StartAction            = nullptr;

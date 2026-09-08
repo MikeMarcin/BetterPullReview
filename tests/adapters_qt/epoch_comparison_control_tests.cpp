@@ -1009,6 +1009,8 @@ namespace {
 			   "core command projections enable keyboard-addressable maintenance "
 			   "actions");
 
+		control.set_maintenance_scope(authority(), QStringLiteral("github.example / owner/repo #17 — reviewer"));
+
 		auto       observation  = confirmation_observation{ };
 		const auto beforeCancel = intents.size();
 		respond_to_confirmation(
@@ -1017,6 +1019,7 @@ namespace {
 			observation);
 		control.prune_action()->trigger();
 		expect(intents.size() == beforeCancel && observation.CancelWasDefault
+				   && observation.Text.contains(QStringLiteral("github.example / owner/repo #17 — reviewer"))
 				   && observation.Text.contains(QStringLiteral("retention refs"))
 				   && observation.Text.contains(QStringLiteral("unrecoverable"))
 				   && observation.Text.contains(QStringLiteral("tombstones"))
@@ -1025,6 +1028,15 @@ namespace {
 				   && !observation.AccessibleName.isEmpty(),
 			   "prune confirmation defaults to Cancel, states consequences, and "
 			   "dispatches nothing when canceled");
+
+		auto otherAuthority    = authority();
+		otherAuthority.Account = decltype(otherAuthority.Account){ 99U };
+		control.set_maintenance_scope(otherAuthority, QStringLiteral("stale scope label"));
+		observation = { };
+		respond_to_confirmation(QStringLiteral("pruneSelectedEpochsConfirmationDialog"), false, observation);
+		control.prune_action()->trigger();
+		expect(intents.size() == beforeCancel && !observation.Text.contains(QStringLiteral("stale scope label")),
+			   "a label bound to another authority never describes this maintenance target");
 
 		observation = { };
 		respond_to_confirmation(

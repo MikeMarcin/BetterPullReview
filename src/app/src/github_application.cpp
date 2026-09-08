@@ -3832,6 +3832,7 @@ namespace bpr::app {
 				},
 				ProfileOptions,
 				[this](application::github_intent aIntent) { dispatch_intent(std::move(aIntent)); });
+			Window->set_storage_location(QString::fromStdString(ApplicationDataRoot.string()));
 			Window->set_receipt_dispatch(
 				[this](core::file_receipt_command aCommand) {
 #if defined(BPR_BUILD_TESTING)
@@ -7097,6 +7098,8 @@ namespace bpr::app {
 			if (!Closing && EpochHost != nullptr) {
 				AgentReview = agent_review_facts{
 					.Host        = aHandoff.Host,
+					.Account     = aHandoff.Account,
+					.Generation  = aHandoff.IdentityGeneration,
 					.Repository  = aHandoff.Repository,
 					.PullRequest = aHandoff.PullRequest,
 					.Number      = aHandoff.Number,
@@ -8575,6 +8578,19 @@ namespace bpr::app {
 			if (aUpdate.Catalog.has_value()) {
 				EpochRows.apply(*aUpdate.Catalog);
 			}
+			if (EpochHost && EpochHost->state().Authority && AgentReview) {
+				const auto& authority = *EpochHost->state().Authority;
+				if (authority.Host == AgentReview->Host && authority.Account == AgentReview->Account
+					&& authority.Repository == AgentReview->Repository && authority.PullRequest == AgentReview->PullRequest) {
+					auto label = QStringLiteral("%1 / %2/%3 #%4")
+									 .arg(QString::fromStdString(AgentReview->Hostname), QString::fromStdString(AgentReview->Locator.Owner), QString::fromStdString(AgentReview->Locator.Name))
+									 .arg(AgentReview->Number.value());
+					if (QueueActivity && QueueActivity->Session.Generation == AgentReview->Generation.value()) {
+						label += QStringLiteral(" — %1").arg(QString::fromStdString(QueueActivity->Ref.Account));
+					}
+					Window->epoch_selectors()->set_maintenance_scope(authority, std::move(label));
+				}
+			}
 			Window->publish(aUpdate);
 			if (aUpdate.Catalog.has_value()) {
 				publish_overview();
@@ -9867,12 +9883,14 @@ namespace bpr::app {
 		std::optional<application::workbench_selected_diff_publication> SelectedDiffPublication;
 		struct agent_review_facts
 		{
-			core::git_host_id         Host;
-			core::repository_id       Repository;
-			core::pull_request_id     PullRequest;
-			core::pull_request_number Number;
-			std::string               Hostname;
-			core::repository_locator  Locator;
+			core::git_host_id                Host;
+			core::github_account_id          Account;
+			core::github_identity_generation Generation;
+			core::repository_id              Repository;
+			core::pull_request_id            PullRequest;
+			core::pull_request_number        Number;
+			std::string                      Hostname;
+			core::repository_locator         Locator;
 		};
 		std::optional<agent_review_facts>                AgentReview;
 		std::optional<application::checkout_observation> ExistingCheckout;

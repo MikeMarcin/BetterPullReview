@@ -2,6 +2,7 @@
 
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/diff_semantics.hpp"
+#include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/epoch_history_model.hpp"
@@ -25,6 +26,7 @@
 #include <QLineEdit>
 #include <QList>
 #include <QListView>
+#include <QListWidget>
 #include <QMenu>
 #include <QModelIndex>
 #include <QMouseEvent>
@@ -72,6 +74,61 @@ namespace {
 		if (!aCondition) {
 			std::cerr << "FAILED: " << aMessage << '\n';
 			std::exit(EXIT_FAILURE);
+		}
+	}
+
+	void test_settings_share_only_offered_agent_context_and_maintenance_actions()
+	{
+		auto  window  = qt::workbench_window{ };
+		auto* panel   = window.agent_panel();
+		auto  intents = std::vector<qt::agent_intent>{ };
+		panel->set_dispatch([&](qt::agent_intent aIntent) { intents.push_back(std::move(aIntent)); });
+		const auto profiles = std::array{
+			core::agent_profile{ .Id = core::agent_profile_id{ 1U }, .DisplayName = "First" },
+			core::agent_profile{ .Id = core::agent_profile_id{ 2U }, .DisplayName = "Second" }
+		};
+		panel->offer_profiles(profiles);
+		panel->disclose_scope(QStringLiteral("Current review metadata"));
+		const auto notes = std::array{ application::local_note_id{ 7U }, application::local_note_id{ 9U } };
+		const auto draft = application::agent_draft_choice{ .Id = core::review_draft_id{ 11U }, .Revision = 3U };
+		panel->offer_private_context(notes, draft);
+		auto* page     = window.settings()->page_widget(qt::settings_page::agents_and_context);
+		auto* selector = page->findChild<QComboBox*>(QStringLiteral("settingsAgentProfile"));
+		auto* noteList = page->findChild<QListView*>(QStringLiteral("settingsAgentNotes"));
+		auto* draftBox = page->findChild<QCheckBox*>(QStringLiteral("settingsAgentDraft"));
+		expect(selector != nullptr && noteList != nullptr && draftBox != nullptr,
+			   "Settings mounts the agent choices");
+		expect(selector->model() == panel->profile_selector()->model()
+				   && noteList->model() == panel->note_selector()->model()
+				   && !draftBox->isChecked() && panel->note_selector()->item(0)->checkState() == Qt::Unchecked,
+			   "Settings shares only host-offered identities with private context unchecked");
+		selector->setCurrentIndex(1);
+		noteList->model()->setData(noteList->model()->index(1, 0), Qt::Checked, Qt::CheckStateRole);
+		draftBox->click();
+		expect(intents.empty(), "editing Settings never starts an agent");
+		panel->start_action()->trigger();
+		expect(intents.size() == 1U, "the existing explicit start emits one intent");
+		const auto& start = std::get<qt::start_agent_intent>(intents.front());
+		expect(start.Profile == profiles[1].Id
+				   && start.IncludedNotes == std::vector{ notes[1] } && start.IncludedDraft == draft,
+			   "the request carries exactly the profile and private identities selected in Settings");
+		panel->offer_profiles(std::span{ profiles }.first(1));
+		panel->offer_private_context(std::span{ notes }.first(1), std::nullopt);
+		expect(selector->count() == 1 && noteList->model()->rowCount() == 1
+				   && !draftBox->isChecked() && !draftBox->isEnabled()
+				   && panel->note_selector()->item(0)->checkState() == Qt::Unchecked,
+			   "a changed offer removes old choices and clears private opt-ins");
+		panel->set_running(true);
+		expect(!noteList->isEnabled(), "private context is disabled during a request");
+		window.set_storage_location(QStringLiteral("/fixture/local-data"));
+		auto* storage  = window.settings()->page_widget(qt::settings_page::storage_and_privacy);
+		auto* location = storage->findChild<QLineEdit*>(QStringLiteral("settingsStorageLocation"));
+		expect(location != nullptr && location->isReadOnly() && location->text() == QStringLiteral("/fixture/local-data"),
+			   "storage location is a read-only composition fact");
+		for (auto* action : { window.epoch_selectors()->prune_action(), window.epoch_selectors()->delete_cache_action(), window.epoch_selectors()->cancel_maintenance_action() }) {
+			const auto buttons = storage->findChildren<QToolButton*>();
+			expect(std::ranges::any_of(buttons, [action](auto* aButton) { return aButton->defaultAction() == action; }),
+				   "Storage uses the existing command-owned maintenance action");
 		}
 	}
 
@@ -5444,6 +5501,7 @@ namespace {
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	test_settings_share_only_offered_agent_context_and_maintenance_actions();
 	test_all_four_primary_actions_follow_one_core_projection();
 	test_every_primary_action_translates_to_a_semantic_intent();
 	test_action_state_follows_core_command_projections();

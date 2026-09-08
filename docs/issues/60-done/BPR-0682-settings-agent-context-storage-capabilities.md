@@ -2,9 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0682"
 title: "Compose agent context and storage capability pages"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0018"]
 depends_on: ["BPR-0592"]
+acceptance: [{"criterion":"AC-02/04/06 agent context","outcome":"pass","revision":"1500aba4 plus this finish","evidence":{"kind":"observation","detail":"Qt workbench at 100/125/200 and agent panel passed: host-offered models shared, Settings edits issue no start, explicit launch carries exact selected private IDs, changed offers clear opt-ins and running disables context."}},{"criterion":"AC-06/09/10 storage","outcome":"pass","revision":"1500aba4 plus this finish","evidence":{"kind":"observation","detail":"application_epoch_maintenance_public_path passed 66.12s through Settings buttons and restart. Qt epoch comparison passed; Cancel produces no intent, authority-tagged labels reject stale scope. Final PlainText confirmation adjustment passed focused epoch test 1.10s."}},{"criterion":"Boundaries and quality","outcome":"pass","revision":"1500aba4 plus this finish","evidence":{"kind":"observation","detail":"Seven selected TUs passed canonical tidy after correcting two test parameter names and rerunning only that TU. Composition source-digest hostile-bypass test passed. Documentation and diff checks passed. No live provider or credential operations performed."}}]
 ---
 
 # Compose agent context and storage capability pages
@@ -25,7 +26,7 @@ Routing: standard | Reason: default implementation.
 
 ## Evidence
 
-Not run. Created by the authorized BPR-0592 planning pass.
+Implemented against `1500aba4` in this finish. Settings shares host-offered models and the existing exact maintenance actions. Detailed acceptance records below contain the consumed checks.
 
 ## Selected implementation
 

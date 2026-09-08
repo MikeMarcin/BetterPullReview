@@ -161,6 +161,14 @@ namespace bpr::qt {
 		update_actions();
 	}
 
+	void agent_launch_panel::set_configuration_observer(std::function<void()> aObserver)
+	{
+		ConfigurationObserver = std::move(aObserver);
+		if (ConfigurationObserver) {
+			ConfigurationObserver();
+		}
+	}
+
 	void agent_launch_panel::set_dispatch(agent_intent_dispatch aDispatch)
 	{
 		Dispatch = std::move(aDispatch);
@@ -422,5 +430,8 @@ namespace bpr::qt {
 		ExistingCheckoutAction->setEnabled(!Running);
 		NoteSelector->setEnabled(!Running);
 		DraftSelector->setEnabled(!Running && OfferedDraft.has_value());
+		if (ConfigurationObserver) {
+			ConfigurationObserver();
+		}
 	}
 } // namespace bpr::qt

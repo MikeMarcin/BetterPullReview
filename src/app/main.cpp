@@ -2684,6 +2684,18 @@ namespace {
 		return true;
 	}
 
+	void trigger_settings_maintenance(bpr::qt::workbench_window& aWindow, QAction* aAction)
+	{
+		aWindow.open_settings(bpr::qt::settings_page::storage_and_privacy);
+		auto* const page = aWindow.settings()->page_widget(bpr::qt::settings_page::storage_and_privacy);
+		for (auto* button : page->findChildren<QToolButton*>()) {
+			if (button->defaultAction() == aAction) {
+				button->click();
+				return;
+			}
+		}
+	}
+
 	void accept_maintenance_confirmation(const QString& aObjectName)
 	{
 		auto attempts = std::make_shared<std::size_t>(0U);
@@ -2847,7 +2859,7 @@ namespace {
 			aRun.MaintenanceGate          = nullptr;
 			accept_maintenance_confirmation(
 				QStringLiteral("deleteRepositoryCacheConfirmationDialog"));
-			control->delete_cache_action()->trigger();
+			trigger_settings_maintenance(aApplication.window(), control->delete_cache_action());
 			advance_fixture_stage(
 				aRun, automated_run::stage::epoch_maintenance_delete_result);
 			return true;
@@ -6254,7 +6266,7 @@ namespace {
 					&& control->prune_action()->isEnabled()) {
 					accept_maintenance_confirmation(
 						QStringLiteral("pruneSelectedEpochsConfirmationDialog"));
-					control->prune_action()->trigger();
+					trigger_settings_maintenance(window, control->prune_action());
 					advance_fixture_stage(
 						*aRun,
 						automated_run::stage::epoch_maintenance_prune_result);

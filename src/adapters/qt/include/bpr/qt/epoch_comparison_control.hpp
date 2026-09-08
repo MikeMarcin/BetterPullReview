@@ -40,6 +40,7 @@ namespace bpr::qt {
 		void publish(
 			const application::epoch_presentation_update& aUpdate) override;
 		void set_dispatch(application::epoch_intent_dispatch aDispatch);
+		void set_maintenance_scope(core::pull_request_authority aAuthority, QString aLabel);
 
 		[[nodiscard]] auto history_model() const noexcept -> epoch_history_model*;
 		/// \brief RFC-BPR-0028's epoch line, the control's one always-shown row.
@@ -83,12 +84,13 @@ namespace bpr::qt {
 		void dispatch_identity(
 			core::comparison_side                   aSide,
 			const core::comparison_anchor_identity& aIdentity);
-		void update_line();
-		void dispatch_older_history_page();
-		void dispatch_newest_history_page();
-		void dispatch_prune();
-		void dispatch_delete_cache();
-		void apply_catalog(
+		void               update_line();
+		void               dispatch_older_history_page();
+		void               dispatch_newest_history_page();
+		[[nodiscard]] auto maintenance_scope_text() const -> QString;
+		void               dispatch_prune();
+		void               dispatch_delete_cache();
+		void               apply_catalog(
 			const application::epoch_catalog_projection& aProjection);
 		void apply_transition(
 			const application::epoch_transition_projection& aProjection);
@@ -103,32 +105,34 @@ namespace bpr::qt {
 		[[nodiscard]] auto command(core::epoch_command_id aId) const
 			-> std::optional<core::epoch_command_projection>;
 
-		application::epoch_intent_dispatch Dispatch;
-		epoch_history_model*               HistoryModel            = nullptr;
-		epoch_line*                        Line                    = nullptr;
-		QToolButton*                       ComparingButton         = nullptr;
-		QWidget*                           Details                 = nullptr;
-		QComboBox*                         LeftSelector            = nullptr;
-		QComboBox*                         RightSelector           = nullptr;
-		QLineEdit*                         LeftOid                 = nullptr;
-		QLineEdit*                         RightOid                = nullptr;
-		QLabel*                            StatusLabel             = nullptr;
-		QLabel*                            ComparisonLabel         = nullptr;
-		QAction*                           WholePrAction           = nullptr;
-		QAction*                           PreviousUploadAction    = nullptr;
-		QAction*                           LastReviewedAction      = nullptr;
-		QAction*                           LoadHistoryAction       = nullptr;
-		QAction*                           ReturnNewestAction      = nullptr;
-		QAction*                           RefreshAction           = nullptr;
-		QAction*                           CancelAction            = nullptr;
-		QAction*                           PruneAction             = nullptr;
-		QAction*                           DeleteCacheAction       = nullptr;
-		QAction*                           CancelMaintenanceAction = nullptr;
-		QToolButton*                       LoadHistoryButton       = nullptr;
-		QToolButton*                       ReturnNewestButton      = nullptr;
-		QToolButton*                       RefreshButton           = nullptr;
-		QToolButton*                       CancelButton            = nullptr;
-		QToolButton*                       MaintenanceButton       = nullptr;
+		std::optional<core::pull_request_authority> ScopeAuthority;
+		QString                                     ScopeLabel;
+		application::epoch_intent_dispatch          Dispatch;
+		epoch_history_model*                        HistoryModel            = nullptr;
+		epoch_line*                                 Line                    = nullptr;
+		QToolButton*                                ComparingButton         = nullptr;
+		QWidget*                                    Details                 = nullptr;
+		QComboBox*                                  LeftSelector            = nullptr;
+		QComboBox*                                  RightSelector           = nullptr;
+		QLineEdit*                                  LeftOid                 = nullptr;
+		QLineEdit*                                  RightOid                = nullptr;
+		QLabel*                                     StatusLabel             = nullptr;
+		QLabel*                                     ComparisonLabel         = nullptr;
+		QAction*                                    WholePrAction           = nullptr;
+		QAction*                                    PreviousUploadAction    = nullptr;
+		QAction*                                    LastReviewedAction      = nullptr;
+		QAction*                                    LoadHistoryAction       = nullptr;
+		QAction*                                    ReturnNewestAction      = nullptr;
+		QAction*                                    RefreshAction           = nullptr;
+		QAction*                                    CancelAction            = nullptr;
+		QAction*                                    PruneAction             = nullptr;
+		QAction*                                    DeleteCacheAction       = nullptr;
+		QAction*                                    CancelMaintenanceAction = nullptr;
+		QToolButton*                                LoadHistoryButton       = nullptr;
+		QToolButton*                                ReturnNewestButton      = nullptr;
+		QToolButton*                                RefreshButton           = nullptr;
+		QToolButton*                                CancelButton            = nullptr;
+		QToolButton*                                MaintenanceButton       = nullptr;
 
 		std::optional<core::pull_request_authority>             Authority;
 		std::optional<core::git_commit_oid>                     LastReviewCommit;

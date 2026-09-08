@@ -5,6 +5,7 @@
 #include <QAccessible>
 #include <QAction>
 #include <QActionGroup>
+#include <QApplication>
 #include <QComboBox>
 #include <QEvent>
 #include <QGridLayout>
@@ -195,12 +196,18 @@ namespace bpr::qt {
 													  const QString& aText,
 													  const QString& aConfirmationText) -> bool
 		{
+			auto* owner = aParent;
+			if (auto* active = QApplication::activeWindow(); active != nullptr
+				&& (active == aParent->window() || aParent->window()->isAncestorOf(active))) {
+				owner = active;
+			}
 			QMessageBox dialog{ QMessageBox::Warning,
 								aTitle,
 								aText,
 								QMessageBox::Cancel,
-								aParent };
+								owner };
 			dialog.setObjectName(aObjectName);
+			dialog.setTextFormat(Qt::PlainText);
 			dialog.setAccessibleName(aTitle);
 			dialog.setAccessibleDescription(aText);
 			dialog.setWindowModality(Qt::WindowModal);
@@ -561,6 +568,17 @@ namespace bpr::qt {
 		announce_update();
 	}
 
+	void epoch_comparison_control::set_maintenance_scope(core::pull_request_authority aAuthority, QString aLabel)
+	{
+		ScopeAuthority = aAuthority;
+		ScopeLabel     = std::move(aLabel);
+	}
+
+	auto epoch_comparison_control::maintenance_scope_text() const -> QString
+	{
+		return ScopeAuthority == Authority && Authority.has_value() ? ScopeLabel : QString{ };
+	}
+
 	void epoch_comparison_control::set_dispatch(
 		application::epoch_intent_dispatch aDispatch)
 	{
@@ -881,12 +899,11 @@ namespace bpr::qt {
 
 		const auto capturedCatalog = *catalog;
 		const auto count           = static_cast<qulonglong>(targets.size());
-		const auto text            = QStringLiteral(
-										 "Prune %1 selected review epoch(s) from this pull request. This removes "
-										 "their private retention refs, so those revisions may become "
-										 "unrecoverable after remote history changes. Pruned tombstones remain "
-										 "visible. This does not modify GitHub or a developer worktree.")
-										 .arg(count);
+		const auto text            = maintenance_scope_text() + QStringLiteral("\n\n") + QStringLiteral("Prune %1 selected review epoch(s) from this pull request. This removes "
+																										"their private retention refs, so those revisions may become "
+																										"unrecoverable after remote history changes. Pruned tombstones remain "
+																										"visible. This does not modify GitHub or a developer worktree.")
+																							 .arg(count);
 		if (!confirm_destructive_action(this,
 										QStringLiteral("pruneSelectedEpochsConfirmationDialog"),
 										QStringLiteral("Prune selected review epochs?"),
@@ -912,11 +929,10 @@ namespace bpr::qt {
 
 		const auto capturedCatalog = *catalog;
 		const auto capturedCache   = Authority->Cache;
-		const auto text            = QStringLiteral(
-			"Delete the current repository cache. This affects every retained "
-			"pull request in this repository cache and removes its private "
-			"retained repository bytes. Cache-deleted tombstones remain visible. "
-			"This does not modify GitHub or a developer worktree.");
+		const auto text            = maintenance_scope_text() + QStringLiteral("\n\n") + QStringLiteral("Delete the current repository cache. This affects every retained "
+																										"pull request in this repository cache and removes its private "
+																										"retained repository bytes. Cache-deleted tombstones remain visible. "
+																										"This does not modify GitHub or a developer worktree.");
 		if (!confirm_destructive_action(this,
 										QStringLiteral("deleteRepositoryCacheConfirmationDialog"),
 										QStringLiteral("Delete repository cache?"),

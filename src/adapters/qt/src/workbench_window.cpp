@@ -34,14 +34,17 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
+#include <QListWidget>
 #include <QMenu>
 #include <QMenuBar>
 #include <QPainter>
 #include <QPalette>
 #include <QPlainTextEdit>
+#include <QPointer>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QSignalBlocker>
 #include <QSizePolicy>
 #include <QSpinBox>
 #include <QSplitter>
@@ -1480,6 +1483,7 @@ namespace bpr::qt {
 		reviewsColumn->addWidget(savedHeading);
 		build_saved_repositories_editor(reviews, *reviewsColumn);
 		SettingsWindow->adopt_panel(settings_page::reviews_and_queue, reviews);
+		build_capability_settings();
 
 		static_cast<void>(Drawers[0].Panel->layout());
 		// [[BPR-0658]]. The files tree over the flat list: the list stays
@@ -1943,6 +1947,90 @@ namespace bpr::qt {
 	{
 		QueueRuleDispatch = std::move(aDispatch);
 		update_queue_rule_actions();
+	}
+
+	void workbench_window::build_capability_settings()
+	{
+		auto* const agents      = new QWidget;
+		auto* const column      = new QVBoxLayout{ agents };
+		auto* const explanation = new QLabel{ QStringLiteral("The selected host determines which agent profiles are allowed. Choices here apply to the next explicit request in the current review; they are not saved as global defaults. Private notes, the current draft and uncommitted work are included only when selected. Start the request from the review's agent panel."), agents };
+		explanation->setWordWrap(true);
+		column->addWidget(explanation);
+		auto* const form    = new QFormLayout{ };
+		auto* const profile = new QComboBox{ agents };
+		profile->setObjectName(QStringLiteral("settingsAgentProfile"));
+		profile->setAccessibleName(QStringLiteral("Allowed agent profile for this request"));
+		profile->setModel(AgentPanel->profile_selector()->model());
+		form->addRow(QStringLiteral("Allowed profile"), profile);
+		auto* const notes = new QListView{ agents };
+		notes->setObjectName(QStringLiteral("settingsAgentNotes"));
+		notes->setAccessibleName(QStringLiteral("Private notes included with this request"));
+		notes->setModel(AgentPanel->note_selector()->model());
+		notes->setMaximumHeight(160);
+		form->addRow(QStringLiteral("Private notes"), notes);
+		auto* const draft = new QCheckBox{ agents };
+		draft->setObjectName(QStringLiteral("settingsAgentDraft"));
+		draft->setAccessibleName(QStringLiteral("Include current private draft"));
+		form->addRow(QStringLiteral("Private draft"), draft);
+		column->addLayout(form);
+		auto* const checkout = new QToolButton{ agents };
+		checkout->setDefaultAction(AgentPanel->existing_checkout_action());
+		checkout->setAccessibleName(QStringLiteral("Use existing working copy for this request"));
+		column->addWidget(checkout);
+		auto* const scope = new QLabel{ agents };
+		scope->setTextFormat(Qt::PlainText);
+		scope->setWordWrap(true);
+		scope->setAccessibleName(QStringLiteral("Agent request scope"));
+		column->addWidget(scope);
+		const auto refresh = [page = QPointer<QWidget>{ agents }, panel = QPointer<agent_launch_panel>{ AgentPanel }, profile, notes, draft, scope] {
+			if (!page || !panel) {
+				return;
+			}
+			const auto profileBlock = QSignalBlocker{ profile };
+			const auto draftBlock   = QSignalBlocker{ draft };
+			profile->setCurrentIndex(panel->profile_selector()->currentIndex());
+			profile->setEnabled(panel->profile_selector()->isEnabled() && profile->count() != 0);
+			notes->setEnabled(panel->note_selector()->isEnabled());
+			draft->setText(panel->draft_selector()->text());
+			draft->setChecked(panel->draft_selector()->isChecked());
+			draft->setEnabled(panel->draft_selector()->isEnabled());
+			scope->setText(panel->disclosure_text().isEmpty() ? QStringLiteral("Open a review to see its allowed profiles and request scope.") : panel->disclosure_text());
+		};
+		connect(profile, &QComboBox::currentIndexChanged, AgentPanel->profile_selector(), &QComboBox::setCurrentIndex);
+		connect(draft, &QCheckBox::toggled, AgentPanel->draft_selector(), &QCheckBox::setChecked);
+		connect(AgentPanel->draft_selector(), &QCheckBox::toggled, agents, refresh);
+		AgentPanel->set_configuration_observer(refresh);
+		SettingsWindow->adopt_panel(settings_page::agents_and_context, agents);
+
+		auto* const storage       = new QWidget;
+		auto* const storageColumn = new QVBoxLayout{ storage };
+		auto* const heading       = new QLabel{ QStringLiteral("Local data location"), storage };
+		storageColumn->addWidget(heading);
+		StorageLocation = new QLineEdit{ storage };
+		StorageLocation->setObjectName(QStringLiteral("settingsStorageLocation"));
+		StorageLocation->setAccessibleName(QStringLiteral("Local application data location"));
+		StorageLocation->setReadOnly(true);
+		StorageLocation->setPlaceholderText(QStringLiteral("Location unavailable"));
+		storageColumn->addWidget(StorageLocation);
+		auto* const facts = new QLabel{ QStringLiteral("Local data includes repository caches, retained review history, drafts, notes, receipts and preferences. Retained epochs remain until explicitly pruned; maintenance can remove revisions needed for an older comparison. Moving this storage location and global purge are not available in this build."), storage };
+		facts->setWordWrap(true);
+		storageColumn->addWidget(facts);
+		for (auto* action : { EpochSelectors->prune_action(), EpochSelectors->delete_cache_action(), EpochSelectors->cancel_maintenance_action() }) {
+			auto* const button = new QToolButton{ storage };
+			button->setDefaultAction(action);
+			button->setAccessibleName(action->text());
+			storageColumn->addWidget(button);
+		}
+		auto* const privacy = new QLabel{ QStringLiteral("Maintenance is limited to the selected review or repository cache and asks for confirmation. It does not change GitHub or your working copy. Basic diagnostics contain bounded operation metadata; advanced verbosity and export are not available here. Removing the application does not remove its local data folder or system credential entries. Use Accounts & Hosts to sign out of remembered device sessions."), storage };
+		privacy->setWordWrap(true);
+		storageColumn->addWidget(privacy);
+		SettingsWindow->adopt_panel(settings_page::storage_and_privacy, storage);
+	}
+
+	void workbench_window::set_storage_location(const QString& aPath)
+	{
+		StorageLocation->setText(aPath);
+		StorageLocation->setCursorPosition(0);
 	}
 
 	void workbench_window::build_queue_settings(QWidget* const aReviews, QVBoxLayout* const aColumn)

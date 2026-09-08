@@ -468,6 +468,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto queue_repository_filter() const noexcept -> QComboBox*;
 		[[nodiscard]] auto queue_quiet_filter() const noexcept -> QComboBox*;
 		[[nodiscard]] auto queue_sort_selector() const noexcept -> QComboBox*;
+		void               set_storage_location(const QString& aPath);
 		void               set_notification_preview_dispatch(std::function<bool(const core::pull_request_ref&)> aDispatch);
 		[[nodiscard]] auto queue_rule_kind_selector() const noexcept -> QComboBox*;
 		[[nodiscard]] auto queue_rule_pattern_editor() const noexcept -> QLineEdit*;
@@ -728,6 +729,7 @@ namespace bpr::qt {
 		void dispatch_queue_preferences(QComboBox* aSource);
 		void build_queue_settings(QWidget* aReviews, QVBoxLayout* aColumn);
 		void update_notification_controls();
+		void build_capability_settings();
 		void apply_queue_preferences(
 			const application::queue_presentation_preferences& aPreferences);
 		void rebuild_queue_repositories(
@@ -840,6 +842,7 @@ namespace bpr::qt {
 		QPushButton*                                       NotificationReset    = nullptr;
 		QPushButton*                                       QueueDefaultsReset   = nullptr;
 		QLabel*                                            NotificationStatus   = nullptr;
+		QLineEdit*                                         StorageLocation      = nullptr;
 		std::function<bool(const core::pull_request_ref&)> NotificationPreviewDispatch;
 		QComboBox*                                         QueueRuleSelector     = nullptr;
 		QComboBox*                                         QueueRuleKind         = nullptr;
