@@ -121,6 +121,7 @@ foreach(fixture_spec IN ITEMS "github-com|github.com" "ghes-3.18|ghes-3.18")
     list(GET fixture_parts 1 fixture_label)
     set(fixture_root "${BPR_ROOT}/${fixture}")
     file(MAKE_DIRECTORY "${fixture_root}")
+    file(CHMOD "${fixture_root}" PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE)
     bpr_run_defect_probe(
         "${fixture}"
         "${fixture_label}"

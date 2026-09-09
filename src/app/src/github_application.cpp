@@ -8081,6 +8081,12 @@ namespace bpr::app {
 				publish_read_state();
 			}
 			if (aChanges.PrivateRecords) {
+				// A sibling may be reading a different file or epoch. Reload
+				// accepted records without correlating or persisting that view.
+				if (auto observed = ReviewLedgerHost->private_observation(); observed.has_value()) {
+					DurableDefects = std::move(observed->Defects);
+					present_defects();
+				}
 				refresh_agent_private_context_choices();
 			}
 			if (!overviewPublished) {

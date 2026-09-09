@@ -1,7 +1,10 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
+#include "bpr/qt/defect_card_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/github_conversation_model.hpp"
+#include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/profile_management_window.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
@@ -18,12 +21,15 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
+#include <QMouseEvent>
 #include <QPixmap>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollBar>
 #include <QTemporaryDir>
 #include <QThread>
+#include <QToolButton>
+#include <QTreeView>
 
 #include <cstdlib>
 #include <filesystem>
@@ -77,6 +83,9 @@ namespace {
 		if (!root.isEmpty()) {
 			expect(QDir{ }.mkpath(root), "multiwindow artifact directory");
 			expect(aWindow.grab().save(root + QLatin1Char{ '/' } + aName), "multiwindow rendered artifact");
+			if (aName.startsWith(QStringLiteral("defect-"))) {
+				expect(aWindow.defect_card()->grab().save(root + QStringLiteral("/card-") + aName), "exact accepted defect card rendered artifact");
+			}
 		}
 	}
 	void select_file(app::github_application& aOwner, qt::workbench_window& aWindow)
@@ -126,6 +135,24 @@ namespace {
 		}
 		aWindow.home_open_bar()->setText(QStringLiteral("https://github.com/octo-org/review-repository/pull/%1").arg(aNumber));
 		aWindow.home_open_action()->trigger();
+	}
+	void mark_conversation_read(qt::conversation_cards_view& aCards, const std::string& aIdentity)
+	{
+		for (const auto& card : aCards.cards()) {
+			if (card.Id != aIdentity) {
+				continue;
+			}
+			for (const auto& [kind, rect] : card.Actions) {
+				if (kind != qt::card_action::mark_read) {
+					continue;
+				}
+				const auto  point = rect.center() - QPoint{ 0, aCards.verticalScrollBar()->value() };
+				QMouseEvent press{ QEvent::MouseButtonPress, QPointF{ point }, QPointF{ aCards.viewport()->mapToGlobal(point) }, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+				QApplication::sendEvent(aCards.viewport(), &press);
+				return;
+			}
+		}
+		expect(false, "recorded unread conversation offers its public mark-read gesture");
 	}
 }
 
@@ -338,6 +365,27 @@ auto main(int aArgc, char** aArgv) -> int
 	expect(receiptComparisonB->Alignment.Key.PullRequest == snapshotB->PullRequest.PullRequest
 			   && receiptComparisonC->Alignment.Key.PullRequest == snapshotB->PullRequest.PullRequest,
 		   "receipt delivery retains both windows' selected PR identity");
+	windowB->modality()->action(qt::review_modality::discuss)->trigger();
+	windowC->modality()->action(qt::review_modality::discuss)->trigger();
+	windowB->conversation_panel()->scope_whole_pull_request_button()->click();
+	windowC->conversation_panel()->scope_whole_pull_request_button()->click();
+	const auto threadIdentity = std::string{ "review-thread:PRRT_fixture_18_reading_review.cpp" };
+	auto*      cardsB         = windowB->conversation_panel()->cards();
+	auto*      cardsC         = windowC->conversation_panel()->cards();
+	const auto unreadBefore   = cardsC->unread_post_count();
+	std::cerr << "conversation unread B=" << cardsB->unread_post_count() << " C=" << unreadBefore << " cards B=" << cardsB->thread_count() << " C=" << cardsC->thread_count() << '\n';
+	expect(unreadBefore > 0U && cardsB->unread_post_count() == unreadBefore, "same-review conversation course begins with accepted unread posts");
+	mark_conversation_read(*cardsB, threadIdentity);
+	wait_for([&] { return cardsC->unread_post_count() < unreadBefore && cardsC->unread_post_count() == cardsB->unread_post_count(); }, "conversation read receipt refreshes sibling unread presentation");
+	expect(windowB->comparison_surface()->current_result() == receiptComparisonB
+			   && windowC->comparison_surface()->current_result() == receiptComparisonC
+			   && windowB->comparison_surface()->selection() == receiptSelectionB
+			   && windowC->comparison_surface()->selection() == receiptSelectionC
+			   && windowB->comparison_surface()->shared_scrollbar()->value() == receiptScrollB
+			   && windowC->comparison_surface()->shared_scrollbar()->value() == receiptScrollC,
+		   "conversation receipt fanout preserves independent comparisons, selections, and scroll");
+	windowB->modality()->action(qt::review_modality::read)->trigger();
+	windowC->modality()->action(qt::review_modality::read)->trigger();
 	expect(windowB->comparison_surface()->select_conversation_line(core::diff_side::right, 2U)
 			   && windowC->comparison_surface()->select_conversation_line(core::diff_side::right, 2U),
 		   "both windows select the same review anchor");
@@ -360,7 +408,7 @@ auto main(int aArgc, char** aArgv) -> int
 	const auto pendingComparisonB              = windowB->comparison_surface()->current_result();
 	const auto pendingSelectionB               = windowB->comparison_surface()->selection();
 	auto*      pendingFiles                    = windowC->files_drawer()->contents_view();
-	expect(pendingFiles->model()->rowCount() == 2, "pending selection course has two recorded files");
+	expect(windowC->files_drawer()->contents()->index_for_file(core::file_identity_of("secondary.cpp")).isValid(), "pending selection course offers the other recorded file");
 	action(*windowB, "toggleSelectedFileReadAction")->trigger();
 	pendingFiles->selectionModel()->setCurrentIndex(windowC->files_drawer()->contents()->index_for_file(core::file_identity_of("secondary.cpp")), QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
 	expect(!windowC->comparison_surface()->current_result() && !windowC->review_editor()->shown_receipt()
@@ -384,6 +432,43 @@ auto main(int aArgc, char** aArgv) -> int
 	expect(windowB->comparison_surface()->current_result() == pendingComparisonB
 			   && windowB->comparison_surface()->selection() == pendingSelectionB,
 		   "sibling file replacement preserves the writer's comparison and reading position");
+	// Classify while the recipient reads another file: delivery must project
+	// the writer's accepted defect without correlating it against that file.
+	windowB->conversation_panel()->set_anchor_line(std::nullopt);
+	const auto threadIndex = windowB->conversation_model()->index_for_id(threadIdentity);
+	expect(threadIndex.isValid(), "classification uses an accepted provider thread");
+	windowB->conversation_view()->setCurrentIndex(threadIndex);
+	expect(windowB->classify_defect_action()->isEnabled(), "public thread classification is available");
+	const auto defectComparisonB = windowB->comparison_surface()->current_result();
+	const auto defectComparisonC = windowC->comparison_surface()->current_result();
+	const auto defectSelectionB  = windowB->comparison_surface()->selection();
+	const auto defectSelectionC  = windowC->comparison_surface()->selection();
+	const auto defectScrollB     = windowB->comparison_surface()->shared_scrollbar()->value();
+	const auto defectScrollC     = windowC->comparison_surface()->shared_scrollbar()->value();
+	windowB->classify_defect_action()->trigger();
+	const auto defectContext = windowB->defect_card()->context_label()->text();
+	expect(defectContext == QStringLiteral("Shared context available at the retained semantic anchor."), "writer classification starts with available retained context");
+	wait_for([&] { return windowB->defect_count() == 1U && windowC->defect_count() == 1U; }, "accepted classification reaches the sibling on a different file");
+	expect(windowB->defect_card()->shown_defect() && windowC->defect_card()->shown_defect() == windowB->defect_card()->shown_defect(), "sibling displays the exact accepted defect record");
+	expect(windowB->defect_card()->context_label()->text() == defectContext
+			   && windowC->defect_card()->context_label()->text() == defectContext,
+		   "different-file classification delivery preserves accepted anchor availability");
+	expect(windowB->defect_card()->reclassify_action()->isEnabled(), "classified defect offers the public reclassify command");
+	windowB->defect_card()->severity_selector()->setCurrentIndex(windowB->defect_card()->severity_selector()->findData(static_cast<int>(core::defect_severity::critical)));
+	windowB->defect_card()->reclassify_action()->trigger();
+	wait_for([&] { return windowB->defect_card()->shown_defect()->Severity == core::defect_severity::critical && windowC->defect_card()->shown_defect() == windowB->defect_card()->shown_defect(); }, "accepted defect command refreshes the sibling card");
+	expect(windowB->defect_card()->context_label()->text() == defectContext
+			   && windowC->defect_card()->context_label()->text() == defectContext,
+		   "different-file command delivery does not correlate accepted context into unavailable history");
+	expect(windowB->comparison_surface()->current_result() == defectComparisonB
+			   && windowC->comparison_surface()->current_result() == defectComparisonC
+			   && windowB->comparison_surface()->selection() == defectSelectionB
+			   && windowC->comparison_surface()->selection() == defectSelectionC
+			   && windowB->comparison_surface()->shared_scrollbar()->value() == defectScrollB
+			   && windowC->comparison_surface()->shared_scrollbar()->value() == defectScrollC,
+		   "defect fanout preserves different files, semantic selection, and scroll");
+	capture(*windowB, QStringLiteral("defect-writer.png"));
+	capture(*windowC, QStringLiteral("defect-sibling-different-file.png"));
 	select_file(*owner, *windowC);
 	wait_for([&] { return windowC->review_editor()->shown_receipt() && windowC->review_editor()->shown_receipt()->Read == core::file_read_state::unread; }, "returning to the first file loads its accepted shared receipt");
 	action(*windowB, "toggleSelectedFileReadAction")->trigger();
@@ -391,6 +476,8 @@ auto main(int aArgc, char** aArgv) -> int
 					   && windowB->review_editor()->shown_receipt()->Read == core::file_read_state::read
 					   && windowC->review_editor()->shown_receipt() == windowB->review_editor()->shown_receipt(); }, "same-file receipt state is restored before PR replacement");
 	// Replace C's review before queued receipt notifications can be delivered.
+	expect(windowB->defect_card()->withdraw_action()->isEnabled(), "open defect can be withdrawn before sibling replacement");
+	windowB->defect_card()->withdraw_action()->trigger();
 	action(*windowB, "toggleSelectedFileReadAction")->trigger();
 	submit(*windowC, 17);
 	wait_for([&] { return windowC->session_panel()->status() == core::github_status::pull_request_ready; }, "replacement review opens with a sibling receipt notification pending");
@@ -400,6 +487,9 @@ auto main(int aArgc, char** aArgv) -> int
 			   && windowC->review_editor()->shown_receipt() && windowC->review_editor()->shown_receipt()->Read == core::file_read_state::read
 			   && windowC->overview_page()->projection() && windowC->overview_page()->projection()->Progress.PrivateNotes == 2U,
 		   "late PR18 receipt delivery cannot replace PR17's accepted receipt or private notes");
+	expect(windowC->defect_count() == 0U && windowB->defect_card()->shown_defect()
+			   && windowB->defect_card()->shown_defect()->State == core::defect_state::withdrawn,
+		   "queued PR18 defect delivery cannot expose old defects in replacement PR17");
 	action(*windowB, "quitProfilesAction")->trigger();
 	wait_for([&] { return desktop->is_quiescent(); }, "Quit drains all sessions and shared profile services");
 	desktop.reset();

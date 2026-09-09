@@ -615,7 +615,10 @@ and authentication generation. The signal carries no candidate text or reading
 position; window sessions and comparison identities remain independent. A receipt
 reload carries durable state to the receiving window's selected material in
 memory only, so observing another comparison cannot create a write feedback loop.
-Conversation invalidation clears only the retained receipt cache; note refresh
+Conversation invalidation clears the retained receipt cache and republishes
+read-state projections. Private-record invalidation reloads accepted durable
+defects without correlating or persisting against the recipient's selected
+file or epoch; a failed reload retains the previous accepted projection. Note refresh
 preserves rejected edit candidates. Closing/replaced windows and retired account
 generations refuse delivery. This projection path grants no publication authority.
 

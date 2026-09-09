@@ -490,6 +490,7 @@ namespace bpr::app::detail {
 					comment.insert(QStringLiteral("line"), 2);
 					comment.insert(QStringLiteral("originalLine"), 2);
 					comment.insert(QStringLiteral("bodyText"), QStringLiteral("Check the exact retained reading position."));
+					comment.insert(QStringLiteral("author"), QJsonObject{ { QStringLiteral("login"), QStringLiteral("octo-author") }, { QStringLiteral("id"), QStringLiteral("U_fixture_author") } });
 					comments.insert(QStringLiteral("nodes"), QJsonArray{ comment });
 					thread.insert(QStringLiteral("comments"), comments);
 					nodes.append(thread);
