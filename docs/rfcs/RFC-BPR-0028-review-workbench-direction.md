@@ -213,3 +213,12 @@ the workbench chrome with a pull request open, the drawer widths in the signed
 bundle, and the review history over Public preview. The RFC stays open until
 those three verdicts land; BPR-0653 waits for the Windows station and BPR-0665
 is an ordinary follow-up.
+
+Reconciled 2026-09-08: the three attended candidates have no recorded verdict.
+Their former candidate inputs were released for the owner-directed continued
+development and their live attended-session phase is now `waiting`, with no
+active protection. The historical packet above is not a current prepared build;
+prepare affected material again before requesting those verdicts. Required
+Windows evidence and the nonterminal RFC status remain unchanged. The activated
+0018 → 0024 → 0025 → 0026 workstream continues under the canonical index, retaining
+this RFC's superseding Home/layout decisions and unscheduled browser-style tabs.

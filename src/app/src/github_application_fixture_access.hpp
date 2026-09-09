@@ -61,6 +61,15 @@ namespace bpr::app::detail {
 	struct github_fixture_vault_state;
 	/// \brief Owns runtime-only fake vault material across fully reconstructed applications.
 	[[nodiscard]] auto make_shared_github_fixture_vault() -> std::shared_ptr<github_fixture_vault_state>;
+	/// \brief Transfers only the synthetic device fixture slots through a bounded parent-memory channel.
+	/// \details Canonical lowercase hex wraps Qt_6_8 big-endian data: seven
+	/// uint64 context/authority fields, then two uint32-length slots (128 bytes
+	/// maximum each). The entire wire is capped at 2048 bytes. Import accepts
+	/// only the initial documented fixture grant, GitHub.com and Default profile;
+	/// no refresh rotation, production-vault access or product switch is added.
+	[[nodiscard]] auto export_github_fixture_vault(const std::shared_ptr<github_fixture_vault_state>& aState) -> std::string;
+	/// \brief Recreates the exact synthetic authority and slots with fresh per-process effect counters.
+	[[nodiscard]] auto import_github_fixture_vault(std::string_view aBytes) -> std::shared_ptr<github_fixture_vault_state>;
 
 	struct github_public_path_fixture_options
 	{
@@ -195,6 +204,17 @@ namespace bpr::app::detail {
 
 	struct github_public_path_fixture_evidence
 	{
+		/// Raw port-entry attempts include rejected admission and absent slots.
+		std::size_t VaultStoreAttempts         = 0U;
+		std::size_t VaultRetrieveAttempts      = 0U;
+		std::size_t VaultDeleteAttempts        = 0U;
+		std::size_t RefreshStoreAttempts       = 0U;
+		std::size_t RefreshRetrieveAttempts    = 0U;
+		std::size_t RefreshDeleteAttempts      = 0U;
+		std::size_t BootstrapFactoryAttempts   = 0U;
+		std::size_t AccountFactoryAttempts     = 0U;
+		std::size_t BootstrapFactoryCalls      = 0U;
+		std::size_t AccountFactoryCalls        = 0U;
 		bool        RecordingConsumed          = false;
 		bool        CapabilityProbeConsumed    = false;
 		bool        BootstrapTransportSelected = false;

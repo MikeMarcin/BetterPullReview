@@ -18,7 +18,8 @@ namespace {
 	{
 		window_review_snapshot                     Snapshot;
 		std::optional<window_review_store_failure> Failure;
-		std::size_t                                Saves = 0;
+		std::size_t                                Saves        = 0;
+		bool                                       MismatchSave = false;
 		auto                                       load(std::stop_token) -> window_review_store_result<window_review_snapshot> override
 		{
 			if (Failure) {
@@ -37,6 +38,9 @@ namespace {
 			}
 			expect(valid(aCandidate), "only valid bounded snapshots reach store");
 			Snapshot = aCandidate;
+			if (MismatchSave) {
+				return window_review_snapshot{ Snapshot.Revision, { } };
+			}
 			return Snapshot;
 		}
 	};
@@ -46,6 +50,7 @@ namespace {
 		std::vector<core::window_review_open_request>    Opens;
 		std::vector<core::window_review_error>           Errors;
 		std::function<void()>                            OnStartup;
+		std::function<void()>                            OnOpen;
 		void                                             select_startup(const core::window_review_startup_request& aRequest) override
 		{
 			Startups.push_back(aRequest);
@@ -53,7 +58,13 @@ namespace {
 				OnStartup();
 			}
 		}
-		void open_review(const core::window_review_open_request& aRequest) override { Opens.push_back(aRequest); }
+		void open_review(const core::window_review_open_request& aRequest) override
+		{
+			Opens.push_back(aRequest);
+			if (OnOpen) {
+				OnOpen();
+			}
+		}
 		void fail(const core::window_review_error& aError) override { Errors.push_back(aError); }
 	};
 	struct fixture
@@ -167,11 +178,66 @@ namespace {
 		forced.drain();
 		expect(forced.Host.is_quiescent() && forced.Store.Saves == 0, "forced cancellation suppresses unstarted write");
 	}
+	void test_invalid_observation_and_delayed_load()
+	{
+		fixture invalid;
+		invalid.Store.Snapshot.Revision = 0;
+		invalid.load();
+		expect(invalid.Output.Startups.empty() && invalid.Output.Errors.size() == 1
+				   && invalid.Output.Errors[0].Reason == core::window_review_failure::corrupt,
+			   "invalid load observation cannot select authority");
+		fixture mismatch;
+		mismatch.load();
+		mismatch.Store.MismatchSave = true;
+		mismatch.Host.accepted_read(context(1), destination());
+		mismatch.drain();
+		expect(mismatch.Output.Errors.back().Reason == core::window_review_failure::corrupt,
+			   "successful save with wrong payload is not accepted");
+		mismatch.Host.shutdown_orderly();
+		expect(mismatch.Host.is_quiescent(), "invalid save terminal cannot hang Quit");
+
+		fixture late;
+		late.Store.Snapshot.Records = { { core::bpr_window_id{ 1 }, destination() }, { core::bpr_window_id{ 2 }, destination(28) } };
+		late.Host.start();
+		late.Host.cancel_startup();
+		late.Host.accepted_read(context(2), destination(42));
+		late.Host.close(context(1));
+		late.drain();
+		expect(late.Output.Startups.empty() && late.Store.Snapshot.Records.size() == 1
+				   && late.Store.Snapshot.Records[0].Window == core::bpr_window_id{ 2 }
+				   && late.Store.Snapshot.Records[0].Destination.Number.value() == 42,
+			   "delayed load preserves newer accepted navigation and excludes closed window");
+	}
+	void test_open_reentrancy_and_capacity()
+	{
+		fixture reentrant;
+		reentrant.Store.Snapshot.Records = { { core::bpr_window_id{ 1 }, destination() }, { core::bpr_window_id{ 2 }, destination(28) } };
+		reentrant.load();
+		reentrant.Host.mark_window_ready(context(1));
+		reentrant.Host.mark_window_ready(context(2));
+		reentrant.Output.OnOpen = [&] { reentrant.Host.shutdown(); };
+		reentrant.Host.complete_startup(reentrant.Output.Startups[0].Request,
+										core::window_review_authority{ core::github_access_mode::authenticated, "github.com" });
+		expect(reentrant.Output.Opens.size() == 1 && reentrant.Host.is_quiescent(), "shutdown during first open prevents sibling publication");
+		fixture bounded;
+		for (std::uint64_t id = 3; id <= core::maximum_bpr_windows_per_profile; ++id) {
+			expect(bounded.Host.attach(context(id, 1)), "window capacity admits each bounded fresh context");
+		}
+		expect(!bounded.Host.attach(context(core::maximum_bpr_windows_per_profile + 1, 1)), "window capacity rejects overflow");
+		bounded.load();
+		bounded.Host.accepted_read(context(1), destination());
+		bounded.Host.close(context(1));
+		expect(!bounded.Host.attach(context(33, 1)), "draining closed writer retains its capacity reservation");
+		bounded.drain();
+		expect(bounded.Host.attach(context(33, 1)), "completed erase releases capacity for a fresh window");
+	}
 }
 int main()
 {
 	test_load_prunes_and_gates_restoration();
 	test_coalesced_quit_close_and_conflict();
 	test_failure_cancellation_and_reentrancy();
+	test_invalid_observation_and_delayed_load();
+	test_open_reentrancy_and_capacity();
 	std::cout << "window-review-restoration-host-tests:pass\n";
 }

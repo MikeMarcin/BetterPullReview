@@ -12,6 +12,7 @@
 
 #include <QByteArrayView>
 #include <QCryptographicHash>
+#include <QDataStream>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -881,9 +882,11 @@ namespace bpr::app::detail {
 			// ran both would not be able to advance one by driving the other.
 			fixture_replay                                                                 AnonymousRecording;
 			std::array<std::string, adapters::github::detail::capability_probe_part_count> CapabilityBody;
-			std::size_t                                                                    CapabilityCalls       = 0U;
-			std::size_t                                                                    BootstrapFactoryCalls = 0U;
-			std::size_t                                                                    AccountFactoryCalls   = 0U;
+			std::size_t                                                                    CapabilityCalls          = 0U;
+			std::size_t                                                                    BootstrapFactoryCalls    = 0U;
+			std::size_t                                                                    BootstrapFactoryAttempts = 0U;
+			std::size_t                                                                    AccountFactoryAttempts   = 0U;
+			std::size_t                                                                    AccountFactoryCalls      = 0U;
 			// [[BPR-0536]]. Both factories are once-only, which is what makes
 			// "the transport was selected exactly once" a claim the other
 			// courses can make. The refresh course establishes a session more
@@ -1432,6 +1435,7 @@ namespace bpr::app::detail {
 				-> github_wire_transport_factory_result override
 			{
 				const std::scoped_lock lock{ State->Mutex };
+				++State->BootstrapFactoryAttempts;
 				if (!same_profile(aProfile, State->Profile)
 					|| aContext.Profile != aProfile.profile()
 					|| !application::valid(aCredential)
@@ -1460,6 +1464,7 @@ namespace bpr::app::detail {
 				-> github_wire_transport_factory_result override
 			{
 				const std::scoped_lock lock{ State->Mutex };
+				++State->AccountFactoryAttempts;
 				if (!same_profile(aProfile, State->Profile)
 					|| !application::valid(aCredential.Credential)
 					|| aCredential.Context.Authority.Profile != aProfile.profile()
@@ -1842,6 +1847,12 @@ namespace bpr::app::detail {
 
 	struct github_fixture_vault_state
 	{
+		std::size_t                                                     VaultStoreAttempts      = 0U;
+		std::size_t                                                     VaultRetrieveAttempts   = 0U;
+		std::size_t                                                     VaultDeleteAttempts     = 0U;
+		std::size_t                                                     RefreshStoreAttempts    = 0U;
+		std::size_t                                                     RefreshRetrieveAttempts = 0U;
+		std::size_t                                                     RefreshDeleteAttempts   = 0U;
 		std::optional<application::github_credential_operation_context> Context;
 		std::optional<application::github_credential_material>          Credential;
 		bool                                                            Stored    = false;
@@ -1892,6 +1903,88 @@ namespace bpr::app::detail {
 	};
 
 	auto make_shared_github_fixture_vault() -> std::shared_ptr<github_fixture_vault_state> { return std::make_shared<github_fixture_vault_state>(); }
+
+	auto export_github_fixture_vault(const std::shared_ptr<github_fixture_vault_state>& aState) -> std::string
+	{
+		if (!aState) {
+			return { };
+		}
+		const std::scoped_lock lock{ aState->Mutex };
+		if (!aState->Context || !aState->Credential || !aState->Refresh || !aState->Pending.empty()) {
+			return { };
+		}
+		if (aState->Credential->size() > 128U || aState->Refresh->size() > 128U) {
+			return { };
+		}
+		const auto& context   = *aState->Context;
+		const auto& authority = context.Authority;
+		if (!application::valid(context) || authority.Hostname.value() != "github.com" || authority.BprProfile != core::default_bpr_profile_id
+			|| authority.ServerContract != application::github_server_contract::github_com_2022_11_28) {
+			return { };
+		}
+		QByteArray  bytes;
+		QDataStream stream{ &bytes, QIODevice::WriteOnly };
+		stream.setVersion(QDataStream::Qt_6_8);
+		stream << quint64{ context.Request.value() } << quint64{ context.ApplicationSession.value() }
+			   << quint64{ context.IdentityGeneration.value() } << quint64{ authority.Profile.value() }
+			   << quint64{ authority.ProfileRevision.value() } << quint64{ authority.Host.value() } << quint64{ authority.Account.value() };
+		const auto material = [](const application::github_credential_material& aMaterial) {
+			return QByteArray{ reinterpret_cast<const char*>(aMaterial.bytes().data()), static_cast<qsizetype>(aMaterial.size()) };
+		};
+		stream << material(*aState->Credential) << material(*aState->Refresh);
+		// Hex keeps the dedicated pipe portable across Windows text-mode streams.
+		return bytes.size() <= 1024 ? bytes.toHex().toStdString() : std::string{ };
+	}
+
+	auto import_github_fixture_vault(std::string_view aBytes) -> std::shared_ptr<github_fixture_vault_state>
+	{
+		if (aBytes.empty() || aBytes.size() > 2048U) {
+			return nullptr;
+		}
+		const QByteArray encoded{ aBytes.data(), static_cast<qsizetype>(aBytes.size()) };
+		const auto       decoded = QByteArray::fromHex(encoded);
+		if (decoded.toHex() != encoded) {
+			return nullptr;
+		}
+		QDataStream stream{ decoded };
+		stream.setVersion(QDataStream::Qt_6_8);
+		quint64 request{ }, session{ }, generation{ }, profile{ }, revision{ }, host{ }, account{ };
+		stream >> request >> session >> generation >> profile >> revision >> host >> account;
+		const auto readMaterial = [&stream]() {
+			quint32 size{ };
+			stream >> size;
+			if (size > 128U) {
+				stream.setStatus(QDataStream::ReadCorruptData);
+				return QByteArray{ };
+			}
+			QByteArray result(static_cast<qsizetype>(size), '\0');
+			if (stream.readRawData(result.data(), static_cast<qint64>(size)) != static_cast<qint64>(size)) {
+				stream.setStatus(QDataStream::ReadPastEnd);
+			}
+			return result;
+		};
+		const auto access  = readMaterial();
+		const auto refresh = readMaterial();
+		if (stream.status() != QDataStream::Ok || !stream.atEnd()
+			|| access != "fixture-access-token-0276" || refresh != "fixture-refresh-token-0276") {
+			return nullptr;
+		}
+		auto state     = make_shared_github_fixture_vault();
+		state->Context = application::github_credential_operation_context{
+			.Request = core::request_id{ request }, .ApplicationSession = core::application_session_id{ session }, .Authority = { .Profile = core::host_profile_id{ profile }, .ProfileRevision = application::github_profile_revision{ revision }, .Host = core::git_host_id{ host }, .Hostname = application::github_canonical_hostname{ "github.com" }, .Account = core::github_account_id{ account } }, .IdentityGeneration = core::github_identity_generation{ generation }
+		};
+		if (!application::valid(*state->Context)) {
+			return nullptr;
+		}
+		auto credential      = application::github_credential_material::create(std::as_bytes(std::span{ access.data(), static_cast<std::size_t>(access.size()) }));
+		auto refreshMaterial = application::github_credential_material::create(std::as_bytes(std::span{ refresh.data(), static_cast<std::size_t>(refresh.size()) }));
+		if (!credential || !refreshMaterial) {
+			return nullptr;
+		}
+		state->Credential = std::move(*credential);
+		state->Refresh    = std::move(*refreshMaterial);
+		return state;
+	}
 
 	namespace {
 		// [[BPR-0548]]. One pending operation per operation context, claimed
@@ -1975,6 +2068,7 @@ namespace bpr::app::detail {
 				application::github_credential_store_completion_handler aCompletion)
 				override
 			{
+				count_attempt(&github_fixture_vault_state::VaultStoreAttempts);
 				if (!admit_store(aEnrollment, aCompletion)) {
 					return;
 				}
@@ -2010,6 +2104,7 @@ namespace bpr::app::detail {
 				application::github_credential_retrieve_completion_handler aCompletion)
 				override
 			{
+				count_attempt(&github_fixture_vault_state::VaultRetrieveAttempts);
 				if (!admit_retrieve(aContext, aCompletion)) {
 					return;
 				}
@@ -2067,6 +2162,7 @@ namespace bpr::app::detail {
 				application::github_credential_delete_completion_handler aCompletion)
 				override
 			{
+				count_attempt(&github_fixture_vault_state::VaultDeleteAttempts);
 				if (!admit_delete(aContext, aCompletion)) {
 					return;
 				}
@@ -2130,6 +2226,7 @@ namespace bpr::app::detail {
 				application::github_credential_store_completion_handler aCompletion)
 				override
 			{
+				count_attempt(&github_fixture_vault_state::RefreshStoreAttempts);
 				if (!admit_store(aEnrollment, aCompletion)) {
 					return;
 				}
@@ -2176,6 +2273,7 @@ namespace bpr::app::detail {
 				application::github_credential_retrieve_completion_handler aCompletion)
 				override
 			{
+				count_attempt(&github_fixture_vault_state::RefreshRetrieveAttempts);
 				if (!admit_retrieve(aContext, aCompletion)) {
 					return;
 				}
@@ -2230,6 +2328,7 @@ namespace bpr::app::detail {
 				application::github_credential_delete_completion_handler aCompletion)
 				override
 			{
+				count_attempt(&github_fixture_vault_state::RefreshDeleteAttempts);
 				if (!admit_delete(aContext, aCompletion)) {
 					return;
 				}
@@ -2283,6 +2382,11 @@ namespace bpr::app::detail {
 			// request is never queued, and the refusal is still delivered on
 			// the effect lane, so this vault keeps its own discipline of
 			// exactly one terminal per accepted call, published from the lane.
+			void count_attempt(std::size_t github_fixture_vault_state::* aCounter)
+			{
+				const std::scoped_lock lock{ State->Mutex };
+				++(State.get()->*aCounter);
+			}
 			[[nodiscard]] auto admit_store(
 				application::github_credential_enrollment& aEnrollment,
 				application::github_credential_store_completion_handler&
@@ -2684,6 +2788,10 @@ namespace bpr::app::detail {
 			result.CapabilityProbeConsumed    = Implementation->Recording->CapabilityCalls == adapters::github::detail::capability_probe_part_count;
 			result.BootstrapTransportSelected = Implementation->Recording->BootstrapFactoryCalls == 1U;
 			result.AccountTransportSelected   = Implementation->Recording->AccountFactoryCalls == 1U;
+			result.BootstrapFactoryAttempts   = Implementation->Recording->BootstrapFactoryAttempts;
+			result.AccountFactoryAttempts     = Implementation->Recording->AccountFactoryAttempts;
+			result.BootstrapFactoryCalls      = Implementation->Recording->BootstrapFactoryCalls;
+			result.AccountFactoryCalls        = Implementation->Recording->AccountFactoryCalls;
 			result.RecordingFailure           = Implementation->Recording->RecordingFailure;
 			result.AccountReadCount           = static_cast<int>(
 				Implementation->Recording->AccountReadCalls);
@@ -2728,14 +2836,20 @@ namespace bpr::app::detail {
 		}
 		{
 			const std::scoped_lock lock{ Implementation->VaultState->Mutex };
-			result.CredentialStored    = Implementation->VaultState->Stored;
-			result.CredentialRetrieved = Implementation->VaultState->Retrieved;
-			result.CredentialDeleted   = Implementation->VaultState->Deleted;
-			result.SecretRetained      = Implementation->VaultState->Credential.has_value();
-			result.RefreshRetained     = Implementation->VaultState->Refresh.has_value();
-			result.RefreshStores       = Implementation->VaultState->RefreshStores;
-			result.RefreshRetrieves    = Implementation->VaultState->RefreshRetrieves;
-			result.RefreshDeletes      = Implementation->VaultState->RefreshDeletes;
+			result.CredentialStored        = Implementation->VaultState->Stored;
+			result.VaultStoreAttempts      = Implementation->VaultState->VaultStoreAttempts;
+			result.VaultRetrieveAttempts   = Implementation->VaultState->VaultRetrieveAttempts;
+			result.VaultDeleteAttempts     = Implementation->VaultState->VaultDeleteAttempts;
+			result.RefreshStoreAttempts    = Implementation->VaultState->RefreshStoreAttempts;
+			result.RefreshRetrieveAttempts = Implementation->VaultState->RefreshRetrieveAttempts;
+			result.RefreshDeleteAttempts   = Implementation->VaultState->RefreshDeleteAttempts;
+			result.CredentialRetrieved     = Implementation->VaultState->Retrieved;
+			result.CredentialDeleted       = Implementation->VaultState->Deleted;
+			result.SecretRetained          = Implementation->VaultState->Credential.has_value();
+			result.RefreshRetained         = Implementation->VaultState->Refresh.has_value();
+			result.RefreshStores           = Implementation->VaultState->RefreshStores;
+			result.RefreshRetrieves        = Implementation->VaultState->RefreshRetrieves;
+			result.RefreshDeletes          = Implementation->VaultState->RefreshDeletes;
 			result.RefreshStoredDigest
 				= Implementation->VaultState->LastRefreshDigest;
 			result.LastEnrollmentDigest

@@ -100,16 +100,29 @@ order. The management host saves core lifecycle decisions before starting or
 closing windows, and before orderly Quit drains services. Failed saves preserve
 the usable windows and offer explicit registry reload. Restart restores retained
 identities with fresh generations in focus order; explicit Close removes only
-that window, while Quit retains survivors. Restored windows currently show Home
-with an unavailable-content notice. Each desktop window restores its own
+that window, while Quit retains survivors. Restored windows start on Home while
+optional restoration loads. Each desktop window restores its own
 workbench drawer states and widths and line-number visibility from the
 profile-private window-keyed layout store. Fresh windows use profile defaults.
 Orderly Quit drains the latest accepted layout write; explicit Close erases its
 row after writers drain. Startup reconciliation removes orphan layout rows
 using the complete accepted live set without changing profile defaults or the
 global allocator. Optional layout failure is visible and leaves windows usable.
-Private review destinations, native window geometry and cross-process activation
-remain open RFC-BPR-0024 work.
+BPR-0709 adds accepted PR destinations in the separate profile-private
+`state/v1/window-restoration.sqlite3`. Each of at most 32 records contains only
+stable window identity, accepted read mode, configured canonical hostname,
+repository owner/name and PR number. The core selects one shared startup
+authority in retained focus order; incompatible destinations fail visibly.
+The host loads and coalesces revision-aware writes on the effect lane, flushes
+the latest accepted destinations on Quit and erases explicit Close rows after
+writers drain. Failed attempted navigation never replaces an accepted record.
+Restoration uses the exact window read host after the accepted session matches;
+authenticated startup may reuse only a remembered grant, while public preview
+uses the credential-free path. Home and new navigation cancel pending restore
+requests by exact window/request identity. Broken optional storage leaves usable
+Home and an explicit error without resetting the global window allocator.
+Actual-process acceptance is recorded by BPR-0709. Comparison/file/location,
+native window geometry and cross-process activation remain open RFC-BPR-0024 work.
 
 ## Diagnostic logging boundary
 

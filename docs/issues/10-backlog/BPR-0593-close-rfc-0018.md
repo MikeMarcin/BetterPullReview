@@ -26,11 +26,10 @@ when the later bounded-slice planning pass needs them, and update this list and
 closeout dependencies before implementation. The RFC index remains the order
 authority; this requested subset waives no intervening eligibility/closeout gate.
 
-**Design accepted; registration only; implementation requires a later request.**
-This unstarted backlog card records the 2026-09-04 registration, not an execution
-grant or completed product work. The immutable base is the pre-registration
-commit for this approved workstream; registration commits after it are planning
-history, not evidence of interrupted product implementation.
+The 2026-09-04 registration was subsequently activated by the owner's
+2026-09-07 implementation direction in the canonical index. This closeout stays
+in Backlog until its required acceptance is complete. The immutable base remains
+the pre-registration commit; registration commits are planning history.
 
 ## Closeout checklist
 
@@ -71,7 +70,7 @@ history, not evidence of interrupted product implementation.
 The owner activated the broader UX work. BPR-0678 through BPR-0682, BPR-0684
 through BPR-0688 are implemented. BPR-0689 retains exact setup destinations
 and stages authentication without disturbing an existing review. BPR-0683 is
-reconciling integration and required native/attended evidence.
+parked for required native/attended evidence, with its automated passes retained.
 Continue RFC-0024 planning after the automated Settings integration boundary,
 while preserving pending target-native/human criteria and canonical closeout order.
 

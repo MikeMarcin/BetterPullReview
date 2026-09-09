@@ -5328,7 +5328,17 @@ namespace bpr::app {
 } }, .SelectQueue = [this, weak](const core::pull_request_ref& aRef) { return !weak.expired() && !Closing && Window->select_queue_item(aRef); }, .Settings = [this, weak](qt::settings_window& aShell, qt::settings_page aPage) {
 					if (!weak.expired() && !Closing) { Window->mount_settings(aShell); aShell.present(aPage); } }, .UnmountSettings = [this, weak] { if (!weak.expired() && Window){ Window->unmount_settings();
 } }, .RestoreReview = [this, weak](const core::window_review_open_request& aRequest) { if (!weak.expired() && !Closing) { restore_review(aRequest); } }, .RestoreNotice = [this, weak](const QString& aText) { if (!weak.expired() && !Closing) { restoration_notice(aText); } } });
-			QObject::connect(Window->home_action(), &QAction::triggered, Window.get(), [this, weak](bool aChecked) { if (!weak.expired() && !Closing && aChecked) { cancel_restoration(false); } });
+			// Home may already be checked while a restored read is pending. Its
+			// toggle then emits false, but the gesture still supersedes restoration.
+			QObject::connect(Window->home_action(), &QAction::triggered, Window.get(), [this, weak](bool) {
+				if (weak.expired() || Closing) {
+					return;
+				}
+				cancel_restoration(false);
+				if (!WindowRead->accepted_snapshot()) {
+					Window->choose_home(true);
+				}
+			});
 			Window->set_settings_presenter([this, weak](qt::settings_page aPage) { if (!weak.expired() && !Closing){ Profile->present_settings(DraftWindow, aPage);
 } });
 			auto queue = QueueHost->attach(DraftWindow, std::make_shared<window_queue_projection>([this, weak](const core::bpr_window_context& aContext, const application::queue_landing_projection& aProjection) {
