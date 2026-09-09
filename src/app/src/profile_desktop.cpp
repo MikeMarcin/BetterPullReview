@@ -33,21 +33,26 @@ namespace bpr::app {
 		};
 		struct runtime_entry
 		{
-			std::unique_ptr<github_application_startup> Startup;
-			std::unique_ptr<github_application>         Runtime;
-			std::map<core::bpr_window_id, window_entry> Windows;
-			std::vector<core::bpr_window_context>       Order;
-			std::uint64_t                               StartupSerial   = 0;
-			bool                                        Started         = false;
-			bool                                        Closing         = false;
-			bool                                        WindowPublished = false;
+			std::unique_ptr<github_application_startup>            Startup;
+			std::unique_ptr<github_application>                    Runtime;
+			std::map<core::bpr_window_id, window_entry>            Windows;
+			std::vector<core::bpr_window_context>                  Order;
+			std::uint64_t                                          StartupSerial        = 0;
+			bool                                                   Started              = false;
+			bool                                                   Closing              = false;
+			bool                                                   WindowPublished      = false;
+			bool                                                   ActivationPolling    = false;
+			bool                                                   ActivationSubmitting = false;
+			std::shared_ptr<application::profile_activation_reply> ActivationReply;
+			core::profile_launch_intent                            ActivationIntent = core::profile_launch_intent::activate;
 		};
 
 	public:
-		implementation(core::bpr_profile_id aInitial, startup_factory aFactory, profile_desktop_startup_completion aCompletion)
+		implementation(core::bpr_profile_id aInitial, startup_factory aFactory, profile_desktop_startup_completion aCompletion, core::profile_launch_intent aIntent)
 			: Initial{ aInitial }
 			, Factory{ std::move(aFactory) }
 			, Completion{ std::move(aCompletion) }
+			, InitialIntent{ aIntent }
 		{
 			Poll.setInterval(10);
 			QObject::connect(&Poll, &QTimer::timeout, this, [this] { poll(); });
@@ -149,6 +154,10 @@ namespace bpr::app {
 				return;
 			}
 			Quitting = true;
+			for (auto& [profile, entry] : Runtimes) {
+				static_cast<void>(profile);
+				complete_activation(entry, application::profile_activation_outcome::refused);
+			}
 			if (Management) {
 				Management->hide();
 			}
@@ -176,6 +185,13 @@ namespace bpr::app {
 		void publish(const application::profile_management_projection& aProjection) override
 		{
 			Projection = aProjection;
+			if (aProjection.Failure && aProjection.Failure->Profile) {
+				const auto failed = Runtimes.find(*aProjection.Failure->Profile);
+				if (failed != Runtimes.end() && (failed->second.ActivationSubmitting || aProjection.Failure->Reason != application::profile_management_failure::busy)
+					&& aProjection.Failure->Operation == (failed->second.ActivationIntent == core::profile_launch_intent::new_window ? application::profile_management_operation::new_window : application::profile_management_operation::open)) {
+					complete_activation(failed->second, application::profile_activation_outcome::refused);
+				}
+			}
 			if (PendingLaunch && aProjection.Failure && aProjection.Failure->Operation == application::profile_management_operation::reload) {
 				const auto launch = std::exchange(PendingLaunch, std::nullopt);
 				const auto found  = Runtimes.find(launch->first);
@@ -219,7 +235,11 @@ namespace bpr::app {
 			}
 			if (!InitialRegistered && aProjection.Ready && !aProjection.Closing && !Quitting) {
 				InitialRegistered = true;
-				Host->apply(application::open_bpr_profile_intent{ Initial });
+				if (InitialIntent == core::profile_launch_intent::new_window) {
+					Host->apply(application::new_bpr_window_intent{ Initial });
+				} else {
+					Host->apply(application::open_bpr_profile_intent{ Initial });
+				}
 			} else if (!InitialRegistered && aProjection.Failure && Completion && !Quitting) {
 				finish_initial(std::unexpected(github_application_startup_failure::registry));
 				force_shutdown(1);
@@ -268,6 +288,7 @@ namespace bpr::app {
 			if (aCommand.Kind == application::profile_runtime_command_kind::activate) {
 				if (current(aCommand.Context) && found != Runtimes.end() && found->second.Runtime) {
 					found->second.Runtime->focus_window(aCommand.Context);
+					complete_activation(found->second, application::profile_activation_outcome::queued);
 				}
 				return;
 			}
@@ -330,6 +351,60 @@ namespace bpr::app {
 		}
 
 	private:
+		void complete_activation(runtime_entry& aEntry, application::profile_activation_outcome aOutcome)
+		{
+			if (auto reply = std::exchange(aEntry.ActivationReply, { })) {
+				Effects.post([pending = std::move(reply), aOutcome] { pending->complete(aOutcome); });
+			}
+		}
+		void receive_activation(core::bpr_profile_id aProfile, std::uint64_t aSerial, std::optional<application::profile_activation_request> aRequest)
+		{
+			const auto found = Runtimes.find(aProfile);
+			if (found == Runtimes.end() || found->second.StartupSerial != aSerial) {
+				if (aRequest) {
+					Effects.post([reply = std::move(aRequest->Reply)] { reply->complete(application::profile_activation_outcome::refused); });
+				}
+				return;
+			}
+			auto& entry             = found->second;
+			entry.ActivationPolling = false;
+			if (!aRequest) {
+				return;
+			}
+			entry.ActivationReply  = std::move(aRequest->Reply);
+			entry.ActivationIntent = aRequest->Intent;
+			if (Quitting || entry.Closing || !entry.WindowPublished || !Host || !Projection.Ready || Projection.Busy || Projection.Closing || PendingLaunch) {
+				complete_activation(entry, application::profile_activation_outcome::refused);
+				return;
+			}
+			entry.ActivationSubmitting = true;
+			if (aRequest->Intent == core::profile_launch_intent::new_window) {
+				Host->apply(application::new_bpr_window_intent{ aProfile });
+			} else {
+				Host->apply(application::open_bpr_profile_intent{ aProfile });
+			}
+			entry.ActivationSubmitting = false;
+		}
+		void poll_activation(core::bpr_profile_id aProfile, runtime_entry& aEntry)
+		{
+			if (Quitting || aEntry.Closing || !aEntry.Runtime || aEntry.ActivationPolling || aEntry.ActivationReply) {
+				return;
+			}
+			auto endpoint = aEntry.Runtime->desktop_activation_server();
+			if (!endpoint) {
+				return;
+			}
+			aEntry.ActivationPolling = true;
+			Effects.post([self = shared_from_this(), server = std::move(endpoint), aProfile, serial = aEntry.StartupSerial] {
+				std::optional<application::profile_activation_request> request;
+				try {
+					request = server->receive();
+				} catch (...) { }
+				self->Decisions.post([self, aProfile, serial, received = std::move(request)]() mutable {
+					self->receive_activation(aProfile, serial, std::move(received));
+				});
+			});
+		}
 		void dispatch(application::profile_management_intent aIntent)
 		{
 			if (!Host || Quitting) {
@@ -355,6 +430,9 @@ namespace bpr::app {
 			}
 			if (profile) {
 				const auto found = Runtimes.find(*profile);
+				if (found != Runtimes.end() && found->second.ActivationReply) {
+					return;
+				}
 				if (found != Runtimes.end() && (found->second.Closing || !found->second.Runtime)) {
 					Host->report_runtime_admission_failure(*profile, application::profile_management_failure::busy);
 					return;
@@ -473,6 +551,7 @@ namespace bpr::app {
 				}
 				entry.WindowPublished = true;
 				entry.Runtime->focus_window(aContext);
+				complete_activation(entry, application::profile_activation_outcome::queued);
 				if (aContext.Profile == Initial && Completion) {
 					if (current(aContext)) {
 						finish_initial(entry.Runtime.get());
@@ -513,7 +592,8 @@ namespace bpr::app {
 			const auto serial   = ++NextStartup;
 			entry.StartupSerial = serial;
 			try {
-				entry.Startup = Factory(aProfile, RegistryRoot, [weak = weak_from_this(), aProfile, serial](github_application_startup_result aResult) {if (const auto self=weak.lock()){ self->started(aProfile,serial,std::move(aResult));
+				const auto intent = PendingLaunch && PendingLaunch->first == aProfile ? PendingLaunch->second : InitialIntent;
+				entry.Startup     = Factory(aProfile, RegistryRoot, intent, [weak = weak_from_this(), aProfile, serial](github_application_startup_result aResult) {if (const auto self=weak.lock()){ self->started(aProfile,serial,std::move(aResult));
 } });
 				if (!entry.Startup && !entry.Started) {
 					Decisions.post([weak = weak_from_this(), aProfile, serial] {if (const auto self=weak.lock()){ self->started(aProfile,serial,std::unexpected(github_application_startup_failure::unavailable));
@@ -536,7 +616,9 @@ namespace bpr::app {
 				entry.Closing = true;
 				if (PendingLaunch && PendingLaunch->first == aProfile) {
 					PendingLaunch.reset();
-					Host->report_runtime_admission_failure(aProfile, aResult.error() == github_application_startup_failure::owner_busy ? application::profile_management_failure::owner_busy : application::profile_management_failure::runtime_unavailable);
+					if (aResult.error() != github_application_startup_failure::activation_queued) {
+						Host->report_runtime_admission_failure(aProfile, aResult.error() == github_application_startup_failure::owner_busy ? application::profile_management_failure::owner_busy : application::profile_management_failure::runtime_unavailable);
+					}
 				}
 				for (auto& [id, selected] : entry.Windows) {
 					static_cast<void>(id);
@@ -547,7 +629,7 @@ namespace bpr::app {
 				}
 				if (aProfile == Initial && Completion) {
 					finish_initial(std::unexpected(aResult.error()));
-					force_shutdown(1);
+					force_shutdown(aResult.error() == github_application_startup_failure::activation_queued ? 0 : 1);
 				}
 				return;
 			}
@@ -601,6 +683,7 @@ namespace bpr::app {
 			const auto keepAlive = shared_from_this();
 			for (auto position = Runtimes.begin(); position != Runtimes.end();) {
 				auto& entry = position->second;
+				poll_activation(position->first, entry);
 				if (entry.Startup && entry.Startup->is_quiescent()) {
 					entry.Startup.reset();
 				}
@@ -622,7 +705,7 @@ namespace bpr::app {
 						static_cast<void>(Host->complete_close(context));
 					}
 				}
-				if (!entry.Closing || entry.Startup || (entry.Runtime && !entry.Runtime->profile_shutdown_complete())) {
+				if (!entry.Closing || entry.Startup || entry.ActivationPolling || (entry.Runtime && !entry.Runtime->profile_shutdown_complete())) {
 					++position;
 					continue;
 				}
@@ -643,6 +726,7 @@ namespace bpr::app {
 		core::bpr_profile_id                                                        Initial;
 		startup_factory                                                             Factory;
 		profile_desktop_startup_completion                                          Completion;
+		core::profile_launch_intent                                                 InitialIntent;
 		std::filesystem::path                                                       RegistryRoot;
 		worker_executor                                                             Effects;
 		qt::event_loop_executor                                                     Decisions;
@@ -665,9 +749,9 @@ namespace bpr::app {
 		: Implementation{ std::move(aImplementation) }
 	{ }
 	profile_desktop::~profile_desktop() { Implementation->force_shutdown(0); }
-	auto profile_desktop::start_with_factory(core::bpr_profile_id aProfile, startup_factory aFactory, profile_desktop_startup_completion aCompletion) -> std::unique_ptr<profile_desktop>
+	auto profile_desktop::start_with_factory(core::bpr_profile_id aProfile, startup_factory aFactory, profile_desktop_startup_completion aCompletion, core::profile_launch_intent aIntent) -> std::unique_ptr<profile_desktop>
 	{
-		auto state   = std::make_shared<implementation>(aProfile, std::move(aFactory), std::move(aCompletion));
+		auto state   = std::make_shared<implementation>(aProfile, std::move(aFactory), std::move(aCompletion), aIntent);
 		auto desktop = std::unique_ptr<profile_desktop>{ new profile_desktop{ state } };
 		state->begin();
 		return desktop;
@@ -694,9 +778,11 @@ namespace bpr::app {
 	auto profile_desktop::start(github_application_config aConfig, profile_desktop_startup_completion aCompletion) -> std::unique_ptr<profile_desktop>
 	{
 		const auto profile = aConfig.Profile;
-		return start_with_factory(profile, [config = std::move(aConfig)](core::bpr_profile_id aProfile, const std::filesystem::path& aRoot, github_application_startup_completion aDone) {
+		const auto intent  = aConfig.ProfileLaunchIntent;
+		return start_with_factory(profile, [config = std::move(aConfig)](core::bpr_profile_id aProfile, const std::filesystem::path& aRoot, core::profile_launch_intent aIntent, github_application_startup_completion aDone) {
             auto next = configuration_for_profile(config, aProfile, aRoot);
-            return github_application::start_profile(std::move(next), std::move(aDone)); }, std::move(aCompletion));
+            next.ProfileLaunchIntent = aIntent;
+            return github_application::start_profile(std::move(next), std::move(aDone)); }, std::move(aCompletion), intent);
 	}
 	auto profile_desktop::runtime(core::bpr_profile_id aProfile) const noexcept -> github_application* { return Implementation->runtime(aProfile); }
 	auto profile_desktop::windows(core::bpr_profile_id aProfile) const -> std::vector<core::bpr_window_context> { return Implementation->windows(aProfile); }

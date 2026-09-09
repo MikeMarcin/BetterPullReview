@@ -5008,6 +5008,15 @@ foreach(runtime_file IN LISTS runtime_files)
     endif()
 
     file(READ "${runtime_file}" contents)
+    file(RELATIVE_PATH runtime_relative "${BPR_ROOT}" "${runtime_file}")
+    if(runtime_relative STREQUAL "src/adapters/sqlite/src/profile_activation.cpp")
+        # RFC-0024 admits one lease-bound local activation listener, not a
+        # general network service or an exception for the adapter directory.
+        if(NOT contents MATCHES "AF_UNIX" OR contents MATCHES "AF_INET|sockaddr_in")
+            message(FATAL_ERROR "Profile activation must use only local Unix sockets")
+        endif()
+        string(REPLACE "::listen(listener.Value, 8)" "" contents "${contents}")
+    endif()
     foreach(pattern IN LISTS runtime_forbidden_patterns)
         if(contents MATCHES "${pattern}")
             file(RELATIVE_PATH relative_file "${BPR_ROOT}" "${runtime_file}")

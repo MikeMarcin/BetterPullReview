@@ -96,14 +96,20 @@ auto main(int aArgc, char** aArgv) -> int
 	});
 	wait_for([&] { return terminal; });
 	if (mode == "contender") {
-		if (failure != app::github_application_startup_failure::owner_busy) {
+		const auto expectedFailure =
+#if defined(__unix__) || defined(__APPLE__)
+			app::github_application_startup_failure::activation_queued;
+#else
+			app::github_application_startup_failure::owner_busy;
+#endif
+		if (failure != expectedFailure) {
 			std::cerr << "unexpected startup result " << (failure ? static_cast<int>(*failure) : -1) << '\n';
 		}
-		expect(failure == app::github_application_startup_failure::owner_busy, "same-profile startup refuses exact owner contention");
+		expect(failure == expectedFailure, "same-profile startup routes or reports unavailable transport");
 		wait_for([&] { return desktop->is_quiescent(); });
 		expect(completions == 1, "refusal delivers one startup terminal through shutdown");
 		expect(desktop->windows(profile).empty(), "contender never publishes a window");
-		std::cout << "OWNER_BUSY\n";
+		std::cout << "OWNER_HANDOFF_OR_BUSY\n";
 		return EXIT_SUCCESS;
 	}
 	expect(!failure, "owner startup succeeds");
@@ -111,11 +117,15 @@ auto main(int aArgc, char** aArgv) -> int
 	if (mode == "other") {
 		auto* management = desktop->management_window();
 		expect(management != nullptr, "management composed");
+#if !defined(__unix__) && !defined(__APPLE__)
 		retry_on_refusal retry{ *management };
+#endif
 		wait_for([&] { return management->open_button()->isEnabled(); });
 		management->profiles()->setCurrentRow(0);
 		management->open_button()->click();
+#if !defined(__unix__) && !defined(__APPLE__)
 		wait_for([&] { return retry.Retried; });
+#endif
 		auto* settled = management->findChild<QPushButton*>(QStringLiteral("reloadProfiles"));
 		expect(settled != nullptr, "registry settlement indicator");
 		wait_for([&] { return settled->isEnabled(); });

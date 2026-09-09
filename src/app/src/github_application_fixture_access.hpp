@@ -168,8 +168,9 @@ namespace bpr::app::detail {
 		// production factories and a read issued through it would leave the
 		// machine. Only the tests-enabled binary has it, and only the
 		// live-candidate and forced-selection flags set it.
-		bool                 PublicPreviewSelectionAvailable = false;
-		core::bpr_profile_id Profile                         = core::default_bpr_profile_id;
+		bool                        PublicPreviewSelectionAvailable = false;
+		core::bpr_profile_id        Profile                         = core::default_bpr_profile_id;
+		core::profile_launch_intent ProfileLaunchIntent             = core::profile_launch_intent::activate;
 		/// Bounded recorded PR 17/18 reads, independently repeatable per request.
 		bool IndependentWindowReads = false;
 	};

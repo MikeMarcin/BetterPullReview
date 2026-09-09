@@ -7,6 +7,8 @@
 #include <string_view>
 
 namespace bpr::adapters::sqlite::detail {
+	/// \brief Verifies genuine native lease authority for the exact current root and process.
+	[[nodiscard]] auto validates_profile_runtime_lease(const std::filesystem::path& aRoot, const std::shared_ptr<application::profile_runtime_lease>& aLease) -> bool;
 	[[nodiscard]] auto acquire_native_profile_runtime_lease(const std::filesystem::path& aRoot, std::stop_token aStop)
 		-> std::expected<std::shared_ptr<application::profile_runtime_lease>, application::profile_runtime_lease_failure>;
 	/// \brief Checks canonical path, ownership and private permissions without creating state directories.

@@ -5711,6 +5711,17 @@ auto finish_background_reap(
         result = self.run_check()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_profile_activation_listener_is_exact_and_local(self) -> None:
+        path = "src/adapters/sqlite/src/profile_activation.cpp"
+        source = (REPOSITORY_ROOT / path).read_text(encoding="utf-8")
+        result = self.run_check({path: source})
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assert_failure("Profile activation must use only local Unix sockets",
+                            {path: source.replace("AF_UNIX", "AF_INET")})
+        self.assert_failure("Forbidden runtime surface", {path: source + "\nlisten(other, 8);\n"})
+        self.assert_failure("Forbidden runtime surface",
+                            {"src/adapters/sqlite/src/other_listener.cpp": "::listen(listener.Value, 8);\n"})
+
     def test_adapter_root_must_delegate_target_ownership(self) -> None:
         self.assert_failure(
             "Adapter root must delegate",

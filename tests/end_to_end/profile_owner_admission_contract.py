@@ -1,4 +1,4 @@
-"""Competing real desktop processes must refuse before profile window mutation."""
+"""Competing real desktops hand off or refuse without another registry writer."""
 import argparse
 import os
 from pathlib import Path
@@ -20,7 +20,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--application", required=True)
     args = parser.parse_args()
-    with tempfile.TemporaryDirectory(prefix="bpr-0711-owner-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="own-", dir=os.environ.get("BPR_TEST_SOCKET_ROOT", "/tmp" if os.name == "posix" else None)) as temporary:
         root = Path(temporary).resolve()
         os.chmod(root, 0o700)
         processes = []
@@ -67,7 +67,7 @@ def main():
             contender_code = contender[0].wait(timeout=35)
             contender[1].seek(0)
             assert contender_code == 0, contender[1].read()
-            wait_marker(contender, "OWNER_BUSY")
+            wait_marker(contender, "OWNER_HANDOFF_OR_BUSY")
             assert windows(root, 1) == before, "duplicate startup changed owner's windows"
             other = start("other", 2, "other")
             wait_marker(other, "OTHER_REFUSED_DEFAULT")

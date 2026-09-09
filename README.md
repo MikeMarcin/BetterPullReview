@@ -225,6 +225,14 @@ Run the application:
 build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review
 ```
 
+Use `--bpr-profile ID` to select a stable local BPR profile identity and
+`--new-window` to request another window in that profile. Ordinary repeated
+launches activate its most recent window through the existing owner on supported
+POSIX roots. A routed process exits without creating a competing runtime.
+Refused or indeterminate handoffs report a fixed diagnostic; they do not retry
+New Window automatically. Windows activation transport and roots whose socket
+path exceeds the native address bound remain unavailable.
+
 On macOS both graphs build application bundles, which is why the path is nested;
 on Linux and Windows the executable is flat at
 `build/dev/src/app/better_pull_review`. See

@@ -52,6 +52,7 @@
 #include "bpr/adapters/sqlite/appearance_settings_store.hpp"
 #include "bpr/adapters/sqlite/device_binding_store.hpp"
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
+#include "bpr/adapters/sqlite/profile_activation.hpp"
 #include "bpr/adapters/sqlite/profile_registry_store.hpp"
 #include "bpr/adapters/sqlite/profile_runtime_lease.hpp"
 #include "bpr/adapters/sqlite/profile_storage_root.hpp"
@@ -3574,22 +3575,23 @@ namespace bpr::app {
 	{
 	public:
 		// Root lease and execution lanes outlive all services and their callbacks.
-		std::shared_ptr<void>                               StartupScratch;
-		std::shared_ptr<application::profile_runtime_lease> RuntimeLease;
-		worker_executor                                     ProviderEffects;
-		worker_executor                                     VaultEffects;
-		worker_executor                                     DeviceBindingEffects;
-		worker_executor                                     DeviceTransportEffects;
-		worker_executor                                     EpochEffects;
-		worker_executor                                     DiffEffects;
-		worker_executor                                     AgentEffects;
-		worker_executor                                     McpEffects;
-		worker_executor                                     WorkbenchEffects;
-		worker_executor                                     AppearanceEffects;
-		worker_executor                                     QueueEffects;
-		worker_executor                                     ReviewMutationEffects;
-		worker_executor                                     ReviewSubmissionEffects;
-		qt::event_loop_executor                             DecisionLane;
+		std::shared_ptr<void>                                   StartupScratch;
+		std::shared_ptr<application::profile_runtime_lease>     RuntimeLease;
+		std::shared_ptr<application::profile_activation_server> ActivationServer;
+		worker_executor                                         ProviderEffects;
+		worker_executor                                         VaultEffects;
+		worker_executor                                         DeviceBindingEffects;
+		worker_executor                                         DeviceTransportEffects;
+		worker_executor                                         EpochEffects;
+		worker_executor                                         DiffEffects;
+		worker_executor                                         AgentEffects;
+		worker_executor                                         McpEffects;
+		worker_executor                                         WorkbenchEffects;
+		worker_executor                                         AppearanceEffects;
+		worker_executor                                         QueueEffects;
+		worker_executor                                         ReviewMutationEffects;
+		worker_executor                                         ReviewSubmissionEffects;
+		qt::event_loop_executor                                 DecisionLane;
 		struct window_observer
 		{
 			std::weak_ptr<const void>                                                         Lifetime;
@@ -11581,6 +11583,7 @@ namespace bpr::app {
 			Options = std::move(aOptions);
 			if (Fixture) {
 				Config.Profile             = Options.Profile;
+				Config.ProfileLaunchIntent = Options.ProfileLaunchIntent;
 				Config.ApplicationDataRoot = Options.ApplicationDataRoot;
 				if (!Config.ApplicationDataRoot) {
 					auto temporary             = std::make_shared<QTemporaryDir>(QDir::temp().filePath(QStringLiteral("bpr-public-path-XXXXXX")));
@@ -11653,14 +11656,31 @@ namespace bpr::app {
 			}
 			auto lease = adapters::sqlite::acquire_profile_runtime_lease(*root, aStop);
 			if (!lease) {
+				if (OwnerOnly && lease.error() == application::profile_runtime_lease_failure::busy) {
+					const auto routed  = adapters::sqlite::send_profile_activation(*root, Config.Profile, Config.ProfileLaunchIntent, aStop);
+					const auto outcome = routed ? *routed : routed.error();
+					if (outcome == application::profile_activation_outcome::queued) {
+						Handoff = github_application_startup_failure::activation_queued;
+					} else if (outcome == application::profile_activation_outcome::refused) {
+						Handoff = github_application_startup_failure::activation_refused;
+					} else if (outcome == application::profile_activation_outcome::indeterminate) {
+						Handoff = github_application_startup_failure::activation_indeterminate;
+					}
+				}
 				return std::unexpected(lease.error() == application::profile_runtime_lease_failure::busy
 										   ? application::profile_startup_failure::owner_busy
 										   : aStop.stop_requested() ? application::profile_startup_failure::cancelled
 																	: application::profile_startup_failure::root_unavailable);
 			}
 			RuntimeLease = std::move(*lease);
-			auto store   = adapters::sqlite::make_queue_enrollment_store({ .StorageRoot = *root });
-			auto loaded  = store ? store->load(aStop) : std::unexpected(application::queue_store_failure::unavailable);
+			if (OwnerOnly) {
+				const auto endpoint = adapters::sqlite::make_profile_activation_server(*root, Config.Profile, RuntimeLease);
+				if (endpoint) {
+					ActivationServer = *endpoint;
+				}
+			}
+			auto store  = adapters::sqlite::make_queue_enrollment_store({ .StorageRoot = *root });
+			auto loaded = store ? store->load(aStop) : std::unexpected(application::queue_store_failure::unavailable);
 			if (aStop.stop_requested()) {
 				return std::unexpected(application::profile_startup_failure::cancelled);
 			}
@@ -11680,6 +11700,10 @@ namespace bpr::app {
 			}
 			if (!aTerminal.Result) {
 				const auto failure = aTerminal.Result.error();
+				if (failure == application::profile_startup_failure::owner_busy && Handoff) {
+					finish(std::unexpected(*Handoff));
+					return;
+				}
 				finish(std::unexpected(failure == application::profile_startup_failure::owner_busy             ? github_application_startup_failure::owner_busy
 										   : failure == application::profile_startup_failure::unknown_profile  ? github_application_startup_failure::invalid_profile
 										   : failure == application::profile_startup_failure::root_unavailable ? github_application_startup_failure::root
@@ -11693,7 +11717,8 @@ namespace bpr::app {
 																		Fixture, std::move(Options)
 #endif
 				);
-				auto runtime = std::unique_ptr<github_application>{ new github_application{ std::move(profile) } };
+				profile->ActivationServer = std::move(ActivationServer);
+				auto runtime              = std::unique_ptr<github_application>{ new github_application{ std::move(profile) } };
 				runtime->Profile->start_services();
 				if (!OwnerOnly) {
 					const auto context = compatibility_window_context(aTerminal.Result->Authority.profile());
@@ -11722,12 +11747,14 @@ namespace bpr::app {
 				completion(std::move(aResult));
 			}
 		}
-		github_application_config                           Config;
-		std::shared_ptr<application::profile_runtime_lease> RuntimeLease;
-		github_application_startup_completion               Completion;
-		std::filesystem::path                               RegistryRoot;
-		std::shared_ptr<void>                               Scratch;
-		std::optional<application::durable_queue_state>     SavedQueue;
+		github_application_config                               Config;
+		std::shared_ptr<application::profile_runtime_lease>     RuntimeLease;
+		std::shared_ptr<application::profile_activation_server> ActivationServer;
+		std::optional<github_application_startup_failure>       Handoff;
+		github_application_startup_completion                   Completion;
+		std::filesystem::path                                   RegistryRoot;
+		std::shared_ptr<void>                                   Scratch;
+		std::optional<application::durable_queue_state>         SavedQueue;
 #if defined(BPR_BUILD_TESTING)
 		std::optional<detail::github_public_path_fixture> Fixture;
 		detail::github_public_path_fixture_options        Options;
@@ -11782,6 +11809,7 @@ namespace bpr::app {
 		}
 	}
 	auto github_application::desktop_registry_root() const -> std::filesystem::path { return Profile->RegistryRoot; }
+	auto github_application::desktop_activation_server() const -> std::shared_ptr<application::profile_activation_server> { return Profile->ActivationServer; }
 	auto github_application::desktop_scratch() const -> std::shared_ptr<void> { return Profile->StartupScratch; }
 	void github_application::set_desktop_quit_handler(std::function<void(int)> aHandler) { Profile->DesktopQuit = std::move(aHandler); }
 	void github_application::set_profile_label(std::string aLabel)
@@ -12409,18 +12437,22 @@ namespace bpr::app {
 	auto detail::github_application_fixture_access::start_desktop(detail::github_public_path_fixture aFixture, detail::github_public_path_fixture_options aOptions, profile_desktop_startup_completion aCompletion) -> std::unique_ptr<profile_desktop>
 	{
 		const auto profile = aOptions.Profile;
-		return profile_desktop::start_with_factory(profile, [aFixture, options = std::move(aOptions)](core::bpr_profile_id aProfile, const std::filesystem::path& aRoot, github_application_startup_completion aDone) {
+		const auto intent  = aOptions.ProfileLaunchIntent;
+		return profile_desktop::start_with_factory(profile, [aFixture, options = std::move(aOptions)](core::bpr_profile_id aProfile, const std::filesystem::path& aRoot, core::profile_launch_intent aIntent, github_application_startup_completion aDone) {
             auto next = aProfile == options.Profile ? options : detail::github_public_path_fixture_options{};
             if (!aRoot.empty()) { next.ApplicationDataRoot = aRoot; next.GitExecutable = options.GitExecutable; }
             next.Profile = aProfile;
-            return detail::github_application_fixture_access::start_profile(aFixture, std::move(next), std::move(aDone)); }, std::move(aCompletion));
+            next.ProfileLaunchIntent = aIntent;
+            return detail::github_application_fixture_access::start_profile(aFixture, std::move(next), std::move(aDone)); }, std::move(aCompletion), intent);
 	}
 	auto detail::github_application_fixture_access::start_desktop_public_preview_selection_available(github_application_config aConfig, profile_desktop_startup_completion aCompletion) -> std::unique_ptr<profile_desktop>
 	{
 		const auto profile = aConfig.Profile;
-		return profile_desktop::start_with_factory(profile, [config = std::move(aConfig)](core::bpr_profile_id aProfile, const std::filesystem::path& aRoot, github_application_startup_completion aDone) {
+		const auto intent  = aConfig.ProfileLaunchIntent;
+		return profile_desktop::start_with_factory(profile, [config = std::move(aConfig)](core::bpr_profile_id aProfile, const std::filesystem::path& aRoot, core::profile_launch_intent aIntent, github_application_startup_completion aDone) {
             auto next = profile_desktop::configuration_for_profile(config, aProfile, aRoot);
-            return detail::github_application_fixture_access::start_profile_public_preview_selection_available(std::move(next), std::move(aDone)); }, std::move(aCompletion));
+            next.ProfileLaunchIntent = aIntent;
+            return detail::github_application_fixture_access::start_profile_public_preview_selection_available(std::move(next), std::move(aDone)); }, std::move(aCompletion), intent);
 	}
 
 	auto detail::github_application_fixture_access::start(detail::github_public_path_fixture aFixture, detail::github_public_path_fixture_options aOptions, github_application_startup_completion aCompletion) -> std::unique_ptr<github_application_startup>

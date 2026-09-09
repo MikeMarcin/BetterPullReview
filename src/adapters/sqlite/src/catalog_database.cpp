@@ -4239,6 +4239,29 @@ namespace bpr::adapters::sqlite::detail {
 		return { };
 	}
 
+#if !defined(_WIN32)
+	class activation_native_lease final : public application::profile_runtime_lease
+	{
+	public:
+		file_descriptor Root;
+		pid_t           Process = ::getpid();
+	};
+#endif
+	auto validates_profile_runtime_lease(const std::filesystem::path& aRoot, const std::shared_ptr<application::profile_runtime_lease>& aLease) -> bool
+	{
+#if defined(_WIN32)
+		(void)aRoot;
+		(void)aLease;
+		return false;
+#else
+		const auto  lease = std::dynamic_pointer_cast<activation_native_lease>(aLease);
+		struct stat held{ };
+		struct stat named{ };
+		return lease && lease->Process == ::getpid() && validate_private_storage_root(aRoot)
+			&& ::fstat(lease->Root.Value, &held) == 0 && ::lstat(aRoot.c_str(), &named) == 0
+			&& held.st_dev == named.st_dev && held.st_ino == named.st_ino;
+#endif
+	}
 	auto acquire_native_profile_runtime_lease(const std::filesystem::path& aRoot, const std::stop_token aStop)
 		-> std::expected<std::shared_ptr<application::profile_runtime_lease>, application::profile_runtime_lease_failure>
 	{
@@ -4297,12 +4320,7 @@ namespace bpr::adapters::sqlite::detail {
 			return std::unexpected(lease_failure::unavailable);
 		}
 #else
-		class native_lease final : public application::profile_runtime_lease
-		{
-		public:
-			file_descriptor Root;
-		};
-		auto result = std::make_shared<native_lease>();
+		auto result = std::make_shared<activation_native_lease>();
 		auto root   = open_private_directory(aRoot);
 		if (!root || !reliable_local_filesystem(*root)) {
 			return std::unexpected(lease_failure::unavailable);

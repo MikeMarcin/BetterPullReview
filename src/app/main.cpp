@@ -92,6 +92,46 @@
 #endif
 
 namespace {
+	struct profile_launch_arguments
+	{
+		bpr::core::bpr_profile_id        Profile = bpr::core::default_bpr_profile_id;
+		bpr::core::profile_launch_intent Intent  = bpr::core::profile_launch_intent::activate;
+	};
+
+	[[nodiscard]] auto parse_profile_launch_arguments(int aArgc, char** aArgv) -> std::optional<profile_launch_arguments>
+	{
+		auto result      = profile_launch_arguments{ };
+		bool profileSeen = false;
+		bool windowSeen  = false;
+		for (int index = 1; index < aArgc; ++index) {
+			const auto argument = std::string_view{ aArgv[index] };
+			if (argument == "--new-window") {
+				if (windowSeen) {
+					return std::nullopt;
+				}
+				windowSeen    = true;
+				result.Intent = bpr::core::profile_launch_intent::new_window;
+			} else if (argument == "--bpr-profile") {
+				if (profileSeen || ++index == aArgc) {
+					return std::nullopt;
+				}
+				profileSeen      = true;
+				const auto value = std::string_view{ aArgv[index] };
+				auto       id    = std::uint64_t{ };
+				if (value.empty() || !std::ranges::all_of(value, [](char aDigit) { return aDigit >= '0' && aDigit <= '9'; })) {
+					return std::nullopt;
+				}
+				const auto parsed = std::from_chars(value.data(), value.data() + value.size(), id);
+				if (parsed.ec != std::errc{ } || parsed.ptr != value.data() + value.size() || id == 0) {
+					return std::nullopt;
+				}
+				result.Profile = bpr::core::bpr_profile_id{ id };
+			} else if (argument.starts_with("--bpr-profile=") || argument.starts_with("--new-window=")) {
+				return std::nullopt;
+			}
+		}
+		return result;
+	}
 #if !defined(BPR_BUILD_TESTING)
 	[[nodiscard]] auto native_filesystem_path(const QString& aPath)
 		-> std::filesystem::path
@@ -6993,6 +7033,11 @@ namespace {
 
 auto main(int argc, char** argv) -> int
 {
+	const auto profileLaunch = parse_profile_launch_arguments(argc, argv);
+	if (!profileLaunch) {
+		QTextStream{ stdout } << "PROFILE_LAUNCH_ARGUMENTS_INVALID\n";
+		return EXIT_FAILURE;
+	}
 #if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
 	if (const auto preflight = run_designated_live_preflight_probe(argc, argv);
 		preflight.has_value()) {
@@ -7051,6 +7096,8 @@ auto main(int argc, char** argv) -> int
 		auto config = bpr::app::github_application_config{
 			.EnterpriseHostname = std::nullopt,
 		};
+		config.Profile             = profileLaunch->Profile;
+		config.ProfileLaunchIntent = profileLaunch->Intent;
 		auto attendedApprovalCount = std::size_t{ 0U };
 		auto replayResetCount      = std::size_t{ 0U };
 		for (auto index = 1; index < argc; ++index) {
@@ -7198,7 +7245,9 @@ auto main(int argc, char** argv) -> int
 		auto fixtureExpectations    = fixture_run_expectations{ };
 		auto selectedFixture        = std::optional<
 			bpr::app::detail::github_public_path_fixture>{ };
-		auto fixtureOptions = bpr::app::detail::github_public_path_fixture_options{ };
+		auto fixtureOptions                = bpr::app::detail::github_public_path_fixture_options{ };
+		fixtureOptions.Profile             = profileLaunch->Profile;
+		fixtureOptions.ProfileLaunchIntent = profileLaunch->Intent;
 		// Read here rather than beside the other device flag further down,
 		// because the fixture options are assembled before that point.
 		fixtureOptions.RegisteredDeviceCourse = has_argument(
@@ -7904,6 +7953,20 @@ auto main(int argc, char** argv) -> int
 		std::unique_ptr<bpr::app::profile_desktop> desktop;
 		auto                                       completed = [&](bpr::app::profile_desktop_startup_result aResult) {
 			if (!aResult) {
+				if (aResult.error() == bpr::app::github_application_startup_failure::activation_queued) {
+					QTextStream{ stdout } << "PROFILE_ACTIVATION_QUEUED\n";
+					return;
+				}
+				if (aResult.error() == bpr::app::github_application_startup_failure::activation_indeterminate) {
+					QTextStream{ stdout } << "PROFILE_ACTIVATION_INDETERMINATE_NO_RETRY\n";
+					desktop->quit(EXIT_FAILURE);
+					return;
+				}
+				if (aResult.error() == bpr::app::github_application_startup_failure::activation_refused) {
+					QTextStream{ stdout } << "PROFILE_ACTIVATION_REFUSED\n";
+					desktop->quit(EXIT_FAILURE);
+					return;
+				}
 				QTextStream{ stdout } << (aResult.error() == bpr::app::github_application_startup_failure::owner_busy ? "PROFILE_ALREADY_OPEN\n" : "STARTUP_FAILED\n");
 				desktop->quit(EXIT_FAILURE);
 				return;

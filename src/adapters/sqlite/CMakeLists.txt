@@ -11,6 +11,7 @@ add_library(
         src/profile_registry_store.cpp
         src/profile_storage_root.cpp
         src/profile_runtime_lease.cpp
+        src/profile_activation.cpp
         src/appearance_settings_database.cpp
         src/appearance_settings_store.cpp
         src/workbench_settings_database.cpp

@@ -77,9 +77,14 @@ global allocator, then requests the existing core window lifecycle. Closing or
 failed-start entries cannot bypass admission merely because their map key remains.
 Startup refusal consumes its callback exactly once, including shutdown reentry.
 
-The public process course uses two real fixture desktop processes and checks the
-existing owner's durable window rows after a competing launch and a synchronous
-Open retry. Cross-process activation/new-window transport is still absent. The
-global registry's existing compare-and-set conflicts still require explicit Reload
+The admission foundation's public process course checks the existing owner's
+durable window rows after contention. BPR-0712 adds the lease-bound POSIX local
+activation transport, carrying only stable profile identity and activate/new-window.
+The owner's management host remains the sole window allocator. A sender has no
+runtime or window; bounded queued/refused/indeterminate results never authorize
+retry or lock stealing. Exact MRU reactivation, new-window admission, different
+profiles, lost endpoints and owner death use independent real fixture processes.
+Windows transport, oversized native socket addresses and packaged focus evidence
+remain unavailable/unverified. The global registry's existing compare-and-set conflicts still require explicit Reload
 Profiles before retry; this foundation does not add automatic cross-process
 preference synchronization, two-account acceptance or native package evidence.

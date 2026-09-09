@@ -86,9 +86,16 @@ cleanup cannot bypass admission. The lease outlives profile services and effect
 executors. POSIX uses a non-inherited directory-inode lock; Windows retains private
 validated directory handles and an exclusive non-inherited lock-file handle.
 Native process exit releases ownership without a PID-age or timeout override.
-Distinct profile roots may own independent runtimes. Cross-process activation and
-new-window transport remain required follow-up work; a repeated ordinary launch
-currently reports `PROFILE_ALREADY_OPEN` instead of activating the other process.
+Distinct profile roots may own independent runtimes. On supported POSIX roots,
+the desktop binds an owner-private local socket while retaining the native lease.
+A competing startup sends the stable profile identity and exactly one activate
+or new-window intent. Effect-lane polling authenticates the peer user and bounded
+versioned frame; the decision lane routes it through existing management policy.
+Acknowledgement follows the actual activation or successfully opened window.
+Busy/closing owners refuse, and uncertain delivery never causes an automatic
+retry or competing runtime. The sender changes no window registry state.
+Windows transport and POSIX socket paths beyond the native address bound remain
+unavailable; those roots retain exclusive ownership and explicit contention.
 
 The profile runtime owns private storage roots,
 authentication, provider capabilities, queue refresh, preferences, logging,
@@ -146,7 +153,7 @@ request and generation. Qt restores the verified semantic selection and reveals
 its line without reporting a new user gesture.
 Actual-process destination acceptance is recorded by BPR-0709; BPR-0710 records
 the bounded exact-reading course and its fixture limitations. Native window
-geometry and cross-process activation remain open RFC-BPR-0024 work.
+geometry and target-native packaged activation remain open RFC-BPR-0024 work.
 
 ## Diagnostic logging boundary
 

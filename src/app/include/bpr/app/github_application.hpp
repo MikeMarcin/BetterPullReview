@@ -4,6 +4,7 @@
 #include "bpr/application/device_authorization_projection.hpp"
 #include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/notification_delivery.hpp"
+#include "bpr/application/profile_activation.hpp"
 #include "bpr/application/profile_startup_admission.hpp"
 #include "bpr/core/device_authorization_model.hpp"
 #include "bpr/core/profile_window.hpp"
@@ -68,8 +69,9 @@ namespace bpr::app {
 		/// included by a target that links the composition without defining
 		/// the guard, and a conditionally-sized record passed by value across
 		/// that seam would disagree about its own layout.
-		bool                 NetworkDenied = false;
-		core::bpr_profile_id Profile       = core::default_bpr_profile_id;
+		bool                        NetworkDenied       = false;
+		core::bpr_profile_id        Profile             = core::default_bpr_profile_id;
+		core::profile_launch_intent ProfileLaunchIntent = core::profile_launch_intent::activate;
 	};
 
 	/// \brief Initializes or deliberately resets the designated-live replay
@@ -413,6 +415,9 @@ namespace bpr::app {
 	class profile_desktop;
 	class github_profile_runtime;
 	enum class github_application_startup_failure { owner_busy,
+													activation_queued,
+													activation_refused,
+													activation_indeterminate,
 													invalid_profile,
 													registry,
 													root,
@@ -554,7 +559,9 @@ namespace bpr::app {
 		friend class detail::github_application_fixture_access;
 		friend class github_application_startup;
 		friend class profile_desktop;
-		[[nodiscard]] auto        desktop_registry_root() const -> std::filesystem::path;
+		[[nodiscard]] auto desktop_registry_root() const -> std::filesystem::path;
+		/// \brief Borrow the admitted runtime's bounded local activation endpoint.
+		[[nodiscard]] auto        desktop_activation_server() const -> std::shared_ptr<application::profile_activation_server>;
 		[[nodiscard]] auto        desktop_scratch() const -> std::shared_ptr<void>;
 		void                      set_desktop_quit_handler(std::function<void(int)> aHandler);
 		[[nodiscard]] static auto start_profile(github_application_config aConfig, github_application_startup_completion aCompletion) -> std::unique_ptr<github_application_startup>;
