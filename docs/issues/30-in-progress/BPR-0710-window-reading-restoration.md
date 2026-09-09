@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0710"
 title: "Restore exact per-window comparison and semantic reading position"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0709"]
 ---
