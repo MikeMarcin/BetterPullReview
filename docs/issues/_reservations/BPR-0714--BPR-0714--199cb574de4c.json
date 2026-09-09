@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0714"
+  ],
+  "reserve_for": "ux-d6",
+  "purpose": "",
+  "created": "2026-09-09T06:27:07.824120+00:00",
+  "base": "cd8a8e1e3c71a9d3f518e1a0f2a869dc1d6d3116"
+}
