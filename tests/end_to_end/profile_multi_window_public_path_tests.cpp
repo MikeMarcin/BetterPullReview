@@ -235,6 +235,9 @@ auto main(int aArgc, char** aArgv) -> int
 	select_file(*owner, *windowB);
 	windowB->open_settings(qt::settings_page::appearance);
 	expect(visible_settings() == 1U, "profile Settings remains usable after first window retirement");
+	// Closing hides the shell before durable retirement and its queued
+	// session removal complete. Observe that public completion boundary.
+	wait_for([&] { return !owner->status(first); }, "retired exact context completes durable shutdown");
 	expect(!owner->status(first).has_value(), "retired exact context has no status");
 	auto stale       = second;
 	stale.Generation = core::bpr_window_generation{ second.Generation.value() + 1U };
