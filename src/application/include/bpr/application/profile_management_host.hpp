@@ -31,6 +31,8 @@ namespace bpr::application {
 		auto operator=(const profile_management_host&) -> profile_management_host& = delete;
 		void apply(profile_management_intent aIntent);
 		void reload();
+		/// \brief Reports refused pre-runtime admission without reserving or changing windows.
+		void report_runtime_admission_failure(core::bpr_profile_id aProfile, profile_management_failure aFailure);
 		/// \brief Accepts one startup completion; false means composition must dispose any late runtime.
 		[[nodiscard]] auto complete_open(core::bpr_window_context                        aContext,
 										 std::expected<void, profile_management_failure> aResult = { }) -> bool;

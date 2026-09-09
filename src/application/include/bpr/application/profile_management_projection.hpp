@@ -32,6 +32,7 @@ namespace bpr::application {
 		busy,
 		closing,
 		runtime_unavailable,
+		owner_busy,
 		cancelled,
 		conflict
 	};

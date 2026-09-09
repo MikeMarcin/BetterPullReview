@@ -1,11 +1,14 @@
 #ifndef BPR_SRC_ADAPTERS_SQLITE_SRC_STORAGE_INTERNAL_HPP
 #define BPR_SRC_ADAPTERS_SQLITE_SRC_STORAGE_INTERNAL_HPP
 
+#include "bpr/adapters/sqlite/profile_runtime_lease.hpp"
 #include "state_directory.hpp"
 
 #include <string_view>
 
 namespace bpr::adapters::sqlite::detail {
+	[[nodiscard]] auto acquire_native_profile_runtime_lease(const std::filesystem::path& aRoot, std::stop_token aStop)
+		-> std::expected<std::shared_ptr<application::profile_runtime_lease>, application::profile_runtime_lease_failure>;
 	/// \brief Checks canonical path, ownership and private permissions without creating state directories.
 	[[nodiscard]] auto validate_private_storage_root(const std::filesystem::path& aRoot)
 		-> std::expected<void, state_directory_failure>;

@@ -412,7 +412,8 @@ namespace bpr::app {
 	class github_application;
 	class profile_desktop;
 	class github_profile_runtime;
-	enum class github_application_startup_failure { invalid_profile,
+	enum class github_application_startup_failure { owner_busy,
+													invalid_profile,
 													registry,
 													root,
 													unavailable,

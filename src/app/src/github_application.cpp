@@ -53,6 +53,7 @@
 #include "bpr/adapters/sqlite/device_binding_store.hpp"
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
 #include "bpr/adapters/sqlite/profile_registry_store.hpp"
+#include "bpr/adapters/sqlite/profile_runtime_lease.hpp"
 #include "bpr/adapters/sqlite/profile_storage_root.hpp"
 #include "bpr/adapters/sqlite/queue_enrollment_store.hpp"
 #include "bpr/adapters/sqlite/review_ledger_store.hpp"
@@ -3573,21 +3574,22 @@ namespace bpr::app {
 	{
 	public:
 		// Root lease and execution lanes outlive all services and their callbacks.
-		std::shared_ptr<void>   StartupScratch;
-		worker_executor         ProviderEffects;
-		worker_executor         VaultEffects;
-		worker_executor         DeviceBindingEffects;
-		worker_executor         DeviceTransportEffects;
-		worker_executor         EpochEffects;
-		worker_executor         DiffEffects;
-		worker_executor         AgentEffects;
-		worker_executor         McpEffects;
-		worker_executor         WorkbenchEffects;
-		worker_executor         AppearanceEffects;
-		worker_executor         QueueEffects;
-		worker_executor         ReviewMutationEffects;
-		worker_executor         ReviewSubmissionEffects;
-		qt::event_loop_executor DecisionLane;
+		std::shared_ptr<void>                               StartupScratch;
+		std::shared_ptr<application::profile_runtime_lease> RuntimeLease;
+		worker_executor                                     ProviderEffects;
+		worker_executor                                     VaultEffects;
+		worker_executor                                     DeviceBindingEffects;
+		worker_executor                                     DeviceTransportEffects;
+		worker_executor                                     EpochEffects;
+		worker_executor                                     DiffEffects;
+		worker_executor                                     AgentEffects;
+		worker_executor                                     McpEffects;
+		worker_executor                                     WorkbenchEffects;
+		worker_executor                                     AppearanceEffects;
+		worker_executor                                     QueueEffects;
+		worker_executor                                     ReviewMutationEffects;
+		worker_executor                                     ReviewSubmissionEffects;
+		qt::event_loop_executor                             DecisionLane;
 		struct window_observer
 		{
 			std::weak_ptr<const void>                                                         Lifetime;
@@ -3905,14 +3907,16 @@ namespace bpr::app {
 
 		explicit github_profile_runtime(
 			github_application_config aConfig, application::profile_startup_admission aAdmission, std::filesystem::path aRegistryRoot,
-			std::optional<application::durable_queue_state> aSavedQueue, std::shared_ptr<void> aScratch, bool aDesktop
+			std::optional<application::durable_queue_state> aSavedQueue, std::shared_ptr<void> aScratch, bool aDesktop,
+			std::shared_ptr<application::profile_runtime_lease> aRuntimeLease
 #if defined(BPR_BUILD_TESTING)
 			,
 			const std::optional<detail::github_public_path_fixture> aFixture        = std::nullopt,
 			detail::github_public_path_fixture_options              aFixtureOptions = { }
 #endif
 			)
-			: Config{ aConfig }
+			: RuntimeLease{ std::move(aRuntimeLease) }
+			, Config{ aConfig }
 			, Admission{ aAdmission }
 		{
 			Desktop                     = aDesktop;
@@ -11647,8 +11651,16 @@ namespace bpr::app {
 			if (!root) {
 				return std::unexpected(aStop.stop_requested() ? application::profile_startup_failure::cancelled : application::profile_startup_failure::root_unavailable);
 			}
-			auto store  = adapters::sqlite::make_queue_enrollment_store({ .StorageRoot = *root });
-			auto loaded = store ? store->load(aStop) : std::unexpected(application::queue_store_failure::unavailable);
+			auto lease = adapters::sqlite::acquire_profile_runtime_lease(*root, aStop);
+			if (!lease) {
+				return std::unexpected(lease.error() == application::profile_runtime_lease_failure::busy
+										   ? application::profile_startup_failure::owner_busy
+										   : aStop.stop_requested() ? application::profile_startup_failure::cancelled
+																	: application::profile_startup_failure::root_unavailable);
+			}
+			RuntimeLease = std::move(*lease);
+			auto store   = adapters::sqlite::make_queue_enrollment_store({ .StorageRoot = *root });
+			auto loaded  = store ? store->load(aStop) : std::unexpected(application::queue_store_failure::unavailable);
 			if (aStop.stop_requested()) {
 				return std::unexpected(application::profile_startup_failure::cancelled);
 			}
@@ -11668,15 +11680,16 @@ namespace bpr::app {
 			}
 			if (!aTerminal.Result) {
 				const auto failure = aTerminal.Result.error();
-				finish(std::unexpected(failure == application::profile_startup_failure::unknown_profile        ? github_application_startup_failure::invalid_profile
+				finish(std::unexpected(failure == application::profile_startup_failure::owner_busy             ? github_application_startup_failure::owner_busy
+										   : failure == application::profile_startup_failure::unknown_profile  ? github_application_startup_failure::invalid_profile
 										   : failure == application::profile_startup_failure::root_unavailable ? github_application_startup_failure::root
 																											   : github_application_startup_failure::registry));
 				return;
 			}
 			try {
-				auto profile = std::make_shared<github_profile_runtime>(std::move(Config), *aTerminal.Result, RegistryRoot, std::move(SavedQueue), std::move(Scratch), OwnerOnly
+				auto profile = std::make_shared<github_profile_runtime>(std::move(Config), *aTerminal.Result, RegistryRoot, std::move(SavedQueue), std::move(Scratch), OwnerOnly, std::move(RuntimeLease)
 #if defined(BPR_BUILD_TESTING)
-																		,
+																																													  ,
 																		Fixture, std::move(Options)
 #endif
 				);
@@ -11701,18 +11714,20 @@ namespace bpr::app {
 			if (Terminal) {
 				return;
 			}
-			auto keepAlive  = shared_from_this();
-			Terminal        = true;
+			auto keepAlive = shared_from_this();
+			Terminal       = true;
+			RuntimeLease.reset();
 			auto completion = std::move(Completion);
 			if (completion) {
 				completion(std::move(aResult));
 			}
 		}
-		github_application_config                       Config;
-		github_application_startup_completion           Completion;
-		std::filesystem::path                           RegistryRoot;
-		std::shared_ptr<void>                           Scratch;
-		std::optional<application::durable_queue_state> SavedQueue;
+		github_application_config                           Config;
+		std::shared_ptr<application::profile_runtime_lease> RuntimeLease;
+		github_application_startup_completion               Completion;
+		std::filesystem::path                               RegistryRoot;
+		std::shared_ptr<void>                               Scratch;
+		std::optional<application::durable_queue_state>     SavedQueue;
 #if defined(BPR_BUILD_TESTING)
 		std::optional<detail::github_public_path_fixture> Fixture;
 		detail::github_public_path_fixture_options        Options;

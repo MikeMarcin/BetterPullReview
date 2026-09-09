@@ -476,6 +476,11 @@ namespace bpr::application {
 		: Implementation{ std::make_unique<implementation>(aRegistry, aEffects, aDecision, aProjection, aSession) }
 	{ }
 	profile_management_host::~profile_management_host() { Implementation->Registry.shutdown(); }
+	void profile_management_host::report_runtime_admission_failure(core::bpr_profile_id aProfile, profile_management_failure aFailure)
+	{
+		Implementation->fail(profile_management_operation::open, aProfile, aFailure);
+	}
+
 	void profile_management_host::apply(profile_management_intent aIntent)
 	{
 		std::visit([this](const auto& aValue) {

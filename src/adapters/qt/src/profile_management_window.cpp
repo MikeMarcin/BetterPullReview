@@ -27,6 +27,7 @@ namespace bpr::qt {
 			case failure::busy:                 return QStringLiteral("Another profile change is in progress. Your text has been kept; try again when it finishes.");
 			case failure::closing:              return QStringLiteral("Profiles are closing. Your text has been kept.");
 			case failure::runtime_unavailable:  return QStringLiteral("The profile could not be opened. Other profiles remain available.");
+			case failure::owner_busy:           return QStringLiteral("This profile is already open in another application process. Use its existing window.");
 			case failure::cancelled:            return QStringLiteral("The profile operation was cancelled. Your text has been kept.");
 			case failure::conflict:             return QStringLiteral("Profiles changed during this edit. Your text has been kept; review the list and try again.");
 			case failure::registry_unavailable:

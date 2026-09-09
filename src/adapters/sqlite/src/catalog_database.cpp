@@ -4239,6 +4239,93 @@ namespace bpr::adapters::sqlite::detail {
 		return { };
 	}
 
+	auto acquire_native_profile_runtime_lease(const std::filesystem::path& aRoot, const std::stop_token aStop)
+		-> std::expected<std::shared_ptr<application::profile_runtime_lease>, application::profile_runtime_lease_failure>
+	{
+		using lease_failure = application::profile_runtime_lease_failure;
+		if (aStop.stop_requested()) {
+			return std::unexpected(lease_failure::cancelled);
+		}
+		if (!validate_private_storage_root(aRoot)) {
+			return std::unexpected(lease_failure::unavailable);
+		}
+#if defined(_WIN32)
+		class native_lease final : public application::profile_runtime_lease
+		{
+		public:
+			std::vector<private_windows_object> Ancestors;
+			private_windows_object              Root;
+			windows_handle                      Lock;
+		};
+		auto result    = std::make_shared<native_lease>();
+		auto canonical = canonical_windows_root(aRoot);
+		auto security  = private_security::load();
+		if (!canonical || !security) {
+			return std::unexpected(lease_failure::unavailable);
+		}
+		auto ancestors = validate_ancestor_chain(*canonical);
+		auto root      = open_private_directory(*canonical, *security, false);
+		if (!ancestors || !root || !reliable_local_filesystem(*root)) {
+			return std::unexpected(lease_failure::unavailable);
+		}
+		result->Ancestors                = std::move(*ancestors);
+		result->Root                     = std::move(*root);
+		const auto                  path = result->Root.Path / L"profile-runtime.lock";
+		private_security_attributes attributes;
+		if (!attributes.initialize(*security, windows_object_kind::regular_file)) {
+			return std::unexpected(lease_failure::unavailable);
+		}
+		// Zero sharing is the kernel ownership primitive and prevents replacement
+		// of this file until the last non-inheritable handle closes.
+		result->Lock = windows_handle{ ::CreateFileW(path.c_str(), GENERIC_READ | GENERIC_WRITE | READ_CONTROL,
+													 0U, attributes.attributes(), CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, nullptr) };
+		if (!result->Lock.valid()) {
+			auto error = ::GetLastError();
+			if (error == ERROR_FILE_EXISTS || error == ERROR_ALREADY_EXISTS) {
+				result->Lock = windows_handle{ ::CreateFileW(path.c_str(), GENERIC_READ | GENERIC_WRITE | READ_CONTROL,
+															 0U, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, nullptr) };
+				error        = result->Lock.valid() ? ERROR_SUCCESS : ::GetLastError();
+			}
+			if (!result->Lock.valid()) {
+				return std::unexpected(error == ERROR_SHARING_VIOLATION ? lease_failure::busy : lease_failure::unavailable);
+			}
+		}
+		if (!identity_of(result->Lock.Value, windows_object_kind::regular_file)
+			|| !validate_private_security(result->Lock.Value, *security, windows_object_kind::regular_file)
+			|| !path_matches_handle(result->Lock.Value, path)
+			|| !::SetHandleInformation(result->Lock.Value, HANDLE_FLAG_INHERIT, 0U)) {
+			return std::unexpected(lease_failure::unavailable);
+		}
+#else
+		class native_lease final : public application::profile_runtime_lease
+		{
+		public:
+			file_descriptor Root;
+		};
+		auto result = std::make_shared<native_lease>();
+		auto root   = open_private_directory(aRoot);
+		if (!root || !reliable_local_filesystem(*root)) {
+			return std::unexpected(lease_failure::unavailable);
+		}
+		result->Root = std::move(*root);
+		// Lock the directory inode itself: no removable lock-file name can split
+		// ownership, and independent opens conflict within this process too.
+		if (::flock(result->Root.Value, LOCK_EX | LOCK_NB) != 0) {
+			return std::unexpected(errno == EWOULDBLOCK || errno == EAGAIN ? lease_failure::busy : lease_failure::unavailable);
+		}
+		struct stat held{ };
+		struct stat named{ };
+		if (!validate_private_storage_root(aRoot) || ::fstat(result->Root.Value, &held) != 0
+			|| ::lstat(aRoot.c_str(), &named) != 0 || held.st_dev != named.st_dev || held.st_ino != named.st_ino) {
+			return std::unexpected(lease_failure::unavailable);
+		}
+#endif
+		if (aStop.stop_requested()) {
+			return std::unexpected(lease_failure::cancelled);
+		}
+		return result;
+	}
+
 	auto ensure_private_storage_child(const std::filesystem::path& aParent, const std::string_view aName)
 		-> std::expected<std::filesystem::path, state_directory_failure>
 	{

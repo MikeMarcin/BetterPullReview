@@ -7904,7 +7904,7 @@ auto main(int argc, char** argv) -> int
 		std::unique_ptr<bpr::app::profile_desktop> desktop;
 		auto                                       completed = [&](bpr::app::profile_desktop_startup_result aResult) {
 			if (!aResult) {
-				QTextStream{ stdout } << "STARTUP_FAILED\n";
+				QTextStream{ stdout } << (aResult.error() == bpr::app::github_application_startup_failure::owner_busy ? "PROFILE_ALREADY_OPEN\n" : "STARTUP_FAILED\n");
 				desktop->quit(EXIT_FAILURE);
 				return;
 			}

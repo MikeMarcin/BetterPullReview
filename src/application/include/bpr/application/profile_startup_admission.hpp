@@ -13,6 +13,7 @@ namespace bpr::application {
 		invalid_registry,
 		registry_unavailable,
 		root_unavailable,
+		owner_busy,
 		cancelled,
 		busy,
 		closing,

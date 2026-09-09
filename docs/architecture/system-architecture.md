@@ -77,8 +77,20 @@ Implementation Architecture](github-host-implementation.md).
 
 ## Profile and window ownership
 
-The desktop admits one runtime for each BPR profile after the management host
-commits its first core window context. The profile runtime owns private storage roots,
+Startup acquires a native exclusive lease for the exact validated private profile
+root before queue storage or runtime services are constructed. The desktop then
+lets the management host commit its first core window context. Open Profile also
+acquires admission before changing durable window generations. Contention returns
+`owner_busy` and preserves the other owner's windows; retries during failed-start
+cleanup cannot bypass admission. The lease outlives profile services and effect
+executors. POSIX uses a non-inherited directory-inode lock; Windows retains private
+validated directory handles and an exclusive non-inherited lock-file handle.
+Native process exit releases ownership without a PID-age or timeout override.
+Distinct profile roots may own independent runtimes. Cross-process activation and
+new-window transport remain required follow-up work; a repeated ordinary launch
+currently reports `PROFILE_ALREADY_OPEN` instead of activating the other process.
+
+The profile runtime owns private storage roots,
 authentication, provider capabilities, queue refresh, preferences, logging,
 epoch cache actors, shared drafts and workspace recovery. A window session owns
 its read host, epoch and diff state, selected review, navigation, Qt surface,

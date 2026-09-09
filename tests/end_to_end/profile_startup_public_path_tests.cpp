@@ -85,18 +85,20 @@ namespace {
 		aProfile.Runtime.reset();
 		aProfile.Startup.reset();
 	}
-	void expect_refusal(const std::filesystem::path& aRoot, const core::bpr_profile_id aProfile, const bool aCancel)
+	void expect_refusal(const std::filesystem::path& aRoot, const core::bpr_profile_id aProfile, const bool aCancel,
+						std::optional<app::github_application_startup_failure> aExpected = { })
 	{
 		QApplication::processEvents();
 		const auto windowCount      = QApplication::topLevelWidgets().size();
 		auto       terminal         = false;
 		auto       failed           = false;
 		auto       calls            = 0U;
+		auto       reason           = std::optional<app::github_application_startup_failure>{ };
 		auto       options          = app::detail::github_public_path_fixture_options{ };
 		options.ApplicationDataRoot = aRoot;
 		options.Profile             = aProfile;
 		auto startup                = github_application_fixture_access::start(app::detail::github_public_path_fixture::github_com,
-																			   options, [&](auto aResult) { terminal = true; failed = !aResult; ++calls; });
+																			   options, [&](auto aResult) { terminal = true; failed = !aResult; ++calls; if (!aResult) { reason = aResult.error(); } });
 		expect(!terminal, "refusal is queued on decision lane");
 		if (aCancel) {
 			startup->cancel();
@@ -104,6 +106,7 @@ namespace {
 		wait_for([&] { return terminal && startup->is_quiescent(); }, "refused startup settles");
 		QApplication::processEvents();
 		expect(failed && calls == 1U, "one failure terminal, no fallback runtime");
+		expect(!aExpected || reason == aExpected, "exact admission failure");
 		expect(QApplication::topLevelWidgets().size() == windowCount, "refused admission constructs no window");
 	}
 }
@@ -157,6 +160,10 @@ auto main(int aArgc, char** aArgv) -> int
 	mode->setCurrentIndex(mode->findData(static_cast<int>(core::appearance_mode::high_contrast_light)));
 	wait_for([&] { return work.Runtime->status().AppearanceDurableWrites > workWrites; }, "Work setting persists through owning host");
 	expect(original.Runtime->status().ProfileMode == core::appearance_mode::dark, "Work edit leaves Default appearance unchanged");
+	expect_refusal(root, core::bpr_profile_id{ 2U }, false, app::github_application_startup_failure::owner_busy);
+	work.Runtime->begin_shutdown();
+	wait_for([&] { return work.Runtime->status().ShutdownComplete; }, "Work drains before retained-lease test");
+	expect_refusal(root, core::bpr_profile_id{ 2U }, false, app::github_application_startup_failure::owner_busy);
 	stop(work);
 	expect(!original.Runtime->status().Closing, "closing Work leaves Default usable");
 	stop(original);

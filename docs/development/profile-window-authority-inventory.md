@@ -66,3 +66,20 @@ namespace/codec as canonical in place. Non-Default vault instances use new
 versioned namespaces containing profile identity and reject all foreign profile
 keys before native effects. Schema2 binding metadata scopes rows and permits
 schema1 adoption only by Default. No secret-copy/promotion transaction is needed.
+
+BPR-0711 adds native runtime exclusion after exact registry/root selection and
+before queue loading or profile service construction. The startup host's effect
+phase obtains the lease; composition transfers its lifetime to the profile owner,
+ahead of worker/service members in destruction order. Registry bootstrap remains
+a separately serialized global store operation and does not authorize a profile
+runtime. Opening a not-yet-owned profile first admits its runtime, reloads the
+global allocator, then requests the existing core window lifecycle. Closing or
+failed-start entries cannot bypass admission merely because their map key remains.
+Startup refusal consumes its callback exactly once, including shutdown reentry.
+
+The public process course uses two real fixture desktop processes and checks the
+existing owner's durable window rows after a competing launch and a synchronous
+Open retry. Cross-process activation/new-window transport is still absent. The
+global registry's existing compare-and-set conflicts still require explicit Reload
+Profiles before retry; this foundation does not add automatic cross-process
+preference synchronization, two-account acceptance or native package evidence.
