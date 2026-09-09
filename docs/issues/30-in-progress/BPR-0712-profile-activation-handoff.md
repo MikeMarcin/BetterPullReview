@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0712"
 title: "Route profile activation and new-window launches to the runtime owner"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0711"]
 metadata: {"dispatch":"UX-2026-09-08-D4","mandate_revision":1}
