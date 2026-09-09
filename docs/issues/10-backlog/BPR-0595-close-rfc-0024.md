@@ -302,7 +302,7 @@ geometry remain required later work. No further card was started in this milesto
 Writers and commands must be quiescent before the next integrator takes ownership;
 this local continuation grants no push, live provider mutation or publication.
 
-## Current continuation — 2026-09-08, D2
+## Prior continuation — 2026-09-08, D2
 
 Dispatch UX-2026-09-08-D2, mandate 1 completes [[BPR-0710]] at source/fixture
 candidate `60da0aee08da919c4df7e98395b1824eee238bfb` and final test candidate
@@ -344,3 +344,44 @@ native packaged acceptance from a fixture. Preserve the remaining fanout,
 two-account and native obligations. No next card was started here. Task writers
 and commands are quiescent before transfer; this continuation grants no push,
 live provider mutation, credentials or publication authority.
+
+## Current continuation — 2026-09-08, D3
+
+Dispatch UX-2026-09-08-D3, mandate 1 completes the bounded native ownership
+foundation [[BPR-0711]] at source/test candidate
+`3e7a26d61c1fed4d146f88d8c88b08f0e489213b`. Startup holds an exclusive native
+profile-root lease before queue/domain services. Open Profile admits the runtime
+before saving window generations; failed-start retry cannot bypass ownership.
+The lease outlives profile workers/services, and startup completion is one-shot
+even through shutdown on libc++. Native contention, independent roots, process
+death and exec inheritance have macOS evidence. Six real process invocations
+prove duplicate startup and synchronous retry leave the existing owner's durable
+windows unchanged while a distinct profile runs. All 11 integration checks pass
+174.06s; strengthened live-process lifetime check passes1.76s. The card records
+critical-review corrections, final format/tidy, Release inventory and doc gates.
+
+The full requested admission/activation objective was split at this demonstrable
+safety boundary: there is no existing activation IPC to reuse, and both runtime
+construction and durable window allocation first needed the ownership guard.
+Next bounded objective: inventory/allocate/claim the narrow cross-process
+activation/new-window handoff under AC-06, carrying stable profile identity and
+only the two admitted intents. An ordinary launch must activate the owner's MRU
+window; explicit New Window must route without creating a competing runtime or
+mutating the sender's window registry. Preserve bounded authentication/framing,
+owner-loss/closing outcomes, no timeout bypass and direct actual-process evidence.
+The current duplicate-launch result is `PROFILE_ALREADY_OPEN`, not activation.
+Different-profile registry CAS conflicts still use explicit Reload before retry.
+
+Anonymous selected-comparison limitations, native geometry, Windows/accessibility/
+packaged inventory, complete two-account isolation and same-review ledger fanout
+remain open. BPR-0683 remains parked; RFC-0028's three released attended candidates
+still require fresh preparation and actual verdicts. BPR-0593/BPR-0242 remain
+canonical terminal dependencies. RFC-0028 Home/layout authority and unscheduled
+browser-style file tabs are preserved. No RFC or pack closure is claimed.
+
+The named rfc-integrator role was unavailable; the coordinator explicitly
+designated this native integrator with requested Astra low. Bounded native worker
+and critical-review routes were used without changing that mandate. All task
+writers and commands are quiescent at transfer. Logs remain in ignored build
+directories; no worktree or external mutation was created. Local continuation
+grants no push, live GitHub mutation, credentials or publication authority.
