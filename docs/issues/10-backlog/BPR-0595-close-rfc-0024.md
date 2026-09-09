@@ -386,7 +386,7 @@ writers and commands are quiescent at transfer. Logs remain in ignored build
 directories; no worktree or external mutation was created. Local continuation
 grants no push, live GitHub mutation, credentials or publication authority.
 
-## Current continuation — 2026-09-08, D4
+## Prior continuation — 2026-09-08, D4
 
 Dispatch UX-2026-09-08-D4, mandate 1 completes [[BPR-0712]] at implementation
 candidate `a654669c7475d5b0254e071bbbdd25b3e4dfc20b`. On supported POSIX roots,
@@ -428,3 +428,45 @@ mutation was created; logs remain ignored under build directories. Named integra
 adapter and opposite-family review were unavailable; requested explicit native
 routes remain recorded without claiming serving telemetry. No push, live provider
 mutation, credentials or publication authority is granted by this continuation.
+
+## Current continuation — 2026-09-08, D5
+
+Dispatch UX-2026-09-08-D5, mandate 1 completes the bounded receipt and
+note/overview fanout card [[BPR-0713]] at implementation candidate
+`78d4fa5ca93b88e107d7c31c86a8d8f98d459ae4`. Accepted store writes coalesce onto
+the profile decision lane; exact durable review and account authority admits
+sibling refresh without transporting navigation state or candidate prose.
+Receipt reload does not write carried material. Selected-diff invalidation
+clears old retained receipts, and receipt changes refresh actionable order even
+when a sibling views a different file. Rejected note candidates remain separate.
+
+Final real two-file multi-window course passes83.73s with distinct selection/
+scroll preservation, receipt and note/overview fanout, different-PR isolation,
+pending-comparison receipt refusal and unselected actionable-file restoration.
+Affected final composition/inventory checks pass2/2 in37.01s. Host tests,
+architecture integration, format/tidy, tests-disabled Release inventory and
+documentation evidence are recorded on the card. Review's stale-receipt finding
+is corrected and directly exercised; narrow actionability recheck found no
+demonstrated blocker. Two rendered historical epochs, queued Close/account
+replacement and full rendered conversation/defect fanout are not claimed.
+
+Next bounded objective: inventory and allocate/claim the remaining same-review
+conversation and defect projections under AC-03. In particular, the window's
+`DurableDefects` cache is not reloaded by the new invalidation. Demonstrate
+accepted conversation/defect updates in independent views and reject stale
+delivery; add bounded cross-comparison evidence where needed. Do not infer this
+work is complete from receipt/note fanout or a cache-invalidation host test.
+
+Windows activation transport, long POSIX socket paths, native geometry/focus,
+package/accessibility evidence, complete two-account isolation and the anonymous
+selected-comparison limitation remain open. BPR-0593/BPR-0242 remain canonical
+terminal dependencies. BPR-0683 is parked and RFC-0028's three released attended
+candidates need fresh preparation and actual verdicts. RFC-0028 Home/layout
+authority and unscheduled browser-style tabs are unchanged. No RFC/pack closes.
+
+Named integrator and opposite-family review adapters were unavailable; the
+coordinator explicitly designated the requested Astra-low native integrator.
+Native workers and critical review were used without claiming serving telemetry.
+All task writers and commands are quiescent at transfer. No worktree or external
+mutation was created; logs remain ignored under build directories. This local
+continuation grants no push, live provider mutation, credentials or publication.
