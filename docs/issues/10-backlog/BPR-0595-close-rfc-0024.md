@@ -345,7 +345,7 @@ two-account and native obligations. No next card was started here. Task writers
 and commands are quiescent before transfer; this continuation grants no push,
 live provider mutation, credentials or publication authority.
 
-## Current continuation — 2026-09-08, D3
+## Prior continuation — 2026-09-08, D3
 
 Dispatch UX-2026-09-08-D3, mandate 1 completes the bounded native ownership
 foundation [[BPR-0711]] at source/test candidate
@@ -385,3 +385,9 @@ and critical-review routes were used without changing that mandate. All task
 writers and commands are quiescent at transfer. Logs remain in ignored build
 directories; no worktree or external mutation was created. Local continuation
 grants no push, live GitHub mutation, credentials or publication authority.
+
+## Current work — 2026-09-08, D4
+
+[[BPR-0712]] owns the narrow activation/new-window transport continuation.
+Its bounded acceptance and owned surfaces are recorded before implementation;
+full AC-06 and native/package evidence remain open.
