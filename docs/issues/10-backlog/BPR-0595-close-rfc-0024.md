@@ -386,8 +386,45 @@ writers and commands are quiescent at transfer. Logs remain in ignored build
 directories; no worktree or external mutation was created. Local continuation
 grants no push, live GitHub mutation, credentials or publication authority.
 
-## Current work — 2026-09-08, D4
+## Current continuation — 2026-09-08, D4
 
-[[BPR-0712]] owns the narrow activation/new-window transport continuation.
-Its bounded acceptance and owned surfaces are recorded before implementation;
-full AC-06 and native/package evidence remain open.
+Dispatch UX-2026-09-08-D4, mandate 1 completes [[BPR-0712]] at implementation
+candidate `a654669c7475d5b0254e071bbbdd25b3e4dfc20b`. On supported POSIX roots,
+ordinary launches activate the existing owner's MRU window and explicit
+`--new-window` launches allocate through that owner's durable management host.
+`--bpr-profile ID` selects stable identity. The sender has no runtime/window;
+fixed bounded authenticated framing carries no credentials or provider command.
+Lost replies remain indeterminate without automatic retries or ownership bypass.
+
+Native transport/lease tests pass2/2 in4.85s; the final actual-process activation
+course4.93s and owner course2.18s pass with zero fixture provider mutations.
+Existing startup1.71s, management1.63s, live multi-window62.42s, restart6.54s
+and management-host0.07s pass. The initial integration listener-ban failure is
+corrected by an exact local-only architecture exception; architecture7.25s and
+four discriminating exception cases pass. Final format/tidy, tests-disabled
+Release inventory, documentation and regression evidence is recorded on the card.
+
+Critical review's synchronous-busy reply leak is corrected. Its trigger/recovery
+has direct management-host evidence and the reply correction has source review;
+the exact composed post-delivery busy sequence remains unexercised. The public
+Close course proves pre-admission refusal during command delivery instead.
+Do not reinterpret that course as a held shutdown/read-terminal regression.
+Windows activation transport and overlong POSIX socket addresses remain explicitly
+unavailable; native packaged focus and full AC-06 remain open.
+
+Next bounded objective: inventory and implement same-review private-ledger
+projection fanout across sibling windows under AC-03, allocating/claiming its
+card first. Accepted receipt/note updates must reach another view of the exact
+same review without changing its PR, epoch, file, selection or scroll position;
+preserve exact profile/account/repository/PR authority and stale-result refusal.
+Complete two-account isolation, native geometry, anonymous comparison limits,
+Windows/accessibility/package evidence and canonical BPR-0593/BPR-0242 dependencies
+remain outstanding. BPR-0683 and RFC-0028's three released attended candidates
+still require fresh preparation and actual verdicts. RFC-0028 Home/layout and
+unscheduled browser-style tabs remain authoritative; no RFC/pack closure is claimed.
+
+All task writers and commands are quiescent at transfer. No worktree or external
+mutation was created; logs remain ignored under build directories. Named integrator
+adapter and opposite-family review were unavailable; requested explicit native
+routes remain recorded without claiming serving telemetry. No push, live provider
+mutation, credentials or publication authority is granted by this continuation.
