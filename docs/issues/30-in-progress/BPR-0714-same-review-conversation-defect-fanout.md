@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0714"
 title: "Refresh same-review conversation and defect projections"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0713"]
 metadata: {"dispatch":"UX-2026-09-08-D6","mandate_revision":1}
