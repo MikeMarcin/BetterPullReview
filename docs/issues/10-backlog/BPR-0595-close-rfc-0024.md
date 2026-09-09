@@ -272,7 +272,7 @@ Its card remains In Progress pending actual authenticated/anonymous restart
 acceptance and failure-path evidence. No RFC completion is claimed. Continue
 from that card rather than starting the next UX slice.
 
-## Current continuation — 2026-09-08
+## Prior continuation — 2026-09-08, D1
 
 Dispatch UX-2026-09-08-D1, mandate 1 completes BPR-0709's accepted-destination
 milestone at source/test candidate `ce63c67b1e82987a6cbec7ac5b60fc7f47300917`.
@@ -301,3 +301,46 @@ same-review ledger projection fanout, complete two-account isolation and native
 geometry remain required later work. No further card was started in this milestone.
 Writers and commands must be quiescent before the next integrator takes ownership;
 this local continuation grants no push, live provider mutation or publication.
+
+## Current continuation — 2026-09-08, D2
+
+Dispatch UX-2026-09-08-D2, mandate 1 completes [[BPR-0710]] at source/fixture
+candidate `60da0aee08da919c4df7e98395b1824eee238bfb` and final test candidate
+`377f43523630a0c8d304d1c377c32dbff2fc8468`. Independent windows now retain exact
+comparison anchors/OIDs, file and semantic selection across Quit/restart.
+Version-one PR-only rows migrate transactionally; unavailable identities/content
+fail explicitly without replacing the saved pair or selecting a nearby line.
+Actual installed-Git processes prove distinct files and cross-upload pairs from
+two sibling upload heads, including an older head absent from the replacement
+pack. Full31 passes790.66s; final nine changed/unchanged/Home race processes pass
+after the Qt notification fix. Registered34 is not claimed as a full34 run.
+The card records focused core/host/storage, Qt, Release absence/inventory,
+independent review and the six integration outcomes with exact local logs.
+
+Important boundaries: missing catalog rows mean absence rather than retryable
+authority mismatch; same-file restoration must request a diff refresh; accepted
+PR replacement rebinds ownership after invalidation; Home suppresses late saves;
+cancelled comparisons retire exact request/generation; unchanged native gestures
+retain their position without an external selection notification. Controlled
+public event ordering proves cancellation, not physical race timing. Copied
+inode-bound caches are unavailable evidence, not successful restoration roots.
+The multi-window integration wait now observes physical session retirement,
+not merely hidden UI, and passes61.18s; production status semantics are unchanged.
+
+Anonymous destination evidence still has the existing unselected-comparison
+limitation. Held-comparison cancellation has direct core evidence, not a held
+public comparison course. Native geometry, Windows/screen-reader/packaged
+inventory, complete two-account isolation and same-review ledger fanout remain
+open. BPR-0683 remains parked at `93c3e182`; its three released attended
+candidates have no verdict and need fresh preparation. BPR-0593/BPR-0242 remain
+canonical terminal dependencies. RFC-0028 Home/layout authority and unscheduled
+browser-style file tabs are unchanged; no RFC or pack closure is claimed.
+
+Next bounded objective: inventory and allocate/claim a host-owned cross-process
+runtime admission slice under RFC-0024 AC-06 on available targets. Demonstrate
+one profile owner across repeated launches, safe activation or explicit
+new-window handoff and independent different-profile ownership; do not infer
+native packaged acceptance from a fixture. Preserve the remaining fanout,
+two-account and native obligations. No next card was started here. Task writers
+and commands are quiescent before transfer; this continuation grants no push,
+live provider mutation, credentials or publication authority.
