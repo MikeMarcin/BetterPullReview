@@ -429,7 +429,7 @@ adapter and opposite-family review were unavailable; requested explicit native
 routes remain recorded without claiming serving telemetry. No push, live provider
 mutation, credentials or publication authority is granted by this continuation.
 
-## Current continuation — 2026-09-08, D5
+## Prior continuation — 2026-09-08, D5
 
 Dispatch UX-2026-09-08-D5, mandate 1 completes the bounded receipt and
 note/overview fanout card [[BPR-0713]] at implementation candidate
@@ -470,3 +470,53 @@ Native workers and critical review were used without claiming serving telemetry.
 All task writers and commands are quiescent at transfer. No worktree or external
 mutation was created; logs remain ignored under build directories. This local
 continuation grants no push, live provider mutation, credentials or publication.
+
+## Current continuation — 2026-09-08, D6, mandate revision 2
+
+M6 completes the bounded private conversation-receipt and durable-defect
+projection slice [[BPR-0714]] at implementation candidate
+`4961ff64499e494f703ca05d15039dc24c51db50`. Exact-authority invalidation now
+reloads `DurableDefects` and presents accepted records without calling correlation
+or writing against a recipient's file/epoch. Failed reload keeps the prior
+accepted projection. Existing window/account-generation guards remain unchanged.
+
+The final real multi-window course passes84.64s. Public Mark read reaches the
+sibling; classification and critical reclassification retain identical defect
+and available-context projections while the sibling reads another file;
+comparison, selection and scroll remain independent. Queued withdrawal before
+PR replacement cannot expose old defects. The final card records exact logs,
+two full-window comparisons and supplemental renders of the actual defect cards.
+Those cards are clipped below the full-window viewport, an existing layout
+limitation that this slice does not accept as native visibility or accessibility.
+Independent medium review found no source blocker; its availability-coverage
+gap is addressed by the rendered context-label assertions. Direct write counters,
+failed-reload injection and two rendered historical epochs are not claimed.
+
+Architecture, ledger composition and development inventory pass; the older
+defect composition course passes54.00s after its fixture root adopts the same
+owner-only permissions as the existing ledger course. The updated reading
+fixture uses a non-viewer synthetic commenter so unread behavior is meaningful.
+The affected three-process seed/advance/restore regression passes; it does not
+claim the full34 restoration matrix. Final format/tidy, tests-disabled Release
+build/inventory and documentation/62-test regression evidence pass.
+
+User mandate revision 2 says stop after M6. No next milestone is started or
+claimed. On a later authorized invocation, the next bounded objective is to
+inventory and allocate/claim server-conversation snapshot sharing under AC-03:
+new/edited/deleted posts and resolve/reopen observations still belong to each
+window read host. Preserve independent comparison/navigation and exact current
+authority; private receipt/defect fanout is not proof of provider snapshot fanout.
+
+Full two-account isolation, anonymous selected-comparison limitations, Windows
+activation transport, long POSIX socket paths, native geometry/focus,
+package/accessibility and canonical BPR-0593/BPR-0242 dependencies remain open.
+BPR-0683 remains parked; RFC-0028's three released attended candidates require
+fresh preparation and actual verdicts. RFC-0028 Home/layout authority and
+unscheduled browser-style tabs remain unchanged. No RFC or pack closes.
+
+Named integrator and opposite-family adapters were unavailable; the designated
+native integrator retained requested Astra low and used native worker/reviewer
+routes, without observed serving telemetry. All task writers and commands are
+quiescent. No worktree or external mutation was created. Copied temporary renders
+were removed after byte comparison; retained artifacts/logs live in ignored build
+directories. This handoff grants no push, publication or live-provider authority.

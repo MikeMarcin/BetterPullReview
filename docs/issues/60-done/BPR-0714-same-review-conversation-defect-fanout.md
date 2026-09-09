@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0714"
 title: "Refresh same-review conversation and defect projections"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0713"]
 metadata: {"dispatch":"UX-2026-09-08-D6","mandate_revision":2}
+acceptance: [{"criterion":"Accepted private conversation receipt and defect projection fanout","outcome":"pass","revision":"4961ff64499e494f703ca05d15039dc24c51db50","evidence":{"kind":"observation","detail":"Final actual multi-window course passes84.64s: public Mark read, classification and critical reclassification reach sibling on another file; exact defect/context label, comparison, selection and scroll preserved; queued withdrawal before PR replacement cannot expose old defects. Full server snapshot fanout remains open."}},{"criterion":"Read-only reload and authority preservation","outcome":"pass","revision":"4961ff64499e494f703ca05d15039dc24c51db50","evidence":{"kind":"observation","detail":"Independent medium source review finds no blocker: private_observation and present_defects bypass correlation/writeback and retain existing exact authority/lifetime guards. Rendered context availability assertion addresses review coverage gap. No direct write counter or failed-load injection claimed."}},{"criterion":"Focused integration and regression","outcome":"pass","revision":"4961ff64499e494f703ca05d15039dc24c51db50","evidence":{"kind":"command","detail":"Architecture9.63s, ledger38.61s, development inventory1.88s pass; corrected old defect course54.00s passes. Three-process auth seed/advance/restore passes after fixture commenter change. Format/tidy, tests-disabled Release build and inventory required30 forbidden7, documentation and62 regressions pass. Exact evidence and limitations recorded on card and BPR-0595."}}]
 ---
 
 # Refresh same-review conversation and defect projections
