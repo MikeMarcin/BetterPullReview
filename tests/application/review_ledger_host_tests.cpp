@@ -1,3 +1,4 @@
+#include "bpr/application/observing_review_ledger_store.hpp"
 #include "bpr/application/review_ledger_application_host.hpp"
 
 #include <algorithm>
@@ -5,7 +6,9 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -44,6 +47,9 @@ namespace {
 		auto commit(const application::receipt_persistence_request& aRequest)
 			-> std::expected<void, application::ledger_store_failure> override
 		{
+			if (ThrowOnCommit) {
+				throw std::runtime_error{ "store write failure" };
+			}
 			Log->emplace_back("request");
 			Requests.push_back(aRequest);
 			if (NextFailure) {
@@ -57,11 +63,15 @@ namespace {
 			return { };
 		}
 
-		auto load(const core::file_identity& /*aFile*/)
+		auto load(const core::file_identity& aFile)
 			-> std::expected<
 				std::optional<core::file_receipt>,
 				application::ledger_store_failure> override
 		{
+			LastLoadedFile = aFile;
+			if (ThrowOnLoad) {
+				throw std::runtime_error{ "store failure" };
+			}
 			if (const auto failure = take_failure()) {
 				Log->emplace_back("load-refused");
 				return std::unexpected(*failure);
@@ -246,6 +256,9 @@ namespace {
 		}
 
 		std::vector<application::receipt_persistence_request> Requests;
+		bool                                                  ThrowOnLoad   = false;
+		bool                                                  ThrowOnCommit = false;
+		core::file_identity                                   LastLoadedFile;
 		std::optional<core::file_receipt>                     Committed;
 		application::private_ledger_observation               Private;
 		application::agent_session_catalog_state              Catalog{
@@ -942,10 +955,108 @@ namespace {
 			   "stale deletion has a distinct typed projection with its accepted competitor");
 	}
 
+	void test_accepted_write_observer()
+	{
+		auto       log     = event_log{ };
+		auto       owned   = std::make_unique<recording_store>(log);
+		auto*      raw     = owned.get();
+		auto       changes = std::vector<application::ledger_change>{ };
+		auto       store   = application::observing_review_ledger_store{ std::move(owned), [&changes](application::ledger_change aChange) { changes.push_back(aChange); } };
+		const auto receipt = seeded_receipt();
+		raw->fail_next(application::ledger_store_failure::unavailable);
+		expect(!store.commit({ .Receipt = receipt }) && changes.empty(), "failed commit emits no invalidation");
+		expect(store.commit({ .Receipt = receipt }).has_value() && changes == std::vector{ application::ledger_change{ .Domain = application::ledger_change_domain::receipt, .File = receipt.File } }, "receipt success carries exact file");
+		const auto created = store.store_note(private_note());
+		expect(created && created->Revision.value() == 1U, "direct agent-style note write forwards assigned revision");
+		const auto count   = changes.size();
+		const auto refused = store.store_note(private_note());
+		expect(!refused && refused.error().Current == *created && changes.size() == count, "CAS conflict preserves current record without notification");
+		const auto edited = store.store_note(private_note(), created->Revision);
+		expect(edited && edited->Revision.value() == 2U, "expected revision forwards exactly");
+		expect(!store.erase_note(edited->Id, created->Revision), "stale delete refused");
+		expect(store.erase_note(edited->Id, edited->Revision).has_value(), "exact delete forwarded");
+		expect(store.store_conversation_receipt({ .Conversation = core::review_conversation_id{ 1U } }).has_value() && changes.back().Domain == application::ledger_change_domain::conversation, "conversation success identifies domain");
+		expect(store.store_last_reviewed_head(reviewed_head()).has_value(), "head write forwarded");
+		expect(store.erase_last_reviewed_head().has_value(), "head delete forwarded");
+		expect(store.store_defect(private_defect()).has_value(), "defect write forwarded");
+		expect(store.erase_defect(private_defect().History.Defect.Id).has_value(), "defect delete forwarded");
+		expect(store.admit_agent_session(session_admission()).has_value(), "session admission forwarded");
+		const auto afterWrites = changes.size();
+		expect(afterWrites == 10U && changes.back().Domain == application::ledger_change_domain::private_records, "every successful mutation signals exactly once");
+		const auto failsSilently = [&raw, &changes, afterWrites](auto aOperation) {
+			raw->fail_next(application::ledger_store_failure::unavailable);
+			expect(!aOperation() && changes.size() == afterWrites, "failed mutation forwards failure without signal");
+		};
+		failsSilently([&store] { return store.store_note(private_note()); });
+		failsSilently([&store, &edited] { return store.erase_note(edited->Id, edited->Revision); });
+		failsSilently([&store] { return store.store_conversation_receipt({ .Conversation = core::review_conversation_id{ 1U } }); });
+		failsSilently([&store] { return store.store_last_reviewed_head(reviewed_head()); });
+		failsSilently([&store] { return store.erase_last_reviewed_head(); });
+		failsSilently([&store] { return store.store_defect(private_defect()); });
+		failsSilently([&store] { return store.erase_defect(private_defect().History.Defect.Id); });
+		failsSilently([&store] { return store.admit_agent_session(session_admission()); });
+		expect(store.load(receipt.File).has_value() && store.load_private().has_value() && store.load_conversation_receipts().has_value() && store.load_agent_session_catalog().has_value() && changes.size() == afterWrites, "all reads remain silent");
+		raw->ThrowOnLoad = true;
+		auto threw       = false;
+		try {
+			static_cast<void>(store.load(receipt.File));
+		} catch (const std::runtime_error&) {
+			threw = true;
+		}
+		expect(threw && changes.size() == afterWrites, "store exceptions propagate without signal");
+		raw->ThrowOnCommit = true;
+		threw              = false;
+		try {
+			static_cast<void>(store.commit({ .Receipt = receipt }));
+		} catch (const std::runtime_error&) {
+			threw = true;
+		}
+		expect(threw && changes.size() == afterWrites, "store write exceptions propagate without signal");
+		auto throwing = application::observing_review_ledger_store{ std::make_unique<recording_store>(log), [](application::ledger_change) { throw std::runtime_error{ "observer failure" }; } };
+		expect(throwing.commit({ .Receipt = receipt }).has_value() && throwing.load(receipt.File).value() == receipt, "observer exception cannot veto durable success");
+	}
+
+	void test_sibling_refresh_is_observation_only()
+	{
+		auto log        = event_log{ };
+		auto store      = recording_store{ log };
+		auto projection = recording_projection{ log };
+		auto host       = application::review_ledger_application_host{ store, projection };
+		auto selected   = seeded_receipt();
+		host.retain(selected);
+		auto accepted     = selected;
+		accepted.Accepted = true;
+		accepted.Read     = core::file_read_state::read;
+		store.Committed   = accepted;
+		expect(host.refresh_receipt().value() == accepted && projection.Published.back().Receipt == accepted, "same material accepts sibling receipt");
+		selected.Material = opaque<core::file_material_id>(99U);
+		host.retain(selected);
+		const auto refreshed = host.refresh_receipt();
+		expect(refreshed && refreshed->File == selected.File && refreshed->Material == selected.Material && !refreshed->Accepted && refreshed->Read == core::file_read_state::unread, "different selected material carries through core in memory");
+		expect(store.Requests.empty() && store.Committed == accepted, "sibling carry never overwrites durable receipt");
+		store.Committed->File    = opaque<core::file_identity>(88U);
+		const auto beforeFailure = host.retained();
+		expect(!host.refresh_receipt() && host.retained() == beforeFailure, "wrong file store response cannot replace retained selection");
+		store.Committed.reset();
+		expect(host.refresh_receipt().value() == selected, "absent durable receipt resets exact selected material in memory");
+		expect(store.LastLoadedFile == selected.File, "refresh loads only currently retained file");
+		const auto note = host.persist(private_note());
+		expect(note.has_value(), "seed accepted note");
+		expect(!host.persist(private_note()), "retain rejected candidate");
+		const auto rejected = host.rejected_note();
+		expect(host.refresh_receipt().has_value() && host.rejected_note() == rejected, "receipt refresh preserves rejected note candidate");
+		expect(host.observe_conversations({ }).has_value(), "prime conversation cache");
+		const auto loads = host.statistics().ConversationLoads;
+		host.invalidate_conversation_receipts();
+		expect(host.observe_conversations({ }).has_value() && host.statistics().ConversationLoads == loads + 1U && store.Requests.empty(), "sibling conversation invalidation reloads without writes");
+	}
+
 } // namespace
 
 auto main() -> int
 {
+	test_accepted_write_observer();
+	test_sibling_refresh_is_observation_only();
 	test_hostile_note_competitors_are_bounded_before_projection();
 	test_note_conflicts_retain_exact_window_candidate();
 	test_the_projection_follows_the_commit();

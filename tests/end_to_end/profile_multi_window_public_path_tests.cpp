@@ -4,6 +4,7 @@
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/profile_management_window.hpp"
+#include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 
@@ -20,6 +21,7 @@
 #include <QPixmap>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QScrollBar>
 #include <QTemporaryDir>
 #include <QThread>
 
@@ -101,11 +103,13 @@ namespace {
             } }, 60000);
 		aWindow.modality()->action(qt::review_modality::read)->trigger();
 		auto* files = aWindow.files_drawer()->contents_view();
-		wait_for([&] { return files->model()->rowCount() > 0; }, "accepted review lists files");
-		files->selectionModel()->setCurrentIndex(files->model()->index(0, 0), QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+		auto* model = aWindow.files_drawer()->contents();
+		wait_for([&] { return model->index_for_file(core::file_identity_of("review.cpp")).isValid(); }, "accepted review lists the exact requested file");
+		files->selectionModel()->clearCurrentIndex();
+		files->selectionModel()->setCurrentIndex(model->index_for_file(core::file_identity_of("review.cpp")), QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
 		wait_for([&] {
 			auto* surface = aWindow.comparison_surface();
-			return surface->current_result() && surface->current_semantic_index() && !surface->geometry_pending() && surface->isVisible(); },
+			return surface->current_result() && surface->current_result()->Alignment.Key.File == core::file_identity_of("review.cpp") && surface->current_semantic_index() && !surface->geometry_pending() && surface->isVisible(); },
 				 "selected file produces an actual comparison", [&] {
                 auto* surface = aWindow.comparison_surface();
                 std::cerr << "comparison status=" << aWindow.status_text().toStdString()
@@ -140,7 +144,7 @@ auto main(int aArgc, char** aArgv) -> int
 	app::github_application* owner    = nullptr;
 	auto                     terminal = false;
 	auto                     desktop  = app::detail::github_application_fixture_access::start_desktop(
-		app::detail::github_public_path_fixture::github_com, options, [&](auto aResult) {
+		app::detail::github_public_path_fixture::profile_window_restoration_v1, options, [&](auto aResult) {
 			terminal = true;
 			if (aResult) {
 				owner = *aResult;
@@ -214,13 +218,50 @@ auto main(int aArgc, char** aArgv) -> int
 	expect(comparisonA->Alignment.Key.PullRequest == snapshotA->PullRequest.PullRequest && comparisonB->Alignment.Key.PullRequest == snapshotB->PullRequest.PullRequest, "each displayed comparison names its accepted PR");
 	expect(comparisonA->Alignment.Key != comparisonB->Alignment.Key, "different PR windows retain distinct exact comparison keys");
 	const auto selectionB = windowB->comparison_surface()->selection();
-	expect(windowA->comparison_surface()->navigate_change(core::change_navigation_direction::next, core::change_navigation_policy::stop), "first window supports semantic navigation");
+	expect(windowA->comparison_surface()->select_conversation_line(core::diff_side::right, 2U), "first window supports exact semantic line selection");
 	expect(windowA->comparison_surface()->selection().has_value(), "first window receives semantic selection");
 	expect(windowB->comparison_surface()->selection() == selectionB && windowB->comparison_surface()->current_result() == comparisonB,
 		   "navigation in first window preserves second comparison and selection");
 	expect(windowA->comparison_surface()->current_result() == comparisonA, "sibling file selection preserved first comparison");
 	capture(*windowA, QStringLiteral("window-a.png"));
 	capture(*windowB, QStringLiteral("window-b.png"));
+	const auto unrelatedReceiptB = windowB->review_editor()->shown_receipt();
+	action(*windowA, "toggleSelectedFileReadAction")->trigger();
+	wait_for([&] { return windowA->review_editor()->shown_receipt() && windowA->review_editor()->shown_receipt()->Read == core::file_read_state::read; }, "first review accepts the public receipt action");
+	QApplication::processEvents();
+	expect(windowB->review_editor()->shown_receipt() == unrelatedReceiptB
+			   && windowB->comparison_surface()->current_result() == comparisonB
+			   && windowB->comparison_surface()->selection() == selectionB,
+		   "receipt writes in PR17 do not change PR18's receipt or comparison");
+	// The existing private-note seed writes through A's composed ledger host.
+	// Observe the resulting public overview in another session of the same PR.
+	submit(*windowB, 17);
+	wait_for([&] { return windowB->session_panel()->status() == core::github_status::pull_request_ready; }, "second window temporarily opens first review for note fanout");
+	select_file(*owner, *windowB);
+	const auto noteComparisonB = windowB->comparison_surface()->current_result();
+	const auto noteSelectionB  = windowB->comparison_surface()->selection();
+	const auto noteSelectionA  = windowA->comparison_surface()->selection();
+	const auto noteScrollB     = windowB->comparison_surface()->shared_scrollbar()->value();
+	expect(app::detail::github_application_fixture_access::seed_agent_private_context_canary(*owner, "First shared private fixture note", "Second shared private fixture note"), "private notes persist through the composed ledger");
+	wait_for([&] {
+		return windowA->overview_page()->projection() && windowB->overview_page()->projection()
+			&& windowA->overview_page()->projection()->Progress.PrivateNotes == 2U
+			&& windowB->overview_page()->projection()->Progress.PrivateNotes == 2U;
+	},
+			 "accepted private notes refresh both exact-review overviews");
+	expect(windowA->overview_page()->value_label(qt::overview_value::private_notes)->text() == QStringLiteral("2")
+			   && windowB->overview_page()->value_label(qt::overview_value::private_notes)->text() == QStringLiteral("2"),
+		   "both overview labels render the accepted private-note count");
+	expect(windowA->comparison_surface()->current_result() == comparisonA
+			   && windowA->comparison_surface()->selection() == noteSelectionA
+			   && windowB->comparison_surface()->current_result() == noteComparisonB
+			   && windowB->comparison_surface()->selection() == noteSelectionB
+			   && windowB->comparison_surface()->shared_scrollbar()->value() == noteScrollB,
+		   "private-note fanout preserves independent comparisons and reading position");
+	submit(*windowB, 18);
+	wait_for([&] { return windowB->session_panel()->status() == core::github_status::pull_request_ready; }, "second window returns to its independent review");
+	select_file(*owner, *windowB);
+	expect(windowB->overview_page()->projection() && windowB->overview_page()->projection()->Progress.PrivateNotes == 0U, "replacement review does not inherit another PR's private notes");
 	app::detail::github_application_fixture_access::hold_window_read_terminal(*owner, second, true);
 	windowB->github_refresh_action()->trigger();
 	wait_for([&] { return app::detail::github_application_fixture_access::held_window_read_terminals(*owner, second) > 0U; }, "surviving window has a real read completion pending");
@@ -263,8 +304,42 @@ auto main(int aArgc, char** aArgv) -> int
 	submit(*windowC, 18);
 	wait_for([&] { return windowC->session_panel()->status() == core::github_status::pull_request_ready; }, "replacement opens sibling PR without another sign-in");
 	select_file(*owner, *windowC);
-	expect(windowB->comparison_surface()->navigate_change(core::change_navigation_direction::next, core::change_navigation_policy::stop)
-			   && windowC->comparison_surface()->navigate_change(core::change_navigation_direction::next, core::change_navigation_policy::stop),
+	wait_for([&] { return windowB->review_editor()->shown_receipt() && windowC->review_editor()->shown_receipt(); }, "same-review windows receive selected-file receipts");
+	expect(windowB->comparison_surface()->select_conversation_line(core::diff_side::right, 1U)
+			   && windowC->comparison_surface()->select_conversation_line(core::diff_side::right, 3U),
+		   "same-review windows choose distinct recorded source lines before receipt fanout");
+	expect(windowC->comparison_surface()->selection().has_value()
+			   && windowC->comparison_surface()->selection() != windowB->comparison_surface()->selection(),
+		   "same-review receipt course starts with distinct semantic reading positions");
+	const auto receiptComparisonB = windowB->comparison_surface()->current_result();
+	const auto receiptComparisonC = windowC->comparison_surface()->current_result();
+	const auto receiptSelectionB  = windowB->comparison_surface()->selection();
+	const auto receiptSelectionC  = windowC->comparison_surface()->selection();
+	const auto receiptScrollB     = windowB->comparison_surface()->shared_scrollbar()->value();
+	const auto receiptScrollC     = windowC->comparison_surface()->shared_scrollbar()->value();
+	expect(windowB->review_editor()->shown_receipt()->Read != core::file_read_state::read
+			   && windowB->review_editor()->shown_receipt()->File == windowC->review_editor()->shown_receipt()->File
+			   && windowB->review_editor()->shown_receipt()->Material == windowC->review_editor()->shown_receipt()->Material,
+		   "receipt course starts with the same exact unread file material");
+	action(*windowB, "toggleSelectedFileReadAction")->trigger();
+	wait_for([&] {
+		return windowB->review_editor()->shown_receipt() && windowC->review_editor()->shown_receipt()
+			&& windowB->review_editor()->shown_receipt()->Read == core::file_read_state::read
+			&& windowC->review_editor()->shown_receipt() == windowB->review_editor()->shown_receipt();
+	},
+			 "public read action refreshes the sibling's accepted receipt");
+	expect(windowB->comparison_surface()->current_result() == receiptComparisonB
+			   && windowC->comparison_surface()->current_result() == receiptComparisonC
+			   && windowB->comparison_surface()->selection() == receiptSelectionB
+			   && windowC->comparison_surface()->selection() == receiptSelectionC
+			   && windowB->comparison_surface()->shared_scrollbar()->value() == receiptScrollB
+			   && windowC->comparison_surface()->shared_scrollbar()->value() == receiptScrollC,
+		   "receipt fanout preserves each exact comparison, semantic selection, and scroll");
+	expect(receiptComparisonB->Alignment.Key.PullRequest == snapshotB->PullRequest.PullRequest
+			   && receiptComparisonC->Alignment.Key.PullRequest == snapshotB->PullRequest.PullRequest,
+		   "receipt delivery retains both windows' selected PR identity");
+	expect(windowB->comparison_surface()->select_conversation_line(core::diff_side::right, 2U)
+			   && windowC->comparison_surface()->select_conversation_line(core::diff_side::right, 2U),
 		   "both windows select the same review anchor");
 	wait_for([&] { return windowB->review_editor()->shown_draft() && windowC->review_editor()->shown_draft(); }, "both actual editors receive a local draft");
 	expect(windowB->review_editor()->shown_draft()->Anchor == windowC->review_editor()->shown_draft()->Anchor, "shared draft course uses identical comparison and line");
@@ -272,6 +347,59 @@ auto main(int aArgc, char** aArgv) -> int
 	wait_for([&] { return windowC->review_editor()->body_editor()->toPlainText() == QStringLiteral("Shared profile draft from surviving window"); }, "accepted draft edit reaches sibling editor");
 	windowC->review_editor()->body_editor()->setPlainText(QStringLiteral("Shared profile draft edited in replacement"));
 	wait_for([&] { return windowB->review_editor()->body_editor()->toPlainText() == QStringLiteral("Shared profile draft edited in replacement"); }, "replacement edit returns through shared owner");
+	// Queue the sibling write before starting a different-file request. Observe
+	// action transitions throughout delivery, including before Git completes.
+	auto*      pendingReceiptAction            = action(*windowC, "toggleSelectedFileReadAction");
+	auto       receiptEnabledWithoutComparison = false;
+	auto       observingPendingReceipt         = false;
+	const auto pendingReceiptConnection        = QObject::connect(pendingReceiptAction, &QAction::changed, windowC, [&] {
+		if (observingPendingReceipt && pendingReceiptAction->isEnabled() && !windowC->comparison_surface()->current_result()) {
+			receiptEnabledWithoutComparison = true;
+		}
+	});
+	const auto pendingComparisonB              = windowB->comparison_surface()->current_result();
+	const auto pendingSelectionB               = windowB->comparison_surface()->selection();
+	auto*      pendingFiles                    = windowC->files_drawer()->contents_view();
+	expect(pendingFiles->model()->rowCount() == 2, "pending selection course has two recorded files");
+	action(*windowB, "toggleSelectedFileReadAction")->trigger();
+	pendingFiles->selectionModel()->setCurrentIndex(windowC->files_drawer()->contents()->index_for_file(core::file_identity_of("secondary.cpp")), QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+	expect(!windowC->comparison_surface()->current_result() && !windowC->review_editor()->shown_receipt()
+			   && !pendingReceiptAction->isEnabled() && !windowC->review_editor()->mark_read_action()->isEnabled()
+			   && !windowC->review_editor()->accept_action()->isEnabled() && !windowC->review_editor()->exclude_action()->isEnabled(),
+		   "beginning the second-file comparison immediately clears the old receipt and actions");
+	// Arm after synchronous presentation has finished changing labels and
+	// disabling the actions; no queued ledger or Git terminal has run yet.
+	observingPendingReceipt = true;
+	wait_for([&] {
+		const auto result = windowC->comparison_surface()->current_result();
+		return result && result->Alignment.Key.File == core::file_identity_of("secondary.cpp")
+			&& windowC->review_editor()->shown_receipt() && !windowC->comparison_surface()->geometry_pending();
+	},
+			 "second recorded file completes after sibling receipt delivery");
+	QObject::disconnect(pendingReceiptConnection);
+	expect(!receiptEnabledWithoutComparison, "sibling fanout never enables a receipt against an unresolved comparison");
+	expect(windowC->review_editor()->shown_receipt()->File == windowC->comparison_surface()->current_result()->Alignment.Key.File
+			   && windowC->review_editor()->shown_receipt()->Read != core::file_read_state::read,
+		   "second-file receipt belongs to its own material rather than the sibling's file");
+	expect(windowB->comparison_surface()->current_result() == pendingComparisonB
+			   && windowB->comparison_surface()->selection() == pendingSelectionB,
+		   "sibling file replacement preserves the writer's comparison and reading position");
+	select_file(*owner, *windowC);
+	wait_for([&] { return windowC->review_editor()->shown_receipt() && windowC->review_editor()->shown_receipt()->Read == core::file_read_state::unread; }, "returning to the first file loads its accepted shared receipt");
+	action(*windowB, "toggleSelectedFileReadAction")->trigger();
+	wait_for([&] { return windowB->review_editor()->shown_receipt() && windowC->review_editor()->shown_receipt()
+					   && windowB->review_editor()->shown_receipt()->Read == core::file_read_state::read
+					   && windowC->review_editor()->shown_receipt() == windowB->review_editor()->shown_receipt(); }, "same-file receipt state is restored before PR replacement");
+	// Replace C's review before queued receipt notifications can be delivered.
+	action(*windowB, "toggleSelectedFileReadAction")->trigger();
+	submit(*windowC, 17);
+	wait_for([&] { return windowC->session_panel()->status() == core::github_status::pull_request_ready; }, "replacement review opens with a sibling receipt notification pending");
+	select_file(*owner, *windowC);
+	wait_for([&] { return windowB->review_editor()->shown_receipt() && windowB->review_editor()->shown_receipt()->Read == core::file_read_state::unread; }, "surviving PR18 accepts its receipt toggle");
+	expect(windowC->comparison_surface()->current_result()->Alignment.Key.PullRequest == snapshotA->PullRequest.PullRequest
+			   && windowC->review_editor()->shown_receipt() && windowC->review_editor()->shown_receipt()->Read == core::file_read_state::read
+			   && windowC->overview_page()->projection() && windowC->overview_page()->projection()->Progress.PrivateNotes == 2U,
+		   "late PR18 receipt delivery cannot replace PR17's accepted receipt or private notes");
 	action(*windowB, "quitProfilesAction")->trigger();
 	wait_for([&] { return desktop->is_quiescent(); }, "Quit drains all sessions and shared profile services");
 	desktop.reset();

@@ -222,6 +222,44 @@ namespace bpr::application {
 		return publication.Receipt;
 	}
 
+	auto review_ledger_application_host::refresh_receipt()
+		-> std::expected<core::file_receipt, ledger_store_failure>
+	{
+		auto publication = receipt_projection{ };
+		{
+			const auto lock = std::scoped_lock{ Mutex };
+			++Statistics.ReceiptLoads;
+			const auto loaded = Store->load(Retained.File);
+			if (!loaded) {
+				++Statistics.StoreFailures;
+				return std::unexpected(loaded.error());
+			}
+			if (*loaded && (**loaded).File != Retained.File) {
+				++Statistics.StoreFailures;
+				return std::unexpected(ledger_store_failure::integrity_failure);
+			}
+			const auto observation = core::file_material_observation{
+				.File = Retained.File, .Material = Retained.Material
+			};
+			if (*loaded) {
+				++Statistics.ReceiptLoadHits;
+				Retained = core::carry_over(**loaded, observation).Receipt;
+			} else {
+				Retained = core::file_receipt{ .File = observation.File, .Material = observation.Material };
+			}
+			publication.Receipt = Retained;
+			++Statistics.Publications;
+		}
+		Projection->publish(publication);
+		return publication.Receipt;
+	}
+
+	void review_ledger_application_host::invalidate_conversation_receipts()
+	{
+		const auto lock = std::scoped_lock{ Mutex };
+		ConversationReceipts.reset();
+	}
+
 	auto review_ledger_application_host::load_receipt(const core::file_identity& aFile)
 		-> std::expected<std::optional<core::file_receipt>, ledger_store_failure>
 	{

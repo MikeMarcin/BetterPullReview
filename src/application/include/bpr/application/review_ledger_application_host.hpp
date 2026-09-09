@@ -148,6 +148,14 @@ namespace bpr::application {
 			const core::file_material_observation& aObservation)
 			-> std::expected<core::file_receipt, ledger_store_failure>;
 
+		/// \brief Reloads the retained file and carries to its material only in memory.
+		/// \details Sibling invalidation must never write a carry back to durable state.
+		[[nodiscard]] auto refresh_receipt()
+			-> std::expected<core::file_receipt, ledger_store_failure>;
+
+		/// \brief Discards cached conversation receipts after a sibling write.
+		void invalidate_conversation_receipts();
+
 		/// \brief Decides, commits, and publishes one receipt command.
 		///
 		/// \returns The core's outcome. A refused command never reaches the

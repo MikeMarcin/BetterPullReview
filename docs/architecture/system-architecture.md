@@ -607,6 +607,18 @@ filtered order; changed material reopens the receipt and returns the file to
 that order. A failed ledger open disables only private-progress actions and
 leaves GitHub, epoch, and diff authorities live.
 
+Each profile observes successful ledger-store mutations, including private notes
+written by agent finding delivery, and coalesces receipt, conversation and private
+record invalidations onto its decision lane. Matching sibling windows reload
+accepted private state under their current host/account/repository/PR authority
+and authentication generation. The signal carries no candidate text or reading
+position; window sessions and comparison identities remain independent. A receipt
+reload carries durable state to the receiving window's selected material in
+memory only, so observing another comparison cannot create a write feedback loop.
+Conversation invalidation clears only the retained receipt cache; note refresh
+preserves rejected edit candidates. Closing/replaced windows and retired account
+generations refuse delivery. This projection path grants no publication authority.
+
 ### RFC-BPR-0006 appearance allocation
 
 The core owns appearance-mode resolution, typography legality, the closed

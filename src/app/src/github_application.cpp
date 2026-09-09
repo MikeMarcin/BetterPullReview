@@ -82,6 +82,7 @@
 #include "bpr/application/github_credential_vault.hpp"
 #include "bpr/application/mcp_context_helper_supervisor.hpp"
 #include "bpr/application/notification_delivery.hpp"
+#include "bpr/application/observing_review_ledger_store.hpp"
 #include "bpr/application/pull_request_overview.hpp"
 #include "bpr/application/review_ledger_application_host.hpp"
 #include "bpr/application/review_mutation_application_host.hpp"
@@ -3571,6 +3572,23 @@ namespace bpr::app {
 	};
 
 	/// Shared services outlive every window session that borrows them.
+	/// Accepted ledger invalidations contain no candidate text or navigation state.
+	struct pending_ledger_changes
+	{
+		std::mutex Mutex;
+		bool       Scheduled      = false;
+		bool       Receipts       = false;
+		bool       Conversations  = false;
+		bool       PrivateRecords = false;
+	};
+
+	struct ledger_changes
+	{
+		bool Receipts       = false;
+		bool Conversations  = false;
+		bool PrivateRecords = false;
+	};
+
 	class github_profile_runtime final : public std::enable_shared_from_this<github_profile_runtime>, public application::github_projection_port, public application::queue_window_context_port, public application::queue_landing_projection_port, public application::shared_draft_context_port, public application::window_review_restoration_projection_port
 	{
 	public:
@@ -3594,17 +3612,18 @@ namespace bpr::app {
 		qt::event_loop_executor                                 DecisionLane;
 		struct window_observer
 		{
-			std::weak_ptr<const void>                                                         Lifetime;
-			std::function<void(const application::github_presentation_update&)>               Github;
-			std::function<void(const application::device_authorization_presentation&)>        Device;
-			std::function<void(const application::device_authorization_refresh_observation&)> Refresh;
-			std::function<void(const application::public_preview_presentation&)>              Preview;
-			std::function<void(core::host_profile_id)>                                        SignIn;
-			std::function<bool(const core::pull_request_ref&)>                                SelectQueue;
-			std::function<void(qt::settings_window&, qt::settings_page)>                      Settings;
-			std::function<void()>                                                             UnmountSettings;
-			std::function<void(const core::window_review_open_request&)>                      RestoreReview;
-			std::function<void(const QString&)>                                               RestoreNotice;
+			std::weak_ptr<const void>                                                                 Lifetime;
+			std::function<void(const application::github_presentation_update&)>                       Github;
+			std::function<void(const application::device_authorization_presentation&)>                Device;
+			std::function<void(const application::device_authorization_refresh_observation&)>         Refresh;
+			std::function<void(const application::public_preview_presentation&)>                      Preview;
+			std::function<void(core::host_profile_id)>                                                SignIn;
+			std::function<bool(const core::pull_request_ref&)>                                        SelectQueue;
+			std::function<void(qt::settings_window&, qt::settings_page)>                              Settings;
+			std::function<void()>                                                                     UnmountSettings;
+			std::function<void(const core::window_review_open_request&)>                              RestoreReview;
+			std::function<void(const QString&)>                                                       RestoreNotice;
+			std::function<void(const application::workbench_pull_request_authority&, ledger_changes)> Ledger;
 		};
 		void publish(const application::github_presentation_update& aUpdate) override;
 		template <class Function>
@@ -3618,9 +3637,50 @@ namespace bpr::app {
 			}
 		}
 		std::map<core::bpr_window_context, window_observer, detail::window_context_less> Observers;
-		std::unique_ptr<qt::settings_window>                                             Settings;
-		std::optional<core::bpr_window_context>                                          SettingsOwner;
-		void                                                                             present_settings(core::bpr_window_context aContext, qt::settings_page aPage)
+		/// \brief Coalesces committed store changes onto the profile decision lane.
+		[[nodiscard]] auto ledger_observer(application::workbench_pull_request_authority aAuthority)
+			-> std::function<void(application::ledger_change)>
+		{
+			auto pending = std::make_shared<pending_ledger_changes>();
+			return [weak = weak_from_this(), pending, aAuthority](application::ledger_change aChange) {
+				const auto self = weak.lock();
+				if (!self) {
+					return;
+				}
+				const auto lock = std::scoped_lock{ pending->Mutex };
+				switch (aChange.Domain) {
+				case application::ledger_change_domain::receipt:         pending->Receipts = true; break;
+				case application::ledger_change_domain::conversation:    pending->Conversations = true; break;
+				case application::ledger_change_domain::private_records: pending->PrivateRecords = true; break;
+				}
+				if (pending->Scheduled) {
+					return;
+				}
+				pending->Scheduled = true;
+				self->DecisionLane.post([weak, pending, aAuthority] {
+					auto changes = ledger_changes{ };
+					{
+						const auto drainLock = std::scoped_lock{ pending->Mutex };
+						changes              = { std::exchange(pending->Receipts, false), std::exchange(pending->Conversations, false), std::exchange(pending->PrivateRecords, false) };
+						pending->Scheduled   = false;
+					}
+					const auto owner = weak.lock();
+					if (!owner || owner->Closing || !owner->Host || owner->Host->accepted_identity_generation() != aAuthority.IdentityGeneration) {
+						return;
+					}
+					owner->for_each_window([&](const window_observer& aObserver) {
+						if (aObserver.Ledger) {
+							try {
+								aObserver.Ledger(aAuthority, changes);
+							} catch (...) { }
+						}
+					});
+				});
+			};
+		}
+		std::unique_ptr<qt::settings_window>    Settings;
+		std::optional<core::bpr_window_context> SettingsOwner;
+		void                                    present_settings(core::bpr_window_context aContext, qt::settings_page aPage)
 		{
 			if (!current_window(aContext)) {
 				return;
@@ -5475,7 +5535,7 @@ namespace bpr::app {
 } }, .SignIn = [this, weak](core::host_profile_id aProfile) { if (!weak.expired() && !Closing){ begin_public_preview_sign_in(aProfile);
 } }, .SelectQueue = [this, weak](const core::pull_request_ref& aRef) { return !weak.expired() && !Closing && Window->select_queue_item(aRef); }, .Settings = [this, weak](qt::settings_window& aShell, qt::settings_page aPage) {
 					if (!weak.expired() && !Closing) { Window->mount_settings(aShell); aShell.present(aPage); } }, .UnmountSettings = [this, weak] { if (!weak.expired() && Window){ Window->unmount_settings();
-} }, .RestoreReview = [this, weak](const core::window_review_open_request& aRequest) { if (!weak.expired() && !Closing) { restore_review(aRequest); } }, .RestoreNotice = [this, weak](const QString& aText) { if (!weak.expired() && !Closing) { restoration_notice(aText); } } });
+} }, .RestoreReview = [this, weak](const core::window_review_open_request& aRequest) { if (!weak.expired() && !Closing) { restore_review(aRequest); } }, .RestoreNotice = [this, weak](const QString& aText) { if (!weak.expired() && !Closing) { restoration_notice(aText); } }, .Ledger = [this, weak](const application::workbench_pull_request_authority& aAuthority, ledger_changes aChanges) { if (!weak.expired() && !Closing) { refresh_shared_ledger(aAuthority, aChanges); } } });
 			// Home may already be checked while a restored read is pending. Its
 			// toggle then emits false, but the gesture still supersedes restoration.
 			QObject::connect(Window->home_action(), &QAction::triggered, Window.get(), [this, weak](bool) {
@@ -7962,7 +8022,7 @@ namespace bpr::app {
 			});
 			const auto available = opened.has_value();
 			if (available) {
-				ReviewLedger = std::move(*opened);
+				ReviewLedger = std::make_unique<application::observing_review_ledger_store>(std::move(*opened), Profile->ledger_observer(workbench_authority(aHandoff)));
 			} else {
 				ReviewLedger = std::make_unique<unavailable_review_ledger_store>(
 					opened.error());
@@ -7980,6 +8040,52 @@ namespace bpr::app {
 				Window->clear_review_ledger(!available);
 			}
 			publish_read_state();
+		}
+
+		void refresh_shared_ledger(const application::workbench_pull_request_authority& aSource, ledger_changes aChanges)
+		{
+			if (Closing || !Profile->current_window(DraftWindow) || !ReviewLedgerHost) {
+				return;
+			}
+			{
+				const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
+				if (!ReviewLedgerAvailable || !ReviewLedgerAuthority) {
+					return;
+				}
+				const auto& target = *ReviewLedgerAuthority;
+				// Sessions, provider snapshots and PR request generations belong to
+				// individual views. All durable and account authority must match.
+				if (target.Profile != aSource.Profile || target.ProfileRevision != aSource.ProfileRevision
+					|| target.Host != aSource.Host || target.HostAuthority != aSource.HostAuthority
+					|| target.Account != aSource.Account || target.Viewer != aSource.Viewer
+					|| target.Repository != aSource.Repository || target.PullRequest != aSource.PullRequest
+					|| target.Number != aSource.Number || target.IdentityGeneration != aSource.IdentityGeneration) {
+					return;
+				}
+			}
+			auto overviewPublished = false;
+			if (aChanges.Receipts && SelectedDiffPublication && WorkbenchHost
+				&& WorkbenchHost->generation() == SelectedDiffPublication->Request.Context.Generation
+				&& WorkbenchHost->selected() == std::optional{ SelectedDiffPublication->Request.File.File }
+				&& ReviewLedgerHost->retained().File == SelectedDiffPublication->Request.File.File
+				&& ReviewLedgerHost->retained().Material == core::comparison_digest(SelectedDiffPublication->Key)) {
+				overviewPublished = ReviewLedgerHost->refresh_receipt().has_value();
+			}
+			if (aChanges.Receipts && WorkbenchHost) {
+				// Another file may have re-entered the actionable order while
+				// this view was showing different or unavailable material.
+				WorkbenchHost->refresh_actionability();
+			}
+			if (aChanges.Conversations) {
+				ReviewLedgerHost->invalidate_conversation_receipts();
+				publish_read_state();
+			}
+			if (aChanges.PrivateRecords) {
+				refresh_agent_private_context_choices();
+			}
+			if (!overviewPublished) {
+				publish_overview();
+			}
 		}
 
 		[[nodiscard]] auto matches_review_ledger(
@@ -10114,6 +10220,13 @@ namespace bpr::app {
 					qt::review_draft_editor_clear_reason::selection_invalidated);
 			}
 			SelectedDiffPublication.reset();
+			if (ReviewLedgerHost) {
+				ReviewLedgerHost->retain({ });
+			}
+			{
+				const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
+				ReviewLedgerReceipt.reset();
+			}
 			if (Window != nullptr) {
 				Window->set_conversation_endpoint_placement(false, false);
 			}
