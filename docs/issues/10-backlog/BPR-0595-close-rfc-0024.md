@@ -271,3 +271,33 @@ focused core/host/storage/GitHub-host checks and independent medium review pass.
 Its card remains In Progress pending actual authenticated/anonymous restart
 acceptance and failure-path evidence. No RFC completion is claimed. Continue
 from that card rather than starting the next UX slice.
+
+## Current continuation — 2026-09-08
+
+Dispatch UX-2026-09-08-D1, mandate 1 completes BPR-0709's accepted-destination
+milestone at source/test candidate `ce63c67b1e82987a6cbec7ac5b60fc7f47300917`.
+The fifteen-process course passes15.70s; Home and new navigation defeat held
+restoration terminals while preserving prior accepted destinations. Authenticated
+restart revalidates retained fixture grants without enrollment; anonymous restart
+has zero raw vault/account/bootstrap attempts. Missing grant/server/read,
+corrupt/future storage and GHES preview refusal leave usable Home without
+fallback or destination loss. The card carries exact local evidence paths and
+the bounded review's corrected instrumentation finding. No native or full
+selected-comparison acceptance is inferred; the anonymous fixture's unselected
+comparison is already unavailable before restart.
+
+BPR-0683 is now parked for its actual native/attended requirements (commit
+`93c3e182`); RFC-0028's three released attended candidates are waiting with no
+verdict and need preparation again. Its superseding Home/layout direction and
+unscheduled browser-style file tabs remain authoritative. Required Windows,
+screen-reader, packaged inventory and canonical closeout dependencies stay open.
+
+The next bounded objective is to inventory and implement exact per-window
+comparison/file/semantic-location restoration under RFC-0024, allocating and
+claiming its card before source changes. Resolve retained identities through
+existing epoch/diff authority and present unavailable content explicitly; never
+substitute a comparison or schedule browser tabs. Cross-process runtime admission,
+same-review ledger projection fanout, complete two-account isolation and native
+geometry remain required later work. No further card was started in this milestone.
+Writers and commands must be quiescent before the next integrator takes ownership;
+this local continuation grants no push, live provider mutation or publication.

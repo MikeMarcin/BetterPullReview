@@ -73,6 +73,7 @@ and stages authentication without disturbing an existing review. BPR-0683 is
 parked for required native/attended evidence, with its automated passes retained.
 Continue RFC-0024 planning after the automated Settings integration boundary,
 while preserving pending target-native/human criteria and canonical closeout order.
+The current authorized workstream continuation is retained on [[BPR-0595]].
 
 ## Resumed implementation, 2026-09-07
 

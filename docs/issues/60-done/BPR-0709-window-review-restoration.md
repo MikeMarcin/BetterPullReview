@@ -2,9 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0709"
 title: "Restore each window's accepted pull request"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0708"]
+acceptance: [{"criterion":"Actual-process authenticated and anonymous accepted PR restoration","outcome":"pass","revision":"ce63c67b1e82987a6cbec7ac5b60fc7f47300917","evidence":{"kind":"command","detail":"application_profile_window_review_restoration_public_path passes 15.70s across fifteen processes. Exact stable-window PR17/18 snapshots return with fresh generations and retained synthetic vault input, zero new enrollment. Anonymous restart asserts zero raw six-vault and account/bootstrap factory attempts/calls. Missing-grant is the failed-vault-lookup counter negative control. build/dev/bpr0709-public-test.log."}},{"criterion":"Accepted-only persistence and exact Home, Close, Quit and fresh-window behavior","outcome":"pass","revision":"ce63c67b1e82987a6cbec7ac5b60fc7f47300917","evidence":{"kind":"observation","detail":"Same actual-process course independently inspects SQLite records: failed PR99 never replaces latest accepted PR18; Home retains destinations, exact Close removes only its row, Quit flushes latest, fresh monotonic windows remain Home without invented destination."}},{"criterion":"Explicit unavailable states without fallback, stale publication or allocator reset","outcome":"pass","revision":"ce63c67b1e82987a6cbec7ac5b60fc7f47300917","evidence":{"kind":"observation","detail":"Missing grant/server/read, corrupt/future optional store and configured GHES preview refusal leave usable Home and retained records. Held read terminals released across a queued decision barrier cannot replace Home or new PR18. Home false-toggle defect repaired with explicit no-accepted-review Home presentation; auth-home.png inspected."}},{"criterion":"Bounded storage, manual-executor lifecycle and invalid observations","outcome":"pass","revision":"ce63c67b1e82987a6cbec7ac5b60fc7f47300917","evidence":{"kind":"command","detail":"Expanded application_window_review_restoration passes0.32s: coalescing, conflicts, invalid load/save observations, delayed load vs newer read/Close, full32-window capacity/draining reservation and reentrant shutdown. Unchanged checkpoint core0.40s and SQLite0.44s bounds/interruption/profile evidence retained. build/dev/bpr0709-host-test.log."}},{"criterion":"Review, changed-TU checks and tests-disabled production composition","outcome":"pass","revision":"ce63c67b1e82987a6cbec7ac5b60fc7f47300917","evidence":{"kind":"observation","detail":"Prior checkpoint authority/lifetime review retained. Independent Astra-medium bounded Home/fixture review found no production blocker; its zero-attempt evidence gaps corrected, narrowly reviewed and final course rerun. Changed-TU tidy/format, strict inventory and hostile bypass pass. app-release configure/build and RFC0016/0017 test-seam absence scans pass. Documentation and62 verifier regression tests pass. Local logs build/dev/bpr0709-* and build/app-release/bpr0709-*. Native/full RFC and selected-comparison acceptance remain explicitly outside this completed destination slice."}}]
 ---
 
 # Restore each window's accepted pull request
@@ -112,3 +113,57 @@ Release check remains part of the pending completion boundary.
 Final rebuilt identity restart passes 7.24s; its changed test also passes tidy.
 Documentation and whitespace gates pass. Task-created temporary check logs were
 consumed and removed; existing rendered fixture artifacts remain under build/dev.
+
+## Resumed milestone, 2026-09-08
+
+Dispatch UX-2026-09-08-D1, mandate revision 1 resumes this card from clean
+`af4acb4ab8477667068180a95ff24c149e5c840a` on main. The designated integrator
+owns this continuation; the checkpoint has no prior active writer. The milestone
+is actual-process accepted-destination restoration, including authenticated and
+anonymous restart, exact Close/Quit persistence, failure visibility and stale
+navigation refusal. Existing component/review evidence is reused where inputs
+remain unchanged; the tests-disabled composition check remains required.
+RFC-0028's Home and layout decisions remain authoritative and browser-style
+file tabs remain unscheduled. Full RFC/native acceptance remains open.
+
+## Accepted milestone
+
+Source/test candidate `ce63c67b1e82987a6cbec7ac5b60fc7f47300917` completes this
+bounded destination slice. `application_profile_window_review_restoration_public_path`
+passes 15.70s across fifteen actual processes: two authenticated PRs return to
+their stable windows with fresh generations using the retained synthetic grant
+and no enrollment; anonymous restart makes zero vault/account/bootstrap attempts.
+Raw counters include refused admissions, with missing-grant lookup as a negative
+control. Fixture vault bytes travel only through bounded parent-memory pipes.
+The course proves latest accepted writes, failed navigation preservation, Home
+retention, exact Close versus Quit, fresh-window Home, missing grant/server/read,
+future/corrupt store preservation and configured GHES preview refusal.
+
+A held-terminal Home course exposed a production bug: Home was already checked
+while restoration waited, so its false toggle skipped cancellation. Every Home
+gesture now cancels the exact restoration and keeps Home visible when no review
+is accepted. Released queued terminals cannot replace Home or a newer PR; the
+stored destination survives Home cancellation. The first cancellation-only repair
+stopped acceptance but left the empty review visible; the final course directly
+checks both absence of stale content and visible Home after queued delivery.
+
+Expanded manual-executor host checks pass 0.32s for malformed observations,
+delayed load versus accepted navigation/Close, reentrant open/shutdown and full
+window-capacity reservations. Unchanged core/storage/checkpoint authority review
+evidence above is retained. A separate bounded Astra-medium review found no
+production blocker and identified the zero-attempt instrumentation gap; its
+correction was reviewed and the final course passed. Changed-TU tidy, format,
+strict production inventory, hostile bypass regression, tests-disabled Release
+build and device/public-preview absence scans pass. Documentation gate and its
+62 regression tests pass.
+
+Local evidence: `build/dev/bpr0709-public-{build,test,tidy,format-check}.log`,
+`build/dev/bpr0709-host-{build,test,tidy}.log`, production inventory/bypass and
+composition tidy logs with the same prefix; Release logs under
+`build/app-release/bpr0709-*`. Inspected rasters are under
+`build/dev/bpr0709-restoration-artifacts/`, including `auth-home.png`,
+`missing-grant.png` and `anonymous-restore.png`. No artifacts or fixture vault
+material are committed. The anonymous seed and restart both show the same
+pre-existing unselected-comparison failure; this course proves accepted PR
+metadata/file/comment restoration, not selected comparison or epoch usability.
+Full RFC/native criteria remain open. Current workstream continuation is [[BPR-0595]].

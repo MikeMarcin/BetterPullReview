@@ -63,6 +63,8 @@ history, not evidence of interrupted product implementation.
 
 ## Resume
 
-Next task: [BPR-0596](BPR-0596-inventory-tab-navigation-and-plan.md) after a later explicit implementation
-request and the applicable RFC eligibility/dependency checks. No product check
-has run, no product slice is complete, and no temporary worktree is retained.
+The owner activated the ordered workstream in the canonical index. Its current
+continuation is [[BPR-0595]]; this closeout remains dependent on the earlier work.
+Before [BPR-0596](BPR-0596-inventory-tab-navigation-and-plan.md), reconcile
+RFC-0028's superseding layout and unscheduled browser-style file tabs. This record
+claims no tab implementation or acceptance.
