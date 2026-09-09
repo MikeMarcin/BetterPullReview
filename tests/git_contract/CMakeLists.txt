@@ -18,6 +18,16 @@ set_tests_properties(
         TIMEOUT 30
 )
 
+bpr_add_network_isolated_test(
+    NAME profile_window_restoration_fixture_contract
+    WINDOWS_UNCONTAINED
+    COMMAND Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/verify_profile_window_restoration_fixture.py"
+        --git "$<TARGET_FILE:Git::Git>"
+)
+set_tests_properties(profile_window_restoration_fixture_contract PROPERTIES
+    PASS_REGULAR_EXPRESSION "PROFILE_WINDOW_RESTORATION_FIXTURE_OK" TIMEOUT 30)
+
 bpr_add_executable(
     test_better_pull_review_git_process_contract_tests
     git_process_contract_tests.cpp

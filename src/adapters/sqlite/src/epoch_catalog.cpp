@@ -2075,9 +2075,15 @@ namespace bpr::adapters::sqlite {
 						|| !bind_fixed(
 							query->Value, 1, Binding.Catalog.Incarnation)
 						|| !bind_fixed(query->Value, 2, Binding.Authority.Scope)
-						|| !bind_fixed(query->Value, 3, identity.Review)
-						|| ::sqlite3_step(query->Value) != SQLITE_ROW) {
-						return std::unexpected(failure::authority_mismatch);
+						|| !bind_fixed(query->Value, 3, identity.Review)) {
+						return std::unexpected(query ? sql_failure(database, aStop) : query.error());
+					}
+					const auto code = ::sqlite3_step(query->Value);
+					if (code == SQLITE_DONE) {
+						continue;
+					}
+					if (code != SQLITE_ROW) {
+						return std::unexpected(sql_failure(database, aStop));
 					}
 					const auto actor        = read_u64(query->Value, 0);
 					auto       commit       = read_oid<core::git_commit_oid>(query->Value, 1, 2);
@@ -2106,9 +2112,15 @@ namespace bpr::adapters::sqlite {
 						|| ::sqlite3_bind_int64(
 							   query->Value, 3, identity.Epoch.value())
 							!= SQLITE_OK
-						|| ::sqlite3_bind_int(query->Value, 4, endpoint) != SQLITE_OK
-						|| ::sqlite3_step(query->Value) != SQLITE_ROW) {
-						return std::unexpected(failure::authority_mismatch);
+						|| ::sqlite3_bind_int(query->Value, 4, endpoint) != SQLITE_OK) {
+						return std::unexpected(query ? sql_failure(database, aStop) : query.error());
+					}
+					const auto code = ::sqlite3_step(query->Value);
+					if (code == SQLITE_DONE) {
+						continue;
+					}
+					if (code != SQLITE_ROW) {
+						return std::unexpected(sql_failure(database, aStop));
 					}
 					auto       commit       = read_oid<core::git_commit_oid>(query->Value, 0, 1);
 					const auto availability = ::sqlite3_column_int(query->Value, 2);

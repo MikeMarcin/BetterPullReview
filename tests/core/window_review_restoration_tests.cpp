@@ -1,3 +1,4 @@
+#include "bpr/core/epoch_transition.hpp"
 #include "bpr/core/window_review_restoration.hpp"
 #include <cstdlib>
 #include <iostream>
@@ -15,6 +16,96 @@ namespace {
 	auto destination(github_access_mode aMode = github_access_mode::authenticated, std::string aHost = "github.com") -> window_review_destination
 	{
 		return { aMode, std::move(aHost), { "owner", "repo" }, pull_request_number{ 27 } };
+	}
+	template <typename T>
+	auto identity(std::uint8_t aByte) -> T
+	{
+		std::array<std::uint8_t, 32> bytes{ };
+		bytes[0] = aByte;
+		return T{ bytes };
+	}
+	auto position() -> window_review_position
+	{
+		const auto scope       = identity<pull_request_authority_scope_id>(1);
+		const auto incarnation = identity<epoch_catalog_incarnation_id>(2);
+		return { .Comparison = {
+					 .Left  = { { scope, incarnation, comparison_anchor_kind::epoch_base, epoch_ordinal{ 1 }, { } }, *parse_git_commit_oid("1111111111111111111111111111111111111111"), anchor_availability::available },
+					 .Right = { { scope, incarnation, comparison_anchor_kind::epoch_head, epoch_ordinal{ 1 }, { } }, *parse_git_commit_oid("2222222222222222222222222222222222222222"), anchor_availability::available } },
+				 .File      = identity<file_identity>(3),
+				 .Selection = { } };
+	}
+	void test_reading_identity_and_replacement()
+	{
+		window_review_restoration policy{ default_bpr_profile_id, { context(1), context(2) }, { "github.com" } };
+		const auto                saved = position();
+		expect(valid(saved), "exact same-catalog position is valid");
+		expect(!policy.accepted_position(context(1), destination(), saved), "position cannot invent a PR destination");
+		expect(policy.accepted_read(context(1), destination()) && policy.accepted_position(context(1), destination(), saved), "accepted position attaches to exact destination");
+		expect(!policy.accepted_position(context(1, 3), destination(), saved), "stale generation cannot save position");
+		expect(!policy.accepted_read(context(1), destination()) && policy.records()[0].Position == saved, "same PR refresh preserves reading identity");
+		auto other   = destination();
+		other.Number = pull_request_number{ 28 };
+		expect(!policy.accepted_position(context(1), other, saved), "different destination cannot save position");
+		expect(policy.accepted_read(context(1), other) && !policy.records()[0].Position, "accepted replacement clears old reading identity");
+		const auto actions = policy.load({ { bpr_window_id{ 2 }, destination(), saved } });
+		expect(actions.Startup.has_value(), "retained position participates in existing startup");
+		static_cast<void>(policy.mark_window_ready(context(2)));
+		const auto opened = policy.complete_startup(actions.Startup->Request, window_review_authority{ github_access_mode::authenticated, "github.com" });
+		expect(opened.Opens.size() == 1 && opened.Opens[0].Position == saved, "exact complete payload carried to matching ready window");
+		auto invalid                                = saved;
+		invalid.Comparison.Right.Identity.Authority = identity<pull_request_authority_scope_id>(9);
+		expect(!valid(invalid), "cross-authority pair refused");
+		invalid                                       = saved;
+		invalid.Comparison.Right.Identity.Incarnation = identity<epoch_catalog_incarnation_id>(9);
+		expect(!valid(invalid), "cross-incarnation pair refused");
+		invalid           = saved;
+		invalid.Selection = semantic_selection{ };
+		expect(!valid(invalid), "invalid semantic digest refused");
+	}
+	void test_reading_course_refuses_substitution()
+	{
+		const auto                 saved = position();
+		auto                       epoch = epoch_state{ };
+		window_reading_restoration course{ saved };
+		using enum window_reading_restore_action;
+		expect(course.advance(epoch, { }) == wait, "reading waits for catalog");
+		epoch.Authority        = pull_request_authority{ };
+		epoch.Authority->Scope = saved.Comparison.Left.Identity.Authority;
+		epoch.Catalog          = epoch_catalog_identity{ saved.Comparison.Left.Identity.Incarnation, epoch_catalog_revision{ 1 } };
+		epoch.Status           = epoch_status::ready;
+		expect(course.advance(epoch, { }) == select_comparison, "exact explicit comparison requested once");
+		epoch.AcceptedComparison = saved.Comparison;
+		expect(course.advance(epoch, { }) == wait, "accepted comparison waits for exact file observation");
+		expect(course.advance(epoch, { .FilesReady = true, .FileAvailable = true }) == select_file, "accepted file selected once");
+		expect(course.advance(epoch, { }) == wait, "file resolution alone is not computed diff evidence");
+		expect(course.advance(epoch, { .DiffReady = true }) == complete, "computed exact file completes position without semantic anchor");
+		window_reading_restoration wrongPair{ saved };
+		static_cast<void>(wrongPair.advance(epoch, { }));
+		std::swap(epoch.AcceptedComparison->Left, epoch.AcceptedComparison->Right);
+		expect(wrongPair.advance(epoch, { }) == unavailable, "reversed or fallback comparison never substitutes");
+		epoch.AcceptedComparison = saved.Comparison;
+		window_reading_restoration missingFile{ saved };
+		static_cast<void>(missingFile.advance(epoch, { }));
+		expect(missingFile.advance(epoch, { .FilesReady = true }) == unavailable, "removed file never becomes neighboring file");
+		window_reading_restoration wrongCatalog{ saved };
+		epoch.Catalog->Incarnation = identity<epoch_catalog_incarnation_id>(8);
+		expect(wrongCatalog.advance(epoch, { }) == unavailable, "recreated catalog does not reuse epoch ordinal");
+	}
+	void test_exact_comparison_cancellation()
+	{
+		auto epoch               = epoch_state{ };
+		epoch.PendingComparison  = pending_comparison_resolution{ epoch_request_id{ 7 }, comparison_generation{ 3 } };
+		epoch.Status             = epoch_status::resolving;
+		const auto saved         = position();
+		epoch.RequestedSelection = explicit_selection(saved.Comparison.Left.Identity, saved.Comparison.Right.Identity);
+		static_cast<void>(transition(epoch, cancel_comparison_resolution_intent{ epoch_request_id{ 6 }, comparison_generation{ 3 } }));
+		expect(epoch.PendingComparison.has_value(), "foreign cancellation cannot retire newer comparison");
+		const auto retired = transition(epoch, cancel_comparison_resolution_intent{ epoch_request_id{ 7 }, comparison_generation{ 3 } });
+		expect(!epoch.PendingComparison && retired.Requests.size() == 1 && std::holds_alternative<cancel_epoch_work_request>(retired.Requests[0]) && epoch.Status == epoch_status::cancelled,
+			   "exact cancellation retires identity before advisory host work cancellation");
+		expect(epoch.RequestedSelection == named_selection(named_comparison::whole_pr) && !epoch.AcceptedComparison, "cancelled saved pair cannot silently reapply on refresh or become accepted fallback");
+		const auto duplicate = transition(epoch, cancel_comparison_resolution_intent{ epoch_request_id{ 7 }, comparison_generation{ 3 } });
+		expect(duplicate.Requests.empty(), "duplicate cancellation produces no work");
 	}
 	void test_selection_and_exact_readiness()
 	{
@@ -69,5 +160,8 @@ int main()
 	test_selection_and_exact_readiness();
 	test_home_does_not_cancel_sibling_and_missing_host_no_fallback();
 	test_user_authority_and_persistence_scope();
+	test_reading_identity_and_replacement();
+	test_reading_course_refuses_substitution();
+	test_exact_comparison_cancellation();
 	std::cout << "window-review-restoration-tests:pass\n";
 }

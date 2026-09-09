@@ -111,6 +111,48 @@ namespace {
 		f.drain();
 		expect(f.Store.Snapshot.Records.size() == 2, "startup prunes orphan without altering live destinations");
 	}
+	void test_positions_coalesce_and_survive_failed_restore()
+	{
+		std::array<std::uint8_t, 32> bytes{ };
+		bytes[0]               = 1;
+		const auto scope       = core::pull_request_authority_scope_id{ bytes };
+		bytes[0]               = 2;
+		const auto incarnation = core::epoch_catalog_incarnation_id{ bytes };
+		auto       position    = core::window_review_position{ .Comparison = {
+																   .Left  = { { scope, incarnation, core::comparison_anchor_kind::epoch_base, core::epoch_ordinal{ 1 }, { } }, *core::parse_git_commit_oid("1111111111111111111111111111111111111111"), core::anchor_availability::available },
+																   .Right = { { scope, incarnation, core::comparison_anchor_kind::epoch_head, core::epoch_ordinal{ 1 }, { } }, *core::parse_git_commit_oid("2222222222222222222222222222222222222222"), core::anchor_availability::available } },
+															   .File      = { },
+															   .Selection = { } };
+		fixture    f;
+		f.load();
+		f.Host.accepted_read(context(1), destination());
+		f.Host.accepted_position(context(1), destination(), position);
+		bytes[0]      = 3;
+		position.File = core::file_identity{ bytes };
+		f.Host.accepted_position(context(1), destination(), position);
+		auto siblingPosition = position;
+		bytes[0]             = 4;
+		siblingPosition.File = core::file_identity{ bytes };
+		f.Host.accepted_read(context(2), destination(28));
+		f.Host.accepted_position(context(2), destination(28), siblingPosition);
+		f.Host.shutdown_orderly();
+		f.drain();
+		expect(f.Host.is_quiescent() && f.Store.Snapshot.Records[0].Position == position && f.Store.Saves == 2, "Quit drains coalesced latest exact reading position");
+		expect(f.Store.Snapshot.Records[1].Position == siblingPosition && siblingPosition.File != position.File, "sibling window retains its distinct exact file identity");
+		fixture restored;
+		restored.Store.Snapshot = f.Store.Snapshot;
+		restored.load();
+		restored.Host.mark_window_ready(context(1));
+		restored.Host.complete_startup(restored.Output.Startups[0].Request, core::window_review_authority{ core::github_access_mode::authenticated, "github.com" });
+		const auto request = restored.Output.Opens[0];
+		expect(request.Position == position, "asynchronous load carries exact complete position");
+		restored.Host.complete_restore(request.Context, request.Request, std::unexpected(core::window_review_failure::unavailable));
+		restored.Host.accepted_read(context(1), destination());
+		restored.Host.accepted_position(context(1, 3), destination(), core::window_review_position{ });
+		restored.Host.shutdown_orderly();
+		restored.drain();
+		expect(restored.Store.Snapshot == f.Store.Snapshot && restored.Store.Saves == 0, "failed restore and same-PR refresh preserve exact stored identity");
+	}
 	void test_coalesced_quit_close_and_conflict()
 	{
 		fixture f;
@@ -234,6 +276,7 @@ namespace {
 }
 int main()
 {
+	test_positions_coalesce_and_survive_failed_restore();
 	test_load_prunes_and_gates_restoration();
 	test_coalesced_quit_close_and_conflict();
 	test_failure_cancellation_and_reentrancy();

@@ -1029,6 +1029,10 @@ namespace bpr::qt {
 		SelectionSink = std::move(aSink);
 		emit_selection();
 	}
+	void diff_workbench::set_reading_gesture_sink(std::function<void()> aSink)
+	{
+		ReadingGestureSink = std::move(aSink);
+	}
 
 	void diff_workbench::set_selection_observer(selection_observer aObserver)
 	{
@@ -1540,6 +1544,28 @@ namespace bpr::qt {
 	{
 		return select_line(aSide, aLine, true);
 	}
+	auto diff_workbench::restore_selection(const core::semantic_selection& aSelection) -> bool
+	{
+		if (!CurrentResult || !SemanticIndex) {
+			return false;
+		}
+		const auto resolved = aSelection.Kind == core::semantic_selection_kind::group && aSelection.Group
+			? core::select_group(*SemanticIndex, *aSelection.Group)
+			: core::select_line(*SemanticIndex, aSelection.PreferredLine);
+		if (resolved != aSelection) {
+			return false;
+		}
+		clear_conversation_anchor();
+		const auto changed  = aSelection.Kind == core::semantic_selection_kind::group
+			? core::transition(Interaction, *SemanticIndex, core::select_diff_group_intent{ *aSelection.Group })
+			: core::transition(Interaction, *SemanticIndex, core::select_diff_line_intent{ aSelection.PreferredLine });
+		RestoredReadingLine = aSelection.PreferredLine;
+		apply_interaction(true, changed);
+		if (changed) {
+			emit_selection();
+		}
+		return Interaction.Selection == aSelection;
+	}
 
 	auto diff_workbench::select_line(
 		const core::diff_side aSide,
@@ -1573,10 +1599,8 @@ namespace bpr::qt {
 		const auto selected = Interaction.Selection.has_value()
 			&& Interaction.Selection->PreferredLine == requested;
 		if (!changed && selected && aReportUnchangedInteraction) {
-			// A physical click remains an interaction even when the core selection
-			// was already reconciled to this exact line.  The application sink has
-			// no new state to persist, but the Qt-local observer still needs the
-			// gesture origin to reverse-filter conversations from file scope.
+			// Choosing the displayed line also supersedes deferred restoration.
+			emit_reading_gesture();
 			emit_selection_observer(true);
 		}
 		return selected;
@@ -1602,6 +1626,8 @@ namespace bpr::qt {
 		apply_interaction(aReveal, changed);
 		if (changed) {
 			emit_selection(true);
+		} else if (Interaction.Selection && Interaction.Selection->Group == aIdentity.Group) {
+			emit_reading_gesture();
 		}
 	}
 
@@ -1646,8 +1672,12 @@ namespace bpr::qt {
 				},
 				false);
 			if (aReveal) {
-				const auto exact = ConversationAnchor.has_value()
-					&& reveal_exact_line(selection, *ConversationAnchor);
+				const auto reading = RestoredReadingLine && selection.PreferredLine == *RestoredReadingLine
+					&& reveal_exact_line(selection, *RestoredReadingLine);
+				if (reading) {
+					RestoredReadingLine.reset();
+				}
+				const auto exact = reading || (ConversationAnchor.has_value() && reveal_exact_line(selection, *ConversationAnchor));
 				if (!exact) {
 					static_cast<void>(Controller->reveal_segment(*selection.Segment));
 				}
@@ -2269,8 +2299,21 @@ namespace bpr::qt {
 		announce_accessible_status(Status->text());
 	}
 
+	void diff_workbench::emit_reading_gesture() noexcept
+	{
+		RestoredReadingLine.reset();
+		if (ReadingGestureSink) {
+			try {
+				ReadingGestureSink();
+			} catch (...) { }
+		}
+	}
+
 	void diff_workbench::emit_selection(const bool aInteractive) noexcept
 	{
+		if (aInteractive) {
+			emit_reading_gesture();
+		}
 		if (SelectionSink) {
 			try {
 				SelectionSink(Interaction.Selection);
@@ -2294,6 +2337,7 @@ namespace bpr::qt {
 
 	void diff_workbench::clear_projection(QString aStatus)
 	{
+		RestoredReadingLine.reset();
 		const auto hadSelection = Interaction.Selection.has_value();
 		PendingMeasurement.reset();
 		GeometryRevealPending = false;

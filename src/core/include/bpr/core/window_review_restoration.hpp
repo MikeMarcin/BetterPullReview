@@ -2,6 +2,7 @@
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_WINDOW_REVIEW_RESTORATION_HPP
 
 #include "bpr/core/anonymous_read_policy.hpp"
+#include "bpr/core/diff_semantics.hpp"
 #include "bpr/core/github_model.hpp"
 #include "bpr/core/profile_window.hpp"
 #include <expected>
@@ -22,11 +23,20 @@ namespace bpr::core {
 		pull_request_number Number;
 		auto                operator==(const window_review_destination&) const -> bool = default;
 	};
+	/// \brief Exact accepted reading identity; no alias or pixel coordinate is durable.
+	struct window_review_position
+	{
+		comparison_pair                   Comparison;
+		std::optional<file_identity>      File;
+		std::optional<semantic_selection> Selection;
+		auto                              operator==(const window_review_position&) const -> bool = default;
+	};
 	struct window_review_record
 	{
-		bpr_window_id             Window;
-		window_review_destination Destination;
-		auto                      operator==(const window_review_record&) const -> bool = default;
+		bpr_window_id                         Window;
+		window_review_destination             Destination;
+		std::optional<window_review_position> Position                                              = std::nullopt;
+		auto                                  operator==(const window_review_record&) const -> bool = default;
 	};
 	enum class window_review_failure : std::uint8_t { invalid_state,
 													  invalid_destination,
@@ -45,9 +55,10 @@ namespace bpr::core {
 	};
 	struct window_review_open_request
 	{
-		bpr_window_context        Context;
-		request_id                Request;
-		window_review_destination Destination;
+		bpr_window_context                    Context;
+		request_id                            Request;
+		window_review_destination             Destination;
+		std::optional<window_review_position> Position = std::nullopt;
 	};
 	struct window_review_error
 	{
@@ -62,6 +73,34 @@ namespace bpr::core {
 	};
 	[[nodiscard]] auto valid(const window_review_authority& aAuthority) noexcept -> bool;
 	[[nodiscard]] auto valid(const window_review_destination& aDestination) noexcept -> bool;
+	[[nodiscard]] auto valid(const window_review_position& aPosition) noexcept -> bool;
+	enum class window_reading_restore_action : std::uint8_t { wait,
+															  select_comparison,
+															  select_file,
+															  select_location,
+															  complete,
+															  unavailable };
+	/// \brief Bounded facts from the exact window's accepted epoch, file and diff hosts.
+	struct window_reading_observation
+	{
+		bool                       FilesReady    = false;
+		bool                       FileAvailable = false;
+		bool                       Failed        = false;
+		bool                       DiffReady     = false;
+		const diff_semantic_index* SemanticIndex = nullptr;
+	};
+	/// \brief Orders exact restoration and refuses substitutions before presentation.
+	class window_reading_restoration final
+	{
+	public:
+		explicit window_reading_restoration(window_review_position aPosition);
+		[[nodiscard]] auto advance(const epoch_state& aEpoch, const window_reading_observation& aObservation) -> window_reading_restore_action;
+		[[nodiscard]] auto position() const noexcept -> const window_review_position& { return Position; }
+
+	private:
+		window_review_position        Position;
+		window_reading_restore_action Stage = window_reading_restore_action::select_comparison;
+	};
 	[[nodiscard]] auto valid_window_review_records(const std::vector<window_review_record>& aRecords) noexcept -> bool;
 
 	/// Pure exact-context restoration policy. Input contexts are least to most recently focused.
@@ -80,6 +119,7 @@ namespace bpr::core {
 		[[nodiscard]] auto current_restore(bpr_window_context aContext, request_id aRequest) const noexcept -> bool;
 		[[nodiscard]] auto complete_restore(bpr_window_context aContext, request_id aRequest, const std::expected<void, window_review_failure>& aResult) -> window_review_actions;
 		[[nodiscard]] auto accepted_read(bpr_window_context aContext, const window_review_destination& aDestination) -> bool;
+		[[nodiscard]] auto accepted_position(bpr_window_context aContext, const window_review_destination& aDestination, const window_review_position& aPosition) -> bool;
 		[[nodiscard]] auto close(bpr_window_context aContext) -> bool;
 		[[nodiscard]] auto records() const noexcept -> const std::vector<window_review_record>&;
 
@@ -91,6 +131,7 @@ namespace bpr::core {
 			bool                                     Ready     = false;
 			std::optional<request_id>                Request;
 			std::optional<window_review_destination> Pending;
+			std::optional<window_review_position>    Position = std::nullopt;
 		};
 		bpr_profile_id                         Profile;
 		std::vector<slot>                      Slots;

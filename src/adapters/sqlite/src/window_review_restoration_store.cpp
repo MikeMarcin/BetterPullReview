@@ -5,6 +5,7 @@
 #include <charconv>
 #include <limits>
 #include <optional>
+#include <span>
 #include <sqlite3.h>
 #include <string_view>
 #include <utility>
@@ -17,9 +18,147 @@ namespace bpr::adapters::sqlite {
 		{
 			return std::unexpected(application::window_review_store_error{ aFailure, { } });
 		}
-		constexpr std::int64_t     ApplicationId = 0x42505252;
-		constexpr std::string_view MetaSchema    = "CREATE TABLE restoration_meta(singleton INTEGER PRIMARY KEY CHECK(singleton=1),revision TEXT NOT NULL) STRICT";
-		constexpr std::string_view RecordsSchema = "CREATE TABLE restoration_records(window_id TEXT PRIMARY KEY,mode INTEGER NOT NULL CHECK(mode IN(0,1)),hostname TEXT NOT NULL,owner TEXT NOT NULL,repository TEXT NOT NULL,number TEXT NOT NULL) STRICT";
+		constexpr std::int64_t     ApplicationId       = 0x42505252;
+		constexpr std::string_view MetaSchema          = "CREATE TABLE restoration_meta(singleton INTEGER PRIMARY KEY CHECK(singleton=1),revision TEXT NOT NULL) STRICT";
+		constexpr std::string_view LegacyRecordsSchema = "CREATE TABLE restoration_records(window_id TEXT PRIMARY KEY,mode INTEGER NOT NULL CHECK(mode IN(0,1)),hostname TEXT NOT NULL,owner TEXT NOT NULL,repository TEXT NOT NULL,number TEXT NOT NULL) STRICT";
+		constexpr std::string_view RecordsSchema       = "CREATE TABLE restoration_records(window_id TEXT PRIMARY KEY,mode INTEGER NOT NULL CHECK(mode IN(0,1)),hostname TEXT NOT NULL,owner TEXT NOT NULL,repository TEXT NOT NULL,number TEXT NOT NULL,position BLOB) STRICT";
+		// Version 1 payload: fixed-width identities, big-endian integers, strict flags.
+		class position_codec final
+		{
+		public:
+			std::vector<std::uint8_t>     Bytes;
+			std::span<const std::uint8_t> Input;
+			bool                          Reading = false;
+			bool                          Good    = true;
+			void                          byte(std::uint8_t& aValue)
+			{
+				if (!Reading) {
+					Bytes.push_back(aValue);
+					return;
+				}
+				if (Input.empty()) {
+					Good = false;
+					return;
+				}
+				aValue = Input.front();
+				Input  = Input.subspan(1);
+			}
+			void integer(std::uint64_t& aValue, unsigned aWidth)
+			{
+				auto result = std::uint64_t{ 0 };
+				for (unsigned index = 0; index < aWidth; ++index) {
+					auto value = static_cast<std::uint8_t>(aValue >> ((aWidth - index - 1U) * 8U));
+					byte(value);
+					result = (result << 8U) | value;
+				}
+				if (Reading) {
+					aValue = result;
+				}
+			}
+			template <typename TEnum>
+			void enumeration(TEnum& aValue)
+			{
+				auto value = static_cast<std::uint8_t>(aValue);
+				byte(value);
+				aValue = static_cast<TEnum>(value);
+			}
+			template <typename TIdentity>
+			void identity(TIdentity& aValue)
+			{
+				auto bytes = aValue.bytes();
+				for (auto& value : bytes) {
+					byte(value);
+				}
+				aValue = TIdentity{ bytes };
+			}
+			template <typename TValue, typename TFunction>
+			void optional(std::optional<TValue>& aValue, TFunction aFunction)
+			{
+				auto present = static_cast<std::uint8_t>(aValue.has_value());
+				byte(present);
+				if (present > 1U) {
+					Good = false;
+					return;
+				}
+				if (present == 0U) {
+					aValue.reset();
+					return;
+				}
+				if (!aValue) {
+					aValue.emplace();
+				}
+				aFunction(*aValue);
+			}
+			void anchor(core::comparison_anchor& aAnchor)
+			{
+				identity(aAnchor.Identity.Authority);
+				identity(aAnchor.Identity.Incarnation);
+				enumeration(aAnchor.Identity.Kind);
+				auto epoch = static_cast<std::uint64_t>(aAnchor.Identity.Epoch.value());
+				integer(epoch, 8);
+				if (epoch > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+					Good = false;
+				}
+				aAnchor.Identity.Epoch = core::epoch_ordinal{ static_cast<std::int64_t>(epoch) };
+				identity(aAnchor.Identity.Review);
+				auto algorithm = aAnchor.Commit.algorithm();
+				enumeration(algorithm);
+				auto bytes = aAnchor.Commit.bytes();
+				for (auto& value : bytes) {
+					byte(value);
+				}
+				aAnchor.Commit = core::git_commit_oid{ algorithm, bytes };
+				enumeration(aAnchor.Availability);
+			}
+			void position(core::window_review_position& aPosition)
+			{
+				auto version = std::uint8_t{ 1 };
+				byte(version);
+				Good = Good && version == 1U;
+				anchor(aPosition.Comparison.Left);
+				anchor(aPosition.Comparison.Right);
+				optional(aPosition.File, [this](auto& aValue) { this->identity(aValue); });
+				optional(aPosition.Selection, [this](auto& aSelection) {
+					identity(aSelection.Comparison);
+					enumeration(aSelection.Kind);
+					identity(aSelection.PreferredLine.Comparison);
+					enumeration(aSelection.PreferredLine.Side);
+					auto line = static_cast<std::uint64_t>(aSelection.PreferredLine.Line);
+					integer(line, 4);
+					aSelection.PreferredLine.Line = static_cast<std::uint32_t>(line);
+					optional(aSelection.Segment, [this](auto& aValue) { this->identity(aValue); });
+					optional(aSelection.Group, [this](auto& aValue) { this->identity(aValue); });
+				});
+			}
+		};
+		[[nodiscard]] auto bind_position(sqlite3_stmt* aStatement, const std::optional<core::window_review_position>& aPosition) -> bool
+		{
+			if (!aPosition) {
+				return sqlite3_bind_null(aStatement, 7) == SQLITE_OK;
+			}
+			auto codec    = position_codec{ };
+			auto position = *aPosition;
+			codec.position(position);
+			return codec.Good && sqlite3_bind_blob(aStatement, 7, codec.Bytes.data(), static_cast<int>(codec.Bytes.size()), SQLITE_TRANSIENT) == SQLITE_OK;
+		}
+		[[nodiscard]] auto read_position(sqlite3_stmt* aStatement, std::optional<core::window_review_position>& aPosition) -> bool
+		{
+			if (sqlite3_column_type(aStatement, 6) == SQLITE_NULL) {
+				return true;
+			}
+			const auto size = sqlite3_column_bytes(aStatement, 6);
+			if (sqlite3_column_type(aStatement, 6) != SQLITE_BLOB || size <= 0 || size > 512) {
+				return false;
+			}
+			const auto* bytes = static_cast<const std::uint8_t*>(sqlite3_column_blob(aStatement, 6));
+			if (!bytes) {
+				return false;
+			}
+			auto codec = position_codec{ { }, { bytes, static_cast<std::size_t>(size) }, true, true };
+			aPosition.emplace();
+			codec.position(*aPosition);
+			return codec.Good && codec.Input.empty() && core::valid(*aPosition);
+		}
 		// These connection-local limits perform no SQL and cannot change a refused file.
 		void restrict_reads(sqlite3* aDatabase)
 		{
@@ -110,9 +249,9 @@ namespace bpr::adapters::sqlite {
 			const auto count    = detail::scalar_integer(aDatabase, "SELECT count(*) FROM (SELECT 1 FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' LIMIT 3)");
 			const auto meta     = detail::scalar_text(aDatabase, "SELECT sql FROM sqlite_schema WHERE type='table' AND name='restoration_meta'");
 			const auto records  = detail::scalar_text(aDatabase, "SELECT sql FROM sqlite_schema WHERE type='table' AND name='restoration_records'");
-			if (!version || *version != 1 || !identity || *identity != ApplicationId || !count || *count != 2
+			if (!version || (*version != 1 && *version != 2) || !identity || *identity != ApplicationId || !count || *count != 2
 				|| !meta || detail::canonical_sql(*meta) != detail::canonical_sql(MetaSchema)
-				|| !records || detail::canonical_sql(*records) != detail::canonical_sql(RecordsSchema)) {
+				|| !records || detail::canonical_sql(*records) != detail::canonical_sql(*version == 1 ? LegacyRecordsSchema : RecordsSchema)) {
 				return fail(aStop.stop_requested() ? window_review_store_failure::cancelled : window_review_store_failure::schema_mismatch);
 			}
 			auto revision = detail::prepare(aDatabase, "SELECT singleton,revision FROM restoration_meta LIMIT 2");
@@ -124,7 +263,7 @@ namespace bpr::adapters::sqlite {
 			if (sqlite3_step(revision->Value) != SQLITE_DONE) {
 				return fail(window_review_store_failure::corrupt);
 			}
-			auto rows = detail::prepare(aDatabase, "SELECT window_id,mode,hostname,owner,repository,number FROM restoration_records LIMIT 33");
+			auto rows = detail::prepare(aDatabase, *version == 1 ? "SELECT window_id,mode,hostname,owner,repository,number FROM restoration_records LIMIT 33" : "SELECT window_id,mode,hostname,owner,repository,number,position FROM restoration_records LIMIT 33");
 			if (!rows) {
 				return fail(window_review_store_failure::corrupt);
 			}
@@ -146,6 +285,9 @@ namespace bpr::adapters::sqlite {
 				}
 				result.Records.push_back({ core::bpr_window_id{ id_of(rows->Value, 0) },
 										   { static_cast<core::github_access_mode>(mode), std::string{ text_of(rows->Value, 2) }, { std::string{ text_of(rows->Value, 3) }, std::string{ text_of(rows->Value, 4) } }, core::pull_request_number{ static_cast<std::uint32_t>(number) } } });
+				if (*version == 2 && !read_position(rows->Value, result.Records.back().Position)) {
+					return fail(window_review_store_failure::corrupt);
+				}
 			}
 			std::ranges::sort(result.Records, { }, &core::window_review_record::Window);
 			if (!application::valid(result)) {
@@ -212,13 +354,14 @@ namespace bpr::adapters::sqlite {
 					if (aStop.stop_requested()) {
 						return fail(window_review_store_failure::cancelled);
 					}
-					auto row = detail::prepare(Database, "INSERT INTO restoration_records VALUES(?1,?2,?3,?4,?5,?6)");
+					auto row = detail::prepare(Database, "INSERT INTO restoration_records VALUES(?1,?2,?3,?4,?5,?6,?7)");
 					if (!row || !bind_text(row->Value, 1, std::to_string(record.Window.value()))
 						|| sqlite3_bind_int(row->Value, 2, static_cast<int>(record.Destination.Mode)) != SQLITE_OK
 						|| !bind_text(row->Value, 3, record.Destination.Hostname)
 						|| !bind_text(row->Value, 4, record.Destination.Repository.Owner)
 						|| !bind_text(row->Value, 5, record.Destination.Repository.Name)
 						|| !bind_text(row->Value, 6, std::to_string(record.Destination.Number.value()))
+						|| !bind_position(row->Value, record.Position)
 						|| sqlite3_step(row->Value) != SQLITE_DONE) {
 						return fail(aStop.stop_requested() ? window_review_store_failure::cancelled : window_review_store_failure::unavailable);
 					}
@@ -251,9 +394,21 @@ namespace bpr::adapters::sqlite {
 				const auto transaction = transaction_scope{ Database };
 				if (!pristine(Database, aStop)) {
 					const auto current = read_snapshot(Database, aStop);
-					return current ? window_review_store_result<void>{ } : std::unexpected(current.error());
+					if (!current) {
+						return std::unexpected(current.error());
+					}
+					if (detail::scalar_integer(Database, "PRAGMA user_version") == 1) {
+						// Rebuild inside the transaction: ALTER's internal quick-check view
+						// is unavailable on this deliberately view-disabled connection.
+						for (const auto sql : { std::string_view{ "CREATE TEMP TABLE restoration_migration AS SELECT * FROM restoration_records" }, std::string_view{ "DROP TABLE restoration_records" }, RecordsSchema, std::string_view{ "INSERT INTO restoration_records SELECT *,NULL FROM restoration_migration" }, std::string_view{ "DROP TABLE restoration_migration" }, std::string_view{ "PRAGMA user_version=2" }, std::string_view{ "COMMIT" } }) {
+							if (auto result = run(Database, sql, aStop); !result) {
+								return result;
+							}
+						}
+					}
+					return { };
 				}
-				for (const auto sql : { MetaSchema, RecordsSchema, std::string_view{ "INSERT INTO restoration_meta VALUES(1,'1')" }, std::string_view{ "PRAGMA application_id=1112560210" }, std::string_view{ "PRAGMA user_version=1" }, std::string_view{ "COMMIT" } }) {
+				for (const auto sql : { MetaSchema, RecordsSchema, std::string_view{ "INSERT INTO restoration_meta VALUES(1,'1')" }, std::string_view{ "PRAGMA application_id=1112560210" }, std::string_view{ "PRAGMA user_version=2" }, std::string_view{ "COMMIT" } }) {
 					if (auto result = run(Database, sql, aStop); !result) {
 						return result;
 					}

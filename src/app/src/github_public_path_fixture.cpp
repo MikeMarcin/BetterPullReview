@@ -125,17 +125,20 @@ namespace bpr::app::detail {
 			/// pull-request fixture root and the same two invariants hold: a
 			/// served pack is long enough to have a header and begins with one.
 			///
-			/// `PackTwo` stays empty because a recorded fixture serves a single
-			/// head. That is not a weaker second pack, it is the absence of one:
-			/// the descriptor names no second head, so `fixture_smart_transport`
-			/// never selects it, and an empty pack is refused there rather than
-			/// served.
-			explicit deterministic_git_fixture(const std::string_view aPackFile)
+			/// A single-head descriptor omits the second file and leaves PackTwo
+			/// empty. The window-reading descriptor supplies two self-contained packs.
+			explicit deterministic_git_fixture(const std::string_view aPackFile, const std::optional<std::string_view> aSecondFile = std::nullopt)
 				: PackOne{ QByteArray::fromStdString(read_all(
 					  std::filesystem::path{
 						  BPR_GITHUB_PULL_REQUEST_FIXTURE_ROOT }
 					  / aPackFile)) }
 			{
+				if (aSecondFile) {
+					PackTwo = QByteArray::fromStdString(read_all(std::filesystem::path{ BPR_GITHUB_PULL_REQUEST_FIXTURE_ROOT } / *aSecondFile));
+					if (PackTwo.size() < 32 || !PackTwo.startsWith("PACK")) {
+						throw std::runtime_error{ "Second Git fixture pack is invalid" };
+					}
+				}
 				if (PackOne.size() < 32 || !PackOne.startsWith("PACK")) {
 					throw std::runtime_error{ "Git fixture pack is invalid" };
 				}
@@ -226,14 +229,14 @@ namespace bpr::app::detail {
 		/// \brief Says where the packs one fixture serves come from.
 		///
 		/// \details Two shapes, and a descriptor picks one. The synthetic
-		/// three-commit graph is small enough to state in the source that serves
-		/// it, and it is the only graph with a second head, so its pair stays
-		/// embedded. A recorded pull request names a file instead. An absent
+		/// legacy three-commit graph stays embedded. Recorded graphs name files,
+		/// with an optional second pack for the window-reading graph. An absent
 		/// `File` selects the embedded pair; a present one is relative to
 		/// `BPR_GITHUB_PULL_REQUEST_FIXTURE_ROOT`.
 		struct fixture_pack_source
 		{
 			std::optional<std::string_view> File;
+			std::optional<std::string_view> SecondFile = std::nullopt;
 		};
 
 		/// \brief States everything one served fixture is, in one place.
@@ -268,7 +271,8 @@ namespace bpr::app::detail {
 			std::string_view          HeadOneBlob;
 			std::string_view          HeadTwoBlob;
 			fixture_pack_source       Packs;
-			bool                      Paged = false;
+			bool                      Paged         = false;
+			bool                      WindowReading = false;
 		};
 
 		/// \brief Selects the descriptor the named fixture serves.
@@ -280,6 +284,27 @@ namespace bpr::app::detail {
 			const github_public_path_fixture aFixture) noexcept -> fixture_descriptor
 		{
 			switch (aFixture) {
+			case github_public_path_fixture::profile_window_restoration_v1:
+				return {
+					.ContractDirectory   = "profile-window-restoration-v1",
+					.CapabilityDirectory = "github-com",
+					.Server              = server_contract::github_com,
+					.AccountId           = core::github_account_id{ 1001U },
+					.RepositoryId        = core::repository_id{ 2001U },
+					.PullRequestId       = core::pull_request_id{ 3001U },
+					.Number              = core::pull_request_number{ 17U },
+					.Owner               = "octo-org",
+					.Name                = "review-repository",
+					.BaseRef             = "refs/heads/main",
+					.BaseOid             = "a61a212aa0484929bc5f20a26e9a7c1c6541c726",
+					.HeadOneOid          = "3b60c8324eee117ce72e6446fe640d85a60b37a2",
+					.HeadTwoOid          = "2de36395329f23d1a5f49f3c591b76991fc73b4b",
+					.BaseBlob            = "3456e31deaf7dc9a4c9a56b384c1b0ee9ff24e5b",
+					.HeadOneBlob         = "1522997381f979112468fccd2be62e69f93b96c9",
+					.HeadTwoBlob         = "8768eb6926e9a68f8332bc1085c990231fbc80f3",
+					.Packs               = { .File = "profile-window-restoration-v1/initial.pack", .SecondFile = "profile-window-restoration-v1/replacement.pack" },
+					.WindowReading       = true,
+				};
 			case github_public_path_fixture::github_com:
 				return {
 					.ContractDirectory   = "github-com",
@@ -386,7 +411,7 @@ namespace bpr::app::detail {
 			-> std::shared_ptr<deterministic_git_fixture>
 		{
 			return aSource.File.has_value()
-				? std::make_shared<deterministic_git_fixture>(*aSource.File)
+				? std::make_shared<deterministic_git_fixture>(*aSource.File, aSource.SecondFile)
 				: std::make_shared<deterministic_git_fixture>();
 		}
 
@@ -424,6 +449,64 @@ namespace bpr::app::detail {
 				{ .Name = "X-RateLimit-Resource", .Value = std::move(resource) });
 		}
 
+		/// \brief Keeps the two-file reading graph's metadata local to its descriptor.
+		void overlay_window_reading(std::string& aBody, read_operation aOperation, const fixture_descriptor& aDescriptor)
+		{
+			if (!aDescriptor.WindowReading) {
+				return;
+			}
+			auto document = QJsonDocument::fromJson(QByteArray::fromStdString(aBody));
+			if (aOperation == read_operation::get_pull_request) {
+				auto body = document.object();
+				body.insert(QStringLiteral("changed_files"), 2);
+				document = QJsonDocument{ body };
+			} else if (aOperation == read_operation::list_pull_request_files) {
+				QJsonArray files;
+				files.append(QJsonObject{ { QStringLiteral("filename"), QStringLiteral("review.cpp") }, { QStringLiteral("status"), QStringLiteral("modified") }, { QStringLiteral("additions"), 6 }, { QStringLiteral("deletions"), 6 } });
+				files.append(QJsonObject{ { QStringLiteral("filename"), QStringLiteral("secondary.cpp") }, { QStringLiteral("status"), QStringLiteral("modified") }, { QStringLiteral("additions"), 6 }, { QStringLiteral("deletions"), 6 } });
+				document = QJsonDocument{ files };
+			} else if (aOperation == read_operation::list_review_threads) {
+				auto body       = document.object();
+				auto data       = body.value(QStringLiteral("data")).toObject();
+				auto repository = data.value(QStringLiteral("repository")).toObject();
+				auto pull       = repository.value(QStringLiteral("pullRequest")).toObject();
+				auto files      = pull.value(QStringLiteral("files")).toObject();
+				files.insert(QStringLiteral("totalCount"), 2);
+				files.insert(QStringLiteral("nodes"), QJsonArray{ QJsonObject{ { QStringLiteral("path"), QStringLiteral("review.cpp") }, { QStringLiteral("viewerViewedState"), QStringLiteral("UNVIEWED") } }, QJsonObject{ { QStringLiteral("path"), QStringLiteral("secondary.cpp") }, { QStringLiteral("viewerViewedState"), QStringLiteral("UNVIEWED") } } });
+				pull.insert(QStringLiteral("files"), files);
+				auto       threads   = pull.value(QStringLiteral("reviewThreads")).toObject();
+				const auto prototype = threads.value(QStringLiteral("nodes")).toArray().first().toObject();
+				QJsonArray nodes;
+				for (const auto& path : { QStringLiteral("review.cpp"), QStringLiteral("secondary.cpp") }) {
+					auto thread = prototype;
+					thread.insert(QStringLiteral("id"), QStringLiteral("PRRT_fixture_reading_") + path);
+					thread.insert(QStringLiteral("path"), path);
+					thread.insert(QStringLiteral("line"), 2);
+					thread.insert(QStringLiteral("originalLine"), 2);
+					auto comments = thread.value(QStringLiteral("comments")).toObject();
+					auto comment  = comments.value(QStringLiteral("nodes")).toArray().first().toObject();
+					comment.insert(QStringLiteral("id"), QStringLiteral("PRRC_fixture_reading_") + path);
+					comment.insert(QStringLiteral("path"), path);
+					comment.insert(QStringLiteral("line"), 2);
+					comment.insert(QStringLiteral("originalLine"), 2);
+					comment.insert(QStringLiteral("bodyText"), QStringLiteral("Check the exact retained reading position."));
+					comments.insert(QStringLiteral("nodes"), QJsonArray{ comment });
+					thread.insert(QStringLiteral("comments"), comments);
+					nodes.append(thread);
+				}
+				threads.insert(QStringLiteral("nodes"), nodes);
+				threads.insert(QStringLiteral("totalCount"), 2);
+				pull.insert(QStringLiteral("reviewThreads"), threads);
+				repository.insert(QStringLiteral("pullRequest"), pull);
+				data.insert(QStringLiteral("repository"), repository);
+				body.insert(QStringLiteral("data"), data);
+				document = QJsonDocument{ body };
+			} else {
+				return;
+			}
+			aBody = document.toJson(QJsonDocument::Compact).toStdString();
+		}
+
 		[[nodiscard]] auto load_recording(
 			const fixture_descriptor& aDescriptor,
 			const std::string_view    aHead)
@@ -433,7 +516,7 @@ namespace bpr::app::detail {
 				return large_review_fixture::load(std::filesystem::path{ BPR_GITHUB_PULL_REQUEST_FIXTURE_ROOT } / aDescriptor.ContractDirectory, aHead);
 			}
 			const auto root = std::filesystem::path{ BPR_GITHUB_CONTRACT_FIXTURE_ROOT }
-				/ aDescriptor.ContractDirectory;
+				/ (aDescriptor.WindowReading ? "github-com" : aDescriptor.ContractDirectory);
 			const auto  manifest     = parse_recording(root / "manifest.json");
 			const auto& interactions = manifest.Interactions;
 			if (interactions.size()
@@ -492,6 +575,7 @@ namespace bpr::app::detail {
 				replace_all(responseBody,
 							"2222222222222222222222222222222222222222",
 							observedHead);
+				overlay_window_reading(responseBody, *operation, aDescriptor);
 				exchanges.push_back(
 					{
 						.Request = {
@@ -516,14 +600,14 @@ namespace bpr::app::detail {
 		}
 
 		/// \brief The two exact synthetic reviews available to independent windows.
-		[[nodiscard]] auto independent_window_recording(const fixture_descriptor& aDescriptor)
+		[[nodiscard]] auto independent_window_recording(const fixture_descriptor& aDescriptor, std::string_view aHead)
 			-> std::vector<recorded_exchange>
 		{
 			if (aDescriptor.Paged || aDescriptor.Number.value() != 17U
 				|| aDescriptor.PullRequestId.value() != 3001U) {
 				throw std::runtime_error{ "Independent windows require the bounded synthetic review fixture" };
 			}
-			auto result = load_recording(aDescriptor, aDescriptor.HeadOneOid);
+			auto result = load_recording(aDescriptor, aHead);
 			auto second = result;
 			for (auto& exchange : second) {
 				const auto oldPath = exchange.Request.Path;
@@ -645,6 +729,13 @@ namespace bpr::app::detail {
 				comments.Response.Body = read_all(
 					std::filesystem::path{ BPR_RFC0017_ANONYMOUS_FIXTURE_ROOT }
 					/ "captures" / "pull-request-comments.json");
+				if (aDescriptor.WindowReading) {
+					QJsonArray nodes;
+					for (const auto& path : { QStringLiteral("review.cpp"), QStringLiteral("secondary.cpp") }) {
+						nodes.append(QJsonObject{ { QStringLiteral("id"), 71001 + nodes.size() }, { QStringLiteral("body"), QStringLiteral("Check the exact retained reading position.") }, { QStringLiteral("path"), path }, { QStringLiteral("line"), 2 }, { QStringLiteral("original_line"), 2 }, { QStringLiteral("position"), 2 }, { QStringLiteral("commit_id"), QString::fromStdString(std::string{ aHead }) }, { QStringLiteral("original_commit_id"), QString::fromStdString(std::string{ aHead }) }, { QStringLiteral("user"), QJsonObject{ { QStringLiteral("node_id"), QStringLiteral("U_fixture_viewer") }, { QStringLiteral("login"), QStringLiteral("octo-reviewer") } } } });
+					}
+					comments.Response.Body = QJsonDocument{ nodes }.toJson(QJsonDocument::Compact).toStdString();
+				}
 				exchanges.push_back(std::move(comments));
 			}
 			// The authenticated script's count check has a mirror here rather than
@@ -808,7 +899,8 @@ namespace bpr::app::detail {
 				, Profile{ aSelectedProfile }
 				, Git{ std::move(aGit) }
 				, IndependentWindowReads{ aIndependentWindowReads }
-				, IndependentRecording{ aIndependentWindowReads ? independent_window_recording(aDescriptor) : std::vector<recorded_exchange>{ } }
+				, IndependentHead{ aPhase == github_epoch_fixture_phase::reuse ? aDescriptor.HeadTwoOid : aDescriptor.HeadOneOid }
+				, IndependentRecording{ aIndependentWindowReads ? independent_window_recording(aDescriptor, IndependentHead) : std::vector<recorded_exchange>{ } }
 				, IndependentBootstrap{ aIndependentWindowReads ? load_bootstrap_recording(aDescriptor) : std::vector<recorded_exchange>{ } }
 				, HistoryHeads{ history_heads(aDescriptor, aHistory) }
 				, BootstrapRecording{ load_bootstrap_recording(Descriptor) }
@@ -871,6 +963,7 @@ namespace bpr::app::detail {
 			adapters::github::validated_github_host_profile Profile;
 			std::shared_ptr<deterministic_git_fixture>      Git;
 			const bool                                      IndependentWindowReads;
+			const std::string_view                          IndependentHead;
 			const std::vector<recorded_exchange>            IndependentRecording;
 			const std::vector<recorded_exchange>            IndependentBootstrap;
 			const std::vector<std::string>                  HistoryHeads;
@@ -1378,7 +1471,7 @@ namespace bpr::app::detail {
 				const auto& fixture = State->Descriptor;
 				// Ordinary fixtures serve one or two exact heads. History replay
 				// additionally accepts only the explicit stored head inventory.
-				const auto acceptedHead   = State->IndependentWindowReads ? head == fixture.HeadOneOid : State->serves_head(head);
+				const auto acceptedHead   = State->IndependentWindowReads ? head == State->IndependentHead : State->serves_head(head);
 				const auto acceptedReview = (aContext.Authority.PullRequest == fixture.PullRequestId && aContext.Authority.Number == fixture.Number)
 					|| (State->IndependentWindowReads && aContext.Authority.PullRequest == core::pull_request_id{ 3002U }
 						&& aContext.Authority.Number == core::pull_request_number{ 18U });

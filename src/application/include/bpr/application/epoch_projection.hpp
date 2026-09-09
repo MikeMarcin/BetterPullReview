@@ -21,7 +21,8 @@ namespace bpr::application {
 		core::prune_review_epochs_intent,
 		core::delete_repository_cache_intent,
 		core::cancel_epoch_maintenance_intent,
-		core::cancel_epoch_refresh_intent>;
+		core::cancel_epoch_refresh_intent,
+		core::cancel_comparison_resolution_intent>;
 	using epoch_intent_dispatch = std::function<void(epoch_intent)>;
 
 	// This is the presentation form of an accepted revision. The host-owned

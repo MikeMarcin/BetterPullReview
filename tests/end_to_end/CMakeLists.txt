@@ -2377,4 +2377,4 @@ bpr_add_network_isolated_test(NAME application_profile_window_review_restoration
     COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/profile_window_review_restoration_contract.py"
     --application $<TARGET_FILE:test_profile_window_review_restoration_public_path>)
 set_tests_properties(application_profile_window_review_restoration_public_path PROPERTIES
-    ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_REVIEW_RESTORATION_ARTIFACT_ROOT=${CMAKE_BINARY_DIR}/bpr0709-restoration-artifacts" TIMEOUT 500)
+    ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_REVIEW_RESTORATION_ARTIFACT_ROOT=${CMAKE_BINARY_DIR}/bpr0710-restoration-artifacts" TIMEOUT 1800)

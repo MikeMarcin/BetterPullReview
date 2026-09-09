@@ -1089,6 +1089,13 @@ namespace bpr::core {
 	{
 		auto operator<=>(const cancel_epoch_refresh_intent&) const = default;
 	};
+	/// \brief Retires only the exact comparison request superseded by navigation.
+	struct cancel_comparison_resolution_intent
+	{
+		epoch_request_id      Request;
+		comparison_generation Generation;
+		auto                  operator<=>(const cancel_comparison_resolution_intent&) const = default;
+	};
 
 	using epoch_event = std::variant<
 		pull_request_revision_accepted_event,
@@ -1119,7 +1126,8 @@ namespace bpr::core {
 		select_named_comparison_intent,
 		select_comparison_anchors_intent,
 		select_comparison_anchor_intent,
-		cancel_epoch_refresh_intent>;
+		cancel_epoch_refresh_intent,
+		cancel_comparison_resolution_intent>;
 
 	/// \brief Describes the invalidate epoch authority request record.
 	struct invalidate_epoch_authority_request

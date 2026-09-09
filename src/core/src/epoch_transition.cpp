@@ -2094,6 +2094,23 @@ namespace bpr::core {
 			output.Changed  = epoch_changed_domain::commands;
 			return output;
 		}
+		[[nodiscard]] auto handle(epoch_state& aState, const cancel_comparison_resolution_intent& aIntent) -> epoch_transition_output
+		{
+			if (!aState.PendingComparison || aState.PendingComparison->Request != aIntent.Request || aState.PendingComparison->Generation != aIntent.Generation) {
+				return reject(epoch_reason_code::stale_completion);
+			}
+			epoch_transition_output output;
+			retire_pending_comparison(aState, output);
+			if (aState.AcceptedComparison) {
+				aState.RequestedSelection = explicit_selection(aState.AcceptedComparison->Left.Identity, aState.AcceptedComparison->Right.Identity);
+			} else {
+				aState.RequestedSelection = named_selection(named_comparison::whole_pr);
+			}
+			output.Selection = comparison_selection_delta{ aState.RequestedSelection };
+			output.Changed   = output.Changed | epoch_changed_domain::selection;
+			set_status(aState, output, aState.AcceptedComparison && available_for_diff(*aState.AcceptedComparison) ? epoch_status::ready : epoch_status::cancelled);
+			return output;
+		}
 
 	} // namespace
 

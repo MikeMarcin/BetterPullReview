@@ -775,6 +775,7 @@ namespace bpr::app {
 			switch (aFixture) {
 			case detail::github_public_path_fixture::github_com:
 			case detail::github_public_path_fixture::large_review_v1:
+			case detail::github_public_path_fixture::profile_window_restoration_v1:
 				return {
 					.Profile = core::host_profile_id{ 1U },
 					.Host    = core::git_host_id{ 1U },
@@ -3353,9 +3354,11 @@ namespace bpr::app {
 
 		composition_diff_projection(
 			application::diff_projection_port& aTarget,
-			publication_sink                   aPublication)
+			publication_sink                   aPublication,
+			std::function<void()>              aFailure = { })
 			: Target{ &aTarget }
 			, Publication{ std::move(aPublication) }
+			, Failure{ std::move(aFailure) }
 		{
 		}
 
@@ -3370,6 +3373,9 @@ namespace bpr::app {
 		void fail(const application::diff_failure_publication& aFailure) override
 		{
 			Target->fail(aFailure);
+			if (Failure) {
+				Failure();
+			}
 		}
 
 		void invalidate(
@@ -3381,6 +3387,7 @@ namespace bpr::app {
 	private:
 		application::diff_projection_port* Target = nullptr;
 		publication_sink                   Publication;
+		std::function<void()>              Failure;
 	};
 
 #if defined(BPR_BUILD_TESTING)
@@ -5195,6 +5202,7 @@ namespace bpr::app {
 		: public application::github_epoch_handoff_port,
 		  public application::epoch_projection_port,
 		  public application::workbench_selected_diff_projection_port,
+		  public application::workbench_projection_port,
 		  public application::review_mutation_projection_port,
 		  public application::receipt_projection_port,
 		  public application::queue_landing_projection_port,
@@ -5217,7 +5225,122 @@ namespace bpr::app {
 		std::optional<application::queue_consumer_id>         QueueConsumer;
 		std::optional<core::window_review_open_request>       PendingRestoration;
 		std::optional<core::request_id>                       RestorationReadRequest;
-		void                                                  restoration_notice(const QString& aText)
+		std::optional<core::window_reading_restoration>       ReadingRestoration;
+		std::optional<core::pending_comparison_resolution>    ReadingComparisonRequest;
+		std::optional<core::window_review_destination>        ReadingDestination;
+		std::optional<core::window_review_position>           AcceptedReadingPosition;
+		bool                                                  ReadingAdvanceQueued      = false;
+		bool                                                  ReadingFailed             = false;
+		bool                                                  ReadingRestoreUnavailable = false;
+		bool                                                  RestorationReadAccepted   = false;
+		void                                                  schedule_reading_restoration()
+		{
+			if (Closing || !ReadingRestoration || ReadingAdvanceQueued) {
+				return;
+			}
+			ReadingAdvanceQueued = true;
+			DecisionLane.post([this, weak = std::weak_ptr<const int>{ WindowLifetime }] {
+				if (weak.expired()) {
+					return;
+				}
+				ReadingAdvanceQueued = false;
+				advance_reading_restoration();
+			});
+		}
+		void finish_reading_restoration(bool aSuccess)
+		{
+			if (!PendingRestoration) {
+				return;
+			}
+			const auto pending        = *PendingRestoration;
+			ReadingRestoreUnavailable = !aSuccess;
+			ReadingRestoration.reset();
+			PendingRestoration.reset();
+			ReadingComparisonRequest.reset();
+			RestorationReadRequest.reset();
+			if (aSuccess) {
+				AcceptedReadingPosition = pending.Position;
+				restoration_notice({ });
+			} else {
+				clear_diff_selection();
+				Window->choose_home(true);
+			}
+			Profile->ReviewRestoration->complete_restore(DraftWindow, pending.Request,
+														 aSuccess ? std::expected<void, core::window_review_failure>{ } : std::unexpected(core::window_review_failure::unavailable));
+		}
+		void advance_reading_restoration()
+		{
+			if (Closing || !ReadingRestoration || !PendingRestoration || !RestorationReadAccepted
+				|| !Profile->ReviewRestoration->current_restore(DraftWindow, PendingRestoration->Request)) {
+				return;
+			}
+			const auto& position    = ReadingRestoration->position();
+			const auto* surface     = Window->comparison_surface();
+			const auto& publication = SelectedDiffPublication;
+			const auto  diffReady   = publication && position.File == publication->Request.File.File
+				&& publication->Request.Diff.Comparison == position.Comparison && surface->current_result()
+				&& surface->current_context() && surface->current_context()->Key == publication->Key;
+			const auto action = ReadingRestoration->advance(EpochHost->state(), { .FilesReady = WorkbenchHost->state().Navigation.has_value(), .FileAvailable = position.File && std::ranges::find(WorkbenchHost->actionable(), *position.File) != WorkbenchHost->actionable().end(), .Failed = ReadingFailed, .DiffReady = diffReady, .SemanticIndex = diffReady ? surface->current_semantic_index().get() : nullptr });
+			switch (action) {
+			case core::window_reading_restore_action::select_comparison:
+				clear_diff_selection();
+				EpochHost->dispatch(core::select_comparison_anchors_intent{ position.Comparison.Left.Identity, position.Comparison.Right.Identity, EpochHost->state().Catalog->Revision });
+				ReadingComparisonRequest = EpochHost->state().PendingComparison;
+				schedule_reading_restoration();
+				break;
+			case core::window_reading_restore_action::select_file:
+				if (WorkbenchHost->selected() == position.File) {
+					WorkbenchHost->refresh_selected_diff();
+				} else {
+					WorkbenchHost->apply(core::select_workbench_file_intent{ *position.File });
+				}
+				schedule_reading_restoration();
+				break;
+			case core::window_reading_restore_action::select_location:
+				finish_reading_restoration(Window->comparison_surface()->restore_selection(*position.Selection));
+				break;
+			case core::window_reading_restore_action::complete:    finish_reading_restoration(true); break;
+			case core::window_reading_restore_action::unavailable: finish_reading_restoration(false); break;
+			case core::window_reading_restore_action::wait:        break;
+			}
+		}
+		void retain_reading_position()
+		{
+			if (Closing || PendingRestoration || ReadingRestoreUnavailable || !ReadingDestination || !EpochHost
+				|| !Profile->ReviewRestoration || !EpochHost->state().AcceptedComparison) {
+				return;
+			}
+			const auto& comparison = *EpochHost->state().AcceptedComparison;
+			if (!core::available_for_diff(comparison)) {
+				return;
+			}
+			auto position = AcceptedReadingPosition.value_or(core::window_review_position{ comparison, { }, { } });
+			if (position.Comparison != comparison) {
+				position = { comparison, { }, { } };
+			}
+			const auto* surface = Window->comparison_surface();
+			if (SelectedDiffPublication && SelectedDiffPublication->Request.Diff.Comparison == comparison
+				&& surface->current_result() && surface->current_context() && surface->current_context()->Key == SelectedDiffPublication->Key) {
+				position.File      = SelectedDiffPublication->Request.File.File;
+				position.Selection = surface->selection();
+			}
+			AcceptedReadingPosition = position;
+			Profile->ReviewRestoration->accepted_position(DraftWindow, *ReadingDestination, position);
+		}
+		void publish(const application::workbench_projection& aProjection) override
+		{
+			Window->publish(aProjection);
+			schedule_reading_restoration();
+		}
+		void fail(const application::workbench_failure_publication& aFailure) override
+		{
+			Window->fail(aFailure);
+			if (ReadingRestoration && aFailure.Failure != application::workbench_host_failure::settings_unavailable) {
+				ReadingFailed = true;
+				schedule_reading_restoration();
+			}
+		}
+		void restoration_notice(const QString& aText)
 		{
 			if (Closing || !Window) {
 				return;
@@ -5227,7 +5350,7 @@ namespace bpr::app {
 				notice->setVisible(!aText.isEmpty());
 			}
 		}
-		void cancel_restoration(bool aStartup)
+		void cancel_restoration(bool aStartup, bool aReadingGesture = false)
 		{
 			if (!Profile->ReviewRestoration) {
 				return;
@@ -5239,8 +5362,16 @@ namespace bpr::app {
 			if (PendingRestoration && WindowRead) {
 				WindowRead->cancel();
 			}
+			const auto suppressLateReading = ReadingRestoration.has_value() && !aStartup && !aReadingGesture;
 			PendingRestoration.reset();
+			ReadingRestoration.reset();
+			ReadingRestoreUnavailable = suppressLateReading;
 			RestorationReadRequest.reset();
+			if (ReadingComparisonRequest && EpochHost) {
+				const auto request = *ReadingComparisonRequest;
+				ReadingComparisonRequest.reset();
+				EpochHost->dispatch(core::cancel_comparison_resolution_intent{ request.Request, request.Generation });
+			}
 			restoration_notice({ });
 		}
 		void restore_review(const core::window_review_open_request& aRequest)
@@ -5257,8 +5388,12 @@ namespace bpr::app {
 				Profile->ReviewRestoration->complete_restore(DraftWindow, aRequest.Request, std::unexpected(core::window_review_failure::conflicting_authority));
 				return;
 			}
-			PendingRestoration     = aRequest;
-			RestorationReadRequest = WindowRead->state().NextRequest;
+			PendingRestoration        = aRequest;
+			ReadingRestoration        = aRequest.Position ? std::optional{ core::window_reading_restoration{ *aRequest.Position } } : std::nullopt;
+			ReadingFailed             = false;
+			ReadingRestoreUnavailable = false;
+			RestorationReadAccepted   = false;
+			RestorationReadRequest    = WindowRead->state().NextRequest;
 			restoration_notice(QStringLiteral("Restoring the previous review…"));
 			WindowRead->dispatch(core::open_pull_request_intent{ .Repository = aRequest.Destination.Repository, .Number = aRequest.Destination.Number });
 			if (PendingRestoration && !WindowRead->state().PendingPullRequest && WindowRead->state().NextRequest == *RestorationReadRequest) {
@@ -5281,13 +5416,19 @@ namespace bpr::app {
 				const auto* profile = find_profile(snapshot->Profile);
 				if (profile && profile->host() == snapshot->Host) {
 					const auto destination = core::window_review_destination{ snapshot->Mode, std::string{ profile->hostname() }, { snapshot->Repository.Owner, snapshot->Repository.Name }, snapshot->PullRequest.Number };
+					if (ReadingDestination != destination) {
+						AcceptedReadingPosition.reset();
+					}
+					ReadingDestination = destination;
 					Profile->ReviewRestoration->accepted_read(DraftWindow, destination);
 					if (PendingRestoration && RestorationReadRequest == accepted->Context.Request
 						&& destination == PendingRestoration->Destination && Profile->ReviewRestoration->current_restore(DraftWindow, PendingRestoration->Request)) {
-						Profile->ReviewRestoration->complete_restore(DraftWindow, PendingRestoration->Request, { });
-						PendingRestoration.reset();
-						RestorationReadRequest.reset();
-						restoration_notice({ });
+						RestorationReadAccepted = true;
+						if (ReadingRestoration) {
+							schedule_reading_restoration();
+						} else {
+							finish_reading_restoration(true);
+						}
 					}
 				}
 			} else if (PendingRestoration && RestorationReadRequest && aUpdate.Transition.Status
@@ -5295,6 +5436,7 @@ namespace bpr::app {
 					   && (aUpdate.Transition.Status->Status == core::github_status::pull_request_failed || aUpdate.Transition.Status->Status == core::github_status::pull_request_cancelled)) {
 				Profile->ReviewRestoration->complete_restore(DraftWindow, PendingRestoration->Request, std::unexpected(core::window_review_failure::unavailable));
 				PendingRestoration.reset();
+				ReadingRestoration.reset();
 				RestorationReadRequest.reset();
 			}
 		}
@@ -5476,7 +5618,9 @@ namespace bpr::app {
 			Window->comparison_surface()->set_selection_sink(
 				[this](const std::optional<core::semantic_selection>& aSelection) {
 					observe_review_selection(aSelection);
+					retain_reading_position();
 				});
+			Window->comparison_surface()->set_reading_gesture_sink([this] { cancel_restoration(false, true); retain_reading_position(); });
 			Window->set_defect_dispatch(
 				[this](core::defect_command aCommand) {
 					dispatch_defect(std::move(aCommand));
@@ -5899,7 +6043,10 @@ namespace bpr::app {
 					adopt_published_classification(aPublication);
 					observe_selected_material(aPublication);
 					correlate_defects();
-				});
+					retain_reading_position();
+					schedule_reading_restoration();
+				},
+				[this] { if (ReadingRestoration) { ReadingFailed = true; schedule_reading_restoration(); } });
 			DiffHost = std::make_unique<application::diff_application_host>(
 				core::diff_state{
 					.ApplicationSession = WindowSession,
@@ -5973,7 +6120,7 @@ namespace bpr::app {
 				SessionWorkbenchSettings ? *SessionWorkbenchSettings : *WorkbenchSettings,
 				WorkbenchEffects,
 				DecisionLane,
-				*Window,
+				*this,
 				WindowSession,
 				application::workbench_host_limits{ },
 				EpochHost.get(),
@@ -6637,6 +6784,9 @@ namespace bpr::app {
 		{
 			if (Closing || WorkbenchHost == nullptr) {
 				return;
+			}
+			if (std::holds_alternative<core::select_workbench_file_intent>(aIntent) || std::holds_alternative<core::navigate_workbench_file_intent>(aIntent)) {
+				cancel_restoration(false, true);
 			}
 #if defined(BPR_BUILD_TESTING)
 			++WorkbenchIntentDispatches;
@@ -8208,7 +8358,8 @@ namespace bpr::app {
 		void accept(application::accepted_pull_request_handoff aHandoff) override
 		{
 			if (!Closing && EpochHost != nullptr) {
-				AgentReview = agent_review_facts{
+				ReadingDestination = core::window_review_destination{ aHandoff.Mode, std::string{ aHandoff.Hostname.value() }, aHandoff.Locator, aHandoff.Number };
+				AgentReview        = agent_review_facts{
 					.Host        = aHandoff.Host,
 					.Account     = aHandoff.Account,
 					.Generation  = aHandoff.IdentityGeneration,
@@ -8294,6 +8445,11 @@ namespace bpr::app {
 			if (Closing || EpochHost == nullptr) {
 				return;
 			}
+			if (ReadingRestoration && RestorationReadAccepted) {
+				finish_reading_restoration(false);
+			}
+			ReadingDestination.reset();
+			AcceptedReadingPosition.reset();
 			AgentReview.reset();
 			if (AgentHost != nullptr) {
 				AgentHost->clear();
@@ -8646,6 +8802,7 @@ namespace bpr::app {
 				std::holds_alternative<core::select_named_comparison_intent>(aIntent)
 				|| std::holds_alternative<core::select_comparison_anchors_intent>(aIntent)
 				|| std::holds_alternative<core::select_comparison_anchor_intent>(aIntent)) {
+				cancel_restoration(false, true);
 				clear_diff_selection();
 			}
 			if (const auto* deletion = std::get_if<core::delete_repository_cache_intent>(&aIntent)) {
@@ -9934,6 +10091,8 @@ namespace bpr::app {
 				&& comparison->AvailableForDiff) {
 				WorkbenchHost->refresh_selected_diff();
 			}
+			retain_reading_position();
+			schedule_reading_restoration();
 		}
 
 		void clear_diff_selection()
@@ -10018,6 +10177,10 @@ namespace bpr::app {
 		{
 			if (Closing || Window == nullptr) {
 				return;
+			}
+			if (ReadingRestoration) {
+				ReadingFailed = true;
+				schedule_reading_restoration();
 			}
 			const auto failure = [&aFailure] {
 				switch (aFailure.Status) {
@@ -10690,7 +10853,7 @@ namespace bpr::app {
 			}
 			begin_other_shutdown();
 			if (
-				!DiffHost->is_quiescent() || !EpochHost->is_quiescent()
+				!DiffHost->is_quiescent() || !EpochHost->is_quiescent() || ReadingAdvanceQueued
 				|| (WindowRead && !WindowRead->is_quiescent()) || (McpHelper && McpHelper->running())
 				|| ContinuationRealignmentsInFlight.load(
 					   std::memory_order_acquire)

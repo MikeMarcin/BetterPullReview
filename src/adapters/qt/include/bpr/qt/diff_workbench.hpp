@@ -163,6 +163,8 @@ namespace bpr::qt {
 		void clear();
 		/// \brief Publishes exact semantic selections for application binding.
 		void set_selection_sink(selection_sink aSink);
+		/// \brief Reports explicit reading gestures before the accepted selection sink.
+		void set_reading_gesture_sink(std::function<void()> aSink);
 		/// \brief Observes Qt-local selections without replacing the application sink.
 		void set_selection_observer(selection_observer aObserver);
 		/// \brief Selects and reveals one exact zero-based conversation anchor.
@@ -170,6 +172,8 @@ namespace bpr::qt {
 		/// would, so a draft started from its card anchors there; the anchor the
 		/// line carries is kept.
 		[[nodiscard]] auto select_conversation_line(core::diff_side aSide, std::uint32_t aLine) -> bool;
+		/// \brief Restores an exact core-validated selection and reveals its semantic line.
+		[[nodiscard]] auto restore_selection(const core::semantic_selection& aSelection) -> bool;
 		[[nodiscard]] auto reveal_conversation_line(
 			core::diff_side aSide,
 			std::uint32_t   aLine) -> bool;
@@ -351,6 +355,7 @@ namespace bpr::qt {
 		void announce_accessible_status(QString aText);
 		void update_status(QString aText);
 		void emit_selection(bool aInteractive = false) noexcept;
+		void emit_reading_gesture() noexcept;
 		void emit_selection_observer(bool aInteractive) noexcept;
 		void clear_projection(QString aStatus);
 
@@ -378,6 +383,8 @@ namespace bpr::qt {
 		std::optional<core::line_detail_input>           CurrentDetail;
 		core::diff_interaction_state                     Interaction;
 		selection_sink                                   SelectionSink;
+		std::function<void()>                            ReadingGestureSink;
+		std::optional<core::source_line_ref>             RestoredReadingLine;
 		selection_observer                               SelectionObserver;
 		std::function<void()>                            FrameObserver;
 		std::optional<core::source_line_ref>             ConversationAnchor;

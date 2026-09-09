@@ -25,7 +25,9 @@ namespace bpr::application {
 		[[nodiscard]] auto current_restore(core::bpr_window_context aContext, core::request_id aRequest) const noexcept -> bool;
 		void               complete_restore(core::bpr_window_context aContext, core::request_id aRequest, std::expected<void, core::window_review_failure> aResult);
 		/// Composition supplies only an exact read already accepted by the window host.
-		void               accepted_read(core::bpr_window_context aContext, const core::window_review_destination& aDestination);
+		void accepted_read(core::bpr_window_context aContext, const core::window_review_destination& aDestination);
+		/// \brief Retains an exact accepted reading position for the current accepted destination.
+		void               accepted_position(core::bpr_window_context aContext, const core::window_review_destination& aDestination, const core::window_review_position& aPosition);
 		void               close(core::bpr_window_context aContext);
 		[[nodiscard]] auto window_quiescent(core::bpr_window_context aContext) const noexcept -> bool;
 		/// Explicit recovery reloads revision authority; preserves trusted pending records, never retries conflict blindly.

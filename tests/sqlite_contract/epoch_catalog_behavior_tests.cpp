@@ -1466,6 +1466,23 @@ namespace {
 				&& exactReview->Anchors.front().Commit == review.Commit,
 			"review anchor resolves by exact association identity");
 
+		const auto lookupRevision = session->binding().Catalog;
+		auto       missingEpoch   = firstHead;
+		missingEpoch.Epoch        = core::epoch_ordinal{ 9999 };
+		auto missingReview        = reviewAnchor;
+		missingReview.Review      = opaque<core::review_association_id>(231U);
+		for (const auto& missing : { missingEpoch, missingReview }) {
+			const auto partial = session->exact_anchors({ .Catalog = lookupRevision, .Anchors = { firstBase, missing } }, { });
+			expect(partial && partial->Catalog == lookupRevision && partial->Anchors.size() == 1U
+					   && partial->Anchors.front() == anchors->Anchors.front()
+					   && session->binding().Catalog == lookupRevision,
+				   "missing epoch/review is omitted without changing present candidate or revision");
+			auto wrongAuthority      = missing;
+			wrongAuthority.Authority = opaque<core::pull_request_authority_scope_id>(232U);
+			expect_failure(session->exact_anchors({ .Catalog = lookupRevision, .Anchors = { wrongAuthority } }, { }),
+						   app::epoch_catalog_failure::authority_mismatch, "missing anchor cannot bypass authority validation");
+		}
+
 		auto corrupt = session->mark_anchor_availability(
 			app::mark_anchor_availability_request{
 				.Catalog = session->binding().Catalog,

@@ -111,7 +111,10 @@ global allocator. Optional layout failure is visible and leaves windows usable.
 BPR-0709 adds accepted PR destinations in the separate profile-private
 `state/v1/window-restoration.sqlite3`. Each of at most 32 records contains only
 stable window identity, accepted read mode, configured canonical hostname,
-repository owner/name and PR number. The core selects one shared startup
+repository owner/name and PR number. BPR-0710's version-two record optionally
+adds the accepted exact comparison anchors and commit OIDs, stable file identity
+and semantic selection. Version-one destinations migrate transactionally without
+inventing a reading position. The core selects one shared startup
 authority in retained focus order; incompatible destinations fail visibly.
 The host loads and coalesces revision-aware writes on the effect lane, flushes
 the latest accepted destinations on Quit and erases explicit Close rows after
@@ -121,8 +124,17 @@ authenticated startup may reuse only a remembered grant, while public preview
 uses the credential-free path. Home and new navigation cancel pending restore
 requests by exact window/request identity. Broken optional storage leaves usable
 Home and an explicit error without resetting the global window allocator.
-Actual-process acceptance is recorded by BPR-0709. Comparison/file/location,
-native window geometry and cross-process activation remain open RFC-BPR-0024 work.
+The core advances reading restoration only after the retained exact pair, file
+and semantic material resolve through the existing epoch and diff hosts. Missing
+anchors, files or material leave an explicit unavailable result, not an alias or
+nearby line. Accepted positions coalesce independently per window; failed
+restoration preserves the saved record. Interactive reading gestures cancel the
+pending continuation, and a superseded comparison request is retired by exact
+request and generation. Qt restores the verified semantic selection and reveals
+its line without reporting a new user gesture.
+Actual-process destination acceptance is recorded by BPR-0709; BPR-0710 records
+the bounded exact-reading course and its fixture limitations. Native window
+geometry and cross-process activation remain open RFC-BPR-0024 work.
 
 ## Diagnostic logging boundary
 

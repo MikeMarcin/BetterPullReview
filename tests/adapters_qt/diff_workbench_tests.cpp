@@ -1276,6 +1276,8 @@ namespace {
 			[&selections](const std::optional<core::semantic_selection>& aSelection) {
 				selections.push_back(aSelection);
 			});
+		auto readingGestures = 0;
+		workbench.set_reading_gesture_sink([&readingGestures] { ++readingGestures; });
 		workbench.resize(1'200, 760);
 		workbench.show();
 		process_events();
@@ -1288,6 +1290,7 @@ namespace {
 		process_events();
 		expect(!selections.empty() && selections.back() == workbench.selection(),
 			   "accepted publication emits its reconciled semantic selection");
+		expect(readingGestures == 0, "publication is not a user reading gesture");
 
 		const auto leftBlock = workbench.left_pane()->document()->findBlockByNumber(0);
 		send_click(
@@ -1298,6 +1301,9 @@ namespace {
 				   && selections.back()->PreferredLine.Side == core::diff_side::left
 				   && selections.back() == workbench.selection(),
 			   "a left-pane click emits the exact left semantic source line");
+		expect(readingGestures > 0, "line gesture reaches reading cancellation boundary");
+		const auto beforeRestore = readingGestures;
+		expect(workbench.restore_selection(*workbench.selection()) && readingGestures == beforeRestore, "exact restoration never emits a user gesture");
 
 		const auto rightBlock = workbench.right_pane()->document()->findBlockByNumber(0);
 		send_click(
@@ -1321,6 +1327,8 @@ namespace {
 		auto       workbench             = qt::diff_workbench{ };
 		auto       externalCalls         = 0U;
 		auto       observerCalls         = 0U;
+		auto       readingGestures       = 0U;
+		workbench.set_reading_gesture_sink([&readingGestures] { ++readingGestures; });
 		workbench.set_selection_sink([&externalCalls](const auto&) {
 			++externalCalls;
 		});
@@ -1370,6 +1378,7 @@ namespace {
 
 		const auto externalBeforeSameLine = externalCalls;
 		const auto observerBeforeSameLine = observerCalls;
+		const auto gesturesBeforeSameLine = readingGestures;
 		send_click(*workbench.right_pane()->viewport(), target.center());
 		process_events();
 		expect(workbench.conversation_anchor().has_value()
@@ -1380,7 +1389,8 @@ namespace {
 						   .isEmpty(),
 			   "clicking the exact anchored line retains its conversation marker");
 		expect(externalCalls == externalBeforeSameLine
-				   && observerCalls == observerBeforeSameLine + 1U,
+				   && observerCalls == observerBeforeSameLine + 1U
+				   && readingGestures == gesturesBeforeSameLine + 1U,
 			   "an unchanged anchored-line click reports only the Qt-local gesture");
 
 		workbench.scroll_controller()->end();

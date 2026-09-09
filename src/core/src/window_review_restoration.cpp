@@ -1,4 +1,5 @@
 #include "bpr/core/window_review_restoration.hpp"
+#include "bpr/core/epoch_transition.hpp"
 #include <algorithm>
 #include <limits>
 #include <stdexcept>
@@ -42,12 +43,108 @@ namespace bpr::core {
 		}
 		std::uint64_t previous = 0;
 		for (const auto& record : aRecords) {
-			if (record.Window.value() <= previous || !valid(record.Destination)) {
+			if (record.Window.value() <= previous || !valid(record.Destination) || (record.Position && !valid(*record.Position))) {
 				return false;
 			}
 			previous = record.Window.value();
 		}
 		return true;
+	}
+	auto valid(const window_review_position& aPosition) noexcept -> bool
+	{
+		const auto& left  = aPosition.Comparison.Left;
+		const auto& right = aPosition.Comparison.Right;
+		if (!valid(left) || !valid(right) || left.Availability != anchor_availability::available
+			|| right.Availability != anchor_availability::available || left.Identity.Authority != right.Identity.Authority
+			|| left.Identity.Incarnation != right.Identity.Incarnation || left.Commit.algorithm() != right.Commit.algorithm()
+			|| (aPosition.File && !aPosition.File->valid())) {
+			return false;
+		}
+		if (!aPosition.Selection) {
+			return true;
+		}
+		const auto& selection = *aPosition.Selection;
+		return aPosition.File && selection.Comparison.valid() && selection.PreferredLine.Comparison == selection.Comparison
+			&& (selection.PreferredLine.Side == diff_side::left || selection.PreferredLine.Side == diff_side::right)
+			&& (selection.Kind == semantic_selection_kind::line || selection.Kind == semantic_selection_kind::group)
+			&& (selection.Kind != semantic_selection_kind::group || selection.Group.has_value())
+			&& (!selection.Segment || selection.Segment->valid()) && (!selection.Group || selection.Group->valid());
+	}
+	window_reading_restoration::window_reading_restoration(window_review_position aPosition)
+		: Position{ std::move(aPosition) }
+	{
+		if (!valid(Position)) {
+			Stage = window_reading_restore_action::unavailable;
+		}
+	}
+	auto window_reading_restoration::advance(const epoch_state& aEpoch, const window_reading_observation& aObservation) -> window_reading_restore_action
+	{
+		using enum window_reading_restore_action;
+		if (Stage == complete || Stage == unavailable) {
+			return Stage;
+		}
+		if (aObservation.Failed) {
+			Stage = unavailable;
+			return Stage;
+		}
+		if (aEpoch.PendingIngestion || aEpoch.PendingComparison) {
+			return wait;
+		}
+		if (!aEpoch.Catalog) {
+			if (aEpoch.Status == epoch_status::failed || aEpoch.Status == epoch_status::unavailable || aEpoch.Status == epoch_status::cancelled) {
+				Stage = unavailable;
+				return Stage;
+			}
+			return wait;
+		}
+		if (!aEpoch.Authority || aEpoch.Authority->Scope != Position.Comparison.Left.Identity.Authority || aEpoch.Catalog->Incarnation != Position.Comparison.Left.Identity.Incarnation) {
+			Stage = unavailable;
+			return Stage;
+		}
+		if (Stage == select_comparison) {
+			Stage = select_file;
+			return select_comparison;
+		}
+		if (aEpoch.AcceptedComparison != Position.Comparison || aEpoch.Status != epoch_status::ready) {
+			Stage = unavailable;
+			return Stage;
+		}
+		if (!Position.File) {
+			Stage = complete;
+			return Stage;
+		}
+		if (Stage == select_file) {
+			if (!aObservation.FilesReady) {
+				return wait;
+			}
+			if (!aObservation.FileAvailable) {
+				Stage = unavailable;
+				return Stage;
+			}
+			Stage = select_location;
+			return select_file;
+		}
+		if (!aObservation.DiffReady) {
+			return wait;
+		}
+		if (Position.Selection) {
+			if (!aObservation.SemanticIndex) {
+				Stage = unavailable;
+				return Stage;
+			}
+			const auto& selection = *Position.Selection;
+			const auto  resolved  = selection.Kind == semantic_selection_kind::group
+				? select_group(*aObservation.SemanticIndex, *selection.Group)
+				: select_line(*aObservation.SemanticIndex, selection.PreferredLine);
+			if (resolved != selection) {
+				Stage = unavailable;
+				return Stage;
+			}
+			Stage = complete;
+			return select_location;
+		}
+		Stage = complete;
+		return Stage;
 	}
 	window_review_restoration::window_review_restoration(bpr_profile_id aProfile, std::vector<bpr_window_context> aContexts, std::vector<std::string> aConfiguredHosts)
 		: Profile{ aProfile }
@@ -132,7 +229,8 @@ namespace bpr::core {
 				actions.Failures.push_back({ slot->Context, window_review_failure::conflicting_authority });
 				continue;
 			}
-			slot->Pending = record->Destination;
+			slot->Pending  = record->Destination;
+			slot->Position = record->Position;
 		}
 		if (Chosen || !hadDestination) {
 			Startup         = request_id{ NextRequest++ };
@@ -151,8 +249,9 @@ namespace bpr::core {
 					continue;
 				}
 				slot.Request = request_id{ NextRequest++ };
-				actions.Opens.push_back({ slot.Context, *slot.Request, *slot.Pending });
+				actions.Opens.push_back({ slot.Context, *slot.Request, *slot.Pending, slot.Position });
 				slot.Pending.reset();
+				slot.Position.reset();
 			}
 		}
 		return actions;
@@ -239,10 +338,23 @@ namespace bpr::core {
 				return false;
 			}
 			found->Destination = aDestination;
+			found->Position.reset();
 		} else {
 			Records.push_back({ aContext.Window, aDestination });
 			std::ranges::sort(Records, { }, &window_review_record::Window);
 		}
+		return true;
+	}
+	auto window_review_restoration::accepted_position(bpr_window_context aContext, const window_review_destination& aDestination, const window_review_position& aPosition) -> bool
+	{
+		if (!current(aContext) || !valid(aPosition)) {
+			return false;
+		}
+		const auto found = std::ranges::find(Records, aContext.Window, &window_review_record::Window);
+		if (found == Records.end() || found->Destination != aDestination || found->Position == aPosition) {
+			return false;
+		}
+		found->Position = aPosition;
 		return true;
 	}
 	auto window_review_restoration::close(bpr_window_context aContext) -> bool

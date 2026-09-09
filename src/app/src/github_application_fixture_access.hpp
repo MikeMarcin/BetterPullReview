@@ -39,6 +39,8 @@ namespace bpr::app::detail {
 		uiforetw_74,
 		/// Synthetic 515-file, 1,000-thread latest-head workload.
 		large_review_v1,
+		/// Synthetic two-file sibling-head graph for independent window restoration.
+		profile_window_restoration_v1,
 	};
 
 	/// \brief Reports whether the named fixture serves a second head.
