@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0711"
 title: "Admit one native runtime owner per profile"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0710"]
 metadata: {"dispatch":"UX-2026-09-08-D3","mandate_revision":1}
