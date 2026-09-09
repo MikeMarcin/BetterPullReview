@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0713"
 title: "Share accepted private-ledger projections between review windows"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0024"]
 depends_on: ["BPR-0712"]
 metadata: {"dispatch":"UX-2026-09-08-D5","mandate_revision":1}
