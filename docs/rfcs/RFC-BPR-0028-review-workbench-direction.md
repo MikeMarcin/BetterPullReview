@@ -223,3 +223,21 @@ prepare affected material again before requesting those verdicts. Required
 Windows evidence and the nonterminal RFC status remain unchanged. The activated
 0018 → 0024 → 0025 → 0026 workstream continues under the canonical index, retaining
 this RFC's superseding Home/layout decisions and unscheduled browser-style tabs.
+
+Prepared again, 2026-09-10, under the adopted pack plan
+[ux-redesign-pack-0028](plans/ux-redesign-pack-0028/milestone-plan.json),
+milestone `attended-preparation-pack-head`. The tests-disabled bundle at the
+pack head (executable sha256 `484b2072…`) and one attended session carry all
+nine human-pending cards of this RFC and RFC-BPR-0018: BPR-0646, BPR-0662,
+BPR-0663, BPR-0667, BPR-0674 (two candidates), BPR-0675, BPR-0676, BPR-0677
+and BPR-0683. The packet is
+[rfc-bpr-0028-attended-v002](../verification/reviews/rfc-bpr-0028-attended-v002/operator-packet.md);
+its identity file binds the executable digest, the page digest and each
+candidate fingerprint. The integration pass at that head first found four
+red-at-HEAD test surfaces left by BPR-0689, BPR-0695, BPR-0710 and BPR-0714
+(a stale Home-bar course, two `make` callers, two variant counts and three
+application digest pins) and repaired them in the same pass; no product
+source changed. No verdict is recorded yet; every card stays parked on
+human-review. Next: consume the owner's verdicts and finish each card from
+its own acceptance, then `close-rfc-0018` (BPR-0593), then BPR-0595, which
+also waits on the canonical RFC-BPR-0008 closeout BPR-0242 outside this pack.

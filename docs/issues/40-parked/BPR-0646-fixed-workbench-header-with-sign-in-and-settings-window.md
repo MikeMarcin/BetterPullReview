@@ -375,3 +375,10 @@ for the epoch line, and
 [BPR-0677](BPR-0677-the-comparison-stays-unavailable-after-the-history-is-ready.md)
 for the comparison. The two review-page requests are AgentSkills ASK-0020.
 The title row is accepted: "the title row looks pretty good".
+
+## Attended candidate, 2026-09-10
+
+Prepared again at the pack head in
+[rfc-bpr-0028-attended-v002](../../verification/reviews/rfc-bpr-0028-attended-v002/operator-packet.md)
+(bundle executable sha256 `484b2072…`), under plan `ux-redesign-pack-0028`.
+The v001 packet is historical; no verdict is recorded on this card yet.

@@ -1,0 +1,87 @@
+{
+ "schema": "bpr.attended_review_identity",
+ "schema_version": 1,
+ "head": "253a4c87",
+ "rfc": "RFC-BPR-0028",
+ "rfcs": [
+  "RFC-BPR-0028",
+  "RFC-BPR-0018"
+ ],
+ "session": "cbd48b91000b00f1e72e1ad62c7c384c",
+ "milestone_plan": {
+  "id": "ux-redesign-pack-0028",
+  "milestone": "attended-preparation-pack-head"
+ },
+ "bundle": {
+  "path": "build/app-release/src/app/BetterPullReview.app",
+  "executable_sha256": "484b2072fef7f67cf6119e70478281ca02a40077cea4f64896e67e4438bba9c0",
+  "build_testing": false
+ },
+ "page": {
+  "path": "offline-package/index.html",
+  "digest": "sha256:2ff745aa451a7ce88a0a759a4e98ebb942fdd6b0ac0558f9d605835fccdfe5c4"
+ },
+ "candidates": [
+  {
+   "id": "BPR-0646-workbench-chrome",
+   "revision": "app-release-484b2072-2026-09-10",
+   "fingerprint": "3b769ba07a5c0b88410bd296506d79dc1df1b44aa26f65cd4a0a3233bd0e39a3",
+   "card": "docs/issues/40-parked/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md"
+  },
+  {
+   "id": "BPR-0662-drawer-widths",
+   "revision": "app-release-484b2072-2026-09-10",
+   "fingerprint": "adda849024210e01f6ba0bd547e90bba3eb93817c4dbac9da9121a5d2cd5bac6",
+   "card": "docs/issues/40-parked/BPR-0662-drawer-widths-survive-home-and-a-squeezed-splitter.md"
+  },
+  {
+   "id": "BPR-0663-public-preview-epoch",
+   "revision": "app-release-484b2072-2026-09-10",
+   "fingerprint": "6a77dd3410a0c1f57caa2ffaf34cd2e27ffcbf2704750b6f9595b493acc7b2e2",
+   "card": "docs/issues/40-parked/BPR-0663-public-preview-refuses-the-epoch-smart-acquire.md"
+  },
+  {
+   "id": "BPR-0667-moved-base-comparison",
+   "revision": "app-release-484b2072-2026-09-10",
+   "fingerprint": "1f4a90a12d28a6705f00238f9b18a3a7dd7af83a8e71dd823e5902ef222ef7a5",
+   "card": "docs/issues/40-parked/BPR-0667-the-epoch-refuses-any-pull-request-whose-base-branch-moved.md"
+  },
+  {
+   "id": "BPR-0674-overview-drawer-policy",
+   "revision": "app-release-484b2072-2026-09-10",
+   "fingerprint": "07ade861b21f23867c957d4815062b4bf99e01fdd9223111ba68ea262b541339",
+   "card": "docs/issues/40-parked/BPR-0674-overview-is-starved-by-the-drawers.md"
+  },
+  {
+   "id": "BPR-0674-overview-headings",
+   "revision": "app-release-484b2072-2026-09-10",
+   "fingerprint": "2c74ec684a467bbf3161301940ca85d4ea8253efc71be3d965d4b7cc050958dc",
+   "card": "docs/issues/40-parked/BPR-0674-overview-is-starved-by-the-drawers.md"
+  },
+  {
+   "id": "BPR-0675-drawer-collapse",
+   "revision": "app-release-484b2072-2026-09-10",
+   "fingerprint": "37c0fbaed457a7ec85ae040bed66ba657362c88c35b7b2337a7bf19b3d7659c1",
+   "card": "docs/issues/40-parked/BPR-0675-a-drawer-cannot-be-collapsed-by-anyone-who-has-not-read-the-code.md"
+  },
+  {
+   "id": "BPR-0676-epoch-line-legibility",
+   "revision": "app-release-484b2072-2026-09-10",
+   "fingerprint": "ce14a6e999cff8c8361db3e978498640d8c3628adde390550ce01a40fe0fc4ec",
+   "card": "docs/issues/40-parked/BPR-0676-the-epoch-line-does-not-show-whether-it-is-working.md"
+  },
+  {
+   "id": "BPR-0677-comparison-readable",
+   "revision": "app-release-484b2072-2026-09-10",
+   "fingerprint": "734536d566c20f08bafec4b43f4c5f3c7b49aa325a716334e95bc31a48967e3a",
+   "card": "docs/issues/40-parked/BPR-0677-the-comparison-stays-unavailable-after-the-history-is-ready.md"
+  },
+  {
+   "id": "BPR-0683-settings-native-macos",
+   "revision": "app-release-484b2072-2026-09-10",
+   "fingerprint": "ee831238c49236a08c6e49840b3afa247cc70088c9cedeb2b0c7aade4ef65f47",
+   "card": "docs/issues/40-parked/BPR-0683-settings-integration-and-native-acceptance.md"
+  }
+ ],
+ "owner_verdicts": []
+}

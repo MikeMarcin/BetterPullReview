@@ -131,3 +131,13 @@ checks and Qt 100/125/200 passed, including maximum admitted collections.
 BPR-0688 coalesces a burst to the latest preview and invalidates queued work on
 close/reset (29bb2980); the panel and actual theme course passed. Documentation
 verifier regression suite: 62 tests passed during this integration.
+
+## Attended preparation, 2026-09-10
+
+BPR-0683's three remaining macOS asks (AC-07 VoiceOver order, AC-08 the four
+appearances at the real window, AC-11 the tests-disabled packaged inventory)
+are one candidate in
+[rfc-bpr-0028-attended-v002](../../verification/reviews/rfc-bpr-0028-attended-v002/operator-packet.md),
+prepared under the adopted pack plan `ux-redesign-pack-0028`. Windows and
+Linux packaged inventory stay pending on their stations. This closeout
+remains in Backlog until BPR-0683 is Done.
