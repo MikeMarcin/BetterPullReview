@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0717"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "qt_anonymous_public_preview reflow assertion stale after the Settings adoption",
+  "created": "2026-09-10T18:03:23.038031+00:00",
+  "base": "fd7388e8133bee6665d7903726eda1ab03822ec8"
+}
