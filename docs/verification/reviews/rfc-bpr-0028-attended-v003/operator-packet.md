@@ -11,7 +11,7 @@ signed out, which reads and never writes.
 - Bundle: `build/app-release/src/app/BetterPullReview.app`, executable
   sha256 `9334b13ad4880eab414724ff8179a862f00d4a7406bfc4d1da3211ec15a50525`
   as recorded in [session-identity.json](session-identity.json), tests
-  disabled, ad-hoc signed, built at HEAD_PLACEHOLDER.
+  disabled, ad-hoc signed, built at da92d5a9.
 - Review page: [offline-package/index.html](offline-package/index.html), or
   ask for the live URL (`attended_review.py serve`). Each candidate offers
   the command that opens the build and the pull request link, both with

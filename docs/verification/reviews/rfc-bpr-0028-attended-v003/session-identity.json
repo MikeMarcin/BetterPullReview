@@ -1,7 +1,7 @@
 {
  "schema": "bpr.attended_review_identity",
  "schema_version": 1,
- "head": "HEAD_PLACEHOLDER",
+ "head": "da92d5a9",
  "rfc": "RFC-BPR-0028",
  "rfcs": [
   "RFC-BPR-0028",
