@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0717"
 title: "The public-preview reflow assertion is stale after the Settings adoption"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P2"
@@ -15,7 +15,7 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 one assertion, "compact connection buttons use a separate row below the
 profile" (`tests/adapters_qt/anonymous_public_preview_tests.cpp`, the
 420-pixel reflow claim). The selector was recorded on
-[BPR-0715](../30-in-progress/BPR-0715-opening-a-pull-request-signed-out-no-longer-reaches-a-comparison.md)
+[BPR-0715](BPR-0715-opening-a-pull-request-signed-out-no-longer-reaches-a-comparison.md)
 so it would not be lost; it is not that regression.
 
 ## Cause
