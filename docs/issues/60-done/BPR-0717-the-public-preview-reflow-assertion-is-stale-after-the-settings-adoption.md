@@ -16,7 +16,7 @@ acceptance: [{"criterion":"qt_anonymous_public_preview_scale_{100,125,200} pass,
 one assertion, "compact connection buttons use a separate row below the
 profile" (`tests/adapters_qt/anonymous_public_preview_tests.cpp`, the
 420-pixel reflow claim). The selector was recorded on
-[BPR-0715](../30-in-progress/BPR-0715-opening-a-pull-request-signed-out-no-longer-reaches-a-comparison.md)
+[BPR-0715](../40-parked/BPR-0715-opening-a-pull-request-signed-out-no-longer-reaches-a-comparison.md)
 so it would not be lost; it is not that regression.
 
 ## Cause

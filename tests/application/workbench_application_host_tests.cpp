@@ -594,6 +594,26 @@ namespace {
 			   "a superseded selected-diff request cannot restore cursor facts");
 	}
 
+	// [[BPR-0715]]. A signed-out read names no account and no viewer; the
+	// workbench accepts that authority as the credential-free one, and still
+	// refuses one zero without the other.
+	void test_the_signed_out_authority_is_valid_and_a_half_named_one_is_not()
+	{
+		auto anonymous    = authority();
+		anonymous.Account = core::github_account_id{ };
+		anonymous.Viewer  = core::github_viewer_actor_id{ };
+		expect(application::anonymous(anonymous) && application::valid(anonymous),
+			   "the signed-out workbench authority is valid");
+		expect(!application::anonymous(authority()) && application::valid(authority()),
+			   "the account authority stays valid and is not signed out");
+		auto accountOnly   = authority();
+		accountOnly.Viewer = core::github_viewer_actor_id{ };
+		auto viewerOnly    = authority();
+		viewerOnly.Account = core::github_account_id{ };
+		expect(!application::valid(accountOnly) && !application::valid(viewerOnly),
+			   "an authority naming one of account and viewer is refused");
+	}
+
 	void test_invalid_limits_are_rejected()
 	{
 		auto observations = fake_observations{ };
@@ -1448,6 +1468,7 @@ auto main() -> int
 	test_orderly_shutdown_flushes_latest_layout_serially();
 	test_orderly_shutdown_drains_layout_at_request_capacity();
 	test_orderly_shutdown_failure_and_forced_escalation();
+	test_the_signed_out_authority_is_valid_and_a_half_named_one_is_not();
 	test_invalid_limits_are_rejected();
 	test_first_observation_publishes_bounded_cursor_facts();
 	test_change_navigation_observation_is_exact_and_bounded();

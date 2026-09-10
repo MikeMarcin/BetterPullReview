@@ -1476,9 +1476,18 @@ namespace bpr::app::detail {
 				const auto acceptedReview = (aContext.Authority.PullRequest == fixture.PullRequestId && aContext.Authority.Number == fixture.Number)
 					|| (State->IndependentWindowReads && aContext.Authority.PullRequest == core::pull_request_id{ 3002U }
 						&& aContext.Authority.Number == core::pull_request_number{ 18U });
-				if (Role != fixture_transport_role::account
+				// [[BPR-0715]]. The anonymous role serves the signed-out
+				// authority, which names no account; the account role keeps
+				// serving the recorded account and nothing else.
+				const auto anonymousRole = Role == fixture_transport_role::anonymous;
+				const auto acceptedRole  = anonymousRole
+					? aContext.Authority.Mode == core::github_access_mode::public_preview
+						&& aContext.Authority.Account.value() == 0U
+					: Role == fixture_transport_role::account
+						&& aContext.Authority.Mode == core::github_access_mode::authenticated
+						&& aContext.Authority.Account == fixture.AccountId;
+				if (!acceptedRole
 					|| !application::valid(aContext)
-					|| aContext.Authority.Account != fixture.AccountId
 					|| aContext.Authority.Repository != fixture.RepositoryId
 					|| !acceptedReview
 					|| aContext.Repository
@@ -1604,6 +1613,12 @@ namespace bpr::app::detail {
 					return std::unexpected{ provider_error(
 						application::github_provider_failure::unavailable) };
 				}
+				return AnonymousTransport;
+			}
+
+			[[nodiscard]] auto anonymous_smart_transport() const noexcept
+				-> std::shared_ptr<application::git_smart_transport_factory_port>
+			{
 				return AnonymousTransport;
 			}
 
@@ -2950,6 +2965,12 @@ namespace bpr::app::detail {
 				= Implementation->VaultState->LastEnrollmentDigest;
 		}
 		return result;
+	}
+
+	auto github_public_path_fixture_components::anonymous_smart_transport_factory() const noexcept
+		-> std::shared_ptr<application::git_smart_transport_factory_port>
+	{
+		return Implementation->Factory->anonymous_smart_transport();
 	}
 
 	auto github_public_path_fixture_components::last_smart_authority() const

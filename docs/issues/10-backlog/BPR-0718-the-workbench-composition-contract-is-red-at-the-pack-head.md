@@ -12,7 +12,7 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 # The workbench composition contract is red at the pack head
 
 `application_workbench_composition_contract` fails at `fd7388e8`, before
-and after the [BPR-0715](../30-in-progress/BPR-0715-opening-a-pull-request-signed-out-no-longer-reaches-a-comparison.md)
+and after the [BPR-0715](../40-parked/BPR-0715-opening-a-pull-request-signed-out-no-longer-reaches-a-comparison.md)
 fix, with the same signature: the `--workbench-composition-probe` run
 reaches stage 2 with the review history ready and an exact pair resolved
 (`PUBLIC_PATH_EPOCH_PAIR:757e8f25…:f9108913…`, smart evidence `1:1:1:1`),

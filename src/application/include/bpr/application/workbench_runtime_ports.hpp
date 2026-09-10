@@ -132,6 +132,18 @@ namespace bpr::application {
 		auto operator<=>(const workbench_pull_request_authority&) const = default;
 	};
 
+	/// \brief Reports whether the workbench authority is the signed-out one.
+	///
+	/// \details [[BPR-0715]]. A public-preview read names no account and no
+	/// viewer; both zeroes together are that authority's discriminant, the
+	/// same rule `core::pull_request_authority` applies. One zero without the
+	/// other is a malformed authority, not a signed-out one.
+	[[nodiscard]] constexpr auto anonymous(
+		const workbench_pull_request_authority& aAuthority) noexcept -> bool
+	{
+		return aAuthority.Account.value() == 0U && aAuthority.Viewer.value() == 0U;
+	}
+
 	/// \brief Checks whether the workbench authority is complete and usable.
 	[[nodiscard]] constexpr auto valid(
 		const workbench_pull_request_authority& aAuthority) noexcept -> bool
@@ -140,8 +152,9 @@ namespace bpr::application {
 			&& aAuthority.Profile.value() != 0U
 			&& aAuthority.ProfileRevision.value() != 0U
 			&& aAuthority.Host.value() != 0U && aAuthority.HostAuthority.valid()
-			&& aAuthority.Account.value() != 0U
-			&& aAuthority.Viewer.value() != 0U
+			&& (anonymous(aAuthority)
+				|| (aAuthority.Account.value() != 0U
+					&& aAuthority.Viewer.value() != 0U))
 			&& aAuthority.Repository.value() != 0U
 			&& aAuthority.PullRequest.value() != 0U && aAuthority.Number.valid()
 			&& aAuthority.Snapshot.value() != 0U

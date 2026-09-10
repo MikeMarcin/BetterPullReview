@@ -1730,8 +1730,10 @@ namespace bpr::app {
 		{
 		public:
 			explicit anonymous_git_smart_transport_factory(
-				const validated_github_host_profile& aProfile) noexcept
+				const validated_github_host_profile&                           aProfile,
+				std::shared_ptr<application::git_smart_transport_factory_port> aRecorded = nullptr) noexcept
 				: Profile{ &aProfile }
+				, Recorded{ std::move(aRecorded) }
 			{
 			}
 
@@ -1741,6 +1743,13 @@ namespace bpr::app {
 					application::git_smart_transport> override
 			{
 				++Acquisitions;
+				// [[BPR-0715]]. Under a recorded fixture the signed-out lease
+				// is the fixture's own credential-free transport, so a course
+				// reaches an exact comparison over the real epoch path instead
+				// of dialling out of the network-isolated run.
+				if (Recorded != nullptr) {
+					return Recorded->acquire(aContext);
+				}
 				// [[BPR-0663]]. The binding admits a lease only for the
 				// identity generation the accepted revision was read in, so
 				// the wire carries that generation rather than a constant of
@@ -1777,8 +1786,9 @@ namespace bpr::app {
 			}
 
 		private:
-			const validated_github_host_profile* Profile      = nullptr;
-			std::size_t                          Acquisitions = 0U;
+			const validated_github_host_profile*                           Profile = nullptr;
+			std::shared_ptr<application::git_smart_transport_factory_port> Recorded;
+			std::size_t                                                    Acquisitions = 0U;
 		};
 
 #if defined(BPR_BUILD_TESTING)
@@ -4335,7 +4345,12 @@ namespace bpr::app {
 			// refuses every other server contract before a transport exists.
 			AnonymousSmartGit
 				= std::make_unique<anonymous_git_smart_transport_factory>(
-					Profiles.front());
+					Profiles.front()
+#if defined(BPR_BUILD_TESTING)
+						,
+					Fixture != nullptr ? Fixture->anonymous_smart_transport_factory() : nullptr
+#endif
+				);
 
 #if defined(BPR_BUILD_TESTING)
 			if (Fixture == nullptr)
@@ -5514,6 +5529,7 @@ namespace bpr::app {
 					if (weak.expired() || Closing || aUpdate.Window != DraftWindow || !Profile->current_window(DraftWindow)){ return;
 }
 					Window->publish(aUpdate.Presentation);
+					Host->observe_attached_read(WindowRead);
 					observe_restoration_read(aUpdate);
 					if (aUpdate.Presentation.PullRequest) { publish_overview(); publish_read_state(); } }, this, PublicPreviewComposed ? static_cast<application::github_pull_request_port*>(CountedAnonymousPullRequests.get()) : nullptr, PublicPreviewComposed ? static_cast<application::git_smart_transport_factory_port*>(AnonymousSmartGit.get()) : nullptr);
 			Profile->Observers.insert_or_assign(DraftWindow, github_profile_runtime::window_observer{ .Lifetime = weak, .Github = [this, weak](const application::github_presentation_update& aUpdate) {

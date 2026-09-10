@@ -11,6 +11,7 @@
 #include "github_provider.hpp"
 
 #include "bpr/application/device_authorization_application_host.hpp"
+#include "bpr/application/git_smart_transport_port.hpp"
 #include "bpr/application/github_credential_vault.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/review_mutation_port.hpp"
@@ -61,6 +62,9 @@ namespace bpr::app::detail {
 			-> github_public_path_fixture_evidence;
 		[[nodiscard]] auto last_smart_authority() const noexcept
 			-> std::optional<core::pull_request_authority>;
+		/// \brief The recorded credential-free Git smart factory ([[BPR-0715]]).
+		[[nodiscard]] auto anonymous_smart_transport_factory() const noexcept
+			-> std::shared_ptr<application::git_smart_transport_factory_port>;
 		[[nodiscard]] auto application_data_root() const
 			-> const std::filesystem::path&;
 		[[nodiscard]] auto git_executable() const

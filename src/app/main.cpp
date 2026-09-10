@@ -846,6 +846,10 @@ namespace {
 			// triage intents. Offered exactly once, so the counted refusals
 			// are the two the course asked for and not a tick's worth.
 			bool WritesOffered = false;
+			// [[BPR-0715]]. The epoch status the course settled on before
+			// the writes were offered; shutdown returns the host to
+			// `inactive`, so the verdict reads this rather than the live one.
+			bpr::core::epoch_status SettledEpoch = bpr::core::epoch_status::inactive;
 			// [[BPR-0316]]. The forced selection with no fixture under it.
 			// `SelectionForced` alone activates the mode and stops -- the
 			// verdict for a shipped enabled selection, which reaches zero
@@ -3899,6 +3903,9 @@ namespace {
 				// through the credential-free authority, the inline
 				// conversation was observed, and neither an authorization
 				// header nor the vault was involved in any of it.
+				// [[BPR-0715]]. The read is not enough: the signed-out open
+				// must reach an exact comparison, over the credential-free
+				// smart-Git lease, before the mode counts as working.
 				const auto enabled = status.PublicPreviewComposed && signedOut
 					&& !status.PublicPreviewUnavailable
 					&& status.PublicPreviewRequests >= 1U
@@ -3906,13 +3913,19 @@ namespace {
 					&& status.PublicPreviewVaultEffects == 0U
 					&& status.PublicPreviewReviewCommentsObserved
 					&& status.PublicPreviewWriteRefusals == 2U
-					&& status.PublicPreviewPublications > 0U;
+					&& status.PublicPreviewPublications > 0U
+					&& aRun.PublicPreview.SettledEpoch == bpr::core::epoch_status::ready;
 				stream << "PUBLIC_PREVIEW_REVIEW_COMMENT_GROUPS:"
 					   << static_cast<unsigned long long>(
 							  status.PublicPreviewReviewCommentGroups)
 					   << "\nPUBLIC_PREVIEW_WRITE_REFUSALS:"
 					   << static_cast<unsigned long long>(
 							  status.PublicPreviewWriteRefusals)
+					   << "\nPUBLIC_PREVIEW_EPOCH_STATUS:"
+					   << static_cast<unsigned>(aRun.PublicPreview.SettledEpoch)
+					   << "\nPUBLIC_PREVIEW_SMART_ACQUISITIONS:"
+					   << static_cast<unsigned long long>(
+							  status.PublicPreviewSmartAcquisitions)
 					   << '\n'
 					   << (enabled ? "PUBLIC_PREVIEW_ENABLED_OK\n"
 								   : "PUBLIC_PREVIEW_ENABLED_FAILED\n");
@@ -5123,6 +5136,18 @@ namespace {
 							|| !aApplication.status()
 									.PublicPreviewReviewCommentsObserved) {
 							break;
+						}
+						// [[BPR-0715]]. Wait for the epoch to settle either
+						// way; a failed epoch is reported by the verdict
+						// below rather than by the run budget expiring.
+						if (const auto epoch = aApplication.status().EpochStatus;
+							epoch != bpr::core::epoch_status::ready
+							&& epoch != bpr::core::epoch_status::unavailable
+							&& epoch != bpr::core::epoch_status::failed
+							&& epoch != bpr::core::epoch_status::cancelled) {
+							break;
+						} else {
+							aRun->PublicPreview.SettledEpoch = epoch;
 						}
 						// Offered once the read is in, so the refusals are
 						// answered by a live signed-out session rather than by

@@ -167,6 +167,14 @@ namespace bpr::application {
 		[[nodiscard]] auto attach_window(const std::shared_ptr<github_window_read_host>& aWindow) -> bool;
 		/// \brief Retires an explicit attachment before considering the standalone legacy read slot.
 		void detach_window(core::bpr_window_context aWindow);
+		/// \brief Adopts an attached window's accepted read for the host-level projections.
+		///
+		/// \details [[BPR-0715]]. An explicitly attached primary window reads
+		/// through its own `github_window_read_host`; the public-preview
+		/// presentation is still the host's, so the window's accepted
+		/// snapshot and rate limits are adopted here after each read update.
+		/// Ignored for a window that is not attached.
+		void observe_attached_read(const std::shared_ptr<github_window_read_host>& aWindow);
 		// The provenance is the caller's statement about where the material
 		// came from, and only the device-authorization enrollment boundary
 		// says `device_grant`. It decides nothing about the session: it

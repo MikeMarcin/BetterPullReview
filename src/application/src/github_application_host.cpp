@@ -1134,6 +1134,19 @@ namespace bpr::application {
 			}
 			return true;
 		}
+		void observe_attached_read(const std::shared_ptr<github_window_read_host>& aWindow)
+		{
+			if (Closing || !aWindow) {
+				return;
+			}
+			const auto attached = std::ranges::find_if(AttachedWindows, [&aWindow](const auto& aSlot) { return aSlot.Host == aWindow && !aSlot.Detaching; });
+			if (attached == AttachedWindows.end()) {
+				return;
+			}
+			AcceptedSnapshot = aWindow->accepted_snapshot();
+			static_cast<void>(merge(RateLimits, aWindow->rate_limits()));
+			publish_public_preview();
+		}
 		void detach_window(const core::bpr_window_context aContext)
 		{
 			const auto attached = std::ranges::find_if(AttachedWindows, [aContext](const auto& aSlot) { return aSlot.Context == aContext; });
@@ -4342,6 +4355,7 @@ namespace bpr::application {
 
 	auto github_application_host::attach_window(const std::shared_ptr<github_window_read_host>& aWindow) -> bool { return Implementation->attach_window(aWindow); }
 	void github_application_host::detach_window(const core::bpr_window_context aWindow) { Implementation->detach_window(aWindow); }
+	void github_application_host::observe_attached_read(const std::shared_ptr<github_window_read_host>& aWindow) { Implementation->observe_attached_read(aWindow); }
 
 	auto github_application_host::accepted_snapshot() const noexcept
 		-> const std::optional<github_pull_request_snapshot>&
