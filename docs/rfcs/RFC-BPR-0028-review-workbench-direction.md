@@ -241,3 +241,16 @@ source changed. No verdict is recorded yet; every card stays parked on
 human-review. Next: consume the owner's verdicts and finish each card from
 its own acceptance, then `close-rfc-0018` (BPR-0593), then BPR-0595, which
 also waits on the canonical RFC-BPR-0008 closeout BPR-0242 outside this pack.
+
+Rejected, 2026-09-10. The owner ran the v002 session and rejected
+[[BPR-0646]] (decision `bdd9244a`): the strip is accepted, but no file
+could be opened and no epoch line appeared, and opening a pull request
+without an account should be possible directly from Home. Nine candidates
+stay undecided. The blocker is not the chrome: the signed-out open no longer
+reaches a comparison, bisected to `826fb871` (BPR-0705, RFC-BPR-0024) and
+carded as [[BPR-0715]] under RFC-BPR-0024; the Home direction is registered
+as [[BPR-0716]] under RFC-BPR-0026 as an input to its inventory. Candidate
+protection for session `cbd48b91…` is still active and no product source
+changed. Next: fix BPR-0715, run the two red selectors in the pack's
+integration pass, rebuild the tests-disabled bundle and prepare the attended
+session again at that head for all ten candidates.

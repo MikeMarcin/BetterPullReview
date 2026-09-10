@@ -1,0 +1,119 @@
+---
+schema: "implement-rfc.card.v1"
+id: "BPR-0715"
+title: "Opening a pull request signed out no longer reaches a comparison"
+status: "Ready"
+rfcs: ["RFC-BPR-0024","RFC-BPR-0028"]
+depends_on: []
+priority: "P1"
+metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"first_bad_commit":"826fb871","last_good_commit":"9a175e81","attended_decision":"bdd9244a-754a-4a7a-94b4-79c7110687d9"}
+---
+
+# Opening a pull request signed out no longer reaches a comparison
+
+The owner, 2026-09-10, on the pack-head bundle (executable sha256
+`484b2072…`, attended session v002, decision `bdd9244a`): "Can't open any
+files. Saw no epoch line." That verdict rejected
+[BPR-0646](../40-parked/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md),
+but the chrome is not what broke.
+
+## What is established
+
+- `application_anonymous_public_preview_public_path` and
+  `qt_anonymous_public_preview_scale_100` are red at `97c8f9f1`. Neither is
+  in the integration pass the pack head was accepted on, which is why a green
+  pass predicted nothing about this run.
+- The application course was green at `9a175e81` (2026-09-07). `git bisect
+  run` over the 171 commits since, building `app_better_pull_review` in a
+  scratch worktree and running that one selector, names `826fb871` "Finish
+  BPR-0705" (the live profile window composition,
+  [BPR-0705](../60-done/BPR-0705-live-profile-window-composition.md); 3,585
+  insertions across `github_application.cpp`, `profile_desktop.cpp`, the
+  GitHub provider and the native HTTPS transport) as the first bad commit.
+  Every intermediate step is in the bisect log; the good endpoint was run
+  before the bisect started.
+- In the course the failure is `EPOCH_EFFECT_FAILED:revision-prepare:0`
+  (`epoch_failure::unavailable`) raised from the `protocol_acquire` stage of
+  `epoch_application_host.cpp` (the `if (!acquisition)` branch after
+  `acquire_git_protocol_v2_pack`), and the transport error is
+  `git_smart_transport_failure::network`. Under the network-isolated course
+  that means the signed-out smart-Git lease dialled a real transport instead
+  of the fixture's; the course then sits at "Pull request ready." with
+  `PUBLIC_PATH_CONVERSATIONS ... file=0` until its budget expires.
+- The signed bundle reproduces the owner's run without any interaction: it
+  restores the previous public-preview review of microsoft/terminal#20607,
+  the diagnostics log shows `catalog_open`, `catalog_recovery` and
+  `catalog_prepare` succeed and then no `cache_open`, `smart_acquire` or
+  `protocol_acquire` ever starts, and the window reads "This pull request is
+  open. Its comparison is not ready; Refresh to try again. The workbench
+  could not be updated. Review history is ready." with no files and no
+  epoch line. A run of the same bundle on 2026-09-07 20:56 went
+  `catalog_prepare` → `cache_open` → `pack_sink` → `smart_acquire` →
+  `protocol_acquire` → `cache_inventory` → `revision_prepare` and showed the
+  comparison.
+- In the bundle the objects for that head are already cached, so the
+  revision-prepare worker takes the observation-only branch
+  (`epoch_preparation_effect::none`); the stage that then fails to produce a
+  comparison was not captured. The failing event in the bundle is therefore
+  not yet named; the course's transport failure is the only named one.
+
+## Not established
+
+- Whether the bundle's failure is the same missing smart-Git binding (now on
+  the comparison-resolve path) or a second break in the same commit. The
+  worktree dev build could not be driven against the owner's data root
+  (it shows no window after an earlier instance was killed with SIGKILL),
+  so the instrumented run that would name the event did not happen.
+- Whether `qt_anonymous_public_preview_scale_100` ("compact connection
+  buttons use a separate row below the profile", a 420-pixel reflow claim on
+  the session panel now mounted on Settings) is the same regression or a
+  test left stale by [BPR-0670](../60-done/BPR-0670-public-preview-is-buried-and-does-not-say-what-it-is.md).
+  It is recorded here so it is not lost; it may deserve its own card.
+
+## Scope
+
+- Restore the signed-out open: Home → Read without signing in → paste a
+  public pull request → files, epoch line and an exact comparison, over the
+  live profile window composition, without weakening the anonymous
+  transport's refusals (an authenticated authority on the credential-free
+  lease stays refused; a public-preview authority on the account lease stays
+  refused).
+- Owned paths: `src/app/src/github_application.cpp`,
+  `src/app/src/profile_desktop.cpp`, the anonymous smart-Git factory and its
+  fixture counterpart in `src/app/src/github_public_path_fixture.cpp`, and
+  whatever in `src/application/src/epoch_application_host.cpp` the diagnosis
+  reaches. Add the two red selectors to the pack's integration pass.
+- Candidate protection over `src/adapters/qt` and `src/app` is still active
+  for attended session `cbd48b91…`; run `resume-development` for the
+  affected candidates before the first edit, and expect every candidate to
+  need preparing again at the fixed head.
+
+## Acceptance
+
+- `application_anonymous_public_preview_public_path` passes at the fixed
+  head, and its mutation (dropping the fixture smart-Git binding) fails it.
+- The tests-disabled bundle at the fixed head, started signed out with the
+  owner's data root layout, opens
+  `https://github.com/microsoft/terminal/pull/20607` to files and an epoch
+  line; the diagnostics log shows the acquire stages or an observation-only
+  prepare followed by a resolved comparison.
+- `qt_anonymous_public_preview_scale_100` passes or is carded separately
+  with its own cause named.
+- The composed selectors (`qt_composed_github_scale_*`,
+  `application_composition_contract`,
+  `application_review_round_trip_composition_contract`,
+  `application_profile_multi_window_public_path`), `check_boundaries`, strict
+  tidy on touched translation units, clang-format and the documentation gate
+  pass.
+
+## Verification record
+
+2026-09-10, dispatch `ux-redesign-0028-pack.d2`: reproduction and bisect
+only, no product source changed on main. Selector runs at `97c8f9f1` in
+`build/dev`: `application_anonymous_public_preview_public_path` failed
+(40.37 s, budget expired at stage 1), `qt_anonymous_public_preview_scale_100`
+failed; `application_setup_destination_public_path`,
+`application_profile_multi_window_public_path` and
+`application_github_public_path_github_com` passed. Bisect: good `9a175e81`,
+`f00ecb7d`, `91a75ec6`, `4ae98c1c`, `061dfcdf`; bad `58fb1d41`, `02b35b74`,
+`88c42087`, `826fb871`.
