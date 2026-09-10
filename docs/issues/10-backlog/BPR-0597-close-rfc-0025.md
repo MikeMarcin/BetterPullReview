@@ -7,6 +7,7 @@ rfcs: ["RFC-BPR-0025"]
 depends_on: ["BPR-0596"]
 milestone: "Post-Pack v2"
 closeout_for: ["RFC-BPR-0025"]
+metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"}}
 ---
 
 # Verify and close RFC-BPR-0025

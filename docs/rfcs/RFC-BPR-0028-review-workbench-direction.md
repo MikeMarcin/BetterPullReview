@@ -6,6 +6,7 @@ area: "BPR"
 milestone: "Private alpha"
 depends_on: ["RFC-BPR-0004","RFC-BPR-0005","RFC-BPR-0007","RFC-BPR-0008"]
 pack_version: "post-v2"
+metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"}}
 ---
 
 # RFC-BPR-0028: Review Workbench Direction: Overview, Epoch Line, Modalities, and Conversation

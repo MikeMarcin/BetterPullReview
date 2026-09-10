@@ -6,6 +6,7 @@ status: "Backlog"
 rfcs: ["RFC-BPR-0026"]
 depends_on: ["BPR-0597","BPR-0244"]
 milestone: "Post-Pack v2"
+metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"}}
 ---
 
 # Inventory personal discovery and URL flow and plan RFC-BPR-0026

@@ -6,6 +6,7 @@ status: "Backlog"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P2"
+metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"}}
 ---
 
 # Windows: the strip as the title row

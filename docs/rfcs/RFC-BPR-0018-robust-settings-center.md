@@ -6,6 +6,7 @@ area: "BPR"
 milestone: "Post-Pack v2"
 depends_on: ["RFC-BPR-0014"]
 pack_version: "post-v2"
+metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"}}
 ---
 
 # RFC-BPR-0018: Robust Settings Center and Preference Ownership
