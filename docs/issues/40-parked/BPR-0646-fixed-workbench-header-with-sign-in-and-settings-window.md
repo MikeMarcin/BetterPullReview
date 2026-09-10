@@ -405,3 +405,14 @@ The other nine candidates have no decision; BPR-0663, BPR-0667, BPR-0676 and
 BPR-0677 need the same loaded review and could not be judged on this run.
 This card stays parked: its remaining criterion needs the capture again at a
 head where BPR-0715 is fixed, in a session prepared again.
+
+## Attended candidate, 2026-09-10 (v003)
+
+Prepared again in
+[rfc-bpr-0028-attended-v003](../../verification/reviews/rfc-bpr-0028-attended-v003/operator-packet.md)
+on the bundle built at the
+[BPR-0715](../30-in-progress/BPR-0715-opening-a-pull-request-signed-out-no-longer-reaches-a-comparison.md)
+fix head (executable sha256 `9334b13a…`), candidate revision
+`app-release-9334b13a-2026-09-10.2`. The v002 rejection above stays bound
+to the v002 revision in the session history; the remaining criterion is
+undecided on this revision. The v002 packet is historical.

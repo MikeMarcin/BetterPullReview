@@ -254,3 +254,25 @@ protection for session `cbd48b91…` is still active and no product source
 changed. Next: fix BPR-0715, run the two red selectors in the pack's
 integration pass, rebuild the tests-disabled bundle and prepare the attended
 session again at that head for all ten candidates.
+
+Prepared again, 2026-09-10 (v003). [[BPR-0715]] is diagnosed and fixed:
+the bundle's failing event was the workbench refusing the signed-out
+authority (no account, no viewer) before listing any file, and the course's
+red was the application host no longer seeing the primary window's accepted
+read after the RFC-BPR-0024 window composition; the fixture now serves the
+signed-out smart-Git lease so the course reaches an exact comparison. The
+integration pass at that head is the composed workbench and Settings Qt
+selectors, `qt_anonymous_public_preview_scale_{100,125,200}`, both
+application composition contracts, the public-path courses including
+`application_anonymous_public_preview_public_path`, the touched host suites,
+`check_boundaries`, strict tidy, `clang-format --Werror` and the
+documentation gate; `application_workbench_composition_contract` is red at
+the same head before and after the fix and is carded as [[BPR-0718]], and
+the stale reflow assertion is repaired as [[BPR-0717]]. The tests-disabled
+bundle (executable sha256 `9334b13a…`) carries all ten candidates again in
+[rfc-bpr-0028-attended-v003](../verification/reviews/rfc-bpr-0028-attended-v003/operator-packet.md),
+session `cbd48b91…` at revision `app-release-9334b13a-2026-09-10.2`; the
+v002 rejection stays in the session history. BPR-0715 is parked on
+human-review for the one criterion only the loaded bundle can show. Next:
+the owner's run, then consume the verdicts and finish each card from its
+own acceptance.

@@ -141,3 +141,10 @@ are one candidate in
 prepared under the adopted pack plan `ux-redesign-pack-0028`. Windows and
 Linux packaged inventory stay pending on their stations. This closeout
 remains in Backlog until BPR-0683 is Done.
+
+## Attended preparation, 2026-09-10 (v003)
+
+Prepared again, unchanged in substance, in
+[rfc-bpr-0028-attended-v003](../../verification/reviews/rfc-bpr-0028-attended-v003/operator-packet.md)
+on the bundle built at the BPR-0715 fix head (executable sha256
+`9334b13a…`); the v002 packet is historical.
