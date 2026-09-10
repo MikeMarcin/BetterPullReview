@@ -43,7 +43,7 @@ namespace {
 	static_assert(
 		!std::is_copy_constructible_v<
 			application::git_smart_authority_lease>);
-	static_assert(std::variant_size_v<application::epoch_intent> == 9U);
+	static_assert(std::variant_size_v<application::epoch_intent> == 10U);
 	static_assert(
 		!std::is_constructible_v<
 			application::epoch_intent,

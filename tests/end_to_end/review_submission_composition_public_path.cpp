@@ -70,9 +70,22 @@ auto main(int argc, char** argv) -> int
 	if (!data.isValid()) {
 		return EXIT_FAILURE;
 	}
-	auto server      = std::make_shared<app::detail::review_submission_fixture_state>();
-	auto make        = [&](bool aReopen = false) { return access::make(app::detail::github_public_path_fixture::github_com,
-																	   app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = std::filesystem::path{ data.path().toStdString() }, .EpochPhase = aReopen ? app::detail::github_epoch_fixture_phase::reuse : app::detail::github_epoch_fixture_phase::single, .ReviewSubmissionServer = server }); };
+	auto server = std::make_shared<app::detail::review_submission_fixture_state>();
+	auto make   = [&](app::detail::github_epoch_fixture_phase aPhase = app::detail::github_epoch_fixture_phase::single) {
+		std::unique_ptr<app::github_application> started;
+		auto                                     startupTerminal = false;
+		auto                                     startup         = access::start(app::detail::github_public_path_fixture::github_com,
+																				 app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = std::filesystem::path{ data.path().toStdString() }, .EpochPhase = aPhase, .ReviewSubmissionServer = server },
+																				 [&](auto aResult) {
+										 startupTerminal = true;
+										 if (aResult) {
+											 started = std::move(*aResult);
+										 }
+																				 });
+		wait([&] { return startupTerminal && startup && startup->is_quiescent(); }, "application startup reaches a terminal");
+		expect(started != nullptr, "application startup succeeds");
+		return started;
+	};
 	auto application = make();
 	try {
 		open(*application);
@@ -153,7 +166,7 @@ auto main(int argc, char** argv) -> int
 		}
 		shutdown(*application);
 		application.reset();
-		application = make(true);
+		application = make(app::detail::github_epoch_fixture_phase::reuse);
 		open(*application);
 		auto& restored = *application->window().review_submission_editor_view();
 		submitted(restored);
@@ -192,10 +205,7 @@ auto main(int argc, char** argv) -> int
 		shutdown(*application);
 		expect(!restored.submit_action()->isEnabled() && restored.shown_draft()->State == state::submitting, "retired terminal cannot complete or rebind frozen review");
 		application.reset();
-		application = access::make(app::detail::github_public_path_fixture::github_com,
-								   { .ApplicationDataRoot    = std::filesystem::path{ data.path().toStdString() },
-									 .EpochPhase             = app::detail::github_epoch_fixture_phase::seed,
-									 .ReviewSubmissionServer = server });
+		application = make(app::detail::github_epoch_fixture_phase::seed);
 		open(*application);
 		auto& frozen = *application->window().review_submission_editor_view();
 		frozen.body_editor()->setPlainText(QStringLiteral("Do not rebind this draft"));

@@ -85,17 +85,17 @@ namespace bpr::e2e::large_review {
 
 	struct benchmark_report
 	{
-		std::string Schema         = "bpr.large-review-measurement.v1";
-		bool        ResourceCourse = false;
+		std::string   Schema           = "bpr.large-review-measurement.v1";
+		bool          ResourceCourse   = false;
 		bool          CacheEntryCourse = false, EntryEvictedDiff = false, EntryEvictedIndex = false, EntryRevisitExact = false;
 		std::size_t   EntrySelections = 0U, EntryPeakCacheEntries = 0U;
 		std::uint64_t EntryPeakCacheBytes = 0U;
-		bool        LoadedCloseCourse = false, CloseStartedWithLiveComparison = false, ClosePreservedEpochStorage = false;
-		int         CloseLeftDocumentBlocks = 0, CloseRightDocumentBlocks = 0;
-		bool        ShutdownReleasedDiff = false, ShutdownReleasedIndex = false, DestroyReleasedWindow = false, DestroyReleasedDocuments = false;
-		bool        HistoryCourse  = false;
-		std::size_t EpochsObserved = 0U, RetainedEpochsVerified = 0U, EpochSelections = 0U, EpochSelectionsWithOutstandingWork = 0U;
-		std::size_t HistoryPeakRows = 0U, HistoryModelResets = 0U;
+		bool          LoadedCloseCourse = false, CloseStartedWithLiveComparison = false, ClosePreservedEpochStorage = false;
+		int           CloseLeftDocumentBlocks = 0, CloseRightDocumentBlocks = 0;
+		bool          ShutdownReleasedDiff = false, ShutdownReleasedIndex = false, DestroyReleasedWindow = false, DestroyReleasedDocuments = false;
+		bool          HistoryCourse  = false;
+		std::size_t   EpochsObserved = 0U, RetainedEpochsVerified = 0U, EpochSelections = 0U, EpochSelectionsWithOutstandingWork = 0U;
+		std::size_t   HistoryPeakRows = 0U, HistoryModelResets = 0U;
 		// Same M4 Pro / Debug course: refresh max input interval 67.903 ms,
 		// refresh 9.165 s, source selection 1.113 s before these thresholds.
 		double                       HistoryInputIntervalLimitMs = 100.0;
@@ -581,10 +581,10 @@ namespace bpr::e2e::large_review {
 			return EXIT_FAILURE;
 		}
 		benchmark_report report;
-		report.UnavailableCourse = argc == 5 && std::string_view{ argv[4] } == "--unavailable";
-		report.LoadedCloseCourse = argc == 5 && std::string_view{ argv[4] } == "--loaded-close";
-		report.ResourceCourse    = report.LoadedCloseCourse || (argc == 5 && std::string_view{ argv[4] } == "--resources");
-		report.HistoryCourse     = argc == 5 && std::string_view{ argv[4] } == "--history";
+		report.UnavailableCourse                                           = argc == 5 && std::string_view{ argv[4] } == "--unavailable";
+		report.LoadedCloseCourse                                           = argc == 5 && std::string_view{ argv[4] } == "--loaded-close";
+		report.ResourceCourse                                              = report.LoadedCloseCourse || (argc == 5 && std::string_view{ argv[4] } == "--resources");
+		report.HistoryCourse                                               = argc == 5 && std::string_view{ argv[4] } == "--history";
 		report.CacheEntryCourse                                            = argc == 5 && std::string_view{ argv[4] } == "--cache-entries";
 		const bool                                     observeResources    = report.ResourceCourse || report.CacheEntryCourse;
 		const bool                                     observeLoadedOwners = report.LoadedCloseCourse || report.CacheEntryCourse;
@@ -600,16 +600,16 @@ namespace bpr::e2e::large_review {
 			const std::string bytes{ std::istreambuf_iterator<char>{ input }, std::istreambuf_iterator<char>{ } };
 			fixture_manifest  manifest;
 			require(!glz::read<glz::opts{ .error_on_unknown_keys = false }>(manifest, bytes) && manifest.schema == "bpr.large-review-fixture.v1" && manifest.heads.size() == 32U, "stored manifest");
-			report.Base               = manifest.base;
+			report.Base                       = manifest.base;
 			report.Head                       = report.HistoryCourse ? manifest.heads.front() : manifest.heads.back();
-			report.PackBytes          = manifest.pack_bytes;
-			report.Platform           = QSysInfo::prettyProductName().toStdString();
-			report.Architecture       = QSysInfo::currentCpuArchitecture().toStdString();
-			report.QtVersion          = qVersion();
-			report.Style              = qtApplication.style()->objectName().toStdString();
-			report.BuildConfiguration = BPR_BENCH_BUILD_CONFIGURATION;
-			report.LogicalProcessors  = QThread::idealThreadCount();
-			auto fixtureOptions       = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = data.path().toStdString(), .GitExecutable = std::filesystem::path{ argv[1] } };
+			report.PackBytes                  = manifest.pack_bytes;
+			report.Platform                   = QSysInfo::prettyProductName().toStdString();
+			report.Architecture               = QSysInfo::currentCpuArchitecture().toStdString();
+			report.QtVersion                  = qVersion();
+			report.Style                      = qtApplication.style()->objectName().toStdString();
+			report.BuildConfiguration         = BPR_BENCH_BUILD_CONFIGURATION;
+			report.LogicalProcessors          = QThread::idealThreadCount();
+			auto fixtureOptions               = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = data.path().toStdString(), .GitExecutable = std::filesystem::path{ argv[1] } };
 			fixtureOptions.LargeReviewHistory = report.HistoryCourse;
 			if (report.UnavailableCourse) {
 				// Retain the production matrix ceiling and disable only its optional
@@ -617,7 +617,22 @@ namespace bpr::e2e::large_review {
 				fixtureOptions.DiffComputeLimits.MaximumPrimaryIndexWork = 0U;
 			}
 			sample_resources(report, nullptr, "before_application");
-			application  = access::make(app::detail::github_public_path_fixture::large_review_v1, std::move(fixtureOptions));
+			auto startupTerminal = false;
+			auto startupHandle   = access::start(app::detail::github_public_path_fixture::large_review_v1, std::move(fixtureOptions), [&](auto aResult) {
+				startupTerminal = true;
+				if (aResult) {
+					application = std::move(*aResult);
+				}
+			});
+			{
+				QElapsedTimer startupBudget;
+				startupBudget.start();
+				while (!(startupTerminal && startupHandle && startupHandle->is_quiescent())) {
+					require(startupBudget.elapsed() < 60'000, "application startup reaches a terminal");
+					QApplication::processEvents(QEventLoop::AllEvents, 5);
+				}
+			}
+			require(application != nullptr, "application startup succeeds");
 			auto& window = application->window();
 			window.resize(1600, 1000);
 			application->show();

@@ -539,7 +539,7 @@ namespace {
 		static_assert(std::is_trivially_copyable_v<epoch_state>);
 		static_assert(std::is_trivially_destructible_v<epoch_state>);
 		static_assert(sizeof(epoch_state) <= 2'048U);
-		static_assert(std::variant_size_v<epoch_event> == 29U);
+		static_assert(std::variant_size_v<epoch_event> == 30U);
 		static_assert(std::variant_size_v<epoch_host_request> == 9U);
 
 		const auto sha1 = parse_git_commit_oid("0123456789ABCDEF0123456789ABCDEF01234567");

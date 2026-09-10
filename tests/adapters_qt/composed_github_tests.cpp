@@ -2670,6 +2670,20 @@ namespace {
 				intents.push_back(aIntent);
 			},
 		};
+		// [[BPR-0689]]. The bar no longer parses: Return and Open submit the
+		// text as the setup destination, and the application answers with a
+		// projection that either opens or explains beside the bar.
+		std::vector<std::string> submitted;
+		window.set_setup_destination_dispatch([&](application::setup_destination_intent aIntent) {
+			const auto* const submit = std::get_if<application::submit_setup_destination>(&aIntent);
+			if (submit == nullptr) {
+				return;
+			}
+			submitted.push_back(submit->Text);
+			const auto names = submit->Text.find("/pull/") != std::string::npos || submit->Text.find('#') != std::string::npos;
+			window.present_setup_destination(names ? application::setup_destination_projection{ .Pending = std::nullopt, .Notice = { }, .Opened = true }
+												   : application::setup_destination_projection{ .Pending = std::nullopt, .Notice = "Paste a pull request link or owner/name#number.", .Opened = false });
+		});
 		window.resize(1'280, 820);
 		window.show();
 		QApplication::processEvents();
@@ -2742,11 +2756,9 @@ namespace {
 			QApplication::sendEvent(window.home_open_bar(), &pressed);
 		}
 		QApplication::processEvents();
-		const auto* const fromBar = intents.empty() ? nullptr : std::get_if<core::open_pull_request_intent>(&intents.back());
-		expect(intents.size() == 1U && fromBar != nullptr
-				   && fromBar->Repository == core::repository_locator{ .Owner = "octo", .Name = "app" }
-				   && fromBar->Number == core::pull_request_number{ 9U } && window.home_open_bar()->text().isEmpty(),
-			   "Return in the open bar sends the locator's intent and clears the bar");
+		expect(submitted.size() == 1U && submitted.back() == "https://github.com/octo/app/pull/9" && intents.empty()
+				   && window.home_open_bar()->text().isEmpty(),
+			   "Return in the open bar submits the text as the setup destination and the accepted projection clears the bar");
 		intents.clear();
 		window.home_open_bar()->setText(QStringLiteral("not a pull request"));
 		{
@@ -2754,28 +2766,24 @@ namespace {
 			QApplication::sendEvent(window.home_open_bar(), &pressed);
 		}
 		QApplication::processEvents();
-		expect(intents.empty() && window.home_open_bar()->text() == QStringLiteral("not a pull request"),
-			   "text that names no pull request sends nothing and stays for correction");
+		expect(submitted.size() == 2U && intents.empty() && window.home_open_bar()->text() == QStringLiteral("not a pull request"),
+			   "text that names no pull request is still submitted, opens nothing and stays for correction");
 		// [[BPR-0669]]. Silence was indistinguishable from a product that does
 		// nothing, and Return was the only affordance the bar had.
 		expect(window.home_open_notice() != nullptr && window.home_open_notice()->isVisible()
 				   && window.home_open_notice()->text().contains(QStringLiteral("owner/name#number")),
 			   "a paste that names no pull request is answered beside the bar");
-		expect(window.home_open_action() != nullptr && !window.home_open_action()->isEnabled(),
-			   "Open is not offered while the bar names no pull request");
+		expect(window.home_open_action() != nullptr && window.home_open_action()->isEnabled(),
+			   "Open stays offered for any text, because the application, not the bar, decides what it names");
 		intents.clear();
 		window.home_open_bar()->setText(QStringLiteral("  https://github.example.com/octo/app/pull/42  "));
 		expect(window.home_open_action()->isEnabled() && !window.home_open_notice()->isVisible(),
 			   "a pasted link on any host offers Open and clears the refusal");
 		window.home_open_action()->trigger();
 		QApplication::processEvents();
-		const auto* const fromButton = intents.empty()
-			? nullptr
-			: std::get_if<core::open_pull_request_intent>(&intents.back());
-		expect(intents.size() == 1U && fromButton != nullptr
-				   && fromButton->Repository == core::repository_locator{ .Owner = "octo", .Name = "app" }
-				   && fromButton->Number == core::pull_request_number{ 42U },
-			   "Open sends the same intent Return does, from a link that was pasted whole");
+		expect(submitted.size() == 3U && submitted.back().find("github.example.com/octo/app/pull/42") != std::string::npos && intents.empty()
+				   && window.home_open_bar()->text().isEmpty(),
+			   "Open submits the same text Return does, from a link that was pasted whole, and the accepted projection clears the bar");
 		window.hide();
 	}
 

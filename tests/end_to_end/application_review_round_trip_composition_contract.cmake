@@ -39,7 +39,7 @@ function(bpr_verify_full_application_digest source_variable)
         "${bpr_full_application_source}"
     )
 	set(bpr_expected_full_application_digest
-		"0ef8947e509030cc971bba2d88fc598d3b801bf4e386ef3549ee97bfeb53fe99"
+		"8e49fb4fe2019622ba56b732849e7dc65aa0ad7e4ff74bf5c37e55dc2c208bf4"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -157,7 +157,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "${bpr_production_app_manifest}"
     )
 	set(bpr_expected_production_app_manifest_digest
-        "7a69ad3491619bfdb408497cd310bf71d749e930cf50f7e9685238c452a41d2e"
+        "09367db6644b261496337271711e51954a42e75ceed2a07960dde6319ec7764c"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -242,7 +242,7 @@ function(bpr_verify_async_mutation_host_inventory source_variable)
         "ReviewMutationHost = std::make_unique<"
         "application::review_mutation_application_host>("
         "std::move(LiveReviewMutationGrant)"
-        "worker_executor         ReviewMutationEffects;"
+        "worker_executor                                         ReviewMutationEffects;"
         "std::unique_ptr<application::review_mutation_application_host>"
     )
         string(FIND "${bpr_async_mutation_source}" "${required}" found)
