@@ -56,7 +56,7 @@ opens Settings.
   activates the selected profile in public-preview mode and focuses the open
   bar; `qt_composed_github_scale_{100,125,200}` pin it per state.
 - The owner accepts the flow on the signed bundle in the attended session
-  that follows [BPR-0715](../20-ready/BPR-0715-opening-a-pull-request-signed-out-no-longer-reaches-a-comparison.md).
+  that follows [BPR-0715](../30-in-progress/BPR-0715-opening-a-pull-request-signed-out-no-longer-reaches-a-comparison.md).
 
 ## Verification record
 

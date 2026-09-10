@@ -397,7 +397,7 @@ state belong to the v001 rejection of 2026-09-07. Read as three findings:
 the strip (AC-01) is accepted; the files and the epoch line were unreachable
 because the signed-out open no longer reaches a comparison, bisected to
 `826fb871` and carded as
-[BPR-0715](../20-ready/BPR-0715-opening-a-pull-request-signed-out-no-longer-reaches-a-comparison.md),
+[BPR-0715](../30-in-progress/BPR-0715-opening-a-pull-request-signed-out-no-longer-reaches-a-comparison.md),
 which is not this card's code; and the Home flow is owner direction under
 RFC-BPR-0026, registered as
 [BPR-0716](../10-backlog/BPR-0716-read-without-signing-in-is-offered-from-every-signed-out-home.md).

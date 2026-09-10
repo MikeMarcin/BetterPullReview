@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0715"
 title: "Opening a pull request signed out no longer reaches a comparison"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0024","RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
