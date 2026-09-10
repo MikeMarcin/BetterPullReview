@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0718"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "application_workbench_composition_contract red at fd7388e8",
+  "created": "2026-09-10T18:11:58.460264+00:00",
+  "base": "78964994c889715ca82a441579337d678df44186"
+}
