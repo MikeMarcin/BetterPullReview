@@ -171,7 +171,7 @@ the fixed head; with the fixture smart-Git binding replaced by `nullptr` it
 fails with `EPOCH_EFFECT_FAILED:revision-prepare:0` and
 `PUBLIC_PREVIEW_EPOCH_STATUS:8`. `qt_anonymous_public_preview_scale_100` was
 a stale reflow assertion, carded and repaired as
-[BPR-0717](BPR-0717-the-public-preview-reflow-assertion-is-stale-after-the-settings-adoption.md).
+[BPR-0717](../60-done/BPR-0717-the-public-preview-reflow-assertion-is-stale-after-the-settings-adoption.md).
 `application_workbench_composition_contract` is red at `fd7388e8` with the
 same signature before and after this fix (`WORKBENCH_INTENT_WIRE_FAILED`
 onward) and belongs to no card here.

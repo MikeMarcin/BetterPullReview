@@ -214,13 +214,17 @@ namespace {
 		expect(nextFocusable(panel->connect_button()) == preview,
 			   "preview follows Connect in the panel's keyboard order");
 		// The panel decides its rows from its own width, wherever it is
-		// mounted; on the Settings page that width is the page's, not the
-		// workbench window's.
-		panel->resize(420, panel->height());
+		// mounted. [[BPR-0717]]: on the Settings page the page's layout
+		// owns that width and undoes a plain resize on the same event pass,
+		// so the compact width is imposed as a constraint the layout keeps,
+		// and released before the wide claim.
+		panel->setFixedWidth(420);
 		QApplication::processEvents();
 		expect(preview->mapTo(panel, QPoint{ }).y()
 				   > panel->profile_selector()->mapTo(panel, panel->profile_selector()->rect().bottomLeft()).y(),
 			   "compact connection buttons use a separate row below the profile");
+		panel->setMinimumWidth(0);
+		panel->setMaximumWidth(QWIDGETSIZE_MAX);
 		panel->resize(1'000, panel->height());
 		QApplication::processEvents();
 		const auto previewCenter = preview->mapTo(panel, preview->rect().center()).y();
