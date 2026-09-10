@@ -106,6 +106,53 @@ but the chrome is not what broke.
   tidy on touched translation units, clang-format and the documentation gate
   pass.
 
+## Diagnosis, 2026-09-10, dispatch `ux-redesign-0028-pack.d4`
+
+Two defects, both reached by the signed-out open, neither the fixture's
+smart-Git binding as such:
+
+- **The bundle's failing event is `workbench_application_host::observe_now`
+  refusing the signed-out authority.** A HEAD dev build driven against the
+  owner's data root (restoring microsoft/terminal#20607 signed out, no
+  interaction) traced: observation-only revision prepare, comparison
+  resolution with both anchors verified in the cache
+  (`c7572cde…`, `472eb71d…`), `comparison_resolved` with an exact,
+  diffable pair — and, before any of it, `WorkbenchHost->observe` refused
+  with `host_failure` because `valid(workbench_pull_request_authority)`
+  required a non-zero account and viewer, which a public-preview handoff
+  never carries (`account=0 viewer=0`, every other field non-zero). No file
+  rows are published, so the window keeps "Its comparison is not ready …
+  The workbench could not be updated" and nothing to select. The epoch host
+  itself was healthy; its resolution path logs no stage, which is why the
+  diagnostics log stopped at `catalog_prepare`.
+- **The course's red is the host projection, not the epoch.** At the last
+  good commit the course passed in 0.7 s: the review-comment observation
+  came from the host's own read window and the run shut down before the
+  epoch ran (`EPOCH_CATALOG_FAILURE:17`, cancelled). Since `826fb871` the
+  primary window is an explicitly attached `github_window_read_host`, and
+  `github_application_host` never adopted its accepted snapshot, so the
+  public-preview presentation never reported the review comments
+  (`PUBLIC_PREVIEW_REVIEW_COMMENT_GROUPS:0`) and the run waited out its
+  budget — long enough for the epoch to reach `protocol_acquire` over the
+  production anonymous factory and fail with `network`, the symptom the
+  card was opened on. The fixture never served a signed-out smart-Git lease;
+  no green run of this course had ever reached a comparison.
+
+## Fix
+
+- `application::valid(workbench_pull_request_authority)` admits the
+  credential-free authority: account and viewer both zero
+  (`application::anonymous`), never one without the other.
+- `github_application_host::observe_attached_read` adopts an attached
+  window's accepted snapshot and rate limits and republishes the
+  public-preview presentation; the profile runtime calls it after each
+  primary-window read update.
+- The fixture's anonymous transport now serves the signed-out smart-Git
+  lease (public-preview authority, no account), the composition binds it
+  under a fixture, and the course requires an exact comparison
+  (`PUBLIC_PREVIEW_EPOCH_STATUS:6`, one smart acquisition) before
+  `PUBLIC_PREVIEW_ENABLED_OK`.
+
 ## Verification record
 
 2026-09-10, dispatch `ux-redesign-0028-pack.d2`: reproduction and bisect
@@ -117,3 +164,14 @@ failed; `application_setup_destination_public_path`,
 `application_github_public_path_github_com` passed. Bisect: good `9a175e81`,
 `f00ecb7d`, `91a75ec6`, `4ae98c1c`, `061dfcdf`; bad `58fb1d41`, `02b35b74`,
 `88c42087`, `826fb871`.
+
+2026-09-10, dispatch `ux-redesign-0028-pack.d4`, see the diagnosis above.
+`application_anonymous_public_preview_public_path` passes in about 10 s at
+the fixed head; with the fixture smart-Git binding replaced by `nullptr` it
+fails with `EPOCH_EFFECT_FAILED:revision-prepare:0` and
+`PUBLIC_PREVIEW_EPOCH_STATUS:8`. `qt_anonymous_public_preview_scale_100` was
+a stale reflow assertion, carded and repaired as
+[BPR-0717](BPR-0717-the-public-preview-reflow-assertion-is-stale-after-the-settings-adoption.md).
+`application_workbench_composition_contract` is red at `fd7388e8` with the
+same signature before and after this fix (`WORKBENCH_INTENT_WIRE_FAILED`
+onward) and belongs to no card here.
