@@ -3,7 +3,7 @@
 Status: **prepared; ten decisions pending**.
 
 The same ten candidates as v002, prepared again on the bundle built at the
-head that fixes [BPR-0715](../../../issues/30-in-progress/BPR-0715-opening-a-pull-request-signed-out-no-longer-reaches-a-comparison.md):
+head that fixes [BPR-0715](../../../issues/40-parked/BPR-0715-opening-a-pull-request-signed-out-no-longer-reaches-a-comparison.md):
 opening a pull request signed out reaches its files and an exact comparison
 again. Nothing here changes anything on GitHub: the pull request is opened
 signed out, which reads and never writes.
