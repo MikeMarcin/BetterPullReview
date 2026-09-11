@@ -93,7 +93,7 @@ without an account" remark was verified against the code, not assumed:
 the Home bar goes through the setup destination, which is `ready` only
 for an authenticated profile, so "the bar under the card does open a
 pasted link" above was wrong; only the Settings session panel opens
-signed out. [BPR-0733](../30-in-progress/BPR-0733-home-lists-recently-viewed-pull-requests-instead-of-restoring-the-last-one.md)
+signed out. [BPR-0733](../40-parked/BPR-0733-home-lists-recently-viewed-pull-requests-instead-of-restoring-the-last-one.md)
 replaces the automatic restore with a recently viewed list. This card
 depends on BPR-0732 and is finished from its own acceptance when the
 owner accepts that one.

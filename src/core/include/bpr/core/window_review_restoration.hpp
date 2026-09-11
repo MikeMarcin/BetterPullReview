@@ -7,6 +7,7 @@
 #include "bpr/core/profile_window.hpp"
 #include <expected>
 #include <optional>
+#include <string_view>
 
 namespace bpr::core {
 	struct window_review_authority
@@ -38,6 +39,22 @@ namespace bpr::core {
 		std::optional<window_review_position> Position                                              = std::nullopt;
 		auto                                  operator==(const window_review_record&) const -> bool = default;
 	};
+	/// [[BPR-0733]]. Bounds of the per-profile recently viewed list.
+	inline constexpr std::size_t maximum_recent_reviews      = 10U;
+	inline constexpr std::size_t maximum_recent_review_title = 512U;
+	/// \brief One recently viewed pull request: most recent first, at most one
+	/// entry per destination. The host supplies the clock reading; zero means
+	/// the time is unknown (a migrated row).
+	struct window_recent_review
+	{
+		window_review_destination             Destination;
+		std::string                           Title;
+		std::int64_t                          ViewedAt                                              = 0;
+		std::optional<window_review_position> Position                                              = std::nullopt;
+		auto                                  operator==(const window_recent_review&) const -> bool = default;
+	};
+	[[nodiscard]] auto valid(const window_recent_review& aEntry) noexcept -> bool;
+	[[nodiscard]] auto valid_recent_reviews(const std::vector<window_recent_review>& aEntries) noexcept -> bool;
 	enum class window_review_failure : std::uint8_t { invalid_state,
 													  invalid_destination,
 													  missing_server,
@@ -104,11 +121,19 @@ namespace bpr::core {
 	[[nodiscard]] auto valid_window_review_records(const std::vector<window_review_record>& aRecords) noexcept -> bool;
 
 	/// Pure exact-context restoration policy. Input contexts are least to most recently focused.
+	/// [[BPR-0733]]. Loading selects the startup authority only; nothing opens
+	/// until a window asks for a recently viewed entry through open_recent.
 	class window_review_restoration final
 	{
 	public:
 		window_review_restoration(bpr_profile_id aProfile, std::vector<bpr_window_context> aContexts, std::vector<std::string> aConfiguredHosts);
-		[[nodiscard]] auto load(const std::vector<window_review_record>& aRecords) -> window_review_actions;
+		[[nodiscard]] auto load(const std::vector<window_review_record>& aRecords, const std::vector<window_recent_review>& aRecent = { }) -> window_review_actions;
+		/// \brief A window's gesture on the recently viewed list; the open is
+		/// issued once the window is ready and startup has settled.
+		[[nodiscard]] auto open_recent(bpr_window_context aContext, std::size_t aIndex) -> window_review_actions;
+		/// \brief Records the title once a snapshot of a listed destination was seen.
+		[[nodiscard]] auto accepted_title(const window_review_destination& aDestination, std::string_view aTitle) -> bool;
+		[[nodiscard]] auto recent() const noexcept -> const std::vector<window_recent_review>& { return Recent; }
 		[[nodiscard]] auto attach(bpr_window_context aContext) -> bool;
 		[[nodiscard]] auto current(bpr_window_context aContext) const noexcept -> bool;
 		[[nodiscard]] auto mark_window_ready(bpr_window_context aContext) -> window_review_actions;
@@ -118,7 +143,7 @@ namespace bpr::core {
 		[[nodiscard]] auto complete_startup(request_id aRequest, const std::expected<window_review_authority, window_review_failure>& aResult) -> window_review_actions;
 		[[nodiscard]] auto current_restore(bpr_window_context aContext, request_id aRequest) const noexcept -> bool;
 		[[nodiscard]] auto complete_restore(bpr_window_context aContext, request_id aRequest, const std::expected<void, window_review_failure>& aResult) -> window_review_actions;
-		[[nodiscard]] auto accepted_read(bpr_window_context aContext, const window_review_destination& aDestination) -> bool;
+		[[nodiscard]] auto accepted_read(bpr_window_context aContext, const window_review_destination& aDestination, std::int64_t aViewedAt = 0) -> bool;
 		[[nodiscard]] auto accepted_position(bpr_window_context aContext, const window_review_destination& aDestination, const window_review_position& aPosition) -> bool;
 		[[nodiscard]] auto close(bpr_window_context aContext) -> bool;
 		[[nodiscard]] auto records() const noexcept -> const std::vector<window_review_record>&;
@@ -137,6 +162,7 @@ namespace bpr::core {
 		std::vector<slot>                      Slots;
 		std::vector<std::string>               ConfiguredHosts;
 		std::vector<window_review_record>      Records;
+		std::vector<window_recent_review>      Recent;
 		std::optional<request_id>              Startup;
 		std::optional<window_review_authority> Chosen;
 		std::uint64_t                          NextRequest       = 1;

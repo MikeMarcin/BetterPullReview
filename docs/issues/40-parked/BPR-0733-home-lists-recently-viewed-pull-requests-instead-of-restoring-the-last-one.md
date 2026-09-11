@@ -2,11 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0733"
 title: "Home lists recently viewed pull requests instead of restoring the last one"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0028", "RFC-BPR-0026"]
 depends_on: []
 priority: "P1"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"owner_direction":"2026-09-11"}
+parked_on: "human-review"
+acceptance: [{"criterion":"AC1 sqlite store migrates the one-row schema to the list schema, keeps the old row as the newest entry, refuses malformed or future schema before writing","outcome":"pass","revision":"e7c8a81cf110fa50b5ee6748ff9f784a3cd7fb83+working","evidence":{"kind":"command","detail":"ctest -R sqlite_window_review_restoration_storage: Passed. recent_reviews table at user_version 3; v1/v2 one-row files migrate with the old row as ordinal 0 (title '', viewed_at 0, its position); 11 rows, duplicate destination, 513-byte title, user_version 4 refused with file bytes unchanged."}},{"criterion":"AC2 profile_window_review_restoration_public_path starts with a saved review, Home stays with no loading_pull_request and no snapshot request until a row is chosen, choosing the row opens it and resumes the saved position","outcome":"pass","revision":"e7c8a81cf110fa50b5ee6748ff9f784a3cd7fb83+working","evidence":{"kind":"command","detail":"ctest -R application_profile_window_review_restoration_public_path: Passed (571 s). home_lists_recent checkpoint (Home, status not loading, no accepted snapshot, AccountReadCount and PublicPreviewRequests unchanged over 400 ms, rows most-recent-first) before every restart gesture; resume_recent restores the exact position in auth-advance/auth-restore/reading races; unavailable-* still report an explicit failure; anonymous-restore opens the public row by Return."}},{"criterion":"AC3 qt_composed_github_scale_{100,125,200} pin the list's rows, order, keyboard reach and the empty case","outcome":"pass","revision":"e7c8a81cf110fa50b5ee6748ff9f784a3cd7fb83+working","evidence":{"kind":"command","detail":"ctest -R qt_composed_github_scale_(100|125|200): 3/3 Passed. test_home_lists_recently_viewed_pull_requests pins row texts and order, focus_order stops for the resume button and list, Resume enabled only on a resumable row, Return/activation and Resume dispatch {row,resume}, empty projection hides the section and drops its stops, signed-out arrival still focuses the bar."}},{"criterion":"AC4 the owner restarts the signed bundle with a review saved, sees Home at once with the entry, opens it by hand; accepted in an attended session","outcome":"pending","revision":"e7c8a81cf110fa50b5ee6748ff9f784a3cd7fb83+working","evidence":{"kind":"freeform","detail":"Human criterion: awaits the v007 attended packet on a rebuilt tests-disabled bundle."}}]
 ---
 
 # Home lists recently viewed pull requests instead of restoring the last one

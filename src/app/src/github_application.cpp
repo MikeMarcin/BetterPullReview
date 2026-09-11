@@ -106,6 +106,7 @@
 #include <QColor>
 #include <QComboBox>
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QDir>
 #include <QEventLoop>
 #include <QFile>
@@ -3633,8 +3634,15 @@ namespace bpr::app {
 			std::function<void()>                                                                     UnmountSettings;
 			std::function<void(const core::window_review_open_request&)>                              RestoreReview;
 			std::function<void(const QString&)>                                                       RestoreNotice;
+			std::function<void()>                                                                     RecentChanged;
 			std::function<void(const application::workbench_pull_request_authority&, ledger_changes)> Ledger;
 		};
+		// [[BPR-0733]]. The recently viewed list is profile state; every window
+		// projects its own view of it for the session it has.
+		void recent_changed() override
+		{
+			for_each_window([](const window_observer& aObserver) { if (aObserver.RecentChanged) { aObserver.RecentChanged(); } });
+		}
 		void publish(const application::github_presentation_update& aUpdate) override;
 		template <class Function>
 		void for_each_window(Function aFunction)
@@ -3864,10 +3872,10 @@ namespace bpr::app {
 			if (RestorationOrderly && aError.Reason != core::window_review_failure::cancelled) {
 				CleanupFailed = true;
 			}
-			auto message = QStringLiteral("The previous review could not be restored. Choose a review to continue.");
+			auto message = QStringLiteral("The saved reading could not be resumed. Choose a review to continue.");
 			switch (aError.Reason) {
 			case core::window_review_failure::missing_server:        message = QStringLiteral("The previous review's server is not configured. Choose a review to continue."); break;
-			case core::window_review_failure::conflicting_authority: message = QStringLiteral("The previous review uses a different server or access mode. Choose a review to continue."); break;
+			case core::window_review_failure::conflicting_authority: message = QStringLiteral("The saved reading belongs to a different server or access mode. Choose a review to continue."); break;
 			case core::window_review_failure::corrupt:
 			case core::window_review_failure::unsupported_schema:
 			case core::window_review_failure::conflict:              message = QStringLiteral("Saved window reviews are unavailable. Choose a review to continue."); break;
@@ -5228,6 +5236,9 @@ namespace bpr::app {
 		}
 		bind_device_refresh_authority(aUpdate);
 		observe_restoration_session();
+		if (aUpdate.Transition && aUpdate.Transition->Status) {
+			recent_changed();
+		}
 		if (ReviewRestoration && RestorationStartup && ReviewRestoration->current_startup(RestorationStartup->Request)
 			&& aUpdate.Transition && aUpdate.Transition->Status
 			&& (aUpdate.Transition->Status->Status == core::github_status::session_failed || aUpdate.Transition->Status->Status == core::github_status::session_cancelled)) {
@@ -5317,16 +5328,76 @@ namespace bpr::app {
 		std::shared_ptr<application::github_window_read_host> WindowRead;
 		std::optional<application::queue_consumer_id>         QueueConsumer;
 		std::optional<core::window_review_open_request>       PendingRestoration;
-		std::optional<core::request_id>                       RestorationReadRequest;
-		std::optional<core::window_reading_restoration>       ReadingRestoration;
-		std::optional<core::pending_comparison_resolution>    ReadingComparisonRequest;
-		std::optional<core::window_review_destination>        ReadingDestination;
-		std::optional<core::window_review_position>           AcceptedReadingPosition;
-		bool                                                  ReadingAdvanceQueued      = false;
-		bool                                                  ReadingFailed             = false;
-		bool                                                  ReadingRestoreUnavailable = false;
-		bool                                                  RestorationReadAccepted   = false;
-		void                                                  schedule_reading_restoration()
+		/// [[BPR-0733]]. Policy indices behind the rows this window lists.
+		std::vector<std::size_t>                              RecentIndexMap;
+		std::optional<application::recent_reviews_projection> RecentPublished;
+		void                                                  publish_recent()
+		{
+			if (Closing || !Window || !Profile->ReviewRestoration) {
+				return;
+			}
+			// Signed out, the public entries only; an account's entries once
+			// that account's session exists. Resume needs the exact session.
+			const auto& session    = Host->accepted_session();
+			const auto* profile    = session ? find_profile(session->Profile) : nullptr;
+			const auto  hostname   = profile ? std::string{ profile->hostname() } : std::string{ };
+			const auto  account    = session && profile && session->Mode == core::github_access_mode::authenticated;
+			auto        projection = application::recent_reviews_projection{ };
+			auto        map        = std::vector<std::size_t>{ };
+			const auto& recent     = Profile->ReviewRestoration->recent();
+			for (std::size_t index = 0; index < recent.size(); ++index) {
+				const auto& entry = recent[index];
+				if (entry.Destination.Mode != core::github_access_mode::public_preview && !(account && entry.Destination.Hostname == hostname)) {
+					continue;
+				}
+				const auto resumable = entry.Position.has_value() && session && profile && entry.Destination.Hostname == hostname && entry.Destination.Mode == session->Mode;
+				projection.Entries.push_back({ entry.Destination, entry.Title, entry.ViewedAt, resumable });
+				map.push_back(index);
+			}
+			if (RecentPublished == projection) {
+				return;
+			}
+			RecentIndexMap  = std::move(map);
+			RecentPublished = projection;
+			Window->publish(projection);
+		}
+		void open_recent(application::recent_review_intent aIntent)
+		{
+			if (Closing || !Profile->ReviewRestoration || aIntent.Index >= RecentIndexMap.size()) {
+				return;
+			}
+			const auto  index  = RecentIndexMap[aIntent.Index];
+			const auto& recent = Profile->ReviewRestoration->recent();
+			if (index >= recent.size()) {
+				return;
+			}
+			if (aIntent.Resume && recent[index].Position) {
+				// The same exact-position course a restart used to run by
+				// itself; a gesture starts it now.
+				cancel_restoration(false);
+				Profile->ReviewRestoration->open_recent(DraftWindow, index);
+				return;
+			}
+			// Open on Overview by the bar's path: it serves a signed-in
+			// account and a signed-out public read alike (BPR-0732).
+			if (!SetupDestination) {
+				return;
+			}
+			const auto& destination = recent[index].Destination;
+			retire_setup_effects();
+			cancel_restoration(true);
+			SetupDestination->submit("https://" + destination.Hostname + "/" + destination.Repository.Owner + "/" + destination.Repository.Name + "/pull/" + std::to_string(destination.Number.value()));
+		}
+		std::optional<core::request_id>                    RestorationReadRequest;
+		std::optional<core::window_reading_restoration>    ReadingRestoration;
+		std::optional<core::pending_comparison_resolution> ReadingComparisonRequest;
+		std::optional<core::window_review_destination>     ReadingDestination;
+		std::optional<core::window_review_position>        AcceptedReadingPosition;
+		bool                                               ReadingAdvanceQueued      = false;
+		bool                                               ReadingFailed             = false;
+		bool                                               ReadingRestoreUnavailable = false;
+		bool                                               RestorationReadAccepted   = false;
+		void                                               schedule_reading_restoration()
 		{
 			if (Closing || !ReadingRestoration || ReadingAdvanceQueued) {
 				return;
@@ -5487,7 +5558,7 @@ namespace bpr::app {
 			ReadingRestoreUnavailable = false;
 			RestorationReadAccepted   = false;
 			RestorationReadRequest    = WindowRead->state().NextRequest;
-			restoration_notice(QStringLiteral("Restoring the previous review…"));
+			restoration_notice(QStringLiteral("Resuming the saved reading…"));
 			WindowRead->dispatch(core::open_pull_request_intent{ .Repository = aRequest.Destination.Repository, .Number = aRequest.Destination.Number });
 			if (PendingRestoration && !WindowRead->state().PendingPullRequest && WindowRead->state().NextRequest == *RestorationReadRequest) {
 				Profile->ReviewRestoration->complete_restore(DraftWindow, aRequest.Request, std::unexpected(core::window_review_failure::unavailable));
@@ -5513,7 +5584,8 @@ namespace bpr::app {
 						AcceptedReadingPosition.reset();
 					}
 					ReadingDestination = destination;
-					Profile->ReviewRestoration->accepted_read(DraftWindow, destination);
+					Profile->ReviewRestoration->accepted_read(DraftWindow, destination, std::max<qint64>(0, QDateTime::currentSecsSinceEpoch()));
+					Profile->ReviewRestoration->accepted_title(destination, std::string_view{ snapshot->PullRequest.Title }.substr(0, core::maximum_recent_review_title));
 					if (PendingRestoration && RestorationReadRequest == accepted->Context.Request
 						&& destination == PendingRestoration->Destination && Profile->ReviewRestoration->current_restore(DraftWindow, PendingRestoration->Request)) {
 						RestorationReadAccepted = true;
@@ -5563,7 +5635,7 @@ namespace bpr::app {
 } }, .SignIn = [this, weak](core::host_profile_id aProfile) { if (!weak.expired() && !Closing){ begin_public_preview_sign_in(aProfile);
 } }, .SelectQueue = [this, weak](const core::pull_request_ref& aRef) { return !weak.expired() && !Closing && Window->select_queue_item(aRef); }, .Settings = [this, weak](qt::settings_window& aShell, qt::settings_page aPage) {
 					if (!weak.expired() && !Closing) { Window->mount_settings(aShell); aShell.present(aPage); } }, .UnmountSettings = [this, weak] { if (!weak.expired() && Window){ Window->unmount_settings();
-} }, .RestoreReview = [this, weak](const core::window_review_open_request& aRequest) { if (!weak.expired() && !Closing) { restore_review(aRequest); } }, .RestoreNotice = [this, weak](const QString& aText) { if (!weak.expired() && !Closing) { restoration_notice(aText); } }, .Ledger = [this, weak](const application::workbench_pull_request_authority& aAuthority, ledger_changes aChanges) { if (!weak.expired() && !Closing) { refresh_shared_ledger(aAuthority, aChanges); } } });
+} }, .RestoreReview = [this, weak](const core::window_review_open_request& aRequest) { if (!weak.expired() && !Closing) { restore_review(aRequest); } }, .RestoreNotice = [this, weak](const QString& aText) { if (!weak.expired() && !Closing) { restoration_notice(aText); } }, .RecentChanged = [this, weak] { if (!weak.expired() && !Closing) { publish_recent(); } }, .Ledger = [this, weak](const application::workbench_pull_request_authority& aAuthority, ledger_changes aChanges) { if (!weak.expired() && !Closing) { refresh_shared_ledger(aAuthority, aChanges); } } });
 			// Home may already be checked while a restored read is pending. Its
 			// toggle then emits false, but the gesture still supersedes restoration.
 			QObject::connect(Window->home_action(), &QAction::triggered, Window.get(), [this, weak](bool) {
@@ -5657,6 +5729,7 @@ namespace bpr::app {
 				},
 						   aIntent);
 			});
+			Window->set_recent_review_dispatch([this](application::recent_review_intent aIntent) { open_recent(aIntent); });
 			Window->set_profile_label(QString::fromStdString(aAdmission.Label));
 			Window->set_storage_location(QString::fromStdString(ApplicationDataRoot.string()));
 			Window->set_receipt_dispatch(
@@ -12071,6 +12144,7 @@ namespace bpr::app {
 					session->restoration_notice(notice->second);
 				}
 				Profile->ReviewRestoration->mark_window_ready(aContext);
+				session->publish_recent();
 			}
 			if (!Implementation) {
 				Implementation       = std::move(session);

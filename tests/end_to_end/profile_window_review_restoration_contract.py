@@ -46,6 +46,12 @@ def positions(root):
         return connection.execute("SELECT window_id,position FROM restoration_records ORDER BY window_id").fetchall()
 
 
+def recent(root):
+    """[[BPR-0733]]. The per-profile recently viewed list, most recent first."""
+    with sqlite3.connect(database(root)) as connection:
+        return connection.execute("SELECT ordinal,number FROM recent_reviews ORDER BY ordinal").fetchall()
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--application", required=True)
@@ -58,6 +64,7 @@ def main():
         vault = seed_auth(arguments.application, auth)
         initial = records(auth)
         assert [row[-1] for row in initial] == ["17", "18"], initial
+        assert recent(auth) == [(0, "18"), (1, "17")], recent(auth)
         initial_positions = positions(auth)
         assert len(initial_positions) == 2 and all(row[1] for row in initial_positions)
         assert initial_positions[0][1] != initial_positions[1][1], "independent readings collapsed"
@@ -102,6 +109,9 @@ def main():
                         connection.execute("PRAGMA user_version=999")
                     else:
                         connection.execute("UPDATE restoration_records SET number='99'")
+                        # A gesture on the list is what opens a review now, so
+                        # the newest listed entry is the read that must fail.
+                        connection.execute("UPDATE recent_reviews SET number='99' WHERE ordinal=0")
             before = database(course).read_bytes()
             expected = None if phase in ("corrupt", "future") else records(course)
             run(arguments.application, phase, course, b"" if phase == "missing-grant" else vault)
@@ -113,6 +123,9 @@ def main():
         assert [row[-1] for row in records(auth)] == ["18", "18"], "failed navigation replaced latest accepted record"
         vault = run(arguments.application, "auth-close", auth, vault)
         assert [(row[0], row[-1]) for row in records(auth)] == [("2", "18")], "Close erased wrong destination"
+        # Closing a window retires its retained destination; the profile's list
+        # of what was read keeps both entries.
+        assert recent(auth) == [(0, "18"), (1, "17")], recent(auth)
         run(arguments.application, "auth-verify", auth, vault)
         assert [(row[0], row[-1]) for row in records(auth)] == [("2", "18")], "fresh window invented destination"
         anonymous = root / "anonymous"

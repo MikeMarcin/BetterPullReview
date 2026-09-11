@@ -3,8 +3,11 @@
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
+#include <iterator>
 #include <limits>
+#include <optional>
 #include <sqlite3.h>
 #include <stop_token>
 #include <string>
@@ -59,6 +62,11 @@ namespace {
 }return 0; };
 		expect(sqlite3_exec(aDatabase, "PRAGMA application_id; PRAGMA user_version; SELECT type,name,sql FROM sqlite_schema ORDER BY name; SELECT * FROM restoration_meta; SELECT * FROM restoration_records ORDER BY window_id", collect, &cells, nullptr) == SQLITE_OK, "snapshot captures schema and contents");
 		return cells;
+	}
+	[[nodiscard]] auto file_bytes(const std::filesystem::path& aPath) -> std::string
+	{
+		std::ifstream stream{ aPath, std::ios::binary };
+		return std::string{ std::istreambuf_iterator<char>{ stream }, std::istreambuf_iterator<char>{ } };
 	}
 	struct interruption
 	{
@@ -198,7 +206,7 @@ namespace {
 			expect(store->load({ }).has_value() && store->save(filled(2, 2), 1, { }).has_value(), "legacy fixture starts");
 			store.reset();
 			auto* raw = raw_open(scratch.database());
-			execute(raw, "ALTER TABLE restoration_records DROP COLUMN position; PRAGMA user_version=1");
+			execute(raw, "DROP TABLE recent_reviews; ALTER TABLE restoration_records DROP COLUMN position; PRAGMA user_version=1");
 			const auto before = snapshot(raw);
 			sqlite3_close(raw);
 			auto stop            = std::stop_source{ };
@@ -212,19 +220,22 @@ namespace {
 			raw = raw_open(scratch.database());
 			expect(snapshot(raw) == before, "interrupted migration retains exact old schema and rows");
 			sqlite3_close(raw);
+			// Both windows name one destination, so the list keeps the newest as one entry.
+			auto migrated = filled(2, 2);
+			migrated.Recent.push_back({ migrated.Records.back().Destination, "", 0, std::nullopt });
 			store = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
-			expect(store->load({ }) == filled(2, 2), "migration retry preserves revision and PR-only records");
+			expect(store->load({ }) == migrated, "migration retry preserves revision, PR-only records and seeds the list");
 			store.reset();
 			store = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
-			expect(store->load({ }) == filled(2, 2), "second restart preserves migrated snapshot");
+			expect(store->load({ }) == migrated, "second restart preserves migrated snapshot");
 		}
-		for (const auto corruption : { "UPDATE restoration_meta SET revision='01'", "UPDATE restoration_records SET owner='../invalid'", "CREATE TABLE extra(value TEXT)", "PRAGMA user_version=3" }) {
+		for (const auto corruption : { "UPDATE restoration_meta SET revision='01'", "UPDATE restoration_records SET owner='../invalid'", "CREATE TABLE extra(value TEXT)", "PRAGMA user_version=3", "PRAGMA user_version=4" }) {
 			const auto scratch = scratch_directory{ };
 			auto       store   = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
 			expect(store->load({ }).has_value() && store->save(filled(2, 2), 1, { }).has_value(), "refused migration fixture starts");
 			store.reset();
 			auto* raw = raw_open(scratch.database());
-			execute(raw, "ALTER TABLE restoration_records DROP COLUMN position; PRAGMA user_version=1");
+			execute(raw, "DROP TABLE recent_reviews; ALTER TABLE restoration_records DROP COLUMN position; PRAGMA user_version=1");
 			execute(raw, corruption);
 			const auto before = snapshot(raw);
 			sqlite3_close(raw);
@@ -264,7 +275,7 @@ namespace {
 		auto       store     = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
 		auto       stop      = std::stop_source{ };
 		interruption::Stop   = &stop;
-		interruption::Prefix = "PRAGMA user_version=2";
+		interruption::Prefix = "PRAGMA user_version=3";
 		const auto first     = store->load(stop.get_token());
 		expect(stop.stop_requested() && !first && first.error().Failure == window_review_store_failure::cancelled, "initialization cancels after schema stamp");
 		interruption::Stop = nullptr;
@@ -287,6 +298,125 @@ namespace {
 		store.reset();
 		expect(sqlite3_cancel_auto_extension(reinterpret_cast<void (*)()>(interruption::install)) == 1, "interruption removed");
 	}
+	[[nodiscard]] auto destination(const std::string_view aRepository, const std::uint32_t aNumber, const core::github_access_mode aMode = core::github_access_mode::authenticated) -> core::window_review_destination
+	{
+		return { aMode, "github.com", { "octo", std::string{ aRepository } }, core::pull_request_number{ aNumber } };
+	}
+	[[nodiscard]] auto listed() -> window_review_snapshot
+	{
+		auto result     = window_review_snapshot{ };
+		result.Revision = 2;
+		result.Records.push_back({ core::bpr_window_id{ 1 }, destination("repo", 17), position() });
+		result.Recent.push_back({ destination("repo", 17), "Fix the thing", 1'700'000'000, position() });
+		result.Recent.push_back({ destination("other", 18, core::github_access_mode::public_preview), "", 0, std::nullopt });
+		return result;
+	}
+	// [[BPR-0733]]. AC-01: the one-row schema becomes the list schema and the old
+	// row is the newest entry.
+	void test_recent_migration()
+	{
+		for (const auto legacy : { false, true }) {
+			const auto scratch = scratch_directory{ };
+			auto       store   = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
+			expect(store->load({ }).has_value(), "list migration fixture initializes");
+			auto saved     = window_review_snapshot{ };
+			saved.Revision = 2;
+			saved.Records.push_back({ core::bpr_window_id{ 4 }, destination("repo", 17), position() });
+			expect(store->save(saved, 1, { }) == saved, "one retained row persists");
+			store.reset();
+			auto* raw = raw_open(scratch.database());
+			execute(raw, legacy ? "DROP TABLE recent_reviews; ALTER TABLE restoration_records DROP COLUMN position; PRAGMA user_version=1" : "DROP TABLE recent_reviews; PRAGMA user_version=2");
+			sqlite3_close(raw);
+			auto expected = saved;
+			if (legacy) {
+				expected.Records.front().Position.reset();
+			}
+			expected.Recent.push_back({ expected.Records.front().Destination, "", 0, expected.Records.front().Position });
+			store = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
+			expect(store->load({ }) == expected, "the one row migrates to the list as the newest entry with no title and no viewing time");
+			store.reset();
+			store = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
+			expect(store->load({ }) == expected, "the migrated list is durable");
+		}
+	}
+	void test_recent_collapse()
+	{
+		const auto scratch = scratch_directory{ };
+		auto       store   = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
+		expect(store->load({ }).has_value(), "collapse fixture initializes");
+		auto older = position();
+		older.Selection.reset();
+		auto saved     = window_review_snapshot{ };
+		saved.Revision = 2;
+		saved.Records.push_back({ core::bpr_window_id{ 2 }, destination("repo", 17), older });
+		saved.Records.push_back({ core::bpr_window_id{ 9 }, destination("other", 18), std::nullopt });
+		saved.Records.push_back({ core::bpr_window_id{ 11 }, destination("repo", 17), position() });
+		expect(store->save(saved, 1, { }) == saved, "three windows over two destinations persist");
+		store.reset();
+		auto* raw = raw_open(scratch.database());
+		execute(raw, "DROP TABLE recent_reviews; PRAGMA user_version=2");
+		sqlite3_close(raw);
+		store               = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
+		const auto migrated = store->load({ });
+		expect(migrated.has_value() && migrated->Records == saved.Records && migrated->Revision == saved.Revision, "migration leaves the retained rows alone");
+		expect(migrated->Recent.size() == 2, "two windows on one destination collapse to one entry");
+		expect(migrated->Recent[0] == core::window_recent_review{ destination("repo", 17), "", 0, position() }, "the newest window leads and carries its own position");
+		expect(migrated->Recent[1] == core::window_recent_review{ destination("other", 18), "", 0, std::nullopt }, "the older destination follows without a position");
+	}
+	void test_recent_refusals()
+	{
+		struct refusal
+		{
+			std::string_view            Sql;
+			window_review_store_failure Failure;
+		};
+		for (const auto& refused : { refusal{ "UPDATE recent_reviews SET ordinal=5 WHERE ordinal=1", window_review_store_failure::corrupt },
+									 refusal{ "UPDATE recent_reviews SET mode=0,repository='repo',number='17' WHERE ordinal=1", window_review_store_failure::corrupt },
+									 refusal{ "UPDATE recent_reviews SET title=substr(hex(zeroblob(300)),1,513) WHERE ordinal=1", window_review_store_failure::corrupt },
+									 refusal{ "UPDATE recent_reviews SET viewed_at=-1 WHERE ordinal=0", window_review_store_failure::corrupt },
+									 refusal{ "UPDATE recent_reviews SET position=x'' WHERE ordinal=0", window_review_store_failure::corrupt },
+									 refusal{ "UPDATE recent_reviews SET owner='../bad' WHERE ordinal=1", window_review_store_failure::corrupt },
+									 refusal{ "PRAGMA ignore_check_constraints=ON; UPDATE recent_reviews SET mode=9 WHERE ordinal=1", window_review_store_failure::corrupt },
+									 refusal{ "PRAGMA ignore_check_constraints=ON; WITH RECURSIVE ids(n) AS (VALUES(2) UNION ALL SELECT n+1 FROM ids WHERE n<10) INSERT INTO recent_reviews SELECT n,0,'github.com','octo','repo'||n,'17','',0,NULL FROM ids", window_review_store_failure::corrupt },
+									 refusal{ "DROP TABLE recent_reviews", window_review_store_failure::schema_mismatch },
+									 refusal{ "PRAGMA user_version=4", window_review_store_failure::schema_mismatch },
+									 // A future stamp over a shape this build could otherwise migrate.
+									 refusal{ "DROP TABLE recent_reviews; PRAGMA user_version=4", window_review_store_failure::schema_mismatch } }) {
+			const auto scratch = scratch_directory{ };
+			auto       store   = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
+			const auto listing = listed();
+			expect(store->load({ }).has_value() && store->save(listing, 1, { }) == listing, "refusal fixture persists a list");
+			store.reset();
+			auto* raw = raw_open(scratch.database());
+			execute(raw, refused.Sql);
+			sqlite3_close(raw);
+			const auto before = file_bytes(scratch.database());
+			store             = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
+			const auto opened = store->load({ });
+			expect(!opened && opened.error().Failure == refused.Failure && !opened.error().Current, "a malformed or future list refuses without fabricating a current snapshot");
+			store.reset();
+			expect(file_bytes(scratch.database()) == before && !std::filesystem::exists(scratch.database().string() + "-wal"), "the refusal writes nothing at all");
+		}
+	}
+	void test_recent_round_trip()
+	{
+		const auto scratch = scratch_directory{ };
+		auto       store   = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
+		auto       listing = listed();
+		listing.Recent[1].Title.assign(core::maximum_recent_review_title, 'x');
+		expect(store->load({ }).has_value() && store->save(listing, 1, { }) == listing, "a list with and without a saved position saves");
+		store.reset();
+		store = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
+		expect(store->load({ }) == listing, "titles, viewing times, positions and order round trip");
+		auto pruned = listing;
+		++pruned.Revision;
+		pruned.Recent.erase(pruned.Recent.begin());
+		expect(store->save(pruned, 2, { }) == pruned && store->load({ }) == pruned, "a save rewrites the whole list");
+		auto invalid = pruned;
+		++invalid.Revision;
+		invalid.Recent.push_back(invalid.Recent.front());
+		expect(!store->save(invalid, 3, { }) && store->load({ }) == pruned, "a repeated destination refuses without loss");
+	}
 }
 int main()
 {
@@ -296,6 +426,10 @@ int main()
 	test_migration();
 	test_corruptions();
 	test_interruption();
+	test_recent_migration();
+	test_recent_collapse();
+	test_recent_refusals();
+	test_recent_round_trip();
 	std::cout << "window-review-restoration-storage-tests:pass\n";
 	return EXIT_SUCCESS;
 }

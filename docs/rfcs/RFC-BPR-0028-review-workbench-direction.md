@@ -162,7 +162,14 @@ saved repositories live in Settings. Signed out ([[BPR-0732]], owner direction
 opens a public pull request without an account in one gesture (the core's
 `public_preview` stage, serviced by the host), and the queue, its filters and
 the pull-request stack's empty page are not shown until a session with an
-account exists. A public-preview session has none.
+account exists. A public-preview session has none. Recently viewed
+([[BPR-0733]], owner direction 2026-09-11): the app no longer opens the
+last pull request by itself at startup; Home stays until a gesture. Between
+the bar and the queue, a "Recently viewed" list (per profile, ten entries,
+most recent first, persisted by the restoration store) opens a row on
+Overview or resumes its saved reading; signed out it lists the public
+entries only, and an account's entries appear once that account's session
+exists. Empty, the section is not shown.
 
 **Vocabulary.** First person and event names: "my last review", never "you".
 Column headings are one word; actions are two.

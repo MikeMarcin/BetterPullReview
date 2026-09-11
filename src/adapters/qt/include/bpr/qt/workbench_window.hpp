@@ -9,6 +9,7 @@
 #include "bpr/application/public_preview_projection.hpp"
 #include "bpr/application/review_ledger_application_host.hpp"
 #include "bpr/application/review_queue_enrollment.hpp"
+#include "bpr/application/window_review_restoration_ports.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/diff_interaction.hpp"
 #include "bpr/qt/account_card.hpp"
@@ -53,6 +54,7 @@ class QEvent;
 class QLabel;
 class QLineEdit;
 class QListView;
+class QListWidget;
 class QMenu;
 class QMenuBar;
 class QPlainTextEdit;
@@ -284,7 +286,19 @@ namespace bpr::qt {
 		/// beneath the epoch line, in place of the comparison; the other
 		/// modalities keep the comparison. Its one action and its file rows
 		/// enter Read at the named file through the core's file selection.
-		void               publish(const application::pull_request_overview_projection& aProjection);
+		void publish(const application::pull_request_overview_projection& aProjection);
+		/// \brief [[BPR-0733]]. Adopts the window's recently viewed pull requests.
+		///
+		/// \details Home lists them between the open bar and the review queue,
+		/// in the order they were given, most recent first. The composition has
+		/// already filtered the list for the session this window has, so the
+		/// section follows what it was given rather than the account: a
+		/// signed-out Home lists whatever public entries it was handed.
+		/// Publishing never moves keyboard focus.
+		void publish(const application::recent_reviews_projection& aProjection);
+		/// \brief [[BPR-0733]]. Where a recently viewed row's open or resume goes.
+		void set_recent_review_dispatch(
+			std::function<void(application::recent_review_intent)> aDispatch);
 		void               clear_overview();
 		[[nodiscard]] auto overview_page() const noexcept -> pull_request_overview_page*;
 		/// \brief Whether the centre shows the overview rather than the comparison.
@@ -475,6 +489,13 @@ namespace bpr::qt {
 		[[nodiscard]] auto home_open_action() const noexcept -> QAction*;
 		/// \brief [[BPR-0669]]. States a refusal beside the bar rather than doing nothing.
 		[[nodiscard]] auto home_open_notice() const noexcept -> QLabel*;
+		/// \brief [[BPR-0733]]. Home's recently viewed heading, list and resume.
+		///
+		/// \details All three are shown only while entries were published; an
+		/// empty list is no section at all.
+		[[nodiscard]] auto home_recent_heading() const noexcept -> QLabel*;
+		[[nodiscard]] auto home_recent_list() const noexcept -> QListWidget*;
+		[[nodiscard]] auto home_recent_resume_action() const noexcept -> QAction*;
 		[[nodiscard]] auto queue_delegate() const noexcept -> review_landing_delegate*;
 		/// \brief Selects and focuses one exact visible local-queue identity.
 		///
@@ -624,6 +645,13 @@ namespace bpr::qt {
 		void changeEvent(QEvent* aEvent) override;
 		void resizeEvent(QResizeEvent* aEvent) override;
 		void showEvent(QShowEvent* aEvent) override;
+		/// \brief [[BPR-0733]]. Reads Return on Home's recently viewed list.
+		///
+		/// \details Return opens the current row and Shift+Return resumes its
+		/// saved reading. Both are read here rather than left to the view,
+		/// which activates a row on Return on some platforms and treats the
+		/// key as an editing gesture on others.
+		[[nodiscard]] auto eventFilter(QObject* aWatched, QEvent* aEvent) -> bool override;
 
 	private:
 		QString ProfileLabel = QStringLiteral("Default");
@@ -691,6 +719,13 @@ namespace bpr::qt {
 		void apply_strip_width();
 		void apply_review_details_visibility();
 		void update_home_landing();
+		/// \brief [[BPR-0733]]. Rebuilds Home's recently viewed rows and shows
+		/// or hides the section by whether there are any.
+		void apply_recent_reviews();
+		/// \brief [[BPR-0733]]. Offers Resume only while the current row kept a reading.
+		void update_recent_resume_action();
+		/// \brief [[BPR-0733]]. Sends one recently viewed row out, to open or to resume.
+		void dispatch_recent_review(int aRow, bool aResume);
 
 		/// [[BPR-0722]]. Pixels the other visible strip items leave the identity.
 		[[nodiscard]] auto strip_identity_budget() const -> int;
@@ -998,6 +1033,15 @@ namespace bpr::qt {
 		bool                        HasEpochState = false;
 		QString                     LastAnnouncement;
 		workbench_window_statistics Statistics;
+		// [[BPR-0733]]. Home's recently viewed section and the list it was
+		// given. The entries are the window's only record of what it shows:
+		// a row's index into them is what leaves through the dispatch.
+		QLabel*                                                HomeRecentHeading      = nullptr;
+		QListWidget*                                           HomeRecentList         = nullptr;
+		QAction*                                               HomeRecentResumeAction = nullptr;
+		QToolButton*                                           HomeRecentResumeButton = nullptr;
+		application::recent_reviews_projection                 RecentReviews;
+		std::function<void(application::recent_review_intent)> RecentReviewDispatch;
 	};
 } // namespace bpr::qt
 

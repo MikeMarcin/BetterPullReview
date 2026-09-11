@@ -24,18 +24,21 @@
 #include <QCheckBox>
 #include <QClipboard>
 #include <QComboBox>
+#include <QDateTime>
 #include <QFont>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QItemSelectionModel>
+#include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLayout>
 #include <QLineEdit>
 #include <QListView>
 #include <QListWidget>
+#include <QLocale>
 #include <QMenu>
 #include <QMenuBar>
 #include <QPainter>
@@ -213,6 +216,39 @@ namespace bpr::qt {
 					"Open a pull request to review its changes.");
 			}
 			return reason_text(aReason);
+		}
+
+		// [[BPR-0733]]. One recently viewed row. The pull request is named by
+		// its locator and, where a snapshot was seen, its title; a kept
+		// reading is said in words, so nothing here depends on colour. The
+		// host and the instant it was last viewed are the row's tooltip and
+		// its accessible description, which leaves the row itself one
+		// readable line at every scale. The instant is the host's own
+		// reading, not a clock this window consulted.
+		[[nodiscard]] auto recent_review_item(
+			const application::recent_review_entry& aEntry) -> QListWidgetItem*
+		{
+			auto text = QStringLiteral("%1/%2#%3")
+							.arg(QString::fromStdString(aEntry.Destination.Repository.Owner),
+								 QString::fromStdString(aEntry.Destination.Repository.Name))
+							.arg(aEntry.Destination.Number.value());
+			if (!aEntry.Title.empty()) {
+				text += QStringLiteral(" — ") + QString::fromStdString(aEntry.Title);
+			}
+			if (aEntry.Resumable) {
+				text += QStringLiteral(" · saved reading");
+			}
+			auto detail = QString::fromStdString(aEntry.Destination.Hostname);
+			if (aEntry.ViewedAt != 0) {
+				detail += QStringLiteral(" · viewed ")
+					+ QLocale{ }.toString(
+						QDateTime::fromSecsSinceEpoch(aEntry.ViewedAt).toLocalTime(),
+						QLocale::ShortFormat);
+			}
+			auto* const item = new QListWidgetItem{ text };
+			item->setToolTip(detail);
+			item->setData(Qt::AccessibleDescriptionRole, detail);
+			return item;
 		}
 
 		[[nodiscard]] auto failure_text(
@@ -1315,6 +1351,63 @@ namespace bpr::qt {
 				}
 			});
 			HomeOpenAction->setEnabled(false);
+			// [[BPR-0733]]. Between the bar and the queue, what this window
+			// read last, most recent first. The app no longer opens the last
+			// pull request by itself at startup, so this list is how a
+			// reviewer goes back to one, by a gesture. It is governed by the
+			// entries it was given rather than by the account: the
+			// composition has already filtered them for this window's
+			// session, so a signed-out Home lists its public reading.
+			auto* const recentHeadingRow = new QHBoxLayout{ };
+			recentHeadingRow->setContentsMargins(24, 12, 24, 4);
+			HomeRecentHeading = new QLabel{ QStringLiteral("Recently viewed"), HomePage };
+			HomeRecentHeading->setObjectName(QStringLiteral("workbenchHomeRecentHeading"));
+			auto recentHeadingFont = HomeRecentHeading->font();
+			recentHeadingFont.setWeight(QFont::DemiBold);
+			HomeRecentHeading->setFont(recentHeadingFont);
+			recentHeadingRow->addWidget(HomeRecentHeading);
+			HomeRecentResumeAction = new QAction{ tr("Resume reading"), this };
+			HomeRecentResumeAction->setObjectName(QStringLiteral("homeRecentResumeAction"));
+			HomeRecentResumeAction->setEnabled(false);
+			HomeRecentResumeButton = new QToolButton{ HomePage };
+			HomeRecentResumeButton->setDefaultAction(HomeRecentResumeAction);
+			HomeRecentResumeButton->setObjectName(QStringLiteral("homeRecentResumeButton"));
+			HomeRecentResumeButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
+			HomeRecentResumeButton->setFocusPolicy(Qt::StrongFocus);
+			HomeRecentResumeButton->setAccessibleName(QStringLiteral("Resume reading"));
+			HomeRecentResumeButton->setAccessibleDescription(QStringLiteral(
+				"Opens the selected recently viewed pull request where its reading was left"));
+			recentHeadingRow->addWidget(HomeRecentResumeButton);
+			recentHeadingRow->addStretch();
+			homeColumn->addLayout(recentHeadingRow);
+			HomeRecentList = new QListWidget{ HomePage };
+			HomeRecentList->setObjectName(QStringLiteral("homeRecentList"));
+			HomeRecentList->setAccessibleName(QStringLiteral("Recently viewed pull requests"));
+			HomeRecentList->setAccessibleDescription(QStringLiteral(
+				"Return opens a pull request on its overview; Shift and Return resume its saved reading"));
+			HomeRecentList->setSelectionMode(QAbstractItemView::SingleSelection);
+			HomeRecentList->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+			// The action is the list's context menu as well as the button, so
+			// the gesture is where the row is.
+			HomeRecentList->setContextMenuPolicy(Qt::ActionsContextMenu);
+			HomeRecentList->addAction(HomeRecentResumeAction);
+			HomeRecentList->installEventFilter(this);
+			auto* const recentRow = new QHBoxLayout{ };
+			recentRow->setContentsMargins(24, 0, 24, 4);
+			recentRow->addWidget(HomeRecentList);
+			homeColumn->addLayout(recentRow);
+			connect(HomeRecentList, &QListWidget::itemActivated, this,
+					[this](QListWidgetItem* const aItem) {
+						dispatch_recent_review(
+							aItem == nullptr ? -1 : HomeRecentList->row(aItem), false);
+					});
+			connect(HomeRecentList, &QListWidget::currentRowChanged, this,
+					[this](int) { update_recent_resume_action(); });
+			connect(HomeRecentResumeAction, &QAction::triggered, this, [this] {
+				dispatch_recent_review(HomeRecentList->currentRow(), true);
+			});
+			// Nothing was published yet, so there is no section to show.
+			apply_recent_reviews();
 			auto* const queueHeading = new QLabel{ QStringLiteral("Review queue"), HomePage };
 			queueHeading->setObjectName(QStringLiteral("workbenchHomeQueueHeading"));
 			queueHeading->setContentsMargins(24, 12, 24, 4);
@@ -5124,6 +5217,130 @@ namespace bpr::qt {
 		return HomeOpenNotice;
 	}
 
+	auto workbench_window::home_recent_heading() const noexcept -> QLabel*
+	{
+		return HomeRecentHeading;
+	}
+
+	auto workbench_window::home_recent_list() const noexcept -> QListWidget*
+	{
+		return HomeRecentList;
+	}
+
+	auto workbench_window::home_recent_resume_action() const noexcept -> QAction*
+	{
+		return HomeRecentResumeAction;
+	}
+
+	void workbench_window::set_recent_review_dispatch(
+		std::function<void(application::recent_review_intent)> aDispatch)
+	{
+		RecentReviewDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::publish(const application::recent_reviews_projection& aProjection)
+	{
+		RecentReviews = aProjection;
+		apply_recent_reviews();
+		// The section appears and disappears with its entries, so the declared
+		// chain is rebuilt around it. Focus itself is never moved: a
+		// publication must not take the keyboard from wherever the reviewer
+		// left it, which is the same rule [[BPR-0732]] holds Home's bar to.
+		apply_focus_order();
+	}
+
+	void workbench_window::apply_recent_reviews()
+	{
+		if (HomeRecentList == nullptr || HomeRecentHeading == nullptr
+			|| HomeRecentResumeButton == nullptr) {
+			return;
+		}
+		const auto previousRow = HomeRecentList->currentRow();
+		{
+			// The rows are replaced in one step, so nothing reads a half-filled
+			// list; the row the reviewer had is kept where the new list still
+			// has one. Making a row current is a selection, not a focus move.
+			const QSignalBlocker blocked{ HomeRecentList };
+			HomeRecentList->clear();
+			for (const auto& entry : RecentReviews.Entries) {
+				HomeRecentList->addItem(recent_review_item(entry));
+			}
+			if (!RecentReviews.Entries.empty()) {
+				const auto rows = static_cast<int>(RecentReviews.Entries.size());
+				HomeRecentList->setCurrentRow(
+					previousRow >= 0 && previousRow < rows ? previousRow : 0);
+			}
+		}
+		const auto listed = !RecentReviews.Entries.empty();
+		HomeRecentHeading->setVisible(listed);
+		HomeRecentResumeButton->setVisible(listed);
+		HomeRecentList->setVisible(listed);
+		if (listed) {
+			// Five rows of room at most, measured from the row the style drew,
+			// so the review queue underneath keeps its own; the rest scrolls.
+			constexpr auto shownRecentRows = 5;
+			const auto     rowHeight       = HomeRecentList->sizeHintForRow(0);
+			const auto     shown           = std::min(
+				static_cast<int>(RecentReviews.Entries.size()), shownRecentRows);
+			HomeRecentList->setMaximumHeight(
+				rowHeight * shown + (2 * HomeRecentList->frameWidth()));
+		}
+		update_recent_resume_action();
+	}
+
+	void workbench_window::update_recent_resume_action()
+	{
+		if (HomeRecentResumeAction == nullptr || HomeRecentList == nullptr) {
+			return;
+		}
+		const auto row = HomeRecentList->currentRow();
+		HomeRecentResumeAction->setEnabled(
+			row >= 0 && static_cast<std::size_t>(row) < RecentReviews.Entries.size()
+			&& RecentReviews.Entries[static_cast<std::size_t>(row)].Resumable);
+	}
+
+	void workbench_window::dispatch_recent_review(const int aRow, const bool aResume)
+	{
+		if (!RecentReviewDispatch || aRow < 0
+			|| static_cast<std::size_t>(aRow) >= RecentReviews.Entries.size()) {
+			return;
+		}
+		const auto index = static_cast<std::size_t>(aRow);
+		if (aResume && !RecentReviews.Entries[index].Resumable) {
+			return;
+		}
+		// [[BPR-0733]] [[BPR-0651]]. A pull request chosen from a list arrives
+		// on Overview, exactly as a queue row's does.
+		OpenOnOverview = true;
+		RecentReviewDispatch(application::recent_review_intent{
+			.Index  = index,
+			.Resume = aResume,
+		});
+	}
+
+	auto workbench_window::eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool
+	{
+		if (aWatched == HomeRecentList && aEvent != nullptr
+			&& aEvent->type() == QEvent::KeyPress) {
+			auto* const key = static_cast<QKeyEvent*>(aEvent);
+			if (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) {
+				// Both Return gestures are read here rather than left to the
+				// view. On macOS Return is an item view's editing key and
+				// never activates a row, so a keyboard reviewer would have no
+				// way into the list at all; elsewhere the view would activate
+				// on the shifted key too and resume would also open. Taking
+				// the key means one behaviour on every platform, and the
+				// pointer's own activation still arrives through
+				// `itemActivated`.
+				dispatch_recent_review(
+					HomeRecentList->currentRow(),
+					key->modifiers().testFlag(Qt::ShiftModifier));
+				return true;
+			}
+		}
+		return QMainWindow::eventFilter(aWatched, aEvent);
+	}
+
 	void workbench_window::add_setup_profile(application::github_profile_option aProfile)
 	{
 		if (std::ranges::any_of(GithubProfiles, [&](const auto& aExisting) { return aExisting.Profile == aProfile.Profile; })) {
@@ -5325,6 +5542,14 @@ namespace bpr::qt {
 		// The session chrome and the device sign-in are the Accounts and
 		// hosts page of the Settings window, another top-level window with
 		// its own tab chain; the workbench declares nothing across windows.
+		// [[BPR-0733]]. Home's recently viewed section sits above the queue and
+		// is walked before it: the resume control beside its heading, then the
+		// list. With nothing published there is no section, so there is no stop
+		// either. The heading is a label and was never one.
+		if (HomeRecentList != nullptr && !RecentReviews.Entries.empty()) {
+			append(HomeRecentResumeButton);
+			append(HomeRecentList);
+		}
 		append(QueueView);
 		append(QueueRoleFilter);
 		append(QueueObserverFilter);

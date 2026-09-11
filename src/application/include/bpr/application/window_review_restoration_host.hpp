@@ -24,8 +24,14 @@ namespace bpr::application {
 		void               complete_startup(core::request_id aRequest, std::expected<core::window_review_authority, core::window_review_failure> aResult);
 		[[nodiscard]] auto current_restore(core::bpr_window_context aContext, core::request_id aRequest) const noexcept -> bool;
 		void               complete_restore(core::bpr_window_context aContext, core::request_id aRequest, std::expected<void, core::window_review_failure> aResult);
-		/// Composition supplies only an exact read already accepted by the window host.
-		void accepted_read(core::bpr_window_context aContext, const core::window_review_destination& aDestination);
+		/// Composition supplies only an exact read already accepted by the window host,
+		/// with its clock reading for the recently viewed list.
+		void accepted_read(core::bpr_window_context aContext, const core::window_review_destination& aDestination, std::int64_t aViewedAt = 0);
+		/// [[BPR-0733]]. The title of a listed destination, once a snapshot showed it.
+		void accepted_title(const core::window_review_destination& aDestination, std::string_view aTitle);
+		/// [[BPR-0733]]. A window's gesture on its recently viewed list.
+		void               open_recent(core::bpr_window_context aContext, std::size_t aIndex);
+		[[nodiscard]] auto recent() const noexcept -> const std::vector<core::window_recent_review>&;
 		/// \brief Retains an exact accepted reading position for the current accepted destination.
 		void               accepted_position(core::bpr_window_context aContext, const core::window_review_destination& aDestination, const core::window_review_position& aPosition);
 		void               close(core::bpr_window_context aContext);

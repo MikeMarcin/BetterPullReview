@@ -50,6 +50,22 @@ namespace bpr::core {
 		}
 		return true;
 	}
+	auto valid(const window_recent_review& aEntry) noexcept -> bool
+	{
+		return valid(aEntry.Destination) && aEntry.Title.size() <= maximum_recent_review_title && aEntry.ViewedAt >= 0 && (!aEntry.Position || valid(*aEntry.Position));
+	}
+	auto valid_recent_reviews(const std::vector<window_recent_review>& aEntries) noexcept -> bool
+	{
+		if (aEntries.size() > maximum_recent_reviews) {
+			return false;
+		}
+		for (auto entry = aEntries.begin(); entry != aEntries.end(); ++entry) {
+			if (!valid(*entry) || std::any_of(aEntries.begin(), entry, [&entry](const auto& aEarlier) { return aEarlier.Destination == entry->Destination; })) {
+				return false;
+			}
+		}
+		return true;
+	}
 	auto valid(const window_review_position& aPosition) noexcept -> bool
 	{
 		const auto& left  = aPosition.Comparison.Left;
@@ -180,12 +196,17 @@ namespace bpr::core {
 	{
 		return std::ranges::any_of(Slots, [aContext](const auto& aSlot) { return aSlot.Context == aContext; });
 	}
-	auto window_review_restoration::load(const std::vector<window_review_record>& aRecords) -> window_review_actions
+	auto window_review_restoration::load(const std::vector<window_review_record>& aRecords, const std::vector<window_recent_review>& aRecent) -> window_review_actions
 	{
 		window_review_actions actions;
-		if (!valid_window_review_records(aRecords)) {
+		if (!valid_window_review_records(aRecords) || !valid_recent_reviews(aRecent)) {
 			actions.Failures.push_back({ { }, window_review_failure::corrupt });
 			return actions;
+		}
+		// The store's list is the durable truth until this process views
+		// something; afterwards the in-memory list is newer than any reload.
+		if (!Loaded) {
+			Recent = aRecent;
 		}
 		auto merged = aRecords;
 		std::erase_if(merged, [this](const auto& aRecord) { return std::ranges::none_of(Slots, [&aRecord](const auto& aSlot) { return aSlot.Context.Window == aRecord.Window; }); });
@@ -229,8 +250,9 @@ namespace bpr::core {
 				actions.Failures.push_back({ slot->Context, window_review_failure::conflicting_authority });
 				continue;
 			}
-			slot->Pending  = record->Destination;
-			slot->Position = record->Position;
+			// [[BPR-0733]]. The retained destination selects the session to
+			// bring back; it is not opened. The window offers it in its
+			// recently viewed list instead.
 		}
 		if (Chosen || !hadDestination) {
 			Startup         = request_id{ NextRequest++ };
@@ -264,6 +286,36 @@ namespace bpr::core {
 			}
 		}
 		return open_ready();
+	}
+	auto window_review_restoration::open_recent(bpr_window_context aContext, std::size_t aIndex) -> window_review_actions
+	{
+		if (!current(aContext) || aIndex >= Recent.size()) {
+			return { };
+		}
+		const auto& entry = Recent[aIndex];
+		for (auto& slot : Slots) {
+			if (slot.Context == aContext) {
+				// A newer gesture supersedes an earlier Home cancellation and
+				// any open still waiting behind startup.
+				slot.Cancelled = false;
+				slot.Request.reset();
+				slot.Pending  = entry.Destination;
+				slot.Position = entry.Position;
+			}
+		}
+		return open_ready();
+	}
+	auto window_review_restoration::accepted_title(const window_review_destination& aDestination, std::string_view aTitle) -> bool
+	{
+		if (aTitle.size() > maximum_recent_review_title) {
+			return false;
+		}
+		const auto found = std::ranges::find(Recent, aDestination, &window_recent_review::Destination);
+		if (found == Recent.end() || found->Title == aTitle) {
+			return false;
+		}
+		found->Title.assign(aTitle);
+		return true;
 	}
 	void window_review_restoration::cancel_restore(bpr_window_context aContext)
 	{
@@ -327,9 +379,9 @@ namespace bpr::core {
 		}
 		return actions;
 	}
-	auto window_review_restoration::accepted_read(bpr_window_context aContext, const window_review_destination& aDestination) -> bool
+	auto window_review_restoration::accepted_read(bpr_window_context aContext, const window_review_destination& aDestination, std::int64_t aViewedAt) -> bool
 	{
-		if (!current(aContext) || !valid(aDestination) || std::ranges::find(ConfiguredHosts, aDestination.Hostname) == ConfiguredHosts.end()) {
+		if (!current(aContext) || !valid(aDestination) || aViewedAt < 0 || std::ranges::find(ConfiguredHosts, aDestination.Hostname) == ConfiguredHosts.end()) {
 			return false;
 		}
 		const auto found = std::ranges::find_if(Records, [aContext](const auto& aRecord) { return aRecord.Window == aContext.Window; });
@@ -343,6 +395,19 @@ namespace bpr::core {
 			Records.push_back({ aContext.Window, aDestination });
 			std::ranges::sort(Records, { }, &window_review_record::Window);
 		}
+		// Most recent first, one entry per destination; a returning
+		// destination keeps its title and reading until a newer one arrives.
+		auto       entry = window_recent_review{ aDestination, { }, aViewedAt };
+		const auto old   = std::ranges::find(Recent, aDestination, &window_recent_review::Destination);
+		if (old != Recent.end()) {
+			entry.Title    = std::move(old->Title);
+			entry.Position = std::move(old->Position);
+			Recent.erase(old);
+		}
+		Recent.insert(Recent.begin(), std::move(entry));
+		if (Recent.size() > maximum_recent_reviews) {
+			Recent.resize(maximum_recent_reviews);
+		}
 		return true;
 	}
 	auto window_review_restoration::accepted_position(bpr_window_context aContext, const window_review_destination& aDestination, const window_review_position& aPosition) -> bool
@@ -355,6 +420,9 @@ namespace bpr::core {
 			return false;
 		}
 		found->Position = aPosition;
+		if (const auto recent = std::ranges::find(Recent, aDestination, &window_recent_review::Destination); recent != Recent.end()) {
+			recent->Position = aPosition;
+		}
 		return true;
 	}
 	auto window_review_restoration::close(bpr_window_context aContext) -> bool

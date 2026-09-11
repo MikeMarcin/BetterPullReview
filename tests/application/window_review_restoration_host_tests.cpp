@@ -39,7 +39,7 @@ namespace {
 			expect(valid(aCandidate), "only valid bounded snapshots reach store");
 			Snapshot = aCandidate;
 			if (MismatchSave) {
-				return window_review_snapshot{ Snapshot.Revision, { } };
+				return window_review_snapshot{ Snapshot.Revision, { }, { } };
 			}
 			return Snapshot;
 		}
@@ -65,8 +65,11 @@ namespace {
 				OnOpen();
 			}
 		}
-		void fail(const core::window_review_error& aError) override { Errors.push_back(aError); }
+		void        fail(const core::window_review_error& aError) override { Errors.push_back(aError); }
+		std::size_t RecentChanges = 0;
+		void        recent_changed() override { ++RecentChanges; }
 	};
+	auto recent(std::uint32_t aNumber = 27) -> core::window_recent_review { return { destination(aNumber), { }, 0, { } }; }
 	struct fixture
 	{
 		store                          Store;
@@ -91,6 +94,7 @@ namespace {
 	{
 		fixture f;
 		f.Store.Snapshot.Records = { { core::bpr_window_id{ 1 }, destination() }, { core::bpr_window_id{ 2 }, destination(28) }, { core::bpr_window_id{ 9 }, destination(99) } };
+		f.Store.Snapshot.Recent  = { recent(28), recent() };
 		f.Host.start();
 		expect(f.Output.Startups.empty(), "startup choice waits for load decision");
 		f.Effects.drain();
@@ -100,8 +104,12 @@ namespace {
 		f.Host.mark_window_ready(context(1));
 		f.Host.mark_window_ready(context(2));
 		const auto request = f.Output.Startups[0].Request;
+		f.Host.open_recent(context(1), 1);
+		expect(f.Output.Opens.empty() && f.Output.RecentChanges == 1, "[[BPR-0733]] a gesture before the session waits; the load announced the list once");
 		f.Host.complete_startup(request, core::window_review_authority{ core::github_access_mode::authenticated, "github.com" });
-		expect(f.Output.Opens.size() == 2, "exact matching session opens both distinct saved PRs");
+		expect(f.Output.Opens.size() == 1 && f.Output.Opens[0].Context == context(1) && f.Output.Opens[0].Destination == destination(), "the session opens only what a window asked for");
+		f.Host.open_recent(context(2), 0);
+		expect(f.Output.Opens.size() == 2 && f.Output.Opens[1].Destination == destination(28), "each window chooses its own entry");
 		f.Host.complete_startup(request, core::window_review_authority{ core::github_access_mode::authenticated, "github.com" });
 		expect(f.Output.Opens.size() == 2, "duplicate auth cannot reopen");
 		f.Host.cancel_restore(context(1));
@@ -125,7 +133,9 @@ namespace {
 															   .Selection = { } };
 		fixture    f;
 		f.load();
-		f.Host.accepted_read(context(1), destination());
+		f.Host.accepted_read(context(1), destination(), 100);
+		expect(f.Output.RecentChanges == 2 && f.Host.recent().size() == 1 && f.Host.recent()[0].ViewedAt == 100, "a view announces and lists itself");
+		f.Host.accepted_title(destination(), "Title");
 		f.Host.accepted_position(context(1), destination(), position);
 		bytes[0]      = 3;
 		position.File = core::file_identity{ bytes };
@@ -139,11 +149,15 @@ namespace {
 		f.drain();
 		expect(f.Host.is_quiescent() && f.Store.Snapshot.Records[0].Position == position && f.Store.Saves == 2, "Quit drains coalesced latest exact reading position");
 		expect(f.Store.Snapshot.Records[1].Position == siblingPosition && siblingPosition.File != position.File, "sibling window retains its distinct exact file identity");
+		expect(f.Store.Snapshot.Recent.size() == 2 && f.Store.Snapshot.Recent[0].Destination == destination(28) && f.Store.Snapshot.Recent[1].Title == "Title" && f.Store.Snapshot.Recent[1].Position == position,
+			   "the recently viewed list persists most recent first with title and reading");
 		fixture restored;
 		restored.Store.Snapshot = f.Store.Snapshot;
 		restored.load();
 		restored.Host.mark_window_ready(context(1));
 		restored.Host.complete_startup(restored.Output.Startups[0].Request, core::window_review_authority{ core::github_access_mode::authenticated, "github.com" });
+		expect(restored.Output.Opens.empty() && restored.Host.recent() == f.Store.Snapshot.Recent, "restart lists without opening");
+		restored.Host.open_recent(context(1), 1);
 		const auto request = restored.Output.Opens[0];
 		expect(request.Position == position, "asynchronous load carries exact complete position");
 		restored.Host.complete_restore(request.Context, request.Request, std::unexpected(core::window_review_failure::unavailable));
@@ -254,9 +268,12 @@ namespace {
 	{
 		fixture reentrant;
 		reentrant.Store.Snapshot.Records = { { core::bpr_window_id{ 1 }, destination() }, { core::bpr_window_id{ 2 }, destination(28) } };
+		reentrant.Store.Snapshot.Recent  = { recent(28), recent() };
 		reentrant.load();
 		reentrant.Host.mark_window_ready(context(1));
 		reentrant.Host.mark_window_ready(context(2));
+		reentrant.Host.open_recent(context(1), 1);
+		reentrant.Host.open_recent(context(2), 0);
 		reentrant.Output.OnOpen = [&] { reentrant.Host.shutdown(); };
 		reentrant.Host.complete_startup(reentrant.Output.Startups[0].Request,
 										core::window_review_authority{ core::github_access_mode::authenticated, "github.com" });

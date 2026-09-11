@@ -22,6 +22,13 @@ namespace bpr::adapters::sqlite {
 		constexpr std::string_view MetaSchema          = "CREATE TABLE restoration_meta(singleton INTEGER PRIMARY KEY CHECK(singleton=1),revision TEXT NOT NULL) STRICT";
 		constexpr std::string_view LegacyRecordsSchema = "CREATE TABLE restoration_records(window_id TEXT PRIMARY KEY,mode INTEGER NOT NULL CHECK(mode IN(0,1)),hostname TEXT NOT NULL,owner TEXT NOT NULL,repository TEXT NOT NULL,number TEXT NOT NULL) STRICT";
 		constexpr std::string_view RecordsSchema       = "CREATE TABLE restoration_records(window_id TEXT PRIMARY KEY,mode INTEGER NOT NULL CHECK(mode IN(0,1)),hostname TEXT NOT NULL,owner TEXT NOT NULL,repository TEXT NOT NULL,number TEXT NOT NULL,position BLOB) STRICT";
+		// [[BPR-0733]]. The per-profile recently viewed list: ordinal 0 is the most
+		// recent, and the CHECK holds core::maximum_recent_reviews in the file itself.
+		constexpr std::string_view RecentSchema = "CREATE TABLE recent_reviews(ordinal INTEGER PRIMARY KEY CHECK(ordinal BETWEEN 0 AND 9),mode INTEGER NOT NULL CHECK(mode IN(0,1)),hostname TEXT NOT NULL,owner TEXT NOT NULL,repository TEXT NOT NULL,number TEXT NOT NULL,title TEXT NOT NULL,viewed_at INTEGER NOT NULL,position BLOB) STRICT";
+		static_assert(core::maximum_recent_reviews == 10U, "the recent_reviews CHECK and the seed's LIMIT spell this bound");
+		// Seeds the list from the retained rows: one entry per destination, newest
+		// window first, carrying that exact row's saved reading position.
+		constexpr std::string_view RecentSeed = "INSERT INTO recent_reviews SELECT row_number() OVER (ORDER BY length(window_id) DESC,window_id DESC)-1,mode,hostname,owner,repository,number,'',0,position FROM (SELECT window_id,mode,hostname,owner,repository,number,position,row_number() OVER (PARTITION BY mode,hostname,owner,repository,number ORDER BY length(window_id) DESC,window_id DESC) AS recency FROM restoration_records) WHERE recency=1 ORDER BY 1 LIMIT 10";
 		// Version 1 payload: fixed-width identities, big-endian integers, strict flags.
 		class position_codec final
 		{
@@ -131,26 +138,26 @@ namespace bpr::adapters::sqlite {
 				});
 			}
 		};
-		[[nodiscard]] auto bind_position(sqlite3_stmt* aStatement, const std::optional<core::window_review_position>& aPosition) -> bool
+		[[nodiscard]] auto bind_position(sqlite3_stmt* aStatement, const int aParameter, const std::optional<core::window_review_position>& aPosition) -> bool
 		{
 			if (!aPosition) {
-				return sqlite3_bind_null(aStatement, 7) == SQLITE_OK;
+				return sqlite3_bind_null(aStatement, aParameter) == SQLITE_OK;
 			}
 			auto codec    = position_codec{ };
 			auto position = *aPosition;
 			codec.position(position);
-			return codec.Good && sqlite3_bind_blob(aStatement, 7, codec.Bytes.data(), static_cast<int>(codec.Bytes.size()), SQLITE_TRANSIENT) == SQLITE_OK;
+			return codec.Good && sqlite3_bind_blob(aStatement, aParameter, codec.Bytes.data(), static_cast<int>(codec.Bytes.size()), SQLITE_TRANSIENT) == SQLITE_OK;
 		}
-		[[nodiscard]] auto read_position(sqlite3_stmt* aStatement, std::optional<core::window_review_position>& aPosition) -> bool
+		[[nodiscard]] auto read_position(sqlite3_stmt* aStatement, const int aColumn, std::optional<core::window_review_position>& aPosition) -> bool
 		{
-			if (sqlite3_column_type(aStatement, 6) == SQLITE_NULL) {
+			if (sqlite3_column_type(aStatement, aColumn) == SQLITE_NULL) {
 				return true;
 			}
-			const auto size = sqlite3_column_bytes(aStatement, 6);
-			if (sqlite3_column_type(aStatement, 6) != SQLITE_BLOB || size <= 0 || size > 512) {
+			const auto size = sqlite3_column_bytes(aStatement, aColumn);
+			if (sqlite3_column_type(aStatement, aColumn) != SQLITE_BLOB || size <= 0 || size > 512) {
 				return false;
 			}
-			const auto* bytes = static_cast<const std::uint8_t*>(sqlite3_column_blob(aStatement, 6));
+			const auto* bytes = static_cast<const std::uint8_t*>(sqlite3_column_blob(aStatement, aColumn));
 			if (!bytes) {
 				return false;
 			}
@@ -246,12 +253,16 @@ namespace bpr::adapters::sqlite {
 			const auto scope    = bounded_read_scope{ aDatabase, aStop };
 			const auto version  = detail::scalar_integer(aDatabase, "PRAGMA user_version");
 			const auto identity = detail::scalar_integer(aDatabase, "PRAGMA application_id");
-			const auto count    = detail::scalar_integer(aDatabase, "SELECT count(*) FROM (SELECT 1 FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' LIMIT 3)");
+			const auto count    = detail::scalar_integer(aDatabase, "SELECT count(*) FROM (SELECT 1 FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' LIMIT 4)");
 			const auto meta     = detail::scalar_text(aDatabase, "SELECT sql FROM sqlite_schema WHERE type='table' AND name='restoration_meta'");
 			const auto records  = detail::scalar_text(aDatabase, "SELECT sql FROM sqlite_schema WHERE type='table' AND name='restoration_records'");
-			if (!version || (*version != 1 && *version != 2) || !identity || *identity != ApplicationId || !count || *count != 2
+			const auto recent   = detail::scalar_text(aDatabase, "SELECT sql FROM sqlite_schema WHERE type='table' AND name='recent_reviews'");
+			// Versions 1 and 2 are read only to migrate them; anything else, this
+			// build's schema included, is refused before a single byte is written.
+			if (!version || *version < 1 || *version > 3 || !identity || *identity != ApplicationId || !count || *count != (*version == 3 ? 3 : 2)
 				|| !meta || detail::canonical_sql(*meta) != detail::canonical_sql(MetaSchema)
-				|| !records || detail::canonical_sql(*records) != detail::canonical_sql(*version == 1 ? LegacyRecordsSchema : RecordsSchema)) {
+				|| !records || detail::canonical_sql(*records) != detail::canonical_sql(*version == 1 ? LegacyRecordsSchema : RecordsSchema)
+				|| (*version == 3 && (!recent || detail::canonical_sql(*recent) != detail::canonical_sql(RecentSchema)))) {
 				return fail(aStop.stop_requested() ? window_review_store_failure::cancelled : window_review_store_failure::schema_mismatch);
 			}
 			auto revision = detail::prepare(aDatabase, "SELECT singleton,revision FROM restoration_meta LIMIT 2");
@@ -285,11 +296,45 @@ namespace bpr::adapters::sqlite {
 				}
 				result.Records.push_back({ core::bpr_window_id{ id_of(rows->Value, 0) },
 										   { static_cast<core::github_access_mode>(mode), std::string{ text_of(rows->Value, 2) }, { std::string{ text_of(rows->Value, 3) }, std::string{ text_of(rows->Value, 4) } }, core::pull_request_number{ static_cast<std::uint32_t>(number) } } });
-				if (*version == 2 && !read_position(rows->Value, result.Records.back().Position)) {
+				if (*version != 1 && !read_position(rows->Value, 6, result.Records.back().Position)) {
 					return fail(window_review_store_failure::corrupt);
 				}
 			}
 			std::ranges::sort(result.Records, { }, &core::window_review_record::Window);
+			// A version 1 or 2 file has no list; the migration derives one.
+			if (*version == 3) {
+				auto entries = detail::prepare(aDatabase, "SELECT ordinal,mode,hostname,owner,repository,number,title,viewed_at,position FROM recent_reviews ORDER BY ordinal LIMIT 11");
+				if (!entries) {
+					return fail(window_review_store_failure::corrupt);
+				}
+				for (;;) {
+					if (aStop.stop_requested()) {
+						return fail(window_review_store_failure::cancelled);
+					}
+					const auto step = sqlite3_step(entries->Value);
+					if (step == SQLITE_DONE) {
+						break;
+					}
+					if (step != SQLITE_ROW || result.Recent.size() >= core::maximum_recent_reviews) {
+						return fail(window_review_store_failure::corrupt);
+					}
+					const auto ordinal = sqlite3_column_int64(entries->Value, 0);
+					const auto mode    = sqlite3_column_int64(entries->Value, 1);
+					const auto number  = id_of(entries->Value, 5);
+					const auto viewed  = sqlite3_column_int64(entries->Value, 7);
+					if (sqlite3_column_type(entries->Value, 1) != SQLITE_INTEGER || sqlite3_column_type(entries->Value, 7) != SQLITE_INTEGER
+						|| ordinal != static_cast<std::int64_t>(result.Recent.size()) || mode < 0 || mode > 1 || number > core::maximum_pull_request_number || viewed < 0) {
+						return fail(window_review_store_failure::corrupt);
+					}
+					result.Recent.push_back({ { static_cast<core::github_access_mode>(mode), std::string{ text_of(entries->Value, 2) }, { std::string{ text_of(entries->Value, 3) }, std::string{ text_of(entries->Value, 4) } }, core::pull_request_number{ static_cast<std::uint32_t>(number) } },
+											  std::string{ text_of(entries->Value, 6) },
+											  viewed,
+											  std::nullopt });
+					if (!read_position(entries->Value, 8, result.Recent.back().Position)) {
+						return fail(window_review_store_failure::corrupt);
+					}
+				}
+			}
 			if (!application::valid(result)) {
 				return fail(window_review_store_failure::corrupt);
 			}
@@ -361,8 +406,30 @@ namespace bpr::adapters::sqlite {
 						|| !bind_text(row->Value, 4, record.Destination.Repository.Owner)
 						|| !bind_text(row->Value, 5, record.Destination.Repository.Name)
 						|| !bind_text(row->Value, 6, std::to_string(record.Destination.Number.value()))
-						|| !bind_position(row->Value, record.Position)
+						|| !bind_position(row->Value, 7, record.Position)
 						|| sqlite3_step(row->Value) != SQLITE_DONE) {
+						return fail(aStop.stop_requested() ? window_review_store_failure::cancelled : window_review_store_failure::unavailable);
+					}
+				}
+				if (auto cleared = run(Database, "DELETE FROM recent_reviews", aStop); !cleared) {
+					return std::unexpected(cleared.error());
+				}
+				for (std::size_t index = 0; index < aCandidate.Recent.size(); ++index) {
+					if (aStop.stop_requested()) {
+						return fail(window_review_store_failure::cancelled);
+					}
+					const auto& entry = aCandidate.Recent[index];
+					auto        seat  = detail::prepare(Database, "INSERT INTO recent_reviews VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)");
+					if (!seat || sqlite3_bind_int64(seat->Value, 1, static_cast<std::int64_t>(index)) != SQLITE_OK
+						|| sqlite3_bind_int(seat->Value, 2, static_cast<int>(entry.Destination.Mode)) != SQLITE_OK
+						|| !bind_text(seat->Value, 3, entry.Destination.Hostname)
+						|| !bind_text(seat->Value, 4, entry.Destination.Repository.Owner)
+						|| !bind_text(seat->Value, 5, entry.Destination.Repository.Name)
+						|| !bind_text(seat->Value, 6, std::to_string(entry.Destination.Number.value()))
+						|| !bind_text(seat->Value, 7, entry.Title)
+						|| sqlite3_bind_int64(seat->Value, 8, entry.ViewedAt) != SQLITE_OK
+						|| !bind_position(seat->Value, 9, entry.Position)
+						|| sqlite3_step(seat->Value) != SQLITE_DONE) {
 						return fail(aStop.stop_requested() ? window_review_store_failure::cancelled : window_review_store_failure::unavailable);
 					}
 				}
@@ -397,10 +464,20 @@ namespace bpr::adapters::sqlite {
 					if (!current) {
 						return std::unexpected(current.error());
 					}
-					if (detail::scalar_integer(Database, "PRAGMA user_version") == 1) {
+					const auto stamped = detail::scalar_integer(Database, "PRAGMA user_version");
+					if (stamped == 1) {
 						// Rebuild inside the transaction: ALTER's internal quick-check view
 						// is unavailable on this deliberately view-disabled connection.
-						for (const auto sql : { std::string_view{ "CREATE TEMP TABLE restoration_migration AS SELECT * FROM restoration_records" }, std::string_view{ "DROP TABLE restoration_records" }, RecordsSchema, std::string_view{ "INSERT INTO restoration_records SELECT *,NULL FROM restoration_migration" }, std::string_view{ "DROP TABLE restoration_migration" }, std::string_view{ "PRAGMA user_version=2" }, std::string_view{ "COMMIT" } }) {
+						for (const auto sql : { std::string_view{ "CREATE TEMP TABLE restoration_migration AS SELECT * FROM restoration_records" }, std::string_view{ "DROP TABLE restoration_records" }, RecordsSchema, std::string_view{ "INSERT INTO restoration_records SELECT *,NULL FROM restoration_migration" }, std::string_view{ "DROP TABLE restoration_migration" }, std::string_view{ "PRAGMA user_version=2" } }) {
+							if (auto result = run(Database, sql, aStop); !result) {
+								return result;
+							}
+						}
+					}
+					if (stamped == 1 || stamped == 2) {
+						// [[BPR-0733]]. The retained rows become the first list: the old
+						// row survives as the newest entry rather than as an auto-open.
+						for (const auto sql : { RecentSchema, RecentSeed, std::string_view{ "PRAGMA user_version=3" }, std::string_view{ "COMMIT" } }) {
 							if (auto result = run(Database, sql, aStop); !result) {
 								return result;
 							}
@@ -408,7 +485,7 @@ namespace bpr::adapters::sqlite {
 					}
 					return { };
 				}
-				for (const auto sql : { MetaSchema, RecordsSchema, std::string_view{ "INSERT INTO restoration_meta VALUES(1,'1')" }, std::string_view{ "PRAGMA application_id=1112560210" }, std::string_view{ "PRAGMA user_version=2" }, std::string_view{ "COMMIT" } }) {
+				for (const auto sql : { MetaSchema, RecordsSchema, RecentSchema, std::string_view{ "INSERT INTO restoration_meta VALUES(1,'1')" }, std::string_view{ "PRAGMA application_id=1112560210" }, std::string_view{ "PRAGMA user_version=3" }, std::string_view{ "COMMIT" } }) {
 					if (auto result = run(Database, sql, aStop); !result) {
 						return result;
 					}

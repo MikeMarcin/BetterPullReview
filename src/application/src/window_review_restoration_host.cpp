@@ -6,7 +6,7 @@
 namespace bpr::application {
 	auto valid(const window_review_snapshot& aSnapshot) noexcept -> bool
 	{
-		return aSnapshot.Revision != 0 && core::valid_window_review_records(aSnapshot.Records);
+		return aSnapshot.Revision != 0 && core::valid_window_review_records(aSnapshot.Records) && core::valid_recent_reviews(aSnapshot.Recent);
 	}
 	namespace {
 		auto translate(window_review_store_failure aFailure) -> core::window_review_failure
@@ -78,6 +78,17 @@ namespace bpr::application {
 				DeliveryFailed = true;
 			}
 		}
+		void notify_recent()
+		{
+			if (Closing) {
+				return;
+			}
+			try {
+				Projection.recent_changed();
+			} catch (...) {
+				DeliveryFailed = true;
+			}
+		}
 		void deliver(const core::window_review_actions& aActions)
 		{
 			const auto lifetime = shared_from_this();
@@ -120,7 +131,7 @@ namespace bpr::application {
 			if (Active || Blocked || !Accepted || (Closing && !Orderly)) {
 				return;
 			}
-			if (Accepted->Records == Policy.records()) {
+			if (Accepted->Records == Policy.records() && Accepted->Recent == Policy.recent()) {
 				release_closed();
 				return;
 			}
@@ -130,7 +141,7 @@ namespace bpr::application {
 				fail(core::window_review_failure::identity_exhausted);
 				return;
 			}
-			submit(window_review_snapshot{ Accepted->Revision + 1, Policy.records() });
+			submit(window_review_snapshot{ Accepted->Revision + 1, Policy.records(), Policy.recent() });
 		}
 		void finish(std::uint64_t aRequest, window_review_store_result<window_review_snapshot> aResult)
 		{
@@ -161,8 +172,9 @@ namespace bpr::application {
 			if (job.Candidate) {
 				Reserved -= std::erase_if(Closed, [&job](const auto& aClosed) { return aClosed.Version <= job.Version; });
 			} else {
-				const auto actions = Policy.load(Accepted->Records);
+				const auto actions = Policy.load(Accepted->Records, Accepted->Recent);
 				deliver(actions);
+				notify_recent();
 			}
 			pump();
 		}
@@ -288,17 +300,33 @@ namespace bpr::application {
 			Implementation->deliver(Implementation->Policy.complete_restore(aContext, aRequest, aResult));
 		}
 	}
-	void window_review_restoration_host::accepted_read(core::bpr_window_context aContext, const core::window_review_destination& aDestination)
+	void window_review_restoration_host::accepted_read(core::bpr_window_context aContext, const core::window_review_destination& aDestination, std::int64_t aViewedAt)
 	{
-		if (!Implementation->Closing && Implementation->Policy.accepted_read(aContext, aDestination)) {
+		if (!Implementation->Closing && Implementation->Policy.accepted_read(aContext, aDestination, aViewedAt)) {
 			Implementation->changed();
+			Implementation->notify_recent();
 		}
 	}
+	void window_review_restoration_host::accepted_title(const core::window_review_destination& aDestination, std::string_view aTitle)
+	{
+		if (!Implementation->Closing && Implementation->Policy.accepted_title(aDestination, aTitle)) {
+			Implementation->changed();
+			Implementation->notify_recent();
+		}
+	}
+	void window_review_restoration_host::open_recent(core::bpr_window_context aContext, std::size_t aIndex)
+	{
+		if (!Implementation->Closing) {
+			Implementation->deliver(Implementation->Policy.open_recent(aContext, aIndex));
+		}
+	}
+	auto window_review_restoration_host::recent() const noexcept -> const std::vector<core::window_recent_review>& { return Implementation->Policy.recent(); }
 	void window_review_restoration_host::close(core::bpr_window_context aContext) { Implementation->close(aContext); }
 	void window_review_restoration_host::accepted_position(core::bpr_window_context aContext, const core::window_review_destination& aDestination, const core::window_review_position& aPosition)
 	{
 		if (!Implementation->Closing && Implementation->Policy.accepted_position(aContext, aDestination, aPosition)) {
 			Implementation->changed();
+			Implementation->notify_recent();
 		}
 	}
 	auto window_review_restoration_host::window_quiescent(core::bpr_window_context aContext) const noexcept -> bool

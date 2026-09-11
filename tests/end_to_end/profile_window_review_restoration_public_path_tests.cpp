@@ -17,6 +17,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
+#include <QListWidget>
 #include <QMetaObject>
 #include <QPixmap>
 #include <QPlainTextEdit>
@@ -70,6 +71,107 @@ namespace {
 		}
 		aWindow.home_open_bar()->setText(QStringLiteral("https://github.com/octo-org/review-repository/pull/%1").arg(aNumber));
 		aWindow.home_open_action()->trigger();
+	}
+	void settle(int aMilliseconds)
+	{
+		QElapsedTimer settling;
+		settling.start();
+		while (settling.elapsed() < aMilliseconds) {
+			QApplication::processEvents();
+			QThread::msleep(1);
+		}
+	}
+	// [[BPR-0733]]. One recently viewed row, read the way a reviewer reads it:
+	// "owner/name#number", then the title where a snapshot was seen, then the
+	// saved reading where one can be resumed.
+	auto recent_numbers(const QListWidget& aList) -> std::vector<int>
+	{
+		auto numbers = std::vector<int>{ };
+		for (int row = 0; row < aList.count(); ++row) {
+			const auto locator = aList.item(row)->text().section(QLatin1Char{ ' ' }, 0, 0);
+			expect(locator.startsWith(QStringLiteral("octo-org/review-repository#")), "recently viewed row names the exact repository");
+			numbers.push_back(locator.section(QLatin1Char{ '#' }, 1, 1).toInt());
+		}
+		return numbers;
+	}
+	auto recent_row(const QListWidget& aList, int aNumber) -> int
+	{
+		const auto numbers = recent_numbers(aList);
+		for (std::size_t row = 0; row < numbers.size(); ++row) {
+			if (numbers[row] == aNumber) {
+				return static_cast<int>(row);
+			}
+		}
+		return -1;
+	}
+	void report_recent(app::github_application& aOwner, core::bpr_window_context aContext, const char* aStage)
+	{
+		const auto* window   = aOwner.window(aContext);
+		const auto* list     = window->home_recent_list();
+		const auto  evidence = github_application_fixture_access::evidence(aOwner);
+		std::cerr << "recent-" << aStage << " window=" << aContext.Window.value() << " home=" << window->showing_home()
+				  << " visible=" << list->isVisible() << " rows=" << list->count() << " current=" << list->currentRow()
+				  << " resume=" << window->home_recent_resume_action()->isEnabled()
+				  << " status=" << static_cast<int>(window->session_panel()->status())
+				  << " reads=" << evidence.AccountReadCount << " operation=" << evidence.LastReadOperation
+				  << " preview-reads=" << aOwner.status().PublicPreviewRequests
+				  << " notice=" << window->home_open_notice()->text().toStdString();
+		for (int row = 0; row < list->count(); ++row) {
+			std::cerr << " [" << list->item(row)->text().toStdString() << ']';
+		}
+		std::cerr << '\n';
+	}
+	// [[BPR-0733]]. What this card asks a restart to be. The session is selected
+	// and restored exactly as before, and every window stays on Home with what
+	// the profile read listed on it, most recent first. Nothing opens by itself,
+	// so no pull-request snapshot may have been read before a gesture: the
+	// account read count and the signed-out request count are the fixture's own
+	// evidence of that, and both must stand still while the window settles.
+	void home_lists_recent(app::github_application& aOwner, core::bpr_window_context aContext, const std::vector<int>& aNumbers)
+	{
+		auto& window = *aOwner.window(aContext);
+		auto* list   = window.home_recent_list();
+		expect(list != nullptr, "Home composes a recently viewed list");
+		wait_for([&] { return list->isVisible() && recent_numbers(*list) == aNumbers; }, "restart lists the retained reviews on Home, most recent first", [&] { report_recent(aOwner, aContext, "listed"); }, 30000);
+		const auto reads   = github_application_fixture_access::evidence(aOwner).AccountReadCount;
+		const auto preview = aOwner.status().PublicPreviewRequests;
+		settle(400);
+		expect(window.showing_home() && window.session_panel()->status() != core::github_status::loading_pull_request, "restart leaves the window on Home without loading a pull request");
+		expect(!github_application_fixture_access::large_review_snapshot(aOwner, aContext), "restart accepts no pull request snapshot without a gesture");
+		expect(github_application_fixture_access::evidence(aOwner).AccountReadCount == reads && aOwner.status().PublicPreviewRequests == preview,
+			   "restart issues no pull request read before a gesture");
+		expect(window.home_open_notice()->text().isEmpty(), "an accepted restart leaves no restoration notice");
+		expect(recent_numbers(*list) == aNumbers, "the listed order survives the settled window");
+	}
+	// The list is republished whenever the profile's reading changes, and a
+	// publication may reorder it, so the row is found again on every turn and
+	// the gesture leaves in the same turn that found it.
+	auto select_recent(app::github_application& aOwner, core::bpr_window_context aContext, int aNumber, bool aResume) -> QListWidget*
+	{
+		auto& window = *aOwner.window(aContext);
+		auto* list   = window.home_recent_list();
+		auto* resume = window.home_recent_resume_action();
+		expect(list != nullptr && resume != nullptr, "Home composes a recently viewed list and its resume action");
+		wait_for([&] { const auto row = list->isVisible() ? recent_row(*list, aNumber) : -1;
+			if (row < 0) { return false; }
+			list->setCurrentRow(row);
+			return list->currentRow() == row && (!aResume || resume->isEnabled()); }, aResume ? "recently viewed row offers its saved reading" : "recently viewed row is selectable", [&] { report_recent(aOwner, aContext, "select"); });
+		return list;
+	}
+	// Resumes the exact saved reading, which is the course a restart used to run
+	// by itself.
+	void resume_recent(app::github_application& aOwner, core::bpr_window_context aContext, int aNumber)
+	{
+		static_cast<void>(select_recent(aOwner, aContext, aNumber, true));
+		aOwner.window(aContext)->home_recent_resume_action()->trigger();
+	}
+	// Opens the row on Overview, which is what an entry without a saved reading
+	// offers. Return is read by the window's own filter on every platform.
+	void open_recent(app::github_application& aOwner, core::bpr_window_context aContext, int aNumber)
+	{
+		auto*     list = select_recent(aOwner, aContext, aNumber, false);
+		QKeyEvent activate{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+		QApplication::sendEvent(list, &activate);
 	}
 	void accepted(app::github_application& aOwner, core::bpr_window_context aContext, unsigned aNumber)
 	{
@@ -288,20 +390,33 @@ auto main(int aArgc, char** aArgv) -> int
 		auto store    = restoration_store(root);
 		auto retained = store->load({ });
 		expect(retained && retained->Records.front().Position, "unavailable course begins with accepted reading");
-		auto& position = *retained->Records.front().Position;
-		if (phase == "unavailable-content") {
-			// A cloned cache has a different directory identity; retain its record.
-		} else if (phase == "unavailable-anchor") {
-			position.Comparison.Left.Identity.Epoch = core::epoch_ordinal{ 999 };
-		} else if (phase == "unavailable-file") {
-			position.File = core::file_identity_of("removed-after-recording.cpp");
-			position.Selection.reset();
-		} else {
-			expect(position.Selection.has_value(), "semantic unavailable course has exact selection");
-			auto material = position.Selection->Comparison.bytes();
-			material.front() ^= 1U;
-			position.Selection->Comparison               = core::file_comparison_digest{ material };
-			position.Selection->PreferredLine.Comparison = position.Selection->Comparison;
+		// [[BPR-0733]]. A gesture on the recently viewed list is what opens a
+		// retained reading now, so the controlled unavailable identity has to be
+		// the one the list carries as well as the one the window retained.
+		auto        readings    = std::vector<core::window_review_position*>{ &*retained->Records.front().Position };
+		const auto& destination = retained->Records.front().Destination;
+		for (auto& entry : retained->Recent) {
+			if (entry.Destination == destination && entry.Position) {
+				readings.push_back(&*entry.Position);
+			}
+		}
+		expect(readings.size() == 2U, "the retained destination is listed with its exact reading");
+		for (auto* target : readings) {
+			auto& position = *target;
+			if (phase == "unavailable-content") {
+				// A cloned cache has a different directory identity; retain its record.
+			} else if (phase == "unavailable-anchor") {
+				position.Comparison.Left.Identity.Epoch = core::epoch_ordinal{ 999 };
+			} else if (phase == "unavailable-file") {
+				position.File = core::file_identity_of("removed-after-recording.cpp");
+				position.Selection.reset();
+			} else {
+				expect(position.Selection.has_value(), "semantic unavailable course has exact selection");
+				auto material = position.Selection->Comparison.bytes();
+				material.front() ^= 1U;
+				position.Selection->Comparison               = core::file_comparison_digest{ material };
+				position.Selection->PreferredLine.Comparison = position.Selection->Comparison;
+			}
 		}
 		const auto revision = retained->Revision;
 		++retained->Revision;
@@ -362,7 +477,7 @@ auto main(int aArgc, char** aArgv) -> int
 			// The native document publishes inside the diff projection. This
 			// callback is queued before its deferred restoration continuation.
 			QMetaObject::invokeMethod(&application, [&] {
-				expect(first->home_open_notice()->text().startsWith(QStringLiteral("Restoring")), "gesture precedes deferred reading restoration completion");
+				expect(first->home_open_notice()->text().startsWith(QStringLiteral("Resuming")), "gesture precedes deferred reading restoration completion");
 				if (phase == "auth-reading-home") {
 					first->home_action()->trigger();
 				} else if (phase == "auth-reading-unchanged") {
@@ -376,7 +491,7 @@ auto main(int aArgc, char** aArgv) -> int
 					expect(before.Selection && before.Selection->Kind == core::semantic_selection_kind::group && map->selected() && map->selected()->Group == before.Selection->Group, "native link map targets current semantic group");
 					expect(gestureSurface->current_result()->Alignment.Groups.size() == 1U, "unchanged gesture has sole first group");
 					expect(before.Selection != expectedReadings->Records[0].Position->Selection, "current group differs from retained line");
-					expect(first->home_open_notice()->text().startsWith(QStringLiteral("Restoring")), "unchanged gesture retains pending restoration stage");
+					expect(first->home_open_notice()->text().startsWith(QStringLiteral("Resuming")), "unchanged gesture retains pending restoration stage");
 					const auto callbacks = map->statistics().SelectionCallbacks;
 					QKeyEvent key{QEvent::KeyPress, Qt::Key_Up, Qt::NoModifier};
 					QApplication::sendEvent(map, &key);
@@ -406,6 +521,12 @@ auto main(int aArgc, char** aArgv) -> int
 			seededReadings = seed_auth(*owner, firstContext);
 		}
 	} else if (phase == "auth-advance") {
+		const auto second = core::bpr_window_context{ firstContext.Profile, core::bpr_window_id{ 2U }, firstContext.Generation };
+		// Window 2 read #18 after window 1 read #17, so both windows list #18
+		// first. Neither has opened anything: the list is the only way back.
+		home_lists_recent(*owner, firstContext, { 18, 17 });
+		home_lists_recent(*owner, second, { 18, 17 });
+		resume_recent(*owner, firstContext, 17);
 		accepted(*owner, firstContext, 17);
 		restored_reading(*first, *expectedReadings->Records[0].Position, [&] {
 			const auto status = owner->status(firstContext);
@@ -414,7 +535,7 @@ auto main(int aArgc, char** aArgv) -> int
 					  << " navigation=" << work.NavigationReady << " outstanding=" << work.OutstandingJobs
 					  << " epoch-outstanding=" << work.EpochOutstandingJobs << " workbench-outstanding=" << work.WorkbenchOutstandingRequests << '\n';
 		});
-		const auto second = core::bpr_window_context{ firstContext.Profile, core::bpr_window_id{ 2U }, firstContext.Generation };
+		resume_recent(*owner, second, 18);
 		accepted(*owner, second, 18);
 		restored_reading(*owner->window(second), *expectedReadings->Records[1].Position);
 		select_reading(*owner, firstContext, 0, true);
@@ -434,6 +555,8 @@ auto main(int aArgc, char** aArgv) -> int
 			   "independent windows retain distinct cross-upload pairs, files and semantic lines");
 		seededReadings = { firstReading, secondReading };
 	} else if (readingRace) {
+		home_lists_recent(*owner, firstContext, { 18, 17 });
+		resume_recent(*owner, firstContext, 17);
 		wait_for([&] { return readingGestureDelivered; }, "queued gesture and restoration continuation cross decision barrier", [&] {
 			const auto* surface = first->comparison_surface();
 			const auto status = owner->status(firstContext);
@@ -450,7 +573,11 @@ auto main(int aArgc, char** aArgv) -> int
 			expect(!first->showing_home() && reading(*first) == *gestureReading, "newer semantic gesture defeats late restored line");
 		}
 	} else if (readingFailure) {
-		wait_for([&] { const auto text = first->home_open_notice()->text(); return !text.isEmpty() && !text.startsWith(QStringLiteral("Restoring")); }, "unavailable reading reports explicit failure", [&] {
+		const auto second = core::bpr_window_context{ firstContext.Profile, core::bpr_window_id{ 2U }, firstContext.Generation };
+		home_lists_recent(*owner, firstContext, { 18, 17 });
+		home_lists_recent(*owner, second, { 18, 17 });
+		resume_recent(*owner, firstContext, 17);
+		wait_for([&] { const auto text = first->home_open_notice()->text(); return !text.isEmpty() && !text.startsWith(QStringLiteral("Resuming")); }, "unavailable reading reports explicit failure", [&] {
 			const auto work = github_application_fixture_access::diff_work_evidence(*owner, firstContext);
 			std::cerr << "unavailable-reading navigation=" << work.NavigationReady << " outstanding=" << work.OutstandingJobs
 				<< " workbench-outstanding=" << work.WorkbenchOutstandingRequests << " result=" << bool(first->comparison_surface()->current_result())
@@ -458,7 +585,7 @@ auto main(int aArgc, char** aArgv) -> int
 		expect(first->showing_home() && first->home_open_bar()->isEnabled(), "unavailable reading leaves usable Home");
 		expect(!first->comparison_surface()->selection(), "unavailable reading substitutes no semantic location");
 		if (phase != "unavailable-content") {
-			const auto second = core::bpr_window_context{ firstContext.Profile, core::bpr_window_id{ 2U }, firstContext.Generation };
+			resume_recent(*owner, second, 18);
 			accepted(*owner, second, 18);
 			expect(unavailableReadings->Records[1].Position.has_value(), "unaffected sibling has recorded reading");
 			restored_reading(*owner->window(second), *unavailableReadings->Records[1].Position);
@@ -469,13 +596,42 @@ auto main(int aArgc, char** aArgv) -> int
 				expect(status && status->EpochStatus == core::epoch_status::ready, "file and semantic negatives have an available accepted epoch");
 			}
 		}
+	} else if (phase == "failed-read") {
+		// [[BPR-0733]]. Startup selects the session and stops, so the read that
+		// cannot be served is the one this gesture asks for: the newest listed
+		// entry names a pull request the server does not have.
+		home_lists_recent(*owner, firstContext, { 99, 17 });
+		resume_recent(*owner, firstContext, 99);
+		wait_for([&] { const auto text = first->home_open_notice()->text(); return !text.isEmpty() && !text.startsWith(QStringLiteral("Resuming")); }, "resumed read failure explicitly visible");
+		std::cerr << "resumed-read-error=" << first->home_open_notice()->text().toStdString() << '\n';
+		expect(first->showing_home() && first->home_open_bar()->isEnabled(), "failed resume leaves usable Home");
+		expect(!github_application_fixture_access::large_review_snapshot(*owner, firstContext), "failed resume fabricates no content");
 	} else if (failure) {
-		wait_for([&] { const auto text = first->home_open_notice()->text(); return !text.isEmpty() && !text.startsWith(QStringLiteral("Restoring")); }, "restoration failure explicitly visible");
-		std::cerr << "restoration-error=" << first->home_open_notice()->text().toStdString() << '\n';
-		expect(first->showing_home() && first->home_open_bar()->isEnabled(), "failed restore leaves usable Home");
-		expect(!github_application_fixture_access::large_review_snapshot(*owner, firstContext), "failed restore fabricates no content");
+		// [[BPR-0733]]. Startup selects a session and stops, so no review is
+		// being restored and a refusal is no longer a failed restore. What the
+		// retained destination itself refuses is still said at once - an
+		// unconfigured server, a store that cannot be read - because that is
+		// about what was saved. An authority that cannot be brought back says
+		// nothing: the destination was fine and nothing was being opened, so
+		// neither a missing grant nor an unavailable signed-out capability is
+		// a failure of anything the reviewer asked for.
+		const auto refused = phase == "missing-server" || phase == "corrupt" || phase == "future";
+		if (refused) {
+			wait_for([&] { const auto text = first->home_open_notice()->text(); return !text.isEmpty() && !text.startsWith(QStringLiteral("Resuming")); }, "unreadable saved reviews are explicitly visible");
+			std::cerr << "restoration-error=" << first->home_open_notice()->text().toStdString() << '\n';
+		}
+		settle(600);
+		auto* listed = first->home_recent_list();
+		wait_for([&] { return listed->count() == (phase == "capability" ? 1 : 0); }, "a refused restart lists only what its session admits", [&] { report_recent(*owner, firstContext, "refused"); });
+		std::cerr << "restoration-refusal=" << phase << " notice=" << first->home_open_notice()->text().toStdString() << '\n';
+		expect(refused || first->home_open_notice()->text().isEmpty(), "an unrevalidated grant reports no failed restore");
+		expect(first->showing_home() && first->home_open_bar()->isEnabled(), "refused restart leaves usable Home");
+		expect(!github_application_fixture_access::large_review_snapshot(*owner, firstContext), "refused restart fabricates no content");
+		expect(!first->home_recent_resume_action()->isEnabled(), "a refused restart offers no saved reading to resume");
 	} else if (phase == "auth-stale" || phase == "auth-home") {
-		wait_for([&] { return github_application_fixture_access::held_window_read_terminals(*owner, firstContext) > 0U; }, "restored read terminal is held before acceptance");
+		home_lists_recent(*owner, firstContext, { 18, 17 });
+		resume_recent(*owner, firstContext, 17);
+		wait_for([&] { return github_application_fixture_access::held_window_read_terminals(*owner, firstContext) > 0U; }, "resumed read terminal is held before acceptance");
 		expect(first->showing_home(), "pending restoration leaves Home available for user navigation");
 		if (phase == "auth-home") {
 			first->home_action()->trigger();
@@ -496,8 +652,25 @@ auto main(int aArgc, char** aArgv) -> int
 			expect(first->home_open_notice()->text().isEmpty(), "late restoration completion does not replace user navigation or notice");
 		}
 	} else if (anonymous) {
+		// A signed-out read is listed and opened by the same gesture as any
+		// other, and the row says in words whether it has a reading to resume:
+		// nothing here depends on colour.
+		home_lists_recent(*owner, firstContext, { 17 });
+		expect(first->home_recent_list()->item(0)->text().endsWith(QStringLiteral(" · saved reading")) == first->home_recent_resume_action()->isEnabled(),
+			   "the listed row states exactly what its resume action offers");
+		open_recent(*owner, firstContext, 17);
 		accepted(*owner, firstContext, 17);
 	} else {
+		const auto second = core::bpr_window_context{ firstContext.Profile, core::bpr_window_id{ 2U }, firstContext.Generation };
+		home_lists_recent(*owner, firstContext, { 18, 17 });
+		if (phase != "auth-verify") {
+			home_lists_recent(*owner, second, { 18, 17 });
+		}
+		if (phase == "auth-restore") {
+			resume_recent(*owner, firstContext, 17);
+		} else {
+			open_recent(*owner, firstContext, 18);
+		}
 		accepted(*owner, firstContext, phase == "auth-restore" ? 17 : 18);
 		if (phase == "auth-restore") {
 			expect(expectedReadings->Records[0].Position.has_value(), "first window has durable reading");
@@ -505,7 +678,11 @@ auto main(int aArgc, char** aArgv) -> int
 			capture(*first, "restored-auth-pr17");
 		}
 		if (phase != "auth-verify") {
-			const auto second = core::bpr_window_context{ firstContext.Profile, core::bpr_window_id{ 2U }, firstContext.Generation };
+			if (phase == "auth-restore") {
+				resume_recent(*owner, second, 18);
+			} else {
+				open_recent(*owner, second, 18);
+			}
 			accepted(*owner, second, 18);
 			if (phase == "auth-restore") {
 				expect(expectedReadings->Records[1].Position.has_value(), "second window has durable reading");
@@ -528,6 +705,10 @@ auto main(int aArgc, char** aArgv) -> int
 			wait_for([&] { return owner->windows().size() == 2U; }, "fresh window after restart");
 			const auto fresh = core::bpr_window_context{ firstContext.Profile, core::bpr_window_id{ 3U }, core::bpr_window_generation{ 1U } };
 			expect(owner->window(fresh) && owner->window(fresh)->showing_home() && owner->window(fresh)->home_open_notice()->text().isEmpty(), "monotonic new identity stays Home without destination");
+			// [[BPR-0733]]. The list is the profile's, so a fresh window reads
+			// the same entries without acquiring a destination of its own.
+			auto* freshList = owner->window(fresh)->home_recent_list();
+			wait_for([&] { return freshList->isVisible() && recent_numbers(*freshList) == std::vector<int>{ 18, 17 }; }, "fresh window lists the profile's recent reviews", [&] { report_recent(*owner, fresh, "fresh"); });
 		}
 	}
 	if (anonymous) {

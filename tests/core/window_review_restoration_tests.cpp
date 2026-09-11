@@ -1,5 +1,6 @@
 #include "bpr/core/epoch_transition.hpp"
 #include "bpr/core/window_review_restoration.hpp"
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 
@@ -47,11 +48,12 @@ namespace {
 		other.Number = pull_request_number{ 28 };
 		expect(!policy.accepted_position(context(1), other, saved), "different destination cannot save position");
 		expect(policy.accepted_read(context(1), other) && !policy.records()[0].Position, "accepted replacement clears old reading identity");
-		const auto actions = policy.load({ { bpr_window_id{ 2 }, destination(), saved } });
+		const auto actions = policy.load({ { bpr_window_id{ 2 }, destination(), saved } }, { { destination(), "Saved", 5, saved } });
 		expect(actions.Startup.has_value(), "retained position participates in existing startup");
 		static_cast<void>(policy.mark_window_ready(context(2)));
-		const auto opened = policy.complete_startup(actions.Startup->Request, window_review_authority{ github_access_mode::authenticated, "github.com" });
-		expect(opened.Opens.size() == 1 && opened.Opens[0].Position == saved, "exact complete payload carried to matching ready window");
+		expect(policy.complete_startup(actions.Startup->Request, window_review_authority{ github_access_mode::authenticated, "github.com" }).Opens.empty(), "[[BPR-0733]] startup alone opens nothing");
+		const auto opened = policy.open_recent(context(2), 0);
+		expect(opened.Opens.size() == 1 && opened.Opens[0].Position == saved && opened.Opens[0].Destination == destination(), "exact recent payload carried to the asking ready window");
 		auto invalid                                = saved;
 		invalid.Comparison.Right.Identity.Authority = identity<pull_request_authority_scope_id>(9);
 		expect(!valid(invalid), "cross-authority pair refused");
@@ -110,27 +112,31 @@ namespace {
 	void test_selection_and_exact_readiness()
 	{
 		window_review_restoration policy{ default_bpr_profile_id, { context(2), context(1), context(3, 1) }, { "github.com", "enterprise.example" } };
-		auto                      actions = policy.load({ { bpr_window_id{ 1 }, destination(github_access_mode::public_preview) }, { bpr_window_id{ 2 }, destination() }, { bpr_window_id{ 3 }, destination() } });
+		auto                      actions = policy.load({ { bpr_window_id{ 1 }, destination(github_access_mode::public_preview) }, { bpr_window_id{ 2 }, destination() }, { bpr_window_id{ 3 }, destination() } }, { { destination(github_access_mode::public_preview), { }, 0, { } } });
 		expect(actions.Startup && actions.Startup->Authority->Mode == github_access_mode::public_preview, "last retained MRU selects one shared public authority; fresh window ignored");
 		expect(actions.Failures.size() == 1 && actions.Failures[0].Context == context(2), "conflicting authority remains unavailable");
 		expect(policy.mark_window_ready(context(1)).Opens.empty(), "readiness alone cannot authorize read before session");
 		expect(policy.complete_startup(request_id{ 99 }, window_review_authority{ github_access_mode::public_preview, "github.com" }).Opens.empty(), "foreign startup terminal ignored");
+		expect(policy.open_recent(context(1), 0).Opens.empty(), "a gesture before the session settles waits behind startup");
 		actions = policy.complete_startup(actions.Startup->Request, window_review_authority{ github_access_mode::public_preview, "github.com" });
-		expect(actions.Opens.size() == 1 && actions.Opens[0].Context == context(1), "only exact ready matching destination opens");
+		expect(actions.Opens.size() == 1 && actions.Opens[0].Context == context(1), "only the asking ready window opens, once the session exists");
 		const auto request = actions.Opens[0];
 		policy.cancel_restore(context(1));
 		expect(!policy.current_restore(request.Context, request.Request) && policy.complete_restore(request.Context, request.Request, { }).Failures.empty(), "Home cancels exact late read terminal");
 		expect(policy.records().size() == 3, "Home never deletes accepted destinations");
+		expect(policy.open_recent(context(1), 0).Opens.size() == 1, "a later gesture supersedes the Home cancellation");
+		expect(policy.open_recent(context(1), 1).Opens.empty() && policy.open_recent(context(9), 0).Opens.empty(), "no entry or no window: nothing opens");
 	}
 	void test_home_does_not_cancel_sibling_and_missing_host_no_fallback()
 	{
 		window_review_restoration policy{ default_bpr_profile_id, { context(1), context(2) }, { "github.com" } };
 		policy.cancel_restore(context(1));
-		auto actions = policy.load({ { bpr_window_id{ 1 }, destination() }, { bpr_window_id{ 2 }, destination() } });
+		auto actions = policy.load({ { bpr_window_id{ 1 }, destination() }, { bpr_window_id{ 2 }, destination() } }, { { destination(), { }, 0, { } } });
 		expect(actions.Startup.has_value(), "one Home gesture does not suppress sibling authority selection");
 		actions = policy.complete_startup(actions.Startup->Request, window_review_authority{ github_access_mode::authenticated, "github.com" });
 		expect(actions.Opens.empty(), "accepted auth waits for window wiring");
-		expect(policy.mark_window_ready(context(2)).Opens.size() == 1, "ready sibling restores after accepted session");
+		expect(policy.mark_window_ready(context(2)).Opens.empty(), "[[BPR-0733]] a ready sibling no longer restores by itself");
+		expect(policy.open_recent(context(2), 0).Opens.size() == 1, "the ready sibling opens its chosen entry after the accepted session");
 		window_review_restoration missing{ default_bpr_profile_id, { context(1) }, { "github.com" } };
 		actions = missing.load({ { bpr_window_id{ 1 }, destination(github_access_mode::authenticated, "missing.example") } });
 		expect(!actions.Startup && actions.Failures.size() == 1 && actions.Failures[0].Reason == window_review_failure::missing_server, "unconfigured saved host never fabricates normal sign-in fallback");
@@ -154,9 +160,39 @@ namespace {
 		expect(!valid(invalid), "noncanonical hostname rejected");
 		expect(!valid_window_review_records({ { bpr_window_id{ 2 }, chosen }, { bpr_window_id{ 1 }, chosen } }), "unsorted storage records rejected");
 	}
+	void test_recently_viewed_list()
+	{
+		window_review_restoration policy{ default_bpr_profile_id, { context(1) }, { "github.com" } };
+		const auto                saved = position();
+		auto                      first = destination();
+		expect(policy.load({ }, { { first, "Old", 0, saved } }).Startup.has_value(), "a stored list loads with normal startup");
+		expect(policy.recent().size() == 1 && policy.recent()[0].Title == "Old", "stored entries are adopted");
+		expect(!policy.accepted_read(context(1), first, -1), "a negative clock reading is refused");
+		expect(policy.accepted_read(context(1), first, 10) && policy.recent().size() == 1 && policy.recent()[0].ViewedAt == 10 && policy.recent()[0].Title == "Old" && policy.recent()[0].Position == saved,
+			   "viewing a listed destination bumps it and keeps its title and reading");
+		expect(policy.accepted_title(first, "New title") && policy.recent()[0].Title == "New title" && !policy.accepted_title(first, "New title"), "a seen title is recorded once");
+		expect(!policy.accepted_title(first, std::string(maximum_recent_review_title + 1U, 't')), "an overlong title is refused");
+		for (std::uint32_t number = 100; number < 100 + maximum_recent_reviews; ++number) {
+			auto next   = destination();
+			next.Number = pull_request_number{ number };
+			expect(policy.accepted_read(context(1), next, 20 + number), "each new destination is accepted");
+		}
+		expect(policy.recent().size() == maximum_recent_reviews && policy.recent().front().Destination.Number.value() == 109 && std::ranges::none_of(policy.recent(), [&](const auto& aEntry) { return aEntry.Destination == first; }),
+			   "the list is bounded, most recent first, and evicts the oldest");
+		auto other   = destination();
+		other.Number = pull_request_number{ 109 };
+		expect(policy.accepted_position(context(1), other, saved) && policy.recent().front().Position == saved, "an accepted reading reaches the listed entry");
+		expect(policy.close(context(1)) && policy.records().empty() && policy.recent().size() == maximum_recent_reviews, "closing a window keeps the list");
+		expect(!valid_recent_reviews({ { first, { }, 0, { } }, { first, { }, 0, { } } }), "duplicate destinations are refused");
+		expect(!valid_recent_reviews(std::vector<window_recent_review>(maximum_recent_reviews + 1U, window_recent_review{ first, { }, 0, { } })), "an overlong list is refused");
+		window_review_restoration corrupt{ default_bpr_profile_id, { context(1) }, { "github.com" } };
+		const auto                refused = corrupt.load({ }, { { first, { }, 0, { } }, { first, { }, 0, { } } });
+		expect(!refused.Startup && refused.Failures.size() == 1 && refused.Failures[0].Reason == window_review_failure::corrupt, "a corrupt list fails the load");
+	}
 }
 int main()
 {
+	test_recently_viewed_list();
 	test_selection_and_exact_readiness();
 	test_home_does_not_cancel_sibling_and_missing_host_no_fallback();
 	test_user_authority_and_persistence_scope();

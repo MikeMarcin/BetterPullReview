@@ -27,6 +27,7 @@
 #include <QLayout>
 #include <QLineEdit>
 #include <QListView>
+#include <QListWidget>
 #include <QPalette>
 #include <QPersistentModelIndex>
 #include <QPixmap>
@@ -2687,6 +2688,173 @@ namespace {
 		window.hide();
 	}
 
+	// [[BPR-0733]]. One row of the recently viewed list, as the composition
+	// hands it over: already filtered for this window's session.
+	[[nodiscard]] auto recent_entry(
+		std::string         aOwner,
+		std::string         aName,
+		const std::uint32_t aNumber,
+		std::string         aTitle,
+		const std::int64_t  aViewedAt,
+		const bool          aResumable) -> application::recent_review_entry
+	{
+		return application::recent_review_entry{
+			.Destination = core::window_review_destination{
+				.Mode       = core::github_access_mode::authenticated,
+				.Hostname   = "github.com",
+				.Repository = core::repository_locator{
+					.Owner = std::move(aOwner),
+					.Name  = std::move(aName),
+				},
+				.Number = core::pull_request_number{ aNumber },
+			},
+			.Title     = std::move(aTitle),
+			.ViewedAt  = aViewedAt,
+			.Resumable = aResumable,
+		};
+	}
+
+	/// \brief [[BPR-0733]]. The owner met a Home that opened the last pull
+	/// request by itself, slowly and without being asked. Home now lists what
+	/// was read recently and waits: a row is opened by a gesture, its saved
+	/// reading is resumed by a named action, and with nothing to list there is
+	/// no section at all.
+	auto test_home_lists_recently_viewed_pull_requests() -> void
+	{
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			profiles(),
+			[](application::github_intent) { },
+		};
+		window.resize(1'280, 820);
+		window.show();
+		window.activateWindow();
+		QApplication::processEvents();
+
+		std::vector<application::recent_review_intent> gestures;
+		window.set_recent_review_dispatch(
+			[&gestures](application::recent_review_intent aIntent) {
+				gestures.push_back(aIntent);
+			});
+		auto* const heading = window.home_recent_heading();
+		auto* const list    = window.home_recent_list();
+		auto* const resume  = window.home_recent_resume_action();
+		auto* const resumeButton
+			= window.findChild<QToolButton*>(QStringLiteral("homeRecentResumeButton"));
+		expect(heading != nullptr && list != nullptr && resume != nullptr
+				   && resumeButton != nullptr
+				   && heading->objectName() == QStringLiteral("workbenchHomeRecentHeading")
+				   && list->objectName() == QStringLiteral("homeRecentList")
+				   && resume->objectName() == QStringLiteral("homeRecentResumeAction")
+				   && list->accessibleName()
+					   == QStringLiteral("Recently viewed pull requests"),
+			   "Home carries a named recently viewed heading, list and resume action");
+		expect(!heading->isVisible() && !list->isVisible() && !resumeButton->isVisible(),
+			   "with nothing published there is no section");
+
+		auto projection = application::recent_reviews_projection{ };
+		projection.Entries.push_back(recent_entry(
+			"microsoft", "terminal", 42U, "Fix the conpty resize race",
+			1'772'000'000, false));
+		projection.Entries.push_back(recent_entry(
+			"microsoft", "terminal", 77U, "Teach the pane splitter about tabs",
+			1'771'000'000, true));
+		projection.Entries.push_back(recent_entry("qt", "qtbase", 9'001U, { }, 0, false));
+		window.publish(projection);
+		QApplication::processEvents();
+		expect(list->count() == 3
+				   && list->item(0)->text()
+					   == QStringLiteral("microsoft/terminal#42 — Fix the conpty resize race")
+				   && list->item(1)->text()
+					   == QStringLiteral(
+						   "microsoft/terminal#77 — Teach the pane splitter about tabs · saved reading")
+				   && list->item(2)->text() == QStringLiteral("qt/qtbase#9001"),
+			   "the rows are the entries in the order they were given, named and without colour");
+		expect(list->item(0)->toolTip().startsWith(QStringLiteral("github.com"))
+				   && list->item(0)->toolTip().contains(QStringLiteral("viewed"))
+				   && list->item(2)->toolTip() == QStringLiteral("github.com"),
+			   "each row says its host, and the instant only where one was recorded");
+		expect(heading->isVisible() && list->isVisible() && resumeButton->isVisible(),
+			   "with entries the section is shown, with no account signed in");
+		expect(QApplication::focusWidget() == window.home_open_bar(),
+			   "publishing the list took no focus from where the reviewer was");
+		const auto listed = window.focus_order();
+		expect(listed.contains(list) && listed.contains(resumeButton),
+			   "the list and its resume control are keyboard stops");
+
+		expect(list->currentRow() == 0 && !resume->isEnabled(),
+			   "the newest row is current, and it kept no reading to resume");
+		list->setCurrentRow(1);
+		QApplication::processEvents();
+		expect(resume->isEnabled(), "the row with a saved reading offers Resume reading");
+		resume->trigger();
+		QApplication::processEvents();
+		expect(gestures.size() == 1U && gestures.front().Index == 1U
+				   && gestures.front().Resume,
+			   "Resume reading names that row and asks for its reading");
+		// The same gesture from the keyboard, on the row itself.
+		list->setFocus(Qt::OtherFocusReason);
+		auto shiftReturn = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::ShiftModifier };
+		QApplication::sendEvent(list, &shiftReturn);
+		QApplication::processEvents();
+		expect(gestures.size() == 2U && gestures.back().Index == 1U && gestures.back().Resume,
+			   "Shift and Return resume the current row rather than opening it");
+		list->setCurrentRow(2);
+		expect(!resume->isEnabled(),
+			   "a row that kept no reading offers no resume");
+		auto activate = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+		QApplication::sendEvent(list, &activate);
+		QApplication::processEvents();
+		expect(gestures.size() == 3U && gestures.back().Index == 2U
+				   && !gestures.back().Resume,
+			   "Return opens the current row, on every platform");
+		// The pointer's own activation arrives the way any list's does.
+		const auto row     = list->visualItemRect(list->item(0));
+		const auto local   = QPointF{ row.center() };
+		const auto global  = list->viewport()->mapToGlobal(local);
+		auto       press   = QMouseEvent{ QEvent::MouseButtonPress, local, global,
+										  Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		auto       doubled = QMouseEvent{ QEvent::MouseButtonDblClick, local, global,
+										  Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(list->viewport(), &press);
+		QApplication::sendEvent(list->viewport(), &doubled);
+		QApplication::processEvents();
+		expect(gestures.size() == 4U && gestures.back().Index == 0U
+				   && !gestures.back().Resume,
+			   "a double-click opens the row it was made on");
+
+		window.publish(application::recent_reviews_projection{ });
+		QApplication::processEvents();
+		const auto empty = window.focus_order();
+		expect(list->count() == 0 && !heading->isVisible() && !list->isVisible()
+				   && !resumeButton->isVisible() && !empty.contains(list)
+				   && !empty.contains(resumeButton),
+			   "an empty list is no heading, no rows, no control and no keyboard stop");
+		window.hide();
+
+		// [[BPR-0732]] still decides where a signed-out Home starts: at the
+		// bar, with the list beside it rather than in front of it.
+		qt::workbench_window arriving{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			profiles(),
+			[](application::github_intent) { },
+		};
+		arriving.resize(1'280, 820);
+		arriving.publish(projection);
+		arriving.show();
+		arriving.activateWindow();
+		QApplication::processEvents();
+		expect(arriving.home_recent_list()->count() == 3
+				   && arriving.home_recent_list()->isVisible()
+				   && QApplication::focusWidget() == arriving.home_open_bar(),
+			   "a signed-out arrival lists what was read and still starts at the bar");
+		arriving.hide();
+	}
+
 	auto test_home_action_list_opens_rows_and_the_bar_on_overview() -> void
 	{
 		std::vector<application::github_intent> intents;
@@ -4019,6 +4187,7 @@ auto main(int argc, char** argv) -> int
 	test_repositories_drawer_lists_the_queue_and_opens_on_overview();
 	test_home_action_list_opens_rows_and_the_bar_on_overview();
 	test_home_signed_out_is_one_paste_field();
+	test_home_lists_recently_viewed_pull_requests();
 	test_a_pull_request_without_a_comparison_still_lists_its_files();
 	test_read_drawer_shows_threads_as_cards_with_scope_and_actions();
 	test_drawer_controls_are_reachable_in_the_conversations_drawer();
