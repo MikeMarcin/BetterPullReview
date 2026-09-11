@@ -175,3 +175,65 @@ BPR-0719, BPR-0722 and BPR-0721 in that order as one milestone, a fresh
 tests-disabled bundle, and a v004 packet regenerated last with the same ten
 candidates plus the BPR-0719/0721/0722 asks; the packet is written only
 after no active card can rebuild the binary.
+
+## Continuation after the v003 follow-ups, first milestone, 2026-09-10
+
+Dispatch `attended-prep-2026-09-10` d5 (mandate r2, "stop the attended
+review session and fix the issues raised"). Session `cbd48b91…` was
+stopped through the contract: `resume-development --all` released the
+ten candidates (the nine undecided ones are `waiting`, unprotected, and
+still pending on their cards; the BPR-0646 rejection `65f3f881` stays
+recorded) and `stop` ended the loopback host (pid 24325). No watch is
+armed.
+
+Landed on main, in the recommended order:
+
+- [BPR-0719](../40-parked/BPR-0719-a-large-file-with-a-small-change-is-refused-by-the-comparison-work-limit.md)
+  (`901a9c06`): the core sheds the common prefix and suffix, charges the
+  exact matrix for the changed region only, and degrades through the
+  ordered-unique alignment and patience anchors instead of refusing;
+  `computed_file_diff::AlignmentApproximate` names a degraded alignment
+  and the Qt status line says "(approximate alignment)". Parked for the
+  owner's check on ScreenBufferTests.cpp in microsoft/terminal#20607.
+- [BPR-0722](../40-parked/BPR-0722-the-strip-hides-the-pull-request-identity-below-1400-pixels.md)
+  (`035b5322`): the strip identity yields title, owner, modality
+  shortcuts and positions before its number, elided to the room the
+  other items leave; the compact modality holds to 1100. Measured fact
+  the card did not have: the floor is 900, not 860, and at 100% scale the
+  other strip items alone lay out about 900 pixels, so below about 960
+  the number has no room and the identity yields whole. Parked for the
+  owner's check at the default size and at 1280x820.
+- [BPR-0723](../20-ready/BPR-0723-the-uiforetw-selected-diff-contract-fails-at-startup-on-head.md)
+  (`6de81ee8`): `application_uiforetw_selected_diff_contract` prints
+  `STARTUP_FAILED` 0.5 s into its first capture at `8ff3b664`,
+  reproduced on a clean worktree build of that head. Not attributed to
+  the follow-ups; it blocks re-running the 1280 compact-row and rail
+  assertions that BPR-0722 and BPR-0721 touch.
+
+Not started: [BPR-0721](../20-ready/BPR-0721-a-setting-hides-the-drawer-side-controls-and-a-collapsed-rail-shows-only-its-rail.md).
+Scouted facts for it: the heading row is a nested `QHBoxLayout`
+(`workbench_drawer.cpp:399-419`) that `adopt()` (`:501-534`) never hides,
+so `Heading` and `Collapse` must be toggled explicitly; the settings store
+is already schema version 5 (`workbench_settings_database.hpp:31`), so the
+flag is a version 6 column; a profile-level flag fits
+`review_behaviour_settings` (`workbench_runtime_ports.hpp:478-488`) and
+rides `combined_layout` unchanged, with the hand-built literal at
+`src/app/main.cpp:6452` to extend; the Reviews & queue page is built by
+`build_behaviour_editor` (`workbench_window.cpp:3614-3740`); the drawer
+shortcuts are Alt+Shift+1/2/3, not ⌘1-4 as the card says; the UIforETW
+contract asserts the 18-pixel rails, so a zero-width collapsed drawer by
+default amends that contract as well as RFC-BPR-0028 AC-03 (`:86`,
+`:90-91`, `:129-130`, `:168-169`, `:290-293`).
+
+Next, in order: BPR-0721 as one milestone (defect first, then the setting
+through store, projection, window and Settings page, then the RFC and
+contract amendments); a fresh tests-disabled bundle; the v004 packet
+regenerated last with the same ten candidates plus the BPR-0719/0721/0722
+asks, written only after no active card can rebuild the binary. Owner
+questions still open and carried forward verbatim: what specifically was
+wrong in Read mode ("Even in read mode viewing experience is not great");
+for BPR-0720, whether the whole dark syntax palette moves to the Visual
+Assist scheme or only comments and includes, and whether the saved custom
+palette is reset or left; and, new from BPR-0722, which strip control
+should give way below about 960 pixels so the identity's number can stay
+to the floor, or whether the floor moves to 960.
