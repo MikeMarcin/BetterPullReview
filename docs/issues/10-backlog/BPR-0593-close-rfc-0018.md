@@ -12,32 +12,39 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
-## Current frontier, 2026-09-11 (d11, three v006 fixes landed)
+## Current frontier, 2026-09-11 (d12, BPR-0732 landed)
 
-Dispatch `attended-prep-2026-09-10` d11 (mandate r7). Landed on main, each
-parked on human-review for the v007 verdict: [[BPR-0726]] (C/C++ function,
-type and macro roles from an identifier post-pass in the syntax adapter;
-`identifier_heuristic_revision` folds into the C/C++ definition version so
-old cached spans are refused), [[BPR-0727]] and [[BPR-0728]] as one drawer
-milestone (the core retains the modality and refuses a hand-opened drawer
-in Overview with `overview_keeps_drawers_collapsed`, the host publishes
-`workbench_projection.Refusal`, the window shows it in the status bar;
-the conversations drawer's 375 is a default, not a floor, and scrolls
-sideways beneath its column minimum). Also on main: a repair of two
-selectors red at 1bbcd4a3 (the diff-workbench compute_limit assertion
-BPR-0719 changed, and the drifted `src/app` source-tree digest). Verified
-per card: focused selectors, `application_composition_contract`, tidy and
-clang-format on touched files, architecture boundaries, DOCUMENTATION_OK.
-Next, in order: [[BPR-0732]] (signed-out Home is one paste field that
-opens anonymously; carries [[BPR-0716]]) and [[BPR-0733]] (recently viewed
-list replaces the automatic restore), both Ready; then a rebuilt
+Dispatch `attended-prep-2026-09-10` d12 (mandate r7). Landed on main at
+`8935f2e3`, parked on human-review for the v007 verdict: [[BPR-0732]] (the
+signed-out Home is the card, one paste field and the status bar; the core's
+`resolve_setup_destination` gains a `public_preview` stage for a known host
+with no account whose composition holds the anonymous authority, the host
+activates preview and opens without a continuation press, the queue and its
+filters show only with an account, "Read without signing in" and the
+`choose_pull_request` detour are gone; details in its verification record).
+Two consequences to know: both `github_application.cpp` digests in
+`application_review_round_trip_composition_contract.cmake` were repinned,
+and the restoration course's account seed now signs in from the card before
+pasting, because on macOS the shipped preview capability makes a pasted
+github.com link open signed out. [[BPR-0716]] stays in Backlog on BPR-0732
+and is finished when the owner accepts it. Verified: focused selectors,
+`application_composition_contract`, the four boundary selectors, tidy and
+clang-format on touched files, DOCUMENTATION_OK. The d11 landings
+([[BPR-0726]], [[BPR-0727]], [[BPR-0728]]) are unchanged and still parked.
+Next, in order: [[BPR-0733]] (recently viewed list replaces the automatic
+restore; Ready; note that BPR-0732 changed `update_home_landing`, the Home
+column order (landing, stack, bar, notice, setup row, queue heading, queue
+surface) and the signed-out focus rule, so the list goes between the bar
+row and the queue heading and must stay hidden when empty); then a rebuilt
 tests-disabled bundle and the v007 packet written last, covering BPR-0646
 narrowed to the epoch line, BPR-0663, BPR-0676 and BPR-0720, plus the asks
-for BPR-0725, 0726, 0727, 0728, 0732 and 0733. After the v007 verdicts:
-[[BPR-0734]]; on their stations later: [[BPR-0730]] and [[BPR-0731]], on
-which this closeout depends. Outside the pack: [[BPR-0735]] (clangd noise),
-Ready, not started. No host is running and no watch is armed. Detail below
-under "Continuation after the owner's answers".
+for BPR-0725, 0726, 0727, 0728, 0732 and 0733, and a visible ask for d11's
+stale-pin judgement that `infer_modality_from_drawers` no longer infers
+Overview from the files-only shape. After the v007 verdicts: [[BPR-0734]];
+on their stations later: [[BPR-0730]] and [[BPR-0731]], on which this
+closeout depends. Outside the pack: [[BPR-0735]] (clangd noise), Ready, not
+started. No host is running and no watch is armed. Detail below under
+"Continuation after the owner's answers".
 
 ## Objective
 
