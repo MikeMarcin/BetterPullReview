@@ -108,3 +108,12 @@ evidence could not run at HEAD, passes for all four appearances once
 lands: the compact navigation row at 1280 spans the window with the
 BPR-0646/BPR-0647 order, edges and spacer, so this card's strip change
 holds there as well as in `qt_workbench_window_scale_*`.
+
+## Attended candidate, 2026-09-11 (v006)
+
+The pending criterion above is candidate `BPR-0722-strip-identity` in
+[rfc-bpr-0028-attended-v006](../../verification/reviews/rfc-bpr-0028-attended-v006/operator-packet.md)
+on the bundle built from the source at d1ba791f (executable sha256
+`cc2afa7f…`), candidate revision `app-release-cc2afa7f-2026-09-11.2`;
+prepared, undecided, no host running until the owner asks for the session.
+The ask is unchanged; the v005 packet is historical.

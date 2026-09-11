@@ -141,3 +141,12 @@ for this palette on the application public path, passes (23.69 s and
 [BPR-0723](../60-done/BPR-0723-the-uiforetw-selected-diff-contract-fails-at-startup-on-head.md)
 narrows the contract's pre-created root; the second criterion's evidence
 now includes it. The attended criterion is unchanged.
+
+## Attended candidate, 2026-09-11 (v006)
+
+The pending criterion above is candidate `BPR-0720-dark-palette` in
+[rfc-bpr-0028-attended-v006](../../verification/reviews/rfc-bpr-0028-attended-v006/operator-packet.md)
+on the bundle built from the source at d1ba791f (executable sha256
+`cc2afa7f…`), candidate revision `app-release-cc2afa7f-2026-09-11.2`;
+prepared, undecided, no host running until the owner asks for the session.
+The ask is unchanged; the v005 packet is historical.

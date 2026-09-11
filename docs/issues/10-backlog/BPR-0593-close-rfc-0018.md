@@ -329,3 +329,53 @@ theme customization contract) and BPR-0718; the bundle inputs
 (`src/adapters/qt`, `src/adapters/sqlite`, `src/app`, `src/core`,
 `src/application`) are protected by the fifteen candidates until the
 owner says to resume development.
+
+## Continuation after the two red contracts, 2026-09-11 (v006)
+
+Dispatch `attended-prep-2026-09-10` d8 (mandate r4: "Fix the 2 failing
+open work before we do the next round of reviews"). The fifteen v005
+candidates were released through `resume-development --paths src/app`
+(sequence 229) before the composition edit. Landed on main:
+
+- [BPR-0718](../60-done/BPR-0718-the-workbench-composition-contract-is-red-at-the-pack-head.md)
+  (`7c636594`): not a bisect; the probe failed its session-fallback check
+  because BPR-0708's desktop path marked workbench persistence available
+  without opening the store. Composition now opens it once and falls back
+  to session defaults; per-window durable layouts are installed only when
+  it opened. `application_workbench_composition_contract` passes.
+- [BPR-0723](../60-done/BPR-0723-the-uiforetw-selected-diff-contract-fails-at-startup-on-head.md)
+  (`d1ba791f`): the one word was the registry refusing a pre-created
+  0755 root, since BPR-0695 made `--epoch-fixture-root` the registry root;
+  eight contract scripts now narrow their roots (the theme, overview,
+  saved-server, review-behaviour, epoch-maintenance and native-notification
+  scripts had the same omission). Behind it, BPR-0390's displayed-comparison
+  flag read empty after shutdown since BPR-0697/BPR-0705 release the read
+  host and its comparison; the automated-run status is captured at the
+  shutdown transition. The BPR-0646/0651 rail block was amended for
+  BPR-0721's no-rails default. Both digests of
+  `application_review_round_trip_composition_contract` repinned.
+
+Re-run for the earlier dispatches: the UIforETW compact row at 1280 passes
+(BPR-0722), the rail assertions could not be re-run as written because the
+default has no rails and are amended (recorded on BPR-0721), and the theme
+customization contract passes for BPR-0720. Also seen:
+`application_native_notification_attended_contract` gets past startup now
+and refuses at `platform_tray_not_composed` under the cocoa platform; not
+attributed, not chased, no card. Gates at d1ba791f: composition contract
+(140 s), both boundary scripts, strict tidy on the two touched TUs,
+clang-format, `git diff --check`, documentation gate.
+
+The bundle was rebuilt at d1ba791f (executable sha256 `cc2afa7f…`, signed,
+tests disabled) and the session `cbd48b91…` carries the same fifteen
+candidates at revision `app-release-cc2afa7f-2026-09-11.2`: fifteen ready
+and protected at sequence 259, none decided, in
+[rfc-bpr-0028-attended-v006](../../verification/reviews/rfc-bpr-0028-attended-v006/operator-packet.md).
+No host is running and no watch is armed; the packet says how to start
+both (`serve`, then `wait --after 259`).
+
+Next: on the owner's say-so, `serve` and a persistent `wait --after 259`;
+then consume the verdicts card by card. No independent unattended work
+remains in this scope; the bundle inputs (`src/adapters/qt`,
+`src/adapters/sqlite`, `src/app`, `src/core`, `src/application`) are
+protected by the fifteen candidates until the owner says to resume
+development.

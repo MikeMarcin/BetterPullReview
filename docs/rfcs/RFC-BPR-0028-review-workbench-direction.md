@@ -338,3 +338,12 @@ on the bundle built from the source at 25e1525d (executable sha256
 `d238842d…`), candidate revision `app-release-d238842d-2026-09-11.1`; the
 v004 packet is historical. No host is running until the owner asks for
 the session.
+
+Attended preparation, 2026-09-11 (v006). [[BPR-0718]] and [[BPR-0723]]
+landed (the workbench composition and UIforETW selected-diff contracts are
+green again, the latter's rail block amended for BPR-0721's default). The
+fifteen v005 candidates are prepared again, unchanged in substance, in
+[rfc-bpr-0028-attended-v006](../verification/reviews/rfc-bpr-0028-attended-v006/operator-packet.md)
+on the bundle built at d1ba791f (executable sha256 `cc2afa7f…`). The
+v005 packet is historical. No host is running until the owner asks for
+the session.

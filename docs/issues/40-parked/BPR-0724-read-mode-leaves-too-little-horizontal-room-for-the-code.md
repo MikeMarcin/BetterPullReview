@@ -98,3 +98,12 @@ on the bundle built from the source at 25e1525d (executable sha256
 `d238842d…`), candidate revision `app-release-d238842d-2026-09-11.1`;
 prepared, undecided, no host running until the owner asks for the session.
 The v004 packet is historical.
+
+## Attended candidate, 2026-09-11 (v006)
+
+The pending criterion above is candidate `BPR-0724-read-width` in
+[rfc-bpr-0028-attended-v006](../../verification/reviews/rfc-bpr-0028-attended-v006/operator-packet.md)
+on the bundle built from the source at d1ba791f (executable sha256
+`cc2afa7f…`), candidate revision `app-release-cc2afa7f-2026-09-11.2`;
+prepared, undecided, no host running until the owner asks for the session.
+The ask is unchanged; the v005 packet is historical.

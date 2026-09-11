@@ -164,3 +164,12 @@ pinned by `qt_composed_github_scale_*` (this card's first criterion). With
 that amendment the contract passes for all four appearances (67.86 s) and
 the compact row at 1280 passes unchanged. `application_workbench_composition_contract`
 is green since [BPR-0718](../60-done/BPR-0718-the-workbench-composition-contract-is-red-at-the-pack-head.md).
+
+## Attended candidate, 2026-09-11 (v006)
+
+The pending criterion above is candidate `BPR-0721-drawer-controls` in
+[rfc-bpr-0028-attended-v006](../../verification/reviews/rfc-bpr-0028-attended-v006/operator-packet.md)
+on the bundle built from the source at d1ba791f (executable sha256
+`cc2afa7f…`), candidate revision `app-release-cc2afa7f-2026-09-11.2`;
+prepared, undecided, no host running until the owner asks for the session.
+The ask is unchanged; the v005 packet is historical.
