@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0723"
+  ],
+  "reserve_for": "attended-prep-2026-09-10-d5",
+  "purpose": "",
+  "created": "2026-09-11T06:09:34.038238+00:00",
+  "base": "ebf7ed919b8a6e1d6ca03f32e7fcdbd51f9d6100"
+}
