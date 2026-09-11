@@ -249,6 +249,58 @@ namespace bpr::adapters::sqlite::detail {
 			return { };
 		}
 
+		/// \brief Brings a version 1, 2 or 3 file to the current format.
+		///
+		/// \details Version 4 declares the version-3 columns unchanged. What
+		/// it does is reset: the built-in dark palette moved to the Visual
+		/// Studio dark / Visual Assist scheme ([[BPR-0720]]) and the owner
+		/// asked for the saved customisation of the old defaults to be
+		/// discarded rather than carried over it, so `palette_stored` is
+		/// cleared once on the way through. The document stays in the row,
+		/// where the reader ignores it while `palette_stored` is 0, and the
+		/// next store writes whatever the user chooses next.
+		///
+		/// A version-3 row is carried across a fresh table exactly as the
+		/// older versions are, so its CHECK constraints are verified again
+		/// and a tampered legacy value is refused at the migration rather
+		/// than admitted at open and refused at load.
+		[[nodiscard]] auto migrate_to_version_4(
+			::sqlite3* aDatabase, const std::int64_t aVersion, std::stop_token aStop)
+			-> std::expected<void, failure>
+		{
+			if (aVersion < 3) {
+				if (auto carried = migrate_to_version_3(aDatabase, aVersion, aStop); !carried) {
+					return carried;
+				}
+			} else {
+				constexpr auto columns = std::string_view{
+					"singleton, mode, palette_document, palette_variant, palette_stored,"
+					" ui_family, ui_point_size, ui_weight, ui_line_height, code_family,"
+					" code_point_size, code_weight, code_tab_width, code_ligatures,"
+					" code_syntax_bold, code_syntax_italic"
+				};
+				const auto rebuild = std::array{
+					std::string{ "CREATE TABLE appearance_settings_previous AS SELECT " }
+						+ std::string{ columns } + " FROM appearance_settings",
+					std::string{ "DROP TABLE appearance_settings" },
+					std::string{ SchemaVersion3[1] },
+					std::string{ "INSERT INTO appearance_settings(" } + std::string{ columns }
+						+ ") SELECT " + std::string{ columns }
+						+ " FROM appearance_settings_previous",
+					std::string{ "DROP TABLE appearance_settings_previous" },
+				};
+				for (const auto& statement : rebuild) {
+					if (auto ran = execute(aDatabase, statement, aStop); !ran) {
+						return ran;
+					}
+				}
+			}
+			return execute(
+				aDatabase,
+				"UPDATE appearance_settings SET palette_stored = 0 WHERE singleton = 1",
+				aStop);
+		}
+
 		[[nodiscard]] auto legacy_columns_match(
 			::sqlite3* aDatabase, const std::string_view aTable,
 			const std::span<const std::string_view> aNames) -> bool
@@ -286,18 +338,22 @@ namespace bpr::adapters::sqlite::detail {
 			-> std::expected<void, failure>
 		{
 			constexpr std::array<std::string_view, 2>  metaNames{ "singleton", "schema_format" };
-			constexpr std::array<std::string_view, 15> settingsNames{
+			constexpr std::array<std::string_view, 16> settingsNames{
 				"singleton", "mode", "palette_document", "ui_family", "ui_point_size",
 				"ui_weight", "ui_line_height", "code_family", "code_point_size",
 				"code_weight", "code_tab_width", "code_ligatures", "code_syntax_bold",
-				"code_syntax_italic", "palette_variant"
+				"code_syntax_italic", "palette_variant", "palette_stored"
 			};
-			const auto objects = scalar_integer(aDatabase,
-												"SELECT count(*) FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%'");
-			if ((aVersion != 1 && aVersion != 2) || !objects || *objects != 2
+			// Version 1 had neither trailing column, version 2 the variant,
+			// version 3 both.
+			const auto columnCount = aVersion == 1 ? 14U : aVersion == 2 ? 15U
+																		 : 16U;
+			const auto objects     = scalar_integer(aDatabase,
+													"SELECT count(*) FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%'");
+			if ((aVersion != 1 && aVersion != 2 && aVersion != 3) || !objects || *objects != 2
 				|| !legacy_columns_match(aDatabase, "appearance_meta", metaNames)
 				|| !legacy_columns_match(aDatabase, "appearance_settings",
-										 std::span{ settingsNames }.first(aVersion == 1 ? 14U : 15U))) {
+										 std::span{ settingsNames }.first(columnCount))) {
 				return std::unexpected(failure::schema_mismatch);
 			}
 			for (const auto table : { "appearance_meta", "appearance_settings" }) {
@@ -370,12 +426,18 @@ namespace bpr::adapters::sqlite::detail {
 			// does not have.
 			const auto established = *current == 0
 				? create_schema(aDatabase, aStop)
-				: migrate_to_version_3(aDatabase, *current, aStop);
+				: migrate_to_version_4(aDatabase, *current, aStop);
 			if (!established) {
 				rollback();
 				return established;
 			}
-			if (auto metadata = execute(aDatabase, "UPDATE appearance_meta SET schema_format = 3 WHERE singleton = 1", aStop); !metadata) {
+			if (auto metadata = execute(
+					aDatabase,
+					"UPDATE appearance_meta SET schema_format = "
+						+ std::to_string(appearance_settings_schema_version)
+						+ " WHERE singleton = 1",
+					aStop);
+				!metadata) {
 				rollback();
 				return metadata;
 			}

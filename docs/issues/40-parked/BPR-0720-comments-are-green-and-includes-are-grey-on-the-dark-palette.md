@@ -2,17 +2,19 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0720"
 title: "Comments are green and includes are grey on the dark palette"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0006"]
 depends_on: []
 priority: "P2"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"owner_direction":"2026-09-10","attended_decision":"65f3f881-91a3-4388-8b8c-0c69fc0a57d6","needs_owner_confirmation":true}
+parked_on: "human-review"
+acceptance: [{"criterion":"The appearance role tests pin the confirmed values for comment and preprocessor on the dark palette and fail on the current ones","outcome":"pass","revision":"working tree over dab5fa68","evidence":{"kind":"command","detail":"qt_appearance_profile: test_the_dark_palette_follows_the_visual_assist_scheme pins comment/documentation 66B559, preprocessor/import A3A3A3, keyword 6DA9DB, type 4EC9B0, function DCDCAA, string D69D85, number B5CEA8 on dark and the untouched light comment/preprocessor; it failed against the previous values before the palette edit and passes after; the contrast audit and headroom ratchet (dark 1 hundredth) pass."}},{"criterion":"qt_appearance_* and the theme customization course pass; the two application digests are repinned if the defaults are part of them","outcome":"pass","revision":"working tree over dab5fa68","evidence":{"kind":"command","detail":"qt_appearance_profile, qt_appearance_settings_panel, application_appearance_host, application_appearance_profile_consumers, core_appearance_contrast, core_appearance_policy, sqlite_appearance_settings_storage (version-3 reset once; version 3 in the legacy refusal sweep), application_appearance_store_fallback_contract, application_appearance_gesture_contract, application_review_round_trip_composition_contract, application_composition_contract, qt_composed_github_scale_100 pass in build/dev; no digest drifted (github_application.cpp untouched); check_boundaries, clang-format --Werror, strict tidy on the three touched TUs and git diff --check clean. application_appearance_theme_customization_contract is red at cc31119b before this change with BPR-0723's STARTUP_FAILED signature and is recorded on BPR-0723."}},{"criterion":"The owner accepts the rendering on the signed bundle in the next attended session","outcome":"pending","revision":"working tree over dab5fa68","evidence":{"kind":"observation","detail":"Candidate BPR-0720-dark-palette in the v005 attended packet on the tests-disabled bundle rebuilt at this head; the owner's store (schema 3, light-bound stored palette) is reset once on first launch by the schema-4 migration."}}]
 ---
 
 # Comments are green and includes are grey on the dark palette
 
 The owner, 2026-09-10, in the v003 verdict on
-[BPR-0646](../40-parked/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md):
+[BPR-0646](BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md):
 "Also comments a grey instead of green like was requested with visual
 studio dark mode with visual assist color scheme. And includes are green not
 grey, seems like those colors got swapped maybe? Or the theme in general

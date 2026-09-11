@@ -457,7 +457,7 @@ Read as five findings, none of them this card's criterion as written:
 - Comment and include colours have not changed since BPR-0199 (2026-08-07)
   and were not swapped; the request is a requirement under RFC-BPR-0006 held
   for the owner's confirmation of its extent:
-  [BPR-0720](../30-in-progress/BPR-0720-comments-are-green-and-includes-are-grey-on-the-dark-palette.md).
+  [BPR-0720](BPR-0720-comments-are-green-and-includes-are-grey-on-the-dark-palette.md).
 - The collapsed drawers' footprint, the setting to hide the drawer-side
   controls, and the heading row that `adopt()` leaves visible above each
   rail (the "…"):

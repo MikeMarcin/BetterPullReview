@@ -290,6 +290,38 @@ namespace {
 		}
 	}
 
+	/// \brief [[BPR-0720]]: the dark syntax roles follow the Visual Studio dark
+	/// theme with Visual Assist colouring; the light palette is untouched.
+	auto test_the_dark_palette_follows_the_visual_assist_scheme() -> void
+	{
+		const auto colour = [](const std::uint8_t aRed,
+							   const std::uint8_t aGreen,
+							   const std::uint8_t aBlue) {
+			return core::appearance_color{ aRed, aGreen, aBlue, 255U };
+		};
+		const auto& dark  = qt::builtin_appearance_palette(core::appearance_variant::dark);
+		const auto& light = qt::builtin_appearance_palette(core::appearance_variant::light);
+		const auto  pins  = std::array{
+			std::pair{ role::syntax_comment, colour(0x66U, 0xB5U, 0x59U) },
+			std::pair{ role::syntax_documentation, colour(0x66U, 0xB5U, 0x59U) },
+			std::pair{ role::syntax_preprocessor, colour(0xA3U, 0xA3U, 0xA3U) },
+			std::pair{ role::syntax_import, colour(0xA3U, 0xA3U, 0xA3U) },
+			std::pair{ role::syntax_keyword, colour(0x6DU, 0xA9U, 0xDBU) },
+			std::pair{ role::syntax_type, colour(0x4EU, 0xC9U, 0xB0U) },
+			std::pair{ role::syntax_function, colour(0xDCU, 0xDCU, 0xAAU) },
+			std::pair{ role::syntax_string, colour(0xD6U, 0x9DU, 0x85U) },
+			std::pair{ role::syntax_number, colour(0xB5U, 0xCEU, 0xA8U) },
+		};
+		for (const auto& [pinned, expected] : pins) {
+			expect(dark[core::index_of(pinned)] == expected,
+				   "the dark palette gives the pinned Visual Assist colour to "
+					   + std::string{ core::stable_name(pinned) });
+		}
+		expect(light[core::index_of(role::syntax_comment)] == colour(0x55U, 0x5EU, 0x69U)
+				   && light[core::index_of(role::syntax_preprocessor)] == colour(0x7AU, 0x3EU, 0x9DU),
+			   "the light palette keeps its own comment and preprocessor colours");
+	}
+
 	auto test_high_contrast_profiles_are_not_copies() -> void
 	{
 		constexpr auto pairs = std::array{
@@ -2451,6 +2483,7 @@ auto main(int argc, char** argv) -> int
 
 	test_fresh_installation_defaults_to_system();
 	test_builtin_profiles_are_total();
+	test_the_dark_palette_follows_the_visual_assist_scheme();
 	test_high_contrast_profiles_are_not_copies();
 	test_derived_text_stays_readable_on_every_fill();
 	test_the_core_decides_which_variant_applies();

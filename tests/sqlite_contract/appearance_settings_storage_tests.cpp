@@ -673,19 +673,61 @@ namespace {
 				   "fixture has the exact version-two column set and stamps");
 			expect(::sqlite3_close(raw) == SQLITE_OK, "legacy fixture closes");
 		}
-		chosen.PaletteStored = true;
+		// Version 3 carried a version-two palette forward as stored; version 4
+		// resets it once ([[BPR-0720]]), so every other value survives and
+		// the palette arrives as an empty override set.
+		chosen.PaletteStored = false;
 		{
 			auto migrated = appearance_settings_database::open(path, { });
 			expect(migrated.has_value(), "version two migrates");
 			const auto loaded = migrated->load({ });
-			expect(loaded && loaded->has_value() && **loaded == chosen, "legacy palettes retain customization and every stored value");
-			chosen.PaletteStored = false;
+			expect(loaded && loaded->has_value() && **loaded == chosen, "legacy records keep every stored value and arrive with the palette reset");
 			expect(migrated->store(chosen, { }).has_value(), "reset can persist an empty override set");
 		}
 		auto reopened = appearance_settings_database::open(path, { });
 		expect(reopened.has_value(), "reset database reopens");
 		const auto loaded = reopened->load({ });
 		expect(loaded && loaded->has_value() && **loaded == chosen, "reset survives SQLite close and reopen without changing other domains");
+	}
+
+	/// \brief [[BPR-0720]]: opening a version-3 file resets the stored palette once.
+	auto test_version_three_resets_the_stored_palette_once() -> void
+	{
+		const auto scratch   = scratch_directory{ };
+		const auto path      = scratch.file("v3.sqlite3");
+		auto       chosen    = distinct_settings();
+		chosen.PaletteStored = true;
+		{
+			auto database = appearance_settings_database::open(path, { });
+			expect(database.has_value() && database->store(chosen, { }).has_value(), "version-three fixture starts with a stored customisation");
+		}
+		{
+			::sqlite3* raw = nullptr;
+			expect(::sqlite3_open(path.string().c_str(), &raw) == SQLITE_OK, "version-three fixture opens raw");
+			expect(::sqlite3_exec(raw, "UPDATE appearance_meta SET schema_format = 3; PRAGMA user_version = 3", nullptr, nullptr, nullptr) == SQLITE_OK,
+				   "fixture carries the version-three columns and stamps");
+			expect(::sqlite3_close(raw) == SQLITE_OK, "version-three fixture closes");
+		}
+		{
+			auto migrated = appearance_settings_database::open(path, { });
+			expect(migrated.has_value(), "version three migrates");
+			const auto version = scalar_integer(migrated->handle(), "PRAGMA user_version");
+			expect(version.has_value() && *version == appearance_settings_schema_version, "the migrated file is stamped as the current format");
+			const auto loaded    = migrated->load({ });
+			chosen.PaletteStored = false;
+			expect(loaded && loaded->has_value() && **loaded == chosen,
+				   "the migration clears the stored palette and keeps the mode, variant and typography");
+		}
+		{
+			auto reopened = appearance_settings_database::open(path, { });
+			expect(reopened.has_value(), "the migrated file reopens at the current version");
+			chosen.PaletteStored = true;
+			expect(reopened->store(chosen, { }).has_value(), "a new customisation can be stored after the reset");
+		}
+		auto again = appearance_settings_database::open(path, { });
+		expect(again.has_value(), "the stored file reopens");
+		const auto loaded = again->load({ });
+		expect(loaded && loaded->has_value() && **loaded == chosen, "the reset happens once, not on every open");
 	}
 
 	[[nodiscard]] auto legacy_snapshot(::sqlite3* aDatabase) -> std::vector<std::string>
@@ -723,19 +765,27 @@ namespace {
 			"PRAGMA application_id = 123",
 			"PRAGMA ignore_check_constraints = ON; UPDATE appearance_settings SET code_ligatures = 7"
 		};
-		for (const auto version : { 1, 2 }) {
+		for (const auto version : { 1, 2, 3 }) {
 			for (std::size_t index = 0; index < mutations.size(); ++index) {
 				const auto path = scratch.file("legacy-" + std::to_string(version) + "-" + std::to_string(index) + ".sqlite3");
 				write_version_one_record(path, distinct_settings(), identity);
 				::sqlite3* raw = nullptr;
 				expect(::sqlite3_open(path.string().c_str(), &raw) == SQLITE_OK, "legacy fixture opens raw");
-				if (version == 2) {
+				if (version >= 2) {
 					expect(::sqlite3_exec(raw,
 										  "ALTER TABLE appearance_settings ADD COLUMN palette_variant TEXT NOT NULL DEFAULT 'dark';"
 										  "UPDATE appearance_meta SET schema_format = 2; PRAGMA user_version = 2",
 										  nullptr, nullptr, nullptr)
 							   == SQLITE_OK,
 						   "fixture upgrades to canonical version two");
+				}
+				if (version == 3) {
+					expect(::sqlite3_exec(raw,
+										  "ALTER TABLE appearance_settings ADD COLUMN palette_stored INTEGER NOT NULL DEFAULT 1 CHECK(palette_stored IN (0, 1));"
+										  "UPDATE appearance_meta SET schema_format = 3; PRAGMA user_version = 3",
+										  nullptr, nullptr, nullptr)
+							   == SQLITE_OK,
+						   "fixture upgrades to canonical version three");
 				}
 				expect(::sqlite3_exec(raw, mutations[index], nullptr, nullptr, nullptr) == SQLITE_OK, "legacy mutation runs");
 				const auto before = legacy_snapshot(raw);
@@ -804,6 +854,7 @@ auto main() -> int
 	test_a_newer_schema_is_refused_for_the_right_reason();
 	test_cancellation_leaves_the_record_untouched();
 	test_version_two_preserves_customization_and_reset();
+	test_version_three_resets_the_stored_palette_once();
 	test_legacy_refusal_preserves_schema_and_rows();
 	test_the_schema_stores_no_review_content();
 	std::cout << "appearance-settings-storage-tests:pass\n";
