@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0735"
+  ],
+  "reserve_for": "attended-prep-2026-09-10-d10-r7",
+  "purpose": "clangd noise card (mandate r7)",
+  "created": "2026-09-11T20:18:28.162505+00:00",
+  "base": "216f1f214ce09ced8bff6da6d3927198c6bd33ee"
+}
