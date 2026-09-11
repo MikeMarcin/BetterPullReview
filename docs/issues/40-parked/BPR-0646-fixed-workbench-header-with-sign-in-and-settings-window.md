@@ -476,3 +476,20 @@ as an observation, not a verdict. The strip's v002 acceptance stands. This
 card stays parked on human-review; its criterion is asked again on a bundle
 that carries BPR-0721 and BPR-0722, when the rails and identity it asks
 about are what the owner will see.
+
+## Attended candidate, 2026-09-10 (v004)
+
+Prepared again in
+[rfc-bpr-0028-attended-v004](../../verification/reviews/rfc-bpr-0028-attended-v004/operator-packet.md)
+on the bundle built at 3c9a3f1c, where
+[BPR-0719](BPR-0719-a-large-file-with-a-small-change-is-refused-by-the-comparison-work-limit.md),
+[BPR-0721](BPR-0721-a-setting-hides-the-drawer-side-controls-and-a-collapsed-rail-shows-only-its-rail.md)
+and
+[BPR-0722](BPR-0722-the-strip-hides-the-pull-request-identity-below-1400-pixels.md)
+have landed (executable sha256 `9261509a…`), candidate revision
+`app-release-9261509a-2026-09-10.3`. The third criterion is reworded for
+the drawer-controls setting: with it Shown a rail carries its label and
+count; with it Hidden, the default, a collapsed drawer leaves no column.
+The v003 rejection above stays bound to the v003 revision in the session
+history; the remaining criterion is undecided on this revision. No host is
+running until the owner asks for the session.

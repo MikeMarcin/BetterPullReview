@@ -304,3 +304,13 @@ undecided and stay protected; the epoch line's "No updates loaded." in the
 screenshots is recorded on [[BPR-0663]] as an observation. The owner's
 "Even in read mode viewing experience is not great" is an open question to
 the owner, not a card.
+
+Attended preparation, 2026-09-10 (v004). [[BPR-0719]], [[BPR-0721]] and
+[[BPR-0722]] landed; [[BPR-0720]] waits on the owner's answer. The same ten
+candidates plus one for each of the three are prepared again in
+[rfc-bpr-0028-attended-v004](../verification/reviews/rfc-bpr-0028-attended-v004/operator-packet.md)
+on the bundle built at 3c9a3f1c (executable sha256 `9261509a…`), candidate
+revision `app-release-9261509a-2026-09-10.3`; the v003 packet is
+historical. The drawer controls are off by default in this bundle, so the
+rail criteria are judged with the setting on. No host is running until the
+owner asks for the session.

@@ -71,3 +71,11 @@ packet's path through Home ("Read without signing in", paste the link):
 [BPR-0716](../10-backlog/BPR-0716-read-without-signing-in-is-offered-from-every-signed-out-home.md)
 covers Home over a restored review. This card is only the chrome's answer
 to "what review is this".
+
+## Attended candidate, 2026-09-10 (v004)
+
+The pending criterion above is candidate `BPR-0722-*` in
+[rfc-bpr-0028-attended-v004](../../verification/reviews/rfc-bpr-0028-attended-v004/operator-packet.md)
+on the bundle built at 3c9a3f1c (executable sha256 `9261509a…`), candidate
+revision `app-release-9261509a-2026-09-10.3`; prepared, undecided, no host
+running until the owner asks for the session.

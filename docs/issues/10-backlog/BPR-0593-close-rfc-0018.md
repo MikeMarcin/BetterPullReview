@@ -258,3 +258,24 @@ Next: a fresh tests-disabled bundle and the v004 packet with the same ten
 candidates plus the BPR-0719/0721/0722 asks, written only after no active
 card can rebuild the binary. The three owner questions stand as recorded
 above.
+
+## Attended preparation, 2026-09-10 (v004)
+
+The bundle was rebuilt at 3c9a3f1c (`cmake --preset app-release`, tests
+disabled, executable sha256 `9261509a…`, signature verified) after
+BPR-0721 was parked, so no active card could rebuild it. The session
+`cbd48b91…` carries the ten v003 candidates at revision
+`app-release-9261509a-2026-09-10.3` plus `BPR-0719-large-file-diff`,
+`BPR-0721-drawer-controls` and `BPR-0722-strip-identity`: thirteen ready
+and protected at sequence 182, none decided, in
+[rfc-bpr-0028-attended-v004](../../verification/reviews/rfc-bpr-0028-attended-v004/operator-packet.md).
+No host is running and no watch is armed; the packet says how to start
+both. BPR-0683's candidate is this closeout's, unchanged in substance.
+
+Next: on the owner's say-so, `serve` and a persistent `wait --after 182`;
+then consume the verdicts card by card. Until then the only independent
+work is BPR-0723 (the UIforETW startup failure), BPR-0718 (the red
+workbench composition contract) and BPR-0720 once the owner answers; the
+bundle inputs (`src/adapters/qt`, `src/app`, `src/core`, `src/adapters/sqlite`,
+`src/application`) are protected by the thirteen candidates until the
+owner says to resume development.

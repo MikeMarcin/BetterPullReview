@@ -81,3 +81,11 @@ product behaviour in front of the owner.
 - On the signed bundle the owner opens ScreenBufferTests.cpp in
   microsoft/terminal#20607 and sees the diff; this is asked in the next
   attended session rather than as a criterion the tests can close.
+
+## Attended candidate, 2026-09-10 (v004)
+
+The pending criterion above is candidate `BPR-0719-*` in
+[rfc-bpr-0028-attended-v004](../../verification/reviews/rfc-bpr-0028-attended-v004/operator-packet.md)
+on the bundle built at 3c9a3f1c (executable sha256 `9261509a…`), candidate
+revision `app-release-9261509a-2026-09-10.3`; prepared, undecided, no host
+running until the owner asks for the session.
