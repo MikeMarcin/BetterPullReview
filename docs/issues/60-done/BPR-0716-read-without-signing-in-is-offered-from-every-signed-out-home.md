@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0716"
 title: "Read without signing in is offered from every signed-out Home"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0026"]
 depends_on: ["BPR-0732"]
 priority: "P1"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"owner_direction":"2026-09-10","attended_decision":"bdd9244a-754a-4a7a-94b4-79c7110687d9"}
+acceptance: [{"criterion":"From each landing state while signed out, one visible control on Home activates the selected profile in public-preview mode and focuses the open bar; qt_composed_github_scale_{100,125,200} pin it per state","outcome":"pass","revision":"8935f2e3","evidence":{"kind":"observation","detail":"Superseded in scope by BPR-0732 (finish commit 8935f2e3): the signed-out Home is the account card and one paste field, focused, whose Open activates the anonymous public-preview setup path in one gesture; qt_composed_github_scale_{100,125,200} pin no queue heading/list/filters, no Read without signing in, the field focused, and the queue returning with an account; setup_destination_public_path reaches pull_request_ready with no sign-in step. The separate landing-state control this card first described is not needed once the field itself opens the link."}},{"criterion":"The owner accepts the flow on the signed bundle in the attended session that follows BPR-0715","outcome":"pass","revision":"2cdc0e57","evidence":{"kind":"observation","detail":"Attended session cbd48b91000b00f1e72e1ad62c7c384c, candidate BPR-0732-signed-out-home, revision app-release-64d9e46a-2026-09-11.3 (bundle built at 2cdc0e57, executable sha256 64d9e46a0fa7cff7e37d778d329a8e71bcf6ff13547bbc82eadb547ebb252827), fingerprint 81a8601820c70b1f5583507562c8b1b1275ff4dc5e9f115a62b0b7b60e2d08ae, decision 18afd9ae-c74b-4ddc-9e4f-e08f5f5d52ed, actor human, 2026-09-11T23:48:01Z: accept, no note. The v007 packet stated that BPR-0716 finishes with this candidate."}}]
 ---
 
 # Read without signing in is offered from every signed-out Home
@@ -27,7 +28,7 @@ inventory. The plan itself is unchanged, so no amendment was published.
 
 ## What Home does today
 
-[BPR-0670](../60-done/BPR-0670-public-preview-is-buried-and-does-not-say-what-it-is.md)
+[BPR-0670](BPR-0670-public-preview-is-buried-and-does-not-say-what-it-is.md)
 put "Read without signing in" on Home beside Connect, but only in the
 landing's `sign_in` state (`workbench_landing.cpp`,
 `ReadSignedOut->setVisible(aState == landing_state::sign_in)`). The pack-head
@@ -85,7 +86,7 @@ mode without an account from that first paste link. App seems to
 automatically, but very slowly, auto-load the last PR on app restart which
 is disorienting; a recently viewed list or something would be better."
 
-Two cards carry it. [BPR-0732](../60-done/BPR-0732-a-signed-out-home-is-one-paste-field-that-opens-a-public-pull-request.md)
+Two cards carry it. [BPR-0732](BPR-0732-a-signed-out-home-is-one-paste-field-that-opens-a-public-pull-request.md)
 takes this card's scope with it (the signed-out Home is the card, one
 paste field and the status bar; the field opens anonymously in one
 gesture; "Read without signing in" and the detour go). The "doesn't work
@@ -93,7 +94,21 @@ without an account" remark was verified against the code, not assumed:
 the Home bar goes through the setup destination, which is `ready` only
 for an authenticated profile, so "the bar under the card does open a
 pasted link" above was wrong; only the Settings session panel opens
-signed out. [BPR-0733](../60-done/BPR-0733-home-lists-recently-viewed-pull-requests-instead-of-restoring-the-last-one.md)
+signed out. [BPR-0733](BPR-0733-home-lists-recently-viewed-pull-requests-instead-of-restoring-the-last-one.md)
 replaces the automatic restore with a recently viewed list. This card
 depends on BPR-0732 and is finished from its own acceptance when the
 owner accepts that one.
+
+## Finished with BPR-0732, 2026-09-11 (v007)
+
+[BPR-0732](BPR-0732-a-signed-out-home-is-one-paste-field-that-opens-a-public-pull-request.md)
+took this card's scope: the signed-out Home is the account card and one
+paste field that opens a public link anonymously in one gesture, in every
+landing state, with no Settings detour and no separate "Read without
+signing in" screen. The owner accepted it in the v007 attended session
+(session `cbd48b91…`, candidate `BPR-0732-signed-out-home`, decision
+`18afd9ae`, 23:48:01Z, revision `app-release-64d9e46a-2026-09-11.3`,
+bundle built at 2cdc0e57). The first criterion is met by BPR-0732's
+`qt_composed_github_scale_{100,125,200}` pins (the field is the one
+control, focused, with the queue and the detour gone); the second by that
+verdict. Nothing was implemented under this card's own name. Done.

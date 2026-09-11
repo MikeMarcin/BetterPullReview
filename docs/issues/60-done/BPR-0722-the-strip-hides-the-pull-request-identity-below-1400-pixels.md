@@ -67,7 +67,7 @@ of 4") that mean nothing without it stay visible.
 
 The restored review at launch is also why the owner's run never took the
 packet's path through Home ("Read without signing in", paste the link):
-[BPR-0716](../30-in-progress/BPR-0716-read-without-signing-in-is-offered-from-every-signed-out-home.md)
+[BPR-0716](BPR-0716-read-without-signing-in-is-offered-from-every-signed-out-home.md)
 covers Home over a restored review. This card is only the chrome's answer
 to "what review is this".
 

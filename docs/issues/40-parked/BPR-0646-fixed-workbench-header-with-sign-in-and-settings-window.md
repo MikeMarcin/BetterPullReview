@@ -400,7 +400,7 @@ because the signed-out open no longer reaches a comparison, bisected to
 [BPR-0715](BPR-0715-opening-a-pull-request-signed-out-no-longer-reaches-a-comparison.md),
 which is not this card's code; and the Home flow is owner direction under
 RFC-BPR-0026, registered as
-[BPR-0716](../30-in-progress/BPR-0716-read-without-signing-in-is-offered-from-every-signed-out-home.md).
+[BPR-0716](../60-done/BPR-0716-read-without-signing-in-is-offered-from-every-signed-out-home.md).
 The other nine candidates have no decision; BPR-0663, BPR-0667, BPR-0676 and
 BPR-0677 need the same loaded review and could not be judged on this run.
 This card stays parked: its remaining criterion needs the capture again at a
@@ -568,7 +568,7 @@ Read per criterion:
 - Sign-in without scrolling: "Technically yes"; the criterion as written holds. The flow the
   owner wants (paste into the bar on Home, press Open, no account) and "the home screen is very
   messy" are Home direction under RFC-BPR-0026, recorded on
-  [BPR-0716](../30-in-progress/BPR-0716-read-without-signing-in-is-offered-from-every-signed-out-home.md).
+  [BPR-0716](../60-done/BPR-0716-read-without-signing-in-is-offered-from-every-signed-out-home.md).
 
 This card stays parked on human-review for the epoch line only; its candidate is asked again,
 narrowed to that criterion, on a bundle carrying BPR-0725.
