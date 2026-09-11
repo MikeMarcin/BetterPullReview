@@ -1236,10 +1236,11 @@ namespace {
 		const auto changed = computed("old\n", "new\n", { }, 70U);
 		publish(changed, false);
 		expect(workbench.selection().has_value(), "changed text supplies a selection before refusal");
-		auto limits                    = core::diff_compute_limits{ };
-		limits.MaximumMatrixCells      = 0U;
-		limits.MaximumPrimaryIndexWork = 0U;
-		const auto left = bytes("old\n"), right = bytes("new\n");
+		// [[BPR-0719]]: an exhausted matrix budget degrades to an approximate
+		// alignment, so only a segment overflow refuses the file now.
+		auto limits            = core::diff_compute_limits{ };
+		limits.MaximumSegments = 1U;
+		const auto left = bytes("same\nold\n"), right = bytes("same\nnew\n");
 		const auto limited = core::compute_file_diff({ .Key = key({ }, 71U), .Options = { }, .LeftBytes = left, .RightBytes = right, .Limits = limits });
 		expect(limited.Result && limited.Reason == core::diff_reason_code::compute_limit, "real compute limit produces an unavailable result");
 		for (const bool cached : { false, true }) {
