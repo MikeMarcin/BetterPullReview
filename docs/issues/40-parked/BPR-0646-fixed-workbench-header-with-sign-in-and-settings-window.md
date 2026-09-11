@@ -368,7 +368,7 @@ two drawers, with its own headings truncated to "Techni…etails" and
 
 Carried forward: [BPR-0674](../60-done/BPR-0674-overview-is-starved-by-the-drawers.md)
 for the overview's width and the drawers in Overview,
-[BPR-0675](BPR-0675-a-drawer-cannot-be-collapsed-by-anyone-who-has-not-read-the-code.md)
+[BPR-0675](../60-done/BPR-0675-a-drawer-cannot-be-collapsed-by-anyone-who-has-not-read-the-code.md)
 for collapsing a drawer,
 [BPR-0676](BPR-0676-the-epoch-line-does-not-show-whether-it-is-working.md)
 for the epoch line, and

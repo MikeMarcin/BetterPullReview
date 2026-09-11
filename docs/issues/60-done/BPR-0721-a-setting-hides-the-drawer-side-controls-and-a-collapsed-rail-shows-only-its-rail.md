@@ -33,7 +33,7 @@ row. `workbench_drawer_panel::adopt()`
 (`src/adapters/qt/src/workbench_drawer.cpp:517-524`) hides the column's
 direct child widgets when collapsing, but `Heading` and the `Collapse`
 ("Hide") button live in a nested `headingRow` layout (from 86375805,
-[BPR-0675](../40-parked/BPR-0675-a-drawer-cannot-be-collapsed-by-anyone-who-has-not-read-the-code.md)),
+[BPR-0675](BPR-0675-a-drawer-cannot-be-collapsed-by-anyone-who-has-not-read-the-code.md)),
 so the row stays visible in the rail and the Hide button is squeezed to
 "…". A collapsed drawer shows its rail and nothing else, and the composed
 test that pins the rail asserts the heading row is hidden. This part is not
