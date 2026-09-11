@@ -372,7 +372,7 @@ for the overview's width and the drawers in Overview,
 for collapsing a drawer,
 [BPR-0676](BPR-0676-the-epoch-line-does-not-show-whether-it-is-working.md)
 for the epoch line, and
-[BPR-0677](BPR-0677-the-comparison-stays-unavailable-after-the-history-is-ready.md)
+[BPR-0677](../60-done/BPR-0677-the-comparison-stays-unavailable-after-the-history-is-ready.md)
 for the comparison. The two review-page requests are AgentSkills ASK-0020.
 The title row is accepted: "the title row looks pretty good".
 

@@ -2,19 +2,18 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0677"
 title: "The comparison stays unavailable after the history is ready"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
-parked_on: "human-review"
-acceptance: [{"criterion":"The status line never advises a refresh while the comparison is being prepared","outcome":"pass","revision":"bb99c12e","evidence":{"kind":"observation","detail":"The epoch control exposes the state behind its wording and the status line reads it: loading, preparing, committing, resolving and maintaining all produce 'Its comparison is being prepared.' with no advice; only a settled history with no comparison advises a refresh. qt_composed_github_scale_{100,125,200} pin both sentences, and making the preparing branch unreachable fails the first. Fifty-six Qt, core and composition selectors pass with boundaries, strict tidy, format and docs."}},{"criterion":"A public pull request opened signed out reaches an exact comparison with files that can be selected and read","outcome":"pending","revision":"bb99c12e","evidence":{"kind":"freeform","detail":"Unobserved. The owner's log shows revision_prepare succeeding at 20:58:25 and their screenshot is stamped 20:58:28, so nobody has yet seen what the workbench does with the comparison that followed. It needs one more run of the signed bundle, which is queued with the rest of the attended work."}}]
+acceptance: [{"criterion":"The status line never advises a refresh while the comparison is being prepared","outcome":"pass","revision":"bb99c12e","evidence":{"kind":"observation","detail":"The epoch control exposes the state behind its wording and the status line reads it: loading, preparing, committing, resolving and maintaining all produce 'Its comparison is being prepared.' with no advice; only a settled history with no comparison advises a refresh. qt_composed_github_scale_{100,125,200} pin both sentences, and making the preparing branch unreachable fails the first. Fifty-six Qt, core and composition selectors pass with boundaries, strict tidy, format and docs."}},{"criterion":"A public pull request opened signed out reaches an exact comparison with files that can be selected and read","outcome":"pass","revision":"d1ba791f","evidence":{"kind":"observation","detail":"Attended session cbd48b91000b00f1e72e1ad62c7c384c, candidate BPR-0677-comparison-readable, revision app-release-cc2afa7f-2026-09-11.2 (bundle built at d1ba791f, executable sha256 cc2afa7fb84d443a1bba93373b990be83748be20451fa0b6adde45cc6fae4c1c), fingerprint 5e2a51662f363c2800d2b490ce1367b727af838c814cd88c3f377a01c7309eaf, decision 541f2d1f-4318-429f-8ba5-b4d2dcf37eae, actor human, 2026-09-11T18:36:41Z: accept. The owner's screenshot on the BPR-0646 decision (captures/owner-read-chrome-2026-09-11.png) shows file 2 of 4 selected with 'Diff ready — 2 semantic changes' and the status line 'Actionable file 2 of 4. Private progress: unread, not accepted. Review history is ready.'"}}]
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"}}
 ---
 
 # The comparison stays unavailable after the history is ready
 
 The owner's 2026-09-07 capture, on the build carrying
-[BPR-0667](BPR-0667-the-epoch-refuses-any-pull-request-whose-base-branch-moved.md),
+[BPR-0667](../40-parked/BPR-0667-the-epoch-refuses-any-pull-request-whose-base-branch-moved.md),
 shows the pull request loaded, four files listed, participants and
 since-my-last-review populated, and this status line:
 
@@ -84,3 +83,12 @@ after it.
   stopped three seconds after theirs. That, and whether ninety-five silent
   seconds is acceptable, belong to the next attended session and to
   [[BPR-0673]].
+
+## Attended verdict, 2026-09-11 (v006): accepted
+
+Session `cbd48b91…`, revision `app-release-cc2afa7f-2026-09-11.2` (bundle built at d1ba791f, executable sha256 `cc2afa7f…`), actor human; the session was handed back at sequence 278 with all fifteen candidates decided. Candidate `BPR-0677-comparison-readable`, decision `541f2d1f`, 18:36:41Z: **accept**, no note.
+The screenshot on the BPR-0646 decision
+([owner-read-chrome-2026-09-11.png](../../verification/reviews/rfc-bpr-0028-attended-v006/captures/owner-read-chrome-2026-09-11.png))
+shows file 2 of 4 selected, "Diff ready — 2 semantic changes" and "Review history is ready."
+Done. The ninety-five-second silent preparation stays with
+[BPR-0673](../10-backlog/BPR-0673-the-large-review-benchmark-exceeds-two-mac-budgets.md).
