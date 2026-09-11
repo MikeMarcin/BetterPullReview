@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0716"
 title: "Read without signing in is offered from every signed-out Home"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0026"]
 depends_on: ["BPR-0732"]
 priority: "P1"
