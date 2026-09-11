@@ -1372,9 +1372,100 @@ namespace {
 					   ->isVisible(),
 				   "every modality segment stays visible at the width floor");
 		}
+		// [[BPR-0722]]. The positions yield at the floor. No pull request is
+		// open here, so the identity has nothing to say and takes no width;
+		// with one open it stays at every width
+		// (test_strip_identity_stays_at_every_width).
 		expect(!window.identity_label()->isVisible()
 				   && !window.file_position_label()->isVisible(),
-			   "the identity and position text are what yield at the width floor");
+			   "the position text is what yields at the width floor");
+		window.hide();
+	}
+
+	/// [[BPR-0722]]. With a long identity published, the strip shows the
+	/// repository and number at the default size and at 1280, nothing enters
+	/// the toolbar's overflow at any width, and the parts yield in order:
+	/// title, owner, positions, then the number. At 100% scale the other
+	/// strip items fill about 900 pixels, the window's floor, so below about
+	/// 960 the number has no room and the identity yields whole; which
+	/// control should give way there is asked of the owner on the card.
+	void test_strip_identity_stays_at_every_width()
+	{
+		intent_log           log;
+		qt::workbench_window window{
+			[&log](core::workbench_interaction_intent aIntent) {
+				log.Workbench.push_back(aIntent);
+			},
+			[&log](core::navigate_diff_change_intent aIntent) {
+				log.Change.push_back(aIntent);
+			}
+		};
+		window.resize(1'920, 1'080);
+		window.show();
+		QApplication::processEvents();
+		window.publish(application::github_presentation_update{
+			.PullRequest = application::github_pull_request_projection{
+				.Owner          = "microsoft",
+				.RepositoryName = "terminal",
+				.Number         = core::pull_request_number{ 20607U },
+				.Title          = "Fix the ScreenBufferTests suite so that every scrolling case restores the viewport it started with",
+			},
+		});
+		QApplication::processEvents();
+
+		const auto overflowShown = [&window]() {
+			auto* const extension = window.primary_toolbar()->findChild<QToolButton*>(
+				QStringLiteral("qt_toolbar_ext_button"));
+			return extension != nullptr && extension->isVisible();
+		};
+		struct width_case
+		{
+			int  Width     = 0;
+			bool Identity  = false;
+			bool Title     = false;
+			bool Owner     = false;
+			bool Positions = false;
+		};
+		const auto cases = std::array{
+			width_case{ 1'920, true, true, true, true },
+			width_case{ 1'280, true, false, true, true },
+			width_case{ 960, false, false, false, true },
+			width_case{ window.minimumWidth(), false, false, false, false },
+		};
+		for (const auto& testCase : cases) {
+			window.resize(testCase.Width, 820);
+			QApplication::processEvents();
+			expect(!overflowShown(), "no strip control folds into an overflow menu at any width");
+			expect(window.file_position_label()->isVisible() == testCase.Positions,
+				   "the positions yield before the number does and keep their rule once it has gone");
+			expect(window.identity_label()->isVisible() == testCase.Identity,
+				   "the identity is visible wherever its number has room");
+			if (!testCase.Identity) {
+				continue;
+			}
+			const auto text = window.identity_label()->text();
+			expect(text.contains(QStringLiteral("#20607")), "the strip identity carries the number");
+			expect(text.contains(QStringLiteral("terminal")), "the strip identity keeps the repository");
+			expect(text.contains(QStringLiteral("Fix the ScreenBufferTests")) == testCase.Title,
+				   "the title is the first part of the identity to yield");
+			expect(text.contains(QStringLiteral("microsoft/")) == testCase.Owner,
+				   "the owner yields after the title");
+			expect(window.identity_label()->toolTip().contains(QStringLiteral("microsoft/terminal  #20607 Fix the ScreenBufferTests")),
+				   "the full identity stays in the tooltip");
+		}
+		// Every width between: nothing folds, and once the identity has
+		// yielded it does not come back at a narrower width.
+		auto identityGone = false;
+		for (auto width = 1'920; width >= window.minimumWidth(); width -= 20) {
+			window.resize(width, 820);
+			QApplication::processEvents();
+			expect(!overflowShown(), "no strip control folds into an overflow menu at any width");
+			const auto identity = window.identity_label()->isVisible();
+			expect(!identity || window.identity_label()->text().contains(QStringLiteral("#20607")),
+				   "a visible identity always carries the number");
+			expect(!(identityGone && identity), "the identity yields once, at the width its number stops fitting");
+			identityGone = identityGone || !identity;
+		}
 		window.hide();
 	}
 
@@ -5567,6 +5658,7 @@ auto main(int argc, char** argv) -> int
 	test_the_view_menu_reaches_the_composed_source_panes();
 	test_collapsing_a_drawer_returns_space_to_the_centre();
 	test_strip_modalities_positions_and_account();
+	test_strip_identity_stays_at_every_width();
 	test_strip_is_the_title_row();
 	test_rails_reopen_their_drawers();
 	test_review_details_return_height_to_the_comparison();

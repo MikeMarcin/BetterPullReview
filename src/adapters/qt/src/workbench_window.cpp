@@ -32,6 +32,7 @@
 #include <QItemSelectionModel>
 #include <QKeySequence>
 #include <QLabel>
+#include <QLayout>
 #include <QLineEdit>
 #include <QListView>
 #include <QListWidget>
@@ -132,6 +133,15 @@ namespace bpr::qt {
 		/// the drawer's design width instead and the next drag persists a
 		/// real one.
 		constexpr std::uint32_t minimum_presented_drawer_width = 160U;
+		/// \brief Width from which the strip identity carries the title.
+		///
+		/// \details [[BPR-0722]]. Below this the title yields, below
+		/// identity_owner_width the owner yields too; the repository and the
+		/// number stay as far down as the number has room (apply_strip_width).
+		constexpr int identity_full_width  = 1'400;
+		constexpr int identity_owner_width = 1'180;
+		/// \brief Least width the repository keeps beside the number when elided.
+		constexpr int identity_fragment_width = 24;
 #if defined(__APPLE__)
 		/// \brief Width the macOS window buttons occupy at the strip's left.
 		constexpr int traffic_light_inset = 78;
@@ -4069,9 +4079,60 @@ namespace bpr::qt {
 		if (IdentityLabel == nullptr) {
 			return;
 		}
-		IdentityLabel->setText(IdentityLabel->fontMetrics().elidedText(
-			IdentityText, Qt::ElideRight, 360));
+		// [[BPR-0722]]. The identity is the only in-window statement of which
+		// pull request is open (the macOS title bar is hidden), so it yields
+		// last. By width it sheds the title, then the owner; the number stays
+		// as far down as it has room (apply_strip_width decides that). Nothing
+		// here folds into an overflow menu.
+		const auto  available = width();
+		const auto& metrics   = IdentityLabel->fontMetrics();
+		// What the other strip items leave: the toolbar folds anything past
+		// its width into the extension button, so the identity never asks
+		// for more than that remainder.
+		const auto margins = IdentityLabel->contentsMargins();
+		const auto room    = std::max(strip_identity_budget() - margins.left() - margins.right(), 0);
+		auto       text    = QString{ };
+		if (IdentityText.isEmpty()) {
+			text = QString{ };
+		} else if (available >= identity_full_width) {
+			text = metrics.elidedText(IdentityText, Qt::ElideRight, std::min(360, room));
+		} else {
+			const auto repository = available >= identity_owner_width
+				? QStringLiteral("%1/%2").arg(IdentityOwner, IdentityRepository)
+				: IdentityRepository;
+			const auto number     = QStringLiteral("  #%1").arg(IdentityNumber);
+			const auto budget     = std::min(available >= identity_owner_width ? 300 : 200, room)
+				- metrics.horizontalAdvance(number);
+			text = metrics.elidedText(repository, Qt::ElideMiddle, std::max(budget, identity_fragment_width)) + number;
+		}
+		IdentityLabel->setText(text);
 		IdentityLabel->setToolTip(IdentityText);
+	}
+
+	auto workbench_window::strip_identity_budget() const -> int
+	{
+		if (PrimaryToolbar == nullptr || IdentityLabel == nullptr || IdentityAction == nullptr) {
+			return 0;
+		}
+		// [[BPR-0722]]. The toolbar folds into its extension button exactly
+		// when its size hint exceeds its width, so the identity's room is
+		// the width less what every other visible item asks for: the hint
+		// with the identity's own current hint taken back out. A small
+		// slack covers the toolbar's rounding; the floor leaves no other.
+		constexpr int slack    = 12;
+		const auto    identity = IdentityAction->isVisible() ? IdentityLabel->sizeHint().width() : 0;
+		return width() - (PrimaryToolbar->sizeHint().width() - identity) - slack;
+	}
+
+	auto workbench_window::strip_identity_minimum() const -> int
+	{
+		if (IdentityLabel == nullptr) {
+			return 0;
+		}
+		// The number, a short repository fragment and the label's margins.
+		const auto margins = IdentityLabel->contentsMargins();
+		return IdentityLabel->fontMetrics().horizontalAdvance(QStringLiteral("  #%1").arg(IdentityNumber))
+			+ identity_fragment_width + margins.left() + margins.right();
 	}
 
 	void workbench_window::update_account_action()
@@ -4327,11 +4388,14 @@ namespace bpr::qt {
 			ConversationPanel->cards()->set_pull_request_author(
 				QString::fromStdString(aPullRequest.AuthorLogin));
 		}
-		IdentityText = QStringLiteral("%1/%2  #%3 %4")
-						   .arg(QString::fromStdString(aPullRequest.Owner),
-								QString::fromStdString(aPullRequest.RepositoryName),
-								QString::number(aPullRequest.Number.value()),
-								QString::fromStdString(aPullRequest.Title));
+		IdentityOwner      = QString::fromStdString(aPullRequest.Owner);
+		IdentityRepository = QString::fromStdString(aPullRequest.RepositoryName);
+		IdentityNumber     = QString::number(aPullRequest.Number.value());
+		IdentityText       = QStringLiteral("%1/%2  #%3 %4")
+								 .arg(IdentityOwner,
+									  IdentityRepository,
+									  IdentityNumber,
+									  QString::fromStdString(aPullRequest.Title));
 		update_strip_identity();
 		// The gap BPR-0191 recorded closes here. In the two-window arrangement
 		// the anchor could only follow a conversation projection, because nothing
@@ -4420,6 +4484,9 @@ namespace bpr::qt {
 		HasGithubPullRequest = false;
 		ReviewThreadTotal    = 0U;
 		IdentityText.clear();
+		IdentityOwner.clear();
+		IdentityRepository.clear();
+		IdentityNumber.clear();
 		update_strip_identity();
 		update_rail_summaries();
 		PullRequestPanel->clear();
@@ -5374,20 +5441,54 @@ namespace bpr::qt {
 			return;
 		}
 		const auto available = width();
-		// [[BPR-0647]]. 1400, not 1180: with the Home button in the row, a
-		// long identity at 1280 pushed the right region into the overflow
-		// menu the design forbids (the UIforETW contract's compact row).
-		IdentityAction->setVisible(!StripHome && available >= 1'400);
-		ChangePositionAction->setVisible(!StripHome && available >= 960);
-		FilePositionAction->setVisible(!StripHome && available >= 960);
-		if (NextNewCommentAction != nullptr && NewCommentCountAction != nullptr) {
-			NextNewCommentAction->setVisible(!StripHome);
-			NewCommentCountAction->setVisible(!StripHome && available >= 960);
-		}
+		// [[BPR-0722]]. With a pull request open the identity stays as far
+		// down as its number fits: below 1400 it drops the title, below 1180
+		// the owner, and keeps repository and number elided to what the other
+		// items leave (see update_strip_identity). BPR-0647 hid it whole
+		// below 1400 because a long identity at 1280 pushed the right region
+		// into the overflow menu; the shorter forms fit instead. With nothing
+		// open there is nothing to identify, and the label takes no width.
+		IdentityAction->setVisible(!StripHome && !IdentityText.isEmpty());
+		// The yield order as the window narrows: the identity's title, then
+		// its owner (update_strip_identity), then the modality shortcuts,
+		// then the positions, and last the identity's number. Each step only
+		// frees room, so nothing that has yielded returns at a narrower
+		// width. When the number has no room even after all of them -- at
+		// 100% scale the other items fill about 900 pixels, the window's
+		// floor -- the identity yields whole and the positions keep their
+		// own rule; which control should give way there is the owner's
+		// call, not this card's.
+		const auto identityShort = [this] {
+			return IdentityAction->isVisible() && strip_identity_budget() < strip_identity_minimum();
+		};
+		auto       positions     = !StripHome && available >= 960;
+		const auto showPositions = [this, &positions] {
+			ChangePositionAction->setVisible(positions);
+			FilePositionAction->setVisible(positions);
+			if (NextNewCommentAction != nullptr && NewCommentCountAction != nullptr) {
+				NextNewCommentAction->setVisible(!StripHome);
+				NewCommentCountAction->setVisible(positions);
+			}
+		};
+		showPositions();
 		if (Modality != nullptr) {
 			// The segments keep their names and lose the shortcut beside them.
-			Modality->set_compact(available < 1'000);
+			// [[BPR-0722]]. 1100, not 1000: with the positions shown from 960,
+			// the expanded segments overflowed the strip between 1000 and
+			// about 1050 (a 1040 window laid out 1050 pixels), which the
+			// width sweep in the window tests now pins.
+			Modality->set_compact(available < 1'100 || identityShort());
 		}
+		if (positions && identityShort()) {
+			positions = false;
+			showPositions();
+		}
+		if (identityShort()) {
+			IdentityAction->setVisible(false);
+			positions = !StripHome && available >= 960;
+			showPositions();
+		}
+		update_strip_identity();
 	}
 
 	void workbench_window::changeEvent(QEvent* const aEvent)

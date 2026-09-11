@@ -688,6 +688,11 @@ namespace bpr::qt {
 		void apply_strip_width();
 		void apply_review_details_visibility();
 		void update_home_landing();
+
+		/// [[BPR-0722]]. Pixels the other visible strip items leave the identity.
+		[[nodiscard]] auto strip_identity_budget() const -> int;
+		/// [[BPR-0722]]. Least width the identity's number-and-fragment form needs.
+		[[nodiscard]] auto strip_identity_minimum() const -> int;
 		/// \brief Shows the overview or the comparison for the current modality.
 		void apply_modality_surface();
 		/// \brief [[BPR-0648]]. Re-aligns the comment cards and the gutter marks.
@@ -804,6 +809,9 @@ namespace bpr::qt {
 		QAction*                                 ChangePositionAction = nullptr;
 		QAction*                                 FilePositionAction   = nullptr;
 		QString                                  IdentityText;
+		QString                                  IdentityOwner;
+		QString                                  IdentityRepository;
+		QString                                  IdentityNumber;
 		QMenuBar*                                PrimaryMenuBar       = nullptr;
 		QMenu*                                   ViewMenu             = nullptr;
 		QMenu*                                   ProfilesMenu         = nullptr;
