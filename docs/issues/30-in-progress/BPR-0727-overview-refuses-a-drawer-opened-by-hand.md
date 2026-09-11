@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0727"
 title: "Overview refuses a drawer opened by hand"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P2"
