@@ -432,7 +432,7 @@ fingerprints match the prepared candidates; no stale verdict):
   and [BPR-0676](../40-parked/BPR-0676-the-epoch-line-does-not-show-whether-it-is-working.md)
   (all three the empty epoch line on a cache hit, [BPR-0725](../40-parked/BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md));
   [BPR-0720](../40-parked/BPR-0720-comments-are-green-and-includes-are-grey-on-the-dark-palette.md)
-  (roles never emitted for C++, [BPR-0726](../20-ready/BPR-0726-functions-types-and-macros-are-uncoloured-in-c-and-c-plus-plus.md)).
+  (roles never emitted for C++, [BPR-0726](../30-in-progress/BPR-0726-functions-types-and-macros-are-uncoloured-in-c-and-c-plus-plus.md)).
 - Selections: [BPR-0727](../20-ready/BPR-0727-overview-refuses-a-drawer-opened-by-hand.md),
   [BPR-0728](../20-ready/BPR-0728-the-conversations-drawer-goes-narrower-than-375-pixels-in-read.md),
   [BPR-0729](BPR-0729-a-single-pane-read-layout-in-the-manner-of-p4merge.md).

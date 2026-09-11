@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0726"
 title: "Functions, types and macros are uncoloured in C and C++"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0006"]
 depends_on: []
 priority: "P2"
