@@ -90,3 +90,12 @@ Decision recorded: the strip keeps its 900-pixel floor and, below about
 This settles nothing else on this card; the attended criterion (the owner
 can say which pull request is open at the default size and at 1280x820) is
 still asked, on the v005 bundle.
+
+## Attended candidate, 2026-09-11 (v005)
+
+The pending criterion above is candidate `BPR-0722-strip-identity` in
+[rfc-bpr-0028-attended-v005](../../verification/reviews/rfc-bpr-0028-attended-v005/operator-packet.md)
+on the bundle built from the source at 25e1525d (executable sha256
+`d238842d…`), candidate revision `app-release-d238842d-2026-09-11.1`;
+prepared, undecided, no host running until the owner asks for the session.
+The v004 packet is historical.

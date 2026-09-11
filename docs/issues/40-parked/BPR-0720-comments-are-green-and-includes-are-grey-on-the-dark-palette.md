@@ -123,3 +123,12 @@ before this change with BPR-0723's `STARTUP_FAILED` signature and is
 recorded there, not here. The attended criterion (the owner accepts the
 rendering on the signed bundle) is candidate `BPR-0720-dark-palette` in
 the v005 packet.
+
+## Attended candidate, 2026-09-11 (v005)
+
+The pending criterion above is candidate `BPR-0720-dark-palette` in
+[rfc-bpr-0028-attended-v005](../../verification/reviews/rfc-bpr-0028-attended-v005/operator-packet.md)
+on the bundle built from the source at 25e1525d (executable sha256
+`d238842d…`), candidate revision `app-release-d238842d-2026-09-11.1`;
+prepared, undecided, no host running until the owner asks for the session.
+The v004 packet is historical.

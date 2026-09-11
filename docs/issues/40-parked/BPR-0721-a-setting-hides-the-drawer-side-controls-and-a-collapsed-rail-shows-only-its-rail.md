@@ -138,3 +138,12 @@ The pending criterion above is candidate `BPR-0721-*` in
 on the bundle built at 3c9a3f1c (executable sha256 `9261509a…`), candidate
 revision `app-release-9261509a-2026-09-10.3`; prepared, undecided, no host
 running until the owner asks for the session.
+
+## Attended candidate, 2026-09-11 (v005)
+
+The pending criterion above is candidate `BPR-0721-drawer-controls` in
+[rfc-bpr-0028-attended-v005](../../verification/reviews/rfc-bpr-0028-attended-v005/operator-packet.md)
+on the bundle built from the source at 25e1525d (executable sha256
+`d238842d…`), candidate revision `app-release-d238842d-2026-09-11.1`;
+prepared, undecided, no host running until the owner asks for the session.
+The v004 packet is historical.

@@ -89,3 +89,12 @@ says so. `qt_workbench_window_scale_{100,125,200}` and
 --Werror` and `git diff --check` are clean. Part 2 is the options
 candidate `BPR-0724-read-width` in the v005 attended packet; the card
 stays parked on human-review until the owner picks.
+
+## Attended candidate, 2026-09-11 (v005)
+
+The pending criterion above is candidate `BPR-0724-read-width` in
+[rfc-bpr-0028-attended-v005](../../verification/reviews/rfc-bpr-0028-attended-v005/operator-packet.md)
+on the bundle built from the source at 25e1525d (executable sha256
+`d238842d…`), candidate revision `app-release-d238842d-2026-09-11.1`;
+prepared, undecided, no host running until the owner asks for the session.
+The v004 packet is historical.

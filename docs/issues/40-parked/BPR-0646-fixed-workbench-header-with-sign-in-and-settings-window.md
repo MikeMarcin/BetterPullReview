@@ -506,3 +506,12 @@ The strip below about 960 pixels: "leave it be for now", recorded on
 [BPR-0722](BPR-0722-the-strip-hides-the-pull-request-identity-below-1400-pixels.md).
 This card's remaining criterion is unchanged and is asked again on the
 v005 bundle.
+
+## Attended candidate, 2026-09-11 (v005)
+
+The pending criterion above is candidate `BPR-0646-workbench-chrome` in
+[rfc-bpr-0028-attended-v005](../../verification/reviews/rfc-bpr-0028-attended-v005/operator-packet.md)
+on the bundle built from the source at 25e1525d (executable sha256
+`d238842d…`), candidate revision `app-release-d238842d-2026-09-11.1`;
+prepared, undecided, no host running until the owner asks for the session.
+The v004 packet is historical.

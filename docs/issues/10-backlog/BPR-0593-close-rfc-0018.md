@@ -279,3 +279,53 @@ workbench composition contract) and BPR-0720 once the owner answers; the
 bundle inputs (`src/adapters/qt`, `src/app`, `src/core`, `src/adapters/sqlite`,
 `src/application`) are protected by the thirteen candidates until the
 owner says to resume development.
+
+## Continuation after the owner's answers, 2026-09-10 (v005)
+
+Dispatch `attended-prep-2026-09-10` d7 (mandate r3: the owner answered the
+three open questions). The thirteen v004 candidates were released through
+`resume-development --paths src/adapters/qt src/adapters/sqlite
+--resources install:…` (all thirteen protect those paths; sequence 183)
+before any source edit. Landed on main:
+
+- [BPR-0724](../40-parked/BPR-0724-read-mode-leaves-too-little-horizontal-room-for-the-code.md)
+  (`25e1525d`): "it was difficult to read the code because of a lack of
+  horizontal area for the text display". Read collapses the repositories
+  drawer as well as the files drawer (300 pixels back to the comparison);
+  what Read does with the conversations drawer (375-pixel minimum) or a
+  single-pane layout is an options candidate, because the RFC's Read
+  definition and AC-05 settle it the other way today. Parked.
+- [BPR-0720](../40-parked/BPR-0720-comments-are-green-and-includes-are-grey-on-the-dark-palette.md)
+  (`c5bd59f8`): "the whole palette, yes reset". The dark syntax roles
+  follow Visual Studio dark / Visual Assist; three values lightened to the
+  4.5:1 floor on the diff fills (the audit and ratchet pass); the
+  appearance store moves to schema 4 and clears `palette_stored` once on
+  the way through (the owner's store holds a light-bound customisation at
+  schema 3, so that is what the reset removes). Parked.
+- [BPR-0722](../40-parked/BPR-0722-the-strip-hides-the-pull-request-identity-below-1400-pixels.md):
+  "leave it be for now" recorded as the decision to keep the 900-pixel
+  floor and the whole-identity yield below about 960; its attended
+  criterion is unchanged.
+- [BPR-0723](../20-ready/BPR-0723-the-uiforetw-selected-diff-contract-fails-at-startup-on-head.md):
+  `application_appearance_theme_customization_contract` shares the
+  `STARTUP_FAILED` signature at cc31119b on a clean worktree build, before
+  this milestone's changes; recorded there, not attributed here.
+
+The bundle was rebuilt after both cards were parked (executable sha256
+`d238842d…`, signed, tests disabled; a rebuild at 25e1525d is a no-op) and
+the session `cbd48b91…` carries the thirteen v004 candidates at revision
+`app-release-d238842d-2026-09-11.1` plus `BPR-0720-dark-palette` and the
+options group `BPR-0724-read-width`: fifteen ready and protected at
+sequence 228, none decided, in
+[rfc-bpr-0028-attended-v005](../../verification/reviews/rfc-bpr-0028-attended-v005/operator-packet.md).
+No host is running and no watch is armed; the packet says how to start
+both.
+
+Next: on the owner's say-so, `serve` and a persistent `wait --after 228`;
+then consume the verdicts card by card (a BPR-0724 selection other than
+"leave Read as it is" is a new bounded slice; the first option amends
+AC-05). Until then the only independent work is BPR-0723 (now also the
+theme customization contract) and BPR-0718; the bundle inputs
+(`src/adapters/qt`, `src/adapters/sqlite`, `src/app`, `src/core`,
+`src/application`) are protected by the fifteen candidates until the
+owner says to resume development.

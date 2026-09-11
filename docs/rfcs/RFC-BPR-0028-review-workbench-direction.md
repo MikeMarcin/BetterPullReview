@@ -329,3 +329,12 @@ stay as it is. The dark palette: "the whole palette, yes reset", landed on
 it be for now", recorded on [[BPR-0722]] as a decision to keep the
 900-pixel floor and the whole-identity yield; nothing else on that card is
 settled by it.
+
+Attended preparation, 2026-09-11 (v005). [[BPR-0720]] and [[BPR-0724]]
+landed. The thirteen v004 candidates plus one for each of the two are
+prepared again in
+[rfc-bpr-0028-attended-v005](../verification/reviews/rfc-bpr-0028-attended-v005/operator-packet.md)
+on the bundle built from the source at 25e1525d (executable sha256
+`d238842d…`), candidate revision `app-release-d238842d-2026-09-11.1`; the
+v004 packet is historical. No host is running until the owner asks for
+the session.
