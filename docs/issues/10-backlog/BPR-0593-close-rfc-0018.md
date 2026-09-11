@@ -16,8 +16,8 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 Dispatch `attended-prep-2026-09-10` d10 (mandate r6). The owner answered
 d9's three asks; each is recorded on its cards and the round continues
-on main. Order, all on main: [[BPR-0725]] (in progress, epoch line on a
-cache hit), [[BPR-0726]] (C/C++ roles), [[BPR-0727]] and [[BPR-0728]] as
+on main. Order, all on main: [[BPR-0725]] (landed, parked for the v007 verdict: the core
+requests the newest history page once the revision settles), [[BPR-0726]] (C/C++ roles), [[BPR-0727]] and [[BPR-0728]] as
 one drawer milestone, then the Home cards [[BPR-0732]] (signed-out Home
 is one paste field that opens anonymously; carries [[BPR-0716]]) and
 [[BPR-0733]] (recently viewed list replaces the automatic restore), then
@@ -27,8 +27,10 @@ BPR-0676, BPR-0720) plus the new asks. After the v007 verdicts:
 [[BPR-0734]], the design round for the single-pane Read ([[BPR-0729]]
 depends on it). After the macOS and platform-agnostic work: [[BPR-0730]]
 and [[BPR-0731]] on their stations; this closeout depends on both and
-stays in Backlog until they are Done. No host is running and no watch is
-armed. Detail below under "Continuation after the owner's answers".
+stays in Backlog until they are Done. Outside the pack, at the owner's
+r7 request: [[BPR-0735]] (clangd finds no compile database), Ready, not
+started. No host is running and no watch is armed. Detail below under
+"Continuation after the owner's answers".
 
 ## Objective
 
@@ -428,7 +430,7 @@ fingerprints match the prepared candidates; no stale verdict):
   (strip accepted; epoch line not judgeable; rails retracted; sign-in
   "technically yes"), [BPR-0663](../40-parked/BPR-0663-public-preview-refuses-the-epoch-smart-acquire.md)
   and [BPR-0676](../40-parked/BPR-0676-the-epoch-line-does-not-show-whether-it-is-working.md)
-  (all three the empty epoch line on a cache hit, [BPR-0725](../30-in-progress/BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md));
+  (all three the empty epoch line on a cache hit, [BPR-0725](../40-parked/BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md));
   [BPR-0720](../40-parked/BPR-0720-comments-are-green-and-includes-are-grey-on-the-dark-palette.md)
   (roles never emitted for C++, [BPR-0726](../20-ready/BPR-0726-functions-types-and-macros-are-uncoloured-in-c-and-c-plus-plus.md)).
 - Selections: [BPR-0727](../20-ready/BPR-0727-overview-refuses-a-drawer-opened-by-hand.md),
@@ -505,3 +507,9 @@ because BPR-0732 changes the Home the four parked candidates are reached
 through and BPR-0733 changes what the bundle does at launch; both belong
 in the v007 bundle so the owner sees one Home. IDs BPR-0732 to BPR-0734
 were reserved on main (`b1d4e14b`).
+
+BPR-0725 landed in this dispatch (see its verification record); the
+maintenance public path was the one course it disturbed, repaired in the
+probe. Mandate r7 added one card, [BPR-0735](../20-ready/BPR-0735-clangd-cannot-find-the-compile-database-and-reports-every-header-missing.md):
+clangd reads no compile database because the project's lands in
+`build/dev` and there is no `.clangd`; filed, not started. Next: BPR-0726.

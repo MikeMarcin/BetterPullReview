@@ -5552,7 +5552,18 @@ namespace {
 						: 1U;
 					if (aRun->MaintenanceProbe
 						!= automated_run::epoch_maintenance_probe::none) {
-						if (begin_epoch_maintenance_probe(aApplication, *aRun)) {
+						// [[BPR-0725]]. The core now loads the newest page as
+						// soon as the revision settles, so a restarted run can
+						// already hold both epochs here and skip the
+						// Return-to-newest hop. A probe step that returns true
+						// without leaving `open` (the pruned run's diff request)
+						// must continue in the history stage, which polls the
+						// probe alone, rather than be re-gated on this stage's
+						// unfocused presentation once the diff is displayed.
+						if (begin_epoch_maintenance_probe(aApplication, *aRun)
+							&& aRun->Stage == automated_run::stage::open) {
+							advance_fixture_stage(
+								*aRun, automated_run::stage::epoch_maintenance_history);
 						}
 						break;
 					}

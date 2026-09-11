@@ -125,7 +125,7 @@ to the line: the line gains rows only from an accepted append or a requested his
 and a revision prepared with no mutation goes straight to the comparison
 (`src/core/src/epoch_transition.cpp:1302-1309`). A fresh open of a cached pull request
 through Home would show the same empty line. Carded as
-[BPR-0725](../30-in-progress/BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md).
+[BPR-0725](BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md).
 This card's own change is not in question; it stays parked on human-review for the line, asked
 again on a bundle carrying BPR-0725. The comparison half of the same run was accepted on
 [BPR-0667](../60-done/BPR-0667-the-epoch-refuses-any-pull-request-whose-base-branch-moved.md).

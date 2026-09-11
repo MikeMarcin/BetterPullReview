@@ -558,7 +558,7 @@ Read per criterion:
   launch records only `catalog_open`, `catalog_recovery` and `catalog_prepare` (a cache hit; no
   acquire), and the line gains rows only from an accepted append or a requested history page,
   neither of which a cache hit produces:
-  [BPR-0725](../30-in-progress/BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md).
+  [BPR-0725](BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md).
   The same finding rejected [BPR-0663](BPR-0663-public-preview-refuses-the-epoch-smart-acquire.md)
   and [BPR-0676](BPR-0676-the-epoch-line-does-not-show-whether-it-is-working.md).
 - The rails: retracted five minutes later on BPR-0675 ("In an earlier answer I said there was

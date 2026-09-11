@@ -755,6 +755,59 @@ namespace {
 
 	/// \brief RFC-BPR-0028's epoch line over the same projections the
 	/// selectors read.
+	/// BPR-0725. On a cache hit the host publishes the catalogue identity and
+	/// then the core's newest page; the control holds no rows of its own and
+	/// must not ask for them. Until the page lands the line stays empty, which
+	/// is exactly when it paints "No updates loaded."; the page then draws one
+	/// node per update with the ready pair's handles.
+	auto test_epoch_line_waits_for_the_newest_page_on_a_cached_head() -> void
+	{
+		std::vector<application::epoch_intent> sent;
+		qt::epoch_comparison_control           control{
+			[&sent](application::epoch_intent aIntent) {
+				sent.push_back(std::move(aIntent));
+			},
+		};
+		control.resize(700, 80);
+		control.show();
+		QApplication::processEvents();
+		auto* const line = control.line();
+
+		const auto latest  = epoch_row(2, '1', '3');
+		const auto earlier = epoch_row(1, '1', '2');
+		control.publish(application::epoch_presentation_update{
+			.Catalog = application::epoch_catalog_projection{ .Catalog = catalog() },
+		});
+		control.publish(comparison_update(
+			core::named_selection(core::named_comparison::whole_pr),
+			{
+				.Left  = anchor(earlier, core::comparison_anchor_kind::epoch_base),
+				.Right = anchor(latest, core::comparison_anchor_kind::epoch_head),
+			}));
+		QApplication::processEvents();
+		expect(line != nullptr && line->update_count() == 0U
+				   && control.line_summary()->text() == QStringLiteral("pair ready")
+				   && std::ranges::none_of(
+					   sent,
+					   [](const application::epoch_intent& aIntent) {
+						   return std::holds_alternative<
+							   core::request_epoch_history_page_intent>(aIntent);
+					   }),
+			   "a catalogue identity and a ready pair leave the line empty, and "
+			   "so reading \"No updates loaded.\", without Qt requesting a page");
+
+		control.publish(loaded_catalog_update({ latest, earlier }));
+		QApplication::processEvents();
+		expect(line->update_count() == 2U
+				   && line->left_stop()
+					   == qt::epoch_line_stop{
+						   .Update = 0U,
+						   .Kind   = core::comparison_anchor_kind::epoch_base }
+				   && line->right_stop() == qt::epoch_line_stop{ .Update = 1U, .Kind = core::comparison_anchor_kind::epoch_head },
+			   "the newest page fed after the ready pair draws every update with "
+			   "the pair's handles");
+	}
+
 	auto test_epoch_line_selects_updates_by_click_drag_and_keys() -> void
 	{
 		std::vector<application::epoch_intent> intents;
@@ -1543,6 +1596,7 @@ auto main(int argc, char** argv) -> int
 	test_focus_appearance_accessibility_and_announcements();
 	test_real_loaded_window_composition_renders();
 	test_epoch_line_selects_updates_by_click_drag_and_keys();
+	test_epoch_line_waits_for_the_newest_page_on_a_cached_head();
 	std::cout << "epoch-comparison-control-tests:pass\n";
 	return EXIT_SUCCESS;
 }

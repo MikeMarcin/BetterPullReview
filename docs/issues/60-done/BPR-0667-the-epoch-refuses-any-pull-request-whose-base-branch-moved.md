@@ -115,4 +115,4 @@ semantic changes") is the one the last live acquire produced: `diagnostics.log` 
 cached restore (`catalog_open`, `catalog_recovery`, `catalog_prepare` only; session observation
 at sequence 280), so no acquire ran during the session. The card's three criteria pass. Done.
 The empty epoch line over that ready history is
-[BPR-0725](../30-in-progress/BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md).
+[BPR-0725](../40-parked/BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md).

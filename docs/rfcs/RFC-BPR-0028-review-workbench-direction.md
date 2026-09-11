@@ -371,3 +371,11 @@ macro role, [[BPR-0726]]. AC-03 gains the Overview rule when BPR-0727
 lands. The session's candidates were released and the host stopped.
 Next: BPR-0725 and BPR-0726 on main, a rebuilt bundle, and a v007 packet
 re-asking the four parked candidates.
+
+Epoch line on a cache hit, 2026-09-11. [[BPR-0725]] landed: the core
+requests the newest history page as soon as the catalogue revision is
+settled (a no-mutation prepare or a committed mutation), so the line
+carries every update the catalogue holds on a restored or cached open;
+AC-02's defect from the v006 rejections. Parked for the v007 verdict.
+The owner's Home answer became [[BPR-0732]] and [[BPR-0733]]; the
+single-pane design round is [[BPR-0734]], after the v007 verdicts.

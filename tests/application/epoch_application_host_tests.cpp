@@ -2172,6 +2172,36 @@ namespace {
 			"fixture establishes one active accepted comparison");
 	}
 
+	/// A host with one job slot cannot run the settled ingestion's newest page
+	/// and its comparison together (BPR-0725): the page is admitted first and
+	/// the comparison is refused at admission. Re-selecting Whole PR then
+	/// resolves it in the freed slot, so a capacity-one test still starts
+	/// from one accepted comparison without changing its own limit.
+	void establish_ready_comparison_in_one_slot(fixture& aValue)
+	{
+		aValue.Host->accept(make_handoff(aValue.State, 1U, 20U, true));
+		drain(aValue);
+		expect(
+			aValue.Host->state().Catalog.has_value()
+				&& !aValue.Host->state().AcceptedComparison.has_value()
+				&& !aValue.Host->state().PendingHistory.has_value()
+				&& aValue.Host->outstanding_jobs() == 0U,
+			"with one slot the newest page is admitted and the first comparison "
+			"is refused");
+		aValue.Host->dispatch(core::select_named_comparison_intent{
+			.Alias                   = core::named_comparison::whole_pr,
+			.ExpectedCatalogRevision = aValue.Host->state().Catalog->Revision,
+		});
+		drain(aValue);
+		expect(
+			aValue.Host->state().AcceptedRevision.has_value()
+				&& aValue.Host->state().AcceptedRevision->Source.Snapshot
+					== core::provider_snapshot_id{ 1U }
+				&& aValue.Host->state().AcceptedComparison.has_value()
+				&& aValue.Host->outstanding_jobs() == 0U,
+			"a capacity-one fixture establishes one active accepted comparison");
+	}
+
 	[[nodiscard]] auto matching_invalidation()
 		-> application::pull_request_authority_invalidation
 	{
@@ -2940,7 +2970,8 @@ namespace {
 			.OutstandingJobs = 1U,
 			.DeferredIngress = 4U,
 		} };
-		establish_ready_comparison(value);
+		// BPR-0725: the automatic newest page takes the only slot during setup.
+		establish_ready_comparison_in_one_slot(value);
 		const auto request = blob_request_for(value.Host->state());
 		const auto catalog = *value.Host->state().Catalog;
 		value.Host->dispatch(core::request_epoch_history_page_intent{
@@ -3181,7 +3212,8 @@ namespace {
 			.OutstandingJobs = 1U,
 			.DeferredIngress = 4U,
 		} };
-		establish_ready_comparison(value);
+		// BPR-0725: the automatic newest page takes the only slot during setup.
+		establish_ready_comparison_in_one_slot(value);
 		const auto blobRequest = blob_request_for(value.Host->state());
 		value.State.Snapshot.LatestLive.reset();
 		value.State.Snapshot.PreviousDistinctHead.reset();
@@ -3331,7 +3363,8 @@ namespace {
 			.OutstandingJobs = 1U,
 			.DeferredIngress = 4U,
 		} };
-		establish_ready_comparison(value);
+		// BPR-0725: the automatic newest page takes the only slot during setup.
+		establish_ready_comparison_in_one_slot(value);
 		value.Host->accept(make_handoff(value.State, 2U, 21U, true));
 		value.Effects.run_next();
 		value.Decisions.run_next();
@@ -3667,9 +3700,12 @@ namespace {
 	{
 		fixture value;
 		establish_ready_comparison(value);
-		const auto catalog      = *value.Host->state().Catalog;
-		const auto revision     = *value.Host->state().AcceptedRevision;
-		const auto continuation = history_cursor_for(catalog, core::epoch_ordinal{ 2 });
+		// BPR-0725. Settled ingestion already asked for its own newest page,
+		// which this unscripted fake refused; count only the requests below.
+		const auto requestsBefore = value.State.HistoryRequests.size();
+		const auto catalog        = *value.Host->state().Catalog;
+		const auto revision       = *value.Host->state().AcceptedRevision;
+		const auto continuation   = history_cursor_for(catalog, core::epoch_ordinal{ 2 });
 		value.State.HistoryPages.emplace_back(application::epoch_history_page{
 			.Authority = authority().Scope,
 			.Catalog   = catalog,
@@ -3706,12 +3742,11 @@ namespace {
 
 		run_effect_completion(value);
 		expect(
-			value.State.HistoryRequests
-					== std::vector{
-						application::epoch_history_page_request{
-							.Catalog = catalog,
-							.Limit   = 2U,
-						},
+			value.State.HistoryRequests.size() == requestsBefore + 1U
+				&& value.State.HistoryRequests.back()
+					== application::epoch_history_page_request{
+						.Catalog = catalog,
+						.Limit   = 2U,
 					}
 				&& value.State.Updates.back().Catalog && !value.State.Updates.back().Catalog->Replace && value.State.Updates.back().Catalog->Changes.empty() && value.State.Updates.back().Catalog->HistoryPage && value.State.Updates.back().Catalog->HistoryPage->Phase == core::epoch_history_page_phase::loaded && value.State.Updates.back().Catalog->HistoryPage->Navigation == core::epoch_history_navigation::newest && value.State.Updates.back().Catalog->HistoryPage->Rows.size() == 2U && value.State.Updates.back().Catalog->HistoryPage->Rows[0U].Id.Ordinal == core::epoch_ordinal{ 3 } && value.State.Updates.back().Catalog->HistoryPage->Continuation == continuation && value.Host->state().HistoryContinuation == continuation,
 			"a loaded page emits sanitized stable rows without a model replacement");
@@ -3731,7 +3766,7 @@ namespace {
 		});
 		run_effect_completion(value);
 		expect(
-			value.State.HistoryRequests.size() == 2U
+			value.State.HistoryRequests.size() == requestsBefore + 2U
 				&& value.State.HistoryRequests.back().Cursor == continuation
 				&& value.State.Updates.back().Catalog
 				&& value.State.Updates.back().Catalog->HistoryPage
@@ -3763,7 +3798,7 @@ namespace {
 			.Limit   = 2U,
 		});
 		run_effect_completion(value);
-		expect(value.State.HistoryRequests.size() == 3U
+		expect(value.State.HistoryRequests.size() == requestsBefore + 3U
 				   && !value.State.HistoryRequests.back().Cursor
 				   && value.State.Updates.back().Catalog
 				   && value.State.Updates.back().Catalog->HistoryPage
@@ -3925,7 +3960,9 @@ namespace {
 		{
 			fixture value;
 			establish_ready_comparison(value);
-			const auto requestedCatalog = *value.Host->state().Catalog;
+			// BPR-0725: setup's automatic newest page already read history once.
+			const auto historyReadsBefore = std::ranges::count(value.State.Calls, "catalog.history");
+			const auto requestedCatalog   = *value.Host->state().Catalog;
 			value.Host->dispatch(core::request_epoch_history_page_intent{
 				.Catalog = requestedCatalog,
 				.Limit   = 4U,
@@ -3939,7 +3976,7 @@ namespace {
 			value.State.Snapshot.Binding.Catalog = changedCatalog;
 			run_effect_completion(value);
 			expect(
-				std::ranges::count(value.State.Calls, "catalog.history") == 0
+				std::ranges::count(value.State.Calls, "catalog.history") == historyReadsBefore
 					&& !value.Host->state().Catalog
 					&& value.Host->state().PendingIngestion
 					&& value.Host->state().PendingIngestion->Phase
@@ -4114,6 +4151,73 @@ namespace {
 			"mandatory success without Git work");
 	}
 
+	/// BPR-0725. A catalogue that already holds the head epoch prepares no
+	/// mutation, so no epoch is appended and nothing carries a row; the owner
+	/// saw "No updates loaded." beside "pair ready" on every cache hit. The
+	/// line is filled only from a loaded page, so one must be published
+	/// before, or with, the status that says the pair is ready.
+	void a_cached_head_publishes_the_newest_history_page_before_ready()
+	{
+		fixture value;
+		auto    accepted = make_handoff(value.State);
+		auto    revision = core::accepted_pull_request_revision{
+			.Source = {
+				.Observation           = opaque<core::epoch_source_observation_id>(0x64U),
+				.Snapshot              = accepted.Snapshot,
+				.IdentityGeneration    = accepted.IdentityGeneration,
+				.PullRequestGeneration = accepted.PullRequestGeneration,
+			},
+			.Origin     = accepted.Origin,
+			.BaseBranch = accepted.BaseBranch,
+			.Base       = accepted.Base,
+			.Head       = accepted.Head,
+		};
+		const auto catalog               = value.State.Binding.Catalog;
+		const auto held                  = summary_for(revision, catalog);
+		value.State.Snapshot.LatestLive  = held;
+		value.State.Snapshot.NextOrdinal = core::epoch_ordinal{ 2 };
+		value.State.HistoryPages.emplace_back(application::epoch_history_page{
+			.Authority = authority().Scope,
+			.Catalog   = catalog,
+			.Epochs    = { held },
+		});
+
+		value.Host->accept(std::move(accepted));
+		drain(value);
+
+		const auto& updates = value.State.Updates;
+		const auto  ready   = std::ranges::find_if(
+			updates,
+			[](const application::epoch_presentation_update& aUpdate) {
+				return aUpdate.Transition && aUpdate.Transition->Status
+					&& aUpdate.Transition->Status->Status
+					== core::epoch_status::ready;
+			});
+		const auto page = std::ranges::find_if(
+			updates,
+			[](const application::epoch_presentation_update& aUpdate) {
+				return aUpdate.Catalog && aUpdate.Catalog->HistoryPage
+					&& aUpdate.Catalog->HistoryPage->Phase
+					== core::epoch_history_page_phase::loaded
+					&& !aUpdate.Catalog->HistoryPage->Rows.empty();
+			});
+		expect(
+			std::ranges::find(value.State.Calls, "catalog.reserve")
+					== value.State.Calls.end()
+				&& value.Host->state().Catalog == catalog
+				&& ready != updates.end(),
+			"a catalogue holding the head prepares no mutation and still "
+			"reaches a ready comparison");
+		expect(
+			page != updates.end() && page <= ready
+				&& page->Catalog->HistoryPage->Catalog == catalog
+				&& page->Catalog->HistoryPage->Navigation
+					== core::epoch_history_navigation::newest
+				&& page->Catalog->HistoryPage->Rows.front().Id == held.Id,
+			"a no-mutation prepare publishes the newest loaded history page, "
+			"carrying the held epoch, before or with the ready status");
+	}
+
 	void stale_load_terminal_is_inert_under_reordering()
 	{
 		fixture value;
@@ -4182,16 +4286,20 @@ namespace {
 				value.Effects.pending() == 1U,
 				"B offer queues behind A comparison on the cache actor");
 			value.Effects.run_next();
+			// BPR-0725: A's settled ingestion also queued its newest page
+			// ahead of the comparison, so B's offer is the third terminal.
 			expect(
-				value.Decisions.pending() == 2U,
-				"A comparison cancellation precedes B offer completion");
-			value.Decisions.run(1U);
+				value.Decisions.pending() == 3U,
+				"A newest-page and comparison terminals precede B offer completion");
+			value.Decisions.run(2U);
+			value.Decisions.run_next();
 			value.Decisions.run_next();
 			expect(
 				value.Host->state().AcceptedRevision->Source.Snapshot
 						== core::provider_snapshot_id{ 2U }
-					&& !value.Host->state().AcceptedComparison,
-				"a reordered A comparison cancellation cannot publish into B");
+					&& !value.Host->state().AcceptedComparison
+					&& !value.Host->state().HistoryCatalog,
+				"reordered A page and comparison terminals cannot publish into B");
 		}
 	}
 
@@ -6604,6 +6712,7 @@ int main()
 	reordered_history_completion_cannot_cross_source_identity();
 	unchanged_and_association_only_skip_git();
 	applied_association_error_reports_mandatory_success();
+	a_cached_head_publishes_the_newest_history_page_before_ready();
 	stale_load_terminal_is_inert_under_reordering();
 	stale_prepare_and_comparison_terminals_are_inert();
 	same_repository_actor_switches_exact_pr_cache_sessions_in_fifo_order();

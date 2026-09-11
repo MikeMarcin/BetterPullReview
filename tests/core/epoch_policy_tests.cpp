@@ -314,6 +314,20 @@ namespace {
 		return nullptr;
 	}
 
+	/// The position of the first request of this type, or the request count
+	/// when there is none, so an order check fails when either is missing.
+	template <typename Request>
+	[[nodiscard]] auto request_index(const epoch_transition_output& aOutput)
+		-> std::size_t
+	{
+		for (std::size_t index = 0U; index < aOutput.Requests.size(); ++index) {
+			if (std::holds_alternative<Request>(aOutput.Requests[index])) {
+				return index;
+			}
+		}
+		return aOutput.Requests.size();
+	}
+
 	[[nodiscard]] auto initial_state() -> epoch_state
 	{
 		return epoch_state{
@@ -385,6 +399,40 @@ namespace {
 		expect(resolve != nullptr, "commit requests semantic comparison");
 		const auto committedEpoch = append->Epoch;
 		const auto updatedCatalog = catalog(1);
+
+		// BPR-0725. A committed append settles the catalogue, so ingestion asks
+		// for the newest history page ahead of the comparison; the host's
+		// actor FIFO then publishes the rows before the ready status.
+		const auto* newest = request_from<load_epoch_history_page_request>(committedOutput);
+		if (aState.RequestCounterExhausted) {
+			expect(newest == nullptr && !committedOutput.History && !aState.PendingHistory,
+				   "an exhausted request counter skips the newest page without "
+				   "failing the ingestion that succeeded");
+		} else {
+			expect(
+				newest != nullptr
+					&& request_index<load_epoch_history_page_request>(committedOutput)
+						< request_index<resolve_comparison_request>(committedOutput)
+					&& newest->Context.Catalog == updatedCatalog
+					&& newest->Context.Navigation == epoch_history_navigation::newest
+					&& !newest->Context.Cursor
+					&& newest->Context.Limit == maximum_epoch_history_page_size
+					&& committedOutput.AcceptedEpoch.has_value()
+					&& committedOutput.History
+					&& committedOutput.History->Phase == epoch_history_page_phase::loading,
+				"a committed append requests the newest history page before the "
+				"comparison");
+			// The fixture's ready state keeps no history window, as after a
+			// cancelled newest page; tests that need a window load it themselves.
+			const auto cancelledPage = transition(
+				aState,
+				epoch_history_page_load_cancelled_event{ .Context = newest->Context });
+			expect(
+				cancelledPage.History
+					&& cancelledPage.History->Phase == epoch_history_page_phase::cancelled
+					&& !aState.PendingHistory && !aState.HistoryCatalog,
+				"the fixture's newest page ends without a history window");
+		}
 
 		const auto resolvedOutput = transition(
 			aState,
@@ -2615,6 +2663,108 @@ namespace {
 		}
 	}
 
+	/// BPR-0725. A cache hit prepares no mutation and appends nothing, so the
+	/// newest history page is the only thing that can give the line its rows.
+	auto test_settled_ingestion_requests_the_newest_history_page() -> void
+	{
+		const auto refreshToPreparing = [](ready_fixture& aFixture)
+			-> prepare_epoch_revision_request {
+			const auto  refreshed   = transition(aFixture.State, refresh_epochs_intent{ });
+			const auto* preparation = request_from<prepare_epoch_revision_request>(refreshed);
+			expect(preparation != nullptr
+					   && request_from<load_epoch_catalog_request>(refreshed) == nullptr
+					   && (!refreshed.History
+						   || refreshed.History->Phase
+							   != epoch_history_page_phase::invalidated),
+				   "a refresh over a retained catalogue prepares directly and "
+				   "keeps its history window");
+			return *preparation;
+		};
+		const auto unchanged = [](const ready_fixture&                  aFixture,
+								  const prepare_epoch_revision_request& aPrepare) {
+			return epoch_revision_prepared_event{
+				.Context     = aPrepare.Context,
+				.Operation   = opaque<epoch_operation_id>(52U),
+				.Observation = epoch_preparation_observation{
+					.LatestLive = aFixture.Epoch,
+					.ObservedAt = observed_utc_milliseconds{ 200 },
+					.Material   = material(),
+				},
+			};
+		};
+
+		{
+			auto        fixture  = make_ready_fixture();
+			const auto  prepare  = refreshToPreparing(fixture);
+			const auto  prepared = transition(fixture.State, unchanged(fixture, prepare));
+			const auto* page     = request_from<load_epoch_history_page_request>(prepared);
+			expect(
+				request_from<commit_epoch_catalog_request>(prepared) == nullptr
+					&& request_from<discard_epoch_preparation_request>(prepared) != nullptr
+					&& page != nullptr
+					&& request_index<load_epoch_history_page_request>(prepared)
+						< request_index<resolve_comparison_request>(prepared)
+					&& page->Context.Catalog == fixture.Catalog
+					&& page->Context.Navigation == epoch_history_navigation::newest
+					&& !page->Context.Cursor
+					&& page->Context.Limit == maximum_epoch_history_page_size
+					&& prepared.History
+					&& prepared.History->Phase == epoch_history_page_phase::loading
+					&& has_changed(prepared.Changed, epoch_changed_domain::history)
+					&& fixture.State.PendingHistory
+					&& fixture.State.PendingHistory->Request == page->Context.Request,
+				"a no-mutation prepare requests the newest history page before the "
+				"comparison");
+
+			const auto loaded = transition(
+				fixture.State,
+				epoch_history_page_loaded_event{
+					.Context = page->Context,
+					.Page    = history_page(fixture, { fixture.Epoch }),
+				});
+			expect(
+				loaded.History
+					&& loaded.History->Phase == epoch_history_page_phase::loaded
+					&& loaded.History->Epochs == std::vector{ fixture.Epoch }
+					&& fixture.State.HistoryCatalog == fixture.Catalog,
+				"the requested page loads the epoch the catalogue holds");
+
+			const auto again    = refreshToPreparing(fixture);
+			const auto repeated = transition(fixture.State, unchanged(fixture, again));
+			expect(
+				request_from<load_epoch_history_page_request>(repeated) == nullptr
+					&& !repeated.History
+					&& request_from<resolve_comparison_request>(repeated) != nullptr
+					&& fixture.State.HistoryCatalog == fixture.Catalog
+					&& fixture.State.HistoryNavigation
+						== epoch_history_navigation::newest
+					&& !fixture.State.PendingHistory,
+				"a window already bound to the catalogue revision is left alone");
+		}
+
+		{
+			auto       fixture      = make_ready_fixture();
+			const auto prepare      = refreshToPreparing(fixture);
+			const auto explicitPage = transition(
+				fixture.State,
+				request_epoch_history_page_intent{
+					.Catalog = fixture.Catalog,
+					.Limit   = 2U,
+				});
+			const auto* inFlight = request_from<load_epoch_history_page_request>(explicitPage);
+			expect(inFlight != nullptr && fixture.State.PendingHistory,
+				   "a page can be requested while the revision prepares");
+			const auto pending  = *fixture.State.PendingHistory;
+			const auto prepared = transition(fixture.State, unchanged(fixture, prepare));
+			expect(
+				request_from<load_epoch_history_page_request>(prepared) == nullptr
+					&& !prepared.History
+					&& request_from<resolve_comparison_request>(prepared) != nullptr
+					&& fixture.State.PendingHistory == std::optional{ pending },
+				"an in-flight page is not duplicated by a settled ingestion");
+		}
+	}
+
 	auto test_bounded_epoch_history_paging() -> void
 	{
 		{
@@ -3727,6 +3877,7 @@ auto main() -> int
 	test_pending_one_sided_selection_supersession();
 	test_overflow_is_checked_and_invalidation_fails_closed();
 	test_bounded_epoch_history_paging();
+	test_settled_ingestion_requests_the_newest_history_page();
 	test_core_authorized_epoch_maintenance();
 	test_authority_access_mode_discrimination();
 	test_deterministic_replay();

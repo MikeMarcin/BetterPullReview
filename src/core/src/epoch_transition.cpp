@@ -694,6 +694,52 @@ namespace bpr::core {
 			aState.HistoryContinuation.reset();
 		}
 
+		/// BPR-0725. The epoch line draws only rows a loaded page or an
+		/// appended epoch delivers; the catalogue identity carries none. A
+		/// cache hit prepares no mutation and appends nothing, so without this
+		/// the line read "No updates loaded." beside a ready pair, and a first
+		/// open showed only the one epoch it appended. Ingestion therefore asks
+		/// for the newest page itself once the catalogue revision is settled —
+		/// after a no-mutation prepare or a committed mutation, not at catalogue
+		/// load, where a commit about to advance the revision would retire the
+		/// read. The page must be a host read, so the core emits the same
+		/// request an explicit "Return to newest" does and stays the only
+		/// place that decides when history is read. A caller emits it before
+		/// the comparison request so the actor's FIFO publishes the page
+		/// before the ready status. A window already bound to this revision
+		/// (possibly an older page the reviewer chose) or an in-flight page is
+		/// left alone, and an exhausted request counter leaves the line empty
+		/// rather than failing the ingestion that did succeed.
+		auto request_newest_history_page(
+			epoch_state& aState, epoch_transition_output& aOutput) -> void
+		{
+			if (!aState.Authority.has_value() || !aState.AcceptedRevision.has_value()
+				|| !aState.Catalog.has_value() || aState.PendingHistory.has_value()
+				|| aState.HistoryCatalog == aState.Catalog
+				|| !request_available(aState)) {
+				return;
+			}
+			aState.PendingHistory = pending_epoch_history_page{
+				.Request    = take_request(aState),
+				.Generation = aState.EpochGeneration,
+				.Catalog    = *aState.Catalog,
+				.Navigation = epoch_history_navigation::newest,
+				.Limit      = maximum_epoch_history_page_size,
+			};
+			aOutput.Requests.emplace_back(
+				load_epoch_history_page_request{
+					.Context = current_history_context(
+						aState, *aState.PendingHistory),
+				});
+			aOutput.History = epoch_history_page_delta{
+				.Phase      = epoch_history_page_phase::loading,
+				.Catalog    = *aState.Catalog,
+				.Navigation = epoch_history_navigation::newest,
+				.Limit      = maximum_epoch_history_page_size,
+			};
+			aOutput.Changed = aOutput.Changed | epoch_changed_domain::history;
+		}
+
 		auto retire_pending_maintenance(epoch_state&             aState,
 										epoch_transition_output& aOutput) -> void
 		{
@@ -1305,6 +1351,7 @@ namespace bpr::core {
 						.Context = operationContext,
 					});
 				aState.PendingIngestion.reset();
+				request_newest_history_page(aState, output);
 				static_cast<void>(start_comparison(aState, output, request, true));
 				return output;
 			}
@@ -1403,6 +1450,7 @@ namespace bpr::core {
 			} else {
 				output.Catalog->ChangedReviewAssociation = std::get<associate_review_mutation>(mutation).Review.Association;
 			}
+			request_newest_history_page(aState, output);
 			static_cast<void>(start_comparison(aState, output, request, true));
 			return output;
 		}
