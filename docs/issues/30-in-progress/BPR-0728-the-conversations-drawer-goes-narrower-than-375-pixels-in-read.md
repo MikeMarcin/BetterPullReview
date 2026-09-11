@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0728"
 title: "The conversations drawer goes narrower than 375 pixels in Read"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
