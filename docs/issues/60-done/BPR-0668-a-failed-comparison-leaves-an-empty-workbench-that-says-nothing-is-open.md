@@ -12,7 +12,7 @@ acceptance: [{"criterion":"With the comparison unavailable, the workbench names 
 
 # A failed comparison leaves an empty workbench that says nothing is open
 
-With [BPR-0667](../40-parked/BPR-0667-the-epoch-refuses-any-pull-request-whose-base-branch-moved.md)'s
+With [BPR-0667](BPR-0667-the-epoch-refuses-any-pull-request-whose-base-branch-moved.md)'s
 acquire failure, the owner was left looking at a workbench with two empty code
 panes, an empty file tree, "Select a file comparison" in the centre, and this
 status line:

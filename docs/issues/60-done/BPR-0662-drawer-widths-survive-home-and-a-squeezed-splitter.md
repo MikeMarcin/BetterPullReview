@@ -91,7 +91,7 @@ their own.
 
 The owner stopped the session before this candidate. The drawers cannot be
 judged while the comparison is empty
-([BPR-0667](../40-parked/BPR-0667-the-epoch-refuses-any-pull-request-whose-base-branch-moved.md)),
+([BPR-0667](BPR-0667-the-epoch-refuses-any-pull-request-whose-base-branch-moved.md)),
 so the observation is re-offered with the others once a pull request opens
 completely.
 

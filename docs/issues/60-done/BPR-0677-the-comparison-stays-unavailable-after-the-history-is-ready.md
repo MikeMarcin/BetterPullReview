@@ -13,7 +13,7 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 # The comparison stays unavailable after the history is ready
 
 The owner's 2026-09-07 capture, on the build carrying
-[BPR-0667](../40-parked/BPR-0667-the-epoch-refuses-any-pull-request-whose-base-branch-moved.md),
+[BPR-0667](BPR-0667-the-epoch-refuses-any-pull-request-whose-base-branch-moved.md),
 shows the pull request loaded, four files listed, participants and
 since-my-last-review populated, and this status line:
 
