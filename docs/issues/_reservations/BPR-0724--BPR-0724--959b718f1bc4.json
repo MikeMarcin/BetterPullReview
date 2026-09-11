@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0724"
+  ],
+  "reserve_for": "read-mode-width",
+  "purpose": "",
+  "created": "2026-09-11T16:51:39.291877+00:00",
+  "base": "cc31119b4d33388b97edb018dfae4ff6d24e11df"
+}
