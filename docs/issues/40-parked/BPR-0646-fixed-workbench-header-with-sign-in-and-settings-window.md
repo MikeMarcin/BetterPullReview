@@ -465,7 +465,7 @@ Read as five findings, none of them this card's criterion as written:
   When it lands, RFC-BPR-0028 AC-03's rail wording is amended.
 - "No easy way to tell what review it is" is the strip hiding the identity
   below 1,400 pixels (BPR-0647's threshold):
-  [BPR-0722](BPR-0722-the-strip-hides-the-pull-request-identity-below-1400-pixels.md);
+  [BPR-0722](../60-done/BPR-0722-the-strip-hides-the-pull-request-identity-below-1400-pixels.md);
   Home over a restored review remains BPR-0716.
 - "Even in read mode viewing experience is not great" names no defect; the
   owner is asked what was wrong before anything is carded.
@@ -485,7 +485,7 @@ on the bundle built at 3c9a3f1c, where
 [BPR-0719](../60-done/BPR-0719-a-large-file-with-a-small-change-is-refused-by-the-comparison-work-limit.md),
 [BPR-0721](../60-done/BPR-0721-a-setting-hides-the-drawer-side-controls-and-a-collapsed-rail-shows-only-its-rail.md)
 and
-[BPR-0722](BPR-0722-the-strip-hides-the-pull-request-identity-below-1400-pixels.md)
+[BPR-0722](../60-done/BPR-0722-the-strip-hides-the-pull-request-identity-below-1400-pixels.md)
 have landed (executable sha256 `9261509a…`), candidate revision
 `app-release-9261509a-2026-09-10.3`. The third criterion is reworded for
 the drawer-controls setting: with it Shown a rail carries its label and
@@ -503,7 +503,7 @@ code because of a lack of horizontal area for the text display", carded as
 The dark palette question: "the whole palette, yes reset", landed on
 [BPR-0720](BPR-0720-comments-are-green-and-includes-are-grey-on-the-dark-palette.md).
 The strip below about 960 pixels: "leave it be for now", recorded on
-[BPR-0722](BPR-0722-the-strip-hides-the-pull-request-identity-below-1400-pixels.md).
+[BPR-0722](../60-done/BPR-0722-the-strip-hides-the-pull-request-identity-below-1400-pixels.md).
 This card's remaining criterion is unchanged and is asked again on the
 v005 bundle.
 

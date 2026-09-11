@@ -195,7 +195,7 @@ Landed on main, in the recommended order:
   `computed_file_diff::AlignmentApproximate` names a degraded alignment
   and the Qt status line says "(approximate alignment)". Parked for the
   owner's check on ScreenBufferTests.cpp in microsoft/terminal#20607.
-- [BPR-0722](../40-parked/BPR-0722-the-strip-hides-the-pull-request-identity-below-1400-pixels.md)
+- [BPR-0722](../60-done/BPR-0722-the-strip-hides-the-pull-request-identity-below-1400-pixels.md)
   (`035b5322`): the strip identity yields title, owner, modality
   shortcuts and positions before its number, elided to the room the
   other items leave; the compact modality holds to 1100. Measured fact
@@ -302,7 +302,7 @@ before any source edit. Landed on main:
   appearance store moves to schema 4 and clears `palette_stored` once on
   the way through (the owner's store holds a light-bound customisation at
   schema 3, so that is what the reset removes). Parked.
-- [BPR-0722](../40-parked/BPR-0722-the-strip-hides-the-pull-request-identity-below-1400-pixels.md):
+- [BPR-0722](../60-done/BPR-0722-the-strip-hides-the-pull-request-identity-below-1400-pixels.md):
   "leave it be for now" recorded as the decision to keep the 900-pixel
   floor and the whole-identity yield below about 960; its attended
   criterion is unchanged.
