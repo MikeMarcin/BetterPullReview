@@ -1305,11 +1305,12 @@ namespace {
 					 core::workbench_drawer_state::collapsed,
 					 core::workbench_drawer_state::collapsed,
 					 "Overview closes every drawer through exact set intents");
+		// [[BPR-0724]]: the repositories tree is no part of reading a file.
 		expectPreset(qt::review_modality::read,
 					 core::workbench_drawer_state::collapsed,
 					 core::workbench_drawer_state::expanded,
-					 window.repositories_drawer()->state(),
-					 "Read collapses files and keeps comments beside the code");
+					 core::workbench_drawer_state::collapsed,
+					 "Read collapses files and repositories and keeps comments beside the code");
 		expectPreset(qt::review_modality::review,
 					 core::workbench_drawer_state::expanded,
 					 core::workbench_drawer_state::expanded,
@@ -4970,8 +4971,8 @@ namespace {
 		opened.Drawers              = drawer_states(core::workbench_drawer_state::expanded,
 													core::workbench_drawer_state::expanded);
 		opened.Layout               = application::workbench_layout_delta{
-						  .FilesWidth         = 320U,
-						  .ConversationsWidth = 260U,
+			.FilesWidth         = 320U,
+			.ConversationsWidth = 260U,
 		};
 		window.resize(1'280, 720);
 		window.show();

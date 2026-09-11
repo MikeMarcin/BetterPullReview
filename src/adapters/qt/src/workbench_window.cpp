@@ -3323,8 +3323,10 @@ namespace bpr::qt {
 			: core::workbench_drawer_state::expanded;
 		// The repositories drawer was never part of a preset, so it stayed
 		// open across every modality, taking the width it takes in the
-		// capture while holding nothing.
-		const auto repositoriesState = overview
+		// capture while holding nothing. [[BPR-0724]]: Read collapses it
+		// too; the owner found the code hard to read for lack of horizontal
+		// room, and the repositories tree is no part of reading a file.
+		const auto repositoriesState = overview || aModality == review_modality::read
 			? core::workbench_drawer_state::collapsed
 			: DrawerStates.Repositories;
 		Dispatch(core::set_workbench_drawer_intent{
@@ -6011,7 +6013,7 @@ namespace bpr::qt {
 		const auto collapsedWidth = Behaviour.DrawerControls == application::review_drawer_controls::shown
 			? workbench_drawer_rail::width_pixels
 			: 0;
-		const auto files = presented_files_state() == core::workbench_drawer_state::expanded
+		const auto files          = presented_files_state() == core::workbench_drawer_state::expanded
 			? granted(widths.FilesWidth, defaults.FilesWidth)
 			: collapsedWidth;
 		// [[BPR-0649]]. In Discuss the conversation is at least its Discuss
@@ -6028,7 +6030,7 @@ namespace bpr::qt {
 			: collapsedWidth;
 		const auto handles = ((repositories > 0 ? 1 : 0) + (files > 0 ? 1 : 0) + (conversations > 0 ? 1 : 0))
 			* CentralSplitter->handleWidth();
-		const auto centre  = std::max(
+		const auto centre = std::max(
 			1, CentralSplitter->width() - repositories - files - conversations - handles);
 		return { repositories, files, centre, conversations };
 	}

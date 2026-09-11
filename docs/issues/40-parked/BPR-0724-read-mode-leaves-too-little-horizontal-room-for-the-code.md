@@ -2,17 +2,19 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0724"
 title: "Read mode leaves too little horizontal room for the code"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"owner_direction":"2026-09-11","attended_decision":"65f3f881-91a3-4388-8b8c-0c69fc0a57d6"}
+parked_on: "human-review"
+acceptance: [{"criterion":"Choosing Read dispatches exact set-drawer intents: files collapsed, conversations expanded, repositories collapsed; the other presets are unchanged; qt_workbench_window_scale_100 pins it","outcome":"pass","revision":"working tree over dab5fa68","evidence":{"kind":"command","detail":"qt_workbench_window_scale_{100,125,200} and qt_composed_github_scale_100 pass with the preset test's Read row changed to repositories collapsed; check_boundaries, clang-format --Werror, strict tidy on workbench_window.cpp and git diff --check clean."}},{"criterion":"RFC-BPR-0028's modality paragraph says Read collapses the repositories drawer","outcome":"pass","revision":"working tree over dab5fa68","evidence":{"kind":"observation","detail":"docs/rfcs/RFC-BPR-0028-review-workbench-direction.md modality paragraph amended with the owner direction of 2026-09-11 and an answers note appended."}},{"criterion":"The owner chooses, on the signed bundle in the next attended session, which of the four options Read should take next, or accepts Read as it then is","outcome":"pending","revision":"working tree over dab5fa68","evidence":{"kind":"observation","detail":"Options candidate BPR-0724-read-width in the v005 attended packet: close the conversations drawer too, allow it narrower than 375, single-pane Read, or leave Read as it is after part 1."}}]
 ---
 
 # Read mode leaves too little horizontal room for the code
 
 The owner, in the v003 verdict on
-[BPR-0646](../40-parked/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md):
+[BPR-0646](BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md):
 "Even in read mode viewing experience is not great." Asked what
 specifically was wrong, the owner answered on 2026-09-11, verbatim:
 
