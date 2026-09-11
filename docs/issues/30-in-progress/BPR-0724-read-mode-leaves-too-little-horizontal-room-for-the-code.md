@@ -75,3 +75,15 @@ paragraph.
 - The owner chooses, on the signed bundle in the next attended session,
   which of the four options above Read should take next, or accepts Read
   as it then is.
+
+## Implementation, 2026-09-11
+
+Part 1 landed: `choose_modality` collapses the repositories drawer for Read
+as it does for Overview (`workbench_window.cpp`), the preset test in
+`qt_workbench_window_scale_100` pins files collapsed, conversations
+expanded, repositories collapsed, and RFC-BPR-0028's modality paragraph
+says so. `qt_workbench_window_scale_{100,125,200}` and
+`qt_composed_github_scale_100` pass; `check_boundaries`, `clang-format
+--Werror` and `git diff --check` are clean. Part 2 is the options
+candidate `BPR-0724-read-width` in the v005 attended packet; the card
+stays parked on human-review until the owner picks.

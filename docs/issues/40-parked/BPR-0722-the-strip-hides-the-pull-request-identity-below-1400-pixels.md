@@ -79,3 +79,14 @@ The pending criterion above is candidate `BPR-0722-*` in
 on the bundle built at 3c9a3f1c (executable sha256 `9261509a…`), candidate
 revision `app-release-9261509a-2026-09-10.3`; prepared, undecided, no host
 running until the owner asks for the session.
+
+## Owner's answer, 2026-09-11
+
+Asked which strip control should give way below about 960 pixels so the
+identity's number can stay to the 900-pixel floor, or whether the floor
+should move to 960, the owner answered verbatim: "leave it be for now".
+Decision recorded: the strip keeps its 900-pixel floor and, below about
+960 pixels at 100% scale, the identity yields whole as measured above.
+This settles nothing else on this card; the attended criterion (the owner
+can say which pull request is open at the default size and at 1280x820) is
+still asked, on the v005 bundle.

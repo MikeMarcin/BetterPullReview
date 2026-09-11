@@ -83,7 +83,9 @@ upload, since my last review) remain in a dropdown at the line's right.
 
 **Modalities.** Overview, Read, Review and Discuss are presets for which
 drawers are open, chosen from the strip or ⌘1 to ⌘4, and they stay until
-changed. Read collapses the files drawer and keeps comments beside the code;
+changed. Read collapses the files and repositories drawers ([[BPR-0724]],
+owner direction 2026-09-11: the code lacked horizontal room) and keeps
+comments beside the code;
 Review opens the files drawer too; Discuss widens the conversation over the
 code. Nothing collapses on its own. Automatic transitions (for example, opening
 a pull request shows Overview) are off by default and are configured as rules
@@ -314,3 +316,16 @@ revision `app-release-9261509a-2026-09-10.3`; the v003 packet is
 historical. The drawer controls are off by default in this bundle, so the
 rail criteria are judged with the setting on. No host is running until the
 owner asks for the session.
+
+Owner's answers, 2026-09-11. The three questions the v003 verdict left
+open were answered. Read mode "was difficult to read the code because of
+a lack of horizontal area for the text display": [[BPR-0724]] lands the
+bounded part (Read collapses the repositories drawer; the modality
+paragraph above is amended) and asks the owner, as an options candidate in
+the v005 packet, whether Read should also close the conversations drawer
+(which would amend AC-05), let it go narrower, get a single-pane layout, or
+stay as it is. The dark palette: "the whole palette, yes reset", landed on
+[[BPR-0720]] under RFC-BPR-0006. The strip below about 960 pixels: "leave
+it be for now", recorded on [[BPR-0722]] as a decision to keep the
+900-pixel floor and the whole-identity yield; nothing else on that card is
+settled by it.

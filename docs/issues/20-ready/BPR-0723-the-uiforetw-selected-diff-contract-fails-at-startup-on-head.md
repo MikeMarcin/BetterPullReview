@@ -58,3 +58,18 @@ one-word failure.
 - The cause is recorded here with the commit that introduced it, or the
   environmental condition is named and the application reports it by
   name.
+
+## Also red at cc31119b: the theme customization contract
+
+`application_appearance_theme_customization_contract` fails the same way
+(`STARTUP_FAILED` 0.49 s into its first phase, nothing on stderr) on a
+clean worktree build of cc31119b, before the BPR-0720/BPR-0724 changes,
+and again after them. Its first phase passes `--github-fixture github-com
+--epoch-fixture-root ... --epoch-fixture-phase single --diff-workbench-probe
+--diff-interaction-evidence ... --appearance-theme-customization-probe ...
+--render-evidence ...`, so the shared argument with the UIforETW contract
+is `--epoch-fixture-root` / `--epoch-fixture-phase single`. The theme
+contract is the direct course for the BPR-0720 palette on the application
+public path; until this card lands, BPR-0720's application-path evidence is
+the profile, panel, host, store and gesture selectors plus the attended
+bundle.

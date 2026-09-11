@@ -95,3 +95,14 @@ Colors are semantic roles, including code background, gutters, additions, remova
 Supported definitions, resource policy, appearance model, font/color roles, accessibility, cache invalidation, import/export schema, and security limits are mandatory.
 
 The documentation ledger must identify functional-core, application-host, and Qt-presentation-adapter ownership; typed intents/events/observations/requests/deltas; authority; concurrency/generation; and any evidence-backed no-impact region.
+
+## Owner direction, 2026-09-11
+
+The built-in dark profile's syntax roles follow Visual Studio's dark theme
+with the Visual Assist colouring (green comments, grey preprocessor lines
+including the include path), lightened only where a Visual Studio value
+falls under this RFC's 4.5:1 floor on the diff row fills; the light and
+high-contrast profiles are unchanged. A stored customisation from before
+that change is reset once when the appearance store migrates to schema
+version 4. [[BPR-0720]] carries the values, the evidence and the attended
+criterion.
