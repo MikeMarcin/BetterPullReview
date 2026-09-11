@@ -193,5 +193,5 @@ only, no acquire stage and no observation-only prepare; the restoration
 path does not go through the acquire. The criterion stays pending until a
 fresh open through Home on the owner's root shows the acquire stages, or the
 criterion is narrowed to what restoration can show. The refused fourth file
-is [BPR-0719](../20-ready/BPR-0719-a-large-file-with-a-small-change-is-refused-by-the-comparison-work-limit.md),
+is [BPR-0719](../30-in-progress/BPR-0719-a-large-file-with-a-small-change-is-refused-by-the-comparison-work-limit.md),
 not this card.

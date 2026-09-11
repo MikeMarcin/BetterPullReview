@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0719"
 title: "A large file with a small change is refused by the comparison work limit"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0004", "RFC-BPR-0013"]
 depends_on: []
 priority: "P1"

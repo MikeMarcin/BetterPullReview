@@ -453,7 +453,7 @@ Read as five findings, none of them this card's criterion as written:
 
 - The refused file is the core's LCS matrix bound with no textual fallback,
   owner direction that no file may be refused for size:
-  [BPR-0719](../20-ready/BPR-0719-a-large-file-with-a-small-change-is-refused-by-the-comparison-work-limit.md).
+  [BPR-0719](../30-in-progress/BPR-0719-a-large-file-with-a-small-change-is-refused-by-the-comparison-work-limit.md).
 - Comment and include colours have not changed since BPR-0199 (2026-08-07)
   and were not swapped; the request is a requirement under RFC-BPR-0006 held
   for the owner's confirmation of its extent:
