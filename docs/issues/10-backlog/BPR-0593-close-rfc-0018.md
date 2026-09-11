@@ -210,7 +210,7 @@ Landed on main, in the recommended order:
   the follow-ups; it blocks re-running the 1280 compact-row and rail
   assertions that BPR-0722 and BPR-0721 touch.
 
-Not started: [BPR-0721](../20-ready/BPR-0721-a-setting-hides-the-drawer-side-controls-and-a-collapsed-rail-shows-only-its-rail.md).
+Not started: [BPR-0721](../30-in-progress/BPR-0721-a-setting-hides-the-drawer-side-controls-and-a-collapsed-rail-shows-only-its-rail.md).
 Scouted facts for it: the heading row is a nested `QHBoxLayout`
 (`workbench_drawer.cpp:399-419`) that `adopt()` (`:501-534`) never hides,
 so `Heading` and `Collapse` must be toggled explicitly; the settings store

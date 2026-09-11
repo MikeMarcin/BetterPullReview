@@ -461,7 +461,7 @@ Read as five findings, none of them this card's criterion as written:
 - The collapsed drawers' footprint, the setting to hide the drawer-side
   controls, and the heading row that `adopt()` leaves visible above each
   rail (the "…"):
-  [BPR-0721](../20-ready/BPR-0721-a-setting-hides-the-drawer-side-controls-and-a-collapsed-rail-shows-only-its-rail.md).
+  [BPR-0721](../30-in-progress/BPR-0721-a-setting-hides-the-drawer-side-controls-and-a-collapsed-rail-shows-only-its-rail.md).
   When it lands, RFC-BPR-0028 AC-03's rail wording is amended.
 - "No easy way to tell what review it is" is the strip hiding the identity
   below 1,400 pixels (BPR-0647's threshold):

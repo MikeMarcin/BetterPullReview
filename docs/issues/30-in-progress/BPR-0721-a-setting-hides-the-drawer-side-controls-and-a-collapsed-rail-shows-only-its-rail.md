@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0721"
 title: "A setting hides the drawer-side controls, and a collapsed drawer shows only its rail"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0028", "RFC-BPR-0018"]
 depends_on: []
 priority: "P1"
