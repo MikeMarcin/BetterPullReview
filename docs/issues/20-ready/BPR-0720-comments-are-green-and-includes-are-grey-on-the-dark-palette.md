@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0720"
 title: "Comments are green and includes are grey on the dark palette"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0006"]
 depends_on: []
 priority: "P2"
