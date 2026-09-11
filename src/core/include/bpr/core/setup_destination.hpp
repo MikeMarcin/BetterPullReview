@@ -28,6 +28,9 @@ namespace bpr::core {
 		authenticating,
 		opening,
 		ready,
+		/// [[BPR-0732]]. A known public host with no account: opened signed
+		/// out, in one gesture, with no sign-in stop.
+		public_preview,
 	};
 
 	/// \brief A continuation belongs to one request and receiving environment revision.
@@ -46,9 +49,20 @@ namespace bpr::core {
 		host_profile_id Profile;
 		std::string     Hostname;
 		bool            Authenticated = false;
+		/// [[BPR-0732]]. The host can read this profile's public pull requests
+		/// with no account (GitHub.com with an anonymous authority composed).
+		bool PreviewAvailable = false;
 	};
 
 	/// \brief Selects only a configured authority with the exact requested hostname.
+	///
+	/// \details An authenticated profile is `ready`. [[BPR-0732]]. A profile
+	/// with no account that can read public pull requests is
+	/// `public_preview`: the core decides that a pasted public link opens
+	/// signed out rather than stopping at sign-in, because the owner's
+	/// direction is one paste field that opens without an account, and the
+	/// only reason to stop is a host that refuses preview, which stays at
+	/// `sign_in`. An unknown hostname is `add_server`.
 	[[nodiscard]] auto resolve_setup_destination(pending_setup_destination aPending,
 												 setup_owner_id aOwner, std::span<const setup_profile_observation> aProfiles)
 		-> std::optional<pending_setup_destination>;

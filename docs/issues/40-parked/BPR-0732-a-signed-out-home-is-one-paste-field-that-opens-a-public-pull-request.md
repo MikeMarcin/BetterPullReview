@@ -2,11 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0732"
 title: "A signed-out Home is one paste field that opens a public pull request"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0028", "RFC-BPR-0026"]
 depends_on: []
 priority: "P1"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"owner_direction":"2026-09-11","supersedes_scope_of":"BPR-0716"}
+parked_on: "human-review"
+acceptance: [{"criterion":"core_setup_destination pins the anonymous stage and the kept sign_in stage","outcome":"pass","revision":"working tree over 1f5d6fb3","evidence":{"kind":"command","detail":"ctest -R core_setup_destination passed; the new cases fail at HEAD (stage public_preview did not exist)."}},{"criterion":"setup_destination_public_path: pasted public link with no account reaches pull_request_ready in public preview, no sign-in step, no credential request; GHES case rewritten; anonymous public preview stays green","outcome":"pass","revision":"working tree over 1f5d6fb3","evidence":{"kind":"command","detail":"application_setup_destination_public_path, application_anonymous_public_preview_public_path, application_profile_window_review_restoration_public_path, application_composition_contract passed."}},{"criterion":"qt_composed_github_scale_{100,125,200}: signed-out Home has no queue heading/list/filters, no Read without signing in, field focused, queue appears with an account","outcome":"pass","revision":"working tree over 1f5d6fb3","evidence":{"kind":"command","detail":"qt_composed_github_scale_100/125/200 and qt_anonymous_public_preview_scale_100/125/200 passed with test_home_signed_out_is_one_paste_field."}},{"criterion":"RFC-BPR-0028 Home paragraph names the signed-out Home; RFC-BPR-0026 AC-09/AC-10 rows on BPR-0599 point here","outcome":"pass","revision":"working tree over 1f5d6fb3","evidence":{"kind":"observation","detail":"docs/rfcs/RFC-BPR-0028-review-workbench-direction.md Home paragraph and BPR-0599 AC-09/AC-10 rows updated; verify_documentation.py DOCUMENTATION_OK."}},{"criterion":"The owner pastes a public link on the signed bundle, signed out, and reads it without another screen","outcome":"pending","revision":"working tree over 1f5d6fb3","evidence":{"kind":"observation","detail":"Awaits the v007 attended session on a rebuilt tests-disabled bundle."}}]
 ---
 
 # A signed-out Home is one paste field that opens a public pull request
@@ -124,3 +126,59 @@ closeout under the d10 continuation.
   point here.
 - The owner pastes a public link on the signed bundle, signed out, and
   reads it without another screen; accepted in an attended session.
+
+## Verification record, 2026-09-11 (d12)
+
+The core decides. `setup_profile_observation` gains `PreviewAvailable` and
+`setup_destination_stage` gains `public_preview`; `resolve_setup_destination`
+answers `ready` for an account, else `public_preview` for a host that can
+read without one, else `sign_in` (the host that refuses preview keeps the
+stop), else `add_server`; `accept_setup_destination` accepts the new stage.
+The branch lives in the core because the decision is which way in a pasted
+link takes, and the header comment says so.
+
+The host performs. `setup_destination_host::resolve` presents "Opening
+<host> without signing in…" and calls the new port method `preview`; the
+app's port reports `PreviewAvailable` as the composition's anonymous
+authority on the GitHub.com contract (`PublicPreviewComposed`, so GHES and a
+platform without the authority stay at sign-in). `preview` activates public
+preview directly (not through `dispatch_intent`, which retires the pending
+destination), arming `SetupAcceptedGeneration` so the identity transition it
+publishes is the expected one; `observe_setup_session` then calls
+`previewed`, and `open` accepts a public-preview session for the exact
+profile and hostname. A refused activation cancels with its own notice.
+
+Qt presents. The landing's `sign_in` card says the bar opens a public pull
+request without signing in, read-only; the "Read without signing in"
+button and its dispatch are gone. `update_home_landing` derives `account =
+signedIn && !PublicPreviewSignedOut`: the queue heading and
+`reviewQueueLanding` (list and six filter combos) are visible only with an
+account, a public-preview session lands on the same `sign_in` card, and the
+bar takes focus on arrival at a signed-out Home (once, so a projection never
+steals focus). The pull-request stack is not shown while its page would
+read "Open a pull request"; its text now names the Home bar. A pending
+`public_preview` stage offers Cancel only. Over an open review with no
+account, "Choose another pull request" moves to the bar, not the hidden
+queue.
+
+Pinned by `core_setup_destination` (three new cases),
+`application_setup_destination` (preview on submit, exact-profile open,
+sign-in kept for the refusing host), `test_home_signed_out_is_one_paste_field`
+in `qt_composed_github_scale_{100,125,200}` (no queue, no button, bar focused,
+no empty page, preview session keeps the card, account shows the queue) and
+`application_setup_destination_public_path` (github.com course: a pasted
+link with no account reaches `pull_request_ready` under public preview with
+zero vault stores, zero vault retrieves and no account transport; the GHES
+course keeps Add server then Sign in and continue).
+`application_profile_window_review_restoration_public_path`'s account seed
+now signs in from the card first, since a pasted github.com link no longer
+stops at sign-in where preview is composed. Also run:
+`qt_anonymous_public_preview_scale_*`,
+`application_anonymous_public_preview_public_path`,
+`application_composition_contract` (both `github_application.cpp` digests
+repinned), the four boundary selectors, clang-format and strict tidy on the
+touched files, DOCUMENTATION_OK. RFC-BPR-0028's Home paragraph and
+RFC-BPR-0026 AC-09/AC-10 on [[BPR-0599]] point here. [[BPR-0716]] stays in
+Backlog on this card and is finished when the owner accepts it. The last
+criterion, the owner pasting a public link signed out on the signed bundle,
+waits on the v007 attended session.

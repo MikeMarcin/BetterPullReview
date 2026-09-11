@@ -15,7 +15,9 @@ namespace bpr::core {
 		aPending.Stage = setup_destination_stage::add_server;
 		if (found != aProfiles.end()) {
 			aPending.Profile = found->Profile;
-			aPending.Stage   = found->Authenticated ? setup_destination_stage::ready : setup_destination_stage::sign_in;
+			aPending.Stage   = found->Authenticated ? setup_destination_stage::ready
+				: found->PreviewAvailable           ? setup_destination_stage::public_preview
+													: setup_destination_stage::sign_in;
 		}
 		return aPending;
 	}
@@ -26,7 +28,8 @@ namespace bpr::core {
 	{
 		if (!aPending || aPending->Request != aRequest || aPending->Owner != aOwner
 			|| aPending->Profile != aProfile || aPending->Destination.Hostname != aHostname
-			|| (aPending->Stage != setup_destination_stage::authenticating && aPending->Stage != setup_destination_stage::opening && aPending->Stage != setup_destination_stage::ready)) {
+			|| (aPending->Stage != setup_destination_stage::authenticating && aPending->Stage != setup_destination_stage::opening && aPending->Stage != setup_destination_stage::ready
+				&& aPending->Stage != setup_destination_stage::public_preview)) {
 			return std::nullopt;
 		}
 		return aPending->Destination;

@@ -1,5 +1,6 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "bpr/qt/github_session_panel.hpp"
+#include "bpr/qt/workbench_landing.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include <QAction>
@@ -9,6 +10,7 @@
 #include <QFileInfo>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListView>
 #include <QPixmap>
 #include <QPushButton>
 #include <QStatusBar>
@@ -76,7 +78,10 @@ namespace {
 		options.ApplicationDataRoot         = std::filesystem::path{ QFileInfo{ temporary.path() }.canonicalFilePath().toStdString() };
 		options.SetupUnconfiguredEnterprise = aEnterprise;
 		options.RegisteredDeviceCourse      = !aEnterprise;
-		options.RepeatReadSessions          = true;
+		// [[BPR-0732]]. The GitHub.com course composes the anonymous
+		// authority: a pasted public link with no account opens signed out.
+		options.PublicPreviewEnabledCourse = !aEnterprise;
+		options.RepeatReadSessions         = true;
 		std::unique_ptr<bpr::app::github_application> application;
 		auto                                          startupTerminal = false;
 		auto                                          startup         = github_application_fixture_access::start(aEnterprise ? app::detail::github_public_path_fixture::ghes_3_18 : app::detail::github_public_path_fixture::github_com, options, [&](auto aResult) {
@@ -91,13 +96,32 @@ namespace {
 		window.show();
 		QApplication::processEvents();
 		const auto url = aEnterprise ? QStringLiteral("https://ghe.example.invalid/octo-org/review-repository/pull/17/files#diff-abcd") : QStringLiteral("https://github.com/octo-org/review-repository/pull/17");
-		submit(window, url);
-		if (aEnterprise) {
-			capture(window, QStringLiteral("setup-unknown.png"));
+		if (!aEnterprise) {
+			// [[BPR-0732]]. One gesture, signed out: no sign-in stop, no
+			// continuation press, no credential request, no vault write.
+			expect(!window.home_landing()->isHidden() && window.home_landing()->state() == qt::landing_state::sign_in && !window.queue_view()->isVisible(), "the signed-out Home has no queue");
+			submit(window, url);
+			expect(button(window, "homeSetupContinue")->isHidden(), "a public host with no account offers no sign-in stop");
+			expect(window.home_open_notice()->text().contains(QStringLiteral("without signing in")) || window.session_panel()->status() == core::github_status::pull_request_ready, "the notice names the signed-out open");
+			wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_ready; }, "a pasted public link opens signed out with no sign-in step");
+			auto evidence = github_application_fixture_access::evidence(*application);
+			expect(evidence.VaultStores == 0U && evidence.VaultRetrieveAttempts == 0U && !evidence.AccountTransportSelected && !evidence.CredentialStored && !evidence.CredentialRetrieved, "the signed-out open sends no credential and consults no vault");
+			expect(application->status().PublicPreviewSignedOut, "the accepted session is public preview");
+			expect(window.home_open_bar()->text().isEmpty(), "accepted opening clears input");
+			expect(window.session_panel()->active_host_text().find("github.com") != std::string::npos, "accepted review belongs to exact requested host");
+			submit(window, QStringLiteral("https://other.example.invalid/o/r/pull/99"));
+			expect(button(window, "homeSetupCancel")->isVisible(), "cancel action visible before gesture");
+			button(window, "homeSetupCancel")->click();
+			expect(window.session_panel()->status() == core::github_status::pull_request_ready && github_application_fixture_access::evidence(*application).VaultStores == 0U, "cancelled unknown target preserves current review");
+			application->begin_shutdown();
+			wait_for([&] { return application->status().ShutdownComplete; }, "setup and review work quiesce");
+			return;
 		}
+		submit(window, url);
+		capture(window, QStringLiteral("setup-unknown.png"));
 		expect(window.home_open_bar()->text() == url, "pending setup retains the exact pasted target");
 		expect(button(window, "homeSetupContinue")->isVisible() && button(window, "homeSetupCancel")->isVisible(), "pending setup actions are visible on Home");
-		expect(button(window, "homeSetupContinue")->text() == (aEnterprise ? QStringLiteral("Add server and continue") : QStringLiteral("Sign in and continue")), "correct explicit setup action");
+		expect(button(window, "homeSetupContinue")->text() == QStringLiteral("Add server and continue"), "correct explicit setup action");
 		auto evidence = github_application_fixture_access::evidence(*application);
 		expect(evidence.VaultStores == 0U && !evidence.BootstrapTransportSelected && !evidence.AccountTransportSelected, "parsing sends no credentials or provider reads");
 		expect(button(window, "homeSetupCancel")->isVisible(), "cancel action visible before gesture");

@@ -48,23 +48,6 @@ namespace bpr::qt {
 		Secondary->setObjectName(QStringLiteral("workbenchHomeSecondaryButton"));
 		Secondary->setFlat(true);
 		Secondary->setFocusPolicy(Qt::StrongFocus);
-		// [[BPR-0670]]. The way in for a reviewer with no account, named for
-		// what it does and standing where they are.
-		ReadSignedOut = new QPushButton{ this };
-		ReadSignedOut->setObjectName(QStringLiteral("workbenchHomeReadSignedOutButton"));
-		ReadSignedOut->setFlat(true);
-		ReadSignedOut->setFocusPolicy(Qt::StrongFocus);
-		ReadSignedOut->setText(QStringLiteral("Read without signing in"));
-		ReadSignedOut->setAccessibleName(QStringLiteral("Read without signing in"));
-		ReadSignedOut->setAccessibleDescription(QStringLiteral(
-			"Reads a public pull request without an account. Comments and review "
-			"actions stay read-only."));
-		ReadSignedOut->setToolTip(ReadSignedOut->accessibleDescription());
-		connect(ReadSignedOut, &QPushButton::clicked, this, [this] {
-			if (ReadSignedOutDispatch) {
-				ReadSignedOutDispatch();
-			}
-		});
 		connect(Primary, &QPushButton::clicked, this, [this] {
 			if (PrimaryDispatch) {
 				PrimaryDispatch();
@@ -80,7 +63,6 @@ namespace bpr::qt {
 		buttons->setContentsMargins(0, 0, 0, 0);
 		buttons->setSpacing(8);
 		buttons->addWidget(Primary);
-		buttons->addWidget(ReadSignedOut);
 		buttons->addWidget(Secondary);
 		buttons->addStretch(1);
 
@@ -101,14 +83,16 @@ namespace bpr::qt {
 		switch (aState) {
 		case landing_state::sign_in:
 			Title->setText(QStringLiteral("Connect a GitHub account"));
-			// [[BPR-0669]]. The bar directly below this card opens a pull
-			// request from a pasted link, so the card says so rather than
-			// sending a reviewer into Settings to split a link by hand.
+			// [[BPR-0732]]. The bar directly below this card is the one way
+			// in without an account: a pasted public link opens signed out,
+			// read-only, in one gesture. The card says so; there is no
+			// separate button and no second screen (which replaced the
+			// [[BPR-0670]] "Read without signing in" button and its detour).
 			Body->setText(QStringLiteral(
-				"BetterPullReview reviews pull requests from your GitHub accounts. "
-				"Sign in once with a device code; the session is remembered on "
-				"this Mac. To open a public pull request without signing in, "
-				"paste its link in the bar below."));
+				"Paste a public pull request link, or owner/name#123, in the bar "
+				"below to read it without signing in; comments and review actions "
+				"stay read-only. Sign in once with a device code for your review "
+				"queue; the session is remembered on this Mac."));
 			Primary->setText(QStringLiteral("Sign in to GitHub…"));
 			Primary->setAccessibleName(QStringLiteral("Sign in to GitHub"));
 			Primary->setAccessibleDescription(QStringLiteral(
@@ -134,8 +118,9 @@ namespace bpr::qt {
 				"Returns to the open pull request at the same file and change."));
 			Secondary->setText(QStringLiteral("Choose another pull request"));
 			Secondary->setAccessibleName(QStringLiteral("Choose another pull request"));
-			Secondary->setAccessibleDescription(QStringLiteral(
-				"Moves to the review queue below."));
+			Secondary->setAccessibleDescription(
+				QueueOffered ? QStringLiteral("Moves to the review queue below.")
+							 : QStringLiteral("Moves to the bar below, which takes a pull request link or owner/name#number."));
 			break;
 		case landing_state::choose_pull_request:
 			Title->setText(QStringLiteral("Open a pull request"));
@@ -156,9 +141,6 @@ namespace bpr::qt {
 		}
 		Primary->setToolTip(Primary->accessibleDescription());
 		Secondary->setToolTip(Secondary->accessibleDescription());
-		// Only the reviewer with no account is offered it; signed in, it would
-		// be a way to read less than they already can.
-		ReadSignedOut->setVisible(aState == landing_state::sign_in);
 		updateGeometry();
 		update();
 	}
@@ -169,6 +151,17 @@ namespace bpr::qt {
 			return;
 		}
 		ReviewIdentity = aIdentity;
+		if (State == landing_state::back_to_review) {
+			set_state(State);
+		}
+	}
+
+	void workbench_landing::set_queue_offered(const bool aOffered)
+	{
+		if (QueueOffered == aOffered) {
+			return;
+		}
+		QueueOffered = aOffered;
 		if (State == landing_state::back_to_review) {
 			set_state(State);
 		}
@@ -219,14 +212,5 @@ namespace bpr::qt {
 		painter.setBrush(palette().color(QPalette::Active, QPalette::Button));
 		painter.drawRoundedRect(
 			QRectF{ rect() }.adjusted(12.5, 8.5, -12.5, -8.5), 8.0, 8.0);
-	}
-	auto workbench_landing::read_signed_out_button() const noexcept -> QPushButton*
-	{
-		return ReadSignedOut;
-	}
-
-	void workbench_landing::set_read_signed_out_dispatch(std::function<void()> aDispatch)
-	{
-		ReadSignedOutDispatch = std::move(aDispatch);
 	}
 } // namespace bpr::qt

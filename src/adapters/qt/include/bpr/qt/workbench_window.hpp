@@ -803,8 +803,11 @@ namespace bpr::qt {
 		QWidget*                                 HomePage             = nullptr;
 		bool                                     StripHome            = false;
 		bool                                     HomeRequested        = false;
+		bool                                     HomeFocused          = false;
 		QAction*                                 HomeAction           = nullptr;
 		QVBoxLayout*                             HomeColumn           = nullptr;
+		QLabel*                                  HomeQueueHeading     = nullptr;
+		QWidget*                                 QueueSurface         = nullptr;
 		QVBoxLayout*                             DrawerTopColumn      = nullptr;
 		QStackedWidget*                          CentralStack         = nullptr;
 		bool                                     ModalityChosen       = false;

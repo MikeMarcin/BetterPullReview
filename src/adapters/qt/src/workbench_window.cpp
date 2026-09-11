@@ -779,28 +779,14 @@ namespace bpr::qt {
 				QueueView->setFocus(Qt::OtherFocusReason);
 			}
 		});
-		// [[BPR-0670]]. The signed-out read, from Home, in one press: the
-		// same profile activation the Settings button sends, and then the
-		// bar that names the pull request, so the reviewer with no account
-		// has one path and it is the one in front of them.
-		HomeLanding->set_read_signed_out_dispatch([this] {
-			if (SessionPanel != nullptr && GithubDispatch) {
-				if (const auto profile = SessionPanel->selected_profile();
-					profile.has_value()) {
-					GithubDispatch(core::activate_host_profile_intent{
-						.Profile = *profile,
-						.Mode    = core::github_access_mode::public_preview,
-					});
-				}
-			}
-			if (HomeOpenBar != nullptr) {
-				HomeOpenBar->setFocus(Qt::OtherFocusReason);
-			}
-		});
 		HomeLanding->set_secondary_dispatch([this] {
 			if (HomeLanding->state() == landing_state::back_to_review) {
-				if (QueueView != nullptr) {
+				// [[BPR-0732]]. Signed out there is no queue; the bar is the
+				// way to another pull request, not Settings.
+				if (QueueView != nullptr && QueueView->isVisible()) {
 					QueueView->setFocus(Qt::OtherFocusReason);
+				} else if (HomeOpenBar != nullptr) {
+					HomeOpenBar->setFocus(Qt::OtherFocusReason);
 				}
 				return;
 			}
@@ -1336,10 +1322,12 @@ namespace bpr::qt {
 			headingFont.setWeight(QFont::DemiBold);
 			queueHeading->setFont(headingFont);
 			homeColumn->addWidget(queueHeading);
+			HomeQueueHeading = queueHeading;
 			build_queue_landing(HomePage, *homeColumn);
 			if (auto* const landing = HomePage->findChild<QWidget*>(
 					QStringLiteral("reviewQueueLanding"), Qt::FindDirectChildrenOnly);
 				landing != nullptr) {
+				QueueSurface = landing;
 				landing->setMaximumHeight(QWIDGETSIZE_MAX);
 				landing->setContentsMargins(24, 0, 24, 12);
 				homeColumn->setStretchFactor(landing, 1);
@@ -3969,14 +3957,28 @@ namespace bpr::qt {
 			|| status == core::github_status::pull_request_ready
 			|| status == core::github_status::pull_request_failed
 			|| status == core::github_status::pull_request_cancelled;
+		// [[BPR-0732]]. A public-preview session is signed in for the
+		// window's chrome but has no account: no queue, no picker, and the
+		// same card and bar as before the session, since the bar is what
+		// opened it.
+		const auto account   = signedIn && !PublicPreviewSignedOut;
 		const auto comparing = ComparisonSurface != nullptr
 			&& ComparisonSurface->current_result() != nullptr;
 		const auto loading = status == core::github_status::loading_pull_request;
 		HomeLanding->set_review_identity(IdentityText);
+		HomeLanding->set_queue_offered(account);
 		HomeLanding->set_state(
 			HasGithubPullRequest ? landing_state::back_to_review
-				: signedIn       ? landing_state::choose_pull_request
+				: account        ? landing_state::choose_pull_request
 								 : landing_state::sign_in);
+		// The queue is a signed-in surface (RFC-BPR-0026 writes it for a
+		// viewer); without an account there is nothing it could list.
+		if (HomeQueueHeading != nullptr) {
+			HomeQueueHeading->setVisible(account);
+		}
+		if (QueueSurface != nullptr) {
+			QueueSurface->setVisible(account);
+		}
 		// Home is the centre until a pull request, a comparison or an active
 		// workbench gives the review chrome something to be about.
 		// "Active" is the core's word for it: the drawer command is offered
@@ -3996,7 +3998,16 @@ namespace bpr::qt {
 			HomeAction->setChecked(home);
 		}
 		if (CentralStack != nullptr) {
+			const auto arriving = home && CentralStack->currentWidget() != HomePage;
 			CentralStack->setCurrentWidget(home ? HomePage : static_cast<QWidget*>(CentralSplitter));
+			// [[BPR-0732]]. Signed out, the bar is the way in, so it takes
+			// focus on arrival; a signed-in Home keeps the card's default
+			// button. Only on arrival, so a projection cannot steal focus
+			// from wherever the reviewer has moved it.
+			if ((arriving || !HomeFocused) && home && !account && !HasGithubPullRequest && HomeOpenBar != nullptr && isVisible()) {
+				HomeOpenBar->setFocus(Qt::OtherFocusReason);
+				HomeFocused = true;
+			}
 		}
 		// On Home the strip keeps only what Home can use: the account and
 		// settings at its right, the inset and the spacers that place them.
@@ -4039,11 +4050,14 @@ namespace bpr::qt {
 				// Under the landing card, above the queue heading.
 				HomeColumn->insertWidget(1, PullRequestStack);
 			}
-			// On Home while signed out, the stack's empty page would only
-			// restate the card; it earns its place when it carries a load
-			// failure or a diagnostic, or once there is a session.
+			// [[BPR-0732]]. On Home the stack's empty page would only restate
+			// the card; it earns its place when it carries a load failure, a
+			// load in progress or a diagnostic, never as "Open a pull request"
+			// under a card that already says so.
+			const auto empty = status == core::github_status::session_ready
+				|| status == core::github_status::pull_request_ready;
 			PullRequestStack->setVisible(
-				home && (signedIn || SessionPanel->showing_diagnostic()));
+				home && ((signedIn && !empty) || SessionPanel->showing_diagnostic()));
 		}
 	}
 
@@ -4811,8 +4825,8 @@ namespace bpr::qt {
 					QStringLiteral("Open a pull request"));
 				EmptyStateBodyLabel->setText(
 					QStringLiteral(
-						"Enter an owner, repository, and pull request number "
-						"above."));
+						"Paste a pull request link, or owner/name#123, in the bar "
+						"on Home."));
 				break;
 			case core::github_status::loading_pull_request:
 				state = QStringLiteral("loading");
@@ -5139,6 +5153,8 @@ namespace bpr::qt {
 		} else {
 			statusBar()->clearMessage();
 		}
+		// [[BPR-0732]]. A public-preview stage needs no press: the host is
+		// already opening it, so only Cancel is offered.
 		const auto actionable = aProjection.Pending && (aProjection.Pending->Stage == core::setup_destination_stage::add_server || aProjection.Pending->Stage == core::setup_destination_stage::sign_in);
 		SetupContinueButton->setVisible(actionable);
 		SetupContinueButton->setText(aProjection.Pending && aProjection.Pending->Stage == core::setup_destination_stage::add_server ? tr("Add server and continue") : tr("Sign in and continue"));
@@ -5406,6 +5422,11 @@ namespace bpr::qt {
 	void workbench_window::showEvent(QShowEvent* const aEvent)
 	{
 		QMainWindow::showEvent(aEvent);
+		// [[BPR-0732]]. The first showing decides where a signed-out Home
+		// starts: at the bar.
+		if (!HomeFocused) {
+			update_home_landing();
+		}
 		// The native window exists once shown; the title text goes then.
 		hide_native_title_text(*this);
 	}

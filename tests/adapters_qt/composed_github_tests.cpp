@@ -2628,7 +2628,9 @@ namespace {
 		window.hide();
 	}
 
-	auto test_home_offers_reading_without_signing_in() -> void
+	/// \brief [[BPR-0732]]. Signed out, Home is the card, one bar and nothing
+	/// that needs an account.
+	auto test_home_signed_out_is_one_paste_field() -> void
 	{
 		std::vector<application::github_intent> intents;
 		qt::workbench_window                    window{
@@ -2642,31 +2644,46 @@ namespace {
 		};
 		window.resize(1'280, 820);
 		window.show();
+		window.activateWindow();
 		QApplication::processEvents();
-		auto* const read = window.home_landing()->read_signed_out_button();
-		expect(read != nullptr && read->isVisible()
-				   && read->text() == QStringLiteral("Read without signing in")
-				   && read->accessibleDescription().contains(QStringLiteral("read-only")),
-			   "signed out, Home offers reading without an account and says what it costs");
-		expect(window.home_page()->isAncestorOf(read),
-			   "it is on Home, not behind Settings");
-		intents.clear();
-		read->click();
+		auto* const landing = window.home_landing();
+		auto* const heading = window.findChild<QLabel*>(QStringLiteral("workbenchHomeQueueHeading"));
+		auto* const surface = window.findChild<QWidget*>(QStringLiteral("reviewQueueLanding"));
+		auto* const stack   = window.findChild<QWidget*>(QStringLiteral("githubViewState"));
+		expect(landing->state() == qt::landing_state::sign_in
+				   && landing->body_label()->text().contains(QStringLiteral("without signing in"))
+				   && landing->body_label()->text().contains(QStringLiteral("read-only"))
+				   && window.findChild<QPushButton*>(QStringLiteral("workbenchHomeReadSignedOutButton")) == nullptr,
+			   "signed out, the card says the bar opens a public pull request without an account, and there is no separate button");
+		expect(heading != nullptr && surface != nullptr && !heading->isVisible() && !surface->isVisible()
+				   && !window.queue_view()->isVisible() && !window.queue_role_filter()->isVisible()
+				   && !window.queue_observer_filter()->isVisible() && !window.queue_bucket_filter()->isVisible()
+				   && !window.queue_repository_filter()->isVisible() && !window.queue_quiet_filter()->isVisible()
+				   && !window.queue_sort_selector()->isVisible(),
+			   "no queue heading, list or filter combo is shown without an account");
+		expect(window.home_open_bar()->isVisible() && QApplication::focusWidget() == window.home_open_bar(),
+			   "the bar is the way in, so it has focus");
+		expect(stack != nullptr && !stack->isVisible(),
+			   "the pull request stack's empty page is not shown under the card");
+		// A public-preview session is a session with no account: the same
+		// Home, with the queue still absent.
+		publish_session_ready(window);
+		auto preview = application::public_preview_presentation{ };
+		preview.Mode = application::public_preview_mode::signed_out;
+		window.publish(preview);
 		QApplication::processEvents();
-		const auto* const activate = intents.empty()
-			? nullptr
-			: std::get_if<core::activate_host_profile_intent>(&intents.back());
-		expect(intents.size() == 1U && activate != nullptr
-				   && activate->Mode == core::github_access_mode::public_preview
-				   && activate->Profile == window.session_panel()->selected_profile(),
-			   "it enters the signed-out read for the selected host, and nothing else");
-		expect(QApplication::focusWidget() == window.home_open_bar(),
-			   "and leaves the reviewer at the bar that names a pull request");
-
+		expect(landing->state() == qt::landing_state::sign_in && !heading->isVisible() && !surface->isVisible()
+				   && !stack->isVisible(),
+			   "a public-preview session keeps the signed-out Home: no picker, no queue, no empty page");
+		expect(intents.empty(), "nothing was dispatched on the way");
+		// Once a session with an account exists the queue appears.
+		preview.Mode = application::public_preview_mode::signed_in;
+		window.publish(preview);
 		publish_session_ready(window);
 		QApplication::processEvents();
-		expect(!read->isVisible(),
-			   "signed in, reading without an account is not offered");
+		expect(landing->state() == qt::landing_state::choose_pull_request && heading->isVisible() && surface->isVisible()
+				   && window.queue_view()->isVisible() && window.queue_role_filter()->isVisible(),
+			   "a session with an account shows the queue");
 		window.hide();
 	}
 
@@ -3593,10 +3610,10 @@ namespace {
 				&& !window.conversations_drawer()->isVisible()
 				&& !window.epoch_selectors()->isVisible()
 				&& !window.comparison_surface()->isVisible()
-				&& window.queue_view()->isVisible()
+				&& !window.queue_view()->isVisible()
 				&& window.home_page()->isAncestorOf(window.queue_view()),
-			"with nothing open the centre is Home -- the landing and the review "
-			"queue -- and none of the review chrome is shown");
+			"with nothing open the centre is Home -- the landing, and the review "
+			"queue once there is an account -- and none of the review chrome is shown");
 		expect(
 			landing != nullptr && landing->isVisible()
 				&& landing->state() == qt::landing_state::sign_in
@@ -3662,7 +3679,8 @@ namespace {
 			landing->isVisible()
 				&& landing->state() == qt::landing_state::choose_pull_request
 				&& landing->title_label()->text()
-					== QStringLiteral("Open a pull request"),
+					== QStringLiteral("Open a pull request")
+				&& window.queue_view()->isVisible(),
 			"signed in with nothing open, Home offers the queue and the locator");
 		window.activateWindow();
 		landing->primary_button()->click();
@@ -4000,7 +4018,7 @@ auto main(int argc, char** argv) -> int
 	test_settings_pages_carry_the_account_card_and_the_rule_editor();
 	test_repositories_drawer_lists_the_queue_and_opens_on_overview();
 	test_home_action_list_opens_rows_and_the_bar_on_overview();
-	test_home_offers_reading_without_signing_in();
+	test_home_signed_out_is_one_paste_field();
 	test_a_pull_request_without_a_comparison_still_lists_its_files();
 	test_read_drawer_shows_threads_as_cards_with_scope_and_actions();
 	test_drawer_controls_are_reachable_in_the_conversations_drawer();

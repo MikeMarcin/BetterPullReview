@@ -13,14 +13,16 @@ namespace bpr::application {
 	class setup_destination_port
 	{
 	public:
-		virtual ~setup_destination_port()                                                                            = default;
-		[[nodiscard]] virtual auto profiles() const -> std::vector<setup_profile_observation>                        = 0;
-		[[nodiscard]] virtual auto owner() const -> core::setup_owner_id                                             = 0;
-		[[nodiscard]] virtual auto shorthand_hostname() const -> std::string                                         = 0;
-		virtual void               configure(const core::pending_setup_destination& aPending)                        = 0;
-		virtual void               authenticate(const core::pending_setup_destination& aPending)                     = 0;
-		virtual void               open(core::host_profile_id aProfile, const core::setup_destination& aDestination) = 0;
-		virtual void               present(const setup_destination_projection& aProjection)                          = 0;
+		virtual ~setup_destination_port()                                                        = default;
+		[[nodiscard]] virtual auto profiles() const -> std::vector<setup_profile_observation>    = 0;
+		[[nodiscard]] virtual auto owner() const -> core::setup_owner_id                         = 0;
+		[[nodiscard]] virtual auto shorthand_hostname() const -> std::string                     = 0;
+		virtual void               configure(const core::pending_setup_destination& aPending)    = 0;
+		virtual void               authenticate(const core::pending_setup_destination& aPending) = 0;
+		/// \brief [[BPR-0732]]. Activates the profile signed out, then reports `previewed`.
+		virtual void preview(const core::pending_setup_destination& aPending)                          = 0;
+		virtual void open(core::host_profile_id aProfile, const core::setup_destination& aDestination) = 0;
+		virtual void present(const setup_destination_projection& aProjection)                          = 0;
 	};
 
 	/// \brief Retains one exact pending navigation on the host's serialized decision lane.
@@ -28,11 +30,13 @@ namespace bpr::application {
 	{
 	public:
 		explicit setup_destination_host(setup_destination_port& aPort);
-		void               submit(std::string_view aText);
-		void               continue_setup(core::setup_request_id aRequest);
-		void               committed(core::setup_request_id aRequest);
-		void               configured(core::setup_request_id aRequest);
-		void               authenticated(core::setup_request_id aRequest, core::host_profile_id aProfile, std::string_view aHostname);
+		void submit(std::string_view aText);
+		void continue_setup(core::setup_request_id aRequest);
+		void committed(core::setup_request_id aRequest);
+		void configured(core::setup_request_id aRequest);
+		void authenticated(core::setup_request_id aRequest, core::host_profile_id aProfile, std::string_view aHostname);
+		/// \brief [[BPR-0732]]. The signed-out session for the pending profile exists; opens the destination.
+		void               previewed(core::setup_request_id aRequest, core::host_profile_id aProfile, std::string_view aHostname);
 		void               cancel();
 		[[nodiscard]] auto pending() const -> const std::optional<core::pending_setup_destination>&;
 

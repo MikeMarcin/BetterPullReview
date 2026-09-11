@@ -157,7 +157,12 @@ RFC-BPR-0018 describes them.
 **Home.** An action list: grouped rows (needs you, waiting on others,
 following) with pull request, title, why the row is here, my progress, author,
 role and updated time. Open by URL or owner/repo#number in the bar. Rules and
-saved repositories live in Settings.
+saved repositories live in Settings. Signed out ([[BPR-0732]], owner direction
+2026-09-11): Home is the sign-in card, the bar and the status bar; the bar
+opens a public pull request without an account in one gesture (the core's
+`public_preview` stage, serviced by the host), and the queue, its filters and
+the pull-request stack's empty page are not shown until a session with an
+account exists. A public-preview session has none.
 
 **Vocabulary.** First person and event names: "my last review", never "you".
 Column headings are one word; actions are two.

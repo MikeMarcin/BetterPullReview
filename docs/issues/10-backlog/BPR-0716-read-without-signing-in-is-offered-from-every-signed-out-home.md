@@ -85,7 +85,7 @@ mode without an account from that first paste link. App seems to
 automatically, but very slowly, auto-load the last PR on app restart which
 is disorienting; a recently viewed list or something would be better."
 
-Two cards carry it. [BPR-0732](../30-in-progress/BPR-0732-a-signed-out-home-is-one-paste-field-that-opens-a-public-pull-request.md)
+Two cards carry it. [BPR-0732](../40-parked/BPR-0732-a-signed-out-home-is-one-paste-field-that-opens-a-public-pull-request.md)
 takes this card's scope with it (the signed-out Home is the card, one
 paste field and the status bar; the field opens anonymously in one
 gesture; "Read without signing in" and the detour go). The "doesn't work

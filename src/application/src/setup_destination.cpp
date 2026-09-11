@@ -178,6 +178,17 @@ namespace bpr::application {
 			authenticated(Pending->Request, *Pending->Profile, Pending->Destination.Hostname);
 			return;
 		}
+		if (Pending->Stage == core::setup_destination_stage::public_preview) {
+			// [[BPR-0732]]. One gesture: the host activates the signed-out
+			// session and opens the destination when it exists, with no
+			// continuation press between the paste and the pull request.
+			const auto previewing = *Pending;
+			present("Opening " + previewing.Destination.Hostname + " without signing in…");
+			if (Pending == previewing && Port.owner() == previewing.Owner) {
+				Port.preview(previewing);
+			}
+			return;
+		}
 		present("Sign in to continue to " + Pending->Destination.Hostname);
 	}
 	void setup_destination_host::continue_setup(const core::setup_request_id aRequest)
@@ -226,6 +237,13 @@ namespace bpr::application {
 		Port.open(aProfile, *accepted);
 		if (!Pending) {
 			present(accepted->Location.empty() ? std::string{ } : "The requested location is unavailable; opened the pull request. Requested location: " + accepted->Location, true);
+		}
+	}
+	void setup_destination_host::previewed(const core::setup_request_id aRequest,
+										   const core::host_profile_id aProfile, const std::string_view aHostname)
+	{
+		if (Pending && Pending->Stage == core::setup_destination_stage::public_preview) {
+			authenticated(aRequest, aProfile, aHostname);
 		}
 	}
 	void setup_destination_host::cancel()

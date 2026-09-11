@@ -8653,7 +8653,13 @@ namespace bpr::app {
 				if (profile.authentication_transport() != application::github_authentication_transport::native_https) {
 					continue;
 				}
-				result.push_back({ profile.profile(), std::string{ profile.hostname() }, authority && authority->Profile == profile.profile() && Host->accepted_session().has_value() });
+				// [[BPR-0732]]. Preview is the composition's anonymous authority
+				// on the GitHub.com contract; the host refuses GHES by policy,
+				// so a GHES profile with no account keeps the sign-in stop.
+				result.push_back({ .Profile          = profile.profile(),
+								   .Hostname         = std::string{ profile.hostname() },
+								   .Authenticated    = authority && authority->Profile == profile.profile() && Host->accepted_session().has_value(),
+								   .PreviewAvailable = PublicPreviewComposed && profile.server_contract() == application::github_server_contract::github_com_2022_11_28 });
 			}
 			return result;
 		}
@@ -8817,10 +8823,47 @@ namespace bpr::app {
 				stage_setup_credential(aPending, std::move(*material));
 			}
 		}
+		// [[BPR-0732]]. The signed-out open from the Home bar. The intent is
+		// not routed through `dispatch_intent`, which retires the pending
+		// destination; the generation the activation will stamp is armed so
+		// the identity transition it publishes is the expected one.
+		void preview(const core::pending_setup_destination& aPending) override
+		{
+			if (!aPending.Profile || !Host || !SetupDestination) {
+				return;
+			}
+			const auto* profile = find_profile(*aPending.Profile);
+			if (!profile) {
+				return;
+			}
+			const auto& session = Host->accepted_session();
+			if (session && session->Mode == core::github_access_mode::public_preview && session->Profile == *aPending.Profile) {
+				SetupDestination->previewed(aPending.Request, profile->profile(), profile->hostname());
+				return;
+			}
+			SetupAcceptedGeneration = core::github_identity_generation{ Host->state().IdentityGeneration.value() + 1U };
+			if (DeviceHost) {
+				DeviceHost->release_refresh_authority();
+			}
+			DeviceRefreshAuthority.reset();
+			Host->activate_public_preview(*aPending.Profile);
+			if (Host->public_preview_refusal() && SetupDestination->pending() && SetupDestination->pending()->Request == aPending.Request) {
+				SetupAcceptedGeneration.reset();
+				SetupDestination->cancel();
+				present({ .Pending = std::nullopt, .Notice = "Reading without signing in is unavailable here. The requested link is retained; sign in to open it.", .Opened = false });
+			}
+		}
 		void open(const core::host_profile_id aProfile, const core::setup_destination& aDestination) override
 		{
-			const auto authority = Host ? Host->accepted_credential_authority() : std::nullopt;
-			if (!authority || authority->Profile != aProfile || authority->Hostname.value() != aDestination.Hostname || !Host->accepted_session()) {
+			const auto  authority = Host ? Host->accepted_credential_authority() : std::nullopt;
+			const auto& session   = Host ? Host->accepted_session() : std::optional<application::github_session_read_model>{ };
+			const auto* profile   = find_profile(aProfile);
+			// [[BPR-0732]]. A signed-out session opens too, for the exact
+			// profile it was activated for; it still has no authority.
+			const auto previewing = session && session->Mode == core::github_access_mode::public_preview && session->Profile == aProfile
+				&& profile != nullptr && profile->hostname() == aDestination.Hostname;
+			const auto authenticated = authority && authority->Profile == aProfile && authority->Hostname.value() == aDestination.Hostname && session.has_value();
+			if (!previewing && !authenticated) {
 				return;
 			}
 			WindowRead->dispatch(core::open_pull_request_intent{ .Repository = aDestination.Repository, .Number = aDestination.Number });
@@ -8839,9 +8882,13 @@ namespace bpr::app {
 			}
 			if (aUpdate.Transition && aUpdate.Transition->Status
 				&& (aUpdate.Transition->Status->Status == core::github_status::session_failed || aUpdate.Transition->Status->Status == core::github_status::session_cancelled)) {
+				const auto previewing = SetupDestination->pending()->Stage == core::setup_destination_stage::public_preview;
 				retire_setup_effects();
 				SetupDestination->cancel();
-				present({ .Pending = std::nullopt, .Notice = "Sign-in could not finish. The requested link is retained; choose Open to retry.", .Opened = false });
+				present({ .Pending = std::nullopt,
+						  .Notice  = previewing ? "Could not open without signing in. The requested link is retained; choose Open to retry, or sign in."
+												: "Sign-in could not finish. The requested link is retained; choose Open to retry.",
+						  .Opened  = false });
 				return;
 			}
 
@@ -8850,7 +8897,9 @@ namespace bpr::app {
 				const auto* profile = find_profile(aUpdate.Session->Profile);
 				SetupAcceptedGeneration.reset();
 				SetupDeviceRequest.reset();
-				if (profile) {
+				if (profile && pending.Stage == core::setup_destination_stage::public_preview) {
+					SetupDestination->previewed(pending.Request, profile->profile(), profile->hostname());
+				} else if (profile) {
 					SetupDestination->authenticated(pending.Request, profile->profile(), profile->hostname());
 				}
 			}

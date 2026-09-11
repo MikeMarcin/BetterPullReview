@@ -14,7 +14,9 @@ class QPushButton;
 namespace bpr::qt {
 	/// \brief What the centre has nothing to show for, and what to do about it.
 	enum class landing_state : std::uint8_t {
-		/// No accepted session: the way in is an account.
+		/// No account: the way in is the bar below, signed out, or an account.
+		/// [[BPR-0732]]. A public-preview session lands here too; it has no
+		/// queue to choose from.
 		sign_in,
 		/// A session but no pull request: the way in is the queue or the locator.
 		choose_pull_request,
@@ -39,21 +41,18 @@ namespace bpr::qt {
 
 		void set_state(landing_state aState);
 		/// \brief The open review\'s identity, named by the back-to-review state.
-		void               set_review_identity(const QString& aIdentity);
+		void set_review_identity(const QString& aIdentity);
+		/// \brief [[BPR-0732]]. Whether a queue exists to choose from (an account).
+		///
+		/// \details Without one, "choose another" over an open review means
+		/// the bar below, not a queue that is not shown.
+		void               set_queue_offered(bool aOffered);
 		[[nodiscard]] auto state() const noexcept -> landing_state;
 
 		/// \brief Sign in (signed out) or choose from the queue (signed in).
 		[[nodiscard]] auto primary_button() const noexcept -> QPushButton*;
 		/// \brief Open Accounts and hosts, for the settings or the locator.
 		[[nodiscard]] auto secondary_button() const noexcept -> QPushButton*;
-		/// \brief [[BPR-0670]]. Read a public pull request without an account.
-		///
-		/// \details Shown only while signed out, where the reviewer who has no
-		/// account is standing. It was a button named "Public preview" beside
-		/// Connect on a Settings page, which the owner could barely find and
-		/// could not tell from a build channel.
-		[[nodiscard]] auto read_signed_out_button() const noexcept -> QPushButton*;
-		void               set_read_signed_out_dispatch(std::function<void()> aDispatch);
 		[[nodiscard]] auto title_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto body_label() const noexcept -> QLabel*;
 
@@ -64,10 +63,9 @@ namespace bpr::qt {
 		void paintEvent(QPaintEvent* aEvent) override;
 
 	private:
-		landing_state         State = landing_state::sign_in;
+		landing_state         State        = landing_state::sign_in;
+		bool                  QueueOffered = true;
 		QString               ReviewIdentity;
-		QPushButton*          ReadSignedOut = nullptr;
-		std::function<void()> ReadSignedOutDispatch;
 		QLabel*               Title     = nullptr;
 		QLabel*               Body      = nullptr;
 		QPushButton*          Primary   = nullptr;

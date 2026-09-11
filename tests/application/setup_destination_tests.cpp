@@ -20,6 +20,7 @@ namespace {
 		std::vector<application::setup_profile_observation> Profiles{ { core::host_profile_id{ 1U }, "github.com", true } };
 		std::vector<core::pending_setup_destination>        Configurations;
 		std::vector<core::pending_setup_destination>        Authentications;
+		std::vector<core::pending_setup_destination>        Previews;
 		std::vector<core::setup_destination>                Opened;
 		application::setup_destination_projection           Projection;
 		auto                                                profiles() const -> std::vector<application::setup_profile_observation> override { return Profiles; }
@@ -27,6 +28,7 @@ namespace {
 		auto                                                shorthand_hostname() const -> std::string override { return "github.com"; }
 		void                                                configure(const core::pending_setup_destination& aPending) override { Configurations.push_back(aPending); }
 		void                                                authenticate(const core::pending_setup_destination& aPending) override { Authentications.push_back(aPending); }
+		void                                                preview(const core::pending_setup_destination& aPending) override { Previews.push_back(aPending); }
 		void                                                open(core::host_profile_id, const core::setup_destination& aDestination) override { Opened.push_back(aDestination); }
 		void                                                present(const application::setup_destination_projection& aProjection) override
 		{
@@ -100,6 +102,25 @@ int main()
 	};
 	host.continue_setup(fifth);
 	expect(port.Authentications.size() == authenticationCount && !host.pending(), "reentrant cancellation prevents setup effect");
+
+	// [[BPR-0732]]. A public host with no account: the host is asked to
+	// preview on submit, with no continuation press, and the destination
+	// opens once the signed-out session is reported for that exact profile.
+	port.OnPresent = { };
+	port.Profiles  = { { core::host_profile_id{ 1U }, "github.com", false, true }, { core::host_profile_id{ 2U }, "enterprise.example", false, false } };
+	host.submit("https://github.com/o/r/pull/48");
+	const auto sixth = host.pending()->Request;
+	expect(host.pending()->Stage == core::setup_destination_stage::public_preview && port.Previews.size() == 1U && port.Previews.back().Request == sixth && port.Authentications.size() == authenticationCount, "a public host with no account is previewed on submit, not authenticated");
+	expect(port.Projection.Notice.find("without signing in") != std::string::npos && port.Projection.Pending && port.Projection.Pending->Stage == core::setup_destination_stage::public_preview, "the notice says the open is signed out");
+	host.previewed(sixth, core::host_profile_id{ 2U }, "enterprise.example");
+	expect(port.Opened.size() == 2U, "another profile's session never opens the target");
+	host.previewed(sixth, core::host_profile_id{ 1U }, "github.com");
+	expect(port.Opened.size() == 3U && port.Opened.back().Number.value() == 48U && port.Opened.back().Hostname == "github.com" && !host.pending(), "the signed-out session opens the exact target once");
+	host.submit("https://enterprise.example/o/r/pull/49");
+	expect(host.pending()->Stage == core::setup_destination_stage::sign_in && port.Previews.size() == 1U, "a host that refuses preview keeps the sign-in stop");
+	const auto seventh = host.pending()->Request;
+	host.previewed(seventh, core::host_profile_id{ 2U }, "enterprise.example");
+	expect(port.Opened.size() == 3U && host.pending(), "a preview report never completes a sign-in stage");
 
 	return EXIT_SUCCESS;
 }
