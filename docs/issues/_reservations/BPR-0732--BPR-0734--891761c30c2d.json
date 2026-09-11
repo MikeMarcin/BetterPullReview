@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0732",
+    "BPR-0733",
+    "BPR-0734"
+  ],
+  "reserve_for": "attended-prep-2026-09-10-d10",
+  "purpose": "Home signed-out simplification, recently viewed list, BPR-0729 design round",
+  "created": "2026-09-11T19:06:52.821821+00:00",
+  "base": "bd1abc70abdc9d2a870beb16a32f435bfa415c0f"
+}
