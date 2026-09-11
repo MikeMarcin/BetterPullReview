@@ -132,3 +132,12 @@ on the bundle built from the source at 25e1525d (executable sha256
 `d238842d…`), candidate revision `app-release-d238842d-2026-09-11.1`;
 prepared, undecided, no host running until the owner asks for the session.
 The v004 packet is historical.
+
+## The theme customization contract, rerun, 2026-09-11
+
+`application_appearance_theme_customization_contract`, the direct course
+for this palette on the application public path, passes (23.69 s and
+23.80 s on the build with this card's change) once
+[BPR-0723](../60-done/BPR-0723-the-uiforetw-selected-diff-contract-fails-at-startup-on-head.md)
+narrows the contract's pre-created root; the second criterion's evidence
+now includes it. The attended criterion is unchanged.

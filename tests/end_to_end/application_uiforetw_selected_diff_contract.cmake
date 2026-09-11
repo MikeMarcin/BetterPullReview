@@ -45,6 +45,7 @@ if(bpr_helper EQUAL -1)
     message(FATAL_ERROR "fixture diff helper is absent, making the isolation claim vacuous")
 endif()
 
+include("${CMAKE_CURRENT_LIST_DIR}/bpr_narrow_owner_private.cmake")
 math(EXPR bpr_phase_timeout "${BPR_RUN_BUDGET_MS} / 1000 + 30")
 set(bpr_evidence_root "${BPR_ROOT}/evidence")
 file(REMOVE_RECURSE "${BPR_ROOT}")
@@ -54,6 +55,10 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
     set(profile_root "${BPR_ROOT}/${profile}")
     set(profile_evidence "${bpr_evidence_root}/${profile}")
     file(MAKE_DIRECTORY "${profile_root}")
+    # The root is the profile registry root since BPR-0695 (47de7ae8), and
+    # the registry refuses a root it did not narrow itself. A pre-created
+    # 0755 root fails startup before any marker prints (BPR-0723).
+    bpr_narrow_owner_private("${profile_root}")
     execute_process(
         COMMAND
             "${CMAKE_COMMAND}"
@@ -363,22 +368,29 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
         "${review_details_rect_in_window_x} + ${review_details_rect_in_window_width}")
     math(EXPR review_details_bottom
         "${review_details_rect_in_window_y} + ${review_details_rect_in_window_height}")
-    # [[BPR-0646]]. A collapsed drawer is an 18-pixel rail, not nothing: the
-    # files rail sits at the splitter's left edge and the comments rail ends
-    # at its right edge.
-    math(EXPR conversations_drawer_right
-        "${conversations_drawer_rect_in_splitter_x} + ${conversations_drawer_rect_in_splitter_width}")
-    # [[BPR-0651]]. The repositories rail is first, at the splitter's left
-    # edge; the files rail follows it past one handle.
-    if(NOT repositories_drawer_rect_in_splitter_x EQUAL 0
-            OR repositories_drawer_rect_in_splitter_width GREATER 18
-            OR files_drawer_rect_in_splitter_x LESS 18
-            OR files_drawer_rect_in_splitter_x GREATER 40
-            OR files_drawer_rect_in_splitter_y LESS 0
+    # [[BPR-0646]] [[BPR-0651]] pinned the collapsed drawers as 18-pixel
+    # rails in a fixed order: repositories at the splitter's left edge, files
+    # past one handle, comments ending at the right edge. [[BPR-0721]] made
+    # the rails a setting that is off by default: a collapsed drawer is no
+    # column at all, its panel hidden and its handle gone. A hidden panel
+    # keeps the geometry it last had, so its rectangle no longer says where
+    # anything is; what the focused review now asserts is that each drawer
+    # is hidden, no wider than the rail it would be, and that the review
+    # details row stays inside the window. The rail geometry itself is
+    # pinned with the setting on by `qt_composed_github_scale_*`. The
+    # capture records visibility for the two drawers BPR-0646 named; the
+    # repositories drawer (BPR-0651) is held to the width bound alone.
+    foreach(drawer IN ITEMS files conversations)
+        string(JSON drawer_visible GET "${capture_facts}" "${drawer}_drawer_visible")
+        if(drawer_visible)
+            message(FATAL_ERROR
+                "UIforETW ${profile} focused review left the ${drawer} drawer visible"
+            )
+        endif()
+    endforeach()
+    if(repositories_drawer_rect_in_splitter_width GREATER 18
             OR files_drawer_rect_in_splitter_width GREATER 18
-            OR NOT conversations_drawer_right EQUAL 1280
             OR conversations_drawer_rect_in_splitter_width GREATER 18
-            OR conversations_drawer_rect_in_splitter_y LESS 0
             OR review_details_rect_in_window_x LESS 0
             OR review_details_rect_in_window_y LESS 0
             OR review_details_right GREATER 1280

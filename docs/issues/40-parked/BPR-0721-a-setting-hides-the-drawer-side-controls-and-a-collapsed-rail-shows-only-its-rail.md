@@ -122,7 +122,7 @@ which the Settings window adopts, not `settings_window.cpp`.
   `width <= 18` for the collapsed drawers, which a hidden panel satisfies,
   so its text needed no change; it could not be rerun because it fails at
   startup on head independently
-  ([BPR-0723](../30-in-progress/BPR-0723-the-uiforetw-selected-diff-contract-fails-at-startup-on-head.md)).
+  ([BPR-0723](../60-done/BPR-0723-the-uiforetw-selected-diff-contract-fails-at-startup-on-head.md)).
   `application_workbench_composition_contract` stays red at head
   (`PUBLIC_PATH_STAGE:2`, presentation=0), the failure
   [BPR-0718](../60-done/BPR-0718-the-workbench-composition-contract-is-red-at-the-pack-head.md)
@@ -147,3 +147,20 @@ on the bundle built from the source at 25e1525d (executable sha256
 `d238842d…`), candidate revision `app-release-d238842d-2026-09-11.1`;
 prepared, undecided, no host running until the owner asks for the session.
 The v004 packet is historical.
+
+## The UIforETW contract, rerun, 2026-09-11
+
+[BPR-0723](../60-done/BPR-0723-the-uiforetw-selected-diff-contract-fails-at-startup-on-head.md)
+made `application_uiforetw_selected_diff_contract` runnable again, and the
+"not amended" note above was wrong in one respect: `width <= 18` is
+satisfied by a hidden panel, but the BPR-0646/BPR-0651 block also pinned
+the rails' positions (files at x >= 18, comments ending at 1280), and a
+hidden panel keeps the geometry it last had (the light capture recorded
+all three drawers at their old 18-pixel rectangles, files at x = 0 and
+comments at x = 1280). The block now pins this card's default: files and
+conversations drawers hidden, all three no wider than the rail, the review
+details row inside the window; the rail geometry with the setting on stays
+pinned by `qt_composed_github_scale_*` (this card's first criterion). With
+that amendment the contract passes for all four appearances (67.86 s) and
+the compact row at 1280 passes unchanged. `application_workbench_composition_contract`
+is green since [BPR-0718](../60-done/BPR-0718-the-workbench-composition-contract-is-red-at-the-pack-head.md).

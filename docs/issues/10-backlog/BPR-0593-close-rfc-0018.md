@@ -203,7 +203,7 @@ Landed on main, in the recommended order:
   other strip items alone lay out about 900 pixels, so below about 960
   the number has no room and the identity yields whole. Parked for the
   owner's check at the default size and at 1280x820.
-- [BPR-0723](../30-in-progress/BPR-0723-the-uiforetw-selected-diff-contract-fails-at-startup-on-head.md)
+- [BPR-0723](../60-done/BPR-0723-the-uiforetw-selected-diff-contract-fails-at-startup-on-head.md)
   (`6de81ee8`): `application_uiforetw_selected_diff_contract` prints
   `STARTUP_FAILED` 0.5 s into its first capture at `8ff3b664`,
   reproduced on a clean worktree build of that head. Not attributed to
@@ -306,7 +306,7 @@ before any source edit. Landed on main:
   "leave it be for now" recorded as the decision to keep the 900-pixel
   floor and the whole-identity yield below about 960; its attended
   criterion is unchanged.
-- [BPR-0723](../30-in-progress/BPR-0723-the-uiforetw-selected-diff-contract-fails-at-startup-on-head.md):
+- [BPR-0723](../60-done/BPR-0723-the-uiforetw-selected-diff-contract-fails-at-startup-on-head.md):
   `application_appearance_theme_customization_contract` shares the
   `STARTUP_FAILED` signature at cc31119b on a clean worktree build, before
   this milestone's changes; recorded there, not attributed here.

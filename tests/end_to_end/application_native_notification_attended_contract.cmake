@@ -1,6 +1,7 @@
 if(NOT DEFINED BPR_APPLICATION OR NOT DEFINED BPR_ROOT OR NOT DEFINED BPR_SOURCE)
     message(FATAL_ERROR "native notification contract requires application, root, and source")
 endif()
+include("${CMAKE_CURRENT_LIST_DIR}/bpr_narrow_owner_private.cmake")
 
 file(READ "${BPR_SOURCE}/src/app/main.cpp" course_source)
 foreach(forbidden IN ITEMS
@@ -44,6 +45,8 @@ foreach(course IN ITEMS positive request-cut activation-cut)
     set(course_root "${BPR_ROOT}_${course_name}")
     file(REMOVE_RECURSE "${course_root}")
     file(MAKE_DIRECTORY "${course_root}")
+    # The registry refuses a pre-created root it did not narrow itself (BPR-0723).
+    bpr_narrow_owner_private("${course_root}")
     set(course_arguments)
     if(course STREQUAL "request-cut")
         list(APPEND course_arguments "--native-notification-cut-request-wire")
@@ -125,6 +128,7 @@ endforeach()
 set(signal_cut_root "${BPR_ROOT}_signal_observation_cut")
 file(REMOVE_RECURSE "${signal_cut_root}")
 file(MAKE_DIRECTORY "${signal_cut_root}")
+bpr_narrow_owner_private("${signal_cut_root}")
 execute_process(
     COMMAND
         "${BPR_APPLICATION}"

@@ -99,3 +99,12 @@ on the bundle built from the source at 25e1525d (executable sha256
 `d238842d…`), candidate revision `app-release-d238842d-2026-09-11.1`;
 prepared, undecided, no host running until the owner asks for the session.
 The v004 packet is historical.
+
+## The compact row at 1280, rerun, 2026-09-11
+
+`application_uiforetw_selected_diff_contract`, which the first criterion's
+evidence could not run at HEAD, passes for all four appearances once
+[BPR-0723](../60-done/BPR-0723-the-uiforetw-selected-diff-contract-fails-at-startup-on-head.md)
+lands: the compact navigation row at 1280 spans the window with the
+BPR-0646/BPR-0647 order, edges and spacer, so this card's strip change
+holds there as well as in `qt_workbench_window_scale_*`.

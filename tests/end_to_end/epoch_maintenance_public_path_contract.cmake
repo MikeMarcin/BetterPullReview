@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 4.4.2)
+include("${CMAKE_CURRENT_LIST_DIR}/bpr_narrow_owner_private.cmake")
 
 foreach(required IN ITEMS BPR_APPLICATION BPR_ROOT BPR_RUN_BUDGET_MS)
     if(NOT DEFINED ${required} OR "${${required}}" STREQUAL "")
@@ -13,6 +14,8 @@ math(EXPR bpr_phase_timeout "${BPR_RUN_BUDGET_MS} / 1000 + 30")
 
 file(REMOVE_RECURSE "${BPR_ROOT}")
 file(MAKE_DIRECTORY "${BPR_ROOT}")
+# The registry refuses a pre-created root it did not narrow itself (BPR-0723).
+bpr_narrow_owner_private("${BPR_ROOT}")
 
 function(run_phase label)
     set(arguments ${ARGN})

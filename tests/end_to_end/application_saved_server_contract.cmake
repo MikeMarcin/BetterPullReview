@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 4.4.2)
+include("${CMAKE_CURRENT_LIST_DIR}/bpr_narrow_owner_private.cmake")
 
 # [[BPR-0660]]. The enterprise server a reviewer keeps, over two runs against
 # one application data root: the seed run remembers "ghe.kept.example" on the
@@ -73,6 +74,8 @@ foreach(fixture_spec IN ITEMS "github-com|github.com" "ghes-3.18|ghes-3.18")
     list(GET fixture_parts 1 fixture_label)
     set(fixture_root "${BPR_ROOT}/${fixture}")
     file(MAKE_DIRECTORY "${fixture_root}")
+    # The registry refuses a pre-created root it did not narrow itself (BPR-0723).
+    bpr_narrow_owner_private("${fixture_root}")
     bpr_run_saved_server_phase("${fixture}" "${fixture_label}" "${fixture_root}" seed)
     bpr_run_saved_server_phase("${fixture}" "${fixture_label}" "${fixture_root}" reuse)
 endforeach()

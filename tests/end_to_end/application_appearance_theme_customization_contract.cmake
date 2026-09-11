@@ -50,8 +50,12 @@ function(require_regex label output pattern)
     endif()
 endfunction()
 
+include("${CMAKE_CURRENT_LIST_DIR}/bpr_narrow_owner_private.cmake")
 file(REMOVE_RECURSE "${BPR_ROOT}")
 file(MAKE_DIRECTORY "${BPR_ROOT}")
+# The root doubles as the profile registry root since BPR-0695 (47de7ae8),
+# which refuses a root it did not narrow itself (BPR-0723).
+bpr_narrow_owner_private("${BPR_ROOT}")
 file(COPY_FILE "${BPR_THEME}" "${BPR_ROOT}/theme.bprtheme")
 
 # Process one uses the real fixture-selected workbench and the real local-file
@@ -152,6 +156,7 @@ if(UNIX)
     set(special_theme "${special_root}/blocking-theme")
     file(REMOVE_RECURSE "${special_root}")
     file(MAKE_DIRECTORY "${special_root}")
+    bpr_narrow_owner_private("${special_root}")
     execute_process(
         COMMAND "${BPR_MKFIFO_EXECUTABLE}" "${special_theme}"
         RESULT_VARIABLE fifo_result

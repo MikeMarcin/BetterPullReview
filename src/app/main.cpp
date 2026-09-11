@@ -1121,6 +1121,9 @@ namespace {
 #endif
 		std::optional<std::string_view> RenderPath;
 		bool                            RenderCollapsesFilesDrawer = false;
+		/// The application's status as the course ended, captured at the
+		/// shutdown transition; the displayed-comparison lines print from it.
+		std::optional<bpr::app::github_application_status> CourseEndStatus;
 	};
 
 #if defined(BPR_BUILD_TESTING)
@@ -4506,9 +4509,14 @@ namespace {
 			   << aApplication.status().DroppedClassifications << ':'
 			   << aApplication.status().ClassificationFailures << ':'
 			   << aApplication.status().ClassificationTerminals << '\n';
+		// "Right now" is the moment the course ended, not after teardown: the
+		// closing window releases its read host and with it the comparison,
+		// so the status captured at the shutdown transition is the one that
+		// still describes the screen (BPR-0723).
+		const auto& displayed = aRun.CourseEndStatus ? *aRun.CourseEndStatus : status;
 		stream << "SYNTAX_DISPLAYED:"
-			   << aApplication.status().DisplayedLeftClassified << ':'
-			   << aApplication.status().DisplayedRightClassified << '\n';
+			   << displayed.DisplayedLeftClassified << ':'
+			   << displayed.DisplayedRightClassified << '\n';
 		// How many spans those panes carry, and how many adoptions were taken on
 		// the display turn rather than on delivery. Presence is too weak to be
 		// the check: `definition_for_path` falls back to plain text rather than
@@ -4516,10 +4524,10 @@ namespace {
 		// list, so a pane can hold a span list and be entirely uncoloured. A
 		// count separates "classified" from "a list arrived" (BPR-0390).
 		stream << "SYNTAX_DISPLAYED_SPANS:"
-			   << aApplication.status().DisplayedLeftSpans << ':'
-			   << aApplication.status().DisplayedRightSpans << ':'
-			   << aApplication.status().DisplayAdoptedClassifications << ':'
-			   << (aApplication.status().DisplayedComparison ? 1 : 0) << '\n';
+			   << displayed.DisplayedLeftSpans << ':'
+			   << displayed.DisplayedRightSpans << ':'
+			   << displayed.DisplayAdoptedClassifications << ':'
+			   << (displayed.DisplayedComparison ? 1 : 0) << '\n';
 		// The settings in effect. A composition starts from `system` and a tab
 		// width of four, so a run that made no gesture and reports anything
 		// else read it from the durable record - which is the restart claim.
@@ -4740,6 +4748,11 @@ namespace {
 		bpr::app::github_application& aApplication,
 		automated_run&                aRun)
 	{
+		// What the course left on screen, read before shutdown. Since
+		// BPR-0697 and BPR-0705 a closing window releases its read host,
+		// which invalidates the comparison it held, so a status read after
+		// teardown reports an empty surface for every course (BPR-0723).
+		aRun.CourseEndStatus = aApplication.status();
 		aApplication.begin_shutdown();
 		aRun.Stage = automated_run::stage::shutdown;
 	}
