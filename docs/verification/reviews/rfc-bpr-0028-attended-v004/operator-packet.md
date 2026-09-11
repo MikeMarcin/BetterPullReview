@@ -4,9 +4,9 @@ Status: **prepared; thirteen decisions pending; no host running**.
 
 The ten v003 candidates, prepared again on the bundle built at the head
 that lands the three v003 follow-ups
-([BPR-0719](../../../issues/40-parked/BPR-0719-a-large-file-with-a-small-change-is-refused-by-the-comparison-work-limit.md),
-[BPR-0721](../../../issues/40-parked/BPR-0721-a-setting-hides-the-drawer-side-controls-and-a-collapsed-rail-shows-only-its-rail.md),
-[BPR-0722](../../../issues/40-parked/BPR-0722-the-strip-hides-the-pull-request-identity-below-1400-pixels.md)),
+([BPR-0719](../../../issues/60-done/BPR-0719-a-large-file-with-a-small-change-is-refused-by-the-comparison-work-limit.md),
+[BPR-0721](../../../issues/60-done/BPR-0721-a-setting-hides-the-drawer-side-controls-and-a-collapsed-rail-shows-only-its-rail.md),
+[BPR-0722](../../../issues/60-done/BPR-0722-the-strip-hides-the-pull-request-identity-below-1400-pixels.md)),
 plus one candidate for each of those three. Nothing here changes anything
 on GitHub: the pull request is read signed out.
 

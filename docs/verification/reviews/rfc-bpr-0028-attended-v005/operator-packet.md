@@ -5,7 +5,7 @@ Status: **prepared; fifteen decisions pending; no host running**.
 The thirteen v004 candidates, prepared again on the bundle built at the
 head that lands the owner's answers to the v003 questions
 ([BPR-0720](../../../issues/40-parked/BPR-0720-comments-are-green-and-includes-are-grey-on-the-dark-palette.md),
-[BPR-0724](../../../issues/40-parked/BPR-0724-read-mode-leaves-too-little-horizontal-room-for-the-code.md)),
+[BPR-0724](../../../issues/60-done/BPR-0724-read-mode-leaves-too-little-horizontal-room-for-the-code.md)),
 plus one candidate for each of those two. Nothing here changes anything
 on GitHub: the pull request is read signed out.
 
