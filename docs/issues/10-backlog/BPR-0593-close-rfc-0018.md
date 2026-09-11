@@ -210,7 +210,7 @@ Landed on main, in the recommended order:
   the follow-ups; it blocks re-running the 1280 compact-row and rail
   assertions that BPR-0722 and BPR-0721 touch.
 
-Not started: [BPR-0721](../40-parked/BPR-0721-a-setting-hides-the-drawer-side-controls-and-a-collapsed-rail-shows-only-its-rail.md).
+Not started: [BPR-0721](../60-done/BPR-0721-a-setting-hides-the-drawer-side-controls-and-a-collapsed-rail-shows-only-its-rail.md).
 Scouted facts for it: the heading row is a nested `QHBoxLayout`
 (`workbench_drawer.cpp:399-419`) that `adopt()` (`:501-534`) never hides,
 so `Heading` and `Collapse` must be toggled explicitly; the settings store
@@ -241,7 +241,7 @@ to the floor, or whether the floor moves to 960.
 ## Continuation after the v003 follow-ups, second milestone, 2026-09-10
 
 Dispatch `attended-prep-2026-09-10` d6 (mandate r2). Landed on main:
-[BPR-0721](../40-parked/BPR-0721-a-setting-hides-the-drawer-side-controls-and-a-collapsed-rail-shows-only-its-rail.md):
+[BPR-0721](../60-done/BPR-0721-a-setting-hides-the-drawer-side-controls-and-a-collapsed-rail-shows-only-its-rail.md):
 the heading row no longer stays above a rail, and
 `review_behaviour_settings::DrawerControls` (hidden by default, the owner's
 direction) removes the rails and Hide buttons so the strip toggles are the

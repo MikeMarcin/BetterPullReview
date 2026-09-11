@@ -2,19 +2,18 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0721"
 title: "A setting hides the drawer-side controls, and a collapsed drawer shows only its rail"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0028", "RFC-BPR-0018"]
 depends_on: []
 priority: "P1"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"owner_direction":"2026-09-10","attended_decision":"65f3f881-91a3-4388-8b8c-0c69fc0a57d6"}
-parked_on: "human-review"
-acceptance: [{"criterion":"qt_composed_github_scale_{100,125,200}: with the setting off, a collapsed drawer occupies zero width in the splitter and no Hide button is in the drawer; with it on, the rail is exactly the 18-pixel column with its label and nothing above it; each state pinned in a rendered crop","outcome":"pass","revision":"d6106184","evidence":{"kind":"command","detail":"build/dev ctest qt_composed_github_scale_100/125/200 pass (scratch ctest-qt-1.log, c7.log, ctest-focused-1.log): test_agent_surfaces_are_placed_in_the_conversations_drawer asserts !drawer->isVisible(), splitter sizes()[3]==0 and controls_shown()==false with the default record, then after publishing DrawerControls=shown asserts rail visible, width==18, the heading label hidden and the Hide button hidden; test_a_pull_request_without_a_comparison_still_lists_its_files asserts no Hide button by default and the strip toggle enabled, then the named Hide button once shown. Crops composed-github-{100,125,200}-drawer-controls-hidden.png and -drawer-controls-rail.png in build/dev/tests/adapters_qt; the rail crop was inspected at 100 and showed the rail at the window's right edge with nothing above it (a first cut left the rejoined panel granted 375 px by the splitter, fixed by re-applying central_sizes). qt_workbench_window_scale_100/125/200 pass with test_hidden_drawer_controls_leave_no_column_and_no_hide_button (zero splitter width, no handle left, Hide button only when shown, heading visible when expanded) and the Reviews & queue row test extended for the Drawers group."}},{"criterion":"The settings store round-trips the flag through the new schema version; the migration test upgrades the previous version's database and keeps every existing column","outcome":"pass","revision":"d6106184","evidence":{"kind":"command","detail":"Schema version 6 (the store was already 5, so the card's 'version 5' is 6): drawer_controls INTEGER NOT NULL DEFAULT 0 CHECK BETWEEN 0 AND 1. sqlite_workbench_settings_storage passes (scratch ctest-focused-1.log) with test_a_version_five_store_migrates_and_gains_the_drawer_controls: a literal version-5 file with every profile value non-default and one window row opens, every value survives, DrawerControls is hidden after migration, shown round-trips, stamp and meta equal the constant, the old table is gone, and a value of 2 past the check is refused with schema_mismatch; the version 1-4 migration tests and the interrupted-migration test (now built from the constant, and run against a version-5 file too) pass. application_workbench_host and application_workbench_preferences_consumers pass."}},{"criterion":"application_composition_contract and the workbench composition contract (when BPR-0718 has made it green) pass with digests repinned; check_boundaries, strict tidy, clang-format --Werror and the documentation gate are clean","outcome":"pass","revision":"d6106184","evidence":{"kind":"command","detail":"application_composition_contract passes (144.3 s, scratch task output); no digest moved because src/app/src/github_application.cpp is untouched (its collapsed-drawer assertions use width <= 18, which a hidden panel satisfies). application_workbench_composition_contract fails at head with PUBLIC_PATH_STAGE:2 presentation=0, the pre-existing BPR-0718 failure, so it is not evidence either way. cmake --target check_boundaries: both boundary scripts verified. tidy.py --warnings-as-errors on workbench_drawer.cpp, workbench_window.cpp, workbench_window_tests.cpp, composed_github_tests.cpp, workbench_settings_database.cpp and workbench_settings_storage_tests.cpp: exit 0 (scratch tidy1.log, tidy2.log). format_check.py on every touched file: exit 0. scripts/verify_documentation.py --root .: DOCUMENTATION_OK."}},{"criterion":"The owner accepts both states on the signed bundle in the next attended session","outcome":"pending","revision":"d6106184","evidence":{"kind":"freeform","detail":"Asked in the v004 packet on a bundle rebuilt from this head: by default the drawers show no rail and no Hide button and the strip toggles open and collapse them; Settings > Reviews & queue > Drawers > Drawer controls: Shown brings the rails and Hide buttons back with nothing above a rail."}}]
+acceptance: [{"criterion":"qt_composed_github_scale_{100,125,200}: with the setting off, a collapsed drawer occupies zero width in the splitter and no Hide button is in the drawer; with it on, the rail is exactly the 18-pixel column with its label and nothing above it; each state pinned in a rendered crop","outcome":"pass","revision":"d6106184","evidence":{"kind":"command","detail":"build/dev ctest qt_composed_github_scale_100/125/200 pass (scratch ctest-qt-1.log, c7.log, ctest-focused-1.log): test_agent_surfaces_are_placed_in_the_conversations_drawer asserts !drawer->isVisible(), splitter sizes()[3]==0 and controls_shown()==false with the default record, then after publishing DrawerControls=shown asserts rail visible, width==18, the heading label hidden and the Hide button hidden; test_a_pull_request_without_a_comparison_still_lists_its_files asserts no Hide button by default and the strip toggle enabled, then the named Hide button once shown. Crops composed-github-{100,125,200}-drawer-controls-hidden.png and -drawer-controls-rail.png in build/dev/tests/adapters_qt; the rail crop was inspected at 100 and showed the rail at the window's right edge with nothing above it (a first cut left the rejoined panel granted 375 px by the splitter, fixed by re-applying central_sizes). qt_workbench_window_scale_100/125/200 pass with test_hidden_drawer_controls_leave_no_column_and_no_hide_button (zero splitter width, no handle left, Hide button only when shown, heading visible when expanded) and the Reviews & queue row test extended for the Drawers group."}},{"criterion":"The settings store round-trips the flag through the new schema version; the migration test upgrades the previous version's database and keeps every existing column","outcome":"pass","revision":"d6106184","evidence":{"kind":"command","detail":"Schema version 6 (the store was already 5, so the card's 'version 5' is 6): drawer_controls INTEGER NOT NULL DEFAULT 0 CHECK BETWEEN 0 AND 1. sqlite_workbench_settings_storage passes (scratch ctest-focused-1.log) with test_a_version_five_store_migrates_and_gains_the_drawer_controls: a literal version-5 file with every profile value non-default and one window row opens, every value survives, DrawerControls is hidden after migration, shown round-trips, stamp and meta equal the constant, the old table is gone, and a value of 2 past the check is refused with schema_mismatch; the version 1-4 migration tests and the interrupted-migration test (now built from the constant, and run against a version-5 file too) pass. application_workbench_host and application_workbench_preferences_consumers pass."}},{"criterion":"application_composition_contract and the workbench composition contract (when BPR-0718 has made it green) pass with digests repinned; check_boundaries, strict tidy, clang-format --Werror and the documentation gate are clean","outcome":"pass","revision":"d6106184","evidence":{"kind":"command","detail":"application_composition_contract passes (144.3 s, scratch task output); no digest moved because src/app/src/github_application.cpp is untouched (its collapsed-drawer assertions use width <= 18, which a hidden panel satisfies). application_workbench_composition_contract fails at head with PUBLIC_PATH_STAGE:2 presentation=0, the pre-existing BPR-0718 failure, so it is not evidence either way. cmake --target check_boundaries: both boundary scripts verified. tidy.py --warnings-as-errors on workbench_drawer.cpp, workbench_window.cpp, workbench_window_tests.cpp, composed_github_tests.cpp, workbench_settings_database.cpp and workbench_settings_storage_tests.cpp: exit 0 (scratch tidy1.log, tidy2.log). format_check.py on every touched file: exit 0. scripts/verify_documentation.py --root .: DOCUMENTATION_OK."}},{"criterion":"The owner accepts both states on the signed bundle in the next attended session","outcome":"pass","revision":"d1ba791f","evidence":{"kind":"observation","detail":"Attended session cbd48b91000b00f1e72e1ad62c7c384c, candidate BPR-0721-drawer-controls, revision app-release-cc2afa7f-2026-09-11.2 (bundle built at d1ba791f, executable sha256 cc2afa7fb84d443a1bba93373b990be83748be20451fa0b6adde45cc6fae4c1c), fingerprint a89b1566cc2d9cc1fdb6b3c01769836d7099c9f706773a507009898096b6205c, decision 869096fb-69d2-4db4-b256-6d2dea03fa21, actor human, 2026-09-11T18:39:28Z: accept. Both states accepted: the default (no rail, no Hide button, strip toggles only; the owner's screenshot on the BPR-0646 decision shows the two collapsed drawers leaving no column) and Drawer controls: Shown, which the owner found and used ('I found it now and it works', BPR-0675 decision f323d20d at 18:35:42Z)."}}]
 ---
 
 # A setting hides the drawer-side controls, and a collapsed drawer shows only its rail
 
 The owner, 2026-09-10, in the v003 verdict on
-[BPR-0646](BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md):
+[BPR-0646](../40-parked/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md):
 "The drawers on the left are taking up way too much window space when
 collapsed. I'm thinking the top buttons in the title bar area are
 sufficient and we don't need the drawer columns or even the hide byttons on
@@ -34,7 +33,7 @@ row. `workbench_drawer_panel::adopt()`
 (`src/adapters/qt/src/workbench_drawer.cpp:517-524`) hides the column's
 direct child widgets when collapsing, but `Heading` and the `Collapse`
 ("Hide") button live in a nested `headingRow` layout (from 86375805,
-[BPR-0675](BPR-0675-a-drawer-cannot-be-collapsed-by-anyone-who-has-not-read-the-code.md)),
+[BPR-0675](../40-parked/BPR-0675-a-drawer-cannot-be-collapsed-by-anyone-who-has-not-read-the-code.md)),
 so the row stays visible in the rail and the Hide button is squeezed to
 "…". A collapsed drawer shows its rail and nothing else, and the composed
 test that pins the rail asserts the heading row is hidden. This part is not
@@ -122,10 +121,10 @@ which the Settings window adopts, not `settings_window.cpp`.
   `width <= 18` for the collapsed drawers, which a hidden panel satisfies,
   so its text needed no change; it could not be rerun because it fails at
   startup on head independently
-  ([BPR-0723](../60-done/BPR-0723-the-uiforetw-selected-diff-contract-fails-at-startup-on-head.md)).
+  ([BPR-0723](BPR-0723-the-uiforetw-selected-diff-contract-fails-at-startup-on-head.md)).
   `application_workbench_composition_contract` stays red at head
   (`PUBLIC_PATH_STAGE:2`, presentation=0), the failure
-  [BPR-0718](../60-done/BPR-0718-the-workbench-composition-contract-is-red-at-the-pack-head.md)
+  [BPR-0718](BPR-0718-the-workbench-composition-contract-is-red-at-the-pack-head.md)
   records, so it is not this card's evidence either way.
 - Attended: BPR-0675's candidate criterion ("each drawer's own Hide and the
   strip toggle both collapse it") now needs the setting on; the v004
@@ -150,7 +149,7 @@ The v004 packet is historical.
 
 ## The UIforETW contract, rerun, 2026-09-11
 
-[BPR-0723](../60-done/BPR-0723-the-uiforetw-selected-diff-contract-fails-at-startup-on-head.md)
+[BPR-0723](BPR-0723-the-uiforetw-selected-diff-contract-fails-at-startup-on-head.md)
 made `application_uiforetw_selected_diff_contract` runnable again, and the
 "not amended" note above was wrong in one respect: `width <= 18` is
 satisfied by a hidden panel, but the BPR-0646/BPR-0651 block also pinned
@@ -163,7 +162,7 @@ details row inside the window; the rail geometry with the setting on stays
 pinned by `qt_composed_github_scale_*` (this card's first criterion). With
 that amendment the contract passes for all four appearances (67.86 s) and
 the compact row at 1280 passes unchanged. `application_workbench_composition_contract`
-is green since [BPR-0718](../60-done/BPR-0718-the-workbench-composition-contract-is-red-at-the-pack-head.md).
+is green since [BPR-0718](BPR-0718-the-workbench-composition-contract-is-red-at-the-pack-head.md).
 
 ## Attended candidate, 2026-09-11 (v006)
 
@@ -173,3 +172,9 @@ on the bundle built from the source at d1ba791f (executable sha256
 `cc2afa7f…`), candidate revision `app-release-cc2afa7f-2026-09-11.2`;
 prepared, undecided, no host running until the owner asks for the session.
 The ask is unchanged; the v005 packet is historical.
+
+## Attended verdict, 2026-09-11 (v006): accepted
+
+Session `cbd48b91…`, revision `app-release-cc2afa7f-2026-09-11.2` (bundle built at d1ba791f, executable sha256 `cc2afa7f…`), actor human; the session was handed back at sequence 278 with all fifteen candidates decided. Candidate `BPR-0721-drawer-controls`, decision `869096fb`, 18:39:28Z: **accept**, no note; both
+states. The default (no column, no Hide button) is in the BPR-0646 screenshot; the Shown state
+is what the owner found and used on BPR-0675 ("I found it now and it works"). Done.

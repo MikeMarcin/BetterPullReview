@@ -461,7 +461,7 @@ Read as five findings, none of them this card's criterion as written:
 - The collapsed drawers' footprint, the setting to hide the drawer-side
   controls, and the heading row that `adopt()` leaves visible above each
   rail (the "…"):
-  [BPR-0721](BPR-0721-a-setting-hides-the-drawer-side-controls-and-a-collapsed-rail-shows-only-its-rail.md).
+  [BPR-0721](../60-done/BPR-0721-a-setting-hides-the-drawer-side-controls-and-a-collapsed-rail-shows-only-its-rail.md).
   When it lands, RFC-BPR-0028 AC-03's rail wording is amended.
 - "No easy way to tell what review it is" is the strip hiding the identity
   below 1,400 pixels (BPR-0647's threshold):
@@ -483,7 +483,7 @@ Prepared again in
 [rfc-bpr-0028-attended-v004](../../verification/reviews/rfc-bpr-0028-attended-v004/operator-packet.md)
 on the bundle built at 3c9a3f1c, where
 [BPR-0719](../60-done/BPR-0719-a-large-file-with-a-small-change-is-refused-by-the-comparison-work-limit.md),
-[BPR-0721](BPR-0721-a-setting-hides-the-drawer-side-controls-and-a-collapsed-rail-shows-only-its-rail.md)
+[BPR-0721](../60-done/BPR-0721-a-setting-hides-the-drawer-side-controls-and-a-collapsed-rail-shows-only-its-rail.md)
 and
 [BPR-0722](BPR-0722-the-strip-hides-the-pull-request-identity-below-1400-pixels.md)
 have landed (executable sha256 `9261509a…`), candidate revision
