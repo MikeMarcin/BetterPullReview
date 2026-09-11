@@ -12,39 +12,46 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
-## Current frontier, 2026-09-11 (d12, BPR-0732 landed)
+## Current frontier, 2026-09-11 (d13, BPR-0733 landed)
 
-Dispatch `attended-prep-2026-09-10` d12 (mandate r7). Landed on main at
-`8935f2e3`, parked on human-review for the v007 verdict: [[BPR-0732]] (the
-signed-out Home is the card, one paste field and the status bar; the core's
-`resolve_setup_destination` gains a `public_preview` stage for a known host
-with no account whose composition holds the anonymous authority, the host
-activates preview and opens without a continuation press, the queue and its
-filters show only with an account, "Read without signing in" and the
-`choose_pull_request` detour are gone; details in its verification record).
-Two consequences to know: both `github_application.cpp` digests in
-`application_review_round_trip_composition_contract.cmake` were repinned,
-and the restoration course's account seed now signs in from the card before
-pasting, because on macOS the shipped preview capability makes a pasted
-github.com link open signed out. [[BPR-0716]] stays in Backlog on BPR-0732
-and is finished when the owner accepts it. Verified: focused selectors,
-`application_composition_contract`, the four boundary selectors, tidy and
-clang-format on touched files, DOCUMENTATION_OK. The d11 landings
-([[BPR-0726]], [[BPR-0727]], [[BPR-0728]]) are unchanged and still parked.
-Next, in order: [[BPR-0733]] (recently viewed list replaces the automatic
-restore; Ready; note that BPR-0732 changed `update_home_landing`, the Home
-column order (landing, stack, bar, notice, setup row, queue heading, queue
-surface) and the signed-out focus rule, so the list goes between the bar
-row and the queue heading and must stay hidden when empty); then a rebuilt
-tests-disabled bundle and the v007 packet written last, covering BPR-0646
-narrowed to the epoch line, BPR-0663, BPR-0676 and BPR-0720, plus the asks
-for BPR-0725, 0726, 0727, 0728, 0732 and 0733, and a visible ask for d11's
-stale-pin judgement that `infer_modality_from_drawers` no longer infers
-Overview from the files-only shape. After the v007 verdicts: [[BPR-0734]];
-on their stations later: [[BPR-0730]] and [[BPR-0731]], on which this
-closeout depends. Outside the pack: [[BPR-0735]] (clangd noise), Ready, not
-started. No host is running and no watch is armed. Detail below under
-"Continuation after the owner's answers".
+Dispatch `attended-prep-2026-09-10` d13 (mandate r7). Landed on main at
+`91383cc4`, parked on human-review for the v007 verdict: [[BPR-0733]]. The
+app no longer opens the last pull request at startup: `window_review_restoration::load`
+selects the startup authority only, and a window's `open_recent` gesture
+runs the same exact-position course the automatic restore used to. The
+core keeps a per-profile `Recent` list (ten, most recent first, title once a
+snapshot was seen, the saved position tracked from `accepted_position`);
+the host persists it beside the per-window records (`recent_reviews`,
+sqlite `user_version` 3, migrated from 2 with the old rows seeded newest
+window first); the composition publishes a per-window
+`recent_reviews_projection` filtered for the window's session (signed out:
+public entries only; an account: its host's entries; Resume only when the
+session matches) and routes "open" through the Home bar's setup path and
+"resume" through `window_review_restoration_host::open_recent`; Qt shows
+"Recently viewed" between the setup row and the queue heading, hidden when
+empty, with Return/activation opening and a "Resume reading" action.
+Invariants to know: a refused startup *authority* (missing grant, unavailable
+capability) is now silent because nothing was pending; a refused
+*destination* or store still speaks. Verified at `91383cc4`: the three
+restoration selectors, `qt_composed_github_scale_*`,
+`application_profile_window_review_restoration_public_path` (about 9.5
+minutes now; timeout 1800 s), full dev build, `check_boundaries`, strict tidy
+and clang-format on touched files, DOCUMENTATION_OK. Follow-up carded:
+[[BPR-0736]] (queue rows ignore Return on macOS; pre-existing, Inbox).
+The d11/d12 landings ([[BPR-0726]], [[BPR-0727]], [[BPR-0728]],
+[[BPR-0732]]) are unchanged and still parked; [[BPR-0716]] stays in Backlog
+on BPR-0732. Next, in order: a rebuilt tests-disabled bundle, then the v007
+packet written last, covering BPR-0646 narrowed to the epoch line, BPR-0663,
+BPR-0676 and BPR-0720, plus the asks for BPR-0725, 0726, 0727, 0728, 0732 and
+0733 (0733's ask: restart the signed bundle with a review saved, see Home at
+once with the entry, open it by hand), the ask for BPR-0732 (paste a public
+link while signed out and it opens in one gesture), and a visible ask for
+d11's stale-pin judgement that `infer_modality_from_drawers` no longer
+infers Overview from the files-only shape. After the v007 verdicts:
+[[BPR-0734]]; on their stations later: [[BPR-0730]] and [[BPR-0731]], on
+which this closeout depends. Outside the pack: [[BPR-0735]] (clangd noise),
+Ready, not started. No host is running and no watch is armed. Detail below
+under "Continuation after the owner's answers".
 
 ## Objective
 

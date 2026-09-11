@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0736"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "queue rows ignore Return on macOS",
+  "created": "2026-09-11T23:20:26.376108+00:00",
+  "base": "91383cc48a7b4bc70db44a9e3ff4b74bb82d8355"
+}
