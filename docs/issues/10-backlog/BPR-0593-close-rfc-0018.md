@@ -12,25 +12,32 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
-## Current frontier, 2026-09-11 (d10, the owner's three answers)
+## Current frontier, 2026-09-11 (d11, three v006 fixes landed)
 
-Dispatch `attended-prep-2026-09-10` d10 (mandate r6). The owner answered
-d9's three asks; each is recorded on its cards and the round continues
-on main. Order, all on main: [[BPR-0725]] (landed, parked for the v007 verdict: the core
-requests the newest history page once the revision settles), [[BPR-0726]] (C/C++ roles), [[BPR-0727]] and [[BPR-0728]] as
-one drawer milestone, then the Home cards [[BPR-0732]] (signed-out Home
-is one paste field that opens anonymously; carries [[BPR-0716]]) and
-[[BPR-0733]] (recently viewed list replaces the automatic restore), then
-a rebuilt tests-disabled bundle and the v007 packet written last: the
-four parked candidates (BPR-0646 narrowed to the epoch line, BPR-0663,
-BPR-0676, BPR-0720) plus the new asks. After the v007 verdicts:
-[[BPR-0734]], the design round for the single-pane Read ([[BPR-0729]]
-depends on it). After the macOS and platform-agnostic work: [[BPR-0730]]
-and [[BPR-0731]] on their stations; this closeout depends on both and
-stays in Backlog until they are Done. Outside the pack, at the owner's
-r7 request: [[BPR-0735]] (clangd finds no compile database), Ready, not
-started. No host is running and no watch is armed. Detail below under
-"Continuation after the owner's answers".
+Dispatch `attended-prep-2026-09-10` d11 (mandate r7). Landed on main, each
+parked on human-review for the v007 verdict: [[BPR-0726]] (C/C++ function,
+type and macro roles from an identifier post-pass in the syntax adapter;
+`identifier_heuristic_revision` folds into the C/C++ definition version so
+old cached spans are refused), [[BPR-0727]] and [[BPR-0728]] as one drawer
+milestone (the core retains the modality and refuses a hand-opened drawer
+in Overview with `overview_keeps_drawers_collapsed`, the host publishes
+`workbench_projection.Refusal`, the window shows it in the status bar;
+the conversations drawer's 375 is a default, not a floor, and scrolls
+sideways beneath its column minimum). Also on main: a repair of two
+selectors red at 1bbcd4a3 (the diff-workbench compute_limit assertion
+BPR-0719 changed, and the drifted `src/app` source-tree digest). Verified
+per card: focused selectors, `application_composition_contract`, tidy and
+clang-format on touched files, architecture boundaries, DOCUMENTATION_OK.
+Next, in order: [[BPR-0732]] (signed-out Home is one paste field that
+opens anonymously; carries [[BPR-0716]]) and [[BPR-0733]] (recently viewed
+list replaces the automatic restore), both Ready; then a rebuilt
+tests-disabled bundle and the v007 packet written last, covering BPR-0646
+narrowed to the epoch line, BPR-0663, BPR-0676 and BPR-0720, plus the asks
+for BPR-0725, 0726, 0727, 0728, 0732 and 0733. After the v007 verdicts:
+[[BPR-0734]]; on their stations later: [[BPR-0730]] and [[BPR-0731]], on
+which this closeout depends. Outside the pack: [[BPR-0735]] (clangd noise),
+Ready, not started. No host is running and no watch is armed. Detail below
+under "Continuation after the owner's answers".
 
 ## Objective
 
