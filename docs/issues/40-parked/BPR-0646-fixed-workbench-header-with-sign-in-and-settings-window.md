@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
 parked_on: "human-review"
-acceptance: [{"criterion": "AC-01 strip and epoch line are the only chrome; the strip is the title row", "outcome": "pass", "revision": "f01f34ad", "evidence": {"kind": "observation", "detail": "qt_workbench_window_scale_{100,125,200}: the title-row test pins ExpandedClientAreaHint, the hidden title text, the platform inset and the tracked drag; no review header scroll area remains (test_review_header_is_gone). Observed in the signed app-release bundle at 1280x820 and 1920x1080: the strip in the window's first row beside the traffic lights, the epoch line beneath, nothing else above the comparison."}}, {"criterion": "AC-02 epoch line selects any two uploads by drag, click, cmd-click, menu and keys and drives the comparison", "outcome": "pass", "revision": "f01f34ad", "evidence": {"kind": "observation", "detail": "qt_epoch_comparison_control: test_epoch_line_selects_updates_by_click_drag_and_keys walks click, cmd-click, drag, the context menu and Left/Right/Shift stepping and checks each dispatched select_comparison_anchor_intent; the amber last-review tick and its tooltip are pinned; the composed public-path course drives the comparison through the existing epoch host."}}, {"criterion": "AC-03 the four modalities set the drawers, persist per window and never change on their own", "outcome": "pass", "revision": "f01f34ad", "evidence": {"kind": "observation", "detail": "qt_workbench_window_scale_100: the modality tests pin Overview/Read/Review/Discuss drawer states, Ctrl+1..4, the 18-pixel rails with label and count, that a manual toggle leaves the segment until the next modality, and the per-window persisted modality."}}, {"criterion": "AC-07 sign-in reachable in every state without scrolling", "outcome": "pass", "revision": "f01f34ad", "evidence": {"kind": "observation", "detail": "qt_composed_github_scale_100: the device panel sits first on Settings > Accounts and hosts; the strip's account button opens it and focuses Get a code while signed out; test_home_landing_funnels_to_an_account_and_then_a_pull_request pins the Home funnel from the signed-out landing."}}, {"criterion": "Focused selectors, composition contracts, public-path courses and the boundary gate pass", "outcome": "pass", "revision": "f01f34ad", "evidence": {"kind": "observation", "detail": "28 of 28 focused selectors, application_composition_contract and application_review_round_trip_composition_contract (digests repinned), the public-path courses, check_boundaries, strict tidy on every touched translation unit, clang-format --Werror and verify_documentation.py green at f01f34ad."}}, {"criterion": "Attended capture on the Mac candidate with a pull request open: strip, epoch line with nodes, a collapsed and an open rail, positions, sign-in reachable signed out", "outcome": "fail", "revision": "97c8f9f1", "evidence": {"kind": "observation", "detail": "Attended session cbd48b91000b00f1e72e1ad62c7c384c, candidate BPR-0646-workbench-chrome, revision app-release-484b2072-2026-09-10, fingerprint 3b769ba07a5c0b88410bd296506d79dc1df1b44aa26f65cd4a0a3233bd0e39a3, decision bdd9244a-754a-4a7a-94b4-79c7110687d9, actor human, 2026-09-10T16:45:53Z: reject. \"Strip is good enough. Can't open any files. Saw no epoch line.\" The strip is accepted; the files and epoch line were never reachable because of BPR-0715; the third sentence is owner direction registered as BPR-0716."}}]
+acceptance: [{"criterion": "AC-01 strip and epoch line are the only chrome; the strip is the title row", "outcome": "pass", "revision": "f01f34ad", "evidence": {"kind": "observation", "detail": "qt_workbench_window_scale_{100,125,200}: the title-row test pins ExpandedClientAreaHint, the hidden title text, the platform inset and the tracked drag; no review header scroll area remains (test_review_header_is_gone). Observed in the signed app-release bundle at 1280x820 and 1920x1080: the strip in the window's first row beside the traffic lights, the epoch line beneath, nothing else above the comparison."}}, {"criterion": "AC-02 epoch line selects any two uploads by drag, click, cmd-click, menu and keys and drives the comparison", "outcome": "pass", "revision": "f01f34ad", "evidence": {"kind": "observation", "detail": "qt_epoch_comparison_control: test_epoch_line_selects_updates_by_click_drag_and_keys walks click, cmd-click, drag, the context menu and Left/Right/Shift stepping and checks each dispatched select_comparison_anchor_intent; the amber last-review tick and its tooltip are pinned; the composed public-path course drives the comparison through the existing epoch host."}}, {"criterion": "AC-03 the four modalities set the drawers, persist per window and never change on their own", "outcome": "pass", "revision": "f01f34ad", "evidence": {"kind": "observation", "detail": "qt_workbench_window_scale_100: the modality tests pin Overview/Read/Review/Discuss drawer states, Ctrl+1..4, the 18-pixel rails with label and count, that a manual toggle leaves the segment until the next modality, and the per-window persisted modality."}}, {"criterion": "AC-07 sign-in reachable in every state without scrolling", "outcome": "pass", "revision": "f01f34ad", "evidence": {"kind": "observation", "detail": "qt_composed_github_scale_100: the device panel sits first on Settings > Accounts and hosts; the strip's account button opens it and focuses Get a code while signed out; test_home_landing_funnels_to_an_account_and_then_a_pull_request pins the Home funnel from the signed-out landing."}}, {"criterion": "Focused selectors, composition contracts, public-path courses and the boundary gate pass", "outcome": "pass", "revision": "f01f34ad", "evidence": {"kind": "observation", "detail": "28 of 28 focused selectors, application_composition_contract and application_review_round_trip_composition_contract (digests repinned), the public-path courses, check_boundaries, strict tidy on every touched translation unit, clang-format --Werror and verify_documentation.py green at f01f34ad."}}, {"criterion": "Attended capture on the Mac candidate with a pull request open: strip, epoch line with nodes, a collapsed and an open rail, positions, sign-in reachable signed out", "outcome": "fail", "revision": "da92d5a9", "evidence": {"kind": "observation", "detail": "Attended session cbd48b91000b00f1e72e1ad62c7c384c, candidate BPR-0646-workbench-chrome, revision app-release-9334b13a-2026-09-10.2, fingerprint 4613c22c027c12129e16ae9e659b3a881603674a39c7080ce5c22c759e0abe44, decision 65f3f881-91a3-4388-8b8c-0c69fc0a57d6, actor human, 2026-09-11T05:34:51Z, three screenshots: reject (an identical reject b1348a9e at 05:33:43Z was withdrawn at sequence 139 and is superseded). Files open and the strip, rails and epoch line are present in the bundle, so BPR-0715 no longer masks this card. The rejection names four things, none of them this card's remaining criterion as written and each carded: a large file refused by the comparison work limit (BPR-0719, core diff), comment and include colours (BPR-0720, owner direction under RFC-BPR-0006), the collapsed rails' footprint plus a setting to hide the drawer controls and the stray heading row above each rail (BPR-0721), and no pull request identity in the strip below 1400 pixels (BPR-0722). The epoch line showed no updates (recorded on BPR-0663, undecided). The v002 acceptance of the strip stands. The card stays parked until the owner accepts the chrome on a bundle carrying BPR-0721 and BPR-0722."}}]
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"}}
 ---
 
@@ -416,3 +416,63 @@ fix head (executable sha256 `9334b13a…`), candidate revision
 `app-release-9334b13a-2026-09-10.2`. The v002 rejection above stays bound
 to the v002 revision in the session history; the remaining criterion is
 undecided on this revision. The v002 packet is historical.
+
+## Attended verdict, 2026-09-10 (v003)
+
+Session `cbd48b91…`, sequence 140, decision `65f3f881`, actor human,
+2026-09-11T05:34:51Z, on the v003 candidate (fingerprint `4613c22c…`,
+bundle `9334b13a…` built at da92d5a9): **reject**, with three screenshots.
+An identical reject (`b1348a9e`, sequence 138) was withdrawn at sequence
+139 and is superseded; nothing here depends on it. The session was handed
+back at sequence 141 with this the only decision; the other nine candidates
+are undecided and stay protected. Verbatim:
+
+> Launching the app auto opened a review. I have no easy way to tell what review it is. Seems like I cannot open the ScreenBufferTests.cpp file in the review but I can open some other ones. Even in read mode viewing experience is not great. Also comments a grey instead of green like was requested with visual studio dark mode with visual assist color scheme. And includes are green not grey, seems like those colors got swapped maybe? Or the theme in general just got messed up.
+>
+> The drawers on the left are taking up way too much window space when collapsed. I'm thinking the top buttons in the title bar area are sufficient and we don't need the drawer columns or even the hide byttons on the drawers themselves. Probably on the right side as well. I dont think I want to fully remove them just yet though, can we make a setting to enable/disable the drawer controls (leaving just the title bar buttons when setting is disabled)?
+>
+> Ah I see there is some kind of limit that prevents us from seeing the one file. That's not going to work. We cannot have limits like that we need to be able to see every file in the reviews.
+
+What the screenshots show, at about 1,390 points wide with
+microsoft/terminal#20607 restored at launch: the strip as the title row
+with "change 1 of 6" and "file 3 of 4" but no identity; the Updates row
+reading "No updates loaded." beside "pair ready" and "Comparing exact
+anchors"; the files drawer with four files; `ScreenBufferTests.cpp`
+(+291 −0) refused with "Comparison unavailable — file exceeds the
+comparison work limit (cached)"; `terminalOutput.cpp` rendered as "Diff
+ready — 6 semantic changes (cached)" in Review and Read, comments in grey;
+the Conversations drawer open with the read-only notice; and, with Files and
+Repositories collapsed, two 18-pixel rails each with a "…" above it. The
+diagnostics log for that launch (05:19:48Z to 05:34:45Z) holds only the
+restoration's `catalog_open`, `catalog_recovery` and `catalog_prepare`
+stages, no acquire stage and no request; every comparison was served from
+the cache. The owner did not take the packet's path through Home because
+the review was already open.
+
+Read as five findings, none of them this card's criterion as written:
+
+- The refused file is the core's LCS matrix bound with no textual fallback,
+  owner direction that no file may be refused for size:
+  [BPR-0719](../20-ready/BPR-0719-a-large-file-with-a-small-change-is-refused-by-the-comparison-work-limit.md).
+- Comment and include colours have not changed since BPR-0199 (2026-08-07)
+  and were not swapped; the request is a requirement under RFC-BPR-0006 held
+  for the owner's confirmation of its extent:
+  [BPR-0720](../10-backlog/BPR-0720-comments-are-green-and-includes-are-grey-on-the-dark-palette.md).
+- The collapsed drawers' footprint, the setting to hide the drawer-side
+  controls, and the heading row that `adopt()` leaves visible above each
+  rail (the "…"):
+  [BPR-0721](../20-ready/BPR-0721-a-setting-hides-the-drawer-side-controls-and-a-collapsed-rail-shows-only-its-rail.md).
+  When it lands, RFC-BPR-0028 AC-03's rail wording is amended.
+- "No easy way to tell what review it is" is the strip hiding the identity
+  below 1,400 pixels (BPR-0647's threshold):
+  [BPR-0722](../20-ready/BPR-0722-the-strip-hides-the-pull-request-identity-below-1400-pixels.md);
+  Home over a restored review remains BPR-0716.
+- "Even in read mode viewing experience is not great" names no defect; the
+  owner is asked what was wrong before anything is carded.
+
+The epoch line without updates is not this card's rail or line drawing; it
+is recorded on [BPR-0663](BPR-0663-public-preview-refuses-the-epoch-smart-acquire.md)
+as an observation, not a verdict. The strip's v002 acceptance stands. This
+card stays parked on human-review; its criterion is asked again on a bundle
+that carries BPR-0721 and BPR-0722, when the rails and identity it asks
+about are what the owner will see.

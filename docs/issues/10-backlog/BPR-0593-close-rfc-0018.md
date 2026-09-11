@@ -148,3 +148,30 @@ Prepared again, unchanged in substance, in
 [rfc-bpr-0028-attended-v003](../../verification/reviews/rfc-bpr-0028-attended-v003/operator-packet.md)
 on the bundle built at the BPR-0715 fix head (executable sha256
 `9334b13a…`); the v002 packet is historical.
+
+## Continuation after the v003 hand-back, 2026-09-10
+
+Session `cbd48b91…` was handed back at sequence 141 with one decision, the
+rejection of `BPR-0646-workbench-chrome` (decision `65f3f881`; `b1348a9e`
+withdrawn and superseded). It is consumed on
+[BPR-0646](../40-parked/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md)
+and on RFC-BPR-0028, and became four cards: BPR-0719 (comparison work limit
+refuses a file), BPR-0720 (dark palette comment and include colours, held
+for the owner's confirmation), BPR-0721 (setting to hide the drawer controls
+and the stray heading row above each rail) and BPR-0722 (identity hidden in
+the strip below 1,400 pixels). `BPR-0683-settings-native-macos`, this
+closeout's own candidate, and the eight other candidates carry no decision;
+they stay ready and protected in the session, and their bundle inputs
+(`src/adapters/qt`, `src/app`, the app-release bundle) stay guarded until
+the owner says to resume development. Observations without verdicts are
+recorded on BPR-0663 (no acquire stage in the restored run) and BPR-0715
+(files and epoch line reached; log half pending).
+
+Next, in order: ask the owner the three open questions (what was wrong in
+Read mode; the extent of the BPR-0720 palette change; whether to resume
+development now, releasing the nine undecided candidates for a rebuilt
+bundle, or to review them on the current bundle first). Then, once released,
+BPR-0719, BPR-0722 and BPR-0721 in that order as one milestone, a fresh
+tests-disabled bundle, and a v004 packet regenerated last with the same ten
+candidates plus the BPR-0719/0721/0722 asks; the packet is written only
+after no active card can rebuild the binary.

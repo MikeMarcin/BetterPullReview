@@ -91,3 +91,22 @@ so the epoch line still read "No updates loaded." and no comparison resolved.
 The card's acceptance names all three, so it stays open behind
 [BPR-0667](BPR-0667-the-epoch-refuses-any-pull-request-whose-base-branch-moved.md),
 which owns the new failure. This card's own change is not in question.
+
+## Observation from the v003 session, 2026-09-10 (no verdict)
+
+The owner recorded no decision on `BPR-0663-public-preview-epoch`; the
+candidate stays undecided and protected. The three screenshots on the
+[BPR-0646](BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md)
+rejection (decision `65f3f881`, bundle `9334b13a…` at da92d5a9) show the
+Updates row reading "No updates loaded." beside "pair ready" and the status
+line "Review history is ready" with microsoft/terminal#20607 open. That
+review was restored at launch, not opened through Home as the packet asked,
+and the diagnostics log for the launch (05:19:48Z to 05:34:45Z) records only
+`catalog_open`, `catalog_recovery` and `catalog_prepare` succeeding, no
+`smart_acquire` or `protocol_acquire` stage, no request and no failure;
+every comparison was answered from the cache. So this run never exercised
+the acquire this card fixed, and neither confirms nor refutes its pending
+criterion. Whoever next drives this candidate should decide whether a
+restored review is meant to re-acquire its updates (in which case the empty
+line over a "ready" history is a defect of its own) or only a fresh open
+does, and ask the owner to open the pull request through Home.

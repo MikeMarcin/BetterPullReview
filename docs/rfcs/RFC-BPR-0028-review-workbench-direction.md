@@ -276,3 +276,23 @@ v002 rejection stays in the session history. BPR-0715 is parked on
 human-review for the one criterion only the loaded bundle can show. Next:
 the owner's run, then consume the verdicts and finish each card from its
 own acceptance.
+
+Attended verdict, 2026-09-10 (v003). Session `cbd48b91…` was handed back
+at sequence 141 with one decision: [[BPR-0646]] rejected (decision
+`65f3f881`, three screenshots; the identical `b1348a9e` was withdrawn and
+is superseded). The files, strip, rails and epoch line all reached the
+owner this time, so [[BPR-0715]] no longer masks the pack. The rejection is
+four bounded follow-ups, none of them BPR-0646's criterion as written:
+[[BPR-0719]] (the core refuses an 8,000-line file with a 291-line insertion
+at its LCS matrix bound, owner direction that no file may be refused for
+size; RFC-BPR-0004/0013), [[BPR-0720]] (comments green and includes grey on
+the dark palette; owner direction under RFC-BPR-0006, unchanged since
+BPR-0199 and held for the owner's confirmation of extent), [[BPR-0721]] (a
+setting that hides the rails and Hide buttons leaving the strip toggles,
+plus the drawer heading row left visible above each rail; AC-03's rail
+wording is amended when it lands) and [[BPR-0722]] (the strip hides the
+pull request identity below 1,400 pixels). The nine other candidates are
+undecided and stay protected; the epoch line's "No updates loaded." in the
+screenshots is recorded on [[BPR-0663]] as an observation. The owner's
+"Even in read mode viewing experience is not great" is an open question to
+the owner, not a card.

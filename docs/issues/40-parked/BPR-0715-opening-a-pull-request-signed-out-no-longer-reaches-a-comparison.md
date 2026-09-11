@@ -177,3 +177,21 @@ a stale reflow assertion, carded and repaired as
 `application_workbench_composition_contract` is red at `fd7388e8` with the
 same signature before and after this fix (`WORKBENCH_INTENT_WIRE_FAILED`
 onward) and belongs to no card here.
+
+## Observation from the v003 session, 2026-09-10
+
+The owner's screenshots on the
+[BPR-0646](BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md)
+rejection (decision `65f3f881`, bundle `9334b13a…`) show the signed-out
+bundle with microsoft/terminal#20607 open: four files in the drawer, three
+of them rendering ("Diff ready — 6 semantic changes (cached)"), the strip
+and the epoch line in place. That is the files and the epoch line this
+card's pending criterion names. The log half of the criterion is not met
+as written: the review was restored at launch and the diagnostics log
+(05:19:48Z to 05:34:45Z) shows the catalog stages and cached comparisons
+only, no acquire stage and no observation-only prepare; the restoration
+path does not go through the acquire. The criterion stays pending until a
+fresh open through Home on the owner's root shows the acquire stages, or the
+criterion is narrowed to what restoration can show. The refused fourth file
+is [BPR-0719](../20-ready/BPR-0719-a-large-file-with-a-small-change-is-refused-by-the-comparison-work-limit.md),
+not this card.
