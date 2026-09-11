@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0674"
 title: "Overview is starved by the drawers"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
-parked_on: "human-review"
-acceptance: [{"criterion":"Choosing Overview collapses the three drawers to rails and the overview fills the centre","outcome":"pass","revision":"6213c1e0","evidence":{"kind":"observation","detail":"The presets returned early whenever the core refused a drawer command, which was whenever no comparison had resolved, so no preset ever ran in the owner's state. They now run regardless, Overview asks for all three drawers collapsed, and every modality names the repositories drawer that no preset had mentioned. qt_workbench_window_scale_{100,125,200} pin both; leaving files open in Overview, or never asking about repositories, each fail a named assertion. Eighty-five Qt, core, composition, overview and behaviour selectors pass."}},{"criterion":"No heading on the overview is elided at the window sizes the workbench supports","outcome":"pending","revision":"6213c1e0","evidence":{"kind":"freeform","detail":"Not closed here. A width floor on the overview page would become a floor on the whole centre, because a hidden page of a stacked widget sets the stack's minimum. With every drawer collapsed the page has the centre, which is what the owner asked for; whether the headings still elide at a narrow window is for them to see, and the floor would then belong to the stack rather than the page. Their other question, whether Overview should refuse a drawer opened by hand, is recorded on the card unanswered."}}]
+acceptance: [{"criterion":"Choosing Overview collapses the three drawers to rails and the overview fills the centre","outcome":"pass","revision":"6213c1e0","evidence":{"kind":"observation","detail":"The presets returned early whenever the core refused a drawer command, which was whenever no comparison had resolved, so no preset ever ran in the owner's state. They now run regardless, Overview asks for all three drawers collapsed, and every modality names the repositories drawer that no preset had mentioned. qt_workbench_window_scale_{100,125,200} pin both; leaving files open in Overview, or never asking about repositories, each fail a named assertion. Eighty-five Qt, core, composition, overview and behaviour selectors pass."}},{"criterion":"No heading on the overview is elided at the window sizes the workbench supports","outcome":"pass","revision":"d1ba791f","evidence":{"kind":"observation","detail":"Attended session cbd48b91000b00f1e72e1ad62c7c384c, candidate BPR-0674-overview-headings, revision app-release-cc2afa7f-2026-09-11.2 (bundle built at d1ba791f, executable sha256 cc2afa7fb84d443a1bba93373b990be83748be20451fa0b6adde45cc6fae4c1c), fingerprint dca3749b4687f4abdbec8f7f0460952e760d39cc0d396a6b307592b2b3e46716, decision d46c919b-dd54-4ff6-bc65-6e2082618294, actor human, 2026-09-11T18:34:24Z: accept. The candidate asked for no elided heading at the default size and at about 1280x820. The owner's open question on this card was answered on candidate BPR-0674-overview-drawer-policy (fingerprint 51a8ab1b194c70f9ab9e4d7fd1a252f5d71bcaeb0162f2c42eb5a758538ee465, decision c4817ab5-22dc-4ec9-9278-9c28c08ae457, 18:33:56Z): 'Overview keeps every drawer collapsed; a hand-opened drawer is refused', carded as BPR-0727."}}]
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"}}
 ---
 
@@ -26,7 +25,7 @@ description and file table are unreadable. The page RFC-BPR-0028 gives the
 whole centre to is the narrowest thing on screen.
 
 The modality presets already decide drawer state per modality
-([BPR-0646](BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md),
+([BPR-0646](../40-parked/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md),
 AC-03). Overview's preset is what is wrong, not the drawers.
 
 ## Scope
@@ -82,3 +81,13 @@ AC-03). Overview's preset is what is wrong, not the drawers.
   default, or maybe always". This is the default; a drawer opened by hand
   in Overview still opens. Whether Overview should refuse that is theirs
   to say, and the card asks it rather than deciding it.
+
+## Attended verdict, 2026-09-11 (v006): accepted
+
+Session `cbd48b91…`, revision `app-release-cc2afa7f-2026-09-11.2` (bundle built at d1ba791f, executable sha256 `cc2afa7f…`), actor human; the session was handed back at sequence 278 with all fifteen candidates decided. Candidate `BPR-0674-overview-headings`, decision `d46c919b`, 18:34:24Z: **accept**, no note; no
+heading elided at the default size or at about 1280x820. Candidate
+`BPR-0674-overview-drawer-policy`, decision `c4817ab5`, 18:33:56Z: **select** "Overview keeps
+every drawer collapsed; a hand-opened drawer is refused". That answers the question this card
+left open; the behaviour change is
+[BPR-0727](../20-ready/BPR-0727-overview-refuses-a-drawer-opened-by-hand.md). Both criteria
+pass. Done.

@@ -15,7 +15,7 @@ The owner chose, on the options candidate `BPR-0674-overview-drawer-policy`
 in the v006 attended session (decision `c4817ab5`, 18:33:56Z): "Overview
 keeps every drawer collapsed; a hand-opened drawer is refused". This is the
 "or maybe always" of their 2026-09-07 note that
-[BPR-0674](../40-parked/BPR-0674-overview-is-starved-by-the-drawers.md)
+[BPR-0674](../60-done/BPR-0674-overview-is-starved-by-the-drawers.md)
 left to them.
 
 ## Scope
