@@ -18,7 +18,7 @@ with microsoft/terminal#20607 restored at launch and read signed out,
 rejected three candidates for one thing. On
 [BPR-0646](BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md)
 (decision `d06b4b43`): "There is no visible epoch line". On
-[BPR-0663](BPR-0663-public-preview-refuses-the-epoch-smart-acquire.md)
+[BPR-0663](../60-done/BPR-0663-public-preview-refuses-the-epoch-smart-acquire.md)
 (decision `da24251c`): "Shows No updates loaded". On
 [BPR-0676](BPR-0676-the-epoch-line-does-not-show-whether-it-is-working.md)
 (decision `180fd1d8`): "No visible epoch line in the test". The screenshot

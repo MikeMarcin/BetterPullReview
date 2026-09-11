@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0663"
 title: "Public preview refuses the epoch smart acquire"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
-parked_on: "human-review"
-acceptance: [{"criterion": "The anonymous binding admits the lease with the accepted revision's generation and still refuses an authenticated authority and a GHES profile", "outcome": "pass", "revision": "7506c87b", "evidence": {"kind": "observation", "detail": "At this head: native_git_smart_transport_contract and native_git_smart_transport_fixture pass, including the seam pin (a github.com anonymous wire built with the revision's generation is admitted; one built with the old constant is refused as invalid_request before any request) and the unchanged GHES and authenticated refusals. rfc0017_public_preview_decision_contract and the six application_anonymous_public_preview_* courses pass, as do application_composition_contract and the round-trip contract with both application digests repinned."}}, {"criterion": "A public pull request opened through Public preview in the signed bundle shows its updates and an exact comparison, with smart_acquire succeeding in diagnostics.log", "outcome": "fail", "revision": "d1ba791f", "evidence": {"kind": "observation", "detail": "Attended session cbd48b91000b00f1e72e1ad62c7c384c, candidate BPR-0663-public-preview-epoch, revision app-release-cc2afa7f-2026-09-11.2 (bundle built at d1ba791f, executable sha256 cc2afa7f…), fingerprint 40fe1c0f1aae0e28abf4063678b4e6bad599d9bc883656c2fb52cb079161799b, decision da24251c-ffa5-485f-9ca8-c36b1efe4525, actor human, 2026-09-11T18:32:18Z: reject, 'Shows No updates loaded'. The log half of the criterion is met: smart_acquire succeeded on 2026-09-07 at 17:47:13Z and 20:56:43Z (the latter with protocol_acquire and revision_prepare succeeding), and the v006 launches were cache hits with no acquire (session observation at sequence 279). The epoch-line half fails for a reason outside this card's transport fix: on a cache hit nothing publishes the catalogue's updates to the line (BPR-0725). Asked again on a bundle carrying BPR-0725."}}]
+acceptance: [{"criterion":"The anonymous binding admits the lease with the accepted revision's generation and still refuses an authenticated authority and a GHES profile","outcome":"pass","revision":"7506c87b","evidence":{"kind":"observation","detail":"At this head: native_git_smart_transport_contract and native_git_smart_transport_fixture pass, including the seam pin (a github.com anonymous wire built with the revision's generation is admitted; one built with the old constant is refused as invalid_request before any request) and the unchanged GHES and authenticated refusals. rfc0017_public_preview_decision_contract and the six application_anonymous_public_preview_* courses pass, as do application_composition_contract and the round-trip contract with both application digests repinned."}},{"criterion":"A public pull request opened through Public preview in the signed bundle shows its updates and an exact comparison, with smart_acquire succeeding in diagnostics.log","outcome":"pass","revision":"2cdc0e57","evidence":{"kind":"observation","detail":"Attended session cbd48b91000b00f1e72e1ad62c7c384c, candidate BPR-0663-public-preview-epoch, revision app-release-64d9e46a-2026-09-11.3 (bundle built at 2cdc0e57, executable sha256 64d9e46a0fa7cff7e37d778d329a8e71bcf6ff13547bbc82eadb547ebb252827), fingerprint 014078d29e8eb3a82a29948c633080cf5135ca03f46a12d925f15122fb1b75b6, decision 469c6114-cc71-4368-b4e8-d1ba01009e18, actor human, 2026-09-11T23:43:25Z: accept. The line carried the catalogue's updates on the cache-hit launch and the owner accepted without a note; the v006 rejection on this criterion was the empty line, fixed by BPR-0725. The smart_acquire log half rests on the 2026-09-07 live acquire recorded on BPR-0667 (session observation at sequence 280); the v007 launch was a cache hit by design of the packet."}}]
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"}}
 ---
 
@@ -89,14 +88,14 @@ gone. The next stage then failed,
 so the epoch line still read "No updates loaded." and no comparison resolved.
 
 The card's acceptance names all three, so it stays open behind
-[BPR-0667](../60-done/BPR-0667-the-epoch-refuses-any-pull-request-whose-base-branch-moved.md),
+[BPR-0667](BPR-0667-the-epoch-refuses-any-pull-request-whose-base-branch-moved.md),
 which owns the new failure. This card's own change is not in question.
 
 ## Observation from the v003 session, 2026-09-10 (no verdict)
 
 The owner recorded no decision on `BPR-0663-public-preview-epoch`; the
 candidate stays undecided and protected. The three screenshots on the
-[BPR-0646](BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md)
+[BPR-0646](../40-parked/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md)
 rejection (decision `65f3f881`, bundle `9334b13a…` at da92d5a9) show the
 Updates row reading "No updates loaded." beside "pair ready" and the status
 line "Review history is ready" with microsoft/terminal#20607 open. That
@@ -125,10 +124,10 @@ to the line: the line gains rows only from an accepted append or a requested his
 and a revision prepared with no mutation goes straight to the comparison
 (`src/core/src/epoch_transition.cpp:1302-1309`). A fresh open of a cached pull request
 through Home would show the same empty line. Carded as
-[BPR-0725](BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md).
+[BPR-0725](../40-parked/BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md).
 This card's own change is not in question; it stays parked on human-review for the line, asked
 again on a bundle carrying BPR-0725. The comparison half of the same run was accepted on
-[BPR-0667](../60-done/BPR-0667-the-epoch-refuses-any-pull-request-whose-base-branch-moved.md).
+[BPR-0667](BPR-0667-the-epoch-refuses-any-pull-request-whose-base-branch-moved.md).
 
 ## Attended candidate, 2026-09-11 (v007)
 
@@ -138,3 +137,8 @@ on the bundle built from the source at 2cdc0e57 (executable sha256
 `64d9e46a…`), candidate revision `app-release-64d9e46a-2026-09-11.3`;
 prepared and protected at sequence 311, undecided, no host running until
 the owner asks for the session. The ask: the epoch line shows the updates on a bundle carrying BPR-0725; the acquire only runs again when GitHub holds a newer head than the local catalogue.
+
+## Attended verdict, 2026-09-11 (v007): accepted
+
+Session `cbd48b91…`, revision `app-release-64d9e46a-2026-09-11.3` (bundle built at 2cdc0e57, executable sha256 `64d9e46a…`), actor human; the session was handed back at sequence 322 with all ten candidates decided. Candidate `BPR-0663-public-preview-epoch`, decision `469c6114`, 23:43:25Z: **accept**.
+The public-preview review history is accepted on the bundle carrying [BPR-0725](../40-parked/BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md). Done.
