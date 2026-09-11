@@ -370,7 +370,7 @@ Carried forward: [BPR-0674](../60-done/BPR-0674-overview-is-starved-by-the-drawe
 for the overview's width and the drawers in Overview,
 [BPR-0675](../60-done/BPR-0675-a-drawer-cannot-be-collapsed-by-anyone-who-has-not-read-the-code.md)
 for collapsing a drawer,
-[BPR-0676](BPR-0676-the-epoch-line-does-not-show-whether-it-is-working.md)
+[BPR-0676](../60-done/BPR-0676-the-epoch-line-does-not-show-whether-it-is-working.md)
 for the epoch line, and
 [BPR-0677](../60-done/BPR-0677-the-comparison-stays-unavailable-after-the-history-is-ready.md)
 for the comparison. The two review-page requests are AgentSkills ASK-0020.
@@ -560,7 +560,7 @@ Read per criterion:
   neither of which a cache hit produces:
   [BPR-0725](BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md).
   The same finding rejected [BPR-0663](../60-done/BPR-0663-public-preview-refuses-the-epoch-smart-acquire.md)
-  and [BPR-0676](BPR-0676-the-epoch-line-does-not-show-whether-it-is-working.md).
+  and [BPR-0676](../60-done/BPR-0676-the-epoch-line-does-not-show-whether-it-is-working.md).
 - The rails: retracted five minutes later on BPR-0675 ("In an earlier answer I said there was
   no setting for this, I just was looking in the wrong place. I found it now and it works"),
   and both states of the setting were accepted on

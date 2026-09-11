@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0676"
 title: "The epoch line does not show whether it is working"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P2"
-parked_on: "human-review"
-acceptance: [{"criterion": "The line states its own state in words: whether a pair resolved and can be read", "outcome": "pass", "revision": "d212f7c2", "evidence": {"kind": "observation", "detail": "Three words on the line itself: 'no pair yet', 'pair ready', 'pair not readable', written in the same place as the long sentence the details region shows so the two cannot disagree, with that sentence as the tooltip. qt_epoch_comparison_control_scale_{100,125,200} pin all three states and the tooltip; a summary that always says ready, or that carries no detail, each fail a named assertion. Fifty-six Qt and composition selectors pass with boundaries, tidy, format and docs."}}, {"criterion": "The nodes, the span and the amber tick are legible at the widths the workbench supports, and the line says whether the pair is the default or a choice", "outcome": "fail", "revision": "d1ba791f", "evidence": {"kind": "observation", "detail": "Attended session cbd48b91000b00f1e72e1ad62c7c384c, candidate BPR-0676-epoch-line-legibility, revision app-release-cc2afa7f-2026-09-11.2 (bundle built at d1ba791f, executable sha256 cc2afa7f…), fingerprint 21b9321e04a5cc162fc1cb145281aa1e388c1a7b7ded942e853b495c7ee6757f, decision 180fd1d8-99c5-4f04-818f-730a60dbf179, actor human, 2026-09-11T18:36:26Z: reject, 'No visible epoch line in the test'. The three-word state was visible ('pair ready' in the owner's screenshot on BPR-0646) but the nodes, span and tick could not be judged because the line had no updates to draw on the restored review (BPR-0725). Asked again on a bundle carrying BPR-0725."}}]
+acceptance: [{"criterion":"The line states its own state in words: whether a pair resolved and can be read","outcome":"pass","revision":"d212f7c2","evidence":{"kind":"observation","detail":"Three words on the line itself: 'no pair yet', 'pair ready', 'pair not readable', written in the same place as the long sentence the details region shows so the two cannot disagree, with that sentence as the tooltip. qt_epoch_comparison_control_scale_{100,125,200} pin all three states and the tooltip; a summary that always says ready, or that carries no detail, each fail a named assertion. Fifty-six Qt and composition selectors pass with boundaries, tidy, format and docs."}},{"criterion":"The nodes, the span and the amber tick are legible at the widths the workbench supports, and the line says whether the pair is the default or a choice","outcome":"pass","revision":"2cdc0e57","evidence":{"kind":"observation","detail":"Attended session cbd48b91000b00f1e72e1ad62c7c384c, candidate BPR-0676-epoch-line-legibility, revision app-release-64d9e46a-2026-09-11.3 (bundle built at 2cdc0e57, executable sha256 64d9e46a0fa7cff7e37d778d329a8e71bcf6ff13547bbc82eadb547ebb252827), fingerprint 8cb0b55e39c9ec9bee092ca205432a1023ff3a782291ca1a42b3ea84e93fe59b, decision 19d21ed6-ab42-4d7f-8da9-413e8f6105f1, actor human, 2026-09-11T23:43:36Z: accept. Nodes, span and amber tick legible at the default size and at about 1280x820 per the packet's ask; accepted without a note. The packet also asked whether the line should name whether the pair is the default or the reviewer's choice; the owner did not answer, so no requirement is raised and the criterion stands as accepted on the rendering shown."}}]
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"}}
 ---
 
@@ -76,7 +75,7 @@ The owner's screenshot on BPR-0646 shows the row as "Updates", "No updates loade
 ready" and "Comparing exact anchors": the three-word state this card added is there, and the
 nodes, span and amber tick are not, because the restored review published no updates to the
 line (a cache-hit defect,
-[BPR-0725](BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md)).
+[BPR-0725](../40-parked/BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md)).
 Legibility cannot be judged on an empty line. This card stays parked on human-review; its
 candidate is asked again on a bundle carrying BPR-0725.
 
@@ -88,3 +87,8 @@ on the bundle built from the source at 2cdc0e57 (executable sha256
 `64d9e46a…`), candidate revision `app-release-64d9e46a-2026-09-11.3`;
 prepared and protected at sequence 311, undecided, no host running until
 the owner asks for the session. The ask: legibility of the nodes, span and tick on a line that now carries updates on a cache hit (BPR-0725).
+
+## Attended verdict, 2026-09-11 (v007): accepted
+
+Session `cbd48b91…`, revision `app-release-64d9e46a-2026-09-11.3` (bundle built at 2cdc0e57, executable sha256 `64d9e46a…`), actor human; the session was handed back at sequence 322 with all ten candidates decided. Candidate `BPR-0676-epoch-line-legibility`, decision `19d21ed6`, 23:43:36Z: **accept**.
+Accepted without a note. The packet's side question (should the line also say whether the pair is the default or a choice) drew no answer; nothing is carded for it. The owner's placement finding on the same line is BPR-0646's rejection and is carded as [BPR-0737](../20-ready/BPR-0737-the-epoch-line-and-the-comparison-menu-are-one-full-width-row-under-the-strip.md). Done.

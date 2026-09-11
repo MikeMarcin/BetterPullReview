@@ -20,7 +20,7 @@ rejected three candidates for one thing. On
 (decision `d06b4b43`): "There is no visible epoch line". On
 [BPR-0663](../60-done/BPR-0663-public-preview-refuses-the-epoch-smart-acquire.md)
 (decision `da24251c`): "Shows No updates loaded". On
-[BPR-0676](BPR-0676-the-epoch-line-does-not-show-whether-it-is-working.md)
+[BPR-0676](../60-done/BPR-0676-the-epoch-line-does-not-show-whether-it-is-working.md)
 (decision `180fd1d8`): "No visible epoch line in the test". The screenshot
 ([owner-read-chrome-2026-09-11.png](../../verification/reviews/rfc-bpr-0028-attended-v006/captures/owner-read-chrome-2026-09-11.png))
 shows the Updates row reading "No updates loaded." beside "pair ready" and
