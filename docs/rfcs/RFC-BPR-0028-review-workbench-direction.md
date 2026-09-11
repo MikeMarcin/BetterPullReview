@@ -347,3 +347,27 @@ fifteen v005 candidates are prepared again, unchanged in substance, in
 on the bundle built at d1ba791f (executable sha256 `cc2afa7f…`). The
 v005 packet is historical. No host is running until the owner asks for
 the session.
+
+Attended verdict, 2026-09-11 (v006). Session `cbd48b91…` was handed back
+at sequence 278 with all fifteen candidates decided on the d1ba791f
+bundle. Accepted and Done: [[BPR-0662]], [[BPR-0667]], [[BPR-0674]]
+(headings; and the owner chose that Overview refuses a hand-opened
+drawer, [[BPR-0727]]), [[BPR-0675]], [[BPR-0677]], [[BPR-0719]],
+[[BPR-0721]] (both drawer-control states), [[BPR-0722]] and
+[[BPR-0724]] (the owner chose a narrower conversations drawer in Read,
+[[BPR-0728]], and a single-pane Read layout in the manner of p4merge as
+a new slice, [[BPR-0729]], which needs a design round on the accepted
+asset and amendments to the Modalities paragraph and AC-05 before it
+starts); RFC-BPR-0018's [[BPR-0683]] was accepted for macOS. Rejected
+and parked: [[BPR-0646]] (the strip is accepted again; the epoch line
+could not be judged; the rail finding was retracted on BPR-0675; sign-in
+is "technically yes", with the Home flow on [[BPR-0716]]), [[BPR-0663]]
+and [[BPR-0676]], all three because the epoch line reads "No updates
+loaded." on a restored review: a cache hit prepares the revision with
+no mutation and nothing publishes the catalogue's updates to the line,
+[[BPR-0725]], which is AC-02's defect to fix; and [[BPR-0720]] under
+RFC-BPR-0006, because the C++ grammar emits no function, user-type or
+macro role, [[BPR-0726]]. AC-03 gains the Overview rule when BPR-0727
+lands. The session's candidates were released and the host stopped.
+Next: BPR-0725 and BPR-0726 on main, a rebuilt bundle, and a v007 packet
+re-asking the four parked candidates.

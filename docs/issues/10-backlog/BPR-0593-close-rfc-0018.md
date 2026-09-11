@@ -4,13 +4,39 @@ id: "BPR-0593"
 title: "Verify and close RFC-BPR-0018"
 status: "Backlog"
 rfcs: ["RFC-BPR-0018"]
-depends_on: ["BPR-0592","BPR-0678","BPR-0679","BPR-0680","BPR-0681","BPR-0682","BPR-0683","BPR-0684","BPR-0685","BPR-0686","BPR-0687","BPR-0688","BPR-0689"]
+depends_on: ["BPR-0592","BPR-0678","BPR-0679","BPR-0680","BPR-0681","BPR-0682","BPR-0683","BPR-0684","BPR-0685","BPR-0686","BPR-0687","BPR-0688","BPR-0689","BPR-0730","BPR-0731"]
 milestone: "Post-Pack v2"
 closeout_for: ["RFC-BPR-0018"]
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"}}
 ---
 
 # Verify and close RFC-BPR-0018
+
+## Current frontier, 2026-09-11 (after the v006 hand-back)
+
+Dispatch `attended-prep-2026-09-10` d9 (mandate r5, "start the review")
+consumed session `cbd48b91…` at sequence 278: fifteen decisions on
+revision `app-release-cc2afa7f-2026-09-11.2` (bundle built at d1ba791f).
+Ten cards finished Done on their own acceptance (BPR-0662, BPR-0667,
+BPR-0674, BPR-0675, BPR-0677, BPR-0683, BPR-0719, BPR-0721, BPR-0722,
+BPR-0724); four stay parked on human-review with a recorded rejection
+(BPR-0646 for the epoch line only, BPR-0663, BPR-0676, BPR-0720). The
+rejections and selections are seven cards: [[BPR-0725]] (the epoch line
+is empty on a cache hit; owns the three epoch-line rejections),
+[[BPR-0726]] (C/C++ functions, types and macros uncoloured; owns the
+BPR-0720 rejection), [[BPR-0727]] (Overview refuses a hand-opened drawer),
+[[BPR-0728]] (narrower conversations drawer in Read), [[BPR-0729]]
+(single-pane Read, needs an RFC-BPR-0028 design round first), and the
+Windows and Linux halves of AC-11, [[BPR-0730]] and [[BPR-0731]], which
+this closeout now depends on. The owner's Home remark is on [[BPR-0716]].
+The session's candidates were released (`resume-development --all`) and
+the host stopped; no watch is armed. Evidence: the packet
+[rfc-bpr-0028-attended-v006](../../verification/reviews/rfc-bpr-0028-attended-v006/operator-packet.md)
+and its `captures/`. Next bounded milestone: BPR-0725, then BPR-0726, on
+main, then a rebuilt bundle and a v007 packet re-asking the four parked
+candidates (BPR-0646 narrowed to the epoch line). This closeout stays in
+Backlog until BPR-0730 and BPR-0731 are Done on their stations; every
+macOS criterion of RFC-BPR-0018 is now accepted.
 
 ## Objective
 
@@ -379,3 +405,60 @@ remains in this scope; the bundle inputs (`src/adapters/qt`,
 `src/adapters/sqlite`, `src/app`, `src/core`, `src/application`) are
 protected by the fifteen candidates until the owner says to resume
 development.
+
+## Continuation after the v006 hand-back, 2026-09-11
+
+Dispatch `attended-prep-2026-09-10` d9 (mandate r5). The owner reviewed
+all fifteen v006 candidates and handed back at sequence 278; events 262
+and 263 were a pause and a review start with no decision. Each decision
+was consumed against its own candidate and fingerprint (all fifteen
+fingerprints match the prepared candidates; no stale verdict):
+
+- Accepted and finished Done: [BPR-0662](../60-done/BPR-0662-drawer-widths-survive-home-and-a-squeezed-splitter.md),
+  [BPR-0667](../60-done/BPR-0667-the-epoch-refuses-any-pull-request-whose-base-branch-moved.md)
+  (the log half rests on the 2026-09-07 20:56 live acquire; the v006
+  launches were cache hits, session observation at sequence 280),
+  [BPR-0674](../60-done/BPR-0674-overview-is-starved-by-the-drawers.md)
+  (headings accepted; policy chosen),
+  [BPR-0675](../60-done/BPR-0675-a-drawer-cannot-be-collapsed-by-anyone-who-has-not-read-the-code.md)
+  (the owner retracted the rail finding from BPR-0646),
+  [BPR-0677](../60-done/BPR-0677-the-comparison-stays-unavailable-after-the-history-is-ready.md),
+  [BPR-0683](../60-done/BPR-0683-settings-integration-and-native-acceptance.md)
+  (AC-07, AC-08 and the macOS half of AC-11; AC-10 recorded on the
+  focused effect-boundary fixture, the ledger's "exhaustive" wording
+  unchanged),
+  [BPR-0719](../60-done/BPR-0719-a-large-file-with-a-small-change-is-refused-by-the-comparison-work-limit.md),
+  [BPR-0721](../60-done/BPR-0721-a-setting-hides-the-drawer-side-controls-and-a-collapsed-rail-shows-only-its-rail.md),
+  [BPR-0722](../60-done/BPR-0722-the-strip-hides-the-pull-request-identity-below-1400-pixels.md),
+  [BPR-0724](../60-done/BPR-0724-read-mode-leaves-too-little-horizontal-room-for-the-code.md)
+  (two options chosen).
+- Rejected, parked, follow-up carded: [BPR-0646](../40-parked/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md)
+  (strip accepted; epoch line not judgeable; rails retracted; sign-in
+  "technically yes"), [BPR-0663](../40-parked/BPR-0663-public-preview-refuses-the-epoch-smart-acquire.md)
+  and [BPR-0676](../40-parked/BPR-0676-the-epoch-line-does-not-show-whether-it-is-working.md)
+  (all three the empty epoch line on a cache hit, [BPR-0725](../20-ready/BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md));
+  [BPR-0720](../40-parked/BPR-0720-comments-are-green-and-includes-are-grey-on-the-dark-palette.md)
+  (roles never emitted for C++, [BPR-0726](../20-ready/BPR-0726-functions-types-and-macros-are-uncoloured-in-c-and-c-plus-plus.md)).
+- Selections: [BPR-0727](../20-ready/BPR-0727-overview-refuses-a-drawer-opened-by-hand.md),
+  [BPR-0728](../20-ready/BPR-0728-the-conversations-drawer-goes-narrower-than-375-pixels-in-read.md),
+  [BPR-0729](BPR-0729-a-single-pane-read-layout-in-the-manner-of-p4merge.md).
+- Platform split of AC-11: [BPR-0730](BPR-0730-windows-packaged-settings-inventory.md),
+  [BPR-0731](BPR-0731-linux-packaged-settings-inventory.md); this closeout
+  depends on both.
+
+Root causes were scouted, not fixed: on a cache hit the core prepares
+the revision with no mutation and starts the comparison without emitting
+an accepted epoch or a history page, and nothing else requests the
+newest page (`src/core/src/epoch_transition.cpp:1302-1309`); the C++
+grammar KSyntaxHighlighting ships emits no function role and leaves user
+types and macros normal, which the classifier drops. The historical v004
+and v005 packets had three links repaired to the moved cards (paths
+only). No product source changed in this dispatch.
+
+Next, in order, on main: BPR-0725 (with its application-host and Qt
+pins and the composed restore course), BPR-0726, then BPR-0727 and
+BPR-0728 as one drawer milestone; a rebuilt tests-disabled bundle; a
+v007 packet with the four parked candidates (BPR-0646 narrowed to "a
+handle on the epoch line changes the comparison"), written last. BPR-0729
+waits for an RFC-BPR-0028 design round. Open to the owner: what on Home
+is "very messy" (BPR-0716).

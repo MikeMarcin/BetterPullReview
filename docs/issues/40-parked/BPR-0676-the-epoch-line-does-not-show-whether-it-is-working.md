@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P2"
 parked_on: "human-review"
-acceptance: [{"criterion":"The line states its own state in words: whether a pair resolved and can be read","outcome":"pass","revision":"d212f7c2","evidence":{"kind":"observation","detail":"Three words on the line itself: 'no pair yet', 'pair ready', 'pair not readable', written in the same place as the long sentence the details region shows so the two cannot disagree, with that sentence as the tooltip. qt_epoch_comparison_control_scale_{100,125,200} pin all three states and the tooltip; a summary that always says ready, or that carries no detail, each fail a named assertion. Fifty-six Qt and composition selectors pass with boundaries, tidy, format and docs."}},{"criterion":"The nodes, the span and the amber tick are legible at the widths the workbench supports, and the line says whether the pair is the default or a choice","outcome":"pending","revision":"d212f7c2","evidence":{"kind":"freeform","detail":"Not closed. Most of the illegibility in the owner's capture was the drawers squeezing the control, which BPR-0674 now collapses in Overview; whether what remains is legible is a judgement against a real window. Saying whether the pair is the default or the reviewer's choice is knowable from the selection and is worth adding once they have seen whether the three-word summary is enough."}}]
+acceptance: [{"criterion": "The line states its own state in words: whether a pair resolved and can be read", "outcome": "pass", "revision": "d212f7c2", "evidence": {"kind": "observation", "detail": "Three words on the line itself: 'no pair yet', 'pair ready', 'pair not readable', written in the same place as the long sentence the details region shows so the two cannot disagree, with that sentence as the tooltip. qt_epoch_comparison_control_scale_{100,125,200} pin all three states and the tooltip; a summary that always says ready, or that carries no detail, each fail a named assertion. Fifty-six Qt and composition selectors pass with boundaries, tidy, format and docs."}}, {"criterion": "The nodes, the span and the amber tick are legible at the widths the workbench supports, and the line says whether the pair is the default or a choice", "outcome": "fail", "revision": "d1ba791f", "evidence": {"kind": "observation", "detail": "Attended session cbd48b91000b00f1e72e1ad62c7c384c, candidate BPR-0676-epoch-line-legibility, revision app-release-cc2afa7f-2026-09-11.2 (bundle built at d1ba791f, executable sha256 cc2afa7f…), fingerprint 21b9321e04a5cc162fc1cb145281aa1e388c1a7b7ded942e853b495c7ee6757f, decision 180fd1d8-99c5-4f04-818f-730a60dbf179, actor human, 2026-09-11T18:36:26Z: reject, 'No visible epoch line in the test'. The three-word state was visible ('pair ready' in the owner's screenshot on BPR-0646) but the nodes, span and tick could not be judged because the line had no updates to draw on the restored review (BPR-0725). Asked again on a bundle carrying BPR-0725."}}]
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"}}
 ---
 
@@ -66,3 +66,16 @@ product defaulted.
   says when nothing is being compared yet"; a summary that carries no
   detail fails "the line says a readable pair is compared, and carries the
   detail".
+
+## Attended verdict, 2026-09-11 (v006): rejected
+
+Session `cbd48b91…`, revision `app-release-cc2afa7f-2026-09-11.2` (bundle built at d1ba791f, executable sha256 `cc2afa7f…`), actor human; handed back at sequence 278 with all fifteen candidates decided. Candidate `BPR-0676-epoch-line-legibility`, decision `180fd1d8`, 18:36:26Z: **reject**. Verbatim:
+"No visible epoch line in the test".
+
+The owner's screenshot on BPR-0646 shows the row as "Updates", "No updates loaded.", "pair
+ready" and "Comparing exact anchors": the three-word state this card added is there, and the
+nodes, span and amber tick are not, because the restored review published no updates to the
+line (a cache-hit defect,
+[BPR-0725](../20-ready/BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md)).
+Legibility cannot be judged on an empty line. This card stays parked on human-review; its
+candidate is asked again on a bundle carrying BPR-0725.

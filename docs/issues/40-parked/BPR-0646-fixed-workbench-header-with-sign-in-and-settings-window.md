@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
 parked_on: "human-review"
-acceptance: [{"criterion": "AC-01 strip and epoch line are the only chrome; the strip is the title row", "outcome": "pass", "revision": "f01f34ad", "evidence": {"kind": "observation", "detail": "qt_workbench_window_scale_{100,125,200}: the title-row test pins ExpandedClientAreaHint, the hidden title text, the platform inset and the tracked drag; no review header scroll area remains (test_review_header_is_gone). Observed in the signed app-release bundle at 1280x820 and 1920x1080: the strip in the window's first row beside the traffic lights, the epoch line beneath, nothing else above the comparison."}}, {"criterion": "AC-02 epoch line selects any two uploads by drag, click, cmd-click, menu and keys and drives the comparison", "outcome": "pass", "revision": "f01f34ad", "evidence": {"kind": "observation", "detail": "qt_epoch_comparison_control: test_epoch_line_selects_updates_by_click_drag_and_keys walks click, cmd-click, drag, the context menu and Left/Right/Shift stepping and checks each dispatched select_comparison_anchor_intent; the amber last-review tick and its tooltip are pinned; the composed public-path course drives the comparison through the existing epoch host."}}, {"criterion": "AC-03 the four modalities set the drawers, persist per window and never change on their own", "outcome": "pass", "revision": "f01f34ad", "evidence": {"kind": "observation", "detail": "qt_workbench_window_scale_100: the modality tests pin Overview/Read/Review/Discuss drawer states, Ctrl+1..4, the 18-pixel rails with label and count, that a manual toggle leaves the segment until the next modality, and the per-window persisted modality."}}, {"criterion": "AC-07 sign-in reachable in every state without scrolling", "outcome": "pass", "revision": "f01f34ad", "evidence": {"kind": "observation", "detail": "qt_composed_github_scale_100: the device panel sits first on Settings > Accounts and hosts; the strip's account button opens it and focuses Get a code while signed out; test_home_landing_funnels_to_an_account_and_then_a_pull_request pins the Home funnel from the signed-out landing."}}, {"criterion": "Focused selectors, composition contracts, public-path courses and the boundary gate pass", "outcome": "pass", "revision": "f01f34ad", "evidence": {"kind": "observation", "detail": "28 of 28 focused selectors, application_composition_contract and application_review_round_trip_composition_contract (digests repinned), the public-path courses, check_boundaries, strict tidy on every touched translation unit, clang-format --Werror and verify_documentation.py green at f01f34ad."}}, {"criterion": "Attended capture on the Mac candidate with a pull request open: strip, epoch line with nodes, a collapsed and an open rail, positions, sign-in reachable signed out", "outcome": "fail", "revision": "da92d5a9", "evidence": {"kind": "observation", "detail": "Attended session cbd48b91000b00f1e72e1ad62c7c384c, candidate BPR-0646-workbench-chrome, revision app-release-9334b13a-2026-09-10.2, fingerprint 4613c22c027c12129e16ae9e659b3a881603674a39c7080ce5c22c759e0abe44, decision 65f3f881-91a3-4388-8b8c-0c69fc0a57d6, actor human, 2026-09-11T05:34:51Z, three screenshots: reject (an identical reject b1348a9e at 05:33:43Z was withdrawn at sequence 139 and is superseded). Files open and the strip, rails and epoch line are present in the bundle, so BPR-0715 no longer masks this card. The rejection names four things, none of them this card's remaining criterion as written and each carded: a large file refused by the comparison work limit (BPR-0719, core diff), comment and include colours (BPR-0720, owner direction under RFC-BPR-0006), the collapsed rails' footprint plus a setting to hide the drawer controls and the stray heading row above each rail (BPR-0721), and no pull request identity in the strip below 1400 pixels (BPR-0722). The epoch line showed no updates (recorded on BPR-0663, undecided). The v002 acceptance of the strip stands. The card stays parked until the owner accepts the chrome on a bundle carrying BPR-0721 and BPR-0722."}}]
+acceptance: [{"criterion": "AC-01 strip and epoch line are the only chrome; the strip is the title row", "outcome": "pass", "revision": "f01f34ad", "evidence": {"kind": "observation", "detail": "qt_workbench_window_scale_{100,125,200}: the title-row test pins ExpandedClientAreaHint, the hidden title text, the platform inset and the tracked drag; no review header scroll area remains (test_review_header_is_gone). Observed in the signed app-release bundle at 1280x820 and 1920x1080: the strip in the window's first row beside the traffic lights, the epoch line beneath, nothing else above the comparison."}}, {"criterion": "AC-02 epoch line selects any two uploads by drag, click, cmd-click, menu and keys and drives the comparison", "outcome": "pass", "revision": "f01f34ad", "evidence": {"kind": "observation", "detail": "qt_epoch_comparison_control: test_epoch_line_selects_updates_by_click_drag_and_keys walks click, cmd-click, drag, the context menu and Left/Right/Shift stepping and checks each dispatched select_comparison_anchor_intent; the amber last-review tick and its tooltip are pinned; the composed public-path course drives the comparison through the existing epoch host."}}, {"criterion": "AC-03 the four modalities set the drawers, persist per window and never change on their own", "outcome": "pass", "revision": "f01f34ad", "evidence": {"kind": "observation", "detail": "qt_workbench_window_scale_100: the modality tests pin Overview/Read/Review/Discuss drawer states, Ctrl+1..4, the 18-pixel rails with label and count, that a manual toggle leaves the segment until the next modality, and the per-window persisted modality."}}, {"criterion": "AC-07 sign-in reachable in every state without scrolling", "outcome": "pass", "revision": "f01f34ad", "evidence": {"kind": "observation", "detail": "qt_composed_github_scale_100: the device panel sits first on Settings > Accounts and hosts; the strip's account button opens it and focuses Get a code while signed out; test_home_landing_funnels_to_an_account_and_then_a_pull_request pins the Home funnel from the signed-out landing."}}, {"criterion": "Focused selectors, composition contracts, public-path courses and the boundary gate pass", "outcome": "pass", "revision": "f01f34ad", "evidence": {"kind": "observation", "detail": "28 of 28 focused selectors, application_composition_contract and application_review_round_trip_composition_contract (digests repinned), the public-path courses, check_boundaries, strict tidy on every touched translation unit, clang-format --Werror and verify_documentation.py green at f01f34ad."}}, {"criterion": "Attended capture on the Mac candidate with a pull request open: strip, epoch line with nodes, a collapsed and an open rail, positions, sign-in reachable signed out", "outcome": "fail", "revision": "d1ba791f", "evidence": {"kind": "observation", "detail": "Attended session cbd48b91000b00f1e72e1ad62c7c384c, candidate BPR-0646-workbench-chrome, revision app-release-cc2afa7f-2026-09-11.2 (bundle built at d1ba791f, executable sha256 cc2afa7fb84d443a1bba93373b990be83748be20451fa0b6adde45cc6fae4c1c), fingerprint 4a45ccbffff199b97d7d3ef2bbd3796db8c490ce75dafd9d41931a6d9c565a1b, decision d06b4b43-0eb3-42fc-aa35-608f7da8935f (supersedes fa3f3955 at 18:27:53Z, same fingerprint), actor human, 2026-09-11T18:30:10Z, one screenshot: reject. Per criterion: the strip is accepted ('Strip is good'); the epoch-line handle could not be judged because the line showed no updates on the restored review (BPR-0725, a cache-hit defect, not this card's drawing); the rail criterion was retracted by the owner on BPR-0675 at 18:35:42Z ('I just was looking in the wrong place. I found it now and it works') and both drawer-control states were accepted on BPR-0721; sign-in reachable without scrolling is 'Technically yes', with the Home flow direction recorded on BPR-0716. What remains for this card is the epoch line, asked again on a bundle carrying BPR-0725."}}]
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"}}
 ---
 
@@ -524,3 +524,51 @@ on the bundle built from the source at d1ba791f (executable sha256
 `cc2afa7f…`), candidate revision `app-release-cc2afa7f-2026-09-11.2`;
 prepared, undecided, no host running until the owner asks for the session.
 The ask is unchanged; the v005 packet is historical.
+
+## Attended verdict, 2026-09-11 (v006): rejected
+
+Session `cbd48b91…`, revision `app-release-cc2afa7f-2026-09-11.2` (bundle built at d1ba791f, executable sha256 `cc2afa7f…`), actor human; handed back at sequence 278 with all fifteen candidates decided. Candidate `BPR-0646-workbench-chrome`, decision `d06b4b43`, 18:30:10Z (an earlier `fa3f3955` at
+18:27:53Z on the same fingerprint is superseded by it and adds nothing), one screenshot
+([owner-read-chrome-2026-09-11.png](../../verification/reviews/rfc-bpr-0028-attended-v006/captures/owner-read-chrome-2026-09-11.png)): **reject**. Verbatim:
+
+> Strip is good
+>
+> > A handle on the epoch line changes the comparison
+>
+> There is no visible epoch line
+>
+> > a drawer collapsed to its rail carries a vertical label and an unread count
+>
+> Rail is either hidden or removed entirely, it was supposed to be a setting but there's no setting that i can find.
+>
+> > Signed out, sign-in is reachable without scrolling
+>
+> Technically yes, but the flow is very awkward, we should be able to paste into the url box on the home sceen and click something like open without signing in and it should just work. The home screen is very messy.
+
+The screenshot, at about 1,470 points wide with microsoft/terminal#20607 restored at launch in
+Read: the strip naming the pull request, "change 2 of 2" and "file 2 of 4"; the Updates row
+reading "No updates loaded." beside "pair ready" and "Comparing exact anchors"; the two left
+drawers collapsed to no column; the conversations drawer open; `ScreenBufferTests.cpp` rendered
+with "Diff ready — 2 semantic changes".
+
+Read per criterion:
+
+- The strip: accepted, as in v002 and v003.
+- The epoch line: not judgeable, because the line drew no nodes. The diagnostics log for the
+  launch records only `catalog_open`, `catalog_recovery` and `catalog_prepare` (a cache hit; no
+  acquire), and the line gains rows only from an accepted append or a requested history page,
+  neither of which a cache hit produces:
+  [BPR-0725](../20-ready/BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md).
+  The same finding rejected [BPR-0663](BPR-0663-public-preview-refuses-the-epoch-smart-acquire.md)
+  and [BPR-0676](BPR-0676-the-epoch-line-does-not-show-whether-it-is-working.md).
+- The rails: retracted five minutes later on BPR-0675 ("In an earlier answer I said there was
+  no setting for this, I just was looking in the wrong place. I found it now and it works"),
+  and both states of the setting were accepted on
+  [BPR-0721](../60-done/BPR-0721-a-setting-hides-the-drawer-side-controls-and-a-collapsed-rail-shows-only-its-rail.md).
+- Sign-in without scrolling: "Technically yes"; the criterion as written holds. The flow the
+  owner wants (paste into the bar on Home, press Open, no account) and "the home screen is very
+  messy" are Home direction under RFC-BPR-0026, recorded on
+  [BPR-0716](../10-backlog/BPR-0716-read-without-signing-in-is-offered-from-every-signed-out-home.md).
+
+This card stays parked on human-review for the epoch line only; its candidate is asked again,
+narrowed to that criterion, on a bundle carrying BPR-0725.

@@ -61,3 +61,14 @@ opens Settings.
 ## Verification record
 
 Not run; registration on 2026-09-10 under dispatch `ux-redesign-0028-pack.d2`.
+
+## Owner direction, 2026-09-11 (v006)
+
+On the BPR-0646 rejection in the v006 attended session (decision `d06b4b43`, 18:30:10Z), of
+the sign-in criterion: "Technically yes, but the flow is very awkward, we should be able to
+paste into the url box on the home sceen and click something like open without signing in
+and it should just work. The home screen is very messy." That is this card's scope stated
+once more: one visible control on Home, in every landing state, that opens a pasted link
+without an account and says so. "The home screen is very messy" is broader and is an open
+question to the owner (which parts of Home are noise before a pull request is open) for
+the RFC-BPR-0026 Home inventory this card feeds; it is not carded on its own.
