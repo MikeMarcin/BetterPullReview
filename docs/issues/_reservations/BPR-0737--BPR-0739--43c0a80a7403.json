@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0737",
+    "BPR-0738",
+    "BPR-0739"
+  ],
+  "reserve_for": "v007-attended-verdict-follow-ups",
+  "purpose": "",
+  "created": "2026-09-11T23:55:31.871672+00:00",
+  "base": "a584fc78ca046877af518170a98981602cd6e4e7"
+}
