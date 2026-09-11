@@ -958,8 +958,12 @@ namespace bpr::qt {
 			}
 		}
 		++Statistics.Publications;
+		// [[BPR-0719]]: a work limit degrades the alignment; the status says so.
 		const auto status = CurrentResult->Alignment.Content == core::diff_content_state::text
-			? QStringLiteral("Diff ready — %1 semantic changes").arg(CurrentResult->Alignment.Groups.size())
+			? (CurrentResult->AlignmentApproximate
+				   ? QStringLiteral("Diff ready — %1 semantic changes (approximate alignment)")
+				   : QStringLiteral("Diff ready — %1 semantic changes"))
+				  .arg(CurrentResult->Alignment.Groups.size())
 			: reason_text(CurrentResult->Alignment.Diagnostic.Code);
 		update_status(status + (aPublication.CacheHit ? QStringLiteral(" (cached)") : QString{ }));
 		update_detail();

@@ -181,10 +181,10 @@ namespace {
 	public:
 		struct result_record
 		{
-			core::diff_request_context Context;
-			core::computed_file_diff   Result;
+			core::diff_request_context                       Context;
+			core::computed_file_diff                         Result;
 			std::shared_ptr<const core::diff_semantic_index> Index;
-			bool                       CacheHit = false;
+			bool                                             CacheHit = false;
 		};
 
 		void publish(const application::diff_publication& aPublication) override
@@ -339,7 +339,7 @@ namespace {
 				   && test.Host->cache_entries() == 1U
 				   && test.Host->cache_bytes() > 0U,
 			   "validated accepted result publishes and enters bounded cache");
-		const auto calls = test.Blobs.Requests.size();
+		const auto calls      = test.Blobs.Requests.size();
 		const auto prepared   = test.Projections.Results.back().Index;
 		const auto cacheBytes = test.Host->cache_bytes();
 		expect(cacheBytes > *prepared->retained_bytes(), "cache budget includes prepared index allocation and its result");
@@ -874,8 +874,12 @@ namespace {
 				   "compute byte limit cannot publish partial output");
 		}
 		{
-			auto limits               = core::diff_compute_limits{ };
-			limits.MaximumMatrixCells = 1U;
+			// [[BPR-0719]]. A work limit degrades the alignment instead of
+			// refusing the file: the host publishes a validated text result
+			// marked approximate, never an unavailable one.
+			auto limits                    = core::diff_compute_limits{ };
+			limits.MaximumMatrixCells      = 1U;
+			limits.MaximumPrimaryIndexWork = 0U;
 			fixture test{ { }, limits };
 			test.request(comparison_key());
 			test.run_effect_and_decision();
@@ -883,11 +887,12 @@ namespace {
 					   && test.Projections.Results.size() == 1U
 					   && test.Projections.Results.back()
 							   .Result.Alignment.Content
-						   == core::diff_content_state::unavailable
+						   == core::diff_content_state::text
 					   && test.Projections.Results.back()
 							   .Result.Alignment.Diagnostic.Code
-						   == core::diff_reason_code::compute_limit,
-				   "compute work limit publishes validated unavailable semantics");
+						   == core::diff_reason_code::none
+					   && test.Projections.Results.back().Result.AlignmentApproximate,
+				   "compute work limit publishes a validated approximate alignment, not a refusal");
 		}
 		{
 			fixture test;

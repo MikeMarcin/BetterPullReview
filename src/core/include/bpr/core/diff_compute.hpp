@@ -102,6 +102,11 @@ namespace bpr::core {
 		bool                                 MoveDetectionWorkLimitReached    = false;
 		bool                                 MoveDetectionSegmentLimitReached = false;
 		std::uint64_t                        PrimaryIndexWorkConsumed         = 0U;
+		/// [[BPR-0719]]: true when a work limit degraded the alignment (a
+		/// patience or plain-replacement region, an unpaired replacement or an
+		/// omitted intraline pass) instead of refusing the file. The alignment
+		/// is still valid and covers both documents; it may not be the shortest.
+		bool AlignmentApproximate = false;
 
 		auto operator<=>(const computed_file_diff&) const = default;
 	};

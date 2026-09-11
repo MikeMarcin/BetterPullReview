@@ -596,13 +596,16 @@ namespace bpr::core {
 			}
 		};
 
+		using line_view  = std::span<const normalized_line>;
+		using match_list = std::vector<std::pair<std::size_t, std::size_t>>;
+
 		/// All common lines are unique and ordered, so taking every one is the
-		/// unique LCS. Ambiguous duplicates or crossing matches keep the bounded
-		/// refusal; this path never substitutes a different tie-breaking policy.
-		[[nodiscard]] auto ordered_unique_matches(
-			const prepared_document& aLeft, const prepared_document& aRight,
-			work_budget& aBudget)
-			-> std::optional<std::vector<std::pair<std::size_t, std::size_t>>>
+		/// unique LCS. Ambiguous duplicates or crossing matches decline; this
+		/// path never substitutes a different tie-breaking policy.
+		[[nodiscard]] auto ordered_unique_matches(const line_view aLeft,
+												  const line_view aRight,
+												  work_budget&    aBudget)
+			-> std::optional<match_list>
 		{
 			struct occurrence
 			{
@@ -615,21 +618,21 @@ namespace bpr::core {
 			// stops the container operation immediately and cannot escape here.
 			try {
 				std::map<const normalized_line*, occurrence, budgeted_line_less> index{ budgeted_line_less{ &aBudget } };
-				for (std::size_t position = 0U; position < aRight.Normalized.size(); ++position) {
+				for (std::size_t position = 0U; position < aRight.size(); ++position) {
 					if (!aBudget.consume()) {
 						return std::nullopt;
 					}
-					const auto [entry, inserted] = index.try_emplace(&aRight.Normalized[position], occurrence{ .Position = position });
+					const auto [entry, inserted] = index.try_emplace(&aRight[position], occurrence{ .Position = position });
 					if (!inserted) {
 						entry->second.Repeated = true;
 					}
 				}
-				std::vector<std::pair<std::size_t, std::size_t>> matches;
-				for (std::size_t position = 0U; position < aLeft.Normalized.size(); ++position) {
+				match_list matches;
+				for (std::size_t position = 0U; position < aLeft.size(); ++position) {
 					if (!aBudget.consume()) {
 						return std::nullopt;
 					}
-					const auto entry = index.find(&aLeft.Normalized[position]);
+					const auto entry = index.find(&aLeft[position]);
 					if (entry == index.end()) {
 						continue;
 					}
@@ -645,28 +648,182 @@ namespace bpr::core {
 			}
 		}
 
+		/// [[BPR-0719]]: patience anchors. Lines that occur exactly once on each
+		/// side, kept in the longest increasing order of their right positions.
+		/// The anchors are a valid monotonic alignment, not necessarily the
+		/// shortest one, so a caller that relies on them reports approximate.
+		[[nodiscard]] auto patience_anchors(const line_view aLeft,
+											const line_view aRight,
+											work_budget&    aBudget)
+			-> std::optional<match_list>
+		{
+			constexpr auto unseen = std::numeric_limits<std::size_t>::max();
+			struct occurrence
+			{
+				std::size_t Left          = unseen;
+				std::size_t Right         = unseen;
+				bool        LeftRepeated  = false;
+				bool        RightRepeated = false;
+			};
+			try {
+				std::map<const normalized_line*, occurrence, budgeted_line_less> index{ budgeted_line_less{ &aBudget } };
+				for (std::size_t position = 0U; position < aRight.size(); ++position) {
+					if (!aBudget.consume()) {
+						return std::nullopt;
+					}
+					const auto [entry, inserted] = index.try_emplace(&aRight[position], occurrence{ .Right = position });
+					if (!inserted) {
+						entry->second.RightRepeated = true;
+					}
+				}
+				match_list candidates;
+				for (std::size_t position = 0U; position < aLeft.size(); ++position) {
+					if (!aBudget.consume()) {
+						return std::nullopt;
+					}
+					const auto entry = index.find(&aLeft[position]);
+					if (entry == index.end()) {
+						continue;
+					}
+					auto& found = entry->second;
+					if (found.Left != unseen) {
+						found.LeftRepeated = true;
+						continue;
+					}
+					found.Left = position;
+					if (!found.RightRepeated) {
+						candidates.emplace_back(position, found.Right);
+					}
+				}
+				// A left repeat is discovered after its first occurrence was
+				// already recorded; drop those candidates now.
+				std::erase_if(candidates, [&index, &aLeft](const std::pair<std::size_t, std::size_t>& aCandidate) {
+					return index.find(&aLeft[aCandidate.first])->second.LeftRepeated;
+				});
+				// Longest strictly increasing subsequence of right positions
+				// (candidates are already in left order).
+				std::vector<std::size_t> tails;
+				std::vector<std::size_t> tailIndex;
+				std::vector<std::size_t> previous(candidates.size(), unseen);
+				for (std::size_t position = 0U; position < candidates.size(); ++position) {
+					if (!aBudget.consume()) {
+						return std::nullopt;
+					}
+					const auto right = candidates[position].second;
+					const auto slot  = static_cast<std::size_t>(std::distance(tails.begin(), std::ranges::lower_bound(tails, right)));
+					if (slot == tails.size()) {
+						tails.push_back(right);
+						tailIndex.push_back(position);
+					} else {
+						tails[slot]     = right;
+						tailIndex[slot] = position;
+					}
+					if (slot != 0U) {
+						previous[position] = tailIndex[slot - 1U];
+					}
+				}
+				match_list anchors(tails.size());
+				auto       cursor = tails.empty() ? unseen : tailIndex.back();
+				for (auto slot = tails.size(); slot != 0U; --slot) {
+					anchors[slot - 1U] = candidates[cursor];
+					cursor             = previous[cursor];
+				}
+				return anchors;
+			} catch (const primary_index_limit&) {
+				return std::nullopt;
+			}
+		}
+
+		/// [[BPR-0719]]: aligns the whole file without ever refusing it. Each
+		/// region first sheds its common prefix and suffix, so the exact matrix
+		/// is charged for the changed lines only. A region the matrix budget
+		/// cannot cover takes the ordered-unique alignment when that is exact,
+		/// otherwise patience anchors split it and the gaps recurse; a gap with
+		/// nothing to anchor stays a plain replacement. Every non-exact step
+		/// sets aApproximate.
+		[[nodiscard]] auto primary_matches(const line_view aLeft,
+										   const line_view aRight,
+										   matrix_budget&  aBudget,
+										   work_budget&    aIndexBudget,
+										   bool&           aApproximate)
+			-> match_list
+		{
+			struct region
+			{
+				std::size_t LeftBegin  = 0U;
+				std::size_t LeftEnd    = 0U;
+				std::size_t RightBegin = 0U;
+				std::size_t RightEnd   = 0U;
+			};
+			const auto          equalLines = [](const normalized_line& aLhs, const normalized_line& aRhs) { return aLhs == aRhs; };
+			match_list          matches;
+			std::vector<region> pending{ region{ .LeftEnd = aLeft.size(), .RightEnd = aRight.size() } };
+			while (!pending.empty()) {
+				auto current = pending.back();
+				pending.pop_back();
+				while (current.LeftBegin < current.LeftEnd && current.RightBegin < current.RightEnd
+					   && equalLines(aLeft[current.LeftBegin], aRight[current.RightBegin])) {
+					matches.emplace_back(current.LeftBegin, current.RightBegin);
+					++current.LeftBegin;
+					++current.RightBegin;
+				}
+				while (current.LeftBegin < current.LeftEnd && current.RightBegin < current.RightEnd
+					   && equalLines(aLeft[current.LeftEnd - 1U], aRight[current.RightEnd - 1U])) {
+					--current.LeftEnd;
+					--current.RightEnd;
+					matches.emplace_back(current.LeftEnd, current.RightEnd);
+				}
+				if (current.LeftBegin == current.LeftEnd || current.RightBegin == current.RightEnd) {
+					continue;
+				}
+				const auto leftRegion  = aLeft.subspan(current.LeftBegin, current.LeftEnd - current.LeftBegin);
+				const auto rightRegion = aRight.subspan(current.RightBegin, current.RightEnd - current.RightBegin);
+				const auto offset      = [&matches, &current](const match_list& aFound) {
+					for (const auto& [left, right] : aFound) {
+						matches.emplace_back(current.LeftBegin + left, current.RightBegin + right);
+					}
+				};
+				if (const auto exact = lcs_matches(leftRegion, rightRegion, equalLines, aBudget); exact.has_value()) {
+					offset(*exact);
+					continue;
+				}
+				if (const auto ordered = ordered_unique_matches(leftRegion, rightRegion, aIndexBudget); ordered.has_value()) {
+					offset(*ordered);
+					continue;
+				}
+				aApproximate       = true;
+				const auto anchors = patience_anchors(leftRegion, rightRegion, aIndexBudget);
+				if (!anchors.has_value() || anchors->empty()) {
+					continue;
+				}
+				offset(*anchors);
+				auto gapLeft  = current.LeftBegin;
+				auto gapRight = current.RightBegin;
+				for (const auto& [left, right] : *anchors) {
+					pending.push_back(region{ .LeftBegin = gapLeft, .LeftEnd = current.LeftBegin + left, .RightBegin = gapRight, .RightEnd = current.RightBegin + right });
+					gapLeft  = current.LeftBegin + left + 1U;
+					gapRight = current.RightBegin + right + 1U;
+				}
+				pending.push_back(region{ .LeftBegin = gapLeft, .LeftEnd = current.LeftEnd, .RightBegin = gapRight, .RightEnd = current.RightEnd });
+			}
+			std::ranges::sort(matches);
+			return matches;
+		}
+
 		[[nodiscard]] auto primary_segments(const prepared_document& aLeft,
 											const prepared_document& aRight,
 											const diff_options&      aOptions,
 											matrix_budget&           aBudget,
-											work_budget&             aIndexBudget)
+											work_budget&             aIndexBudget,
+											bool&                    aApproximate)
 			-> std::optional<std::vector<pending_segment>>
 		{
-			auto matches = lcs_matches(
-				aLeft.Normalized,
-				aRight.Normalized,
-				[](const normalized_line& aLhs, const normalized_line& aRhs) { return aLhs == aRhs; },
-				aBudget);
-			if (!matches.has_value()) {
-				matches = ordered_unique_matches(aLeft, aRight, aIndexBudget);
-			}
-			if (!matches.has_value()) {
-				return std::nullopt;
-			}
-			auto primary     = std::vector<pending_segment>{ };
-			auto leftCursor  = std::uint32_t{ 0U };
-			auto rightCursor = std::uint32_t{ 0U };
-			auto matchIndex  = std::size_t{ 0U };
+			const auto matches     = std::optional{ primary_matches(
+				line_view{ aLeft.Normalized }, line_view{ aRight.Normalized }, aBudget, aIndexBudget, aApproximate) };
+			auto       primary     = std::vector<pending_segment>{ };
+			auto       leftCursor  = std::uint32_t{ 0U };
+			auto       rightCursor = std::uint32_t{ 0U };
+			auto       matchIndex  = std::size_t{ 0U };
 			while (matchIndex < matches->size()) {
 				const auto matchLeft  = static_cast<std::uint32_t>((*matches)[matchIndex].first);
 				const auto matchRight = static_cast<std::uint32_t>((*matches)[matchIndex].second);
@@ -702,7 +859,11 @@ namespace bpr::core {
 				const auto pairs = secondary_pairs(
 					aLeft, aRight, segment.Left, segment.Right, aOptions, aBudget);
 				if (!pairs.has_value()) {
-					return std::nullopt;
+					// [[BPR-0719]]: an unpairable replacement stays a plain
+					// replacement instead of refusing the file.
+					aApproximate = true;
+					refined.push_back(segment);
+					continue;
 				}
 				auto leftPosition  = segment.Left.Begin;
 				auto rightPosition = segment.Right.Begin;
@@ -1093,7 +1254,7 @@ namespace bpr::core {
 				diff_compute_validation_error::invalid_alignment);
 		}
 		if (aDiff.Alignment.Content != diff_content_state::text) {
-			return !aDiff.LeftDocument.has_value() && !aDiff.RightDocument.has_value() && aDiff.Intraline.empty() && aDiff.MatrixCellsConsumed == 0U && aDiff.MoveDetectionWorkConsumed == 0U && !aDiff.MoveDetectionWorkLimitReached && !aDiff.MoveDetectionSegmentLimitReached
+			return !aDiff.LeftDocument.has_value() && !aDiff.RightDocument.has_value() && aDiff.Intraline.empty() && aDiff.MatrixCellsConsumed == 0U && aDiff.MoveDetectionWorkConsumed == 0U && !aDiff.MoveDetectionWorkLimitReached && !aDiff.MoveDetectionSegmentLimitReached && !aDiff.AlignmentApproximate
 				? diff_compute_validation_result{ }
 				: compute_failure(
 					  diff_compute_validation_error::records_for_non_text);
@@ -1262,7 +1423,8 @@ namespace bpr::core {
 
 		auto budget      = matrix_budget{ .Limit = aInput.Limits.MaximumMatrixCells };
 		auto indexBudget = work_budget{ .Limit = aInput.Limits.MaximumPrimaryIndexWork };
-		auto pending     = primary_segments(*left, *right, aInput.Options, budget, indexBudget);
+		auto approximate = false;
+		auto pending     = primary_segments(*left, *right, aInput.Options, budget, indexBudget, approximate);
 		if (!pending.has_value() || pending->size() > static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max()) || pending->size() > static_cast<std::size_t>(aInput.Limits.MaximumSegments)) {
 			return nontext_result(aInput,
 								  diff_content_state::unavailable,
@@ -1391,9 +1553,10 @@ namespace bpr::core {
 													 pair.RightLine,
 													 budget);
 				if (!ranges.has_value()) {
-					return nontext_result(aInput,
-										  diff_content_state::unavailable,
-										  diff_reason_code::compute_limit);
+					// [[BPR-0719]]: the pair stays similar without intraline
+					// edits instead of refusing the file.
+					approximate = true;
+					continue;
 				}
 				for (const auto& [leftRange, rightRange] : *ranges) {
 					intraline.push_back(intraline_edit{
@@ -1436,6 +1599,7 @@ namespace bpr::core {
 			.MoveDetectionWorkLimitReached    = moved.WorkLimitReached,
 			.MoveDetectionSegmentLimitReached = moved.SegmentLimitReached,
 			.PrimaryIndexWorkConsumed         = indexBudget.Consumed,
+			.AlignmentApproximate             = approximate,
 		};
 		if (!validate_computed_file_diff(result).valid()) {
 			return { .Reason = diff_reason_code::invalid_alignment };

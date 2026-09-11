@@ -577,9 +577,11 @@ namespace {
 		auto overCells                    = exactLimits;
 		overCells.MaximumPrimaryIndexWork = 0U;
 		--overCells.MaximumMatrixCells;
-		const auto cellLimited = run("a\n", "b\n", noPairing, true, true, overCells);
-		expect(cellLimited.Reason == diff_reason_code::compute_limit && cellLimited.Result.has_value() && cellLimited.Result->Alignment.Segments.empty(),
-			   "over-limit computation publishes no partial records");
+		// [[BPR-0719]]: an exhausted matrix budget degrades to an approximate
+		// alignment instead of refusing the file.
+		const auto cellLimited = text_result(run("a\n", "b\n", noPairing, true, true, overCells), "over-limit computation still aligns");
+		expect(cellLimited.AlignmentApproximate && cellLimited.Alignment.Segments.size() == 1U && cellLimited.Alignment.Segments.front().Kind == alignment_kind::replacement && cellLimited.MatrixCellsConsumed == 0U,
+			   "over-limit computation publishes an approximate replacement without charging the matrix");
 
 		auto overBytes                = exactLimits;
 		overBytes.MaximumBytesPerSide = 1U;
@@ -598,9 +600,9 @@ namespace {
 			   "secondary score, decision, similarity, and intraline grids are "
 			   "charged");
 		--pairedLimits.MaximumMatrixCells;
-		const auto pairedLimited = run("prefix alpha\n", "prefix beta\n", { }, true, true, pairedLimits);
-		expect(pairedLimited.Reason == diff_reason_code::compute_limit && pairedLimited.Result.has_value() && pairedLimited.Result->Alignment.Segments.empty(),
-			   "one cell below secondary work returns no partial records");
+		const auto pairedLimited = text_result(run("prefix alpha\n", "prefix beta\n", { }, true, true, pairedLimits), "one cell below secondary work still aligns");
+		expect(pairedLimited.AlignmentApproximate && pairedLimited.MatrixCellsConsumed < pairedBaseline.MatrixCellsConsumed,
+			   "one cell below secondary work degrades to an approximate alignment");
 	}
 
 	auto test_ordered_unique_line_fallback() -> void
@@ -640,16 +642,19 @@ namespace {
 					}
 					previous = found + 1U;
 				}
-				const auto indexed = run(left, right, options, true, true, indexedLimits);
-				expect((indexed.Reason == diff_reason_code::none) == eligible, "ordered unique eligibility agrees with independent occurrence/order check");
-				if (!eligible) {
-					expect(indexed.Reason == diff_reason_code::compute_limit && indexed.Result && indexed.Result->Alignment.Segments.empty(), "ambiguous fallback publishes no partial alignment");
+				// [[BPR-0719]]: nothing refuses. An eligible input is exact; an
+				// ambiguous one is exact only when trimming resolved it, and is
+				// otherwise a valid alignment marked approximate.
+				const auto actual = text_result(run(left, right, options, true, true, indexedLimits), "indexed reference");
+				const auto matrix = text_result(run(left, right, options), "matrix reference");
+				expect(actual.MatrixCellsConsumed == 0U, "a zero matrix budget is never charged");
+				expect(!eligible || !actual.AlignmentApproximate, "ordered unique eligibility implies an exact alignment");
+				expect(!matrix.AlignmentApproximate, "the default budget aligns tiny inputs exactly");
+				if (actual.AlignmentApproximate) {
 					continue;
 				}
-				const auto matrix = text_result(run(left, right, options), "matrix reference");
-				const auto actual = text_result(indexed, "indexed reference");
 				expect(actual.Alignment == matrix.Alignment && actual.LeftDocument == matrix.LeftDocument && actual.RightDocument == matrix.RightDocument
-						   && actual.Intraline == matrix.Intraline && actual.MatrixCellsConsumed == 0U,
+						   && actual.Intraline == matrix.Intraline,
 					   "indexed result preserves exact matrix semantics and identities");
 			}
 		}
@@ -662,16 +667,23 @@ namespace {
 		expect(normalizedIndex.Alignment == normalizedMatrix.Alignment && normalizedIndex.LeftDocument == normalizedMatrix.LeftDocument
 				   && normalizedIndex.RightDocument == normalizedMatrix.RightDocument,
 			   "index uses normalized equality and retains source bytes");
-		const auto repeatedNormalized = run("a b\nab\n", "ab\n", normalized, true, true, indexedLimits);
-		expect(repeatedNormalized.Reason == diff_reason_code::compute_limit, "normalization cannot hide an ambiguous repeated anchor");
+		// Normalization cannot hide a repeated anchor: the repeated line is only
+		// exact because trimming pairs the first occurrence.
+		const auto repeatedNormalized = text_result(run("a b\nab\n", "ab\n", normalized, true, true, indexedLimits), "repeated normalized anchor");
+		const auto repeatedMatrix     = text_result(run("a b\nab\n", "ab\n", normalized), "repeated normalized matrix");
+		expect(!repeatedNormalized.AlignmentApproximate && repeatedNormalized.Alignment == repeatedMatrix.Alignment, "normalization cannot hide an ambiguous repeated anchor");
 
-		const auto measured = text_result(run("alpha\nbeta\n", "alpha\nnew\nbeta\n", options, true, true, indexedLimits), "index budget baseline");
-		expect(measured.PrimaryIndexWorkConsumed > 0U, "index work is independently reported");
+		// [[BPR-0719]]: the prefix and suffix are shed before the index runs, so
+		// an interior unique anchor between two changed lines exercises it.
+		constexpr auto indexedLeft  = std::string_view{ "alpha\nbeta\ngamma\ndelta\n" };
+		constexpr auto indexedRight = std::string_view{ "alpha\nBETA\ngamma\nDELTA\n" };
+		const auto     measured     = text_result(run(indexedLeft, indexedRight, options, true, true, indexedLimits), "index budget baseline");
+		expect(measured.PrimaryIndexWorkConsumed > 0U && !measured.AlignmentApproximate, "index work is independently reported and the anchor is exact");
 		indexedLimits.MaximumPrimaryIndexWork = measured.PrimaryIndexWorkConsumed;
-		expect(run("alpha\nbeta\n", "alpha\nnew\nbeta\n", options, true, true, indexedLimits).Reason == diff_reason_code::none, "exact index budget succeeds");
+		expect(!text_result(run(indexedLeft, indexedRight, options, true, true, indexedLimits), "exact index budget").AlignmentApproximate, "exact index budget succeeds");
 		--indexedLimits.MaximumPrimaryIndexWork;
-		const auto exhausted = run("alpha\nbeta\n", "alpha\nnew\nbeta\n", options, true, true, indexedLimits);
-		expect(exhausted.Reason == diff_reason_code::compute_limit && exhausted.Result && exhausted.Result->Alignment.Segments.empty(), "exhausted index budget publishes no partial records");
+		const auto exhausted = text_result(run(indexedLeft, indexedRight, options, true, true, indexedLimits), "exhausted index budget still aligns");
+		expect(exhausted.AlignmentApproximate && exhausted.Alignment.Segments.size() == 2U, "an exhausted index budget degrades to an approximate replacement, never a refusal");
 
 		std::string largeLeft, largeRight;
 		for (int line = 0; line < 20000; ++line) {
@@ -684,6 +696,77 @@ namespace {
 				   && large.PrimaryIndexWorkConsumed > 0U && large.PrimaryIndexWorkConsumed <= diff_compute_limits{ }.MaximumPrimaryIndexWork
 				   && large.MatrixCellsConsumed <= diff_compute_limits{ }.MaximumMatrixCells,
 			   "large comparison preserves source/groups within both independent budgets");
+	}
+
+	/// [[BPR-0719]]: a limit degrades the alignment; it never refuses a file
+	/// for its size alone.
+	auto test_large_files_degrade_instead_of_refusing() -> void
+	{
+		// Every line repeats, so the ordered-unique fallback cannot help; only
+		// trimming the common prefix and suffix makes the pure insertion exact.
+		const auto repeatedLine = [](const int aLine) -> std::string {
+			switch (aLine % 5) {
+			case 0:  return "}\n";
+			case 1:  return "\n";
+			case 2:  return "    VERIFY_IS_TRUE(result);\n";
+			case 3:  return "    auto& buffer = si.GetTextBuffer();\n";
+			default: return "    {\n";
+			}
+		};
+		std::string largeLeft;
+		for (int line = 0; line < 8000; ++line) {
+			largeLeft += repeatedLine(line);
+		}
+		std::string inserted;
+		for (int line = 0; line < 291; ++line) {
+			inserted += repeatedLine(line);
+		}
+		std::string largeRight;
+		for (int line = 0; line < 4000; ++line) {
+			largeRight += repeatedLine(line);
+		}
+		largeRight += inserted;
+		for (int line = 4000; line < 8000; ++line) {
+			largeRight += repeatedLine(line);
+		}
+		const auto insertion = text_result(run(largeLeft, largeRight), "a repeated 8,000-line file with a pure insertion computes under default limits");
+		expect(!insertion.AlignmentApproximate, "trimming the common prefix and suffix keeps the pure insertion exact");
+		expect(insertion.Alignment.LeftLineCount == 8000U && insertion.Alignment.RightLineCount == 8291U, "both documents are retained whole");
+		auto insertedLines = std::uint64_t{ 0U };
+		auto removedLines  = std::uint64_t{ 0U };
+		for (const auto& segment : insertion.Alignment.Segments) {
+			if (segment.Kind == alignment_kind::right_only) {
+				insertedLines += segment.Right.extent();
+			} else if (segment.Kind != alignment_kind::equal) {
+				removedLines += segment.Left.extent();
+			}
+		}
+		expect(insertedLines == 291U && removedLines == 0U && insertion.Alignment.Groups.size() == 1U, "every inserted line is reported and nothing else changes");
+		expect(insertion.MatrixCellsConsumed <= diff_compute_limits{ }.MaximumMatrixCells, "the exact alignment stays within the matrix budget");
+
+		// The changed region alone exceeds the bound, every line repeats and
+		// nothing anchors: the result is an approximate alignment, not a refusal.
+		std::string ambiguousLeft  = "left only opening line\n";
+		std::string ambiguousRight = "right only opening line\n";
+		for (int line = 0; line < 5000; ++line) {
+			ambiguousLeft += repeatedLine(line);
+			ambiguousRight += repeatedLine(line + 2);
+		}
+		ambiguousLeft += "left only closing line\n";
+		ambiguousRight += "right only closing line\n";
+		const auto ambiguous = text_result(run(ambiguousLeft, ambiguousRight), "a changed region beyond the bound still computes");
+		expect(ambiguous.AlignmentApproximate, "a changed region beyond the bound is marked approximate");
+		expect(ambiguous.Alignment.LeftLineCount == 5002U && ambiguous.Alignment.RightLineCount == 5002U && !ambiguous.Alignment.Segments.empty(), "the approximate alignment covers both documents");
+		expect(ambiguous.MatrixCellsConsumed <= diff_compute_limits{ }.MaximumMatrixCells, "the approximate alignment stays within the matrix budget");
+
+		auto approximateOptions                        = diff_options{ };
+		approximateOptions.Pairing                     = pairing_policy::disabled;
+		approximateOptions.SimilarityThresholdPermille = 0U;
+		auto oneCell                                   = diff_compute_limits{ };
+		oneCell.MaximumMatrixCells                     = 1U;
+		oneCell.MaximumPrimaryIndexWork                = 0U;
+		const auto tiny                                = text_result(run("alpha\nbeta\n", "alpha\ngamma\n", approximateOptions, true, true, oneCell), "an exhausted budget on a tiny file still computes");
+		expect(tiny.AlignmentApproximate && tiny.Alignment.Segments.size() == 2U, "an exhausted budget degrades to an approximate replacement after trimming");
 	}
 
 	auto test_computed_result_validator() -> void
@@ -813,6 +896,7 @@ int main()
 	test_unicode_binary_and_unavailable();
 	test_moves_identity_and_limits();
 	test_ordered_unique_line_fallback();
+	test_large_files_degrade_instead_of_refusing();
 	test_computed_result_validator();
 	test_generated_replay_validation();
 	std::cout << "BPR-0073 deterministic diff computation tests passed\n";
