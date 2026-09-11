@@ -453,7 +453,7 @@ Read as five findings, none of them this card's criterion as written:
 
 - The refused file is the core's LCS matrix bound with no textual fallback,
   owner direction that no file may be refused for size:
-  [BPR-0719](BPR-0719-a-large-file-with-a-small-change-is-refused-by-the-comparison-work-limit.md).
+  [BPR-0719](../60-done/BPR-0719-a-large-file-with-a-small-change-is-refused-by-the-comparison-work-limit.md).
 - Comment and include colours have not changed since BPR-0199 (2026-08-07)
   and were not swapped; the request is a requirement under RFC-BPR-0006 held
   for the owner's confirmation of its extent:
@@ -482,7 +482,7 @@ about are what the owner will see.
 Prepared again in
 [rfc-bpr-0028-attended-v004](../../verification/reviews/rfc-bpr-0028-attended-v004/operator-packet.md)
 on the bundle built at 3c9a3f1c, where
-[BPR-0719](BPR-0719-a-large-file-with-a-small-change-is-refused-by-the-comparison-work-limit.md),
+[BPR-0719](../60-done/BPR-0719-a-large-file-with-a-small-change-is-refused-by-the-comparison-work-limit.md),
 [BPR-0721](BPR-0721-a-setting-hides-the-drawer-side-controls-and-a-collapsed-rail-shows-only-its-rail.md)
 and
 [BPR-0722](BPR-0722-the-strip-hides-the-pull-request-identity-below-1400-pixels.md)

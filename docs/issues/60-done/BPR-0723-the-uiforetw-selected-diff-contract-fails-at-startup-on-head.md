@@ -14,7 +14,7 @@ acceptance: [{"criterion":"application_uiforetw_selected_diff_contract passes in
 
 `application_uiforetw_selected_diff_contract` is red at `8ff3b664`, before
 any change of the v003 follow-ups. It was found while running the
-[BPR-0719](../40-parked/BPR-0719-a-large-file-with-a-small-change-is-refused-by-the-comparison-work-limit.md)
+[BPR-0719](BPR-0719-a-large-file-with-a-small-change-is-refused-by-the-comparison-work-limit.md)
 focused batch and reproduced on a clean worktree build of that HEAD
 (`cmake --preset dev`, then `ctest -R '^application_uiforetw_selected_diff_contract$'`):
 

@@ -188,7 +188,7 @@ armed.
 
 Landed on main, in the recommended order:
 
-- [BPR-0719](../40-parked/BPR-0719-a-large-file-with-a-small-change-is-refused-by-the-comparison-work-limit.md)
+- [BPR-0719](../60-done/BPR-0719-a-large-file-with-a-small-change-is-refused-by-the-comparison-work-limit.md)
   (`901a9c06`): the core sheds the common prefix and suffix, charges the
   exact matrix for the changed region only, and degrades through the
   ordered-unique alignment and patience anchors instead of refusing;
