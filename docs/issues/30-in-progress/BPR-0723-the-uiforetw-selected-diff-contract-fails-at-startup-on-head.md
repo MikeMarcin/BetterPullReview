@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0723"
 title: "The UIforETW selected-diff contract fails at startup on HEAD"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0004", "RFC-BPR-0028"]
 depends_on: []
 priority: "P1"

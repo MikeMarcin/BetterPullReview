@@ -122,7 +122,7 @@ which the Settings window adopts, not `settings_window.cpp`.
   `width <= 18` for the collapsed drawers, which a hidden panel satisfies,
   so its text needed no change; it could not be rerun because it fails at
   startup on head independently
-  ([BPR-0723](../20-ready/BPR-0723-the-uiforetw-selected-diff-contract-fails-at-startup-on-head.md)).
+  ([BPR-0723](../30-in-progress/BPR-0723-the-uiforetw-selected-diff-contract-fails-at-startup-on-head.md)).
   `application_workbench_composition_contract` stays red at head
   (`PUBLIC_PATH_STAGE:2`, presentation=0), the failure
   [BPR-0718](../10-backlog/BPR-0718-the-workbench-composition-contract-is-red-at-the-pack-head.md)
