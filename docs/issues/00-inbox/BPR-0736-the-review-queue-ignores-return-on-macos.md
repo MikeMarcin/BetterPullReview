@@ -11,7 +11,7 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # The review queue ignores Return on macOS
 
-Found while landing [BPR-0733](../40-parked/BPR-0733-home-lists-recently-viewed-pull-requests-instead-of-restoring-the-last-one.md).
+Found while landing [BPR-0733](../60-done/BPR-0733-home-lists-recently-viewed-pull-requests-instead-of-restoring-the-last-one.md).
 On macOS `QAbstractItemView` hands Return and Enter to its edit trigger and
 never emits `activated`; probed empirically on the recently viewed list
 (`activated=0`, event ignored, for Return, Enter and viewport delivery).
