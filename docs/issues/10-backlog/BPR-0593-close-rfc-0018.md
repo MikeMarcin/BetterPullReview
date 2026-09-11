@@ -288,7 +288,7 @@ three open questions). The thirteen v004 candidates were released through
 --resources install:…` (all thirteen protect those paths; sequence 183)
 before any source edit. Landed on main:
 
-- [BPR-0724](../40-parked/BPR-0724-read-mode-leaves-too-little-horizontal-room-for-the-code.md)
+- [BPR-0724](../60-done/BPR-0724-read-mode-leaves-too-little-horizontal-room-for-the-code.md)
   (`25e1525d`): "it was difficult to read the code because of a lack of
   horizontal area for the text display". Read collapses the repositories
   drawer as well as the files drawer (300 pixels back to the comparison);

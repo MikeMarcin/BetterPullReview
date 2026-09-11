@@ -499,7 +499,7 @@ running until the owner asks for the session.
 The three questions the v003 verdict left open were answered. "Even in read
 mode viewing experience is not great" meant "it was difficult to read the
 code because of a lack of horizontal area for the text display", carded as
-[BPR-0724](BPR-0724-read-mode-leaves-too-little-horizontal-room-for-the-code.md).
+[BPR-0724](../60-done/BPR-0724-read-mode-leaves-too-little-horizontal-room-for-the-code.md).
 The dark palette question: "the whole palette, yes reset", landed on
 [BPR-0720](BPR-0720-comments-are-green-and-includes-are-grey-on-the-dark-palette.md).
 The strip below about 960 pixels: "leave it be for now", recorded on

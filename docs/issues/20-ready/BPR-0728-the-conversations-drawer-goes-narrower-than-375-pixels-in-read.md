@@ -17,7 +17,7 @@ conversations drawer in Read but let it go narrower than 375 pixels"
 (with the single-pane layout,
 [BPR-0729](../10-backlog/BPR-0729-a-single-pane-read-layout-in-the-manner-of-p4merge.md),
 as a separate slice). The context is
-[BPR-0724](../40-parked/BPR-0724-read-mode-leaves-too-little-horizontal-room-for-the-code.md):
+[BPR-0724](../60-done/BPR-0724-read-mode-leaves-too-little-horizontal-room-for-the-code.md):
 "it was difficult to read the code because of a lack of horizontal area
 for the text display".
 
