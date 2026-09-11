@@ -83,12 +83,15 @@ upload, since my last review) remain in a dropdown at the line's right.
 
 **Modalities.** Overview, Read, Review and Discuss are presets for which
 drawers are open, chosen from the strip or ⌘1 to ⌘4, and they stay until
-changed. Read collapses the files drawer to an 18-pixel rail and keeps comments
-beside the code; Review opens the files drawer too; Discuss widens the
-conversation over the code. Nothing collapses on its own. Automatic transitions
-(for example, opening a pull request shows Overview) are off by default and are
-configured as rules in Settings. Rails carry a vertical label and an unread
-count.
+changed. Read collapses the files drawer and keeps comments beside the code;
+Review opens the files drawer too; Discuss widens the conversation over the
+code. Nothing collapses on its own. Automatic transitions (for example, opening
+a pull request shows Overview) are off by default and are configured as rules
+in Settings. A collapsed drawer's presentation follows the drawer-controls
+setting ([[BPR-0721]], owner direction 2026-09-10): with the controls shown it
+is an 18-pixel rail with a vertical label and an unread count; with them
+hidden, the default, it leaves no column at all and the strip's toggle is the
+way back.
 
 **Overview.** A pull request opens on an overview: title, author and branches,
 description, a files table grouped by folder with operation, added and removed
@@ -126,9 +129,12 @@ row opens that pull request on its Overview. The files drawer shows the
 selected pull request's tree: chevrons, guide lines, nesting-only folders
 compacted into one row, file counts on folders, the read-state dots and line
 counts of the overview, tree/flat/changed-first orders and a filter that keeps
-parents visible. Each drawer has its own strip toggle, shortcut and 18-pixel
-rail with a label and count; collapsing one never moves the other; a modality
-sets both, a manual toggle overrides until the next modality change.
+parents visible. Each drawer has its own strip toggle and shortcut and, while
+the drawer controls are shown, a Hide button and an 18-pixel rail with a label
+and count; with the controls hidden (the default since [[BPR-0721]]) a
+collapsed drawer is absent and an expanded one has no Hide button. Collapsing
+one never moves the other; a modality sets both, a manual toggle overrides
+until the next modality change.
 
 **Settings.** RFC-BPR-0018's window and sidebar, with these pages fixed by the
 asset: Accounts & hosts (one card per server, device-grant sessions shown as
@@ -139,7 +145,7 @@ thumbnail, interface size, code font defaulting to JetBrains Mono NL as
 installed, code size and tab stops, ligatures, per-role colour customisation
 with preview, theme import and export, the tuned diff colours untouched), and
 Reviews & queue (modality rules, none on by default; reading behaviour;
-observer rules; saved repositories). The other four pages remain as
+drawer controls, off by default; observer rules; saved repositories). The other four pages remain as
 RFC-BPR-0018 describes them.
 
 **Home.** An action list: grouped rows (needs you, waiting on others,
@@ -166,7 +172,9 @@ follow in their own design rounds.
   keyboard stepping, shows my last review, and drives the comparison the
   existing epoch host already resolves.
 - AC-03 The four modalities set the drawers as described, persist per window,
-  never change on their own unless a configured transition fires.
+  never change on their own unless a configured transition fires; a collapsed
+  drawer is its rail while the drawer controls are shown and no column while
+  they are hidden ([[BPR-0721]]).
 - AC-04 The overview shows every file with the listed columns from projections
   the host already publishes, plus participants and the since-my-last-review
   summary, and Continue review lands on the first unseen change.

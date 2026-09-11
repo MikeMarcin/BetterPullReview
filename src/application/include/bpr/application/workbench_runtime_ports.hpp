@@ -475,14 +475,29 @@ namespace bpr::application {
 		unresolved,
 	};
 
+	/// \brief Whether a drawer carries its own controls ([[BPR-0721]]).
+	///
+	/// \details Hidden, the owner's direction and the default: a collapsed
+	/// drawer leaves no column at all and an expanded one has no Hide
+	/// button, so the strip's toggles and their shortcuts are the only way to
+	/// open or collapse a drawer. Shown restores the 18-pixel rail and the
+	/// Hide button. Presentation only; the drawer state is the core's either
+	/// way.
+	enum class review_drawer_controls : std::uint8_t {
+		hidden,
+		shown,
+	};
+
 	/// \brief The reviewer's durable review-behaviour preferences.
 	///
 	/// \details [[BPR-0661]]. RFC-BPR-0028's Reviews & queue rows. Stored
 	/// beside the layout in the workbench settings record, validated by the
 	/// host, honoured by the window: the modality on open and on Continue
 	/// review, whether a file marks itself read once fully seen, the
-	/// comparison on return, and the comments drawer's first filter. Every
-	/// default is the behaviour the window had before the preference existed.
+	/// comparison on return, the comments drawer's first filter and, since
+	/// [[BPR-0721]], whether the drawers carry their own controls. Every
+	/// default is the behaviour the window had before the preference existed,
+	/// except the drawer controls, which the owner asked to have off.
 	struct review_behaviour_settings
 	{
 		review_open_modality       OpenModality     = review_open_modality::overview;
@@ -490,6 +505,7 @@ namespace bpr::application {
 		review_mark_read_behaviour MarkRead         = review_mark_read_behaviour::by_hand;
 		review_return_comparison   ReturnComparison = review_return_comparison::whole_pr;
 		review_comments_filter     CommentsFilter   = review_comments_filter::all;
+		review_drawer_controls     DrawerControls   = review_drawer_controls::hidden;
 
 		auto operator<=>(const review_behaviour_settings&) const = default;
 	};
@@ -506,7 +522,9 @@ namespace bpr::application {
 			&& static_cast<std::uint8_t>(aSettings.ReturnComparison)
 			<= static_cast<std::uint8_t>(review_return_comparison::since_last_upload)
 			&& static_cast<std::uint8_t>(aSettings.CommentsFilter)
-			<= static_cast<std::uint8_t>(review_comments_filter::unresolved);
+			<= static_cast<std::uint8_t>(review_comments_filter::unresolved)
+			&& static_cast<std::uint8_t>(aSettings.DrawerControls)
+			<= static_cast<std::uint8_t>(review_drawer_controls::shown);
 	}
 
 	/// \brief Describes the workbench layout settings record.

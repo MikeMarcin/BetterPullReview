@@ -916,7 +916,7 @@ namespace bpr::qt {
 		review_behaviour_dispatch                BehaviourDispatch;
 		application::review_behaviour_settings   Behaviour;
 		QWidget*                                 BehaviourEditor = nullptr;
-		std::array<std::vector<QToolButton*>, 5> BehaviourOptions{ };
+		std::array<std::vector<QToolButton*>, 6> BehaviourOptions{ };
 		bool                                     ApplyingBehaviour = false;
 		std::optional<review_modality>           LastUsedModality;
 		bool                                     ReturnComparisonPending = false;

@@ -204,11 +204,22 @@ namespace bpr::qt {
 
 		/// \brief Adopts the drawer state the core decided.
 		///
-		/// \details Collapsed is the rail, not absence: the panel stays in the
-		/// surface at the rail's width with only the rail shown.
+		/// \details Collapsed is the rail, not absence, while the drawer
+		/// controls are shown: the panel stays in the surface at the rail's
+		/// width with only the rail shown. With the controls hidden
+		/// ([[BPR-0721]]) a collapsed panel leaves the surface entirely.
 		void adopt(core::workbench_drawer_state aState);
 
-		/// \brief The rail shown while collapsed.
+		/// \brief [[BPR-0721]]. Shows or hides the drawer's own controls.
+		///
+		/// \details The owner's direction, off by default: without its
+		/// controls a drawer has no Hide button while expanded and no rail
+		/// while collapsed, so the strip's toggle is its only control. The
+		/// state the panel presents is unchanged; only what it shows for it.
+		void               set_controls_shown(bool aShown);
+		[[nodiscard]] auto controls_shown() const noexcept -> bool;
+
+		/// \brief The rail shown while collapsed, when the controls are shown.
 		[[nodiscard]] auto rail() const noexcept -> workbench_drawer_rail*;
 		/// \brief [[BPR-0675]]. Gives this drawer's room back, from the drawer.
 		[[nodiscard]] auto collapse_button() const noexcept -> QToolButton*;
@@ -223,7 +234,10 @@ namespace bpr::qt {
 		bool                         ListRetired  = false;
 		workbench_drawer_rail*       Rail         = nullptr;
 		QToolButton*                 Collapse     = nullptr;
+		bool                         ControlsShown = false;
 		core::workbench_drawer_state State        = core::workbench_drawer_state::expanded;
+
+		void present();
 	};
 } // namespace bpr::qt
 

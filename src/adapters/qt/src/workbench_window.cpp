@@ -2854,7 +2854,7 @@ namespace bpr::qt {
 				}
 			}
 		}
-		if (aProjection.Drawers || aProjection.Layout) {
+		if (aProjection.Drawers || aProjection.Layout || aProjection.Behaviour) {
 			apply_drawer_layout();
 		}
 		if (aProjection.Drawers) {
@@ -3745,6 +3745,22 @@ namespace bpr::qt {
 				aNext.ReturnComparison = application::review_behaviour_settings{ }.ReturnComparison;
 				aNext.CommentsFilter   = application::review_behaviour_settings{ }.CommentsFilter;
 			});
+		// [[BPR-0721]]. The owner found the collapsed rails and the Hide
+		// buttons took room the strip's toggles already cover, and asked for
+		// a setting rather than their removal. Off is the default.
+		addGroup(
+			QStringLiteral("Drawers"),
+			QStringLiteral("resetDrawers"),
+			{
+				row{ 5U,
+					 QStringLiteral("Drawer controls"),
+					 QStringLiteral("drawerControls"),
+					 { { QStringLiteral("Hidden"), QStringLiteral("drawerControlsHidden") },
+					   { QStringLiteral("Shown"), QStringLiteral("drawerControlsShown") } } },
+			},
+			[](application::review_behaviour_settings& aNext) {
+				aNext.DrawerControls = application::review_behaviour_settings{ }.DrawerControls;
+			});
 		aColumn->addWidget(BehaviourEditor);
 		apply_behaviour_controls();
 	}
@@ -3766,6 +3782,7 @@ namespace bpr::qt {
 		check(2U, static_cast<std::size_t>(Behaviour.MarkRead));
 		check(3U, static_cast<std::size_t>(Behaviour.ReturnComparison));
 		check(4U, static_cast<std::size_t>(Behaviour.CommentsFilter));
+		check(5U, static_cast<std::size_t>(Behaviour.DrawerControls));
 		ApplyingBehaviour = false;
 	}
 
@@ -3786,6 +3803,7 @@ namespace bpr::qt {
 			.MarkRead         = static_cast<application::review_mark_read_behaviour>(chosen(2U)),
 			.ReturnComparison = static_cast<application::review_return_comparison>(chosen(3U)),
 			.CommentsFilter   = static_cast<application::review_comments_filter>(chosen(4U)),
+			.DrawerControls   = static_cast<application::review_drawer_controls>(chosen(5U)),
 		};
 	}
 
@@ -5881,6 +5899,25 @@ namespace bpr::qt {
 	void workbench_window::apply_drawer_layout()
 	{
 		ApplyingLayout = true;
+		// [[BPR-0721]]. Whether a drawer shows its own controls is the
+		// published preference's, applied before the state so a collapsed
+		// drawer is presented the way the preference says.
+		const auto controls = Behaviour.DrawerControls == application::review_drawer_controls::shown;
+		auto       reshown  = false;
+		for (auto& entry : Drawers) {
+			reshown = reshown || (controls && !entry.Panel->controls_shown());
+			entry.Panel->set_controls_shown(controls);
+		}
+		if (reshown) {
+			// A panel that left the splitter comes back with the splitter's
+			// record of the room it last had, which the rail cannot fill;
+			// the sizes are set again so the centre takes the difference,
+			// with the design's widths when the host has published none.
+			CentralSplitter->refresh();
+			if (!LayoutWidths) {
+				CentralSplitter->setSizes(central_sizes());
+			}
+		}
 		Drawers[0].Panel->adopt(presented_files_state());
 		Drawers[1].Panel->adopt(DrawerStates.Conversations);
 		Drawers[2].Panel->adopt(presented_repositories_state());
@@ -5966,23 +6003,31 @@ namespace bpr::qt {
 				std::min(aWidth, application::maximum_workbench_drawer_width));
 		};
 		const auto defaults = application::workbench_layout_settings{ };
-		// A collapsed drawer is its rail, so the rail's width is what it keeps.
+		// Before the host publishes a layout the widths are the design's.
+		const auto widths = LayoutWidths.value_or(application::workbench_layout_delta{ });
+		// A collapsed drawer is its rail, so the rail's width is what it keeps;
+		// [[BPR-0721]] with the drawer controls hidden it has left the
+		// splitter, and neither it nor its handle takes any width.
+		const auto collapsedWidth = Behaviour.DrawerControls == application::review_drawer_controls::shown
+			? workbench_drawer_rail::width_pixels
+			: 0;
 		const auto files = presented_files_state() == core::workbench_drawer_state::expanded
-			? granted(LayoutWidths->FilesWidth, defaults.FilesWidth)
-			: workbench_drawer_rail::width_pixels;
+			? granted(widths.FilesWidth, defaults.FilesWidth)
+			: collapsedWidth;
 		// [[BPR-0649]]. In Discuss the conversation is at least its Discuss
 		// width; the persisted width is not changed by it.
 		const auto discuss = Modality != nullptr && Modality->current() == review_modality::discuss;
 		const auto conversations
 			= DrawerStates.Conversations == core::workbench_drawer_state::expanded
-			? std::max(granted(LayoutWidths->ConversationsWidth, conversation_drawer_default_width),
+			? std::max(granted(widths.ConversationsWidth, conversation_drawer_default_width),
 					   discuss ? discuss_conversation_width : 0)
-			: workbench_drawer_rail::width_pixels;
+			: collapsedWidth;
 		const auto repositories
 			= presented_repositories_state() == core::workbench_drawer_state::expanded
-			? granted(LayoutWidths->RepositoriesWidth, defaults.RepositoriesWidth)
-			: workbench_drawer_rail::width_pixels;
-		const auto handles = 3 * CentralSplitter->handleWidth();
+			? granted(widths.RepositoriesWidth, defaults.RepositoriesWidth)
+			: collapsedWidth;
+		const auto handles = ((repositories > 0 ? 1 : 0) + (files > 0 ? 1 : 0) + (conversations > 0 ? 1 : 0))
+			* CentralSplitter->handleWidth();
 		const auto centre  = std::max(
 			1, CentralSplitter->width() - repositories - files - conversations - handles);
 		return { repositories, files, centre, conversations };

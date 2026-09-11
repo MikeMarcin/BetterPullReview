@@ -417,6 +417,9 @@ namespace bpr::qt {
 		column->addLayout(headingRow);
 		column->addWidget(View, 1);
 		column->addWidget(Rail, 1);
+		// [[BPR-0721]]. The controls start hidden, the owner's default; the
+		// window shows them when the published preference says so.
+		present();
 	}
 
 	auto workbench_drawer_panel::drawer() const noexcept -> core::workbench_drawer
@@ -504,13 +507,38 @@ namespace bpr::qt {
 			return;
 		}
 		State = aState;
-		// [[BPR-0646]]. Collapsed narrows the panel to its rail rather than
-		// hiding it; the splitter gives the centre everything beyond the
-		// rail's width, and the rail keeps the drawer named and one click
-		// away. Expanded restores the width the host persists.
+		present();
+	}
+
+	void workbench_drawer_panel::set_controls_shown(const bool aShown)
+	{
+		if (ControlsShown == aShown) {
+			return;
+		}
+		ControlsShown = aShown;
+		present();
+	}
+
+	auto workbench_drawer_panel::controls_shown() const noexcept -> bool
+	{
+		return ControlsShown;
+	}
+
+	void workbench_drawer_panel::present()
+	{
+		// [[BPR-0646]]. With its controls shown, collapsed narrows the panel
+		// to its rail rather than hiding it; the splitter gives the centre
+		// everything beyond the rail's width, and the rail keeps the drawer
+		// named and one click away. [[BPR-0721]]. With them hidden, collapsed
+		// is absence: no column, no label, no count, and the strip's toggle
+		// is the way back. Expanded restores the width the host persists
+		// either way, with the Hide button only when the controls are shown.
 		const auto expanded = State == core::workbench_drawer_state::expanded;
 		// Everything the column holds is the drawer's content, including what
 		// the window placed there itself; only the rail stays for the rail.
+		// The heading row is a nested layout, so its two widgets are not
+		// items of the column and are set by name ([[BPR-0721]]: they used
+		// to stay visible above the rail).
 		if (auto* const column = layout(); column != nullptr) {
 			for (auto index = 0; index < column->count(); ++index) {
 				auto* const item = column->itemAt(index);
@@ -521,13 +549,22 @@ namespace bpr::qt {
 				}
 			}
 		}
-		Rail->setVisible(!expanded);
+		Heading->setVisible(expanded);
+		Collapse->setVisible(expanded && ControlsShown);
+		Rail->setVisible(!expanded && ControlsShown);
 		if (expanded) {
 			setMinimumWidth(
 				static_cast<int>(application::minimum_workbench_drawer_width));
 			setMaximumWidth(QWIDGETSIZE_MAX);
 		} else {
 			setFixedWidth(workbench_drawer_rail::width_pixels);
+		}
+		// Only an explicitly hidden panel is shown again: a fresh panel has no
+		// parent yet, and showing it would make it a window of its own.
+		if (!(expanded || ControlsShown)) {
+			hide();
+		} else if (isHidden()) {
+			show();
 		}
 	}
 }

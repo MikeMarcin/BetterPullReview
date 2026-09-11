@@ -402,6 +402,15 @@ namespace {
 		};
 	}
 
+	/// \brief [[BPR-0721]]. The preference that gives a drawer its rail and
+	/// Hide button back; off by default, so the tests that pin the rail ask.
+	[[nodiscard]] auto drawer_controls_shown() -> application::review_behaviour_settings
+	{
+		return application::review_behaviour_settings{
+			.DrawerControls = application::review_drawer_controls::shown,
+		};
+	}
+
 	[[nodiscard]] auto both_files_enabled() -> application::workbench_projection
 	{
 		return file_commands(offered(core::workbench_command_id::previous_file),
@@ -1102,6 +1111,7 @@ namespace {
 			.FilesWidth         = 320U,
 			.ConversationsWidth = 260U,
 		};
+		opened.Behaviour = drawer_controls_shown();
 		// [[BPR-0651]]. Wide enough for three open drawers and a centre above
 		// its minimum, so collapsing one returns exactly its width.
 		window.resize(1'600, 720);
@@ -1486,6 +1496,7 @@ namespace {
 			.FilesWidth         = 320U,
 			.ConversationsWidth = 260U,
 		};
+		collapsed.Behaviour = drawer_controls_shown();
 		window.resize(1'280, 720);
 		window.show();
 		QApplication::processEvents();
@@ -3339,6 +3350,7 @@ namespace {
 			.FilesWidth         = 320U,
 			.ConversationsWidth = 260U,
 		};
+		opened.Behaviour = drawer_controls_shown();
 		window.publish(opened);
 		process_events();
 
@@ -4400,6 +4412,7 @@ namespace {
 			.FilesWidth         = persistedWidth,
 			.ConversationsWidth = 260U,
 		};
+		reloaded.Behaviour = drawer_controls_shown();
 		restarted.publish(reloaded);
 		process_events();
 		expect(restarted.files_drawer()->width()
@@ -4928,6 +4941,88 @@ namespace {
 		expect(records.size() == 3U
 				   && records.back() == application::review_behaviour_settings{ .CommentsFilter = application::review_comments_filter::unread },
 			   "Reset on the modality group returns its rows and leaves the reading rows as shown");
+		// [[BPR-0721]]. The drawers group: one row, off by default, its own
+		// Reset.
+		expect(button("drawerControlsHidden")->isChecked() && !button("drawerControlsShown")->isChecked(),
+			   "the drawer controls start hidden, the owner's direction");
+		button("drawerControlsShown")->click();
+		expect(records.size() == 4U
+				   && records.back().DrawerControls == application::review_drawer_controls::shown
+				   && records.back().CommentsFilter == application::review_comments_filter::unread,
+			   "choosing Shown dispatches the whole record with the drawer controls shown");
+		auto shown           = published;
+		shown.DrawerControls = application::review_drawer_controls::shown;
+		projection.Behaviour = shown;
+		window.publish(projection);
+		button("resetDrawers")->click();
+		expect(records.size() == 5U && records.back() == published,
+			   "Reset on the drawers group hides the controls again and leaves the other groups alone");
+	}
+
+	// [[BPR-0721]]. With the drawer controls hidden, the default, a collapsed
+	// drawer leaves the splitter entirely and an expanded one has no Hide
+	// button; with them shown, the rail is the 18-pixel column and nothing
+	// of the heading row stays above it.
+	void test_hidden_drawer_controls_leave_no_column_and_no_hide_button()
+	{
+		qt::workbench_window window;
+		auto                 opened = both_files_enabled();
+		opened.Drawers              = drawer_states(core::workbench_drawer_state::expanded,
+													core::workbench_drawer_state::expanded);
+		opened.Layout               = application::workbench_layout_delta{
+						  .FilesWidth         = 320U,
+						  .ConversationsWidth = 260U,
+		};
+		window.resize(1'280, 720);
+		window.show();
+		process_events();
+		window.publish(opened);
+		process_events();
+		auto* const files    = window.files_drawer();
+		auto* const comments = window.conversations_drawer();
+		auto* const heading  = files->findChild<QLabel*>(QStringLiteral("workbenchFilesDrawerHeading"));
+		expect(heading != nullptr && heading->isVisible() && !files->collapse_button()->isVisible()
+				   && !files->controls_shown(),
+			   "an expanded drawer keeps its heading and, by default, has no Hide button");
+
+		auto collapsed    = application::workbench_projection{ };
+		collapsed.Drawers = drawer_states(core::workbench_drawer_state::collapsed,
+										  core::workbench_drawer_state::collapsed);
+		window.publish(collapsed);
+		process_events();
+		const auto sizes = window.central_splitter()->sizes();
+		expect(!files->isVisible() && !comments->isVisible() && sizes.size() == 4 && sizes[1] == 0
+				   && sizes[3] == 0,
+			   "with the controls hidden a collapsed drawer occupies zero width in the splitter");
+		expect(window.comparison_surface()->width()
+				   == window.central_splitter()->width()
+					   - window.repositories_drawer()->width() - window.central_splitter()->handleWidth(),
+			   "and no handle is left for it: the centre reaches the window's edge");
+		expect(!window.files_drawer_toggle_action()->isChecked()
+				   && window.files_drawer_toggle_action()->isEnabled(),
+			   "the strip's toggle remains the way back");
+
+		auto shown      = application::workbench_projection{ };
+		shown.Behaviour = drawer_controls_shown();
+		window.publish(shown);
+		process_events();
+		expect(files->isVisible() && files->width() == qt::workbench_drawer_rail::width_pixels
+				   && files->rail()->isVisible() && !heading->isVisible()
+				   && !files->collapse_button()->isVisible(),
+			   "with the controls shown the collapsed drawer is exactly its rail, with nothing above it");
+		window.publish(opened);
+		process_events();
+		expect(files->isVisible() && files->width() == 320 && heading->isVisible()
+				   && files->collapse_button()->isVisible() && !files->rail()->isVisible(),
+			   "expanded with the controls shown, the Hide button is back beside the heading");
+
+		auto hidden      = application::workbench_projection{ };
+		hidden.Behaviour = application::review_behaviour_settings{ };
+		window.publish(hidden);
+		process_events();
+		expect(files->width() == 320 && !files->collapse_button()->isVisible() && heading->isVisible(),
+			   "hiding the controls again takes only the Hide button from an expanded drawer");
+		window.hide();
 	}
 
 	// [[BPR-0661]]. Continue review enters the modality the preference names,
@@ -5507,6 +5602,7 @@ namespace {
 			.Conversations = core::workbench_drawer_state::expanded,
 			.Repositories  = core::workbench_drawer_state::collapsed,
 		};
+		collapsed.Behaviour = drawer_controls_shown();
 		window.publish(collapsed);
 		process_events();
 		expect(window.repositories_drawer()->state() == core::workbench_drawer_state::collapsed
@@ -5690,6 +5786,7 @@ auto main(int argc, char** argv) -> int
 	test_saved_repository_gestures_round_trip_through_the_dispatch();
 	test_enterprise_server_gestures_round_trip_through_the_dispatch();
 	test_review_behaviour_rows_dispatch_follow_the_projection_and_reset_by_group();
+	test_hidden_drawer_controls_leave_no_column_and_no_hide_button();
 	test_continue_review_and_opening_honour_the_modality_preferences();
 	test_comments_filter_and_return_comparison_preferences_apply_on_open();
 	test_mark_read_when_fully_seen_dispatches_once_at_the_end_of_the_comparison();

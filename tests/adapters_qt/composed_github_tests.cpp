@@ -2592,7 +2592,19 @@ namespace {
 		// without a comparison. The room a drawer takes is theirs to give back
 		// whenever they like, and the control is on the drawer.
 		auto* const files = window.files_drawer();
-		expect(files->collapse_button() != nullptr && files->collapse_button()->isVisible()
+		// [[BPR-0721]]. The drawer's own control is there only when the
+		// preference shows the drawer controls; the owner has it off by
+		// default, and the strip's toggle is the control then.
+		expect(files->collapse_button() != nullptr && !files->collapse_button()->isVisible()
+				   && window.files_drawer_toggle_action()->isEnabled(),
+			   "by default the drawer has no Hide button and the strip's toggle is the control");
+		auto controls      = application::workbench_projection{ };
+		controls.Behaviour = application::review_behaviour_settings{
+			.DrawerControls = application::review_drawer_controls::shown,
+		};
+		window.publish(controls);
+		QApplication::processEvents();
+		expect(files->collapse_button()->isVisible()
 				   && files->collapse_button()->accessibleName().contains(QStringLiteral("Files")),
 			   "the files drawer offers its own collapse, named");
 		expect(window.files_drawer_toggle_action()->isEnabled(),
@@ -3113,12 +3125,52 @@ namespace {
 		};
 		window.publish(collapsed);
 		QApplication::processEvents();
+		// [[BPR-0721]]. With the drawer controls hidden, the default, the
+		// collapsed drawer is no column at all: not in the splitter's width,
+		// no rail, no label, no count. The crop is the window's right edge,
+		// where the drawer's column would be.
+		const auto rightEdge = [&window, &scaled, &renderPath](const QString& aSuffix) {
+			QApplication::processEvents();
+			const auto raster = window.grab();
+			const auto edge   = std::max(0, window.width() - 160);
+			const QRect edgeRegion{
+				QPoint{ scaled(edge), 0 },
+				QPoint{ scaled(window.width()) - 1, scaled(window.height()) - 1 },
+			};
+			const auto edgeCrop = raster.copy(edgeRegion);
+			expect(raster.rect().contains(edgeRegion) && edgeCrop.size() == edgeRegion.size(),
+				   "the right-edge crop has exact device dimensions");
+			if (!renderPath.isEmpty()) {
+				const QFileInfo configured{ renderPath };
+				expect(edgeCrop.save(QStringLiteral("%1/%2-%3.png")
+										 .arg(configured.path(), configured.completeBaseName(), aSuffix),
+									 "PNG"),
+					   "the right-edge crop is saved in the ignored build tree");
+			}
+		};
+		const auto sizes = window.central_splitter()->sizes();
+		expect(!drawer->isVisible() && !drawer->rail()->isVisible() && !drawer->controls_shown()
+				   && sizes.size() == 4 && sizes[3] == 0
+				   && !sideChat->isVisible() && !findingQueue->isVisible(),
+			   "with the drawer controls hidden a collapsed drawer occupies zero "
+			   "width in the splitter and both placed agent surfaces go with it");
+		rightEdge(QStringLiteral("drawer-controls-hidden"));
+		auto controlsShown      = application::workbench_projection{ };
+		controlsShown.Behaviour = application::review_behaviour_settings{
+			.DrawerControls = application::review_drawer_controls::shown,
+		};
+		window.publish(controlsShown);
+		QApplication::processEvents();
+		auto* const heading = drawer->findChild<QLabel*>(QStringLiteral("workbenchConversationsDrawerHeading"));
 		expect(
 			drawer->rail()->isVisible()
 				&& drawer->width() == qt::workbench_drawer_rail::width_pixels
+				&& heading != nullptr && !heading->isVisible()
+				&& !drawer->collapse_button()->isVisible()
 				&& !sideChat->isVisible() && !findingQueue->isVisible(),
 			"collapsing the drawer to its rail hides both placed agent surfaces "
-			"with it");
+			"with it, and nothing of the heading row stays above the rail");
+		rightEdge(QStringLiteral("drawer-controls-rail"));
 		window.publish(opened);
 		QApplication::processEvents();
 		expect(

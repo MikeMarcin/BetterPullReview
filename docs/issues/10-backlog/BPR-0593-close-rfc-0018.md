@@ -210,7 +210,7 @@ Landed on main, in the recommended order:
   the follow-ups; it blocks re-running the 1280 compact-row and rail
   assertions that BPR-0722 and BPR-0721 touch.
 
-Not started: [BPR-0721](../30-in-progress/BPR-0721-a-setting-hides-the-drawer-side-controls-and-a-collapsed-rail-shows-only-its-rail.md).
+Not started: [BPR-0721](../40-parked/BPR-0721-a-setting-hides-the-drawer-side-controls-and-a-collapsed-rail-shows-only-its-rail.md).
 Scouted facts for it: the heading row is a nested `QHBoxLayout`
 (`workbench_drawer.cpp:399-419`) that `adopt()` (`:501-534`) never hides,
 so `Heading` and `Collapse` must be toggled explicitly; the settings store
@@ -237,3 +237,24 @@ Assist scheme or only comments and includes, and whether the saved custom
 palette is reset or left; and, new from BPR-0722, which strip control
 should give way below about 960 pixels so the identity's number can stay
 to the floor, or whether the floor moves to 960.
+
+## Continuation after the v003 follow-ups, second milestone, 2026-09-10
+
+Dispatch `attended-prep-2026-09-10` d6 (mandate r2). Landed on main:
+[BPR-0721](../40-parked/BPR-0721-a-setting-hides-the-drawer-side-controls-and-a-collapsed-rail-shows-only-its-rail.md):
+the heading row no longer stays above a rail, and
+`review_behaviour_settings::DrawerControls` (hidden by default, the owner's
+direction) removes the rails and Hide buttons so the strip toggles are the
+drawers' only controls; schema version 6; RFC-BPR-0028 AC-03 amended. Parked
+for the owner's acceptance of both states. Measured facts: a panel that
+leaves and rejoins a `QSplitter` is granted the room it last had regardless
+of its fixed width, so the window re-applies `central_sizes()` (which now
+works before a layout is published); BPR-0675's attended criterion now
+needs the setting on. `application_workbench_composition_contract` stays
+red at head (BPR-0718) and `application_uiforetw_selected_diff_contract`
+was not rerun (BPR-0723); neither is attributed to this milestone.
+
+Next: a fresh tests-disabled bundle and the v004 packet with the same ten
+candidates plus the BPR-0719/0721/0722 asks, written only after no active
+card can rebuild the binary. The three owner questions stand as recorded
+above.

@@ -110,7 +110,10 @@ namespace {
 	{
 		const auto scratch = scratch_directory{ };
 		const auto path    = scratch.file("workbench.sqlite3");
-		const auto chosen  = distinct_layout();
+		auto       chosen  = distinct_layout();
+		// [[BPR-0721]]. Away from its hidden default, so the column is
+		// written and read rather than merely defaulted on both sides.
+		chosen.Behaviour.DrawerControls = application::review_drawer_controls::shown;
 
 		{
 			auto opened = workbench_settings_database::open(path, { });
@@ -436,6 +439,150 @@ namespace {
 		(void)::sqlite3_close_v2(raw);
 	}
 
+	/// \brief Builds the exact version-five database this store used to write.
+	///
+	/// \details [[BPR-0721]]. Written out like the older fixtures: the
+	/// profile table, already named `workbench_preferences`, beside the
+	/// per-window table, with one profile row away from every default and
+	/// one window row. The two tables share the geometry columns because the
+	/// version-five build generated both from one definition. Every version
+	/// has carried the same application identity.
+	auto establish_version_five(const std::filesystem::path& aPath) -> void
+	{
+		::sqlite3* raw = nullptr;
+		expect(::sqlite3_open_v2(aPath.string().c_str(), &raw, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr)
+				   == SQLITE_OK,
+			   "a version-five database is created directly");
+		const auto bounded = [](const std::string_view aColumn) {
+			return "CHECK(" + std::string{ aColumn } + " BETWEEN "
+				+ std::to_string(application::minimum_workbench_drawer_width) + " AND "
+				+ std::to_string(application::maximum_workbench_drawer_width) + ")";
+		};
+		const auto geometry = "files_state INTEGER NOT NULL CHECK(files_state BETWEEN 0 AND 1),"
+							  "conversations_state INTEGER NOT NULL CHECK(conversations_state BETWEEN 0 AND 1),"
+							  "files_width INTEGER NOT NULL "
+			+ bounded("files_width") + ",conversations_width INTEGER NOT NULL " + bounded("conversations_width")
+			+ ",line_numbers INTEGER NOT NULL DEFAULT 1 CHECK(line_numbers BETWEEN 0 AND 1),"
+			  "repositories_state INTEGER NOT NULL DEFAULT 1 CHECK(repositories_state BETWEEN 0 AND 1),"
+			  "repositories_width INTEGER NOT NULL DEFAULT 300 "
+			+ bounded("repositories_width");
+		const auto sql = "CREATE TABLE workbench_meta(singleton INTEGER PRIMARY KEY CHECK(singleton = 1),"
+						 "schema_format INTEGER NOT NULL) STRICT;"
+						 "CREATE TABLE workbench_preferences(singleton INTEGER PRIMARY KEY CHECK(singleton = 1),"
+			+ geometry
+			+ ",open_modality INTEGER NOT NULL DEFAULT 0 CHECK(open_modality BETWEEN 0 AND 2),"
+			  "continue_modality INTEGER NOT NULL DEFAULT 0 CHECK(continue_modality BETWEEN 0 AND 1),"
+			  "mark_read INTEGER NOT NULL DEFAULT 0 CHECK(mark_read BETWEEN 0 AND 1),"
+			  "return_comparison INTEGER NOT NULL DEFAULT 0 CHECK(return_comparison BETWEEN 0 AND 2),"
+			  "drawer_filter INTEGER NOT NULL DEFAULT 0 CHECK(drawer_filter BETWEEN 0 AND 2)) STRICT;"
+			  "CREATE TABLE window_layout(window_id TEXT PRIMARY KEY NOT NULL CHECK(length(window_id) BETWEEN 1 AND 20 "
+			  "AND window_id NOT GLOB '*[^0-9]*' AND substr(window_id,1,1) != '0'),"
+			+ geometry
+			+ ") STRICT;"
+			  "INSERT INTO workbench_meta(singleton, schema_format) VALUES(1, 5);"
+			  "INSERT INTO workbench_preferences(singleton, files_state, conversations_state, files_width,"
+			  "conversations_width, line_numbers, repositories_state, repositories_width, open_modality,"
+			  "continue_modality, mark_read, return_comparison, drawer_filter) "
+			  "VALUES(1, 1, 0, 400, 300, 0, 0, 260, 2, 1, 1, 1, 2);"
+			  "INSERT INTO window_layout(window_id, files_state, conversations_state, files_width,"
+			  "conversations_width, line_numbers, repositories_state, repositories_width) "
+			  "VALUES('7', 0, 1, 350, 410, 1, 0, 280);"
+			  "PRAGMA application_id = "
+			+ std::to_string(HistoricalApplicationId) + ";PRAGMA user_version = 5;";
+		expect(::sqlite3_exec(raw, sql.c_str(), nullptr, nullptr, nullptr) == SQLITE_OK,
+			   "the version-five schema and its rows are written");
+		(void)::sqlite3_close_v2(raw);
+	}
+
+	/// \brief [[BPR-0721]]. A version-five store gains the drawer-controls
+	/// preference at hidden, keeps every profile and window value it held,
+	/// the preference round-trips, and a value past it is refused.
+	auto test_a_version_five_store_migrates_and_gains_the_drawer_controls() -> void
+	{
+		const auto scratch = scratch_directory{ };
+		const auto path    = scratch.file("workbench.sqlite3");
+		establish_version_five(path);
+		const auto held = application::workbench_layout_settings{
+			.Files              = core::workbench_drawer_state::expanded,
+			.Conversations      = core::workbench_drawer_state::collapsed,
+			.Repositories       = core::workbench_drawer_state::collapsed,
+			.LineNumbers        = core::workbench_line_numbers::hidden,
+			.FilesWidth         = 400U,
+			.ConversationsWidth = 300U,
+			.RepositoriesWidth  = 260U,
+			.Behaviour          = {
+				.OpenModality     = application::review_open_modality::last_used,
+				.ContinueModality = application::review_continue_modality::review,
+				.MarkRead         = application::review_mark_read_behaviour::when_fully_seen,
+				.ReturnComparison = application::review_return_comparison::since_last_review,
+				.CommentsFilter   = application::review_comments_filter::unresolved,
+			},
+		};
+		const auto window = application::workbench_window_layout{
+			.Files              = core::workbench_drawer_state::collapsed,
+			.Conversations      = core::workbench_drawer_state::expanded,
+			.Repositories       = core::workbench_drawer_state::collapsed,
+			.LineNumbers        = core::workbench_line_numbers::shown,
+			.FilesWidth         = 350U,
+			.ConversationsWidth = 410U,
+			.RepositoriesWidth  = 280U,
+		};
+		{
+			auto opened = workbench_settings_database::open(path, { });
+			expect(opened.has_value(), "a version-five database opens rather than being refused");
+			const auto loaded = opened->load({ });
+			// Compared whole, so a column the rebuild forgot to copy fails here
+			// rather than arriving silently at its default.
+			expect(loaded.has_value() && *loaded == held,
+				   "every value the version-five profile row held survived the migration");
+			expect(loaded->Behaviour.DrawerControls == application::review_drawer_controls::hidden,
+				   "the drawer controls arrive hidden, the owner's direction");
+			const auto restored = opened->load_window(core::bpr_window_id{ 7 }, { });
+			expect(restored.has_value() && application::window_layout(*restored) == window
+					   && restored->Behaviour == held.Behaviour,
+				   "the version-five window row survived in place beside the rebuilt profile row");
+			auto changed                     = *loaded;
+			changed.Behaviour.DrawerControls = application::review_drawer_controls::shown;
+			expect(opened->store(changed, { }).has_value(), "the migrated store takes the new column");
+			const auto reloaded = opened->load({ });
+			expect(reloaded.has_value() && *reloaded == changed, "the drawer controls round-trip durably");
+			const auto combined = opened->load_window(core::bpr_window_id{ 7 }, { });
+			expect(combined.has_value() && application::window_layout(*combined) == window
+					   && combined->Behaviour.DrawerControls == application::review_drawer_controls::shown,
+				   "the window row keeps its geometry and reads the profile's drawer controls");
+		}
+		expect(integer_pragma(path, "PRAGMA user_version") == workbench_settings_schema_version,
+			   "the migrated database is stamped with the current version");
+		expect(integer_pragma(path, "SELECT schema_format FROM workbench_meta WHERE singleton = 1")
+				   == workbench_settings_schema_version,
+			   "the meta row agrees with the stamp");
+		expect(integer_pragma(path, "PRAGMA application_id") == HistoricalApplicationId,
+			   "the migration left the application identity alone");
+		expect(integer_pragma(path, "SELECT count(*) FROM sqlite_schema WHERE name = 'workbench_layout'") == 0,
+			   "the renamed version-five table is gone");
+		{
+			auto reopened = workbench_settings_database::open(path, { });
+			expect(reopened.has_value(), "the migrated store reopens at the current version");
+		}
+		{
+			::sqlite3* raw = nullptr;
+			expect(::sqlite3_open_v2(path.string().c_str(), &raw, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK,
+				   "the stored database reopens directly");
+			expect(::sqlite3_exec(raw,
+								  "PRAGMA ignore_check_constraints = ON;"
+								  "UPDATE workbench_preferences SET drawer_controls = 2 WHERE singleton = 1",
+								  nullptr,
+								  nullptr,
+								  nullptr)
+					   == SQLITE_OK,
+				   "drawer controls past the vocabulary are written past the check");
+			(void)::sqlite3_close_v2(raw);
+		}
+		auto refused = workbench_settings_database::open(path, { });
+		expect(!refused.has_value() && refused.error() == catalog_database_failure::schema_mismatch,
+			   "drawer controls past the closed vocabulary are refused before writable admission");
+	}
+
 	/// \brief [[BPR-0661]]. A version-three store gains the review-behaviour
 	/// preferences at their defaults and keeps every value it held, the
 	/// preferences round-trip, and a value past a vocabulary is refused.
@@ -709,7 +856,10 @@ namespace {
 		}
 		sqlite3* raw = nullptr;
 		expect(sqlite3_open(aPath.string().c_str(), &raw) == SQLITE_OK, "legacy fixture raw opens");
-		expect(sqlite3_exec(raw, "ALTER TABLE workbench_preferences RENAME TO workbench_layout; DROP TABLE window_layout; UPDATE workbench_meta SET schema_format=4; PRAGMA user_version=4", nullptr, nullptr, nullptr) == SQLITE_OK, "canonical legacy singleton fixture is isolated");
+		// [[BPR-0721]]. Version four predates the drawer-controls column, and
+		// DROP COLUMN rewrites the stored definition back to the text a
+		// version-four build wrote.
+		expect(sqlite3_exec(raw, "ALTER TABLE workbench_preferences RENAME TO workbench_layout; ALTER TABLE workbench_layout DROP COLUMN drawer_controls; DROP TABLE window_layout; UPDATE workbench_meta SET schema_format=4; PRAGMA user_version=4", nullptr, nullptr, nullptr) == SQLITE_OK, "canonical legacy singleton fixture is isolated");
 		sqlite3_close(raw);
 	}
 	auto logical_snapshot(const std::filesystem::path& aPath, const bool aLegacy) -> std::vector<std::string>
@@ -838,20 +988,35 @@ namespace {
 	void test_interrupted_migration_preserves_legacy_and_reopens()
 	{
 		expect(sqlite3_auto_extension(reinterpret_cast<void (*)()>(interrupted_migration::install)) == SQLITE_OK, "migration interruption fixture registers");
-		for (const auto prefix : { "SELECT name,sql FROM sqlite_schema", "CREATE TABLE workbench_preferences", "INSERT INTO workbench_preferences", "DROP TABLE workbench_layout", "UPDATE workbench_meta", "PRAGMA user_version = 5", "COMMIT" }) {
-			const auto scratch = scratch_directory{ };
-			const auto path    = scratch.file("interrupted.sqlite3");
-			create_version_four(path);
-			const auto before             = logical_snapshot(path, true);
-			auto       stop               = std::stop_source{ };
-			interrupted_migration::Stop   = &stop;
-			interrupted_migration::Prefix = prefix;
-			const auto refused            = workbench_settings_database::open(path, stop.get_token());
-			interrupted_migration::Stop   = nullptr;
-			expect(stop.stop_requested() && !refused && refused.error() == failure::cancelled, "injected preflight or migration stage reports typed cancellation");
-			expect(logical_snapshot(path, true) == before, "interrupted migration restores original schema and all legacy values");
-			const auto reopened = workbench_settings_database::open(path, { });
-			expect(reopened.has_value(), "interrupted legacy file migrates on the next uncancelled open");
+		// Derived from the constant, so the stamp stage is still interrupted
+		// after the next version bump rather than silently never matched.
+		const auto                            stamp = "PRAGMA user_version = " + std::to_string(workbench_settings_schema_version);
+		const std::array<std::string_view, 8> prefixes{ "SELECT name,sql FROM sqlite_schema", "ALTER TABLE workbench_preferences RENAME", "CREATE TABLE workbench_preferences", "INSERT INTO workbench_preferences", "DROP TABLE workbench_layout", "UPDATE workbench_meta", stamp, "COMMIT" };
+		// [[BPR-0721]]. Version five renames its profile table first; that
+		// rename is only in its migration, and it must roll back with the rest.
+		for (const auto legacy : { true, false }) {
+			for (const auto prefix : prefixes) {
+				if (legacy && prefix.starts_with("ALTER TABLE")) {
+					continue;
+				}
+				const auto scratch = scratch_directory{ };
+				const auto path    = scratch.file("interrupted.sqlite3");
+				if (legacy) {
+					create_version_four(path);
+				} else {
+					establish_version_five(path);
+				}
+				const auto before             = logical_snapshot(path, legacy);
+				auto       stop               = std::stop_source{ };
+				interrupted_migration::Stop   = &stop;
+				interrupted_migration::Prefix = prefix;
+				const auto refused            = workbench_settings_database::open(path, stop.get_token());
+				interrupted_migration::Stop   = nullptr;
+				expect(stop.stop_requested() && !refused && refused.error() == failure::cancelled, "injected preflight or migration stage reports typed cancellation");
+				expect(logical_snapshot(path, legacy) == before, "interrupted migration restores original schema and all legacy values");
+				const auto reopened = workbench_settings_database::open(path, { });
+				expect(reopened.has_value(), "interrupted legacy file migrates on the next uncancelled open");
+			}
 		}
 		expect(sqlite3_cancel_auto_extension(reinterpret_cast<void (*)()>(interrupted_migration::install)) == 1, "migration interruption fixture unregisters");
 	}
@@ -904,6 +1069,7 @@ auto main() -> int
 	test_a_version_one_store_migrates_and_keeps_its_row();
 	test_a_version_two_store_migrates_and_gains_the_repositories_drawer();
 	test_a_version_three_store_migrates_and_gains_the_behaviour_preferences();
+	test_a_version_five_store_migrates_and_gains_the_drawer_controls();
 	test_cancellation_is_reported_distinctly();
 	test_the_schema_stores_no_review_content();
 	std::cout << "workbench-settings-storage-tests:pass\n";

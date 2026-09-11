@@ -28,7 +28,11 @@ namespace bpr::adapters::sqlite::detail {
 	/// Four since [[BPR-0661]]: the review-behaviour preferences joined the
 	/// singleton row, defaulted so a rebuilt older row keeps the behaviour it
 	/// had.
-	inline constexpr std::int64_t workbench_settings_schema_version = 5;
+	///
+	/// Six since [[BPR-0721]]: whether the drawers carry their own controls;
+	/// defaulted hidden, the owner's direction, so a migrated row hides them
+	/// too.
+	inline constexpr std::int64_t workbench_settings_schema_version = 6;
 
 	/// \brief Owns the durable workbench layout database.
 	///
