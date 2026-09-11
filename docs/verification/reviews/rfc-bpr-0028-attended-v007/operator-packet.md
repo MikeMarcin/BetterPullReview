@@ -4,7 +4,7 @@ Status: **prepared; ten decisions pending; no host running**.
 
 The four v006 rejections asked again, and the six cards landed since the
 v006 hand-back, on the bundle built at the head where
-[BPR-0733](../../../issues/40-parked/BPR-0733-home-lists-recently-viewed-pull-requests-instead-of-restoring-the-last-one.md)
+[BPR-0733](../../../issues/60-done/BPR-0733-home-lists-recently-viewed-pull-requests-instead-of-restoring-the-last-one.md)
 was parked. Nothing here changes anything on GitHub: the pull request is
 read signed out, and an anonymous read counts against GitHub's sixty
 requests an hour from this machine.
