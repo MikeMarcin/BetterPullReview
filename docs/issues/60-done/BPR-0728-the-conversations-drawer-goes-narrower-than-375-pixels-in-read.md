@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0728"
 title: "The conversations drawer goes narrower than 375 pixels in Read"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"owner_direction":"2026-09-11","attended_session":"cbd48b91000b00f1e72e1ad62c7c384c","attended_decision":"205ac8b2-30fd-4339-8d08-51c621ab7fc8"}
-parked_on: "human-review"
-acceptance: [{"criterion":"AC1 qt_workbench_window_scale_{100,125,200} pin a handle drag of the conversations drawer to 200 pixels in Read, its persistence across Home and back, and no clipped control at that width","outcome":"pass","revision":"working tree over a067a29f","evidence":{"kind":"command","detail":"test_the_conversations_drawer_narrows_below_its_default_in_read: Read opens at 375, a drag lands at 200 and the host hears 200, every visible control is reachable (in the drawer or within the horizontal scroll range), a drag to 100 stops at the shared panel floor, Home and back present the republished 200; the three scales pass"}},{"criterion":"AC2 qt_composed_github_scale_100, application_composition_contract and the UIforETW contract pass with any digest repinned","outcome":"pass","revision":"working tree over a067a29f","evidence":{"kind":"command","detail":"qt_composed_github_scale_100 (BPR-0527 pin restated: no sideways scroll at the default width), application_composition_contract and application_uiforetw_selected_diff_contract pass; no digest names workbench_window.cpp, none repinned"}},{"criterion":"AC3 the owner reads code in Read on the signed bundle with the drawer narrowed and accepts it in an attended session","outcome":"pending","revision":"working tree over a067a29f","evidence":{"kind":"freeform","detail":"Waits for the v007 bundle and attended session"}}]
+acceptance: [{"criterion":"AC1 qt_workbench_window_scale_{100,125,200} pin a handle drag of the conversations drawer to 200 pixels in Read, its persistence across Home and back, and no clipped control at that width","outcome":"pass","revision":"working tree over a067a29f","evidence":{"kind":"command","detail":"test_the_conversations_drawer_narrows_below_its_default_in_read: Read opens at 375, a drag lands at 200 and the host hears 200, every visible control is reachable (in the drawer or within the horizontal scroll range), a drag to 100 stops at the shared panel floor, Home and back present the republished 200; the three scales pass"}},{"criterion":"AC2 qt_composed_github_scale_100, application_composition_contract and the UIforETW contract pass with any digest repinned","outcome":"pass","revision":"working tree over a067a29f","evidence":{"kind":"command","detail":"qt_composed_github_scale_100 (BPR-0527 pin restated: no sideways scroll at the default width), application_composition_contract and application_uiforetw_selected_diff_contract pass; no digest names workbench_window.cpp, none repinned"}},{"criterion":"AC3 the owner reads code in Read on the signed bundle with the drawer narrowed and accepts it in an attended session","outcome":"pass","revision":"2cdc0e57","evidence":{"kind":"observation","detail":"Attended session cbd48b91000b00f1e72e1ad62c7c384c, candidate BPR-0728-conversations-drawer-width, revision app-release-64d9e46a-2026-09-11.3 (bundle built at 2cdc0e57, executable sha256 64d9e46a0fa7cff7e37d778d329a8e71bcf6ff13547bbc82eadb547ebb252827), fingerprint f61c6e2f549a2b87de6823d61b36533cde4fd3216a87de9ba9eea47db8dc7d66, decision 8a907ecd-4aef-4596-a035-320365d12b40, actor human, 2026-09-11T23:47:54Z: accept. The handle takes the drawer below 375 in Read, controls stay reachable and the width survives Home and back: accepted. The note names a separate defect, the horizontal-resize cursor showing only for a moment over the handle, carded as BPR-0739; it is not this criterion."}}]
 ---
 
 # The conversations drawer goes narrower than 375 pixels in Read
@@ -19,7 +18,7 @@ conversations drawer in Read but let it go narrower than 375 pixels"
 (with the single-pane layout,
 [BPR-0729](../10-backlog/BPR-0729-a-single-pane-read-layout-in-the-manner-of-p4merge.md),
 as a separate slice). The context is
-[BPR-0724](../60-done/BPR-0724-read-mode-leaves-too-little-horizontal-room-for-the-code.md):
+[BPR-0724](BPR-0724-read-mode-leaves-too-little-horizontal-room-for-the-code.md):
 "it was difficult to read the code because of a lack of horizontal area
 for the text display".
 
@@ -88,3 +87,13 @@ on the bundle built from the source at 2cdc0e57 (executable sha256
 `64d9e46a…`), candidate revision `app-release-64d9e46a-2026-09-11.3`;
 prepared and protected at sequence 311, undecided, no host running until
 the owner asks for the session. The ask: Read's conversations drawer narrows below 375 by the handle, controls stay reachable, the width survives Home and back.
+
+## Attended verdict, 2026-09-11 (v007): accepted
+
+Session `cbd48b91…`, revision `app-release-64d9e46a-2026-09-11.3` (bundle built at 2cdc0e57, executable sha256 `64d9e46a…`), actor human; the session was handed back at sequence 322 with all ten candidates decided. Candidate `BPR-0728-conversations-drawer-width`, decision `8a907ecd`, 23:47:54Z: **accept**.
+
+Verbatim:
+
+> It does, but the mouse cursor for the horizontal resize flickers only for a brief moment and the returns back to the normal cursor so it's difficult to resize properly since you have no visual indicator you're cursor is over the border element.
+
+Accepted; the note is a new defect, carded as [BPR-0739](../20-ready/BPR-0739-the-resize-cursor-over-the-conversations-drawer-handle-does-not-stay.md): the resize cursor flickers and returns to the arrow over the handle. Done.

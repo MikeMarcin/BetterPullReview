@@ -119,6 +119,6 @@ screenshots of p4merge's single-pane diff
 through on a green field, added lines on a purple field, both in place. Not chosen: closing the
 conversations drawer in Read (AC-05 stays as written) and leaving Read as it is. The choice was
 this card's last criterion; the work is
-[BPR-0728](../40-parked/BPR-0728-the-conversations-drawer-goes-narrower-than-375-pixels-in-read.md)
+[BPR-0728](BPR-0728-the-conversations-drawer-goes-narrower-than-375-pixels-in-read.md)
 and
 [BPR-0729](../10-backlog/BPR-0729-a-single-pane-read-layout-in-the-manner-of-p4merge.md). Done.
