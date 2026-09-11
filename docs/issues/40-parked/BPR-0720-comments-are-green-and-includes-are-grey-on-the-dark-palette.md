@@ -166,7 +166,7 @@ and the upstream C++ grammar has no Function style, types only its built-ins and
 and declares macros `dsNormal`, which `applyFormat` drops
 (`src/adapters/syntax/src/packaged_syntax_classifier.cpp:41-110, 236-245`). The function
 `DCDCAA` and type `4EC9B0` values this card set are never asked for on C++. Carded as
-[BPR-0726](BPR-0726-functions-types-and-macros-are-uncoloured-in-c-and-c-plus-plus.md)
+[BPR-0726](../60-done/BPR-0726-functions-types-and-macros-are-uncoloured-in-c-and-c-plus-plus.md)
 (heuristic classification of calls, types and ALL_CAPS macros for C and C++). The reset and
 the emitted colours were not disputed. This card stays parked on human-review; its candidate
 is asked again on a bundle carrying BPR-0726.
