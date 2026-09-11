@@ -4400,9 +4400,21 @@ namespace bpr::app {
 			// width must not lose reading progress. Composition failure is not
 			// fatal - a reviewer whose layout cannot be stored still gets the
 			// composed defaults.
+			//
+			// The desktop path keeps every adapter lifetime inside an effect
+			// call (BPR-0708), so the port it installs opens the store on each
+			// use. Whether the store can open is still decided here, by one
+			// open that is not kept: a lazy port over an obstructed store
+			// would report persistence it never had and never fall back, and
+			// the composition contract's forced obstruction proved exactly
+			// that (BPR-0718).
 			if (aDesktop) {
-				WorkbenchSettings             = std::make_unique<lazy_workbench_defaults_port>(applicationDataRoot);
-				WorkbenchPersistenceAvailable = true;
+				if (adapters::sqlite::make_workbench_defaults_store({ .StorageRoot = applicationDataRoot })) {
+					WorkbenchSettings             = std::make_unique<lazy_workbench_defaults_port>(applicationDataRoot);
+					WorkbenchPersistenceAvailable = true;
+				} else {
+					WorkbenchSettings = std::make_unique<session_workbench_settings>();
+				}
 			} else {
 				auto layout = adapters::sqlite::make_workbench_defaults_store({
 					.StorageRoot = applicationDataRoot,
@@ -12027,7 +12039,7 @@ namespace bpr::app {
 	}
 	auto github_application::configure_desktop_layouts(const std::vector<core::bpr_window_context>& aWindows) -> bool
 	{
-		if (Profile->WindowLayouts) {
+		if (Profile->WindowLayouts || Profile->ReviewRestoration) {
 			return true;
 		}
 		if (Profile->FirstWindow || aWindows.empty() || aWindows.size() > core::maximum_bpr_windows_per_profile) {
@@ -12040,8 +12052,15 @@ namespace bpr::app {
 			}
 			keep.push_back(context.Window);
 		}
-		Profile->WindowLayouts = std::make_shared<profile_window_layout_service>(Profile->ApplicationDataRoot, std::move(keep));
-		auto hosts             = std::vector<std::string>{ };
+		// Per-window durable layouts only where composition found the store
+		// usable. Otherwise every window takes the session defaults, as the
+		// profile's own settings port already does, so a store that cannot open
+		// yields the composed defaults instead of a window that never publishes
+		// a layout and reports no drag (BPR-0718).
+		if (Profile->WorkbenchPersistenceAvailable) {
+			Profile->WindowLayouts = std::make_shared<profile_window_layout_service>(Profile->ApplicationDataRoot, std::move(keep));
+		}
+		auto hosts = std::vector<std::string>{ };
 		for (const auto& profile : Profile->Profiles) {
 			hosts.emplace_back(profile.hostname());
 		}

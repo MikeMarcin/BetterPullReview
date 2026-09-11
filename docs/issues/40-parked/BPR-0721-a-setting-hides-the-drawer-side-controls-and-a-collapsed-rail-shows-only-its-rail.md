@@ -125,7 +125,7 @@ which the Settings window adopts, not `settings_window.cpp`.
   ([BPR-0723](../30-in-progress/BPR-0723-the-uiforetw-selected-diff-contract-fails-at-startup-on-head.md)).
   `application_workbench_composition_contract` stays red at head
   (`PUBLIC_PATH_STAGE:2`, presentation=0), the failure
-  [BPR-0718](../30-in-progress/BPR-0718-the-workbench-composition-contract-is-red-at-the-pack-head.md)
+  [BPR-0718](../60-done/BPR-0718-the-workbench-composition-contract-is-red-at-the-pack-head.md)
   records, so it is not this card's evidence either way.
 - Attended: BPR-0675's candidate criterion ("each drawer's own Hide and the
   strip toggle both collapse it") now needs the setting on; the v004
