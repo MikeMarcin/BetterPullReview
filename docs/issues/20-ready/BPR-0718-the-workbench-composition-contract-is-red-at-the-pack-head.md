@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0718"
 title: "The workbench composition contract is red at the pack head"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P2"
