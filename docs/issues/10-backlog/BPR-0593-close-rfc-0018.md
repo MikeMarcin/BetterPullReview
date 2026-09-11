@@ -496,7 +496,7 @@ The owner's answers, verbatim on the cards:
    a centred "Open a pull request / Enter an owner, repository, and pull
    request number above." with "Copy message"; the same field, focused;
    the same empty queue and combos ("Role: any" disabled); the same status.
-   Carded as [BPR-0732](../40-parked/BPR-0732-a-signed-out-home-is-one-paste-field-that-opens-a-public-pull-request.md)
+   Carded as [BPR-0732](../60-done/BPR-0732-a-signed-out-home-is-one-paste-field-that-opens-a-public-pull-request.md)
    and [BPR-0733](../40-parked/BPR-0733-home-lists-recently-viewed-pull-requests-instead-of-restoring-the-last-one.md).
    The "open by link doesn't work" claim was verified in code before
    carding: the Home bar resolves through `core::resolve_setup_destination`,
