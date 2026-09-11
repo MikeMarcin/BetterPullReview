@@ -124,7 +124,7 @@ to the line: the line gains rows only from an accepted append or a requested his
 and a revision prepared with no mutation goes straight to the comparison
 (`src/core/src/epoch_transition.cpp:1302-1309`). A fresh open of a cached pull request
 through Home would show the same empty line. Carded as
-[BPR-0725](../40-parked/BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md).
+[BPR-0725](BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md).
 This card's own change is not in question; it stays parked on human-review for the line, asked
 again on a bundle carrying BPR-0725. The comparison half of the same run was accepted on
 [BPR-0667](BPR-0667-the-epoch-refuses-any-pull-request-whose-base-branch-moved.md).
@@ -141,4 +141,4 @@ the owner asks for the session. The ask: the epoch line shows the updates on a b
 ## Attended verdict, 2026-09-11 (v007): accepted
 
 Session `cbd48b91…`, revision `app-release-64d9e46a-2026-09-11.3` (bundle built at 2cdc0e57, executable sha256 `64d9e46a…`), actor human; the session was handed back at sequence 322 with all ten candidates decided. Candidate `BPR-0663-public-preview-epoch`, decision `469c6114`, 23:43:25Z: **accept**.
-The public-preview review history is accepted on the bundle carrying [BPR-0725](../40-parked/BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md). Done.
+The public-preview review history is accepted on the bundle carrying [BPR-0725](BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md). Done.

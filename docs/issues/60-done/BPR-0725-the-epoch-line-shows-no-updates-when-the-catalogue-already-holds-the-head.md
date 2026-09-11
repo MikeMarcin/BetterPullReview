@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0725"
 title: "The epoch line shows no updates when the catalogue already holds the head"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"owner_direction":"2026-09-11","attended_session":"cbd48b91000b00f1e72e1ad62c7c384c","attended_decision":"d06b4b43-0eb3-42fc-aa35-608f7da8935f"}
-parked_on: "human-review"
-acceptance: [{"criterion":"AC1 application-host test: a catalogue already holding the head publishes a loaded HistoryPage before or with ready; failed at HEAD","outcome":"pass","revision":"working tree over a8425b72","evidence":{"kind":"command","detail":"a_cached_head_publishes_the_newest_history_page_before_ready failed at 113e8dea (no reserve call, ready reached, no page); passes after the core requests the newest page; ctest application_epoch_host 6/6 batch"}},{"criterion":"AC2 Qt test: catalogue identity plus comparison only; line honest, page draws nodes","outcome":"pass","revision":"working tree over a8425b72","evidence":{"kind":"command","detail":"test_epoch_line_waits_for_the_newest_page_on_a_cached_head; qt_epoch_comparison_scale_100/125/200 pass"}},{"criterion":"AC3 composed course restoring or opening a cached review ends with the line carrying the catalogue's updates","outcome":"pass","revision":"working tree over a8425b72","evidence":{"kind":"command","detail":"application_profile_window_review_restoration_public_path, application_epoch_persistence_github-com, application_composition_contract, qt_composed_github_scale_100 and application_epoch_maintenance_public_path (after the probe repair) pass"}},{"criterion":"AC4 the owner sees nodes, span and handles on the signed bundle with microsoft/terminal#20607 restored; BPR-0646/0663/0676 re-asked","outcome":"pending","revision":"working tree over a8425b72","evidence":{"kind":"freeform","detail":"Waits for the v007 bundle and attended session"}}]
+acceptance: [{"criterion":"AC1 application-host test: a catalogue already holding the head publishes a loaded HistoryPage before or with ready; failed at HEAD","outcome":"pass","revision":"working tree over a8425b72","evidence":{"kind":"command","detail":"a_cached_head_publishes_the_newest_history_page_before_ready failed at 113e8dea (no reserve call, ready reached, no page); passes after the core requests the newest page; ctest application_epoch_host 6/6 batch"}},{"criterion":"AC2 Qt test: catalogue identity plus comparison only; line honest, page draws nodes","outcome":"pass","revision":"working tree over a8425b72","evidence":{"kind":"command","detail":"test_epoch_line_waits_for_the_newest_page_on_a_cached_head; qt_epoch_comparison_scale_100/125/200 pass"}},{"criterion":"AC3 composed course restoring or opening a cached review ends with the line carrying the catalogue's updates","outcome":"pass","revision":"working tree over a8425b72","evidence":{"kind":"command","detail":"application_profile_window_review_restoration_public_path, application_epoch_persistence_github-com, application_composition_contract, qt_composed_github_scale_100 and application_epoch_maintenance_public_path (after the probe repair) pass"}},{"criterion":"AC4 the owner sees nodes, span and handles on the signed bundle with microsoft/terminal#20607 restored; BPR-0646/0663/0676 re-asked","outcome":"pass","revision":"2cdc0e57","evidence":{"kind":"observation","detail":"Attended session cbd48b91000b00f1e72e1ad62c7c384c, candidate BPR-0725-epoch-line-cache-hit, revision app-release-64d9e46a-2026-09-11.3 (bundle built at 2cdc0e57, executable sha256 64d9e46a0fa7cff7e37d778d329a8e71bcf6ff13547bbc82eadb547ebb252827), fingerprint 50a8e32602d4ce56f0e27496ce93f68c49af667a12a351f81c04a350d49fda4f, decision 917a826e-ebd8-4306-bd28-9fbb4b695ff7, actor human, 2026-09-11T23:45:56Z: accept. Nodes, span and handles shown on the cache-hit launch of microsoft/terminal#20607 (the owner's BPR-0646 screenshots show the node 'Sep 7, latest' on the line in Overview and Read); accepted without a note. BPR-0663 and BPR-0676 were accepted on the same bundle; BPR-0646 was rejected for the line's placement, not its content (BPR-0737)."}}]
 ---
 
 # The epoch line shows no updates when the catalogue already holds the head
@@ -16,11 +15,11 @@ acceptance: [{"criterion":"AC1 application-host test: a catalogue already holdin
 The owner, in the v006 attended session on the bundle built at d1ba791f,
 with microsoft/terminal#20607 restored at launch and read signed out,
 rejected three candidates for one thing. On
-[BPR-0646](BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md)
+[BPR-0646](../40-parked/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md)
 (decision `d06b4b43`): "There is no visible epoch line". On
-[BPR-0663](../60-done/BPR-0663-public-preview-refuses-the-epoch-smart-acquire.md)
+[BPR-0663](BPR-0663-public-preview-refuses-the-epoch-smart-acquire.md)
 (decision `da24251c`): "Shows No updates loaded". On
-[BPR-0676](../60-done/BPR-0676-the-epoch-line-does-not-show-whether-it-is-working.md)
+[BPR-0676](BPR-0676-the-epoch-line-does-not-show-whether-it-is-working.md)
 (decision `180fd1d8`): "No visible epoch line in the test". The screenshot
 ([owner-read-chrome-2026-09-11.png](../../verification/reviews/rfc-bpr-0028-attended-v006/captures/owner-read-chrome-2026-09-11.png))
 shows the Updates row reading "No updates loaded." beside "pair ready" and
@@ -173,3 +172,8 @@ on the bundle built from the source at 2cdc0e57 (executable sha256
 `64d9e46a…`), candidate revision `app-release-64d9e46a-2026-09-11.3`;
 prepared and protected at sequence 311, undecided, no host running until
 the owner asks for the session. The ask: the nodes, span and handles with microsoft/terminal#20607 opened from Recently viewed or the bar when the catalogue already holds its head.
+
+## Attended verdict, 2026-09-11 (v007): accepted
+
+Session `cbd48b91…`, revision `app-release-64d9e46a-2026-09-11.3` (bundle built at 2cdc0e57, executable sha256 `64d9e46a…`), actor human; the session was handed back at sequence 322 with all ten candidates decided. Candidate `BPR-0725-epoch-line-cache-hit`, decision `917a826e`, 23:45:56Z: **accept**.
+Accepted without a note; the line carried the catalogue's update on the cache hit that emptied it in v006. Done.

@@ -440,7 +440,7 @@ fingerprints match the prepared candidates; no stale verdict):
   (strip accepted; epoch line not judgeable; rails retracted; sign-in
   "technically yes"), [BPR-0663](../60-done/BPR-0663-public-preview-refuses-the-epoch-smart-acquire.md)
   and [BPR-0676](../60-done/BPR-0676-the-epoch-line-does-not-show-whether-it-is-working.md)
-  (all three the empty epoch line on a cache hit, [BPR-0725](../40-parked/BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md));
+  (all three the empty epoch line on a cache hit, [BPR-0725](../60-done/BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md));
   [BPR-0720](../40-parked/BPR-0720-comments-are-green-and-includes-are-grey-on-the-dark-palette.md)
   (roles never emitted for C++, [BPR-0726](../40-parked/BPR-0726-functions-types-and-macros-are-uncoloured-in-c-and-c-plus-plus.md)).
 - Selections: [BPR-0727](../40-parked/BPR-0727-overview-refuses-a-drawer-opened-by-hand.md),
