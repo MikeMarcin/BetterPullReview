@@ -392,6 +392,9 @@ namespace bpr::qt {
 		/// active workbench exists. Nothing of the workbench makes sense before.
 		[[nodiscard]] auto home_page() const noexcept -> QWidget*;
 		[[nodiscard]] auto showing_home() const -> bool;
+		/// [[BPR-0727]]. The reason of the last gesture the core refused, as
+		/// published; `none` until one is.
+		[[nodiscard]] auto last_refusal() const noexcept -> core::workbench_reason_code;
 		[[nodiscard]] auto current_modality() const noexcept -> review_modality;
 		/// \brief Chooses a modality exactly as the strip or its shortcut would.
 		void choose_modality(review_modality aModality);
@@ -795,6 +798,7 @@ namespace bpr::qt {
 		QLabel*                                  FilePositionLabel    = nullptr;
 		QWidget*                                 ModalitySpacer       = nullptr;
 		QWidget*                                 StripInset           = nullptr;
+		core::workbench_reason_code              LastRefusal          = core::workbench_reason_code::none;
 		workbench_landing*                       HomeLanding          = nullptr;
 		QWidget*                                 HomePage             = nullptr;
 		bool                                     StripHome            = false;

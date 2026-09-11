@@ -115,12 +115,12 @@ namespace bpr::qt {
 		/// 251 it needs rather than clipping it, which is why the number that is
 		/// stated is the one the column asks for and not the one it needs.
 		///
-		/// It is a floor on the column, not on the drawer. The panel keeps its
-		/// own explicit `minimum_workbench_drawer_width`, so a reviewer can still
-		/// drag the drawer narrower and the host still persists what they chose.
+		/// It is the width the product opens at, not a floor on the drawer.
+		/// [[BPR-0728]]: the drawer's content stops at
+		/// `minimum_presented_drawer_width` like the other drawers, so a
+		/// reviewer can drag it narrower and the host persists what they chose.
 		/// What holds at those narrower widths is that every row is a column, so
-		/// a row cannot put its last control out of reach; this number is only
-		/// what the product opens at.
+		/// a row cannot put its last control out of reach.
 		constexpr int conversation_drawer_default_width = 375;
 		/// \brief The least width the conversation takes in Discuss ([[BPR-0649]]).
 		constexpr int discuss_conversation_width = 640;
@@ -180,6 +180,10 @@ namespace bpr::qt {
 				return QStringLiteral("The selected change is no longer available.");
 			case core::workbench_reason_code::invalid_change_cursor:
 				return QStringLiteral("The change navigation position is invalid.");
+			case core::workbench_reason_code::overview_keeps_drawers_collapsed:
+				return QStringLiteral(
+					"Overview keeps every drawer collapsed. Choose Read, Review or "
+					"Discuss to open one.");
 			}
 			// Deliberately outside the switch and with no default label, so a
 			// reason the core adds later is a compile error here rather than a
@@ -1213,13 +1217,19 @@ namespace bpr::qt {
 		conversationScroll->setWidgetResizable(true);
 		conversationScroll->setFrameShape(QFrame::NoFrame);
 		// BPR-0527. The drawer opens at the width stated above rather than at
-		// whatever the widest row asked for.
-		conversationScroll->setMinimumWidth(conversation_drawer_default_width);
-		// Vertically only. A drawer is a column, and a column that also
-		// scrolled sideways would hide a control behind a gesture nobody
-		// makes; the width a panel gets is still the width the reviewer gave
-		// the drawer, exactly as it was before this content scrolled at all.
-		conversationScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		// whatever the widest row asked for. [[BPR-0728]]: that width is the
+		// default, not a floor. The owner found Read short of horizontal room
+		// for the code, so this scroll area claims no minimum of its own and
+		// the handle drags the drawer down to the panel floor the other
+		// drawers share; a width beneath the presented floor is lifted back
+		// to the design width on the next launch as theirs is ([[BPR-0662]]).
+		// Vertically at the widths the column asks for: a drawer is a column,
+		// and the width a panel gets is the width the reviewer gave the
+		// drawer. [[BPR-0728]]: beneath the column's own minimum (the widest
+		// row, about 290 pixels) the content scrolls sideways rather than
+		// clipping, so a reviewer who took the drawer down to the floor for
+		// the code's sake can still reach every control in it.
+		conversationScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 		conversationScroll->setWidget(conversationContents);
 		Drawers[1].Panel->set_content_widget(
 			conversationScroll, ConversationPanel->view());
@@ -2864,7 +2874,19 @@ namespace bpr::qt {
 		++Statistics.Publications;
 		update_action_state();
 		update_status_text();
+		// [[BPR-0727]]. A refused gesture is explained in the status bar, where
+		// the toggle's own status tip already speaks; the toggle stays enabled
+		// and shows the state the core kept.
+		if (aProjection.Refusal) {
+			LastRefusal = *aProjection.Refusal;
+			statusBar()->showMessage(drawer_reason_text(*aProjection.Refusal));
+		}
 		announce_update();
+	}
+
+	auto workbench_window::last_refusal() const noexcept -> core::workbench_reason_code
+	{
+		return LastRefusal;
 	}
 
 	void workbench_window::apply_file_rows(
@@ -3309,6 +3331,25 @@ namespace bpr::qt {
 		if (!Dispatch) {
 			return;
 		}
+		// [[BPR-0727]]. The core retains the modality first, because Overview
+		// carries a rule: while it is chosen, a drawer opened by hand is
+		// refused. Leaving Overview must therefore land before the preset that
+		// opens the next modality's drawers.
+		Dispatch(core::set_workbench_modality_intent{
+			.Modality = [aModality] {
+				switch (aModality) {
+				case review_modality::overview:
+					return core::workbench_modality::overview;
+				case review_modality::read:
+					return core::workbench_modality::read;
+				case review_modality::review:
+					return core::workbench_modality::review;
+				case review_modality::discuss:
+					return core::workbench_modality::discuss;
+				}
+				return core::workbench_modality::review;
+			}(),
+		});
 		// [[BPR-0674]]. Overview is a page about the whole pull request and it
 		// is the centre'''s, not a column between three drawers. The owner met
 		// it about 150 pixels wide with its own headings elided, and said the
@@ -5404,12 +5445,15 @@ namespace bpr::qt {
 		if (Modality == nullptr || ModalityChosen) {
 			return;
 		}
+		// [[BPR-0727]]. Overview is chosen, never inferred: its preset is every
+		// drawer collapsed, which a Read with the conversations closed by hand
+		// looks exactly like, and inferring it would make the core refuse a
+		// toggle the strip never promised to refuse. The files-only shape,
+		// which no preset has produced since [[BPR-0674]], infers nothing.
 		const auto files = DrawerStates.Files == core::workbench_drawer_state::expanded;
 		const auto conversations
 			= DrawerStates.Conversations == core::workbench_drawer_state::expanded;
-		if (files && !conversations) {
-			Modality->adopt(review_modality::overview);
-		} else if (!files && conversations) {
+		if (!files && conversations) {
 			if (Modality->current() != review_modality::discuss) {
 				Modality->adopt(review_modality::read);
 			}
@@ -6274,7 +6318,13 @@ namespace bpr::qt {
 		const auto  projection = command(aId);
 		const auto  expanded   = aState == core::workbench_drawer_state::expanded;
 		entry.Toggle->setChecked(expanded);
-		const auto enabledText = expanded ? entry.Collapse : entry.Expand;
+		// [[BPR-0727]]. In Overview the toggle stays enabled, as the strip
+		// requires, and says what the gesture will meet: the core keeps every
+		// drawer collapsed until another modality is chosen.
+		const auto enabledText = expanded ? entry.Collapse
+			: current_modality() == review_modality::overview
+			? reason_text(core::workbench_reason_code::overview_keeps_drawers_collapsed)
+			: entry.Expand;
 		// [[BPR-0675]]. A drawer's room is the reviewer's before the core has
 		// published any command at all: a pull request whose comparison never
 		// arrived publishes none, and the toggles were dead for exactly the

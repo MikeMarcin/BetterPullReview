@@ -693,6 +693,11 @@ namespace bpr::application {
 		/// first loaded, and again when a change was refused so the page
 		/// reverts to what the host holds.
 		std::optional<review_behaviour_settings> Behaviour;
+		/// [[BPR-0727]]. The reason the core refused the gesture this
+		/// publication answers, when it refused one. A refusal is an event,
+		/// not a retained state, so it is published each time it happens and
+		/// never carried into a later publication.
+		std::optional<core::workbench_reason_code> Refusal;
 
 		auto operator<=>(const workbench_projection&) const = default;
 	};
@@ -707,7 +712,8 @@ namespace bpr::application {
 			&& !aProjection.Commands.has_value()
 			&& !aProjection.Layout.has_value()
 			&& !aProjection.Files.has_value()
-			&& !aProjection.Behaviour.has_value();
+			&& !aProjection.Behaviour.has_value()
+			&& !aProjection.Refusal.has_value();
 	}
 
 	enum class workbench_host_failure : std::uint8_t {

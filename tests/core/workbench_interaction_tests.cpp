@@ -1021,6 +1021,86 @@ namespace {
 				   && state.ConversationsDrawer == workbench_drawer_state::collapsed,
 			   "setting a drawer state publishes both semantic drawer states");
 	}
+
+	auto test_overview_refuses_a_drawer_opened_by_hand() -> void
+	{
+		// [[BPR-0727]]. The owner chose: Overview keeps every drawer
+		// collapsed; a hand-opened drawer is refused. The other three
+		// modalities keep the room a drawer takes as the reviewer's.
+		auto state = active(resident(2U, 3U));
+		expect(state.Modality == workbench_modality::review,
+			   "a workbench starts in Review, where every drawer gesture is accepted");
+
+		const auto overview = transition(
+			state,
+			set_workbench_modality_intent{ .Modality = workbench_modality::overview });
+		expect(overview.Reason == workbench_reason_code::none
+				   && overview.Drawers.has_value()
+				   && overview.Drawers->Files == workbench_drawer_state::collapsed
+				   && overview.Drawers->Conversations == workbench_drawer_state::collapsed
+				   && overview.Drawers->Repositories == workbench_drawer_state::collapsed
+				   && state.Modality == workbench_modality::overview,
+			   "choosing Overview collapses the three drawers in the same decision");
+		expect(transition(state,
+						  set_workbench_modality_intent{ .Modality = workbench_modality::overview })
+				   == workbench_interaction_output{ },
+			   "choosing the modality already chosen publishes nothing");
+
+		const auto before  = state;
+		const auto toggled = transition(
+			state, toggle_workbench_drawer_intent{ .Drawer = workbench_drawer::files });
+		const auto expanded = transition(
+			state,
+			set_workbench_drawer_intent{
+				.Drawer = workbench_drawer::conversations,
+				.State  = workbench_drawer_state::expanded,
+			});
+		expect(toggled.Reason == workbench_reason_code::overview_keeps_drawers_collapsed
+				   && expanded.Reason == workbench_reason_code::overview_keeps_drawers_collapsed
+				   && !toggled.Drawers.has_value() && !expanded.Drawers.has_value()
+				   && state == before,
+			   "in Overview a toggle and an exact expand are refused with the named reason "
+			   "and change nothing");
+		expect(std::ranges::all_of(
+				   project_workbench_commands(state).Commands,
+				   [](const workbench_command_projection& aCommand) {
+					   return (aCommand.Id != workbench_command_id::toggle_files_drawer
+							   && aCommand.Id != workbench_command_id::toggle_conversations_drawer)
+						   || aCommand.Enabled;
+				   }),
+			   "the drawer toggles stay offered in Overview; the refusal is the reason, "
+			   "not a dead control");
+		expect(transition(state,
+						  set_workbench_drawer_intent{
+							  .Drawer = workbench_drawer::files,
+							  .State  = workbench_drawer_state::collapsed,
+						  })
+				   == workbench_interaction_output{ },
+			   "asking for the collapsed state Overview already keeps publishes nothing");
+
+		for (const auto modality : { workbench_modality::read,
+									 workbench_modality::review,
+									 workbench_modality::discuss }) {
+			const auto chosen = transition(
+				state, set_workbench_modality_intent{ .Modality = modality });
+			expect(chosen == workbench_interaction_output{ } && state.Modality == modality,
+				   "choosing another modality retains it and leaves the drawers to its preset");
+			const auto opened = transition(
+				state, toggle_workbench_drawer_intent{ .Drawer = workbench_drawer::files });
+			expect(opened.Reason == workbench_reason_code::none
+					   && opened.Drawers.has_value()
+					   && opened.Drawers->Files == workbench_drawer_state::expanded,
+				   "outside Overview a drawer opens by hand");
+			const auto closed = transition(
+				state, toggle_workbench_drawer_intent{ .Drawer = workbench_drawer::files });
+			expect(closed.Drawers.has_value()
+					   && closed.Drawers->Files == workbench_drawer_state::collapsed,
+				   "and closes again");
+			static_cast<void>(transition(
+				state,
+				set_workbench_modality_intent{ .Modality = workbench_modality::overview }));
+		}
+	}
 } // namespace
 
 int main()
@@ -1035,6 +1115,7 @@ int main()
 	test_navigation_observations();
 	test_change_observations();
 	test_drawer_state();
+	test_overview_refuses_a_drawer_opened_by_hand();
 	test_line_number_state();
 	return EXIT_SUCCESS;
 }

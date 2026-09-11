@@ -89,5 +89,5 @@ heading elided at the default size or at about 1280x820. Candidate
 `BPR-0674-overview-drawer-policy`, decision `c4817ab5`, 18:33:56Z: **select** "Overview keeps
 every drawer collapsed; a hand-opened drawer is refused". That answers the question this card
 left open; the behaviour change is
-[BPR-0727](../30-in-progress/BPR-0727-overview-refuses-a-drawer-opened-by-hand.md). Both criteria
+[BPR-0727](../40-parked/BPR-0727-overview-refuses-a-drawer-opened-by-hand.md). Both criteria
 pass. Done.

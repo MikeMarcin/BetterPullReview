@@ -87,7 +87,11 @@ changed. Read collapses the files and repositories drawers ([[BPR-0724]],
 owner direction 2026-09-11: the code lacked horizontal room) and keeps
 comments beside the code;
 Review opens the files drawer too; Discuss widens the conversation over the
-code. Nothing collapses on its own. Automatic transitions (for example, opening
+code. Overview keeps every drawer collapsed: a drawer opened by hand while
+Overview is the modality is refused by the core with a stated reason, the
+strip toggle stays enabled and says so, and choosing Read, Review or Discuss
+is the way to open one ([[BPR-0727]], owner direction 2026-09-11). Nothing
+collapses on its own. Automatic transitions (for example, opening
 a pull request shows Overview) are off by default and are configured as rules
 in Settings. A collapsed drawer's presentation follows the drawer-controls
 setting ([[BPR-0721]], owner direction 2026-09-10): with the controls shown it
@@ -174,7 +178,9 @@ follow in their own design rounds.
   keyboard stepping, shows my last review, and drives the comparison the
   existing epoch host already resolves.
 - AC-03 The four modalities set the drawers as described, persist per window,
-  never change on their own unless a configured transition fires; a collapsed
+  never change on their own unless a configured transition fires; in Overview
+  a drawer gesture is refused with a stated reason and every drawer stays
+  collapsed until another modality is chosen ([[BPR-0727]]); a collapsed
   drawer is its rail while the drawer controls are shown and no column while
   they are hidden ([[BPR-0721]]).
 - AC-04 The overview shows every file with the listed columns from projections

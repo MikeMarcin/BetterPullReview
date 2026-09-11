@@ -712,8 +712,15 @@ namespace {
 
 		harnessed.Host.apply(core::navigate_workbench_file_intent{
 			.Direction = core::change_navigation_direction::next });
-		expect(harnessed.Projections.Published.size() == 3U,
-			   "a rejected gesture publishes nothing");
+		// [[BPR-0727]]. A rejected gesture publishes its refusal and nothing
+		// else, so presentation can explain it where the reviewer looks.
+		expect(harnessed.Projections.Published.size() == 4U
+				   && harnessed.Projections.Published.back().Refusal
+					   == core::workbench_reason_code::at_last_file
+				   && !harnessed.Projections.Published.back().Selection.has_value()
+				   && !harnessed.Projections.Published.back().Commands.has_value()
+				   && !harnessed.Projections.Published.back().Drawers.has_value(),
+			   "a rejected gesture publishes only its refusal");
 		expect(harnessed.Host.last_reason()
 				   == core::workbench_reason_code::at_last_file,
 			   "the host reports the core rejection without re-deciding it");

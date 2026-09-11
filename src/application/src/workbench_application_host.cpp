@@ -958,6 +958,11 @@ namespace bpr::application {
 			if (output.Drawers.has_value() || output.LineNumbers.has_value()) {
 				submit_settings_store();
 			}
+			// [[BPR-0727]]. A refused gesture is published as the event it
+			// is, so presentation can explain it where the reviewer looks.
+			PendingRefusal = output.Reason == core::workbench_reason_code::none
+				? std::nullopt
+				: std::optional{ output.Reason };
 			publish_changes(local_context());
 			if (output.Decision.has_value()) {
 				submit_selected_diff();
@@ -1415,6 +1420,7 @@ namespace bpr::application {
 			if (PublishedFiles != files) {
 				projection.Files = files;
 			}
+			projection.Refusal = std::exchange(PendingRefusal, std::nullopt);
 			if (empty(projection)) {
 				return;
 			}
@@ -1494,16 +1500,17 @@ namespace bpr::application {
 		bool                                                  RepublishBehaviour = false;
 		std::optional<std::vector<workbench_file_projection>> PublishedFiles;
 
-		std::size_t                  RejectedTerminals        = 0U;
-		std::size_t                  PersistedLayouts         = 0U;
-		workbench_terminal_rejection LastRejection            = workbench_terminal_rejection::none;
-		core::workbench_reason_code  LastReason               = core::workbench_reason_code::none;
-		bool                         RestorePending           = false;
-		bool                         Closing                  = false;
-		bool                         OrderlyClosing           = false;
-		bool                         TurnActive               = false;
-		bool                         DeferredIngressScheduled = false;
-		bool                         ProjectionDeliveryFailed = false;
+		std::size_t                                RejectedTerminals = 0U;
+		std::size_t                                PersistedLayouts  = 0U;
+		workbench_terminal_rejection               LastRejection     = workbench_terminal_rejection::none;
+		core::workbench_reason_code                LastReason        = core::workbench_reason_code::none;
+		std::optional<core::workbench_reason_code> PendingRefusal;
+		bool                                       RestorePending           = false;
+		bool                                       Closing                  = false;
+		bool                                       OrderlyClosing           = false;
+		bool                                       TurnActive               = false;
+		bool                                       DeferredIngressScheduled = false;
+		bool                                       ProjectionDeliveryFailed = false;
 	};
 
 	workbench_application_host::workbench_application_host(

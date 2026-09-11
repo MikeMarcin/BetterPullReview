@@ -3131,8 +3131,8 @@ namespace {
 		// where the drawer's column would be.
 		const auto rightEdge = [&window, &scaled, &renderPath](const QString& aSuffix) {
 			QApplication::processEvents();
-			const auto raster = window.grab();
-			const auto edge   = std::max(0, window.width() - 160);
+			const auto  raster = window.grab();
+			const auto  edge   = std::max(0, window.width() - 160);
 			const QRect edgeRegion{
 				QPoint{ scaled(edge), 0 },
 				QPoint{ scaled(window.width()) - 1, scaled(window.height()) - 1 },
@@ -3316,13 +3316,15 @@ namespace {
 			column != nullptr && column->viewport() != nullptr
 				&& column->viewport()->width() > 0,
 			"the drawer's column has a visible width to be inside of");
-		// The premise everything below rests on. With sideways scrolling
-		// refused, the viewport's width is the whole of what a reviewer can
-		// reach, at every scroll position the column has.
+		// The premise everything below rests on. At its default width the
+		// column does not scroll sideways, so the viewport's width is the whole
+		// of what a reviewer can reach, at every scroll position the column
+		// has. ([[BPR-0728]] lets it scroll sideways only beneath the column's
+		// own minimum, which a drag below the default reaches; not this width.)
 		expect(
-			column->horizontalScrollBarPolicy() == Qt::ScrollBarAlwaysOff
+			column->horizontalScrollBar()->maximum() == 0
 				&& !column->horizontalScrollBar()->isVisible(),
-			"the drawer's column still refuses to scroll sideways");
+			"the drawer's column does not scroll sideways at its default width");
 
 		// Every control the column holds, swept from the widget tree rather
 		// than listed, so a row nobody thought to list is measured too.

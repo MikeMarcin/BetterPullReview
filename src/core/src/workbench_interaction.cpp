@@ -296,6 +296,15 @@ namespace bpr::core {
 			if (retained == aRequested) {
 				return { };
 			}
+			// [[BPR-0727]]. Overview keeps every drawer collapsed; the owner
+			// chose that a drawer opened by hand is refused rather than
+			// switching the modality. Collapsing is still the reviewer's.
+			if (aState.Modality == workbench_modality::overview
+				&& aRequested == workbench_drawer_state::expanded) {
+				return {
+					.Reason = workbench_reason_code::overview_keeps_drawers_collapsed,
+				};
+			}
 
 			const auto before = project_workbench_commands(aState);
 			retained          = aRequested;
@@ -381,6 +390,32 @@ namespace bpr::core {
 		{
 			return apply_drawer(
 				aState, aIntent.Drawer, toggled(drawer_state_of(aState, aIntent.Drawer)));
+		}
+
+		[[nodiscard]] auto apply(
+			workbench_interaction_state&         aState,
+			const set_workbench_modality_intent& aIntent)
+			-> workbench_interaction_output
+		{
+			// [[BPR-0727]]. The modality is retained for the drawer rule it
+			// carries; Overview collapses the three drawers in the same
+			// decision so the rule holds from the moment it is chosen.
+			if (aState.Modality == aIntent.Modality) {
+				return { };
+			}
+			aState.Modality = aIntent.Modality;
+			if (aIntent.Modality != workbench_modality::overview) {
+				return { };
+			}
+			const auto before          = published_drawers(aState);
+			aState.FilesDrawer         = workbench_drawer_state::collapsed;
+			aState.ConversationsDrawer = workbench_drawer_state::collapsed;
+			aState.RepositoriesDrawer  = workbench_drawer_state::collapsed;
+			const auto after           = published_drawers(aState);
+			if (before == after) {
+				return { };
+			}
+			return { .Drawers = after };
 		}
 
 		[[nodiscard]] auto apply(

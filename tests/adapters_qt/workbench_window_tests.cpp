@@ -1848,6 +1848,121 @@ namespace {
 		window.hide();
 	}
 
+	void drag_conversations_handle(qt::workbench_window& aWindow, const int aWidth)
+	{
+		// The conversations drawer is the splitter's last widget, so its
+		// handle's position is measured back from the splitter's far edge.
+		auto* const splitter = aWindow.central_splitter();
+		splitter->move_handle(3, splitter->width() - aWidth - splitter->handleWidth());
+	}
+
+	/// \brief Reports whether every visible control in the conversations drawer
+	/// is reachable: inside the drawer, or inside the scrolled content whose
+	/// whole width the horizontal scroll bar can bring into view.
+	[[nodiscard]] auto every_control_is_reachable(const qt::workbench_window& aWindow) -> bool
+	{
+		auto* const drawer = aWindow.conversations_drawer();
+		auto* const scroll = drawer->findChild<QScrollArea*>(
+			QStringLiteral("workbenchConversationDrawerScroll"));
+		if (scroll == nullptr || scroll->widget() == nullptr) {
+			std::cerr << "the conversations drawer has no content scroll area\n";
+			return false;
+		}
+		auto* const contents = scroll->widget();
+		if (scroll->horizontalScrollBar()->maximum() + scroll->viewport()->width()
+			< contents->width()) {
+			std::cerr << "the content is wider than the scroll range reaches\n";
+			return false;
+		}
+		for (auto* const child : drawer->findChildren<QWidget*>()) {
+			if (!child->isVisible() || child->width() == 0) {
+				continue;
+			}
+			const auto  inContents = contents->isAncestorOf(child);
+			auto* const frame      = inContents ? contents : drawer;
+			const auto  right      = child->mapTo(frame, child->rect().topRight()).x();
+			if (right >= frame->width()) {
+				std::cerr << "unreachable control: " << child->metaObject()->className()
+						  << " '" << child->objectName().toStdString() << "' right edge "
+						  << right << " in " << frame->width() << "\n";
+				return false;
+			}
+		}
+		return true;
+	}
+
+	void test_the_conversations_drawer_narrows_below_its_default_in_read()
+	{
+		// [[BPR-0728]]. 375 is the width the drawer opens at, not a floor: the
+		// owner found Read short of horizontal room for the code, so the
+		// handle drags the drawer down to the presented floor the other
+		// drawers stop at, the host hears the width, and Home and back keep
+		// it rather than lifting it to 375.
+		intent_log           log;
+		qt::workbench_window window{
+			[&log](core::workbench_interaction_intent aIntent) {
+				log.Workbench.push_back(aIntent);
+			},
+			{ },
+			[&log](core::workbench_drawer aDrawer, std::uint32_t aWidth) {
+				log.Width.push_back({ .Drawer = aDrawer, .Width = aWidth });
+			}
+		};
+		window.resize(1'600, 820);
+		window.show();
+		process_events();
+		auto opened    = both_files_enabled();
+		opened.Drawers = drawer_states(core::workbench_drawer_state::collapsed,
+									   core::workbench_drawer_state::expanded);
+		opened.Layout  = application::workbench_layout_delta{
+			.FilesWidth         = 320U,
+			.ConversationsWidth = 375U,
+		};
+		window.publish(opened);
+		process_events();
+		window.choose_modality(qt::review_modality::read);
+		process_events();
+		expect(window.conversations_drawer()->width() == 375,
+			   "Read opens the conversations drawer at its default width");
+
+		drag_conversations_handle(window, 200);
+		process_events();
+		expect(window.conversations_drawer()->width() == 200,
+			   "the handle drags the conversations drawer below 375");
+		expect(!log.Width.empty()
+				   && log.Width.back().Drawer == core::workbench_drawer::conversations
+				   && log.Width.back().Width == 200U,
+			   "the host hears the dragged conversations width");
+		expect(every_control_is_reachable(window),
+			   "no conversations control is clipped at 200 pixels; the column scrolls");
+
+		drag_conversations_handle(window, 100);
+		process_events();
+		expect(window.conversations_drawer()->width() == 100
+				   && window.conversations_drawer()->minimumWidth()
+					   == static_cast<int>(application::minimum_workbench_drawer_width)
+				   && log.Width.back().Width == 100U,
+			   "beneath the presented floor the drawer stops where the other drawers do, "
+			   "and the host hears that too; the next launch lifts it to the design width");
+
+		// The host persists 200 and republishes it; Home and back present it.
+		auto persisted   = application::workbench_projection{ };
+		persisted.Layout = application::workbench_layout_delta{
+			.FilesWidth         = 320U,
+			.ConversationsWidth = 200U,
+		};
+		window.publish(persisted);
+		process_events();
+		window.choose_home(true);
+		process_events();
+		expect(window.showing_home(), "Home shows over the open review");
+		window.choose_modality(qt::review_modality::read);
+		process_events();
+		expect(!window.showing_home() && window.conversations_drawer()->width() == 200,
+			   "back in Read the drawer keeps the persisted 200 rather than lifting to 375");
+		window.hide();
+	}
+
 	void test_a_clobbered_persisted_width_opens_at_the_design_width()
 	{
 		// [[BPR-0662]]. The host's floor is 64; a layout persisted at the
@@ -4425,9 +4540,12 @@ namespace {
 				   && !restarted.conversations_drawer_toggle_action()->isChecked(),
 			   "a restarted shell restores the persisted drawer state as well as "
 			   "its width");
-		expect(restarted.current_modality() == qt::review_modality::overview,
-			   "a restored layout with files open and comments collapsed reads "
-			   "as Overview until a modality is chosen");
+		// [[BPR-0727]]. Overview is chosen, never inferred, and no preset has
+		// produced the files-only shape since [[BPR-0674]]; the segment keeps
+		// the modality it had rather than reading a rule into the layout.
+		expect(restarted.current_modality() == qt::review_modality::review,
+			   "a restored layout with files open and comments collapsed infers "
+			   "no modality; Overview is chosen, never inferred");
 		restarted.hide();
 	}
 
@@ -5472,6 +5590,91 @@ namespace {
 			"absent activation also leaves preferences untouched");
 	}
 
+	void test_overview_refuses_a_hand_opened_drawer_and_says_so()
+	{
+		// [[BPR-0727]]. Choosing Overview tells the core the modality before
+		// its preset; a toggle in Overview still leaves as a gesture, the
+		// core's refusal comes back as a published reason, and the window
+		// shows it in the status bar while the toggle stays enabled and
+		// unchecked. Read, Review and Discuss send their presets after their
+		// modality, so their drawers open as before.
+		intent_log           log;
+		qt::workbench_window window{
+			[&log](core::workbench_interaction_intent aIntent) {
+				log.Workbench.push_back(aIntent);
+			}
+		};
+		window.resize(1'280, 820);
+		window.show();
+		process_events();
+		window.publish(every_primary_command_offered());
+		process_events();
+
+		log.Workbench.clear();
+		window.choose_modality(qt::review_modality::overview);
+		process_events();
+		expect(log.Workbench.size() == 4U
+				   && log.Workbench.front()
+					   == core::workbench_interaction_intent{ core::set_workbench_modality_intent{
+						   .Modality = core::workbench_modality::overview } }
+				   && std::holds_alternative<core::set_workbench_drawer_intent>(log.Workbench[1]),
+			   "choosing Overview dispatches the modality before its three drawer presets");
+		auto collapsed    = application::workbench_projection{ };
+		collapsed.Drawers = drawer_states(core::workbench_drawer_state::collapsed,
+										  core::workbench_drawer_state::collapsed);
+		window.publish(collapsed);
+		process_events();
+
+		auto* const files = window.files_drawer_toggle_action();
+		expect(files->isEnabled() && !files->isChecked()
+				   && files->toolTip().contains(QStringLiteral("Overview keeps every drawer collapsed")),
+			   "in Overview the strip toggle stays enabled and says what the gesture will meet");
+		log.Workbench.clear();
+		files->trigger();
+		process_events();
+		expect(log.Workbench.size() == 1U
+				   && std::holds_alternative<core::toggle_workbench_drawer_intent>(log.Workbench.front())
+				   && !files->isChecked(),
+			   "the toggle leaves as a gesture and the window shows the state the core kept");
+
+		auto refused    = application::workbench_projection{ };
+		refused.Refusal = core::workbench_reason_code::overview_keeps_drawers_collapsed;
+		window.publish(refused);
+		process_events();
+		expect(window.last_refusal() == core::workbench_reason_code::overview_keeps_drawers_collapsed
+				   && window.statusBar()->currentMessage()
+					   == QStringLiteral("Overview keeps every drawer collapsed. Choose Read, Review "
+										 "or Discuss to open one.")
+				   && !files->isChecked()
+				   && !window.conversations_drawer_toggle_action()->isChecked(),
+			   "the published refusal is visible in the status bar and every drawer stays collapsed");
+
+		log.Workbench.clear();
+		window.choose_modality(qt::review_modality::read);
+		process_events();
+		const auto* const readModality        = log.Workbench.empty()
+			? nullptr
+			: std::get_if<core::set_workbench_modality_intent>(&log.Workbench.front());
+		auto              conversationsOpened = false;
+		for (const auto& intent : log.Workbench) {
+			if (const auto* const set = std::get_if<core::set_workbench_drawer_intent>(&intent);
+				set != nullptr && set->Drawer == core::workbench_drawer::conversations) {
+				conversationsOpened = set->State == core::workbench_drawer_state::expanded;
+			}
+		}
+		expect(readModality != nullptr && readModality->Modality == core::workbench_modality::read
+				   && conversationsOpened,
+			   "Read sends its modality first and then opens the conversations drawer");
+		auto opened    = application::workbench_projection{ };
+		opened.Drawers = drawer_states(core::workbench_drawer_state::collapsed,
+									   core::workbench_drawer_state::expanded);
+		window.publish(opened);
+		process_events();
+		expect(files->isEnabled() && !files->toolTip().contains(QStringLiteral("Overview")),
+			   "outside Overview the toggle describes what it does again");
+		window.hide();
+	}
+
 	void test_overview_shows_the_decided_page_and_continue_enters_read()
 	{
 		// [[BPR-0647]]. The Overview modality shows the host-decided overview in
@@ -5762,6 +5965,7 @@ auto main(int argc, char** argv) -> int
 	test_drawer_resize_emits_the_host_layout_path();
 	test_a_squeezed_splitter_never_reports_a_width();
 	test_a_clobbered_persisted_width_opens_at_the_design_width();
+	test_the_conversations_drawer_narrows_below_its_default_in_read();
 	test_drawer_contents_use_incremental_model_signals();
 	test_file_rows_emit_only_semantic_user_selection();
 	test_the_files_drawer_shows_the_tree_over_its_list();
@@ -5797,6 +6001,7 @@ auto main(int argc, char** argv) -> int
 	test_large_queue_filters_through_the_composed_window();
 	test_repositories_drawer_toggles_through_the_core_and_collapses_to_a_rail();
 	test_overview_shows_the_decided_page_and_continue_enters_read();
+	test_overview_refuses_a_hand_opened_drawer_and_says_so();
 	test_a_large_file_leaves_the_widget_count_bounded();
 	std::cout << "workbench-window-tests:pass\n";
 	return EXIT_SUCCESS;

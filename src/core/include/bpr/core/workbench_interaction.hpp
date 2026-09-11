@@ -62,6 +62,25 @@ namespace bpr::core {
 		at_last_change,
 		invalid_change_selection,
 		invalid_change_cursor,
+		/// [[BPR-0727]]. Overview keeps every drawer collapsed; a drawer opened
+		/// by hand is refused while it is the modality.
+		overview_keeps_drawers_collapsed,
+	};
+
+	/// \brief The review modality the window has chosen.
+	///
+	/// \details [[BPR-0727]]. The modality is a preset for which drawers are
+	/// open; the window chooses it and the core retains it because one
+	/// modality carries a rule about drawer gestures: Overview is a page about
+	/// the whole pull request, not a column between three drawers, so while it
+	/// is chosen a drawer stays collapsed and a gesture to open one is refused
+	/// with `overview_keeps_drawers_collapsed`. The other three presets are
+	/// exact set-drawer intents the window sends, as before.
+	enum class workbench_modality : std::uint8_t {
+		overview,
+		read,
+		review,
+		discuss,
 	};
 
 	/// \brief Describes the bounded workbench navigation cursor record.
@@ -159,6 +178,18 @@ namespace bpr::core {
 		auto operator<=>(const toggle_workbench_drawer_intent&) const = default;
 	};
 
+	/// \brief Describes the set workbench modality intent record.
+	///
+	/// \details [[BPR-0727]]. Choosing Overview collapses the three drawers
+	/// as part of the same decision, so the rule that Overview keeps them
+	/// collapsed holds from the moment it is chosen.
+	struct set_workbench_modality_intent
+	{
+		workbench_modality Modality = workbench_modality::review;
+
+		auto operator<=>(const set_workbench_modality_intent&) const = default;
+	};
+
 	/// \brief Describes the set workbench line numbers intent record.
 	///
 	/// \details The exact form exists for the same reason the drawer's does:
@@ -182,6 +213,7 @@ namespace bpr::core {
 		navigate_workbench_file_intent,
 		set_workbench_drawer_intent,
 		toggle_workbench_drawer_intent,
+		set_workbench_modality_intent,
 		set_workbench_line_numbers_intent,
 		toggle_workbench_line_numbers_intent>;
 
@@ -312,6 +344,7 @@ namespace bpr::core {
 		workbench_drawer_state                     RepositoriesDrawer  = workbench_drawer_state::expanded;
 		workbench_line_numbers                     LineNumbers         = workbench_line_numbers::shown;
 		change_navigation_policy                   NavigationPolicy    = change_navigation_policy::stop;
+		workbench_modality                         Modality            = workbench_modality::review;
 
 		auto operator<=>(const workbench_interaction_state&) const = default;
 	};
@@ -326,9 +359,12 @@ namespace bpr::core {
 	/// change navigation exactly as for file navigation. A file navigation
 	/// command is enabled exactly when the matching navigate intent would produce
 	/// a decision, a change navigation command is enabled exactly when the
-	/// bounded change cursor still offers that step, and a drawer command is
-	/// enabled exactly when the matching drawer intent would be accepted, so a
-	/// widget can never offer a gesture that would be rejected.
+	/// bounded change cursor still offers that step, so a widget can never offer
+	/// a navigation gesture that would be rejected. A drawer command is always
+	/// enabled: the room a drawer takes is the reviewer's to give back, and the
+	/// one refusal, Overview keeping its drawers collapsed ([[BPR-0727]]),
+	/// is explained by the gesture's reason rather than by a dead control,
+	/// because the strip may not carry a disabled toggle.
 	[[nodiscard]] auto project_workbench_commands(
 		const workbench_interaction_state& aState) noexcept
 		-> workbench_command_delta;
