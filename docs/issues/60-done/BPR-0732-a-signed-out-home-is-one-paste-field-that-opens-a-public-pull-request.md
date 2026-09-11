@@ -13,7 +13,7 @@ acceptance: [{"criterion":"core_setup_destination pins the anonymous stage and t
 # A signed-out Home is one paste field that opens a public pull request
 
 The owner, 2026-09-11, asked what on Home is "very messy"
-([BPR-0716](../10-backlog/BPR-0716-read-without-signing-in-is-offered-from-every-signed-out-home.md)):
+([BPR-0716](../20-ready/BPR-0716-read-without-signing-in-is-offered-from-every-signed-out-home.md)):
 "a whole bunch of stuff on the bottom that doesn't have any use without an
 account signed in. Review queue doesn't make sense when you don't have an
 account signed in. Open a pull request by link doesn't work without an

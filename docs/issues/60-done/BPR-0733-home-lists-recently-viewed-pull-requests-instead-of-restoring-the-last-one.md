@@ -13,7 +13,7 @@ acceptance: [{"criterion":"AC1 sqlite store migrates the one-row schema to the l
 # Home lists recently viewed pull requests instead of restoring the last one
 
 The owner, 2026-09-11, on what is "very messy" about Home
-([BPR-0716](../10-backlog/BPR-0716-read-without-signing-in-is-offered-from-every-signed-out-home.md)):
+([BPR-0716](../20-ready/BPR-0716-read-without-signing-in-is-offered-from-every-signed-out-home.md)):
 "App seems to automatically, but very slowly, auto-load the last PR on app
 restart which is disorienting; a recently viewed list or something would
 be better."
