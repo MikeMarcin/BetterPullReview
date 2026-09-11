@@ -2,11 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0726"
 title: "Functions, types and macros are uncoloured in C and C++"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0006"]
 depends_on: []
 priority: "P2"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"owner_direction":"2026-09-11","attended_session":"cbd48b91000b00f1e72e1ad62c7c384c","attended_decision":"0f243620-5510-45de-9e45-41b07c2b0265"}
+parked_on: "human-review"
+acceptance: [{"criterion":"AC1 syntax contract pins function, type and macro roles at exact ranges on a C++ fixture and no role inside comments or strings; fails at HEAD","outcome":"pass","revision":"working tree over 41fbf3bf","evidence":{"kind":"command","detail":"ctest -R ^syntax_classification_contract$ passes with identifier_role_contract over tests/fixtures/syntax/identifier_roles.cpp; the contract references identifier_heuristic_revision, absent at HEAD, so it cannot pass there"}},{"criterion":"AC2 syntax_contract, diff_workbench selectors and qt_composed_github_scale_100 pass; a pre-change cached span set is not served","outcome":"pass","revision":"working tree over 41fbf3bf","evidence":{"kind":"command","detail":"syntax_classification_contract and qt_composed_github_scale_100 pass; the contract pins that a key carrying the pre-post-pass Version is refused as unavailable (in-memory cache only). qt_diff_workbench_scale_{100,125,200} are red at HEAD on a core diff compute_limit assertion BPR-0719 changed, independent of this change; repaired in the next commit of this dispatch and re-run there"}},{"criterion":"AC3 the owner accepts ScreenBufferTests.cpp on the dark palette in the signed bundle; BPR-0720-dark-palette re-asked","outcome":"pending","revision":"working tree over 41fbf3bf","evidence":{"kind":"freeform","detail":"Waits for the v007 bundle and attended session"}}]
 ---
 
 # Functions, types and macros are uncoloured in C and C++
@@ -72,3 +74,37 @@ over `multiline_comment.cpp`, pins comment and string spans alone.
 - The owner accepts `ScreenBufferTests.cpp` on the dark palette in the
   signed bundle; the `BPR-0720-dark-palette` candidate is asked again on
   that bundle.
+
+## Verification record, 2026-09-11 (d11)
+
+The post-pass lives in `span_collector::classify_identifiers`
+(`src/adapters/syntax/src/packaged_syntax_classifier.cpp`), which reads only
+the normal-styled runs the grammar reports, so comments, strings and the
+`#define` line keep the grammar's own spans. `identifier_role` decides from the
+line text: an ALL_CAPS word is a macro (preprocessor role) even when invoked,
+which is how `VERIFY_ARE_EQUAL(...)` reads in the owner's file; a word before
+`(` is a function; a word before `::` or after `class`/`struct`/`enum`/
+`union`/`typename`/`new` is a type; a PascalCase word before another word,
+`&`, `*` or `<` is a type. The grammar already paints `L"…"` as one string
+span including the prefix and `std::wstring` as builtin; the post-pass never
+overrides a styled run. Only the `C++` and `C` definitions run it.
+
+Cache invalidation: `identifier_heuristic_revision` (header) is folded into
+the upper 16 bits of those two definitions' published `Version` in `record_of`,
+so every `token_span_cache_key` built before the change names a revision the
+classifier refuses as `unavailable`; the span cache is in memory only, and
+`github_application.cpp` needed no edit. Raising the constant retires the
+cached spans of the next heuristic change.
+
+Fixture `tests/fixtures/syntax/identifier_roles.cpp` and
+`identifier_role_contract` in the syntax contract pin the roles at exact
+byte ranges; the contract cannot compile at HEAD (the revision constant is
+new), so it fails there by construction.
+
+Red at HEAD, outside this card, found by the focused run:
+`qt_diff_workbench_scale_{100,125,200}` and the diff-workbench public paths
+fail on "real compute limit produces an unavailable result" (a core-only
+assertion BPR-0719 changed the semantics of), and
+`application_composition_contract` reports the `src/app` source-tree digest
+drifted (no `src/app` file is touched here). Both are repaired separately
+in this dispatch.

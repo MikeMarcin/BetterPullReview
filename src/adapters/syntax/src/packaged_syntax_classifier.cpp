@@ -13,6 +13,7 @@
 #include <QStringView>
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -119,15 +120,36 @@ namespace bpr::adapters::syntax {
 			};
 		}
 
+		/// \brief Reports whether a definition receives the identifier post-pass.
+		///
+		/// \details The packaged C and C++ grammars declare user identifiers,
+		/// PascalCase types and ALL_CAPS macros as normal text, so the function,
+		/// type and preprocessor roles never reach a C++ file without help.
+		/// BPR-0726.
+		[[nodiscard]] auto uses_identifier_heuristics(const std::string_view aName) noexcept
+			-> bool
+		{
+			return aName == "C++" || aName == "C";
+		}
+
 		/// \brief Returns the record of one packaged definition.
+		///
+		/// \details A definition that receives the identifier post-pass carries
+		/// the post-pass revision in the upper half of its version, so a span
+		/// set cached under the previous heuristics is keyed away rather than
+		/// served stale. The upstream grammar revision keeps the lower half.
 		[[nodiscard]] auto record_of(const KSyntaxHighlighting::Definition& aDefinition)
 			-> application::syntax_definition_version
 		{
 			const auto revision = aDefinition.version();
-			return {
+			auto       record   = application::syntax_definition_version{
 				.Name    = aDefinition.name().toStdString(),
 				.Version = revision > 0 ? static_cast<std::uint32_t>(revision) : 0U,
 			};
+			if (uses_identifier_heuristics(record.Name)) {
+				record.Version += identifier_heuristic_revision << 16U;
+			}
+			return record;
 		}
 
 		/// \brief Splits the decoded blob into its lines.
@@ -193,6 +215,172 @@ namespace bpr::adapters::syntax {
 			return offsets;
 		}
 
+		[[nodiscard]] constexpr auto is_identifier_start(const char16_t aUnit) noexcept
+			-> bool
+		{
+			return (aUnit >= u'a' && aUnit <= u'z') || (aUnit >= u'A' && aUnit <= u'Z')
+				|| aUnit == u'_';
+		}
+
+		[[nodiscard]] constexpr auto is_identifier_unit(const char16_t aUnit) noexcept
+			-> bool
+		{
+			return is_identifier_start(aUnit) || (aUnit >= u'0' && aUnit <= u'9');
+		}
+
+		[[nodiscard]] constexpr auto is_upper(const char16_t aUnit) noexcept -> bool
+		{
+			return aUnit >= u'A' && aUnit <= u'Z';
+		}
+
+		[[nodiscard]] constexpr auto is_lower(const char16_t aUnit) noexcept -> bool
+		{
+			return aUnit >= u'a' && aUnit <= u'z';
+		}
+
+		/// \brief Reports whether the word is written ALL_CAPS in the macro
+		/// convention: two or more units, only capitals, digits and underscores,
+		/// and at least one capital.
+		[[nodiscard]] auto is_macro_case(const QStringView aWord) noexcept -> bool
+		{
+			if (aWord.size() < 2) {
+				return false;
+			}
+			auto capital = false;
+			for (const auto unit : aWord) {
+				const auto c = unit.unicode();
+				if (is_upper(c)) {
+					capital = true;
+				} else if (!(c == u'_' || (c >= u'0' && c <= u'9'))) {
+					return false;
+				}
+			}
+			return capital;
+		}
+
+		/// \brief Reports whether the word is PascalCase: a leading capital and
+		/// at least one lower-case letter after it.
+		[[nodiscard]] auto is_pascal_case(const QStringView aWord) noexcept -> bool
+		{
+			if (aWord.isEmpty() || !is_upper(aWord.front().unicode())) {
+				return false;
+			}
+			return std::any_of(aWord.begin(), aWord.end(), [](const QChar aUnit) {
+				return is_lower(aUnit.unicode());
+			});
+		}
+
+		/// \brief Reports whether the word is a string or character literal
+		/// encoding prefix (`L`, `u8`, `u`, `U`, optionally with `R`).
+		[[nodiscard]] auto is_literal_prefix(const QStringView aWord) noexcept -> bool
+		{
+			constexpr auto prefixes = std::array<std::u16string_view, 9U>{
+				u"L",
+				u"u8",
+				u"u",
+				u"U",
+				u"R",
+				u"LR",
+				u"u8R",
+				u"uR",
+				u"UR",
+			};
+			return std::any_of(prefixes.begin(), prefixes.end(), [&](const auto aPrefix) {
+				return aWord == QStringView{ aPrefix.data(), static_cast<qsizetype>(aPrefix.size()) };
+			});
+		}
+
+		/// \brief Reports whether the word introduces a type name.
+		[[nodiscard]] auto introduces_type(const QStringView aWord) noexcept -> bool
+		{
+			constexpr auto words = std::array<std::u16string_view, 6U>{
+				u"class",
+				u"struct",
+				u"enum",
+				u"union",
+				u"typename",
+				u"new",
+			};
+			return std::any_of(words.begin(), words.end(), [&](const auto aWordText) {
+				return aWord
+					== QStringView{ aWordText.data(), static_cast<qsizetype>(aWordText.size()) };
+			});
+		}
+
+		/// \brief Returns the index of the first non-blank unit at or after the
+		/// supplied position.
+		[[nodiscard]] auto skip_blanks(const QStringView aLine, qsizetype aIndex) noexcept
+			-> qsizetype
+		{
+			while (aIndex < aLine.size()
+				   && (aLine[aIndex] == u' ' || aLine[aIndex] == u'\t')) {
+				++aIndex;
+			}
+			return aIndex;
+		}
+
+		/// \brief Returns the word that ends just before the supplied position,
+		/// skipping blanks; empty when none does.
+		[[nodiscard]] auto word_before(const QStringView aLine, qsizetype aIndex) noexcept
+			-> QStringView
+		{
+			while (aIndex > 0 && (aLine[aIndex - 1] == u' ' || aLine[aIndex - 1] == u'\t')) {
+				--aIndex;
+			}
+			auto begin = aIndex;
+			while (begin > 0 && is_identifier_unit(aLine[begin - 1].unicode())) {
+				--begin;
+			}
+			return aLine.mid(begin, aIndex - begin);
+		}
+
+		/// \brief Chooses the role of one identifier from its line context.
+		///
+		/// \details These are the C and C++ conventions the packaged grammar does
+		/// not express: a call or declaration is an identifier before `(`; a
+		/// scope or a declared name is a type; an ALL_CAPS word is a macro, painted with the preprocessor role,
+		/// even when invoked; a PascalCase word that introduces another word, a
+		/// reference, a pointer or a template argument list is a type;
+		/// and an encoding prefix belongs to the literal it opens. Anything else
+		/// stays normal. BPR-0726.
+		[[nodiscard]] auto identifier_role(
+			const QStringView aLine,
+			const qsizetype   aBegin,
+			const qsizetype   aEnd) noexcept -> core::appearance_role
+		{
+			const auto word = aLine.mid(aBegin, aEnd - aBegin);
+			if (aEnd < aLine.size() && is_literal_prefix(word)) {
+				if (aLine[aEnd] == u'"') {
+					return core::appearance_role::syntax_string;
+				}
+				if (aLine[aEnd] == u'\'') {
+					return core::appearance_role::syntax_character;
+				}
+			}
+			if (introduces_type(word_before(aLine, aBegin))) {
+				return core::appearance_role::syntax_type;
+			}
+			// An ALL_CAPS word is a macro whether or not it is invoked, which is
+			// how `VERIFY_ARE_EQUAL(...)` reads in the owner's file.
+			if (is_macro_case(word)) {
+				return core::appearance_role::syntax_preprocessor;
+			}
+			const auto next = skip_blanks(aLine, aEnd);
+			const auto unit = next < aLine.size() ? aLine[next].unicode() : u'\0';
+			if (unit == u'(') {
+				return core::appearance_role::syntax_function;
+			}
+			if (unit == u':' && next + 1 < aLine.size() && aLine[next + 1] == u':') {
+				return core::appearance_role::syntax_type;
+			}
+			if (is_pascal_case(word)
+				&& (is_identifier_start(unit) || unit == u'&' || unit == u'*'
+					|| unit == u'<')) {
+				return core::appearance_role::syntax_type;
+			}
+			return core::appearance_role::syntax_normal;
+		}
+
 		/// \brief Collects semantic spans from one complete-blob pass.
 		///
 		/// \details The collector owns no theme. It reads the text style of each
@@ -201,16 +389,19 @@ namespace bpr::adapters::syntax {
 		class span_collector final : public KSyntaxHighlighting::AbstractHighlighter
 		{
 		public:
-			explicit span_collector(const std::size_t aMaximumSpans)
+			span_collector(const std::size_t aMaximumSpans, const bool aIdentifierHeuristics)
 				: MaximumSpans{ aMaximumSpans }
+				, IdentifierHeuristics{ aIdentifierHeuristics }
 			{
 			}
 
 			void begin_line(
 				const std::uint32_t               aLine,
+				const QStringView                 aText,
 				const std::vector<std::uint32_t>* aByteOffsets) noexcept
 			{
 				Line        = aLine;
+				Text        = aText;
 				ByteOffsets = aByteOffsets;
 				OpenSpan    = false;
 			}
@@ -244,7 +435,14 @@ namespace bpr::adapters::syntax {
 				const auto role = role_of(aFormat.textStyle());
 				if (role == core::appearance_role::syntax_normal) {
 					// An unclassified region carries the default role, so naming
-					// it would only make the span list larger.
+					// it would only make the span list larger. The identifier
+					// post-pass reads such a region for the conventions the
+					// grammar leaves normal; it never enters a styled region, so
+					// comments and strings are never re-read.
+					OpenSpan = false;
+					if (IdentifierHeuristics) {
+						classify_identifiers(aOffset, aOffset + aLength);
+					}
 					OpenSpan = false;
 					return;
 				}
@@ -257,6 +455,35 @@ namespace bpr::adapters::syntax {
 			}
 
 		private:
+			/// \brief Names the identifiers of one normal-styled run.
+			void classify_identifiers(const int aBegin, const int aEnd)
+			{
+				const auto end = std::min(static_cast<qsizetype>(aEnd), Text.size());
+				auto       at  = static_cast<qsizetype>(aBegin);
+				while (at < end) {
+					if (!is_identifier_start(Text[at].unicode())
+						|| (at > 0 && is_identifier_unit(Text[at - 1].unicode()))) {
+						++at;
+						continue;
+					}
+					auto stop = at + 1;
+					while (stop < Text.size() && is_identifier_unit(Text[stop].unicode())) {
+						++stop;
+					}
+					if (stop <= end) {
+						const auto role = identifier_role(Text, at, stop);
+						if (role != core::appearance_role::syntax_normal) {
+							OpenSpan = false;
+							append(
+								byte_offset(static_cast<int>(at)),
+								byte_offset(static_cast<int>(stop)),
+								role);
+						}
+					}
+					at = stop;
+				}
+			}
+
 			[[nodiscard]] auto byte_offset(const int aUnitOffset) const noexcept
 				-> std::uint32_t
 			{
@@ -297,11 +524,13 @@ namespace bpr::adapters::syntax {
 			}
 
 			application::token_span_list      Spans;
-			std::size_t                       MaximumSpans = 0U;
-			const std::vector<std::uint32_t>* ByteOffsets  = nullptr;
-			std::uint32_t                     Line         = 0U;
-			bool                              OpenSpan     = false;
-			bool                              Overflowed   = false;
+			std::size_t                       MaximumSpans         = 0U;
+			bool                              IdentifierHeuristics = false;
+			QStringView                       Text;
+			const std::vector<std::uint32_t>* ByteOffsets = nullptr;
+			std::uint32_t                     Line        = 0U;
+			bool                              OpenSpan    = false;
+			bool                              Overflowed  = false;
 		};
 
 		/// \brief Returns the spans that fall inside the supplied line range.
@@ -460,7 +689,10 @@ namespace bpr::adapters::syntax {
 			application::syntax_classification&&              aAnswer)
 			-> application::syntax_classification
 		{
-			auto collector = span_collector{ aRequest.MaximumSpans };
+			auto collector = span_collector{
+				aRequest.MaximumSpans,
+				uses_identifier_heuristics(aDefinitionName),
+			};
 			if (aDefinitionName != plain_text_definition_name) {
 				collector.setDefinition(
 					Catalog.Implementation->Definitions.definitionForName(
@@ -475,7 +707,7 @@ namespace bpr::adapters::syntax {
 					return aAnswer;
 				}
 				const auto offsets = byte_offsets_of(text);
-				collector.begin_line(line, &offsets);
+				collector.begin_line(line, text, &offsets);
 				state = collector.advance(text, state);
 				if (collector.overflowed()) {
 					aAnswer.Status

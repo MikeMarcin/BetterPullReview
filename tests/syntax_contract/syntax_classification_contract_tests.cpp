@@ -508,6 +508,165 @@ namespace {
 			   "the plain-text sentinel shadows no packaged definition");
 		(void)aCatalog;
 	}
+
+	// ---------------------------------------------------------------------
+	// Identifier roles in C and C++ (BPR-0726)
+	// ---------------------------------------------------------------------
+
+	/// \brief Reports whether exactly one span covers the named word on the line
+	/// with the supplied role.
+	[[nodiscard]] auto word_has_role(
+		const app::token_span_list& aSpans,
+		const std::string_view      aText,
+		const std::uint32_t         aLine,
+		const std::string_view      aWord,
+		const core::appearance_role aRole,
+		const std::size_t           aOccurrence = 0U) -> bool
+	{
+		auto begin = std::size_t{ 0U };
+		for (auto line = std::uint32_t{ 0U }; line < aLine; ++line) {
+			begin = aText.find('\n', begin) + 1U;
+		}
+		const auto end    = aText.find('\n', begin);
+		const auto row    = aText.substr(begin, end == std::string_view::npos ? end : end - begin);
+		auto       column = row.find(aWord);
+		for (auto skipped = std::size_t{ 0U }; skipped < aOccurrence; ++skipped) {
+			column = row.find(aWord, column + 1U);
+		}
+		if (column == std::string_view::npos) {
+			std::cerr << "FAILED: '" << aWord << "' is not on line " << aLine << "\n";
+			std::exit(EXIT_FAILURE);
+		}
+		const auto matches = std::count_if(
+			aSpans.begin(),
+			aSpans.end(),
+			[&](const app::token_span& aSpan) {
+				return aSpan.Line == aLine && aSpan.Column == column
+					&& aSpan.Length == aWord.size() && aSpan.Role == aRole;
+			});
+		if (matches != 1) {
+			std::cerr << "spans on line " << aLine << " ('" << aWord << "' at column "
+					  << column << ", expected role " << static_cast<int>(aRole) << "):\n";
+			for (const auto& span : aSpans) {
+				if (span.Line == aLine) {
+					std::cerr << "  column " << span.Column << " length " << span.Length
+							  << " role " << static_cast<int>(span.Role) << "\n";
+				}
+			}
+		}
+		return matches == 1;
+	}
+
+	/// \brief Reports whether no span on the line carries a heuristic role for
+	/// the named word.
+	[[nodiscard]] auto word_stays_normal(
+		const app::token_span_list& aSpans,
+		const std::string_view      aText,
+		const std::uint32_t         aLine,
+		const std::string_view      aWord) -> bool
+	{
+		auto begin = std::size_t{ 0U };
+		for (auto line = std::uint32_t{ 0U }; line < aLine; ++line) {
+			begin = aText.find('\n', begin) + 1U;
+		}
+		const auto end    = aText.find('\n', begin);
+		const auto row    = aText.substr(begin, end == std::string_view::npos ? end : end - begin);
+		const auto column = row.find(aWord);
+		expect(column != std::string_view::npos, "the word is on the line");
+		return std::none_of(aSpans.begin(), aSpans.end(), [&](const app::token_span& aSpan) {
+			return aSpan.Line == aLine && aSpan.Column == column
+				&& aSpan.Length == aWord.size()
+				&& (aSpan.Role == core::appearance_role::syntax_function
+					|| aSpan.Role == core::appearance_role::syntax_type
+					|| aSpan.Role == core::appearance_role::syntax_preprocessor);
+		});
+	}
+
+	void identifier_role_contract(const syntax::packaged_definition_catalog& aCatalog)
+	{
+		const auto text  = read_fixture("identifier_roles.cpp");
+		auto       blobs = fixture_blobs{ };
+		const auto oid   = blob(17U);
+		blobs.install(oid, text);
+		auto       classifier = syntax::packaged_syntax_classifier{ aCatalog, blobs };
+		const auto definition = aCatalog.definition_for_path("identifier_roles.cpp");
+		expect(definition.Name == "C++", "the fixture selects the C++ definition");
+		expect((definition.Version >> 16U) == syntax::identifier_heuristic_revision,
+			   "the C++ record carries the identifier post-pass revision, so a "
+			   "span set cached before the post-pass is keyed away");
+		expect((aCatalog.definition_named("C")->Version >> 16U)
+				   == syntax::identifier_heuristic_revision,
+			   "the C record carries the identifier post-pass revision");
+		expect((aCatalog.definition_named("Python")->Version >> 16U) == 0U,
+			   "a definition without the post-pass keeps its upstream revision");
+
+		auto previous = definition;
+		previous.Version -= syntax::identifier_heuristic_revision << 16U;
+		expect(classifier.classify(request(oid, previous), { }).Status
+				   == app::syntax_classification_status::unavailable,
+			   "a key from before the post-pass is refused rather than served");
+
+		const auto whole = classifier.classify(request(oid, definition), { });
+		expect(whole.Status == app::syntax_classification_status::available,
+			   "the identifier fixture classifies");
+		const auto& spans = whole.Spans;
+
+		using role           = core::appearance_role;
+		const auto classLine = line_of(text, "BPR-CLASS-LINE");
+		expect(word_has_role(spans, text, classLine, "ScreenBufferTests", role::syntax_type),
+			   "a name after class is a type");
+
+		const auto declarationLine = line_of(text, "BPR-DECLARATION-LINE");
+		expect(word_has_role(spans, text, declarationLine, "TextAttribute", role::syntax_type),
+			   "a PascalCase name before a reference is a type");
+		expect(word_has_role(spans, text, declarationLine, "attribute", role::syntax_function),
+			   "a member declaration before ( is a function");
+
+		const auto freeLine = line_of(text, "BPR-FREE-LINE");
+		expect(word_has_role(spans, text, freeLine, "ProcessString", role::syntax_function),
+			   "a free function before ( is a function");
+		expect(word_has_role(spans, text, freeLine, "std::wstring", role::syntax_builtin),
+			   "the grammar's own role for std:: is kept, not overridden");
+		expect(word_stays_normal(spans, text, freeLine, "text"),
+			   "a plain parameter name stays normal");
+
+		const auto stringLine = line_of(text, "BPR-STRING-LINE");
+		expect(word_has_role(spans, text, stringLine, "Log", role::syntax_type),
+			   "a scope before :: is a type");
+		expect(word_has_role(spans, text, stringLine, "Comment", role::syntax_function),
+			   "a scoped call is a function");
+		expect(word_has_role(spans, text, stringLine,
+							 "L\"BPR-STRING-LINE ProcessString(TextAttribute) MACRO_NAME\"",
+							 role::syntax_string),
+			   "the L prefix belongs to the string, as one span");
+		expect(word_stays_normal(spans, text, stringLine, "ProcessString")
+				   && word_stays_normal(spans, text, stringLine, "TextAttribute")
+				   && word_stays_normal(spans, text, stringLine, "MACRO_NAME"),
+			   "no heuristic role is named inside a string");
+
+		const auto macroLine = line_of(text, "BPR-MACRO-LINE");
+		expect(word_has_role(spans, text, macroLine, "VERIFY_ARE_EQUAL", role::syntax_preprocessor),
+			   "an ALL_CAPS name is a macro");
+		expect(word_has_role(spans, text, macroLine, "ServiceLocator", role::syntax_type),
+			   "a scope in an argument is a type");
+		expect(word_has_role(spans, text, macroLine, "instance", role::syntax_function)
+				   && word_has_role(spans, text, macroLine, "count", role::syntax_function)
+				   && word_has_role(spans, text, macroLine, "size", role::syntax_function),
+			   "member calls are functions");
+
+		const auto commentLine = line_of(text, "BPR-COMMENT-LINE");
+		expect(word_stays_normal(spans, text, commentLine, "ProcessString")
+				   && word_stays_normal(spans, text, commentLine, "TextAttribute")
+				   && word_stays_normal(spans, text, commentLine, "VERIFY_ARE_EQUAL")
+				   && word_stays_normal(spans, text, commentLine, "Log"),
+			   "no heuristic role is named inside a line comment");
+		const auto defineLine = line_of(text, "BPR-MACRO-DEFINE");
+		expect(word_has_role(spans, text, defineLine, "#define BEGIN_TEST_METHOD_PROPERTIES",
+							 role::syntax_preprocessor),
+			   "a preprocessor line keeps the grammar's own span");
+		expect(word_stays_normal(spans, text, defineLine, "ScreenBufferTests"),
+			   "no heuristic role is named inside a block comment");
+	}
 } // namespace
 
 int main()
@@ -517,6 +676,7 @@ int main()
 	const auto catalog = syntax::packaged_definition_catalog{ };
 	definition_selection_contract(catalog);
 	complete_blob_state_contract(catalog);
+	identifier_role_contract(catalog);
 	plain_text_and_failure_contract(catalog);
 	appearance_independence_contract(catalog);
 	packaged_resource_contract(catalog);
