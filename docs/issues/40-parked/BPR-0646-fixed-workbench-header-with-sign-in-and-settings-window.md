@@ -465,7 +465,7 @@ Read as five findings, none of them this card's criterion as written:
   When it lands, RFC-BPR-0028 AC-03's rail wording is amended.
 - "No easy way to tell what review it is" is the strip hiding the identity
   below 1,400 pixels (BPR-0647's threshold):
-  [BPR-0722](../20-ready/BPR-0722-the-strip-hides-the-pull-request-identity-below-1400-pixels.md);
+  [BPR-0722](../30-in-progress/BPR-0722-the-strip-hides-the-pull-request-identity-below-1400-pixels.md);
   Home over a restored review remains BPR-0716.
 - "Even in read mode viewing experience is not great" names no defect; the
   owner is asked what was wrong before anything is carded.

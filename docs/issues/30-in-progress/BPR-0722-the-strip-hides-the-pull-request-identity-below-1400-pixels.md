@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0722"
 title: "The strip hides the pull request identity below 1400 pixels"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
