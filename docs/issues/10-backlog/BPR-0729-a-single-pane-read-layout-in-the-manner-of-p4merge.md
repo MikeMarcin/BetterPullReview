@@ -67,3 +67,11 @@ verdicts: "Card it, can happen after the verdict". The round is
 [BPR-0734](BPR-0734-a-design-round-for-the-single-pane-read-layout.md),
 sequenced after the v007 verdicts; this card depends on it and its scope
 and acceptance are fixed from the accepted state before it is claimed.
+
+## Packet pointer, 2026-09-11 (v007)
+
+The current attended packet is
+[rfc-bpr-0028-attended-v007](../../verification/reviews/rfc-bpr-0028-attended-v007/operator-packet.md);
+this card is not a v007 candidate. It waits for the design round
+[[BPR-0734]], which follows the v007 verdicts. The v006 packet above is
+historical.

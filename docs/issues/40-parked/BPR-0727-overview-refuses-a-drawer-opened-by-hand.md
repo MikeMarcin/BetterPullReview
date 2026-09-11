@@ -87,3 +87,12 @@ Pinned by `test_overview_refuses_a_drawer_opened_by_hand`
 Modalities paragraph name the Overview rule. Landed with [[BPR-0728]] as one
 drawer milestone; the finish commit for this card carries the shared
 `workbench_window.cpp` and window-test edits of both.
+
+## Attended candidate, 2026-09-11 (v007)
+
+The pending criterion above is candidate `BPR-0727-overview-drawers` in
+[rfc-bpr-0028-attended-v007](../../verification/reviews/rfc-bpr-0028-attended-v007/operator-packet.md)
+on the bundle built from the source at 2cdc0e57 (executable sha256
+`64d9e46a…`), candidate revision `app-release-64d9e46a-2026-09-11.3`;
+prepared and protected at sequence 311, undecided, no host running until
+the owner asks for the session. The ask: Overview refuses a hand-opened drawer and says why; the second criterion is the d11 judgement shown for the owner, that Overview is chosen and never inferred from the files-only shape at restart.

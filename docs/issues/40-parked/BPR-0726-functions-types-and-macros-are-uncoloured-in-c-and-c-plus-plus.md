@@ -108,3 +108,12 @@ assertion BPR-0719 changed the semantics of), and
 `application_composition_contract` reports the `src/app` source-tree digest
 drifted (no `src/app` file is touched here). Both are repaired separately
 in this dispatch.
+
+## Attended candidate, 2026-09-11 (v007)
+
+The pending criterion above is candidate `BPR-0726-cpp-identifier-roles` in
+[rfc-bpr-0028-attended-v007](../../verification/reviews/rfc-bpr-0028-attended-v007/operator-packet.md)
+on the bundle built from the source at 2cdc0e57 (executable sha256
+`64d9e46a…`), candidate revision `app-release-64d9e46a-2026-09-11.3`;
+prepared and protected at sequence 311, undecided, no host running until
+the owner asks for the session. The ask: ScreenBufferTests.cpp on the dark palette: calls pale yellow, types teal, ALL_CAPS macros preprocessor grey, comments and strings untouched, misfires as much as misses.

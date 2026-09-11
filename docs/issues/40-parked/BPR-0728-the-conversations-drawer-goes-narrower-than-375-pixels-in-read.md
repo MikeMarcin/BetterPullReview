@@ -79,3 +79,12 @@ The UIforETW contract pins no 375 figure and no digest names
 Landed in the BPR-0727 finish commit, which carries the shared
 `src/adapters/qt/src/workbench_window.cpp`, `tests/adapters_qt/workbench_window_tests.cpp`
 and `tests/adapters_qt/composed_github_tests.cpp` edits of both drawer cards.
+
+## Attended candidate, 2026-09-11 (v007)
+
+The pending criterion above is candidate `BPR-0728-conversations-drawer-width` in
+[rfc-bpr-0028-attended-v007](../../verification/reviews/rfc-bpr-0028-attended-v007/operator-packet.md)
+on the bundle built from the source at 2cdc0e57 (executable sha256
+`64d9e46a…`), candidate revision `app-release-64d9e46a-2026-09-11.3`;
+prepared and protected at sequence 311, undecided, no host running until
+the owner asks for the session. The ask: Read's conversations drawer narrows below 375 by the handle, controls stay reachable, the width survives Home and back.

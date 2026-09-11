@@ -12,46 +12,35 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
-## Current frontier, 2026-09-11 (d13, BPR-0733 landed)
+## Current frontier, 2026-09-11 (d14, v007 prepared)
 
-Dispatch `attended-prep-2026-09-10` d13 (mandate r7). Landed on main at
-`91383cc4`, parked on human-review for the v007 verdict: [[BPR-0733]]. The
-app no longer opens the last pull request at startup: `window_review_restoration::load`
-selects the startup authority only, and a window's `open_recent` gesture
-runs the same exact-position course the automatic restore used to. The
-core keeps a per-profile `Recent` list (ten, most recent first, title once a
-snapshot was seen, the saved position tracked from `accepted_position`);
-the host persists it beside the per-window records (`recent_reviews`,
-sqlite `user_version` 3, migrated from 2 with the old rows seeded newest
-window first); the composition publishes a per-window
-`recent_reviews_projection` filtered for the window's session (signed out:
-public entries only; an account: its host's entries; Resume only when the
-session matches) and routes "open" through the Home bar's setup path and
-"resume" through `window_review_restoration_host::open_recent`; Qt shows
-"Recently viewed" between the setup row and the queue heading, hidden when
-empty, with Return/activation opening and a "Resume reading" action.
-Invariants to know: a refused startup *authority* (missing grant, unavailable
-capability) is now silent because nothing was pending; a refused
-*destination* or store still speaks. Verified at `91383cc4`: the three
-restoration selectors, `qt_composed_github_scale_*`,
-`application_profile_window_review_restoration_public_path` (about 9.5
-minutes now; timeout 1800 s), full dev build, `check_boundaries`, strict tidy
-and clang-format on touched files, DOCUMENTATION_OK. Follow-up carded:
-[[BPR-0736]] (queue rows ignore Return on macOS; pre-existing, Inbox).
-The d11/d12 landings ([[BPR-0726]], [[BPR-0727]], [[BPR-0728]],
-[[BPR-0732]]) are unchanged and still parked; [[BPR-0716]] stays in Backlog
-on BPR-0732. Next, in order: a rebuilt tests-disabled bundle, then the v007
-packet written last, covering BPR-0646 narrowed to the epoch line, BPR-0663,
-BPR-0676 and BPR-0720, plus the asks for BPR-0725, 0726, 0727, 0728, 0732 and
-0733 (0733's ask: restart the signed bundle with a review saved, see Home at
-once with the entry, open it by hand), the ask for BPR-0732 (paste a public
-link while signed out and it opens in one gesture), and a visible ask for
-d11's stale-pin judgement that `infer_modality_from_drawers` no longer
-infers Overview from the files-only shape. After the v007 verdicts:
-[[BPR-0734]]; on their stations later: [[BPR-0730]] and [[BPR-0731]], on
-which this closeout depends. Outside the pack: [[BPR-0735]] (clangd noise),
-Ready, not started. No host is running and no watch is armed. Detail below
-under "Continuation after the owner's answers".
+Dispatch `attended-prep-2026-09-10` d14 (mandate r7). The tests-disabled
+bundle was rebuilt at 2cdc0e57 after [[BPR-0733]] was parked (`cmake
+--preset app-release && cmake --build build/app-release`, executable
+sha256 `64d9e46a…`, `codesign --verify --deep --strict` clean;
+`github_application.cpp` unchanged since the v006 head d1ba791f, so
+neither composition digest moved). Session `cbd48b91…` carries ten
+candidates at revision `app-release-64d9e46a-2026-09-11.3`, ready and
+protected at sequence 311, none decided, in
+[rfc-bpr-0028-attended-v007](../../verification/reviews/rfc-bpr-0028-attended-v007/operator-packet.md):
+the four v006 rejections asked again ([[BPR-0646]] narrowed to the epoch
+handles, [[BPR-0663]], [[BPR-0676]], [[BPR-0720]]) and [[BPR-0725]],
+[[BPR-0726]], [[BPR-0727]] (carrying d11's judgement that Overview is
+chosen, never inferred from the files-only shape), [[BPR-0728]],
+[[BPR-0732]] and [[BPR-0733]] (carrying d13's change that a refused
+startup authority is silent). The fifteen v006 verdicts stand against
+their own revision. No host is running and no watch is armed; the packet
+says how to start both (`serve`, then `wait --after 311`).
+
+Next: on the owner's say-so, `serve` and a persistent `wait --after 311`;
+then consume the verdicts card by card ([[BPR-0716]] finishes with
+BPR-0732). After the verdicts: [[BPR-0734]]; on their stations later:
+[[BPR-0730]] and [[BPR-0731]], on which this closeout depends. Outside the
+pack: [[BPR-0735]] (clangd noise), Ready, not started, the only
+independent unattended work while the ten candidates protect `src/core`,
+`src/application`, `src/adapters/qt`, `src/adapters/sqlite`,
+`src/adapters/syntax` and `src/app`. Detail below under "Continuation
+after the owner's answers" and "Landing record (d13)".
 
 ## Objective
 
@@ -534,3 +523,44 @@ maintenance public path was the one course it disturbed, repaired in the
 probe. Mandate r7 added one card, [BPR-0735](../20-ready/BPR-0735-clangd-cannot-find-the-compile-database-and-reports-every-header-missing.md):
 clangd reads no compile database because the project's lands in
 `build/dev` and there is no `.clangd`; filed, not started. Next: BPR-0726.
+
+## Landing record, 2026-09-11 (d13, BPR-0733 landed)
+
+Dispatch `attended-prep-2026-09-10` d13 (mandate r7). Landed on main at
+`91383cc4`, parked on human-review for the v007 verdict: [[BPR-0733]]. The
+app no longer opens the last pull request at startup: `window_review_restoration::load`
+selects the startup authority only, and a window's `open_recent` gesture
+runs the same exact-position course the automatic restore used to. The
+core keeps a per-profile `Recent` list (ten, most recent first, title once a
+snapshot was seen, the saved position tracked from `accepted_position`);
+the host persists it beside the per-window records (`recent_reviews`,
+sqlite `user_version` 3, migrated from 2 with the old rows seeded newest
+window first); the composition publishes a per-window
+`recent_reviews_projection` filtered for the window's session (signed out:
+public entries only; an account: its host's entries; Resume only when the
+session matches) and routes "open" through the Home bar's setup path and
+"resume" through `window_review_restoration_host::open_recent`; Qt shows
+"Recently viewed" between the setup row and the queue heading, hidden when
+empty, with Return/activation opening and a "Resume reading" action.
+Invariants to know: a refused startup *authority* (missing grant, unavailable
+capability) is now silent because nothing was pending; a refused
+*destination* or store still speaks. Verified at `91383cc4`: the three
+restoration selectors, `qt_composed_github_scale_*`,
+`application_profile_window_review_restoration_public_path` (about 9.5
+minutes now; timeout 1800 s), full dev build, `check_boundaries`, strict tidy
+and clang-format on touched files, DOCUMENTATION_OK. Follow-up carded:
+[[BPR-0736]] (queue rows ignore Return on macOS; pre-existing, Inbox).
+The d11/d12 landings ([[BPR-0726]], [[BPR-0727]], [[BPR-0728]],
+[[BPR-0732]]) are unchanged and still parked; [[BPR-0716]] stays in Backlog
+on BPR-0732. Next, in order: a rebuilt tests-disabled bundle, then the v007
+packet written last, covering BPR-0646 narrowed to the epoch line, BPR-0663,
+BPR-0676 and BPR-0720, plus the asks for BPR-0725, 0726, 0727, 0728, 0732 and
+0733 (0733's ask: restart the signed bundle with a review saved, see Home at
+once with the entry, open it by hand), the ask for BPR-0732 (paste a public
+link while signed out and it opens in one gesture), and a visible ask for
+d11's stale-pin judgement that `infer_modality_from_drawers` no longer
+infers Overview from the files-only shape. After the v007 verdicts:
+[[BPR-0734]]; on their stations later: [[BPR-0730]] and [[BPR-0731]], on
+which this closeout depends. Outside the pack: [[BPR-0735]] (clangd noise),
+Ready, not started. No host is running and no watch is armed. Detail below
+under "Continuation after the owner's answers".

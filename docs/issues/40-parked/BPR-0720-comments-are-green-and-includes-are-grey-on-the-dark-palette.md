@@ -170,3 +170,12 @@ and declares macros `dsNormal`, which `applyFormat` drops
 (heuristic classification of calls, types and ALL_CAPS macros for C and C++). The reset and
 the emitted colours were not disputed. This card stays parked on human-review; its candidate
 is asked again on a bundle carrying BPR-0726.
+
+## Attended candidate, 2026-09-11 (v007)
+
+The pending criterion above is candidate `BPR-0720-dark-palette` in
+[rfc-bpr-0028-attended-v007](../../verification/reviews/rfc-bpr-0028-attended-v007/operator-packet.md)
+on the bundle built from the source at 2cdc0e57 (executable sha256
+`64d9e46a…`), candidate revision `app-release-64d9e46a-2026-09-11.3`;
+prepared and protected at sequence 311, undecided, no host running until
+the owner asks for the session. The ask: the palette on a bundle carrying BPR-0726's identifier roles; the values and the one-time reset are unchanged.

@@ -129,3 +129,12 @@ through Home would show the same empty line. Carded as
 This card's own change is not in question; it stays parked on human-review for the line, asked
 again on a bundle carrying BPR-0725. The comparison half of the same run was accepted on
 [BPR-0667](../60-done/BPR-0667-the-epoch-refuses-any-pull-request-whose-base-branch-moved.md).
+
+## Attended candidate, 2026-09-11 (v007)
+
+The pending criterion above is candidate `BPR-0663-public-preview-epoch` in
+[rfc-bpr-0028-attended-v007](../../verification/reviews/rfc-bpr-0028-attended-v007/operator-packet.md)
+on the bundle built from the source at 2cdc0e57 (executable sha256
+`64d9e46a…`), candidate revision `app-release-64d9e46a-2026-09-11.3`;
+prepared and protected at sequence 311, undecided, no host running until
+the owner asks for the session. The ask: the epoch line shows the updates on a bundle carrying BPR-0725; the acquire only runs again when GitHub holds a newer head than the local catalogue.

@@ -85,3 +85,12 @@ be better."
   keyboard reach and the empty case.
 - The owner restarts the signed bundle with a review saved, sees Home at
   once with the entry, opens it by hand; accepted in an attended session.
+
+## Attended candidate, 2026-09-11 (v007)
+
+The pending criterion above is candidate `BPR-0733-recently-viewed` in
+[rfc-bpr-0028-attended-v007](../../verification/reviews/rfc-bpr-0028-attended-v007/operator-packet.md)
+on the bundle built from the source at 2cdc0e57 (executable sha256
+`64d9e46a…`), candidate revision `app-release-64d9e46a-2026-09-11.3`;
+prepared and protected at sequence 311, undecided, no host running until
+the owner asks for the session. The ask: relaunch with a review saved shows Home at once with the entry, opened by hand, Resume reading returns to the position; the third criterion is the d13 change shown for the owner, that a refused startup authority is silent while a refused destination or store still speaks.

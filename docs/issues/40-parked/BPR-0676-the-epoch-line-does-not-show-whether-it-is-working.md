@@ -79,3 +79,12 @@ line (a cache-hit defect,
 [BPR-0725](BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md)).
 Legibility cannot be judged on an empty line. This card stays parked on human-review; its
 candidate is asked again on a bundle carrying BPR-0725.
+
+## Attended candidate, 2026-09-11 (v007)
+
+The pending criterion above is candidate `BPR-0676-epoch-line-legibility` in
+[rfc-bpr-0028-attended-v007](../../verification/reviews/rfc-bpr-0028-attended-v007/operator-packet.md)
+on the bundle built from the source at 2cdc0e57 (executable sha256
+`64d9e46a…`), candidate revision `app-release-64d9e46a-2026-09-11.3`;
+prepared and protected at sequence 311, undecided, no host running until
+the owner asks for the session. The ask: legibility of the nodes, span and tick on a line that now carries updates on a cache hit (BPR-0725).

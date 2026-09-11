@@ -182,3 +182,12 @@ RFC-BPR-0026 AC-09/AC-10 on [[BPR-0599]] point here. [[BPR-0716]] stays in
 Backlog on this card and is finished when the owner accepts it. The last
 criterion, the owner pasting a public link signed out on the signed bundle,
 waits on the v007 attended session.
+
+## Attended candidate, 2026-09-11 (v007)
+
+The pending criterion above is candidate `BPR-0732-signed-out-home` in
+[rfc-bpr-0028-attended-v007](../../verification/reviews/rfc-bpr-0028-attended-v007/operator-packet.md)
+on the bundle built from the source at 2cdc0e57 (executable sha256
+`64d9e46a…`), candidate revision `app-release-64d9e46a-2026-09-11.3`;
+prepared and protected at sequence 311, undecided, no host running until
+the owner asks for the session. The ask: signed out, Home is the card, one paste field and Open, no queue or filters, no Read without signing in; a pasted public link opens in one gesture.

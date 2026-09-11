@@ -572,3 +572,12 @@ Read per criterion:
 
 This card stays parked on human-review for the epoch line only; its candidate is asked again,
 narrowed to that criterion, on a bundle carrying BPR-0725.
+
+## Attended candidate, 2026-09-11 (v007)
+
+The pending criterion above is candidate `BPR-0646-workbench-chrome` in
+[rfc-bpr-0028-attended-v007](../../verification/reviews/rfc-bpr-0028-attended-v007/operator-packet.md)
+on the bundle built from the source at 2cdc0e57 (executable sha256
+`64d9e46a…`), candidate revision `app-release-64d9e46a-2026-09-11.3`;
+prepared and protected at sequence 311, undecided, no host running until
+the owner asks for the session. The ask: narrowed to the one criterion left, a handle on the epoch line changes the comparison, on a bundle carrying BPR-0725.

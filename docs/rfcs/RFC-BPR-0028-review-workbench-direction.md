@@ -397,3 +397,14 @@ carries every update the catalogue holds on a restored or cached open;
 AC-02's defect from the v006 rejections. Parked for the v007 verdict.
 The owner's Home answer became [[BPR-0732]] and [[BPR-0733]]; the
 single-pane design round is [[BPR-0734]], after the v007 verdicts.
+
+Attended preparation, 2026-09-11 (v007). The bundle was rebuilt at
+2cdc0e57 (executable sha256 `64d9e46a…`, tests disabled, signed) after
+[[BPR-0733]] was parked, so no active card can rebuild it. Ten candidates
+are prepared in
+[rfc-bpr-0028-attended-v007](../verification/reviews/rfc-bpr-0028-attended-v007/operator-packet.md):
+the four v006 rejections asked again ([[BPR-0646]] narrowed to the epoch
+line, [[BPR-0663]], [[BPR-0676]], [[BPR-0720]]) and the six landings since
+([[BPR-0725]], [[BPR-0726]], [[BPR-0727]], [[BPR-0728]], [[BPR-0732]],
+[[BPR-0733]]). The v006 packet is historical; its fifteen verdicts stand.
+No host is running until the owner asks for the session.

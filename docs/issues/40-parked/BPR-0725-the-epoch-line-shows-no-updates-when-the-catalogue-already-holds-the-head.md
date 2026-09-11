@@ -164,3 +164,12 @@ and `main.cpp` clean; `format_check.py` on the five touched files exit 0;
 Acceptance 1-3 pass on these; 4 (the owner sees the nodes, span and
 handles with microsoft/terminal#20607 restored) waits for the v007
 bundle. Parked on human-review.
+
+## Attended candidate, 2026-09-11 (v007)
+
+The pending criterion above is candidate `BPR-0725-epoch-line-cache-hit` in
+[rfc-bpr-0028-attended-v007](../../verification/reviews/rfc-bpr-0028-attended-v007/operator-packet.md)
+on the bundle built from the source at 2cdc0e57 (executable sha256
+`64d9e46a…`), candidate revision `app-release-64d9e46a-2026-09-11.3`;
+prepared and protected at sequence 311, undecided, no host running until
+the owner asks for the session. The ask: the nodes, span and handles with microsoft/terminal#20607 opened from Recently viewed or the bar when the catalogue already holds its head.
