@@ -1,0 +1,16 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0725",
+    "BPR-0726",
+    "BPR-0727",
+    "BPR-0728",
+    "BPR-0729",
+    "BPR-0730",
+    "BPR-0731"
+  ],
+  "reserve_for": "v006-verdict-follow-ups",
+  "purpose": "Follow-ups from the v006 attended verdicts: epoch line empty on a restored review, C++ classifier role coverage, Overview refuses a hand-opened drawer, narrower conversations drawer in Read, single-pane Read layout, Windows and Linux packaged Settings inventory",
+  "created": "2026-09-11T18:47:08.415516+00:00",
+  "base": "d5161caf1dea068b962bd233750c2b14e3ba81b5"
+}
