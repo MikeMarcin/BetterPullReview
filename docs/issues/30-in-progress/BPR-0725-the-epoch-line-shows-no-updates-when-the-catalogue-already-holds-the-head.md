@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0725"
 title: "The epoch line shows no updates when the catalogue already holds the head"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P1"

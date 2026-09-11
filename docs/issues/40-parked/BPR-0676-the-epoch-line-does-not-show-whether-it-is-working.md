@@ -76,6 +76,6 @@ The owner's screenshot on BPR-0646 shows the row as "Updates", "No updates loade
 ready" and "Comparing exact anchors": the three-word state this card added is there, and the
 nodes, span and amber tick are not, because the restored review published no updates to the
 line (a cache-hit defect,
-[BPR-0725](../20-ready/BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md)).
+[BPR-0725](../30-in-progress/BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md)).
 Legibility cannot be judged on an empty line. This card stays parked on human-review; its
 candidate is asked again on a bundle carrying BPR-0725.
