@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0662"
 title: "Drawer widths survive Home and a squeezed splitter"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
-parked_on: "human-review"
-acceptance: [{"criterion":"Focused suites pass; a squeeze reports no width and a floor layout opens at the design widths; a handle drag reports exactly the dragged drawer","outcome":"pass","revision":"7506c87b","evidence":{"kind":"observation","detail":"At this head: qt_workbench_window_scale_{100,125,200}, qt_composed_github_scale_100, application_composition_contract, application_review_round_trip_composition_contract, application_github_public_path_uiforetw_74 and application_uiforetw_selected_diff_contract pass. Reporting a width from the squeeze fails 'a squeeze reports no width to the host'; dropping the lift fails 'a width at the host's floor opens at the drawer's design width'."}},{"criterion":"Observed in the signed bundle: the workbench opens with the drawers at usable widths after the clobbered layout","outcome":"pending","revision":"7506c87b","evidence":{"kind":"freeform","detail":"Owed. The signed app-release bundle is rebuilt at this head (BetterPullReview.app, executable sha256 dba2d952133ee18b28e458fb282fe8d9ad3930c68a76d1fd5c3f601d86fc88cf) and the owner's workbench-settings.sqlite3 still holds the clobbered 64-pixel widths, so the observation is one launch away. It needs a pull request opened in the bundle, which needs typing into the locator; this session must not inject input (System Events automation revoked the terminal's permissions once before), so it is queued for the attended session with BPR-0646 and BPR-0663."}}]
+acceptance: [{"criterion":"Focused suites pass; a squeeze reports no width and a floor layout opens at the design widths; a handle drag reports exactly the dragged drawer","outcome":"pass","revision":"7506c87b","evidence":{"kind":"observation","detail":"At this head: qt_workbench_window_scale_{100,125,200}, qt_composed_github_scale_100, application_composition_contract, application_review_round_trip_composition_contract, application_github_public_path_uiforetw_74 and application_uiforetw_selected_diff_contract pass. Reporting a width from the squeeze fails 'a squeeze reports no width to the host'; dropping the lift fails 'a width at the host's floor opens at the drawer's design width'."}},{"criterion":"Observed in the signed bundle: the workbench opens with the drawers at usable widths after the clobbered layout","outcome":"pass","revision":"d1ba791f","evidence":{"kind":"observation","detail":"Attended session cbd48b91000b00f1e72e1ad62c7c384c, candidate BPR-0662-drawer-widths, revision app-release-cc2afa7f-2026-09-11.2 (bundle built at d1ba791f, executable sha256 cc2afa7fb84d443a1bba93373b990be83748be20451fa0b6adde45cc6fae4c1c), fingerprint c08a68795d83c4689d424a462cfae6843a58b99aded5988863cf48e778035552, decision 98d6ee23-fc04-451f-aa85-bae222c808ef, actor human, 2026-09-11T18:31:03Z: accept. The owner's screenshot on the BPR-0646 decision three minutes earlier (docs/verification/reviews/rfc-bpr-0028-attended-v006/captures/owner-read-chrome-2026-09-11.png) shows the conversations drawer open at a usable width beside the comparison in Read, with the repositories and files drawers collapsed to no column."}}]
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"}}
 ---
 
@@ -92,6 +91,12 @@ their own.
 
 The owner stopped the session before this candidate. The drawers cannot be
 judged while the comparison is empty
-([BPR-0667](BPR-0667-the-epoch-refuses-any-pull-request-whose-base-branch-moved.md)),
+([BPR-0667](../40-parked/BPR-0667-the-epoch-refuses-any-pull-request-whose-base-branch-moved.md)),
 so the observation is re-offered with the others once a pull request opens
 completely.
+
+## Attended verdict, 2026-09-11 (v006): accepted
+
+Session `cbd48b91…`, revision `app-release-cc2afa7f-2026-09-11.2` (bundle built at d1ba791f, executable sha256 `cc2afa7f…`), actor human; the session was handed back at sequence 278 with all fifteen candidates decided. Candidate `BPR-0662-drawer-widths`, decision `98d6ee23`, 18:31:03Z: **accept**, no note. The owner's screenshot on the BPR-0646 decision three minutes earlier
+([owner-read-chrome-2026-09-11.png](../../verification/reviews/rfc-bpr-0028-attended-v006/captures/owner-read-chrome-2026-09-11.png))
+shows the conversations drawer at a usable width beside the comparison in Read. Done.
