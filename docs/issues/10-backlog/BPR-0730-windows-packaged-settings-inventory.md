@@ -40,3 +40,11 @@ platform work and stays in Backlog until the Windows station takes it
 - The captures or the recorded inventory are linked from the
   [BPR-0593](BPR-0593-close-rfc-0018.md) closeout ledger's AC-11 row.
 - Where a person must look at it, an attended candidate on that station.
+
+## Owner direction, 2026-09-11
+
+Asked when the station takes this: "After we sort all the MacOS and
+platform agnostic stuff out". It stays in Backlog behind the macOS and
+platform-agnostic cards of the pack (BPR-0725 through BPR-0729, BPR-0734
+and the Home cards BPR-0732 and BPR-0733); the [BPR-0593](BPR-0593-close-rfc-0018.md)
+closeout records the order.

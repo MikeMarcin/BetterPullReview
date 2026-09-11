@@ -12,31 +12,23 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
-## Current frontier, 2026-09-11 (after the v006 hand-back)
+## Current frontier, 2026-09-11 (d10, the owner's three answers)
 
-Dispatch `attended-prep-2026-09-10` d9 (mandate r5, "start the review")
-consumed session `cbd48b91…` at sequence 278: fifteen decisions on
-revision `app-release-cc2afa7f-2026-09-11.2` (bundle built at d1ba791f).
-Ten cards finished Done on their own acceptance (BPR-0662, BPR-0667,
-BPR-0674, BPR-0675, BPR-0677, BPR-0683, BPR-0719, BPR-0721, BPR-0722,
-BPR-0724); four stay parked on human-review with a recorded rejection
-(BPR-0646 for the epoch line only, BPR-0663, BPR-0676, BPR-0720). The
-rejections and selections are seven cards: [[BPR-0725]] (the epoch line
-is empty on a cache hit; owns the three epoch-line rejections),
-[[BPR-0726]] (C/C++ functions, types and macros uncoloured; owns the
-BPR-0720 rejection), [[BPR-0727]] (Overview refuses a hand-opened drawer),
-[[BPR-0728]] (narrower conversations drawer in Read), [[BPR-0729]]
-(single-pane Read, needs an RFC-BPR-0028 design round first), and the
-Windows and Linux halves of AC-11, [[BPR-0730]] and [[BPR-0731]], which
-this closeout now depends on. The owner's Home remark is on [[BPR-0716]].
-The session's candidates were released (`resume-development --all`) and
-the host stopped; no watch is armed. Evidence: the packet
-[rfc-bpr-0028-attended-v006](../../verification/reviews/rfc-bpr-0028-attended-v006/operator-packet.md)
-and its `captures/`. Next bounded milestone: BPR-0725, then BPR-0726, on
-main, then a rebuilt bundle and a v007 packet re-asking the four parked
-candidates (BPR-0646 narrowed to the epoch line). This closeout stays in
-Backlog until BPR-0730 and BPR-0731 are Done on their stations; every
-macOS criterion of RFC-BPR-0018 is now accepted.
+Dispatch `attended-prep-2026-09-10` d10 (mandate r6). The owner answered
+d9's three asks; each is recorded on its cards and the round continues
+on main. Order, all on main: [[BPR-0725]] (in progress, epoch line on a
+cache hit), [[BPR-0726]] (C/C++ roles), [[BPR-0727]] and [[BPR-0728]] as
+one drawer milestone, then the Home cards [[BPR-0732]] (signed-out Home
+is one paste field that opens anonymously; carries [[BPR-0716]]) and
+[[BPR-0733]] (recently viewed list replaces the automatic restore), then
+a rebuilt tests-disabled bundle and the v007 packet written last: the
+four parked candidates (BPR-0646 narrowed to the epoch line, BPR-0663,
+BPR-0676, BPR-0720) plus the new asks. After the v007 verdicts:
+[[BPR-0734]], the design round for the single-pane Read ([[BPR-0729]]
+depends on it). After the macOS and platform-agnostic work: [[BPR-0730]]
+and [[BPR-0731]] on their stations; this closeout depends on both and
+stays in Backlog until they are Done. No host is running and no watch is
+armed. Detail below under "Continuation after the owner's answers".
 
 ## Objective
 
@@ -462,3 +454,54 @@ v007 packet with the four parked candidates (BPR-0646 narrowed to "a
 handle on the epoch line changes the comparison"), written last. BPR-0729
 waits for an RFC-BPR-0028 design round. Open to the owner: what on Home
 is "very messy" (BPR-0716).
+
+## Continuation after the owner's answers, 2026-09-11 (d10)
+
+The previous frontier paragraph (d9, after the v006 hand-back) is
+retained in substance under "Continuation after the v006 hand-back".
+The owner's answers, verbatim on the cards:
+
+1. What on Home is "very messy" (on BPR-0716): the queue and its filters
+   have no use signed out; open by link does not work without an account;
+   "Read without signing in" leads to another confusing page; open the
+   link anonymously from the first paste field; the slow automatic
+   restore of the last pull request is disorienting, a recently viewed
+   list would be better. Two screenshots of the signed-out dark Home were
+   attached; their visible text, transcribed: (A) the "Connect a GitHub
+   account" card ("BetterPullReview reviews pull requests from your GitHub
+   accounts. Sign in once with a device code; the session is remembered
+   on this Mac. To open a public pull request without signing in, paste
+   its link in the bar below."), buttons "Sign in to GitHub…", "Read
+   without signing in", "Accounts & hosts settings"; "Open a pull request"
+   with the field "Paste a pull request link, or write owner/name#123" and
+   "Open"; "Review queue" with "Review queue is empty. Local rules never
+   change GitHub assignments." over an empty list; combos "Role: any",
+   "Observer: any reason", "Bucket: any", "Repository: any", "State: any",
+   "Sort: core priority"; status "No pull request is open in the
+   workbench." (B) after "Read without signing in": the card reads "Open a
+   pull request / Paste a pull request link in the bar below, or pick one
+   from the review queue." with "Choose from the queue" and "Paste a link";
+   a centred "Open a pull request / Enter an owner, repository, and pull
+   request number above." with "Copy message"; the same field, focused;
+   the same empty queue and combos ("Role: any" disabled); the same status.
+   Carded as [BPR-0732](../20-ready/BPR-0732-a-signed-out-home-is-one-paste-field-that-opens-a-public-pull-request.md)
+   and [BPR-0733](../20-ready/BPR-0733-home-lists-recently-viewed-pull-requests-instead-of-restoring-the-last-one.md).
+   The "open by link doesn't work" claim was verified in code before
+   carding: the Home bar resolves through `core::resolve_setup_destination`,
+   which is `ready` only for an authenticated profile, and a public-preview
+   session has no credential authority, so the bar stops at "Sign in and
+   continue" before and after "Read without signing in"; the Settings
+   session panel is the only working signed-out open. BPR-0716's earlier
+   "the bar does open a pasted link" is corrected there.
+2. BPR-0729's design round: "Card it, can happen after the verdict" —
+   [BPR-0734](BPR-0734-a-design-round-for-the-single-pane-read-layout.md),
+   after the v007 verdicts; BPR-0729 depends on it.
+3. Windows/Linux station time for BPR-0730/0731: "After we sort all the
+   MacOS and platform agnostic stuff out" — recorded on both cards; they
+   follow every macOS and platform-agnostic card above.
+
+Home cards are placed after the drawer milestone and before the bundle
+because BPR-0732 changes the Home the four parked candidates are reached
+through and BPR-0733 changes what the bundle does at launch; both belong
+in the v007 bundle so the owner sees one Home. IDs BPR-0732 to BPR-0734
+were reserved on main (`b1d4e14b`).

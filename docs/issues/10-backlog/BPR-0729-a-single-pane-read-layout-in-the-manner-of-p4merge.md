@@ -4,7 +4,7 @@ id: "BPR-0729"
 title: "A single-pane Read layout in the manner of p4merge"
 status: "Backlog"
 rfcs: ["RFC-BPR-0028"]
-depends_on: []
+depends_on: ["BPR-0734"]
 priority: "P1"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"owner_direction":"2026-09-11","attended_session":"cbd48b91000b00f1e72e1ad62c7c384c","attended_decision":"205ac8b2-30fd-4339-8d08-51c621ab7fc8"}
 ---
@@ -59,3 +59,11 @@ Modalities paragraph and AC-05.
   `qt_workbench_window` and `qt_composed_github`.
 - The owner accepts the layout on the signed bundle in an attended
   session.
+
+## Owner direction, 2026-09-11
+
+Asked whether the design round should start now or after the v007
+verdicts: "Card it, can happen after the verdict". The round is
+[BPR-0734](BPR-0734-a-design-round-for-the-single-pane-read-layout.md),
+sequenced after the v007 verdicts; this card depends on it and its scope
+and acceptance are fixed from the accepted state before it is claimed.
