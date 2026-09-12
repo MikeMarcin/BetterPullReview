@@ -23,7 +23,7 @@ cannot take without a hand on the mouse.
   directive takes the macro purple, a predefined macro like `__GNUC__` takes it
   too, and an `#include` path takes the string salmon instead of the directive
   grey. No colour value moved.
-  [BPR-0745](../../../issues/40-parked/BPR-0745-the-one-pane-read-state-is-redrawn-over-the-link-map.md)
+  [BPR-0745](../../../issues/60-done/BPR-0745-the-one-pane-read-state-is-redrawn-over-the-link-map.md)
   is a design page, not a bundle change.
 - Pull request: [NVIDIA/stdexec#1846](https://github.com/NVIDIA/stdexec/pull/1846),
   already in this Mac's catalogue from v008.
