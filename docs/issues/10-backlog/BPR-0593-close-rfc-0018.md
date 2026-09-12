@@ -12,7 +12,76 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
-## Current frontier, 2026-09-11 (d18, mandate r9)
+## Current frontier, 2026-09-11 (d19, mandate r10)
+
+Dispatch `attended-prep-2026-09-10` d19 (mandate r10). The owner ran the
+v008 session and handed back at sequence 348 with all six candidates
+decided; every decision matches its candidate's fingerprint in
+[the v008 identity file](../../verification/reviews/rfc-bpr-0028-attended-v008/session-identity.json),
+so no verdict is stale. His four screenshots are in that packet's `captures`
+directory (the fifth attachment was the v007 Visual Studio reference
+re-attached byte-identical). Landed on main: [[BPR-0737]] finished
+(`24e1fef8`), the epoch row accepted; the five rejections recorded on their
+own cards with the four follow-ups they become (`d0ae88fa`); RFC-BPR-0028
+and RFC-BPR-0006 updated (`9a63931c`); IDs BPR-0743..BPR-0746 reserved
+(`d960f945`). No product source changed in this dispatch, so the v008
+bundle and both composition digests still stand at `35438244` /
+`e4fdb0ea…`.
+
+What the rejections mean, one line each. **BPR-0646**: the handle criterion
+is unjudgeable on any pull request's first open, because a review epoch is
+this install's own observation and nothing enumerates a pull request's
+earlier updates — the local catalogue held one epoch for NVIDIA/stdexec#1846,
+minted five minutes before the verdict. [[BPR-0743]] (Backlog) holds the
+owner's decision between importing history under RFC-BPR-0003 and rewording
+the criterion; **this is the ask that has to reach the owner before another
+bundle is prepared for BPR-0646.** **BPR-0720 and BPR-0738**: one
+requirement in two notes, a directive line paints grey end to end where the
+reference greys only the directive; [[BPR-0744]] (Ready). **BPR-0734**: the
+one-pane map is the link map at its limit, not a new element; the RFC's
+non-goal is relaxed and [[BPR-0745]] (Ready) redraws the state. **BPR-0739**:
+the seam is accepted, the cursor is not, and the lit highlight refutes the
+d17 cause — the defect is cursor delivery on macOS after Qt's enter;
+[[BPR-0746]] (Ready) carries the hypotheses and the discriminating check.
+BPR-0739's AC1 evidence is corrected there and on its own card: the cocoa
+probe log it cited has the pointer 1164 pixels from the handle and prints
+`FAILED`.
+
+Four owner answers are still outstanding and none was synthesised: BPR-0734's
+block order and where the one-pane choice lives; BPR-0738's alias italic and
+the `CE8AD4`-for-`BD63C5` macro purple ("most things are good now" names
+neither); BPR-0739's hover highlight; and BPR-0743's import-or-reword
+question.
+
+Closeout state: unchanged by this round and both RFCs stay open.
+**RFC-BPR-0018 is not closable**: 17 of its 20 cards are Done, this card
+waits on [[BPR-0730]] and [[BPR-0731]] (the Windows and Linux packaged
+inventories for AC-11, deferred to their stations, "after we sort all the
+MacOS and platform agnostic stuff out"), and the checklist below still holds
+AC-01, AC-07, AC-08 and AC-11 open for target-native, screen-reader and
+packaged evidence. Nothing in the v008 round touched RFC-BPR-0018;
+[[BPR-0683]] remains its only attended criterion and it was accepted back in
+v006. **RFC-BPR-0028 is not closable**: 40 of 50 Done, with BPR-0646,
+BPR-0734 and BPR-0739 parked on human-review, BPR-0729 waiting on BPR-0734,
+BPR-0743 in Backlog behind the owner, BPR-0653 on the Windows station,
+BPR-0736 in Inbox, and BPR-0745 and BPR-0746 Ready. BPR-0646 is the one that
+changed character: its criterion can no longer be closed by preparing another
+bundle.
+
+The v008 candidates keep their protection of `src/adapters/qt`,
+`src/application`, `src/adapters/sqlite` and the design and RFC paths until
+an explicit `resume-development` precedes the next source edit; this
+dispatch made no source edit and released nothing. The host (pid 29635) was
+stopped through the contract after the decisions were consumed. Next, in
+order: [[BPR-0744]], [[BPR-0745]] and [[BPR-0746]] on main (all three need
+`resume-development` first, since all three touch protected paths or design
+assets); then [[BPR-0741]], [[BPR-0742]]; then a rebuilt bundle and a v009
+packet re-asking BPR-0720, BPR-0734, BPR-0738 and BPR-0739 with the four
+open questions attached. BPR-0646 is not in that packet until BPR-0743 has
+its answer. Outside the pack: [[BPR-0735]] (clangd), Ready. d18's frontier
+follows.
+
+## Frontier, 2026-09-11 (d18, mandate r9)
 
 Dispatch `attended-prep-2026-09-10` d18 (mandate r9). Landed on main:
 [[BPR-0740]] finished (`35438244`): finding 2 settled by instrumentation
