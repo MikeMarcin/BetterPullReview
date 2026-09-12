@@ -596,7 +596,7 @@ Read against the one criterion left:
 
 - The line draws now ([BPR-0725](../60-done/BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md) was accepted in the same round, as were [BPR-0663](../60-done/BPR-0663-public-preview-refuses-the-epoch-smart-acquire.md) and [BPR-0676](../60-done/BPR-0676-the-epoch-line-does-not-show-whether-it-is-working.md)).
 - "A handle on the epoch line changes the comparison" is still unjudged, and for a reason no bundle can fix: the pull request the packet names has one update, so there is one node and nothing for a handle to move to. The next ask names a public pull request with several updates.
-- The finding is placement: the epoch control is the first widget of the centre pane, so its extent follows the drawer widths and the modality (`workbench_window.cpp:775`, `:834`, `:1258-1261`, `central_sizes()` at `:6300`). The owner wants it and the "Comparing …" menu on one full-width row under the strip, above the drawer headings. Carded as [BPR-0737](BPR-0737-the-epoch-line-and-the-comparison-menu-are-one-full-width-row-under-the-strip.md); when it lands, RFC-BPR-0028's chrome paragraph says the line is full width.
+- The finding is placement: the epoch control is the first widget of the centre pane, so its extent follows the drawer widths and the modality (`workbench_window.cpp:775`, `:834`, `:1258-1261`, `central_sizes()` at `:6300`). The owner wants it and the "Comparing …" menu on one full-width row under the strip, above the drawer headings. Carded as [BPR-0737](../60-done/BPR-0737-the-epoch-line-and-the-comparison-menu-are-one-full-width-row-under-the-strip.md); when it lands, RFC-BPR-0028's chrome paragraph says the line is full width.
 
 This card stays parked on human-review for the handle criterion; it is asked again on a bundle carrying BPR-0737, on a pull request with more than one update.
 
@@ -607,7 +607,7 @@ judgeable, the owner named a public pull request with more than one
 update: "https://github.com/NVIDIA/stdexec/pull/1846 looks to have
 multiple updates". The v008 candidate for this card is asked on
 NVIDIA/stdexec#1846, on the bundle that carries
-[BPR-0737](BPR-0737-the-epoch-line-and-the-comparison-menu-are-one-full-width-row-under-the-strip.md).
+[BPR-0737](../60-done/BPR-0737-the-epoch-line-and-the-comparison-menu-are-one-full-width-row-under-the-strip.md).
 
 ## Attended candidate, 2026-09-11 (v008)
 
@@ -627,7 +627,7 @@ Session `cbd48b91…`, revision `app-release-e4fdb0ea-2026-09-11.4` (bundle buil
 
 > epoch handle doesnt move, only shows a single epoch event thought I'm sure there were multiple updates
 
-The capture shows the full-width row [BPR-0737](BPR-0737-the-epoch-line-and-the-comparison-menu-are-one-full-width-row-under-the-strip.md) landed, "Updates" at its left and one node captioned "Sep 11, latest"; the toolbar reads "no changes". With one update both bracket handles collapse onto that node (`epoch_line.cpp:183-189`, `:221-228`) and there is nothing to drag to, so the criterion is unjudged for the third round running.
+The capture shows the full-width row [BPR-0737](../60-done/BPR-0737-the-epoch-line-and-the-comparison-menu-are-one-full-width-row-under-the-strip.md) landed, "Updates" at its left and one node captioned "Sep 11, latest"; the toolbar reads "no changes". With one update both bracket handles collapse onto that node (`epoch_line.cpp:183-189`, `:221-228`) and there is nothing to drag to, so the criterion is unjudged for the third round running.
 
 The reason is not this pull request, and this is the finding that matters:
 a review epoch records *this install's own observation* of the base and head

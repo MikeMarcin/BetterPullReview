@@ -18,7 +18,7 @@ types `https://github.com/octo-org/review-repository/pull/N` into the Home
 open bar, triggers the open action, clicks `homeSetupContinue` when it
 appears, and waits for the session panel to reach `pull_request_ready`;
 the wait times out with "exact public review opens". Reproduced on
-2026-09-11 at 7c044de4 with the [BPR-0737](../40-parked/BPR-0737-the-epoch-line-and-the-comparison-menu-are-one-full-width-row-under-the-strip.md)
+2026-09-11 at 7c044de4 with the [BPR-0737](BPR-0737-the-epoch-line-and-the-comparison-menu-are-one-full-width-row-under-the-strip.md)
 edits stashed, so it is not that slice's. The test last changed at
 ad3abf50 ([BPR-0708](BPR-0708-window-layout-restoration.md));
 the Home open path it drives changed under

@@ -91,4 +91,4 @@ the owner asks for the session. The ask: legibility of the nodes, span and tick 
 ## Attended verdict, 2026-09-11 (v007): accepted
 
 Session `cbd48b91…`, revision `app-release-64d9e46a-2026-09-11.3` (bundle built at 2cdc0e57, executable sha256 `64d9e46a…`), actor human; the session was handed back at sequence 322 with all ten candidates decided. Candidate `BPR-0676-epoch-line-legibility`, decision `19d21ed6`, 23:43:36Z: **accept**.
-Accepted without a note. The packet's side question (should the line also say whether the pair is the default or a choice) drew no answer; nothing is carded for it. The owner's placement finding on the same line is BPR-0646's rejection and is carded as [BPR-0737](../40-parked/BPR-0737-the-epoch-line-and-the-comparison-menu-are-one-full-width-row-under-the-strip.md). Done.
+Accepted without a note. The packet's side question (should the line also say whether the pair is the default or a choice) drew no answer; nothing is carded for it. The owner's placement finding on the same line is BPR-0646's rejection and is carded as [BPR-0737](BPR-0737-the-epoch-line-and-the-comparison-menu-are-one-full-width-row-under-the-strip.md). Done.

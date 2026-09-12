@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0737"
 title: "The epoch line and the comparison menu are one full-width row under the strip"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"owner_direction":"2026-09-11","attended_session":"cbd48b91000b00f1e72e1ad62c7c384c","attended_decision":"8409ad43-a2a6-49e5-88c9-4317f141ebe1"}
-parked_on: "human-review"
-acceptance: [{"criterion":"qt_workbench_window_scale_{100,125,200} pin that the epoch control's x-extent equals the window's client width in Overview, Read, Review and Discuss and does not move when a drawer is toggled or resized","outcome":"pass","revision":"4ebb0009","evidence":{"kind":"command","detail":"test_the_epoch_row_spans_the_window_in_every_modality: the row's window rectangle equals the client area's left, top and width, sits above the splitter, and is identical through the four modalities, both drawers opened and collapsed, and a 120-pixel drawer resize; passes at the three scales at 4ebb0009."}},{"criterion":"qt_composed_github_scale_100, application_composition_contract and the UIforETW contract pass with any digest repinned","outcome":"pass","revision":"4ebb0009","evidence":{"kind":"command","detail":"11 of 11: qt_workbench_window_scale_{100,125,200}, qt_epoch_comparison_scale_{100,125,200}, qt_composed_github_scale_100, application_uiforetw_selected_diff_contract, application_composition_contract, architecture boundaries at 4ebb0009; github_application.cpp unchanged by this slice, no digest moved."}},{"criterion":"The owner sees the line hold its place across the four modalities on the signed bundle in an attended session, on a public pull request with more than one update","outcome":"pending","revision":"4ebb0009","evidence":{"kind":"observation","detail":"Asked in the v008 packet on NVIDIA/stdexec#1846 (owner's answer, mandate r9)."}}]
+acceptance: [{"criterion":"qt_workbench_window_scale_{100,125,200} pin that the epoch control's x-extent equals the window's client width in Overview, Read, Review and Discuss and does not move when a drawer is toggled or resized","outcome":"pass","revision":"4ebb0009","evidence":{"kind":"command","detail":"test_the_epoch_row_spans_the_window_in_every_modality: the row's window rectangle equals the client area's left, top and width, sits above the splitter, and is identical through the four modalities, both drawers opened and collapsed, and a 120-pixel drawer resize; passes at the three scales at 4ebb0009."}},{"criterion":"qt_composed_github_scale_100, application_composition_contract and the UIforETW contract pass with any digest repinned","outcome":"pass","revision":"4ebb0009","evidence":{"kind":"command","detail":"11 of 11: qt_workbench_window_scale_{100,125,200}, qt_epoch_comparison_scale_{100,125,200}, qt_composed_github_scale_100, application_uiforetw_selected_diff_contract, application_composition_contract, architecture boundaries at 4ebb0009; github_application.cpp unchanged by this slice, no digest moved."}},{"criterion":"The owner sees the line hold its place across the four modalities on the signed bundle in an attended session, on a public pull request with more than one update","outcome":"pass","revision":"35438244","evidence":{"kind":"observation","detail":"Attended session cbd48b91000b00f1e72e1ad62c7c384c, candidate BPR-0737-epoch-row, revision app-release-e4fdb0ea-2026-09-11.4 (bundle built at 35438244, executable sha256 e4fdb0ea8e250f42da2bfa3a61c501fbdbb6ffd6d92d929912f6b25b44b2757f), fingerprint 85bf31e19884fae76278548ab576187170631e3f45e474f018128d417e7101f9, decision 34c79345-1d3a-4db6-811b-340869d3e7b7, actor human, 2026-09-12T04:33:10Z, no note, no attachment: accept. The candidate's criterion as reviewed was the row's placement and that it holds through the four modalities and every drawer gesture, which is the v007 BPR-0646 finding closed. Limitation, recorded: the bundle showed one update on NVIDIA/stdexec#1846 because a first open yields one epoch (BPR-0743), so the 'more than one update' clause of this criterion's wording was not met; that clause was preparation for BPR-0646's handle criterion and does not bear on where the row sits. The owner's three captures in this round show the row spanning the client width above both panes and the drawer."}}]
 ---
 
 # The epoch line and the comparison menu are one full-width row under the strip
@@ -126,3 +125,33 @@ on the bundle built from the source at 35438244 (executable sha256
 `app-release-e4fdb0ea-2026-09-11.4`; prepared and protected at sequence
 341, undecided, no host running until the owner says so. The pull request
 is NVIDIA/stdexec#1846, the owner's answer of mandate r9.
+
+## Attended verdict, 2026-09-11 (v008): accepted
+
+Session `cbd48b91…`, revision `app-release-e4fdb0ea-2026-09-11.4` (bundle
+built at 35438244, executable sha256 `e4fdb0ea…`), actor human; handed back
+at sequence 348 with all six candidates decided. Candidate
+`BPR-0737-epoch-row`, decision `34c79345`, 2026-09-12T04:33:10Z, no note and
+no attachment: **accept**.
+
+The candidate's criterion, as reviewed: "The epoch line and the Comparing
+menu are one row the full width of the window directly under the strip, above
+the drawers, and hold their place through Overview, Read, Review and Discuss
+and through opening, collapsing and resizing either drawer." That is the
+v007 finding on [BPR-0646](../40-parked/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md)
+closed: the row now belongs to the review surface above the splitter, not to
+the centre pane.
+
+One limitation, recorded rather than glossed. This card's AC3 says "on a
+public pull request with more than one update"; the bundle showed one update
+on NVIDIA/stdexec#1846, because a first open yields one epoch
+([BPR-0743](../10-backlog/BPR-0743-the-epoch-line-shows-only-the-updates-this-install-has-observed.md)).
+The multi-update condition was preparation for BPR-0646's handle criterion
+and carries no weight here: what this criterion observes is where the row
+sits and whether it holds through the four modalities and the drawer
+gestures, which the owner exercised and accepted. The owner's own three
+captures in this round, taken in Read on that pull request, show the row
+spanning the client width above both panes and the drawer.
+
+RFC-BPR-0028's chrome paragraph already carries the amendment this card
+made. AC-01 stays BPR-0646's.
