@@ -170,7 +170,7 @@ Open questions 1 (block order) and 2 (where the choice lives) are
 They are carried into the next round's ask unchanged.
 
 The state is redrawn over the link map under
-[BPR-0745](../30-in-progress/BPR-0745-the-one-pane-read-state-is-redrawn-over-the-link-map.md).
+[BPR-0745](BPR-0745-the-one-pane-read-state-is-redrawn-over-the-link-map.md).
 This card stays parked on human-review; its first criterion is asked again
 from the redrawn state, and its second — BPR-0729 rewritten from an accepted
 state — stays pending behind it.
