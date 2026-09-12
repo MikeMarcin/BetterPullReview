@@ -641,7 +641,7 @@ verdict. v007 read the same symptom as "this pull request has one update" and
 v008 re-asked on one the owner believed had several; both asks rested on an
 assumption the product does not support.
 
-Carded as [BPR-0743](../20-ready/BPR-0743-the-epoch-line-shows-only-the-updates-this-install-has-observed.md),
+Carded as [BPR-0743](../30-in-progress/BPR-0743-the-epoch-line-shows-only-the-updates-this-install-has-observed.md),
 which holds the owner's decision: import a pull request's earlier updates on
 first open, or keep the epoch line a record of what this install has observed
 and reword this criterion to match. This card stays parked on human-review;
