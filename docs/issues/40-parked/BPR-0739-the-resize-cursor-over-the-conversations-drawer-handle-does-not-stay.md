@@ -223,3 +223,80 @@ so asking whether the cursor stays would be asking the owner to confirm a
 failure already recorded. What is asked instead, as the separate candidate
 `BPR-0746-cursor-probe`, is the logging run that [[BPR-0746]] needs; AC3 comes
 back on a bundle carrying whatever that log leads to.
+
+## Attended verdict, 2026-09-12 (v009): the highlight is dropped
+
+The owner, deciding `BPR-0739-seam-hover` (revision
+`app-release-c2381f32-2026-09-12.5`, fingerprint `47644531…` equal to the
+prepared candidate's in
+[session-identity.json](../../verification/reviews/rfc-bpr-0028-attended-v009/session-identity.json),
+decision `9298ad8d-c3a2-4b4d-b58e-ba18a3daa3f5`, actor human,
+2026-09-12T16:05:46Z), selected:
+
+> Drop it: draw the rule at one constant weight, as the asset does
+
+with the note:
+
+> We don't need it anymore now that the cursor is fixed, it wasn't drawn in
+> the right location anyways.
+
+He decided it with the bundle open: the v009 image was launched at 16:03:30Z
+and quit at 16:06:34Z (`~/Library/Application Support/BetterPullReview/`
+`BetterPullReview/logs/diagnostics.log`, `op=application`), so this is a
+judgement of the two states on screen and not of a remembered one.
+
+The open question this card carried since v008 — "Whether the highlight state
+should go is unanswered" — is **answered and closed**.
+`workbench_splitter_handle::paintEvent` now takes `QPalette::Mid`
+unconditionally (`src/adapters/qt/src/workbench_window.cpp:6303-6312`), the
+class doc comment records the verdict verbatim, and
+`test_the_split_cursor_stays_over_a_resting_handle` pins the constant weight
+where it used to pin the brightening: the handle under the pointer must draw
+`Mid` and must **not** draw `Highlight`. That assertion is red against the
+previous paint code by construction, since the assertion it replaces asserted
+the opposite of its second half and passed.
+
+### The note's two claims, kept apart from the verdict
+
+**"it wasn't drawn in the right location"** is about the rule, and it is a fair
+reading of the drawing. `rule_edge()` puts the line in the handle's boundary
+column — `0` for the files handle, `width() - 1` for the conversations handle
+(`workbench_window.cpp:6292-6301`) — so the visible cue is at the extreme edge
+of a hot zone that `qt_workbench_window` measures at four logical pixels on the
+offscreen style, not down its middle. Aiming at the line puts the pointer on the
+boundary. That is a real observation about the shape and it survives the
+highlight being dropped; it belongs to AC3 and to [[BPR-0746]], where the hot
+zone is still the open question.
+
+**"now that the cursor is fixed"** is not a verdict on AC3. AC3 was
+deliberately not asked in v009 and the packet told him in as many words that
+cursor delivery was unchanged, so this is an unsolicited remark on a criterion
+that was not in front of him, bound to a candidate that asked something else.
+Reading it as an acceptance would be synthesising a verdict. **AC3 stays
+`fail`.** What the remark is worth, and how it can be true at the same time as
+the v008 rejection, is reconciled on [[BPR-0746]].
+
+### One thing that was measured rather than argued
+
+`test_the_split_cursor_stays_over_a_resting_handle` now also records what the
+seam's paint can witness, because [[BPR-0746]]'s diagnosis depends on it:
+`Qt::WA_Hover` is set on the handle, the pointer's arrival costs one repaint
+and its departure another, and `underMouse()` follows both. So a rule painted
+from `underMouse()` was a faithful witness of where the pointer was when it was
+drawn, and the v008 screenshot does place the pointer on the handle. This was
+previously inferred from reading `libqcocoa`'s symbols; it is now a measurement
+at three scales. Read only at whole-number scales, like the rest of the
+pointer sequence in that test.
+
+### Gates at this revision
+
+`qt_workbench_window_scale_{100,125,200}`, `qt_composed_github_scale_100` and
+`architecture_boundaries` pass, 5 of 5 (`build/logs/bpr-0739-d22-run-3.log`,
+`bpr-0739-d22-run-4.log`). `clang-tidy
+--warnings-as-errors` is clean on both touched translation units
+(`build/logs/bpr-0739-d22-tidy-*.log`). `coding-format-check` is red at HEAD
+for three files this card does not touch —
+`src/adapters/qt/include/bpr/qt/workbench_drawer.hpp`,
+`src/application/include/bpr/application/diff_runtime_ports.hpp`,
+`src/application/src/diff_application_host.cpp` — and the three files this card
+does touch are not in its list.

@@ -251,3 +251,27 @@ acceptance requires. No bundle is involved: it is a design page. The ask carries
 the state, the reworded Modalities amendment, the unchanged AC-05, and the two
 consequences the owner may want to refuse — Review taking one pane too, and the
 whole-file overview being gone.
+
+## Attended verdict, 2026-09-12 (v009): accepted
+
+The redrawn state, the reworded Modalities amendment and the unchanged AC-05
+are accepted. The owner accepted `BPR-0734-read-one-pane` (revision
+`design-v7-2026-09-12`, fingerprint `1f5c6ab4…` equal to the prepared
+candidate's, decision `31462e78-51ea-4ef5-ba85-231a18098b68`, actor human,
+2026-09-12T16:03:03Z), note empty. The full reading of that empty note, and
+what the page did and did not draw, is on [[BPR-0734]] and is not repeated
+here.
+
+This card's second criterion is satisfied by that decision, and its third — the
+[[BPR-0729]] rewrite — is done, on BPR-0734 where it lives and by the same
+commit. The reworded Modalities amendment above is now RFC-BPR-0028's
+Modalities text (one punctuation change at the join, no word of the accepted
+text altered) and BPR-0734's AC-05 text is now RFC-BPR-0028's AC-05.
+
+Two of this card's own statements are worth marking as confirmed rather than
+assumed, now that they have been checked against the page: the whole-file
+overview is gone from v7 as an absence with no caption announcing it, and the
+"one ribbon rather than two" case for an empty side exists in the prose at
+`v7:565` but is not drawn, because both changes on the page are two-sided
+replacements. Both are recorded on [[BPR-0729]] as work rather than as settled
+drawings.

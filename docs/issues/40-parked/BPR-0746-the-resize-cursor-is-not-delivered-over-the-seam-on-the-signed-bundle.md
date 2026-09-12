@@ -124,9 +124,11 @@ seconds, then move off, and read the sequence:
   rather than this window's, say so and bring the scope back before writing
   a workaround: the handle alone may not be where the fix belongs.
 - The seam itself is accepted work and stays: the owner's "at least it draws
-  the seam now" is the one thing that improved. Whether the `Highlight`
-  hover state survives is still the open question BPR-0739 asked and the
-  owner has not answered.
+  the seam now" is the one thing that improved. The `Highlight` hover state
+  did not survive — the owner dropped it in v009 (below) — so the rule is one
+  constant `Mid` weight and the seam no longer announces the hot zone at all.
+  That makes the hot zone's width and the rule's boundary column part of this
+  card's problem rather than a separate cosmetic question.
 - Owned paths: `src/adapters/qt/src/workbench_window.cpp` (the splitter and
   handle at `:6270-6312`),
   `src/adapters/qt/include/bpr/qt/workbench_window.hpp:199-208`,
@@ -237,3 +239,126 @@ aff9fc64 (executable sha256 `c2381f32…`, tests disabled, codesign clean),
 candidate revision `app-release-c2381f32-2026-09-12.5`; prepared and protected
 at sequence 357, undecided, no host running until the owner says so. Accepting
 it means the probe was run; the evidence is the log, not the verdict.
+
+## Attended verdict, 2026-09-12 (v009): accepted, and the log does not exist
+
+The owner accepted `BPR-0746-cursor-probe` (revision
+`app-release-c2381f32-2026-09-12.5`, fingerprint `8e91c0e8…` equal to the
+prepared candidate's, decision `3e06fb9d-e8d8-4abd-901e-b5dab8cc4d1c`, actor
+human, 2026-09-12T16:13:53Z), note in full:
+
+> The pointer stuff works correctly. Dunno about the test you had me run.
+
+The candidate's criterion was "the bundle is run from a terminal with the
+logging line, the pointer rests on the seam for about three seconds and moves
+off, and `build/logs/bpr-0746-cursor-probe.log` exists". **The objective half of
+that criterion is not satisfied and the card does not close on this accept.**
+
+### Why there is no log, established on the live processes
+
+He ran the probe. The process was still up when this was written: pid 72017,
+the bundle's own executable, started 2026-09-12T16:06:37Z from `ttys001` under
+Ghostty, with pid 72018 `tee build/logs/bpr-0746-cursor-probe.log` on the other
+end of its pipe. But `lsof` on 72018 shows its working directory as
+`/Users/jaeger/Documents/GitHub` — one level above the repository — and its
+only open descriptors as fd 0 on the pipe and fds 1 and 2 on the tty. **There
+is no output file.** `/Users/jaeger/Documents/GitHub/build/logs` does not
+exist, so `tee` failed to create the file and passed its input through to the
+terminal alone. No `bpr-0746-cursor-probe.log` exists anywhere on disk. The
+output survives only in that terminal's scrollback.
+
+This is a defect in the packet, not in anything he did. The copy button was
+labelled "The cursor probe: run this in a terminal, in the repository" and the
+value it copied used an **absolute** path to the executable and a **relative**
+path for `tee`. A label is not a working directory. His own note, "Dunno about
+the test you had me run", is what a run that printed to a terminal and wrote
+nothing looks like from his side.
+
+The command, corrected, with no relative path anywhere in it:
+
+    QT_LOGGING_RULES='qt.qpa.input.mouse*=true' \
+      /Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release/src/app/BetterPullReview.app/Contents/MacOS/BetterPullReview \
+      2>&1 | tee /Users/jaeger/Documents/GitHub/BetterPullReview/build/logs/bpr-0746-cursor-probe.log
+
+Any packet that asks for a file on disk asks for it by absolute path, and its
+criterion is the file, not the click.
+
+## Reconciling "the pointer stuff works correctly" with this card
+
+He says the pointer works. This card exists because it does not, and he
+rejected the same seam eight hours earlier. Both statements are his, both are
+first-hand, and neither is being discarded.
+
+**It is not the binary.** The v008 bundle was built at `35438244` and the v009
+bundle at `aff9fc64`. `git diff --stat 35438244 aff9fc64 -- src tests` is six
+files: `appearance_profile.cpp`, `packaged_syntax_classifier.{hpp,cpp}` and
+three test or fixture files — all of it [[BPR-0744]]. Nothing in that range
+touches the splitter, the handle, cursors, event handling or the window chrome;
+`git diff 35438244 aff9fc64 -- src/adapters/qt` contains no line matching
+cursor, splitter, handle, `underMouse` or `paintEvent`. The executable he ran
+is `c2381f32…`, recomputed on disk and equal to the prepared candidate's. On
+this path the two bundles are the same program.
+
+**It is not stale paint either, and that was measured rather than assumed.**
+The obvious escape — that the lit rule in his v008 screenshot was left over
+from an earlier repaint, so it never proved the pointer was on the handle — is
+**false**. `test_the_split_cursor_stays_over_a_resting_handle` now measures it:
+`Qt::WA_Hover` is set on the handle, the pointer's arrival costs one repaint and
+its departure another, and `underMouse()` follows both, at scale 100 and 200.
+So the highlight tracked the pointer, the screenshot does place his pointer on
+the handle, and **this card's refutation of BPR-0739's cause 3 keeps its
+foundation.** That check is in the test suite precisely so the foundation
+cannot rot unnoticed: if it ever goes red, the v008 reading stops being
+evidence and this diagnosis reopens.
+
+**What is left is the gesture, and it fits hypothesis 1 exactly.** The two
+reports describe two different things being done with the pointer:
+
+- v007, [[BPR-0728]]: "the mouse cursor for the horizontal resize flickers only
+  for a brief moment and the returns back to the normal cursor". A pointer that
+  arrives and then **rests**.
+- v008, BPR-0739: he put the pointer on the line and photographed it. A pointer
+  that **rests**. Arrow.
+- v009, `BPR-0739-seam-hover`: the candidate's own instruction was "Open the
+  build, go to Read, and move the pointer **on and off** that rule to see both
+  states. Then pick." A pointer that keeps **re-entering**. Works.
+
+Hypothesis 1 on this card predicts precisely that: Qt sets the cursor once on
+enter, AppKit reverts it on the next real motion, and Qt never re-asserts
+because from its side nothing changed. Under that hypothesis every fresh entry
+shows the resize cursor and every rest decays to the arrow — which is the
+flicker he reported in v007, the arrow he photographed in v008, and the working
+cursor he felt in v009, with no code change between any of them. The timing
+supports it: he judged the hover question at 16:05:46Z, two minutes into a
+session spent moving the pointer on and off the rule on purpose.
+
+**This is an account, not a diagnosis, and it is not being recorded as one.**
+It is consistent with every observation and it is what the missing log was
+written to discriminate — the log's first reading is "`Setting … cursor to
+<… resizeLeftRight>` followed by `Synthesizing cursor update`, then nothing
+further while the on-screen cursor is an arrow: hypothesis 1". Hypotheses 2 and
+3 are not excluded by any of this. Nothing is implemented on the strength of it.
+
+### Consequences, stated plainly
+
+- This card stays **Parked on human-review**. Its criteria are unchanged: the
+  discriminating check has still not been run to a readable result, and no
+  product source has been changed on this path.
+- The accept is recorded against the candidate it was given for, and it is
+  recorded as **not satisfying the candidate's own criterion**. It is not
+  reworded to fit what happened.
+- [[BPR-0739]]'s AC3 stays `fail`. It was not asked in v009, and an
+  unsolicited remark about a resting-pointer criterion made while deliberately
+  not resting the pointer is not a verdict on it.
+- The exact remaining ask is one of two things, and the owner chooses which:
+  either the terminal that is still open is saved to
+  `/Users/jaeger/Documents/GitHub/BetterPullReview/build/logs/bpr-0746-cursor-probe.log`,
+  or the corrected command above is run once more with the gesture the card
+  asks for — **pointer onto the seam, then held still with only slight motion
+  for about three seconds**, then off, then quit. The gesture is the variable
+  under test, and resting is the half of it that fails.
+- One number worth carrying: `qt_workbench_window` reports `handleWidth=4` on
+  the offscreen style, against the "seven pixels" this card and [[BPR-0739]]
+  both quote from the platform default. Four logical pixels with the rule in
+  the boundary column is the owner's "it wasn't drawn in the right location".
+  The macOS style's own value is still unmeasured.

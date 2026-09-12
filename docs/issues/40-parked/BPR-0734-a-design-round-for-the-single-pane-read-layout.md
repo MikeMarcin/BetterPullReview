@@ -214,3 +214,73 @@ rather than from a new candidate replacing it; prepared and protected at
 sequence 357, undecided, no host running until the owner says so. The v008
 rejection stays recorded against its own revision, and v6 stays where it is as
 the round it belonged to.
+
+## Attended verdict, 2026-09-12 (v009): accepted
+
+The owner accepted `BPR-0734-read-one-pane` (revision `design-v7-2026-09-12`,
+fingerprint `1f5c6ab4133593592701203351699f493645590401a981a314f97ed5f4938f05`
+equal to the prepared candidate's in
+[session-identity.json](../../verification/reviews/rfc-bpr-0028-attended-v009/session-identity.json),
+decision `31462e78-51ea-4ef5-ba85-231a18098b68`, actor human,
+2026-09-12T16:03:03Z), **note empty**.
+
+An empty-note accept answers no question. What it accepts is the candidate's
+four criteria as written, and two of those criteria named a consequence and
+asked him to refuse it if it was wrong:
+
+1. "The gutter is the link map at its limit: each change's struck and added
+   rows converge on a spine, and a change with an empty side draws one ribbon
+   rather than two"
+2. "One pane is a View item like Line numbers, so it is per window with no
+   modality of its own and checking it gives Review one pane too; **say if
+   Review should stay two-pane**"
+3. "The whole-file overview v6 drew in that gutter is gone, because the
+   two-pane state has none; **say if you want one back as its own element**"
+4. "The reworded Modalities amendment, and AC-05 unchanged"
+
+Neither refusal came. **Review shows one pane too while One pane is checked**,
+and the one-pane gutter carries **no whole-file overview**. Those stand.
+
+### Accepted as shown, and accepted as written: the difference
+
+The mandate for this round was to treat the two consequences as accepted only
+so far as the candidate actually showed them. It did not show them, and that is
+recorded rather than glossed:
+
+- **Drawn on the page**, so accepted as shown: the spine, two wedges converging
+  on a short vertical rule, blue for the current change and `--ink-3` otherwise
+  (v7 `:497-508`); the View menu with `Line numbers` and `One pane` both
+  checked, with its caption (`:559-564`); unified block order with the `base`
+  and `head` number columns (`:502-525`).
+- **Written, never drawn**: "Review takes one pane too". v7 has four `<h2>`
+  states and **none of them is Review** (`:296`, `:365`, `:466`, `:567`); the
+  drawn window is in Read (`:474`); and the page's own prose at `:565` presents
+  the Review reading as an ask with the alternative named — "the other reading
+  — Read only, Review always two panes — is offered with the ask". He accepted
+  a sentence, not a picture.
+- **Written, never drawn**: the empty side drawing one ribbon. Both changes on
+  the page are two-sided replacements (`:504-507`), so neither a pure insertion
+  nor a pure deletion is depicted.
+- **An absence, not a removal**: the whole-file overview is simply not in v7.
+  Nothing on the page is captioned as having lost it.
+
+[[BPR-0729]]'s rewritten scope carries all three as work that still needs
+drawing or an ask when it is built, not as settled pictures.
+
+### What landed on the strength of this accept
+
+- **RFC-BPR-0028's Modalities paragraph** now carries the reworded amendment
+  verbatim from [[BPR-0745]], with one punctuation change: the clause it
+  follows ended "and keeps comments beside the code;" and the semicolon is now
+  a full stop, because the inserted text is four sentences and cannot sit
+  inside a semicolon list. No word of the accepted text was altered.
+- **RFC-BPR-0028's AC-05** is replaced whole by the amendment text proposed on
+  this card and accepted unchanged with the state.
+- **[[BPR-0729]]'s scope and acceptance** are rewritten from the accepted
+  state, which is this card's second criterion. Its "to be fixed by the design
+  round" placeholders are gone, four sentences of its original prose that the
+  accepted state falsified are corrected by name rather than quietly edited,
+  and one constraint found during that rewrite is recorded there: a new boolean
+  reaches `window_layout` only if it is placed before `,open_modality`, because
+  `window_table()` truncates at that literal
+  (`src/adapters/sqlite/src/workbench_settings_database.cpp:93-101`).

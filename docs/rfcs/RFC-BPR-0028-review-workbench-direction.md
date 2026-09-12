@@ -90,7 +90,16 @@ upload, since my last review) remain in a dropdown at the line's right.
 drawers are open, chosen from the strip or ⌘1 to ⌘4, and they stay until
 changed. Read collapses the files and repositories drawers ([[BPR-0724]],
 owner direction 2026-09-11: the code lacked horizontal room) and keeps
-comments beside the code;
+comments beside the code. Read presents the comparison in one of two ways: two
+whole-document panes over the link map, or one document in reading order with
+the other side's lines kept in place and struck through on their theme field.
+The link map is the same map in both: with one column it has no second pane to
+cross to, so it joins the two halves of each change — the struck rows and the
+added rows — at a spine in the gutter at the left, and a change with an empty
+side draws one ribbon rather than two. The presentation is a View item beside
+Line numbers, remembered per window and seeded for a new window from the
+profile default, and it changes nothing about which lines the comparison
+contains ([[BPR-0729]], owner direction 2026-09-11 and 2026-09-12).
 Review opens the files drawer too; Discuss widens the conversation over the
 code. Overview keeps every drawer collapsed: a drawer opened by hand while
 Overview is the modality is refused by the core with a stated reason, the
@@ -216,7 +225,12 @@ design rounds.
   the host already publishes, plus participants and the since-my-last-review
   summary, and Continue review lands on the first unseen change.
 - AC-05 Read shows this file's threads aligned to their lines with unread state
-  and drafts; Discuss shows the list, map and feed with the listed filters.
+  and drafts, in both presentations; in one pane a thread names a side and a
+  line and sits against the row carrying that identity, so a thread on a
+  removed line sits against its struck row and a thread on an added line
+  against the added row, and threads that would collide keep document order and
+  are pushed down with their leader still on the anchored row; Discuss shows the
+  list, map and feed with the listed filters.
 - AC-06 Home is the whole centre while nothing is open, with none of the
   review chrome, and the strip then shows only Home, account and settings;
   a Home button (⌘0) at the strip's left returns to Home from any review
@@ -557,13 +571,50 @@ The session lives in
 [rfc-bpr-0028-attended-v009](../verification/reviews/rfc-bpr-0028-attended-v009/operator-packet.md),
 prepared and protected at sequence 357 on the tests-disabled signed bundle built
 from source `aff9fc64` (executable sha256 `c2381f32…`, `codesign --verify --deep
---strict` clean). Four candidates, undecided, no host running:
-`BPR-0744-directive-ranges` (carrying the one criterion RFC-BPR-0006's
-[[BPR-0720]] and [[BPR-0738]] both hold, as one ask rather than two),
-`BPR-0734-read-one-pane` on
+--strict` clean). Four candidates: `BPR-0744-directive-ranges` (carrying the one
+criterion RFC-BPR-0006's [[BPR-0720]] and [[BPR-0738]] both hold, as one ask
+rather than two), `BPR-0734-read-one-pane` on
 [direction v7](../design/RFC-BPR-0028-workbench-direction-v7.html#read-one-pane),
 `BPR-0739-seam-hover`, and `BPR-0746-cursor-probe`, which is a logging run
 rather than a judgement.
+
+The owner decided all four and handed back at `2026-09-12T16:13:55Z`, sequence
+362, nothing pending. Every decision is `actor: human` and carries a fingerprint
+equal to its prepared candidate's in
+[session-identity.json](../verification/reviews/rfc-bpr-0028-attended-v009/session-identity.json),
+so none is stale and each is bound to exactly what was shown.
+
+- `BPR-0734-read-one-pane`, revision `design-v7-2026-09-12`, decision
+  `31462e78`, 16:03:03Z: **accept**, note empty. **The one-pane state is
+  accepted**, and with it the reworded Modalities amendment and the AC-05
+  amendment, which are landed in this document's Modalities paragraph and AC-05
+  above. An empty-note accept answers no question, so it accepts the
+  candidate's four criteria as written, and the two consequences those criteria
+  offered for refusal stand unrefused: **Review shows one pane too while One
+  pane is checked**, and the one-pane gutter carries **no whole-file overview**.
+  Both were accepted in words and neither is drawn on v7, which has no Review
+  mock at all and draws no change with an empty side; that limit is recorded on
+  [[BPR-0729]] as work rather than as a settled picture.
+- `BPR-0739-seam-hover`, decision `9298ad8d`, 16:05:46Z: **select**, "Drop it:
+  draw the rule at one constant weight, as the asset does", note "We don't need
+  it anymore now that the cursor is fixed, it wasn't drawn in the right
+  location anyways." The central splitter handle now paints its rule in `Mid`
+  whatever the pointer does. The question [[BPR-0739]] left open is closed;
+  **AC-03's seam criterion is not**, and the note's claim about the cursor is
+  reconciled on [[BPR-0746]] rather than read as a verdict on a criterion the
+  packet told him was not being asked.
+- `BPR-0744-directive-ranges`, decision `4f1d1354`, 16:06:15Z: **accept**, note
+  empty, against the bundle he had open from 16:03:30Z. The criterion
+  [[BPR-0720]] and [[BPR-0738]] both carried since v005 is satisfied. The
+  costed question that rode the candidate — whether every identifier inside
+  `#if`, `#ifdef`, `#ifndef`, `#elif`, `#undef` and `defined()` should take the
+  macro purple rather than only ALL_CAPS ones — is **not** answered by an
+  accept of the implemented behaviour and is carried to [[BPR-0748]].
+- `BPR-0746-cursor-probe`, decision `3e06fb9d`, 16:13:53Z: **accept**, note "The
+  pointer stuff works correctly. Dunno about the test you had me run." The
+  candidate's criterion required `build/logs/bpr-0746-cursor-probe.log` to
+  exist. **It does not**, and the accept therefore does not close the card; see
+  [[BPR-0746]] for why the log was lost and how the note is reconciled.
 
 [[BPR-0646]] is not in it. AC-02's attended criterion stands as written and
 returns when [[BPR-0743]] makes the epoch line carry the pull request's own

@@ -2114,9 +2114,11 @@ namespace {
 		expect(fractional || handle_under_resting_pointer(window, 2, "files handle"),
 			   "the files handle behaves the same under a resting pointer");
 
-		// The seam is visible: the handle draws the drawer's edge rule, and the
-		// rule takes the highlight colour while the pointer is over it, so the
-		// reviewer sees the hot zone before the cursor changes.
+		// The seam is visible: the handle draws the drawer's edge rule at one
+		// constant weight, the weight the accepted asset draws it at, whether
+		// or not the pointer is over it. [[BPR-0739]], the owner in the v009
+		// attended session: "Drop it: draw the rule at one constant weight, as
+		// the asset does".
 		const auto ruleShows = [](QSplitterHandle* const aHandle, const QRgb aColour) {
 			auto* const own  = dynamic_cast<qt::workbench_splitter_handle*>(aHandle);
 			const auto  edge = own != nullptr ? own->rule_edge() : -1;
@@ -2142,8 +2144,10 @@ namespace {
 		const auto  mid       = palette.color(QPalette::Active, QPalette::Mid).rgb();
 		const auto  highlight = palette.color(QPalette::Active, QPalette::Highlight).rgb();
 		const auto  windowBg  = palette.color(QPalette::Active, QPalette::Window).rgb();
-		expect(ruleShows(splitter->handle(2), highlight),
-			   "the handle under the pointer draws its rule in the highlight colour");
+		expect(ruleShows(splitter->handle(2), mid)
+				   && !ruleShows(splitter->handle(2), highlight),
+			   "the handle under the pointer draws its rule at the same constant "
+			   "weight as one the pointer has left, never the highlight colour");
 		expect(ruleShows(handle, mid) && mid != windowBg,
 			   "a handle the pointer is not over draws the drawer's edge rule, "
 			   "distinct from the window colour");
@@ -2152,6 +2156,71 @@ namespace {
 					   == handle->width() - 1,
 			   "a left drawer's rule is at its handle's left edge and the conversations "
 			   "drawer's at its handle's right edge, where the drawers' edges are");
+
+		// [[BPR-0746]]. Whether the seam's paint can witness where the pointer
+		// is, measured here rather than reasoned from Qt's sources, which are
+		// not on disk. BPR-0746 admits the owner's v008 screenshot — a lit rule
+		// with an arrow cursor — as proof that the handle held Qt's pointer
+		// state while the effective cursor was still the arrow, and refutes the
+		// hit-zone cause on that reading. That reading is admissible only if the
+		// pointer's arrival and departure actually repaint the handle, since a
+		// pen that reads underMouse() otherwise keeps whatever state the last
+		// unrelated repaint recorded. They do repaint it: Qt::WA_Hover is set on
+		// the handle, arrival and departure each cost one paint, and
+		// underMouse() follows them. So a lit rule places the pointer on the
+		// handle at the moment the rule was drawn, and BPR-0746's diagnosis
+		// keeps its foundation. If this ever goes red the screenshot stops being
+		// evidence of pointer position and that diagnosis has to be reopened.
+		// Read only at whole-number scales, for the same reason the
+		// resting-pointer sequence above is.
+		struct paint_counter final : QObject
+		{
+			int Painted = 0;
+
+			auto eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool override
+			{
+				if (aEvent != nullptr && aEvent->type() == QEvent::Paint) {
+					++Painted;
+				}
+				return QObject::eventFilter(aWatched, aEvent);
+			}
+		};
+		auto counter = paint_counter{ };
+		handle->installEventFilter(&counter);
+		// The pointer is on the files handle, away from this one.
+		process_events();
+		const auto settled = counter.Painted;
+		process_events();
+		const auto idle = counter.Painted;
+		// It arrives.
+		rest();
+		const auto arrived    = counter.Painted;
+		const auto heldOnRest = handle->underMouse();
+		// And it leaves, onto the conversations drawer this handle borders —
+		// one widget over, which is where a pointer aimed at the rule lands
+		// when it misses, the rule being drawn in the handle's boundary column.
+		auto* const drawer = window.conversations_drawer();
+		restOn(splitter->handle(2));
+		const auto left      = counter.Painted;
+		const auto heldAfter = handle->underMouse();
+		handle->removeEventFilter(&counter);
+		std::cout << "seam repaint on pointer movement: WA_Hover="
+				  << handle->testAttribute(Qt::WA_Hover) << " settled=" << settled
+				  << " idle=" << idle << " on arrival=" << arrived << " on departure="
+				  << left << "; underMouse on arrival=" << heldOnRest << " after departure="
+				  << heldAfter << "; handleWidth=" << splitter->handleWidth()
+				  << " rule column=" << dynamic_cast<qt::workbench_splitter_handle*>(handle)->rule_edge()
+				  << " drawer x=" << (drawer != nullptr ? drawer->geometry().x() : -1) << "\n";
+		expect(idle == settled,
+			   "an idle event loop does not repaint the seam, so a repaint counted "
+			   "below is the pointer's doing and nothing else");
+		expect(fractional
+				   || (handle->testAttribute(Qt::WA_Hover) && arrived > idle && left > arrived
+					   && heldOnRest && !heldAfter),
+			   "the seam is repainted when the pointer arrives on it and again when the "
+			   "pointer leaves, so a rule drawn from the pointer's state witnesses where "
+			   "the pointer was when it was drawn");
+
 		window.hide();
 	}
 

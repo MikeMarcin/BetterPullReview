@@ -40,6 +40,12 @@ network, or process effects.
 - Allocate issue IDs with `python3 scripts/allocate_issue_id.py`; commit returned counter and receipt paths.
 - Cards use `implement-rfc.card.v1`; platform eligibility is metadata.
 - Shared attended-review and wizard support partial sessions and local HTML.
+- An attended candidate that asks for a file on disk names every path in its
+  command absolutely. A copy label saying "in the repository" is not a working
+  directory: BPR-0746's v009 probe was run from one directory above the
+  checkout, so its relative `tee` opened nothing and the log was lost.
+- Ask one question per candidate criterion. A question riding a criterion about
+  something else comes back unanswered (BPR-0744 v008 and v009).
 - Commit each completed issue slice intentionally.
 - Use fixtures or designated safe test repositories for remote mutations.
 - Never commit credentials, private repository content, transient inspection

@@ -192,10 +192,24 @@ namespace bpr::qt {
 	/// window colour, so between the comparison and a drawer the reviewer saw
 	/// nothing to aim at and read the comparison's scroll bar as the border;
 	/// the resize cursor showed only while the pointer crossed the seven
-	/// pixels. The handle draws the drawer's edge rule from the design asset
-	/// (a one pixel `Mid` line on the drawer's side, the rule the collapsed
-	/// rail draws) and the highlight colour while the pointer is over it, so
-	/// the seam is visible and the hot zone announces itself.
+	/// pixels. The handle draws the drawer's edge rule from the design asset:
+	/// a one pixel `Mid` line on the drawer's side, the rule the collapsed
+	/// rail draws, at one constant weight.
+	///
+	/// It brightened to `Highlight` under the pointer until 2026-09-12, when
+	/// the owner chose the asset's constant weight in the v009 attended
+	/// session: "Drop it: draw the rule at one constant weight, as the asset
+	/// does. We don't need it anymore now that the cursor is fixed, it wasn't
+	/// drawn in the right location anyways." The brightening had been added on
+	/// the theory that the hot zone was too narrow to find; his own v008
+	/// screenshot refuted that theory, which is [[BPR-0746]].
+	///
+	/// The two-state pen was sound while it lasted, and `qt_workbench_window`
+	/// keeps the measurement that says so: `Qt::WA_Hover` is set on the handle
+	/// and the pointer's arrival and departure each repaint it, so a rule drawn
+	/// from `underMouse()` witnessed where the pointer was. BPR-0746 rests on
+	/// that, because it admits a screenshot of a lit rule as proof the handle
+	/// held the pointer while the cursor was wrong.
 	class workbench_splitter_handle final : public QSplitterHandle
 	{
 	public:

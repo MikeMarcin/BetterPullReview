@@ -6305,8 +6305,9 @@ namespace bpr::qt {
 		QSplitterHandle::paintEvent(aEvent);
 		auto painter = QPainter{ this };
 		painter.fillRect(rect(), palette().color(QPalette::Active, QPalette::Window));
-		painter.setPen(palette().color(
-			QPalette::Active, underMouse() ? QPalette::Highlight : QPalette::Mid));
+		// One constant weight, as the accepted asset draws it: the owner's
+		// answer in the v009 attended session. See the class doc comment.
+		painter.setPen(palette().color(QPalette::Active, QPalette::Mid));
 		const auto edge = rule_edge();
 		painter.drawLine(edge, 0, edge, height());
 	}

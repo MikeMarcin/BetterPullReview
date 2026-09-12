@@ -315,3 +315,49 @@ failure — the digest subtests pass in both runs.
 [[BPR-0747]]: a `//` comment on a line whose only content before it is `#` and
 whitespace paints `syntax_error` salmon. Upstream grammar behaviour, four
 occurrences in `qsystemdetection.h`, identical count at HEAD.
+
+## Attended verdict, 2026-09-12 (v009): accepted
+
+The owner accepted `BPR-0744-directive-ranges` (revision
+`app-release-c2381f32-2026-09-12.5`, fingerprint `a321ed19…` equal to the
+prepared candidate's in
+[session-identity.json](../../verification/reviews/rfc-bpr-0028-attended-v009/session-identity.json),
+decision `4f1d1354-c3c1-43d9-af11-358347147453`, actor human,
+2026-09-12T16:06:15Z), **note empty**.
+
+He judged it with the bundle open, not from memory: the v009 image ran from
+16:03:30Z to 16:06:34Z and he saved this decision at 16:06:15Z
+(`~/Library/Application Support/BetterPullReview/BetterPullReview/`
+`logs/diagnostics.log`, `op=application`). AC4 is satisfied, and with it the one
+criterion [[BPR-0720]] and [[BPR-0738]] have both carried since v005: a
+directive keyword is grey, an ALL_CAPS argument takes the macro purple, a
+predefined macro like `__GNUC__` takes it too, and an `#include` path takes the
+string salmon.
+
+**The question that rode the candidate is not answered.** Whether every
+identifier inside `#if`, `#ifdef`, `#ifndef`, `#elif`, `#undef` and `defined()`
+should take the macro purple rather than only the ALL_CAPS ones was costed in
+"Two limits, pinned as facts rather than left to drift" above and deliberately
+not taken. An accept of what was implemented is not an answer about what was
+not. It is **not** read into the empty note and it is **not** implemented on the
+strength of the accept; it is carried to [[BPR-0748]] with its costing, so it
+survives this card closing. The two limits stay pinned facts until he answers.
+
+That it came back unanswered is the second time a question riding another
+criterion has come back unanswered, after v008's "As I answered in another
+question". BPR-0748 records that the next packet must ask it as its own
+candidate with its own criterion, and with two pictures rather than a sentence.
+
+**AC3 is still the only thing between this card and Done.**
+`application_composition_contract`'s
+`test_tests_off_release_graph_omits_public_path_fixture` remains unrun at this
+revision, for the same reason it was unrun at `c0d3c5da` and worse: its
+`assert_release_self_test` launches a `BUILD_TESTING=OFF` Release executable
+with `os.environ.copy()`, and that build has no `--test-application-data-root`
+at all — the flag is inside `#if defined(BPR_BUILD_TESTING)`
+(`src/app/main.cpp:7261`, `:7285-7291`), so there is no way to point it at an
+isolated profile. The owner's own probe run, pid 72017, has held the profile
+since 16:06:37Z and was still holding it when this was written. Killing it to
+take the measurement was refused: it is his process on his desktop. The check is
+one command once he quits it, and it is the exact remaining ask carried in the
+d22 frontier.

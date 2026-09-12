@@ -38,27 +38,206 @@ two panes. The RFC is amended before the slice starts: a design round on
 the accepted asset (a one-pane state beside the two-pane one), then the
 Modalities paragraph and AC-05.
 
-## Scope, to be fixed by the design round
+## Corrected by the accepted state, 2026-09-12
 
-- A toggle between two-pane and one-pane Read, persisted per window.
-- The one-pane row model over the existing computed diff: removed rows
-  struck through in place, added rows in place, each on its theme field;
-  the change map in the gutter; navigation (next/previous change) and
-  line identity unchanged.
-- Read's aligned comment cards follow the rows.
-- Owned paths: `src/adapters/qt/src/diff_workbench.cpp` and a new one-pane
-  surface beside it, the workbench window's Read preset and strip, their
-  tests and render evidence; the core's diff result is not changed.
+The two paragraphs above are left as they were written, because they are the
+record of how this card was carded. Four of their sentences read differently
+now that the state is accepted, and they are corrected here rather than
+quietly edited.
 
-## Acceptance, to be fixed by the design round
+- "a change map in the left gutter". The gutter is the **link map at its
+  limit**, not a change map and not a new element beside one. The owner
+  rejected that premise in the v008 session: "The one-page should also use a
+  link map as the p4merge example provided. Relax the non-goals restriction
+  to allow extending the link-map in this limit direction" ([[BPR-0734]],
+  decision `bd627bcb`, 2026-09-12T04:32:44Z). With one column the map has no
+  second pane to cross to, so it joins the two halves of each change.
+- "a toolbar toggle between the two-pane and one-pane presentations", and "a
+  toggle in the strip or the Read preset" below it. p4merge has that
+  toolbar; this product does not take it. Asked where the choice lives, the
+  owner answered "Should be in the view menu like line numbers" (2026-09-12,
+  [[BPR-0745]]). The strip is not touched and there is no Read-preset
+  property. The Scope this rewrite replaced repeated the strip toggle and no
+  longer does.
+- "the diff colour themes and the link map are settled work the RFC says are
+  rendered as they ship". Still true of the themes, no longer true of the
+  link map: RFC-BPR-0028's Non-goals now permit extending it to the one-pane
+  presentation, and to nothing wider.
+- "removed lines kept in place, struck through, on a green field; added
+  lines in place on a purple field" describes the owner's screenshots
+  accurately and is not this product's palette. The accepted state applies
+  the shipped `--del` to struck rows and `--add` to added rows, so green
+  here means added, the opposite of the capture. It invents no colour.
 
-- The one-pane surface shows the same lines the two panes show, in one
-  column, with displayed line identity verified against the expected data
-  on a representative fixture.
-- The toggle, its persistence and the comment alignment are pinned in
-  `qt_workbench_window` and `qt_composed_github`.
-- The owner accepts the layout on the signed bundle in an attended
-  session.
+## Scope
+
+One pane is a presentation over the diff the core already computes, chosen
+from the View menu and remembered per window. What it must look like is
+fixed by
+[direction v7, "Read, one pane"](../../design/RFC-BPR-0028-workbench-direction-v7.html#read-one-pane),
+accepted 2026-09-12 (below); what follows is that state read as work.
+
+- **The row model.** One column over the existing aligned groups. Unchanged
+  text is plain: no field, no strike. A change is one block, its struck rows
+  and then its added rows, unified-diff order. Asked which order to draw,
+  the owner answered "don't care, unifed diff order is fine" (2026-09-12),
+  so the block order is deliberately *not* the p4merge captures' order,
+  which puts the kept side's block first. The field covers the whole row,
+  number columns included, and is the shipped `--del` on struck rows and
+  `--add` on added rows applied to the row rather than to a pane; the
+  word-level marks inside a changed line are the ones the two panes already
+  draw. The state invents no colour.
+- **Line identity.** Two number columns, base and head. An unchanged row
+  carries both; a struck row carries only its base number and is the old
+  side's identity; an added row only its head number. Comment anchoring,
+  quoting and Open in code use the row's own side and number, so nothing
+  written against a removed line is re-attributed to the new file.
+- **Navigation.** `‹` and `›` step whole blocks, not rows, and land on the
+  block's first row, which is the struck row whenever the change removes
+  anything. The ordinal is the same number in both presentations, so "change
+  3 of 11" names the same change in either and switching presentation does
+  not move the reader.
+- **Threads, AC-05.** A thread names a side and a line and sits against the
+  row carrying that identity: a thread on a removed line against its struck
+  row, one on an added line against the added row. Threads that would
+  collide keep document order and are pushed down with their leader still on
+  the anchored row. That is the AC-05 amendment text accepted with the
+  state; AC-05 itself is otherwise unchanged.
+- **The gutter is the link map at its limit.** For each change the struck
+  rows and the added rows leave the code's edge over their own rows and
+  converge on a short vertical spine; the spine is the change. The current
+  change's spine takes the signal blue the current row's edge already takes
+  and the others take `--ink-3`; the ribbon fills and edges are the two-pane
+  ribbons' own. The map spans the rows on screen and nothing more. A change
+  with an empty side draws one ribbon rather than two.
+- **No whole-file overview.** v6 drew one in this gutter and it is gone,
+  because the two-pane state has never had one. If one is ever wanted it is
+  a separate element and a separate decision, not part of this slice.
+- **Where the choice lives.** A checkable `One pane` in the View menu beside
+  `&Line numbers` (`src/adapters/qt/src/workbench_window.cpp:5919-5951`).
+  No shortcut is proposed. Like `Line numbers` it dispatches an intent and
+  never decides its own check mark, and the core refuses it while no
+  comparison surface is active
+  (`src/core/src/workbench_interaction.cpp:154-161`).
+- **One scalar, no modality dimension.** It sits beside `LineNumbers` in
+  `workbench_interaction_state`
+  (`src/core/include/bpr/core/workbench_interaction.hpp:345`) with its own
+  set and toggle intents and its delta (`:198-208`, `:304-321`), and
+  `apply(set_workbench_modality_intent)` does not touch it. **So Review
+  shows one pane too while it is checked**, and Read does not reclaim two
+  panes when the modality changes. That consequence was put to the owner
+  with the flip offered and was accepted, not refused.
+- **Persistence, and the schema move.** Per window in `window_layout`,
+  seeded for a new window from the single-row `workbench_preferences`, both
+  from the same DDL
+  (`src/adapters/sqlite/src/workbench_settings_database.cpp:44-89`,
+  `:93-101`), and carried to the window by the host's projection
+  (`src/application/src/workbench_application_host.cpp:1337-1344`, `:1388`).
+  The new boolean lands in **both** tables and moves
+  `workbench_settings_schema_version` from 6 to 7
+  (`src/adapters/sqlite/src/workbench_settings_database.hpp:35`, ladder at
+  `.cpp:110-125` and `:139-157`), with precedent at v3, v4 and v6. Its
+  default is the behaviour a window had before the preference existed:
+  **two panes**.
+- **Where that column has to sit**, read off the file rather than assumed.
+  `window_table()` truncates the shared DDL at `,open_modality` (`:99`), so
+  a column appended after `drawer_controls` (`:88`) would reach
+  `workbench_preferences` only. To land in both it goes before
+  `,open_modality`, beside `line_numbers` — which makes it a column in the
+  middle, while `profile_table`'s version ladder cuts by suffix today
+  (`:110-125`), so the ladder needs a way to say that version 6's table is
+  today's without this column. `migrate_from`'s column list (`:141-143`)
+  does not need the new name, because a migrated row takes the default. Two
+  further facts from the same file: the connection caps a table at sixteen
+  columns (`:196`) and the profile table has fourteen, so this is the
+  fifteenth.
+- **Accepted in words, never drawn.** Two parts of the accepted state are
+  stated criteria with no picture behind them. The builder draws them first
+  or brings them back as an ask; neither is invented quietly. **Review in
+  one pane**: v7 draws four states (`v7:296`, `:365`, `:466`, `:567`) and
+  none of them is Review — the one-pane mock is Read (`v7:474`) — and the
+  page's own prose presents the Review reading as an ask with the other
+  reading named (`v7:565`). **The empty-side ribbon**: both changes drawn
+  are two-sided replacements (`v7:514-515`, `:524-525`, ribbons at
+  `:498-507`), so neither a pure insertion nor a pure deletion is depicted.
+  What *is* drawn, and so is settled picture rather than prose, is the spine
+  with its two converging wedges (`v7:497-508`), the View menu with `Line
+  numbers` and `One pane` both checked and its caption (`v7:559-564`), and
+  the unified block order with the `base` and `head` number columns
+  (`v7:510-525`). The whole-file overview's absence is an absence and not a
+  captioned removal: nothing on the page marks where it was.
+- **Owned paths.** `src/adapters/qt/src/diff_workbench.cpp` and
+  `src/adapters/qt/include/bpr/qt/diff_workbench.hpp` (the one-pane surface
+  beside the two panes; the two-pane splitter at `:826` and the link-map
+  wiring at `:852-884` are its neighbours); the link map
+  (`src/adapters/qt/include/bpr/qt/diff_link_map.hpp` and its source)
+  extended to the one-column case; `src/adapters/qt/src/workbench_window.cpp`
+  for the View item; the core scalar and its intents; the workbench settings
+  record, its SQLite store and the host projection that carries it; their
+  tests and render evidence.
+- **Not in scope.** The core's computed diff result, which is not changed:
+  this is presentation over the aligned groups it already produces. The
+  two-pane ribbons, the diff themes and the thread map, which stay settled
+  work ([RFC-BPR-0028 non-goals](../../rfcs/RFC-BPR-0028-review-workbench-direction.md)).
+  The strip, which gains nothing. A whole-file overview. A shortcut for the
+  View item.
+
+## Acceptance
+
+- `qt_diff_workbench_scale_{100,125,200}`: over a fixture carrying a
+  two-sided replacement, a pure insertion and a pure deletion, the one-pane
+  surface shows the same lines the two panes show, in one column, in
+  unified-diff order, and each row's displayed identity is asserted against
+  the expected data — both numbers on an unchanged row, the base number only
+  on a struck row, the head number only on an added row. The rendered
+  `diff-workbench-{100,125,200}.png` is inspected, not only produced.
+- `qt_diff_workbench_scale_{100,125,200}`, the gutter: a two-sided change
+  draws both ribbons converging on one spine; a pure insertion draws the
+  added wedge against the spine alone and a pure deletion the struck one
+  alone; the current change's spine is the signal colour and the others
+  `--ink-3`; the map spans the rows on screen and carries no whole-file
+  overview. The two empty-side cases are drawn here for the first time,
+  because v7 depicts neither, so if their shape does not follow from the
+  two-sided case it comes back as an ask before it is pinned.
+- `qt_workbench_window_scale_{100,125,200}`: the View menu carries a
+  checkable `One pane` beside `Line numbers`, with no shortcut; triggering
+  it dispatches the intent and the check mark follows the published
+  projection rather than the click; it is disabled with no active comparison
+  surface, for the reason `Line numbers` is; and with it checked, changing
+  the modality to Review leaves Review in one pane.
+- `core_workbench_interaction`: the scalar defaults to two panes, the set
+  and toggle intents move it, `set_workbench_modality_intent` does not move
+  it, and the intent is refused with `no_active_workbench` while no
+  comparison surface is active.
+- `sqlite_workbench_settings_storage`: the flag round-trips through schema
+  version 7 in both `window_layout` and `workbench_preferences`; a literal
+  version-6 file migrates with every existing column intact and reads as two
+  panes afterwards; a value past the column's check is refused with
+  `schema_mismatch`; the version 1 to 5 migration tests and the
+  interrupted-migration test still pass.
+- `application_profile_window_layout_public_path`: window A checking One
+  pane does not move window B, A's choice survives a restart, and a fresh
+  window takes the profile default. That is the course which already proves
+  it for `line_numbers`
+  (`tests/end_to_end/profile_window_layout_public_path_tests.cpp:191-215`),
+  extended rather than copied.
+- `qt_composed_github_scale_{100,125,200}`: with One pane checked, a thread
+  anchored to a removed line sits against its struck row and one anchored to
+  an added line against the added row; two threads that would collide keep
+  document order and the lower one is pushed down with its leader still on
+  its anchored row. Each state is pinned in a rendered crop. This is AC-05
+  in one pane.
+- `application_workbench_host` and
+  `application_workbench_preferences_consumers` carry the flag from the
+  record to the window; `application_diff_workbench_public_path` and
+  `core_diff_compute` pass unchanged, because the computed result is not
+  touched; `application_composition_contract` passes with digests repinned;
+  `check_boundaries`, strict tidy, `clang-format --Werror` and the
+  documentation gate are clean.
+- **Attended, and last.** The owner accepts the layout on the signed bundle
+  in an attended session. Two of its parts were accepted as words and never
+  drawn, so they are shown rather than described in that ask: Review in one
+  pane, and a change with an empty side.
 
 ## Owner direction, 2026-09-11
 
@@ -107,3 +286,27 @@ DDL lands in **both** tables and moves `workbench_settings_schema_version` from
 6 to 7 (`workbench_settings_database.hpp:35`, ladder at `.cpp:113-116,141-143`),
 with precedent at v3, v4 and v6; the default to choose is the behaviour a window
 had before the preference existed, which is two panes.
+
+## Scope and acceptance rewritten from the accepted state, 2026-09-12
+
+The two placeholder sections this card carried, "Scope, to be fixed by the
+design round" and "Acceptance, to be fixed by the design round", are replaced
+by the `## Scope` and `## Acceptance` above. That is [[BPR-0734]]'s second
+criterion, and it is done on this authority and no other: candidate
+`BPR-0734-read-one-pane`, revision `design-v7-2026-09-12`, fingerprint
+`1f5c6ab4133593592701203351699f493645590401a981a314f97ed5f4938f05`, decision
+`31462e78-51ea-4ef5-ba85-231a18098b68`, actor human, 2026-09-12T16:03:03Z,
+session `cbd48b91000b00f1e72e1ad62c7c384c`: **accept**, with an empty note.
+
+The candidate's four stated criteria were the link-map gutter with its
+empty-side case; One pane as a View item like Line numbers, per window with
+no modality of its own, "so ... checking it gives Review one pane too"; the
+whole-file overview gone; and the reworded Modalities amendment with AC-05
+unchanged. An empty-note accept answers no question: it accepts those
+criteria as written. Two of them invited a refusal that did not come — "say
+if Review should stay two-pane" and "say if you want one back as its own
+element" — so both consequences stand, and the Scope above carries them as
+decided rather than as open.
+
+Nothing else on this card moves. It is still Backlog behind [[BPR-0734]], and
+this rewrite claims no work.
