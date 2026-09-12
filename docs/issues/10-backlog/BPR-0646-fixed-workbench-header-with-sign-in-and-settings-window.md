@@ -709,3 +709,13 @@ The latest [attended v010 packet](../../verification/reviews/rfc-bpr-0028-attend
 asks only [[BPR-0729]]'s one-pane layout criterion. This card is not a
 candidate: its epoch-handle criterion still waits for [[BPR-0743]]'s product
 work under the now-Accepted RFC-BPR-0029. The v009 pointer above is historical.
+
+## Engineering readiness, 2026-09-12 (d28, mandate r19)
+
+[[BPR-0743]] now carries an evidenced historical comparison slice at
+`d1bcd1cf`. The composed signed-out A→B→A course retains more than one
+evidenced update and drives the real epoch-line handle to an imported node;
+the selected comparison resolves. The unchanged attended criterion remains
+open until a new signed bundle on this source is prepared and the owner
+observes the handle in a pull request with fetchable historical heads. No
+answer is inferred from the automated course, and v009/v010 stay protected.
