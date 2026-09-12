@@ -102,7 +102,7 @@ seam.
 
 ## Not in this packet, and why
 
-**[BPR-0646](../../../issues/40-parked/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md),
+**[BPR-0646](../../../issues/10-backlog/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md),
 the epoch handles.** The owner's answer retired the question rather than
 answering it: "An Epoch is an update to the PR, epochs identity should be
 stable and repeatable if I look at the PR on different machines. A purely
@@ -110,7 +110,7 @@ observed epoch is not useful and terribly confusing." The criterion is right as
 written and is not reworded, but the product still mints one epoch per
 observation, so a fourth round on any bundle buildable today would fail for the
 same reason as the previous three.
-[BPR-0743](../../../issues/40-parked/BPR-0743-the-epoch-line-shows-only-the-updates-this-install-has-observed.md)
+[BPR-0743](../../../issues/50-blocked/BPR-0743-the-epoch-line-shows-only-the-updates-this-install-has-observed.md)
 carries the work; the criterion comes back when the epoch line carries the pull
 request's own updates.
 
