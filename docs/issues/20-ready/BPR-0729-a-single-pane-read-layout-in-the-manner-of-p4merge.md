@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0729"
 title: "A single-pane Read layout in the manner of p4merge"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0028"]
 depends_on: ["BPR-0734"]
 priority: "P1"
