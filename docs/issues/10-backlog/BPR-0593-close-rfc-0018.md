@@ -12,7 +12,68 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
-## Current frontier, 2026-09-12 (d25, mandate r16): owner answers received; engineering in progress
+## Current frontier, 2026-09-12 (d25, mandate r16): integrated slices and exact remaining asks
+
+Run `attended-prep-2026-09-10`, dispatch d25, producer
+`/root/integrator_d25`, mandate r16, plan `ux-redesign-pack-0028`, milestone
+`attended-preparation-pack-head`. The clean baseline was `8302a401` on main,
+28 commits ahead of origin. The v009 session handed back at 362 and released
+protections at 363. No session host, watch or process remains. Every d25
+child result is collected; writers and commands are quiescent.
+
+The owner **did not accept RFC-BPR-0029 as written**. The revised
+[RFC-BPR-0029](../../rfcs/RFC-BPR-0029-machine-independent-epoch-identity-update-history.md)
+(`2f151966`) carries A2's A→B→A as two evidenced occurrences sharing a
+head, A3's labeled GitHub event or consistently selected commit dates, and
+the prohibition on treating surviving commits as push boundaries or a
+derived comparison base as the original historical base. Existing catalogue
+rows remain lossless even when host/event evidence cannot yield a portable
+key. The RFC stays **Proposed**; [[BPR-0743]] stays **Blocked** and [[BPR-0646]]
+waits behind it. The one remaining owner ask is whether to accept the *revised*
+RFC. No epoch product work or RFC-0029 closeout ID was created.
+
+Three slices are **Done**:
+- [[BPR-0748]]: owner-approved conditional macro purple, with operators,
+  literals, headers, attributes, builtin-test operands and `#define` bounds.
+  Source `a8b0394a`, finish `3c25b3a9`. The first red showed
+  `__cplusplus` near-grey; independent review found two more counterexamples
+  and the same syntax owner reproduced and corrected both. Final five checks,
+  format and tidy pass (`build/logs/bpr-0748-d25-correction-*`).
+- [[BPR-0749]]: one-pixel rule centered at `(width - 1) / 2` in the native
+  handle (macOS 7 → column 3; Fusion 4 → column 1). Source `b00c276e`, finish
+  `24f7e2ed`. Style-aware raster red before fix, required Qt scales green
+  after (`build/logs/bpr-0749-d25-{red-test,green-tests-2}.log`). Cursor
+  delivery remains [[BPR-0746]]'s **Blocked, owner-declined-probe** issue.
+- [[BPR-0736]]: real Return and Enter queue key events dispatch the selected
+  row once; invalid selection and mouse activation are covered. Source
+  `7e53ff78`, finish `d240806a`; red and three-scale green logs are
+  `build/logs/bpr-0736-d25-{red-test,green-tests}.log`.
+
+[[BPR-0735]] is **Parked on human-review** (`48296f42` implementation,
+`0e37a9c3` partial finish). The three named clangd checks load the dev
+compile database and report none of the missing headers/types. Full check
+mode exits 3 on unrelated Homebrew clangd code-action tweak self-tests on
+two files; the Qt test file exits 0. Its sole remaining ask is the owner's
+observation that the editor noise is gone in one named file. No attended
+packet is needed.
+
+At source head `d240806a`, the pack-head integration pass is **18/18 green**:
+both application composition contracts, workbench and Settings Qt paths,
+syntax and architecture boundaries (`build/logs/d25-pack-head-integration.log`).
+The documentation gate and `git diff --check` pass. Plan exit 2 is evidenced
+at this source head. Exits 1 and 3 still need a current-head app-release
+bundle and digest-bound attended packet; exit 4 still holds BPR-0646's exact
+human ask. No v010 packet was prepared because BPR-0646 is not yet a
+candidate. RFC-BPR-0018 and RFC-BPR-0028 remain open; BPR-0730 and BPR-0731
+stay on their Windows/Linux stations.
+
+The next independent large slice is [[BPR-0729]]'s accepted one-pane Read
+surface, suitable for a fresh bounded engineering context; it was not
+claimed in d25. The next human actions are the revised RFC-0029 acceptance
+answer and, independently, BPR-0735's editor observation. The d24 frontier
+below remains evidence for prior work not superseded here.
+
+## Intermediate frontier, 2026-09-12 (d25, mandate r16): owner answers received; engineering in progress
 
 Run `attended-prep-2026-09-10`, dispatch d25, producer
 `/root/integrator_d25`, mandate r16, plan `ux-redesign-pack-0028`, milestone
