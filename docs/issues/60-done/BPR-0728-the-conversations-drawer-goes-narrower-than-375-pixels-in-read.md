@@ -96,4 +96,4 @@ Verbatim:
 
 > It does, but the mouse cursor for the horizontal resize flickers only for a brief moment and the returns back to the normal cursor so it's difficult to resize properly since you have no visual indicator you're cursor is over the border element.
 
-Accepted; the note is a new defect, carded as [BPR-0739](../20-ready/BPR-0739-the-resize-cursor-over-the-conversations-drawer-handle-does-not-stay.md): the resize cursor flickers and returns to the arrow over the handle. Done.
+Accepted; the note is a new defect, carded as [BPR-0739](../30-in-progress/BPR-0739-the-resize-cursor-over-the-conversations-drawer-handle-does-not-stay.md): the resize cursor flickers and returns to the arrow over the handle. Done.
