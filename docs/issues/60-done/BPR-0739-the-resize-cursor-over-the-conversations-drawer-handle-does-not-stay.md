@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0739"
 title: "The resize cursor over the conversations drawer handle does not stay"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P2"
-metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"owner_direction":"2026-09-11","attended_session":"cbd48b91000b00f1e72e1ad62c7c384c","attended_decision":"8a907ecd-4aef-4596-a035-320365d12b40"}
-parked_on: "human-review"
-acceptance: [{"criterion":"AC1 A Qt test pins that after a modality change and after a host-republished layout the handle under a resting pointer still reports the split cursor, and fails at HEAD if the cause is one of 1, 2 or 4","outcome":"pass","revision":"bbc4db98","evidence":{"kind":"command","detail":"test_the_split_cursor_stays_over_a_resting_handle still passes at bbc4db98 across qt_workbench_window_scale_{100,125,200} (build/logs/bpr-0739-d22-run-3.log). The d19 correction to this record's original wording stands unchanged. Two things were added to the test in d22. The seam pin now reads the owner's v009 verdict: the handle under the pointer must draw its rule in Mid and must NOT draw Highlight, where it previously asserted Highlight; that new assertion is red against the previous paint code by construction, since the assertion it replaces asserted the opposite of its second half and passed. And the test now measures what the seam's paint can witness, for BPR-0746: Qt::WA_Hover is set on the handle, the pointer's arrival costs one repaint and its departure another, and underMouse() follows both, read at whole-number scales only for the same reason the resting-pointer sequence is. That measurement was run in the wrong direction first and corrected: the hypothesis that the handle is never repainted on hover was asserted, went red at 100 and 200 with counts on arrival=1 and departure=2, and the assertion was rewritten to what was measured rather than the measurement to what was asserted."}},{"criterion":"AC2 qt_workbench_window_scale_{100,125,200} and qt_composed_github_scale_100 pass","outcome":"pass","revision":"bbc4db98","evidence":{"kind":"command","detail":"Rerun at this revision, not reused: ctest --preset dev -R '^qt_workbench_window_scale_(100|125|200)$' is 3 of 3 (build/logs/bpr-0739-d22-run-3.log) and -R '^(qt_composed_github_scale_100|architecture_boundaries)$' is 2 of 2 (build/logs/bpr-0739-d22-run-4.log). clang-tidy --warnings-as-errors is clean on src/adapters/qt/src/workbench_window.cpp and tests/adapters_qt/workbench_window_tests.cpp (build/logs/bpr-0739-d22-tidy-*.log). coding-format-check is red at HEAD for src/adapters/qt/include/bpr/qt/workbench_drawer.hpp, src/application/include/bpr/application/diff_runtime_ports.hpp and src/application/src/diff_application_host.cpp, none of which this card touches and none of which appear in its own diff."}},{"criterion":"AC3 The owner resizes the conversations drawer on the signed bundle with the cursor visible throughout, in an attended session","outcome":"fail","revision":"35438244","evidence":{"kind":"observation","detail":"Unchanged: the v008 rejection (candidate BPR-0739-splitter-seam, decision a374890c, 2026-09-12T04:34:54Z) is still the last verdict on this criterion. AC3 was deliberately NOT asked in v009 and the packet said in as many words that cursor delivery was unchanged. The owner's v009 note on the separate hover candidate -- 'We don't need it anymore now that the cursor is fixed' -- is an unsolicited remark on a criterion that was not in front of him, bound to a candidate that asked something else, and is not read as a verdict on it; treating it as one would be synthesising acceptance. How it can be true at the same time as the v008 rejection is reconciled on BPR-0746: the binary is identical on this path between the two bundles, the lit-rule evidence is sound (measured, not inferred), and what differs is the gesture -- v007 and v008 are a pointer at rest, while v009's candidate instructed him to move the pointer on and off the rule, which is what hypothesis 1 predicts will work. That is an account, not a diagnosis. The separate question this card left open since v008, whether the Highlight hover state should survive, IS answered and closed: decision 9298ad8d, 2026-09-12T16:05:46Z, 'Drop it: draw the rule at one constant weight, as the asset does', landed at bbc4db98."}}]
+metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"owner_direction":"2026-09-12","attended_session":"cbd48b91000b00f1e72e1ad62c7c384c","attended_decision":"8a907ecd-4aef-4596-a035-320365d12b40"}
+acceptance: [{"criterion":"AC1 A Qt test pins that after a modality change and after a host-republished layout the handle under a resting pointer still reports the split cursor, and fails at HEAD if the cause is one of 1, 2 or 4","outcome":"pass","revision":"bbc4db98","evidence":{"kind":"command","detail":"test_the_split_cursor_stays_over_a_resting_handle still passes at bbc4db98 across qt_workbench_window_scale_{100,125,200} (build/logs/bpr-0739-d22-run-3.log). The d19 correction to this record's original wording stands unchanged. Two things were added to the test in d22. The seam pin now reads the owner's v009 verdict: the handle under the pointer must draw its rule in Mid and must NOT draw Highlight, where it previously asserted Highlight; that new assertion is red against the previous paint code by construction, since the assertion it replaces asserted the opposite of its second half and passed. And the test now measures what the seam's paint can witness, for BPR-0746: Qt::WA_Hover is set on the handle, the pointer's arrival costs one repaint and its departure another, and underMouse() follows both, read at whole-number scales only for the same reason the resting-pointer sequence is. That measurement was run in the wrong direction first and corrected: the hypothesis that the handle is never repainted on hover was asserted, went red at 100 and 200 with counts on arrival=1 and departure=2, and the assertion was rewritten to what was measured rather than the measurement to what was asserted."}},{"criterion":"AC2 qt_workbench_window_scale_{100,125,200} and qt_composed_github_scale_100 pass","outcome":"pass","revision":"bbc4db98","evidence":{"kind":"command","detail":"Rerun at this revision, not reused: ctest --preset dev -R '^qt_workbench_window_scale_(100|125|200)$' is 3 of 3 (build/logs/bpr-0739-d22-run-3.log) and -R '^(qt_composed_github_scale_100|architecture_boundaries)$' is 2 of 2 (build/logs/bpr-0739-d22-run-4.log). clang-tidy --warnings-as-errors is clean on src/adapters/qt/src/workbench_window.cpp and tests/adapters_qt/workbench_window_tests.cpp (build/logs/bpr-0739-d22-tidy-*.log). coding-format-check is red at HEAD for src/adapters/qt/include/bpr/qt/workbench_drawer.hpp, src/application/include/bpr/application/diff_runtime_ports.hpp and src/application/src/diff_application_host.cpp, none of which this card touches and none of which appear in its own diff."}},{"criterion":"AC3 The owner resizes the conversations drawer on the signed bundle with the cursor visible throughout, in an attended session","outcome":"pass","revision":"aff9fc64","evidence":{"kind":"observation","detail":"Satisfied on the owner's own direct report, not on an attended verdict and not on any instrument. Verbatim in chat, 2026-09-12 (d23, mandate r14), in full: 'I don't care to do any cursor probe, i've already confirmed that the cursor is working correctly now.' He said it after being told that no bpr-0746-cursor-probe.log was ever captured, that his v009 accept therefore rested on a criterion whose objective half was missing, and that BPR-0746's reconciliation is an account and not a diagnosis -- so this is an informed report on a criterion that was put to him, unlike the v009 aside on the hover candidate, which stays refused as a verdict. The criterion has only ever had one possible witness: no check in this repository can observe the pointer on his screen, which is why it was routed through attendance rather than a test. Bound to a known binary, established here rather than carried over: the probe instance is still running as pid 72017, build/app-release/src/app/BetterPullReview.app/Contents/MacOS/BetterPullReview, started 2026-09-12T16:06:37Z, and that file hashes to c2381f325093200563544ce3bb9e1ba04f847102e2f5b599ca6cc51c6f555653, equal to the v009 candidate revision app-release-c2381f32-2026-09-12.5; the profile diagnostics.log shows shutdown at 16:06:34Z, started at 16:06:37Z and nothing after 16:06:56Z, and it is the only BetterPullReview process on the machine. Recomputed, not reused: git diff --stat 35438244 aff9fc64 -- src/adapters/qt is one file (appearance_profile.cpp) with zero lines matching cursor, splitter, handle, underMouse or paintEvent, so on this path the accepted binary is the same program as the one rejected in v008; and git diff aff9fc64 HEAD -- src/adapters/qt/src/workbench_window.cpp is 3 insertions and 2 deletions with no line matching cursor or SplitH, the Highlight-to-Mid change alone. What this rests on, stated rather than implied: the owner's word and nothing else. No log, no measurement, no product change on this path in this round or the last, and the reversal against his v008 rejection is unexplained. BPR-0746's hypothesis 1 is not refuted by it -- it predicts that fresh entries work and only a resting pointer decays -- so one report of the arrow returning under a resting pointer reopens this criterion."}}]
 ---
 
 # The resize cursor over the conversations drawer handle does not stay
@@ -22,7 +21,7 @@ the v007 attended session (decision `8a907ecd`, 23:47:54Z), verbatim:
 > cursor is over the border element.
 
 The width criterion is accepted and
-[BPR-0728](../60-done/BPR-0728-the-conversations-drawer-goes-narrower-than-375-pixels-in-read.md)
+[BPR-0728](BPR-0728-the-conversations-drawer-goes-narrower-than-375-pixels-in-read.md)
 is Done; the cursor is this card.
 
 ## What the code says
@@ -148,7 +147,7 @@ d17). The defect is cursor *delivery* after Qt's enter, which none of the four
 candidates covers, and it is not visible to the offscreen test: that test
 reads Qt's own bookkeeping under a platform with no cursor at all.
 
-Carded as [BPR-0746](BPR-0746-the-resize-cursor-is-not-delivered-over-the-seam-on-the-signed-bundle.md),
+Carded as [BPR-0746](../50-blocked/BPR-0746-the-resize-cursor-is-not-delivered-over-the-seam-on-the-signed-bundle.md),
 with three ranked hypotheses about the macOS cursor path and the logging check
 that discriminates them on the real windowed application before any product
 change.
@@ -300,3 +299,94 @@ for three files this card does not touch —
 `src/application/include/bpr/application/diff_runtime_ports.hpp`,
 `src/application/src/diff_application_host.cpp` — and the three files this card
 does touch are not in its list.
+
+## Owner direction, 2026-09-12 (d23, mandate r14): AC3 closes on his word
+
+Told that no `bpr-0746-cursor-probe.log` was ever captured because the v009
+candidate's `tee` path was relative, that his accept of
+`BPR-0746-cursor-probe` therefore rests on a criterion whose objective half
+is missing, and that [[BPR-0746]]'s reconciliation — Qt sets the cursor once
+on enter, AppKit reverts it on the next motion — is an account and not a
+diagnosis that only the log would discriminate, the owner answered in chat,
+verbatim and in full:
+
+> I don't care to do any cursor probe, i've already confirmed that the cursor
+> is working correctly now.
+
+That is two separate things. The refusal belongs to [[BPR-0746]] and is
+recorded there. The second clause is a report on this card's AC3.
+
+**AC3 is satisfied and this card is Done.** That criterion has only ever had
+one possible witness. "The owner resizes the conversations drawer on the
+signed bundle with the cursor visible throughout" is a statement about what
+he sees on his own screen; nothing in this repository can observe it, which
+is precisely why it was routed through an attended session rather than a
+test. He has now made that statement deliberately, knowing it was disputed,
+having been shown the dispute. Asking it again in a fourth packet would be
+asking him to repeat himself with more ceremony.
+
+### Why this reading, when the v009 remark was refused
+
+The v009 note — "We don't need it anymore now that the cursor is fixed" — was
+refused as a verdict on AC3, and that refusal was right: it was an unsolicited
+aside on a criterion that was not in front of him, bound to a candidate that
+asked about the hover highlight, and the packet had told him in as many words
+that cursor delivery was unchanged. What is different now is that the
+criterion **is** in front of him. He was told what was in doubt and why, and
+he answered it. An informed first-hand report on a criterion that asks for a
+first-hand report is that criterion's evidence; that is not the same thing as
+reading a verdict into an aside.
+
+### What it is bound to, established rather than assumed
+
+An attended verdict buys one thing a chat message does not carry by itself: a
+binding to a known binary. Here that binding is recoverable.
+
+- The bundle he ran for the probe is **still running**. Pid 72017 is
+  `build/app-release/src/app/BetterPullReview.app/Contents/MacOS/BetterPullReview`,
+  started 2026-09-12T16:06:37Z from `ttys001`, and that file on disk hashes to
+  `c2381f325093200563544ce3bb9e1ba04f847102e2f5b599ca6cc51c6f555653` — the
+  v009 candidate revision `app-release-c2381f32-2026-09-12.5` exactly.
+- **No other instance has run since.** The profile's `logs/diagnostics.log`
+  records `op=application outcome=shutdown` at 16:06:34Z, `outcome=started` at
+  16:06:37Z, and nothing after 16:06:56Z. It is the only BetterPullReview
+  process on the machine and the only app-release bundle in the tree.
+- On the cursor path that binary is the **same program** he rejected in v008:
+  `git diff --stat 35438244 aff9fc64 -- src/adapters/qt` is one file,
+  `appearance_profile.cpp`, and the diff contains **zero** lines matching
+  cursor, splitter, handle, `underMouse` or `paintEvent`. Recomputed here, not
+  carried over from d22.
+- The only change to `workbench_window.cpp` since that bundle was built is
+  `bbc4db98`, three insertions and two deletions, with **no** line matching
+  cursor or `SplitH`: the Highlight-to-Mid substitution he asked for. So HEAD
+  differs from what he judged only in the seam's colour, not in cursor
+  delivery.
+
+So the report is bound to executable `c2381f32…`, which is the digest an
+attended verdict would have carried.
+
+### What this card now rests on, said plainly
+
+It rests on the owner's word and on nothing else. No instrument recorded the
+cursor, no log exists, and no product source was changed on this path in this
+round or the last. It is a later first-hand report from the same observer on
+the same program, superseding an earlier first-hand report — his v008
+rejection, with a photograph — and **the reversal is unexplained.** Nothing in
+the repository changed to cause it and this dispatch does not claim to know
+what did.
+
+Three consequences, so the close does not hide them:
+
+- [[BPR-0746]]'s hypothesis 1 is **not refuted** by this. It predicts that
+  every fresh entry onto the seam shows the resize cursor and that only a
+  resting pointer decays to the arrow. Someone checking that a resize cursor
+  works moves onto the seam and drags; he does not hold still for three
+  seconds and watch. The account therefore survives his confirmation, and
+  closing this card is not a finding that hypothesis 1 is false.
+- One report of the arrow returning under a resting pointer reopens this. The
+  corrected probe command and the three ranked hypotheses stay on
+  [[BPR-0746]] for that.
+- His other v009 claim, "it wasn't drawn in the right location", is **not**
+  answered here and does not close with this card. It is about the rule's
+  column inside the hot zone, not about cursor delivery, and it moves to
+  [[BPR-0749]].
