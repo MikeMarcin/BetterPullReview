@@ -34,11 +34,31 @@ would rewrite the protected v010 operator packet's relative link to the card,
 and a bare move would fail the documentation link gate. The packet bytes are
 unchanged; this is a tracker migration constraint, not another human question.
 
-[[BPR-0743]] is the active engineering slice under Accepted RFC-BPR-0029.
-Its source and migration are under focused verification and critical review;
-no BPR-0646 bundle or owner question is prepared from this intermediate state.
-RFC-BPR-0018 and RFC-BPR-0028 remain open, with their unsatisfied obligations
-preserved below.
+[[BPR-0743]] remains In Progress under Accepted RFC-BPR-0029. Its portable
+occurrence/partial-history slice is committed at `2df4d110`: a bounded
+independent timeline read, SQLite v4 lossless sidecar, real two-catalogue
+A→B→A public path, and honest Qt ambiguity/unknown-base labels. Four
+false-association counterexamples were reproduced red before a conservative
+host correction; the final critical re-review found no concrete blocker on
+that correction. The final dev build and 9/9 focused selectors pass
+(`build/logs/bpr-0743-d27-conservative-{dev-build,focused}.log`). Touched C++
+format, architecture boundary, core epoch policy, documentation and board
+gates pass. The global format target exposed three untouched baseline files;
+the optional hermetic composition contract was stopped during its Release
+rebuild after the composed public paths already passed. No live PR was mutated.
+
+REST after-head events cannot prove that a same-head local observation is the
+same update. The host retains both and declares overlap ambiguous; no unsafe
+event/local binding or supersession is claimed. Historical events have no
+durable local comparison epoch yet, so [[BPR-0646]]'s unchanged handle
+criterion is **still not judgeable** and no attended bundle or owner question
+is prepared. The next bounded slice is cached historical retention, explicit
+historical append that preserves live authority, atomic binding on durable
+finalization, honest derived-base labels and a composed comparison course.
+RFC-BPR-0018 and RFC-BPR-0028 remain open, with all nine authored obligations
+and four exits preserved below. [[BPR-0735]] remains Blocked on the owner's
+declined editor observation; [[BPR-0746]] remains Blocked on the declined
+probe, and [[BPR-0730]]/[[BPR-0731]] remain own-station work.
 
 ## Current frontier, 2026-09-12 (d26, mandate r18): one-pane bundle ready
 

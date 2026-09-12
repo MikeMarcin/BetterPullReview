@@ -12,6 +12,41 @@ acceptance: [{"criterion":"AC1 The design pass's two recorded decisions (the der
 
 # The epoch line shows only the updates this install has observed
 
+## Integrated occurrence slice, 2026-09-12 (d27, mandate r19)
+
+Commit `2df4d110` adds an independent, bounded REST issue-timeline read and a
+portable occurrence identity derived from canonical host, numeric pull
+request, typed event id and after-head OID. The SQLite v4 sidecar preserves
+legacy epochs, ordinals, incarnation and references; it stores force-push
+events independently of local retained revisions. The epoch line labels event
+time, commit date or unavailable date, unknown historical base, comparison
+availability, and incomplete or ambiguous history. A→B→A event identities
+and order agree across two fresh, real catalogues in the composed signed-out
+application test. A second changed live head still appends with author-upload
+cause. AC2 and AC3 have direct evidence above; AC1's recorded design pass is
+unchanged.
+
+Four false-association counterexamples were reproduced before correction:
+delayed evidence after the live head moved, old events first discovered after
+a failed timeline, constant local clock skew, and an intervening different-head
+event followed by an ordinary return. REST supplies an event's after-head but
+no shared discriminator that proves a same-head local observation is that
+event. The final host therefore retains both facts separately and marks their
+overlap ambiguous; it does not merge them by head, event order, discovery order
+or mixed clocks. The SQLite atomic supersession contract is present for a
+future source of exact equivalence, not invoked on insufficient evidence.
+The independent critical re-review found no remaining concrete blocker in
+this conservative path. Evidence: `build/logs/bpr-0743-d27-{clock-red-test,intervening-red-test,conservative-host-test,conservative-focused}.log`.
+
+AC4 remains pending. Head-only historical events have no local epoch anchor;
+on the current source their nodes truthfully say comparison unavailable. The
+next bounded implementation is durable cached historical retention and an
+explicit historical append that leaves the accepted live revision intact,
+binds an occurrence only after durable finalization, and labels any derived
+comparison base separately from an unknown original base. A composed signed-out
+comparison course and a new signed bundle must precede the unchanged
+[[BPR-0646]] handle question. No owner verdict is inferred or requested here.
+
 The owner, 2026-09-11, rejecting `BPR-0646-workbench-chrome` in the v008
 attended session (decision `6dc6dc36`, 2026-09-12T04:24:06Z), verbatim:
 
