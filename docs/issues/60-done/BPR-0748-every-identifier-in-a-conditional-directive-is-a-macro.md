@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0748"
 title: "Should every identifier in a conditional directive take the macro purple?"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0006"]
 depends_on: ["BPR-0744"]
 priority: "P3"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"carried_from":"BPR-0744","attended_session":"cbd48b91000b00f1e72e1ad62c7c384c","attended_decision":"4f1d1354-c3c1-43d9-af11-358347147453","parked_question":"human-review"}
+acceptance: [{"criterion":"AC1 owner answer on conditional macro rule","outcome":"pass","revision":"a8b0394a","evidence":{"kind":"observation","detail":"Mandate r16 records direct owner YES to BPR-0748: #if/#ifdef/#ifndef/#elif/#undef/defined() macro identifiers purple regardless of case, with operator/literal/header/attribute/builtin-test operands and #define replacement boundaries. The direct answer superseded the planned side-by-side attended question; original method remains documented on the card."}},{"criterion":"AC2 conditional roles and unchanged boundaries","outcome":"pass","revision":"a8b0394a","evidence":{"kind":"command","detail":"Red before fix: build/logs/bpr-0748-d25-red.log (__cplusplus); independent review counterexamples red before correction: bpr-0748-d25-correction-red.log (comment-separated builtin operand and continued #if). Final syntax_classification_contract plus qt_syntax_pane_composition, qt_appearance_settings_panel/profile, core_appearance_contrast all 5/5 pass: bpr-0748-d25-correction-focused.log. Combined syntax/seam 9/9 at final tree: d25-syntax-seam-integration.log. Format/tidy pass in correction logs."}},{"criterion":"AC3 no generalized identifier or define broadening","outcome":"pass","revision":"a8b0394a","evidence":{"kind":"observation","detail":"Fixture asserts ordinary_name in #define replacement is not syntax_macro, and the classifier gates lowercase promotion on a recognized conditional directive and named predefined-macro formats. No palette/schema role changed; heuristic revision 3 retires cached spans."}}]
 ---
 
 # Should every identifier in a conditional directive take the macro purple?
