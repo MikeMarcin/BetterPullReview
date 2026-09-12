@@ -38,12 +38,40 @@ from scripts.contained_temporary_support import ContainedTemporaryDirectory  # n
 
 from scripts.verify_documentation import (  # noqa: E402
     front_matter,
+    relocated_review_card_link,
     verify_issue_board,
     verify_operator_packet_records,
     verify_pending_packet_manifests,
     verify_rfc_index,
     verify_terminal_closeout_cards,
 )
+
+
+class HistoricalReviewCardLinkTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary = ContainedTemporaryDirectory()
+        self.root = Path(self.temporary.name)
+        self.review = self.root / "docs/verification/reviews/attended-v001/operator-packet.md"
+        self.review.parent.mkdir(parents=True)
+        self.board = self.root / "docs/issues"
+        self.old = self.board / "20-ready/BPR-0743-fixture.md"
+        self.current = self.board / "30-in-progress/BPR-0743-fixture.md"
+        self.current.parent.mkdir(parents=True)
+        self.current.write_text("current card\n")
+
+    def tearDown(self) -> None:
+        self.temporary.cleanup()
+
+    def test_unique_relocated_card_keeps_historical_packet_valid(self) -> None:
+        self.assertTrue(relocated_review_card_link(self.root, self.review, self.old))
+
+    def test_requires_review_packet_and_unique_canonical_card(self) -> None:
+        self.assertFalse(relocated_review_card_link(self.root, self.root / "docs/README.md", self.old))
+        self.assertFalse(relocated_review_card_link(self.root, self.review, self.old.with_name("other.md")))
+        duplicate = self.board / "60-done/BPR-0743-fixture.md"
+        duplicate.parent.mkdir(parents=True)
+        duplicate.write_text("duplicate\n")
+        self.assertFalse(relocated_review_card_link(self.root, self.review, self.old))
 
 
 class RfcIndexTests(unittest.TestCase):

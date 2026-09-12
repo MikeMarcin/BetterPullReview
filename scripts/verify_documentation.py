@@ -491,6 +491,28 @@ def markdown_files(root: Path) -> list[Path]:
     return sorted(set(files))
 
 
+def relocated_review_card_link(root: Path, source: Path, target: Path) -> bool:
+    """Keep signed review packets byte-stable when a board card changes lane.
+
+    The old path is a historical locator, not a second card. Accept it only
+    when exactly one current board file has the same canonical card filename.
+    All other broken links remain errors.
+    """
+    reviews = root / "docs/verification/reviews"
+    board = root / "docs/issues"
+    if not source.is_relative_to(reviews) or target.parent.parent != board or not board.is_dir():
+        return False
+    if not re.fullmatch(r"BPR-[0-9]{4}-.+\.md", target.name):
+        return False
+    matches = [
+        lane / target.name
+        for lane in board.iterdir()
+        if lane.is_dir() and (lane / target.name).is_file()
+        and not (lane / target.name).is_symlink()
+    ]
+    return len(matches) == 1
+
+
 def verify_links(root: Path) -> None:
     for path in markdown_files(root):
         text = path.read_text(encoding="utf-8")
@@ -511,7 +533,7 @@ def verify_links(root: Path) -> None:
                 resolved.relative_to(root)
             except ValueError:
                 fail(f"link escapes repository in {path}: {target}")
-            if not resolved.exists():
+            if not resolved.exists() and not relocated_review_card_link(root, path, resolved):
                 fail(f"broken relative link in {path}: {target}")
 
 
