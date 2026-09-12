@@ -12,6 +12,30 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
+## Current frontier, 2026-09-12 (d29, mandate r20): v011 verdict received
+
+Run `attended-prep-2026-09-10`, dispatch d29, producer
+`/root/integrator_d29`, mandate r20, remains bound to plan
+`ux-redesign-pack-0028` / milestone `attended-preparation-pack-head`, definition
+fingerprint `sha256:201de49a086f8f809fea06d6749caf3fecb43e7fa8c78a960f55af31b64bfee5`.
+The nine authored obligations and four exits remain in force. Clean synchronized
+main baseline was `1d3f7d48`; no source changes are planned for this verdict
+intake. The owner accepted the exact v011 `BPR-0646-workbench-chrome` candidate
+at sequence 373 (decision `4feeaa9e-5705-4c53-a516-6fc311de305d`, fingerprint
+`b6641835…`, empty note) on revision `app-release-d28-dfd1c4ca-2026-09-12.7`.
+Sequence 374 handed back with no pending candidates. The protected
+[v011 identity](../../verification/reviews/rfc-bpr-0028-attended-v011/session-identity.json)
+binds the signed tests-disabled bundle to executable SHA-256 `dfd1c4ca…`;
+the local executable digest still matches. Engineering is incorporating this
+decision into [[BPR-0743]] AC4 and [[BPR-0646]]'s remaining attended criterion.
+The d28 composed and focused checks remain applicable because source inputs
+are unchanged. [[BPR-0729]]'s accepted v010 criterion remains Parked on
+`immutable-review-link`; [[BPR-0735]] and [[BPR-0746]] retain the owner's
+declined observations. [[BPR-0730]]/[[BPR-0731]] remain own-station work.
+Next: finish eligible cards through protected-link-safe bookkeeping, then
+assess [[BPR-0750]] against all nine RFC-BPR-0029 closeout criteria without
+claiming any unrun evidence. No child writer, build or review host is active.
+
 ## Current frontier, 2026-09-12 (d28, mandate r19): historical comparison in progress
 
 Run `attended-prep-2026-09-10`, dispatch d28, producer `/root/integrator_d28`, mandate r19, remains bound to `ux-redesign-pack-0028` / `attended-preparation-pack-head`, definition fingerprint `sha256:201de49a086f8f809fea06d6749caf3fecb43e7fa8c78a960f55af31b64bfee5`. All nine authored obligations and four exits remain open as recorded below. Clean synchronized main baseline: `9a0845be`. BPR-0743 is In Progress; BPR-0646's unchanged handle criterion is prepared for owner judgment on a new signed bundle; no verdict is inferred.
