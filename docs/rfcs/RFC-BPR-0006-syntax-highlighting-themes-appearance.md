@@ -105,4 +105,9 @@ falls under this RFC's 4.5:1 floor on the diff row fills; the light and
 high-contrast profiles are unchanged. A stored customisation from before
 that change is reset once when the appearance store migrates to schema
 version 4. [[BPR-0720]] carries the values, the evidence and the attended
-criterion.
+criterion. The C and C++ classifier gives calls, types and ALL_CAPS macros
+their roles ([[BPR-0726]], accepted 2026-09-11 in the v007 attended
+session); the owner rejected the palette in the same session because
+macros paint the directive grey and functions Visual Studio's pale yellow
+rather than the Visual Assist purple and gold of the reference, which
+[[BPR-0738]] carries.

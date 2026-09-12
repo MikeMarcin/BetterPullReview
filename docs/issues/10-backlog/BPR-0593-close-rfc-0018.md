@@ -12,35 +12,41 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
-## Current frontier, 2026-09-11 (d14, v007 prepared)
+## Current frontier, 2026-09-11 (d15, v007 consumed)
 
-Dispatch `attended-prep-2026-09-10` d14 (mandate r7). The tests-disabled
-bundle was rebuilt at 2cdc0e57 after [[BPR-0733]] was parked (`cmake
---preset app-release && cmake --build build/app-release`, executable
-sha256 `64d9e46a…`, `codesign --verify --deep --strict` clean;
-`github_application.cpp` unchanged since the v006 head d1ba791f, so
-neither composition digest moved). Session `cbd48b91…` carries ten
-candidates at revision `app-release-64d9e46a-2026-09-11.3`, ready and
-protected at sequence 311, none decided, in
-[rfc-bpr-0028-attended-v007](../../verification/reviews/rfc-bpr-0028-attended-v007/operator-packet.md):
-the four v006 rejections asked again ([[BPR-0646]] narrowed to the epoch
-handles, [[BPR-0663]], [[BPR-0676]], [[BPR-0720]]) and [[BPR-0725]],
-[[BPR-0726]], [[BPR-0727]] (carrying d11's judgement that Overview is
-chosen, never inferred from the files-only shape), [[BPR-0728]],
-[[BPR-0732]] and [[BPR-0733]] (carrying d13's change that a refused
-startup authority is silent). The fifteen v006 verdicts stand against
-their own revision. No host is running and no watch is armed; the packet
-says how to start both (`serve`, then `wait --after 311`).
-
-Next: on the owner's say-so, `serve` and a persistent `wait --after 311`;
-then consume the verdicts card by card ([[BPR-0716]] finishes with
-BPR-0732). After the verdicts: [[BPR-0734]]; on their stations later:
-[[BPR-0730]] and [[BPR-0731]], on which this closeout depends. Outside the
-pack: [[BPR-0735]] (clangd noise), Ready, not started, the only
-independent unattended work while the ten candidates protect `src/core`,
+Dispatch `attended-prep-2026-09-10` d15 (mandate r8). The owner reviewed
+all ten v007 candidates on the 2cdc0e57 bundle (executable sha256
+`64d9e46a…`, revision `app-release-64d9e46a-2026-09-11.3`) and handed back
+at sequence 322; every decision was consumed against its own candidate and
+fingerprint (all ten match the identity file of
+[rfc-bpr-0028-attended-v007](../../verification/reviews/rfc-bpr-0028-attended-v007/operator-packet.md);
+no stale verdict).
+Accepted and Done: [[BPR-0663]], [[BPR-0676]], [[BPR-0725]], [[BPR-0726]],
+[[BPR-0727]] (with d11's judgement), [[BPR-0728]] (its note is a new
+defect, [[BPR-0739]]), [[BPR-0732]] and [[BPR-0733]] (with d13's change);
+[[BPR-0716]] finished on BPR-0732's verdict. Rejected and still parked:
+[[BPR-0646]] (the epoch line's placement in the centre pane, [[BPR-0737]];
+the handle criterion needs a pull request with several updates) and
+[[BPR-0720]] (macro and function colours against the Visual Assist
+reference, [[BPR-0738]]). The owner's five screenshots are in the v007
+packet's `captures` directory. The host (pid 55182) was stopped through
+the contract; the ten candidates keep their protection of `src/core`,
 `src/application`, `src/adapters/qt`, `src/adapters/sqlite`,
-`src/adapters/syntax` and `src/app`. Detail below under "Continuation
-after the owner's answers" and "Landing record (d13)".
+`src/adapters/syntax` and `src/app` until an explicit
+`resume-development` precedes the next source edit.
+
+Closeout state: RFC-BPR-0018 is not closable; this card still depends on
+[[BPR-0730]] and [[BPR-0731]] (Windows and Linux packaged inventories,
+"after we sort all the MacOS and platform agnostic stuff out"). RFC-BPR-0028
+is not closable: BPR-0646 keeps one criterion parked, BPR-0729 waits on
+[[BPR-0734]], BPR-0653 waits for the Windows station, and BPR-0737 and
+BPR-0739 are new Ready work. Next, in order: [[BPR-0734]] (design only, no
+product source, needs no release); then `resume-development`, [[BPR-0737]]
+and [[BPR-0739]] under RFC-BPR-0028 and [[BPR-0738]] under RFC-BPR-0006 on
+main; a rebuilt tests-disabled bundle; a v008 packet re-asking BPR-0646
+(on a public pull request with more than one update) and BPR-0720 plus the
+three new asks. Outside the pack: [[BPR-0735]] (clangd noise), Ready, not
+started. Detail below under "Continuation after the v007 hand-back".
 
 ## Objective
 
@@ -564,3 +570,30 @@ infers Overview from the files-only shape. After the v007 verdicts:
 which this closeout depends. Outside the pack: [[BPR-0735]] (clangd noise),
 Ready, not started. No host is running and no watch is armed. Detail below
 under "Continuation after the owner's answers".
+
+## Continuation after the v007 hand-back, 2026-09-11 (d15)
+
+The d14 frontier (v007 prepared at sequence 311) is retained in substance
+by the packet. Decisions, events 312 to 321, then the hand-back at 322:
+
+- Accepted and finished Done from their own acceptance: [[BPR-0663]]
+  (the cache-hit launch showed the updates; the `smart_acquire` half rests
+  on the 2026-09-07 live acquire recorded on BPR-0667), [[BPR-0676]] (the
+  packet's side question about naming the default pair drew no answer;
+  nothing carded), [[BPR-0725]], [[BPR-0726]], [[BPR-0727]], [[BPR-0728]],
+  [[BPR-0732]], [[BPR-0733]]; [[BPR-0716]] promoted, claimed and finished
+  on BPR-0732's verdict, since BPR-0732 took its scope.
+- Rejected, parked, follow-up carded: [[BPR-0646]] became [[BPR-0737]]
+  (the epoch control is the centre pane's first widget, so its labels
+  move with the drawer widths and modality; the owner wants it and the
+  "Comparing …" menu on one full-width row under the strip); [[BPR-0720]]
+  became [[BPR-0738]] (macros are classified as the preprocessor role and
+  paint its grey; functions paint Visual Studio's `DCDCAA`; the owner's
+  reference is Visual Assist's purple and gold, sampled on the card).
+- Accepted with a note: [[BPR-0728]]'s cursor finding became [[BPR-0739]]
+  (no cursor or handle code exists on the central splitter; four
+  candidate causes are listed, none confirmed).
+
+No product source changed in this dispatch. The v007 packet's BPR-0733
+link was repaired to Done (path only). RFC-BPR-0028 and RFC-BPR-0006 carry
+the verdict paragraphs.

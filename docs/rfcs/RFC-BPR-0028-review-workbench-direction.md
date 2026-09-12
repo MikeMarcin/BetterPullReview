@@ -408,3 +408,27 @@ line, [[BPR-0663]], [[BPR-0676]], [[BPR-0720]]) and the six landings since
 ([[BPR-0725]], [[BPR-0726]], [[BPR-0727]], [[BPR-0728]], [[BPR-0732]],
 [[BPR-0733]]). The v006 packet is historical; its fifteen verdicts stand.
 No host is running until the owner asks for the session.
+
+Attended verdict, 2026-09-11 (v007). Session `cbd48b91…` was handed back
+at sequence 322 with all ten candidates decided on the 2cdc0e57 bundle.
+Accepted and Done: [[BPR-0663]], [[BPR-0676]], [[BPR-0725]] (the line
+carries the catalogue's updates on a cache hit; AC-02's v006 defect is
+closed), [[BPR-0727]] (including the judgement that Overview is chosen,
+never inferred), [[BPR-0728]] (with a new defect: the resize cursor does
+not stay over the handle, [[BPR-0739]]), [[BPR-0732]] and [[BPR-0733]]
+(including the judgement that a refused startup authority is silent);
+[[BPR-0716]] finished on BPR-0732's verdict; RFC-BPR-0006's [[BPR-0726]]
+was accepted. Rejected and parked: [[BPR-0646]], because the epoch line
+sits in the centre pane and its labels move with the drawers in every
+modality; the owner wants the line and the "Comparing …" menu on one
+full-width row under the strip, above the drawer headings, [[BPR-0737]],
+which amends the chrome paragraph when it lands; the handle criterion
+itself is still unjudged because the packet's pull request has one
+update, so the next ask names one with several. [[BPR-0720]] under
+RFC-BPR-0006, because the macro and function roles paint the wrong
+colours against the Visual Assist reference, [[BPR-0738]]. Of this RFC's
+cards, BPR-0646 (one criterion) is the only one parked; BPR-0653 waits for
+the Windows station; BPR-0729 waits for the design round [[BPR-0734]];
+BPR-0736 is in Inbox; BPR-0737 and BPR-0739 are Ready. The RFC stays
+open. Next: BPR-0734, then BPR-0737 and BPR-0739 on main, a rebuilt
+bundle and a v008 packet re-asking BPR-0646 and BPR-0720.
