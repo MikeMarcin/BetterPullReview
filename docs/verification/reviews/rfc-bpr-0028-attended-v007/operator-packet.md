@@ -140,5 +140,5 @@ No open question rides this packet beyond the two judgements above.
 Import the exported decisions with `attended_review.py import --file FILE`
 (the live page saves them itself). The integrator then finishes each card
 from its own acceptance; a rejection becomes a bounded follow-up card.
-After the verdicts: [BPR-0734](../../../issues/10-backlog/BPR-0734-a-design-round-for-the-single-pane-read-layout.md),
+After the verdicts: [BPR-0734](../../../issues/30-in-progress/BPR-0734-a-design-round-for-the-single-pane-read-layout.md),
 then the Windows and Linux inventories on their stations.

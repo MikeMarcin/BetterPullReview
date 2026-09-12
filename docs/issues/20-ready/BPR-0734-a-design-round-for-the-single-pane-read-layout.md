@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0734"
 title: "A design round for the single-pane Read layout"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P2"
