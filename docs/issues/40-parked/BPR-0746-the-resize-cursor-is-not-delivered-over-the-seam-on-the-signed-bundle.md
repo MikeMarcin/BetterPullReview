@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0746"
 title: "The resize cursor is not delivered over the seam on the signed bundle"
-status: "Ready"
+status: "Parked"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P2"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"owner_direction":"2026-09-11","attended_session":"cbd48b91000b00f1e72e1ad62c7c384c","attended_decision":"a374890c-b692-4ada-afb9-6ccd278d7645","supersedes_diagnosis_on":"BPR-0739"}
+parked_on: "human-review"
 ---
 
 # The resize cursor is not delivered over the seam on the signed bundle
@@ -164,3 +165,66 @@ log proves that Qt calls `[NSCursor set]`, which nothing disputed, and says
 nothing about what AppKit does on the next real motion with the pointer on
 the handle. The correction is recorded on BPR-0739; do not reuse that
 sentence as passing evidence.
+
+## The check cannot be run unattended, 2026-09-12 (mandate r11)
+
+This card says the discriminating check runs before any product change. It has
+not been run, and no product source was changed. The reason is not that it was
+skipped; it is that the check is not an agent's to run on this machine.
+
+Every hypothesis on this card is about what AppKit does **on the next real
+pointer motion** after Qt's enter. Hypothesis 1 says it reverts the cursor
+then; hypothesis 2 says nothing reached AppKit at all; hypothesis 3 says an
+earlier exit left a stale record. None of them can be told apart without a
+real pointer crossing onto the seam and moving slightly there. Synthesising
+that motion means warping the pointer on the owner's desktop, which this
+dispatch is forbidden to do — and it is also what made
+`build/logs/bpr-0739-cocoa-diag-1.log` worthless: that run sent an event
+directly to the window with the real pointer 1164 pixels away, which is the
+correction recorded on [[BPR-0739]].
+
+Positioning the window under a stationary pointer instead does not help
+either. It would produce an enter without motion, and motion is the variable
+under test.
+
+So the check is a human step, and it is prepared rather than deferred. It
+rides [[BPR-0739]]'s v009 candidate, because that candidate already asks the
+owner to put the pointer on the seam: one trip to the seam yields both his
+report and a log this dispatch can read. The command is one line, run from a
+terminal instead of Finder:
+
+    QT_LOGGING_RULES='qt.qpa.input.mouse*=true' \
+      build/app-release/src/app/BetterPullReview.app/Contents/MacOS/BetterPullReview \
+      2>&1 | tee build/logs/bpr-0746-cursor-probe.log
+
+Then Read, pointer from the comparison onto the seam, hold it there with
+slight motion for about three seconds, off again, and quit.
+
+The category and the strings were checked against the shipped plugin rather
+than assumed: `build/.cpm-cache/bprqt/6.10.3/6.10.3/macos/plugins/platforms/libqcocoa.dylib`
+declares `qt.qpa.input.mouse` among its logging categories and carries the
+literals `cursor to`, `Synthesizing cursor update`, `Cursor update for` and
+`resulted in new cursor`. If the log comes back with no `qt.qpa` lines at all,
+the fallback is `QT_LOGGING_RULES='qt.qpa*=true'`, which is noisier and
+certain.
+
+**This is not a re-ask of AC3.** Nothing about the cursor changed in this
+round, so asking the owner to judge whether it is fixed would be asking him to
+confirm a failure already recorded. The v009 candidate asks him for the log
+and for the hover-highlight question, and says plainly that the cursor is
+unchanged.
+
+Reading the result, once it exists:
+
+- `Setting … cursor to <… resizeLeftRight>` then `Synthesizing cursor update`,
+  then nothing further while the on-screen cursor is an arrow → hypothesis 1.
+- `Setting … cursor to <resizeLeftRight>` with no `Synthesizing cursor update`
+  after it → hypothesis 2.
+- No `Setting …` line on that entry, with an earlier `resizeLeftRight` set
+  never followed by a set back to the arrow → hypothesis 3.
+- `Setting … cursor to <arrow>` logged while the pointer is on the lit seam →
+  all three are wrong; the lines around it are the next lead.
+
+Parked on human-review until that log exists. The scope's instruction to bring
+the scope back if the cause turns out to be platform-wide rather than this
+window's still stands and has not been reached.
