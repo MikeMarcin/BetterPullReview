@@ -2,16 +2,17 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0736"
 title: "The review queue ignores Return on macOS"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0028", "RFC-BPR-0026"]
 depends_on: []
 priority: "P2"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"found_by":"BPR-0733","mandate":"attended-prep-2026-09-10 r7"}
+acceptance: [{"criterion":"AC1 Return and Enter open current queue row without disturbing activation","outcome":"pass","revision":"7e53ff78","evidence":{"kind":"command","detail":"New real QKeyEvent assertion failed before fix in build/logs/bpr-0736-d25-red-test.log. Final qt_composed_github_scale_100/125/200 passed in build/logs/bpr-0736-d25-green-tests.log. Both keys dispatch exactly selected PR 74; invalid selection dispatches nothing; existing mouse click still opens PR 73. Touched format, focused tidy and git diff --check pass."}}]
 ---
 
 # The review queue ignores Return on macOS
 
-Found while landing [BPR-0733](../60-done/BPR-0733-home-lists-recently-viewed-pull-requests-instead-of-restoring-the-last-one.md).
+Found while landing [BPR-0733](BPR-0733-home-lists-recently-viewed-pull-requests-instead-of-restoring-the-last-one.md).
 On macOS `QAbstractItemView` hands Return and Enter to its edit trigger and
 never emits `activated`; probed empirically on the recently viewed list
 (`activated=0`, event ignored, for Return, Enter and viewport delivery).
