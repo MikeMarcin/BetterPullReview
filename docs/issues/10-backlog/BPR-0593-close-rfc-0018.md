@@ -12,7 +12,198 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
-## Current frontier, 2026-09-12 (d22, mandate r13): the v009 verdicts are consumed
+## Current frontier, 2026-09-12 (d23, mandate r14): the probe refused, the contract green, BPR-0743 back with one question
+
+Dispatch `attended-prep-2026-09-10` d23 (mandate r14), same milestone
+`attended-preparation-pack-head` of plan `ux-redesign-pack-0028`. Four cards
+moved, one new card, one design pass recorded and escalated, and the milestone's
+exit criterion 2 is green for the first time in three dispatches. No product
+source changed; one test course did. Nothing is pushed.
+
+### What the owner's message did, and on what basis
+
+His message, in chat, in full: "I don't care to do any cursor probe, i've
+already confirmed that the cursor is working correctly now." He wrote it after
+being told that the probe log was never captured, that his v009 accept rested on
+a criterion whose objective half was missing, and that d22's reconciliation is
+an account and not a diagnosis. The message makes two separate statements, and
+they land differently.
+
+**[[BPR-0739]] is Done (`1abfb9c5`), on his word, and the card says so.** AC3
+("the owner resizes the conversations drawer on the signed bundle with the
+cursor visible throughout") has only ever had one possible witness, and nothing
+here can observe his screen. This time the criterion was put to him and he
+answered it knowing it was disputed. That is not the v009 aside, which stays
+refused as a verdict. The report is also bound to a known binary, and that was
+checked:
+- The probe instance was still running as pid 72017, and its file hashes to
+  `c2381f32…`, the v009 candidate revision exactly.
+- `diagnostics.log` showed no other instance.
+- `git diff --stat 35438244 aff9fc64 -- src/adapters/qt` is one file, with zero
+  lines matching cursor, splitter, handle, `underMouse` or `paintEvent`, so it is
+  the same program he rejected in v008.
+
+**What it rests on is written on the card:** his word and nothing else. There is
+no log, no measurement and no product change on this path, and the reversal
+against v008 is unexplained. BPR-0746's hypothesis 1 predicts exactly what he
+described (fresh entries work, a resting pointer decays), so the close does
+**not** refute it. One report of the arrow returning reopens the card.
+
+**[[BPR-0746]] does not close. It is Blocked on `owner-declined-probe`
+(`0e092e30`).** Closing it on the same sentence would be wrong, because its two
+open criteria do not ask him for anything:
+- AC1 asks for a log.
+- AC2 asks for a check asserted against the hypothesis that log would select.
+
+He has declined the only instrument that produces either, and no agent can stand
+in for him: every hypothesis turns on what AppKit does on the next *real*
+pointer motion. AC2 is recorded as unobtainable, not pending. What landed at
+`bbc4db98` checks the admissibility of the card's evidence, not cursor delivery,
+and is not recorded as satisfying AC2. AC4 passes on BPR-0739.
+
+The card leaves human-review because nothing is waiting on him: he answered.
+Blocked is the lane that says the work cannot proceed and names why. A new
+`parked_on` token would have needed a tracker-rule change, and `human-review`
+would have been false. Nothing is refuted. The three hypotheses and the
+corrected absolute-path command are kept.
+
+**`handleWidth` is measured, not left open.** `PM_SplitterWidth`, read off the
+shipped Qt 6.10.3 in a scratch program under the offscreen platform, is **7 for
+the macOS style and 4 for Fusion**, and the offscreen default style is `fusion`.
+The "seven pixels" both cards quote is right for the signed bundle, and d22's 4
+is Fusion, so there is no contradiction. The consequence is that the Qt suite
+measures a style the product does not ship. That, together with his unanswered
+"it wasn't drawn in the right location" (`rule_edge()` puts the rule in the hot
+zone's boundary column), is **[[BPR-0749]]** (new, Backlog, P3).
+
+### The composition contract ran, and what it settled
+
+The owner quit the probe instance ("I quit the running instance"; shutdown
+logged at 17:45:33Z). That was verified before anything ran: pid 72017 was gone,
+no BetterPullReview process existed, and nothing held the catalogue or
+`activate.sock`.
+
+`application_composition_contract` **passed in 172.22 s on the first attempt**,
+with nothing changed. That demonstrates d22's diagnosis: the block was the
+profile lease and nothing else.
+
+**[[BPR-0744]] is Done (`dc231174`).** All 11 AC3 tests were rerun at `f953ce9c`
+rather than reused, although `git diff --stat bbc4db98 HEAD -- src tests
+packaging` is empty.
+
+**Milestone exit criterion 2 is green at the pack head.** Beyond those 11, 13
+more passed (`build/logs/d23-exit2-integration.log`):
+- `application_workbench_composition_contract`, the second composition contract
+- `qt_workbench_window_scale_{100,125,200}` and `qt_composed_github_scale_{100,125,200}`
+- `qt_settings_window` and its three scales, and `qt_settings_effect_boundary`
+- `sqlite_workbench_settings_storage`
+
+`architecture_boundaries` and the documentation gate also pass.
+`coding-format-check` stays red only for the three files already red at HEAD,
+none of them touched here.
+
+**[[BPR-0748]]'s broadening question is untouched** and is not implemented on
+the strength of the accept.
+
+### BPR-0743: the design pass, and the exact ask
+
+**Parked on human-review (`b61e9c05`), AC1 pass, nothing implemented.** The full
+pass is on the card (`f953ce9c`), and a short note is on RFC-BPR-0003.
+
+**The signed-out obstacle does not exist.** The probe was run with no
+credential: `GET /repos/NVIDIA/stdexec/issues/1846/timeline` returned **HTTP
+200** against the 60-per-hour budget. It names both force pushes with GitHub-side
+ids and the head each moved *to*. One of those heads, `6ffbd0ac`, is absent from
+the commits list and still fetchable, which demonstrates the "commits aren't
+updates" claim rather than asserting it.
+
+The same response exposed three limits:
+- The REST event has **no before-commit**. GraphQL has one and is refused
+  anonymously.
+- Array position is not an ordering key, and `committed` dates are author dates.
+- An ordinary push produces no event at all.
+
+**The decisions:**
+1. **Derivation.** A digest over the authority scope and the **head OID**,
+   carried beside `review_epoch_id`. It is not the event `node_id`, which exists
+   only for force pushes and which the catalogue excludes by design. It is not
+   the base/head pair either, because the base is time-dependent even for a live
+   read. A force push back to an earlier head would give two updates one
+   identity; that is open and recorded.
+2. **Ordinal.** Not redefined. Redefining it can't buy portability while
+   Incarnation stays in the id. Two of its seven serializations are beyond the
+   catalogue's reach (git refs on disk, and MCP and agent-launch bindings already
+   emitted). Density is an adapter guarantee that paging depends on.
+3. **Identity can be made stable; population cannot be made equal.** A head seen
+   live and then force-pushed over can't be recovered by any other machine.
+4. **The base OID is mandatory and origin-blind** (`epoch_transition.cpp:2199-2218`),
+   and the timeline supplies none for a historical update.
+5. **Migration.** Neither re-mint nor renumber. Add a column, backfill it from
+   the stored head, and let the import append. This works because a historical
+   epoch already advances neither live ordinal.
+
+**The conditional fires, on kind rather than size.** Identity, base OID, observed
+time and the schema version all move: four of the six things RFC-BPR-0003 pins.
+**The ask, one question:**
+
+> The epoch work you asked for changes what RFC-BPR-0003 says an epoch *is* —
+> what identifies it, what its base OID means when GitHub only remembers the
+> head, and whether its timestamp is when you saw it or when it was pushed.
+> Do you want it as an RFC of its own, or as an amendment recorded against
+> the closed RFC-BPR-0003?
+
+[[BPR-0646]] stays parked with its handle criterion unchanged, and it can't be
+asked until this lands.
+
+### BPR-0741 is Done; BPR-0742 was deliberately not started
+
+**[[BPR-0741]] (`aab99d2b` the work, `e72a1347` the finish).** The red was
+reproduced at HEAD before any change. The course now signs in from the landing
+card before its first paste, and it passes in 80 s against 180 s. The layout and
+restoration courses still pass (the restoration course at 586 s against 1800 s,
+its normal runtime). The integrator checked the claim that no pin was dropped,
+separately from the slice owner: one assertion was replaced by four, and every
+other message is identical and in the same order.
+
+**[[BPR-0742]] is not started.** It is a P3 product change in the composition
+path, the same `github_application.cpp` branch the two composition contracts
+exercise, and those contracts went green for the first time this dispatch. It
+belongs in a fresh context, not the tail of this one. It stays Ready and nothing
+blocks it.
+
+### Commits, and attribution
+
+In order:
+- `0e092e30`: BPR-0746 Blocked, BPR-0749 carded
+- `1abfb9c5`: finish BPR-0739
+- `f953ce9c`: the design pass
+- `db2f416f`, `4428f162`: protected packet links, paths only
+- `dc231174`: finish BPR-0744
+- `b61e9c05`: park BPR-0743
+- `aab99d2b`: BPR-0741's work
+- `e72a1347`: finish BPR-0741
+- then this frontier
+
+Every commit here uses `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`,
+per the pack's standing rule. No history was rewritten and the attribution
+question is not re-raised.
+
+### Next, in order
+
+1. **The owner's answer on BPR-0743**: its own RFC, or an amendment. Nothing
+   epoch-related is implementable until then, and [[BPR-0646]] waits behind it.
+2. **[[BPR-0742]]**, in a fresh context. Keep both application composition
+   contracts green.
+3. **[[BPR-0749]]** when the seam is next touched, and [[BPR-0748]] as its own
+   attended candidate with two pictures.
+4. No v010 packet was prepared and none is forced. Neither RFC became closable:
+   nothing touched RFC-BPR-0018, and RFC-BPR-0028 still holds BPR-0743, BPR-0646,
+   BPR-0729, BPR-0653, BPR-0736, BPR-0746 and BPR-0749.
+
+d22's frontier follows. It is still authoritative on everything not corrected
+above.
+
+## Frontier, 2026-09-12 (d22, mandate r13): the v009 verdicts are consumed
 
 Dispatch `attended-prep-2026-09-10` d22 (mandate r13), same milestone
 `attended-preparation-pack-head` of plan `ux-redesign-pack-0028`. The four
