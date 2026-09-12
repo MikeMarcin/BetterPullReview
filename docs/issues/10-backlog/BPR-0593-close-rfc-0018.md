@@ -20,10 +20,25 @@ the BPR-0646 and BPR-0737 asks (recorded on both cards), and BPR-0738's
 reading is corrected, functions orange `FF8000`, class/struct types gold
 `FFD700`, macros purple `BD63C5` with a distinct macro role "necessary"
 (per-token resample on BPR-0738; BPR-0720 and RFC-BPR-0006 point at it).
-The next round (BPR-0734, then resume-development, BPR-0737, BPR-0739,
-BPR-0738, a rebuilt bundle, the v008 packet) is approved and under way in
-this dispatch; progress is appended under "Continuation after the v007
-hand-back". d15's frontier follows.
+Landed in d16, all on main: [[BPR-0734]]'s round (workbench states v6,
+state 2b "Read, one pane", the drafted Modalities and AC-05 amendments and
+three open questions on the card; parked human-review); the ten v007
+candidates released through `resume-development` (sequence 323, no
+candidate protected); [[BPR-0738]] (a `syntax_macro` role, the dark
+values types `FFD700`, functions `FF8000`, variables `BDB76B`, attributes
+`4EC9B0`, macros `CE8AD4`, the appearance store at schema 5 with no second
+reset; parked human-review); [[BPR-0737]] (the epoch row is the review
+surface's first row above the splitter, full client width in every
+modality; parked human-review; RFC-BPR-0028's chrome paragraph amended).
+Found red at HEAD and not any card's: the three round-trip composition
+pins that BPR-0733 left stale (repinned under BPR-0738's commit) and
+`application_profile_window_layout_public_path` ([[BPR-0740]], Ready).
+Still to do, in order: [[BPR-0739]] (the resize cursor; diagnosis first);
+the rebuilt tests-disabled bundle; the v008 packet written last, on
+NVIDIA/stdexec#1846, re-asking BPR-0646 and BPR-0720 and asking BPR-0734,
+BPR-0737, BPR-0738 and BPR-0739 (BPR-0738's ask also carries the include
+path colour and the alias italic; BPR-0734's carries its three
+questions). No host is started and no wait armed. d15's frontier follows.
 
 Dispatch `attended-prep-2026-09-10` d15 (mandate r8). The owner reviewed
 all ten v007 candidates on the 2cdc0e57 bundle (executable sha256
