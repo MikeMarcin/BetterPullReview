@@ -1,0 +1,13 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0743",
+    "BPR-0744",
+    "BPR-0745",
+    "BPR-0746"
+  ],
+  "reserve_for": "attended-v008-followups-d19",
+  "purpose": "the four v008 attended rejections: observed-update history (BPR-0646), preprocessor argument roles (BPR-0720/BPR-0738), the one-pane state redrawn with the link map (BPR-0734), the resize cursor's delivery over the seam (BPR-0739)",
+  "created": "2026-09-12T05:00:03.531421+00:00",
+  "base": "71815a38f15e9b5b5bfb2be53507f460f187abf7"
+}
