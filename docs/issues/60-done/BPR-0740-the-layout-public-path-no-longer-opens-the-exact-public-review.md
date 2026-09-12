@@ -68,7 +68,7 @@ Two findings, the first settled and the second open.
    path under BPR-0732 (sign in from the landing card, then paste; an
    account opens without a stop); this course was not, and neither was
    the multi-window course
-   ([BPR-0741](../20-ready/BPR-0741-the-multi-window-public-path-course-still-waits-for-a-sign-in-stop.md)).
+   ([BPR-0741](BPR-0741-the-multi-window-public-path-course-still-waits-for-a-sign-in-stop.md)).
    On Linux and Windows the capability is not shipped and the sign-in
    stop is still reached, so the red is macOS-only. The course is now
    converted: Home is shown before every paste (a restarted window shows
@@ -164,6 +164,6 @@ unchanged. `application_profile_window_layout_public_path` passes
 `application_profile_window_review_restoration_public_path` (565.8 s,
 slow but green) pass (`build/logs/bpr-0740-siblings-24.log`). The
 multi-window course stays red for its own reason,
-[BPR-0741](../20-ready/BPR-0741-the-multi-window-public-path-course-still-waits-for-a-sign-in-stop.md),
+[BPR-0741](BPR-0741-the-multi-window-public-path-course-still-waits-for-a-sign-in-stop.md),
 whose `:236` "second read preserves first review" holds on the account
 path once the course signs in first.
