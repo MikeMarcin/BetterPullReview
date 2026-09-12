@@ -12,7 +12,37 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
-## Current frontier, 2026-09-11 (d16, mandate r9)
+## Current frontier, 2026-09-11 (d17, mandate r9)
+
+Dispatch `attended-prep-2026-09-10` d17 (mandate r9). Landed on main:
+[[BPR-0739]] diagnosed and fixed (causes 1, 2 and 4 excluded by a Qt
+test that passed at HEAD and by a cocoa probe; the cause is the invisible
+seven-pixel handle beside the comparison's scroll bar, so the central
+splitter handles now draw the asset's one-pixel drawer edge rule in `Mid`,
+`Highlight` under the pointer; parked human-review, asked in v008);
+the harness-regenerated `native-roles.lock.json` recorded (claude role
+hashes match the installed `.claude/agents` files); [[BPR-0741]] carded
+(the multi-window course red at HEAD on macOS, same cause as BPR-0740).
+[[BPR-0740]] is In Progress with its course converted to the account path
+(the stale sign-in stop was BPR-0732's; confirmed) and one open finding:
+after window B opens pull 18, window A's review is closed
+(`invalidate_now` in the workbench host); course composition or a
+product regression in the window-session lifecycle, undetermined, with
+the deciding instrumentation named on the card. The course is committed
+in that state and fails at "last accepted layout change belongs only to
+A" with A's status in the failure output. Not done: the tests-disabled
+bundle and the v008 packet, held because BPR-0740 may still change
+`github_application.cpp`; a manifest generator and packet draft for v008
+are in d17's return (six candidates: BPR-0646 and BPR-0720 re-asked, and
+BPR-0734, BPR-0737, BPR-0738, BPR-0739, on NVIDIA/stdexec#1846; the run
+notes say the appearance store moves to schema 5 and older builds refuse
+it). No host started, no wait armed. Next: settle BPR-0740's finding 2
+(instrument `github_window_read_host::retire`/`release` and
+`WorkbenchInvalidations` at the moment B opens), or park it to a named
+blocker so the bundle can be built; then the bundle, then the packet.
+d16's frontier follows.
+
+## Frontier, 2026-09-11 (d16, mandate r9)
 
 Dispatch `attended-prep-2026-09-10` d16 (mandate r9). The owner answered
 d15's two asks: NVIDIA/stdexec#1846 is the multi-update pull request for
