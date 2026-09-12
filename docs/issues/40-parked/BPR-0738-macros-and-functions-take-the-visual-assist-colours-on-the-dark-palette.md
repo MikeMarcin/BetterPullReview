@@ -237,7 +237,7 @@ What this settles and what it does not:
   BEGIN_TEST_METHOD_PROPERTIES` is preprocessor and *not* a macro is the
   assertion the owner's direction reverses.
 
-Carded as [BPR-0744](BPR-0744-preprocessor-directives-are-grey-but-their-arguments-take-their-own-roles.md).
+Carded as [BPR-0744](../60-done/BPR-0744-preprocessor-directives-are-grey-but-their-arguments-take-their-own-roles.md).
 This card stays parked on human-review; its criterion is asked again on a
 bundle carrying BPR-0744, with the alias italic and the macro purple repeated
 as the two questions still open.
