@@ -14,7 +14,9 @@
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
+#include <QColor>
 #include <QComboBox>
+#include <QCursor>
 #include <QElapsedTimer>
 #include <QEvent>
 #include <QIcon>
@@ -46,6 +48,7 @@
 #include <QToolBar>
 #include <QToolButton>
 #include <QWidget>
+#include <QWindow>
 
 #include <QTreeView>
 
@@ -1960,6 +1963,195 @@ namespace {
 		process_events();
 		expect(!window.showing_home() && window.conversations_drawer()->width() == 200,
 			   "back in Read the drawer keeps the persisted 200 rather than lifting to 375");
+		window.hide();
+	}
+
+	/// \brief Rests the pointer on a central splitter handle and reports what
+	/// the platform would show: the widget under the pointer and its cursor.
+	[[nodiscard]] auto handle_under_resting_pointer(
+		qt::workbench_window& aWindow,
+		const int             aHandle,
+		const char* const     aMoment) -> bool
+	{
+		// The platform shows the cursor of the widget Qt's enter/leave tracking
+		// holds under the pointer; a handle the tracking has left shows the
+		// arrow of whatever took its place. The offscreen platform answers no
+		// top-level for widgetAt, so the tracking's own record is what is read.
+		auto* const splitter = aWindow.central_splitter();
+		auto* const handle   = splitter->handle(aHandle);
+		const auto  local    = handle->mapFromGlobal(QCursor::pos());
+		if (handle->underMouse() && handle->rect().contains(local)
+			&& handle->cursor().shape() == Qt::SplitHCursor) {
+			return true;
+		}
+		auto* const under = aWindow.childAt(aWindow.mapFromGlobal(QCursor::pos()));
+		std::cerr << aMoment << ": handle " << aHandle << " geometry x=" << handle->geometry().x()
+				  << " width=" << handle->geometry().width() << " handleWidth="
+				  << splitter->handleWidth() << "; pointer at local x=" << local.x()
+				  << ", child at the pointer: "
+				  << (under != nullptr ? under->metaObject()->className() : "nothing") << " '"
+				  << (under != nullptr ? under->objectName().toStdString() : std::string{ })
+				  << "', handle cursor " << static_cast<int>(handle->cursor().shape())
+				  << ", handle underMouse " << handle->underMouse() << "\n";
+		return false;
+	}
+
+	void test_the_split_cursor_stays_over_a_resting_handle()
+	{
+		// [[BPR-0739]]. The owner, resizing the conversations drawer, saw the
+		// horizontal-resize cursor for a moment and then the arrow again with
+		// the pointer still. The card's candidate causes are the window's own
+		// relayouts: a modality change and a host-republished layout both set
+		// the splitter's sizes again, and a handle that moves out from under a
+		// resting pointer leaves the arrow until the pointer moves. Here the
+		// pointer rests on the conversations handle through both, and the
+		// widget under it must still be that handle with the split cursor.
+		intent_log           log;
+		qt::workbench_window window{
+			[&log](core::workbench_interaction_intent aIntent) {
+				log.Workbench.push_back(aIntent);
+			},
+			{ },
+			[&log](core::workbench_drawer aDrawer, std::uint32_t aWidth) {
+				log.Width.push_back({ .Drawer = aDrawer, .Width = aWidth });
+			}
+		};
+		window.resize(1'600, 820);
+		window.show();
+		process_events();
+		auto opened      = both_files_enabled();
+		opened.Drawers   = drawer_states(core::workbench_drawer_state::expanded,
+										 core::workbench_drawer_state::expanded);
+		opened.Behaviour = drawer_controls_shown();
+		opened.Layout    = application::workbench_layout_delta{
+			.FilesWidth         = 320U,
+			.ConversationsWidth = 375U,
+		};
+		window.publish(opened);
+		process_events();
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+
+		auto* const splitter = window.central_splitter();
+		auto* const handle   = splitter->handle(3);
+		// The platform cursor is placed so Qt's later relayout checks read the
+		// pointer where it rests; the move itself is delivered to the window
+		// as the platform would, because the offscreen platform's own delivery
+		// at a fractional scale lands beside the handle.
+		const auto restOn = [&](QSplitterHandle* const aHandle) {
+			const auto global = aHandle->mapToGlobal(aHandle->rect().center());
+			QCursor::setPos(global);
+			const auto  local = QPointF{ window.mapFromGlobal(global) };
+			QMouseEvent move{ QEvent::MouseMove, local, local, QPointF{ global },
+							  Qt::NoButton, Qt::NoButton, Qt::NoModifier };
+			QApplication::sendEvent(window.windowHandle(), &move);
+			process_events();
+		};
+		const auto rest = [&] { restOn(handle); };
+		// Qt's under-mouse tracking is re-evaluated from the integer global
+		// pointer position when a widget moves; at a fractional scale the
+		// offscreen round trip of that position lands a device pixel off, and
+		// the relayout steps read a pointer beside the handle. The platforms
+		// the defect was seen on scale by whole numbers; the fractional case is
+		// the Windows lane's to observe on a real display.
+		const auto scale      = qEnvironmentVariable("BPR_EXPECTED_QT_SCALE", QStringLiteral("1.0")).toDouble();
+		const auto fractional = std::abs(scale - std::round(scale)) > 0.001;
+		if (fractional) {
+			std::cout << "the resting-pointer sequence is read at whole-number scales; scale "
+					  << scale << " pins the seam only\n";
+		}
+		const auto pointerHolds = [&](const char* const aMoment) {
+			return fractional || handle_under_resting_pointer(window, 3, aMoment);
+		};
+		rest();
+		expect(pointerHolds("at rest"),
+			   "the conversations handle under a resting pointer shows the split cursor");
+
+		// A modality change relays the drawers ([[BPR-0649]] Discuss widens the
+		// conversation; Read returns it), and the pointer has not moved.
+		window.choose_modality(qt::review_modality::read);
+		process_events();
+		expect(pointerHolds("after a modality change"),
+			   "after a modality change the resting pointer is still on the handle "
+			   "with the split cursor");
+
+		// The host republishes the layout it persisted, the same widths.
+		auto persisted   = application::workbench_projection{ };
+		persisted.Layout = application::workbench_layout_delta{
+			.FilesWidth         = 320U,
+			.ConversationsWidth = 375U,
+		};
+		window.publish(persisted);
+		process_events();
+		expect(pointerHolds("after a republished layout"),
+			   "after the host republishes the layout the resting pointer is still on "
+			   "the handle with the split cursor");
+
+		// A drag the host answers with its clamped width, then the pointer rests
+		// where the drag left it: on the handle.
+		drag_conversations_handle(window, 300);
+		process_events();
+		auto answered   = application::workbench_projection{ };
+		answered.Layout = application::workbench_layout_delta{
+			.FilesWidth         = 320U,
+			.ConversationsWidth = 300U,
+		};
+		window.publish(answered);
+		process_events();
+		rest();
+		window.choose_modality(qt::review_modality::discuss);
+		process_events();
+		window.choose_modality(qt::review_modality::read);
+		process_events();
+		expect(pointerHolds("after a drag, Discuss and Read"),
+			   "after a drag the host answered and a Discuss round trip the resting "
+			   "pointer is still on the handle with the split cursor");
+
+		// The files handle is the same seam on the other side.
+		restOn(splitter->handle(2));
+		window.publish(answered);
+		process_events();
+		expect(fractional || handle_under_resting_pointer(window, 2, "files handle"),
+			   "the files handle behaves the same under a resting pointer");
+
+		// The seam is visible: the handle draws the drawer's edge rule, and the
+		// rule takes the highlight colour while the pointer is over it, so the
+		// reviewer sees the hot zone before the cursor changes.
+		const auto ruleShows = [](QSplitterHandle* const aHandle, const QRgb aColour) {
+			auto* const own  = dynamic_cast<qt::workbench_splitter_handle*>(aHandle);
+			const auto  edge = own != nullptr ? own->rule_edge() : -1;
+			if (edge < 0) {
+				return false;
+			}
+			// The rendering is in device pixels: the logical rule column is the
+			// band of device columns it scales to, and one of them carries the
+			// one device pixel wide cosmetic line.
+			const auto image = aHandle->grab().toImage();
+			const auto ratio = image.devicePixelRatio();
+			const auto first = std::max(0, static_cast<int>(std::floor(edge * ratio)) - 1);
+			const auto last  = std::min(image.width() - 1,
+										static_cast<int>(std::ceil((edge + 1) * ratio)));
+			for (auto x = first; x <= last; ++x) {
+				if (image.pixelColor(x, image.height() / 2).rgb() == aColour) {
+					return true;
+				}
+			}
+			return false;
+		};
+		const auto& palette   = window.palette();
+		const auto  mid       = palette.color(QPalette::Active, QPalette::Mid).rgb();
+		const auto  highlight = palette.color(QPalette::Active, QPalette::Highlight).rgb();
+		const auto  windowBg  = palette.color(QPalette::Active, QPalette::Window).rgb();
+		expect(ruleShows(splitter->handle(2), highlight),
+			   "the handle under the pointer draws its rule in the highlight colour");
+		expect(ruleShows(handle, mid) && mid != windowBg,
+			   "a handle the pointer is not over draws the drawer's edge rule, "
+			   "distinct from the window colour");
+		expect(dynamic_cast<qt::workbench_splitter_handle*>(splitter->handle(2))->rule_edge() == 0
+				   && dynamic_cast<qt::workbench_splitter_handle*>(handle)->rule_edge()
+					   == handle->width() - 1,
+			   "a left drawer's rule is at its handle's left edge and the conversations "
+			   "drawer's at its handle's right edge, where the drawers' edges are");
 		window.hide();
 	}
 
@@ -6050,6 +6242,7 @@ auto main(int argc, char** argv) -> int
 	test_a_squeezed_splitter_never_reports_a_width();
 	test_a_clobbered_persisted_width_opens_at_the_design_width();
 	test_the_conversations_drawer_narrows_below_its_default_in_read();
+	test_the_split_cursor_stays_over_a_resting_handle();
 	test_drawer_contents_use_incremental_model_signals();
 	test_file_rows_emit_only_semantic_user_selection();
 	test_the_files_drawer_shows_the_tree_over_its_list();

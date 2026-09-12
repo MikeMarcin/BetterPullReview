@@ -181,6 +181,31 @@ namespace bpr::qt {
 
 		/// \brief Moves handle `aIndex` so its left edge sits at `aPosition`.
 		void move_handle(int aIndex, int aPosition);
+
+	protected:
+		[[nodiscard]] auto createHandle() -> QSplitterHandle* override;
+	};
+
+	/// \brief A central splitter handle that shows where it is.
+	///
+	/// \details [[BPR-0739]]. The platform style paints the handle in the
+	/// window colour, so between the comparison and a drawer the reviewer saw
+	/// nothing to aim at and read the comparison's scroll bar as the border;
+	/// the resize cursor showed only while the pointer crossed the seven
+	/// pixels. The handle draws the drawer's edge rule from the design asset
+	/// (a one pixel `Mid` line on the drawer's side, the rule the collapsed
+	/// rail draws) and the highlight colour while the pointer is over it, so
+	/// the seam is visible and the hot zone announces itself.
+	class workbench_splitter_handle final : public QSplitterHandle
+	{
+	public:
+		workbench_splitter_handle(Qt::Orientation aOrientation, QSplitter* aParent);
+
+		/// \brief The column the rule is drawn in, in the handle's coordinates.
+		[[nodiscard]] auto rule_edge() const -> int;
+
+	protected:
+		void paintEvent(QPaintEvent* aEvent) override;
 	};
 
 	/// \brief Presents the native workbench shell and its focused review row.

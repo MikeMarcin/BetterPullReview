@@ -41,6 +41,7 @@
 #include <QLocale>
 #include <QMenu>
 #include <QMenuBar>
+#include <QPaintEvent>
 #include <QPainter>
 #include <QPalette>
 #include <QPlainTextEdit>
@@ -6274,6 +6275,40 @@ namespace bpr::qt {
 	void workbench_central_splitter::move_handle(const int aIndex, const int aPosition)
 	{
 		moveSplitter(aPosition, aIndex);
+	}
+
+	auto workbench_central_splitter::createHandle() -> QSplitterHandle*
+	{
+		return new workbench_splitter_handle{ orientation(), this };
+	}
+
+	workbench_splitter_handle::workbench_splitter_handle(
+		const Qt::Orientation aOrientation,
+		QSplitter* const      aParent)
+		: QSplitterHandle{ aOrientation, aParent }
+	{
+	}
+
+	auto workbench_splitter_handle::rule_edge() const -> int
+	{
+		// The conversations drawer is the splitter's last widget and draws its
+		// rule on its left edge, the side its handle's right edge touches; a
+		// left drawer's rule is on its right edge, at its handle's left.
+		auto* const parent = splitter();
+		const auto  last   = parent != nullptr
+			&& parent->indexOf(const_cast<workbench_splitter_handle*>(this)) == parent->count() - 1;
+		return last ? width() - 1 : 0;
+	}
+
+	void workbench_splitter_handle::paintEvent(QPaintEvent* const aEvent)
+	{
+		QSplitterHandle::paintEvent(aEvent);
+		auto painter = QPainter{ this };
+		painter.fillRect(rect(), palette().color(QPalette::Active, QPalette::Window));
+		painter.setPen(palette().color(
+			QPalette::Active, underMouse() ? QPalette::Highlight : QPalette::Mid));
+		const auto edge = rule_edge();
+		painter.drawLine(edge, 0, edge, height());
 	}
 
 	auto workbench_window::presented_files_state() const

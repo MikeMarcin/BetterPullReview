@@ -71,3 +71,46 @@ confirmed:
   pass.
 - The owner resizes the conversations drawer on the signed bundle with the
   cursor visible throughout, in an attended session.
+
+## Diagnosis, 2026-09-11 (d17)
+
+Causes 1, 2 and 4 do not hold. `workbench_drawer_panel::present()` only
+toggles visibility; the splitter's four children are added once and never
+re-parented, so no handle is re-created (4). A Qt test that rests the
+pointer on the conversations handle, changes modality (Discuss widens the
+drawer and Read returns it), has the host republish the layout, and drags
+the handle with the host answering, finds the handle still under the
+pointer with `Qt::SplitHCursor` at HEAD (1, 2): the relayouts return the
+handle to the same column and Qt's tracking follows it. Under the cocoa
+platform the same window held `NSCursor.resizeLeftRightCursor` for the
+1.1 seconds sampled with the pointer resting; a plain `QSplitter` probe
+held it as long as the pointer stayed.
+
+The cause is 3. `handleWidth()` is the macOS default, 7 pixels, and the
+style paints the handle in the window colour: in the owner's v007 capture
+(`owner-epoch-read-2026-09-11.png`, columns 1908-1921 at 2x) the handle is
+7 logical pixels of exactly the background between the comparison's
+18-pixel scroll-bar trough and the drawer. There is nothing to aim at, and
+the trough's edge reads as the border; the cursor changes while the
+pointer crosses the seven pixels and the arrow returns over the trough or
+the drawer. The design asset draws the drawer's edge (`.files`
+`border-right`, `.cmts` `border-left`, one pixel of `--rule`), the rule
+the collapsed rail already paints in `QPalette::Mid`.
+
+## Change
+
+`workbench_central_splitter` now creates `workbench_splitter_handle`,
+which keeps the platform width and paints the drawer's edge rule on its
+drawer side (left edge for the files and repositories handles, right edge
+for the conversations handle) in `QPalette::Mid`, and in
+`QPalette::Highlight` while the pointer is over it, so the seam is visible
+and the hot zone announces itself before the cursor changes. The width and
+the widths the host persists are untouched. The hover colour is a state the
+asset does not draw; it is shown for the owner's verdict in v008.
+
+The test also records that at a fractional scale (1.25) the offscreen
+round trip of the pointer position lands a device pixel beside the handle
+after the Discuss round trip, so the resting-pointer sequence is read at
+whole-number scales and the seam pins run at all three; whether Windows
+fractional scaling drops the hover after a relayout on a real display is
+the Windows lane's to observe.
