@@ -740,6 +740,16 @@ enforcement configuration. The default scripts scan `src/` and `tests/` while
 excluding build output, generated sources, CMake dependency trees, and vendored
 code.
 
+For clangd, configure the `dev` preset before opening the tree in an editor.
+The root `.clangd` points to `build/dev/compile_commands.json`, so clangd uses
+the same C++ standard, include paths, Qt headers and platform flags as the
+build. It suppresses one Homebrew LLVM clangd warning on designated initializers
+that the Apple clang build accepts; `-Werror` and the build's warning policy
+stay in place. If editing against a different preset, change the local
+`CompileFlags.CompilationDatabase` path to that preset's build tree (for
+example `build/windows-dev` for `windows-dev`) and restore `build/dev` before
+committing. Do not copy a machine's compile database into the repository.
+
 After configuring `dev`, run the non-default CMake targets:
 
 ```sh

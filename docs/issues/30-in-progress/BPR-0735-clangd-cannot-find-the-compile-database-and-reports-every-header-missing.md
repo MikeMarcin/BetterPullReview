@@ -62,3 +62,31 @@ The diagnostics are all the same one symptom.
   paragraph; `git diff --check` is clean.
 - The owner sees the noise gone in their editor on one of the named
   files (an observation on this card, no attended session needed).
+
+## Local candidate, 2026-09-12 (d25, mandate r16)
+
+The root `.clangd` now selects `build/dev/compile_commands.json` and
+suppresses only Homebrew clangd's `-Wmissing-designated-field-initializers`
+diagnostic, which Apple clang accepts while the database's `-Werror` remains
+in force. `docs/development/build-and-test.md` explains configuring `dev`
+first and how to select another preset locally. The build flags and warning
+policy are unchanged.
+
+**Red before the fix:** `clangd --check=src/core/src/epoch_transition.cpp`
+reported `bpr/core/epoch_transition.hpp` not found and cascaded unknown types
+(`build/logs/bpr-0735-d25-red.log`). **After the fix:** full checks on that
+file, `src/app/main.cpp`, and
+`tests/adapters_qt/epoch_comparison_control_tests.cpp` each loaded
+`build/dev/compile_commands.json` and reported no missing `bpr/` header,
+standard-library member or Qt type (`build/logs/bpr-0735-d25-{core,app,qt}-final.log`).
+The Qt test file's check exits zero. Homebrew clangd 23.1.0's full check mode
+still exits 3 on five and eight `tweak: ExtractFunction/ExpandDeducedType`
+feature-test errors in the core and app files; those logs contain no source
+parse/type diagnostics. This is a limitation of that verification command,
+not a claim that it exits clean. The documentation gate and `git diff --check`
+pass.
+
+The remaining acceptance is the owner's observation that the named editor
+diagnostics have disappeared in one of those files. No attended packet is
+needed. This card stays human-pending until that observation is reported;
+the implementation and local check evidence can be published meanwhile.

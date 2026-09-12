@@ -1,0 +1,4 @@
+CompileFlags:
+  CompilationDatabase: build/dev
+  # Homebrew clangd diagnoses omitted designated fields that Apple clang accepts.
+  Add: [-Wno-missing-designated-field-initializers]
