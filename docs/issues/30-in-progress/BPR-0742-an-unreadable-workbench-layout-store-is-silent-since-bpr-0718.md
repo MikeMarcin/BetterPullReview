@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0742"
 title: "An unreadable workbench layout store is silent since BPR-0718"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0024"]
 depends_on: []
 priority: "P3"
