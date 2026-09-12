@@ -12,7 +12,98 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
-## Current frontier, 2026-09-12 (d23, mandate r14): the probe refused, the contract green, BPR-0743 back with one question
+## Current frontier, 2026-09-12 (d24, mandate r15): the epoch work has its own RFC
+
+Dispatch `attended-prep-2026-09-10` d24 (mandate r15), same milestone
+`attended-preparation-pack-head` of plan `ux-redesign-pack-0028`. The owner
+answered d23's one question in chat: "It's own rfc". The RFC work changed no
+product source. Nothing is pushed.
+
+### RFC-BPR-0029, Proposed and not accepted (`10af12bc`)
+
+[RFC-BPR-0029](../../rfcs/RFC-BPR-0029-machine-independent-epoch-identity-update-history.md)
+records BPR-0743's design pass as proposed decisions, and the owner's sentence
+("An Epoch is an update to the PR, …") as its motivating requirement.
+
+**How the id was chosen.** RFC ids in this repository have no counter and no
+receipt; the receipts under `docs/issues/_reservations` are for card ids only.
+0029 is the next free number, and `git log --all -S RFC-BPR-0029` is empty. No
+closeout card is allocated while the RFC is unaccepted, as with RFC-BPR-0021
+and RFC-BPR-0028.
+
+**What it settles, as proposals:**
+- **Relationship.** It supersedes RFC-BPR-0003 in part, and only once accepted:
+  what identifies an epoch, and what base OID and observed time mean for an
+  imported epoch. RFC-BPR-0003 got a pointer and stays Auto-Verified.
+- **A correction to the design pass.** "A digest over the authority scope"
+  cannot mean `pull_request_authority_scope_id`, which is random and partitioned
+  by account. The inputs are GitHub's numeric pull request id, a host term, and
+  the head OID. `git_host_id` is not a provider value in the paths examined.
+- **A gap the design pass left.** It asserts a cross-machine order but defines
+  no ordering key, and after imports the ordinal order is local.
+
+**What it carries open.** Seven questions:
+1. head collision;
+2. unobserved base-branch events;
+3. paging a large timeline;
+4. merge-base validation;
+5. the date, and with it the order;
+6. the unbuilt site list (a search adds `src/app/src/large_review_fixture.hpp:305`);
+7. the host term, and what backfill can compute.
+
+**Three owner asks, one question each.** A1 is acceptance, A2 is the same
+commit twice, A3 is an update's date. Nothing is built before A1 is answered
+yes, and A2 and A3 fix the identity and the order.
+
+### The board (`17cbd086`, `37f9ba90`)
+
+- [[BPR-0743]]: rfcs `["RFC-BPR-0029","RFC-BPR-0028"]`. It is off human-review
+  and **Blocked on `rfc-bpr-0029-owner-asks`**. AC1 stands; AC2 to AC4 are
+  unchanged.
+- [[BPR-0646]]: `depends_on: ["BPR-0743"]`, now in **Backlog**. On this board a
+  parked card cannot hold an unfinished dependency, and nothing about the card
+  waits on the owner. Its handle criterion is unchanged, and it returns to
+  human-review when BPR-0743 is Done.
+- RFC-BPR-0028 got a dated pointer, because its AC-02 waits on this work.
+  RFC-BPR-0018 needs no change.
+- The v009 packet's two links were repaired in their own commit, paths only,
+  following d23's precedent.
+
+Checks at `37f9ba90`:
+- `verify_documentation.py` prints DOCUMENTATION_OK.
+- Board `validate` is valid across 741 cards.
+- `queue --rfc RFC-BPR-0003` is 60 of 60 done again.
+- `queue --human-waiting` no longer lists either card.
+
+### BPR-0742, in progress (`51dac838`)
+
+Claimed at `37f9ba90`, and handed to one standard slice owner. The work:
+reproduce the silence with `PRAGMA user_version=999`, give the window a retained
+report that survives the first projections, and keep BPR-0718's fallback.
+
+The card's owned paths are `src/app/src/github_application.cpp`,
+`src/adapters/qt/src/workbench_window.cpp` and
+`tests/end_to_end/profile_window_layout_public_path_tests.cpp`. The dev build
+tree was 81 steps stale at the claim.
+
+After it, three tests rerun: `application_profile_window_layout_public_path`,
+`application_composition_contract` and
+`application_workbench_composition_contract`. If this section is the last thing
+written, BPR-0742 is In Progress with an unknown partial state; inspect
+`git status` and the card before resuming.
+
+### Next, in order
+
+1. BPR-0742 to its boundary, with both composition contracts green.
+2. RFC-BPR-0029's three asks to the owner. Nothing epoch-related can be
+   implemented before A1.
+3. [[BPR-0749]] when the seam is next touched, and [[BPR-0748]] as its own
+   attended candidate.
+
+d23's frontier follows. It is still authoritative on everything not corrected
+above.
+
+## Frontier, 2026-09-12 (d23, mandate r14): the probe refused, the contract green, BPR-0743 back with one question
 
 Dispatch `attended-prep-2026-09-10` d23 (mandate r14), same milestone
 `attended-preparation-pack-head` of plan `ux-redesign-pack-0028`. Four cards
