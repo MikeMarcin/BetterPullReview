@@ -739,6 +739,9 @@ namespace bpr::adapters::sqlite {
 			};
 			constexpr std::array cleanup{
 				cleanup_statement{
+					"DELETE FROM append_occurrence WHERE incarnation = ?1 AND operation IN (SELECT operation FROM operation WHERE incarnation = ?1 AND cache_scope = ?2)",
+					"SELECT count(*) FROM append_occurrence d JOIN operation o ON o.incarnation = d.incarnation AND o.operation = d.operation WHERE d.incarnation = ?1 AND o.cache_scope = ?2" },
+				cleanup_statement{
 					"DELETE FROM append_candidate_review WHERE incarnation = ?1 "
 					"AND operation IN (SELECT operation FROM operation "
 					"WHERE incarnation = ?1 AND cache_scope = ?2)",
@@ -2394,7 +2397,7 @@ namespace bpr::adapters::sqlite {
 								  "ON CONFLICT(incarnation, pr_scope, occurrence_id) DO UPDATE SET "
 								  "local_ordinal = CASE WHEN excluded.local_ordinal IS NULL THEN epoch_occurrence.local_ordinal ELSE excluded.local_ordinal END, "
 								  "historical_base = CASE WHEN excluded.historical_base IS NULL THEN epoch_occurrence.historical_base ELSE excluded.historical_base END, "
-								  "derived_base = excluded.derived_base, "
+								  "derived_base = CASE WHEN epoch_occurrence.local_ordinal IS NOT NULL AND excluded.derived_base IS NULL THEN epoch_occurrence.derived_base ELSE excluded.derived_base END, "
 								  "date_source = CASE WHEN excluded.date_source = 0 THEN epoch_occurrence.date_source ELSE excluded.date_source END, "
 								  "date_utc = CASE WHEN excluded.date_source = 0 THEN epoch_occurrence.date_utc ELSE excluded.date_utc END");
 			if (!insert || !bind_fixed(insert->Value, 1, aBinding.Catalog.Incarnation)
@@ -3125,6 +3128,21 @@ namespace bpr::adapters::sqlite {
 						.HeadAvailability = restored_enum<core::anchor_availability>(::sqlite3_column_int(candidate->Value, 12)),
 					},
 				};
+				auto occurrence = prepare(database, "SELECT occurrence_id FROM append_occurrence WHERE incarnation = ?1 AND operation = ?2");
+				if (!occurrence || !bind_fixed(occurrence->Value, 1, Binding.Catalog.Incarnation)
+					|| !bind_operation(occurrence->Value, 2, aOperation)) {
+					return std::unexpected(failure::unavailable);
+				}
+				const auto occurrenceCode = ::sqlite3_step(occurrence->Value);
+				if (occurrenceCode == SQLITE_ROW) {
+					output.HistoricalOccurrence = read_fixed<core::epoch_occurrence_id>(occurrence->Value, 0);
+					if (!output.HistoricalOccurrence || mutation.Epoch.Cause.Origin != core::epoch_origin::explicit_historical_import
+						|| ::sqlite3_step(occurrence->Value) != SQLITE_DONE) {
+						return std::unexpected(failure::integrity_failure);
+					}
+				} else if (occurrenceCode != SQLITE_DONE) {
+					return std::unexpected(sql_failure(database, { }));
+				}
 				if (::sqlite3_step(candidate->Value) != SQLITE_DONE) {
 					return std::unexpected(failure::schema_mismatch);
 				}
@@ -3758,6 +3776,23 @@ namespace bpr::adapters::sqlite {
 			if (!existing) {
 				return std::unexpected(existing.error());
 			}
+			if (aRequest.DerivedComparisonBase) {
+				if (existing->Context.Revision.Origin != core::pull_request_revision_origin::explicit_historical_import
+					|| aRequest.DerivedComparisonBase->algorithm() != Binding.ObjectFormat) {
+					return std::unexpected(failure::invalid_request);
+				}
+				if (existing->Phase == app::epoch_catalog_operation_phase::spool_recorded
+					&& existing->OperationRevision == aRequest.ExpectedOperationRevision) {
+					auto derived = prepare(database, "UPDATE append_operation SET base_algorithm = ?1, base_digest = ?2 WHERE incarnation = ?3 AND operation = ?4");
+					if (!derived || !bind_oid(derived->Value, 1, 2, *aRequest.DerivedComparisonBase)
+						|| !bind_fixed(derived->Value, 3, Binding.Catalog.Incarnation)
+						|| !bind_operation(derived->Value, 4, aRequest.Operation)
+						|| ::sqlite3_step(derived->Value) != SQLITE_DONE || ::sqlite3_changes(database) != 1) {
+						return std::unexpected(failure::operation_conflict);
+					}
+					existing->Context.Revision.Base = *aRequest.DerivedComparisonBase;
+				}
+			}
 			if (aRequest.Install.Base != existing->Context.Revision.Base
 				|| aRequest.Install.Head != existing->Context.Revision.Head
 				|| aRequest.Install.Pack.Algorithm != Binding.ObjectFormat) {
@@ -3903,6 +3938,20 @@ namespace bpr::adapters::sqlite {
 				|| epoch.HeadAvailability != core::anchor_availability::available) {
 				return std::unexpected(failure::operation_conflict);
 			}
+			if (aRequest.HistoricalOccurrence) {
+				if (!aRequest.HistoricalOccurrence->valid() || epoch.Cause.Origin != core::epoch_origin::explicit_historical_import
+					|| aRequest.Candidate.Review) {
+					return std::unexpected(failure::invalid_request);
+				}
+				auto history = read_occurrence_rows(database, Binding, aStop);
+				if (!history) {
+					return std::unexpected(history.error());
+				}
+				const auto found = std::ranges::find(history->Occurrences, *aRequest.HistoricalOccurrence, &core::epoch_occurrence::Id);
+				if (found == history->Occurrences.end() || found->LocalEpoch || found->Evidence.Head != epoch.Head) {
+					return std::unexpected(failure::operation_conflict);
+				}
+			}
 			if (aRequest.Candidate.Review) {
 				auto canonical = canonicalize_review(
 					database,
@@ -3919,6 +3968,7 @@ namespace bpr::adapters::sqlite {
 			}
 			if (existing->Phase == app::epoch_catalog_operation_phase::commit_authorized
 				&& existing->Candidate == aRequest.Candidate
+				&& existing->HistoricalOccurrence == aRequest.HistoricalOccurrence
 				&& existing->OperationRevision.value()
 					== aRequest.ExpectedOperationRevision.value() + 1) {
 				return existing;
@@ -3982,6 +4032,15 @@ namespace bpr::adapters::sqlite {
 					!= SQLITE_OK
 				|| ::sqlite3_step(insert->Value) != SQLITE_DONE) {
 				return std::unexpected(sql_failure(database, aStop));
+			}
+			if (aRequest.HistoricalOccurrence) {
+				auto occurrence = prepare(database, "INSERT INTO append_occurrence(incarnation, operation, occurrence_id) VALUES(?1, ?2, ?3)");
+				if (!occurrence || !bind_fixed(occurrence->Value, 1, Binding.Catalog.Incarnation)
+					|| !bind_operation(occurrence->Value, 2, aRequest.Operation)
+					|| !bind_fixed(occurrence->Value, 3, *aRequest.HistoricalOccurrence)
+					|| ::sqlite3_step(occurrence->Value) != SQLITE_DONE) {
+					return std::unexpected(sql_failure(database, aStop));
+				}
 			}
 			if (aRequest.Candidate.Review) {
 				const auto& review       = *aRequest.Candidate.Review;
@@ -4630,6 +4689,7 @@ namespace bpr::adapters::sqlite {
 						app::epoch_catalog_operation_phase::
 							visible_cleanup_pending)
 					|| operation->Context.Catalog != aRequest.Catalog
+					|| operation->HistoricalOccurrence != aRequest.HistoricalOccurrence
 					|| operation->Candidate != aRequest.Mutation || !epoch
 					|| *epoch != aRequest.Mutation.Epoch) {
 					return std::unexpected(failure::operation_conflict);
@@ -4716,6 +4776,7 @@ namespace bpr::adapters::sqlite {
 			}
 			if (operation->Phase != app::epoch_catalog_operation_phase::refs_committed
 				|| operation->OperationRevision != aRequest.ExpectedOperationRevision
+				|| operation->HistoricalOccurrence != aRequest.HistoricalOccurrence
 				|| operation->Candidate != aRequest.Mutation
 				|| aRequest.Mutation.Epoch.Id.Authority != Binding.Authority.Scope) {
 				return std::unexpected(failure::phase_conflict);
@@ -4903,6 +4964,20 @@ namespace bpr::adapters::sqlite {
 					{ });
 				if (!persisted) {
 					return std::unexpected(persisted.error());
+				}
+			}
+			if (aRequest.HistoricalOccurrence) {
+				auto occurrence = prepare(database, "UPDATE epoch_occurrence SET local_ordinal = ?1, derived_base = ?2 "
+													"WHERE incarnation = ?3 AND pr_scope = ?4 AND occurrence_id = ?5 AND local_ordinal IS NULL "
+													"AND head_algorithm = ?6 AND head_digest = ?7");
+				if (!occurrence || !bind_fixed(occurrence->Value, 3, Binding.Catalog.Incarnation)
+					|| !bind_fixed(occurrence->Value, 4, Binding.Authority.Scope)
+					|| !bind_fixed(occurrence->Value, 5, *aRequest.HistoricalOccurrence)
+					|| ::sqlite3_bind_int64(occurrence->Value, 1, epoch.Id.Ordinal.value()) != SQLITE_OK
+					|| !bind_bytes(occurrence->Value, 2, std::span{ epoch.Base.bytes() }.first(epoch.Base.byte_count()))
+					|| !bind_oid(occurrence->Value, 6, 7, epoch.Head)
+					|| ::sqlite3_step(occurrence->Value) != SQLITE_DONE || ::sqlite3_changes(database) != 1) {
+					return std::unexpected(failure::operation_conflict);
 				}
 			}
 			if (epoch.Cause.Origin != core::epoch_origin::explicit_historical_import) {

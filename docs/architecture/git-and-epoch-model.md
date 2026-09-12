@@ -182,14 +182,17 @@ incarnation.
 The occurrence id is a separate portable name. A numeric GitHub force-push
 event id and its after-head OID distinguish repeated A→B→A heads; a live
 head transition without an event has typed observed-head evidence. Neither
-local incarnation nor ordinal enters the occurrence digest. The SQLite v4
-sidecar retains occurrences and their optional local epoch associations while
+local incarnation nor ordinal enters the occurrence digest. The SQLite v5
+sidecar and append journal retain occurrences and their optional local epoch associations while
 preserving every legacy epoch row, key, incarnation, and ordinal. A late event
 can supersede an observed-head occurrence only through an exact durable
 compare-and-swap; old evidence is archived. Provider event order and local
 observation order are separate facts, so an uncertain association remains
 ambiguous rather than being inferred from equal heads or mixed clocks. A
-head-only historical occurrence has no epoch anchor or presumed original base.
+head-only historical occurrence starts without an epoch anchor or presumed
+original base. A retained import binds the exact event to a local epoch in the
+same transaction as the epoch append and labels its derived comparison base
+separately from the unknown original base.
 
 ## Compact core state
 
@@ -424,10 +427,14 @@ with a fresh value. Deterministic catalog/host fixtures prove persistence,
 collision classification, and retry order; the native runtime-port contract
 directly exercises the current platform source.
 
-An explicit historical import is legal only when its exact base, head,
-branch identity, and provenance are known. A GitHub review record supplies a
-review commit but not the exact base viewed at submission, so it creates a
-review anchor or association, not an invented historical epoch.
+An evidenced historical after-head may be fetched under the accepted pull
+request's Git authority. Import requires verified head closure and one derived
+comparison base against the selected live base; that derived anchor and the
+accepted branch context do not establish the original historical base or
+branch. An unavailable head or non-unique comparison leaves the event
+unbound. A GitHub review record supplies a review commit but not the exact
+base viewed at submission, so it creates a review anchor or association, not
+an invented historical epoch.
 Historical imports are selectable exact history, but their insertion ordinal
 is not evidence of observed live-tip chronology. They never become `Latest`
 or the candidate for `Previous upload`.

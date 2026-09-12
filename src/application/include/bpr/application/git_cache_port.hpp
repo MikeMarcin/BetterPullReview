@@ -238,6 +238,8 @@ namespace bpr::application {
 		core::git_commit_oid                Base;
 		core::git_commit_oid                Head;
 		std::optional<core::git_commit_oid> PriorHead;
+		/// Derive Base after installation; witness must journal the resulting anchor.
+		bool DeriveComparisonBase = false;
 
 		auto operator<=>(const git_prepare_revision_request&) const = default;
 	};
@@ -267,6 +269,16 @@ namespace bpr::application {
 			&& aRequest.Inventory.OpaqueToken
 			== aRequest.Authorization.InventoryToken;
 	}
+
+	/// \brief Retains an evidenced historical head without asserting an original base.
+	struct git_prepare_historical_revision_request
+	{
+		completed_git_pack_receipt Receipt;
+		git_preimport_observation  Inventory;
+		git_import_authorization   Authorization;
+		core::git_commit_oid       SelectedBase;
+		core::git_commit_oid       Head;
+	};
 
 	/// \brief Describes the git prepared revision record.
 	struct git_prepared_revision
@@ -711,6 +723,29 @@ namespace bpr::application {
 			std::stop_token                                          aStop,
 			const std::function<bool(const git_prepared_revision&)>& aWitness = { })
 			-> git_cache_result<git_prepared_revision> = 0;
+
+		/// \brief Prepares exact historical head closure through the journaled import path.
+		/// \details The returned Base and BaseTree derive from SelectedBase and Head and
+		/// are comparison anchors only, never evidence of the original historical base.
+		/// The witness must journal these exact physical facts before staging; keep
+		/// historical provenance and any derived comparison base separately. Derive
+		/// any later comparison after this call returns; never reenter from the witness.
+		[[nodiscard]] auto prepare_historical_revision(
+			const git_prepare_historical_revision_request&           aRequest,
+			std::stop_token                                          aStop,
+			const std::function<bool(const git_prepared_revision&)>& aWitness = { })
+			-> git_cache_result<git_prepared_revision>
+		{
+			return prepare_revision({
+										.Receipt              = aRequest.Receipt,
+										.Inventory            = aRequest.Inventory,
+										.Authorization        = aRequest.Authorization,
+										.Base                 = aRequest.SelectedBase,
+										.Head                 = aRequest.Head,
+										.DeriveComparisonBase = true,
+									},
+									aStop, aWitness);
+		}
 
 		[[nodiscard]] virtual auto promote_retained(
 			const git_prepared_revision&           aPrepared,

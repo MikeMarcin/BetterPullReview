@@ -138,7 +138,8 @@ namespace bpr::application {
 		[[nodiscard]] auto make_git_protocol_v2_fetch_request(
 			const git_smart_request_context&      aContext,
 			const git_protocol_v2_capabilities&   aCapabilities,
-			std::span<const git_protocol_v2_have> aHaves)
+			std::span<const git_protocol_v2_have> aHaves,
+			std::optional<core::git_commit_oid>   aHistoricalHead = std::nullopt)
 			-> git_protocol_v2_result<std::vector<std::byte>>;
 
 		/// \brief Provides the git protocol v2 fetch parser contract.
@@ -236,6 +237,20 @@ namespace bpr::application {
 		git_protocol_v2_fetch_limits          aLimits,
 		std::stop_token                       aStop)
 		-> git_protocol_v2_client_result<git_protocol_v2_acquisition_result>;
+	/// \brief Fetches one evidenced historical head under the accepted live PR authority.
+	/// \details Advertisement still verifies the accepted live head. Only the want
+	/// changes; no branch or historical base is inferred. Cache preparation must
+	/// verify returned object closure before durable retention is published.
+	[[nodiscard]] auto acquire_git_protocol_v2_historical_pack(
+		git_smart_transport_port&             aTransport,
+		const git_smart_request_context&      aContext,
+		core::git_commit_oid                  aHistoricalHead,
+		std::span<const git_protocol_v2_have> aHaves,
+		git_pack_stream_sink&                 aSink,
+		git_protocol_v2_fetch_limits          aLimits,
+		std::stop_token                       aStop)
+		-> git_protocol_v2_client_result<git_protocol_v2_acquisition_result>;
+
 }
 
 #endif // BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GIT_PROTOCOL_V2_HPP

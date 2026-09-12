@@ -960,6 +960,9 @@ namespace bpr::application {
 		std::optional<durable_git_install_fact>      Install;
 		std::optional<core::append_epoch_mutation>   Candidate;
 
+		// Exact historical occurrence selected by the host; persisted with the candidate.
+		std::optional<core::epoch_occurrence_id> HistoricalOccurrence;
+
 		auto operator<=>(const append_operation_record&) const = default;
 	};
 
@@ -1154,6 +1157,8 @@ namespace bpr::application {
 		core::epoch_operation_id         Operation;
 		epoch_catalog_operation_revision ExpectedOperationRevision;
 		durable_git_install_fact         Install;
+		// Historical-only base resolved by the cache before staging retained refs.
+		std::optional<core::git_commit_oid> DerivedComparisonBase;
 
 		auto operator<=>(const record_install_request&) const = default;
 	};
@@ -1166,7 +1171,8 @@ namespace bpr::application {
 			&& application::can_advance_nonterminal(
 				   aRequest.ExpectedOperationRevision)
 			&& application::valid(aRequest.Install)
-			&& aRequest.Install.Operation == aRequest.Operation;
+			&& aRequest.Install.Operation == aRequest.Operation
+			&& (!aRequest.DerivedComparisonBase || (aRequest.DerivedComparisonBase->valid() && *aRequest.DerivedComparisonBase == aRequest.Install.Base));
 	}
 
 	/// \brief Describes the record candidate request record.
@@ -1176,6 +1182,9 @@ namespace bpr::application {
 		core::epoch_operation_id         Operation;
 		epoch_catalog_operation_revision ExpectedOperationRevision;
 		core::append_epoch_mutation      Candidate;
+
+		// Exact historical occurrence selected by the host; persisted with the candidate.
+		std::optional<core::epoch_occurrence_id> HistoricalOccurrence;
 
 		auto operator<=>(const record_candidate_request&) const = default;
 	};
@@ -1242,6 +1251,9 @@ namespace bpr::application {
 		core::append_epoch_mutation      Mutation;
 		git_retained_ref_pair            ObservedRefs;
 
+		// Exact historical occurrence selected by the host; persisted with the candidate.
+		std::optional<core::epoch_occurrence_id> HistoricalOccurrence;
+
 		auto operator<=>(const finalize_append_request&) const = default;
 	};
 
@@ -1253,6 +1265,10 @@ namespace bpr::application {
 			&& application::can_advance_nonterminal(
 				   aRequest.ExpectedOperationRevision)
 			&& application::valid(epoch)
+			&& (!aRequest.HistoricalOccurrence
+				|| (aRequest.HistoricalOccurrence->valid()
+					&& epoch.Cause.Origin == core::epoch_origin::explicit_historical_import
+					&& !aRequest.Mutation.Review))
 			&& epoch.Material.has_value()
 			&& epoch.BaseAvailability
 			== core::anchor_availability::available

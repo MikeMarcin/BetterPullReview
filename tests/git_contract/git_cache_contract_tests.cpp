@@ -1367,6 +1367,61 @@ namespace {
 		require(
 			session.abort_operation(descendantOperation, { }).has_value(),
 			"descendant lineage prepare exact-cleans staging refs");
+		const auto historicalOperation = identity<core::epoch_operation_id>(0x6eU);
+		auto       historicalSink      = session.create_pack_sink(historicalOperation, aDescendant.NewPack.size(), { });
+		require(historicalSink.has_value(), "create historical derivation spool");
+		append_pack(**historicalSink, aDescendant.NewPack);
+		const auto historicalReceipt = (*historicalSink)->finish({ });
+		require(historicalReceipt.has_value(), "finish historical derivation spool");
+		historicalSink->reset();
+		const auto historicalInventory = session.observe_preimport(*historicalReceipt, { });
+		require(historicalInventory.has_value(), "observe historical derivation inventory");
+		bool       derivedWitness     = false;
+		const auto historicalPrepared = session.prepare_historical_revision({
+																				.Receipt       = *historicalReceipt,
+																				.Inventory     = *historicalInventory,
+																				.Authorization = {
+																					.CatalogIncarnation      = incarnation,
+																					.ExpectedCatalogRevision = core::epoch_catalog_revision{ 1 },
+																					.Operation               = historicalOperation,
+																					.ExpectedPack            = historicalReceipt->ExpectedPack,
+																					.ReceiptToken            = historicalReceipt->OpaqueToken,
+																					.InventoryToken          = historicalInventory->OpaqueToken,
+																					.DurableRecordToken      = token(0x6eU),
+																				},
+																				.SelectedBase = aDescendant.NewCommit,
+																				.Head         = *baselineCommit,
+																			},
+																			{ }, [&](const application::git_prepared_revision& aPrepared) {
+																				derivedWitness = aPrepared.Base == *baselineCommit && aPrepared.Head == *baselineCommit;
+																				return derivedWitness;
+																			});
+		require(historicalPrepared && derivedWitness && historicalPrepared->Base != aDescendant.NewCommit,
+				"historical witness receives derived ancestor rather than selected current base");
+		const auto historicalRecovery = application::git_operation_recovery_request{
+			.Operation = historicalOperation,
+			.Scope     = cacheRequest.Authority.Scope,
+			.Ordinal   = core::epoch_ordinal{ 2 },
+			.Base      = historicalPrepared->Base,
+			.Head      = historicalPrepared->Head,
+			.Install   = application::git_recovery_install_expectation{
+				.Pack           = historicalPrepared->Pack,
+				.InstalledPack  = historicalPrepared->InstalledPack,
+				.InstalledIndex = historicalPrepared->InstalledIndex,
+				.BaseTree       = historicalPrepared->BaseTree,
+				.HeadTree       = historicalPrepared->HeadTree,
+			},
+		};
+		opened->reset();
+		opened = aCache.open(cacheRequest, { });
+		require(opened.has_value(), "restart historical derived cache");
+		const auto recovered = (*opened)->inspect_operation_recovery(historicalRecovery, { });
+		require(recovered && recovered->Staging == application::git_recovery_match::exact
+					&& recovered->Objects == application::git_recovery_object_match::exact,
+				"restart validates exact derived staging and object closure");
+		require((*opened)->abort_recovered_operation(historicalRecovery, { }).has_value(),
+				"recovered historical staging safely aborts");
+
 		opened->reset();
 		require(
 			aCache
@@ -2590,12 +2645,12 @@ namespace {
 			"caller cannot forge preimport authorization facts");
 
 		std::size_t installationWitnesses = 0U;
-		const auto  prepared              = (*primary)->prepare_revision(
-			application::git_prepare_revision_request{
+		const auto  prepared              = (*primary)->prepare_historical_revision(
+			application::git_prepare_historical_revision_request{
 				.Receipt       = *receipt,
 				.Inventory     = *observation,
 				.Authorization = authorization,
-				.Base          = *commit,
+				.SelectedBase  = *commit,
 				.Head          = *commit,
 			},
 			{ }, [&](const application::git_prepared_revision& aInstallation) {
@@ -2607,9 +2662,11 @@ namespace {
 						"exact installation witness precedes staging refs and completed spool removal");
 				return true;
 			});
-		require(installationWitnesses == 1U, "installation witness runs exactly once");
+		require(installationWitnesses == 1U, "historical head installation witness runs exactly once");
 		require(
 			prepared.has_value() && application::valid(*prepared)
+				&& prepared->Base == *commit && prepared->Head == *commit
+				&& prepared->HeadLineage == core::head_lineage::not_applicable
 				&& prepared->BaseTree == *tree
 				&& prepared->HeadTree == *tree
 				&& prepared->Pack == receipt->ExpectedPack
@@ -3283,6 +3340,38 @@ namespace {
 					{ })
 				.has_value(),
 			"preexisting durable-fact prepare exact-cleans staging refs");
+
+		const auto missingHistoricalOperation = identity<core::epoch_operation_id>(0x6aU);
+		auto       missingHistoricalSink      = (*primary)->create_pack_sink(missingHistoricalOperation, sha1_pack.size(), { });
+		require(missingHistoricalSink.has_value(), "create missing historical head spool");
+		append_pack(**missingHistoricalSink, sha1_pack);
+		const auto missingHistoricalReceipt = (*missingHistoricalSink)->finish({ });
+		require(missingHistoricalReceipt.has_value(), "finish missing historical head spool");
+		missingHistoricalSink->reset();
+		const auto missingHistoricalInventory = (*primary)->observe_preimport(*missingHistoricalReceipt, { });
+		require(missingHistoricalInventory.has_value(), "observe missing historical head inventory");
+		std::size_t missingHistoricalWitnesses = 0U;
+		const auto  missingHistorical          = (*primary)->prepare_historical_revision({
+																							 .Receipt       = *missingHistoricalReceipt,
+																							 .Inventory     = *missingHistoricalInventory,
+																							 .Authorization = {
+																								 .CatalogIncarnation      = incarnation,
+																								 .ExpectedCatalogRevision = core::epoch_catalog_revision{ 1 },
+																								 .Operation               = missingHistoricalOperation,
+																								 .ExpectedPack            = missingHistoricalReceipt->ExpectedPack,
+																								 .ReceiptToken            = missingHistoricalReceipt->OpaqueToken,
+																								 .InventoryToken          = missingHistoricalInventory->OpaqueToken,
+																								 .DurableRecordToken      = token(0x6aU),
+																							 },
+																							 .SelectedBase = *commit,
+																							 .Head         = missingHead,
+																						 },
+																						 { }, [&](const application::git_prepared_revision&) {
+																				   ++missingHistoricalWitnesses;
+																				   return true;
+																						 });
+		require(!missingHistorical && missingHistoricalWitnesses == 0U,
+				"unavailable historical head never witnesses or stages a comparison");
 
 		const auto unavailablePriorOperation = identity<core::epoch_operation_id>(0x69U);
 		auto       unavailablePriorSink      = (*primary)->create_pack_sink(

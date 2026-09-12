@@ -955,6 +955,18 @@ namespace bpr::core {
 		auto operator<=>(const epoch_catalog_committed_event&) const = default;
 	};
 
+	/// \brief Adopts a supplementary historical append after its durable finalization.
+	struct epoch_historical_catalog_advanced_event
+	{
+		application_session_id         ApplicationSession;
+		pull_request_authority         Authority;
+		accepted_pull_request_revision Revision;
+		epoch_catalog_identity         ExpectedCatalog;
+		epoch_catalog_identity         NewCatalog;
+
+		auto operator<=>(const epoch_historical_catalog_advanced_event&) const = default;
+	};
+
 	/// \brief Describes the epoch catalog commit failed event record.
 	struct epoch_catalog_commit_failed_event
 	{
@@ -1162,6 +1174,7 @@ namespace bpr::core {
 		epoch_revision_prepare_failed_event,
 		epoch_revision_prepare_cancelled_event,
 		epoch_catalog_committed_event,
+		epoch_historical_catalog_advanced_event,
 		epoch_catalog_commit_failed_event,
 		epoch_catalog_commit_cancelled_event,
 		comparison_resolved_event,

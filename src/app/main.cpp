@@ -836,7 +836,12 @@ namespace {
 			// The fixture course that forces the selection available and opens
 			// the recorded public pull request through the anonymous
 			// authority.
-			bool Course = false;
+			bool        Course                = false;
+			bool        HistoricalCourse      = false;
+			bool        EmptyTimeline         = false;
+			bool        HistoricalGestureSent = false;
+			bool        HistoricalHandleMoved = false;
+			std::size_t HistoricalNode        = 0U;
 			// The same override activated on an enterprise profile, where the
 			// core policy refuses rather than the composition.
 			bool Enterprise = false;
@@ -3920,7 +3925,7 @@ namespace {
 					&& status.PublicPreviewWriteRefusals == 2U
 					&& status.PublicPreviewPublications > 0U
 					&& aRun.PublicPreview.SettledEpoch == bpr::core::epoch_status::ready
-					&& aRun.PublicPreview.SettledOccurrenceCount >= 3U
+					&& aRun.PublicPreview.SettledOccurrenceCount >= (aRun.PublicPreview.EmptyTimeline ? 1U : 3U)
 					&& aRun.PublicPreview.SettledHistoryIncomplete;
 				stream << "PUBLIC_PREVIEW_REVIEW_COMMENT_GROUPS:"
 					   << static_cast<unsigned long long>(
@@ -3940,6 +3945,11 @@ namespace {
 					   << '\n'
 					   << (enabled ? "PUBLIC_PREVIEW_ENABLED_OK\n"
 								   : "PUBLIC_PREVIEW_ENABLED_FAILED\n");
+				if (aRun.PublicPreview.HistoricalCourse) {
+					stream << (aRun.PublicPreview.HistoricalHandleMoved
+								   ? "PUBLIC_PREVIEW_HISTORICAL_HANDLE_OK\n"
+								   : "PUBLIC_PREVIEW_HISTORICAL_HANDLE_FAILED\n");
+				}
 			} else if (aRun.PublicPreview.Enterprise && status.PublicPreviewComposed) {
 				// The enterprise claim is the composition refusal's mirror:
 				// the authority was composed and the core policy still refused
@@ -5172,6 +5182,35 @@ namespace {
 							const auto* const line                       = window.epoch_selectors()->line();
 							aRun->PublicPreview.SettledOccurrenceCount   = line->update_count();
 							aRun->PublicPreview.SettledHistoryIncomplete = line->history_text().startsWith(QStringLiteral("Incomplete history"));
+						}
+						if (aRun->PublicPreview.HistoricalCourse) {
+							auto* const                line = window.epoch_selectors()->line();
+							std::optional<std::size_t> historicalNode;
+							for (std::size_t index = 0U; index < line->update_count(); ++index) {
+								const auto tooltip = line->node_tooltip(index);
+								if (index > 0U && tooltip.contains(QStringLiteral("Historical base unknown"))
+									&& tooltip.contains(QStringLiteral("Derived comparison base "))
+									&& !tooltip.contains(QStringLiteral("Comparison unavailable"))) {
+									historicalNode = index;
+									break;
+								}
+							}
+							if (!historicalNode || !line->selection_offered()) {
+								break;
+							}
+							if (!aRun->PublicPreview.HistoricalGestureSent) {
+								aRun->PublicPreview.HistoricalGestureSent = true;
+								aRun->PublicPreview.HistoricalNode        = *historicalNode;
+								send_diff_evidence_click(*line, line->node_centre(*historicalNode));
+								break;
+							}
+							const auto left = line->left_stop();
+							if (!left || left->Update != aRun->PublicPreview.HistoricalNode
+								|| left->Kind != bpr::core::comparison_anchor_kind::epoch_head
+								|| aApplication.status().EpochStatus != bpr::core::epoch_status::ready) {
+								break;
+							}
+							aRun->PublicPreview.HistoricalHandleMoved = true;
 						}
 						// Offered once the read is in, so the refusals are
 						// answered by a live signed-out session rather than by
@@ -7350,6 +7389,10 @@ auto main(int argc, char** argv) -> int
 			= has_argument(argc, argv, "--public-preview-enabled-course");
 		fixtureOptions.PublicPreviewGhesCourse
 			= has_argument(argc, argv, "--public-preview-ghes-course");
+		fixtureOptions.EmptyHistoricalTimeline
+			= has_argument(argc, argv, "--public-preview-empty-timeline-course");
+		fixtureOptions.UnfetchableFirstHistoricalHead
+			= has_argument(argc, argv, "--public-preview-unfetchable-first-head-course");
 		fixtureOptions.SuppressDeviceBrowser = has_argument(
 			argc,
 			argv,
@@ -7552,6 +7595,12 @@ auto main(int argc, char** argv) -> int
 		const auto publicPreviewEnabledCourse =
 #if defined(BPR_BUILD_TESTING)
 			has_argument(argc, argv, "--public-preview-enabled-course");
+#else
+			false;
+#endif
+		const auto publicPreviewHistoricalCourse =
+#if defined(BPR_BUILD_TESTING)
+			has_argument(argc, argv, "--public-preview-historical-course");
 #else
 			false;
 #endif
@@ -8106,12 +8155,14 @@ auto main(int argc, char** argv) -> int
 									.OrphanCourse  = verifyDeviceAuthorization && deviceOrphanCourse,
 								},
 								.PublicPreview = automated_run::public_preview_probe_state{
-									.Enabled         = verifyPublicPreview,
-									.Course          = verifyPublicPreview && publicPreviewEnabledCourse,
-									.Enterprise      = verifyPublicPreview && previewEnterprise,
-									.SelectionForced = publicPreviewSelectionForced,
-									.LiveCandidate   = publicPreviewLiveCandidate,
-									.DryRun          = publicPreviewLiveDryRun,
+									.Enabled          = verifyPublicPreview,
+									.Course           = verifyPublicPreview && publicPreviewEnabledCourse,
+									.HistoricalCourse = verifyPublicPreview && publicPreviewHistoricalCourse,
+									.EmptyTimeline    = fixtureOptions.EmptyHistoricalTimeline,
+									.Enterprise       = verifyPublicPreview && previewEnterprise,
+									.SelectionForced  = publicPreviewSelectionForced,
+									.LiveCandidate    = publicPreviewLiveCandidate,
+									.DryRun           = publicPreviewLiveDryRun,
 								},
 #if defined(BPR_BUILD_TESTING)
 								.Fixture                         = !fixtureName.empty(),

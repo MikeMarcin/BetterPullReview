@@ -866,6 +866,9 @@ namespace {
 				return std::unexpected{ *State.InstallFailure };
 			}
 			State.Operation->Install = aRequest.Install;
+			if (aRequest.DerivedComparisonBase) {
+				State.Operation->Context.Revision.Base = *aRequest.DerivedComparisonBase;
+			}
 			advance(application::epoch_catalog_operation_phase::imported);
 			return *State.Operation;
 		}
@@ -880,7 +883,8 @@ namespace {
 			if (aStop.stop_requested() || !State.Operation) {
 				return std::unexpected{ application::epoch_catalog_failure::cancelled };
 			}
-			State.Operation->Candidate = aRequest.Candidate;
+			State.Operation->Candidate            = aRequest.Candidate;
+			State.Operation->HistoricalOccurrence = aRequest.HistoricalOccurrence;
 			advance(application::epoch_catalog_operation_phase::commit_authorized);
 			if (State.AfterCommitAuthorized) {
 				auto callback = std::move(State.AfterCommitAuthorized);
@@ -999,11 +1003,20 @@ namespace {
 			State.Snapshot.Binding.Catalog = next;
 			if (State.OccurrencesSupported) {
 				State.EpochRows.push_back(aRequest.Mutation.Epoch);
-				if (State.Snapshot.LatestLive && State.Snapshot.LatestLive->Head != aRequest.Mutation.Epoch.Head) {
+				if (aRequest.HistoricalOccurrence) {
+					const auto found = std::ranges::find(State.Occurrences.Occurrences,
+														 *aRequest.HistoricalOccurrence, &core::epoch_occurrence::Id);
+					if (found != State.Occurrences.Occurrences.end()) {
+						found->LocalEpoch            = aRequest.Mutation.Epoch.Id;
+						found->DerivedComparisonBase = aRequest.Mutation.Epoch.Base;
+					}
+				} else if (State.Snapshot.LatestLive && State.Snapshot.LatestLive->Head != aRequest.Mutation.Epoch.Head) {
 					State.Snapshot.PreviousDistinctHead = State.Snapshot.LatestLive;
 				}
 			}
-			State.Snapshot.LatestLive  = aRequest.Mutation.Epoch;
+			if (!aRequest.HistoricalOccurrence) {
+				State.Snapshot.LatestLive = aRequest.Mutation.Epoch;
+			}
 			State.Snapshot.NextOrdinal = core::epoch_ordinal{
 				aRequest.Mutation.Epoch.Id.Ordinal.value() + 1
 			};

@@ -742,11 +742,13 @@ namespace bpr::application {
 		auto make_git_protocol_v2_fetch_request(
 			const git_smart_request_context&            aContext,
 			const git_protocol_v2_capabilities&         aCapabilities,
-			const std::span<const git_protocol_v2_have> aHaves)
+			const std::span<const git_protocol_v2_have> aHaves,
+			const std::optional<core::git_commit_oid>   aHistoricalHead)
 			-> git_protocol_v2_result<std::vector<std::byte>>
 		{
 			if (
 				!valid(aContext) || !valid(aCapabilities)
+				|| (aHistoricalHead && (!aHistoricalHead->valid() || aHistoricalHead->algorithm() != expected_object_format(aContext)))
 				|| aCapabilities.ObjectFormat != expected_object_format(aContext)
 				|| !valid_haves(aContext, aHaves, aCapabilities.ObjectFormat)) {
 				return std::unexpected(
@@ -778,8 +780,8 @@ namespace bpr::application {
 						request,
 						"command=fetch\n",
 						aCapabilities.ObjectFormat)
-					|| !render_oid_line("want ", aContext.Revision.Base, request)
-					|| (aContext.Revision.Head != aContext.Revision.Base
+					|| !render_oid_line("want ", aHistoricalHead.value_or(aContext.Revision.Base), request)
+					|| (!aHistoricalHead && aContext.Revision.Head != aContext.Revision.Base
 						&& !render_oid_line(
 							"want ",
 							aContext.Revision.Head,
@@ -1226,10 +1228,11 @@ namespace bpr::application {
 			const std::span<const git_protocol_v2_have> aHaves,
 			git_pack_stream_sink&                       aSink,
 			const git_protocol_v2_fetch_limits          aLimits,
-			const std::stop_token                       aStop)
+			const std::stop_token                       aStop,
+			const std::optional<core::git_commit_oid>   aHistoricalHead)
 			-> git_protocol_v2_client_result<git_protocol_v2_fetch_result>
 		{
-			const auto body = make_git_protocol_v2_fetch_request(aContext, aCapabilities, aHaves);
+			const auto body = make_git_protocol_v2_fetch_request(aContext, aCapabilities, aHaves, aHistoricalHead);
 			if (!body.has_value()) {
 				aSink.abort();
 				return std::unexpected(
@@ -1280,13 +1283,14 @@ namespace bpr::application {
 
 	} // namespace detail
 
-	auto acquire_git_protocol_v2_pack(
+	static auto acquire_git_protocol_v2_pack_impl(
 		git_smart_transport_port&                   aTransport,
 		const git_smart_request_context&            aContext,
 		const std::span<const git_protocol_v2_have> aHaves,
 		git_pack_stream_sink&                       aSink,
 		const git_protocol_v2_fetch_limits          aLimits,
-		const std::stop_token                       aStop)
+		const std::stop_token                       aStop,
+		const std::optional<core::git_commit_oid>   aHistoricalHead)
 		-> git_protocol_v2_client_result<git_protocol_v2_acquisition_result>
 	{
 		abort_once_pack_sink guardedSink{ aSink };
@@ -1299,6 +1303,7 @@ namespace bpr::application {
 
 		if (
 			!valid(aContext) || !valid(aLimits)
+			|| (aHistoricalHead && (!aHistoricalHead->valid() || aHistoricalHead->algorithm() != expected_object_format(aContext)))
 			|| !valid_haves(
 				aContext,
 				aHaves,
@@ -1336,7 +1341,7 @@ namespace bpr::application {
 			aHaves,
 			guardedSink,
 			aLimits,
-			aStop);
+			aStop, aHistoricalHead);
 		if (!fetched.has_value()) {
 			return std::unexpected(fetched.error());
 		}
@@ -1347,4 +1352,29 @@ namespace bpr::application {
 			.Fetch          = *fetched,
 		};
 	}
+	auto acquire_git_protocol_v2_pack(
+		git_smart_transport_port&             aTransport,
+		const git_smart_request_context&      aContext,
+		std::span<const git_protocol_v2_have> aHaves,
+		git_pack_stream_sink&                 aSink,
+		git_protocol_v2_fetch_limits          aLimits,
+		std::stop_token                       aStop)
+		-> git_protocol_v2_client_result<git_protocol_v2_acquisition_result>
+	{
+		return acquire_git_protocol_v2_pack_impl(aTransport, aContext, aHaves, aSink, aLimits, aStop, std::nullopt);
+	}
+
+	auto acquire_git_protocol_v2_historical_pack(
+		git_smart_transport_port&             aTransport,
+		const git_smart_request_context&      aContext,
+		core::git_commit_oid                  aHistoricalHead,
+		std::span<const git_protocol_v2_have> aHaves,
+		git_pack_stream_sink&                 aSink,
+		git_protocol_v2_fetch_limits          aLimits,
+		std::stop_token                       aStop)
+		-> git_protocol_v2_client_result<git_protocol_v2_acquisition_result>
+	{
+		return acquire_git_protocol_v2_pack_impl(aTransport, aContext, aHaves, aSink, aLimits, aStop, aHistoricalHead);
+	}
+
 } // namespace bpr::application

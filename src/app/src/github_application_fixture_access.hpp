@@ -79,6 +79,8 @@ namespace bpr::app::detail {
 		core::diff_compute_limits                        DiffComputeLimits;
 		bool                                             LargeReviewHistory             = false;
 		github_epoch_fixture_phase                       EpochPhase                     = github_epoch_fixture_phase::single;
+		bool                                             EmptyHistoricalTimeline        = false;
+		bool                                             UnfetchableFirstHistoricalHead = false;
 		bool                                             DisableWorkbenchSelectionWire  = false;
 		bool                                             DisableReviewLedgerGestureWire = false;
 		std::shared_ptr<review_submission_fixture_state> ReviewSubmissionServer;

@@ -904,6 +904,20 @@ namespace {
 		QApplication::sendEvent(line, &left);
 		expect(chosen == anchor(current, core::comparison_anchor_kind::epoch_base).Identity,
 			   "the earlier live update retains its base stop after a newer live update arrives");
+		auto imported                                     = epoch_row(11, '3', '2', core::epoch_primary_cause::explicit_historical_import);
+		imported.Cause.Origin                             = core::epoch_origin::explicit_historical_import;
+		imported.Cause.Base                               = core::epoch_base_transition::not_applicable;
+		imported.Cause.Head                               = core::epoch_head_transition::not_applicable;
+		history.Occurrences.front().LocalEpoch            = imported.Id;
+		history.Occurrences.front().DerivedComparisonBase = imported.Base;
+		update                                            = loaded_catalog_update({ imported, current });
+		update.Catalog->OccurrenceHistory                 = history;
+		update.Catalog->CurrentEpoch                      = current;
+		control.publish(update);
+		expect(line->node_tooltip(0).contains(QStringLiteral("Historical base unknown"))
+				   && line->node_tooltip(0).contains(QStringLiteral("Derived comparison base 3333"))
+				   && !line->node_tooltip(0).contains(QStringLiteral("Locally observed base")),
+			   "an imported epoch never labels its derived comparison anchor as a local observation");
 	}
 
 	auto test_epoch_line_selects_updates_by_click_drag_and_keys() -> void

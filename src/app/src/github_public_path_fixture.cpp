@@ -683,7 +683,9 @@ namespace bpr::app::detail {
 		/// rather than passing against a hand-copied constant.
 		[[nodiscard]] auto load_anonymous_recording(
 			const fixture_descriptor& aDescriptor,
-			const std::string_view    aHead)
+			const std::string_view    aHead,
+			const bool                aEmptyTimeline,
+			const bool                aUnfetchableFirstHead)
 			-> std::vector<recorded_exchange>
 		{
 			const auto authenticated = load_recording(aDescriptor, aHead);
@@ -774,11 +776,14 @@ namespace bpr::app::detail {
 				};
 			};
 			auto events = QJsonArray{ };
-			if (!aDescriptor.HeadTwoOid.empty()) {
-				events.append(event(91'701, aHead, QStringLiteral("2026-08-01T16:45:08Z")));
+			if (!aDescriptor.HeadTwoOid.empty() && !aEmptyTimeline) {
+				constexpr auto missingHead = std::string_view{ "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" };
+				events.append(event(91'701, aUnfetchableFirstHead ? missingHead : aHead, QStringLiteral("2026-08-01T16:45:08Z")));
 				events.append(event(91'702, priorHead, QStringLiteral("2026-08-05T19:12:33Z")));
 			}
-			events.append(event(91'703, aHead, QStringLiteral("2026-08-09T22:19:26Z")));
+			if (!aEmptyTimeline) {
+				events.append(event(91'703, aHead, QStringLiteral("2026-08-09T22:19:26Z")));
+			}
 			timeline.Response.Body = QJsonDocument{ events }.toJson(QJsonDocument::Compact).toStdString();
 			exchanges.push_back(std::move(timeline));
 			return exchanges;
@@ -970,7 +975,8 @@ namespace bpr::app::detail {
 				const fixture_descriptor&                              aDescriptor,
 				const adapters::github::validated_github_host_profile& aSelectedProfile,
 				std::shared_ptr<deterministic_git_fixture>             aGit,
-				const github_epoch_fixture_phase aPhase, bool aHistory, bool aIndependentWindowReads)
+				const github_epoch_fixture_phase aPhase, bool aHistory, bool aIndependentWindowReads,
+				bool aEmptyTimeline, bool aUnfetchableFirstHead)
 				: Descriptor{ aDescriptor }
 				, Profile{ aSelectedProfile }
 				, Git{ std::move(aGit) }
@@ -1004,7 +1010,7 @@ namespace bpr::app::detail {
 								return result;
 							}(),
 							 Descriptor.Paged }
-				, AnonymousRecording{ Descriptor.Paged ? std::vector<recorded_exchange>{ } : load_anonymous_recording(Descriptor, aPhase == github_epoch_fixture_phase::reuse ? Descriptor.HeadTwoOid : Descriptor.HeadOneOid) }
+				, AnonymousRecording{ Descriptor.Paged ? std::vector<recorded_exchange>{ } : load_anonymous_recording(Descriptor, aPhase == github_epoch_fixture_phase::reuse ? Descriptor.HeadTwoOid : Descriptor.HeadOneOid, aEmptyTimeline, aUnfetchableFirstHead) }
 				, CapabilityBody{ load_capability_response(
 					  Descriptor.CapabilityDirectory) }
 			{
@@ -1289,13 +1295,22 @@ namespace bpr::app::detail {
 						.Failure = application::git_smart_transport_failure::
 							invalid_request } };
 				}
-				const auto head = std::string{
-					core::canonical_hex(Context.Revision.Head).view()
+				const auto requestBody = std::string{
+					reinterpret_cast<const char*>(aRequest.Body.data()), aRequest.Body.size()
 				};
 				const auto& fixture = State->Descriptor;
-				const auto& pack    = (head == fixture.HeadOneOid || (!State->HistoryHeads.empty() && State->serves_head(head)))
+				const auto  wants   = [&](const std::string_view aHead) {
+					return !aHead.empty() && requestBody.find(std::string{ "want " } + std::string{ aHead } + "\n") != std::string::npos;
+				};
+				const auto wantsFirst  = wants(fixture.HeadOneOid);
+				const auto wantsSecond = wants(fixture.HeadTwoOid);
+				if (wantsFirst == wantsSecond) {
+					return std::unexpected{ application::git_smart_transport_error{
+						.Failure = application::git_smart_transport_failure::invalid_request } };
+				}
+				const auto& pack = wantsFirst
 					? State->Git->PackOne
-					: (!fixture.HeadTwoOid.empty() && head == fixture.HeadTwoOid)
+					: wantsSecond
 					? State->Git->PackTwo
 					: QByteArray{ };
 				if (pack.isEmpty()) {
@@ -2846,7 +2861,8 @@ namespace bpr::app::detail {
 			const auto served = descriptor(aFixture);
 			Git               = make_git_fixture(served.Packs);
 			Recording         = std::make_shared<fixture_recording_state>(
-				served, aProfile, Git, aOptions.EpochPhase, aOptions.LargeReviewHistory, aOptions.IndependentWindowReads);
+				served, aProfile, Git, aOptions.EpochPhase, aOptions.LargeReviewHistory, aOptions.IndependentWindowReads,
+				aOptions.EmptyHistoricalTimeline, aOptions.UnfetchableFirstHistoricalHead);
 			Recording->RepeatSessions = aOptions.DeviceRefreshCourse || aOptions.PersistDeviceBindings || aOptions.IndependentWindowReads;
 			Recording->RepeatReads    = aOptions.RepeatReadSessions;
 			Factory                   = std::make_shared<fixture_transport_factory>(Recording);

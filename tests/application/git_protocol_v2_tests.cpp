@@ -1142,6 +1142,27 @@ namespace {
 			"the public operation cannot skip discovery or exact refs");
 
 		{
+			scripted_transport  historical{ requestContext };
+			recording_pack_sink historicalSink{ core::git_hash_algorithm::sha256 };
+			const auto          historicalHead = core::parse_git_commit_oid(std::string(64U, 'e'));
+			expect(historicalHead.has_value(), "historical fixture OID is valid");
+			const auto result = application::acquire_git_protocol_v2_historical_pack(
+				historical, requestContext, *historicalHead, { }, historicalSink, fetch_limits(), { });
+			expect(result && result->AdvertisedRefs.Head == requestContext.Revision.Head
+					   && text(historical.CapturedFetchBody).find("want " + std::string(64U, 'e') + "\n") != std::string::npos
+					   && historical.Calls == std::vector<std::string_view>{ "discover", "ls-refs", "fetch" }
+					   && historicalSink.AbortCalls == 0U,
+				   "historical want preserves live authority and validates current PR advertisement");
+			scripted_transport unavailable{ requestContext };
+			unavailable.FetchFailure = application::git_smart_transport_failure::network;
+			recording_pack_sink unavailableSink{ core::git_hash_algorithm::sha256 };
+			const auto          refused = application::acquire_git_protocol_v2_historical_pack(
+				unavailable, requestContext, *historicalHead, { }, unavailableSink, fetch_limits(), { });
+			expect(!refused && unavailableSink.AbortCalls == 1U,
+				   "unavailable historical fetch aborts its owned sink exactly once");
+		}
+
+		{
 			scripted_transport failed{ requestContext };
 			failed.DiscoveryFailure = application::git_smart_transport_failure::network;
 			recording_pack_sink failedSink{

@@ -83,6 +83,18 @@ namespace bpr::core {
 		auto operator<=>(const planned_epoch_mutation&) const = default;
 	};
 
+	/// \brief Plans a retained historical comparison without changing the accepted live revision.
+	/// \details BaseBranch identifies the selected comparison branch only. The occurrence's
+	/// optional historical base remains independent of the derived retained base.
+	[[nodiscard]] auto plan_historical_epoch_mutation(
+		const pull_request_authority&         aAuthority,
+		const accepted_pull_request_revision& aLiveRevision,
+		const pull_request_source_revision&   aHistoricalSource,
+		const epoch_catalog_identity&         aCatalog,
+		const epoch_occurrence&               aOccurrence,
+		const git_commit_oid&                 aDerivedComparisonBase,
+		const epoch_preparation_observation&  aObservation) noexcept -> planned_epoch_mutation;
+
 	/// \brief Computes the plan epoch mutation result.
 	[[nodiscard]] auto plan_epoch_mutation(
 		const pull_request_authority&         aAuthority,

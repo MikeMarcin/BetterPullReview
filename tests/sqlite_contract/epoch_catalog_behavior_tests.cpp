@@ -421,6 +421,9 @@ namespace {
 		bool                                                PersistReceiving = false;
 		std::optional<core::accepted_pull_request_revision> Accepted;
 		std::optional<core::epoch_cause>                    Cause;
+		std::optional<core::epoch_occurrence_id>            HistoricalOccurrence;
+		std::optional<core::git_commit_oid>                 DerivedComparisonBase;
+		bool                                                StopBeforeFinalize = false;
 	};
 
 	[[nodiscard]] auto complete_append(
@@ -530,8 +533,12 @@ namespace {
 			idempotentSpool && *idempotentSpool == record,
 			"exact spool retry is idempotent");
 
-		const auto install   = install_request(record, aSeed);
-		auto       installed = aSession.record_install(install, { });
+		auto install = install_request(record, aSeed);
+		if (aOptions.DerivedComparisonBase) {
+			install.DerivedComparisonBase = aOptions.DerivedComparisonBase;
+			install.Install.Base          = *aOptions.DerivedComparisonBase;
+		}
+		auto installed = aSession.record_install(install, { });
 		expect(installed.has_value(), "installed artifacts record atomically");
 		record = *installed;
 		expect(
@@ -576,6 +583,7 @@ namespace {
 			.Operation                 = record.Context.Operation,
 			.ExpectedOperationRevision = record.OperationRevision,
 			.Candidate                 = mutation,
+			.HistoricalOccurrence      = aOptions.HistoricalOccurrence,
 		};
 		auto recordedCandidate = aSession.record_candidate(candidateRequest, { });
 		expect(recordedCandidate.has_value(), "candidate records atomically");
@@ -603,6 +611,9 @@ namespace {
 			app::epoch_catalog_operation_phase::refs_committed,
 			app::epoch_catalog_transition_evidence::exact_final_pair);
 
+		if (aOptions.StopBeforeFinalize) {
+			return { .Mutation = mutation, .Terminal = record };
+		}
 		const auto refs = app::git_retained_ref_pair{
 			.Scope   = aSession.binding().Authority.Scope,
 			.Ordinal = aOrdinal,
@@ -615,6 +626,7 @@ namespace {
 			.ExpectedOperationRevision = record.OperationRevision,
 			.Mutation                  = mutation,
 			.ObservedRefs              = refs,
+			.HistoricalOccurrence      = aOptions.HistoricalOccurrence,
 		};
 		auto finalized = aSession.finalize_append(finalizeRequest, { });
 		expect(finalized.has_value(), "visible epoch finalizes atomically");
@@ -951,7 +963,7 @@ namespace {
 				"AND name NOT LIKE 'sqlite_%' ORDER BY name");
 			auto output = std::string{ };
 			for (const auto& table : tables) {
-				if (aLegacyRowsOnly && (table == "catalog_meta" || table == "epoch_occurrence" || table == "epoch_occurrence_history" || table == "epoch_occurrence_supersession")) {
+				if (aLegacyRowsOnly && (table == "catalog_meta" || table == "append_occurrence" || table == "epoch_occurrence" || table == "epoch_occurrence_history" || table == "epoch_occurrence_supersession")) {
 					continue;
 				}
 				appendField(output, table);
@@ -1305,6 +1317,74 @@ namespace {
 			session->recovery_page(std::nullopt, 100U, { }), aFailure, aMessage);
 	}
 
+	void historical_occurrence_atomic_recovery_contract()
+	{
+		temporary_root root{ "historical-atomic" };
+		auto           made = sqlite::make_epoch_catalog({ .StorageRoot = root.path() });
+		expect(made.has_value(), "historical catalogue opens");
+		auto port   = std::move(*made);
+		auto opened = port->open(open_request(951U), { });
+		expect(opened.has_value(), "historical scope opens");
+		auto session = std::move(*opened);
+		(void)complete_append(*session, core::epoch_ordinal{ 1 }, 1U, core::application_session_id{ 951U }, true);
+		(void)complete_append(*session, core::epoch_ordinal{ 2 }, 2U, core::application_session_id{ 951U }, false);
+		const auto live       = session->snapshot({ });
+		auto       historical = revision(3U);
+		historical.Origin     = core::pull_request_revision_origin::explicit_historical_import;
+		core::epoch_occurrence occurrence{
+			.Evidence            = { .Kind = core::epoch_occurrence_kind::force_push_event, .EventId = 951U, .Head = historical.Head },
+			.DateSource          = core::epoch_occurrence_date_source::github_event,
+			.DateUtcMilliseconds = 100,
+			.FirstSeen           = core::observed_utc_milliseconds{ 900 },
+		};
+		occurrence.Id  = *core::make_epoch_occurrence_id("ghe.example.com", authority_key().PullRequest, occurrence.Evidence);
+		auto duplicate = occurrence;
+		duplicate.Evidence.EventId++;
+		duplicate.Id = *core::make_epoch_occurrence_id("ghe.example.com", authority_key().PullRequest, duplicate.Evidence);
+		expect(session->record_occurrences({ .Occurrences = { occurrence, duplicate } }, { }).has_value(), "same-head historical events persist independently");
+		const auto derived = oid<core::git_commit_oid>(91U);
+		const auto pending = complete_append(*session, core::epoch_ordinal{ 3 }, 3U, core::application_session_id{ 951U }, false, false, nullptr,
+											 { .Accepted = historical, .Cause = core::epoch_cause{ .Origin = core::epoch_origin::explicit_historical_import, .Primary = core::epoch_primary_cause::explicit_historical_import }, .HistoricalOccurrence = occurrence.Id, .DerivedComparisonBase = derived, .StopBeforeFinalize = true });
+		expect(pending.Terminal.Context.Revision.Base == derived, "derived base becomes exact recovery ref base");
+		expect(direct_count(database_path(root.path()), "SELECT count(*) FROM epoch") == 2
+				   && direct_count(database_path(root.path()), "SELECT count(*) FROM epoch_occurrence WHERE local_ordinal IS NOT NULL") == 0,
+			   "pre-finalize interruption exposes neither epoch nor occurrence binding");
+		session.reset();
+		port.reset();
+		made = sqlite::make_epoch_catalog({ .StorageRoot = root.path() });
+		expect(made.has_value(), "pending historical catalogue reopens");
+		port   = std::move(*made);
+		opened = port->open(open_request(952U), { });
+		expect(opened.has_value(), "historical scope recovers");
+		session             = std::move(*opened);
+		const auto recovery = session->recovery_page(std::nullopt, 100U, { });
+		expect(recovery && recovery->Operations.size() == 1U, "historical journal survives restart");
+		const auto& record = std::get<app::append_operation_record>(recovery->Operations.front());
+		expect(record.Candidate == pending.Mutation && record.HistoricalOccurrence == occurrence.Id,
+			   "recovery carries exact event instead of inferring same-head equivalence");
+		const app::finalize_append_request request{
+			.Catalog                   = record.Context.Catalog,
+			.Operation                 = record.Context.Operation,
+			.ExpectedOperationRevision = record.OperationRevision,
+			.Mutation                  = *record.Candidate,
+			.ObservedRefs              = { .Scope = record.Candidate->Epoch.Id.Authority, .Ordinal = core::epoch_ordinal{ 3 }, .Base = derived, .Head = historical.Head },
+			.HistoricalOccurrence      = record.HistoricalOccurrence,
+		};
+		auto committed = session->finalize_append(request, { });
+		expect(committed.has_value() && session->finalize_append(request, { }) == committed, "historical finalization replays idempotently");
+		const auto stored = session->occurrences({ });
+		expect(stored.has_value(), "bound history reads");
+		const auto bound = std::ranges::find(stored->Occurrences, occurrence.Id, &core::epoch_occurrence::Id);
+		const auto other = std::ranges::find(stored->Occurrences, duplicate.Id, &core::epoch_occurrence::Id);
+		expect(bound != stored->Occurrences.end() && bound->LocalEpoch == pending.Mutation.Epoch.Id
+				   && !bound->HistoricalBase && bound->DerivedComparisonBase == derived
+				   && other != stored->Occurrences.end() && !other->LocalEpoch,
+			   "only exact occurrence binds atomically and unknown original base stays unknown");
+		const auto after = session->snapshot({ });
+		expect(after && live && after->LatestLive == live->LatestLive && after->PreviousDistinctHead == live->PreviousDistinctHead,
+			   "historical finalization leaves both live ordinal pointers unchanged");
+	}
+
 	void portable_occurrence_storage_contract()
 	{
 		temporary_root root{ "occurrences" };
@@ -1457,7 +1537,7 @@ namespace {
 		}
 	}
 
-	void version_three_lossless_occurrence_migration_contract()
+	void lossless_occurrence_migration_contract(const bool aVersionFour)
 	{
 		temporary_root originalRoot{ "occurrence-v3-original" };
 		temporary_root copiedRoot{ "occurrence-v3-copy" };
@@ -1481,12 +1561,12 @@ namespace {
 		std::string oldRows;
 		{
 			direct_database database{ database_path(originalRoot.path()), true };
-			expect(test_platform::make_version_three_catalog(database), "fixture restores exact current production v3 schema");
+			expect(aVersionFour ? test_platform::make_version_four_catalog(database) : test_platform::make_version_three_catalog(database), "fixture restores exact previous production schema");
 			oldRows = database.logical_fingerprint(true);
 		}
 		std::filesystem::copy(originalRoot.path(), copiedRoot.path(), std::filesystem::copy_options::recursive);
 		made = sqlite::make_epoch_catalog({ .StorageRoot = copiedRoot.path() });
-		expect(made.has_value(), "a copy of the v3 file migrates to v4");
+		expect(made.has_value(), "a copy of the previous file migrates to v5");
 		port   = std::move(*made);
 		opened = port->open(request, { });
 		expect(opened.has_value(), "migrated scope opens");
@@ -1512,7 +1592,7 @@ namespace {
 		}
 		{
 			direct_database database{ database_path(originalRoot.path()) };
-			expect(database.integer("PRAGMA user_version") == 3 && database.logical_fingerprint(true) == oldRows,
+			expect(database.integer("PRAGMA user_version") == (aVersionFour ? 4 : 3) && database.logical_fingerprint(true) == oldRows,
 				   "migration of the copied file does not touch its original");
 		}
 	}
@@ -6189,9 +6269,11 @@ namespace {
 
 int main()
 {
+	historical_occurrence_atomic_recovery_contract();
 	portable_occurrence_storage_contract();
 	occurrence_supersession_contract();
-	version_three_lossless_occurrence_migration_contract();
+	lossless_occurrence_migration_contract(false);
+	lossless_occurrence_migration_contract(true);
 	append_snapshot_history_anchor_contract();
 	receiving_ownership_migration_and_restart_contract();
 	reservation_conflict_and_never_reuse_contract();

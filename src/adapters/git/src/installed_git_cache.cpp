@@ -3273,7 +3273,7 @@ namespace bpr::adapters::git {
 					};
 				}
 				const auto processExpected = process_pack(aRequest.Receipt.ExpectedPack);
-				const auto base            = process_commit(aRequest.Base);
+				auto       base            = process_commit(aRequest.Base);
 				const auto head            = process_commit(aRequest.Head);
 				if (
 					!processExpected.has_value() || !base.has_value()
@@ -3576,6 +3576,26 @@ namespace bpr::adapters::git {
 							repair_required
 					};
 				}
+				if (aRequest.DeriveComparisonBase) {
+					const auto derived = State->Process->derive_comparison_base(
+						{ .Repository = State->Repository, .Head = *head, .SelectedBase = *base }, aStop);
+					if (!State->active_boundary_still_owned()) {
+						if (!derived && derived.error() == application::git_process_failure::reap_failure) {
+							static_cast<void>(State->process_failure(derived.error()));
+						}
+						return std::unexpected{ application::git_cache_failure::repair_required };
+					}
+					if (!derived) {
+						if (derived.error() == application::git_process_failure::reap_failure) {
+							return std::unexpected{ State->process_failure(derived.error()) };
+						}
+						return rollbackFailure(State->process_failure(derived.error()));
+					}
+					if (derived->Status != application::git_comparison_base_status::unique || !derived->Base) {
+						return rollbackFailure(application::git_cache_failure::object_mismatch);
+					}
+					base = derived->Base;
+				}
 				const auto baseInspection = State->Process->inspect_commit(
 					application::git_commit_request{
 						.Repository = State->Repository,
@@ -3767,7 +3787,7 @@ namespace bpr::adapters::git {
 						.Identity = *durableIndexIdentity,
 						.Bytes    = expectedPack->IndexBytes,
 					},
-					.Base          = aRequest.Base,
+					.Base          = core_commit(*base),
 					.BaseTree      = core_tree(baseInspection->Tree),
 					.Head          = aRequest.Head,
 					.HeadTree      = core_tree(headInspection->Tree),

@@ -251,6 +251,7 @@ namespace {
 		database.execute("PRAGMA foreign_keys = OFF");
 		database.execute("BEGIN IMMEDIATE");
 		database.execute("DROP TABLE append_receiving");
+		database.execute("DROP TABLE append_occurrence");
 		database.execute("DROP TABLE epoch_occurrence_supersession");
 		database.execute("DROP TABLE epoch_occurrence");
 		database.execute("DROP TABLE epoch_occurrence_history");
@@ -429,7 +430,7 @@ namespace {
 		{
 			direct_database database{ database_path(root.path()) };
 			expect(
-				database.integer("PRAGMA user_version") == 4
+				database.integer("PRAGMA user_version") == 5
 					&& database.integer(
 						   "SELECT schema_format FROM catalog_meta "
 						   "WHERE singleton = 1")
@@ -511,7 +512,7 @@ namespace {
 		expect(made.has_value(), "the next open migrates the same catalog");
 		direct_database database{ database_path(root.path()) };
 		expect(
-			database.integer("PRAGMA user_version") == 4,
+			database.integer("PRAGMA user_version") == 5,
 			"the retried migration completes");
 	}
 

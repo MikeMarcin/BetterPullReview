@@ -1456,6 +1456,34 @@ namespace bpr::core {
 		}
 
 		[[nodiscard]] auto handle(
+			epoch_state& aState, const epoch_historical_catalog_advanced_event& aEvent)
+			-> epoch_transition_output
+		{
+			if (aState.ApplicationSession != aEvent.ApplicationSession
+				|| aState.Authority != aEvent.Authority
+				|| aState.AcceptedRevision != aEvent.Revision
+				|| aState.Catalog != aEvent.ExpectedCatalog) {
+				return reject(epoch_reason_code::stale_completion);
+			}
+			if (!valid(aEvent.NewCatalog)
+				|| aEvent.NewCatalog.Incarnation != aEvent.ExpectedCatalog.Incarnation
+				|| !next_catalog_revision(aEvent.ExpectedCatalog.Revision, aEvent.NewCatalog.Revision)
+				|| aState.PendingIngestion || aState.PendingMaintenance) {
+				return reject(epoch_reason_code::completion_identity_mismatch);
+			}
+			epoch_transition_output output;
+			invalidate_history_window(aState, output);
+			aState.Catalog = aEvent.NewCatalog;
+			output.Catalog = epoch_catalog_delta{ .Catalog = aEvent.NewCatalog };
+			output.Changed = output.Changed | epoch_changed_domain::catalog;
+			request_newest_history_page(aState, output);
+			if (request_available(aState)) {
+				static_cast<void>(start_comparison(aState, output, take_request(aState), true));
+			}
+			return output;
+		}
+
+		[[nodiscard]] auto handle(
 			epoch_state& aState, const epoch_catalog_commit_failed_event& aEvent)
 			-> epoch_transition_output
 		{
@@ -2452,6 +2480,34 @@ namespace bpr::core {
 			.Effect = retainRevision ? epoch_preparation_effect::retain_revision
 									 : epoch_preparation_effect::none,
 		};
+	}
+
+	auto plan_historical_epoch_mutation(
+		const pull_request_authority&         aAuthority,
+		const accepted_pull_request_revision& aLiveRevision,
+		const pull_request_source_revision&   aHistoricalSource,
+		const epoch_catalog_identity&         aCatalog,
+		const epoch_occurrence&               aOccurrence,
+		const git_commit_oid&                 aDerivedComparisonBase,
+		const epoch_preparation_observation&  aObservation) noexcept -> planned_epoch_mutation
+	{
+		if (!valid(aLiveRevision) || !valid(aHistoricalSource) || !valid(aOccurrence)
+			|| aOccurrence.LocalEpoch || !aDerivedComparisonBase.valid()
+			|| aDerivedComparisonBase.algorithm() != aOccurrence.Evidence.Head.algorithm()
+			|| aLiveRevision.Head.algorithm() != aDerivedComparisonBase.algorithm()
+			|| aObservation.ProposedCurrentViewerReview || aObservation.CatalogCurrentViewerReview
+			|| !aObservation.Material) {
+			return { .Rejection = epoch_reason_code::invalid_observation };
+		}
+		auto historical   = aLiveRevision;
+		historical.Source = aHistoricalSource;
+		historical.Base   = aDerivedComparisonBase;
+		historical.Head   = aOccurrence.Evidence.Head;
+		historical.Origin = pull_request_revision_origin::explicit_historical_import;
+		historical.CurrentViewerReview.reset();
+		auto planned = plan_epoch_mutation(aAuthority, historical, aCatalog, aObservation);
+
+		return planned;
 	}
 
 	auto plan_epoch_mutation(

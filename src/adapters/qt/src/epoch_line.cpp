@@ -163,7 +163,7 @@ namespace bpr::qt {
 				: aCurrentEpoch && matches(*aCurrentEpoch)          ? &*aCurrentEpoch
 																	: nullptr;
 			const auto  hasObservedBase = observed != nullptr;
-			if (hasObservedBase) {
+			if (hasObservedBase && observed->Cause.Origin != core::epoch_origin::explicit_historical_import) {
 				details.append(QStringLiteral(" Locally observed base %1.").arg(short_oid(observed->Base)));
 			}
 			Updates.push_back({ .Id = occurrence.LocalEpoch, .Head = occurrence.Evidence.Head, .Label = label, .Details = details, .HasBase = hasObservedBase || occurrence.HistoricalBase.has_value() || occurrence.DerivedComparisonBase.has_value() });

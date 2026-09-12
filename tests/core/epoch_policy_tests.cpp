@@ -587,7 +587,7 @@ namespace {
 		static_assert(std::is_trivially_copyable_v<epoch_state>);
 		static_assert(std::is_trivially_destructible_v<epoch_state>);
 		static_assert(sizeof(epoch_state) <= 2'048U);
-		static_assert(std::variant_size_v<epoch_event> == 30U);
+		static_assert(std::variant_size_v<epoch_event> == 31U);
 		static_assert(std::variant_size_v<epoch_host_request> == 9U);
 
 		const auto sha1 = parse_git_commit_oid("0123456789ABCDEF0123456789ABCDEF01234567");
@@ -3886,6 +3886,71 @@ namespace {
 		expect(epoch_occurrence_less(left, right), "local first-seen cannot affect portable ordering");
 	}
 
+	void test_historical_append_planner()
+	{
+		const auto       live     = revision();
+		const auto       original = live;
+		epoch_occurrence occurrence{
+			.Evidence = { epoch_occurrence_kind::force_push_event, 501U, oid<git_commit_oid>(80U) },
+		};
+		occurrence.Id = *make_epoch_occurrence_id("github.com", authority().PullRequest, occurrence.Evidence);
+		const epoch_preparation_observation observation{
+			.ProposedOrdinal = epoch_ordinal{ 4 },
+			.ObservedAt      = observed_utc_milliseconds{ 100 },
+			.Material        = material(),
+		};
+		const auto planned = plan_historical_epoch_mutation(authority(), live, revision(2).Source, catalog(), occurrence, oid<git_commit_oid>(90U), observation);
+		expect(planned.Mutation && live == original && !occurrence.HistoricalBase, "historical planning leaves live revision and unknown historical base intact");
+		const auto& append = std::get<append_epoch_mutation>(*planned.Mutation);
+		expect(append.Epoch.Head == occurrence.Evidence.Head
+				   && append.Epoch.Base == oid<git_commit_oid>(90U) && append.Epoch.Cause.Origin == epoch_origin::explicit_historical_import,
+			   "historical mutation names exact occurrence and derived comparison anchor");
+		expect(!plan_historical_epoch_mutation(authority(), live, revision(2).Source, catalog(), occurrence, { }, observation).Mutation,
+			   "missing derived base leaves history without a fabricated comparison");
+		occurrence.LocalEpoch = append.Epoch.Id;
+		expect(!plan_historical_epoch_mutation(authority(), live, revision(2).Source, catalog(), occurrence, oid<git_commit_oid>(90U), observation).Mutation,
+			   "already retained occurrence does not allocate another epoch");
+	}
+
+	void test_historical_catalog_advance()
+	{
+		auto fixture     = make_ready_fixture();
+		auto next        = fixture.Catalog;
+		next.Revision    = epoch_catalog_revision{ next.Revision.value() + 1U };
+		const auto event = epoch_historical_catalog_advanced_event{
+			.ApplicationSession = fixture.State.ApplicationSession,
+			.Authority          = fixture.Authority,
+			.Revision           = fixture.Revision,
+			.ExpectedCatalog    = fixture.Catalog,
+			.NewCatalog         = next,
+		};
+		const auto before              = fixture.State;
+		auto       stale               = event;
+		stale.ExpectedCatalog.Revision = next.Revision;
+		const auto rejected            = transition(fixture.State, stale);
+		expect(diagnostic_is(rejected, epoch_reason_code::stale_completion)
+				   && fixture.State == before,
+			   "historical completion cannot advance an unrelated catalog revision");
+		const auto accepted = transition(fixture.State, event);
+		expect(fixture.State.Catalog == next && accepted.Catalog
+				   && accepted.Catalog->Catalog == next
+				   && request_from<resolve_comparison_request>(accepted) != nullptr,
+			   "durable historical append advances core revision and re-resolves the selection");
+		const auto selected = transition(fixture.State,
+										 select_comparison_anchor_intent{
+											 .Side   = comparison_side::left,
+											 .Anchor = {
+												 .Authority   = fixture.Authority.Scope,
+												 .Incarnation = next.Incarnation,
+												 .Kind        = comparison_anchor_kind::epoch_head,
+												 .Epoch       = fixture.Epoch.Id.Ordinal,
+											 },
+											 .ExpectedCatalogRevision = next.Revision,
+										 });
+		expect(!diagnostic_is(selected, epoch_reason_code::catalog_revision_mismatch),
+			   "the newly published historical line can dispatch against the adopted revision");
+	}
+
 	auto test_deterministic_replay() -> void
 	{
 		const auto first  = make_ready_fixture();
@@ -3921,6 +3986,8 @@ auto main() -> int
 	test_settled_ingestion_requests_the_newest_history_page();
 	test_core_authorized_epoch_maintenance();
 	test_authority_access_mode_discrimination();
+	test_historical_append_planner();
+	test_historical_catalog_advance();
 	test_deterministic_replay();
 	return EXIT_SUCCESS;
 }
