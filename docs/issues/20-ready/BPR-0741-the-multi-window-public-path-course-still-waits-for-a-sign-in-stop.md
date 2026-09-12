@@ -25,7 +25,7 @@ hidden by design, and the read goes out anonymously. The `github_com`
 fixture answers the anonymous read of pull 17 once and never pull 18
 (`src/app/src/github_public_path_fixture.cpp:932`, `:1368-1374`), so the
 course cannot pass on the anonymous path. Same cause as
-[BPR-0740](../30-in-progress/BPR-0740-the-layout-public-path-no-longer-opens-the-exact-public-review.md),
+[BPR-0740](../60-done/BPR-0740-the-layout-public-path-no-longer-opens-the-exact-public-review.md),
 whose course was converted to the account path in d17; this one is
 outside that card's owned paths. On Linux and Windows the capability is
 not shipped and the course still sees `sign_in`, so the red is macOS-only.

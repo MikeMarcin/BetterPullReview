@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0742"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "unreadable workbench layout store is silent since BPR-0718 (found under BPR-0740 d18)",
+  "created": "2026-09-12T02:36:50.672373+00:00",
+  "base": "f35bbeb80a767fb91b05d8e1b5fb588861f292ea"
+}
