@@ -6301,13 +6301,9 @@ namespace bpr::qt {
 
 	auto workbench_splitter_handle::rule_edge() const -> int
 	{
-		// The conversations drawer is the splitter's last widget and draws its
-		// rule on its left edge, the side its handle's right edge touches; a
-		// left drawer's rule is on its right edge, at its handle's left.
-		auto* const parent = splitter();
-		const auto  last   = parent != nullptr
-			&& parent->indexOf(const_cast<workbench_splitter_handle*>(this)) == parent->count() - 1;
-		return last ? width() - 1 : 0;
+		// Keep aimable space on both sides of the one-pixel rule. For an even
+		// style width, choose the left middle column; odd widths are symmetric.
+		return (width() - 1) / 2;
 	}
 
 	void workbench_splitter_handle::paintEvent(QPaintEvent* const aEvent)

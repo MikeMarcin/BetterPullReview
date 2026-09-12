@@ -42,6 +42,8 @@
 #include <QStatusBar>
 #include <QStatusTipEvent>
 #include <QStringList>
+#include <QStyle>
+#include <QStyleFactory>
 #include <QSysInfo>
 #include <QTextBlock>
 #include <QTextDocument>
@@ -1966,6 +1968,49 @@ namespace {
 		window.hide();
 	}
 
+	void test_the_seam_is_centred_for_native_and_even_handle_widths()
+	{
+		for (const auto& styleName : QStyleFactory::keys()) {
+			auto style    = std::unique_ptr<QStyle>{ QStyleFactory::create(styleName) };
+			auto splitter = qt::workbench_central_splitter{ nullptr };
+			splitter.setStyle(style.get());
+			for (auto index = 0; index < 4; ++index) {
+				splitter.addWidget(new QWidget{ });
+			}
+			splitter.resize(600, 120);
+			splitter.show();
+			const auto nativeWidth = style->pixelMetric(QStyle::PM_SplitterWidth, nullptr, &splitter);
+			expect(splitter.handleWidth() == nativeWidth,
+				   "the workbench preserves the selected style's native splitter width");
+			std::cout << "seam geometry style=" << styleName.toStdString()
+					  << " nativeWidth=" << nativeWidth << '\n';
+			// Both parity cases run on every platform, even without the macOS style.
+			for (const auto width : { nativeWidth, 4, 7 }) {
+				splitter.setHandleWidth(width);
+				process_events();
+				for (auto index = 1; index < splitter.count(); ++index) {
+					auto* const handle = dynamic_cast<qt::workbench_splitter_handle*>(splitter.handle(index));
+					expect(handle != nullptr && handle->width() == width,
+						   "the rendered handle has the requested style or parity width");
+					const auto column = (width - 1) / 2;
+					expect(handle->rule_edge() == column && column > 0 && column < width - 1,
+						   "the seam has aimable space on both sides at native, four and seven pixel widths");
+					// Render at logical resolution to pin exactly one column independently
+					// of device rounding; the composed window checks the scaled raster too.
+					auto image = QImage{ handle->size(), QImage::Format_ARGB32 };
+					handle->render(&image);
+					const auto mid        = handle->palette().color(QPalette::Active, QPalette::Mid);
+					const auto background = handle->palette().color(QPalette::Active, QPalette::Window);
+					expect(mid != background, "the seam raster distinguishes rule from background");
+					for (auto x = 0; x < width; ++x) {
+						expect(image.pixelColor(x, image.height() / 2).rgba() == (x == column ? mid : background).rgba(),
+							   "exactly the middle logical column paints the one-pixel rule");
+					}
+				}
+			}
+		}
+	}
+
 	/// \brief Rests the pointer on a central splitter handle and reports what
 	/// the platform would show: the widget under the pointer and its cursor.
 	[[nodiscard]] auto handle_under_resting_pointer(
@@ -2151,11 +2196,11 @@ namespace {
 		expect(ruleShows(handle, mid) && mid != windowBg,
 			   "a handle the pointer is not over draws the drawer's edge rule, "
 			   "distinct from the window colour");
-		expect(dynamic_cast<qt::workbench_splitter_handle*>(splitter->handle(2))->rule_edge() == 0
+		expect(dynamic_cast<qt::workbench_splitter_handle*>(splitter->handle(2))->rule_edge()
+					   == (splitter->handle(2)->width() - 1) / 2
 				   && dynamic_cast<qt::workbench_splitter_handle*>(handle)->rule_edge()
-					   == handle->width() - 1,
-			   "a left drawer's rule is at its handle's left edge and the conversations "
-			   "drawer's at its handle's right edge, where the drawers' edges are");
+					   == (handle->width() - 1) / 2,
+			   "each drawer rule occupies the middle column of its hot zone");
 
 		// [[BPR-0746]]. Whether the seam's paint can witness where the pointer
 		// is, measured here rather than reasoned from Qt's sources, which are
@@ -6346,6 +6391,7 @@ auto main(int argc, char** argv) -> int
 	test_a_squeezed_splitter_never_reports_a_width();
 	test_a_clobbered_persisted_width_opens_at_the_design_width();
 	test_the_conversations_drawer_narrows_below_its_default_in_read();
+	test_the_seam_is_centred_for_native_and_even_handle_widths();
 	test_the_split_cursor_stays_over_a_resting_handle();
 	test_drawer_contents_use_incremental_model_signals();
 	test_file_rows_emit_only_semantic_user_selection();

@@ -193,8 +193,11 @@ namespace bpr::qt {
 	/// nothing to aim at and read the comparison's scroll bar as the border;
 	/// the resize cursor showed only while the pointer crossed the seven
 	/// pixels. The handle draws the drawer's edge rule from the design asset:
-	/// a one pixel `Mid` line on the drawer's side, the rule the collapsed
-	/// rail draws, at one constant weight.
+	/// a one pixel `Mid` line, the rule the collapsed rail draws, at one
+	/// constant weight. [[BPR-0749]] centres that rule within the native hot
+	/// zone so aiming at it leaves space on both sides: column 3 at macOS's
+	/// width 7, column 1 at Fusion's width 4 (the left middle column for even
+	/// widths). The hot zone retains the style's width; the rule stays one pixel.
 	///
 	/// It brightened to `Highlight` under the pointer until 2026-09-12, when
 	/// the owner chose the asset's constant weight in the v009 attended
