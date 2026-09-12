@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0740"
 title: "The layout public path no longer opens the exact public review"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0024"]
 depends_on: []
 priority: "P1"
