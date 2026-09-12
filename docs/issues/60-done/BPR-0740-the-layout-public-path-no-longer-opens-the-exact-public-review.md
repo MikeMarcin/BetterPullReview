@@ -155,7 +155,7 @@ The phase now pins the accepted BPR-0718 behaviour: Home usable, the
 window opens its review with the profile defaults (files width 320, not
 the saved width) and the contract still checks the store's version and
 the allocator are preserved. That the unreadable store is now silent to
-the user is [BPR-0742](../30-in-progress/BPR-0742-an-unreadable-workbench-layout-store-is-silent-since-bpr-0718.md).
+the user is [BPR-0742](BPR-0742-an-unreadable-workbench-layout-store-is-silent-since-bpr-0718.md).
 
 No product change; `github_application.cpp` and both digests are
 unchanged. `application_profile_window_layout_public_path` passes
