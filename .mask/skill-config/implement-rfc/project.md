@@ -47,3 +47,8 @@ Use canonical cards, shared allocation and claim/finish. The product documentati
 ## Attendance and platform eligibility
 
 Use shared attended-review when an explicit human criterion remains; park with human-review and continue independent work. Prepare ready items incrementally, preserve partial verdicts and relevant protections, and use wizard for manual steps. Prefer local HTML and agent-captured objective evidence; retain offline copy/paste. Platform requirements live in platforms metadata; query the applicable platform, and leave unmet dependencies in Backlog. Existing RFC sequencing exceptions do not waive required real-platform evidence.
+
+`immutable-review-link` parks an otherwise accepted card when moving its board
+path would require editing a protected historical review packet. Keep the
+packet's bytes intact and record the exact blocked link and acceptance evidence
+on the card until a safe path-preserving migration is available.

@@ -73,7 +73,8 @@
     ],
     "parked_on": [
       "human-review",
-      "awaiting-live-github"
+      "awaiting-live-github",
+      "immutable-review-link"
     ],
     "blocked_by_forbidden_prefixes": [
       "platform-"

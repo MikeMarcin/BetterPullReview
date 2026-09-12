@@ -12,6 +12,34 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
+## Current frontier, 2026-09-12 (d27, mandate r19): one-pane verdict received
+
+Run `attended-prep-2026-09-10`, dispatch d27, producer
+`/root/integrator_d27`, mandate r19, remains bound to plan
+`ux-redesign-pack-0028` milestone `attended-preparation-pack-head`, definition
+fingerprint `sha256:201de49a086f8f809fea06d6749caf3fecb43e7fa8c78a960f55af31b64bfee5`.
+All nine authored card obligations and four milestone exits remain in force.
+
+The v010 attended session recorded the owner's explicit **accept** for
+`BPR-0729-one-pane-layout` at sequence 367, decision `0f6d7348`, on the
+exact protected revision `app-release-a6dc1565-2026-09-12.6` and fingerprint
+`70a2a9417b2532450cf66f71228fbabe1f627de748ed8ea25767cecec875228c`.
+The sequence-368 hand-back had no pending candidates and added no verdict.
+[[BPR-0729]]'s final signed-bundle criterion is now evidenced; the d26
+engineering checks remain the evidence for its other criteria. This does
+not decide [[BPR-0646]]'s epoch-handle criterion.
+All nine BPR-0729 acceptance records now pass, but its board path remains in
+Parked with `parked_on: immutable-review-link`: `issue_board.py finish --dry-run`
+would rewrite the protected v010 operator packet's relative link to the card,
+and a bare move would fail the documentation link gate. The packet bytes are
+unchanged; this is a tracker migration constraint, not another human question.
+
+[[BPR-0743]] is the active engineering slice under Accepted RFC-BPR-0029.
+Its source and migration are under focused verification and critical review;
+no BPR-0646 bundle or owner question is prepared from this intermediate state.
+RFC-BPR-0018 and RFC-BPR-0028 remain open, with their unsatisfied obligations
+preserved below.
+
 ## Current frontier, 2026-09-12 (d26, mandate r18): one-pane bundle ready
 
 Run `attended-prep-2026-09-10`, dispatch d26, producer

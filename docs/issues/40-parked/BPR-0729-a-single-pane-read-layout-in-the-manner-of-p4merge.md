@@ -7,7 +7,8 @@ rfcs: ["RFC-BPR-0028"]
 depends_on: ["BPR-0734"]
 priority: "P1"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"owner_direction":"2026-09-11","attended_session":"cbd48b91000b00f1e72e1ad62c7c384c","attended_decision":"205ac8b2-30fd-4339-8d08-51c621ab7fc8"}
-parked_on: "human-review"
+parked_on: "immutable-review-link"
+acceptance: [{"criterion":"One-pane rows and identity at three scales","outcome":"pass","revision":"83d7e676","evidence":{"kind":"command","detail":"qt_diff_workbench_scale_{100,125,200} and inspected rendered crops; build/logs/bpr-0729-d26-final-focused.log"}},{"criterion":"Gutter and empty-side ribbons at three scales","outcome":"pass","revision":"83d7e676","evidence":{"kind":"artifact","detail":"Three-scale source and gutter crops inspected under build/dev/tests/adapters_qt; build/logs/bpr-0729-d26-final-focused.log"}},{"criterion":"View menu, Review one-pane and core policy","outcome":"pass","revision":"83d7e676","evidence":{"kind":"command","detail":"qt_workbench_window_scale_{100,125,200} and core_workbench_interaction in build/logs/bpr-0729-d26-final-focused.log"}},{"criterion":"SQLite schema 7 and version 6 migration","outcome":"pass","revision":"83d7e676","evidence":{"kind":"command","detail":"sqlite_workbench_settings_storage and legacy/interrupted migration checks; build/logs/bpr-0729-d26-final-focused.log"}},{"criterion":"Per-window choice and restart","outcome":"pass","revision":"83d7e676","evidence":{"kind":"command","detail":"application_profile_window_layout_public_path; build/logs/bpr-0729-d26-final-focused.log"}},{"criterion":"Composed GitHub side-specific thread anchors","outcome":"pass","revision":"83d7e676","evidence":{"kind":"artifact","detail":"qt_composed_github_scale_{100,125,200} including one-pane collisions and inspected crops; build/logs/bpr-0729-d26-final-focused.log"}},{"criterion":"Host composition and unchanged diff public path","outcome":"pass","revision":"83d7e676","evidence":{"kind":"command","detail":"Application composition contracts and diff public path in build/logs/bpr-0729-d26-final-contracts.log; core/boundary checks in card evidence"}},{"criterion":"Format, tidy, boundaries and documentation","outcome":"pass","revision":"83d7e676","evidence":{"kind":"command","detail":"build/logs/bpr-0729-d26-{boundaries,format-final,tidy-correction,doc-gate}.log; card records whitespace check"}},{"criterion":"Owner accepts Review one-pane and empty-side layout on signed bundle","outcome":"pass","revision":"app-release-a6dc1565-2026-09-12.6","evidence":{"kind":"observation","detail":"Session cbd48b91000b00f1e72e1ad62c7c384c sequence 367 candidate BPR-0729-one-pane-layout fingerprint 70a2a9417b2532450cf66f71228fbabe1f627de748ed8ea25767cecec875228c decision 0f6d7348-e230-41ce-a815-af50ebf2bb0d outcome accept, empty note; sequence 368 hand-back pending []"}}]
 ---
 
 # A single-pane Read layout in the manner of p4merge
@@ -285,6 +286,28 @@ ready/protected at sequence 366 with no decision. The tests-disabled bundle
 was built from `83d7e676`, executable sha256
 `a6dc1565908cfacc5eb7d573d8d05983c51aa10780db2052e1c138682870eaf2`,
 and `codesign --verify --deep --strict` passed. No host or watch is running.
+
+## Signed-bundle acceptance, 2026-09-12 (d27, mandate r19)
+
+The attended session recorded sequence 367 for the exact protected candidate
+`BPR-0729-one-pane-layout`, revision `app-release-a6dc1565-2026-09-12.6`,
+fingerprint `70a2a9417b2532450cf66f71228fbabe1f627de748ed8ea25767cecec875228c`.
+Decision `0f6d7348-e230-41ce-a815-af50ebf2bb0d` is the owner's explicit
+**accept** with no note. It answers the one question showing Review in one
+pane and the empty-side ribbons on the signed bundle. Sequence 368 is the
+session hand-back with no pending candidates; it adds no second verdict.
+The eight engineering criteria above retain their d26 evidence and the last,
+attended criterion now passes on this digest. This decision says nothing
+about [[BPR-0646]]'s epoch handle criterion.
+
+All nine recorded acceptance criteria pass. The card remains in Parked with
+`parked_on: immutable-review-link` solely because the board's Done move would
+rewrite the protected v010 operator packet's relative link to this card.
+`issue_board.py finish --dry-run` refused that protected-content change. The
+packet is historical signed evidence and has not been edited; moving the card
+without retaining its path would also break the documentation link gate. The
+board disposition needs an explicit safe historical-link migration before the
+card can enter Done. This is a tracker constraint, not another owner ask.
 
 ## Owner direction, 2026-09-11
 
