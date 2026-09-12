@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0749"
 title: "The seam rule sits in the boundary column of the splitter hot zone"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P3"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"found_at":"f2c49e12","found_by":"attended-prep-2026-09-10 d23","attended_session":"cbd48b91000b00f1e72e1ad62c7c384c","attended_decision":"9298ad8d-c3a2-4b4d-b58e-ba18a3daa3f5"}
+acceptance: [{"criterion":"AC1 seam column decision","outcome":"pass","revision":"b00c276e","evidence":{"kind":"observation","detail":"Card records native-width midpoint (width-1)/2: macOS 7 -> column 3, Fusion 4 -> column 1; source workbench_window.cpp implements it, preserving aimable pixels on both sides."}},{"criterion":"AC2 style-aware geometry regression","outcome":"pass","revision":"b00c276e","evidence":{"kind":"command","detail":"tests/adapters_qt/workbench_window_tests.cpp enumerates installed Qt styles and native PM_SplitterWidth, tests width 4 and 7 at all three handles, and asserts exact one-column logical raster. Red before fix: build/logs/bpr-0749-d25-red-test.log fails at macOS width 7. Green: bpr-0749-d25-green-tests-2.log."}},{"criterion":"AC3 focused Qt selectors","outcome":"pass","revision":"b00c276e","evidence":{"kind":"command","detail":"qt_workbench_window_scale_100/125/200 pass in build/logs/bpr-0749-d25-green-tests-2.log; qt_composed_github_scale_100 passes in bpr-0749-d25-green-tests.log. A first combined run had intermediate raster assertion failures; corrected test-only rebuild and rerun passed."}},{"criterion":"AC4 accepted one-pixel rule","outcome":"pass","revision":"b00c276e","evidence":{"kind":"observation","detail":"QPalette::Mid rule paints exactly one logical column in the raster test, at the centered hot-zone location, with native handle width unchanged. Formatting, tidy helper (build/logs/bpr-0749-d25-tidy-2.log) and git diff --check pass. Offscreen raster does not claim native cursor delivery."}}]
 ---
 
 # The seam rule sits in the boundary column of the splitter hot zone
