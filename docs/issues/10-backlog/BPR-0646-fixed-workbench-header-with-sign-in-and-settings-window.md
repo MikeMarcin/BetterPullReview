@@ -719,3 +719,22 @@ the selected comparison resolves. The unchanged attended criterion remains
 open until a new signed bundle on this source is prepared and the owner
 observes the handle in a pull request with fetchable historical heads. No
 answer is inferred from the automated course, and v009/v010 stay protected.
+
+## Attended packet ready, 2026-09-12 (v011)
+
+The [v011 packet](../../verification/reviews/rfc-bpr-0028-attended-v011/operator-packet.md)
+asks the old handle criterion verbatim on the locally signed, tests-disabled
+bundle at `build/app-release-d28/src/app/BetterPullReview.app` (executable
+sha256 `dfd1c4ca…`, source commit `16e242a5`). Candidate
+`BPR-0646-workbench-chrome`, revision
+`app-release-d28-dfd1c4ca-2026-09-12.7`, fingerprint `b6641835…`, is ready
+and protected at sequence 372. A driver opened NVIDIA/stdexec#1846 in the
+live public-preview window, saw three evidenced nodes and moved the right
+handle to Aug 9; the exact pair reached “Ready for diff.” The local account
+state in that window was not independently verified, and this is not the
+owner's answer. The signed-out composed course passes independently. The
+history remains explicitly incomplete; the owner may reject the unchanged
+criterion on that basis. The prior v008 rejection remains bound to its old
+bundle, and this card's attended outcome stays open until the owner answers
+v011. The BPR-0743 dependency remains unfinished while its AC4 awaits that
+answer.

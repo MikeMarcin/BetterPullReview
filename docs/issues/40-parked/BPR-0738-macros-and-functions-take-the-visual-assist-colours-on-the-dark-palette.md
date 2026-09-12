@@ -281,3 +281,7 @@ The latest [attended v010 packet](../../verification/reviews/rfc-bpr-0028-attend
 asks only [[BPR-0729]]'s one-pane layout criterion. This card's v009
 candidate remains bound to its recorded v009 revision and verdict; it is not
 re-asked on the v010 bundle.
+
+## Current packet pointer, 2026-09-12 (v011)
+
+The current [v011 attended packet](../../verification/reviews/rfc-bpr-0028-attended-v011/operator-packet.md) asks only [[BPR-0646]]'s epoch-handle criterion. This card is not a candidate and its earlier owner answers are not repeated.

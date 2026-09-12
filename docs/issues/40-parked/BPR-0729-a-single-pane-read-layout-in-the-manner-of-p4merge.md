@@ -380,3 +380,7 @@ decided rather than as open.
 
 Nothing else on this card moves. It is still Backlog behind [[BPR-0734]], and
 this rewrite claims no work.
+
+## Current packet pointer, 2026-09-12 (v011)
+
+The current [v011 attended packet](../../verification/reviews/rfc-bpr-0028-attended-v011/operator-packet.md) asks only [[BPR-0646]]'s epoch-handle criterion. This card's v010 acceptance remains bound to its protected packet and is not asked again; its immutable-review-link board constraint is unchanged.

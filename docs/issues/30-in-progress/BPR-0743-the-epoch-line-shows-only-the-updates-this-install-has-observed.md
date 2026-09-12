@@ -41,6 +41,19 @@ has not yet judged [[BPR-0646]]'s unchanged handle criterion on a new signed
 bundle carrying this implementation. The protected v009/v010 packets remain
 historical; neither is rewritten or reused for this ask.
 
+The tests-disabled, locally signed d28 bundle includes the Release-guard fix
+at `16e242a5`. `codesign --verify --deep --strict` passes. In a live macOS
+public-preview window on NVIDIA/stdexec#1846, it showed three evidenced nodes
+and the explicit incomplete-history label. Dragging the current right bracket
+to the Aug 9 node settled an exact pair as “Left available; right available;
+Ready for diff.” The local account state in that window was not independently
+verified; the separate composed course pins signed-out operation. The
+[v011 attended packet](../../verification/reviews/rfc-bpr-0028-attended-v011/operator-packet.md)
+is ready and protected at sequence 372 on executable digest `dfd1c4ca…`,
+candidate fingerprint `b6641835…`. It repeats [[BPR-0646]]'s old question
+unchanged. This driver check is objective evidence, not the owner's verdict;
+AC4 remains pending.
+
 ## Integrated occurrence slice, 2026-09-12 (d27, mandate r19)
 
 Commit `2df4d110` adds an independent, bounded REST issue-timeline read and a

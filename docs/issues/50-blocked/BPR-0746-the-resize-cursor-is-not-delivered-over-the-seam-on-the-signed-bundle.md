@@ -449,3 +449,7 @@ The latest [attended v010 packet](../../verification/reviews/rfc-bpr-0028-attend
 asks only [[BPR-0729]]'s one-pane layout criterion. No cursor probe is
 re-asked; this card remains Blocked on its recorded owner-declined probe.
 The v009 candidate and owner note remain bound to their historical revision.
+
+## Current packet pointer, 2026-09-12 (v011)
+
+The current [v011 attended packet](../../verification/reviews/rfc-bpr-0028-attended-v011/operator-packet.md) asks only [[BPR-0646]]'s epoch-handle criterion. This card stays blocked on the declined cursor probe; no repeat ask is made.

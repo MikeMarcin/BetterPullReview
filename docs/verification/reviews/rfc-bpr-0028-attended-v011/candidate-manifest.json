@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "candidates": [
+    {
+      "id": "BPR-0646-workbench-chrome",
+      "title": "Workbench chrome: the epoch line's handles",
+      "revision": "app-release-d28-dfd1c4ca-2026-09-12.7",
+      "criteria": [
+        "A handle on the epoch line changes the comparison: drag either bracket handle to another update of NVIDIA/stdexec#1846 and the comparison follows it; the update count the line shows is the pull request's"
+      ],
+      "content": "Quit any running BetterPullReview, then launch the exact bundle below. Paste the NVIDIA/stdexec#1846 link into Home and open it. Sign-in is not required. On the first open, wait for Review history is ready; fetching historical Git objects can take time. The line shows the evidenced Aug 1 and Aug 9 force-push events beside this install's live observation. Drag the right bracket from the current node to the Aug 9 node, then inspect the exact comparison in Read. The app explicitly labels incomplete history, ambiguous occurrences and the unknown original historical base; it uses a derived base for a comparison when the head is fetchable. Decide the unchanged handle criterion from what the signed bundle actually does. This read-only course does not write to GitHub.",
+      "paths": [
+        "src/adapters/git/src/installed_git_cache.cpp",
+        "src/adapters/qt/src/epoch_line.cpp",
+        "src/adapters/sqlite/src/catalog_database.cpp",
+        "src/adapters/sqlite/src/epoch_catalog.cpp",
+        "src/app/main.cpp",
+        "src/app/src/github_application_fixture_access.hpp",
+        "src/app/src/github_public_path_fixture.cpp",
+        "src/application/include/bpr/application/epoch_catalog_port.hpp",
+        "src/application/include/bpr/application/git_cache_port.hpp",
+        "src/application/include/bpr/application/git_protocol_v2.hpp",
+        "src/application/src/epoch_application_host.cpp",
+        "src/application/src/git_protocol_v2.cpp",
+        "src/core/include/bpr/core/epoch_model.hpp",
+        "src/core/include/bpr/core/epoch_transition.hpp",
+        "src/core/src/epoch_transition.cpp"
+      ],
+      "resources": [
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-d28/src/app/BetterPullReview.app"
+      ],
+      "resource_versions": {
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-d28/src/app/BetterPullReview.app": "dfd1c4cae5739559b143138c28a0277bc9f5e7c40ef1556bee47d967cff2f187"
+      },
+      "launch": {
+        "label": "Open the locally signed, tests-disabled d28 bundle",
+        "command": "open /Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release-d28/src/app/BetterPullReview.app"
+      },
+      "copy": [
+        {
+          "label": "Public pull request link for Home",
+          "value": "https://github.com/NVIDIA/stdexec/pull/1846"
+        }
+      ],
+      "metadata": {
+        "source_commit": "16e242a5",
+        "run": "attended-prep-2026-09-10",
+        "dispatch": "d28",
+        "mandate": "r19"
+      }
+    }
+  ]
+}
