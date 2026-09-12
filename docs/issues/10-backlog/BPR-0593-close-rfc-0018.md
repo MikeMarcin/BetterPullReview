@@ -12,6 +12,37 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
+## Intermediate frontier, 2026-09-12 (d26, mandate r18): BPR-0729 claimed, revised RFC accepted
+
+Run `attended-prep-2026-09-10`, dispatch d26, producer
+`/root/integrator_d26`, mandate r18 (r16 at dispatch), plan `ux-redesign-pack-0028`, milestone
+`attended-preparation-pack-head`; assignment definition fingerprint
+`sha256:201de49a086f8f809fea06d6749caf3fecb43e7fa8c78a960f55af31b64bfee5`.
+The clean baseline was `3e1be52e` on main, synchronized with origin.
+[[BPR-0729]] is dependency-ready and was promoted (`f29e01d2`) and claimed
+(`383f233a`). Its accepted one-pane surface is the current bounded slice.
+
+The integrator owns the Qt View action and composed-window tests, plus board,
+verification and commits. `rfc_worker_bpr0729_preference` owns the core,
+application and SQLite preference path and its tests.
+`rfc_worker_deep_bpr0729_surface` owns the diff-workbench/link-map Qt surface
+and its direct tests. `rfc_scout_bpr0729_surface` completed read-only intake.
+The one-pane surface's first runnable assertion failed on the absent unified
+source with the build green (`build/logs/bpr-0729-d26-surface-red-{build,test}.log`);
+the owners are implementing the paths before one combined focused build.
+
+The owner answered the revised RFC-BPR-0029 acceptance ask **yes** in mandate
+r17. Its accepted source base is `5d5df7cd`; [[BPR-0750]] was reserved at
+`8e5fe049` and opened at `1ac3132f` for the closeout. [[BPR-0743]] is Ready.
+Epoch product work remains a subsequent safe
+slice after BPR-0729 ownership clears. In mandate r18 the owner answered
+[[BPR-0735]]'s editor-observation ask, verbatim, **"unsure, don't care"**.
+This is not confirmation that editor noise is gone; its AC3 remains pending.
+The card is Blocked on `owner-declined-editor-observation`, and the same
+question will not be asked again by default. The milestone's
+original nine obligations and four exits remain bound; this intermediate
+card progress closes none of them.
+
 ## Current frontier, 2026-09-12 (d25, mandate r16): integrated slices and exact remaining asks
 
 Run `attended-prep-2026-09-10`, dispatch d25, producer
@@ -1508,7 +1539,7 @@ were reserved on main (`b1d4e14b`).
 
 BPR-0725 landed in this dispatch (see its verification record); the
 maintenance public path was the one course it disturbed, repaired in the
-probe. Mandate r7 added one card, [BPR-0735](../40-parked/BPR-0735-clangd-cannot-find-the-compile-database-and-reports-every-header-missing.md):
+probe. Mandate r7 added one card, [BPR-0735](../50-blocked/BPR-0735-clangd-cannot-find-the-compile-database-and-reports-every-header-missing.md):
 clangd reads no compile database because the project's lands in
 `build/dev` and there is no `.clangd`; filed, not started. Next: BPR-0726.
 

@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0735"
 title: "clangd cannot find the compile database and reports every header missing"
-status: "Parked"
+status: "Blocked"
 rfcs: []
 depends_on: []
 priority: "P2"
 metadata: {"owner_direction":"2026-09-11","mandate":"attended-prep-2026-09-10 r7"}
-parked_on: "human-review"
-acceptance: [{"criterion":"AC1 clangd named diagnostics absent","outcome":"pass","revision":"48296f42","evidence":{"kind":"command","detail":"Homebrew clangd 23.1 --check loaded build/dev/compile_commands.json for core epoch_transition.cpp, app/main.cpp and Qt epoch_comparison_control_tests.cpp. None reports missing bpr headers, missing std members or unknown Qt types. Logs build/logs/bpr-0735-d25-{core,app,qt}-final.log. Qt exit 0; core/app exit 3 only from clangd ExtractFunction/ExpandDeducedType tweak feature-test errors, not source diagnostics."}},{"criterion":"AC2 documentation and whitespace","outcome":"pass","revision":"48296f42","evidence":{"kind":"command","detail":"python3 scripts/verify_documentation.py --root . prints DOCUMENTATION_OK; git diff --check clean."}},{"criterion":"AC3 owner editor observation","outcome":"pending","revision":"48296f42","evidence":{"kind":"observation","detail":"Awaiting owner observation in an editor on one named file; no attended session or claim of observation."}}]
+acceptance: [{"criterion":"AC1 clangd named diagnostics absent","outcome":"pass","revision":"48296f42","evidence":{"kind":"command","detail":"Homebrew clangd 23.1 --check loaded build/dev/compile_commands.json for core epoch_transition.cpp, app/main.cpp and Qt epoch_comparison_control_tests.cpp. None reports missing bpr headers, missing std members or unknown Qt types. Logs build/logs/bpr-0735-d25-{core,app,qt}-final.log. Qt exit 0; core/app exit 3 only from clangd ExtractFunction/ExpandDeducedType tweak feature-test errors, not source diagnostics."}},{"criterion":"AC2 documentation and whitespace","outcome":"pass","revision":"48296f42","evidence":{"kind":"command","detail":"python3 scripts/verify_documentation.py --root . prints DOCUMENTATION_OK; git diff --check clean."}},{"criterion":"AC3 owner editor observation","outcome":"pending","revision":"8e5fe049","evidence":{"kind":"observation","detail":"Owner answered the named-file editor-observation ask under mandate r18 on 2026-09-12, verbatim: \"unsure, don't care\". This is not an observation that the noise is gone and cannot pass AC3. The owner declined this verification, so the same question is not repeated by default. The card is blocked on owner-declined-editor-observation until new direction changes the criterion or supplies relevant direct evidence."}}]
+blocked_by: "owner-declined-editor-observation"
 ---
 
 # clangd cannot find the compile database and reports every header missing
@@ -90,5 +90,15 @@ pass.
 
 The remaining acceptance is the owner's observation that the named editor
 diagnostics have disappeared in one of those files. No attended packet is
-needed. This card stays human-pending until that observation is reported;
-the implementation and local check evidence can be published meanwhile.
+needed. The implementation and local check evidence were published while
+this criterion remained human-pending.
+
+## Owner reply and disposition, 2026-09-12 (mandate r18)
+
+Asked for an editor observation in one named file, the owner answered,
+verbatim: **"unsure, don't care"**. That does not say the diagnostics are
+gone, so AC3 remains pending. The card moves to Blocked on
+`owner-declined-editor-observation`: there is no active human-review session
+or repeat of this same ask by default. Completion needs new owner direction
+that changes this acceptance criterion, or a relevant direct observation;
+neither is inferred from the reply.
