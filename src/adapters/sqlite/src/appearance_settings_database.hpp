@@ -26,7 +26,7 @@ namespace bpr::adapters::sqlite::detail {
 	/// columns; opening an older file clears `palette_stored` once, because
 	/// the built-in dark palette changed with [[BPR-0720]] and the owner
 	/// asked for the saved customisation of the old defaults to be reset.
-	inline constexpr std::int64_t appearance_settings_schema_version = 4;
+	inline constexpr std::int64_t appearance_settings_schema_version = 5;
 
 	/// \brief Owns the durable appearance settings database.
 	///

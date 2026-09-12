@@ -93,6 +93,7 @@ namespace bpr::core {
 		syntax_comment,
 		syntax_documentation,
 		syntax_annotation,
+		syntax_macro,
 		syntax_preprocessor,
 		syntax_import,
 		syntax_attribute,
@@ -138,7 +139,7 @@ namespace bpr::core {
 		};
 	}
 
-	inline constexpr std::size_t appearance_role_count = 46U;
+	inline constexpr std::size_t appearance_role_count = 47U;
 
 	static_assert(
 		static_cast<std::size_t>(appearance_role::syntax_other) + 1U == appearance_role_count,

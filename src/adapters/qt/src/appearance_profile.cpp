@@ -110,6 +110,7 @@ namespace bpr::qt {
 			{ role::syntax_comment, srgb(0x555E69) },
 			{ role::syntax_documentation, srgb(0x456351) },
 			{ role::syntax_annotation, srgb(0x7D4E00) },
+			{ role::syntax_macro, srgb(0x7A3E9D) },
 			{ role::syntax_preprocessor, srgb(0x7A3E9D) },
 			{ role::syntax_import, srgb(0x156B2E) },
 			{ role::syntax_attribute, srgb(0x7E5500) },
@@ -145,13 +146,17 @@ namespace bpr::qt {
 			{ role::state_stale, srgb(0x8B949E) },
 			// The syntax roles follow Visual Studio's dark theme with the
 			// Visual Assist colouring the owner asked for ([[BPR-0720]],
-			// owner direction 2026-09-11): green comments, grey preprocessor
-			// lines including the include path, blue keywords, teal types,
-			// pale-yellow functions, light-blue variables, salmon strings.
-			// Three of Visual Studio's values (keyword #569CD6, comment
-			// #57A64A, preprocessor #9B9B9B) fall under 4.5:1 on this
-			// product's added and removed row fills, so they are lightened
-			// along their own hue to the first value that clears the floor.
+			// owner direction 2026-09-11, corrected on [[BPR-0738]] from a
+			// per-token sample of the owner's reference): green comments,
+			// grey preprocessor lines including the include path, blue
+			// keywords, gold class and struct types (#FFD700), orange
+			// functions (#FF8000), purple macros, khaki variables
+			// (#BDB76B), teal attributes (#4EC9B0), salmon strings. Four
+			// of the reference values (keyword #569CD6, comment #57A64A,
+			// preprocessor #9B9B9B, macro #BD63C5) fall under 4.5:1 on
+			// this product's added and removed row fills, so they are
+			// lightened along their own hue to the first value that clears
+			// the floor.
 			// The four note roles below the region marker are not part of
 			// that scheme and keep their colours.
 			{ role::syntax_normal, srgb(0xDCDCDC) },
@@ -159,9 +164,9 @@ namespace bpr::qt {
 			{ role::syntax_control_flow, srgb(0xD8A0DF) },
 			{ role::syntax_operator, srgb(0xB4B4B4) },
 			{ role::syntax_builtin, srgb(0x6DA9DB) },
-			{ role::syntax_function, srgb(0xDCDCAA) },
-			{ role::syntax_variable, srgb(0x9CDCFE) },
-			{ role::syntax_type, srgb(0x4EC9B0) },
+			{ role::syntax_function, srgb(0xFF8000) },
+			{ role::syntax_variable, srgb(0xBDB76B) },
+			{ role::syntax_type, srgb(0xFFD700) },
 			{ role::syntax_constant, srgb(0xB8D7A3) },
 			{ role::syntax_number, srgb(0xB5CEA8) },
 			{ role::syntax_string, srgb(0xD69D85) },
@@ -170,9 +175,10 @@ namespace bpr::qt {
 			{ role::syntax_comment, srgb(0x66B559) },
 			{ role::syntax_documentation, srgb(0x66B559) },
 			{ role::syntax_annotation, srgb(0x8FBF72) },
+			{ role::syntax_macro, srgb(0xCE8AD4) },
 			{ role::syntax_preprocessor, srgb(0xA3A3A3) },
 			{ role::syntax_import, srgb(0xA3A3A3) },
-			{ role::syntax_attribute, srgb(0xC8C8C8) },
+			{ role::syntax_attribute, srgb(0x4EC9B0) },
 			{ role::syntax_region_marker, srgb(0xA3A3A3) },
 			{ role::syntax_information, srgb(0x60B5FF) },
 			{ role::syntax_warning, srgb(0xF0A03C) },
@@ -219,6 +225,7 @@ namespace bpr::qt {
 			{ role::syntax_comment, srgb(0x3A3A3A) },
 			{ role::syntax_documentation, srgb(0x1F402A) },
 			{ role::syntax_annotation, srgb(0x5A3800) },
+			{ role::syntax_macro, srgb(0x440066) },
 			{ role::syntax_preprocessor, srgb(0x440066) },
 			{ role::syntax_import, srgb(0x00581D) },
 			{ role::syntax_attribute, srgb(0x604000) },
@@ -268,6 +275,7 @@ namespace bpr::qt {
 			{ role::syntax_comment, srgb(0xC8C8C8) },
 			{ role::syntax_documentation, srgb(0xBEE0C6) },
 			{ role::syntax_annotation, srgb(0xF2C75C) },
+			{ role::syntax_macro, srgb(0xE6BCFF) },
 			{ role::syntax_preprocessor, srgb(0xE6BCFF) },
 			{ role::syntax_import, srgb(0x4AE56B) },
 			{ role::syntax_attribute, srgb(0xF2D98C) },

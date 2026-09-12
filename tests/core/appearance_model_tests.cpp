@@ -222,7 +222,7 @@ namespace {
 			   "the vocabulary covers every declared role exactly once");
 
 		expect(!find_appearance_role("").has_value()
-				   && !find_appearance_role("syntax_macro").has_value()
+				   && !find_appearance_role("syntax_lambda").has_value()
 				   && !find_appearance_role("Syntax_Keyword").has_value()
 				   && !find_appearance_role("code_background ").has_value(),
 			   "an identifier outside the closed vocabulary is refused");

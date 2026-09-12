@@ -578,6 +578,7 @@ namespace {
 				&& aSpan.Length == aWord.size()
 				&& (aSpan.Role == core::appearance_role::syntax_function
 					|| aSpan.Role == core::appearance_role::syntax_type
+					|| aSpan.Role == core::appearance_role::syntax_macro
 					|| aSpan.Role == core::appearance_role::syntax_preprocessor);
 		});
 	}
@@ -645,8 +646,8 @@ namespace {
 			   "no heuristic role is named inside a string");
 
 		const auto macroLine = line_of(text, "BPR-MACRO-LINE");
-		expect(word_has_role(spans, text, macroLine, "VERIFY_ARE_EQUAL", role::syntax_preprocessor),
-			   "an ALL_CAPS name is a macro");
+		expect(word_has_role(spans, text, macroLine, "VERIFY_ARE_EQUAL", role::syntax_macro),
+			   "an ALL_CAPS name is a macro, in its own role");
 		expect(word_has_role(spans, text, macroLine, "ServiceLocator", role::syntax_type),
 			   "a scope in an argument is a type");
 		expect(word_has_role(spans, text, macroLine, "instance", role::syntax_function)
@@ -664,6 +665,9 @@ namespace {
 		expect(word_has_role(spans, text, defineLine, "#define BEGIN_TEST_METHOD_PROPERTIES",
 							 role::syntax_preprocessor),
 			   "a preprocessor line keeps the grammar's own span");
+		expect(!word_has_role(spans, text, defineLine, "#define BEGIN_TEST_METHOD_PROPERTIES",
+							  role::syntax_macro),
+			   "a directive is not a macro");
 		expect(word_stays_normal(spans, text, defineLine, "ScreenBufferTests"),
 			   "no heuristic role is named inside a block comment");
 	}

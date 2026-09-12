@@ -338,7 +338,7 @@ namespace bpr::adapters::syntax {
 		///
 		/// \details These are the C and C++ conventions the packaged grammar does
 		/// not express: a call or declaration is an identifier before `(`; a
-		/// scope or a declared name is a type; an ALL_CAPS word is a macro, painted with the preprocessor role,
+		/// scope or a declared name is a type; an ALL_CAPS word is a macro, with its own role,
 		/// even when invoked; a PascalCase word that introduces another word, a
 		/// reference, a pointer or a template argument list is a type;
 		/// and an encoding prefix belongs to the literal it opens. Anything else
@@ -363,7 +363,7 @@ namespace bpr::adapters::syntax {
 			// An ALL_CAPS word is a macro whether or not it is invoked, which is
 			// how `VERIFY_ARE_EQUAL(...)` reads in the owner's file.
 			if (is_macro_case(word)) {
-				return core::appearance_role::syntax_preprocessor;
+				return core::appearance_role::syntax_macro;
 			}
 			const auto next = skip_blanks(aLine, aEnd);
 			const auto unit = next < aLine.size() ? aLine[next].unicode() : u'\0';

@@ -39,7 +39,7 @@ function(bpr_verify_full_application_digest source_variable)
         "${bpr_full_application_source}"
     )
 	set(bpr_expected_full_application_digest
-		"509481533753d5f9cce76a8849f4b2ac6e1277906de5c4abebe309c9e6b6bd01"
+		"5ea9590f9fe1065fabc8931567190dbccba76fa9d8c7d845aa9eedc1108ad9e7"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -157,7 +157,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "${bpr_production_app_manifest}"
     )
 	set(bpr_expected_production_app_manifest_digest
-        "97bb2b529b3b86f20a89577ee2905ed38f6b60b9bd0df53c966554b06cbc4eec"
+        "4a3eee54c8287aeb473a8e11946d5f0b591685f0b4a25609e25aea9162de759a"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -360,10 +360,13 @@ function(bpr_verify_async_mutation_host_inventory source_variable)
         0
         "whole-app inferred direct submit"
     )
+    # Three sites: the ledger host's command submit and the two
+    # SetupDestination submits (the Home paste field and, since BPR-0733,
+    # a Recently viewed entry opened by the same path).
     bpr_require_literal_count(
         bpr_async_mutation_source
         "->submit("
-        2
+        3
         "whole-app pointer submit allowlist"
     )
     bpr_require_literal_count(

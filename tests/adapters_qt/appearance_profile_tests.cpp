@@ -307,8 +307,11 @@ namespace {
 			std::pair{ role::syntax_preprocessor, colour(0xA3U, 0xA3U, 0xA3U) },
 			std::pair{ role::syntax_import, colour(0xA3U, 0xA3U, 0xA3U) },
 			std::pair{ role::syntax_keyword, colour(0x6DU, 0xA9U, 0xDBU) },
-			std::pair{ role::syntax_type, colour(0x4EU, 0xC9U, 0xB0U) },
-			std::pair{ role::syntax_function, colour(0xDCU, 0xDCU, 0xAAU) },
+			std::pair{ role::syntax_type, colour(0xFFU, 0xD7U, 0x00U) },
+			std::pair{ role::syntax_function, colour(0xFFU, 0x80U, 0x00U) },
+			std::pair{ role::syntax_macro, colour(0xCEU, 0x8AU, 0xD4U) },
+			std::pair{ role::syntax_variable, colour(0xBDU, 0xB7U, 0x6BU) },
+			std::pair{ role::syntax_attribute, colour(0x4EU, 0xC9U, 0xB0U) },
 			std::pair{ role::syntax_string, colour(0xD6U, 0x9DU, 0x85U) },
 			std::pair{ role::syntax_number, colour(0xB5U, 0xCEU, 0xA8U) },
 		};
@@ -317,6 +320,10 @@ namespace {
 				   "the dark palette gives the pinned Visual Assist colour to "
 					   + std::string{ core::stable_name(pinned) });
 		}
+		expect(dark[core::index_of(role::syntax_macro)] != dark[core::index_of(role::syntax_preprocessor)]
+				   && dark[core::index_of(role::syntax_macro)] != colour(0xA3U, 0xA3U, 0xA3U)
+				   && dark[core::index_of(role::syntax_function)] != colour(0xDCU, 0xDCU, 0xAAU),
+			   "macros are not painted the directive grey and functions are not Visual Studio's pale yellow");
 		expect(light[core::index_of(role::syntax_comment)] == colour(0x55U, 0x5EU, 0x69U)
 				   && light[core::index_of(role::syntax_preprocessor)] == colour(0x7AU, 0x3EU, 0x9DU),
 			   "the light palette keeps its own comment and preprocessor colours");

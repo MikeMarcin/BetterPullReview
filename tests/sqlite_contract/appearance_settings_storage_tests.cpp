@@ -730,6 +730,53 @@ namespace {
 		expect(loaded && loaded->has_value() && **loaded == chosen, "the reset happens once, not on every open");
 	}
 
+	auto test_version_four_gains_the_macro_role_without_a_reset() -> void
+	{
+		const auto scratch   = scratch_directory{ };
+		const auto path      = scratch.file("v4.sqlite3");
+		auto       chosen    = distinct_settings();
+		chosen.PaletteStored = true;
+		{
+			auto database = appearance_settings_database::open(path, { });
+			expect(database.has_value() && database->store(chosen, { }).has_value(), "version-four fixture starts with a stored customisation");
+		}
+		{
+			::sqlite3* raw = nullptr;
+			expect(::sqlite3_open(path.string().c_str(), &raw) == SQLITE_OK, "version-four fixture opens raw");
+			// Strip the `syntax_macro` line the current document carries,
+			// which is what a document written before the role existed
+			// looks like, then stamp the file as version four.
+			expect(::sqlite3_exec(raw,
+								  "UPDATE appearance_settings SET palette_document = "
+								  "substr(palette_document, 1, instr(palette_document, 'syntax_macro ') - 1)"
+								  " || substr(palette_document, instr(palette_document, 'syntax_macro ')"
+								  " + instr(substr(palette_document, instr(palette_document, 'syntax_macro ')), char(10)))"
+								  " WHERE singleton = 1;"
+								  "UPDATE appearance_meta SET schema_format = 4; PRAGMA user_version = 4",
+								  nullptr, nullptr, nullptr)
+					   == SQLITE_OK,
+				   "fixture carries a document without the macro role and the version-four stamps");
+			const auto stripped = scalar_integer(raw, "SELECT instr(palette_document, 'syntax_macro ') FROM appearance_settings WHERE singleton = 1");
+			expect(stripped.has_value() && *stripped == 0, "the fixture's document has no macro row");
+			expect(::sqlite3_close(raw) == SQLITE_OK, "version-four fixture closes");
+		}
+		{
+			auto migrated = appearance_settings_database::open(path, { });
+			expect(migrated.has_value(), "version four migrates");
+			const auto version = scalar_integer(migrated->handle(), "PRAGMA user_version");
+			expect(version.has_value() && *version == appearance_settings_schema_version, "the migrated file is stamped as the current format");
+			const auto loaded = migrated->load({ });
+			expect(loaded && loaded->has_value(), "the migrated record loads: the document is complete again");
+			if (loaded && loaded->has_value()) {
+				auto expected = chosen;
+				expected.Palette[core::index_of(core::appearance_role::syntax_macro)]
+					= chosen.Palette[core::index_of(core::appearance_role::syntax_preprocessor)];
+				expect(**loaded == expected,
+					   "the macro role takes the stored preprocessor colour and the customisation, mode, variant and typography are kept");
+			}
+		}
+	}
+
 	[[nodiscard]] auto legacy_snapshot(::sqlite3* aDatabase) -> std::vector<std::string>
 	{
 		auto       cells   = std::vector<std::string>{ };
@@ -855,6 +902,7 @@ auto main() -> int
 	test_cancellation_leaves_the_record_untouched();
 	test_version_two_preserves_customization_and_reset();
 	test_version_three_resets_the_stored_palette_once();
+	test_version_four_gains_the_macro_role_without_a_reset();
 	test_legacy_refusal_preserves_schema_and_rows();
 	test_the_schema_stores_no_review_content();
 	std::cout << "appearance-settings-storage-tests:pass\n";

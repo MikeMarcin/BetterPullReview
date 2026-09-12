@@ -262,7 +262,7 @@ namespace {
 						&& aPair.Kind == expectedKind
 						&& !aPair.Wash.has_value();
 				});
-			expect_equal(static_cast<std::uint32_t>(count), 25U,
+			expect_equal(static_cast<std::uint32_t>(count), 26U,
 						 "every syntax role is checked over every canvas background");
 			expect(std::ranges::none_of(
 					   pairs,
@@ -293,7 +293,7 @@ namespace {
 						   };
 				});
 			expect_equal(
-				static_cast<std::uint32_t>(washed), washable ? 25U : 0U,
+				static_cast<std::uint32_t>(washed), washable ? 26U : 0U,
 				"every syntax role is checked over every washable canvas "
 				"background with the selection wash on top");
 		}
@@ -322,9 +322,9 @@ namespace {
 			"the change-group boundary rule is held to the indicator ratio "
 			"against the code surface it is drawn on");
 
-		expect_equal(static_cast<std::uint32_t>(pairs.size()), 335U,
+		expect_equal(static_cast<std::uint32_t>(pairs.size()), 348U,
 					 "the checked set is the three fixed pairs, the boundary rule, "
-					 "25 syntax roles over "
+					 "26 syntax roles over "
 					 "eight canvas backgrounds, and six state indicators");
 	}
 

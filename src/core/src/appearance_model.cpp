@@ -252,6 +252,8 @@ namespace bpr::core {
 			return "syntax_documentation";
 		case appearance_role::syntax_annotation:
 			return "syntax_annotation";
+		case appearance_role::syntax_macro:
+			return "syntax_macro";
 		case appearance_role::syntax_preprocessor:
 			return "syntax_preprocessor";
 		case appearance_role::syntax_import:

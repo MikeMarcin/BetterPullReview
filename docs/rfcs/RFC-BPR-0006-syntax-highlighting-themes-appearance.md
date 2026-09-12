@@ -114,4 +114,11 @@ rather than the Visual Assist purple and gold of the reference, which
 mandate r9): functions are orange and class/struct types yellow in the
 reference, and a distinct macro role is necessary; BPR-0738 holds the
 per-token resample (`FF8000`, `FFD700`, `BD63C5`) and adds `syntax_macro`
-to the role model.
+to the role model. Landed 2026-09-11: `syntax_macro` is a role of the
+vocabulary, the C and C++ classifier gives it to ALL_CAPS words, and the
+dark profile paints types `FFD700`, functions `FF8000`, variables
+`BDB76B`, attributes `4EC9B0` and macros `CE8AD4` (the reference's
+`BD63C5` lightened along its hue to clear the 4.5:1 floor); the appearance
+store moves to schema version 5 and gives a stored palette its macro row
+from its own preprocessor colour, with no second reset. The attended
+criterion on BPR-0720 is asked again in v008.

@@ -8,6 +8,7 @@
 #include <array>
 #include <limits>
 #include <span>
+#include <string>
 #include <string_view>
 #include <utility>
 
@@ -256,9 +257,10 @@ namespace bpr::adapters::sqlite::detail {
 		/// Studio dark / Visual Assist scheme ([[BPR-0720]]) and the owner
 		/// asked for the saved customisation of the old defaults to be
 		/// discarded rather than carried over it, so `palette_stored` is
-		/// cleared once on the way through. The document stays in the row,
-		/// where the reader ignores it while `palette_stored` is 0, and the
-		/// next store writes whatever the user chooses next.
+		/// cleared once on the way through. The document stays in the row
+		/// (the reader still imports it, so it must stay a complete
+		/// document) and the next store writes whatever the user chooses
+		/// next.
 		///
 		/// A version-3 row is carried across a fresh table exactly as the
 		/// older versions are, so its CHECK constraints are verified again
@@ -299,6 +301,82 @@ namespace bpr::adapters::sqlite::detail {
 				aDatabase,
 				"UPDATE appearance_settings SET palette_stored = 0 WHERE singleton = 1",
 				aStop);
+		}
+
+		/// \brief Brings a version 1 to 4 file to the current format.
+		///
+		/// \details Version 5 declares the version-3 columns unchanged. The
+		/// vocabulary grew a `syntax_macro` role ([[BPR-0738]]); the stored
+		/// palette document is complete by construction and the core's
+		/// importer refuses one that omits a role, so a version-4 document
+		/// is given the row it lacks. Its value is the document's own
+		/// `syntax_preprocessor` colour, which is what macros were painted
+		/// with before the role existed, so nothing the user sees changes
+		/// and `palette_stored` is left exactly as it was: no second reset.
+		[[nodiscard]] auto migrate_to_version_5(
+			::sqlite3* aDatabase, const std::int64_t aVersion, std::stop_token aStop)
+			-> std::expected<void, failure>
+		{
+			if (aVersion < 4) {
+				if (auto carried = migrate_to_version_4(aDatabase, aVersion, aStop); !carried) {
+					return carried;
+				}
+			}
+			auto reader = prepare(
+				aDatabase,
+				"SELECT palette_document FROM appearance_settings WHERE singleton = 1");
+			if (!reader) {
+				return std::unexpected(reader.error());
+			}
+			const auto stepped = ::sqlite3_step(reader->Value);
+			if (stepped == SQLITE_DONE) {
+				return { };
+			}
+			if (stepped != SQLITE_ROW) {
+				return std::unexpected(catalog_sql_failure(aDatabase));
+			}
+			const auto     document         = std::string{ text_of(reader->Value, 0) };
+			constexpr auto macroName        = std::string_view{ "syntax_macro " };
+			constexpr auto preprocessorName = std::string_view{ "syntax_preprocessor " };
+			const auto     lineStarting     = [&document](const std::string_view aName) {
+				auto at = document.find(aName);
+				while (at != std::string::npos && at != 0U && document[at - 1U] != '\n') {
+					at = document.find(aName, at + 1U);
+				}
+				return at;
+			};
+			if (lineStarting(macroName) != std::string::npos) {
+				return { };
+			}
+			const auto preprocessor = lineStarting(preprocessorName);
+			if (preprocessor == std::string::npos) {
+				// Not a document this store wrote; the reader refuses it as
+				// it always has, and the migration does not invent a value.
+				return { };
+			}
+			const auto valueBegin = preprocessor + preprocessorName.size();
+			const auto valueEnd   = std::min(document.find('\n', valueBegin), document.size());
+			auto       amended    = document;
+			if (amended.empty() || amended.back() != '\n') {
+				amended.push_back('\n');
+			}
+			amended.append(macroName);
+			amended.append(document, valueBegin, valueEnd - valueBegin);
+			amended.push_back('\n');
+			auto writer = prepare(
+				aDatabase,
+				"UPDATE appearance_settings SET palette_document = ?1 WHERE singleton = 1");
+			if (!writer) {
+				return std::unexpected(writer.error());
+			}
+			if (::sqlite3_bind_text(writer->Value, 1, amended.c_str(), -1, SQLITE_TRANSIENT)
+				!= SQLITE_OK) {
+				return std::unexpected(catalog_sql_failure(aDatabase));
+			}
+			if (::sqlite3_step(writer->Value) != SQLITE_DONE) {
+				return std::unexpected(catalog_sql_failure(aDatabase));
+			}
+			return { };
 		}
 
 		[[nodiscard]] auto legacy_columns_match(
@@ -345,12 +423,12 @@ namespace bpr::adapters::sqlite::detail {
 				"code_syntax_italic", "palette_variant", "palette_stored"
 			};
 			// Version 1 had neither trailing column, version 2 the variant,
-			// version 3 both.
+			// versions 3 and 4 both.
 			const auto columnCount = aVersion == 1 ? 14U : aVersion == 2 ? 15U
 																		 : 16U;
 			const auto objects     = scalar_integer(aDatabase,
 													"SELECT count(*) FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%'");
-			if ((aVersion != 1 && aVersion != 2 && aVersion != 3) || !objects || *objects != 2
+			if ((aVersion < 1 || aVersion > 4) || !objects || *objects != 2
 				|| !legacy_columns_match(aDatabase, "appearance_meta", metaNames)
 				|| !legacy_columns_match(aDatabase, "appearance_settings",
 										 std::span{ settingsNames }.first(columnCount))) {
@@ -426,7 +504,7 @@ namespace bpr::adapters::sqlite::detail {
 			// does not have.
 			const auto established = *current == 0
 				? create_schema(aDatabase, aStop)
-				: migrate_to_version_4(aDatabase, *current, aStop);
+				: migrate_to_version_5(aDatabase, *current, aStop);
 			if (!established) {
 				rollback();
 				return established;

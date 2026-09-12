@@ -277,7 +277,7 @@ namespace bpr::core {
 			= (index_of(last_syntax_role) - index_of(first_syntax_role)) + 1U;
 
 		static_assert(
-			syntax_role_count == 25U,
+			syntax_role_count == 26U,
 			"the syntax group must stay one contiguous run of the vocabulary");
 		static_assert(
 			index_of(last_syntax_role) + 1U == appearance_role_count,

@@ -128,3 +128,58 @@ accepted BPR-0720 direction says "grey preprocessor lines including the
 include path"), and whether the standard-library aliases' italic matters;
 both are asked in the v008 packet rather than changed. The light and
 high-contrast palettes are untouched.
+
+## Notes
+
+- Slice, 2026-09-11 (d16). `core::appearance_role` gains `syntax_macro`
+  (before `syntax_preprocessor`; `appearance_role_count` 47, the contrast
+  audit's syntax run 26), named `syntax_macro` in the exchange vocabulary,
+  so the customisation panel lists it by itself (it iterates the count and
+  labels with `stable_name`; no panel code changed). The C and C++
+  classifier returns `syntax_macro` for an ALL_CAPS word; a directive line
+  stays `syntax_preprocessor`, and `syntax_classification_contract` pins
+  `VERIFY_ARE_EQUAL` as a macro and `#define BEGIN_TEST_METHOD_PROPERTIES`
+  as not one.
+- Dark palette values, from the per-token resample of the owner's
+  reference, each checked against the 4.5:1 floor on every canvas
+  background with and without the selection wash: `syntax_type` `FFD700`
+  (worst pair 8.28), `syntax_function` `FF8000` (4.61), `syntax_variable`
+  `BDB76B` (5.61), `syntax_attribute` `4EC9B0` (5.70), and `syntax_macro`
+  `CE8AD4`: the reference's `BD63C5` reaches only 3.18 on the added fill
+  under the wash, so it is lightened along its own hue, one step of
+  lightness at a time, to the first value that clears the floor (4.54, the
+  dark profile's new tightest pair at 4 hundredths over its recorded 1).
+  Light and high-contrast palettes gain a `syntax_macro` row equal to their
+  `syntax_preprocessor` value and change nothing else.
+  `test_the_dark_palette_follows_the_visual_assist_scheme` pins the five
+  values and that macros are not `A3A3A3` nor functions `DCDCAA`.
+- The store: the stored palette is one theme document that the reader
+  imports on every load and the core refuses when a role is missing, so a
+  version-4 file would have failed to load whole (mode and fonts included)
+  on the first launch of this build. `appearance_settings_schema_version`
+  is 5 with the same columns; a version-4 document gains a `syntax_macro`
+  line carrying its own `syntax_preprocessor` colour, which is what macros
+  painted before the role existed, and `palette_stored` is untouched: no
+  second reset. `sqlite_appearance_settings_storage` adds the version-4
+  migration and version 4 to the legacy admission. An older build refuses
+  the version-5 store.
+- Not changed, asked in v008: the include path (still the directive grey,
+  as the accepted BPR-0720 direction says; the reference paints it
+  string-salmon) and the italic on standard-library aliases.
+- Found at HEAD, not this slice: `application_composition_contract` was
+  red since [BPR-0733](../60-done/BPR-0733-home-lists-recently-viewed-pull-requests-instead-of-restoring-the-last-one.md)
+  landed (91383cc4) because `github_application.cpp` changed after its
+  round-trip pins were last set: the full-file digest, the production
+  manifest digest and the `->submit(` allowlist count (a third
+  `SetupDestination->submit`, the Recently viewed open by the Home path).
+  All three repinned here in `application_review_round_trip_composition_contract.cmake`;
+  the v007 packet's "unchanged since d1ba791f" was wrong.
+- Verification at this head: `cmake --build --preset dev` clean; 22 of 22 in
+  `core_appearance_*`, `core_theme_exchange`, `qt_appearance_*`,
+  `qt_syntax_pane_composition`, `qt_diff_workbench_scale_{100,125,200}`,
+  `syntax_classification_contract`, `sqlite_appearance_settings_storage`,
+  `application_appearance_*`, `application_diff_workbench_*`,
+  `qt_composed_github_scale_100`, `application_composition_contract` and
+  `architecture_boundaries` after the repins; strict tidy and
+  `clang-format --Werror` clean on the five touched translation units;
+  `verify_documentation.py` and `git diff --check` clean.

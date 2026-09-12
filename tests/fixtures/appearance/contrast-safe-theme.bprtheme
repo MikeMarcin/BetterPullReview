@@ -36,6 +36,7 @@ syntax_escape_sequence #ffffffff
 syntax_comment #ffffffff
 syntax_documentation #ffffffff
 syntax_annotation #ffffffff
+syntax_macro #ffffffff
 syntax_preprocessor #ffffffff
 syntax_import #ffffffff
 syntax_attribute #ffffffff
