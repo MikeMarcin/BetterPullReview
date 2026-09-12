@@ -1865,6 +1865,7 @@ namespace bpr::qt {
 		QueueView->setAccessibleDescription(QStringLiteral(
 			"Pull requests enrolled by a GitHub role or a local observer rule"));
 		QueueView->setModel(QueueFilterModel);
+		QueueView->installEventFilter(this);
 		QueueView->setMaximumHeight(84);
 		// [[BPR-0650]]. Home's action list: the grouped rows are this
 		// delegate's drawing of the same decided queue; a click or Return
@@ -5342,6 +5343,19 @@ namespace bpr::qt {
 
 	auto workbench_window::eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool
 	{
+		if (aWatched == QueueView && aEvent != nullptr
+			&& aEvent->type() == QEvent::KeyPress) {
+			auto* const key = static_cast<QKeyEvent*>(aEvent);
+			if (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) {
+				// [[BPR-0736]]. macOS treats these as editing keys instead of
+				// emitting activated. Consume them here on every platform so
+				// a key opens once; mouse activation keeps its existing path.
+				if (const auto item = QueueFilterModel->item_at(QueueView->currentIndex()); item.has_value()) {
+					open_pull_request_item(*item);
+				}
+				return true;
+			}
+		}
 		if (aWatched == HomeRecentList && aEvent != nullptr
 			&& aEvent->type() == QEvent::KeyPress) {
 			auto* const key = static_cast<QKeyEvent*>(aEvent);

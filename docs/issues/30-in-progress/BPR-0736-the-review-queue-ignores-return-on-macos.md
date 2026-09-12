@@ -38,3 +38,21 @@ signal, not through a key event, which is why it passed.
 - `qt_composed_github_scale_{100,125,200}` send `Qt::Key_Return` to the
   queue view with a row current and observe the open dispatch; the
   existing activation path is unchanged.
+
+## Candidate and direct check, 2026-09-12 (d25, mandate r16)
+
+The queue view now installs the window's existing key event filter. Return
+and Enter invoke the same `open_pull_request_item` semantic dispatch as the
+existing activation connection, and the key is consumed so it cannot open
+twice. An invalid current index opens nothing; mouse activation keeps its
+existing connection and still opens the clicked row.
+
+The composed Qt test sends actual `QKeyEvent` presses to the queue view,
+asserts that each key opens exactly selected row 74, asserts no dispatch for
+no selection, and then still clicks row 73 through the mouse path. The new
+key assertion failed before the product fix
+(`build/logs/bpr-0736-d25-red-test.log`) and all three
+`qt_composed_github_scale_{100,125,200}` passed after it
+(`bpr-0736-d25-green-tests.log`). Touched-file format, focused tidy
+(`bpr-0736-d25-tidy.log`) and `git diff --check` pass. Logs remain local
+evidence pointers, not committed artifacts.

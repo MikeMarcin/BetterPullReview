@@ -2923,6 +2923,27 @@ namespace {
 				   && first.data(qt::review_landing_model::unseen_role).toBool(),
 			   "the title and the unread dot reach the row");
 
+		// [[BPR-0736]]. Send real keys: emitting activated would hide macOS's
+		// edit-key handling, which never emits that signal for Return or Enter.
+		view->setCurrentIndex(second);
+		view->setFocus();
+		for (const auto key : { Qt::Key_Return, Qt::Key_Enter }) {
+			intents.clear();
+			auto pressed = QKeyEvent{ QEvent::KeyPress, key, Qt::NoModifier };
+			QApplication::sendEvent(view, &pressed);
+			QApplication::processEvents();
+			const auto* const opened = intents.empty() ? nullptr : std::get_if<core::open_pull_request_intent>(&intents.back());
+			expect(intents.size() == 1U && opened != nullptr
+					   && opened->Repository == core::repository_locator{ .Owner = "better-pull-review", .Name = "desktop" }
+					   && opened->Number == core::pull_request_number{ 74U },
+				   "Return and Enter each open exactly the current queue row through the GitHub intent");
+		}
+		view->setCurrentIndex({ });
+		intents.clear();
+		auto noSelection = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+		QApplication::sendEvent(view, &noSelection);
+		expect(intents.empty(), "Return without a current queue row opens nothing");
+
 		intents.clear();
 		const auto rowRect = view->visualRect(first);
 		expect(!rowRect.isEmpty(), "the first row is on screen");
