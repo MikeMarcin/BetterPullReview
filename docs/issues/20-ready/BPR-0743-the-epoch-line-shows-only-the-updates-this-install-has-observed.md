@@ -299,3 +299,316 @@ neither is [[BPR-0646]]: the handle criterion is not judgeable until this card
 lands, which is the point of the answer recorded above. The v008 packet, where
 BPR-0646 was asked for the third and last time under the old reading, is
 historical.
+
+## Design pass, 2026-09-12 (d23, mandate r14)
+
+The bounded design pass this card opens with. **No model change and no
+product source change was made**, deliberately: the escalation conditional in
+the scope fires, and the exact ask it produces is at the end of this section.
+Every anchor below was re-read at `f2c49e12`; where this card's earlier
+anchors had drifted, the corrected ones are given.
+
+### The signed-out probe, run rather than reasoned about
+
+The scope says "Probe the anonymous timeline route before designing around
+it." It was run, on 2026-09-12, against the owner's own pull request from the
+v008 capture, with no credential of any kind:
+
+    GET https://api.github.com/repos/NVIDIA/stdexec/issues/1846/timeline?per_page=100
+
+**HTTP 200.** `x-ratelimit-limit: 60`, `x-ratelimit-resource: core` — the
+unauthenticated budget, so the route is admitted anonymously and is not a
+signed-in feature. The concern this card raised, that a public pull request's
+updates might not be enumerable without a credential, **does not hold**. What
+the response says, item by item:
+
+- 18 items: 8 `commented`, 3 `committed`, 2 `mentioned`, 2 `subscribed`,
+  **2 `head_ref_force_pushed`**, 1 `reviewed`.
+- Each force-push event carries a **pull-request-side identity and the head
+  the branch was moved to**:
+  `id 28822634866`, `node_id HRFPE_lADOFdOXg87q99XtzwAAAAa19oFy`,
+  `commit_id 6ffbd0ac…`, `created_at 2026-08-01T16:45:08Z`; and
+  `id 29193968055`, `node_id HRFPE_lADOFdOXg87q99XtzwAAAAbMGJm3`,
+  `commit_id 51d2dad0…`, `created_at 2026-08-09T22:19:26Z`.
+- `51d2dad0…` equals the pull request's current `head.sha`, so `commit_id` is
+  the head **after** the push. And `6ffbd0ac…` appears **nowhere** in
+  `GET /pulls/1846/commits` (three commits, all dated 2026-08-09T22:17:35Z).
+  So this card's claim that commits cannot reconstruct the updates that matter
+  is now **demonstrated** rather than asserted: `6ffbd0ac…` is an overwritten
+  head that only the timeline still names.
+- The overwritten head is still **fetchable**: `GET /repos/NVIDIA/stdexec/commits/6ffbd0ac…`
+  is 200 anonymously, and so is the same call against the fork the
+  `commit_url` points at. An import would not be listing updates it then
+  cannot diff — contingent, of course, on GitHub still retaining the object.
+
+Three limits came out of the same response, and they are what the design has
+to be built around rather than footnotes to it:
+
+1. **The REST force-push event has no before-commit.** Its complete key set is
+   `id, node_id, url, event, commit_id, commit_url, created_at,
+   performed_via_github_app`. GraphQL's `HeadRefForcePushedEvent` does carry
+   `beforeCommit`, and GraphQL is refused anonymously
+   (`src/adapters/github/src/github_anonymous_read_admission.hpp:83-110` — note
+   the path, which this card previously gave as
+   `include/bpr/adapters/github/`, and which is wrong).
+2. **Array position is not an ordering key and `committed` dates are not push
+   times.** The returned order runs 2026-08-01T16:45Z, 2026-08-09T16:11Z,
+   2026-08-09T19:01Z, then `committed` entries dated 2026-08-01T15:20Z and
+   twice 2026-02-13, then 2026-08-09T22:19Z. The commits endpoint reports
+   committer dates of 2026-08-09T22:17:35Z for all three, so the timeline's
+   `committed` timestamps are **author** dates — writer-controlled, and not
+   when anything was pushed.
+3. **An ordinary push is not an event.** The three `committed` entries are
+   exactly the surviving lineage. Nothing distinguishes "three commits arrived
+   in one push" from "three pushes", so ordinary-push update boundaries are
+   not recoverable at all.
+
+### Decision 1 — the derivation: the head OID, not the event id, and not the pair
+
+The scope offered "a pull-request-side event identity if the read can obtain
+one, otherwise a deterministic function of the pull request's identity and the
+update's base/head pair". The read **can** obtain one. It should still not be
+used, and the recorded decision is:
+
+> **The portable epoch identity is a digest over the pull request's authority
+> scope and the update's head commit OID. It is carried beside
+> `review_epoch_id`, not inside it.**
+
+Against the event identity, three reasons, the first two of which are fatal:
+
+- **It does not exist for most updates.** `node_id` is present only on a
+  force-push event. The pull request's *current* head — the update that
+  matters most, and the only one a live read ever produces — has no timeline
+  event at all unless it happened to arrive by force push. An identity that
+  exists for some updates and not others is not an identity.
+- **Storing it would break a stated catalogue invariant.** The schema's own
+  header comment (`src/adapters/sqlite/src/catalog_database.cpp:86-88`) says
+  no path, provider string, opaque token or generic payload enters the
+  catalog, and it holds: there is no GitHub event id, node id or push identity
+  in `epoch`, `epoch_anchor` or `pull_request_scope`
+  (`catalog_database.cpp:137-163`, `:184-222`, `:231-248`). Every
+  GitHub-derived value there is an 8-byte opaque numeric identity or a digest.
+  `node_id` is precisely the opaque provider token that invariant excludes.
+- It is not needed. The head OID is pull-request-side, already a first-class
+  type, already stored, and identical on every machine.
+
+Against the **base/head pair**, which is this card's own fallback wording, one
+reason, and it is a finding rather than a preference: **the base OID is
+time-dependent even for a live read.** Two installs reading the same pull
+request an hour apart, with the base branch advancing in between, mint epochs
+with different base OIDs for the same head. Putting the base into the identity
+reintroduces one layer down exactly the machine-locality the owner asked to
+remove. And for a historical update the base at that time is not recoverable
+at all, by limit 1 above.
+
+**One sub-question this pass does not resolve, recorded rather than papered
+over.** If a pull request is force-pushed back to a head it previously had — a
+rebase reverted — two updates share a head OID and therefore one identity.
+Whether that is one epoch or two is a question about what the owner means by
+"an update to the PR", not a question the code can settle; the near-neighbour
+already in the model is the unique index
+`epoch_source_revision(incarnation, source_observation)`
+(`catalog_database.cpp:224-228`). Whoever implements this must answer it
+first.
+
+### Decision 2 — the ordinal stays the dense local ordering key
+
+> **`Ordinal` is not redefined. `{Authority, Incarnation, Ordinal}` remains
+> the local storage key; the derived identity above is what the product may
+> claim is the same on two machines.**
+
+Four reasons, strongest first.
+
+1. **Redefining it cannot buy portability anyway.** This card frames the
+   derivation and the ordinal as two separable choices. They are not: while
+   `Incarnation` — 32 random bytes minted once per catalogue file
+   (`catalog_database.cpp:1705-1707`, written at `:663-665`) — remains in
+   `review_epoch_id` (`src/core/include/bpr/core/epoch_model.hpp:444-451`),
+   the triple is machine-local no matter what the third field means.
+   Portability is bought by **adding** a derived identity, not by re-deriving
+   one of three fields.
+2. **Two of its seven serializations are already outside the catalogue's
+   reach.** Git retained refs are written on disk as
+   `refs/betterpullreview/v1/scope/<64 hex>/epoch/<16 hex ordinal>/{base|head}`
+   (`src/adapters/git/src/installed_git_process.cpp:1250-1259`, `:1296-1298`
+   — **not** `installed_git_cache.cpp:1147-1157`, which only casts to
+   `uint64`; this card's anchor was misattributed). And MCP revision bindings
+   are handed out as text,
+   `host/repo/pr/basehex/headhex/<leftEpoch>/<rightEpoch>`
+   (`src/adapters/mcp/src/mcp_context_helper.cpp:731-741`, decoded at
+   `:758-771`), as is the agent launch context JSON's `left_epoch`/`right_epoch`
+   (`src/application/src/agent_launch.cpp:1597-1604` — a wire this card's list
+   missed). Renumbering orphans refs already on disk and invalidates bindings a
+   user or an agent may be holding.
+3. **Density is relied on above the layer that guarantees it.** Core imposes
+   no contiguity at all: `epoch_transition.cpp:2519-2537` requires only that
+   `ProposedOrdinal` be valid and strictly exceed the latest live ordinal.
+   Density comes from the SQLite CAS, which refuses any proposal that is not
+   exactly `next_ordinal` (`epoch_catalog.cpp:3029-3046`) and advances by one
+   (`:3145-3162`). History paging then keys on it
+   (`epoch_history_cursor.Before`, `epoch_model.hpp:425-431`), and alias
+   resolution compares ordinals directly (`epoch_transition.cpp:996-1007`).
+   That is an adapter guarantee the layers above have quietly come to depend
+   on, and moving the ordinal moves all of it.
+4. The amber last-review tick is unaffected and this is confirmed at HEAD: it
+   matches by head commit OID, not by ordinal
+   (`src/adapters/qt/src/epoch_line.cpp:131-135`, `:163-174`).
+
+The id write itself is at `epoch_transition.cpp:2646-2654` (the `.Ordinal` at
+`:2652`), not `:2649`.
+
+### Decision 3 — identity can be made stable; population cannot be made equal
+
+This is the limit the probe proves, and it is why the identity must not be the
+ordinal.
+
+Machine A opens the pull request and observes head X, which arrived by an
+ordinary push. The author then force-pushes to Y. Machine B opens the pull
+request afterwards. Its timeline shows `head_ref_force_pushed → Y`, and **X
+appears nowhere**: the REST event carries only the after-commit (limit 1), the
+commits list carries only the surviving lineage (limit 3), and GraphQL's
+`beforeCommit` is refused anonymously. No read B can make recovers X.
+
+So A legitimately holds an epoch B cannot derive. Were the ordinal the
+portable identity, A and B would then disagree about the identity of every
+update after X. With a derived identity they agree about every update **both
+can see**, and A simply holds one row more.
+
+The honest statement the product can make is therefore:
+
+> **Identity and order are stable and repeatable across machines. Population
+> is best-effort, and the line says when it is partial.**
+
+That is part 2 of this card, re-aimed again. d20 aimed it at "a timeline read
+that failed, was refused, or was not permitted signed out". There is now a
+fourth and more common case it must also cover: **an update existed and GitHub
+no longer exposes it.**
+
+### Decision 4 — the base OID, which is where this exceeds the card
+
+Every epoch requires a valid base OID, and the requirement is **origin-blind**.
+`epoch_transition.cpp:2199-2218` requires `BaseBranch.valid() && Base.valid()
+&& Head.valid()` with matching algorithms for any accepted revision;
+`plan_epoch_mutation` rejects at `:2470-2481` with `invalid_observation`;
+`valid_summary` (`:2284-2300`) repeats it for every epoch; and at the schema
+level `epoch_anchor.object_digest` is `NOT NULL` and non-zero
+(`catalog_database.cpp:238-241`). **A head-only epoch is not representable at
+HEAD, in core or on disk.**
+
+The timeline does not supply a base OID for a historical update. Three ways
+out, and each changes something normative:
+
+- **(a) Use the base ref's OID at import time.** Rejected. It is
+  time-dependent, so two machines importing on different days record different
+  bases for the same historical update — the defect the owner asked to remove,
+  reintroduced. It also records something *false*: the epoch would claim a
+  base that was not the base then.
+- **(b) Compute it as merge-base(head, base ref).** The strongest candidate.
+  It is deterministic given the same commit graph, which a public repository
+  supplies identically to every clone, and it is computable locally through
+  the git cache that already exists. It changes the base from an **observed**
+  value to a **derived** one, and it can move if the base branch is itself
+  rewritten.
+- **(c) Permit a head-only historical epoch.** Requires changing the core
+  validation, `valid_summary`, and the `NOT NULL` schema. It changes what a
+  review epoch *is*.
+
+And there is a second term with the same shape: **observed time**. A
+historical epoch's only honest timestamp is GitHub's `created_at` on the
+force-push event, which is not this install's observation time. Writing
+GitHub's push time into a field the RFC calls observed time is either a
+redefinition or a falsehood, and it has to be the redefinition for two
+machines to agree.
+
+### Decision 5 — migration: do not re-mint, do not renumber
+
+This card said "a rebuild under a new incarnation, not an in-place relabel".
+The intent is right; the mechanism does not exist. `migrate_schema`
+(`catalog_database.cpp:1018-1062`) is rebuild-then-**refuse**: `user_version`
+is 3 (`:71`, written at `:649-655`), v1→v2 and v2→v3 are table rebuilds
+(`:733-916`, `:1041-1053`), and any other version is refused rather than
+recreated (`:754-756`, `:1021-1023`). Crucially the incarnation is **carried
+forward verbatim** through every migration (`:1045`, `:822-823`) and is never
+re-minted for an existing file.
+
+A v3→v4 that did re-mint it would orphan, in one step: every
+`window_review_restoration` row, which stores the incarnation explicitly
+(`src/adapters/sqlite/src/window_review_restoration_store.cpp:99-109`); and a
+renumbering on top would orphan every retained git ref, every `review_ledger`
+row naming `left_epoch`/`right_epoch`
+(`src/adapters/sqlite/src/review_ledger_database.cpp:243-244`), and every MCP
+binding and agent-launch context already emitted.
+
+**The cheap path is also the honest one, and it works because the model
+already separates the two things.** Add the derived identity as a new column,
+backfill it for existing rows from the head OID they already store, and let
+the import append with fresh ordinals. Nothing is re-minted, nothing is
+renumbered, nothing is orphaned. Ordinal order stops being chronological,
+which is the price — and it is payable precisely because a historical epoch
+already, by design, advances neither `latest_live_ordinal` nor
+`previous_distinct_head_ordinal` (`epoch_catalog.cpp:4564-4568`) while still
+consuming an ordinal through the CAS. The separation between "the newest live
+epoch" and "the highest ordinal" is already in the catalogue; historical
+import was built for it.
+
+### Decision 6 — the read itself is the cheap part
+
+One new anonymous REST read operation. It is mechanical and the sites are
+enumerated: the enum (`src/adapters/github/src/github_read_contract.hpp:22`),
+`all_read_operations` (`:65`), `anonymous_read_operations` (`:85`), the
+exhaustive switches in `github_read_contract.cpp` (`:715-734`, `:736-758`,
+`:1760-1789`, `:1792-1821`), the REST route table (`:1924-1985`, shaped like
+`list_issue_comments` at `:1959-1964`), the anonymous admission switch
+(`github_anonymous_read_admission.hpp:56-74`, which is **code**, a `constexpr`
+exhaustive switch with no default, not a data list), the normalizer
+(`github_read_normalizer.cpp:852-866`, `:967-980`), the paged read
+(`github_paged_read.cpp:1324-1339`, `:1461-1475`) and five test switches.
+Paging copies `read_rest_array_collection`
+(`github_paged_read.cpp:2744-2791`) with `Link`-header `rest_has_next_page`
+(`:1609-1660`), exactly as `list_pull_request_commits` does.
+
+Two costs worth naming before anyone commits to it. Following
+`list_review_comments`' precedent — in `all_read_operations` and
+`anonymous_read_operations` but deliberately **not** in
+`read_operation_catalog` (`github_read_contract.hpp:57-64`) — **no recorded
+manifest or fixture regeneration is needed**, which removes the largest
+feared cost. But the request budget is real: the probe confirms the
+unauthenticated limit is **60 per hour**, one pull request open already spends
+ten ([RFC-BPR-0017](../../rfcs/RFC-BPR-0017-unauthenticated-public-review-read.md):223,
+`:293-299`), and a long-lived pull request's timeline pages. A page cap is
+required, and a page cap is a *policy* choice: a truncated timeline is a
+partial history, which part 2 then has to declare.
+
+### The escalation, and the exact ask
+
+The conditional in this card's scope — "if the design pass concludes the
+change is larger than an owner direction recorded on a closed RFC can carry,
+bring it back" — **fires.** Not on size, on kind. Four things change that
+RFC-BPR-0003 fixed:
+
+1. **What identifies an epoch.** A second identity concept is added beside
+   `review_epoch_id`, and the RFC's identity becomes the local storage key
+   rather than the identity.
+2. **What "base OID" means** for a historical epoch: observed, derived from a
+   merge base, or absent. All three are normative and one must be chosen.
+3. **What "observed time" means** for a historical epoch: this install's
+   observation, or GitHub's push time. Two machines cannot agree on the first.
+4. **The catalogue schema version**, against a migration mechanism that
+   refuses unknown versions by design.
+
+That is four of the six things the RFC's sentence "A review epoch records base
+OID, head OID, observed time, ordinal, cause, and material summary" pins,
+touched in a single change. It is an RFC's worth of normative movement, not a
+note appended under a closed one. **Nothing is implemented on this design pass
+until the owner answers**, and the ask is one question:
+
+> The epoch work you asked for changes what RFC-BPR-0003 says an epoch *is* —
+> what identifies it, what its base OID means when GitHub only remembers the
+> head, and whether its timestamp is when you saw it or when it was pushed.
+> Do you want it as an RFC of its own, or as an amendment recorded against
+> the closed RFC-BPR-0003?
+
+Two things that do **not** need him, recorded so the ask stays single: the
+signed-out question is settled (the timeline is anonymously readable, so this
+is not a signed-in feature), and BPR-0646's handle criterion stays right as
+written and unasked until this lands.

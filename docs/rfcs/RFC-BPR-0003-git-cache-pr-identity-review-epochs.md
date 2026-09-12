@@ -136,3 +136,43 @@ review ledger, window restoration, the MCP context and the pinned history
 paging. If that pass concludes the change is larger than an owner direction on
 a closed RFC can carry, it comes back for the owner's decision on whether it
 wants an RFC of its own rather than reopening this one from inside a card.
+
+## The design pass fired the conditional, 2026-09-12
+
+The bounded design pass the note above hands to [[BPR-0743]] has run, and its
+conclusion is recorded there in full. The conditional this RFC set for it —
+"if that pass concludes the change is larger than an owner direction on a
+closed RFC can carry, it comes back for the owner's decision" — **fires**, and
+this RFC's baseline is still not reopened.
+
+The signed-out obstacle turned out not to exist: the pull request timeline is
+readable **anonymously over REST**, confirmed by running it
+(`GET /repos/{o}/{r}/issues/{n}/timeline`, HTTP 200 with no credential,
+against the 60-per-hour unauthenticated budget). The correction above, that
+every GraphQL-routed operation is refused anonymously, still stands — the
+route is REST, and the admission switch is at
+`src/adapters/github/src/github_anonymous_read_admission.hpp:56-74` with the
+GraphQL refusal at `:83-110`.
+
+What fires the conditional is not the size of the change but its kind. Of the
+six things this RFC's sentence pins — "A review epoch records base OID, head
+OID, observed time, ordinal, cause, and material summary" — the work moves
+four:
+
+- **Identity.** A portable identity derived from the pull request is added
+  beside `review_epoch_id`, which becomes the local storage key rather than
+  the identity.
+- **Base OID.** GitHub's timeline names the head a force push moved *to* and
+  nothing before it, so a historical epoch's base at that time is not
+  observable. It must become a derived value, or absent — and today it is
+  mandatory and origin-blind (`src/core/src/epoch_transition.cpp:2199-2218`,
+  `:2284-2300`; `epoch_anchor.object_digest` is `NOT NULL`).
+- **Observed time.** A historical epoch's only honest timestamp is GitHub's
+  push time, not this install's observation.
+- **The catalogue schema version**, against a migration mechanism that refuses
+  unknown versions by design
+  (`src/adapters/sqlite/src/catalog_database.cpp:1018-1062`).
+
+Nothing is implemented on the design pass until the owner decides whether this
+wants an RFC of its own or an amendment recorded against this one. The
+question is on [[BPR-0743]], which is parked on it.
