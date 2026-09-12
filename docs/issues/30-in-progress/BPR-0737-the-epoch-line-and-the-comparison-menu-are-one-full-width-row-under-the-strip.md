@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0737"
 title: "The epoch line and the comparison menu are one full-width row under the strip"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
