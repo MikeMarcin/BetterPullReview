@@ -18,7 +18,7 @@ cannot take without a hand on the mouse.
   version 5; this one adds no role and changes no column, so there is no second
   palette reset and an older build still reads the store.
 - What changed in the bundle since v008, all of it
-  [BPR-0744](../../../issues/40-parked/BPR-0744-preprocessor-directives-are-grey-but-their-arguments-take-their-own-roles.md):
+  [BPR-0744](../../../issues/60-done/BPR-0744-preprocessor-directives-are-grey-but-their-arguments-take-their-own-roles.md):
   a preprocessor directive keyword stays grey, an ALL_CAPS word inside a
   directive takes the macro purple, a predefined macro like `__GNUC__` takes it
   too, and an `#include` path takes the string salmon instead of the directive
@@ -110,7 +110,7 @@ observed epoch is not useful and terribly confusing." The criterion is right as
 written and is not reworded, but the product still mints one epoch per
 observation, so a fourth round on any bundle buildable today would fail for the
 same reason as the previous three.
-[BPR-0743](../../../issues/20-ready/BPR-0743-the-epoch-line-shows-only-the-updates-this-install-has-observed.md)
+[BPR-0743](../../../issues/40-parked/BPR-0743-the-epoch-line-shows-only-the-updates-this-install-has-observed.md)
 carries the work; the criterion comes back when the epoch line carries the pull
 request's own updates.
 
