@@ -2,11 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0737"
 title: "The epoch line and the comparison menu are one full-width row under the strip"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"owner_direction":"2026-09-11","attended_session":"cbd48b91000b00f1e72e1ad62c7c384c","attended_decision":"8409ad43-a2a6-49e5-88c9-4317f141ebe1"}
+parked_on: "human-review"
+acceptance: [{"criterion":"qt_workbench_window_scale_{100,125,200} pin that the epoch control's x-extent equals the window's client width in Overview, Read, Review and Discuss and does not move when a drawer is toggled or resized","outcome":"pass","revision":"4ebb0009","evidence":{"kind":"command","detail":"test_the_epoch_row_spans_the_window_in_every_modality: the row's window rectangle equals the client area's left, top and width, sits above the splitter, and is identical through the four modalities, both drawers opened and collapsed, and a 120-pixel drawer resize; passes at the three scales at 4ebb0009."}},{"criterion":"qt_composed_github_scale_100, application_composition_contract and the UIforETW contract pass with any digest repinned","outcome":"pass","revision":"4ebb0009","evidence":{"kind":"command","detail":"11 of 11: qt_workbench_window_scale_{100,125,200}, qt_epoch_comparison_scale_{100,125,200}, qt_composed_github_scale_100, application_uiforetw_selected_diff_contract, application_composition_contract, architecture boundaries at 4ebb0009; github_application.cpp unchanged by this slice, no digest moved."}},{"criterion":"The owner sees the line hold its place across the four modalities on the signed bundle in an attended session, on a public pull request with more than one update","outcome":"pending","revision":"4ebb0009","evidence":{"kind":"observation","detail":"Asked in the v008 packet on NVIDIA/stdexec#1846 (owner's answer, mandate r9)."}}]
 ---
 
 # The epoch line and the comparison menu are one full-width row under the strip
