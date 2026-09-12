@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0029"
 title: "Machine-Independent Epoch Identity and Pull Request Update History"
-status: "Proposed"
+status: "Accepted"
 area: "BPR"
 milestone: "Post-Pack v2"
 depends_on: ["RFC-BPR-0002","RFC-BPR-0003","RFC-BPR-0017"]
@@ -12,7 +12,7 @@ pack_version: "post-v2"
 
 ## Status and scope
 
-Proposed, and not accepted. The owner asked for this RFC on 2026-09-12. Asked
+Accepted on 2026-09-12 under mandate r17. The owner asked for this RFC on 2026-09-12. Asked
 whether the epoch work should be an RFC of its own or an amendment recorded
 against the closed RFC-BPR-0003, he answered, verbatim:
 
@@ -23,9 +23,9 @@ the owner explicitly **did not accept the first draft as written**. He resolved
 its A2 and A3 questions and required three corrections: separate updates that
 return to the same head, do not count surviving commits as pushes, and never
 present a derived comparison base as the original historical base. The revised
-proposal below incorporates those answers. It still awaits one acceptance
-answer under Owner ask; no epoch source, schema, read operation or test has
-changed under this RFC.
+proposal below incorporates those answers. The owner accepted that revised
+proposal. No epoch source, schema, read operation or test had changed under
+this RFC before acceptance.
 
 The engineering questions that remain are recorded under Open questions. They
 require evidence before the acceptance criterion they govern is claimed; they
@@ -74,8 +74,7 @@ Auto-Verified. This RFC does not reopen it, change its status, rewrite its text
 or invalidate its evidence. RFC-BPR-0003 carries a pointer here and nothing
 more.
 
-While this RFC is Proposed, nothing in RFC-BPR-0003 is superseded. Once
-accepted, this RFC **supersedes RFC-BPR-0003 in part**, and only in two
+As accepted, this RFC **supersedes RFC-BPR-0003 in part**, and only in two
 respects:
 
 - **What identifies an epoch.** RFC-BPR-0003's `review_epoch_id` remains a
@@ -195,9 +194,9 @@ That is why open questions 2 and 3 are open.
   (`src/application/src/designated_review_authority_bootstrap.cpp:175`,
   `src/adapters/github/src/designated_live_public_observer.cpp:275`).
 
-## Proposed decisions
+## Accepted decisions
 
-These are the design pass's decisions, proposed and not yet accepted. Decision 1
+These are the accepted design decisions. Decision 1
 corrects the design pass in one place, and says so.
 
 ### Decision 1: identify evidenced update occurrences, not only heads
@@ -321,7 +320,7 @@ The timeline supplies no base for a historical update. The options are:
 - **Rejected: the base ref's OID at import time.** Two machines importing on
   different days would record different bases for the same update, and the
   epoch would claim a base that was not its base.
-- **Proposed: optional historical anchor.** An occurrence can be named and
+- **Selected: optional historical anchor.** An occurrence can be named and
   shown from its event and head even when the historical base is unknown. The
   core and storage distinguish an update occurrence from a comparison-ready
   epoch; the existing live epoch rows and their invariants remain intact.
@@ -416,7 +415,7 @@ first-seen remain catalogue facts, not portable chronology.
 The owner resolved the first draft's A2 and A3. The items below are engineering
 questions or evidence tasks; each needs a recorded result before its governed
 acceptance claim. An unexpected policy choice returns as one concrete ask,
-without treating the current proposal as accepted.
+without changing the accepted decisions silently.
 
 ### 1. Repeated-head reconciliation
 
@@ -541,7 +540,7 @@ times; keep local first-seen separate. Deterministic order is separate from
 the timestamp label, and equal timestamps do not establish push order.
 Decision 7 selects committer time and a stable tie-break.
 
-**One remaining question, on this revised proposal:**
+**Acceptance question on the revised proposal (answered):**
 
 > Do you accept the revised RFC-BPR-0029 as the plan for the epoch work: only
 > evidenced PR update occurrences get portable identities, missing ordinary
@@ -550,8 +549,13 @@ Decision 7 selects committer time and a stable tie-break.
 > catalogue rows migrate without loss even when some identities cannot yet be
 > resolved?
 
-Until this receives an explicit yes, the RFC remains Proposed, BPR-0743 stays
-Blocked, and no epoch implementation or closeout-ID allocation proceeds.
+**Owner answer, mandate r17, 2026-09-12: YES.** The owner accepted this revised
+RFC as the plan for epoch work, with identities only for evidenced update
+occurrences, incomplete ordinary-push history reported, unknown historical
+bases kept distinct from derived comparison bases, and lossless migration
+allowed to leave portable identity unresolved. BPR-0743 can proceed under
+these constraints. Acceptance authorizes allocating its closeout card; it is
+not implementation or verification evidence.
 
 ## Architectural allocation
 
@@ -663,10 +667,11 @@ These documents change when this RFC is implemented, not before it is accepted:
 
 ## Cards
 
-- [[BPR-0743]] carries the implementation. It is Blocked on acceptance of this
-  revised proposal; A2 and A3 are answered. Its AC1 is the earlier design pass,
+- [[BPR-0743]] carries the implementation. Acceptance of this revised
+  proposal removes its prior owner-ask blocker. A2 and A3 are answered. Its AC1 is the earlier design pass,
   retained as historical evidence rather than silently rewritten.
 - [[BPR-0646]] (RFC-BPR-0028) depends on BPR-0743 for its attended handle
   criterion.
-- No closeout card is allocated while this RFC is unaccepted. One is allocated
-  only after acceptance, with its immutable RFC base at the accepted revision.
+- A closeout card is allocated after acceptance, with its immutable RFC base
+  at the accepted revision. That card remains open until every criterion is
+  directly verified and canonical closeout prerequisites permit it.
