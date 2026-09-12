@@ -136,7 +136,7 @@ New in this round:
 Import the exported decisions with `attended_review.py import --file FILE`
 (the live page saves them itself). The integrator then finishes each card
 from its own acceptance; a rejection becomes a bounded follow-up card.
-After the verdicts: [BPR-0741](../../../issues/20-ready/BPR-0741-the-multi-window-public-path-course-still-waits-for-a-sign-in-stop.md)
+After the verdicts: [BPR-0741](../../../issues/60-done/BPR-0741-the-multi-window-public-path-course-still-waits-for-a-sign-in-stop.md)
 (the multi-window course, red at HEAD on macOS), BPR-0729 rewritten from
 the accepted state, then the Windows and Linux inventories on their
 stations.
