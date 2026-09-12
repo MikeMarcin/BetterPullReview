@@ -608,3 +608,14 @@ update: "https://github.com/NVIDIA/stdexec/pull/1846 looks to have
 multiple updates". The v008 candidate for this card is asked on
 NVIDIA/stdexec#1846, on the bundle that carries
 [BPR-0737](BPR-0737-the-epoch-line-and-the-comparison-menu-are-one-full-width-row-under-the-strip.md).
+
+## Attended candidate, 2026-09-11 (v008)
+
+The handle criterion is asked again as candidate `BPR-0646-workbench-chrome`
+in [rfc-bpr-0028-attended-v008](../../verification/reviews/rfc-bpr-0028-attended-v008/operator-packet.md)
+on the bundle built from the source at 35438244 (executable sha256
+`e4fdb0ea…`, tests disabled, codesign clean), candidate revision
+`app-release-e4fdb0ea-2026-09-11.4`; prepared and protected at sequence
+341, undecided, no host running until the owner says so. The pull request
+is NVIDIA/stdexec#1846, the owner's answer of mandate r9. The v007 rejection stays
+recorded against its own revision.

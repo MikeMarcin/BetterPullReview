@@ -12,7 +12,32 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
-## Current frontier, 2026-09-11 (d17, mandate r9)
+## Current frontier, 2026-09-11 (d18, mandate r9)
+
+Dispatch `attended-prep-2026-09-10` d18 (mandate r9). Landed on main:
+[[BPR-0740]] finished (`35438244`): finding 2 settled by instrumentation
+as course composition, not a product regression (window B's landing
+sign-in enrolled a second grant whose identity change retired every
+window's session; A had read anonymously because `PublicPreviewSignedOut`
+is false before the first paste activates the signed-out session); the
+course signs in the first window of each phase before its first paste,
+and its broken phase now pins BPR-0718's composed-defaults fallback for an
+unreadable layout store, the lost user-visible report carded as
+[[BPR-0742]] (Ready, P3). No product change; `github_application.cpp` and
+both digests unchanged since the v007 bundle head `2cdc0e57`. The
+tests-disabled signed bundle rebuilt at `35438244` (executable sha256
+`e4fdb0ea…`, `build/logs/app-release-35438244.log`, codesign clean) and
+the v008 packet prepared under
+`docs/verification/reviews/rfc-bpr-0028-attended-v008/` (six candidates
+at revision `app-release-e4fdb0ea-2026-09-11.4`, ready and protected at
+sequence 341: BPR-0646 and BPR-0720 re-asked on NVIDIA/stdexec#1846,
+BPR-0734, BPR-0737, BPR-0738, BPR-0739). No host started, no wait armed:
+`attended_review.py serve`, then `wait --after 341`. Next after the
+verdicts: [[BPR-0741]] (the multi-window course; its `:236` holds on the
+account path once the course signs in first), BPR-0729 from the accepted
+one-pane state, BPR-0742 when a slot allows. d17's frontier follows.
+
+## Frontier, 2026-09-11 (d17, mandate r9)
 
 Dispatch `attended-prep-2026-09-10` d17 (mandate r9). Landed on main:
 [[BPR-0739]] diagnosed and fixed (causes 1, 2 and 4 excluded by a Qt

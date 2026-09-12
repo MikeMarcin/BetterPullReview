@@ -116,3 +116,13 @@ rebuilt bundle is smoked, not assumed from the answer.
   fails "exact public review opens" with the BPR-0737 edits stashed as
   well (it last changed at ad3abf50, BPR-0708; the Home open path it
   drives changed under BPR-0732 and BPR-0733). Carded separately.
+
+## Attended candidate, 2026-09-11 (v008)
+
+The pending criterion is candidate `BPR-0737-epoch-row` in
+[rfc-bpr-0028-attended-v008](../../verification/reviews/rfc-bpr-0028-attended-v008/operator-packet.md)
+on the bundle built from the source at 35438244 (executable sha256
+`e4fdb0ea…`, tests disabled, codesign clean), candidate revision
+`app-release-e4fdb0ea-2026-09-11.4`; prepared and protected at sequence
+341, undecided, no host running until the owner says so. The pull request
+is NVIDIA/stdexec#1846, the owner's answer of mandate r9.

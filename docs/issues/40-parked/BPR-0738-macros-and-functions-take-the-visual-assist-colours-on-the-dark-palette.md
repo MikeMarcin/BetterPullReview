@@ -185,3 +185,15 @@ high-contrast palettes are untouched.
   `architecture_boundaries` after the repins; strict tidy and
   `clang-format --Werror` clean on the five touched translation units;
   `verify_documentation.py` and `git diff --check` clean.
+
+## Attended candidate, 2026-09-11 (v008)
+
+The pending criterion, the `CE8AD4` macro purple against the reference's
+`BD63C5`, and the two open questions (the include path, the aliases'
+italic) are candidate `BPR-0738-identifier-colours` in
+[rfc-bpr-0028-attended-v008](../../verification/reviews/rfc-bpr-0028-attended-v008/operator-packet.md)
+on the bundle built from the source at 35438244 (executable sha256
+`e4fdb0ea…`, tests disabled, codesign clean), candidate revision
+`app-release-e4fdb0ea-2026-09-11.4`; prepared and protected at sequence
+341, undecided, no host running until the owner says so. The pull request
+is NVIDIA/stdexec#1846, the owner's answer of mandate r9.

@@ -127,3 +127,12 @@ Replacing AC-05 whole, as proposed text:
    to the link map. The one-pane gutter map is a new element rather than
    a changed one; if the non-goal is to stay literal, the Modalities
    amendment should name it as new.
+
+## Attended candidate, 2026-09-11 (v008)
+
+State 2b, the two amendments and the three open questions above are
+candidate `BPR-0734-read-one-pane` in
+[rfc-bpr-0028-attended-v008](../../verification/reviews/rfc-bpr-0028-attended-v008/operator-packet.md),
+a design page rather than the bundle (no resource claimed), candidate
+revision `app-release-e4fdb0ea-2026-09-11.4`; prepared and protected at
+sequence 341, undecided, no host running until the owner says so.

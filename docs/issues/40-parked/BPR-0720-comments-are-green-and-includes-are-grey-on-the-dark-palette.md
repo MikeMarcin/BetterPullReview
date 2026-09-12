@@ -204,3 +204,15 @@ values the slice pins are on
 The sentence above that calls functions "gold (`FFD700`)" is the
 misattribution it corrects. This card's candidate is asked again in v008
 on a bundle carrying BPR-0738.
+
+## Attended candidate, 2026-09-11 (v008)
+
+Asked again as candidate `BPR-0720-dark-palette` in
+[rfc-bpr-0028-attended-v008](../../verification/reviews/rfc-bpr-0028-attended-v008/operator-packet.md)
+on the bundle built from the source at 35438244 (executable sha256
+`e4fdb0ea…`, tests disabled, codesign clean), candidate revision
+`app-release-e4fdb0ea-2026-09-11.4`; prepared and protected at sequence
+341, undecided, no host running until the owner says so. The pull request
+is NVIDIA/stdexec#1846, the owner's answer of mandate r9. The roles themselves are judged
+on BPR-0738's candidate; the v007 rejection stays recorded against its own
+revision.

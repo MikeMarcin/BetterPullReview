@@ -75,3 +75,11 @@ The current attended packet is
 this card is not a v007 candidate. It waits for the design round
 [[BPR-0734]], which follows the v007 verdicts. The v006 packet above is
 historical.
+
+## Packet pointer, 2026-09-11 (v008)
+
+The current attended packet is
+[rfc-bpr-0028-attended-v008](../../verification/reviews/rfc-bpr-0028-attended-v008/operator-packet.md);
+this card is not a v008 candidate. The design round [[BPR-0734]] it waits
+for is asked there; this card is rewritten from the accepted state. The
+v006 and v007 packets above are historical.
