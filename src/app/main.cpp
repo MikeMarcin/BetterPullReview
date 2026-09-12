@@ -8158,11 +8158,13 @@ auto main(int argc, char** argv) -> int
 									.Enabled          = verifyPublicPreview,
 									.Course           = verifyPublicPreview && publicPreviewEnabledCourse,
 									.HistoricalCourse = verifyPublicPreview && publicPreviewHistoricalCourse,
-									.EmptyTimeline    = fixtureOptions.EmptyHistoricalTimeline,
-									.Enterprise       = verifyPublicPreview && previewEnterprise,
-									.SelectionForced  = publicPreviewSelectionForced,
-									.LiveCandidate    = publicPreviewLiveCandidate,
-									.DryRun           = publicPreviewLiveDryRun,
+#if defined(BPR_BUILD_TESTING)
+									.EmptyTimeline = fixtureOptions.EmptyHistoricalTimeline,
+#endif
+									.Enterprise      = verifyPublicPreview && previewEnterprise,
+									.SelectionForced = publicPreviewSelectionForced,
+									.LiveCandidate   = publicPreviewLiveCandidate,
+									.DryRun          = publicPreviewLiveDryRun,
 								},
 #if defined(BPR_BUILD_TESTING)
 								.Fixture                         = !fixtureName.empty(),
