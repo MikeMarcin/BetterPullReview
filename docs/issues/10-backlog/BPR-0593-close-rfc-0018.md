@@ -26,15 +26,20 @@ at sequence 373 (decision `4feeaa9e-5705-4c53-a516-6fc311de305d`, fingerprint
 Sequence 374 handed back with no pending candidates. The protected
 [v011 identity](../../verification/reviews/rfc-bpr-0028-attended-v011/session-identity.json)
 binds the signed tests-disabled bundle to executable SHA-256 `dfd1c4ca…`;
-the local executable digest still matches. Engineering is incorporating this
-decision into [[BPR-0743]] AC4 and [[BPR-0646]]'s remaining attended criterion.
+the local executable digest still matches. [[BPR-0743]] AC4 is recorded pass
+and the card is Done at `641dae15`. [[BPR-0646]]'s remaining attended criterion
+is recorded pass on the exact v011 verdict; its v008 failure remains in the
+card's historical body. A dry-run move to Ready refuses because it would
+rewrite the protected v009 operator packet's relative link. The card remains
+in Backlog with all current acceptance passing, pending safe path-preserving
+bookkeeping. There is no further owner question on this criterion.
 The d28 composed and focused checks remain applicable because source inputs
 are unchanged. [[BPR-0729]]'s accepted v010 criterion remains Parked on
 `immutable-review-link`; [[BPR-0735]] and [[BPR-0746]] retain the owner's
 declined observations. [[BPR-0730]]/[[BPR-0731]] remain own-station work.
-Next: finish eligible cards through protected-link-safe bookkeeping, then
-assess [[BPR-0750]] against all nine RFC-BPR-0029 closeout criteria without
-claiming any unrun evidence. No child writer, build or review host is active.
+Next: assess [[BPR-0750]] against all nine RFC-BPR-0029 closeout criteria
+without claiming any unrun evidence. No source or build writer or review host
+is active; a read-only scout is auditing the separate RFC-0029 closeout rows.
 
 ## Current frontier, 2026-09-12 (d28, mandate r19): historical comparison in progress
 
