@@ -95,3 +95,145 @@ the ask, and offer the flip.
 - [[BPR-0729]]'s scope and acceptance are rewritten from the accepted state
   before BPR-0729 is claimed, which is BPR-0734's second criterion and stays
   there.
+
+## Owner answers, 2026-09-12 (mandate r11)
+
+Both questions this card carried forward were put to the owner and both are
+answered.
+
+1. **Block order.** Verbatim: "**don't care, unifed diff order is fine**".
+   That is the order [[BPR-0734]] already drew — a change is its struck rows
+   and then its added rows — so no row moves. The question is closed and is
+   not asked again.
+2. **Where the choice lives.** Verbatim: "**Should be in the view menu like
+   line numbers**". So it is not a strip control, which is what BPR-0734
+   drew, and the answer names a model rather than a scope. The model was
+   read out of the code rather than guessed:
+   - The View menu exists and today holds exactly two items, `&Line numbers`
+     and `&Settings…` (`src/adapters/qt/src/workbench_window.cpp:5919-5951`).
+   - Line numbers is a checkable action with `Alt+Shift+5`
+     (`:5925-5934`) that dispatches `core::toggle_workbench_line_numbers_intent`
+     and never decides the check mark itself (`:5939`, `:6096-6116`); the
+     core refuses it when no comparison surface is active
+     (`src/core/src/workbench_interaction.cpp:154-161`, `:319-341`).
+   - It is **one scalar with no modality dimension**
+     (`src/core/include/bpr/core/workbench_interaction.hpp:345`), and
+     `apply(set_workbench_modality_intent)`
+     (`workbench_interaction.cpp:395-419`) does not touch it, so changing
+     modality does not reset it.
+   - It is persisted **per window** in `window_layout` and **seeded for a
+     new window** from the single-row `workbench_preferences`, both from the
+     same DDL (`src/adapters/sqlite/src/workbench_settings_database.cpp:44-89`,
+     `:93-101`, `:52`); `tests/end_to_end/profile_window_layout_public_path_tests.cpp:191-215`
+     is the proof that window A's toggle does not move window B and that a
+     fresh window takes the profile default.
+
+   Read faithfully, therefore: one pane is a checkable View item, per window,
+   seeded from a profile default, with no modality of its own — **which means
+   Review shows one pane too while it is checked.** That is the opposite of
+   the position BPR-0734 drew (a property of Read, with Review keeping two
+   panes). It is a reading of an analogy, not a verbatim instruction, so the
+   redrawn state takes it and says so plainly, and the other reading is
+   offered with the ask.
+
+   One consequence is worth naming for whoever builds it: a new boolean in
+   that DDL lands in both tables and **moves `workbench_settings_schema_version`
+   from 6 to 7** (`workbench_settings_database.hpp:35`, the migration ladder
+   at `.cpp:113-116,141-143`), with precedent at v3, v4 and v6. That is
+   [[BPR-0729]]'s problem, not this card's, but it belongs on the record
+   before BPR-0729 is rewritten.
+
+## Round output, 2026-09-12
+
+The round's state is
+[workbench states v7, "Read, one pane"](../../design/RFC-BPR-0028-workbench-direction-v7.html#read-one-pane)
+(state 2b, anchor `read-one-pane`). v7 is a copy of v6 with that one state
+redrawn; every other state, the diff colours and the CSS variables are v6's,
+and the state still invents no colour and still applies the shipped `--add`,
+`--del`, `--add2` and `--del2` fields to whole rows.
+
+### What the redraw changes
+
+- **The gutter is the link map, not a change map.** v6 put a change map
+  there: the whole file's changes as ticks, a lens for the visible window,
+  and on-screen changes as bands. All of it is gone. In its place, for each
+  change, two ribbons leave the code's edge over their own rows — the struck
+  rows on the removed field with its edge, the added rows on the added field
+  with its edge — and converge on a short spine in the gutter. The spine is
+  the change. The current change's spine takes the same blue the current
+  row's left edge already takes; the others take `--ink-3`. The fills and
+  edge colours are the two-pane ribbons' own (`#3E1F1F`/`#933030` and
+  `#153622`/`#145E20`), so nothing new is invented.
+- **What it connects, settled.** In two panes the map joins a row on the
+  left to the row it corresponds to on the right. With one column both sides
+  are already in the same document, so what the map joins is the two halves
+  of one change — the base side's rows and the head side's rows — which is
+  the card's "the two sides' line identities within the single document".
+- **Pure insertion and pure deletion, settled.** A pure insertion draws only
+  the added wedge against the spine; a pure deletion only the struck one. An
+  empty side reads as an empty side rather than as a ribbon that failed to
+  draw.
+- **The lens, settled.** The map spans the rows on screen and nothing more,
+  exactly like the two-pane map. The whole-file overview v6 drew here has no
+  counterpart in the two-pane state, so keeping it would have made this a
+  different element again. If a whole-file overview is wanted it is a
+  separate element and a separate decision; that is said in the state's own
+  prose and in the ask.
+- **The strip toggle is gone** and a View menu with `Line numbers` and
+  `One pane` both checked is drawn below the window, with a caption saying
+  why nothing in the window carries the choice: on macOS the menu bar is not
+  in the window. No shortcut is proposed for One pane.
+- **No row moved.** Unified-diff order was already what v6 drew.
+
+### Reworded amendment, the Modalities paragraph
+
+Replacing BPR-0734's proposed text, to follow "and keeps comments beside the
+code;" in RFC-BPR-0028's Modalities paragraph:
+
+> Read presents the comparison in one of two ways: two whole-document panes
+> over the link map, or one document in reading order with the other side's
+> lines kept in place and struck through on their theme field. The link map
+> is the same map in both: with one column it has no second pane to cross
+> to, so it joins the two halves of each change — the struck rows and the
+> added rows — at a spine in the gutter at the left, and a change with an
+> empty side draws one ribbon rather than two. The presentation is a View
+> item beside Line numbers, remembered per window and seeded for a new
+> window from the profile default, and it changes nothing about which lines
+> the comparison contains ([[BPR-0729]], owner direction 2026-09-11 and
+> 2026-09-12).
+
+This is the sentence BPR-0734's version got wrong in two places: it called
+the gutter element a change map and it put the choice in the strip.
+
+### Amendment, AC-05: unchanged
+
+BPR-0734's AC-05 text stands as proposed. The redraw moved the map, not the
+threads: a thread still names a side and a line and still sits against the
+row carrying that identity, and nothing about collision order changed.
+
+### The non-goal, worded
+
+RFC-BPR-0028's non-goal is worded against this state and nothing wider: the
+link map may be extended to the one-pane presentation, where it joins a
+change's two halves in one column instead of joining two panes. The two-pane
+ribbons, the diff themes and the thread map stay settled work. That wording
+is on the RFC.
+
+### Verification
+
+- `chrome --headless=new --window-size=1500,1180 --force-device-scale-factor=2`
+  over the state, rendered and inspected: the two ribbons and the spine land
+  on rows 413 and 422 as drawn, the current change's spine is blue and the
+  other grey, and the View menu renders below the window. A first render was
+  wrong and was fixed rather than described: the new menu block collided with
+  the page's existing `.menu` class, which is `position: absolute` for the
+  epoch line's context menu (`v7:62`), and floated over the window; the new
+  block is `.vmenu`.
+- `verify_documentation.py --root .` is recorded with this card's commit.
+
+### Still to ask
+
+Nothing about this state is settled by silence. The ask carries: the state
+itself; the reworded Modalities amendment and the unchanged AC-05; that
+checking One pane gives Review one pane too, with the flip offered; and that
+the whole-file overview is gone.

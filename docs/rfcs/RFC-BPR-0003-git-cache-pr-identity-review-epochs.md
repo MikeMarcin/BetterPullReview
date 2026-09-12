@@ -78,3 +78,61 @@ The default pane choices are left `Branch base` and right `Latest`. Named compar
 Cache layout, retention, privacy, pruning, epoch identity, force-push limits, base updates, Git safety, and comparison semantics are mandatory.
 
 The documentation ledger must identify functional-core, application-host, and Qt-presentation-adapter ownership; typed intents/events/observations/requests/deltas; authority; concurrency/generation; and any evidence-backed no-impact region.
+
+## Owner direction, 2026-09-12: epoch identity is the pull request's, not the reader's
+
+This RFC is Auto-Verified and its baseline is not reopened by this note. The
+note records a requirement the owner stated on 2026-09-12, and the card that
+carries it.
+
+Asked, after [[BPR-0646]]'s third unjudgeable attended round, whether the
+application should import a pull request's earlier updates or whether the
+epoch line should stay a record of what this install has observed, the owner
+answered neither, verbatim:
+
+> An Epoch is an update to the PR, epochs identity should be stable and
+> repeatable if I look at the PR on different machines. A purely observed
+> epoch is not useful and terribly confusing.
+
+What that changes about this RFC's model, stated plainly so no later reader
+has to derive it again:
+
+- This RFC's epoch is an observation. "A review epoch records base OID, head
+  OID, observed time, ordinal, cause, and material summary" describes what
+  *this install* saw when it read the pull request, and the list grows only as
+  this install reads again. The owner's direction makes the epoch a property
+  of the pull request: the same pull request read on two machines yields the
+  same epochs, with the same identities, in the same order.
+- Importing history is necessary but not sufficient. `core::review_epoch_id`
+  is `{Authority, Incarnation, Ordinal}`
+  (`src/core/include/bpr/core/epoch_model.hpp:444-450`). `Incarnation` is a
+  random value minted per catalogue lifetime, added deliberately by
+  [[BPR-0044]] so recreated ordinals cannot collide with stale ids; `Ordinal`
+  is minted locally by the SQLite scope row under compare-and-swap
+  (`src/adapters/sqlite/src/epoch_catalog.cpp:3030-3045`, `:3147-3156`), in
+  observation order. Both variable parts of the identity are machine-local, so
+  a producer placed behind the existing model would produce a longer list with
+  identities that still differ between machines.
+- The reserved capability this RFC already names — `epoch_origin` and
+  `epoch_primary_cause`'s `explicit_historical_import`, validated in
+  `src/core/src/epoch_transition.cpp` and persisted in
+  `src/adapters/sqlite/src/epoch_catalog.cpp` — has no producer anywhere
+  outside a test. The only place `Origin` is set on a read is
+  `src/application/src/github_window_read_host.cpp:480`, and it writes `live`.
+- The read the product would need does not exist. `GET /repos/{o}/{r}/pulls/{n}`
+  returns one base/head pair; `list_pull_request_commits` exists end to end and
+  is admitted anonymously, but a force push rewrites a commit list rather than
+  appending to it, so commits cannot reconstruct the updates a force push
+  overwrote. The timeline — `headRefForcePushedEvent`, `baseRefForcePushedEvent`,
+  `baseRefChangedEvent` — is asked for nowhere in the tree, and signed out every
+  GraphQL-routed operation is refused by
+  `src/adapters/github/src/github_anonymous_read_admission.hpp:99-108`.
+
+[[BPR-0743]] (Ready, P1) carries the work. It opens with a bounded design pass
+whose two decisions — the derivation of a portable identity, and whether the
+locally minted ordinal moves or stays as the ordering key — are recorded before
+the model changes, because the ordinal is encoded into git retained refs, the
+review ledger, window restoration, the MCP context and the pinned history
+paging. If that pass concludes the change is larger than an owner direction on
+a closed RFC can carry, it comes back for the owner's decision on whether it
+wants an RFC of its own rather than reopening this one from inside a card.

@@ -186,9 +186,15 @@ changes to the diff themes or the link map, except that the link map may be
 extended to the one-pane Read presentation, which is the same map at its limit
 with one column instead of two (owner direction 2026-09-11, rejecting
 [[BPR-0734]] in the v008 attended session: "Relax the non-goals restriction to
-allow extending the link-map in this limit direction"; the two-pane ribbons
-themselves are unchanged, and [[BPR-0745]] words the extension against the
-redrawn state); automatic drawer collapsing without a configured rule; the
+allow extending the link-map in this limit direction"). That extension is this
+and nothing wider: with one column the map has no second pane to cross to, so
+it joins the two halves of each change — the struck rows and the added rows —
+at a spine in the gutter at the left, and a change with an empty side draws one
+ribbon rather than two. The two-pane ribbons, the diff themes and the thread map
+stay settled work, and the one-pane gutter carries no whole-file overview,
+because the two-pane state has none ([[BPR-0745]], the state redrawn in
+[direction v7](../design/RFC-BPR-0028-workbench-direction-v7.html#read-one-pane)).
+Also out of scope: automatic drawer collapsing without a configured rule; the
 Settings pages, the explorers and the file tree, which follow in their own
 design rounds.
 
@@ -497,8 +503,50 @@ Rejected and parked, four of them with new work:
 
 Of this RFC's cards, BPR-0646, BPR-0734 and BPR-0739 are parked on
 human-review; BPR-0653 waits for the Windows station; BPR-0729 waits for the
-design round; BPR-0736 is in Inbox; BPR-0743 is in Backlog behind the owner's
-answer; BPR-0745 and BPR-0746 are Ready. The RFC stays open, and BPR-0646's
-criterion can no longer be closed by preparing another bundle. Next:
-BPR-0745, BPR-0746 and BPR-0744 on main, then a rebuilt bundle and a v009
-packet; BPR-0743's question goes to the owner before its scope is fixed.
+design round; BPR-0736 is in Inbox. The RFC stays open, and BPR-0646's
+criterion can no longer be closed by preparing another bundle. The owner's
+answers of 2026-09-12 are recorded below.
+
+## Owner direction, 2026-09-12 (the answers to the v008 asks)
+
+The four questions the v008 round left open, and the one the round raised,
+were put to the owner directly and answered. They are recorded on their cards;
+what they do to this RFC is here.
+
+**An epoch is an update to the pull request, with an identity stable across
+machines.** Verbatim: "An Epoch is an update to the PR, epochs identity should
+be stable and repeatable if I look at the PR on different machines. A purely
+observed epoch is not useful and terribly confusing." This refuses the option
+of rewording AC-02's attended criterion to match a product that mints one
+epoch per observation, so **AC-02 stands as written**. It is also larger than
+importing history: `core::review_epoch_id` is `{Authority, Incarnation,
+Ordinal}` and both variable parts are machine-local — a random per-catalogue
+incarnation and a locally minted ordinal — so no producer behind the existing
+model satisfies the answer. [[BPR-0743]] carries the work, now Ready and
+specified, against RFC-BPR-0003. [[BPR-0646]] is not asked again on any bundle
+until the epoch line carries the pull request's own updates.
+
+**One pane: unified-diff order, and the choice lives in the View menu.**
+Verbatim: "don't care, unifed diff order is fine" and "Should be in the view
+menu like line numbers". The order [[BPR-0734]] drew stands. The strip toggle
+does not: the choice is a checkable View item beside Line numbers, which in
+this codebase means one scalar with no modality of its own, persisted per
+window and seeded for a new window from the profile default — so checking it
+gives Review one pane too. [[BPR-0745]] draws that in
+[direction v7](../design/RFC-BPR-0028-workbench-direction-v7.html#read-one-pane),
+rewords the Modalities amendment against the redrawn state, leaves AC-05's
+proposed text unchanged, and offers the flip with the ask. The non-goal above
+is worded against that state.
+
+**The seam's hover highlight: not settled.** Verbatim: "I'm not sure what this
+is, but leaning towards keep it." The first clause is the operative one — the
+owner does not know which element was meant — so nothing is decided and the
+highlight is left exactly as it is, which is what the leaning would have asked
+for anyway. [[BPR-0739]] records how it is asked again: by showing the element
+in its two states rather than naming it.
+
+**RFC-BPR-0006's two palette questions are closed**, both answered: the
+standard-library aliases' italic does not matter ("no"), and `CE8AD4` is
+acceptable as the macro purple in place of the reference's `BD63C5` ("yes it's
+acceptable"), so the 4.5:1 floor is not asked to yield. Recorded on that RFC
+and on [[BPR-0738]].

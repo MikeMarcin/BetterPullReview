@@ -241,3 +241,25 @@ Carded as [BPR-0744](../30-in-progress/BPR-0744-preprocessor-directives-are-grey
 This card stays parked on human-review; its criterion is asked again on a
 bundle carrying BPR-0744, with the alias italic and the macro purple repeated
 as the two questions still open.
+
+## Owner answers, 2026-09-12 (mandate r11): both open questions closed
+
+The two questions this card carried into v008 unanswered were put to the
+owner directly. Both are now answered, verbatim.
+
+- **The standard-library aliases' italic.** Asked whether it matters:
+  "**no**". The reference shows `std::string_view` and `path` in italic; the
+  product does not, and does not need to. Nothing to build. The question is
+  closed and is **not** repeated in the v009 packet.
+- **The macro purple.** Asked whether `CE8AD4` is acceptable in place of the
+  reference's `BD63C5` — `BD63C5` reaching only 3.18 against the added fill
+  under the selection wash, where this RFC's floor is 4.5, and `CE8AD4`
+  clearing it at 4.54: "**yes it's acceptable**". `CE8AD4` now stands because
+  it was approved, not because nothing had replaced it. The 4.5:1 floor is
+  not asked to yield. The question is closed and is **not** repeated in the
+  v009 packet.
+
+What remains on this card is one criterion only: the owner accepting a C++
+header on the dark palette in an attended session, asked again on a bundle
+carrying [[BPR-0744]]'s directive ranges. This card stays parked on
+human-review until then.

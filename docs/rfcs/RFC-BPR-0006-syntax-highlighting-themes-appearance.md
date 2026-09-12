@@ -155,3 +155,22 @@ reference's `BD63C5` (which reaches only 3.18 against the added fill under the
 selection wash, where this RFC's floor is 4.5) or whether the floor should
 yield instead. The v008 notes answer neither; `CE8AD4` stands only because
 nothing has replaced it, not because it was approved.
+
+## Owner direction, 2026-09-12 (the two open palette questions, closed)
+
+The two questions the section above left open were put to the owner and both
+are answered, verbatim.
+
+- **The standard-library aliases' italic**: "**no**", it does not matter. The
+  reference renders `std::string_view` and `path` in italic; the product does
+  not and will not be changed to. Closed.
+- **The macro purple**: "**yes it's acceptable**". `CE8AD4` stands in place of
+  the reference's `BD63C5`, and this RFC's 4.5:1 floor on the diff row fills
+  is not asked to yield — `BD63C5` reaches only 3.18 against the added fill
+  under the selection wash, `CE8AD4` clears at 4.54. Closed, and the value now
+  stands because it was approved rather than because nothing had replaced it.
+
+Neither question is repeated in a later attended packet. What remains for the
+owner on this RFC is the single attended criterion [[BPR-0720]] and
+[[BPR-0738]] both carry, asked again on a bundle carrying [[BPR-0744]]'s
+directive ranges.

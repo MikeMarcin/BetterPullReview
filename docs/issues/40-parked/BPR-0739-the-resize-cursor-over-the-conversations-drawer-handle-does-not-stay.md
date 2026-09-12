@@ -178,3 +178,29 @@ The AC1 test itself is unaffected and still passes; only the probe sentence was
 wrong. It is corrected in the record rather than removed, because the d17
 diagnosis leaned on it and BPR-0746 needs to know why the evidence looked
 green.
+
+## Owner answer, 2026-09-12 (mandate r11): the hover highlight, provisionally
+
+Asked whether the `Highlight` hover state should go, since the design asset
+does not draw it, the owner answered verbatim:
+
+> I'm not sure what this is, but leaning towards keep it.
+
+That is a leaning, not a verdict, and the first clause is the part that
+matters: the owner does not know which element the question was about. It is
+not treated as settled, and the hover state is **kept unchanged** in the
+meantime — a leaning towards keep and no change are the same action, so
+nothing is being decided on his behalf by leaving it alone.
+
+The question is asked once more in v009, and differently. Re-asking "should
+the hover highlight go?" would get the same answer for the same reason. The
+v009 ask shows him the element instead: the one-pixel rule at the seam in its
+two states side by side, `QPalette::Mid` at rest and `QPalette::Highlight`
+under the pointer (`workbench_window.cpp:6303-6312`, the pen chosen at
+`:6309`), named as the thing his "at least it draws the seam now" was about.
+Then the question is answerable: the rule is accepted work either way, and
+what is being asked is only whether it should brighten under the pointer when
+the accepted asset draws it at one constant weight.
+
+AC3, the resize cursor, is unchanged and still fails. [[BPR-0746]] carries
+it; see that card for why no product change was attempted this round.

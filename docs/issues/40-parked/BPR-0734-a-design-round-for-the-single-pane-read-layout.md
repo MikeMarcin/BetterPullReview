@@ -174,3 +174,32 @@ The state is redrawn over the link map under
 This card stays parked on human-review; its first criterion is asked again
 from the redrawn state, and its second — BPR-0729 rewritten from an accepted
 state — stays pending behind it.
+
+## Owner answers and the redrawn state, 2026-09-12 (mandate r11)
+
+The two questions this round left open are answered, verbatim:
+
+1. **Block order**: "don't care, unifed diff order is fine". The round's own
+   order stands; no row moves.
+2. **Where the choice lives**: "Should be in the view menu like line
+   numbers". The strip toggle this round drew is wrong, and so, on the
+   faithful reading of the analogy, is "a property of Read with Review
+   keeping two panes": Line numbers is one scalar with no modality dimension,
+   persisted per window and seeded from a profile default
+   (`workbench_interaction.hpp:345`,
+   `workbench_settings_database.cpp:44-101`,
+   `tests/end_to_end/profile_window_layout_public_path_tests.cpp:191-215`).
+   One pane follows it, which gives Review one pane too while it is checked.
+   [[BPR-0745]] carries the derivation and offers the flip with the ask.
+
+Question 3, the gutter map's standing, was answered by the v008 verdict
+itself and is closed.
+
+The state is redrawn as
+[workbench states v7, "Read, one pane"](../../design/RFC-BPR-0028-workbench-direction-v7.html#read-one-pane):
+the gutter carries the link map joining each change's struck and added rows
+at a spine, the whole-file overview is gone, the strip toggle is replaced by
+a View menu drawn below the window, and the Modalities amendment is reworded
+accordingly. This card's first criterion is asked again from that state in
+the v009 packet; v6 and this round's own text stay recorded against their own
+revision, and BPR-0745's candidate does not replace this one.

@@ -642,9 +642,35 @@ verdict. v007 read the same symptom as "this pull request has one update" and
 v008 re-asked on one the owner believed had several; both asks rested on an
 assumption the product does not support.
 
-Carded as [BPR-0743](../10-backlog/BPR-0743-the-epoch-line-shows-only-the-updates-this-install-has-observed.md),
+Carded as [BPR-0743](../20-ready/BPR-0743-the-epoch-line-shows-only-the-updates-this-install-has-observed.md),
 which holds the owner's decision: import a pull request's earlier updates on
 first open, or keep the epoch line a record of what this install has observed
 and reword this criterion to match. This card stays parked on human-review;
 its criterion is not asked again on another pull request until that answer
 lands.
+
+## Owner answer, 2026-09-12 (mandate r11): the criterion stands
+
+[[BPR-0743]] asked the owner to choose between importing a pull request's
+earlier updates and rewording this card's handle criterion. He chose neither,
+verbatim:
+
+> An Epoch is an update to the PR, epochs identity should be stable and
+> repeatable if I look at the PR on different machines. A purely observed
+> epoch is not useful and terribly confusing.
+
+So the criterion is **not reworded**. A handle moving the comparison is the
+right thing to ask for, and a pull request with several updates is supposed
+to draw several nodes; what is wrong is the product, which mints one epoch
+from one observation and gives an identity that is not even stable across a
+catalogue rebuild on this Mac. BPR-0743 carries the work and the established
+facts; the short version is that `review_epoch_id`'s two variable parts are
+both machine-local (`epoch_model.hpp:444-450`, the random incarnation and the
+locally minted ordinal), so a producer behind the existing model would not
+satisfy the answer either.
+
+This card stays parked on human-review. Its criterion is **not** in the v009
+packet and is not asked again on any bundle until the epoch line carries the
+pull request's own updates. Re-asking it on a bundle built today would fail
+for the fourth time for the same reason, which is the owner's time spent to
+learn nothing.
