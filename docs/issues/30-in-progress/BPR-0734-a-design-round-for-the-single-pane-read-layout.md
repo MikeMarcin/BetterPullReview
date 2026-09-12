@@ -11,7 +11,7 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # A design round for the single-pane Read layout
 
-[BPR-0729](../20-ready/BPR-0729-a-single-pane-read-layout-in-the-manner-of-p4merge.md)
+[BPR-0729](../10-backlog/BPR-0729-a-single-pane-read-layout-in-the-manner-of-p4merge.md)
 is a new diff surface and RFC-BPR-0028 says it is amended before the slice
 starts: a design round on the accepted asset, then the Modalities paragraph
 and AC-05. Asked on 2026-09-11 whether that round should start now or after
