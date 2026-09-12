@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0738"
 title: "Macros and functions take the Visual Assist colours on the dark palette"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0006"]
 depends_on: []
 priority: "P2"

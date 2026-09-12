@@ -189,7 +189,7 @@ Session `cbd48b91…`, revision `app-release-64d9e46a-2026-09-11.3` (bundle buil
 
 > It's better but still off macros are still grey, functions arent orange etc
 
-The two application screenshots show this card's values where a role is emitted and [BPR-0726](../60-done/BPR-0726-functions-types-and-macros-are-uncoloured-in-c-and-c-plus-plus.md)'s roles on every call, type and macro; BPR-0726 was accepted thirty-five seconds after this verdict, so the classification is settled and the rejection is the colours. The reference is Visual Studio 2022 dark with Visual Assist, which paints macros purple (`BD63C5` sampled) and functions gold (`FFD700`); this card chose Visual Studio's own `DCDCAA` for functions and, because BPR-0726 classifies an ALL_CAPS macro as the preprocessor role, macros paint the directive grey `A3A3A3`. Carded as [BPR-0738](../20-ready/BPR-0738-macros-and-functions-take-the-visual-assist-colours-on-the-dark-palette.md), which lists the sampled reference values and lets the slice decide whether macros need a role of their own. The reset and the other emitted colours were not disputed.
+The two application screenshots show this card's values where a role is emitted and [BPR-0726](../60-done/BPR-0726-functions-types-and-macros-are-uncoloured-in-c-and-c-plus-plus.md)'s roles on every call, type and macro; BPR-0726 was accepted thirty-five seconds after this verdict, so the classification is settled and the rejection is the colours. The reference is Visual Studio 2022 dark with Visual Assist, which paints macros purple (`BD63C5` sampled) and functions gold (`FFD700`); this card chose Visual Studio's own `DCDCAA` for functions and, because BPR-0726 classifies an ALL_CAPS macro as the preprocessor role, macros paint the directive grey `A3A3A3`. Carded as [BPR-0738](../30-in-progress/BPR-0738-macros-and-functions-take-the-visual-assist-colours-on-the-dark-palette.md), which lists the sampled reference values and lets the slice decide whether macros need a role of their own. The reset and the other emitted colours were not disputed.
 
 This card stays parked on human-review; its candidate is asked again on a bundle carrying BPR-0738.
 
@@ -200,7 +200,7 @@ the v007 reading: in the reference, functions are orange and class/struct
 types are yellow. A per-token resample of the reference agrees (macros
 `BD63C5`, functions `FF8000`, types `FFD700`); the corrected table and the
 values the slice pins are on
-[BPR-0738](../20-ready/BPR-0738-macros-and-functions-take-the-visual-assist-colours-on-the-dark-palette.md).
+[BPR-0738](../30-in-progress/BPR-0738-macros-and-functions-take-the-visual-assist-colours-on-the-dark-palette.md).
 The sentence above that calls functions "gold (`FFD700`)" is the
 misattribution it corrects. This card's candidate is asked again in v008
 on a bundle carrying BPR-0738.
