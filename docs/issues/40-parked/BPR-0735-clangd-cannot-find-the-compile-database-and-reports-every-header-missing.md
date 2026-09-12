@@ -2,11 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0735"
 title: "clangd cannot find the compile database and reports every header missing"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P2"
 metadata: {"owner_direction":"2026-09-11","mandate":"attended-prep-2026-09-10 r7"}
+parked_on: "human-review"
+acceptance: [{"criterion":"AC1 clangd named diagnostics absent","outcome":"pass","revision":"48296f42","evidence":{"kind":"command","detail":"Homebrew clangd 23.1 --check loaded build/dev/compile_commands.json for core epoch_transition.cpp, app/main.cpp and Qt epoch_comparison_control_tests.cpp. None reports missing bpr headers, missing std members or unknown Qt types. Logs build/logs/bpr-0735-d25-{core,app,qt}-final.log. Qt exit 0; core/app exit 3 only from clangd ExtractFunction/ExpandDeducedType tweak feature-test errors, not source diagnostics."}},{"criterion":"AC2 documentation and whitespace","outcome":"pass","revision":"48296f42","evidence":{"kind":"command","detail":"python3 scripts/verify_documentation.py --root . prints DOCUMENTATION_OK; git diff --check clean."}},{"criterion":"AC3 owner editor observation","outcome":"pending","revision":"48296f42","evidence":{"kind":"observation","detail":"Awaiting owner observation in an editor on one named file; no attended session or claim of observation."}}]
 ---
 
 # clangd cannot find the compile database and reports every header missing
