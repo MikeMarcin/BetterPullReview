@@ -12,7 +12,7 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
-## Current frontier, 2026-09-12 (d24, mandate r15): the epoch work has its own RFC
+## Current frontier, 2026-09-12 (d24, mandate r15): the epoch work has its own RFC, and BPR-0742 is Done
 
 Dispatch `attended-prep-2026-09-10` d24 (mandate r15), same milestone
 `attended-preparation-pack-head` of plan `ux-redesign-pack-0028`. The owner
@@ -75,30 +75,67 @@ Checks at `37f9ba90`:
 - `queue --rfc RFC-BPR-0003` is 60 of 60 done again.
 - `queue --human-waiting` no longer lists either card.
 
-### BPR-0742, in progress (`51dac838`)
+### BPR-0742 is Done (`7c6e2ca9` the work, `3b80eea2` the finish)
 
-Claimed at `37f9ba90`, and handed to one standard slice owner. The work:
-reproduce the silence with `PRAGMA user_version=999`, give the window a retained
-report that survives the first projections, and keep BPR-0718's fallback.
+An unreadable workbench layout store now says so. Composition passes each
+window its one availability decision (`!WorkbenchPersistenceAvailable`). The
+window keeps "The saved workbench layout is unavailable." on its status line
+past the projections that clear a host failure. BPR-0718's fallback is
+unchanged: composed defaults, and the store left untouched.
 
-The card's owned paths are `src/app/src/github_application.cpp`,
-`src/adapters/qt/src/workbench_window.cpp` and
-`tests/end_to_end/profile_window_layout_public_path_tests.cpp`. The dev build
-tree was 81 steps stale at the claim.
+- **Reproduced red first**, against the product code at `004ee4ec` with only
+  the course's new assertion: `status=No pull request is open in the
+  workbench.` (`build/logs/bpr-0742-d24-red.log`).
+- **Integration pass, 13 of 13**, on the tree that was committed
+  (`build/logs/bpr-0742-d24-integration.log`):
+  - `application_composition_contract`, 143.89 s;
+  - `application_workbench_composition_contract`, 22.06 s;
+  - `application_review_round_trip_composition_contract`, 11.22 s, with its two
+    source digests repinned for the `github_application.cpp` change;
+  - the layout, restart and multi-window courses;
+  - `qt_workbench_window` and `qt_composed_github`, each at three scales;
+  - `architecture_boundaries`.
 
-After it, three tests rerun: `application_profile_window_layout_public_path`,
-`application_composition_contract` and
-`application_workbench_composition_contract`. If this section is the last thing
-written, BPR-0742 is In Progress with an unknown partial state; inspect
-`git status` and the card before resuming.
+  clang-format is clean on the five touched C++ files. **Both application
+  composition contracts stay green.**
+- **Not rerun:**
+  - The review-restoration course (about 586 s): nothing it asserts reads the
+    status line, and its store is readable.
+  - The `coding-format-check` target, which d23 recorded red at HEAD for three
+    unrelated files.
+- **The slice owner stopped at its turn limit** before returning. No process of
+  its was left running. The integrator inspected its diff and logs, adopted the
+  partial work, and ran the verification above itself.
+
+### Commits, in order
+
+All carry the pack's `Co-Authored-By: Claude Opus 5` trailer. No history was
+rewritten.
+- `10af12bc`: RFC-BPR-0029
+- `17cbd086`: the v009 packet links, paths only
+- `37f9ba90`: BPR-0743 and BPR-0646 rebound
+- `51dac838`: claim BPR-0742
+- `004ee4ec`: the frontier before BPR-0742
+- `7c6e2ca9`: BPR-0742's work
+- `3b80eea2`: finish BPR-0742
+- then this frontier
+
+### Noticed, not created
+
+Two shells running `find / -name bpr-0746-cursor-probe.log`, started by an
+earlier dispatch of this coordinator session, were still running throughout.
+They write nothing to the repository, and this dispatch left them alone.
 
 ### Next, in order
 
-1. BPR-0742 to its boundary, with both composition contracts green.
-2. RFC-BPR-0029's three asks to the owner. Nothing epoch-related can be
-   implemented before A1.
-3. [[BPR-0749]] when the seam is next touched, and [[BPR-0748]] as its own
+1. **RFC-BPR-0029's three asks, to the owner.** A1 is acceptance, A2 is the same
+   commit twice, A3 is an update's date. Nothing epoch-related can be
+   implemented before A1. [[BPR-0743]] is Blocked on the asks, and [[BPR-0646]]
+   waits on BPR-0743.
+2. [[BPR-0749]] when the seam is next touched, and [[BPR-0748]] as its own
    attended candidate.
+3. No v010 packet has been prepared, and nothing forces one. Neither
+   RFC-BPR-0018 nor RFC-BPR-0028 became closable.
 
 d23's frontier follows. It is still authoritative on everything not corrected
 above.
