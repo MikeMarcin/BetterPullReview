@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0750"
+  ],
+  "reserve_for": "rfc-bpr-0029-closeout",
+  "purpose": "Close out accepted RFC-BPR-0029",
+  "created": "2026-09-12T20:02:36.111614+00:00",
+  "base": "5d5df7cd79115b9b4b2f8be6ebdb5392458b9e1d"
+}
