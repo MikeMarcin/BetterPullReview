@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0729"
 title: "A single-pane Read layout in the manner of p4merge"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0028"]
 depends_on: ["BPR-0734"]
 priority: "P1"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"owner_direction":"2026-09-11","attended_session":"cbd48b91000b00f1e72e1ad62c7c384c","attended_decision":"205ac8b2-30fd-4339-8d08-51c621ab7fc8"}
+parked_on: "human-review"
 ---
 
 # A single-pane Read layout in the manner of p4merge
@@ -238,6 +239,42 @@ accepted 2026-09-12 (below); what follows is that state read as work.
   in an attended session. Two of its parts were accepted as words and never
   drawn, so they are shown rather than described in that ask: Review in one
   pane, and a change with an empty side.
+
+## Implementation and verification, 2026-09-12
+
+Source commit `3dcbf237` implements the accepted one-pane presentation. The
+View menu projects the per-window choice without a shortcut; the unified
+source shows base-then-head rows with their own number columns, full-row
+fields, strike and intraline marks, and a left link map with empty-side
+ribbons. Thread anchors remain side-specific in Review. Core, application and
+SQLite carry the setting through schema 7; literal version-6 and interrupted
+migrations preserve older settings. No computed diff policy changed.
+
+The first Qt assertion failed before the unified source existed
+(`build/logs/bpr-0729-d26-surface-red-{build,test}.log`). Independent review
+found that a pure-deletion reading position could jump after a two-pane
+round trip; the added regression reproduced row 70 becoming row 8
+(`build/logs/bpr-0729-d26-review-roundtrip-red.log`), then passed with row
+70 retained exactly at all three scales. Review also found that the
+`qt_composed_github_scale_*` selectors had no one-pane thread case; the new
+GitHub-projected case checks left/right anchors, collision order and a
+rendered crop in each scale.
+
+At the source commit, the 14 focused selectors pass
+(`build/logs/bpr-0729-d26-final-focused.log`), as do
+`application_composition_contract`, `application_workbench_composition_contract`
+and `application_diff_workbench_public_path`
+(`build/logs/bpr-0729-d26-final-contracts.log`). `core_diff_compute` and
+`architecture_boundaries` passed in the pre-correction contract batch and
+were unaffected by the Qt-only correction. `check_boundaries`, touched-file
+`clang-format --Werror`, strict tidy, the documentation gate and whitespace
+checks pass (`build/logs/bpr-0729-d26-{boundaries,format-final,tidy-correction,doc-gate}.log`).
+The fresh one-pane surface, gutter and composed thread crops at 100%, 125%
+and 200% were inspected under `build/dev/tests/adapters_qt/`. These offscreen
+renders do not answer the signed-bundle criterion. The remaining criterion is
+the owner's attended verdict with **Review in one pane** and **an empty-side
+change** shown; no verdict is inferred here. The card is Parked on
+`human-review` until that evidence arrives.
 
 ## Owner direction, 2026-09-11
 
