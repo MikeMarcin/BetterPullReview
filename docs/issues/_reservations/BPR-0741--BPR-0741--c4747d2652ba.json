@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0741"
+  ],
+  "reserve_for": "d17-multi-window",
+  "purpose": "the multi-window public path course is red at HEAD after BPR-0732 (sibling of BPR-0740)",
+  "created": "2026-09-12T01:48:41.045903+00:00",
+  "base": "f58d9de8d19e92ebb33c22fa4f42273271e2e9b2"
+}
