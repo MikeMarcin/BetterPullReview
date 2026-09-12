@@ -672,6 +672,7 @@ These documents change when this RFC is implemented, not before it is accepted:
   retained as historical evidence rather than silently rewritten.
 - [[BPR-0646]] (RFC-BPR-0028) depends on BPR-0743 for its attended handle
   criterion.
-- A closeout card is allocated after acceptance, with its immutable RFC base
-  at the accepted revision. That card remains open until every criterion is
-  directly verified and canonical closeout prerequisites permit it.
+- [[BPR-0750]] is the closeout card, allocated after acceptance with the
+  immutable RFC base `5d5df7cd79115b9b4b2f8be6ebdb5392458b9e1d`.
+  It remains open until every criterion is directly verified and canonical
+  closeout prerequisites permit it.

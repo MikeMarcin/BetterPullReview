@@ -145,7 +145,7 @@ the centre pane.
 One limitation, recorded rather than glossed. This card's AC3 says "on a
 public pull request with more than one update"; the bundle showed one update
 on NVIDIA/stdexec#1846, because a first open yields one epoch
-([BPR-0743](../50-blocked/BPR-0743-the-epoch-line-shows-only-the-updates-this-install-has-observed.md)).
+([BPR-0743](../20-ready/BPR-0743-the-epoch-line-shows-only-the-updates-this-install-has-observed.md)).
 The multi-update condition was preparation for BPR-0646's handle criterion
 and carries no weight here: what this criterion observes is where the row
 sits and whether it holds through the four modalities and the drawer

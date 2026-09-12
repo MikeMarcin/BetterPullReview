@@ -110,7 +110,7 @@ observed epoch is not useful and terribly confusing." The criterion is right as
 written and is not reworded, but the product still mints one epoch per
 observation, so a fourth round on any bundle buildable today would fail for the
 same reason as the previous three.
-[BPR-0743](../../../issues/50-blocked/BPR-0743-the-epoch-line-shows-only-the-updates-this-install-has-observed.md)
+[BPR-0743](../../../issues/20-ready/BPR-0743-the-epoch-line-shows-only-the-updates-this-install-has-observed.md)
 carries the work; the criterion comes back when the epoch line carries the pull
 request's own updates.
 
