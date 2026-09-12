@@ -12,6 +12,36 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
+## Current frontier, 2026-09-12 (d25, mandate r16): owner answers received; engineering in progress
+
+Run `attended-prep-2026-09-10`, dispatch d25, producer
+`/root/integrator_d25`, mandate r16, plan `ux-redesign-pack-0028`, milestone
+`attended-preparation-pack-head`. The clean dispatch baseline was `8302a401`
+on main (28 commits ahead of origin). The v009 attended session handed back at
+362 and released protections at 363; it has no host, watch or process.
+
+The owner **did not accept RFC-BPR-0029 as written**. A2 says A→B→A is two
+occurrences sharing a head, without inventing an occurrence GitHub cannot
+evidence. A3 selects GitHub event time where present, a consistently selected
+commit timestamp otherwise, explicit labels distinguishing commit dates from
+push times, local first-seen kept separate, and deterministic display ordering
+that does not claim equal timestamps establish push order. RFC-BPR-0029 stays
+Proposed; BPR-0743 stays Blocked and BPR-0646 waits on it. A revised proposal
+and its remaining owner ask are in preparation; no epoch product work is
+authorized by these answers.
+
+The owner answered **yes** to BPR-0748's separate syntax question, with the
+specific operator/literal/operand and `#define` boundaries in mandate r16.
+BPR-0748 was promoted and claimed (`a3c9ae4a`, `4a767cef`); its bounded syntax
+slice is owned by `rfc_worker_bpr0748_syntax`. BPR-0749 was promoted and
+claimed (`6bbb49be`, `90aff668`); its independent seam slice is owned by
+`rfc_worker_bpr0749_seam`. Both workers own only their named source/test paths;
+the integrator owns documentation, acceptance, commits, checks and push.
+No worker result has yet been accepted. Do not start overlapping writers.
+
+The d24 frontier below remains the evidence for prior work until superseded by
+this dispatch's completed results.
+
 ## Current frontier, 2026-09-12 (d24, mandate r15): the epoch work has its own RFC, and BPR-0742 is Done
 
 Dispatch `attended-prep-2026-09-10` d24 (mandate r15), same milestone

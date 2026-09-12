@@ -18,18 +18,18 @@ against the closed RFC-BPR-0003, he answered, verbatim:
 
 > It's own rfc
 
-That answer authorizes one thing: writing this document. It does not accept
-the decisions below and it is not approval to build. Nothing here is
-implemented, and no source, schema, read operation or test changed with it.
+That answer authorized writing this document, not building it. In mandate r16
+the owner explicitly **did not accept the first draft as written**. He resolved
+its A2 and A3 questions and required three corrections: separate updates that
+return to the same head, do not count surviving commits as pushes, and never
+present a derived comparison base as the original historical base. The revised
+proposal below incorporates those answers. It still awaits one acceptance
+answer under Owner ask; no epoch source, schema, read operation or test has
+changed under this RFC.
 
-Nothing is built until the owner has answered the three asks under Owner asks
-at the end of this document. The first is whether he accepts it. The other two
-decide what identifies an epoch and what its date is, and those are the first
-things any implementation writes.
-
-The engineering questions that remain are recorded under Open questions, as
-open. Each is answered in this document, with its evidence, before the
-acceptance criterion it governs is claimed.
+The engineering questions that remain are recorded under Open questions. They
+require evidence before the acceptance criterion they govern is claimed; they
+are not additional owner questions by default.
 
 The substance is the design pass recorded on [[BPR-0743]] (its AC1, at
 `f953ce9c`). That card carries the implementation. [[BPR-0646]]'s attended
@@ -59,12 +59,13 @@ Three requirements follow. RFC-BPR-0003's note of the same day reads
    list is.
 2. **An epoch's identity is the same on every machine** that reads the same
    pull request.
-3. **The reading is repeatable**: two machines reading the same pull request
-   hold the same epochs, with the same identities, in the same order.
+3. **The reading is repeatable where evidence permits**: two machines identify
+   the same *known occurrence* the same way and present a deterministic order.
+   The line declares gaps and ambiguity instead of manufacturing missing
+   occurrences or claiming a commit date proves push order.
 
-The first two are reachable. The third is reachable for identity, is not
-reachable in full for population (Decision 3), and has no design yet for order
-(open question 5).
+No GitHub read can recover every ordinary push boundary or every overwritten
+head. Equal population is therefore impossible in general (Decision 3).
 
 ## Relationship to RFC-BPR-0003
 
@@ -77,16 +78,14 @@ While this RFC is Proposed, nothing in RFC-BPR-0003 is superseded. Once
 accepted, this RFC **supersedes RFC-BPR-0003 in part**, and only in two
 respects:
 
-- **What identifies an epoch.** RFC-BPR-0003's core "stores stable epoch
-  identities", and in the shipped model that identity is `review_epoch_id`.
-  Under this RFC, `review_epoch_id` is the catalogue's local storage key. The
-  identity the product may claim is the same on two machines is the derived
-  identity of Decision 1, carried beside it.
-- **What base OID and observed time mean for an imported epoch.** RFC-BPR-0003's
-  rule "A review epoch records base OID, head OID, observed time, ordinal,
-  cause, and material summary" was written for observations. For an epoch
-  imported from the pull request's history, this RFC decides what the base OID
-  is (Decision 4, open question 4) and what its time is (open question 5).
+- **What identifies an epoch.** RFC-BPR-0003's `review_epoch_id` remains a
+  catalogue-local storage key. A separate, versioned occurrence identity
+  identifies only a PR update supported by sufficient evidence (Decision 1).
+- **Historical base and time.** RFC-BPR-0003's observed base and observed time
+  remain truthful for live observations. An imported occurrence may have no
+  known historical base. Its derived comparison base, when available, is a
+  distinct fact, and its event or commit date is distinct from local first-seen
+  time (Decisions 4 and 7).
 
 Everything else in RFC-BPR-0003 stands unchanged:
 - the app-owned bare caches and the Git policy;
@@ -98,13 +97,12 @@ Everything else in RFC-BPR-0003 stands unchanged:
 - the non-goal "Reconstructing a head that BetterPullReview never observed and
   GitHub no longer exposes", which this RFC keeps and on which Decision 3 rests.
 
-An epoch this install observes live keeps exactly the meaning RFC-BPR-0003
-gives it.
+An epoch this install observes live retains RFC-BPR-0003's local record,
+including its observed base and time. Portable occurrence fields are separate.
 
-This is a document of its own, not an amendment under the closed RFC, because
-of what the work touches. RFC-BPR-0003's epoch sentence pins six things, and
-this work moves four of them: identity, base OID, observed time, and the
-catalogue schema version that stores them.
+This is a document of its own because occurrence identity, historical evidence,
+comparison availability and catalogue migration change the model beyond the
+closed RFC's local-observation scope.
 
 ## Why today's epoch cannot meet it
 
@@ -202,39 +200,41 @@ That is why open questions 2 and 3 are open.
 These are the design pass's decisions, proposed and not yet accepted. Decision 1
 corrects the design pass in one place, and says so.
 
-### Decision 1: the identity is a digest of the pull request and the update's head
+### Decision 1: identify evidenced update occurrences, not only heads
 
-> The portable epoch identity is a versioned digest over the pull request's
-> provider identity and the update's head commit OID, with its object format.
-> It is carried beside `review_epoch_id`, not inside it.
+> A versioned occurrence identity is a digest of canonical host name, GitHub's
+> numeric pull request id, and a typed occurrence discriminator. A force-push
+> event uses its numeric REST `id` (and after-head OID as a consistency check).
+> An ordinary update seen as a live head transition uses the head OID in a
+> distinct `observed-head` namespace. A bare surviving commit is never an
+> update occurrence. `review_epoch_id` remains the local storage key.
 
-**Correction.** The design pass wrote "a digest over the pull request's
-authority scope and the update's head OID". Read literally, the authority scope
-is `pull_request_authority_scope_id`, which is random and partitioned by
-account, so a digest over it would differ between machines. The inputs must be
-the provider's identity of the pull request: a host term (open question 7) and
-GitHub's numeric pull request id.
+The first draft's head-only digest collapses A→B→A. The owner answered that
+these are **two** update occurrences sharing A's head. When both returns have
+distinct GitHub force-push event ids, the event keys distinguish them. The
+first observed A and a later force-push event returning to A also have
+different typed keys. If the event or live transition needed to distinguish
+two occurrences is absent, the reader reports an **ambiguous/incomplete
+history**; it does not mint a second occurrence from a commit row, timestamp
+or local observation count. A head snapshot with no proven transition is
+provisional until the timeline and live history can reconcile it to one
+occurrence. Two readers can claim equal portable identity only for the same
+evidenced occurrence. This is the unavoidable limit of the REST evidence, not
+a claim that two reader populations are equal.
 
-Every locally minted or reader-specific value is excluded:
-- the authority scope;
-- the incarnation;
-- the ordinal;
-- `git_host_id`;
-- the profile, the account and the viewer;
-- the access mode;
-- the observed time.
+The host term is the validated canonical hostname from the accepted handoff,
+not `git_host_id` or the locally partitioned host-authority fingerprint.
+GitHub's numeric pull request id is already normalized into `pull_request_id`
+(open question 7 records the migration limit). The identity includes the Git
+object format with a head discriminator. It excludes the local authority
+scope, incarnation, ordinal, profile, account, viewer, access mode and local
+first-seen time. It also excludes the base OID, which can change while the
+head remains the same.
 
-**Not the timeline event's `node_id`.** It exists only for force pushes, so the
-current head usually has none. It is also exactly the kind of opaque provider
-token the catalogue excludes by design (`catalog_database.cpp:86-88`).
-
-**Not the base/head pair.** The base OID changes over time even for a live
-read. Two installs reading an hour apart, with the base branch advancing in
-between, record different bases for the same head. Putting the base into the
-identity would bring back the machine-locality the owner asked to remove.
-
-Under this rule, a force push back to an earlier head gives two updates one
-identity. That is open question 1 and owner ask A2.
+The force-push `node_id` is not used: it is an opaque provider token and is
+absent for ordinary updates. The numeric event `id` is normalized by the
+GitHub adapter and stored only as a fixed-width value or digest, consistent
+with the catalogue's no-opaque-token rule (`catalog_database.cpp:86-88`).
 
 ### Decision 2: the ordinal is not redefined
 
@@ -263,7 +263,7 @@ identity. That is open question 1 and owner ask A2.
 The amber last-review tick matches by head OID, not by ordinal, so it is
 unaffected (`src/adapters/qt/src/epoch_line.cpp:131-135`, `:163-174`).
 
-### Decision 3: identity can be stable; population cannot be made equal
+### Decision 3: show known updates and declare missing boundaries
 
 Suppose machine A opens the pull request and observes head X, which arrived by
 an ordinary push. The author then force-pushes to Y. Machine B opens the pull
@@ -275,55 +275,73 @@ X nowhere:
 
 No read B can make recovers X.
 
-So A legitimately holds an epoch that B cannot derive. With a derived identity,
-the two agree on every update both can see, and A holds one more. The statement
-the product can make is:
+So A legitimately holds an update that B cannot derive. The same limit applies
+to ordinary pushes that the two readers did not observe: GitHub's surviving
+commit list does not say whether several commits arrived in one push or in
+several. One `committed` item is **not** one epoch. Import only force-push
+events whose after-head is given, plus an actual live head transition; use the
+current head snapshot as a provisional latest occurrence when necessary. Do
+not synthesize boundaries between surviving commits. The statement the
+product can make is:
 
-> Identity is the same on every machine. Population is best-effort, and the
-> epoch line says when the history it holds may be partial.
+> The same evidenced occurrence has the same identity on every machine.
+> Population is best-effort, and the epoch line says when history is incomplete
+> or an occurrence cannot be uniquely matched.
 
-History may be partial in two situations:
+History is incomplete or ambiguous when:
 - the timeline read failed, was refused, or was cut off by the page cap (open
   question 3);
-- a force push overwrote updates this install did not see.
+- a force push overwrote updates this install did not see;
+- ordinary push boundaries were not observed or a current head cannot be
+  uniquely associated with a force-push event.
 
 How the line says so is RFC-BPR-0028's presentation and part 2 of
 [[BPR-0743]]. This RFC requires only that the fact be representable.
 
-### Decision 4: every epoch keeps a base OID
+### Decision 4: distinguish historical base from comparison base
 
-> A base OID stays required for every epoch, live or imported. A head-only epoch
-> is not proposed.
+> A live epoch keeps its observed base. A historical update whose original base
+> is not evidenced records that base as **unknown**. If a comparison can be
+> built, its computed merge base is separately named `derived comparison
+> base`; it is never shown or persisted as the original historical base. An
+> update with no usable comparison base remains visible with comparison
+> unavailable.
 
-Today the requirement is the same whatever an epoch's origin:
+Today's live-epoch requirement is origin-blind, so implementation must give a
+historical occurrence an explicit optional-anchor representation rather than
+stuffing a guessed value into the existing base field:
 - core requires `BaseBranch`, `Base` and `Head` to be valid for any accepted
   revision (`epoch_transition.cpp:2199-2218`);
 - `plan_epoch_mutation` rejects a revision that fails this (`:2470-2481`);
 - `valid_summary` repeats the check (`:2284-2300`);
 - the schema makes `epoch_anchor.object_digest` `NOT NULL` and non-zero.
 
-The timeline supplies no base for a historical update, which leaves three
-options:
+The timeline supplies no base for a historical update. The options are:
 
 - **Rejected: the base ref's OID at import time.** Two machines importing on
   different days would record different bases for the same update, and the
   epoch would claim a base that was not its base.
-- **Candidate only: merge-base(head, base ref).** It is deterministic for the
-  same commit graph and can be computed through the existing cache. But it turns
-  the base from an observed value into a derived one, it moves if the base
-  branch is rewritten, and it is unvalidated (open question 4).
-- **Not proposed: a head-only historical epoch.** It would change core
-  validation, `valid_summary` and the schema, and so change what an epoch is.
-  It comes back to the owner only if the candidate fails validation.
+- **Proposed: optional historical anchor.** An occurrence can be named and
+  shown from its event and head even when the historical base is unknown. The
+  core and storage distinguish an update occurrence from a comparison-ready
+  epoch; the existing live epoch rows and their invariants remain intact.
+- **Derived comparison candidate:** `merge-base(head, selected base ref)` may
+  support a diff through the app-owned cache. It is versioned with the base-ref
+  selection and can change after a base rewrite, so no portability or
+  historical-truth claim is made for it. Validation remains open question 4.
 
-An imported epoch's base-branch identity has the same gap when the base branch
-was changed, because the `epoch` table also requires it (open question 2).
+An imported occurrence's historical base-branch identity is likewise unknown
+unless the timeline proves it (open question 2). The interface labels the
+comparison base and its unavailable state; it never quietly substitutes the
+current base ref as the historical one.
 
-### Decision 5: migrate by adding the identity, not by rebuilding
+### Decision 5: lossless migration may leave identity unresolved
 
-> Add the portable identity as a new column on `epoch`, backfill it for existing
-> rows, and let imports append with fresh ordinals. Nothing is re-minted and
-> nothing is renumbered.
+> Add occurrence evidence and an optional portable identity beside the current
+> epoch rows. Preserve every existing row, local key, incarnation and ordinal.
+> Backfill only when host and occurrence evidence suffice; mark other legacy
+> rows unresolved until a later read can associate them uniquely. Never assign
+> one portable key to two distinct local rows merely because heads match.
 
 `migrate_schema` (`catalog_database.cpp:1018-1062`) rebuilds the versions it
 knows. It carries the incarnation forward verbatim (`:1045`, `:822-823`) and
@@ -337,15 +355,26 @@ would orphan data:
   (`src/adapters/sqlite/src/review_ledger_database.cpp:243-244`), and the MCP
   and agent-launch bindings already emitted.
 
-Appending works because the catalogue already separates the newest live epoch
-from the highest ordinal. An imported epoch consumes an ordinal but advances
-neither `latest_live_ordinal` nor `previous_distinct_head_ordinal`
-(`epoch_catalog.cpp:4564-4568`). The price is that ordinal order stops being
-chronological, which is why order needs its own design (open question 5).
+The `epoch` and `epoch_anchor` tables store the head and local observation,
+while `pull_request_scope` stores GitHub's numeric PR id. They store neither
+the canonical hostname nor a GitHub event id. `repository_scope.host_authority`
+is a locally partitioned fingerprint, not a portable hostname. Thus a blanket
+offline head-only backfill in the first draft is **not lossless identity
+backfill**. A live accepted handoff supplies the validated hostname; a
+subsequent timeline read may associate an old row with an event only when the
+association is unique. Ambiguous rows stay intact and explicitly unresolved.
+
+Where a historical occurrence is comparison-ready and represented by an
+imported epoch, it may consume a fresh local ordinal but advances neither
+`latest_live_ordinal` nor `previous_distinct_head_ordinal`
+(`epoch_catalog.cpp:4564-4568`). A head-only occurrence may require a separate
+record until it can be compared. The local ordinal never claims chronological
+order.
 
 Because the migration refuses unknown versions by design, a build older than
-the new schema version refuses a migrated catalogue. What backfill can compute
-from the catalogue alone is open question 7.
+the new schema version refuses a migrated catalogue. The migration must be
+tested on a copy of a current-version file with duplicate-head history and
+unresolved GHES host provenance, in addition to the current reference checks.
 
 ### Decision 6: one new anonymous REST read
 
@@ -364,26 +393,39 @@ requests against the limit of 60 per hour
 ([RFC-BPR-0017](RFC-BPR-0017-unauthenticated-public-review-read.md)). An open
 that cannot make the read still produces today's live epoch.
 
+### Decision 7: labeled dates and deterministic display order
+
+> Use GitHub's `created_at` as the event time of a force-push occurrence. Where
+> no GitHub event time exists, use the head commit's **committer timestamp**
+> consistently and label it `commit date`, never `push time`. Preserve the
+> local first-seen time separately. Display order uses the selected UTC time,
+> then a stable typed occurrence key as a tie-breaker; the tie-breaker is not
+> evidence of push order.
+
+This adopts the owner's A3 answer. Commit author dates in `committed` timeline
+items are not push times; the commit object has both author and committer
+timestamps, and this proposal selects the committer timestamp for every
+no-event occurrence. An unavailable commit timestamp leaves an undated item
+in a deterministic key order and marks history incomplete. The line labels
+the source of each date. Equal timestamps, and even unequal mixed event/commit
+timestamps, do not prove the relative order of two pushes. Local ordinal and
+first-seen remain catalogue facts, not portable chronology.
+
 ## Open questions
 
-Each question below is open. Each is answered in this document, with its
-evidence, before the criterion it governs is claimed. Questions 1 and 5 need the
-owner and are asked under Owner asks. The rest are engineering questions, to be
-settled by probe, measurement or build.
+The owner resolved the first draft's A2 and A3. The items below are engineering
+questions or evidence tasks; each needs a recorded result before its governed
+acceptance claim. An unexpected policy choice returns as one concrete ask,
+without treating the current proposal as accepted.
 
-### 1. Head collision
+### 1. Repeated-head reconciliation
 
-If a pull request is force-pushed back to a head it had before, two updates
-share a head OID, and Decision 1 gives them one identity. Whether that is one
-epoch or two depends on what the owner means by "an update to the PR". The code
-cannot settle it (owner ask A2).
-
-If the answer is two, the identity needs a second term that is also the same on
-every machine. A force-push event's `created_at` is such a term, but the earlier
-occurrence may have arrived by an ordinary push, which has no event (limit 3).
-The nearest existing constraint is the unique index
-`epoch_source_revision(incarnation, source_observation)`
-(`catalog_database.cpp:224-228`).
+Resolved rule: A→B→A is two occurrences with one repeated head. A distinct
+force-push event id is sufficient evidence of a second occurrence; a surviving
+commit or equal head alone is not. The engineering task is to reconcile a live
+snapshot with a timeline event only when the association is unique, and to
+retain ambiguity otherwise. A recorded A→B→A fixture must exercise both the
+known and the missing-event cases.
 
 ### 2. Base-branch events have not been observed
 
@@ -412,38 +454,28 @@ measurement on a long-lived public pull request and a stated cap. If the cap
 would hide updates a reviewer expects to see, the question comes back to the
 owner.
 
-### 4. Merge-base validation
+### 4. Comparison-base validation
 
-Merge-base(head, base ref) is Decision 4's candidate, and it is unvalidated.
+Merge-base(head, selected base ref) is Decision 4's **derived comparison**
+candidate, never the original historical base. It is unvalidated.
 These are not established:
-- that it equals the base this install observed live for the same head;
+- when it permits a useful diff and when it should be unavailable;
 - what it yields after the base branch is rewritten;
 - how deep the cache must fetch the base branch to compute it;
 - what it means for a criss-cross history with more than one merge base.
 
-This is settled by comparing the candidate against live-observed epochs,
-including one across a base force push. If it fails, Decision 4 comes back for
-a new decision rather than defaulting to a head-only epoch.
+This is settled against live-observed epochs and a base-force-push fixture,
+including a case with no computable base. A mismatch is labeled as a
+comparison difference and never rewritten as the historical base.
 
-### 5. The date, and with it the order
+### 5. Date source and order proof
 
-- **Force push.** GitHub's `created_at` is the same on every machine, and this
-  install's observed time is not.
-- **Ordinary push.** The probed route records no push time at all (limit 3).
-  The only dates every machine sees are the ones written into the commit
-  (limit 2).
-- **Order.** The architecture treats observed time as display and diagnostics
-  only, and says "Ordinal and catalog revision define ordering"
-  ([git and epoch model](../architecture/git-and-epoch-model.md), "Epoch facts
-  and cause policy"). After Decision 5, ordinal order is the order in which this
-  install observed and imported updates, and that is not the same on two
-  machines.
-
-The design pass states that order is stable across machines, but nothing in it
-defines an ordering key that is the same on every machine. What the line's
-dates mean is owner ask A3. The ordering key is an engineering choice that
-depends on that answer. Writing GitHub's push time into `observed_at` before
-the choice is made would be either a redefinition or a falsehood.
+Resolved policy is Decision 7. Engineering must verify that the chosen
+committer timestamp is available from the cache for the head; normalize it to
+UTC; and test deterministic tie-breaking for equal timestamps, two force-push
+events with the same head, and conflicting event/commit date order. The UI must
+never call this tie-break a known push sequence. `observed_at` remains local
+first-seen and is not overwritten with a GitHub or commit time.
 
 ### 6. The read's site list is unbuilt
 
@@ -474,75 +506,79 @@ is therefore likely to need a scripted exchange there too.
 The list is a search result, not a proof. The switches are exhaustive with no
 default, so the build is what shows the list complete.
 
-### 7. The host term, and what backfill can compute
+### 7. Host term and backfill limit
 
-Decision 1 needs a host term that is the same for every reader of the same
-host, and `git_host_id` is not one (What is established). The handoff carries a
-canonical hostname and a host authority fingerprint
-([git and epoch model](../architecture/git-and-epoch-model.md), "Pull-request
-authority and revision"). Not yet decided: which of the two to use, how it is
-normalized, and what happens to a GitHub Enterprise Server reached under two
-names.
+Source inspection at d25 settles the new-read term and the offline limit.
+`accepted_pull_request_handoff.Hostname` is a validated lowercase DNS-style
+canonical hostname (`github_window_read_host.cpp:459`,
+`github_host_authority.hpp:50`); the catalogue stores no hostname.
+`pull_request_scope.pull_request_id` is the provider's numeric REST `id`
+(`github_paged_read.cpp:2390`, `epoch_catalog.cpp:1123`). Existing `epoch`
+rows have only local `source_observation`, local time, and base/head anchors;
+they have no event occurrence id (`catalog_database.cpp:186-248`).
 
-It is also not established that the catalogue holds enough to backfill
-existing rows without a network read. The catalogue stores a head OID per epoch
-and a `pull_request_id` per scope. It is not known whether that stored id is
-the provider value, or whether any host term is stored. If backfill cannot be
-computed locally, it waits for the next read of each pull request.
+Therefore an offline migration cannot assign all rows a portable identity.
+Whether an old GHES scope can be mapped safely through a separate durable
+profile record is unproved; aliases for one GHES installation remain a
+cross-host naming policy question. Until proved, those rows stay unresolved.
+No reader-specific fingerprint may be silently used as a substitute.
 
-## Owner asks
+## Owner answers and remaining ask
 
-Each ask is one question. Nothing is built before A1 is answered yes. A2 and A3
-decide the identity and the order, which are the first things implementation
-writes.
+**A1, 2026-09-12:** The owner supports portable identity, partial-history
+reporting and lossless migration, but **does not accept the first draft as
+written**. He requires separate updates reaching the same head, known PR
+updates rather than surviving commits counted as pushes, and an honest
+separation of derived comparison base from original historical base.
 
-**A1. Acceptance.**
+**A2:** A→B→A is two occurrences sharing a head. Never invent an occurrence
+without GitHub evidence; report incomplete history. Decisions 1 and 3 reflect
+this answer.
 
-> Do you accept RFC-BPR-0029 as the plan for the epoch work? Under it, each
-> update's identity comes from the pull request and that update's commit, so it
-> is the same on every machine. The list is the pull request's updates as far as
-> GitHub still shows them, and it says when it may be missing some. Every update
-> keeps a base commit, and existing catalogues gain the new identity without
-> losing anything.
+**A3:** Use GitHub event time where available and a consistently selected
+commit timestamp otherwise. Label commit dates as commit dates, not push
+times; keep local first-seen separate. Deterministic order is separate from
+the timestamp label, and equal timestamps do not establish push order.
+Decision 7 selects committer time and a stable tie-break.
 
-**A2. The same commit twice.**
+**One remaining question, on this revised proposal:**
 
-> If a pull request is force-pushed back to a commit it already had earlier, is
-> that one update on the epoch line, or two?
+> Do you accept the revised RFC-BPR-0029 as the plan for the epoch work: only
+> evidenced PR update occurrences get portable identities, missing ordinary
+> push boundaries are reported as incomplete, unknown historical bases remain
+> unknown while computed comparison bases are labeled separately, and existing
+> catalogue rows migrate without loss even when some identities cannot yet be
+> resolved?
 
-**A3. An update's date.**
-
-> GitHub's timeline says when a force push happened, but not when an ordinary
-> push did. For an ordinary push, the only date every machine sees is the one
-> inside the commit. Should the epoch line show dates that are the same on every
-> machine (GitHub's time for a force push, the commit's own date otherwise), or
-> the time this app first saw each update, which differs from machine to
-> machine?
+Until this receives an explicit yes, the RFC remains Proposed, BPR-0743 stays
+Blocked, and no epoch implementation or closeout-ID allocation proceeds.
 
 ## Architectural allocation
 
-- **Core** owns the portable identity type, its derivation as a pure function
-  of provider-side inputs, the legality of an imported epoch, validation of the
-  base OID rule, and the partial-history fact. It has no clock, network or Git.
+- **Core** owns the typed occurrence identity, evidence/ambiguity state,
+  historical-base versus derived-comparison-base distinction, deterministic
+  ordering key and partial-history fact. It has no clock, network or Git.
 - **Host** owns the timeline read and its cap, the merge-base computation
-  through the app-owned cache, the migration and backfill, and time as explicit
+  through the app-owned cache, event/live reconciliation, and time as explicit
   input.
 - **GitHub adapter** owns the new anonymous REST operation, its admission,
-  paging and normalizer.
-- **SQLite adapter** owns the schema version, the identity column and the
-  backfill.
-- **Qt adapter** presents epochs and the partial-history fact, and derives
-  nothing.
+  paging and normalized numeric event id.
+- **SQLite adapter** owns the schema version, optional occurrence identity,
+  provenance and lossless migration/backfill.
+- **Qt adapter** presents update occurrences, comparison availability, labeled
+  time source and incomplete-history fact, and derives nothing.
 
 ## Prohibited designs
 
 - Any locally minted or reader-specific value in the portable identity: the
   authority scope, the incarnation, the ordinal, `git_host_id`, the profile,
   the account, the viewer or the access mode.
-- The timeline event's `node_id` as the identity.
-- The base ref's OID at import time, recorded as a historical epoch's base.
-- GitHub's push time written into `observed_at` before open question 5 is
-  settled.
+- The timeline event's opaque `node_id` as the identity, or a head-only digest
+  assigned to two known occurrences sharing a head.
+- One epoch per surviving commit, or inferred ordinary push boundaries.
+- The base ref's OID at import time or a computed merge base recorded or shown
+  as the original historical base.
+- GitHub event or commit time written into local `observed_at`/first-seen.
 - Re-minting the incarnation or renumbering ordinals in order to migrate.
 - A GraphQL route for the history, which is refused signed out.
 - An epoch line that presents a partial history as complete.
@@ -563,13 +599,14 @@ writes.
 
 ## Acceptance criteria
 
-- Two independent catalogues that read the same public pull request, whose
-  history contains at least one force push, through the host and not a widget
-  fixture, hold the same portable identity for every update both can see, in
-  the same order.
-- The portable identity of an update is equal whether the update was read signed
-  in or signed out, and does not change when the catalogue is deleted and
-  recreated.
+- Two independent catalogues reading the same force-push history through the
+  host assign equal identities and deterministic order to the **same evidenced
+  occurrences**. A→B→A yields two distinct identities for A. A missing event
+  never yields a fabricated second A, and the history declares the gap.
+- An ordinary live transition yields one occurrence per observed transition,
+  not one per surviving commit. Its portable identity agrees across signed-in,
+  signed-out and recreated catalogues when the same occurrence is unambiguous;
+  ambiguous snapshots remain marked unresolved.
 - A live read that finds a new head for the same pull request still appends an
   author-upload epoch, and an imported epoch advances neither the latest live
   ordinal nor the previous distinct head ordinal.
@@ -577,13 +614,18 @@ writes.
   install that observed it. The epoch line says when the history it holds may
   be partial: when the timeline read failed, was refused or was cut off by the
   page cap, or when a force push overwrote updates this install did not see.
-- Every epoch, live or imported, carries a valid base OID derived by the rule
-  this RFC settles, and no imported epoch records the base ref's OID at import
-  time as its base.
-- A catalogue at the current schema version migrates by adding and backfilling
-  the identity. No incarnation is re-minted and no ordinal is renumbered, and
-  review-ledger, window-restoration, retained-ref, MCP and agent-launch
-  references to existing epochs still resolve.
+- Live epochs retain their observed base. An imported occurrence with no
+  evidenced historical base shows `unknown`; a computed comparison base is
+  separately labeled and comparison can be unavailable. No imported row
+  claims the current base ref or merge base was its original historical base.
+- Event dates are labeled GitHub event times, other dates commit dates, and
+  first-seen remains local. Equal timestamps have a deterministic tie-break
+  without a false push-order claim.
+- A current-version catalogue migrates without changing any old epoch row's
+  identity key, incarnation or ordinal. Unresolvable host or duplicate-head
+  provenance remains explicitly unresolved; review-ledger,
+  window-restoration, retained-ref, MCP and agent-launch references to old
+  epochs still resolve.
 - The history read is anonymous REST and stays within a stated page cap, and an
   open that cannot make the read still produces today's live epoch.
 - BPR-0646's attended handle criterion is asked again, unchanged, on a signed
@@ -593,12 +635,14 @@ writes.
 
 | Claim | Direct surface | Proof |
 |---|---|---|
-| Identity is the same on two machines | Epoch host over two fresh SQLite catalogues | Recorded pull request and timeline responses for a force-pushed pull request, read into both; identities and order compared |
-| Identity excludes local values | Epoch host | The same update read signed in, signed out, and after the catalogue is recreated; identities compared |
+| Known occurrence is the same on two machines | Epoch host over two fresh SQLite catalogues | Recorded A→B→A force-push timeline read into both; two A occurrences remain distinct and corresponding identities/order agree |
+| No invented ordinary push | GitHub adapter plus epoch host | Several surviving commits delivered in one push versus several observed head transitions; only evidenced transitions become occurrences and missing boundaries are declared |
+| Identity excludes local values | Epoch host | The same unambiguous update read signed in, signed out, and after the catalogue is recreated; identities compared; ambiguous legacy snapshot stays unresolved |
 | Live append is unchanged | Epoch host | A second live handoff with a new head; cause and live ordinals inspected |
 | Partial history is declared | Composed application | Timeline read failed, refused and capped, and a force push over an unseen update; the line's state inspected |
-| The base OID rule holds | Core plus the app-owned cache | The rule's base compared with live-observed bases for the same heads, including across a base force push |
-| Migration loses nothing | SQLite catalogue, on a copy of a current-version file | Ledger, restoration, ref and binding references resolved after migration; incarnation unchanged |
+| Historical base is not fabricated | Core plus app-owned cache and composed presentation | Event with no historical base stays unknown; optional merge base is labeled derived; rewritten or missing base makes comparison change or unavailable, not historical truth |
+| Date and order labels are honest | Epoch host plus composed presentation | Event time, committer time, local first-seen, equal timestamps and conflicting mixed dates are separately asserted; stable tie-break never claims push order |
+| Migration loses nothing | SQLite catalogue, on copies of current-version files | Legacy duplicate-head and GHES-without-host rows remain unresolved; ledger, restoration, ref and binding references resolve; incarnation/ordinals unchanged |
 | The read is bounded | Anonymous transport | Requests per open counted against recorded pages; the cap stops the read |
 | The owner can judge it | Signed bundle | BPR-0646's handle criterion asked in an attended session |
 
@@ -619,10 +663,10 @@ These documents change when this RFC is implemented, not before it is accepted:
 
 ## Cards
 
-- [[BPR-0743]] carries the implementation. It is Blocked on the owner's answers
-  to A1, A2 and A3. Its AC1 is the design pass this RFC records.
+- [[BPR-0743]] carries the implementation. It is Blocked on acceptance of this
+  revised proposal; A2 and A3 are answered. Its AC1 is the earlier design pass,
+  retained as historical evidence rather than silently rewritten.
 - [[BPR-0646]] (RFC-BPR-0028) depends on BPR-0743 for its attended handle
   criterion.
 - No closeout card is allocated while this RFC is unaccepted. One is allocated
-  when the owner accepts it, with its immutable RFC base at the accepted
-  revision.
+  only after acceptance, with its immutable RFC base at the accepted revision.

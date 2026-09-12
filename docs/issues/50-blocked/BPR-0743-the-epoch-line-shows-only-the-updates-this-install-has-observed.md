@@ -663,3 +663,37 @@ The RFC also carries as open everything this pass left open or did not reach:
 - the unbuilt site list for the new read, where a search finds one site the list
   omitted (`src/app/src/large_review_fixture.hpp:305`);
 - the host term, and what backfill can compute.
+
+## Revised proposal after owner answers, 2026-09-12 (d25, mandate r16)
+
+The owner **did not accept RFC-BPR-0029 as written**. Support for portable
+identity, partial-history reporting and lossless migration was conditional on
+correcting three errors: separate updates can reach the same head; surviving
+commits are not a count of pushes; and a computed comparison base must never
+be presented as the original historical base. His A2 answer is that A→B→A
+contains **two** occurrences sharing A's head, but no occurrence may be
+invented without GitHub evidence. A missing boundary is reported as incomplete
+history. His A3 answer selects GitHub event time where available and a
+consistently selected commit timestamp otherwise, labeled as a **commit date**
+and never a push time; local first-seen remains separate, and deterministic
+ordering cannot claim equal timestamps prove push order.
+
+[RFC-BPR-0029](../../rfcs/RFC-BPR-0029-machine-independent-epoch-identity-update-history.md)
+now proposes typed occurrence identities (numeric GitHub force-push event id
+where recorded, head identity for an unambiguous live transition), no epochs
+inferred per surviving commit, unknown historical base separate from an
+optional derived comparison base, and migration that preserves legacy rows
+even when their portable occurrence identity cannot safely be backfilled.
+Existing catalogue rows lack both hostname and GitHub event id; the proposal
+records that engineering limit rather than assigning duplicate heads one
+identity. The committer timestamp is the RFC's consistent no-event date
+choice, subject to code-path verification before implementation acceptance.
+
+This card remains **Blocked on `rfc-bpr-0029-owner-asks`**, now one ask only:
+whether the owner accepts the *revised* proposal. AC1's d23 design-pass
+evidence remains historical and is not silently rewritten to match the new
+proposal. AC2, AC3 and AC4 are pending; no epoch product work, closeout card or
+new BPR-0646 attended candidate is authorized until the revised RFC is
+accepted. Its AC3 must test the same evidenced occurrences across two
+catalogues and explicitly check the incomplete/ambiguous cases; it cannot
+claim that missing ordinary push boundaries were reconstructed.

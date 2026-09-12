@@ -104,3 +104,27 @@ that carries it must carry it as **its own candidate with its own criterion**,
 not as a rider on a criterion about something else: a rider is exactly what
 produced this empty-note accept, and before it the owner's "As I answered in
 another question" on v008.
+
+## Owner answer and implemented scope, 2026-09-12 (d25, mandate r16)
+
+The owner answered **yes** to this card's question directly in chat and fixed
+its bounds: identifiers in `#if`, `#ifdef`, `#ifndef`, `#elif`, `#undef` and
+`defined()` take macro purple regardless of capitalization. Operators,
+literals, header names, attributes and builtin-test operands retain their
+roles. Ordinary identifiers and all `#define` replacement tokens do not
+become macros. The direct answer supersedes the earlier plan to obtain the
+same yes/no answer through a side-by-side attended candidate; that plan is
+retained above as the historical reason the question existed. No second owner
+answer is sought.
+
+The syntax owner reproduced `__cplusplus` as `syntax_other` before the fix
+(`build/logs/bpr-0748-d25-red.log`), then added per-line directive context and
+operator/operand exclusions. The new fixture covers mixed-case directives,
+lowercase names, `defined`, boolean and alternative operators, builtin-test
+operands, character literals, header tests and unaffected `#define`
+replacement text. The heuristic revision advances from 2 to 3 so cached
+spans are retired. Focused build, five required contracts, format and tidy
+pass in `build/logs/bpr-0748-d25-focused-build.log`,
+`bpr-0748-d25-focused.log`, `bpr-0748-d25-format.log` and
+`bpr-0748-d25-tidy.log`. These local logs are evidence pointers, not committed
+artifacts. The integrator's final acceptance/commit follows separately.

@@ -193,3 +193,15 @@ stays at schema 5 and there is no second reset. One question rides the
 candidate: a predefined macro spelled without a capital (`__clang__`,
 `__cplusplus`) is still near-grey, and the context-aware rule that would fix it
 is costed on [[BPR-0744]] rather than taken.
+
+## Owner direction, 2026-09-12 (BPR-0748)
+
+The owner later answered **yes** to the separate [[BPR-0748]] question:
+identifiers in `#if`, `#ifdef`, `#ifndef`, `#elif`, `#undef` and `defined()`
+take `syntax_macro` regardless of capitalization. Directive operators,
+literals, header names, attribute and builtin-test operands keep their own
+roles; ordinary identifiers and `#define` replacement tokens are not
+broadened. This direct answer replaces the pending side-by-side question,
+while the v009 candidate above remains the historical record. BPR-0748
+carries the implementation and focused checks; no palette or schema value
+moves.

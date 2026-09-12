@@ -99,3 +99,25 @@ Two things follow.
 - `qt_workbench_window_scale_{100,125,200}` and `qt_composed_github_scale_100`
   pass.
 - The rule stays one pixel wide and inside the accepted asset.
+
+## Geometry decision and candidate, 2026-09-12 (d25, mandate r16)
+
+Keep the native `PM_SplitterWidth` hot zone and paint the accepted one-pixel
+`QPalette::Mid` rule at logical column `(width - 1) / 2`. That is column 3
+of macOS's seven pixels, leaving three aimable pixels on each side; at
+Fusion's four pixels it is column 1, leaving one on the left and two on the
+right. The even-width tie is deterministic. This resolves the owner's "not
+drawn in the right location" note by placing the visible rule within the
+zone that receives the resize gesture. It changes no cursor-delivery policy
+and makes the hot zone no wider than the native style.
+
+The Qt regression enumerates installed styles, asserts the native metric, and
+tests both four- and seven-pixel handles with a logical-resolution raster
+assertion that exactly the middle column paints the rule. It failed at the
+macOS width before the source change (`build/logs/bpr-0749-d25-red-test.log`).
+The workbench scale 100/125/200 and composed GitHub scale 100 selectors pass
+afterward (`build/logs/bpr-0749-d25-green-tests-2.log` and
+`bpr-0749-d25-green-tests.log`), as do touched formatting and the repository
+tidy helper (`bpr-0749-d25-tidy-2.log`). The initial raw tidy command lacked
+the SDK and is not acceptance evidence; the helper rerun is. These logs are
+local evidence pointers and are not committed artifacts.
