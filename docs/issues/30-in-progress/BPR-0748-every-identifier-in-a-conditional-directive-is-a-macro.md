@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0748"
 title: "Should every identifier in a conditional directive take the macro purple?"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0006"]
 depends_on: ["BPR-0744"]
 priority: "P3"
