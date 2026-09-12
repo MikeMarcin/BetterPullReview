@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0745"
 title: "The one-pane Read state is redrawn over the link map"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P2"
