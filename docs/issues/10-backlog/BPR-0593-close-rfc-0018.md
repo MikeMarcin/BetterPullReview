@@ -12,12 +12,65 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
-## Current frontier, 2026-09-12 (d21, mandate r12): the v009 session is live
+## Current frontier, 2026-09-12 (d21, mandate r12): the v009 session ran
 
 Dispatch `attended-prep-2026-09-10` d21 (mandate r12), same milestone
 `attended-preparation-pack-head`. The owner asked to launch the attended
-review. **The host is running and the watch is armed.** No card was begun and
-no product source was touched.
+review. The host ran, he decided all four candidates in ten minutes and handed
+back at `2026-09-12T16:13:55Z`, sequence 362, nothing pending. **The verdicts
+are recorded and not consumed:** no card is finished, no acceptance entry is
+written and nothing is interpreted here. That is the next dispatch's work. No
+card was begun and no product source was touched.
+
+### The four verdicts, verbatim
+
+Every one is `actor: human`, carries no attachment, and its decision fingerprint
+equals the prepared candidate's, so each is bound to exactly what was shown.
+
+| Candidate | Revision | Outcome | Note |
+|---|---|---|---|
+| `BPR-0734-read-one-pane` | `design-v7-2026-09-12` | **accept** | *(empty)* |
+| `BPR-0739-seam-hover` | `app-release-c2381f32-2026-09-12.5` | **select**: "Drop it: draw the rule at one constant weight, as the asset does" | "We don't need it anymore now that the cursor is fixed, it wasn't drawn in the right location anyways." |
+| `BPR-0744-directive-ranges` | `app-release-c2381f32-2026-09-12.5` | **accept** | *(empty)* |
+| `BPR-0746-cursor-probe` | `app-release-c2381f32-2026-09-12.5` | **accept** | "The pointer stuff works correctly. Dunno about the test you had me run." |
+
+Decision ids, in that order: `31462e78-51ea-4ef5-ba85-231a18098b68`,
+`9298ad8d-c3a2-4b4d-b58e-ba18a3daa3f5`,
+`4f1d1354-c3c1-43d9-af11-358347147453`,
+`3e06fb9d-e8d8-4abd-901e-b5dab8cc4d1c`.
+
+### Three things the next dispatch must resolve before finishing any of them
+
+**1. BPR-0746's log does not exist, and the accept cannot stand on its stated
+criterion.** That criterion is "the bundle is run from a terminal with the
+logging line, the pointer rests on the seam for about three seconds and moves
+off, and `build/logs/bpr-0746-cursor-probe.log` exists". He did run the probe —
+pid 72017 with `QT_LOGGING_RULES=qt.qpa.input.mouse*=true` confirmed on the
+process — but he ran it from `/Users/jaeger/Documents/GitHub`, one directory
+above the repository, and the candidate's copied command uses a **relative**
+tee path. `/Users/jaeger/Documents/GitHub/build/logs` does not exist, so `tee`
+(pid 72018) never opened an output file: `lsof` showed it holding only fds 1
+and 2 on `/dev/ttys001`. No `bpr-0746-cursor-probe.log` exists anywhere on
+disk. His own note, "Dunno about the test you had me run", is consistent with
+that failure. **The objective half of the criterion was never satisfied**, and
+his accept was recorded against a candidate whose evidence is missing. The
+packet's own wording is at fault: prepare that command with an **absolute** tee
+path next time, not a relative one behind a "run this in the repository" label.
+
+**2. He states twice that the cursor works, which contradicts why BPR-0746 and
+BPR-0739 exist.** "the cursor is fixed" on BPR-0739 and "The pointer stuff
+works correctly" on BPR-0746. Nothing about cursor delivery changed between the
+v008 and v009 bundles, so on the recorded state this should not be true. One
+untested explanation, offered as a lead and **not** as a finding: no one had
+ever run this bundle with a free profile and a real pointer, because the v008
+build held the profile until he quit it this morning. That is a hypothesis, not
+a diagnosis, and it is exactly what the missing log would have settled.
+
+**3. BPR-0744's third question went unanswered.** The accept carries an empty
+note, so the costed question the candidate rode — whether every identifier
+inside `#if`, `#ifdef`, `#ifndef`, `#elif`, `#undef` and `defined()` should take
+the macro purple, rather than only ALL_CAPS — is still open. An accept of the
+implemented behaviour is not an answer to it.
 
 **The renewal was bookkeeping, confirmed rather than assumed.** d20's
 `coordinator_handoff.py check` returned reconcile because `BPR-0646:*` moved
@@ -44,11 +97,18 @@ the bundle, and a writable `build/logs` with
 `build/logs/bpr-0746-cursor-probe.log` **not** yet present, so its existence is
 real evidence when the probe runs.
 
-**Host:** pid 70931, loopback `127.0.0.1:60308`, HTTP 200, bearer token in the
-session record — a later context recovers the attach information by running
-`serve` again rather than by keeping the token. `wait --after 357` is armed as
-a background watch (pid 70953). Four pending: `BPR-0744-directive-ranges`,
-`BPR-0734-read-one-pane`, `BPR-0739-seam-hover`, `BPR-0746-cursor-probe`.
+**Host:** ran as pid 70931 on loopback `127.0.0.1:60308`, and was **stopped
+through the contract** once he handed back. All four candidates keep their
+protection of the Qt, application, SQLite, design and RFC paths, exactly as the
+v008 set did, until an explicit `resume-development` precedes the next source
+edit — and three of the four verdicts imply source edits, so that release is
+the next dispatch's first move, not an afterthought. Reopen with `serve` if
+anything needs showing again; the attach information comes back with it.
+
+One practical note for whoever runs the next session: `wait` had to be re-armed
+by hand after every single verdict, because a backgrounded shell command on
+this harness is capped well below the length of a review. Arm it as a
+persistent watch instead, or expect one wake per click.
 
 **Correction to d20's environment note, which is now wrong.** The v008 build,
 pid 30378, **is gone** — the owner quit it himself before this dispatch (the
@@ -61,17 +121,25 @@ candidate's fingerprint to reword under his hands.
 
 `application_composition_contract`'s
 `test_tests_off_release_graph_omits_public_path_fixture` was **deliberately not
-rerun.** It should now go green, since the profile it wanted is free; but
-`assert_release_self_test` launches the executable against the real
-environment, so running it would open that profile and block the owner's own
-launch of the v009 bundle. It is a one-command check to close exit criterion 2
-once he is done with the session, and that is when to take it.
+rerun,** and still has not been. It should go green now that the profile is
+free, but `assert_release_self_test` launches the executable against the real
+environment, so taking that evidence during the session would have opened the
+profile and blocked his own launch of the v009 bundle. He may still have the
+bundle open from the probe; check for a running process first, then run it. It
+is one command and it closes exit criterion 2.
 
-Next: consume the four verdicts when the watch wakes, including BPR-0746's log,
-which is what unblocks that card's diagnosis; then run the composition contract
-against the freed profile; then [[BPR-0743]], the largest piece of work in the
-pack and the only route to BPR-0646. d20's frontier, still authoritative on
-everything it is not corrected on above, follows.
+Next, in order. **Release the protections** with `resume-development` before any
+source edit. Then consume the four verdicts against their own cards — BPR-0734
+and BPR-0744 accepted, BPR-0739 selecting the constant-weight seam, BPR-0746
+accepted on a criterion whose log never existed, which is the one that needs a
+decision rather than a transcription: either re-take the probe with an absolute
+tee path, or rewrite the criterion around what he actually observed. Then run
+the composition contract, then [[BPR-0743]], still the largest piece of work in
+the pack and the only route to BPR-0646. Neither RFC became closable this
+round: nothing here touched RFC-BPR-0018, and RFC-BPR-0028 still holds
+BPR-0743, BPR-0729, BPR-0653, BPR-0736 and the four cards these verdicts land
+on. d20's frontier, still authoritative on everything it is not corrected on
+above, follows.
 
 ## Frontier, 2026-09-12 (d20, mandate r11)
 
