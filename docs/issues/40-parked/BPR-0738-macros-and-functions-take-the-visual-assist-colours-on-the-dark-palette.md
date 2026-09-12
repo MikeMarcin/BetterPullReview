@@ -8,7 +8,7 @@ depends_on: []
 priority: "P2"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"owner_direction":"2026-09-11","attended_session":"cbd48b91000b00f1e72e1ad62c7c384c","attended_decision":"7789e40f-d61d-4900-813c-f23c508db56a"}
 parked_on: "human-review"
-acceptance: [{"criterion":"test_the_dark_palette_follows_the_visual_assist_scheme pins the new macro and function values and fails on A3A3A3/DCDCAA; the syntax contract pins a macro's role at an exact range distinct from a directive's","outcome":"pass","revision":"2f8b7c70","evidence":{"kind":"command","detail":"qt_appearance_profile pins syntax_macro CE8AD4, syntax_function FF8000, syntax_type FFD700, syntax_variable BDB76B, syntax_attribute 4EC9B0 and asserts macro != preprocessor, != A3A3A3, function != DCDCAA; syntax_classification_contract pins VERIFY_ARE_EQUAL as syntax_macro and #define BEGIN_TEST_METHOD_PROPERTIES as preprocessor and not macro. Both pass at 2f8b7c70."}},{"criterion":"qt_appearance_*, syntax_contract, the diff_workbench selectors, application_appearance_theme_customization_contract and qt_composed_github_scale_100 pass; digests repinned if any drifts","outcome":"pass","revision":"2f8b7c70","evidence":{"kind":"command","detail":"ctest --preset dev over core_appearance_*, core_theme_exchange, qt_appearance_*, qt_syntax_pane_composition, qt_diff_workbench_scale_{100,125,200}, syntax_classification_contract, sqlite_appearance_settings_storage, application_appearance_*, application_diff_workbench_*, qt_composed_github_scale_100, application_composition_contract, architecture_boundaries: 22 of 22 after repinning the three round-trip pins that BPR-0733 had left stale (full digest, manifest digest, ->submit( count 3). Strict tidy and clang-format clean on the five touched TUs."}},{"criterion":"The owner accepts ScreenBufferTests.cpp and terminalOutput.cpp on the dark palette in the signed bundle in an attended session","outcome":"pending","revision":"2f8b7c70","evidence":{"kind":"observation","detail":"Asked in the v008 packet on the rebuilt tests-disabled bundle; the include-path colour and the alias italic are asked alongside rather than changed."}}]
+acceptance: [{"criterion":"test_the_dark_palette_follows_the_visual_assist_scheme pins the new macro and function values and fails on A3A3A3/DCDCAA; the syntax contract pins a macro's role at an exact range distinct from a directive's","outcome":"pass","revision":"2f8b7c70","evidence":{"kind":"command","detail":"qt_appearance_profile pins syntax_macro CE8AD4, syntax_function FF8000, syntax_type FFD700, syntax_variable BDB76B, syntax_attribute 4EC9B0 and asserts macro != preprocessor, != A3A3A3, function != DCDCAA; syntax_classification_contract pins VERIFY_ARE_EQUAL as syntax_macro and #define BEGIN_TEST_METHOD_PROPERTIES as preprocessor and not macro. Both pass at 2f8b7c70."}},{"criterion":"qt_appearance_*, syntax_contract, the diff_workbench selectors, application_appearance_theme_customization_contract and qt_composed_github_scale_100 pass; digests repinned if any drifts","outcome":"pass","revision":"2f8b7c70","evidence":{"kind":"command","detail":"ctest --preset dev over core_appearance_*, core_theme_exchange, qt_appearance_*, qt_syntax_pane_composition, qt_diff_workbench_scale_{100,125,200}, syntax_classification_contract, sqlite_appearance_settings_storage, application_appearance_*, application_diff_workbench_*, qt_composed_github_scale_100, application_composition_contract, architecture_boundaries: 22 of 22 after repinning the three round-trip pins that BPR-0733 had left stale (full digest, manifest digest, ->submit( count 3). Strict tidy and clang-format clean on the five touched TUs."}},{"criterion":"The owner accepts ScreenBufferTests.cpp and terminalOutput.cpp on the dark palette in the signed bundle in an attended session","outcome":"fail","revision":"35438244","evidence":{"kind":"observation","detail":"Attended session cbd48b91000b00f1e72e1ad62c7c384c, candidate BPR-0738-identifier-colours, revision app-release-e4fdb0ea-2026-09-11.4 (bundle built at 35438244, executable sha256 e4fdb0ea8e250f42da2bfa3a61c501fbdbb6ffd6d92d929912f6b25b44b2757f), fingerprint 2029c2a61da4d4a6a76085ad6a34da1061310f50b8798f6d05f696144d17584b, decision 4effa6f2-84e6-459c-8491-0e7e7c2ab3ca, actor human, 2026-09-12T04:36:00Z, no attachment: reject. Verbatim: 'As I answered in another question, most things are good now but include paths should be painted like the reference and things like macros in #ifndef MACRO should be painted as macros.' The roles as painted in ordinary code are not disputed ('most things are good now'); what is rejected is that a directive line takes the preprocessor role end to end. Open question, include paths: answered, painted like the reference rather than grey. Open question, alias italic: not answered, still open. The CE8AD4-for-BD63C5 contrast substitution: not answered either way; the note does not name the purple. Carded as BPR-0744; the criterion is asked again on a bundle carrying it, with the two unanswered questions repeated."}}]
 ---
 
 # Macros and functions take the Visual Assist colours on the dark palette
@@ -197,3 +197,47 @@ on the bundle built from the source at 35438244 (executable sha256
 `app-release-e4fdb0ea-2026-09-11.4`; prepared and protected at sequence
 341, undecided, no host running until the owner says so. The pull request
 is NVIDIA/stdexec#1846, the owner's answer of mandate r9.
+
+## Attended verdict, 2026-09-11 (v008): rejected
+
+Session `cbd48b91…`, revision `app-release-e4fdb0ea-2026-09-11.4` (bundle
+built at 35438244, executable sha256 `e4fdb0ea…`), actor human; handed back
+at sequence 348 with all six candidates decided. Candidate
+`BPR-0738-identifier-colours`, decision `4effa6f2`, 2026-09-12T04:36:00Z, no
+attachment: **reject**. Verbatim:
+
+> As I answered in another question, most things are good now but include paths should be painted like the reference and things like macros in #ifndef MACRO should be painted as macros.
+
+"Another question" is `BPR-0720-dark-palette`, decided eight minutes earlier
+in the same round: "The preprocessor directives themselves should be grey but
+not necessarily their arguments. Macros in preprocessor should still color as
+macros (purple). Strings in #include statements should color as the reference
+image." The two notes are one requirement.
+
+What this settles and what it does not:
+
+- **The roles as painted in ordinary code**: not disputed. "Most things are
+  good now" covers the per-token values this card landed — types `FFD700`,
+  functions `FF8000`, variables `BDB76B`, attributes `4EC9B0` — which the
+  owner had rejected in v006 and v007 and does not reject here.
+- **Open question, include paths**: **answered**. Painted like the reference,
+  which paints the path string-salmon; not the directive grey the earlier
+  BPR-0720 direction implied. That direction is revised accordingly.
+- **Open question, the aliases' italic**: **not answered**. The note does not
+  mention it. It stays open and is asked again.
+- **The `CE8AD4` for `BD63C5` contrast substitution**: **not answered either
+  way**. The criterion asked the owner to say whether the lighter purple is
+  acceptable or the 4.5:1 floor should yield, and the note names neither the
+  colour nor the floor. "Most things are good now" is not a verdict on it. It
+  stays open and is asked again; nothing here authorises keeping or changing
+  `CE8AD4` on the owner's behalf.
+- **What is rejected**: a preprocessor directive line takes the preprocessor
+  role end to end, so `#ifndef MACRO` never reaches the ALL_CAPS rule this
+  card added. `syntax_classification_contract`'s pin that `#define
+  BEGIN_TEST_METHOD_PROPERTIES` is preprocessor and *not* a macro is the
+  assertion the owner's direction reverses.
+
+Carded as [BPR-0744](../20-ready/BPR-0744-preprocessor-directives-are-grey-but-their-arguments-take-their-own-roles.md).
+This card stays parked on human-review; its criterion is asked again on a
+bundle carrying BPR-0744, with the alias italic and the macro purple repeated
+as the two questions still open.

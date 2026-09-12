@@ -8,7 +8,7 @@ depends_on: []
 priority: "P2"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"owner_direction":"2026-09-11","attended_session":"cbd48b91000b00f1e72e1ad62c7c384c","attended_decision":"8a907ecd-4aef-4596-a035-320365d12b40"}
 parked_on: "human-review"
-acceptance: [{"criterion":"AC1 A Qt test pins that after a modality change and after a host-republished layout the handle under a resting pointer still reports the split cursor, and fails at HEAD if the cause is one of 1, 2 or 4","outcome":"pass","revision":"65c47ec6","evidence":{"kind":"command","detail":"test_the_split_cursor_stays_over_a_resting_handle in tests/adapters_qt/workbench_window_tests.cpp: the conversations handle under a resting pointer stays under it with Qt::SplitHCursor at rest, after a Discuss/Read modality change, after the host republishes the layout and after an answered drag; the files handle the same. The pointer sequence passed at e22b495a before any product change, which is the finding: causes 1, 2 and 4 do not hold (present() only toggles visibility, the handles are created once, relayouts return the handle to the same column). The seam pins (the drawer's edge rule in Mid, Highlight under the pointer, rule at the drawer's edge of each handle) fail without the new handle. Diagnosis on the card; logs build/logs/bpr-0739-*.log; cocoa probe held NSCursor.resizeLeftRightCursor for 1.1 s at rest (build/logs/bpr-0739-cocoa-diag-1.log)."}},{"criterion":"AC2 qt_workbench_window_scale_{100,125,200} and qt_composed_github_scale_100 pass","outcome":"pass","revision":"65c47ec6","evidence":{"kind":"command","detail":"ctest: qt_workbench_window_scale_100/125/200, qt_composed_github_scale_100 and architecture_boundaries pass (build/logs/bpr-0739-focused-run.log, build/logs/bpr-0739-wb-run-9.log after the tidy rename); format_check and tidy --warnings-as-errors clean on the touched files (build/logs/bpr-0739-tidy-2.log). At 1.25 the resting-pointer sequence is read only at whole-number scales (offscreen pointer round trip lands a device pixel beside the handle after the Discuss round trip); the seam pins run at all three."}},{"criterion":"AC3 The owner resizes the conversations drawer on the signed bundle with the cursor visible throughout, in an attended session","outcome":"pending","revision":"65c47ec6","evidence":{"kind":"observation","detail":"Asked in the v008 attended packet on the rebuilt tests-disabled bundle, with the hover highlight (a state the asset does not draw) shown for the owner's verdict."}}]
+acceptance: [{"criterion":"AC1 A Qt test pins that after a modality change and after a host-republished layout the handle under a resting pointer still reports the split cursor, and fails at HEAD if the cause is one of 1, 2 or 4","outcome":"pass","revision":"65c47ec6","evidence":{"kind":"command","detail":"test_the_split_cursor_stays_over_a_resting_handle in tests/adapters_qt/workbench_window_tests.cpp: the conversations handle under a resting pointer stays under it with Qt::SplitHCursor at rest, after a Discuss/Read modality change, after the host republishes the layout and after an answered drag; the files handle the same. The pointer sequence passed at e22b495a before any product change, which is the finding: causes 1, 2 and 4 do not hold (present() only toggles visibility, the handles are created once, relayouts return the handle to the same column). The seam pins (the drawer's edge rule in Mid, Highlight under the pointer, rule at the drawer's edge of each handle) fail without the new handle. Diagnosis on the card; logs build/logs/bpr-0739-*.log. Corrected 2026-09-11 (d19): the 'cocoa probe held NSCursor.resizeLeftRightCursor for 1.1 s at rest' reading of build/logs/bpr-0739-cocoa-diag-1.log was wrong; that log records the real pointer 1164 pixels from the handle and prints FAILED, so it shows only that Qt calls [NSCursor set], not that the cursor holds under the pointer. See the correction section on this card."}},{"criterion":"AC2 qt_workbench_window_scale_{100,125,200} and qt_composed_github_scale_100 pass","outcome":"pass","revision":"65c47ec6","evidence":{"kind":"command","detail":"ctest: qt_workbench_window_scale_100/125/200, qt_composed_github_scale_100 and architecture_boundaries pass (build/logs/bpr-0739-focused-run.log, build/logs/bpr-0739-wb-run-9.log after the tidy rename); format_check and tidy --warnings-as-errors clean on the touched files (build/logs/bpr-0739-tidy-2.log). At 1.25 the resting-pointer sequence is read only at whole-number scales (offscreen pointer round trip lands a device pixel beside the handle after the Discuss round trip); the seam pins run at all three."}},{"criterion":"AC3 The owner resizes the conversations drawer on the signed bundle with the cursor visible throughout, in an attended session","outcome":"fail","revision":"35438244","evidence":{"kind":"observation","detail":"Attended session cbd48b91000b00f1e72e1ad62c7c384c, candidate BPR-0739-splitter-seam, revision app-release-e4fdb0ea-2026-09-11.4 (bundle built at 35438244, executable sha256 e4fdb0ea8e250f42da2bfa3a61c501fbdbb6ffd6d92d929912f6b25b44b2757f), fingerprint 380b3fb203cc5831de9addeebad7d85e3e49665706c7220ff9a68573a9f9c128, decision a374890c-b692-4ada-afb9-6ccd278d7645, actor human, 2026-09-12T04:34:54Z, one screenshot: reject. Verbatim: 'still fails, same issue, at least it draws the seam now, cursor didnt show up in screenshot, but i promise its right over that blue vertical line and looks like a normal cursor not a resize cursor.' The second criterion, a visible seam taking the highlight under the pointer, is satisfied and is what the screenshot shows. The first is not: the cursor stays an arrow. The highlight is painted only from underMouse() (workbench_window.cpp:6309), so the handle held Qt's pointer state while the cursor was wrong, which refutes cause 3 as recorded in the d17 diagnosis; the defect is cursor delivery after Qt's enter. Carded as BPR-0746 with the discriminating check. The question whether the highlight state should go is unanswered."}}]
 ---
 
 # The resize cursor over the conversations drawer handle does not stay
@@ -116,3 +116,65 @@ after the Discuss round trip, so the resting-pointer sequence is read at
 whole-number scales and the seam pins run at all three; whether Windows
 fractional scaling drops the hover after a relayout on a real display is
 the Windows lane's to observe.
+
+## Attended verdict, 2026-09-11 (v008): rejected
+
+Session `cbd48b91…`, revision `app-release-e4fdb0ea-2026-09-11.4` (bundle
+built at 35438244, executable sha256 `e4fdb0ea…`), actor human; handed back
+at sequence 348 with all six candidates decided. Candidate
+`BPR-0739-splitter-seam`, decision `a374890c`, 2026-09-12T04:34:54Z, one
+screenshot
+([the lit seam](../../verification/reviews/rfc-bpr-0028-attended-v008/captures/owner-splitter-seam-highlight-2026-09-11.png)):
+**reject**. Verbatim:
+
+> still fails, same issue, at least it draws the seam now, cursor didnt show up in screenshot, but i promise its right over that blue vertical line and looks like a normal cursor not a resize cursor.
+
+Against the two criteria:
+
+- The seam is visible and takes the highlight under the pointer: **satisfied**,
+  and the capture shows it — a saturated one-pixel rule the height of the panes
+  between the comparison's scroll bar and the drawer.
+- The resize cursor shows and stays: **still fails**. macOS omits the pointer
+  from a screen capture, so the arrow is the owner's report rather than the
+  image; the image supplies the harder half of the evidence anyway.
+
+The highlight is the finding. It is painted only from `underMouse()` —
+`Qt::WA_UnderMouse`, set by Qt's enter dispatch (`workbench_window.cpp:6303-6312`,
+the pen at `:6309`) — so at the moment of the capture the handle held Qt's
+pointer state and the effective cursor was still an arrow. **Cause 3 as
+recorded in the d17 diagnosis is refuted**: the hot zone is not too narrow to
+hit, it was hit. So are causes 1, 2 and 4 (relayout hypotheses, excluded in
+d17). The defect is cursor *delivery* after Qt's enter, which none of the four
+candidates covers, and it is not visible to the offscreen test: that test
+reads Qt's own bookkeeping under a platform with no cursor at all.
+
+Carded as [BPR-0746](../20-ready/BPR-0746-the-resize-cursor-is-not-delivered-over-the-seam-on-the-signed-bundle.md),
+with three ranked hypotheses about the macOS cursor path and the logging check
+that discriminates them on the real windowed application before any product
+change.
+
+The open question this card carried — the `Highlight` hover state is a state
+the design asset does not draw, say if it should go — is **unanswered**. "At
+least it draws the seam now" is not a verdict on the hover colour. It is asked
+again.
+
+This card stays parked on human-review; AC3 is asked again on a bundle
+carrying BPR-0746.
+
+## Correction to AC1's evidence, 2026-09-11 (d19)
+
+AC1's evidence said the "cocoa probe held `NSCursor.resizeLeftRightCursor` for
+1.1 s at rest". `build/logs/bpr-0739-cocoa-diag-1.log` does not support that.
+The log records `pointer at local x=-1164` — the real pointer 1164 pixels left
+of the handle, over the files region — while reporting `underMouse=1` and
+`nscursor=resizeLeftRight` at t=403 ms, and the run printed `FAILED`. The
+Enter came from an event sent directly to the window, and the cursor value from
+Qt's own synchronous `[NSCursor set]` with the pointer somewhere else
+entirely. The log therefore shows that Qt calls `[NSCursor set]`, which nobody
+disputed, and shows nothing about what AppKit does on the next real pointer
+motion with the pointer actually on the handle.
+
+The AC1 test itself is unaffected and still passes; only the probe sentence was
+wrong. It is corrected in the record rather than removed, because the d17
+diagnosis leaned on it and BPR-0746 needs to know why the evidence looked
+green.

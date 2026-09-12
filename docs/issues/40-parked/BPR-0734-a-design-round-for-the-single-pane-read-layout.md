@@ -8,7 +8,7 @@ depends_on: []
 priority: "P2"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"owner_direction":"2026-09-11","sequenced_after":"rfc-bpr-0028-attended-v007 verdicts"}
 parked_on: "human-review"
-acceptance: [{"criterion":"The owner accepts the one-pane state and the two amendments in an attended session or the round's own review page; recorded on this card and on RFC-BPR-0028","outcome":"pending","revision":"447d114e","evidence":{"kind":"artifact","detail":"docs/design/RFC-BPR-0028-workbench-direction-v6.html#read-one-pane (state 2b, a copy of the accepted v5 plus one state; v5 colours and variables only) and the 'Round output, 2026-09-11' section on this card with the proposed Modalities and AC-05 texts and three open questions (block order, where the choice lives, the gutter map's standing). Rendered headless at 1500 px and inspected; verify_documentation.py DOCUMENTATION_OK. Asked in the v008 attended packet."}},{"criterion":"BPR-0729's scope and acceptance are rewritten from the accepted state before BPR-0729 is claimed","outcome":"pending","revision":"447d114e","evidence":{"kind":"observation","detail":"Waits on the owner's acceptance; BPR-0729 unchanged."}}]
+acceptance: [{"criterion":"The owner accepts the one-pane state and the two amendments in an attended session or the round's own review page; recorded on this card and on RFC-BPR-0028","outcome":"fail","revision":"447d114e","evidence":{"kind":"artifact","detail":"Attended session cbd48b91000b00f1e72e1ad62c7c384c, candidate BPR-0734-read-one-pane (a design page, no resource claimed), candidate revision app-release-e4fdb0ea-2026-09-11.4, fingerprint 21a5e0ae9a517683f2312fb47e4fb051d56e8c0ab81c2401f979fdc041e69190, decision bd627bcb-7e53-4842-85f1-1efcf3f5e363, actor human, 2026-09-12T04:32:44Z, one screenshot (p4merge in its single-pane mode with the link map at the left edge): reject. Verbatim: 'The one-page should also use a link map as the p4merge example provided. Relax the non-goals restriction to allow extending the link-map in this limit direction.' Open question 3 is answered: the one-pane map is the link map extended to its limit case, not a new element, and RFC-BPR-0028's non-goal is relaxed for that direction (recorded on the RFC). Questions 1 (block order) and 2 (where the choice lives) are unanswered and carried forward. The state is redrawn over the link map under BPR-0745 and this criterion is asked again from that state."}},{"criterion":"BPR-0729's scope and acceptance are rewritten from the accepted state before BPR-0729 is claimed","outcome":"pending","revision":"447d114e","evidence":{"kind":"observation","detail":"Waits on the owner's acceptance; BPR-0729 unchanged."}}]
 ---
 
 # A design round for the single-pane Read layout
@@ -136,3 +136,41 @@ candidate `BPR-0734-read-one-pane` in
 a design page rather than the bundle (no resource claimed), candidate
 revision `app-release-e4fdb0ea-2026-09-11.4`; prepared and protected at
 sequence 341, undecided, no host running until the owner says so.
+
+## Attended verdict, 2026-09-11 (v008): rejected
+
+Session `cbd48b91…`, candidate revision `app-release-e4fdb0ea-2026-09-11.4`
+(a design page; the candidate claimed no resource), actor human; handed back
+at sequence 348 with all six candidates decided. Candidate
+`BPR-0734-read-one-pane`, decision `bd627bcb`, 2026-09-12T04:32:44Z, one
+screenshot
+([p4merge in its single-pane mode](../../verification/reviews/rfc-bpr-0028-attended-v008/captures/owner-p4merge-single-pane-link-map-2026-09-11.png)):
+**reject**. Verbatim:
+
+> The one-page should also use a link map as the p4merge example provided. Relax the non-goals restriction to allow extending the link-map in this limit direction.
+
+The capture is p4merge showing one merged document with its connector column
+still at the window's left edge. It answers the third open question by
+rejecting its premise: the one-pane map is not a new element beside a
+protected link map, it is the link map at its limit, one column instead of
+two. "The gutter" bullet above — "the strip the link map held between the
+panes becomes a change map at the left … The two-pane state's link map is
+untouched" — is what the owner is correcting, and the Modalities amendment
+does not name a new element after all.
+
+RFC-BPR-0028's non-goal against changes to the link map is relaxed for that
+direction on the owner's instruction; the relaxation is recorded on the RFC
+with this verdict.
+
+The two amendment texts were neither accepted nor refused: they were rejected
+with the state they describe and come back with it.
+
+Open questions 1 (block order) and 2 (where the choice lives) are
+**unanswered**. The note settles neither, and neither is settled by silence.
+They are carried into the next round's ask unchanged.
+
+The state is redrawn over the link map under
+[BPR-0745](../20-ready/BPR-0745-the-one-pane-read-state-is-redrawn-over-the-link-map.md).
+This card stays parked on human-review; its first criterion is asked again
+from the redrawn state, and its second — BPR-0729 rewritten from an accepted
+state — stays pending behind it.
