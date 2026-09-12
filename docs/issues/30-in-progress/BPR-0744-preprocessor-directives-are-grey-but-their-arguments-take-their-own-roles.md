@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0744"
 title: "Preprocessor directives are grey but their arguments take their own roles"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0006"]
 depends_on: []
 priority: "P2"
