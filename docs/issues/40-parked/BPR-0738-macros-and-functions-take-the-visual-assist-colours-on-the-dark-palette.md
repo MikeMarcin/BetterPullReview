@@ -276,3 +276,8 @@ owner says so. One candidate carries it for this card, [[BPR-0720]] and
 produced "As I answered in another question". The two questions this card
 carried are closed and are not repeated. The v008 rejection stays recorded
 against its own revision.
+
+The latest [attended v010 packet](../../verification/reviews/rfc-bpr-0028-attended-v010/operator-packet.md)
+asks only [[BPR-0729]]'s one-pane layout criterion. This card's v009
+candidate remains bound to its recorded v009 revision and verdict; it is not
+re-asked on the v010 bundle.

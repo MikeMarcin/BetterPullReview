@@ -259,3 +259,8 @@ owner says so. It is one candidate for this card, [[BPR-0738]] and [[BPR-0744]]
 together: the owner's v008 notes on the two separate candidates were one
 requirement stated twice, and asking it twice again would repeat the mistake.
 The v008 rejection stays recorded against its own revision.
+
+The latest [attended v010 packet](../../verification/reviews/rfc-bpr-0028-attended-v010/operator-packet.md)
+asks only [[BPR-0729]]'s one-pane layout criterion. This card's v009
+candidate remains bound to its recorded v009 revision and verdict; it is not
+re-asked on the v010 bundle.

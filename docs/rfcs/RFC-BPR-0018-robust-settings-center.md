@@ -11,6 +11,15 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # RFC-BPR-0018: Robust Settings Center and Preference Ownership
 
+## Current attended pointer, 2026-09-12
+
+The shared UX pack's latest prepared page is
+[RFC-BPR-0028 attended v010](../verification/reviews/rfc-bpr-0028-attended-v010/operator-packet.md).
+It asks [[BPR-0729]]'s one-pane layout criterion on a signed bundle;
+it does not complete this RFC's Settings closeout. The bound
+`attended-preparation-pack-head` milestone and remaining exits are recorded
+on [[BPR-0593]]. This RFC remains Proposed.
+
 ## Status and scope
 
 This is a deferred post-pack RFC. It does not alter the canonical fourteen-RFC

@@ -276,6 +276,16 @@ the owner's attended verdict with **Review in one pane** and **an empty-side
 change** shown; no verdict is inferred here. The card is Parked on
 `human-review` until that evidence arrives.
 
+The signed bundle and one-question candidate are ready in
+[attended v010](../../verification/reviews/rfc-bpr-0028-attended-v010/operator-packet.md):
+session `cbd48b91000b00f1e72e1ad62c7c384c`, candidate
+`BPR-0729-one-pane-layout`, revision `app-release-a6dc1565-2026-09-12.6`,
+fingerprint `70a2a9417b2532450cf66f71228fbabe1f627de748ed8ea25767cecec875228c`,
+ready/protected at sequence 366 with no decision. The tests-disabled bundle
+was built from `83d7e676`, executable sha256
+`a6dc1565908cfacc5eb7d573d8d05983c51aa10780db2052e1c138682870eaf2`,
+and `codesign --verify --deep --strict` passed. No host or watch is running.
+
 ## Owner direction, 2026-09-11
 
 Asked whether the design round should start now or after the v007

@@ -442,3 +442,10 @@ already supports, and the corrected command with no relative path in it.
   [[BPR-0739]] both quote is right for the signed bundle, the 4 is Fusion,
   and there is no contradiction — but the Qt suite is measuring a style the
   product does not ship. That consequence is [[BPR-0749]]'s.
+
+## Current packet pointer, 2026-09-12 (v010)
+
+The latest [attended v010 packet](../../verification/reviews/rfc-bpr-0028-attended-v010/operator-packet.md)
+asks only [[BPR-0729]]'s one-pane layout criterion. No cursor probe is
+re-asked; this card remains Blocked on its recorded owner-declined probe.
+The v009 candidate and owner note remain bound to their historical revision.

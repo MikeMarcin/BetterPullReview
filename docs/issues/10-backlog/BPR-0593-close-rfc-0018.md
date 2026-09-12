@@ -12,6 +12,60 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
+## Current frontier, 2026-09-12 (d26, mandate r18): one-pane bundle ready
+
+Run `attended-prep-2026-09-10`, dispatch d26, producer
+`/root/integrator_d26`, mandate r18 (r16 at dispatch), plan
+`ux-redesign-pack-0028`, milestone `attended-preparation-pack-head`, definition
+fingerprint `sha256:201de49a086f8f809fea06d6749caf3fecb43e7fa8c78a960f55af31b64bfee5`.
+The clean synchronized main baseline was `3e1be52e`. No original work item
+or exit was removed from the authored plan.
+
+[[BPR-0729]]'s accepted one-pane Read/Review implementation is committed at
+`3dcbf237`; its board/evidence disposition is `83d7e676` and it is Parked
+for its one remaining owner criterion. The first absent-surface assertion was
+red before implementation. Independent review found and reproduced a pure
+deletion round-trip jump (top row 70 → 8) and a missing composed-GitHub
+thread test; both are corrected, and row 70 remains exact at all three Qt
+scales. The final focused set is 14/14 green
+(`build/logs/bpr-0729-d26-final-focused.log`). Both application composition
+contracts and the unchanged diff public path pass
+(`build/logs/bpr-0729-d26-final-contracts.log`). The other nine selectors
+from d25's pack integration pass pass at this source head
+(`build/logs/bpr-0729-d26-pack-remainder-tests.log`); with the current
+composed/window and composition results, the same eighteen-selector coverage
+is green at the d26 source. Boundaries, strict tidy, touched-file format,
+documentation and whitespace gates are clean. The 100/125/200% one-pane
+source, gutter and projected-thread crops were inspected.
+
+The tests-disabled bundle built from `83d7e676` is locally signed and verifies
+with executable sha256
+`a6dc1565908cfacc5eb7d573d8d05983c51aa10780db2052e1c138682870eaf2`.
+[Attended v010](../../verification/reviews/rfc-bpr-0028-attended-v010/operator-packet.md)
+has one digest-bound candidate, `BPR-0729-one-pane-layout`, revision
+`app-release-a6dc1565-2026-09-12.6`, fingerprint
+`70a2a9417b2532450cf66f71228fbabe1f627de748ed8ea25767cecec875228c`,
+ready and protected at sequence 366. Its offline page is self-contained;
+no host, watch or owner verdict exists. One question asks the owner to judge
+Review in one pane and the empty-side ribbon shapes. The supplied renders
+are same-source offscreen evidence, explicitly not a signed-bundle verdict.
+
+RFC-BPR-0029 is Accepted at `5d5df7cd` under mandate r17; [[BPR-0750]]
+has its immutable accepted base and [[BPR-0743]] is Ready for the next
+independent epoch product slice. [[BPR-0735]] records the mandate-r18 answer
+verbatim, **"unsure, don't care"**, as no confirmation; it is Blocked on
+`owner-declined-editor-observation` without another routine ask.
+[[BPR-0646]]'s epoch-handle criterion is still unjudgeable until BPR-0743
+lands. The bound milestone therefore remains **partial**: the current-head
+integration pass supports exit 2, while exits 1 and 3 do not yet cover all
+nine plan candidates and exit 4 still needs its exact card verdicts/asks.
+RFC-BPR-0018 and RFC-BPR-0028 remain open. BPR-0730 and BPR-0731 remain
+own-station work. All d26 leaf results have been collected; source writers,
+builds, checks and attended processes are quiescent. The next bounded
+engineering objective is BPR-0743 under Accepted RFC-BPR-0029, while the
+BPR-0729 candidate's exact source paths and bundle installation stay
+protected for its owner verdict.
+
 ## Intermediate frontier, 2026-09-12 (d26, mandate r18): BPR-0729 claimed, revised RFC accepted
 
 Run `attended-prep-2026-09-10`, dispatch d26, producer

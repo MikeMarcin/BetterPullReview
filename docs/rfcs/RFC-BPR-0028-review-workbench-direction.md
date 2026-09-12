@@ -634,3 +634,20 @@ AC-02's attended handle criterion on [[BPR-0646]] still stands as written. It
 waits on BPR-0743, which waits on those answers, so this RFC cannot close before
 that work lands. BPR-0646 now records the dependency and sits in Backlog, not
 parked on human-review, because nothing about it is waiting on the owner.
+
+## Later accepted epoch plan and one-pane packet, 2026-09-12 (v010)
+
+The preceding paragraph records the state when RFC-BPR-0029 was Proposed.
+The owner subsequently accepted its revised form at `5d5df7cd`; [[BPR-0743]]
+is Ready, and [[BPR-0750]] holds its separate closeout. BPR-0646's epoch
+handle criterion still waits for product work, so this RFC remains open.
+
+[[BPR-0729]]'s one-pane implementation is committed at `3dcbf237` and its
+single signed-bundle verdict is prepared in
+[attended v010](../verification/reviews/rfc-bpr-0028-attended-v010/operator-packet.md).
+The tests-disabled bundle executable sha256 is
+`a6dc1565908cfacc5eb7d573d8d05983c51aa10780db2052e1c138682870eaf2`;
+candidate `BPR-0729-one-pane-layout` is ready and protected at sequence 366,
+with no human verdict. Review in one pane and the empty-side ribbons are
+shown in the packet's same-source renders; acceptance is not inferred from
+those renders.

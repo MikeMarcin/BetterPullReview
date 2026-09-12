@@ -702,3 +702,10 @@ rather than parked on human-review, for two reasons. This board does not let a
 parked card hold an unfinished dependency, and nothing about this card is waiting
 on the owner. Its other criteria keep their recorded outcomes. When BPR-0743 is
 Done, the card returns to human-review for the handle criterion alone.
+
+## Current packet pointer, 2026-09-12 (v010)
+
+The latest [attended v010 packet](../../verification/reviews/rfc-bpr-0028-attended-v010/operator-packet.md)
+asks only [[BPR-0729]]'s one-pane layout criterion. This card is not a
+candidate: its epoch-handle criterion still waits for [[BPR-0743]]'s product
+work under the now-Accepted RFC-BPR-0029. The v009 pointer above is historical.

@@ -710,3 +710,9 @@ bases separate from derived comparison bases, and lossless migration with
 unresolved portable identity where provenance is insufficient. A fixture that
 publishes three rows straight to Qt cannot satisfy AC3. The next owner is
 assigned only after BPR-0729's active file ownership has safely cleared.
+
+The latest [attended v010 packet](../../verification/reviews/rfc-bpr-0028-attended-v010/operator-packet.md)
+asks only BPR-0729's one-pane layout criterion. This epoch card and
+[[BPR-0646]] are not candidates there; their product work follows the
+accepted RFC-BPR-0029 in the next bounded slice. The v009 pointer above is
+historical, and BPR-0729's source ownership has now cleared.
