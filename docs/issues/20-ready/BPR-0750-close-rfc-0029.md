@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0750"
 title: "Verify and close RFC-BPR-0029"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0029"]
 depends_on: ["BPR-0743"]
 priority: "P1"
