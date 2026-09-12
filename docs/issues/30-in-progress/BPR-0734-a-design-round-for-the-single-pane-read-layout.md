@@ -49,3 +49,79 @@ BPR-0720) and is not a dependency of any of them; BPR-0729 depends on it.
   recorded on this card and on RFC-BPR-0028.
 - BPR-0729's "to be fixed by the design round" scope and acceptance are
   rewritten from the accepted state before BPR-0729 is claimed.
+
+## Round output, 2026-09-11
+
+The round's state is
+[workbench states v6, "Read, one pane"](../../design/RFC-BPR-0028-workbench-direction-v6.html#read-one-pane)
+(state 2b, anchor `read-one-pane`). v6 is a copy of the accepted v5 with
+that one state added beside Read. v5's other states, its diff colours and
+its CSS variables are unchanged; the new state applies the shipped
+`--add`, `--del`, `--add2` and `--del2` fields to whole rows and invents
+no colour.
+
+### Proposed amendment, the Modalities paragraph
+
+To follow "and keeps comments beside the code;" in RFC-BPR-0028's
+Modalities paragraph, as proposed text:
+
+> Read presents the comparison in one of two ways: two whole-document
+> panes over the link map, or one document in reading order with the
+> other side's lines kept in place and struck through on their theme
+> field. The presentation is chosen from the strip or from the Read
+> preset, it is remembered per window alongside the modality, and it
+> changes nothing about which lines the comparison contains
+> ([[BPR-0729]], owner direction 2026-09-11).
+
+### Proposed amendment, AC-05
+
+Replacing AC-05 whole, as proposed text:
+
+> - AC-05 Read shows this file's threads aligned to their lines with
+>   unread state and drafts, in both presentations; in one pane a thread
+>   names a side and a line and sits against the row carrying that
+>   identity, so a thread on a removed line sits against its struck row
+>   and a thread on an added line against the added row, and threads
+>   that would collide keep document order and are pushed down with
+>   their leader still on the anchored row; Discuss shows the list, map
+>   and feed with the listed filters.
+
+### What the state decides
+
+- Line identity. Every row keeps the side and the line number it came
+  from, in two number columns, base and head. An unchanged row carries
+  both numbers; a struck row carries only its base number and is the old
+  side's identity; an added row carries only its head number. Comment
+  anchoring, quoting and Open in code use the row's own side and number,
+  so nothing written against a removed line is re-attributed to the new
+  file.
+- Next and previous change. A change is one block: its struck rows
+  followed by its added rows. `‹` and `›` step between blocks, not rows,
+  and the ordinal is the same number in both presentations, so "change 3
+  of 11" names the same change in either and switching presentation does
+  not move the reader. Stepping lands on the block's first row, which is
+  the struck row whenever the change removes anything.
+- Unchanged text is plain: no field, no strike. Only change blocks carry
+  a field, and the field covers the whole row, number columns included.
+- The gutter. One column has nothing to link across, so the strip the
+  link map held between the panes becomes a change map at the left: the
+  whole file's changes as ticks coloured by kind, the visible window as
+  a lens, and the on-screen changes as bands beside the rows they mark.
+  The two-pane state's link map is untouched.
+- The toggle is two icons in the strip beside the change stepper, on the
+  Read preset, remembered per window with the modality.
+
+### Open questions for the owner
+
+1. Block order. The state puts the struck old rows above the new rows,
+   the unified-diff order every review tool here uses. The p4merge
+   captures put the kept side's block first and the struck block below
+   it. The state flips in one line if the owner prefers p4merge's order.
+2. Where the choice lives. The state makes one pane a property of Read,
+   remembered per window, so leaving for Review and coming back returns
+   to one pane while Review keeps two panes. The alternative is a
+   property of the window that Review inherits too.
+3. The gutter map's standing. RFC-BPR-0028's non-goals rule out changes
+   to the link map. The one-pane gutter map is a new element rather than
+   a changed one; if the non-goal is to stay literal, the Modalities
+   amendment should name it as new.
