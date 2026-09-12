@@ -12,7 +12,176 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
-## Current frontier, 2026-09-12 (d21, mandate r12): the v009 session ran
+## Current frontier, 2026-09-12 (d22, mandate r13): the v009 verdicts are consumed
+
+Dispatch `attended-prep-2026-09-10` d22 (mandate r13), same milestone
+`attended-preparation-pack-head` of plan `ux-redesign-pack-0028`. The four
+v009 verdicts are read, reconciled and landed. Two cards are Done, three keep
+their human-pending disposition with the reasons recorded, one new card
+carries a question that was not answered, and one product change landed.
+
+**Every verdict was verified before it was used**, not taken on trust: all
+four decisions are `actor: human` and each decision fingerprint equals both
+the live candidate's and the one in
+[session-identity.json](../../verification/reviews/rfc-bpr-0028-attended-v009/session-identity.json).
+None is stale.
+
+| Candidate | Outcome | What it did |
+|---|---|---|
+| `BPR-0734-read-one-pane` | accept, empty note | [[BPR-0734]] **Done** (`80762210`), [[BPR-0745]] **Done** (`51dd2af2`), RFC amendments landed, [[BPR-0729]] rewritten |
+| `BPR-0739-seam-hover` | select, "Drop it" | source change landed; [[BPR-0739]] stays Parked, AC3 still `fail` (`b8fb5983`) |
+| `BPR-0744-directive-ranges` | accept, empty note | AC4 `pass`; AC3 still blocked; question carried to [[BPR-0748]] (`bdcd563d`) |
+| `BPR-0746-cursor-probe` | accept, note | criterion **not** satisfied; stays Parked (`d32a3117`) |
+
+Commits: `bbc4db98` (the work), `6ac7d344` (packet link repair, paths only),
+then the five board commits above.
+
+### The contradiction, reconciled
+
+His note on the hover verdict said "now that the cursor is fixed", and
+[[BPR-0746]] exists because it is not. Both reports are his and neither is
+discarded.
+
+**It is not the binary.** `git diff --stat 35438244 aff9fc64 -- src tests` is
+six files, all of it [[BPR-0744]]: the classifier, the appearance roles and
+three test or fixture files. `git diff 35438244 aff9fc64 -- src/adapters/qt`
+contains no line matching cursor, splitter, handle, `underMouse` or
+`paintEvent`. The executable he ran is `c2381f32…`, recomputed on disk. On
+this path the v008 and v009 bundles are the same program.
+
+**The escape route was tested and is false.** The obvious way out — that the
+lit rule in his v008 screenshot was stale paint and never proved his pointer
+was on the handle — was written as a test assertion and went **red**:
+`Qt::WA_Hover` is set on the handle, arrival costs one repaint and departure
+another, and `underMouse()` follows both, at scales 100 and 200. The
+assertion was rewritten to the measurement rather than the measurement
+explained away. So BPR-0746's refutation of BPR-0739's cause 3 keeps its
+foundation, and that measurement is now in the suite so it cannot rot.
+
+**What is left is the gesture, and it is hypothesis 1.** v007 ("flickers only
+for a brief moment and the returns back to the normal cursor") and v008 (a
+pointer held still for a photograph) are a pointer **at rest**. v009's
+candidate instructed him to "move the pointer **on and off** that rule to see
+both states", so he was **re-entering**. Hypothesis 1 predicts exactly that:
+Qt sets the cursor once on enter, AppKit reverts it on the next real motion,
+and Qt never re-asserts — every fresh entry works and every rest decays to the
+arrow. That is an **account, not a diagnosis**. It is what the missing log was
+written to discriminate, hypotheses 2 and 3 are not excluded, and nothing was
+implemented on it.
+
+### The log still does not exist, and why
+
+He ran the probe. Pid 72017 is the bundle's executable, started 16:06:37Z from
+`ttys001`, piped to pid 72018 `tee build/logs/bpr-0746-cursor-probe.log`. Both
+were still alive at 16:57Z. `lsof` on 72018 shows cwd
+`/Users/jaeger/Documents/GitHub` — one directory above the checkout — and open
+descriptors only fd 0 on the pipe and fds 1 and 2 on the tty. **There is no
+output file and there never was.** The output exists only in that terminal's
+scrollback. His "Dunno about the test you had me run" is what that looks like
+from his side.
+
+The packet caused it: the copy label read "run this in a terminal, in the
+repository" over a value with an absolute executable path and a **relative**
+`tee` path. Fixed at the authoring site — `AGENTS.md` now requires every path
+in an attended candidate's command to be absolute, and requires one question
+per candidate criterion, which is the other defect this round exposed. The
+corrected command, absolute throughout, is on [[BPR-0746]]:
+
+    QT_LOGGING_RULES='qt.qpa.input.mouse*=true' \
+      /Users/jaeger/Documents/GitHub/BetterPullReview/build/app-release/src/app/BetterPullReview.app/Contents/MacOS/BetterPullReview \
+      2>&1 | tee /Users/jaeger/Documents/GitHub/BetterPullReview/build/logs/bpr-0746-cursor-probe.log
+
+### Two empty notes, read as narrowly as they deserve
+
+**BPR-0734.** An empty-note accept answers no question; it accepts the
+candidate's four criteria as written. Two of those criteria named a
+consequence and asked him to refuse it, and no refusal came, so **Review shows
+one pane too** and the one-pane gutter has **no whole-file overview**. But the
+page did not show either: direction v7 has four states and **none of them is
+Review**, its own prose offers the alternative reading with the ask, and
+neither a pure insertion nor a pure deletion is drawn, so the "one ribbon
+rather than two" case is words too. Accepted-as-written, not
+accepted-as-shown; [[BPR-0729]]'s rewritten scope carries all three as work
+that still needs a drawing or an ask.
+
+**BPR-0744.** The costed question that rode the candidate — whether every
+identifier inside `#if`, `#ifdef`, `#ifndef`, `#elif`, `#undef` and
+`defined()` should take the macro purple rather than only ALL_CAPS ones — came
+back with an empty note for the second round running. It is **not** read into
+the accept and **not** implemented. [[BPR-0748]] carries it with its costing,
+and records that the next packet must ask it as its own candidate with its own
+criterion and with two pictures.
+
+### `application_composition_contract` was not run, and why
+
+The predecessor expected a free profile. It is not free: the owner's own probe
+process, pid 72017, has held it since 16:06:37Z. The block is mechanical and
+now established rather than assumed — `assert_release_self_test`
+(`tests/end_to_end/composition_contract_tests.py:500-531`) runs the freshly
+built `BUILD_TESTING=OFF` Release executable with `os.environ.copy()` and
+requires a stdout match, and with the lease busy that executable prints only
+`PROFILE_ACTIVATION_QUEUED` or `PROFILE_ALREADY_OPEN` and exits
+(`src/app/main.cpp:8005-8021`). There is no environment variable for the data
+root, and `--test-application-data-root` is compiled out of that build, being
+inside `#if defined(BPR_BUILD_TESTING)` (`src/app/main.cpp:7261`,
+`:7285-7291`) — which the test itself asserts the absence of. It was **not**
+worked around by pointing `HOME` at a scratch directory: that would be a green
+under a different environment than the criterion names. Pid 72017 was **not**
+killed: it is the owner's process on his own desktop.
+
+### The two asks for the owner, exactly
+
+1. **Quit the BetterPullReview running from the probe terminal** (pid 72017).
+   That is one command away from closing [[BPR-0744]]'s AC3 and this
+   milestone's exit criterion 2:
+   `ctest --preset dev --output-on-failure -R '^application_composition_contract$'`,
+   about two to five minutes.
+2. **Before quitting it, save that terminal's scrollback** to
+   `/Users/jaeger/Documents/GitHub/BetterPullReview/build/logs/bpr-0746-cursor-probe.log`,
+   or re-run the corrected command above with the gesture [[BPR-0746]] asks
+   for: pointer onto the seam, **held still with only slight motion for about
+   three seconds**, then off, then quit. Resting is the half that fails and is
+   the variable under test.
+
+Neither is urgent and neither blocks [[BPR-0743]].
+
+### Attribution: the dispatch's premise was wrong, and no history was rewritten
+
+d22 was told that `Co-Authored-By: Claude Opus 5 (1M context)` on `5846630e`
+and `cdc00c79` was an anomaly against a repo that otherwise uses
+`Claude Opus 5`. The census says otherwise: **533** commits carry
+`(1M context)` and **100** carry the plain form, alongside 343 `Claude Fable
+5.1`, 255 `Claude Fable 5` and 960 with no trailer. `(1M context)` is the
+dominant Opus 5 form and goes back to at least 2026-09-03. d22 followed its
+explicit instruction and used the plain form for its own commits, rewrote
+nothing, and records the correction here so the owner can rule on which he
+wants rather than on a false premise.
+
+### Next, in order
+
+1. **[[BPR-0743]]**, the epoch-identity design pass — Ready, P1, the largest
+   piece in the pack and the only route to [[BPR-0646]]. Nothing in d22
+   touched it and it is not blocked by either ask above. Take it in a fresh
+   context: it is a design pass over `core::review_epoch_id`'s two
+   machine-local parts, not a bounded edit.
+2. `application_composition_contract` the moment the profile frees, then
+   finish [[BPR-0744]].
+3. [[BPR-0741]] and [[BPR-0742]].
+4. No v010 packet was prepared and none is forced. The next one, when a card
+   forces it, must fix the two defects `AGENTS.md` now names: absolute paths
+   in every command, and one question per criterion. [[BPR-0746]]'s AC4 and
+   [[BPR-0739]]'s AC3 both come back on a bundle carrying whatever the log
+   leads to; [[BPR-0748]] needs two pictures; [[BPR-0646]] waits on BPR-0743.
+
+Neither RFC became closable this round. Nothing touched RFC-BPR-0018, and
+RFC-BPR-0028 still holds BPR-0743, BPR-0729, BPR-0653, BPR-0736, BPR-0739 and
+BPR-0746. Nothing is pushed. d22 added eight commits on `main`, on top of the two
+`cdc00c79` and `5846630e` it inherited unpushed.
+
+d21's frontier, still authoritative on everything it is not corrected on
+above, follows.
+
+## Frontier, 2026-09-12 (d21, mandate r12): the v009 session ran
 
 Dispatch `attended-prep-2026-09-10` d21 (mandate r12), same milestone
 `attended-preparation-pack-head`. The owner asked to launch the attended

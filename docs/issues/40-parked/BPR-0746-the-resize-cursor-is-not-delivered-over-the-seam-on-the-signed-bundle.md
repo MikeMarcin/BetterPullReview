@@ -33,11 +33,16 @@ of window colour with nothing to aim at, so the cursor changed only while
 the pointer crossed it. The fix drew the drawer's edge rule in
 `QPalette::Mid`, and in `QPalette::Highlight` while the pointer is over it.
 
-That highlight is the refutation. The rule is painted from `underMouse()` —
-`Qt::WA_UnderMouse`, which Qt's enter/leave dispatch sets
-(`src/adapters/qt/src/workbench_window.cpp:6303-6312`, the pen chosen at
-`:6309`) — so at the moment of the capture the handle held Qt's pointer
-state and the effective cursor was still the arrow. Hit-zone width is
+That highlight is the refutation. The rule **was** painted from `underMouse()`
+— `Qt::WA_UnderMouse`, which Qt's enter/leave dispatch sets — at the time of
+the capture; the owner dropped that state in v009 and the rule is one constant
+weight now (see the v009 section below, and
+`src/adapters/qt/src/workbench_window.cpp:6303-6312` as it stands). The
+inference this section draws from it is unaffected, and is no longer an
+inference: `qt_workbench_window` measures that the handle is repainted on the
+pointer's arrival and again on its departure, so the lit rule in the capture
+did place the pointer on the handle. At that moment the handle held Qt's
+pointer state and the effective cursor was still the arrow. Hit-zone width is
 therefore not the failing variable; the failure is in cursor *delivery*
 after Qt's enter, which is outside candidates 1 to 4 on BPR-0739, all of
 which are relayout hypotheses.
