@@ -523,7 +523,7 @@ The owner's answers, verbatim on the cards:
    session panel is the only working signed-out open. BPR-0716's earlier
    "the bar does open a pasted link" is corrected there.
 2. BPR-0729's design round: "Card it, can happen after the verdict" —
-   [BPR-0734](BPR-0734-a-design-round-for-the-single-pane-read-layout.md),
+   [BPR-0734](../30-in-progress/BPR-0734-a-design-round-for-the-single-pane-read-layout.md),
    after the v007 verdicts; BPR-0729 depends on it.
 3. Windows/Linux station time for BPR-0730/0731: "After we sort all the
    MacOS and platform agnostic stuff out" — recorded on both cards; they
