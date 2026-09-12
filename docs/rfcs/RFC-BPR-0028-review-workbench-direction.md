@@ -621,3 +621,16 @@ returns when [[BPR-0743]] makes the epoch line carry the pull request's own
 updates; re-asking it on a bundle buildable today would fail for the same reason
 it failed in v006, v007 and v008. AC-03's seam criterion on [[BPR-0739]] is
 likewise not re-asked: no product change touched cursor delivery this round.
+
+## The epoch work has its own RFC, 2026-09-12
+
+The owner chose an RFC of its own for the epoch work, verbatim: "It's own rfc".
+[[BPR-0743]] now belongs to
+[RFC-BPR-0029](RFC-BPR-0029-machine-independent-epoch-identity-update-history.md),
+not to RFC-BPR-0003 as the direction above says. RFC-BPR-0029 is Proposed and
+not accepted, and nothing in it is built until the owner answers its three asks.
+
+AC-02's attended handle criterion on [[BPR-0646]] still stands as written. It
+waits on BPR-0743, which waits on those answers, so this RFC cannot close before
+that work lands. BPR-0646 now records the dependency and sits in Backlog, not
+parked on human-review, because nothing about it is waiting on the owner.

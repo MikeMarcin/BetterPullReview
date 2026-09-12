@@ -84,6 +84,7 @@ tracked on the issue board's backlog, in the same way as other RFC work.
 | [RFC-BPR-0026](RFC-BPR-0026-personal-review-home-pr-url-navigation.md) | Personal Review Home and PR URL Navigation | Deferred | Design accepted; later implementation request; RFC-BPR-0002, RFC-BPR-0007, RFC-BPR-0010, RFC-BPR-0016, RFC-BPR-0018, RFC-BPR-0024, and RFC-BPR-0025 |
 | [RFC-BPR-0027](RFC-BPR-0027-structured-diagnostic-logging-verbosity-privacy.md) | Structured Diagnostic Logging, Verbosity, and Privacy | Deferred | RFC-BPR-0001 and RFC-BPR-0002; basic Quill foundation implemented in BPR-0602; advanced retention/privacy/Settings phase deferred |
 | [RFC-BPR-0028](RFC-BPR-0028-review-workbench-direction.md) | Review Workbench Direction: Overview, Epoch Line, Modalities, and Conversation | Proposed | Owner-locked 2026-09-06; supersedes the RFC-BPR-0025 layout and RFC-BPR-0026 Home presentation where they conflict; Settings, explorers and file tree designs follow. Nine human-pending cards are prepared as one attended session at the pack head (`docs/verification/reviews/rfc-bpr-0028-attended-v002/`) under plan `ux-redesign-pack-0028`. BPR-0653 waits for Windows evidence |
+| [RFC-BPR-0029](RFC-BPR-0029-machine-independent-epoch-identity-update-history.md) | Machine-Independent Epoch Identity and Pull Request Update History | Proposed | Authored 2026-09-12 at the owner's direction ("It's own rfc"); not accepted, and nothing is built until the owner answers its three asks. RFC-BPR-0002, RFC-BPR-0003 and RFC-BPR-0017; supersedes RFC-BPR-0003 in part only once accepted. RFC-BPR-0028's AC-02 waits on its card BPR-0743 |
 
 The 2026-09-04 daily-workbench registration accepts the design in RFC-BPR-0018
 and RFC-BPR-0024 through RFC-BPR-0026, with implementation explicitly deferred.
@@ -160,3 +161,12 @@ Quill v13.0.0 supplies the implemented basic foundation in
 controls; [[BPR-0601]] remains the full closeout. No new live-run authority is
 granted and partial implementation does not close the RFC. The foundation does not wait for RFC-BPR-0018 or
 RFC-BPR-0024; those RFCs later compose the same diagnostic controls and scope.
+
+RFC-BPR-0029 is the owner's own request. It grew from the RFC-BPR-0028 epoch
+line he rejected in v008: an epoch is an update to the pull request, and its
+identity is the same on every machine. Asked whether that should amend the
+closed RFC-BPR-0003 or stand alone, he answered "It's own rfc" on 2026-09-12. Its
+design is [[BPR-0743]]'s design pass. The RFC is Proposed and not accepted,
+nothing is built, and its three owner asks come before any implementation. It
+supersedes RFC-BPR-0003 in part only once accepted, and RFC-BPR-0003 is not
+reopened.

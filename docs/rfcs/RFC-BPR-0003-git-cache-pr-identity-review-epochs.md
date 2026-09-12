@@ -176,3 +176,22 @@ four:
 Nothing is implemented on the design pass until the owner decides whether this
 wants an RFC of its own or an amendment recorded against this one. The
 question is on [[BPR-0743]], which is parked on it.
+
+## The epoch work has its own RFC, 2026-09-12
+
+The owner answered the question above, verbatim: "It's own rfc". The epoch work
+the two notes above describe now lives in
+[RFC-BPR-0029](RFC-BPR-0029-machine-independent-epoch-identity-update-history.md),
+and [[BPR-0743]] is bound to it.
+
+RFC-BPR-0029 is Proposed and not accepted, so as of this note nothing here is
+superseded. If it is accepted, it supersedes this RFC in part, and only in two
+respects. The first is what the product claims identifies an epoch:
+`review_epoch_id` becomes the catalogue's local key, and a derived identity is
+what is the same on every machine. The second is what base OID and observed time
+mean for an epoch imported from a pull request's history.
+
+Everything else here stands. That includes the ordinal and its retained refs,
+the causes, paging, and the non-goal against reconstructing a head no one
+observed that GitHub no longer exposes. This RFC's status, baseline and evidence
+are unchanged, and it is not reopened.
