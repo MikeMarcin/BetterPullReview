@@ -120,4 +120,4 @@ the owner asks for the session. The ask: ScreenBufferTests.cpp on the dark palet
 ## Attended verdict, 2026-09-11 (v007): accepted
 
 Session `cbd48b91…`, revision `app-release-64d9e46a-2026-09-11.3` (bundle built at 2cdc0e57, executable sha256 `64d9e46a…`), actor human; the session was handed back at sequence 322 with all ten candidates decided. Candidate `BPR-0726-cpp-identifier-roles`, decision `91d2fa40`, 23:46:15Z: **accept**.
-Accepted without a note. The values the roles paint are [BPR-0720](../40-parked/BPR-0720-comments-are-green-and-includes-are-grey-on-the-dark-palette.md)'s criterion, rejected in the same round and carded as [BPR-0738](../30-in-progress/BPR-0738-macros-and-functions-take-the-visual-assist-colours-on-the-dark-palette.md); this card's classification is Done.
+Accepted without a note. The values the roles paint are [BPR-0720](../40-parked/BPR-0720-comments-are-green-and-includes-are-grey-on-the-dark-palette.md)'s criterion, rejected in the same round and carded as [BPR-0738](../40-parked/BPR-0738-macros-and-functions-take-the-visual-assist-colours-on-the-dark-palette.md); this card's classification is Done.

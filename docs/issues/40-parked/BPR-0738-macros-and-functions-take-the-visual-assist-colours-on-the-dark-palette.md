@@ -2,11 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0738"
 title: "Macros and functions take the Visual Assist colours on the dark palette"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0006"]
 depends_on: []
 priority: "P2"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"owner_direction":"2026-09-11","attended_session":"cbd48b91000b00f1e72e1ad62c7c384c","attended_decision":"7789e40f-d61d-4900-813c-f23c508db56a"}
+parked_on: "human-review"
+acceptance: [{"criterion":"test_the_dark_palette_follows_the_visual_assist_scheme pins the new macro and function values and fails on A3A3A3/DCDCAA; the syntax contract pins a macro's role at an exact range distinct from a directive's","outcome":"pass","revision":"2f8b7c70","evidence":{"kind":"command","detail":"qt_appearance_profile pins syntax_macro CE8AD4, syntax_function FF8000, syntax_type FFD700, syntax_variable BDB76B, syntax_attribute 4EC9B0 and asserts macro != preprocessor, != A3A3A3, function != DCDCAA; syntax_classification_contract pins VERIFY_ARE_EQUAL as syntax_macro and #define BEGIN_TEST_METHOD_PROPERTIES as preprocessor and not macro. Both pass at 2f8b7c70."}},{"criterion":"qt_appearance_*, syntax_contract, the diff_workbench selectors, application_appearance_theme_customization_contract and qt_composed_github_scale_100 pass; digests repinned if any drifts","outcome":"pass","revision":"2f8b7c70","evidence":{"kind":"command","detail":"ctest --preset dev over core_appearance_*, core_theme_exchange, qt_appearance_*, qt_syntax_pane_composition, qt_diff_workbench_scale_{100,125,200}, syntax_classification_contract, sqlite_appearance_settings_storage, application_appearance_*, application_diff_workbench_*, qt_composed_github_scale_100, application_composition_contract, architecture_boundaries: 22 of 22 after repinning the three round-trip pins that BPR-0733 had left stale (full digest, manifest digest, ->submit( count 3). Strict tidy and clang-format clean on the five touched TUs."}},{"criterion":"The owner accepts ScreenBufferTests.cpp and terminalOutput.cpp on the dark palette in the signed bundle in an attended session","outcome":"pending","revision":"2f8b7c70","evidence":{"kind":"observation","detail":"Asked in the v008 packet on the rebuilt tests-disabled bundle; the include-path colour and the alias italic are asked alongside rather than changed."}}]
 ---
 
 # Macros and functions take the Visual Assist colours on the dark palette
