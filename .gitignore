@@ -31,3 +31,4 @@ __pycache__/
 /.mask/generated/
 /.mask/attended-review/
 /.mask/sessions/
+.mask/skill-config/implement-rfc/native-roles.lock.json
