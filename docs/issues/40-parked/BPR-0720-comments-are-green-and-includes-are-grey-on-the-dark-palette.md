@@ -239,7 +239,7 @@ palette, yes reset", whose written form was "grey preprocessor lines including
 the include path". That stays true of the directive and is no longer true of
 its arguments; RFC-BPR-0006 carries the revision.
 
-Carded as [BPR-0744](../30-in-progress/BPR-0744-preprocessor-directives-are-grey-but-their-arguments-take-their-own-roles.md):
+Carded as [BPR-0744](BPR-0744-preprocessor-directives-are-grey-but-their-arguments-take-their-own-roles.md):
 the directive keyword keeps `syntax_preprocessor`, an ALL_CAPS argument takes
 the `syntax_macro` role BPR-0738 added, and an `#include` path is painted as
 the reference paints it. The classifier can already emit roles at sub-line

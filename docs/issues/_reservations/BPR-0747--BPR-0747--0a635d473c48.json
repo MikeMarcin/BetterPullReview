@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0747"
+  ],
+  "reserve_for": "d20-syntax-error-null-directive",
+  "purpose": "",
+  "created": "2026-09-12T07:24:44.317706+00:00",
+  "base": "16eaefb498080c75930d6b0d28838aa5507402b7"
+}

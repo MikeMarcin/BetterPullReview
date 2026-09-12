@@ -25,12 +25,14 @@ namespace bpr::adapters::syntax {
 	/// truncated span list would silently unclassify the tail of a file.
 	inline constexpr std::size_t maximum_classified_blob_bytes = 8U * 1024U * 1024U;
 
-	/// The revision of the identifier post-pass the C and C++ definitions run
-	/// over their normal-styled runs (functions, types, macros and literal
-	/// prefixes). It is folded into those definitions' published version, so
-	/// raising it retires every span set cached under the previous heuristics.
-	/// BPR-0726.
-	inline constexpr std::uint32_t identifier_heuristic_revision = 1U;
+	/// The revision of the post-pass the C and C++ definitions run over the
+	/// grammar's own runs: functions, types, macros and literal prefixes in a
+	/// normal-styled run (BPR-0726), and in revision 2 the macro arguments of a
+	/// preprocessor run together with the string role of an `#include` header
+	/// name (BPR-0744). It is folded into those definitions' published version,
+	/// so raising it retires every span set cached under the previous
+	/// heuristics.
+	inline constexpr std::uint32_t identifier_heuristic_revision = 2U;
 
 	/// \brief Supplies the complete bytes of one blob.
 	///

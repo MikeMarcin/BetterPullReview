@@ -148,15 +148,20 @@ namespace bpr::qt {
 			// Visual Assist colouring the owner asked for ([[BPR-0720]],
 			// owner direction 2026-09-11, corrected on [[BPR-0738]] from a
 			// per-token sample of the owner's reference): green comments,
-			// grey preprocessor lines including the include path, blue
-			// keywords, gold class and struct types (#FFD700), orange
-			// functions (#FF8000), purple macros, khaki variables
-			// (#BDB76B), teal attributes (#4EC9B0), salmon strings. Four
-			// of the reference values (keyword #569CD6, comment #57A64A,
-			// preprocessor #9B9B9B, macro #BD63C5) fall under 4.5:1 on
-			// this product's added and removed row fills, so they are
-			// lightened along their own hue to the first value that clears
-			// the floor.
+			// grey preprocessor directives, blue keywords, gold class and
+			// struct types (#FFD700), orange functions (#FF8000), purple
+			// macros, khaki variables (#BDB76B), teal attributes
+			// (#4EC9B0), salmon strings. Four of the reference values
+			// (keyword #569CD6, comment #57A64A, preprocessor #9B9B9B,
+			// macro #BD63C5) fall under 4.5:1 on this product's added and
+			// removed row fills, so they are lightened along their own hue
+			// to the first value that clears the floor.
+			// [[BPR-0744]] narrowed the directive grey to the directive
+			// itself: an ALL_CAPS argument of a directive is classified as
+			// a macro and takes the purple below, and a C or C++ include
+			// path is classified as a string and takes the salmon below.
+			// No value moved for that; the import grey keeps naming
+			// `import`, `from` and `@import` in the other grammars.
 			// The four note roles below the region marker are not part of
 			// that scheme and keep their colours.
 			{ role::syntax_normal, srgb(0xDCDCDC) },

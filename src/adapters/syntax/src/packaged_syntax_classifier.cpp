@@ -120,12 +120,17 @@ namespace bpr::adapters::syntax {
 			};
 		}
 
-		/// \brief Reports whether a definition receives the identifier post-pass.
+		/// \brief Reports whether a definition receives the C-family post-pass.
 		///
 		/// \details The packaged C and C++ grammars declare user identifiers,
 		/// PascalCase types and ALL_CAPS macros as normal text, so the function,
-		/// type and preprocessor roles never reach a C++ file without help.
-		/// BPR-0726.
+		/// type and preprocessor roles never reach a C++ file without help
+		/// (BPR-0726). The same gate carries the three corrections BPR-0744
+		/// added: an ALL_CAPS argument of a directive is a macro rather than more
+		/// directive grey, the header name of an `#include` is a string rather
+		/// than an import, and an ALL_CAPS predefined macro is a macro rather
+		/// than an unclassified other. All three are conventions of these two
+		/// grammars alone, so no other packaged definition sees them.
 		[[nodiscard]] auto uses_identifier_heuristics(const std::string_view aName) noexcept
 			-> bool
 		{
@@ -432,13 +437,18 @@ namespace bpr::adapters::syntax {
 				if (Overflowed || aOffset < 0 || aLength <= 0) {
 					return;
 				}
-				const auto role = role_of(aFormat.textStyle());
+				const auto role = c_family_role(
+					role_of(aFormat.textStyle()),
+					aOffset,
+					aOffset + aLength);
 				if (role == core::appearance_role::syntax_normal) {
 					// An unclassified region carries the default role, so naming
 					// it would only make the span list larger. The identifier
 					// post-pass reads such a region for the conventions the
-					// grammar leaves normal; it never enters a styled region, so
-					// comments and strings are never re-read.
+					// grammar leaves normal. It enters no other styled region, so
+					// comments and strings are never re-read; the directive pass
+					// below is the one deliberate exception and reads only a
+					// preprocessor run.
 					OpenSpan = false;
 					if (IdentifierHeuristics) {
 						classify_identifiers(aOffset, aOffset + aLength);
@@ -446,15 +456,58 @@ namespace bpr::adapters::syntax {
 					OpenSpan = false;
 					return;
 				}
-				const auto first = byte_offset(aOffset);
-				const auto last  = byte_offset(aOffset + aLength);
-				if (last <= first) {
+				if (IdentifierHeuristics
+					&& role == core::appearance_role::syntax_preprocessor) {
+					classify_directive(aOffset, aOffset + aLength);
 					return;
 				}
-				append(first, last, role);
+				append_units(aOffset, aOffset + aLength, role);
 			}
 
 		private:
+			/// \brief Applies the C and C++ corrections the packaged grammar does
+			/// not make to a whole styled run.
+			///
+			/// \details Two styles mean something narrower in C and C++ than the
+			/// role vocabulary gives them, so the two definitions that already run
+			/// the post-pass correct them at the range the grammar reported.
+			///
+			/// The import style is the `<…>` or `"…"` header name of an
+			/// `#include`, which the reference paints as a string rather than the
+			/// directive grey. No other packaged grammar is touched, and in those
+			/// the import role keeps naming `import`, `from` and `@import`.
+			///
+			/// The other style is a predefined macro: the C++ grammar gives it to
+			/// `__GNUC__` and `__FILE__`, and the GNU extension grammar it
+			/// includes gives it to `__GNUC_MINOR__`. Which predefined names are
+			/// listed upstream is an accident, so `__APPLE__` painting as a macro
+			/// while `__GNUC__` painted near-grey was a distinction nobody chose.
+			/// The correction is deliberately gated on the same ALL_CAPS test the
+			/// directive pass uses rather than applied to the style as a whole,
+			/// because the Doxygen and modeline grammars this definition also
+			/// includes give that same style to an HTML entity, an HTML attribute
+			/// name and a modeline value — all of them inside a comment. The
+			/// ALL_CAPS test separates the two populations exactly: `__GNUC__`
+			/// passes; `&amp;`, `on` and `off` do not, so no role is named inside
+			/// a comment. BPR-0744.
+			[[nodiscard]] auto c_family_role(
+				const core::appearance_role aRole,
+				const int                   aBegin,
+				const int                   aEnd) const noexcept -> core::appearance_role
+			{
+				if (!IdentifierHeuristics) {
+					return aRole;
+				}
+				if (aRole == core::appearance_role::syntax_import) {
+					return core::appearance_role::syntax_string;
+				}
+				if (aRole == core::appearance_role::syntax_other
+					&& is_macro_case(Text.mid(aBegin, aEnd - aBegin))) {
+					return core::appearance_role::syntax_macro;
+				}
+				return aRole;
+			}
+
 			/// \brief Names the identifiers of one normal-styled run.
 			void classify_identifiers(const int aBegin, const int aEnd)
 			{
@@ -474,14 +527,81 @@ namespace bpr::adapters::syntax {
 						const auto role = identifier_role(Text, at, stop);
 						if (role != core::appearance_role::syntax_normal) {
 							OpenSpan = false;
-							append(
-								byte_offset(static_cast<int>(at)),
-								byte_offset(static_cast<int>(stop)),
-								role);
+							append_units(at, stop, role);
 						}
 					}
 					at = stop;
 				}
+			}
+
+			/// \brief Names the macros of one preprocessor run and leaves every
+			/// other part of it the directive grey.
+			///
+			/// \details The directive keyword is grey and its arguments do not
+			/// inherit that grey: an ALL_CAPS word anywhere in the run is a macro
+			/// at its own exact range, which is how `#ifndef MACRO`,
+			/// `#define MACRO` and `#if MACRO()` read in the reference. Everything
+			/// the run still covers — the keyword itself, `once` after `#pragma`,
+			/// `defined`, the operators and the parentheses — stays grey, and so
+			/// does a quoted region, so the words of an `#error` message are not
+			/// mistaken for macros. A part the grammar already styled for itself
+			/// (the `()` after a macro name, a numeric replacement, a standard
+			/// macro, a trailing comment, an `#include` header name) is a run of
+			/// its own and never reaches here. BPR-0744.
+			void classify_directive(const int aBegin, const int aEnd)
+			{
+				const auto end  = std::min(static_cast<qsizetype>(aEnd), Text.size());
+				auto       at   = static_cast<qsizetype>(aBegin);
+				auto       grey = at;
+				while (at < end) {
+					if (Text[at] == u'"') {
+						at = end_of_quotation(at, end);
+						continue;
+					}
+					if (!is_identifier_start(Text[at].unicode())
+						|| (at > 0 && is_identifier_unit(Text[at - 1].unicode()))) {
+						++at;
+						continue;
+					}
+					auto stop = at + 1;
+					while (stop < Text.size() && is_identifier_unit(Text[stop].unicode())) {
+						++stop;
+					}
+					if (stop <= end && is_macro_case(Text.mid(at, stop - at))) {
+						append_units(grey, at, core::appearance_role::syntax_preprocessor);
+						append_units(at, stop, core::appearance_role::syntax_macro);
+						grey = stop;
+					}
+					at = stop;
+				}
+				append_units(grey, end, core::appearance_role::syntax_preprocessor);
+			}
+
+			/// \brief Returns the index just past the quotation that opens at the
+			/// supplied position, or the end of the run when none closes it.
+			[[nodiscard]] auto end_of_quotation(
+				const qsizetype aOpen,
+				const qsizetype aEnd) const noexcept -> qsizetype
+			{
+				auto at = aOpen + 1;
+				while (at < aEnd && Text[at] != u'"') {
+					at += Text[at] == u'\\' ? 2 : 1;
+				}
+				return std::min(at + 1, aEnd);
+			}
+
+			/// \brief Appends one span named by its UTF-16 unit range.
+			void append_units(
+				const qsizetype             aBegin,
+				const qsizetype             aEnd,
+				const core::appearance_role aRole)
+			{
+				const auto first = byte_offset(static_cast<int>(aBegin));
+				const auto last  = byte_offset(static_cast<int>(aEnd));
+				if (last <= first) {
+					return;
+				}
+				append(first, last, aRole);
 			}
 
 			[[nodiscard]] auto byte_offset(const int aUnitOffset) const noexcept

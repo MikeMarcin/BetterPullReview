@@ -513,6 +513,18 @@ namespace {
 	// Identifier roles in C and C++ (BPR-0726)
 	// ---------------------------------------------------------------------
 
+	/// \brief Returns the text of one zero-based line, without its terminator.
+	[[nodiscard]] auto row_of(const std::string_view aText, const std::uint32_t aLine)
+		-> std::string_view
+	{
+		auto begin = std::size_t{ 0U };
+		for (auto line = std::uint32_t{ 0U }; line < aLine; ++line) {
+			begin = aText.find('\n', begin) + 1U;
+		}
+		const auto end = aText.find('\n', begin);
+		return aText.substr(begin, end == std::string_view::npos ? end : end - begin);
+	}
+
 	/// \brief Reports whether exactly one span covers the named word on the line
 	/// with the supplied role.
 	[[nodiscard]] auto word_has_role(
@@ -523,12 +535,7 @@ namespace {
 		const core::appearance_role aRole,
 		const std::size_t           aOccurrence = 0U) -> bool
 	{
-		auto begin = std::size_t{ 0U };
-		for (auto line = std::uint32_t{ 0U }; line < aLine; ++line) {
-			begin = aText.find('\n', begin) + 1U;
-		}
-		const auto end    = aText.find('\n', begin);
-		const auto row    = aText.substr(begin, end == std::string_view::npos ? end : end - begin);
+		const auto row    = row_of(aText, aLine);
 		auto       column = row.find(aWord);
 		for (auto skipped = std::size_t{ 0U }; skipped < aOccurrence; ++skipped) {
 			column = row.find(aWord, column + 1U);
@@ -557,6 +564,31 @@ namespace {
 		return matches == 1;
 	}
 
+	/// \brief Reports whether one span of the supplied role covers the whole of
+	/// the named word.
+	///
+	/// \details A directive keyword is not a span of its own: it sits inside the
+	/// longer grey run that reaches to the first argument. This is how such a
+	/// word is pinned, while `word_has_role` pins a word that must own its exact
+	/// range.
+	[[nodiscard]] auto word_inside_role(
+		const app::token_span_list& aSpans,
+		const std::string_view      aText,
+		const std::uint32_t         aLine,
+		const std::string_view      aWord,
+		const core::appearance_role aRole) -> bool
+	{
+		const auto row    = row_of(aText, aLine);
+		const auto column = row.find(aWord);
+		expect(column != std::string_view::npos, "the word is on the line");
+		const auto first = static_cast<std::uint32_t>(column);
+		const auto last  = first + static_cast<std::uint32_t>(aWord.size());
+		return std::any_of(aSpans.begin(), aSpans.end(), [&](const app::token_span& aSpan) {
+			return aSpan.Line == aLine && aSpan.Role == aRole && aSpan.Column <= first
+				&& aSpan.Column + aSpan.Length >= last;
+		});
+	}
+
 	/// \brief Reports whether no span on the line carries a heuristic role for
 	/// the named word.
 	[[nodiscard]] auto word_stays_normal(
@@ -565,12 +597,7 @@ namespace {
 		const std::uint32_t         aLine,
 		const std::string_view      aWord) -> bool
 	{
-		auto begin = std::size_t{ 0U };
-		for (auto line = std::uint32_t{ 0U }; line < aLine; ++line) {
-			begin = aText.find('\n', begin) + 1U;
-		}
-		const auto end    = aText.find('\n', begin);
-		const auto row    = aText.substr(begin, end == std::string_view::npos ? end : end - begin);
+		const auto row    = row_of(aText, aLine);
 		const auto column = row.find(aWord);
 		expect(column != std::string_view::npos, "the word is on the line");
 		return std::none_of(aSpans.begin(), aSpans.end(), [&](const app::token_span& aSpan) {
@@ -581,6 +608,94 @@ namespace {
 					|| aSpan.Role == core::appearance_role::syntax_macro
 					|| aSpan.Role == core::appearance_role::syntax_preprocessor);
 		});
+	}
+
+	/// \brief [[BPR-0744]]: a directive keyword is grey and its arguments are
+	/// not.
+	///
+	/// \details This reverses what [[BPR-0726]] pinned here. The owner's
+	/// direction of 2026-09-11 is that the directive itself stays grey while an
+	/// ALL_CAPS argument paints as the macro it is and an `#include` header name
+	/// paints as the reference paints it, which is the string role. Everything
+	/// else a directive still covers — `once`, `defined`, the operators, the
+	/// parentheses and the words of an `#error` message — stays grey.
+	void directive_role_contract(
+		const std::string_view      aText,
+		const app::token_span_list& aSpans)
+	{
+		using role = core::appearance_role;
+
+		const auto includeAngle = line_of(aText, "BPR-INCLUDE-ANGLE");
+		expect(word_inside_role(aSpans, aText, includeAngle, "#include", role::syntax_preprocessor),
+			   "the #include keyword stays the directive grey");
+		expect(word_has_role(aSpans, aText, includeAngle, "<string>", role::syntax_string),
+			   "an angle-bracketed include path is the string role at its own range");
+
+		const auto includeQuoted = line_of(aText, "BPR-INCLUDE-QUOTED");
+		expect(word_inside_role(aSpans, aText, includeQuoted, "#include", role::syntax_preprocessor),
+			   "the #include keyword stays grey on a quoted include too");
+		expect(word_has_role(aSpans, aText, includeQuoted, "\"fixture/detail/config.hpp\"",
+							 role::syntax_string),
+			   "a quoted include path is the string role at its own range");
+
+		const auto ifndefLine = line_of(aText, "BPR-IFNDEF-LINE");
+		expect(word_inside_role(aSpans, aText, ifndefLine, "#ifndef", role::syntax_preprocessor),
+			   "the #ifndef keyword is the directive grey");
+		expect(word_has_role(aSpans, aText, ifndefLine, "BPR_FIXTURE_GUARD", role::syntax_macro),
+			   "the name after #ifndef is a macro at its own exact range");
+
+		const auto defineGuard = line_of(aText, "BPR-DEFINE-GUARD");
+		expect(word_inside_role(aSpans, aText, defineGuard, "#define", role::syntax_preprocessor),
+			   "the #define keyword is the directive grey");
+		expect(word_has_role(aSpans, aText, defineGuard, "BPR_FIXTURE_GUARD", role::syntax_macro),
+			   "the name after #define is a macro at its own exact range");
+		expect(word_has_role(aSpans, aText, defineGuard, "1", role::syntax_number),
+			   "a numeric replacement keeps the grammar's own number role");
+
+		const auto defineLine = line_of(aText, "BPR-MACRO-DEFINE");
+		expect(word_inside_role(aSpans, aText, defineLine, "#define", role::syntax_preprocessor),
+			   "the #define keyword of a function-like macro is grey");
+		expect(word_has_role(aSpans, aText, defineLine, "BEGIN_TEST_METHOD_PROPERTIES",
+							 role::syntax_macro),
+			   "a function-like macro name is a macro at its own exact range");
+
+		const auto ifLine = line_of(aText, "BPR-IF-LINE");
+		expect(word_inside_role(aSpans, aText, ifLine, "#if", role::syntax_preprocessor),
+			   "the #if keyword is the directive grey");
+		expect(word_has_role(aSpans, aText, ifLine, "BPR_FIXTURE_USE_MODULES", role::syntax_macro)
+				   && word_has_role(aSpans, aText, ifLine, "BPR_FIXTURE_LEGACY", role::syntax_macro),
+			   "every ALL_CAPS word of a condition is a macro at its own range");
+		expect(word_inside_role(aSpans, aText, ifLine, "&&", role::syntax_preprocessor)
+				   && word_inside_role(aSpans, aText, ifLine, "defined", role::syntax_preprocessor),
+			   "the operators and `defined` of a condition stay grey");
+
+		const auto pragmaLine = line_of(aText, "BPR-PRAGMA-LINE");
+		expect(word_inside_role(aSpans, aText, pragmaLine, "#pragma once",
+								role::syntax_preprocessor),
+			   "`once` after #pragma stays grey rather than taking a role of its own");
+
+		const auto errorLine = line_of(aText, "BPR-ERROR-LINE");
+		expect(word_inside_role(aSpans, aText, errorLine,
+								"\"BPR-ERROR-LINE MODULES are UNSUPPORTED\"",
+								role::syntax_preprocessor),
+			   "the words of an #error message stay grey, never macros");
+
+		// One line carries all three populations of predefined name, so the
+		// distinction between them cannot drift unnoticed. `__GNUC__` is one the
+		// packaged grammar lists and styles for itself; before [[BPR-0744]] that
+		// left it a near-grey `syntax_other` on the same line where `__APPLE__`
+		// was already purple, which is the artefact this pins shut.
+		const auto standardLine = line_of(aText, "BPR-STDMACRO-LINE");
+		expect(word_has_role(aSpans, aText, standardLine, "__GNUC__", role::syntax_macro),
+			   "an ALL_CAPS predefined macro is a macro, not an unclassified other");
+		// The two recorded limits of the ALL_CAPS heuristic, pinned so that they
+		// are visible facts rather than surprises. Neither is a defect of this
+		// change; both are named on the card's return.
+		expect(word_has_role(aSpans, aText, standardLine, "__cplusplus", role::syntax_other),
+			   "a lower-case predefined macro the grammar lists keeps the other role");
+		expect(word_inside_role(aSpans, aText, standardLine, "__clang__",
+								role::syntax_preprocessor),
+			   "a lower-case predefined macro the grammar does not list stays grey");
 	}
 
 	void identifier_role_contract(const syntax::packaged_definition_catalog& aCatalog)
@@ -662,14 +777,10 @@ namespace {
 				   && word_stays_normal(spans, text, commentLine, "Log"),
 			   "no heuristic role is named inside a line comment");
 		const auto defineLine = line_of(text, "BPR-MACRO-DEFINE");
-		expect(word_has_role(spans, text, defineLine, "#define BEGIN_TEST_METHOD_PROPERTIES",
-							 role::syntax_preprocessor),
-			   "a preprocessor line keeps the grammar's own span");
-		expect(!word_has_role(spans, text, defineLine, "#define BEGIN_TEST_METHOD_PROPERTIES",
-							  role::syntax_macro),
-			   "a directive is not a macro");
 		expect(word_stays_normal(spans, text, defineLine, "ScreenBufferTests"),
 			   "no heuristic role is named inside a block comment");
+
+		directive_role_contract(text, spans);
 	}
 } // namespace
 

@@ -324,6 +324,16 @@ namespace {
 				   && dark[core::index_of(role::syntax_macro)] != colour(0xA3U, 0xA3U, 0xA3U)
 				   && dark[core::index_of(role::syntax_function)] != colour(0xDCU, 0xDCU, 0xAAU),
 			   "macros are not painted the directive grey and functions are not Visual Studio's pale yellow");
+		// [[BPR-0744]]: a C or C++ `#include` path is classified as a string
+		// rather than an import, so the colour the reference paints an include
+		// path is the string salmon pinned above. No dark value moved for that
+		// change; the import grey stays because it still names `import`, `from`
+		// and `@import` in the other packaged grammars.
+		expect(dark[core::index_of(role::syntax_string)]
+					   != dark[core::index_of(role::syntax_preprocessor)]
+				   && dark[core::index_of(role::syntax_string)]
+					   != dark[core::index_of(role::syntax_import)],
+			   "an include path, carried by the string role, is not the directive grey");
 		expect(light[core::index_of(role::syntax_comment)] == colour(0x55U, 0x5EU, 0x69U)
 				   && light[core::index_of(role::syntax_preprocessor)] == colour(0x7AU, 0x3EU, 0x9DU),
 			   "the light palette keeps its own comment and preprocessor colours");
