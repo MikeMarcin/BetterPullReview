@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0735"
 title: "clangd cannot find the compile database and reports every header missing"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
