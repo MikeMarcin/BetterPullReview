@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0749"
 title: "The seam rule sits in the boundary column of the splitter hot zone"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P3"
