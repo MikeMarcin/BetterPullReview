@@ -12,7 +12,68 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
-## Current frontier, 2026-09-12 (d20, mandate r11)
+## Current frontier, 2026-09-12 (d21, mandate r12): the v009 session is live
+
+Dispatch `attended-prep-2026-09-10` d21 (mandate r12), same milestone
+`attended-preparation-pack-head`. The owner asked to launch the attended
+review. **The host is running and the watch is armed.** No card was begun and
+no product source was touched.
+
+**The renewal was bookkeeping, confirmed rather than assumed.** d20's
+`coordinator_handoff.py check` returned reconcile because `BPR-0646:*` moved
+under an unchanged milestone definition fingerprint. Read against `6b76f744`,
+the whole change to that card is an appended "Owner answer" section plus one
+link-path fix (BPR-0743 `10-backlog` → `20-ready`). Frontmatter, `status:
+"Parked"`, `parked_on: human-review` and every entry of the `acceptance` array
+are byte-identical, and the section says in its own words that the criterion is
+**not reworded**. Exit criterion 4 of this milestone already admits "**or** the
+exact remaining ask is recorded on the card", which is exactly what landed. No
+requirement moved. Rebound at obligation fingerprint
+`sha256:b18b2581a41bfffba81a70ac6fc84881c0de0e69bbf015e429e695682d6709a8`,
+definition fingerprint `sha256:201de49a…`.
+
+**The packet was verified intact before the host was started**, not taken on
+trust: executable sha256 `c2381f32…` recomputed and equal, `codesign --verify
+--deep --strict` exit 0, offline page digest `sha256:51da0dd4…` recomputed and
+equal, and all four candidates `ready` + `protected` at sequence 357 with
+fingerprints equal to
+[session-identity.json](../../verification/reviews/rfc-bpr-0028-attended-v009/session-identity.json)
+and no decision recorded against any of them. Each candidate's launch and copy
+targets were resolved on disk: the design asset and its `read-one-pane` anchor,
+the bundle, and a writable `build/logs` with
+`build/logs/bpr-0746-cursor-probe.log` **not** yet present, so its existence is
+real evidence when the probe runs.
+
+**Host:** pid 70931, loopback `127.0.0.1:60308`, HTTP 200, bearer token in the
+session record — a later context recovers the attach information by running
+`serve` again rather than by keeping the token. `wait --after 357` is armed as
+a background watch (pid 70953). Four pending: `BPR-0744-directive-ranges`,
+`BPR-0734-read-one-pane`, `BPR-0739-seam-hover`, `BPR-0746-cursor-probe`.
+
+**Correction to d20's environment note, which is now wrong.** The v008 build,
+pid 30378, **is gone** — the owner quit it himself before this dispatch (the
+profile directory was last touched 06:47; his `3afdeae7` landed 07:12). No
+BetterPullReview process is running and nothing holds the profile. So the
+packet's first instruction, and the "quit the running BetterPullReview first"
+wording inside BPR-0739's and BPR-0744's launch labels, are **already
+satisfied** — stale, but harmless, and not worth invalidating a protected
+candidate's fingerprint to reword under his hands.
+
+`application_composition_contract`'s
+`test_tests_off_release_graph_omits_public_path_fixture` was **deliberately not
+rerun.** It should now go green, since the profile it wanted is free; but
+`assert_release_self_test` launches the executable against the real
+environment, so running it would open that profile and block the owner's own
+launch of the v009 bundle. It is a one-command check to close exit criterion 2
+once he is done with the session, and that is when to take it.
+
+Next: consume the four verdicts when the watch wakes, including BPR-0746's log,
+which is what unblocks that card's diagnosis; then run the composition contract
+against the freed profile; then [[BPR-0743]], the largest piece of work in the
+pack and the only route to BPR-0646. d20's frontier, still authoritative on
+everything it is not corrected on above, follows.
+
+## Frontier, 2026-09-12 (d20, mandate r11)
 
 Dispatch `attended-prep-2026-09-10` d20 (mandate r11), milestone
 `attended-preparation-pack-head` of plan `ux-redesign-pack-0028`. The owner
