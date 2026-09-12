@@ -346,6 +346,13 @@ namespace bpr::qt {
 		void fail(const application::receipt_failure_publication& aFailure);
 		/// \brief Retires receipt actions, optionally naming unavailable storage.
 		void clear_review_ledger(bool aUnavailable = false);
+		/// \brief [[BPR-0742]]. Adopts whether this window's saved layout is unavailable.
+		///
+		/// \details Composition decides it once, from the one store open it does
+		/// not keep. The status line then carries the settings-unavailable sentence
+		/// for as long as it is set; unlike a host failure, a later workbench
+		/// projection does not clear it.
+		void set_saved_layout_unavailable(bool aUnavailable);
 
 		void add_setup_profile(application::github_profile_option aProfile);
 		void set_setup_destination_dispatch(application::setup_destination_dispatch aDispatch);
@@ -1062,11 +1069,12 @@ namespace bpr::qt {
 		std::optional<application::workbench_host_failure>         Failure;
 		std::optional<application::file_receipt_action_projection> Receipt;
 		std::optional<application::receipt_failure_publication>    ReceiptFailure;
-		bool                                                       LedgerUnavailable     = false;
-		bool                                                       HasCommands           = false;
-		bool                                                       ApplyingLayout        = false;
-		bool                                                       ApplyingFileSelection = false;
-		bool                                                       QueueReady            = false;
+		bool                                                       LedgerUnavailable      = false;
+		bool                                                       SavedLayoutUnavailable = false;
+		bool                                                       HasCommands            = false;
+		bool                                                       ApplyingLayout         = false;
+		bool                                                       ApplyingFileSelection  = false;
+		bool                                                       QueueReady             = false;
 		// Set by the first published review-history update. Before one arrives
 		// the shell has no review-history state to state, and quoting the
 		// control's idle wording would report activity that never happened.

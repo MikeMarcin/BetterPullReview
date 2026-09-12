@@ -6296,6 +6296,11 @@ namespace bpr::app {
 				aConfig.Profile);
 			// Reads the current durable or session layout. Restoring never writes
 			// it back, so merely launching still leaves a fresh store fresh.
+			// [[BPR-0742]]. Session defaults over a store that could not open load
+			// successfully, so the host never reports the loss. The window is told
+			// once and retains it; a one-shot failure would be cleared by its first
+			// projection.
+			Window->set_saved_layout_unavailable(!Profile->WorkbenchPersistenceAvailable);
 
 			Window->set_notification_preview_dispatch([this](const core::pull_request_ref& aRef) {
 				if (Closing || QueueHost == nullptr || Notifications == nullptr) {

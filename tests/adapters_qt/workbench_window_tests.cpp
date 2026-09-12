@@ -4496,6 +4496,41 @@ namespace {
 			   "and does not read like a review-history state");
 	}
 
+	/// [[BPR-0742]]. An unavailable saved layout is retained window state, not a
+	/// one-shot host failure: it survives the projections that clear `Failure`.
+	void test_unavailable_saved_layout_survives_workbench_projections()
+	{
+		qt::workbench_window window;
+		const auto           sentence = QStringLiteral("The saved workbench layout is unavailable.");
+		expect(!window.status_text().contains(sentence), "a window starts without a layout-unavailable sentence");
+
+		const auto before = window.statistics();
+		window.set_saved_layout_unavailable(true);
+		expect(window.status_text().contains(sentence) && window.statistics().Failures == before.Failures,
+			   "an unavailable saved layout is stated without delivering a host failure");
+
+		window.publish(application::workbench_projection{
+			.Drawers = drawer_states(core::workbench_drawer_state::expanded,
+									 core::workbench_drawer_state::expanded) });
+		window.publish(application::workbench_projection{
+			.Layout = application::workbench_layout_delta{ .FilesWidth = 320U } });
+		expect(window.statistics().Publications == before.Publications + 2U
+				   && window.status_text().contains(sentence),
+			   "the sentence survives workbench projections");
+
+		window.fail({ .Failure = application::workbench_host_failure::settings_unavailable });
+		expect(window.status_text().count(sentence) == 1,
+			   "a host settings failure and the retained state say the sentence once");
+		window.publish(application::workbench_projection{
+			.Drawers = drawer_states(core::workbench_drawer_state::collapsed,
+									 core::workbench_drawer_state::expanded) });
+		expect(window.status_text().count(sentence) == 1,
+			   "clearing the host failure keeps the retained sentence");
+
+		window.set_saved_layout_unavailable(false);
+		expect(!window.status_text().contains(sentence), "an available saved layout is not reported");
+	}
+
 	[[nodiscard]] auto accessible_names(const QList<QWidget*>& aStops)
 		-> QStringList
 	{
@@ -6326,6 +6361,7 @@ auto main(int argc, char** argv) -> int
 	test_the_lower_detail_pane_is_full_width_line_over_line();
 	test_composed_epoch_selectors_show_exact_retained_epochs();
 	test_review_history_state_is_explicit_in_workbench_text();
+	test_unavailable_saved_layout_survives_workbench_projections();
 	test_focus_order_is_declared_named_and_walkable();
 	test_receipt_actions_follow_decided_projection_and_clear_while_loading();
 	test_selection_synchronisation_and_restart_persistence();

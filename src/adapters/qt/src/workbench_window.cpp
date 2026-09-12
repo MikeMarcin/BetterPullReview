@@ -3125,6 +3125,16 @@ namespace bpr::qt {
 		announce_update();
 	}
 
+	void workbench_window::set_saved_layout_unavailable(const bool aUnavailable)
+	{
+		if (SavedLayoutUnavailable == aUnavailable) {
+			return;
+		}
+		SavedLayoutUnavailable = aUnavailable;
+		update_status_text();
+		announce_update();
+	}
+
 	void workbench_window::set_dispatch(workbench_intent_dispatch aDispatch)
 	{
 		Dispatch = std::move(aDispatch);
@@ -6677,6 +6687,13 @@ namespace bpr::qt {
 		}
 		if (Failure) {
 			status.append(QStringLiteral(" %1").arg(failure_text(*Failure)));
+		}
+		// [[BPR-0742]]. Retained, so the projection that resets `Failure` does not
+		// silence it; said once when a host failure already says the same.
+		if (SavedLayoutUnavailable
+			&& Failure != application::workbench_host_failure::settings_unavailable) {
+			status.append(QStringLiteral(" %1").arg(failure_text(
+				application::workbench_host_failure::settings_unavailable)));
 		}
 		if (LedgerUnavailable) {
 			status.append(QStringLiteral(" Private review progress is unavailable."));

@@ -120,6 +120,7 @@ auto main(int aArgc, char** aArgv) -> int
 	const auto   root  = std::filesystem::canonical(aArgv[2]);
 	QApplication application{ aArgc, aArgv };
 	QApplication::setQuitOnLastWindowClosed(false);
+	const auto                   layoutUnavailable = QStringLiteral("The saved workbench layout is unavailable.");
 	std::array<std::uint64_t, 4> saved{ }; // A/B identities and chosen files widths.
 	if (phase != "seed") {
 		std::ifstream input{ root / "layout-expectations.txt" };
@@ -149,15 +150,28 @@ auto main(int aArgc, char** aArgv) -> int
 		wait_for([&] { return desktop->windows(core::default_bpr_profile_id).size() == 2; }, "optional layout failure retains admitted identities");
 		auto* b = select_window(*desktop, saved[1]);
 		expect(b != nullptr && b->showing_home(), "broken optional layout leaves usable Home");
+		// [[BPR-0742]]. The fallback is not silent. Every restarted window says
+		// on its status line that the saved layout is unavailable, after the
+		// startup layout publication that would clear a one-shot failure.
+		for (const auto context : desktop->windows(core::default_bpr_profile_id)) {
+			auto* restarted = desktop->window(context);
+			expect(restarted != nullptr, "restarted window available");
+			wait_for([&] { return restarted->statistics().Publications > 0U && restarted->status_text().contains(layoutUnavailable); },
+					 "a restarted window tells the user the saved layout is unavailable",
+					 [&] { std::cerr << "window=" << context.Window.value() << " publications=" << restarted->statistics().Publications
+									 << " failures=" << restarted->statistics().Failures
+									 << " status=" << restarted->status_text().toStdString() << '\n'; });
+		}
+		const auto homePublications = b->statistics().Publications;
 		// [[BPR-0740]]. Since BPR-0718 a store that cannot open at composition
 		// yields the composed defaults for every window rather than a per-window
-		// load failure, so the "saved workbench layout is unavailable" line this
-		// phase pinned under BPR-0708 is no longer produced; the unreadable
-		// store is preserved (the contract checks its version and the
-		// allocator) and the window reads with the profile defaults, not its
-		// saved width.
+		// load failure; the unreadable store is preserved (the contract checks
+		// its version and the allocator) and the window reads with the profile
+		// defaults, not its saved width.
 		open_review(*owner, *b, 18, true);
 		expect(b->files_drawer()->width() == 320 && static_cast<std::uint64_t>(b->files_drawer()->width()) != saved[3], "unreadable optional layout yields the composed defaults, not the saved width");
+		expect(b->statistics().Publications > homePublications && b->status_text().contains(layoutUnavailable),
+			   "the unavailable layout sentence survives the review's workbench projections");
 		quitWindow = b;
 	} else if (phase == "seed") {
 		wait_for([&] { return desktop->windows(core::default_bpr_profile_id).size() == 1; }, "first window admitted");
@@ -205,6 +219,7 @@ auto main(int aArgc, char** aArgv) -> int
 		auto* b = select_window(*desktop, saved[1]);
 		expect(b != nullptr, "surviving stable window");
 		open_review(*owner, *b, 18, true);
+		expect(!b->status_text().contains(layoutUnavailable), "a readable layout store reports no unavailable layout");
 		wait_for([&] { return !b->repositories_drawer_toggle_action()->isChecked(); }, "B restores its own drawer state");
 		expect(b->conversations_drawer_toggle_action()->isChecked() && b->line_numbers_action()->isChecked(), "B preserves independent source and conversation state");
 		expect(static_cast<std::uint64_t>(b->files_drawer()->width()) == saved[3], "B restores chosen files width");
