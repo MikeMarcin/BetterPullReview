@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0749"
+  ],
+  "reserve_for": "attended-prep-2026-09-10-d23",
+  "purpose": "The splitter seam's hot zone and the rule's boundary column",
+  "created": "2026-09-12T17:32:27.726230+00:00",
+  "base": "f2c49e123a7c704159f56b0b8a266fb0190b1f45"
+}
