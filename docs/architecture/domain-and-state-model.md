@@ -394,6 +394,15 @@ observed time, ordinal, origin, independent base/head transitions, material
 identity, and availability. Ordinal defines observation chronology; wall time
 does not.
 
+The update line also has a separate provider-evidenced occurrence history.
+Its portable identity uses canonical host, numeric pull-request identity and
+typed event/head evidence. A local ordinal never orders that list across
+machines. Event UTC, cached commit UTC, and local first-seen are distinct
+facts; mixed timestamps use a deterministic tie-break that does not assert
+push order. A timeline failure, page cap, missing update boundary or ambiguous
+association leaves history explicitly incomplete. A historical occurrence
+without an evidenced base stays visible without a comparison anchor.
+
 Cause is composite rather than a lossy enum:
 
 | Axis | Values |

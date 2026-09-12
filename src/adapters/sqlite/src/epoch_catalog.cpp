@@ -576,6 +576,9 @@ namespace bpr::adapters::sqlite {
 				return Binding;
 			}
 
+			[[nodiscard]] auto supersede_occurrence(const core::epoch_occurrence& aExpected, const core::epoch_occurrence& aReplacement, std::stop_token aStop) -> result<void> override;
+			[[nodiscard]] auto occurrences(std::stop_token aStop) -> result<core::epoch_occurrence_history> override;
+			[[nodiscard]] auto record_occurrences(const core::epoch_occurrence_history& aHistory, std::stop_token aStop) -> result<void> override;
 			[[nodiscard]] auto snapshot(std::stop_token aStop)
 				-> result<app::epoch_catalog_snapshot> override;
 			[[nodiscard]] auto source_observation_exists(
@@ -2260,6 +2263,347 @@ namespace bpr::adapters::sqlite {
 				.Catalog = Binding.Catalog,
 				.Changed = true,
 			};
+		}
+
+		[[nodiscard]] auto read_occurrence_rows(::sqlite3*                        aDatabase,
+												const app::epoch_catalog_binding& aBinding, std::stop_token aStop, const bool aArchived = false)
+			-> result<core::epoch_occurrence_history>
+		{
+			core::epoch_occurrence_history output;
+			auto                           query = prepare(aDatabase, aArchived ? "SELECT occurrence_id, kind, event_id, head_algorithm, head_digest, local_ordinal, historical_base, derived_base, date_source, date_utc, first_seen FROM epoch_occurrence_supersession WHERE incarnation = ?1 AND pr_scope = ?2 ORDER BY occurrence_id LIMIT 1001" : "SELECT occurrence_id, kind, event_id, head_algorithm, head_digest, local_ordinal, historical_base, derived_base, date_source, date_utc, first_seen FROM epoch_occurrence WHERE incarnation = ?1 AND pr_scope = ?2 ORDER BY occurrence_id LIMIT 1001");
+			if (!query || !bind_fixed(query->Value, 1, aBinding.Catalog.Incarnation)
+				|| !bind_fixed(query->Value, 2, aBinding.Authority.Scope)) {
+				return std::unexpected(failure::unavailable);
+			}
+			while (true) {
+				const auto code = ::sqlite3_step(query->Value);
+				if (code == SQLITE_DONE) {
+					break;
+				}
+				if (code != SQLITE_ROW || aStop.stop_requested()) {
+					return std::unexpected(sql_failure(aDatabase, aStop));
+				}
+				const auto id    = read_fixed<core::epoch_occurrence_id>(query->Value, 0);
+				const auto event = read_u64_including_absent(query->Value, 2);
+				const auto head  = read_oid<core::git_commit_oid>(query->Value, 3, 4);
+				if (!id || !event || !head) {
+					return std::unexpected(failure::integrity_failure);
+				}
+				core::epoch_occurrence occurrence{
+					.Id                  = *id,
+					.Evidence            = { .Kind = static_cast<core::epoch_occurrence_kind>(::sqlite3_column_int(query->Value, 1)), .EventId = *event, .Head = *head },
+					.DateSource          = static_cast<core::epoch_occurrence_date_source>(::sqlite3_column_int(query->Value, 8)),
+					.DateUtcMilliseconds = ::sqlite3_column_int64(query->Value, 9),
+					.FirstSeen           = core::observed_utc_milliseconds{ ::sqlite3_column_int64(query->Value, 10) },
+				};
+				if (::sqlite3_column_type(query->Value, 5) != SQLITE_NULL) {
+					occurrence.LocalEpoch = core::review_epoch_id{ aBinding.Authority.Scope, aBinding.Catalog.Incarnation,
+																   core::epoch_ordinal{ ::sqlite3_column_int64(query->Value, 5) } };
+				}
+				if (::sqlite3_column_type(query->Value, 6) != SQLITE_NULL) {
+					occurrence.HistoricalBase = read_oid<core::git_commit_oid>(query->Value, 3, 6);
+					if (!occurrence.HistoricalBase) {
+						return std::unexpected(failure::integrity_failure);
+					}
+				}
+				if (::sqlite3_column_type(query->Value, 7) != SQLITE_NULL) {
+					occurrence.DerivedComparisonBase = read_oid<core::git_commit_oid>(query->Value, 3, 7);
+					if (!occurrence.DerivedComparisonBase) {
+						return std::unexpected(failure::integrity_failure);
+					}
+				}
+				if (!core::valid(occurrence)) {
+					return std::unexpected(failure::integrity_failure);
+				}
+				output.Occurrences.push_back(occurrence);
+			}
+			if (output.Occurrences.size() > core::maximum_epoch_occurrence_count) {
+				return std::unexpected(failure::quota_exceeded);
+			}
+			auto status = prepare(aDatabase, "SELECT incomplete, ambiguous FROM epoch_occurrence_history WHERE incarnation = ?1 AND pr_scope = ?2");
+			if (!status || !bind_fixed(status->Value, 1, aBinding.Catalog.Incarnation)
+				|| !bind_fixed(status->Value, 2, aBinding.Authority.Scope)) {
+				return std::unexpected(failure::unavailable);
+			}
+			const auto statusCode = ::sqlite3_step(status->Value);
+			if (statusCode == SQLITE_ROW) {
+				output.Incomplete = ::sqlite3_column_int(status->Value, 0) != 0;
+				output.Ambiguous  = ::sqlite3_column_int(status->Value, 1) != 0;
+			} else if (statusCode != SQLITE_DONE) {
+				return std::unexpected(sql_failure(aDatabase, aStop));
+			}
+			auto unresolved = prepare(aDatabase, "SELECT EXISTS(SELECT 1 FROM epoch e WHERE e.incarnation = ?1 AND e.pr_scope = ?2 "
+												 "AND NOT EXISTS(SELECT 1 FROM epoch_occurrence o WHERE o.incarnation = e.incarnation AND o.pr_scope = e.pr_scope AND o.local_ordinal = e.ordinal))");
+			if (!unresolved || !bind_fixed(unresolved->Value, 1, aBinding.Catalog.Incarnation)
+				|| !bind_fixed(unresolved->Value, 2, aBinding.Authority.Scope)
+				|| ::sqlite3_step(unresolved->Value) != SQLITE_ROW) {
+				return std::unexpected(failure::unavailable);
+			}
+			output.UnresolvedLegacy = ::sqlite3_column_int(unresolved->Value, 0) != 0;
+			output.Incomplete       = output.Incomplete || output.Ambiguous || output.UnresolvedLegacy
+				|| std::ranges::any_of(output.Occurrences, [](const auto& aOccurrence) { return aOccurrence.DateSource == core::epoch_occurrence_date_source::unavailable; });
+			std::ranges::sort(output.Occurrences, core::epoch_occurrence_less);
+			return output;
+		}
+
+		auto sqlite_epoch_catalog_session::occurrences(std::stop_token aStop)
+			-> result<core::epoch_occurrence_history>
+		{
+			if (aStop.stop_requested()) {
+				return std::unexpected(failure::cancelled);
+			}
+			std::scoped_lock lock{ State->Mutex };
+			auto*            database = State->Database.handle();
+			progress_guard   progress{ database, aStop };
+			read_transaction read{ database, aStop };
+			if (auto begun = read.begin(); !begun) {
+				return std::unexpected(begun.error());
+			}
+			auto state = load_pull_request_scope_state(database, Binding.Catalog.Incarnation, Binding.Authority.Scope);
+			if (!state) {
+				return std::unexpected(state.error());
+			}
+			if (auto readable = require_readable_pull_request_scope(*state, Binding); !readable) {
+				return std::unexpected(readable.error());
+			}
+			auto output = read_occurrence_rows(database, Binding, aStop);
+			if (!output) {
+				return output;
+			}
+			if (auto committed = read.commit(); !committed) {
+				return std::unexpected(committed.error());
+			}
+			return output;
+		}
+
+		[[nodiscard]] auto write_occurrence(::sqlite3*                        aDatabase,
+											const app::epoch_catalog_binding& aBinding, const core::epoch_occurrence& aOccurrence,
+											std::stop_token aStop) -> result<void>
+		{
+			if (aOccurrence.LocalEpoch) {
+				auto epoch = load_epoch_summary(aDatabase, aBinding.Catalog.Incarnation,
+												aBinding.Authority.Scope, aOccurrence.LocalEpoch->Ordinal);
+				if (!epoch || epoch->Head != aOccurrence.Evidence.Head) {
+					return std::unexpected(failure::invalid_request);
+				}
+			}
+			auto insert = prepare(aDatabase,
+								  "INSERT INTO epoch_occurrence(incarnation, pr_scope, occurrence_id, kind, event_id, head_algorithm, head_digest, "
+								  "local_ordinal, historical_base, derived_base, date_source, date_utc, first_seen) "
+								  "VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13) "
+								  "ON CONFLICT(incarnation, pr_scope, occurrence_id) DO UPDATE SET "
+								  "local_ordinal = CASE WHEN excluded.local_ordinal IS NULL THEN epoch_occurrence.local_ordinal ELSE excluded.local_ordinal END, "
+								  "historical_base = CASE WHEN excluded.historical_base IS NULL THEN epoch_occurrence.historical_base ELSE excluded.historical_base END, "
+								  "derived_base = excluded.derived_base, "
+								  "date_source = CASE WHEN excluded.date_source = 0 THEN epoch_occurrence.date_source ELSE excluded.date_source END, "
+								  "date_utc = CASE WHEN excluded.date_source = 0 THEN epoch_occurrence.date_utc ELSE excluded.date_utc END");
+			if (!insert || !bind_fixed(insert->Value, 1, aBinding.Catalog.Incarnation)
+				|| !bind_fixed(insert->Value, 2, aBinding.Authority.Scope) || !bind_fixed(insert->Value, 3, aOccurrence.Id)
+				|| ::sqlite3_bind_int(insert->Value, 4, static_cast<int>(aOccurrence.Evidence.Kind)) != SQLITE_OK
+				|| !bind_u64(insert->Value, 5, aOccurrence.Evidence.EventId)
+				|| !bind_oid(insert->Value, 6, 7, aOccurrence.Evidence.Head)) {
+				return std::unexpected(failure::unavailable);
+			}
+			const auto bindOptionalBase = [&](const int aIndex, const std::optional<core::git_commit_oid>& aBase) {
+				return !aBase || bind_bytes(insert->Value, aIndex, std::span{ aBase->bytes() }.first(aBase->byte_count()));
+			};
+			if ((aOccurrence.LocalEpoch && ::sqlite3_bind_int64(insert->Value, 8, aOccurrence.LocalEpoch->Ordinal.value()) != SQLITE_OK)
+				|| !bindOptionalBase(9, aOccurrence.HistoricalBase) || !bindOptionalBase(10, aOccurrence.DerivedComparisonBase)
+				|| ::sqlite3_bind_int(insert->Value, 11, static_cast<int>(aOccurrence.DateSource)) != SQLITE_OK
+				|| ::sqlite3_bind_int64(insert->Value, 12, aOccurrence.DateUtcMilliseconds) != SQLITE_OK
+				|| ::sqlite3_bind_int64(insert->Value, 13, aOccurrence.FirstSeen.value()) != SQLITE_OK
+				|| ::sqlite3_step(insert->Value) != SQLITE_DONE) {
+				return std::unexpected(sql_failure(aDatabase, aStop));
+			}
+			return { };
+		}
+
+		[[nodiscard]] auto supersession_target(::sqlite3* aDatabase, const app::epoch_catalog_binding& aBinding,
+											   const core::epoch_occurrence_id& aId, std::stop_token aStop) -> result<std::optional<core::epoch_occurrence_id>>
+		{
+			auto query = prepare(aDatabase, "SELECT replacement_id FROM epoch_occurrence_supersession WHERE incarnation = ?1 AND pr_scope = ?2 AND occurrence_id = ?3");
+			if (!query || !bind_fixed(query->Value, 1, aBinding.Catalog.Incarnation)
+				|| !bind_fixed(query->Value, 2, aBinding.Authority.Scope) || !bind_fixed(query->Value, 3, aId)) {
+				return std::unexpected(failure::unavailable);
+			}
+			const auto code = ::sqlite3_step(query->Value);
+			if (code == SQLITE_DONE) {
+				return std::nullopt;
+			}
+			if (code != SQLITE_ROW) {
+				return std::unexpected(sql_failure(aDatabase, aStop));
+			}
+			const auto id = read_fixed<core::epoch_occurrence_id>(query->Value, 0);
+			if (!id) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			return id;
+		}
+
+		auto sqlite_epoch_catalog_session::record_occurrences(const core::epoch_occurrence_history& aHistory, std::stop_token aStop)
+			-> result<void>
+		{
+			if (aHistory.Occurrences.size() > core::maximum_epoch_occurrence_count) {
+				return std::unexpected(failure::quota_exceeded);
+			}
+			for (const auto& occurrence : aHistory.Occurrences) {
+				if (!core::valid(occurrence) || occurrence.Evidence.Head.algorithm() != Binding.ObjectFormat
+					|| (occurrence.LocalEpoch && (occurrence.LocalEpoch->Authority != Binding.Authority.Scope || occurrence.LocalEpoch->Incarnation != Binding.Catalog.Incarnation))) {
+					return std::unexpected(failure::invalid_request);
+				}
+			}
+			if (aStop.stop_requested()) {
+				return std::unexpected(failure::cancelled);
+			}
+			std::scoped_lock lock{ State->Mutex };
+			auto*            database = State->Database.handle();
+			progress_guard   progress{ database, aStop };
+			transaction      write{ database, aStop };
+			if (auto begun = write.begin(); !begun) {
+				return begun;
+			}
+			auto state = load_pull_request_scope_state(database, Binding.Catalog.Incarnation, Binding.Authority.Scope);
+			if (!state) {
+				return std::unexpected(state.error());
+			}
+			if (auto readable = require_readable_pull_request_scope(*state, Binding); !readable) {
+				return readable;
+			}
+			if (state->Lifecycle != 1 || state->RepositoryLifecycle != 1) {
+				return std::unexpected(failure::operation_conflict);
+			}
+			auto existing = read_occurrence_rows(database, Binding, aStop);
+			if (!existing) {
+				return std::unexpected(existing.error());
+			}
+			for (const auto& occurrence : aHistory.Occurrences) {
+				auto retired = supersession_target(database, Binding, occurrence.Id, aStop);
+				if (!retired) {
+					return std::unexpected(retired.error());
+				}
+				if (*retired) {
+					return std::unexpected(failure::invalid_request);
+				}
+				const auto prior = std::ranges::find(existing->Occurrences, occurrence.Id, &core::epoch_occurrence::Id);
+				if (prior != existing->Occurrences.end()) {
+					if (prior->Evidence != occurrence.Evidence
+						|| (prior->LocalEpoch && occurrence.LocalEpoch && prior->LocalEpoch != occurrence.LocalEpoch)
+						|| (prior->HistoricalBase && occurrence.HistoricalBase && prior->HistoricalBase != occurrence.HistoricalBase)) {
+						return std::unexpected(failure::invalid_request);
+					}
+				} else {
+					if (existing->Occurrences.size() == core::maximum_epoch_occurrence_count) {
+						return std::unexpected(failure::quota_exceeded);
+					}
+					existing->Occurrences.push_back(occurrence);
+				}
+				if (auto written = write_occurrence(database, Binding, occurrence, aStop); !written) {
+					return written;
+				}
+				// Carry refinements forward so conflicting duplicates within this same batch also fail atomically.
+				const auto updated = std::ranges::find(existing->Occurrences, occurrence.Id, &core::epoch_occurrence::Id);
+				if (occurrence.LocalEpoch) {
+					updated->LocalEpoch = occurrence.LocalEpoch;
+				}
+				if (occurrence.HistoricalBase) {
+					updated->HistoricalBase = occurrence.HistoricalBase;
+				}
+			}
+			auto status = prepare(database, "INSERT INTO epoch_occurrence_history(incarnation, pr_scope, incomplete, ambiguous) VALUES(?1, ?2, ?3, ?4) "
+											"ON CONFLICT(incarnation, pr_scope) DO UPDATE SET incomplete = excluded.incomplete, ambiguous = excluded.ambiguous");
+			if (!status || !bind_fixed(status->Value, 1, Binding.Catalog.Incarnation) || !bind_fixed(status->Value, 2, Binding.Authority.Scope)
+				|| ::sqlite3_bind_int(status->Value, 3, aHistory.Incomplete || aHistory.Ambiguous) != SQLITE_OK
+				|| ::sqlite3_bind_int(status->Value, 4, aHistory.Ambiguous) != SQLITE_OK
+				|| ::sqlite3_step(status->Value) != SQLITE_DONE) {
+				return std::unexpected(sql_failure(database, aStop));
+			}
+			return write.commit();
+		}
+
+		auto sqlite_epoch_catalog_session::supersede_occurrence(const core::epoch_occurrence& aExpected,
+																const core::epoch_occurrence& aReplacement, std::stop_token aStop) -> result<void>
+		{
+			if (!core::valid(aExpected) || !core::valid(aReplacement)
+				|| aExpected.Evidence.Kind != core::epoch_occurrence_kind::observed_head
+				|| aReplacement.Evidence.Kind != core::epoch_occurrence_kind::force_push_event
+				|| aExpected.Id == aReplacement.Id || aExpected.Evidence.Head != aReplacement.Evidence.Head
+				|| aExpected.LocalEpoch != aReplacement.LocalEpoch
+				|| aExpected.Evidence.Head.algorithm() != Binding.ObjectFormat
+				|| (aExpected.LocalEpoch && (aExpected.LocalEpoch->Authority != Binding.Authority.Scope || aExpected.LocalEpoch->Incarnation != Binding.Catalog.Incarnation))) {
+				return std::unexpected(failure::invalid_request);
+			}
+			if (aStop.stop_requested()) {
+				return std::unexpected(failure::cancelled);
+			}
+			std::scoped_lock lock{ State->Mutex };
+			auto*            database = State->Database.handle();
+			progress_guard   progress{ database, aStop };
+			transaction      write{ database, aStop };
+			if (auto begun = write.begin(); !begun) {
+				return begun;
+			}
+			auto state = load_pull_request_scope_state(database, Binding.Catalog.Incarnation, Binding.Authority.Scope);
+			if (!state) {
+				return std::unexpected(state.error());
+			}
+			if (auto readable = require_readable_pull_request_scope(*state, Binding); !readable) {
+				return readable;
+			}
+			if (state->Lifecycle != 1 || state->RepositoryLifecycle != 1) {
+				return std::unexpected(failure::operation_conflict);
+			}
+			auto active   = read_occurrence_rows(database, Binding, aStop);
+			auto archived = read_occurrence_rows(database, Binding, aStop, true);
+			if (!active || !archived) {
+				return std::unexpected(active ? archived.error() : active.error());
+			}
+			const auto old     = std::ranges::find(active->Occurrences, aExpected.Id, &core::epoch_occurrence::Id);
+			const auto target  = std::ranges::find(active->Occurrences, aReplacement.Id, &core::epoch_occurrence::Id);
+			const auto retired = std::ranges::find(archived->Occurrences, aExpected.Id, &core::epoch_occurrence::Id);
+			if (retired != archived->Occurrences.end()) {
+				auto replacement = supersession_target(database, Binding, aExpected.Id, aStop);
+				if (!replacement) {
+					return std::unexpected(replacement.error());
+				}
+				if (*retired != aExpected || *replacement != aReplacement.Id
+					|| old != active->Occurrences.end() || target == active->Occurrences.end() || *target != aReplacement) {
+					return std::unexpected(failure::invalid_request);
+				}
+				return write.commit();
+			}
+			if (old == active->Occurrences.end() || *old != aExpected) {
+				return std::unexpected(failure::revision_conflict);
+			}
+			if (archived->Occurrences.size() == core::maximum_epoch_occurrence_count) {
+				return std::unexpected(failure::quota_exceeded);
+			}
+			if (target != active->Occurrences.end()) {
+				auto boundTarget = *target;
+				if (!boundTarget.LocalEpoch) {
+					boundTarget.LocalEpoch = aReplacement.LocalEpoch;
+				}
+				if (boundTarget != aReplacement) {
+					return std::unexpected(failure::invalid_request);
+				}
+			}
+			// Deferred replacement FK permits archive, removal and installation in one transaction.
+			auto archive = prepare(database, "INSERT INTO epoch_occurrence_supersession SELECT *, ?4 FROM epoch_occurrence "
+											 "WHERE incarnation = ?1 AND pr_scope = ?2 AND occurrence_id = ?3");
+			if (!archive || !bind_fixed(archive->Value, 1, Binding.Catalog.Incarnation)
+				|| !bind_fixed(archive->Value, 2, Binding.Authority.Scope) || !bind_fixed(archive->Value, 3, aExpected.Id)
+				|| !bind_fixed(archive->Value, 4, aReplacement.Id) || ::sqlite3_step(archive->Value) != SQLITE_DONE) {
+				return std::unexpected(sql_failure(database, aStop));
+			}
+			auto remove = prepare(database, "DELETE FROM epoch_occurrence WHERE incarnation = ?1 AND pr_scope = ?2 AND occurrence_id = ?3");
+			if (!remove || !bind_fixed(remove->Value, 1, Binding.Catalog.Incarnation)
+				|| !bind_fixed(remove->Value, 2, Binding.Authority.Scope) || !bind_fixed(remove->Value, 3, aExpected.Id)
+				|| ::sqlite3_step(remove->Value) != SQLITE_DONE) {
+				return std::unexpected(sql_failure(database, aStop));
+			}
+			if (auto installed = write_occurrence(database, Binding, aReplacement, aStop); !installed) {
+				return installed;
+			}
+			return write.commit();
 		}
 
 		auto sqlite_epoch_catalog_session::history(

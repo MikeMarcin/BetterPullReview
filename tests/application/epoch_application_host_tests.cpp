@@ -282,6 +282,15 @@ namespace {
 		std::vector<std::string>                                Calls;
 		application::epoch_catalog_binding                      Binding;
 		application::epoch_catalog_snapshot                     Snapshot;
+		bool                                                    OccurrencesSupported         = false;
+		bool                                                    ThrowOccurrenceWrite         = false;
+		bool                                                    RefuseOccurrenceSupersession = false;
+		std::vector<core::epoch_occurrence>                     SupersededOccurrences;
+		core::epoch_occurrence_history                          Occurrences;
+		std::vector<core::review_epoch_summary>                 EpochRows;
+		std::optional<std::int64_t>                             CommitTimeSeconds   = 1'789'000'123;
+		core::head_lineage                                      PreparedHeadLineage = core::head_lineage::not_applicable;
+		std::vector<core::git_commit_oid>                       CommitTimeRequests;
 		std::deque<bool>                                        SourceCollisions;
 		std::deque<std::optional<application::epoch_catalog_failure>>
 																 CatalogOpenFailures;
@@ -487,6 +496,11 @@ namespace {
 		{
 		}
 
+		void set_next_utc(const std::int64_t aNext) noexcept
+		{
+			Next = aNext;
+		}
+
 		[[nodiscard]] auto observe_utc() noexcept
 			-> std::optional<core::observed_utc_milliseconds> override
 		{
@@ -572,6 +586,57 @@ namespace {
 				return std::unexpected{ *failure };
 			}
 			return State.Snapshot;
+		}
+
+		[[nodiscard]] auto occurrences(const std::stop_token aStop)
+			-> application::epoch_catalog_result<core::epoch_occurrence_history> override
+		{
+			if (!State.OccurrencesSupported || aStop.stop_requested()) {
+				return std::unexpected{ application::epoch_catalog_failure::unavailable };
+			}
+			return State.Occurrences;
+		}
+
+		[[nodiscard]] auto record_occurrences(const core::epoch_occurrence_history& aHistory,
+											  const std::stop_token                 aStop) -> application::epoch_catalog_result<void> override
+		{
+			if (State.ThrowOccurrenceWrite) {
+				throw std::runtime_error{ "injected optional sidecar failure" };
+			}
+			if (!State.OccurrencesSupported || aStop.stop_requested()) {
+				return std::unexpected{ application::epoch_catalog_failure::unavailable };
+			}
+			expect(std::ranges::all_of(aHistory.Occurrences, [](const auto& aOccurrence) {
+					   return core::valid(aOccurrence);
+				   }),
+				   "host persists valid occurrence facts");
+			State.Occurrences = aHistory;
+			return { };
+		}
+
+		[[nodiscard]] auto supersede_occurrence(const core::epoch_occurrence& aExpectedObserved,
+												const core::epoch_occurrence& aReplacementEvent, const std::stop_token aStop)
+			-> application::epoch_catalog_result<void> override
+		{
+			if (aStop.stop_requested() || State.RefuseOccurrenceSupersession) {
+				return std::unexpected{ application::epoch_catalog_failure::operation_conflict };
+			}
+			const auto expected = std::ranges::find(State.Occurrences.Occurrences, aExpectedObserved);
+			if (expected == State.Occurrences.Occurrences.end()) {
+				return std::unexpected{ application::epoch_catalog_failure::operation_conflict };
+			}
+			expect(aExpectedObserved.Evidence.Kind == core::epoch_occurrence_kind::observed_head
+					   && aReplacementEvent.Evidence.Kind == core::epoch_occurrence_kind::force_push_event
+					   && aExpectedObserved.LocalEpoch == aReplacementEvent.LocalEpoch
+					   && aExpectedObserved.Evidence.Head == aReplacementEvent.Evidence.Head,
+				   "supersession preserves exact local binding and head while upgrading occurrence evidence");
+			State.SupersededOccurrences.push_back(aExpectedObserved);
+			State.Occurrences.Occurrences.erase(expected);
+			std::erase_if(State.Occurrences.Occurrences, [&](const auto& aOccurrence) {
+				return aOccurrence.Id == aReplacementEvent.Id;
+			});
+			State.Occurrences.Occurrences.push_back(aReplacementEvent);
+			return { };
 		}
 
 		[[nodiscard]] auto source_observation_exists(
@@ -669,6 +734,27 @@ namespace {
 				return std::unexpected{
 					application::epoch_catalog_failure::cancelled
 				};
+			}
+			if (State.HistoryPages.empty() && State.OccurrencesSupported) {
+				auto page = application::epoch_history_page{
+					.Authority = State.Binding.Authority.Scope,
+					.Catalog   = State.Binding.Catalog,
+				};
+				for (auto it = State.EpochRows.rbegin(); it != State.EpochRows.rend(); ++it) {
+					if (!aRequest.Cursor || it->Id.Ordinal < aRequest.Cursor->Before) {
+						page.Epochs.push_back(*it);
+					}
+				}
+				if (page.Epochs.size() > aRequest.Limit) {
+					page.Epochs.resize(aRequest.Limit);
+					page.Continuation = core::epoch_history_cursor{
+						.Authority   = page.Authority,
+						.Incarnation = page.Catalog.Incarnation,
+						.Revision    = page.Catalog.Revision,
+						.Before      = page.Epochs.back().Id.Ordinal,
+					};
+				}
+				return page;
 			}
 			if (State.HistoryPages.empty()) {
 				return std::unexpected{
@@ -911,8 +997,14 @@ namespace {
 			};
 			State.Binding.Catalog          = next;
 			State.Snapshot.Binding.Catalog = next;
-			State.Snapshot.LatestLive      = aRequest.Mutation.Epoch;
-			State.Snapshot.NextOrdinal     = core::epoch_ordinal{
+			if (State.OccurrencesSupported) {
+				State.EpochRows.push_back(aRequest.Mutation.Epoch);
+				if (State.Snapshot.LatestLive && State.Snapshot.LatestLive->Head != aRequest.Mutation.Epoch.Head) {
+					State.Snapshot.PreviousDistinctHead = State.Snapshot.LatestLive;
+				}
+			}
+			State.Snapshot.LatestLive  = aRequest.Mutation.Epoch;
+			State.Snapshot.NextOrdinal = core::epoch_ordinal{
 				aRequest.Mutation.Epoch.Id.Ordinal.value() + 1
 			};
 			return application::catalog_commit_result{
@@ -1335,6 +1427,16 @@ namespace {
 			return State.RetainedCacheSessionIsForeign ? Foreign : Request;
 		}
 
+		[[nodiscard]] auto read_committer_time_seconds(const core::git_commit_oid aCommit,
+													   const std::stop_token      aStop) -> application::git_cache_result<std::optional<std::int64_t>> override
+		{
+			State.CommitTimeRequests.push_back(aCommit);
+			if (aStop.stop_requested()) {
+				return std::unexpected{ application::git_cache_failure::cancelled };
+			}
+			return State.CommitTimeSeconds;
+		}
+
 		[[nodiscard]] auto create_pack_sink(
 			const core::epoch_operation_id                                      aOperation,
 			const std::uint64_t                                                 aMaximumBytes,
@@ -1416,7 +1518,7 @@ namespace {
 				.BaseTree      = oid<core::git_tree_oid>(60U),
 				.Head          = aRequest.Head,
 				.HeadTree      = oid<core::git_tree_oid>(70U),
-				.HeadLineage   = core::head_lineage::not_applicable,
+				.HeadLineage   = State.PreparedHeadLineage,
 				.ImportedBytes = 8U,
 			};
 			if (aWitness && State.InstallWitnessFault != install_witness_fault::omitted && !aWitness(prepared)) {
@@ -2156,6 +2258,345 @@ namespace {
 				aValue.Decisions.run_next();
 			}
 		}
+	}
+
+	[[nodiscard]] auto force_push(const std::uint64_t aEvent, const std::uint8_t aHead,
+								  const std::int64_t aTime = 0) -> application::epoch_force_push_observation
+	{
+		const auto eventTime = aTime != 0 ? aTime : 1'789'000'000'000LL + (static_cast<std::int64_t>(aEvent) - 101) * 1'000;
+		return { .EventId = aEvent, .Head = oid<core::git_commit_oid>(aHead), .EventUtcMilliseconds = eventTime };
+	}
+
+	void accept_history(fixture& aValue, const std::uint64_t aSnapshot, const std::uint8_t aHead,
+						std::vector<application::epoch_force_push_observation> aEvents,
+						const application::epoch_timeline_availability         aAvailability = application::epoch_timeline_availability::available,
+						const std::optional<std::int64_t>                      aObservedUtc  = std::nullopt)
+	{
+		aValue.Clock.set_next_utc(aObservedUtc.value_or(1'789'000'000'500LL + (static_cast<std::int64_t>(aSnapshot) - 1) * 1'000));
+		aValue.State.OccurrencesSupported = true;
+		// This fake graph treats a newly introduced head as a descendant;
+		// returning to an earlier node is explicitly non-fast-forward.
+		aValue.State.PreparedHeadLineage = core::head_lineage::not_applicable;
+		if (aValue.State.Snapshot.LatestLive && aValue.State.Snapshot.LatestLive->Head != oid<core::git_commit_oid>(aHead)) {
+			aValue.State.PreparedHeadLineage = std::ranges::any_of(aValue.State.EpochRows,
+																   [&](const auto& aEpoch) { return aEpoch.Head == oid<core::git_commit_oid>(aHead); })
+				? core::head_lineage::non_fast_forward
+				: core::head_lineage::descendant;
+		}
+		auto handoff                 = make_handoff(aValue.State, aSnapshot, aHead);
+		handoff.Account              = aValue.State.Binding.Authority.Account;
+		handoff.Viewer               = aValue.State.Binding.Authority.Viewer;
+		handoff.Mode                 = aValue.State.Binding.Authority.Mode;
+		handoff.ForcePushes          = std::move(aEvents);
+		handoff.TimelineAvailability = aAvailability;
+		handoff.SmartGit             = std::make_unique<fake_smart_authority>(aValue.State,
+																			  application::authority_binding(handoff), aSnapshot);
+		aValue.Host->accept(std::move(handoff));
+		drain(aValue);
+		expect(aValue.Host->state().AcceptedRevision
+				   && aValue.Host->state().AcceptedRevision->Source.Snapshot == core::provider_snapshot_id{ aSnapshot },
+			   "history read preserves the exact accepted live snapshot");
+		expect(aValue.State.Snapshot.LatestLive
+				   && aValue.State.Snapshot.LatestLive->Head == oid<core::git_commit_oid>(aHead),
+			   "the accepted history handoff commits its actual head to the local catalogue");
+	}
+
+	void independent_catalogues_agree_on_evidenced_occurrences()
+	{
+		fixture first;
+		fixture second;
+		second.State.Binding.Catalog.Incarnation = opaque<core::epoch_catalog_incarnation_id>(88U);
+		second.State.Binding.Authority.Account   = core::github_account_id{ };
+		second.State.Binding.Authority.Viewer    = core::github_viewer_actor_id{ };
+		second.State.Binding.Authority.Mode      = core::github_access_mode::public_preview;
+		second.State.Snapshot.Binding            = second.State.Binding;
+		accept_history(first, 1U, 20U, { force_push(103U, 20U, 1'789'000'000'000LL), force_push(101U, 20U, 1'789'000'000'000LL), force_push(102U, 21U, 1'789'000'000'000LL) });
+		accept_history(second, 1U, 20U, { force_push(102U, 21U, 1'789'000'000'000LL), force_push(103U, 20U, 1'789'000'000'000LL), force_push(101U, 20U, 1'789'000'000'000LL) });
+		const auto& left  = first.State.Occurrences;
+		const auto& right = second.State.Occurrences;
+		expect(left.Occurrences.size() == 3U && right.Occurrences.size() == 3U,
+			   "two independent catalogue sessions each retain all three evidenced occurrences");
+		for (std::size_t index = 0U; index < left.Occurrences.size(); ++index) {
+			const auto& a = left.Occurrences[index];
+			const auto& b = right.Occurrences[index];
+			expect(a.Id == b.Id && a.Evidence == b.Evidence && a.DateUtcMilliseconds == b.DateUtcMilliseconds,
+				   "anonymous and authenticated catalogues agree on identity and equal-date order despite input order and incarnation");
+			expect(!a.HistoricalBase && !a.DerivedComparisonBase && !a.LocalEpoch,
+				   "unknown historical anchors stay unknown and repeated current-head events stay unassociated");
+			expect(a.DateSource == core::epoch_occurrence_date_source::github_event
+					   && a.FirstSeen.value() != a.DateUtcMilliseconds,
+				   "event time is labeled separately from local first-seen");
+		}
+		expect(left.Ambiguous && right.Ambiguous && left.Incomplete && right.Incomplete,
+			   "two events returning to A stay distinct while the current snapshot's association is ambiguous");
+		expect(std::ranges::count(left.Occurrences, oid<core::git_commit_oid>(20U),
+								  [](const auto& aOccurrence) { return aOccurrence.Evidence.Head; })
+				   == 2,
+			   "A to B to A has two separate A identities");
+		expect(std::ranges::any_of(first.State.Updates, [&](const auto& aUpdate) {
+				   return aUpdate.Catalog && aUpdate.Catalog->OccurrenceHistory == left && aUpdate.Catalog->CurrentEpoch;
+			   }),
+			   "host publishes durable history and provisional current row on its decision lane");
+		expect(first.State.ProjectionOutsideDecision == 0U && second.State.ProjectionOutsideDecision == 0U,
+			   "portable history never publishes from an effect worker");
+	}
+
+	void live_returns_use_distinct_events_without_rebinding_old_occurrences()
+	{
+		fixture value;
+		accept_history(value, 1U, 20U, { force_push(101U, 20U) });
+		const auto initial = value.State.Occurrences.Occurrences.front();
+		expect(!initial.LocalEpoch, "even a unique matching event does not prove the initial local snapshot is that occurrence");
+		accept_history(value, 2U, 21U, { force_push(101U, 20U), force_push(102U, 21U) });
+		expect(value.State.Snapshot.LatestLive->Cause.Primary == core::epoch_primary_cause::author_upload,
+			   "changed-head second live handoff appends with author-upload cause");
+		accept_history(value, 3U, 20U, { force_push(103U, 20U), force_push(101U, 20U), force_push(102U, 21U) });
+		const auto history = value.State.Occurrences;
+		const auto oldA    = std::ranges::find(history.Occurrences, initial.Id, &core::epoch_occurrence::Id);
+		const auto newA    = std::ranges::find_if(history.Occurrences, [](const auto& aOccurrence) { return aOccurrence.Evidence.EventId == 103U; });
+		expect(history.Occurrences.size() == 4U && history.Ambiguous && !oldA->LocalEpoch
+				   && !newA->LocalEpoch && newA->Id != oldA->Id,
+			   "A to B to A preserves distinct event identities and the independently observed B without fabricated event bindings");
+		expect(value.State.Snapshot.LatestLive->Id.Ordinal == core::epoch_ordinal{ 3 }
+				   && value.State.Snapshot.PreviousDistinctHead->Id.Ordinal == core::epoch_ordinal{ 2 },
+			   "timeline sidecars consume no ordinals and preserve live latest and previous aliases");
+		accept_history(value, 4U, 20U, { force_push(101U, 20U), force_push(102U, 21U), force_push(103U, 20U) });
+		expect(value.State.Occurrences == history && value.State.Snapshot.NextOrdinal == core::epoch_ordinal{ 4 },
+			   "same-head cache refresh preserves occurrence bindings and local ordinal");
+	}
+
+	void missing_events_do_not_invent_a_second_provisional_head()
+	{
+		fixture value;
+		accept_history(value, 1U, 20U, { });
+		expect(value.State.Occurrences.Occurrences.empty(), "first bare head remains provisional");
+		accept_history(value, 2U, 21U, { });
+		expect(value.State.Occurrences.Occurrences.size() == 1U, "one observed head transition produces one occurrence");
+		const auto observed = value.State.Occurrences.Occurrences.front();
+		expect(observed.Evidence.Kind == core::epoch_occurrence_kind::observed_head
+				   && observed.DateSource == core::epoch_occurrence_date_source::commit_date
+				   && observed.DateUtcMilliseconds == *value.State.CommitTimeSeconds * 1'000
+				   && observed.FirstSeen == value.State.Snapshot.LatestLive->ObservedAt
+				   && observed.HistoricalBase == value.State.Snapshot.LatestLive->Base,
+			   "ordinary transition uses exact cached committer date and preserves observed base and first-seen separately");
+		accept_history(value, 3U, 20U, { });
+		expect(value.State.Occurrences.Occurrences.size() == 1U && value.State.Occurrences.Ambiguous
+				   && value.State.Snapshot.LatestLive->Cause.Primary == core::epoch_primary_cause::force_push_rebase,
+			   "return to the unresolved first A marks a gap without minting another A or suppressing live append");
+	}
+
+	void degraded_timeline_and_sidecar_failures_preserve_live_append()
+	{
+		for (const auto availability : { application::epoch_timeline_availability::failed,
+										 application::epoch_timeline_availability::refused, application::epoch_timeline_availability::capped }) {
+			fixture value;
+			accept_history(value, 1U, 20U, { force_push(101U, 20U) });
+			const auto old = value.State.Occurrences.Occurrences.front();
+			accept_history(value, 2U, 21U, { }, availability);
+			expect(value.State.Occurrences.Incomplete && value.State.Occurrences.Occurrences.size() == 2U
+					   && std::ranges::find(value.State.Occurrences.Occurrences, old.Id, &core::epoch_occurrence::Id) != value.State.Occurrences.Occurrences.end()
+					   && value.State.Snapshot.LatestLive->Cause.Primary == core::epoch_primary_cause::author_upload,
+				   "failed refused and capped timelines retain known history and append the exact live author update");
+		}
+		fixture value;
+		accept_history(value, 1U, 20U, { force_push(101U, 20U) });
+		value.State.ThrowOccurrenceWrite = true;
+		accept_history(value, 2U, 21U, { }, application::epoch_timeline_availability::failed);
+		expect(value.Host->state().Catalog == value.State.Binding.Catalog
+				   && value.State.Snapshot.LatestLive->Cause.Primary == core::epoch_primary_cause::author_upload
+				   && value.Host->state().AcceptedComparison,
+			   "optional sidecar exceptions cannot replace a committed live success terminal or break its comparison");
+	}
+
+	void delayed_event_keeps_observed_head_separate_without_causal_equivalence()
+	{
+		fixture value;
+		fixture fresh;
+		accept_history(value, 1U, 20U, { force_push(101U, 20U) });
+		accept_history(value, 2U, 21U, { }, application::epoch_timeline_availability::failed);
+		const auto observed = *std::ranges::find_if(value.State.Occurrences.Occurrences,
+													[](const auto& aOccurrence) { return aOccurrence.Evidence.Kind == core::epoch_occurrence_kind::observed_head; });
+		const auto latest   = *value.State.Snapshot.LatestLive;
+		accept_history(value, 3U, 21U, { force_push(101U, 20U), force_push(102U, 21U) });
+		accept_history(fresh, 1U, 21U, { force_push(102U, 21U), force_push(101U, 20U) });
+		expect(value.State.Occurrences.Occurrences.size() == 3U && fresh.State.Occurrences.Occurrences.size() == 2U
+				   && value.State.Occurrences.Ambiguous,
+			   "a reader that observed B retains its separate evidence when a delayed event cannot prove occurrence equivalence");
+		for (const auto& event : fresh.State.Occurrences.Occurrences) {
+			const auto found = std::ranges::find(value.State.Occurrences.Occurrences, event.Id, &core::epoch_occurrence::Id);
+			expect(found != value.State.Occurrences.Occurrences.end() && found->Evidence == event.Evidence && !found->LocalEpoch,
+				   "both readers agree on force-event identities without falsely claiming identical local observation populations");
+		}
+		expect(std::ranges::find(value.State.Occurrences.Occurrences, observed) != value.State.Occurrences.Occurrences.end()
+				   && value.State.Snapshot.LatestLive == latest && value.State.Snapshot.NextOrdinal == core::epoch_ordinal{ 3 }
+				   && value.State.SupersededOccurrences.empty(),
+			   "delayed evidence neither removes observed B nor changes its local epoch or observed base");
+		const auto retained = value.State.Occurrences;
+		accept_history(value, 4U, 21U, { force_push(101U, 20U), force_push(102U, 21U) });
+		expect(value.State.SupersededOccurrences.empty() && value.State.Occurrences == retained,
+			   "repeated refresh supplies no missing causal discriminator and cannot authorize supersession");
+	}
+
+	void existing_durable_event_binding_is_preserved_without_new_supersession()
+	{
+		fixture value;
+		accept_history(value, 1U, 20U, { force_push(101U, 20U) });
+		// A trusted catalogue may contain an association established by an
+		// earlier evidence source. This host preserves it, not re-derives it.
+		value.State.Occurrences.Occurrences.front().LocalEpoch = value.State.Snapshot.LatestLive->Id;
+		const auto bound                                       = value.State.Occurrences.Occurrences.front();
+		accept_history(value, 2U, 20U, { force_push(101U, 20U) });
+		expect(value.State.Occurrences.Occurrences.front() == bound && value.State.SupersededOccurrences.empty(),
+			   "an existing exact durable binding survives while no unproved CAS is issued");
+	}
+
+	void old_unbound_event_cannot_identify_a_new_return_to_its_head()
+	{
+		for (const auto availability : { application::epoch_timeline_availability::failed,
+										 application::epoch_timeline_availability::refused, application::epoch_timeline_availability::capped,
+										 application::epoch_timeline_availability::available }) {
+			fixture value;
+			accept_history(value, 1U, 21U, { force_push(101U, 20U) });
+			expect(!value.State.Occurrences.Occurrences.front().LocalEpoch,
+				   "historical A event starts unbound while current B is provisional");
+			accept_history(value, 2U, 20U,
+						   availability == application::epoch_timeline_availability::available
+							   ? std::vector{ force_push(101U, 20U) }
+							   : std::vector<application::epoch_force_push_observation>{ },
+						   availability);
+			expect(value.State.Occurrences.Ambiguous && value.State.Occurrences.Incomplete
+					   && value.State.Occurrences.Occurrences.size() == 2U
+					   && !value.State.Occurrences.Occurrences.front().LocalEpoch
+					   && value.State.Snapshot.LatestLive->Id.Ordinal == core::epoch_ordinal{ 2 },
+				   "a newly observed return to A cannot borrow the old unbound event from stored or repeated timeline evidence");
+			accept_history(value, 3U, 20U, { force_push(101U, 20U) });
+			expect(value.State.Occurrences.Ambiguous && value.State.Occurrences.Occurrences.size() == 2U
+					   && !value.State.Occurrences.Occurrences.front().LocalEpoch,
+				   "a later same-head refresh cannot turn the previously refused stale-event match into a binding");
+		}
+	}
+
+	void delayed_event_keeps_older_observation_when_current_head_changed()
+	{
+		fixture value;
+		accept_history(value, 1U, 20U, { force_push(101U, 20U) });
+		accept_history(value, 2U, 21U, { }, application::epoch_timeline_availability::failed);
+		const auto observedB = *std::ranges::find_if(value.State.Occurrences.Occurrences,
+													 [](const auto& aOccurrence) { return aOccurrence.Evidence.Kind == core::epoch_occurrence_kind::observed_head; });
+		const auto epochB    = *value.State.Snapshot.LatestLive;
+		accept_history(value, 3U, 22U, { force_push(103U, 22U), force_push(101U, 20U), force_push(102U, 21U) });
+		const auto eventB = std::ranges::find_if(value.State.Occurrences.Occurrences,
+												 [](const auto& aOccurrence) { return aOccurrence.Evidence.EventId == 102U; });
+		expect(value.State.Occurrences.Occurrences.size() == 5U && value.State.Occurrences.Ambiguous
+				   && eventB != value.State.Occurrences.Occurrences.end() && !eventB->LocalEpoch
+				   && std::ranges::find(value.State.Occurrences.Occurrences, observedB) != value.State.Occurrences.Occurrences.end()
+				   && value.State.SupersededOccurrences.empty(),
+			   "delayed B event cannot supersede older observed B merely because A and C surround both records");
+		expect(value.State.EpochRows[1U] == epochB && value.State.Snapshot.LatestLive->Id.Ordinal == core::epoch_ordinal{ 3 }
+				   && value.State.Snapshot.PreviousDistinctHead->Id == epochB.Id,
+			   "unresolved older B preserves its exact local row and C's live latest/previous aliases");
+	}
+
+	void newly_discovered_old_events_cannot_name_a_later_ordinary_transition()
+	{
+		fixture value;
+		accept_history(value, 1U, 21U, { }, application::epoch_timeline_availability::failed);
+		const auto firstB = *value.State.Snapshot.LatestLive;
+		const auto oldA   = force_push(101U, 20U, firstB.ObservedAt.value() - 2'000);
+		const auto oldB   = force_push(102U, 21U, firstB.ObservedAt.value() - 1'000);
+		accept_history(value, 2U, 20U, { oldA, oldB });
+		const auto currentA = value.State.Snapshot.LatestLive->Id;
+		expect(value.State.Occurrences.Ambiguous && value.State.Occurrences.Incomplete
+				   && value.State.Occurrences.Occurrences.size() == 3U
+				   && std::ranges::none_of(value.State.Occurrences.Occurrences, [&](const auto& aOccurrence) {
+						  return aOccurrence.Evidence.Kind == core::epoch_occurrence_kind::force_push_event && aOccurrence.LocalEpoch == currentA;
+					  }),
+			   "freshly discovered historical A predating observed B cannot identify the later ordinary B-to-A transition");
+		expect(value.State.Snapshot.LatestLive->Cause.Primary == core::epoch_primary_cause::author_upload,
+			   "missing occurrence chronology does not suppress the real descendant live append");
+		accept_history(value, 3U, 20U, { oldA, oldB });
+		expect(std::ranges::none_of(value.State.Occurrences.Occurrences, [&](const auto& aOccurrence) {
+				   return aOccurrence.Evidence.Kind == core::epoch_occurrence_kind::force_push_event && aOccurrence.LocalEpoch == currentA;
+			   }),
+			   "refresh cannot supply the missing occurrence equivalence");
+	}
+
+	void local_clock_skew_cannot_associate_old_provider_event_with_new_transition()
+	{
+		fixture value;
+		// The local clock is two seconds behind the provider throughout:
+		// old A happened at provider +1000, B at +2000, then B was read
+		// at provider +2500 (local +500). The later ordinary return to A
+		// is read at provider +3500 (local +1500).
+		constexpr auto origin = 1'789'000'000'000LL;
+		accept_history(value, 1U, 21U, { }, application::epoch_timeline_availability::failed, origin + 500);
+		accept_history(value, 2U, 20U,
+					   { force_push(101U, 20U, origin + 1'000), force_push(102U, 21U, origin + 2'000) },
+					   application::epoch_timeline_availability::available, origin + 1'500);
+		const auto localA = value.State.Snapshot.LatestLive->Id;
+		expect(value.State.Occurrences.Ambiguous && value.State.Occurrences.Incomplete
+				   && std::ranges::none_of(value.State.Occurrences.Occurrences, [&](const auto& aOccurrence) {
+						  return aOccurrence.Evidence.Kind == core::epoch_occurrence_kind::force_push_event && aOccurrence.LocalEpoch == localA;
+					  }),
+			   "constant local clock skew cannot turn old provider A into the later ordinary return to A");
+	}
+
+	void intervening_provider_update_excludes_old_event_despite_observation_interval()
+	{
+		fixture        value;
+		constexpr auto origin = 1'789'000'000'000LL;
+		accept_history(value, 1U, 22U, { }, application::epoch_timeline_availability::available, origin + 500);
+		// Synchronized clocks: C observed, event A, event B, ordinary
+		// return to A, then A observed. A's event is inside the local
+		// observation interval but the later B event refutes that binding.
+		accept_history(value, 2U, 20U,
+					   { force_push(101U, 20U, origin + 1'000), force_push(102U, 21U, origin + 2'000) },
+					   application::epoch_timeline_availability::available, origin + 4'500);
+		const auto localA = value.State.Snapshot.LatestLive->Id;
+		expect(value.State.Occurrences.Ambiguous && value.State.Occurrences.Incomplete
+				   && std::ranges::none_of(value.State.Occurrences.Occurrences, [&](const auto& aOccurrence) {
+						  return aOccurrence.Evidence.Kind == core::epoch_occurrence_kind::force_push_event && aOccurrence.LocalEpoch == localA;
+					  }),
+			   "intervening provider B refutes binding old event A to a later ordinary A even with synchronized clocks");
+	}
+
+	void uncertain_event_chronology_keeps_the_live_transition_unresolved()
+	{
+		for (const auto boundary : { 0, 1, 2 }) {
+			fixture value;
+			accept_history(value, 1U, 20U, { force_push(101U, 20U) });
+			const auto lower       = value.State.Snapshot.LatestLive->ObservedAt.value();
+			const auto observation = boundary == 2 ? lower - 100 : lower + 1'000;
+			const auto eventTime   = boundary == 0 ? lower : (boundary == 1 ? observation + 1'000 : lower - 200);
+			accept_history(value, 2U, 21U, { force_push(101U, 20U), force_push(102U, 21U, eventTime) },
+						   application::epoch_timeline_availability::available, observation);
+			const auto epoch = value.State.Snapshot.LatestLive->Id;
+			expect(value.State.Occurrences.Ambiguous && value.State.Occurrences.Incomplete
+					   && std::ranges::none_of(value.State.Occurrences.Occurrences, [&](const auto& aOccurrence) {
+							  return aOccurrence.Evidence.Kind == core::epoch_occurrence_kind::force_push_event && aOccurrence.LocalEpoch == epoch;
+						  }),
+				   "equal lower time, future event time and backwards observation bounds cannot prove event equivalence");
+		}
+	}
+
+	void unavailable_commit_dates_remain_undated_and_retry_on_refresh()
+	{
+		fixture value;
+		value.State.CommitTimeSeconds.reset();
+		accept_history(value, 1U, 20U, { force_push(101U, 20U, 1'900'000'000'000LL) });
+		accept_history(value, 2U, 21U, { force_push(101U, 20U, 1'900'000'000'000LL) });
+		const auto undated = std::ranges::find_if(value.State.Occurrences.Occurrences,
+												  [](const auto& aOccurrence) { return aOccurrence.Evidence.Kind == core::epoch_occurrence_kind::observed_head; });
+		expect(undated != value.State.Occurrences.Occurrences.end()
+				   && undated->DateSource == core::epoch_occurrence_date_source::unavailable && undated->DateUtcMilliseconds == 0,
+			   "missing committer time remains explicitly undated");
+		const auto firstSeen          = undated->FirstSeen;
+		value.State.CommitTimeSeconds = 1'789'000'123;
+		accept_history(value, 3U, 21U, { force_push(101U, 20U, 1'900'000'000'000LL) });
+		const auto& dated = value.State.Occurrences.Occurrences.front();
+		expect(dated.Evidence.Kind == core::epoch_occurrence_kind::observed_head
+				   && dated.DateSource == core::epoch_occurrence_date_source::commit_date && dated.FirstSeen == firstSeen,
+			   "cache refresh fills committer time without changing first-seen; mixed date order differs from live ordinal order");
 	}
 
 	void establish_ready_comparison(fixture& aValue)
@@ -6669,6 +7110,19 @@ namespace {
 
 int main()
 {
+	local_clock_skew_cannot_associate_old_provider_event_with_new_transition();
+	intervening_provider_update_excludes_old_event_despite_observation_interval();
+	independent_catalogues_agree_on_evidenced_occurrences();
+	live_returns_use_distinct_events_without_rebinding_old_occurrences();
+	missing_events_do_not_invent_a_second_provisional_head();
+	degraded_timeline_and_sidecar_failures_preserve_live_append();
+	delayed_event_keeps_older_observation_when_current_head_changed();
+	newly_discovered_old_events_cannot_name_a_later_ordinary_transition();
+	uncertain_event_chronology_keeps_the_live_transition_unresolved();
+	unavailable_commit_dates_remain_undated_and_retry_on_refresh();
+	delayed_event_keeps_observed_head_separate_without_causal_equivalence();
+	existing_durable_event_binding_is_preserved_without_new_supersession();
+	old_unbound_event_cannot_identify_a_new_return_to_its_head();
 	profile_actor_registry_bounds_authority_and_draining_leases();
 	profile_actor_replacement_waits_for_session_destruction();
 	profile_windows_share_one_cache_without_sharing_selection_or_lifetime();

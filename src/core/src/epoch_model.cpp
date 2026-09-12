@@ -1,4 +1,5 @@
 #include "bpr/core/epoch_model.hpp"
+#include "bpr/core/sha256.hpp"
 
 #include <array>
 #include <cstddef>
@@ -125,6 +126,98 @@ namespace bpr::core {
 	auto canonical_hex(const git_blob_oid& aOid) noexcept -> canonical_git_oid
 	{
 		return render_oid(aOid);
+	}
+
+	auto make_epoch_occurrence_id(const std::string_view aCanonicalHostname,
+								  const pull_request_id aPullRequest, const epoch_occurrence_evidence& aEvidence) noexcept
+		-> std::optional<epoch_occurrence_id>
+	{
+		if (aCanonicalHostname.empty() || aCanonicalHostname.size() > 253U
+			|| aPullRequest.value() == 0U || !aEvidence.Head.valid()
+			|| (aEvidence.Kind != epoch_occurrence_kind::force_push_event
+				&& aEvidence.Kind != epoch_occurrence_kind::observed_head)
+			|| ((aEvidence.Kind == epoch_occurrence_kind::force_push_event) != (aEvidence.EventId != 0U))) {
+			return std::nullopt;
+		}
+		std::size_t labelLength = 0U;
+		char        previous    = '.';
+		for (const char character : aCanonicalHostname) {
+			if (character == '.') {
+				if (labelLength == 0U || previous == '-') {
+					return std::nullopt;
+				}
+				labelLength = 0U;
+			} else {
+				if (!((character >= 'a' && character <= 'z') || (character >= '0' && character <= '9')
+					  || (character == '-' && labelLength != 0U))
+					|| ++labelLength > 63U) {
+					return std::nullopt;
+				}
+			}
+			previous = character;
+		}
+		if (labelLength == 0U || previous == '-') {
+			return std::nullopt;
+		}
+		std::array<std::uint8_t, 320U> bytes{ };
+		std::size_t                    size = 0U;
+		// Fixed domain/version, length-prefixed canonical host, big-endian numeric id.
+		for (const char value : std::string_view{ "BPR-occurrence-v1" }) {
+			bytes[size++] = static_cast<std::uint8_t>(value);
+		}
+		bytes[size++] = static_cast<std::uint8_t>(aCanonicalHostname.size());
+		for (const char value : aCanonicalHostname) {
+			bytes[size++] = static_cast<std::uint8_t>(value);
+		}
+		const auto appendNumber = [&](const std::uint64_t aValue) {
+			for (unsigned shift = 64U; shift != 0U; shift -= 8U) {
+				bytes[size++] = static_cast<std::uint8_t>(aValue >> (shift - 8U));
+			}
+		};
+		appendNumber(aPullRequest.value());
+		bytes[size++] = static_cast<std::uint8_t>(aEvidence.Kind);
+		if (aEvidence.Kind == epoch_occurrence_kind::force_push_event) {
+			// The after-head is a consistency check, never a way to mint another event identity.
+			appendNumber(aEvidence.EventId);
+		} else {
+			bytes[size++] = static_cast<std::uint8_t>(aEvidence.Head.algorithm());
+			for (const auto value : aEvidence.Head.bytes()) {
+				bytes[size++] = value;
+			}
+		}
+		return epoch_occurrence_id{ sha256(std::span{ bytes }.first(size)) };
+	}
+
+	auto valid(const epoch_occurrence& aOccurrence) noexcept -> bool
+	{
+		const auto& evidence  = aOccurrence.Evidence;
+		const auto  validBase = [&](const std::optional<git_commit_oid>& aBase) {
+			return !aBase || (aBase->valid() && aBase->algorithm() == evidence.Head.algorithm());
+		};
+		return aOccurrence.Id.valid() && evidence.Head.valid()
+			&& core::valid(aOccurrence.FirstSeen)
+			&& aOccurrence.DateUtcMilliseconds >= -62'135'596'800'000LL
+			&& aOccurrence.DateUtcMilliseconds <= maximum_observed_utc_milliseconds
+			&& (evidence.Kind == epoch_occurrence_kind::force_push_event || evidence.Kind == epoch_occurrence_kind::observed_head)
+			&& ((evidence.Kind == epoch_occurrence_kind::force_push_event) == (evidence.EventId != 0U))
+			&& (!aOccurrence.LocalEpoch || (aOccurrence.LocalEpoch->Authority.valid() && aOccurrence.LocalEpoch->Incarnation.valid() && core::valid(aOccurrence.LocalEpoch->Ordinal)))
+			&& validBase(aOccurrence.HistoricalBase) && validBase(aOccurrence.DerivedComparisonBase)
+			&& (aOccurrence.DateSource == epoch_occurrence_date_source::commit_date
+				|| (aOccurrence.DateSource == epoch_occurrence_date_source::github_event && evidence.Kind == epoch_occurrence_kind::force_push_event)
+				|| (aOccurrence.DateSource == epoch_occurrence_date_source::unavailable && aOccurrence.DateUtcMilliseconds == 0));
+	}
+
+	auto epoch_occurrence_less(const epoch_occurrence& aLeft, const epoch_occurrence& aRight) noexcept -> bool
+	{
+		const auto leftUndated  = aLeft.DateSource == epoch_occurrence_date_source::unavailable;
+		const auto rightUndated = aRight.DateSource == epoch_occurrence_date_source::unavailable;
+		if (leftUndated != rightUndated) {
+			return !leftUndated;
+		}
+		if (!leftUndated && aLeft.DateUtcMilliseconds != aRight.DateUtcMilliseconds) {
+			return aLeft.DateUtcMilliseconds < aRight.DateUtcMilliseconds;
+		}
+		return aLeft.Id < aRight.Id;
 	}
 
 	auto reason_for(const epoch_failure aFailure) noexcept -> epoch_reason_code

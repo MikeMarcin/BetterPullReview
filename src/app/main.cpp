@@ -849,7 +849,9 @@ namespace {
 			// [[BPR-0715]]. The epoch status the course settled on before
 			// the writes were offered; shutdown returns the host to
 			// `inactive`, so the verdict reads this rather than the live one.
-			bpr::core::epoch_status SettledEpoch = bpr::core::epoch_status::inactive;
+			bpr::core::epoch_status SettledEpoch             = bpr::core::epoch_status::inactive;
+			std::size_t             SettledOccurrenceCount   = 0U;
+			bool                    SettledHistoryIncomplete = false;
 			// [[BPR-0316]]. The forced selection with no fixture under it.
 			// `SelectionForced` alone activates the mode and stops -- the
 			// verdict for a shipped enabled selection, which reaches zero
@@ -3917,7 +3919,9 @@ namespace {
 					&& status.PublicPreviewReviewCommentsObserved
 					&& status.PublicPreviewWriteRefusals == 2U
 					&& status.PublicPreviewPublications > 0U
-					&& aRun.PublicPreview.SettledEpoch == bpr::core::epoch_status::ready;
+					&& aRun.PublicPreview.SettledEpoch == bpr::core::epoch_status::ready
+					&& aRun.PublicPreview.SettledOccurrenceCount >= 3U
+					&& aRun.PublicPreview.SettledHistoryIncomplete;
 				stream << "PUBLIC_PREVIEW_REVIEW_COMMENT_GROUPS:"
 					   << static_cast<unsigned long long>(
 							  status.PublicPreviewReviewCommentGroups)
@@ -3926,6 +3930,10 @@ namespace {
 							  status.PublicPreviewWriteRefusals)
 					   << "\nPUBLIC_PREVIEW_EPOCH_STATUS:"
 					   << static_cast<unsigned>(aRun.PublicPreview.SettledEpoch)
+					   << "\nPUBLIC_PREVIEW_OCCURRENCES:"
+					   << static_cast<unsigned long long>(aRun.PublicPreview.SettledOccurrenceCount)
+					   << "\nPUBLIC_PREVIEW_HISTORY_INCOMPLETE:"
+					   << (aRun.PublicPreview.SettledHistoryIncomplete ? "true" : "false")
 					   << "\nPUBLIC_PREVIEW_SMART_ACQUISITIONS:"
 					   << static_cast<unsigned long long>(
 							  status.PublicPreviewSmartAcquisitions)
@@ -5160,7 +5168,10 @@ namespace {
 							&& epoch != bpr::core::epoch_status::cancelled) {
 							break;
 						} else {
-							aRun->PublicPreview.SettledEpoch = epoch;
+							aRun->PublicPreview.SettledEpoch             = epoch;
+							const auto* const line                       = window.epoch_selectors()->line();
+							aRun->PublicPreview.SettledOccurrenceCount   = line->update_count();
+							aRun->PublicPreview.SettledHistoryIncomplete = line->history_text().startsWith(QStringLiteral("Incomplete history"));
 						}
 						// Offered once the read is in, so the refusals are
 						// answered by a live signed-out session rather than by

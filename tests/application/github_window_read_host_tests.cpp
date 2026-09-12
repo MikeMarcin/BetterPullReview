@@ -28,6 +28,21 @@ namespace {
 											 application::github_pull_request_completion_handler aComplete) override { Calls.push_back({ std::move(aRequest), std::move(aComplete) }); }
 		void              cancel_pull_request(application::github_pull_request_provider_request) override { ++Cancellations; }
 	};
+	struct epoch_handoffs final : application::github_epoch_handoff_port
+	{
+		std::vector<application::epoch_force_push_observation> ForcePushes;
+		application::epoch_timeline_availability               Availability
+			= application::epoch_timeline_availability::unavailable;
+		std::size_t AcceptCount = 0U;
+
+		void accept(application::accepted_pull_request_handoff aHandoff) override
+		{
+			ForcePushes  = std::move(aHandoff.ForcePushes);
+			Availability = aHandoff.TimelineAvailability;
+			++AcceptCount;
+		}
+		void invalidate(application::pull_request_authority_invalidation) override { }
+	};
 	auto session() -> application::github_profile_session
 	{
 		application::github_profile_session result{
@@ -144,6 +159,47 @@ namespace {
 		expect(!host.projection_delivery_failed(), "mapping and delivery stay inside the successful host boundary");
 	}
 
+	void test_timeline_evidence_reaches_epoch_handoff_without_blocking_live_read()
+	{
+		reads                                provider;
+		application::manual_executor         lane;
+		epoch_handoffs                       epochs;
+		application::github_window_read_host host{
+			{ core::default_bpr_profile_id, core::bpr_window_id{ 7 }, core::bpr_window_generation{ 1 } },
+			core::application_session_id{ 2 },
+			provider,
+			lane,
+			[](const auto&) { },
+			&epochs
+		};
+		expect(host.adopt(session()), "timeline fixture adopts session");
+		host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 1 } });
+		const auto first              = provider.Calls.back();
+		auto       accepted           = snapshot(first.Request);
+		accepted.TimelineAvailability = application::github_timeline_availability::available;
+		accepted.ForcePushEvents.push_back({
+			.EventId                   = 917U,
+			.AfterHeadOid              = "3333333333333333333333333333333333333333",
+			.CreatedAtUnixMilliseconds = 1'789'000'000'000LL,
+		});
+		first.Complete(application::github_pull_request_success{ first.Request, accepted });
+		lane.drain();
+		expect(epochs.AcceptCount == 1U && epochs.ForcePushes.size() == 1U
+				   && epochs.ForcePushes.front().EventId == 917U
+				   && epochs.Availability == application::epoch_timeline_availability::available,
+			   "accepted timeline crosses the exact live epoch handoff");
+
+		host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 2 } });
+		const auto second             = provider.Calls.back();
+		auto       degraded           = snapshot(second.Request);
+		degraded.TimelineAvailability = application::github_timeline_availability::refused;
+		second.Complete(application::github_pull_request_success{ second.Request, degraded });
+		lane.drain();
+		expect(epochs.AcceptCount == 2U && epochs.ForcePushes.empty()
+				   && epochs.Availability == application::epoch_timeline_availability::refused,
+			   "timeline refusal retains the live handoff without fabricated updates");
+	}
+
 	void test_reentrant_read_publication()
 	{
 		reads                        provider;
@@ -210,6 +266,7 @@ int main()
 {
 	test_reentrant_read_publication();
 	test_safe_read_presentation_matches_accepted_state();
+	test_timeline_evidence_reaches_epoch_handoff_without_blocking_live_read();
 	reads                                provider;
 	application::manual_executor         lane;
 	std::size_t                          publications = 0;

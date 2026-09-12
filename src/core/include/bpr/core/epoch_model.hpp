@@ -450,6 +450,61 @@ namespace bpr::core {
 		auto operator<=>(const review_epoch_id&) const = default;
 	};
 
+	struct epoch_occurrence_id_tag;
+	using epoch_occurrence_id = fixed_identity_256<epoch_occurrence_id_tag>;
+
+	enum class epoch_occurrence_kind : std::uint8_t { force_push_event,
+													  observed_head };
+	enum class epoch_occurrence_date_source : std::uint8_t { unavailable,
+															 github_event,
+															 commit_date };
+
+	/// \brief Names provider evidence without any catalogue-local identity.
+	struct epoch_occurrence_evidence
+	{
+		epoch_occurrence_kind Kind    = epoch_occurrence_kind::observed_head;
+		std::uint64_t         EventId = 0U;
+		git_commit_oid        Head;
+		auto                  operator<=>(const epoch_occurrence_evidence&) const = default;
+	};
+
+	/// \brief Derives the version-one portable identity from canonical provider facts.
+	[[nodiscard]] auto make_epoch_occurrence_id(std::string_view aCanonicalHostname,
+												pull_request_id aPullRequest, const epoch_occurrence_evidence& aEvidence) noexcept
+		-> std::optional<epoch_occurrence_id>;
+
+	/// \brief Keeps historical truth separate from optional comparison material.
+	struct epoch_occurrence
+	{
+		epoch_occurrence_id            Id;
+		epoch_occurrence_evidence      Evidence;
+		std::optional<review_epoch_id> LocalEpoch;
+		std::optional<git_commit_oid>  HistoricalBase;
+		std::optional<git_commit_oid>  DerivedComparisonBase;
+		epoch_occurrence_date_source   DateSource          = epoch_occurrence_date_source::unavailable;
+		std::int64_t                   DateUtcMilliseconds = 0;
+		observed_utc_milliseconds      FirstSeen;
+		auto                           operator<=>(const epoch_occurrence&) const = default;
+	};
+
+	inline constexpr std::size_t maximum_epoch_occurrence_count = 1'000U;
+
+	/// \brief Describes bounded known occurrences without claiming complete push history.
+	struct epoch_occurrence_history
+	{
+		std::vector<epoch_occurrence> Occurrences;
+		bool                          Incomplete                                         = true;
+		bool                          Ambiguous                                          = false;
+		bool                          UnresolvedLegacy                                   = false;
+		auto                          operator<=>(const epoch_occurrence_history&) const = default;
+	};
+
+	/// \brief Validates occurrence evidence, optional anchors and labeled dates.
+	[[nodiscard]] auto valid(const epoch_occurrence& aOccurrence) noexcept -> bool;
+	/// \brief Orders dated entries first, then by UTC date and portable key; this is not push order.
+	[[nodiscard]] auto epoch_occurrence_less(const epoch_occurrence& aLeft,
+											 const epoch_occurrence& aRight) noexcept -> bool;
+
 	/// \brief Describes the epoch material identity record.
 	struct epoch_material_identity
 	{

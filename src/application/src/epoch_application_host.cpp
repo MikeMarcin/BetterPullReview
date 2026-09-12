@@ -14,6 +14,7 @@
 #include <mutex>
 #include <new>
 #include <ranges>
+#include <span>
 #include <stdexcept>
 #include <stop_token>
 #include <type_traits>
@@ -446,6 +447,235 @@ namespace bpr::application {
 				.Head                = aHandoff.Head,
 				.CurrentViewerReview = aHandoff.CurrentViewerReview,
 			};
+		}
+
+		[[nodiscard]] static auto reconcile_timeline(
+			const accepted_pull_request_handoff&  aHandoff,
+			core::epoch_occurrence_history        aHistory,
+			const core::observed_utc_milliseconds aFirstSeen)
+			-> core::epoch_occurrence_history
+		{
+			// A REST timeline does not contain ordinary push boundaries. Retain
+			// locally observed occurrences and report the missing boundary even
+			// when this bounded read exhausted all of its pages.
+			aHistory.Incomplete = true;
+			if (aHandoff.TimelineAvailability != epoch_timeline_availability::available) {
+				return aHistory;
+			}
+			for (const auto& event : aHandoff.ForcePushes) {
+				const auto evidence = core::epoch_occurrence_evidence{
+					.Kind    = core::epoch_occurrence_kind::force_push_event,
+					.EventId = event.EventId,
+					.Head    = event.Head,
+				};
+				const auto id = core::make_epoch_occurrence_id(
+					aHandoff.Hostname.value(), aHandoff.PullRequest, evidence);
+				if (!id) {
+					aHistory.Ambiguous = true;
+					continue;
+				}
+				const auto found = std::ranges::find_if(
+					aHistory.Occurrences, [id](const auto& aOccurrence) {
+						return aOccurrence.Id == *id;
+					});
+				if (found != aHistory.Occurrences.end()) {
+					if (found->Evidence != evidence
+						|| found->DateSource != core::epoch_occurrence_date_source::github_event
+						|| found->DateUtcMilliseconds != event.EventUtcMilliseconds) {
+						aHistory.Ambiguous = true;
+					}
+					continue;
+				}
+				if (aHistory.Occurrences.size() >= core::maximum_epoch_occurrence_count) {
+					aHistory.Ambiguous = true;
+					break;
+				}
+				aHistory.Occurrences.push_back(core::epoch_occurrence{
+					.Id                  = *id,
+					.Evidence            = evidence,
+					.DateSource          = core::epoch_occurrence_date_source::github_event,
+					.DateUtcMilliseconds = event.EventUtcMilliseconds,
+					.FirstSeen           = aFirstSeen,
+				});
+			}
+			std::ranges::sort(aHistory.Occurrences, core::epoch_occurrence_less);
+			return aHistory;
+		}
+
+		[[nodiscard]] auto evidenced_live_update(const core::epoch_cause& aCause) noexcept -> bool
+		{
+			return aCause.Origin == core::epoch_origin::initial_observation
+				|| (aCause.Origin == core::epoch_origin::live_observation
+					&& (aCause.Head == core::epoch_head_transition::descendant
+						|| aCause.Head == core::epoch_head_transition::non_fast_forward
+						|| aCause.Head == core::epoch_head_transition::lineage_unknown));
+		}
+
+		// One exact bounded scan detects previously observed heads. Failed or
+		// capped history cannot prove that an observed-head key is unused.
+		[[nodiscard]] auto read_occurrence_epochs(epoch_catalog_session& aCatalog,
+												  const std::stop_token  aStop) -> std::optional<std::vector<core::review_epoch_summary>>
+		{
+			const auto binding   = aCatalog.binding();
+			auto       request   = epoch_history_page_request{ .Catalog = binding.Catalog };
+			auto       epochs    = std::vector<core::review_epoch_summary>{ };
+			auto       remaining = core::maximum_epoch_occurrence_count;
+			while (remaining != 0U && !aStop.stop_requested()) {
+				const auto page = aCatalog.history(request, aStop);
+				if (!page || page->Authority != binding.Authority.Scope
+					|| page->Catalog != binding.Catalog || page->Epochs.size() > request.Limit
+					|| page->Epochs.size() > remaining) {
+					return std::nullopt;
+				}
+				auto before = request.Cursor ? std::optional{ request.Cursor->Before } : std::nullopt;
+				for (const auto& epoch : page->Epochs) {
+					if (!core::valid(epoch.Id) || epoch.Id.Authority != binding.Authority.Scope
+						|| epoch.Id.Incarnation != binding.Catalog.Incarnation
+						|| !core::valid(epoch.ObservedAt) || !epoch.Head.valid()
+						|| (before && epoch.Id.Ordinal >= *before)) {
+						return std::nullopt;
+					}
+					before = epoch.Id.Ordinal;
+					epochs.push_back(epoch);
+				}
+				if (!page->Continuation) {
+					return epochs;
+				}
+				remaining -= page->Epochs.size();
+				if (page->Epochs.empty() || page->Continuation->Before != before) {
+					return std::nullopt;
+				}
+				request.Cursor = page->Continuation;
+				if (!application::valid(binding, request)) {
+					return std::nullopt;
+				}
+			}
+			return std::nullopt;
+		}
+
+		[[nodiscard]] auto record_live_occurrence(
+			const accepted_pull_request_handoff&              aHandoff,
+			core::epoch_occurrence_history                    aHistory,
+			const core::review_epoch_summary&                 aEpoch,
+			const std::span<const core::review_epoch_summary> aEpochs)
+			-> core::epoch_occurrence_history
+		{
+			aHistory.Incomplete = true;
+			if (!evidenced_live_update(aEpoch.Cause)) {
+				return aHistory;
+			}
+			const auto existingLocal = std::ranges::find_if(aHistory.Occurrences, [&](const auto& aOccurrence) {
+				return aOccurrence.LocalEpoch == aEpoch.Id;
+			});
+			// REST supplies an event's after-head, not a shared occurrence
+			// discriminator for a local observation. Head equality, event order,
+			// discovery order and either clock cannot authorize a new binding
+			// or supersession. Retain both kinds of evidence with explicit ambiguity.
+			if (std::ranges::any_of(aHistory.Occurrences, [&](const auto& aOccurrence) {
+					return aOccurrence.Evidence.Kind == core::epoch_occurrence_kind::force_push_event
+						&& aOccurrence.Evidence.Head == aEpoch.Head
+						&& (existingLocal == aHistory.Occurrences.end() || aOccurrence.Id != existingLocal->Id);
+				})) {
+				aHistory.Ambiguous = true;
+			}
+			if (existingLocal != aHistory.Occurrences.end()) {
+				// Existing durable bindings are preserved; richer evidence is
+				// required before the catalogue's exact supersession CAS is used.
+				return aHistory;
+			}
+			if (aEpoch.Cause.Origin == core::epoch_origin::initial_observation) {
+				return aHistory;
+			}
+			if (std::ranges::any_of(aEpochs, [&](const auto& aOther) {
+					return aOther.Id != aEpoch.Id && aOther.Head == aEpoch.Head && evidenced_live_update(aOther.Cause);
+				})) {
+				// A repeated observed-head key cannot distinguish another return.
+				// Its local epoch remains intact and provisional in the projection.
+				aHistory.Ambiguous = true;
+				return aHistory;
+			}
+			const auto evidence = core::epoch_occurrence_evidence{
+				.Kind = core::epoch_occurrence_kind::observed_head,
+				.Head = aEpoch.Head,
+			};
+			const auto id = core::make_epoch_occurrence_id(aHandoff.Hostname.value(), aHandoff.PullRequest, evidence);
+			if (!id || std::ranges::any_of(aHistory.Occurrences, [&](const auto& aOccurrence) {
+					return aOccurrence.Id == *id;
+				})
+				|| aHistory.Occurrences.size() >= core::maximum_epoch_occurrence_count) {
+				aHistory.Ambiguous = true;
+				return aHistory;
+			}
+			aHistory.Occurrences.push_back(core::epoch_occurrence{
+				.Id             = *id,
+				.Evidence       = evidence,
+				.LocalEpoch     = aEpoch.Id,
+				.HistoricalBase = aEpoch.Base,
+				.FirstSeen      = aEpoch.ObservedAt,
+			});
+			return aHistory;
+		}
+
+		[[nodiscard]] auto reconcile_local_occurrences(const accepted_pull_request_handoff& aHandoff,
+													   core::epoch_occurrence_history aHistory, epoch_catalog_session& aCatalog,
+													   const std::optional<core::review_epoch_summary>& aCurrent, const std::stop_token aStop)
+			-> core::epoch_occurrence_history
+		{
+			auto targets = std::vector<core::review_epoch_id>{ };
+			for (const auto& occurrence : aHistory.Occurrences) {
+				if (occurrence.Evidence.Kind == core::epoch_occurrence_kind::observed_head && occurrence.LocalEpoch) {
+					targets.push_back(*occurrence.LocalEpoch);
+				}
+			}
+			if (aCurrent && aCurrent->Head == aHandoff.Head
+				&& std::ranges::find(targets, aCurrent->Id) == targets.end()
+				&& std::ranges::none_of(aHistory.Occurrences, [&](const auto& aOccurrence) {
+					   return aOccurrence.LocalEpoch == aCurrent->Id
+						   && aOccurrence.Evidence.Kind == core::epoch_occurrence_kind::force_push_event;
+				   })) {
+				targets.push_back(aCurrent->Id);
+			}
+			if (targets.empty()) {
+				return aHistory;
+			}
+			const auto epochs = read_occurrence_epochs(aCatalog, aStop);
+			if (!epochs) {
+				aHistory.Ambiguous = true;
+				return aHistory;
+			}
+			// Revisit older observations too: delayed event evidence can make
+			// their occurrence equivalence ambiguous after the live head moves.
+			for (const auto& target : targets) {
+				const auto epoch = std::ranges::find(*epochs, target, &core::review_epoch_summary::Id);
+				if (epoch == epochs->end()) {
+					aHistory.Ambiguous = true;
+					continue;
+				}
+				aHistory = record_live_occurrence(aHandoff, std::move(aHistory), *epoch, *epochs);
+			}
+			return aHistory;
+		}
+
+		void enrich_commit_dates(core::epoch_occurrence_history& aHistory,
+								 git_cache_session* const aCache, const std::stop_token aStop)
+		{
+			if (aCache == nullptr) {
+				return;
+			}
+			for (auto& occurrence : aHistory.Occurrences) {
+				if (aStop.stop_requested()) {
+					return;
+				}
+				if (occurrence.DateSource != core::epoch_occurrence_date_source::unavailable) {
+					continue;
+				}
+				const auto seconds = aCache->read_committer_time_seconds(occurrence.Evidence.Head, aStop);
+				if (seconds && *seconds && **seconds >= -62'135'596'800LL
+					&& **seconds <= core::maximum_observed_utc_milliseconds / 1'000) {
+					occurrence.DateSource          = core::epoch_occurrence_date_source::commit_date;
+					occurrence.DateUtcMilliseconds = **seconds * 1'000;
+				}
+			}
 		}
 
 		[[nodiscard]] auto invalidation_identity(
@@ -925,16 +1155,20 @@ namespace bpr::application {
 		struct authority_context final
 		{
 			authority_context(
-				accepted_pull_request_handoff           aAccepted,
-				core::pull_request_authority            aAuthority,
-				core::accepted_pull_request_revision    aRevision,
-				std::unique_ptr<epoch_catalog_session>  aCatalog,
-				std::shared_ptr<authority_effect_actor> aActor)
+				accepted_pull_request_handoff                 aAccepted,
+				core::pull_request_authority                  aAuthority,
+				core::accepted_pull_request_revision          aRevision,
+				std::unique_ptr<epoch_catalog_session>        aCatalog,
+				std::shared_ptr<authority_effect_actor>       aActor,
+				std::optional<core::epoch_occurrence_history> aOccurrenceHistory,
+				std::optional<core::review_epoch_summary>     aCurrentEpoch)
 				: Handoff{ std::move(aAccepted) }
 				, Authority{ std::move(aAuthority) }
 				, Revision{ std::move(aRevision) }
 				, Catalog{ std::move(aCatalog) }
 				, Actor{ std::move(aActor) }
+				, OccurrenceHistory{ std::move(aOccurrenceHistory) }
+				, CurrentEpoch{ std::move(aCurrentEpoch) }
 			{
 				Preparations.reserve(maximum_pending_preparations);
 			}
@@ -988,12 +1222,14 @@ namespace bpr::application {
 					});
 			}
 
-			accepted_pull_request_handoff           Handoff;
-			core::pull_request_authority            Authority;
-			core::accepted_pull_request_revision    Revision;
-			std::unique_ptr<epoch_catalog_session>  Catalog;
-			std::shared_ptr<authority_effect_actor> Actor;
-			std::vector<prepared_operation>         Preparations;
+			accepted_pull_request_handoff                 Handoff;
+			core::pull_request_authority                  Authority;
+			core::accepted_pull_request_revision          Revision;
+			std::unique_ptr<epoch_catalog_session>        Catalog;
+			std::shared_ptr<authority_effect_actor>       Actor;
+			std::optional<core::epoch_occurrence_history> OccurrenceHistory;
+			std::optional<core::review_epoch_summary>     CurrentEpoch;
+			std::vector<prepared_operation>               Preparations;
 		};
 
 		struct completion_gate final
@@ -2954,6 +3190,22 @@ namespace bpr::application {
 			publish(update);
 		}
 
+		void publish_occurrences(
+			const core::epoch_catalog_identity               aCatalog,
+			const core::epoch_occurrence_history&            aHistory,
+			const std::optional<core::review_epoch_summary>& aCurrent)
+		{
+			auto update    = epoch_presentation_update{ };
+			update.Catalog = epoch_catalog_projection{
+				.Catalog           = aCatalog,
+				.OccurrenceHistory = aHistory,
+			};
+			if (aCurrent) {
+				update.Catalog->CurrentEpoch = projected_row(*aCurrent);
+			}
+			publish(update);
+		}
+
 		auto dispatch_core(
 			const core::epoch_event& aEvent,
 			const std::function<void(const core::epoch_transition_output&)>&
@@ -4389,6 +4641,7 @@ namespace bpr::application {
 			auto* const catalogs = &Catalogs;
 			auto* const caches   = &Caches;
 			auto* const entropy  = &Entropy;
+			auto* const clock    = &Clock;
 			// Keep worker and scheduling ownership distinct before entering the
 			// call. Capturing and moving one local in separate arguments would
 			// make the worker's actor depend on argument evaluation order.
@@ -4399,6 +4652,7 @@ namespace bpr::application {
 				 catalogs,
 				 caches,
 				 entropy,
+				 clock,
 				 token,
 				 cleanup, diagnostics = epoch_diagnostics{ DiagnosticLog }](
 					const std::stop_token aStop) mutable -> worker_completion {
@@ -4482,6 +4736,31 @@ namespace bpr::application {
 						return diagnostic(core::reason_for(recovered.error()));
 					}
 
+					// Occurrence evidence is supplementary to the live revision.
+					// A failed timeline or sidecar read never refuses the accepted PR.
+					auto occurrenceHistory = std::optional<core::epoch_occurrence_history>{ };
+					auto currentEpoch      = std::optional<core::review_epoch_summary>{ };
+					try {
+						if (auto stored = (*opened)->occurrences(aStop)) {
+							if (const auto snapshot = (*opened)->snapshot(aStop);
+								snapshot && snapshot->Binding == (*opened)->binding()) {
+								currentEpoch = snapshot->LatestLive;
+							}
+							if (const auto observed = clock->observe_utc(); observed && core::valid(*observed)) {
+								auto reconciled = reconcile_timeline(*offered, std::move(*stored), *observed);
+								reconciled      = reconcile_local_occurrences(*offered, std::move(reconciled), **opened, currentEpoch, aStop);
+								enrich_commit_dates(reconciled, effectActor->Cache.get(), aStop);
+								std::ranges::sort(reconciled.Occurrences, core::epoch_occurrence_less);
+								if ((*opened)->record_occurrences(reconciled, aStop)) {
+									occurrenceHistory = std::move(reconciled);
+								}
+							}
+						}
+					} catch (...) {
+						// Optional evidence cannot refuse the accepted live revision.
+						occurrenceHistory.reset();
+					}
+
 					std::optional<core::epoch_source_observation_id> source;
 					for (std::size_t attempt = 0U;
 						 attempt < maximum_identity_attempts;
@@ -4520,7 +4799,9 @@ namespace bpr::application {
 						binding.Authority,
 						revision,
 						std::move(*opened),
-						std::move(effectActor));
+						std::move(effectActor),
+						std::move(occurrenceHistory),
+						std::move(currentEpoch));
 					context->Handoff.SmartGit = lease.release();
 					return [authorityContext = std::move(context), token, cleanup](
 							   implementation& aHost) {
@@ -4574,6 +4855,12 @@ namespace bpr::application {
 								}
 							}));
 						if (accepted) {
+							if (authorityContext->OccurrenceHistory) {
+								aHost.publish_occurrences(
+									authorityContext->Catalog->binding().Catalog,
+									*authorityContext->OccurrenceHistory,
+									authorityContext->CurrentEpoch);
+							}
 							const auto invalidation = invalidation_identity(
 								authorityContext->Handoff);
 							const auto invalidationPending = std::ranges::any_of(
@@ -5559,16 +5846,43 @@ namespace bpr::application {
 								});
 						};
 					};
-					const auto succeeded = [aRequest](
-											   const core::epoch_catalog_revision
-												   aRevision)
-						-> worker_completion {
-						return [aRequest, aRevision](implementation& aHost) {
+					const auto succeeded = [aRequest, context, aStop](
+											   const core::epoch_catalog_revision aRevision) -> worker_completion {
+						auto history = std::optional<core::epoch_occurrence_history>{ };
+						auto current = std::optional<core::review_epoch_summary>{ };
+						try {
+							if (auto stored = context->Catalog->occurrences(aStop)) {
+								if (const auto snapshot = context->Catalog->snapshot(aStop);
+									snapshot && snapshot->Binding == context->Catalog->binding()) {
+									current = snapshot->LatestLive;
+								}
+								auto reconciled = std::move(*stored);
+								reconciled      = reconcile_local_occurrences(context->Handoff, std::move(reconciled), *context->Catalog, current, aStop);
+								enrich_commit_dates(reconciled, context->Actor->Cache.get(), aStop);
+								std::ranges::sort(reconciled.Occurrences, core::epoch_occurrence_less);
+								if (context->Catalog->record_occurrences(reconciled, aStop)) {
+									history = std::move(reconciled);
+								}
+							}
+						} catch (...) {
+							// The durable live commit succeeded. Supplementary evidence
+							// must never replace its terminal with a failure.
+							history.reset();
+						}
+						const auto catalog = context->Catalog->binding().Catalog;
+						return [aRequest, aRevision, context, catalog,
+								completedHistory = std::move(history), completedCurrent = std::move(current)](
+								   implementation& aHost) {
 							aHost.dispatch_core(core::epoch_catalog_committed_event{
 								.Context     = aRequest.Context,
 								.Mutation    = aRequest.Mutation,
 								.NewRevision = aRevision,
 							});
+							if (completedHistory && aHost.Active == context
+								&& aHost.State.Authority == context->Authority
+								&& aHost.State.Catalog == catalog) {
+								aHost.publish_occurrences(catalog, *completedHistory, completedCurrent);
+							}
 						};
 					};
 

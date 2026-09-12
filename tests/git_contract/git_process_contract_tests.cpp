@@ -873,6 +873,13 @@ namespace {
 			return 0;
 		}
 		if (aArguments.contains("merge-base")) {
+			if (aArguments.contains("--all")) {
+				std::cout << read_text(fake_isolation_root() / "comparison-output");
+			}
+			return 0;
+		}
+		if (aArguments.contains("show") && aArguments.contains("--format=%ct")) {
+			std::cout << read_text(fake_isolation_root() / "committer-output");
 			return 0;
 		}
 		if (aArguments.contains("fsck")) {
@@ -1599,6 +1606,125 @@ namespace {
 				== application::git_process_failure::invalid_repository,
 			"hostile repository config rejected before Git");
 		adapter.reset();
+	}
+
+	auto run_comparison_parser_contract() -> void
+	{
+		temporary_root root{ "git-comparison-parser" };
+		auto           adapter    = make_adapter(make_fake_git_executable(root.Path), root.Path);
+		const auto     repository = repository_path(root.Path, '3');
+		initialize_repository(*adapter, repository, application::git_hash_algorithm::sha1);
+		const auto commit = object<application::git_commit_id>(sha1_commit_hex, application::git_hash_algorithm::sha1);
+		for (const auto& output : std::vector<std::string>{ "", "invalid\n", std::string{ sha1_commit_hex },
+															std::string{ sha1_commit_hex } + "\n\n", std::string{ sha1_commit_hex } + "\n" + std::string{ sha1_commit_hex } + "\n" }) {
+			write_text(root.Path / "comparison-output", output);
+			const auto result = adapter->derive_comparison_base(
+				{ .Repository = repository, .Head = commit, .SelectedBase = commit }, { });
+			require(!result && result.error() == application::git_process_failure::malformed_output,
+					"empty, truncated, invalid or duplicate merge-base output cannot claim a candidate");
+		}
+		write_text(root.Path / "comparison-output", std::string(2048U, 'f'));
+		const auto large = adapter->derive_comparison_base(
+			{ .Repository = repository, .Head = commit, .SelectedBase = commit }, { });
+		require(!large && large.error() == application::git_process_failure::standard_output_limit,
+				"merge-base output remains bounded before parsing");
+		for (const auto& output : std::vector<std::string>{ "", "1", "1\n2\n", "1x\n", "9223372036854775808\n" }) {
+			write_text(root.Path / "committer-output", output);
+			const auto result = adapter->read_committer_time_seconds({ .Repository = repository, .Commit = commit }, { });
+			require(!result && result.error() == application::git_process_failure::malformed_output,
+					"missing, multi-line or overflowing committer dates are unavailable errors");
+		}
+		write_text(root.Path / "committer-output", std::string(64U, '1'));
+		const auto largeTime = adapter->read_committer_time_seconds({ .Repository = repository, .Commit = commit }, { });
+		require(!largeTime && largeTime.error() == application::git_process_failure::standard_output_limit,
+				"committer timestamp output has a dedicated small bound");
+	}
+
+	auto run_comparison_base_contract() -> void
+	{
+		temporary_root root{ "git-comparison-base" };
+		auto           adapter  = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, root.Path);
+		const auto     exercise = [&](const application::git_hash_algorithm aAlgorithm, const char aDigit) {
+			using status          = application::git_comparison_base_status;
+			const auto repository = repository_path(root.Path, aDigit);
+			initialize_repository(*adapter, repository, aAlgorithm);
+			const auto tree   = run_fixture_git(repository, { "mktree" });
+			const auto commit = [&](const std::string& aMessage, const std::vector<std::string>& aParents) {
+				auto arguments = std::vector<std::string>{ "commit-tree", tree };
+				for (const auto& parent : aParents) {
+					arguments.insert(arguments.end(), { "-p", parent });
+				}
+				return run_fixture_git(repository, arguments, aMessage + "\n");
+			};
+			const auto initial       = commit("initial", { });
+			const auto shared        = commit("shared", { initial });
+			const auto observedBase  = commit("observed base", { shared });
+			const auto oldHead       = commit("retained old head", { observedBase });
+			const auto rewrittenBase = commit("rewritten base", { shared });
+			const auto unrelated     = commit("unrelated root", { });
+			const auto crossOne      = commit("criss cross one", { observedBase, rewrittenBase });
+			const auto crossTwo      = commit("criss cross two", { rewrittenBase, observedBase });
+			const auto query         = [&](const std::string& aHead, const std::string& aBase) {
+				return adapter->derive_comparison_base({
+														   .Repository   = repository,
+														   .Head         = object<application::git_commit_id>(aHead, aAlgorithm),
+														   .SelectedBase = object<application::git_commit_id>(aBase, aAlgorithm),
+													   },
+													   { });
+			};
+			const auto original  = query(oldHead, observedBase);
+			const auto rewritten = query(oldHead, rewrittenBase);
+			require(original && original->Status == status::unique
+						&& original->Base == object<application::git_commit_id>(observedBase, aAlgorithm)
+						&& rewritten && rewritten->Status == status::unique
+						&& rewritten->Base == object<application::git_commit_id>(shared, aAlgorithm),
+					"rewritten base changes derived comparison without altering the exact observed base");
+			const auto disconnected = query(oldHead, unrelated);
+			require(disconnected && disconnected->Status == status::no_common_ancestor && !disconnected->Base,
+					"unrelated rewritten base has no comparison candidate");
+			const auto cross = query(crossOne, crossTwo);
+			require(cross && cross->Status == status::multiple_merge_bases && !cross->Base,
+					"criss-cross ancestry never selects one of multiple best merge bases");
+			const auto missingText = std::string(aAlgorithm == application::git_hash_algorithm::sha1 ? 40U : 64U, 'f');
+			const auto missing     = query(missingText, observedBase);
+			const auto missingBase = query(oldHead, missingText);
+			require(missing && missing->Status == status::objects_unavailable && !missing->Base
+						&& missingBase && missingBase->Status == status::objects_unavailable && !missingBase->Base,
+					"missing exact head or selected base has explicit unavailable ancestry");
+			const auto dated = run_fixture_git(repository, { "hash-object", "-t", "commit", "-w", "--stdin" },
+											   "tree " + tree + "\nauthor Fixture <fixture@example.invalid> 946684800 +0000\n"
+																"committer Fixture <fixture@example.invalid> 946688400 +0130\n\ndifferent committer UTC time\n");
+			const auto time  = adapter->read_committer_time_seconds(
+				{ .Repository = repository, .Commit = object<application::git_commit_id>(dated, aAlgorithm) }, { });
+			require(time && *time == 946688400,
+					"committer UTC seconds are distinct from author time and do not apply the local offset twice");
+			const auto missingTime = adapter->read_committer_time_seconds(
+				{ .Repository = repository, .Commit = object<application::git_commit_id>(missingText, aAlgorithm) }, { });
+			require(missingTime && !*missingTime, "missing commit leaves committer date unavailable");
+			auto stop = std::stop_source{ };
+			stop.request_stop();
+			const auto stopped     = adapter->derive_comparison_base({ .Repository   = repository,
+																	   .Head         = object<application::git_commit_id>(oldHead, aAlgorithm),
+																	   .SelectedBase = object<application::git_commit_id>(observedBase, aAlgorithm) },
+																	 stop.get_token());
+			const auto stoppedTime = adapter->read_committer_time_seconds(
+				{ .Repository = repository, .Commit = object<application::git_commit_id>(dated, aAlgorithm) }, stop.get_token());
+			require(!stopped && stopped.error() == application::git_process_failure::cancelled
+						&& !stoppedTime && stoppedTime.error() == application::git_process_failure::cancelled,
+					"comparison and committer-time queries honor cancellation");
+			write_text(repository / "shallow", observedBase + "\n");
+			const auto shallow = query(oldHead, observedBase);
+			require(!shallow && shallow.error() == application::git_process_failure::invalid_repository,
+					"shallow boundaries cannot masquerade as complete comparison history");
+			require(std::filesystem::remove(repository / "shallow"), "remove exact shallow fixture marker");
+			const auto initialObject = repository / "objects" / initial.substr(0U, 2U) / initial.substr(2U);
+			require(std::filesystem::remove(initialObject), "remove one exact fixture ancestor");
+			const auto incomplete = query(oldHead, oldHead);
+			require(incomplete && incomplete->Status == status::objects_unavailable && !incomplete->Base,
+					"even identical endpoints cannot conceal missing reachable parents");
+		};
+		exercise(application::git_hash_algorithm::sha1, '1');
+		exercise(application::git_hash_algorithm::sha256, '2');
 	}
 
 	auto run_connectivity_contract() -> void
@@ -3541,6 +3667,8 @@ auto main(int argc, char** argv) -> int
 	QCoreApplication application{ argc, argv };
 
 	run_real_git_contract();
+	run_comparison_base_contract();
+	run_comparison_parser_contract();
 	run_connectivity_contract();
 	run_rename_parser_contract();
 	run_real_hostile_canary_contract();

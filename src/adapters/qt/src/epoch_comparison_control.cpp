@@ -646,7 +646,11 @@ namespace bpr::qt {
 		// right in time.
 		auto updates = HistoryModel->rows();
 		std::ranges::reverse(updates);
-		Line->set_updates(std::move(updates));
+		if (OccurrenceHistory) {
+			Line->set_occurrences(*OccurrenceHistory, CurrentEpoch, updates);
+		} else {
+			Line->set_updates(std::move(updates));
+		}
 		if (Comparison && Comparison->Pair) {
 			Line->set_selection(
 				Comparison->Pair->Left.Identity, Comparison->Pair->Right.Identity);
@@ -951,6 +955,14 @@ namespace bpr::qt {
 	{
 		const auto previousCatalog = HistoryModel->catalog();
 		HistoryModel->apply(aProjection);
+		if (aProjection.Replace && !aProjection.OccurrenceHistory) {
+			OccurrenceHistory.reset();
+			CurrentEpoch.reset();
+		}
+		if (aProjection.OccurrenceHistory) {
+			OccurrenceHistory = aProjection.OccurrenceHistory;
+			CurrentEpoch      = aProjection.CurrentEpoch;
+		}
 		if (aProjection.Replace && !aProjection.Catalog) {
 			Continuation.reset();
 			HistoryNavigation.reset();
@@ -982,6 +994,10 @@ namespace bpr::qt {
 		const application::epoch_transition_projection& aProjection)
 	{
 		if (aProjection.Authority) {
+			if (Authority && Authority != aProjection.Authority->Authority) {
+				OccurrenceHistory.reset();
+				CurrentEpoch.reset();
+			}
 			Authority = aProjection.Authority->Authority;
 			// The head commit of my last review, for the line's amber tick.
 			LastReviewCommit.reset();
@@ -992,6 +1008,8 @@ namespace bpr::qt {
 			}
 			if (!aProjection.Authority->Authority) {
 				HistoryModel->clear();
+				OccurrenceHistory.reset();
+				CurrentEpoch.reset();
 				Selection.reset();
 				Comparison.reset();
 				Continuation.reset();

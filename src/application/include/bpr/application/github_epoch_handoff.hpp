@@ -7,8 +7,10 @@
 #include "bpr/core/epoch_model.hpp"
 
 #include <compare>
+#include <cstdint>
 #include <memory>
 #include <optional>
+#include <vector>
 
 namespace bpr::application {
 	/// \brief Describes the git smart authority binding record.
@@ -85,6 +87,24 @@ namespace bpr::application {
 
 	using git_smart_authority = std::unique_ptr<git_smart_authority_lease>;
 
+	// A failed or bounded timeline read cannot suppress the accepted live head.
+	enum class epoch_timeline_availability : std::uint8_t {
+		unavailable,
+		available,
+		refused,
+		capped,
+		failed,
+	};
+
+	struct epoch_force_push_observation
+	{
+		std::uint64_t        EventId = 0U;
+		core::git_commit_oid Head;
+		std::int64_t         EventUtcMilliseconds = 0;
+
+		auto operator<=>(const epoch_force_push_observation&) const = default;
+	};
+
 	// This is the sole accepted GitHub-to-epoch revision handoff. It intentionally
 	// has no pull_request_source_revision, accepted_pull_request_revision, Source,
 	// or Observation member. The epoch host mints the source observation only
@@ -121,7 +141,9 @@ namespace bpr::application {
 		std::optional<core::current_viewer_review_candidate> CurrentViewerReview;
 		// A missing lease is a valid authenticated observation with smart Git
 		// unavailable. It never grants an alternate transport.
-		git_smart_authority SmartGit;
+		git_smart_authority                       SmartGit;
+		epoch_timeline_availability               TimelineAvailability = epoch_timeline_availability::unavailable;
+		std::vector<epoch_force_push_observation> ForcePushes;
 	};
 
 	/// \brief Checks whether the supplied value satisfies its contract.
@@ -240,7 +262,19 @@ namespace bpr::application {
 					*aHandoff.CurrentViewerReview,
 					aHandoff.Viewer,
 					aHandoff.ObjectFormat));
-		if (!validFacts || aHandoff.SmartGit == nullptr) {
+		if (!validFacts || aHandoff.ForcePushes.size() > core::maximum_epoch_occurrence_count
+			|| (aHandoff.TimelineAvailability != epoch_timeline_availability::available
+				&& !aHandoff.ForcePushes.empty())) {
+			return false;
+		}
+		for (const auto& event : aHandoff.ForcePushes) {
+			if (event.EventId == 0U || !event.Head.valid()
+				|| event.Head.algorithm() != aHandoff.ObjectFormat
+				|| event.EventUtcMilliseconds <= 0) {
+				return false;
+			}
+		}
+		if (aHandoff.SmartGit == nullptr) {
 			return validFacts;
 		}
 

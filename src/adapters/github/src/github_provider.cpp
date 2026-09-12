@@ -1735,6 +1735,39 @@ namespace bpr::adapters::github::detail {
 							}
 							return;
 						}
+						// Timeline failure does not erase the independently accepted live read.
+						auto timeline = perform_paged_github_timeline_read(*readTransport, *profile,
+																		   aRequest, result->Repository.Repository, job->Stop.get_token(), { }, state->ReadAuthority);
+						if (timeline) {
+							result->ForcePushEvents      = std::move(timeline->ForcePushEvents);
+							result->TimelineAvailability = application::github_timeline_availability::available;
+							if (timeline->RateLimits.Core) {
+								result->RateLimits.Core = timeline->RateLimits.Core;
+							}
+						} else if (std::holds_alternative<github_paged_read_cancelled>(timeline.error())) {
+							cancelled();
+							return;
+						} else {
+							const auto& error = std::get<application::github_provider_error>(timeline.error());
+							if (error.RateLimits.Core) {
+								result->RateLimits.Core = error.RateLimits.Core;
+							}
+							switch (error.Failure) {
+							case application::github_provider_failure::response_limit:
+								result->TimelineAvailability = application::github_timeline_availability::capped;
+								break;
+							case application::github_provider_failure::authentication:
+							case application::github_provider_failure::permission:
+							case application::github_provider_failure::api_version:
+							case application::github_provider_failure::unsupported_capability:
+							case application::github_provider_failure::rate_limit:
+								result->TimelineAvailability = application::github_timeline_availability::refused;
+								break;
+							default:
+								result->TimelineAvailability = application::github_timeline_availability::failed;
+								break;
+							}
+						}
 						if (finish_job(state, job)) {
 							delivery->deliver(
 								application::github_pull_request_cancelled{

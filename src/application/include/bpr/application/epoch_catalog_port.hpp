@@ -1684,6 +1684,30 @@ namespace bpr::application {
 		[[nodiscard]] virtual auto binding() const noexcept
 			-> const epoch_catalog_binding& = 0;
 
+		/// \brief Reads bounded portable history independently of local anchor pagination.
+		[[nodiscard]] virtual auto occurrences(std::stop_token)
+			-> epoch_catalog_result<core::epoch_occurrence_history>
+		{
+			return std::unexpected(epoch_catalog_failure::unavailable);
+		}
+
+		/// \brief Atomically adds evidence without deleting history or renumbering local epochs.
+		/// \details Sidecar writes do not revise the local anchor catalogue. Existing identity/head
+		/// and first-seen facts remain immutable; a unique local association may be added later.
+		[[nodiscard]] virtual auto record_occurrences(const core::epoch_occurrence_history&, std::stop_token)
+			-> epoch_catalog_result<void>
+		{
+			return std::unexpected(epoch_catalog_failure::unavailable);
+		}
+
+		/// \brief Atomically archives exact observed evidence and transfers its local binding to an evidenced event.
+		/// \details The caller establishes unique occurrence equivalence; equal heads alone do not authorize supersession.
+		[[nodiscard]] virtual auto supersede_occurrence(const core::epoch_occurrence&, const core::epoch_occurrence&, std::stop_token)
+			-> epoch_catalog_result<void>
+		{
+			return std::unexpected(epoch_catalog_failure::unavailable);
+		}
+
 		[[nodiscard]] virtual auto snapshot(std::stop_token aStop)
 			-> epoch_catalog_result<epoch_catalog_snapshot> = 0;
 

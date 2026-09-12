@@ -3846,6 +3846,46 @@ namespace {
 			   "under one mode does not relate to material under the other");
 	}
 
+	void test_portable_occurrence_identity()
+	{
+		const auto                      head = oid<git_commit_oid>(7U);
+		const epoch_occurrence_evidence first{ epoch_occurrence_kind::force_push_event, 101U, head };
+		auto                            second = first;
+		second.EventId                         = 102U;
+		const auto firstId                     = make_epoch_occurrence_id("github.com", pull_request_id{ 42U }, first);
+		const auto secondId                    = make_epoch_occurrence_id("github.com", pull_request_id{ 42U }, second);
+		const auto observed                    = make_epoch_occurrence_id("github.com", pull_request_id{ 42U }, { epoch_occurrence_kind::observed_head, 0U, head });
+		expect(firstId && secondId && observed && firstId != secondId && firstId != observed,
+			   "A to B to A retains distinct event occurrences and a separate observed-head namespace");
+		expect(firstId == make_epoch_occurrence_id("github.com", pull_request_id{ 42U }, first), "portable digest is repeatable");
+		expect(firstId != make_epoch_occurrence_id("ghe.example.com", pull_request_id{ 42U }, first)
+				   && firstId != make_epoch_occurrence_id("github.com", pull_request_id{ 43U }, first),
+			   "host and provider PR identity partition occurrences");
+		auto inconsistent = first;
+		inconsistent.Head = oid<git_commit_oid>(8U);
+		expect(firstId == make_epoch_occurrence_id("github.com", pull_request_id{ 42U }, inconsistent), "a conflicting after-head cannot mint a second identity for one event");
+		for (const auto hostname : { "GitHub.com", "github.com.", "a..b", "-a.com", "a-.com", "https://github.com" }) {
+			expect(!make_epoch_occurrence_id(hostname, pull_request_id{ 42U }, first), "noncanonical hostname is refused");
+		}
+		expect(!make_epoch_occurrence_id("github.com", pull_request_id{ 42U }, { epoch_occurrence_kind::force_push_event, 0U, head })
+				   && !make_epoch_occurrence_id("github.com", pull_request_id{ 42U }, { epoch_occurrence_kind::observed_head, 1U, head }),
+			   "typed evidence refuses fabricated discriminators");
+		epoch_occurrence left{ .Id = *firstId, .Evidence = first, .DerivedComparisonBase = oid<git_commit_oid>(9U), .DateSource = epoch_occurrence_date_source::github_event, .DateUtcMilliseconds = 500 };
+		auto             right = left;
+		right.Id               = *secondId;
+		right.Evidence         = second;
+		expect(valid(left) && !left.HistoricalBase && left.DerivedComparisonBase, "head-only history never promotes a derived base to historical truth");
+		expect(epoch_occurrence_less(left, right) == (left.Id < right.Id), "equal dates use stable portable identity");
+		right.DateSource          = epoch_occurrence_date_source::commit_date;
+		right.DateUtcMilliseconds = 400;
+		expect(epoch_occurrence_less(right, left), "mixed dates have deterministic display order without inferring push order");
+		right.DateSource          = epoch_occurrence_date_source::unavailable;
+		right.DateUtcMilliseconds = 0;
+		expect(epoch_occurrence_less(left, right), "undated history follows dated history");
+		right.FirstSeen = observed_utc_milliseconds{ 900 };
+		expect(epoch_occurrence_less(left, right), "local first-seen cannot affect portable ordering");
+	}
+
 	auto test_deterministic_replay() -> void
 	{
 		const auto first  = make_ready_fixture();
@@ -3859,6 +3899,7 @@ namespace {
 auto main() -> int
 {
 	test_sha256_known_vectors();
+	test_portable_occurrence_identity();
 	test_binary_oid_types_and_compact_state();
 	test_preparation_effect_policy();
 	test_cause_precedence_and_material_policy();

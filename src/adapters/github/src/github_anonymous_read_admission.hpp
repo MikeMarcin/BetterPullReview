@@ -60,6 +60,7 @@ namespace bpr::adapters::github::detail {
 		case read_operation::get_pull_request:
 		case read_operation::list_pull_request_files:
 		case read_operation::list_pull_request_commits:
+		case read_operation::list_pull_request_timeline:
 		case read_operation::list_reviews:
 		case read_operation::list_issue_comments:
 		case read_operation::list_review_comments:

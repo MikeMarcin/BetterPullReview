@@ -31,6 +31,7 @@ namespace bpr::adapters::github::detail {
 		list_checks,
 		search_pull_requests,
 		list_review_comments,
+		list_pull_request_timeline,
 	};
 
 	/// \brief Names the ten operations the recorded contract manifest holds.
@@ -62,7 +63,7 @@ namespace bpr::adapters::github::detail {
 	/// authenticated recording stays at ten interactions. Route, admission,
 	/// and name lookups work from this array so a compiled operation cannot
 	/// be unknown to them.
-	inline constexpr std::array<read_operation, 11> all_read_operations{
+	inline constexpr std::array<read_operation, 12> all_read_operations{
 		read_operation::get_viewer_identity,
 		read_operation::get_repository,
 		read_operation::get_pull_request,
@@ -74,11 +75,13 @@ namespace bpr::adapters::github::detail {
 		read_operation::list_checks,
 		read_operation::search_pull_requests,
 		read_operation::list_review_comments,
+		read_operation::list_pull_request_timeline,
 	};
 
-	/// \brief Names the operations a signed-out public read may issue.
+	/// \brief Names the baseline snapshot operations a signed-out public read issues.
 	///
-	/// \details Nine of the eleven. The two absent ones are absent for
+	/// \details The independent timeline read is admitted separately and can fail
+	/// without erasing this snapshot. The other two absent operations are absent for
 	/// different reasons that RFC-BPR-0017 requires to stay distinguishable:
 	/// viewer identity has no anonymous answer and the GraphQL operation is
 	/// served only to an authenticated caller.

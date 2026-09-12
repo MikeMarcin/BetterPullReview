@@ -612,6 +612,7 @@ namespace {
 		case read_operation::list_reviews:
 		case read_operation::list_review_threads:
 		case read_operation::list_issue_comments:
+		case read_operation::list_pull_request_timeline:
 		case read_operation::list_review_comments:
 			request.PullRequestNumber = 17;
 			break;
@@ -1010,14 +1011,14 @@ namespace {
 		// deliberately outside the ten-interaction recording so the
 		// authenticated wire shape is unchanged by its arrival.
 		expect(
-			all_read_operations.size() == 11U
+			all_read_operations.size() == 12U
 				&& std::ranges::find(read_operation_catalog,
 									 read_operation::list_review_comments)
 					== read_operation_catalog.end()
 				&& std::ranges::find(all_read_operations,
 									 read_operation::list_review_comments)
 					!= all_read_operations.end(),
-			"the compiled set holds eleven reads and the recording holds ten");
+			"the compiled set holds twelve reads and the recording holds ten");
 		for (const auto operation : all_read_operations) {
 			const auto roundTrip = read_operation_from_name(operation_name(operation));
 			expect(

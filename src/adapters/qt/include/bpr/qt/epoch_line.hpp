@@ -37,8 +37,9 @@ namespace bpr::qt {
 
 	/// \brief RFC-BPR-0028's epoch line: one node per update, two handles.
 	///
-	/// \details [[BPR-0646]]. A node is a review epoch -- each update (push)
-	/// that changed the pull request -- never a commit or a file's history.
+	/// \details [[BPR-0646]], [[BPR-0743]]. Nodes carry evidenced update
+	/// occurrences, with a separately labeled provisional current snapshot.
+	/// Supplied display order never asserts a known push sequence.
 	/// The two compared anchors are bracket handles with the accent span
 	/// between them; an amber tick marks "my last review" with only a
 	/// tooltip; the dates sit in their own row beneath the nodes. The line
@@ -58,10 +59,15 @@ namespace bpr::qt {
 	public:
 		explicit epoch_line(QWidget* aParent = nullptr);
 
-		static constexpr int height_pixels = 34;
+		static constexpr int height_pixels = 50;
 
-		/// \brief Adopts the updates, oldest first.
+		/// \brief Adopts legacy local records in the supplied order.
 		void set_updates(std::vector<application::epoch_row_projection> aOldestFirst);
+		/// \brief Presents host-ordered occurrence evidence without inferring push order.
+		void               set_occurrences(const core::epoch_occurrence_history&                   aHistory,
+										   const std::optional<application::epoch_row_projection>& aCurrentEpoch = std::nullopt,
+										   const std::vector<application::epoch_row_projection>&   aLocalRows    = { });
+		[[nodiscard]] auto history_text() const -> QString;
 		/// \brief Adopts the compared anchors the core published.
 		void set_selection(
 			std::optional<core::comparison_anchor_identity> aLeft,
@@ -116,7 +122,16 @@ namespace bpr::qt {
 		void choose(core::comparison_side aSide, const epoch_line_stop& aStop);
 		void step(core::comparison_side aSide, int aDirection);
 
-		std::vector<application::epoch_row_projection>  Updates;
+		struct line_row
+		{
+			std::optional<core::review_epoch_id> Id;
+			core::git_commit_oid                 Head;
+			QString                              Label;
+			QString                              Details;
+			bool                                 HasBase = false;
+		};
+		std::vector<line_row>                           Updates;
+		QString                                         HistoryText;
 		std::optional<core::comparison_anchor_identity> Left;
 		std::optional<core::comparison_anchor_identity> Right;
 		std::optional<core::git_commit_oid>             LastReview;

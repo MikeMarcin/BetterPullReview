@@ -670,18 +670,16 @@ namespace bpr::app::detail {
 		/// \details One recording rather than a second fixture. Every REST body
 		/// below is the body the authenticated script already serves, re-ordered
 		/// into the order the anonymous authority issues its operations and cut
-		/// down to the nine it may issue: viewer identity and the GraphQL threads
+		/// down to the operations it may issue: viewer identity and the GraphQL threads
 		/// are absent because that authority refuses both before a request
 		/// exists, so a recording that carried them could only be reached by a
 		/// read that had stopped being anonymous.
 		///
-		/// The inline review conversation is the one operation the authenticated
-		/// script never records -- an authenticated read has the GraphQL threads
-		/// instead -- so its request is derived from the recorded reviews request,
-		/// which is exactly what the contract compiles for it: the same pull
-		/// request path with its last segment replaced and the same first page.
+		/// The inline review conversation and update timeline are not in the
+		/// authenticated baseline script. Their requests are derived from the
+		/// recorded reviews request and checked by the exact replay transport.
 		/// Deriving it rather than writing it out is what keeps the two in step;
-		/// a compiled path that ever stopped matching fails the strict transport
+		/// a compiled path that ever stopped matching fails exact replay
 		/// rather than passing against a hand-copied constant.
 		[[nodiscard]] auto load_anonymous_recording(
 			const fixture_descriptor& aDescriptor,
@@ -707,7 +705,7 @@ namespace bpr::app::detail {
 			};
 
 			auto exchanges = std::vector<recorded_exchange>{ };
-			exchanges.reserve(anonymous_read_operations.size());
+			exchanges.reserve(anonymous_read_operations.size() + 1U);
 			for (const auto operation : anonymous_read_operations) {
 				if (operation != read_operation::list_review_comments) {
 					exchanges.push_back(recorded(operation));
@@ -747,6 +745,42 @@ namespace bpr::app::detail {
 					"GitHub anonymous fixture is incomplete"
 				};
 			}
+			// The independent REST read follows the completed baseline snapshot.
+			// A→B→A exercises repeated-head identity through the composed path.
+			auto       timeline = recorded(read_operation::list_reviews);
+			const auto pulls    = timeline.Request.Path.find("/pulls/");
+			if (pulls == std::string::npos
+				|| !timeline.Request.Path.ends_with("/reviews")) {
+				throw std::runtime_error{
+					"GitHub anonymous timeline fixture cannot derive its path"
+				};
+			}
+			timeline.Request.Path.replace(pulls, 7U, "/issues/");
+			timeline.Request.Path.resize(
+				timeline.Request.Path.size() - std::string_view{ "/reviews" }.size());
+			timeline.Request.Path += "/timeline";
+			timeline.Request.Operation = read_operation::list_pull_request_timeline;
+			const auto priorHead       = aHead == aDescriptor.HeadOneOid
+					&& !aDescriptor.HeadTwoOid.empty()
+				? aDescriptor.HeadTwoOid
+				: aDescriptor.HeadOneOid;
+			const auto event           = [](const int aId, const std::string_view aOid,
+											const QString& aTime) {
+				return QJsonObject{
+					{ QStringLiteral("id"), aId },
+					{ QStringLiteral("event"), QStringLiteral("head_ref_force_pushed") },
+					{ QStringLiteral("commit_id"), QString::fromUtf8(aOid.data(), static_cast<qsizetype>(aOid.size())) },
+					{ QStringLiteral("created_at"), aTime },
+				};
+			};
+			auto events = QJsonArray{ };
+			if (!aDescriptor.HeadTwoOid.empty()) {
+				events.append(event(91'701, aHead, QStringLiteral("2026-08-01T16:45:08Z")));
+				events.append(event(91'702, priorHead, QStringLiteral("2026-08-05T19:12:33Z")));
+			}
+			events.append(event(91'703, aHead, QStringLiteral("2026-08-09T22:19:26Z")));
+			timeline.Response.Body = QJsonDocument{ events }.toJson(QJsonDocument::Compact).toStdString();
+			exchanges.push_back(std::move(timeline));
 			return exchanges;
 		}
 
@@ -823,7 +857,9 @@ namespace bpr::app::detail {
 		{
 		public:
 			explicit fixture_replay(std::vector<recorded_exchange> aExchanges, bool aPaged = false)
-				: Strict{ aPaged ? std::vector<recorded_exchange>{ } : std::exchange(aExchanges, { }) }
+				: Timeline{ aPaged ? std::optional<recorded_exchange>{ }
+								   : take_timeline(aExchanges) }
+				, Strict{ aPaged ? std::vector<recorded_exchange>{ } : std::exchange(aExchanges, { }) }
 			{
 				if (aPaged) {
 					Paged.emplace(std::move(aExchanges));
@@ -832,11 +868,36 @@ namespace bpr::app::detail {
 			[[nodiscard]] auto perform(const adapters::github::detail::wire_request& aRequest)
 				-> adapters::github::detail::response_result
 			{
+				if (aRequest.Operation == read_operation::list_pull_request_timeline) {
+					using namespace adapters::github::detail;
+					if (const auto valid = validate_outbound_read_request(aRequest);
+						!valid.has_value()) {
+						return std::unexpected{ valid.error() };
+					}
+					if (!Timeline || TimelineConsumed || !Strict.consumed_all()) {
+						return std::unexpected{ contract_failure{
+							.Code = contract_failure_code::unexpected_operation } };
+					}
+					const auto& expected = Timeline->Request;
+					if (aRequest.Server != expected.Server
+						|| aRequest.Operation != expected.Operation
+						|| aRequest.Method != expected.Method
+						|| aRequest.Path != expected.Path
+						|| aRequest.Query != expected.Query
+						|| aRequest.Headers != expected.Headers
+						|| aRequest.Body != expected.Body) {
+						return std::unexpected{ contract_failure{
+							.Code = contract_failure_code::unexpected_path } };
+					}
+					TimelineConsumed = true;
+					return Timeline->Response;
+				}
 				return Paged ? Paged->perform(aRequest) : Strict.perform(aRequest);
 			}
 			[[nodiscard]] auto consumed_all() const noexcept -> bool
 			{
-				return Paged ? Paged->consumed_all() : Strict.consumed_all();
+				return Paged ? Paged->consumed_all()
+							 : Strict.consumed_all() && (!Timeline || TimelineConsumed);
 			}
 			void replace_completed_paged_script(std::vector<recorded_exchange> aExchanges)
 			{
@@ -847,6 +908,7 @@ namespace bpr::app::detail {
 			}
 			void rewind() noexcept
 			{
+				TimelineConsumed = false;
 				if (Paged) {
 					Paged->rewind();
 				} else {
@@ -862,10 +924,23 @@ namespace bpr::app::detail {
 					return;
 				}
 				Strict.rewind();
+				TimelineConsumed = false;
 				Strict.skip_until(aOperation);
 			}
 
 		private:
+			[[nodiscard]] static auto take_timeline(std::vector<recorded_exchange>& aExchanges)
+				-> std::optional<recorded_exchange>
+			{
+				if (aExchanges.empty() || aExchanges.back().Request.Operation != read_operation::list_pull_request_timeline) {
+					return std::nullopt;
+				}
+				auto timeline = std::move(aExchanges.back());
+				aExchanges.pop_back();
+				return timeline;
+			}
+			std::optional<recorded_exchange>                       Timeline;
+			bool                                                   TimelineConsumed = false;
 			strict_recorded_transport                              Strict;
 			std::optional<large_review_fixture::sequential_replay> Paged;
 		};

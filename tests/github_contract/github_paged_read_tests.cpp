@@ -1399,6 +1399,7 @@ namespace {
 					return search_response(aRequest);
 				case read_operation::list_review_comments:
 					return review_comments_response(aRequest);
+				case read_operation::list_pull_request_timeline:
 				case read_operation::get_viewer_identity:
 					break;
 				}
@@ -2796,10 +2797,133 @@ namespace {
 					== application::github_provider_failure::response_limit,
 			"an oversized listing is refused by the response limits");
 	}
+	class timeline_fixture_transport final : public github_wire_transport_port
+	{
+	public:
+		std::vector<wire_response>       Responses;
+		std::vector<github_wire_request> Requests;
+
+		auto perform(const github_wire_request& aRequest, std::stop_token) -> github_wire_completion override
+		{
+			Requests.push_back(aRequest);
+			expect(aRequest.Wire.Operation == read_operation::list_pull_request_timeline
+					   && aRequest.Wire.Method == http_method::get
+					   && aRequest.Wire.Path == "/repos/octo-org/review-repository/issues/17/timeline"
+					   && aRequest.Wire.Query == "page=" + std::to_string(Requests.size()) + "&per_page=100",
+				   "timeline compiles its exact anonymous REST request");
+			expect(Requests.size() <= Responses.size(), "timeline never issues an unprovided page");
+			return github_wire_success{ .Correlation = aRequest.Correlation, .Response = Responses[Requests.size() - 1U] };
+		}
+	};
+
+	[[nodiscard]] auto timeline_event(const std::uint64_t aId, const std::string_view aTimestamp = "2026-08-01T16:45:08Z") -> std::string
+	{
+		return "{\"event\":\"head_ref_force_pushed\",\"id\":" + std::to_string(aId)
+			+ ",\"commit_id\":\"" + std::string{ head_oid } + "\",\"created_at\":\"" + std::string{ aTimestamp } + "\"}";
+	}
+
+	[[nodiscard]] auto timeline_full_page(const std::uint64_t aId) -> std::string
+	{
+		auto result = "[" + timeline_event(aId);
+		for (std::size_t index = 1U; index < 100U; ++index) {
+			result += ",{\"event\":\"committed\"}";
+		}
+		return result + "]";
+	}
+
+	[[nodiscard]] auto timeline_next(const std::uint32_t aPage, const std::string_view aAuthority = "api.github.com") -> std::string
+	{
+		return "<https://" + std::string{ aAuthority } + "/repos/octo-org/review-repository/issues/17/timeline?page=" + std::to_string(aPage) + "&per_page=100>; rel=\"next\"";
+	}
+
+	[[nodiscard]] auto read_timeline(timeline_fixture_transport& aTransport, const github_paged_read_limits& aLimits = { }) -> github_timeline_read_result
+	{
+		return perform_paged_github_timeline_read(aTransport, profile(), anonymous_provider_request(), core::repository_id{ 101U }, { }, aLimits, github_provider_read_authority::anonymous_public);
+	}
+
+	auto test_timeline_read() -> void
+	{
+		auto transport      = timeline_fixture_transport{ };
+		transport.Responses = { success_response("[" + timeline_event(9007199254740993ULL) + "]") };
+		const auto one      = read_timeline(transport);
+		expect(one && one->ForcePushEvents.size() == 1U
+				   && one->ForcePushEvents.front().EventId == 9007199254740993ULL
+				   && one->ForcePushEvents.front().AfterHeadOid == head_oid
+				   && one->ForcePushEvents.front().CreatedAtUnixMilliseconds == 1785602708000LL
+				   && one->RateLimits.Core.has_value(),
+			   "timeline preserves exact numeric id, after head and UTC event time");
+		transport.Requests.clear();
+		transport.Responses = { success_response(timeline_full_page(1U), timeline_next(2U), page_completeness::has_next_page), success_response("[" + timeline_event(2U) + "]") };
+		const auto multiple = read_timeline(transport);
+		expect(multiple && multiple->ForcePushEvents.size() == 2U && transport.Requests.size() == 2U,
+			   "timeline exhausts multiple pages and ignores surviving commit entries");
+		transport.Requests.clear();
+		transport.Responses = { success_response("[]") };
+		const auto empty    = read_timeline(transport);
+		expect(empty && empty->ForcePushEvents.empty(), "empty exhausted timeline is observed");
+	}
+
+	auto test_timeline_atomic_failures() -> void
+	{
+		for (const auto invalidTime : { "2026-02-30T16:45:08Z", "2026-08-01T24:45:08Z", "2026-08-01T16:45:08+00:00", "garbage" }) {
+			auto transport      = timeline_fixture_transport{ };
+			transport.Responses = { success_response(timeline_full_page(1U), timeline_next(2U), page_completeness::has_next_page), success_response("[" + timeline_event(2U, invalidTime) + "]") };
+			expect(!read_timeline(transport), "malformed later event fails atomically");
+		}
+		for (const auto body : { "[{\"event\":\"head_ref_force_pushed\",\"id\":1,\"commit_id\":null,\"created_at\":\"2026-08-01T16:45:08Z\"}]", "[{\"event\":\"head_ref_force_pushed\",\"id\":1.5}]" }) {
+			auto transport      = timeline_fixture_transport{ };
+			transport.Responses = { success_response(body) };
+			expect(!read_timeline(transport), "missing after head and fractional ids are refused");
+		}
+		auto transport      = timeline_fixture_transport{ };
+		transport.Responses = { success_response(timeline_full_page(1U), timeline_next(2U, "other.invalid"), page_completeness::has_next_page) };
+		expect(!read_timeline(transport) && transport.Requests.size() == 1U, "cross-authority next link is refused before transport");
+		transport.Requests.clear();
+		transport.Responses = { success_response(timeline_full_page(1U), timeline_next(2U), page_completeness::has_next_page), success_response("[" + timeline_event(1U) + "]") };
+		expect(!read_timeline(transport), "duplicate event identity across pages fails atomically");
+		transport.Requests.clear();
+		transport.Responses                = { success_response("{}") };
+		transport.Responses.front().Status = 403;
+		const auto permission              = read_timeline(transport);
+		expect(!permission && std::get<application::github_provider_error>(permission.error()).Failure == application::github_provider_failure::permission,
+			   "server refusal is typed and yields no timeline rows");
+		transport.Requests.clear();
+		transport.Responses         = { success_response(timeline_full_page(1U), timeline_next(2U), page_completeness::has_next_page) };
+		auto byteLimits             = github_paged_read_limits{ };
+		byteLimits.MaximumPageBytes = 1U;
+		expect(!read_timeline(transport, byteLimits) && transport.Requests.size() == 1U, "timeline respects the caller page byte limit");
+		transport.Requests.clear();
+		transport.Responses.clear();
+		for (std::uint32_t page = 1U; page <= 10U; ++page) {
+			transport.Responses.push_back(success_response(timeline_full_page(page), timeline_next(page + 1U), page_completeness::has_next_page));
+		}
+		const auto capped = read_timeline(transport);
+		expect(!capped && std::get<application::github_provider_error>(capped.error()).Failure == application::github_provider_failure::response_limit
+				   && transport.Requests.size() == 10U,
+			   "ten-page cap counts ignored entries and returns no partial history");
+		transport.Requests.clear();
+		auto limits              = github_paged_read_limits{ };
+		limits.MaximumTotalPages = 1U;
+		expect(!read_timeline(transport, limits) && transport.Requests.size() == 1U, "caller can tighten timeline page budget");
+		transport.Requests.clear();
+		const auto refused = perform_paged_github_timeline_read(transport, enterprise_profile(), anonymous_provider_request(), core::repository_id{ 101U }, { }, { }, github_provider_read_authority::anonymous_public);
+		expect(!refused && transport.Requests.empty(), "GHES anonymous timeline is refused before any request");
+		auto request                       = anonymous_provider_request();
+		request.Context.ExpectedRepository = core::repository_id{ 102U };
+		const auto mismatch                = perform_paged_github_timeline_read(transport, profile(), request, core::repository_id{ 101U }, { }, { }, github_provider_read_authority::anonymous_public);
+		expect(!mismatch && transport.Requests.empty(), "mismatched accepted repository is refused before any request");
+		std::stop_source stop;
+		stop.request_stop();
+		const auto cancelled = perform_paged_github_timeline_read(transport, profile(), anonymous_provider_request(), core::repository_id{ 101U }, stop.get_token(), { }, github_provider_read_authority::anonymous_public);
+		expect(!cancelled && std::holds_alternative<github_paged_read_cancelled>(cancelled.error()) && transport.Requests.empty(), "cancelled timeline sends no request");
+	}
+
 }
 
 auto main() -> int
 {
+	test_timeline_read();
+	test_timeline_atomic_failures();
 	test_metadata_and_viewer();
 	test_glaze_viewer_numbers_and_syntax();
 	test_glaze_paged_identity_and_lifetime();

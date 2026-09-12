@@ -3109,6 +3109,38 @@ namespace bpr::adapters::git {
 		}
 #endif
 
+		[[nodiscard]] auto parse_comparison_bases(
+			const process_success&   aResult,
+			const git_hash_algorithm aAlgorithm)
+			-> git_process_result<application::git_comparison_base_observation>
+		{
+			using status = application::git_comparison_base_status;
+			if (aResult.ExitCode == 1 && aResult.StandardOutput.empty()) {
+				return application::git_comparison_base_observation{ .Status = status::no_common_ancestor };
+			}
+			if (aResult.ExitCode != 0 || aResult.StandardOutput.empty()) {
+				return std::unexpected{ git_process_failure::malformed_output };
+			}
+			auto remaining = std::string_view{ aResult.StandardOutput };
+			auto bases     = std::vector<git_commit_id>{ };
+			while (!remaining.empty()) {
+				const auto newline = remaining.find('\n');
+				if (newline == std::string_view::npos) {
+					return std::unexpected{ git_process_failure::malformed_output };
+				}
+				const auto base = parse_object<git_commit_id>(remaining.substr(0U, newline), aAlgorithm);
+				if (!base || std::ranges::find(bases, *base) != bases.end()) {
+					return std::unexpected{ git_process_failure::malformed_output };
+				}
+				bases.push_back(*base);
+				remaining.remove_prefix(newline + 1U);
+			}
+			return application::git_comparison_base_observation{
+				.Status = bases.size() == 1U ? status::unique : status::multiple_merge_bases,
+				.Base   = bases.size() == 1U ? std::optional{ bases.front() } : std::nullopt,
+			};
+		}
+
 		class installed_git_process final
 			: public application::git_process_port
 		{
@@ -4013,6 +4045,81 @@ namespace bpr::adapters::git {
 				return result->ExitCode == 0
 					? git_ancestry::ancestor
 					: git_ancestry::not_ancestor;
+			}
+
+			[[nodiscard]] auto derive_comparison_base(
+				const application::git_comparison_base_request& aRequest,
+				const std::stop_token                           aStop)
+				-> git_process_result<application::git_comparison_base_observation> override
+			{
+				if (!application::valid(aRequest.Head) || !application::valid(aRequest.SelectedBase)
+					|| aRequest.Head.Algorithm != aRequest.SelectedBase.Algorithm) {
+					return std::unexpected{ git_process_failure::invalid_request };
+				}
+				const auto unavailable = [](const git_process_error& aError)
+					-> git_process_result<application::git_comparison_base_observation> {
+					if (aError == git_process_failure::object_unavailable || aError == git_process_failure::nonzero_exit) {
+						return application::git_comparison_base_observation{
+							.Status = application::git_comparison_base_status::objects_unavailable,
+						};
+					}
+					return std::unexpected{ aError };
+				};
+				const auto head = inspect_commit({ .Repository = aRequest.Repository, .Commit = aRequest.Head }, aStop);
+				if (!head) {
+					return unavailable(head.error());
+				}
+				const auto base = inspect_commit({ .Repository = aRequest.Repository, .Commit = aRequest.SelectedBase }, aStop);
+				if (!base) {
+					return unavailable(base.error());
+				}
+				// A merge-base walk may stop before a missing ancestor is visited.
+				// Verify the full retained closure before claiming a unique result.
+				const auto connected = verify_connectivity(
+					{ .Repository = aRequest.Repository, .Base = aRequest.SelectedBase, .Head = aRequest.Head }, aStop);
+				if (!connected) {
+					return unavailable(connected.error());
+				}
+				auto arguments = common_git_arguments(aRequest.Repository, HooksRoot);
+				append_arguments(arguments, "merge-base", "--all", object_text(aRequest.Head), object_text(aRequest.SelectedBase));
+				const auto result = submit(
+					process_request{ .Arguments = std::move(arguments), .AllowExitOne = true }, aStop);
+				if (!result) {
+					return std::unexpected{ result.error() };
+				}
+				return parse_comparison_bases(*result, aRequest.Head.Algorithm);
+			}
+
+			[[nodiscard]] auto read_committer_time_seconds(
+				const application::git_commit_request& aRequest,
+				const std::stop_token                  aStop)
+				-> git_process_result<std::optional<std::int64_t>> override
+			{
+				const auto inspected = inspect_commit(aRequest, aStop);
+				if (!inspected) {
+					if (inspected.error() == git_process_failure::object_unavailable) {
+						return std::nullopt;
+					}
+					return std::unexpected{ inspected.error() };
+				}
+				auto arguments = common_git_arguments(aRequest.Repository, HooksRoot);
+				append_arguments(arguments, "show", "--no-patch", "--format=%ct", "--no-notes", "--no-show-signature", object_text(aRequest.Commit), "--");
+				const auto result = submit(
+					process_request{ .Arguments = std::move(arguments), .StandardOutputLimit = 32U }, aStop);
+				if (!result) {
+					return std::unexpected{ result.error() };
+				}
+				const auto& output = result->StandardOutput;
+				if (output.size() < 2U || output.back() != '\n') {
+					return std::unexpected{ git_process_failure::malformed_output };
+				}
+				std::int64_t seconds = 0;
+				const auto   end     = output.data() + output.size() - 1U;
+				const auto   parsed  = std::from_chars(output.data(), end, seconds);
+				if (parsed.ec != std::errc{ } || parsed.ptr != end) {
+					return std::unexpected{ git_process_failure::malformed_output };
+				}
+				return seconds;
 			}
 
 			[[nodiscard]] auto verify_connectivity(

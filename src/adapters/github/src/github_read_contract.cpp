@@ -719,6 +719,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::get_pull_request:
 			case read_operation::list_pull_request_files:
 			case read_operation::list_pull_request_commits:
+			case read_operation::list_pull_request_timeline:
 			case read_operation::list_reviews:
 			case read_operation::list_review_threads:
 			case read_operation::list_issue_comments:
@@ -737,6 +738,8 @@ namespace bpr::adapters::github::detail {
 			const read_operation aOperation) noexcept -> std::uint32_t
 		{
 			switch (aOperation) {
+			case read_operation::list_pull_request_timeline:
+				return std::numeric_limits<std::uint32_t>::max();
 			case read_operation::list_pull_request_files:
 				return 30U;
 			case read_operation::list_pull_request_commits:
@@ -1762,6 +1765,8 @@ namespace bpr::adapters::github::detail {
 			const fixture_json_value& aDocument) -> bool
 		{
 			switch (aOperation) {
+			case read_operation::list_pull_request_timeline:
+				return false; // Timeline normalization belongs to the bounded production pager.
 			case read_operation::get_viewer_identity:
 				return validate_viewer_fixture(aDocument);
 			case read_operation::get_repository:
@@ -1793,6 +1798,8 @@ namespace bpr::adapters::github::detail {
 		-> std::string_view
 	{
 		switch (aOperation) {
+		case read_operation::list_pull_request_timeline:
+			return "ListPullRequestTimeline";
 		case read_operation::get_viewer_identity:
 			return "GetViewerIdentity";
 		case read_operation::get_repository:
@@ -1940,6 +1947,10 @@ namespace bpr::adapters::github::detail {
 			result.Path  = pull_request_path(*prefix, aRequest) + "/commits";
 			result.Query = "page=" + std::to_string(aRequest.Page)
 				+ "&per_page=100";
+			break;
+		case read_operation::list_pull_request_timeline:
+			result.Path  = repository_path(*prefix, aRequest) + "/issues/" + std::to_string(aRequest.PullRequestNumber) + "/timeline";
+			result.Query = "page=" + std::to_string(aRequest.Page) + "&per_page=100";
 			break;
 		case read_operation::list_reviews:
 			result.Path  = pull_request_path(*prefix, aRequest) + "/reviews";

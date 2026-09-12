@@ -2024,8 +2024,8 @@ bpr_bound_automated_run(
 )
 
 # The signed-out read, end to end against the recorded public path. The fixture
-# replays a second script here -- the nine credential-free operations in the
-# order the anonymous authority issues them -- so what this row proves is not
+# replays the nine baseline credential-free operations followed by the
+# independent update timeline, so what this row proves is not
 # that a recording exists but that the composed host reaches it: the mode is
 # entered, the pull request opens through the credential-free authority, the
 # inline conversation the signed-out REST surface carries is observed, and
@@ -2055,7 +2055,7 @@ set_tests_properties(
         # while the session was live, and they sit beside a request count of
         # one, which is where "refused before a request" is legible.
         PASS_REGULAR_EXPRESSION
-            "PUBLIC_PREVIEW_COMPOSED:true[\r\n]+PUBLIC_PREVIEW_STAGE:enabled[\r\n]+PUBLIC_PREVIEW_REQUESTS:1[\r\n]+PUBLIC_PREVIEW_HEADER_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_VAULT_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_SIGN_IN_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_REVIEW_COMMENT_GROUPS:1[\r\n]+PUBLIC_PREVIEW_WRITE_REFUSALS:2[\r\n]+PUBLIC_PREVIEW_EPOCH_STATUS:6[\r\n]+PUBLIC_PREVIEW_SMART_ACQUISITIONS:1[\r\n]+PUBLIC_PREVIEW_ENABLED_OK"
+            "PUBLIC_PREVIEW_COMPOSED:true[\r\n]+PUBLIC_PREVIEW_STAGE:enabled[\r\n]+PUBLIC_PREVIEW_REQUESTS:1[\r\n]+PUBLIC_PREVIEW_HEADER_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_VAULT_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_SIGN_IN_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_REVIEW_COMMENT_GROUPS:1[\r\n]+PUBLIC_PREVIEW_WRITE_REFUSALS:2[\r\n]+PUBLIC_PREVIEW_EPOCH_STATUS:6[\r\n]+PUBLIC_PREVIEW_OCCURRENCES:[34][\r\n]+PUBLIC_PREVIEW_HISTORY_INCOMPLETE:true[\r\n]+PUBLIC_PREVIEW_SMART_ACQUISITIONS:1[\r\n]+PUBLIC_PREVIEW_ENABLED_OK"
 )
 bpr_bound_automated_run(
     application_anonymous_public_preview_public_path
@@ -2063,6 +2063,35 @@ bpr_bound_automated_run(
     BUDGET_MS ${bpr_fixture_run_budget_ms}
     RUNS 1
     RESERVE_MS 2000
+)
+
+# The same A→B→A timeline travels through two independent application opens,
+# each with its own real SQLite catalogue. The test compares persisted
+# portable identities and order rather than accepting matching Qt row counts.
+find_package(Python3 3.10 REQUIRED COMPONENTS Interpreter)
+bpr_add_network_isolated_test(
+    NAME application_epoch_portable_occurrence_two_catalogues
+    WINDOWS_UNCONTAINED
+    COMMAND
+        "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/epoch_portable_occurrence_public_path.py"
+        --application
+        $<TARGET_FILE:app_better_pull_review>
+        --budget-ms
+        ${bpr_fixture_run_budget_ms}
+)
+set_tests_properties(
+    application_epoch_portable_occurrence_two_catalogues
+    PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION "EPOCH_PORTABLE_TWO_CATALOGUES_OK:3"
+)
+bpr_bound_automated_run(
+    application_epoch_portable_occurrence_two_catalogues
+    TIMEOUT 140
+    BUDGET_MS ${bpr_fixture_run_budget_ms}
+    RUNS 2
+    RESERVE_MS 10000
 )
 
 foreach(

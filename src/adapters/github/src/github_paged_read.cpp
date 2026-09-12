@@ -9,6 +9,7 @@
 #include <array>
 #include <cctype>
 #include <charconv>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <initializer_list>
@@ -1325,6 +1326,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::get_pull_request:
 			case read_operation::list_pull_request_files:
 			case read_operation::list_pull_request_commits:
+			case read_operation::list_pull_request_timeline:
 			case read_operation::list_reviews:
 			case read_operation::list_review_threads:
 			case read_operation::list_issue_comments:
@@ -1461,6 +1463,7 @@ namespace bpr::adapters::github::detail {
 			switch (aRequest.Operation) {
 			case read_operation::list_pull_request_files:
 			case read_operation::list_pull_request_commits:
+			case read_operation::list_pull_request_timeline:
 			case read_operation::list_reviews:
 			case read_operation::list_issue_comments:
 			case read_operation::list_review_comments:
@@ -2283,6 +2286,33 @@ namespace bpr::adapters::github::detail {
 				.DefaultBranch = text(json_member(object, "default_branch")),
 				.Private       = json_bool(json_member(object, "private")),
 			};
+		}
+
+		[[nodiscard]] auto parse_timeline_timestamp(const std::string_view aValue) -> std::optional<std::int64_t>
+		{
+			// REST's UTC second-resolution event timestamp; no locale or clock.
+			if (aValue.size() != 20U || aValue[4] != '-' || aValue[7] != '-'
+				|| aValue[10] != 'T' || aValue[13] != ':' || aValue[16] != ':' || aValue[19] != 'Z') {
+				return std::nullopt;
+			}
+			const auto number = [aValue](const std::size_t aStart, const std::size_t aSize) -> std::optional<unsigned> {
+				const auto part = aValue.substr(aStart, aSize);
+				if (!std::ranges::all_of(part, [](const char aChar) { return aChar >= '0' && aChar <= '9'; })) {
+					return std::nullopt;
+				}
+				unsigned   result = 0U;
+				const auto parsed = std::from_chars(part.data(), part.data() + part.size(), result);
+				return parsed.ec == std::errc{ } ? std::optional{ result } : std::nullopt;
+			};
+			const auto year = number(0U, 4U), month = number(5U, 2U), day = number(8U, 2U), hour = number(11U, 2U), minute = number(14U, 2U), second = number(17U, 2U);
+			if (!year || !month || !day || !hour || !minute || !second || *year < 1970U || *hour > 23U || *minute > 59U || *second > 59U) {
+				return std::nullopt;
+			}
+			const auto date = std::chrono::year{ static_cast<int>(*year) } / std::chrono::month{ *month } / std::chrono::day{ *day };
+			if (!date.ok()) {
+				return std::nullopt;
+			}
+			return std::chrono::duration_cast<std::chrono::milliseconds>((std::chrono::sys_days{ date } + std::chrono::hours{ *hour } + std::chrono::minutes{ *minute } + std::chrono::seconds{ *second }).time_since_epoch()).count();
 		}
 
 		struct parsed_pull_ref
@@ -3539,6 +3569,87 @@ namespace bpr::adapters::github::detail {
 		} catch (...) {
 			return std::unexpected{ provider_error(
 				application::github_provider_failure::malformed_response) };
+		}
+	}
+
+	auto perform_paged_github_timeline_read(
+		github_wire_transport_port&                              aTransport,
+		const validated_github_host_profile&                     aProfile,
+		const application::github_pull_request_provider_request& aRequest,
+		const core::repository_id                                aRepository,
+		const std::stop_token                                    aStop,
+		const github_paged_read_limits&                          aLimits,
+		const github_provider_read_authority                     aReadAuthority) noexcept -> github_timeline_read_result
+	{
+		auto rates = application::github_rate_limit_state{ };
+		try {
+			if (aReadAuthority == github_provider_read_authority::anonymous_public) {
+				const auto admission = admit_anonymous_read(read_operation::list_pull_request_timeline, aProfile.server_contract());
+				if (!admission) {
+					return failed(provider_failure_for(admission.error()));
+				}
+			}
+			if (!provider_request_valid(aProfile, aRequest, core::provider_snapshot_id{ 1U }, aLimits, aReadAuthority)
+				|| aRepository.value() == 0U
+				|| (aRequest.Context.ExpectedRepository && *aRequest.Context.ExpectedRepository != aRepository)) {
+				return failed(application::github_provider_failure::malformed_response);
+			}
+			auto limits              = aLimits;
+			limits.MaximumTotalPages = std::min(limits.MaximumTotalPages, std::size_t{ 10U });
+			production_read_execution execution{ aTransport, aProfile, aRequest.Context, limits, aStop, rates, aRequest.AuthenticationSession };
+			if (!execution.bind_repository(aRepository)) {
+				return failed(application::github_provider_failure::malformed_response);
+			}
+			auto                              semantic = semantic_request_for(*server_contract_for(aProfile), aRequest.Context, read_operation::list_pull_request_timeline);
+			github_timeline_read              result;
+			std::unordered_set<std::uint64_t> seen;
+			while (true) {
+				auto page = execution.fetch(semantic);
+				if (!page) {
+					return std::unexpected{ page.error() };
+				}
+				if (!json_is_array(page->Document)) {
+					return execution.terminal_failure(application::github_provider_failure::malformed_response);
+				}
+				const auto records = json_array(page->Document);
+				if (records.size() > limits.MaximumPageRecords) {
+					return execution.terminal_failure(application::github_provider_failure::response_limit);
+				}
+				for (const auto& value : records) {
+					if (!json_is_object(value)) {
+						return execution.terminal_failure(application::github_provider_failure::malformed_response);
+					}
+					const auto object = json_object(value);
+					if (!nonempty_string(json_member(object, "event"))) {
+						return execution.terminal_failure(application::github_provider_failure::malformed_response);
+					}
+					if (text(json_member(object, "event")) != "head_ref_force_pushed") {
+						continue;
+					}
+					const auto id      = json_member(object, "id");
+					const auto oid     = json_member(object, "commit_id");
+					const auto created = json_member(object, "created_at");
+					if (!exact_integer(id, true) || !hexadecimal_oid(oid) || !json_is_string(created)) {
+						return execution.terminal_failure(application::github_provider_failure::malformed_response);
+					}
+					const auto timestamp = parse_timeline_timestamp(text(created));
+					if (!timestamp || !seen.insert(integer(id)).second) {
+						return execution.terminal_failure(application::github_provider_failure::malformed_response);
+					}
+					result.ForcePushEvents.push_back({ .EventId = integer(id), .AfterHeadOid = text(oid), .CreatedAtUnixMilliseconds = *timestamp });
+				}
+				const auto next = rest_has_next_page(aProfile, aRepository, *page, records.size());
+				if (!next) {
+					return std::unexpected{ execution.enrich(next.error()) };
+				}
+				if (!*next) {
+					result.RateLimits = rates;
+					return result;
+				}
+				++semantic.Page;
+			}
+		} catch (...) {
+			return failed(application::github_provider_failure::response_limit, std::nullopt, rates);
 		}
 	}
 

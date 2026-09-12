@@ -4255,6 +4255,79 @@ namespace bpr::adapters::git {
 				};
 			}
 
+			[[nodiscard]] auto derive_comparison_base(
+				const application::git_cache_comparison_base_request& aRequest,
+				const std::stop_token                                 aStop)
+				-> application::git_cache_result<application::git_cache_comparison_base_observation> override
+			{
+				std::lock_guard operationGuard{ State->OperationMutex };
+				if (aStop.stop_requested()) {
+					return std::unexpected{ application::git_cache_failure::cancelled };
+				}
+				const auto head = process_commit(aRequest.Head);
+				const auto base = process_commit(aRequest.SelectedBase);
+				if (!head || !base || aRequest.Head.algorithm() != State->Request.ObjectFormat
+					|| aRequest.SelectedBase.algorithm() != State->Request.ObjectFormat) {
+					return std::unexpected{ application::git_cache_failure::invalid_request };
+				}
+				const auto inventory = State->validated_inventory(aStop, false);
+				if (!inventory) {
+					return std::unexpected{ inventory.error() };
+				}
+				if (!State->active_boundary_still_owned()) {
+					return std::unexpected{ application::git_cache_failure::invalid_repository };
+				}
+				const auto found = State->Process->derive_comparison_base(
+					{ .Repository = State->Repository, .Head = *head, .SelectedBase = *base }, aStop);
+				if (!State->active_boundary_still_owned()) {
+					if (!found && found.error() == application::git_process_failure::reap_failure) {
+						static_cast<void>(State->process_failure(found.error()));
+					}
+					return std::unexpected{ application::git_cache_failure::repair_required };
+				}
+				if (!found) {
+					return std::unexpected{ State->process_failure(found.error()) };
+				}
+				return application::git_cache_comparison_base_observation{
+					.Status = found->Status,
+					.Base   = found->Base ? std::optional{ core_commit(*found->Base) } : std::nullopt,
+				};
+			}
+
+			[[nodiscard]] auto read_committer_time_seconds(
+				const core::git_commit_oid aCommit,
+				const std::stop_token      aStop)
+				-> application::git_cache_result<std::optional<std::int64_t>> override
+			{
+				std::lock_guard operationGuard{ State->OperationMutex };
+				if (aStop.stop_requested()) {
+					return std::unexpected{ application::git_cache_failure::cancelled };
+				}
+				const auto commit = process_commit(aCommit);
+				if (!commit || aCommit.algorithm() != State->Request.ObjectFormat) {
+					return std::unexpected{ application::git_cache_failure::invalid_request };
+				}
+				const auto inventory = State->validated_inventory(aStop, false);
+				if (!inventory) {
+					return std::unexpected{ inventory.error() };
+				}
+				if (!State->active_boundary_still_owned()) {
+					return std::unexpected{ application::git_cache_failure::invalid_repository };
+				}
+				const auto found = State->Process->read_committer_time_seconds(
+					{ .Repository = State->Repository, .Commit = *commit }, aStop);
+				if (!State->active_boundary_still_owned()) {
+					if (!found && found.error() == application::git_process_failure::reap_failure) {
+						static_cast<void>(State->process_failure(found.error()));
+					}
+					return std::unexpected{ application::git_cache_failure::repair_required };
+				}
+				if (!found) {
+					return std::unexpected{ State->process_failure(found.error()) };
+				}
+				return *found;
+			}
+
 			[[nodiscard]] auto materialize_agent_workspace(
 				const application::agent_workspace_materialization_request& aRequest,
 				const std::stop_token                                       aStop)

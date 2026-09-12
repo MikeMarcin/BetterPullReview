@@ -255,6 +255,28 @@ namespace bpr::application {
 		git_commit_id         Descendant;
 	};
 
+	enum class git_comparison_base_status : std::uint8_t {
+		unique,
+		no_common_ancestor,
+		multiple_merge_bases,
+		objects_unavailable,
+	};
+
+	/// \brief Queries a derived comparison base between two exact cached commits.
+	struct git_comparison_base_request
+	{
+		std::filesystem::path Repository;
+		git_commit_id         Head;
+		git_commit_id         SelectedBase;
+	};
+
+	/// \brief Reports a unique derived base, never historical base provenance.
+	struct git_comparison_base_observation
+	{
+		git_comparison_base_status   Status = git_comparison_base_status::objects_unavailable;
+		std::optional<git_commit_id> Base;
+	};
+
 	/// \brief Describes the git connectivity request record.
 	struct git_connectivity_request
 	{
@@ -430,6 +452,30 @@ namespace bpr::application {
 		[[nodiscard]] virtual auto is_ancestor(
 			const git_ancestry_request& aRequest,
 			std::stop_token             aStop) -> git_process_result<git_ancestry> = 0;
+
+		/// \brief Computes all merge bases with bounded output; never fetches.
+		/// \details Requires complete reachable closure. Multiple best ancestors
+		/// are unavailable rather than selecting one arbitrarily. Existing process
+		/// time, output and cancellation limits apply; errors carry no candidate.
+		[[nodiscard]] virtual auto derive_comparison_base(
+			const git_comparison_base_request& aRequest,
+			std::stop_token                    aStop) -> git_process_result<git_comparison_base_observation>
+		{
+			static_cast<void>(aRequest);
+			static_cast<void>(aStop);
+			return std::unexpected{ git_process_failure::invalid_request };
+		}
+
+		/// \brief Reads exact commit committer time as UTC Unix seconds, not push time.
+		/// \details Missing commits return nullopt; malformed dates remain errors.
+		[[nodiscard]] virtual auto read_committer_time_seconds(
+			const git_commit_request& aRequest,
+			std::stop_token           aStop) -> git_process_result<std::optional<std::int64_t>>
+		{
+			static_cast<void>(aRequest);
+			static_cast<void>(aStop);
+			return std::unexpected{ git_process_failure::invalid_request };
+		}
 		[[nodiscard]] virtual auto verify_connectivity(
 			const git_connectivity_request& aRequest,
 			std::stop_token                 aStop) -> git_process_result<void> = 0;

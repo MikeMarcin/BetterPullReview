@@ -10,6 +10,7 @@ BetterPullReview is an alternative native client for reviewing code contained in
 |---|---|---|
 | Shared collaborative state | GitHub pull request | Commits, files, comments, replies, reviews, approvals, requested changes, thread resolution, checks |
 | Private retained revision history | Local BetterPullReview Git cache and epoch catalog | Exact base/head objects that BetterPullReview observed, epoch identity and cause, availability, and current-viewer review associations |
+| Provider-evidenced update history | GitHub timeline, reconciled in the local epoch catalog | Portable force-push occurrence identity and event time; explicit incomplete or ambiguous history when the read or association lacks evidence |
 | Private workflow state | Local BetterPullReview ledger | Read receipts, acceptance receipts, observer rules, private notes, local defect classification, AI drafts |
 | Derived state | Recomputed from GitHub plus private retained/local state | Selected retained comparison, changed since my review, unread conversation, needs verification, next actionable item |
 
@@ -18,6 +19,13 @@ retained epoch is an immutable private record of a revision BetterPullReview
 actually observed, not a claim that the revision is still GitHub's current
 head. A force-pushed observed head may therefore remain comparable, while
 history that was never observed is never invented.
+An evidenced force-push occurrence can appear in the update line without a
+retained comparison. Its provider event and head identify the update across
+catalogs; the catalogue-local epoch id and ordinal identify retained material
+only. A missing original historical base remains unknown. Until cached
+historical material is durably imported, that occurrence remains visible with
+comparison unavailable, so the line does not promise that every node can move
+a comparison handle.
 
 ## Public preview
 

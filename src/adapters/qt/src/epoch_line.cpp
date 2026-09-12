@@ -112,10 +112,86 @@ namespace bpr::qt {
 	void epoch_line::set_updates(
 		std::vector<application::epoch_row_projection> aOldestFirst)
 	{
-		Updates = std::move(aOldestFirst);
+		Updates.clear();
+		for (const auto& row : aOldestFirst) {
+			Updates.push_back({
+				.Id      = row.Id,
+				.Head    = row.Head,
+				.Label   = QStringLiteral("First seen %1").arg(QLocale{ }.toString(observed_at(row).date(), QStringLiteral("MMM d"))),
+				.Details = QStringLiteral("%1. Local first-seen %2. Head %3. Observed base %4.")
+							   .arg(cause_text(row.Cause.Primary), QLocale{ }.toString(observed_at(row), QLocale::ShortFormat), short_oid(row.Head), short_oid(row.Base)),
+				.HasBase = true,
+			});
+		}
+		HistoryText = QStringLiteral("Incomplete history — local records only");
+		setAccessibleDescription(HistoryText);
+		setToolTip(HistoryText);
 		Dragging.reset();
 		DragStop.reset();
 		update();
+	}
+
+	void epoch_line::set_occurrences(const core::epoch_occurrence_history&                   aHistory,
+									 const std::optional<application::epoch_row_projection>& aCurrentEpoch,
+									 const std::vector<application::epoch_row_projection>&   aLocalRows)
+	{
+		Updates.clear();
+		for (const auto& occurrence : aHistory.Occurrences) {
+			const auto date        = QDateTime::fromMSecsSinceEpoch(occurrence.DateUtcMilliseconds, QTimeZone::UTC).toLocalTime();
+			auto       label       = QStringLiteral("Date unavailable");
+			auto       dateDetails = label;
+			if (occurrence.DateSource != core::epoch_occurrence_date_source::unavailable) {
+				const auto source = occurrence.DateSource == core::epoch_occurrence_date_source::github_event
+					? QStringLiteral("Event time")
+					: QStringLiteral("Commit date");
+				label             = QStringLiteral("%1 %2").arg(source, QLocale{ }.toString(date.date(), QStringLiteral("MMM d")));
+				dateDetails       = QStringLiteral("%1 %2").arg(source, QLocale{ }.toString(date, QLocale::ShortFormat));
+			}
+			auto details = QStringLiteral("%1. Head %2. Local first-seen %3. %4. %5.")
+							   .arg(dateDetails, short_oid(occurrence.Evidence.Head),
+									QLocale{ }.toString(QDateTime::fromMSecsSinceEpoch(occurrence.FirstSeen.value(), QTimeZone::UTC).toLocalTime(), QLocale::ShortFormat),
+									occurrence.HistoricalBase ? QStringLiteral("Historical base %1").arg(short_oid(*occurrence.HistoricalBase)) : QStringLiteral("Historical base unknown"),
+									occurrence.DerivedComparisonBase ? QStringLiteral("Derived comparison base %1").arg(short_oid(*occurrence.DerivedComparisonBase)) : QStringLiteral("Derived comparison base unavailable"));
+			if (!occurrence.LocalEpoch) {
+				details.append(QStringLiteral(" Comparison unavailable."));
+			}
+			const auto matches = [&occurrence](const application::epoch_row_projection& aRow) {
+				return occurrence.LocalEpoch == aRow.Id && occurrence.Evidence.Head == aRow.Head && aRow.Base.valid();
+			};
+			const auto  local           = std::ranges::find_if(aLocalRows, matches);
+			const auto* observed        = local != aLocalRows.end() ? &*local
+				: aCurrentEpoch && matches(*aCurrentEpoch)          ? &*aCurrentEpoch
+																	: nullptr;
+			const auto  hasObservedBase = observed != nullptr;
+			if (hasObservedBase) {
+				details.append(QStringLiteral(" Locally observed base %1.").arg(short_oid(observed->Base)));
+			}
+			Updates.push_back({ .Id = occurrence.LocalEpoch, .Head = occurrence.Evidence.Head, .Label = label, .Details = details, .HasBase = hasObservedBase || occurrence.HistoricalBase.has_value() || occurrence.DerivedComparisonBase.has_value() });
+		}
+		const auto provisional = aCurrentEpoch && std::ranges::none_of(Updates, [&aCurrentEpoch](const line_row& aRow) {
+									 return aRow.Id == aCurrentEpoch->Id;
+								 });
+		if (provisional) {
+			Updates.push_back({ .Id = aCurrentEpoch->Id, .Head = aCurrentEpoch->Head, .Label = QStringLiteral("Provisional · first seen here"), .Details = QStringLiteral("Current snapshot; occurrence unresolved. Local first-seen %1. Head %2. Observed base %3.").arg(QLocale{ }.toString(observed_at(*aCurrentEpoch), QLocale::ShortFormat), short_oid(aCurrentEpoch->Head), short_oid(aCurrentEpoch->Base)), .HasBase = true });
+		}
+		HistoryText = aHistory.Incomplete || provisional ? QStringLiteral("Incomplete history") : QStringLiteral("Known updates");
+		if (aHistory.Ambiguous) {
+			HistoryText.append(QStringLiteral(" · ambiguous occurrences"));
+		}
+		if (aHistory.UnresolvedLegacy) {
+			HistoryText.append(QStringLiteral(" · unresolved local records"));
+		}
+		HistoryText.append(QStringLiteral(" · display order is not push order"));
+		setAccessibleDescription(HistoryText);
+		setToolTip(HistoryText);
+		Dragging.reset();
+		DragStop.reset();
+		update();
+	}
+
+	auto epoch_line::history_text() const -> QString
+	{
+		return HistoryText;
 	}
 
 	void epoch_line::set_selection(
@@ -207,11 +283,7 @@ namespace bpr::qt {
 		if (aUpdate >= Updates.size()) {
 			return QString{ };
 		}
-		auto text = QLocale{ }.toString(observed_at(Updates[aUpdate]).date(), QStringLiteral("MMM d"));
-		if (aUpdate + 1U == Updates.size()) {
-			text.append(QStringLiteral(", latest"));
-		}
-		return text;
+		return Updates[aUpdate].Label;
 	}
 
 	auto epoch_line::label_shown(const std::size_t aUpdate) const -> bool
@@ -247,13 +319,10 @@ namespace bpr::qt {
 		if (aUpdate >= Updates.size()) {
 			return QString{ };
 		}
-		const auto& row  = Updates[aUpdate];
-		auto        text = QStringLiteral("Update %1 of %2, %3, %4. Head %5.")
-							   .arg(aUpdate + 1U)
-							   .arg(Updates.size())
-							   .arg(cause_text(row.Cause.Primary),
-									QLocale{ }.toString(observed_at(row), QLocale::ShortFormat),
-									short_oid(row.Head));
+		auto text = QStringLiteral("Update %1 of %2. %3 %4")
+						.arg(aUpdate + 1U)
+						.arg(Updates.size())
+						.arg(Updates[aUpdate].Details, HistoryText);
 		if (last_review_update() == aUpdate) {
 			text.append(QStringLiteral(" My last review."));
 		}
@@ -263,12 +332,12 @@ namespace bpr::qt {
 	auto epoch_line::identity_of(const epoch_line_stop& aStop) const
 		-> core::comparison_anchor_identity
 	{
-		const auto& row = Updates.at(aStop.Update);
+		const auto& id = Updates.at(aStop.Update).Id.value();
 		return core::comparison_anchor_identity{
-			.Authority   = row.Id.Authority,
-			.Incarnation = row.Id.Incarnation,
+			.Authority   = id.Authority,
+			.Incarnation = id.Incarnation,
 			.Kind        = aStop.Kind,
-			.Epoch       = row.Id.Ordinal,
+			.Epoch       = id.Ordinal,
 		};
 	}
 
@@ -296,9 +365,9 @@ namespace bpr::qt {
 		}
 		for (std::size_t index = 0U; index < Updates.size(); ++index) {
 			const auto& id = Updates[index].Id;
-			if (id.Authority == aIdentity.Authority
-				&& id.Incarnation == aIdentity.Incarnation
-				&& id.Ordinal == aIdentity.Epoch) {
+			if (id && id->Authority == aIdentity.Authority
+				&& id->Incarnation == aIdentity.Incarnation
+				&& id->Ordinal == aIdentity.Epoch) {
 				return epoch_line_stop{ .Update = index, .Kind = aIdentity.Kind };
 			}
 		}
@@ -314,11 +383,13 @@ namespace bpr::qt {
 		}
 		// The left handle can rest before the oldest update, on its base, so
 		// the whole pull request is one step away from its first head.
-		if (aSide == core::comparison_side::left) {
+		if (aSide == core::comparison_side::left && Updates.front().Id && Updates.front().HasBase) {
 			stops.push_back({ .Update = 0U, .Kind = core::comparison_anchor_kind::epoch_base });
 		}
 		for (std::size_t index = 0U; index < Updates.size(); ++index) {
-			stops.push_back({ .Update = index, .Kind = core::comparison_anchor_kind::epoch_head });
+			if (Updates[index].Id) {
+				stops.push_back({ .Update = index, .Kind = core::comparison_anchor_kind::epoch_head });
+			}
 		}
 		return stops;
 	}
@@ -376,7 +447,9 @@ namespace bpr::qt {
 
 	void epoch_line::choose(const core::comparison_side aSide, const epoch_line_stop& aStop)
 	{
-		if (!Offered || !Dispatch || aStop.Update >= Updates.size()) {
+		if (!Offered || !Dispatch || aStop.Update >= Updates.size()
+			|| !Updates[aStop.Update].Id
+			|| (aStop.Kind == core::comparison_anchor_kind::epoch_base && !Updates[aStop.Update].HasBase)) {
 			return;
 		}
 		ActiveSide = aSide;
@@ -434,6 +507,10 @@ namespace bpr::qt {
 			return;
 		}
 
+		painter.setPen(faint);
+		painter.drawText(QRect{ side_padding, 34, std::max(1, width() - 2 * side_padding), 16 },
+						 Qt::AlignLeft | Qt::AlignVCenter, painter.fontMetrics().elidedText(HistoryText, Qt::ElideRight, std::max(1, width() - 2 * side_padding)));
+
 		// Track, then the span between the handles.
 		painter.setPen(QPen{ rule, 1.0 });
 		painter.drawLine(side_padding, node_y, width() - side_padding, node_y);
@@ -461,7 +538,7 @@ namespace bpr::qt {
 				const auto width = metrics.horizontalAdvance(text);
 				painter.setPen(selected ? ink : faint);
 				painter.drawText(
-					QRect{ centre.x() - width / 2, label_top, width + 2, label_height + 2 },
+					QRect{ std::clamp(centre.x() - width / 2, 0, std::max(0, this->width() - width - 2)), label_top, width + 2, label_height + 2 },
 					Qt::AlignLeft | Qt::AlignTop,
 					text);
 			}
@@ -599,9 +676,9 @@ namespace bpr::qt {
 		menu.addSeparator();
 		auto* const copy = menu.addAction(QStringLiteral("Copy head commit"));
 		copy->setObjectName(QStringLiteral("copyUpdateHeadAction"));
-		from->setEnabled(Offered);
-		to->setEnabled(Offered);
-		alone->setEnabled(Offered);
+		from->setEnabled(Offered && Updates[index].Id.has_value());
+		to->setEnabled(Offered && Updates[index].Id.has_value());
+		alone->setEnabled(Offered && Updates[index].Id.has_value() && Updates[index].HasBase);
 		connect(from, &QAction::triggered, this, [this, index] {
 			choose(core::comparison_side::left,
 				   { .Update = index, .Kind = core::comparison_anchor_kind::epoch_head });

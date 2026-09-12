@@ -853,6 +853,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::get_pull_request:
 			case read_operation::list_pull_request_files:
 			case read_operation::list_pull_request_commits:
+			case read_operation::list_pull_request_timeline:
 			case read_operation::list_reviews:
 			case read_operation::list_review_threads:
 			case read_operation::list_issue_comments:
@@ -966,17 +967,18 @@ namespace bpr::adapters::github::detail {
 				}
 				bool decoded = false;
 				switch (response.Operation) {
-				case read_operation::get_viewer_identity:       decoded = decode_record(documents.Viewer, response.Response); break;
-				case read_operation::get_repository:            decoded = decode_record(documents.Repository, response.Response); break;
-				case read_operation::get_pull_request:          decoded = decode_record(documents.PullRequest, response.Response); break;
-				case read_operation::list_pull_request_files:   decoded = decode_record(documents.Files, response.Response); break;
-				case read_operation::list_pull_request_commits: decoded = decode_record(documents.Commits, response.Response); break;
-				case read_operation::list_reviews:              decoded = decode_record(documents.Reviews, response.Response); break;
-				case read_operation::list_review_threads:       decoded = decode_record(documents.Graphql, response.Response); break;
-				case read_operation::list_review_comments:      decoded = decode_record(documents.ReviewComments, response.Response); break;
-				case read_operation::list_issue_comments:       decoded = decode_record(documents.IssueComments, response.Response); break;
-				case read_operation::list_checks:               decoded = decode_record(documents.Checks, response.Response); break;
-				case read_operation::search_pull_requests:      decoded = decode_record(documents.Search, response.Response); break;
+				case read_operation::list_pull_request_timeline: return failed(contract_failure_code::unexpected_operation);
+				case read_operation::get_viewer_identity:        decoded = decode_record(documents.Viewer, response.Response); break;
+				case read_operation::get_repository:             decoded = decode_record(documents.Repository, response.Response); break;
+				case read_operation::get_pull_request:           decoded = decode_record(documents.PullRequest, response.Response); break;
+				case read_operation::list_pull_request_files:    decoded = decode_record(documents.Files, response.Response); break;
+				case read_operation::list_pull_request_commits:  decoded = decode_record(documents.Commits, response.Response); break;
+				case read_operation::list_reviews:               decoded = decode_record(documents.Reviews, response.Response); break;
+				case read_operation::list_review_threads:        decoded = decode_record(documents.Graphql, response.Response); break;
+				case read_operation::list_review_comments:       decoded = decode_record(documents.ReviewComments, response.Response); break;
+				case read_operation::list_issue_comments:        decoded = decode_record(documents.IssueComments, response.Response); break;
+				case read_operation::list_checks:                decoded = decode_record(documents.Checks, response.Response); break;
+				case read_operation::search_pull_requests:       decoded = decode_record(documents.Search, response.Response); break;
 				}
 				if (!decoded) {
 					return failed(contract_failure_code::unexpected_response_fields);

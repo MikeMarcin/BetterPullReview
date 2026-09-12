@@ -1250,3 +1250,9 @@ RFC-BPR-0003 cannot become `Auto-Verified` until:
   falsifiable, secret-free evidence;
 - the original source-pack validator, workflow-absence scans, and
   `git diff --check` pass.
+
+RFC-BPR-0029 governs the later portable update-occurrence layer beside this
+closed local epoch model. Its [verification matrix](../rfcs/RFC-BPR-0029-machine-independent-epoch-identity-update-history.md#verification-matrix)
+separately tests two-catalog identity, partial history, lossless migration and
+event association; those claims do not retroactively redefine RFC-BPR-0003's
+local ordinal or retained-revision evidence.

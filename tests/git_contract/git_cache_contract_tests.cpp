@@ -2937,6 +2937,28 @@ namespace {
 					== application::git_cache_failure::object_mismatch,
 			"exact commit inspection verifies tree/closure and rejects catalog-only availability");
 
+		const auto derived        = (*primary)->derive_comparison_base({ .Head = *commit, .SelectedBase = *commit }, { });
+		const auto missingDerived = (*primary)->derive_comparison_base({ .Head = *unavailableCommit, .SelectedBase = *commit }, { });
+		const auto commitTime     = (*primary)->read_committer_time_seconds(*commit, { });
+		const auto missingTime    = (*primary)->read_committer_time_seconds(*unavailableCommit, { });
+		require(derived && derived->Status == application::git_comparison_base_status::unique && derived->Base == *commit
+					&& missingDerived && missingDerived->Status == application::git_comparison_base_status::objects_unavailable && !missingDerived->Base
+					&& commitTime && commitTime->has_value() && missingTime && !*missingTime,
+				"active cache session reads exact derived base and optional committer date after restart");
+		const auto cancelledDerived = (*primary)->derive_comparison_base(
+			{ .Head = *commit, .SelectedBase = *commit }, recoveryCancel.get_token());
+		const auto cancelledTime = (*primary)->read_committer_time_seconds(*commit, recoveryCancel.get_token());
+		require(!cancelledDerived && cancelledDerived.error() == application::git_cache_failure::cancelled
+					&& !cancelledTime && cancelledTime.error() == application::git_cache_failure::cancelled,
+				"active cache history queries honor cancellation before effects");
+		const auto wrongAlgorithm = core::parse_git_commit_oid(std::string(64U, 'f'));
+		require(wrongAlgorithm.has_value(), "parse mismatched cache history query algorithm");
+		const auto invalidDerived = (*primary)->derive_comparison_base({ .Head = *commit, .SelectedBase = *wrongAlgorithm }, { });
+		const auto invalidTime    = (*primary)->read_committer_time_seconds(*wrongAlgorithm, { });
+		require(!invalidDerived && invalidDerived.error() == application::git_cache_failure::invalid_request
+					&& !invalidTime && invalidTime.error() == application::git_cache_failure::invalid_request,
+				"cache history queries cannot cross object-format authority");
+
 		const auto gitDir        = "--git-dir=" + QString::fromStdString(primaryRepository.string());
 		const auto stagingPrefix = "refs/betterpullreview/v1/stage/"
 			+ lower_hex(operation.bytes());
@@ -3480,6 +3502,13 @@ namespace {
 				&& newAfterForcePush.has_value()
 				&& *newAfterForcePush == *forceRetained,
 			"old head remains resident after fixture remote removal and prune");
+
+		const auto oldDerived       = (*primary)->derive_comparison_base({ .Head = *commit, .SelectedBase = *commit }, { });
+		const auto rewrittenDerived = (*primary)->derive_comparison_base({ .Head = *commit, .SelectedBase = forcePush.NewCommit }, { });
+		require(oldDerived && oldDerived->Base == *commit
+					&& rewrittenDerived && rewrittenDerived->Status == application::git_comparison_base_status::no_common_ancestor && !rewrittenDerived->Base
+					&& (*primary)->inspect_retained(core::epoch_ordinal{ 1 }, { }) == oldAfterForcePush,
+				"force-pushed disconnected base is unavailable without changing the old retained epoch");
 
 		const auto abandonedOperation = identity<core::epoch_operation_id>(0x55U);
 		auto       abandonedSink      = (*primary)->create_pack_sink(

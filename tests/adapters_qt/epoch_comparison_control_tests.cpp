@@ -808,6 +808,104 @@ namespace {
 			   "the pair's handles");
 	}
 
+	// Presentation evidence only: host ingestion and cross-catalogue identity
+	// acceptance belong to BPR-0743's separate production-path checks.
+	auto test_occurrence_evidence_and_unavailable_gestures() -> void
+	{
+		std::vector<application::epoch_intent> intents;
+		qt::epoch_comparison_control           control{ [&intents](application::epoch_intent aIntent) {
+			intents.push_back(std::move(aIntent));
+		} };
+		const auto                     current = epoch_row(12, '1', '2');
+		auto                           update  = loaded_catalog_update({ current });
+		core::epoch_occurrence_history history;
+		history.Ambiguous        = true;
+		history.UnresolvedLegacy = true;
+		history.Occurrences      = {
+			{ .Id                    = identity<core::epoch_occurrence_id>(8),
+			  .Evidence              = { .Kind = core::epoch_occurrence_kind::force_push_event, .EventId = 100, .Head = commit('2') },
+			  .DerivedComparisonBase = commit('3'),
+			  .DateSource            = core::epoch_occurrence_date_source::github_event,
+			  .DateUtcMilliseconds   = 1'700'000'000'000,
+			  .FirstSeen             = core::observed_utc_milliseconds{ 1'800'000'000'000 } },
+			{ .Id                  = identity<core::epoch_occurrence_id>(9),
+			  .Evidence            = { .Kind = core::epoch_occurrence_kind::observed_head, .Head = commit('4') },
+			  .DateSource          = core::epoch_occurrence_date_source::commit_date,
+			  .DateUtcMilliseconds = 1'700'000'000'000,
+			  .FirstSeen           = core::observed_utc_milliseconds{ 1'800'000'000'000 } },
+		};
+		update.Catalog->OccurrenceHistory = history;
+		update.Catalog->CurrentEpoch      = current;
+		control.publish(update);
+		control.resize(1100, 100);
+		control.show();
+		QApplication::processEvents();
+		auto* line = control.line();
+		expect(line->update_count() == 3 && line->label_text(0).startsWith(QStringLiteral("Event time"))
+				   && line->label_text(1).startsWith(QStringLiteral("Commit date"))
+				   && line->label_text(2).contains(QStringLiteral("Provisional")),
+			   "event and commit dates stay distinct and unmatched current snapshot is provisional");
+		expect(line->node_tooltip(0).contains(QStringLiteral("Historical base unknown"))
+				   && line->node_tooltip(0).contains(QStringLiteral("Derived comparison base 3333"))
+				   && line->node_tooltip(0).contains(QStringLiteral("Comparison unavailable"))
+				   && line->node_tooltip(0).contains(QStringLiteral("Local first-seen"))
+				   && line->node_tooltip(1).contains(QStringLiteral("Derived comparison base unavailable"))
+				   && line->history_text().contains(QStringLiteral("ambiguous"))
+				   && line->history_text().contains(QStringLiteral("unresolved"))
+				   && line->history_text().contains(QStringLiteral("not push order")),
+			   "unknown historical base, derived comparison material and history gaps remain explicit");
+		line->set_selection_offered(true);
+		const auto before = intents.size();
+		auto       press  = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ line->node_centre(0) },
+										 QPointF{ line->mapToGlobal(line->node_centre(0)) }, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(line, &press);
+		expect(intents.size() == before, "an occurrence without a local anchor cannot dispatch a fabricated comparison");
+		const auto raster     = line->grab().toImage();
+		const auto background = raster.pixelColor(0, raster.height() - 1);
+		bool       statusInk  = false;
+		for (int y = qRound(34 * raster.devicePixelRatio()); y < qRound(48 * raster.devicePixelRatio()); ++y) {
+			for (int x = 12; x < raster.width() - 12; ++x) {
+				statusInk = statusInk || raster.pixelColor(x, y) != background;
+			}
+		}
+		expect(statusInk, "the full-width line renders its history status below the date row");
+		history.Occurrences.front().LocalEpoch = current.Id;
+		history.Occurrences.front().DerivedComparisonBase.reset();
+		history.Occurrences.back().DateSource = core::epoch_occurrence_date_source::unavailable;
+		update.Catalog->OccurrenceHistory     = history;
+		control.publish(update);
+		expect(line->update_count() == 2 && line->label_text(1) == QStringLiteral("Date unavailable"),
+			   "exact local association removes only the provisional duplicate and missing dates remain undated");
+		expect(line->node_tooltip(0).contains(QStringLiteral("Historical base unknown"))
+				   && line->node_tooltip(0).contains(QStringLiteral("Locally observed base 1111")),
+			   "a live association exposes the observed base without claiming historical provenance");
+		std::optional<core::comparison_anchor_identity> chosen;
+		line->set_dispatch([&chosen](core::comparison_side, core::comparison_anchor_identity aAnchor) { chosen = aAnchor; });
+		line->set_selection_offered(true);
+		line->set_selection(anchor(current, core::comparison_anchor_kind::epoch_head).Identity, std::nullopt);
+		auto left = QKeyEvent{ QEvent::KeyPress, Qt::Key_Left, Qt::NoModifier };
+		QApplication::sendEvent(line, &left);
+		expect(chosen == anchor(current, core::comparison_anchor_kind::epoch_base).Identity,
+			   "the matched live occurrence can step to its observed base without a derived or historical base");
+		const auto next                       = epoch_row(13, '3', '4');
+		history.Occurrences.back().LocalEpoch = next.Id;
+		update                                = loaded_catalog_update({ next, current });
+		update.Catalog->OccurrenceHistory     = history;
+		update.Catalog->CurrentEpoch          = next;
+		control.publish(update);
+		expect(line->update_count() == 2
+				   && line->node_tooltip(0).contains(QStringLiteral("Locally observed base 1111"))
+				   && line->node_tooltip(0).contains(QStringLiteral("Historical base unknown"))
+				   && line->node_tooltip(1).contains(QStringLiteral("Locally observed base 3333")),
+			   "advancing the live epoch preserves each occurrence's distinct locally observed base");
+		chosen.reset();
+		line->set_selection_offered(true);
+		line->set_selection(anchor(current, core::comparison_anchor_kind::epoch_head).Identity, std::nullopt);
+		QApplication::sendEvent(line, &left);
+		expect(chosen == anchor(current, core::comparison_anchor_kind::epoch_base).Identity,
+			   "the earlier live update retains its base stop after a newer live update arrives");
+	}
+
 	auto test_epoch_line_selects_updates_by_click_drag_and_keys() -> void
 	{
 		std::vector<application::epoch_intent> intents;
@@ -847,14 +945,13 @@ namespace {
 				   && line->right_stop() == qt::epoch_line_stop{ .Update = 2U, .Kind = core::comparison_anchor_kind::epoch_head } && line->node_centre(0).x() < line->node_centre(1).x() && line->node_centre(1).x() < line->node_centre(2).x() && line->stop_position(*line->left_stop()).x() < line->node_centre(0).x(),
 			   "the line reads oldest to newest with the whole-PR handles on the "
 			   "oldest base and the newest head");
-		expect(line->label_text(2).endsWith(QStringLiteral(", latest"))
-				   && !line->label_text(0).endsWith(QStringLiteral(", latest"))
+		expect(line->label_text(2).startsWith(QStringLiteral("First seen"))
+				   && !line->label_text(2).contains(QStringLiteral("latest"))
 				   && line->label_shown(0) && line->label_shown(1)
 				   && line->label_shown(2)
 				   && line->node_tooltip(1).contains(QStringLiteral("Update 2 of 3"))
 				   && line->node_tooltip(1).contains(QStringLiteral("upload")),
-			   "labels sit beneath every node when there is room, the newest "
-			   "says so, and a node's tooltip names the update");
+			   "legacy labels identify local first-seen without claiming a latest update");
 		expect(control.comparing_button() != nullptr
 				   && control.comparing_button()->text()
 					   == QStringLiteral("Comparing whole PR")
@@ -1595,6 +1692,7 @@ auto main(int argc, char** argv) -> int
 	test_explicit_loading_empty_failure_and_availability_states();
 	test_focus_appearance_accessibility_and_announcements();
 	test_real_loaded_window_composition_renders();
+	test_occurrence_evidence_and_unavailable_gestures();
 	test_epoch_line_selects_updates_by_click_drag_and_keys();
 	test_epoch_line_waits_for_the_newest_page_on_a_cached_head();
 	std::cout << "epoch-comparison-control-tests:pass\n";

@@ -548,6 +548,27 @@ namespace bpr::application {
 			&& !aShape.ResolvePermission && !aShape.UnresolvePermission;
 	}
 
+	/// \brief Reports the independent bounded timeline observation.
+	// Available means the REST timeline was exhausted, not that ordinary push
+	// boundaries are known: GitHub does not emit those events.
+	enum class github_timeline_availability : std::uint8_t {
+		unavailable,
+		available,
+		refused,
+		capped,
+		failed,
+	};
+
+	/// \brief A force-push occurrence with an exact numeric identity and UTC event time.
+	struct github_force_push_event
+	{
+		std::uint64_t EventId = 0U;
+		std::string   AfterHeadOid;
+		std::int64_t  CreatedAtUnixMilliseconds = 0;
+
+		auto operator<=>(const github_force_push_event&) const = default;
+	};
+
 	/// \brief Describes the github pull request snapshot record.
 	struct github_pull_request_snapshot
 	{
@@ -576,11 +597,13 @@ namespace bpr::application {
 		std::vector<github_search_result_record>        SearchResults;
 		github_capability_evidence                      CapabilityEvidence;
 		github_rate_limit_state                         RateLimits;
-		// The mode this snapshot was read in. Last and defaulted so every
+		// The mode this snapshot was read in. Defaulted so every
 		// snapshot written before the mode existed still means the
 		// authenticated read it meant. Under public preview Account and the
 		// viewer actor are empty by rule rather than by omission.
-		core::github_access_mode Mode{ };
+		core::github_access_mode             Mode{ };
+		github_timeline_availability         TimelineAvailability = github_timeline_availability::unavailable;
+		std::vector<github_force_push_event> ForcePushEvents;
 
 		auto operator<=>(const github_pull_request_snapshot&) const = default;
 	};
@@ -1760,6 +1783,28 @@ namespace bpr::application {
 			|| !detail::valid_enum(aSnapshot.ReviewCommentsAvailability)) {
 			return detail::validation(
 				github_read_validation_error::invalid_enum);
+		}
+		if (aSnapshot.TimelineAvailability != github_timeline_availability::unavailable
+			&& aSnapshot.TimelineAvailability != github_timeline_availability::available
+			&& aSnapshot.TimelineAvailability != github_timeline_availability::refused
+			&& aSnapshot.TimelineAvailability != github_timeline_availability::capped
+			&& aSnapshot.TimelineAvailability != github_timeline_availability::failed) {
+			return detail::validation(github_read_validation_error::invalid_enum);
+		}
+		if (aSnapshot.TimelineAvailability != github_timeline_availability::available && !aSnapshot.ForcePushEvents.empty()) {
+			return detail::validation(github_read_validation_error::invalid_relationship);
+		}
+		if (aSnapshot.ForcePushEvents.size() > 1000U) {
+			return detail::validation(github_read_validation_error::collection_too_large);
+		}
+		std::unordered_set<std::uint64_t> timelineIdentities;
+		for (const auto& event : aSnapshot.ForcePushEvents) {
+			if (event.EventId == 0U || !detail::hexadecimal_oid(event.AfterHeadOid) || event.CreatedAtUnixMilliseconds < 0) {
+				return detail::validation(github_read_validation_error::invalid_relationship);
+			}
+			if (!timelineIdentities.insert(event.EventId).second) {
+				return detail::validation(github_read_validation_error::duplicate_identity);
+			}
 		}
 		// An unavailable conversation was never read, so it can hold nothing.
 		// An observed one may legitimately hold nothing: that is the

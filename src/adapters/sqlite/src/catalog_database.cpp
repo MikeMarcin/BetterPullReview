@@ -68,7 +68,7 @@ namespace bpr::adapters::sqlite::detail {
 
 		constexpr std::string_view CatalogName   = "epoch-catalog.sqlite3";
 		constexpr std::int32_t     ApplicationId = 0x42504543;
-		constexpr std::int32_t     UserVersion   = 3;
+		constexpr std::int32_t     UserVersion   = 4;
 #if defined(BPR_SQLITE_TESTING)
 		std::atomic_bool InterruptBootstrapBeforePublication = false;
 		std::atomic_bool InterruptMigrationBeforeCommit      = false;
@@ -83,16 +83,69 @@ namespace bpr::adapters::sqlite::detail {
 			std::string_view Sql;
 		};
 
-		// These are the complete BPEC v3 objects. The schema contains typed facts
+		// These are the complete BPEC v4 objects. The schema contains typed facts
 		// only. Ref names are represented by their versioned components, so no path,
 		// provider string, opaque token, or generic payload enters the catalog.
 		constexpr std::array SchemaObjects{
+			schema_object{
+				"table", "epoch_occurrence",
+				R"sql(CREATE TABLE epoch_occurrence(
+            incarnation BLOB NOT NULL CHECK(length(incarnation) = 32),
+            pr_scope BLOB NOT NULL CHECK(length(pr_scope) = 32),
+            occurrence_id BLOB NOT NULL CHECK(length(occurrence_id) = 32 AND occurrence_id != zeroblob(32)),
+            kind INTEGER NOT NULL CHECK(kind IN (0, 1)),
+            event_id BLOB NOT NULL CHECK(length(event_id) = 8 AND ((kind = 0 AND event_id != zeroblob(8)) OR (kind = 1 AND event_id = zeroblob(8)))),
+            head_algorithm INTEGER NOT NULL CHECK(head_algorithm IN (1, 2)),
+            head_digest BLOB NOT NULL CHECK(length(head_digest) = CASE head_algorithm WHEN 1 THEN 20 ELSE 32 END AND head_digest != zeroblob(length(head_digest))),
+            local_ordinal INTEGER CHECK(local_ordinal > 0),
+            historical_base BLOB CHECK(historical_base IS NULL OR (length(historical_base) = length(head_digest) AND historical_base != zeroblob(length(historical_base)))),
+            derived_base BLOB CHECK(derived_base IS NULL OR (length(derived_base) = length(head_digest) AND derived_base != zeroblob(length(derived_base)))),
+            date_source INTEGER NOT NULL CHECK(date_source BETWEEN 0 AND 2),
+            date_utc INTEGER NOT NULL CHECK(date_source != 0 OR date_utc = 0),
+            first_seen INTEGER NOT NULL,
+            PRIMARY KEY(incarnation, pr_scope, occurrence_id),
+            UNIQUE(incarnation, pr_scope, local_ordinal),
+            FOREIGN KEY(incarnation, pr_scope) REFERENCES pull_request_scope(incarnation, pr_scope),
+            FOREIGN KEY(incarnation, pr_scope, local_ordinal) REFERENCES epoch(incarnation, pr_scope, ordinal)
+        ) STRICT, WITHOUT ROWID)sql" },
+			schema_object{
+				"table", "epoch_occurrence_supersession",
+				R"sql(CREATE TABLE epoch_occurrence_supersession(
+            incarnation BLOB NOT NULL CHECK(length(incarnation) = 32),
+            pr_scope BLOB NOT NULL CHECK(length(pr_scope) = 32),
+            occurrence_id BLOB NOT NULL CHECK(length(occurrence_id) = 32 AND occurrence_id != zeroblob(32)),
+            kind INTEGER NOT NULL CHECK(kind IN (0, 1)),
+            event_id BLOB NOT NULL CHECK(length(event_id) = 8 AND ((kind = 0 AND event_id != zeroblob(8)) OR (kind = 1 AND event_id = zeroblob(8)))),
+            head_algorithm INTEGER NOT NULL CHECK(head_algorithm IN (1, 2)),
+            head_digest BLOB NOT NULL CHECK(length(head_digest) = CASE head_algorithm WHEN 1 THEN 20 ELSE 32 END AND head_digest != zeroblob(length(head_digest))),
+            local_ordinal INTEGER CHECK(local_ordinal > 0),
+            historical_base BLOB CHECK(historical_base IS NULL OR (length(historical_base) = length(head_digest) AND historical_base != zeroblob(length(historical_base)))),
+            derived_base BLOB CHECK(derived_base IS NULL OR (length(derived_base) = length(head_digest) AND derived_base != zeroblob(length(derived_base)))),
+            date_source INTEGER NOT NULL CHECK(date_source BETWEEN 0 AND 2),
+            date_utc INTEGER NOT NULL CHECK(date_source != 0 OR date_utc = 0),
+            first_seen INTEGER NOT NULL,
+            replacement_id BLOB NOT NULL CHECK(length(replacement_id) = 32 AND replacement_id != occurrence_id),
+            PRIMARY KEY(incarnation, pr_scope, occurrence_id),
+            FOREIGN KEY(incarnation, pr_scope, replacement_id) REFERENCES epoch_occurrence(incarnation, pr_scope, occurrence_id) DEFERRABLE INITIALLY DEFERRED,
+            FOREIGN KEY(incarnation, pr_scope) REFERENCES pull_request_scope(incarnation, pr_scope),
+            FOREIGN KEY(incarnation, pr_scope, local_ordinal) REFERENCES epoch(incarnation, pr_scope, ordinal)
+        ) STRICT, WITHOUT ROWID)sql" },
+			schema_object{
+				"table", "epoch_occurrence_history",
+				R"sql(CREATE TABLE epoch_occurrence_history(
+            incarnation BLOB NOT NULL CHECK(length(incarnation) = 32),
+            pr_scope BLOB NOT NULL CHECK(length(pr_scope) = 32),
+            incomplete INTEGER NOT NULL CHECK(incomplete IN (0, 1)),
+            ambiguous INTEGER NOT NULL CHECK(ambiguous IN (0, 1)),
+            PRIMARY KEY(incarnation, pr_scope),
+            FOREIGN KEY(incarnation, pr_scope) REFERENCES pull_request_scope(incarnation, pr_scope)
+        ) STRICT, WITHOUT ROWID)sql" },
 			schema_object{
 				"table",
 				"catalog_meta",
 				R"sql(CREATE TABLE catalog_meta(
             singleton INTEGER NOT NULL PRIMARY KEY CHECK(singleton = 1),
-            schema_format INTEGER NOT NULL CHECK(schema_format = 3),
+            schema_format INTEGER NOT NULL CHECK(schema_format = 4),
             incarnation BLOB NOT NULL CHECK(length(incarnation) = 32 AND incarnation != zeroblob(32))
         ) STRICT, WITHOUT ROWID)sql" },
 			schema_object{
@@ -648,7 +701,7 @@ namespace bpr::adapters::sqlite::detail {
 				rollback();
 				return app;
 			}
-			if (auto version = execute(aDatabase, "PRAGMA user_version = 3", aStop);
+			if (auto version = execute(aDatabase, "PRAGMA user_version = 4", aStop);
 				!version) {
 				rollback();
 				return version;
@@ -662,7 +715,7 @@ namespace bpr::adapters::sqlite::detail {
 			auto insert = prepare(
 				aDatabase,
 				"INSERT INTO catalog_meta(singleton, schema_format, incarnation) "
-				"VALUES(1, 3, ?1)");
+				"VALUES(1, 4, ?1)");
 			if (!insert) {
 				rollback();
 				return std::unexpected(insert.error());
@@ -692,6 +745,13 @@ namespace bpr::adapters::sqlite::detail {
 		[[nodiscard]] auto schema_sql(const std::string_view aName, const std::int64_t aVersion = UserVersion) noexcept
 			-> std::string_view
 		{
+			if (aName == "catalog_meta" && aVersion == 3) {
+				return R"sql(CREATE TABLE catalog_meta(
+            singleton INTEGER NOT NULL PRIMARY KEY CHECK(singleton = 1),
+            schema_format INTEGER NOT NULL CHECK(schema_format = 3),
+            incarnation BLOB NOT NULL CHECK(length(incarnation) = 32 AND incarnation != zeroblob(32))
+        ) STRICT, WITHOUT ROWID)sql";
+			}
 			if (aName == "catalog_meta" && aVersion == 2) {
 				return R"sql(CREATE TABLE catalog_meta(
             singleton INTEGER NOT NULL PRIMARY KEY CHECK(singleton = 1),
@@ -955,11 +1015,14 @@ namespace bpr::adapters::sqlite::detail {
 			std::vector<schema_object> expected{
 				SchemaObjects.begin(), SchemaObjects.end()
 			};
-			if (aVersion == 2) {
-				std::erase_if(expected, [](const auto& aObject) { return aObject.Name == "append_receiving"; });
+			if (aVersion < 4) {
+				std::erase_if(expected, [](const auto& aObject) { return aObject.Name == "epoch_occurrence" || aObject.Name == "epoch_occurrence_history" || aObject.Name == "epoch_occurrence_supersession"; });
+				if (aVersion == 2) {
+					std::erase_if(expected, [](const auto& aObject) { return aObject.Name == "append_receiving"; });
+				}
 				for (auto& object : expected) {
 					if (object.Name == "catalog_meta") {
-						object.Sql = schema_sql("catalog_meta", 2);
+						object.Sql = schema_sql("catalog_meta", aVersion);
 					}
 				}
 			}
@@ -1019,7 +1082,7 @@ namespace bpr::adapters::sqlite::detail {
 			-> std::expected<void, failure>
 		{
 			const auto version = scalar_integer(aDatabase, "PRAGMA user_version");
-			if (!version || (*version != 1 && *version != 2 && *version != UserVersion)) {
+			if (!version || (*version != 1 && *version != 2 && *version != 3 && *version != UserVersion)) {
 				return std::unexpected(failure::schema_mismatch);
 			}
 			if (*version == UserVersion) {
@@ -1030,7 +1093,7 @@ namespace bpr::adapters::sqlite::detail {
 					return migrated;
 				}
 			}
-			if (auto validated = validate_schema(aDatabase, aStop, 2); !validated) {
+			if (auto validated = validate_schema(aDatabase, aStop, *version == 3 ? 3 : 2); !validated) {
 				return validated;
 			}
 			if (auto begun = execute(aDatabase, "BEGIN IMMEDIATE", aStop); !begun) {
@@ -1039,16 +1102,19 @@ namespace bpr::adapters::sqlite::detail {
 			const auto rollback = [&] { (void)::sqlite3_exec(aDatabase, "ROLLBACK", nullptr, nullptr, nullptr); };
 			// Rebuild only the versioned metadata CHECK. Existing catalog, authority,
 			// epoch and operation rows stay in place; legacy operations gain no facts.
-			const std::array<std::string_view, 9> statements{
+			const std::array<std::string_view, 12> statements{
 				"PRAGMA defer_foreign_keys = ON",
 				"CREATE TABLE migration_catalog_meta AS SELECT * FROM catalog_meta",
 				"DROP TABLE catalog_meta",
 				schema_sql("catalog_meta"),
 				schema_sql("catalog_meta_incarnation"),
-				"INSERT INTO catalog_meta(singleton, schema_format, incarnation) SELECT singleton, 3, incarnation FROM migration_catalog_meta",
+				"INSERT INTO catalog_meta(singleton, schema_format, incarnation) SELECT singleton, 4, incarnation FROM migration_catalog_meta",
 				"DROP TABLE migration_catalog_meta",
-				schema_sql("append_receiving"),
-				"PRAGMA user_version = 3",
+				*version == 3 ? std::string_view{ "SELECT 1" } : schema_sql("append_receiving"),
+				schema_sql("epoch_occurrence"),
+				schema_sql("epoch_occurrence_history"),
+				schema_sql("epoch_occurrence_supersession"),
+				"PRAGMA user_version = 4",
 			};
 			for (const auto statement : statements) {
 				if (auto applied = execute(aDatabase, statement, aStop); !applied) {
@@ -1078,7 +1144,10 @@ namespace bpr::adapters::sqlite::detail {
 			if (aValue == nullptr) {
 				return false;
 			}
-			constexpr std::array<std::string_view, 19> tables{
+			constexpr std::array<std::string_view, 22> tables{
+				"epoch_occurrence",
+				"epoch_occurrence_history",
+				"epoch_occurrence_supersession",
 				"catalog_meta",
 				"repository_scope",
 				"pull_request_scope",

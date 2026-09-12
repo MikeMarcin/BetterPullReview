@@ -883,7 +883,7 @@ namespace {
 			return value;
 		}
 
-		[[nodiscard]] auto logical_fingerprint() const -> std::string
+		[[nodiscard]] auto logical_fingerprint(const bool aLegacyRowsOnly = false) const -> std::string
 		{
 			const auto quoteIdentifier = [](const std::string_view aIdentifier) {
 				auto quoted = std::string{ "\"" };
@@ -951,6 +951,9 @@ namespace {
 				"AND name NOT LIKE 'sqlite_%' ORDER BY name");
 			auto output = std::string{ };
 			for (const auto& table : tables) {
+				if (aLegacyRowsOnly && (table == "catalog_meta" || table == "epoch_occurrence" || table == "epoch_occurrence_history" || table == "epoch_occurrence_supersession")) {
+					continue;
+				}
 				appendField(output, table);
 				const auto quotedTable = quoteIdentifier(table);
 				const auto columns     = collectFirstTextColumn(
@@ -1300,6 +1303,218 @@ namespace {
 		auto session = std::move(*opened);
 		expect_failure(
 			session->recovery_page(std::nullopt, 100U, { }), aFailure, aMessage);
+	}
+
+	void portable_occurrence_storage_contract()
+	{
+		temporary_root root{ "occurrences" };
+		auto           made = sqlite::make_epoch_catalog({ .StorageRoot = root.path() });
+		expect(made.has_value(), "occurrence catalogue opens");
+		auto port   = std::move(*made);
+		auto opened = port->open(open_request(901U), { });
+		expect(opened.has_value(), "occurrence authority opens");
+		auto       session    = std::move(*opened);
+		const auto local      = complete_append(*session, core::epoch_ordinal{ 1 }, 1U, core::application_session_id{ 901U }, true);
+		const auto snapshot   = session->snapshot({ });
+		const auto unresolved = session->occurrences({ });
+		expect(unresolved && unresolved->UnresolvedLegacy && unresolved->Incomplete && unresolved->Occurrences.empty(),
+			   "a head snapshot without transition evidence remains unresolved and receives no fabricated portable key");
+		core::epoch_occurrence first{
+			.Evidence            = { .Kind = core::epoch_occurrence_kind::force_push_event, .EventId = 101U, .Head = local.Mutation.Epoch.Head },
+			.LocalEpoch          = local.Mutation.Epoch.Id,
+			.DateSource          = core::epoch_occurrence_date_source::github_event,
+			.DateUtcMilliseconds = 100,
+			.FirstSeen           = core::observed_utc_milliseconds{ 900 },
+		};
+		first.Id                = *core::make_epoch_occurrence_id("ghe.example.com", authority_key().PullRequest, first.Evidence);
+		auto second             = first;
+		second.Evidence.EventId = 102U;
+		second.Id               = *core::make_epoch_occurrence_id("ghe.example.com", authority_key().PullRequest, second.Evidence);
+		second.LocalEpoch.reset();
+		second.DerivedComparisonBase = local.Mutation.Epoch.Base;
+		core::epoch_occurrence_history history{ .Occurrences = { second, first }, .Incomplete = false };
+		expect(session->record_occurrences(history, { }).has_value(), "same-head event occurrences store independently");
+		auto stored = session->occurrences({ });
+		expect(stored && stored->Occurrences.size() == 2U && !stored->UnresolvedLegacy
+				   && !stored->Occurrences.front().HistoricalBase && session->snapshot({ }) == snapshot,
+			   "sidecar preserves local catalogue identity, revision, ordinals and unknown historical bases");
+		expect(std::ranges::is_sorted(stored->Occurrences, core::epoch_occurrence_less), "stored occurrences return deterministic date/key order");
+		const auto original = *stored;
+		auto       bad      = first;
+		bad.Evidence.Head   = oid<core::git_commit_oid>(222U);
+		expect_failure(session->record_occurrences({ .Occurrences = { bad } }, { }), app::epoch_catalog_failure::invalid_request,
+					   "an existing event cannot silently acquire another after-head");
+		auto wrongBinding       = second;
+		wrongBinding.LocalEpoch = first.LocalEpoch;
+		expect(!session->record_occurrences({ .Occurrences = { wrongBinding } }, { }), "two occurrences cannot acquire one local epoch");
+		expect(session->occurrences({ }) == stored, "a refused batch leaves every occurrence and status unchanged");
+		std::stop_source cancelled;
+		cancelled.request_stop();
+		expect_failure(session->record_occurrences(history, cancelled.get_token()), app::epoch_catalog_failure::cancelled,
+					   "cancelled occurrence write commits nothing");
+		first.FirstSeen = core::observed_utc_milliseconds{ 999 };
+		expect(session->record_occurrences({ .Occurrences = { first }, .Incomplete = true, .Ambiguous = true }, { }).has_value(),
+			   "partial refresh merges without deleting earlier evidence");
+		stored = session->occurrences({ });
+		expect(stored && stored->Occurrences == original.Occurrences && stored->Incomplete && stored->Ambiguous,
+			   "partial read preserves old rows and original local first-seen while recording gaps");
+		session.reset();
+		port.reset();
+		made = sqlite::make_epoch_catalog({ .StorageRoot = root.path() });
+		expect(made.has_value(), "occurrence catalogue restarts");
+		port   = std::move(*made);
+		opened = port->open(open_request(902U), { });
+		expect(opened && (*opened)->occurrences({ }) == stored, "portable evidence, dates, bases and partial status survive restart");
+	}
+
+	void occurrence_supersession_contract()
+	{
+		for (const bool targetExists : { false, true }) {
+			temporary_root root{ targetExists ? "supersede-existing" : "supersede-new" };
+			auto           made = sqlite::make_epoch_catalog({ .StorageRoot = root.path() });
+			expect(made.has_value(), "supersession catalogue opens");
+			auto port   = std::move(*made);
+			auto opened = port->open(open_request(931U), { });
+			expect(opened.has_value(), "supersession scope opens");
+			auto                   session  = std::move(*opened);
+			const auto             local    = complete_append(*session, core::epoch_ordinal{ 1 }, 1U, core::application_session_id{ 931U }, true);
+			const auto             snapshot = session->snapshot({ });
+			core::epoch_occurrence observed{
+				.Evidence            = { .Kind = core::epoch_occurrence_kind::observed_head, .Head = local.Mutation.Epoch.Head },
+				.LocalEpoch          = local.Mutation.Epoch.Id,
+				.HistoricalBase      = local.Mutation.Epoch.Base,
+				.DateSource          = core::epoch_occurrence_date_source::commit_date,
+				.DateUtcMilliseconds = 100,
+				.FirstSeen           = core::observed_utc_milliseconds{ 900 }
+			};
+			observed.Id               = *core::make_epoch_occurrence_id("github.com", authority_key().PullRequest, observed.Evidence);
+			auto event                = observed;
+			event.Evidence.Kind       = core::epoch_occurrence_kind::force_push_event;
+			event.Evidence.EventId    = 771U;
+			event.Id                  = *core::make_epoch_occurrence_id("github.com", authority_key().PullRequest, event.Evidence);
+			event.DateSource          = core::epoch_occurrence_date_source::github_event;
+			event.DateUtcMilliseconds = 200;
+			expect(session->record_occurrences({ .Occurrences = { observed } }, { }).has_value(), "observed occurrence persists first");
+			if (targetExists) {
+				auto unbound = event;
+				unbound.LocalEpoch.reset();
+				expect(session->record_occurrences({ .Occurrences = { unbound } }, { }).has_value(), "unbound event may already be persisted");
+			}
+			const auto before = catalog_logical_fingerprint(database_path(root.path()));
+			auto       stale  = observed;
+			stale.FirstSeen   = core::observed_utc_milliseconds{ 901 };
+			expect_failure(session->supersede_occurrence(stale, event, { }), app::epoch_catalog_failure::revision_conflict,
+						   "supersession compares every expected old fact");
+			auto conflict          = event;
+			conflict.Evidence.Head = oid<core::git_commit_oid>(222U);
+			expect(!session->supersede_occurrence(observed, conflict, { }), "supersession refuses a different head");
+			if (targetExists) {
+				conflict                     = event;
+				conflict.DateUtcMilliseconds = 201;
+				expect(!session->supersede_occurrence(observed, conflict, { }), "existing event target facts cannot be overwritten by supersession");
+			}
+			std::stop_source cancelled;
+			cancelled.request_stop();
+			expect_failure(session->supersede_occurrence(observed, event, cancelled.get_token()), app::epoch_catalog_failure::cancelled,
+						   "cancelled supersession preserves both identities");
+			expect(catalog_logical_fingerprint(database_path(root.path())) == before, "refused supersessions change no stored fact");
+			expect(session->supersede_occurrence(observed, event, { }).has_value(), "event atomically supersedes observed identity");
+			const auto after = catalog_logical_fingerprint(database_path(root.path()));
+			expect(session->supersede_occurrence(observed, event, { }).has_value()
+					   && catalog_logical_fingerprint(database_path(root.path())) == after,
+				   "identical supersession retry is idempotent");
+			const auto history = session->occurrences({ });
+			expect(history && history->Occurrences == std::vector<core::epoch_occurrence>{ event }
+					   && session->snapshot({ }) == snapshot,
+				   "active history contains only the event while local epochs and ordinals remain unchanged");
+			conflict                  = event;
+			conflict.Evidence.EventId = 772U;
+			conflict.Id               = *core::make_epoch_occurrence_id("github.com", authority_key().PullRequest, conflict.Evidence);
+			expect(!session->supersede_occurrence(observed, conflict, { }), "archived identity cannot be redirected to another event");
+			conflict.LocalEpoch.reset();
+			expect(!session->record_occurrences({ .Occurrences = { conflict, observed } }, { }), "stale observed upsert refuses the entire batch after a valid insertion");
+			expect(catalog_logical_fingerprint(database_path(root.path())) == after, "stale resurrection failure rolls back earlier batch writes");
+			{
+				direct_database database{ database_path(root.path()) };
+				expect(database.integer("SELECT count(*) FROM epoch_occurrence_supersession") == 1
+						   && database.integer("SELECT first_seen FROM epoch_occurrence_supersession") == observed.FirstSeen.value()
+						   && database.integer("SELECT date_utc FROM epoch_occurrence_supersession") == observed.DateUtcMilliseconds
+						   && database.integer("SELECT local_ordinal FROM epoch_occurrence_supersession") == local.Mutation.Epoch.Id.Ordinal.value()
+						   && database.foreign_key_violation_count() == 0U,
+					   "archive retains original dates and local binding with intact references");
+			}
+			session.reset();
+			port.reset();
+			made = sqlite::make_epoch_catalog({ .StorageRoot = root.path() });
+			expect(made.has_value(), "supersession catalogue restarts");
+			port   = std::move(*made);
+			opened = port->open(open_request(932U), { });
+			expect(opened.has_value(), "supersession scope reopens");
+			session = std::move(*opened);
+			expect(session->occurrences({ }) == history && session->supersede_occurrence(observed, event, { }).has_value()
+					   && !session->record_occurrences({ .Occurrences = { observed } }, { }),
+				   "restart preserves active event, retry identity and stale resurrection refusal");
+		}
+	}
+
+	void version_three_lossless_occurrence_migration_contract()
+	{
+		temporary_root originalRoot{ "occurrence-v3-original" };
+		temporary_root copiedRoot{ "occurrence-v3-copy" };
+		const auto     request = open_request(911U);
+		auto           made    = sqlite::make_epoch_catalog({ .StorageRoot = originalRoot.path() });
+		expect(made.has_value(), "migration fixture opens");
+		auto port   = std::move(*made);
+		auto opened = port->open(request, { });
+		expect(opened.has_value(), "migration fixture authority opens");
+		auto       session   = std::move(*opened);
+		const auto first     = complete_append(*session, core::epoch_ordinal{ 1 }, 1U, request.ApplicationSession, true);
+		const auto second    = complete_append(*session, core::epoch_ordinal{ 2 }, 2U, request.ApplicationSession, false);
+		auto       returning = revision(3U);
+		returning.Head       = first.Mutation.Epoch.Head;
+		const auto third     = complete_append(*session, core::epoch_ordinal{ 3 }, 3U, request.ApplicationSession, false,
+											   false, nullptr, { .Accepted = returning });
+		const auto binding   = session->binding();
+		const auto snapshot  = session->snapshot({ });
+		session.reset();
+		port.reset();
+		std::string oldRows;
+		{
+			direct_database database{ database_path(originalRoot.path()), true };
+			expect(test_platform::make_version_three_catalog(database), "fixture restores exact current production v3 schema");
+			oldRows = database.logical_fingerprint(true);
+		}
+		std::filesystem::copy(originalRoot.path(), copiedRoot.path(), std::filesystem::copy_options::recursive);
+		made = sqlite::make_epoch_catalog({ .StorageRoot = copiedRoot.path() });
+		expect(made.has_value(), "a copy of the v3 file migrates to v4");
+		port   = std::move(*made);
+		opened = port->open(request, { });
+		expect(opened.has_value(), "migrated scope opens");
+		session = std::move(*opened);
+		expect(session->binding() == binding && session->snapshot({ }) == snapshot,
+			   "migration preserves incarnation, authority, next ordinal and both live selectors");
+		const auto history = session->occurrences({ });
+		expect(history && history->Occurrences.empty() && history->UnresolvedLegacy && history->Incomplete,
+			   "legacy duplicate heads and unavailable GHES hostname provenance stay unresolved");
+		for (const auto& prior : { first, second, third }) {
+			const core::comparison_anchor_identity head{ .Authority   = prior.Mutation.Epoch.Id.Authority,
+														 .Incarnation = prior.Mutation.Epoch.Id.Incarnation,
+														 .Kind        = core::comparison_anchor_kind::epoch_head,
+														 .Epoch       = prior.Mutation.Epoch.Id.Ordinal };
+			const auto                             anchor = session->exact_anchors({ .Catalog = binding.Catalog, .Anchors = { head } }, { });
+			expect(anchor && anchor->Anchors.size() == 1U && anchor->Anchors.front().Commit == prior.Mutation.Epoch.Head,
+				   "old local epoch bindings still resolve the same retained head");
+		}
+		{
+			direct_database database{ database_path(copiedRoot.path()) };
+			expect(database.logical_fingerprint(true) == oldRows && database.foreign_key_violation_count() == 0U,
+				   "every original non-metadata table row survives byte-for-byte, including operations and retained reference components");
+		}
+		{
+			direct_database database{ database_path(originalRoot.path()) };
+			expect(database.integer("PRAGMA user_version") == 3 && database.logical_fingerprint(true) == oldRows,
+				   "migration of the copied file does not touch its original");
+		}
 	}
 
 	void append_snapshot_history_anchor_contract()
@@ -5974,6 +6189,9 @@ namespace {
 
 int main()
 {
+	portable_occurrence_storage_contract();
+	occurrence_supersession_contract();
+	version_three_lossless_occurrence_migration_contract();
 	append_snapshot_history_anchor_contract();
 	receiving_ownership_migration_and_restart_contract();
 	reservation_conflict_and_never_reuse_contract();

@@ -251,6 +251,9 @@ namespace {
 		database.execute("PRAGMA foreign_keys = OFF");
 		database.execute("BEGIN IMMEDIATE");
 		database.execute("DROP TABLE append_receiving");
+		database.execute("DROP TABLE epoch_occurrence_supersession");
+		database.execute("DROP TABLE epoch_occurrence");
+		database.execute("DROP TABLE epoch_occurrence_history");
 		database.execute("CREATE TABLE t_meta AS SELECT * FROM catalog_meta");
 		database.execute(
 			"CREATE TABLE t_repo AS SELECT * FROM repository_scope");
@@ -426,12 +429,12 @@ namespace {
 		{
 			direct_database database{ database_path(root.path()) };
 			expect(
-				database.integer("PRAGMA user_version") == 3
+				database.integer("PRAGMA user_version") == 4
 					&& database.integer(
 						   "SELECT schema_format FROM catalog_meta "
 						   "WHERE singleton = 1")
-						== 3,
-				"the migrated catalog reports the v3 version everywhere");
+						== 4,
+				"the migrated catalog reports the v4 version everywhere");
 			expect(
 				database.integer("SELECT count(*) FROM repository_scope")
 						== repositoryRows
@@ -508,7 +511,7 @@ namespace {
 		expect(made.has_value(), "the next open migrates the same catalog");
 		direct_database database{ database_path(root.path()) };
 		expect(
-			database.integer("PRAGMA user_version") == 3,
+			database.integer("PRAGMA user_version") == 4,
 			"the retried migration completes");
 	}
 
@@ -550,7 +553,7 @@ namespace {
 
 	void unknown_version_contract()
 	{
-		for (const auto version : { 0, 4, 99 }) {
+		for (const auto version : { 0, 5, 99 }) {
 			temporary_root root{ "unknown-version" };
 			{
 				auto made

@@ -486,6 +486,42 @@ namespace bpr::application {
 				.Mode                  = aSnapshot.Mode,
 				.CurrentViewerReview   = std::move(currentReview),
 			};
+			switch (aSnapshot.TimelineAvailability) {
+			case github_timeline_availability::unavailable:
+				handoff.TimelineAvailability = epoch_timeline_availability::unavailable;
+				break;
+			case github_timeline_availability::available:
+				handoff.TimelineAvailability = epoch_timeline_availability::available;
+				break;
+			case github_timeline_availability::refused:
+				handoff.TimelineAvailability = epoch_timeline_availability::refused;
+				break;
+			case github_timeline_availability::capped:
+				handoff.TimelineAvailability = epoch_timeline_availability::capped;
+				break;
+			case github_timeline_availability::failed:
+				handoff.TimelineAvailability = epoch_timeline_availability::failed;
+				break;
+			}
+			if (aSnapshot.ForcePushEvents.size() > core::maximum_epoch_occurrence_count) {
+				handoff.TimelineAvailability = epoch_timeline_availability::capped;
+			}
+			if (handoff.TimelineAvailability == epoch_timeline_availability::available) {
+				for (const auto& event : aSnapshot.ForcePushEvents) {
+					const auto eventHead = core::parse_git_commit_oid(event.AfterHeadOid);
+					if (!eventHead || eventHead->algorithm() != handoff.ObjectFormat
+						|| event.EventId == 0U || event.CreatedAtUnixMilliseconds <= 0) {
+						handoff.ForcePushes.clear();
+						handoff.TimelineAvailability = epoch_timeline_availability::failed;
+						break;
+					}
+					handoff.ForcePushes.push_back(epoch_force_push_observation{
+						.EventId              = event.EventId,
+						.Head                 = *eventHead,
+						.EventUtcMilliseconds = event.CreatedAtUnixMilliseconds,
+					});
+				}
+			}
 
 			if (anonymous) {
 				// The anonymous authority reaches Git only through the

@@ -526,6 +526,15 @@ URL, provider record, or unvalidated branch/ref string. The epoch host obtains
 source identity and time from its operating-system entropy and clock ports
 after durable recovery.
 
+The independent pull-request issue timeline read is bounded to ten REST
+pages of at most 100 records each. It is admitted anonymously only under the
+validated public GitHub.com read authority, carries no viewer token, and
+cannot replace the accepted live revision on failure, refusal, cap or
+cancellation. The epoch host accepts only typed numeric force-push event ids,
+validated after-head OIDs and UTC event times. Portable occurrence evidence
+does not authorize arbitrary Git objects: comparison still requires an exact
+local retained epoch and the accepted cache authority.
+
 When any authority component changes, the GitHub host revokes the lease,
 sends `pull_request_authority_invalidated`, and only then clears the old
 accepted authority and identity-sensitive projection. Epoch terminals retain

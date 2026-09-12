@@ -75,6 +75,28 @@ namespace bpr::adapters::github::detail {
 	using github_paged_read_result = std::expected<application::github_pull_request_snapshot,
 												   github_paged_read_failure>;
 
+	/// \brief An exhausted timeline; failures carry no partial records.
+	struct github_timeline_read
+	{
+		std::vector<application::github_force_push_event> ForcePushEvents;
+		application::github_rate_limit_state              RateLimits;
+	};
+
+	using github_timeline_read_result = std::expected<github_timeline_read, github_paged_read_failure>;
+
+	/// \brief Reads at most ten timeline pages, 100 records each, including ignored events.
+	/// \details The repository id must come from the matching accepted live snapshot.
+	/// This independent read preserves the live snapshot if history is unavailable.
+	[[nodiscard]] auto perform_paged_github_timeline_read(
+		github_wire_transport_port&                              aTransport,
+		const validated_github_host_profile&                     aProfile,
+		const application::github_pull_request_provider_request& aRequest,
+		core::repository_id                                      aRepository,
+		std::stop_token                                          aStop,
+		const github_paged_read_limits&                          aLimits        = { },
+		github_provider_read_authority                           aReadAuthority = github_provider_read_authority::authenticated) noexcept
+		-> github_timeline_read_result;
+
 	[[nodiscard]] auto perform_paged_github_read(
 		github_wire_transport_port&                              aTransport,
 		const validated_github_host_profile&                     aProfile,

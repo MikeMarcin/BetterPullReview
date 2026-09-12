@@ -119,6 +119,20 @@ namespace bpr::application {
 		auto operator<=>(const git_cache_rename_pair_request&) const = default;
 	};
 
+	/// \brief Queries exact cached commits without resolving a moving base ref.
+	struct git_cache_comparison_base_request
+	{
+		core::git_commit_oid Head;
+		core::git_commit_oid SelectedBase;
+	};
+
+	/// \brief Reports a derived comparison candidate, never an observed historical base.
+	struct git_cache_comparison_base_observation
+	{
+		git_comparison_base_status          Status = git_comparison_base_status::objects_unavailable;
+		std::optional<core::git_commit_oid> Base;
+	};
+
 	/// \brief Describes the git pack inventory entry record.
 	struct git_pack_inventory_entry
 	{
@@ -717,6 +731,32 @@ namespace bpr::application {
 			core::git_commit_oid aCommit,
 			std::stop_token      aStop)
 			-> git_cache_result<git_cache_commit_inspection> = 0;
+
+		/// \brief Queries a derived base under this active session's operation lock.
+		/// \details No network fetch or new session is performed. Both commits must
+		/// have complete reachable closure; missing or ambiguous ancestry yields no
+		/// candidate. SelectedBase is an exact selected commit, never historical
+		/// provenance. The caller keeps that distinction when storing the result.
+		[[nodiscard]] virtual auto derive_comparison_base(
+			const git_cache_comparison_base_request& aRequest,
+			std::stop_token                          aStop) -> git_cache_result<git_cache_comparison_base_observation>
+		{
+			static_cast<void>(aRequest);
+			static_cast<void>(aStop);
+			return std::unexpected{ git_cache_failure::invalid_request };
+		}
+
+		/// \brief Reads exact head committer time as UTC Unix seconds, not first-seen.
+		/// \details Runs under this active session. Missing commits return nullopt;
+		/// this does not establish a push time or chronological update order.
+		[[nodiscard]] virtual auto read_committer_time_seconds(
+			core::git_commit_oid aCommit,
+			std::stop_token      aStop) -> git_cache_result<std::optional<std::int64_t>>
+		{
+			static_cast<void>(aCommit);
+			static_cast<void>(aStop);
+			return std::unexpected{ git_cache_failure::invalid_request };
+		}
 
 		/// \brief Copies one exact accepted head into an isolated owned workspace.
 		[[nodiscard]] virtual auto materialize_agent_workspace(

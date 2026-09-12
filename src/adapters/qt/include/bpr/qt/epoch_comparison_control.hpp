@@ -134,6 +134,8 @@ namespace bpr::qt {
 		QToolButton*                                CancelButton            = nullptr;
 		QToolButton*                                MaintenanceButton       = nullptr;
 
+		std::optional<core::epoch_occurrence_history>           OccurrenceHistory;
+		std::optional<application::epoch_row_projection>        CurrentEpoch;
 		std::optional<core::pull_request_authority>             Authority;
 		std::optional<core::git_commit_oid>                     LastReviewCommit;
 		std::optional<core::comparison_selection>               Selection;

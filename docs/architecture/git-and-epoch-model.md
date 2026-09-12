@@ -157,6 +157,7 @@ Core identities are strongly typed and nonzero:
 ```text
 epoch_catalog_incarnation_id     random identity of one catalog lifetime
 review_epoch_id                  PR authority + incarnation + ordinal
+epoch_occurrence_id              digest of canonical host + numeric PR + typed update evidence
 epoch_ordinal                    monotonic inside PR authority scope
 epoch_catalog_revision           monotonic inside PR authority scope
 epoch_request_id                 feature-qualified asynchronous request
@@ -177,6 +178,18 @@ helper. Overflow fails closed before state, storage, ref, or projection
 mutation; an aborted or recovered reserved ordinal is never reused.
 `review_epoch_id` is never used without its authority and catalog
 incarnation.
+
+The occurrence id is a separate portable name. A numeric GitHub force-push
+event id and its after-head OID distinguish repeated A→B→A heads; a live
+head transition without an event has typed observed-head evidence. Neither
+local incarnation nor ordinal enters the occurrence digest. The SQLite v4
+sidecar retains occurrences and their optional local epoch associations while
+preserving every legacy epoch row, key, incarnation, and ordinal. A late event
+can supersede an observed-head occurrence only through an exact durable
+compare-and-swap; old evidence is archived. Provider event order and local
+observation order are separate facts, so an uncertain association remains
+ambiguous rather than being inferred from equal heads or mixed clocks. A
+head-only historical occurrence has no epoch anchor or presumed original base.
 
 ## Compact core state
 
