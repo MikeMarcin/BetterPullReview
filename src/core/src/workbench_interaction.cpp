@@ -256,6 +256,15 @@ namespace bpr::core {
 				: workbench_line_numbers::shown;
 		}
 
+		[[nodiscard]] constexpr auto toggled(
+			const workbench_one_pane aOnePane) noexcept
+			-> workbench_one_pane
+		{
+			return aOnePane == workbench_one_pane::disabled
+				? workbench_one_pane::enabled
+				: workbench_one_pane::disabled;
+		}
+
 		[[nodiscard]] constexpr auto line_numbers_command(
 			const workbench_interaction_state& aState,
 			const workbench_command_id         aId) noexcept
@@ -337,6 +346,31 @@ namespace bpr::core {
 				workbench_interaction_output{
 					.LineNumbers = workbench_line_numbers_delta{
 						.State = aState.LineNumbers,
+					},
+				});
+		}
+
+		[[nodiscard]] auto apply_one_pane(
+			workbench_interaction_state& aState,
+			const workbench_one_pane     aRequested)
+			-> workbench_interaction_output
+		{
+			const auto rejection = surface_rejection(aState);
+			if (rejection != workbench_reason_code::none) {
+				return { .Reason = rejection };
+			}
+			if (aState.OnePane == aRequested) {
+				return { };
+			}
+
+			const auto before = project_workbench_commands(aState);
+			aState.OnePane    = aRequested;
+			return with_changed_commands(
+				aState,
+				before,
+				workbench_interaction_output{
+					.OnePane = workbench_one_pane_delta{
+						.State = aState.OnePane,
 					},
 				});
 		}
@@ -433,6 +467,21 @@ namespace bpr::core {
 		{
 			return apply_line_numbers(aState, toggled(aState.LineNumbers));
 		}
+		[[nodiscard]] auto apply(
+			workbench_interaction_state&         aState,
+			const set_workbench_one_pane_intent& aIntent)
+			-> workbench_interaction_output
+		{
+			return apply_one_pane(aState, aIntent.State);
+		}
+
+		[[nodiscard]] auto apply(
+			workbench_interaction_state& aState,
+			const toggle_workbench_one_pane_intent&)
+			-> workbench_interaction_output
+		{
+			return apply_one_pane(aState, toggled(aState.OnePane));
+		}
 	} // namespace
 
 	auto valid(const workbench_navigation_cursor& aCursor) noexcept -> bool
@@ -520,6 +569,7 @@ namespace bpr::core {
 				line_numbers_command(
 					aState, workbench_command_id::toggle_line_numbers),
 				drawer_command(aState, workbench_command_id::toggle_repositories_drawer),
+				line_numbers_command(aState, workbench_command_id::toggle_one_pane),
 			},
 			.Policy = aState.NavigationPolicy,
 		};

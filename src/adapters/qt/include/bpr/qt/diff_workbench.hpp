@@ -250,6 +250,9 @@ namespace bpr::qt {
 		/// empty margin, and the measured geometry follows the viewport it
 		/// changes.
 		void set_line_numbers_visible(bool aVisible);
+		/// \brief Applies the core-projected presentation without changing semantic selection.
+		void               set_one_pane_enabled(bool aEnabled);
+		[[nodiscard]] auto one_pane_enabled() const noexcept -> bool;
 
 		/// \brief Adopts the classification of one side's blob.
 		///
@@ -305,9 +308,14 @@ namespace bpr::qt {
 			bool Supplied = false;
 		};
 
-		void adopt_code_typography(const code_typography_event& aTypography);
-		void update_diff_paint();
-		void apply_syntax_formats(
+		void               adopt_code_typography(const code_typography_event& aTypography);
+		void               update_diff_paint();
+		void               rebuild_unified_document();
+		void               update_unified_paint();
+		void               update_unified_link_map();
+		[[nodiscard]] auto unified_row_for(core::diff_side aSide, std::uint32_t aLine) const -> std::optional<std::uint32_t>;
+		void               reveal_unified_row(std::uint32_t aRow);
+		void               apply_syntax_formats(
 			QPlainTextEdit& aPane,
 			core::diff_side aSide,
 			core::line_span aPaintable);
@@ -348,7 +356,7 @@ namespace bpr::qt {
 		void               synchronize_geometry_selection(bool aReveal);
 		[[nodiscard]] auto reveal_exact_line(
 			const core::semantic_selection& aSelection,
-			const core::source_line_ref&    aLine) -> bool;
+			const core::source_line_ref& aLine, bool aAtTop = false) -> bool;
 		void apply_interaction(bool aReveal, bool aAnnounceSelection);
 		void update_detail();
 		void update_selection_paint();
@@ -359,15 +367,19 @@ namespace bpr::qt {
 		void emit_selection_observer(bool aInteractive) noexcept;
 		void clear_projection(QString aStatus);
 
-		QLabel*                       Status       = nullptr;
-		diff_comparison_splitter*     Comparison   = nullptr;
-		QPlainTextEdit*               Left         = nullptr;
-		QPlainTextEdit*               Right        = nullptr;
-		QScrollBar*                   SharedScroll = nullptr;
-		comparison_scroll_controller* Controller   = nullptr;
-		diff_link_map*                LinkMap      = nullptr;
-		QSplitter*                    Vertical     = nullptr;
-		QPlainTextEdit*               Detail       = nullptr;
+		QLabel*                   Status     = nullptr;
+		diff_comparison_splitter* Comparison = nullptr;
+		QPlainTextEdit*           Left       = nullptr;
+		QPlainTextEdit*           Right      = nullptr;
+		QPlainTextEdit*           Unified    = nullptr;
+		one_pane_diff_link_map*   UnifiedMap = nullptr;
+		struct unified_presentation;
+		std::unique_ptr<unified_presentation> UnifiedPresentation;
+		QScrollBar*                           SharedScroll = nullptr;
+		comparison_scroll_controller*         Controller   = nullptr;
+		diff_link_map*                        LinkMap      = nullptr;
+		QSplitter*                            Vertical     = nullptr;
+		QPlainTextEdit*                       Detail       = nullptr;
 
 		std::optional<core::diff_request_context> CurrentContext;
 		diff_presentation_colors                  Colors;
@@ -385,12 +397,17 @@ namespace bpr::qt {
 		selection_sink                                   SelectionSink;
 		std::function<void()>                            ReadingGestureSink;
 		std::optional<core::source_line_ref>             RestoredReadingLine;
-		selection_observer                               SelectionObserver;
-		std::function<void()>                            FrameObserver;
-		std::optional<core::source_line_ref>             ConversationAnchor;
-		measured_alignment_axis_cache                    AxisCache;
-		diff_workbench_statistics                        Statistics;
-		QString                                          LastAnnouncement;
+		std::optional<core::source_line_ref>             PresentationReadingLine;
+		/// A removed/added viewport row can belong to the opposite side from
+		/// the semantic selection. Keep its side after the pending reveal is
+		/// consumed so the next presentation flip measures the same document.
+		std::optional<core::diff_side>       PresentationReadingSide;
+		selection_observer                   SelectionObserver;
+		std::function<void()>                FrameObserver;
+		std::optional<core::source_line_ref> ConversationAnchor;
+		measured_alignment_axis_cache        AxisCache;
+		diff_workbench_statistics            Statistics;
+		QString                              LastAnnouncement;
 		/// The last published tab stop. Absent until the first publication, so
 		/// adopting the initial typography is not mistaken for a change.
 		std::optional<qreal>          AppliedTabStopDistance;
@@ -401,6 +418,7 @@ namespace bpr::qt {
 		bool                                  GeometryRevealPending = false;
 		bool                                  GeometryScheduled     = false;
 		bool                                  ApplyingFrame         = false;
+		bool                                  OnePaneEnabled        = false;
 	};
 } // namespace bpr::qt
 

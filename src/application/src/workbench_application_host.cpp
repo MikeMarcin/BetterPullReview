@@ -764,6 +764,7 @@ namespace bpr::application {
 				Layout.Conversations = State.ConversationsDrawer;
 				Layout.Repositories  = State.RepositoriesDrawer;
 				Layout.LineNumbers   = State.LineNumbers;
+				Layout.OnePane       = State.OnePane;
 			}
 			if (Settings.profile_scoped() && Settings.window().value() == 0) {
 				PendingPreferences        = workbench_profile_preferences{ Layout.Behaviour, window_layout(Layout) };
@@ -955,7 +956,7 @@ namespace bpr::application {
 			if (output.Decision.has_value()) {
 				execute_decision(*output.Decision);
 			}
-			if (output.Drawers.has_value() || output.LineNumbers.has_value()) {
+			if (output.Drawers.has_value() || output.LineNumbers.has_value() || output.OnePane.has_value()) {
 				submit_settings_store();
 			}
 			// [[BPR-0727]]. A refused gesture is published as the event it
@@ -1335,6 +1336,7 @@ namespace bpr::application {
 			set_drawer(core::workbench_drawer::conversations, Layout.Conversations);
 			set_drawer(core::workbench_drawer::repositories, Layout.Repositories);
 			set_line_numbers(Layout.LineNumbers);
+			set_one_pane(Layout.OnePane);
 		}
 
 		void set_line_numbers(const core::workbench_line_numbers aState)
@@ -1342,6 +1344,14 @@ namespace bpr::application {
 			const auto output = core::transition(
 				State,
 				core::set_workbench_line_numbers_intent{ .State = aState });
+			LastReason = output.Reason;
+		}
+
+		void set_one_pane(const core::workbench_one_pane aState)
+		{
+			const auto output = core::transition(
+				State,
+				core::set_workbench_one_pane_intent{ .State = aState });
 			LastReason = output.Reason;
 		}
 
@@ -1388,6 +1398,12 @@ namespace bpr::application {
 			const auto lineNumbers = core::workbench_line_numbers_delta{
 				.State = State.LineNumbers,
 			};
+			const auto onePane = core::workbench_one_pane_delta{
+				.State = State.OnePane,
+			};
+			if (PublishedOnePane != onePane) {
+				projection.OnePane = onePane;
+			}
 			if (PublishedLineNumbers != lineNumbers) {
 				projection.LineNumbers = lineNumbers;
 			}
@@ -1427,6 +1443,7 @@ namespace bpr::application {
 			PublishedSelection   = selection;
 			PublishedDrawers     = drawers;
 			PublishedLineNumbers = lineNumbers;
+			PublishedOnePane     = onePane;
 			PublishedCommands    = commands;
 			PublishedLayout      = layout;
 			PublishedFiles       = std::move(files);
@@ -1494,6 +1511,7 @@ namespace bpr::application {
 		std::optional<core::workbench_selection_delta>        PublishedSelection;
 		std::optional<core::workbench_drawer_delta>           PublishedDrawers;
 		std::optional<core::workbench_line_numbers_delta>     PublishedLineNumbers;
+		std::optional<core::workbench_one_pane_delta>         PublishedOnePane;
 		std::optional<core::workbench_command_delta>          PublishedCommands;
 		std::optional<workbench_layout_delta>                 PublishedLayout;
 		std::optional<review_behaviour_settings>              PublishedBehaviour;

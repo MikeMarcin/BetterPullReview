@@ -2938,6 +2938,9 @@ namespace bpr::qt {
 		if (aProjection.LineNumbers) {
 			LineNumberState = *aProjection.LineNumbers;
 		}
+		if (aProjection.OnePane) {
+			OnePaneState = *aProjection.OnePane;
+		}
 		if (aProjection.Layout) {
 			LayoutWidths = *aProjection.Layout;
 			++Statistics.LayoutUpdates;
@@ -4422,6 +4425,11 @@ namespace bpr::qt {
 	auto workbench_window::line_numbers_action() const noexcept -> QAction*
 	{
 		return LineNumbersAction;
+	}
+
+	auto workbench_window::one_pane_action() const noexcept -> QAction*
+	{
+		return OnePaneAction;
 	}
 
 	auto workbench_window::files_drawer() const noexcept -> workbench_drawer_panel*
@@ -5963,6 +5971,14 @@ namespace bpr::qt {
 		connect(LineNumbersAction, &QAction::triggered, this, [this] {
 			dispatch_line_numbers_toggle();
 		});
+		OnePaneAction = new QAction{ QStringLiteral("&One pane"), this };
+		OnePaneAction->setObjectName(QStringLiteral("toggleWorkbenchOnePaneAction"));
+		OnePaneAction->setCheckable(true);
+		addAction(OnePaneAction);
+		ViewMenu->addAction(OnePaneAction);
+		connect(OnePaneAction, &QAction::triggered, this, [this] {
+			dispatch_one_pane_toggle();
+		});
 		// [[BPR-0646]]. Settings is a window, reached by the platform's
 		// preferences shortcut; on macOS the role places it in the app menu.
 		SettingsAction = new QAction{ QStringLiteral("&Settings…"), this };
@@ -6149,6 +6165,33 @@ namespace bpr::qt {
 								   : core::workbench_reason_code::no_active_workbench));
 		if (ComparisonSurface != nullptr) {
 			ComparisonSurface->set_line_numbers_visible(shown);
+		}
+	}
+
+	void workbench_window::dispatch_one_pane_toggle()
+	{
+		apply_one_pane();
+		if (Dispatch) {
+			Dispatch(core::toggle_workbench_one_pane_intent{ });
+		}
+	}
+
+	void workbench_window::apply_one_pane()
+	{
+		const auto enabled = OnePaneState.State == core::workbench_one_pane::enabled;
+		OnePaneAction->setChecked(enabled);
+		const auto projection = command(core::workbench_command_id::toggle_one_pane);
+		describe_action(
+			OnePaneAction,
+			projection && projection->Enabled,
+			enabled
+				? QStringLiteral("Show the comparison in two source panes.")
+				: QStringLiteral("Show both sides in one document."),
+			drawer_reason_text(projection
+								   ? projection->DisabledReason
+								   : core::workbench_reason_code::no_active_workbench));
+		if (ComparisonSurface != nullptr) {
+			ComparisonSurface->set_one_pane_enabled(enabled);
 		}
 	}
 
@@ -6555,6 +6598,7 @@ namespace bpr::qt {
 			apply_drawer_layout();
 		}
 		apply_line_numbers();
+		apply_one_pane();
 		update_receipt_actions();
 		// Last, and deliberately. The mode is not a second opinion about a
 		// command's legality; it is the answer that stands once the core's

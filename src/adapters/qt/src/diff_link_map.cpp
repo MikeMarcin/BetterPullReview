@@ -76,6 +76,100 @@ namespace bpr::qt {
 		}
 	} // namespace
 
+	one_pane_diff_link_map::one_pane_diff_link_map(QWidget* const aParent)
+		: QWidget{ aParent }
+	{
+		setObjectName(QStringLiteral("diffOnePaneLinkMap"));
+		setAccessibleName(QStringLiteral("One-pane diff correspondence map"));
+		setAccessibleDescription(QStringLiteral("Joins removed and added rows of each visible change"));
+		setFixedWidth(32);
+	}
+
+	void one_pane_diff_link_map::set_links(std::vector<visible_one_pane_diff_link>    aLinks,
+										   const std::optional<core::change_group_id> aSelected, const QRectF aViewportBand)
+	{
+		Links        = std::move(aLinks);
+		Selected     = aSelected;
+		ViewportBand = aViewportBand;
+		for (auto& link : Links) {
+			const auto top    = link.Removed ? link.Removed->top() : link.Added->top();
+			const auto bottom = link.Added ? link.Added->bottom() : link.Removed->bottom();
+			const auto middle = (top + bottom) / 2.0;
+			const auto half   = std::min(7.0, (bottom - top) / 2.0);
+			link.Spine        = QLineF{ 7.0, middle - half, 7.0, middle + half };
+			const auto ribbon = [this, &link](const QRectF& aBand, const bool aRemoved) {
+				const auto edge        = static_cast<qreal>(width());
+				const auto spineTop    = aRemoved ? link.Spine.y1() : link.Spine.center().y();
+				const auto spineBottom = aRemoved ? link.Spine.center().y() : link.Spine.y2();
+				auto       path        = QPainterPath{ QPointF{ edge, aBand.top() } };
+				path.cubicTo(edge * 0.65, aBand.top(), edge * 0.5, spineTop, 7.0, spineTop);
+				path.lineTo(7.0, spineBottom);
+				path.cubicTo(edge * 0.5, spineBottom, edge * 0.65, aBand.bottom(), edge, aBand.bottom());
+				path.closeSubpath();
+				return path;
+			};
+			if (link.Removed) {
+				link.RemovedRibbon = ribbon(*link.Removed, true);
+			}
+			if (link.Added) {
+				link.AddedRibbon = ribbon(*link.Added, false);
+			}
+		}
+		update();
+	}
+
+	auto one_pane_diff_link_map::visible_links() const noexcept -> std::span<const visible_one_pane_diff_link>
+	{
+		return Links;
+	}
+
+	void one_pane_diff_link_map::set_selection_sink(diff_link_map_identity_sink aSink)
+	{
+		SelectionSink = std::move(aSink);
+	}
+
+	void one_pane_diff_link_map::paintEvent(QPaintEvent* const aEvent)
+	{
+		QWidget::paintEvent(aEvent);
+		auto painter = QPainter{ this };
+		painter.setClipRect(ViewportBand);
+		painter.setRenderHint(QPainter::Antialiasing, true);
+		// Keep the two-pane map's ribbon fills and selected edge treatment.
+		const auto normal       = with_alpha(palette().color(QPalette::WindowText), 144);
+		const auto selectedFill = with_alpha(palette().color(QPalette::Highlight), 168);
+		for (const auto& link : Links) {
+			const auto selected = Selected && Selected == link.Identity.Group;
+			for (const auto* path : { &link.RemovedRibbon, &link.AddedRibbon }) {
+				painter.fillPath(*path, normal);
+				if (selected) {
+					painter.fillPath(*path, selectedFill);
+					painter.setPen(QPen{ palette().color(QPalette::WindowText), 1.5 });
+					painter.drawPath(*path);
+				}
+			}
+			painter.setPen(QPen{ palette().color(selected ? QPalette::Highlight : QPalette::PlaceholderText), 2.0 });
+			painter.drawLine(link.Spine);
+		}
+	}
+
+	void one_pane_diff_link_map::mousePressEvent(QMouseEvent* const aEvent)
+	{
+		if (aEvent->button() == Qt::LeftButton && ViewportBand.contains(aEvent->position())) {
+			for (const auto& link : Links) {
+				const auto hit = link.RemovedRibbon.contains(aEvent->position())
+					|| link.AddedRibbon.contains(aEvent->position())
+					|| QRectF{ link.Spine.p1(), link.Spine.p2() }.adjusted(-4.0, -3.0, 4.0, 3.0).contains(aEvent->position());
+				if (hit && SelectionSink) {
+					const auto identity = link.Identity;
+					SelectionSink(identity);
+					aEvent->accept();
+					return;
+				}
+			}
+		}
+		QWidget::mousePressEvent(aEvent);
+	}
+
 	diff_link_map::diff_link_map(
 		const Qt::Orientation       aOrientation,
 		QSplitter&                  aParent,

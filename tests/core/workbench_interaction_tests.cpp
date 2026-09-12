@@ -588,6 +588,8 @@ namespace {
 			return toggle_workbench_drawer_intent{ .Drawer = workbench_drawer::conversations };
 		case workbench_command_id::toggle_repositories_drawer:
 			return toggle_workbench_drawer_intent{ .Drawer = workbench_drawer::repositories };
+		case workbench_command_id::toggle_one_pane:
+			return toggle_workbench_one_pane_intent{ };
 		case workbench_command_id::toggle_line_numbers:
 			return toggle_workbench_line_numbers_intent{ };
 		case workbench_command_id::previous_change:
@@ -945,6 +947,68 @@ namespace {
 			   "an exact set carries a persisted setting back into the core");
 	}
 
+	auto test_one_pane_state() -> void
+	{
+		auto inactive = workbench_interaction_state{ };
+		expect(inactive.OnePane == workbench_one_pane::disabled,
+			   "one pane starts disabled");
+
+		// It belongs to the workbench surface exactly as a drawer does. There
+		// are no source panes to number until the host publishes one, so this
+		// is not the one command an inactive workbench leaves enabled.
+		const auto refused
+			= transition(inactive, toggle_workbench_one_pane_intent{ });
+		expect(rejected(refused, workbench_reason_code::no_active_workbench)
+				   && inactive == workbench_interaction_state{ },
+			   "an inactive workbench refuses a one-pane gesture");
+
+		auto       state = active(resident(2U, 3U));
+		const auto hidden
+			= transition(state, toggle_workbench_one_pane_intent{ });
+		expect(hidden.Reason == workbench_reason_code::none
+				   && hidden.OnePane.has_value()
+				   && hidden.OnePane->State == workbench_one_pane::enabled
+				   && state.OnePane == workbench_one_pane::enabled,
+			   "toggling enables one pane");
+		expect(!hidden.Drawers.has_value() && !hidden.Decision.has_value()
+				   && !hidden.Selection.has_value(),
+			   "a one-pane gesture publishes no drawer or selection change");
+		expect(state.FilesDrawer == workbench_drawer_state::expanded
+				   && state.ConversationsDrawer == workbench_drawer_state::expanded
+				   && state.Navigation.has_value(),
+			   "a one-pane gesture disturbs no other retained fact");
+
+		const auto shown
+			= transition(state, toggle_workbench_one_pane_intent{ });
+		expect(shown.OnePane.has_value()
+				   && shown.OnePane->State == workbench_one_pane::disabled
+				   && state.OnePane == workbench_one_pane::disabled,
+			   "toggling again restores two panes");
+
+		const auto unchanged = transition(
+			state,
+			set_workbench_one_pane_intent{
+				.State = workbench_one_pane::disabled,
+			});
+		expect(unchanged == workbench_interaction_output{ },
+			   "setting the state it already has publishes nothing");
+
+		const auto set = transition(
+			state,
+			set_workbench_one_pane_intent{
+				.State = workbench_one_pane::enabled,
+			});
+		expect(set.OnePane.has_value()
+				   && set.OnePane->State == workbench_one_pane::enabled
+				   && state.OnePane == workbench_one_pane::enabled,
+			   "an exact set carries a persisted setting back into the core");
+		for (const auto modality : { workbench_modality::read, workbench_modality::review, workbench_modality::overview, workbench_modality::discuss }) {
+			(void)transition(state, set_workbench_modality_intent{ .Modality = modality });
+			expect(state.OnePane == workbench_one_pane::enabled, "modality never reclaims the pane preference");
+		}
+		expect(rejected(transition(inactive, set_workbench_one_pane_intent{ .State = workbench_one_pane::enabled }), workbench_reason_code::no_active_workbench), "inactive exact set is refused too");
+	}
+
 	auto test_drawer_state() -> void
 	{
 		auto inactive = workbench_interaction_state{ };
@@ -1117,5 +1181,6 @@ int main()
 	test_drawer_state();
 	test_overview_refuses_a_drawer_opened_by_hand();
 	test_line_number_state();
+	test_one_pane_state();
 	return EXIT_SUCCESS;
 }

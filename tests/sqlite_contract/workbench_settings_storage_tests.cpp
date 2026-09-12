@@ -494,6 +494,54 @@ namespace {
 		(void)::sqlite3_close_v2(raw);
 	}
 
+	auto establish_version_six(const std::filesystem::path& aPath) -> void
+	{
+		::sqlite3* raw = nullptr;
+		expect(::sqlite3_open_v2(aPath.string().c_str(), &raw, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr)
+				   == SQLITE_OK,
+			   "a version-six database is created directly");
+		const auto bounded = [](const std::string_view aColumn) {
+			return "CHECK(" + std::string{ aColumn } + " BETWEEN "
+				+ std::to_string(application::minimum_workbench_drawer_width) + " AND "
+				+ std::to_string(application::maximum_workbench_drawer_width) + ")";
+		};
+		const auto geometry = "files_state INTEGER NOT NULL CHECK(files_state BETWEEN 0 AND 1),"
+							  "conversations_state INTEGER NOT NULL CHECK(conversations_state BETWEEN 0 AND 1),"
+							  "files_width INTEGER NOT NULL "
+			+ bounded("files_width") + ",conversations_width INTEGER NOT NULL " + bounded("conversations_width")
+			+ ",line_numbers INTEGER NOT NULL DEFAULT 1 CHECK(line_numbers BETWEEN 0 AND 1),"
+			  "repositories_state INTEGER NOT NULL DEFAULT 1 CHECK(repositories_state BETWEEN 0 AND 1),"
+			  "repositories_width INTEGER NOT NULL DEFAULT 300 "
+			+ bounded("repositories_width");
+		const auto sql = "CREATE TABLE workbench_meta(singleton INTEGER PRIMARY KEY CHECK(singleton = 1),"
+						 "schema_format INTEGER NOT NULL) STRICT;"
+						 "CREATE TABLE workbench_preferences(singleton INTEGER PRIMARY KEY CHECK(singleton = 1),"
+			+ geometry
+			+ ",open_modality INTEGER NOT NULL DEFAULT 0 CHECK(open_modality BETWEEN 0 AND 2),"
+			  "continue_modality INTEGER NOT NULL DEFAULT 0 CHECK(continue_modality BETWEEN 0 AND 1),"
+			  "mark_read INTEGER NOT NULL DEFAULT 0 CHECK(mark_read BETWEEN 0 AND 1),"
+			  "return_comparison INTEGER NOT NULL DEFAULT 0 CHECK(return_comparison BETWEEN 0 AND 2),"
+			  "drawer_filter INTEGER NOT NULL DEFAULT 0 CHECK(drawer_filter BETWEEN 0 AND 2),"
+			  "drawer_controls INTEGER NOT NULL DEFAULT 0 CHECK(drawer_controls BETWEEN 0 AND 1)) STRICT;"
+			  "CREATE TABLE window_layout(window_id TEXT PRIMARY KEY NOT NULL CHECK(length(window_id) BETWEEN 1 AND 20 "
+			  "AND window_id NOT GLOB '*[^0-9]*' AND substr(window_id,1,1) != '0'),"
+			+ geometry
+			+ ") STRICT;"
+			  "INSERT INTO workbench_meta(singleton, schema_format) VALUES(1, 6);"
+			  "INSERT INTO workbench_preferences(singleton, files_state, conversations_state, files_width,"
+			  "conversations_width, line_numbers, repositories_state, repositories_width, open_modality,"
+			  "continue_modality, mark_read, return_comparison, drawer_filter, drawer_controls) "
+			  "VALUES(1, 1, 0, 400, 300, 0, 0, 260, 2, 1, 1, 1, 2, 1);"
+			  "INSERT INTO window_layout(window_id, files_state, conversations_state, files_width,"
+			  "conversations_width, line_numbers, repositories_state, repositories_width) "
+			  "VALUES('7', 0, 1, 350, 410, 1, 0, 280);"
+			  "PRAGMA application_id = "
+			+ std::to_string(HistoricalApplicationId) + ";PRAGMA user_version = 6;";
+		expect(::sqlite3_exec(raw, sql.c_str(), nullptr, nullptr, nullptr) == SQLITE_OK,
+			   "the version-six schema and its rows are written");
+		(void)::sqlite3_close_v2(raw);
+	}
+
 	/// \brief [[BPR-0721]]. A version-five store gains the drawer-controls
 	/// preference at hidden, keeps every profile and window value it held,
 	/// the preference round-trips, and a value past it is refused.
@@ -581,6 +629,99 @@ namespace {
 		auto refused = workbench_settings_database::open(path, { });
 		expect(!refused.has_value() && refused.error() == catalog_database_failure::schema_mismatch,
 			   "drawer controls past the closed vocabulary are refused before writable admission");
+	}
+
+	/// \brief [[BPR-0661]]. A version-three store gains the review-behaviour
+	/// preferences at their defaults and keeps every value it held, the
+	/// preferences round-trip, and a value past a vocabulary is refused.
+	auto test_a_version_six_store_migrates_and_gains_one_pane() -> void
+	{
+		const auto scratch = scratch_directory{ };
+		const auto path    = scratch.file("workbench.sqlite3");
+		establish_version_six(path);
+		const auto held = application::workbench_layout_settings{
+			.Files              = core::workbench_drawer_state::expanded,
+			.Conversations      = core::workbench_drawer_state::collapsed,
+			.Repositories       = core::workbench_drawer_state::collapsed,
+			.LineNumbers        = core::workbench_line_numbers::hidden,
+			.FilesWidth         = 400U,
+			.ConversationsWidth = 300U,
+			.RepositoriesWidth  = 260U,
+			.Behaviour          = {
+				.OpenModality     = application::review_open_modality::last_used,
+				.ContinueModality = application::review_continue_modality::review,
+				.MarkRead         = application::review_mark_read_behaviour::when_fully_seen,
+				.ReturnComparison = application::review_return_comparison::since_last_review,
+				.CommentsFilter   = application::review_comments_filter::unresolved,
+				.DrawerControls   = application::review_drawer_controls::shown,
+			},
+		};
+		const auto window = application::workbench_window_layout{
+			.Files              = core::workbench_drawer_state::collapsed,
+			.Conversations      = core::workbench_drawer_state::expanded,
+			.Repositories       = core::workbench_drawer_state::collapsed,
+			.LineNumbers        = core::workbench_line_numbers::shown,
+			.FilesWidth         = 350U,
+			.ConversationsWidth = 410U,
+			.RepositoriesWidth  = 280U,
+		};
+		{
+			auto opened = workbench_settings_database::open(path, { });
+			expect(opened.has_value(), "a version-six database opens rather than being refused");
+			const auto loaded = opened->load({ });
+			// Compared whole, so a column the rebuild forgot to copy fails here
+			// rather than arriving silently at its default.
+			expect(loaded.has_value() && *loaded == held,
+				   "every value the version-six profile row held survived the migration");
+			expect(loaded->OnePane == core::workbench_one_pane::disabled,
+				   "the migrated pane preference defaults to two panes");
+			const auto restored = opened->load_window(core::bpr_window_id{ 7 }, { });
+			expect(restored.has_value() && application::window_layout(*restored) == window
+					   && restored->Behaviour == held.Behaviour,
+				   "the version-six window row survived in place beside the rebuilt profile row");
+			auto changed    = *loaded;
+			changed.OnePane = core::workbench_one_pane::enabled;
+			expect(opened->store(changed, { }).has_value(), "the migrated store takes the new column");
+			const auto reloaded = opened->load({ });
+			expect(reloaded.has_value() && *reloaded == changed, "one pane round-trips durably");
+			auto changedWindow    = window;
+			changedWindow.OnePane = core::workbench_one_pane::enabled;
+			expect(opened->store_window(core::bpr_window_id{ 7 }, changedWindow, { }).has_value(), "one-pane window stores");
+			const auto combined = opened->load_window(core::bpr_window_id{ 7 }, { });
+			expect(combined.has_value() && application::window_layout(*combined) == changedWindow
+					   && combined->Behaviour.DrawerControls == application::review_drawer_controls::shown,
+				   "the window row keeps its geometry and reads the profile's drawer controls");
+		}
+		expect(integer_pragma(path, "PRAGMA user_version") == workbench_settings_schema_version,
+			   "the migrated database is stamped with the current version");
+		expect(integer_pragma(path, "SELECT schema_format FROM workbench_meta WHERE singleton = 1")
+				   == workbench_settings_schema_version,
+			   "the meta row agrees with the stamp");
+		expect(integer_pragma(path, "PRAGMA application_id") == HistoricalApplicationId,
+			   "the migration left the application identity alone");
+		expect(integer_pragma(path, "SELECT count(*) FROM sqlite_schema WHERE name = 'workbench_layout'") == 0,
+			   "the renamed version-six table is gone");
+		{
+			auto reopened = workbench_settings_database::open(path, { });
+			expect(reopened.has_value(), "the migrated store reopens at the current version");
+		}
+		{
+			::sqlite3* raw = nullptr;
+			expect(::sqlite3_open_v2(path.string().c_str(), &raw, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK,
+				   "the stored database reopens directly");
+			expect(::sqlite3_exec(raw,
+								  "PRAGMA ignore_check_constraints = ON;"
+								  "UPDATE workbench_preferences SET one_pane = 2 WHERE singleton = 1",
+								  nullptr,
+								  nullptr,
+								  nullptr)
+					   == SQLITE_OK,
+				   "one pane past the vocabulary are written past the check");
+			(void)::sqlite3_close_v2(raw);
+		}
+		auto refused = workbench_settings_database::open(path, { });
+		expect(!refused.has_value() && refused.error() == catalog_database_failure::schema_mismatch,
+			   "one pane past the closed vocabulary are refused before writable admission");
 	}
 
 	/// \brief [[BPR-0661]]. A version-three store gains the review-behaviour
@@ -819,6 +960,7 @@ namespace {
 		expect(database.has_value(), "window store opens");
 		auto defaults                   = distinct_layout();
 		defaults.Behaviour.OpenModality = application::review_open_modality::read;
+		defaults.OnePane                = core::workbench_one_pane::enabled;
 		expect(database->store(defaults, { }).has_value(), "profile defaults and behaviour are durable");
 		const auto first  = core::bpr_window_id{ std::numeric_limits<std::uint64_t>::max() };
 		const auto second = core::bpr_window_id{ 2 };
@@ -829,6 +971,7 @@ namespace {
 		auto right        = left;
 		right.FilesWidth  = 777;
 		right.LineNumbers = core::workbench_line_numbers::shown;
+		right.OnePane     = core::workbench_one_pane::disabled;
 		right.Files       = core::workbench_drawer_state::expanded;
 		expect(database->store_window(first, left, { }).has_value() && database->store_window(second, right, { }).has_value(), "full-width stable window IDs persist independent layouts");
 		expect(application::window_layout(*database->load_window(first, { })) == left && application::window_layout(*database->load_window(second, { })) == right, "drawer width/state and numbering remain window-local");
@@ -859,7 +1002,7 @@ namespace {
 		// [[BPR-0721]]. Version four predates the drawer-controls column, and
 		// DROP COLUMN rewrites the stored definition back to the text a
 		// version-four build wrote.
-		expect(sqlite3_exec(raw, "ALTER TABLE workbench_preferences RENAME TO workbench_layout; ALTER TABLE workbench_layout DROP COLUMN drawer_controls; DROP TABLE window_layout; UPDATE workbench_meta SET schema_format=4; PRAGMA user_version=4", nullptr, nullptr, nullptr) == SQLITE_OK, "canonical legacy singleton fixture is isolated");
+		expect(sqlite3_exec(raw, "ALTER TABLE workbench_preferences RENAME TO workbench_layout; ALTER TABLE workbench_layout DROP COLUMN drawer_controls; ALTER TABLE workbench_layout DROP COLUMN one_pane; DROP TABLE window_layout; UPDATE workbench_meta SET schema_format=4; PRAGMA user_version=4", nullptr, nullptr, nullptr) == SQLITE_OK, "canonical legacy singleton fixture is isolated");
 		sqlite3_close(raw);
 	}
 	auto logical_snapshot(const std::filesystem::path& aPath, const bool aLegacy) -> std::vector<std::string>
@@ -883,8 +1026,8 @@ namespace {
 	void test_hostile_window_rows_refuse_unchanged()
 	{
 		for (const auto mutation : {
-				 "WITH RECURSIVE ids(id) AS (VALUES(1) UNION ALL SELECT id+1 FROM ids WHERE id<33) INSERT INTO window_layout SELECT CAST(id AS TEXT),0,0,300,300,0,0,300 FROM ids",
-				 "PRAGMA ignore_check_constraints=ON; INSERT INTO window_layout VALUES(printf('%020000d',1),0,0,300,300,0,0,300)" }) {
+				 "WITH RECURSIVE ids(id) AS (VALUES(1) UNION ALL SELECT id+1 FROM ids WHERE id<33) INSERT INTO window_layout(window_id,files_state,conversations_state,files_width,conversations_width,line_numbers,repositories_state,repositories_width) SELECT CAST(id AS TEXT),0,0,300,300,0,0,300 FROM ids",
+				 "PRAGMA ignore_check_constraints=ON; INSERT INTO window_layout(window_id,files_state,conversations_state,files_width,conversations_width,line_numbers,repositories_state,repositories_width) VALUES(printf('%020000d',1),0,0,300,300,0,0,300)" }) {
 			const auto scratch = scratch_directory{ };
 			const auto path    = scratch.file("hostile.sqlite3");
 			{
@@ -990,21 +1133,24 @@ namespace {
 		expect(sqlite3_auto_extension(reinterpret_cast<void (*)()>(interrupted_migration::install)) == SQLITE_OK, "migration interruption fixture registers");
 		// Derived from the constant, so the stamp stage is still interrupted
 		// after the next version bump rather than silently never matched.
-		const auto                            stamp = "PRAGMA user_version = " + std::to_string(workbench_settings_schema_version);
-		const std::array<std::string_view, 8> prefixes{ "SELECT name,sql FROM sqlite_schema", "ALTER TABLE workbench_preferences RENAME", "CREATE TABLE workbench_preferences", "INSERT INTO workbench_preferences", "DROP TABLE workbench_layout", "UPDATE workbench_meta", stamp, "COMMIT" };
+		const auto                             stamp = "PRAGMA user_version = " + std::to_string(workbench_settings_schema_version);
+		const std::array<std::string_view, 11> prefixes{ "SELECT name,sql FROM sqlite_schema", "ALTER TABLE workbench_preferences RENAME", "CREATE TABLE workbench_preferences", "INSERT INTO workbench_preferences", "DROP TABLE workbench_layout", "ALTER TABLE window_layout", "INSERT INTO window_layout", "DROP TABLE old_window_layout", "UPDATE workbench_meta", stamp, "COMMIT" };
 		// [[BPR-0721]]. Version five renames its profile table first; that
 		// rename is only in its migration, and it must roll back with the rest.
-		for (const auto legacy : { true, false }) {
+		for (const auto version : { 4, 5, 6 }) {
+			const auto legacy = version == 4;
 			for (const auto prefix : prefixes) {
-				if (legacy && prefix.starts_with("ALTER TABLE")) {
+				if (legacy && (prefix.starts_with("ALTER TABLE") || prefix == "INSERT INTO window_layout" || prefix == "DROP TABLE old_window_layout")) {
 					continue;
 				}
 				const auto scratch = scratch_directory{ };
 				const auto path    = scratch.file("interrupted.sqlite3");
 				if (legacy) {
 					create_version_four(path);
-				} else {
+				} else if (version == 5) {
 					establish_version_five(path);
+				} else {
+					establish_version_six(path);
 				}
 				const auto before             = logical_snapshot(path, legacy);
 				auto       stop               = std::stop_source{ };
@@ -1049,12 +1195,31 @@ namespace {
 		expect(erased && erased->FilesWidth == 432, "erased row returns current defaults");
 	}
 
+	void test_invalid_one_pane_window_is_refused()
+	{
+		const auto scratch = scratch_directory{ };
+		const auto path    = scratch.file("invalid-pane.sqlite3");
+		{
+			auto database = workbench_settings_database::open(path, { });
+			expect(database.has_value(), "window flag fixture opens");
+			auto layout    = application::workbench_window_layout{ };
+			layout.OnePane = static_cast<core::workbench_one_pane>(2);
+			expect(!database->store_window(core::bpr_window_id{ 1 }, layout, { }), "invalid typed one-pane value cannot be stored");
+			layout.OnePane = core::workbench_one_pane::enabled;
+			expect(database->store_window(core::bpr_window_id{ 1 }, layout, { }).has_value(), "valid window one-pane flag stores");
+			expect(sqlite3_exec(database->handle(), "PRAGMA ignore_check_constraints=ON; UPDATE window_layout SET one_pane=2", nullptr, nullptr, nullptr) == SQLITE_OK, "hostile window flag bypasses check for fixture");
+		}
+		const auto refused = workbench_settings_database::open(path, { });
+		expect(!refused && refused.error() == failure::schema_mismatch, "invalid window flag refuses admission");
+	}
+
 } // namespace
 
 auto main() -> int
 {
 	expect(sqlite_runtime_ready(), "SQLite runtime initializes before trace injection");
 	test_authoritative_window_retention();
+	test_invalid_one_pane_window_is_refused();
 	test_hostile_window_rows_refuse_unchanged();
 	test_explicit_defaults_and_bound_factory_views();
 	test_interrupted_migration_preserves_legacy_and_reopens();
@@ -1070,6 +1235,7 @@ auto main() -> int
 	test_a_version_two_store_migrates_and_gains_the_repositories_drawer();
 	test_a_version_three_store_migrates_and_gains_the_behaviour_preferences();
 	test_a_version_five_store_migrates_and_gains_the_drawer_controls();
+	test_a_version_six_store_migrates_and_gains_one_pane();
 	test_cancellation_is_reported_distinctly();
 	test_the_schema_stores_no_review_content();
 	std::cout << "workbench-settings-storage-tests:pass\n";

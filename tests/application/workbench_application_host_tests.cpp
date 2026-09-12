@@ -1,6 +1,7 @@
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/workbench_application_host.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -1337,6 +1338,7 @@ namespace {
 				.Drawer = core::workbench_drawer::conversations });
 			first.Host.resize(core::workbench_drawer::conversations, 500U);
 			first.Host.apply(core::toggle_workbench_line_numbers_intent{ });
+			first.Host.apply(core::toggle_workbench_one_pane_intent{ });
 			first.settle();
 		}
 		expect(durable.Stored.Conversations == core::workbench_drawer_state::collapsed,
@@ -1346,6 +1348,7 @@ namespace {
 		expect(durable.Stored.LineNumbers == core::workbench_line_numbers::hidden,
 			   "the durable record kept the source-pane numbering");
 
+		expect(durable.Stored.OnePane == core::workbench_one_pane::enabled, "one pane persists");
 		const auto writes         = durable.Stores;
 		auto       second         = harness{ { }, &durable };
 		second.Observations.Files = { file(1U) };
@@ -1360,6 +1363,8 @@ namespace {
 		expect(second.Host.state().LineNumbers == core::workbench_line_numbers::hidden,
 			   "a restarted host restores the source-pane numbering into the "
 			   "core rather than leaving it at the default");
+		expect(second.Host.state().OnePane == core::workbench_one_pane::enabled, "restart restores one pane");
+		expect(std::ranges::any_of(second.Projections.Published, [](const auto& aProjection) { return aProjection.OnePane && aProjection.OnePane->State == core::workbench_one_pane::enabled; }), "restart carries one pane through the window projection");
 		expect(durable.Stores == writes, "a restart performs no write-back");
 	}
 

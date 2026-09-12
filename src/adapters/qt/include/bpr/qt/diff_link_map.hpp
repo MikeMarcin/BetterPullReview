@@ -3,8 +3,10 @@
 
 #include "bpr/qt/comparison_scroll_controller.hpp"
 
+#include <QLineF>
 #include <QPainterPath>
 #include <QPointF>
+#include <QRectF>
 #include <QSplitter>
 #include <QSplitterHandle>
 #include <QtTypes>
@@ -102,6 +104,39 @@ namespace bpr::qt {
 		= std::function<void(const diff_link_map_identity&)>;
 	using diff_link_map_hover_sink
 		= std::function<void(const std::optional<diff_link_map_identity>&)>;
+
+	/// \brief One change's row bands and converging ribbons in a unified viewport.
+	struct visible_one_pane_diff_link
+	{
+		diff_link_map_identity Identity;
+		std::optional<QRectF>  Removed;
+		std::optional<QRectF>  Added;
+		QPainterPath           RemovedRibbon;
+		QPainterPath           AddedRibbon;
+		QLineF                 Spine;
+	};
+
+	/// \brief The correspondence map at its one-column limit; contains no file overview.
+	class one_pane_diff_link_map final : public QWidget
+	{
+	public:
+		explicit one_pane_diff_link_map(QWidget* aParent = nullptr);
+		/// \brief Adopts only changes intersecting the source viewport, in document order.
+		void               set_links(std::vector<visible_one_pane_diff_link> aLinks,
+									 std::optional<core::change_group_id> aSelected, QRectF aViewportBand);
+		[[nodiscard]] auto visible_links() const noexcept -> std::span<const visible_one_pane_diff_link>;
+		void               set_selection_sink(diff_link_map_identity_sink aSink);
+
+	protected:
+		void paintEvent(QPaintEvent* aEvent) override;
+		void mousePressEvent(QMouseEvent* aEvent) override;
+
+	private:
+		std::vector<visible_one_pane_diff_link> Links;
+		std::optional<core::change_group_id>    Selected;
+		QRectF                                  ViewportBand;
+		diff_link_map_identity_sink             SelectionSink;
+	};
 
 	/// \brief Paints and interacts with the center correspondence divider.
 	class diff_link_map final : public QSplitterHandle

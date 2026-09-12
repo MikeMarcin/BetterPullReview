@@ -784,7 +784,7 @@ foreach(bpr_workbench_window_scale IN ITEMS 100 125 200)
         qt_workbench_window_scale_${bpr_workbench_window_scale}
         PROPERTIES
             ENVIRONMENT
-                "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_workbench_window_scale_factor};BPR_EXPECTED_QT_SCALE=${bpr_workbench_window_scale_factor}"
+                "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_workbench_window_scale_factor};BPR_EXPECTED_QT_SCALE=${bpr_workbench_window_scale_factor};BPR_QT_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/workbench-window-${bpr_workbench_window_scale}.png"
             PASS_REGULAR_EXPRESSION "workbench-window-tests:pass"
             TIMEOUT 120
     )

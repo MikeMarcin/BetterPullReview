@@ -19,6 +19,7 @@
 #include <QCursor>
 #include <QElapsedTimer>
 #include <QEvent>
+#include <QFileInfo>
 #include <QIcon>
 #include <QImage>
 #include <QKeyEvent>
@@ -385,6 +386,7 @@ namespace {
 				offered(core::workbench_command_id::toggle_conversations_drawer),
 				offered(core::workbench_command_id::toggle_line_numbers),
 				offered(core::workbench_command_id::toggle_repositories_drawer),
+				offered(core::workbench_command_id::toggle_one_pane),
 			},
 			.Policy = aPolicy,
 		};
@@ -1082,6 +1084,60 @@ namespace {
 		window.publish(refusedProjection);
 		expect(!action->isEnabled(),
 			   "the entry's enabled state follows the core command projection");
+	}
+
+	void test_the_view_menu_projects_one_pane_without_changing_modality()
+	{
+		intent_log           log;
+		qt::workbench_window window{ [&log](core::workbench_interaction_intent aIntent) {
+			log.Workbench.push_back(std::move(aIntent));
+		} };
+		window.show();
+		QApplication::processEvents();
+		auto* const action = window.one_pane_action();
+		expect(action != nullptr && action->isCheckable()
+				   && action->shortcut().isEmpty()
+				   && window.view_menu()->actions().contains(action),
+			   "One pane is a checkable View item with no shortcut");
+		expect(!action->isEnabled() && !action->isChecked(),
+			   "One pane starts disabled and unchecked without a comparison");
+
+		auto projection    = both_files_enabled();
+		projection.OnePane = core::workbench_one_pane_delta{
+			.State = core::workbench_one_pane::disabled,
+		};
+		window.publish(projection);
+		expect(action->isEnabled() && !action->isChecked(),
+			   "the View action takes legality and state from the projection");
+		action->trigger();
+		expect(log.Workbench.size() == 1U
+				   && std::get_if<core::toggle_workbench_one_pane_intent>(
+						  &log.Workbench.front())
+					   != nullptr
+				   && !action->isChecked(),
+			   "the View item dispatches one intent and reasserts the projected mark");
+
+		projection.OnePane = core::workbench_one_pane_delta{
+			.State = core::workbench_one_pane::enabled,
+		};
+		window.publish(projection);
+		expect(action->isChecked()
+				   && window.comparison_surface()->one_pane_enabled(),
+			   "the published choice reaches the composed comparison surface");
+		window.choose_modality(qt::review_modality::read);
+		window.choose_modality(qt::review_modality::review);
+		expect(action->isChecked()
+				   && window.comparison_surface()->one_pane_enabled(),
+			   "switching Read to Review retains the one-pane presentation");
+
+		auto refusedProjection = both_files_enabled();
+		refusedProjection.Commands->Commands[static_cast<std::size_t>(
+			core::workbench_command_id::toggle_one_pane)]
+			= refused(core::workbench_command_id::toggle_one_pane,
+					  core::workbench_reason_code::no_active_workbench);
+		window.publish(refusedProjection);
+		expect(!action->isEnabled() && action->isChecked(),
+			   "a refused command disables the item without changing the choice");
 	}
 
 	void process_events();
@@ -2951,6 +3007,73 @@ namespace {
 		expect(surface->current_result() != nullptr,
 			   "the composed surface accepts its exact publication");
 		return surface;
+	}
+
+	void test_one_pane_places_threads_on_their_own_changed_rows()
+	{
+		const auto [leftText, rightText] = comparison_fixture_text();
+		const auto diff                  = computed_comparison(
+			leftText, rightText, 0U, core::file_identity_of("src/file.cpp"));
+		qt::workbench_window window;
+		window.resize(1'280, 1'000);
+		window.show();
+		process_events();
+		auto* const surface = publish_fixture(window, diff);
+		auto        onePane = both_files_enabled();
+		onePane.OnePane     = core::workbench_one_pane_delta{
+			.State = core::workbench_one_pane::enabled,
+		};
+		window.publish(onePane);
+		process_events();
+		window.set_conversation_endpoint_placement(true, true);
+		window.conversation_panel()->adopt({
+											   application::github_conversation_projection{
+												   .Id                 = "old-thread-a",
+												   .Kind               = application::github_conversation_kind::review_thread,
+												   .Path               = "src/file.cpp",
+												   .Line               = 13U,
+												   .DiffSide           = application::github_conversation_diff_side::left,
+												   .AnchorAvailability = application::github_conversation_anchor_availability::current,
+											   },
+											   application::github_conversation_projection{
+												   .Id                 = "old-thread-b",
+												   .Kind               = application::github_conversation_kind::review_thread,
+												   .Path               = "src/file.cpp",
+												   .Line               = 13U,
+												   .DiffSide           = application::github_conversation_diff_side::left,
+												   .AnchorAvailability = application::github_conversation_anchor_availability::current,
+											   },
+											   application::github_conversation_projection{
+												   .Id                 = "new-thread",
+												   .Kind               = application::github_conversation_kind::review_thread,
+												   .Path               = "src/file.cpp",
+												   .Line               = 13U,
+												   .DiffSide           = application::github_conversation_diff_side::right,
+												   .AnchorAvailability = application::github_conversation_anchor_availability::current,
+											   },
+										   },
+										   QStringLiteral("three conversations"));
+		process_events();
+		const auto oldRow = surface->line_rect(core::diff_side::left, 12U);
+		const auto newRow = surface->line_rect(core::diff_side::right, 12U);
+		expect(!oldRow.isEmpty() && !newRow.isEmpty()
+				   && oldRow.y() < newRow.y(),
+			   "removed and added threads have distinct unified rows in source order");
+		const auto& cards = window.conversation_panel()->cards()->cards();
+		expect(cards.size() == 3U
+				   && std::ranges::all_of(cards, [](const qt::thread_card& aCard) {
+						  return aCard.Placed && aCard.Rect.top() >= aCard.TargetY;
+					  })
+				   && cards[0].TargetY == cards[1].TargetY && cards[0].Rect.bottom() < cards[1].Rect.top() && cards[1].TargetY < cards[2].TargetY,
+			   "colliding old-side cards stay anchored to their row, follow document order, and push down");
+		const auto rendered = window.grab();
+		expect(!rendered.isNull(), "the one-pane thread state renders in the composed window");
+		if (const auto path = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !path.isEmpty()) {
+			const QFileInfo file{ path };
+			expect(rendered.save(
+					   QStringLiteral("%1/%2-one-pane-threads.png").arg(file.path(), file.completeBaseName()), "PNG"),
+				   "the one-pane thread state is saved for inspection");
+		}
 	}
 
 	/// \brief Proves the View menu's decision actually reaches the source panes.
@@ -6379,7 +6502,9 @@ auto main(int argc, char** argv) -> int
 	test_toolbar_status_tips_do_not_resize_the_workbench();
 	test_drawer_toggles_follow_core_command_projections();
 	test_the_view_menu_offers_a_core_decided_line_number_toggle();
+	test_the_view_menu_projects_one_pane_without_changing_modality();
 	test_the_view_menu_reaches_the_composed_source_panes();
+	test_one_pane_places_threads_on_their_own_changed_rows();
 	test_collapsing_a_drawer_returns_space_to_the_centre();
 	test_strip_modalities_positions_and_account();
 	test_strip_identity_stays_at_every_width();

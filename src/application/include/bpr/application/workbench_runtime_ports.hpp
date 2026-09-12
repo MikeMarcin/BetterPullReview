@@ -540,6 +540,7 @@ namespace bpr::application {
 		/// [[BPR-0651]]. The repositories drawer, left of the files.
 		core::workbench_drawer_state Repositories       = core::workbench_drawer_state::expanded;
 		core::workbench_line_numbers LineNumbers        = core::workbench_line_numbers::shown;
+		core::workbench_one_pane     OnePane            = core::workbench_one_pane::disabled;
 		std::uint32_t                FilesWidth         = 320U;
 		std::uint32_t                ConversationsWidth = 320U;
 		std::uint32_t                RepositoriesWidth  = 300U;
@@ -557,6 +558,7 @@ namespace bpr::application {
 		core::workbench_drawer_state Conversations = core::workbench_drawer_state::expanded;
 		core::workbench_drawer_state Repositories  = core::workbench_drawer_state::expanded;
 		core::workbench_line_numbers LineNumbers   = core::workbench_line_numbers::shown;
+		core::workbench_one_pane     OnePane       = core::workbench_one_pane::disabled;
 		std::uint32_t                FilesWidth = 320U, ConversationsWidth = 320U, RepositoriesWidth = 300U;
 		auto                         operator<=>(const workbench_window_layout&) const = default;
 	};
@@ -568,13 +570,13 @@ namespace bpr::application {
 	};
 	[[nodiscard]] inline auto window_layout(const workbench_layout_settings& aSettings) -> workbench_window_layout
 	{
-		return { aSettings.Files, aSettings.Conversations, aSettings.Repositories, aSettings.LineNumbers,
+		return { aSettings.Files, aSettings.Conversations, aSettings.Repositories, aSettings.LineNumbers, aSettings.OnePane,
 				 aSettings.FilesWidth, aSettings.ConversationsWidth, aSettings.RepositoriesWidth };
 	}
 	[[nodiscard]] inline auto combined_layout(const workbench_window_layout&   aLayout,
 											  const review_behaviour_settings& aBehaviour) -> workbench_layout_settings
 	{
-		return { aLayout.Files, aLayout.Conversations, aLayout.Repositories, aLayout.LineNumbers,
+		return { aLayout.Files, aLayout.Conversations, aLayout.Repositories, aLayout.LineNumbers, aLayout.OnePane,
 				 aLayout.FilesWidth, aLayout.ConversationsWidth, aLayout.RepositoriesWidth, aBehaviour };
 	}
 	[[nodiscard]] inline auto valid(const workbench_window_layout& aLayout) noexcept -> bool
@@ -583,6 +585,7 @@ namespace bpr::application {
 		const auto width  = [](const std::uint32_t aValue) { return aValue >= minimum_workbench_drawer_width && aValue <= maximum_workbench_drawer_width; };
 		return drawer(aLayout.Files) && drawer(aLayout.Conversations) && drawer(aLayout.Repositories)
 			&& (aLayout.LineNumbers == core::workbench_line_numbers::shown || aLayout.LineNumbers == core::workbench_line_numbers::hidden)
+			&& (aLayout.OnePane == core::workbench_one_pane::disabled || aLayout.OnePane == core::workbench_one_pane::enabled)
 			&& width(aLayout.FilesWidth) && width(aLayout.ConversationsWidth) && width(aLayout.RepositoriesWidth);
 	}
 	[[nodiscard]] inline auto valid(const workbench_profile_preferences& aPreferences) noexcept -> bool
@@ -686,6 +689,7 @@ namespace bpr::application {
 		std::optional<core::workbench_selection_delta>        Selection;
 		std::optional<core::workbench_drawer_delta>           Drawers;
 		std::optional<core::workbench_line_numbers_delta>     LineNumbers;
+		std::optional<core::workbench_one_pane_delta>         OnePane;
 		std::optional<core::workbench_command_delta>          Commands;
 		std::optional<workbench_layout_delta>                 Layout;
 		std::optional<std::vector<workbench_file_projection>> Files;
@@ -709,6 +713,7 @@ namespace bpr::application {
 		return !aProjection.Selection.has_value()
 			&& !aProjection.Drawers.has_value()
 			&& !aProjection.LineNumbers.has_value()
+			&& !aProjection.OnePane.has_value()
 			&& !aProjection.Commands.has_value()
 			&& !aProjection.Layout.has_value()
 			&& !aProjection.Files.has_value()

@@ -1,3 +1,6 @@
+#include "diff_publication_fixture.hpp"
+
+#include "bpr/core/diff_compute.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
@@ -53,9 +56,12 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -2515,6 +2521,153 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief Exercises one-pane thread placement through the composed GitHub projection.
+	auto test_one_pane_places_github_threads_on_their_own_rows() -> void
+	{
+		const auto opaque = []<typename Identity>(const std::uint8_t aSeed) {
+			auto bytes    = std::array<std::uint8_t, 32U>{ };
+			bytes.front() = aSeed;
+			bytes.back()  = static_cast<std::uint8_t>(aSeed ^ 0xA5U);
+			return Identity{ bytes };
+		};
+		const auto blob = [](const std::uint8_t aSeed) {
+			auto bytes = std::array<std::uint8_t, 32U>{ };
+			for (std::size_t index = 0U; index < 20U; ++index) {
+				bytes[index] = static_cast<std::uint8_t>(aSeed + index);
+			}
+			return core::git_blob_oid{ core::git_hash_algorithm::sha1, bytes };
+		};
+		const auto options = core::diff_options{ };
+		const auto digest  = core::options_digest(options);
+		expect(digest.has_value(), "one-pane GitHub fixture options normalize");
+		const auto scope                                   = opaque.template operator()<core::pull_request_authority_scope_id>(11U);
+		const auto incarnation                             = opaque.template operator()<core::epoch_catalog_incarnation_id>(12U);
+		const auto                               authority = core::pull_request_authority{
+			.Profile         = core::host_profile_id{ 10U },
+			.ProfileRevision = core::github_profile_revision{ 20U },
+			.Host            = core::git_host_id{ 30U },
+			.HostAuthority   = opaque.template operator()<core::host_authority_fingerprint>(13U),
+			.Account         = core::github_account_id{ 40U },
+			.Viewer          = core::github_viewer_actor_id{ 50U },
+			.Repository      = core::repository_id{ 101U },
+			.Cache           = opaque.template operator()<core::repository_cache_scope_id>(14U),
+			.PullRequest     = core::pull_request_id{ 202U },
+			.Number          = core::pull_request_number{ 17U },
+			.Scope           = scope,
+		};
+		const auto key = core::file_comparison_key{
+			.Authority   = authority,
+			.Repository  = authority.Repository,
+			.PullRequest = authority.PullRequest,
+			.LeftAnchor  = { .Authority = scope, .Incarnation = incarnation, .Kind = core::comparison_anchor_kind::epoch_base, .Epoch = core::epoch_ordinal{ 1 } },
+			.RightAnchor = { .Authority = scope, .Incarnation = incarnation, .Kind = core::comparison_anchor_kind::epoch_head, .Epoch = core::epoch_ordinal{ 2 } },
+			.LeftBlob    = blob(21U),
+			.RightBlob   = blob(51U),
+			.File        = core::file_identity_of("src/review.cpp"),
+			.Options     = *digest,
+			.Algorithm   = core::supported_diff_algorithm_revision,
+		};
+		auto leftText  = std::string{ };
+		auto rightText = std::string{ };
+		for (std::size_t line = 0U; line < 12U; ++line) {
+			const auto common = "leading-" + std::to_string(line) + '\n';
+			leftText += common;
+			rightText += common;
+		}
+		leftText += "old-a\nold-b\nold-c\ncommon-tail\n";
+		rightText += "new-a\nnew-b\ncommon-tail\n";
+		const auto left   = std::vector<std::uint8_t>{ leftText.begin(), leftText.end() };
+		const auto right  = std::vector<std::uint8_t>{ rightText.begin(), rightText.end() };
+		const auto result = core::compute_file_diff({
+			.Key        = key,
+			.Options    = options,
+			.LeftBytes  = std::span<const std::uint8_t>{ left },
+			.RightBytes = std::span<const std::uint8_t>{ right },
+		});
+		expect(result.Reason == core::diff_reason_code::none && result.Result.has_value(),
+			   "one-pane GitHub fixture computes a replacement");
+
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			profiles(),
+			[](application::github_intent) { },
+		};
+		window.resize(1'280, 1'000);
+		window.show();
+		QApplication::processEvents();
+		publish_session_ready(window);
+		auto       pullRequest = pull_request_projection();
+		const auto makeThread  = [](std::string                                      aId,
+									const application::github_conversation_diff_side aSide) {
+			auto thread               = conversation(std::move(aId),
+													 application::github_conversation_kind::review_thread);
+			thread.Line               = 13U;
+			thread.DiffSide           = aSide;
+			thread.AnchorAvailability = application::github_conversation_anchor_availability::current;
+			return thread;
+		};
+		pullRequest.Conversations = {
+			makeThread("review-thread:old-a", application::github_conversation_diff_side::left),
+			makeThread("review-thread:old-b", application::github_conversation_diff_side::left),
+			makeThread("review-thread:new", application::github_conversation_diff_side::right),
+		};
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Commands = enabled_commands(),
+				.Status   = core::github_status_delta{ .Status = core::github_status::pull_request_ready },
+			},
+			.PullRequest = std::move(pullRequest),
+		});
+		auto* const surface = window.comparison_surface();
+		const auto  context = core::diff_request_context{
+			.Request            = core::request_id{ 1U },
+			.ApplicationSession = core::application_session_id{ 1U },
+			.Key                = key,
+			.Generation         = core::request_generation{ 1U },
+		};
+		surface->set_loading(context);
+		surface->publish(qt::test::prepare_publication({
+			.Context = context,
+			.Result  = std::make_shared<const core::computed_file_diff>(*result.Result),
+		}));
+		auto onePane    = application::workbench_projection{ };
+		onePane.OnePane = core::workbench_one_pane_delta{ .State = core::workbench_one_pane::enabled };
+		window.publish(onePane);
+		window.set_conversation_endpoint_placement(true, true);
+		QApplication::processEvents();
+
+		const auto  oldRow = surface->line_rect(core::diff_side::left, 12U);
+		const auto  newRow = surface->line_rect(core::diff_side::right, 12U);
+		const auto& cards  = window.conversation_panel()->cards()->cards();
+		expect(window.one_pane_action()->isChecked() && surface->one_pane_enabled()
+				   && !oldRow.isEmpty() && !newRow.isEmpty() && oldRow.y() < newRow.y(),
+			   "composed GitHub one-pane Review shows side-specific replacement rows");
+		expect(cards.size() == 3U && std::ranges::all_of(cards, [](const qt::thread_card& aCard) {
+				   return aCard.Placed && aCard.Rect.top() >= aCard.TargetY;
+			   }) && cards[0].TargetY == cards[1].TargetY
+				   && cards[0].Rect.bottom() < cards[1].Rect.top() && cards[1].TargetY < cards[2].TargetY,
+			   "GitHub-projected old/new threads anchor and colliding cards push down in document order");
+		capture_layout_state(window, QStringLiteral("one-pane-threads"));
+		if (const auto path = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !path.isEmpty()) {
+			const QFileInfo file{ path };
+			const auto      origin = surface->mapTo(&window, QPoint{ 0, 0 });
+			const auto      crop   = window.grab(QRect{
+				origin.x(),
+				origin.y(),
+				window.width() - origin.x(),
+				std::min(window.height() - origin.y(), 480),
+			});
+			expect(!crop.isNull()
+					   && crop.save(QStringLiteral("%1/%2-one-pane-threads-crop.png")
+										.arg(file.path(), file.completeBaseName()),
+									"PNG"),
+				   "composed GitHub one-pane thread crop is retained for three-scale inspection");
+		}
+		window.hide();
+	}
+
 	// [[BPR-0650]]. Home's action list: rows grouped under their headings
 	// with the columns the design names, a click opening the pull request on
 	// Overview, and the open bar sending the locator's intent.
@@ -4211,6 +4364,7 @@ auto main(int argc, char** argv) -> int
 	test_home_lists_recently_viewed_pull_requests();
 	test_a_pull_request_without_a_comparison_still_lists_its_files();
 	test_read_drawer_shows_threads_as_cards_with_scope_and_actions();
+	test_one_pane_places_github_threads_on_their_own_rows();
 	test_drawer_controls_are_reachable_in_the_conversations_drawer();
 	test_home_landing_funnels_to_an_account_and_then_a_pull_request();
 	test_device_sign_in_is_mounted_beside_the_session_chrome();

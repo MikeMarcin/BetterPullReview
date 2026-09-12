@@ -176,6 +176,7 @@ int main()
 	expect(second.layout().Behaviour == refused && first.layout().Behaviour == chosen, "closed consumer is detached while sibling preferences remain live");
 	auto defaults       = durable.Preferences.NewWindowDefaults;
 	defaults.FilesWidth = 555;
+	defaults.OnePane    = core::workbench_one_pane::enabled;
 	expect(preferences.apply_defaults(defaults), "a defaults edit begins durable work");
 	auto latest         = refused;
 	latest.OpenModality = application::review_open_modality::overview;
@@ -183,9 +184,9 @@ int main()
 	defaults.FilesWidth = 666;
 	expect(preferences.apply_defaults(defaults), "latest defaults coalesce without losing behaviour");
 	settle();
-	expect(durable.Preferences.NewWindowDefaults.FilesWidth == 666 && durable.Preferences.Behaviour == latest,
+	expect(durable.Preferences.NewWindowDefaults.FilesWidth == 666 && durable.Preferences.NewWindowDefaults.OnePane == core::workbench_one_pane::enabled && durable.Preferences.Behaviour == latest,
 		   "bounded pending edits retain both preference domains");
-	expect(second.layout().FilesWidth == 777 && durable.Windows == windows, "default changes never overwrite admitted window geometry");
+	expect(second.layout().FilesWidth == 777 && second.layout().OnePane == core::workbench_one_pane::disabled && durable.Windows == windows, "default changes never overwrite admitted window geometry");
 	expect(preferences.subscribe(core::bpr_profile_id{ 99 }, [](const auto&) { }) == 0, "foreign profile subscriptions are refused");
 	expect(preferences.apply_defaults(application::workbench_window_layout{ }), "cancellable write starts");
 	preferences.cancel();

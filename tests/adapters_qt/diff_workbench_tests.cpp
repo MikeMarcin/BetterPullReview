@@ -2762,12 +2762,271 @@ namespace {
 		}
 		expect(checked, "at least one change group boundary was visible to check");
 	}
+	void test_one_pane_round_trip_keeps_an_unselected_empty_side_anchor()
+	{
+		for (const auto deletion : { true, false }) {
+			auto common = std::string{ };
+			for (auto line = 0; line < 20; ++line) {
+				common += "common " + std::to_string(line) + "\n";
+			}
+			auto longer = common;
+			for (auto line = 0; line < 100; ++line) {
+				longer += "one side " + std::to_string(line) + "\n";
+			}
+			for (auto line = 0; line < 80; ++line) {
+				const auto tail = "tail " + std::to_string(line) + "\n";
+				common += tail;
+				longer += tail;
+			}
+			const auto diff = computed(deletion ? longer : common, deletion ? common : longer, { }, deletion ? 80U : 81U);
+			expect(diff.Alignment.Groups.size() == 1U && (deletion ? diff.Alignment.Groups.front().Right : diff.Alignment.Groups.front().Left).empty(),
+				   "round-trip fixture contains a large change with one empty side");
+			auto workbench = qt::diff_workbench{ };
+			workbench.resize(900, 540);
+			workbench.show();
+			const auto request = context(diff, 151U, 151U);
+			workbench.set_loading(request);
+			workbench.publish(qt::test::prepare_publication({ .Context = request, .Result = std::make_shared<const core::computed_file_diff>(diff) }));
+			settle_geometry(workbench);
+			const auto selectedSide = deletion ? core::diff_side::right : core::diff_side::left;
+			expect(workbench.select_conversation_line(selectedSide, 5U), "select an equal line on the side absent from the large change");
+			const auto selection = workbench.selection();
+			workbench.set_one_pane_enabled(true);
+			process_events();
+			auto* const unified = workbench.findChild<QPlainTextEdit*>(QStringLiteral("diffUnifiedSource"));
+			workbench.shared_scrollbar()->setValue(70);
+			process_events();
+			const auto before = unified->cursorForPosition(QPoint{ 0, 0 }).blockNumber();
+			expect(before == 70 && unified->document()->findBlockByNumber(before).text() == QStringLiteral("one side 50"), "reading viewport is in the middle of the unselected one-sided block");
+			expect(workbench.selection() == selection, "scrolling leaves the opposite-side semantic selection unchanged");
+			workbench.set_one_pane_enabled(false);
+			settle_geometry(workbench);
+			workbench.set_one_pane_enabled(true);
+			process_events();
+			const auto after = unified->cursorForPosition(QPoint{ 0, 0 }).blockNumber();
+			if (after != before) {
+				std::cerr << "one-sided round trip deletion=" << deletion << " before=" << before << " after=" << after << '\n';
+			}
+			expect(after == before && workbench.selection() == selection,
+				   "round trip preserves the top row's own-side identity independently of the semantic selection side");
+			workbench.set_one_pane_enabled(false);
+			settle_geometry(workbench);
+			auto* const opposite    = selectedSide == core::diff_side::left ? workbench.left_pane() : workbench.right_pane();
+			const auto  oppositeTop = opposite->cursorForPosition(QPoint{ 0, 0 }).blockNumber();
+			expect(workbench.select_conversation_line(selectedSide, 5U) && workbench.selection() == selection,
+				   "an explicit repeated line selection retakes its side without changing semantic identity");
+			workbench.set_one_pane_enabled(true);
+			process_events();
+			const auto expectedTop = oppositeTop < 20 ? oppositeTop : oppositeTop + 100;
+			expect(unified->cursorForPosition(QPoint{ 0, 0 }).blockNumber() == expectedTop,
+				   "explicit line selection replaces the retained viewport side instead of pinning an old reading anchor");
+		}
+	}
+
+	void test_one_pane_rows_anchors_and_link_map()
+	{
+		auto workbench = qt::diff_workbench{ };
+		workbench.resize(1000, 780);
+		auto profile = qt::appearance_profile{ };
+		static_cast<void>(profile.select_mode(core::appearance_mode::light));
+		profile.apply_to(workbench);
+		profile.apply_code_font_to(workbench);
+		workbench.adopt_appearance(profile);
+		workbench.show();
+		auto left  = std::string{ "start\nint count = 1;\nold second\nmiddle\nkeep-a\nkeep-b\nremoved only\nkeep-c\nkeep-d\nend\n" };
+		auto right = std::string{ "start\nint count = 2;\nnew second\nmiddle\nkeep-a\nkeep-b\nkeep-c\nkeep-d\ninserted only\nend\n" };
+		for (auto line = 0; line < 120; ++line) {
+			const auto text = "tail " + std::to_string(line) + "\n";
+			left += text;
+			right += text;
+		}
+		const auto diff = computed(left, right, { }, 79U);
+		expect(diff.Alignment.Groups.size() == 3U && !diff.Intraline.empty(), "unified fixture has replacement, deletion, insertion and word edits");
+		const auto request = context(diff, 150U, 150U);
+		workbench.set_loading(request);
+		workbench.publish(qt::test::prepare_publication({ .Context = request, .Result = std::make_shared<const core::computed_file_diff>(diff) }));
+		settle_geometry(workbench);
+		const auto selection = workbench.selection();
+		const auto index     = workbench.current_semantic_index();
+		workbench.set_one_pane_enabled(true);
+		process_events();
+		auto* const unified = workbench.findChild<QPlainTextEdit*>(QStringLiteral("diffUnifiedSource"));
+		auto* const map     = dynamic_cast<qt::one_pane_diff_link_map*>(workbench.findChild<QWidget*>(QStringLiteral("diffOnePaneLinkMap")));
+		expect(unified != nullptr && unified->isVisible() && map != nullptr && map->isVisible(), "one pane displays one source document and its gutter link map");
+		expect(!workbench.comparison_splitter()->isVisible() && workbench.selection() == selection && workbench.current_semantic_index() == index,
+			   "presentation flip preserves selection and the one immutable semantic index");
+		struct expected_row
+		{
+			const char*                  Text;
+			std::optional<std::uint32_t> Base;
+			std::optional<std::uint32_t> Head;
+		};
+		const auto rows = std::array{
+			expected_row{ "start", 0U, 0U },
+			expected_row{ "int count = 1;", 1U, std::nullopt },
+			expected_row{ "old second", 2U, std::nullopt },
+			expected_row{ "int count = 2;", std::nullopt, 1U },
+			expected_row{ "new second", std::nullopt, 2U },
+			expected_row{ "middle", 3U, 3U },
+			expected_row{ "keep-a", 4U, 4U },
+			expected_row{ "keep-b", 5U, 5U },
+			expected_row{ "removed only", 6U, std::nullopt },
+			expected_row{ "keep-c", 7U, 6U },
+			expected_row{ "keep-d", 8U, 7U },
+			expected_row{ "inserted only", std::nullopt, 8U },
+			expected_row{ "end", 9U, 9U },
+		};
+		for (auto rowIndex = std::size_t{ 0U }; rowIndex < rows.size(); ++rowIndex) {
+			const auto& row   = rows[rowIndex];
+			const auto  block = unified->document()->findBlockByNumber(static_cast<int>(rowIndex));
+			expect(block.text() == QString::fromUtf8(row.Text), "unified document follows exact old-then-new block order");
+			const auto cursorRect = unified->cursorRect(QTextCursor{ block });
+			const auto y          = unified->viewport()->mapTo(&workbench, cursorRect.center()).y();
+			if (row.Base) {
+				expect(workbench.line_rect(core::diff_side::left, *row.Base).contains(QPoint{ unified->viewport()->mapTo(&workbench, QPoint{ 10, 0 }).x(), y }), "base anchor resolves to its own unified row");
+			}
+			if (row.Head) {
+				expect(workbench.line_rect(core::diff_side::right, *row.Head).contains(QPoint{ unified->viewport()->mapTo(&workbench, QPoint{ 10, 0 }).x(), y }), "head anchor resolves to its own unified row");
+			}
+			auto click = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ cursorRect.center() }, QPointF{ unified->viewport()->mapToGlobal(cursorRect.center()) }, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+			QApplication::sendEvent(unified->viewport(), &click);
+			expect(workbench.selection() && workbench.selection()->PreferredLine.Side == (row.Head ? core::diff_side::right : core::diff_side::left)
+					   && workbench.selection()->PreferredLine.Line == row.Head.value_or(row.Base.value_or(0U)),
+				   "click carries the displayed row's exact source side and number");
+			const auto formats = block.layout()->formats();
+			const auto struck  = std::ranges::any_of(formats, [](const QTextLayout::FormatRange& aFormat) { return aFormat.format.fontStrikeOut(); });
+			expect(struck == !row.Head.has_value(), "only base-only rows carry a strike");
+		}
+		expect(workbench.line_rect(core::diff_side::left, 1U).top() < workbench.line_rect(core::diff_side::right, 1U).top(), "replacement sides have separate thread geometry");
+		expect(workbench.select_conversation_line(core::diff_side::right, 0U), "select unchanged row for unwashed change evidence");
+		process_events();
+		const auto paintedSelections = unified->extraSelections();
+		for (const auto& edit : diff.Intraline) {
+			const auto pair = std::ranges::find(diff.Alignment.Pairs, edit.Pair, &core::line_pair::Id);
+			expect(pair != diff.Alignment.Pairs.end(), "intraline identity resolves to the accepted pair");
+			for (const auto side : { core::diff_side::left, core::diff_side::right }) {
+				const auto span = side == core::diff_side::left ? edit.Left : edit.Right;
+				if (span.empty()) {
+					continue;
+				}
+				const auto line = side == core::diff_side::left ? pair->LeftLine : pair->RightLine;
+				const auto row  = std::ranges::find_if(rows, [side, line](const expected_row& aRow) { return (side == core::diff_side::left ? aRow.Base : aRow.Head) == line; });
+				expect(row != rows.end(), "intraline row belongs to the displayed fixture");
+				const auto rowIndex = static_cast<int>(std::distance(rows.begin(), row));
+				expect(std::ranges::any_of(paintedSelections, [&](const QTextEdit::ExtraSelection& aSelection) {
+						   return !aSelection.format.property(QTextFormat::FullWidthSelection).toBool() && aSelection.cursor.blockNumber() == rowIndex
+							   && aSelection.cursor.selectionStart() - aSelection.cursor.block().position() == static_cast<int>(span.Begin)
+							   && aSelection.cursor.selectedText().size() == static_cast<qsizetype>(span.End - span.Begin);
+					   }),
+					   "word-level emphasis maps the exact source span to its unified row");
+			}
+		}
+		const auto links = map->visible_links();
+		expect(links.size() == 3U, "gutter projects the three visible blocks");
+		expect(!links[0].RemovedRibbon.isEmpty() && !links[0].AddedRibbon.isEmpty(), "replacement draws both ribbons on one spine");
+		expect(!links[1].RemovedRibbon.isEmpty() && links[1].AddedRibbon.isEmpty(), "pure deletion draws only its removed ribbon");
+		expect(links[2].RemovedRibbon.isEmpty() && !links[2].AddedRibbon.isEmpty(), "pure insertion draws only its added ribbon");
+		for (const auto& link : links) {
+			expect(link.Spine.length() > 0.0 && link.Spine.length() <= 14.0, "each change has a short spine, not a whole-file overview");
+			for (const auto* path : { &link.RemovedRibbon, &link.AddedRibbon }) {
+				if (!path->isEmpty()) {
+					expect(path->boundingRect().left() == link.Spine.x1(), "both ribbons converge on their own spine");
+				}
+			}
+		}
+		auto* const gutter      = unified->findChild<QWidget*>(QStringLiteral("diffSourceLineNumbers"));
+		const auto  gutterImage = gutter->grab().toImage();
+		const auto  ratio       = gutterImage.devicePixelRatio();
+		const auto  removed     = profile.color(core::appearance_role::diff_removed_background);
+		const auto  added       = profile.color(core::appearance_role::diff_added_background);
+		const auto  number      = profile.color(core::appearance_role::code_line_number_text);
+		const auto  renderPath  = qEnvironmentVariable("BPR_QT_DIFF_WORKBENCH_RENDER_PATH");
+		if (!renderPath.isEmpty()) {
+			auto gutterPath = renderPath;
+			gutterPath.replace(QStringLiteral(".png"), QStringLiteral("-one-pane-gutter.png"));
+			expect(gutterImage.save(gutterPath), "base/head gutter crop is retained for inspection");
+		}
+		for (auto rowIndex = std::size_t{ 0U }; rowIndex < rows.size(); ++rowIndex) {
+			const auto& row     = rows[rowIndex];
+			const auto  rowRect = unified->cursorRect(QTextCursor{ unified->document()->findBlockByNumber(static_cast<int>(rowIndex)) });
+			const auto  gutterY = unified->viewport()->mapTo(&workbench, rowRect.topLeft()).y() - gutter->mapTo(&workbench, QPoint{ }).y();
+			if (!row.Head || !row.Base) {
+				expect(gutterImage.pixelColor(qRound(2 * ratio), qRound((gutterY + rowRect.height() / 2.0) * ratio)) == (!row.Head ? removed : added), "change field includes both number columns");
+			}
+			for (auto side = 0; side < 2; ++side) {
+				auto       count  = 0;
+				const auto column = gutterImage.width() / 2;
+				for (auto y = qRound(gutterY * ratio); y < qRound((gutterY + rowRect.height()) * ratio); ++y) {
+					for (auto x = side * column; x < (side + 1) * column; ++x) {
+						const auto pixel = gutterImage.pixelColor(x, y);
+						// A small glyph at 100% can contain only antialiased pixels.
+						// Count substantial foreground coverage; a blank column's
+						// background is far outside this per-channel tolerance.
+						if (std::abs(pixel.red() - number.red()) <= 32
+							&& std::abs(pixel.green() - number.green()) <= 32
+							&& std::abs(pixel.blue() - number.blue()) <= 32) {
+							++count;
+						}
+					}
+				}
+				if ((count > 0) != (side == 0 ? row.Base.has_value() : row.Head.has_value())) {
+					std::cerr << "number column row=" << rowIndex << " side=" << side << " pixels=" << count << " y=" << gutterY << '\n';
+				}
+				expect((count > 0) == (side == 0 ? row.Base.has_value() : row.Head.has_value()), "displayed base/head number columns are present only on their own rows");
+			}
+		}
+		expect(workbench.select_conversation_line(core::diff_side::left, 1U), "select a replacement for the current spine raster");
+		process_events();
+		const auto mapImage = map->grab().toImage();
+		const auto mapRatio = mapImage.devicePixelRatio();
+		const auto spine    = map->visible_links().front().Spine.center();
+		expect(mapImage.pixelColor(qRound(spine.x() * mapRatio), qRound(spine.y() * mapRatio)) == map->palette().color(QPalette::Highlight), "current change spine paints in the source selection signal colour");
+		if (!renderPath.isEmpty()) {
+			auto onePanePath = renderPath;
+			onePanePath.replace(QStringLiteral(".png"), QStringLiteral("-one-pane.png"));
+			expect(workbench.grab().save(onePanePath), "one-pane rendered evidence is written");
+		}
+		expect(workbench.reveal_conversation_line(core::diff_side::left, 1U), "removed line reveals by exact base identity");
+		expect(!workbench.conversation_anchor_marker_rect(core::diff_side::left).isEmpty() && workbench.conversation_anchor_marker_rect(core::diff_side::right).isEmpty(), "removed-line marker never aliases the head row");
+		expect(workbench.reveal_conversation_line(core::diff_side::right, 1U), "added line reveals by exact head identity");
+		expect(workbench.conversation_anchor_marker_rect(core::diff_side::left).isEmpty() && !workbench.conversation_anchor_marker_rect(core::diff_side::right).isEmpty(), "added-line marker belongs only to the head");
+		expect(workbench.navigate_change(core::change_navigation_direction::next, core::change_navigation_policy::stop), "next change advances a whole block");
+		expect(workbench.selection()->Group == diff.Alignment.Groups[1].Id, "one pane retains the core change ordinal");
+		const auto selectedDeletion = workbench.selection();
+		workbench.set_one_pane_enabled(false);
+		settle_geometry(workbench);
+		expect(workbench.selection() == selectedDeletion, "two-pane restoration keeps the same change ordinal");
+		workbench.set_one_pane_enabled(true);
+		process_events();
+		workbench.shared_scrollbar()->setValue(50);
+		process_events();
+		const auto readingRow = unified->cursorForPosition(QPoint{ 0, 0 }).blockNumber();
+		workbench.set_one_pane_enabled(false);
+		settle_geometry(workbench);
+		workbench.set_one_pane_enabled(true);
+		process_events();
+		expect(std::abs(unified->cursorForPosition(QPoint{ 0, 0 }).blockNumber() - readingRow) <= 1
+				   && workbench.selection() == selectedDeletion,
+			   "presentation round trip preserves the scrolled reading row and semantic selection");
+		workbench.shared_scrollbar()->setValue(workbench.shared_scrollbar()->maximum());
+		process_events();
+		expect(map->visible_links().empty(), "scrolling beyond changes leaves an empty gutter rather than a file overview");
+		workbench.clear();
+		expect(unified->toPlainText().isEmpty() && map->visible_links().empty() && workbench.line_rect(core::diff_side::left, 1U).isEmpty(), "invalidation clears unified text, ribbons and old-side geometry");
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
 	QApplication::setApplicationName(QStringLiteral("BetterPullReviewDiffWorkbenchTests"));
+	test_one_pane_round_trip_keeps_an_unselected_empty_side_anchor();
+	test_one_pane_rows_anchors_and_link_map();
+	{
+		auto workbench = qt::diff_workbench{ };
+		expect(workbench.findChild<QPlainTextEdit*>(QStringLiteral("diffUnifiedSource")) != nullptr,
+			   "one-pane comparison has a dedicated unified source surface");
+	}
 	test_the_panes_number_their_own_lines();
 	test_the_viewport_fill_survives_a_style_clearing_it();
 	test_the_gutter_follows_the_documents_digit_count();

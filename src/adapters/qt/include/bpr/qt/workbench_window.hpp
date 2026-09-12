@@ -485,6 +485,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto menu_bar() const noexcept -> QMenuBar*;
 		[[nodiscard]] auto view_menu() const noexcept -> QMenu*;
 		[[nodiscard]] auto line_numbers_action() const noexcept -> QAction*;
+		[[nodiscard]] auto one_pane_action() const noexcept -> QAction*;
 		[[nodiscard]] auto files_drawer() const noexcept
 			-> workbench_drawer_panel*;
 		/// \brief [[BPR-0658]]. The files drawer's tree and its order and filter.
@@ -812,6 +813,8 @@ namespace bpr::qt {
 		void               build_menu_bar();
 		void               dispatch_line_numbers_toggle();
 		void               apply_line_numbers();
+		void               dispatch_one_pane_toggle();
+		void               apply_one_pane();
 		void               update_drawer_action(
 			std::size_t                  aIndex,
 			core::workbench_command_id   aId,
@@ -916,6 +919,7 @@ namespace bpr::qt {
 		std::function<void()>                    QuitProfiles;
 
 		QAction*                    LineNumbersAction    = nullptr;
+		QAction*                    OnePaneAction        = nullptr;
 		QAction*                    ReviewDetailsAction  = nullptr;
 		QToolButton*                ReviewControlsButton = nullptr;
 		QMenu*                      ReviewControlsMenu   = nullptr;
@@ -1067,6 +1071,7 @@ namespace bpr::qt {
 		core::workbench_command_delta                              Commands;
 		core::workbench_drawer_delta                               DrawerStates;
 		core::workbench_line_numbers_delta                         LineNumberState;
+		core::workbench_one_pane_delta                             OnePaneState;
 		std::optional<application::workbench_layout_delta>         LayoutWidths;
 		std::optional<core::workbench_navigation_cursor>           Cursor;
 		std::optional<application::workbench_host_failure>         Failure;

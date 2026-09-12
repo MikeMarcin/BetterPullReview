@@ -16,6 +16,7 @@
 #include <QResizeEvent>
 #include <QScrollBar>
 #include <QShowEvent>
+#include <QSignalBlocker>
 #include <QSplitter>
 #include <QTextBlock>
 #include <QTextCharFormat>
@@ -45,6 +46,12 @@ namespace bpr::qt {
 		/// A one-glyph column reads as a margin, not as a column of numbers.
 		constexpr auto GutterMinimumDigits = 2;
 
+		struct unified_source_row
+		{
+			std::optional<std::uint32_t> Base;
+			std::optional<std::uint32_t> Head;
+		};
+
 		/// \brief Reserves the gutter each pane numbers its own lines in.
 		///
 		/// \details `code_gutter_background` and `code_line_number_text` have been
@@ -56,6 +63,17 @@ namespace bpr::qt {
 		{
 		public:
 			explicit source_pane(QWidget* aParent = nullptr);
+			void set_unified_rows(const std::vector<unified_source_row>* aRows)
+			{
+				UnifiedRows = aRows;
+				refresh_gutter_width();
+			}
+			void set_row_colors(const QColor& aRemoved, const QColor& aAdded);
+			void set_unified_selection(std::optional<core::line_span> aBase, std::optional<core::line_span> aHead)
+			{
+				SelectedBase = aBase;
+				SelectedHead = aHead;
+			}
 
 			/// \brief Widths the gutter to the widest number it will ever show.
 			///
@@ -264,9 +282,14 @@ namespace bpr::qt {
 			void showEvent(QShowEvent* aEvent) override;
 
 		private:
-			void refresh_gutter_width();
-			void restore_viewport_fill();
-			bool LineNumbersVisible = true;
+			void                                   refresh_gutter_width();
+			void                                   restore_viewport_fill();
+			bool                                   LineNumbersVisible = true;
+			const std::vector<unified_source_row>* UnifiedRows        = nullptr;
+			QColor                                 RemovedColor;
+			QColor                                 AddedColor;
+			std::optional<core::line_span>         SelectedBase;
+			std::optional<core::line_span>         SelectedHead;
 
 			class gutter_area;
 
@@ -321,6 +344,13 @@ namespace bpr::qt {
 			source_pane* Pane = nullptr;
 		};
 
+		void source_pane::set_row_colors(const QColor& aRemoved, const QColor& aAdded)
+		{
+			RemovedColor = aRemoved;
+			AddedColor   = aAdded;
+			Gutter->update();
+		}
+
 		source_pane::source_pane(QWidget* const aParent)
 			: QPlainTextEdit{ aParent }
 		{
@@ -334,7 +364,9 @@ namespace bpr::qt {
 					&QPlainTextEdit::updateRequest,
 					this,
 					[this](const QRect& aRect, const int aDy) {
-						if (aDy != 0) {
+						if (UnifiedRows != nullptr) {
+							Gutter->update();
+						} else if (aDy != 0) {
 							Gutter->scroll(0, aDy);
 						} else {
 							Gutter->update(
@@ -358,14 +390,12 @@ namespace bpr::qt {
 			for (auto count = std::max(1, blockCount()); count >= 10; count /= 10) {
 				++digits;
 			}
-			return 2 * GutterPadding
-				+ fontMetrics().horizontalAdvance(QLatin1Char('9'))
-				* std::max(digits, GutterMinimumDigits);
+			return (UnifiedRows != nullptr ? 2 : 1) * (2 * GutterPadding + fontMetrics().horizontalAdvance(QLatin1Char('9')) * std::max(digits, UnifiedRows != nullptr ? 4 : GutterMinimumDigits));
 		}
 
 		void source_pane::refresh_gutter_width()
 		{
-			setViewportMargins(gutter_width(), 0, 0, 0);
+			setViewportMargins(gutter_width(), UnifiedRows != nullptr && LineNumbersVisible ? fontMetrics().height() + 4 : 0, 0, 0);
 		}
 
 		void source_pane::set_line_numbers_visible(const bool aVisible)
@@ -454,9 +484,17 @@ namespace bpr::qt {
 			painter.setPen(GutterText.isValid()
 							   ? GutterText
 							   : palette().color(QPalette::WindowText));
-			auto       top   = blockBoundingGeometry(block)
-								   .translated(contentOffset())
-								   .top();
+			const auto headerHeight = UnifiedRows != nullptr ? viewport()->geometry().top() - contentsRect().top() : 0;
+			if (UnifiedRows != nullptr) {
+				const auto column = Gutter->width() / 2;
+				painter.drawText(0, 0, column - GutterPadding, headerHeight, Qt::AlignRight | Qt::AlignVCenter, QStringLiteral("base"));
+				painter.drawText(column, 0, column - GutterPadding, headerHeight, Qt::AlignRight | Qt::AlignVCenter, QStringLiteral("head"));
+				painter.setClipRect(QRect{ 0, headerHeight, Gutter->width(), Gutter->height() - headerHeight });
+			}
+			auto top = blockBoundingGeometry(block)
+						   .translated(contentOffset())
+						   .top()
+				+ headerHeight;
 			const auto limit = static_cast<qreal>(aEvent->rect().bottom());
 			const auto right = Gutter->width() - GutterPadding;
 			// Only the blocks the exposed rect can show, so the work follows the
@@ -468,13 +506,42 @@ namespace bpr::qt {
 					// One-based on screen, zero-based inside: RFC-BPR-0004 fixes
 					// that split, and each pane numbers its own document rather
 					// than being renumbered to match the other side.
-					painter.drawText(0,
-									 qRound(top),
-									 right,
-									 qRound(height),
-									 Qt::AlignRight | Qt::AlignVCenter,
-									 QString::number(block.blockNumber() + 1));
-					++PaintedLineNumbers;
+					if (UnifiedRows != nullptr) {
+						const auto index = static_cast<std::size_t>(block.blockNumber());
+						if (index < UnifiedRows->size()) {
+							const auto& row  = (*UnifiedRows)[index];
+							const auto  fill = !row.Head ? RemovedColor : !row.Base ? AddedColor
+																					: QColor{ };
+							if (fill.isValid()) {
+								painter.fillRect(QRectF{ 0.0, top, static_cast<qreal>(Gutter->width()), height }, fill);
+							}
+							const auto contains = [](const std::optional<core::line_span> aSpan, const std::optional<std::uint32_t> aLine) {
+								return aSpan && aLine && *aLine >= aSpan->Begin && *aLine < aSpan->End;
+							};
+							if (contains(SelectedBase, row.Base) || contains(SelectedHead, row.Head)) {
+								auto wash = palette().color(QPalette::Highlight);
+								wash.setAlpha(core::selection_wash_alpha);
+								painter.fillRect(QRectF{ 0.0, top, static_cast<qreal>(Gutter->width()), height }, wash);
+							}
+							const auto columnWidth = Gutter->width() / 2;
+							for (const auto side : { core::diff_side::left, core::diff_side::right }) {
+								const auto number = side == core::diff_side::left ? row.Base : row.Head;
+								if (number) {
+									painter.drawText(side == core::diff_side::left ? 0 : columnWidth, qRound(top), columnWidth - GutterPadding,
+													 qRound(height), Qt::AlignRight | Qt::AlignVCenter, QString::number(*number + 1U));
+									++PaintedLineNumbers;
+								}
+							}
+						}
+					} else {
+						painter.drawText(0,
+										 qRound(top),
+										 right,
+										 qRound(height),
+										 Qt::AlignRight | Qt::AlignVCenter,
+										 QString::number(block.blockNumber() + 1));
+						++PaintedLineNumbers;
+					}
 				}
 				top += height;
 				block = block.next();
@@ -776,8 +843,23 @@ namespace bpr::qt {
 		}
 	} // namespace
 
+	struct diff_workbench::unified_presentation
+	{
+		struct group_rows
+		{
+			diff_link_map_identity Identity;
+			core::line_span        Removed;
+			core::line_span        Added;
+		};
+		std::vector<unified_source_row> Rows;
+		std::vector<std::uint32_t>      BaseRows;
+		std::vector<std::uint32_t>      HeadRows;
+		std::vector<group_rows>         Groups;
+	};
+
 	diff_workbench::diff_workbench(QWidget* const aParent)
 		: QWidget{ aParent }
+		, UnifiedPresentation{ std::make_unique<unified_presentation>() }
 	{
 		setObjectName(QStringLiteral("diffWorkbench"));
 		setAccessibleName(QStringLiteral("File comparison workbench"));
@@ -832,6 +914,32 @@ namespace bpr::qt {
 		SharedScroll->setFocusPolicy(Qt::StrongFocus);
 		topLayout->addWidget(Comparison, 1);
 		topLayout->addWidget(SharedScroll);
+		UnifiedMap = new one_pane_diff_link_map{ top };
+		Unified    = new source_pane{ top };
+		Unified->setObjectName(QStringLiteral("diffUnifiedSource"));
+		Unified->setAccessibleName(QStringLiteral("Unified source comparison"));
+		Unified->setAccessibleDescription(QStringLiteral("Base and head line numbers; removed lines followed by added lines in each change"));
+		Unified->setReadOnly(true);
+		Unified->setLineWrapMode(QPlainTextEdit::NoWrap);
+		Unified->setFocusPolicy(Qt::StrongFocus);
+		pane(Unified)->set_unified_rows(&UnifiedPresentation->Rows);
+		Unified->viewport()->installEventFilter(this);
+		UnifiedMap->installEventFilter(this);
+		UnifiedMap->setFocusProxy(Unified);
+		topLayout->addWidget(UnifiedMap);
+		topLayout->addWidget(Unified, 1);
+		UnifiedMap->hide();
+		Unified->hide();
+		UnifiedMap->set_selection_sink([this](const diff_link_map_identity& aIdentity) { select_link(aIdentity, true); });
+		connect(Unified->verticalScrollBar(), &QScrollBar::valueChanged, this, [this] {
+			if (OnePaneEnabled) {
+				update_unified_paint();
+				++Statistics.FrameApplications;
+				if (FrameObserver) {
+					FrameObserver();
+				}
+			}
+		});
 
 		Detail = new QPlainTextEdit{ Vertical };
 		Detail->setObjectName(QStringLiteral("diffSelectedChangeDetail"));
@@ -920,6 +1028,7 @@ namespace bpr::qt {
 			= SemanticIndex->statistics().IndexEntries;
 		Left->setPlainText(text_document(CurrentResult->LeftDocument));
 		Right->setPlainText(text_document(CurrentResult->RightDocument));
+		rebuild_unified_document();
 		++Statistics.SemanticQueries;
 		static_cast<void>(core::reconcile_diff_interaction(Interaction, *SemanticIndex));
 		if (!Interaction.Selection.has_value()) {
@@ -1087,12 +1196,25 @@ namespace bpr::qt {
 	auto diff_workbench::conversation_anchor_marker_rect(
 		const core::diff_side aSide) const -> QRect
 	{
+		if (OnePaneEnabled) {
+			return ConversationAnchor && ConversationAnchor->Side == aSide
+				? pane(Unified)->conversation_anchor_rect()
+				: QRect{ };
+		}
 		return pane(aSide == core::diff_side::left ? Left : Right)
 			->conversation_anchor_rect();
 	}
 
 	auto diff_workbench::line_rect(const core::diff_side aSide, const std::uint32_t aLine) const -> QRect
 	{
+		if (OnePaneEnabled) {
+			const auto index = unified_row_for(aSide, aLine);
+			if (!CurrentResult || !index) {
+				return { };
+			}
+			const auto row = pane(Unified)->line_row_rect(*index);
+			return QRect{ Unified->viewport()->mapTo(this, row.topLeft()), row.size() };
+		}
 		auto* const source = pane(aSide == core::diff_side::left ? Left : Right);
 		const auto  row    = source->line_row_rect(aLine);
 		if (row.isEmpty()) {
@@ -1104,6 +1226,9 @@ namespace bpr::qt {
 	void diff_workbench::set_line_marks(const core::diff_side aSide, std::vector<diff_line_mark> aMarks)
 	{
 		pane(aSide == core::diff_side::left ? Left : Right)->set_line_marks(std::move(aMarks));
+		if (OnePaneEnabled) {
+			update_unified_paint();
+		}
 	}
 
 	auto diff_workbench::line_marks(const core::diff_side aSide) const -> const std::vector<diff_line_mark>&
@@ -1133,7 +1258,7 @@ namespace bpr::qt {
 
 	auto diff_workbench::shared_scrollbar() const noexcept -> QScrollBar*
 	{
-		return SharedScroll;
+		return OnePaneEnabled ? Unified->verticalScrollBar() : SharedScroll;
 	}
 
 	auto diff_workbench::comparison_splitter() const noexcept
@@ -1292,6 +1417,29 @@ namespace bpr::qt {
 	auto diff_workbench::eventFilter(QObject* const aWatched, QEvent* const aEvent)
 		-> bool
 	{
+		if (OnePaneEnabled && aWatched == UnifiedMap && aEvent->type() == QEvent::Wheel) {
+			QApplication::sendEvent(Unified->viewport(), aEvent);
+			return true;
+		}
+		if (Unified != nullptr && aWatched == Unified->viewport()) {
+			if (aEvent->type() == QEvent::Resize && OnePaneEnabled) {
+				QTimer::singleShot(0, this, [this] {
+					update_unified_paint();
+					if (FrameObserver) {
+						FrameObserver();
+					}
+				});
+			}
+			if (CurrentResult && aEvent->type() == QEvent::MouseButtonPress) {
+				const auto* mouse = static_cast<QMouseEvent*>(aEvent);
+				const auto  row   = Unified->cursorForPosition(mouse->position().toPoint()).blockNumber();
+				if (mouse->button() == Qt::LeftButton && row >= 0 && static_cast<std::size_t>(row) < UnifiedPresentation->Rows.size()) {
+					const auto& identity = UnifiedPresentation->Rows[static_cast<std::size_t>(row)];
+					static_cast<void>(select_line(identity.Head ? core::diff_side::right : core::diff_side::left,
+												  identity.Head.value_or(identity.Base.value_or(0U)), true));
+				}
+			}
+		}
 		const auto sourceViewport = aWatched == Left->viewport()
 			|| aWatched == Right->viewport();
 		if (sourceViewport && aEvent->type() == QEvent::Resize) {
@@ -1520,6 +1668,14 @@ namespace bpr::qt {
 					0.0,
 					axis->right_document_extent()
 						- axis->right_viewport_extent()));
+			if (!OnePaneEnabled && PresentationReadingLine) {
+				// A presentation flip carries an exact top row. These panes do
+				// not wrap, so their native bar counts those rows directly; using
+				// the proportional document estimate can round to the next one.
+				// The readback below keeps the link map on the resulting origin.
+				auto* const source = PresentationReadingLine->Side == core::diff_side::left ? Left : Right;
+				source->verticalScrollBar()->setValue(static_cast<int>(PresentationReadingLine->Line));
+			}
 			rendered.Left.DocumentOriginY = measured_document_origin(
 				*pane(Left), *axis, core::diff_side::left, leftEstimate);
 			rendered.Right.DocumentOriginY = measured_document_origin(
@@ -1602,6 +1758,9 @@ namespace bpr::qt {
 		}
 		const auto selected = Interaction.Selection.has_value()
 			&& Interaction.Selection->PreferredLine == requested;
+		if (selected) {
+			PresentationReadingSide = aSide;
+		}
 		if (!changed && selected && aReportUnchangedInteraction) {
 			// Choosing the displayed line also supersedes deferred restoration.
 			emit_reading_gesture();
@@ -1662,6 +1821,33 @@ namespace bpr::qt {
 
 	void diff_workbench::synchronize_geometry_selection(const bool aReveal)
 	{
+		auto readingPreserved = false;
+		if (aReveal && PresentationReadingLine && SemanticIndex && (OnePaneEnabled || AxisCache.axis() != nullptr)) {
+			const auto reading = core::select_line(*SemanticIndex, *PresentationReadingLine);
+			if (reading) {
+				readingPreserved = reveal_exact_line(*reading, *PresentationReadingLine, true);
+			}
+			PresentationReadingLine.reset();
+		}
+		if (OnePaneEnabled) {
+			if (aReveal && !readingPreserved && Interaction.Selection) {
+				const auto& selection = *Interaction.Selection;
+				const auto  exact     = ConversationAnchor.value_or(RestoredReadingLine.value_or(selection.PreferredLine));
+				auto        row       = unified_row_for(exact.Side, exact.Line);
+				if (!ConversationAnchor && !RestoredReadingLine && selection.Kind == core::semantic_selection_kind::group && selection.Group && SemanticIndex) {
+					const auto group = SemanticIndex->group_index(*selection.Group);
+					if (group && *group < UnifiedPresentation->Groups.size()) {
+						row = UnifiedPresentation->Groups[*group].Removed.Begin;
+					}
+				}
+				if (row) {
+					reveal_unified_row(*row);
+				}
+				RestoredReadingLine.reset();
+			}
+			update_unified_link_map();
+			return;
+		}
 		GeometryRevealPending = GeometryRevealPending || (aReveal && AxisCache.axis() == nullptr);
 		if (!CurrentResult || !Interaction.Selection.has_value()) {
 			LinkMap->set_selected(std::nullopt, false);
@@ -1675,7 +1861,7 @@ namespace bpr::qt {
 					.Group   = selection.Group,
 				},
 				false);
-			if (aReveal) {
+			if (aReveal && !readingPreserved) {
 				const auto reading = RestoredReadingLine && selection.PreferredLine == *RestoredReadingLine
 					&& reveal_exact_line(selection, *RestoredReadingLine);
 				if (reading) {
@@ -1693,8 +1879,15 @@ namespace bpr::qt {
 
 	auto diff_workbench::reveal_exact_line(
 		const core::semantic_selection& aSelection,
-		const core::source_line_ref&    aLine) -> bool
+		const core::source_line_ref& aLine, const bool aAtTop) -> bool
 	{
+		if (OnePaneEnabled) {
+			const auto row = unified_row_for(aLine.Side, aLine.Line);
+			if (row) {
+				reveal_unified_row(*row);
+			}
+			return row.has_value();
+		}
 		const auto* const axis = AxisCache.axis();
 		if (axis == nullptr || !aSelection.Segment.has_value()) {
 			return false;
@@ -1710,6 +1903,21 @@ namespace bpr::qt {
 		if (!origin.has_value()) {
 			return false;
 		}
+		if (aAtTop) {
+			// The linked controller positions its rail, not its viewport top.
+			// Offset by that rail before projecting so a presentation flip does
+			// not move the former top line down to the middle of the document.
+			const auto viewport      = aLine.Side == core::diff_side::left ? axis->left_viewport_extent() : axis->right_viewport_extent();
+			const auto target        = *origin + comparison_scroll_configuration{ }.SynchronizationRailFraction * viewport;
+			const auto endForSide    = [aLine](const measured_alignment_segment& aSegment) { return aLine.Side == core::diff_side::left ? aSegment.LeftEnd : aSegment.RightEnd; };
+			auto       targetSegment = std::ranges::upper_bound(axis->segments(), target, { }, endForSide);
+			if (targetSegment == axis->segments().end()) {
+				targetSegment = std::prev(targetSegment);
+			}
+			const auto begin = aLine.Side == core::diff_side::left ? targetSegment->LeftBegin : targetSegment->RightBegin;
+			const auto end   = endForSide(*targetSegment);
+			return Controller->reveal_segment(targetSegment->Id, end > begin ? (target - begin) / (end - begin) : 0.0);
+		}
 		const auto begin    = aLine.Side == core::diff_side::left
 			? measured->LeftBegin
 			: measured->RightBegin;
@@ -1724,6 +1932,9 @@ namespace bpr::qt {
 		const bool aReveal,
 		const bool aAnnounceSelection)
 	{
+		if (Interaction.Selection) {
+			PresentationReadingSide = Interaction.Selection->PreferredLine.Side;
+		}
 		synchronize_geometry_selection(aReveal);
 		update_detail();
 		update_selection_paint();
@@ -1782,10 +1993,219 @@ namespace bpr::qt {
 	{
 		pane(Left)->set_line_numbers_visible(aVisible);
 		pane(Right)->set_line_numbers_visible(aVisible);
+		pane(Unified)->set_line_numbers_visible(aVisible);
 		// The panes' viewports just moved, and the band is measured from a live
 		// viewport rather than inferred, so it has to be re-declared for the
 		// same reason a resize does it.
 		declare_link_map_band();
+	}
+
+	void diff_workbench::set_one_pane_enabled(const bool aEnabled)
+	{
+		if (OnePaneEnabled == aEnabled) {
+			return;
+		}
+		if (CurrentResult && Interaction.Selection) {
+			const auto side   = PresentationReadingSide.value_or(Interaction.Selection->PreferredLine.Side);
+			auto*      source = pane(OnePaneEnabled ? Unified : side == core::diff_side::left ? Left
+																							  : Right);
+			if (const auto origin = source->visible_origin()) {
+				auto line    = static_cast<std::uint32_t>(origin->first);
+				auto ownSide = side;
+				if (OnePaneEnabled && line < UnifiedPresentation->Rows.size()) {
+					const auto& row = UnifiedPresentation->Rows[line];
+					ownSide         = row.Head ? core::diff_side::right : core::diff_side::left;
+					line            = row.Head.value_or(row.Base.value_or(0U));
+				}
+				PresentationReadingLine = core::source_line_ref{ CurrentResult->Alignment.Digest, ownSide, line };
+				PresentationReadingSide = ownSide;
+			}
+		}
+		OnePaneEnabled = aEnabled;
+		Comparison->setVisible(!aEnabled);
+		SharedScroll->setVisible(!aEnabled);
+		UnifiedMap->setVisible(aEnabled);
+		Unified->setVisible(aEnabled);
+		if (aEnabled) {
+			synchronize_geometry_selection(true);
+		} else {
+			GeometryRevealPending = true;
+			schedule_geometry_rebuild(measured_geometry_change::viewport_or_divider,
+									  diff_geometry_rebuild_trigger::pane_viewport_resize);
+		}
+		update_diff_paint();
+		if (FrameObserver) {
+			FrameObserver();
+		}
+	}
+
+	auto diff_workbench::one_pane_enabled() const noexcept -> bool
+	{
+		return OnePaneEnabled;
+	}
+
+	void diff_workbench::rebuild_unified_document()
+	{
+		const auto blocker    = QSignalBlocker{ Unified->verticalScrollBar() };
+		auto&      projection = *UnifiedPresentation;
+		projection.Rows.clear();
+		projection.Groups.clear();
+		projection.BaseRows.clear();
+		projection.HeadRows.clear();
+		if (!CurrentResult) {
+			Unified->clear();
+			UnifiedMap->set_links({ }, std::nullopt, { });
+			return;
+		}
+		const auto& alignment = CurrentResult->Alignment;
+		projection.BaseRows.resize(alignment.LeftLineCount);
+		projection.HeadRows.resize(alignment.RightLineCount);
+		projection.Rows.reserve(static_cast<std::size_t>(alignment.LeftLineCount) + alignment.RightLineCount);
+		auto       text   = QString{ };
+		const auto append = [&](const std::optional<std::uint32_t> aBase, const std::optional<std::uint32_t> aHead) {
+			const auto row = static_cast<std::uint32_t>(projection.Rows.size());
+			if (row != 0U) {
+				text += QLatin1Char('\n');
+			}
+			text += aHead ? line_text_at(CurrentResult->RightDocument, *aHead) : line_text_at(CurrentResult->LeftDocument, *aBase);
+			projection.Rows.push_back({ aBase, aHead });
+			if (aBase) {
+				projection.BaseRows[*aBase] = row;
+			}
+			if (aHead) {
+				projection.HeadRows[*aHead] = row;
+			}
+		};
+		auto nextGroup = std::size_t{ 0U };
+		for (auto index = std::size_t{ 0U }; index < alignment.Segments.size();) {
+			const auto& segment = alignment.Segments[index];
+			if (segment.Kind == core::alignment_kind::equal) {
+				for (auto offset = 0U; offset < segment.Left.extent(); ++offset) {
+					append(segment.Left.Begin + offset, segment.Right.Begin + offset);
+				}
+				++index;
+				continue;
+			}
+			// The core already grouped adjacent changed segments. Preserve that
+			// exact block and ordinal, projecting all base rows before all head rows.
+			const auto& group = alignment.Groups[nextGroup++];
+			const auto  begin = static_cast<std::uint32_t>(projection.Rows.size());
+			for (auto line = group.Left.Begin; line < group.Left.End; ++line) {
+				append(line, std::nullopt);
+			}
+			const auto middle = static_cast<std::uint32_t>(projection.Rows.size());
+			for (auto line = group.Right.Begin; line < group.Right.End; ++line) {
+				append(std::nullopt, line);
+			}
+			projection.Groups.push_back({
+				.Identity = { segment.Id, group.Id },
+				.Removed  = { begin, middle },
+				.Added    = { middle, static_cast<std::uint32_t>(projection.Rows.size()) },
+			});
+			index = group.Members.End;
+		}
+		Unified->setPlainText(text);
+	}
+
+	auto diff_workbench::unified_row_for(const core::diff_side aSide, const std::uint32_t aLine) const -> std::optional<std::uint32_t>
+	{
+		const auto& rows = aSide == core::diff_side::left ? UnifiedPresentation->BaseRows : UnifiedPresentation->HeadRows;
+		return aLine < rows.size() ? std::optional{ rows[aLine] } : std::nullopt;
+	}
+
+	void diff_workbench::reveal_unified_row(const std::uint32_t aRow)
+	{
+		Unified->verticalScrollBar()->setValue(static_cast<int>(aRow));
+		update_unified_paint();
+		if (FrameObserver) {
+			FrameObserver();
+		}
+	}
+
+	void diff_workbench::update_unified_link_map()
+	{
+		if (!OnePaneEnabled || !CurrentResult) {
+			return;
+		}
+		const auto top      = Unified->viewport()->mapTo(this, QPoint{ }).y() - UnifiedMap->mapTo(this, QPoint{ }).y();
+		const auto viewport = QRectF{ 0.0, static_cast<qreal>(top), static_cast<qreal>(UnifiedMap->width()), static_cast<qreal>(Unified->viewport()->height()) };
+		const auto visible  = core::line_span{
+			static_cast<std::uint32_t>(std::max(0, Unified->cursorForPosition(QPoint{ 0, 0 }).blockNumber())),
+			static_cast<std::uint32_t>(std::max(0, Unified->cursorForPosition(QPoint{ 0, Unified->viewport()->height() }).blockNumber()) + 1),
+		};
+		auto        links  = std::vector<visible_one_pane_diff_link>{ };
+		const auto& groups = UnifiedPresentation->Groups;
+		const auto  first  = std::ranges::lower_bound(groups, visible.Begin, { }, [](const unified_presentation::group_rows& aGroup) { return aGroup.Added.End; });
+		const auto  band   = [&](const core::line_span aRows) -> std::optional<QRectF> {
+			if (aRows.empty()) {
+				return std::nullopt;
+			}
+			const auto start = pane(Unified)->line_row_rect(aRows.Begin);
+			const auto end   = pane(Unified)->line_row_rect(aRows.End - 1U);
+			return QRectF{ 0.0, static_cast<qreal>(start.top() + top), static_cast<qreal>(UnifiedMap->width()), static_cast<qreal>(end.bottom() + 1 - start.top()) };
+		};
+		for (auto group = first; group != groups.end() && group->Removed.Begin < visible.End; ++group) {
+			links.push_back({ .Identity = group->Identity, .Removed = band(group->Removed), .Added = band(group->Added) });
+		}
+		UnifiedMap->set_links(std::move(links), Interaction.Selection ? Interaction.Selection->Group : std::nullopt, viewport);
+	}
+
+	void diff_workbench::update_unified_paint()
+	{
+		if (!Unified || !CurrentResult) {
+			return;
+		}
+		const auto  visible      = paintable_line_bounds(*Unified);
+		const auto& rows         = UnifiedPresentation->Rows;
+		auto        selections   = QList<QTextEdit::ExtraSelection>{ };
+		auto        base         = core::line_span{ static_cast<std::uint32_t>(UnifiedPresentation->BaseRows.size()), 0U };
+		auto        head         = core::line_span{ static_cast<std::uint32_t>(UnifiedPresentation->HeadRows.size()), 0U };
+		const auto  selectedBase = selected_lines(core::diff_side::left);
+		const auto  selectedHead = selected_lines(core::diff_side::right);
+		const auto  contains     = [](const std::optional<core::line_span> aSpan, const std::optional<std::uint32_t> aLine) {
+			return aSpan && aLine && *aLine >= aSpan->Begin && *aLine < aSpan->End;
+		};
+		for (auto index = visible.Begin; index < visible.End && index < rows.size(); ++index) {
+			const auto& row = rows[index];
+			if (row.Base) {
+				base.Begin = std::min(base.Begin, *row.Base);
+				base.End   = *row.Base + 1U;
+			}
+			if (row.Head) {
+				head.Begin = std::min(head.Begin, *row.Head);
+				head.End   = *row.Head + 1U;
+			}
+			const auto span = core::line_span{ index, index + 1U };
+			if (Colors.Supplied) {
+				append_line_band(selections, *Unified, span, !row.Head ? Colors.Removed : !row.Base ? Colors.Added
+																									: QColor{ });
+			}
+			if (contains(selectedBase, row.Base) || contains(selectedHead, row.Head)) {
+				append_selection_band(selections, *Unified, span, span);
+			}
+		}
+		apply_syntax_formats(*Unified, core::diff_side::left, base);
+		apply_syntax_formats(*Unified, core::diff_side::right, head);
+		if (Colors.Supplied) {
+			append_intraline_emphasis(selections, *Unified, core::diff_side::left, base, selectedBase);
+			append_intraline_emphasis(selections, *Unified, core::diff_side::right, head, selectedHead);
+		}
+		Unified->setExtraSelections(selections);
+		pane(Unified)->set_unified_selection(selectedBase, selectedHead);
+		pane(Unified)->set_row_colors(Colors.Removed, Colors.Added);
+		pane(Unified)->set_gutter_colors(Colors.Syntax[static_cast<std::size_t>(core::appearance_role::code_gutter_background)],
+										 Colors.Syntax[static_cast<std::size_t>(core::appearance_role::code_line_number_text)]);
+		auto marks = std::vector<diff_line_mark>{ };
+		for (const auto side : { core::diff_side::left, core::diff_side::right }) {
+			for (const auto& mark : line_marks(side)) {
+				if (const auto row = unified_row_for(side, mark.Line)) {
+					marks.push_back({ *row, mark.Kind });
+				}
+			}
+		}
+		pane(Unified)->set_line_marks(std::move(marks));
+		pane(Unified)->set_conversation_anchor(ConversationAnchor ? unified_row_for(ConversationAnchor->Side, ConversationAnchor->Line) : std::nullopt);
+		update_unified_link_map();
 	}
 
 	void diff_workbench::adopt_appearance(const appearance_profile& aProfile)
@@ -1853,6 +2273,10 @@ namespace bpr::qt {
 	/// the defect RFC-BPR-0005's reuse rules forbid.
 	void diff_workbench::update_diff_paint()
 	{
+		if (OnePaneEnabled) {
+			update_unified_paint();
+			return;
+		}
 		pane(Left)->set_conversation_anchor(
 			ConversationAnchor.has_value()
 					&& ConversationAnchor->Side == core::diff_side::left
@@ -1976,6 +2400,11 @@ namespace bpr::qt {
 			return std::nullopt;
 		}
 		const auto& selection = *Interaction.Selection;
+		if (OnePaneEnabled && selection.Kind == core::semantic_selection_kind::line) {
+			return selection.PreferredLine.Side == aSide
+				? std::optional{ core::line_span{ selection.PreferredLine.Line, selection.PreferredLine.Line + 1U } }
+				: std::nullopt;
+		}
 		if (selection.Kind == core::semantic_selection_kind::group) {
 			if (!selection.Group.has_value()) {
 				return std::nullopt;
@@ -2085,7 +2514,7 @@ namespace bpr::qt {
 	{
 		const auto& spans = aSide == core::diff_side::left ? LeftSpans
 														   : RightSpans;
-		if (!spans || !CurrentResult) {
+		if (!CurrentResult) {
 			return;
 		}
 		const auto& document = aSide == core::diff_side::left
@@ -2098,12 +2527,14 @@ namespace bpr::qt {
 		// The window is found by search because the spans are ordered, which
 		// `adopt_token_spans` established. Scanning from the front would make
 		// the cost of one screenful proportional to the whole file.
-		auto span = std::ranges::lower_bound(
-			*spans,
+		const auto  emptySpans = std::vector<application::token_span>{ };
+		const auto& tokens     = spans ? *spans : emptySpans;
+		auto        span       = std::ranges::lower_bound(
+			tokens,
 			aPaintable.Begin,
 			{ },
 			[](const application::token_span& aSpan) { return aSpan.Line; });
-		const auto last = spans->end();
+		const auto last = tokens.end();
 		for (auto line = aPaintable.Begin;
 			 line < aPaintable.End && line < document->Lines.size();
 			 ++line) {
@@ -2111,8 +2542,11 @@ namespace bpr::qt {
 				++span;
 				++Statistics.SyntaxSpansVisited;
 			}
-			const auto block = aPane.document()->findBlockByNumber(
-				static_cast<int>(line));
+			const auto row = &aPane == Unified ? unified_row_for(aSide, line) : std::optional{ line };
+			if (!row || (&aPane == Unified && aSide == core::diff_side::left && UnifiedPresentation->Rows[*row].Head)) {
+				continue;
+			}
+			const auto block = aPane.document()->findBlockByNumber(static_cast<int>(*row));
 			if (!block.isValid() || block.layout() == nullptr) {
 				continue;
 			}
@@ -2122,7 +2556,14 @@ namespace bpr::qt {
 				static_cast<std::size_t>(
 					decoded.Content.End - decoded.Content.Begin)
 			};
-			auto formats = QList<QTextLayout::FormatRange>{ };
+			auto       formats = QList<QTextLayout::FormatRange>{ };
+			const auto struck  = &aPane == Unified && aSide == core::diff_side::left;
+			if (struck) {
+				auto strike   = QTextLayout::FormatRange{ };
+				strike.length = static_cast<int>(block.text().size());
+				strike.format.setFontStrikeOut(true);
+				formats.push_back(strike);
+			}
 			for (; span != last && span->Line == line; ++span) {
 				++Statistics.SyntaxSpansVisited;
 				const auto index = static_cast<std::size_t>(span->Role);
@@ -2149,6 +2590,9 @@ namespace bpr::qt {
 				range.start  = from;
 				range.length = to - from;
 				range.format.setForeground(color);
+				if (struck) {
+					range.format.setFontStrikeOut(true);
+				}
 				formats.push_back(range);
 			}
 			if (block.layout()->formats() == formats) {
@@ -2240,8 +2684,11 @@ namespace bpr::qt {
 				static_cast<std::size_t>(
 					decoded.Content.End - decoded.Content.Begin)
 			};
-			const auto block = aPane.document()->findBlockByNumber(
-				static_cast<int>(line));
+			const auto row = &aPane == Unified ? unified_row_for(aSide, line) : std::optional{ line };
+			if (!row) {
+				continue;
+			}
+			const auto block = aPane.document()->findBlockByNumber(static_cast<int>(*row));
 			if (!block.isValid()) {
 				continue;
 			}
@@ -2342,12 +2789,17 @@ namespace bpr::qt {
 	void diff_workbench::clear_projection(QString aStatus)
 	{
 		RestoredReadingLine.reset();
+		PresentationReadingLine.reset();
+		PresentationReadingSide.reset();
 		const auto hadSelection = Interaction.Selection.has_value();
 		PendingMeasurement.reset();
 		GeometryRevealPending = false;
 		CurrentDetail.reset();
 		SemanticIndex.reset();
 		CurrentResult.reset();
+		rebuild_unified_document();
+		pane(Unified)->set_line_marks({ });
+		pane(Unified)->set_conversation_anchor(std::nullopt);
 		// A classification belongs to one blob. Keeping it across a cleared
 		// projection would colour the next comparison's text with the previous
 		// file's tokens, which reads as a highlighter bug and is a stale-state

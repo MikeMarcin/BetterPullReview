@@ -90,7 +90,7 @@ namespace {
 															  << " diagnostic=" << aWindow.session_panel()->diagnostic_text()
 															  << " notice=" << aWindow.home_open_notice()->text().toStdString()
 															  << " home=" << aWindow.showing_home() << '\n'; });
-		aWindow.modality()->action(qt::review_modality::read)->trigger();
+		aWindow.modality()->action(qt::review_modality::review)->trigger();
 		wait_for([&] { return aWindow.central_splitter()->isVisible() && aWindow.line_numbers_action()->isEnabled(); }, "review drawer actions available");
 		QApplication::processEvents();
 	}
@@ -202,10 +202,11 @@ auto main(int aArgc, char** aArgv) -> int
 		}
 		output.close();
 		expect(output.good(), "seed chosen layout observations saved");
+		a->one_pane_action()->trigger();
 		a->line_numbers_action()->trigger(); // Quit immediately, without waiting for persistence.
 		// The toggle is the host's decision projected back; the quit waits for
 		// the projection, not for the store.
-		wait_for([&] { return !a->line_numbers_action()->isChecked() && b->line_numbers_action()->isChecked(); },
+		wait_for([&] { return !a->line_numbers_action()->isChecked() && b->line_numbers_action()->isChecked() && a->one_pane_action()->isChecked() && !b->one_pane_action()->isChecked(); },
 				 "last accepted layout change belongs only to A", [&] { std::cerr << "line numbers a=" << a->line_numbers_action()->isChecked()
 																				  << " b=" << b->line_numbers_action()->isChecked()
 																				  << " a enabled=" << a->line_numbers_action()->isEnabled()
@@ -227,7 +228,7 @@ auto main(int aArgc, char** aArgv) -> int
 			auto* a = select_window(*desktop, saved[0]);
 			expect(a != nullptr, "A stable window restored");
 			open_review(*owner, *a, 17, false);
-			wait_for([&] { return !a->line_numbers_action()->isChecked() && !a->conversations_drawer_toggle_action()->isChecked(); }, "immediate-Quit final layout restored");
+			wait_for([&] { return !a->line_numbers_action()->isChecked() && !a->conversations_drawer_toggle_action()->isChecked() && a->one_pane_action()->isChecked(); }, "immediate-Quit final layout restored");
 			expect(a->repositories_drawer_toggle_action()->isChecked(), "A did not copy sibling repositories state");
 			expect(static_cast<std::uint64_t>(a->files_drawer()->width()) == saved[2], "A restores chosen files width");
 			const auto artifact = qEnvironmentVariable("BPR_PROFILE_LAYOUT_ARTIFACT_ROOT");
@@ -251,7 +252,7 @@ auto main(int aArgc, char** aArgv) -> int
 					}
 					wait_for([&] { return fresh->showing_home(); }, "fresh window starts Home");
 					open_review(*owner, *fresh, 17, false);
-					expect(fresh->repositories_drawer_toggle_action()->isChecked() && fresh->conversations_drawer_toggle_action()->isChecked() && fresh->line_numbers_action()->isChecked(), "fresh window seeds profile defaults, not either sibling");
+					expect(fresh->repositories_drawer_toggle_action()->isChecked() && fresh->conversations_drawer_toggle_action()->isChecked() && fresh->line_numbers_action()->isChecked() && !fresh->one_pane_action()->isChecked(), "fresh window seeds profile defaults, not either sibling");
 					expect(fresh->files_drawer()->width() == 320, "fresh files width comes from profile defaults");
 				}
 			}

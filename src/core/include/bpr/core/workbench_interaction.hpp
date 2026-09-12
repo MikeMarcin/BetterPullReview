@@ -45,6 +45,10 @@ namespace bpr::core {
 		shown,
 	};
 
+	/// \brief Selects one unified document independently of modality.
+	enum class workbench_one_pane : std::uint8_t { disabled,
+												   enabled };
+
 	// `diff_reason_code` reports why one file comparison is unavailable. None of
 	// its members can express workbench navigation legality, so this narrow enum
 	// carries the workbench reasons instead of widening the diff vocabulary.
@@ -207,6 +211,23 @@ namespace bpr::core {
 	{
 		auto operator<=>(const toggle_workbench_line_numbers_intent&) const = default;
 	};
+	/// \brief Describes the set workbench one pane intent record.
+	///
+	/// \details The exact form exists for the same reason the drawer's does:
+	/// restoring a persisted setting must not depend on what the state happens
+	/// to be when the restore arrives.
+	struct set_workbench_one_pane_intent
+	{
+		workbench_one_pane State = workbench_one_pane::disabled;
+
+		auto operator<=>(const set_workbench_one_pane_intent&) const = default;
+	};
+
+	/// \brief Describes the toggle workbench one pane intent record.
+	struct toggle_workbench_one_pane_intent
+	{
+		auto operator<=>(const toggle_workbench_one_pane_intent&) const = default;
+	};
 
 	using workbench_interaction_intent = std::variant<
 		select_workbench_file_intent,
@@ -215,7 +236,9 @@ namespace bpr::core {
 		toggle_workbench_drawer_intent,
 		set_workbench_modality_intent,
 		set_workbench_line_numbers_intent,
-		toggle_workbench_line_numbers_intent>;
+		toggle_workbench_line_numbers_intent,
+		set_workbench_one_pane_intent,
+		toggle_workbench_one_pane_intent>;
 
 	enum class workbench_navigation_target : std::uint8_t {
 		exact_file,
@@ -251,9 +274,10 @@ namespace bpr::core {
 		toggle_conversations_drawer,
 		toggle_line_numbers,
 		toggle_repositories_drawer,
+		toggle_one_pane,
 	};
 
-	inline constexpr std::size_t workbench_command_count = 8U;
+	inline constexpr std::size_t workbench_command_count = 9U;
 
 	/// \brief Describes the workbench command projection record.
 	struct workbench_command_projection
@@ -307,6 +331,13 @@ namespace bpr::core {
 
 		auto operator<=>(const workbench_line_numbers_delta&) const = default;
 	};
+	/// \brief Describes the workbench one pane delta record.
+	struct workbench_one_pane_delta
+	{
+		workbench_one_pane State = workbench_one_pane::disabled;
+
+		auto operator<=>(const workbench_one_pane_delta&) const = default;
+	};
 
 	/// \brief Describes the workbench interaction output record.
 	///
@@ -319,6 +350,7 @@ namespace bpr::core {
 		std::optional<workbench_selection_delta>     Selection;
 		std::optional<workbench_drawer_delta>        Drawers;
 		std::optional<workbench_line_numbers_delta>  LineNumbers;
+		std::optional<workbench_one_pane_delta>      OnePane;
 		std::optional<workbench_command_delta>       Commands;
 		workbench_reason_code                        Reason = workbench_reason_code::none;
 
@@ -343,6 +375,7 @@ namespace bpr::core {
 		workbench_drawer_state                     ConversationsDrawer = workbench_drawer_state::expanded;
 		workbench_drawer_state                     RepositoriesDrawer  = workbench_drawer_state::expanded;
 		workbench_line_numbers                     LineNumbers         = workbench_line_numbers::shown;
+		workbench_one_pane                         OnePane             = workbench_one_pane::disabled;
 		change_navigation_policy                   NavigationPolicy    = change_navigation_policy::stop;
 		workbench_modality                         Modality            = workbench_modality::review;
 

@@ -30,11 +30,14 @@ def main():
             rows = database.execute("SELECT window_id, files_width FROM window_layout").fetchall()
             if dict(rows) != {str(first): width_a, str(second): width_b}:
                 raise SystemExit(f"chosen layout rows disagree: {rows}")
+            panes = dict(database.execute("SELECT window_id, one_pane FROM window_layout"))
+            if panes != {str(first): 1, str(second): 0}:
+                raise SystemExit(f"one-pane choices disagree: {panes}")
             tables = [name for (name,) in database.execute(
                 "SELECT name FROM sqlite_schema WHERE type='table' AND name!='window_layout' ORDER BY name")]
             defaults = {name: database.execute(f'SELECT * FROM "{name}"').fetchall() for name in tables}
             # Simulate interrupted post-Close cleanup: this ID is absent from the registry.
-            database.execute("INSERT INTO window_layout SELECT '18446744073709551614',files_state,conversations_state,files_width,conversations_width,line_numbers,repositories_state,repositories_width FROM window_layout WHERE window_id=?", (str(first),))
+            database.execute("INSERT INTO window_layout(window_id,files_state,conversations_state,files_width,conversations_width,line_numbers,repositories_state,repositories_width,one_pane) SELECT '18446744073709551614',files_state,conversations_state,files_width,conversations_width,line_numbers,repositories_state,repositories_width,one_pane FROM window_layout WHERE window_id=?", (str(first),))
         run("restore")
         with sqlite3.connect(settings) as database:
             rows = database.execute("SELECT window_id, files_width FROM window_layout").fetchall()
