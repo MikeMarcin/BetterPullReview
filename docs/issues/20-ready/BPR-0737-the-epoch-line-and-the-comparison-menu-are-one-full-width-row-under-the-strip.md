@@ -72,3 +72,12 @@ BPR-0646's criterion has carried since v006; it is addressed under
   signed bundle in an attended session. To make the handle criterion of
   BPR-0646 judgeable in the same session, the packet names a public pull
   request with more than one update (microsoft/terminal#20607 has one).
+
+## Owner answer, 2026-09-11 (mandate r9)
+
+Asked to name a public pull request with more than one update, for
+BPR-0646's handle criterion and this card's attended ask, the owner
+answered, verbatim: "https://github.com/NVIDIA/stdexec/pull/1846 looks to
+have multiple updates". The v008 packet names NVIDIA/stdexec#1846 for both
+asks; the update count the epoch line shows on it is confirmed when the
+rebuilt bundle is smoked, not assumed from the answer.

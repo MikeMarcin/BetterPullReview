@@ -84,3 +84,47 @@ role's value against the reference before pinning it.
   dark palette in the signed bundle in an attended session; this is the
   criterion BPR-0720 has carried since v005, asked once more on a bundle
   with these values.
+
+## Owner answer and corrected reading, 2026-09-11 (mandate r9)
+
+Asked to confirm the reading above (macros purple, functions gold) and
+whether a distinct macro role is acceptable, the owner answered, verbatim:
+"yes adding a distinct macro rule is not only acceptable, it's necessary,
+also pretty sure functions were orange in my screenshot that i provided.
+It was class/struct types that were expected to be yellow like in the
+screenshot."
+
+The owner is right and the sample list above is wrong. The reference was
+resampled per token (the most frequent non-background value inside each
+identifier's box on the 3840x2088 capture):
+
+| Token in the reference | Value | Role today | Dark value today |
+|---|---|---|---|
+| `FARADAY_WORKBENCH_APP_PRODUCTION_EVIDENCE_HPP` (macro) | `BD63C5` purple | `syntax_preprocessor` | `A3A3A3` |
+| `run_authoring_scenario_contract`, `run_native_visual_evidence` (functions) | `FF8000` orange | `syntax_function` | `DCDCAA` |
+| `QApplication`, `production_evidence_context`, `product_adapter_snapshot`, `std::string_view`, `path` (class, struct and alias types; the standard aliases also italic) | `FFD700` gold | `syntax_type` | `4EC9B0` |
+| `faraday::workbench::app::detail` (namespace) | `B8D7A3` | whatever the classifier emits for a namespace segment, to be checked | |
+| `application_name`, `context` (variables, parameters) | `BDB76B` khaki | `syntax_variable` | `9CDCFE` |
+| `const`, `int`, `auto` | `569CD6` | `syntax_keyword`, `syntax_builtin` | `6DA9DB` (lightened for the floor) |
+| `#include`, `#define`, `#pragma` | `9B9B9B` | `syntax_preprocessor` | `A3A3A3` |
+| `<faraday/...>`, `"Faraday..."` | `D69D85` | `syntax_import` / `syntax_string` | `A3A3A3` / `D69D85` |
+| `// This structure ...` | `57A64A` | `syntax_comment` | `66B559` |
+| `[[nodiscard]]` | `4EC9B0` | `syntax_attribute` | `C8C8C8` |
+
+The `FFD700` for functions and the `9184EE`, `7FC2FF`, `99EBFF` and
+`00BFFF` values listed earlier were misattributed samples; nothing in the
+reference carries them as a role colour.
+
+Settled by this answer and the resample, and therefore the slice: a new
+`syntax_macro` role through the core model, the classifier, the palette,
+the customisation panel and the store, painted `BD63C5` on the dark
+palette; `syntax_function` to `FF8000`; `syntax_type` to `FFD700`. Each is
+lightened or darkened along its hue only if it fails the 4.5:1 floor on the
+diff row fills. Variables to `BDB76B` under the same rule, since the
+reference shows it plainly and the owner's "etc" covers roles beyond the
+two named. Attributes to `4EC9B0` for the same reason. Not settled, and not
+guessed: the include path (the reference paints it string-salmon, the
+accepted BPR-0720 direction says "grey preprocessor lines including the
+include path"), and whether the standard-library aliases' italic matters;
+both are asked in the v008 packet rather than changed. The light and
+high-contrast palettes are untouched.

@@ -431,4 +431,6 @@ cards, BPR-0646 (one criterion) is the only one parked; BPR-0653 waits for
 the Windows station; BPR-0729 waits for the design round [[BPR-0734]];
 BPR-0736 is in Inbox; BPR-0737 and BPR-0739 are Ready. The RFC stays
 open. Next: BPR-0734, then BPR-0737 and BPR-0739 on main, a rebuilt
-bundle and a v008 packet re-asking BPR-0646 and BPR-0720.
+bundle and a v008 packet re-asking BPR-0646 and BPR-0720. The owner
+named NVIDIA/stdexec#1846 (2026-09-11, mandate r9) as the multi-update
+pull request for the BPR-0646 and BPR-0737 asks.

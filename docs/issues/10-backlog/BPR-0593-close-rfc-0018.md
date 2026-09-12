@@ -12,7 +12,18 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
-## Current frontier, 2026-09-11 (d15, v007 consumed)
+## Current frontier, 2026-09-11 (d16, mandate r9)
+
+Dispatch `attended-prep-2026-09-10` d16 (mandate r9). The owner answered
+d15's two asks: NVIDIA/stdexec#1846 is the multi-update pull request for
+the BPR-0646 and BPR-0737 asks (recorded on both cards), and BPR-0738's
+reading is corrected, functions orange `FF8000`, class/struct types gold
+`FFD700`, macros purple `BD63C5` with a distinct macro role "necessary"
+(per-token resample on BPR-0738; BPR-0720 and RFC-BPR-0006 point at it).
+The next round (BPR-0734, then resume-development, BPR-0737, BPR-0739,
+BPR-0738, a rebuilt bundle, the v008 packet) is approved and under way in
+this dispatch; progress is appended under "Continuation after the v007
+hand-back". d15's frontier follows.
 
 Dispatch `attended-prep-2026-09-10` d15 (mandate r8). The owner reviewed
 all ten v007 candidates on the 2cdc0e57 bundle (executable sha256

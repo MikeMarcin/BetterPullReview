@@ -599,3 +599,12 @@ Read against the one criterion left:
 - The finding is placement: the epoch control is the first widget of the centre pane, so its extent follows the drawer widths and the modality (`workbench_window.cpp:775`, `:834`, `:1258-1261`, `central_sizes()` at `:6300`). The owner wants it and the "Comparing …" menu on one full-width row under the strip, above the drawer headings. Carded as [BPR-0737](../20-ready/BPR-0737-the-epoch-line-and-the-comparison-menu-are-one-full-width-row-under-the-strip.md); when it lands, RFC-BPR-0028's chrome paragraph says the line is full width.
 
 This card stays parked on human-review for the handle criterion; it is asked again on a bundle carrying BPR-0737, on a pull request with more than one update.
+
+## Owner answer, 2026-09-11 (mandate r9)
+
+For the handle criterion, which microsoft/terminal#20607 could not make
+judgeable, the owner named a public pull request with more than one
+update: "https://github.com/NVIDIA/stdexec/pull/1846 looks to have
+multiple updates". The v008 candidate for this card is asked on
+NVIDIA/stdexec#1846, on the bundle that carries
+[BPR-0737](../20-ready/BPR-0737-the-epoch-line-and-the-comparison-menu-are-one-full-width-row-under-the-strip.md).

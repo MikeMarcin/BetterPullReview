@@ -110,4 +110,8 @@ their roles ([[BPR-0726]], accepted 2026-09-11 in the v007 attended
 session); the owner rejected the palette in the same session because
 macros paint the directive grey and functions Visual Studio's pale yellow
 rather than the Visual Assist purple and gold of the reference, which
-[[BPR-0738]] carries.
+[[BPR-0738]] carries. The owner then corrected the reading (2026-09-11,
+mandate r9): functions are orange and class/struct types yellow in the
+reference, and a distinct macro role is necessary; BPR-0738 holds the
+per-token resample (`FF8000`, `FFD700`, `BD63C5`) and adds `syntax_macro`
+to the role model.
