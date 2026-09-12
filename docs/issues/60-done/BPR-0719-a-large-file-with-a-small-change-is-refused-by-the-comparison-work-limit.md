@@ -13,7 +13,7 @@ acceptance: [{"criterion":"A core test with one side of about 8,000 lines that r
 # A large file with a small change is refused by the comparison work limit
 
 The owner, 2026-09-10, in the v003 verdict on
-[BPR-0646](../40-parked/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md),
+[BPR-0646](../10-backlog/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md),
 reviewing microsoft/terminal#20607 signed out: "Seems like I cannot open the
 ScreenBufferTests.cpp file in the review but I can open some other ones. …
 Ah I see there is some kind of limit that prevents us from seeing the one

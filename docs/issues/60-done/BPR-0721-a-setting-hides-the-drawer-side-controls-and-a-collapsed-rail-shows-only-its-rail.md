@@ -13,7 +13,7 @@ acceptance: [{"criterion":"qt_composed_github_scale_{100,125,200}: with the sett
 # A setting hides the drawer-side controls, and a collapsed drawer shows only its rail
 
 The owner, 2026-09-10, in the v003 verdict on
-[BPR-0646](../40-parked/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md):
+[BPR-0646](../10-backlog/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md):
 "The drawers on the left are taking up way too much window space when
 collapsed. I'm thinking the top buttons in the title bar area are
 sufficient and we don't need the drawer columns or even the hide byttons on

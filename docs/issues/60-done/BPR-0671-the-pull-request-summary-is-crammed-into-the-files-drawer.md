@@ -18,7 +18,7 @@ is being crammed into a tiny box in files browser."
 It is. `workbenchDrawerTop` is a 420-pixel-high scroll area inserted into the
 files drawer's column, holding the repository, number, title, author, branches
 and merged state, above the file tree.
-[BPR-0646](../40-parked/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md)
+[BPR-0646](../10-backlog/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md)
 put it there on purpose and said so: it stays "until the repositories drawer
 (BPR-0651) and the overview (BPR-0647) take them". Both of those are Done and
 neither took it, so the placeholder shipped.

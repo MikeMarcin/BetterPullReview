@@ -18,7 +18,7 @@ process is in the settings menu instead of on the home."
 
 Both are true. The locator takes an owner, a repository and a number in
 separate fields, and it lives on the session panel, which
-[BPR-0646](../40-parked/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md)
+[BPR-0646](../10-backlog/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md)
 adopted onto Settings > Accounts and hosts. RFC-BPR-0028 AC-06 says Home
 funnels to the queue or the locator when no pull request is open; the locator
 is not on Home at all.

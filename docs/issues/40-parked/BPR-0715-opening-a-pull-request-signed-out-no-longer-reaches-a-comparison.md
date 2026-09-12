@@ -16,7 +16,7 @@ acceptance: [{"criterion":"application_anonymous_public_preview_public_path pass
 The owner, 2026-09-10, on the pack-head bundle (executable sha256
 `484b2072…`, attended session v002, decision `bdd9244a`): "Can't open any
 files. Saw no epoch line." That verdict rejected
-[BPR-0646](BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md),
+[BPR-0646](../10-backlog/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md),
 but the chrome is not what broke.
 
 ## What is established
@@ -181,7 +181,7 @@ onward) and belongs to no card here.
 ## Observation from the v003 session, 2026-09-10
 
 The owner's screenshots on the
-[BPR-0646](BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md)
+[BPR-0646](../10-backlog/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md)
 rejection (decision `65f3f881`, bundle `9334b13a…`) show the signed-out
 bundle with microsoft/terminal#20607 open: four files in the drawer, three
 of them rendering ("Diff ready — 6 semantic changes (cached)"), the strip

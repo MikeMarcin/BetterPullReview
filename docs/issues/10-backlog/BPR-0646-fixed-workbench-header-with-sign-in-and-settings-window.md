@@ -2,11 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0646"
 title: "Workbench chrome: strip, epoch line, modalities and rails"
-status: "Parked"
+status: "Backlog"
 rfcs: ["RFC-BPR-0028"]
-depends_on: []
+depends_on: ["BPR-0743"]
 priority: "P1"
-parked_on: "human-review"
 acceptance: [{"criterion":"AC-01 strip and epoch line are the only chrome; the strip is the title row","outcome":"pass","revision":"f01f34ad","evidence":{"kind":"observation","detail":"qt_workbench_window_scale_{100,125,200}: the title-row test pins ExpandedClientAreaHint, the hidden title text, the platform inset and the tracked drag; no review header scroll area remains (test_review_header_is_gone). Observed in the signed app-release bundle at 1280x820 and 1920x1080: the strip in the window's first row beside the traffic lights, the epoch line beneath, nothing else above the comparison."}},{"criterion":"AC-02 epoch line selects any two uploads by drag, click, cmd-click, menu and keys and drives the comparison","outcome":"pass","revision":"f01f34ad","evidence":{"kind":"observation","detail":"qt_epoch_comparison_control: test_epoch_line_selects_updates_by_click_drag_and_keys walks click, cmd-click, drag, the context menu and Left/Right/Shift stepping and checks each dispatched select_comparison_anchor_intent; the amber last-review tick and its tooltip are pinned; the composed public-path course drives the comparison through the existing epoch host."}},{"criterion":"AC-03 the four modalities set the drawers, persist per window and never change on their own","outcome":"pass","revision":"f01f34ad","evidence":{"kind":"observation","detail":"qt_workbench_window_scale_100: the modality tests pin Overview/Read/Review/Discuss drawer states, Ctrl+1..4, the 18-pixel rails with label and count, that a manual toggle leaves the segment until the next modality, and the per-window persisted modality."}},{"criterion":"AC-07 sign-in reachable in every state without scrolling","outcome":"pass","revision":"f01f34ad","evidence":{"kind":"observation","detail":"qt_composed_github_scale_100: the device panel sits first on Settings > Accounts and hosts; the strip's account button opens it and focuses Get a code while signed out; test_home_landing_funnels_to_an_account_and_then_a_pull_request pins the Home funnel from the signed-out landing."}},{"criterion":"Focused selectors, composition contracts, public-path courses and the boundary gate pass","outcome":"pass","revision":"f01f34ad","evidence":{"kind":"observation","detail":"28 of 28 focused selectors, application_composition_contract and application_review_round_trip_composition_contract (digests repinned), the public-path courses, check_boundaries, strict tidy on every touched translation unit, clang-format --Werror and verify_documentation.py green at f01f34ad."}},{"criterion":"Attended capture on the Mac candidate with a pull request open: strip, epoch line with nodes, a collapsed and an open rail, positions, sign-in reachable signed out","outcome":"fail","revision":"35438244","evidence":{"kind":"observation","detail":"Attended session cbd48b91000b00f1e72e1ad62c7c384c, candidate BPR-0646-workbench-chrome, revision app-release-e4fdb0ea-2026-09-11.4 (bundle built at 35438244, executable sha256 e4fdb0ea8e250f42da2bfa3a61c501fbdbb6ffd6d92d929912f6b25b44b2757f), fingerprint 1f1999b4cbe4ad3ef42069d066cf72d50cddcb52982d47a6b8c96428c8e3deb3, decision 6dc6dc36-4034-4e05-82cf-e06cc04f02e5, actor human, 2026-09-12T04:24:06Z, one screenshot: reject. Verbatim: 'epoch handle doesnt move, only shows a single epoch event thought I'm sure there were multiple updates'. On NVIDIA/stdexec#1846 the line drew one node and both handles collapse onto it (epoch_line.cpp:183-189), so there was nothing to drag to. Naming a different pull request cannot fix it, which both the v007 and the v008 asks assumed: a review epoch records this install's own observation and no code enumerates a pull request's earlier updates, so a first open yields exactly one epoch; the local catalogue holds one epoch row for pull request 1846, minted five minutes before the verdict. Carded as BPR-0743, which holds the owner's decision between importing history and rewording this criterion."}}]
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"}}
 ---
@@ -397,7 +396,7 @@ state belong to the v001 rejection of 2026-09-07. Read as three findings:
 the strip (AC-01) is accepted; the files and the epoch line were unreachable
 because the signed-out open no longer reaches a comparison, bisected to
 `826fb871` and carded as
-[BPR-0715](BPR-0715-opening-a-pull-request-signed-out-no-longer-reaches-a-comparison.md),
+[BPR-0715](../40-parked/BPR-0715-opening-a-pull-request-signed-out-no-longer-reaches-a-comparison.md),
 which is not this card's code; and the Home flow is owner direction under
 RFC-BPR-0026, registered as
 [BPR-0716](../60-done/BPR-0716-read-without-signing-in-is-offered-from-every-signed-out-home.md).
@@ -411,7 +410,7 @@ head where BPR-0715 is fixed, in a session prepared again.
 Prepared again in
 [rfc-bpr-0028-attended-v003](../../verification/reviews/rfc-bpr-0028-attended-v003/operator-packet.md)
 on the bundle built at the
-[BPR-0715](BPR-0715-opening-a-pull-request-signed-out-no-longer-reaches-a-comparison.md)
+[BPR-0715](../40-parked/BPR-0715-opening-a-pull-request-signed-out-no-longer-reaches-a-comparison.md)
 fix head (executable sha256 `9334b13a…`), candidate revision
 `app-release-9334b13a-2026-09-10.2`. The v002 rejection above stays bound
 to the v002 revision in the session history; the remaining criterion is
@@ -457,7 +456,7 @@ Read as five findings, none of them this card's criterion as written:
 - Comment and include colours have not changed since BPR-0199 (2026-08-07)
   and were not swapped; the request is a requirement under RFC-BPR-0006 held
   for the owner's confirmation of its extent:
-  [BPR-0720](BPR-0720-comments-are-green-and-includes-are-grey-on-the-dark-palette.md).
+  [BPR-0720](../40-parked/BPR-0720-comments-are-green-and-includes-are-grey-on-the-dark-palette.md).
 - The collapsed drawers' footprint, the setting to hide the drawer-side
   controls, and the heading row that `adopt()` leaves visible above each
   rail (the "…"):
@@ -501,7 +500,7 @@ mode viewing experience is not great" meant "it was difficult to read the
 code because of a lack of horizontal area for the text display", carded as
 [BPR-0724](../60-done/BPR-0724-read-mode-leaves-too-little-horizontal-room-for-the-code.md).
 The dark palette question: "the whole palette, yes reset", landed on
-[BPR-0720](BPR-0720-comments-are-green-and-includes-are-grey-on-the-dark-palette.md).
+[BPR-0720](../40-parked/BPR-0720-comments-are-green-and-includes-are-grey-on-the-dark-palette.md).
 The strip below about 960 pixels: "leave it be for now", recorded on
 [BPR-0722](../60-done/BPR-0722-the-strip-hides-the-pull-request-identity-below-1400-pixels.md).
 This card's remaining criterion is unchanged and is asked again on the
@@ -642,7 +641,7 @@ verdict. v007 read the same symptom as "this pull request has one update" and
 v008 re-asked on one the owner believed had several; both asks rested on an
 assumption the product does not support.
 
-Carded as [BPR-0743](BPR-0743-the-epoch-line-shows-only-the-updates-this-install-has-observed.md),
+Carded as [BPR-0743](../50-blocked/BPR-0743-the-epoch-line-shows-only-the-updates-this-install-has-observed.md),
 which holds the owner's decision: import a pull request's earlier updates on
 first open, or keep the epoch line a record of what this install has observed
 and reword this criterion to match. This card stays parked on human-review;
@@ -685,3 +684,21 @@ fourth round would fail for the same reason as the previous three. It returns
 when [[BPR-0743]] makes the epoch line carry the pull request's own updates.
 The v008 packet, where it was asked for the third and last time under the old
 reading, is historical.
+
+## The epoch work has its own RFC, 2026-09-12 (d24, mandate r15)
+
+The owner answered [[BPR-0743]]'s question, verbatim: "It's own rfc". That card
+now belongs to
+[RFC-BPR-0029](../../rfcs/RFC-BPR-0029-machine-independent-epoch-identity-update-history.md).
+The RFC is Proposed and not accepted, and nothing in it is built until the owner
+answers its three asks.
+
+AC-02's attended handle criterion stands as written and is not reworded. It is
+still not judgeable on any bundle that can be built today, for the reason
+recorded above.
+
+The board now shows this. The card depends on BPR-0743, and it sits in Backlog
+rather than parked on human-review, for two reasons. This board does not let a
+parked card hold an unfinished dependency, and nothing about this card is waiting
+on the owner. Its other criteria keep their recorded outcomes. When BPR-0743 is
+Done, the card returns to human-review for the handle criterion alone.

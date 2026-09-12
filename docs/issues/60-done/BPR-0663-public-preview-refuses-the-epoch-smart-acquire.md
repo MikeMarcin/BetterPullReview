@@ -95,7 +95,7 @@ which owns the new failure. This card's own change is not in question.
 
 The owner recorded no decision on `BPR-0663-public-preview-epoch`; the
 candidate stays undecided and protected. The three screenshots on the
-[BPR-0646](../40-parked/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md)
+[BPR-0646](../10-backlog/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md)
 rejection (decision `65f3f881`, bundle `9334b13a…` at da92d5a9) show the
 Updates row reading "No updates loaded." beside "pair ready" and the status
 line "Review history is ready" with microsoft/terminal#20607 open. That

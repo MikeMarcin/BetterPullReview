@@ -23,7 +23,7 @@ so it would not be lost; it is not that regression.
 
 `github_session_panel` decides its rows from its own width in
 `resizeEvent` (`apply_compact_layout(width() < IdentityLayout->sizeHint().width())`).
-Since [BPR-0646](../40-parked/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md)
+Since [BPR-0646](../10-backlog/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md)
 adopted the panel onto Settings > Accounts and hosts, the panel is a child
 of a laid-out page inside a resizable `QScrollArea` under a window whose
 minimum size is 760x480 with a 196-pixel sidebar. The test's

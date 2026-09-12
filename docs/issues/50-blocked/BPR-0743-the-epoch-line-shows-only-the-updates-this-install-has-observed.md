@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0743"
 title: "The epoch line shows only the updates this install has observed"
-status: "Parked"
-rfcs: ["RFC-BPR-0003","RFC-BPR-0028"]
+status: "Blocked"
+rfcs: ["RFC-BPR-0029","RFC-BPR-0028"]
 depends_on: []
 priority: "P1"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"found_at":"71815a38","found_by":"attended-prep-2026-09-10 d19","attended_session":"cbd48b91000b00f1e72e1ad62c7c384c","attended_decision":"6dc6dc36-4034-4e05-82cf-e06cc04f02e5","owner_direction":"2026-09-12"}
-parked_on: "human-review"
 acceptance: [{"criterion":"AC1 The design pass's two recorded decisions (the derivation; whether the ordinal moves) are on this card before the model changes, with the signed-out probe's actual result beside them","outcome":"pass","revision":"f953ce9c","evidence":{"kind":"observation","detail":"Recorded in the card's 'Design pass, 2026-09-12 (d23, mandate r14)' section, before any model change and before any product source change -- none was made. The signed-out probe was RUN, not reasoned about: GET https://api.github.com/repos/NVIDIA/stdexec/issues/1846/timeline?per_page=100 with no credential returned HTTP 200, x-ratelimit-limit 60, x-ratelimit-resource core. So the timeline is anonymously readable over REST and the epoch line does not become a signed-in feature; the card's open worry does not hold. 18 items, of which 2 head_ref_force_pushed, each carrying a GitHub-side id and node_id and the head the branch was moved TO (6ffbd0ac at 2026-08-01T16:45:08Z, 51d2dad0 at 2026-08-09T22:19:26Z; the second equals the PR's current head.sha). 6ffbd0ac appears nowhere in GET /pulls/1846/commits, which demonstrates rather than asserts that commits cannot reconstruct the updates a force push overwrote; it is still fetchable anonymously (200 from both upstream and the fork), so an import would not list updates it cannot then diff. Three limits fell out of the same response and the design is built around them: the REST force-push event has NO before-commit (GraphQL has beforeCommit and is refused anonymously), timeline array position is not an ordering key and its committed entries carry AUTHOR dates not push times, and an ordinary push produces no event at all. Decision 1, the derivation: the portable identity is a digest over the pull request's authority scope and the update's HEAD commit OID, carried beside review_epoch_id. Not the event node_id -- it exists only for force pushes, so the current head usually has none, and catalog_database.cpp:86-88 excludes opaque provider tokens from the catalogue by design. Not the base/head pair the card offered as fallback, because the base OID is time-dependent even for a live read and is not recoverable at all for a historical update. Open sub-question recorded, not papered over: a force push back to a previous head gives two updates one identity. Decision 2, the ordinal: NOT redefined; {Authority, Incarnation, Ordinal} stays the local storage key. Redefining it cannot buy portability while Incarnation is in the id; two of its seven serializations are already beyond the catalogue's reach (git refs on disk, MCP bindings and agent-launch JSON already emitted); and density is an adapter guarantee (epoch_catalog.cpp:3029-3046, :3145-3162) that history paging and alias resolution depend on while core requires only strict increase (epoch_transition.cpp:2519-2537). Three of this card's own anchors were wrong and are corrected in the section: the anonymous admission header's path, the ordinal id write line, and the sixteen-hex-digit ref encoding's file."}},{"criterion":"AC2 Not another fixture: the synthetic three-row epoch_comparison_control test is not evidence for this card","outcome":"pending","revision":"f953ce9c","evidence":{"kind":"observation","detail":"Unbreached and untested. No check of any kind is claimed by this pass, so nothing has been offered as evidence, synthetic or otherwise. The constraint binds AC3's honest check and is carried forward intact."}},{"criterion":"AC3 The honest check runs through the host: a pull request whose history contains at least one force push is read twice into two independent catalogues and the two produce the same epoch list, identities and order; a second live handoff with a different headRefOid still appends with the author-upload cause","outcome":"pending","revision":"f953ce9c","evidence":{"kind":"observation","detail":"Not attempted, deliberately. The design pass concluded that the change exceeds what an owner direction recorded on the closed RFC-BPR-0003 can carry, and the scope's escalation clause says to bring that back rather than absorb it. Nothing is implemented until the owner answers. One thing this check now has that it did not: NVIDIA/stdexec#1846 is a confirmed suitable subject -- it carries two force pushes and one overwritten head, established by the probe above."}},{"criterion":"AC4 BPR-0646's handle criterion is asked again, unchanged, on a bundle carrying this card","outcome":"pending","revision":"f953ce9c","evidence":{"kind":"observation","detail":"Not asked and not askable. BPR-0646's handle criterion stays right as written and is not reworded; it is not judgeable on any bundle buildable today, which is why BPR-0646 was not a candidate in v009 and is not asked again until the epoch line carries the pull request's own updates. Unchanged by this pass."}}]
+blocked_by: "rfc-bpr-0029-owner-asks"
 ---
 
 # The epoch line shows only the updates this install has observed
@@ -614,3 +614,52 @@ Two things that do **not** need him, recorded so the ask stays single: the
 signed-out question is settled (the timeline is anonymously readable, so this
 is not a signed-in feature), and BPR-0646's handle criterion stays right as
 written and unasked until this lands.
+
+## Bound to RFC-BPR-0029, 2026-09-12 (d24, mandate r15)
+
+The ask above is answered. The question was whether the epoch work should be an
+RFC of its own or an amendment recorded against the closed RFC-BPR-0003. The
+owner answered, verbatim: "It's own rfc".
+
+This card now belongs to
+[RFC-BPR-0029](../../rfcs/RFC-BPR-0029-machine-independent-epoch-identity-update-history.md),
+which records this design pass as its proposed decisions. `rfcs` names
+RFC-BPR-0029 in place of RFC-BPR-0003. RFC-BPR-0028 stays, because
+[[BPR-0646]]'s handle criterion waits on this card. The references to
+RFC-BPR-0003 above record how the work was first framed, and they are left as
+written.
+
+The card leaves human-review because the question it was waiting on has been
+answered. It is **Blocked on `rfc-bpr-0029-owner-asks`**. RFC-BPR-0029 is
+Proposed and not accepted, and nothing is built until the owner answers its
+three asks:
+- **A1:** does he accept the RFC?
+- **A2:** is a force push back to an earlier commit one update or two?
+- **A3:** what is an update's date?
+
+A2 and A3 decide the identity and the order, and those are the first things any
+implementation writes.
+
+AC1 stands. AC2, AC3 and AC4 are unchanged and pending, and none of them is
+reworded.
+
+One correction to Decision 1 is recorded on the RFC rather than rewritten here.
+"A digest over the pull request's authority scope" cannot mean
+`pull_request_authority_scope_id`. That value is random and partitioned by
+profile and account (`docs/architecture/git-and-epoch-model.md`, "Cache and
+epoch scope"), so a digest over it would differ between machines. The inputs
+have to be the provider's identity of the pull request plus the head OID. The
+provider identity is GitHub's numeric pull request id, normalized at
+`src/adapters/github/src/github_paged_read.cpp:2388`, together with a host term
+that is still open.
+
+The RFC also carries as open everything this pass left open or did not reach:
+- the head collision;
+- the base-branch events the probe never saw;
+- paging a large timeline;
+- merge-base validation;
+- the date, and with it an order that is the same on every machine, which this
+  pass asserted but did not define;
+- the unbuilt site list for the new read, where a search finds one site the list
+  omitted (`src/app/src/large_review_fixture.hpp:305`);
+- the host term, and what backfill can compute.

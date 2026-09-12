@@ -15,7 +15,7 @@ acceptance: [{"criterion":"AC1 application-host test: a catalogue already holdin
 The owner, in the v006 attended session on the bundle built at d1ba791f,
 with microsoft/terminal#20607 restored at launch and read signed out,
 rejected three candidates for one thing. On
-[BPR-0646](../40-parked/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md)
+[BPR-0646](../10-backlog/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md)
 (decision `d06b4b43`): "There is no visible epoch line". On
 [BPR-0663](BPR-0663-public-preview-refuses-the-epoch-smart-acquire.md)
 (decision `da24251c`): "Shows No updates loaded". On
