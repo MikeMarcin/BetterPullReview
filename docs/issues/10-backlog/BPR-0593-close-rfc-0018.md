@@ -37,9 +37,15 @@ The d28 composed and focused checks remain applicable because source inputs
 are unchanged. [[BPR-0729]]'s accepted v010 criterion remains Parked on
 `immutable-review-link`; [[BPR-0735]] and [[BPR-0746]] retain the owner's
 declined observations. [[BPR-0730]]/[[BPR-0731]] remain own-station work.
-Next: assess [[BPR-0750]] against all nine RFC-BPR-0029 closeout criteria
-without claiming any unrun evidence. No source or build writer or review host
-is active; a read-only scout is auditing the separate RFC-0029 closeout rows.
+[[BPR-0750]] was promoted and claimed for a separate RFC-BPR-0029 closeout
+audit at `4e29df56` and `79c99936`. Its row 1 two-catalogue course and row 9
+owner verdict have direct passing evidence; rows 3 and 8 have partial evidence,
+and rows 2 and 4–7 still need direct checks. RFC-BPR-0029 therefore remains
+Accepted, with canonical predecessor RFC-BPR-0008 still Proposed. RFC-BPR-0028
+and RFC-BPR-0018 remain open; no closeout is inferred from the v011 verdict.
+The next bounded objective is the missing RFC-BPR-0029 direct checks or a
+path-preserving board migration for BPR-0646 and BPR-0729. No source/build
+writer, review host or child agent remains active.
 
 ## Current frontier, 2026-09-12 (d28, mandate r19): historical comparison in progress
 
