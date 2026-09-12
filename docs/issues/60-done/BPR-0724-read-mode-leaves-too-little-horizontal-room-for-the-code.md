@@ -121,4 +121,4 @@ conversations drawer in Read (AC-05 stays as written) and leaving Read as it is.
 this card's last criterion; the work is
 [BPR-0728](BPR-0728-the-conversations-drawer-goes-narrower-than-375-pixels-in-read.md)
 and
-[BPR-0729](../20-ready/BPR-0729-a-single-pane-read-layout-in-the-manner-of-p4merge.md). Done.
+[BPR-0729](../30-in-progress/BPR-0729-a-single-pane-read-layout-in-the-manner-of-p4merge.md). Done.
