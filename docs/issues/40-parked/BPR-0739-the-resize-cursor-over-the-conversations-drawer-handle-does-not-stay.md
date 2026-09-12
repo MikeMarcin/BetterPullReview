@@ -2,11 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0739"
 title: "The resize cursor over the conversations drawer handle does not stay"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P2"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"owner_direction":"2026-09-11","attended_session":"cbd48b91000b00f1e72e1ad62c7c384c","attended_decision":"8a907ecd-4aef-4596-a035-320365d12b40"}
+parked_on: "human-review"
+acceptance: [{"criterion":"AC1 A Qt test pins that after a modality change and after a host-republished layout the handle under a resting pointer still reports the split cursor, and fails at HEAD if the cause is one of 1, 2 or 4","outcome":"pass","revision":"65c47ec6","evidence":{"kind":"command","detail":"test_the_split_cursor_stays_over_a_resting_handle in tests/adapters_qt/workbench_window_tests.cpp: the conversations handle under a resting pointer stays under it with Qt::SplitHCursor at rest, after a Discuss/Read modality change, after the host republishes the layout and after an answered drag; the files handle the same. The pointer sequence passed at e22b495a before any product change, which is the finding: causes 1, 2 and 4 do not hold (present() only toggles visibility, the handles are created once, relayouts return the handle to the same column). The seam pins (the drawer's edge rule in Mid, Highlight under the pointer, rule at the drawer's edge of each handle) fail without the new handle. Diagnosis on the card; logs build/logs/bpr-0739-*.log; cocoa probe held NSCursor.resizeLeftRightCursor for 1.1 s at rest (build/logs/bpr-0739-cocoa-diag-1.log)."}},{"criterion":"AC2 qt_workbench_window_scale_{100,125,200} and qt_composed_github_scale_100 pass","outcome":"pass","revision":"65c47ec6","evidence":{"kind":"command","detail":"ctest: qt_workbench_window_scale_100/125/200, qt_composed_github_scale_100 and architecture_boundaries pass (build/logs/bpr-0739-focused-run.log, build/logs/bpr-0739-wb-run-9.log after the tidy rename); format_check and tidy --warnings-as-errors clean on the touched files (build/logs/bpr-0739-tidy-2.log). At 1.25 the resting-pointer sequence is read only at whole-number scales (offscreen pointer round trip lands a device pixel beside the handle after the Discuss round trip); the seam pins run at all three."}},{"criterion":"AC3 The owner resizes the conversations drawer on the signed bundle with the cursor visible throughout, in an attended session","outcome":"pending","revision":"65c47ec6","evidence":{"kind":"observation","detail":"Asked in the v008 attended packet on the rebuilt tests-disabled bundle, with the hover highlight (a state the asset does not draw) shown for the owner's verdict."}}]
 ---
 
 # The resize cursor over the conversations drawer handle does not stay
