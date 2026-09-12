@@ -122,3 +122,36 @@ dark profile paints types `FFD700`, functions `FF8000`, variables
 store moves to schema version 5 and gives a stored palette its macro row
 from its own preprocessor colour, with no second reset. The attended
 criterion on BPR-0720 is asked again in v008.
+
+## Owner direction, 2026-09-11 (the v008 verdicts)
+
+The owner rejected both palette candidates in the v008 attended session
+(`cbd48b91…`, the bundle at 35438244, handed back at sequence 348) with one
+requirement stated twice. On [[BPR-0720]]: "comments are green, things are
+mostly right, but preprocess being grey is taken too far compared to the
+reference. The preprocessor directives themselves should be grey but not
+necessarily their arguments. Macros in preprocessor should still color as
+macros (purple). Strings in #include statements should color as the reference
+image." On [[BPR-0738]]: "most things are good now but include paths should be
+painted like the reference and things like macros in `#ifndef MACRO` should be
+painted as macros."
+
+This revises the direction above. Its parenthetical, "grey preprocessor lines
+including the include path", now reads: the **directive** is grey; its
+arguments are not. An ALL_CAPS argument takes the `syntax_macro` role, the
+same purple a macro takes in ordinary code, and an `#include` path is painted
+as the Visual Assist reference paints it rather than the directive grey. The
+comment green, the identifier role colours landed under BPR-0738, the one-time
+reset and the schema-5 store are not disputed and are unchanged. [[BPR-0744]]
+carries the change: the classifier already emits roles at sub-line ranges, and
+what collapses a directive line is the packaged grammar's default Preprocessor
+attribute together with the identifier post-pass running only over
+`syntax_normal` runs.
+
+Two questions this RFC asked through BPR-0738's candidate are still open and
+are asked again: whether the standard-library aliases' italic in the reference
+matters, and whether `CE8AD4` is acceptable as the macro purple in place of the
+reference's `BD63C5` (which reaches only 3.18 against the added fill under the
+selection wash, where this RFC's floor is 4.5) or whether the floor should
+yield instead. The v008 notes answer neither; `CE8AD4` stands only because
+nothing has replaced it, not because it was approved.

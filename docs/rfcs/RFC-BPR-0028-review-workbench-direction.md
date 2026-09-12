@@ -182,9 +182,15 @@ Column headings are one word; actions are two.
 ## Non-goals
 
 Browser-style file tabs; the lane-rail conversation drawer rejected earlier;
-changes to the diff themes or the link map; automatic drawer collapsing without
-a configured rule; the Settings pages, the explorers and the file tree, which
-follow in their own design rounds.
+changes to the diff themes or the link map, except that the link map may be
+extended to the one-pane Read presentation, which is the same map at its limit
+with one column instead of two (owner direction 2026-09-11, rejecting
+[[BPR-0734]] in the v008 attended session: "Relax the non-goals restriction to
+allow extending the link-map in this limit direction"; the two-pane ribbons
+themselves are unchanged, and [[BPR-0745]] words the extension against the
+redrawn state); automatic drawer collapsing without a configured rule; the
+Settings pages, the explorers and the file tree, which follow in their own
+design rounds.
 
 ## Acceptance criteria
 
@@ -439,3 +445,60 @@ open. Next: BPR-0734, then BPR-0737 and BPR-0739 on main, a rebuilt
 bundle and a v008 packet re-asking BPR-0646 and BPR-0720. The owner
 named NVIDIA/stdexec#1846 (2026-09-11, mandate r9) as the multi-update
 pull request for the BPR-0646 and BPR-0737 asks.
+
+Attended preparation, 2026-09-11 (v008). [[BPR-0737]], [[BPR-0738]] and
+[[BPR-0739]] landed and the design round [[BPR-0734]] was drafted; the
+bundle was rebuilt at 35438244 (executable sha256 `e4fdb0ea…`, tests
+disabled, signed) after [[BPR-0740]] finished. Six candidates are prepared
+in [rfc-bpr-0028-attended-v008](../verification/reviews/rfc-bpr-0028-attended-v008/operator-packet.md):
+the two v007 rejections asked again ([[BPR-0646]], [[BPR-0720]]) on
+NVIDIA/stdexec#1846, which the owner named as a pull request with more than
+one update, and the four since ([[BPR-0734]], [[BPR-0737]], [[BPR-0738]],
+[[BPR-0739]]). The v007 packet is historical; its ten verdicts stand.
+
+Attended verdict, 2026-09-11 (v008). Session `cbd48b91…` was handed back at
+sequence 348 with all six candidates decided on the 35438244 bundle; every
+decision matches its candidate's fingerprint in the packet's identity file.
+Accepted and Done: [[BPR-0737]], the epoch line and the "Comparing …" menu as
+one full-width row under the strip, which closes the v007 finding on
+[[BPR-0646]]; the chrome paragraph above already carries it.
+
+Rejected and parked, four of them with new work:
+
+- [[BPR-0646]], whose one remaining criterion — a handle moves the comparison
+  — is unjudged for the third round. Not for want of a busier pull request:
+  a review epoch is this install's own observation of base and head, nothing
+  enumerates a pull request's earlier updates, and a first open therefore
+  yields one epoch for any pull request. The local catalogue held exactly one
+  epoch for NVIDIA/stdexec#1846, minted five minutes before the verdict.
+  [[BPR-0743]] holds the owner's decision: import a pull request's earlier
+  updates under RFC-BPR-0003, or keep the line a record of what this install
+  has seen and reword AC-02's attended criterion to match. The criterion is
+  not asked again on another pull request until that answer lands.
+- [[BPR-0734]], because the one-pane presentation should keep the link map
+  rather than gain a change map of its own. That answers the round's third
+  question by rejecting its premise and relaxes this RFC's non-goal above;
+  block order and where the presentation choice lives are still unanswered
+  and are asked again. [[BPR-0745]] redraws state 2b over the link map and
+  rewords the Modalities amendment; [[BPR-0729]] still waits behind
+  BPR-0734's acceptance.
+- [[BPR-0739]], because the resize cursor over the seam is still the arrow.
+  The seam itself is accepted ("at least it draws the seam now"). The
+  highlight is painted only while Qt believes the pointer is on the handle,
+  so the handle had the pointer and the cursor was still wrong: the d17
+  cause (a hot zone too narrow to hit) is refuted and the defect is cursor
+  delivery on macOS after Qt's enter. [[BPR-0746]] carries it, with the
+  logging check that discriminates the hypotheses on the real application
+  rather than another offscreen pass. Whether the hover highlight should go
+  is still unanswered.
+- RFC-BPR-0006's [[BPR-0720]] and [[BPR-0738]], one requirement in two
+  notes: a preprocessor line paints grey end to end where the reference greys
+  only the directive. [[BPR-0744]] carries it.
+
+Of this RFC's cards, BPR-0646, BPR-0734 and BPR-0739 are parked on
+human-review; BPR-0653 waits for the Windows station; BPR-0729 waits for the
+design round; BPR-0736 is in Inbox; BPR-0743 is in Backlog behind the owner's
+answer; BPR-0745 and BPR-0746 are Ready. The RFC stays open, and BPR-0646's
+criterion can no longer be closed by preparing another bundle. Next:
+BPR-0745, BPR-0746 and BPR-0744 on main, then a rebuilt bundle and a v009
+packet; BPR-0743's question goes to the owner before its scope is fixed.
