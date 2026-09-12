@@ -10,6 +10,7 @@
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
+#include "bpr/qt/workbench_landing.hpp"
 
 #include <QAction>
 #include <QApplication>
@@ -186,10 +187,29 @@ auto main(int aArgc, char** aArgv) -> int
 	const auto first   = owner->windows().front();
 	auto*      windowA = owner->window(first);
 	expect(windowA != nullptr && windowA->isVisible(), "first public window visible");
+	// [[BPR-0732]]. Where preview is composed a pasted public link no longer
+	// stops at sign-in: it opens signed out, and the fixture answers the
+	// anonymous read of one pull request once, not the independent and
+	// repeated reads this course makes from three windows. The account course
+	// signs in from the landing card first, as the restoration and layout
+	// courses do; an account opens the destination without a stop.
+	// Only the first window signs in, and it signs in before its first paste:
+	// `PublicPreviewSignedOut` is still false until a paste activates the
+	// shipped signed-out session, and a sibling that signs in later enrols a
+	// second grant whose identity change retires every window's session.
+	expect(windowA->home_landing()->state() == qt::landing_state::sign_in && !windowA->queue_view()->isVisible(), "first public window lands signed out with no queue");
+	windowA->home_landing()->primary_button()->click();
+	wait_for([&] { return windowA->session_panel()->status() == core::github_status::session_ready && !owner->status().PublicPreviewSignedOut; }, "Home sign-in reaches an account session", [&] {
+		const auto evidence = app::detail::github_application_fixture_access::evidence(*owner);
+		std::cerr << "sign-in status=" << windowA->session_panel()->status_text()
+			<< " diagnostic=" << windowA->session_panel()->diagnostic_text()
+			<< " preview-signed-out=" << owner->status().PublicPreviewSignedOut
+			<< " vault=" << evidence.VaultStores << " bootstrap=" << evidence.BootstrapTransportSelected
+			<< " account=" << evidence.AccountTransportSelected << '\n'; });
+	expect(windowA->queue_view()->isVisible(), "an account shows the queue");
 	submit(*windowA, 17);
 	auto* signIn = windowA->findChild<QPushButton*>(QStringLiteral("homeSetupContinue"));
-	expect(signIn != nullptr && signIn->isVisible(), "first review offers explicit sign in");
-	signIn->click();
+	expect(signIn != nullptr && signIn->isHidden(), "an account opens the first review without a sign-in stop");
 	wait_for([&] { return windowA->session_panel()->status() == core::github_status::pull_request_ready; }, "first review opens through public setup", [&] {
 		const auto evidence = app::detail::github_application_fixture_access::evidence(*owner);
 		std::cerr << "status=" << windowA->session_panel()->status_text()
