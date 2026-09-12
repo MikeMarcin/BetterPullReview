@@ -263,3 +263,16 @@ What remains on this card is one criterion only: the owner accepting a C++
 header on the dark palette in an attended session, asked again on a bundle
 carrying [[BPR-0744]]'s directive ranges. This card stays parked on
 human-review until then.
+
+## Attended candidate, 2026-09-12 (v009)
+
+The one criterion left on this card is asked as candidate
+`BPR-0744-directive-ranges` in [rfc-bpr-0028-attended-v009](../../verification/reviews/rfc-bpr-0028-attended-v009/operator-packet.md), on the
+bundle built from the source at aff9fc64 (executable sha256 `c2381f32…`, tests
+disabled, codesign clean), candidate revision `app-release-c2381f32-2026-09-12.5`;
+prepared and protected at sequence 357, undecided, no host running until the
+owner says so. One candidate carries it for this card, [[BPR-0720]] and
+[[BPR-0744]] together, rather than the two separate candidates of v008 that
+produced "As I answered in another question". The two questions this card
+carried are closed and are not repeated. The v008 rejection stays recorded
+against its own revision.

@@ -204,3 +204,22 @@ the accepted asset draws it at one constant weight.
 
 AC3, the resize cursor, is unchanged and still fails. [[BPR-0746]] carries
 it; see that card for why no product change was attempted this round.
+
+## Attended candidate, 2026-09-12 (v009)
+
+The hover question is candidate `BPR-0739-seam-hover` in
+[rfc-bpr-0028-attended-v009](../../verification/reviews/rfc-bpr-0028-attended-v009/operator-packet.md),
+on the bundle built from the source at aff9fc64 (executable sha256
+`c2381f32…`, tests disabled, codesign clean), candidate revision
+`app-release-c2381f32-2026-09-12.5`; prepared and protected at sequence 357,
+undecided, no host running until the owner says so. It carries the owner's own
+v008 capture cropped to the seam
+([the crop](../../verification/reviews/rfc-bpr-0028-attended-v009/captures/seam-highlight-crop-from-v008.png))
+and offers two options rather than a free-text question, because the v008 ask
+failed on the owner not knowing which element was meant.
+
+**AC3 is not asked in v009.** Nothing about cursor delivery changed this round,
+so asking whether the cursor stays would be asking the owner to confirm a
+failure already recorded. What is asked instead, as the separate candidate
+`BPR-0746-cursor-probe`, is the logging run that [[BPR-0746]] needs; AC3 comes
+back on a bundle carrying whatever that log leads to.

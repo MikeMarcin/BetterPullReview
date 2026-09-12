@@ -203,3 +203,14 @@ a View menu drawn below the window, and the Modalities amendment is reworded
 accordingly. This card's first criterion is asked again from that state in
 the v009 packet; v6 and this round's own text stay recorded against their own
 revision, and BPR-0745's candidate does not replace this one.
+
+## Attended candidate, 2026-09-12 (v009)
+
+This card's first criterion is asked again as candidate `BPR-0734-read-one-pane`
+in [rfc-bpr-0028-attended-v009](../../verification/reviews/rfc-bpr-0028-attended-v009/operator-packet.md),
+candidate revision `design-v7-2026-09-12`, from
+[direction v7](../../design/RFC-BPR-0028-workbench-direction-v7.html#read-one-pane)
+rather than from a new candidate replacing it; prepared and protected at
+sequence 357, undecided, no host running until the owner says so. The v008
+rejection stays recorded against its own revision, and v6 stays where it is as
+the round it belonged to.

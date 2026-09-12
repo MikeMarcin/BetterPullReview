@@ -83,3 +83,27 @@ The current attended packet is
 this card is not a v008 candidate. The design round [[BPR-0734]] it waits
 for is asked there; this card is rewritten from the accepted state. The
 v006 and v007 packets above are historical.
+
+## Packet pointer, 2026-09-12 (v009)
+
+The current attended packet is
+[rfc-bpr-0028-attended-v009](../../verification/reviews/rfc-bpr-0028-attended-v009/operator-packet.md);
+this card is not a v009 candidate. [[BPR-0734]] is asked there again from the
+redrawn state, [direction v7](../../design/RFC-BPR-0028-workbench-direction-v7.html#read-one-pane),
+which [[BPR-0745]] produced; this card is still rewritten from whatever the
+owner accepts, and that rewrite is BPR-0734's second criterion. Earlier packets
+are historical.
+
+Two facts landed under [[BPR-0745]] that this card's rewrite will need. The
+owner's answer on where the presentation choice lives is "should be in the view
+menu like line numbers", and Line numbers in this codebase is one scalar with no
+modality of its own (`workbench_interaction.hpp:345`), persisted per window in
+`window_layout` and seeded for a new window from the single-row
+`workbench_preferences`, both from the same DDL
+(`workbench_settings_database.cpp:44-101`), proved by
+`tests/end_to_end/profile_window_layout_public_path_tests.cpp:191-215`. So the
+presentation is per window and Review inherits it. And a new boolean in that
+DDL lands in **both** tables and moves `workbench_settings_schema_version` from
+6 to 7 (`workbench_settings_database.hpp:35`, ladder at `.cpp:113-116,141-143`),
+with precedent at v3, v4 and v6; the default to choose is the behaviour a window
+had before the preference existed, which is two panes.

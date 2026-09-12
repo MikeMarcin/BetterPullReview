@@ -550,3 +550,23 @@ standard-library aliases' italic does not matter ("no"), and `CE8AD4` is
 acceptable as the macro purple in place of the reference's `BD63C5` ("yes it's
 acceptable"), so the 4.5:1 floor is not asked to yield. Recorded on that RFC
 and on [[BPR-0738]].
+
+## Attended session, 2026-09-12 (v009)
+
+The session lives in
+[rfc-bpr-0028-attended-v009](../verification/reviews/rfc-bpr-0028-attended-v009/operator-packet.md),
+prepared and protected at sequence 357 on the tests-disabled signed bundle built
+from source `aff9fc64` (executable sha256 `c2381f32…`, `codesign --verify --deep
+--strict` clean). Four candidates, undecided, no host running:
+`BPR-0744-directive-ranges` (carrying the one criterion RFC-BPR-0006's
+[[BPR-0720]] and [[BPR-0738]] both hold, as one ask rather than two),
+`BPR-0734-read-one-pane` on
+[direction v7](../design/RFC-BPR-0028-workbench-direction-v7.html#read-one-pane),
+`BPR-0739-seam-hover`, and `BPR-0746-cursor-probe`, which is a logging run
+rather than a judgement.
+
+[[BPR-0646]] is not in it. AC-02's attended criterion stands as written and
+returns when [[BPR-0743]] makes the epoch line carry the pull request's own
+updates; re-asking it on a bundle buildable today would fail for the same reason
+it failed in v006, v007 and v008. AC-03's seam criterion on [[BPR-0739]] is
+likewise not re-asked: no product change touched cursor delivery this round.

@@ -674,3 +674,14 @@ packet and is not asked again on any bundle until the epoch line carries the
 pull request's own updates. Re-asking it on a bundle built today would fail
 for the fourth time for the same reason, which is the owner's time spent to
 learn nothing.
+
+## Packet pointer, 2026-09-12 (v009): not a candidate
+
+The current attended packet is
+[rfc-bpr-0028-attended-v009](../../verification/reviews/rfc-bpr-0028-attended-v009/operator-packet.md),
+and this card is deliberately **not** in it. Its handle criterion is right as
+written and is still not judgeable on any bundle that can be built today, so a
+fourth round would fail for the same reason as the previous three. It returns
+when [[BPR-0743]] makes the epoch line carry the pull request's own updates.
+The v008 packet, where it was asked for the third and last time under the old
+reading, is historical.

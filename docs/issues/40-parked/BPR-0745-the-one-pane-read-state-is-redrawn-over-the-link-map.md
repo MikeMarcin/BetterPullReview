@@ -239,3 +239,15 @@ Nothing about this state is settled by silence. The ask carries: the state
 itself; the reworded Modalities amendment and the unchanged AC-05; that
 checking One pane gives Review one pane too, with the flip offered; and that
 the whole-file overview is gone.
+
+## Attended candidate, 2026-09-12 (v009)
+
+The redrawn state is asked as candidate `BPR-0734-read-one-pane` in
+[rfc-bpr-0028-attended-v009](../../verification/reviews/rfc-bpr-0028-attended-v009/operator-packet.md),
+candidate revision `design-v7-2026-09-12`; prepared and protected at sequence
+357, undecided, no host running until the owner says so. It keeps [[BPR-0734]]'s
+candidate id rather than replacing it with a new one, which is what that card's
+acceptance requires. No bundle is involved: it is a design page. The ask carries
+the state, the reworded Modalities amendment, the unchanged AC-05, and the two
+consequences the owner may want to refuse — Review taking one pane too, and the
+whole-file overview being gone.

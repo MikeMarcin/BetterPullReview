@@ -290,3 +290,12 @@ radius.
   `headRefOid` for the same scope still appends with the author-upload cause.
 - [[BPR-0646]]'s handle criterion is asked again, unchanged, on a bundle
   carrying this card.
+
+## Packet pointer, 2026-09-12 (v009)
+
+The current attended packet is
+[rfc-bpr-0028-attended-v009](../../verification/reviews/rfc-bpr-0028-attended-v009/operator-packet.md). This card is not a candidate there and
+neither is [[BPR-0646]]: the handle criterion is not judgeable until this card
+lands, which is the point of the answer recorded above. The v008 packet, where
+BPR-0646 was asked for the third and last time under the old reading, is
+historical.

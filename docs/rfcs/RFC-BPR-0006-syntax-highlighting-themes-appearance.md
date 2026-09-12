@@ -174,3 +174,22 @@ Neither question is repeated in a later attended packet. What remains for the
 owner on this RFC is the single attended criterion [[BPR-0720]] and
 [[BPR-0738]] both carry, asked again on a bundle carrying [[BPR-0744]]'s
 directive ranges.
+
+## Attended session, 2026-09-12 (v009)
+
+The remaining attended criterion of [[BPR-0720]] and [[BPR-0738]] — now also
+[[BPR-0744]]'s — is asked as the single candidate `BPR-0744-directive-ranges` in
+[rfc-bpr-0028-attended-v009](../verification/reviews/rfc-bpr-0028-attended-v009/operator-packet.md),
+prepared and protected at sequence 357 on the bundle built from source
+`aff9fc64`. One candidate, not three: the owner's v008 notes on two separate
+candidates were one requirement stated twice, and he said so.
+
+Landed for it: a preprocessor directive keyword stays `syntax_preprocessor`,
+an ALL_CAPS word inside a directive takes `syntax_macro`, a predefined macro
+the packaged grammar styles as its own `Standard Macros` takes it too, and a C
+or C++ `#include` path takes `syntax_string` rather than `syntax_import`. No
+appearance role was added and no palette value moved, so the appearance store
+stays at schema 5 and there is no second reset. One question rides the
+candidate: a predefined macro spelled without a capital (`__clang__`,
+`__cplusplus`) is still near-grey, and the context-aware rule that would fix it
+is costed on [[BPR-0744]] rather than taken.

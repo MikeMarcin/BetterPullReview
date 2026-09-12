@@ -247,3 +247,15 @@ ranges; what collapses the line is the grammar's default Preprocessor
 attribute and our identifier post-pass running only over `syntax_normal` runs
 (`packaged_syntax_classifier.cpp:435-448`). This card stays parked on
 human-review; its criterion is asked again on a bundle carrying BPR-0744.
+
+## Attended candidate, 2026-09-12 (v009)
+
+This card's attended criterion is asked as candidate
+`BPR-0744-directive-ranges` in [rfc-bpr-0028-attended-v009](../../verification/reviews/rfc-bpr-0028-attended-v009/operator-packet.md), on the
+bundle built from the source at aff9fc64 (executable sha256 `c2381f32…`, tests
+disabled, codesign clean), candidate revision `app-release-c2381f32-2026-09-12.5`;
+prepared and protected at sequence 357, undecided, no host running until the
+owner says so. It is one candidate for this card, [[BPR-0738]] and [[BPR-0744]]
+together: the owner's v008 notes on the two separate candidates were one
+requirement stated twice, and asking it twice again would repeat the mistake.
+The v008 rejection stays recorded against its own revision.

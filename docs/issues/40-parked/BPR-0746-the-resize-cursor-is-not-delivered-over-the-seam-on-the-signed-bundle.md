@@ -228,3 +228,12 @@ Reading the result, once it exists:
 Parked on human-review until that log exists. The scope's instruction to bring
 the scope back if the cause turns out to be platform-wide rather than this
 window's still stands and has not been reached.
+
+## Packet pointer, 2026-09-12 (v009)
+
+The discriminating check is candidate `BPR-0746-cursor-probe` in
+[rfc-bpr-0028-attended-v009](../../verification/reviews/rfc-bpr-0028-attended-v009/operator-packet.md), on the bundle built from the source at
+aff9fc64 (executable sha256 `c2381f32…`, tests disabled, codesign clean),
+candidate revision `app-release-c2381f32-2026-09-12.5`; prepared and protected
+at sequence 357, undecided, no host running until the owner says so. Accepting
+it means the probe was run; the evidence is the log, not the verdict.

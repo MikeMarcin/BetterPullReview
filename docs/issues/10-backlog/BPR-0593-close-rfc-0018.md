@@ -12,7 +12,131 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
-## Current frontier, 2026-09-11 (d19, mandate r10)
+## Current frontier, 2026-09-12 (d20, mandate r11)
+
+Dispatch `attended-prep-2026-09-10` d20 (mandate r11), milestone
+`attended-preparation-pack-head` of plan `ux-redesign-pack-0028`. The owner
+answered all six outstanding asks in chat. Five close a question; the sixth
+reopens the epoch model and is the one that matters.
+
+**The epoch answer.** Asked to choose between importing a pull request's
+earlier updates and rewording [[BPR-0646]]'s handle criterion, he answered
+neither: "An Epoch is an update to the PR, epochs identity should be stable and
+repeatable if I look at the PR on different machines. A purely observed epoch
+is not useful and terribly confusing." So the criterion is right as written and
+is **not reworded**, and the fix is larger than a missing producer:
+`core::review_epoch_id` is `{Authority, Incarnation, Ordinal}`
+(`epoch_model.hpp:444-450`) and both variable parts are machine-local — a
+random per-catalogue incarnation ([[BPR-0044]]) and an ordinal handed out by the
+SQLite scope row under compare-and-swap (`epoch_catalog.cpp:3030-3045`,
+`:3147-3156`) in observation order. [[BPR-0743]] is rewritten and promoted to
+**Ready** (P1) with the derivation question, the ordinal's coupling points (git
+retained refs encode it as sixteen hex digits, the ledger and window
+restoration store it, the MCP context surfaces it, history paging is pinned on
+it by [[BPR-0056]] and [[BPR-0066]]; the amber last-review tick is *not* on that
+list, it matches by head OID), the migration-by-rebuild finding, and the
+signed-out problem that every GraphQL-routed operation is refused anonymously
+(`github_anonymous_read_admission.hpp:99-108`) so a timeline read has to be
+REST. **Correction to d19's diagnosis:** `list_pull_request_commits` does exist
+end to end and is admitted anonymously, but a force push rewrites a commit list
+rather than appending to it, so commits cannot reconstruct the updates that
+matter. RFC-BPR-0003 records the direction without reopening its baseline; if
+the design pass finds the change exceeds what an owner direction on a closed
+RFC can carry, it comes back for the owner rather than reopening it from inside
+a card. **BPR-0646 is not in the v009 packet** and is not asked again on any
+bundle until the line carries the pull request's own updates.
+
+**The other five.** Block order is unified-diff order ("don't care"); the
+one-pane choice lives in the View menu "like line numbers", which was read
+against the code to mean per window, seeded from a profile default, with no
+modality of its own, **so Review takes one pane too** — the opposite of the
+position BPR-0734 drew, offered with its flip. The alias italic does not matter
+("no") and `CE8AD4` stands as the macro purple ("yes it's acceptable"), so
+RFC-BPR-0006's floor holds and neither is repeated. The seam's hover highlight
+is **not settled**: "I'm not sure what this is, but leaning towards keep it" is
+a leaning and its first clause is the operative one, so nothing changed and
+v009 shows him the element in a picture instead of naming it again.
+
+Landed on main: the answers and the redraw (`6b76f744`); BPR-0746's record
+(`c0d3c5da`); [[BPR-0745]] finished human-pending (`16eaefb4`) with
+`docs/design/RFC-BPR-0028-workbench-direction-v7.html`, state 2b redrawn so the
+gutter carries the link map at its limit — each change's struck and added rows
+converge on a spine, an empty side draws one ribbon, the whole-file overview
+and the strip toggle are gone and a View menu is drawn instead; and
+[[BPR-0744]] finished human-pending (`aff9fc64`) with a directive's arguments
+taking their own roles. [[BPR-0747]] carded from that slice (P3, Backlog): a
+`//` comment after a null directive paints `syntax_error` salmon, upstream
+grammar behaviour, identical count at HEAD.
+
+**BPR-0744's one non-obvious invariant, so it is not undone:** the
+`syntax_other` → `syntax_macro` substitution is gated on `is_macro_case`, and
+that condition is load-bearing. `dsOthers` has one user in `isocpp.xml` and
+none in `c.xml`, but the format stream also carries `dsOthers` from `gcc.xml`,
+`doxygen.xml` and `modelines.xml` through includes, so a blanket substitution
+paints `&amp;` inside a Doxygen comment and `on`/`off` inside a kate modeline the
+macro purple. Probed, not reasoned. The card carries the evidence and the two
+recorded limits (`__clang__` grey, `__cplusplus` near-grey), both pinned by the
+contract so they cannot drift, and the costed context-aware rule that would
+remove them, which is asked in v009 rather than taken.
+
+**BPR-0746 made no product change, deliberately.** Its three hypotheses differ
+only in what AppKit does on the next real pointer motion after Qt's enter, and
+nothing separates them without a real pointer on the seam. Synthesising that
+motion is forbidden here and is exactly what made
+`build/logs/bpr-0739-cocoa-diag-1.log` worthless. The check is prepared rather
+than deferred: one terminal line with `QT_LOGGING_RULES`, riding its own v009
+candidate so one trip to the seam yields both the log and the hover verdict.
+The category and the four literals were read off the shipped
+`libqcocoa.dylib`.
+
+Bundle and packet. The tests-disabled signed bundle is rebuilt at `aff9fc64`
+(executable sha256 `c2381f32…`, `build/logs/app-release-aff9fc64.log`,
+`codesign --verify --deep --strict` exit 0, `BUILD_TESTING=OFF`). **No store
+moves schema this round**, so there is no second palette reset. The v009 packet
+is prepared under
+[rfc-bpr-0028-attended-v009](../../verification/reviews/rfc-bpr-0028-attended-v009/operator-packet.md):
+four candidates ready and protected at **sequence 357**, revision
+`app-release-c2381f32-2026-09-12.5` (`BPR-0734-read-one-pane` carries
+`design-v7-2026-09-12`) — `BPR-0744-directive-ranges` (carrying BPR-0720's and
+BPR-0738's shared criterion as one ask rather than two),
+`BPR-0734-read-one-pane`, `BPR-0739-seam-hover` and `BPR-0746-cursor-probe`. No
+host started, no wait armed: `attended_review.py serve`, then `wait --after 357`.
+The v008 candidates were released with `resume-development` at sequence 349
+before any source edit; their verdicts stay bound to their own revisions.
+
+**Environment, not a regression.** `application_composition_contract`'s subtest
+`test_tests_off_release_graph_omits_public_path_fixture` fails
+`PROFILE_ALREADY_OPEN`. Verified at HEAD by restoring HEAD content over all six
+changed files: identical failure. `assert_release_self_test`
+(`composition_contract_tests.py:508`) launches the executable with the real
+environment so it opens the real profile, and `src/app/main.cpp:8019` prints
+that for `owner_busy`; the owner's v008 bundle has been running since 21:18
+(pid 30378) and holds it. It was not killed. Everything else in the
+integration-focused pass is green: 25 of 26, including
+`qt_composed_github_scale_100`, `qt_workbench_window_scale_{100,125,200}`,
+`qt_settings_window*`, `qt_diff_workbench_scale_*`, `qt_appearance_*`,
+`syntax_classification_contract`, `architecture_boundaries` and
+`application_review_round_trip_composition_contract`. The documentation gate
+and `git diff --check` are clean. The check goes green when he quits that
+build, which is the packet's first instruction.
+
+Closeout state: unchanged, both RFCs stay open. **RFC-BPR-0018 is not
+closable**: 17 of 20 cards Done, this card still waits on [[BPR-0730]] and
+[[BPR-0731]] (the Windows and Linux packaged inventories for AC-11, on their own
+stations), and the checklist below still holds AC-01, AC-07, AC-08 and AC-11
+open. Nothing in d20 touched RFC-BPR-0018. **RFC-BPR-0028 is not closable**: 41
+of 51 Done, with BPR-0646, BPR-0734, BPR-0739, BPR-0745 and BPR-0746 parked on
+human-review, BPR-0743 Ready and carrying the epoch work, BPR-0729 waiting on
+BPR-0734, BPR-0653 on the Windows station and BPR-0736 in Inbox.
+
+Not reached this dispatch, unchanged: [[BPR-0741]], [[BPR-0742]], [[BPR-0735]]
+(clangd), [[BPR-0736]], [[BPR-0729]]. Next, in order: run the v009 session and
+consume its four verdicts, including the cursor probe's log, which is what
+unblocks BPR-0746's diagnosis; then [[BPR-0743]], the largest piece of work in
+the pack and the only route to BPR-0646; then BPR-0741 and BPR-0742. d19's
+frontier follows.
+
+## Frontier, 2026-09-11 (d19, mandate r10)
 
 Dispatch `attended-prep-2026-09-10` d19 (mandate r10). The owner ran the
 v008 session and handed back at sequence 348 with all six candidates
