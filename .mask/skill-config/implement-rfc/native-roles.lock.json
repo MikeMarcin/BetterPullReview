@@ -12,7 +12,7 @@
     "project-rules": "100215e15c21247cca7af4788a30735c9ffbb42853e4b06b66fbe8c3731ec31f"
   },
   "parameters_sha256": "af5c532cc1f9691784b11a327bce2bbca2923eabfab1d9cc6db2fb4919cc170c",
-  "role_inputs_sha256": "06146c5f117366499afab586d1941086748775a916ef32f62d09e5e2ff814173",
+  "role_inputs_sha256": "a7c2f857db0541eb12e744fc4fad911e11658f00fdef65bb4a27e3a371fe2543",
   "roles": [
     {
       "agent": "claude",
