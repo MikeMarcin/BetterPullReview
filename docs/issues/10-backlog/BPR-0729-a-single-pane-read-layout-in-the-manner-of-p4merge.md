@@ -64,7 +64,7 @@ Modalities paragraph and AC-05.
 
 Asked whether the design round should start now or after the v007
 verdicts: "Card it, can happen after the verdict". The round is
-[BPR-0734](../30-in-progress/BPR-0734-a-design-round-for-the-single-pane-read-layout.md),
+[BPR-0734](../40-parked/BPR-0734-a-design-round-for-the-single-pane-read-layout.md),
 sequenced after the v007 verdicts; this card depends on it and its scope
 and acceptance are fixed from the accepted state before it is claimed.
 

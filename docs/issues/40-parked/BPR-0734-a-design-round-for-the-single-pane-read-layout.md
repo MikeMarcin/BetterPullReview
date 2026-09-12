@@ -2,11 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0734"
 title: "A design round for the single-pane Read layout"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P2"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"},"owner_direction":"2026-09-11","sequenced_after":"rfc-bpr-0028-attended-v007 verdicts"}
+parked_on: "human-review"
+acceptance: [{"criterion":"The owner accepts the one-pane state and the two amendments in an attended session or the round's own review page; recorded on this card and on RFC-BPR-0028","outcome":"pending","revision":"447d114e","evidence":{"kind":"artifact","detail":"docs/design/RFC-BPR-0028-workbench-direction-v6.html#read-one-pane (state 2b, a copy of the accepted v5 plus one state; v5 colours and variables only) and the 'Round output, 2026-09-11' section on this card with the proposed Modalities and AC-05 texts and three open questions (block order, where the choice lives, the gutter map's standing). Rendered headless at 1500 px and inspected; verify_documentation.py DOCUMENTATION_OK. Asked in the v008 attended packet."}},{"criterion":"BPR-0729's scope and acceptance are rewritten from the accepted state before BPR-0729 is claimed","outcome":"pending","revision":"447d114e","evidence":{"kind":"observation","detail":"Waits on the owner's acceptance; BPR-0729 unchanged."}}]
 ---
 
 # A design round for the single-pane Read layout
