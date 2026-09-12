@@ -14,6 +14,32 @@
 #if defined(__GNUC__) && !defined(__clang__) && __cplusplus >= 202002L // BPR-STDMACRO-LINE
 #endif
 
+#ifdef mixedCase // BPR-LOWER-IFDEF
+#endif
+#ifndef mixedCase // BPR-LOWER-IFNDEF
+#elif mixedCase // BPR-LOWER-ELIF
+#endif
+#undef mixedCase // BPR-LOWER-UNDEF
+#if defined(lowercase) && true && !false && __has_include(<vector>) && __has_cpp_attribute(nodiscard) && __has_builtin(__builtin_expect) && other_name && defined bare_name and 'x' != 0 && L'y' != 0 && __has_private // BPR-CONDITION-OPERATORS
+#endif
+#if __has_cpp_attribute /* note */ (nodiscard) && after_test // BPR-COMMENT-OPERAND
+#endif
+// clang-format off
+#if defined(__GNUC__) && \
+    defined(__clang__) && __cplusplus // BPR-CONTINUED-CONDITION
+#endif
+#if __has_cpp_attribute /* ) */ \
+    (nodiscard) && after_test // BPR-CONTINUED-TEST-OPEN
+#endif
+#if __has_builtin( \
+    __builtin_expect) && after_test // BPR-CONTINUED-TEST-OPERAND
+#endif
+#if __has_cpp_attribute /* note \
+    ) */ (nodiscard) && after_test // BPR-CONTINUED-TEST-COMMENT
+#endif
+// clang-format on
+#define replacement ordinary_name // BPR-REPLACEMENT
+
 #define BEGIN_TEST_METHOD_PROPERTIES() /* BPR-MACRO-DEFINE ScreenBufferTests() */
 
 // BPR-COMMENT-LINE ProcessString(TextAttribute) VERIFY_ARE_EQUAL Log::Comment

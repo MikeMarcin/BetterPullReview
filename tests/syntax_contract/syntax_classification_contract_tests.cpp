@@ -688,14 +688,52 @@ namespace {
 		const auto standardLine = line_of(aText, "BPR-STDMACRO-LINE");
 		expect(word_has_role(aSpans, aText, standardLine, "__GNUC__", role::syntax_macro),
 			   "an ALL_CAPS predefined macro is a macro, not an unclassified other");
-		// The two recorded limits of the ALL_CAPS heuristic, pinned so that they
-		// are visible facts rather than surprises. Neither is a defect of this
-		// change; both are named on the card's return.
-		expect(word_has_role(aSpans, aText, standardLine, "__cplusplus", role::syntax_other),
-			   "a lower-case predefined macro the grammar lists keeps the other role");
-		expect(word_inside_role(aSpans, aText, standardLine, "__clang__",
-								role::syntax_preprocessor),
-			   "a lower-case predefined macro the grammar does not list stays grey");
+		expect(word_has_role(aSpans, aText, standardLine, "__cplusplus", role::syntax_macro)
+				   && word_has_role(aSpans, aText, standardLine, "__clang__", role::syntax_macro),
+			   "conditional macro names are purple regardless of capitalization");
+		for (const auto marker : { "BPR-LOWER-IFDEF", "BPR-LOWER-IFNDEF", "BPR-LOWER-ELIF", "BPR-LOWER-UNDEF" }) {
+			expect(word_has_role(aSpans, aText, line_of(aText, marker), "mixedCase", role::syntax_macro),
+				   "each macro directive recognizes mixed-case names");
+		}
+		const auto operators = line_of(aText, "BPR-CONDITION-OPERATORS");
+		for (const auto word : { "defined", "true", "false", "__has_include", "__has_cpp_attribute", "__has_builtin" }) {
+			expect(word_inside_role(aSpans, aText, operators, word, role::syntax_preprocessor),
+				   "conditional operators and boolean literals retain their directive role");
+		}
+		for (const auto word : { "lowercase", "other_name", "bare_name", "__has_private" }) {
+			expect(word_has_role(aSpans, aText, operators, word, role::syntax_macro),
+				   "macro names around builtin tests retain exact macro ranges");
+		}
+		for (const auto word : { "nodiscard", "__builtin_expect", "and", "'x'", "L'y'" }) {
+			expect(word_inside_role(aSpans, aText, operators, word, role::syntax_preprocessor),
+				   "attribute and builtin-test operands are not macros");
+		}
+		expect(word_inside_role(aSpans, aText, operators, "<vector>", role::syntax_preprocessor),
+			   "a tested header retains its packaged directive role");
+		const auto commentOperand   = line_of(aText, "BPR-COMMENT-OPERAND");
+		const auto commentProtected = word_inside_role(aSpans, aText, commentOperand, "nodiscard", role::syntax_preprocessor);
+		const auto continued        = line_of(aText, "BPR-CONTINUED-CONDITION");
+		const auto continuedMacro   = word_has_role(aSpans, aText, continued, "__clang__", role::syntax_macro);
+		if (!commentProtected) {
+			std::cerr << "FAILED: a comment between builtin test and operand must not make its operand a macro\n";
+		}
+		expect(commentProtected && continuedMacro,
+			   "comment-separated builtin operands and continued conditional macros retain their roles");
+		expect(word_has_role(aSpans, aText, continued, "__cplusplus", role::syntax_macro),
+			   "predefined lowercase macros retain their role across continuations");
+		for (const auto marker : { "BPR-COMMENT-OPERAND", "BPR-CONTINUED-TEST-OPEN", "BPR-CONTINUED-TEST-COMMENT" }) {
+			const auto line = line_of(aText, marker);
+			expect(word_inside_role(aSpans, aText, line, "nodiscard", role::syntax_preprocessor)
+					   && word_has_role(aSpans, aText, line, "after_test", role::syntax_macro),
+				   "builtin protection spans comments and continuations and ends at the closing parenthesis");
+		}
+		const auto continuedOperand = line_of(aText, "BPR-CONTINUED-TEST-OPERAND");
+		expect(word_inside_role(aSpans, aText, continuedOperand, "__builtin_expect", role::syntax_preprocessor)
+				   && word_has_role(aSpans, aText, continuedOperand, "after_test", role::syntax_macro),
+			   "a builtin operand continued after its opening remains protected");
+		const auto replacement = line_of(aText, "BPR-REPLACEMENT");
+		expect(!word_inside_role(aSpans, aText, replacement, "ordinary_name", role::syntax_macro),
+			   "define replacement identifiers are not broadened");
 	}
 
 	void identifier_role_contract(const syntax::packaged_definition_catalog& aCatalog)

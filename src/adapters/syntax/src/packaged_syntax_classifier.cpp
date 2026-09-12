@@ -405,10 +405,22 @@ namespace bpr::adapters::syntax {
 				const QStringView                 aText,
 				const std::vector<std::uint32_t>* aByteOffsets) noexcept
 			{
-				Line        = aLine;
-				Text        = aText;
-				ByteOffsets = aByteOffsets;
-				OpenSpan    = false;
+				const auto continued = ConditionalStart >= 0
+					&& (Text.endsWith(u"\\") || Text.endsWith(u"\\\r"));
+				Line             = aLine;
+				Text             = aText;
+				ByteOffsets      = aByteOffsets;
+				OpenSpan         = false;
+				ConditionalStart = continued ? 0 : -1;
+				OperandEnd       = 0;
+				if (!continued) {
+					OperandPending = false;
+					OperandDepth   = 0;
+					OperandComment = false;
+					OperandQuote   = u'\0';
+				} else if (OperandPending || OperandDepth > 0) {
+					scan_test_operand(0);
+				}
 			}
 
 			[[nodiscard]] auto advance(
@@ -437,10 +449,15 @@ namespace bpr::adapters::syntax {
 				if (Overflowed || aOffset < 0 || aLength <= 0) {
 					return;
 				}
+				if (IdentifierHeuristics && aFormat.textStyle() == text_style::Preprocessor) {
+					begin_directive(aOffset, aOffset + aLength);
+				}
 				const auto role = c_family_role(
 					role_of(aFormat.textStyle()),
 					aOffset,
-					aOffset + aLength);
+					aOffset + aLength,
+					aFormat.name() == QStringLiteral("Standard Macros")
+						|| aFormat.name() == QStringLiteral("GNU Macros"));
 				if (role == core::appearance_role::syntax_normal) {
 					// An unclassified region carries the default role, so naming
 					// it would only make the span list larger. The identifier
@@ -465,6 +482,124 @@ namespace bpr::adapters::syntax {
 			}
 
 		private:
+			/// \brief Records a macro directive only when the grammar identifies its opening.
+			void begin_directive(const int aBegin, const int aEnd) noexcept
+			{
+				auto at = skip_blanks(Text, 0);
+				if (at < aBegin || at >= aEnd || Text[at] != u'#') {
+					return;
+				}
+				at               = skip_blanks(Text, at + 1);
+				const auto first = at;
+				while (at < aEnd && is_identifier_unit(Text[at].unicode())) {
+					++at;
+				}
+				const auto keyword = Text.mid(first, at - first);
+				if (keyword == u"if" || keyword == u"ifdef" || keyword == u"ifndef"
+					|| keyword == u"elif" || keyword == u"undef") {
+					ConditionalStart = at;
+				}
+			}
+
+			/// \brief Keeps language operators and boolean literals out of macro ranges.
+			[[nodiscard]] static auto is_condition_operator(const QStringView aWord) noexcept -> bool
+			{
+				return aWord == u"defined" || aWord == u"true" || aWord == u"false"
+					|| aWord == u"and" || aWord == u"or" || aWord == u"not"
+					|| aWord == u"bitand" || aWord == u"bitor" || aWord == u"xor"
+					|| aWord == u"compl" || aWord == u"not_eq"
+					|| aWord == u"and_eq" || aWord == u"or_eq" || aWord == u"xor_eq";
+			}
+
+			/// \brief Names builtin tests whose arguments are not macro references.
+			[[nodiscard]] static auto is_builtin_test(const QStringView aWord) noexcept -> bool
+			{
+				return aWord == u"__has_include" || aWord == u"__has_include_next"
+					|| aWord == u"__has_cpp_attribute" || aWord == u"__has_c_attribute"
+					|| aWord == u"__has_builtin" || aWord == u"__has_feature"
+					|| aWord == u"__has_extension" || aWord == u"__has_attribute"
+					|| aWord == u"__has_declspec_attribute" || aWord == u"__has_warning";
+			}
+
+			/// \brief Excludes a builtin operand, including trivia before its opening.
+			void protect_test_operand(const qsizetype aEnd) noexcept
+			{
+				OperandPending = true;
+				scan_test_operand(aEnd);
+			}
+
+			/// \brief Resumes operand scanning across escaped physical newlines.
+			/// Comments are whitespace; parentheses inside comments and header names
+			/// cannot end the operand's protected range.
+			void scan_test_operand(qsizetype aAt) noexcept
+			{
+				while (aAt < Text.size()) {
+					if (OperandComment) {
+						const auto close = Text.indexOf(u"*/", aAt);
+						if (close < 0) {
+							break;
+						}
+						OperandComment = false;
+						aAt            = close + 2;
+						continue;
+					}
+					const auto unit = Text[aAt].unicode();
+					if (OperandQuote != u'\0') {
+						if (unit == OperandQuote) {
+							OperandQuote = u'\0';
+						} else if (unit == u'\\' && aAt + 1 < Text.size()) {
+							++aAt;
+						}
+						++aAt;
+						continue;
+					}
+					if (Text.mid(aAt, 2) == u"/*") {
+						OperandComment = true;
+						aAt += 2;
+						continue;
+					}
+					if (Text.mid(aAt, 2) == u"//") {
+						break;
+					}
+					if (unit == u' ' || unit == u'\t' || unit == u'\r'
+						|| (unit == u'\\' && (aAt + 1 == Text.size() || Text.mid(aAt + 1) == u"\r"))) {
+						++aAt;
+						continue;
+					}
+					if (OperandPending) {
+						OperandPending = false;
+						if (unit != u'(') {
+							OperandEnd = aAt;
+							return;
+						}
+					}
+					if (unit == u'(') {
+						++OperandDepth;
+					} else if (unit == u')') {
+						--OperandDepth;
+						if (OperandDepth == 0) {
+							OperandEnd = aAt + 1;
+							return;
+						}
+					} else if (unit == u'"' || unit == u'\'' || unit == u'<') {
+						OperandQuote = unit == u'<' ? u'>' : unit;
+					}
+					++aAt;
+				}
+				OperandEnd = Text.size();
+			}
+
+			[[nodiscard]] auto is_conditional_macro(const qsizetype aBegin, const qsizetype aEnd) const noexcept -> bool
+			{
+				const auto word = Text.mid(aBegin, aEnd - aBegin);
+				return ConditionalStart >= 0 && aBegin >= ConditionalStart && aBegin >= OperandEnd
+					&& !word.isEmpty() && is_identifier_start(word.front().unicode())
+					&& std::all_of(word.begin(), word.end(), [](const QChar aUnit) {
+						   return is_identifier_unit(aUnit.unicode());
+					   })
+					&& !is_condition_operator(word) && !is_builtin_test(word);
+			}
+
 			/// \brief Applies the C and C++ corrections the packaged grammar does
 			/// not make to a whole styled run.
 			///
@@ -489,20 +624,31 @@ namespace bpr::adapters::syntax {
 			/// name and a modeline value — all of them inside a comment. The
 			/// ALL_CAPS test separates the two populations exactly: `__GNUC__`
 			/// passes; `&amp;`, `on` and `off` do not, so no role is named inside
-			/// a comment. BPR-0744.
+			/// a comment. BPR-0744. Conditional lowercase names additionally
+			/// require the grammar's named macro format so comment substyles
+			/// remain untouched (BPR-0748).
 			[[nodiscard]] auto c_family_role(
 				const core::appearance_role aRole,
 				const int                   aBegin,
-				const int                   aEnd) const noexcept -> core::appearance_role
+				const int                   aEnd,
+				const bool                  aPredefinedMacro) noexcept -> core::appearance_role
 			{
 				if (!IdentifierHeuristics) {
 					return aRole;
+				}
+				if (ConditionalStart >= 0 && aBegin >= ConditionalStart && aBegin >= OperandEnd
+					&& aPredefinedMacro
+					&& is_builtin_test(Text.mid(aBegin, aEnd - aBegin))) {
+					protect_test_operand(aEnd);
+					return core::appearance_role::syntax_preprocessor;
 				}
 				if (aRole == core::appearance_role::syntax_import) {
 					return core::appearance_role::syntax_string;
 				}
 				if (aRole == core::appearance_role::syntax_other
-					&& is_macro_case(Text.mid(aBegin, aEnd - aBegin))) {
+					&& aBegin >= OperandEnd
+					&& (is_macro_case(Text.mid(aBegin, aEnd - aBegin))
+						|| (aPredefinedMacro && is_conditional_macro(aBegin, aEnd)))) {
 					return core::appearance_role::syntax_macro;
 				}
 				return aRole;
@@ -547,14 +693,16 @@ namespace bpr::adapters::syntax {
 			/// mistaken for macros. A part the grammar already styled for itself
 			/// (the `()` after a macro name, a numeric replacement, a standard
 			/// macro, a trailing comment, an `#include` header name) is a run of
-			/// its own and never reaches here. BPR-0744.
+			/// its own and never reaches here. BPR-0744. Conditional directives
+			/// also name lowercase identifiers as macros, except language operators
+			/// and the operands of builtin tests (BPR-0748).
 			void classify_directive(const int aBegin, const int aEnd)
 			{
 				const auto end  = std::min(static_cast<qsizetype>(aEnd), Text.size());
 				auto       at   = static_cast<qsizetype>(aBegin);
 				auto       grey = at;
 				while (at < end) {
-					if (Text[at] == u'"') {
+					if (Text[at] == u'"' || Text[at] == u'\'') {
 						at = end_of_quotation(at, end);
 						continue;
 					}
@@ -567,7 +715,18 @@ namespace bpr::adapters::syntax {
 					while (stop < Text.size() && is_identifier_unit(Text[stop].unicode())) {
 						++stop;
 					}
-					if (stop <= end && is_macro_case(Text.mid(at, stop - at))) {
+					if (ConditionalStart >= 0 && stop < end
+						&& is_literal_prefix(Text.mid(at, stop - at))
+						&& (Text[stop] == u'"' || Text[stop] == u'\'')) {
+						at = end_of_quotation(stop, end);
+						continue;
+					}
+					if (ConditionalStart >= 0 && at >= ConditionalStart && at >= OperandEnd
+						&& is_builtin_test(Text.mid(at, stop - at))) {
+						protect_test_operand(stop);
+					}
+					if (stop <= end && at >= OperandEnd
+						&& (is_macro_case(Text.mid(at, stop - at)) || is_conditional_macro(at, stop))) {
 						append_units(grey, at, core::appearance_role::syntax_preprocessor);
 						append_units(at, stop, core::appearance_role::syntax_macro);
 						grey = stop;
@@ -584,7 +743,7 @@ namespace bpr::adapters::syntax {
 				const qsizetype aEnd) const noexcept -> qsizetype
 			{
 				auto at = aOpen + 1;
-				while (at < aEnd && Text[at] != u'"') {
+				while (at < aEnd && Text[at] != Text[aOpen]) {
 					at += Text[at] == u'\\' ? 2 : 1;
 				}
 				return std::min(at + 1, aEnd);
@@ -647,10 +806,16 @@ namespace bpr::adapters::syntax {
 			std::size_t                       MaximumSpans         = 0U;
 			bool                              IdentifierHeuristics = false;
 			QStringView                       Text;
-			const std::vector<std::uint32_t>* ByteOffsets = nullptr;
-			std::uint32_t                     Line        = 0U;
-			bool                              OpenSpan    = false;
-			bool                              Overflowed  = false;
+			const std::vector<std::uint32_t>* ByteOffsets      = nullptr;
+			std::uint32_t                     Line             = 0U;
+			bool                              OpenSpan         = false;
+			bool                              Overflowed       = false;
+			qsizetype                         ConditionalStart = -1;
+			qsizetype                         OperandEnd       = 0;
+			bool                              OperandPending   = false;
+			int                               OperandDepth     = 0;
+			bool                              OperandComment   = false;
+			char16_t                          OperandQuote     = u'\0';
 		};
 
 		/// \brief Returns the spans that fall inside the supplied line range.

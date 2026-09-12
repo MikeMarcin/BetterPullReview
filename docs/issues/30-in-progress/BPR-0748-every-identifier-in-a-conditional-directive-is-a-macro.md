@@ -128,3 +128,14 @@ pass in `build/logs/bpr-0748-d25-focused-build.log`,
 `bpr-0748-d25-focused.log`, `bpr-0748-d25-format.log` and
 `bpr-0748-d25-tidy.log`. These local logs are evidence pointers, not committed
 artifacts. The integrator's final acceptance/commit follows separately.
+
+Independent review then found two counterexamples within that same accepted
+rule: a comment between `__has_cpp_attribute` and its operand could make
+`nodiscard` purple, and a backslash-continued `#if` could leave a lowercase
+macro grey. Both assertions failed before correction
+(`build/logs/bpr-0748-d25-correction-red.log`). The syntax owner kept
+conditional and builtin-operand state across continued physical lines and
+treated the separating comment as operand trivia. The final focused build,
+all five contracts, format and tidy pass in the corresponding
+`bpr-0748-d25-correction-*` logs. The original green run is superseded for
+acceptance by this corrected run; the red/green sequence is retained.
