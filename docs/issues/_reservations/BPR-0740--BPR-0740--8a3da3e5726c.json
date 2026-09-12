@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0740"
+  ],
+  "reserve_for": "d16-layout-public-path",
+  "purpose": "",
+  "created": "2026-09-12T01:12:33.618041+00:00",
+  "base": "7c044de4ea693c9deb32c3789eb6800fc163ad4b"
+}

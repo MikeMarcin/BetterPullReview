@@ -81,3 +81,36 @@ answered, verbatim: "https://github.com/NVIDIA/stdexec/pull/1846 looks to
 have multiple updates". The v008 packet names NVIDIA/stdexec#1846 for both
 asks; the update count the epoch line shows on it is confirmed when the
 rebuilt bundle is smoked, not assumed from the answer.
+
+## Notes
+
+- Slice, 2026-09-11 (d16). The central stack's review page is now a
+  `workbenchReviewSurface` widget: a zero-margin column holding the epoch
+  comparison control as its first row and the central splitter beneath it,
+  so the row is as wide as the client area whatever the drawers do, and
+  Home still replaces the whole surface (the control's visibility rules,
+  gestures, details region and status wording are untouched; only its
+  parent changed). The centre pane keeps the overview/comparison stack.
+  `central_sizes()` still measures the splitter, which is unchanged in
+  width. The epoch control's parent was never named by the app or the
+  probes: `review_details_rect_in_window` measures the control itself.
+- `qt_workbench_window_scale_{100,125,200}` gain
+  `test_the_epoch_row_spans_the_window_in_every_modality`: the row's
+  rectangle in window coordinates equals the client area's left, top and
+  width, sits above the splitter, and is identical through Overview, Read,
+  Review and Discuss, through both drawers opened and collapsed, and after
+  a 120-pixel drawer resize; the composed-placement pin now names the
+  review surface and the splitter's parent.
+- RFC-BPR-0028's chrome paragraph now states the row is full width above
+  the drawers, never inside the centre. `github_application.cpp` did not
+  move, so no digest changed for this slice.
+- Verification at this head: `cmake --build --preset dev` clean; 11 of 11
+  in `qt_workbench_window_scale_{100,125,200}`,
+  `qt_epoch_comparison_scale_{100,125,200}`, `qt_composed_github_scale_100`,
+  `application_uiforetw_selected_diff_contract`,
+  `application_composition_contract` and the architecture boundary tests;
+  strict tidy and `clang-format --Werror` clean on the touched files.
+- Found red at HEAD, not this slice: `application_profile_window_layout_public_path`
+  fails "exact public review opens" with the BPR-0737 edits stashed as
+  well (it last changed at ad3abf50, BPR-0708; the Home open path it
+  drives changed under BPR-0732 and BPR-0733). Carded separately.

@@ -872,6 +872,7 @@ namespace bpr::qt {
 		QMenu*                      ReviewControlsMenu   = nullptr;
 		QWidget*                    ToolbarSpacer        = nullptr;
 		QLabel*                     StatusLabel          = nullptr;
+		QWidget*                    ReviewSurface        = nullptr;
 		workbench_central_splitter* CentralSplitter      = nullptr;
 		QWidget*                    CentreSurface        = nullptr;
 		diff_workbench*             ComparisonSurface    = nullptr;

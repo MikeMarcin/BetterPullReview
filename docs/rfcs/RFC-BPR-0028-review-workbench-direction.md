@@ -52,8 +52,13 @@ request identity, then the navigation groups (previous/next change with its
 position, previous/next file with its position, jump to the next new comment
 with the count); centre, alone, the modality control as a filled segmented
 control with its shortcuts; right, refresh, the comments toggle, a divider,
-account, settings. Below it the 22-pixel epoch line. No toolbar with labels,
-no menu bar rows. Nothing in the strip may read as disabled.
+account, settings. Below it the 22-pixel epoch line: one row as wide as the
+window's client area, "Updates" at its left, the line, and the "Comparing …"
+menu at its right, above the drawers and their headings and never inside the
+centre pane, so its labels hold their place whatever the drawers' states and
+widths and the modality ([[BPR-0737]], owner direction 2026-09-11). No
+toolbar with labels, no menu bar rows. Nothing in the strip may read as
+disabled.
 
 The strip is the title row. The owner's references (Fork and Visual Studio
 Code on both platforms, Windows Terminal, Ghostty, the Claude app) share one

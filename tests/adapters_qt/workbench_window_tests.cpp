@@ -4030,12 +4030,15 @@ namespace {
 		qt::workbench_window                   window;
 
 		auto* const selectors = window.epoch_selectors();
+		// [[BPR-0737]]. The control is the review surface's first row, above
+		// the central splitter and outside every pane.
 		expect(selectors != nullptr
 				   && selectors->parentWidget()
 					   == window.findChild<QWidget*>(
-						   QStringLiteral("workbenchCentralSurface")),
-			   "the composed epoch selectors sit in the workbench centre above "
-			   "the comparison panes");
+						   QStringLiteral("workbenchReviewSurface"))
+				   && selectors->parentWidget() == window.central_splitter()->parentWidget(),
+			   "the composed epoch selectors sit on the review surface above the "
+			   "central splitter, outside the centre pane");
 		expect(window.findChild<QWidget*>(
 				   QStringLiteral("workbenchEpochSelectorPlaceholder"))
 				   == nullptr,
@@ -5675,6 +5678,86 @@ namespace {
 		window.hide();
 	}
 
+	void test_the_epoch_row_spans_the_window_in_every_modality()
+	{
+		// [[BPR-0737]]. The epoch line and the "Comparing" menu are one row
+		// between the strip and the drawers, as wide as the window's client
+		// area in every modality, and a drawer's state or width moves nothing
+		// on it. Before this it was the centre pane's first widget and its
+		// labels moved with every drawer.
+		intent_log           log;
+		qt::workbench_window window{
+			[&log](core::workbench_interaction_intent aIntent) {
+				log.Workbench.push_back(aIntent);
+			},
+			[&log](core::navigate_diff_change_intent aIntent) {
+				log.Change.push_back(aIntent);
+			}
+		};
+		window.resize(1'280, 820);
+		window.show();
+		process_events();
+		auto files  = application::workbench_projection{ };
+		files.Files = std::vector<application::workbench_file_projection>{
+			{ .File = workbench_file(1U), .Path = "src/a.cpp" },
+			{ .File = workbench_file(2U), .Path = "src/b.cpp" },
+		};
+		window.publish(files);
+		window.publish(every_primary_command_offered());
+		process_events();
+
+		auto* const epochs = window.epoch_selectors();
+		auto* const client = window.centralWidget();
+		const auto  spans  = [&window, epochs, client] {
+			const auto row   = QRect{ epochs->mapTo(&window, QPoint{ 0, 0 }), epochs->size() };
+			const auto area  = QRect{ client->mapTo(&window, QPoint{ 0, 0 }), client->size() };
+			const auto panes = window.central_splitter()->mapTo(&window, QPoint{ 0, 0 });
+			return epochs->isVisible() && row.left() == area.left() && row.width() == area.width()
+				&& row.top() == area.top() && row.bottom() < panes.y();
+		};
+		const auto before = QRect{ epochs->mapTo(&window, QPoint{ 0, 0 }), epochs->size() };
+		expect(spans() && before.width() == client->width() && before.width() > window.width() / 2,
+			   "the epoch row is the first row of the client area and as wide as it");
+
+		for (const auto modality : { qt::review_modality::overview, qt::review_modality::read,
+									 qt::review_modality::review, qt::review_modality::discuss }) {
+			window.choose_modality(modality);
+			process_events();
+			const auto row = QRect{ epochs->mapTo(&window, QPoint{ 0, 0 }), epochs->size() };
+			expect(spans() && row == before,
+				   "the epoch row holds its place and width through modality "
+					   + std::to_string(static_cast<int>(modality)));
+		}
+
+		auto opened    = application::workbench_projection{ };
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded,
+									   core::workbench_drawer_state::expanded);
+		window.publish(opened);
+		process_events();
+		auto closed            = application::workbench_projection{ };
+		closed.Drawers         = drawer_states(core::workbench_drawer_state::collapsed,
+											   core::workbench_drawer_state::collapsed);
+		const auto withDrawers = QRect{ epochs->mapTo(&window, QPoint{ 0, 0 }), epochs->size() };
+		window.publish(closed);
+		process_events();
+		const auto withoutDrawers = QRect{ epochs->mapTo(&window, QPoint{ 0, 0 }), epochs->size() };
+		expect(spans() && withDrawers == before && withoutDrawers == before,
+			   "opening and collapsing both drawers moves nothing on the epoch row");
+
+		window.publish(opened);
+		process_events();
+		auto sizes = window.central_splitter()->sizes();
+		expect(sizes.size() == 4 && sizes[1] > 0 && sizes[2] > 200, "the drawers have widths to move");
+		sizes[1] += 120;
+		sizes[2] -= 120;
+		window.central_splitter()->setSizes(sizes);
+		process_events();
+		const auto resized = QRect{ epochs->mapTo(&window, QPoint{ 0, 0 }), epochs->size() };
+		expect(spans() && resized == before,
+			   "resizing a drawer moves nothing on the epoch row");
+		window.hide();
+	}
+
 	void test_overview_shows_the_decided_page_and_continue_enters_read()
 	{
 		// [[BPR-0647]]. The Overview modality shows the host-decided overview in
@@ -5960,6 +6043,7 @@ auto main(int argc, char** argv) -> int
 	test_strip_modalities_positions_and_account();
 	test_strip_identity_stays_at_every_width();
 	test_strip_is_the_title_row();
+	test_the_epoch_row_spans_the_window_in_every_modality();
 	test_rails_reopen_their_drawers();
 	test_review_details_return_height_to_the_comparison();
 	test_drawer_resize_emits_the_host_layout_path();

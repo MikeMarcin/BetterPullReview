@@ -772,12 +772,24 @@ namespace bpr::qt {
 		// arbitrary retained epochs, the complete copyable commit OIDs, and the
 		// review-history loading, failure, cancellation, and empty wording, so
 		// the shell adds no second selector, OID presentation, or vocabulary.
-		EpochSelectors = new epoch_comparison_control{ { }, CentreSurface };
+		// [[BPR-0737]] (owner, 2026-09-11): the epoch line and the "Comparing"
+		// menu are one full-width row between the strip and the drawers, not
+		// the centre pane's first widget, so its labels no longer move with
+		// the drawer widths and the modality. The review surface is that row
+		// over the central splitter; Home replaces the whole surface.
+		ReviewSurface = new QWidget;
+		ReviewSurface->setObjectName(QStringLiteral("workbenchReviewSurface"));
+		EpochSelectors = new epoch_comparison_control{ { }, ReviewSurface };
 		// An ignored horizontal hint, exactly as the drawer heading uses. The
-		// centre must never impose a minimum width that the drawer widths the
+		// row must never impose a minimum width that the drawer widths the
 		// host persists cannot coexist with, and the window must stay usable at
 		// the supported compact icon-row width.
 		EpochSelectors->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+		auto* const review = new QVBoxLayout{ ReviewSurface };
+		review->setContentsMargins(0, 0, 0, 0);
+		review->setSpacing(0);
+		review->addWidget(EpochSelectors);
+		review->addWidget(CentralSplitter, 1);
 		// RFC-BPR-0004's workbench is composed unchanged. It keeps the single
 		// shared vertical scrollbar, the single link map, and the natural-layout
 		// documents, so the centre gains no second mapping, no regrouping, no
@@ -833,8 +845,7 @@ namespace bpr::qt {
 			}
 		});
 		home->addWidget(HomeLanding);
-		centre->addWidget(EpochSelectors);
-		// [[BPR-0647]]. Beneath the epoch line the centre is a stack: the
+		// [[BPR-0647]]. The centre is a stack: the
 		// overview for the Overview modality, the comparison for the rest.
 		// The comparison keeps a page of its own with no margins, so every
 		// geometry the probes pin on it is what it was.
@@ -1780,7 +1791,7 @@ namespace bpr::qt {
 		CentralStack = new QStackedWidget{ this };
 		CentralStack->setObjectName(QStringLiteral("workbenchCentralStack"));
 		CentralStack->addWidget(HomePage);
-		CentralStack->addWidget(CentralSplitter);
+		CentralStack->addWidget(ReviewSurface);
 		setCentralWidget(CentralStack);
 
 		// [[BPR-0646]]. Refresh sits in the strip's right region, before the
@@ -4092,7 +4103,7 @@ namespace bpr::qt {
 		}
 		if (CentralStack != nullptr) {
 			const auto arriving = home && CentralStack->currentWidget() != HomePage;
-			CentralStack->setCurrentWidget(home ? HomePage : static_cast<QWidget*>(CentralSplitter));
+			CentralStack->setCurrentWidget(home ? HomePage : ReviewSurface);
 			// [[BPR-0732]]. Signed out, the bar is the way in, so it takes
 			// focus on arrival; a signed-in Home keeps the card's default
 			// button. Only on arrival, so a projection cannot steal focus
