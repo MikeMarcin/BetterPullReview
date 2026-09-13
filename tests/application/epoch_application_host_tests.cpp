@@ -2378,6 +2378,41 @@ namespace {
 			   "same-head cache refresh preserves occurrence bindings and local ordinal");
 	}
 
+	void ordinary_transition_identity_survives_access_and_catalogue_changes()
+	{
+		fixture signedIn;
+		fixture signedOut;
+		fixture recreated;
+		signedOut.State.Binding.Authority.Account   = core::github_account_id{ };
+		signedOut.State.Binding.Authority.Viewer    = core::github_viewer_actor_id{ };
+		signedOut.State.Binding.Authority.Mode      = core::github_access_mode::public_preview;
+		signedOut.State.Binding.Catalog.Incarnation = opaque<core::epoch_catalog_incarnation_id>(88U);
+		signedOut.State.Snapshot.Binding            = signedOut.State.Binding;
+		recreated.State.Binding.Catalog.Incarnation = opaque<core::epoch_catalog_incarnation_id>(89U);
+		recreated.State.Snapshot.Binding            = recreated.State.Binding;
+		for (auto* value : { &signedIn, &signedOut, &recreated }) {
+			accept_history(*value, 1U, 20U, { });
+			accept_history(*value, 2U, 23U, { });
+			expect(value->State.Occurrences.Occurrences.size() == 1U
+					   && !value->State.Occurrences.Ambiguous && value->State.Occurrences.Incomplete,
+				   "one ordinary observed transition yields one unambiguous occurrence while unseen push boundaries remain incomplete");
+			expect(value->State.Snapshot.LatestLive->Cause.Primary == core::epoch_primary_cause::author_upload
+					   && value->State.Snapshot.LatestLive->Id.Ordinal == core::epoch_ordinal{ 2 }
+					   && value->State.Snapshot.PreviousDistinctHead->Id.Ordinal == core::epoch_ordinal{ 1 },
+				   "ordinary live transition appends one author upload and preserves its previous distinct head");
+		}
+		const auto& observed = signedIn.State.Occurrences.Occurrences.front();
+		for (const auto* value : { &signedOut, &recreated }) {
+			const auto& other = value->State.Occurrences.Occurrences.front();
+			expect(observed.Id == other.Id && observed.Evidence == other.Evidence
+					   && observed.LocalEpoch != other.LocalEpoch,
+				   "same evidenced ordinary update has equal portable identity across access modes and recreated catalogue with distinct local keys");
+		}
+		accept_history(recreated, 3U, 20U, { });
+		expect(recreated.State.Occurrences.Ambiguous && recreated.State.Occurrences.Occurrences.size() == 1U,
+			   "ambiguous return snapshot stays unresolved rather than receiving a fabricated portable identity");
+	}
+
 	void missing_events_do_not_invent_a_second_provisional_head()
 	{
 		fixture value;
@@ -7127,6 +7162,7 @@ int main()
 	intervening_provider_update_excludes_old_event_despite_observation_interval();
 	independent_catalogues_agree_on_evidenced_occurrences();
 	live_returns_use_distinct_events_without_rebinding_old_occurrences();
+	ordinary_transition_identity_survives_access_and_catalogue_changes();
 	missing_events_do_not_invent_a_second_provisional_head();
 	degraded_timeline_and_sidecar_failures_preserve_live_append();
 	delayed_event_keeps_older_observation_when_current_head_changed();

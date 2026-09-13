@@ -1575,16 +1575,35 @@ namespace {
 			   "migration preserves incarnation, authority, next ordinal and both live selectors");
 		const auto history = session->occurrences({ });
 		expect(history && history->Occurrences.empty() && history->UnresolvedLegacy && history->Incomplete,
-			   "legacy duplicate heads and unavailable GHES hostname provenance stay unresolved");
+			   "legacy duplicate heads and absent hostname provenance stay unresolved");
+		const auto page = session->history({ .Catalog = binding.Catalog, .Limit = 3U }, { });
+		expect(page && page->Epochs == std::vector{ third.Mutation.Epoch, second.Mutation.Epoch, first.Mutation.Epoch }
+				   && !page->Continuation,
+			   "migration preserves each complete old epoch row, including duplicate-head identities and observed bases");
 		for (const auto& prior : { first, second, third }) {
 			const core::comparison_anchor_identity head{ .Authority   = prior.Mutation.Epoch.Id.Authority,
 														 .Incarnation = prior.Mutation.Epoch.Id.Incarnation,
 														 .Kind        = core::comparison_anchor_kind::epoch_head,
 														 .Epoch       = prior.Mutation.Epoch.Id.Ordinal };
-			const auto                             anchor = session->exact_anchors({ .Catalog = binding.Catalog, .Anchors = { head } }, { });
-			expect(anchor && anchor->Anchors.size() == 1U && anchor->Anchors.front().Commit == prior.Mutation.Epoch.Head,
-				   "old local epoch bindings still resolve the same retained head");
+			auto                                   base = head;
+			base.Kind                                   = core::comparison_anchor_kind::epoch_base;
+			const auto anchors                          = session->exact_anchors({ .Catalog = binding.Catalog, .Anchors = { base, head } }, { });
+			expect(anchors && anchors->Anchors.size() == 2U
+					   && anchors->Anchors[0].Commit == prior.Mutation.Epoch.Base
+					   && anchors->Anchors[1].Commit == prior.Mutation.Epoch.Head,
+				   "both old local anchor identities still resolve their exact original commits");
 		}
+		session.reset();
+		port.reset();
+		made = sqlite::make_epoch_catalog({ .StorageRoot = copiedRoot.path() });
+		expect(made.has_value(), "migrated catalogue restarts without a second migration");
+		port   = std::move(*made);
+		opened = port->open(request, { });
+		expect(opened.has_value(), "migrated authority reopens after restart");
+		session = std::move(*opened);
+		expect(session->binding() == binding && session->snapshot({ }) == snapshot
+				   && session->occurrences({ }) == history,
+			   "restart preserves old binding, live selectors and explicitly unresolved provenance");
 		{
 			direct_database database{ database_path(copiedRoot.path()) };
 			expect(database.logical_fingerprint(true) == oldRows && database.foreign_key_violation_count() == 0U,

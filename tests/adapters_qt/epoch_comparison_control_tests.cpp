@@ -20,6 +20,7 @@
 #include <QTimer>
 #include <QToolButton>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -810,12 +811,27 @@ namespace {
 
 	// Presentation evidence only: host ingestion and cross-catalogue identity
 	// acceptance belong to BPR-0743's separate production-path checks.
+	[[nodiscard]] auto pull_request_projection() -> application::github_pull_request_projection;
+
 	auto test_occurrence_evidence_and_unavailable_gestures() -> void
 	{
 		std::vector<application::epoch_intent> intents;
-		qt::epoch_comparison_control           control{ [&intents](application::epoch_intent aIntent) {
+		qt::workbench_window                   window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			{ },
+			[](application::github_intent) { },
+		};
+		window.publish(application::github_presentation_update{
+			.PullRequest = pull_request_projection(),
+		});
+		auto& control = *window.epoch_selectors();
+		control.set_dispatch([&intents](application::epoch_intent aIntent) {
 			intents.push_back(std::move(aIntent));
-		} };
+		});
+		window.resize(1100, 820);
+		window.show();
 		const auto                     current = epoch_row(12, '1', '2');
 		auto                           update  = loaded_catalog_update({ current });
 		core::epoch_occurrence_history history;
@@ -854,6 +870,17 @@ namespace {
 				   && line->history_text().contains(QStringLiteral("unresolved"))
 				   && line->history_text().contains(QStringLiteral("not push order")),
 			   "unknown historical base, derived comparison material and history gaps remain explicit");
+		const auto firstTooltip  = line->node_tooltip(0);
+		const auto secondTooltip = line->node_tooltip(1);
+		std::ranges::reverse(history.Occurrences);
+		std::ranges::sort(history.Occurrences, core::epoch_occurrence_less);
+		update.Catalog->OccurrenceHistory = history;
+		control.publish(update);
+		expect(line->node_tooltip(0) == firstTooltip && line->node_tooltip(1) == secondTooltip
+				   && line->node_centre(0).x() < line->node_centre(1).x()
+				   && line->accessibleDescription().contains(QStringLiteral("not push order"))
+				   && !window.grab().isNull(),
+			   "the real workbench preserves core portable-key order for equal mixed-source dates and exposes the no-push-order qualification");
 		line->set_selection_offered(true);
 		const auto before = intents.size();
 		auto       press  = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ line->node_centre(0) },

@@ -2861,6 +2861,11 @@ namespace {
 		transport.Responses = { success_response("[]") };
 		const auto empty    = read_timeline(transport);
 		expect(empty && empty->ForcePushEvents.empty(), "empty exhausted timeline is observed");
+		transport.Requests.clear();
+		transport.Responses     = { success_response(R"([{"event":"committed","sha":"1111111111111111111111111111111111111111"},{"event":"committed","sha":"2222222222222222222222222222222222222222"},{"event":"committed","sha":"3333333333333333333333333333333333333333"}])") };
+		const auto ordinaryPush = read_timeline(transport);
+		expect(ordinaryPush && ordinaryPush->ForcePushEvents.empty() && transport.Requests.size() == 1U,
+			   "three surviving commits in an ordinary push supply no invented push occurrences or boundaries");
 	}
 
 	auto test_timeline_atomic_failures() -> void

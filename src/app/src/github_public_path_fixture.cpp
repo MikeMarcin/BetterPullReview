@@ -97,6 +97,8 @@ namespace bpr::app::detail {
 			};
 		}
 
+		constexpr auto disconnected_history_head = std::string_view{ "67c9afbd86e28b19e6bd224f966b4a48e1294e6a" };
+
 		class deterministic_git_fixture final
 		{
 		public:
@@ -144,6 +146,7 @@ namespace bpr::app::detail {
 				}
 			}
 
+			QByteArray PackWithoutBase{ QByteArray::fromBase64(QByteArrayLiteral("UEFDSwAAAAIAAAAClQx4nJ2LTQrCMBQG9znF2wsSSxoTEOlCvEd+vtIHaVPSV+nxRfQEzmKYzUgDyETX9TlZ06VoEX3QVqM3cXTZ+s65MQLGa6PCLlNt9ORD9ga6jd8YcIR5LTjz8gqF850uV/2DTh+rVOeZRfDXrB68pbosSIJME29SG6dQaF9zEKg3KOk/WiB4nAMAAAAAAaPXhyKfPVtKY7oyn3VT6PJNILee")) };
 			QByteArray PackOne;
 			QByteArray PackTwo;
 		};
@@ -685,7 +688,7 @@ namespace bpr::app::detail {
 			const fixture_descriptor& aDescriptor,
 			const std::string_view    aHead,
 			const bool                aEmptyTimeline,
-			const bool                aUnfetchableFirstHead)
+			const bool aUnfetchableFirstHead, const std::string& aTimelineCourse)
 			-> std::vector<recorded_exchange>
 		{
 			const auto authenticated = load_recording(aDescriptor, aHead);
@@ -778,7 +781,9 @@ namespace bpr::app::detail {
 			auto events = QJsonArray{ };
 			if (!aDescriptor.HeadTwoOid.empty() && !aEmptyTimeline) {
 				constexpr auto missingHead = std::string_view{ "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" };
-				events.append(event(91'701, aUnfetchableFirstHead ? missingHead : aHead, QStringLiteral("2026-08-01T16:45:08Z")));
+				events.append(event(91'701, aTimelineCourse == "missing-base" ? disconnected_history_head : aUnfetchableFirstHead ? missingHead
+																																  : aHead,
+									QStringLiteral("2026-08-01T16:45:08Z")));
 				events.append(event(91'702, priorHead, QStringLiteral("2026-08-05T19:12:33Z")));
 			}
 			if (!aEmptyTimeline) {
@@ -861,9 +866,10 @@ namespace bpr::app::detail {
 		class fixture_replay final
 		{
 		public:
-			explicit fixture_replay(std::vector<recorded_exchange> aExchanges, bool aPaged = false)
+			explicit fixture_replay(std::vector<recorded_exchange> aExchanges, bool aPaged = false, std::string aTimelineCourse = { })
 				: Timeline{ aPaged ? std::optional<recorded_exchange>{ }
 								   : take_timeline(aExchanges) }
+				, TimelineCourse{ std::move(aTimelineCourse) }
 				, Strict{ aPaged ? std::vector<recorded_exchange>{ } : std::exchange(aExchanges, { }) }
 			{
 				if (aPaged) {
@@ -888,14 +894,30 @@ namespace bpr::app::detail {
 						|| aRequest.Operation != expected.Operation
 						|| aRequest.Method != expected.Method
 						|| aRequest.Path != expected.Path
-						|| aRequest.Query != expected.Query
+						|| aRequest.Query != (TimelinePages == 0U ? expected.Query : "page=" + std::to_string(TimelinePages + 1U) + "&per_page=100")
 						|| aRequest.Headers != expected.Headers
 						|| aRequest.Body != expected.Body) {
 						return std::unexpected{ contract_failure{
 							.Code = contract_failure_code::unexpected_path } };
 					}
+					++TimelinePages;
+					QTextStream{ stdout } << "PUBLIC_PREVIEW_TIMELINE_PAGE:" << TimelinePages << '\n';
 					TimelineConsumed = true;
-					return Timeline->Response;
+					auto response    = Timeline->Response;
+					if (TimelineCourse == "failed" || TimelineCourse == "refused") {
+						response.Status = TimelineCourse == "failed" ? 500 : 403;
+						response.Body   = "{\"message\":\"fixture timeline unavailable\"}";
+					} else if (TimelineCourse == "capped") {
+						TimelineConsumed = TimelinePages == 10U;
+						auto rows        = QJsonArray{ };
+						for (int index = 0; index < 100; ++index) {
+							rows.append(QJsonObject{ { QStringLiteral("event"), QStringLiteral("committed") } });
+						}
+						response.Body         = QJsonDocument{ rows }.toJson(QJsonDocument::Compact).toStdString();
+						response.Completeness = page_completeness::has_next_page;
+						response.Headers.push_back({ .Name = "Link", .Value = "<https://api.github.com" + expected.Path + "?page=" + std::to_string(TimelinePages + 1U) + "&per_page=100>; rel=\"next\"" });
+					}
+					return response;
 				}
 				return Paged ? Paged->perform(aRequest) : Strict.perform(aRequest);
 			}
@@ -914,6 +936,7 @@ namespace bpr::app::detail {
 			void rewind() noexcept
 			{
 				TimelineConsumed = false;
+				TimelinePages    = 0U;
 				if (Paged) {
 					Paged->rewind();
 				} else {
@@ -930,6 +953,7 @@ namespace bpr::app::detail {
 				}
 				Strict.rewind();
 				TimelineConsumed = false;
+				TimelinePages    = 0U;
 				Strict.skip_until(aOperation);
 			}
 
@@ -946,6 +970,8 @@ namespace bpr::app::detail {
 			}
 			std::optional<recorded_exchange>                       Timeline;
 			bool                                                   TimelineConsumed = false;
+			std::size_t                                            TimelinePages    = 0U;
+			std::string                                            TimelineCourse;
 			strict_recorded_transport                              Strict;
 			std::optional<large_review_fixture::sequential_replay> Paged;
 		};
@@ -976,7 +1002,7 @@ namespace bpr::app::detail {
 				const adapters::github::validated_github_host_profile& aSelectedProfile,
 				std::shared_ptr<deterministic_git_fixture>             aGit,
 				const github_epoch_fixture_phase aPhase, bool aHistory, bool aIndependentWindowReads,
-				bool aEmptyTimeline, bool aUnfetchableFirstHead)
+				bool aEmptyTimeline, bool aUnfetchableFirstHead, const std::string& aTimelineCourse)
 				: Descriptor{ aDescriptor }
 				, Profile{ aSelectedProfile }
 				, Git{ std::move(aGit) }
@@ -1010,7 +1036,7 @@ namespace bpr::app::detail {
 								return result;
 							}(),
 							 Descriptor.Paged }
-				, AnonymousRecording{ Descriptor.Paged ? std::vector<recorded_exchange>{ } : load_anonymous_recording(Descriptor, aPhase == github_epoch_fixture_phase::reuse ? Descriptor.HeadTwoOid : Descriptor.HeadOneOid, aEmptyTimeline, aUnfetchableFirstHead) }
+				, AnonymousRecording{ Descriptor.Paged ? std::vector<recorded_exchange>{ } : load_anonymous_recording(Descriptor, aPhase == github_epoch_fixture_phase::reuse ? Descriptor.HeadTwoOid : Descriptor.HeadOneOid, aEmptyTimeline, aUnfetchableFirstHead, aTimelineCourse), false, aTimelineCourse }
 				, CapabilityBody{ load_capability_response(
 					  Descriptor.CapabilityDirectory) }
 			{
@@ -1035,7 +1061,7 @@ namespace bpr::app::detail {
 
 			[[nodiscard]] auto serves_head(std::string_view aHead) const -> bool
 			{
-				return aHead == Descriptor.HeadOneOid || (!Descriptor.HeadTwoOid.empty() && aHead == Descriptor.HeadTwoOid)
+				return aHead == disconnected_history_head || aHead == Descriptor.HeadOneOid || (!Descriptor.HeadTwoOid.empty() && aHead == Descriptor.HeadTwoOid)
 					|| std::ranges::find(HistoryHeads, aHead) != HistoryHeads.end();
 			}
 
@@ -1302,9 +1328,10 @@ namespace bpr::app::detail {
 				const auto  wants   = [&](const std::string_view aHead) {
 					return !aHead.empty() && requestBody.find(std::string{ "want " } + std::string{ aHead } + "\n") != std::string::npos;
 				};
-				const auto wantsFirst  = wants(fixture.HeadOneOid);
-				const auto wantsSecond = wants(fixture.HeadTwoOid);
-				if (wantsFirst == wantsSecond) {
+				const auto wantsFirst        = wants(fixture.HeadOneOid);
+				const auto wantsSecond       = wants(fixture.HeadTwoOid);
+				const auto wantsDisconnected = wants(disconnected_history_head);
+				if (static_cast<int>(wantsFirst) + static_cast<int>(wantsSecond) + static_cast<int>(wantsDisconnected) != 1) {
 					return std::unexpected{ application::git_smart_transport_error{
 						.Failure = application::git_smart_transport_failure::invalid_request } };
 				}
@@ -1312,11 +1339,14 @@ namespace bpr::app::detail {
 					? State->Git->PackOne
 					: wantsSecond
 					? State->Git->PackTwo
-					: QByteArray{ };
+					: State->Git->PackWithoutBase;
 				if (pack.isEmpty()) {
 					return std::unexpected{ application::git_smart_transport_error{
 						.Failure = application::git_smart_transport_failure::
 							invalid_request } };
+				}
+				if (wantsDisconnected) {
+					QTextStream{ stdout } << "PUBLIC_PREVIEW_DISCONNECTED_HEAD_FETCHED\n";
 				}
 				const auto body = fetch_body(pack);
 				if (!aConsumer.consume(body)) {
@@ -2862,7 +2892,7 @@ namespace bpr::app::detail {
 			Git               = make_git_fixture(served.Packs);
 			Recording         = std::make_shared<fixture_recording_state>(
 				served, aProfile, Git, aOptions.EpochPhase, aOptions.LargeReviewHistory, aOptions.IndependentWindowReads,
-				aOptions.EmptyHistoricalTimeline, aOptions.UnfetchableFirstHistoricalHead);
+				aOptions.EmptyHistoricalTimeline, aOptions.UnfetchableFirstHistoricalHead, aOptions.TimelineCourse);
 			Recording->RepeatSessions = aOptions.DeviceRefreshCourse || aOptions.PersistDeviceBindings || aOptions.IndependentWindowReads;
 			Recording->RepeatReads    = aOptions.RepeatReadSessions;
 			Factory                   = std::make_shared<fixture_transport_factory>(Recording);

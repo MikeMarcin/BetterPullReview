@@ -11,7 +11,8 @@ import tempfile
 
 
 def read_catalogue(application: Path, root: Path, budget_ms: int,
-                   *, empty_timeline: bool = False, unfetchable_first: bool = False):
+                   *, empty_timeline: bool = False, unfetchable_first: bool = False,
+                   course: str = "", phase: str = "single"):
     root.mkdir(mode=0o700, exist_ok=True)
     environment = os.environ.copy()
     environment["QT_QPA_PLATFORM"] = "offscreen"
@@ -25,14 +26,16 @@ def read_catalogue(application: Path, root: Path, budget_ms: int,
         "--epoch-fixture-root",
         str(root),
         "--epoch-fixture-phase",
-        "single",
+        phase,
         "--automated-run-budget-ms",
         str(budget_ms),
     ]
-    if empty_timeline:
+    if empty_timeline or course in ("failed", "refused", "capped"):
         command.append("--public-preview-empty-timeline-course")
     else:
         command.append("--public-preview-historical-course")
+    if course:
+        command.extend(["--public-preview-history-course", course])
     if unfetchable_first:
         command.append("--public-preview-unfetchable-first-head-course")
     completed = subprocess.run(
@@ -44,11 +47,22 @@ def read_catalogue(application: Path, root: Path, budget_ms: int,
         check=False,
     )
     if (completed.returncode != 0 or "PUBLIC_PREVIEW_ENABLED_OK" not in completed.stdout
-            or (not empty_timeline and "PUBLIC_PREVIEW_HISTORICAL_HANDLE_OK" not in completed.stdout)):
+            or (not empty_timeline and not course in ("failed", "refused", "capped")
+                and "PUBLIC_PREVIEW_HISTORICAL_HANDLE_OK" not in completed.stdout)):
         raise AssertionError(
             f"composed public read failed ({completed.returncode})\n"
             f"stdout:\n{completed.stdout}\nstderr:\n{completed.stderr}"
         )
+
+    expected_pages = 10 if course == "capped" else 1
+    pages = [line for line in completed.stdout.splitlines()
+             if line.startswith("PUBLIC_PREVIEW_TIMELINE_PAGE:")]
+    if pages != [f"PUBLIC_PREVIEW_TIMELINE_PAGE:{page}" for page in range(1, expected_pages + 1)]:
+        raise AssertionError(f"timeline course {course!r} did not consume exact page budget: {pages}")
+    if course == "missing-base" and not all(marker in completed.stdout for marker in (
+            "PUBLIC_PREVIEW_MISSING_BASE_OK", "PUBLIC_PREVIEW_DISCONNECTED_HEAD_FETCHED")):
+        raise AssertionError(f"fetchable history without a common base was not unavailable: {completed.stdout}")
+    print(f"EPOCH_COMPOSED_COURSE:{course or ('empty' if empty_timeline else 'historical')}:{phase}:pages={len(pages)}")
 
     database = root / "state" / "v1" / "epoch-catalog.sqlite3"
     if not database.is_file():
@@ -72,7 +86,14 @@ def read_catalogue(application: Path, root: Path, budget_ms: int,
         imports = connection.execute(
             "SELECT count(*) FROM epoch WHERE origin = 3"
         ).fetchone()[0]
-    return occurrences, history, incarnations, epoch_count, live_ordinal, imports
+        previous = connection.execute(
+            "SELECT previous_distinct_head_ordinal FROM pull_request_scope"
+        ).fetchone()[0]
+        live_base = connection.execute(
+            "SELECT hex(object_digest) FROM epoch_anchor WHERE ordinal = ? AND endpoint = 1",
+            (live_ordinal,),
+        ).fetchone()[0]
+    return occurrences, history, incarnations, epoch_count, live_ordinal, imports, previous, live_base
 
 
 def main():
@@ -86,14 +107,30 @@ def main():
                               empty_timeline=True)
         first = read_catalogue(arguments.application, first_root, arguments.budget_ms)
         second = read_catalogue(arguments.application, Path(temporary) / "second", arguments.budget_ms)
+        for course in ("failed", "refused", "capped"):
+            partial = read_catalogue(arguments.application, Path(temporary) / course,
+                                     arguments.budget_ms, course=course)
+            if partial[3:7] != (1, 1, 0, None) or partial[1][0][0] != 1:
+                raise AssertionError(f"{course} history did not retain today's live epoch and partial state")
+        missing_base = read_catalogue(arguments.application, Path(temporary) / "missing-base",
+                                      arguments.budget_ms, course="missing-base")
+        if missing_base[0][0][6:9] != (None, None, None) or missing_base[4] != 1:
+            raise AssertionError("missing common base fabricated a historical anchor or changed live authority")
+        retained_root = Path(temporary) / "retained"
+        observed = read_catalogue(arguments.application, retained_root, arguments.budget_ms,
+                                  empty_timeline=True)
+        overwritten = read_catalogue(arguments.application, retained_root, arguments.budget_ms,
+                                     phase="reuse")
+        if overwritten[4] <= observed[4] or overwritten[6] != observed[4]:
+            raise AssertionError("force-push import lost the earlier observed update or changed previous-live authority")
         gap = read_catalogue(arguments.application, Path(temporary) / "gap", arguments.budget_ms,
                              unfetchable_first=True)
 
-    if seed[3:] != (1, 1, 0):
+    if seed[3:7] != (1, 1, 0, None):
         raise AssertionError("empty-timeline seed did not leave one unchanged live epoch")
 
-    left, left_history, left_incarnations, left_epoch_count, left_live, left_imports = first
-    right, right_history, right_incarnations, right_epoch_count, right_live, right_imports = second
+    left, left_history, left_incarnations, left_epoch_count, left_live, left_imports, left_previous, left_base = first
+    right, right_history, right_incarnations, right_epoch_count, right_live, right_imports, right_previous, right_base = second
     if len(left) != 3 or [row[:6] for row in left] != [row[:6] for row in right]:
         raise AssertionError(f"fresh catalogues disagree on evidenced updates: {left!r} vs {right!r}")
     if [entry[2] for entry in left] != ["0000000000016635", "0000000000016636", "0000000000016637"]:
@@ -112,6 +149,10 @@ def main():
     if not (left_live == right_live == 1 and left_imports >= 1 and right_imports >= 1
             and left_epoch_count == left_imports + 1 and right_epoch_count == right_imports + 1):
         raise AssertionError("historical append changed live authority or failed to retain an imported epoch")
+    if left_previous is not None or right_previous is not None:
+        raise AssertionError("historical imports advanced previous-distinct-head authority")
+    if left_base != seed[7] or left_base != right_base:
+        raise AssertionError("historical imports changed the live observed base")
     gap_events = gap[0]
     if (gap_events[0][6] is not None or gap_events[1][6] is None or gap[4] != 1):
         raise AssertionError("unfetchable first head starved the later retained update")

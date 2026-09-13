@@ -77,8 +77,9 @@ namespace bpr::app::detail {
 	{
 		std::optional<std::filesystem::path>             ApplicationDataRoot;
 		core::diff_compute_limits                        DiffComputeLimits;
-		bool                                             LargeReviewHistory             = false;
-		github_epoch_fixture_phase                       EpochPhase                     = github_epoch_fixture_phase::single;
+		bool                                             LargeReviewHistory = false;
+		github_epoch_fixture_phase                       EpochPhase         = github_epoch_fixture_phase::single;
+		std::string                                      TimelineCourse;
 		bool                                             EmptyHistoricalTimeline        = false;
 		bool                                             UnfetchableFirstHistoricalHead = false;
 		bool                                             DisableWorkbenchSelectionWire  = false;

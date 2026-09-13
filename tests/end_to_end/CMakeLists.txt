@@ -2065,9 +2065,9 @@ bpr_bound_automated_run(
     RESERVE_MS 2000
 )
 
-# The same A→B→A timeline travels through two independent application opens,
-# each with its own real SQLite catalogue. The test compares persisted
-# portable identities and order rather than accepting matching Qt row counts.
+# The same A→B→A timeline travels through independent application opens with
+# real SQLite catalogues. Additional opens exercise failed, refused, capped,
+# and disconnected history without treating Qt row counts as identity proof.
 find_package(Python3 3.10 REQUIRED COMPONENTS Interpreter)
 bpr_add_network_isolated_test(
     NAME application_epoch_portable_occurrence_two_catalogues
@@ -2088,9 +2088,9 @@ set_tests_properties(
 )
 bpr_bound_automated_run(
     application_epoch_portable_occurrence_two_catalogues
-    TIMEOUT 260
+    TIMEOUT 600
     BUDGET_MS ${bpr_fixture_run_budget_ms}
-    RUNS 4
+    RUNS 10
     RESERVE_MS 10000
 )
 

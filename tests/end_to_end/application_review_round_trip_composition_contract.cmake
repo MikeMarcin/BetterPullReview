@@ -157,7 +157,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "${bpr_production_app_manifest}"
     )
 	set(bpr_expected_production_app_manifest_digest
-        "b06ee624f8f3deb081c840c3452bf0cfd8696029705f7f9f78d4bce6d806a61e"
+        "75b017472727aa611eb7adc54a18377d719614ef1a4bbeb689ed3a957df622fd"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

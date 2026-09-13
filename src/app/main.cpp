@@ -30,7 +30,9 @@
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QCryptographicHash>
+#include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QIcon>
 #include <QLabel>
 #include <QLineEdit>
@@ -39,13 +41,12 @@
 #include <QSize>
 #include <QSpinBox>
 #include <QStandardPaths>
+#include <QTemporaryDir>
 #include <QTextStream>
 #include <QTimer>
 #include <QToolButton>
 
 #if defined(BPR_BUILD_TESTING)
-	#include <QDir>
-	#include <QFileInfo>
 	#include <QFont>
 	#include <QGuiApplication>
 	#include <QImage>
@@ -81,6 +82,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <vector>
 
 #if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
@@ -836,12 +838,14 @@ namespace {
 			// The fixture course that forces the selection available and opens
 			// the recorded public pull request through the anonymous
 			// authority.
-			bool        Course                = false;
-			bool        HistoricalCourse      = false;
-			bool        EmptyTimeline         = false;
-			bool        HistoricalGestureSent = false;
-			bool        HistoricalHandleMoved = false;
-			std::size_t HistoricalNode        = 0U;
+			bool        Course                     = false;
+			bool        HistoricalCourse           = false;
+			bool        EmptyTimeline              = false;
+			bool        MissingHistoricalBase      = false;
+			bool        MissingHistoricalBaseShown = false;
+			bool        HistoricalGestureSent      = false;
+			bool        HistoricalHandleMoved      = false;
+			std::size_t HistoricalNode             = 0U;
 			// The same override activated on an enterprise profile, where the
 			// core policy refuses rather than the composition.
 			bool Enterprise = false;
@@ -3945,6 +3949,9 @@ namespace {
 					   << '\n'
 					   << (enabled ? "PUBLIC_PREVIEW_ENABLED_OK\n"
 								   : "PUBLIC_PREVIEW_ENABLED_FAILED\n");
+				if (aRun.PublicPreview.MissingHistoricalBase) {
+					stream << (aRun.PublicPreview.MissingHistoricalBaseShown ? "PUBLIC_PREVIEW_MISSING_BASE_OK\n" : "PUBLIC_PREVIEW_MISSING_BASE_FAILED\n");
+				}
 				if (aRun.PublicPreview.HistoricalCourse) {
 					stream << (aRun.PublicPreview.HistoricalHandleMoved
 								   ? "PUBLIC_PREVIEW_HISTORICAL_HANDLE_OK\n"
@@ -5182,6 +5189,14 @@ namespace {
 							const auto* const line                       = window.epoch_selectors()->line();
 							aRun->PublicPreview.SettledOccurrenceCount   = line->update_count();
 							aRun->PublicPreview.SettledHistoryIncomplete = line->history_text().startsWith(QStringLiteral("Incomplete history"));
+						}
+						if (aRun->PublicPreview.MissingHistoricalBase) {
+							const auto* line                               = window.epoch_selectors()->line();
+							const auto  tooltip                            = line->node_tooltip(0);
+							aRun->PublicPreview.MissingHistoricalBaseShown = tooltip.contains(QStringLiteral("Head 67c9afbd"))
+								&& tooltip.contains(QStringLiteral("Historical base unknown"))
+								&& tooltip.contains(QStringLiteral("Derived comparison base unavailable"))
+								&& tooltip.contains(QStringLiteral("Comparison unavailable"));
 						}
 						if (aRun->PublicPreview.HistoricalCourse) {
 							auto* const                line = window.epoch_selectors()->line();
@@ -7195,6 +7210,26 @@ auto main(int argc, char** argv) -> int
 		auto config = bpr::app::github_application_config{
 			.EnterpriseHostname = std::nullopt,
 		};
+#if !defined(BPR_BUILD_TESTING)
+		// Packaged automated evidence runs exercise the real host with a private
+		// temporary profile, so they never compete for the interactive owner's lease.
+		auto automatedData        = std::unique_ptr<QTemporaryDir>{ };
+		auto automatedProfileRoot = std::optional<std::filesystem::path>{ };
+		if ((has_argument(argc, argv, "--self-test")
+			 || has_argument(argc, argv, "--render-evidence"))
+			&& !has_argument(argc, argv, "--attended-designated-live-approval")) {
+			automatedData = std::make_unique<QTemporaryDir>(
+				QDir::temp().filePath(QStringLiteral("bpr-release-self-test-XXXXXX")));
+			if (!automatedData->isValid()) {
+				QTextStream{ stdout } << "STARTUP_FAILED\n";
+				return EXIT_FAILURE;
+			}
+			automatedProfileRoot = std::filesystem::path{
+				QFileInfo{ automatedData->path() }.canonicalFilePath().toStdString()
+			} / "data";
+			config.ApplicationDataRoot = automatedProfileRoot;
+		}
+#endif
 		config.Profile             = profileLaunch->Profile;
 		config.ProfileLaunchIntent = profileLaunch->Intent;
 		auto attendedApprovalCount = std::size_t{ 0U };
@@ -7389,6 +7424,7 @@ auto main(int argc, char** argv) -> int
 			= has_argument(argc, argv, "--public-preview-enabled-course");
 		fixtureOptions.PublicPreviewGhesCourse
 			= has_argument(argc, argv, "--public-preview-ghes-course");
+		fixtureOptions.TimelineCourse = argument_value(argc, argv, "--public-preview-history-course").value_or("");
 		fixtureOptions.EmptyHistoricalTimeline
 			= has_argument(argc, argv, "--public-preview-empty-timeline-course");
 		fixtureOptions.UnfetchableFirstHistoricalHead
@@ -8081,6 +8117,17 @@ auto main(int argc, char** argv) -> int
 				return;
 			}
 			application = *aResult;
+#if !defined(BPR_BUILD_TESTING)
+			if (automatedProfileRoot) {
+				std::error_code error;
+				const auto      rooted = std::filesystem::is_directory(*automatedProfileRoot, error) && !error;
+				QTextStream{ stdout } << (rooted ? "AUTOMATED_PROFILE_PRIVATE_OK\n" : "AUTOMATED_PROFILE_PRIVATE_FAILED\n");
+				if (!rooted) {
+					desktop->quit(EXIT_FAILURE);
+					return;
+				}
+			}
+#endif
 			try {
 				application->show();
 
@@ -8159,7 +8206,8 @@ auto main(int argc, char** argv) -> int
 									.Course           = verifyPublicPreview && publicPreviewEnabledCourse,
 									.HistoricalCourse = verifyPublicPreview && publicPreviewHistoricalCourse,
 #if defined(BPR_BUILD_TESTING)
-									.EmptyTimeline = fixtureOptions.EmptyHistoricalTimeline,
+									.EmptyTimeline         = fixtureOptions.EmptyHistoricalTimeline || fixtureOptions.TimelineCourse == "failed" || fixtureOptions.TimelineCourse == "refused" || fixtureOptions.TimelineCourse == "capped",
+									.MissingHistoricalBase = fixtureOptions.TimelineCourse == "missing-base",
 #endif
 									.Enterprise      = verifyPublicPreview && previewEnterprise,
 									.SelectionForced = publicPreviewSelectionForced,

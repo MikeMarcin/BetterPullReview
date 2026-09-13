@@ -518,6 +518,7 @@ class CompositionContractTests(unittest.TestCase):
             0,
             completed.stdout + completed.stderr,
         )
+        self.assertIn("AUTOMATED_PROFILE_PRIVATE_OK", completed.stdout)
         self.assertRegex(
             completed.stdout,
             (
@@ -1007,6 +1008,7 @@ class CompositionContractTests(unittest.TestCase):
                 env=runtime_environment,
             )
             self.assertNotEqual(failed_render.returncode, 0)
+            self.assertIn("AUTOMATED_PROFILE_PRIVATE_OK", failed_render.stdout)
             self.assertIn("PUBLIC_PATH_STAGE:3", failed_render.stdout)
             self.assertIn("RENDER_FAILED", failed_render.stdout)
             self.assertNotIn(
