@@ -284,6 +284,7 @@ namespace {
 		application::epoch_catalog_snapshot                     Snapshot;
 		bool                                                    OccurrencesSupported         = false;
 		bool                                                    ThrowOccurrenceWrite         = false;
+		bool                                                    RefuseOccurrenceWrite        = false;
 		bool                                                    RefuseOccurrenceSupersession = false;
 		std::vector<core::epoch_occurrence>                     SupersededOccurrences;
 		core::epoch_occurrence_history                          Occurrences;
@@ -600,6 +601,9 @@ namespace {
 		[[nodiscard]] auto record_occurrences(const core::epoch_occurrence_history& aHistory,
 											  const std::stop_token                 aStop) -> application::epoch_catalog_result<void> override
 		{
+			if (State.RefuseOccurrenceWrite) {
+				return std::unexpected{ application::epoch_catalog_failure::invalid_request };
+			}
 			if (State.ThrowOccurrenceWrite) {
 				throw std::runtime_error{ "injected optional sidecar failure" };
 			}
@@ -1015,6 +1019,17 @@ namespace {
 				}
 			}
 			if (!aRequest.HistoricalOccurrence) {
+				if (core::historical_comparison_selection_changed(State.Operation->Context.Revision, State.Snapshot.LatestLive)) {
+					for (auto& occurrence : State.Occurrences.Occurrences) {
+						const auto imported = std::ranges::any_of(State.EpochRows, [&](const auto& aEpoch) {
+							return occurrence.LocalEpoch == aEpoch.Id && aEpoch.Cause.Origin == core::epoch_origin::explicit_historical_import;
+						});
+						if (occurrence.DerivedComparisonBase || imported) {
+							occurrence.LocalEpoch.reset();
+							occurrence.DerivedComparisonBase.reset();
+						}
+					}
+				}
 				State.Snapshot.LatestLive = aRequest.Mutation.Epoch;
 			}
 			State.Snapshot.NextOrdinal = core::epoch_ordinal{
@@ -2314,6 +2329,72 @@ namespace {
 			   "the accepted history handoff commits its actual head to the local catalogue");
 	}
 
+	void base_rewrite_replaces_projected_comparison_despite_sidecar_failure(const bool aDerivedBasePresent, const bool aFailAppend, const bool aReadFails = false)
+	{
+		fixture value;
+		accept_history(value, 1U, 20U, { force_push(101U, 21U) });
+		auto retained         = *value.State.Snapshot.LatestLive;
+		retained.Id.Ordinal   = core::epoch_ordinal{ 2 };
+		retained.Head         = oid<core::git_commit_oid>(21U);
+		retained.Cause.Origin = core::epoch_origin::explicit_historical_import;
+		value.State.EpochRows.push_back(retained);
+		value.State.Snapshot.NextOrdinal = core::epoch_ordinal{ 3 };
+		auto& occurrence                 = value.State.Occurrences.Occurrences.front();
+		occurrence.LocalEpoch            = retained.Id;
+		occurrence.DerivedComparisonBase = aDerivedBasePresent ? std::optional{ retained.Base } : std::nullopt;
+		const auto original              = occurrence;
+		accept_history(value, 2U, 20U, { force_push(101U, 21U) });
+		expect(std::ranges::any_of(value.State.Updates, [&](const auto& aUpdate) {
+				   return aUpdate.Catalog && aUpdate.Catalog->OccurrenceHistory
+					   && std::ranges::find(aUpdate.Catalog->OccurrenceHistory->Occurrences, original) != aUpdate.Catalog->OccurrenceHistory->Occurrences.end();
+			   }),
+			   "old imported comparison is already projected before the replacement");
+		value.State.Updates.clear();
+		value.State.RefuseOccurrenceWrite = true;
+		value.State.OccurrencesSupported  = !aReadFails;
+		if (aFailAppend) {
+			value.State.InstallFailure = application::epoch_catalog_failure::unavailable;
+		}
+		auto handoff                 = make_handoff(value.State, 3U, 20U);
+		handoff.Base                 = oid<core::git_commit_oid>(88U);
+		handoff.ForcePushes          = { force_push(101U, 21U) };
+		handoff.TimelineAvailability = application::epoch_timeline_availability::available;
+		handoff.SmartGit             = std::make_unique<fake_smart_authority>(value.State, application::authority_binding(handoff), 2U);
+		value.Host->accept(std::move(handoff));
+		drain(value);
+		bool        projected           = false;
+		std::size_t historyPublications = 0U;
+		for (const auto& update : value.State.Updates) {
+			if (!update.Catalog || !update.Catalog->OccurrenceHistory) {
+				continue;
+			}
+			++historyPublications;
+			if (aReadFails) {
+				projected = true;
+				expect(update.Catalog->OccurrenceHistory->Occurrences.empty() && update.Catalog->OccurrenceHistory->Incomplete,
+					   "failed sidecar read replaces prior projected evidence with an explicit unavailable fallback");
+			}
+			for (const auto& row : update.Catalog->OccurrenceHistory->Occurrences) {
+				if (row.Id == original.Id) {
+					projected = true;
+					expect(!row.LocalEpoch && !row.DerivedComparisonBase && !row.HistoricalBase,
+						   "pending or failed base replacement never projects the stale imported comparison");
+				}
+			}
+		}
+		expect(projected && (aFailAppend || historyPublications >= 2U),
+			   "refused persistence publishes safe acceptance history and reloads it after a successful commit");
+		if (aFailAppend) {
+			expect(value.State.Occurrences.Occurrences.front() == original
+					   && value.State.Snapshot.LatestLive->Base == retained.Base,
+				   "failed live append preserves durable history while its new selection stays safely unavailable");
+		} else {
+			expect(value.State.Snapshot.LatestLive->Base == oid<core::git_commit_oid>(88U)
+					   && value.Host->state().AcceptedComparison,
+				   "refused persistence does not refuse the committed replacement");
+		}
+	}
+
 	void independent_catalogues_agree_on_evidenced_occurrences()
 	{
 		fixture first;
@@ -2454,6 +2535,24 @@ namespace {
 				   && value.State.Snapshot.LatestLive->Cause.Primary == core::epoch_primary_cause::author_upload
 				   && value.Host->state().AcceptedComparison,
 			   "optional sidecar exceptions cannot replace a committed live success terminal or break its comparison");
+	}
+
+	void refused_timeline_reconciliation_preserves_base_rewrite()
+	{
+		fixture value;
+		accept_history(value, 1U, 20U, { force_push(101U, 21U) });
+		value.State.RefuseOccurrenceWrite = true;
+		auto handoff                      = make_handoff(value.State, 2U, 20U);
+		handoff.Base                      = oid<core::git_commit_oid>(88U);
+		handoff.ForcePushes               = { force_push(101U, 21U) };
+		handoff.TimelineAvailability      = application::epoch_timeline_availability::available;
+		handoff.SmartGit                  = std::make_unique<fake_smart_authority>(value.State, application::authority_binding(handoff), 2U);
+		value.Host->accept(std::move(handoff));
+		drain(value);
+		expect(value.Host->state().Catalog == value.State.Binding.Catalog
+				   && value.State.Snapshot.LatestLive->Base == oid<core::git_commit_oid>(88U)
+				   && value.Host->state().AcceptedComparison,
+			   "invalid_request from supplementary reconciliation cannot refuse the live base replacement or its comparison");
 	}
 
 	void delayed_event_keeps_observed_head_separate_without_causal_equivalence()
@@ -7160,11 +7259,17 @@ int main()
 {
 	local_clock_skew_cannot_associate_old_provider_event_with_new_transition();
 	intervening_provider_update_excludes_old_event_despite_observation_interval();
+	base_rewrite_replaces_projected_comparison_despite_sidecar_failure(true, true);
+	base_rewrite_replaces_projected_comparison_despite_sidecar_failure(false, true);
+	base_rewrite_replaces_projected_comparison_despite_sidecar_failure(true, false);
+	base_rewrite_replaces_projected_comparison_despite_sidecar_failure(true, true, true);
+	base_rewrite_replaces_projected_comparison_despite_sidecar_failure(true, false, true);
 	independent_catalogues_agree_on_evidenced_occurrences();
 	live_returns_use_distinct_events_without_rebinding_old_occurrences();
 	ordinary_transition_identity_survives_access_and_catalogue_changes();
 	missing_events_do_not_invent_a_second_provisional_head();
 	degraded_timeline_and_sidecar_failures_preserve_live_append();
+	refused_timeline_reconciliation_preserves_base_rewrite();
 	delayed_event_keeps_older_observation_when_current_head_changed();
 	newly_discovered_old_events_cannot_name_a_later_ordinary_transition();
 	uncertain_event_chronology_keeps_the_live_transition_unresolved();

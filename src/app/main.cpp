@@ -838,14 +838,21 @@ namespace {
 			// The fixture course that forces the selection available and opens
 			// the recorded public pull request through the anonymous
 			// authority.
-			bool        Course                     = false;
-			bool        HistoricalCourse           = false;
-			bool        EmptyTimeline              = false;
-			bool        MissingHistoricalBase      = false;
-			bool        MissingHistoricalBaseShown = false;
-			bool        HistoricalGestureSent      = false;
-			bool        HistoricalHandleMoved      = false;
-			std::size_t HistoricalNode             = 0U;
+			bool                                    Course                       = false;
+			bool                                    HistoricalCourse             = false;
+			bool                                    EmptyTimeline                = false;
+			bool                                    MissingHistoricalBase        = false;
+			bool                                    MissingHistoricalBaseShown   = false;
+			bool                                    RewrittenBase                = false;
+			bool                                    RewrittenBaseShown           = false;
+			bool                                    RewrittenBaseGestureSent     = false;
+			bool                                    RewrittenBaseSelectionDenied = false;
+			QString                                 RewrittenBaseGate;
+			std::optional<bpr::qt::epoch_line_stop> RewrittenBaseLeft;
+			std::optional<bpr::qt::epoch_line_stop> RewrittenBaseRight;
+			bool                                    HistoricalGestureSent = false;
+			bool                                    HistoricalHandleMoved = false;
+			std::size_t                             HistoricalNode        = 0U;
 			// The same override activated on an enterprise profile, where the
 			// core policy refuses rather than the composition.
 			bool Enterprise = false;
@@ -3955,6 +3962,12 @@ namespace {
 				if (aRun.PublicPreview.MissingHistoricalBase) {
 					stream << (aRun.PublicPreview.MissingHistoricalBaseShown ? "PUBLIC_PREVIEW_MISSING_BASE_OK\n" : "PUBLIC_PREVIEW_MISSING_BASE_FAILED\n");
 				}
+				if (aRun.PublicPreview.RewrittenBase) {
+					stream << "PUBLIC_PREVIEW_REWRITTEN_BASE_GATE:" << aRun.PublicPreview.RewrittenBaseGate << '\n'
+						   << (aRun.PublicPreview.RewrittenBaseShown && aRun.PublicPreview.RewrittenBaseSelectionDenied
+								   ? "PUBLIC_PREVIEW_REWRITTEN_BASE_UNAVAILABLE_OK\n"
+								   : "PUBLIC_PREVIEW_REWRITTEN_BASE_UNAVAILABLE_FAILED\n");
+				}
 				if (aRun.PublicPreview.HistoricalCourse) {
 					stream << (aRun.PublicPreview.HistoricalHandleMoved
 								   ? "PUBLIC_PREVIEW_HISTORICAL_HANDLE_OK\n"
@@ -5201,6 +5214,36 @@ namespace {
 								&& tooltip.contains(QStringLiteral("Historical base unknown"))
 								&& tooltip.contains(QStringLiteral("Derived comparison base unavailable"))
 								&& tooltip.contains(QStringLiteral("Comparison unavailable"));
+						}
+						if (aRun->PublicPreview.RewrittenBase) {
+							auto* const                line = window.epoch_selectors()->line();
+							std::optional<std::size_t> rewrittenNode;
+							for (std::size_t index = 0U; index < line->update_count(); ++index) {
+								const auto tooltip = line->node_tooltip(index);
+								if (tooltip.contains(QStringLiteral("Head 6458d96b"))
+									&& tooltip.contains(QStringLiteral("Historical base unknown"))
+									&& tooltip.contains(QStringLiteral("Derived comparison base unavailable"))
+									&& tooltip.contains(QStringLiteral("Comparison unavailable"))) {
+									rewrittenNode = index;
+								}
+							}
+							aRun->PublicPreview.RewrittenBaseGate = QStringLiteral("event 91702 unavailable tooltip and live selection");
+							if (!rewrittenNode || !line->selection_offered()
+								|| !line->left_stop() || !line->right_stop()
+								|| line->left_stop()->Update == *rewrittenNode || line->right_stop()->Update == *rewrittenNode) {
+								break;
+							}
+							aRun->PublicPreview.RewrittenBaseShown = true;
+							if (!aRun->PublicPreview.RewrittenBaseGestureSent) {
+								aRun->PublicPreview.RewrittenBaseGestureSent = true;
+								aRun->PublicPreview.RewrittenBaseLeft        = line->left_stop();
+								aRun->PublicPreview.RewrittenBaseRight       = line->right_stop();
+								send_diff_evidence_click(*line, line->node_centre(*rewrittenNode));
+								break;
+							}
+							aRun->PublicPreview.RewrittenBaseSelectionDenied = line->left_stop() == aRun->PublicPreview.RewrittenBaseLeft
+								&& line->right_stop() == aRun->PublicPreview.RewrittenBaseRight;
+							aRun->PublicPreview.RewrittenBaseGate = QStringLiteral("event 91702 click leaves live handles unchanged");
 						}
 						if (aRun->PublicPreview.HistoricalCourse) {
 							auto* const                line = window.epoch_selectors()->line();
@@ -8212,6 +8255,7 @@ auto main(int argc, char** argv) -> int
 #if defined(BPR_BUILD_TESTING)
 									.EmptyTimeline         = fixtureOptions.EmptyHistoricalTimeline || fixtureOptions.TimelineCourse == "failed" || fixtureOptions.TimelineCourse == "refused" || fixtureOptions.TimelineCourse == "capped",
 									.MissingHistoricalBase = fixtureOptions.TimelineCourse == "missing-base",
+									.RewrittenBase         = fixtureOptions.TimelineCourse == "rewritten-base" && fixtureOptions.EpochPhase == bpr::app::detail::github_epoch_fixture_phase::reuse,
 #endif
 									.Enterprise      = verifyPublicPreview && previewEnterprise,
 									.SelectionForced = publicPreviewSelectionForced,

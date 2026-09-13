@@ -3912,6 +3912,39 @@ namespace {
 			   "already retained occurrence does not allocate another epoch");
 	}
 
+	void test_derived_comparison_invalidation()
+	{
+		auto live        = revision();
+		auto prior       = summary(authority(), catalog(), 1, 10U, 20U);
+		prior.Base       = live.Base;
+		prior.BaseBranch = live.BaseBranch;
+		expect(!historical_comparison_selection_changed(live, prior), "same live selection retains derived comparisons");
+		expect(historical_comparison_selection_changed(live, std::nullopt), "unobserved selected-base provenance cannot expose an old comparison");
+		live.Head = oid<git_commit_oid>(77U);
+		expect(!historical_comparison_selection_changed(live, prior), "head-only updates retain derived comparisons");
+		live.Base = oid<git_commit_oid>(78U);
+		expect(historical_comparison_selection_changed(live, prior), "base OID replacement invalidates comparisons");
+		live.Base       = prior.Base;
+		live.BaseBranch = opaque<base_branch_id>(79U);
+		expect(historical_comparison_selection_changed(live, prior), "base branch change invalidates comparisons");
+		live.Origin = pull_request_revision_origin::explicit_historical_import;
+		expect(!historical_comparison_selection_changed(live, prior), "historical append cannot invalidate live-selected comparisons");
+		epoch_occurrence imported{ .LocalEpoch = prior.Id, .DerivedComparisonBase = prior.Base };
+		imported.Evidence.Kind = epoch_occurrence_kind::force_push_event;
+		auto ambiguous         = imported;
+		ambiguous.DerivedComparisonBase.reset();
+		epoch_occurrence observed{ .LocalEpoch = prior.Id, .HistoricalBase = prior.Base };
+		auto             observedUnknown = observed;
+		observedUnknown.HistoricalBase.reset();
+		epoch_occurrence_history history{ .Occurrences = { imported, ambiguous, observed, observedUnknown } };
+		invalidate_derived_comparison_bindings(history);
+		imported.LocalEpoch.reset();
+		imported.DerivedComparisonBase.reset();
+		ambiguous.LocalEpoch.reset();
+		expect(history.Occurrences == std::vector{ imported, ambiguous, observed, observedUnknown },
+			   "invalidation masks unknown-base event links even without a derived base and preserves every observed-head link");
+	}
+
 	void test_historical_catalog_advance()
 	{
 		auto fixture     = make_ready_fixture();
@@ -3987,6 +4020,7 @@ auto main() -> int
 	test_core_authorized_epoch_maintenance();
 	test_authority_access_mode_discrimination();
 	test_historical_append_planner();
+	test_derived_comparison_invalidation();
 	test_historical_catalog_advance();
 	test_deterministic_replay();
 	return EXIT_SUCCESS;

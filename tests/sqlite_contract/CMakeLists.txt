@@ -47,6 +47,10 @@ bpr_add_executable(
     test_better_pull_review_sqlite_behavior_contract_tests
     epoch_catalog_behavior_tests.cpp
 )
+target_compile_definitions(
+    test_better_pull_review_sqlite_behavior_contract_tests
+    PRIVATE BPR_SQLITE_TESTING=1
+)
 target_link_libraries(
     test_better_pull_review_sqlite_behavior_contract_tests
     PRIVATE

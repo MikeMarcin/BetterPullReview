@@ -182,7 +182,7 @@ incarnation.
 The occurrence id is a separate portable name. A numeric GitHub force-push
 event id and its after-head OID distinguish repeated A→B→A heads; a live
 head transition without an event has typed observed-head evidence. Neither
-local incarnation nor ordinal enters the occurrence digest. The SQLite v5
+local incarnation nor ordinal enters the occurrence digest. The SQLite v6
 sidecar and append journal retain occurrences and their optional local epoch associations while
 preserving every legacy epoch row, key, incarnation, and ordinal. A late event
 can supersede an observed-head occurrence only through an exact durable
@@ -193,6 +193,31 @@ head-only historical occurrence starts without an epoch anchor or presumed
 original base. A retained import binds the exact event to a local epoch in the
 same transaction as the epoch append and labels its derived comparison base
 separately from the unknown original base.
+
+Active imported comparison associations belong to the latest live base
+selection. The core identifies a change to its base OID or branch identity;
+the catalogue atomically unlinks the affected occurrence associations when
+it commits that live epoch. Every old epoch, anchor and retained ref remains
+intact, so explicit comparisons and ledger, window, MCP and agent bindings
+continue to resolve their original material. The host presents affected
+occurrences as comparison unavailable while the new live append is pending,
+including when it fails. Without an epoch-origin lookup, this pending projection
+conservatively masks any force-push event link with an unknown historical base,
+even when its derived base is absent; it preserves observed-head links. An
+ambiguous event linked to a live epoch can therefore be briefly unavailable
+until the host reloads the exact durable associations. The bounded historical
+import path can then create
+a new comparison epoch under the new base selection. A missing or non-unique
+merge base leaves the occurrence unavailable and its historical base unknown.
+
+Generic timeline reconciliation cannot restore an imported comparison link;
+only journaled historical completion can establish it. Migration from v5 or
+earlier expires active imported comparison associations whose selected-base
+provenance cannot be established. It preserves catalogue incarnation and
+revision, every retained epoch and anchor, and pending recovery journals.
+Restart recovery applies the same atomic invalidation to a pending live base
+replacement. This invariant does not require a per-occurrence selected-base
+column; independently selected historical comparisons would require one.
 
 ## Compact core state
 

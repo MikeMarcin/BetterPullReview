@@ -3204,6 +3204,11 @@ namespace bpr::application {
 				.Catalog           = aCatalog,
 				.OccurrenceHistory = aHistory,
 			};
+			// The accepted selection precedes its durable live append. Never expose
+			// comparisons derived under the prior base while that append is pending.
+			if (Active && core::historical_comparison_selection_changed(Active->Revision, aCurrent)) {
+				core::invalidate_derived_comparison_bindings(*update.Catalog->OccurrenceHistory);
+			}
 			if (aCurrent) {
 				update.Catalog->CurrentEpoch = projected_row(*aCurrent);
 			}
@@ -4746,6 +4751,8 @@ namespace bpr::application {
 					auto currentEpoch      = std::optional<core::review_epoch_summary>{ };
 					try {
 						if (auto stored = (*opened)->occurrences(aStop)) {
+							// Publish exact stored evidence even when optional reconciliation refuses.
+							occurrenceHistory = *stored;
 							if (const auto snapshot = (*opened)->snapshot(aStop);
 								snapshot && snapshot->Binding == (*opened)->binding()) {
 								currentEpoch = snapshot->LatestLive;
@@ -4761,8 +4768,8 @@ namespace bpr::application {
 							}
 						}
 					} catch (...) {
-						// Optional evidence cannot refuse the accepted live revision.
-						occurrenceHistory.reset();
+						// Keep stored evidence, or the explicit unavailable fallback.
+						// Publication must not depend on supplementary persistence.
 					}
 
 					std::optional<core::epoch_source_observation_id> source;
@@ -4859,6 +4866,11 @@ namespace bpr::application {
 								}
 							}));
 						if (accepted) {
+							if (!authorityContext->OccurrenceHistory && previous
+								&& previous->Authority == authorityContext->Authority && previous->OccurrenceHistory) {
+								// A failed read must clear previously projected evidence for this authority.
+								authorityContext->OccurrenceHistory = core::epoch_occurrence_history{ };
+							}
 							if (authorityContext->OccurrenceHistory) {
 								aHost.publish_occurrences(
 									authorityContext->Catalog->binding().Catalog,
@@ -6165,6 +6177,7 @@ namespace bpr::application {
 						auto current = std::optional<core::review_epoch_summary>{ };
 						try {
 							if (auto stored = context->Catalog->occurrences(aStop)) {
+								history = *stored;
 								if (const auto snapshot = context->Catalog->snapshot(aStop);
 									snapshot && snapshot->Binding == context->Catalog->binding()) {
 									current = snapshot->LatestLive;
@@ -6179,8 +6192,8 @@ namespace bpr::application {
 							}
 						} catch (...) {
 							// The durable live commit succeeded. Supplementary evidence
-							// must never replace its terminal with a failure.
-							history.reset();
+							// must never replace its terminal with a failure or suppress
+							// publication of the loaded, durably unlinked history.
 						}
 						const auto catalog = context->Catalog->binding().Catalog;
 						return [aRequest, aRevision, context, catalog,
@@ -6191,11 +6204,11 @@ namespace bpr::application {
 								.Mutation    = aRequest.Mutation,
 								.NewRevision = aRevision,
 							});
-							if (completedHistory && aHost.Active == context
+							if (aHost.Active == context
 								&& aHost.State.Authority == context->Authority
-								&& aHost.State.Catalog == catalog) {
-								context->OccurrenceHistory = *completedHistory;
-								aHost.publish_occurrences(catalog, *completedHistory, completedCurrent);
+								&& aHost.State.Catalog == catalog && (completedHistory || context->OccurrenceHistory)) {
+								context->OccurrenceHistory = completedHistory.value_or(core::epoch_occurrence_history{ });
+								aHost.publish_occurrences(catalog, *context->OccurrenceHistory, completedCurrent);
 								aHost.start_historical_import(context, aRequest.Context.Request,
 															  aRequest.Context.Generation);
 							}

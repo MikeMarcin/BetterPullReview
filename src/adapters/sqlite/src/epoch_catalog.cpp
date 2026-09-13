@@ -8,6 +8,7 @@
 #endif
 
 #include "bpr/core/anonymous_read_policy.hpp"
+#include "bpr/core/epoch_transition.hpp"
 
 #include <sqlite3.h>
 
@@ -2383,11 +2384,29 @@ namespace bpr::adapters::sqlite {
 											const app::epoch_catalog_binding& aBinding, const core::epoch_occurrence& aOccurrence,
 											std::stop_token aStop) -> result<void>
 		{
+			if (aOccurrence.DerivedComparisonBase && !aOccurrence.LocalEpoch) {
+				return std::unexpected(failure::invalid_request);
+			}
 			if (aOccurrence.LocalEpoch) {
 				auto epoch = load_epoch_summary(aDatabase, aBinding.Catalog.Incarnation,
 												aBinding.Authority.Scope, aOccurrence.LocalEpoch->Ordinal);
 				if (!epoch || epoch->Head != aOccurrence.Evidence.Head) {
 					return std::unexpected(failure::invalid_request);
+				}
+				if (epoch->Cause.Origin == core::epoch_origin::explicit_historical_import) {
+					// Timeline reconciliation cannot create or resurrect a comparison
+					// binding. Only journaled historical finalization may establish it.
+					auto prior = prepare(aDatabase, "SELECT local_ordinal FROM epoch_occurrence WHERE incarnation = ?1 AND pr_scope = ?2 AND occurrence_id = ?3");
+					if (!prior || !bind_fixed(prior->Value, 1, aBinding.Catalog.Incarnation)
+						|| !bind_fixed(prior->Value, 2, aBinding.Authority.Scope)
+						|| !bind_fixed(prior->Value, 3, aOccurrence.Id)
+						|| ::sqlite3_step(prior->Value) != SQLITE_ROW
+						|| ::sqlite3_column_type(prior->Value, 0) != SQLITE_INTEGER
+						|| ::sqlite3_column_int64(prior->Value, 0) != aOccurrence.LocalEpoch->Ordinal.value()
+						|| !aOccurrence.DerivedComparisonBase
+						|| *aOccurrence.DerivedComparisonBase != epoch->Base) {
+						return std::unexpected(failure::invalid_request);
+					}
 				}
 			}
 			auto insert = prepare(aDatabase,
@@ -4834,6 +4853,16 @@ namespace bpr::adapters::sqlite {
 			}
 			const auto rehydrating = epoch.Cause.Origin
 				== core::epoch_origin::retention_rehydration;
+			if (core::historical_comparison_selection_changed(operation->Context.Revision, priorLatest)) {
+				auto unlink = prepare(database, "UPDATE epoch_occurrence SET local_ordinal = NULL, derived_base = NULL "
+												"WHERE incarnation = ?1 AND pr_scope = ?2 AND (derived_base IS NOT NULL OR EXISTS "
+												"(SELECT 1 FROM epoch e WHERE e.incarnation = epoch_occurrence.incarnation AND e.pr_scope = epoch_occurrence.pr_scope AND e.ordinal = epoch_occurrence.local_ordinal AND e.origin = 3))");
+				if (!unlink || !bind_fixed(unlink->Value, 1, Binding.Catalog.Incarnation)
+					|| !bind_fixed(unlink->Value, 2, Binding.Authority.Scope)
+					|| ::sqlite3_step(unlink->Value) != SQLITE_DONE) {
+					return std::unexpected(sql_failure(database, aStop));
+				}
+			}
 			const auto historical = epoch.Cause.Origin
 				== core::epoch_origin::explicit_historical_import;
 			const auto sameSemanticRevision = priorLatest

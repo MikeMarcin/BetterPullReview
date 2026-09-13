@@ -83,6 +83,14 @@ namespace bpr::core {
 		auto operator<=>(const planned_epoch_mutation&) const = default;
 	};
 
+	/// \brief Reports when an accepted live selection invalidates derived occurrence comparisons.
+	[[nodiscard]] auto historical_comparison_selection_changed(
+		const accepted_pull_request_revision&      aRevision,
+		const std::optional<review_epoch_summary>& aLatestLive) noexcept -> bool;
+
+	/// \brief Masks derived and unknown-base event comparison links, retaining observed-head links and evidence.
+	void invalidate_derived_comparison_bindings(epoch_occurrence_history& aHistory) noexcept;
+
 	/// \brief Plans a retained historical comparison without changing the accepted live revision.
 	/// \details BaseBranch identifies the selected comparison branch only. The occurrence's
 	/// optional historical base remains independent of the derived retained base.

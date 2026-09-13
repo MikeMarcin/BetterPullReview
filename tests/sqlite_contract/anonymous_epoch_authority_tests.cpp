@@ -430,12 +430,12 @@ namespace {
 		{
 			direct_database database{ database_path(root.path()) };
 			expect(
-				database.integer("PRAGMA user_version") == 5
+				database.integer("PRAGMA user_version") == 6
 					&& database.integer(
 						   "SELECT schema_format FROM catalog_meta "
 						   "WHERE singleton = 1")
-						== 4,
-				"the migrated catalog reports the v4 version everywhere");
+						== 6,
+				"the migrated catalog reports the v6 version everywhere");
 			expect(
 				database.integer("SELECT count(*) FROM repository_scope")
 						== repositoryRows
@@ -512,7 +512,7 @@ namespace {
 		expect(made.has_value(), "the next open migrates the same catalog");
 		direct_database database{ database_path(root.path()) };
 		expect(
-			database.integer("PRAGMA user_version") == 5,
+			database.integer("PRAGMA user_version") == 6,
 			"the retried migration completes");
 	}
 

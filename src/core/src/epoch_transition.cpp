@@ -2482,6 +2482,25 @@ namespace bpr::core {
 		};
 	}
 
+	auto historical_comparison_selection_changed(
+		const accepted_pull_request_revision&      aRevision,
+		const std::optional<review_epoch_summary>& aLatestLive) noexcept -> bool
+	{
+		return aRevision.Origin != pull_request_revision_origin::explicit_historical_import
+			&& (!aLatestLive || aRevision.Base != aLatestLive->Base || aRevision.BaseBranch != aLatestLive->BaseBranch);
+	}
+
+	void invalidate_derived_comparison_bindings(epoch_occurrence_history& aHistory) noexcept
+	{
+		for (auto& occurrence : aHistory.Occurrences) {
+			if (occurrence.Evidence.Kind == epoch_occurrence_kind::force_push_event
+				&& (occurrence.DerivedComparisonBase || (occurrence.LocalEpoch && !occurrence.HistoricalBase))) {
+				occurrence.LocalEpoch.reset();
+				occurrence.DerivedComparisonBase.reset();
+			}
+		}
+	}
+
 	auto plan_historical_epoch_mutation(
 		const pull_request_authority&         aAuthority,
 		const accepted_pull_request_revision& aLiveRevision,

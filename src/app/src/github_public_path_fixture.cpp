@@ -803,7 +803,7 @@ namespace bpr::app::detail {
 			};
 			auto events = QJsonArray{ };
 			if (!aDescriptor.HeadTwoOid.empty() && !aEmptyTimeline) {
-				constexpr auto missingHead = std::string_view{ "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" };
+				constexpr auto missingHead         = std::string_view{ "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" };
 				const auto     firstHistoricalHead = aTimelineCourse == "missing-base" || aTimelineCourse == "rewritten-base"
 					? disconnected_history_head
 					: aUnfetchableFirstHead ? missingHead
@@ -1067,7 +1067,7 @@ namespace bpr::app::detail {
 								return result;
 							}(),
 							 Descriptor.Paged }
-				, AnonymousRecording{ Descriptor.Paged ? std::vector<recorded_exchange>{ } : load_anonymous_recording(Descriptor, aPhase == github_epoch_fixture_phase::reuse ? Descriptor.HeadTwoOid : Descriptor.HeadOneOid, aEmptyTimeline, aUnfetchableFirstHead, aTimelineCourse), false, aTimelineCourse }
+				, AnonymousRecording{ Descriptor.Paged ? std::vector<recorded_exchange>{ } : load_anonymous_recording(Descriptor, aPhase == github_epoch_fixture_phase::reuse && !RewrittenBase ? Descriptor.HeadTwoOid : Descriptor.HeadOneOid, aEmptyTimeline, aUnfetchableFirstHead, aTimelineCourse), false, aTimelineCourse }
 				, CapabilityBody{ load_capability_response(
 					  Descriptor.CapabilityDirectory) }
 			{
@@ -1364,15 +1364,15 @@ namespace bpr::app::detail {
 				const auto wantsSecond       = wants(fixture.HeadTwoOid);
 				const auto wantsDisconnected = wants(disconnected_history_head);
 				if (static_cast<int>(wantsFirst) + static_cast<int>(wantsSecond) + static_cast<int>(wantsDisconnected) != 1
-					&& !(State->RewrittenBase && wantsFirst && wantsSecond && !wantsDisconnected)) {
+					&& !(State->RewrittenBase && wants(fixture.BaseOid) && !wantsDisconnected)) {
 					return std::unexpected{ application::git_smart_transport_error{
 						.Failure = application::git_smart_transport_failure::invalid_request } };
 				}
-				const auto& pack = wantsSecond
+				const auto& pack = wantsDisconnected
+					? State->Git->PackWithoutBase
+					: wantsSecond
 					? State->Git->PackTwo
-					: wantsFirst
-					? State->Git->PackOne
-					: State->Git->PackWithoutBase;
+					: State->Git->PackOne;
 				if (pack.isEmpty()) {
 					return std::unexpected{ application::git_smart_transport_error{
 						.Failure = application::git_smart_transport_failure::
@@ -2932,7 +2932,10 @@ namespace bpr::app::detail {
 			}
 			if (aOptions.TimelineCourse == "rewritten-base"
 				&& aOptions.EpochPhase == github_epoch_fixture_phase::reuse) {
-				served.BaseOid = served.HeadOneOid;
+				// Replace the base with a separate root of identical material. The
+				// old base is not its ancestor, and no historical head has a merge base.
+				served.BaseOid = "80ec898e013c97d16dce3f6eae67e29701a988e5";
+				served.Packs   = { .File = "../../git/epoch-history/v1/base-rewrite.pack", .SecondFile = "../../git/epoch-history/v1/base-rewrite.pack" };
 			}
 			Git       = make_git_fixture(served.Packs);
 			Recording = std::make_shared<fixture_recording_state>(

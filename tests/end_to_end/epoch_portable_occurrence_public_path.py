@@ -5,6 +5,7 @@ import argparse
 from contextlib import closing
 import os
 from pathlib import Path
+import shutil
 import sqlite3
 import subprocess
 import tempfile
@@ -30,9 +31,11 @@ def read_catalogue(application: Path, root: Path, budget_ms: int,
         "--automated-run-budget-ms",
         str(budget_ms),
     ]
+    require_handle = (not empty_timeline and course not in ("failed", "refused", "capped")
+                      and not (course == "rewritten-base" and phase == "reuse"))
     if empty_timeline or course in ("failed", "refused", "capped"):
         command.append("--public-preview-empty-timeline-course")
-    else:
+    elif require_handle:
         command.append("--public-preview-historical-course")
     if course:
         command.extend(["--public-preview-history-course", course])
@@ -47,8 +50,7 @@ def read_catalogue(application: Path, root: Path, budget_ms: int,
         check=False,
     )
     if (completed.returncode != 0 or "PUBLIC_PREVIEW_ENABLED_OK" not in completed.stdout
-            or (not empty_timeline and not course in ("failed", "refused", "capped")
-                and "PUBLIC_PREVIEW_HISTORICAL_HANDLE_OK" not in completed.stdout)):
+            or (require_handle and "PUBLIC_PREVIEW_HISTORICAL_HANDLE_OK" not in completed.stdout)):
         raise AssertionError(
             f"composed public read failed ({completed.returncode})\n"
             f"stdout:\n{completed.stdout}\nstderr:\n{completed.stderr}"
@@ -68,8 +70,13 @@ def read_catalogue(application: Path, root: Path, budget_ms: int,
     if course == "missing-base" and not all(marker in completed.stdout for marker in (
             "PUBLIC_PREVIEW_MISSING_BASE_OK", "PUBLIC_PREVIEW_DISCONNECTED_HEAD_FETCHED")):
         raise AssertionError(f"fetchable history without a common base was not unavailable: {completed.stdout}")
-    if course == "rewritten-base" and "PUBLIC_PREVIEW_DISCONNECTED_HEAD_FETCHED" not in completed.stdout:
+    if (course == "rewritten-base" and phase != "reuse"
+            and "PUBLIC_PREVIEW_DISCONNECTED_HEAD_FETCHED" not in completed.stdout):
         raise AssertionError("rewritten base did not fetch the disconnected historical head")
+    if course == "rewritten-base" and phase == "reuse":
+        if "PUBLIC_PREVIEW_REWRITTEN_BASE_UNAVAILABLE_OK" not in completed.stdout:
+            raise AssertionError(f"rewritten occurrence stayed selectable or hid unavailable provenance: {completed.stdout}")
+        print("EPOCH_REWRITTEN_BASE_QT_UNAVAILABLE_AND_SELECTION_DENIED_OK")
     print(f"EPOCH_COMPOSED_COURSE:{course or ('empty' if empty_timeline else 'historical')}:{phase}:pages={len(pages)}")
 
     database = root / "state" / "v1" / "epoch-catalog.sqlite3"
@@ -105,14 +112,69 @@ def read_catalogue(application: Path, root: Path, budget_ms: int,
 
 
 def verify_rewritten_base(application: Path, root: Path, budget_ms: int):
-    original = read_catalogue(application, root, budget_ms, empty_timeline=True)
+    original = read_catalogue(application, root, budget_ms, course="rewritten-base")
     rewritten = read_catalogue(application, root, budget_ms,
                                course="rewritten-base", phase="reuse")
-    historical = [row for row in rewritten[0] if row[1] == 0]
-    if (rewritten[4] != 2 or rewritten[7] == original[7]
-            or len(historical) != 3 or historical[0][6:9] != (None, None, None)
-            or any(row[7] is not None for row in historical)):
-        raise AssertionError(f"rewritten selected base became fabricated historical truth: {original!r} -> {rewritten!r}")
+    before = {row[2]: row for row in original[0] if row[1] == 0}
+    after = {row[2]: row for row in rewritten[0] if row[1] == 0}
+    if (len(before) != 3 or before.keys() != after.keys()
+            or any(before[key][:6] != after[key][:6] for key in before)
+            or any(row[7] is not None for row in (*before.values(), *after.values()))):
+        raise AssertionError(f"base rewrite changed event identity or fabricated historical truth: {before!r} -> {after!r}")
+    disconnected = "0000000000016635"
+    imported = "0000000000016636"
+    if (before[disconnected][6:9] != (None, None, None)
+            or after[disconnected][6:9] != (None, None, None)
+            or before[imported][6] is None or before[imported][8] is None):
+        raise AssertionError("rewrite precondition lacks an imported comparison or an unavailable disconnected event")
+    if rewritten[4] <= original[4] or rewritten[7] == original[7]:
+        raise AssertionError("second open did not record the rewritten live base")
+
+    # Inspect only the disposable app-owned cache after both processes exit.
+    # These are Git's ancestry observations, not a fixture's declared labels.
+    git = shutil.which("git")
+    caches = [path.parent for path in root.rglob("HEAD")
+              if (path.parent / "objects").is_dir()]
+    if git is None or len(caches) != 1:
+        raise AssertionError(f"expected installed Git and one physical cache: {git!r}, {caches!r}")
+    environment = {key: value for key, value in os.environ.items()
+                   if not key.startswith("GIT_")}
+    environment.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull,
+                       GIT_NO_REPLACE_OBJECTS="1")
+
+    def observe(*arguments):
+        return subprocess.run([git, "--git-dir", str(caches[0]), *arguments],
+                              capture_output=True, text=True, timeout=10,
+                              env=environment, check=False)
+
+    old_base, new_base = original[7].lower(), rewritten[7].lower()
+    head = before[imported][3].lower()
+    for ancestor, descendant in ((old_base, new_base), (new_base, old_base)):
+        result = observe("merge-base", "--is-ancestor", ancestor, descendant)
+        if result.returncode != 1:
+            raise AssertionError(f"base replacement is not a proven divergent rewrite: {result!r}")
+    old_merge = observe("merge-base", "--all", head, old_base)
+    new_merge = observe("merge-base", "--all", head, new_base)
+    if (old_merge.returncode != 0 or old_merge.stdout.strip() != old_base
+            or before[imported][8].hex() != old_base
+            or new_merge.returncode != 1 or new_merge.stdout):
+        raise AssertionError(f"expected computed base then no computable base: {old_merge!r}, {new_merge!r}")
+    database = root / "state" / "v1" / "epoch-catalog.sqlite3"
+    with closing(sqlite3.connect(database.as_uri() + "?mode=ro", uri=True)) as connection:
+        retained = connection.execute(
+            "SELECT hex(object_digest) FROM epoch_anchor WHERE ordinal = ? AND endpoint = 1",
+            (original[4],),
+        ).fetchone()
+    if retained != (original[7],):
+        raise AssertionError("base rewrite mutated the original live epoch's observed base")
+    print(f"EPOCH_BASE_FORCE_PUSH_TOPOLOGY_OK:{old_base}->{new_base}", flush=True)
+    for phase, row in (("before", before[imported]), ("after", after[imported])):
+        derived = row[8].hex() if row[8] is not None else None
+        print(f"EPOCH_BASE_FORCE_PUSH_SAME_OCCURRENCE:{phase}:id={row[0]}:"
+              f"event={row[2]}:head={row[3]}:ordinal={row[6]}:"
+              f"historical_base={row[7]}:derived_base={derived}", flush=True)
+    if after[imported][6:9] != (None, None, None):
+        raise AssertionError("same imported occurrence retained a stale derived comparison after the selected base lost all common ancestry")
 
 
 def main():

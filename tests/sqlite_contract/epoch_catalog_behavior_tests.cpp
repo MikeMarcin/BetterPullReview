@@ -1,5 +1,6 @@
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
 #include "bpr/adapters/sqlite/review_ledger_store.hpp"
+#include "bpr/adapters/sqlite/testing.hpp"
 #include "bpr/adapters/sqlite/window_review_restoration_store.hpp"
 #include "epoch_catalog_legacy_fixture.hpp"
 #include "platform_test_support.hpp"
@@ -1387,6 +1388,105 @@ namespace {
 			   "historical finalization leaves both live ordinal pointers unchanged");
 	}
 
+	void base_rewrite_association_recovery_contract(const bool aMigrate)
+	{
+		temporary_root root{ "base-rewrite-recovery" };
+		auto           made = sqlite::make_epoch_catalog({ .StorageRoot = root.path() });
+		expect(made.has_value(), "base rewrite catalogue opens");
+		auto port   = std::move(*made);
+		auto opened = port->open(open_request(961U), { });
+		expect(opened.has_value(), "base rewrite scope opens");
+		auto       session    = std::move(*opened);
+		const auto live       = complete_append(*session, core::epoch_ordinal{ 1 }, 1U, core::application_session_id{ 961U }, true);
+		auto       historical = revision(2U);
+		historical.Origin     = core::pull_request_revision_origin::explicit_historical_import;
+		core::epoch_occurrence event{
+			.Evidence            = { .Kind = core::epoch_occurrence_kind::force_push_event, .EventId = 961U, .Head = historical.Head },
+			.DateSource          = core::epoch_occurrence_date_source::github_event,
+			.DateUtcMilliseconds = 100,
+			.FirstSeen           = core::observed_utc_milliseconds{ 900 },
+		};
+		event.Id = *core::make_epoch_occurrence_id("ghe.example.com", authority_key().PullRequest, event.Evidence);
+		expect(session->record_occurrences({ .Occurrences = { event } }, { }).has_value(), "unbound event persists");
+		const auto imported = complete_append(*session, core::epoch_ordinal{ 2 }, 2U, core::application_session_id{ 961U }, false, false, nullptr,
+											  { .Accepted = historical, .Cause = core::epoch_cause{ .Origin = core::epoch_origin::explicit_historical_import, .Primary = core::epoch_primary_cause::explicit_historical_import }, .HistoricalOccurrence = event.Id, .DerivedComparisonBase = oid<core::git_commit_oid>(91U) });
+		const auto bound    = session->occurrences({ });
+		expect(bound && bound->Occurrences.front().LocalEpoch == imported.Mutation.Epoch.Id, "journaled import establishes the comparison");
+		auto changed       = revision(3U);
+		changed.Head       = live.Mutation.Epoch.Head;
+		changed.Base       = oid<core::git_commit_oid>(99U);
+		const auto pending = complete_append(*session, core::epoch_ordinal{ 3 }, 3U, core::application_session_id{ 961U }, false, false, nullptr,
+											 { .Accepted = changed, .StopBeforeFinalize = true });
+		const auto binding = session->binding();
+		const auto before  = session->snapshot({ });
+		expect(session->occurrences({ }) == bound, "pre-finalize interruption has not modified the old association");
+		session.reset();
+		port.reset();
+		std::string oldRows;
+		if (aMigrate) {
+			direct_database database{ database_path(root.path()), true };
+			database.execute("BEGIN IMMEDIATE; PRAGMA defer_foreign_keys=ON; CREATE TABLE old_meta AS SELECT * FROM catalog_meta; DROP TABLE catalog_meta; CREATE TABLE catalog_meta(singleton INTEGER NOT NULL PRIMARY KEY CHECK(singleton = 1), schema_format INTEGER NOT NULL CHECK(schema_format = 5), incarnation BLOB NOT NULL CHECK(length(incarnation) = 32 AND incarnation != zeroblob(32))) STRICT, WITHOUT ROWID; CREATE UNIQUE INDEX catalog_meta_incarnation ON catalog_meta(incarnation); INSERT INTO catalog_meta SELECT singleton, 5, incarnation FROM old_meta; DROP TABLE old_meta; PRAGMA user_version=5; COMMIT");
+			oldRows = database.logical_fingerprint(true);
+		}
+		if (aMigrate) {
+			sqlite::detail::testing::interrupt_next_migration_before_commit();
+			expect(!sqlite::make_epoch_catalog({ .StorageRoot = root.path() }), "interrupted v5 migration refuses publication");
+			const direct_database database{ database_path(root.path()) };
+			expect(database.integer("PRAGMA user_version") == 5 && database.logical_fingerprint(true) == oldRows
+					   && database.integer("SELECT count(*) FROM epoch_occurrence WHERE local_ordinal IS NOT NULL") == 1,
+				   "migration rollback preserves old bindings and every epoch and journal row");
+		}
+		made = sqlite::make_epoch_catalog({ .StorageRoot = root.path() });
+		expect(made.has_value(), "base rewrite catalogue reopens or migrates");
+		port   = std::move(*made);
+		opened = port->open(open_request(962U), { });
+		expect(opened.has_value(), "base rewrite authority reopens");
+		session = std::move(*opened);
+		expect(session->binding() == binding && session->snapshot({ }) == before,
+			   "migration and restart retain incarnation, catalog revision and live selectors");
+		if (aMigrate) {
+			const direct_database database{ database_path(root.path()) };
+			expect(database.integer("PRAGMA user_version") == 6 && database.logical_fingerprint(true) == oldRows,
+				   "v6 migration changes no old epoch, anchor, or pending journal row");
+			const auto unlinked = session->occurrences({ });
+			expect(unlinked && unlinked->Occurrences == std::vector{ event }, "unversioned v5 comparison association is unavailable after migration");
+		}
+		const auto recovery = session->recovery_page(std::nullopt, 100U, { });
+		expect(recovery && recovery->Operations.size() == 1U, "one pending live append survives restart");
+		const auto& record = std::get<app::append_operation_record>(recovery->Operations.front());
+		expect(record == pending.Terminal, "pending base replacement retains its exact recovery identity");
+		const app::finalize_append_request request{
+			.Catalog                   = record.Context.Catalog,
+			.Operation                 = record.Context.Operation,
+			.ExpectedOperationRevision = record.OperationRevision,
+			.Mutation                  = *record.Candidate,
+			.ObservedRefs              = { .Scope = record.Candidate->Epoch.Id.Authority, .Ordinal = record.Candidate->Epoch.Id.Ordinal, .Base = changed.Base, .Head = changed.Head },
+		};
+		if (!aMigrate) {
+			auto mismatched              = request;
+			mismatched.ObservedRefs.Base = live.Mutation.Epoch.Base;
+			expect(!session->finalize_append(mismatched, { }), "recovery refuses a mismatched retained base pair");
+			expect(session->occurrences({ }) == bound && session->snapshot({ }) == before,
+				   "refused recovery leaves comparison association and live pointer unchanged");
+		}
+		const auto committed = session->finalize_append(request, { });
+		expect(committed && session->finalize_append(request, { }) == committed, "recovered live replacement finalizes and replays atomically");
+		const auto unlinked = session->occurrences({ });
+		expect(unlinked && unlinked->Occurrences == std::vector{ event }, "base replacement unlinks only derived comparison material");
+		expect(!session->record_occurrences(*bound, { }) && session->occurrences({ }) == unlinked,
+			   "stale timeline reconciliation cannot resurrect the old imported comparison");
+		const auto page = session->history({ .Catalog = session->binding().Catalog, .Limit = 3U }, { });
+		expect(page && page->Epochs == std::vector{ pending.Mutation.Epoch, imported.Mutation.Epoch, live.Mutation.Epoch },
+			   "all old complete epoch rows and anchors remain independently resolvable");
+		session.reset();
+		port.reset();
+		made = sqlite::make_epoch_catalog({ .StorageRoot = root.path() });
+		expect(made.has_value(), "completed base replacement restarts");
+		port   = std::move(*made);
+		opened = port->open(open_request(963U), { });
+		expect(opened && (*opened)->occurrences({ }) == unlinked, "restart cannot restore invalidated comparison associations");
+	}
+
 	void portable_occurrence_storage_contract()
 	{
 		temporary_root root{ "occurrences" };
@@ -1414,6 +1514,8 @@ namespace {
 		second.Id               = *core::make_epoch_occurrence_id("ghe.example.com", authority_key().PullRequest, second.Evidence);
 		second.LocalEpoch.reset();
 		second.DerivedComparisonBase = local.Mutation.Epoch.Base;
+		expect(!session->record_occurrences({ .Occurrences = { second } }, { }), "timeline cannot persist an unversioned derived base without a journaled comparison");
+		second.DerivedComparisonBase.reset();
 		core::epoch_occurrence_history history{ .Occurrences = { second, first }, .Incomplete = false };
 		expect(session->record_occurrences(history, { }).has_value(), "same-head event occurrences store independently");
 		auto stored = session->occurrences({ });
@@ -1638,7 +1740,7 @@ namespace {
 		}
 		std::filesystem::copy(originalRoot.path(), copiedRoot.path(), std::filesystem::copy_options::recursive);
 		made = sqlite::make_epoch_catalog({ .StorageRoot = copiedRoot.path() });
-		expect(made.has_value(), "a copy of the previous file migrates to v5");
+		expect(made.has_value(), "a copy of the previous file migrates to v6");
 		port   = std::move(*made);
 		opened = port->open(request, { });
 		expect(opened.has_value(), "migrated scope opens");
@@ -6363,6 +6465,8 @@ namespace {
 int main()
 {
 	historical_occurrence_atomic_recovery_contract();
+	base_rewrite_association_recovery_contract(false);
+	base_rewrite_association_recovery_contract(true);
 	portable_occurrence_storage_contract();
 	occurrence_supersession_contract();
 	lossless_occurrence_migration_contract(false);
