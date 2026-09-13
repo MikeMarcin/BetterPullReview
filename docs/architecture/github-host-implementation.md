@@ -1204,6 +1204,24 @@ enterprise, or account permission and no OAuth scope is justified by the
 current catalog. A new route that needs a wider real token reopens the
 attended permission decision rather than widening this table.
 
+The device flow yields a GitHub App user access token, whose effective
+repository access is the intersection of the user's access and the app's
+installation selection and permissions, as described in
+[GitHub's user-token documentation](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app).
+Successful `/user` authentication establishes the account but not access to
+every private repository that account can open on GitHub.com. An exact
+`GetRepository` permission refusal therefore cannot be resolved merely by
+matching the browser and product account names. The manual-token route
+remains first-class under the product's no-required-admin-install contract;
+the app must keep a device-grant limitation explicit without treating it as
+the user's lack of website access.
+The bounded diagnostic may retain the numeric HTTP status and a fixed source
+category (`http_response`, `network_reply`, or `native_transport`) when a
+provider read fails. These facts distinguish a GitHub repository refusal
+from a local transport error without persisting a response body, header,
+credential or repository content; they do not identify the exact installation
+policy behind an HTTP `404`.
+
 #### Exact endpoints and route admission
 
 Two routes on `github.com`, both `POST` with a form body:

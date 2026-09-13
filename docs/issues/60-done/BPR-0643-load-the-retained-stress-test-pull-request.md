@@ -25,9 +25,41 @@ client identifier. Its 2026-08-28 registration observation recorded an
 installation limited to selected repositories, then only
 `MikeMarcin/BPR-Test`; that historical record does not prove today's
 installation selection. GitHub's documented user-token rule is the
-intersection of user and app repository access. D4 will trace the exact
-request and current result without reading credentials or changing sign-in,
-and will amend this frontier when the causal evidence is established.
+intersection of user and app repository access. D4 traced the exact request
+and current result without reading credentials or changing sign-in.
+The preserved original Accounts & hosts window and the current product both
+show a renewing, remembered `MikeMarcin` device grant; no manual-token session
+is evidenced for the original malformed-data attempt. A fresh read-only CLI
+`GET /repos/EpicGames/UnrealEngine` reports this target as private and
+account-readable, but uses a separate credential. The product's prior
+terminal log did not retain the failed HTTP status, so the recorded
+`permission` class alone could not distinguish GitHub `403` or `404` from a
+Qt content-denial transport result.
+
+The native `GetRepository` request uses `GET
+https://api.github.com/repos/EpicGames/UnrealEngine` with the current
+credential bound as a bearer token. D4 added fixed, metadata-only HTTP status
+and transport-source fields to the provider and diagnostic path, while keeping
+the refusal policy unchanged. The final Developer ID signed `build/app-release`
+candidate (binary SHA-256
+`b13e1fa8650579b507a0611889046c4f029f567fe93a4cccb85751d4c0075f77`)
+resumed the remembered `MikeMarcin` device grant after launch. One exact
+read-only Open of `EpicGames/UnrealEngine#1773` produced
+`failure=permission`, `page_operation=GetRepository`, `http_status=404`, and
+`transport_source=http_response` (request 1/window session 16). The panel
+displayed `Pull request unavailable` and `This app's GitHub connection cannot
+read this pull request. Your browser sign-in may have different access.` The
+two-line appended log is retained only outside the checkout at
+`~/Library/Application Support/BetterPullReview/BPR-0643-evidence-2026-09-13/attempt-9-d4-diagnostics.log`
+(SHA-256 `d32e59b0604c1147bb02af1b3e2542a7c0b10811f76200dea474c812418749fd`).
+This is an HTTP refusal from GitHub, not a Qt transport denial or an invalid
+JSON/relationship result. The separate CLI credential still reads this
+private repository; its `GET /user/installations` cannot inventory this App's
+grant because GitHub requires a GitHub App user token for that endpoint. The
+app grant's precise current installation selection or organization policy is
+therefore unverified. No file list or selected diff was reached, and the
+original `invalid_relationship` failure remains unproven solved. No token was
+viewed or replaced, and no live PR write occurred.
 
 ## Previous correction frontier — bpr0643-r1 / d3 / mandate r5
 

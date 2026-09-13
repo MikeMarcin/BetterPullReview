@@ -27,6 +27,30 @@ and app's access. D4 is tracing the native `GetRepository` request, auth and
 failure mapping before treating installation policy or a product bug as the
 cause. The existing exact-target logs remain preserved; no credential is
 inspected and no PR write is authorized.
+The original preserved Settings window and current one both show a renewing,
+remembered device grant. A fresh read-only CLI repository GET confirms the
+target is private and account-readable with the CLI's separate credential.
+The app's prior terminal diagnostic lost the failed HTTP status; its
+`permission` class could not distinguish GitHub `403`/`404` from Qt transport
+content denial. D4 added metadata-only status/source fields before a new
+exact-target read.
+
+The final Developer ID signed d4 candidate resumed `MikeMarcin`'s device
+grant and attempted only `EpicGames/UnrealEngine#1773` read-only. The new
+metadata-only diagnostic records GitHub's HTTP `404` at `GetRepository`
+(`transport_source=http_response`), rather than a local transport failure;
+the panel attributes the refusal to the app connection and allows for
+different browser access. Its exact two-line log is retained outside the
+checkout as `~/Library/Application Support/BetterPullReview/BPR-0643-evidence-2026-09-13/attempt-9-d4-diagnostics.log`
+(SHA-256 `d32e59b0604c1147bb02af1b3e2542a7c0b10811f76200dea474c812418749fd`).
+The request is the correct `GET /repos/EpicGames/UnrealEngine` with the bound
+app credential. GitHub App user-token access is limited to the intersection
+of user and app access, so account-level website/CLI access does not establish
+this app grant's access. The exact current installation selection or policy
+behind the `404` is not proven; `gh`'s separate token cannot inventory App
+installations. The earlier `invalid_relationship` remains unreachable on this
+grant, with no file list or selected diff. No credential was viewed or
+switched, and no live PR write occurred.
 
 ## Previous frontier — bpr0643-r1 / d3 / mandate r5
 
