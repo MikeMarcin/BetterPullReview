@@ -33,17 +33,30 @@ the measured refresh attribution, repaired product behavior, public-byte
 pressure, focused checks and all four authored milestone exits remain binding.
 The D3 checkpoint below retains the prior open finding and negative evidence.
 
-The D4 assignment, BPR-0751 Done decision, scoped validation and exact return
-are recorded at the live plan/board and `build/rfc0013-d4-*` evidence paths.
-The completed default-cache-byte-pressure milestone does not close RFC-0013:
+The renewed D4 binding is
+`docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-rfc0013-r2-d4.json`.
+The owner amendment and binding were committed at `f378da20`; the guarded
+board finish moved BPR-0751 to Done at `42bd1ed1` with three criterion records
+in `build/rfc0013-d4-bpr0751-acceptance.json`. The documentation gate reports
+`DOCUMENTATION_OK`, all 64 documentation behavior tests pass, scoped RFC-0013
+board validation is valid, and `git diff --check` passes after the move. D2
+focused Qt 8/8, overview 3/3, byte and preserved public courses remain
+relevant because no product source changed in D3 or D4. Both bound cards and
+all four unchanged milestone exits now pass; the
+`default-cache-byte-pressure` milestone is complete. The exact failed log's
+SHA-256 is `f206ee5270db29b7fad03655826a564dbdefe6496d2f6e7e8f0e55e049b3ccf7`.
+This does not close RFC-0013:
 BPR-0622 still needs Windows/Linux native evidence, BPR-0643 waits on
 BPR-0642 and the owner's read authority, and BPR-0617 waits on BPR-0507,
 BPR-0622, the remaining RFC acceptance matrix, earlier canonical RFC
 prerequisites and its own final closeout checks. No remote or credential
-action, real pull-request mutation or push is authorized here. Prior D3
-writers and commands were quiescent; this dispatch must account for its own
-commands before successor handoff. Only the unrelated `.gitignore` and
-`.mask.json` edits preceded this dispatch and remain outside its ownership.
+action, real pull-request mutation or push was done. Prior D3 writers and
+commands were quiescent; D4 had no child writers and all task commands have
+finished. Only the unrelated `.gitignore` and `.mask.json` edits preceded this
+dispatch and remain outside its ownership. This substantial integrated
+boundary is ready for a fresh assignment when the remaining native/owner
+dependencies make another milestone eligible; there is no immediate Mac-only
+RFC-0013 card to claim.
 
 ### D3 attribution checkpoint (historical)
 
