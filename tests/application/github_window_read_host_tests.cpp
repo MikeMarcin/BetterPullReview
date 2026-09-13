@@ -15,6 +15,16 @@ namespace {
 	}
 	struct transport final : application::github_account_transport_lease
 	{ };
+	struct diagnostics final : application::diagnostic_log_port
+	{
+		std::vector<application::diagnostic_event> Events;
+		auto                                       record(const application::diagnostic_event& aEvent) noexcept -> application::diagnostic_log_status override
+		{
+			Events.push_back(aEvent);
+			return application::diagnostic_log_status::available;
+		}
+		auto status() const noexcept -> application::diagnostic_log_status override { return application::diagnostic_log_status::available; }
+	};
 	struct reads final : application::github_pull_request_port
 	{
 		struct call
@@ -110,13 +120,18 @@ namespace {
 	{
 		reads                                               provider;
 		application::manual_executor                        lane;
+		diagnostics                                         log;
 		std::vector<application::github_window_read_update> updates;
 		application::github_window_read_host                host{
 			{ core::default_bpr_profile_id, core::bpr_window_id{ 2 }, core::bpr_window_generation{ 1 } },
 			core::application_session_id{ 2 },
 			provider,
 			lane,
-			[&updates](const auto& aUpdate) { updates.push_back(aUpdate); }
+			[&updates](const auto& aUpdate) { updates.push_back(aUpdate); },
+			nullptr,
+			nullptr,
+			nullptr,
+			&log
 		};
 		expect(host.adopt(session()), "presentation fixture adopts authenticated session");
 		host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 1 } });
@@ -125,8 +140,14 @@ namespace {
 				   && first.Request.AuthenticationSession == session().ApplicationSession,
 			   "window causal session and trusted authentication provenance remain distinct");
 		const auto accepted = snapshot(first.Request);
-		first.Complete(application::github_pull_request_success{ first.Request, accepted });
+		first.Complete(application::github_pull_request_success{ first.Request, accepted, application::diagnostic_paged_operation::list_reviews });
 		lane.drain();
+		expect(log.Events.size() == 2U
+				   && log.Events[0].Outcome == application::diagnostic_outcome::started
+				   && log.Events[1].Outcome == application::diagnostic_outcome::succeeded
+				   && log.Events[1].PagedOperation == application::diagnostic_paged_operation::list_reviews
+				   && log.Events[1].Request == first.Request.Context.Request.value(),
+			   "accepted load has one typed succeeded diagnostic");
 		expect(host.accepted_snapshot().has_value() && updates.back().Presentation.PullRequest.has_value(), "accepted read publishes its safe PR projection");
 		const auto& shown = *updates.back().Presentation.PullRequest;
 		expect(shown.Snapshot == host.accepted_snapshot()->Snapshot && shown.Repository == accepted.Repository.Repository
@@ -142,12 +163,42 @@ namespace {
 			.Failure           = application::github_provider_failure::unavailable,
 			.RetryAfterSeconds = 9U,
 		};
-		second.Complete(application::github_pull_request_error{ second.Request, error });
+		second.Complete(application::github_pull_request_error{ second.Request, error, application::diagnostic_paged_operation::list_pull_request_files });
 		lane.drain();
+		expect(log.Events.size() == 4U
+				   && log.Events[3].Outcome == application::diagnostic_outcome::failed
+				   && log.Events[3].PagedOperation == application::diagnostic_paged_operation::list_pull_request_files
+				   && std::get<core::github_failure>(log.Events[3].GithubFailure) == core::github_failure::network
+				   && log.Events[3].Summary.text().empty(),
+			   "failed load retains mapped failure and last typed page without text");
 		expect(updates.back().ProviderError == error && updates.back().Presentation.HostDiagnostics.size() == 1U
 				   && updates.back().Presentation.HostDiagnostics.front().Reason == core::reason_for(core::github_failure::network)
 				   && updates.back().Presentation.HostDiagnostics.front().RetryAfterSeconds == error.RetryAfterSeconds,
 			   "accepted provider advisory maps typed failure and retry facts in the same update");
+		host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 3 } });
+		const auto third   = provider.Calls.back();
+		auto       invalid = snapshot(third.Request);
+		invalid.PullRequest.Title.clear();
+		third.Complete(application::github_pull_request_success{ third.Request, invalid, application::diagnostic_paged_operation::get_pull_request });
+		lane.drain();
+		expect(log.Events.size() == 6U
+				   && log.Events[5].Outcome == application::diagnostic_outcome::failed
+				   && std::holds_alternative<application::github_read_validation_error>(log.Events[5].GithubFailure)
+				   && std::get<application::github_read_validation_error>(log.Events[5].GithubFailure) == application::github_read_validation_error::missing_required_text,
+			   "snapshot refusal records validation error name in typed failure field");
+		host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 4 } });
+		const auto fourth = provider.Calls.back();
+		fourth.Complete(application::github_pull_request_error{
+			fourth.Request,
+			{ .Failure = application::github_provider_failure::malformed_response },
+			application::diagnostic_paged_operation::list_reviews,
+			application::github_read_validation_error::duplicate_identity,
+		});
+		lane.drain();
+		expect(log.Events.size() == 8U
+				   && log.Events[7].PagedOperation == application::diagnostic_paged_operation::list_reviews
+				   && std::get<application::github_read_validation_error>(log.Events[7].GithubFailure) == application::github_read_validation_error::duplicate_identity,
+			   "provider-side validation refusal retains its exact typed name");
 		for (const auto& update : updates) {
 			expect(update.Presentation.Transition && update.Presentation.Transition->Status == update.Transition.Status
 					   && update.Presentation.Transition->PullRequest == update.Transition.PullRequest
@@ -198,6 +249,46 @@ namespace {
 		expect(epochs.AcceptCount == 2U && epochs.ForcePushes.empty()
 				   && epochs.Availability == application::epoch_timeline_availability::refused,
 			   "timeline refusal retains the live handoff without fabricated updates");
+	}
+
+	void test_two_windows_have_distinct_diagnostic_courses()
+	{
+		reads                                firstReads, secondReads;
+		application::manual_executor         lane;
+		diagnostics                          log;
+		application::github_window_read_host first{
+			{ core::default_bpr_profile_id, core::bpr_window_id{ 11 }, core::bpr_window_generation{ 1 } },
+			core::application_session_id{ 12 },
+			firstReads,
+			lane,
+			[](const auto&) { },
+			nullptr,
+			nullptr,
+			nullptr,
+			&log
+		};
+		application::github_window_read_host second{
+			{ core::default_bpr_profile_id, core::bpr_window_id{ 12 }, core::bpr_window_generation{ 1 } },
+			core::application_session_id{ 13 },
+			secondReads,
+			lane,
+			[](const auto&) { },
+			nullptr,
+			nullptr,
+			nullptr,
+			&log
+		};
+		expect(first.adopt(session()) && second.adopt(session()), "both windows adopt recorded identity");
+		first.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 1 } });
+		second.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 1 } });
+		expect(log.Events.size() == 2U && log.Events[0].Request == log.Events[1].Request
+				   && log.Events[0].WindowSession == 12U && log.Events[1].WindowSession == 13U,
+			   "window-local request ids remain distinct in the shared diagnostic stream");
+		first.cancel();
+		second.cancel();
+		firstReads.Calls.front().Complete(application::github_pull_request_cancelled{ firstReads.Calls.front().Request });
+		secondReads.Calls.front().Complete(application::github_pull_request_cancelled{ secondReads.Calls.front().Request });
+		lane.drain();
 	}
 
 	void test_reentrant_read_publication()
@@ -266,6 +357,7 @@ int main()
 {
 	test_reentrant_read_publication();
 	test_safe_read_presentation_matches_accepted_state();
+	test_two_windows_have_distinct_diagnostic_courses();
 	test_timeline_evidence_reaches_epoch_handoff_without_blocking_live_read();
 	reads                                provider;
 	application::manual_executor         lane;

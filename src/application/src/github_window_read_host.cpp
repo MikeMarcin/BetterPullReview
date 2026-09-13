@@ -324,16 +324,40 @@ namespace bpr::application {
 		implementation(core::bpr_window_context aWindow, core::application_session_id aSession,
 					   github_pull_request_port& aReads, decision_executor& aLane, publication aPublish,
 					   github_epoch_handoff_port* aEpochs, github_pull_request_port* aNonymous,
-					   git_smart_transport_factory_port* aGit)
+					   git_smart_transport_factory_port* aGit, diagnostic_log_port* aLog)
 			: Policy{ aWindow, aSession }
 			, State{ Policy.state() }
+			, DiagnosticWindowSession{ aSession }
 			, PullRequests{ aReads }
 			, DecisionLane{ aLane }
 			, Publish{ std::move(aPublish) }
 			, Epochs{ aEpochs }
 			, AnonymousPullRequests{ aNonymous }
 			, AnonymousSmartGit{ aGit }
+			, DiagnosticLog{ aLog }
 		{ }
+		void record_pull_request(const diagnostic_outcome aOutcome, const core::request_id aRequest,
+								 const std::optional<core::github_failure>         aFailure       = std::nullopt,
+								 const std::optional<github_read_validation_error> aValidation    = std::nullopt,
+								 const std::optional<diagnostic_paged_operation>   aLastOperation = std::nullopt) const noexcept
+		{
+			if (DiagnosticLog == nullptr) {
+				return;
+			}
+			auto event = diagnostic_event{
+				.Operation      = diagnostic_operation::pull_request,
+				.Outcome        = aOutcome,
+				.Request        = aRequest.value(),
+				.WindowSession  = DiagnosticWindowSession.value(),
+				.PagedOperation = aLastOperation.value_or(diagnostic_paged_operation::none),
+			};
+			if (aValidation) {
+				event.GithubFailure = *aValidation;
+			} else if (aFailure) {
+				event.GithubFailure = *aFailure;
+			}
+			static_cast<void>(DiagnosticLog->record(event));
+		}
 		bool                           is_public_preview() const { return State.AccessMode == core::github_access_mode::public_preview; }
 		core::github_transition_output decide(const core::github_window_read_event& aEvent)
 		{
@@ -653,6 +677,7 @@ namespace bpr::application {
 			if (Closing || !Session || State.PendingPullRequest != aContext) {
 				return;
 			}
+			record_pull_request(diagnostic_outcome::started, aContext.Request);
 			// Signed out there is no account transport to hold, and holding a
 			// null one is the point rather than an omission. The credential-
 			// free authority is the port itself.
@@ -667,6 +692,8 @@ namespace bpr::application {
 				|| aContext.Account != AcceptedSession->Viewer.Account
 				|| aContext.Capabilities != AcceptedCapabilityEvidence->Revision
 				|| AcceptedCapabilityEvidence->Authority.Account != aContext.Account) {
+				record_pull_request(diagnostic_outcome::failed, aContext.Request,
+									core::github_failure::malformed_response);
 				dispatch_core(core::pull_request_load_failed_event{
 					.Context = aContext,
 					.Failure = core::github_failure::malformed_response,
@@ -751,6 +778,8 @@ namespace bpr::application {
 			if (aCompletion.valueless_by_exception()
 				|| provider_completion_request(aCompletion) != current) {
 				PendingProvider.reset();
+				record_pull_request(diagnostic_outcome::failed, current.Context.Request,
+									core::github_failure::malformed_response);
 				dispatch_core(core::pull_request_load_failed_event{
 					.Context = current.Context,
 					.Failure = core::github_failure::malformed_response,
@@ -769,8 +798,9 @@ namespace bpr::application {
 				// provider. A provider cannot promote a read into a mode it
 				// was not asked for, and a snapshot cannot arrive claiming
 				// one.
-				auto observed = success->Snapshot;
-				observed.Mode = success->Request.Mode;
+				auto observed         = success->Snapshot;
+				observed.Mode         = success->Request.Mode;
+				const auto validation = validate(observed, success->Request.Context);
 				if (observed.Viewer != expectedViewer
 					|| observed.CapabilityEvidence
 						!= projected_capability_evidence(
@@ -778,7 +808,12 @@ namespace bpr::application {
 					|| !AcceptedProfileAuthority.has_value()
 					|| !valid_snapshot_rate_limits(*AcceptedProfileAuthority,
 												   observed)
-					|| !validate(observed, success->Request.Context).valid()) {
+					|| !validation.valid()) {
+					record_pull_request(diagnostic_outcome::failed,
+										success->Request.Context.Request,
+										validation.valid() ? std::optional{ core::github_failure::malformed_response } : std::nullopt,
+										validation.valid() ? std::nullopt : std::optional{ validation.Error },
+										success->LastReadOperation);
 					dispatch_core(core::pull_request_load_failed_event{
 						.Context = success->Request.Context,
 						.Failure = core::github_failure::malformed_response,
@@ -801,6 +836,9 @@ namespace bpr::application {
 					});
 				if (output.AcceptedSnapshot.has_value()
 					&& *output.AcceptedSnapshot == expected) {
+					record_pull_request(diagnostic_outcome::succeeded,
+										success->Request.Context.Request, std::nullopt, std::nullopt,
+										success->LastReadOperation);
 					AcceptedSnapshot = std::move(StagedSnapshot);
 					StagedSnapshot.reset();
 					if (!is_public_preview()) {
@@ -819,6 +857,10 @@ namespace bpr::application {
 						deliver_epoch_handoff(*AcceptedSnapshot);
 					}
 				} else {
+					record_pull_request(diagnostic_outcome::failed,
+										success->Request.Context.Request,
+										core::github_failure::malformed_response, std::nullopt,
+										success->LastReadOperation);
 					StagedSnapshot.reset();
 					publish_and_execute(output);
 				}
@@ -857,6 +899,9 @@ namespace bpr::application {
 					if (errorValid) {
 						publish_error_advisory(error->Error);
 					}
+					record_pull_request(diagnostic_outcome::failed,
+										error->Request.Context.Request, core::github_failure::rate_limit,
+										std::nullopt, error->LastReadOperation);
 					dispatch_core(core::pull_request_load_failed_event{
 						.Context = error->Request.Context,
 						.Failure = core::github_failure::rate_limit,
@@ -877,6 +922,12 @@ namespace bpr::application {
 				if (errorValid) {
 					publish_error_advisory(error->Error);
 				}
+				record_pull_request(diagnostic_outcome::failed,
+									error->Request.Context.Request,
+									errorValid ? mapped_failure(error->Error.Failure)
+											   : core::github_failure::malformed_response,
+									errorValid ? error->ValidationError : std::nullopt,
+									error->LastReadOperation);
 				dispatch_core(core::pull_request_load_failed_event{
 					.Context = error->Request.Context,
 					.Failure = errorValid
@@ -888,6 +939,9 @@ namespace bpr::application {
 
 			const auto& cancelled = std::get<github_pull_request_cancelled>(aCompletion);
 			PendingProvider.reset();
+			record_pull_request(diagnostic_outcome::cancelled,
+								cancelled.Request.Context.Request, std::nullopt, std::nullopt,
+								cancelled.LastReadOperation);
 			dispatch_core(core::pull_request_load_cancelled_event{
 				.Context = cancelled.Request.Context,
 			});
@@ -901,6 +955,8 @@ namespace bpr::application {
 			const auto request = *PendingProvider;
 			PendingProvider.reset();
 			++ProviderOperationToken;
+			record_pull_request(diagnostic_outcome::cancelled,
+								request.Context.Request);
 			try {
 				pull_request_port_for(request).cancel_pull_request(request);
 			} catch (...) { }
@@ -922,12 +978,14 @@ namespace bpr::application {
 		bool                                                SuppressPublication = false;
 		core::github_window_read                            Policy;
 		const core::github_state&                           State;
+		core::application_session_id                        DiagnosticWindowSession;
 		github_pull_request_port&                           PullRequests;
 		decision_executor&                                  DecisionLane;
 		publication                                         Publish;
 		github_epoch_handoff_port*                          Epochs;
 		github_pull_request_port*                           AnonymousPullRequests;
 		git_smart_transport_factory_port*                   AnonymousSmartGit;
+		diagnostic_log_port*                                DiagnosticLog;
 		std::optional<github_profile_session>               Session;
 		std::optional<github_session_read_model>            AcceptedSession;
 		std::optional<github_profile_authority>             AcceptedProfileAuthority;
@@ -962,8 +1020,8 @@ namespace bpr::application {
 	github_window_read_host::github_window_read_host(core::bpr_window_context     aWindow,
 													 core::application_session_id aSession, github_pull_request_port& aReads,
 													 decision_executor& aDecision, publication aPublication, github_epoch_handoff_port* aEpochs,
-													 github_pull_request_port* aAnonymousReads, git_smart_transport_factory_port* aAnonymousGit)
-		: Implementation{ std::make_shared<implementation>(aWindow, aSession, aReads, aDecision, std::move(aPublication), aEpochs, aAnonymousReads, aAnonymousGit) }
+													 github_pull_request_port* aAnonymousReads, git_smart_transport_factory_port* aAnonymousGit, diagnostic_log_port* aLog)
+		: Implementation{ std::make_shared<implementation>(aWindow, aSession, aReads, aDecision, std::move(aPublication), aEpochs, aAnonymousReads, aAnonymousGit, aLog) }
 	{ }
 	github_window_read_host::~github_window_read_host()
 	{

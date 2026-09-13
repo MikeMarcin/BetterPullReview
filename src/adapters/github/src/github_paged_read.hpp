@@ -84,6 +84,16 @@ namespace bpr::adapters::github::detail {
 
 	using github_timeline_read_result = std::expected<github_timeline_read, github_paged_read_failure>;
 
+	/// \brief Receives only correlated HTTP response facts before payload validation.
+	class github_paged_response_observer
+	{
+	public:
+		virtual ~github_paged_response_observer()                                                 = default;
+		virtual void observe(read_operation aOperation, int aHttpStatus) noexcept                 = 0;
+		virtual void request_started(read_operation aOperation) noexcept                          = 0;
+		virtual void validation_failed(application::github_read_validation_error aError) noexcept = 0;
+	};
+
 	/// \brief Reads at most ten timeline pages, 100 records each, including ignored events.
 	/// \details The repository id must come from the matching accepted live snapshot.
 	/// This independent read preserves the live snapshot if history is unavailable.
@@ -94,7 +104,8 @@ namespace bpr::adapters::github::detail {
 		core::repository_id                                      aRepository,
 		std::stop_token                                          aStop,
 		const github_paged_read_limits&                          aLimits        = { },
-		github_provider_read_authority                           aReadAuthority = github_provider_read_authority::authenticated) noexcept
+		github_provider_read_authority                           aReadAuthority = github_provider_read_authority::authenticated,
+		github_paged_response_observer*                          aObserver      = nullptr) noexcept
 		-> github_timeline_read_result;
 
 	[[nodiscard]] auto perform_paged_github_read(
@@ -105,7 +116,8 @@ namespace bpr::adapters::github::detail {
 		std::stop_token                                          aStop,
 		const github_paged_read_limits&                          aLimits = { },
 		github_provider_read_authority                           aReadAuthority
-		= github_provider_read_authority::authenticated) noexcept
+		= github_provider_read_authority::authenticated,
+		github_paged_response_observer* aObserver = nullptr) noexcept
 		-> github_paged_read_result;
 }
 

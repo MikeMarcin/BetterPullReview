@@ -2541,6 +2541,14 @@ these events:
 tail -n 100 "$HOME/Library/Application Support/BetterPullReview/BetterPullReview/logs/diagnostics.log"
 ```
 
+`github.pull_request` entries identify each load by `window_session` and
+`request`. A `started` entry precedes `response_received` entries with the
+closed `page_operation` name and HTTP status; the final `succeeded` or `failed`
+entry gives the last attempted operation and any typed `failure`. Transport
+failures may have no HTTP response entry. These fields contain no URL, path,
+login, body or token; the separate sanitized capability detail policy remains
+unchanged.
+
 The BPR-0559 attended log identified `INTROSPECTION_LIMIT_EXCEEDED` after
 successful viewer observation. Capability discovery now uses nine canonical
 serial requests per uncached discovery, retaining one logical request identity.

@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_WINDOW_READ_HOST_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_WINDOW_READ_HOST_HPP
 
+#include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/github_epoch_handoff.hpp"
 #include "bpr/application/github_projection.hpp"
 #include "bpr/application/github_provider_port.hpp"
@@ -71,7 +72,8 @@ namespace bpr::application {
 								decision_executor& aDecision, publication aPublication,
 								github_epoch_handoff_port*        aEpochs         = nullptr,
 								github_pull_request_port*         aAnonymousReads = nullptr,
-								git_smart_transport_factory_port* aAnonymousGit   = nullptr);
+								git_smart_transport_factory_port* aAnonymousGit   = nullptr,
+								diagnostic_log_port*              aLog            = nullptr);
 		~github_window_read_host();
 		github_window_read_host(const github_window_read_host&)                                  = delete;
 		auto               operator=(const github_window_read_host&) -> github_window_read_host& = delete;

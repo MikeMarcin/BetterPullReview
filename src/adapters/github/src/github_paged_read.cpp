@@ -1018,7 +1018,8 @@ namespace bpr::adapters::github::detail {
 									  const github_paged_read_limits&             aLimits,
 									  const std::stop_token                       aStop,
 									  application::github_rate_limit_state&       aRateLimits,
-									  std::optional<core::application_session_id> aAuthenticationSession)
+									  std::optional<core::application_session_id> aAuthenticationSession,
+									  github_paged_response_observer*             aObserver)
 				: Transport{ aTransport }
 				, Profile{ aProfile }
 				, Parent{ aParent }
@@ -1026,6 +1027,7 @@ namespace bpr::adapters::github::detail {
 				, Stop{ aStop }
 				, RateLimits{ aRateLimits }
 				, AuthenticationSession{ aAuthenticationSession }
+				, Observer{ aObserver }
 			{
 			}
 
@@ -1090,6 +1092,9 @@ namespace bpr::adapters::github::detail {
 					.Page                  = aSemantic.Page,
 					.AuthenticationSession = AuthenticationSession,
 				};
+				if (Observer != nullptr) {
+					Observer->request_started(aSemantic.Operation);
+				}
 				const auto completion = Transport.perform(
 					github_wire_request{
 						.Correlation = correlation,
@@ -1105,6 +1110,9 @@ namespace bpr::adapters::github::detail {
 					if (success->Correlation != correlation) {
 						return terminal_failure(
 							application::github_provider_failure::malformed_response);
+					}
+					if (Observer != nullptr) {
+						Observer->observe(aSemantic.Operation, success->Response.Status);
 					}
 					const auto bytes = response_byte_count(success->Response);
 					if (!bytes.has_value() || *bytes > Limits.MaximumPageBytes
@@ -1290,6 +1298,7 @@ namespace bpr::adapters::github::detail {
 			application::github_rate_limit_state&       RateLimits;
 			std::optional<core::repository_id>          BoundRepository;
 			std::optional<core::application_session_id> AuthenticationSession;
+			github_paged_response_observer*             Observer;
 		};
 
 		[[nodiscard]] auto
@@ -3579,7 +3588,8 @@ namespace bpr::adapters::github::detail {
 		const core::repository_id                                aRepository,
 		const std::stop_token                                    aStop,
 		const github_paged_read_limits&                          aLimits,
-		const github_provider_read_authority                     aReadAuthority) noexcept -> github_timeline_read_result
+		const github_provider_read_authority                     aReadAuthority,
+		github_paged_response_observer*                          aObserver) noexcept -> github_timeline_read_result
 	{
 		auto rates = application::github_rate_limit_state{ };
 		try {
@@ -3596,7 +3606,7 @@ namespace bpr::adapters::github::detail {
 			}
 			auto limits              = aLimits;
 			limits.MaximumTotalPages = std::min(limits.MaximumTotalPages, std::size_t{ 10U });
-			production_read_execution execution{ aTransport, aProfile, aRequest.Context, limits, aStop, rates, aRequest.AuthenticationSession };
+			production_read_execution execution{ aTransport, aProfile, aRequest.Context, limits, aStop, rates, aRequest.AuthenticationSession, aObserver };
 			if (!execution.bind_repository(aRepository)) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
@@ -3660,7 +3670,8 @@ namespace bpr::adapters::github::detail {
 		const core::provider_snapshot_id                         aSnapshotId,
 		const std::stop_token                                    aStop,
 		const github_paged_read_limits&                          aLimits,
-		const github_provider_read_authority                     aReadAuthority) noexcept -> github_paged_read_result
+		const github_provider_read_authority                     aReadAuthority,
+		github_paged_response_observer*                          aObserver) noexcept -> github_paged_read_result
 	{
 		auto observedRateLimits = application::github_rate_limit_state{ };
 		try {
@@ -3683,7 +3694,7 @@ namespace bpr::adapters::github::detail {
 												 aRequest.Context,
 												 aLimits,
 												 aStop,
-												 observedRateLimits, aRequest.AuthenticationSession };
+												 observedRateLimits, aRequest.AuthenticationSession, aObserver };
 
 			auto repositoryPage = execution.fetch(semantic_request_for(
 				*server, aRequest.Context, read_operation::get_repository));
@@ -3890,6 +3901,9 @@ namespace bpr::adapters::github::detail {
 			result.RateLimits     = execution.rate_limits();
 			const auto validation = application::validate(result, aRequest.Context, aLimits.Records);
 			if (!validation.valid()) {
+				if (aObserver != nullptr) {
+					aObserver->validation_failed(validation.Error);
+				}
 				return execution.terminal_failure(
 					validation_failure(validation.Error));
 			}

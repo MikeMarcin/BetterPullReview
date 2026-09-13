@@ -2841,6 +2841,98 @@ namespace {
 		return perform_paged_github_timeline_read(aTransport, profile(), anonymous_provider_request(), core::repository_id{ 101U }, { }, aLimits, github_provider_read_authority::anonymous_public);
 	}
 
+	class recording_response_observer final : public github_paged_response_observer
+	{
+	public:
+		std::optional<read_operation>                            LastOperation;
+		std::optional<application::github_read_validation_error> ValidationError;
+		void                                                     request_started(const read_operation aOperation) noexcept override { LastOperation = aOperation; }
+		void                                                     validation_failed(const application::github_read_validation_error aError) noexcept override { ValidationError = aError; }
+		std::array<std::pair<read_operation, int>, 32U>          Responses{ };
+		std::size_t                                              Count = 0U;
+		void                                                     observe(const read_operation aOperation, const int aStatus) noexcept override
+		{
+			expect(Count < Responses.size(), "response observation stays bounded");
+			Responses[Count++] = { aOperation, aStatus };
+		}
+	};
+
+	auto test_paged_response_observation() -> void
+	{
+		for (const int status : { 200, 503, 0, -1 }) {
+			auto transport            = paged_fixture_transport{ fixture_scenario::success };
+			transport.RewriteResponse = [status](const github_wire_request& aRequest, wire_response& aResponse) {
+				if (aRequest.Wire.Operation != read_operation::search_pull_requests) {
+					return;
+				}
+				if (status == 503) {
+					aResponse.Status = status;
+				}
+				if (status == 0) {
+					aResponse.Headers.push_back({ "x-ratelimit-remaining", "invalid" });
+				}
+				if (status == -1) {
+					aResponse.Body.assign(4U * 1024U * 1024U + 1U, 'x');
+				}
+			};
+			recording_response_observer observer;
+			const auto                  result = perform_paged_github_read(transport, profile(), provider_request(),
+																		   core::provider_snapshot_id{ 55U }, { }, { }, github_provider_read_authority::authenticated, &observer);
+			expect(result.has_value() == (status == 200), "response observer preserves success and final-operation refusal");
+			expect(observer.Count == transport.Requests.size() && observer.Count == 11U, "every page produces exactly one observation");
+			for (std::size_t index = 0U; index < observer.Count; ++index) {
+				const auto expectedStatus = status == 503 && index + 1U == observer.Count ? 503 : 200;
+				expect(observer.Responses[index] == std::pair{ transport.Requests[index].Correlation.Operation, expectedStatus },
+					   "response callback preserves request order and HTTP status, including repeated pages");
+			}
+			expect(observer.Responses[observer.Count - 1U].first == read_operation::search_pull_requests,
+				   "final operation remains observable before status, metadata, and byte validation");
+			if (!result) {
+				const auto expectedFailure = status == 503 ? application::github_provider_failure::unavailable
+					: status == 0                          ? application::github_provider_failure::malformed_response
+														   : application::github_provider_failure::response_limit;
+				expect(provider_failure_of(result) == expectedFailure, "observer leaves final failure class unchanged");
+			}
+		}
+		auto                        transport = paged_fixture_transport{ fixture_scenario::network_failure };
+		recording_response_observer observer;
+		const auto                  network = perform_paged_github_read(transport, profile(), provider_request(), core::provider_snapshot_id{ 55U },
+																		{ }, { }, github_provider_read_authority::authenticated, &observer);
+		expect(!network && observer.Count == 0U, "transport failure invents no HTTP response");
+		expect(observer.LastOperation == read_operation::get_repository, "initial network failure retains attempted operation");
+		auto                        lateTransport = paged_fixture_transport{ fixture_scenario::late_search_wire_failure };
+		recording_response_observer lateObserver;
+		const auto                  late = perform_paged_github_read(lateTransport, profile(), provider_request(), core::provider_snapshot_id{ 55U },
+																	 { }, { }, github_provider_read_authority::authenticated, &lateObserver);
+		expect(!late && lateObserver.LastOperation == read_operation::search_pull_requests
+				   && lateObserver.Count + 1U == lateTransport.Requests.size(),
+			   "later wire failure retains attempted search without inventing a response");
+		auto invalidTransport            = paged_fixture_transport{ fixture_scenario::success };
+		invalidTransport.RewriteResponse = [](const github_wire_request& aRequest, wire_response& aResponse) {
+			if (aRequest.Wire.Operation == read_operation::list_reviews) {
+				const auto position = aResponse.Body.find("R_review");
+				expect(position != std::string::npos, "review fixture has node identity");
+				aResponse.Body.replace(position, std::string_view{ "R_review" }.size(), "R_repository");
+			}
+		};
+		recording_response_observer invalidObserver;
+		const auto                  invalid = perform_paged_github_read(invalidTransport, profile(), provider_request(), core::provider_snapshot_id{ 55U },
+																		{ }, { }, github_provider_read_authority::authenticated, &invalidObserver);
+		expect(!invalid && invalidObserver.Count == 11U
+				   && invalidObserver.ValidationError == application::github_read_validation_error::duplicate_identity
+				   && provider_failure_of(invalid) == application::github_provider_failure::malformed_response,
+			   "real final snapshot validation preserves duplicate identity detail and mapped refusal");
+		auto timeline                    = timeline_fixture_transport{ };
+		timeline.Responses               = { success_response(timeline_full_page(1U), timeline_next(2U), page_completeness::has_next_page), success_response("[]") };
+		timeline.Responses.back().Status = 503;
+		const auto history               = perform_paged_github_timeline_read(timeline, profile(), anonymous_provider_request(), core::repository_id{ 101U },
+																			  { }, { }, github_provider_read_authority::anonymous_public, &observer);
+		expect(!history && observer.Count == 2U
+				   && observer.Responses[0] == std::pair{ read_operation::list_pull_request_timeline, 200 }
+				   && observer.Responses[1] == std::pair{ read_operation::list_pull_request_timeline, 503 },
+			   "timeline observer includes the failed final page in order");
+	}
+
 	auto test_timeline_read() -> void
 	{
 		auto transport      = timeline_fixture_transport{ };
@@ -2927,6 +3019,7 @@ namespace {
 
 auto main() -> int
 {
+	test_paged_response_observation();
 	test_timeline_read();
 	test_timeline_atomic_failures();
 	test_metadata_and_viewer();

@@ -25,6 +25,77 @@
 
 namespace bpr::adapters::github::detail {
 	namespace {
+		[[nodiscard]] auto diagnostic_operation_for(const read_operation aOperation) noexcept
+			-> application::diagnostic_paged_operation
+		{
+			switch (aOperation) {
+			case read_operation::get_viewer_identity:
+				return application::diagnostic_paged_operation::get_viewer_identity;
+			case read_operation::get_repository:
+				return application::diagnostic_paged_operation::get_repository;
+			case read_operation::get_pull_request:
+				return application::diagnostic_paged_operation::get_pull_request;
+			case read_operation::list_pull_request_files:
+				return application::diagnostic_paged_operation::list_pull_request_files;
+			case read_operation::list_pull_request_commits:
+				return application::diagnostic_paged_operation::list_pull_request_commits;
+			case read_operation::list_reviews:
+				return application::diagnostic_paged_operation::list_reviews;
+			case read_operation::list_review_threads:
+				return application::diagnostic_paged_operation::list_review_threads;
+			case read_operation::list_issue_comments:
+				return application::diagnostic_paged_operation::list_issue_comments;
+			case read_operation::list_checks:
+				return application::diagnostic_paged_operation::list_checks;
+			case read_operation::search_pull_requests:
+				return application::diagnostic_paged_operation::search_pull_requests;
+			case read_operation::list_review_comments:
+				return application::diagnostic_paged_operation::list_review_comments;
+			case read_operation::list_pull_request_timeline:
+				return application::diagnostic_paged_operation::list_pull_request_timeline;
+			}
+			return application::diagnostic_paged_operation::none;
+		}
+
+		class pull_request_response_observer final : public github_paged_response_observer
+		{
+		public:
+			pull_request_response_observer(application::diagnostic_log_port* aLog, std::uint64_t aRequest, std::uint64_t aWindowSession) noexcept
+				: Log{ aLog }
+				, Request{ aRequest }
+				, WindowSession{ aWindowSession }
+			{ }
+			void request_started(const read_operation aOperation) noexcept override
+			{
+				LastOperation = diagnostic_operation_for(aOperation);
+			}
+			void validation_failed(const application::github_read_validation_error aError) noexcept override
+			{
+				ValidationError = aError;
+			}
+			void observe(const read_operation aOperation, const int aHttpStatus) noexcept override
+			{
+				LastOperation = diagnostic_operation_for(aOperation);
+				if (Log != nullptr) {
+					static_cast<void>(Log->record({
+						.Operation      = application::diagnostic_operation::pull_request,
+						.Outcome        = application::diagnostic_outcome::response_received,
+						.Request        = Request,
+						.WindowSession  = WindowSession,
+						.HttpStatus     = aHttpStatus >= 0 && aHttpStatus <= 65535 ? static_cast<std::uint16_t>(aHttpStatus) : std::uint16_t{ 0 },
+						.PagedOperation = *LastOperation,
+					}));
+				}
+			}
+			std::optional<application::diagnostic_paged_operation>   LastOperation;
+			std::optional<application::github_read_validation_error> ValidationError;
+
+		private:
+			application::diagnostic_log_port* Log;
+			std::uint64_t                     Request;
+			std::uint64_t                     WindowSession;
+		};
+
 		enum class provider_phase : std::uint8_t {
 			profile,
 			viewer,
@@ -1674,11 +1745,13 @@ namespace bpr::adapters::github::detail {
 				 readTransport,
 				 aRequest,
 				 delivery]() mutable {
-					const auto cancelled = [&] {
+					pull_request_response_observer observer{ state->Log.get(), aRequest.Context.Request.value(), aRequest.Context.ApplicationSession.value() };
+					const auto                     cancelled = [&] {
 						finish_job(state, job);
 						delivery->deliver(
 							application::github_pull_request_cancelled{
-								.Request = aRequest,
+								.Request           = aRequest,
+								.LastReadOperation = observer.LastOperation,
 							});
 					};
 					const auto failed =
@@ -1686,13 +1759,16 @@ namespace bpr::adapters::github::detail {
 							if (finish_job(state, job)) {
 								delivery->deliver(
 									application::github_pull_request_cancelled{
-										.Request = aRequest,
+										.Request           = aRequest,
+										.LastReadOperation = observer.LastOperation,
 									});
 								return;
 							}
 							delivery->deliver(application::github_pull_request_error{
-								.Request = aRequest,
-								.Error   = std::move(aError),
+								.Request           = aRequest,
+								.Error             = std::move(aError),
+								.LastReadOperation = observer.LastOperation,
+								.ValidationError   = observer.ValidationError,
 							});
 						};
 					try {
@@ -1713,7 +1789,7 @@ namespace bpr::adapters::github::detail {
 																*snapshot,
 																job->Stop.get_token(),
 																{ },
-																state->ReadAuthority);
+																state->ReadAuthority, &observer);
 						if (!result.has_value()) {
 							auto& error = result.error();
 							if (error.valueless_by_exception()) {
@@ -1737,7 +1813,7 @@ namespace bpr::adapters::github::detail {
 						}
 						// Timeline failure does not erase the independently accepted live read.
 						auto timeline = perform_paged_github_timeline_read(*readTransport, *profile,
-																		   aRequest, result->Repository.Repository, job->Stop.get_token(), { }, state->ReadAuthority);
+																		   aRequest, result->Repository.Repository, job->Stop.get_token(), { }, state->ReadAuthority, &observer);
 						if (timeline) {
 							result->ForcePushEvents      = std::move(timeline->ForcePushEvents);
 							result->TimelineAvailability = application::github_timeline_availability::available;
@@ -1771,13 +1847,15 @@ namespace bpr::adapters::github::detail {
 						if (finish_job(state, job)) {
 							delivery->deliver(
 								application::github_pull_request_cancelled{
-									.Request = aRequest,
+									.Request           = aRequest,
+									.LastReadOperation = observer.LastOperation,
 								});
 							return;
 						}
 						delivery->deliver(application::github_pull_request_success{
-							.Request  = aRequest,
-							.Snapshot = std::move(*result),
+							.Request           = aRequest,
+							.Snapshot          = std::move(*result),
+							.LastReadOperation = observer.LastOperation,
 						});
 					} catch (...) {
 						failed(provider_error(

@@ -63,6 +63,14 @@ capability-error detail. The file is `<ApplicationDataRoot>/logs/diagnostics.log
 append-only with a 16 MiB ceiling and 2,048-byte summaries. Availability/full/drop
 states are typed; there is no Settings indicator or stderr fallback yet.
 
+BPR-0642 extends this fixed-file foundation to pull-request loads. Each
+window-local load records a start, correlated paged operation and HTTP status
+observations, and one accepted or failed terminal with a typed GitHub or
+snapshot-validation failure. Numeric window-session and request fields join
+interleaved windows; operation names are closed vocabulary, and the added
+events admit no provider text or review content. This narrow load trace does
+not implement phase-2 controls or authorize a live service read.
+
 Focused native/provider/sanitizer, real file, blocked-stderr cleanup and composed
 application checks pass on macOS. Development and tests-disabled Release builds
 pass; the core-only graph omits Quill. See [[BPR-0602]] for exact evidence and

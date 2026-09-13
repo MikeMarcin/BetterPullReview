@@ -4338,7 +4338,8 @@ namespace bpr::app {
 				ProviderEffects,
 				AnonymousTransportFactory,
 				adapters::github::detail::github_provider_read_authority::
-					anonymous_public);
+					anonymous_public,
+				DiagnosticLog);
 			if (!anonymousProvider.has_value()) {
 				throw std::runtime_error{
 					"Anonymous GitHub provider composition failed"
@@ -5615,7 +5616,7 @@ namespace bpr::app {
 					Window->publish(aUpdate.Presentation);
 					Host->observe_attached_read(WindowRead);
 					observe_restoration_read(aUpdate);
-					if (aUpdate.Presentation.PullRequest) { publish_overview(); publish_read_state(); } }, this, PublicPreviewComposed ? static_cast<application::github_pull_request_port*>(CountedAnonymousPullRequests.get()) : nullptr, PublicPreviewComposed ? static_cast<application::git_smart_transport_factory_port*>(AnonymousSmartGit.get()) : nullptr);
+					if (aUpdate.Presentation.PullRequest) { publish_overview(); publish_read_state(); } }, this, PublicPreviewComposed ? static_cast<application::github_pull_request_port*>(CountedAnonymousPullRequests.get()) : nullptr, PublicPreviewComposed ? static_cast<application::git_smart_transport_factory_port*>(AnonymousSmartGit.get()) : nullptr, Profile->DiagnosticLog.get());
 			Profile->Observers.insert_or_assign(DraftWindow, github_profile_runtime::window_observer{ .Lifetime = weak, .Github = [this, weak](const application::github_presentation_update& aUpdate) {
 					if (weak.expired() || Closing){ return;
 }

@@ -1544,6 +1544,30 @@ namespace {
 		expect(detail.Operation == application::diagnostic_operation::capability && detail.Outcome == application::diagnostic_outcome::response_received && detail.HttpStatus == 200 && detail.Request == request.Context.Request.value() && detail.Summary.text().find("UNFAMILIAR_SCHEMA_CODE") != std::string_view::npos, "provider forwards only sanitized useful detail with request and status");
 		expect(log->Events.back().Outcome == application::diagnostic_outcome::failed, "failure terminal remains explicit");
 	}
+	void test_pull_request_attempt_diagnostic_propagation()
+	{
+		const auto       log = std::make_shared<recording_log>();
+		provider_fixture fixture{ application::github_authentication_transport::native_https, log };
+		const auto       request       = pull_request_for(fixture, account_lease(fixture));
+		fixture.Transport->ReadHandler = [](const github_wire_request& aWire, std::stop_token) -> github_wire_completion {
+			return github_wire_error{
+				.Correlation = aWire.Correlation,
+				.Error       = { .Failure = application::github_provider_failure::network },
+			};
+		};
+		auto completions = std::vector<application::github_pull_request_completion>{ };
+		fixture.Provider->fetch_pull_request(request, [&](auto aResult) { completions.push_back(std::move(aResult)); });
+		fixture.Effects.run_next();
+		const auto& error = require_one<application::github_pull_request_error>(completions, "network load fails once");
+		expect(error.Error.Failure == application::github_provider_failure::network
+				   && error.LastReadOperation == application::diagnostic_paged_operation::get_repository
+				   && !error.ValidationError,
+			   "provider terminal carries last attempted page despite absent HTTP response");
+		expect(std::ranges::none_of(log->Events, [](const auto& event) {
+				   return event.Operation == application::diagnostic_operation::pull_request;
+			   }),
+			   "transport failure invents no response_received event");
+	}
 
 	void test_capability_refusal_detail_propagation()
 	{
@@ -1914,6 +1938,7 @@ int main()
 {
 	test_window_read_authentication_provenance();
 	test_sanitized_provider_logging();
+	test_pull_request_attempt_diagnostic_propagation();
 	test_logging_wrapper_failure_preserves_terminal();
 	test_profile_set_validation();
 	test_live_profile_catalog();

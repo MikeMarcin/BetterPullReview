@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_PROVIDER_PORT_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_PROVIDER_PORT_HPP
 
+#include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/github_capability_cache.hpp"
 #include "bpr/application/github_capability_diagnostic.hpp"
 #include "bpr/application/github_credential_vault.hpp"
@@ -337,8 +338,9 @@ namespace bpr::application {
 	/// \brief Describes the github pull request success record.
 	struct github_pull_request_success
 	{
-		github_pull_request_provider_request Request;
-		github_pull_request_snapshot         Snapshot;
+		github_pull_request_provider_request      Request;
+		github_pull_request_snapshot              Snapshot;
+		std::optional<diagnostic_paged_operation> LastReadOperation = std::nullopt;
 
 		auto operator<=>(const github_pull_request_success&) const = default;
 	};
@@ -346,8 +348,10 @@ namespace bpr::application {
 	/// \brief Describes the github pull request error record.
 	struct github_pull_request_error
 	{
-		github_pull_request_provider_request Request;
-		github_provider_error                Error;
+		github_pull_request_provider_request        Request;
+		github_provider_error                       Error;
+		std::optional<diagnostic_paged_operation>   LastReadOperation = std::nullopt;
+		std::optional<github_read_validation_error> ValidationError   = std::nullopt;
 
 		auto operator<=>(const github_pull_request_error&) const = default;
 	};
@@ -355,7 +359,8 @@ namespace bpr::application {
 	/// \brief Describes the github pull request cancelled record.
 	struct github_pull_request_cancelled
 	{
-		github_pull_request_provider_request Request;
+		github_pull_request_provider_request      Request;
+		std::optional<diagnostic_paged_operation> LastReadOperation = std::nullopt;
 
 		auto operator<=>(const github_pull_request_cancelled&) const = default;
 	};

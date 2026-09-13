@@ -2,6 +2,8 @@
 #include "bpr/application/epoch_catalog_port.hpp"
 #include "bpr/application/git_cache_port.hpp"
 #include "bpr/application/git_protocol_v2.hpp"
+#include "bpr/application/github_read_model.hpp"
+#include "bpr/core/github_model.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -135,6 +137,18 @@ namespace bpr::adapters::logging {
 			case core::epoch_failure::process_failure:       return "process_failure";
 			}
 			return "unknown";
+		}
+		auto failure_name(core::github_failure aFailure) noexcept -> std::string_view
+		{
+			constexpr std::array names{ "authentication", "permission", "network", "api_version", "capability", "rate_limit", "malformed_response", "response_too_large", "vault", "certificate", "redirect", "timeout", "cli_unavailable" };
+			const auto           index = static_cast<std::size_t>(aFailure);
+			return index < names.size() ? names[index] : "unknown";
+		}
+		auto failure_name(application::github_read_validation_error aFailure) noexcept -> std::string_view
+		{
+			constexpr std::array names{ "none", "invalid_context", "invalid_limits", "missing_identity", "identity_mismatch", "missing_required_text", "invalid_text", "text_too_long", "invalid_repository", "invalid_pull_request_number", "invalid_commit_oid", "invalid_line", "invalid_enum", "invalid_capability_revision", "invalid_rate_limit", "collection_too_large", "duplicate_identity", "invalid_relationship", "allocation_limit", "total_text_too_large" };
+			const auto           index = static_cast<std::size_t>(aFailure);
+			return index < names.size() ? names[index] : "unknown";
 		}
 
 		using status_type = application::diagnostic_log_status;
@@ -348,9 +362,10 @@ namespace bpr::adapters::logging {
 			std::uint64_t               MaximumBytes;
 			std::uint64_t               Bytes = 0;
 		};
-		constexpr std::array<std::string_view, 4> operations{ "application", "github.viewer", "github.capability", "epoch" };
-		constexpr std::array<std::string_view, 6> outcomes{ "started", "succeeded", "failed", "cancelled", "response_received", "shutdown" };
-		constexpr std::array<std::string_view, 5> summaries{ "absent", "sanitized", "omitted_invalid", "omitted_limit", "omitted_failure" };
+		constexpr std::array<std::string_view, 5>  operations{ "application", "github.viewer", "github.capability", "github.pull_request", "epoch" };
+		constexpr std::array<std::string_view, 13> paged_operations{ "none", "GetViewerIdentity", "GetRepository", "GetPullRequest", "ListPullRequestFiles", "ListPullRequestCommits", "ListReviews", "ListReviewThreads", "ListIssueComments", "ListChecks", "SearchPullRequests", "ListReviewComments", "ListPullRequestTimeline" };
+		constexpr std::array<std::string_view, 6>  outcomes{ "started", "succeeded", "failed", "cancelled", "response_received", "shutdown" };
+		constexpr std::array<std::string_view, 5>  summaries{ "absent", "sanitized", "omitted_invalid", "omitted_limit", "omitted_failure" };
 	}
 	class quill_log::implementation
 	{
@@ -409,11 +424,12 @@ namespace bpr::adapters::logging {
 			}
 			const auto                                        operation = static_cast<std::size_t>(aEvent.Operation);
 			const auto                                        outcome   = static_cast<std::size_t>(aEvent.Outcome);
+			const auto                                        paged     = static_cast<std::size_t>(aEvent.PagedOperation);
 			const auto                                        stage     = static_cast<std::size_t>(aEvent.EpochStage);
 			static constexpr std::array<std::string_view, 10> stages{ "none", "catalog_open", "catalog_recovery", "catalog_prepare", "cache_open", "pack_sink", "smart_acquire", "protocol_acquire", "cache_inventory", "revision_prepare" };
 			static constexpr std::array<std::string_view, 6>  domains{ "none", "catalog", "cache", "transport", "protocol", "epoch" };
 			const auto                                        summary = static_cast<std::size_t>(aEvent.Summary.State);
-			if (stage >= stages.size() || aEvent.EpochFailure.valueless_by_exception() || operation >= operations.size() || outcome >= outcomes.size() || summary >= summaries.size() || aEvent.Summary.Size > aEvent.Summary.Text.size()
+			if (stage >= stages.size() || aEvent.EpochFailure.valueless_by_exception() || aEvent.GithubFailure.valueless_by_exception() || operation >= operations.size() || outcome >= outcomes.size() || paged >= paged_operations.size() || summary >= summaries.size() || aEvent.Summary.Size > aEvent.Summary.Text.size()
 				|| std::ranges::any_of(aEvent.Summary.text(), [](const unsigned char aCharacter) { return aCharacter < 32U || aCharacter == 127U; })) {
 				++State->Dropped;
 				return status_type::dropped;
@@ -427,8 +443,13 @@ namespace bpr::adapters::logging {
 				Threads[ThreadCount++] = thread;
 			}
 			try {
-				static constexpr quill::MacroMetadata metadata{ "", "", "v=1 op={} outcome={} request={} http_status={} summary={} dropped={} detail={} epoch_stage={} failure_domain={} failure={} pack_failure={}", nullptr, quill::LogLevel::Info, quill::MacroMetadata::Event::Log };
-				if (!Logger->log_statement<false>(&metadata, operations[operation], outcomes[outcome], aEvent.Request, aEvent.HttpStatus, summaries[summary], State->Dropped.load(), aEvent.Summary.text(), stages[stage], domains[aEvent.EpochFailure.index()], std::visit([](auto aFailure) { return failure_name(aFailure); }, aEvent.EpochFailure), aEvent.EpochPackFailure ? failure_name(*aEvent.EpochPackFailure) : std::string_view{ "none" })) {
+				static constexpr quill::MacroMetadata metadata{ "", "", "v=1 op={} outcome={} request={} http_status={} summary={} dropped={} detail={} epoch_stage={} failure_domain={} failure={} pack_failure={} page_operation={} window_session={}", nullptr, quill::LogLevel::Info, quill::MacroMetadata::Event::Log };
+				const auto                            githubFailure = aEvent.GithubFailure.index() != 0U;
+				const auto                            failureDomain = githubFailure ? (aEvent.GithubFailure.index() == 1U ? "github" : "validation") : domains[aEvent.EpochFailure.index()];
+				const auto                            failure       = githubFailure
+					? std::visit([](auto aFailure) { return failure_name(aFailure); }, aEvent.GithubFailure)
+					: std::visit([](auto aFailure) { return failure_name(aFailure); }, aEvent.EpochFailure);
+				if (!Logger->log_statement<false>(&metadata, operations[operation], outcomes[outcome], aEvent.Request, aEvent.HttpStatus, summaries[summary], State->Dropped.load(), aEvent.Summary.text(), stages[stage], failureDomain, failure, aEvent.EpochPackFailure ? failure_name(*aEvent.EpochPackFailure) : std::string_view{ "none" }, paged_operations[paged], aEvent.WindowSession)) {
 					++State->Dropped;
 					return status_type::dropped;
 				}

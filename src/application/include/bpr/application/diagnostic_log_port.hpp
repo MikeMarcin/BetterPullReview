@@ -7,8 +7,10 @@
 #include <variant>
 namespace bpr::core {
 	enum class epoch_failure : std::uint8_t;
+	enum class github_failure : std::uint8_t;
 }
 namespace bpr::application {
+	enum class github_read_validation_error : std::uint8_t;
 	enum class epoch_catalog_failure : std::uint8_t;
 	enum class git_cache_failure : std::uint8_t;
 	enum class git_smart_transport_failure : std::uint8_t;
@@ -26,13 +28,30 @@ namespace bpr::application {
 		cache_inventory,
 		revision_prepare
 	};
-	using diagnostic_epoch_failure = std::variant<std::monostate, epoch_catalog_failure,
-												  git_cache_failure, git_smart_transport_failure, git_protocol_v2_failure, core::epoch_failure>;
+	using diagnostic_epoch_failure  = std::variant<std::monostate, epoch_catalog_failure,
+												   git_cache_failure, git_smart_transport_failure, git_protocol_v2_failure, core::epoch_failure>;
+	using diagnostic_github_failure = std::variant<std::monostate, core::github_failure, github_read_validation_error>;
 
 	enum class diagnostic_operation : std::uint8_t { application,
 													 viewer,
 													 capability,
+													 pull_request,
 													 epoch };
+	enum class diagnostic_paged_operation : std::uint8_t {
+		none,
+		get_viewer_identity,
+		get_repository,
+		get_pull_request,
+		list_pull_request_files,
+		list_pull_request_commits,
+		list_reviews,
+		list_review_threads,
+		list_issue_comments,
+		list_checks,
+		search_pull_requests,
+		list_review_comments,
+		list_pull_request_timeline,
+	};
 	enum class diagnostic_outcome : std::uint8_t { started,
 												   succeeded,
 												   failed,
@@ -55,11 +74,14 @@ namespace bpr::application {
 	};
 	struct diagnostic_event
 	{
-		diagnostic_operation                   Operation  = diagnostic_operation::application;
-		diagnostic_outcome                     Outcome    = diagnostic_outcome::started;
-		std::uint64_t                          Request    = 0;
-		std::uint16_t                          HttpStatus = 0;
+		diagnostic_operation                   Operation      = diagnostic_operation::application;
+		diagnostic_outcome                     Outcome        = diagnostic_outcome::started;
+		std::uint64_t                          Request        = 0;
+		std::uint64_t                          WindowSession  = 0;
+		std::uint16_t                          HttpStatus     = 0;
+		diagnostic_paged_operation             PagedOperation = diagnostic_paged_operation::none;
 		diagnostic_summary                     Summary{ };
+		diagnostic_github_failure              GithubFailure;
 		diagnostic_epoch_stage                 EpochStage = diagnostic_epoch_stage::none;
 		diagnostic_epoch_failure               EpochFailure;
 		std::optional<git_pack_stream_failure> EpochPackFailure;

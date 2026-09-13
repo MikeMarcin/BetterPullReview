@@ -1,4 +1,5 @@
 #include "bpr/application/git_protocol_v2.hpp"
+#include "bpr/application/github_read_model.hpp"
 #include "bpr/logging/quill_log.hpp"
 #include "github_capability_probe.hpp"
 #include <QFileInfo>
@@ -51,6 +52,9 @@ int main(int aArgc, char** aArgv)
 		const std::string secret  = "runtime-only-file-secret";
 		const auto        summary = adapters::github::detail::sanitize_capability_error(R"({"errors":[{"message":"Unknown schema field newField runtime-only-file-secret","extensions":{"code":"NEW_SCHEMA_CODE"}}]})", std::as_bytes(std::span{ secret }));
 		expect(log.record({ .Operation = application::diagnostic_operation::capability, .Outcome = application::diagnostic_outcome::response_received, .Request = 42, .HttpStatus = 200, .Summary = summary }) == status::available, "sanitized prose queued for real file");
+		expect(log.record({ .Operation = application::diagnostic_operation::pull_request, .Outcome = application::diagnostic_outcome::response_received, .Request = 43, .WindowSession = 2, .HttpStatus = 403, .PagedOperation = application::diagnostic_paged_operation::list_pull_request_files }) == status::available, "typed paged response queued");
+		expect(log.record({ .Operation = application::diagnostic_operation::pull_request, .Outcome = application::diagnostic_outcome::failed, .Request = 43, .PagedOperation = application::diagnostic_paged_operation::list_pull_request_files, .GithubFailure = core::github_failure::rate_limit }) == status::available, "typed pull request failure queued");
+		expect(log.record({ .Operation = application::diagnostic_operation::pull_request, .Outcome = application::diagnostic_outcome::failed, .Request = 44, .GithubFailure = application::github_read_validation_error::missing_required_text }) == status::available, "typed validation failure queued");
 		log.close();
 		expect(log.record({ }) == status::closed, "closed ingress");
 	}
@@ -139,6 +143,11 @@ int main(int aArgc, char** aArgv)
 	expect(first.find("epoch_stage=protocol_acquire failure_domain=protocol failure=pack_sink pack_failure=input_limit") != std::string::npos, "fixed protocol and pack failure names persisted");
 	expect(first.find("newField") != std::string::npos && first.find("NEW_SCHEMA_CODE") != std::string::npos && first.find("request=42 http_status=200") != std::string::npos, "useful sanitized prose and correlation survive file encoding");
 	expect(first.find("runtime-only-file-secret") == std::string::npos, "credential canary absent from persisted file");
+	expect(first.find("op=github.pull_request outcome=response_received request=43 http_status=403") != std::string::npos
+			   && first.find("failure_domain=github failure=rate_limit pack_failure=none page_operation=ListPullRequestFiles") != std::string::npos
+			   && first.find("failure_domain=validation failure=missing_required_text") != std::string::npos
+			   && first.find("page_operation=ListPullRequestFiles window_session=2") != std::string::npos,
+		   "typed HTTP, provider and validation facts persist without arbitrary text");
 	expect(first.find("op=application outcome=started") != std::string::npos, "ordinary close persists startup");
 	{
 		adapters::logging::quill_log log{ root };

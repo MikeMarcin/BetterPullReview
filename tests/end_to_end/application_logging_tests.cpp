@@ -77,6 +77,14 @@ int main(int aArgc, char** aArgv)
 	for (const auto* marker : { "op=application outcome=started", "op=github.viewer outcome=succeeded", "op=github.capability", "op=application outcome=shutdown", "epoch_stage=cache_open failure_domain=cache failure=invalid_path" }) {
 		expect(text.find(marker) != std::string::npos, "startup/provider/shutdown persisted through real composition");
 	}
+	expect(text.find("op=github.pull_request outcome=started") != std::string::npos
+			   && text.find("op=github.pull_request outcome=response_received") != std::string::npos
+			   && text.find("http_status=200") != std::string::npos
+			   && text.find("page_operation=ListPullRequestFiles") != std::string::npos
+			   && text.find("op=github.pull_request outcome=succeeded") != std::string::npos,
+		   "recorded fixture load emits typed paged responses and accepted outcome in composed log");
+	expect(text.find("op=github.pull_request outcome=succeeded") == text.rfind("op=github.pull_request outcome=succeeded"),
+		   "one accepted load has one succeeded entry");
 	expect(text.find("access_token") == std::string::npos && text.find("refresh_token") == std::string::npos, "authentication bodies absent");
 	expect(text.find(root.string()) == std::string::npos && text.find("octo-org") == std::string::npos && text.find("synthetic unsafe cache target") == std::string::npos, "epoch logs exclude path and repository data");
 	std::cout << "application-logging-tests:pass\n";
