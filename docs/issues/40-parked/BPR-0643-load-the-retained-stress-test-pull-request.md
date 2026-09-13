@@ -12,7 +12,7 @@ parked_on: "human-review"
 
 # Load the retained stress-test pull request
 
-## Current frontier — bpr0643-r1 / d1 / mandate r1
+## Current frontier — bpr0643-r1 / d1 / mandate r2
 
 The bound `retained-stress-pr-read` milestone targets only a read-only Mac load
 of the owner's retained `EpicGames/UnrealEngine#1773` through an already
@@ -48,8 +48,14 @@ diagnostic class, file list and selected diff. The owner may need to seal the
 local candidate with the existing trusted signing identity before device
 sign-in; this dispatch did not use signing credentials.
 
-This card is claimed on main; only its live record and bounded product/test
-paths are owned. Existing `.gitignore` and `.mask.json` edits are unrelated.
+Mandate r2 confirms the owner is available to complete manual product
+sign-in through a wizard hosted by the coordinator. The card remains Parked
+until the native product session is observed; CLI account status is not
+evidence of product sign-in. The subsequent target load remains read-only.
+
+This card was claimed on main and is now Parked for the human sign-in step.
+Only its live record and bounded product/test paths are owned. Existing
+`.gitignore` and `.mask.json` edits are unrelated.
 
 The owner retained `EpicGames/UnrealEngine#1773` as a stress-test target after
 the signed private alpha candidate reported `The pull request could not be

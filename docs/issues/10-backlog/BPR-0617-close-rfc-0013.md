@@ -11,12 +11,13 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/pla
 
 # Verify and close RFC-BPR-0013
 
-## Current frontier — bpr0643-r1 / d1 / mandate r1
+## Current frontier — bpr0643-r1 / d1 / mandate r2
 
 The `retained-stress-pr-read` milestone is human-pending. BPR-0642 is Done;
 [BPR-0643](../40-parked/BPR-0643-load-the-retained-stress-test-pull-request.md)
 is Parked for the owner's native HTTPS product sign-in. The committed binding
-is `docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-bpr0643-r1-d1.json`.
+is `docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-bpr0643-r1-d1-r2.json`
+(the r1 binding remains historical).
 An authenticated read-only CLI GET as `MikeMarcin` confirms that the exact
 target remains available (1,523 files, 9,311 total commits), but the product
 cannot adopt CLI credentials and its retained device binding is tombstoned.
@@ -31,6 +32,10 @@ owner-established `MikeMarcin` product session in that candidate, then one
 read-only load of `EpicGames/UnrealEngine#1773`, exact diagnostic capture
 outside the repository, and verification of its file list and selected diff
 or explicit reasoned refusal. No live write or credential transfer occurred.
+Mandate r2 confirms the owner is available for product sign-in; the coordinator
+hosts the two-step wizard at `.mask/sessions/wizard/bpr0643-signin`. Its human
+acknowledgment must be followed by an agent-observed authenticated product
+session before any target load can be accepted as account-bound evidence.
 
 The previous accepted `default-cache-byte-pressure` milestone remains as
 recorded below. BPR-0622's native evidence and final RFC closeout remain open.
