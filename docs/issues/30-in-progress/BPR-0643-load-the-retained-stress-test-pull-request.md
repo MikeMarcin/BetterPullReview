@@ -47,13 +47,17 @@ diagnostic class, file list and selected diff. The owner may need to seal the
 local candidate with the existing trusted signing identity before device
 sign-in; this dispatch did not use signing credentials.
 
-Mandate r2 confirms the owner is available to complete manual product
-sign-in through a wizard hosted by the coordinator. The card remains Parked
-until the native product session is observed; CLI account status is not
-evidence of product sign-in. The subsequent target load remains read-only.
+Mandate r2's manual sign-in wizard completed at revision 2. The fresh
+candidate's actual Accounts & hosts page shows `MikeMarcin`, active
+`github.com` on GitHub.com Native HTTPS, and `GitHub account connected.`
+The exact target read is now eligible. Immediately before it, the product's
+metadata-only diagnostics log is inode 309064343 at byte 290786; the next
+step is one read-only load of #1773, capture of the appended exact attempt
+outside the repository, and direct inspection of file list/selected diff or
+the visible refusal reason. No CLI credential was transferred.
 
-This card was claimed on main and is now Parked for the human sign-in step.
-Only its live record and bounded product/test paths are owned. Existing
+This card was claimed on main after the human sign-in step. Only its live
+record and bounded product/test paths are owned. Existing
 `.gitignore` and `.mask.json` edits are unrelated.
 
 The owner retained `EpicGames/UnrealEngine#1773` as a stress-test target after
