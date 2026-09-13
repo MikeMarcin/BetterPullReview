@@ -11,9 +11,41 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/pla
 
 # Verify and close RFC-BPR-0013
 
-## Current frontier — rfc0013-r1 / d3
+## Current frontier — rfc0013-r2 / d4
 
-### D3 attribution checkpoint
+### D4 owner disposition and milestone reconciliation
+
+Dispatch `rfc0013-r2/d4`, producer `/root/rfc0013_nonrepro_close`, carries the
+owner's exact amendment, "mark it as can not reproduce and close that issue,"
+for BPR-0751's isolated historical 2.152s source-selection outlier. BPR-0751's
+first acceptance bullet now records that event as *cannot reproduce* with its
+stage, cause and pre-BPR-0635 origin unknown. The unchanged failed
+`build/bpr0635-composed-final.log` (test 279, 2,151.817 ms against 2,000 ms)
+remains historical failure evidence; neither a retroactive pass nor a limit
+waiver is inferred. The matched 929-read pre-BPR-0635 product replay did
+reproduce the 228.745–265.034-ms refresh gaps, but epoch 25 source selection
+was 959.528 ms and the source maximum was below 1.018s
+(`build/rfc0013-d3-pre0635-history.log`). The repaired public 929-read course
+passes its unchanged refresh and source timing limits with exact heads, reads,
+selection and retained storage (`build/rfc0013-d2-history-indexed-overview.log`).
+This owner decision removes only the unprovable historical-cause requirement;
+the measured refresh attribution, repaired product behavior, public-byte
+pressure, focused checks and all four authored milestone exits remain binding.
+The D3 checkpoint below retains the prior open finding and negative evidence.
+
+The D4 assignment, BPR-0751 Done decision, scoped validation and exact return
+are recorded at the live plan/board and `build/rfc0013-d4-*` evidence paths.
+The completed default-cache-byte-pressure milestone does not close RFC-0013:
+BPR-0622 still needs Windows/Linux native evidence, BPR-0643 waits on
+BPR-0642 and the owner's read authority, and BPR-0617 waits on BPR-0507,
+BPR-0622, the remaining RFC acceptance matrix, earlier canonical RFC
+prerequisites and its own final closeout checks. No remote or credential
+action, real pull-request mutation or push is authorized here. Prior D3
+writers and commands were quiescent; this dispatch must account for its own
+commands before successor handoff. Only the unrelated `.gitignore` and
+`.mask.json` edits preceded this dispatch and remain outside its ownership.
+
+### D3 attribution checkpoint (historical)
 
 Dispatch `rfc0013-r1/d3`, producer `/root/rfc0013_attribution`, mandate `r1`
 renewed the live `default-cache-byte-pressure` binding after BPR-0635 became

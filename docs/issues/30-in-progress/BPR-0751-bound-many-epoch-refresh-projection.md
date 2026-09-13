@@ -39,9 +39,13 @@ product-path diagnosis from the synthetic byte-pressure fixture/course.
 
 ## Acceptance
 
-- The baseline/candidate comparison and measured main-thread attribution
-  identify the cause of the 237–255-ms refresh pauses and the isolated
-  source-selection overrun, including whether either predates BPR-0635.
+- The matched baseline/candidate comparison and measured main-thread
+  attribution identify the cause of the 237–255-ms refresh pauses and whether
+  that product pause predates BPR-0635. Preserve the isolated 2.152s
+  source-selection failure and its available samples. Under the owner's r2
+  decision, record that isolated event as cannot reproduce, with its stage,
+  cause and pre-BPR-0635 origin unknown; do not retroactively pass the failed
+  run or relax the unchanged 2s source-selection limit.
 - The network-isolated 32-head public history course passes its existing Mac
   timing limits with all exact heads, 929 account reads, source selections,
   supersession and retained Git/catalog pairs intact.
@@ -52,6 +56,31 @@ product-path diagnosis from the synthetic byte-pressure fixture/course.
 The authored plan groups this repair with BPR-0635's still-open preserved
 history check. The prior BPR-0635 binding and its failed preservation check
 remain historical; acceptance requires a renewed binding for both cards.
+
+## D4 owner disposition — cannot reproduce the isolated source overrun
+
+The owner's exact r2 instruction is "mark it as can not reproduce and close that
+issue." It resolves only the first acceptance bullet's demand to identify the
+historical 2.152s source-selection event's stage, cause and pre-BPR-0635
+origin. The original demand and D3's finding that it was unsupported remain
+preserved in the historical record below. The event failed the existing
+2,000-ms limit at 2,151.817 ms in `build/bpr0635-composed-final.log`, test 279;
+that failed log remains unchanged. Its 312 sampled 5-ms pulses with a diff job
+outstanding, versus 112–113 in adjacent selections, are insufficient to name
+the worker stage or scheduling cause. No contemporaneous stage trace exists.
+
+The controlled 929-read pre-BPR-0635 product replay reproduced the refresh
+pause but not the isolated source overrun: epoch 25 took 959.528 ms and all 32
+source selections stayed below 1.018s
+(`build/rfc0013-d3-pre0635-history.log`). The repaired 929-read public course
+also did not reproduce it: all 32 source selections stayed below 0.952s and
+the 31 refresh timer maxima stayed within the original 100-ms limit
+(`build/rfc0013-d2-history-indexed-overview.log`). Those observations support
+the owner's *cannot reproduce* disposition, not a claim that the historical
+failure was false or that all future selections satisfy the 2s limit. The
+refresh projection cause, product-baseline comparison, exact-data course and
+focused checks remain independently required by the other acceptance clauses
+and the milestone exits.
 
 ## D2 execution and verification record
 
