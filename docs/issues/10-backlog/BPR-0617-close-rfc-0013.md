@@ -13,6 +13,43 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/pla
 
 ## Current frontier — rfc0013-r1 / d2
 
+Checkpoint after `b1743179`: BPR-0635 is Done on its own Mac byte-pressure
+criteria; BPR-0751 remains In Progress, so the bound
+`default-cache-byte-pressure` milestone and RFC-0013 are not complete. The
+public projection repair, tests and evidence are committed at `4a2be1b1`.
+The final network-isolated history passes with refresh maxima 64.617–91.147 ms
+under the unchanged 100-ms limit, 32 exact heads/Git/catalog pairs, 929 reads,
+31 supersession selections, zero model resets and source under 0.952s
+(`build/rfc0013-d2-history-indexed-overview.log`). The repeated byte course
+passes with 70,353,760 admitted bytes, default-byte eviction and exact
+stale-safe revisit, 147.750-MiB sampled after-drain growth under 160 MiB and
+40.313-MiB destruction growth under 96 MiB
+(`build/rfc0013-d2-byte-post-projection.log`). Entry, loaded-close and
+resource preservation pass 3/3 (`build/rfc0013-d2-preserved-public-courses.log`);
+focused Qt 8/8, overview 3/3, documentation/behavior, format, scoped tidy,
+diff, board and plan checks pass. BPR-0751's remaining AC1 asks for a matched
+pre-BPR-0635 numerical baseline and the cause of one historical 2.152s source
+selection. The old fixture failed before timing and the older BPR-0632 course
+used 897 rather than 929 reads; source identity proves the product path
+predated the fixture commit but not the numerical pause. The outlier has not
+recurred and its deeper scheduling cause remains unproven. Independent review
+calls this an acceptance blocker, preserved on BPR-0751 rather than waived.
+The committed product paths are the Qt conversation cards/window, pure
+application overview projection and focused tests; fixture and transport
+changes remain in the earlier BPR-0635 commit. All D2 child owners and test
+commands are quiescent. Outside this closeout, the worktree has only unrelated
+pre-existing `.gitignore` and `.mask.json` changes, which are not owned here.
+The D2 return retains its exact dispatch binding; the mechanical continuation
+check requests a renewed assignment because card evidence and BPR-0635's board
+status changed after that binding. A successor must recompute the live binding
+before further milestone work, while preserving both obligations and all four
+exits.
+Next bounded work is to resolve that exact historical evidence obligation or
+amend it with the obligation explicitly retained under owner authority; only
+then re-evaluate the bound milestone. No remote or credential work was done.
+
+### D2 diagnostic sequence (historical checkpoints)
+
 The owner-authorized RFC-0013 continuation remains on local `main` at `c202d11c` with no production-path change from BPR-0635's `1681994a` fixture/course commit. BPR-0635 is In Progress: its exact 20-key / 70,353,760-admitted-byte Mac public course passed and the existing 32-epoch preservation course did not. The serial failure in `build/bpr0635-composed-final.log` reached 32 exact heads, 929 account reads, source and retained Git/catalog checks, but 31 refresh timer maxima were 237.735–254.774 ms against 100 ms; source selection 25 took 2,151.817 ms against 2,000 ms. BPR-0751 is now In Progress for the independent product projection repair. The 25-second main-thread sample at `build/bpr0635-post-lock-sample.txt` places work in accepted PR handoff, synchronous workbench publication, and repeated Qt conversation card layouts over 1,000 threads. That is a measured attribution candidate, not yet a complete cause or accepted repair.
 
 The authored plan now binds BPR-0751 alongside the still-open BPR-0635 and preserves all three original exits, adding a history-projection exit. `assignment-rfc0013-r1-d2.json` is the renewed binding; d1 is historical. The mechanical `check-amendment` rejected the proposal because a newly discovered card adds an obligation. This is an explicit within-RFC requirement reconciliation under the owner's finish-RFC-0013 mandate, not a helper-approved preservation-only refinement. Plan, generated view, card link and renewed assignment were committed at `989310a7`; Ready promotion at `94e9b1b0` and claim at `c202d11c`. The documentation gate passed after binding. The standard Qt worker's first six-file candidate skips equal card snapshots, adopts anchor and forest together, and refreshes changed geometry without rebuilding measured content; focused Qt/composed tests pass 8/8 in `build/rfc0013-d2-projection-tests.log`, with checkpoint `build/rfc0013-d2-worker-projection.txt`. Independent read-only review found no demonstrated blocker, but notes that geometry refresh still traverses all retained cards and must not be sold as RFC-wide active-set scaling. The first uninstrumented 32-epoch rerun (`build/rfc0013-d2-history-candidate.log`) preserved 32 exact heads and pairs, 929 reads, and all 31 selections. It reduced all refresh gaps to 156.803–163.321 ms and the worst source selection to 1,036.656 ms, but still fails the unchanged 100-ms refresh gate on all 31 refreshes. A second diagnostic run was sampled for 30 seconds at `build/rfc0013-d2-post-qt-sample.txt`, then its entire process group was deliberately stopped and confirmed quiescent; it is not timing evidence. The sample still places about 16 main-thread samples in card relayout/measurement, seven in thread-map rebuild and five in model apply after an anchor-only clear/reselect. The same worker now owns a bounded follow-up to reuse retained conversation/card measurements and avoid needless reprojecting on those anchor changes; a read-only scout and reviewer are quiescent. The pre-repair same-course metrics are extracted at `build/rfc0013-d2-history-baseline.json`. Next: rerun exact history after the correction, preserve source/selection checks, and adjudicate both cards without relaxing limits. The BPR-0622 Windows/Linux, BPR-0643 owner-account, earlier human/live and broader RFC rows remain open. No remote or credential action is authorized.
