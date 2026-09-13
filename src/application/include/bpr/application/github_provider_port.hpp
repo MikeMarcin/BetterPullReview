@@ -103,6 +103,8 @@ namespace bpr::application {
 		std::optional<std::uint32_t>            RetryAfterSeconds;
 		github_rate_limit_state                 RateLimits;
 		std::optional<github_rate_limit_record> RateLimitCause;
+		std::uint16_t                           HttpStatus             = 0;
+		diagnostic_transport_failure_source     TransportFailureSource = diagnostic_transport_failure_source::none;
 
 		auto operator<=>(const github_provider_error&) const = default;
 	};
@@ -114,6 +116,26 @@ namespace bpr::application {
 		const github_provider_error& aError) noexcept -> bool
 	{
 		if (!valid(aError.Failure)) {
+			return false;
+		}
+		if (aError.HttpStatus != 0U && (aError.HttpStatus < 100U || aError.HttpStatus > 599U)) {
+			return false;
+		}
+		switch (aError.TransportFailureSource) {
+		case diagnostic_transport_failure_source::none:
+		case diagnostic_transport_failure_source::native_transport:
+			if (aError.HttpStatus != 0U) {
+				return false;
+			}
+			break;
+		case diagnostic_transport_failure_source::http_response:
+			if (aError.HttpStatus == 0U) {
+				return false;
+			}
+			break;
+		case diagnostic_transport_failure_source::network_reply:
+			break;
+		default:
 			return false;
 		}
 		if (!valid(aError.RateLimits)) {

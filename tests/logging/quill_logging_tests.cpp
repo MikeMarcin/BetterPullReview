@@ -56,6 +56,10 @@ int main(int aArgc, char** aArgv)
 		expect(log.record({ .Operation = application::diagnostic_operation::pull_request, .Outcome = application::diagnostic_outcome::failed, .Request = 43, .PagedOperation = application::diagnostic_paged_operation::list_pull_request_files, .GithubFailure = core::github_failure::rate_limit }) == status::available, "typed pull request failure queued");
 		expect(log.record({ .Operation = application::diagnostic_operation::pull_request, .Outcome = application::diagnostic_outcome::failed, .Request = 44, .GithubFailure = application::github_read_validation_error::missing_required_text }) == status::available, "typed validation failure queued");
 		expect(log.record({ .Operation = application::diagnostic_operation::pull_request, .Outcome = application::diagnostic_outcome::failed, .Request = 45, .PagedOperation = application::diagnostic_paged_operation::search_pull_requests, .GithubFailure = application::github_read_validation_error::invalid_relationship, .RelationshipDetail = application::github_read_validation_error::relationship_actor_login }) == status::available, "fixed relationship diagnostic queued");
+		expect(log.record({ .Operation = application::diagnostic_operation::pull_request, .Outcome = application::diagnostic_outcome::failed, .Request = 46, .HttpStatus = 404, .PagedOperation = application::diagnostic_paged_operation::get_repository, .GithubFailure = core::github_failure::permission, .TransportFailureSource = application::diagnostic_transport_failure_source::http_response }) == status::available, "HTTP denial metadata queued");
+		expect(log.record({ .Operation = application::diagnostic_operation::pull_request, .Outcome = application::diagnostic_outcome::failed, .Request = 47, .PagedOperation = application::diagnostic_paged_operation::get_repository, .GithubFailure = core::github_failure::permission, .TransportFailureSource = application::diagnostic_transport_failure_source::network_reply }) == status::available, "network denial has no fabricated HTTP status");
+		expect(log.record({ .TransportFailureSource = static_cast<application::diagnostic_transport_failure_source>(255U) }) == status::dropped, "unknown source never enters log");
+		expect(log.record({ .HttpStatus = 600U }) == status::dropped, "invalid HTTP status never enters log");
 		log.close();
 		expect(log.record({ }) == status::closed, "closed ingress");
 	}
@@ -150,6 +154,11 @@ int main(int aArgc, char** aArgv)
 			   && first.find("page_operation=ListPullRequestFiles window_session=2") != std::string::npos,
 		   "typed HTTP, provider and validation facts persist without arbitrary text");
 	expect(first.find("failure_domain=validation failure=invalid_relationship pack_failure=none page_operation=SearchPullRequests window_session=0 relationship_detail=relationship_actor_login") != std::string::npos, "relationship reason is independent of the final fetched operation");
+	expect(first.find("request=46 http_status=404") != std::string::npos
+			   && first.find("failure=permission pack_failure=none page_operation=GetRepository window_session=0 relationship_detail=none transport_source=http_response") != std::string::npos
+			   && first.find("request=47 http_status=0") != std::string::npos
+			   && first.find("transport_source=network_reply") != std::string::npos,
+		   "persisted permission diagnostics distinguish HTTP response from network reply");
 	expect(first.find("op=application outcome=started") != std::string::npos, "ordinary close persists startup");
 	{
 		adapters::logging::quill_log log{ root };

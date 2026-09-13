@@ -368,10 +368,11 @@ namespace bpr::adapters::github::detail {
 			std::optional<application::github_rate_limit_record> aRateLimitCause = std::nullopt) -> application::github_provider_error
 		{
 			return {
-				.Failure           = aFailure,
-				.RetryAfterSeconds = aRetryAfter,
-				.RateLimits        = std::move(aRateLimits),
-				.RateLimitCause    = std::move(aRateLimitCause),
+				.Failure                = aFailure,
+				.RetryAfterSeconds      = aRetryAfter,
+				.RateLimits             = std::move(aRateLimits),
+				.RateLimitCause         = std::move(aRateLimitCause),
+				.TransportFailureSource = application::diagnostic_transport_failure_source::native_transport,
 			};
 		}
 
@@ -3716,6 +3717,9 @@ namespace bpr::adapters::github::detail {
 						  malformed_response
 					: network_failure(error);
 				auto       result  = provider_error(failure);
+				if (error != QNetworkReply::NoError) {
+					result.TransportFailureSource = application::diagnostic_transport_failure_source::network_reply;
+				}
 				if (
 					error != QNetworkReply::NoError
 					&& proxy_candidate_retryable(error)) {
@@ -3742,12 +3746,18 @@ namespace bpr::adapters::github::detail {
 			const auto admittedStatus   = state.Status
 				== aOperation->Request.AdmittedContractStatus;
 			if (state.Status != successfulStatus && !admittedStatus) {
-				return classify_http_status(state);
+				auto result                   = classify_http_status(state);
+				result.HttpStatus             = static_cast<std::uint16_t>(state.Status);
+				result.TransportFailureSource = application::diagnostic_transport_failure_source::http_response;
+				return result;
 			}
 			if (error != QNetworkReply::NoError
 				&& !(admittedStatus
 					 && error == QNetworkReply::ProtocolInvalidOperationError)) {
-				return provider_error(network_failure(error));
+				auto result                   = provider_error(network_failure(error));
+				result.HttpStatus             = static_cast<std::uint16_t>(state.Status);
+				result.TransportFailureSource = application::diagnostic_transport_failure_source::network_reply;
+				return result;
 			}
 			if (
 				!state.ContentType.has_value()

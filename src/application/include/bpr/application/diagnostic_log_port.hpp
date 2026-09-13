@@ -58,6 +58,12 @@ namespace bpr::application {
 												   cancelled,
 												   response_received,
 												   shutdown };
+	enum class diagnostic_transport_failure_source : std::uint8_t {
+		none,
+		native_transport,
+		http_response,
+		network_reply,
+	};
 	enum class diagnostic_summary_state : std::uint8_t { absent,
 														 sanitized,
 														 omitted_invalid,
@@ -86,6 +92,7 @@ namespace bpr::application {
 		diagnostic_epoch_failure                    EpochFailure;
 		std::optional<git_pack_stream_failure>      EpochPackFailure;
 		std::optional<github_read_validation_error> RelationshipDetail;
+		diagnostic_transport_failure_source         TransportFailureSource = diagnostic_transport_failure_source::none;
 	};
 	enum class diagnostic_log_status : std::uint8_t { available,
 													  unavailable,

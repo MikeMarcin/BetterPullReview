@@ -66,6 +66,7 @@ SCENARIOS = (
     "pre-cancel",
     "http-401",
     "http-403",
+    "http-404",
     "http-403-secondary",
     "http-403-secondary-retry",
     "http-408",
@@ -1007,6 +1008,9 @@ class LoopbackConnectTlsFixture:
             return
         if self.scenario == "http-403":
             connection.sendall(response_bytes(403, "Forbidden", b"{}"))
+            return
+        if self.scenario == "http-404":
+            connection.sendall(response_bytes(404, "Not Found", b"{}"))
             return
         if self.scenario == "http-403-secondary":
             connection.sendall(

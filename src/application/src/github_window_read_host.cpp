@@ -340,7 +340,8 @@ namespace bpr::application {
 								 const std::optional<core::github_failure>         aFailure            = std::nullopt,
 								 const std::optional<github_read_validation_error> aValidation         = std::nullopt,
 								 const std::optional<diagnostic_paged_operation>   aLastOperation      = std::nullopt,
-								 const std::optional<github_read_validation_error> aRelationshipDetail = std::nullopt) const noexcept
+								 const std::optional<github_read_validation_error> aRelationshipDetail = std::nullopt,
+								 const github_provider_error*                      aProviderError      = nullptr) const noexcept
 		{
 			if (DiagnosticLog == nullptr) {
 				return;
@@ -359,6 +360,10 @@ namespace bpr::application {
 				}
 			} else if (aFailure) {
 				event.GithubFailure = *aFailure;
+			}
+			if (aProviderError != nullptr) {
+				event.HttpStatus             = aProviderError->HttpStatus;
+				event.TransportFailureSource = aProviderError->TransportFailureSource;
 			}
 			static_cast<void>(DiagnosticLog->record(event));
 		}
@@ -931,7 +936,8 @@ namespace bpr::application {
 									errorValid ? mapped_failure(error->Error.Failure)
 											   : core::github_failure::malformed_response,
 									errorValid ? error->ValidationError : std::nullopt,
-									error->LastReadOperation, error->RelationshipDetail);
+									error->LastReadOperation, error->RelationshipDetail,
+									errorValid ? &error->Error : nullptr);
 				dispatch_core(core::pull_request_load_failed_event{
 					.Context = error->Request.Context,
 					.Failure = errorValid

@@ -924,6 +924,7 @@ namespace {
 		pre_cancel,
 		http_401,
 		http_403,
+		http_404,
 		http_403_secondary,
 		http_403_secondary_retry,
 		http_408,
@@ -1026,6 +1027,9 @@ namespace {
 		}
 		if (aValue == "http-403") {
 			return fixture_scenario::http_403;
+		}
+		if (aValue == "http-404") {
+			return fixture_scenario::http_404;
 		}
 		if (aValue == "http-403-secondary") {
 			return fixture_scenario::http_403_secondary;
@@ -1158,6 +1162,8 @@ namespace {
 			return "http-401";
 		case fixture_scenario::http_403:
 			return "http-403";
+		case fixture_scenario::http_404:
+			return "http-404";
 		case fixture_scenario::http_403_secondary:
 			return "http-403-secondary";
 		case fixture_scenario::http_403_secondary_retry:
@@ -1519,6 +1525,9 @@ namespace {
 		case fixture_scenario::untrusted_certificate:
 			expect_error(aCompletion, aCorrelation,
 						 application::github_provider_failure::certificate);
+			expect(std::get<github_wire_error>(aCompletion).Error.HttpStatus == 0U
+					   && std::get<github_wire_error>(aCompletion).Error.TransportFailureSource == application::diagnostic_transport_failure_source::native_transport,
+				   "local-tls-refusal-does-not-fabricate-http-status");
 			return;
 		case fixture_scenario::response_limit:
 		case fixture_scenario::header_limit:
@@ -1541,9 +1550,15 @@ namespace {
 						 application::github_provider_failure::authentication);
 			return;
 		case fixture_scenario::http_403:
+		case fixture_scenario::http_404: {
 			expect_error(aCompletion, aCorrelation,
 						 application::github_provider_failure::permission);
+			const auto& error = std::get<github_wire_error>(aCompletion).Error;
+			expect(error.HttpStatus == (aScenario == fixture_scenario::http_403 ? 403U : 404U)
+					   && error.TransportFailureSource == application::diagnostic_transport_failure_source::http_response,
+				   "permission-retains-exact-http-status-and-source");
 			return;
+		}
 		case fixture_scenario::http_403_secondary:
 			expect_error(aCompletion, aCorrelation,
 						 application::github_provider_failure::rate_limit, 60U,

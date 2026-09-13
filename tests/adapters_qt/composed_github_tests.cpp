@@ -1804,7 +1804,9 @@ namespace {
 			{ reason::stale_completion, "outdated GitHub result" },
 			{ reason::completion_identity_mismatch, "different identity" },
 			{ reason::authentication_failed, "Authentication failed" },
-			{ reason::permission_denied, "This GitHub sign-in does not have permission" },
+			{ reason::permission_denied,
+			  "This app's GitHub connection cannot read this pull request. Your browser "
+			  "sign-in may have different access." },
 			{ reason::network_unavailable, "network connection" },
 			{ reason::api_version_unsupported, "GitHub API version" },
 			{ reason::capability_unavailable, "capability information" },
@@ -2257,7 +2259,7 @@ namespace {
 			expect(
 				announcements.size() == 2U
 					&& announcements.back().Message.contains(
-						QStringLiteral("does not have permission"))
+						QStringLiteral("This app's GitHub connection cannot read"))
 					&& announcements.back().Message
 						== banner->accessibleDescription(),
 				"a changed diagnostic produces one newly combined announcement");

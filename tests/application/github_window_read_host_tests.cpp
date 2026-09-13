@@ -202,6 +202,26 @@ namespace {
 				   && std::get<application::github_read_validation_error>(log.Events[7].GithubFailure) == application::github_read_validation_error::invalid_relationship
 				   && log.Events[7].RelationshipDetail == application::github_read_validation_error::relationship_actor_login,
 			   "provider-side validation refusal retains its exact typed name");
+		for (const auto status : { 403U, 404U }) {
+			host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ status } });
+			const auto call = provider.Calls.back();
+			call.Complete(application::github_pull_request_error{
+				call.Request,
+				{ .Failure                = application::github_provider_failure::permission,
+				  .HttpStatus             = static_cast<std::uint16_t>(status),
+				  .TransportFailureSource = application::diagnostic_transport_failure_source::http_response },
+				application::diagnostic_paged_operation::get_repository,
+			});
+			lane.drain();
+			const auto& event = log.Events.back();
+			expect(event.Outcome == application::diagnostic_outcome::failed
+					   && event.HttpStatus == status
+					   && event.TransportFailureSource == application::diagnostic_transport_failure_source::http_response
+					   && event.PagedOperation == application::diagnostic_paged_operation::get_repository
+					   && std::get<core::github_failure>(event.GithubFailure) == core::github_failure::permission
+					   && event.Summary.text().empty() && !host.accepted_snapshot(),
+				   "GetRepository denial retains only status/source with unchanged permission refusal");
+		}
 		for (const auto& update : updates) {
 			expect(update.Presentation.Transition && update.Presentation.Transition->Status == update.Transition.Status
 					   && update.Presentation.Transition->PullRequest == update.Transition.PullRequest

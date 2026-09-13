@@ -547,6 +547,22 @@ namespace {
 				static_cast<application::github_provider_failure>(255)),
 			"malformed provider failure is rejected");
 
+		auto transportError = application::github_provider_error{
+			.Failure                = application::github_provider_failure::permission,
+			.HttpStatus             = 404U,
+			.TransportFailureSource = application::diagnostic_transport_failure_source::http_response,
+		};
+		expect(application::valid(transportError), "HTTP denial carries bounded diagnostic facts");
+		transportError.HttpStatus = 0U;
+		expect(!application::valid(transportError), "HTTP source requires observed status");
+		transportError.TransportFailureSource = application::diagnostic_transport_failure_source::network_reply;
+		expect(application::valid(transportError), "network reply may fail without HTTP status");
+		transportError.HttpStatus = 600U;
+		expect(!application::valid(transportError), "invalid status is rejected");
+		transportError.HttpStatus             = 0U;
+		transportError.TransportFailureSource = static_cast<application::diagnostic_transport_failure_source>(255U);
+		expect(!application::valid(transportError), "invalid transport source is rejected");
+
 		const auto observedRateLimits = rate_limits();
 		auto       coreExhausted      = *observedRateLimits.Core;
 		coreExhausted.Remaining       = 0U;

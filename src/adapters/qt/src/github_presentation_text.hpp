@@ -184,8 +184,8 @@ namespace bpr::qt::detail {
 			break;
 		case core::github_reason_code::permission_denied:
 			result = QStringLiteral(
-				"This GitHub sign-in does not have permission to read this "
-				"pull request.");
+				"This app's GitHub connection cannot read this pull request. "
+				"Your browser sign-in may have different access.");
 			break;
 		case core::github_reason_code::network_unavailable:
 			result = QStringLiteral(
