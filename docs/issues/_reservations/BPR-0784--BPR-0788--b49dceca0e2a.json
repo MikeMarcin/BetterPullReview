@@ -1,0 +1,14 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0784",
+    "BPR-0785",
+    "BPR-0786",
+    "BPR-0787",
+    "BPR-0788"
+  ],
+  "reserve_for": "rfc0015-r1-d1",
+  "purpose": "RFC-BPR-0015 CLI profile read and publishing plan",
+  "created": "2026-09-13T20:17:42.560141+00:00",
+  "base": "260c3e7fb30bb30b8524cd8e342ea55b1b8839de"
+}
