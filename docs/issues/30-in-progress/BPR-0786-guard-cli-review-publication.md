@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0786"
 title: "Publish CLI-backed reviews and comments with explicit write admission"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0015"]
 depends_on: ["BPR-0784","BPR-0785"]
 priority: "P1"
