@@ -59,6 +59,12 @@ def read_catalogue(application: Path, root: Path, budget_ms: int,
              if line.startswith("PUBLIC_PREVIEW_TIMELINE_PAGE:")]
     if pages != [f"PUBLIC_PREVIEW_TIMELINE_PAGE:{page}" for page in range(1, expected_pages + 1)]:
         raise AssertionError(f"timeline course {course!r} did not consume exact page budget: {pages}")
+    line_history = [line.removeprefix("PUBLIC_PREVIEW_EPOCH_LINE_HISTORY:")
+                    for line in completed.stdout.splitlines()
+                    if line.startswith("PUBLIC_PREVIEW_EPOCH_LINE_HISTORY:")]
+    if (len(line_history) != 1 or not line_history[0].startswith("Incomplete history")
+            or "display order is not push order" not in line_history[0]):
+        raise AssertionError(f"epoch line hid the partial-history qualification in {course!r}: {line_history}")
     if course == "missing-base" and not all(marker in completed.stdout for marker in (
             "PUBLIC_PREVIEW_MISSING_BASE_OK", "PUBLIC_PREVIEW_DISCONNECTED_HEAD_FETCHED")):
         raise AssertionError(f"fetchable history without a common base was not unavailable: {completed.stdout}")

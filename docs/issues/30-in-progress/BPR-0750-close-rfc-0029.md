@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0029"]
 depends_on: ["BPR-0743"]
 priority: "P1"
 closeout_for: ["RFC-BPR-0029"]
-metadata: {"accepted_base":"5d5df7cd79115b9b4b2f8be6ebdb5392458b9e1d","owner_acceptance":"2026-09-12 mandate r17"}
+metadata: {"accepted_base":"5d5df7cd79115b9b4b2f8be6ebdb5392458b9e1d","owner_acceptance":"2026-09-12 mandate r17","milestone_plan":{"id":"rfc-bpr-0029-closeout","path":"docs/rfcs/plans/rfc-bpr-0029-closeout/milestone-plan.json"}}
 ---
 
 # Verify and close RFC-BPR-0029
@@ -25,6 +25,25 @@ The owner accepted the revised proposal under mandate r17.
 epoch-line handle criterion stays on [[BPR-0646]]; its v011 owner verdict
 has been consumed and the card is Done. The protected v009/v010/v011
 operator packets retained their original bytes during the board move.
+
+## Current frontier (rfc0029-r1/d1, mandate r1)
+
+The bound milestone is `rfc-bpr-0029-closeout/verify-and-close-rfc-0029`.
+The candidate starts from the immutable RFC base above and the d30 evidence
+below. Rows 2, 4, 5 and 7 remain technical partials; the other rows retain
+their prior passing evidence. This dispatch owns the closeout/plan, the
+composed epoch-line probe and migration-reference tests. The app rebuild,
+ten-course composed public-path check (1/1, 191.38 s), copied-catalogue
+SQLite check (1/1), documentation gate and `git diff --check` pass; logs are
+`build/rfc0029-d1-build.log` and `build/rfc0029-d1-composed.log`. The first
+compile attempt failed on a probe-only `QTextStream` type error that was
+corrected. The composed line now pins partial-history wording for failed,
+refused, capped and unseen-update courses. The copied migration resolves
+restoration and saved ledger bindings, while physical Git refs, MCP and agent
+launch remain unproved. Next: couple an ordinary multi-commit push to actual
+catalogue recreation and check the remaining migration consumers. No live
+GitHub or credential mutation is in scope. RFC-BPR-0008 is still Proposed in
+canonical order, so Auto-Verified and Done remain pending.
 
 ## Closeout checklist
 

@@ -6,6 +6,7 @@ area: "BPR"
 milestone: "Post-Pack v2"
 depends_on: ["RFC-BPR-0002","RFC-BPR-0003","RFC-BPR-0017"]
 pack_version: "post-v2"
+metadata: {"milestone_plan":{"id":"rfc-bpr-0029-closeout","path":"docs/rfcs/plans/rfc-bpr-0029-closeout/milestone-plan.json"}}
 ---
 
 # RFC-BPR-0029: Machine-Independent Epoch Identity and Pull Request Update History

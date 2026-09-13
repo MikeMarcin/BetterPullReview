@@ -1,4 +1,6 @@
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
+#include "bpr/adapters/sqlite/review_ledger_store.hpp"
+#include "bpr/adapters/sqlite/window_review_restoration_store.hpp"
 #include "epoch_catalog_legacy_fixture.hpp"
 #include "platform_test_support.hpp"
 
@@ -1537,25 +1539,95 @@ namespace {
 		}
 	}
 
+	[[nodiscard]] auto migration_position(const core::review_epoch_summary& aEpoch) -> core::window_review_position
+	{
+		auto position            = core::window_review_position{ };
+		position.Comparison.Left = {
+			.Identity     = { .Authority = aEpoch.Id.Authority, .Incarnation = aEpoch.Id.Incarnation, .Kind = core::comparison_anchor_kind::epoch_base, .Epoch = aEpoch.Id.Ordinal },
+			.Commit       = aEpoch.Base,
+			.Availability = core::anchor_availability::available
+		};
+		position.Comparison.Right               = position.Comparison.Left;
+		position.Comparison.Right.Identity.Kind = core::comparison_anchor_kind::epoch_head;
+		position.Comparison.Right.Commit        = aEpoch.Head;
+		return position;
+	}
+
+	[[nodiscard]] auto migration_ledger(const std::filesystem::path& aRoot)
+	{
+		return sqlite::make_review_ledger_store({ .StorageRoot = aRoot, .Host = "ghe.example.test", .Account = "fixture", .Repository = "fixture/repository", .PullRequest = 4242 });
+	}
+
+	void verify_migrated_consumers(const std::filesystem::path& aRoot,
+								   app::epoch_catalog_session& aSession, const app::window_review_snapshot& aExpected,
+								   const core::agent_session& aAgent)
+	{
+		auto       restoration = sqlite::make_window_review_restoration_store(aRoot);
+		const auto loaded      = restoration->load({ });
+		expect(loaded && *loaded == aExpected, "copied restoration retains every original exact epoch position");
+		for (const auto& record : loaded->Records) {
+			const auto& pair    = record.Position->Comparison;
+			const auto  anchors = aSession.exact_anchors({ .Catalog = aSession.binding().Catalog,
+														   .Anchors = { pair.Left.Identity, pair.Right.Identity } },
+														 { });
+			expect(anchors && anchors->Anchors == std::vector{ pair.Left, pair.Right },
+				   "persisted restoration identities resolve to original available commits after migration");
+		}
+		auto ledger = migration_ledger(aRoot);
+		expect(ledger.has_value(), "copied review ledger opens after catalogue migration");
+		const auto retained = (*ledger)->load_agent_session_catalog();
+		expect(retained && retained->Latest == aAgent, "ledger retains original agent binding and epoch ordinals");
+		const auto& binding = retained->Latest->Binding;
+		auto        left    = aExpected.Records.front().Position->Comparison.Left.Identity;
+		auto        right   = aExpected.Records.back().Position->Comparison.Right.Identity;
+		left.Epoch          = binding.LeftEpoch;
+		right.Epoch         = binding.RightEpoch;
+		const auto anchors  = aSession.exact_anchors({ .Catalog = aSession.binding().Catalog, .Anchors = { left, right } }, { });
+		expect(anchors && anchors->Anchors.size() == 2U
+				   && anchors->Anchors[0].Commit == binding.BaseOid && anchors->Anchors[1].Commit == binding.HeadOid,
+			   "ledger agent binding resolves its original compared material without portable identity rebinding");
+	}
+
 	void lossless_occurrence_migration_contract(const bool aVersionFour)
 	{
 		temporary_root originalRoot{ "occurrence-v3-original" };
 		temporary_root copiedRoot{ "occurrence-v3-copy" };
-		const auto     request = open_request(911U);
-		auto           made    = sqlite::make_epoch_catalog({ .StorageRoot = originalRoot.path() });
+		auto           authority = authority_key(6U, 7U);
+		authority.Host           = core::git_host_id{ 3U };
+		const auto request       = open_request(911U, authority);
+		auto       made          = sqlite::make_epoch_catalog({ .StorageRoot = originalRoot.path() });
 		expect(made.has_value(), "migration fixture opens");
 		auto port   = std::move(*made);
 		auto opened = port->open(request, { });
 		expect(opened.has_value(), "migration fixture authority opens");
-		auto       session   = std::move(*opened);
-		const auto first     = complete_append(*session, core::epoch_ordinal{ 1 }, 1U, request.ApplicationSession, true);
-		const auto second    = complete_append(*session, core::epoch_ordinal{ 2 }, 2U, request.ApplicationSession, false);
-		auto       returning = revision(3U);
-		returning.Head       = first.Mutation.Epoch.Head;
-		const auto third     = complete_append(*session, core::epoch_ordinal{ 3 }, 3U, request.ApplicationSession, false,
-											   false, nullptr, { .Accepted = returning });
-		const auto binding   = session->binding();
-		const auto snapshot  = session->snapshot({ });
+		auto       session                         = std::move(*opened);
+		const auto first                           = complete_append(*session, core::epoch_ordinal{ 1 }, 1U, request.ApplicationSession, true);
+		const auto second                          = complete_append(*session, core::epoch_ordinal{ 2 }, 2U, request.ApplicationSession, false);
+		auto       returning                       = revision(3U);
+		returning.Head                             = first.Mutation.Epoch.Head;
+		const auto                        third    = complete_append(*session, core::epoch_ordinal{ 3 }, 3U, request.ApplicationSession, false,
+																	 false, nullptr, { .Accepted = returning });
+		const auto                        binding  = session->binding();
+		const auto                        snapshot = session->snapshot({ });
+		const app::window_review_snapshot positions{
+			.Revision = 2U,
+			.Records  = {
+				{ core::bpr_window_id{ 1U }, { core::github_access_mode::authenticated, "ghe.example.test", { "fixture", "repository" }, request.Authority.Number }, migration_position(first.Mutation.Epoch) },
+				{ core::bpr_window_id{ 2U }, { core::github_access_mode::authenticated, "ghe.example.test", { "fixture", "repository" }, request.Authority.Number }, migration_position(second.Mutation.Epoch) },
+				{ core::bpr_window_id{ 3U }, { core::github_access_mode::authenticated, "ghe.example.test", { "fixture", "repository" }, request.Authority.Number }, migration_position(third.Mutation.Epoch) } }
+		};
+		core::agent_session savedAgent;
+		{
+			auto restoration = sqlite::make_window_review_restoration_store(originalRoot.path());
+			expect(restoration->load({ }).has_value() && restoration->save(positions, 1U, { }) == positions,
+				   "legacy consumer positions persist before copying");
+			auto ledger = migration_ledger(originalRoot.path());
+			expect(ledger.has_value(), "legacy ledger opens before copying");
+			const auto admitted = (*ledger)->admit_agent_session({ .Profile = core::agent_profile_id{ 1U },
+																   .Binding = { .Host = request.Authority.Host, .Repository = request.Authority.Repository, .PullRequest = request.Authority.PullRequest, .BaseOid = first.Mutation.Epoch.Base, .HeadOid = third.Mutation.Epoch.Head, .LeftEpoch = first.Mutation.Epoch.Id.Ordinal, .RightEpoch = third.Mutation.Epoch.Id.Ordinal } });
+			expect(admitted.has_value(), "legacy agent binding persists before copying");
+			savedAgent = *admitted;
+		}
 		session.reset();
 		port.reset();
 		std::string oldRows;
@@ -1573,6 +1645,7 @@ namespace {
 		session = std::move(*opened);
 		expect(session->binding() == binding && session->snapshot({ }) == snapshot,
 			   "migration preserves incarnation, authority, next ordinal and both live selectors");
+		verify_migrated_consumers(copiedRoot.path(), *session, positions, savedAgent);
 		const auto history = session->occurrences({ });
 		expect(history && history->Occurrences.empty() && history->UnresolvedLegacy && history->Incomplete,
 			   "legacy duplicate heads and absent hostname provenance stay unresolved");
@@ -1604,6 +1677,7 @@ namespace {
 		expect(session->binding() == binding && session->snapshot({ }) == snapshot
 				   && session->occurrences({ }) == history,
 			   "restart preserves old binding, live selectors and explicitly unresolved provenance");
+		verify_migrated_consumers(copiedRoot.path(), *session, positions, savedAgent);
 		{
 			direct_database database{ database_path(copiedRoot.path()) };
 			expect(database.logical_fingerprint(true) == oldRows && database.foreign_key_violation_count() == 0U,

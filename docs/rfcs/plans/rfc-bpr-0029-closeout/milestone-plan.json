@@ -1,0 +1,30 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "rfc-bpr-0029-closeout",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0029"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "verify-and-close-rfc-0029",
+      "outcome": "RFC-BPR-0029's nine accepted criteria have direct closeout evidence against the immutable accepted baseline, and its card, RFC, and index are reconciled to the truthful status allowed by canonical order.",
+      "work": [
+        {
+          "issue": "BPR-0750"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Each of the nine accepted criteria has a direct check, result, producing revision and remaining limitation recorded on BPR-0750, with rows 2, 4, 5 and 7 resolved from their existing partial state",
+        "The composed application history read and epoch line demonstrate portable identity, truthful partial history and historical base labeling; migrated local references continue to resolve",
+        "The documentation gate, git diff --check and one integration-focused pass are recorded against the current candidate",
+        "BPR-0750 and RFC-BPR-0029/index status obey canonical order; if RFC-BPR-0008 remains Proposed, Auto-Verified and Done remain pending rather than being inferred from passing technical checks"
+      ],
+      "boundary": "One RFC-BPR-0029 closeout verification boundary; canonical predecessor RFC-BPR-0008 is excluded from this engineering scope"
+    }
+  ],
+  "unplanned_work": []
+}

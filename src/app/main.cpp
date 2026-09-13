@@ -861,6 +861,7 @@ namespace {
 			bpr::core::epoch_status SettledEpoch             = bpr::core::epoch_status::inactive;
 			std::size_t             SettledOccurrenceCount   = 0U;
 			bool                    SettledHistoryIncomplete = false;
+			QString                 SettledHistoryText;
 			// [[BPR-0316]]. The forced selection with no fixture under it.
 			// `SelectionForced` alone activates the mode and stops -- the
 			// verdict for a shipped enabled selection, which reaches zero
@@ -3943,6 +3944,8 @@ namespace {
 					   << static_cast<unsigned long long>(aRun.PublicPreview.SettledOccurrenceCount)
 					   << "\nPUBLIC_PREVIEW_HISTORY_INCOMPLETE:"
 					   << (aRun.PublicPreview.SettledHistoryIncomplete ? "true" : "false")
+					   << "\nPUBLIC_PREVIEW_EPOCH_LINE_HISTORY:"
+					   << aRun.PublicPreview.SettledHistoryText
 					   << "\nPUBLIC_PREVIEW_SMART_ACQUISITIONS:"
 					   << static_cast<unsigned long long>(
 							  status.PublicPreviewSmartAcquisitions)
@@ -5188,6 +5191,7 @@ namespace {
 							aRun->PublicPreview.SettledEpoch             = epoch;
 							const auto* const line                       = window.epoch_selectors()->line();
 							aRun->PublicPreview.SettledOccurrenceCount   = line->update_count();
+							aRun->PublicPreview.SettledHistoryText       = line->history_text();
 							aRun->PublicPreview.SettledHistoryIncomplete = line->history_text().startsWith(QStringLiteral("Incomplete history"));
 						}
 						if (aRun->PublicPreview.MissingHistoricalBase) {
