@@ -13,29 +13,35 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/pla
 
 ## Current frontier — bpr0643-r1 / d1 / mandate r2
 
-The `retained-stress-pr-read` milestone is human-pending. BPR-0642 is Done;
-[BPR-0643](../30-in-progress/BPR-0643-load-the-retained-stress-test-pull-request.md)
-is Parked for the owner's native HTTPS product sign-in. The committed binding
-is `docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-bpr0643-r1-d1-r2.json`
-(the r1 binding remains historical).
-An authenticated read-only CLI GET as `MikeMarcin` confirms that the exact
-target remains available (1,523 files, 9,311 total commits), but the product
-cannot adopt CLI credentials and its retained device binding is tombstoned.
-The fresh tests-disabled Mac candidate builds at
-`build/bpr0643-release/src/app/BetterPullReview.app` and directly renders the
-GitHub.com Native HTTPS profile as signed out. Five focused diagnostic, pager,
-Qt and public-path courses pass; the pager fixture accepts 3,000 files and
-250 returned commits. No target load ran, so no new failed log or target
-failure class exists; neither a limit nor success is inferred. The task-owned
-app processes and build commands are quiescent. The next bounded step is an
-owner-established `MikeMarcin` product session in that candidate, then one
-read-only load of `EpicGames/UnrealEngine#1773`, exact diagnostic capture
-outside the repository, and verification of its file list and selected diff
-or explicit reasoned refusal. No live write or credential transfer occurred.
-Mandate r2 confirms the owner is available for product sign-in; the coordinator
-hosts the two-step wizard at `.mask/sessions/wizard/bpr0643-signin`. Its human
-acknowledgment must be followed by an agent-observed authenticated product
-session before any target load can be accepted as account-bound evidence.
+The `retained-stress-pr-read` milestone has a direct known-limit candidate.
+BPR-0642 is Done; [BPR-0643](../60-done/BPR-0643-load-the-retained-stress-test-pull-request.md)
+is claimed pending guarded finish. The r2 binding is
+`docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-bpr0643-r1-d1-r2.json`.
+The owner completed wizard `.mask/sessions/wizard/bpr0643-signin`; the agent
+observed `MikeMarcin` and `GitHub account connected` on the fresh tests-disabled
+Mac candidate's GitHub.com Native HTTPS profile. One read-only Open attempt
+for `EpicGames/UnrealEngine#1773` failed at `GetRepository` with the typed
+`permission` class. The first session panel attributed the refusal to the
+authenticated account. The exact two-line attempt log is
+outside the checkout at
+`~/Library/Application Support/BetterPullReview/BPR-0643-evidence-2026-09-13/attempt-1-diagnostics.log`
+(SHA-256 `f3b35aa9220d238f082295fe65937b53aa2308fa216dd1239570ff08f3badea9`).
+The CLI GET under the same account succeeds, but the product grant cannot
+adopt that credential. This is a permission boundary before file paging, so
+no file list or selected diff claim is made; whether GitHub App installation
+policy caused the denial is unproved. The card records the explicit known
+limit, not a size-limit repair. The narrow Qt copy change at `5d5c8b66` names
+the current sign-in rather than the account. The rebuilt tests-disabled
+candidate resumed `MikeMarcin`; its second read-only attempt again ended in
+`permission` at `GetRepository`, while the real session panel displayed
+`This GitHub sign-in does not have permission to read this pull request.`
+That exact two-line attempt is outside the checkout as
+`~/Library/Application Support/BetterPullReview/BPR-0643-evidence-2026-09-13/attempt-2-diagnostics.log`
+(SHA-256 `a7fe87f2880f68e97d578c53997c56d9b0a93175c0654643a36d7f3d2aa50b9f`).
+The focused Qt course and format check pass after the change; the earlier
+five diagnostic, pager, Qt and public-path courses remain relevant. No live
+write or credential transfer occurred. BPR-0622 and final RFC obligations
+remain open.
 
 The previous accepted `default-cache-byte-pressure` milestone remains as
 recorded below. BPR-0622's native evidence and final RFC closeout remain open.
