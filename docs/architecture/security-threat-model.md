@@ -283,8 +283,9 @@ Product-owner ruling, BPR-0348, 2026-08-19.
 
 ## GitHub CLI opt-in risk boundary
 
-RFC-BPR-0015's amended first milestone is in progress. Native HTTPS remains
-the default. The tests-disabled macOS composition is being wired for explicit
+RFC-BPR-0015's amended first read milestone has a qualified macOS fixture
+path. Native HTTPS remains the default. The tests-disabled macOS composition
+has explicit
 CLI read opt-in on the selected GitHub.com or GHES host, with a Connect warning,
 observed `/user` identity, pre/post-request account checks and a read-only lease.
 It invokes the configured `gh` directly with bounded arguments, input, output
@@ -297,10 +298,17 @@ with a narrowly owned temporary object-store exception only for the bounded
 clone; an unavailable boundary refuses the CLI profile. This covers `gh`'s
 possible first-use global configuration migration, which a post-request check
 cannot prevent. BetterPullReview must not read the helper's token exchange or
-change global authentication. This path remains pending direct full-diff
-public-render evidence, and CLI publishing remains unavailable. Windows and
-Linux remain unavailable. Public-path acceptance and target-native
-qualification remain pending under BPR-0788.
+change global authentication. Full Git comparison currently requires
+`gh` 2.100.0 and Apple Git 2.50.1 (Apple Git-155), with a 32 MiB per-file
+ceiling and supervised 96 MiB/128-entry temporary-store abort threshold; the
+aggregate threshold is not a hard disk quota. Local refs reflect the accepted
+API snapshot, not fresh remote advertisement. A tests-disabled macOS fixture
+now renders a full PR diff through the CLI profile; an isolated build with
+the process adapter removed from composition visibly refuses the same healthy
+fixture. Native HTTPS helper exchange and Keychain backend behavior remain
+unverified. CLI publishing remains unavailable. Windows and Linux remain
+unavailable; publication and target-native qualification remain pending under
+BPR-0788.
 
 BetterPullReview does not extract or copy CLI tokens or change global CLI
 authentication. Opt-in trusts the machine's configured executable, configuration,

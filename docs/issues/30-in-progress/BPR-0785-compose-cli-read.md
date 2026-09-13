@@ -20,3 +20,11 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0015-cli-profile","path":"docs/rfcs/p
 
 The `EpicGames/UnrealEngine#1773` 250-commit response limit belongs to
 RFC-BPR-0013 and is not a CLI read acceptance target.
+
+Initial macOS Git-object qualification is limited to `gh` 2.100.0 and Apple
+Git 2.50.1 (Apple Git-155), with a 32 MiB per-file ceiling and a supervised
+96 MiB/128-entry temporary-store abort threshold, not a hard aggregate quota.
+Refs synthesized for local protocol v2 represent the accepted API snapshot,
+not a fresh remote advertisement. The tests-disabled full-diff render and
+isolated process-adapter-removal control are recorded on BPR-0788; neither
+claims a native HTTPS credential-helper or Keychain-backend qualification.

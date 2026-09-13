@@ -78,6 +78,14 @@ The narrower enforceable connector boundary is:
   configuration. Bound temporary-disk use, output, time and cancellation;
   remove the store on all terminal paths. This local Git subprocess does not
   provide stronger identity containment for the earlier authenticated clone.
+- The initial macOS Git-object qualification is deliberately exact: `gh`
+  2.100.0 and Apple Git 2.50.1 (Apple Git-155), a 32 MiB per-file ceiling,
+  and a supervised 96 MiB/128-entry temporary-store abort threshold. The
+  aggregate threshold is not an OS disk quota; an in-flight write can exceed
+  it before observation. Refuse an unsupported version or over-limit pack
+  without silently falling back to native credentials. The refs supplied to
+  the existing protocol parser describe the accepted API snapshot and do not
+  prove fresh remote Git refs; retain the existing revision/object checks.
 - Parse actual bounded CLI status, headers and body into the existing provider
   response contract. Do not infer HTTP success from process exit alone. Keep
   failures fixed and redacted, and do not log request bodies or private data.

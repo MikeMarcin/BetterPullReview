@@ -18,11 +18,11 @@ RFC base: `6c9ef2038b7389f49028e71f2bb8219b07191267`.
 
 | Criterion | Direct check | Current result |
 |---|---|---|
-| The opt-in account row names host, observed login, configured-CLI trust risks and read-versus-publish choice without silently replacing a native profile or claiming exact account containment. | Rendered account row and explicit opt-in exercise | Pending BPR-0784 |
-| A tests-disabled macOS application connects through configured `gh` and renders a representative fixture PR via the real public path; missing or changed executable, host, account or config produces a typed refusal without credential fallback. | Tests-disabled Mac composition and refusal fixture | Pending BPR-0785 |
-| CLI reads preserve actual status, headers, body, correlation, bounded pagination, cancellation and redacted errors; removing the process or response adapter makes a direct public-path negative control fail. | Adapter/provider contract and public negative control | Pending BPR-0785 |
+| The opt-in account row names host, observed login, configured-CLI trust risks and read-versus-publish choice without silently replacing a native profile or claiming exact account containment. | Rendered account row and explicit opt-in exercise | Passed for macOS read in d3; BPR-0784 |
+| A tests-disabled macOS application connects through configured `gh` and renders a representative fixture PR via the real public path; missing or changed executable, host, account or config produces a typed refusal without credential fallback. | Tests-disabled Mac composition and refusal fixture | Passed for fixture read in d3; BPR-0785 |
+| CLI reads preserve actual status, headers, body, correlation, bounded pagination, cancellation and redacted errors; removing the process or response adapter makes a direct public-path negative control fail. | Adapter/provider contract and public negative control | Passed for macOS fixture read in d3; BPR-0785 |
 | Fixture review and inline-comment publishing traverse ordinary draft and Submit review admission, explicit CLI write confirmation, exact target and observed-account checks, bounded transport, reconciliation and typed terminal projection; a read opt-in or ambiguous write cannot issue a second POST. | Fixture public mutation path and ambiguity control | Pending BPR-0786; no live PR write authorized |
-| Token and private response content remain absent from parent arguments, environment, logs, diagnostics, settings, SQLite and committed evidence; the app does not change global `gh` authentication or configuration. | Canary and source/runtime audit | Pending BPR-0785/0786 |
+| Token and private response content remain absent from parent arguments, environment, logs, diagnostics, settings, SQLite and committed evidence; the app does not change global `gh` authentication or configuration. | Canary and source/runtime audit | Read path passed in d3; publish path pending BPR-0786 |
 | Target-native qualification records supported platforms and residual executable/config/CA/redirect/account/process risks; unsupported platforms remain unavailable and canonical closeout awaits RFC-BPR-0014 and all evidence. | Native qualification, docs and RFC index reconciliation | Pending BPR-0787; RFC-BPR-0014 Proposed |
 
 - [ ] Every revised RFC criterion has direct command/public-path evidence, producing revision and explicit residual limitation.
@@ -136,3 +136,65 @@ observed in the UI. The fixture harness test passed; structural observations
 are retained in ignored `build/rfc0015-cli-public-fixture-evidence/observations.json`.
 The negative controls did not remove compiled adapters or instrument the
 native-network path, so the direct missing-adapter control remains open.
+
+The d3 production Git-object bridge now composes the exact selected CLI
+profile with a macOS write-denied `gh repo clone` for accepted commit objects.
+Git inherits an isolated global/system configuration view, `gh` alone invokes
+its own credential helper, and a fresh local bare store builds the pack without
+network or another helper. The current Git-object qualification accepts only
+`gh` 2.100.0 and Apple Git 2.50.1 (Apple Git-155), limits each created file to
+32 MiB, and supervises a 96 MiB/128-entry temporary-store abort threshold.
+That aggregate threshold is not a hard quota, and snapshot-derived local refs
+are not fresh remote advertisements. Four focused adapter/provider/process
+CTest cases pass, including a pack through the application v2 parser and
+strict Git indexing, cancellation, bounded failures, account drift and
+revocation (`build/rfc0015-r2-d3-focused-contracts.log`). Offline config and
+synthetic credential probes are retained in ignored
+`build/rfc0015-r2-d3-gh-clone-containment.json` and
+`build/rfc0015-r2-d3-hostile-git-config.json`; the configured-account
+status-only `/user` read under sandbox is in
+`build/rfc0015-r2-d3-native-sandbox-viewer.json`. The direct Mac-only bridge
+contract cannot run under the repository's outer network sandbox because
+macOS refuses nested sandbox initialization; its fake-CLI/local-Git CTest is
+registered and labeled as a closed local-only fixture while preserving the
+production inner sandbox. This component evidence alone did not establish a
+tests-disabled full-diff public render, an adapter-removal negative control,
+Keychain backend behavior, or independent critical-review acceptance. The
+later d3 public and review evidence below adjudicates the first three items.
+
+The final d3 tests-disabled macOS release app rendered fixture PR
+`octo-org/review-repository#17` through ordinary CLI opt-in, observed
+`octo-reviewer` on `github.com`, file selection and the Git-object path.
+`review.cpp` showed six earlier lines with values 11–16 and six later lines
+with values 21–26, with the visible `Diff ready` semantic comparison and
+both sides available. A missing `gh` and malformed HTTP framing visibly
+refused account connection with Open and Refresh disabled. The positive
+binary/source digests, exact UI observations, clean process exits and fixture
+limitations are retained in ignored
+`build/app-release/rfc0015-evidence/public-path.json` and `ax-excerpts.txt`.
+The literal adapter-removal control built a separate tests-disabled app from
+`cdf6175c` with only the CLI process factory removed from application
+composition. Against the same healthy fixture and fresh storage, Connect
+visibly refused CLI availability before identity or PR admission; Open and
+Refresh remained disabled and the full-diff assertion could not pass. Its
+one-line source delta, binary digest and reaped process are in ignored
+`build/app-release/rfc0015-evidence/compiled-knockout.json`. The disposable
+build/worktree was removed after the observation. Three fixture harness
+tests, the final five-case adapter/provider/Qt CTest pass, documentation gate,
+formatting and diff checks passed. No live PR write occurred.
+
+Independent d3 critical review reran the four bridge-focused CTests and
+found no blocking defect. It identified a revoke-only outer identity-call
+cancellation gap: the selected public invalidation also cancels authority
+jobs, so no changed public-path failure is shown; a dedicated wrapper test
+remains a follow-up. Official-`gh` local clone probing substitutes file
+transport and does not prove real HTTPS credential-helper exchange or the
+Keychain backend. The native status-only `/user` probe and source review do
+not close that gap. The production temporary-directory monitor's behavior
+under real authenticated Git file churn also remains untested. Exact
+configured executable, configuration and account races, the supervised
+aggregate-store threshold, and snapshot-derived refs remain disclosed.
+These limits do not support Windows/Linux or publication claims. Read
+BPR-0784/BPR-0785 and all four `opt-in-cli-read` exits are accepted only for
+the qualified macOS fixture read surface; BPR-0786/0787, RFC-BPR-0014
+predecessor state and any safe-target or human/native evidence remain open.
