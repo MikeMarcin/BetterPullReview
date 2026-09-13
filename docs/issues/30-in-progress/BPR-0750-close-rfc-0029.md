@@ -55,9 +55,15 @@ two public opens succeed, installed Git proves the replacement base is
 unrelated and has no merge base with the same imported head, yet that
 occurrence keeps its old derived comparison and local ordinal. Its original
 historical base stays unknown and the earlier live epoch retains its observed
-base. The candidate is uncommitted on the worker's four fixture/test paths;
-the same worker is diagnosing a durable correction before any production edit
-scope expands. No integrator command is active. No live GitHub or credential
+base. The candidate remains uncommitted. The same deep worker now owns the
+exact core, application, SQLite, fixture, architecture-document and focused-test
+paths for atomic association invalidation and v5-to-v6 migration. Its
+corrected network-isolated two-open course passes in
+`build/rfc0029-base-repair-focused.log`: the same occurrence retains its
+identity and unknown original base, while the stale derived base and active
+comparison association become unavailable after the divergent replacement.
+Core/host and interrupted-migration checks are being added and verified;
+milestone acceptance remains pending. No integrator command is active. No live GitHub or credential
 mutation is in scope. RFC-BPR-0008 is still Proposed in canonical order, so
 Auto-Verified and Done remain pending.
 
