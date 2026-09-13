@@ -40,6 +40,22 @@ both accepted cards can move without packet-byte changes, followed by the
 current-head integration selector pass. No live pull request mutation is in
 scope.
 
+The protected-link migration succeeded: [[BPR-0646]] and [[BPR-0729]] are
+Done at `58921104` and `73371ea1`. The v009/v010/v011 operator-packet
+SHA-256 values remain `c094952c…`, `6ce8d3f1…`, and `13a86dd5…` exactly as
+before the moves. The full documentation gate and scoped board validation
+pass, with old packet locators resolved by the existing unique-card rule.
+The v006 session identity binds all nine authored cards (ten candidate
+questions) to one tests-disabled bundle digest and an offline page; RFC-0018
+and RFC-0028 now point to v011 and that original page. The three worker
+source/test slices have stopped editing. Changed paths are confined to the
+epoch host/pager tests, SQLite behavior test, epoch Qt test, composed fixture
+script, and tests-guarded `src/app` fixture seams. The next command is one
+current-head focused build followed by direct selectors and the milestone
+integration set. Workers hold no active command and remain available for
+correction. The d30 assignment fingerprint is mechanically stale after the
+two board finishes; a renewed binding is required before completion claim.
+
 ## Current frontier, 2026-09-12 (d29, mandate r20): v011 verdict received
 
 Run `attended-prep-2026-09-10`, dispatch d29, producer
