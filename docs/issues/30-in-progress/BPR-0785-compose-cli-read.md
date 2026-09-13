@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0785"
 title: "Compose bounded configured-CLI reads through the public workbench"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0015"]
 depends_on: []
 priority: "P1"
