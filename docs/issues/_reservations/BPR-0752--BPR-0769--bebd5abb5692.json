@@ -1,0 +1,27 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0752",
+    "BPR-0753",
+    "BPR-0754",
+    "BPR-0755",
+    "BPR-0756",
+    "BPR-0757",
+    "BPR-0758",
+    "BPR-0759",
+    "BPR-0760",
+    "BPR-0761",
+    "BPR-0762",
+    "BPR-0763",
+    "BPR-0764",
+    "BPR-0765",
+    "BPR-0766",
+    "BPR-0767",
+    "BPR-0768",
+    "BPR-0769"
+  ],
+  "reserve_for": "dif-integration-import",
+  "purpose": "Import bpr-dif-integration-v1 authored cards",
+  "created": "2026-09-13T17:38:11.144739+00:00",
+  "base": "86e71a81b8a6903d82299e7a440ad8811f5aa865"
+}
