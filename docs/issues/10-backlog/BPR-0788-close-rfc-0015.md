@@ -75,9 +75,17 @@ under the no-token, no-shell and no-global-auth-change constraints. A public
 `build/rfc0015-d2-gh-pr-diff-feasibility.json`), but a patch command is not
 the application's current Git-object transport and has not been composed as
 a selected-diff source. Preserve the full-diff limitation in the account
-warning. The representative fixture read probe is being assessed separately;
-do not mark BPR-0785 or an exit passed from the Git Smart 401 or a successful
-CLI command alone.
+warning. A d2 tests-disabled fixture attempt reached fake `gh --version` and
+`gh api user`. After correcting the fixture's Core rate-limit headers, the
+viewer was accepted, but capability discovery refused the fixture's
+review-thread response because it lacked the exact split capability shape;
+no PR request or render followed. The process-failure and malformed-response
+negative courses refused the account and shut down cleanly. This is a fixture
+gap, not positive public-path evidence. The auto-consent release probe was not
+retained because it did not pass and would add an unattended opt-in path to
+the product image. Only sanitized failure facts remain in ignored
+`build/rfc0015-d2-cli-public-probe-attempt.json`. Do not mark BPR-0785 or an
+exit passed from the Git Smart 401 or a successful CLI command alone.
 
 The d2 GraphQL correction preserves typed `RATE_LIMITED` cause, retry and
 numeric rate metadata from a completed nonzero HTTP-200 CLI response while
