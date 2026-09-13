@@ -72,18 +72,71 @@ def record_operation(directory, operation):
         with (directory / "calls.jsonl").open("a") as output:
             output.write(record)
     except PermissionError:
-        # Production sandbox may deny fixture trace writes. Its ordinary
-        # bounded stderr remains structural; never impair the response.
-        sys.stderr.write(record)
+        # Successful version/API requests require empty stderr. A denied
+        # optional trace must not change the production response contract.
+        pass
+
+
+def clone_fixture(directory, fixture, args):
+    """Materialize only the closed production clone command, using local Git."""
+    if len(args) != 18:
+        return 64
+    destination = Path(args[3])
+    root = destination.parent
+    template = root / "empty"
+    oid = args[8].removeprefix("--revision=")
+    expected = ["repo", "clone", "https://github.com/octo-org/review-repository.git",
+                str(destination), "--no-upstream", "--", "--bare", "--quiet",
+                "--revision=" + oid, "--template=" + str(template),
+                "--config", "transfer.unpackLimit=0", "--config", "fetch.unpackLimit=0",
+                "--config", "core.hooksPath=/dev/null", "--config", "core.fsmonitor=false"]
+    if args != expected or oid not in (fixture["base"], fixture["head"]):
+        return 64
+    if (not destination.is_absolute() or root.resolve() != root
+            or root.parent != (Path("/private/tmp") if sys.platform == "darwin" else Path("/tmp"))
+            or not re.fullmatch(r"bpr-cli-git-[A-Za-z0-9-]+", root.name)
+            or destination.name not in ("clone-0.git", "clone-1.git")
+            or destination.exists() or destination.is_symlink()
+            or not root.is_dir() or root.stat().st_uid != os.getuid()
+            or root.stat().st_mode & 0o077
+            or template.is_symlink() or not template.is_dir()
+            or any(template.iterdir())):
+        return 64
+    record_operation(directory, "clone-base" if oid == fixture["base"] else "clone-head")
+    if fixture["course"] != "positive":
+        return 1
+    # An explicitly local fixture capability: no ambient credential/config
+    # environment reaches Git, and only the file protocol is enabled.
+    environment = {"PATH": "/usr/bin:/bin", "HOME": str(directory / "home"),
+                   "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null",
+                   "GIT_ATTR_NOSYSTEM": "1", "GIT_TERMINAL_PROMPT": "0",
+                   "GIT_ALLOW_PROTOCOL": "file"}
+    commands = [
+        ["init", "--bare", "--quiet", "--template=" + str(template), str(destination)],
+        ["--git-dir", str(destination), "-c", "fetch.unpackLimit=0",
+         "-c", "core.hooksPath=/dev/null", "fetch", "--quiet", "--no-tags",
+         "--no-write-fetch-head", str(directory / "repository.git"), oid],
+        ["--git-dir", str(destination), "update-ref", "--no-deref", "HEAD", oid],
+    ]
+    try:
+        for command in commands:
+            subprocess.run(["/usr/bin/git", *command], env=environment,
+                           stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL, timeout=10, check=True)
+    except (subprocess.SubprocessError, OSError):
+        return 1
+    return 0
 
 
 def fake_gh():
     directory = Path(__file__).resolve().parents[1]
     fixture = json.loads((directory / "fixture.json").read_text())
     args = sys.argv[1:]
+    if args[:2] == ["repo", "clone"]:
+        return clone_fixture(directory, fixture, args)
     if args == ["--version"]:
         record_operation(directory, "version")
-        print("gh version 2.96.0 (synthetic local fixture)")
+        print("gh version 2.100.0 (synthetic local fixture)")
         return 0
     if len(args) < 7 or args[0] != "api" or args[2:7] not in (
             ["--hostname", "github.com", "--include", "--method", "GET"],

@@ -2,15 +2,76 @@
 """Verify external fixture framing, split routing, refusal, and object identity."""
 
 import json
+import os
+import secrets
+import shutil
+import sys
 from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
+from contextlib import redirect_stderr
+import io
 
 import rfc0015_cli_read_fixture as fixture
 
 
 class cli_read_fixture_tests(unittest.TestCase):
+    def test_denied_optional_trace_preserves_empty_stderr(self):
+        output = io.StringIO()
+        with patch.object(Path, "open", side_effect=PermissionError), redirect_stderr(output):
+            fixture.record_operation(Path("/unused"), "version")
+        self.assertEqual(output.getvalue(), "")
+
+    def test_closed_local_clone_and_canary(self):
+        with tempfile.TemporaryDirectory(prefix="bpr-cli-fixture-") as temporary:
+            directory = Path(temporary).resolve() / "positive"
+            fixture.prepare(directory, "positive")
+            state = json.loads((directory / "fixture.json").read_text())
+            root = (Path("/private/tmp") if sys.platform == "darwin" else Path("/tmp")) / ("bpr-cli-git-" + secrets.token_hex(8))
+            root.mkdir(mode=0o700)
+            self.addCleanup(shutil.rmtree, root)
+            (root / "empty").mkdir()
+            canary = secrets.token_hex(32)
+            environment = dict(os.environ, GH_TOKEN=canary)
+            outputs = []
+            for index, oid in enumerate((state["base"], state["head"])):
+                destination = root / f"clone-{index}.git"
+                args = [str(directory / "bin/gh"), "repo", "clone",
+                        "https://github.com/octo-org/review-repository.git",
+                        str(destination), "--no-upstream", "--", "--bare", "--quiet",
+                        "--revision=" + oid, "--template=" + str(root / "empty"),
+                        "--config", "transfer.unpackLimit=0", "--config", "fetch.unpackLimit=0",
+                        "--config", "core.hooksPath=/dev/null", "--config", "core.fsmonitor=false"]
+                for position, replacement in ((3, "https://other.invalid/repo.git"),
+                                               (9, "--revision=" + "0" * 40),
+                                               (4, str(root / "escape.git")),
+                                               (18, "core.fsmonitor=true")):
+                    invalid = args.copy()
+                    invalid[position] = replacement
+                    result = subprocess.run(invalid, env=environment, capture_output=True, timeout=5)
+                    self.assertEqual(result.returncode, 64)
+                    self.assertFalse(destination.exists())
+                    outputs.append(result.stdout + result.stderr)
+                result = subprocess.run(args, env=environment, capture_output=True, timeout=15)
+                self.assertEqual(result.returncode, 0)
+                outputs.append(result.stdout + result.stderr)
+                head = subprocess.check_output(["/usr/bin/git", "--git-dir", str(destination),
+                                                "rev-parse", "HEAD"]).decode().strip()
+                self.assertEqual(head, oid)
+                subprocess.run(["/usr/bin/git", "--git-dir", str(destination),
+                                "cat-file", "-e", oid + ":review.cpp"], check=True)
+                self.assertEqual(subprocess.run(args, capture_output=True, timeout=5).returncode, 64)
+            needle = canary.encode()
+            for output in outputs:
+                self.assertNotIn(needle, output)
+            for tree in (directory, root):
+                for path in tree.rglob("*"):
+                    if path.is_file():
+                        self.assertNotIn(needle, path.read_bytes())
+            self.assertNotIn(needle, Path(fixture.__file__).read_bytes())
+
     def test_courses_and_exact_objects(self):
         with tempfile.TemporaryDirectory(prefix="bpr-cli-fixture-") as temporary:
             for course in ("positive", "missing-process", "process-failure", "malformed-response"):
@@ -21,6 +82,11 @@ class cli_read_fixture_tests(unittest.TestCase):
                     continue
                 command = [str(directory / "bin/gh"), "api", "user", "--hostname",
                            "github.com", "--include", "--method", "GET"]
+                version = subprocess.run([str(directory / "bin/gh"), "--version"],
+                                         capture_output=True, timeout=5)
+                self.assertEqual(version.returncode, 0)
+                self.assertEqual(version.stdout,
+                                 b"gh version 2.100.0 (synthetic local fixture)\n")
                 result = subprocess.run(command, capture_output=True, timeout=5)
                 if course == "process-failure":
                     self.assertEqual(result.returncode, 1)

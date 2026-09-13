@@ -40,10 +40,16 @@ Prepare separate directories with `--course missing-process`,
 at the CLI boundary; they do **not** remove an adapter from the compiled graph,
 and therefore do not satisfy the adapter-removal acceptance criterion.
 
-The Git operation is deliberately unavailable until the production bridge's
-exact argv and disk-repository-to-Smart-v2 interface are specified. The local
-`repository.git` has `refs/heads/main` and `refs/pull/17/head` ready for that
-interface. No rendered-diff acceptance is claimed by this subset.
+The fake CLI accepts only the production `gh repo clone` command for
+`https://github.com/octo-org/review-repository.git`, the known base or head OID,
+and the exact closed flag list including empty templates and disabled hooks
+and fsmonitor. Destinations must be new `clone-0.git` or `clone-1.git` directories
+inside an owner-private canonical `/private/tmp/bpr-cli-git-*` root on macOS.
+It uses local Git with only the file protocol enabled to fetch the exact commit
+from prepared `repository.git`, then sets HEAD to that OID. No network, shell,
+credential helper, or ambient Git configuration is used by this fixture.
+The fixture is ready for a post-bridge tests-disabled render attempt; its unit
+test and earlier metadata UI evidence do not establish full-diff acceptance.
 
 Focused check:
 
@@ -51,7 +57,7 @@ Focused check:
 PYTHONDONTWRITEBYTECODE=1 python3 /Users/jaeger/Documents/GitHub/BetterPullReview/tests/end_to_end/rfc0015_cli_read_fixture_tests.py
 ```
 
-When the production sandbox denies trace-file writes, the fake CLI emits
-structural operation names on bounded stderr and continues. The app may discard
-that stderr, so a missing call log is not a zero-launch verdict. Keep the visible
+When the production sandbox denies trace-file writes, the fake CLI silently
+skips its optional trace and continues. Successful version/API requests require
+empty stderr, so a missing call log is not a zero-launch verdict. Keep the visible
 UI observations primary; do not relax the sandbox for fixture logging.
