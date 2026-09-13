@@ -43,9 +43,21 @@ owner verdict have direct passing evidence; rows 3 and 8 have partial evidence,
 and rows 2 and 4–7 still need direct checks. RFC-BPR-0029 therefore remains
 Accepted, with canonical predecessor RFC-BPR-0008 still Proposed. RFC-BPR-0028
 and RFC-BPR-0018 remain open; no closeout is inferred from the v011 verdict.
-The next bounded objective is the missing RFC-BPR-0029 direct checks or a
-path-preserving board migration for BPR-0646 and BPR-0729. No source/build
-writer, review host or child agent remains active.
+The audit is committed at `cb6ed0c7`; the v011 candidate protection was
+released at session sequence 375 after its decision was recorded. All nine
+authored milestone cards have consumed owner verdicts: eight are Done and
+[[BPR-0646]] is all-pass in Backlog solely because the protected-link guard
+blocks its move. The four bound exits are not all established: digest-bound
+candidate pages and preparation occurred incrementally across historical
+bundles, the d26 pack integration and d28 focused/public-path checks passed,
+but no single current-head pass proves the literal combined exit 2; exit 4's
+Done-or-exact-remaining-ask wording is not met by an all-pass card whose board
+move is blocked. This milestone remains partial rather than being relabeled
+complete. The next bounded objective is a path-preserving board migration
+for BPR-0646 and BPR-0729, or the missing RFC-BPR-0029 direct checks under a
+renewed independent scope. No source/build writer, review host or child agent
+remains active. Local commits are ahead of origin and remain unpushed
+because the tracker and RFC closeouts are unfinished.
 
 ## Current frontier, 2026-09-12 (d28, mandate r19): historical comparison in progress
 
