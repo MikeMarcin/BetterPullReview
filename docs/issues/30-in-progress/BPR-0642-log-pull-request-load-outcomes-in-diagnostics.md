@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0642"
 title: "Log pull request load outcomes in diagnostics"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0027"]
 depends_on: []
 priority: "P2"
