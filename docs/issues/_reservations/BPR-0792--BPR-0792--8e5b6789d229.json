@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0792"
+  ],
+  "reserve_for": "bpr0643-r2-d8",
+  "purpose": "rfc0013-large-pr-commit-cap",
+  "created": "2026-09-13T23:51:05.600646+00:00",
+  "base": "26f1c22e4a775b1ef4066b705cfbafa1be2b9280"
+}
