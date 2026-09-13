@@ -41,11 +41,30 @@ their separate rebuilt candidate attempts and do not explain this later one.
 An `rfc-worker-deep` owns bounded offline diagnosis and repair of the
 relationship failure in application/GitHub/core source and focused tests;
 the integrator owns live-product verification, this closeout, BPR-0643
-re-adjudication and commits. The exact live app is user-owned and remains
-running; no task process has been stopped. No new live target request or PR
-mutation has occurred in d2. Pending: isolate the failing relationship,
-verify a corrected tests-disabled Mac candidate through the exact read-only
-product path, and reconcile BPR-0643's acceptance and known limit truthfully.
+re-adjudication and commits. The originally observed app was user-owned;
+its window and account state were captured outside the checkout before it
+was closed. No PR mutation has occurred in d2. The
+diagnostic candidate preserves `failure=invalid_relationship` and adds a
+fixed metadata-only `relationship_detail` for each validating invariant;
+four focused offline courses pass. The rebuilt tests-disabled ad-hoc bundle
+showed `MikeMarcin` but its read-only attempt again stopped at
+`permission`/`GetRepository`, before validation. Its two-line log is outside
+the checkout at `~/Library/Application Support/BetterPullReview/BPR-0643-evidence-2026-09-13/attempt-5-ad-hoc-diagnostics.log`
+(SHA-256 `e40beba3e3ddb031f94f85c2f157ad0b86c76acd234100e5769cb99bb700e969`).
+The original `build/app-release` bundle was Developer ID signed; its 10:39
+binary and signature were preserved as `app-release-pre-d2.app` beside the
+logs. The rebuilt bundle retains that configured signing identity and passes
+`codesign --verify --deep --strict`, but its new read-only attempt under
+`MikeMarcin` also stopped at `permission`/`GetRepository`. That exact log is
+`attempt-6-signed-rebuild-diagnostics.log` beside the others (SHA-256
+`1658fef5fe85b90d8ee8f1b690bf1a0df8ab2618020785a73b25bf7e114b4a8c`).
+The archived old binary did not restore a usable product window from its
+evidence location and was stopped. The source or grant of the access change
+is unknown. The pre-rebuild UI showed a renewing, remembered `MikeMarcin`
+device grant, so session-only manual-token use is not established. The worker
+is comparing fixed relationship facts through exact-target authorized
+read-only CLI queries, with no raw PR content retained. Pending: isolate a
+safe correction or explicit limit and reconcile BPR-0643 truthfully.
 The unrelated `.gitignore` and `.mask.json` edits remain outside scope.
 
 ## Current frontier — bpr0643-r1 / d1 / mandate r2
