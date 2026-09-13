@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0643"
 title: "Load the retained stress-test pull request"
-status: "Parked"
+status: "Ready"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0642"]
 priority: "P2"
 metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"}}
-parked_on: "human-review"
 ---
 
 # Load the retained stress-test pull request
@@ -65,7 +64,7 @@ pull request from a fork with 9311 commits (GitHub lists only the newest 250),
 inspection against the read model at `50f364b8` found no bound, nullable
 field, status value, duplicate identity or GraphQL error that explains the
 refusal; the observation is on
-[BPR-0641](BPR-0641-enable-normal-inline-publication-for-private-alpha.md).
+[BPR-0641](../40-parked/BPR-0641-enable-normal-inline-publication-for-private-alpha.md).
 
 ## Scope
 
