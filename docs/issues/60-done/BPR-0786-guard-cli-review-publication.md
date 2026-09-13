@@ -13,25 +13,8 @@ acceptance: [{"criterion":"Read opt-in alone cannot publish; each CLI-backed wri
 
 # Publish CLI-backed reviews and comments with explicit write admission
 
-- [x] Read opt-in alone cannot publish; each CLI-backed write gets a fresh confirmation naming host, observed login, repository, PR and operation, with the unresolved account-switch risk.
-- [x] Fixture review and inline-comment actions traverse ordinary draft/Submit review admission, exact target, CLI mutation transport, reconciliation and typed terminal projection.
-- [x] Mismatched account/target refuses before POST; ambiguous attempted writes cannot be retried as a second POST.
-- [x] Token and private response content stay out of arguments, environment, logs, diagnostics, settings, SQLite and evidence.
-- [x] No real PR write occurs without a separately designated safe target.
-
-Accepted for the macOS fixture publication boundary at `df458d30`. The
-tests-disabled app displayed a separate write warning and issued one observed
-`gh api` POST to each exact fixture endpoint. Recovery recorded one durable
-transmission and a terminal receipt for the review and inline comment. The
-whole-review UI returned to its enabled New review action; the inline UI
-displayed `Published PRRC_fixture9002; refreshed 1 comment(s).` Focused
-transport/provider/composition tests cover mismatched identity and target,
-timeout, cancellation, durable pre-POST witness and no second POST after an
-ambiguous attempt. Source and fixture-log inspection found body transport on
-stdin, no token extraction or global `gh` auth change, redacted diagnostics,
-and no synthetic body or raw response in logs. Evidence is in ignored
-`build/rfc0015-r2-d4-publication-evidence.json`,
-`build/rfc0015-r2-d4-final-focused-ctest-2.log`, and
-`build/rfc0015-r2-d4-final-fixture-tests.log`. No live pull request was
-written. The configured account-switch and helper/process risks remain
-disclosed; target-native qualification and RFC-wide evidence remain open.
+- [ ] Read opt-in alone cannot publish; each CLI-backed write gets a fresh confirmation naming host, observed login, repository, PR and operation, with the unresolved account-switch risk.
+- [ ] Fixture review and inline-comment actions traverse ordinary draft/Submit review admission, exact target, CLI mutation transport, reconciliation and typed terminal projection.
+- [ ] Mismatched account/target refuses before POST; ambiguous attempted writes cannot be retried as a second POST.
+- [ ] Token and private response content stay out of arguments, environment, logs, diagnostics, settings, SQLite and evidence.
+- [ ] No real PR write occurs without a separately designated safe target.
