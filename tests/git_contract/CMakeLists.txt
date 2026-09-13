@@ -127,6 +127,11 @@ set_tests_properties(
         TIMEOUT 600
 )
 
+bpr_add_executable(test_better_pull_review_migrated_binding_agent migrated_binding_agent_fixture.cpp)
+target_link_libraries(test_better_pull_review_migrated_binding_agent PRIVATE BetterPullReview::AdapterMcp)
+bpr_enable_hardening(test_better_pull_review_migrated_binding_agent)
+bpr_enable_warnings(test_better_pull_review_migrated_binding_agent)
+
 bpr_add_executable(
     test_better_pull_review_epoch_maintenance_integration_tests
     epoch_maintenance_integration_tests.cpp
@@ -138,6 +143,7 @@ target_link_libraries(
         BetterPullReview::AdapterSQLite
         BetterPullReview::SQLite3
         BetterPullReview::AdapterMcp
+        BetterPullReview::AdapterAgent
         Qt6::Core
         Threads::Threads
 )
@@ -145,8 +151,10 @@ target_compile_definitions(
     test_better_pull_review_epoch_maintenance_integration_tests
     PRIVATE
         BPR_SQLITE_TESTING=1
+        BPR_MIGRATED_BINDING_AGENT_EXECUTABLE="$<TARGET_FILE:test_better_pull_review_migrated_binding_agent>"
         BPR_TEST_GIT_EXECUTABLE="$<TARGET_FILE:Git::Git>"
 )
+add_dependencies(test_better_pull_review_epoch_maintenance_integration_tests test_better_pull_review_migrated_binding_agent)
 if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_definitions(
         test_better_pull_review_epoch_maintenance_integration_tests

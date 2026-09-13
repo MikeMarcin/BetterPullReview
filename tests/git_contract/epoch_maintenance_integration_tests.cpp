@@ -1,4 +1,5 @@
 #include "../sqlite_contract/epoch_catalog_legacy_fixture.hpp"
+#include "bpr/adapters/agent/agent_process_launcher.hpp"
 #include "bpr/adapters/git/installed_git_cache.hpp"
 #include "bpr/adapters/mcp/mcp_context_helper.hpp"
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
@@ -959,11 +960,37 @@ namespace {
 		require(encoded.find("left_epoch\t" + std::to_string(aBinding.LeftEpoch.value()) + "\n") != std::string::npos
 					&& encoded.find("right_epoch\t" + std::to_string(aBinding.RightEpoch.value()) + "\n") != std::string::npos,
 				"agent launch context encoding preserves original epoch references");
-		const auto launch = application::build_agent_launch(
-			{ .Id = core::agent_profile_id{ 1U }, .DisplayName = "Migration fixture", .Executable = "/fixture/agent", .Protocol = core::agent_protocol::external_terminal, .Workspace = core::agent_workspace_policy::disposable_review_workspace },
+		const core::agent_profile profile{ .Id = core::agent_profile_id{ 1U }, .DisplayName = "Migration fixture", .Executable = BPR_MIGRATED_BINDING_AGENT_EXECUTABLE, .Protocol = core::agent_protocol::external_terminal, .Workspace = core::agent_workspace_policy::disposable_review_workspace };
+		auto                      launch = application::build_agent_launch(
+			profile,
 			*supplement, [](const std::string&) -> std::optional<std::string> { return std::nullopt; });
 		require(launch && launch->Input.find(encoded) != std::string::npos,
 				"production launch request frames unchanged original epoch context");
+		launch->WorkingDirectory = std::filesystem::canonical(aRoot).string();
+		require(launch->Environment.empty(), "migration agent receives no inherited environment or credentials");
+		bpr::adapters::agent::agent_process_launcher process;
+		const auto                                   result  = process.run(*launch, 10000);
+		const auto                                   receipt = "consumed " + std::to_string(aBinding.Host.value())
+			+ " " + std::to_string(aBinding.Repository.value()) + " " + std::to_string(aBinding.PullRequest.value())
+			+ " " + std::to_string(aBinding.LeftEpoch.value()) + " " + std::to_string(aBinding.RightEpoch.value())
+			+ " " + std::string{ core::canonical_hex(aBinding.BaseOid).view() }
+			+ " " + std::string{ core::canonical_hex(aBinding.HeadOid).view() };
+		require(result.Outcome == application::agent_run_outcome::success && result.ExitCode == 0
+					&& result.Session == launch->Session && result.StandardError.empty()
+					&& result.Events.size() == 1U && result.Events.front().Session == launch->Session
+					&& result.Events.front().Text == receipt,
+				"production agent process consumes exact migrated old ordinals, authority and OIDs from stdin");
+		auto staleSupplement            = *supplement;
+		staleSupplement.Session.Binding = stale;
+		auto staleLaunch                = application::build_agent_launch(profile, staleSupplement,
+																		  [](const std::string&) -> std::optional<std::string> { return std::nullopt; });
+		require(staleLaunch.has_value(), "negative process course frames changed epoch reference");
+		staleLaunch->WorkingDirectory = launch->WorkingDirectory;
+		const auto staleResult        = process.run(*staleLaunch, 10000);
+		require(staleResult.Outcome == application::agent_run_outcome::nonzero_exit
+					&& staleResult.ExitCode == EXIT_FAILURE && staleResult.Events.empty()
+					&& staleResult.StandardError == "migration binding rejected\n",
+				"actual agent child rejects a changed ordinal against the frozen pre-migration binding");
 	}
 
 	void verify_real_migrated_retained_refs()
