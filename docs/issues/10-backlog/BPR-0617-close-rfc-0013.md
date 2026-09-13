@@ -11,7 +11,40 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/pla
 
 # Verify and close RFC-BPR-0013
 
-## Current frontier — bpr0643-r1 / d2 / mandate r4
+## Current frontier — bpr0643-r1 / d3 / mandate r5
+
+The renewed `retained-stress-pr-read` correction is bound by
+`docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-bpr0643-r1-d3-r5.json`;
+its definition and obligation fingerprints match d2. In wizard
+`bpr0643-reconnect`, the owner acknowledged the manual device reconnect at
+revision 1. The agent's revision-2 observation then saw `MikeMarcin`
+connected in the final Developer ID signed `build/app-release` product, but
+one exact read-only `EpicGames/UnrealEngine#1773` Open again ended
+`permission`/`GetRepository` (request 1/window session 16). The session panel
+named the current GitHub sign-in's missing read permission. Its exact
+two-line metadata-only log is outside the checkout as
+`~/Library/Application Support/BetterPullReview/BPR-0643-evidence-2026-09-13/attempt-8-reconnect-diagnostics.log`
+(SHA-256 `9d41955ce9521f34e37878d9221c9fe6cf321475e851d0f1dcafcbeefac20664`).
+No file list or selected diff was reached. The original later
+`invalid_relationship` invariant still cannot be diagnosed from this product
+grant, and neither the d1 acceptance nor the d2 bounded search change proves
+it solved.
+
+The acknowledged device reconnect did not grant this app repository read access.
+The owner's next product-controlled route is to enter, directly in the app,
+a manual token they can establish has access to this exact repository. That
+replaces the remembered device grant with a session-only credential, so the
+current connected session should be preserved until the owner chooses that
+action. The product cannot silently adopt the CLI credential. A follow-up
+would verify the actual product account and one exact read-only Open, inspect
+only metadata-only failure/page/`relationship_detail` and whether the file
+list and selected diff render, and repair only a demonstrated invariant
+issue. No further source change is justified by this permission refusal.
+No live PR write, credential exposure or private PR content retention
+occurred in d3. The unrelated `.gitignore` and `.mask.json` edits remain
+outside scope.
+
+## Previous frontier — bpr0643-r1 / d2 / mandate r4
 
 The owner reported a different live BPR-0643 refusal than d1's accepted
 permission attempt. D2 is bound to `retained-stress-pr-read` by

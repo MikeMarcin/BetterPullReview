@@ -12,7 +12,36 @@ acceptance: [{"criterion":"The diagnostics log names the failure class for this 
 
 # Load the retained stress-test pull request
 
-## Current correction frontier — bpr0643-r1 / d2 / mandate r4
+## Current correction frontier — bpr0643-r1 / d3 / mandate r5
+
+The owner completed the new `bpr0643-reconnect` wizard's manual device
+reconnection step; its human acknowledgement is revision 1. At revision 2,
+the agent recorded the observed result: the final signed Mac app showed
+`MikeMarcin` connected on GitHub.com Native HTTPS, but one exact read-only
+Open of `EpicGames/UnrealEngine#1773` again stopped at
+`permission`/`GetRepository` (request 1/window session 16). The session panel
+said `This GitHub sign-in does not have permission to read this pull request.`
+The appended two-line metadata-only log is retained only outside the checkout
+as `~/Library/Application Support/BetterPullReview/BPR-0643-evidence-2026-09-13/attempt-8-reconnect-diagnostics.log`
+(SHA-256 `9d41955ce9521f34e37878d9221c9fe6cf321475e851d0f1dcafcbeefac20664`).
+No file list or selected diff was reached, and the original
+`invalid_relationship` invariant remains unreproduced on the current grant.
+
+The acknowledged reconnect did not restore repository read access. The
+product supports an owner-entered manual token on GitHub.com; that session is
+ephemeral, and replacing the device grant removes the prior grant. A token
+the owner can establish has access to this exact repository is the next
+product-controlled route to test. The owner must enter it directly in the
+app, not in the wizard, chat or checkout. Its access is not assumed from the
+separate CLI credential. Preserve the current connected product session until
+the owner chooses that replacement. Once product read access is observed,
+retry this target read-only and use any fixed `relationship_detail` to
+diagnose a reproduced validation failure. No live write, credential reading,
+or private PR content retention occurred in d3. The Done acceptance records
+above remain the historical d1 outcome, not a claim that this later reported
+failure is solved.
+
+## Previous correction frontier — bpr0643-r1 / d2 / mandate r4
 
 The owner's later UI report was accurate for a distinct signed Mac app
 attempt. The running `build/app-release` window showed `MikeMarcin` connected
