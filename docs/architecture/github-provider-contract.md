@@ -114,9 +114,14 @@ API snapshot, not fresh remote advertisement. A tests-disabled macOS fixture
 now renders a full PR diff through the CLI profile; an isolated build with
 the process adapter removed from composition visibly refuses the same healthy
 fixture. Native HTTPS helper exchange and Keychain backend behavior remain
-unverified. CLI publishing remains unavailable. Windows and Linux remain
-unavailable; publication and target-native qualification remain pending under
-BPR-0788.
+unverified. On macOS, the opted-in CLI profile now routes whole-review and
+right-side inline-comment publication through the existing mutation admission,
+a separate exact-host/account/PR/operation confirmation for each write, and
+server reconciliation. The configured gh account may still change between
+checks; an ambiguous attempted write is not posted twice. Fixture actions
+exercise this path; no live PR was written. Windows and Linux remain
+unavailable, and target-native qualification and closeout remain pending
+under BPR-0787/BPR-0788.
 
 BetterPullReview does not extract or copy CLI tokens or change global CLI
 authentication. Opt-in trusts the machine's configured executable, configuration,
@@ -582,9 +587,9 @@ invalidation revokes the lease before old-authority epoch work can publish.
 Shutdown does the same before native transport and credential teardown.
 Revocation rejects new calls, attempts bounded cancellation of admitted work,
 and preserves one typed terminal with the complete original context for every
-normally accepted submission. CLI profiles expose no native smart-HTTPS Git-object lease. The in-progress
-CLI provider lease authorizes REST/GraphQL reads only; CLI Git-object
-transport remains unavailable.
+normally accepted submission. CLI profiles expose no native smart-HTTPS Git-object lease. Their opted-in
+macOS path uses a separate supervised gh Git-object bridge for reads and a
+separately confirmed mutation lease for review/comment publication.
 
 An app-owned minimal protocol-v2 client, not installed Git, constructs the
 closed `ls-refs` and `fetch` requests for the validated accepted base and

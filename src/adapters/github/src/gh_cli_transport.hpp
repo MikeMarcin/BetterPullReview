@@ -4,6 +4,7 @@
 #include "bpr/application/git_smart_transport_port.hpp"
 #include "github_cli_process.hpp"
 #include "github_host_profile.hpp"
+#include "github_mutation_contract.hpp"
 #include "github_wire_transport.hpp"
 
 #include <array>
@@ -185,7 +186,7 @@ namespace bpr::adapters::github::detail {
 		numeric_process_identity_reuse_unverifiable,
 	};
 
-	class gh_cli_transport final : public github_wire_transport_port
+	class gh_cli_transport final : public github_wire_transport_port, public github_mutation_wire_transport
 	{
 	public:
 		gh_cli_transport(
@@ -203,6 +204,11 @@ namespace bpr::adapters::github::detail {
 		[[nodiscard]] auto perform_capability_probe(
 			const github_capability_probe_wire_request& aRequest,
 			std::stop_token                             aStop) -> github_capability_probe_wire_completion override;
+
+		[[nodiscard]] auto perform_review_mutation(
+			const github_mutation_wire_request& aRequest, std::stop_token aStop,
+			github_mutation_transmission_witness aWitness)
+			-> github_mutation_wire_completion override;
 
 		[[nodiscard]] auto configuration_unchanged() const -> bool;
 

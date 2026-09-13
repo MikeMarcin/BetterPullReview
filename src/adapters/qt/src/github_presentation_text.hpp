@@ -99,7 +99,7 @@ namespace bpr::qt::detail {
 				   "On macOS, CLI file writes are denied; an older gh configuration that needs migration will be refused. "
 				   "Full diffs may run Git and gh's own shell credential helper as child processes; their executable, configuration and account-switch races remain. "
 				   "Full comparison currently requires gh 2.100.0 and Apple Git 2.50.1, with a 32 MiB per-file Git limit and supervised temporary-store cutoff. "
-				   "Publishing through gh is not available yet. "
+				   "Publishing a review or inline comment requires a separate exact-target confirmation for each write. "
 				   "Read opt-in does not authorize publishing.")
 			.arg(aHostname);
 	}

@@ -1353,6 +1353,106 @@ namespace bpr::adapters::github::detail {
 		}
 		return github_wire_success{ .Correlation = aRequest.Correlation, .Response = std::move(*response) };
 	}
+	auto gh_cli_transport::perform_review_mutation(
+		const github_mutation_wire_request& aRequest, const std::stop_token aStop,
+		github_mutation_transmission_witness aWitness) -> github_mutation_wire_completion
+	{
+		using transmission = github_mutation_transmission;
+		if (aStop.stop_requested()) {
+			return github_mutation_wire_cancelled{ };
+		}
+		const auto& authority = aRequest.Context.Authority;
+		if (Profile.authentication_transport() != application::github_authentication_transport::github_cli
+			|| !application::valid(aRequest.Context) || authority.Profile != Profile.profile()
+			|| authority.ProfileRevision != Profile.revision() || authority.Host != Profile.host()
+			|| authority.Hostname != application::github_canonical_hostname{ Profile.hostname() }
+			|| authority.ServerContract != Profile.server_contract() || aRequest.Wire.Server != Profile.server_contract()
+			|| !validate_outbound_review_mutation_request(aRequest.Wire) || !configuration_unchanged()) {
+			return github_mutation_wire_error{ };
+		}
+		const auto correlated = std::visit([&](const auto& aSemantic) {
+			using semantic_type      = std::remove_cvref_t<decltype(aSemantic)>;
+			const auto targetMatches = [&](const application::review_mutation_target_binding& aTarget) {
+				return aTarget.Semantic.Host == authority.Host && aTarget.Hostname == authority.Hostname
+					&& aTarget.ServerContract == authority.ServerContract;
+			};
+			if constexpr (std::same_as<semantic_type, application::review_mutation_target_binding>) {
+				return targetMatches(aSemantic);
+			} else if constexpr (std::same_as<semantic_type, application::review_mutation_acting_identity>) {
+				return aSemantic.Account == authority.Account;
+			} else if constexpr (std::same_as<semantic_type, review_submission_request>) {
+				return targetMatches(aSemantic.Target) && aSemantic.ActingIdentity.Account == authority.Account;
+			} else if constexpr (std::same_as<semantic_type, application::review_mutation_request>) {
+				return aSemantic.LiveBinding && targetMatches(aSemantic.LiveBinding->Target)
+					&& aSemantic.ActingIdentity == authority.Account;
+			} else {
+				return false;
+			}
+		},
+										   aRequest.Wire.Semantic);
+		// The CLI publication milestone admits REST review and inline-comment shapes only.
+		if (!correlated || aRequest.Wire.Operation == review_mutation_operation::reply_review_thread
+			|| aRequest.Wire.Operation == review_mutation_operation::resolve_review_thread
+			|| aRequest.Wire.Operation == review_mutation_operation::unresolve_review_thread) {
+			return github_mutation_wire_error{ };
+		}
+		const auto prefix = Profile.server_contract() == application::github_server_contract::github_com_2022_11_28
+			? std::string_view{ "/" }
+			: std::string_view{ "/api/v3/" };
+		if (!aRequest.Wire.Path.starts_with(prefix)) {
+			return github_mutation_wire_error{ };
+		}
+		const auto endpoint = aRequest.Wire.Path.substr(prefix.size());
+		if (!safe_relative_endpoint(endpoint)) {
+			return github_mutation_wire_error{ };
+		}
+		const bool                 post = aRequest.Wire.Method == http_method::post;
+		github_cli_process_request invocation{
+			.Executable              = path_bytes(Configuration.Executable),
+			.Arguments               = { "api", endpoint, "--hostname", std::string{ Profile.hostname() }, "--include", "--method", post ? "POST" : "GET" },
+			.Environment             = Configuration.Environment,
+			.WorkingDirectory        = path_bytes(Configuration.NeutralWorkingDirectory),
+			.StandardInput           = aRequest.Wire.Body,
+			.StandardInputLimit      = maximum_review_mutation_body_bytes,
+			.StandardOutputLimit     = maximum_review_mutation_response_bytes + 32U * 1024U,
+			.StandardErrorLimit      = maximum_standard_error_bytes,
+			.Timeout                 = process_timeout,
+			.ReapTimeout             = process_reap_timeout,
+			.PreserveCompletedOutput = true,
+		};
+		for (const auto& header : aRequest.Wire.Headers) {
+			invocation.Arguments.emplace_back("--header");
+			invocation.Arguments.emplace_back(header.Name + ": " + header.Value);
+		}
+		if (post) {
+			invocation.Arguments.emplace_back("--input");
+			invocation.Arguments.emplace_back("-");
+		}
+		if (aStop.stop_requested()) {
+			return github_mutation_wire_cancelled{ };
+		}
+		// Persist possible transmission before launch. Even launch failure is treated
+		// conservatively; no caller may repeat an ambiguous POST.
+		if (post && (!aWitness || !aWitness())) {
+			return github_mutation_wire_error{ };
+		}
+		const auto sent   = post ? transmission::indeterminate : transmission::definitely_not_sent;
+		const auto result = Process.run(constrain_gh_writes(std::move(invocation)), aStop);
+		if (aStop.stop_requested() || (!result && result.error() == github_cli_process_failure::cancelled)) {
+			return github_mutation_wire_cancelled{ .Transmission = sent };
+		}
+		if (!result || !configuration_unchanged()) {
+			return github_mutation_wire_error{ .Transmission = sent };
+		}
+		auto response = parse_cli_response(result->StandardOutput);
+		if (!response || response->Body.size() > maximum_review_mutation_response_bytes
+			|| (result->ExitCode != 0 && response->Status < 300)) {
+			return github_mutation_wire_error{ .Transmission = sent };
+		}
+		return github_mutation_wire_success{ .Response = {
+												 .Status = response->Status, .Headers = std::move(response->Headers), .Body = std::move(response->Body) } };
+	}
+
 	auto gh_cli_transport::perform_capability_probe(
 		const github_capability_probe_wire_request& aRequest,
 		const std::stop_token                       aStop) -> github_capability_probe_wire_completion

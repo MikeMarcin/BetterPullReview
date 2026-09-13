@@ -657,6 +657,7 @@ namespace bpr::adapters::github::detail {
 		// Observations detect account changes; they cannot contain a concurrent
 		// gh auth switch. A mismatch permanently refuses this observed lease.
 		class cli_observed_account_transport final : public github_wire_transport_port,
+													 public github_mutation_wire_transport,
 													 public application::git_smart_transport_factory_port,
 													 public std::enable_shared_from_this<cli_observed_account_transport>
 		{
@@ -758,6 +759,39 @@ namespace bpr::adapters::github::detail {
 					if (auto error = check(viewer, aStop)) {
 						return github_wire_error{ .Correlation = aRequest.Correlation, .Error = *error };
 					}
+				}
+				return result;
+			}
+
+			auto perform_review_mutation(const github_mutation_wire_request& aRequest, std::stop_token aStop,
+										 github_mutation_transmission_witness aWitness) -> github_mutation_wire_completion override
+			{
+				auto*       inner     = dynamic_cast<github_mutation_wire_transport*>(Transport.get());
+				const auto& session   = std::get<core::github_session_request_context>(Viewer.Correlation.Parent);
+				const auto& authority = aRequest.Context.Authority;
+				if (!inner || !application::valid(aRequest.Context) || authority.Account != Account
+					|| authority.Profile != session.Profile || authority.Host != Viewer.Correlation.Host
+					|| authority.ProfileRevision != Viewer.Correlation.ProfileRevision
+					|| aRequest.Context.ApplicationSession != session.ApplicationSession
+					|| aRequest.Context.IdentityGeneration != session.IdentityGeneration) {
+					return github_mutation_wire_error{ };
+				}
+				if (check(Viewer, aStop)) {
+					return aStop.stop_requested() ? github_mutation_wire_completion{ github_mutation_wire_cancelled{ } }
+												  : github_mutation_wire_completion{ github_mutation_wire_error{ } };
+				}
+				bool attempted = false;
+				auto result    = inner->perform_review_mutation(aRequest, aStop, [&] {
+					if (!aWitness || !aWitness()) {
+						return false;
+					}
+					attempted = true;
+					return true;
+				});
+				if (check(Viewer, aStop)) {
+					const auto sent = attempted ? github_mutation_transmission::indeterminate : github_mutation_transmission::definitely_not_sent;
+					return aStop.stop_requested() ? github_mutation_wire_completion{ github_mutation_wire_cancelled{ .Transmission = sent } }
+												  : github_mutation_wire_completion{ github_mutation_wire_error{ .Transmission = sent } };
 				}
 				return result;
 			}

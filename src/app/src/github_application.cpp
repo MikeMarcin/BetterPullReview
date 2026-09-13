@@ -538,6 +538,7 @@ namespace bpr::app {
 #if defined(__APPLE__)
 		class owned_cli_read_transport final
 			: public adapters::github::detail::github_wire_transport_port,
+			  public adapters::github::detail::github_mutation_wire_transport,
 			  public application::git_smart_transport_factory_port,
 			  public std::enable_shared_from_this<owned_cli_read_transport>
 		{
@@ -577,6 +578,15 @@ namespace bpr::app {
 				-> adapters::github::detail::github_capability_probe_wire_completion override
 			{
 				return Transport.perform_capability_probe(aRequest, aStop);
+			}
+
+			[[nodiscard]] auto perform_review_mutation(
+				const adapters::github::detail::github_mutation_wire_request&  aRequest,
+				std::stop_token                                                aStop,
+				adapters::github::detail::github_mutation_transmission_witness aWitness)
+				-> adapters::github::detail::github_mutation_wire_completion override
+			{
+				return Transport.perform_review_mutation(aRequest, aStop, std::move(aWitness));
 			}
 
 		private:
@@ -5933,7 +5943,15 @@ namespace bpr::app {
 			review_submission_workflow::grant_factory issueReviewGrant = application::detail::review_submission_user_authority_issuer::issue;
 #endif
 			ReviewSubmission = std::make_unique<review_submission_workflow>(ReviewSubmissionEffects, reviewDecisions,
-																			*Window->review_submission_editor_view(), std::move(issueReviewGrant));
+																			*Window->review_submission_editor_view(), std::move(issueReviewGrant),
+																			[this](const application::review_submission_live_binding& aBinding, core::review_disposition aDisposition) {
+																				const auto operation = aDisposition == core::review_disposition::approve
+																					? QStringLiteral("Approve pull request")
+																					: aDisposition == core::review_disposition::request_changes
+																					? QStringLiteral("Request changes")
+																					: QStringLiteral("Submit comment review");
+																				return confirm_cli_publication(aBinding.Target, aBinding.ActingIdentity, operation);
+																			});
 			Window->set_review_submission_dispatch([this](qt::review_submission_editor_intent aIntent) {
 				if (!Closing && ReviewSubmission) {
 					ReviewSubmission->dispatch(std::move(aIntent));
@@ -7518,6 +7536,68 @@ namespace bpr::app {
 				&& aRecord.Authority == aAuthority;
 		}
 
+		[[nodiscard]] auto confirm_cli_publication(
+			application::review_mutation_target_binding  aTarget,
+			application::review_mutation_acting_identity aActor,
+			const QString&                               aOperation) const -> bool
+		{
+			if (!Host || !WindowRead || !Host->accepted_session()
+				|| !WindowRead->accepted_snapshot()) {
+				return false;
+			}
+			const auto* profile = find_profile(Host->accepted_session()->Profile);
+			if (!profile || profile->authentication_transport() != application::github_authentication_transport::github_cli) {
+				return profile != nullptr;
+			}
+			const auto exact_current = [this, &aTarget, &aActor] {
+				if (!Host || !WindowRead || !Host->accepted_session()
+					|| !WindowRead->accepted_snapshot()) {
+					return false;
+				}
+				const auto& session  = *Host->accepted_session();
+				const auto& snapshot = *WindowRead->accepted_snapshot();
+				const auto* selected = find_profile(session.Profile);
+				return selected && selected->authentication_transport() == application::github_authentication_transport::github_cli
+					&& snapshot.Profile == session.Profile && snapshot.Host == session.Host
+					&& session.Viewer.Account == snapshot.Account
+					&& session.Viewer.Account == aActor.Account
+					&& session.Viewer.Login == snapshot.Viewer.Login
+					&& session.Viewer.Login == aActor.Login
+					&& aTarget.Semantic.Host == session.Host
+					&& aTarget.Semantic.Repository == snapshot.Repository.Repository
+					&& aTarget.Semantic.PullRequest == snapshot.PullRequest.PullRequest
+					&& aTarget.Repository.Owner == snapshot.Repository.Owner
+					&& aTarget.Repository.Name == snapshot.Repository.Name
+					&& aTarget.Number == snapshot.PullRequest.Number
+					&& aTarget.Hostname.value() == selected->hostname();
+			};
+			if (!exact_current()) {
+				return false;
+			}
+#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
+			const auto consent = QMessageBox::warning(
+				Window.get(), QStringLiteral("Confirm GitHub CLI publication"),
+				QStringLiteral("%1 on %2 for %3/%4#%5 as %6?\n\n"
+							   "BetterPullReview will use your configured gh account for this write. "
+							   "The active gh account can switch outside this app, even after the identity check. "
+							   "Executable, configuration, certificate, redirect and helper-process behavior remain trusted as configured on this machine. "
+							   "This confirmation applies only to this publication.")
+					.arg(aOperation)
+					.arg(QString::fromStdString(std::string{ aTarget.Hostname.value() }))
+					.arg(QString::fromStdString(aTarget.Repository.Owner))
+					.arg(QString::fromStdString(aTarget.Repository.Name))
+					.arg(aTarget.Number.value())
+					.arg(QString::fromStdString(aActor.Login)),
+				QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
+			return consent == QMessageBox::Yes && exact_current();
+#elif defined(BPR_BUILD_TESTING)
+			static_cast<void>(aOperation);
+			return true;
+#else
+			return false;
+#endif
+		}
+
 		void compose_review_submission(const application::accepted_pull_request_handoff& aHandoff)
 		{
 			if (!ReviewSubmission || !Host || !WindowRead->accepted_snapshot()) {
@@ -7793,7 +7873,9 @@ namespace bpr::app {
 											core::canonical_hex(aHandoff.Head).view()))
 										.arg(QString::fromStdString(WindowRead->accepted_snapshot()->Viewer.Login)));
 			editor->present(ReviewMutationHost->capabilities());
-			Window->set_thread_resolution_provider(ReviewMutationHost->capabilities().ResolvesThreads);
+			const auto* selectedProfile = find_profile(aHandoff.Profile);
+			const auto  cliProfile      = selectedProfile && selectedProfile->authentication_transport() == application::github_authentication_transport::github_cli;
+			Window->set_thread_resolution_provider(ReviewMutationHost->capabilities().ResolvesThreads && !cliProfile);
 		}
 
 		// [[BPR-0657]]. A card's Resolve or Unresolve: the core decides from
@@ -7815,6 +7897,13 @@ namespace bpr::app {
 					panel->present_notice(aText);
 				}
 			};
+			if (Host && Host->accepted_session()) {
+				const auto* selectedProfile = find_profile(Host->accepted_session()->Profile);
+				if (selectedProfile && selectedProfile->authentication_transport() == application::github_authentication_transport::github_cli) {
+					notice(QStringLiteral("Thread resolution is unavailable through the GitHub CLI profile."));
+					return;
+				}
+			}
 			const auto anonymous = Host != nullptr
 				&& std::holds_alternative<core::anonymous_intent_refused>(Host->public_preview_legality(
 					aGesture.Resolve ? core::anonymous_read_intent::resolve_review_thread
@@ -8009,7 +8098,14 @@ namespace bpr::app {
 				return;
 			}
 			const auto& aCommand = aRevisionedCommand.Command;
-			const auto  outcome  = SharedDrafts->apply(DraftConsumer, aRevisionedCommand);
+			if (aCommand.Kind == core::review_draft_command_kind::begin_publish
+				&& (!InlineReviewBinding || !confirm_cli_publication(InlineReviewBinding->Target, InlineReviewBinding->ActingIdentity, QStringLiteral("Publish inline comment")))) {
+				return;
+			}
+			if (Closing || !ReviewDraft || !ReviewMutationHost || !SharedDrafts) {
+				return;
+			}
+			const auto outcome = SharedDrafts->apply(DraftConsumer, aRevisionedCommand);
 			if (outcome.Failure || !outcome.Accepted) {
 				if (outcome.Accepted && outcome.Refusal == core::revisioned_draft_refusal::conflict) {
 					Window->review_editor()->present_conflict({ .Accepted = *outcome.Accepted, .Refusal = outcome.Refusal });
@@ -9195,7 +9291,7 @@ namespace bpr::app {
 									"certificates and executable. For Git objects, gh may launch Git and its own shell credential helper. "
 									"Only gh's default home-directory configuration is used; custom CLI environment overrides are ignored. "
 									"File writes are restricted, but executable identity and external account-change races remain. "
-									"Git-object reads require the qualified gh/Git versions and fit a 32 MiB pack limit. Publishing through gh is unavailable. "
+									"Git-object reads require the qualified gh/Git versions and fit a 32 MiB pack limit. Each publication requires a separate write confirmation. "
 									"Connecting for reads does not authorize publishing.")
 									.arg(QString::fromStdString(std::string{ profile->hostname() })),
 								QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);

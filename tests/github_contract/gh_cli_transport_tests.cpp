@@ -1,3 +1,4 @@
+#include "bpr/application/review_mutation_coordinator.hpp"
 #include "gh_cli_transport.hpp"
 #include "github_paged_read.hpp"
 
@@ -9,6 +10,8 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <map>
+#include <memory>
 #include <optional>
 #include <stop_token>
 #include <string>
@@ -1317,6 +1320,297 @@ namespace {
 		expect(std::get<github_wire_error>(newTransport.perform(request, { })).Error.Failure == application::github_provider_failure::cli_unavailable && process.Calls == 0U, "working directory repository change refuses launch");
 	}
 
+	[[nodiscard]] auto mutation_request_for(
+		const validated_github_host_profile& aProfile)
+		-> github_mutation_wire_request
+	{
+		const auto context = pull_request_parent(aProfile);
+		const auto head    = *core::parse_git_commit_oid(
+			"1111111111111111111111111111111111111111");
+		const auto base = *core::parse_git_commit_oid(
+			"2222222222222222222222222222222222222222");
+		const auto target = application::review_mutation_target_binding{
+			.Semantic = {
+				.Host         = context.Host,
+				.Repository   = *context.ExpectedRepository,
+				.PullRequest  = *context.ExpectedPullRequest,
+				.ExpectedHead = head,
+			},
+			.Hostname                 = application::github_canonical_hostname{ aProfile.hostname() },
+			.ServerContract           = aProfile.server_contract(),
+			.Repository               = context.Repository,
+			.Number                   = context.Number,
+			.RepositoryDatabaseId     = 1'328'277'631U,
+			.RepositoryNodeId         = "R_kgDOTyvofw",
+			.PullRequestDatabaseId    = 4'246'446'933U,
+			.PullRequestNodeId        = "PR_kwDOTyvof879G6NV",
+			.BaseRepositoryDatabaseId = 1'328'277'631U,
+			.BaseOid                  = base,
+			.BaseRef                  = "main",
+			.HeadRef                  = "feature/review",
+			.Open                     = true,
+		};
+		const auto identity = application::review_mutation_acting_identity{
+			.Account    = context.Account,
+			.DatabaseId = 22U,
+			.NodeId     = "MDQ6VXNlcjIy",
+			.Login      = "fixture-reviewer",
+		};
+		const auto proposal = core::review_publication_proposal{
+			.Draft  = core::review_draft_id{ 31U },
+			.Anchor = {
+				.Comparison = core::file_comparison_digest{ std::array<std::uint8_t, 32>{ 0x22U } },
+				.Side       = core::diff_side::right,
+				.Line       = 12U,
+			},
+			.Body        = "Please rename this.",
+			.Disposition = core::review_disposition::comment,
+		};
+		const auto semantic = application::review_mutation_request{
+			.Proposal       = proposal,
+			.Target         = target.Semantic,
+			.ActingIdentity = identity.Account,
+			.IdempotencyKey = application::idempotency_key_for(
+				proposal, target.Semantic),
+			.LiveBinding = application::review_mutation_live_binding{
+				.Target         = target,
+				.ActingIdentity = identity,
+				.Anchor         = {
+					.Semantic = proposal.Anchor,
+					.Path     = "fixture/review.txt",
+					.Commit   = head,
+				},
+			},
+		};
+		const auto wire = compile_review_comment_request(
+			semantic, aProfile.server_contract());
+		expect(wire.has_value(), "fixture-mutation-wire");
+		return {
+			.Context = application::github_credential_operation_context{ .Request = context.Request, .ApplicationSession = context.ApplicationSession, .Authority = { .Profile = aProfile.profile(), .ProfileRevision = aProfile.revision(), .Host = aProfile.host(), .Hostname = application::github_canonical_hostname{ aProfile.hostname() }, .Account = context.Account, .ServerContract = aProfile.server_contract() }, .IdentityGeneration = context.IdentityGeneration },
+			.Wire    = *wire,
+		};
+	}
+
+	struct fake_recovery_state
+	{
+		std::map<std::string, application::review_mutation_recovery_record> Records;
+		bool                                                                RejectTransmissionMark = false;
+	};
+
+	class fake_recovery final : public application::review_mutation_recovery_port
+	{
+	public:
+		explicit fake_recovery(std::shared_ptr<fake_recovery_state> aState)
+			: State{ std::move(aState) }
+		{
+		}
+
+		auto load(const std::string& aKey)
+			-> std::expected<
+				std::optional<application::review_mutation_recovery_record>,
+				application::review_mutation_recovery_failure> override
+		{
+			if (const auto found = State->Records.find(aKey);
+				found != State->Records.end()) {
+				return found->second;
+			}
+			return std::optional<application::review_mutation_recovery_record>{ };
+		}
+
+		auto admit(const application::review_mutation_recovery_record& aRecord)
+			-> std::expected<
+				application::review_mutation_recovery_admission,
+				application::review_mutation_recovery_failure> override
+		{
+			if (const auto found = State->Records.find(aRecord.IdempotencyKey);
+				found != State->Records.end()) {
+				return application::review_mutation_recovery_admission{
+					.Record = found->second,
+				};
+			}
+			State->Records.emplace(aRecord.IdempotencyKey, aRecord);
+			return application::review_mutation_recovery_admission{
+				.Record   = aRecord,
+				.Inserted = true,
+			};
+		}
+
+		auto mark_possibly_transmitted(
+			const std::string&                  aKey,
+			const std::array<std::uint8_t, 32>& aFingerprint)
+			-> std::expected<
+				application::review_mutation_recovery_record,
+				application::review_mutation_recovery_failure> override
+		{
+			if (State->RejectTransmissionMark) {
+				return std::unexpected(
+					application::review_mutation_recovery_failure::unavailable);
+			}
+			const auto found = State->Records.find(aKey);
+			if (found == State->Records.end()
+				|| found->second.RequestFingerprint != aFingerprint
+				|| !found->second.BaselineExactCommentIds.has_value()
+				|| found->second.State
+					!= application::review_mutation_recovery_state::unresolved) {
+				return std::unexpected(
+					application::review_mutation_recovery_failure::conflict);
+			}
+			found->second.Transmission
+				= application::review_mutation_recovery_transmission::possibly_transmitted;
+			return found->second;
+		}
+
+		auto resolve(
+			const std::string&                          aKey,
+			const std::array<std::uint8_t, 32>&         aFingerprint,
+			const application::review_mutation_receipt& aReceipt)
+			-> std::expected<
+				application::review_mutation_recovery_record,
+				application::review_mutation_recovery_failure> override
+		{
+			const auto found = State->Records.find(aKey);
+			if (found == State->Records.end()
+				|| found->second.RequestFingerprint != aFingerprint
+				|| !found->second.BaselineExactCommentIds.has_value()
+				|| found->second.Transmission
+					!= application::review_mutation_recovery_transmission::possibly_transmitted) {
+				return std::unexpected(
+					application::review_mutation_recovery_failure::conflict);
+			}
+			if (std::ranges::binary_search(
+					*found->second.BaselineExactCommentIds,
+					aReceipt.ServerCommentId)) {
+				return std::unexpected(
+					application::review_mutation_recovery_failure::conflict);
+			}
+			found->second.State   = application::review_mutation_recovery_state::succeeded;
+			found->second.Receipt = aReceipt;
+			return found->second;
+		}
+
+	private:
+		std::shared_ptr<fake_recovery_state> State;
+	};
+
+	class fixture_mutation_lease final : public application::review_mutation_transport_lease
+	{ };
+
+	void test_cli_mutation_session_recovery()
+	{
+		for (const bool mismatch : { false, true }) {
+			temporary_layout                         layout;
+			const auto                               configuration = validate_gh_cli_configuration(configuration_candidate(layout));
+			const auto                               profile       = validate_github_host_profile(cloud_candidate());
+			const auto                               wire          = mutation_request_for(*profile);
+			const auto                               request       = std::get<application::review_mutation_request>(wire.Wire.Semantic);
+			const auto                               binding       = *request.LiveBinding;
+			const live_review_mutation_configuration sessionConfiguration{ .CredentialContext = wire.Context, .Target = binding.Target, .ActingIdentity = binding.ActingIdentity };
+			auto                                     state = std::make_shared<fake_recovery_state>();
+			successful_counting_process              process;
+			unsigned                                 posts = 0;
+			unsigned                                 gets  = 0;
+			process.OnRun                                  = [&] {
+				const auto args = gh_arguments(*process.LastRequest);
+				if (args[6] == "POST") {
+					++posts;
+					expect(state->Records.at(request.IdempotencyKey).Transmission == application::review_mutation_recovery_transmission::possibly_transmitted, "recovery witness is recorded before actual CLI POST dispatch");
+					expect(process.LastRequest->StandardInput == wire.Wire.Body, "session dispatches canonical inline body via CLI stdin");
+					process.Result = std::unexpected{ github_cli_process_failure::timeout };
+					return;
+				}
+				++gets;
+				std::string body = "[]";
+				if (args[1] == "user") {
+					body = mismatch ? R"({"id":23,"node_id":"U_other","login":"other"})" : R"({"id":22,"node_id":"MDQ6VXNlcjIy","login":"fixture-reviewer"})";
+				} else if (args[1].find("comments") == std::string::npos) {
+					body = R"({"id":4246446933,"node_id":"PR_kwDOTyvof879G6NV","number":17,"state":"open","head":{"sha":"1111111111111111111111111111111111111111","ref":"feature/review"},"base":{"sha":"2222222222222222222222222222222222222222","ref":"main","repo":{"id":1328277631,"node_id":"R_kgDOTyvofw","full_name":"octo-org/review-repository"}}})";
+				}
+				process.Result = github_cli_process_success{ .StandardOutput = "HTTP/2.0 200 OK\nContent-Type: application/json\r\n\r\n" + body };
+			};
+			{
+				gh_cli_transport        transport{ *profile, *configuration, process };
+				review_mutation_session session{ transport, sessionConfiguration, std::make_shared<fixture_mutation_lease>(), std::make_unique<fake_recovery>(state) };
+				const auto              result = session.submit(request);
+				expect(!result, "mismatch or timed out CLI POST cannot report success");
+				expect(posts == (mismatch ? 0U : 1U), "observed account mismatch prevents actual CLI POST");
+			}
+			if (mismatch) {
+				continue;
+			}
+			expect(state->Records.at(request.IdempotencyKey).Transmission == application::review_mutation_recovery_transmission::possibly_transmitted, "ambiguous attempt retains possible transmission across session destruction");
+			const auto              previousGets = gets;
+			gh_cli_transport        restartedTransport{ *profile, *configuration, process };
+			review_mutation_session restarted{ restartedTransport, sessionConfiguration, std::make_shared<fixture_mutation_lease>(), std::make_unique<fake_recovery>(state) };
+			const auto              retried = restarted.submit(request);
+			expect(!retried && gets > previousGets && posts == 1U, "recreated session reconciles via CLI GET without second POST");
+			const auto retriedAgain = restarted.submit(request);
+			expect(!retriedAgain && posts == 1U, "repeated unresolved retry never launches second CLI POST");
+		}
+	}
+
+	void test_mutation_closed_shapes_and_ambiguous_results()
+	{
+		for (const auto& candidate : { cloud_candidate(), enterprise_candidate() }) {
+			temporary_layout                layout;
+			const auto                      configuration = validate_gh_cli_configuration(configuration_candidate(layout));
+			const auto                      profile       = validate_github_host_profile(candidate);
+			successful_counting_process     process;
+			gh_cli_transport                transport{ *profile, *configuration, process };
+			auto                            request         = mutation_request_for(*profile);
+			const auto                      semanticRequest = std::get<application::review_mutation_request>(request.Wire.Semantic);
+			const auto                      binding         = *semanticRequest.LiveBinding;
+			const review_submission_request review{ .Target = binding.Target, .ActingIdentity = binding.ActingIdentity, .Body = "Fixture review" };
+			for (const auto& observation : { compile_target_observation_request(binding.Target, profile->server_contract()), compile_viewer_observation_request(binding.ActingIdentity, profile->server_contract()), compile_review_comment_observation_request(semanticRequest, profile->server_contract()), compile_review_submission_observation_request(review, profile->server_contract()) }) {
+				expect(observation.has_value(), "reconciliation observation compiles");
+				const auto result = transport.perform_review_mutation({ .Context = request.Context, .Wire = *observation }, { }, { });
+				expect(std::holds_alternative<github_mutation_wire_success>(result) && gh_arguments(*process.LastRequest)[6] == "GET" && process.LastRequest->StandardInput.empty(), "reconciliation uses bounded GET without write witness");
+			}
+
+			for (bool wholeReview : { false, true }) {
+				if (wholeReview) {
+					request.Wire = *compile_review_submission_request({ .Target = binding.Target, .ActingIdentity = binding.ActingIdentity, .Disposition = core::review_disposition::approve, .Body = "Fixture approval" }, profile->server_contract());
+				}
+				std::size_t witnessed = 0;
+				const auto  witness   = [&] { ++witnessed; return true; };
+				const auto  before    = process.Calls;
+				expect(std::holds_alternative<github_mutation_wire_error>(transport.perform_review_mutation(request, { }, { })) && process.Calls == before, "missing durable witness prevents POST");
+				process.Result = github_cli_process_success{ .StandardOutput = "HTTP/2.0 201 Created\nContent-Type: application/json\r\n\r\n{}" };
+				expect(std::holds_alternative<github_mutation_wire_success>(transport.perform_review_mutation(request, { }, witness)) && witnessed == 1, "canonical mutation launches after witness");
+				const auto args = gh_arguments(*process.LastRequest);
+				expect(args[0] == "api" && args[1].starts_with("repos/") && args[3] == profile->hostname() && args[6] == "POST" && args.back() == "-" && process.LastRequest->StandardInput == request.Wire.Body, "mutation uses exact host REST endpoint and stdin body");
+				for (const auto& arg : args) {
+					expect(arg.find(request.Wire.Body) == std::string::npos, "body absent from arguments");
+				}
+				for (auto failure : { github_cli_process_failure::timeout, github_cli_process_failure::cancelled }) {
+					process.Result    = std::unexpected{ failure };
+					const auto result = transport.perform_review_mutation(request, { }, witness);
+					if (const auto* error = std::get_if<github_mutation_wire_error>(&result)) {
+						expect(error->Transmission == github_mutation_transmission::indeterminate, "timeout retains possible transmission");
+					} else {
+						expect(std::get<github_mutation_wire_cancelled>(result).Transmission == github_mutation_transmission::indeterminate, "cancelled launch retains possible transmission");
+					}
+				}
+				for (const auto& output : { std::string{ "unframed synthetic output" }, std::string{ "HTTP/2.0 201 Created\n\r\n{}" } }) {
+					process.Result    = github_cli_process_success{ .StandardOutput = output, .ExitCode = 1 };
+					const auto result = transport.perform_review_mutation(request, { }, witness);
+					expect(std::get<github_mutation_wire_error>(result).Transmission == github_mutation_transmission::indeterminate, "malformed or nonzero success remains ambiguous");
+				}
+				std::stop_source stopped;
+				stopped.request_stop();
+				const auto stoppedCalls = process.Calls;
+				expect(std::get<github_mutation_wire_cancelled>(transport.perform_review_mutation(request, stopped.get_token(), witness)).Transmission == github_mutation_transmission::definitely_not_sent && process.Calls == stoppedCalls, "prelaunch cancellation never starts process");
+
+				auto drift = request;
+				drift.Wire.Body += " ";
+				const auto calls = process.Calls;
+				expect(std::holds_alternative<github_mutation_wire_error>(transport.perform_review_mutation(drift, { }, witness)) && calls == process.Calls, "body drift cannot launch");
+				drift                           = request;
+				drift.Context.Authority.Account = core::github_account_id{ 999 };
+				expect(std::holds_alternative<github_mutation_wire_error>(transport.perform_review_mutation(drift, { }, witness)) && calls == process.Calls, "acting account mismatch cannot launch");
+			}
+		}
+	}
+
 	auto test_capability_probe_uses_closed_query_and_response() -> void
 	{
 		temporary_layout            layout;
@@ -1347,6 +1641,8 @@ namespace {
 
 auto main() -> int
 {
+	test_cli_mutation_session_recovery();
+	test_mutation_closed_shapes_and_ambiguous_results();
 	test_configuration_is_canonical_typed_and_closed();
 	test_all_operations_compile_to_exact_closed_invocations();
 	test_configuration_rejects_ambient_and_unsafe_candidates();

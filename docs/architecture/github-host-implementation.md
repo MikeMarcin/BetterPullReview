@@ -534,9 +534,14 @@ API snapshot, not fresh remote advertisement. A tests-disabled macOS fixture
 now renders a full PR diff through the CLI profile; an isolated build with
 the process adapter removed from composition visibly refuses the same healthy
 fixture. Native HTTPS helper exchange and Keychain backend behavior remain
-unverified. CLI publishing remains unavailable. Windows and Linux remain
-unavailable; publication and target-native qualification remain pending under
-BPR-0788.
+unverified. On macOS, the opted-in CLI profile now routes whole-review and
+right-side inline-comment publication through the existing mutation admission,
+a separate exact-host/account/PR/operation confirmation for each write, and
+server reconciliation. The configured gh account may still change between
+checks; an ambiguous attempted write is not posted twice. Fixture actions
+exercise this path; no live PR was written. Windows and Linux remain
+unavailable, and target-native qualification and closeout remain pending
+under BPR-0787/BPR-0788.
 
 BetterPullReview does not extract or copy CLI tokens or change global CLI
 authentication. Opt-in trusts the machine's configured executable, configuration,
@@ -880,9 +885,10 @@ transport. An opaque smart-HTTPS lease is issued only from an accepted native
 HTTPS session and is bound to the exact application session, profile and
 profile revision, host identity, canonical hostname and server contract,
 authenticated account, repository identity, and GitHub identity generation.
-CLI profiles receive no native smart-HTTPS Git-object lease; the in-progress
-CLI provider lease authorizes REST/GraphQL reads only. An unavailable native
-session receives no lease.
+CLI profiles receive no native smart-HTTPS Git-object lease; opted-in macOS
+CLI reads use a separate supervised gh Git-object bridge, and publication
+uses a separately confirmed mutation lease. An unavailable native session
+receives no lease.
 
 The lease exposes two semantic operations for the one accepted repository:
 

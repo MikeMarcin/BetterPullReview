@@ -1,4 +1,5 @@
 #include "bpr/application/git_smart_transport_port.hpp"
+#include "github_mutation_contract.hpp"
 #include "github_provider.hpp"
 #include "github_wire_request_validation.hpp"
 
@@ -128,7 +129,7 @@ namespace {
 		unsigned              Calls   = 0;
 		std::function<void()> Hook;
 	};
-	class fake_wire_transport final : public github_wire_transport_port, public application::git_smart_transport_factory_port
+	class fake_wire_transport final : public github_wire_transport_port, public github_mutation_wire_transport, public application::git_smart_transport_factory_port
 	{
 	public:
 		auto                                acquire(const application::git_smart_request_context&) -> application::git_smart_transport_result<application::git_smart_transport> override { return Git; }
@@ -178,6 +179,20 @@ namespace {
 				},
 			};
 		}
+
+		auto perform_review_mutation(const github_mutation_wire_request& aRequest, std::stop_token, github_mutation_transmission_witness aWitness) -> github_mutation_wire_completion override
+		{
+			if (aRequest.Wire.Method == http_method::post && (!aWitness || !aWitness())) {
+				return github_mutation_wire_error{ };
+			}
+			++MutationCalls;
+			if (MutationHook) {
+				MutationHook();
+			}
+			return github_mutation_wire_success{ };
+		}
+		unsigned              MutationCalls = 0;
+		std::function<void()> MutationHook;
 
 		read_handler                                      ReadHandler;
 		capability_handler                                CapabilityHandler;
@@ -2001,6 +2016,42 @@ namespace {
 			expect(!(*git)->discover({ context }, { }).has_value() && fixture.Transport->ReadRequests.size() == observations, "revoked Git lease cannot revive after account returns");
 		}
 	}
+	void test_cli_mutation_lease_account_checks()
+	{
+		for (bool postflight : { false, true }) {
+			provider_fixture fixture{ application::github_authentication_transport::github_cli };
+			fixture.Factory->CliEnabled    = true;
+			bool changed                   = false;
+			fixture.Transport->ReadHandler = [&](const github_wire_request& aWire, std::stop_token) -> github_wire_completion {
+				auto response = viewer_response();
+				if (changed) {
+					response.Body = R"({"id":1002,"login":"other","name":"Other User","node_id":"U_other"})";
+				}
+				return github_wire_success{ .Correlation = aWire.Correlation, .Response = std::move(response) };
+			};
+			auto  viewer  = run_viewer(fixture, { .Request = viewer_request_for(fixture.Profile), .Authentication = std::monostate{ } });
+			auto& success = std::get<application::github_viewer_success>(viewer);
+			auto* factory = dynamic_cast<application::review_mutation_transport_factory_port*>(success.AccountTransport.get());
+			expect(factory != nullptr, "CLI account exposes mutation factory");
+			auto lease = std::dynamic_pointer_cast<github_review_mutation_transport_lease>(factory->acquire_review_mutation_transport());
+			expect(lease && lease->mutation_transport(), "CLI lease exposes observed mutation transport");
+			const application::review_mutation_acting_identity identity{ .Account = core::github_account_id{ 1001 }, .DatabaseId = 1001, .NodeId = "U_viewer", .Login = "viewer" };
+			const github_mutation_wire_request                 request{ .Context = lease->credential_context(), .Wire = *compile_viewer_observation_request(identity) };
+			const auto                                         before = fixture.Transport->ReadRequests.size();
+			expect(std::holds_alternative<github_mutation_wire_success>(lease->mutation_transport()->perform_review_mutation(request, { }, [] { return true; })) && fixture.Transport->ReadRequests.size() == before + 2, "mutation dispatch has pre/post account checks");
+			changed                         = !postflight;
+			fixture.Transport->MutationHook = [&] { changed = true; };
+			const auto  calls               = fixture.Transport->MutationCalls;
+			const auto  result              = lease->mutation_transport()->perform_review_mutation(request, { }, [] { return true; });
+			const auto* error               = std::get_if<github_mutation_wire_error>(&result);
+			expect(error && error->Transmission == github_mutation_transmission::definitely_not_sent && fixture.Transport->MutationCalls == calls + (postflight ? 1U : 0U), "account mismatch refuses preflight or discards postflight GET without claiming transmission");
+			changed          = false;
+			const auto after = fixture.Transport->MutationCalls;
+			static_cast<void>(lease->mutation_transport()->perform_review_mutation(request, { }, [] { return true; }));
+			expect(fixture.Transport->MutationCalls == after, "mismatched lease cannot publish again after account returns");
+		}
+	}
+
 	void test_cli_is_categorically_unavailable()
 	{
 		provider_fixture fixture{
@@ -2116,5 +2167,6 @@ int main()
 	test_cli_is_categorically_unavailable();
 	test_cli_observed_account_lease();
 	test_cli_git_lease_forwarding();
+	test_cli_mutation_lease_account_checks();
 	return EXIT_SUCCESS;
 }

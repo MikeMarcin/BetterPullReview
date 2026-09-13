@@ -2684,8 +2684,41 @@ acquire Glaze. Existing GitHub Qt JSON parsers are unchanged in this slice.
 
 The focused verification is `github_mutation_contract`, including raw malformed
 numeric identities and Unicode responses, plus `live_review_mutation_provider`
-for the existing source-line publication path. This contract is not yet selected
-by the whole-review application/UI workflow.
+for the source-line publication path. The whole-review application workflow
+uses its separate review-submission contract and recovery path.
+
+## RFC-BPR-0015 guarded CLI publication fixture
+
+Build the tests-disabled macOS app, then prepare the local-only publication
+fixture. The fixture invokes a fake `gh` from an isolated home and never
+contacts GitHub. Its launcher does not supply consent or infer a UI result
+from process exit.
+
+```sh
+cmake --build build/app-release --target app_better_pull_review
+python3 tests/end_to_end/rfc0015_cli_publish_fixture.py prepare \
+  --directory "$PWD/build/rfc0015-cli-publish-fixture" \
+  --body 'Synthetic CLI publication fixture.'
+python3 tests/end_to_end/rfc0015_cli_publish_fixture.py launch \
+  --directory "$PWD/build/rfc0015-cli-publish-fixture" \
+  --app "$PWD/build/app-release/src/app/BetterPullReview.app/Contents/MacOS/BetterPullReview" \
+  --cmake-cache "$PWD/build/app-release/CMakeCache.txt" --seconds 300
+```
+
+In the app, select the GitHub CLI profile and confirm read opt-in, then open
+`octo-org/review-repository#17`. Keep the fixture in its initial `positive`
+course until the PR and, for inline comments, the file comparison have loaded.
+Select an explicit **right-side source line** before editing: a selected
+replacement group may prefer the left side and must refuse a root comment.
+Then use `control --course hold` for the intended body. Confirm the separate
+write prompt, observe the fixture's held `gh api ... POST` process, then use
+`control --course published` with the same body before its 15-second hold
+expires. Supply the inline comment's `--path` and one-based `--line` to that
+published control. The synthetic
+published response supports reconciliation but is not evidence of a live
+GitHub write. Focused contract checks are `gh_cli_transport`,
+`github_provider`, `github_mutation_contract`,
+`live_review_mutation_provider`, and `live_review_submission_provider`.
 
 ## Local Mac private alpha
 

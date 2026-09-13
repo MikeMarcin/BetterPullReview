@@ -11,11 +11,12 @@ namespace bpr::app {
 	using draft_state  = core::review_submission_state;
 
 	review_submission_workflow::review_submission_workflow(application::effect_executor&   aEffects,
-														   application::decision_executor& aDecisions, qt::review_submission_editor& aEditor, grant_factory aIssueGrant)
+														   application::decision_executor& aDecisions, qt::review_submission_editor& aEditor, grant_factory aIssueGrant, write_confirmation aConfirmWrite)
 		: Effects{ aEffects }
 		, Decisions{ aDecisions }
 		, Editor{ aEditor }
 		, IssueGrant{ std::move(aIssueGrant) }
+		, ConfirmWrite{ std::move(aConfirmWrite) }
 	{ }
 
 	void review_submission_workflow::adopt(application::review_submission_live_binding   aBinding,
@@ -222,6 +223,18 @@ namespace bpr::app {
 				|| (kind == command_kind::discard && controls.Discard);
 			if (!allowed) {
 				return;
+			}
+			if (kind == command_kind::begin_submit && ConfirmWrite) {
+				if (!DraftBinding) {
+					return;
+				}
+				const auto confirmedDraft   = *Draft;
+				const auto confirmedBinding = *DraftBinding;
+				if (!ConfirmWrite(confirmedBinding, confirmedDraft.Disposition)
+					|| !Draft || *Draft != confirmedDraft || !Current
+					|| DraftBinding != confirmedBinding || !decided_controls().Submit) {
+					return;
+				}
 			}
 			auto outcome = core::apply(*Draft, aIntent.Command);
 			if (!outcome.Draft) {
