@@ -11,7 +11,28 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/pla
 
 # Verify and close RFC-BPR-0013
 
-## Current frontier — bpr0643-r1 / d4 / mandate r6
+## Current frontier — bpr0643-r1 / d5 / mandate r7
+
+The renewed `retained-stress-pr-read` assignment is
+`docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-bpr0643-r1-d5-r7.json`.
+GitHub's authenticated `@MikeMarcin` personal Installed GitHub Apps page
+lists BetterPullReview, but its Configure page and the Authorized GitHub Apps
+page require sudo-mode reauthentication before showing current selection or
+authorization. No reauthentication or setting change was attempted. A
+metadata-only CLI repository GET reports the private `EpicGames/UnrealEngine`
+repository as pull-readable but `admin=false` and `maintain=false`; the CLI's
+organization-installation GET returns `404` and names `admin:org` as required.
+The separate CLI token cannot use GitHub App user-token installation endpoints.
+Thus the exact `EpicGames` app installation, selected repositories and possible
+SSO authorization remain unknown. The d4 signed app's direct HTTP `404` at
+`GetRepository` establishes only the current app grant's inability to read
+this target. An eligible `EpicGames` organization owner or repository admin
+would need to inspect the organization's app installation and repository
+selection; if correct and SSO is enforced, inspect the app's SSO authorization. The current product
+session is preserved, with no token inspection or live PR write. The original
+`invalid_relationship` remains pending and the d1 Done criteria are historical.
+
+## Previous frontier — bpr0643-r1 / d4 / mandate r6
 
 The owner's account-level GitHub.com read access makes d3's manual-token
 suggestion premature; no credential switch is requested. The renewed

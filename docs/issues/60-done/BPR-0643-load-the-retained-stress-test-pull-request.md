@@ -12,7 +12,55 @@ acceptance: [{"criterion":"The diagnostics log names the failure class for this 
 
 # Load the retained stress-test pull request
 
-## Current correction frontier — bpr0643-r1 / d4 / mandate r6
+## Current authorization frontier — bpr0643-r1 / d5 / mandate r7
+
+The renewed assignment is
+`docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-bpr0643-r1-d5-r7.json`.
+On 2026-09-13, the owner's signed-in Chrome session at
+`https://github.com/settings/installations` identified `@MikeMarcin` and
+listed BetterPullReview among GitHub Apps installed on that **personal**
+account. Opening its Configure page at
+`https://github.com/settings/installations/157150648` reached GitHub's
+`Confirm access` sudo-mode reauthentication page before exposing repository
+selection; the `Authorized GitHub Apps` page was gated the same way. No
+reauthentication, credential entry, permission change or installation action
+was attempted. The current personal installation's selected repositories are
+therefore not verified. A personal installation would not itself grant access
+to a private repository owned by `EpicGames`, and this personal-account page
+cannot establish whether a separate `EpicGames` organization installation
+exists.
+
+A fresh read-only CLI `GET /repos/EpicGames/UnrealEngine` reports
+`private=true`, `permissions.pull=true`, `permissions.admin=false`, and
+`permissions.maintain=false`. That credential's
+`GET /orgs/EpicGames/installations` returned HTTP `404`; `gh` identified
+`admin:org` as required for the organization-installation API. The CLI
+credential also cannot call `GET /user/installations`, which requires a GitHub
+App user token. No CLI scope refresh was attempted. Thus neither the browser
+page available without sudo mode nor the separate CLI credential establishes
+whether BetterPullReview is installed on `EpicGames`, whether that installation
+includes this repository, or whether organization SSO affects the app's
+authorization. The signed app's prior HTTP `404` remains the direct evidence
+that its **current** grant cannot read this target.
+
+GitHub documents that a user token can access only resources available to
+both the user and app, that organization owners can review installed Apps and
+their repository selection, and that SSO-protected organizations may require
+an active SSO session before app authorization
+([user-token rule](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app),
+[organization review](https://docs.github.com/en/organizations/managing-programmatic-access-to-your-organization/reviewing-github-apps-installed-in-your-organization),
+[SSO behavior](https://docs.github.com/en/enterprise-cloud@latest/apps/using-github-apps/saml-and-github-apps)).
+An `EpicGames` organization owner or repository administrator permitted by
+organization policy would need to inspect the organization's BetterPullReview
+installation and exact repository selection to identify the missing grant;
+if those are already correct and the organization enforces SSO, the app
+authorization's SSO state would need inspection. This signed-in user and CLI
+credential have not demonstrated access to that administrative view, and no
+authorization setting was changed. The product session remains
+connected. The original `invalid_relationship` attempt is still not
+reproducible on this refusing grant; no file list or selected diff was reached.
+
+## Previous correction frontier — bpr0643-r1 / d4 / mandate r6
 
 The owner clarified that the `MikeMarcin` account can read this repository on
 GitHub.com. D3's suggestion to switch to a manual token was premature and is
