@@ -15,6 +15,8 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/pla
 
 The adopted [RFC-0013 milestone plan](../../rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json) binds `default-cache-byte-pressure` to BPR-0635 on local Mac, with the exact assignment and legacy-plan preparation receipt beside the plan. BPR-0612 and BPR-0634 are Done, so BPR-0635 is dependency-ready; its next public course must exceed the unchanged 64-MiB byte ceiling before 64 entries, prove exact eviction/revisit and owner release, then record native timing, input, memory, bounded work and close evidence. The current candidate starts at `21e7ae34`; no BPR-0635 source outcome is yet accepted. Preserve BPR-0622's Windows/Linux recovery gate, BPR-0643's BPR-0642 and owner-account dependencies, all remaining rate/offline/fuzz/diagnostic and live/human rows, and the canonical Proposed predecessors. No remote mutation, production account action, Actions, push or publication is part of this Mac course.
 
+The first BPR-0635 composed attempt is a diagnostic failure, not byte-pressure evidence. The unchanged history course fails epoch revision preparation before selecting a large key, and unchanged loaded-close reaches 29 valid account reads but records replay `unexpected_operation` (code 9) on a subsequent request. The task logs under `build/bpr0635-` retain the exact attempt. The current bounded correction owns only the synthetic large-review replay and its direct/composed tests; the card stays In Progress until its original public byte and cleanup criteria pass. No production behavior change is inferred from this fixture failure.
+
 RFC base: `d4d9e61d9224ef869ca4de9725c2bf52c5df701a`.
 
 This is the first parent of `e61b156d5d11add32452c669550c47adaaddeac3`,
