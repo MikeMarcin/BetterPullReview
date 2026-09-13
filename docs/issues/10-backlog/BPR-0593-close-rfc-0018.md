@@ -12,6 +12,70 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
+## Current frontier, 2026-09-12 (d31, mandate r20): attended-preparation milestone complete
+
+Run `attended-prep-2026-09-10`, dispatch d31, producer
+`/root/integrator_d29`, mandate r20. The adopted
+`attended-preparation-pack-head` definition is
+`sha256:201de49a086f8f809fea06d6749caf3fecb43e7fa8c78a960f55af31b64bfee5`;
+its renewed nine-card obligation fingerprint is
+`sha256:3d54a5fe84a1c059e08af0b1c2437ad7ca09a5d09ed22d9244677f643e177630`.
+The assignment is structurally valid with resolved references. **Disposition:
+milestone complete** for the nine authored cards, with the four exits checked
+separately below. This does not close any RFC.
+
+1. **Digest-bound bundle and revisions — pass.** The original pack-head
+   [v006 identity](../../verification/reviews/rfc-bpr-0028-attended-v006/session-identity.json)
+   records the tests-disabled bundle built at `d1ba791f`, executable SHA-256
+   `cc2afa7fb84d443a1bba93373b990be83748be20451fa0b6adde45cc6fae4c1c`.
+   Its fifteen ready candidates include all nine authored cards, and every
+   candidate in that bound set names `cc2afa7f` in its revision. The final
+   [v011 identity](../../verification/reviews/rfc-bpr-0028-attended-v011/session-identity.json)
+   binds the remaining BPR-0646 candidate at source `16e242a5` to executable
+   SHA-256 `dfd1c4cae5739559b143138c28a0277bc9f5e7c40ef1556bee47d967cff2f187`;
+   the preserved local bundle still matches that digest, verifies with
+   `codesign --verify --deep --strict`, and has `BUILD_TESTING=OFF`. The v006
+   shared build path was subsequently reused; its digest is historical
+   packet evidence, not a claim that the old executable still occupies it.
+2. **Pack integration — pass by affected-check rerun.** The d30 set in
+   `build/d30-milestone-integration.log` passed four Settings Qt scales,
+   three workbench Qt scales and the workbench application composition
+   contract (eight of nine). The general application composition contract
+   initially failed on a source-manifest repin and a profile lease held by a
+   detached d28 app. Commit `ce6f1836` repinned the intentional fixture
+   source and isolated automated packaged evidence runs; the affected
+   contract then passed 1/1 in
+   `build/d30-automated-root-regression-contract.log` while the other app
+   remained open. `build/d30-final-boundaries.log`, the documentation gate
+   and `git diff --check` passed. This is a corrected split pass, not a
+   single green nine-selector batch. Later changes to Release automated
+   evidence, tests, whitespace and documentation do not alter the attended
+   UI path. The separate full strict-tidy failure is recorded below; tidy
+   is not one of this exit's named integration checks.
+3. **Prepared session and pointers — pass.** The v006 packet prepared the
+   bound set at sequence 259 with fifteen ready candidates and a checked
+   offline-page digest. The final v011 packet prepared the one remaining
+   candidate at sequence 372 with its own checked offline page. Both
+   [[RFC-BPR-0028]] and [[RFC-BPR-0018]] point to v011 and retain the v006
+   origin for session `cbd48b91000b00f1e72e1ad62c7c384c`.
+4. **Verdicts and card acceptance — pass.** The live board returns all nine
+   authored cards in `60-done/`; their 28 acceptance rows all record Pass.
+   The session has matching-fingerprint decisions for the ten questions
+   covering those nine cards (BPR-0674 had two). Its final BPR-0646 decision
+   `4feeaa9e-5705-4c53-a516-6fc311de305d` accepted the exact v011
+   candidate at sequence 373; hand-back sequence 374 recorded `pending []`.
+   Earlier rejects remain attached to their historical revisions. No bound
+   owner ask remains.
+
+The [BPR-0750](../30-in-progress/BPR-0750-close-rfc-0029.md)
+direct-check gaps in rows 2, 4, 5 and 7 remain separate from this milestone;
+RFC-BPR-0029 stays Accepted behind Proposed RFC-BPR-0008. RFC-BPR-0018 and
+RFC-BPR-0028 remain Proposed/open pending their own closeout and Windows/Linux
+station evidence on [[BPR-0730]] and [[BPR-0731]]. Do not repeat the declined
+[[BPR-0735]] editor observation or [[BPR-0746]] cursor probe. The next planned
+`close-rfc-0018` milestone is not yet eligible because its station criteria
+remain open; coordination must select the next eligible bounded outcome.
+
 ## Current frontier, 2026-09-12 (d30, mandate r20): integration evidence and binding renewal
 
 Run `attended-prep-2026-09-10`, dispatch d30, producer
