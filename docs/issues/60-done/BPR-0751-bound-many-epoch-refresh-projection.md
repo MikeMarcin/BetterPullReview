@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0751"
 title: "Bound many-epoch refresh projection on the public path"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0013"]
 depends_on: []
 priority: "P2"
 metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1 matched refresh attribution and owner-disposed isolated source overrun","outcome":"pass","revision":"f378da20","evidence":{"kind":"artifact","detail":"The matched 929-read pre-BPR-0635 product replay reproduces 228.745–265.034-ms refresh gaps (build/rfc0013-d3-pre0635-history.log), and build/rfc0013-d3-attribution.json shows identical pre/post fixture-commit product blobs. D2 main-thread/card/overview traces and repair identify the repeatable projection work. The separate 2,151.817-ms epoch-25 source event failed test 279 in unchanged build/bpr0635-composed-final.log. It has no contemporaneous stage trace, did not recur in the matched pre-commit or repaired public courses, and is closed as cannot reproduce under the owner’s r2 instruction. Its cause and pre-commit origin remain unknown; no retroactive pass or 2s-limit waiver is claimed."}},{"criterion":"AC2 unchanged 32-head public history limits and exact state","outcome":"pass","revision":"4a2be1b191a9854ef9c6a78f682415a4551b411b","evidence":{"kind":"artifact","detail":"build/rfc0013-d2-history-indexed-overview.log: network-isolated Mac 929-read course 1/1; all 31 refresh gaps 64.617–91.147ms <100ms, refresh <8.422s <12s, all 32 source selections <0.952s <2s; 32 exact heads and retained Git/catalog pairs, 31 rapid selections (30 during outstanding work), zero history-model resets."}},{"criterion":"AC3 focused regression, documentation, diff and native limits","outcome":"pass","revision":"f378da20","evidence":{"kind":"artifact","detail":"D2 focused Qt 8/8 and overview 3/3, preserved public courses 3/3, formatting and scoped tidy passed on unchanged source. D4 python3 scripts/verify_documentation.py --root . reports DOCUMENTATION_OK; documentation behavior tests 64/64, RFC-0013 board validation and git diff --check pass. Evidence is local M4 Pro/48-GiB Mac, macOS 26.6.2 arm64, Qt 6.10.3 offscreen/Fusion Debug; no Windows/Linux or universal responsiveness claim."}}]
 ---
 
 # Bound many-epoch refresh projection on the public path
