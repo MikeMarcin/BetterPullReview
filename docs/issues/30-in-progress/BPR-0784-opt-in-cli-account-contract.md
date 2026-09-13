@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0784"
 title: "Expose an honest opt-in GitHub CLI account profile"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0015"]
 depends_on: []
 priority: "P1"
