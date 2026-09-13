@@ -198,3 +198,13 @@ These limits do not support Windows/Linux or publication claims. Read
 BPR-0784/BPR-0785 and all four `opt-in-cli-read` exits are accepted only for
 the qualified macOS fixture read surface; BPR-0786/0787, RFC-BPR-0014
 predecessor state and any safe-target or human/native evidence remain open.
+
+Integration disposition for `rfc0015-r2/d3`: the first milestone is accepted
+at the renewed binding in ignored `build/rfc0015-r2-d3-assignment.json`.
+The bridge, fixture, qualification and card finishes were committed as
+`2625472b`, `cdf6175c`, `c7269e4d`, `211e82f8`, `a83dd872` and `00dadf70`.
+BPR-0784 and BPR-0785 are Done; BPR-0788 remains Backlog. The checked
+milestone return is retained in ignored `build/rfc0015-r2-d3-return.json`.
+The next bounded milestone is `guarded-cli-publishing` through fixture-only
+review and inline-comment paths with per-write confirmation and exact-target
+admission. This is not permission for a live PR write or a production release.
