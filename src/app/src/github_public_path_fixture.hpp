@@ -23,6 +23,8 @@
 #include <vector>
 
 namespace bpr::app::detail {
+	/// \brief Exercises renewal inside the unlocked historical script compilation window.
+	[[nodiscard]] auto verify_large_review_history_session_interleaving() -> bool;
 	class github_public_path_fixture_components final
 	{
 	public:

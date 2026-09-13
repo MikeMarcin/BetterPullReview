@@ -252,7 +252,7 @@ namespace bpr::app::detail::large_review_fixture {
 		return aManifest;
 	}
 
-	/// \brief Compiles the exact local workload's 29 authenticated exchanges.
+	/// \brief Compiles the exact local workload's 30 authenticated exchanges.
 	[[nodiscard]] inline auto load(const std::filesystem::path& aRoot, std::string_view aHead = head_oid) -> std::vector<wire::recorded_exchange>
 	{
 		auto manifest = read_json(aRoot / "manifest.json");
@@ -268,7 +268,7 @@ namespace bpr::app::detail::large_review_fixture {
 			manifest = manifest_for_head(std::move(manifest), read_json(aRoot / "epoch-deltas.json"), aHead);
 		}
 		auto exchanges = std::vector<wire::recorded_exchange>{ };
-		exchanges.reserve(29U);
+		exchanges.reserve(30U);
 		append_exchange(exchanges, request(wire::read_operation::get_viewer_identity), glz::generic{
 																						   { "id", 800001 },
 																						   { "node_id", "SYNTHETIC_USER_800001" },
@@ -314,7 +314,33 @@ namespace bpr::app::detail::large_review_fixture {
 																							{ "incomplete_results", false },
 																							{ "items", glz::generic::array_t{ } },
 																						});
+		// Stored heads are observed sequentially; this synthetic course has no
+		// provider-evidenced force pushes. Exhaust the real timeline read too.
+		append_exchange(exchanges, request(wire::read_operation::list_pull_request_timeline), glz::generic::array_t{ });
 		return exchanges;
+	}
+
+	/// \brief Admits only the acquired historical head and optional exact base want.
+	[[nodiscard]] inline auto exact_history_fetch_wants(std::string_view aBody, std::string_view aBase, std::string_view aHead) noexcept -> bool
+	{
+		bool headSeen = false, baseSeen = false;
+		for (auto position = aBody.find("want "); position != std::string_view::npos; position = aBody.find("want ", position)) {
+			position += 5U;
+			const auto end = aBody.find('\n', position);
+			if (end == std::string_view::npos) {
+				return false;
+			}
+			const auto oid = aBody.substr(position, end - position);
+			if (oid == aHead && !headSeen) {
+				headSeen = true;
+			} else if (oid == aBase && !baseSeen) {
+				baseSeen = true;
+			} else {
+				return false;
+			}
+			position = end + 1U;
+		}
+		return headSeen;
 	}
 
 	/// \brief Replays exact compiled requests while the production pager validates responses.

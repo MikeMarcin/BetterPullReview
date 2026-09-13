@@ -999,6 +999,7 @@ endif()
 
 bpr_add_executable(bench_better_pull_review_large_review large_review_benchmark.cpp)
 target_link_libraries(bench_better_pull_review_large_review PRIVATE BetterPullReview::Composition glaze::glaze)
+target_include_directories(bench_better_pull_review_large_review PRIVATE "${PROJECT_SOURCE_DIR}/src/adapters/github/src")
 target_compile_definitions(bench_better_pull_review_large_review PRIVATE
     BPR_BUILD_TESTING=1
     "BPR_LARGE_REVIEW_FIXTURE_ROOT=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/pull-requests/large-review-v1\""
@@ -1027,6 +1028,26 @@ set_tests_properties(application_unavailable_diff_public_path PROPERTIES
     PASS_REGULAR_EXPRESSION "UNAVAILABLE_DIFF_COMPOSED_OK")
 
 if(APPLE)
+    bpr_add_network_isolated_test(
+        NAME application_large_review_cache_bytes
+        COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
+            $<TARGET_FILE:Git::Git>
+            "${CMAKE_CURRENT_BINARY_DIR}/large-review-cache-bytes.json"
+            "${CMAKE_CURRENT_BINARY_DIR}/large-review-cache-bytes.png"
+            --cache-bytes)
+    set_tests_properties(application_large_review_cache_bytes PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 900
+        PASS_REGULAR_EXPRESSION "LARGE_REVIEW_CACHE_BYTES_OK")
+    bpr_add_network_isolated_test(
+        NAME application_large_review_history_session_race
+        COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>
+            $<TARGET_FILE:Git::Git>
+            "${CMAKE_CURRENT_BINARY_DIR}/large-review-history-session-race.json"
+            "${CMAKE_CURRENT_BINARY_DIR}/large-review-history-session-race.png"
+            --history-session-race)
+    set_tests_properties(application_large_review_history_session_race PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 90
+        PASS_REGULAR_EXPRESSION "LARGE_REVIEW_HISTORY_SESSION_RACE_OK")
     bpr_add_network_isolated_test(
         NAME application_large_review_cache_entries
         COMMAND $<TARGET_FILE:bench_better_pull_review_large_review>

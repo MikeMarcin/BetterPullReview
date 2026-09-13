@@ -8,6 +8,7 @@
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "github_wire_transport.hpp"
 
+#include "bpr/application/git_protocol_v2.hpp"
 #include "bpr/application/git_smart_transport_port.hpp"
 
 #include <QByteArrayView>
@@ -29,6 +30,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iterator>
 #include <limits>
 #include <map>
@@ -905,7 +907,7 @@ namespace bpr::app::detail {
 			[[nodiscard]] auto perform(const adapters::github::detail::wire_request& aRequest)
 				-> adapters::github::detail::response_result
 			{
-				if (aRequest.Operation == read_operation::list_pull_request_timeline) {
+				if (!Paged && aRequest.Operation == read_operation::list_pull_request_timeline) {
 					using namespace adapters::github::detail;
 					if (const auto valid = validate_outbound_read_request(aRequest);
 						!valid.has_value()) {
@@ -1073,21 +1075,33 @@ namespace bpr::app::detail {
 			{
 			}
 
-			void advance_history(const adapters::github::detail::wire_request& aRequest)
+			[[nodiscard]] auto advance_history(const adapters::github::detail::wire_request& aRequest, std::unique_lock<std::mutex>& aStateLock) -> bool
 			{
 				if (HistoryHeads.empty() || HistoryIndex + 1U == HistoryHeads.size()
 					|| !Recording.consumed_all() || aRequest.Operation != read_operation::get_repository) {
-					return;
+					return true;
 				}
-				// Compile one refresh at a time; retaining 32 duplicated comment
-				// scripts would distort the resource measurements of the app.
-				auto exchanges = load_recording(Descriptor, HistoryHeads[HistoryIndex + 1U]);
+				// Compile only the next refresh, outside the evidence mutex so GUI
+				// observations cannot block on synthetic JSON construction. The caller
+				// serializes history compilation before acquiring this state lock.
+				const auto nextIndex       = HistoryIndex + 1U;
+				const auto expectedSession = AuthenticationSession;
+				aStateLock.unlock();
+				if (HistoryCompileInterleave) {
+					HistoryCompileInterleave();
+				}
+				auto exchanges = load_recording(Descriptor, HistoryHeads[nextIndex]);
+				aStateLock.lock();
+				if (AuthenticationSession != expectedSession) {
+					return false;
+				}
 				exchanges.erase(exchanges.begin()); // /user belongs to initial session establishment.
-				if (exchanges.front().Request != aRequest) {
-					return;
+				if (HistoryIndex + 1U != nextIndex || !Recording.consumed_all() || exchanges.front().Request != aRequest) {
+					return true;
 				}
 				Recording.replace_completed_paged_script(std::move(exchanges));
 				++HistoryIndex;
+				return true;
 			}
 
 			[[nodiscard]] auto serves_head(std::string_view aHead) const -> bool
@@ -1108,8 +1122,11 @@ namespace bpr::app::detail {
 			const std::vector<recorded_exchange>            IndependentBootstrap;
 			const std::vector<std::string>                  HistoryHeads;
 			std::size_t                                     HistoryIndex = 0U;
-			fixture_replay                                  BootstrapRecording;
-			fixture_replay                                  Recording;
+			std::mutex                                      HistoryCompileMutex;
+			// Set only by the deterministic standalone session-race regression.
+			std::function<void()> HistoryCompileInterleave;
+			fixture_replay        BootstrapRecording;
+			fixture_replay        Recording;
 			// The signed-out script. A separate cursor as well as a separate
 			// order: the two authorities never share a position, so a course that
 			// ran both would not be able to advance one by driving the other.
@@ -1360,7 +1377,16 @@ namespace bpr::app::detail {
 				const auto  wants   = [&](const std::string_view aHead) {
 					return !aHead.empty() && requestBody.find(std::string{ "want " } + std::string{ aHead } + "\n") != std::string::npos;
 				};
-				const auto wantsFirst        = wants(fixture.HeadOneOid);
+				// The stored large-review pack contains every admitted history head.
+				// Require the one exact head from this acquired context, never an
+				// arbitrary or additional member of the fixture's inventory.
+				const auto contextHead = core::canonical_hex(Context.Revision.Head);
+				const auto historical  = !State->HistoryHeads.empty();
+				if (historical && (std::ranges::find(State->HistoryHeads, contextHead.view()) == State->HistoryHeads.end() || !large_review_fixture::exact_history_fetch_wants(requestBody, core::canonical_hex(Context.Revision.Base).view(), contextHead.view()))) {
+					return std::unexpected{ application::git_smart_transport_error{
+						.Failure = application::git_smart_transport_failure::invalid_request } };
+				}
+				const auto wantsFirst        = historical || wants(fixture.HeadOneOid);
 				const auto wantsSecond       = wants(fixture.HeadTwoOid);
 				const auto wantsDisconnected = wants(disconnected_history_head);
 				if (static_cast<int>(wantsFirst) + static_cast<int>(wantsSecond) + static_cast<int>(wantsDisconnected) != 1
@@ -1399,6 +1425,63 @@ namespace bpr::app::detail {
 			application::git_smart_request_context   Context;
 			std::atomic_bool                         Revoked = false;
 		};
+
+		/// \brief Checks the acquired historical transport boundary without consuming a pack.
+		[[nodiscard]] auto verify_history_fetch_refusals(application::git_smart_transport_port&        aTransport,
+														 const application::git_smart_request_context& aContext) -> bool
+		{
+			class refusal_consumer final : public application::git_smart_wire_consumer
+			{
+			public:
+				[[nodiscard]] auto consume(std::span<const std::byte> aBytes) noexcept -> bool override
+				{
+					++Calls;
+					Bytes += aBytes.size();
+					return false;
+				}
+				std::size_t Calls = 0U, Bytes = 0U;
+			};
+			const auto capabilities = application::detail::git_protocol_v2_capabilities{
+				.ObjectFormat = aContext.Revision.Head.algorithm(), .LsRefs = true, .Fetch = true
+			};
+			const auto encoded = application::detail::make_git_protocol_v2_fetch_request(aContext, capabilities, { });
+			if (!encoded) {
+				return false;
+			}
+			const auto original = std::string{ reinterpret_cast<const char*>(encoded->data()), encoded->size() };
+			const auto head     = core::canonical_hex(aContext.Revision.Head);
+			for (const auto substitute : { true, false }) {
+				auto body = original;
+				if (substitute) {
+					const auto position = body.find(head.view());
+					if (position == std::string::npos) {
+						return false;
+					}
+					body.replace(position, head.view().size(), disconnected_history_head);
+				} else {
+					const auto position = body.find("0009done\n");
+					if (position == std::string::npos) {
+						return false;
+					}
+					body.insert(position, "0032want " + std::string{ disconnected_history_head } + "\n");
+				}
+				const auto bytes   = byte_vector(body);
+				const auto request = application::git_smart_fetch_request{
+					.Context = aContext, .Body = bytes, .MaximumResponseBytes = 64U * 1024U * 1024U
+				};
+				refusal_consumer consumer;
+				if (!application::valid(request)) {
+					return false;
+				}
+				const auto result = aTransport.fetch(request, consumer, { });
+				if (result || result.error().Failure != application::git_smart_transport_failure::invalid_request
+					|| consumer.Calls != 0U || consumer.Bytes != 0U) {
+					return false;
+				}
+			}
+			QTextStream{ stdout } << "LARGE_REVIEW_HISTORY_FETCH_REFUSALS_OK:2\n";
+			return true;
+		}
 
 		/// \brief [[BPR-0657]]. Rewrites a recorded review-thread answer with
 		/// the fixture's replies and resolutions.
@@ -1484,7 +1567,12 @@ namespace bpr::app::detail {
 				if (aStop.stop_requested()) {
 					return github_wire_cancelled{ .Correlation = aRequest.Correlation };
 				}
-				const std::scoped_lock lock{ State->Mutex };
+				std::unique_lock historyLock{ State->HistoryCompileMutex, std::defer_lock };
+				if (Role == fixture_transport_role::account && !State->HistoryHeads.empty()
+					&& aRequest.Wire.Operation == read_operation::get_repository) {
+					historyLock.lock();
+				}
+				std::unique_lock lock{ State->Mutex };
 				if (aRequest.Correlation.ProfileRevision != State->Profile.revision()
 					|| aRequest.Correlation.Host != State->Profile.host()) {
 					State->RecordingFailure = -2;
@@ -1510,7 +1598,9 @@ namespace bpr::app::detail {
 					};
 				}
 				if (Role == fixture_transport_role::account) {
-					State->advance_history(aRequest.Wire);
+					if (!State->advance_history(aRequest.Wire, lock)) {
+						return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::authentication) };
+					}
 				}
 				auto& recording = Role == fixture_transport_role::bootstrap
 					? State->BootstrapRecording
@@ -1658,9 +1748,12 @@ namespace bpr::app::detail {
 					++State->SmartAcquireCalls;
 					State->LastSmartAuthority = aContext.Authority;
 				}
-				return application::git_smart_transport{
-					new fixture_smart_transport{ State, aContext }
-				};
+				auto transport = application::git_smart_transport{ new fixture_smart_transport{ State, aContext } };
+				if (!State->HistoryHeads.empty() && !verify_history_fetch_refusals(*transport, aContext)) {
+					return std::unexpected{ application::git_smart_transport_error{
+						.Failure = application::git_smart_transport_failure::invalid_request } };
+				}
+				return transport;
 			}
 
 		private:
@@ -2106,6 +2199,72 @@ namespace bpr::app::detail {
 		}
 
 	} // namespace
+
+	[[nodiscard]] auto verify_large_review_history_session_interleaving() -> bool
+	{
+		using namespace adapters::github;
+		const auto profile = validate_github_host_profile(github_host_profile_candidate{
+			.Profile = core::host_profile_id{ 11U }, .Host = core::git_host_id{ 22U }, .Revision = application::github_profile_revision{ 3U }, .Server = application::github_server_contract::github_com_2022_11_28, .Authentication = application::github_authentication_transport::native_https, .Proxy = application::github_proxy_mode::system, .Trust = application::github_trust_mode::system, .Provenance = github_profile_provenance::explicit_user, .Hostname = "github.com", .RestRoot = "https://api.github.com", .GraphqlRoot = "https://api.github.com/graphql" });
+		if (!profile) {
+			return false;
+		}
+		const auto served     = descriptor(github_public_path_fixture::large_review_v1);
+		auto       state      = std::make_shared<fixture_recording_state>(served, *profile, nullptr,
+																		  github_epoch_fixture_phase::single, true, false, false, false, "");
+		state->RepeatSessions = true;
+		fixture_transport_factory factory{ state };
+		const auto                renew = [&](core::application_session_id aSession) {
+			auto material = application::github_credential_material::create(byte_vector("synthetic-session-race-token"));
+			return factory.make_account(*profile, application::github_credential_retrieve_success{ .Context = { .Request = core::request_id{ 1U }, .ApplicationSession = aSession, .Authority = { .Profile = profile->profile(), .ProfileRevision = profile->revision(), .Host = profile->host(), .Hostname = application::github_canonical_hostname{ profile->hostname() }, .Account = served.AccountId, .ServerContract = profile->server_contract() }, .IdentityGeneration = core::github_identity_generation{ 1U } }, .Credential = std::move(*material) });
+		};
+		const auto firstSession  = core::application_session_id{ 1U };
+		const auto secondSession = core::application_session_id{ 2U };
+		auto       transport     = renew(firstSession);
+		if (!transport) {
+			return false;
+		}
+		for (const auto& exchange : load_recording(served, state->HistoryHeads.front())) {
+			if (!state->Recording.perform(exchange.Request)) {
+				return false;
+			}
+		}
+		auto second = load_recording(served, state->HistoryHeads[1]);
+		second.erase(second.begin());
+		state->Recording.replace_completed_paged_script(second);
+		state->HistoryIndex = 1U;
+		for (const auto& exchange : second) {
+			if (!state->Recording.perform(exchange.Request)) {
+				return false;
+			}
+		}
+		github_wire_request request{
+			.Correlation = { .Parent                = core::github_session_request_context{ .ApplicationSession = firstSession },
+							 .ProfileRevision       = profile->revision(),
+							 .Host                  = profile->host(),
+							 .Operation             = read_operation::get_repository,
+							 .AuthenticationSession = firstSession },
+			.Wire        = second.front().Request
+		};
+		bool renewed = false;
+		// Deterministically run the real renewal factory while S1 has released
+		// the state lock, exactly where another thread could interleave.
+		state->HistoryCompileInterleave = [&] { renewed = renew(secondSession).has_value(); };
+		const auto stale                = (*transport)->perform(request, { });
+		state->HistoryCompileInterleave = { };
+		const auto* refused             = std::get_if<github_wire_error>(&stale);
+		if (!renewed || !refused || refused->Error.Failure != application::github_provider_failure::authentication
+			|| state->HistoryIndex != 1U || state->AccountReadCalls != 0U || state->AccountFactoryCalls != 2U) {
+			return false;
+		}
+		request.Correlation.Parent                = core::github_session_request_context{ .ApplicationSession = secondSession };
+		request.Correlation.AuthenticationSession = secondSession;
+		const auto  current                       = (*transport)->perform(request, { });
+		const auto* success                       = std::get_if<github_wire_success>(&current);
+		return success && success->Response.Status == 200
+			&& success->Response.Body == second.front().Response.Body
+			&& success->Response.Completeness == second.front().Response.Completeness
+			&& state->HistoryIndex == 1U && state->AccountReadCalls == 1U;
+	}
 
 	struct github_fixture_vault_state
 	{

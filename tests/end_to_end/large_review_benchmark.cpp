@@ -1,5 +1,8 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../../src/app/src/github_public_path_fixture.hpp"
 
+#include "bpr/application/epoch_runtime_ports.hpp"
+#include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/qt/comparison_scroll_controller.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
@@ -85,8 +88,12 @@ namespace bpr::e2e::large_review {
 
 	struct benchmark_report
 	{
-		std::string   Schema           = "bpr.large-review-measurement.v1";
-		bool          ResourceCourse   = false;
+		std::string   Schema          = "bpr.large-review-measurement.v1";
+		bool          ResourceCourse  = false;
+		bool          CacheByteCourse = false, ByteEvictedDiff = false, ByteEvictedIndex = false, ByteRevisitExact = false, ByteSupersessionHeldExact = false;
+		std::size_t   ByteHeldSourceObservations = 0U;
+		std::size_t   ByteSelections = 0U, BytePeakCacheEntries = 0U, ByteSupersessionsWithWork = 0U;
+		std::uint64_t ByteEntryBytes = 0U, ByteAdmittedBytes = 0U, BytePeakCacheBytes = 0U;
 		bool          CacheEntryCourse = false, EntryEvictedDiff = false, EntryEvictedIndex = false, EntryRevisitExact = false;
 		std::size_t   EntrySelections = 0U, EntryPeakCacheEntries = 0U;
 		std::uint64_t EntryPeakCacheBytes = 0U;
@@ -103,9 +110,14 @@ namespace bpr::e2e::large_review {
 		std::vector<resource_sample> Resources;
 		// Provisional Mac fixture budgets from the measured Debug course. These
 		// bound sampled growth, not unsampled peaks or other platforms.
-		std::uint64_t                  SampledFootprintGrowthLimitBytes = 160U * 1024U * 1024U;
-		std::uint64_t                  CleanupFootprintGrowthLimitBytes = 96U * 1024U * 1024U;
-		bool                           WindowCloseObserved              = false;
+		std::uint64_t SampledFootprintGrowthLimitBytes = 160U * 1024U * 1024U;
+		std::uint64_t CleanupFootprintGrowthLimitBytes = 96U * 1024U * 1024U;
+		// M4 Pro / 48-GiB / Mac Debug byte-pressure observations: drained
+		// growth 141.84 and 140.95 MiB; destroyed growth 39.52 MiB. Allow
+		// 160 MiB only before destruction, retaining the existing 96-MiB
+		// destruction budget and every earlier resource course's limits.
+		std::uint64_t                  ByteDrainedFootprintGrowthLimitBytes = 160U * 1024U * 1024U;
+		bool                           WindowCloseObserved                  = false;
 		bool                           PruneReleasedDiff = false, PruneReleasedIndex = false, PruneClearedProjection = false;
 		bool                           DeleteReleasedDiff = false, DeleteReleasedIndex = false, DestroyReleasedDiff = false, DestroyReleasedIndex = false;
 		bool                           UnavailableCourse = false, UnavailableReasonVerified = false, BinaryStatusVerified = false;
@@ -150,7 +162,7 @@ namespace bpr::e2e::large_review {
 
 	void sample_resources(benchmark_report& aReport, app::github_application* aApplication, const char* aPhase)
 	{
-		if (!aReport.ResourceCourse && !aReport.CacheEntryCourse) {
+		if (!aReport.ResourceCourse && !aReport.CacheEntryCourse && !aReport.CacheByteCourse) {
 			return;
 		}
 		resource_sample sample;
@@ -175,6 +187,7 @@ namespace bpr::e2e::large_review {
 						&& work.CacheEntries <= application::diff_host_limits{ }.CacheEntries,
 					"configured diff cache budget exceeded");
 		}
+		std::cerr << "resource-sample:" << *glz::write_json(sample) << '\n';
 		if (!aReport.Resources.empty()) {
 			const auto baseline = aReport.Resources.front().PhysicalFootprintBytes;
 			const auto growth   = sample.PhysicalFootprintBytes > baseline
@@ -184,7 +197,10 @@ namespace bpr::e2e::large_review {
 					"sampled Mac fixture footprint growth exceeded its provisional budget");
 			if (sample.Phase == "after_prune" || sample.Phase == "after_cache_delete"
 				|| sample.Phase == "shutdown_drained" || sample.Phase == "application_destroyed") {
-				require(growth <= aReport.CleanupFootprintGrowthLimitBytes,
+				const auto cleanupLimit = aReport.CacheByteCourse && sample.Phase == "shutdown_drained"
+					? aReport.ByteDrainedFootprintGrowthLimitBytes
+					: aReport.CleanupFootprintGrowthLimitBytes;
+				require(growth <= cleanupLimit,
 						"Mac cleanup footprint growth exceeded its provisional budget");
 				require(sample.DiffCacheBytes == 0U && sample.DiffCacheEntries == 0U
 							&& sample.DiffJobs == 0U && sample.EpochJobs == 0U,
@@ -192,7 +208,6 @@ namespace bpr::e2e::large_review {
 			}
 		}
 		aReport.Resources.push_back(sample);
-		std::cerr << "resource-sample:" << *glz::write_json(sample) << '\n';
 	}
 
 	void confirm_fixture_maintenance(QAction& aAction, const QString& aDialogName)
@@ -250,17 +265,22 @@ namespace bpr::e2e::large_review {
 		});
 		bool ready = false;
 		QObject::connect(&readiness, &QTimer::timeout, &loop, [&] {
-			ready = aReady();
-			if (ready || aBudget.elapsed() >= (aReport.HistoryCourse ? 540'000 : aReport.CacheEntryCourse ? 180'000
-																										  : 90'000)) {
+			ready                       = aReady();
+			const auto epochStatus      = aReport.CacheByteCourse ? aApplication.status().EpochStatus : core::epoch_status::inactive;
+			const auto byteCourseFailed = aReport.CacheByteCourse
+				&& (epochStatus == core::epoch_status::failed || epochStatus == core::epoch_status::unavailable || epochStatus == core::epoch_status::cancelled);
+			if (ready || byteCourseFailed || aBudget.elapsed() >= (aReport.CacheByteCourse ? 840'000 : aReport.HistoryCourse ? 540'000
+																	   : aReport.CacheEntryCourse                            ? 180'000
+																															 : 90'000)) {
 				loop.quit();
 			}
 		});
 		pulse.start();
 		aAction();
 		ready = aReady();
-		if (!ready && aBudget.elapsed() < (aReport.HistoryCourse ? 540'000 : aReport.CacheEntryCourse ? 180'000
-																									  : 90'000)) {
+		if (!ready && aBudget.elapsed() < (aReport.CacheByteCourse ? 840'000 : aReport.HistoryCourse ? 540'000
+											   : aReport.CacheEntryCourse                            ? 180'000
+																									 : 90'000)) {
 			readiness.start();
 			loop.exec();
 		}
@@ -281,6 +301,7 @@ namespace bpr::e2e::large_review {
 					  << " account_reads=" << evidence.AccountReadCount << " replay_failure=" << evidence.RecordingFailure
 					  << " diff=" << aApplication.window().comparison_surface()->status_text().toStdString()
 					  << " jobs=" << work.OutstandingJobs << " workbench=" << work.WorkbenchOutstandingRequests << " pending=" << work.Pending << " quiet=" << work.Quiescent
+					  << " epoch_status=" << static_cast<int>(status.EpochStatus)
 					  << " classification=" << status.ClassificationSubmissions << ":" << status.ClassificationTerminals << '\n';
 		}
 		return ready;
@@ -342,8 +363,13 @@ namespace bpr::e2e::large_review {
 		aReport.Threads     = snapshot->ReviewThreads.size();
 		aReport.Comments    = 1000U;
 		const auto evidence = access::evidence(aApplication);
+		std::cerr << "large-review-provider-evidence: consumed=" << evidence.RecordingConsumed
+				  << " capability=" << evidence.CapabilityProbeConsumed << " bootstrap=" << evidence.BootstrapTransportSelected
+				  << " account=" << evidence.AccountTransportSelected << " failure=" << evidence.RecordingFailure
+				  << " reads=" << evidence.AccountReadCount << " smart=" << evidence.SmartAcquireCount << ':'
+				  << evidence.SmartDiscoveryCount << ':' << evidence.SmartLsRefsCount << ':' << evidence.SmartFetchCount << '\n';
 		require(evidence.RecordingConsumed && evidence.CapabilityProbeConsumed && evidence.BootstrapTransportSelected && evidence.AccountTransportSelected
-					&& evidence.RecordingFailure == -1 && evidence.AccountReadCount == static_cast<int>(1U + 28U * std::max(std::size_t{ 1U }, aReport.EpochsObserved)) && evidence.SmartAcquireCount == 1
+					&& evidence.RecordingFailure == -1 && evidence.AccountReadCount == static_cast<int>(1U + 29U * std::max(std::size_t{ 1U }, aReport.EpochsObserved)) && evidence.SmartAcquireCount == 1
 					&& evidence.SmartDiscoveryCount == 1 && evidence.SmartLsRefsCount == 1 && evidence.SmartFetchCount == 1,
 				"selected provider/Git path or replay exhaustion");
 		aReport.AccountRequests = evidence.AccountReadCount;
@@ -409,7 +435,7 @@ namespace bpr::e2e::large_review {
 			aReport.Head           = aManifest.heads[index];
 			const auto evidence    = access::evidence(aApplication);
 			require(evidence.RecordingConsumed && evidence.RecordingFailure == -1
-						&& evidence.AccountReadCount == static_cast<int>(1 + 28 * ordinal),
+						&& evidence.AccountReadCount == static_cast<int>(1 + 29 * ordinal),
 					"refresh did not exhaust exactly one recorded snapshot");
 			const auto file           = index == 0U ? 0 : static_cast<int>(index - 1U);
 			const auto value          = static_cast<int>(ordinal);
@@ -571,9 +597,213 @@ namespace bpr::e2e::large_review {
 		require(aReport.Rendered, "entry-pressure public window render failed");
 	}
 
+	void run_cache_bytes(app::github_application& aApplication, const fixture_manifest& aManifest,
+						 benchmark_report& aReport, QElapsedTimer& aBudget, const char* aImage)
+	{
+		auto&      window   = aApplication.window();
+		auto&      surface  = *window.comparison_surface();
+		auto&      controls = *window.epoch_selectors();
+		const auto limits   = application::diff_host_limits{ };
+		const auto settled  = [&] {
+			return quiet(aApplication) && access::diff_work_evidence(aApplication).EpochOutstandingJobs == 0U;
+		};
+		require(limits.CacheBytes == 64U * 1024U * 1024U && limits.CacheEntries == 64U
+					&& access::diff_work_evidence(aApplication).CacheEntries == 0U,
+				"byte-pressure course requires unchanged default empty cache");
+		// Observe stored heads through the provider first, without selecting a file.
+		// The subsequent public epoch gestures create distinct immutable keys.
+		for (std::size_t index = 1U; index < aManifest.heads.size(); ++index) {
+			const auto phase = "byte_epoch_refresh_" + std::to_string(index + 1U);
+			require(window.github_refresh_action()->isEnabled(), "byte-pressure public refresh unavailable");
+			require(measure_wait(aApplication, aBudget, aReport, phase.c_str(), [&] { window.github_refresh_action()->trigger(); }, [&] { return controls.right_oid_editor()->text().toStdString() == aManifest.heads[index] && settled(); }), "byte-pressure stored head refresh timed out");
+			aReport.EpochsObserved = index + 1U;
+			aReport.Head           = aManifest.heads[index];
+			const auto evidence    = access::evidence(aApplication);
+			require(evidence.RecordingConsumed && evidence.RecordingFailure == -1 && evidence.AccountReadCount == static_cast<int>(1U + 29U * (index + 1U)),
+					"byte-pressure refresh did not exhaust exact recorded snapshot");
+		}
+		require(measure_wait(aApplication, aBudget, aReport, "byte_load_history", [&] { controls.refresh_action()->trigger(); }, [&] { return controls.history_model()->epoch_count() == aManifest.heads.size() && settled(); }), "byte-pressure retained history unavailable");
+		require(measure_wait(aApplication, aBudget, aReport, "byte_base_selection", [&] { select_epoch(controls, 1, core::comparison_side::left); }, settled), "byte-pressure base selection timed out");
+		require(measure_wait(aApplication, aBudget, aReport, "byte_first_head_selection", [&] { select_epoch(controls, 1, core::comparison_side::right); }, settled), "byte-pressure first head selection timed out");
+		const auto ready = [&](std::int64_t aOrdinal) {
+			return selected(surface, QStringLiteral("large/comparison.cpp"))
+				&& surface.current_result()->Alignment.Key.LeftAnchor.Epoch.value() == 1
+				&& surface.current_result()->Alignment.Key.RightAnchor.Epoch.value() == aOrdinal && settled();
+		};
+		const auto verify = [&](std::int64_t aOrdinal) {
+			verify_large(surface, aManifest);
+			const auto& key = surface.current_result()->Alignment.Key;
+			require(key.LeftAnchor.Authority == key.Authority.Scope && key.RightAnchor.Authority == key.Authority.Scope
+						&& key.LeftAnchor.Incarnation == key.RightAnchor.Incarnation
+						&& key.LeftAnchor.Kind == core::comparison_anchor_kind::epoch_base
+						&& key.RightAnchor.Kind == core::comparison_anchor_kind::epoch_head
+						&& controls.left_oid_editor()->text().toStdString() == aManifest.base
+						&& controls.right_oid_editor()->text().toStdString() == aManifest.heads.at(static_cast<std::size_t>(aOrdinal - 1)),
+					"byte-pressure comparison anchor/OID mismatch");
+		};
+		QTimer inputDuringMeasurement;
+		inputDuringMeasurement.setInterval(1);
+		QElapsedTimer       inputClock;
+		std::vector<double> inputIntervals;
+		const auto          beforeMeasurement = surface.statistics().MeasurementBatches;
+		QObject::connect(&inputDuringMeasurement, &QTimer::timeout, &window, [&] {
+			if (!surface.geometry_pending() || !selected(surface, QStringLiteral("large/comparison.cpp"))) {
+				inputClock.invalidate();
+				return;
+			}
+			if (inputClock.isValid()) {
+				inputIntervals.push_back(static_cast<double>(inputClock.nsecsElapsed()) / 1'000'000.0);
+			}
+			inputClock.start();
+			const auto  frames = surface.statistics().FrameApplications;
+			QWheelEvent event{ QPointF{ 20, 20 }, QPointF{ 20, 20 }, QPoint{ 0, -1 }, QPoint{ }, Qt::NoButton, Qt::NoModifier, Qt::ScrollUpdate, false };
+			QApplication::sendEvent(surface.right_pane()->viewport(), &event);
+			require(event.isAccepted() && frames == surface.statistics().FrameApplications,
+					"byte-pressure input applied incomplete geometry");
+			++aReport.InputsDuringMeasurement;
+		});
+		inputDuringMeasurement.start();
+		std::weak_ptr<const core::computed_file_diff>  firstDiff;
+		std::weak_ptr<const core::diff_semantic_index> firstIndex;
+		std::optional<core::file_comparison_key>       firstKey;
+		for (std::int64_t ordinal = 1; ordinal <= static_cast<std::int64_t>(aManifest.heads.size()); ++ordinal) {
+			const auto phase = "cache_byte_selection_" + std::to_string(ordinal);
+			require(measure_wait(aApplication, aBudget, aReport, phase.c_str(), [&] {
+				if (ordinal == 1) {
+					select_file(window, QStringLiteral("large/comparison.cpp"));
+				} else {
+					select_epoch(controls, ordinal, core::comparison_side::right);
+				} }, [&] { return ready(ordinal); }), "byte-pressure large selection timed out");
+			verify(ordinal);
+			const auto work = access::diff_work_evidence(aApplication);
+			if (ordinal == 1) {
+				require(work.CacheEntries == 1U && work.CacheBytes > 0U, "first large key was not cached");
+				aReport.ByteEntryBytes = work.CacheBytes;
+				firstDiff              = surface.current_result();
+				firstIndex             = surface.current_semantic_index();
+				firstKey               = surface.current_result()->Alignment.Key;
+			}
+			++aReport.ByteSelections;
+			// Every head has identical large-file bytes and geometry. Measure one
+			// admitted key's accounting rather than duplicate the host formula.
+			aReport.ByteAdmittedBytes += aReport.ByteEntryBytes;
+			aReport.BytePeakCacheEntries = std::max(aReport.BytePeakCacheEntries, work.CacheEntries);
+			aReport.BytePeakCacheBytes   = std::max(aReport.BytePeakCacheBytes, work.CacheBytes);
+			require(work.CacheBytes == work.CacheEntries * aReport.ByteEntryBytes
+						&& work.CacheEntries == std::min(aReport.ByteSelections, static_cast<std::size_t>(limits.CacheBytes / aReport.ByteEntryBytes))
+						&& work.CacheBytes <= limits.CacheBytes && aReport.ByteSelections < limits.CacheEntries,
+					"large keys failed default byte accounting or reached entry pressure");
+			if (aReport.ByteAdmittedBytes <= limits.CacheBytes) {
+				require(!firstDiff.expired() && !firstIndex.expired(), "large key evicted before byte pressure");
+			}
+			sample_resources(aReport, &aApplication, phase.c_str());
+			if (firstDiff.expired() && firstIndex.expired()) {
+				break;
+			}
+		}
+		aReport.ByteEvictedDiff  = firstDiff.expired();
+		aReport.ByteEvictedIndex = firstIndex.expired();
+		require(aReport.ByteAdmittedBytes > limits.CacheBytes && aReport.ByteEvictedDiff && aReport.ByteEvictedIndex,
+				"default byte pressure did not release oldest raw diff and semantic index");
+		// Hold B selected through A's completion drain. Observe native source
+		// changes synchronously so a transient stale A publication cannot hide
+		// behind a later correct B (or the final return to A).
+		const auto foundB = std::ranges::find(aManifest.files, source_path(100).toStdString(), &fixture_file::path);
+		require(foundB != aManifest.files.end(), "superseding file is absent from manifest");
+		auto expectedB      = *firstKey;
+		expectedB.File      = core::file_identity_of(source_path(100).toStdString());
+		expectedB.LeftBlob  = core::parse_git_blob_oid(foundB->base.oid);
+		expectedB.RightBlob = core::parse_git_blob_oid(foundB->head.oid);
+		bool       holdingB = false, stalePublication = false;
+		const auto observeB = [&](QTextDocument* aDocument, const QString& aFirstLine) {
+			if (!holdingB) {
+				return;
+			}
+			++aReport.ByteHeldSourceObservations;
+			stalePublication = stalePublication || (surface.current_result() && surface.current_result()->Alignment.Key != expectedB)
+				|| (!aDocument->isEmpty() && aDocument->firstBlock().text() != aFirstLine);
+		};
+		QObject    observationLifetime;
+		const auto leftObservation  = QObject::connect(surface.left_pane()->document(), &QTextDocument::contentsChanged, &observationLifetime, [&] {
+			observeB(surface.left_pane()->document(), QStringLiteral("int fixture_0100 = 0;"));
+		});
+		const auto rightObservation = QObject::connect(surface.right_pane()->document(), &QTextDocument::contentsChanged, &observationLifetime, [&] {
+			observeB(surface.right_pane()->document(), QStringLiteral("int fixture_0100 = 1;"));
+		});
+		QTimer     supersede;
+		supersede.setInterval(1);
+		QObject::connect(&supersede, &QTimer::timeout, &window, [&] {
+			if (!holdingB && access::diff_work_evidence(aApplication).OutstandingJobs != 0U) {
+				holdingB = true;
+				++aReport.ByteSupersessionsWithWork;
+				select_file(window, source_path(100));
+				supersede.stop();
+			}
+		});
+		const auto drainedB = measure_wait(aApplication, aBudget, aReport, "cache_byte_supersession_held_b", [&] {
+			select_epoch(controls, 1, core::comparison_side::right);
+			supersede.start(); }, [&] { return stalePublication || (holdingB && selected(surface, source_path(100)) && settled()); });
+		supersede.stop();
+		QObject::disconnect(leftObservation);
+		QObject::disconnect(rightObservation);
+		require(drainedB && !stalePublication && aReport.ByteHeldSourceObservations != 0U
+					&& selected(surface, source_path(100)) && surface.current_result()->Alignment.Key == expectedB && settled(),
+				"stale comparison published while superseding file B remained selected");
+		for (int line = 0; line < 8; ++line) {
+			const auto common = QStringLiteral("// synthetic source 0100 line %1").arg(line + 1);
+			require(surface.left_pane()->document()->findBlockByNumber(line).text() == (line == 0 ? QStringLiteral("int fixture_0100 = 0;") : common)
+						&& surface.right_pane()->document()->findBlockByNumber(line).text() == (line == 0 ? QStringLiteral("int fixture_0100 = 1;") : common),
+					"superseding file B lost exact source after all prior work drained");
+		}
+		aReport.ByteSupersessionHeldExact = true;
+		require(measure_wait(aApplication, aBudget, aReport, "cache_byte_final_revisit", [&] { select_file(window, QStringLiteral("large/comparison.cpp")); }, [&] { return ready(1); }), "evicted key final revisit timed out");
+		inputDuringMeasurement.stop();
+		if (!inputIntervals.empty()) {
+			std::ranges::sort(inputIntervals);
+			aReport.MaxMeasurementInputIntervalMs = inputIntervals.back();
+			aReport.P95MeasurementInputIntervalMs = inputIntervals[(inputIntervals.size() - 1U) * 95U / 100U];
+		}
+		aReport.LargeMeasurementBatches      = surface.statistics().MeasurementBatches - beforeMeasurement;
+		aReport.MaximumMeasurementBatchLines = surface.statistics().MaximumMeasurementBatchLines;
+		require(aReport.InputsDuringMeasurement != 0U && aReport.LargeMeasurementBatches > 1U && aReport.MaximumMeasurementBatchLines <= 512U,
+				"byte-pressure native measurement did not yield bounded batches to input");
+		verify(1);
+		aReport.ByteRevisitExact = surface.current_result()->Alignment.Key == *firstKey
+			&& aReport.ByteSupersessionsWithWork != 0U && aReport.ByteSupersessionHeldExact;
+		require(aReport.ByteRevisitExact, "evicted key was not exactly rematerialized after live supersession");
+		const auto work = access::diff_work_evidence(aApplication);
+		require(work.FixtureDiffHelperInvocations == 0U && work.CacheBytes <= limits.CacheBytes && work.CacheEntries < limits.CacheEntries,
+				"byte-pressure revisit bypassed composition or exceeded default budget");
+		aReport.DiffCacheEntries     = work.CacheEntries;
+		aReport.DiffCacheBytes       = work.CacheBytes;
+		aReport.BytePeakCacheEntries = std::max(aReport.BytePeakCacheEntries, work.CacheEntries);
+		aReport.BytePeakCacheBytes   = std::max(aReport.BytePeakCacheBytes, work.CacheBytes);
+		aReport.AccountRequests      = access::evidence(aApplication).AccountReadCount;
+		aReport.ExactLargeSource     = true;
+		aReport.ExactFinalSource     = true;
+		aReport.WindowWidth          = window.width();
+		aReport.WindowHeight         = window.height();
+		aReport.DevicePixelRatio     = window.devicePixelRatioF();
+		aReport.Rendered             = window.grab().save(QString::fromLocal8Bit(aImage));
+		require(aReport.Rendered, "byte-pressure public window render failed");
+		for (const auto& phase : aReport.Phases) {
+			require(phase.PeakDiffJobs <= limits.OutstandingJobs
+						&& phase.PeakEpochJobs <= application::epoch_host_limits{ }.OutstandingJobs
+						&& phase.PeakWorkbenchRequests <= application::workbench_host_limits{ }.OutstandingRequests,
+					"byte-pressure course exceeded configured job admission bounds");
+		}
+	}
+
 	auto run_benchmark(QApplication& qtApplication, int argc, char** argv) -> int
 	{
-		if (argc != 4 && (argc != 5 || (std::string_view{ argv[4] } != "--unavailable" && std::string_view{ argv[4] } != "--resources" && std::string_view{ argv[4] } != "--history" && std::string_view{ argv[4] } != "--loaded-close" && std::string_view{ argv[4] } != "--cache-entries"))) {
+		if (argc == 5 && std::string_view{ argv[4] } == "--history-session-race") {
+			if (!app::detail::verify_large_review_history_session_interleaving()) {
+				return EXIT_FAILURE;
+			}
+			std::cout << "LARGE_REVIEW_HISTORY_SESSION_RACE_OK\n";
+			return EXIT_SUCCESS;
+		}
+		if (argc != 4 && (argc != 5 || (std::string_view{ argv[4] } != "--unavailable" && std::string_view{ argv[4] } != "--resources" && std::string_view{ argv[4] } != "--history" && std::string_view{ argv[4] } != "--loaded-close" && std::string_view{ argv[4] } != "--cache-entries" && std::string_view{ argv[4] } != "--cache-bytes"))) {
 			return EXIT_FAILURE;
 		}
 		QTemporaryDir data;
@@ -585,9 +815,10 @@ namespace bpr::e2e::large_review {
 		report.LoadedCloseCourse                                           = argc == 5 && std::string_view{ argv[4] } == "--loaded-close";
 		report.ResourceCourse                                              = report.LoadedCloseCourse || (argc == 5 && std::string_view{ argv[4] } == "--resources");
 		report.HistoryCourse                                               = argc == 5 && std::string_view{ argv[4] } == "--history";
+		report.CacheByteCourse                                             = argc == 5 && std::string_view{ argv[4] } == "--cache-bytes";
 		report.CacheEntryCourse                                            = argc == 5 && std::string_view{ argv[4] } == "--cache-entries";
-		const bool                                     observeResources    = report.ResourceCourse || report.CacheEntryCourse;
-		const bool                                     observeLoadedOwners = report.LoadedCloseCourse || report.CacheEntryCourse;
+		const bool                                     observeResources    = report.ResourceCourse || report.CacheEntryCourse || report.CacheByteCourse;
+		const bool                                     observeLoadedOwners = report.LoadedCloseCourse || report.CacheEntryCourse || report.CacheByteCourse;
 		std::weak_ptr<const core::computed_file_diff>  resourceDiff;
 		std::weak_ptr<const core::diff_semantic_index> resourceIndex;
 		QPointer<QWidget>                              resourceWindow;
@@ -601,7 +832,7 @@ namespace bpr::e2e::large_review {
 			fixture_manifest  manifest;
 			require(!glz::read<glz::opts{ .error_on_unknown_keys = false }>(manifest, bytes) && manifest.schema == "bpr.large-review-fixture.v1" && manifest.heads.size() == 32U, "stored manifest");
 			report.Base                       = manifest.base;
-			report.Head                       = report.HistoryCourse ? manifest.heads.front() : manifest.heads.back();
+			report.Head                       = (report.HistoryCourse || report.CacheByteCourse) ? manifest.heads.front() : manifest.heads.back();
 			report.PackBytes                  = manifest.pack_bytes;
 			report.Platform                   = QSysInfo::prettyProductName().toStdString();
 			report.Architecture               = QSysInfo::currentCpuArchitecture().toStdString();
@@ -610,7 +841,7 @@ namespace bpr::e2e::large_review {
 			report.BuildConfiguration         = BPR_BENCH_BUILD_CONFIGURATION;
 			report.LogicalProcessors          = QThread::idealThreadCount();
 			auto fixtureOptions               = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = data.path().toStdString(), .GitExecutable = std::filesystem::path{ argv[1] } };
-			fixtureOptions.LargeReviewHistory = report.HistoryCourse;
+			fixtureOptions.LargeReviewHistory = report.HistoryCourse || report.CacheByteCourse;
 			if (report.UnavailableCourse) {
 				// Retain the production matrix ceiling and disable only its optional
 				// ordered index, so the stored 20,000-line file exceeds real limits.
@@ -647,7 +878,9 @@ namespace bpr::e2e::large_review {
 			require(measure_wait(*application, budget, report, "paged_review_and_git_load", [&] { window.github_open_action()->trigger(); }, [&] { return window.files_drawer()->contents_view()->model()->rowCount() == 515 && access::evidence(*application).SmartFetchCount == 1 && application->status().EpochStatus == core::epoch_status::ready && access::diff_work_evidence(*application).NavigationReady && quiet(*application); }), "review load timed out");
 			verify_snapshot(*application, manifest, report);
 			sample_resources(report, application.get(), "review_loaded");
-			if (report.CacheEntryCourse) {
+			if (report.CacheByteCourse) {
+				run_cache_bytes(*application, manifest, report, budget, argv[3]);
+			} else if (report.CacheEntryCourse) {
 				run_cache_entries(*application, manifest, report, budget, argv[3]);
 			} else if (report.HistoryCourse) {
 				run_history(*application, manifest, report, budget, argv[3]);
@@ -826,7 +1059,7 @@ namespace bpr::e2e::large_review {
 				sample_resources(report, application.get(), "after_cache_delete");
 			}
 			if (observeLoadedOwners) {
-				if (report.CacheEntryCourse) {
+				if (report.CacheEntryCourse || report.CacheByteCourse) {
 					resourceDiff  = surface.current_result();
 					resourceIndex = surface.current_semantic_index();
 				}
@@ -869,8 +1102,19 @@ namespace bpr::e2e::large_review {
 					report.ClosePreservedEpochStorage = retained.PruneIntentDispatchCount == 0U && retained.DeleteIntentDispatchCount == 0U
 						&& retained.RepositoryPresent && retained.TargetBaseRefPresent && retained.TargetHeadRefPresent
 						&& retained.TargetBaseRefOid == manifest.base && retained.TargetBaseCatalogOid == manifest.base
-						&& retained.TargetHeadRefOid == manifest.heads.back() && retained.TargetHeadCatalogOid == manifest.heads.back();
+						&& retained.TargetHeadRefOid == (report.CacheByteCourse ? manifest.heads.at(static_cast<std::size_t>(closeTarget->Ordinal.value() - 1)) : manifest.heads.back()) && retained.TargetHeadCatalogOid == retained.TargetHeadRefOid;
 					require(report.ClosePreservedEpochStorage, "window close changed retained Git/catalog data or performed maintenance");
+				}
+				if (report.CacheByteCourse) {
+					for (std::size_t index = 0; index < manifest.heads.size(); ++index) {
+						const auto target   = core::review_epoch_id{ closeTarget->Authority, closeTarget->Incarnation, core::epoch_ordinal{ static_cast<std::int64_t>(index + 1U) } };
+						const auto retained = access::maintenance_evidence(*application, target, closeComparison);
+						require(retained.RepositoryPresent && retained.TargetBaseRefPresent && retained.TargetHeadRefPresent
+									&& retained.TargetBaseRefOid == manifest.base && retained.TargetBaseCatalogOid == manifest.base
+									&& retained.TargetHeadRefOid == manifest.heads[index] && retained.TargetHeadCatalogOid == manifest.heads[index],
+								"byte pressure or shutdown changed a retained Git/catalog pair");
+						++report.RetainedEpochsVerified;
+					}
 				}
 				application.reset();
 				QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
@@ -897,11 +1141,12 @@ namespace bpr::e2e::large_review {
 			output << *encoded << '\n';
 			output.close();
 			require(output.good(), "measurement write");
-			std::cout << (report.CacheEntryCourse ? "LARGE_REVIEW_CACHE_ENTRIES_OK\n" : report.LoadedCloseCourse ? "LARGE_REVIEW_LOADED_CLOSE_OK\n"
-							  : report.HistoryCourse                                                             ? "LARGE_REVIEW_HISTORY_OK\n"
-							  : report.ResourceCourse                                                            ? "LARGE_REVIEW_RESOURCES_OK\n"
-							  : report.UnavailableCourse                                                         ? "UNAVAILABLE_DIFF_COMPOSED_OK\n"
-																												 : "LARGE_REVIEW_COMPOSED_BENCHMARK_OK\n")
+			std::cout << (report.CacheByteCourse ? "LARGE_REVIEW_CACHE_BYTES_OK\n" : report.CacheEntryCourse ? "LARGE_REVIEW_CACHE_ENTRIES_OK\n"
+							  : report.LoadedCloseCourse                                                     ? "LARGE_REVIEW_LOADED_CLOSE_OK\n"
+							  : report.HistoryCourse                                                         ? "LARGE_REVIEW_HISTORY_OK\n"
+							  : report.ResourceCourse                                                        ? "LARGE_REVIEW_RESOURCES_OK\n"
+							  : report.UnavailableCourse                                                     ? "UNAVAILABLE_DIFF_COMPOSED_OK\n"
+																											 : "LARGE_REVIEW_COMPOSED_BENCHMARK_OK\n")
 					  << *encoded << '\n';
 			return EXIT_SUCCESS;
 		} catch (const std::exception& error) {

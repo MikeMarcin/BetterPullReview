@@ -148,6 +148,12 @@ namespace {
 				std::cerr << '\n';
 			}
 			require(normalized.has_value(), "every stored head normalizes through the production pager");
+			require(!transport.Replay.consumed_all() && transport.Calls == 28U,
+					"ordinary PR read leaves exactly the independent timeline request");
+			const auto timeline = perform_paged_github_timeline_read(transport, selectedProfile, request, core::repository_id{ 800002U }, { });
+			require(timeline && timeline->ForcePushEvents.empty() && transport.Calls == 29U
+						&& transport.LastOperation == read_operation::list_pull_request_timeline,
+					"all stored heads serve the exact complete empty synthetic timeline through its production pager");
 			require(transport.Replay.consumed_all() && normalized->PullRequest.HeadOid.value() == head
 						&& normalized->PullRequest.BaseOid.value() == fixture::base_oid
 						&& normalized->Files.size() == 515U && normalized->ReviewThreads.size() == 1000U
@@ -189,8 +195,15 @@ namespace {
 auto main() -> int
 {
 	const auto exchanges = fixture::load(BPR_LARGE_REVIEW_FIXTURE_ROOT);
-	require(exchanges.size() == 29U, "exact recorded course size");
+	require(exchanges.size() == 30U, "exact recorded course size");
+	const auto& timeline = exchanges.back();
+	require(timeline.Request.Operation == read_operation::list_pull_request_timeline
+				&& timeline.Request.Path == "/repos/bpr-fixtures/large-review/issues/17/timeline"
+				&& timeline.Request.Query == "page=1&per_page=100"
+				&& timeline.Response.Body == "[]" && timeline.Response.Completeness == page_completeness::complete,
+			"independent exact timeline path, pagination and empty event body");
 	fixture::sequential_replay replay{ exchanges };
+	require(!replay.perform(timeline.Request), "timeline cannot bypass unconsumed PR pages");
 	for (std::size_t index = 0; index < exchanges.size(); ++index) {
 		const auto& exchange = exchanges[index];
 		require(validate_outbound_read_request(exchange.Request).has_value(), "recorded request must be canonical");
@@ -214,6 +227,18 @@ auto main() -> int
 		require(response.has_value() && *response == exchange.Response, "exact request returns its exact recorded response");
 	}
 	require(replay.consumed_all() && !replay.perform(exchanges.front().Request), "exhaustion cannot serve another course");
+	const auto headWant         = "0032want " + std::string{ fixture::head_oid } + "\n";
+	const auto baseWant         = "0032want " + std::string{ fixture::base_oid } + "\n";
+	const auto unknownWant      = "0032want " + std::string(40U, 'f') + "\n";
+	const auto disconnectedWant = std::string{ "0032want 67c9afbd86e28b19e6bd224f966b4a48e1294e6a\n" };
+	require(fixture::exact_history_fetch_wants(headWant, fixture::base_oid, fixture::head_oid)
+				&& fixture::exact_history_fetch_wants(baseWant + headWant, fixture::base_oid, fixture::head_oid),
+			"historical fetch admits exact head and optional exact base");
+	for (const auto& body : { std::string{ }, baseWant, unknownWant, headWant + unknownWant, disconnectedWant, headWant + disconnectedWant, headWant + headWant,
+							  baseWant + baseWant + headWant, headWant.substr(0U, headWant.size() - 1U) }) {
+		require(!fixture::exact_history_fetch_wants(body, fixture::base_oid, fixture::head_oid),
+				"historical fetch refuses missing, substituted, additional unknown, duplicate and incomplete wants");
+	}
 	test_all_epoch_snapshots();
 	std::cout << "LARGE_REVIEW_REPLAY_CONTRACT_OK\n";
 	return EXIT_SUCCESS;
