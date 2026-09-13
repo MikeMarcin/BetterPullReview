@@ -72,13 +72,15 @@ A server card has a header, an account row, and rows.
 - **Signing in.** Sign in begins the device flow (RFC-BPR-0016, RFC-BPR-0018
   AC-12) inside the account row, which becomes: "Enter this code at
   github.com/login/device", the user code in the code font at 1.6× with the
-  whole code selectable, Open browser as the filled button, Copy code, the
-  remaining validity, one status sentence from the existing typed state
+  whole code selectable and a copy glyph at its end, Open browser as the filled
+  button, the remaining validity, one status sentence from the existing typed state
   ("Waiting for the browser to authorize this Mac."), and Cancel at the row's
   right. Denied, expired, unavailable and cancelled states replace the sentence
   and offer one Sign in again. No button is shown disabled; no second field
   truncates the address; the manual-token path remains reachable for servers
-  whose device flow is unsupported, in the same row.
+  whose device flow is unsupported, in the same row. The copy glyph carries the
+  accessible name Copy code, a tooltip, a visible focus ring and a brief
+  "Copied" shown in place, so a glyph is never the only label.
 - **Rows.** Access (consequence from the existing capability projection), Rate
   limit ("4,807 of 5,000 requests remaining, resets in 38 min."), and a Details
   disclosure that holds the transport, the capability and availability lines,
@@ -211,8 +213,8 @@ find more.
   its buttons, the locator, the status banner and the servers combo editor are
   absent from the page and from its accessibility tree.
 - **A2 — Sign-in is the account row.** Sign in begins the device flow inside the
-  card's account row and shows the code, the address, Open browser, Copy code,
-  the validity, one status sentence and Cancel; denied, expired, unavailable and
+  card's account row and shows the code with its copy glyph, the address, Open
+  browser, the validity, one status sentence and Cancel; denied, expired, unavailable and
   cancelled states show in the same row with one retry; no disabled button and
   no truncated field is shown, and the manual-token path stays reachable.
 - **A3 — Enterprise servers are cards.** Add enterprise server adds a card in

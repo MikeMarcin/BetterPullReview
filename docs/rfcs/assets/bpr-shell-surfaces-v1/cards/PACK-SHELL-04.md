@@ -12,7 +12,7 @@ metadata: {"pack":"bpr-shell-surfaces-v1","milestone":"accounts-page","acceptanc
 
 ## Outcome
 
-Present the existing `device_authorization_panel` state machine as the account row's signing-in state: the address sentence, the selectable code in the code font at 1.6×, Open browser filled, Copy code, the validity, one status sentence and Cancel; denied, expired, unavailable and cancelled states in the same row with one retry; the manual-token path in the same row where the device flow is unsupported.
+Present the existing `device_authorization_panel` state machine as the account row's signing-in state: the address sentence, the selectable code in the code font at 1.6×, Open browser filled, a copy glyph at the end of the code, the validity, one status sentence and Cancel; denied, expired, unavailable and cancelled states in the same row with one retry; the manual-token path in the same row where the device flow is unsupported.
 
 ## Acceptance
 

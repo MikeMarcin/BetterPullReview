@@ -98,8 +98,8 @@ Accounts & hosts, signing in (the account row is the only thing that changes):
 ```
 │ (?) Sign in to GitHub                                  Cancel   │
 │     Enter this code at github.com/login/device                  │
-│     A416-42ED                                                   │
-│     [Open browser]  Copy code          Valid for 14 min 59 s    │
+│     A416-42ED ⧉                                                 │
+│     [Open browser]                     Valid for 14 min 59 s    │
 │     Waiting for the browser to authorize this Mac.              │
 ```
 
@@ -194,6 +194,9 @@ bar lost between three headings and an empty box.
 - The "Resume reading" button beside the Recently viewed heading: it is a row
   action now, on hover, focus and the row's menu.
 - The ghost "Sign in again" button shown disabled during a sign-in.
+- A bordered "Copy code" button beside Open browser: the copy is a glyph at the
+  end of the code itself, where the convention puts it (owner note, 2026-09-13),
+  so the row has one filled button.
 - The status bar's "No pull request is open in the workbench." on Home, which
   said what the page already showed.
 - "Reload Profiles" as a permanent button; it is the retry inside a failure notice.
