@@ -31,22 +31,15 @@ and `attempt-4-diagnostics.log` beside it
 The actual PID 23251 window's rendered refusal was captured outside the
 checkout as `attempt-3-window.png` beside those logs (SHA-256
 `e3807e748cb45358f56eeefc158e19135b2157dac9f1ffbe411ebf632e824bcc`).
-The live binary is `build/app-release/src/app/BetterPullReview.app`, modified
+That observed binary was `build/app-release/src/app/BetterPullReview.app`, modified
 10:39 PDT (SHA-256 `d845e2929fa7e47f68132afdc099525c922d000c9246215e1c0780ed1fd494ad`),
 distinct from d1's `build/bpr0643-release` candidate (SHA-256
 `91a9479d7b1b980ceaef8f1fcbca78bd051202bb0dee3adb3a6387f7575d2e86`).
 The earlier d1 `permission`/`GetRepository` observations remain accurate for
 their separate rebuilt candidate attempts and do not explain this later one.
 
-An `rfc-worker-deep` owns bounded offline diagnosis and repair of the
-relationship failure in application/GitHub/core source and focused tests;
-the integrator owns live-product verification, this closeout, BPR-0643
-re-adjudication and commits. The originally observed app was user-owned;
-its window and account state were captured outside the checkout before it
-was closed. No PR mutation has occurred in d2. The
-diagnostic candidate preserves `failure=invalid_relationship` and adds a
-fixed metadata-only `relationship_detail` for each validating invariant;
-four focused offline courses pass. The rebuilt tests-disabled ad-hoc bundle
+The originally observed app's window and account state were captured outside
+the checkout before it was closed. The rebuilt tests-disabled ad-hoc bundle
 showed `MikeMarcin` but its read-only attempt again stopped at
 `permission`/`GetRepository`, before validation. Its two-line log is outside
 the checkout at `~/Library/Application Support/BetterPullReview/BPR-0643-evidence-2026-09-13/attempt-5-ad-hoc-diagnostics.log`
@@ -61,13 +54,47 @@ logs. The rebuilt bundle retains that configured signing identity and passes
 The archived old binary did not restore a usable product window from its
 evidence location and was stopped. The source or grant of the access change
 is unknown. The pre-rebuild UI showed a renewing, remembered `MikeMarcin`
-device grant, so session-only manual-token use is not established. The worker
-is comparing fixed relationship facts through exact-target authorized
-read-only CLI queries, with no raw PR content retained. Pending: isolate a
-safe correction or explicit limit and reconcile BPR-0643 truthfully.
-The unrelated `.gitignore` and `.mask.json` edits remain outside scope.
+device grant, so session-only manual-token use is not established.
 
-## Current frontier — bpr0643-r1 / d1 / mandate r2
+The bounded read-only CLI structural probe found 1,523 files, 250 returned
+commits, one review, 111 issue comments and 19 complete GraphQL threads.
+The checked file, thread, actor and search relationships showed no mismatch;
+the CLI credential is separate from the product grant and cannot reproduce
+the original `invalid_relationship` cause. The exact repository-wide open-PR
+search returned 2,104 hits, above the product's 1,000-result cap. This is a
+separate demonstrated search limit, not a proven cause of the original
+terminal. Source commit `4c90aa70` bounds that ancillary search as
+`result_limit`, retains no search rows, and permits the exact PR snapshot
+after validating the bounded received page. Malformed pages still refuse
+atomically. The same commit adds fixed metadata-only `relationship_detail`
+while preserving `failure=invalid_relationship` and all existing relationship
+checks. The deep worker's synthetic success and fail-closed controls and six
+focused courses pass. An independent reviewer found two first-candidate
+fail-closed gaps; the worker corrected both, and the reviewer rechecked the
+focused pager course without a remaining critical finding. The documentation
+gate, source format check and board validation pass.
+
+The final rebuilt tests-disabled `build/app-release` candidate remains
+Developer ID signed and passes strict code-signature verification (binary
+SHA-256 `60f0025fcb007f034be0ceb2f6838a0bbf0573e4b9a9ea3cf56f084f454cfe9e`).
+Its connected `MikeMarcin` session's exact read-only target attempt ended
+earlier at `permission`/`GetRepository`, with the session-panel reason
+`This GitHub sign-in does not have permission to read this pull request.`
+The final two-line log is outside the checkout as
+`attempt-7-final-signed-diagnostics.log` beside the other attempts (SHA-256
+`51973173839fa9281df37b5d393901fe188e8ea5bdd611896bc603ae4f274ce9`).
+No file list or selected diff was reached. The d1 Done acceptance remains
+historical and accurate for its then-current candidate; it does not resolve
+the owner's later malformed-data report. That root cause and the change in
+product repository access remain unknown. The pending native follow-up is
+for the owner to sign in to the product with authority to read this exact
+repository, then retry the final candidate read-only, inspect any new
+`relationship_detail`, and repair only a demonstrated invariant issue. No
+PR mutation, credential extraction or private PR content retention occurred.
+The task app and worker/reviewer work have ended. The unrelated `.gitignore`
+and `.mask.json` edits remain outside scope.
+
+## Previous frontier — bpr0643-r1 / d1 / mandate r2
 
 The `retained-stress-pr-read` milestone is accepted through its explicit
 known-limit alternative. All bound obligations and both exits pass without

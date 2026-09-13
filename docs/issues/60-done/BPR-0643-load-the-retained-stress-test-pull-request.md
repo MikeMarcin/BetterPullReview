@@ -12,9 +12,72 @@ acceptance: [{"criterion":"The diagnostics log names the failure class for this 
 
 # Load the retained stress-test pull request
 
-## Current frontier — bpr0643-r1 / d1 / mandate r2
+## Current correction frontier — bpr0643-r1 / d2 / mandate r4
 
-The bound `retained-stress-pr-read` milestone now has a direct read-only
+The owner's later UI report was accurate for a distinct signed Mac app
+attempt. The running `build/app-release` window showed `MikeMarcin` connected
+on GitHub.com Native HTTPS and displayed `Pull request unavailable` with
+`GitHub returned data that BetterPullReview could not safely use.` Its two
+read-only target attempts got through repository, pull request, file, commit,
+review, thread, comment and check reads, then recorded
+`failure=invalid_relationship` after `SearchPullRequests`. The page was the
+last observed operation before whole-snapshot validation; it is not a proven
+cause. The exact metadata-only attempts and rendered window are retained
+outside the checkout at
+`~/Library/Application Support/BetterPullReview/BPR-0643-evidence-2026-09-13/attempt-3-diagnostics.log`
+(SHA-256 `b6843ce662bf54ca4782d0fa9e2d14d43831c5b7080e9be4e78efebfdeafdf3d`),
+`attempt-4-diagnostics.log` (SHA-256
+`572bb9175e26e4bf40922d51bed5b680d57b26cb2bf7b525b6cdc4240ffd2637`),
+and `attempt-3-window.png` (SHA-256
+`e3807e748cb45358f56eeefc158e19135b2157dac9f1ffbe411ebf632e824bcc`).
+No file list or selected diff appeared in that window.
+
+Read-only CLI structural checks under the owner's separate configured account
+found 1,523 files, 250 returned commits, one review, 111 issue comments and
+19 complete GraphQL review threads. The checked file/thread/actor/search
+relationships had no mismatch; the original `invalid_relationship` cause is
+still unknown, including capability-shaped observations that the CLI grant
+cannot reproduce. The exact product search query matches the CLI probe:
+`is:pr is:open repo:EpicGames/UnrealEngine`. That repository currently reports
+2,104 open-PR search hits, exceeding the product's 1,000-result bound. This
+is a separate demonstrated load coupling, not an explanation of the earlier
+`invalid_relationship` terminal.
+
+Commit `4c90aa70` makes oversized ancillary repository search explicitly
+`result_limit` with zero retained search rows, after validating the bounded
+received page, and keeps the exact PR snapshot eligible. Malformed rows,
+contradictory pagination and other read failures still refuse. It also keeps
+the `invalid_relationship` failure class while adding a fixed metadata-only
+`relationship_detail` for a future reproduction; it does not relax any
+relationship check. Synthetic 2,104-hit, malformed-page and exact PR
+identity/file/base/head controls pass. Six focused courses, including the
+rendered GitHub.com public path, pass; an independent reviewer found two
+first-candidate fail-closed gaps, which were corrected and narrowly rechecked.
+The documentation gate, source format check and scoped board validation pass.
+
+The final tests-disabled `build/app-release` Mac bundle is Developer ID signed
+and passes `codesign --verify --deep --strict` (binary SHA-256
+`60f0025fcb007f034be0ceb2f6838a0bbf0573e4b9a9ea3cf56f084f454cfe9e`).
+Its exact read-only target attempt under a connected `MikeMarcin` session
+stopped earlier at `permission`/`GetRepository`; the session panel said
+`This GitHub sign-in does not have permission to read this pull request.`
+The two-line final log is outside the checkout at
+`~/Library/Application Support/BetterPullReview/BPR-0643-evidence-2026-09-13/attempt-7-final-signed-diagnostics.log`
+(SHA-256 `51973173839fa9281df37b5d393901fe188e8ea5bdd611896bc603ae4f274ce9`).
+The rebuilt ad-hoc and an earlier signed rebuild likewise stopped at
+`GetRepository`; their exact logs are preserved on the live BPR-0617 closeout.
+Why the original signed app could reach snapshot validation while restarted
+builds cannot read the repository is unknown. A product sign-in with authority
+to read this repository is needed to exercise the repaired exact path, inspect
+any new `relationship_detail`, and determine whether the original malformed
+snapshot has a safe repair. The app cannot adopt the CLI credential. No live
+write, credential extraction or private PR content retention occurred in d2.
+The d1 acceptance records above remain historical; this correction does not
+claim that the originally reported malformed-data failure is solved.
+
+## Previous frontier — bpr0643-r1 / d1 / mandate r2
+
+At d1, the bound `retained-stress-pr-read` milestone had a direct read-only
 outcome for the owner's exact `EpicGames/UnrealEngine#1773` target. BPR-0642
 is Done; the owner completed product sign-in through wizard
 `bpr0643-signin`, and the Mac candidate observed `MikeMarcin` on GitHub.com
@@ -35,12 +98,12 @@ credentials and its sole persisted native device binding was tombstoned. The
 network-isolated dev courses
 `application_github_window_read_host`, `github_paged_read`,
 `qt_composed_github_scale_100`, `application_github_public_path_github_com`
-and `application_logging` pass 5/5 at the current source. The pager's fixture
+and `application_logging` passed 5/5 at the d1 source. The pager's fixture
 accepts 3,000 files and 250 returned commits, but this cannot establish the
 target's runtime outcome. A task-launched dev UI process was stopped after its
 computer-use attachment timed out; it produced no new product diagnostic.
-The fresh tests-disabled Release candidate builds at
-`build/bpr0643-release/src/app/BetterPullReview.app` from this source. Its
+The d1 tests-disabled Release candidate was built at
+`build/bpr0643-release/src/app/BetterPullReview.app` from that source. Its
 ad-hoc local signature passes `codesign --verify --deep --strict`; direct Mac
 launch rendered the workbench, GitHub.com Native HTTPS profile and Accounts &
 hosts page, which initially said `No account` and `Signed out`. It accepted
@@ -78,13 +141,13 @@ The changed Qt wording passes `qt_composed_github_scale_100` and the source
 tree passes `coding-format-check`. The prior five focused diagnostic, pager,
 Qt and public-path courses remain valid for unchanged product behavior.
 
-This is the explicit known limit for the current device grant: the product
-cannot read this repository with that grant. A separate read-only CLI GET as
+For the d1 candidate's then-current device grant, the explicit known limit
+was a repository-read permission refusal. A separate read-only CLI GET as
 the same `MikeMarcin` account succeeds, but the product deliberately cannot
 adopt CLI credentials. The evidence does not prove whether GitHub App
 installation policy is the underlying permission cause, and it does not
-exercise the 1,523-file stress shape past repository access. No product code
-or limit changed. The only live actions were CLI GET and the app's read-only
+exercise the 1,523-file stress shape past repository access. No product read
+limit changed in d1. The only live actions were CLI GET and the app's read-only
 Open pull request; no review, comment, approval, label, push, publication or
 other live write occurred.
 
