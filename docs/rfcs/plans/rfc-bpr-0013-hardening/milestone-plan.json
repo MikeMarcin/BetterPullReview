@@ -59,6 +59,24 @@
       "boundary": "Owner-retained target needs available signed read authority; no production mutation or repository content retention"
     },
     {
+      "id": "large-pr-returned-commit-boundary",
+      "outcome": "A read-only large pull request distinguishes its reported total commits from the at-most-250 commits available through the bounded pull-request endpoint, then reaches the next truthful product result without fabricating history.",
+      "work": [
+        {
+          "issue": "BPR-0792"
+        }
+      ],
+      "depends_on": [
+        "retained-stress-pr-read"
+      ],
+      "exit_criteria": [
+        "The reported total and returned commit records remain distinct; exact bounded records and accepted head are required, with malformed or over-cap pages refused atomically",
+        "Focused positive and negative parser checks, documentation gate, and an integration-focused selected path pass",
+        "The exact owner-retained target receives one read-only gh-authorized parsed attempt and a tests-disabled public product-path attempt where feasible; file list and selected diff or the next metadata-only refusal are recorded without live write or credential transfer"
+      ],
+      "boundary": "Separate RFC-0013 follow-up to terminal BPR-0643 under mandate r12; preserve the 250-record cap, existing authentication/session state, and all RFC closeout prerequisites"
+    },
+    {
       "id": "verify-rfc-0013",
       "outcome": "All original RFC-BPR-0013 acceptance rows and architectural hardening stages have direct evidence against the immutable baseline and the RFC/card/index state is truthful under canonical order.",
       "work": [
@@ -72,7 +90,8 @@
       "depends_on": [
         "default-cache-byte-pressure",
         "durable-agent-workspace-recovery",
-        "retained-stress-pr-read"
+        "retained-stress-pr-read",
+        "large-pr-returned-commit-boundary"
       ],
       "exit_criteria": [
         "Reconcile the legacy plan’s pack import, architecture, deterministic core, host, Qt, composition, focused tests/fixtures, UX, security, documentation, simplification and closeout stages against the live BPR-0617 matrix and RFC baseline",

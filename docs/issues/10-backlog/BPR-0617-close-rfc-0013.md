@@ -4,12 +4,39 @@ id: "BPR-0617"
 title: "Verify and close RFC-BPR-0013"
 status: "Backlog"
 rfcs: ["RFC-BPR-0013"]
-depends_on: ["BPR-0507","BPR-0616","BPR-0618","BPR-0619","BPR-0620","BPR-0621","BPR-0622","BPR-0623","BPR-0624","BPR-0626","BPR-0627","BPR-0628","BPR-0629","BPR-0630","BPR-0631","BPR-0632","BPR-0633","BPR-0634","BPR-0635"]
+depends_on: ["BPR-0507","BPR-0616","BPR-0618","BPR-0619","BPR-0620","BPR-0621","BPR-0622","BPR-0623","BPR-0624","BPR-0626","BPR-0627","BPR-0628","BPR-0629","BPR-0630","BPR-0631","BPR-0632","BPR-0633","BPR-0634","BPR-0635","BPR-0792"]
 closeout_for: ["RFC-BPR-0013"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"}}
 ---
 
 # Verify and close RFC-BPR-0013
+
+## Current frontier — bpr0643-r2 / d8 / mandate r12
+
+The owner renewed the read-only `EpicGames/UnrealEngine#1773` objective after
+RFC-0015's Mac CLI read, fixture publish, and native qualification at
+`26f1c22e`. The BPR-0643 known-limit acceptance remains terminal. Its later
+off-product `gh` read reached HTTP 200 for exact repository and pull-request
+metadata, then the current parser rejected the reported 9,311 total commits
+against its 250 returned-record limit before file paging. The fixed
+metadata-only observation and SHA-256 are recorded in the previous frontier
+below. The original `invalid_relationship` terminal remains a separate
+historical observation.
+
+Main reserved BPR-0792 at `c26dc022` with its counter and immutable receipt.
+The separate `large-pr-returned-commit-boundary` plan amendment binds
+[BPR-0792](../20-ready/BPR-0792-distinguish-large-pr-total-from-returned-commits.md)
+without changing BPR-0643's accepted exits. Its assignment is
+`docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-bpr0643-r2-d8-r12.json`.
+Current candidate is the parser/count distinction under the unchanged 250
+returned-record cap; no product source has yet changed. Owned planned paths:
+the GitHub pager, read model and count projections, focused tests, BPR-0792,
+the RFC-0013 plan/view, and this closeout. No task child or command is active.
+Next: claim the new card, implement exact capped-count validation, run focused
+and public-path checks, then attempt the target read-only through existing `gh`
+authority. No token extraction, live PR write, account change, or private
+content in the checkout is authorized. BPR-0617's older Windows/Linux,
+canonical predecessor, and RFC-wide obligations remain open.
 
 ## Current frontier — bpr0643-r1 / d7 / mandate r11
 

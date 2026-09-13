@@ -53,13 +53,29 @@ The owner-retained stress pull request has a privacy-preserving diagnostic failu
 
 **Boundary:** Owner-retained target needs available signed read authority; no production mutation or repository content retention
 
+## large-pr-returned-commit-boundary
+
+A read-only large pull request distinguishes its reported total commits from the at-most-250 commits available through the bounded pull-request endpoint, then reaches the next truthful product result without fabricating history.
+
+**Work:** `BPR-0792`
+
+**Prerequisites:** retained-stress-pr-read
+
+**Completion:**
+
+- The reported total and returned commit records remain distinct; exact bounded records and accepted head are required, with malformed or over-cap pages refused atomically
+- Focused positive and negative parser checks, documentation gate, and an integration-focused selected path pass
+- The exact owner-retained target receives one read-only gh-authorized parsed attempt and a tests-disabled public product-path attempt where feasible; file list and selected diff or the next metadata-only refusal are recorded without live write or credential transfer
+
+**Boundary:** Separate RFC-0013 follow-up to terminal BPR-0643 under mandate r12; preserve the 250-record cap, existing authentication/session state, and all RFC closeout prerequisites
+
 ## verify-rfc-0013
 
 All original RFC-BPR-0013 acceptance rows and architectural hardening stages have direct evidence against the immutable baseline and the RFC/card/index state is truthful under canonical order.
 
 **Work:** `BPR-0617`, `RFC-BPR-0013`
 
-**Prerequisites:** default-cache-byte-pressure, durable-agent-workspace-recovery, retained-stress-pr-read
+**Prerequisites:** default-cache-byte-pressure, durable-agent-workspace-recovery, retained-stress-pr-read, large-pr-returned-commit-boundary
 
 **Completion:**
 
