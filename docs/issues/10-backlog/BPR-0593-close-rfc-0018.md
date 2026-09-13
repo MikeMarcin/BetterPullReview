@@ -12,7 +12,55 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
-## Current frontier, 2026-09-12 (d30, mandate r20): protected-link migration and direct checks
+## Current frontier, 2026-09-12 (d30, mandate r20): integration evidence and binding renewal
+
+Run `attended-prep-2026-09-10`, dispatch d30, producer
+`/root/integrator_d29`, mandate r20, adopted milestone
+`attended-preparation-pack-head`. The d30 assignment definition was
+`sha256:201de49a086f8f809fea06d6749caf3fecb43e7fa8c78a960f55af31b64bfee5`
+and obligation was
+`sha256:33d953bc570693a53c5098acd8d175a6655c8402aa1d053c2ec3847c9c4ce33b`.
+Board progress changed the live card fingerprints, so the d30 assignment is
+stale and needs renewal before any formal milestone completion claim. All
+nine authored cards are now in `60-done/`; their original acceptance and
+human verdict records remain on their own cards. The protected v009/v010/v011
+operator packets and signed bundles were not edited. The v006 session
+identity binds all nine authored cards to its signed tests-disabled bundle
+and offline review page; both RFC-BPR-0018 and RFC-BPR-0028 point to the
+current v011 session and retain the v006 origin.
+
+The current-head direct pass built the app and focused tests. Host, SQLite
+migration, epoch Qt and GitHub pager selectors passed 4/4 in
+`build/d30-direct-checks.log`; the composed selector initially failed on a
+fixture query-order mismatch, then passed 1/1 after correction in
+`build/d30-composed-correction-test.log` (200.36 s). The integration set had
+Settings Qt at four scales, workbench Qt at three scales and workbench
+composition passing 8/8 in `build/d30-milestone-integration.log`. Its
+application composition contract initially found an intentional source
+manifest drift and `PROFILE_ALREADY_OPEN` against a separately running d28
+packaged app. Commit `ce6f1836` repins the manifest and gives packaged
+automated self-test/render runs a private temporary profile root. The
+contract then passed 1/1 in
+`build/d30-automated-root-regression-contract.log` while that app remained
+open. This is a repaired split pass, not a green single nine-selector batch.
+Final `check_boundaries`, documentation gate, 64 documentation script tests,
+touched formatting, Python compilation and `git diff --check` passed. No
+unresolved source failure remains in this selector set.
+
+RFC-BPR-0029 direct-check bookkeeping on [[BPR-0750]] now has rows 3, 6 and
+8 passing, rows 2, 4, 5 and 7 partial, and the exact v011 owner verdict on
+row 9. BPR-0750 stays In Progress, and RFC-BPR-0029 stays Accepted behind
+Proposed RFC-BPR-0008. RFC-BPR-0018 and RFC-BPR-0028 stay open for their
+separate Windows/Linux station and closeout criteria. [[BPR-0735]] remains
+blocked by the owner-declined editor observation and [[BPR-0746]] by the
+owner-declined probe; do not repeat either ask. [[BPR-0730]] and [[BPR-0731]]
+own the Windows/Linux stations. The detached d28 packaged app (PID 22988 at
+this check) is outside this invocation's ownership and was left running; all
+d30 builders, selectors and fixture writers are stopped. The next bounded
+step is coordinator renewal against the moved-card source, followed by an
+exit-by-exit milestone disposition without changing the protected packets.
+
+## Prior frontier, 2026-09-12 (d30, mandate r20): protected-link migration and direct checks
 
 Run `attended-prep-2026-09-10`, renewed dispatch d30, producer
 `/root/integrator_d29`, mandate r20, binding definition
