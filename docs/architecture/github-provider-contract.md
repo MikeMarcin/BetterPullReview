@@ -113,15 +113,19 @@ aggregate threshold is not a hard disk quota. Local refs reflect the accepted
 API snapshot, not fresh remote advertisement. A tests-disabled macOS fixture
 now renders a full PR diff through the CLI profile; an isolated build with
 the process adapter removed from composition visibly refuses the same healthy
-fixture. Native HTTPS helper exchange and Keychain backend behavior remain
-unverified. On macOS, the opted-in CLI profile now routes whole-review and
+fixture. A macOS native read-only probe now verifies one official `gh` HTTPS clone of a
+small owner-controlled private repository through `gh auth git-credential`;
+`gh` reports a keyring token source and a matching Keychain item exists.
+The probe does not bind the precise Security API calls, credential generation,
+or concurrent account selection. The private repository name and objects
+were not retained. On macOS, the opted-in CLI profile now routes whole-review and
 right-side inline-comment publication through the existing mutation admission,
 a separate exact-host/account/PR/operation confirmation for each write, and
 server reconciliation. The configured gh account may still change between
 checks; an ambiguous attempted write is not posted twice. Fixture actions
 exercise this path; no live PR was written. Windows and Linux remain
-unavailable, and target-native qualification and closeout remain pending
-under BPR-0787/BPR-0788.
+unavailable. Mac qualification is recorded by BPR-0787; formal RFC closeout
+remains with BPR-0788 and the canonical predecessor gate.
 
 BetterPullReview does not extract or copy CLI tokens or change global CLI
 authentication. Opt-in trusts the machine's configured executable, configuration,

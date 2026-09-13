@@ -43,8 +43,9 @@ Tests are direct evidence, not naming evidence.
   argument/environment/input contract. Trust probes use loopback-only
   endpoints, an owner-private digest-stable executable copy and temporary
   config, a runtime-random synthetic token, fixed structural observations,
-  and exact cleanup. A followed redirect is evidence that CLI mode is
-  unavailable, never a passing trust result.
+  and exact cleanup. A followed redirect is a recorded configured-CLI
+  residual risk under the RFC-BPR-0015 opt-in profile, never a passing
+  containment result. Keep the exact observed behavior and platform scope.
 - Native HTTPS fixtures use only loopback CONNECT proxies, a disposable CA
   and leaf, runtime-random framed standard-input credentials, fixed output,
   exact authority/SNI/Host/request observations, and bounded teardown. The
