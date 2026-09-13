@@ -25,7 +25,7 @@ historical observation.
 
 Main reserved BPR-0792 at `c26dc022` with its counter and immutable receipt.
 The separate `large-pr-returned-commit-boundary` plan amendment binds
-[BPR-0792](../20-ready/BPR-0792-distinguish-large-pr-total-from-returned-commits.md)
+[BPR-0792](../30-in-progress/BPR-0792-distinguish-large-pr-total-from-returned-commits.md)
 without changing BPR-0643's accepted exits. Its assignment is
 `docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-bpr0643-r2-d8-r12.json`.
 Current candidate is the parser/count distinction under the unchanged 250

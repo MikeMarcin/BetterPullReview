@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0792"
 title: "Distinguish large pull request total from returned commits"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0643"]
 priority: P1
