@@ -11,7 +11,24 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/pla
 
 # Verify and close RFC-BPR-0013
 
-## Current frontier — bpr0643-r1 / d3 / mandate r5
+## Current frontier — bpr0643-r1 / d4 / mandate r6
+
+The owner's account-level GitHub.com read access makes d3's manual-token
+suggestion premature; no credential switch is requested. The renewed
+`retained-stress-pr-read` investigation is bound by
+`docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-bpr0643-r1-d4-r6.json`.
+The product's connected `MikeMarcin` device session is preserved. The
+archived pre-d2 and current signed bundles contain the same public production
+GitHub App client identifier. The repository's 2026-08-28 registration
+observation lists only `MikeMarcin/BPR-Test` in a selected-repository
+installation; it is historical, not a live installation inventory. GitHub's
+documented GitHub App user-token access is the intersection of the account's
+and app's access. D4 is tracing the native `GetRepository` request, auth and
+failure mapping before treating installation policy or a product bug as the
+cause. The existing exact-target logs remain preserved; no credential is
+inspected and no PR write is authorized.
+
+## Previous frontier — bpr0643-r1 / d3 / mandate r5
 
 The renewed `retained-stress-pr-read` correction is bound by
 `docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-bpr0643-r1-d3-r5.json`;

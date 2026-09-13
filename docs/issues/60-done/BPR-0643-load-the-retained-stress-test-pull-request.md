@@ -12,7 +12,24 @@ acceptance: [{"criterion":"The diagnostics log names the failure class for this 
 
 # Load the retained stress-test pull request
 
-## Current correction frontier — bpr0643-r1 / d3 / mandate r5
+## Current correction frontier — bpr0643-r1 / d4 / mandate r6
+
+The owner clarified that the `MikeMarcin` account can read this repository on
+GitHub.com. D3's suggestion to switch to a manual token was premature and is
+withdrawn; the connected product device grant remains untouched. The current
+investigation is whether the product's exact `GetRepository` request or
+failure mapping is defective, or GitHub is limiting this GitHub App's grant
+independently of the user's website access. Both the archived pre-d2 signed
+binary and current signed binary embed the same public production GitHub App
+client identifier. Its 2026-08-28 registration observation recorded an
+installation limited to selected repositories, then only
+`MikeMarcin/BPR-Test`; that historical record does not prove today's
+installation selection. GitHub's documented user-token rule is the
+intersection of user and app repository access. D4 will trace the exact
+request and current result without reading credentials or changing sign-in,
+and will amend this frontier when the causal evidence is established.
+
+## Previous correction frontier — bpr0643-r1 / d3 / mandate r5
 
 The owner completed the new `bpr0643-reconnect` wizard's manual device
 reconnection step; its human acknowledgement is revision 1. At revision 2,
