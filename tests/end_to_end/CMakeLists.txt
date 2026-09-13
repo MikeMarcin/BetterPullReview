@@ -2433,3 +2433,21 @@ bpr_add_network_isolated_test(NAME application_profile_window_review_restoration
     --application $<TARGET_FILE:test_profile_window_review_restoration_public_path>)
 set_tests_properties(application_profile_window_review_restoration_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_REVIEW_RESTORATION_ARTIFACT_ROOT=${CMAKE_BINARY_DIR}/bpr0710-restoration-artifacts" TIMEOUT 1800)
+
+# One three-commit ordinary update is observed again after physical catalogue loss.
+bpr_add_network_isolated_test(
+    NAME application_epoch_ordinary_update_recreated
+    WINDOWS_UNCONTAINED
+    COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/epoch_ordinary_update_public_path.py"
+        --application $<TARGET_FILE:app_better_pull_review>
+        --budget-ms ${bpr_fixture_run_budget_ms}
+        --logs "${PROJECT_BINARY_DIR}/ordinary-update-logs"
+)
+set_tests_properties(application_epoch_ordinary_update_recreated PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}"
+    PASS_REGULAR_EXPRESSION "EPOCH_ORDINARY_RECREATED_OK:1"
+)
+bpr_bound_automated_run(application_epoch_ordinary_update_recreated
+    TIMEOUT 400 BUDGET_MS ${bpr_fixture_run_budget_ms} RUNS 6 RESERVE_MS 10000
+)

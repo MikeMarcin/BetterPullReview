@@ -274,8 +274,9 @@ namespace bpr::app::detail {
 			std::string_view          HeadOneBlob;
 			std::string_view          HeadTwoBlob;
 			fixture_pack_source       Packs;
-			bool                      Paged         = false;
-			bool                      WindowReading = false;
+			bool                      Paged          = false;
+			bool                      WindowReading  = false;
+			bool                      OrdinaryUpdate = false;
 		};
 
 		/// \brief Selects the descriptor the named fixture serves.
@@ -580,6 +581,28 @@ namespace bpr::app::detail {
 							"2222222222222222222222222222222222222222",
 							observedHead);
 				overlay_window_reading(responseBody, *operation, aDescriptor);
+				if (aDescriptor.OrdinaryUpdate && *operation == read_operation::get_pull_request) {
+					auto pull = QJsonDocument::fromJson(QByteArray::fromStdString(responseBody)).object();
+					pull.insert(QStringLiteral("commits"), aHead == aDescriptor.HeadTwoOid ? 4 : 1);
+					responseBody = QJsonDocument{ pull }.toJson(QJsonDocument::Compact).toStdString();
+				}
+				if (aDescriptor.OrdinaryUpdate && *operation == read_operation::list_pull_request_commits) {
+					const auto prototype = QJsonDocument::fromJson(QByteArray::fromStdString(responseBody)).array().first().toObject();
+					QJsonArray commits;
+					const auto append = [&](const std::string_view aOid) {
+						auto commit = prototype;
+						commit.insert(QStringLiteral("sha"), QString::fromUtf8(aOid.data(), static_cast<qsizetype>(aOid.size())));
+						commit.insert(QStringLiteral("node_id"), QStringLiteral("C_ordinary_") + QString::fromUtf8(aOid.data(), static_cast<qsizetype>(aOid.size())));
+						commits.append(commit);
+					};
+					append(aDescriptor.HeadOneOid);
+					if (aHead == aDescriptor.HeadTwoOid) {
+						append("e9e0fbcba1f5f7ccb31b5c3734cf2f8d20d44569");
+						append("c9d8dc7949a538978fb33945f2f6e482d66e14c0");
+						append(aDescriptor.HeadTwoOid);
+					}
+					responseBody = QJsonDocument{ commits }.toJson(QJsonDocument::Compact).toStdString();
+				}
 				exchanges.push_back(
 					{
 						.Request = {
@@ -919,7 +942,11 @@ namespace bpr::app::detail {
 					}
 					return response;
 				}
-				return Paged ? Paged->perform(aRequest) : Strict.perform(aRequest);
+				auto response = Paged ? Paged->perform(aRequest) : Strict.perform(aRequest);
+				if (TimelineCourse == "ordinary" && response && aRequest.Operation == read_operation::list_pull_request_commits) {
+					QTextStream{ stdout } << "ORDINARY_SURVIVING_COMMITS:" << QJsonDocument::fromJson(QByteArray::fromStdString(response->Body)).array().size() << '\n';
+				}
+				return response;
 			}
 			[[nodiscard]] auto consumed_all() const noexcept -> bool
 			{
@@ -2888,9 +2915,17 @@ namespace bpr::app::detail {
 					"GitHub public-path installed Git is unavailable"
 				};
 			}
-			const auto served = descriptor(aFixture);
-			Git               = make_git_fixture(served.Packs);
-			Recording         = std::make_shared<fixture_recording_state>(
+			auto served = descriptor(aFixture);
+			if (aOptions.TimelineCourse == "ordinary") {
+				if (aFixture != github_public_path_fixture::github_com || !aOptions.EmptyHistoricalTimeline) {
+					throw std::runtime_error{ "Ordinary update requires the synthetic GitHub fixture and empty timeline" };
+				}
+				served.HeadTwoOid     = "b7b8dc0e5c4fbac8079b2c44bacfff5d36519c13";
+				served.Packs          = { .File = "ordinary-update-v1/initial.pack", .SecondFile = "ordinary-update-v1/replacement.pack" };
+				served.OrdinaryUpdate = true;
+			}
+			Git       = make_git_fixture(served.Packs);
+			Recording = std::make_shared<fixture_recording_state>(
 				served, aProfile, Git, aOptions.EpochPhase, aOptions.LargeReviewHistory, aOptions.IndependentWindowReads,
 				aOptions.EmptyHistoricalTimeline, aOptions.UnfetchableFirstHistoricalHead, aOptions.TimelineCourse);
 			Recording->RepeatSessions = aOptions.DeviceRefreshCourse || aOptions.PersistDeviceBindings || aOptions.IndependentWindowReads;
