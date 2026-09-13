@@ -16,7 +16,7 @@ The owner chose, on the options candidate `BPR-0724-read-width` in the
 v006 attended session (decision `205ac8b2`, 18:42:22Z), "Keep the
 conversations drawer in Read but let it go narrower than 375 pixels"
 (with the single-pane layout,
-[BPR-0729](../40-parked/BPR-0729-a-single-pane-read-layout-in-the-manner-of-p4merge.md),
+[BPR-0729](BPR-0729-a-single-pane-read-layout-in-the-manner-of-p4merge.md),
 as a separate slice). The context is
 [BPR-0724](BPR-0724-read-mode-leaves-too-little-horizontal-room-for-the-code.md):
 "it was difficult to read the code because of a lack of horizontal area
