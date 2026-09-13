@@ -11,7 +11,32 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/pla
 
 # Verify and close RFC-BPR-0013
 
-## Current frontier — rfc0013-r2 / d4
+## Current frontier — bpr0643-r1 / d1 / mandate r1
+
+The `retained-stress-pr-read` milestone is human-pending. BPR-0642 is Done;
+[BPR-0643](../40-parked/BPR-0643-load-the-retained-stress-test-pull-request.md)
+is Parked for the owner's native HTTPS product sign-in. The committed binding
+is `docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-bpr0643-r1-d1.json`.
+An authenticated read-only CLI GET as `MikeMarcin` confirms that the exact
+target remains available (1,523 files, 9,311 total commits), but the product
+cannot adopt CLI credentials and its retained device binding is tombstoned.
+The fresh tests-disabled Mac candidate builds at
+`build/bpr0643-release/src/app/BetterPullReview.app` and directly renders the
+GitHub.com Native HTTPS profile as signed out. Five focused diagnostic, pager,
+Qt and public-path courses pass; the pager fixture accepts 3,000 files and
+250 returned commits. No target load ran, so no new failed log or target
+failure class exists; neither a limit nor success is inferred. The task-owned
+app processes and build commands are quiescent. The next bounded step is an
+owner-established `MikeMarcin` product session in that candidate, then one
+read-only load of `EpicGames/UnrealEngine#1773`, exact diagnostic capture
+outside the repository, and verification of its file list and selected diff
+or explicit reasoned refusal. No live write or credential transfer occurred.
+
+The previous accepted `default-cache-byte-pressure` milestone remains as
+recorded below. BPR-0622's native evidence and final RFC closeout remain open.
+The unrelated `.gitignore` and `.mask.json` edits are outside this scope.
+
+## Previous frontier — rfc0013-r2 / d4
 
 ### D4 owner disposition and milestone reconciliation
 
