@@ -11,6 +11,21 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/pla
 
 # Load the retained stress-test pull request
 
+## Current frontier — bpr0643-r1 / d1 / mandate r1
+
+The bound `retained-stress-pr-read` milestone targets only a read-only Mac load
+of the owner's retained `EpicGames/UnrealEngine#1773` through an already
+configured account, if available. BPR-0642 is Done and supplies structured
+`github.pull_request` diagnostics. The next discriminating step is to establish
+the locally configured account and run the candidate's read path, retaining
+the exact failed diagnostic log outside the repository. If account read authority
+is unavailable, use local fixtures to complete independent product diagnosis
+and leave the live criterion open. No live write, publication, credential
+exposure, or private PR content retention is authorized.
+
+This card is claimed on main; only its live record and bounded product/test
+paths are owned. Existing `.gitignore` and `.mask.json` edits are unrelated.
+
 The owner retained `EpicGames/UnrealEngine#1773` as a stress-test target after
 the signed private alpha candidate reported `The pull request could not be
 loaded.` for it while connected as the owner's account. It is an open 2015
