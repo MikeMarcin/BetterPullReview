@@ -1,0 +1,22 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0770",
+    "BPR-0771",
+    "BPR-0772",
+    "BPR-0773",
+    "BPR-0774",
+    "BPR-0775",
+    "BPR-0776",
+    "BPR-0777",
+    "BPR-0778",
+    "BPR-0779",
+    "BPR-0780",
+    "BPR-0781",
+    "BPR-0782"
+  ],
+  "reserve_for": "shell-surfaces-import",
+  "purpose": "Import bpr-shell-surfaces-v1 authored cards",
+  "created": "2026-09-13T18:45:51.399529+00:00",
+  "base": "00a1a7d0769955c63fd73040b8d684190cde4cbd"
+}

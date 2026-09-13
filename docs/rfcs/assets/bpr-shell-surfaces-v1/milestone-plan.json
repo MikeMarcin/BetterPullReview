@@ -1,0 +1,122 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-shell-surfaces-v1",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0032",
+      "RFC-BPR-0033"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "intake-baseline",
+      "outcome": "The pack is imported against the live source with allocated IDs, and the exact composition seams the design changes are recorded.",
+      "work": [
+        {
+          "issue": "PACK-SHELL-01"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Live HEAD, RFC and issue allocations and source drift are recorded without overwriting existing work.",
+        "The Accounts adoption, last-runtime branch and quit policy are located in the live tree by file and function."
+      ],
+      "boundary": "One intake boundary; no application change is implied."
+    },
+    {
+      "id": "accounts-page",
+      "outcome": "Accounts & hosts is the title, the sentence, one card per server and one button, with sign-in inside the card.",
+      "work": [
+        {
+          "issue": "PACK-SHELL-02"
+        },
+        {
+          "issue": "PACK-SHELL-03"
+        },
+        {
+          "issue": "PACK-SHELL-04"
+        },
+        {
+          "issue": "PACK-SHELL-05"
+        }
+      ],
+      "depends_on": [
+        "intake-baseline"
+      ],
+      "exit_criteria": [
+        "The retired objects are absent from the page and every composed course passes against its new target.",
+        "Each configured host renders one card; sign-in, enterprise add, remember and forget work through the existing intents."
+      ],
+      "boundary": "One Settings-page boundary; Home and the chooser may proceed independently."
+    },
+    {
+      "id": "home-page",
+      "outcome": "Home is one column: the bar first, then rows, with sentences for empties and one Filter menu.",
+      "work": [
+        {
+          "issue": "PACK-SHELL-06"
+        },
+        {
+          "issue": "PACK-SHELL-07"
+        }
+      ],
+      "depends_on": [
+        "intake-baseline"
+      ],
+      "exit_criteria": [
+        "Signed-out, signed-in, empty, listed and over-a-review states render as accepted with the bar focused on arrival.",
+        "Recent and action rows share one delegate; the six preferences live in one menu with chips; no empty box renders."
+      ],
+      "boundary": "One Home boundary; the queue projection and preference store are consumed unchanged."
+    },
+    {
+      "id": "profile-chooser",
+      "outcome": "Closing a window never presents the chooser, each platform gets its expected exit, and the chooser is a sheet of rows.",
+      "work": [
+        {
+          "issue": "PACK-SHELL-08"
+        },
+        {
+          "issue": "PACK-SHELL-09"
+        }
+      ],
+      "depends_on": [
+        "intake-baseline"
+      ],
+      "exit_criteria": [
+        "The last-window course proves no presentation, the policy outcome per platform and single-owner reopening.",
+        "The sheet component course proves rows, in-place editing, failure notice and the absence of retired controls."
+      ],
+      "boundary": "One desktop-lifecycle boundary; runtime admission and profile identity are unchanged."
+    },
+    {
+      "id": "verification-closeout",
+      "outcome": "Rendered, keyboard, screen-reader and attended evidence exists for all three surfaces, documentation matches, and formal status is truthful.",
+      "work": [
+        {
+          "issue": "PACK-SHELL-10"
+        },
+        {
+          "issue": "PACK-SHELL-11"
+        },
+        {
+          "issue": "PACK-SHELL-12"
+        },
+        {
+          "issue": "PACK-SHELL-13"
+        }
+      ],
+      "depends_on": [
+        "accounts-page",
+        "home-page",
+        "profile-chooser"
+      ],
+      "exit_criteria": [
+        "Captures, walks and attended verdicts are bound to revisions; unobserved platforms are recorded as not run.",
+        "Documentation gate passes; every closeout row references evidence or a named unresolved criterion."
+      ],
+      "boundary": "One pack boundary; formal closeout follows canonical order and never falsifies a status."
+    }
+  ]
+}

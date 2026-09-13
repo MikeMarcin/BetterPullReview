@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BetterPullReview shell surfaces v1</title>
+<style>
+/* Design reference for RFC-BPR-0032 and RFC-BPR-0033. The values below stand in for
+   QPalette roles; the application must read the roles, never these hex values. */
+:root{
+  --window:#f2f2f4; --base:#ffffff; --mid:#d6d6db; --text:#1b1b1e; --quiet:#6b6d75;
+  --highlight:#2f6fed; --on-highlight:#ffffff; --button:#e9e9ec;
+  --connected:#1f8a3b; --needs:#a86a06; --sheet:#ececef;
+  --ui:-apple-system,"SF Pro Text","Segoe UI","Cantarell",system-ui,sans-serif;
+  --code:"JetBrains Mono NL","JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --window:#1f2023; --base:#27282c; --mid:#3a3b41; --text:#ececee; --quiet:#9a9ca4;
+         --highlight:#3b7bff; --button:#323338; --connected:#4cc06c; --needs:#e0a23c; --sheet:#242529; }
+}
+html{color-scheme:light dark}
+body{margin:0;background:var(--sheet);color:var(--text);font:13px/1.45 var(--ui);}
+.boards{display:grid;grid-template-columns:repeat(auto-fit,minmax(640px,1fr));gap:40px;padding:40px;max-width:1720px;margin:0 auto}
+.board{display:flex;flex-direction:column;gap:10px}
+.board>h2{margin:0;font-size:13px;font-weight:600;color:var(--quiet)}
+.board>h2 span{color:var(--text)}
+.mac{background:var(--window);border:1px solid var(--mid);border-radius:10px;overflow:hidden;box-shadow:none}
+.titlebar{height:38px;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--mid);font-weight:600}
+.lights{display:flex;gap:7px;margin-right:6px}.lights i{width:12px;height:12px;border-radius:50%;background:var(--mid);display:block}
+.titlebar .spacer{flex:1}
+.ico{width:26px;height:22px;border:1px solid var(--mid);border-radius:5px;display:inline-flex;align-items:center;justify-content:center;color:var(--quiet);font-weight:400;font-size:12px;background:var(--base)}
+/* settings */
+.settings{display:grid;grid-template-columns:196px 1fr;min-height:560px}
+.sidebar{border-right:1px solid var(--mid);padding:12px 8px;display:flex;flex-direction:column;gap:2px}
+.sidebar div{padding:6px 10px;border-radius:6px}
+.sidebar .on{background:var(--highlight);color:var(--on-highlight)}
+.page{padding:16px 24px 24px;max-width:760px}
+.page h1{font-size:16px;font-weight:600;margin:0 0 4px}
+.lede{color:var(--quiet);margin:0 0 20px}
+.card{background:var(--base);border:1px solid var(--mid);border-radius:8px;margin-bottom:16px}
+.card>div{padding:12px 16px;border-top:1px solid var(--mid)}
+.card>div:first-child{border-top:0}
+.hdr{display:flex;align-items:baseline;justify-content:space-between}
+.hdr b{font-weight:600}
+.hdr small{display:block;color:var(--quiet);font-size:12px}
+.state{color:var(--quiet)} .state.ok{color:var(--connected)}
+.account{display:grid;grid-template-columns:32px 1fr auto;gap:12px;align-items:start}
+.avatar{width:32px;height:32px;border-radius:8px;background:var(--button);display:flex;align-items:center;justify-content:center;font-weight:600}
+.account b{font-weight:600}
+.account p{margin:2px 0 0;color:var(--quiet);font-size:12px}
+.row{display:grid;grid-template-columns:150px 1fr auto;gap:16px;align-items:center;padding:10px 0;border-top:1px solid var(--mid)}
+.row:first-child{border-top:0;padding-top:0}
+.row:last-child{padding-bottom:0}
+.rows{padding:12px 16px}
+.row .c{color:var(--quiet);font-size:12px}
+.row .v{color:var(--text)}
+.btn{font:inherit;white-space:nowrap;padding:4px 12px;border-radius:6px;border:1px solid var(--mid);background:var(--button);color:var(--text);line-height:1.4}
+.btn.primary{background:var(--highlight);border-color:var(--highlight);color:var(--on-highlight)}
+.btn.flat{border-color:transparent;background:transparent;color:var(--quiet)}
+.btn.small{padding:2px 10px;font-size:12px}
+.switch{width:34px;height:20px;border-radius:10px;background:var(--mid);position:relative;display:inline-block}
+.switch.on{background:var(--highlight)}
+.switch:after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff}
+.switch.on:after{left:16px}
+.code{font:20px/1.2 var(--code);letter-spacing:.08em;margin:8px 0 10px;user-select:all}
+.actions{display:flex;gap:8px;align-items:center}.actions>span:last-child{white-space:nowrap}
+.actions .gap{flex:1}
+.disclosure{color:var(--text)} .disclosure:before{content:"▸ ";color:var(--quiet)}
+/* home */
+.home{min-height:560px;display:flex;flex-direction:column}
+.homecol{width:min(720px,100%);margin:0 auto;padding:28px 24px 12px;box-sizing:border-box;flex:1}
+.bar{background:var(--base);border:1px solid var(--mid);border-radius:8px;padding:10px 12px 10px 14px}
+.bar label{display:block;font-weight:600;margin-bottom:6px}
+.bar .field{display:flex;gap:8px;align-items:center}
+.bar .field span{flex:1;color:var(--quiet);border-bottom:1px solid transparent}
+.notice{display:flex;gap:12px;align-items:baseline;margin:8px 2px 0;color:var(--text)}
+.notice a{color:var(--quiet);text-decoration:none}
+h3{font-size:13px;font-weight:600;margin:24px 0 4px;display:flex;justify-content:space-between;align-items:baseline}
+h3 .btn{font-weight:400}
+.list{margin:0;padding:0;list-style:none}
+.list li{display:grid;grid-template-columns:auto 1fr auto auto;gap:12px;align-items:baseline;padding:9px 6px;border-top:1px solid var(--mid)}
+.list li:first-child{border-top:0}
+.list li b{font-weight:600;white-space:nowrap}
+.list li .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.list li .m{color:var(--quiet);font-size:12px;white-space:nowrap}
+.list li .r{font-size:12px;color:var(--quiet)}
+.list li .r.needs{color:var(--needs)}
+.list li.hover{background:var(--base);border-radius:6px}
+.empty{color:var(--quiet);margin:6px 6px 0}
+.empty a{color:var(--text);text-decoration:none;border-bottom:1px solid var(--mid)}
+.chips{display:flex;gap:6px;margin:4px 0 0}
+.chip{font-size:12px;padding:1px 8px;border:1px solid var(--mid);border-radius:10px;color:var(--quiet)}
+.status{border-top:1px solid var(--mid);padding:5px 12px;color:var(--quiet);font-size:12px}
+.signin{background:var(--base);border:1px solid var(--mid);border-radius:8px;padding:16px 18px;margin-bottom:16px}
+.signin b{font-size:15px;font-weight:600;display:block;margin-bottom:4px}
+.signin p{margin:0 0 12px;color:var(--quiet)}
+/* profiles */
+.sheetwin{width:440px;margin:0 auto}
+.plist{margin:12px 12px 8px;border:1px solid var(--mid);border-radius:8px;background:var(--base);overflow:hidden}
+.plist>div{display:grid;grid-template-columns:28px 1fr auto;gap:12px;align-items:center;padding:9px 12px;border-top:1px solid var(--mid)}
+.plist>div:first-child{border-top:0}
+.plist .sel{background:var(--highlight);color:var(--on-highlight)}
+.plist .sel .m,.plist .sel .avatar{color:inherit}.plist .sel .avatar{background:rgba(255,255,255,.22)}
+.plist .m{color:var(--quiet);font-size:12px}
+.plist .avatar{width:28px;height:28px;font-size:12px}
+.pfoot{display:flex;gap:8px;align-items:center;padding:4px 12px 12px}
+.pfoot .gap{flex:1}
+.fail{margin:0 12px 8px;padding:8px 12px;border:1px solid var(--mid);border-radius:6px;background:var(--base);display:flex;gap:12px;align-items:baseline}
+.fail span{flex:1}
+</style>
+</head>
+<body>
+<div class="boards">
+
+<section class="board">
+  <h2><span>1.</span> Settings, Accounts &amp; hosts, connected</h2>
+  <div class="mac">
+    <div class="titlebar"><div class="lights"><i></i><i></i><i></i></div>Settings, Default profile</div>
+    <div class="settings">
+      <div class="sidebar"><div>General</div><div class="on">Accounts &amp; hosts</div><div>Reviews &amp; queue</div><div>Appearance</div><div>Notifications</div><div>Agents &amp; context</div><div>Storage &amp; privacy</div></div>
+      <div class="page">
+        <h1>Accounts &amp; hosts</h1>
+        <p class="lede">One account per server. Credentials are never shown here.</p>
+        <div class="card">
+          <div class="hdr"><div><b>github.com</b><small>GitHub.com, native HTTPS</small></div><span class="state ok">Connected</span></div>
+          <div class="account"><div class="avatar">M</div><div><b>MikeMarcin</b><p>Signed in with a device grant on 2026-09-13; renews itself and is remembered on this Mac.</p></div><button class="btn small">Sign out</button></div>
+          <div class="rows">
+            <div class="row"><div>Access</div><div class="c">Reads and writes the repositories the account can reach; publication uses this account.</div><div></div></div>
+            <div class="row"><div>Rate limit</div><div class="c"><span class="v">4,807 of 5,000</span> requests remaining, resets in 38 min.</div><div></div></div>
+            <div class="row"><div class="disclosure">Details</div><div class="c">Transport, capabilities and the last check.</div><div></div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hdr"><div><b>ghe.example.com</b><small>GitHub Enterprise Server</small></div><span class="state">Signed out</span></div>
+          <div class="account"><div class="avatar">?</div><div><b>No account</b><p>Signs in with a token for this session only; it is asked for again after a restart.</p></div><button class="btn small">Sign in</button></div>
+          <div class="rows">
+            <div class="row"><div>Remember this server</div><div class="c">Keeps the hostname and account name across launches. The token is still asked for.</div><span class="switch on"></span></div>
+            <div class="row"><div><button class="btn flat small" style="margin-left:-10px">Forget server</button></div><div class="c">Removes this server from the list. Nothing on the server changes.</div><div></div></div>
+          </div>
+        </div>
+        <button class="btn">Add enterprise server</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="board">
+  <h2><span>2.</span> Settings, Accounts &amp; hosts, signing in</h2>
+  <div class="mac">
+    <div class="titlebar"><div class="lights"><i></i><i></i><i></i></div>Settings, Default profile</div>
+    <div class="settings">
+      <div class="sidebar"><div>General</div><div class="on">Accounts &amp; hosts</div><div>Reviews &amp; queue</div><div>Appearance</div><div>Notifications</div><div>Agents &amp; context</div><div>Storage &amp; privacy</div></div>
+      <div class="page">
+        <h1>Accounts &amp; hosts</h1>
+        <p class="lede">One account per server. Credentials are never shown here.</p>
+        <div class="card">
+          <div class="hdr"><div><b>github.com</b><small>GitHub.com, native HTTPS</small></div><span class="state">Signing in</span></div>
+          <div class="account">
+            <div class="avatar">?</div>
+            <div>
+              <b>Enter this code at github.com/login/device</b>
+              <div class="code">A416-42ED</div>
+              <div class="actions"><button class="btn primary small">Open browser</button><button class="btn small">Copy code</button><span class="gap"></span><span class="c" style="color:var(--quiet);font-size:12px">Valid for 14 min 59 s</span></div>
+              <p>Waiting for the browser to authorize this Mac. The session will be remembered here.</p>
+            </div>
+            <button class="btn flat small">Cancel</button>
+          </div>
+          <div class="rows">
+            <div class="row"><div class="disclosure">Details</div><div class="c">Transport, capabilities and the last check.</div><div></div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="hdr"><div><b>ghe.example.com</b><small>GitHub Enterprise Server</small></div><span class="state">Signed out</span></div>
+          <div class="account"><div class="avatar">?</div><div><b>No account</b><p>Signs in with a token for this session only; it is asked for again after a restart.</p></div><button class="btn small">Sign in</button></div>
+        </div>
+        <button class="btn">Add enterprise server</button>
+        <p class="lede" style="margin-top:20px">Signed out, the github.com account row reads “No account. Sign in starts a device code; the session is remembered on this Mac.” with one filled <b>Sign in</b> button at its right. Nothing else on the page changes between the three states.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="board">
+  <h2><span>3.</span> Home, signed in</h2>
+  <div class="mac">
+    <div class="titlebar"><div class="lights"><i></i><i></i><i></i></div><span class="ico">⌂</span><span class="spacer"></span><span class="ico">◯</span><span class="ico">⚙</span></div>
+    <div class="home">
+      <div class="homecol">
+        <div class="bar"><label>Open a pull request</label><div class="field"><span>Paste a link, or write owner/name#123</span><button class="btn primary small">Open</button></div></div>
+        <div class="notice"><span>This sign-in cannot read EpicGames/UnrealEngine#1.</span><a href="#">Copy details</a></div>
+
+        <h3>Recently viewed</h3>
+        <ul class="list">
+          <li class="hover"><b>NVIDIA/stdexec#1846</b><span class="t">Optional recursive mutex in Asio integration</span><span class="m">2 h ago</span><button class="btn small">Resume</button></li>
+          <li><b>microsoft/terminal#20607</b><span class="t">Preserve the DRCS font when performing a soft reset</span><span class="m">Tuesday</span><span></span></li>
+        </ul>
+
+        <h3>Needs me <button class="btn flat small">Filter ▾</button></h3>
+        <ul class="list">
+          <li><b>EpicGames/UnrealEngine#14366</b><span class="t">Hair strand lighting fixes for LSS</span><span class="m">3 of 40 read</span><span class="r needs">changed</span></li>
+          <li><b>EpicGames/UnrealEngine#15157</b><span class="t">Fix bindless uniform buffer CBV residency</span><span class="m">not started</span><span class="r needs">requested</span></li>
+        </ul>
+        <h3>Waiting on others</h3>
+        <ul class="list">
+          <li><b>MikeMarcin/BetterPullReview#1773</b><span class="t">Stress test: 9,311 commits</span><span class="m">mine</span><span class="r">waiting</span></li>
+        </ul>
+        <h3>Following</h3>
+        <ul class="list">
+          <li><b>EpicGames/UnrealEngine#15059</b><span class="t">Fix crash during FUniqueNetIdRepl serialization</span><span class="m">approved by me</span><span class="r">following</span></li>
+        </ul>
+      </div>
+      <div class="status">Signed in as MikeMarcin on github.com; 4,807 requests remaining.</div>
+    </div>
+  </div>
+</section>
+
+<section class="board">
+  <h2><span>4.</span> Home, nothing to show, and Home signed out</h2>
+  <div class="mac">
+    <div class="titlebar"><div class="lights"><i></i><i></i><i></i></div><span class="ico">⌂</span><span class="spacer"></span><span class="ico">◯</span><span class="ico">⚙</span></div>
+    <div class="home" style="min-height:300px">
+      <div class="homecol">
+        <div class="bar"><label>Open a pull request</label><div class="field"><span>Paste a link, or write owner/name#123</span><button class="btn primary small">Open</button></div></div>
+        <h3>Needs me</h3>
+        <p class="empty">Nothing needs me. Pull requests from <a href="#">saved repositories and observer rules</a> appear here.</p>
+      </div>
+      <div class="status">Signed in as MikeMarcin on github.com; 4,807 requests remaining.</div>
+    </div>
+  </div>
+  <div class="mac" style="margin-top:20px">
+    <div class="titlebar"><div class="lights"><i></i><i></i><i></i></div><span class="ico">⌂</span><span class="spacer"></span><span class="ico">◯</span><span class="ico">⚙</span></div>
+    <div class="home" style="min-height:300px">
+      <div class="homecol">
+        <div class="signin"><b>Sign in to GitHub</b><p>A device code in the browser signs this Mac in once; the session is remembered here.</p><button class="btn primary">Sign in</button></div>
+        <div class="bar"><label>Or read a public pull request</label><div class="field"><span>Paste a link, or write owner/name#123</span><button class="btn small">Open</button></div></div>
+      </div>
+      <div class="status">Not signed in. Public pull requests open read-only.</div>
+    </div>
+  </div>
+</section>
+
+<section class="board">
+  <h2><span>5.</span> Profiles, opened from the Profiles menu</h2>
+  <div class="mac sheetwin">
+    <div class="titlebar"><div class="lights"><i></i><i></i><i></i></div>Profiles</div>
+    <div class="plist">
+      <div class="sel"><div class="avatar">D</div><div>Default</div><span class="m">Open in 2 windows</span></div>
+      <div><div class="avatar">W</div><div>Work</div><span class="m">Closed</span></div>
+      <div><div class="avatar">P</div><div>Personal</div><span class="m">Closed</span></div>
+    </div>
+    <div class="pfoot"><button class="btn flat">New profile</button><span class="gap"></span><button class="btn">Rename</button><button class="btn primary">New window</button></div>
+  </div>
+  <div class="mac sheetwin" style="margin-top:20px">
+    <div class="titlebar"><div class="lights"><i></i><i></i><i></i></div>Profiles</div>
+    <div class="fail"><span>Profiles could not be saved. The name is kept.</span><button class="btn small">Try again</button></div>
+    <div class="plist">
+      <div><div class="avatar">D</div><div>Default</div><span class="m">Open in 2 windows</span></div>
+      <div class="sel"><div class="avatar">W</div><div style="background:var(--base);color:var(--text);border-radius:4px;padding:2px 6px">Work</div><span class="m">Renaming</span></div>
+      <div><div class="avatar">P</div><div>Personal</div><span class="m">Closed</span></div>
+    </div>
+    <div class="pfoot"><button class="btn flat">New profile</button><span class="gap"></span><button class="btn">Cancel</button><button class="btn primary">Save</button></div>
+  </div>
+  <p class="lede" style="max-width:440px;margin:16px auto 0">Closing the last window no longer opens this sheet. On macOS the app stays in the Dock with its menu bar; the Dock icon, ⌘N or the Profiles menu reopen the last profile at Home. On Windows and Linux closing the last window quits.</p>
+</section>
+
+</div>
+</body>
+</html>

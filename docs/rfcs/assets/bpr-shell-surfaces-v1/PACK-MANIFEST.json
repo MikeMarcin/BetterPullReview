@@ -1,0 +1,57 @@
+{
+  "schema": "bpr.rfc-pack.v1",
+  "id": "bpr-shell-surfaces-v1",
+  "version": 1,
+  "status": "proposed_design_and_implementation_handoff",
+  "rfc_ids": [
+    "RFC-BPR-0032",
+    "RFC-BPR-0033"
+  ],
+  "rfc_paths": [
+    "repository-overlay/docs/rfcs/RFC-BPR-0032-calm-home-and-accounts-surfaces.md",
+    "repository-overlay/docs/rfcs/RFC-BPR-0033-profile-chooser-and-the-last-window.md"
+  ],
+  "authored_milestone_plan": "milestone-plan.json",
+  "plan_import_requires_live_issue_remapping": true,
+  "issue_aliases": [
+    "PACK-SHELL-01",
+    "PACK-SHELL-02",
+    "PACK-SHELL-03",
+    "PACK-SHELL-04",
+    "PACK-SHELL-05",
+    "PACK-SHELL-06",
+    "PACK-SHELL-07",
+    "PACK-SHELL-08",
+    "PACK-SHELL-09",
+    "PACK-SHELL-10",
+    "PACK-SHELL-11",
+    "PACK-SHELL-12",
+    "PACK-SHELL-13"
+  ],
+  "card_paths": [
+    "cards/PACK-SHELL-01.md",
+    "cards/PACK-SHELL-02.md",
+    "cards/PACK-SHELL-03.md",
+    "cards/PACK-SHELL-04.md",
+    "cards/PACK-SHELL-05.md",
+    "cards/PACK-SHELL-06.md",
+    "cards/PACK-SHELL-07.md",
+    "cards/PACK-SHELL-08.md",
+    "cards/PACK-SHELL-09.md",
+    "cards/PACK-SHELL-10.md",
+    "cards/PACK-SHELL-11.md",
+    "cards/PACK-SHELL-12.md",
+    "cards/PACK-SHELL-13.md"
+  ],
+  "acceptance_ids": {
+    "RFC-BPR-0032": ["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8"],
+    "RFC-BPR-0033": ["B1", "B2", "B3", "B4", "B5"]
+  },
+  "design_reference": "design/shell-surfaces-v1.html",
+  "design_notes": "design/DESIGN-NOTES.md",
+  "source_audit": "supporting/SOURCE-AUDIT.md",
+  "source_revision": "38f32226351f5cc8e4657d55c3e151d8450c6ce5",
+  "checksums": "SHA256SUMS",
+  "no_app_implementation_or_native_verification_performed": true,
+  "design_reference_is_not_runtime_evidence": true
+}

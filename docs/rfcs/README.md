@@ -87,6 +87,8 @@ tracked on the issue board's backlog, in the same way as other RFC work.
 | [RFC-BPR-0029](RFC-BPR-0029-machine-independent-epoch-identity-update-history.md) | Machine-Independent Epoch Identity and Pull Request Update History | Accepted | Revised proposal accepted 2026-09-12 under mandate r17: only evidenced update occurrences receive portable identities; incomplete history and unknown historical bases remain explicit; migration is lossless even where identity is unresolved. RFC-BPR-0002, RFC-BPR-0003 and RFC-BPR-0017; supersedes RFC-BPR-0003 in part. RFC-BPR-0028's AC-02 waits on its card BPR-0743 |
 | [RFC-BPR-0030](RFC-BPR-0030-dif-production-animation-revision.md) | Dif Production Animation Revision: Ten Registered Prop-Free Clips | Proposed | Imported for later implementation; additive partial supersession of RFC-BPR-0019. Technical asset and provenance gates remain open; RFC-BPR-0006 is its formal dependency |
 | [RFC-BPR-0031](RFC-BPR-0031-dif-workbench-animation-integration.md) | Dif Workbench Integration: Profile Preferences, Bounded Qt Playback, and Truthful Cues | Proposed | Imported for later implementation; consumes RFC-BPR-0030's accepted revision and depends formally on RFC-BPR-0005 and RFC-BPR-0006. No app or art acceptance is claimed |
+| [RFC-BPR-0032](RFC-BPR-0032-calm-home-and-accounts-surfaces.md) | Calm Home and Accounts & Hosts: One Language for the Surfaces Before a Review | Proposed | Imported 2026-09-13 from the owner's brief for later implementation; a presentation revision that implements the accepted RFC-BPR-0028 Settings and Home statements as one card per server and one Home column; RFC-BPR-0016, RFC-BPR-0018 and RFC-BPR-0028 |
+| [RFC-BPR-0033](RFC-BPR-0033-profile-chooser-and-the-last-window.md) | Profile Chooser and the Last Window: Profiles Are a Menu, Not a Gate | Proposed | Imported 2026-09-13 for later implementation; removes the last-window chooser presentation, adds a per-platform empty-desktop policy and redesigns the chooser as rows; RFC-BPR-0024, whose text it amends in presentation only |
 
 The 2026-09-04 daily-workbench registration accepts the design in RFC-BPR-0018
 and RFC-BPR-0024 through RFC-BPR-0026, with implementation explicitly deferred.
@@ -152,6 +154,19 @@ mapping](assets/bpr-dif-integration-v1.LIVE_IMPORT.md) and [adopted six-mileston
 plan](plans/bpr-dif-integration-v1/milestone-plan.json) retain the source and
 execution order. Import leaves all eighteen cards in Backlog and both RFCs
 Proposed; technical readiness and canonical formal closeout are separate.
+
+RFC-BPR-0032 and RFC-BPR-0033 are the imported shell-surfaces pack: the owner's
+2026-09-13 verdict that Settings' Accounts & hosts page, Home and the profile
+chooser are cluttered, and that the chooser must stop appearing when the last
+window closes. Both are presentation and composition revisions that implement
+the accepted RFC-BPR-0028 Settings and Home statements and RFC-BPR-0018's row
+language; they change no credential, provider, publication, queue, navigation,
+profile-identity or runtime-ownership authority. Their [source pack and live ID
+mapping](assets/bpr-shell-surfaces-v1.LIVE_IMPORT.md), [design
+reference](assets/bpr-shell-surfaces-v1/design/shell-surfaces-v1.html) and
+[adopted five-milestone plan](plans/bpr-shell-surfaces-v1/milestone-plan.json)
+retain the source and execution order. Import leaves all thirteen cards in
+Backlog and both RFCs Proposed; the two closeouts are independent of each other.
 
 RFC-BPR-0022 and RFC-BPR-0023 were reconciled and imported together on
 2026-09-04 with implementation explicitly deferred. The off-hunk pack retains
