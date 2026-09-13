@@ -26,10 +26,10 @@ epoch-line handle criterion stays on [[BPR-0646]]; its v011 owner verdict
 has been consumed and the card is Done. The protected v009/v010/v011
 operator packets retained their original bytes during the board move.
 
-## Current frontier (rfc0029-r1/d1, mandate r1)
+## Current frontier (rfc0029-r1/d2, mandate r1)
 
 The bound milestone is `rfc-bpr-0029-closeout/verify-and-close-rfc-0029`.
-The designated producer is `/root/rfc0029_closeout`; native dispatch `d1`
+The designated producer is `/root/rfc0029_closeout`; renewed native dispatch `d2`
 selected the generated `rfc-integrator` role with no per-call model/effort
 override, and observed serving telemetry is unavailable.
 The candidate starts from the immutable RFC base above and the d30 evidence
@@ -66,6 +66,16 @@ Core/host and interrupted-migration checks are being added and verified;
 milestone acceptance remains pending. No integrator command is active. No live GitHub or credential
 mutation is in scope. RFC-BPR-0008 is still Proposed in canonical order, so
 Auto-Verified and Done remain pending.
+
+The first full composed repair run passed 1/1 (240.84 s) in
+`build/rfc0029-base-repair-composed.log`, and the final focused true-rewrite
+course passed in `build/rfc0029-base-repair-projection-focused-final.log`.
+Independent critical review then found a separate host publication gap: if
+supplementary `record_occurrences` refuses, a same-authority base replacement
+can leave the prior Qt occurrence projection visible. The same deep worker
+now owns the narrow host, application-test and public-tooltip correction;
+the broad repair remains uncommitted until that path passes. Row 5 stays
+partial, row 7 stays partial, and no human verdict is being inferred.
 
 ## Closeout checklist
 
