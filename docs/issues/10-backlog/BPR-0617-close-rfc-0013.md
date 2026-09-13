@@ -13,9 +13,11 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/pla
 
 ## Current frontier — bpr0643-r1 / d1 / mandate r2
 
-The `retained-stress-pr-read` milestone has a direct known-limit candidate.
+The `retained-stress-pr-read` milestone is accepted through its explicit
+known-limit alternative. All bound obligations and both exits pass without
+claiming a file list or selected diff. BPR-0643 is Done at `8285cb4f`.
 BPR-0642 is Done; [BPR-0643](../60-done/BPR-0643-load-the-retained-stress-test-pull-request.md)
-is claimed pending guarded finish. The r2 binding is
+records the exact criterion evidence. The r2 binding is
 `docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-bpr0643-r1-d1-r2.json`.
 The owner completed wizard `.mask/sessions/wizard/bpr0643-signin`; the agent
 observed `MikeMarcin` and `GitHub account connected` on the fresh tests-disabled
@@ -39,9 +41,12 @@ That exact two-line attempt is outside the checkout as
 `~/Library/Application Support/BetterPullReview/BPR-0643-evidence-2026-09-13/attempt-2-diagnostics.log`
 (SHA-256 `a7fe87f2880f68e97d578c53997c56d9b0a93175c0654643a36d7f3d2aa50b9f`).
 The focused Qt course and format check pass after the change; the earlier
-five diagnostic, pager, Qt and public-path courses remain relevant. No live
-write or credential transfer occurred. BPR-0622 and final RFC obligations
-remain open.
+five diagnostic, pager, Qt and public-path courses remain relevant. The
+documentation gate, scoped board validation and diff check pass. No live
+write or credential transfer occurred. The task-owned candidate app and
+commands have exited. BPR-0622's Windows/Linux native evidence, BPR-0507,
+earlier canonical RFC prerequisites and final BPR-0617 closeout remain open;
+this exact-target dispatch is complete and does not authorize those slices.
 
 The previous accepted `default-cache-byte-pressure` milestone remains as
 recorded below. BPR-0622's native evidence and final RFC closeout remain open.
