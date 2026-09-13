@@ -30,7 +30,7 @@ operator packets retained their original bytes during the board move.
 
 The bound milestone is `rfc-bpr-0029-closeout/verify-and-close-rfc-0029`.
 The candidate starts from the immutable RFC base above and the d30 evidence
-below. Rows 2, 4, 5 and 7 remain technical partials; the other rows retain
+below. Rows 2, 5 and 7 remain technical partials; the other rows retain
 their prior passing evidence. This dispatch owns the closeout/plan, the
 composed epoch-line probe and migration-reference tests. The app rebuild,
 ten-course composed public-path check (1/1, 191.38 s), copied-catalogue
@@ -40,8 +40,12 @@ compile attempt failed on a probe-only `QTextStream` type error that was
 corrected. The composed line now pins partial-history wording for failed,
 refused, capped and unseen-update courses. The copied migration resolves
 restoration and saved ledger bindings, while physical Git refs, MCP and agent
-launch remain unproved. Next: couple an ordinary multi-commit push to actual
-catalogue recreation and check the remaining migration consumers. No live
+launch remain unproved. At commit `26fd7f7c`, the ordinary-update worker owns
+the public fixture, new synthetic packs and a new end-to-end selector; the
+migration worker owns the real Git/cache integration test and its CMake link.
+No integrator build command is active. Next: couple an ordinary multi-commit
+push to actual catalogue recreation, test retained refs across copied v4
+migration, and distinguish an advertised changed base from historical truth. No live
 GitHub or credential mutation is in scope. RFC-BPR-0008 is still Proposed in
 canonical order, so Auto-Verified and Done remain pending.
 
@@ -52,10 +56,10 @@ canonical order, so Auto-Verified and Done remain pending.
 | Two independent catalogues reading the same force-push history through the host assign equal identities and deterministic order to the **same evidenced occurrences**. A→B→A yields two distinct identities for A. A missing event never yields a fabricated second A, and the history declares the gap. | Epoch host over two independent catalogues and a recorded force-push timeline; compare exact identities and order. | Pass: composed two-catalogue A→B→A course, 1/1 at d28; exact rows, gap and distinct catalogue incarnations asserted. | `d1bcd1cf` |
 | An ordinary live transition yields one occurrence per observed transition, not one per surviving commit. Its portable identity agrees across signed-in, signed-out and recreated catalogues when the same occurrence is unambiguous; ambiguous snapshots remain marked unresolved. | Host and provider fixture with one multi-commit push, observed head transitions, signed-in/signed-out and recreated catalogues. | Partial: host fakes compare the exact ordinary occurrence across three access/catalogue contexts and retain ambiguity; the pager proves three surviving commits supply no inferred events. A coupled multi-commit push and physical catalogue recreation remain unproved. | `ce6f1836` |
 | A live read that finds a new head for the same pull request still appends an author-upload epoch, and an imported epoch advances neither the latest live ordinal nor the previous distinct head ordinal. | Second live handoff with a changed head and imported historical occurrence; inspect causes and live ordinals. | Pass: host changed-head author-upload and previous distinct ordinal; composed import leaves live ordinal, previous distinct ordinal and observed live base unchanged. | `2df4d110`, `d1bcd1cf`, `ce6f1836` |
-| An update observed live and later overwritten by a force push stays on the install that observed it. The epoch line says when the history it holds may be partial: when the timeline read failed, was refused or was cut off by the page cap, or when a force push overwrote updates this install did not see. | Composed failure, refusal, cap and unseen-force-push cases. | Partial: composed failed/refused/capped courses retain the live epoch and incomplete catalogue state at exact page counts 1/1/10; an observed update survives reuse and an unavailable first historical head leaves a gap. The line's partial wording is not pinned for each course. | `ce6f1836` |
+| An update observed live and later overwritten by a force push stays on the install that observed it. The epoch line says when the history it holds may be partial: when the timeline read failed, was refused or was cut off by the page cap, or when a force push overwrote updates this install did not see. | Composed failure, refusal, cap and unseen-force-push cases. | Pass: the ten-course composed test retains the live epoch and exact 1/1/10 page limits, preserves the earlier observed update, shows the unseen-head gap, and checks the real epoch line says `Incomplete history` and `display order is not push order` in every course. | `ce6f1836`, `26fd7f7c` |
 | Live epochs retain their observed base. An imported occurrence with no evidenced historical base shows `unknown`; a computed comparison base is separately labeled and comparison can be unavailable. No imported row claims the current base ref or merge base was its original historical base. | Core, cache and composed presentation cases for absent and rewritten bases. | Partial: composed disconnected historical head shows unknown base and unavailable comparison; stored imported rows keep historical base unknown, and Qt distinguishes derived from observed base. A rewritten selected base is not exercised directly. | `d1bcd1cf`, `ce6f1836` |
 | Event dates are labeled GitHub event times, other dates commit dates, and first-seen remains local. Equal timestamps have a deterministic tie-break without a false push-order claim. | Host and presentation cases for mixed dates, equal timestamps and source labels. | Pass: host date-source cases and real workbench Qt labels/tooltip cover event time, commit date, local first-seen, equal-date portable-key order and the explicit no-push-order qualification. | `d1bcd1cf`, `ce6f1836` |
-| A current-version catalogue migrates without changing any old epoch row's identity key, incarnation or ordinal. Unresolvable host or duplicate-head provenance remains explicitly unresolved; review-ledger, window-restoration, retained-ref, MCP and agent-launch references to old epochs still resolve. | Copies of current-version duplicate-head and GHES files; inspect local keys, incarnation, ordinals, ledger, restoration, retained refs, MCP and agent bindings. | Partial: v3/v4 copied catalogues retain complete old A→B→A rows, base/head anchors, selectors and unresolved provenance across restart. GHES provenance and the listed post-migration consumers remain unproved. | `ce6f1836` |
+| A current-version catalogue migrates without changing any old epoch row's identity key, incarnation or ordinal. Unresolvable host or duplicate-head provenance remains explicitly unresolved; review-ledger, window-restoration, retained-ref, MCP and agent-launch references to old epochs still resolve. | Copies of current-version duplicate-head and GHES files; inspect local keys, incarnation, ordinals, ledger, restoration, retained refs, MCP and agent bindings. | Partial: v3/v4 copied catalogues retain complete old A→B→A rows, anchors, selectors and unresolved provenance across restart; three saved window positions and a ledger agent binding resolve exact old anchors on migration and restart. GHES provenance, physical retained Git refs, MCP and actual agent launch remain unproved. | `ce6f1836`, `26fd7f7c` |
 | The history read is anonymous REST and stays within a stated page cap, and an open that cannot make the read still produces today's live epoch. | Bounded transport and composed open path, with request counts and failure injection. | Pass: d27 anonymous REST pager bounds and d30 composed failed/refused/capped opens prove exact 1/1/10 timeline requests while retaining today's live epoch. | `2df4d110`, `ce6f1836` |
 | BPR-0646's attended handle criterion is asked again, unchanged, on a signed bundle carrying this work. | Digest-bound attended candidate and actual owner verdict, recorded on BPR-0646. | Pass: v011 human accept, exact candidate `BPR-0646-workbench-chrome`, sequence 373, decision `4feeaa9e-5705-4c53-a516-6fc311de305d`, fingerprint `b6641835…`, signed executable SHA-256 `dfd1c4ca…`; hand-back 374 pending none. | `16e242a5`, `67679b1b` |
 
@@ -124,6 +128,32 @@ limits in the table. RFC-BPR-0029 stays Accepted and this card stays In
 Progress; canonical predecessor RFC-BPR-0008 remains Proposed. The v011
 owner verdict is consumed on [[BPR-0646]], so no further attended ask is
 pending for this RFC criterion.
+
+## Direct-check advance, 2026-09-12 (rfc0029-r1/d1, mandate r1)
+
+Commit `26fd7f7c` adopts the bounded `rfc-bpr-0029-closeout` plan, captures
+the epoch line's actual history text in the self-test probe, and asserts it
+through the ten-course composed public path. The network-isolated selector
+`application_epoch_portable_occurrence_two_catalogues` passed 1/1 in
+`build/rfc0029-d1-composed.log` (191.38 s). Failed, refused, capped and
+unseen-force-push courses now assert `Incomplete history` and the no-push-order
+qualification from the real line, alongside the existing retained live row,
+gap, page count and catalogue assertions. Row 4 passes.
+
+The same commit extends the copied v3/v4 SQLite migration course with three
+persisted restoration positions and a ledger agent-session binding. Each old
+base/head identity resolves to its original commit immediately after migration
+and after restart; `sqlite_epoch_catalog_behavior_contract` passed 1/1
+(40.88 s). Row 7 remains partial because the catalogue's opaque host field
+does not prove GHES provenance and this course does not open physical retained
+Git refs, MCP or an actual agent launch. Existing host and pager selectors
+passed 2/2, but they do not couple the three surviving commits to one
+multi-commit ordinary push across access modes and physically recreated
+catalogues; row 2 remains partial. Row 5 still lacks a direct rewritten-base
+course. The app build, documentation gate, touched clang-format and
+`git diff --check` passed. The initial app compile error on `QTextStream` was
+corrected before the passing build. RFC-BPR-0008 remains Proposed ahead of
+this RFC, so this card and RFC retain In Progress and Accepted status.
 
 ## Completion rules
 
