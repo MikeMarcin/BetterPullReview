@@ -59,6 +59,14 @@ renewed independent scope. No source/build writer, review host or child agent
 remains active. Local commits are ahead of origin and remain unpushed
 because the tracker and RFC closeouts are unfinished.
 
+The d29 assignment's BPR-0646 source fingerprint was `sha256:338160eb…`.
+After the accepted criterion and BPR-0743 link were recorded, the pure
+assignment helper observes `sha256:3c66c6ee…` for that source and an
+obligation fingerprint of `sha256:33d953bc…`. This reflects d29 progress,
+not a change to the authored nine obligations or four exit texts. A successor
+must renew the same milestone binding explicitly against this live state;
+the old d29 binding must not be presented as current acceptance proof.
+
 ## Current frontier, 2026-09-12 (d28, mandate r19): historical comparison in progress
 
 Run `attended-prep-2026-09-10`, dispatch d28, producer `/root/integrator_d28`, mandate r19, remains bound to `ux-redesign-pack-0028` / `attended-preparation-pack-head`, definition fingerprint `sha256:201de49a086f8f809fea06d6749caf3fecb43e7fa8c78a960f55af31b64bfee5`. All nine authored obligations and four exits remain open as recorded below. Clean synchronized main baseline: `9a0845be`. BPR-0743 is In Progress; BPR-0646's unchanged handle criterion is prepared for owner judgment on a new signed bundle; no verdict is inferred.
