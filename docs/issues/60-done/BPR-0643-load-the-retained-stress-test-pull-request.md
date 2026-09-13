@@ -12,7 +12,47 @@ acceptance: [{"criterion":"The diagnostics log names the failure class for this 
 
 # Load the retained stress-test pull request
 
-## Current operator-controlled frontier — bpr0643-r1 / d6 / mandate r8
+## Current CLI diagnostic frontier — bpr0643-r1 / d7 / mandate r11
+
+The renewed assignment is
+`docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-bpr0643-r1-d7-r11.json`.
+The owner asked whether BetterPullReview could use the existing `gh` sign-in
+instead of moving a token into the app. A bounded **external diagnostic** used
+`gh api` with that configured CLI authority, without extracting or transferring
+its token. An off-repository harness invoked only the exact read-only REST
+target before the parser stopped, kept bounded response bodies
+in process memory, and passed the real HTTP metadata and bodies into the
+current `perform_paged_github_read` parser. It suppressed CLI stderr and wrote
+only fixed operation/status/failure facts outside the checkout. The app's
+connected device session was not changed; no CLI production profile was
+enabled.
+
+The direct parser attempt received HTTP `200` for `GetRepository`, then HTTP
+`200` for `GetPullRequest`, and stopped after two calls with
+`response_limit`. Its fixed three-line diagnostic is
+`~/Library/Application Support/BetterPullReview/BPR-0643-evidence-2026-09-13/attempt-10-cli-parser-diagnostics.log`
+(SHA-256 `433971b034682127e0151e8d19f9aab16ca50f92beee87b02e878897586536c5`).
+A separate metadata-only `gh api -X GET` of this exact PR reported 9,311
+commits and 1,523 changed files. The current parser's
+`github_read_limits.MaximumCommits` is 250, and `parse_pull_request` returns
+`response_limit` immediately when the reported count exceeds it. The target
+passes the 3,000-file limit but fails the commit-count limit before file,
+thread, search or whole-snapshot relationship validation. Therefore this
+current CLI-backed parser path cannot reproduce or explain the earlier
+`invalid_relationship` attempt. That historical observed failure remains
+valid and its difference from this read is unresolved; no file list or
+selected diff was rendered here.
+
+An external `gh api` diagnostic is feasible under the owner's scoped read
+authority. A **production** CLI account profile remains disabled by the
+current product and is owned by the separate RFC-BPR-0015. Its existing
+upstream/authority and containment gates would need explicit reconciliation
+with the owner's new request for a warning-labeled CLI profile that supports
+both reading and publishing. No such product change or live write occurred in
+this BPR-0643 dispatch. The ignored manual-token wizard remains paused and
+the existing device session remains connected.
+
+## Previous operator-controlled frontier — bpr0643-r1 / d6 / mandate r8
 
 The owner has ruled out assistance from an `EpicGames` administrator. The
 renewed assignment is

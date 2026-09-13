@@ -11,7 +11,34 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/pla
 
 # Verify and close RFC-BPR-0013
 
-## Current frontier — bpr0643-r1 / d6 / mandate r8
+## Current frontier — bpr0643-r1 / d7 / mandate r11
+
+The renewed `retained-stress-pr-read` assignment is
+`docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-bpr0643-r1-d7-r11.json`.
+An external, memory-only read diagnostic used the owner's existing `gh api`
+authority without extracting or transferring its credential or changing the
+connected app session. The current product parser received HTTP `200` for
+`GetRepository` and `GetPullRequest` on the exact target, then returned
+`response_limit` after two calls. GitHub reported 9,311 commits and 1,523
+files in PR metadata; the product's current 250-commit ceiling rejects the
+count in `parse_pull_request` before whole-snapshot validation. The
+metadata-only diagnostic is outside the checkout at
+`~/Library/Application Support/BetterPullReview/BPR-0643-evidence-2026-09-13/attempt-10-cli-parser-diagnostics.log`
+(SHA-256 `433971b034682127e0151e8d19f9aab16ca50f92beee87b02e878897586536c5`).
+This is a current parser limit, not a reproduction or resolution of the
+historical `invalid_relationship` attempt; that different app observation
+remains open. No file list or selected diff was reached, and no live PR write
+or private content retention in the repository occurred.
+
+The current app's CLI profile stays typed `cli_unavailable` with zero launch.
+The owner's new request for a warning-labeled production CLI account profile
+supporting reads and publishing belongs to a separate RFC-BPR-0015 assignment;
+its deferred upstream and containment requirements must be reconciled there.
+This BPR-0643 dispatch made no product authentication or mutation change. The
+optional manual-credential wizard remains paused and the existing device
+grant remains connected.
+
+## Previous frontier — bpr0643-r1 / d6 / mandate r8
 
 The owner cannot obtain `EpicGames` administrator assistance, so the prior
 organization-installation inspection is unavailable. The renewed
