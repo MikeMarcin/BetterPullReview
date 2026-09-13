@@ -26,7 +26,32 @@ epoch-line handle criterion stays on [[BPR-0646]]; its v011 owner verdict
 has been consumed and the card is Done. The protected v009/v010/v011
 operator packets retained their original bytes during the board move.
 
-## Current frontier (rfc0029-r1/d2, mandate r1)
+## Current frontier (rfc0029-r1/d3, mandate r1)
+
+All nine accepted technical criteria now have direct passing evidence against
+immutable base `5d5df7cd79115b9b4b2f8be6ebdb5392458b9e1d`. Commits
+`fc6e4e2f` and `90d4ba28` close row 7 with a copied synthetic GHES-origin
+legacy file whose host provenance remains unresolved, and a controlled agent
+child that consumes the frozen pre-migration epoch binding through the
+production launcher after migration and restart. The three-selector combined
+host/persistence pass is 3/3 in `build/rfc0029-d3-integration.log`; independent
+critical review found no blocking issue. The child checks a same-epoch
+left/right binding, while the separate migrated ledger course covers distinct
+left/right endpoints. The GHES source is synthetic, not a captured installation.
+All leaf writers, review and test commands are quiescent. The documentation
+gate passed in `build/rfc0029-d3-documentation.log`, scoped board validation
+reported valid, and `git diff --check` passed. No live PR or credential
+mutation occurred. The current source candidate is `90d4ba28` plus this
+closeout-card evidence update.
+
+RFC-BPR-0008 remains Proposed earlier in canonical order, with BPR-0143 and
+BPR-0144 waiting on designated live GitHub evidence and BPR-0641 parked for
+human review. This card therefore remains In Progress and RFC-BPR-0029 remains
+Accepted; neither Auto-Verified nor Done is inferred from technical checks.
+
+The d2 frontier and its exact evidence follow for recovery.
+
+## Prior frontier (rfc0029-r1/d2, mandate r1)
 
 The bound milestone is `rfc-bpr-0029-closeout/verify-and-close-rfc-0029`.
 The designated producer is `/root/rfc0029_closeout`; renewed native dispatch `d2`
@@ -66,7 +91,7 @@ are pending.
 | An update observed live and later overwritten by a force push stays on the install that observed it. The epoch line says when the history it holds may be partial: when the timeline read failed, was refused or was cut off by the page cap, or when a force push overwrote updates this install did not see. | Composed failure, refusal, cap and unseen-force-push cases. | Pass: the ten-course composed test retains the live epoch and exact 1/1/10 page limits, preserves the earlier observed update, shows the unseen-head gap, and checks the real epoch line says `Incomplete history` and `display order is not push order` in every course. | `ce6f1836`, `26fd7f7c` |
 | Live epochs retain their observed base. An imported occurrence with no evidenced historical base shows `unknown`; a computed comparison base is separately labeled and comparison can be unavailable. No imported row claims the current base ref or merge base was its original historical base. | Core, cache and composed presentation cases for absent and rewritten bases. | Pass: a true non-fast-forward base replacement leaves the same imported event ID and unknown historical base intact, clears its stale derived comparison and active local association, and preserves the old live epoch's observed base. Installed Git proves no merge base; the real Qt tooltip says historical base unknown and comparison unavailable, and clicking the event cannot move either handle. Core, host, SQLite migration/recovery and refused supplementary-write cases pass. | `d1bcd1cf`, `ce6f1836`, `7c8631a2`, `9de50d46` |
 | Event dates are labeled GitHub event times, other dates commit dates, and first-seen remains local. Equal timestamps have a deterministic tie-break without a false push-order claim. | Host and presentation cases for mixed dates, equal timestamps and source labels. | Pass: host date-source cases and real workbench Qt labels/tooltip cover event time, commit date, local first-seen, equal-date portable-key order and the explicit no-push-order qualification. | `d1bcd1cf`, `ce6f1836` |
-| A current-version catalogue migrates without changing any old epoch row's identity key, incarnation or ordinal. Unresolvable host or duplicate-head provenance remains explicitly unresolved; review-ledger, window-restoration, retained-ref, MCP and agent-launch references to old epochs still resolve. | Copies of current-version duplicate-head and GHES files; inspect local keys, incarnation, ordinals, ledger, restoration, retained refs, MCP and agent bindings. | Partial: v3/v4 copied catalogues retain complete old A→B→A rows, anchors, selectors and unresolved provenance across restart; saved window positions and ledger binding resolve old anchors. A copied-v4 real-cache course proves physical retained refs. A synthetic GHES handoff and frozen MCP response preserve old ordinals/OIDs through the migrated catalogue; production agent supplement and launch-request framing preserve the same binding. A direct copied hostless legacy GHES-origin row and actual agent process consumption remain unproved. | `ce6f1836`, `26fd7f7c`, `72d40b4f`, `776bc0d4` |
+| A current-version catalogue migrates without changing any old epoch row's identity key, incarnation or ordinal. Unresolvable host or duplicate-head provenance remains explicitly unresolved; review-ledger, window-restoration, retained-ref, MCP and agent-launch references to old epochs still resolve. | Copies of current-version duplicate-head and GHES files; inspect local keys, incarnation, ordinals, ledger, restoration, retained refs, MCP and agent bindings. | Pass: copied v3/v4 synthetic GHES-origin hostless legacy catalogues preserve complete old A→B→A rows, anchors, selectors, incarnation, ordinals, restoration positions, distinct-endpoint ledger binding and unresolved provenance across restart without discarding occurrence evidence. A copied-v4 real-cache course proves physical retained refs. Frozen MCP response resolves old ordinals/OIDs through the migrated catalogue. The production agent launcher starts a controlled child after migration and restart; the child validates all seven binding fields against the frozen pre-migration record and rejects an altered ordinal. The process course uses one old epoch for both endpoints and is macOS-local; no captured installation or commercial agent is claimed. | `ce6f1836`, `26fd7f7c`, `72d40b4f`, `776bc0d4`, `fc6e4e2f`, `90d4ba28` |
 | The history read is anonymous REST and stays within a stated page cap, and an open that cannot make the read still produces today's live epoch. | Bounded transport and composed open path, with request counts and failure injection. | Pass: d27 anonymous REST pager bounds and d30 composed failed/refused/capped opens prove exact 1/1/10 timeline requests while retaining today's live epoch. | `2df4d110`, `ce6f1836` |
 | BPR-0646's attended handle criterion is asked again, unchanged, on a signed bundle carrying this work. | Digest-bound attended candidate and actual owner verdict, recorded on BPR-0646. | Pass: v011 human accept, exact candidate `BPR-0646-workbench-chrome`, sequence 373, decision `4feeaa9e-5705-4c53-a516-6fc311de305d`, fingerprint `b6641835…`, signed executable SHA-256 `dfd1c4ca…`; hand-back 374 pending none. | `16e242a5`, `67679b1b` |
 
@@ -273,6 +298,44 @@ selector also passed 1/1 on v6 (37.09 s) in
 actual-process evidence still remains open. Touched clang-format, Python compilation, documentation gate
 (`build/rfc0029-d2-documentation-final.log`) and `git diff --check` passed.
 No human acceptance or live provider mutation is inferred from these tests.
+
+## Migration closeout, 2026-09-12 (rfc0029-r1/d3, mandate r1)
+
+Commit `fc6e4e2f` grounds the copied v3/v4 duplicate-head course in a
+synthetic, valid GHES 3.18 profile at `ghe.example.test`. Its opaque authority
+fingerprint is pinned to the historical v1 production serialization, while the
+old catalogue schema contains neither canonical hostname nor server contract.
+The test proves the source has no occurrence or append-occurrence rows to
+discard during exact old-schema conversion. After copying and migrating, all
+three A→B→A epoch rows, local keys, incarnation, ordinals, exact anchors,
+window-restoration positions and distinct-endpoint ledger binding resolve
+unchanged; occurrence provenance remains unresolved through restart. This is
+reproducible synthetic legacy input, not a captured user's installation.
+
+Commit `90d4ba28` extends the copied-v4 real-Git-cache course. The frozen
+pre-migration binding is decoded through the shipped MCP helper and its old
+epoch references resolve in SQLite. Production agent launch construction then
+starts a controlled external-terminal process through the shipped process
+adapter after migration and restart. That child reads the framed standard
+input, validates host, repository, pull request, base/head OIDs and left/right
+ordinals against the frozen binding, and emits an exact receipt. Changing the
+right ordinal makes the actual child reject the input. This process course
+uses the same old epoch at both endpoints; the separate copied SQLite ledger
+course checks distinct endpoints. It does not claim a commercial agent, full
+UI gesture or cross-platform run.
+
+The two focused selectors passed 1/1 each; the combined
+`application_agent_invocation_host`, `sqlite_epoch_catalog_behavior_contract`
+and `epoch_maintenance_integration` pass was 3/3 in
+`build/rfc0029-d3-integration.log` (75.58 s). The independent critical reviewer
+checked historical fingerprint/schema fidelity and process consumption,
+found no blocking failure, and recorded the same-endpoint process limitation.
+The prior d2 composed history/epoch-line and base-force-push evidence is reused
+because this d3 slice changes only migration and launch verification tests.
+The documentation gate passed in `build/rfc0029-d3-documentation.log`, scoped
+board validation reported valid, and `git diff --check` passed.
+All nine technical rows now pass; the status remains open solely for canonical
+RFC-BPR-0008 precedence.
 
 ## Completion rules
 
