@@ -11,7 +11,40 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/pla
 
 # Verify and close RFC-BPR-0013
 
-## Current frontier — rfc0013-r1 / d2
+## Current frontier — rfc0013-r1 / d3
+
+### D3 attribution checkpoint
+
+Dispatch `rfc0013-r1/d3`, producer `/root/rfc0013_attribution`, mandate `r1`
+renewed the live `default-cache-byte-pressure` binding after BPR-0635 became
+Done. BPR-0751 remains In Progress. The controlled pre-BPR-0635 product tree
+with the identical 929-read fixture reproduced 31 refresh maxima of
+228.745–265.034 ms, while its epoch-25 source selection took 0.960s
+(`build/rfc0013-d3-pre0635-history.log`). The original 897-read fixture on
+that same tree failed revision preparation before timing
+(`build/rfc0013-d3-pre0635-original-history.log`, diagnostic stopped after the
+failure). The four repaired product paths are byte-identical across the
+BPR-0635 fixture commit (`build/rfc0013-d3-attribution.json`). This establishes
+that the 929-read projection pause occurs on pre-commit product code, but it
+cannot supply an unmodified pre-commit 929-read timing result. The isolated
+2.152s source selection has not recurred; sampled outstanding diff work
+localizes the delay but does not identify its worker stage or scheduling cause.
+BPR-0751 AC1 and milestone exit 4 remain open under the unchanged acceptance
+wording. Independent read-only review confirmed that the refresh attribution is
+supported, while the isolated source-delay cause remains an AC1 blocker. No
+production source change or timing limit change was made in D3.
+The disposable baseline CTest process group and its descendants are stopped;
+the task-owned worktree was removed after recording the evidence. The next
+discriminating step, if the historical cause is still required, is a scoped
+job-stage timestamp trace in a new network-isolated history run, with the
+understanding that a nonrepeating event cannot be assigned a deeper cause
+retrospectively. Existing D2 passing public, byte and focused evidence is
+unchanged. D3 documentation, scoped board validation and diff checks pass
+(`build/rfc0013-d3-documentation.log`,
+`build/rfc0013-d3-board-validation.json`). The renewed assignment is
+`docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-rfc0013-r1-d3.json`.
+
+### D2 handoff (historical)
 
 Checkpoint after `b1743179`: BPR-0635 is Done on its own Mac byte-pressure
 criteria; BPR-0751 remains In Progress, so the bound

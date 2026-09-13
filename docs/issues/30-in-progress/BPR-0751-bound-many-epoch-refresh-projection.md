@@ -107,3 +107,38 @@ outstanding), and zero history-model resets. This is one M4 Pro/48-GiB Mac,
 macOS 26.6.2 arm64, Qt 6.10.3, offscreen/Fusion Debug observation; it does
 not establish a Windows/Linux or universal responsiveness bound. No production
 account, live pull request, remote mutation, credential or push was used.
+
+## D3 baseline and source-delay audit
+
+The exact pre-BPR-0635 product tree is `1681994a^` (`d4da9428`). A disposable
+checkout at that revision, overlaid with only the six fixture/test files from
+`1681994a`, built and ran the network-isolated 929-read history course. It
+reached 32 exact heads and 929 reads; all 31 refresh UI-interval maxima were
+228.745–265.034 ms against the unchanged 100-ms limit
+(`build/rfc0013-d3-pre0635-history.log`). Epoch 25 source selection took
+959.528 ms and all 32 source selections stayed below 1.018s. The CTest failed
+only on the refresh budget. This is a controlled pre-commit *product* baseline
+under the later fixture, not a claim that the unmodified pre-commit test itself
+could have produced 929 reads. The same checkout rebuilt with its original
+897-read fixture reported `EPOCH_EFFECT_FAILED:revision-prepare:0` before
+history timing (`build/rfc0013-d3-pre0635-original-history.log`); the diagnostic
+was stopped after that precondition was clear. The earlier BPR-0632 897-read
+pass at `75d1494e` remains a different product revision and workload.
+
+Git blob IDs for the conversation-card view, conversation panel, workbench
+window and pure overview projection are identical at `1681994a^` and
+`1681994a` (`build/rfc0013-d3-attribution.json`). The BPR-0635 commit changed
+only fixture/test files, adding one recorded timeline operation per epoch.
+The 929-read pause therefore reproduces on product code that predates that
+commit; its exact numerical duration on the *unmodified* 897-read pre-commit
+course is unavailable because that course never reached timing. The 2.152s
+source overrun is likewise absent in the controlled replay and in the other
+929-read runs (epoch 25 about 0.94–1.00s). Its recorded 312 sampled pulses with
+an outstanding diff job, versus 112–113 adjacent, localize the extra dwell to
+the diff completion path; those samples do not distinguish effect-queue delay,
+blob I/O, computation, indexing or completion delivery. No contemporaneous
+stage trace exists for the isolated event. The underlying cause and whether it
+predated BPR-0635 remain unproven. Independent read-only D3 review confirmed
+that the first acceptance criterion stays open; another passing run cannot
+establish the historical delay's cause without a captured recurrence or stage
+trace.
