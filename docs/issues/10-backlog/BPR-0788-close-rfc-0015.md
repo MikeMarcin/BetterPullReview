@@ -241,7 +241,8 @@ with logs `build/rfc0015-r2-d4-final-focused-ctest-2.log`,
 `build/rfc0015-r2-d4-final-fixture-tests.log`, and
 `build/rfc0015-r2-d4-final-documentation.log`. The original review binary
 digest was not retained; the final inline replay's tests-disabled digest is
-in the evidence record. `BPR-0786` can close on the fixture boundary.
+in the evidence record. `BPR-0786` is Done at `a90aaa3d`; the implementation
+and fixture were committed at `df458d30`.
 
 The next authored milestone is `native-qualification-and-closeout` through
 `BPR-0787` and `BPR-0788`. It must collect target-native macOS read and
