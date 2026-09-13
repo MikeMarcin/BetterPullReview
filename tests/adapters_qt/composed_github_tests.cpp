@@ -1804,7 +1804,7 @@ namespace {
 			{ reason::stale_completion, "outdated GitHub result" },
 			{ reason::completion_identity_mismatch, "different identity" },
 			{ reason::authentication_failed, "Authentication failed" },
-			{ reason::permission_denied, "does not have permission" },
+			{ reason::permission_denied, "This GitHub sign-in does not have permission" },
 			{ reason::network_unavailable, "network connection" },
 			{ reason::api_version_unsupported, "GitHub API version" },
 			{ reason::capability_unavailable, "capability information" },
