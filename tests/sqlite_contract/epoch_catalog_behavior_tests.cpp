@@ -2,6 +2,8 @@
 #include "bpr/adapters/sqlite/review_ledger_store.hpp"
 #include "bpr/adapters/sqlite/testing.hpp"
 #include "bpr/adapters/sqlite/window_review_restoration_store.hpp"
+#include "bpr/application/github_host_authority.hpp"
+#include "bpr/core/sha256.hpp"
 #include "epoch_catalog_legacy_fixture.hpp"
 #include "platform_test_support.hpp"
 
@@ -1690,14 +1692,50 @@ namespace {
 			   "ledger agent binding resolves its original compared material without portable identity rebinding");
 	}
 
+	[[nodiscard]] auto legacy_ghes_authority() -> app::epoch_catalog_authority_key
+	{
+		const app::github_profile_authority profile{
+			.Profile = core::host_profile_id{ 11U }, .ProfileRevision = app::github_profile_revision{ 21U }, .Host = core::git_host_id{ 3U }, .Hostname = app::github_canonical_hostname{ "ghe.example.test" }, .ServerContract = app::github_server_contract::ghes_3_18_2022_11_28, .Authentication = app::github_authentication_transport::native_https, .ProbeContractRevision = app::github_probe_contract_revision{ 1U }
+		};
+		expect(app::valid_github_authority_hostname(profile.ServerContract, profile.Hostname),
+			   "legacy fixture originates from an explicit valid synthetic GHES profile");
+		// Frozen v1 host-authority format from github_window_read_host.cpp.
+		// This constructs synthetic old-host input, not a captured installation.
+		std::vector<std::uint8_t> bytes;
+		const auto                appendInteger = [&](const std::uint64_t aValue) {
+			for (std::size_t shift = 8U; shift != 0U; --shift) {
+				bytes.push_back(static_cast<std::uint8_t>(aValue >> ((shift - 1U) * 8U)));
+			}
+		};
+		const auto appendText = [&](const std::string_view aText) {
+			appendInteger(aText.size());
+			bytes.insert(bytes.end(), aText.begin(), aText.end());
+		};
+		appendText("BetterPullReview/github-host-authority/v1");
+		appendInteger(profile.Profile.value());
+		appendInteger(profile.ProfileRevision.value());
+		appendInteger(profile.Host.value());
+		appendText(profile.Hostname.value());
+		appendInteger(static_cast<std::uint8_t>(profile.ServerContract));
+		appendInteger(static_cast<std::uint8_t>(profile.Authentication));
+		appendInteger(profile.ProbeContractRevision.value());
+		auto authority            = authority_key(6U, 7U);
+		authority.Profile         = profile.Profile;
+		authority.ProfileRevision = core::github_profile_revision{ profile.ProfileRevision.value() };
+		authority.Host            = profile.Host;
+		authority.HostAuthority   = core::host_authority_fingerprint{ core::sha256(bytes) };
+		expect(hex_identity(authority.HostAuthority) == "796B30AF1230709324616CA2230E53C97DBB7EF5886C9588AC514778EF109FEB",
+			   "legacy opaque fingerprint is pinned to the synthetic GHES hostname and server contract");
+		return authority;
+	}
+
 	void lossless_occurrence_migration_contract(const bool aVersionFour)
 	{
 		temporary_root originalRoot{ "occurrence-v3-original" };
 		temporary_root copiedRoot{ "occurrence-v3-copy" };
-		auto           authority = authority_key(6U, 7U);
-		authority.Host           = core::git_host_id{ 3U };
-		const auto request       = open_request(911U, authority);
-		auto       made          = sqlite::make_epoch_catalog({ .StorageRoot = originalRoot.path() });
+		const auto     authority = legacy_ghes_authority();
+		const auto     request   = open_request(911U, authority);
+		auto           made      = sqlite::make_epoch_catalog({ .StorageRoot = originalRoot.path() });
 		expect(made.has_value(), "migration fixture opens");
 		auto port   = std::move(*made);
 		auto opened = port->open(request, { });
@@ -1735,6 +1773,11 @@ namespace {
 		std::string oldRows;
 		{
 			direct_database database{ database_path(originalRoot.path()), true };
+			expect(database.integer("SELECT count(*) FROM epoch_occurrence") == 0
+					   && database.integer("SELECT count(*) FROM append_occurrence") == 0,
+				   "old-host fixture never wrote occurrence evidence; conversion discards none");
+			expect(database.integer("SELECT count(*) FROM sqlite_schema WHERE name='repository_scope' AND (instr(sql, 'hostname') > 0 OR instr(sql, 'server_contract') > 0)") == 0,
+				   "legacy catalogue has no recoverable hostname or server-contract column");
 			expect(aVersionFour ? test_platform::make_version_four_catalog(database) : test_platform::make_version_three_catalog(database), "fixture restores exact previous production schema");
 			oldRows = database.logical_fingerprint(true);
 		}
