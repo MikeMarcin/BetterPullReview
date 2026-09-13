@@ -3312,7 +3312,7 @@ namespace bpr::adapters::github::detail {
 			const application::github_repository_record&           aRepository,
 			std::vector<application::github_search_result_record>& aOutput,
 			const github_paged_read_limits&                        aLimits)
-			-> std::expected<void, github_paged_read_failure>
+			-> std::expected<application::github_search_availability, github_paged_read_failure>
 		{
 			std::optional<std::uint64_t> total;
 			while (true) {
@@ -3336,16 +3336,14 @@ namespace bpr::adapters::github::detail {
 						application::github_provider_failure::malformed_response);
 				}
 				const auto observedTotal = integer(json_member(object, "total_count"));
-				if (observedTotal > aLimits.Records.MaximumSearchResults) {
-					return failed(application::github_provider_failure::response_limit);
-				}
 				if (total.has_value() && *total != observedTotal) {
 					return failed(
 						application::github_provider_failure::malformed_response);
 				}
-				total              = observedTotal;
-				const auto records = json_array(json_member(object, "items"));
-				const auto count   = static_cast<std::size_t>(records.size());
+				const auto resultLimited = observedTotal > aLimits.Records.MaximumSearchResults;
+				total                    = observedTotal;
+				const auto records       = json_array(json_member(object, "items"));
+				const auto count         = static_cast<std::size_t>(records.size());
 				if (count > aLimits.MaximumPageRecords
 					|| count > aLimits.Records.MaximumSearchResults
 					|| aOutput.size() > aLimits.Records.MaximumSearchResults - count) {
@@ -3378,7 +3376,12 @@ namespace bpr::adapters::github::detail {
 						return failed(
 							application::github_provider_failure::malformed_response);
 					}
-					return { };
+					return application::github_search_availability::available;
+				}
+				if (resultLimited) {
+					// Keep this bounded page until the existing snapshot validator
+					// has checked its fields and cross-collection identities.
+					return application::github_search_availability::result_limit;
 				}
 				if (aSemantic.Page == std::numeric_limits<std::uint32_t>::max()) {
 					return failed(application::github_provider_failure::response_limit);
@@ -3413,6 +3416,22 @@ namespace bpr::adapters::github::detail {
 			case application::github_read_validation_error::invalid_rate_limit:
 			case application::github_read_validation_error::duplicate_identity:
 			case application::github_read_validation_error::invalid_relationship:
+			case application::github_read_validation_error::relationship_file_previous_path:
+			case application::github_read_validation_error::relationship_thread_comment_path:
+			case application::github_read_validation_error::relationship_review_group_root:
+			case application::github_read_validation_error::relationship_review_group_reply:
+			case application::github_read_validation_error::relationship_actor_login:
+			case application::github_read_validation_error::relationship_thread_reply:
+			case application::github_read_validation_error::relationship_search_repository:
+			case application::github_read_validation_error::relationship_search_target_identity:
+			case application::github_read_validation_error::relationship_search_target_metadata:
+			case application::github_read_validation_error::relationship_timeline_availability:
+			case application::github_read_validation_error::relationship_timeline_event:
+			case application::github_read_validation_error::relationship_review_comments_availability:
+			case application::github_read_validation_error::relationship_review_threads_capability:
+			case application::github_read_validation_error::relationship_file_viewed_capability:
+			case application::github_read_validation_error::relationship_thread_permission_capability:
+			case application::github_read_validation_error::relationship_search_availability:
 				return application::github_provider_failure::malformed_response;
 			}
 			return application::github_provider_failure::malformed_response;
@@ -3876,15 +3895,18 @@ namespace bpr::adapters::github::detail {
 			auto searchSemantic = semantic_request_for(
 				*server, aRequest.Context, read_operation::search_pull_requests);
 			searchSemantic.SearchTerms = "is:open";
-			if (const auto search = read_search_results(execution,
-														aProfile,
-														std::move(searchSemantic),
-														result.Repository,
-														result.SearchResults,
-														aLimits);
-				!search.has_value()) {
+			const auto search          = read_search_results(execution,
+															 aProfile,
+															 std::move(searchSemantic),
+															 result.Repository,
+															 result.SearchResults,
+															 aLimits);
+			if (!search.has_value()) {
 				return std::unexpected{ execution.enrich(search.error()) };
 			}
+			// Received rows participate in ordinary validation even when their
+			// search will be refused. No staged snapshot is published here.
+			result.SearchAvailability = application::github_search_availability::available;
 
 			if (aStop.stop_requested()) {
 				return cancelled();
@@ -3902,11 +3924,15 @@ namespace bpr::adapters::github::detail {
 			const auto validation = application::validate(result, aRequest.Context, aLimits.Records);
 			if (!validation.valid()) {
 				if (aObserver != nullptr) {
-					aObserver->validation_failed(validation.Error);
+					aObserver->validation_failed(validation);
 				}
 				return execution.terminal_failure(
 					validation_failure(validation.Error));
 			}
+			if (*search == application::github_search_availability::result_limit) {
+				result.SearchResults.clear();
+			}
+			result.SearchAvailability = *search;
 			return result;
 		} catch (const std::bad_alloc&) {
 			return failed(application::github_provider_failure::response_limit,

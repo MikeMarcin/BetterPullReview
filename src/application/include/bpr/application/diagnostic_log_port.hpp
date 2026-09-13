@@ -74,17 +74,18 @@ namespace bpr::application {
 	};
 	struct diagnostic_event
 	{
-		diagnostic_operation                   Operation      = diagnostic_operation::application;
-		diagnostic_outcome                     Outcome        = diagnostic_outcome::started;
-		std::uint64_t                          Request        = 0;
-		std::uint64_t                          WindowSession  = 0;
-		std::uint16_t                          HttpStatus     = 0;
-		diagnostic_paged_operation             PagedOperation = diagnostic_paged_operation::none;
-		diagnostic_summary                     Summary{ };
-		diagnostic_github_failure              GithubFailure;
-		diagnostic_epoch_stage                 EpochStage = diagnostic_epoch_stage::none;
-		diagnostic_epoch_failure               EpochFailure;
-		std::optional<git_pack_stream_failure> EpochPackFailure;
+		diagnostic_operation                        Operation      = diagnostic_operation::application;
+		diagnostic_outcome                          Outcome        = diagnostic_outcome::started;
+		std::uint64_t                               Request        = 0;
+		std::uint64_t                               WindowSession  = 0;
+		std::uint16_t                               HttpStatus     = 0;
+		diagnostic_paged_operation                  PagedOperation = diagnostic_paged_operation::none;
+		diagnostic_summary                          Summary{ };
+		diagnostic_github_failure                   GithubFailure;
+		diagnostic_epoch_stage                      EpochStage = diagnostic_epoch_stage::none;
+		diagnostic_epoch_failure                    EpochFailure;
+		std::optional<git_pack_stream_failure>      EpochPackFailure;
+		std::optional<github_read_validation_error> RelationshipDetail;
 	};
 	enum class diagnostic_log_status : std::uint8_t { available,
 													  unavailable,

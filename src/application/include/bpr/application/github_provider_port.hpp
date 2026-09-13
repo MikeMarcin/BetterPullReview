@@ -350,8 +350,9 @@ namespace bpr::application {
 	{
 		github_pull_request_provider_request        Request;
 		github_provider_error                       Error;
-		std::optional<diagnostic_paged_operation>   LastReadOperation = std::nullopt;
-		std::optional<github_read_validation_error> ValidationError   = std::nullopt;
+		std::optional<diagnostic_paged_operation>   LastReadOperation  = std::nullopt;
+		std::optional<github_read_validation_error> ValidationError    = std::nullopt;
+		std::optional<github_read_validation_error> RelationshipDetail = std::nullopt;
 
 		auto operator<=>(const github_pull_request_error&) const = default;
 	};

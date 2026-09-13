@@ -311,6 +311,11 @@ namespace bpr::application {
 		auto operator<=>(const github_check_record&) const = default;
 	};
 
+	/// \brief Distinguishes complete repository search from a refused result set.
+	enum class github_search_availability : std::uint8_t { unavailable,
+														   available,
+														   result_limit };
+
 	/// \brief Describes the github search result record record.
 	struct github_search_result_record
 	{
@@ -595,6 +600,7 @@ namespace bpr::application {
 		std::vector<github_issue_comment_record>        IssueComments;
 		std::vector<github_check_record>                Checks;
 		std::vector<github_search_result_record>        SearchResults;
+		github_search_availability                      SearchAvailability = github_search_availability::unavailable;
 		github_capability_evidence                      CapabilityEvidence;
 		github_rate_limit_state                         RateLimits;
 		// The mode this snapshot was read in. Defaulted so every
@@ -656,12 +662,31 @@ namespace bpr::application {
 		invalid_relationship,
 		allocation_limit,
 		total_text_too_large,
+		// Diagnostic refinements of invalid_relationship; acceptance uses Error.
+		relationship_file_previous_path,
+		relationship_thread_comment_path,
+		relationship_review_group_root,
+		relationship_review_group_reply,
+		relationship_actor_login,
+		relationship_thread_reply,
+		relationship_search_repository,
+		relationship_search_target_identity,
+		relationship_search_target_metadata,
+		relationship_timeline_availability,
+		relationship_timeline_event,
+		relationship_review_comments_availability,
+		relationship_review_threads_capability,
+		relationship_file_viewed_capability,
+		relationship_thread_permission_capability,
+		relationship_search_availability,
 	};
 
 	/// \brief Describes the github read validation record.
 	struct github_read_validation
 	{
 		github_read_validation_error Error = github_read_validation_error::none;
+		/// Fixed diagnostic refinement; never contains provider text or identities.
+		github_read_validation_error Detail = github_read_validation_error::none;
 
 		[[nodiscard]] constexpr auto valid() const noexcept -> bool
 		{
@@ -714,6 +739,10 @@ namespace bpr::application {
 			const github_read_validation_error aError) noexcept
 			-> github_read_validation
 		{
+			if (aError >= github_read_validation_error::relationship_file_previous_path
+				&& aError <= github_read_validation_error::relationship_search_availability) {
+				return { .Error = github_read_validation_error::invalid_relationship, .Detail = aError };
+			}
 			return github_read_validation{ .Error = aError };
 		}
 
@@ -1159,7 +1188,7 @@ namespace bpr::application {
 				aRecord.PreviousPath.has_value()
 				&& aRecord.Change != github_file_change::renamed
 				&& aRecord.Change != github_file_change::copied) {
-				return github_read_validation_error::invalid_relationship;
+				return github_read_validation_error::relationship_file_previous_path;
 			}
 			if (const auto error = aBudget.consume(aRecord.Path, aLimits.MaximumPathBytes, true);
 				error != github_read_validation_error::none) {
@@ -1311,7 +1340,7 @@ namespace bpr::application {
 				if (comment.Path != aRecord.Path
 					|| (aRecord.Subject == github_review_thread_subject::file
 						&& hasLine)) {
-					return github_read_validation_error::invalid_relationship;
+					return github_read_validation_error::relationship_thread_comment_path;
 				}
 				if (const auto error = validate_review_comment(comment, aBudget, aLimits);
 					error != github_read_validation_error::none) {
@@ -1340,7 +1369,7 @@ namespace bpr::application {
 				return github_read_validation_error::collection_too_large;
 			}
 			if (aRecord.Root.ReplyTo.has_value()) {
-				return github_read_validation_error::invalid_relationship;
+				return github_read_validation_error::relationship_review_group_root;
 			}
 			if (const auto error = validate_review_comment(aRecord.Root, aBudget, aLimits);
 				error != github_read_validation_error::none) {
@@ -1351,7 +1380,7 @@ namespace bpr::application {
 					!reply.ReplyTo.has_value()
 					|| *reply.ReplyTo != aRecord.Root.Comment
 					|| reply.Comment == aRecord.Root.Comment) {
-					return github_read_validation_error::invalid_relationship;
+					return github_read_validation_error::relationship_review_group_reply;
 				}
 				if (const auto error = validate_review_comment(reply, aBudget, aLimits);
 					error != github_read_validation_error::none) {
@@ -1499,7 +1528,7 @@ namespace bpr::application {
 					aAuthor->Actor.value(),
 					aAuthor->Login);
 				if (!inserted && iterator->second != aAuthor->Login) {
-					return github_read_validation_error::invalid_relationship;
+					return github_read_validation_error::relationship_actor_login;
 				}
 				return github_read_validation_error::none;
 			};
@@ -1594,8 +1623,7 @@ namespace bpr::application {
 						comment.ReplyTo.has_value()
 						&& !threadCommentIds.contains(
 							comment.ReplyTo->value())) {
-						return github_read_validation_error::
-							invalid_relationship;
+						return github_read_validation_error::relationship_thread_reply;
 					}
 					if (!entityNodeIds.emplace(comment.Comment.value()).second) {
 						return github_read_validation_error::duplicate_identity;
@@ -1636,19 +1664,19 @@ namespace bpr::application {
 			searchPullRequestNumbers.reserve(aSnapshot.SearchResults.size());
 			for (const auto& result : aSnapshot.SearchResults) {
 				if (result.Repository != aSnapshot.Repository.Repository) {
-					return github_read_validation_error::invalid_relationship;
+					return github_read_validation_error::relationship_search_repository;
 				}
 				const auto matchesSnapshotNode   = result.PullRequestNode == aSnapshot.PullRequest.Node;
 				const auto matchesSnapshotNumber = result.Number == aSnapshot.PullRequest.Number;
 				if (matchesSnapshotNode != matchesSnapshotNumber) {
-					return github_read_validation_error::invalid_relationship;
+					return github_read_validation_error::relationship_search_target_identity;
 				}
 				if (
 					matchesSnapshotNode
 					&& (result.Title != aSnapshot.PullRequest.Title
 						|| result.State != aSnapshot.PullRequest.State
 						|| result.Draft != aSnapshot.PullRequest.Draft)) {
-					return github_read_validation_error::invalid_relationship;
+					return github_read_validation_error::relationship_search_target_metadata;
 				}
 				if (
 					!matchesSnapshotNode
@@ -1791,8 +1819,16 @@ namespace bpr::application {
 			&& aSnapshot.TimelineAvailability != github_timeline_availability::failed) {
 			return detail::validation(github_read_validation_error::invalid_enum);
 		}
+		if (aSnapshot.SearchAvailability != github_search_availability::unavailable
+			&& aSnapshot.SearchAvailability != github_search_availability::available
+			&& aSnapshot.SearchAvailability != github_search_availability::result_limit) {
+			return detail::validation(github_read_validation_error::invalid_enum);
+		}
+		if (aSnapshot.SearchAvailability != github_search_availability::available && !aSnapshot.SearchResults.empty()) {
+			return detail::validation(github_read_validation_error::relationship_search_availability);
+		}
 		if (aSnapshot.TimelineAvailability != github_timeline_availability::available && !aSnapshot.ForcePushEvents.empty()) {
-			return detail::validation(github_read_validation_error::invalid_relationship);
+			return detail::validation(github_read_validation_error::relationship_timeline_availability);
 		}
 		if (aSnapshot.ForcePushEvents.size() > 1000U) {
 			return detail::validation(github_read_validation_error::collection_too_large);
@@ -1800,7 +1836,7 @@ namespace bpr::application {
 		std::unordered_set<std::uint64_t> timelineIdentities;
 		for (const auto& event : aSnapshot.ForcePushEvents) {
 			if (event.EventId == 0U || !detail::hexadecimal_oid(event.AfterHeadOid) || event.CreatedAtUnixMilliseconds < 0) {
-				return detail::validation(github_read_validation_error::invalid_relationship);
+				return detail::validation(github_read_validation_error::relationship_timeline_event);
 			}
 			if (!timelineIdentities.insert(event.EventId).second) {
 				return detail::validation(github_read_validation_error::duplicate_identity);
@@ -1815,7 +1851,7 @@ namespace bpr::application {
 				== github_collection_availability::unavailable
 			&& !aSnapshot.ReviewCommentGroups.empty()) {
 			return detail::validation(
-				github_read_validation_error::invalid_relationship);
+				github_read_validation_error::relationship_review_comments_availability);
 		}
 		const auto& readShape        = aSnapshot.CapabilityEvidence.ReadShape;
 		const auto  threadsAvailable = aSnapshot.ReviewThreadsAvailability
@@ -1842,13 +1878,13 @@ namespace bpr::application {
 				&& (!readShape.ReviewThreads
 					|| !readShape.UnresolvePermission))) {
 			return detail::validation(
-				github_read_validation_error::invalid_relationship);
+				github_read_validation_error::relationship_review_threads_capability);
 		}
 		for (const auto& file : aSnapshot.Files) {
 			const auto viewedAvailable = file.ViewedState != github_file_viewed_state::unavailable;
 			if (viewedAvailable != readShape.ViewedFileState) {
 				return detail::validation(
-					github_read_validation_error::invalid_relationship);
+					github_read_validation_error::relationship_file_viewed_capability);
 			}
 		}
 		for (const auto& thread : aSnapshot.ReviewThreads) {
@@ -1860,7 +1896,7 @@ namespace bpr::application {
 				resolveAvailable != readShape.ResolvePermission
 				|| unresolveAvailable != readShape.UnresolvePermission) {
 				return detail::validation(
-					github_read_validation_error::invalid_relationship);
+					github_read_validation_error::relationship_thread_permission_capability);
 			}
 		}
 		if (aSnapshot.Files.size() > aLimits.MaximumFiles

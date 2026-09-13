@@ -1400,9 +1400,17 @@ including copied GraphQL connection nodes. No raw view borrows a completed
 transport operation. Structural bounds and whole-document validation precede
 shape and scalar checks, including unknown response values. Required members,
 explicit nulls, exact resource-scoped rate observations, REST authority and
-GraphQL cursor/count checks retain their existing admission rules. Every page
-must exhaust and the complete typed snapshot must validate before it is returned;
-a malformed continuation never exposes an earlier partial snapshot.
+GraphQL cursor/count checks retain their existing admission rules. Required
+pull-request collections exhaust before the complete typed snapshot validates
+and returns; a malformed continuation never exposes an earlier partial
+snapshot. Repository-wide open-PR search is ancillary to opening one exact PR.
+When a well-formed search page declares more results than the configured search
+limit, its received bounded rows still pass the existing semantic and
+relationship checks, and the page must declare a continuation consistent with
+its total. The accepted snapshot then marks search as `result_limit` and keeps
+zero search rows; it never presents a truncated search as complete. Malformed
+search pages, inconsistent pagination and other read failures still refuse the
+whole snapshot.
 
 Mutation capability probing may observe schema support without executing the
 mutation. Executable GitHub mutations remain RFC-BPR-0008.

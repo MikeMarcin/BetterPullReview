@@ -2072,6 +2072,94 @@ namespace {
 		}
 	}
 
+	auto test_search_result_limit_preserves_exact_pull_request() -> void
+	{
+		for (const bool malformed : { false, true }) {
+			auto transport            = paged_fixture_transport{ fixture_scenario::search_plus_link };
+			transport.RewriteResponse = [malformed](const github_wire_request& aRequest, wire_response& aResponse) {
+				if (aRequest.Wire.Operation != read_operation::search_pull_requests) {
+					return;
+				}
+				auto document = parse_fixture_object(aResponse.Body);
+				document.insert_or_assign("total_count", std::uint64_t{ 2104U });
+				if (malformed) {
+					document.insert_or_assign("incomplete_results", true);
+				}
+				aResponse.Body = fixture_json(document);
+			};
+			const auto result = perform_paged_github_read(transport, profile(), provider_request(), core::provider_snapshot_id{ 56U }, { });
+			if (malformed) {
+				expect(!result && provider_failure_of(result) == application::github_provider_failure::malformed_response,
+					   "excess search total never hides a malformed search envelope");
+				continue;
+			}
+			expect(result && application::validate(*result, provider_request().Context).valid()
+					   && result->SearchAvailability == application::github_search_availability::result_limit
+					   && result->SearchResults.empty() && result->Files.size() == 101U
+					   && result->PullRequest.HeadOid.value() == head_oid && result->PullRequest.BaseOid.value() == base_oid,
+				   "2104 search hits refuse all search rows while preserving validated exact PR files and diff endpoints");
+			expect(std::ranges::count_if(transport.Requests, [](const auto& aRequest) {
+					   return aRequest.Wire.Operation == read_operation::search_pull_requests;
+				   }) == 1,
+				   "result-limit search does not fetch or retain a truncated continuation");
+		}
+		auto malformedItem            = paged_fixture_transport{ fixture_scenario::search_wrong_authority };
+		malformedItem.RewriteResponse = [](const github_wire_request& aRequest, wire_response& aResponse) {
+			if (aRequest.Wire.Operation == read_operation::search_pull_requests) {
+				auto document = parse_fixture_object(aResponse.Body);
+				document.insert_or_assign("total_count", std::uint64_t{ 2104U });
+				aResponse.Body = fixture_json(document);
+			}
+		};
+		const auto malformed = perform_paged_github_read(malformedItem, profile(), provider_request(), core::provider_snapshot_id{ 57U }, { });
+		expect(!malformed && provider_failure_of(malformed) == application::github_provider_failure::malformed_response,
+			   "excess search total never hides cross-authority search records");
+	}
+
+	auto test_limited_search_still_validates_received_records() -> void
+	{
+		enum class fault { none,
+						   duplicate,
+						   empty_terminal_page,
+						   foreign_entity,
+						   target_identity,
+						   oversized_title };
+		for (const auto selected : { fault::none, fault::duplicate, fault::empty_terminal_page, fault::foreign_entity, fault::target_identity, fault::oversized_title }) {
+			auto transport            = paged_fixture_transport{ fixture_scenario::search_plus_link };
+			transport.RewriteResponse = [selected](const github_wire_request& aRequest, wire_response& aResponse) {
+				if (aRequest.Wire.Operation != read_operation::search_pull_requests) {
+					return;
+				}
+				auto document = parse_fixture_object(aResponse.Body);
+				document.insert_or_assign("total_count", std::uint64_t{ 2104U });
+				auto& items = document.at("items").get_array();
+				switch (selected) {
+				case fault::none:      break;
+				case fault::duplicate: items.at(1U) = items.front(); break;
+				case fault::empty_terminal_page:
+					items.clear();
+					std::erase_if(aResponse.Headers, [](const auto& aHeader) { return aHeader.Name == "Link"; });
+					aResponse.Completeness = page_completeness::complete;
+					break;
+				case fault::foreign_entity:  items.front().get_object().insert_or_assign("node_id", "R_repository"); break;
+				case fault::target_identity: items.front().get_object().insert_or_assign("node_id", "PR_17"); break;
+				case fault::oversized_title: items.front().get_object().insert_or_assign("title", std::string(1025U, 'x')); break;
+				}
+				aResponse.Body = fixture_json(document);
+			};
+			const auto result = perform_paged_github_read(transport, profile(), provider_request(), core::provider_snapshot_id{ 58U }, { });
+			if (selected == fault::none) {
+				expect(result && result->SearchAvailability == application::github_search_availability::result_limit
+						   && result->SearchResults.empty() && result->Files.size() == 101U,
+					   "valid adjacent oversized search preserves exact PR and refuses all search rows");
+			} else {
+				const auto expected = selected == fault::oversized_title ? application::github_provider_failure::response_limit : application::github_provider_failure::malformed_response;
+				expect(!result && provider_failure_of(result) == expected,
+					   "oversized search still refuses invalid received identities, fields and terminal-page claims");
+			}
+		}
+	}
+
 	auto test_search_form_links() -> void
 	{
 		auto       githubForm = paged_fixture_transport{ fixture_scenario::search_plus_link };
@@ -2080,7 +2168,7 @@ namespace {
 														  provider_request(),
 														  core::provider_snapshot_id{ 63U },
 														  std::stop_token{ });
-		expect(accepted.has_value() && accepted->SearchResults.size() == 101U,
+		expect(accepted.has_value() && accepted->SearchAvailability == application::github_search_availability::available && accepted->SearchResults.size() == 101U,
 			   "Search Links accept GitHub's exact plus-for-space q form");
 
 		for (const auto scenario : {
@@ -2846,11 +2934,16 @@ namespace {
 	public:
 		std::optional<read_operation>                            LastOperation;
 		std::optional<application::github_read_validation_error> ValidationError;
+		std::optional<application::github_read_validation_error> RelationshipDetail;
 		void                                                     request_started(const read_operation aOperation) noexcept override { LastOperation = aOperation; }
-		void                                                     validation_failed(const application::github_read_validation_error aError) noexcept override { ValidationError = aError; }
-		std::array<std::pair<read_operation, int>, 32U>          Responses{ };
-		std::size_t                                              Count = 0U;
-		void                                                     observe(const read_operation aOperation, const int aStatus) noexcept override
+		void                                                     validation_failed(const application::github_read_validation aValidation) noexcept override
+		{
+			ValidationError    = aValidation.Error;
+			RelationshipDetail = aValidation.Detail;
+		}
+		std::array<std::pair<read_operation, int>, 32U> Responses{ };
+		std::size_t                                     Count = 0U;
+		void                                            observe(const read_operation aOperation, const int aStatus) noexcept override
 		{
 			expect(Count < Responses.size(), "response observation stays bounded");
 			Responses[Count++] = { aOperation, aStatus };
@@ -2922,6 +3015,22 @@ namespace {
 				   && invalidObserver.ValidationError == application::github_read_validation_error::duplicate_identity
 				   && provider_failure_of(invalid) == application::github_provider_failure::malformed_response,
 			   "real final snapshot validation preserves duplicate identity detail and mapped refusal");
+		auto relationshipTransport            = paged_fixture_transport{ fixture_scenario::success };
+		relationshipTransport.RewriteResponse = [](const github_wire_request& aRequest, wire_response& aResponse) {
+			if (aRequest.Wire.Operation == read_operation::list_reviews) {
+				const auto position = aResponse.Body.find("U_reviewer");
+				expect(position != std::string::npos, "review fixture has actor identity");
+				aResponse.Body.replace(position, std::string_view{ "U_reviewer" }.size(), "U_viewer");
+			}
+		};
+		recording_response_observer relationshipObserver;
+		const auto                  relationship = perform_paged_github_read(relationshipTransport, profile(), provider_request(), core::provider_snapshot_id{ 55U },
+																			 { }, { }, github_provider_read_authority::authenticated, &relationshipObserver);
+		expect(!relationship && relationshipObserver.LastOperation == read_operation::search_pull_requests
+				   && relationshipObserver.ValidationError == application::github_read_validation_error::invalid_relationship
+				   && relationshipObserver.RelationshipDetail == application::github_read_validation_error::relationship_actor_login
+				   && provider_failure_of(relationship) == application::github_provider_failure::malformed_response,
+			   "final search page does not obscure an earlier review actor relationship failure");
 		auto timeline                    = timeline_fixture_transport{ };
 		timeline.Responses               = { success_response(timeline_full_page(1U), timeline_next(2U), page_completeness::has_next_page), success_response("[]") };
 		timeline.Responses.back().Status = 503;
@@ -3030,6 +3139,8 @@ auto main() -> int
 	test_successful_exhaustive_read();
 	test_graphql_head_is_bound_to_rest_snapshot();
 	test_raw_structural_limits();
+	test_search_result_limit_preserves_exact_pull_request();
+	test_limited_search_still_validates_received_records();
 	test_search_form_links();
 	test_graphql_error_envelopes();
 	test_raw_status_classification();

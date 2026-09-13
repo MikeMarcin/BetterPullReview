@@ -337,9 +337,10 @@ namespace bpr::application {
 			, DiagnosticLog{ aLog }
 		{ }
 		void record_pull_request(const diagnostic_outcome aOutcome, const core::request_id aRequest,
-								 const std::optional<core::github_failure>         aFailure       = std::nullopt,
-								 const std::optional<github_read_validation_error> aValidation    = std::nullopt,
-								 const std::optional<diagnostic_paged_operation>   aLastOperation = std::nullopt) const noexcept
+								 const std::optional<core::github_failure>         aFailure            = std::nullopt,
+								 const std::optional<github_read_validation_error> aValidation         = std::nullopt,
+								 const std::optional<diagnostic_paged_operation>   aLastOperation      = std::nullopt,
+								 const std::optional<github_read_validation_error> aRelationshipDetail = std::nullopt) const noexcept
 		{
 			if (DiagnosticLog == nullptr) {
 				return;
@@ -353,6 +354,9 @@ namespace bpr::application {
 			};
 			if (aValidation) {
 				event.GithubFailure = *aValidation;
+				if (*aValidation == github_read_validation_error::invalid_relationship) {
+					event.RelationshipDetail = aRelationshipDetail;
+				}
 			} else if (aFailure) {
 				event.GithubFailure = *aFailure;
 			}
@@ -813,7 +817,7 @@ namespace bpr::application {
 										success->Request.Context.Request,
 										validation.valid() ? std::optional{ core::github_failure::malformed_response } : std::nullopt,
 										validation.valid() ? std::nullopt : std::optional{ validation.Error },
-										success->LastReadOperation);
+										success->LastReadOperation, validation.Detail);
 					dispatch_core(core::pull_request_load_failed_event{
 						.Context = success->Request.Context,
 						.Failure = core::github_failure::malformed_response,
@@ -927,7 +931,7 @@ namespace bpr::application {
 									errorValid ? mapped_failure(error->Error.Failure)
 											   : core::github_failure::malformed_response,
 									errorValid ? error->ValidationError : std::nullopt,
-									error->LastReadOperation);
+									error->LastReadOperation, error->RelationshipDetail);
 				dispatch_core(core::pull_request_load_failed_event{
 					.Context = error->Request.Context,
 					.Failure = errorValid

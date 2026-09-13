@@ -88,10 +88,10 @@ namespace bpr::adapters::github::detail {
 	class github_paged_response_observer
 	{
 	public:
-		virtual ~github_paged_response_observer()                                                 = default;
-		virtual void observe(read_operation aOperation, int aHttpStatus) noexcept                 = 0;
-		virtual void request_started(read_operation aOperation) noexcept                          = 0;
-		virtual void validation_failed(application::github_read_validation_error aError) noexcept = 0;
+		virtual ~github_paged_response_observer()                                                = default;
+		virtual void observe(read_operation aOperation, int aHttpStatus) noexcept                = 0;
+		virtual void request_started(read_operation aOperation) noexcept                         = 0;
+		virtual void validation_failed(application::github_read_validation aValidation) noexcept = 0;
 	};
 
 	/// \brief Reads at most ten timeline pages, 100 records each, including ignored events.

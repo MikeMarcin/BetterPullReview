@@ -824,6 +824,22 @@ namespace bpr::adapters::github::detail {
 				invalid_capability_revision:
 			case application::github_read_validation_error::invalid_rate_limit:
 			case application::github_read_validation_error::invalid_relationship:
+			case application::github_read_validation_error::relationship_file_previous_path:
+			case application::github_read_validation_error::relationship_thread_comment_path:
+			case application::github_read_validation_error::relationship_review_group_root:
+			case application::github_read_validation_error::relationship_review_group_reply:
+			case application::github_read_validation_error::relationship_actor_login:
+			case application::github_read_validation_error::relationship_thread_reply:
+			case application::github_read_validation_error::relationship_search_repository:
+			case application::github_read_validation_error::relationship_search_target_identity:
+			case application::github_read_validation_error::relationship_search_target_metadata:
+			case application::github_read_validation_error::relationship_timeline_availability:
+			case application::github_read_validation_error::relationship_timeline_event:
+			case application::github_read_validation_error::relationship_review_comments_availability:
+			case application::github_read_validation_error::relationship_review_threads_capability:
+			case application::github_read_validation_error::relationship_file_viewed_capability:
+			case application::github_read_validation_error::relationship_thread_permission_capability:
+			case application::github_read_validation_error::relationship_search_availability:
 				return contract_failure_code::unexpected_response_shape;
 			}
 			return contract_failure_code::unexpected_response_shape;
@@ -1100,6 +1116,7 @@ namespace bpr::adapters::github::detail {
 				.IssueComments              = { },
 				.Checks                     = { },
 				.SearchResults              = { },
+				.SearchAvailability         = admitted(read_operation::search_pull_requests) ? application::github_search_availability::available : application::github_search_availability::unavailable,
 				.CapabilityEvidence         = {
 					.Capabilities    = aContext.Capabilities,
 					.Revision        = aContext.CapabilityRevision,

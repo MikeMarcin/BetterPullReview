@@ -55,6 +55,7 @@ int main(int aArgc, char** aArgv)
 		expect(log.record({ .Operation = application::diagnostic_operation::pull_request, .Outcome = application::diagnostic_outcome::response_received, .Request = 43, .WindowSession = 2, .HttpStatus = 403, .PagedOperation = application::diagnostic_paged_operation::list_pull_request_files }) == status::available, "typed paged response queued");
 		expect(log.record({ .Operation = application::diagnostic_operation::pull_request, .Outcome = application::diagnostic_outcome::failed, .Request = 43, .PagedOperation = application::diagnostic_paged_operation::list_pull_request_files, .GithubFailure = core::github_failure::rate_limit }) == status::available, "typed pull request failure queued");
 		expect(log.record({ .Operation = application::diagnostic_operation::pull_request, .Outcome = application::diagnostic_outcome::failed, .Request = 44, .GithubFailure = application::github_read_validation_error::missing_required_text }) == status::available, "typed validation failure queued");
+		expect(log.record({ .Operation = application::diagnostic_operation::pull_request, .Outcome = application::diagnostic_outcome::failed, .Request = 45, .PagedOperation = application::diagnostic_paged_operation::search_pull_requests, .GithubFailure = application::github_read_validation_error::invalid_relationship, .RelationshipDetail = application::github_read_validation_error::relationship_actor_login }) == status::available, "fixed relationship diagnostic queued");
 		log.close();
 		expect(log.record({ }) == status::closed, "closed ingress");
 	}
@@ -148,6 +149,7 @@ int main(int aArgc, char** aArgv)
 			   && first.find("failure_domain=validation failure=missing_required_text") != std::string::npos
 			   && first.find("page_operation=ListPullRequestFiles window_session=2") != std::string::npos,
 		   "typed HTTP, provider and validation facts persist without arbitrary text");
+	expect(first.find("failure_domain=validation failure=invalid_relationship pack_failure=none page_operation=SearchPullRequests window_session=0 relationship_detail=relationship_actor_login") != std::string::npos, "relationship reason is independent of the final fetched operation");
 	expect(first.find("op=application outcome=started") != std::string::npos, "ordinary close persists startup");
 	{
 		adapters::logging::quill_log log{ root };

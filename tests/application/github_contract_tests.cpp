@@ -300,9 +300,47 @@ namespace {
 					.State           = application::github_pull_request_state::open,
 				},
 			},
+			.SearchAvailability = application::github_search_availability::available,
 			.CapabilityEvidence = capability_evidence(core::capability_revision{ 19 }),
 			.RateLimits         = rate_limits(),
 		};
+	}
+
+	auto test_relationship_diagnostics() -> void
+	{
+		using error  = application::github_read_validation_error;
+		auto limited = valid_snapshot();
+		limited.SearchResults.clear();
+		limited.SearchAvailability = application::github_search_availability::result_limit;
+		expect(application::validate(limited, pull_request_context()).valid(), "refused ancillary search does not invalidate exact PR data");
+		limited.SearchAvailability = static_cast<application::github_search_availability>(255);
+		expect(application::validate(limited, pull_request_context()).Error == error::invalid_enum, "unknown search availability is refused");
+		const auto check = [](const auto& aMutate, const error aDetail) {
+			auto snapshot = valid_snapshot();
+			aMutate(snapshot);
+			const auto result = application::validate(snapshot, pull_request_context());
+			expect(!result.valid() && result.Error == error::invalid_relationship,
+				   "relationship diagnostic preserves validation category and refusal");
+			expect(result.Detail == aDetail,
+				   "relationship diagnostic identifies the exact failed invariant");
+		};
+		check([](auto& aSnapshot) { aSnapshot.Files.front().PreviousPath = "old.cpp"; }, error::relationship_file_previous_path);
+		check([](auto& aSnapshot) { aSnapshot.ReviewThreads.front().Comments.front().Path = "other.cpp"; }, error::relationship_thread_comment_path);
+		check([](auto& aSnapshot) { aSnapshot.IssueComments.front().Author->Login = "other-login"; }, error::relationship_actor_login);
+		check([](auto& aSnapshot) { aSnapshot.ReviewThreads.front().Comments.front().ReplyTo = application::github_comment_id{ "absent" }; }, error::relationship_thread_reply);
+		check([](auto& aSnapshot) { aSnapshot.SearchResults.front().Repository = core::repository_id{ 99 }; }, error::relationship_search_repository);
+		check([](auto& aSnapshot) { aSnapshot.SearchResults.front().Number = aSnapshot.PullRequest.Number; }, error::relationship_search_target_identity);
+		check([](auto& aSnapshot) { aSnapshot.SearchResults.front().Number = aSnapshot.PullRequest.Number; aSnapshot.SearchResults.front().PullRequestNode = aSnapshot.PullRequest.Node; }, error::relationship_search_target_metadata);
+		check([](auto& aSnapshot) { aSnapshot.ForcePushEvents.push_back({ }); }, error::relationship_timeline_availability);
+		check([](auto& aSnapshot) { aSnapshot.TimelineAvailability = application::github_timeline_availability::available; aSnapshot.ForcePushEvents.push_back({ }); }, error::relationship_timeline_event);
+		check([](auto& aSnapshot) { aSnapshot.ReviewCommentGroups.push_back({ }); }, error::relationship_review_comments_availability);
+		check([](auto& aSnapshot) { aSnapshot.ReviewThreadsAvailability = application::github_collection_availability::unavailable; }, error::relationship_review_threads_capability);
+		check([](auto& aSnapshot) { aSnapshot.Files.front().ViewedState = application::github_file_viewed_state::unavailable; }, error::relationship_file_viewed_capability);
+		check([](auto& aSnapshot) { aSnapshot.ReviewThreads.front().ViewerResolvePermission = application::github_permission_state::unavailable; }, error::relationship_thread_permission_capability);
+		check([](auto& aSnapshot) { aSnapshot.ReviewCommentsAvailability = application::github_collection_availability::available; auto group = application::github_review_comment_group_record{ .Root = aSnapshot.ReviewThreads.front().Comments.front() }; group.Root.ReplyTo = application::github_comment_id{ "absent" }; aSnapshot.ReviewCommentGroups.push_back(std::move(group)); }, error::relationship_review_group_root);
+		check([](auto& aSnapshot) { aSnapshot.ReviewCommentsAvailability = application::github_collection_availability::available; auto group = application::github_review_comment_group_record{ .Root = aSnapshot.ReviewThreads.front().Comments.front() }; group.Replies.push_back(group.Root); aSnapshot.ReviewCommentGroups.push_back(std::move(group)); }, error::relationship_review_group_reply);
+		check([](auto& aSnapshot) { aSnapshot.SearchAvailability = application::github_search_availability::result_limit; }, error::relationship_search_availability);
+		expect(application::validate(valid_snapshot(), pull_request_context()).Detail == error::none, "valid snapshot has no diagnostic failure");
 	}
 
 	auto test_valid_models_and_identity_correlation() -> void
@@ -1320,6 +1358,7 @@ namespace {
 
 auto main() -> int
 {
+	test_relationship_diagnostics();
 	test_valid_models_and_identity_correlation();
 	test_malformed_enums_fail_closed();
 	test_default_collection_and_field_bounds();

@@ -139,7 +139,8 @@ namespace {
 		expect(first.Request.Context.ApplicationSession == core::application_session_id{ 2U }
 				   && first.Request.AuthenticationSession == session().ApplicationSession,
 			   "window causal session and trusted authentication provenance remain distinct");
-		const auto accepted = snapshot(first.Request);
+		auto accepted               = snapshot(first.Request);
+		accepted.SearchAvailability = application::github_search_availability::result_limit;
 		first.Complete(application::github_pull_request_success{ first.Request, accepted, application::diagnostic_paged_operation::list_reviews });
 		lane.drain();
 		expect(log.Events.size() == 2U
@@ -148,7 +149,7 @@ namespace {
 				   && log.Events[1].PagedOperation == application::diagnostic_paged_operation::list_reviews
 				   && log.Events[1].Request == first.Request.Context.Request.value(),
 			   "accepted load has one typed succeeded diagnostic");
-		expect(host.accepted_snapshot().has_value() && updates.back().Presentation.PullRequest.has_value(), "accepted read publishes its safe PR projection");
+		expect(host.accepted_snapshot().has_value() && updates.back().Presentation.PullRequest.has_value(), "a refused ancillary search still permits the accepted exact PR projection");
 		const auto& shown = *updates.back().Presentation.PullRequest;
 		expect(shown.Snapshot == host.accepted_snapshot()->Snapshot && shown.Repository == accepted.Repository.Repository
 				   && shown.PullRequest == accepted.PullRequest.PullRequest && shown.Title == accepted.PullRequest.Title
@@ -192,12 +193,14 @@ namespace {
 			fourth.Request,
 			{ .Failure = application::github_provider_failure::malformed_response },
 			application::diagnostic_paged_operation::list_reviews,
-			application::github_read_validation_error::duplicate_identity,
+			application::github_read_validation_error::invalid_relationship,
+			application::github_read_validation_error::relationship_actor_login,
 		});
 		lane.drain();
 		expect(log.Events.size() == 8U
 				   && log.Events[7].PagedOperation == application::diagnostic_paged_operation::list_reviews
-				   && std::get<application::github_read_validation_error>(log.Events[7].GithubFailure) == application::github_read_validation_error::duplicate_identity,
+				   && std::get<application::github_read_validation_error>(log.Events[7].GithubFailure) == application::github_read_validation_error::invalid_relationship
+				   && log.Events[7].RelationshipDetail == application::github_read_validation_error::relationship_actor_login,
 			   "provider-side validation refusal retains its exact typed name");
 		for (const auto& update : updates) {
 			expect(update.Presentation.Transition && update.Presentation.Transition->Status == update.Transition.Status

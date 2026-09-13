@@ -69,9 +69,10 @@ namespace bpr::adapters::github::detail {
 			{
 				LastOperation = diagnostic_operation_for(aOperation);
 			}
-			void validation_failed(const application::github_read_validation_error aError) noexcept override
+			void validation_failed(const application::github_read_validation aValidation) noexcept override
 			{
-				ValidationError = aError;
+				ValidationError    = aValidation.Error;
+				RelationshipDetail = aValidation.Detail;
 			}
 			void observe(const read_operation aOperation, const int aHttpStatus) noexcept override
 			{
@@ -89,6 +90,7 @@ namespace bpr::adapters::github::detail {
 			}
 			std::optional<application::diagnostic_paged_operation>   LastOperation;
 			std::optional<application::github_read_validation_error> ValidationError;
+			std::optional<application::github_read_validation_error> RelationshipDetail;
 
 		private:
 			application::diagnostic_log_port* Log;
@@ -1765,10 +1767,11 @@ namespace bpr::adapters::github::detail {
 								return;
 							}
 							delivery->deliver(application::github_pull_request_error{
-								.Request           = aRequest,
-								.Error             = std::move(aError),
-								.LastReadOperation = observer.LastOperation,
-								.ValidationError   = observer.ValidationError,
+								.Request            = aRequest,
+								.Error              = std::move(aError),
+								.LastReadOperation  = observer.LastOperation,
+								.ValidationError    = observer.ValidationError,
+								.RelationshipDetail = observer.RelationshipDetail,
 							});
 						};
 					try {

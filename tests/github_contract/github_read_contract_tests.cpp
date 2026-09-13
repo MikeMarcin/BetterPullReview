@@ -512,6 +512,7 @@ namespace {
 					.Draft           = false,
 				},
 			},
+			.SearchAvailability = application::github_search_availability::available,
 			.CapabilityEvidence = evidence,
 			.RateLimits         = rateLimits,
 		};

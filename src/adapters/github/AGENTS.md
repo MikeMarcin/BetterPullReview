@@ -87,10 +87,15 @@ the functional core or Qt presentation adapter.
   strings, block strings, field names, and operation names are data, not
   operation-type evidence, and canonical compiled request-body equality
   remains required for outbound read admission.
-- Exhaust every REST `Link` continuation and GraphQL cursor before returning a
-  snapshot. Enforce cursor progress, page/record/byte ceilings, exact
-  repository authority, expected result counts, and capability-shaped
-  selection; incomplete or ambiguous pagination fails atomically.
+- Exhaust every required REST `Link` continuation and GraphQL cursor before
+  returning a snapshot. Repository-wide open-PR search may instead stop after
+  a bounded, semantically validated page whose well-formed total exceeds the
+  configured search limit: retain zero search rows and mark search availability
+  as `result_limit` while preserving the exact PR read. Its received
+  rows, authority and declared continuation must validate before discard.
+  Enforce cursor progress, page/record/byte ceilings, exact repository
+  authority, expected result counts, and capability-shaped selection;
+  incomplete or ambiguous pagination fails atomically.
 - Preserve `core`, `search`, and `graphql` rate observations independently.
   GitHub.com requires the applicable exact tuple; GHES may omit a whole tuple
   but may not supply a partial, malformed, unknown, or wrong-resource tuple.

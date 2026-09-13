@@ -146,7 +146,7 @@ namespace bpr::adapters::logging {
 		}
 		auto failure_name(application::github_read_validation_error aFailure) noexcept -> std::string_view
 		{
-			constexpr std::array names{ "none", "invalid_context", "invalid_limits", "missing_identity", "identity_mismatch", "missing_required_text", "invalid_text", "text_too_long", "invalid_repository", "invalid_pull_request_number", "invalid_commit_oid", "invalid_line", "invalid_enum", "invalid_capability_revision", "invalid_rate_limit", "collection_too_large", "duplicate_identity", "invalid_relationship", "allocation_limit", "total_text_too_large" };
+			constexpr std::array names{ "none", "invalid_context", "invalid_limits", "missing_identity", "identity_mismatch", "missing_required_text", "invalid_text", "text_too_long", "invalid_repository", "invalid_pull_request_number", "invalid_commit_oid", "invalid_line", "invalid_enum", "invalid_capability_revision", "invalid_rate_limit", "collection_too_large", "duplicate_identity", "invalid_relationship", "allocation_limit", "total_text_too_large", "relationship_file_previous_path", "relationship_thread_comment_path", "relationship_review_group_root", "relationship_review_group_reply", "relationship_actor_login", "relationship_thread_reply", "relationship_search_repository", "relationship_search_target_identity", "relationship_search_target_metadata", "relationship_timeline_availability", "relationship_timeline_event", "relationship_review_comments_availability", "relationship_review_threads_capability", "relationship_file_viewed_capability", "relationship_thread_permission_capability", "relationship_search_availability" };
 			const auto           index = static_cast<std::size_t>(aFailure);
 			return index < names.size() ? names[index] : "unknown";
 		}
@@ -443,13 +443,13 @@ namespace bpr::adapters::logging {
 				Threads[ThreadCount++] = thread;
 			}
 			try {
-				static constexpr quill::MacroMetadata metadata{ "", "", "v=1 op={} outcome={} request={} http_status={} summary={} dropped={} detail={} epoch_stage={} failure_domain={} failure={} pack_failure={} page_operation={} window_session={}", nullptr, quill::LogLevel::Info, quill::MacroMetadata::Event::Log };
+				static constexpr quill::MacroMetadata metadata{ "", "", "v=1 op={} outcome={} request={} http_status={} summary={} dropped={} detail={} epoch_stage={} failure_domain={} failure={} pack_failure={} page_operation={} window_session={} relationship_detail={}", nullptr, quill::LogLevel::Info, quill::MacroMetadata::Event::Log };
 				const auto                            githubFailure = aEvent.GithubFailure.index() != 0U;
 				const auto                            failureDomain = githubFailure ? (aEvent.GithubFailure.index() == 1U ? "github" : "validation") : domains[aEvent.EpochFailure.index()];
 				const auto                            failure       = githubFailure
 					? std::visit([](auto aFailure) { return failure_name(aFailure); }, aEvent.GithubFailure)
 					: std::visit([](auto aFailure) { return failure_name(aFailure); }, aEvent.EpochFailure);
-				if (!Logger->log_statement<false>(&metadata, operations[operation], outcomes[outcome], aEvent.Request, aEvent.HttpStatus, summaries[summary], State->Dropped.load(), aEvent.Summary.text(), stages[stage], failureDomain, failure, aEvent.EpochPackFailure ? failure_name(*aEvent.EpochPackFailure) : std::string_view{ "none" }, paged_operations[paged], aEvent.WindowSession)) {
+				if (!Logger->log_statement<false>(&metadata, operations[operation], outcomes[outcome], aEvent.Request, aEvent.HttpStatus, summaries[summary], State->Dropped.load(), aEvent.Summary.text(), stages[stage], failureDomain, failure, aEvent.EpochPackFailure ? failure_name(*aEvent.EpochPackFailure) : std::string_view{ "none" }, paged_operations[paged], aEvent.WindowSession, aEvent.RelationshipDetail ? failure_name(*aEvent.RelationshipDetail) : std::string_view{ "none" })) {
 					++State->Dropped;
 					return status_type::dropped;
 				}
