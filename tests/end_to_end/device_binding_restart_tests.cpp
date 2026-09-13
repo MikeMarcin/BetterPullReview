@@ -98,9 +98,11 @@ int main(int aArgc, char** aArgv)
 		// page to sign out. Both controls are the same deactivation.
 		second->window().open_settings(qt::settings_page::accounts_and_hosts);
 		QApplication::processEvents();
-		auto* signOut = second->window().findChild<QToolButton*>(QStringLiteral("signOutGithubButton"));
+		auto* settings = second->window().settings();
+		expect(settings != nullptr && settings->isVisible(), "Accounts and hosts settings are visible");
+		auto* signOut = settings->findChild<QToolButton*>(QStringLiteral("signOutGithubButton"));
 		expect(signOut != nullptr && signOut->isVisible() && signOut->text() == QStringLiteral("Sign out"), "visible Sign out action exists");
-		auto* cardSignOut = second->window().findChild<QToolButton*>(QStringLiteral("accountSignOut"));
+		auto* cardSignOut = settings->findChild<QToolButton*>(QStringLiteral("accountSignOut"));
 		expect(cardSignOut != nullptr && cardSignOut->isVisible() && cardSignOut->text() == QStringLiteral("Sign out"),
 			   "the account card offers Sign out while the session is accepted");
 		cardSignOut->click();
