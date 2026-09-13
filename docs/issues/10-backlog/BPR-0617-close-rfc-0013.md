@@ -29,6 +29,8 @@ This is a current parser limit, not a reproduction or resolution of the
 historical `invalid_relationship` attempt; that different app observation
 remains open. No file list or selected diff was reached, and no live PR write
 or private content retention in the repository occurred.
+No new token or device-grant replacement is needed to establish this current
+parser limit; the optional manual-credential path remains a separate choice.
 
 The current app's CLI profile stays typed `cli_unavailable` with zero launch.
 The owner's new request for a warning-labeled production CLI account profile

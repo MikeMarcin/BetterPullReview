@@ -42,6 +42,8 @@ current CLI-backed parser path cannot reproduce or explain the earlier
 `invalid_relationship` attempt. That historical observed failure remains
 valid and its difference from this read is unresolved; no file list or
 selected diff was rendered here.
+This diagnostic does not require the owner to replace the app's device grant
+or create a new token merely to investigate the current parser ceiling.
 
 An external `gh api` diagnostic is feasible under the owner's scoped read
 authority. A **production** CLI account profile remains disabled by the
