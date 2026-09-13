@@ -12,6 +12,34 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # Verify and close RFC-BPR-0018
 
+## Current frontier, 2026-09-12 (d30, mandate r20): protected-link migration and direct checks
+
+Run `attended-prep-2026-09-10`, renewed dispatch d30, producer
+`/root/integrator_d29`, mandate r20, binding definition
+`sha256:201de49a086f8f809fea06d6749caf3fecb43e7fa8c78a960f55af31b64bfee5`
+and obligation `sha256:33d953bc570693a53c5098acd8d175a6655c8402aa1d053c2ec3847c9c4ce33b`.
+All nine authored obligations and four exits remain bound. Starting clean main
+HEAD `b3314d90`; the d29 accepted v011 decision and signed digest remain
+unchanged. The current board obstacle is BPR-0646 and BPR-0729's old relative
+links in protected review packets. The documentation gate already recognizes
+a relocated historical review-card link only when a unique canonical card
+filename exists in the board, so d30 is exercising a narrowly scoped board
+configuration that leaves those packets untouched while repairing other live
+links and then running the full documentation gate. No packet or bundle is an
+owned write path.
+
+Three non-overlapping rfc-worker slices own RFC-BPR-0029 direct checks in
+parallel: SQLite migration row 7 (`tests/sqlite_contract` and related SQLite
+source); host/transport rows 2, 3 and 8 (`tests/application`,
+`tests/github_contract` and related host/transport source); composed/Qt rows
+4, 5 and 6 (`tests/end_to_end/epoch_portable_occurrence_public_path.py`,
+epoch Qt test and `epoch_line.cpp`). The integrator alone owns board,
+acceptance, docs and commits. Workers use isolated build output. Current
+source paths and command results are pending; next discriminator is whether
+both accepted cards can move without packet-byte changes, followed by the
+current-head integration selector pass. No live pull request mutation is in
+scope.
+
 ## Current frontier, 2026-09-12 (d29, mandate r20): v011 verdict received
 
 Run `attended-prep-2026-09-10`, dispatch d29, producer
