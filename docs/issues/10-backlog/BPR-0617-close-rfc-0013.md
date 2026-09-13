@@ -14,7 +14,7 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/pla
 ## Current frontier — bpr0643-r1 / d1 / mandate r2
 
 The `retained-stress-pr-read` milestone is human-pending. BPR-0642 is Done;
-[BPR-0643](../20-ready/BPR-0643-load-the-retained-stress-test-pull-request.md)
+[BPR-0643](../30-in-progress/BPR-0643-load-the-retained-stress-test-pull-request.md)
 is Parked for the owner's native HTTPS product sign-in. The committed binding
 is `docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-bpr0643-r1-d1-r2.json`
 (the r1 binding remains historical).

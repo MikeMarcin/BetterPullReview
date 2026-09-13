@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0643"
 title: "Load the retained stress-test pull request"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0642"]
 priority: "P2"
