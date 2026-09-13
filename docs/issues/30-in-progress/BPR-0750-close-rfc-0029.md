@@ -32,50 +32,29 @@ The bound milestone is `rfc-bpr-0029-closeout/verify-and-close-rfc-0029`.
 The designated producer is `/root/rfc0029_closeout`; renewed native dispatch `d2`
 selected the generated `rfc-integrator` role with no per-call model/effort
 override, and observed serving telemetry is unavailable.
-The candidate starts from the immutable RFC base above and the d30 evidence
-below. Rows 2 and 4 pass; rows 5 and 7 remain partial, while the other rows
-retain their prior passing evidence. Commits `26fd7f7c`, `72d40b4f`,
-`cf4fdbed`, `7c8631a2` and `776bc0d4` hold the plan, composed line,
-retained-ref, ordinary-update, changed-base and migrated-binding checks. The twelve-launch composed
-public-path selector passed 1/1 (224.24 s) in
-`build/rfc0029-rewritten-base-composed-final.log`; its focused two-launch
-rewritten-base course also passed in
-`build/rfc0029-rewritten-base-focused.log`. The latter advances the selected
-base between opens while three imported events retain unknown original
-historical bases; an independent review found this is a fast-forward advance,
-not the RFC's required base-force-push. A deep worker now owns the public
-fixture/test paths for that exact correction. The migrated-binding course passes after a synthetic GHES
-handoff and resolves the frozen MCP response's old ordinals and OIDs through
-the migrated catalogue. Its agent check constructs the production launch
-request but does not start a process; a hostless legacy GHES-origin copy is
-still missing. The migration worker and independent reviewer released their
-paths. The deep worker's true base-force-push candidate has reproduced a
-product failure in `build/rfc0029-true-base-rewrite-focused-candidate.log`:
-two public opens succeed, installed Git proves the replacement base is
-unrelated and has no merge base with the same imported head, yet that
-occurrence keeps its old derived comparison and local ordinal. Its original
-historical base stays unknown and the earlier live epoch retains its observed
-base. The candidate remains uncommitted. The same deep worker now owns the
-exact core, application, SQLite, fixture, architecture-document and focused-test
-paths for atomic association invalidation and v5-to-v6 migration. Its
-corrected network-isolated two-open course passes in
-`build/rfc0029-base-repair-focused.log`: the same occurrence retains its
-identity and unknown original base, while the stale derived base and active
-comparison association become unavailable after the divergent replacement.
-Core/host and interrupted-migration checks are being added and verified;
-milestone acceptance remains pending. No integrator command is active. No live GitHub or credential
-mutation is in scope. RFC-BPR-0008 is still Proposed in canonical order, so
-Auto-Verified and Done remain pending.
+Against immutable RFC base `5d5df7cd79115b9b4b2f8be6ebdb5392458b9e1d`,
+rows 1–6, 8 and 9 now have passing direct evidence. Row 7 remains partial:
+the copied old-schema checks do not yet identify a genuine hostless legacy
+GHES row, and the agent check frames but does not execute a process. Commit
+`9de50d46` resolves row 5's true base-force-push failure. Its public check
+proves divergent Git ancestry, the same historical occurrence's unchanged
+portable identity and unknown original base, unavailable derived comparison
+and denied Qt selection after the rewrite. The v6 migration and atomic live
+append preserve old epoch rows and references while expiring only active
+imported comparison associations. A critical reviewer found a refused-write
+publication gap; the corrected red-to-green host and public checks close it,
+and the reviewer rechecked the correction with no remaining finding.
 
-The first full composed repair run passed 1/1 (240.84 s) in
-`build/rfc0029-base-repair-composed.log`, and the final focused true-rewrite
-course passed in `build/rfc0029-base-repair-projection-focused-final.log`.
-Independent critical review then found a separate host publication gap: if
-supplementary `record_occurrences` refuses, a same-authority base replacement
-can leave the prior Qt occurrence projection visible. The same deep worker
-now owns the narrow host, application-test and public-tooltip correction;
-the broad repair remains uncommitted until that path passes. Row 5 stays
-partial, row 7 stays partial, and no human verdict is being inferred.
+The twelve-launch composed selector passed 1/1 (240.84 s) in
+`build/rfc0029-base-repair-composed.log`; the final focused Qt, SQLite and
+installed-Git course passed in `build/rfc0029-refused-projection-public-final.log`.
+The current candidate's core, host, SQLite and architecture integration pass
+is 7/7 in `build/rfc0029-d2-focused-integration-final.log`; the documentation
+gate and `git diff --check` pass. All leaf writers, reviewer commands and
+integrator commands are quiescent. No live GitHub or credential mutation
+occurred. RFC-BPR-0008 remains Proposed in canonical order, so this card
+stays In Progress and RFC-BPR-0029 stays Accepted; Auto-Verified and Done
+are pending.
 
 ## Closeout checklist
 
@@ -85,7 +64,7 @@ partial, row 7 stays partial, and no human verdict is being inferred.
 | An ordinary live transition yields one occurrence per observed transition, not one per surviving commit. Its portable identity agrees across signed-in, signed-out and recreated catalogues when the same occurrence is unambiguous; ambiguous snapshots remain marked unresolved. | Host and provider fixture with one multi-commit push, observed head transitions, signed-in/signed-out and recreated catalogues. | Pass: the host compares the same unambiguous ordinary occurrence across signed-in, signed-out and recreated catalogue contexts; the pager invents no occurrence from surviving commits. A six-launch composed anonymous course then observes three descendant commits in one update, one `author_upload` occurrence at ordinal 2, and exactly the same portable ID after physical catalogue deletion/recreation. Return-head ambiguity remains explicit. The signed-in leg is host evidence rather than a second composed app course. | `ce6f1836`, `cf4fdbed` |
 | A live read that finds a new head for the same pull request still appends an author-upload epoch, and an imported epoch advances neither the latest live ordinal nor the previous distinct head ordinal. | Second live handoff with a changed head and imported historical occurrence; inspect causes and live ordinals. | Pass: host changed-head author-upload and previous distinct ordinal; composed import leaves live ordinal, previous distinct ordinal and observed live base unchanged. | `2df4d110`, `d1bcd1cf`, `ce6f1836` |
 | An update observed live and later overwritten by a force push stays on the install that observed it. The epoch line says when the history it holds may be partial: when the timeline read failed, was refused or was cut off by the page cap, or when a force push overwrote updates this install did not see. | Composed failure, refusal, cap and unseen-force-push cases. | Pass: the ten-course composed test retains the live epoch and exact 1/1/10 page limits, preserves the earlier observed update, shows the unseen-head gap, and checks the real epoch line says `Incomplete history` and `display order is not push order` in every course. | `ce6f1836`, `26fd7f7c` |
-| Live epochs retain their observed base. An imported occurrence with no evidenced historical base shows `unknown`; a computed comparison base is separately labeled and comparison can be unavailable. No imported row claims the current base ref or merge base was its original historical base. | Core, cache and composed presentation cases for absent and rewritten bases. | Partial with reproduced failure: missing-base and base-advance courses preserve unknown historical truth, but a new uncommitted true base-force-push candidate shows the same imported occurrence keeps its old derived comparison and local ordinal after the new selected base has no common ancestor. The original live base is retained. Correct and rerun this direct path before Pass. | `d1bcd1cf`, `ce6f1836`, `7c8631a2`; red candidate `build/rfc0029-true-base-rewrite-focused-candidate.log` |
+| Live epochs retain their observed base. An imported occurrence with no evidenced historical base shows `unknown`; a computed comparison base is separately labeled and comparison can be unavailable. No imported row claims the current base ref or merge base was its original historical base. | Core, cache and composed presentation cases for absent and rewritten bases. | Pass: a true non-fast-forward base replacement leaves the same imported event ID and unknown historical base intact, clears its stale derived comparison and active local association, and preserves the old live epoch's observed base. Installed Git proves no merge base; the real Qt tooltip says historical base unknown and comparison unavailable, and clicking the event cannot move either handle. Core, host, SQLite migration/recovery and refused supplementary-write cases pass. | `d1bcd1cf`, `ce6f1836`, `7c8631a2`, `9de50d46` |
 | Event dates are labeled GitHub event times, other dates commit dates, and first-seen remains local. Equal timestamps have a deterministic tie-break without a false push-order claim. | Host and presentation cases for mixed dates, equal timestamps and source labels. | Pass: host date-source cases and real workbench Qt labels/tooltip cover event time, commit date, local first-seen, equal-date portable-key order and the explicit no-push-order qualification. | `d1bcd1cf`, `ce6f1836` |
 | A current-version catalogue migrates without changing any old epoch row's identity key, incarnation or ordinal. Unresolvable host or duplicate-head provenance remains explicitly unresolved; review-ledger, window-restoration, retained-ref, MCP and agent-launch references to old epochs still resolve. | Copies of current-version duplicate-head and GHES files; inspect local keys, incarnation, ordinals, ledger, restoration, retained refs, MCP and agent bindings. | Partial: v3/v4 copied catalogues retain complete old A→B→A rows, anchors, selectors and unresolved provenance across restart; saved window positions and ledger binding resolve old anchors. A copied-v4 real-cache course proves physical retained refs. A synthetic GHES handoff and frozen MCP response preserve old ordinals/OIDs through the migrated catalogue; production agent supplement and launch-request framing preserve the same binding. A direct copied hostless legacy GHES-origin row and actual agent process consumption remain unproved. | `ce6f1836`, `26fd7f7c`, `72d40b4f`, `776bc0d4` |
 | The history read is anonymous REST and stays within a stated page cap, and an open that cannot make the read still produces today's live epoch. | Bounded transport and composed open path, with request counts and failure injection. | Pass: d27 anonymous REST pager bounds and d30 composed failed/refused/capped opens prove exact 1/1/10 timeline requests while retaining today's live epoch. | `2df4d110`, `ce6f1836` |
@@ -248,6 +227,52 @@ matrix asks for an old hostless GHES row; the safe copied-v4 helper refuses to
 discard that evidence. The existing hostless-legacy migration test proves
 generic unresolved provenance but does not prove GHES origin. Row 7 remains
 partial with that concrete missing fixture and process-consumption boundary.
+
+## Base-force-push correction, 2026-09-12 (rfc0029-r1/d2, mandate r1)
+
+Commit `9de50d46` adds a deterministic unrelated base-root pack and a
+two-open composed course for the same imported event 91702. The first open
+records derived comparison base `757e8f25…` at local ordinal 3; the second
+force-pushes the selected base to `80ec898e…`. Installed Git proves neither
+base is an ancestor of the other and that event 91702's head has no merge
+base with the replacement. The event's portable ID
+`407048F225912227E7EC5F6DBBCCB39AE27A0E862806E797A2ACA8ACFD777ED9`
+and unknown original historical base stay unchanged; its active local
+ordinal and derived base become unavailable. The old live epoch retains its
+original base. The Qt tooltip reports unknown historical base and unavailable
+derived comparison, and clicking that event leaves both comparison handles
+unchanged. The final network-isolated focused course passed in
+`build/rfc0029-refused-projection-public-final.log`; the earlier failing
+product reproducer is `build/rfc0029-true-base-rewrite-focused-candidate.log`.
+
+Core policy identifies a changed base selection. The v6 catalogue clears
+active imported comparison associations in the same transaction as the new
+live append, preserving old epoch rows, anchors, retained refs and external
+bindings. A one-time v5 migration conservatively expires associations that
+lack selected-base provenance without renumbering epochs or changing the
+catalogue revision. Tests cover interrupted migration, restart and recovery
+of a pending live append. Generic timeline reconciliation cannot restore an
+old imported link. Pending host presentation masks the prior derived
+comparison before the append; after commit it publishes loaded durable
+history even when supplementary enrichment or persistence refuses.
+
+The first critical review found that a refused supplementary write could
+leave the old Qt projection visible. A targeted host test reproduced this
+failure in `build/rfc0029-refused-projection-red.log`; the corrected host
+and public tests passed in `build/rfc0029-refused-projection-tests-final.log`
+and the focused public log above. The same critical reviewer rechecked the
+correction, found no remaining blocking issue and independently ran
+`application_epoch_host` 1/1. The pre-refinement twelve-launch composed
+selector passed 1/1 (240.84 s) in `build/rfc0029-base-repair-composed.log`;
+the final host/public reruns cover the later publication-only correction.
+The integrated current candidate passed seven core, host, SQLite and
+architecture selectors in `build/rfc0029-d2-focused-integration-final.log`
+(113.19 s). The copied-v4 retained-ref, MCP and agent-framing migration
+selector also passed 1/1 on v6 (37.09 s) in
+`build/rfc0029-d2-migration-binding-final.log`; row 7's hostless-GHES and
+actual-process evidence still remains open. Touched clang-format, Python compilation, documentation gate
+(`build/rfc0029-d2-documentation-final.log`) and `git diff --check` passed.
+No human acceptance or live provider mutation is inferred from these tests.
 
 ## Completion rules
 
