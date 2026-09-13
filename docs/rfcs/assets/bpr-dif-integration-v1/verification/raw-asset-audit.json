@@ -1,0 +1,1751 @@
+{
+  "schema": "bpr.dif.raw-asset-audit.v1",
+  "scope": "Exact incoming bytes and provisional crop measurements only",
+  "not_proof_of": "production readiness, art acceptance, native runtime behavior or rights",
+  "source_images_modified": false,
+  "assets": [
+    {
+      "clip_id": "calm_idle",
+      "path": "assets/incoming/dif-calm-idle.png",
+      "sha256": "52a2982e4d8b68b436249e96ddc17986fdf000c5782b6aa1e13c485dc97d5723",
+      "size": [
+        1448,
+        1086
+      ],
+      "original_mode": "RGBA",
+      "png_chunk_types": [
+        "IHDR",
+        "caBX",
+        "IDAT",
+        "IEND"
+      ],
+      "alpha_min": 0,
+      "alpha_max": 255,
+      "zero_alpha_pixels": 694872,
+      "fully_opaque_pixels": 4325,
+      "alpha_1_through_8_pixels": 71888,
+      "near_opaque_250_through_255_pixels": 769073,
+      "nonzero_rgb_under_zero_alpha_pixels": 0,
+      "has_actual_transparency": true,
+      "equal_integer_square_grid": true,
+      "cells": [
+        {
+          "frame": 0,
+          "proposed_rect": [
+            0,
+            0,
+            362,
+            362
+          ],
+          "crop_size": [
+            362,
+            362
+          ],
+          "alpha_ge_128_bounds": [
+            53,
+            44,
+            321,
+            352
+          ],
+          "nonzero_alpha_on_crop_perimeter": 62
+        },
+        {
+          "frame": 1,
+          "proposed_rect": [
+            362,
+            0,
+            724,
+            362
+          ],
+          "crop_size": [
+            362,
+            362
+          ],
+          "alpha_ge_128_bounds": [
+            49,
+            45,
+            314,
+            352
+          ],
+          "nonzero_alpha_on_crop_perimeter": 112
+        },
+        {
+          "frame": 2,
+          "proposed_rect": [
+            724,
+            0,
+            1086,
+            362
+          ],
+          "crop_size": [
+            362,
+            362
+          ],
+          "alpha_ge_128_bounds": [
+            46,
+            44,
+            311,
+            352
+          ],
+          "nonzero_alpha_on_crop_perimeter": 50
+        },
+        {
+          "frame": 3,
+          "proposed_rect": [
+            1086,
+            0,
+            1448,
+            362
+          ],
+          "crop_size": [
+            362,
+            362
+          ],
+          "alpha_ge_128_bounds": [
+            42,
+            43,
+            308,
+            352
+          ],
+          "nonzero_alpha_on_crop_perimeter": 18
+        },
+        {
+          "frame": 4,
+          "proposed_rect": [
+            0,
+            362,
+            362,
+            724
+          ],
+          "crop_size": [
+            362,
+            362
+          ],
+          "alpha_ge_128_bounds": [
+            52,
+            38,
+            319,
+            345
+          ],
+          "nonzero_alpha_on_crop_perimeter": 47
+        },
+        {
+          "frame": 5,
+          "proposed_rect": [
+            362,
+            362,
+            724,
+            724
+          ],
+          "crop_size": [
+            362,
+            362
+          ],
+          "alpha_ge_128_bounds": [
+            49,
+            38,
+            315,
+            345
+          ],
+          "nonzero_alpha_on_crop_perimeter": 80
+        },
+        {
+          "frame": 6,
+          "proposed_rect": [
+            724,
+            362,
+            1086,
+            724
+          ],
+          "crop_size": [
+            362,
+            362
+          ],
+          "alpha_ge_128_bounds": [
+            47,
+            41,
+            313,
+            345
+          ],
+          "nonzero_alpha_on_crop_perimeter": 89
+        },
+        {
+          "frame": 7,
+          "proposed_rect": [
+            1086,
+            362,
+            1448,
+            724
+          ],
+          "crop_size": [
+            362,
+            362
+          ],
+          "alpha_ge_128_bounds": [
+            43,
+            42,
+            311,
+            345
+          ],
+          "nonzero_alpha_on_crop_perimeter": 22
+        },
+        {
+          "frame": 8,
+          "proposed_rect": [
+            0,
+            724,
+            362,
+            1086
+          ],
+          "crop_size": [
+            362,
+            362
+          ],
+          "alpha_ge_128_bounds": [
+            53,
+            29,
+            319,
+            331
+          ],
+          "nonzero_alpha_on_crop_perimeter": 42
+        },
+        {
+          "frame": 9,
+          "proposed_rect": [
+            362,
+            724,
+            724,
+            1086
+          ],
+          "crop_size": [
+            362,
+            362
+          ],
+          "alpha_ge_128_bounds": [
+            50,
+            30,
+            314,
+            331
+          ],
+          "nonzero_alpha_on_crop_perimeter": 70
+        },
+        {
+          "frame": 10,
+          "proposed_rect": [
+            724,
+            724,
+            1086,
+            1086
+          ],
+          "crop_size": [
+            362,
+            362
+          ],
+          "alpha_ge_128_bounds": [
+            48,
+            31,
+            311,
+            331
+          ],
+          "nonzero_alpha_on_crop_perimeter": 34
+        },
+        {
+          "frame": 11,
+          "proposed_rect": [
+            1086,
+            724,
+            1448,
+            1086
+          ],
+          "crop_size": [
+            362,
+            362
+          ],
+          "alpha_ge_128_bounds": [
+            44,
+            30,
+            310,
+            331
+          ],
+          "nonzero_alpha_on_crop_perimeter": 12
+        }
+      ],
+      "notes": [
+        "Low-alpha pixels exist. Inspect detached remnants/edges; counts alone do not identify artifacts.",
+        "Body/face identity, foot landmarks, loop seams and transitions require separate validation/review."
+      ]
+    },
+    {
+      "clip_id": "greet",
+      "path": "assets/incoming/dif-greet.png",
+      "sha256": "1e740dad2a7f4a9f6465421a537d3ce3142525f8dfb2f9722560778c292c0b58",
+      "size": [
+        1774,
+        887
+      ],
+      "original_mode": "RGBA",
+      "png_chunk_types": [
+        "IHDR",
+        "caBX",
+        "IDAT",
+        "IEND"
+      ],
+      "alpha_min": 0,
+      "alpha_max": 255,
+      "zero_alpha_pixels": 760778,
+      "fully_opaque_pixels": 2746,
+      "alpha_1_through_8_pixels": 41288,
+      "near_opaque_250_through_255_pixels": 740401,
+      "nonzero_rgb_under_zero_alpha_pixels": 0,
+      "has_actual_transparency": true,
+      "equal_integer_square_grid": false,
+      "cells": [
+        {
+          "frame": 0,
+          "proposed_rect": [
+            0,
+            0,
+            444,
+            444
+          ],
+          "crop_size": [
+            444,
+            444
+          ],
+          "alpha_ge_128_bounds": [
+            64,
+            63,
+            383,
+            433
+          ],
+          "nonzero_alpha_on_crop_perimeter": 21
+        },
+        {
+          "frame": 1,
+          "proposed_rect": [
+            444,
+            0,
+            887,
+            444
+          ],
+          "crop_size": [
+            443,
+            444
+          ],
+          "alpha_ge_128_bounds": [
+            62,
+            64,
+            380,
+            432
+          ],
+          "nonzero_alpha_on_crop_perimeter": 23
+        },
+        {
+          "frame": 2,
+          "proposed_rect": [
+            887,
+            0,
+            1331,
+            444
+          ],
+          "crop_size": [
+            444,
+            444
+          ],
+          "alpha_ge_128_bounds": [
+            60,
+            63,
+            379,
+            432
+          ],
+          "nonzero_alpha_on_crop_perimeter": 37
+        },
+        {
+          "frame": 3,
+          "proposed_rect": [
+            1331,
+            0,
+            1774,
+            444
+          ],
+          "crop_size": [
+            443,
+            444
+          ],
+          "alpha_ge_128_bounds": [
+            57,
+            63,
+            401,
+            432
+          ],
+          "nonzero_alpha_on_crop_perimeter": 29
+        },
+        {
+          "frame": 4,
+          "proposed_rect": [
+            0,
+            444,
+            444,
+            887
+          ],
+          "crop_size": [
+            444,
+            443
+          ],
+          "alpha_ge_128_bounds": [
+            64,
+            47,
+            399,
+            416
+          ],
+          "nonzero_alpha_on_crop_perimeter": 8
+        },
+        {
+          "frame": 5,
+          "proposed_rect": [
+            444,
+            444,
+            887,
+            887
+          ],
+          "crop_size": [
+            443,
+            443
+          ],
+          "alpha_ge_128_bounds": [
+            61,
+            47,
+            380,
+            416
+          ],
+          "nonzero_alpha_on_crop_perimeter": 24
+        },
+        {
+          "frame": 6,
+          "proposed_rect": [
+            887,
+            444,
+            1331,
+            887
+          ],
+          "crop_size": [
+            444,
+            443
+          ],
+          "alpha_ge_128_bounds": [
+            59,
+            47,
+            379,
+            416
+          ],
+          "nonzero_alpha_on_crop_perimeter": 20
+        },
+        {
+          "frame": 7,
+          "proposed_rect": [
+            1331,
+            444,
+            1774,
+            887
+          ],
+          "crop_size": [
+            443,
+            443
+          ],
+          "alpha_ge_128_bounds": [
+            58,
+            47,
+            377,
+            416
+          ],
+          "nonzero_alpha_on_crop_perimeter": 15
+        }
+      ],
+      "notes": [
+        "Nominal equal cells are fractional. Review explicit rectangles, then pad/register; do not stretch.",
+        "Low-alpha pixels exist. Inspect detached remnants/edges; counts alone do not identify artifacts.",
+        "Body/face identity, foot landmarks, loop seams and transitions require separate validation/review."
+      ]
+    },
+    {
+      "clip_id": "rest",
+      "path": "assets/incoming/dif-rest.png",
+      "sha256": "eacedea5ddfdc6317b007e2032093f620620777279c70f87250eadd79a4a90ae",
+      "size": [
+        1254,
+        1254
+      ],
+      "original_mode": "RGBA",
+      "png_chunk_types": [
+        "IHDR",
+        "caBX",
+        "IDAT",
+        "IEND"
+      ],
+      "alpha_min": 0,
+      "alpha_max": 255,
+      "zero_alpha_pixels": 1003581,
+      "fully_opaque_pixels": 442,
+      "alpha_1_through_8_pixels": 12379,
+      "near_opaque_250_through_255_pixels": 546351,
+      "nonzero_rgb_under_zero_alpha_pixels": 0,
+      "has_actual_transparency": true,
+      "equal_integer_square_grid": true,
+      "cells": [
+        {
+          "frame": 0,
+          "proposed_rect": [
+            0,
+            0,
+            1254,
+            1254
+          ],
+          "crop_size": [
+            1254,
+            1254
+          ],
+          "alpha_ge_128_bounds": [
+            253,
+            213,
+            1000,
+            1132
+          ],
+          "nonzero_alpha_on_crop_perimeter": 28
+        }
+      ],
+      "notes": [
+        "Low-alpha pixels exist. Inspect detached remnants/edges; counts alone do not identify artifacts.",
+        "Body/face identity, foot landmarks, loop seams and transitions require separate validation/review."
+      ]
+    },
+    {
+      "clip_id": "blink",
+      "path": "assets/incoming/dif-blink.png",
+      "sha256": "e67c8220ec8cd094d16272661b1358ee3f1d3b23ed0dcba019d12abf3424b6a0",
+      "size": [
+        1536,
+        1024
+      ],
+      "original_mode": "RGBA",
+      "png_chunk_types": [
+        "IHDR",
+        "caBX",
+        "IDAT",
+        "IEND"
+      ],
+      "alpha_min": 0,
+      "alpha_max": 254,
+      "zero_alpha_pixels": 660945,
+      "fully_opaque_pixels": 0,
+      "alpha_1_through_8_pixels": 40195,
+      "near_opaque_250_through_255_pixels": 841838,
+      "nonzero_rgb_under_zero_alpha_pixels": 660945,
+      "has_actual_transparency": true,
+      "equal_integer_square_grid": true,
+      "cells": [
+        {
+          "frame": 0,
+          "proposed_rect": [
+            0,
+            0,
+            512,
+            512
+          ],
+          "crop_size": [
+            512,
+            512
+          ],
+          "alpha_ge_128_bounds": [
+            81,
+            41,
+            472,
+            496
+          ],
+          "nonzero_alpha_on_crop_perimeter": 1
+        },
+        {
+          "frame": 1,
+          "proposed_rect": [
+            512,
+            0,
+            1024,
+            512
+          ],
+          "crop_size": [
+            512,
+            512
+          ],
+          "alpha_ge_128_bounds": [
+            45,
+            40,
+            458,
+            496
+          ],
+          "nonzero_alpha_on_crop_perimeter": 23
+        },
+        {
+          "frame": 2,
+          "proposed_rect": [
+            1024,
+            0,
+            1536,
+            512
+          ],
+          "crop_size": [
+            512,
+            512
+          ],
+          "alpha_ge_128_bounds": [
+            36,
+            40,
+            431,
+            496
+          ],
+          "nonzero_alpha_on_crop_perimeter": 1
+        },
+        {
+          "frame": 3,
+          "proposed_rect": [
+            0,
+            512,
+            512,
+            1024
+          ],
+          "crop_size": [
+            512,
+            512
+          ],
+          "alpha_ge_128_bounds": [
+            69,
+            12,
+            475,
+            472
+          ],
+          "nonzero_alpha_on_crop_perimeter": 7
+        },
+        {
+          "frame": 4,
+          "proposed_rect": [
+            512,
+            512,
+            1024,
+            1024
+          ],
+          "crop_size": [
+            512,
+            512
+          ],
+          "alpha_ge_128_bounds": [
+            45,
+            11,
+            459,
+            471
+          ],
+          "nonzero_alpha_on_crop_perimeter": 5
+        },
+        {
+          "frame": 5,
+          "proposed_rect": [
+            1024,
+            512,
+            1536,
+            1024
+          ],
+          "crop_size": [
+            512,
+            512
+          ],
+          "alpha_ge_128_bounds": [
+            32,
+            11,
+            441,
+            472
+          ],
+          "nonzero_alpha_on_crop_perimeter": 0
+        }
+      ],
+      "notes": [
+        "RGB exists under zero alpha. Canonicalize transparent RGB; alpha-ignoring previews are misleading.",
+        "Low-alpha pixels exist. Inspect detached remnants/edges; counts alone do not identify artifacts.",
+        "Body/face identity, foot landmarks, loop seams and transitions require separate validation/review."
+      ]
+    },
+    {
+      "clip_id": "compare_glance",
+      "path": "assets/incoming/dif-compare-glance.png",
+      "sha256": "2838d50c8d6b3bec0f4300f03e439f07b3e8e812aaf0ac4bb2805d3f3e7bdff1",
+      "size": [
+        1774,
+        887
+      ],
+      "original_mode": "RGBA",
+      "png_chunk_types": [
+        "IHDR",
+        "caBX",
+        "IDAT",
+        "IEND"
+      ],
+      "alpha_min": 0,
+      "alpha_max": 255,
+      "zero_alpha_pixels": 760181,
+      "fully_opaque_pixels": 2157,
+      "alpha_1_through_8_pixels": 96142,
+      "near_opaque_250_through_255_pixels": 688041,
+      "nonzero_rgb_under_zero_alpha_pixels": 0,
+      "has_actual_transparency": true,
+      "equal_integer_square_grid": false,
+      "cells": [
+        {
+          "frame": 0,
+          "proposed_rect": [
+            0,
+            0,
+            444,
+            444
+          ],
+          "crop_size": [
+            444,
+            444
+          ],
+          "alpha_ge_128_bounds": [
+            72,
+            55,
+            372,
+            423
+          ],
+          "nonzero_alpha_on_crop_perimeter": 898
+        },
+        {
+          "frame": 1,
+          "proposed_rect": [
+            444,
+            0,
+            887,
+            444
+          ],
+          "crop_size": [
+            443,
+            444
+          ],
+          "alpha_ge_128_bounds": [
+            78,
+            55,
+            386,
+            423
+          ],
+          "nonzero_alpha_on_crop_perimeter": 1337
+        },
+        {
+          "frame": 2,
+          "proposed_rect": [
+            887,
+            0,
+            1331,
+            444
+          ],
+          "crop_size": [
+            444,
+            444
+          ],
+          "alpha_ge_128_bounds": [
+            76,
+            51,
+            361,
+            423
+          ],
+          "nonzero_alpha_on_crop_perimeter": 1332
+        },
+        {
+          "frame": 3,
+          "proposed_rect": [
+            1331,
+            0,
+            1774,
+            444
+          ],
+          "crop_size": [
+            443,
+            444
+          ],
+          "alpha_ge_128_bounds": [
+            76,
+            55,
+            370,
+            423
+          ],
+          "nonzero_alpha_on_crop_perimeter": 892
+        },
+        {
+          "frame": 4,
+          "proposed_rect": [
+            0,
+            444,
+            444,
+            887
+          ],
+          "crop_size": [
+            444,
+            443
+          ],
+          "alpha_ge_128_bounds": [
+            72,
+            53,
+            372,
+            423
+          ],
+          "nonzero_alpha_on_crop_perimeter": 899
+        },
+        {
+          "frame": 5,
+          "proposed_rect": [
+            444,
+            444,
+            887,
+            887
+          ],
+          "crop_size": [
+            443,
+            443
+          ],
+          "alpha_ge_128_bounds": [
+            79,
+            53,
+            370,
+            423
+          ],
+          "nonzero_alpha_on_crop_perimeter": 1344
+        },
+        {
+          "frame": 6,
+          "proposed_rect": [
+            887,
+            444,
+            1331,
+            887
+          ],
+          "crop_size": [
+            444,
+            443
+          ],
+          "alpha_ge_128_bounds": [
+            78,
+            50,
+            368,
+            423
+          ],
+          "nonzero_alpha_on_crop_perimeter": 1336
+        },
+        {
+          "frame": 7,
+          "proposed_rect": [
+            1331,
+            444,
+            1774,
+            887
+          ],
+          "crop_size": [
+            443,
+            443
+          ],
+          "alpha_ge_128_bounds": [
+            72,
+            53,
+            371,
+            423
+          ],
+          "nonzero_alpha_on_crop_perimeter": 896
+        }
+      ],
+      "notes": [
+        "Nominal equal cells are fractional. Review explicit rectangles, then pad/register; do not stretch.",
+        "Low-alpha pixels exist. Inspect detached remnants/edges; counts alone do not identify artifacts.",
+        "Body/face identity, foot landmarks, loop seams and transitions require separate validation/review."
+      ]
+    },
+    {
+      "clip_id": "consider",
+      "path": "assets/incoming/dif-consider.png",
+      "sha256": "e7bcad4b7d8be15e7ff5a85663fbbce165a06161cdac883cb7202c2d06ade1d7",
+      "size": [
+        1774,
+        887
+      ],
+      "original_mode": "RGBA",
+      "png_chunk_types": [
+        "IHDR",
+        "caBX",
+        "IDAT",
+        "IEND"
+      ],
+      "alpha_min": 0,
+      "alpha_max": 255,
+      "zero_alpha_pixels": 800624,
+      "fully_opaque_pixels": 2580,
+      "alpha_1_through_8_pixels": 33885,
+      "near_opaque_250_through_255_pixels": 710188,
+      "nonzero_rgb_under_zero_alpha_pixels": 0,
+      "has_actual_transparency": true,
+      "equal_integer_square_grid": false,
+      "cells": [
+        {
+          "frame": 0,
+          "proposed_rect": [
+            0,
+            0,
+            444,
+            444
+          ],
+          "crop_size": [
+            444,
+            444
+          ],
+          "alpha_ge_128_bounds": [
+            71,
+            39,
+            372,
+            423
+          ],
+          "nonzero_alpha_on_crop_perimeter": 9
+        },
+        {
+          "frame": 1,
+          "proposed_rect": [
+            444,
+            0,
+            887,
+            444
+          ],
+          "crop_size": [
+            443,
+            444
+          ],
+          "alpha_ge_128_bounds": [
+            70,
+            39,
+            371,
+            423
+          ],
+          "nonzero_alpha_on_crop_perimeter": 4
+        },
+        {
+          "frame": 2,
+          "proposed_rect": [
+            887,
+            0,
+            1331,
+            444
+          ],
+          "crop_size": [
+            444,
+            444
+          ],
+          "alpha_ge_128_bounds": [
+            83,
+            34,
+            388,
+            423
+          ],
+          "nonzero_alpha_on_crop_perimeter": 15
+        },
+        {
+          "frame": 3,
+          "proposed_rect": [
+            1331,
+            0,
+            1774,
+            444
+          ],
+          "crop_size": [
+            443,
+            444
+          ],
+          "alpha_ge_128_bounds": [
+            82,
+            33,
+            387,
+            423
+          ],
+          "nonzero_alpha_on_crop_perimeter": 17
+        },
+        {
+          "frame": 4,
+          "proposed_rect": [
+            0,
+            444,
+            444,
+            887
+          ],
+          "crop_size": [
+            444,
+            443
+          ],
+          "alpha_ge_128_bounds": [
+            83,
+            31,
+            388,
+            423
+          ],
+          "nonzero_alpha_on_crop_perimeter": 2
+        },
+        {
+          "frame": 5,
+          "proposed_rect": [
+            444,
+            444,
+            887,
+            887
+          ],
+          "crop_size": [
+            443,
+            443
+          ],
+          "alpha_ge_128_bounds": [
+            78,
+            32,
+            380,
+            423
+          ],
+          "nonzero_alpha_on_crop_perimeter": 8
+        },
+        {
+          "frame": 6,
+          "proposed_rect": [
+            887,
+            444,
+            1331,
+            887
+          ],
+          "crop_size": [
+            444,
+            443
+          ],
+          "alpha_ge_128_bounds": [
+            70,
+            39,
+            371,
+            423
+          ],
+          "nonzero_alpha_on_crop_perimeter": 0
+        },
+        {
+          "frame": 7,
+          "proposed_rect": [
+            1331,
+            444,
+            1774,
+            887
+          ],
+          "crop_size": [
+            443,
+            443
+          ],
+          "alpha_ge_128_bounds": [
+            70,
+            39,
+            372,
+            423
+          ],
+          "nonzero_alpha_on_crop_perimeter": 8
+        }
+      ],
+      "notes": [
+        "Nominal equal cells are fractional. Review explicit rectangles, then pad/register; do not stretch.",
+        "Low-alpha pixels exist. Inspect detached remnants/edges; counts alone do not identify artifacts.",
+        "Body/face identity, foot landmarks, loop seams and transitions require separate validation/review."
+      ]
+    },
+    {
+      "clip_id": "comment_ready",
+      "path": "assets/incoming/dif-comment-ready.png",
+      "sha256": "212929b9b44bd66c587965a2cbf7f7ee4b7529224554dabcb656fa9212eb8865",
+      "size": [
+        1774,
+        887
+      ],
+      "original_mode": "RGBA",
+      "png_chunk_types": [
+        "IHDR",
+        "caBX",
+        "IDAT",
+        "IEND"
+      ],
+      "alpha_min": 0,
+      "alpha_max": 255,
+      "zero_alpha_pixels": 814303,
+      "fully_opaque_pixels": 3264,
+      "alpha_1_through_8_pixels": 38499,
+      "near_opaque_250_through_255_pixels": 691233,
+      "nonzero_rgb_under_zero_alpha_pixels": 0,
+      "has_actual_transparency": true,
+      "equal_integer_square_grid": false,
+      "cells": [
+        {
+          "frame": 0,
+          "proposed_rect": [
+            0,
+            0,
+            444,
+            444
+          ],
+          "crop_size": [
+            444,
+            444
+          ],
+          "alpha_ge_128_bounds": [
+            77,
+            51,
+            366,
+            417
+          ],
+          "nonzero_alpha_on_crop_perimeter": 12
+        },
+        {
+          "frame": 1,
+          "proposed_rect": [
+            444,
+            0,
+            887,
+            444
+          ],
+          "crop_size": [
+            443,
+            444
+          ],
+          "alpha_ge_128_bounds": [
+            75,
+            49,
+            364,
+            417
+          ],
+          "nonzero_alpha_on_crop_perimeter": 3
+        },
+        {
+          "frame": 2,
+          "proposed_rect": [
+            887,
+            0,
+            1331,
+            444
+          ],
+          "crop_size": [
+            444,
+            444
+          ],
+          "alpha_ge_128_bounds": [
+            50,
+            48,
+            392,
+            417
+          ],
+          "nonzero_alpha_on_crop_perimeter": 7
+        },
+        {
+          "frame": 3,
+          "proposed_rect": [
+            1331,
+            0,
+            1774,
+            444
+          ],
+          "crop_size": [
+            443,
+            444
+          ],
+          "alpha_ge_128_bounds": [
+            38,
+            49,
+            405,
+            417
+          ],
+          "nonzero_alpha_on_crop_perimeter": 9
+        },
+        {
+          "frame": 4,
+          "proposed_rect": [
+            0,
+            444,
+            444,
+            887
+          ],
+          "crop_size": [
+            444,
+            443
+          ],
+          "alpha_ge_128_bounds": [
+            37,
+            46,
+            406,
+            416
+          ],
+          "nonzero_alpha_on_crop_perimeter": 11
+        },
+        {
+          "frame": 5,
+          "proposed_rect": [
+            444,
+            444,
+            887,
+            887
+          ],
+          "crop_size": [
+            443,
+            443
+          ],
+          "alpha_ge_128_bounds": [
+            75,
+            46,
+            368,
+            416
+          ],
+          "nonzero_alpha_on_crop_perimeter": 10
+        },
+        {
+          "frame": 6,
+          "proposed_rect": [
+            887,
+            444,
+            1331,
+            887
+          ],
+          "crop_size": [
+            444,
+            443
+          ],
+          "alpha_ge_128_bounds": [
+            75,
+            48,
+            368,
+            416
+          ],
+          "nonzero_alpha_on_crop_perimeter": 1
+        },
+        {
+          "frame": 7,
+          "proposed_rect": [
+            1331,
+            444,
+            1774,
+            887
+          ],
+          "crop_size": [
+            443,
+            443
+          ],
+          "alpha_ge_128_bounds": [
+            74,
+            50,
+            366,
+            416
+          ],
+          "nonzero_alpha_on_crop_perimeter": 6
+        }
+      ],
+      "notes": [
+        "Nominal equal cells are fractional. Review explicit rectangles, then pad/register; do not stretch.",
+        "Low-alpha pixels exist. Inspect detached remnants/edges; counts alone do not identify artifacts.",
+        "Body/face identity, foot landmarks, loop seams and transitions require separate validation/review."
+      ]
+    },
+    {
+      "clip_id": "attention",
+      "path": "assets/incoming/dif-attention.png",
+      "sha256": "4cff8d667eebcab8cf642f32481a39c377841f942a150ec07a76d0e16924e710",
+      "size": [
+        1536,
+        1024
+      ],
+      "original_mode": "RGBA",
+      "png_chunk_types": [
+        "IHDR",
+        "caBX",
+        "IDAT",
+        "IEND"
+      ],
+      "alpha_min": 0,
+      "alpha_max": 254,
+      "zero_alpha_pixels": 759940,
+      "fully_opaque_pixels": 0,
+      "alpha_1_through_8_pixels": 39161,
+      "near_opaque_250_through_255_pixels": 747689,
+      "nonzero_rgb_under_zero_alpha_pixels": 759940,
+      "has_actual_transparency": true,
+      "equal_integer_square_grid": true,
+      "cells": [
+        {
+          "frame": 0,
+          "proposed_rect": [
+            0,
+            0,
+            512,
+            512
+          ],
+          "crop_size": [
+            512,
+            512
+          ],
+          "alpha_ge_128_bounds": [
+            89,
+            46,
+            442,
+            487
+          ],
+          "nonzero_alpha_on_crop_perimeter": 51
+        },
+        {
+          "frame": 1,
+          "proposed_rect": [
+            512,
+            0,
+            1024,
+            512
+          ],
+          "crop_size": [
+            512,
+            512
+          ],
+          "alpha_ge_128_bounds": [
+            78,
+            46,
+            433,
+            487
+          ],
+          "nonzero_alpha_on_crop_perimeter": 41
+        },
+        {
+          "frame": 2,
+          "proposed_rect": [
+            1024,
+            0,
+            1536,
+            512
+          ],
+          "crop_size": [
+            512,
+            512
+          ],
+          "alpha_ge_128_bounds": [
+            71,
+            46,
+            443,
+            487
+          ],
+          "nonzero_alpha_on_crop_perimeter": 36
+        },
+        {
+          "frame": 3,
+          "proposed_rect": [
+            0,
+            512,
+            512,
+            1024
+          ],
+          "crop_size": [
+            512,
+            512
+          ],
+          "alpha_ge_128_bounds": [
+            88,
+            27,
+            462,
+            468
+          ],
+          "nonzero_alpha_on_crop_perimeter": 28
+        },
+        {
+          "frame": 4,
+          "proposed_rect": [
+            512,
+            512,
+            1024,
+            1024
+          ],
+          "crop_size": [
+            512,
+            512
+          ],
+          "alpha_ge_128_bounds": [
+            78,
+            27,
+            433,
+            468
+          ],
+          "nonzero_alpha_on_crop_perimeter": 21
+        },
+        {
+          "frame": 5,
+          "proposed_rect": [
+            1024,
+            512,
+            1536,
+            1024
+          ],
+          "crop_size": [
+            512,
+            512
+          ],
+          "alpha_ge_128_bounds": [
+            69,
+            25,
+            426,
+            469
+          ],
+          "nonzero_alpha_on_crop_perimeter": 26
+        }
+      ],
+      "notes": [
+        "RGB exists under zero alpha. Canonicalize transparent RGB; alpha-ignoring previews are misleading.",
+        "Low-alpha pixels exist. Inspect detached remnants/edges; counts alone do not identify artifacts.",
+        "Body/face identity, foot landmarks, loop seams and transitions require separate validation/review."
+      ]
+    },
+    {
+      "clip_id": "acknowledge",
+      "path": "assets/incoming/dif-acknowledge.png",
+      "sha256": "0b426c9cd9633d22a76143181afa2f7c1f6278940d00cdf1fb451c843dca90ef",
+      "size": [
+        1774,
+        887
+      ],
+      "original_mode": "RGBA",
+      "png_chunk_types": [
+        "IHDR",
+        "caBX",
+        "IDAT",
+        "IEND"
+      ],
+      "alpha_min": 0,
+      "alpha_max": 255,
+      "zero_alpha_pixels": 805689,
+      "fully_opaque_pixels": 2666,
+      "alpha_1_through_8_pixels": 32554,
+      "near_opaque_250_through_255_pixels": 706772,
+      "nonzero_rgb_under_zero_alpha_pixels": 0,
+      "has_actual_transparency": true,
+      "equal_integer_square_grid": false,
+      "cells": [
+        {
+          "frame": 0,
+          "proposed_rect": [
+            0,
+            0,
+            444,
+            444
+          ],
+          "crop_size": [
+            444,
+            444
+          ],
+          "alpha_ge_128_bounds": [
+            75,
+            57,
+            381,
+            435
+          ],
+          "nonzero_alpha_on_crop_perimeter": 12
+        },
+        {
+          "frame": 1,
+          "proposed_rect": [
+            444,
+            0,
+            887,
+            444
+          ],
+          "crop_size": [
+            443,
+            444
+          ],
+          "alpha_ge_128_bounds": [
+            70,
+            75,
+            385,
+            435
+          ],
+          "nonzero_alpha_on_crop_perimeter": 8
+        },
+        {
+          "frame": 2,
+          "proposed_rect": [
+            887,
+            0,
+            1331,
+            444
+          ],
+          "crop_size": [
+            444,
+            444
+          ],
+          "alpha_ge_128_bounds": [
+            63,
+            86,
+            382,
+            435
+          ],
+          "nonzero_alpha_on_crop_perimeter": 10
+        },
+        {
+          "frame": 3,
+          "proposed_rect": [
+            1331,
+            0,
+            1774,
+            444
+          ],
+          "crop_size": [
+            443,
+            444
+          ],
+          "alpha_ge_128_bounds": [
+            57,
+            100,
+            374,
+            435
+          ],
+          "nonzero_alpha_on_crop_perimeter": 17
+        },
+        {
+          "frame": 4,
+          "proposed_rect": [
+            0,
+            444,
+            444,
+            887
+          ],
+          "crop_size": [
+            444,
+            443
+          ],
+          "alpha_ge_128_bounds": [
+            74,
+            69,
+            386,
+            424
+          ],
+          "nonzero_alpha_on_crop_perimeter": 29
+        },
+        {
+          "frame": 5,
+          "proposed_rect": [
+            444,
+            444,
+            887,
+            887
+          ],
+          "crop_size": [
+            443,
+            443
+          ],
+          "alpha_ge_128_bounds": [
+            70,
+            52,
+            382,
+            424
+          ],
+          "nonzero_alpha_on_crop_perimeter": 22
+        },
+        {
+          "frame": 6,
+          "proposed_rect": [
+            887,
+            444,
+            1331,
+            887
+          ],
+          "crop_size": [
+            444,
+            443
+          ],
+          "alpha_ge_128_bounds": [
+            66,
+            46,
+            380,
+            424
+          ],
+          "nonzero_alpha_on_crop_perimeter": 7
+        },
+        {
+          "frame": 7,
+          "proposed_rect": [
+            1331,
+            444,
+            1774,
+            887
+          ],
+          "crop_size": [
+            443,
+            443
+          ],
+          "alpha_ge_128_bounds": [
+            60,
+            47,
+            373,
+            424
+          ],
+          "nonzero_alpha_on_crop_perimeter": 15
+        }
+      ],
+      "notes": [
+        "Nominal equal cells are fractional. Review explicit rectangles, then pad/register; do not stretch.",
+        "Low-alpha pixels exist. Inspect detached remnants/edges; counts alone do not identify artifacts.",
+        "Body/face identity, foot landmarks, loop seams and transitions require separate validation/review."
+      ]
+    },
+    {
+      "clip_id": "blocked",
+      "path": "assets/incoming/dif-blocked.png",
+      "sha256": "e0d6cba0d111af520d47f5437088882d8e386b9f1eb947ed9609e0f067b8d542",
+      "size": [
+        1536,
+        1024
+      ],
+      "original_mode": "RGBA",
+      "png_chunk_types": [
+        "IHDR",
+        "caBX",
+        "IDAT",
+        "IEND"
+      ],
+      "alpha_min": 0,
+      "alpha_max": 254,
+      "zero_alpha_pixels": 762208,
+      "fully_opaque_pixels": 0,
+      "alpha_1_through_8_pixels": 44899,
+      "near_opaque_250_through_255_pixels": 736157,
+      "nonzero_rgb_under_zero_alpha_pixels": 762208,
+      "has_actual_transparency": true,
+      "equal_integer_square_grid": true,
+      "cells": [
+        {
+          "frame": 0,
+          "proposed_rect": [
+            0,
+            0,
+            512,
+            512
+          ],
+          "crop_size": [
+            512,
+            512
+          ],
+          "alpha_ge_128_bounds": [
+            83,
+            46,
+            429,
+            493
+          ],
+          "nonzero_alpha_on_crop_perimeter": 10
+        },
+        {
+          "frame": 1,
+          "proposed_rect": [
+            512,
+            0,
+            1024,
+            512
+          ],
+          "crop_size": [
+            512,
+            512
+          ],
+          "alpha_ge_128_bounds": [
+            85,
+            47,
+            449,
+            493
+          ],
+          "nonzero_alpha_on_crop_perimeter": 9
+        },
+        {
+          "frame": 2,
+          "proposed_rect": [
+            1024,
+            0,
+            1536,
+            512
+          ],
+          "crop_size": [
+            512,
+            512
+          ],
+          "alpha_ge_128_bounds": [
+            76,
+            46,
+            466,
+            493
+          ],
+          "nonzero_alpha_on_crop_perimeter": 17
+        },
+        {
+          "frame": 3,
+          "proposed_rect": [
+            0,
+            512,
+            512,
+            1024
+          ],
+          "crop_size": [
+            512,
+            512
+          ],
+          "alpha_ge_128_bounds": [
+            83,
+            21,
+            475,
+            470
+          ],
+          "nonzero_alpha_on_crop_perimeter": 20
+        },
+        {
+          "frame": 4,
+          "proposed_rect": [
+            512,
+            512,
+            1024,
+            1024
+          ],
+          "crop_size": [
+            512,
+            512
+          ],
+          "alpha_ge_128_bounds": [
+            81,
+            24,
+            428,
+            470
+          ],
+          "nonzero_alpha_on_crop_perimeter": 15
+        },
+        {
+          "frame": 5,
+          "proposed_rect": [
+            1024,
+            512,
+            1536,
+            1024
+          ],
+          "crop_size": [
+            512,
+            512
+          ],
+          "alpha_ge_128_bounds": [
+            79,
+            23,
+            428,
+            470
+          ],
+          "nonzero_alpha_on_crop_perimeter": 17
+        }
+      ],
+      "notes": [
+        "RGB exists under zero alpha. Canonicalize transparent RGB; alpha-ignoring previews are misleading.",
+        "Low-alpha pixels exist. Inspect detached remnants/edges; counts alone do not identify artifacts.",
+        "Body/face identity, foot landmarks, loop seams and transitions require separate validation/review."
+      ]
+    }
+  ],
+  "summary": {
+    "asset_count": 10,
+    "all_have_actual_alpha": true,
+    "fractional_grid_count": 5
+  }
+}

@@ -1,0 +1,644 @@
+{
+  "schema": "bpr.dif.incoming-assets.v1",
+  "source": "Ten image outputs in this conversation",
+  "rights_status": "Existing project authority is relevant context; exact new production derivatives still require a bound disposition.",
+  "sources_modified": false,
+  "assets": [
+    {
+      "clip_id": "calm_idle",
+      "path": "assets/incoming/dif-calm-idle.png",
+      "original_filename": "purple_panda_idle_animation_sprite_sheet.png",
+      "sha256": "52a2982e4d8b68b436249e96ddc17986fdf000c5782b6aa1e13c485dc97d5723",
+      "bytes": 1621533,
+      "width": 1448,
+      "height": 1086,
+      "columns": 4,
+      "rows": 3,
+      "frame_count": 12,
+      "frame_duration_ms": 250,
+      "kind": "loop",
+      "generation_id_from_conversation": "a470e5b2-d935-4d84-bbe4-7e365a6672f6",
+      "integer_equal_cell_grid": true,
+      "nominal_cell_edge": 362.0,
+      "crop_proposals_half_open": [
+        [
+          0,
+          0,
+          362,
+          362
+        ],
+        [
+          362,
+          0,
+          724,
+          362
+        ],
+        [
+          724,
+          0,
+          1086,
+          362
+        ],
+        [
+          1086,
+          0,
+          1448,
+          362
+        ],
+        [
+          0,
+          362,
+          362,
+          724
+        ],
+        [
+          362,
+          362,
+          724,
+          724
+        ],
+        [
+          724,
+          362,
+          1086,
+          724
+        ],
+        [
+          1086,
+          362,
+          1448,
+          724
+        ],
+        [
+          0,
+          724,
+          362,
+          1086
+        ],
+        [
+          362,
+          724,
+          724,
+          1086
+        ],
+        [
+          724,
+          724,
+          1086,
+          1086
+        ],
+        [
+          1086,
+          724,
+          1448,
+          1086
+        ]
+      ],
+      "status": "incoming_candidate_not_shipping_asset",
+      "crop_status": "provisional_geometry_not_author_approved"
+    },
+    {
+      "clip_id": "greet",
+      "path": "assets/incoming/dif-greet.png",
+      "original_filename": "cute_purple_panda_wave_sprite_sheet.png",
+      "sha256": "1e740dad2a7f4a9f6465421a537d3ce3142525f8dfb2f9722560778c292c0b58",
+      "bytes": 1485866,
+      "width": 1774,
+      "height": 887,
+      "columns": 4,
+      "rows": 2,
+      "frame_count": 8,
+      "frame_duration_ms": 125,
+      "kind": "one_shot",
+      "generation_id_from_conversation": "15dcfd74-015a-4ee4-a81b-0d7021f3ba6a",
+      "integer_equal_cell_grid": false,
+      "nominal_cell_edge": 443.5,
+      "crop_proposals_half_open": [
+        [
+          0,
+          0,
+          444,
+          444
+        ],
+        [
+          444,
+          0,
+          887,
+          444
+        ],
+        [
+          887,
+          0,
+          1331,
+          444
+        ],
+        [
+          1331,
+          0,
+          1774,
+          444
+        ],
+        [
+          0,
+          444,
+          444,
+          887
+        ],
+        [
+          444,
+          444,
+          887,
+          887
+        ],
+        [
+          887,
+          444,
+          1331,
+          887
+        ],
+        [
+          1331,
+          444,
+          1774,
+          887
+        ]
+      ],
+      "status": "incoming_candidate_not_shipping_asset",
+      "crop_status": "provisional_geometry_not_author_approved"
+    },
+    {
+      "clip_id": "rest",
+      "path": "assets/incoming/dif-rest.png",
+      "original_filename": "cute_lavender_panda_mascot.png",
+      "sha256": "eacedea5ddfdc6317b007e2032093f620620777279c70f87250eadd79a4a90ae",
+      "bytes": 1027913,
+      "width": 1254,
+      "height": 1254,
+      "columns": 1,
+      "rows": 1,
+      "frame_count": 1,
+      "frame_duration_ms": 0,
+      "kind": "static",
+      "generation_id_from_conversation": "48c9b65c-9d73-49fe-86c6-2e9cd8e036fd",
+      "integer_equal_cell_grid": true,
+      "nominal_cell_edge": 1254.0,
+      "crop_proposals_half_open": [
+        [
+          0,
+          0,
+          1254,
+          1254
+        ]
+      ],
+      "status": "incoming_candidate_not_shipping_asset",
+      "crop_status": "provisional_geometry_not_author_approved"
+    },
+    {
+      "clip_id": "blink",
+      "path": "assets/incoming/dif-blink.png",
+      "original_filename": "chibi_panda_blink_sprite_sheet.png",
+      "sha256": "e67c8220ec8cd094d16272661b1358ee3f1d3b23ed0dcba019d12abf3424b6a0",
+      "bytes": 2262318,
+      "width": 1536,
+      "height": 1024,
+      "columns": 3,
+      "rows": 2,
+      "frame_count": 6,
+      "frame_duration_ms": 100,
+      "kind": "one_shot",
+      "generation_id_from_conversation": "ec988d23-a896-4a19-825f-f65843404d13",
+      "integer_equal_cell_grid": true,
+      "nominal_cell_edge": 512.0,
+      "crop_proposals_half_open": [
+        [
+          0,
+          0,
+          512,
+          512
+        ],
+        [
+          512,
+          0,
+          1024,
+          512
+        ],
+        [
+          1024,
+          0,
+          1536,
+          512
+        ],
+        [
+          0,
+          512,
+          512,
+          1024
+        ],
+        [
+          512,
+          512,
+          1024,
+          1024
+        ],
+        [
+          1024,
+          512,
+          1536,
+          1024
+        ]
+      ],
+      "status": "incoming_candidate_not_shipping_asset",
+      "crop_status": "provisional_geometry_not_author_approved"
+    },
+    {
+      "clip_id": "compare_glance",
+      "path": "assets/incoming/dif-compare-glance.png",
+      "original_filename": "cute_panda_glance_sprite_sheet.png",
+      "sha256": "2838d50c8d6b3bec0f4300f03e439f07b3e8e812aaf0ac4bb2805d3f3e7bdff1",
+      "bytes": 1463445,
+      "width": 1774,
+      "height": 887,
+      "columns": 4,
+      "rows": 2,
+      "frame_count": 8,
+      "frame_duration_ms": 150,
+      "kind": "one_shot",
+      "generation_id_from_conversation": "9cfffba0-11e1-4818-9151-0a1ff029088d",
+      "integer_equal_cell_grid": false,
+      "nominal_cell_edge": 443.5,
+      "crop_proposals_half_open": [
+        [
+          0,
+          0,
+          444,
+          444
+        ],
+        [
+          444,
+          0,
+          887,
+          444
+        ],
+        [
+          887,
+          0,
+          1331,
+          444
+        ],
+        [
+          1331,
+          0,
+          1774,
+          444
+        ],
+        [
+          0,
+          444,
+          444,
+          887
+        ],
+        [
+          444,
+          444,
+          887,
+          887
+        ],
+        [
+          887,
+          444,
+          1331,
+          887
+        ],
+        [
+          1331,
+          444,
+          1774,
+          887
+        ]
+      ],
+      "status": "incoming_candidate_not_shipping_asset",
+      "crop_status": "provisional_geometry_not_author_approved"
+    },
+    {
+      "clip_id": "consider",
+      "path": "assets/incoming/dif-consider.png",
+      "original_filename": "plush_panda_thinking_animation_sprite_sheet.png",
+      "sha256": "e7bcad4b7d8be15e7ff5a85663fbbce165a06161cdac883cb7202c2d06ade1d7",
+      "bytes": 1337095,
+      "width": 1774,
+      "height": 887,
+      "columns": 4,
+      "rows": 2,
+      "frame_count": 8,
+      "frame_duration_ms": 150,
+      "kind": "one_shot",
+      "generation_id_from_conversation": "0fb28868-4740-433b-82cc-6911f19b3913",
+      "integer_equal_cell_grid": false,
+      "nominal_cell_edge": 443.5,
+      "crop_proposals_half_open": [
+        [
+          0,
+          0,
+          444,
+          444
+        ],
+        [
+          444,
+          0,
+          887,
+          444
+        ],
+        [
+          887,
+          0,
+          1331,
+          444
+        ],
+        [
+          1331,
+          0,
+          1774,
+          444
+        ],
+        [
+          0,
+          444,
+          444,
+          887
+        ],
+        [
+          444,
+          444,
+          887,
+          887
+        ],
+        [
+          887,
+          444,
+          1331,
+          887
+        ],
+        [
+          1331,
+          444,
+          1774,
+          887
+        ]
+      ],
+      "status": "incoming_candidate_not_shipping_asset",
+      "crop_status": "provisional_geometry_not_author_approved"
+    },
+    {
+      "clip_id": "comment_ready",
+      "path": "assets/incoming/dif-comment-ready.png",
+      "original_filename": "panda_s_friendly_presenting_animation_sprite_sheet.png",
+      "sha256": "212929b9b44bd66c587965a2cbf7f7ee4b7529224554dabcb656fa9212eb8865",
+      "bytes": 1320094,
+      "width": 1774,
+      "height": 887,
+      "columns": 4,
+      "rows": 2,
+      "frame_count": 8,
+      "frame_duration_ms": 125,
+      "kind": "one_shot",
+      "generation_id_from_conversation": "0c5791e3-a37d-4afb-94d3-21deb7916759",
+      "integer_equal_cell_grid": false,
+      "nominal_cell_edge": 443.5,
+      "crop_proposals_half_open": [
+        [
+          0,
+          0,
+          444,
+          444
+        ],
+        [
+          444,
+          0,
+          887,
+          444
+        ],
+        [
+          887,
+          0,
+          1331,
+          444
+        ],
+        [
+          1331,
+          0,
+          1774,
+          444
+        ],
+        [
+          0,
+          444,
+          444,
+          887
+        ],
+        [
+          444,
+          444,
+          887,
+          887
+        ],
+        [
+          887,
+          444,
+          1331,
+          887
+        ],
+        [
+          1331,
+          444,
+          1774,
+          887
+        ]
+      ],
+      "status": "incoming_candidate_not_shipping_asset",
+      "crop_status": "provisional_geometry_not_author_approved"
+    },
+    {
+      "clip_id": "attention",
+      "path": "assets/incoming/dif-attention.png",
+      "original_filename": "dif_panda_attention_wave_sprite_sheet.png",
+      "sha256": "4cff8d667eebcab8cf642f32481a39c377841f942a150ec07a76d0e16924e710",
+      "bytes": 1970553,
+      "width": 1536,
+      "height": 1024,
+      "columns": 3,
+      "rows": 2,
+      "frame_count": 6,
+      "frame_duration_ms": 150,
+      "kind": "one_shot",
+      "generation_id_from_conversation": "1c9fbb38-ab5e-436d-b299-c9f98ae5cdd8",
+      "integer_equal_cell_grid": true,
+      "nominal_cell_edge": 512.0,
+      "crop_proposals_half_open": [
+        [
+          0,
+          0,
+          512,
+          512
+        ],
+        [
+          512,
+          0,
+          1024,
+          512
+        ],
+        [
+          1024,
+          0,
+          1536,
+          512
+        ],
+        [
+          0,
+          512,
+          512,
+          1024
+        ],
+        [
+          512,
+          512,
+          1024,
+          1024
+        ],
+        [
+          1024,
+          512,
+          1536,
+          1024
+        ]
+      ],
+      "status": "incoming_candidate_not_shipping_asset",
+      "crop_status": "provisional_geometry_not_author_approved"
+    },
+    {
+      "clip_id": "acknowledge",
+      "path": "assets/incoming/dif-acknowledge.png",
+      "original_filename": "plush_panda_nod_animation_sprite_sheet.png",
+      "sha256": "0b426c9cd9633d22a76143181afa2f7c1f6278940d00cdf1fb451c843dca90ef",
+      "bytes": 1331440,
+      "width": 1774,
+      "height": 887,
+      "columns": 4,
+      "rows": 2,
+      "frame_count": 8,
+      "frame_duration_ms": 125,
+      "kind": "one_shot",
+      "generation_id_from_conversation": "0442f260-81bb-4245-ae0c-f8ea3adb1001",
+      "integer_equal_cell_grid": false,
+      "nominal_cell_edge": 443.5,
+      "crop_proposals_half_open": [
+        [
+          0,
+          0,
+          444,
+          444
+        ],
+        [
+          444,
+          0,
+          887,
+          444
+        ],
+        [
+          887,
+          0,
+          1331,
+          444
+        ],
+        [
+          1331,
+          0,
+          1774,
+          444
+        ],
+        [
+          0,
+          444,
+          444,
+          887
+        ],
+        [
+          444,
+          444,
+          887,
+          887
+        ],
+        [
+          887,
+          444,
+          1331,
+          887
+        ],
+        [
+          1331,
+          444,
+          1774,
+          887
+        ]
+      ],
+      "status": "incoming_candidate_not_shipping_asset",
+      "crop_status": "provisional_geometry_not_author_approved"
+    },
+    {
+      "clip_id": "blocked",
+      "path": "assets/incoming/dif-blocked.png",
+      "original_filename": "plush_panda_help_gesture_sprite_sheet.png",
+      "sha256": "e0d6cba0d111af520d47f5437088882d8e386b9f1eb947ed9609e0f067b8d542",
+      "bytes": 1962718,
+      "width": 1536,
+      "height": 1024,
+      "columns": 3,
+      "rows": 2,
+      "frame_count": 6,
+      "frame_duration_ms": 150,
+      "kind": "one_shot",
+      "generation_id_from_conversation": "b1cd9de1-5ed5-4c3c-8d1a-cc03f20dfbf2",
+      "integer_equal_cell_grid": true,
+      "nominal_cell_edge": 512.0,
+      "crop_proposals_half_open": [
+        [
+          0,
+          0,
+          512,
+          512
+        ],
+        [
+          512,
+          0,
+          1024,
+          512
+        ],
+        [
+          1024,
+          0,
+          1536,
+          512
+        ],
+        [
+          0,
+          512,
+          512,
+          1024
+        ],
+        [
+          512,
+          512,
+          1024,
+          1024
+        ],
+        [
+          1024,
+          512,
+          1536,
+          1024
+        ]
+      ],
+      "status": "incoming_candidate_not_shipping_asset",
+      "crop_status": "provisional_geometry_not_author_approved"
+    }
+  ]
+}

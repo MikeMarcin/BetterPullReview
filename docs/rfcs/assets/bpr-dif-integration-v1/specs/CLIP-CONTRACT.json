@@ -1,0 +1,300 @@
+{
+  "schema": "bpr.dif.integration-clip-contract.v1",
+  "status": "proposal_not_runtime_manifest",
+  "production_manifest_schema_version": 2,
+  "cell": {
+    "width": 256,
+    "height": 256,
+    "alpha": "straight",
+    "format": "rgba8",
+    "color_space": "srgb",
+    "gutter_cells_each_end": 1
+  },
+  "neutral_master_pixels": [
+    1024,
+    1024
+  ],
+  "production_source_square_sizes": [
+    256,
+    512,
+    768,
+    1024,
+    1280,
+    1536,
+    1792,
+    2048
+  ],
+  "counts": {
+    "clips": 10,
+    "content_frames": 71,
+    "gutter_cells": 20,
+    "content_decoded_bytes": 18612224,
+    "complete_decoded_bytes": 23855104
+  },
+  "limits": {
+    "max_clips": 10,
+    "max_content_frames": 76,
+    "max_frames_per_clip": 24,
+    "max_frames_per_second": 12,
+    "max_content_decoded_bytes": 19922944,
+    "max_complete_decoded_bytes": 25165824,
+    "max_source_dimension": 2048,
+    "max_source_file_bytes": 16777216,
+    "max_generated_file_bytes": 25165824
+  },
+  "registration": {
+    "visual_center_x": 128,
+    "baseline_alpha_bottom_exclusive_y": 223,
+    "foot_tolerance_px": 1,
+    "edge_clearance_px": 16,
+    "neutral_body_bounds_target": [
+      56,
+      22,
+      200,
+      224
+    ],
+    "note": "Target is inherited, not a measured acceptance. One reviewed master registration governs the pack; authored limb envelopes and body anchors are separate."
+  },
+  "clips": [
+    {
+      "id": "calm_idle",
+      "frame_count": 12,
+      "frame_duration_ms": 250,
+      "kind": "loop",
+      "duration_ms": 3000,
+      "representative_frame": 0,
+      "priority": 0,
+      "asset_return_target": "calm_idle",
+      "neutral_frames": [
+        0
+      ],
+      "action": "One soft, three-second breathing cycle. Keep the face, pelvis, and feet registered. Animate a small local chest/shoulder deformation, not a scale transform of the entire panda. No blink in this loop.",
+      "frames": [
+        "Exact neutral reference pose: awake, paws relaxed beside the belly, both feet planted.",
+        "Begin the inhale: chest rises approximately 0.5 runtime pixel; head, hips, and feet stay fixed.",
+        "Inhale continues: chest rises approximately 1 runtime pixel; expression unchanged.",
+        "Chest rises approximately 1.5 runtime pixels; only a slight local shoulder response.",
+        "Soft inhale peak: chest rises approximately 2 runtime pixels; no inflated balloon belly or head enlargement.",
+        "Ease off the inhale peak: chest rise approximately 1.5 runtime pixels.",
+        "Exhale: chest rise approximately 1 runtime pixel.",
+        "Exhale continues: chest rise approximately 0.5 runtime pixel.",
+        "Pass smoothly through neutral breathing volume; do not pause or restart the action.",
+        "Small relaxed exhale: chest falls approximately 0.5 runtime pixel below neutral.",
+        "Soft exhale trough: chest falls approximately 1 runtime pixel; feet and head remain fixed.",
+        "Recover toward neutral: chest is approximately 0.5 runtime pixel below neutral. This is a genuinely different pose from frame 00, close enough to continue smoothly into it. Do not duplicate frame 00."
+      ]
+    },
+    {
+      "id": "greet",
+      "frame_count": 8,
+      "frame_duration_ms": 125,
+      "kind": "one_shot",
+      "duration_ms": 1000,
+      "representative_frame": 3,
+      "priority": 5,
+      "asset_return_target": "calm_idle",
+      "neutral_frames": [
+        0,
+        7
+      ],
+      "action": "One small, relaxed wave with the paw on the viewer's right. Keep the paw inside the existing head-width envelope; keep the opposite paw and both feet fixed. No whole-body squash, jumping, bowing, hearts, or sparkles.",
+      "frames": [
+        "Exact neutral reference pose; both paws down, eyes open.",
+        "Viewer-right paw lifts a little toward the upper belly; elbow stays close to the body.",
+        "Paw rises beside the lower cheek, below the ear, with rounded paw pads gently facing the viewer.",
+        "Small outward wrist turn; welcoming expression but no larger head or exaggerated mouth.",
+        "Small inward wrist turn: complete the single restrained wave without changing the body position.",
+        "Paw begins lowering from the cheek toward the chest.",
+        "Paw nearly returned to the relaxed neutral position; eyes and smile return exactly to neutral.",
+        "Exact neutral reference pose, matching calm_idle frame 00 and rest. This frame will be copied from the locked neutral source during assembly."
+      ]
+    },
+    {
+      "id": "rest",
+      "frame_count": 1,
+      "frame_duration_ms": 0,
+      "kind": "static",
+      "duration_ms": 0,
+      "representative_frame": 0,
+      "priority": 0,
+      "asset_return_target": "rest",
+      "neutral_frames": [
+        0
+      ],
+      "action": "Reuse the approved prop-free neutral reference. No new image generation is necessary.",
+      "frames": [
+        "Exact prop-free neutral reference, awake and attentive. Reuse the approved pixels; no blink, fade, breathing, or procedural motion."
+      ]
+    },
+    {
+      "id": "blink",
+      "frame_count": 6,
+      "frame_duration_ms": 100,
+      "kind": "one_shot",
+      "duration_ms": 600,
+      "representative_frame": 0,
+      "priority": 1,
+      "asset_return_target": "calm_idle",
+      "neutral_frames": [
+        0,
+        4,
+        5
+      ],
+      "action": "Change only the eyelids. Retain the neutral body, ears, eye-patch shapes, nose, mouth, paws, feet, camera, and light. The whole image must not be squashed to make the eyes close.",
+      "frames": [
+        "Exact neutral reference; eyes fully open.",
+        "Upper eyelids half lowered over both eyes together; eye patches remain unchanged.",
+        "Eyes gently closed for this frame only; relaxed lids, no squeezed happy crescents and no cheek lift.",
+        "Eyes half reopened, reversing the eyelid action of frame 01.",
+        "Eyes fully open; exact neutral reference.",
+        "Exact neutral reference. The short open-eye tail belongs to this one-shot and is not a loop seam."
+      ]
+    },
+    {
+      "id": "compare_glance",
+      "frame_count": 8,
+      "frame_duration_ms": 150,
+      "kind": "one_shot",
+      "duration_ms": 1200,
+      "representative_frame": 3,
+      "priority": 10,
+      "asset_return_target": "calm_idle",
+      "neutral_frames": [
+        0,
+        7
+      ],
+      "action": "A restrained left-to-right glance. Eyes carry most of the action; head yaw is at most about two degrees. No magnifying glass, cards, arrows, or generated code.",
+      "frames": [
+        "Exact neutral reference, eyes forward.",
+        "Pupils glance a little toward the viewer's left; head and body stay centered.",
+        "Head follows the left glance with a very small yaw, no more than about two degrees.",
+        "Return through center; eyes look briefly forward.",
+        "Pupils glance a little toward the viewer's right.",
+        "Head follows the right glance by no more than about two degrees; shoulders remain level.",
+        "Eyes and head ease back toward front.",
+        "Exact neutral reference pose. Copy the locked source for the final handoff."
+      ]
+    },
+    {
+      "id": "consider",
+      "frame_count": 8,
+      "frame_duration_ms": 150,
+      "kind": "one_shot",
+      "duration_ms": 1200,
+      "representative_frame": 3,
+      "priority": 15,
+      "asset_return_target": "calm_idle",
+      "neutral_frames": [
+        0,
+        7
+      ],
+      "action": "Bring the viewer-left paw lightly near the chin, tilt the head a little, then return. This is a one-shot, not a pantomime that repeats for the entire task. No thought bubbles or floating dots.",
+      "frames": [
+        "Exact neutral reference, relaxed and attentive.",
+        "Viewer-left paw begins lifting toward the chest.",
+        "Paw approaches the lower chin without covering the nose or mouth.",
+        "Paw rests lightly beneath the chin; head tilts about two degrees; eyes glance slightly upward.",
+        "Small thoughtful hold with the same gentle expression, no furrowed angry brows.",
+        "Head straightens while the paw begins to lower.",
+        "Paw returns toward the side of the belly; gaze comes forward.",
+        "Exact neutral reference pose; copy the locked source at assembly."
+      ]
+    },
+    {
+      "id": "comment_ready",
+      "frame_count": 8,
+      "frame_duration_ms": 125,
+      "kind": "one_shot",
+      "duration_ms": 1000,
+      "representative_frame": 3,
+      "priority": 30,
+      "asset_return_target": "calm_idle",
+      "neutral_frames": [
+        0,
+        7
+      ],
+      "action": "Dif makes a small two-paw presentation gesture toward the real UI beside or below the illustration. The sprite itself contains no note, speech bubble, code, text, pen, or author badge.",
+      "frames": [
+        "Exact neutral reference, paws relaxed.",
+        "Both paws move slightly inward toward the lower belly.",
+        "Paws lift just a little, preparing a small open presentation gesture.",
+        "Both paws gently open forward, palm-up, below the face; head inclines slightly toward the nearby real UI.",
+        "Brief, calm presentation hold; no flourish, floating object, or talking mouth.",
+        "Paws begin closing the presentation gesture.",
+        "Paws lower toward their original resting positions.",
+        "Exact neutral reference pose; copy the locked source."
+      ]
+    },
+    {
+      "id": "attention",
+      "frame_count": 6,
+      "frame_duration_ms": 150,
+      "kind": "one_shot",
+      "duration_ms": 900,
+      "representative_frame": 2,
+      "priority": 40,
+      "asset_return_target": "calm_idle",
+      "neutral_frames": [
+        0,
+        5
+      ],
+      "action": "A small, polite raised-paw gesture and slightly more attentive eyes, followed by a return to neutral. No alarm, bouncing, red flash, exclamation symbol, bug, or accusing finger.",
+      "frames": [
+        "Exact neutral reference, eyes open.",
+        "Viewer-right paw begins rising close to the chest; eyes become slightly more attentive.",
+        "Paw held politely at chest height with pads angled gently toward the viewer; head tips a tiny amount forward.",
+        "Quiet attention hold, no shock or panic face.",
+        "Paw lowers; head and eyes relax toward neutral.",
+        "Exact neutral reference pose; copy the locked source."
+      ]
+    },
+    {
+      "id": "acknowledge",
+      "frame_count": 8,
+      "frame_duration_ms": 125,
+      "kind": "one_shot",
+      "duration_ms": 1000,
+      "representative_frame": 3,
+      "priority": 20,
+      "asset_return_target": "calm_idle",
+      "neutral_frames": [
+        0,
+        7
+      ],
+      "action": "One small affirmative nod with a warm, closed smile. Rotate the head a little; do not compress the entire body. No green check, thumbs-up, medal, confetti, or party pose.",
+      "frames": [
+        "Exact neutral reference pose.",
+        "A barely perceptible preparation of the head for the nod; torso unchanged.",
+        "Head inclines downward a little; eyes remain naturally attentive.",
+        "Lowest point of one shallow nod, approximately three degrees; feet and belly unchanged.",
+        "Head begins rising from the nod.",
+        "Head almost level, smile still restrained.",
+        "Head settles, without a second nod or overshoot.",
+        "Exact neutral reference pose; copy the locked source."
+      ]
+    },
+    {
+      "id": "blocked",
+      "frame_count": 6,
+      "frame_duration_ms": 150,
+      "kind": "one_shot",
+      "duration_ms": 900,
+      "representative_frame": 2,
+      "priority": 50,
+      "asset_return_target": "calm_idle",
+      "neutral_frames": [
+        0,
+        5
+      ],
+      "action": "A slight inquisitive head tilt and a small open-paw gesture. Keep the emotional tone patient and capable. No crying, sweat drop, anger, broken-object prop, shrugging despair, or question mark.",
+      "frames": [
+        "Exact neutral reference pose.",
+        "Head tilts gently toward the viewer's left; viewer-left paw begins to open near the belly.",
+        "Small open palm and about a three-degree head tilt, patient expression, eyes still friendly.",
+        "Quiet hold, inviting the user to inspect nearby real text and controls.",
+        "Head straightens and the paw closes toward its resting pose.",
+        "Exact neutral reference pose; copy the locked source."
+      ]
+    }
+  ]
+}

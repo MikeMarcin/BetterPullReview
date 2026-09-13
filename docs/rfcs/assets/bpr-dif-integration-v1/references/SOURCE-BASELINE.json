@@ -1,0 +1,167 @@
+{
+  "schema": "bpr.rfc.source-baseline.v1",
+  "primary_snapshot": "better_pull_review_project_source.md",
+  "generated": "2026-09-12T19:50:30-07:00",
+  "snapshot_sha256": "9694ccea15623c3f7ae6e5f45f642854d04301fc5639468c291d7ecfcb311e71",
+  "older_snapshot_not_used_as_primary": "better_pull_review_project_source(1).md (2026-09-08)",
+  "repository_commit": "not supplied by snapshot; resolve and record live HEAD at import",
+  "max_rfc_id_in_primary_snapshot": "RFC-BPR-0029",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "dump_first_content_line": 3035,
+      "source_lines": 76,
+      "extracted_content_sha256": "190d88f1b6e2d4e822e8f323298c1f05197eb0012a9630038b7a792ecc9e5322"
+    },
+    {
+      "path": ".mask/skill-config/implement-rfc/project.json",
+      "dump_first_content_line": 31218,
+      "source_lines": 102,
+      "extracted_content_sha256": "faf64092611d42323cc726600e039588e9f4b4450d1d5be87ba00794363c96e2"
+    },
+    {
+      "path": ".mask/skill-config/implement-rfc/project.md",
+      "dump_first_content_line": 31328,
+      "source_lines": 54,
+      "extracted_content_sha256": "502cdb142aa89e85fdcd34bec0c8e86910898e99ceeda7a0634f9064ab499a3f"
+    },
+    {
+      "path": "docs/architecture/system-architecture.md",
+      "dump_first_content_line": 3316,
+      "source_lines": 1150,
+      "extracted_content_sha256": "6eb49ec6041e09ae890d03f77747db8241e7d2b11aef8b825ac666ead8522e75"
+    },
+    {
+      "path": "docs/rfcs/README.md",
+      "dump_first_content_line": 4474,
+      "source_lines": 172,
+      "extracted_content_sha256": "1379dcbfecbbb6e4b242b0550735ba3acf9d9cb4327916bb88d2936069d6f8d1"
+    },
+    {
+      "path": "docs/rfcs/RFC-BPR-0019-dif-visual-identity-sprite-assets.md",
+      "dump_first_content_line": 161546,
+      "source_lines": 372,
+      "extracted_content_sha256": "c0d05da49f285caa242657a7dcf8e2ce9de1f70a25b2f77f6756c2c7859dd464"
+    },
+    {
+      "path": "docs/rfcs/RFC-BPR-0020-animated-dif-mascot-qt-composition.md",
+      "dump_first_content_line": 161926,
+      "source_lines": 508,
+      "extracted_content_sha256": "6d6d868362b5e86171c558a3aeb447baee6c00f705967bc0cfa354c0c4d0b2df"
+    },
+    {
+      "path": "docs/rfcs/RFC-BPR-0024-bpr-profiles-multiple-windows.md",
+      "dump_first_content_line": 164331,
+      "source_lines": 180,
+      "extracted_content_sha256": "dba1a868bd057e737159d9a948935c5cf896336145e60b5680b1d4b03e265c5a"
+    },
+    {
+      "path": "docs/rfcs/RFC-BPR-0028-review-workbench-direction.md",
+      "dump_first_content_line": 165249,
+      "source_lines": 665,
+      "extracted_content_sha256": "02e94d0c30457cbd346a6afd5511bd470f2293c7be0c559011c4e451c7108ddc"
+    },
+    {
+      "path": "docs/rfcs/plans/rfc-bpr-0029-closeout/milestone-plan.json",
+      "dump_first_content_line": 174475,
+      "source_lines": 30,
+      "extracted_content_sha256": "70cf9e6bf48421264a660891daf81db861df42071c9e67c21663a73eb81fc55b"
+    },
+    {
+      "path": "scripts/dif_assets.py",
+      "dump_first_content_line": 305067,
+      "source_lines": 1477,
+      "extracted_content_sha256": "364acbe3bc7fd428d9fa6fa02ab97749370eacbe495d9f30e0b1903a7c6d2556"
+    },
+    {
+      "path": "scripts/verify_dif_asset_boundaries.py",
+      "dump_first_content_line": 316915,
+      "source_lines": 528,
+      "extracted_content_sha256": "5b4ed2e85e1cb4f7f60c36f91a35f958a5e77fb5fd2a3b2c4b03985eb3690270"
+    },
+    {
+      "path": "src/adapters/qt/assets/dif/README.md",
+      "dump_first_content_line": 374270,
+      "source_lines": 144,
+      "extracted_content_sha256": "e75be8d3feb08c4893a6f1ad07dd27f1ea1449163a71079710e7dc74c72ac4a8"
+    },
+    {
+      "path": "src/adapters/qt/assets/dif/dif-sprite-manifest.json",
+      "dump_first_content_line": 374422,
+      "source_lines": 117,
+      "extracted_content_sha256": "80ee8d9924bafe179d3b9b1172e8776254813ec1b62eab413bb31efa730a4f00"
+    },
+    {
+      "path": "src/adapters/qt/CMakeLists.txt",
+      "dump_first_content_line": 374189,
+      "source_lines": 73,
+      "extracted_content_sha256": "9e107066d6ac44c6e06b194ec3dd86ea08268d4576ea85f69d51c75c97e1961d"
+    },
+    {
+      "path": "src/adapters/qt/src/workbench_landing.cpp",
+      "dump_first_content_line": 407205,
+      "source_lines": 216,
+      "extracted_content_sha256": "000495dafbc8eb71630d4bed09c2dc8444bc3dab9e5e2e9ad5c2f02ee4888bed"
+    },
+    {
+      "path": "src/adapters/qt/src/workbench_window.cpp",
+      "dump_first_content_line": 408151,
+      "source_lines": 6813,
+      "extracted_content_sha256": "0344560b5cfce2239f66601877981dfaaedf600896859435cfdbc7ed80d71f98"
+    },
+    {
+      "path": "src/adapters/qt/src/settings_window.cpp",
+      "dump_first_content_line": 405045,
+      "source_lines": 268,
+      "extracted_content_sha256": "470eac3b4ef70290cdd1c969053a6e9f0feb3b674b648560ca365286348cde62"
+    },
+    {
+      "path": "src/adapters/qt/include/bpr/qt/side_chat_panel.hpp",
+      "dump_first_content_line": 380707,
+      "source_lines": 267,
+      "extracted_content_sha256": "aacbc0184a51793c22663cdce1c4f43e14c9943962e2b18ae9262ea505c37d18"
+    },
+    {
+      "path": "src/application/include/bpr/application/appearance_preferences_application_host.hpp",
+      "dump_first_content_line": 478950,
+      "source_lines": 60,
+      "extracted_content_sha256": "3debed321e2d14a5d495ec45e9d1c95f264648818ec5b9293e08fcdbb5fba209"
+    },
+    {
+      "path": "src/application/include/bpr/application/appearance_runtime_ports.hpp",
+      "dump_first_content_line": 479018,
+      "source_lines": 549,
+      "extracted_content_sha256": "b7cc1321b0560ebe56195e4263fb4e67b7734af4118cabddb19db4544e1d2d9f"
+    },
+    {
+      "path": "src/application/include/bpr/application/agent_invocation_host.hpp",
+      "dump_first_content_line": 477743,
+      "source_lines": 189,
+      "extracted_content_sha256": "e8f80af4ac79a0426647bb5dda26dd8b3980cc3b5a0a641489ce9ed174747958"
+    },
+    {
+      "path": "src/core/include/bpr/core/appearance_model.hpp",
+      "dump_first_content_line": 535920,
+      "source_lines": 466,
+      "extracted_content_sha256": "67b1d312ba510b0d6ce385354c2896b4a14a723cff2919f747a1e48535638c4f"
+    },
+    {
+      "path": "src/adapters/sqlite/src/appearance_settings_database.cpp",
+      "dump_first_content_line": 415569,
+      "source_lines": 887,
+      "extracted_content_sha256": "c2ee88ffd9e776ce489940ee2e6dc81e2a72ee02519a8b59f24af8db9b5369f3"
+    },
+    {
+      "path": "src/app/src/github_application.cpp",
+      "dump_first_content_line": 451520,
+      "source_lines": 18750,
+      "extracted_content_sha256": "4a41db496e4dfcc70e4093479d31e3ba5c63456155194899bd697fc4957f2f86"
+    },
+    {
+      "path": "src/app/src/profile_desktop.cpp",
+      "dump_first_content_line": 474865,
+      "source_lines": 794,
+      "extracted_content_sha256": "43aed4de834f2885584cd5ab68e06f451545d59b995bc49a45dd7aefebacc597"
+    }
+  ]
+}

@@ -1,0 +1,153 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-dif-integration-v1",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0030",
+      "RFC-BPR-0031"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "intake-contract",
+      "outcome": "The source/assets are frozen and the existing compiler has a tested bounded ten-clip contract.",
+      "work": [
+        {
+          "issue": "BPR-0752"
+        },
+        {
+          "issue": "BPR-0753"
+        },
+        {
+          "issue": "BPR-0754"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Live import IDs/baseline and known source drift are recorded without overwriting existing work.",
+        "Ten incoming inputs and their actual geometry are inventoried.",
+        "Compiler/catalog/geometry fixtures enforce the revised bounds and retain portable PNG comparison."
+      ],
+      "boundary": "One intake/asset-contract boundary; no production-art or application acceptance implied."
+    },
+    {
+      "id": "production-art",
+      "outcome": "One prop-free Dif identity and the complete ten-clip production catalog are accepted and reproducible.",
+      "work": [
+        {
+          "issue": "BPR-0755"
+        },
+        {
+          "issue": "BPR-0756"
+        },
+        {
+          "issue": "BPR-0757"
+        }
+      ],
+      "depends_on": [
+        "intake-contract"
+      ],
+      "exit_criteria": [
+        "The master, all real gestures, neutral endpoints, seam, matte and body registration pass.",
+        "71-frame target catalog, exact source/digest record and focused art/derivative decision are complete."
+      ],
+      "boundary": "One art-revision boundary; park only exact human/art waits and continue independent runtime work."
+    },
+    {
+      "id": "runtime-foundation",
+      "outcome": "Typed profile preferences, native motion resolution and a bounded retained Qt player exist with focused tests.",
+      "work": [
+        {
+          "issue": "BPR-0758"
+        },
+        {
+          "issue": "BPR-0759"
+        },
+        {
+          "issue": "BPR-0760"
+        }
+      ],
+      "depends_on": [
+        "intake-contract"
+      ],
+      "exit_criteria": [
+        "Current appearance migration/fan-out and failure behavior are covered.",
+        "Observer states are honest, and retained playback/lifecycle is correct with fixture catalog tests."
+      ],
+      "boundary": "Runtime may proceed independently of final art attendance; fixtures cannot enter the shipped catalog."
+    },
+    {
+      "id": "home-integration",
+      "outcome": "The real app displays accepted Dif on current Home and respects profile preferences without changing reading state.",
+      "work": [
+        {
+          "issue": "BPR-0761"
+        },
+        {
+          "issue": "BPR-0762"
+        }
+      ],
+      "depends_on": [
+        "production-art",
+        "runtime-foundation"
+      ],
+      "exit_criteria": [
+        "Normal Home/Settings gestures demonstrate greeting, breathing, blink and static rest.",
+        "Retained review, compact input layout, profile fan-out, shared cache and inactive timers are verified."
+      ],
+      "boundary": "One real-app Home integration pass with actual accepted assets."
+    },
+    {
+      "id": "context-integration",
+      "outcome": "All contextual clips are reachable through the existing explicit AI UI and correct accepted operation facts.",
+      "work": [
+        {
+          "issue": "BPR-0763"
+        },
+        {
+          "issue": "BPR-0764"
+        },
+        {
+          "issue": "BPR-0765"
+        }
+      ],
+      "depends_on": [
+        "home-integration"
+      ],
+      "exit_criteria": [
+        "Every contextual clip has an actual UI/projection route; Dif remains non-authoritative.",
+        "Identity/dedup, terminal coalescing, hidden-result suppression and interruption cases pass."
+      ],
+      "boundary": "One focused contextual integration pass; no new AI/domain effect or live-provider requirement."
+    },
+    {
+      "id": "verification-closeout",
+      "outcome": "The complete catalog and application integration have bounded evidence and truthful source/platform/closeout records.",
+      "work": [
+        {
+          "issue": "BPR-0766"
+        },
+        {
+          "issue": "BPR-0767"
+        },
+        {
+          "issue": "BPR-0768"
+        },
+        {
+          "issue": "BPR-0769"
+        }
+      ],
+      "depends_on": [
+        "context-integration"
+      ],
+      "exit_criteria": [
+        "Focused real-app/native/resource/core-only checks and actual memory/timer/paint observations are recorded.",
+        "Required rendered integration decisions are complete or precisely pending, with unchanged evidence reused.",
+        "A1\u2013A8/B1\u2013B12 and docs/independent review agree; formal status honors the existing canonical order."
+      ],
+      "boundary": "One integration-focused completion boundary, not repeated full suites or blanket approval gates."
+    }
+  ],
+  "unplanned_work": []
+}

@@ -1,0 +1,63 @@
+{
+  "schema": "bpr.rfc-pack.v1",
+  "id": "bpr-dif-integration-v1",
+  "version": 1,
+  "status": "proposed_design_and_implementation_handoff",
+  "rfc_ids": [
+    "RFC-BPR-0030",
+    "RFC-BPR-0031"
+  ],
+  "rfc_paths": [
+    "repository-overlay/docs/rfcs/RFC-BPR-0030-dif-production-animation-revision.md",
+    "repository-overlay/docs/rfcs/RFC-BPR-0031-dif-workbench-animation-integration.md"
+  ],
+  "authored_milestone_plan": "milestone-plan.json",
+  "plan_import_requires_live_issue_remapping": true,
+  "issue_aliases": [
+    "PACK-DIF-01",
+    "PACK-DIF-02",
+    "PACK-DIF-03",
+    "PACK-DIF-04",
+    "PACK-DIF-05",
+    "PACK-DIF-06",
+    "PACK-DIF-07",
+    "PACK-DIF-08",
+    "PACK-DIF-09",
+    "PACK-DIF-10",
+    "PACK-DIF-11",
+    "PACK-DIF-12",
+    "PACK-DIF-13",
+    "PACK-DIF-14",
+    "PACK-DIF-15",
+    "PACK-DIF-16",
+    "PACK-DIF-17",
+    "PACK-DIF-18"
+  ],
+  "card_paths": [
+    "cards/PACK-DIF-01.md",
+    "cards/PACK-DIF-02.md",
+    "cards/PACK-DIF-03.md",
+    "cards/PACK-DIF-04.md",
+    "cards/PACK-DIF-05.md",
+    "cards/PACK-DIF-06.md",
+    "cards/PACK-DIF-07.md",
+    "cards/PACK-DIF-08.md",
+    "cards/PACK-DIF-09.md",
+    "cards/PACK-DIF-10.md",
+    "cards/PACK-DIF-11.md",
+    "cards/PACK-DIF-12.md",
+    "cards/PACK-DIF-13.md",
+    "cards/PACK-DIF-14.md",
+    "cards/PACK-DIF-15.md",
+    "cards/PACK-DIF-16.md",
+    "cards/PACK-DIF-17.md",
+    "cards/PACK-DIF-18.md"
+  ],
+  "asset_inputs": "assets/INPUT-MANIFEST.json",
+  "clip_contract": "specs/CLIP-CONTRACT.json",
+  "cue_map": "specs/CUE-MAP.json",
+  "source_baseline": "references/SOURCE-BASELINE.json",
+  "checksums": "SHA256SUMS",
+  "no_app_implementation_or_native_verification_performed": true,
+  "raw_art_not_production_approved": true
+}

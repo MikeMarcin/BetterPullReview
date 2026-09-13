@@ -85,6 +85,8 @@ tracked on the issue board's backlog, in the same way as other RFC work.
 | [RFC-BPR-0027](RFC-BPR-0027-structured-diagnostic-logging-verbosity-privacy.md) | Structured Diagnostic Logging, Verbosity, and Privacy | Deferred | RFC-BPR-0001 and RFC-BPR-0002; basic Quill foundation implemented in BPR-0602; advanced retention/privacy/Settings phase deferred |
 | [RFC-BPR-0028](RFC-BPR-0028-review-workbench-direction.md) | Review Workbench Direction: Overview, Epoch Line, Modalities, and Conversation | Proposed | Owner-locked 2026-09-06; supersedes the RFC-BPR-0025 layout and RFC-BPR-0026 Home presentation where they conflict; Settings, explorers and file tree designs follow. Nine human-pending cards are prepared as one attended session at the pack head (`docs/verification/reviews/rfc-bpr-0028-attended-v002/`) under plan `ux-redesign-pack-0028`. BPR-0653 waits for Windows evidence |
 | [RFC-BPR-0029](RFC-BPR-0029-machine-independent-epoch-identity-update-history.md) | Machine-Independent Epoch Identity and Pull Request Update History | Accepted | Revised proposal accepted 2026-09-12 under mandate r17: only evidenced update occurrences receive portable identities; incomplete history and unknown historical bases remain explicit; migration is lossless even where identity is unresolved. RFC-BPR-0002, RFC-BPR-0003 and RFC-BPR-0017; supersedes RFC-BPR-0003 in part. RFC-BPR-0028's AC-02 waits on its card BPR-0743 |
+| [RFC-BPR-0030](RFC-BPR-0030-dif-production-animation-revision.md) | Dif Production Animation Revision: Ten Registered Prop-Free Clips | Proposed | Imported for later implementation; additive partial supersession of RFC-BPR-0019. Technical asset and provenance gates remain open; RFC-BPR-0006 is its formal dependency |
+| [RFC-BPR-0031](RFC-BPR-0031-dif-workbench-animation-integration.md) | Dif Workbench Integration: Profile Preferences, Bounded Qt Playback, and Truthful Cues | Proposed | Imported for later implementation; consumes RFC-BPR-0030's accepted revision and depends formally on RFC-BPR-0005 and RFC-BPR-0006. No app or art acceptance is claimed |
 
 The 2026-09-04 daily-workbench registration accepts the design in RFC-BPR-0018
 and RFC-BPR-0024 through RFC-BPR-0026, with implementation explicitly deferred.
@@ -142,6 +144,14 @@ RFC-BPR-0020 alone may compose those reviewed assets into the Qt workbench and
 real application. The product owner's Nib bootstrap contributes process
 guidance only. Neither RFC authorizes importing Nib, Mel, AllTheThings art or
 code, foreign animation architecture, or mascot-authored review conclusions.
+
+RFC-BPR-0030 and RFC-BPR-0031 are the imported ten-clip Dif revision and
+workbench-integration proposal. They partially supersede the earlier Dif
+contracts only for their explicit deltas. Their [source pack and live ID
+mapping](assets/bpr-dif-integration-v1.LIVE_IMPORT.md) and [adopted six-milestone
+plan](plans/bpr-dif-integration-v1/milestone-plan.json) retain the source and
+execution order. Import leaves all eighteen cards in Backlog and both RFCs
+Proposed; technical readiness and canonical formal closeout are separate.
 
 RFC-BPR-0022 and RFC-BPR-0023 were reconciled and imported together on
 2026-09-04 with implementation explicitly deferred. The off-hunk pack retains

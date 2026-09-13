@@ -1,0 +1,88 @@
+{
+  "schema": "bpr.dif.presentation-cue-map.v1",
+  "status": "proposal_not_host_protocol",
+  "ai_baseline": "rest",
+  "home_baseline_full": "calm_idle",
+  "reduced_baseline": "rest",
+  "semantic_start_interval_ms": 2000,
+  "compare_glance_minimum_interval_ms": 5000,
+  "terminal_precedence": [
+    "blocked",
+    "attention",
+    "comment_ready"
+  ],
+  "no_result_from_successful_process_exit_alone": true,
+  "hidden_events": "drop_not_replay",
+  "cues": [
+    {
+      "clip": "calm_idle",
+      "surface": "home",
+      "trigger": "eligible full-motion Home baseline",
+      "priority": 0,
+      "continuous": true
+    },
+    {
+      "clip": "greet",
+      "surface": "home",
+      "trigger": "first eligible Home exposure in workbench lifetime",
+      "priority": 5,
+      "continuous": false
+    },
+    {
+      "clip": "rest",
+      "surface": "eligible",
+      "trigger": "static baseline, reduced or inactive",
+      "priority": 0,
+      "continuous": false
+    },
+    {
+      "clip": "blink",
+      "surface": "home",
+      "trigger": "four completed uninterrupted calm loops",
+      "priority": 1,
+      "continuous": false
+    },
+    {
+      "clip": "compare_glance",
+      "surface": "explicit_ai_tools",
+      "trigger": "user reveals/selects existing AI Findings view; actual context presented",
+      "priority": 10,
+      "continuous": false
+    },
+    {
+      "clip": "consider",
+      "surface": "explicit_ai_tools",
+      "trigger": "current requested invocation accepted start projection",
+      "priority": 15,
+      "continuous": false
+    },
+    {
+      "clip": "comment_ready",
+      "surface": "explicit_ai_tools",
+      "trigger": "current accepted reply content or workshop proposal presented",
+      "priority": 30,
+      "continuous": false
+    },
+    {
+      "clip": "attention",
+      "surface": "explicit_ai_tools",
+      "trigger": "current accepted batch contains presentable finding for triage",
+      "priority": 40,
+      "continuous": false
+    },
+    {
+      "clip": "acknowledge",
+      "surface": "explicit_ai_tools",
+      "trigger": "explicit originating local workshop/draft action accepted and result presented",
+      "priority": 20,
+      "continuous": false
+    },
+    {
+      "clip": "blocked",
+      "surface": "explicit_ai_tools",
+      "trigger": "matching explicit terminal failure/refusal or actual continuation choice with explanation presented",
+      "priority": 50,
+      "continuous": false
+    }
+  ]
+}
