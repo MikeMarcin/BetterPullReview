@@ -3573,6 +3573,96 @@ namespace {
 			"a provider-valid line beyond the selected blob receives an explicit refusal and no marker");
 	}
 
+	void test_refresh_gap_retains_only_visual_conversation_scope()
+	{
+		const auto           file = core::file_identity_of("src/a.cpp");
+		qt::workbench_window window;
+		auto                 pr = application::github_pull_request_projection{ };
+		for (auto index = 0; index < 1000; ++index) {
+			pr.Conversations.push_back(application::github_conversation_projection{
+				.Id   = "thread-" + std::to_string(index),
+				.Kind = application::github_conversation_kind::review_thread,
+				.Path = index < 2 ? "src/a.cpp" : "src/other.cpp",
+			});
+		}
+		window.publish(application::github_presentation_update{ .PullRequest = pr });
+		auto selected = application::workbench_projection{
+			.Context   = { .Session = core::application_session_id{ 1U }, .Generation = core::request_generation{ 1U } },
+			.Selection = core::workbench_selection_delta{ .Cursor = core::workbench_navigation_cursor{ .File = file, .Ordinal = 1U, .ActionableCount = 1U } },
+			.Files     = std::vector{ application::workbench_file_projection{ .File = file, .Path = "src/a.cpp" } },
+		};
+		window.publish(selected);
+		window.conversation_view()->setCurrentIndex(window.conversation_model()->index_for_id("thread-0"));
+		const auto measurements = window.conversation_panel()->cards()->measurements();
+		auto       gap          = application::workbench_projection{
+			.Context   = { .Session = core::application_session_id{ 1U }, .Generation = core::request_generation{ 2U } },
+			.Selection = core::workbench_selection_delta{ },
+			.Files     = std::vector<application::workbench_file_projection>{ },
+		};
+		window.publish(gap);
+		process_events();
+		expect(window.conversation_panel()->anchor_file() == std::optional{ file }
+				   && window.conversation_panel()->cards()->thread_count() == 2U
+				   && window.conversation_panel()->cards()->measurements() == measurements
+				   && !window.files_drawer()->contents_view()->currentIndex().isValid(),
+			   "new-generation observation gap keeps two visual cards without retaining semantic file selection or measuring the thousand-thread forest");
+		auto observed              = selected;
+		observed.Context           = { .Request = core::request_id{ 4U }, .Session = gap.Context.Session, .Generation = gap.Context.Generation };
+		observed.Selection->Cursor = core::workbench_navigation_cursor{ .ActionableCount = 1U, .PreviousAvailable = true, .NextAvailable = true };
+		window.publish(observed);
+		process_events();
+		expect(window.conversation_panel()->anchor_file() == std::optional{ file }
+				   && window.conversation_panel()->cards()->thread_count() == 2U
+				   && window.conversation_panel()->cards()->measurements() == measurements
+				   && !window.files_drawer()->contents_view()->currentIndex().isValid(),
+			   "successful file observation keeps visual scope through its unselected terminal until the following local selection");
+		selected.Context.Generation = core::request_generation{ 2U };
+		selected.Context.Request    = core::request_id{ 0U };
+		window.publish(selected);
+		expect(window.conversation_model()->id_for_index(window.conversation_view()->currentIndex()) == "thread-0",
+			   "refresh completion preserves the exact selected conversation");
+		window.publish(gap);
+		expect(!window.conversation_panel()->anchor_file().has_value() && window.conversation_panel()->cards()->thread_count() == 1000U,
+			   "same-generation explicit selection clear still widens to the whole pull request");
+		window.publish(selected);
+		gap.Context.Generation = core::request_generation{ 3U };
+		window.publish(gap);
+		window.fail(application::workbench_failure_publication{ .Context = selected.Context, .Failure = application::workbench_host_failure::observation_unavailable });
+		expect(window.conversation_panel()->anchor_file().has_value(), "an older failure cannot release the new refresh visual scope");
+		window.fail(application::workbench_failure_publication{ .Context = gap.Context, .Failure = application::workbench_host_failure::observation_unavailable });
+		expect(!window.conversation_panel()->anchor_file().has_value(), "matching observation failure ends retained refresh scope");
+		selected.Context.Generation = core::request_generation{ 3U };
+		window.publish(selected);
+		gap.Context.Generation = core::request_generation{ 4U };
+		window.publish(gap);
+		window.publish(application::github_presentation_update{ .Transition = application::github_transition_projection{ .PullRequest = core::pull_request_summary_delta{ } } });
+		expect(window.conversation_panel()->cards()->cards().empty(), "authority invalidation clears every retained conversation immediately");
+		window.publish(application::github_presentation_update{ .PullRequest = pr });
+		gap.Context.Generation = core::request_generation{ 5U };
+		window.publish(gap);
+		expect(!window.conversation_panel()->anchor_file().has_value() && window.conversation_panel()->cards()->thread_count() == 1000U,
+			   "a new PR cannot inherit the old refresh scope");
+		selected.Context.Generation = core::request_generation{ 5U };
+		window.publish(selected);
+		gap.Context.Generation = core::request_generation{ 6U };
+		window.publish(gap);
+		window.publish(application::workbench_projection{
+			.Context   = { .Request = core::request_id{ 11U }, .Session = gap.Context.Session, .Generation = gap.Context.Generation },
+			.Selection = core::workbench_selection_delta{ .Cursor = core::workbench_navigation_cursor{ } },
+		});
+		expect(!window.conversation_panel()->anchor_file().has_value() && window.conversation_panel()->cards()->thread_count() == 1000U,
+			   "successful empty observation's engaged empty cursor releases visual scope even without a changed Files domain");
+		selected.Context.Generation = core::request_generation{ 6U };
+		window.publish(selected);
+		gap.Context.Generation = core::request_generation{ 7U };
+		window.publish(gap);
+		observed.Context.Generation = gap.Context.Generation;
+		observed.Files              = std::vector{ application::workbench_file_projection{ .File = core::file_identity_of("src/other.cpp"), .Path = "src/other.cpp" } };
+		window.publish(observed);
+		expect(!window.conversation_panel()->anchor_file().has_value() && window.conversation_panel()->cards()->thread_count() == 1000U,
+			   "observation removing the prior file releases its visual anchor immediately");
+	}
+
 	void test_failed_replacement_keeps_conversations_on_the_requested_file()
 	{
 		const auto           fileA = core::file_identity_of("src/a.cpp");
@@ -6222,6 +6312,53 @@ namespace {
 		window.hide();
 	}
 
+	void test_identical_overview_skips_rebuild_but_restores_cleared_files()
+	{
+		qt::workbench_window window;
+		auto                 overview = application::pull_request_overview_projection{ .Title = "Overview" };
+		for (auto index = 0; index < 515; ++index) {
+			const auto name = "file-" + std::to_string(index) + ".cpp";
+			overview.Files.push_back(application::overview_file_row{ .Path = "src/" + name, .Folder = "src", .Name = name });
+		}
+		auto pageResets = 0;
+		auto treeResets = 0;
+		QObject::connect(window.overview_page()->file_model(), &QAbstractItemModel::modelReset, [&pageResets] { ++pageResets; });
+		QObject::connect(window.files_tree()->tree_model(), &QAbstractItemModel::modelReset, [&treeResets] { ++treeResets; });
+		window.publish(overview);
+		const auto firstPageResets = pageResets;
+		const auto firstTreeResets = treeResets;
+		expect(firstPageResets > 0 && firstTreeResets > 0, "initial overview projects both real file models");
+		for (auto repeat = 0; repeat < 5; ++repeat) {
+			window.publish(overview);
+		}
+		expect(pageResets == firstPageResets && treeResets == firstTreeResets,
+			   "equal 515-file overviews rebuild neither page nor drawer tree");
+		overview.Title                     = "Changed overview";
+		overview.Files.front().ThreadCount = 7U;
+		window.publish(overview);
+		const auto firstFile = core::file_identity_of(overview.Files.front().Path);
+		expect(window.overview_page()->title_label()->text() == QStringLiteral("Changed overview")
+				   && window.files_tree()->tree_model()->index_for_file(firstFile).data(qt::files_tree_model::thread_count_role).toULongLong() == 7U,
+			   "changed overview updates visible title and per-file facts");
+		window.publish(application::workbench_projection{ .Files = std::vector<application::workbench_file_projection>{ } });
+		expect(!window.files_tree()->tree_model()->index_for_file(firstFile).isValid(), "observation gap clears the drawer rows");
+		const auto beforeFallbackPageResets = pageResets;
+		const auto beforeFallbackTreeResets = treeResets;
+		window.publish(overview);
+		expect(pageResets == beforeFallbackPageResets && treeResets > beforeFallbackTreeResets
+				   && window.files_tree()->tree_model()->index_for_file(firstFile).isValid()
+				   && window.files_tree()->tree_model()->index_for_file(firstFile).data(qt::files_tree_model::thread_count_role).toULongLong() == 7U,
+			   "equal overview restores cleared fallback rows and facts without rebuilding its unchanged page");
+		window.clear_overview();
+		const auto beforeReopen = pageResets;
+		window.publish(overview);
+		expect(pageResets > beforeReopen && window.overview_page()->presented(), "clear then identical reopen projects the overview again");
+		window.publish(application::github_presentation_update{ .Transition = application::github_transition_projection{ .PullRequest = core::pull_request_summary_delta{ } } });
+		const auto beforeAuthority = pageResets;
+		window.publish(overview);
+		expect(pageResets > beforeAuthority, "authority clear does not suppress the next PR's identical visible overview");
+	}
+
 	void test_overview_shows_the_decided_page_and_continue_enters_read()
 	{
 		// [[BPR-0647]]. The Overview modality shows the host-decided overview in
@@ -6528,6 +6665,7 @@ auto main(int argc, char** argv) -> int
 	test_conversation_selection_reveals_exact_diff_anchor();
 	test_conversation_line_outside_selected_comparison_is_explicit();
 	test_failed_replacement_keeps_conversations_on_the_requested_file();
+	test_refresh_gap_retains_only_visual_conversation_scope();
 	test_composed_ribbons_follow_the_group_model_through_scroll_and_resize();
 	test_the_lower_detail_pane_is_full_width_line_over_line();
 	test_composed_epoch_selectors_show_exact_retained_epochs();
@@ -6554,6 +6692,7 @@ auto main(int argc, char** argv) -> int
 	test_large_queue_filters_through_the_composed_window();
 	test_repositories_drawer_toggles_through_the_core_and_collapses_to_a_rail();
 	test_overview_shows_the_decided_page_and_continue_enters_read();
+	test_identical_overview_skips_rebuild_but_restores_cleared_files();
 	test_overview_refuses_a_hand_opened_drawer_and_says_so();
 	test_a_large_file_leaves_the_widget_count_bounded();
 	std::cout << "workbench-window-tests:pass\n";

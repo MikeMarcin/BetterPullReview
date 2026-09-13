@@ -378,6 +378,164 @@ namespace {
 		view.hide();
 	}
 
+	auto test_cached_geometry_matches_a_fresh_view() -> void
+	{
+		auto projection = std::vector<conversation>{
+			thread("first", "src/a.cpp", 1U),
+			reply("p1", "first", "author", "Original post"),
+			thread("second", "src/a.cpp", 2U),
+			reply("p2", "second", "reviewer", "Another post"),
+		};
+		auto                        state      = std::vector<qt::thread_read_state>{ };
+		auto                        draft      = std::optional<core::review_comment_draft>{ };
+		const auto                  comparison = core::file_comparison_digest{ };
+		auto                        width      = 420;
+		qt::conversation_cards_view cached;
+		auto                        font      = cached.font();
+		const auto                  configure = [&](qt::conversation_cards_view& aView) {
+			aView.resize(width, 900);
+			aView.setFont(font);
+			aView.set_resolution_offered(true);
+			aView.set_read_state(state);
+			aView.set_draft(draft, comparison);
+			aView.adopt(projection);
+			aView.show();
+		};
+		const auto verify = [&] {
+			configure(cached);
+			qt::conversation_cards_view fresh;
+			configure(fresh);
+			QApplication::processEvents();
+			expect(cached.cards().size() == fresh.cards().size(), "cached and fresh views have the same card count");
+			for (std::size_t index = 0U; index < fresh.cards().size(); ++index) {
+				const auto& actual   = cached.cards()[index];
+				const auto& expected = fresh.cards()[index];
+				expect(actual.Id == expected.Id && actual.Rect == expected.Rect && actual.Actions == expected.Actions
+						   && actual.Posts.size() == expected.Posts.size(),
+					   "cached card geometry and actions match an independently constructed view");
+				for (std::size_t post = 0U; post < expected.Posts.size(); ++post) {
+					expect(actual.Posts[post].Id == expected.Posts[post].Id && actual.Posts[post].Body == expected.Posts[post].Body
+							   && actual.Posts[post].Rect == expected.Posts[post].Rect,
+						   "cached post content and hit geometry match fresh measurement");
+				}
+			}
+		};
+		verify();
+		projection[1].Body = std::string(350U, 'W');
+		verify();
+		projection.push_back(reply("new-reply", "first", "reviewer", "A new reply takes another row."));
+		verify();
+		state = { qt::thread_read_state{ .Thread = "first", .UnreadPosts = { "p1" } } };
+		verify();
+		projection.front().Resolved = true;
+		verify();
+		draft = core::review_comment_draft{ .Anchor = core::source_line_ref{ .Comparison = comparison }, .Body = "Draft text" };
+		verify();
+		draft->Body = std::string(200U, 'M');
+		verify();
+		width = 300;
+		verify();
+		font.setPointSizeF(font.pointSizeF() + 2.0);
+		verify();
+		auto styleChange = QEvent{ QEvent::StyleChange };
+		QApplication::sendEvent(&cached, &styleChange);
+		verify();
+		std::erase_if(projection, [](const conversation& aNode) { return aNode.Id == "second" || aNode.Id == "p2"; });
+		verify();
+		draft.reset();
+		state.clear();
+		verify();
+	}
+
+	auto test_feed_geometry_refresh_updates_excerpts() -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(420, 900);
+		auto excerpt = QStringLiteral("old code");
+		view.set_excerpt_locator([&excerpt](const QString&, core::diff_side, std::uint32_t) -> std::optional<QString> {
+			return excerpt.isEmpty() ? std::nullopt : std::optional{ excerpt };
+		});
+		view.set_feed(true);
+		view.adopt({ thread("t", "src/a.cpp", 1U), reply("p", "t", "author", "post") });
+		view.set_current_thread("t");
+		excerpt = QStringLiteral("new code\nsecond line\nthird line");
+		view.refresh_geometry();
+		const auto changed = view.cards().front();
+		view.relayout();
+		expect(changed.Excerpt == excerpt && changed.Rect == view.cards().front().Rect
+				   && changed.Posts.front().Rect == view.cards().front().Posts.front().Rect
+				   && changed.Actions == view.cards().front().Actions && view.current_thread() == "t",
+			   "changed feed excerpts preserve selection and match full text and action geometry");
+		excerpt.clear();
+		view.refresh_geometry();
+		expect(view.cards().front().Excerpt.isEmpty() && view.cards().front().Rect.height() < changed.Rect.height(),
+			   "unavailable comparison removes the previous excerpt and its height");
+	}
+
+	auto test_unchanged_refresh_retains_measured_cards() -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(400, 600);
+		view.show();
+		QApplication::processEvents();
+		auto projection = std::vector<conversation>{ };
+		for (auto index = 0; index < 1000; ++index) {
+			const auto id = std::to_string(index);
+			projection.push_back(thread("t" + id, "src/a.cpp", static_cast<std::uint32_t>(index + 1)));
+			projection.push_back(reply("p" + id, "t" + id, "author", "A retained post whose text measurement must survive refresh."));
+		}
+		view.adopt(projection, core::file_identity_of("src/a.cpp"));
+		view.set_current_thread("p10");
+		QApplication::processEvents();
+		const auto  layouts = view.layouts();
+		const auto* posts   = view.cards().front().Posts.data();
+		for (auto refresh = 0; refresh < 10; ++refresh) {
+			view.adopt(projection);
+			view.refresh_geometry();
+		}
+		expect(view.layouts() == layouts && view.cards().front().Posts.data() == posts
+				   && view.post_count() == 1000U && view.current_thread() == "t10",
+			   "unchanged thousand-thread refreshes retain measurements, post storage and selection");
+		const auto measurements = view.measurements();
+		for (auto refresh = 0; refresh < 10; ++refresh) {
+			view.set_anchor_file(std::nullopt);
+			view.set_anchor_file(core::file_identity_of("src/a.cpp"));
+		}
+		expect(view.measurements() == measurements && view.post_count() == 1000U && view.current_thread() == "t10",
+			   "temporary anchor clear and restore reuse all thousand retained card measurements");
+		projection.front().OriginalLine = 99U;
+		view.adopt(projection);
+		expect(view.measurements() == measurements, "a changed snapshot with identical measurement inputs shapes no text");
+		const auto layoutsBeforeContent = view.layouts();
+		projection[1].Body              = "Changed post";
+		view.adopt(projection);
+		expect(view.layouts() == layoutsBeforeContent + 1U && view.cards().front().Posts.front().Body == QStringLiteral("Changed post"),
+			   "a changed post rebuilds its visible content");
+		expect(view.measurements() == measurements + 1U, "one changed post remeasures exactly its one card");
+		const auto removedPost = projection.back();
+		projection.pop_back();
+		const auto removedRoot = projection.back();
+		projection.pop_back();
+		view.adopt(projection);
+		const auto beforeRestore = view.measurements();
+		projection.push_back(removedRoot);
+		projection.push_back(removedPost);
+		view.adopt(projection);
+		expect(view.measurements() == beforeRestore + 1U, "a removed root releases its cache entry before the same identity returns");
+		view.set_viewer_login(QStringLiteral("author"));
+		view.adopt(projection);
+		expect(view.cards().front().Posts.front().Mine, "viewer changes survive an unchanged projection");
+		const auto beforeClear = view.measurements();
+		view.clear();
+		view.adopt(projection);
+		expect(view.measurements() > beforeClear, "authority clear releases the previous measurement cache");
+		const auto beforeFont = view.measurements();
+		auto       larger     = view.font();
+		larger.setPointSizeF(larger.pointSizeF() + 2.0);
+		view.setFont(larger);
+		expect(view.measurements() > beforeFont, "font changes invalidate cached text measurements");
+	}
+
 	auto test_cards_sit_at_their_lines_and_never_overlap() -> void
 	{
 		qt::conversation_cards_view view;
@@ -419,10 +577,25 @@ namespace {
 		expect(cards[3].Rect.top() >= cards[2].Rect.bottom(), "the unplaced card follows the last placed one");
 
 		// The comparison scrolls: the lines move, the cards follow.
-		lineY = { { 10U, 40 }, { 12U, 70 }, { 40U, 440 } };
-		view.relayout();
+		lineY                          = { { 10U, 40 }, { 12U, 70 }, { 40U, 440 } };
+		const auto layoutsBeforeScroll = view.layouts();
+		view.refresh_geometry();
+		expect(view.layouts() == layoutsBeforeScroll, "scrolling retains the forest and measured text");
 		expect(view.cards()[0].Rect.top() == 40 && view.cards()[2].Rect.top() == 440 && !overlapping(view.cards()),
 			   "relaying against moved lines moves the cards with them");
+
+		const auto movedPosts   = view.cards()[0].Posts;
+		const auto movedActions = view.cards()[0].Actions;
+		view.relayout();
+		expect(view.cards()[0].Posts.front().Rect == movedPosts.front().Rect
+				   && view.cards()[0].Actions == movedActions,
+			   "cached placement has the same post and action hit targets as a full layout");
+		lineY.clear();
+		view.refresh_geometry();
+		expect(std::ranges::none_of(view.cards(), [](const qt::thread_card& aCard) { return aCard.Placed; }),
+			   "invalidated comparison geometry withdraws every placed card");
+		lineY = { { 10U, 40 }, { 12U, 70 }, { 40U, 440 } };
+		view.refresh_geometry();
 
 		// Whole PR: every thread in file order, under its path.
 		view.set_scope(qt::cards_scope::whole_pull_request);
@@ -474,6 +647,15 @@ namespace {
 				   && draft->Actions[2].first == qt::card_action::delete_draft && !overlapping(view.cards()),
 			   "the draft is a card at its one-based line with Publish, Edit and Delete");
 		expect(view.post_count() == 5U, "the draft is not counted as a post");
+		lineY = { { 10U, 200 }, { 12U, 200 }, { 40U, 200 } };
+		view.refresh_geometry();
+		const auto cached = view.cards();
+		view.relayout();
+		for (std::size_t index = 0U; index < cached.size(); ++index) {
+			expect(cached[index].Id == view.cards()[index].Id && cached[index].Draft == view.cards()[index].Draft
+					   && cached[index].Rect == view.cards()[index].Rect && cached[index].Actions == view.cards()[index].Actions,
+				   "coincident line positions keep the original projection order and draft action geometry");
+		}
 		view.set_draft(std::nullopt, std::nullopt);
 		expect(std::ranges::none_of(view.cards(), [](const qt::thread_card& aCard) { return aCard.Draft; }),
 			   "without a draft there is no draft card");
@@ -490,6 +672,9 @@ auto main(int argc, char** argv) -> int
 	test_read_state_marks_unread_posts_and_offers_mark_read();
 	test_the_feed_heads_posts_excerpts_code_and_filters();
 	test_cards_sit_at_their_lines_and_never_overlap();
+	test_unchanged_refresh_retains_measured_cards();
+	test_feed_geometry_refresh_updates_excerpts();
+	test_cached_geometry_matches_a_fresh_view();
 	std::cout << "conversation-cards-view-tests:pass\n";
 	return EXIT_SUCCESS;
 }

@@ -8,6 +8,7 @@
 #include <ranges>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -203,14 +204,9 @@ namespace bpr::application {
 		}
 
 		// Threads, per file and mine.
-		auto factsByPath = std::vector<std::pair<std::string, thread_facts>>{ };
+		auto factsByPath = std::unordered_map<std::string_view, thread_facts>{ };
 		auto factsFor    = [&factsByPath](const std::string& aPath) -> thread_facts& {
-			const auto found = std::ranges::find(factsByPath, aPath, &std::pair<std::string, thread_facts>::first);
-			if (found != factsByPath.end()) {
-				return found->second;
-			}
-			factsByPath.emplace_back(aPath, thread_facts{ });
-			return factsByPath.back().second;
+			return factsByPath[std::string_view{ aPath }];
 		};
 		auto roster = participant_roster{ viewer };
 		roster.place(projection.AuthorLogin, overview_participant_role::author, overview_signoff::uploaded);
@@ -323,7 +319,7 @@ namespace bpr::application {
 					++projection.Progress.FilesRead;
 				}
 			}
-			const auto facts = std::ranges::find(factsByPath, file.Path, &std::pair<std::string, thread_facts>::first);
+			const auto facts = factsByPath.find(std::string_view{ file.Path });
 			if (facts != factsByPath.end()) {
 				row.ThreadCount           = facts->second.Threads;
 				row.UnresolvedThreadCount = facts->second.Unresolved;

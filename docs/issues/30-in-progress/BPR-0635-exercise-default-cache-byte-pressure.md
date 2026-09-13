@@ -138,5 +138,37 @@ checks passed as above; the same serial run's history failure remains binding.
 The documentation gate (`build/bpr0635-documentation-final.log`), its 64
 behavior tests (`build/bpr0635-documentation-tests-final.log`), network-isolation
 manifest (`build/bpr0635-isolation-final.log`), project formatting check
-(`build/bpr0635-format-final.log`) and scoped `git diff --check` pass. BPR-0635
-stays In Progress with no approved Done acceptance decision.
+(`build/bpr0635-format-final.log`) and scoped `git diff --check` pass. At d1,
+BPR-0635 remained In Progress with no approved Done acceptance decision.
+
+## D2 integrated preservation result
+
+The renewed plan binds this card with BPR-0751's product projection repair at
+`assignment-rfc0013-r1-d2.json`. The prior failed history course remains a
+historical failure, not accepted evidence. After the bounded Qt/application
+repair, the unchanged 32-epoch public history course passes 1/1 in 307.47s
+(`build/rfc0013-d2-history-indexed-overview.log`): all 31 refresh timer gaps
+are 64.617–91.147 ms under the unchanged 100-ms limit, every refresh finishes
+under 8.422s against 12s, and all 32 source selections finish under 0.952s
+against 2s. It verifies 32 exact heads, 929 account reads, 32 retained
+Git/catalog pairs, 31 rapid selections (30 during outstanding work), and zero
+history-model resets. The byte-pressure course passes again in 333.17s
+(`build/rfc0013-d2-byte-post-projection.log`): 20 public keys admit 70,353,760
+bytes, the first weak raw diff/index owners expire before 64 entries, B remains
+exact while A is outstanding, revisited A rematerializes exactly, and
+drain/destruction release watched owners with all stored pairs intact.
+Sampled physical-footprint growth after drain is 147.750 MiB against 160 MiB,
+and after destruction is 40.313 MiB against 96 MiB; retained RSS is reported
+separately in `build/dev/tests/end_to_end/large-review-cache-bytes.json`.
+
+The affected entry-pressure, loaded-close and prune/delete resource courses
+pass 3/3 (`build/rfc0013-d2-preserved-public-courses.log`). The deterministic
+fixture session-race and direct replay checks remain valid because their
+fixture/transport source has not changed since the d1 pass. Focused Qt tests
+pass 8/8 and overview tests pass 3/3; formatting, scoped tidy, documentation,
+documentation behavior, board validation and diff checks pass at this d2
+candidate. Independent review found no demonstrated code blocker in the
+projection/index repair. The Mac-only, synthetic, network-isolated acceptance
+does not establish Windows/Linux or RFC-wide closure. BPR-0751 separately
+retains an unresolved historical-attribution criterion; it does not turn a
+passed current history gate into historical proof.

@@ -417,35 +417,46 @@ namespace bpr::qt {
 				aConversations,
 		QString aAvailabilityText)
 	{
-		// Captured before the model changes. Restoring by identity rather than
-		// by row is what keeps a reviewer on the comment they were reading when
-		// a reply lands above it.
-		const auto selected = Model->id_for_index(View->currentIndex());
-
-		Retained             = aConversations;
-		RetainedAvailability = aAvailabilityText;
 		AvailabilityLabel->setText(std::move(aAvailabilityText));
-		auto shown = AnchorFile.has_value() || AnchorLine.has_value()
+		if (Retained == aConversations) {
+			show_loaded_page();
+			synchronize_map_focus();
+			return;
+		}
+		Retained = aConversations;
+		refresh_projection();
+	}
+
+	void github_conversation_panel::refresh_projection()
+	{
+		// Restoring by identity keeps the reviewer on the same reply.
+		const auto selected = Model->id_for_index(View->currentIndex());
+		auto       shown    = AnchorFile.has_value() || AnchorLine.has_value()
 			? anchored_to(
-				  aConversations,
+				  Retained,
 				  AnchorFile,
 				  AnchorLine,
 				  LeftHasCurrentDiffRevision,
 				  RightHasCurrentDiffRevision)
-			: aConversations;
-		shown      = with_endpoint_placement(
+			: Retained;
+		shown               = with_endpoint_placement(
 			std::move(shown),
 			LeftHasCurrentDiffRevision,
 			RightHasCurrentDiffRevision);
-		Model->apply(shown);
-		ThreadMap->adopt(shown);
-		Cards->set_anchor_file(AnchorFile);
-		Cards->adopt(Retained);
+		Cards->adopt(Retained, AnchorFile);
+		if (Shown == shown) {
+			show_loaded_page();
+			synchronize_map_focus();
+			return;
+		}
+		Shown = std::move(shown);
+		Model->apply(Shown);
+		ThreadMap->adopt(Shown);
 		ThreadMapSummary->setText(ThreadMap->summary_text());
-		HasThreads = !shown.empty();
+		HasThreads = !Shown.empty();
 		show_loaded_page();
 		View->doItemsLayout();
-		if (ExpandOnNextProjection && !shown.empty()) {
+		if (ExpandOnNextProjection && !Shown.empty()) {
 			View->expandAll();
 			ExpandOnNextProjection = false;
 		}
@@ -468,7 +479,7 @@ namespace bpr::qt {
 	{
 		ExpandOnNextProjection = true;
 		Retained.clear();
-		RetainedAvailability.clear();
+		Shown.clear();
 		AvailabilityLabel->setText(std::move(aAvailabilityText));
 		Model->clear();
 		ThreadMap->clear();
@@ -573,18 +584,7 @@ namespace bpr::qt {
 			return;
 		}
 		AnchorFile = std::move(aFile);
-		// Re-filtered from what was retained rather than waiting for the next
-		// projection. Moving between files is a reviewer gesture and the
-		// drawer has to follow it, not follow the network.
-		if (!Retained.empty()) {
-			// Copied deliberately. Passing `Retained` straight back in would
-			// make `adopt`'s first act a self-assignment, which is legal and
-			// still the kind of thing that becomes a defect the moment someone
-			// adds a clear() to the top of it.
-			const auto retained     = Retained;
-			const auto availability = RetainedAvailability;
-			adopt(retained, availability);
-		}
+		refresh_projection();
 	}
 
 	void github_conversation_panel::set_anchor_line(
@@ -594,11 +594,7 @@ namespace bpr::qt {
 			return;
 		}
 		AnchorLine = std::move(aLine);
-		if (!Retained.empty()) {
-			const auto retained     = Retained;
-			const auto availability = RetainedAvailability;
-			adopt(retained, availability);
-		}
+		refresh_projection();
 	}
 
 	void github_conversation_panel::set_current_endpoint_placement(
@@ -611,11 +607,7 @@ namespace bpr::qt {
 		}
 		LeftHasCurrentDiffRevision  = aLeftHasCurrentDiffRevision;
 		RightHasCurrentDiffRevision = aRightHasCurrentDiffRevision;
-		if (!Retained.empty()) {
-			const auto retained     = Retained;
-			const auto availability = RetainedAvailability;
-			adopt(retained, availability);
-		}
+		refresh_projection();
 	}
 
 	auto github_conversation_panel::anchor_file() const noexcept

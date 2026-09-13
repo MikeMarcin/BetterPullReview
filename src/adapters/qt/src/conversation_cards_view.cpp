@@ -15,12 +15,15 @@
 #include <cstddef>
 #include <map>
 #include <optional>
+#include <set>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
 namespace bpr::qt {
 	namespace {
+
 		constexpr int card_margin     = 8;
 		constexpr int card_padding    = 10;
 		constexpr int card_gap        = 8;
@@ -123,12 +126,37 @@ namespace bpr::qt {
 	void conversation_cards_view::adopt(
 		const std::vector<application::github_conversation_projection>& aConversations)
 	{
-		Retained = aConversations;
+		adopt(aConversations, AnchorFile);
+	}
+
+	void conversation_cards_view::adopt(
+		const std::vector<application::github_conversation_projection>& aConversations,
+		std::optional<core::file_identity>                              aFile)
+	{
+		if (Retained == aConversations && AnchorFile == aFile) {
+			return;
+		}
+		if (Retained != aConversations) {
+			// A changed snapshot need not change any text. Retain rectangles only
+			// for still-present roots; each use validates exact measurement inputs.
+			auto roots = std::set<std::string>{ };
+			for (const auto& node : aConversations) {
+				if (node.Kind == application::github_conversation_kind::review_thread && !node.ParentId.has_value()) {
+					roots.insert(node.Id);
+				}
+			}
+			std::erase_if(Measurements, [&roots, this](const auto& aEntry) {
+				return !roots.contains(aEntry.first) && !(aEntry.first.empty() && Draft.has_value());
+			});
+			Retained = aConversations;
+		}
+		AnchorFile = std::move(aFile);
 		relayout();
 	}
 
 	void conversation_cards_view::clear()
 	{
+		Measurements.clear();
 		Retained.clear();
 		Draft.reset();
 		Current.clear();
@@ -171,6 +199,9 @@ namespace bpr::qt {
 		if (Draft == aDraft && CurrentComparison == aCurrentComparison) {
 			return;
 		}
+		if (!aDraft.has_value()) {
+			Measurements.erase(std::string{ });
+		}
 		Draft             = std::move(aDraft);
 		CurrentComparison = std::move(aCurrentComparison);
 		relayout();
@@ -178,8 +209,11 @@ namespace bpr::qt {
 
 	void conversation_cards_view::set_viewer_login(const QString& aLogin)
 	{
+		if (Viewer == aLogin) {
+			return;
+		}
 		Viewer = aLogin;
-		viewport()->update();
+		relayout();
 	}
 
 	void conversation_cards_view::set_thread_dispatch(card_thread_dispatch aDispatch)
@@ -501,6 +535,52 @@ namespace bpr::qt {
 		return copy.Rect.height();
 	}
 
+	auto conversation_cards_view::measurements() const noexcept -> std::uint64_t
+	{
+		return MeasurementCount;
+	}
+
+	void conversation_cards_view::measure_cached(thread_card& aCard, const int aWidth)
+	{
+		if (MeasurementFont != font() || MeasurementWidth != aWidth
+			|| MeasurementFeed != Feed || MeasurementResolutionOffered != ResolutionOffered) {
+			Measurements.clear();
+			MeasurementFont              = font();
+			MeasurementWidth             = aWidth;
+			MeasurementFeed              = Feed;
+			MeasurementResolutionOffered = ResolutionOffered;
+		}
+		const auto cached = Measurements.find(aCard.Id);
+		const auto header = aCard.Resolved || aCard.Outdated || aCard.Draft;
+		if (cached != Measurements.end() && cached->second.Excerpt == aCard.Excerpt
+			&& cached->second.Header == header && cached->second.Draft == aCard.Draft
+			&& cached->second.Resolved == aCard.Resolved && cached->second.Unread == (aCard.UnreadCount > 0U)
+			&& std::ranges::equal(cached->second.Bodies, aCard.Posts, { }, std::identity{ }, &card_post::Body)) {
+			aCard.Rect.setHeight(cached->second.Height);
+			for (std::size_t index = 0U; index < aCard.Posts.size(); ++index) {
+				aCard.Posts[index].Rect = cached->second.Posts[index];
+			}
+			aCard.Actions = cached->second.Actions;
+			return;
+		}
+		measure(aCard, aWidth);
+		++MeasurementCount;
+		auto measured = measured_card{
+			.Excerpt  = aCard.Excerpt,
+			.Header   = header,
+			.Draft    = aCard.Draft,
+			.Resolved = aCard.Resolved,
+			.Unread   = aCard.UnreadCount > 0U,
+			.Height   = aCard.Rect.height(),
+			.Actions  = aCard.Actions,
+		};
+		for (const auto& post : aCard.Posts) {
+			measured.Bodies.push_back(post.Body);
+			measured.Posts.push_back(post.Rect);
+		}
+		Measurements.insert_or_assign(aCard.Id, std::move(measured));
+	}
+
 	void conversation_cards_view::relayout()
 	{
 		++Layouts;
@@ -628,12 +708,66 @@ namespace bpr::qt {
 			Cards.push_back(std::move(card));
 		}
 
-		const auto width  = std::max(120, viewport()->width());
-		const auto scroll = verticalScrollBar()->value();
+		const auto width = std::max(120, viewport()->width());
+		auto       order = std::size_t{ 0U };
 		for (auto& card : Cards) {
-			card.Rect = QRect{ card_margin, 0, width - 2 * card_margin, 0 };
-			measure(card, width - 2 * card_margin);
-			card.Placed = false;
+			card.ProjectionOrder = order++;
+			card.Rect            = QRect{ card_margin, 0, width - 2 * card_margin, 0 };
+			measure_cached(card, width - 2 * card_margin);
+			for (auto& post : card.Posts) {
+				post.Rect.translate(card.Rect.left(), 0);
+			}
+			for (auto& [action, rect] : card.Actions) {
+				rect.translate(card.Rect.left(), 0);
+			}
+		}
+		place_cards(true);
+		if (LayoutObserver) {
+			LayoutObserver();
+		}
+		setAccessibleDescription(QStringLiteral(
+									 "%1 threads as cards, %2 posts, %3 unread; Up and Down move between them, Return reveals the line")
+									 .arg(Cards.size() - (Draft.has_value() ? 1U : 0U))
+									 .arg(post_count())
+									 .arg(unread_post_count()));
+	}
+
+	void conversation_cards_view::refresh_geometry()
+	{
+		// Comparison frames can change line positions and feed excerpts without
+		// changing a single conversation. Keep their forest and text measurements.
+		auto changed = false;
+		if (Feed && ExcerptLocator) {
+			for (auto& card : Cards) {
+				if (card.Draft || !card.Side.has_value() || !card.Line.has_value() || *card.Line == 0U) {
+					continue;
+				}
+				auto excerpt = ExcerptLocator(card.Path, *card.Side, *card.Line).value_or(QString{ });
+				if (card.Excerpt == excerpt) {
+					continue;
+				}
+				changed      = true;
+				card.Excerpt = std::move(excerpt);
+				measure_cached(card, card.Rect.width());
+				for (auto& post : card.Posts) {
+					post.Rect.translate(card.Rect.topLeft());
+				}
+				for (auto& [action, rect] : card.Actions) {
+					rect.translate(card.Rect.topLeft());
+				}
+			}
+		}
+		place_cards(changed);
+	}
+
+	void conversation_cards_view::place_cards(const bool aForce)
+	{
+		const auto scroll  = verticalScrollBar()->value();
+		auto       changed = aForce;
+		for (auto& card : Cards) {
+			const auto wasPlaced = card.Placed;
+			const auto targetY   = card.TargetY;
+			card.Placed          = false;
 			// The feed is a list in file order, never placed at lines.
 			if (!Feed && Scope == cards_scope::this_file && Locator && card.Side.has_value()
 				&& card.Line.has_value() && *card.Line > 0U && !card.Outdated) {
@@ -642,21 +776,26 @@ namespace bpr::qt {
 					card.TargetY = *y + scroll;
 				}
 			}
+			changed = changed || wasPlaced != card.Placed || (card.Placed && targetY != card.TargetY);
+		}
+		if (!changed) {
+			return;
 		}
 		// Placed cards in line order, then the rest; whole PR in file order.
 		std::ranges::stable_sort(Cards, [this](const thread_card& aLeft, const thread_card& aRight) {
 			if (Feed || Scope == cards_scope::whole_pull_request) {
-				return std::pair{ aLeft.Path, aLeft.Line.value_or(0U) }
-				< std::pair{ aRight.Path, aRight.Line.value_or(0U) };
+				return std::tuple{ aLeft.Path, aLeft.Line.value_or(0U), aLeft.ProjectionOrder }
+				< std::tuple{ aRight.Path, aRight.Line.value_or(0U), aRight.ProjectionOrder };
 			}
 			if (aLeft.Placed != aRight.Placed) {
 				return aLeft.Placed;
 			}
 			if (aLeft.Placed) {
-				return aLeft.TargetY < aRight.TargetY;
+				return std::pair{ aLeft.TargetY, aLeft.ProjectionOrder }
+				< std::pair{ aRight.TargetY, aRight.ProjectionOrder };
 			}
-			return std::pair{ aLeft.Path, aLeft.Line.value_or(0U) }
-			< std::pair{ aRight.Path, aRight.Line.value_or(0U) };
+			return std::tuple{ aLeft.Path, aLeft.Line.value_or(0U), aLeft.ProjectionOrder }
+			< std::tuple{ aRight.Path, aRight.Line.value_or(0U), aRight.ProjectionOrder };
 		});
 		auto bottom   = card_margin / 2;
 		auto lastPath = QString{ };
@@ -670,27 +809,29 @@ namespace bpr::qt {
 				// At its line, or beneath the card above: never over it.
 				top = std::max(top, card.TargetY);
 			}
+			const auto offset = top - card.Rect.top();
 			card.Rect.moveTop(top);
 			for (auto& post : card.Posts) {
-				post.Rect.translate(card.Rect.left(), top);
+				post.Rect.translate(0, offset);
 			}
 			for (auto& [action, rect] : card.Actions) {
-				rect.translate(card.Rect.left(), top);
+				rect.translate(0, offset);
 			}
 			bottom = card.Rect.bottom();
 		}
 		ContentHeight = bottom + card_margin;
 		verticalScrollBar()->setRange(0, std::max(0, ContentHeight - viewport()->height()));
 		verticalScrollBar()->setPageStep(viewport()->height());
-		if (LayoutObserver) {
-			LayoutObserver();
-		}
-		setAccessibleDescription(QStringLiteral(
-									 "%1 threads as cards, %2 posts, %3 unread; Up and Down move between them, Return reveals the line")
-									 .arg(Cards.size() - (Draft.has_value() ? 1U : 0U))
-									 .arg(post_count())
-									 .arg(unread_post_count()));
 		viewport()->update();
+	}
+
+	void conversation_cards_view::changeEvent(QEvent* const aEvent)
+	{
+		QAbstractScrollArea::changeEvent(aEvent);
+		if (aEvent->type() == QEvent::FontChange || aEvent->type() == QEvent::StyleChange) {
+			Measurements.clear();
+			relayout();
+		}
 	}
 
 	void conversation_cards_view::paintEvent(QPaintEvent* const aEvent)

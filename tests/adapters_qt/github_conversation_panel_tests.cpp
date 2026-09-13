@@ -291,6 +291,51 @@ namespace {
 	}
 
 	/// \brief Changing the anchor re-filters without another projection.
+	auto test_anchor_round_trip_preserves_identical_projection() -> void
+	{
+		qt::github_conversation_panel panel;
+		const auto                    projection = std::vector{ root("t", "src/a.cpp"), reply("p", "t") };
+		panel.adopt(projection, QStringLiteral("available"));
+		panel.view()->setCurrentIndex(panel.model()->index_for_id("p"));
+		panel.view()->collapse(panel.model()->index_for_id("t"));
+		const auto measurements  = panel.cards()->measurements();
+		const auto mapStatistics = panel.thread_map()->statistics();
+		for (auto refresh = 0; refresh < 4; ++refresh) {
+			panel.set_anchor_file(core::file_identity_of("src/a.cpp"));
+			panel.set_anchor_file(std::nullopt);
+		}
+		expect(panel.cards()->measurements() == measurements
+				   && panel.model()->id_for_index(panel.view()->currentIndex()) == "p"
+				   && !panel.view()->isExpanded(panel.model()->index_for_id("t"))
+				   && panel.cards()->current_thread() == "t",
+			   "equivalent anchor projections retain measurements, selected reply and expansion");
+		expect(panel.thread_map()->statistics().Layouts == mapStatistics.Layouts,
+			   "equivalent anchor projections do not rebuild the thread map");
+		panel.clear(QStringLiteral("stale"));
+		panel.set_anchor_file(core::file_identity_of("src/a.cpp"));
+		expect(panel.model()->rowCount() == 0 && panel.cards()->cards().empty(),
+			   "anchor changes after authority clear cannot restore retained conversations");
+	}
+
+	auto test_anchor_and_unchanged_refresh_measure_cards_once() -> void
+	{
+		qt::github_conversation_panel panel;
+		const auto                    projection = two_files();
+		panel.adopt(projection, QStringLiteral("available"));
+		const auto layouts      = panel.cards()->layouts();
+		const auto measurements = panel.cards()->measurements();
+		panel.set_anchor_file(core::file_identity_of("src/left.cpp"));
+		expect(panel.cards()->layouts() == layouts + 1U && panel.cards()->thread_count() == 1U
+				   && panel.cards()->measurements() == measurements,
+			   "changing the file anchor measures the final card forest only once");
+		panel.view()->setCurrentIndex(panel.model()->index_for_id("left-reply"));
+		panel.adopt(projection, QStringLiteral("updated availability"));
+		expect(panel.cards()->layouts() == layouts + 1U
+				   && panel.model()->id_for_index(panel.view()->currentIndex()) == "left-reply"
+				   && panel.cards()->current_thread() == "left-root",
+			   "unchanged refresh retains card measurements and exact selected reply");
+	}
+
 	auto test_changing_the_anchor_follows_immediately() -> void
 	{
 		qt::github_conversation_panel panel;
@@ -460,6 +505,8 @@ auto main(int argc, char** argv) -> int
 	test_anchoring_keeps_one_file();
 	test_replies_have_no_anchor_of_their_own();
 	test_changing_the_anchor_follows_immediately();
+	test_anchor_and_unchanged_refresh_measure_cards_once();
+	test_anchor_round_trip_preserves_identical_projection();
 	test_a_file_without_threads_is_empty();
 	test_an_orphan_is_kept_by_its_own_anchor();
 	test_exact_source_anchor_filters_file_side_and_line();

@@ -52,3 +52,58 @@ product-path diagnosis from the synthetic byte-pressure fixture/course.
 The authored plan groups this repair with BPR-0635's still-open preserved
 history check. The prior BPR-0635 binding and its failed preservation check
 remain historical; acceptance requires a renewed binding for both cards.
+
+## D2 execution and verification record
+
+The BPR-0632 older-fixture history course reported a 71.247-ms worst refresh
+interval and 897 account reads. BPR-0635's 929-read fixture first failed a
+historical replay prerequisite, so there is no exact numeric pre-BPR-0635 run
+under the same course. The hot GitHub handoff, workbench and Qt conversation
+source files were byte-identical before and after BPR-0635's fixture/course
+commit `1681994a`; the costly product path existed before that commit, while
+the exact 237–255-ms duration was first observable in its changed fixture.
+The lone 2.152s source-selection overrun had an active diff job for 312 sampled
+5-ms pulses versus about 113 on adjacent selections, with a 66-ms maximum UI
+gap. Its deeper scheduling cause is unproven; no subsequent d2 source selection
+exceeded 1.011s. These distinctions limit attribution to observed work rather
+than assigning the isolated worker delay to Qt.
+
+A 25s/5ms main-thread sample (`build/bpr0635-post-lock-sample.txt`) located
+accepted PR handoff, synchronous workbench publication and conversation-card
+layout. A bounded test-only card trace
+(`build/rfc0013-d2-card-diagnostic-command.log`) showed 2,000 retained
+conversation nodes widening from two selected-file cards to 1,000 whole-review
+cards on refresh, then narrowing. The widened adoption missed 998 cached text
+measurements and took about 32 ms; width changes invalidated the measurements
+before the next refresh. A guarded visual anchor keeps the selected-file view
+through the newer-generation observation gap and its engaged, fileless terminal
+only when the exact file remains in the returned file list. Semantic selection
+still clears; explicit same-generation clear, removed/empty results, failure
+and GitHub authority clear release the visual hold. The real sequence was
+captured in `build/rfc0013-d2-guard-diagnostic-command.log` and
+`build/rfc0013-d2-terminal-diagnostic-command.log`; the first guard alone did
+not meet the timer limit, so neither diagnostic is acceptance evidence.
+
+The remaining GUI sample (`build/rfc0013-d2-post-terminal-sample.txt`) led to
+overview attribution: all 25 sampled overview projections after the first
+were exactly equal while each 515-file publication took about 38–45 ms,
+including roughly 6–10 ms of receipt reads, 8 ms of pure projection and 23 ms
+of Qt publication (`build/rfc0013-d2-overview-identity-command.log`). Qt now
+suppresses equal overview page/tree rebuilds but restores file facts after a
+workbench row clear and resets its comparison on authority clear. The pure
+overview projection indexes thread facts by borrowed snapshot path for the
+duration of one call rather than linearly searching every path. Focused Qt
+tests pass 8/8, overview tests pass 3/3, the formatting check passes, and
+independent read-only review found no demonstrated blocker in these changes.
+
+The final uninstrumented, network-isolated Mac history course passes 1/1 in
+307.47s (`build/rfc0013-d2-history-indexed-overview.log`, report
+`build/dev/tests/end_to_end/large-review-history.json`). All 31 refresh timer
+interval maxima are 64.617–91.147 ms under the unchanged 100-ms limit; refresh
+elapsed time stays under 8.422s against 12s. The 32 source selections stay
+under 0.952s against 2s. It reaches all 32 exact heads, 929 account reads,
+32 retained Git/catalog pairs, 31 rapid selections (30 while work is
+outstanding), and zero history-model resets. This is one M4 Pro/48-GiB Mac,
+macOS 26.6.2 arm64, Qt 6.10.3, offscreen/Fusion Debug observation; it does
+not establish a Windows/Linux or universal responsiveness bound. No production
+account, live pull request, remote mutation, credential or push was used.

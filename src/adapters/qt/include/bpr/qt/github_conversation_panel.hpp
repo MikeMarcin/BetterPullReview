@@ -152,6 +152,7 @@ namespace bpr::qt {
 		void synchronize_map_focus();
 		void show_loaded_page();
 		void refresh_summary();
+		void refresh_projection();
 
 		QLabel*                    AvailabilityLabel = nullptr;
 		QToolButton*               RevealButton      = nullptr;
@@ -194,7 +195,7 @@ namespace bpr::qt {
 		/// drawer to follow immediately, and the projection does not arrive
 		/// again just because they scrolled.
 		std::vector<application::github_conversation_projection> Retained;
-		QString                                                  RetainedAvailability;
+		std::vector<application::github_conversation_projection> Shown;
 	};
 } // namespace bpr::qt
 

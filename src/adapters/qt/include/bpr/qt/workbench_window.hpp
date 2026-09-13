@@ -918,20 +918,22 @@ namespace bpr::qt {
 		std::function<void()>                    ManageProfiles;
 		std::function<void()>                    QuitProfiles;
 
-		QAction*                    LineNumbersAction    = nullptr;
-		QAction*                    OnePaneAction        = nullptr;
-		QAction*                    ReviewDetailsAction  = nullptr;
-		QToolButton*                ReviewControlsButton = nullptr;
-		QMenu*                      ReviewControlsMenu   = nullptr;
-		QWidget*                    ToolbarSpacer        = nullptr;
-		QLabel*                     StatusLabel          = nullptr;
-		QWidget*                    ReviewSurface        = nullptr;
-		workbench_central_splitter* CentralSplitter      = nullptr;
-		QWidget*                    CentreSurface        = nullptr;
-		diff_workbench*             ComparisonSurface    = nullptr;
-		pull_request_overview_page* OverviewPage         = nullptr;
-		QStackedWidget*             CentreStack          = nullptr;
-		QWidget*                    ComparisonPage       = nullptr;
+		QAction*                                                     LineNumbersAction    = nullptr;
+		QAction*                                                     OnePaneAction        = nullptr;
+		QAction*                                                     ReviewDetailsAction  = nullptr;
+		QToolButton*                                                 ReviewControlsButton = nullptr;
+		QMenu*                                                       ReviewControlsMenu   = nullptr;
+		QWidget*                                                     ToolbarSpacer        = nullptr;
+		QLabel*                                                      StatusLabel          = nullptr;
+		QWidget*                                                     ReviewSurface        = nullptr;
+		workbench_central_splitter*                                  CentralSplitter      = nullptr;
+		QWidget*                                                     CentreSurface        = nullptr;
+		diff_workbench*                                              ComparisonSurface    = nullptr;
+		pull_request_overview_page*                                  OverviewPage         = nullptr;
+		std::optional<application::pull_request_overview_projection> PresentedOverview;
+		bool                                                         OverviewFileFactsDirty = true;
+		QStackedWidget*                                              CentreStack            = nullptr;
+		QWidget*                                                     ComparisonPage         = nullptr;
 
 		epoch_comparison_control* EpochSelectors = nullptr;
 
@@ -1066,14 +1068,18 @@ namespace bpr::qt {
 		bool                                               PublicPreviewSignedOut = false;
 		bool                                               HasGithubPullRequest   = false;
 		/// [[BPR-0668]]. Whether the comparison gave the drawer any files.
-		bool                                                       FileRowsPresent          = false;
-		bool                                                       ApplyingQueuePreferences = false;
-		core::workbench_command_delta                              Commands;
-		core::workbench_drawer_delta                               DrawerStates;
-		core::workbench_line_numbers_delta                         LineNumberState;
-		core::workbench_one_pane_delta                             OnePaneState;
-		std::optional<application::workbench_layout_delta>         LayoutWidths;
-		std::optional<core::workbench_navigation_cursor>           Cursor;
+		bool                                                  FileRowsPresent          = false;
+		bool                                                  ApplyingQueuePreferences = false;
+		core::workbench_command_delta                         Commands;
+		core::workbench_drawer_delta                          DrawerStates;
+		core::workbench_line_numbers_delta                    LineNumberState;
+		core::workbench_one_pane_delta                        OnePaneState;
+		std::optional<application::workbench_layout_delta>    LayoutWidths;
+		std::optional<core::workbench_navigation_cursor>      Cursor;
+		std::optional<application::workbench_request_context> LastWorkbenchContext;
+		/// Visual scope during a same-session observation gap; never a selection.
+		std::optional<core::file_identity>                         RefreshConversationAnchor;
+		std::optional<application::workbench_request_context>      RefreshConversationContext;
 		std::optional<application::workbench_host_failure>         Failure;
 		std::optional<application::file_receipt_action_projection> Receipt;
 		std::optional<application::receipt_failure_publication>    ReceiptFailure;

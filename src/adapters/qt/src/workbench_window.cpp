@@ -1,5 +1,6 @@
-#include "bpr/qt/workbench_window.hpp"
 #include "bpr/qt/github_thread_map.hpp"
+
+#include "bpr/qt/workbench_window.hpp"
 
 #include "github_presentation_text.hpp"
 
@@ -2911,6 +2912,36 @@ namespace bpr::qt {
 	void workbench_window::publish(
 		const application::workbench_projection& aProjection)
 	{
+		const auto previousAnchor = conversation_anchor_file();
+		const auto refreshGap     = HasGithubPullRequest && previousAnchor.has_value()
+			&& LastWorkbenchContext.has_value() && aProjection.Context.Session.value() != 0U
+			&& aProjection.Context.Session == LastWorkbenchContext->Session
+			&& aProjection.Context.Generation.value() > LastWorkbenchContext->Generation.value()
+			&& aProjection.Context.Request.value() == 0U
+			&& aProjection.Files.has_value() && aProjection.Files->empty()
+			&& aProjection.Selection.has_value() && !aProjection.Selection->Cursor.has_value();
+		// Observation first publishes the new file set with an engaged but
+		// unselected cursor. Composition restores the exact file in its next
+		// local publication. Keep visual scope only when that file still exists.
+		const auto restoringObservedFile = RefreshConversationAnchor.has_value()
+			&& RefreshConversationContext.has_value()
+			&& aProjection.Context.Session == RefreshConversationContext->Session
+			&& aProjection.Context.Generation == RefreshConversationContext->Generation
+			&& aProjection.Context.Request.value() != 0U
+			&& aProjection.Selection.has_value() && aProjection.Selection->Cursor.has_value()
+			&& !aProjection.Selection->Cursor->File.has_value() && aProjection.Files.has_value()
+			&& std::ranges::any_of(*aProjection.Files, [this](const application::workbench_file_projection& aFile) {
+											   return aFile.File == *RefreshConversationAnchor;
+										   });
+		if (refreshGap) {
+			RefreshConversationAnchor  = previousAnchor;
+			RefreshConversationContext = aProjection.Context;
+		} else if (!restoringObservedFile && (aProjection.Selection.has_value() || aProjection.Files.has_value() || (RefreshConversationContext.has_value() && aProjection.Context.Session != RefreshConversationContext->Session))) {
+			RefreshConversationAnchor.reset();
+			RefreshConversationContext.reset();
+		}
+		LastWorkbenchContext = aProjection.Context;
+
 		if (aProjection.Commands) {
 			Commands    = *aProjection.Commands;
 			HasCommands = true;
@@ -2920,16 +2951,15 @@ namespace bpr::qt {
 			apply_file_rows(*aProjection.Files);
 		}
 		if (aProjection.Selection) {
-			const auto previousFile = conversation_anchor_file();
-			Cursor                  = aProjection.Selection->Cursor;
+			Cursor = aProjection.Selection->Cursor;
 			apply_file_selection();
-			if (ConversationPanel != nullptr && previousFile != conversation_anchor_file()) {
-				ApplyingConversationAnchor = true;
-				ConversationPanel->set_anchor_file(conversation_anchor_file());
-				ConversationPanel->set_anchor_line(std::nullopt);
-				ApplyingConversationAnchor = false;
-				refresh_cards();
-			}
+		}
+		if (ConversationPanel != nullptr && previousAnchor != conversation_anchor_file()) {
+			ApplyingConversationAnchor = true;
+			ConversationPanel->set_anchor_file(conversation_anchor_file());
+			ConversationPanel->set_anchor_line(std::nullopt);
+			ApplyingConversationAnchor = false;
+			refresh_cards();
 		}
 		if (aProjection.Drawers) {
 			DrawerStates = *aProjection.Drawers;
@@ -2989,7 +3019,8 @@ namespace bpr::qt {
 	void workbench_window::apply_file_rows(
 		const std::vector<application::workbench_file_projection>& aFiles)
 	{
-		auto rows = std::vector<workbench_drawer_row>{ };
+		OverviewFileFactsDirty = true;
+		auto rows              = std::vector<workbench_drawer_row>{ };
 		rows.reserve(aFiles.size());
 		for (const auto& file : aFiles) {
 			auto identity = QString{ };
@@ -3023,6 +3054,9 @@ namespace bpr::qt {
 		// File selection survives the asynchronous gap between clearing the
 		// previous diff and receiving the next one. Widening to the whole PR
 		// in that gap rebuilds unrelated threads on every file switch.
+		if (RefreshConversationAnchor.has_value()) {
+			return RefreshConversationAnchor;
+		}
 		if (Cursor.has_value()) {
 			return Cursor->File;
 		}
@@ -3084,6 +3118,18 @@ namespace bpr::qt {
 		// A failed effect changes no command legality. The host publishes a command
 		// delta when legality actually changed, so the window reports the failure in
 		// text and leaves enabled state exactly where the last projection put it.
+
+		if (RefreshConversationAnchor.has_value() && RefreshConversationContext.has_value()
+			&& aFailure.Context.Session == RefreshConversationContext->Session
+			&& aFailure.Context.Generation == RefreshConversationContext->Generation) {
+			RefreshConversationAnchor.reset();
+			RefreshConversationContext.reset();
+			ApplyingConversationAnchor = true;
+			ConversationPanel->set_anchor_file(conversation_anchor_file());
+			ConversationPanel->set_anchor_line(std::nullopt);
+			ApplyingConversationAnchor = false;
+			refresh_cards();
+		}
 		Failure = aFailure.Failure;
 		++Statistics.Failures;
 		update_status_text();
@@ -3502,8 +3548,12 @@ namespace bpr::qt {
 		if (OverviewPage == nullptr) {
 			return;
 		}
-		OverviewPage->present(aProjection);
-		if (FilesTree != nullptr) {
+		const auto unchanged = PresentedOverview.has_value() && *PresentedOverview == aProjection;
+		if (!unchanged) {
+			OverviewPage->present(aProjection);
+			PresentedOverview = aProjection;
+		}
+		if (FilesTree != nullptr && (!unchanged || OverviewFileFactsDirty)) {
 			// [[BPR-0658]]. The tree draws the overview's per-file facts.
 			ApplyingFileSelection = true;
 			// [[BPR-0668]]. A comparison that could not be prepared leaves the
@@ -3526,13 +3576,16 @@ namespace bpr::qt {
 				FilesTree->apply(rows);
 			}
 			FilesTree->apply_overview(aProjection.Files);
-			ApplyingFileSelection = false;
+			OverviewFileFactsDirty = false;
+			ApplyingFileSelection  = false;
 		}
 		apply_modality_surface();
 	}
 
 	void workbench_window::clear_overview()
 	{
+		PresentedOverview.reset();
+		OverviewFileFactsDirty = true;
 		if (OverviewPage == nullptr) {
 			return;
 		}
@@ -3566,7 +3619,7 @@ namespace bpr::qt {
 			ComparisonSurface != nullptr && ComparisonSurface->current_result() != nullptr
 				? std::optional{ ComparisonSurface->current_result()->Alignment.Digest }
 				: std::nullopt);
-		cards->relayout();
+		cards->refresh_geometry();
 		apply_thread_marks();
 	}
 
@@ -4680,6 +4733,9 @@ namespace bpr::qt {
 
 	void workbench_window::clear_github_pull_request()
 	{
+		RefreshConversationAnchor.reset();
+		RefreshConversationContext.reset();
+		LastWorkbenchContext.reset();
 		HasGithubPullRequest = false;
 		ReviewThreadTotal    = 0U;
 		IdentityText.clear();

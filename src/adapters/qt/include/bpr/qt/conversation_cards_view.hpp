@@ -7,6 +7,7 @@
 
 #include <QAbstractScrollArea>
 #include <QColor>
+#include <QFont>
 #include <QPoint>
 #include <QRect>
 #include <QString>
@@ -14,6 +15,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -115,7 +117,9 @@ namespace bpr::qt {
 		/// True while the thread's line is on the comparison and locatable.
 		bool Placed = false;
 		/// Where the line is, in content coordinates, when placed.
-		int                    TargetY = 0;
+		/// Stable projection order breaks geometry ties across comparison frames.
+		std::size_t            ProjectionOrder = 0U;
+		int                    TargetY         = 0;
 		QRect                  Rect;
 		std::vector<card_post> Posts;
 		/// The action buttons' rects, in content coordinates.
@@ -152,7 +156,10 @@ namespace bpr::qt {
 	public:
 		explicit conversation_cards_view(QWidget* aParent = nullptr);
 
-		void               adopt(const std::vector<application::github_conversation_projection>& aConversations);
+		void adopt(const std::vector<application::github_conversation_projection>& aConversations);
+		/// \brief Adopts the forest and file anchor in one layout.
+		void               adopt(const std::vector<application::github_conversation_projection>& aConversations,
+								 std::optional<core::file_identity>                              aFile);
 		void               clear();
 		void               set_scope(cards_scope aScope);
 		[[nodiscard]] auto scope() const noexcept -> cards_scope;
@@ -198,10 +205,14 @@ namespace bpr::qt {
 		void set_current_thread(const std::string& aId);
 		/// \brief Lays the cards out again against the locator.
 		void relayout();
+		/// \brief Refreshes locator geometry, retaining measured posts when unchanged.
+		void refresh_geometry();
 
 		[[nodiscard]] auto cards() const noexcept -> const std::vector<thread_card>&;
 		[[nodiscard]] auto current_thread() const noexcept -> const std::string&;
 		[[nodiscard]] auto layouts() const noexcept -> std::uint64_t;
+		/// \brief Number of card text measurements, excluding retained-cache hits.
+		[[nodiscard]] auto measurements() const noexcept -> std::uint64_t;
 		/// \brief The card under a viewport point, and the action if any.
 		[[nodiscard]] auto hit_test(QPoint aViewportPoint) const
 			-> std::optional<std::pair<std::size_t, std::optional<card_action>>>;
@@ -211,16 +222,31 @@ namespace bpr::qt {
 		void               set_colours(const QColor& aAccent, const QColor& aMarker);
 
 	protected:
+		void changeEvent(QEvent* aEvent) override;
 		void paintEvent(QPaintEvent* aEvent) override;
 		void resizeEvent(QResizeEvent* aEvent) override;
 		void mousePressEvent(QMouseEvent* aEvent) override;
 		void keyPressEvent(QKeyEvent* aEvent) override;
 
 	private:
+		struct measured_card
+		{
+			QString                                    Excerpt;
+			std::vector<QString>                       Bodies;
+			bool                                       Header   = false;
+			bool                                       Draft    = false;
+			bool                                       Resolved = false;
+			bool                                       Unread   = false;
+			int                                        Height   = 0;
+			std::vector<QRect>                         Posts;
+			std::vector<std::pair<card_action, QRect>> Actions;
+		};
+		void               measure_cached(thread_card& aCard, int aWidth);
 		[[nodiscard]] auto card_height(const thread_card& aCard, int aWidth) const -> int;
 		void               measure(thread_card& aCard, int aWidth) const;
 		[[nodiscard]] auto to_content(QPoint aViewportPoint) const -> QPoint;
 		void               choose(std::size_t aCard);
+		void               place_cards(bool aForce);
 
 		std::vector<application::github_conversation_projection> Retained;
 		std::vector<thread_card>                                 Cards;
@@ -247,6 +273,14 @@ namespace bpr::qt {
 		QColor                                                   Marker{ 0xD2, 0x99, 0x22 };
 		int                                                      ContentHeight = 0;
 		std::uint64_t                                            Layouts       = 0U;
+		// Bounded by the current retained forest plus its one draft. Content,
+		// authority and presentation invalidations discard these rectangles.
+		std::map<std::string, measured_card> Measurements;
+		QFont                                MeasurementFont;
+		int                                  MeasurementWidth             = 0;
+		bool                                 MeasurementFeed              = false;
+		bool                                 MeasurementResolutionOffered = false;
+		std::uint64_t                        MeasurementCount             = 0U;
 	};
 } // namespace bpr::qt
 
