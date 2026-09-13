@@ -47,6 +47,17 @@ Final `check_boundaries`, documentation gate, 64 documentation script tests,
 touched formatting, Python compilation and `git diff --check` passed. No
 unresolved source failure remains in this selector set.
 
+The broad pre-push coding target at this head first found three unrelated
+baseline files with clang-format alignment drift; the proposed edits were
+identical under `git diff --ignore-all-space` and were committed separately
+as `14723207`. The rerun in `build/d30-coding-checks-final.log` passed the
+648-file format check, then strict clang-tidy failed with 117 diagnostics
+across 33 of 383 translation units. A line-level comparison against both
+`origin/main` and the d30 starting head `b3314d90` found zero diagnostics
+on added or modified C++ lines. This global tidy debt is recorded as a red
+check, not claimed as a clean full target; the focused and integration
+selectors above remain green.
+
 RFC-BPR-0029 direct-check bookkeeping on [[BPR-0750]] now has rows 3, 6 and
 8 passing, rows 2, 4, 5 and 7 partial, and the exact v011 owner verdict on
 row 9. BPR-0750 stays In Progress, and RFC-BPR-0029 stays Accepted behind
