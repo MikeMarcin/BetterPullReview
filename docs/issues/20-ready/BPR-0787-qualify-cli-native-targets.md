@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0787"
 title: "Qualify the CLI connector on target-native platforms"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0015"]
 depends_on: ["BPR-0786"]
 priority: "P1"
