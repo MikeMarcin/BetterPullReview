@@ -6,9 +6,14 @@ status: "Backlog"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0507","BPR-0616","BPR-0618","BPR-0619","BPR-0620","BPR-0621","BPR-0622","BPR-0623","BPR-0624","BPR-0626","BPR-0627","BPR-0628","BPR-0629","BPR-0630","BPR-0631","BPR-0632","BPR-0633","BPR-0634","BPR-0635"]
 closeout_for: ["RFC-BPR-0013"]
+metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"}}
 ---
 
 # Verify and close RFC-BPR-0013
+
+## Current frontier — rfc0013-r1 / d1
+
+The adopted [RFC-0013 milestone plan](../../rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json) binds `default-cache-byte-pressure` to BPR-0635 on local Mac, with the exact assignment and legacy-plan preparation receipt beside the plan. BPR-0612 and BPR-0634 are Done, so BPR-0635 is dependency-ready; its next public course must exceed the unchanged 64-MiB byte ceiling before 64 entries, prove exact eviction/revisit and owner release, then record native timing, input, memory, bounded work and close evidence. The current candidate starts at `21e7ae34`; no BPR-0635 source outcome is yet accepted. Preserve BPR-0622's Windows/Linux recovery gate, BPR-0643's BPR-0642 and owner-account dependencies, all remaining rate/offline/fuzz/diagnostic and live/human rows, and the canonical Proposed predecessors. No remote mutation, production account action, Actions, push or publication is part of this Mac course.
 
 RFC base: `d4d9e61d9224ef869ca4de9725c2bf52c5df701a`.
 

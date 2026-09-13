@@ -1,0 +1,95 @@
+{
+  "state": "prepared",
+  "origin": "absent",
+  "source_evidence": {
+    "schema": "implement-rfc.legacy-source-evidence.v1",
+    "path": "docs/rfcs/plans/RFC-BPR-0013-issue-plan.md",
+    "sha256": "b1f04663134388df000259c8eeb01d6fb899ceaea3bcd4110a10753441332f33",
+    "text": "---\nprovisional_id: PACK-ISSUE-BPR-0013\nrfc: RFC-BPR-0013\nstatus: Backlog\nlive_id: allocate-on-import\nmilestone: M6 Production Readiness\ndepends_on_rfc: [RFC-BPR-0004, RFC-BPR-0005, RFC-BPR-0007, RFC-BPR-0008, RFC-BPR-0010, RFC-BPR-0012]\n---\n\n# Issue Plan for RFC-BPR-0013\n\n## Goal\n\nImplement and Auto-Verify **Performance, Resource Limits, Resilience, and Recovery** from the live repository after pack import.\n\n## RFC prerequisites\n\n- RFC-BPR-0004\n- RFC-BPR-0005\n- RFC-BPR-0007\n- RFC-BPR-0008\n- RFC-BPR-0010\n- RFC-BPR-0012\n\n## Minimum live issue-card slices\n\n1. **Pack import and planning** \u2014 reconcile paths/IDs, import the normative architecture, create the live task set, and commit the planning slice.\n2. **Architecture allocation** \u2014 identify authoritative state, compact core state, bounded observations, intents/events/requests/deltas/diagnostics, host ports/effects, Qt projections, async identity, and evidence-backed no-impact regions.\n3. **Deterministic functional core** \u2014 implement semantic state, policy, transitions, planners, request identity, deltas, diagnostics, and direct tests without `QApplication`, Qt, I/O, clocks, threads, or provider libraries.\n4. **Imperative application host** \u2014 implement capability ports/adapters, authority sessions, caches, jobs, persistence, request execution, cancellation, lifecycle, and fake-port/manual-executor tests without duplicating core policy.\n5. **Qt presentation adapter** \u2014 implement or update event translation, `QAction` binding, Qt models/delegates/widgets, focus/layout/accessibility, and incremental projection application; record direct no-impact evidence when the RFC has no presentation effect.\n6. **Composition and public-path integration** \u2014 wire the concrete pieces in the composition root and prove the feature is selected and reachable through the real BetterPullReview application.\n7. **Focused tests and fixtures** \u2014 add core replay/property tests, host failure/reordering/cancellation tests, Qt adapter tests, contract tests, and hostile/edge fixtures.\n8. **UX/UI verification** \u2014 mandatory when rendering or interaction changes; use deterministic automation and actual rendered evidence rather than a static mockup.\n9. **Security and boundary verification** \u2014 verify authority, credentials, target identity, process/network boundaries, limits, secret-free evidence, and absence of provider/widget bypasses.\n10. **Agent and product documentation impact** \u2014 update architecture, state authority, ports, threading, UI, security, build, and operator documentation or record an approved no-impact result.\n11. **Simplification** \u2014 run the available code simplifier or a conservative manual pass; remove duplicated policy, broad service access, unnecessary serialization, and whole-state refreshes, then re-verify.\n12. **Verification and RFC closeout** \u2014 complete the live claim and architecture-conformance matrices, move all cards to done, update indexes, and mark Auto-Verified only when direct evidence agrees.\n\n## Suggested RFC-specific implementation slices\n\n1. Implement the cancellable job system, request identity, backpressure, and stale-result rejection.\n2. Define measured platform budgets and instrument launch/render/navigation/memory/caches.\n3. Implement incremental loading, bounded prefetch, cache eviction, large-content fallbacks, and offline states.\n4. Implement rate-limit, partial-failure, crash/restart, Git/SQLite recovery, and diagnostics behavior.\n5. Add large-review benchmarks and fuzz targets for every custom parser/normalizer/mapping surface.\n6. Run sustained soak, cancellation, rapid-switching, and leak/regression tests.\n\n## Required planning artifacts\n\n- Live issue dependencies and board lanes\n- Per-acceptance-criterion verification rows\n- Affected documentation ledger entries\n- Safe GitHub fixture or designated test-target plan where mutations apply\n- Platform/build matrix for affected code\n- Architecture allocation ledger covering core, host, Qt, composition, authority, and no-impact regions\n- Typed intent/event/observation/request/delta path and asynchronous identity/generation plan\n- Incremental-projection and active-set/changed-set performance plan\n- Explicit deferred work; no hidden scope reduction\n\n## Closeout blocker examples\n\n- Qt, provider, filesystem, process, clock, thread, or persistence dependencies enter the functional core.\n- A widget/model performs GitHub, Git, SQLite, AI, or other host effects directly.\n- The application host duplicates semantic policy owned by the core or a giant service locator bypasses capability ports.\n- Asynchronous work lacks request/session/revision/generation identity, or a worker touches Qt/core state directly.\n- Routine bounded changes require a full model reset, whole-PR scan, or complete application projection rebuild.\n- A feature exists only in a helper or mock and is not selected by the application.\n- A screenshot or static mockup substitutes for deterministic UI behavior.\n- GHES/GitHub.com capability selection is assumed from a target name.\n- A test can pass while displayed line identity, review target, acting account, or credential boundary is wrong.\n- Required documentation, simplification, package, security, or live issue-board work remains open.\n"
+  },
+  "plan": {
+    "schema": "implement-rfc.milestone-plan.v1",
+    "id": "rfc-bpr-0013-hardening",
+    "scope": {
+      "rfcs": [
+        "RFC-BPR-0013"
+      ]
+    },
+    "coverage": "complete",
+    "milestones": [
+      {
+        "id": "default-cache-byte-pressure",
+        "outcome": "The selected Mac application exceeds its unchanged default 64 MiB immutable diff/index byte budget through real stored large-review selections, evicts the exact old key, rematerializes it on public revisit, and releases bounded owners on close.",
+        "work": [
+          {
+            "issue": "BPR-0635"
+          }
+        ],
+        "depends_on": [],
+        "exit_criteria": [
+          "BPR-0635 records exact public refresh/epoch/file selection, default-byte eviction and weak ownership release before 64 entries, exact source and stale-result-safe revisit",
+          "The measured Mac workload records timing, input, native footprint, cache/jobs and close/drain/destruction evidence without claiming a universal platform budget",
+          "The relevant composed public path, integration-focused checks, documentation gate and diff checks pass; BPR-0635 is accepted on its own criteria"
+        ],
+        "boundary": "The current available Mac resource-budget slice after completed BPR-0612 Glaze migration; preserve previous entry, loaded-close and prune evidence and broader RFC obligations"
+      },
+      {
+        "id": "durable-agent-workspace-recovery",
+        "outcome": "Durable exact ownership reclaims interrupted disposable agent workspaces across actual process death on eligible native platforms without harming live or unowned roots.",
+        "work": [
+          {
+            "issue": "BPR-0622"
+          }
+        ],
+        "depends_on": [],
+        "exit_criteria": [
+          "BPR-0622 proves exact durable ownership, lifetime exclusion, bounded records, crash points, twice-repeated recovery, substitution/live-owner negatives and refusal for untrusted evidence",
+          "Eligible Windows and Linux native guard and composed recovery evidence are recorded; Mac-only evidence does not close platform-specific requirements"
+        ],
+        "boundary": "Platform-bound recovery capability; unavailable Windows/Linux evidence remains open"
+      },
+      {
+        "id": "retained-stress-pr-read",
+        "outcome": "The owner-retained stress pull request has a privacy-preserving diagnostic failure class and either reads correctly on the Mac public path or reports its explicit known limit.",
+        "work": [
+          {
+            "issue": "BPR-0643"
+          }
+        ],
+        "depends_on": [],
+        "exit_criteria": [
+          "BPR-0642 is Done and BPR-0643 records the diagnostic failure class for the exact owner-retained target",
+          "The Mac candidate opens the target read-only with correct file list and readable selected diff, or presents and records the explicit refusal reason; no live write occurs"
+        ],
+        "boundary": "Owner-retained target needs available signed read authority; no production mutation or repository content retention"
+      },
+      {
+        "id": "verify-rfc-0013",
+        "outcome": "All original RFC-BPR-0013 acceptance rows and architectural hardening stages have direct evidence against the immutable baseline and the RFC/card/index state is truthful under canonical order.",
+        "work": [
+          {
+            "issue": "BPR-0617"
+          },
+          {
+            "rfc": "RFC-BPR-0013"
+          }
+        ],
+        "depends_on": [
+          "default-cache-byte-pressure",
+          "durable-agent-workspace-recovery",
+          "retained-stress-pr-read"
+        ],
+        "exit_criteria": [
+          "Reconcile the legacy plan\u2019s pack import, architecture, deterministic core, host, Qt, composition, focused tests/fixtures, UX, security, documentation, simplification and closeout stages against the live BPR-0617 matrix and RFC baseline",
+          "Every RFC acceptance row has a direct check, result, producing revision and explicit native/human limitation; no deferred criterion is marked passing",
+          "The documentation gate, focused public-path checks and appropriate integration verification pass at the final candidate",
+          "BPR-0617, RFC-BPR-0013 and the canonical index agree; earlier Proposed RFC-BPR-0008/0010/0012 prevent Auto-Verified and Done until their own prerequisites close"
+        ],
+        "boundary": "Final RFC closeout only; preserves earlier live/human and cross-platform gates without authorizing other RFC engineering"
+      }
+    ],
+    "unplanned_work": []
+  },
+  "semantic_coverage": "unknown",
+  "next": "engineer reconciles intent, retains this receipt, adopts and implements"
+}

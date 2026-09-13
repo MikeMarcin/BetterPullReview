@@ -6,6 +6,7 @@ status: "Backlog"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0642"]
 priority: "P2"
+metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"}}
 ---
 
 # Load the retained stress-test pull request

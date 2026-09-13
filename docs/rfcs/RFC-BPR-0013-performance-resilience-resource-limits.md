@@ -6,6 +6,7 @@ area: "BPR"
 milestone: "M6 Production Readiness"
 depends_on: ["RFC-BPR-0004","RFC-BPR-0005","RFC-BPR-0007","RFC-BPR-0008","RFC-BPR-0010","RFC-BPR-0012"]
 pack_version: 2
+metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"}}
 ---
 
 # RFC-BPR-0013: Performance, Resource Limits, Resilience, and Recovery

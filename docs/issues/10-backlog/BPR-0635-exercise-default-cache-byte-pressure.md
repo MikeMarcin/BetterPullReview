@@ -6,6 +6,7 @@ status: "Backlog"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0634","BPR-0612"]
 platforms: ["mac"]
+metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"}}
 ---
 
 # Exercise default cache byte pressure

@@ -6,6 +6,7 @@ status: "In Progress"
 rfcs: ["RFC-BPR-0013"]
 platforms: ["win","linux"]
 depends_on: ["BPR-0621"]
+metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"}}
 ---
 
 # Recover interrupted agent workspaces with durable exact ownership
