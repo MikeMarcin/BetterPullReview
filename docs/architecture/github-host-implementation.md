@@ -37,9 +37,9 @@ application host
         v
 GitHub adapter
     explicit profiles, REST/GraphQL request contracts, normalization,
-    inactive GitHub CLI boundary, native HTTPS, response limits and redaction
+    opt-in CLI read boundary, native HTTPS, response limits and redaction
         |
-        +-- retained gh/QProcess scaffolding, not public-composed in milestone one
+        +-- gh/QProcess read integration in progress on macOS
         |
         +-- production QNetworkAccessManager plus a platform credential vault
 ```
@@ -55,7 +55,7 @@ receives application projections and has no provider capability.
 |---|---|---|---|
 | Host profile configuration | Application host profile registry | Opaque `host_profile_id` | Selectable non-secret profile facts |
 | Authenticated account | Selected provider session | Opaque host/account identity and generation | Visible hostname and account login |
-| Credentials | Native platform vault in milestone one; CLI storage only under a future enabled contract | None | None |
+| Credentials | Native platform vault in milestone one; CLI-owned storage for explicit CLI read opt-in | None | None |
 | Capability detail and evidence | Host capability cache | Compact tri-state capability set and revision | Supported, unsupported, or unknown presentation |
 | Shared PR and conversation state | GitHub, observed through the provider session | Stable identity, accepted snapshot identity, bounded summary | Immutable metadata and conversation projections |
 | Normalized response cache | Application host | Snapshot identity only | Incremental rows/cards derived from accepted snapshots |
@@ -505,11 +505,37 @@ separate scheduling observation. Raw provider messages never cross inward.
 
 ## Transport ownership
 
-The provider adapter validates the explicit host profile. Milestone-one native
-profiles construct native HTTPS; CLI profiles return `cli_unavailable` before
-transport construction.
+The provider adapter validates the explicit host profile. Native profiles
+construct native HTTPS. Unsupported CLI compositions return `cli_unavailable`;
+the macOS opt-in read composition is described below.
 
 ### GitHub CLI broker
+
+RFC-BPR-0015's amended first milestone is in progress. Native HTTPS remains
+the default. The tests-disabled macOS composition is being wired for explicit
+CLI read opt-in on the selected GitHub.com or GHES host, with a Connect warning,
+observed `/user` identity, pre/post-request account checks and a read-only lease.
+It invokes the configured `gh` directly with bounded arguments, input, output
+and time; the version preflight currently accepts `gh` 2.x with minor >= 96.
+This is a version check, not proof of an official executable's provenance.
+CLI-backed Git-object transport for full diffs and CLI publishing are not yet
+implemented. Windows and Linux remain unavailable. Public-path acceptance and
+target-native qualification remain pending under BPR-0788.
+
+BetterPullReview does not extract or copy CLI tokens or change global CLI
+authentication. Opt-in trusts the machine's configured executable, configuration,
+socket routing, CA and redirect behavior, active account and helper processes.
+Pre/post observations can detect some account changes but cannot bind a credential
+generation or prevent a concurrent account switch. Executable/configuration/CA
+replacement and process escape remain uncontained risks. Read opt-in grants no
+publishing authority. RFC-BPR-0013's independent `MaximumCommits=250` parser limit
+remains unchanged; CLI access alone cannot make a larger PR render.
+
+#### Historical RFC-BPR-0002 boundary and evidence
+
+The following records the original zero-launch milestone and its strict trust
+contract. The RFC-BPR-0015 amendment supersedes that enablement prohibition;
+the recorded risks remain unresolved, not passing containment evidence.
 
 Native HTTPS is the sole milestone-one production authentication transport.
 CLI profiles remain visible, but the public provider returns fixed typed
@@ -838,7 +864,9 @@ transport. An opaque smart-HTTPS lease is issued only from an accepted native
 HTTPS session and is bound to the exact application session, profile and
 profile revision, host identity, canonical hostname and server contract,
 authenticated account, repository identity, and GitHub identity generation.
-CLI profiles and an unavailable native session receive no lease.
+CLI profiles receive no native smart-HTTPS Git-object lease; the in-progress
+CLI provider lease authorizes REST/GraphQL reads only. An unavailable native
+session receives no lease.
 
 The lease exposes two semantic operations for the one accepted repository:
 
@@ -1644,10 +1672,13 @@ The composition root is the only scope that knows all concrete pieces. Its
 production profile set is explicit:
 
 - built-in GitHub.com native HTTPS;
-- built-in GitHub.com CLI, visibly labeled unavailable;
+- built-in GitHub.com CLI (unavailable in the historical RFC-BPR-0002 course);
 - optional GHES 3.18 native HTTPS from an explicitly supplied canonical
   hostname;
-- optional GHES 3.18 CLI, visibly labeled unavailable.
+- optional GHES 3.18 CLI (unavailable in that historical course).
+
+The CLI assertions in the following recorded course describe RFC-BPR-0002,
+not acceptance of the in-progress macOS RFC-BPR-0015 read path.
 
 The provider owns immutable copies of every validated profile and routes by
 exact profile identity. GitHub.com profiles have built-in provenance; GHES
@@ -1820,8 +1851,8 @@ components.
 Within RFC-BPR-0002, the Linux Secret Service vault lifecycle, the inactive
 CLI broker's process/invocation boundary, and the native HTTPS internal wire
 path on macOS and Linux are directly verified. Positive CLI enablement is
-outside milestone-one scope under RFC-BPR-0015; the public profile is visibly
-unavailable and launches zero processes.
+outside that historical milestone scope; its public profile was visibly
+unavailable and launched zero processes. RFC-BPR-0015 acceptance remains pending.
 BPR-0028 verifies the safe Qt projection and presentation. BPR-0029
 structurally composes the explicit profiles, native HTTPS factory, platform
 vault factory, provider, host, core, and Qt path. Its recorded public fixtures

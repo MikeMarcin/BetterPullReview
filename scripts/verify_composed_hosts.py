@@ -250,20 +250,25 @@ PRODUCTION_FORBIDDEN = (
         "fixture one-shot review mutation execution grant factory",
         "bpr::application::make_review_mutation_one_shot_testing_grant",
     ),
+)
+
+# RFC-BPR-0015 permits the opt-in configured-CLI read profile only in the
+# tests-disabled macOS product. The other release targets must still omit it.
+MAC_PRODUCTION_CLI_REQUIRED = (
     type_anchor(
-        "dormant GitHub CLI transport",
+        "GitHub CLI transport",
         "bpr::adapters::github::detail::gh_cli_transport",
     ),
     function_anchor(
-        "dormant GitHub CLI configuration validator",
+        "GitHub CLI configuration validator",
         "bpr::adapters::github::detail::validate_gh_cli_configuration",
     ),
     function_anchor(
-        "dormant GitHub CLI request compiler",
+        "GitHub CLI request compiler",
         "bpr::adapters::github::detail::compile_gh_cli_process_request",
     ),
     function_anchor(
-        "dormant GitHub CLI process runner factory",
+        "GitHub CLI process runner factory",
         "bpr::adapters::github::detail::make_github_cli_process_runner",
     ),
 )
@@ -672,6 +677,7 @@ ANCHOR_SCOPE_CHAINS = tuple(
             *PRODUCTION_REQUIRED,
             *FIXTURE_FORBIDDEN,
             *PRODUCTION_FORBIDDEN,
+            *MAC_PRODUCTION_CLI_REQUIRED,
         )
     )
 )
@@ -848,6 +854,10 @@ def audit_symbols(symbols: Sequence[str], profile: str) -> list[str]:
     else:
         required += PRODUCTION_REQUIRED
         forbidden = PRODUCTION_FORBIDDEN
+        if sys.platform == "darwin":
+            required += MAC_PRODUCTION_CLI_REQUIRED
+        else:
+            forbidden += MAC_PRODUCTION_CLI_REQUIRED
 
     failures = [
         f"required exact demangled anchor is absent: {anchor.name}"
@@ -884,11 +894,13 @@ def main(arguments: Sequence[str] | None = None) -> int:
         len(FIXTURE_REQUIRED)
         if parsed.profile == DEVELOPMENT_FIXTURE_PROFILE
         else len(PRODUCTION_REQUIRED)
+        + (len(MAC_PRODUCTION_CLI_REQUIRED) if sys.platform == "darwin" else 0)
     )
     forbidden_count = (
         len(FIXTURE_FORBIDDEN)
         if parsed.profile == DEVELOPMENT_FIXTURE_PROFILE
         else len(PRODUCTION_FORBIDDEN)
+        + (len(MAC_PRODUCTION_CLI_REQUIRED) if sys.platform != "darwin" else 0)
     )
     print(
         "COMPOSED_HOSTS_OK: "

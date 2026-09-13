@@ -87,6 +87,20 @@ namespace bpr::qt::detail {
 		return QStringLiteral("Unknown transport");
 	}
 
+	[[nodiscard]] inline auto cli_trust_warning_text(const QString& aHostname) -> QString
+	{
+		return QStringLiteral(
+				   "Connect opts in to reading on %1 using your existing gh sign-in. "
+				   "The current account is observed after Connect; its permissions may differ from your native profile. "
+				   "You trust this machine's CLI executable, configuration (including socket routing), "
+				   "CA certificates and redirects. Executable/configuration/CA replacement and child-process risks remain. "
+				   "Only gh's default home-directory configuration is used; custom CLI environment overrides are ignored. "
+				   "Concurrent account switching can change the account used by a request; there is no exact account guarantee. "
+				   "Full diffs and publishing through gh are not available yet. "
+				   "Read opt-in does not authorize publishing.")
+			.arg(aHostname);
+	}
+
 	[[nodiscard]] inline auto github_status_text(
 		const core::github_status aStatus) -> QString
 	{

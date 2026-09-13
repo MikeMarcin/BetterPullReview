@@ -1,5 +1,4 @@
 #include "github_provider.hpp"
-
 #include "github_anonymous_read_admission.hpp"
 #include "github_paged_read.hpp"
 #include "native_https_transport.hpp"
@@ -655,6 +654,96 @@ namespace bpr::adapters::github::detail {
 			};
 		}
 
+		// Observations detect account changes; they cannot contain a concurrent
+		// gh auth switch. A mismatch permanently refuses this observed lease.
+		class cli_observed_account_transport final : public github_wire_transport_port
+		{
+		public:
+			cli_observed_account_transport(std::shared_ptr<github_wire_transport_port> aTransport,
+										   github_wire_request aViewer, server_contract aServer, core::github_account_id aAccount)
+				: Transport{ std::move(aTransport) }
+				, Viewer{ std::move(aViewer) }
+				, Server{ aServer }
+				, Account{ aAccount }
+			{ }
+
+			auto perform(const github_wire_request& aRequest, std::stop_token aStop) -> github_wire_completion override
+			{
+				const auto& viewer = Viewer;
+				if (auto error = check(viewer, aStop)) {
+					if (aStop.stop_requested()) {
+						return github_wire_cancelled{ .Correlation = aRequest.Correlation };
+					}
+					return github_wire_error{ .Correlation = aRequest.Correlation, .Error = *error };
+				}
+				if (aStop.stop_requested()) {
+					return github_wire_cancelled{ .Correlation = aRequest.Correlation };
+				}
+				auto result = Transport->perform(aRequest, aStop);
+				if (std::holds_alternative<github_wire_success>(result)) {
+					if (auto error = check(viewer, aStop)) {
+						return github_wire_error{ .Correlation = aRequest.Correlation, .Error = *error };
+					}
+				}
+				return result;
+			}
+
+			auto perform_capability_probe(const github_capability_probe_wire_request& aRequest, std::stop_token aStop) -> github_capability_probe_wire_completion override
+			{
+				const auto& viewer = Viewer;
+				if (auto error = check(viewer, aStop)) {
+					if (aStop.stop_requested()) {
+						return github_capability_probe_wire_cancelled{ .Correlation = aRequest.Correlation };
+					}
+					return github_capability_probe_wire_error{ .Correlation = aRequest.Correlation, .Error = *error };
+				}
+				if (aStop.stop_requested()) {
+					return github_capability_probe_wire_cancelled{ .Correlation = aRequest.Correlation };
+				}
+				auto result = Transport->perform_capability_probe(aRequest, aStop);
+				if (std::holds_alternative<github_capability_probe_wire_success>(result)) {
+					if (auto error = check(viewer, aStop)) {
+						return github_capability_probe_wire_error{ .Correlation = aRequest.Correlation, .Error = *error };
+					}
+				}
+				return result;
+			}
+
+		private:
+			auto check(const github_wire_request& aViewer, std::stop_token aStop) -> std::optional<application::github_provider_error>
+			{
+				if (Mismatch.load()) {
+					return provider_error(application::github_provider_failure::authentication);
+				}
+				if (aStop.stop_requested()) {
+					return provider_error(application::github_provider_failure::unavailable);
+				}
+				const auto result = Transport->perform(aViewer, aStop);
+				if (const auto* error = std::get_if<github_wire_error>(&result);
+					error != nullptr && error->Correlation == aViewer.Correlation && application::valid(error->Error)) {
+					return error->Error;
+				}
+				const auto* success = std::get_if<github_wire_success>(&result);
+				if (success == nullptr || success->Correlation != aViewer.Correlation) {
+					return provider_error(application::github_provider_failure::malformed_response);
+				}
+				const auto observed = normalize_observed_github_viewer(success->Response, Server);
+				if (!observed) {
+					return observed.error();
+				}
+				if (observed->Viewer.Account != Account) {
+					Mismatch.store(true);
+					return provider_error(application::github_provider_failure::authentication);
+				}
+				return std::nullopt;
+			}
+			std::shared_ptr<github_wire_transport_port> Transport;
+			github_wire_request                         Viewer;
+			server_contract                             Server;
+			core::github_account_id                     Account;
+			std::atomic_bool                            Mismatch = false;
+		};
+
 		[[nodiscard]] auto
 		provider_failure(const capability_probe_unavailability aFailure) noexcept
 			-> application::github_provider_failure
@@ -993,14 +1082,15 @@ namespace bpr::adapters::github::detail {
 			return;
 		}
 		if (request.Authority.Authentication
-			== application::github_authentication_transport::github_cli) {
+				== application::github_authentication_transport::github_cli
+			&& !state->TransportFactory->supports_cli()) {
 			aCompletion(application::github_viewer_error{
 				.Request = request,
-				.Error   = provider_error(
-					application::github_provider_failure::cli_unavailable),
+				.Error   = provider_error(application::github_provider_failure::cli_unavailable),
 			});
 			return;
 		}
+
 		if (state->ReadAuthority
 			== github_provider_read_authority::anonymous_public) {
 			// Refused here, before a job, a transport, or a wire request
@@ -1136,6 +1226,11 @@ namespace bpr::adapters::github::detail {
 							accountContext = account->Context;
 							transport      = state->TransportFactory->make_account(
 								*profile, std::move(*account));
+						} else if (request.Authority.Authentication
+									   == application::github_authentication_transport::github_cli
+								   && std::holds_alternative<std::monostate>(*viewerAuthentication)) {
+							transport = state->TransportFactory->make_cli(
+								*profile, request.Context);
 						}
 						if (!transport.has_value()) {
 							failed(transport.error());
@@ -1205,6 +1300,27 @@ namespace bpr::adapters::github::detail {
 												 authentication)
 									   : observed.error());
 							return;
+						}
+						if (request.Authority.Authentication
+							== application::github_authentication_transport::github_cli) {
+							// This records the observed account for the scoped lease. It
+							// contains no CLI credential and does not claim that gh's
+							// mutable active account is pinned for later requests.
+							transport      = std::make_shared<cli_observed_account_transport>(*transport, *wire, *server, observed->Viewer.Account);
+							accountContext = application::github_credential_operation_context{
+								.Request            = request.Context.Request,
+								.ApplicationSession = request.Context.ApplicationSession,
+								.Authority          = {
+									.Profile         = request.Authority.Profile,
+									.ProfileRevision = request.Authority.ProfileRevision,
+									.Host            = request.Authority.Host,
+									.Hostname        = request.Authority.Hostname,
+									.Account         = observed->Viewer.Account,
+									.ServerContract  = request.Authority.ServerContract,
+									.BprProfile      = core::default_bpr_profile_id,
+								},
+								.IdentityGeneration = request.Context.IdentityGeneration,
+							};
 						}
 
 						application::github_account_transport accountTransport;

@@ -64,6 +64,27 @@ namespace bpr::adapters::github::detail {
 			application::github_credential_retrieve_success aCredential) noexcept
 			-> github_wire_transport_factory_result = 0;
 
+		/// Configured CLI supplies its own credential. The default remains unavailable.
+		[[nodiscard]] virtual auto make_cli(
+			const validated_github_host_profile& aProfile,
+			core::github_session_request_context aContext) noexcept
+			-> github_wire_transport_factory_result
+		{
+			static_cast<void>(aProfile);
+			static_cast<void>(aContext);
+			return std::unexpected{ application::github_provider_error{
+				.Failure           = application::github_provider_failure::cli_unavailable,
+				.RetryAfterSeconds = std::nullopt,
+				.RateLimits        = { },
+				.RateLimitCause    = std::nullopt,
+			} };
+		}
+
+		[[nodiscard]] virtual auto supports_cli() const noexcept -> bool
+		{
+			return false;
+		}
+
 		/// \brief Builds a transport bound to an anonymous read authority.
 		///
 		/// \details Deliberately not pure. A factory that has no anonymous

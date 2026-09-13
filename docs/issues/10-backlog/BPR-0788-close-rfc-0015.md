@@ -30,7 +30,22 @@ RFC base: `6c9ef2038b7389f49028e71f2bb8219b07191267`.
 - [ ] RFC-BPR-0014 is Auto-Verified before RFC-BPR-0015 becomes terminal; pending native, human or safe-target evidence remains open.
 - [ ] RFC front matter, index and live cards agree. The historical strict-containment analysis is retained, not claimed passed by opt-in warnings.
 
-Current frontier: RFC revision and authored milestone plan are being reconciled
-under run `rfc0015-r1`, dispatch `d1`, mandate `r1`. No CLI product path or
-live PR write is accepted yet. Next bounded outcome is `opt-in-cli-read`
-(BPR-0784 and BPR-0785). Existing unrelated working-tree edits are excluded.
+Current frontier under run `rfc0015-r1`, dispatch `d1`, mandate `r1`:
+`opt-in-cli-read` remains in progress (BPR-0784 and BPR-0785). The macOS
+tests-disabled composition has a warning-labeled CLI read opt-in, consent
+refusal probes, observed `/user` identity, a bounded `gh api --include`
+process/response adapter, and pre/post account and default-configuration
+observations. A status-only read check of the already configured `gh` returned
+HTTP 200 for `/user` and HTTP 404 for a nonexistent public PR; no response
+body or token was retained as evidence. These checks do not establish a
+complete public PR render or authorize a live PR write.
+
+Independent critical review found that CLI-backed Git-object transport for
+cold full diffs is absent, so the representative tests-disabled public render
+and process/response negative controls remain pending. Nonzero HTTP-200
+GraphQL errors fail closed as generic `unavailable`, but error/rate-limit
+classification remains incomplete. The next bounded objective is to supply
+the credential-bound Git transport, exercise a complete fixture PR through the
+public path with negative controls, and classify GraphQL error responses
+without exposing content. Publishing and safe-target evidence remain for
+BPR-0786. Existing unrelated working-tree edits are excluded.

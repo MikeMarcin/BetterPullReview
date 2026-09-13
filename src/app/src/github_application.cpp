@@ -16,6 +16,8 @@
 #include "bpr/app/worker_executor.hpp"
 
 #include "designated_review_public_observer.hpp"
+#include "gh_cli_transport.hpp"
+#include "github_cli_process_runner.hpp"
 #include "github_device_authorization_transport.hpp"
 #include "github_host_profile.hpp"
 #include "github_provider.hpp"
@@ -117,6 +119,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
+#include <QMessageBox>
 #include <QMouseEvent>
 #include <QPainterPathStroker>
 #include <QPalette>
@@ -146,6 +149,7 @@
 #include <array>
 #include <atomic>
 #include <cerrno>
+#include <charconv>
 #include <chrono>
 #include <cmath>
 #include <cstddef>
@@ -529,6 +533,147 @@ namespace bpr::app {
 				QFileInfo{ QStandardPaths::findExecutable(QStringLiteral("git")) }
 					.canonicalFilePath());
 		}
+
+#if defined(__APPLE__)
+		class owned_cli_read_transport final
+			: public adapters::github::detail::github_wire_transport_port
+		{
+		public:
+			owned_cli_read_transport(
+				const validated_github_host_profile&                               aProfile,
+				const adapters::github::detail::validated_gh_cli_configuration&    aConfiguration,
+				std::unique_ptr<adapters::github::detail::github_cli_process_port> aProcess)
+				: Process{ std::move(aProcess) }
+				, Transport{ aProfile, aConfiguration, *Process }
+			{
+			}
+
+			[[nodiscard]] auto perform(
+				const adapters::github::detail::github_wire_request& aRequest,
+				std::stop_token                                      aStop)
+				-> adapters::github::detail::github_wire_completion override
+			{
+				return Transport.perform(aRequest, aStop);
+			}
+
+			[[nodiscard]] auto perform_capability_probe(
+				const adapters::github::detail::github_capability_probe_wire_request& aRequest,
+				std::stop_token                                                       aStop)
+				-> adapters::github::detail::github_capability_probe_wire_completion override
+			{
+				return Transport.perform_capability_probe(aRequest, aStop);
+			}
+
+		private:
+			std::unique_ptr<adapters::github::detail::github_cli_process_port> Process;
+			adapters::github::detail::gh_cli_transport                         Transport;
+		};
+
+		class opted_in_cli_transport_factory final
+			: public github_wire_transport_factory_port
+		{
+		public:
+			[[nodiscard]] auto make_bootstrap(
+				const validated_github_host_profile&    aProfile,
+				core::github_session_request_context    aContext,
+				application::github_credential_material aCredential) noexcept
+				-> adapters::github::detail::github_wire_transport_factory_result override
+			{
+				return Native.make_bootstrap(aProfile, aContext, std::move(aCredential));
+			}
+
+			[[nodiscard]] auto make_account(
+				const validated_github_host_profile&            aProfile,
+				application::github_credential_retrieve_success aCredential) noexcept
+				-> adapters::github::detail::github_wire_transport_factory_result override
+			{
+				return Native.make_account(aProfile, std::move(aCredential));
+			}
+
+			[[nodiscard]] auto make_anonymous(
+				const validated_github_host_profile& aProfile,
+				core::github_session_request_context aContext) noexcept
+				-> adapters::github::detail::github_wire_transport_factory_result override
+			{
+				return Native.make_anonymous(aProfile, aContext);
+			}
+
+			[[nodiscard]] auto supports_cli() const noexcept -> bool override
+			{
+				return true;
+			}
+
+			[[nodiscard]] auto make_cli(
+				const validated_github_host_profile& aProfile,
+				core::github_session_request_context aContext) noexcept
+				-> adapters::github::detail::github_wire_transport_factory_result override
+			{
+				using namespace adapters::github::detail;
+				static_cast<void>(aContext);
+				const auto unavailable = []() -> github_wire_transport_factory_result {
+					return std::unexpected{ application::github_provider_error{
+						.Failure           = application::github_provider_failure::cli_unavailable,
+						.RetryAfterSeconds = std::nullopt,
+						.RateLimits        = { },
+						.RateLimitCause    = std::nullopt,
+					} };
+				};
+				if (aProfile.authentication_transport()
+					!= application::github_authentication_transport::github_cli) {
+					return unavailable();
+				}
+				try {
+					const auto executable = native_filesystem_path(
+						QFileInfo{ QStandardPaths::findExecutable(QStringLiteral("gh")) }
+							.canonicalFilePath());
+					const auto candidate = gh_cli_configuration_candidate{
+						.Executable              = executable,
+						.NeutralWorkingDirectory = native_filesystem_path(QDir::tempPath()),
+						.Platform                = gh_cli_macos_environment_facts{
+							.HomeDirectory = native_filesystem_path(QDir::homePath()),
+						},
+						.Https = { },
+					};
+					const auto configuration = validate_gh_cli_configuration(candidate);
+					if (!configuration) {
+						return unavailable();
+					}
+					auto process = make_github_cli_process_runner();
+					if (!process) {
+						return unavailable();
+					}
+					const auto version = process->run(
+						compile_gh_cli_version_request(*configuration), std::stop_token{ });
+					if (!version) {
+						return unavailable();
+					}
+					constexpr auto prefix = std::string_view{ "gh version 2." };
+					auto           output = std::string_view{ version->StandardOutput };
+					if (!output.starts_with(prefix)) {
+						return unavailable();
+					}
+					output.remove_prefix(prefix.size());
+					int        minor  = 0;
+					const auto parsed = std::from_chars(output.data(),
+														output.data() + output.size(), minor);
+					if (parsed.ec != std::errc{ } || parsed.ptr == output.data()
+						|| parsed.ptr == output.data() + output.size()
+						|| *parsed.ptr != '.' || minor < 96) {
+						return unavailable();
+					}
+					return std::shared_ptr<github_wire_transport_port>{
+						std::make_shared<owned_cli_read_transport>(aProfile, *configuration,
+																   std::move(process))
+					};
+				} catch (...) {
+					return unavailable();
+				}
+			}
+
+		private:
+			native_github_wire_transport_factory Native;
+		};
+#endif
 
 		[[nodiscard]] auto queue_observation_for(
 			const application::accepted_pull_request_handoff& aHandoff,
@@ -4180,7 +4325,11 @@ namespace bpr::app {
 						application::github_authentication_transport::github_cli,
 						"github.com",
 						github_profile_provenance::builtin),
+#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
+					"GitHub.com — GitHub CLI (uses your gh sign-in)");
+#else
 					"GitHub.com — GitHub CLI (unavailable)");
+#endif
 				if (aConfig.EnterpriseHostname.has_value()) {
 					append_profile(
 						Profiles,
@@ -4209,7 +4358,11 @@ namespace bpr::app {
 								github_cli,
 							*aConfig.EnterpriseHostname,
 							github_profile_provenance::explicit_user),
+#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
+						"GHES 3.18 — GitHub CLI (uses your gh sign-in)");
+#else
 						"GHES 3.18 — GitHub CLI (unavailable)");
+#endif
 				}
 			}
 
@@ -4219,7 +4372,11 @@ namespace bpr::app {
 			} else
 #endif
 			{
+#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
+				TransportFactory = std::make_shared<opted_in_cli_transport_factory>();
+#else
 				TransportFactory = std::make_shared<native_github_wire_transport_factory>();
+#endif
 			}
 
 			auto applicationDataRoot = std::filesystem::path{ };
@@ -9008,8 +9165,24 @@ namespace bpr::app {
 						if (profile->authentication_transport()
 							== application::github_authentication_transport::
 								github_cli) {
-							// CLI selection retains its unavailable path and cannot
-							// acquire an anonymous mode through this control.
+#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
+							const auto consent = QMessageBox::warning(
+								Window.get(), QStringLiteral("Use configured GitHub CLI"),
+								QStringLiteral(
+									"BetterPullReview will use your installed gh for reads on %1. "
+									"The active gh account can change outside this app. "
+									"gh may follow redirects and use your CLI configuration, "
+									"certificates, executable and helper processes. "
+									"Only gh's default home-directory configuration is used; custom CLI environment overrides are ignored. "
+									"These risks are not contained by BetterPullReview. "
+									"Full diffs and publishing through gh are not available yet. "
+									"Connecting for reads does not authorize publishing.")
+									.arg(QString::fromStdString(std::string{ profile->hostname() })),
+								QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
+							if (consent != QMessageBox::Yes) {
+								return;
+							}
+#endif
 							DeviceHost->release_refresh_authority();
 							DeviceRefreshAuthority.reset();
 							Host->dispatch(core::github_event{

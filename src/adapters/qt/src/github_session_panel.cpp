@@ -299,6 +299,13 @@ namespace bpr::qt {
 		IdentityLayout->addWidget(TransportLabel, 2, 3);
 		IdentityLayout->addWidget(AccountLabel, 3, 0, 1, 4);
 		IdentityLayout->addWidget(ConnectionDetails, 4, 0, 1, 4);
+		auto* const cliWarning = new QLabel{ identityGroup };
+		cliWarning->setObjectName(QStringLiteral("githubCliTrustWarning"));
+		cliWarning->setAccessibleName(QStringLiteral("GitHub CLI trust warning"));
+		cliWarning->setWordWrap(true);
+		set_plain_text_label(cliWarning);
+		IdentityLayout->addWidget(cliWarning, 5, 0, 1, 4);
+
 		panelLayout->addWidget(identityGroup);
 
 		// The mode banner reads above the connection it describes, because a
@@ -743,6 +750,14 @@ namespace bpr::qt {
 
 	void github_session_panel::update_selected_profile()
 	{
+		auto* const cliWarning     = findChild<QLabel*>(QStringLiteral("githubCliTrustWarning"));
+		const auto  warningProfile = selected_profile();
+		const auto* option         = warningProfile.has_value() ? profile_option(*warningProfile) : nullptr;
+		const auto  cli            = option != nullptr
+			&& option->Transport == application::github_profile_transport::github_cli;
+		cliWarning->setVisible(cli);
+		cliWarning->setText(cli ? cli_trust_warning_text(text(option->Hostname)) : QString{ });
+
 		const application::github_profile_option* selected = nullptr;
 		QString                                   prefix;
 		if (ActiveProfile.has_value()) {

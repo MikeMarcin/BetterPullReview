@@ -66,10 +66,13 @@ RELEASE_BINARY_FORBIDDEN_BYTES = (
     b"tests\\fixtures\\github\\",
     b"tests/fixtures/github/contracts/v1",
     b"tests/fixtures/github/capabilities/v1",
+)
+MAC_CLI_BINARY_MARKERS = (
     b"gh_cli_transport",
     b"github_cli_process_runner",
     b"validate_gh_cli_configuration",
     b"compile_gh_cli_process_request",
+    b"gh sign-in",
 )
 
 
@@ -519,14 +522,24 @@ class CompositionContractTests(unittest.TestCase):
             completed.stdout + completed.stderr,
         )
         self.assertIn("AUTOMATED_PROFILE_PRIVATE_OK", completed.stdout)
+        cli_marker = (
+            "CLI_OPT_IN_REQUIRED_OK"
+            if sys.platform == "darwin"
+            else "CLI_UNAVAILABLE_OK"
+        )
+        count_marker = (
+            "CLI_OPT_IN_GUARD_COUNT"
+            if sys.platform == "darwin"
+            else "CLI_UNAVAILABLE_COUNT"
+        )
         self.assertRegex(
             completed.stdout,
             (
                 r"PUBLIC_PATH_OK[\r\n]+"
                 r"NATIVE_PLATFORM_VAULT_SELECTED:"
                 + expected_vault_selection
-                + r"[\r\n]+CLI_UNAVAILABLE_OK"
-                + rf"[\r\n]+CLI_UNAVAILABLE_COUNT:{expected_cli_count}"
+                + rf"[\r\n]+{cli_marker}"
+                + rf"[\r\n]+{count_marker}:{expected_cli_count}"
             ),
         )
         self.assertNotIn("GITHUB_FIXTURE", completed.stdout)
@@ -546,11 +559,8 @@ class CompositionContractTests(unittest.TestCase):
                 self.assertIn(selection, composition_source)
         self.assertRegex(composition_source, r"worker_executor\s+ProviderEffects;")
         self.assertRegex(composition_source, r"worker_executor\s+VaultEffects;")
-        self.assertNotIn(
-            "make_github_cli_process_runner",
-            composition_source,
-            "production composition must not construct a CLI process runner",
-        )
+        self.assertIn("make_github_cli_process_runner", composition_source)
+        self.assertIn("#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)", composition_source)
 
         provider_source = read(
             "src/adapters/github/src/live_review_mutation_provider.cpp"
@@ -968,6 +978,12 @@ class CompositionContractTests(unittest.TestCase):
             for forbidden in forbidden_bytes:
                 with self.subTest(forbidden=forbidden.decode(errors="replace")):
                     self.assertNotIn(forbidden, binary)
+            for marker in MAC_CLI_BINARY_MARKERS:
+                with self.subTest(cli_marker=marker.decode(errors="replace")):
+                    if sys.platform == "darwin":
+                        self.assertIn(marker, binary)
+                    else:
+                        self.assertNotIn(marker, binary)
 
             runtime_environment = os.environ.copy()
             runtime_environment["QT_QPA_PLATFORM"] = "offscreen"

@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import sys
 import unittest
+from unittest import mock
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -62,7 +63,7 @@ FIXTURE_LINES = {
     "fixture review mutation execution grant factory": "0016 T bpr::application::make_review_mutation_testing_grant()",
     "fixture one-shot review mutation execution grant factory": "0018 T bpr::application::make_review_mutation_one_shot_testing_grant()",
 }
-PRODUCTION_LINES = {
+LIVE_PRODUCTION_LINES = {
     "live review mutation provider": (
         "0018 T bpr::adapters::github::live_review_mutation_provider::submit()"
     ),
@@ -70,6 +71,21 @@ PRODUCTION_LINES = {
         "0019 T bpr::adapters::github::make_live_review_mutation_provider()"
     ),
 }
+CLI_LINES = {
+    "GitHub CLI transport": (
+        "0033 T bpr::adapters::github::detail::gh_cli_transport::perform()"
+    ),
+    "GitHub CLI configuration validator": (
+        "0034 T bpr::adapters::github::detail::validate_gh_cli_configuration()"
+    ),
+    "GitHub CLI request compiler": (
+        "0035 T bpr::adapters::github::detail::compile_gh_cli_process_request()"
+    ),
+    "GitHub CLI process runner factory": (
+        "0036 T bpr::adapters::github::detail::make_github_cli_process_runner()"
+    ),
+}
+PRODUCTION_LINES = LIVE_PRODUCTION_LINES | (CLI_LINES if sys.platform == "darwin" else {})
 
 
 def rendered(lines: dict[str, str]) -> str:
@@ -220,6 +236,22 @@ class ComposedHostVerifierTests(unittest.TestCase):
             [],
         )
 
+    def test_cli_linkage_is_required_only_in_macos_production(self) -> None:
+        base = rendered(SHARED_LINES | LIVE_PRODUCTION_LINES)
+        with mock.patch.object(VERIFIER.sys, "platform", "darwin"):
+            missing = audit_nm(base, VERIFIER.PRODUCTION_PROFILE)
+            self.assertEqual(len(missing), len(CLI_LINES))
+            self.assertTrue(all("GitHub CLI" in failure for failure in missing))
+            self.assertEqual(
+                audit_nm(base + rendered(CLI_LINES), VERIFIER.PRODUCTION_PROFILE),
+                [],
+            )
+        with mock.patch.object(VERIFIER.sys, "platform", "linux"):
+            self.assertEqual(audit_nm(base, VERIFIER.PRODUCTION_PROFILE), [])
+            present = audit_nm(base + rendered(CLI_LINES), VERIFIER.PRODUCTION_PROFILE)
+            self.assertEqual(len(present), len(CLI_LINES))
+            self.assertTrue(all("GitHub CLI" in failure for failure in present))
+
     def test_reconciliation_is_shared_while_fixture_authorities_stay_forbidden(self) -> None:
         without_reconciliation = dict(SHARED_LINES)
         without_reconciliation.pop("review reconciliation decision")
@@ -318,7 +350,7 @@ class ComposedHostVerifierTests(unittest.TestCase):
                 )
 
     def test_production_requires_and_fixture_forbids_each_live_anchor(self) -> None:
-        for missing in PRODUCTION_LINES:
+        for missing in LIVE_PRODUCTION_LINES:
             remaining = {
                 name: line
                 for name, line in PRODUCTION_LINES.items()
@@ -336,7 +368,7 @@ class ComposedHostVerifierTests(unittest.TestCase):
             with self.subTest(profile="development-fixture", forbidden=missing):
                 failures = audit_nm(
                     rendered(SHARED_LINES | FIXTURE_LINES)
-                    + PRODUCTION_LINES[missing]
+                    + LIVE_PRODUCTION_LINES[missing]
                     + "\n",
                     VERIFIER.DEVELOPMENT_FIXTURE_PROFILE,
                 )
@@ -373,7 +405,9 @@ class ComposedHostVerifierTests(unittest.TestCase):
         )
         self.assertEqual(
             len(failures),
-            len(VERIFIER.SHARED_REQUIRED) + len(VERIFIER.PRODUCTION_REQUIRED),
+            len(VERIFIER.SHARED_REQUIRED)
+            + len(VERIFIER.PRODUCTION_REQUIRED)
+            + (len(VERIFIER.MAC_PRODUCTION_CLI_REQUIRED) if sys.platform == "darwin" else 0),
         )
 
     def test_embedded_template_reference_does_not_satisfy_function_anchor(self) -> None:
@@ -454,7 +488,7 @@ class ComposedHostVerifierTests(unittest.TestCase):
         }
         self.assertEqual(
             audit_nm(
-                rendered(windows_shared | windows_production),
+                rendered(windows_shared | windows_production | (CLI_LINES if sys.platform == "darwin" else {})),
                 VERIFIER.PRODUCTION_PROFILE,
             ),
             [],
@@ -907,7 +941,9 @@ class ComposedHostVerifierTests(unittest.TestCase):
         )
         self.assertEqual(
             len(failures),
-            len(VERIFIER.SHARED_REQUIRED) + len(VERIFIER.PRODUCTION_REQUIRED),
+            len(VERIFIER.SHARED_REQUIRED)
+            + len(VERIFIER.PRODUCTION_REQUIRED)
+            + (len(VERIFIER.MAC_PRODUCTION_CLI_REQUIRED) if sys.platform == "darwin" else 0),
         )
 
     def test_nm_without_a_demangler_falls_back_to_objdump(self) -> None:

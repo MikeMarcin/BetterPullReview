@@ -1,4 +1,5 @@
 #include "gh_cli_transport.hpp"
+#include "github_paged_read.hpp"
 
 #include <algorithm>
 #include <array>
@@ -6,6 +7,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <optional>
 #include <stop_token>
@@ -427,6 +429,7 @@ namespace {
 			expected_endpoint(aRequest, server),
 			"--hostname",
 			std::string{ aProfile.hostname() },
+			"--include",
 			"--method",
 			aRequest.Wire.Method == http_method::get ? "GET" : "POST",
 		};
@@ -451,12 +454,19 @@ namespace {
 			++Calls;
 			LastRequest       = aRequest;
 			LastStopRequested = aStop.stop_requested();
-			return github_cli_process_success{
-				.StandardOutput = "synthetic-success",
-			};
+			if (StopOnRun != nullptr) {
+				StopOnRun->request_stop();
+			}
+			if (OnRun) {
+				OnRun();
+			}
+			return Result;
 		}
 
-		std::size_t                               Calls = 0U;
+		github_cli_process_result                 Result = github_cli_process_success{ .StandardOutput = "HTTP/2.0 200 OK\nContent-Type: application/json\r\n\r\n{}" };
+		std::function<void()>                     OnRun;
+		std::stop_source*                         StopOnRun = nullptr;
+		std::size_t                               Calls     = 0U;
 		std::optional<github_cli_process_request> LastRequest;
 		bool                                      LastStopRequested = false;
 	};
@@ -1003,83 +1013,270 @@ namespace {
 			"repository read cannot lose its pull-request parent correlation");
 	}
 
-	auto test_transport_is_fixed_unavailable_without_process_execution() -> void
+	auto test_transport_parses_actual_response_and_fixed_failures() -> void
 	{
 		temporary_layout layout;
 		const auto       configuration = validate_gh_cli_configuration(configuration_candidate(layout));
 		const auto       cloud         = validate_github_host_profile(cloud_candidate());
-		const auto       enterprise    = validate_github_host_profile(enterprise_candidate());
-		expect(
-			configuration.has_value() && cloud.has_value()
-				&& enterprise.has_value(),
-			"fail-closed transport prerequisites validate");
+		expect(configuration.has_value() && cloud.has_value(), "transport prerequisites validate");
 		successful_counting_process process;
-
-		for (const auto* profile : { &*cloud, &*enterprise }) {
-			gh_cli_transport transport{ *profile, *configuration, process };
-			const std::array expectedReasons{
-				gh_cli_availability_reason::
-					milestone_one_product_scope_deferred,
-				gh_cli_availability_reason::
-					executable_identity_unverifiable,
-				gh_cli_availability_reason::
-					cross_authority_redirect_unverifiable,
-				gh_cli_availability_reason::
-					ambient_configuration_unverifiable,
-				gh_cli_availability_reason::
-					credential_identity_binding_unverifiable,
-				gh_cli_availability_reason::
-					working_directory_identity_unverifiable,
-				gh_cli_availability_reason::
-					descendant_process_containment_unverifiable,
-				gh_cli_availability_reason::
-					numeric_process_identity_reuse_unverifiable,
-			};
-			expect(
-				transport.availability_reasons() == expectedReasons,
-				"transport exposes the M1 deferral and every CLI trust blocker");
-			for (const auto operation : read_operation_catalog) {
-				const auto  request    = wire_request_for(*profile, operation);
-				const auto  completion = transport.perform(request, std::stop_token{ });
-				const auto* error      = std::get_if<github_wire_error>(&completion);
-				expect(
-					error != nullptr
-						&& error->Correlation == request.Correlation
-						&& error->Error.Failure
-							== application::github_provider_failure::
-								cli_unavailable
-						&& !error->Error.RetryAfterSeconds.has_value(),
-					"valid CLI request preserves correlation and fails closed");
-			}
+		gh_cli_transport            transport{ *cloud, *configuration, process };
+		const auto                  request = wire_request_for(*cloud, read_operation::get_repository);
+		const std::string           body    = "{\"private_fixture\":true}\n";
+		// Source-derived isolated fixture: cli/cli v2.96.0 pkg/cmd/api/api.go
+		// processResponse and printHeaders; no configured executable or credential.
+		for (const auto& [link, completeness] : std::array{
+				 std::pair{ std::string{ }, page_completeness::complete },
+				 std::pair{ std::string{ "Link: <https://api.github.com/repos/o/r?page=2>; rel=\"next\"\r\n" }, page_completeness::has_next_page },
+				 std::pair{ std::string{ "Link: <https://api.github.com/repos/o/r?page=1>; rel=\"prev\"\r\n" }, page_completeness::complete } }) {
+			process.Result      = github_cli_process_success{ .StandardOutput = "HTTP/2.0 206 Partial Content\nContent-Type: application/json\r\n" + link + "X-Ratelimit-Remaining: 42\r\n\r\n" + body };
+			const auto  result  = transport.perform(request, { });
+			const auto* success = std::get_if<github_wire_success>(&result);
+			expect(success != nullptr && success->Correlation == request.Correlation
+					   && success->Response.Status == 206 && success->Response.Body == body
+					   && success->Response.Completeness == completeness
+					   && success->Response.Headers.back().Value == "42",
+				   "actual status, body, headers and pagination survive");
+			expect(process.LastRequest->Arguments == expected_arguments(*cloud, request), "perform executes closed include argv");
 		}
-		expect(
-			process.Calls == 0U && !process.LastRequest.has_value(),
-			"unverifiable CLI contract never reaches the process port");
-
-		gh_cli_transport transport{ *cloud, *configuration, process };
-		const auto       stoppedRequest = wire_request_for(*cloud, read_operation::get_viewer_identity);
+		for (const auto& output : std::vector<std::string>{
+				 "{}", "HTTP/2.0 200 OK\n{}", "HTTP/2.0 600 Error\n\r\n{}",
+				 "HTTP/2.0 20x OK\n\r\n{}", "HTTP/2.0 200 OK\nBad Header: x\r\n\r\n{}",
+				 "HTTP/2.0 200 OK\nContent-Type: a\r\ncontent-type: b\r\n\r\n{}",
+				 "HTTP/2.0 200 OK\nLink: garbage\r\n\r\n{}",
+				 "HTTP/2.0 200 OK\nX: a\nb\r\n\r\n{}" }) {
+			process.Result     = github_cli_process_success{ .StandardOutput = output };
+			const auto  result = transport.perform(request, { });
+			const auto* error  = std::get_if<github_wire_error>(&result);
+			expect(error != nullptr && error->Correlation == request.Correlation
+					   && error->Error.Failure == application::github_provider_failure::malformed_response,
+				   "missing response adapter or malformed included output cannot manufacture success");
+		}
+		process.Result = github_cli_process_success{ .StandardOutput = std::string(4U * 1024U * 1024U + 1U, 'x') };
+		auto result    = transport.perform(request, { });
+		expect(std::get<github_wire_error>(result).Error.Failure == application::github_provider_failure::response_limit, "untrusted process double cannot bypass output bound");
+		for (const auto& [failure, expected] : std::array{
+				 std::pair{ github_cli_process_failure::start_failure, application::github_provider_failure::process_startup },
+				 std::pair{ github_cli_process_failure::timeout, application::github_provider_failure::timeout },
+				 std::pair{ github_cli_process_failure::standard_output_limit, application::github_provider_failure::response_limit } }) {
+			process.Result    = std::unexpected{ failure };
+			result            = transport.perform(request, { });
+			const auto* error = std::get_if<github_wire_error>(&result);
+			expect(error != nullptr && error->Correlation == request.Correlation && error->Error.Failure == expected
+					   && !error->Error.RetryAfterSeconds,
+				   "process failure stays fixed and correlated without stdout");
+		}
+		process.Result = std::unexpected{ github_cli_process_failure::cancelled };
+		expect(std::holds_alternative<github_wire_cancelled>(transport.perform(request, { })), "process cancellation remains cancellation");
 		std::stop_source stop;
-		stop.request_stop();
-		const auto  stopped   = transport.perform(stoppedRequest, stop.get_token());
-		const auto* cancelled = std::get_if<github_wire_cancelled>(&stopped);
-		expect(
-			cancelled != nullptr
-				&& cancelled->Correlation == stoppedRequest.Correlation
-				&& process.Calls == 0U,
-			"pre-stopped request returns exact cancellation without launch");
-
-		auto invalid                  = wire_request_for(*cloud, read_operation::get_repository);
-		invalid.Wire.Query            = "page=2";
-		const auto  invalidCompletion = transport.perform(invalid, std::stop_token{ });
-		const auto* error             = std::get_if<github_wire_error>(&invalidCompletion);
-		expect(
-			error != nullptr
-				&& error->Correlation == invalid.Correlation
-				&& error->Error.Failure
-					== application::github_provider_failure::unavailable
-				&& process.Calls == 0U,
-			"invalid wire request is typed and never launched");
+		process.StopOnRun = &stop;
+		process.Result    = github_cli_process_success{ .StandardOutput = "HTTP/1.1 200 OK\n\r\n{}" };
+		expect(std::get<github_wire_cancelled>(transport.perform(request, stop.get_token())).Correlation == request.Correlation, "late cancellation suppresses response");
+		const auto calls = process.Calls;
+		expect(std::holds_alternative<github_wire_cancelled>(transport.perform(request, stop.get_token())) && process.Calls == calls, "pre-cancelled request never launches");
+		auto invalid       = request;
+		invalid.Wire.Query = "page=2";
+		expect(std::holds_alternative<github_wire_error>(transport.perform(invalid, { })) && process.Calls == calls, "invalid read never launches");
 	}
+
+	auto test_realistic_headers_project_provider_metadata() -> void
+	{
+		temporary_layout            layout;
+		const auto                  configuration = validate_gh_cli_configuration(configuration_candidate(layout));
+		const auto                  cloud         = validate_github_host_profile(cloud_candidate());
+		successful_counting_process process;
+		gh_cli_transport            transport{ *cloud, *configuration, process };
+		const auto                  request = wire_request_for(*cloud, read_operation::get_viewer_identity);
+		for (const int status : { 200, 404 }) {
+			const std::string body = status == 200 ? R"({"id":42,"login":"fixture","name":null,"node_id":"MDQ6VXNlcjQy"})" : R"({"message":"Not Found"})";
+			process.Result         = github_cli_process_success{
+				.StandardOutput = "HTTP/2.0 " + std::to_string(status) + " Response\nContent-Type: application/json\r\nDate: Sun, 13 Sep 2026 12:00:00 GMT\r\nServer: github.com\r\nX-Unknown: first\r\nX-Unknown: second\r\nContent-Length: " + std::to_string(body.size()) + "\r\nX-Ratelimit-Limit: 5000\r\nX-Ratelimit-Remaining: 42\r\nX-Ratelimit-Reset: 1700000000\r\nX-Ratelimit-Resource: core\r\n\r\n" + body,
+				.ExitCode       = status == 200 ? 0 : 1,
+			};
+			const auto  completion = transport.perform(request, { });
+			const auto* response   = std::get_if<github_wire_success>(&completion);
+			expect(response != nullptr && response->Response.Headers.size() == 5U && response->Response.Body == body, "ordinary and duplicate unknown HTTP headers stay transport-local");
+			const auto normalized = normalize_observed_github_viewer(response->Response);
+			expect(status == 200 ? normalized.has_value() : (!normalized && normalized.error().Failure == application::github_provider_failure::permission), "realistic gh headers allow existing viewer and 404 normalization");
+		}
+	}
+
+	auto test_completed_http_errors_preserve_provider_evidence() -> void
+	{
+		temporary_layout            layout;
+		const auto                  configuration = validate_gh_cli_configuration(configuration_candidate(layout));
+		const auto                  cloud         = validate_github_host_profile(cloud_candidate());
+		successful_counting_process process;
+		gh_cli_transport            transport{ *cloud, *configuration, process };
+		const auto                  request = wire_request_for(*cloud, read_operation::get_viewer_identity);
+		for (const int status : { 401, 403, 429 }) {
+			process.Result = github_cli_process_success{
+				.StandardOutput = "HTTP/2.0 " + std::to_string(status) + " Error\nContent-Type: application/json\r\nX-Ratelimit-Limit: 5000\r\nX-Ratelimit-Remaining: 42\r\nX-Ratelimit-Reset: 1700000000\r\nX-Ratelimit-Resource: core\r\nRetry-After: 17\r\n\r\n{\"message\":\"fixture refusal\"}",
+				.ExitCode       = 1,
+			};
+			const auto  completion = transport.perform(request, { });
+			const auto* success    = std::get_if<github_wire_success>(&completion);
+			expect(success != nullptr && success->Correlation == request.Correlation && success->Response.Status == status, "nonzero completed HTTP status reaches provider unchanged");
+			const auto metadata = parse_github_response_metadata(success->Response);
+			expect(metadata.has_value() && metadata->RetryAfterSeconds == 17U, "HTTP error retry metadata survives");
+			const auto normalized = normalize_observed_github_viewer(success->Response);
+			expect(!normalized.has_value() && normalized.error().Failure == (status == 401 ? application::github_provider_failure::authentication : status == 403 ? application::github_provider_failure::rate_limit
+																																								  : application::github_provider_failure::rate_limit),
+				   "HTTP denial reaches existing normalized classification");
+			expect(process.LastRequest->PreserveCompletedOutput, "canonical API reads opt into bounded completed output");
+		}
+		const auto                                 wire = compile_capability_probe_request(*cloud);
+		const github_capability_probe_wire_request probe{
+			.Correlation = { .Part = 0U, .Session = session_parent(*cloud), .ProfileRevision = cloud->revision(), .Host = cloud->host(), .ObservedAccount = core::github_account_id{ 42 } },
+			.Wire        = *wire,
+		};
+		const auto  limited         = transport.perform_capability_probe(probe, { });
+		const auto* limitedResponse = std::get_if<github_capability_probe_wire_success>(&limited);
+		expect(limitedResponse != nullptr && limitedResponse->Response.Status == 429
+				   && limitedResponse->Response.RateLimitHeaderCount == 5U && limitedResponse->Response.RateLimitHeaders[4].Value == "17",
+			   "probe preserves rate-limit status and retry delay");
+
+		for (const auto* body : { R"({"errors":[{"type":"RATE_LIMITED","message":"fixture"}]})", R"({"data":{"partial":true}})", "{}" }) {
+			process.Result        = github_cli_process_success{ .StandardOutput = std::string{ "HTTP/2.0 200 OK\nContent-Type: application/json\r\n\r\n" } + body, .ExitCode = 1 };
+			const auto read       = transport.perform(request, { });
+			const auto capability = transport.perform_capability_probe(probe, { });
+			expect(std::get<github_wire_error>(read).Error.Failure == application::github_provider_failure::unavailable
+					   && std::get<github_wire_error>(read).Correlation == request.Correlation,
+				   "nonzero HTTP 200 fails atomically even with valid-looking JSON");
+			expect(std::get<github_capability_probe_wire_error>(capability).Error.Failure == application::github_provider_failure::unavailable,
+				   "nonzero GraphQL 200 remains generic failure pending fuller error normalization");
+		}
+		for (const auto* length : { "1", "3", "bad", "2, 2" }) {
+			process.Result = github_cli_process_success{ .StandardOutput = std::string{ "HTTP/2.0 200 OK\nContent-Length: " } + length + "\r\n\r\n{}" };
+			expect(std::get<github_wire_error>(transport.perform(request, { })).Error.Failure == application::github_provider_failure::malformed_response, "invalid or mismatched content length refuses body");
+		}
+		process.Result = github_cli_process_success{ .StandardOutput = "HTTP/2.0 200 OK\nContent-Length: 2\r\n\r\n{}" };
+		expect(std::holds_alternative<github_wire_success>(transport.perform(request, { })), "exact content length permits clean response");
+
+		process.Result = github_cli_process_success{ .StandardOutput = "fixed synthetic process failure without framing", .ExitCode = 1 };
+		expect(std::get<github_wire_error>(transport.perform(request, { })).Error.Failure == application::github_provider_failure::malformed_response, "unframed nonzero output is redacted malformed response");
+		expect(std::get<github_capability_probe_wire_error>(transport.perform_capability_probe(probe, { })).Error.Failure == application::github_provider_failure::malformed_response, "probe also rejects unframed nonzero output");
+	}
+
+	auto test_configuration_file_metadata_changes() -> void
+	{
+		temporary_layout layout;
+#if defined(_WIN32)
+		const auto directory = layout.RoamingDirectory / "GitHub CLI";
+#else
+		const auto directory = layout.HomeDirectory / ".config" / "gh";
+#endif
+		const auto                                 configuration = validate_gh_cli_configuration(configuration_candidate(layout));
+		const auto                                 cloud         = validate_github_host_profile(cloud_candidate());
+		successful_counting_process                process;
+		const auto                                 request = wire_request_for(*cloud, read_operation::get_repository);
+		const auto                                 wire    = compile_capability_probe_request(*cloud);
+		const github_capability_probe_wire_request probe{
+			.Correlation = { .Part = 0U, .Session = session_parent(*cloud), .ProfileRevision = cloud->revision(), .Host = cloud->host(), .ObservedAccount = core::github_account_id{ 42 } },
+			.Wire        = *wire,
+		};
+		gh_cli_transport missingDirectory{ *cloud, *configuration, process };
+		std::filesystem::create_directories(directory);
+		expect(std::get<github_wire_error>(missingDirectory.perform(request, { })).Error.Failure == application::github_provider_failure::cli_unavailable && process.Calls == 0U, "new default configuration directory refuses launch");
+		for (const auto* name : { "config.yml", "hosts.yml" }) {
+			const auto       path = directory / name;
+			gh_cli_transport absent{ *cloud, *configuration, process };
+			{
+				std::ofstream output{ path };
+				output << "fixture";
+			}
+			auto calls = process.Calls;
+			expect(std::get<github_wire_error>(absent.perform(request, { })).Error.Failure == application::github_provider_failure::cli_unavailable && process.Calls == calls, "added configured file refuses read");
+			gh_cli_transport present{ *cloud, *configuration, process };
+			std::filesystem::remove(path);
+			expect(std::get<github_capability_probe_wire_error>(present.perform_capability_probe(probe, { })).Error.Failure == application::github_provider_failure::cli_unavailable && process.Calls == calls, "removed configured file refuses probe");
+			{
+				std::ofstream output{ path };
+				output << "fixture";
+			}
+			gh_cli_transport original{ *cloud, *configuration, process };
+			const auto       replacement = directory / "replacement";
+			{
+				std::ofstream output{ replacement };
+				output << "replacement fixture";
+			}
+			std::filesystem::remove(path);
+			std::filesystem::rename(replacement, path);
+			expect(std::holds_alternative<github_wire_error>(original.perform(request, { })) && process.Calls == calls, "stable replacement refuses launch");
+			gh_cli_transport duringRead{ *cloud, *configuration, process };
+			process.OnRun = [&path] { std::ofstream output{path, std::ios::app}; output << "change"; };
+			expect(std::get<github_wire_error>(duringRead.perform(request, { })).Error.Failure == application::github_provider_failure::cli_unavailable && process.Calls == calls + 1U, "post-read metadata drift discards success");
+			gh_cli_transport duringProbe{ *cloud, *configuration, process };
+			expect(std::get<github_capability_probe_wire_error>(duringProbe.perform_capability_probe(probe, { })).Error.Failure == application::github_provider_failure::cli_unavailable && process.Calls == calls + 2U, "post-probe metadata drift discards success");
+			process.OnRun = { };
+			// Metadata does not contain account/keychain races or same-metadata
+			// edits: record that limitation rather than claiming content identity.
+			gh_cli_transport metadataOnly{ *cloud, *configuration, process };
+			const auto       modified = std::filesystem::last_write_time(path);
+			const auto       size     = std::filesystem::file_size(path);
+			{
+				std::ofstream output{ path };
+				output << std::string(size, 'x');
+			}
+			std::filesystem::last_write_time(path, modified);
+			expect(std::holds_alternative<github_wire_success>(metadataOnly.perform(request, { })), "same-metadata edit remains an explicit uncontained limitation");
+			std::filesystem::remove(path);
+		}
+	}
+
+	auto test_detected_configuration_change_refuses_launch() -> void
+	{
+		temporary_layout            layout;
+		const auto                  configuration = validate_gh_cli_configuration(configuration_candidate(layout));
+		const auto                  cloud         = validate_github_host_profile(cloud_candidate());
+		successful_counting_process process;
+		gh_cli_transport            transport{ *cloud, *configuration, process };
+		const auto                  request = wire_request_for(*cloud, read_operation::get_repository);
+		{
+			std::ofstream changed{ configuration->executable(), std::ios::app };
+			changed << "changed fixture bytes";
+		}
+		const auto result = transport.perform(request, { });
+		expect(std::get<github_wire_error>(result).Error.Failure == application::github_provider_failure::cli_unavailable && process.Calls == 0U, "detected executable change refuses launch");
+		const auto                                 wire = compile_capability_probe_request(*cloud);
+		const github_capability_probe_wire_request probe{
+			.Correlation = { .Part = 0U, .Session = session_parent(*cloud), .ProfileRevision = cloud->revision(), .Host = cloud->host(), .ObservedAccount = core::github_account_id{ 42 } },
+			.Wire        = *wire,
+		};
+		expect(std::get<github_capability_probe_wire_error>(transport.perform_capability_probe(probe, { })).Error.Failure == application::github_provider_failure::cli_unavailable && process.Calls == 0U, "probe detects executable change too");
+		gh_cli_transport newTransport{ *cloud, *configuration, process };
+		std::error_code  error;
+		std::filesystem::create_directory(configuration->neutral_working_directory() / ".git", error);
+		expect(!error, "working directory fixture becomes repository");
+		expect(std::get<github_wire_error>(newTransport.perform(request, { })).Error.Failure == application::github_provider_failure::cli_unavailable && process.Calls == 0U, "working directory repository change refuses launch");
+	}
+
+	auto test_capability_probe_uses_closed_query_and_response() -> void
+	{
+		temporary_layout            layout;
+		const auto                  configuration = validate_gh_cli_configuration(configuration_candidate(layout));
+		const auto                  cloud         = validate_github_host_profile(cloud_candidate());
+		successful_counting_process process;
+		gh_cli_transport            transport{ *cloud, *configuration, process };
+		for (std::uint8_t part = 0U; part < capability_probe_part_count; ++part) {
+			const auto wire = compile_capability_probe_request(*cloud, { }, part);
+			expect(wire.has_value(), "probe compiles");
+			github_capability_probe_wire_request request{
+				.Correlation = { .Part = part, .Session = session_parent(*cloud), .ProfileRevision = cloud->revision(), .Host = cloud->host(), .ObservedAccount = core::github_account_id{ 42 } },
+				.Wire        = *wire,
+			};
+			const auto  result  = transport.perform_capability_probe(request, { });
+			const auto* success = std::get_if<github_capability_probe_wire_success>(&result);
+			expect(success != nullptr && success->Correlation == request.Correlation && success->Response.Status == 200
+					   && success->Response.Authenticated && success->Response.ContentType == "application/json" && success->Response.Body == "{}",
+				   "probe preserves bounded response and correlation");
+			expect(process.LastRequest->Arguments[1] == "graphql" && process.LastRequest->Arguments.back() == "-" && process.LastRequest->StandardInput == wire->Body, "probe sends exact canonical query by stdin");
+			const auto calls  = process.Calls;
+			request.Wire.Body = "mutation { unsafe }";
+			expect(std::holds_alternative<github_capability_probe_wire_error>(transport.perform_capability_probe(request, { })) && process.Calls == calls, "probe mutation drift never launches");
+		}
+	}
+
 }
 
 auto main() -> int
@@ -1088,6 +1285,11 @@ auto main() -> int
 	test_all_operations_compile_to_exact_closed_invocations();
 	test_configuration_rejects_ambient_and_unsafe_candidates();
 	test_correlation_server_and_wire_drift_are_rejected();
-	test_transport_is_fixed_unavailable_without_process_execution();
+	test_transport_parses_actual_response_and_fixed_failures();
+	test_capability_probe_uses_closed_query_and_response();
+	test_detected_configuration_change_refuses_launch();
+	test_configuration_file_metadata_changes();
+	test_completed_http_errors_preserve_provider_evidence();
+	test_realistic_headers_project_provider_metadata();
 	return EXIT_SUCCESS;
 }

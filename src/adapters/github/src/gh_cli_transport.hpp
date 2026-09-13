@@ -111,6 +111,7 @@ namespace bpr::adapters::github::detail {
 			-> const std::filesystem::path&;
 
 	private:
+		friend class gh_cli_transport;
 		validated_gh_cli_configuration(
 			std::filesystem::path                             aExecutable,
 			std::filesystem::path                             aNeutralWorkingDirectory,
@@ -132,6 +133,9 @@ namespace bpr::adapters::github::detail {
 			-> std::expected<
 				github_cli_process_request,
 				gh_cli_invocation_failure>;
+		friend auto compile_gh_cli_version_request(
+			const validated_gh_cli_configuration& aConfiguration)
+			-> github_cli_process_request;
 	};
 
 	using gh_cli_configuration_result = std::expected<
@@ -151,8 +155,13 @@ namespace bpr::adapters::github::detail {
 		const validated_github_host_profile&  aProfile,
 		const github_wire_request&            aRequest) -> gh_cli_invocation_result;
 
+	/// Local noncredential probe, using the same executable and child environment.
+	[[nodiscard]] auto compile_gh_cli_version_request(
+		const validated_gh_cli_configuration& aConfiguration)
+		-> github_cli_process_request;
+
 	enum class gh_cli_availability_reason : std::uint8_t {
-		milestone_one_product_scope_deferred,
+		opt_in_product_scope_in_progress,
 		executable_identity_unverifiable,
 		cross_authority_redirect_unverifiable,
 		ambient_configuration_unverifiable,
@@ -177,10 +186,30 @@ namespace bpr::adapters::github::detail {
 			const github_wire_request& aRequest,
 			std::stop_token            aStop) -> github_wire_completion override;
 
+		[[nodiscard]] auto perform_capability_probe(
+			const github_capability_probe_wire_request& aRequest,
+			std::stop_token                             aStop) -> github_capability_probe_wire_completion override;
+
 	private:
-		validated_github_host_profile  Profile;
-		validated_gh_cli_configuration Configuration;
-		github_cli_process_port&       Process;
+		struct configuration_metadata
+		{
+			std::filesystem::path           Canonical;
+			std::filesystem::file_type      Type = std::filesystem::file_type::not_found;
+			std::uintmax_t                  Size = 0U;
+			std::filesystem::file_time_type Modified{ };
+			auto                            operator==(const configuration_metadata&) const -> bool = default;
+		};
+		[[nodiscard]] auto observe_configuration_files() const
+			-> std::optional<std::array<configuration_metadata, 3>>;
+		std::filesystem::path                                ConfigurationDirectory;
+		std::optional<std::array<configuration_metadata, 3>> ConfigurationFiles;
+		[[nodiscard]] auto                                   configuration_unchanged() const -> bool;
+		std::uintmax_t                                       ExecutableSize = 0U;
+		std::filesystem::file_time_type                      ExecutableWriteTime{ };
+		bool                                                 ConfigurationObserved = false;
+		validated_github_host_profile                        Profile;
+		validated_gh_cli_configuration                       Configuration;
+		github_cli_process_port&                             Process;
 	};
 }
 

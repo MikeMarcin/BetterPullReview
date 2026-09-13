@@ -12,16 +12,20 @@ the functional core or Qt presentation adapter.
   that source is the sole permitted telemetry reference.
 - Keep `github_cli_process.hpp`, `github_cli_process_runner.hpp`, and
   `github_wire_transport.hpp` standard-C++-only. The process result may expose
-  bounded stdout only on clean success; failures expose fixed categories, not
+  bounded stdout only on clean success or the explicitly opted-in completed
+  `gh api --include` HTTP response path. That path may carry a bounded nonzero
+  exit code so the adapter can normalize an HTTP error. Crashes, cancellation,
+  timeouts, limits and unrelated process requests expose fixed categories, not
   stderr, `QProcess::errorString()`, arguments, environment, paths, exit
-  diagnostics, or partial output.
+  diagnostics, or partial output. No raw response is logged.
 - Construct the CLI child environment from nothing. Admit only typed
   platform credential-session and selected HTTPS proxy/trust facts plus the
   fixed noninteractive settings. Never read or pass token, host/repository,
   config-directory, debug, pager/editor/browser, TTY/color override, update,
   spinner, prompt, or arbitrary parent variables.
 - Compile only closed `gh api` argument shapes from revalidated canonical
-  requests. Native HTTPS remains the default production authentication
+  requests; a bounded local `gh --version` probe may precede opt-in use and
+  carries no credential or request body. Native HTTPS remains the default production authentication
   transport. RFC-BPR-0015 authorizes an explicitly opted-in configured-CLI
   account profile with visible residual risks for reads and review/comment
   publishing. Its former blanket `cli_unavailable` rule is historical; a

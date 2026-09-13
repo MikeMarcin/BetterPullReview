@@ -908,8 +908,34 @@ build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review \
   --render-evidence build/dev/foundation-window.png
 ```
 
+## Current CLI milestone and historical checks
+
+RFC-BPR-0015's amended first milestone is in progress. Native HTTPS remains
+the default. The tests-disabled macOS composition is being wired for explicit
+CLI read opt-in on the selected GitHub.com or GHES host, with a Connect warning,
+observed `/user` identity, pre/post-request account checks and a read-only lease.
+It invokes the configured `gh` directly with bounded arguments, input, output
+and time; the version preflight currently accepts `gh` 2.x with minor >= 96.
+This is a version check, not proof of an official executable's provenance.
+CLI-backed Git-object transport for full diffs and CLI publishing are not yet
+implemented. Windows and Linux remain unavailable. Public-path acceptance and
+target-native qualification remain pending under BPR-0788.
+
+BetterPullReview does not extract or copy CLI tokens or change global CLI
+authentication. Opt-in trusts the machine's configured executable, configuration,
+socket routing, CA and redirect behavior, active account and helper processes.
+Pre/post observations can detect some account changes but cannot bind a credential
+generation or prevent a concurrent account switch. Executable/configuration/CA
+replacement and process escape remain uncontained risks. Read opt-in grants no
+publishing authority. RFC-BPR-0013's independent `MaximumCommits=250` parser limit
+remains unchanged; CLI access alone cannot make a larger PR render.
+
+The dev/test graph retains unavailable CLI fixtures; those results do not
+qualify tests-disabled macOS CLI reads. The following zero-launch assertions
+record RFC-BPR-0002 evidence and require reconciliation for RFC-BPR-0015.
+
 The public application provides built-in GitHub.com native-HTTPS and
-fail-closed CLI choices. Add explicit GHES 3.18 choices with:
+explicit CLI choices. Add explicit GHES 3.18 choices with:
 
 ```sh
 build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review --ghes-host ghe.example.com
@@ -1023,6 +1049,10 @@ cache, explicitly loads retained history, repeats the selections, and must
 make zero smart acquire, discovery, `ls-refs`, or fetch calls. Both authority
 shapes use sanitized recorded GitHub responses plus a deterministic local Git
 repository; no GitHub endpoint, credential, or private content is involved.
+
+The following describes the historical RFC-BPR-0002 composition contract;
+its native-only symbol and zero-launch requirements are not RFC-BPR-0015
+acceptance. The updated tests-disabled Mac public path still needs direct evidence.
 
 `application_composition_contract` creates a fresh tests-disabled Release
 tree. It proves the public application header has no testing conditional and
@@ -1187,7 +1217,7 @@ is `78a85e15319473e39baaa6b6c8723ff7f9adbade13b48475a3f94a5622719b01`.
 The generated PNGs are deterministic layout/composition evidence only, not
 presentation-polish, native system-theme, or light/dark-theme certification.
 
-For the BPR-0025 GitHub CLI process boundary, build and run the two focused
+For the historical BPR-0025 GitHub CLI process boundary, build and run the two focused
 contract executables:
 
 ```sh
@@ -1311,7 +1341,9 @@ state. Source review additionally records per-round-trip `ActiveToken`
 selection, keyring-error fallback to a blank-host token, and the macOS keyring
 launch of `/usr/bin/security`.
 
-Milestone one does not positively enable CLI transport. Native HTTPS is the
+The historical RFC-BPR-0002 milestone did not positively enable CLI transport.
+The following reports that original refusal policy, not the amended RFC-BPR-0015
+macOS read policy. Native HTTPS was the
 sole production authentication transport, and visible CLI choices return
 fixed `cli_unavailable` with zero process launches. The transport reports
 eight reasons: product-scope deferral plus executable-image identity,
@@ -2350,10 +2382,11 @@ success claim.
 
 ### GitHub and native credentials
 
-- A GitHub CLI profile is visible but unavailable by design in milestone one.
-  Use the corresponding native-HTTPS profile. Positive CLI enablement remains
-  RFC-BPR-0015 work, and selecting the unavailable profile must launch no
-  process.
+- CLI reads are in progress for tests-disabled macOS with explicit Connect
+  opt-in and configured `gh` 2.x, minor >= 96. Windows/Linux and ordinary
+  test compositions remain unavailable. Native HTTPS remains the default.
+  Read connection is not full-diff or publishing acceptance; BPR-0788 tracks
+  outstanding public-path evidence.
 - Supply GHES as a canonical hostname only, such as `ghe.example.com`, not as
   a URL, path, query, fragment, credential-bearing authority, or GitHub.com
   subdomain. Invalid host configuration fails before network or credential

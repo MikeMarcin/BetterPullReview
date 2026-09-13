@@ -270,7 +270,13 @@ namespace {
 			return 0;
 		}
 
+		if (mode == QStringLiteral("http-error")) {
+			std::cout << "HTTP/2.0 401 Unauthorized\r\n\r\n{}";
+			std::cerr << "synthetic-private-diagnostic";
+			return 1;
+		}
 		if (mode == QStringLiteral("hang")) {
+			std::cout << "partial" << std::flush;
 			std::this_thread::sleep_for(10s);
 			return 0;
 		}
@@ -789,6 +795,47 @@ namespace {
 			request,
 			github_cli_process_failure::process_crash,
 			"crash exposes no partial stdout");
+	}
+
+	auto test_completed_output_opt_in() -> void
+	{
+		QTemporaryDir directory;
+		expect(directory.isValid(), "completed output directory is available");
+		const auto runner  = make_github_cli_process_runner();
+		auto       request = base_request(directory, { "--bpr-helper", "http-error" });
+		expect_failure(*runner, request, github_cli_process_failure::nonzero_exit,
+					   "default rejects completed HTTP error output");
+		request.PreserveCompletedOutput = true;
+		const auto result               = runner->run(request, { });
+		expect(result.has_value() && result->ExitCode == 1
+				   && result->StandardOutput == "HTTP/2.0 401 Unauthorized\r\n\r\n{}",
+			   "opt-in preserves only exact bounded stdout and completed exit code");
+		request.StandardOutputLimit = 1U;
+		expect_failure(*runner, request, github_cli_process_failure::standard_output_limit,
+					   "opt-in stdout overflow exposes no partial output");
+		request.StandardOutputLimit = 64U;
+		request.StandardErrorLimit  = 1U;
+		expect_failure(*runner, request, github_cli_process_failure::standard_error_limit,
+					   "opt-in stderr overflow exposes no partial output");
+		request                         = base_request(directory, { "--bpr-helper", "crash" });
+		request.PreserveCompletedOutput = true;
+		expect_failure(*runner, request, github_cli_process_failure::process_crash,
+					   "opt-in crash exposes no partial output");
+		request                         = base_request(directory, { "--bpr-helper", "hang" });
+		request.PreserveCompletedOutput = true;
+		request.Timeout                 = 50ms;
+		expect_failure(*runner, request, github_cli_process_failure::timeout,
+					   "opt-in timeout exposes no partial output");
+		request.Timeout = 2s;
+		std::stop_source cancellation;
+		std::thread      canceller{ [&] {
+			std::this_thread::sleep_for(50ms);
+			cancellation.request_stop();
+		} };
+		const auto cancelled = runner->run(request, cancellation.get_token());
+		canceller.join();
+		expect(!cancelled.has_value() && cancelled.error() == github_cli_process_failure::cancelled,
+			   "opt-in cancellation exposes no partial output");
 	}
 
 #if defined(Q_OS_UNIX)
@@ -1338,6 +1385,7 @@ auto main(int argc, char* argv[]) -> int
 	test_bare_repository_working_directory_is_rejected();
 	test_shape_limits_reject_without_launch();
 	test_stream_limits_and_redaction();
+	test_completed_output_opt_in();
 #if defined(Q_OS_UNIX)
 	test_unix_process_hardening();
 	test_descendant_process_group_is_killed();

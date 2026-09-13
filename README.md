@@ -13,7 +13,7 @@ one canonical mapping/group/navigation/detail model, one comparison-space
 scroll authority, a custom link map, and the selected rendered workbench;
 final RFC closeout remains tracked separately. The public executable composes
 explicit GitHub.com and optional GHES 3.18 profiles,
-native HTTPS as the sole milestone-one production authentication transport,
+native HTTPS as the default production authentication transport,
 the target platform's credential vault, the normalized provider and
 application hosts, an isolated installed-Git object engine, an
 authority-partitioned private cache and epoch catalog, and the Qt 6 Widgets
@@ -84,11 +84,28 @@ sit above the core order; repository and pull-request-number sorts activate only
 when selected, and the private preferences survive restart without persisting a
 derived filtered queue.
 
-GitHub CLI choices remain visible but deliberately unavailable: their trust
-contract is outside milestone-one product scope, so selecting one returns the
-fixed typed `cli_unavailable` result with zero CLI executable/configuration
-discovery or CLI process launch. Positive CLI enablement is deferred to
-[RFC-BPR-0015](docs/rfcs/RFC-BPR-0015-github-cli-production-enablement.md).
+RFC-BPR-0015's amended first milestone is in progress. Native HTTPS remains
+the default. The tests-disabled macOS composition is being wired for explicit
+CLI read opt-in on the selected GitHub.com or GHES host, with a Connect warning,
+observed `/user` identity, pre/post-request account checks and a read-only lease.
+It invokes the configured `gh` directly with bounded arguments, input, output
+and time; the version preflight currently accepts `gh` 2.x with minor >= 96.
+It uses `gh`'s default home-directory configuration and ignores custom CLI
+environment overrides.
+This is a version check, not proof of an official executable's provenance.
+CLI-backed Git-object transport for full diffs and CLI publishing are not yet
+implemented. Windows and Linux remain unavailable. Public-path acceptance and
+target-native qualification remain pending under BPR-0788.
+
+BetterPullReview does not extract or copy CLI tokens or change global CLI
+authentication. Opt-in trusts the machine's configured executable, configuration,
+socket routing, CA and redirect behavior, active account and helper processes.
+Pre/post observations can detect some account changes but cannot bind a credential
+generation or prevent a concurrent account switch. Executable/configuration/CA
+replacement and process escape remain uncontained risks. Read opt-in grants no
+publishing authority. RFC-BPR-0013's independent `MaximumCommits=250` parser limit
+remains unchanged; CLI access alone cannot make a larger PR render.
+
 Manual credentials use a Qt-owned password input and remain session-only.
 Device sign-in is remembered across orderly quits: tokens stay in the platform
 vault, while a private metadata store retains the exact binding and lifetime.

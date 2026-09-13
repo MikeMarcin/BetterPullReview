@@ -741,11 +741,11 @@ namespace bpr::adapters::github::detail {
 					return failed(
 						github_cli_process_failure::process_crash);
 				}
-				if (process->exitCode() != 0) {
+				if (!aRequest.PreserveCompletedOutput && process->exitCode() != 0) {
 					return failed(
 						github_cli_process_failure::nonzero_exit);
 				}
-				if (standardErrorBytes != 0) {
+				if (!aRequest.PreserveCompletedOutput && standardErrorBytes != 0) {
 					return failed(
 						github_cli_process_failure::unexpected_standard_error);
 				}
@@ -754,6 +754,7 @@ namespace bpr::adapters::github::detail {
 				return {
 					.Result = github_cli_process_success{
 						.StandardOutput = std::move(standardOutput),
+						.ExitCode       = process->exitCode(),
 					},
 					.AwaitingReap   = nullptr,
 					.ProcessGroupId = 0,

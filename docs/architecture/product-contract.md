@@ -105,6 +105,28 @@ BetterPullReview is implemented as a deterministic functional core inside an imp
 - BetterPullReview must tolerate comments, edits, deletions, replies, resolutions, and reviews created by other clients.
 - Uninstalling BetterPullReview may lose private workflow state but cannot lose or corrupt shared review history.
 
+## GitHub CLI profile milestone
+
+RFC-BPR-0015's amended first milestone is in progress. Native HTTPS remains
+the default. The tests-disabled macOS composition is being wired for explicit
+CLI read opt-in on the selected GitHub.com or GHES host, with a Connect warning,
+observed `/user` identity, pre/post-request account checks and a read-only lease.
+It invokes the configured `gh` directly with bounded arguments, input, output
+and time; the version preflight currently accepts `gh` 2.x with minor >= 96.
+This is a version check, not proof of an official executable's provenance.
+CLI-backed Git-object transport for full diffs and CLI publishing are not yet
+implemented. Windows and Linux remain unavailable. Public-path acceptance and
+target-native qualification remain pending under BPR-0788.
+
+BetterPullReview does not extract or copy CLI tokens or change global CLI
+authentication. Opt-in trusts the machine's configured executable, configuration,
+socket routing, CA and redirect behavior, active account and helper processes.
+Pre/post observations can detect some account changes but cannot bind a credential
+generation or prevent a concurrent account switch. Executable/configuration/CA
+replacement and process escape remain uncontained risks. Read opt-in grants no
+publishing authority. RFC-BPR-0013's independent `MaximumCommits=250` parser limit
+remains unchanged; CLI access alone cannot make a larger PR render.
+
 ## Explicit non-goals
 
 - Creating, editing, merging, closing, or rebasing pull requests.

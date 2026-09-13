@@ -36,6 +36,9 @@
 #include <QIcon>
 #include <QLabel>
 #include <QLineEdit>
+#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
+	#include <QMessageBox>
+#endif
 #include <QPixmap>
 #include <QPushButton>
 #include <QSize>
@@ -756,6 +759,7 @@ namespace {
 			std::size_t                IdentityUpdatesBeforeConnect   = 0U;
 			std::size_t                DiagnosticUpdatesBeforeConnect = 0U;
 			std::string                ExpectedActiveHostText;
+			bool                       ConsentWarningObserved = false;
 		};
 
 		// [[BPR-0540]]. Ticks the orphan course keeps running after the host's
@@ -3038,6 +3042,14 @@ namespace {
 		const auto& cli        = aRun.Cli;
 		return aWindow.profile_selector()->currentIndex()
 			== cli.ActiveRow
+#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
+			&& cli.ConsentWarningObserved
+			&& statistics.GithubIdentityUpdates
+			== cli.IdentityUpdatesBeforeConnect
+			&& statistics.GithubDiagnosticUpdates
+			== cli.DiagnosticUpdatesBeforeConnect
+			&& aWindow.github_status_text() == "No GitHub host is connected."
+#else
 			&& aWindow.active_host_text() == cli.ExpectedActiveHostText
 			&& statistics.GithubIdentityUpdates
 			== cli.IdentityUpdatesBeforeConnect + 1U
@@ -3046,6 +3058,7 @@ namespace {
 			&& aWindow.github_status_text() == "The GitHub connection failed."
 			&& aWindow.github_diagnostic_text()
 			== "Account identity observation: The selected GitHub CLI connection is unavailable."
+#endif
 			&& aWindow.active_account_text() == "Not authenticated"
 			&& !aWindow.public_preview_signed_out()
 			&& !aWindow.github_open_action()->isEnabled()
@@ -3056,8 +3069,13 @@ namespace {
 		const QComboBox& aSelector,
 		const int        aRow) -> bool
 	{
+#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
+		return aSelector.itemText(aRow).endsWith(
+			QStringLiteral("GitHub CLI (uses your gh sign-in)"));
+#else
 		return aSelector.itemText(aRow).endsWith(
 			QStringLiteral("GitHub CLI (unavailable)"));
+#endif
 	}
 
 	[[nodiscard]] auto cli_unavailable_profile_count(
@@ -3091,11 +3109,18 @@ namespace {
 		-> std::optional<std::string>
 	{
 		const auto label = aSelector.itemText(aRow);
-		if (label == QStringLiteral("GitHub.com — GitHub CLI (unavailable)")) {
+#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
+		const auto githubLabel     = QStringLiteral("GitHub.com — GitHub CLI (uses your gh sign-in)");
+		const auto enterpriseLabel = QStringLiteral("GHES 3.18 — GitHub CLI (uses your gh sign-in)");
+#else
+		const auto githubLabel     = QStringLiteral("GitHub.com — GitHub CLI (unavailable)");
+		const auto enterpriseLabel = QStringLiteral("GHES 3.18 — GitHub CLI (unavailable)");
+#endif
+		if (label == githubLabel) {
 			return std::string{ "Active host: github.com (GitHub.com)" };
 		}
 		if (
-			label == QStringLiteral("GHES 3.18 — GitHub CLI (unavailable)")
+			label == enterpriseLabel
 			&& aEnterpriseHostname.has_value()) {
 			return std::string{ "Active host: " } + *aEnterpriseHostname
 				+ " (GitHub Enterprise Server)";
@@ -3127,6 +3152,26 @@ namespace {
 		cli.IdentityUpdatesBeforeConnect   = statistics.GithubIdentityUpdates;
 		cli.DiagnosticUpdatesBeforeConnect = statistics.GithubDiagnosticUpdates;
 		cli.ExpectedActiveHostText         = std::move(*expectedHost);
+#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
+		// Both Connect and the signed-out preview gesture reach the CLI opt-in
+		// warning. Decline it before either legacy release probe proceeds.
+		auto attempts = std::make_shared<std::size_t>(0U);
+		auto poll     = std::make_shared<std::function<void()>>();
+		*poll         = [&aRun, attempts, poll] {
+			if (auto* dialog = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+				dialog != nullptr) {
+				aRun.Cli.ConsentWarningObserved = dialog->icon() == QMessageBox::Warning
+					&& dialog->text().contains(QStringLiteral("installed gh"))
+					&& dialog->text().contains(QStringLiteral("does not authorize publishing"));
+				dialog->reject();
+				return;
+			}
+			if (++*attempts <= 100U) {
+				QTimer::singleShot(1, qApp, *poll);
+			}
+		};
+		QTimer::singleShot(0, qApp, *poll);
+#endif
 		if (aRun.PublicPreview.Enabled) {
 			aWindow.session_panel()->public_preview_button()->click();
 		} else {
@@ -3467,9 +3512,15 @@ namespace {
 				   << '\n';
 		}
 		if (aRun.Cli.Enabled) {
+#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
+			stream << (passed ? "CLI_OPT_IN_REQUIRED_OK\n"
+							  : "CLI_OPT_IN_REQUIRED_FAILED\n")
+				   << "CLI_OPT_IN_GUARD_COUNT:"
+#else
 			stream << (passed ? "CLI_UNAVAILABLE_OK\n"
 							  : "CLI_UNAVAILABLE_FAILED\n")
 				   << "CLI_UNAVAILABLE_COUNT:"
+#endif
 				   << static_cast<unsigned long long>(
 						  aRun.Cli.Observed)
 				   << '\n';

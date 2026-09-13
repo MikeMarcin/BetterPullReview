@@ -1,4 +1,5 @@
 #include "github_provider.hpp"
+#include "github_wire_request_validation.hpp"
 
 #include <glaze/json.hpp>
 
@@ -194,6 +195,14 @@ namespace {
 			return AccountTransport;
 		}
 
+		bool        CliEnabled = false;
+		std::size_t CliCalls   = 0U;
+		auto        supports_cli() const noexcept -> bool override { return CliEnabled; }
+		auto        make_cli(const validated_github_host_profile&, core::github_session_request_context) noexcept -> github_wire_transport_factory_result override
+		{
+			++CliCalls;
+			return AccountTransport;
+		}
 		std::shared_ptr<github_wire_transport_port>         BootstrapTransport;
 		std::shared_ptr<github_wire_transport_port>         AccountTransport;
 		std::size_t                                         BootstrapCalls = 0U;
@@ -1842,6 +1851,69 @@ namespace {
 		}
 	}
 
+	void test_cli_observed_account_lease()
+	{
+		for (const bool postflight : { false, true }) {
+			provider_fixture fixture{ application::github_authentication_transport::github_cli };
+			fixture.Factory->CliEnabled    = true;
+			bool changed                   = false;
+			fixture.Transport->ReadHandler = [&](const github_wire_request& aWire, std::stop_token) -> github_wire_completion {
+				auto response = viewer_response();
+				if (changed) {
+					response.Body = R"({"id":1002,"login":"other","name":"Other User","node_id":"U_other"})";
+				}
+				return github_wire_success{ .Correlation = aWire.Correlation, .Response = std::move(response) };
+			};
+			auto        viewer  = run_viewer(fixture, { .Request = viewer_request_for(fixture.Profile), .Authentication = std::monostate{ } });
+			const auto* success = std::get_if<application::github_viewer_success>(&viewer);
+			expect(success != nullptr && success->AccountTransport != nullptr && fixture.Factory->CliCalls == 1U
+					   && fixture.Factory->AccountCalls == 0U && fixture.Factory->BootstrapCalls == 0U,
+				   "CLI viewer creates a credential-free observed lease");
+			fixture.Transport->CapabilityHandler = [&](const github_capability_probe_wire_request& aWire, std::stop_token) {
+				return github_capability_probe_wire_success{ .Correlation = aWire.Correlation, .Response = capability_part_response(supported_capability_response(), aWire.Correlation.Part) };
+			};
+			const auto request = capability_request_for(fixture, success->AccountTransport);
+			expect(std::holds_alternative<application::github_capability_success>(run_capability(fixture, request)), "CLI observed lease completes capability reads");
+			expect(fixture.Transport->ReadRequests.size() == 19U, "each of nine capability requests has account preflight and postflight");
+			const auto readRequest         = pull_request_for(fixture, success->AccountTransport);
+			const auto viewerHandler       = fixture.Transport->ReadHandler;
+			const auto viewerCorrelation   = fixture.Transport->ReadRequests.front().Correlation;
+			fixture.Transport->ReadHandler = [&](const github_wire_request& aWire, std::stop_token aStop) -> github_wire_completion {
+				expect(validate_github_wire_request(fixture.Profile, aWire).has_value(), "CLI PR read and private viewer checks pass production wire validation");
+				if (aWire.Correlation.Operation == read_operation::get_viewer_identity) {
+					expect(aWire.Correlation == viewerCorrelation, "private viewer check retains original session correlation");
+					return viewerHandler(aWire, aStop);
+				}
+				if (aWire.Correlation.Operation == read_operation::get_repository) {
+					auto response = viewer_response();
+					response.Body = R"({"id":2001,"node_id":"R_repository","name":"review-repository","full_name":"octo-org/review-repository","owner":{"id":1001,"login":"octo-org","node_id":"O_organization"},"default_branch":"main","private":false,"visibility":"public","html_url":"https://github.com/octo-org/review-repository","archive_url":"https://api.github.com/repos/octo-org/review-repository/{archive_format}{/ref}"})";
+					return github_wire_success{ .Correlation = aWire.Correlation, .Response = std::move(response) };
+				}
+				return github_wire_cancelled{ .Correlation = aWire.Correlation };
+			};
+			std::vector<application::github_pull_request_completion> reads;
+			fixture.Provider->fetch_pull_request(readRequest, [&](auto aResult) { reads.push_back(std::move(aResult)); });
+			fixture.Effects.run_next();
+			static_cast<void>(require_one<application::github_pull_request_cancelled>(reads, "CLI PR read accepts repository success then reaches next read"));
+			expect(fixture.Transport->ReadRequests.size() == 24U, "repository read has preflight and postflight before next read preflight and dispatch");
+			fixture.Transport->ReadHandler       = viewerHandler;
+			const auto before                    = fixture.Transport->CapabilityRequests.size();
+			changed                              = !postflight;
+			fixture.Transport->CapabilityHandler = [&](const github_capability_probe_wire_request& aWire, std::stop_token) {
+				changed = true;
+				return github_capability_probe_wire_success{ .Correlation = aWire.Correlation, .Response = capability_part_response(supported_capability_response(), aWire.Correlation.Part) };
+			};
+			const auto  terminal = run_capability(fixture, request);
+			const auto* error    = std::get_if<application::github_capability_error>(&terminal);
+			expect(error != nullptr && error->Error.Failure == application::github_provider_failure::authentication, "observed preflight or postflight mismatch is typed authentication refusal");
+			expect(fixture.Transport->CapabilityRequests.size() == before + (postflight ? 1U : 0U), "preflight refuses dispatch and postflight discards partial facts");
+			changed          = false;
+			const auto calls = fixture.Transport->ReadRequests.size();
+			static_cast<void>(run_capability(fixture, request));
+			expect(fixture.Transport->ReadRequests.size() == calls, "mismatched lease remains refused without further requests");
+		}
+	}
+
 	void test_cli_is_categorically_unavailable()
 	{
 		provider_fixture fixture{
@@ -1955,5 +2027,6 @@ int main()
 	test_cancellation_finality();
 	test_exception_containment_is_exactly_once();
 	test_cli_is_categorically_unavailable();
+	test_cli_observed_account_lease();
 	return EXIT_SUCCESS;
 }

@@ -46,12 +46,16 @@ namespace bpr::adapters::github::detail {
 		std::chrono::milliseconds                         Timeout{ };
 		std::chrono::milliseconds                         ReapTimeout{ };
 
+		// Only gh API response parsing opts in; stderr is still discarded.
+		bool PreserveCompletedOutput = false;
+
 		auto operator==(const github_cli_process_request&) const -> bool = default;
 	};
 
 	struct github_cli_process_success
 	{
 		std::string StandardOutput;
+		int         ExitCode = 0;
 
 		auto operator==(const github_cli_process_success&) const -> bool = default;
 	};

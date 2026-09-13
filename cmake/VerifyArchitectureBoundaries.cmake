@@ -3756,6 +3756,7 @@ set(
     required_github_cli_transport_patterns
     "\"api\""
     "\"--hostname\""
+    "\"--include\""
     "\"--method\""
     "\"--input\""
     "\"\\.git\""
@@ -3808,8 +3809,8 @@ reject_github_cli_transport_surface(
     "Qt/process implementation"
 )
 reject_github_cli_transport_surface(
-    "\"--(auth-token|with-token|token|include|cache|verbose|debug|jq|template|paginate|slurp|preview|field|raw-field|silent)\""
-    "credential, status-output, cache, debug, or response-transform flag"
+    "\"--(auth-token|with-token|token|cache|verbose|debug|jq|template|paginate|slurp|preview|field|raw-field|silent)\""
+    "credential, cache, debug, or response-transform flag"
 )
 reject_github_cli_transport_surface(
     "(^|[^A-Za-z0-9_])(Authorization|GH_TOKEN|GITHUB_TOKEN|GH_ENTERPRISE_TOKEN|GITHUB_ENTERPRISE_TOKEN|GH_DEBUG)([^A-Za-z0-9_]|$)"

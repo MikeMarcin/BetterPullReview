@@ -13,7 +13,7 @@
 
 1. GitHub.com or configured GHES host
 2. BetterPullReview native process
-3. Installed Git process and the retained, inactive GitHub CLI process boundary
+3. Installed Git process and the opt-in GitHub CLI read process boundary
 4. Configured AI agent processes
 5. Operating-system credential vault and trust store
 6. Untrusted repository content, comments, commit messages, diffs, and theme files
@@ -281,7 +281,34 @@ enforces the first three mechanically:
 
 Product-owner ruling, BPR-0348, 2026-08-19.
 
-Native HTTPS is the sole milestone-one production authentication transport.
+## GitHub CLI opt-in risk boundary
+
+RFC-BPR-0015's amended first milestone is in progress. Native HTTPS remains
+the default. The tests-disabled macOS composition is being wired for explicit
+CLI read opt-in on the selected GitHub.com or GHES host, with a Connect warning,
+observed `/user` identity, pre/post-request account checks and a read-only lease.
+It invokes the configured `gh` directly with bounded arguments, input, output
+and time; the version preflight currently accepts `gh` 2.x with minor >= 96.
+This is a version check, not proof of an official executable's provenance.
+CLI-backed Git-object transport for full diffs and CLI publishing are not yet
+implemented. Windows and Linux remain unavailable. Public-path acceptance and
+target-native qualification remain pending under BPR-0788.
+
+BetterPullReview does not extract or copy CLI tokens or change global CLI
+authentication. Opt-in trusts the machine's configured executable, configuration,
+socket routing, CA and redirect behavior, active account and helper processes.
+Pre/post observations can detect some account changes but cannot bind a credential
+generation or prevent a concurrent account switch. Executable/configuration/CA
+replacement and process escape remain uncontained risks. Read opt-in grants no
+publishing authority. RFC-BPR-0013's independent `MaximumCommits=250` parser limit
+remains unchanged; CLI access alone cannot make a larger PR render.
+
+### Historical RFC-BPR-0002 zero-launch evidence
+
+The following records the original milestone and its superseded enablement
+prohibition. Its findings remain residual risks under the amended opt-in contract.
+
+Native HTTPS was the sole RFC-BPR-0002 milestone-one production authentication transport.
 Visible CLI selections return fixed typed `cli_unavailable` before transport
 construction, CLI executable/configuration discovery, or process launch. The
 retained CLI broker does not inherit and scrub the parent environment. It
@@ -357,6 +384,11 @@ it. RFC-BPR-0015 owns any future positive CLI contract and must directly close
 every blocker without privileged helpers or weakened security.
 
 ## Network handling
+
+The redirect and system-trust containment below applies to native HTTPS.
+The explicit CLI profile requests the validated host but delegates actual
+redirect, socket and certificate behavior to configured `gh`, with the
+uncontained risks described above.
 
 - Send origin requests only to validated GitHub origins; bounded system-proxy
   endpoints may carry those connections.

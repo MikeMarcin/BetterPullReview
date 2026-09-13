@@ -10,7 +10,7 @@ Implementation Architecture](github-host-implementation.md).
   session policy, staged-snapshot acceptance protocol, cancellation, cache
   invalidation, and serialized completion delivery.
 - The GitHub adapter implements profile validation, normalization,
-  REST/GraphQL contracts, the inactive CLI boundary, the production native
+  REST/GraphQL contracts, the in-progress opt-in CLI read boundary, the production native
   HTTPS transport, credentials, proxy/trust enforcement, bounded
   retry/rate-limit handling, and future mutation execution.
 - The Qt presentation adapter owns host/account controls, authentication/error presentation, and command projections; it never receives credentials or calls the provider directly.
@@ -90,6 +90,32 @@ pagination must complete before the existing normalizer can publish a snapshot.
 ## Authentication transports
 
 ### GitHub CLI broker
+
+RFC-BPR-0015's amended first milestone is in progress. Native HTTPS remains
+the default. The tests-disabled macOS composition is being wired for explicit
+CLI read opt-in on the selected GitHub.com or GHES host, with a Connect warning,
+observed `/user` identity, pre/post-request account checks and a read-only lease.
+It invokes the configured `gh` directly with bounded arguments, input, output
+and time; the version preflight currently accepts `gh` 2.x with minor >= 96.
+This is a version check, not proof of an official executable's provenance.
+CLI-backed Git-object transport for full diffs and CLI publishing are not yet
+implemented. Windows and Linux remain unavailable. Public-path acceptance and
+target-native qualification remain pending under BPR-0788.
+
+BetterPullReview does not extract or copy CLI tokens or change global CLI
+authentication. Opt-in trusts the machine's configured executable, configuration,
+socket routing, CA and redirect behavior, active account and helper processes.
+Pre/post observations can detect some account changes but cannot bind a credential
+generation or prevent a concurrent account switch. Executable/configuration/CA
+replacement and process escape remain uncontained risks. Read opt-in grants no
+publishing authority. RFC-BPR-0013's independent `MaximumCommits=250` parser limit
+remains unchanged; CLI access alone cannot make a larger PR render.
+
+#### Historical RFC-BPR-0002 boundary and evidence
+
+The following records the original zero-launch milestone and its strict trust
+contract. The RFC-BPR-0015 amendment supersedes that enablement prohibition;
+the recorded risks remain unresolved, not passing containment evidence.
 
 Native HTTPS is the sole milestone-one production authentication transport.
 The public CLI profiles remain visible, but the provider returns fixed typed
@@ -540,8 +566,9 @@ invalidation revokes the lease before old-authority epoch work can publish.
 Shutdown does the same before native transport and credential teardown.
 Revocation rejects new calls, attempts bounded cancellation of admitted work,
 and preserves one typed terminal with the complete original context for every
-normally accepted submission. CLI profiles expose no lease, and positive
-`gh` enablement remains unavailable.
+normally accepted submission. CLI profiles expose no native smart-HTTPS Git-object lease. The in-progress
+CLI provider lease authorizes REST/GraphQL reads only; CLI Git-object
+transport remains unavailable.
 
 An app-owned minimal protocol-v2 client, not installed Git, constructs the
 closed `ls-refs` and `fetch` requests for the validated accepted base and

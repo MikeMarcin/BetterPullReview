@@ -948,6 +948,7 @@ constexpr const char* neutral_repository_marker = ".git";
 constexpr const char* arguments[] = {
     "api",
     "--hostname",
+    "--include",
     "--method",
     "--input",
     "-",
@@ -4405,6 +4406,7 @@ auto finish_background_reap(
         required_fragments = (
             '"api"',
             '"--hostname"',
+            '"--include"',
             '"--method"',
             '"--input"',
             '".git"',
@@ -4484,7 +4486,6 @@ auto finish_background_reap(
             '"--auth-token"',
             '"--with-token"',
             '"--token"',
-            '"--include"',
             '"--cache"',
             '"--verbose"',
             '"--debug"',
@@ -4508,7 +4509,7 @@ auto finish_background_reap(
                 expected = (
                     "Forbidden credential or debug literal surface"
                     if not hostile_literal.startswith('"--')
-                    else "Forbidden credential, status-output, cache, debug"
+                    else "Forbidden credential, cache, debug"
                 )
                 self.assert_failure(
                     expected,

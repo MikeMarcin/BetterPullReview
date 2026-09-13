@@ -151,6 +151,25 @@ namespace {
 		};
 	}
 
+	void test_cli_warning_follows_selected_profile()
+	{
+		qt::workbench_window window{ qt::workbench_intent_dispatch{ }, qt::workbench_change_dispatch{ }, qt::workbench_drawer_width_dispatch{ }, profiles(), [](application::github_intent) { } };
+		auto* const          warning = required_child<QLabel>(window, "githubCliTrustWarning");
+		expect(!warning->isHidden() && warning->wordWrap() && warning->textFormat() == Qt::PlainText,
+			   "CLI selection shows a wrapped literal warning before Connect");
+		for (const auto* phrase : { "github.com", "existing gh sign-in", "observed after Connect", "native profile", "executable", "configuration", "socket", "CA", "redirects", "child-process", "account switching", "no exact account guarantee", "does not authorize publishing" }) {
+			expect(warning->text().contains(QString::fromLatin1(phrase)), "CLI warning states each residual trust risk and read boundary");
+		}
+		window.session_panel()->profile_selector()->setCurrentIndex(1);
+		expect(warning->isHidden() && warning->text().isEmpty(), "native selection has no CLI warning");
+		window.session_panel()->profile_selector()->setCurrentIndex(0);
+		expect(!warning->isHidden() && warning->text().contains(QStringLiteral("github.com")), "reselecting CLI restores its exact host warning");
+		window.session_panel()->apply_identity({ .Profile = core::host_profile_id{ 12U } });
+		expect(warning->isHidden(), "projected native identity hides the warning even when selector signals are blocked");
+		window.session_panel()->profile_selector()->setCurrentIndex(0);
+		expect(!warning->isHidden(), "CLI selection warns before replacing an active native session");
+	}
+
 	[[nodiscard]] auto conversation(
 		std::string                                 aId,
 		const application::github_conversation_kind aKind,
@@ -4119,11 +4138,13 @@ namespace {
 
 	auto test_device_sign_in_is_mounted_beside_the_session_chrome() -> void
 	{
+		auto nativeProfiles              = profiles();
+		nativeProfiles.front().Transport = application::github_profile_transport::native_https;
 		qt::workbench_window window{
 			qt::workbench_intent_dispatch{ },
 			qt::workbench_change_dispatch{ },
 			qt::workbench_drawer_width_dispatch{ },
-			profiles(),
+			std::move(nativeProfiles),
 			[](application::github_intent) { },
 		};
 		window.resize(1'100, 900);
@@ -4346,6 +4367,7 @@ auto main(int argc, char** argv) -> int
 	QApplication::setApplicationName(
 		QStringLiteral("BetterPullReviewGitHubQtTests"));
 
+	test_cli_warning_follows_selected_profile();
 	test_conversation_model_is_stable_and_incremental();
 	test_intent_translation_is_narrow_and_account_is_output_only();
 	test_presentation_states_disclosures_and_responsive_layout();
