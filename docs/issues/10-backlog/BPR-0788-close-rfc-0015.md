@@ -21,8 +21,8 @@ RFC base: `6c9ef2038b7389f49028e71f2bb8219b07191267`.
 | The opt-in account row names host, observed login, configured-CLI trust risks and read-versus-publish choice without silently replacing a native profile or claiming exact account containment. | Rendered account row and explicit opt-in exercise | Passed for macOS read in d3; BPR-0784 |
 | A tests-disabled macOS application connects through configured `gh` and renders a representative fixture PR via the real public path; missing or changed executable, host, account or config produces a typed refusal without credential fallback. | Tests-disabled Mac composition and refusal fixture | Passed for fixture read in d3; BPR-0785 |
 | CLI reads preserve actual status, headers, body, correlation, bounded pagination, cancellation and redacted errors; removing the process or response adapter makes a direct public-path negative control fail. | Adapter/provider contract and public negative control | Passed for macOS fixture read in d3; BPR-0785 |
-| Fixture review and inline-comment publishing traverse ordinary draft and Submit review admission, explicit CLI write confirmation, exact target and observed-account checks, bounded transport, reconciliation and typed terminal projection; a read opt-in or ambiguous write cannot issue a second POST. | Fixture public mutation path and ambiguity control | Pending BPR-0786; no live PR write authorized |
-| Token and private response content remain absent from parent arguments, environment, logs, diagnostics, settings, SQLite and committed evidence; the app does not change global `gh` authentication or configuration. | Canary and source/runtime audit | Read path passed in d3; publish path pending BPR-0786 |
+| Fixture review and inline-comment publishing traverse ordinary draft and Submit review admission, explicit CLI write confirmation, exact target and observed-account checks, bounded transport, reconciliation and typed terminal projection; a read opt-in or ambiguous write cannot issue a second POST. | Fixture public mutation path and ambiguity control | Passed for macOS fixture in d4; BPR-0786; no live PR write authorized |
+| Token and private response content remain absent from parent arguments, environment, logs, diagnostics, settings, SQLite and committed evidence; the app does not change global `gh` authentication or configuration. | Canary and source/runtime audit | Bounded source, test and synthetic-log audit passed in d4; target-native audit remains BPR-0787 |
 | Target-native qualification records supported platforms and residual executable/config/CA/redirect/account/process risks; unsupported platforms remain unavailable and canonical closeout awaits RFC-BPR-0014 and all evidence. | Native qualification, docs and RFC index reconciliation | Pending BPR-0787; RFC-BPR-0014 Proposed |
 
 - [ ] Every revised RFC criterion has direct command/public-path evidence, producing revision and explicit residual limitation.
@@ -208,3 +208,49 @@ milestone return is retained in ignored `build/rfc0015-r2-d3-return.json`.
 The next bounded milestone is `guarded-cli-publishing` through fixture-only
 review and inline-comment paths with per-write confirmation and exact-target
 admission. This is not permission for a live PR write or a production release.
+
+Dispatch `d4` under run `rfc0015-r2`, producer
+`/root/rfc0015_publish`, mandate `r2`, completed the authored
+`guarded-cli-publishing` milestone at source revision `df458d30`. The
+tests-disabled macOS app used the same opted-in configured `gh` profile to
+draft and confirm a fixture comment review and a right-side source-line
+comment on `octo-org/review-repository#17`. Each confirmation named
+`github.com`, observed `octo-reviewer`, repository, PR and operation, and
+warned that the active CLI account can switch. A Cancel retained the review
+draft. A held synthetic `gh api` process showed one POST to each exact REST
+endpoint with the body on stdin. Externally advancing the fixture to published
+then produced one durable transmitted record and server receipt for each.
+The review UI returned to enabled New review; a separate final inline replay
+displayed the success-only status `Published PRRC_fixture9002; refreshed 1
+comment(s).` The latter observation resolves the independent reviewer's
+pending-versus-success projection question. No live GitHub write was made.
+
+The new transport accepts only canonical review/inline mutation shapes,
+requires a durable pre-launch transmission witness for POST, checks observed
+CLI identity around calls, and leaves an ambiguous attempted write to GET
+reconciliation without a second POST. Six focused mutation/provider/public
+composition CTests, six fixture tests, documentation gate, focused formatting
+and diff checks passed. The independent critical reviewer found no source
+blocker and specifically requested the success-only inline label, which the
+final replay recorded. The bounded audit found the synthetic body absent
+from application and diagnostic logs; request bodies use stdin rather than
+arguments, and no token-extraction or global `gh` auth/configuration mutation
+was added. The source/binary, UI/POST/recovery, test and negative-control
+evidence is indexed in ignored `build/rfc0015-r2-d4-publication-evidence.json`
+with logs `build/rfc0015-r2-d4-final-focused-ctest-2.log`,
+`build/rfc0015-r2-d4-final-fixture-tests.log`, and
+`build/rfc0015-r2-d4-final-documentation.log`. The original review binary
+digest was not retained; the final inline replay's tests-disabled digest is
+in the evidence record. `BPR-0786` can close on the fixture boundary.
+
+The next authored milestone is `native-qualification-and-closeout` through
+`BPR-0787` and `BPR-0788`. It must collect target-native macOS read and
+publication-fixture evidence, leave Windows/Linux unavailable until their
+own gates pass, reconcile the verification ledger against RFC base
+`6c9ef2038b7389f49028e71f2bb8219b07191267`, and preserve the configured
+CLI trust limits. Official-`gh` HTTPS credential-helper and Keychain exchange
+are not proven by the synthetic fixture. No safe live PR target has been
+named, so live publication remains unattempted. RFC/index terminal status
+also waits for RFC-BPR-0014 Auto-Verified and any required native or human
+evidence. The unrelated `.gitignore`, `.mask.json` and BPR-0775/BPR-0776
+working-tree changes remain outside this dispatch.
