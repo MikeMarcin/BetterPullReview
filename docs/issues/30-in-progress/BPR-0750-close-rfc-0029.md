@@ -28,7 +28,7 @@ operator packets retained their original bytes during the board move.
 
 ## Current frontier (rfc0029-r1/d3, mandate r1)
 
-All nine accepted technical criteria now have direct passing evidence against
+All nine accepted criteria now have direct passing evidence against
 immutable base `5d5df7cd79115b9b4b2f8be6ebdb5392458b9e1d`. Commits
 `fc6e4e2f` and `90d4ba28` close row 7 with a copied synthetic GHES-origin
 legacy file whose host provenance remains unresolved, and a controlled agent
@@ -334,7 +334,7 @@ The prior d2 composed history/epoch-line and base-force-push evidence is reused
 because this d3 slice changes only migration and launch verification tests.
 The documentation gate passed in `build/rfc0029-d3-documentation.log`, scoped
 board validation reported valid, and `git diff --check` passed.
-All nine technical rows now pass; the status remains open solely for canonical
+All nine acceptance rows now pass; the status remains open solely for canonical
 RFC-BPR-0008 precedence.
 
 ## Completion rules
