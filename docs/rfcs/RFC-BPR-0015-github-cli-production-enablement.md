@@ -52,7 +52,32 @@ The narrower enforceable connector boundary is:
   noninteractive child environment, choose the exact HTTPS hostname, use a
   neutral non-repository directory and bound input/output/time/cancellation.
   Do not extract, print, pass, log, persist or copy the CLI token; do not run
-  `gh auth switch`, `gh auth token`, a credential helper or a local listener.
+  `gh auth switch`, `gh auth token` or a local listener.
+- Git-object acquisition may invoke the selected official `gh` to perform an
+  exact-repository Git operation. That `gh` invocation may launch Git and its
+  own `gh auth git-credential` shell helper. BetterPullReview does not invoke
+  a shell or helper directly, inspect the helper exchange, configure a global
+  Git helper, or alter `gh` account selection. On macOS, every `gh` invocation,
+  including version and REST probes, must launch through an OS-enforced
+  file-write denial with only a narrowly owned temporary object-store exception
+  for the bounded Git operation. Refuse the profile if that launch boundary is
+  unavailable. A post-request configuration observation alone is insufficient:
+  `gh` can migrate old configuration during its first invocation. The child
+  Git process and helper
+  are additional trusted executable/configuration surfaces, not an exact
+  credential or account containment guarantee. Verify the observed host and
+  login before and after acquisition, refuse detected changes, bound the
+  operation and its temporary data, and retain the documented race between
+  those observations. A missing or failed Git-object path leaves the full diff
+  unavailable rather than silently using native credentials.
+- Once `gh` has acquired the exact repository objects into a bounded temporary
+  store, BetterPullReview may launch credential-free local Git with closed
+  arguments to serve those objects through the existing Git protocol v2 pack
+  pipeline. The local operation must not perform a remote fetch, invoke a
+  credential helper or hook, or accept repository-controlled executable
+  configuration. Bound temporary-disk use, output, time and cancellation;
+  remove the store on all terminal paths. This local Git subprocess does not
+  provide stronger identity containment for the earlier authenticated clone.
 - Parse actual bounded CLI status, headers and body into the existing provider
   response contract. Do not infer HTTP success from process exit alone. Keep
   failures fixed and redacted, and do not log request bodies or private data.

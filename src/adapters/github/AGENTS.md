@@ -32,6 +32,24 @@ the functional core or Qt presentation adapter.
   platform or operation remains unavailable until its revised direct
   acceptance checks pass. Preserve the eight original trust gaps as explicit
   limitations, never as guarantees established by a warning.
+- For RFC-BPR-0015 Git-object reads only, the selected `gh` may perform a
+  bounded exact-repository Git operation that internally launches Git and its
+  own `gh auth git-credential` shell helper. BetterPullReview must not invoke
+  the helper or a shell directly, obtain helper output or token bytes, alter
+  global Git/`gh` authentication, or fall back to native credentials. The
+  macOS launch boundary may invoke `sandbox-exec` with a closed profile that
+  denies file writes for every `gh` process, including version and REST calls;
+  the bounded clone alone may write to its owned temporary object store.
+  Refuse CLI availability when that boundary cannot be established. A
+  before/after configuration check alone does not contain first-run `gh`
+  migration of legacy configuration or symlinked targets. The helper's process,
+  executable/configuration and account-switch races remain
+  visible limitations; pre/post observations detect changes but do not close
+  the race. This exception does not expand `gh api` request shapes or permit
+  publication before its own acceptance milestone. Credential-free local Git
+  may serve the bounded cloned object store through closed protocol v2
+  arguments, without network, helper, hooks or repository-controlled executable
+  configuration; it runs only in the GitHub CLI process runner.
 - Keep the CLI trust gaps as real evidence, not telemetry-only assumptions.
   The official `gh` 2.96.0 binary followed a cross-authority `302`, honored
   persisted `http_unix_socket` for `gh api`, and routed an authenticated

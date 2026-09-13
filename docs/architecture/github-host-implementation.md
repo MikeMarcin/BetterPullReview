@@ -518,9 +518,17 @@ observed `/user` identity, pre/post-request account checks and a read-only lease
 It invokes the configured `gh` directly with bounded arguments, input, output
 and time; the version preflight currently accepts `gh` 2.x with minor >= 96.
 This is a version check, not proof of an official executable's provenance.
-CLI-backed Git-object transport for full diffs and CLI publishing are not yet
-implemented. Windows and Linux remain unavailable. Public-path acceptance and
-target-native qualification remain pending under BPR-0788.
+The r2 trust-boundary amendment permits a bounded exact-repository `gh` Git
+operation for objects; `gh` may internally launch Git and its shell credential
+helper. Every macOS `gh` launch must run under OS-enforced file-write denial,
+with a narrowly owned temporary object-store exception only for the bounded
+clone; an unavailable boundary refuses the CLI profile. This covers `gh`'s
+possible first-use global configuration migration, which a post-request check
+cannot prevent. BetterPullReview must not read the helper's token exchange or
+change global authentication. This path remains pending direct full-diff
+public-render evidence, and CLI publishing remains unavailable. Windows and
+Linux remain unavailable. Public-path acceptance and target-native
+qualification remain pending under BPR-0788.
 
 BetterPullReview does not extract or copy CLI tokens or change global CLI
 authentication. Opt-in trusts the machine's configured executable, configuration,

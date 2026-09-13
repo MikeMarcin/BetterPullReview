@@ -1,0 +1,28 @@
+{
+  "schema": "bpr.cli-read-objects.v1",
+  "commits": {
+    "base": "a61a212aa0484929bc5f20a26e9a7c1c6541c726",
+    "head1": "3b60c8324eee117ce72e6446fe640d85a60b37a2"
+  },
+  "blobs": {
+    "base": {
+      "review.cpp": "3456e31deaf7dc9a4c9a56b384c1b0ee9ff24e5b",
+      "secondary.cpp": "8b8c75513544d9785d4553ee45b75c5a180286e6"
+    },
+    "head1": {
+      "review.cpp": "1522997381f979112468fccd2be62e69f93b96c9",
+      "secondary.cpp": "759cc1dad40a0cac755521cf12099d81e5352cac"
+    }
+  },
+  "trees": {
+    "base": "4dc853816a802343f29ed550f4b66484b025be72",
+    "head1": "c854f6aa99399da0547ca6215f307b7c6fa69052"
+  },
+  "packs": {
+    "objects.pack": {
+      "sha256": "49c14f78e9e12aa689c038fe2fcbe41d0b426c0187e09eb5f1921d75f2722b6f",
+      "bytes": 765,
+      "contains_old_head": true
+    }
+  }
+}

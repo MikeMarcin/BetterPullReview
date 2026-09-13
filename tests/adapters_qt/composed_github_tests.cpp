@@ -157,7 +157,7 @@ namespace {
 		auto* const          warning = required_child<QLabel>(window, "githubCliTrustWarning");
 		expect(!warning->isHidden() && warning->wordWrap() && warning->textFormat() == Qt::PlainText,
 			   "CLI selection shows a wrapped literal warning before Connect");
-		for (const auto* phrase : { "github.com", "existing gh sign-in", "observed after Connect", "native profile", "executable", "configuration", "socket", "CA", "redirects", "child-process", "account switching", "no exact account guarantee", "does not authorize publishing" }) {
+		for (const auto* phrase : { "github.com", "existing gh sign-in", "observed after Connect", "native profile", "executable", "configuration", "socket", "CA", "redirects", "child-process", "account switching", "no exact account guarantee", "older gh configuration", "shell credential helper", "does not authorize publishing" }) {
 			expect(warning->text().contains(QString::fromLatin1(phrase)), "CLI warning states each residual trust risk and read boundary");
 		}
 		window.session_panel()->profile_selector()->setCurrentIndex(1);

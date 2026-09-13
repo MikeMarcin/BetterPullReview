@@ -93,3 +93,46 @@ refusing partial success and response prose. Adapter and provider tests pass,
 including the application error-validity invariant. Independent critical
 review found no remaining defect in this bounded correction. This is
 component evidence, not a substitute for the unresolved public PR render.
+
+Dispatch `d3` under run `rfc0015-r2`, mandate `r2`, retains the entire
+`opt-in-cli-read` milestone and its pending BPR-0784/BPR-0785 and exit
+criteria. The owner authorized a carefully bounded revision of the old
+no-helper trust gate to pursue Git objects with the already configured `gh`.
+The RFC and live plan now permit an exact-repository `gh` operation that may
+internally run Git and `gh auth git-credential`; BetterPullReview must not
+read token bytes, invoke the helper or shell directly, change global
+authentication, or silently fall back to native credentials. The plan
+amendment also permits credential-free local Git to serve cloned objects
+through the existing v2 pack pipeline without another network or helper
+operation. Both plan amendment checks reported `amendment-checked` with
+current-milestone impact;
+the renewed d3 binding and frontier are in ignored
+`build/rfc0015-r2-d3-assignment.json` and
+`build/rfc0015-r2-d3-frontier.json`. The explicit helper, executable,
+configuration and account-switch risks are disclosed in the pending UI and
+documentation changes. These amendments are not Git-object or public-render
+acceptance evidence. A tests-disabled rendered fixture PR and negative
+controls remain required before the first milestone can pass; publishing
+and any live PR mutation remain outside this dispatch.
+
+The d3 launch probe then found that official `gh` 2.100.0 can migrate legacy
+`config.yml` and `hosts.yml` on its first `--version` or `api` call, before a
+post-request metadata check can prevent a global configuration write. A macOS
+`sandbox-exec` global file-write denial refused that migration without changing
+the files; the same denial with a narrowly owned temporary-store exception
+allowed a current-schema exact-commit clone and local Git v2 pack probe. The
+RFC, adapter guide and plan were amended again to require this OS-enforced
+boundary for every `gh` launch and to fail closed when it is unavailable. The
+third amendment check preserved all obligations and exits and affected only
+`opt-in-cli-read`; the renewed d3 binding is in the ignored assignment. These
+are feasibility checks, not production or Keychain acceptance. The isolated
+tests-disabled fixture UI connected with its application storage in a
+task-owned home, showed `Pull request ready` for fixture PR #17, and displayed
+two files and a synthetic comment. Its footer still reported that the exact
+comparison was unavailable: no Git-object/full-diff result is established.
+Removing `gh` and supplying malformed HTTP framing each produced a visible
+typed account refusal with Open and Refresh disabled, without a native fallback
+observed in the UI. The fixture harness test passed; structural observations
+are retained in ignored `build/rfc0015-cli-public-fixture-evidence/observations.json`.
+The negative controls did not remove compiled adapters or instrument the
+native-network path, so the direct missing-adapter control remains open.

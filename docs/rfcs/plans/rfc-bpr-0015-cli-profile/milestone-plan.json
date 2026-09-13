@@ -26,7 +26,7 @@
         "A changed host, login, executable or configuration fails typed without a native credential fallback; no token is extracted, logged, copied or persisted",
         "Focused adapter, provider, composition and documentation checks pass; no live PR mutation occurs"
       ],
-      "boundary": "First usable CLI read account profile; BPR-0643's 250-commit parser ceiling remains independent; publish authorization and native platform expansion remain open"
+      "boundary": "First usable CLI read account profile; BPR-0643's 250-commit parser ceiling remains independent; publish authorization and native platform expansion remain open; Git objects may be acquired through an opt-in, bounded gh-owned Git credential-helper subprocess without BPR reading token bytes, with helper/process/account races disclosed; on macOS every gh launch including version and REST must use OS-enforced global file-write denial with an owned temporary object-store exception only for the bounded clone, or fail closed; credential-free local Git may serve the cloned objects to the existing protocol v2 pack pipeline without network, hooks or helper invocation"
     },
     {
       "id": "guarded-cli-publishing",

@@ -1,0 +1,176 @@
+#!/usr/bin/env python3
+"""External, local-only configured-gh fixture; never supplies product consent.
+
+prepare creates a disposable canonical gh executable and synthetic responses.
+launch runs the actual tests-disabled app for external accessibility automation.
+The structural call report is deliberately not a rendered-public-path verdict.
+"""
+
+import argparse
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+
+ROOT = Path(__file__).resolve().parents[2]
+FIXTURE = ROOT / "tests/fixtures/github/pull-requests/cli-read-v1"
+
+
+def prepare(directory, course):
+    directory.mkdir(mode=0o700, parents=True, exist_ok=False)
+    (directory / "home").mkdir()
+    (directory / "bin").mkdir()
+    objects = json.loads((FIXTURE / "objects.json").read_text())
+    base, head = objects["commits"]["base"], objects["commits"]["head1"]
+    source = ROOT / "tests/fixtures/github/contracts/v1/github-com"
+    manifest = json.loads((source / "manifest.json").read_text())
+    routes = {}
+    for entry in manifest["interactions"]:
+        body = (source / entry["response_file"]).read_text()
+        body = body.replace("1" * 40, base).replace("2" * 40, head)
+        routes[entry["path"].replace("2" * 40, head)] = json.loads(body)
+    # This small pack has two source files; expose the same exact tree in REST
+    # and GraphQL rather than retaining unrelated synthetic line anchors.
+    routes["/repos/octo-org/review-repository/pulls/17"]["changed_files"] = 2
+    files = [{"filename": name, "status": "modified", "additions": 1,
+              "deletions": 1} for name in ("review.cpp", "secondary.cpp")]
+    routes["/repos/octo-org/review-repository/pulls/17/files"] = files
+    routes["/repos/octo-org/review-repository/pulls/17/reviews"] = []
+    graph = routes["/graphql"]["data"]["repository"]["pullRequest"]
+    graph["files"] = {"totalCount": 2, "nodes": [
+        {"path": item["filename"], "viewerViewedState": "UNVIEWED"}
+        for item in files], "pageInfo": {"hasNextPage": False, "endCursor": "fixture-files-end"}}
+    graph["reviewThreads"] = {"totalCount": 0, "nodes": [],
+                              "pageInfo": {"hasNextPage": False, "endCursor": None}}
+    parts = [json.loads((ROOT / "tests/fixtures/github/capabilities/v2-parts/github-com"
+                         / f"supported-{part}.json").read_text()) for part in range(9)]
+    (directory / "fixture.json").write_text(json.dumps({
+        "course": course, "routes": routes, "parts": parts,
+        "base": base, "head": head}))
+    executable = directory / "bin/gh"
+    executable.write_text(f"#!{sys.executable}\n" + Path(__file__).read_text().split("\n", 1)[1])
+    executable.chmod(0o700)
+    if course == "missing-process":
+        executable.rename(directory / "bin/gh.absent")
+    subprocess.run(["/usr/bin/git", "init", "--bare", str(directory / "repository.git")],
+                   check=True, capture_output=True)
+    with (FIXTURE / "objects.pack").open("rb") as pack:
+        subprocess.run(["/usr/bin/git", "--git-dir", str(directory / "repository.git"),
+                        "index-pack", "--stdin"], stdin=pack, check=True, capture_output=True)
+    for ref, oid in (("refs/heads/main", base), ("refs/pull/17/head", head)):
+        subprocess.run(["/usr/bin/git", "--git-dir", str(directory / "repository.git"),
+                        "update-ref", ref, oid], check=True, capture_output=True)
+    return {"directory": str(directory), "gh": str(executable),
+            "pull_request": "https://github.com/octo-org/review-repository/pull/17"}
+
+
+def record_operation(directory, operation):
+    record = json.dumps({"operation": operation}) + "\n"
+    try:
+        with (directory / "calls.jsonl").open("a") as output:
+            output.write(record)
+    except PermissionError:
+        # Production sandbox may deny fixture trace writes. Its ordinary
+        # bounded stderr remains structural; never impair the response.
+        sys.stderr.write(record)
+
+
+def fake_gh():
+    directory = Path(__file__).resolve().parents[1]
+    fixture = json.loads((directory / "fixture.json").read_text())
+    args = sys.argv[1:]
+    if args == ["--version"]:
+        record_operation(directory, "version")
+        print("gh version 2.96.0 (synthetic local fixture)")
+        return 0
+    if len(args) < 7 or args[0] != "api" or args[2:7] not in (
+            ["--hostname", "github.com", "--include", "--method", "GET"],
+            ["--hostname", "github.com", "--include", "--method", "POST"]):
+        return 64
+    endpoint = "/" + args[1].lstrip("/")
+    endpoint = endpoint.split("?", 1)[0]
+    document = ""
+    if args[6] == "POST":
+        if endpoint != "/graphql" or args[-2:] != ["--input", "-"]:
+            return 64
+        raw = sys.stdin.buffer.read(262145)
+        if len(raw) > 262144:
+            return 65
+        document = json.loads(raw)["query"]
+        if not document.lstrip().startswith("query "):
+            return 64
+    part = re.search(r"BetterPullReviewCapabilityProbeV1Part([0-8])", document)
+    operation = "capability-" + part[1] if part else endpoint
+    # Only sanitized structural route names are retained, never stdin/headers.
+    if endpoint not in fixture["routes"]:
+        return 64
+    record_operation(directory, operation)
+    if fixture["course"] == "process-failure":
+        return 1
+    if fixture["course"] == "malformed-response":
+        print("invalid HTTP framing")
+        return 0
+    body = fixture["parts"][int(part[1])] if part else fixture["routes"][endpoint]
+    resource = ("graphql" if endpoint == "/graphql" else
+                "search" if endpoint == "/search/issues" else "core")
+    wire = ("HTTP/2.0 200 OK\r\nContent-Type: application/json\r\n"
+            "X-RateLimit-Limit: 5000\r\nX-RateLimit-Remaining: 4999\r\n"
+            "X-RateLimit-Reset: 2000000000\r\n"
+            f"X-RateLimit-Resource: {resource}\r\n\r\n" + json.dumps(body))
+    sys.stdout.buffer.write(wire.encode())
+    return 0
+
+
+def launch(args):
+    app = args.app.resolve(strict=True)
+    cache = args.cmake_cache.resolve(strict=True).read_text()
+    if "BUILD_TESTING:BOOL=OFF" not in cache:
+        raise ValueError("tests-disabled CMake cache required")
+    env = {key: value for key, value in os.environ.items()
+           if not key.startswith(("GH_", "GITHUB_"))}
+    env.update(HOME=str(args.directory / "home"),
+               CFFIXED_USER_HOME=str(args.directory / "home"),
+               PATH=str(args.directory / "bin") + ":/usr/bin:/bin:/usr/sbin:/sbin")
+    # No --self-test or in-product fixture/auto-consent argument is passed.
+    with (args.directory / "application.log").open("wb") as log:
+        process = subprocess.Popen([str(app), "--automated-run-budget-ms",
+                                    str(args.seconds * 1000)], env=env,
+                                   cwd=args.directory, stdout=log, stderr=log)
+        print(json.dumps({"pid": process.pid, "external_ui_required": True}), flush=True)
+        try:
+            code = process.wait(timeout=args.seconds + 10)
+        except subprocess.TimeoutExpired:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+            raise RuntimeError("app exceeded shutdown bound")
+    print(json.dumps({"exit_code": code, "render_verdict": "not inferred from exit"}))
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("action", choices=("prepare", "launch"))
+    parser.add_argument("--directory", type=lambda value: Path(value).resolve(), required=True)
+    parser.add_argument("--course", choices=("positive", "missing-process", "process-failure", "malformed-response"),
+                        default="positive")
+    parser.add_argument("--app", type=Path)
+    parser.add_argument("--cmake-cache", type=Path)
+    parser.add_argument("--seconds", type=int, default=90)
+    args = parser.parse_args()
+    if args.action == "prepare":
+        print(json.dumps(prepare(args.directory, args.course)))
+    elif args.app and args.cmake_cache and 1 <= args.seconds <= 300:
+        launch(args)
+    else:
+        parser.error("launch requires --app, --cmake-cache and 1..300 seconds")
+
+
+if __name__ == "__main__":
+    if Path(__file__).name == "gh":
+        sys.exit(fake_gh())
+    main()

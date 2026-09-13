@@ -12,7 +12,7 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0015-cli-profile","path":"docs/rfcs/p
 
 # Compose bounded configured-CLI reads through the public workbench
 
-- [ ] The selected official `gh` and exact hostname execute only for an opted-in CLI profile, without token extraction, shell, global auth mutation or native-credential fallback.
+- [ ] The selected official `gh` and exact hostname execute only for an opted-in CLI profile, without token extraction, a BetterPullReview-launched shell, global auth mutation or native-credential fallback. On macOS every `gh` launch has OS-enforced file-write denial with only a bounded owned clone-store exception. A bounded `gh` Git operation may invoke Git and `gh`'s own credential-helper shell; its child-process and account races are disclosed.
 - [ ] The CLI process adapter returns actual bounded HTTP status/headers/body and maps failures into normalized provider results while preserving correlation, pagination, cancellation and redaction.
 - [ ] Config, executable and observed account changes cause typed refusal. Tests state which races remain uncontained.
 - [ ] A tests-disabled Mac composition renders a representative fixture PR from the real CLI profile; removing the CLI process or response adapter makes the public test fail.
