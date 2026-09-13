@@ -49,3 +49,13 @@ the credential-bound Git transport, exercise a complete fixture PR through the
 public path with negative controls, and classify GraphQL error responses
 without exposing content. Publishing and safe-target evidence remain for
 BPR-0786. Existing unrelated working-tree edits are excluded.
+
+Checkpoint verification: macOS release and dev builds passed; four offscreen
+release consent/preview probes passed with zero preview requests; production
+host-symbol, documentation, formatting and architecture checks passed. Eight
+of nine focused CTest cases passed. The composition case initially failed
+because its whole-application source digest still named the prior revision;
+the reviewed digest inventory was resealed, its previously failing hostile
+source-control test passed directly, and the review round-trip composition
+CTest passed. A full rerun of the nine-case focused set is not yet recorded.
+Independent critical review retained both blockers above.
