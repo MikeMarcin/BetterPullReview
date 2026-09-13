@@ -11,6 +11,43 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/pla
 
 # Verify and close RFC-BPR-0013
 
+## Current frontier — bpr0643-r1 / d2 / mandate r4
+
+The owner reported a different live BPR-0643 refusal than d1's accepted
+permission attempt. D2 is bound to `retained-stress-pr-read` by
+`docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-bpr0643-r1-d2-r4.json`.
+The running `build/app-release` Mac bundle, launched at 11:05 PDT, produced
+two read-only attempts at about 18:05–18:06 UTC. Metadata-only diagnostics
+show both got through repository, pull request, files, commits, reviews,
+threads, issue comments and checks, then ended `invalid_relationship` after
+`SearchPullRequests`; the named page is the last page before whole-snapshot
+validation and is not yet proven causal. This agrees with the owner's
+`GitHub returned data that BetterPullReview could not safely use` panel text.
+The 11-line attempt records are retained outside the checkout as
+`~/Library/Application Support/BetterPullReview/BPR-0643-evidence-2026-09-13/attempt-3-diagnostics.log`
+(SHA-256 `b6843ce662bf54ca4782d0fa9e2d14d43831c5b7080e9be4e78efebfdeafdf3d`)
+and `attempt-4-diagnostics.log` beside it
+(SHA-256 `572bb9175e26e4bf40922d51bed5b680d57b26cb2bf7b525b6cdc4240ffd2637`).
+The actual PID 23251 window's rendered refusal was captured outside the
+checkout as `attempt-3-window.png` beside those logs (SHA-256
+`e3807e748cb45358f56eeefc158e19135b2157dac9f1ffbe411ebf632e824bcc`).
+The live binary is `build/app-release/src/app/BetterPullReview.app`, modified
+10:39 PDT (SHA-256 `d845e2929fa7e47f68132afdc099525c922d000c9246215e1c0780ed1fd494ad`),
+distinct from d1's `build/bpr0643-release` candidate (SHA-256
+`91a9479d7b1b980ceaef8f1fcbca78bd051202bb0dee3adb3a6387f7575d2e86`).
+The earlier d1 `permission`/`GetRepository` observations remain accurate for
+their separate rebuilt candidate attempts and do not explain this later one.
+
+An `rfc-worker-deep` owns bounded offline diagnosis and repair of the
+relationship failure in application/GitHub/core source and focused tests;
+the integrator owns live-product verification, this closeout, BPR-0643
+re-adjudication and commits. The exact live app is user-owned and remains
+running; no task process has been stopped. No new live target request or PR
+mutation has occurred in d2. Pending: isolate the failing relationship,
+verify a corrected tests-disabled Mac candidate through the exact read-only
+product path, and reconcile BPR-0643's acceptance and known limit truthfully.
+The unrelated `.gitignore` and `.mask.json` edits remain outside scope.
+
 ## Current frontier — bpr0643-r1 / d1 / mandate r2
 
 The `retained-stress-pr-read` milestone is accepted through its explicit
