@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0635"
 title: "Exercise default cache byte pressure"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0634","BPR-0612"]
 platforms: ["mac"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1 default byte pressure through public selectors","outcome":"pass","revision":"4a2be1b191a9854ef9c6a78f682415a4551b411b","evidence":{"kind":"artifact","detail":"build/rfc0013-d2-byte-post-projection.log and large-review-cache-bytes.json: 20 distinct 20,000-line keys, 70,353,760 admitted bytes before 64 entries, unchanged 64-MiB/64-entry defaults, 929 exact reads and no diff helper."}},{"criterion":"AC2 eviction, weak release and exact stale-safe revisit","outcome":"pass","revision":"4a2be1b191a9854ef9c6a78f682415a4551b411b","evidence":{"kind":"artifact","detail":"Byte course 1/1: first raw diff/index weak owners expired at byte eviction, B held exact through outstanding A with eight source observations, later A rematerialized exact source/key; 32 durable Git/catalog pairs verified."}},{"criterion":"AC3 native memory, timing and close lifecycle","outcome":"pass","revision":"4a2be1b191a9854ef9c6a78f682415a4551b411b","evidence":{"kind":"artifact","detail":"Byte course 333.17s: after-drain sampled physical growth 147.750 MiB <160, destruction growth 40.313 MiB <96; zero drained cache/jobs and watched owners released. report includes hardware, Qt, source timings/input, jobs and retained RSS separately."}},{"criterion":"AC4 preserve entry and earlier public acceptance","outcome":"pass","revision":"4a2be1b191a9854ef9c6a78f682415a4551b411b","evidence":{"kind":"artifact","detail":"build/rfc0013-d2-preserved-public-courses.log 3/3 entry/loaded/resources; build/rfc0013-d2-history-indexed-overview.log 1/1 with 31 refresh gaps 64.617–91.147ms <100, 32 exact heads/pairs, 929 reads, 31 selections and source <=0.952s. Session-race/direct replay source unchanged from d1 passing evidence. Focused Qt 8/8 and overview 3/3, documentation/behavior, board, format, scoped tidy and diff gates pass."}}]
 ---
 
 # Exercise default cache byte pressure
