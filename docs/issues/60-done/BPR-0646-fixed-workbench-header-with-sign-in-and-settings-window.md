@@ -765,3 +765,14 @@ move would rewrite the protected
 [v009 operator packet](../../verification/reviews/rfc-bpr-0028-attended-v009/operator-packet.md)'s
 relative link to this card. The packet's bytes remain immutable. The safe
 bookkeeping migration is pending; no new owner verdict is required.
+
+## Board finish with historical links preserved, 2026-09-12 (d30, mandate r20)
+
+The current six acceptance records all pass, including the exact v011 owner
+verdict above. The card is **Done** at `58921104`. The board finish used a
+one-time consumer-local link scan that left protected historical review
+packets outside its write set. Other live links were repaired, and the
+documentation gate resolved the old v009 packet link through this unique
+canonical card filename in `60-done`. The v009/v010/v011 operator-packet
+SHA-256 values stayed unchanged. The earlier Backlog note describes the d29
+constraint, not this final status; no owner criterion was re-asked.

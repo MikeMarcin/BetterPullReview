@@ -14,9 +14,13 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 ## Current attended pointer, 2026-09-12
 
 The shared UX pack's latest prepared page is
-[RFC-BPR-0028 attended v010](../verification/reviews/rfc-bpr-0028-attended-v010/operator-packet.md).
-It asks [[BPR-0729]]'s one-pane layout criterion on a signed bundle;
-it does not complete this RFC's Settings closeout. The bound
+[RFC-BPR-0028 attended v011](../verification/reviews/rfc-bpr-0028-attended-v011/operator-packet.md).
+The owner accepted its sole [[BPR-0646]] epoch-handle candidate at session
+sequence 373; the earlier [v010](../verification/reviews/rfc-bpr-0028-attended-v010/operator-packet.md)
+one-pane verdict remains bound to its own bundle. The initial fifteen-candidate
+[v006 packet](../verification/reviews/rfc-bpr-0028-attended-v006/operator-packet.md)
+included this RFC's macOS Settings candidate [[BPR-0683]] and its digest-bound
+offline page. Those decisions do not complete this RFC's Settings closeout. The bound
 `attended-preparation-pack-head` milestone and remaining exits are recorded
 on [[BPR-0593]]. This RFC remains Proposed.
 

@@ -383,3 +383,13 @@ this rewrite claims no work.
 ## Current packet pointer, 2026-09-12 (v011)
 
 The current [v011 attended packet](../../verification/reviews/rfc-bpr-0028-attended-v011/operator-packet.md) asks only [[BPR-0646]]'s epoch-handle criterion. This card's v010 acceptance remains bound to its protected packet and is not asked again; its immutable-review-link board constraint is unchanged.
+
+## Board finish with historical links preserved, 2026-09-12 (d30, mandate r20)
+
+All nine current acceptance records pass, including the owner's exact v010
+one-pane verdict. This card is **Done** at `73371ea1`. The board finish
+repaired live links while leaving the protected v010 packet byte-identical;
+the documentation gate resolves its historical `40-parked` locator through
+this unique canonical card filename in `60-done`. The preceding packet
+pointer records the d29 constraint, not this final status. No criterion was
+re-asked.

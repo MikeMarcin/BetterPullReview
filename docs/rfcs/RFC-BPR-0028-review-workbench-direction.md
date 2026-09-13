@@ -11,6 +11,18 @@ metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plan
 
 # RFC-BPR-0028: Review Workbench Direction: Overview, Epoch Line, Modalities, and Conversation
 
+## Current attended pointer, 2026-09-12 (d30)
+
+The owner accepted the sole epoch-handle candidate in the protected
+[v011 attended packet](../verification/reviews/rfc-bpr-0028-attended-v011/operator-packet.md)
+at session sequence 373 on its signed, digest-bound bundle. [[BPR-0646]] is
+Done, as is the separately accepted [[BPR-0729]] one-pane card; their v009
+and v010 packet links retain historical lane paths and unchanged bytes. The
+initial [v006 packet](../verification/reviews/rfc-bpr-0028-attended-v006/operator-packet.md)
+prepared all nine authored milestone cards on one bundle and offline page.
+This RFC remains open for its other criteria and native platform work; the
+owner's handle verdict alone does not close it.
+
 ## Status and scope
 
 The owner locked this direction on 2026-09-06 after five mockup rounds and
