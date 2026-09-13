@@ -1143,8 +1143,8 @@ namespace {
 			expect(std::get<github_wire_error>(read).Error.Failure == application::github_provider_failure::unavailable
 					   && std::get<github_wire_error>(read).Correlation == request.Correlation,
 				   "nonzero HTTP 200 fails atomically even with valid-looking JSON");
-			expect(std::get<github_capability_probe_wire_error>(capability).Error.Failure == application::github_provider_failure::unavailable,
-				   "nonzero GraphQL 200 remains generic failure pending fuller error normalization");
+			expect(std::get<github_capability_probe_wire_error>(capability).Error.Failure == application::github_provider_failure::malformed_response,
+				   "nonzero GraphQL 200 without causal metadata fails closed");
 		}
 		for (const auto* length : { "1", "3", "bad", "2, 2" }) {
 			process.Result = github_cli_process_success{ .StandardOutput = std::string{ "HTTP/2.0 200 OK\nContent-Length: " } + length + "\r\n\r\n{}" };
@@ -1156,6 +1156,50 @@ namespace {
 		process.Result = github_cli_process_success{ .StandardOutput = "fixed synthetic process failure without framing", .ExitCode = 1 };
 		expect(std::get<github_wire_error>(transport.perform(request, { })).Error.Failure == application::github_provider_failure::malformed_response, "unframed nonzero output is redacted malformed response");
 		expect(std::get<github_capability_probe_wire_error>(transport.perform_capability_probe(probe, { })).Error.Failure == application::github_provider_failure::malformed_response, "probe also rejects unframed nonzero output");
+	}
+
+	auto test_nonzero_graphql_errors() -> void
+	{
+		temporary_layout                           layout;
+		const auto                                 configuration = validate_gh_cli_configuration(configuration_candidate(layout));
+		const auto                                 cloud         = validate_github_host_profile(cloud_candidate());
+		successful_counting_process                process;
+		gh_cli_transport                           transport{ *cloud, *configuration, process };
+		const auto                                 request = wire_request_for(*cloud, read_operation::list_review_threads);
+		const github_capability_probe_wire_request probe{
+			.Correlation = { .Part = 0U, .Session = session_parent(*cloud), .ProfileRevision = cloud->revision(), .Host = cloud->host(), .ObservedAccount = core::github_account_id{ 42 } },
+			.Wire        = *compile_capability_probe_request(*cloud),
+		};
+		const auto check = [&](const std::string& aHeaders, const std::string& aBody) {
+			process.Result         = github_cli_process_success{ .StandardOutput = "HTTP/2.0 200 OK\nContent-Type: application/json\r\n" + aHeaders + "\r\n" + aBody, .ExitCode = 1 };
+			const auto  read       = transport.perform(request, { });
+			const auto  capability = transport.perform_capability_probe(probe, { });
+			const auto& readError  = std::get<github_wire_error>(read);
+			const auto& probeError = std::get<github_capability_probe_wire_error>(capability);
+			expect(application::valid(readError.Error) && application::valid(probeError.Error), "every normalized CLI GraphQL error satisfies the application contract");
+			expect(readError.Correlation == request.Correlation && probeError.Correlation == probe.Correlation, "GraphQL error retains exact correlation without partial success");
+			expect(readError.Error == probeError.Error && readError.Error.HttpStatus == 200, "read and probe share typed HTTP 200 failure normalization");
+			return readError.Error;
+		};
+		const std::string headers = "X-Ratelimit-Limit: 5000\r\nX-Ratelimit-Remaining: 42\r\nX-Ratelimit-Reset: 1700000000\r\nX-Ratelimit-Resource: graphql\r\n";
+		for (const auto* body : { R"({"errors":[{"type":"RATE_LIMITED","message":"private fixture"}],"data":{"partial":true}})", R"({"errors":[{"extensions":{"code":"RATE_LIMITED"}}]})", R"({"errors":[{"extensions":{"type":"RATE_LIMITED"}}]})" }) {
+			const auto error = check(headers, body);
+			expect(error.Failure == application::github_provider_failure::rate_limit && error.RetryAfterSeconds == 60U && error.RateLimitCause == error.RateLimits.Graphql && error.RateLimitCause->SecondaryLimited && error.RateLimitCause->Remaining == 42U && error.RateLimitCause->ResetUnixSeconds == 1700000000U && !error.RateLimits.Core && !error.RateLimits.Search, "structured GraphQL throttle retains exact causal resource and bounded retry");
+			expect(check(headers + "Retry-After: 17\r\n", body).RetryAfterSeconds == 17U, "explicit retry takes precedence over secondary default");
+		}
+		for (const auto* body : { R"({"errors":[{"type":"FORBIDDEN","message":"private fixture"}]})", R"({"errors":"RATE_LIMITED"})", R"({"errors":[{"type":42}]})", R"({"errors":[)", R"({"data":{"partial":true}})", "{}" }) {
+			const auto error = check(headers, body);
+			expect(error.Failure == application::github_provider_failure::malformed_response && error.RateLimits.Graphql && !error.RateLimitCause && !error.RetryAfterSeconds, "arbitrary or malformed GraphQL failure retains valid observation but no fabricated throttle");
+		}
+		const auto oversized = check(headers, std::string(256U, '[') + "0" + std::string(256U, ']'));
+		expect(oversized.Failure == application::github_provider_failure::response_limit, "completed GraphQL error parsing enforces structural depth limit");
+		const std::string rateBody = R"({"errors":[{"type":"RATE_LIMITED"}]})";
+		for (const auto* metadata : { "", "X-Ratelimit-Remaining: 0\r\n", "X-Ratelimit-Limit: 5000\r\nX-Ratelimit-Remaining: 0\r\nX-Ratelimit-Reset: 1700000000\r\nX-Ratelimit-Resource: core\r\n" }) {
+			const auto error = check(metadata, rateBody);
+			expect(error.Failure == application::github_provider_failure::malformed_response && !error.RateLimitCause && !error.RateLimits.Graphql, "missing partial or wrong-resource tuple cannot fabricate causal GraphQL evidence");
+		}
+		const auto primary = check("X-Ratelimit-Limit: 5000\r\nX-Ratelimit-Remaining: 0\r\nX-Ratelimit-Reset: 1700000000\r\nX-Ratelimit-Resource: graphql\r\n", rateBody);
+		expect(primary.Failure == application::github_provider_failure::rate_limit && !primary.RateLimitCause->SecondaryLimited && !primary.RetryAfterSeconds, "exhausted primary budget retains reset without secondary retry");
 	}
 
 	auto test_configuration_file_metadata_changes() -> void
@@ -1290,6 +1334,7 @@ auto main() -> int
 	test_detected_configuration_change_refuses_launch();
 	test_configuration_file_metadata_changes();
 	test_completed_http_errors_preserve_provider_evidence();
+	test_nonzero_graphql_errors();
 	test_realistic_headers_project_provider_metadata();
 	return EXIT_SUCCESS;
 }

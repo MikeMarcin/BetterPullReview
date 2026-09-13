@@ -30,7 +30,7 @@ RFC base: `6c9ef2038b7389f49028e71f2bb8219b07191267`.
 - [ ] RFC-BPR-0014 is Auto-Verified before RFC-BPR-0015 becomes terminal; pending native, human or safe-target evidence remains open.
 - [ ] RFC front matter, index and live cards agree. The historical strict-containment analysis is retained, not claimed passed by opt-in warnings.
 
-Current frontier under run `rfc0015-r1`, dispatch `d1`, mandate `r1`:
+Dispatch `d1` checkpoint under run `rfc0015-r1`, mandate `r1`:
 `opt-in-cli-read` remains in progress (BPR-0784 and BPR-0785). The macOS
 tests-disabled composition has a warning-labeled CLI read opt-in, consent
 refusal probes, observed `/user` identity, a bounded `gh api --include`
@@ -59,3 +59,29 @@ the reviewed digest inventory was resealed, its previously failing hostile
 source-control test passed directly, and the review round-trip composition
 CTest passed. A full rerun of the nine-case focused set is not yet recorded.
 Independent critical review retained both blockers above.
+
+Dispatch `d2` Git-object feasibility: the installed `gh` 2.100.0 accepted an
+absolute public Git Smart discovery URL, but `gh api` returned HTTP 401 with
+`WWW-Authenticate: Basic realm="GitHub"`. Only status, selected challenge
+header and byte counts are retained in ignored
+`build/rfc0015-d2-gh-smart-feasibility.json`; no token or response body was
+retained. The [tagged CLI implementation](https://github.com/cli/cli/blob/v2.100.0/git/client.go#L922-L944)
+delegates `gh repo clone` to Git and [configures](https://github.com/cli/cli/blob/v2.100.0/git/client.go#L147-L157)
+a `gh auth git-credential` shell helper for authenticated cloning;
+`gh auth setup-git` changes persistent Git credential-helper configuration.
+Neither route establishes this milestone's exact leased Git-object access
+under the no-token, no-shell and no-global-auth-change constraints. A public
+`gh pr diff` read succeeded without token extraction (ignored metadata-only
+`build/rfc0015-d2-gh-pr-diff-feasibility.json`), but a patch command is not
+the application's current Git-object transport and has not been composed as
+a selected-diff source. Preserve the full-diff limitation in the account
+warning. The representative fixture read probe is being assessed separately;
+do not mark BPR-0785 or an exit passed from the Git Smart 401 or a successful
+CLI command alone.
+
+The d2 GraphQL correction preserves typed `RATE_LIMITED` cause, retry and
+numeric rate metadata from a completed nonzero HTTP-200 CLI response while
+refusing partial success and response prose. Adapter and provider tests pass,
+including the application error-validity invariant. Independent critical
+review found no remaining defect in this bounded correction. This is
+component evidence, not a substitute for the unresolved public PR render.

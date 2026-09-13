@@ -1,4 +1,5 @@
 #include "gh_cli_transport.hpp"
+#include "github_paged_read.hpp"
 #include "github_wire_request_validation.hpp"
 
 #include <algorithm>
@@ -290,6 +291,58 @@ namespace bpr::adapters::github::detail {
 				return !selected_response_header(lowercase_header(aHeader.Name));
 			});
 			return response;
+		}
+
+		[[nodiscard]] auto completed_graphql_failure(const wire_response& aResponse)
+			-> application::github_provider_error
+		{
+			using failure = application::github_provider_failure;
+			application::github_provider_error error{
+				.Failure                = failure::malformed_response,
+				.RetryAfterSeconds      = std::nullopt,
+				.RateLimits             = { },
+				.RateLimitCause         = std::nullopt,
+				.HttpStatus             = static_cast<std::uint16_t>(aResponse.Status),
+				.TransportFailureSource = application::diagnostic_transport_failure_source::http_response,
+			};
+			const auto metadata = parse_github_response_metadata(aResponse);
+			if (!metadata || aResponse.Status != 200
+				|| aResponse.Completeness != page_completeness::complete
+				|| (metadata->RateLimit && metadata->RateLimit->Resource != application::github_rate_limit_resource::graphql)) {
+				return error;
+			}
+			// Reuse the provider's bounded GraphQL error parser. No error prose or
+			// partial data enters the failure completion, even for valid-looking data.
+			capability_probe_response response{
+				.Status        = aResponse.Status,
+				.Authenticated = true,
+				.ContentType   = "application/json",
+				.Body          = aResponse.Body,
+			};
+			for (const auto& header : aResponse.Headers) {
+				const auto name = lowercase_header(header.Name);
+				if (name.starts_with("x-ratelimit-") || name == "retry-after") {
+					response.RateLimitHeaders[response.RateLimitHeaderCount++] = { .Name = header.Name, .Value = header.Value };
+				}
+			}
+			const auto observation = normalize_capability_probe(response);
+			if (metadata->RateLimit) {
+				error.RateLimits.Graphql = metadata->RateLimit;
+			}
+			if (observation.Unavailability == capability_probe_unavailability::response_limit) {
+				error.Failure = failure::response_limit;
+			} else if (observation.Unavailability == capability_probe_unavailability::rate_limit && metadata->RateLimit) {
+				error.Failure           = failure::rate_limit;
+				error.RetryAfterSeconds = metadata->RetryAfterSeconds;
+				auto cause              = *metadata->RateLimit;
+				cause.SecondaryLimited  = cause.Remaining != 0U;
+				if (cause.SecondaryLimited && !error.RetryAfterSeconds) {
+					error.RetryAfterSeconds = 60U;
+				}
+				error.RateLimits.Graphql = cause;
+				error.RateLimitCause     = cause;
+			}
+			return error;
 		}
 
 		[[nodiscard]] auto process_failure(const github_cli_process_failure aFailure)
@@ -1204,6 +1257,9 @@ namespace bpr::adapters::github::detail {
 		}
 		// A nonzero 2xx may carry incomplete data; never infer success from JSON.
 		if (result->ExitCode != 0 && response->Status < 300) {
+			if (aRequest.Correlation.Operation == read_operation::list_review_threads) {
+				return github_wire_error{ .Correlation = aRequest.Correlation, .Error = completed_graphql_failure(*response) };
+			}
 			return wire_error(aRequest, application::github_provider_failure::unavailable);
 		}
 		return github_wire_success{ .Correlation = aRequest.Correlation, .Response = std::move(*response) };
@@ -1262,7 +1318,7 @@ namespace bpr::adapters::github::detail {
 			return error(parsed.error());
 		}
 		if (result->ExitCode != 0 && parsed->Status < 300) {
-			return error(application::github_provider_failure::unavailable);
+			return github_capability_probe_wire_error{ .Correlation = aRequest.Correlation, .Error = completed_graphql_failure(*parsed) };
 		}
 		if (parsed->Completeness != page_completeness::complete) {
 			return error(application::github_provider_failure::malformed_response);

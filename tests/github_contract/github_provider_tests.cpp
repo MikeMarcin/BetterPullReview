@@ -1353,6 +1353,21 @@ namespace {
 					   == limited->Error.RateLimitCause,
 			   "structured capability throttling preserves exact GraphQL cause");
 
+		auto completedHttpError                   = limited->Error;
+		completedHttpError.HttpStatus             = 200U;
+		completedHttpError.TransportFailureSource = application::diagnostic_transport_failure_source::http_response;
+		expect(application::valid(completedHttpError), "completed HTTP 200 GraphQL throttle is a valid provider error");
+		aFixture.Transport->CapabilityHandler =
+			[completedHttpError](const github_capability_probe_wire_request& aWire, std::stop_token) {
+				return github_capability_probe_wire_error{ .Correlation = aWire.Correlation, .Error = completedHttpError };
+			};
+		completion                 = run_capability(aFixture, aRequest);
+		const auto* completedError = std::get_if<application::github_capability_error>(&completion);
+		expect(completedError != nullptr && completedError->Error == completedHttpError,
+			   "provider preserves completed HTTP 200 GraphQL rate error including source, retry and cause");
+		completedHttpError.TransportFailureSource = application::diagnostic_transport_failure_source::none;
+		expect(!application::valid(completedHttpError), "HTTP status without a response source is rejected by the provider contract");
+
 		aFixture.Transport->CapabilityHandler =
 			[](const github_capability_probe_wire_request& aWire, std::stop_token) {
 				return github_capability_probe_wire_error{
