@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0751"
+  ],
+  "reserve_for": "rfc0013-r1-d1",
+  "purpose": "Split many-epoch public projection timing failure from BPR-0635",
+  "created": "2026-09-13T05:29:33.609485+00:00",
+  "base": "b2945701bba6ef61a89de80f109cf8b911fd2f8f"
+}
