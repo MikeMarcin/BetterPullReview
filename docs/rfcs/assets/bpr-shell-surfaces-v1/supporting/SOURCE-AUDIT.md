@@ -23,9 +23,13 @@ once at import and reuses anything that has since moved.
 | `docs/development/settings-authority-inventory.md`; cards BPR-0678–0689 (Done) | Settings shell, direct sign-in, appearance, general/review/notification and agent/storage pages are composed; BPR-0683's macOS attended verdict accepted the Settings window as of `d1ba791f`. | That verdict covered the window and its pages as they were; the card page is a new subject for attended review and does not inherit it. |
 | `docs/issues/10-backlog/BPR-0593-close-rfc-0018.md`, `BPR-0595-close-rfc-0024.md` | RFC-0018 and RFC-0024 closeouts are open with their own dependencies (Windows/Linux inventory, native evidence). | This pack does not add to those closeouts and does not wait for them; it is later work in the additional-RFC table. |
 
+| `src/adapters/qt/src/appearance_settings_panel.cpp` (832 lines) | The Appearance page is a `theme_preview_strip` of four cards (System, Light, Dark, High contrast "follows desktop"), a six-value mode combo box, four `QGroupBox` forms (interface font, code font with three check boxes, semantic colours with a role combo and hex editor), Import, Export, Preview, Commit, Cancel preview and four full-width Reset buttons; size spin boxes are in hundredths of a point (accessible names say so) and show values like 1298. | The page becomes three cards; the combo box, role combo, hex field and separate preview buttons go; sizes read as points. |
+| `src/adapters/qt/src/appearance_profile.cpp`, palette blocks (about lines 70–290) and `rebuild`/`set_committed_palette` (about lines 570–610, 1030–1075) | Four built-in palettes of 47 roles (light, dark, high-contrast light, high-contrast dark). One stored palette tagged with `PaletteVariant`; overrides apply only while that variant resolves; committing on another variant replaces the customisation (BPR-0216, BPR-0645 explain why the variant travels with the palette). | The behaviour change of RFC-BPR-0034: one customisation per variant, with a migration; the tiles and preview paint from these exact palettes. |
+| `src/core/include/bpr/core/appearance_model.hpp` | Six modes; four variants; `appearance_role_count = 47`; typography fields with weight 100–900, size in hundredths, line height percent, tab width, ligatures, syntax bold and italic. | The page shows every field; no new field. |
+
 ## New design, not an observed implementation
 
-RFC-BPR-0032 and RFC-BPR-0033 propose the card page, the Home column and rows, the
+RFC-BPR-0034 proposes the Appearance page and per-theme palettes. RFC-BPR-0032 and RFC-BPR-0033 propose the card page, the Home column and rows, the
 empty-desktop policy and the Profiles sheet. The source does not contain them. The
 design reference in `design/` is an illustration of palette roles and layout; it is not
 a runtime capture and proves nothing about Qt.

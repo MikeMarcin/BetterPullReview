@@ -24,6 +24,16 @@ the Filter menu holds what is expected; and whether the status bar line is usefu
 rather than noise. The owner accepted the boards on 2026-09-13; the application is the
 new subject.
 
+## Appearance (C6)
+
+Present the real Appearance page with the owner's account: the strip at rest and scrolled
+to the high-contrast tiles, a colour edit previewing in the review window behind, and
+the page after switching the desktop appearance. Ask separately whether the six tiles
+read as six themes and the System split as one; whether the one-line rows with glyphs
+lose anything that mattered; whether the preview shows enough to judge a change; and
+whether "Colours for Dark" makes the theme binding obvious. The owner accepted the
+boards on 2026-09-13; the application is the new subject.
+
 ## Profiles (B5)
 
 Present the real sheet from Profiles › Manage Profiles…, then have the owner close the

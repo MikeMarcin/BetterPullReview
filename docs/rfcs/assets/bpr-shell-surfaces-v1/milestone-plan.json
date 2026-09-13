@@ -4,7 +4,8 @@
   "scope": {
     "rfcs": [
       "RFC-BPR-0032",
-      "RFC-BPR-0033"
+      "RFC-BPR-0033",
+      "RFC-BPR-0034"
     ]
   },
   "coverage": "complete",
@@ -94,8 +95,28 @@
       "boundary": "One desktop-lifecycle boundary; runtime admission and profile identity are unchanged."
     },
     {
+      "id": "appearance",
+      "outcome": "Each theme keeps its own colours, and the Appearance page is the theme strip, one-line type rows with a labelled preview, and colours for the theme on screen.",
+      "work": [
+        {
+          "issue": "PACK-SHELL-15"
+        },
+        {
+          "issue": "PACK-SHELL-16"
+        }
+      ],
+      "depends_on": [
+        "intake-baseline"
+      ],
+      "exit_criteria": [
+        "Migration and per-variant commit, export, import and reset are proven with nothing lost.",
+        "The six-tile strip, the eleven rows with glyphs, the preview and the 47-role list are composed in the real Settings window with the retired controls gone."
+      ],
+      "boundary": "One appearance boundary; RFC-BPR-0006 palettes, roles and theme documents are consumed unchanged."
+    },
+    {
       "id": "verification-closeout",
-      "outcome": "Rendered, keyboard, screen-reader and attended evidence exists for all three surfaces, documentation matches, and formal status is truthful.",
+      "outcome": "Rendered, keyboard, screen-reader and attended evidence exists for all four surfaces, documentation matches, and formal status is truthful.",
       "work": [
         {
           "issue": "PACK-SHELL-10"
@@ -108,12 +129,16 @@
         },
         {
           "issue": "PACK-SHELL-13"
+        },
+        {
+          "issue": "PACK-SHELL-17"
         }
       ],
       "depends_on": [
         "accounts-page",
         "home-page",
-        "profile-chooser"
+        "profile-chooser",
+        "appearance"
       ],
       "exit_criteria": [
         "Captures, walks and attended verdicts are bound to revisions; unobserved platforms are recorded as not run.",

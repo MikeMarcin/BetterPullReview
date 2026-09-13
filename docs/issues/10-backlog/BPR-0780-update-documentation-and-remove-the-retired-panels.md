@@ -3,16 +3,16 @@ schema: "implement-rfc.card.v1"
 id: "BPR-0780"
 title: "Update documentation and remove the retired panels"
 status: "Backlog"
-rfcs: ["RFC-BPR-0032", "RFC-BPR-0033"]
-depends_on: ["BPR-0773", "BPR-0774", "BPR-0778", "BPR-0783"]
-metadata: {"pack":"bpr-shell-surfaces-v1","milestone":"verification-closeout","acceptance":["A1","A4","B4"],"milestone_plan":{"id":"bpr-shell-surfaces-v1","path":"docs/rfcs/plans/bpr-shell-surfaces-v1/milestone-plan.json"}}
+rfcs: ["RFC-BPR-0032", "RFC-BPR-0033", "RFC-BPR-0034"]
+depends_on: ["BPR-0773", "BPR-0774", "BPR-0778", "BPR-0783", "BPR-0790"]
+metadata: {"pack":"bpr-shell-surfaces-v1","milestone":"verification-closeout","acceptance":["A1","A4","B4","C1"],"milestone_plan":{"id":"bpr-shell-surfaces-v1","path":"docs/rfcs/plans/bpr-shell-surfaces-v1/milestone-plan.json"}}
 ---
 
 # BPR-0780: Update documentation and remove the retired panels
 
 ## Outcome
 
-Rewrite the workbench specification's host, public-preview and device sign-in sections to the card, the settings guide's Accounts and General pages, the profile and window authority inventory, and the settings authority inventory's row-to-authority mapping; delete the retired session-panel groups, servers editor and management controls once no course references them; run the documentation gate.
+Rewrite the workbench specification's host, public-preview and device sign-in sections to the card, the settings guide's Accounts, Appearance and General pages, the appearance and accessibility document's customisation section and the storage notes for the schema bump, the profile and window authority inventory, and the settings authority inventory's row-to-authority mapping; delete the retired session-panel groups, servers editor and management controls once no course references them; run the documentation gate.
 
 ## Acceptance
 

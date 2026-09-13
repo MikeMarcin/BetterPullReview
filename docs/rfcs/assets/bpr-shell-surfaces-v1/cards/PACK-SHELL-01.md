@@ -3,9 +3,9 @@ schema: "implement-rfc.card.v1"
 id: "PACK-SHELL-01"
 title: "Import the authored plan and reconcile the live source"
 status: "Backlog"
-rfcs: ["RFC-BPR-0032", "RFC-BPR-0033"]
+rfcs: ["RFC-BPR-0032", "RFC-BPR-0033", "RFC-BPR-0034"]
 depends_on: []
-metadata: {"pack":"bpr-shell-surfaces-v1","milestone":"intake-baseline","acceptance":["A1","B1"],"alias_requires_live_allocation":true}
+metadata: {"pack":"bpr-shell-surfaces-v1","milestone":"intake-baseline","acceptance":["A1","B1","C1"],"alias_requires_live_allocation":true}
 ---
 
 # PACK-SHELL-01: Import the authored plan and reconcile the live source

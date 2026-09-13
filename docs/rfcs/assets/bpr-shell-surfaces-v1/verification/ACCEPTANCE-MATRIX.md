@@ -20,12 +20,19 @@ attended criteria suffice; do not fabricate a full suite or a native result.
 | B3 | Failures go to a window | Injected failures with and without a live window | Chooser over a live window; failure with no window unreported | 08, 13 | Not run |
 | B4 | The chooser is rows | `qt_profile_management` component course | Permanent name field, status sentence or Reload; text lost on Escape or failure; notice without a failure | 09, 11, 13 | Not run |
 | B5 | Rendered and reachable | Captures of four sheet states; keyboard and VoiceOver; attended close-and-reopen | A control without a name; state not the row's description; an inherited verdict | 10, 13 | Not run |
+| C1 | One customisation per theme | Appearance host, store and profile with prior-schema fixtures; commit per variant and reopen; export and import dialogs | A customisation lost in migration or on committing another theme; a variant guessed in Qt; export or import that does not name its theme | 15, 11, 17 | Not run |
+| C2 | The theme strip | Composed Settings with the preview strip; pixel assertions on both System halves | Wrong order or count; a combo box left; a drawn diagonal; a half painted from the wrong palette; caption not naming the half in effect | 16, 17 | Not run |
+| C3 | Type rows | Composed Settings; row geometry; glyph popover on hover, focus and accessible description | A two-line row; a size in hundredths; a consequence reachable by pointer only | 16, 17 | Not run |
+| C4 | The preview | Shared painter; repaint after each accepted change | A second renderer; a control with no visible effect in the sample; a stale caption | 16, 17 | Not run |
+| C5 | The colours card | Composed Settings with the recording picker port | A title not following the theme on screen; fewer than 47 roles; a bar shown with nothing previewed; Keep changes bypassing the existing commit | 16, 17 | Not run |
+| C6 | Rendered and reachable | Captures of three states with every tile; keyboard including the strip; VoiceOver with tile captions; attended candidate | A tile without a name; a capture of the mockup; an inherited verdict | 10, 17 | Not run |
 
 ## Minimal integration evidence
 
 Capture the real application, not the mockup, at 1.0, 1.25, 1.5 and 2.0 scale in Light,
 Dark, High-contrast Light and High-contrast Dark for: Accounts connected, signed out,
 signing in; Home first launch, default, long list scrolled, nothing needs me, over a
-review, and Group Organization with State headers on and off, Account on, None off; the
-sheet default, renaming, creating, failed. That is a targeted set, not every combination of every state; affected
+review, and Group Organization with State headers on and off, Account on, None off;
+Appearance default, editing a colour, and a light desktop with two customised themes,
+with the strip scrolled to show every tile; the sheet default, renaming, creating, failed. That is a targeted set, not every combination of every state; affected
 edge cases drive additional captures. Record the executable digest once per session.

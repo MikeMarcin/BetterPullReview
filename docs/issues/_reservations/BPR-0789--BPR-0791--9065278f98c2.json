@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0789",
+    "BPR-0790",
+    "BPR-0791"
+  ],
+  "reserve_for": "shell-surfaces-import",
+  "purpose": "bpr-shell-surfaces-v1 revision 3: Appearance cards",
+  "created": "2026-09-13T21:35:05.742925+00:00",
+  "base": "bd4f07b3038f2634802085428611585af8cde6a1"
+}

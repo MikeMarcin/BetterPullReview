@@ -23,6 +23,11 @@ already exist. Reuse a live equivalent if later work supplied one.
 | Reopen from activation, ⌘N, Profiles menu | Existing `open_bpr_profile_intent` and `new_bpr_window_intent`; registry recency | A second runtime owner; touching another profile |
 | Failure routing with a live window | The window's existing status projection and Profiles menu status | Presenting the chooser over a live window |
 | Profiles sheet | `profile_management_window`, `profile_management_dispatch`, `profile_management_projection`; `qt_profile_management` course | A new intent; a launcher screen; profile deletion |
+| Per-theme palettes | `appearance_settings_store` schema bump and migration; appearance host commit, reset, import, export intents scoped to a variant; `appearance_profile` override table keyed by variant | Guessing the variant in Qt; a parallel palette store; losing a customisation in migration |
+| Theme strip | `theme_preview_strip` cards in a scrolling well, wider snippet, diagonal by clip; captions from the projection | A drawn diagonal; a separate thumbnail painter |
+| `info_glyph` (**new**) | Shared by Appearance and Accounts rows; popover plus accessible description | Tooltip-only text |
+| `type_preview` (**new**) | The review window's code painter over accepted typography and the resolved palette | A second renderer |
+| `colour_role_list` (**new**) and preview bar | The 47 roles from `appearance_model.hpp`; the platform colour picker; the existing preview, commit and cancel intents | A new role; a hex field as the only entry; commit outside the existing intent |
 | Retired widgets | Delete after every composed course names its new target (`qt_composed_github*`, device public-path, saved-server, management courses) | Deleting first and repointing later |
 
 ## Bridge shape
@@ -40,3 +45,6 @@ subsystem) apply. `qt_composed_github` builds the same window through the same
 drawer, so every Accounts change runs it. The device public-path course must prove
 the same authorization facts after the move. The management course of BPR-0696 must
 keep passing with the last-runtime presentation removed and the policy injected.
+
+The appearance migration must keep every existing appearance contract and the theme
+customisation public contract green; a customisation lost in migration is a failed slice.

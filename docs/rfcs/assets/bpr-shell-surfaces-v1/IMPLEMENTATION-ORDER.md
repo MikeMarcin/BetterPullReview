@@ -11,9 +11,10 @@ receipt or a claim that strict live validation ran here.
 | accounts-page | 02–05 | Retire the stacked chrome; one card per server; sign-in in the row; enterprise cards. |
 | home-page | 06, 07, 14 | The bar and first-launch card; state panels with one row anatomy; Group, State headers, account chips and Filter in the strip. |
 | profile-chooser | 08–09 | No presentation on last close; platform exits; the Profiles sheet. |
-| verification-closeout | 10–13 | Rendered, keyboard, screen-reader and attended evidence; documentation; two closeouts. |
+| appearance | 15–16 | One customisation per theme with migration; the Appearance page as strip, rows with glyphs and preview, and colours for the theme on screen. |
+| verification-closeout | 10–13, 17 | Rendered, keyboard, screen-reader and attended evidence; documentation; three closeouts. |
 
-The three middle milestones share one predecessor and may proceed independently. If an
+The four middle milestones share one predecessor and may proceed independently. If an
 attended subject awaits the owner, continue the other surfaces rather than idling. Do
 not change the accepted milestone outcomes to evade a human gate.
 
@@ -37,7 +38,7 @@ are hardcoded into this pack.
 ## Completion
 
 A card page with the old strip still under it, or a sheet that still appears on close,
-is not completion. Both RFCs must be composed in the normal executable, rendered,
-walked and accepted before their closeouts; the two closeouts are independent of each
+is not completion. All three RFCs must be composed in the normal executable, rendered,
+walked and accepted before their closeouts; the three closeouts are independent of each
 other and follow canonical order. Never falsify an Auto-Verified status to unblock a
 document.

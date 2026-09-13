@@ -12,7 +12,7 @@ metadata: {"pack":"bpr-shell-surfaces-v1","milestone":"accounts-page","acceptanc
 
 ## Outcome
 
-Add a `server_card` Qt widget that composes the existing account, connection, capability, rate-limit and diagnostic projections into header, account row, Access, Rate limit and Details, one card per configured host, with Connect on a non-active card dispatching the existing selection then connect intents. The Accounts page becomes the title, the sentence and the card column.
+Add a `server_card` Qt widget that composes the existing account, connection, capability, rate-limit and diagnostic projections into header, account row, Access, Rate limit and Details, one card per configured host, with Connect on a non-active card dispatching the existing selection then connect intents. The Accounts page becomes the title, the sentence and the card column. A row whose second text is a consequence rather than a value (Remember this server) uses the shared info glyph of RFC-BPR-0034.
 
 ## Acceptance
 

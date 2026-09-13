@@ -17,7 +17,7 @@ the live mapping and plan lineage in the repository's supported import record. I
 skill's import interface has changed, adapt representation, not outcomes or grouping.
 Do not manufacture an import receipt or invoke guessed commands.
 
-Implement RFC-BPR-0032 and RFC-BPR-0033 as additive revisions. They implement the
+Implement RFC-BPR-0032, RFC-BPR-0033 and RFC-BPR-0034 as additive revisions. They implement the
 owner-accepted RFC-BPR-0028 Settings and Home statements and RFC-BPR-0018's row
 language; they supersede the compositions of BPR-0646, 0652, 0660, 0650 and 0696 only
 to the extent each RFC names, and no RFC text. Settled RFCs and historic attended
@@ -38,6 +38,13 @@ course to its new target (the bar, the card, the strip, the sheet) and keep
 `qt_composed_github`, the device public-path course, the saved-server contract and the
 BPR-0696 management course green; then delete the widgets.
 
+**Each theme keeps its own colours.** RFC-BPR-0034 bumps the appearance settings store
+schema to one customised palette per variant. Migrate the existing single palette under
+its recorded variant with nothing lost, key the profile's overrides by variant, and scope
+commit, export, import and reset to the variant the composition resolves; Qt never guesses
+it. Paint the six tiles and the type preview with the review window's own painter from the
+real palettes; the diagonal is a clip, never a stroke.
+
 **A close is a close.** Remove the last-runtime presentation in `profile_desktop.cpp`
 and add one injected, testable empty-desktop policy: resident on macOS, quit through the
 existing drain and Quit path elsewhere. Reopen from activation, ⌘N and the Profiles menu
@@ -45,7 +52,7 @@ through the existing intents with one runtime owner. Route failures with a live 
 to that window; present the chooser for a failure only when no window exists.
 
 Ordinary slices get focused checks. At each milestone reuse still-valid evidence and run
-one relevant integration pass. Batch the explicit human criteria (A8, B5) through the
+one relevant integration pass. Batch the explicit human criteria (A8, B5, C6) through the
 shared attended-review workflow with absolute paths and one question per criterion;
 preserve partial answers and keep independent work moving. A mockup is not a rendering
 and a rendering is not a verdict. Windows and Linux quit behaviour is platform work on

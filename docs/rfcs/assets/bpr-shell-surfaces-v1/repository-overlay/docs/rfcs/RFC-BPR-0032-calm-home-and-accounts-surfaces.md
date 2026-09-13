@@ -189,7 +189,11 @@ as the filled button at the right; Home is unchanged beneath it.
 
 ### Language shared by both
 
-A row is label, consequence, control: no colons, no "Label: value" pairs, no
+A row is one line: label, an info glyph and the control. The consequence
+sentence lives in the glyph's popover, shown on hover and on keyboard focus,
+and is the glyph's accessible description (the owner's amendment of 2026-09-13,
+recorded in RFC-BPR-0034); a row whose second text is a value rather than a
+consequence keeps the value in the row. No colons, no "Label: value" pairs, no
 capitalised eyebrows, no numbering. A fact appears once on a page. One filled
 control per page, and it is the page's job. Empty is a sentence, never a box.
 A refusal sits beside what was refused. Words are the reviewer's, in the first

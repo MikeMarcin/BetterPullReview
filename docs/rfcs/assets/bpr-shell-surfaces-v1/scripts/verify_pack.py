@@ -134,7 +134,7 @@ def verify(root: Path) -> dict:
         rfcs[f['id']] = f
         bullets[f['id']] = acceptance_bullets(path)
         ids = manifest['acceptance_ids'][f['id']]
-        ensure([re.match(r'\*\*([AB]\d+) ', b).group(1) for b in bullets[f['id']]] == ids,
+        ensure([re.match(r'\*\*([ABC]\d+) ', b).group(1) for b in bullets[f['id']]] == ids,
                'Acceptance IDs disagree with manifest: ' + f['id'])
     ensure(set(rfcs) == set(manifest['rfc_ids']), 'RFC index mismatch')
     all_ids = {i for ids in manifest['acceptance_ids'].values() for i in ids}

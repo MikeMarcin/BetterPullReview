@@ -1,18 +1,18 @@
 ---
 schema: "implement-rfc.card.v1"
 id: "BPR-0779"
-title: "Run the rendered, keyboard and screen-reader course and the attended review for the three surfaces"
+title: "Run the rendered, keyboard and screen-reader course and the attended review for the four surfaces"
 status: "Backlog"
-rfcs: ["RFC-BPR-0032", "RFC-BPR-0033"]
-depends_on: ["BPR-0773", "BPR-0774", "BPR-0778", "BPR-0783"]
-metadata: {"pack":"bpr-shell-surfaces-v1","milestone":"verification-closeout","acceptance":["A8","B5"],"milestone_plan":{"id":"bpr-shell-surfaces-v1","path":"docs/rfcs/plans/bpr-shell-surfaces-v1/milestone-plan.json"}}
+rfcs: ["RFC-BPR-0032", "RFC-BPR-0033", "RFC-BPR-0034"]
+depends_on: ["BPR-0773", "BPR-0774", "BPR-0778", "BPR-0783", "BPR-0790"]
+metadata: {"pack":"bpr-shell-surfaces-v1","milestone":"verification-closeout","acceptance":["A8","B5","C6"],"milestone_plan":{"id":"bpr-shell-surfaces-v1","path":"docs/rfcs/plans/bpr-shell-surfaces-v1/milestone-plan.json"}}
 ---
 
-# BPR-0779: Run the rendered, keyboard and screen-reader course and the attended review for the three surfaces
+# BPR-0779: Run the rendered, keyboard and screen-reader course and the attended review for the four surfaces
 
 ## Outcome
 
-Extend the existing four-appearance, four-scale deterministic capture course to the Accounts page states, the Home states and the Profiles sheet states; walk the keyboard order and VoiceOver names on macOS; prepare one attended candidate per surface, including the close-and-reopen course, through the shared attended-review workflow with absolute paths and one question per criterion.
+Extend the existing four-appearance, four-scale deterministic capture course to the Accounts page states, the Home states, the Appearance page states with every tile, and the Profiles sheet states; walk the keyboard order and VoiceOver names on macOS; prepare one attended candidate per surface, including the close-and-reopen course, through the shared attended-review workflow with absolute paths and one question per criterion.
 
 ## Acceptance
 

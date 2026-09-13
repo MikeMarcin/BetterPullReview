@@ -89,6 +89,7 @@ tracked on the issue board's backlog, in the same way as other RFC work.
 | [RFC-BPR-0031](RFC-BPR-0031-dif-workbench-animation-integration.md) | Dif Workbench Integration: Profile Preferences, Bounded Qt Playback, and Truthful Cues | Proposed | Imported for later implementation; consumes RFC-BPR-0030's accepted revision and depends formally on RFC-BPR-0005 and RFC-BPR-0006. No app or art acceptance is claimed |
 | [RFC-BPR-0032](RFC-BPR-0032-calm-home-and-accounts-surfaces.md) | Calm Home and Accounts & Hosts: One Language for the Surfaces Before a Review | Proposed | Imported 2026-09-13 from the owner's brief for later implementation, Home revised the same day after owner review; a presentation revision that implements the accepted RFC-BPR-0028 Settings and Home statements as one card per server and state-ordered Home panels with grouping, and records the owner's amendment placing Home's Group, State headers, Filter and refresh in the strip; RFC-BPR-0016, RFC-BPR-0018 and RFC-BPR-0028 |
 | [RFC-BPR-0033](RFC-BPR-0033-profile-chooser-and-the-last-window.md) | Profile Chooser and the Last Window: Profiles Are a Menu, Not a Gate | Proposed | Imported 2026-09-13 for later implementation; removes the last-window chooser presentation, adds a per-platform empty-desktop policy and redesigns the chooser as rows; RFC-BPR-0024, whose text it amends in presentation only |
+| [RFC-BPR-0034](RFC-BPR-0034-appearance-page-and-per-theme-colours.md) | Appearance Page and Per-Theme Colour Customisation | Proposed | Imported 2026-09-13 after owner review of the Appearance page; rebuilds the page as a theme strip, one-line rows with info-glyph popovers, a labelled preview and a colours card for the theme on screen, and changes the appearance store to one customised palette per theme with a migration; RFC-BPR-0006 and RFC-BPR-0018 |
 
 The 2026-09-04 daily-workbench registration accepts the design in RFC-BPR-0018
 and RFC-BPR-0024 through RFC-BPR-0026, with implementation explicitly deferred.
@@ -155,18 +156,21 @@ plan](plans/bpr-dif-integration-v1/milestone-plan.json) retain the source and
 execution order. Import leaves all eighteen cards in Backlog and both RFCs
 Proposed; technical readiness and canonical formal closeout are separate.
 
-RFC-BPR-0032 and RFC-BPR-0033 are the imported shell-surfaces pack: the owner's
+RFC-BPR-0032, RFC-BPR-0033 and RFC-BPR-0034 are the imported shell-surfaces pack: the owner's
 2026-09-13 verdict that Settings' Accounts & hosts page, Home and the profile
-chooser are cluttered, and that the chooser must stop appearing when the last
-window closes. Both are presentation and composition revisions that implement
+chooser are cluttered, that the chooser must stop appearing when the last
+window closes, and, in the same day's review, that the Appearance page should
+follow and each theme should keep its own colours. The first two are presentation
+and composition revisions that implement
 the accepted RFC-BPR-0028 Settings and Home statements and RFC-BPR-0018's row
 language; they change no credential, provider, publication, queue, navigation,
-profile-identity or runtime-ownership authority. Their [source pack and live ID
+profile-identity or runtime-ownership authority; RFC-BPR-0034 adds one domain change,
+one customised palette per theme, with a store migration. Their [source pack and live ID
 mapping](assets/bpr-shell-surfaces-v1.LIVE_IMPORT.md), [design
 reference](assets/bpr-shell-surfaces-v1/design/shell-surfaces-v1.html) and
 [adopted five-milestone plan](plans/bpr-shell-surfaces-v1/milestone-plan.json)
-retain the source and execution order. Import leaves all fourteen cards in
-Backlog and both RFCs Proposed; the two closeouts are independent of each other.
+retain the source and execution order. Import leaves all seventeen cards in
+Backlog and the three RFCs Proposed; the three closeouts are independent of each other.
 
 RFC-BPR-0022 and RFC-BPR-0023 were reconciled and imported together on
 2026-09-04 with implementation explicitly deferred. The off-hunk pack retains

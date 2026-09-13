@@ -1,18 +1,18 @@
 ---
 schema: "implement-rfc.card.v1"
 id: "PACK-SHELL-10"
-title: "Run the rendered, keyboard and screen-reader course and the attended review for the three surfaces"
+title: "Run the rendered, keyboard and screen-reader course and the attended review for the four surfaces"
 status: "Backlog"
-rfcs: ["RFC-BPR-0032", "RFC-BPR-0033"]
-depends_on: ["PACK-SHELL-04", "PACK-SHELL-05", "PACK-SHELL-09", "PACK-SHELL-14"]
-metadata: {"pack":"bpr-shell-surfaces-v1","milestone":"verification-closeout","acceptance":["A8","B5"],"alias_requires_live_allocation":true}
+rfcs: ["RFC-BPR-0032", "RFC-BPR-0033", "RFC-BPR-0034"]
+depends_on: ["PACK-SHELL-04", "PACK-SHELL-05", "PACK-SHELL-09", "PACK-SHELL-14", "PACK-SHELL-16"]
+metadata: {"pack":"bpr-shell-surfaces-v1","milestone":"verification-closeout","acceptance":["A8","B5","C6"],"alias_requires_live_allocation":true}
 ---
 
-# PACK-SHELL-10: Run the rendered, keyboard and screen-reader course and the attended review for the three surfaces
+# PACK-SHELL-10: Run the rendered, keyboard and screen-reader course and the attended review for the four surfaces
 
 ## Outcome
 
-Extend the existing four-appearance, four-scale deterministic capture course to the Accounts page states, the Home states and the Profiles sheet states; walk the keyboard order and VoiceOver names on macOS; prepare one attended candidate per surface, including the close-and-reopen course, through the shared attended-review workflow with absolute paths and one question per criterion.
+Extend the existing four-appearance, four-scale deterministic capture course to the Accounts page states, the Home states, the Appearance page states with every tile, and the Profiles sheet states; walk the keyboard order and VoiceOver names on macOS; prepare one attended candidate per surface, including the close-and-reopen course, through the shared attended-review workflow with absolute paths and one question per criterion.
 
 ## Acceptance
 

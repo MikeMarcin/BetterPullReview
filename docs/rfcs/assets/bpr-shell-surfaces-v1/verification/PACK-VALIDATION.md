@@ -18,6 +18,13 @@ nine-board `design/home-v2.html`; RFC-BPR-0032's Home section and A5 to A8, card
 07, a new card 14 and the plan's home-page milestone were revised; the pack was re-sealed
 and re-verified. The Settings and Profiles designs are unchanged.
 
+Revision 3, 2026-09-13: RFC-BPR-0034 (Appearance page and per-theme colours) was added
+with cards 15 to 17 and an `appearance` milestone after the owner reviewed and accepted
+`design/appearance-v2.html`; cards 01, 03, 10 and 11 gained its references; RFC-BPR-0032's
+shared row language records the info-glyph amendment; the pack was re-sealed and
+re-verified. The tiles in the Appearance reference are painted from the four palette
+blocks parsed out of the Qt appearance profile, not from illustrative values.
+
 These checks do not validate the live installed MASK import schema, BPR builds, Qt
 behaviour, platform quit behaviour, or owner acceptance. Those remain explicit
 implementation criteria. No native import receipt, app execution, approval or

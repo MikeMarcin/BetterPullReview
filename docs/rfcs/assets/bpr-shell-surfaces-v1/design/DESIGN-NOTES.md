@@ -210,12 +210,36 @@ chip, at the right), Group and Filter and refresh in the title strip, and
 "Added by" for the observer-reason filter. Those decisions are the design;
 they are recorded in RFC-BPR-0032 and drawn in `home-v2.html`.
 
+## Appearance, third round
+
+Appearance was drawn from the page's real control inventory (six modes, two
+typography groups with sizes stored in hundredths of a point, 47 semantic roles,
+import, export, preview, commit, cancel, four scoped resets), not from the
+earlier 0028 draft. The owner's decisions in review, in order: the high-contrast
+palettes are themes of their own, so six tiles for six modes and no switch; the
+tiles must paint the app's real palettes (they now parse the four palette blocks
+in the Qt appearance profile) and both halves of the diagonal must carry code;
+consequences become info-glyph popovers so a row is one line; the theme picker
+is a sideways strip in a well, after Nova's; the colours card names the theme it
+edits and each theme keeps its own customisation, which is the one behaviour
+change and the reason RFC-BPR-0034 exists; the preview is labelled and shows
+every control, including a type, a function and a macro. Two calls were left to
+the designer: weight stays a 100 to 900 stepper because that is the stored
+value, and all 47 roles stay on the page behind the filter and group headers.
+
+The diagonal: light top-left over dark bottom-right, each half its own palette,
+the edge being only the change of palette. A drawn hairline was tried and read
+as a stray stroke; it is gone.
+
 ## Removed on the way out (Chanel's rule)
 
 - The "Resume reading" button beside the Recently viewed heading: it is a row
   action now, on hover, focus and the row's menu.
 - Repository and Bucket as filters: Group and the state order do their job.
 - The 720-point Home column: the owner's window is wide and the rows use it.
+- The mode combo box under the theme tiles, the role combo box with its hex
+  field, and the five full-width buttons on Appearance.
+- Consequence sentences under every Settings label: they live in the info glyph.
 - The ghost "Sign in again" button shown disabled during a sign-in.
 - A bordered "Copy code" button beside Open browser: the copy is a glyph at the
   end of the code itself, where the convention puts it (owner note, 2026-09-13),

@@ -5,11 +5,13 @@
   "status": "proposed_design_and_implementation_handoff",
   "rfc_ids": [
     "RFC-BPR-0032",
-    "RFC-BPR-0033"
+    "RFC-BPR-0033",
+    "RFC-BPR-0034"
   ],
   "rfc_paths": [
     "repository-overlay/docs/rfcs/RFC-BPR-0032-calm-home-and-accounts-surfaces.md",
-    "repository-overlay/docs/rfcs/RFC-BPR-0033-profile-chooser-and-the-last-window.md"
+    "repository-overlay/docs/rfcs/RFC-BPR-0033-profile-chooser-and-the-last-window.md",
+    "repository-overlay/docs/rfcs/RFC-BPR-0034-appearance-page-and-per-theme-colours.md"
   ],
   "authored_milestone_plan": "milestone-plan.json",
   "plan_import_requires_live_issue_remapping": true,
@@ -27,7 +29,10 @@
     "PACK-SHELL-11",
     "PACK-SHELL-12",
     "PACK-SHELL-13",
-    "PACK-SHELL-14"
+    "PACK-SHELL-14",
+    "PACK-SHELL-15",
+    "PACK-SHELL-16",
+    "PACK-SHELL-17"
   ],
   "card_paths": [
     "cards/PACK-SHELL-01.md",
@@ -43,7 +48,10 @@
     "cards/PACK-SHELL-11.md",
     "cards/PACK-SHELL-12.md",
     "cards/PACK-SHELL-13.md",
-    "cards/PACK-SHELL-14.md"
+    "cards/PACK-SHELL-14.md",
+    "cards/PACK-SHELL-15.md",
+    "cards/PACK-SHELL-16.md",
+    "cards/PACK-SHELL-17.md"
   ],
   "acceptance_ids": {
     "RFC-BPR-0032": [
@@ -62,6 +70,14 @@
       "B3",
       "B4",
       "B5"
+    ],
+    "RFC-BPR-0034": [
+      "C1",
+      "C2",
+      "C3",
+      "C4",
+      "C5",
+      "C6"
     ]
   },
   "design_reference": "design/shell-surfaces-v1.html",
@@ -72,5 +88,6 @@
   "no_app_implementation_or_native_verification_performed": true,
   "design_reference_is_not_runtime_evidence": true,
   "design_reference_home": "design/home-v2.html",
-  "revision": 2
+  "revision": 3,
+  "design_reference_appearance": "design/appearance-v2.html"
 }

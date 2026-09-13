@@ -66,13 +66,28 @@ Closing a window never presents the chooser, each platform gets its expected exi
 
 **Boundary:** One desktop-lifecycle boundary; runtime admission and profile identity are unchanged.
 
+## appearance
+
+Each theme keeps its own colours, and the Appearance page is the theme strip, one-line type rows with a labelled preview, and colours for the theme on screen.
+
+**Work:** `BPR-0789`, `BPR-0790`
+
+**Prerequisites:** intake-baseline
+
+**Completion:**
+
+- Migration and per-variant commit, export, import and reset are proven with nothing lost.
+- The six-tile strip, the eleven rows with glyphs, the preview and the 47-role list are composed in the real Settings window with the retired controls gone.
+
+**Boundary:** One appearance boundary; RFC-BPR-0006 palettes, roles and theme documents are consumed unchanged.
+
 ## verification-closeout
 
-Rendered, keyboard, screen-reader and attended evidence exists for all three surfaces, documentation matches, and formal status is truthful.
+Rendered, keyboard, screen-reader and attended evidence exists for all four surfaces, documentation matches, and formal status is truthful.
 
-**Work:** `BPR-0779`, `BPR-0780`, `BPR-0781`, `BPR-0782`
+**Work:** `BPR-0779`, `BPR-0780`, `BPR-0781`, `BPR-0782`, `BPR-0791`
 
-**Prerequisites:** accounts-page, home-page, profile-chooser
+**Prerequisites:** accounts-page, home-page, profile-chooser, appearance
 
 **Completion:**
 
