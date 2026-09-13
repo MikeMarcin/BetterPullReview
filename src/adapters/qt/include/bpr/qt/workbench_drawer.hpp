@@ -226,16 +226,16 @@ namespace bpr::qt {
 
 	private:
 		core::workbench_drawer       Drawer;
-		QLabel*                      Heading      = nullptr;
-		QListView*                   View         = nullptr;
-		workbench_drawer_model*      Contents     = nullptr;
-		QWidget*                     Content      = nullptr;
-		QWidget*                     ContentFocus = nullptr;
-		bool                         ListRetired  = false;
-		workbench_drawer_rail*       Rail         = nullptr;
-		QToolButton*                 Collapse     = nullptr;
+		QLabel*                      Heading       = nullptr;
+		QListView*                   View          = nullptr;
+		workbench_drawer_model*      Contents      = nullptr;
+		QWidget*                     Content       = nullptr;
+		QWidget*                     ContentFocus  = nullptr;
+		bool                         ListRetired   = false;
+		workbench_drawer_rail*       Rail          = nullptr;
+		QToolButton*                 Collapse      = nullptr;
 		bool                         ControlsShown = false;
-		core::workbench_drawer_state State        = core::workbench_drawer_state::expanded;
+		core::workbench_drawer_state State         = core::workbench_drawer_state::expanded;
 
 		void present();
 	};

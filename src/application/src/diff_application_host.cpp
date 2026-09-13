@@ -19,12 +19,12 @@ namespace bpr::application {
 	namespace {
 		struct staged_diff_completion
 		{
-			core::diff_request_context                      Context;
-			core::diff_options                              Options;
-			core::diff_reason_code                          Reason = core::diff_reason_code::host_failure;
-			std::shared_ptr<const core::computed_file_diff> Result;
+			core::diff_request_context                       Context;
+			core::diff_options                               Options;
+			core::diff_reason_code                           Reason = core::diff_reason_code::host_failure;
+			std::shared_ptr<const core::computed_file_diff>  Result;
 			std::shared_ptr<const core::diff_semantic_index> Index;
-			bool                                            CacheHit = false;
+			bool                                             CacheHit = false;
 		};
 
 		struct diff_job
@@ -209,10 +209,10 @@ namespace bpr::application {
 
 		struct cache_entry
 		{
-			core::file_comparison_key                       Key;
-			std::shared_ptr<const core::computed_file_diff> Result;
+			core::file_comparison_key                        Key;
+			std::shared_ptr<const core::computed_file_diff>  Result;
 			std::shared_ptr<const core::diff_semantic_index> Index;
-			std::uint64_t                                   Bytes = 0U;
+			std::uint64_t                                    Bytes = 0U;
 		};
 
 		implementation(core::diff_state                aInitialState,

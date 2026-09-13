@@ -91,7 +91,7 @@ namespace bpr::application {
 		std::shared_ptr<const core::computed_file_diff> Result;
 		/// Prepared on the effect lane and bound to Result by exact ownership.
 		std::shared_ptr<const core::diff_semantic_index> Index;
-		bool                                            CacheHit = false;
+		bool                                             CacheHit = false;
 	};
 
 	/// \brief Describes the diff failure publication record.
