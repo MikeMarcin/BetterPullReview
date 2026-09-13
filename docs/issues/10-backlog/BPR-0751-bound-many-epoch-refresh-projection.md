@@ -6,6 +6,7 @@ status: "Backlog"
 rfcs: ["RFC-BPR-0013"]
 depends_on: []
 priority: "P2"
+metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"}}
 ---
 
 # Bound many-epoch refresh projection on the public path
@@ -48,6 +49,6 @@ product-path diagnosis from the synthetic byte-pressure fixture/course.
   pass. Record hardware and remaining native-platform limits; no universal
   responsiveness claim follows from one Mac run.
 
-This card needs a separate authored-plan amendment before it becomes a bound
-milestone; the existing BPR-0635 binding and its failing preservation check
-remain open until that reconciliation.
+The authored plan groups this repair with BPR-0635's still-open preserved
+history check. The prior BPR-0635 binding and its failed preservation check
+remain historical; acceptance requires a renewed binding for both cards.

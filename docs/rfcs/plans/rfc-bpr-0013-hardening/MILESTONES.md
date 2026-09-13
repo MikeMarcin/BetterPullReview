@@ -10,7 +10,7 @@ These are integration outcomes, not compulsory agent-launch boundaries.
 
 The selected Mac application exceeds its unchanged default 64 MiB immutable diff/index byte budget through real stored large-review selections, evicts the exact old key, rematerializes it on public revisit, and releases bounded owners on close.
 
-**Work:** `BPR-0635`
+**Work:** `BPR-0635`, `BPR-0751`
 
 **Prerequisites:** None
 
@@ -19,8 +19,9 @@ The selected Mac application exceeds its unchanged default 64 MiB immutable diff
 - BPR-0635 records exact public refresh/epoch/file selection, default-byte eviction and weak ownership release before 64 entries, exact source and stale-result-safe revisit
 - The measured Mac workload records timing, input, native footprint, cache/jobs and close/drain/destruction evidence without claiming a universal platform budget
 - The relevant composed public path, integration-focused checks, documentation gate and diff checks pass; BPR-0635 is accepted on its own criteria
+- BPR-0751 attributes and bounds the existing 32-epoch public history projection pause without relaxing exact-data or timing limits
 
-**Boundary:** The current available Mac resource-budget slice after completed BPR-0612 Glaze migration; preserve previous entry, loaded-close and prune evidence and broader RFC obligations
+**Boundary:** The current available Mac resource-budget slice after completed BPR-0612 Glaze migration; preserve previous entry, loaded-close and prune evidence and broader RFC obligations; include the separate BPR-0751 history projection preservation repair before BPR-0635 acceptance
 
 ## durable-agent-workspace-recovery
 

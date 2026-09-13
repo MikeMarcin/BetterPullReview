@@ -14,15 +14,19 @@
       "work": [
         {
           "issue": "BPR-0635"
+        },
+        {
+          "issue": "BPR-0751"
         }
       ],
       "depends_on": [],
       "exit_criteria": [
         "BPR-0635 records exact public refresh/epoch/file selection, default-byte eviction and weak ownership release before 64 entries, exact source and stale-result-safe revisit",
         "The measured Mac workload records timing, input, native footprint, cache/jobs and close/drain/destruction evidence without claiming a universal platform budget",
-        "The relevant composed public path, integration-focused checks, documentation gate and diff checks pass; BPR-0635 is accepted on its own criteria"
+        "The relevant composed public path, integration-focused checks, documentation gate and diff checks pass; BPR-0635 is accepted on its own criteria",
+        "BPR-0751 attributes and bounds the existing 32-epoch public history projection pause without relaxing exact-data or timing limits"
       ],
-      "boundary": "The current available Mac resource-budget slice after completed BPR-0612 Glaze migration; preserve previous entry, loaded-close and prune evidence and broader RFC obligations"
+      "boundary": "The current available Mac resource-budget slice after completed BPR-0612 Glaze migration; preserve previous entry, loaded-close and prune evidence and broader RFC obligations; include the separate BPR-0751 history projection preservation repair before BPR-0635 acceptance"
     },
     {
       "id": "durable-agent-workspace-recovery",
@@ -71,7 +75,7 @@
         "retained-stress-pr-read"
       ],
       "exit_criteria": [
-        "Reconcile the legacy plan\u2019s pack import, architecture, deterministic core, host, Qt, composition, focused tests/fixtures, UX, security, documentation, simplification and closeout stages against the live BPR-0617 matrix and RFC baseline",
+        "Reconcile the legacy plan’s pack import, architecture, deterministic core, host, Qt, composition, focused tests/fixtures, UX, security, documentation, simplification and closeout stages against the live BPR-0617 matrix and RFC baseline",
         "Every RFC acceptance row has a direct check, result, producing revision and explicit native/human limitation; no deferred criterion is marked passing",
         "The documentation gate, focused public-path checks and appropriate integration verification pass at the final candidate",
         "BPR-0617, RFC-BPR-0013 and the canonical index agree; earlier Proposed RFC-BPR-0008/0010/0012 prevent Auto-Verified and Done until their own prerequisites close"
