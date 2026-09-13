@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0751"
 title: "Bound many-epoch refresh projection on the public path"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0013"]
 depends_on: []
 priority: "P2"
