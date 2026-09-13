@@ -804,8 +804,11 @@ namespace bpr::app::detail {
 			auto events = QJsonArray{ };
 			if (!aDescriptor.HeadTwoOid.empty() && !aEmptyTimeline) {
 				constexpr auto missingHead = std::string_view{ "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" };
-				events.append(event(91'701, aTimelineCourse == "missing-base" ? disconnected_history_head : aUnfetchableFirstHead ? missingHead
-																																  : aHead,
+				const auto     firstHistoricalHead = aTimelineCourse == "missing-base" || aTimelineCourse == "rewritten-base"
+					? disconnected_history_head
+					: aUnfetchableFirstHead ? missingHead
+											: aHead;
+				events.append(event(91'701, firstHistoricalHead,
 									QStringLiteral("2026-08-01T16:45:08Z")));
 				events.append(event(91'702, priorHead, QStringLiteral("2026-08-05T19:12:33Z")));
 			}
@@ -1034,6 +1037,7 @@ namespace bpr::app::detail {
 				, Profile{ aSelectedProfile }
 				, Git{ std::move(aGit) }
 				, IndependentWindowReads{ aIndependentWindowReads }
+				, RewrittenBase{ aTimelineCourse == "rewritten-base" }
 				, IndependentHead{ aPhase == github_epoch_fixture_phase::reuse ? aDescriptor.HeadTwoOid : aDescriptor.HeadOneOid }
 				, IndependentRecording{ aIndependentWindowReads ? independent_window_recording(aDescriptor, IndependentHead) : std::vector<recorded_exchange>{ } }
 				, IndependentBootstrap{ aIndependentWindowReads ? load_bootstrap_recording(aDescriptor) : std::vector<recorded_exchange>{ } }
@@ -1098,6 +1102,7 @@ namespace bpr::app::detail {
 			adapters::github::validated_github_host_profile Profile;
 			std::shared_ptr<deterministic_git_fixture>      Git;
 			const bool                                      IndependentWindowReads;
+			const bool                                      RewrittenBase;
 			const std::string_view                          IndependentHead;
 			const std::vector<recorded_exchange>            IndependentRecording;
 			const std::vector<recorded_exchange>            IndependentBootstrap;
@@ -1358,14 +1363,15 @@ namespace bpr::app::detail {
 				const auto wantsFirst        = wants(fixture.HeadOneOid);
 				const auto wantsSecond       = wants(fixture.HeadTwoOid);
 				const auto wantsDisconnected = wants(disconnected_history_head);
-				if (static_cast<int>(wantsFirst) + static_cast<int>(wantsSecond) + static_cast<int>(wantsDisconnected) != 1) {
+				if (static_cast<int>(wantsFirst) + static_cast<int>(wantsSecond) + static_cast<int>(wantsDisconnected) != 1
+					&& !(State->RewrittenBase && wantsFirst && wantsSecond && !wantsDisconnected)) {
 					return std::unexpected{ application::git_smart_transport_error{
 						.Failure = application::git_smart_transport_failure::invalid_request } };
 				}
-				const auto& pack = wantsFirst
-					? State->Git->PackOne
-					: wantsSecond
+				const auto& pack = wantsSecond
 					? State->Git->PackTwo
+					: wantsFirst
+					? State->Git->PackOne
 					: State->Git->PackWithoutBase;
 				if (pack.isEmpty()) {
 					return std::unexpected{ application::git_smart_transport_error{
@@ -2923,6 +2929,10 @@ namespace bpr::app::detail {
 				served.HeadTwoOid     = "b7b8dc0e5c4fbac8079b2c44bacfff5d36519c13";
 				served.Packs          = { .File = "ordinary-update-v1/initial.pack", .SecondFile = "ordinary-update-v1/replacement.pack" };
 				served.OrdinaryUpdate = true;
+			}
+			if (aOptions.TimelineCourse == "rewritten-base"
+				&& aOptions.EpochPhase == github_epoch_fixture_phase::reuse) {
+				served.BaseOid = served.HeadOneOid;
 			}
 			Git       = make_git_fixture(served.Packs);
 			Recording = std::make_shared<fixture_recording_state>(

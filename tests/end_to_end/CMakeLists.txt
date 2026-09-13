@@ -2088,9 +2088,9 @@ set_tests_properties(
 )
 bpr_bound_automated_run(
     application_epoch_portable_occurrence_two_catalogues
-    TIMEOUT 600
+    TIMEOUT 700
     BUDGET_MS ${bpr_fixture_run_budget_ms}
-    RUNS 10
+    RUNS 12
     RESERVE_MS 10000
 )
 

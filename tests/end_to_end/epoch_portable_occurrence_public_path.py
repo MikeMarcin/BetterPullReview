@@ -68,6 +68,8 @@ def read_catalogue(application: Path, root: Path, budget_ms: int,
     if course == "missing-base" and not all(marker in completed.stdout for marker in (
             "PUBLIC_PREVIEW_MISSING_BASE_OK", "PUBLIC_PREVIEW_DISCONNECTED_HEAD_FETCHED")):
         raise AssertionError(f"fetchable history without a common base was not unavailable: {completed.stdout}")
+    if course == "rewritten-base" and "PUBLIC_PREVIEW_DISCONNECTED_HEAD_FETCHED" not in completed.stdout:
+        raise AssertionError("rewritten base did not fetch the disconnected historical head")
     print(f"EPOCH_COMPOSED_COURSE:{course or ('empty' if empty_timeline else 'historical')}:{phase}:pages={len(pages)}")
 
     database = root / "state" / "v1" / "epoch-catalog.sqlite3"
@@ -102,12 +104,29 @@ def read_catalogue(application: Path, root: Path, budget_ms: int,
     return occurrences, history, incarnations, epoch_count, live_ordinal, imports, previous, live_base
 
 
+def verify_rewritten_base(application: Path, root: Path, budget_ms: int):
+    original = read_catalogue(application, root, budget_ms, empty_timeline=True)
+    rewritten = read_catalogue(application, root, budget_ms,
+                               course="rewritten-base", phase="reuse")
+    historical = [row for row in rewritten[0] if row[1] == 0]
+    if (rewritten[4] != 2 or rewritten[7] == original[7]
+            or len(historical) != 3 or historical[0][6:9] != (None, None, None)
+            or any(row[7] is not None for row in historical)):
+        raise AssertionError(f"rewritten selected base became fabricated historical truth: {original!r} -> {rewritten!r}")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--application", required=True, type=Path)
     parser.add_argument("--budget-ms", required=True, type=int)
+    parser.add_argument("--rewritten-only", action="store_true")
     arguments = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix="bpr-portable-epoch-") as temporary:
+        if arguments.rewritten_only:
+            verify_rewritten_base(arguments.application, Path(temporary) / "rewritten-base",
+                                  arguments.budget_ms)
+            print("EPOCH_REWRITTEN_BASE_OK")
+            return
         first_root = Path(temporary) / "first"
         seed = read_catalogue(arguments.application, first_root, arguments.budget_ms,
                               empty_timeline=True)
@@ -122,6 +141,8 @@ def main():
                                       arguments.budget_ms, course="missing-base")
         if missing_base[0][0][6:9] != (None, None, None) or missing_base[4] != 1:
             raise AssertionError("missing common base fabricated a historical anchor or changed live authority")
+        verify_rewritten_base(arguments.application, Path(temporary) / "rewritten-base",
+                              arguments.budget_ms)
         retained_root = Path(temporary) / "retained"
         observed = read_catalogue(arguments.application, retained_root, arguments.budget_ms,
                                   empty_timeline=True)
