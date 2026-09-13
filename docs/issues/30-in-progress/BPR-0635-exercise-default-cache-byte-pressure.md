@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0635"
 title: "Exercise default cache byte pressure"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0634","BPR-0612"]
 platforms: ["mac"]
