@@ -12,7 +12,56 @@ acceptance: [{"criterion":"The diagnostics log names the failure class for this 
 
 # Load the retained stress-test pull request
 
-## Current authorization frontier — bpr0643-r1 / d5 / mandate r7
+## Current operator-controlled frontier — bpr0643-r1 / d6 / mandate r8
+
+The owner has ruled out assistance from an `EpicGames` administrator. The
+renewed assignment is
+`docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-bpr0643-r1-d6-r8.json`.
+BetterPullReview has a supported, user-controlled alternative to its current
+GitHub App device grant: in the open app, choose **Settings → Accounts & hosts →
+GitHub.com — Native HTTPS → Connect**. If the owner chooses to proceed, they
+enter a personal access token that GitHub permits to read the private
+`EpicGames/UnrealEngine` repository directly into the app's password-style
+**GitHub credential** prompt and choose **OK**. The prompt says the credential
+is not written to settings or logs and clears its input buffers on acceptance.
+No token is requested in a wizard, chat, terminal or repository file. Canceling
+the prompt before submission preserves the existing connected device session.
+Submitting the manual credential replaces and removes the remembered device
+grant; the replacement is for this app session only, so the owner would need
+to reconnect on a later launch. Even an ultimately refused manual credential
+may have replaced that old grant. The separate CLI token cannot be silently
+adopted by this profile.
+
+This route is supported by the public contract and native implementation:
+`README.md` (Account setup), `docs/architecture/product-contract.md`
+(connection profiles), `src/app/src/github_application.cpp`
+(`prompt_for_credential` and profile activation),
+`src/application/src/github_application_host.cpp` (manual enrollment), and
+`src/adapters/qt/src/sensitive_text_input.cpp` (credential prompt). The
+mounted Accounts & hosts window visibly offered **Connect** while the current
+`MikeMarcin` device session remained connected; no credential prompt was
+opened or credential switched in this dispatch. The focused
+`qt_sensitive_text_input`, `application_github_public_path_github_com`,
+`application_device_binding_restart`, and `application_github_host` tests
+passed. The restart test had a stale widget lookup after Settings moved to a
+mounted window; its lookup was corrected to query the mounted settings shell,
+and it passed through the manual replacement assertions. No product source
+change was needed.
+
+The ignored wizard state at `.mask/sessions/wizard/bpr0643-manual-read` is
+**paused**, revision 1, with zero of two steps complete and no human answer or
+server. It may guide the owner through the optional in-app submission only
+after they choose the switch; the following agent step would verify the app
+account and open only `EpicGames/UnrealEngine#1773` read-only, recording a
+fixed diagnostic class or whether the file list and selected diff rendered.
+GitHub organization policy may restrict personal access tokens or require
+approval for fine-grained tokens, so the product path does not establish that
+the owner's chosen token can read this repository. The current device-grant
+HTTP `404` at `GetRepository` remains the observed refusal, and the earlier
+`invalid_relationship` failure remains unreproduced. No live PR write,
+credential handling by the agent, or private PR-content retention occurred.
+
+## Previous authorization frontier — bpr0643-r1 / d5 / mandate r7
 
 The renewed assignment is
 `docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-bpr0643-r1-d5-r7.json`.

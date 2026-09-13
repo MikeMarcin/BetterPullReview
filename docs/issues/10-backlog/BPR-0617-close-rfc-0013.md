@@ -11,7 +11,39 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/pla
 
 # Verify and close RFC-BPR-0013
 
-## Current frontier — bpr0643-r1 / d5 / mandate r7
+## Current frontier — bpr0643-r1 / d6 / mandate r8
+
+The owner cannot obtain `EpicGames` administrator assistance, so the prior
+organization-installation inspection is unavailable. The renewed
+`retained-stress-pr-read` assignment is
+`docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-bpr0643-r1-d6-r8.json`.
+The product supports an optional user-controlled path in its current
+GitHub.com Native HTTPS profile: **Settings → Accounts & hosts → Connect**,
+then the owner enters a GitHub-authorized personal access token in the app's
+password-style **GitHub credential** prompt. The credential stays in the app
+session and is not written to settings or logs. Submitting it removes the
+remembered `MikeMarcin` device grant, even if the replacement cannot read the
+repository; canceling before submission leaves that session connected. The
+CLI's separate credential cannot be adopted automatically. This product path
+is supported by the public contract, activation and enrollment code, and the
+focused Qt/application tests. The restart fixture's widget search was updated
+for the mounted Settings window; the test then passed through its manual
+replacement checks. No product source change was warranted.
+
+The optional two-step wizard `.mask/sessions/wizard/bpr0643-manual-read` is
+paused at revision 1 with no human acknowledgment or credential. It should be
+resumed only if the owner elects the replacement. The subsequent agent
+observation would check the actual app account and one exact read-only
+`EpicGames/UnrealEngine#1773` Open, retaining only fixed diagnostic metadata
+and whether the file list and selected diff render. GitHub may restrict
+personal access tokens for this organization or require fine-grained-token
+approval, so this route is conditional on GitHub granting the chosen token
+repository read access. The current app grant's HTTP `404` and earlier
+unreproduced `invalid_relationship` remain open; the historical d1 Done
+acceptance is not evidence of a readable diff. No token was entered or
+inspected, and no live PR write occurred.
+
+## Previous frontier — bpr0643-r1 / d5 / mandate r7
 
 The renewed `retained-stress-pr-read` assignment is
 `docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-bpr0643-r1-d5-r7.json`.
