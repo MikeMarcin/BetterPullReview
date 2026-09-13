@@ -1,14 +1,93 @@
 ---
 id: "RFC-BPR-0015"
-title: "GitHub CLI Production Enablement"
-status: "Deferred"
+title: "Opt-in GitHub CLI Account Profile"
+status: "Proposed"
 area: "BPR"
 milestone: "Post-Pack v2"
 depends_on: ["RFC-BPR-0014"]
 pack_version: "post-v2"
+metadata: {"milestone_plan":{"id":"rfc-bpr-0015-cli-profile","path":"docs/rfcs/plans/rfc-bpr-0015-cli-profile/milestone-plan.json"}}
 ---
 
-# RFC-BPR-0015: GitHub CLI Production Enablement
+# RFC-BPR-0015: Opt-in GitHub CLI Account Profile
+
+## Product-owner amendment, 2026-09-13
+
+The owner requests an account profile using an already configured official
+`gh` installation for **both reading and publishing reviews/comments**. The
+motivating case is a private repository readable by the owner's CLI credential
+but not by the present GitHub App grant. This direction explicitly replaces
+the original indefinite upstream deferral and blanket prohibition on partial
+CLI mode below. It permits implementation before RFC-BPR-0014 closes; the
+formal dependency and canonical closeout order remain. Native HTTPS stays the
+default and no existing session is silently converted. The original deferred
+contract remains below as historical risk analysis, not current acceptance.
+No live pull-request mutation is authorized by this RFC or its implementation.
+
+An account row offers `GitHub CLI (uses your gh sign-in)` for an exact
+configured GitHub.com or GHES hostname. Before explicit opt-in it states that
+BetterPullReview will run the user's existing `gh`, that its account and
+permissions can differ from an App/native profile, and that CLI executable,
+configuration, certificate and redirect behavior is trusted as configured on
+this machine. The observed `/user` login and selected host are shown. Read
+opt-in does not authorize publishing. A separate confirmation immediately
+before each CLI-backed publication names the host, observed login, repository,
+pull request and kind of write, and acknowledges the account-switch risk.
+
+The current `gh api` has no per-invocation account selector. A concurrent
+`gh auth switch` or credential/configuration change can occur between identity
+observation and a request, including during pagination or publication. Rechecking
+identity detects some changes but cannot prevent that race. Neither warnings
+nor pre/post checks may be described as exact account or credential-generation
+containment. An observed mismatch stops the session or write; an ambiguous
+attempted write must reconcile server truth without issuing a second POST.
+
+The narrower enforceable connector boundary is:
+
+- Only an explicitly selected CLI profile may execute `gh`; native profiles
+  never use it. Resolve an absolute official executable, record its version
+  and observed identity, and refuse detected changes. Path preflight cannot
+  prove the exact image loaded against concurrent replacement.
+- Invoke directly with an argument array, never a shell. Construct a narrow
+  noninteractive child environment, choose the exact HTTPS hostname, use a
+  neutral non-repository directory and bound input/output/time/cancellation.
+  Do not extract, print, pass, log, persist or copy the CLI token; do not run
+  `gh auth switch`, `gh auth token`, a credential helper or a local listener.
+- Parse actual bounded CLI status, headers and body into the existing provider
+  response contract. Do not infer HTTP success from process exit alone. Keep
+  failures fixed and redacted, and do not log request bodies or private data.
+- Preserve the existing public read, pagination, review-mutation admission,
+  target identity and indeterminate-publication reconciliation contracts.
+  Fixture or owner-designated safe-test-repository publication is the only
+  validation authorized here.
+- Initial production enablement is macOS-only. Windows and Linux remain
+  visibly unavailable pending target-native connector, credential, process,
+  read/write and UI evidence. Test fakes cannot enable production support.
+
+The original BPR-0037 investigation showed that official `gh` 2.95/2.96
+followed a cross-authority 302, honored ambient `http_unix_socket`, and sent
+an authenticated request through an AF_UNIX sentinel; the macOS keyring path
+launched `/usr/bin/security`. Executable, config, CA, current-directory and
+process objects remain raceable without stronger upstream facilities. These
+are **residual risks of the explicit CLI trust choice**, not passing safety
+tests. The account UI, publication confirmation and threat documentation must
+name redirect, socket/config/CA, account-switch and process risks plainly.
+
+CLI authority alone does not make `EpicGames/UnrealEngine#1773` render. The
+separate RFC-BPR-0013 parser currently rejects its reported 9,311 commits at
+`MaximumCommits=250` with `response_limit`, despite CLI HTTP 200 on the first
+two requests. This RFC does not change that ceiling.
+
+## Acceptance criteria
+
+- The opt-in account row names host, observed login, configured-CLI trust risks and read-versus-publish choice without silently replacing a native profile or claiming exact account containment.
+- A tests-disabled macOS application connects through configured `gh` and renders a representative fixture PR via the real public path; missing or changed executable, host, account or config produces a typed refusal without credential fallback.
+- CLI reads preserve actual status, headers, body, correlation, bounded pagination, cancellation and redacted errors; removing the process or response adapter makes a direct public-path negative control fail.
+- Fixture review and inline-comment publishing traverse ordinary draft and Submit review admission, explicit CLI write confirmation, exact target and observed-account checks, bounded transport, reconciliation and typed terminal projection; a read opt-in or ambiguous write cannot issue a second POST.
+- Token and private response content remain absent from parent arguments, environment, logs, diagnostics, settings, SQLite and committed evidence; the app does not change global `gh` authentication or configuration.
+- Target-native qualification records supported platforms and residual executable/config/CA/redirect/account/process risks; unsupported platforms remain unavailable and canonical closeout awaits RFC-BPR-0014 and all evidence.
+
+## Original deferred contract (superseded by the amendment above)
 
 ## Status and scope
 
@@ -113,7 +192,7 @@ best-effort kill by recycled PID is not sufficient evidence.
 - Enabling a partial mode while any eligibility gate or required evidence is
   missing.
 
-## Acceptance criteria
+### Original acceptance criteria (superseded)
 
 - Every supported CLI selection names an exact official version/digest/source
   tuple, and launch-race tests prove those are the bytes actually loaded.

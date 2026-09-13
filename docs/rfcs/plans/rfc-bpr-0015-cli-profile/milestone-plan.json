@@ -1,0 +1,77 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "rfc-bpr-0015-cli-profile",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0015"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "opt-in-cli-read",
+      "outcome": "A macOS user explicitly selects a configured GitHub CLI account, sees its actual identity and residual-risk warning, and reads a representative fixture pull request through the shipped workbench.",
+      "work": [
+        {
+          "issue": "BPR-0784"
+        },
+        {
+          "issue": "BPR-0785"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "The account row requires opt-in, names host and observed login, and accurately warns about executable/configuration/CA/redirect/account-switch/process limitations; read opt-in does not authorize a write",
+        "A tests-disabled macOS application uses configured gh to complete viewer, provider read, bounded normalized response, and rendered representative fixture PR through real selection; a missing process or response adapter fails the public-path negative control",
+        "A changed host, login, executable or configuration fails typed without a native credential fallback; no token is extracted, logged, copied or persisted",
+        "Focused adapter, provider, composition and documentation checks pass; no live PR mutation occurs"
+      ],
+      "boundary": "First usable CLI read account profile; BPR-0643's 250-commit parser ceiling remains independent; publish authorization and native platform expansion remain open"
+    },
+    {
+      "id": "guarded-cli-publishing",
+      "outcome": "The opted-in CLI profile can publish fixture review and inline comment actions through ordinary exact-target admission, an explicit per-write warning and reconciliation.",
+      "work": [
+        {
+          "issue": "BPR-0786"
+        }
+      ],
+      "depends_on": [
+        "opt-in-cli-read"
+      ],
+      "exit_criteria": [
+        "Read opt-in alone never grants publication; each CLI write confirmation names host, observed account, exact PR and operation and states the remaining account-switch risk",
+        "Fixture review and inline comment traverse the real draft/Submit review entry, mutation wire transport, server reconciliation and typed terminal result",
+        "Identity/target mismatches refuse before POST; an ambiguous attempted write cannot issue another POST; token and private content remain out of logs, arguments and persistence",
+        "No live PR is written without a separately named safe target, and focused mutation/public-composition checks pass"
+      ],
+      "boundary": "Mac fixture publication capability; no authorization to mutate an arbitrary live pull request"
+    },
+    {
+      "id": "native-qualification-and-closeout",
+      "outcome": "Supported targets have direct connector and UI evidence, unsupported targets remain visibly unavailable, and RFC closeout records all residual risks without claiming strict containment.",
+      "work": [
+        {
+          "issue": "BPR-0787"
+        },
+        {
+          "issue": "BPR-0788"
+        },
+        {
+          "rfc": "RFC-BPR-0015"
+        }
+      ],
+      "depends_on": [
+        "guarded-cli-publishing"
+      ],
+      "exit_criteria": [
+        "BPR-0787 records target-native macOS read, publication-fixture, process and warning evidence; Windows/Linux remain unavailable until their own native gates pass",
+        "The threat model, architecture, README, build/test guide and verification ledger distinguish configured-CLI trust from exact containment, preserving original failure evidence",
+        "BPR-0788 records every revised acceptance criterion against the RFC baseline with focused public-path, documentation and integration checks",
+        "RFC/index terminal status waits for RFC-BPR-0014 Auto-Verified and any required human/native evidence; no unmet criterion is marked passed"
+      ],
+      "boundary": "Formal RFC closeout; canonical predecessor status and missing native or safe-target evidence remain explicit"
+    }
+  ],
+  "unplanned_work": []
+}

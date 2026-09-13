@@ -20,16 +20,14 @@ the functional core or Qt presentation adapter.
   fixed noninteractive settings. Never read or pass token, host/repository,
   config-directory, debug, pager/editor/browser, TTY/color override, update,
   spinner, prompt, or arbitrary parent variables.
-- Compile only the closed `gh api` argument shape from a revalidated canonical
-  read request. Native HTTPS is the sole milestone-one production
-  authentication transport. CLI profile choices remain visible but always
-  return fixed typed `cli_unavailable` with zero CLI
-  executable/configuration discovery or CLI process launch. Keep all eight
-  reasons explicit: milestone-one product-scope deferral, executable-image
-  identity, cross-authority redirect behavior, ambient configuration,
-  credential/account identity, working-directory identity,
-  descendant-process containment, and numeric PID/process-group identity
-  reuse. Positive CLI enablement belongs to RFC-BPR-0015.
+- Compile only closed `gh api` argument shapes from revalidated canonical
+  requests. Native HTTPS remains the default production authentication
+  transport. RFC-BPR-0015 authorizes an explicitly opted-in configured-CLI
+  account profile with visible residual risks for reads and review/comment
+  publishing. Its former blanket `cli_unavailable` rule is historical; a
+  platform or operation remains unavailable until its revised direct
+  acceptance checks pass. Preserve the eight original trust gaps as explicit
+  limitations, never as guarantees established by a warning.
 - Keep the CLI trust gaps as real evidence, not telemetry-only assumptions.
   The official `gh` 2.96.0 binary followed a cross-authority `302`, honored
   persisted `http_unix_socket` for `gh api`, and routed an authenticated
