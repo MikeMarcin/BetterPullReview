@@ -1,8 +1,10 @@
 #include "../sqlite_contract/epoch_catalog_legacy_fixture.hpp"
 #include "bpr/adapters/git/installed_git_cache.hpp"
+#include "bpr/adapters/mcp/mcp_context_helper.hpp"
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/adapters/sqlite/testing.hpp"
+#include "bpr/application/agent_launch.hpp"
 #include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/epoch_application_host.hpp"
 #include "windows_system_root.hpp"
@@ -10,6 +12,9 @@
 #include <sqlite3.h>
 
 #include <QCoreApplication>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 #include <algorithm>
 #include <array>
@@ -916,6 +921,51 @@ namespace {
 		sqlite3* Database = nullptr;
 	};
 
+	void verify_migrated_binding_consumers(const std::filesystem::path&        aRoot,
+										   const core::agent_revision_binding& aBinding,
+										   application::epoch_catalog_session& aCatalog, const core::review_epoch_id& aEpoch)
+	{
+		namespace mcp = bpr::adapters::mcp;
+		mcp::mcp_context_helper helper{ aRoot, aBinding };
+		const auto              response = helper.handle_line(R"({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"snapshot_binding","arguments":{}}})");
+		require(response && response->find(mcp::encode_revision_binding(aBinding)) != std::string::npos
+					&& response->find("error") == std::string::npos,
+				"real MCP binding lookup reads the pre-migration snapshot with unchanged epoch references");
+		const auto document = QJsonDocument::fromJson(QByteArray::fromStdString(*response));
+		const auto content  = document.object().value("result").toObject().value("content").toArray();
+		require(content.size() == 1, "MCP lookup returns one binding text result");
+		const auto returned = mcp::decode_revision_binding(content.at(0).toObject().value("text").toString().toStdString());
+		require(returned && *returned == aBinding, "actual MCP response decodes the original frozen binding");
+		auto leftEpoch     = aEpoch;
+		leftEpoch.Ordinal  = returned->LeftEpoch;
+		auto rightEpoch    = aEpoch;
+		rightEpoch.Ordinal = returned->RightEpoch;
+		const auto left    = exact_epoch_anchors(aCatalog, leftEpoch);
+		const auto right   = exact_epoch_anchors(aCatalog, rightEpoch);
+		require(left.Anchors.size() == 2U && right.Anchors.size() == 2U
+					&& left.Anchors[0].Commit == returned->BaseOid && right.Anchors[1].Commit == returned->HeadOid,
+				"epochs returned by MCP resolve their exact commits through the migrated catalogue");
+		auto stale       = aBinding;
+		stale.RightEpoch = core::epoch_ordinal{ aBinding.RightEpoch.value() + 1 };
+		mcp::mcp_context_helper staleHelper{ aRoot, stale };
+		const auto              rejected = staleHelper.handle_line(R"({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"snapshot_binding","arguments":{}}})");
+		require(rejected && rejected->find("revision_binding_stale") != std::string::npos,
+				"a changed ordinal cannot alias the original MCP binding");
+		const auto supplement = application::build_agent_context_supplement(
+			{ .ApplicationSession = core::application_session_id{ 91U }, .Binding = aBinding, .PullRequestUrl = "https://ghe.example.test/octo-org/maintenance-fixture/pull/81" },
+			{ .Id = core::agent_session_id{ 1U }, .Profile = core::agent_profile_id{ 1U }, .Binding = aBinding });
+		require(supplement.has_value(), "production agent context accepts the resolved pre-migration binding");
+		const auto encoded = application::encode_agent_supplement(*supplement);
+		require(encoded.find("left_epoch\t" + std::to_string(aBinding.LeftEpoch.value()) + "\n") != std::string::npos
+					&& encoded.find("right_epoch\t" + std::to_string(aBinding.RightEpoch.value()) + "\n") != std::string::npos,
+				"agent launch context encoding preserves original epoch references");
+		const auto launch = application::build_agent_launch(
+			{ .Id = core::agent_profile_id{ 1U }, .DisplayName = "Migration fixture", .Executable = "/fixture/agent", .Protocol = core::agent_protocol::external_terminal, .Workspace = core::agent_workspace_policy::disposable_review_workspace },
+			*supplement, [](const std::string&) -> std::optional<std::string> { return std::nullopt; });
+		require(launch && launch->Input.find(encoded) != std::string::npos,
+				"production launch request frames unchanged original epoch context");
+	}
+
 	void verify_real_migrated_retained_refs()
 	{
 		temporary_root               original{ "migration-original" };
@@ -924,12 +974,34 @@ namespace {
 		core::pull_request_authority authority;
 		{
 			real_fixture value{ "migration", original.Path };
-			value.start();
+			auto         handoff   = make_handoff();
+			handoff.Hostname       = application::github_canonical_hostname{ "ghe.example.test" };
+			handoff.ServerContract = application::github_server_contract::ghes_3_18_2022_11_28;
+			handoff.SmartGit       = std::make_unique<fixture_authority>(application::authority_binding(handoff));
+			require(application::valid(handoff), "synthetic GHES handoff is valid");
+			const auto key = catalog_key();
+			require(key.Host == handoff.Host && key.HostAuthority == handoff.HostAuthority
+						&& key.Repository == handoff.Repository && key.PullRequest == handoff.PullRequest
+						&& key.Profile == handoff.Profile && key.ProfileRevision == handoff.ProfileRevision
+						&& key.Account == handoff.Account && key.Viewer == handoff.Viewer && key.Number == handoff.Number,
+					"catalogue key names the exact synthetic GHES handoff authority");
+			value.Host->accept(std::move(handoff));
+			value.drain();
 			epoch     = value.inserted_epoch();
 			authority = *value.Host->state().Authority;
 			value.close_host();
 		}
+		const core::agent_revision_binding oldBinding{
+			.Host = catalog_key().Host, .Repository = catalog_key().Repository, .PullRequest = catalog_key().PullRequest, .BaseOid = *core::parse_git_commit_oid(commit_hex), .HeadOid = *core::parse_git_commit_oid(commit_hex), .LeftEpoch = epoch.Ordinal, .RightEpoch = epoch.Ordinal
+		};
+		{
+			std::ofstream bindingFile{ original.Path / "binding" };
+			bindingFile << bpr::adapters::mcp::encode_revision_binding(oldBinding) << '\n';
+			bindingFile.close();
+			require(bindingFile.good(), "original MCP binding freezes before migration");
+		}
 		std::filesystem::copy(original.Path / "catalog", copied.Path / "catalog", std::filesystem::copy_options::recursive);
+		std::filesystem::copy_file(original.Path / "binding", copied.Path / "binding");
 		{
 			legacy_catalog_copy database{ copied.Path / "catalog/state/v1/epoch-catalog.sqlite3" };
 			require(database.integer("SELECT count(*) FROM append_occurrence") == 0,
@@ -947,6 +1019,7 @@ namespace {
 			const auto snapshot = (*catalog)->snapshot({ });
 			require(snapshot && snapshot->LatestLive && snapshot->LatestLive->Id == epoch,
 					"migration and restart preserve original local key, incarnation and ordinal");
+			verify_migrated_binding_consumers(copied.Path, oldBinding, **catalog, epoch);
 			const auto anchors = exact_epoch_anchors(**catalog, epoch);
 			require(anchors.Anchors.size() == 2U && std::ranges::all_of(anchors.Anchors, [&](const auto& aAnchor) {
 						return aAnchor.Availability == core::anchor_availability::available

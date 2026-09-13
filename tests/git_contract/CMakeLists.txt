@@ -137,6 +137,7 @@ target_link_libraries(
         BetterPullReview::AdapterGit
         BetterPullReview::AdapterSQLite
         BetterPullReview::SQLite3
+        BetterPullReview::AdapterMcp
         Qt6::Core
         Threads::Threads
 )
