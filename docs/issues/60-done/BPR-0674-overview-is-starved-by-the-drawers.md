@@ -25,7 +25,7 @@ description and file table are unreadable. The page RFC-BPR-0028 gives the
 whole centre to is the narrowest thing on screen.
 
 The modality presets already decide drawer state per modality
-([BPR-0646](../10-backlog/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md),
+([BPR-0646](BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md),
 AC-03). Overview's preset is what is wrong, not the drawers.
 
 ## Scope

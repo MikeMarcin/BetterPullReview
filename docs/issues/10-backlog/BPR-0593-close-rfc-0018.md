@@ -1396,7 +1396,7 @@ on the bundle built at the BPR-0715 fix head (executable sha256
 Session `cbd48b91…` was handed back at sequence 141 with one decision, the
 rejection of `BPR-0646-workbench-chrome` (decision `65f3f881`; `b1348a9e`
 withdrawn and superseded). It is consumed on
-[BPR-0646](BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md)
+[BPR-0646](../60-done/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md)
 and on RFC-BPR-0028, and became four cards: BPR-0719 (comparison work limit
 refuses a file), BPR-0720 (dark palette comment and include colours, held
 for the owner's confirmation), BPR-0721 (setting to hide the drawer controls
@@ -1648,7 +1648,7 @@ fingerprints match the prepared candidates; no stale verdict):
   [BPR-0722](../60-done/BPR-0722-the-strip-hides-the-pull-request-identity-below-1400-pixels.md),
   [BPR-0724](../60-done/BPR-0724-read-mode-leaves-too-little-horizontal-room-for-the-code.md)
   (two options chosen).
-- Rejected, parked, follow-up carded: [BPR-0646](BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md)
+- Rejected, parked, follow-up carded: [BPR-0646](../60-done/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md)
   (strip accepted; epoch line not judgeable; rails retracted; sign-in
   "technically yes"), [BPR-0663](../60-done/BPR-0663-public-preview-refuses-the-epoch-smart-acquire.md)
   and [BPR-0676](../60-done/BPR-0676-the-epoch-line-does-not-show-whether-it-is-working.md)

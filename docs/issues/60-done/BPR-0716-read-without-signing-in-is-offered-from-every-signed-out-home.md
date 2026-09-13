@@ -13,7 +13,7 @@ acceptance: [{"criterion":"From each landing state while signed out, one visible
 # Read without signing in is offered from every signed-out Home
 
 The owner, 2026-09-10, in the verdict on
-[BPR-0646](../10-backlog/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md):
+[BPR-0646](BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md):
 "Flow to open the PR is hella confusing, I don't know why I have to go into
 the settings menu just to open a PR without an account. That should be
 doable directly from Home."

@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0646"
 title: "Workbench chrome: strip, epoch line, modalities and rails"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0028"]
 depends_on: ["BPR-0743"]
 priority: "P1"
@@ -328,12 +328,12 @@ still have to manually split it myself", "that PR entry process is in the
 settings menu instead of on the home", and "the entire set of information for
 this PR is being crammed into a tiny box in files browser".
 
-Carded: [BPR-0669](../60-done/BPR-0669-open-a-pull-request-by-pasting-its-url-from-home.md)
-for URL entry on Home, [BPR-0670](../60-done/BPR-0670-public-preview-is-buried-and-does-not-say-what-it-is.md)
-for the signed-out path, [BPR-0671](../60-done/BPR-0671-the-pull-request-summary-is-crammed-into-the-files-drawer.md)
+Carded: [BPR-0669](BPR-0669-open-a-pull-request-by-pasting-its-url-from-home.md)
+for URL entry on Home, [BPR-0670](BPR-0670-public-preview-is-buried-and-does-not-say-what-it-is.md)
+for the signed-out path, [BPR-0671](BPR-0671-the-pull-request-summary-is-crammed-into-the-files-drawer.md)
 for the summary box this card left in the files drawer, and
-[BPR-0667](../60-done/BPR-0667-the-epoch-refuses-any-pull-request-whose-base-branch-moved.md)
-and [BPR-0668](../60-done/BPR-0668-a-failed-comparison-leaves-an-empty-workbench-that-says-nothing-is-open.md)
+[BPR-0667](BPR-0667-the-epoch-refuses-any-pull-request-whose-base-branch-moved.md)
+and [BPR-0668](BPR-0668-a-failed-comparison-leaves-an-empty-workbench-that-says-nothing-is-open.md)
 for the empty workbench. The capture is re-offered only once a reviewer can
 reach a comparison; there is nothing to photograph until then.
 
@@ -359,19 +359,19 @@ and this note, in full:
 
 What the capture also shows, which the note does not name: the pull
 request loads and the review history is ready, so
-[BPR-0667](../60-done/BPR-0667-the-epoch-refuses-any-pull-request-whose-base-branch-moved.md)
+[BPR-0667](BPR-0667-the-epoch-refuses-any-pull-request-whose-base-branch-moved.md)
 worked, but the status line still reads "Its comparison is not ready" and
 the overview is squeezed into a column about 150 pixels wide between the
 two drawers, with its own headings truncated to "Techni…etails" and
 "Compari…hole PR".
 
-Carried forward: [BPR-0674](../60-done/BPR-0674-overview-is-starved-by-the-drawers.md)
+Carried forward: [BPR-0674](BPR-0674-overview-is-starved-by-the-drawers.md)
 for the overview's width and the drawers in Overview,
-[BPR-0675](../60-done/BPR-0675-a-drawer-cannot-be-collapsed-by-anyone-who-has-not-read-the-code.md)
+[BPR-0675](BPR-0675-a-drawer-cannot-be-collapsed-by-anyone-who-has-not-read-the-code.md)
 for collapsing a drawer,
-[BPR-0676](../60-done/BPR-0676-the-epoch-line-does-not-show-whether-it-is-working.md)
+[BPR-0676](BPR-0676-the-epoch-line-does-not-show-whether-it-is-working.md)
 for the epoch line, and
-[BPR-0677](../60-done/BPR-0677-the-comparison-stays-unavailable-after-the-history-is-ready.md)
+[BPR-0677](BPR-0677-the-comparison-stays-unavailable-after-the-history-is-ready.md)
 for the comparison. The two review-page requests are AgentSkills ASK-0020.
 The title row is accepted: "the title row looks pretty good".
 
@@ -399,7 +399,7 @@ because the signed-out open no longer reaches a comparison, bisected to
 [BPR-0715](../40-parked/BPR-0715-opening-a-pull-request-signed-out-no-longer-reaches-a-comparison.md),
 which is not this card's code; and the Home flow is owner direction under
 RFC-BPR-0026, registered as
-[BPR-0716](../60-done/BPR-0716-read-without-signing-in-is-offered-from-every-signed-out-home.md).
+[BPR-0716](BPR-0716-read-without-signing-in-is-offered-from-every-signed-out-home.md).
 The other nine candidates have no decision; BPR-0663, BPR-0667, BPR-0676 and
 BPR-0677 need the same loaded review and could not be judged on this run.
 This card stays parked: its remaining criterion needs the capture again at a
@@ -452,7 +452,7 @@ Read as five findings, none of them this card's criterion as written:
 
 - The refused file is the core's LCS matrix bound with no textual fallback,
   owner direction that no file may be refused for size:
-  [BPR-0719](../60-done/BPR-0719-a-large-file-with-a-small-change-is-refused-by-the-comparison-work-limit.md).
+  [BPR-0719](BPR-0719-a-large-file-with-a-small-change-is-refused-by-the-comparison-work-limit.md).
 - Comment and include colours have not changed since BPR-0199 (2026-08-07)
   and were not swapped; the request is a requirement under RFC-BPR-0006 held
   for the owner's confirmation of its extent:
@@ -460,17 +460,17 @@ Read as five findings, none of them this card's criterion as written:
 - The collapsed drawers' footprint, the setting to hide the drawer-side
   controls, and the heading row that `adopt()` leaves visible above each
   rail (the "…"):
-  [BPR-0721](../60-done/BPR-0721-a-setting-hides-the-drawer-side-controls-and-a-collapsed-rail-shows-only-its-rail.md).
+  [BPR-0721](BPR-0721-a-setting-hides-the-drawer-side-controls-and-a-collapsed-rail-shows-only-its-rail.md).
   When it lands, RFC-BPR-0028 AC-03's rail wording is amended.
 - "No easy way to tell what review it is" is the strip hiding the identity
   below 1,400 pixels (BPR-0647's threshold):
-  [BPR-0722](../60-done/BPR-0722-the-strip-hides-the-pull-request-identity-below-1400-pixels.md);
+  [BPR-0722](BPR-0722-the-strip-hides-the-pull-request-identity-below-1400-pixels.md);
   Home over a restored review remains BPR-0716.
 - "Even in read mode viewing experience is not great" names no defect; the
   owner is asked what was wrong before anything is carded.
 
 The epoch line without updates is not this card's rail or line drawing; it
-is recorded on [BPR-0663](../60-done/BPR-0663-public-preview-refuses-the-epoch-smart-acquire.md)
+is recorded on [BPR-0663](BPR-0663-public-preview-refuses-the-epoch-smart-acquire.md)
 as an observation, not a verdict. The strip's v002 acceptance stands. This
 card stays parked on human-review; its criterion is asked again on a bundle
 that carries BPR-0721 and BPR-0722, when the rails and identity it asks
@@ -481,10 +481,10 @@ about are what the owner will see.
 Prepared again in
 [rfc-bpr-0028-attended-v004](../../verification/reviews/rfc-bpr-0028-attended-v004/operator-packet.md)
 on the bundle built at 3c9a3f1c, where
-[BPR-0719](../60-done/BPR-0719-a-large-file-with-a-small-change-is-refused-by-the-comparison-work-limit.md),
-[BPR-0721](../60-done/BPR-0721-a-setting-hides-the-drawer-side-controls-and-a-collapsed-rail-shows-only-its-rail.md)
+[BPR-0719](BPR-0719-a-large-file-with-a-small-change-is-refused-by-the-comparison-work-limit.md),
+[BPR-0721](BPR-0721-a-setting-hides-the-drawer-side-controls-and-a-collapsed-rail-shows-only-its-rail.md)
 and
-[BPR-0722](../60-done/BPR-0722-the-strip-hides-the-pull-request-identity-below-1400-pixels.md)
+[BPR-0722](BPR-0722-the-strip-hides-the-pull-request-identity-below-1400-pixels.md)
 have landed (executable sha256 `9261509a…`), candidate revision
 `app-release-9261509a-2026-09-10.3`. The third criterion is reworded for
 the drawer-controls setting: with it Shown a rail carries its label and
@@ -498,11 +498,11 @@ running until the owner asks for the session.
 The three questions the v003 verdict left open were answered. "Even in read
 mode viewing experience is not great" meant "it was difficult to read the
 code because of a lack of horizontal area for the text display", carded as
-[BPR-0724](../60-done/BPR-0724-read-mode-leaves-too-little-horizontal-room-for-the-code.md).
+[BPR-0724](BPR-0724-read-mode-leaves-too-little-horizontal-room-for-the-code.md).
 The dark palette question: "the whole palette, yes reset", landed on
 [BPR-0720](../40-parked/BPR-0720-comments-are-green-and-includes-are-grey-on-the-dark-palette.md).
 The strip below about 960 pixels: "leave it be for now", recorded on
-[BPR-0722](../60-done/BPR-0722-the-strip-hides-the-pull-request-identity-below-1400-pixels.md).
+[BPR-0722](BPR-0722-the-strip-hides-the-pull-request-identity-below-1400-pixels.md).
 This card's remaining criterion is unchanged and is asked again on the
 v005 bundle.
 
@@ -557,17 +557,17 @@ Read per criterion:
   launch records only `catalog_open`, `catalog_recovery` and `catalog_prepare` (a cache hit; no
   acquire), and the line gains rows only from an accepted append or a requested history page,
   neither of which a cache hit produces:
-  [BPR-0725](../60-done/BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md).
-  The same finding rejected [BPR-0663](../60-done/BPR-0663-public-preview-refuses-the-epoch-smart-acquire.md)
-  and [BPR-0676](../60-done/BPR-0676-the-epoch-line-does-not-show-whether-it-is-working.md).
+  [BPR-0725](BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md).
+  The same finding rejected [BPR-0663](BPR-0663-public-preview-refuses-the-epoch-smart-acquire.md)
+  and [BPR-0676](BPR-0676-the-epoch-line-does-not-show-whether-it-is-working.md).
 - The rails: retracted five minutes later on BPR-0675 ("In an earlier answer I said there was
   no setting for this, I just was looking in the wrong place. I found it now and it works"),
   and both states of the setting were accepted on
-  [BPR-0721](../60-done/BPR-0721-a-setting-hides-the-drawer-side-controls-and-a-collapsed-rail-shows-only-its-rail.md).
+  [BPR-0721](BPR-0721-a-setting-hides-the-drawer-side-controls-and-a-collapsed-rail-shows-only-its-rail.md).
 - Sign-in without scrolling: "Technically yes"; the criterion as written holds. The flow the
   owner wants (paste into the bar on Home, press Open, no account) and "the home screen is very
   messy" are Home direction under RFC-BPR-0026, recorded on
-  [BPR-0716](../60-done/BPR-0716-read-without-signing-in-is-offered-from-every-signed-out-home.md).
+  [BPR-0716](BPR-0716-read-without-signing-in-is-offered-from-every-signed-out-home.md).
 
 This card stays parked on human-review for the epoch line only; its candidate is asked again,
 narrowed to that criterion, on a bundle carrying BPR-0725.
@@ -593,9 +593,9 @@ The screenshots, at about 1,600 points wide with microsoft/terminal#20607 open: 
 
 Read against the one criterion left:
 
-- The line draws now ([BPR-0725](../60-done/BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md) was accepted in the same round, as were [BPR-0663](../60-done/BPR-0663-public-preview-refuses-the-epoch-smart-acquire.md) and [BPR-0676](../60-done/BPR-0676-the-epoch-line-does-not-show-whether-it-is-working.md)).
+- The line draws now ([BPR-0725](BPR-0725-the-epoch-line-shows-no-updates-when-the-catalogue-already-holds-the-head.md) was accepted in the same round, as were [BPR-0663](BPR-0663-public-preview-refuses-the-epoch-smart-acquire.md) and [BPR-0676](BPR-0676-the-epoch-line-does-not-show-whether-it-is-working.md)).
 - "A handle on the epoch line changes the comparison" is still unjudged, and for a reason no bundle can fix: the pull request the packet names has one update, so there is one node and nothing for a handle to move to. The next ask names a public pull request with several updates.
-- The finding is placement: the epoch control is the first widget of the centre pane, so its extent follows the drawer widths and the modality (`workbench_window.cpp:775`, `:834`, `:1258-1261`, `central_sizes()` at `:6300`). The owner wants it and the "Comparing …" menu on one full-width row under the strip, above the drawer headings. Carded as [BPR-0737](../60-done/BPR-0737-the-epoch-line-and-the-comparison-menu-are-one-full-width-row-under-the-strip.md); when it lands, RFC-BPR-0028's chrome paragraph says the line is full width.
+- The finding is placement: the epoch control is the first widget of the centre pane, so its extent follows the drawer widths and the modality (`workbench_window.cpp:775`, `:834`, `:1258-1261`, `central_sizes()` at `:6300`). The owner wants it and the "Comparing …" menu on one full-width row under the strip, above the drawer headings. Carded as [BPR-0737](BPR-0737-the-epoch-line-and-the-comparison-menu-are-one-full-width-row-under-the-strip.md); when it lands, RFC-BPR-0028's chrome paragraph says the line is full width.
 
 This card stays parked on human-review for the handle criterion; it is asked again on a bundle carrying BPR-0737, on a pull request with more than one update.
 
@@ -606,7 +606,7 @@ judgeable, the owner named a public pull request with more than one
 update: "https://github.com/NVIDIA/stdexec/pull/1846 looks to have
 multiple updates". The v008 candidate for this card is asked on
 NVIDIA/stdexec#1846, on the bundle that carries
-[BPR-0737](../60-done/BPR-0737-the-epoch-line-and-the-comparison-menu-are-one-full-width-row-under-the-strip.md).
+[BPR-0737](BPR-0737-the-epoch-line-and-the-comparison-menu-are-one-full-width-row-under-the-strip.md).
 
 ## Attended candidate, 2026-09-11 (v008)
 
@@ -626,7 +626,7 @@ Session `cbd48b91…`, revision `app-release-e4fdb0ea-2026-09-11.4` (bundle buil
 
 > epoch handle doesnt move, only shows a single epoch event thought I'm sure there were multiple updates
 
-The capture shows the full-width row [BPR-0737](../60-done/BPR-0737-the-epoch-line-and-the-comparison-menu-are-one-full-width-row-under-the-strip.md) landed, "Updates" at its left and one node captioned "Sep 11, latest"; the toolbar reads "no changes". With one update both bracket handles collapse onto that node (`epoch_line.cpp:183-189`, `:221-228`) and there is nothing to drag to, so the criterion is unjudged for the third round running.
+The capture shows the full-width row [BPR-0737](BPR-0737-the-epoch-line-and-the-comparison-menu-are-one-full-width-row-under-the-strip.md) landed, "Updates" at its left and one node captioned "Sep 11, latest"; the toolbar reads "no changes". With one update both bracket handles collapse onto that node (`epoch_line.cpp:183-189`, `:221-228`) and there is nothing to drag to, so the criterion is unjudged for the third round running.
 
 The reason is not this pull request, and this is the finding that matters:
 a review epoch records *this install's own observation* of the base and head
@@ -641,7 +641,7 @@ verdict. v007 read the same symptom as "this pull request has one update" and
 v008 re-asked on one the owner believed had several; both asks rested on an
 assumption the product does not support.
 
-Carded as [BPR-0743](../60-done/BPR-0743-the-epoch-line-shows-only-the-updates-this-install-has-observed.md),
+Carded as [BPR-0743](BPR-0743-the-epoch-line-shows-only-the-updates-this-install-has-observed.md),
 which holds the owner's decision: import a pull request's earlier updates on
 first open, or keep the epoch line a record of what this install has observed
 and reword this criterion to match. This card stays parked on human-review;

@@ -13,7 +13,7 @@ acceptance: [{"criterion":"Choosing Read dispatches exact set-drawer intents: fi
 # Read mode leaves too little horizontal room for the code
 
 The owner, in the v003 verdict on
-[BPR-0646](../10-backlog/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md):
+[BPR-0646](BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md):
 "Even in read mode viewing experience is not great." Asked what
 specifically was wrong, the owner answered on 2026-09-11, verbatim:
 

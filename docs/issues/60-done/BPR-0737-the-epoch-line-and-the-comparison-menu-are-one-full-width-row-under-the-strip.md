@@ -138,7 +138,7 @@ The candidate's criterion, as reviewed: "The epoch line and the Comparing
 menu are one row the full width of the window directly under the strip, above
 the drawers, and hold their place through Overview, Read, Review and Discuss
 and through opening, collapsing and resizing either drawer." That is the
-v007 finding on [BPR-0646](../10-backlog/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md)
+v007 finding on [BPR-0646](BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md)
 closed: the row now belongs to the review surface above the splitter, not to
 the centre pane.
 

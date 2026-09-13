@@ -14,7 +14,7 @@ acceptance: [{"criterion":"The appearance role tests pin the confirmed values fo
 # Comments are green and includes are grey on the dark palette
 
 The owner, 2026-09-10, in the v003 verdict on
-[BPR-0646](../10-backlog/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md):
+[BPR-0646](../60-done/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md):
 "Also comments a grey instead of green like was requested with visual
 studio dark mode with visual assist color scheme. And includes are green not
 grey, seems like those colors got swapped maybe? Or the theme in general

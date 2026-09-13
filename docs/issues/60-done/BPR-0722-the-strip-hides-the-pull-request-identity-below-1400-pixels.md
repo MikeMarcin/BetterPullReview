@@ -13,7 +13,7 @@ acceptance: [{"criterion":"qt_workbench_window_scale_{100,125,200} pin, at 860, 
 # The strip hides the pull request identity below 1400 pixels
 
 The owner, 2026-09-10, in the v003 verdict on
-[BPR-0646](../10-backlog/BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md):
+[BPR-0646](BPR-0646-fixed-workbench-header-with-sign-in-and-settings-window.md):
 "Launching the app auto opened a review. I have no easy way to tell what
 review it is." The three screenshots on the decision show the window about
 1,390 points wide with microsoft/terminal#20607 restored and open, the strip
