@@ -1,3 +1,4 @@
+#include "../sqlite_contract/epoch_catalog_legacy_fixture.hpp"
 #include "bpr/adapters/git/installed_git_cache.hpp"
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
@@ -5,6 +6,8 @@
 #include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/epoch_application_host.hpp"
 #include "windows_system_root.hpp"
+
+#include <sqlite3.h>
 
 #include <QCoreApplication>
 
@@ -883,6 +886,86 @@ namespace {
 		require(retained && retained->Base == snapshot->LatestLive->Base && retained->Head == snapshot->LatestLive->Head, "retained Git ref pair matches the visible epoch");
 		std::cout << "--recover-epoch:pass\n";
 	}
+	class legacy_catalog_copy final
+	{
+	public:
+		explicit legacy_catalog_copy(const std::filesystem::path& aPath)
+		{
+			require(sqlite3_open_v2(aPath.string().c_str(), &Database, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK,
+					"open closed copied catalogue for exact legacy conversion");
+		}
+		~legacy_catalog_copy() { sqlite3_close(Database); }
+		legacy_catalog_copy(const legacy_catalog_copy&)                    = delete;
+		auto operator=(const legacy_catalog_copy&) -> legacy_catalog_copy& = delete;
+		void execute(const char* aSql)
+		{
+			require(sqlite3_exec(Database, aSql, nullptr, nullptr, nullptr) == SQLITE_OK, "legacy fixture SQL succeeds");
+		}
+		[[nodiscard]] auto integer(const char* aSql) -> std::int64_t
+		{
+			sqlite3_stmt* statement = nullptr;
+			require(sqlite3_prepare_v2(Database, aSql, -1, &statement, nullptr) == SQLITE_OK
+						&& sqlite3_step(statement) == SQLITE_ROW,
+					"legacy fixture scalar query succeeds");
+			const auto result = sqlite3_column_int64(statement, 0);
+			require(sqlite3_finalize(statement) == SQLITE_OK, "legacy fixture scalar query closes");
+			return result;
+		}
+
+	private:
+		sqlite3* Database = nullptr;
+	};
+
+	void verify_real_migrated_retained_refs()
+	{
+		temporary_root               original{ "migration-original" };
+		temporary_root               copied{ "migration-copy" };
+		core::review_epoch_id        epoch;
+		core::pull_request_authority authority;
+		{
+			real_fixture value{ "migration", original.Path };
+			value.start();
+			epoch     = value.inserted_epoch();
+			authority = *value.Host->state().Authority;
+			value.close_host();
+		}
+		std::filesystem::copy(original.Path / "catalog", copied.Path / "catalog", std::filesystem::copy_options::recursive);
+		{
+			legacy_catalog_copy database{ copied.Path / "catalog/state/v1/epoch-catalog.sqlite3" };
+			require(database.integer("SELECT count(*) FROM append_occurrence") == 0,
+					"live fixture has no historical append occurrence ownership to discard");
+			require(bpr::tests::sqlite_contract::make_version_four_catalog(database)
+						&& database.integer("PRAGMA user_version") == 4,
+					"copy restores exact previous v4 schema");
+		}
+		for (const auto pass : { 0, 1 }) {
+			(void)pass;
+			real_fixture migrated{ "migrated", copied.Path };
+			migrated.close_host();
+			auto catalog = migrated.Catalogs->open({ .ApplicationSession = core::application_session_id{ 91U }, .Authority = catalog_key() }, { });
+			require(catalog && *catalog, "migrated catalogue reopens");
+			const auto snapshot = (*catalog)->snapshot({ });
+			require(snapshot && snapshot->LatestLive && snapshot->LatestLive->Id == epoch,
+					"migration and restart preserve original local key, incarnation and ordinal");
+			const auto anchors = exact_epoch_anchors(**catalog, epoch);
+			require(anchors.Anchors.size() == 2U && std::ranges::all_of(anchors.Anchors, [&](const auto& aAnchor) {
+						return aAnchor.Availability == core::anchor_availability::available
+							&& aAnchor.Commit == core::parse_git_commit_oid(commit_hex);
+					}),
+					"old exact catalogue anchors retain original available commits");
+			auto originalCache = git_adapter::make_installed_git_cache({ .GitExecutable     = std::filesystem::canonical(BPR_TEST_GIT_EXECUTABLE),
+																		 .StorageRoot       = original.Path / "git",
+																		 .WindowsSystemRoot = bpr::tests::git_contract::windows_system_root() });
+			require(originalCache.has_value(), "original physical cache reconstructs after catalogue migration");
+			auto cache = (*originalCache)->open({ .ApplicationSession = core::application_session_id{ 91U }, .Authority = authority, .ObjectFormat = core::git_hash_algorithm::sha1 }, { });
+			require(cache && *cache, "original real Git cache reopens after copied catalogue migration");
+			const auto refs = (*cache)->inspect_retained(epoch.Ordinal, { });
+			require(refs && refs->Scope == epoch.Authority && refs->Ordinal == epoch.Ordinal
+						&& refs->Base == anchors.Anchors[0].Commit && refs->Head == anchors.Anchors[1].Commit,
+					"original retained Git ref names physically resolve exact migrated anchors after restart");
+		}
+	}
+
 	auto verify_real_prune() -> void
 	{
 		real_fixture value{ "prune" };
@@ -999,6 +1082,7 @@ auto main(int argc, char** argv) -> int
 		}
 		return EXIT_SUCCESS;
 	}
+	verify_real_migrated_retained_refs();
 	verify_real_prune();
 	verify_real_cache_delete();
 	std::cout << "Epoch maintenance integration passed\n";

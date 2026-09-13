@@ -136,6 +136,7 @@ target_link_libraries(
     PRIVATE
         BetterPullReview::AdapterGit
         BetterPullReview::AdapterSQLite
+        BetterPullReview::SQLite3
         Qt6::Core
         Threads::Threads
 )
