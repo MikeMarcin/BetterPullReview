@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BetterPullReview shell surfaces v1</title>
+<title>BetterPullReview shell surfaces v1 (Settings and Profiles)</title>
 <style>
 /* Design reference for RFC-BPR-0032 and RFC-BPR-0033. The values below stand in for
    QPalette roles; the application must read the roles, never these hex values. */
@@ -184,62 +184,8 @@ h3 .btn{font-weight:400}
 </section>
 
 <section class="board">
-  <h2><span>3.</span> Home, signed in</h2>
-  <div class="mac">
-    <div class="titlebar"><div class="lights"><i></i><i></i><i></i></div><span class="ico">⌂</span><span class="spacer"></span><span class="ico">◯</span><span class="ico">⚙</span></div>
-    <div class="home">
-      <div class="homecol">
-        <div class="bar"><label>Open a pull request</label><div class="field"><span>Paste a link, or write owner/name#123</span><button class="btn primary small">Open</button></div></div>
-        <div class="notice"><span>This sign-in cannot read EpicGames/UnrealEngine#1.</span><a href="#">Copy details</a></div>
-
-        <h3>Recently viewed</h3>
-        <ul class="list">
-          <li class="hover"><b>NVIDIA/stdexec#1846</b><span class="t">Optional recursive mutex in Asio integration</span><span class="m">2 h ago</span><button class="btn small">Resume</button></li>
-          <li><b>microsoft/terminal#20607</b><span class="t">Preserve the DRCS font when performing a soft reset</span><span class="m">Tuesday</span><span></span></li>
-        </ul>
-
-        <h3>Needs me <button class="btn flat small">Filter ▾</button></h3>
-        <ul class="list">
-          <li><b>EpicGames/UnrealEngine#14366</b><span class="t">Hair strand lighting fixes for LSS</span><span class="m">3 of 40 read</span><span class="r needs">changed</span></li>
-          <li><b>EpicGames/UnrealEngine#15157</b><span class="t">Fix bindless uniform buffer CBV residency</span><span class="m">not started</span><span class="r needs">requested</span></li>
-        </ul>
-        <h3>Waiting on others</h3>
-        <ul class="list">
-          <li><b>MikeMarcin/BetterPullReview#1773</b><span class="t">Stress test: 9,311 commits</span><span class="m">mine</span><span class="r">waiting</span></li>
-        </ul>
-        <h3>Following</h3>
-        <ul class="list">
-          <li><b>EpicGames/UnrealEngine#15059</b><span class="t">Fix crash during FUniqueNetIdRepl serialization</span><span class="m">approved by me</span><span class="r">following</span></li>
-        </ul>
-      </div>
-      <div class="status">Signed in as MikeMarcin on github.com; 4,807 requests remaining.</div>
-    </div>
-  </div>
-</section>
-
-<section class="board">
-  <h2><span>4.</span> Home, nothing to show, and Home signed out</h2>
-  <div class="mac">
-    <div class="titlebar"><div class="lights"><i></i><i></i><i></i></div><span class="ico">⌂</span><span class="spacer"></span><span class="ico">◯</span><span class="ico">⚙</span></div>
-    <div class="home" style="min-height:300px">
-      <div class="homecol">
-        <div class="bar"><label>Open a pull request</label><div class="field"><span>Paste a link, or write owner/name#123</span><button class="btn primary small">Open</button></div></div>
-        <h3>Needs me</h3>
-        <p class="empty">Nothing needs me. Pull requests from <a href="#">saved repositories and observer rules</a> appear here.</p>
-      </div>
-      <div class="status">Signed in as MikeMarcin on github.com; 4,807 requests remaining.</div>
-    </div>
-  </div>
-  <div class="mac" style="margin-top:20px">
-    <div class="titlebar"><div class="lights"><i></i><i></i><i></i></div><span class="ico">⌂</span><span class="spacer"></span><span class="ico">◯</span><span class="ico">⚙</span></div>
-    <div class="home" style="min-height:300px">
-      <div class="homecol">
-        <div class="signin"><b>Sign in to GitHub</b><p>A device code in the browser signs this Mac in once; the session is remembered here.</p><button class="btn primary">Sign in</button></div>
-        <div class="bar"><label>Or read a public pull request</label><div class="field"><span>Paste a link, or write owner/name#123</span><button class="btn small">Open</button></div></div>
-      </div>
-      <div class="status">Not signed in. Public pull requests open read-only.</div>
-    </div>
-  </div>
+  <h2><span>3.</span> Home</h2>
+  <p style="color:var(--quiet);max-width:70ch">The first Home draft that stood here was rejected by the owner on 2026-09-13. The accepted Home is in <code>home-v2.html</code> beside this file: nine boards covering first launch, the default state panels, a long list scrolled, nothing needs me, Home over a review, and the four grouping states.</p>
 </section>
 
 <section class="board">

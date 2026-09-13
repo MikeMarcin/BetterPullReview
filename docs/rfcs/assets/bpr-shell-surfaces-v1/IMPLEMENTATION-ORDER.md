@@ -9,7 +9,7 @@ receipt or a claim that strict live validation ran here.
 |---|---|---|
 | intake-baseline | 01 | Live allocation, baseline and the exact composition seams recorded. |
 | accounts-page | 02–05 | Retire the stacked chrome; one card per server; sign-in in the row; enterprise cards. |
-| home-page | 06–07 | The bar first; rows for recent and the action list; sentences for empties; one Filter menu. |
+| home-page | 06, 07, 14 | The bar and first-launch card; state panels with one row anatomy; Group, State headers, account chips and Filter in the strip. |
 | profile-chooser | 08–09 | No presentation on last close; platform exits; the Profiles sheet. |
 | verification-closeout | 10–13 | Rendered, keyboard, screen-reader and attended evidence; documentation; two closeouts. |
 

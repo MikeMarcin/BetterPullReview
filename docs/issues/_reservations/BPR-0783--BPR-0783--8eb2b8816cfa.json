@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0783"
+  ],
+  "reserve_for": "shell-surfaces-import",
+  "purpose": "bpr-shell-surfaces-v1 revision 2: Home grouping card",
+  "created": "2026-09-13T20:03:28.951377+00:00",
+  "base": "7105a11d222bca3c9066eccf6f991d17334895c3"
+}

@@ -1,6 +1,6 @@
 # BetterPullReview: calm shell surfaces
 
-**RFC pack v1 · proposed RFC-BPR-0032 and RFC-BPR-0033 · 13 cards · 5 authored milestones**
+**RFC pack v1, revision 2 · proposed RFC-BPR-0032 and RFC-BPR-0033 · 14 cards · 5 authored milestones**
 
 Redesign the three surfaces a reviewer crosses before a review: the Accounts & hosts
 page of Settings, Home, and the profile chooser, and stop the chooser from appearing
@@ -15,12 +15,14 @@ select screen coming up every time you close the main window is terrible."
 
 Read `IMPLEMENTATION-PROMPT.md`, `supporting/SOURCE-AUDIT.md`, `design/DESIGN-NOTES.md`,
 and the two RFCs in `repository-overlay/docs/rfcs/`. Open `design/shell-surfaces-v1.html`
-in a browser for the reference layouts. Import `milestone-plan.json` as the default
+(Settings and Profiles) and `design/home-v2.html` (Home) in a browser for the reference
+layouts. Revision 2 (2026-09-13) replaced the first Home after the owner rejected it and
+accepted the nine-board set through review; the Settings and Profiles designs are unchanged. Import `milestone-plan.json` as the default
 execution plan: allocate live BPR issue IDs, remap the pack-local aliases, validate with
 the installed MASK-managed implement-rfc skill, and keep its milestone grouping. Do not
 replace the plan with a new unbounded planning exercise.
 
-The pack-local aliases (`PACK-SHELL-01` to `PACK-SHELL-13`) are deliberately not
+The pack-local aliases (`PACK-SHELL-01` to `PACK-SHELL-14`) are deliberately not
 allocated live issue IDs. RFC numbers 0032 and 0033 were free in the live checkout at
 `38f32226`; check for collisions at import and record a mapping rather than overwriting.
 
@@ -28,7 +30,7 @@ allocated live issue IDs. RFC numbers 0032 and 0033 were free in the live checko
 
 | Workstream | Scope |
 |---|---|
-| RFC-BPR-0032 | Accounts & hosts as one card per server with sign-in inside the account row and enterprise servers as cards; Home as one column led by the bar, with rows for Recently viewed and the grouped action list, sentences for empties, one Filter menu, and the session line in the status bar. |
+| RFC-BPR-0032 | Accounts & hosts as one card per server with sign-in inside the account row and enterprise servers as cards; Home as the bar, then rows always in state order inside tinted, collapsible panels with rails, Group by none, organization, repository or account with state bands nested inside, avatars on group headers, account chips, one Filter menu, the controls in the title strip, sentences for empties, and the session line in the status bar. |
 | RFC-BPR-0033 | Closing the last window never presents the chooser: resident on macOS with reopening from the Dock, ⌘N and the Profiles menu; quit on Windows and Linux. The chooser becomes a sheet of rows with in-place rename and create and a failure notice that appears only after a failure. |
 
 Both RFCs are presentation and composition revisions. They implement the owner-accepted

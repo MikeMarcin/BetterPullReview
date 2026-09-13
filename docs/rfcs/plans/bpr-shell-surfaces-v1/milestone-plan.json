@@ -52,21 +52,24 @@
     },
     {
       "id": "home-page",
-      "outcome": "Home is one column: the bar first, then rows, with sentences for empties and one Filter menu.",
+      "outcome": "Home is the bar, then state-ordered rows in collapsible tinted panels, with Group, State headers, account chips and one Filter menu in the strip.",
       "work": [
         {
           "issue": "BPR-0775"
         },
         {
           "issue": "BPR-0776"
+        },
+        {
+          "issue": "BPR-0783"
         }
       ],
       "depends_on": [
         "intake-baseline"
       ],
       "exit_criteria": [
-        "Signed-out, signed-in, empty, listed and over-a-review states render as accepted with the bar focused on arrival.",
-        "Recent and action rows share one delegate; the six preferences live in one menu with chips; no empty box renders."
+        "First-launch, default, long-list, empty, over-a-review and the four grouping states render as accepted with the bar focused on arrival.",
+        "Queue and recent rows share one delegate and panel; the surviving preferences live in Filter; view state persists per window; no empty box renders."
       ],
       "boundary": "One Home boundary; the queue projection and preference store are consumed unchanged."
     },

@@ -4,7 +4,7 @@ id: "PACK-SHELL-10"
 title: "Run the rendered, keyboard and screen-reader course and the attended review for the three surfaces"
 status: "Backlog"
 rfcs: ["RFC-BPR-0032", "RFC-BPR-0033"]
-depends_on: ["PACK-SHELL-04", "PACK-SHELL-05", "PACK-SHELL-07", "PACK-SHELL-09"]
+depends_on: ["PACK-SHELL-04", "PACK-SHELL-05", "PACK-SHELL-09", "PACK-SHELL-14"]
 metadata: {"pack":"bpr-shell-surfaces-v1","milestone":"verification-closeout","acceptance":["A8","B5"],"alias_requires_live_allocation":true}
 ---
 

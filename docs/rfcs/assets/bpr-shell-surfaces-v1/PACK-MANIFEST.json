@@ -26,7 +26,8 @@
     "PACK-SHELL-10",
     "PACK-SHELL-11",
     "PACK-SHELL-12",
-    "PACK-SHELL-13"
+    "PACK-SHELL-13",
+    "PACK-SHELL-14"
   ],
   "card_paths": [
     "cards/PACK-SHELL-01.md",
@@ -41,11 +42,27 @@
     "cards/PACK-SHELL-10.md",
     "cards/PACK-SHELL-11.md",
     "cards/PACK-SHELL-12.md",
-    "cards/PACK-SHELL-13.md"
+    "cards/PACK-SHELL-13.md",
+    "cards/PACK-SHELL-14.md"
   ],
   "acceptance_ids": {
-    "RFC-BPR-0032": ["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8"],
-    "RFC-BPR-0033": ["B1", "B2", "B3", "B4", "B5"]
+    "RFC-BPR-0032": [
+      "A1",
+      "A2",
+      "A3",
+      "A4",
+      "A5",
+      "A6",
+      "A7",
+      "A8"
+    ],
+    "RFC-BPR-0033": [
+      "B1",
+      "B2",
+      "B3",
+      "B4",
+      "B5"
+    ]
   },
   "design_reference": "design/shell-surfaces-v1.html",
   "design_notes": "design/DESIGN-NOTES.md",
@@ -53,5 +70,7 @@
   "source_revision": "38f32226351f5cc8e4657d55c3e151d8450c6ce5",
   "checksums": "SHA256SUMS",
   "no_app_implementation_or_native_verification_performed": true,
-  "design_reference_is_not_runtime_evidence": true
+  "design_reference_is_not_runtime_evidence": true,
+  "design_reference_home": "design/home-v2.html",
+  "revision": 2
 }

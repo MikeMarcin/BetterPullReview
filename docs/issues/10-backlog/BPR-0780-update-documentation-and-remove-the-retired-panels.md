@@ -4,7 +4,7 @@ id: "BPR-0780"
 title: "Update documentation and remove the retired panels"
 status: "Backlog"
 rfcs: ["RFC-BPR-0032", "RFC-BPR-0033"]
-depends_on: ["BPR-0773", "BPR-0774", "BPR-0776", "BPR-0778"]
+depends_on: ["BPR-0773", "BPR-0774", "BPR-0778", "BPR-0783"]
 metadata: {"pack":"bpr-shell-surfaces-v1","milestone":"verification-closeout","acceptance":["A1","A4","B4"],"milestone_plan":{"id":"bpr-shell-surfaces-v1","path":"docs/rfcs/plans/bpr-shell-surfaces-v1/milestone-plan.json"}}
 ---
 

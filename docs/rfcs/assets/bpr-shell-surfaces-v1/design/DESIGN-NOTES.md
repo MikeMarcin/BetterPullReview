@@ -103,30 +103,31 @@ Accounts & hosts, signing in (the account row is the only thing that changes):
 │     Waiting for the browser to authorize this Mac.              │
 ```
 
-Home, signed in:
+Home, signed in (the accepted set is drawn in `home-v2.html`; the first draft's
+narrow column and plain lists were rejected on 2026-09-13):
 
 ```
-                 ┌ Open a pull request ─────────────────────────┐
-                 │ Paste a link, or write owner/name#123  [Open]│
-                 └──────────────────────────────────────────────┘
-                   This sign-in cannot read EpicGames/UnrealEngine#1.  Copy details
-
-                 Recently viewed
-                 NVIDIA/stdexec#1846  Optional recursive mutex in Asio…   2 h ago  Resume
-                 microsoft/terminal#20607  Preserve the DRCS font…        Tue
-
-                 Needs me                                          Filter ▾
-                 EpicGames/UnrealEngine#14366  Hair strand lighting…  changed  3 of 40 read
-                 Waiting on others
-                 …
-                 Following
-                 …
-                 ──────────────────────────────────────────────────
- Signed in as MikeMarcin on github.com; 4,807 requests remaining.
+ ⌂                          [Group: None ▾] [State headers] [Filter ▾] ↻ │ ◯ ⚙
+ ┌ Open  paste a link, or write owner/name#123 ───────────────────── ⌘L ┐
+ ┃▾ Needs me 3                                                          ┃  amber header, amber rail
+ ┃ EpicGames/UnrealEngine#14366  Hair strand lighting fixes for LSS     ┃
+ ┃ Alex Chen pushed 2 updates since my last review; 1 reply… Changed    ┃  (M MikeMarcin)  2 h ago
+ ┃ …                                                                    ┃              3 of 40 read
+ ┃▸ Waiting on others 1                 1 of mine, waiting on 2 reviewers┃  blue, collapsed
+ ┃▾ Following 3                                                         ┃  green
+ ┃▸ Recently viewed 2                                                   ┃  neutral
+ Signed in as MikeMarcin on github.com and mmarcin on ghe.example.com.
 ```
 
-Home, signed out: the sign-in card (title, one sentence, one filled button),
-the same bar beneath it, and the status bar. Nothing else.
+Group by Organization with State headers on nests a slim tinted band per state
+inside each neutral owner panel; with it off the rows sit directly in the panel
+in state order with their marks. The owner's avatar heads the panel; the
+account chip sits at the panel's right when the group is one account, else at
+the right of each row.
+
+First launch: the strip with Home, account and settings only; the bar relabelled
+for public reading; one card with Sign in (filled) and Add enterprise server;
+the status bar. Nothing else.
 
 Profiles:
 
@@ -154,7 +155,12 @@ New profile                       Rename   [Open]
    said under the bar; a server that cannot connect is said in its card.
 6. A gate is never a screen. The profile chooser opens when asked, or when the
    app has no window to carry a notice. Closing a window closes a window.
-7. Words are the reviewer's: first person as RFC-BPR-0028 fixes it ("Needs me",
+7. On Home colour means state and nothing else: amber Needs me, blue Waiting
+   on others, green Following, at low strength on headers and rails and at full
+   strength on the reason word. Rows are always in state order; Group changes
+   the panels around them, never the order. A group header, not a row, carries
+   an avatar.
+8. Words are the reviewer's: first person as RFC-BPR-0028 fixes it ("Needs me",
    "my last review"), sentence case, verbs on buttons, the same name for an
    action through its whole flow (Sign in, Signing in, Signed in).
 
@@ -189,10 +195,27 @@ tall bordered field, at the top of a narrow centred column, so the page is
 visibly "one field and some rows". The screenshots today are the opposite: a
 bar lost between three headings and an empty box.
 
+## Home, second round
+
+The first Home (a 720-point column, plain rows with thin text dividers, six
+filters folded into one menu) was rejected: "the home redesign is not good",
+and on the grouping, "it all runs together and doesn't look separated". The
+second round tried three page shapes (inbox table, desk with rail, list with
+preview), then four separations (panels, bands, columns, tabs), then four
+colour strengths (tinted headers, rail, tinted panels, coloured titles). The
+owner chose tinted headers plus the rail, then asked for collapsible panels,
+grouping by organization, repository and account with the state order kept
+underneath, avatars in group headers, the account visible per repository (a
+chip, at the right), Group and Filter and refresh in the title strip, and
+"Added by" for the observer-reason filter. Those decisions are the design;
+they are recorded in RFC-BPR-0032 and drawn in `home-v2.html`.
+
 ## Removed on the way out (Chanel's rule)
 
 - The "Resume reading" button beside the Recently viewed heading: it is a row
   action now, on hover, focus and the row's menu.
+- Repository and Bucket as filters: Group and the state order do their job.
+- The 720-point Home column: the owner's window is wide and the rows use it.
 - The ghost "Sign in again" button shown disabled during a sign-in.
 - A bordered "Copy code" button beside Open browser: the copy is a glyph at the
   end of the code itself, where the convention puts it (owner note, 2026-09-13),
@@ -207,5 +230,5 @@ bar lost between three headings and an empty box.
 
 - Whether "Connected" should keep its green. The accepted 0028 mockup shows it
   green; the design keeps that and adds no other colour.
-- Whether the Home column should widen with the window past 720 points. The
-  design says no: rows past ~80 characters stop being scannable.
+- Whether the collapsed-panel summaries earn their place, or a collapsed header
+  should carry only its count.

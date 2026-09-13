@@ -15,10 +15,14 @@ one gesture with nothing to hunt for; and whether anything on the page repeats.
 
 ## Home (A8)
 
-Present the real Home signed out, empty, with the owner's real recent and queue rows,
-and over an open review. Ask separately whether the bar is the obvious first thing;
-whether the rows read at a glance; whether the empty sentence says where the list is
-configured; and whether the status bar line is useful rather than noise.
+Present the real Home on first launch, then with the owner's real recent and queue rows
+in the default state panels, then under Group Organization with State headers on and off,
+then over an open review. Ask separately whether the bar is the obvious first thing;
+whether the panels separate as the accepted boards do; whether collapsing and the
+sticky headers behave; whether the account is knowable for every repository; whether
+the Filter menu holds what is expected; and whether the status bar line is useful
+rather than noise. The owner accepted the boards on 2026-09-13; the application is the
+new subject.
 
 ## Profiles (B5)
 

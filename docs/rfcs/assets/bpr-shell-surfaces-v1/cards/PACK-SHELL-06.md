@@ -1,23 +1,23 @@
 ---
 schema: "implement-rfc.card.v1"
 id: "PACK-SHELL-06"
-title: "Lead Home with the bar and seat refusals beside it"
+title: "Lead Home with the bar and the first-launch card"
 status: "Backlog"
 rfcs: ["RFC-BPR-0032"]
 depends_on: ["PACK-SHELL-01"]
-metadata: {"pack":"bpr-shell-surfaces-v1","milestone":"home-page","acceptance":["A5","A7"],"alias_requires_live_allocation":true}
+metadata: {"pack":"bpr-shell-surfaces-v1","milestone":"home-page","acceptance":["A5"],"alias_requires_live_allocation":true}
 ---
 
-# PACK-SHELL-06: Lead Home with the bar and seat refusals beside it
+# PACK-SHELL-06: Lead Home with the bar and the first-launch card
 
 ## Outcome
 
-Give Home its 720-point column; make the bar the first object with its heading inside, the placeholder and filled Open, focused on arrival; remove the landing's focus-only buttons and the signed-out card's second button; keep the over-a-review return as one row; show a load refusal under the bar; keep the pull-request stack's empty page off Home; carry the session line in the status bar on Home.
+Make the bar an address field alone in Home's first row (label, placeholder, ⌘L, Return, focused on arrival); remove the landing's focus-only buttons; make the signed-out landing the first-launch card with Sign in filled and Add enterprise server bordered and relabel the bar for public reading; show the strip with Home, account and settings only while signed out; seat a load refusal under the bar with Copy details; keep the pull-request stack's empty page off Home; keep the over-a-review return as one row; carry the session line in the status bar on Home.
 
 ## Acceptance
 
-- Signed in with nothing open, the bar is first, headed, focused; the landing has no focus-only buttons.
-- Signed out, Home is the sign-in card with one filled button, the bar headed for public reading, and the status bar with the session line.
+- Signed in, the bar is the first row, labelled, focused; the landing has no focus-only buttons; a refusal sits under the bar.
+- First launch and signed out show only the strip, the relabelled bar, the sign-in card with its two ways in, and the status bar line.
 - The status bar never reads that no pull request is open while Home is shown; Home over a review keeps its one return row.
 
 ## Evidence

@@ -28,9 +28,11 @@ control; reset beside what it resets; nothing optimistic). Where the current
 composition departs from those statements this RFC names the departure and the
 card that closes it. It supersedes the compositions made by [[BPR-0646]],
 [[BPR-0652]], [[BPR-0660]] and [[BPR-0650]] to the extent stated below, and no
-RFC text. The design reference is
-`docs/rfcs/assets/bpr-shell-surfaces-v1/design/shell-surfaces-v1.html` with its
-notes; the reference illustrates palette roles and is not runtime evidence.
+RFC text. The design references are
+`docs/rfcs/assets/bpr-shell-surfaces-v1/design/shell-surfaces-v1.html` (Settings
+and the profile chooser) and `design/home-v2.html` (Home, the set the owner
+accepted on 2026-09-13 after rejecting the first draft), with their notes; a
+reference illustrates palette roles and is not runtime evidence.
 
 ## Problem, named from the source
 
@@ -108,49 +110,83 @@ pull requests without an account.").
 
 ### Home
 
-Home is one left-aligned column of at most 720 logical points, centred in the
-window, on the window ground. Signed in with nothing open it holds, in order:
+The owner reviewed a first Home draft on 2026-09-13 and rejected it, then
+accepted the design below through nine rendered boards
+(`design/home-v2.html`). Home is the window ground edge to edge, not a narrow
+column. Signed in it holds, top to bottom:
 
-- **The bar**, first and the page's one bold object: a bordered field with the
-  heading "Open a pull request" inside it, the placeholder "Paste a link, or
-  write owner/name#123", and Open as the filled button. It has focus when Home
-  appears. The `workbench_landing` card's "Choose from the queue" and "Paste a
-  link" buttons, which only moved focus, are removed; the landing's
-  choose-pull-request state has no card.
+- **The strip.** Home at the left; at the right, before the account and
+  settings buttons and a divider, three controls and a glyph: Group, State
+  headers, Filter and refresh. This is the owner's amendment (2026-09-13) to
+  RFC-BPR-0028's rule that the strip shows only Home, account and settings
+  while Home is open; the rule still holds while signed out, when the three
+  controls have nothing to act on and are absent, not disabled.
+- **The bar**, alone in the first row under the strip: an address field
+  labelled "Open" with the placeholder "Paste a link, or write
+  owner/name#123", ⌘L to focus, Return to open. It has focus when Home
+  appears. The `workbench_landing` card's focus-only buttons are removed.
 - **A refusal under the bar** when the last open failed: one sentence from the
-  existing diagnostic ("This sign-in cannot read EpicGames/UnrealEngine#1.")
-  with Copy details beside it. The pull-request stack's empty page is not shown
-  on Home; it remains the review surface's own empty state.
-- **Recently viewed**, when it has entries: a section heading and rows. A row is
-  the identity in the row weight, the title in ink, the time quietly at the
-  right, and Resume as a row action shown on hover, on focus and in the row's
-  menu. Return opens the row; Shift-Return resumes, as today. The heading has no
-  button beside it.
-- **The action list** as the accepted grouped rows: Needs me, Waiting on others,
-  Following. A row is identity, title, my progress or role quietly, and the
-  one-word reason at the right (changed, requested, replied, waiting, approved,
-  following), amber only when the row needs me. Groups come from the existing
-  core attention projection; Qt invents no urgency. An empty group is not shown;
-  when every group is empty the page shows one sentence: "Nothing needs me. Pull
-  requests from saved repositories and observer rules appear here." with the
-  link opening Settings › Reviews & queue. No empty box.
-- **Filter**, one flat menu button on the first group heading, holding the same
-  six typed queue preferences (role, observer reason, bucket, repository, quiet
-  or current, sort). A non-default choice shows as a removable chip under the
-  heading. The menu is absent while there is nothing to filter. The preferences
-  keep their store, schema and reset.
+  existing diagnostic with Copy details beside it. The pull-request stack's
+  empty page is not shown on Home.
+- **The list**, always in state order: Needs me, then Waiting on others, then
+  Following, from the existing core attention projection; Qt invents no
+  urgency. Every row is the identity in the row weight, the title in ink, a
+  second line that says why in a sentence ("Alex Chen pushed 2 updates since
+  my last review; 1 reply to me.") ending in the one-word reason (Changed,
+  Requested, Replied, Waiting, Approved, Following), and at the right the
+  time and my progress ("3 of 40 read"). Colour means state and nothing else:
+  amber for Needs me, blue for Waiting on others, green for Following, on the
+  reason word and on a 3-point mark or rail at the row's left.
+- **Panels.** With State headers on (the default) each state is a panel: a
+  bordered card with a rail in its colour down the left and a tinted header
+  band carrying the state name and count. Headers stick to the top of the
+  scroll area while their panel is in view. Every panel collapses to its
+  header by chevron, Space or Return, Left and Right; collapsed it keeps its
+  count and a one-line summary from the same projection ("1 of mine, waiting
+  on 2 reviewers"). An empty state is not shown; when every state is empty
+  the Needs me panel holds one sentence, "Nothing needs me. Pull requests from
+  saved repositories and observer rules appear here.", whose link opens
+  Settings › Reviews & queue. No empty box.
+- **Group.** A strip menu: None (default), Organization, Repository, Account.
+  A group is a neutral panel headed by the owner's or account's GitHub avatar
+  (square for an organization, round for a user, an initial tile until the
+  image is cached) and its name, with the count. With State headers on, a slim
+  tinted band per state sits inside each group panel, each collapsible on its
+  own; with it off, the rows sit directly in the group in state order with
+  their marks. Under Organization and Repository a host is shown only where it
+  differs from the account's default, per RFC-BPR-0028.
+- **Account.** When the profile has more than one signed-in account, each row
+  carries an account chip at its right before the time: the account's round
+  avatar and login, plus "on host" when the host is not github.com. When every
+  row in a group belongs to one account the group header carries the chip at
+  its right instead and its rows drop it. Under Account grouping rows never
+  carry it. With one account no chip is shown anywhere.
+- **Filter.** A strip menu holding the surviving typed queue preferences: My
+  role (Any, Author, Reviewer, Requested); Added by (Any, Rule, Follow,
+  Request), which is the observer reason under its meaning; Quiet items (Hide,
+  Show); Sort within a group (Priority, Updated, Repository), which orders
+  rows inside a state since state is always the first key. Repository and
+  Bucket are no longer filters because Group and the state order do their
+  job. The menu's footer says nothing here changes GitHub and links to
+  Settings for saved repositories and rules. Group, State headers, collapsed
+  panels and Filter are remembered per window, as RFC-BPR-0024 places window
+  filters.
+- **Recently viewed**, last, as its own neutral panel in every grouping, with
+  Resume as a row action shown on hover, on focus and in the row's menu.
 - **The status bar** carries the session line ("Signed in as MikeMarcin on
-  github.com; 4,807 requests remaining." or "Not signed in. Public pull requests
-  open read-only.") and never "No pull request is open in the workbench." while
-  Home is shown.
+  github.com and mmarcin on ghe.example.com. Refreshed 4 min ago.") and never
+  "No pull request is open in the workbench." while Home is shown.
 
-Signed out, Home is the sign-in card (title "Sign in to GitHub", one sentence,
-one filled Sign in button that opens Accounts & hosts with the device flow
-begun), the same bar headed "Or read a public pull request" with a bordered
-Open, and the status bar. The card's second button ("Accounts & hosts
-settings") is removed. Home over an open review keeps its return: one row at the
-top of the column, "Reviewing NVIDIA/stdexec#1846" at the left and Back to the
-review at the right, above the bar; nothing else about the review is shown.
+First launch and signed out: the strip with Home, account and settings only;
+the bar relabelled "Paste a public pull request link to read it without an
+account"; one card, "Sign in to GitHub", with a sentence, Sign in as the
+filled button (opens Accounts & hosts with the device flow begun) and Add
+enterprise server as a bordered one, the two ways in RFC-BPR-0018 requires
+without opening Settings; and the status bar "Not signed in. Public pull
+requests open read-only." No list, no panels, no filters. Home over an open
+review keeps its return: one shaded row above the bar, "Reviewing
+NVIDIA/stdexec#1846 …, file 9 of 12" at the left and Back to the review (⌘0)
+as the filled button at the right; Home is unchanged beneath it.
 
 ### Language shared by both
 
@@ -161,10 +197,12 @@ A refusal sits beside what was refused. Words are the reviewer's, in the first
 person RFC-BPR-0028 fixes ("Needs me", "my last review"), in sentence case, with
 verbs on buttons and the same verb through a flow (Sign in, Signing in, Signed
 in). Rhythm is an 8-point grid: page inset 24, card inset 16, row height 44
-with one hairline between rows, section gap 24, one 8-point radius on cards and
-the bar and none on rows. Colour is the palette: Window, Base, Mid, Text,
-PlaceholderText and Highlight by role, the accepted green for Connected and
-amber for a reason that needs me. Type is the interface font at the accepted
+with one hairline between rows, panel gap 14, one 8-point radius on cards,
+panels and the bar and none on rows. Colour is the palette: Window, Base, Mid,
+Text, PlaceholderText and Highlight by role, the accepted green for Connected,
+and on Home three state colours (amber Needs me, blue Waiting on others, green
+Following) used at low strength for panel headers and rails and at full strength
+for the reason word; colour never stands alone as a label. Type is the interface font at the accepted
 size; the code font is used for the device code only.
 
 ## Architecture
@@ -180,11 +218,16 @@ The core decides. The host performs. Qt presents. Nothing here moves.
   and status banner are no longer parented into Settings; whatever composed
   courses still select them is repointed to the bar, the card or the strip, and
   the dead widgets are deleted once no course names them. Home's landing loses
-  its two buttons in the choose state and its second button in the sign-in
-  state; the bar grows its heading; Recently viewed and the queue landing become
-  one row style with a shared delegate; the six combos become a `QMenu` on one
-  tool button with chips; the status bar text on Home comes from the session
-  projection.
+  its focus-only buttons and becomes the first-launch card; the bar becomes the
+  address field; a `home_panel` widget (**new**) renders a collapsible panel
+  with tinted sticky header and rail, used for states, groups and Recently
+  viewed, nesting state bands inside a group; one `home_row_delegate` (**new**)
+  paints identity, title, the why sentence, reason word, account chip, time and
+  progress for both the queue and recent models; Group and State headers are
+  strip actions whose state is window-owned; the six combos become one Filter
+  `QMenu` over the same typed preferences minus Repository and Bucket; owner and
+  account avatars come from the existing avatar cache; the status bar text on
+  Home comes from the session projection.
 - **Application hosts.** No new host. Connect on a non-active card dispatches
   the existing host-profile selection intent followed by the existing connect
   intent. Copy details reads the existing diagnostic text. Forget server uses the
@@ -202,9 +245,10 @@ pull request loads, and any change to publication or credential authority.
 
 Personal discovery (RFC-BPR-0026's saved-repository search), the repositories
 drawer, the other five Settings pages, the strip, the overview, the profile
-chooser (RFC-BPR-0033), notifications, and any new preference. The action list
-shows the rows the queue projection supplies today; this RFC does not make it
-find more.
+chooser (RFC-BPR-0033), notifications, and any new preference. The list shows the
+rows the queue projection supplies today; this RFC does not make it find more.
+Grouping, headers and chips arrange those rows; they persist nothing new beyond
+the window's view state.
 
 ## Acceptance criteria
 
@@ -225,26 +269,43 @@ find more.
 - **A4 — Nothing repeats.** On every state of the Accounts page each of host,
   login, transport and connection state appears once, checked by a text
   inventory over the rendered page.
-- **A5 — Home leads with the bar.** Signed in with nothing open, Home's first
-  object is the bar with its heading, placeholder and filled Open, focused on
-  arrival; the landing's focus-only buttons are gone; a load refusal is one
-  sentence with Copy details under the bar; the pull-request stack's empty page
-  is not part of Home.
-- **A6 — Lists are rows.** Recently viewed and the grouped action list share
-  one row anatomy; Resume is a row action; an empty group is absent and an
-  empty list is one sentence with a link to Reviews & queue; the six queue
-  preferences are one Filter menu with chips for non-default choices, absent
-  while there is nothing to filter, with their store and reset unchanged.
-- **A7 — Signed out is three things.** Signed-out Home is the sign-in card with
-  one filled button, the bar headed for public reading, and the status bar with
-  the session line; the status bar never says no pull request is open while
-  Home is shown; Home over a review keeps its one return row.
-- **A8 — Rendered and reachable.** The Accounts page in its connected, signed-out
-  and signing-in states and Home in its signed-out, empty, listed and over-a-review
-  states render at 100, 125, 150 and 200 percent in Light, Dark, High-contrast
-  Light and High-contrast Dark with the column at most 720 points, every control
-  reachable by keyboard in reading order with an accessible name, and the owner
-  accepts the real macOS application through the attended-review workflow.
+- **A5 — Home leads with the bar.** Signed in, Home's first row under the
+  strip is the address-field bar with its label, placeholder, ⌘L and Return,
+  focused on arrival; the landing's focus-only buttons are gone; a load
+  refusal is one sentence with Copy details under the bar; the pull-request
+  stack's empty page is not part of Home; first launch and signed out show
+  the strip with Home, account and settings only, the bar relabelled for
+  public reading, the sign-in card with Sign in filled and Add enterprise
+  server bordered, and the status bar line, and nothing else.
+- **A6 — Rows in state order, panels by state.** Rows are always ordered Needs
+  me, Waiting on others, Following from the core attention projection, with
+  one row anatomy for the queue and Recently viewed; colour means state only,
+  on the reason word and the row mark or panel rail; with State headers on
+  each state is a bordered panel with a tinted sticky header, count, chevron
+  and rail, collapsible by pointer and keyboard with a one-line summary when
+  collapsed; empty states are absent and an all-empty list is one sentence
+  linking to Reviews & queue; no empty box renders.
+- **A7 — Group, account and Filter.** Group offers None, Organization,
+  Repository and Account, each group a neutral panel headed by the owner's or
+  account's avatar and name, with state bands nested inside when State
+  headers is on and plain state-ordered rows when off; a host shows only where
+  it differs; with more than one signed-in account each row carries the
+  account chip at its right, a single-account group carries it in its header
+  instead, and a single-account profile shows none; the strip holds Group,
+  State headers, Filter and the refresh glyph before account and settings;
+  Filter holds exactly My role, Added by, Quiet items and Sort within a group
+  over the existing typed preferences with their store and reset unchanged;
+  Group, State headers, collapse and Filter persist per window; Home over a
+  review keeps its one return row; the status bar shows the session line and
+  never that no pull request is open while Home is shown.
+- **A8 — Rendered and reachable.** The Accounts page in its connected,
+  signed-out and signing-in states and Home in its first-launch, default,
+  long-list scrolled, nothing-needs-me, over-a-review and four grouping states
+  render at 100, 125, 150 and 200 percent in Light, Dark, High-contrast Light
+  and High-contrast Dark, every control reachable by keyboard in reading order
+  with an accessible name and a collapsed panel's state announced, and the
+  owner accepts the real macOS application through the attended-review
+  workflow.
 
 ## Verification
 
@@ -253,8 +314,8 @@ find more.
 | A1, A4 | Composed Settings window through the shipped composition | Walk the Accounts page's widget and accessibility trees in each connection state; assert the card inventory and the absence of the retired objects; inventory visible text for repeated facts |
 | A2 | Device authorization public-path course with the recording device port | One Sign in gesture reaches the code and browser controls inside the card; drive cancel, expiry, denial, unavailable and manual-token cases and assert the row's state and the absence of disabled controls |
 | A3 | Saved-server contract and composed Settings | Add, remember, forget with confirmation; restart; assert the record and no credential enrollment |
-| A5, A6, A7 | Composed Home in the shipped workbench with queue and recent fixtures | Focus on arrival; landing button inventory; refusal placement; row delegate geometry; empty-sentence rendering; Filter menu contents equal the six preferences and chips reflect the store; status bar text per state |
-| A8 | Deterministic full-window captures then attended review | The existing four-appearance, four-scale capture course extended to these states; keyboard walk; VoiceOver names on macOS; one attended candidate per surface |
+| A5, A6, A7 | Composed Home in the shipped workbench with two-account queue and recent fixtures | Focus on arrival; landing and strip inventory per session state; refusal placement; row delegate geometry and state order; panel collapse by pointer and keyboard with summary text; sticky header geometry under scroll; each Group value with State headers on and off; avatar and chip placement per account count; Filter menu contents equal the four surviving preferences and reset; per-window persistence across two windows; status bar text per state |
+| A8 | Deterministic full-window captures then attended review | The existing four-appearance, four-scale capture course extended to the Accounts states and the nine Home boards; keyboard walk including collapse; VoiceOver names and collapsed state on macOS; one attended candidate per surface |
 
 Ordinary slices use focused checks and reuse the existing composed courses.
 One integration pass at the pack boundary. No live GitHub or GHES mutation is

@@ -38,16 +38,16 @@ Accounts & hosts is the title, the sentence, one card per server and one button,
 
 ## home-page
 
-Home is one column: the bar first, then rows, with sentences for empties and one Filter menu.
+Home is the bar, then state-ordered rows in collapsible tinted panels, with Group, State headers, account chips and one Filter menu in the strip.
 
-**Work:** `BPR-0775`, `BPR-0776`
+**Work:** `BPR-0775`, `BPR-0776`, `BPR-0783`
 
 **Prerequisites:** intake-baseline
 
 **Completion:**
 
-- Signed-out, signed-in, empty, listed and over-a-review states render as accepted with the bar focused on arrival.
-- Recent and action rows share one delegate; the six preferences live in one menu with chips; no empty box renders.
+- First-launch, default, long-list, empty, over-a-review and the four grouping states render as accepted with the bar focused on arrival.
+- Queue and recent rows share one delegate and panel; the surviving preferences live in Filter; view state persists per window; no empty box renders.
 
 **Boundary:** One Home boundary; the queue projection and preference store are consumed unchanged.
 

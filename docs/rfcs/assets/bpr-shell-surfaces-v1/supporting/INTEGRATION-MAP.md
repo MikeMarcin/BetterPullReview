@@ -11,9 +11,13 @@ already exist. Reuse a live equivalent if later work supplied one.
 | Device sign-in in the row | `device_authorization_panel` state machine and `DeviceDispatch`; RFC-BPR-0016 public-path course | A second begin path; changing what authorization proves |
 | Enterprise server cards | `saved_server_intent`, the queue enrollment host, `application_saved_server_contract`; existing confirmation path | Credential enrollment from a hostname; making tokens durable |
 | Load refusal under the bar | `HomeOpenNotice` and the existing diagnostic text; the pull-request stack's empty page stays the review surface's | Showing the stack's empty page on Home; a second diagnostic source |
-| Home column and bar heading | `workbench_window.cpp` Home construction; `HomeOpenBar`, `HomeOpenAction`; `workbench_landing` states | Changing what the bar accepts or the `public_preview` stage |
-| Rows and delegate (**new** `home_row_delegate`) | `HomeRecentList`, the queue landing's `QueueView` and `review_queue_model`; the core attention projection | Urgency invented from timestamps; a second queue model |
-| Filter menu and chips | The six existing typed queue preferences and `queue_presentation_preferences` store | A new preference; losing a preference behind the menu |
+| Bar as address field; first-launch card | `workbench_window.cpp` Home construction; `HomeOpenBar`, `HomeOpenAction`; `workbench_landing` states | Changing what the bar accepts or the `public_preview` stage |
+| Strip controls on Home (Group, State headers, Filter, refresh) | The strip's existing action groups and the Home/review visibility switch; window-owned view state | Showing the controls signed out; a second toolbar row |
+| Panels (**new** `home_panel`) and delegate (**new** `home_row_delegate`) | `HomeRecentList`, the queue landing's `QueueView` and `review_queue_model`; the core attention projection for order and reason | Urgency invented from timestamps; a second queue model; order by anything but state first |
+| Group and nesting | A Qt-side grouping over the same model rows keyed by owner, repository or account identity from the projection | A new host query; persisting a grouped copy of the queue |
+| Avatars and account chips | The existing avatar cache used by the comment rails; account identities from the session projection | Fetching avatars from Qt; a second cache |
+| Filter menu | The surviving typed queue preferences (role, observer reason, quiet, sort) and `queue_presentation_preferences` store | A new preference; keeping Repository and Bucket as filters |
+| Per-window view state | The window layout store RFC-BPR-0024 assigns window filters to | A profile-wide grouping preference |
 | Status bar session line on Home | The existing status text path and the session projection | Polling; a second status owner |
 | Empty-desktop policy (**new** `empty_desktop_policy`) | `profile_desktop.cpp` last-runtime branch; `main.cpp` quit policy; existing desktop Quit and drain | Timers; a tray item; per-platform branches hidden in widgets |
 | Reopen from activation, ⌘N, Profiles menu | Existing `open_bpr_profile_intent` and `new_bpr_window_intent`; registry recency | A second runtime owner; touching another profile |

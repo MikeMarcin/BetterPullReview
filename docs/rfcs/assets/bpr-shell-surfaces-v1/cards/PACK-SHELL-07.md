@@ -1,24 +1,24 @@
 ---
 schema: "implement-rfc.card.v1"
 id: "PACK-SHELL-07"
-title: "Present Recently viewed and the action list as grouped rows with one Filter menu"
+title: "Render the list as state panels with one row anatomy"
 status: "Backlog"
 rfcs: ["RFC-BPR-0032"]
 depends_on: ["PACK-SHELL-06"]
-metadata: {"pack":"bpr-shell-surfaces-v1","milestone":"home-page","acceptance":["A6","A7"],"alias_requires_live_allocation":true}
+metadata: {"pack":"bpr-shell-surfaces-v1","milestone":"home-page","acceptance":["A6"],"alias_requires_live_allocation":true}
 ---
 
-# PACK-SHELL-07: Present Recently viewed and the action list as grouped rows with one Filter menu
+# PACK-SHELL-07: Render the list as state panels with one row anatomy
 
 ## Outcome
 
-Render Recently viewed and the grouped action list (Needs me, Waiting on others, Following) with one shared row delegate: identity, title, quiet progress or time, reason word amber only when the row needs me; Resume as a row action on hover, focus and the row menu; absent empty groups; one sentence with a Reviews & queue link when everything is empty; the six queue preferences as one Filter menu with chips, absent while nothing is listed, their store and reset unchanged.
+Add a `home_panel` widget (bordered, rail in the state colour, tinted sticky header with name, count and chevron, collapsible by pointer and keyboard with a one-line summary when collapsed) and a `home_row_delegate` (identity, title, why sentence, reason word in the state colour, time and progress) shared by the queue and Recently viewed models; rows always in state order from the core attention projection; absent empty states; the one-sentence all-empty state with its Reviews & queue link; Resume as a row action; Recently viewed as the last panel.
 
 ## Acceptance
 
-- Both lists use the same row anatomy from the existing core attention and recent projections; Qt invents no urgency.
-- The Filter menu holds exactly the six typed preferences; chips reflect and clear the store; the menu is absent when nothing is listed.
-- Empty groups are absent and the empty list is one sentence whose link opens Settings › Reviews & queue; no empty box renders.
+- Rows are in state order with one anatomy for both models; colour appears only on the reason word and the rail or mark.
+- Each state panel collapses by chevron, Space, Return, Left and Right, keeps its count and summary, and its header sticks under scroll.
+- Empty states are absent, the all-empty list is one sentence whose link opens Settings › Reviews & queue, and no empty box renders.
 
 ## Evidence
 

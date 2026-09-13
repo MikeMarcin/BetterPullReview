@@ -4,7 +4,7 @@ id: "PACK-SHELL-11"
 title: "Update documentation and remove the retired panels"
 status: "Backlog"
 rfcs: ["RFC-BPR-0032", "RFC-BPR-0033"]
-depends_on: ["PACK-SHELL-04", "PACK-SHELL-05", "PACK-SHELL-07", "PACK-SHELL-09"]
+depends_on: ["PACK-SHELL-04", "PACK-SHELL-05", "PACK-SHELL-09", "PACK-SHELL-14"]
 metadata: {"pack":"bpr-shell-surfaces-v1","milestone":"verification-closeout","acceptance":["A1","A4","B4"],"alias_requires_live_allocation":true}
 ---
 
