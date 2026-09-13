@@ -1,0 +1,363 @@
+#include "bpr/application/git_protocol_v2.hpp"
+#include "gh_cli_git_smart_transport.hpp"
+#include "github_cli_process_runner.hpp"
+#include "github_paged_read.hpp"
+#include <QCoreApplication>
+#include <QProcess>
+#include <QProcessEnvironment>
+#include <QTemporaryDir>
+#include <array>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <optional>
+#include <span>
+#include <thread>
+#include <vector>
+namespace {
+	using namespace bpr;
+	using namespace bpr::adapters::github;
+	using namespace bpr::adapters::github::detail;
+	void expect(bool value, std::string_view message)
+	{
+		if (!value) {
+			std::cerr << "FAILED: " << message << '\n';
+			std::exit(1);
+		}
+	}
+	template <typename Identity>
+	[[nodiscard]] constexpr auto opaque(const std::uint8_t aSeed) -> Identity
+	{
+		std::array<std::uint8_t, 32> bytes{ };
+		bytes[0]  = aSeed;
+		bytes[31] = static_cast<std::uint8_t>(aSeed ^ 0xA5U);
+		return Identity{ bytes };
+	}
+
+	template <typename Oid>
+	[[nodiscard]] constexpr auto oid(const std::uint8_t aSeed) -> Oid
+	{
+		std::array<std::uint8_t, 32> bytes{ };
+		for (std::size_t index = 0U; index < 20U; ++index) {
+			bytes[index] = static_cast<std::uint8_t>(aSeed + static_cast<std::uint8_t>(index));
+		}
+		return Oid{ core::git_hash_algorithm::sha1, bytes };
+	}
+
+	[[nodiscard]] auto cloud_candidate() -> github_host_profile_candidate
+	{
+		return {
+			.Profile        = core::host_profile_id{ 11 },
+			.Host           = core::git_host_id{ 21 },
+			.Revision       = application::github_profile_revision{ 31 },
+			.Server         = application::github_server_contract::github_com_2022_11_28,
+			.Authentication = application::github_authentication_transport::github_cli,
+			.Proxy          = application::github_proxy_mode::system,
+			.Trust          = application::github_trust_mode::system,
+			.Provenance     = github_profile_provenance::builtin,
+			.Hostname       = "github.com",
+			.RestRoot       = "https://api.github.com",
+			.GraphqlRoot    = "https://api.github.com/graphql",
+		};
+	}
+
+	[[nodiscard]] auto smart_context()
+		-> application::git_smart_request_context
+	{
+		const auto baseRef = application::parse_git_base_branch_ref("refs/heads/main");
+		expect(baseRef.has_value(), "base-ref");
+		return {
+			.ApplicationSession = core::application_session_id{ 202U },
+			.Authority          = core::pull_request_authority{
+				.Profile         = core::host_profile_id{ 11U },
+				.ProfileRevision = core::github_profile_revision{ 31U },
+				.Host            = core::git_host_id{ 21U },
+				.HostAuthority   = opaque<core::host_authority_fingerprint>(1U),
+				.Account         = core::github_account_id{ 203U },
+				.Viewer          = core::github_viewer_actor_id{ 204U },
+				.Repository      = core::repository_id{ 205U },
+				.Cache           = opaque<core::repository_cache_scope_id>(2U),
+				.PullRequest     = core::pull_request_id{ 206U },
+				.Number          = core::pull_request_number{ 17U },
+				.Scope           = opaque<core::pull_request_authority_scope_id>(3U),
+			},
+			.Revision = core::accepted_pull_request_revision{
+				.Source = core::pull_request_source_revision{
+					.Observation           = opaque<core::epoch_source_observation_id>(9U),
+					.Snapshot              = core::provider_snapshot_id{ 301U },
+					.IdentityGeneration    = core::github_identity_generation{ 207U },
+					.PullRequestGeneration = core::request_generation{ 208U },
+				},
+				.Origin     = core::pull_request_revision_origin::live,
+				.BaseBranch = opaque<core::base_branch_id>(4U),
+				.Base       = oid<core::git_commit_oid>(10U),
+				.Head       = oid<core::git_commit_oid>(30U),
+			},
+			.Repository = core::repository_locator{
+				.Owner = "octo-org",
+				.Name  = "review-repository",
+			},
+			.BaseRef = *baseRef,
+		};
+	}
+
+	class recording_pack_sink final : public application::git_pack_stream_sink
+	{
+	public:
+		explicit recording_pack_sink(const core::git_hash_algorithm aFormat)
+			: Format{ aFormat }
+		{
+		}
+
+		[[nodiscard]] auto append(
+			const std::span<const std::byte> aInput,
+			const std::stop_token            aStop)
+			-> application::git_pack_stream_result<void> override
+		{
+			if (AppendFailure.has_value()) {
+				return std::unexpected(*AppendFailure);
+			}
+			if (aStop.stop_requested()) {
+				return std::unexpected(
+					application::git_pack_stream_failure::cancelled);
+			}
+			Received.insert(Received.end(), aInput.begin(), aInput.end());
+			return { };
+		}
+
+		[[nodiscard]] auto finish(const std::stop_token aStop)
+			-> application::git_pack_stream_result<
+				application::completed_git_pack_receipt> override
+		{
+			if (FinishFailure.has_value()) {
+				return std::unexpected(*FinishFailure);
+			}
+			if (aStop.stop_requested()) {
+				return std::unexpected(
+					application::git_pack_stream_failure::cancelled);
+			}
+			Finished = true;
+			application::git_pack_oid pack{
+				.Algorithm = Format,
+			};
+			pack.Digest.front() = 0x42U;
+			auto observed       = pack;
+			if (MismatchedReceipt) {
+				observed.Digest.front() = 0x43U;
+			}
+			auto token                  = std::array<std::uint8_t, 32U>{ };
+			token.front()               = 0x71U;
+			auto spoolIdentity          = application::git_artifact_identity{ };
+			spoolIdentity.Bytes.front() = 1U;
+			spoolIdentity.Bytes[1U]     = 1U;
+			spoolIdentity.Bytes[2U]     = 0x7fU;
+			spoolIdentity.Bytes.back()  = 0x51U;
+			return application::completed_git_pack_receipt{
+				.Operation    = opaque<core::epoch_operation_id>(41U),
+				.ExpectedPack = pack,
+				.ObservedPack = observed,
+				.Spool        = {
+					.Role = application::git_artifact_role::
+						completed_spool,
+					.Identity = spoolIdentity,
+					.Bytes    = Received.size(),
+				},
+				.OpaqueToken = token,
+			};
+		}
+
+		auto abort() noexcept -> void override
+		{
+			Aborted = true;
+			++AbortCalls;
+		}
+
+		core::git_hash_algorithm                            Format;
+		std::vector<std::byte>                              Received;
+		std::optional<application::git_pack_stream_failure> AppendFailure;
+		std::optional<application::git_pack_stream_failure> FinishFailure;
+		bool                                                MismatchedReceipt = false;
+		bool                                                Finished          = false;
+		bool                                                Aborted           = false;
+		std::size_t                                         AbortCalls        = 0U;
+	};
+
+	QByteArray git(const std::filesystem::path& root, QStringList arguments, const QByteArray& input = { })
+	{
+		QProcess            process;
+		QProcessEnvironment env;
+		for (const auto& pair : std::array<std::pair<const char*, const char*>, 7>{ { { "GIT_CONFIG_NOSYSTEM", "1" }, { "GIT_CONFIG_GLOBAL", "/dev/null" }, { "GIT_ALLOW_PROTOCOL", "" }, { "GIT_AUTHOR_NAME", "Fixture" }, { "GIT_AUTHOR_EMAIL", "fixture@example.invalid" }, { "GIT_COMMITTER_NAME", "Fixture" }, { "GIT_COMMITTER_EMAIL", "fixture@example.invalid" } } }) {
+			env.insert(pair.first, pair.second);
+		}
+		process.setProcessEnvironment(env);
+		process.setWorkingDirectory(QString::fromStdString(root.string()));
+		process.start("/usr/bin/git", arguments);
+		expect(process.waitForStarted(5000), "fixture local Git starts");
+		process.write(input);
+		process.closeWriteChannel();
+		expect(process.waitForFinished(10000) && process.exitCode() == 0, "fixture local Git succeeds");
+		return process.readAllStandardOutput().trimmed();
+	}
+	void write(const std::filesystem::path& path, std::string_view value)
+	{
+		std::ofstream file(path);
+		file << value;
+		expect(file.good(), "fixture file");
+	}
+	int fake_gh(const QStringList& args)
+	{
+		const auto executable = std::filesystem::path{ args[0].toStdString() };
+		const auto root       = executable.parent_path();
+		if (args.size() == 2 && args[1] == "--version") {
+			std::cout << "gh version 2.100.0 (fixture)\n";
+			return 0;
+		}
+		if (args.size() > 2 && args[1] == "api") {
+			if (std::filesystem::exists(root / "fail-viewer")) {
+				return 1;
+			}
+			const bool switched = std::filesystem::exists(root / "switch-viewer");
+			std::cout << "HTTP/2.0 200 OK\r\nContent-Type: application/json\r\nX-RateLimit-Limit: 5000\r\nX-RateLimit-Remaining: 4999\r\nX-RateLimit-Used: 1\r\nX-RateLimit-Reset: 2000000000\r\nX-RateLimit-Resource: core\r\n\r\n{\"id\":" << (switched ? 999 : 203) << ",\"node_id\":\"U_fixture\",\"login\":\"fixture\",\"name\":\"Fixture\"}";
+			return 0;
+		}
+		if (args.size() == 19 && args[1] == "repo" && args[2] == "clone") {
+			const std::filesystem::path target{ args[4].toStdString() };
+			if (!target.parent_path().filename().string().starts_with("bpr-cli-git-") || target.parent_path().parent_path() != "/private/tmp") {
+				return 3;
+			}
+			if (std::filesystem::exists(root / "wait-clone")) {
+				std::this_thread::sleep_for(std::chrono::seconds{ 10 });
+			}
+			if (std::filesystem::exists(root / "overflow")) {
+				std::ofstream out(target.parent_path() / "oversize");
+				std::string   block(65536, 'x');
+				for (int i = 0; i < 600; ++i) {
+					out << block;
+				}
+				return 4;
+			}
+			std::error_code error;
+			std::filesystem::copy(root / "source.git", target, std::filesystem::copy_options::recursive, error);
+			if (error) {
+				return 5;
+			}
+			std::cerr << "bounded fixture progress\n";
+			return 0;
+		}
+		return 2;
+	}
+	class discard final : public application::git_smart_wire_consumer
+	{
+	public:
+		bool consume(std::span<const std::byte>) noexcept override
+		{
+			++Calls;
+			return true;
+		}
+		unsigned Calls = 0;
+	};
+	void contract()
+	{
+		QTemporaryDir temporary{ QStringLiteral("/private/tmp/bpr-bridge-test-XXXXXX") };
+		expect(temporary.isValid(), "test root");
+		const std::filesystem::path root{ temporary.path().toStdString() };
+		const auto                  executable = root / "gh";
+		std::filesystem::copy_file(QCoreApplication::applicationFilePath().toStdString(), executable);
+		std::filesystem::permissions(executable, std::filesystem::perms::owner_all);
+		std::filesystem::create_directory(root / "neutral");
+		std::filesystem::create_directory(root / "home");
+		const auto source = root / "source.git";
+		git(root, { "init", "--bare", QString::fromStdString(source.string()) });
+		const auto scope      = "--git-dir=" + QString::fromStdString(source.string());
+		const auto blob       = git(root, { scope, "hash-object", "-w", "--stdin" }, "complete local contents\n");
+		const auto tree       = git(root, { scope, "mktree" }, "100644 blob " + blob + "\tfile.txt\n");
+		const auto base       = git(root, { scope, "commit-tree", tree }, "base\n");
+		const auto head       = git(root, { scope, "commit-tree", tree, "-p", base }, "head\n");
+		auto       context    = smart_context();
+		context.Revision.Base = *core::parse_git_commit_oid(base.toStdString());
+		context.Revision.Head = *core::parse_git_commit_oid(head.toStdString());
+		const auto profile    = validate_github_host_profile(cloud_candidate());
+		expect(profile.has_value(), "profile");
+		const auto configuration = validate_gh_cli_configuration({ .Executable = executable, .NeutralWorkingDirectory = root / "neutral", .Platform = gh_cli_macos_environment_facts{ .HomeDirectory = root / "home" }, .Https = { } });
+		expect(configuration.has_value(), "configuration");
+		const core::github_session_request_context session{ .Request = core::request_id{ 101 }, .ApplicationSession = context.ApplicationSession, .Profile = profile->profile(), .IdentityGeneration = core::github_identity_generation{ 207 } };
+		auto                                       fixtureProcess = make_github_cli_process_runner();
+		const auto                                 versionCheck   = fixtureProcess->run(compile_gh_cli_version_request(*configuration), { });
+		if (!versionCheck) {
+			std::cerr << "version failure " << static_cast<int>(versionCheck.error()) << '\n';
+		}
+		expect(versionCheck.has_value(), "fixture sandbox version launch");
+		gh_cli_transport identity{ *profile, *configuration, *fixtureProcess };
+		const auto       wire   = compile_read_request(semantic_read_request{ .Server = server_contract::github_com, .Operation = read_operation::get_viewer_identity });
+		const auto       viewer = identity.perform({ .Correlation = { .Parent = session, .ProfileRevision = profile->revision(), .Host = profile->host(), .Operation = read_operation::get_viewer_identity, .Page = 1 }, .Wire = *wire }, { });
+		if (const auto* error = std::get_if<github_wire_error>(&viewer)) {
+			std::cerr << "viewer failure " << static_cast<int>(error->Error.Failure) << '\n';
+		}
+		expect(std::holds_alternative<github_wire_success>(viewer), "fixture sandbox viewer launch");
+		const auto normalized = normalize_observed_github_viewer(std::get<github_wire_success>(viewer).Response, server_contract::github_com);
+		expect(normalized.has_value(), "fixture viewer normalized");
+
+		auto transport = make_gh_cli_git_smart_transport(*profile, *configuration, "/usr/bin/git", session, context, [] { return true; });
+		expect(transport.has_value(), "acquire");
+		constexpr application::git_protocol_v2_fetch_limits limits{ .MaximumWireBytes = 1048576, .MaximumPackBytes = 1048576, .MaximumProgressBytes = 1024, .MaximumPackets = 1024 };
+		recording_pack_sink                                 sink{ core::git_hash_algorithm::sha1 };
+		auto                                                result = application::acquire_git_protocol_v2_pack(**transport, context, { }, sink, limits, { });
+		if (!result) {
+			if (const auto* error = std::get_if<application::git_smart_transport_error>(&result.error())) {
+				std::cerr << "transport failure " << static_cast<int>(error->Failure) << '\n';
+			}
+		}
+		expect(result.has_value() && sink.Finished && !sink.Received.empty(), "real bridge obeys application discovery/refs/sideband parser");
+		const QByteArray pack{ reinterpret_cast<const char*>(sink.Received.data()), static_cast<qsizetype>(sink.Received.size()) };
+		const auto       verify = root / "verify.git";
+		git(root, { "init", "--bare", QString::fromStdString(verify.string()) });
+		const auto verifyScope = "--git-dir=" + QString::fromStdString(verify.string());
+		git(root, { verifyScope, "index-pack", "--strict", "--stdin" }, pack);
+		expect(git(root, { verifyScope, "cat-file", "-p", QString::fromStdString(core::canonical_hex(context.Revision.Head).view().data()) + ":file.txt" }) == "complete local contents", "pack contains verified full file contents");
+		const application::detail::git_protocol_v2_capabilities capabilities{ .ObjectFormat = core::git_hash_algorithm::sha1, .LsRefs = true, .Fetch = true };
+		auto                                                    request = application::detail::make_git_protocol_v2_fetch_request(context, capabilities, { });
+		expect(request.has_value(), "fetch request");
+		discard     consumer;
+		auto        wrong    = *request;
+		const auto  baseText = base.toStdString();
+		const auto  headText = head.toStdString();
+		std::string wrongText{ reinterpret_cast<const char*>(wrong.data()), wrong.size() };
+		wrongText.replace(wrongText.find(baseText), baseText.size(), headText);
+		const auto wrongSpan = std::as_bytes(std::span{ wrongText.data(), wrongText.size() });
+		auto       denied    = (*transport)->fetch({ context, wrongSpan, 1048576 }, consumer, { });
+		expect(!denied && denied.error().Failure == application::git_smart_transport_failure::invalid_request && consumer.Calls == 0, "duplicate/reordered current wants refused before child");
+		auto limited = (*transport)->fetch({ context, *request, 32 }, consumer, { });
+		expect(!limited && limited.error().Failure == application::git_smart_transport_failure::response_limit && consumer.Calls == 0, "wire budget refuses before consumer");
+		write(root / "fail-viewer", "1");
+		auto failed = (*transport)->fetch({ context, *request, 1048576 }, consumer, { });
+		expect(!failed && failed.error().Failure == application::git_smart_transport_failure::unavailable, "viewer transport failure is not account mismatch");
+		std::filesystem::remove(root / "fail-viewer");
+		write(root / "overflow", "1");
+		auto overflow = (*transport)->fetch({ context, *request, 1048576 }, consumer, { });
+		expect(!overflow && overflow.error().Failure == application::git_smart_transport_failure::response_limit, "kernel file ceiling maps to response limit");
+		std::filesystem::remove(root / "overflow");
+		write(root / "wait-clone", "1");
+		std::stop_source stop;
+		std::jthread     cancel{ [&] {std::this_thread::sleep_for(std::chrono::milliseconds{400});stop.request_stop(); } };
+		const auto       started   = std::chrono::steady_clock::now();
+		auto             cancelled = (*transport)->fetch({ context, *request, 1048576 }, consumer, stop.get_token());
+		expect(!cancelled && cancelled.error().Failure == application::git_smart_transport_failure::cancelled && std::chrono::steady_clock::now() - started < std::chrono::seconds{ 3 }, "running clone cancellation is bounded and reaped");
+		std::filesystem::remove(root / "wait-clone");
+		write(root / "switch-viewer", "1");
+		auto switched = (*transport)->fetch({ context, *request, 1048576 }, consumer, { });
+		expect(!switched && switched.error().Failure == application::git_smart_transport_failure::authentication && (*transport)->revoked(), "account mismatch revokes");
+		auto revoked = (*transport)->discover({ context }, { });
+		expect(!revoked && revoked.error().Failure == application::git_smart_transport_failure::cancelled, "revocation persists");
+		std::cout << "bridge contract passed: complete pack, strict index, closed wants, bounds, viewer errors and revocation\n";
+	}
+}
+int main(int argc, char** argv)
+{
+	QCoreApplication app{ argc, argv };
+	if (std::filesystem::path{ argv[0] }.filename() == "gh") {
+		return fake_gh(app.arguments());
+	}
+	contract();
+	return 0;
+}

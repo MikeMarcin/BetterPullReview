@@ -656,16 +656,90 @@ namespace bpr::adapters::github::detail {
 
 		// Observations detect account changes; they cannot contain a concurrent
 		// gh auth switch. A mismatch permanently refuses this observed lease.
-		class cli_observed_account_transport final : public github_wire_transport_port
+		class cli_observed_account_transport final : public github_wire_transport_port,
+													 public application::git_smart_transport_factory_port,
+													 public std::enable_shared_from_this<cli_observed_account_transport>
 		{
+			class observed_git_transport final : public application::git_smart_transport_port
+			{
+			public:
+				observed_git_transport(std::shared_ptr<cli_observed_account_transport> aOwner,
+									   application::git_smart_transport                aInner)
+					: Owner{ std::move(aOwner) }
+					, Inner{ std::move(aInner) }
+				{ }
+				void revoke() noexcept override { Inner->revoke(); }
+				auto revoked() const noexcept -> bool override { return Inner->revoked() || Owner->Mismatch.load(); }
+				auto discover(const application::git_smart_discovery_request& aRequest, std::stop_token aStop)
+					-> application::git_smart_transport_result<application::git_smart_discovery_response> override
+				{
+					return perform_guarded<application::git_smart_discovery_response>(aStop, [&] { return Inner->discover(aRequest, aStop); });
+				}
+				auto ls_refs(const application::git_smart_ls_refs_request& aRequest, std::stop_token aStop)
+					-> application::git_smart_transport_result<application::git_smart_ls_refs_response> override
+				{
+					return perform_guarded<application::git_smart_ls_refs_response>(aStop, [&] { return Inner->ls_refs(aRequest, aStop); });
+				}
+				auto fetch(const application::git_smart_fetch_request& aRequest, application::git_smart_wire_consumer& aConsumer, std::stop_token aStop)
+					-> application::git_smart_transport_result<void> override
+				{
+					return perform_guarded<void>(aStop, [&] { return Inner->fetch(aRequest, aConsumer, aStop); });
+				}
+
+			private:
+				template <typename TValue, typename TCall>
+				auto perform_guarded(std::stop_token aStop, TCall aCall) -> application::git_smart_transport_result<TValue>
+				{
+					if (auto error = check(aStop)) {
+						return std::unexpected{ *error };
+					}
+					auto result = aCall();
+					if (auto error = check(aStop)) {
+						return std::unexpected{ *error };
+					}
+					return result;
+				}
+				auto check(std::stop_token aStop) -> std::optional<application::git_smart_transport_error>
+				{
+					using failure = application::git_smart_transport_failure;
+					if (aStop.stop_requested() || revoked()) {
+						return application::git_smart_transport_error{ failure::cancelled };
+					}
+					if (const auto error = Owner->check(Owner->Viewer, aStop)) {
+						revoke();
+						return application::git_smart_transport_error{ aStop.stop_requested()                                                       ? failure::cancelled
+																		   : error->Failure == application::github_provider_failure::authentication ? failure::authentication
+																																					: failure::unavailable };
+					}
+					return std::nullopt;
+				}
+				std::shared_ptr<cli_observed_account_transport> Owner;
+				application::git_smart_transport                Inner;
+			};
+
 		public:
 			cli_observed_account_transport(std::shared_ptr<github_wire_transport_port> aTransport,
-										   github_wire_request aViewer, server_contract aServer, core::github_account_id aAccount)
+										   github_wire_request aViewer, server_contract aServer, core::github_account_id aAccount, std::string aLogin)
 				: Transport{ std::move(aTransport) }
 				, Viewer{ std::move(aViewer) }
 				, Server{ aServer }
 				, Account{ aAccount }
+				, Login{ std::move(aLogin) }
 			{ }
+
+			auto acquire(const application::git_smart_request_context& aContext)
+				-> application::git_smart_transport_result<application::git_smart_transport> override
+			{
+				auto* factory = dynamic_cast<application::git_smart_transport_factory_port*>(Transport.get());
+				if (!factory || Mismatch.load() || aContext.Authority.Account != Account) {
+					return std::unexpected{ application::git_smart_transport_error{ application::git_smart_transport_failure::unavailable } };
+				}
+				auto inner = factory->acquire(aContext);
+				if (!inner) {
+					return std::unexpected{ inner.error() };
+				}
+				return std::make_shared<observed_git_transport>(shared_from_this(), *inner);
+			}
 
 			auto perform(const github_wire_request& aRequest, std::stop_token aStop) -> github_wire_completion override
 			{
@@ -731,7 +805,7 @@ namespace bpr::adapters::github::detail {
 				if (!observed) {
 					return observed.error();
 				}
-				if (observed->Viewer.Account != Account) {
+				if (observed->Viewer.Account != Account || observed->Viewer.Login != Login) {
 					Mismatch.store(true);
 					return provider_error(application::github_provider_failure::authentication);
 				}
@@ -741,6 +815,7 @@ namespace bpr::adapters::github::detail {
 			github_wire_request                         Viewer;
 			server_contract                             Server;
 			core::github_account_id                     Account;
+			std::string                                 Login;
 			std::atomic_bool                            Mismatch = false;
 		};
 
@@ -1306,7 +1381,7 @@ namespace bpr::adapters::github::detail {
 							// This records the observed account for the scoped lease. It
 							// contains no CLI credential and does not claim that gh's
 							// mutable active account is pinned for later requests.
-							transport      = std::make_shared<cli_observed_account_transport>(*transport, *wire, *server, observed->Viewer.Account);
+							transport      = std::make_shared<cli_observed_account_transport>(*transport, *wire, *server, observed->Viewer.Account, observed->Viewer.Login);
 							accountContext = application::github_credential_operation_context{
 								.Request            = request.Context.Request,
 								.ApplicationSession = request.Context.ApplicationSession,

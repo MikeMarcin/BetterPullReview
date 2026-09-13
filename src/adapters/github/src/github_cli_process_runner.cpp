@@ -24,7 +24,9 @@
 #include <utility>
 
 #if defined(Q_OS_UNIX)
+	#include <cerrno>
 	#include <csignal>
+	#include <sys/resource.h>
 	#include <sys/types.h>
 	#include <unistd.h>
 #endif
@@ -32,6 +34,32 @@
 namespace bpr::adapters::github::detail {
 	namespace {
 		using clock = std::chrono::steady_clock;
+
+		[[nodiscard]] auto directory_within_limits(const github_cli_process_file_limits& aLimits) -> bool
+		{
+			if (aLimits.Directory.empty()) {
+				return aLimits.MaximumFileBytes == 0U;
+			}
+			std::error_code                                     error;
+			std::uint64_t                                       bytes   = 0U;
+			std::size_t                                         entries = 0U;
+			std::filesystem::recursive_directory_iterator       iterator{ aLimits.Directory, error };
+			const std::filesystem::recursive_directory_iterator end;
+			while (!error && iterator != end) {
+				if (++entries > aLimits.MaximumDirectoryEntries || iterator->is_symlink(error)) {
+					return false;
+				}
+				if (iterator->is_regular_file(error)) {
+					const auto size = iterator->file_size(error);
+					if (error || size >= aLimits.MaximumFileBytes || size > aLimits.MaximumDirectoryBytes - bytes) {
+						return false;
+					}
+					bytes += size;
+				}
+				iterator.increment(error);
+			}
+			return !error;
+		}
 
 		inline constexpr auto wait_slice = std::chrono::milliseconds{ 10 };
 
@@ -500,10 +528,11 @@ namespace bpr::adapters::github::detail {
 		}
 
 		[[nodiscard]] auto execute_process(
-			const github_cli_process_request& aRequest,
-			const std::stop_token             aStop,
-			const std::atomic_bool&           aShutdownRequested,
-			const clock::time_point           aDeadline) -> process_execution
+			const github_cli_process_request&     aRequest,
+			const std::stop_token                 aStop,
+			const std::atomic_bool&               aShutdownRequested,
+			const clock::time_point               aDeadline,
+			const github_cli_process_file_limits& aFileLimits) -> process_execution
 		{
 			validated_process_request validated;
 			try {
@@ -551,7 +580,18 @@ namespace bpr::adapters::github::detail {
 				process->setWorkingDirectory(validated.WorkingDirectory);
 				process->setProcessChannelMode(QProcess::SeparateChannels);
 				process->setInputChannelMode(QProcess::ManagedInputChannel);
+				if (!aFileLimits.StandardOutputFile.empty()) {
+					process->setStandardOutputFile(QString::fromStdString(aFileLimits.StandardOutputFile.string()), QIODevice::Truncate);
+				}
 #if defined(Q_OS_UNIX)
+				if (aFileLimits.MaximumFileBytes != 0U) {
+					process->setChildProcessModifier([limit = aFileLimits.MaximumFileBytes, child = process.get()] {
+						const rlimit fileLimit{ static_cast<rlim_t>(limit), static_cast<rlim_t>(limit) };
+						if (::setrlimit(RLIMIT_FSIZE, &fileLimit) != 0) {
+							child->failChildProcessModifier("file size limit", errno);
+						}
+					});
+				}
 				process->setUnixProcessParameters(
 					QProcess::UnixProcessFlag::CloseFileDescriptors
 					| QProcess::UnixProcessFlag::DisableCoreDumps
@@ -591,7 +631,7 @@ namespace bpr::adapters::github::detail {
 							process_stream::standard_output,
 							aRequest.StandardOutputLimit,
 							standardOutputBytes,
-							&standardOutput);
+							aFileLimits.DiscardStandardOutput ? nullptr : &standardOutput);
 						failure.has_value()) {
 						return failure;
 					}
@@ -610,6 +650,9 @@ namespace bpr::adapters::github::detail {
 				};
 				const auto terminalFailure =
 					[&]() -> std::optional<github_cli_process_failure> {
+					if (!directory_within_limits(aFileLimits)) {
+						return github_cli_process_failure::standard_output_limit;
+					}
 					if (
 						aShutdownRequested.load(std::memory_order_acquire)
 						|| aStop.stop_requested()) {
@@ -782,8 +825,10 @@ namespace bpr::adapters::github::detail {
 		{
 		public:
 			explicit process_worker(
-				std::shared_ptr<github_cli_process_runner_test_seam> aTestSeam)
+				std::shared_ptr<github_cli_process_runner_test_seam> aTestSeam,
+				github_cli_process_file_limits                       aFileLimits)
 				: TestSeam{ std::move(aTestSeam) }
+				, FileLimits{ std::move(aFileLimits) }
 				, Worker{ [this] {
 					worker_loop();
 				} }
@@ -927,7 +972,7 @@ namespace bpr::adapters::github::detail {
 							item->Request,
 							item->Stop,
 							ShutdownRequested,
-							item->Deadline));
+							item->Deadline, FileLimits));
 					} catch (...) {
 						publish(
 							item,
@@ -974,6 +1019,7 @@ namespace bpr::adapters::github::detail {
 			bool                                                 Quarantined       = false;
 			std::atomic_bool                                     ShutdownRequested = false;
 			std::shared_ptr<github_cli_process_runner_test_seam> TestSeam;
+			github_cli_process_file_limits                       FileLimits;
 			std::thread                                          Worker;
 		};
 
@@ -982,8 +1028,10 @@ namespace bpr::adapters::github::detail {
 		{
 		public:
 			explicit qprocess_github_cli_process_runner(
-				std::shared_ptr<github_cli_process_runner_test_seam> aTestSeam)
+				std::shared_ptr<github_cli_process_runner_test_seam> aTestSeam,
+				github_cli_process_file_limits                       aFileLimits)
 				: TestSeam{ std::move(aTestSeam) }
+				, FileLimits{ std::move(aFileLimits) }
 			{
 			}
 
@@ -997,7 +1045,7 @@ namespace bpr::adapters::github::detail {
 						std::lock_guard lock{ WorkerMutex };
 						if (Worker == nullptr) {
 							Worker = std::make_unique<process_worker>(
-								TestSeam);
+								TestSeam, FileLimits);
 						}
 						worker = Worker.get();
 					}
@@ -1011,23 +1059,36 @@ namespace bpr::adapters::github::detail {
 
 		private:
 			std::shared_ptr<github_cli_process_runner_test_seam> TestSeam;
+			github_cli_process_file_limits                       FileLimits;
 			std::mutex                                           WorkerMutex;
 			std::unique_ptr<process_worker>                      Worker;
 		};
 
 		[[nodiscard]] auto make_qprocess_github_cli_process_runner(
-			std::shared_ptr<github_cli_process_runner_test_seam> aTestSeam)
+			std::shared_ptr<github_cli_process_runner_test_seam> aTestSeam,
+			github_cli_process_file_limits                       aFileLimits = { })
 			-> std::unique_ptr<github_cli_process_port>
 		{
 			return std::make_unique<qprocess_github_cli_process_runner>(
-				std::move(aTestSeam));
+				std::move(aTestSeam), std::move(aFileLimits));
 		}
 	}
 
-	auto make_github_cli_process_runner()
+	auto make_github_cli_process_runner(github_cli_process_file_limits aFileLimits)
 		-> std::unique_ptr<github_cli_process_port>
 	{
-		return make_qprocess_github_cli_process_runner(nullptr);
+		if (!aFileLimits.StandardOutputFile.empty()
+			&& (aFileLimits.MaximumFileBytes == 0U || aFileLimits.StandardOutputFile.parent_path() != aFileLimits.Directory
+				|| std::filesystem::exists(aFileLimits.StandardOutputFile))) {
+			return nullptr;
+		}
+		if (aFileLimits.MaximumFileBytes != 0U
+			&& (aFileLimits.MaximumFileBytes > 32U * 1024U * 1024U || !aFileLimits.Directory.is_absolute()
+				|| aFileLimits.MaximumDirectoryBytes == 0U || aFileLimits.MaximumDirectoryEntries == 0U
+				|| aFileLimits.MaximumDirectoryEntries > 256U)) {
+			return nullptr;
+		}
+		return make_qprocess_github_cli_process_runner(nullptr, std::move(aFileLimits));
 	}
 
 	auto make_github_cli_process_runner_for_test(

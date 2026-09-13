@@ -1,3 +1,4 @@
+#include "bpr/application/git_smart_transport_port.hpp"
 #include "github_provider.hpp"
 #include "github_wire_request_validation.hpp"
 
@@ -94,12 +95,47 @@ namespace {
 		std::deque<std::function<void()>> Tasks;
 	};
 
-	class fake_wire_transport final : public github_wire_transport_port
+	class fake_git_transport final : public application::git_smart_transport_port
 	{
 	public:
-		using read_handler       = std::function<github_wire_completion(
+		void revoke() noexcept override { Revoked = true; }
+		bool revoked() const noexcept override { return Revoked; }
+		auto discover(const application::git_smart_discovery_request&, std::stop_token) -> application::git_smart_transport_result<application::git_smart_discovery_response> override
+		{
+			++Calls;
+			if (Hook) {
+				Hook();
+			}
+			return application::git_smart_discovery_response{ };
+		}
+		auto ls_refs(const application::git_smart_ls_refs_request&, std::stop_token) -> application::git_smart_transport_result<application::git_smart_ls_refs_response> override
+		{
+			++Calls;
+			if (Hook) {
+				Hook();
+			}
+			return application::git_smart_ls_refs_response{ };
+		}
+		auto fetch(const application::git_smart_fetch_request&, application::git_smart_wire_consumer&, std::stop_token) -> application::git_smart_transport_result<void> override
+		{
+			++Calls;
+			if (Hook) {
+				Hook();
+			}
+			return { };
+		}
+		bool                  Revoked = false;
+		unsigned              Calls   = 0;
+		std::function<void()> Hook;
+	};
+	class fake_wire_transport final : public github_wire_transport_port, public application::git_smart_transport_factory_port
+	{
+	public:
+		auto                                acquire(const application::git_smart_request_context&) -> application::git_smart_transport_result<application::git_smart_transport> override { return Git; }
+		std::shared_ptr<fake_git_transport> Git = std::make_shared<fake_git_transport>();
+		using read_handler                      = std::function<github_wire_completion(
 			const github_wire_request&, std::stop_token)>;
-		using capability_handler = std::function<github_capability_probe_wire_completion(
+		using capability_handler                = std::function<github_capability_probe_wire_completion(
 			const github_capability_probe_wire_request&, std::stop_token)>;
 
 		[[nodiscard]] auto perform(const github_wire_request& aRequest,
@@ -1929,6 +1965,42 @@ namespace {
 		}
 	}
 
+	void test_cli_git_lease_forwarding()
+	{
+		for (const bool postflight : { false, true }) {
+			provider_fixture fixture{ application::github_authentication_transport::github_cli };
+			fixture.Factory->CliEnabled    = true;
+			bool changed                   = false;
+			fixture.Transport->ReadHandler = [&](const github_wire_request& wire, std::stop_token) -> github_wire_completion {
+				auto response = viewer_response();
+				if (changed) {
+					response.Body = R"({"id":1001,"login":"renamed","name":"Changed","node_id":"U_other"})";
+				}
+				return github_wire_success{ .Correlation = wire.Correlation, .Response = std::move(response) };
+			};
+			auto  viewer  = run_viewer(fixture, { .Request = viewer_request_for(fixture.Profile), .Authentication = std::monostate{ } });
+			auto& success = std::get<application::github_viewer_success>(viewer);
+			auto* factory = dynamic_cast<application::git_smart_transport_factory_port*>(success.AccountTransport.get());
+			expect(factory != nullptr, "CLI observed account forwards Git factory");
+			application::git_smart_request_context context{ };
+			context.Authority.Account = core::github_account_id{ 1001 };
+			const auto initial        = fixture.Transport->ReadRequests.size();
+			auto       git            = factory->acquire(context);
+			expect(git.has_value() && fixture.Transport->ReadRequests.size() == initial, "Git acquisition is side-effect free");
+			success.AccountTransport.reset();
+			expect((*git)->discover({ context }, { }).has_value() && fixture.Transport->ReadRequests.size() == initial + 2, "Git lease survives account release and performs pre/post account checks");
+			expect((*git)->ls_refs({ context, { } }, { }).has_value() && fixture.Transport->ReadRequests.size() == initial + 4, "refs round retains account checks");
+			changed                      = !postflight;
+			fixture.Transport->Git->Hook = [&] { changed = true; };
+			const auto dispatched        = fixture.Transport->Git->Calls;
+			auto       denied            = (*git)->discover({ context }, { });
+			expect(!denied && denied.error().Failure == application::git_smart_transport_failure::authentication && (*git)->revoked(), "pre/post login drift revokes Git lease");
+			expect(fixture.Transport->Git->Calls == dispatched + (postflight ? 1U : 0U), "preflight forbids dispatch and postflight discards result");
+			changed                 = false;
+			const auto observations = fixture.Transport->ReadRequests.size();
+			expect(!(*git)->discover({ context }, { }).has_value() && fixture.Transport->ReadRequests.size() == observations, "revoked Git lease cannot revive after account returns");
+		}
+	}
 	void test_cli_is_categorically_unavailable()
 	{
 		provider_fixture fixture{
@@ -2043,5 +2115,6 @@ int main()
 	test_exception_containment_is_exactly_once();
 	test_cli_is_categorically_unavailable();
 	test_cli_observed_account_lease();
+	test_cli_git_lease_forwarding();
 	return EXIT_SUCCESS;
 }

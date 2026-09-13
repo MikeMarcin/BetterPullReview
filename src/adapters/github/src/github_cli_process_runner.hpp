@@ -3,9 +3,24 @@
 
 #include "github_cli_process.hpp"
 
+#include <cstdint>
+#include <filesystem>
 #include <memory>
 
 namespace bpr::adapters::github::detail {
+	/// \brief Bounds files created by a task-owned Git acquisition process.
+	/// \details The kernel enforces the per-file ceiling; directory accounting
+	/// is checked between bounded process waits, so it is an abort threshold.
+	struct github_cli_process_file_limits
+	{
+		std::uint64_t         MaximumFileBytes = 0U;
+		std::filesystem::path Directory;
+		std::uint64_t         MaximumDirectoryBytes   = 0U;
+		std::size_t           MaximumDirectoryEntries = 0U;
+		// Optional task-owned stdout spool; clean success exposes no stdout bytes.
+		std::filesystem::path StandardOutputFile;
+		bool                  DiscardStandardOutput = false;
+	};
 	class github_cli_process_runner_test_seam
 	{
 	public:
@@ -19,7 +34,7 @@ namespace bpr::adapters::github::detail {
 		virtual auto before_execute() -> void = 0;
 	};
 
-	[[nodiscard]] auto make_github_cli_process_runner()
+	[[nodiscard]] auto make_github_cli_process_runner(github_cli_process_file_limits aFileLimits = { })
 		-> std::unique_ptr<github_cli_process_port>;
 
 	[[nodiscard]] auto make_github_cli_process_runner_for_test(

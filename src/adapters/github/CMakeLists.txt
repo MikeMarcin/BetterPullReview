@@ -58,6 +58,7 @@ if(BPR_BUILD_QT)
         better_pull_review_adapter_github
         STATIC
             src/gh_cli_transport.cpp
+            src/gh_cli_git_smart_transport.cpp
             src/github_capability_probe.cpp
             src/github_cli_process_runner.cpp
             src/github_host_profile.cpp

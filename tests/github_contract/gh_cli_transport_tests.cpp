@@ -42,6 +42,21 @@ namespace {
 		}
 	}
 
+	[[nodiscard]] auto gh_arguments(const github_cli_process_request& aRequest)
+		-> std::vector<std::string>
+	{
+#if defined(__APPLE__)
+		expect(aRequest.Executable == "/usr/bin/sandbox-exec"
+				   && aRequest.Arguments.size() >= 4U
+				   && aRequest.Arguments[0] == "-p"
+				   && aRequest.Arguments[1] == "(version 1)(allow default)(deny file-write*)(allow file-write* (literal \"/dev/null\"))",
+			   "every macOS gh request denies file writes before launch");
+		return { aRequest.Arguments.begin() + 3, aRequest.Arguments.end() };
+#else
+		return aRequest.Arguments;
+#endif
+	}
+
 	[[nodiscard]] auto path_bytes(const std::filesystem::path& aPath)
 		-> std::string
 	{
@@ -573,6 +588,9 @@ namespace {
 			configuration.has_value() && cloud.has_value()
 				&& enterprise.has_value(),
 			"all exact-invocation prerequisites validate");
+		expect(gh_arguments(compile_gh_cli_version_request(*configuration))
+				   == std::vector<std::string>{ "--version" },
+			   "version preflight has the same write containment as reads");
 
 		for (const auto* profile : { &*cloud, &*enterprise }) {
 			for (const auto operation : read_operation_catalog) {
@@ -585,7 +603,11 @@ namespace {
 					invocation.has_value(),
 					"every read operation compiles for both server contracts");
 				expect(
+#if defined(__APPLE__)
+					invocation->Arguments[2]
+#else
 					invocation->Executable
+#endif
 							== path_bytes(std::filesystem::canonical(
 								layout.Executable))
 						&& invocation->WorkingDirectory
@@ -593,7 +615,7 @@ namespace {
 								layout.NeutralDirectory)),
 					"invocation retains canonical executable and neutral cwd");
 				expect(
-					invocation->Arguments
+					gh_arguments(*invocation)
 						== expected_arguments(*profile, request),
 					"invocation uses the exact closed argument shape");
 				expect(
@@ -614,9 +636,9 @@ namespace {
 							== std::chrono::seconds{ 2 },
 					"all process dimensions use fixed bounds");
 				expect(
-					!invocation->Arguments[1U].starts_with('-')
-						&& !invocation->Arguments[1U].starts_with('@')
-						&& invocation->Arguments[1U].find("://")
+					!gh_arguments(*invocation)[1U].starts_with('-')
+						&& !gh_arguments(*invocation)[1U].starts_with('@')
+						&& gh_arguments(*invocation)[1U].find("://")
 							== std::string::npos,
 					"compiled endpoint remains relative and non-option-like");
 			}
@@ -1037,7 +1059,7 @@ namespace {
 					   && success->Response.Completeness == completeness
 					   && success->Response.Headers.back().Value == "42",
 				   "actual status, body, headers and pagination survive");
-			expect(process.LastRequest->Arguments == expected_arguments(*cloud, request), "perform executes closed include argv");
+			expect(gh_arguments(*process.LastRequest) == expected_arguments(*cloud, request), "perform executes closed include argv");
 		}
 		for (const auto& output : std::vector<std::string>{
 				 "{}", "HTTP/2.0 200 OK\n{}", "HTTP/2.0 600 Error\n\r\n{}",
@@ -1314,7 +1336,7 @@ namespace {
 			expect(success != nullptr && success->Correlation == request.Correlation && success->Response.Status == 200
 					   && success->Response.Authenticated && success->Response.ContentType == "application/json" && success->Response.Body == "{}",
 				   "probe preserves bounded response and correlation");
-			expect(process.LastRequest->Arguments[1] == "graphql" && process.LastRequest->Arguments.back() == "-" && process.LastRequest->StandardInput == wire->Body, "probe sends exact canonical query by stdin");
+			expect(gh_arguments(*process.LastRequest)[1] == "graphql" && process.LastRequest->Arguments.back() == "-" && process.LastRequest->StandardInput == wire->Body, "probe sends exact canonical query by stdin");
 			const auto calls  = process.Calls;
 			request.Wire.Body = "mutation { unsafe }";
 			expect(std::holds_alternative<github_capability_probe_wire_error>(transport.perform_capability_probe(request, { })) && process.Calls == calls, "probe mutation drift never launches");

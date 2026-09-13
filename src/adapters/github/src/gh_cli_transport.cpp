@@ -9,6 +9,7 @@
 #include <concepts>
 #include <cstddef>
 #include <filesystem>
+#include <iterator>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -29,6 +30,32 @@ namespace bpr::adapters::github::detail {
 		constexpr std::size_t maximum_standard_error_bytes    = 64U * 1024U;
 		constexpr auto        process_timeout                 = std::chrono::seconds{ 30 };
 		constexpr auto        process_reap_timeout            = std::chrono::seconds{ 2 };
+
+		[[nodiscard]] auto constrain_gh_writes(github_cli_process_request aRequest,
+											   const std::string&         aWritableRoot = { })
+			-> github_cli_process_request
+		{
+#if defined(__APPLE__)
+			// gh migrates legacy config even for --version and api. Deny writes
+			// before exec, including symlink targets and descendants; observing a
+			// change afterwards cannot undo a credential/configuration migration.
+			std::vector<std::string> arguments{
+				"-p",
+				"(version 1)(allow default)(deny file-write*)(allow file-write* (literal \"/dev/null\"))",
+				std::move(aRequest.Executable),
+			};
+			if (!aWritableRoot.empty()) {
+				arguments[1] += "(allow file-write* (subpath \"" + aWritableRoot + "\"))";
+			}
+			arguments.insert(arguments.end(),
+							 std::make_move_iterator(aRequest.Arguments.begin()),
+							 std::make_move_iterator(aRequest.Arguments.end()));
+			aRequest.Executable = "/usr/bin/sandbox-exec";
+			aRequest.Arguments  = std::move(arguments);
+#endif
+			static_cast<void>(aWritableRoot);
+			return aRequest;
+		}
 
 		[[nodiscard]] auto
 		parse_link_completeness(const std::optional<std::string>& aLink) noexcept
@@ -1068,7 +1095,7 @@ namespace bpr::adapters::github::detail {
 			return std::unexpected{ gh_cli_invocation_failure::request_limit };
 		}
 
-		return github_cli_process_request{
+		return constrain_gh_writes(github_cli_process_request{
 			.Executable              = path_bytes(aConfiguration.Executable),
 			.Arguments               = std::move(arguments),
 			.Environment             = aConfiguration.Environment,
@@ -1080,14 +1107,14 @@ namespace bpr::adapters::github::detail {
 			.Timeout                 = process_timeout,
 			.ReapTimeout             = process_reap_timeout,
 			.PreserveCompletedOutput = true,
-		};
+		});
 	}
 
 	auto compile_gh_cli_version_request(
 		const validated_gh_cli_configuration& aConfiguration)
 		-> github_cli_process_request
 	{
-		return github_cli_process_request{
+		return constrain_gh_writes(github_cli_process_request{
 			.Executable          = path_bytes(aConfiguration.Executable),
 			.Arguments           = { "--version" },
 			.Environment         = aConfiguration.Environment,
@@ -1098,7 +1125,69 @@ namespace bpr::adapters::github::detail {
 			.StandardErrorLimit  = 2048U,
 			.Timeout             = std::chrono::seconds{ 5 },
 			.ReapTimeout         = process_reap_timeout,
-		};
+		});
+	}
+
+	auto compile_gh_cli_git_clone_request(
+		const validated_gh_cli_configuration&         aConfiguration,
+		const validated_github_host_profile&          aProfile,
+		const application::git_smart_request_context& aContext, core::git_commit_oid aCommit,
+		const std::filesystem::path& aGit, const std::filesystem::path& aRoot,
+		std::size_t aIndex) -> std::optional<github_cli_process_request>
+	{
+#if !defined(__APPLE__)
+		static_cast<void>(aConfiguration);
+		static_cast<void>(aProfile);
+		static_cast<void>(aContext);
+		static_cast<void>(aCommit);
+		static_cast<void>(aGit);
+		static_cast<void>(aRoot);
+		static_cast<void>(aIndex);
+		return std::nullopt;
+#else
+		std::error_code error;
+		const auto      root = std::filesystem::canonical(aRoot, error);
+		const auto      name = aRoot.filename().string();
+		if (error || root != aRoot || root.parent_path() != "/private/tmp"
+			|| !name.starts_with("bpr-cli-git-") || name.size() > 64U
+			|| !std::ranges::all_of(name, [](unsigned char aByte) {
+				   return (aByte >= 'a' && aByte <= 'z') || (aByte >= 'A' && aByte <= 'Z')
+					   || (aByte >= '0' && aByte <= '9') || aByte == '-';
+			   })
+			|| aIndex > 1U || !application::valid(aContext) || !aCommit.valid() || aCommit.algorithm() != core::git_hash_algorithm::sha1 || aProfile.authentication_transport() != application::github_authentication_transport::github_cli || aContext.Authority.Profile != aProfile.profile() || aContext.Authority.Host != aProfile.host() || aContext.Authority.ProfileRevision.value() != aProfile.revision().value()) {
+			return std::nullopt;
+		}
+		if (!aGit.is_absolute() || std::filesystem::canonical(aGit, error) != aGit || error
+			|| !std::filesystem::is_regular_file(aGit, error) || error || !executable_permissions(aGit)) {
+			return std::nullopt;
+		}
+		auto environment = aConfiguration.Environment;
+		append_environment(environment, "PATH", path_bytes(aGit.parent_path()));
+		append_fixed_environment(environment, "GIT_CONFIG_NOSYSTEM=1");
+		append_fixed_environment(environment, "GIT_CONFIG_GLOBAL=/dev/null");
+		append_fixed_environment(environment, "GIT_ATTR_NOSYSTEM=1");
+		append_fixed_environment(environment, "GIT_TERMINAL_PROMPT=0");
+		append_fixed_environment(environment, "GIT_ALLOW_PROTOCOL=https");
+		return constrain_gh_writes(github_cli_process_request{
+									   .Executable              = path_bytes(aConfiguration.Executable),
+									   .Arguments               = { "repo", "clone", "https://" + std::string{ aProfile.hostname() } + "/" + aContext.Repository.Owner + "/" + aContext.Repository.Name + ".git",
+																	path_bytes(root / ("clone-" + std::to_string(aIndex) + ".git")), "--no-upstream", "--",
+																	"--bare", "--quiet", "--revision=" + std::string{ core::canonical_hex(aCommit).view() },
+																	"--template=" + path_bytes(root / "empty"), "--config", "transfer.unpackLimit=0",
+																	"--config", "fetch.unpackLimit=0", "--config", "core.hooksPath=/dev/null",
+																	"--config", "core.fsmonitor=false" },
+									   .Environment             = std::move(environment),
+									   .WorkingDirectory        = path_bytes(aConfiguration.NeutralWorkingDirectory),
+									   .StandardInput           = { },
+									   .StandardInputLimit      = 1U,
+									   .StandardOutputLimit     = 4096U,
+									   .StandardErrorLimit      = maximum_standard_error_bytes,
+									   .Timeout                 = std::chrono::minutes{ 2 },
+									   .ReapTimeout             = process_reap_timeout,
+									   .PreserveCompletedOutput = true,
+								   },
+								   path_bytes(root));
+#endif
 	}
 
 	gh_cli_transport::gh_cli_transport(
@@ -1303,7 +1392,7 @@ namespace bpr::adapters::github::detail {
 		}
 		invocation.Arguments.emplace_back("--input");
 		invocation.Arguments.emplace_back("-");
-		const auto result = Process.run(invocation, aStop);
+		const auto result = Process.run(constrain_gh_writes(std::move(invocation)), aStop);
 		if (aStop.stop_requested() || (!result && result.error() == github_cli_process_failure::cancelled)) {
 			return github_capability_probe_wire_cancelled{ .Correlation = aRequest.Correlation };
 		}

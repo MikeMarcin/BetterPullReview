@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_ADAPTERS_GITHUB_SRC_GH_CLI_TRANSPORT_HPP
 #define BPR_SRC_ADAPTERS_GITHUB_SRC_GH_CLI_TRANSPORT_HPP
 
+#include "bpr/application/git_smart_transport_port.hpp"
 #include "github_cli_process.hpp"
 #include "github_host_profile.hpp"
 #include "github_wire_transport.hpp"
@@ -136,6 +137,11 @@ namespace bpr::adapters::github::detail {
 		friend auto compile_gh_cli_version_request(
 			const validated_gh_cli_configuration& aConfiguration)
 			-> github_cli_process_request;
+		friend auto compile_gh_cli_git_clone_request(
+			const validated_gh_cli_configuration&, const validated_github_host_profile&,
+			const application::git_smart_request_context&, core::git_commit_oid,
+			const std::filesystem::path&, const std::filesystem::path&, std::size_t)
+			-> std::optional<github_cli_process_request>;
 	};
 
 	using gh_cli_configuration_result = std::expected<
@@ -159,6 +165,14 @@ namespace bpr::adapters::github::detail {
 	[[nodiscard]] auto compile_gh_cli_version_request(
 		const validated_gh_cli_configuration& aConfiguration)
 		-> github_cli_process_request;
+
+	/// \brief Compiles one exact-commit clone into an owned, write-confined store.
+	[[nodiscard]] auto compile_gh_cli_git_clone_request(
+		const validated_gh_cli_configuration&         aConfiguration,
+		const validated_github_host_profile&          aProfile,
+		const application::git_smart_request_context& aContext, core::git_commit_oid aCommit,
+		const std::filesystem::path& aGit, const std::filesystem::path& aRoot,
+		std::size_t aIndex) -> std::optional<github_cli_process_request>;
 
 	enum class gh_cli_availability_reason : std::uint8_t {
 		opt_in_product_scope_in_progress,
@@ -190,6 +204,8 @@ namespace bpr::adapters::github::detail {
 			const github_capability_probe_wire_request& aRequest,
 			std::stop_token                             aStop) -> github_capability_probe_wire_completion override;
 
+		[[nodiscard]] auto configuration_unchanged() const -> bool;
+
 	private:
 		struct configuration_metadata
 		{
@@ -203,7 +219,6 @@ namespace bpr::adapters::github::detail {
 			-> std::optional<std::array<configuration_metadata, 3>>;
 		std::filesystem::path                                ConfigurationDirectory;
 		std::optional<std::array<configuration_metadata, 3>> ConfigurationFiles;
-		[[nodiscard]] auto                                   configuration_unchanged() const -> bool;
 		std::uintmax_t                                       ExecutableSize = 0U;
 		std::filesystem::file_time_type                      ExecutableWriteTime{ };
 		bool                                                 ConfigurationObserved = false;

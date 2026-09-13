@@ -1187,3 +1187,16 @@ if(WIN32)
             TIMEOUT 30
     )
 endif()
+
+if(APPLE)
+    bpr_add_executable(test_better_pull_review_gh_cli_git_smart_transport_tests gh_cli_git_smart_transport_tests.cpp)
+    target_link_libraries(test_better_pull_review_gh_cli_git_smart_transport_tests PRIVATE BetterPullReview::AdapterGitHub BetterPullReview::Application Qt6::Core)
+    target_include_directories(test_better_pull_review_gh_cli_git_smart_transport_tests PRIVATE "${PROJECT_SOURCE_DIR}/src/adapters/github/src")
+    bpr_enable_hardening(test_better_pull_review_gh_cli_git_smart_transport_tests)
+    bpr_enable_warnings(test_better_pull_review_gh_cli_git_smart_transport_tests)
+    # macOS refuses nested sandbox initialization. This closed self fixture
+    # has no network implementation and local Git admits no protocols; gh's
+    # production sandbox remains active inside the test.
+    add_test(NAME gh_cli_git_smart_transport COMMAND test_better_pull_review_gh_cli_git_smart_transport_tests)
+    set_tests_properties(gh_cli_git_smart_transport PROPERTIES TIMEOUT 60 LABELS bpr_local_only_fixture)
+endif()

@@ -16,6 +16,7 @@
 #include "bpr/app/worker_executor.hpp"
 
 #include "designated_review_public_observer.hpp"
+#include "gh_cli_git_smart_transport.hpp"
 #include "gh_cli_transport.hpp"
 #include "github_cli_process_runner.hpp"
 #include "github_device_authorization_transport.hpp"
@@ -536,16 +537,30 @@ namespace bpr::app {
 
 #if defined(__APPLE__)
 		class owned_cli_read_transport final
-			: public adapters::github::detail::github_wire_transport_port
+			: public adapters::github::detail::github_wire_transport_port,
+			  public application::git_smart_transport_factory_port,
+			  public std::enable_shared_from_this<owned_cli_read_transport>
 		{
 		public:
 			owned_cli_read_transport(
 				const validated_github_host_profile&                               aProfile,
 				const adapters::github::detail::validated_gh_cli_configuration&    aConfiguration,
-				std::unique_ptr<adapters::github::detail::github_cli_process_port> aProcess)
+				std::unique_ptr<adapters::github::detail::github_cli_process_port> aProcess,
+				core::github_session_request_context aSession, std::filesystem::path aGit)
 				: Process{ std::move(aProcess) }
 				, Transport{ aProfile, aConfiguration, *Process }
+				, Profile{ aProfile }
+				, Configuration{ aConfiguration }
+				, Session{ aSession }
+				, Git{ std::move(aGit) }
 			{
+			}
+
+			auto acquire(const application::git_smart_request_context& aContext)
+				-> application::git_smart_transport_result<application::git_smart_transport> override
+			{
+				return adapters::github::detail::make_gh_cli_git_smart_transport(Profile, Configuration, Git, Session, aContext,
+																				 [self = shared_from_this()] { return self->Transport.configuration_unchanged(); });
 			}
 
 			[[nodiscard]] auto perform(
@@ -567,6 +582,10 @@ namespace bpr::app {
 		private:
 			std::unique_ptr<adapters::github::detail::github_cli_process_port> Process;
 			adapters::github::detail::gh_cli_transport                         Transport;
+			validated_github_host_profile                                      Profile;
+			adapters::github::detail::validated_gh_cli_configuration           Configuration;
+			core::github_session_request_context                               Session;
+			std::filesystem::path                                              Git;
 		};
 
 		class opted_in_cli_transport_factory final
@@ -663,7 +682,8 @@ namespace bpr::app {
 					}
 					return std::shared_ptr<github_wire_transport_port>{
 						std::make_shared<owned_cli_read_transport>(aProfile, *configuration,
-																   std::move(process))
+																   std::move(process), aContext,
+																   native_filesystem_path(QFileInfo{ QStandardPaths::findExecutable(QStringLiteral("git")) }.canonicalFilePath()))
 					};
 				} catch (...) {
 					return unavailable();
@@ -9172,10 +9192,10 @@ namespace bpr::app {
 									"BetterPullReview will use your installed gh for reads on %1. "
 									"The active gh account can change outside this app. "
 									"gh may follow redirects and use your CLI configuration, "
-									"certificates, executable and helper processes. "
+									"certificates and executable. For Git objects, gh may launch Git and its own shell credential helper. "
 									"Only gh's default home-directory configuration is used; custom CLI environment overrides are ignored. "
-									"These risks are not contained by BetterPullReview. "
-									"Full diffs and publishing through gh are not available yet. "
+									"File writes are restricted, but executable identity and external account-change races remain. "
+									"Git-object reads require the qualified gh/Git versions and fit a 32 MiB pack limit. Publishing through gh is unavailable. "
 									"Connecting for reads does not authorize publishing.")
 									.arg(QString::fromStdString(std::string{ profile->hostname() })),
 								QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
