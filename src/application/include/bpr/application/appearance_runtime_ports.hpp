@@ -76,7 +76,7 @@ namespace bpr::application {
 	/// \brief Describes the durable appearance settings record.
 	///
 	/// \details This is the whole durable appearance state: the selected mode, the
-	/// palette over the core's closed role vocabulary, and both fonts. A fresh
+	/// palette over the core's closed role vocabulary, both fonts, and Dif preferences. A fresh
 	/// installation has no durable record, and the mode defaults to `system`. The
 	/// host chooses no colour and no family: the palette and the typography a
 	/// host starts from are supplied by its composition, and every other value it
@@ -104,6 +104,7 @@ namespace bpr::application {
 		/// palette then read as forty-six deliberate overrides pinned over the
 		/// dark profile, which is BPR-0216 reappearing for stored records.
 		core::appearance_variant PaletteVariant = core::appearance_variant::light;
+		core::dif_preferences    Dif;
 
 		auto operator<=>(const appearance_settings&) const = default;
 	};
@@ -324,6 +325,7 @@ namespace bpr::application {
 		std::optional<core::appearance_resolution> Resolution;
 		std::optional<core::appearance_palette>    Palette;
 		std::optional<core::typography_settings>   Typography;
+		std::optional<core::dif_resolution>        Dif;
 
 		auto operator<=>(const appearance_presentation_invalidation&) const = default;
 	};
@@ -334,7 +336,7 @@ namespace bpr::application {
 	{
 		return !aInvalidation.Resolution.has_value()
 			&& !aInvalidation.Palette.has_value()
-			&& !aInvalidation.Typography.has_value();
+			&& !aInvalidation.Typography.has_value() && !aInvalidation.Dif.has_value();
 	}
 
 	/// \brief Describes one published classification.
@@ -414,6 +416,7 @@ namespace bpr::application {
 		theme_export_unavailable,
 		palette_contrast_rejected,
 		unknown_appearance_mode,
+		invalid_dif_preferences,
 		classification_unavailable,
 		classification_limit,
 		invalid_classification_key,
@@ -515,7 +518,8 @@ namespace bpr::application {
 	};
 
 	/// \brief Identifies an independently resettable durable appearance group.
-	enum class appearance_reset_scope : std::uint8_t { mode,
+	enum class appearance_reset_scope : std::uint8_t { dif,
+													   mode,
 													   interface_font,
 													   code_font,
 													   palette };
@@ -536,7 +540,13 @@ namespace bpr::application {
 	/// appearance that the host has no rule for. Preview is explicitly distinct
 	/// from commit: the former stays in Qt presentation while the latter passes
 	/// through host validation and persistence.
-	using appearance_intent = std::variant<select_appearance_mode_intent,
+	/// \brief Offers profile-owned decorative preferences for host validation.
+	struct apply_dif_preferences_intent
+	{
+		core::dif_preferences Preferences;
+	};
+
+	using appearance_intent = std::variant<apply_dif_preferences_intent, select_appearance_mode_intent,
 										   apply_typography_intent,
 										   preview_appearance_palette_intent,
 										   commit_appearance_palette_intent,

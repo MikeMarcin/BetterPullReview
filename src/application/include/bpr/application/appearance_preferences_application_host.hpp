@@ -27,6 +27,11 @@ namespace bpr::application {
 		auto               operator=(const appearance_preferences_application_host&) -> appearance_preferences_application_host& = delete;
 		[[nodiscard]] auto attach(std::shared_ptr<appearance_projection_port> aPort, bool aPublishInitial = true) -> std::expected<appearance_consumer_id, appearance_attachment_failure>;
 		void               detach(appearance_consumer_id aConsumer);
+		/// \brief Applies profile preferences through the accepted settings path.
+		void apply(appearance_consumer_id aConsumer, core::dif_preferences aPreferences);
+		/// \brief Observes bounded native motion facts for this attachment only.
+		void               observe_motion(appearance_consumer_id aConsumer, core::motion_observation aObservation);
+		[[nodiscard]] auto dif_resolution(appearance_consumer_id aConsumer) const noexcept -> core::dif_resolution;
 		void               restore(appearance_consumer_id aConsumer);
 		void               select(appearance_consumer_id aConsumer, core::appearance_mode aMode);
 		void               observe(appearance_consumer_id aConsumer, core::appearance_observation aObservation);

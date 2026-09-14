@@ -669,7 +669,7 @@ namespace {
 		{
 			::sqlite3* raw = nullptr;
 			expect(::sqlite3_open(path.string().c_str(), &raw) == SQLITE_OK, "legacy fixture opens raw");
-			expect(::sqlite3_exec(raw, "ALTER TABLE appearance_settings DROP COLUMN palette_stored; UPDATE appearance_meta SET schema_format = 2; PRAGMA user_version = 2", nullptr, nullptr, nullptr) == SQLITE_OK,
+			expect(::sqlite3_exec(raw, "ALTER TABLE appearance_settings DROP COLUMN dif_visibility; ALTER TABLE appearance_settings DROP COLUMN motion_mode; ALTER TABLE appearance_settings DROP COLUMN palette_stored; UPDATE appearance_meta SET schema_format = 2; PRAGMA user_version = 2", nullptr, nullptr, nullptr) == SQLITE_OK,
 				   "fixture has the exact version-two column set and stamps");
 			expect(::sqlite3_close(raw) == SQLITE_OK, "legacy fixture closes");
 		}
@@ -704,7 +704,7 @@ namespace {
 		{
 			::sqlite3* raw = nullptr;
 			expect(::sqlite3_open(path.string().c_str(), &raw) == SQLITE_OK, "version-three fixture opens raw");
-			expect(::sqlite3_exec(raw, "UPDATE appearance_meta SET schema_format = 3; PRAGMA user_version = 3", nullptr, nullptr, nullptr) == SQLITE_OK,
+			expect(::sqlite3_exec(raw, "ALTER TABLE appearance_settings DROP COLUMN dif_visibility; ALTER TABLE appearance_settings DROP COLUMN motion_mode; UPDATE appearance_meta SET schema_format = 3; PRAGMA user_version = 3", nullptr, nullptr, nullptr) == SQLITE_OK,
 				   "fixture carries the version-three columns and stamps");
 			expect(::sqlite3_close(raw) == SQLITE_OK, "version-three fixture closes");
 		}
@@ -752,7 +752,7 @@ namespace {
 								  " || substr(palette_document, instr(palette_document, 'syntax_macro ')"
 								  " + instr(substr(palette_document, instr(palette_document, 'syntax_macro ')), char(10)))"
 								  " WHERE singleton = 1;"
-								  "UPDATE appearance_meta SET schema_format = 4; PRAGMA user_version = 4",
+								  "ALTER TABLE appearance_settings DROP COLUMN dif_visibility; ALTER TABLE appearance_settings DROP COLUMN motion_mode; UPDATE appearance_meta SET schema_format = 4; PRAGMA user_version = 4",
 								  nullptr, nullptr, nullptr)
 					   == SQLITE_OK,
 				   "fixture carries a document without the macro role and the version-four stamps");
@@ -796,6 +796,70 @@ namespace {
 				   == SQLITE_OK,
 			   "legacy schema, columns and rows can be captured");
 		return cells;
+	}
+
+	void test_version_five_dif_migration_and_corrupt_refusal()
+	{
+		const auto scratch   = scratch_directory{ };
+		const auto mutations = std::array{ "", "UPDATE appearance_settings SET ui_point_size = 1", "UPDATE appearance_settings SET mode = 'unknown'", "UPDATE appearance_settings SET palette_variant = 'unknown'", "UPDATE appearance_settings SET palette_document = 'invalid'", "PRAGMA ignore_check_constraints = ON; UPDATE appearance_settings SET palette_stored = 2", "PRAGMA ignore_check_constraints = ON; UPDATE appearance_settings SET code_ligatures = 2" };
+		for (std::size_t index = 0; index < mutations.size(); ++index) {
+			const auto corrupt   = index != 0;
+			const auto path      = scratch.file("v5-" + std::to_string(index) + ".sqlite3");
+			auto       chosen    = distinct_settings();
+			chosen.PaletteStored = true;
+			{
+				auto database = appearance_settings_database::open(path, { });
+				expect(database && database->store(chosen, { }), "version-five fixture begins with distinct settings");
+			}
+			::sqlite3* raw = nullptr;
+			expect(::sqlite3_open(path.string().c_str(), &raw) == SQLITE_OK, "v5 fixture opens raw");
+			expect(::sqlite3_exec(raw, "ALTER TABLE appearance_settings DROP COLUMN dif_visibility; ALTER TABLE appearance_settings DROP COLUMN motion_mode; UPDATE appearance_meta SET schema_format = 5; PRAGMA user_version = 5", nullptr, nullptr, nullptr) == SQLITE_OK, "fixture has exact version-five schema");
+			if (corrupt) {
+				expect(::sqlite3_exec(raw, mutations[index], nullptr, nullptr, nullptr) == SQLITE_OK, "invalid legacy value inserted");
+			}
+			const auto before = legacy_snapshot(raw);
+			expect(::sqlite3_close(raw) == SQLITE_OK, "v5 raw writer closes");
+			auto migrated = appearance_settings_database::open(path, { });
+			if (corrupt) {
+				expect(!migrated, "invalid version-five values refuse migration");
+				expect(::sqlite3_open(path.string().c_str(), &raw) == SQLITE_OK, "refused v5 reopens raw");
+				expect(legacy_snapshot(raw) == before, "refusal leaves all legacy schema, stamps and values unchanged");
+				expect(::sqlite3_close(raw) == SQLITE_OK, "refusal reader closes");
+				continue;
+			}
+			expect(migrated.has_value(), "version-five migration succeeds");
+			const auto loaded = migrated->load({ });
+			expect(loaded && loaded->has_value() && **loaded == chosen && (**loaded).Dif == core::dif_preferences{ }, "migration preserves complete legacy settings and supplies shown/System");
+			chosen.Dif = { .Visibility = core::dif_visibility::hidden, .Motion = core::motion_mode::full };
+			expect(migrated->store(chosen, { }).has_value(), "new Dif choices store");
+			migrated      = appearance_settings_database{ };
+			auto reopened = appearance_settings_database::open(path, { });
+			expect(reopened && reopened->load({ }).value().value() == chosen, "Dif and legacy settings restore together after reopen");
+		}
+	}
+
+	void test_corrupt_dif_values_are_refused()
+	{
+		const auto scratch = scratch_directory{ };
+		for (const auto* mutation : { "UPDATE appearance_settings SET dif_visibility = 256", "UPDATE appearance_settings SET motion_mode = -1" }) {
+			const auto path = scratch.file("dif.sqlite3");
+			{
+				auto database = appearance_settings_database::open(path, { });
+				expect(database && database->store(distinct_settings(), { }), "valid Dif fixture stores");
+			}
+			::sqlite3* raw = nullptr;
+			expect(::sqlite3_open(path.string().c_str(), &raw) == SQLITE_OK, "Dif fixture opens raw");
+			expect(::sqlite3_exec(raw, "PRAGMA ignore_check_constraints = ON", nullptr, nullptr, nullptr) == SQLITE_OK && ::sqlite3_exec(raw, mutation, nullptr, nullptr, nullptr) == SQLITE_OK, "invalid Dif value inserted past SQL constraints");
+			const auto before = legacy_snapshot(raw);
+			expect(::sqlite3_close(raw) == SQLITE_OK, "Dif mutation writer closes");
+			{
+				auto database = appearance_settings_database::open(path, { });
+				expect(database && !database->load({ }), "invalid Dif record is refused whole");
+			}
+			expect(::sqlite3_open(path.string().c_str(), &raw) == SQLITE_OK, "Dif fixture reopens for nonmutation check");
+			expect(legacy_snapshot(raw) == before, "reading corrupt Dif values does not repair them");
+			expect(::sqlite3_close(raw) == SQLITE_OK, "Dif fixture reader closes");
+		}
 	}
 
 	auto test_legacy_refusal_preserves_schema_and_rows() -> void
@@ -903,6 +967,8 @@ auto main() -> int
 	test_version_two_preserves_customization_and_reset();
 	test_version_three_resets_the_stored_palette_once();
 	test_version_four_gains_the_macro_role_without_a_reset();
+	test_corrupt_dif_values_are_refused();
+	test_version_five_dif_migration_and_corrupt_refusal();
 	test_legacy_refusal_preserves_schema_and_rows();
 	test_the_schema_stores_no_review_content();
 	std::cout << "appearance-settings-storage-tests:pass\n";

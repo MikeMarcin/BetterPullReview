@@ -4626,6 +4626,22 @@ namespace {
 		stream << "APPEARANCE_SETTINGS:"
 			   << QString::fromStdString(aApplication.status().AppearanceMode)
 			   << ':' << aApplication.status().AppearanceTabWidth << '\n';
+		const auto dif = aApplication.status().DifResolution;
+		stream << "DIF_PREFERENCES:"
+			   << (dif.Preferences.Visibility == bpr::core::dif_visibility::shown
+					   ? "shown"
+					   : "hidden")
+			   << ':'
+			   << (dif.Preferences.Motion == bpr::core::motion_mode::system
+					   ? "system"
+					   : dif.Preferences.Motion == bpr::core::motion_mode::full
+					   ? "full"
+					   : "reduced")
+			   << ':'
+			   << (dif.EffectiveMotion == bpr::core::motion_mode::full
+					   ? "full"
+					   : "reduced")
+			   << '\n';
 		// Must stay zero. The host and the presentation profile validate with
 		// the same core function, so a non-zero count means they disagree about
 		// legality - reported rather than hidden, because a divergence nobody

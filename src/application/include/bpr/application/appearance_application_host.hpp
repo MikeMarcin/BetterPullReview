@@ -52,8 +52,13 @@ namespace bpr::application {
 
 		// Loads the durable record. An absent record keeps the composed settings;
 		// a record the core rejects is refused whole and never written back.
-		void restore();
-		void select(core::appearance_mode aMode);
+		/// \brief Applies profile preferences through the accepted settings path.
+		void apply(core::dif_preferences aPreferences);
+		/// \brief Observes bounded native motion facts for this attachment only.
+		void               observe_motion(core::motion_observation aObservation);
+		[[nodiscard]] auto dif_resolution() const noexcept -> core::dif_resolution;
+		void               restore();
+		void               select(core::appearance_mode aMode);
 		// Reports the observed operating-system scheme and contrast preference. An
 		// observation is not a setting and is never persisted.
 		void observe(core::appearance_observation aObservation);

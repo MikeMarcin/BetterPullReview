@@ -70,7 +70,11 @@ namespace bpr::qt {
 		void report_persistence_unavailable();
 
 		/// \brief Shows the settings the host has put into effect.
-		void adopt(const application::appearance_settings& aSettings);
+		/// \brief Presents the host's attachment-local motion resolution without an effect.
+		void               adopt_motion(core::dif_resolution aResolution);
+		[[nodiscard]] auto dif_visibility_switch() const noexcept -> QCheckBox*;
+		[[nodiscard]] auto motion_selector() const noexcept -> QComboBox*;
+		void               adopt(const application::appearance_settings& aSettings);
 		/// \brief Shows settings plus the palette currently resolved by presentation.
 		///
 		/// \details A fresh System record intentionally carries no stored palette.
@@ -135,13 +139,18 @@ namespace bpr::qt {
 			-> appearance_settings_panel_statistics;
 
 	private:
-		void dispatch_mode();
-		void dispatch_typography();
-		void dispatch_palette_preview();
-		void dispatch_palette_commit();
-		void dispatch_palette_cancel();
-		void select_theme_file();
-		void show_selected_color();
+		QCheckBox*           DifVisibility  = nullptr;
+		QComboBox*           MotionSelector = nullptr;
+		QLabel*              MotionStatus   = nullptr;
+		core::dif_resolution MotionResolution;
+		void                 dispatch_dif();
+		void                 dispatch_mode();
+		void                 dispatch_typography();
+		void                 dispatch_palette_preview();
+		void                 dispatch_palette_commit();
+		void                 dispatch_palette_cancel();
+		void                 select_theme_file();
+		void                 show_selected_color();
 		/// \brief Returns the record the controls currently express.
 		[[nodiscard]] auto composed_typography() const
 			-> core::typography_settings;

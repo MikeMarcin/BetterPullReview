@@ -416,19 +416,20 @@ namespace bpr::adapters::sqlite::detail {
 			-> std::expected<void, failure>
 		{
 			constexpr std::array<std::string_view, 2>  metaNames{ "singleton", "schema_format" };
-			constexpr std::array<std::string_view, 16> settingsNames{
+			constexpr std::array<std::string_view, 18> settingsNames{
 				"singleton", "mode", "palette_document", "ui_family", "ui_point_size",
 				"ui_weight", "ui_line_height", "code_family", "code_point_size",
 				"code_weight", "code_tab_width", "code_ligatures", "code_syntax_bold",
-				"code_syntax_italic", "palette_variant", "palette_stored"
+				"code_syntax_italic", "palette_variant", "palette_stored", "dif_visibility", "motion_mode"
 			};
 			// Version 1 had neither trailing column, version 2 the variant,
-			// versions 3 and 4 both.
+			// versions 3 to 5 both. Version 6 adds the two Dif columns.
 			const auto columnCount = aVersion == 1 ? 14U : aVersion == 2 ? 15U
+				: aVersion >= 6                                          ? 18U
 																		 : 16U;
 			const auto objects     = scalar_integer(aDatabase,
 													"SELECT count(*) FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%'");
-			if ((aVersion < 1 || aVersion > 4) || !objects || *objects != 2
+			if ((aVersion < 1 || aVersion > 6) || !objects || *objects != 2
 				|| !legacy_columns_match(aDatabase, "appearance_meta", metaNames)
 				|| !legacy_columns_match(aDatabase, "appearance_settings",
 										 std::span{ settingsNames }.first(columnCount))) {
@@ -450,6 +451,41 @@ namespace bpr::adapters::sqlite::detail {
 				|| ::sqlite3_column_int64(meta->Value, 1) != aVersion
 				|| ::sqlite3_step(meta->Value) != SQLITE_DONE) {
 				return std::unexpected(failure::schema_mismatch);
+			}
+			return { };
+		}
+
+		[[nodiscard]] auto read_settings(::sqlite3* aDatabase, std::stop_token aStop, bool aHasDif)
+			-> std::expected<std::optional<application::appearance_settings>, failure>;
+
+		/// \brief Adds profile preferences only after the version-5 values are admitted.
+		[[nodiscard]] auto migrate_to_version_6(::sqlite3* aDatabase, std::stop_token aStop)
+			-> std::expected<void, failure>
+		{
+			const auto rows = scalar_integer(aDatabase, "SELECT count(*) FROM appearance_settings WHERE singleton != 1");
+			if (!rows || *rows != 0) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			if (const auto settings = read_settings(aDatabase, aStop, false); !settings) {
+				return std::unexpected(settings.error());
+			}
+			auto schema = std::string{ SchemaVersion3[1] };
+			schema.insert(schema.rfind(") STRICT"),
+						  ",dif_visibility INTEGER NOT NULL CHECK(dif_visibility IN (0, 1)),"
+						  "motion_mode INTEGER NOT NULL CHECK(motion_mode IN (0, 1, 2))");
+			const auto statements = std::array{
+				std::string{ "CREATE TABLE appearance_settings_previous AS SELECT * FROM appearance_settings" },
+				std::string{ "DROP TABLE appearance_settings" },
+				schema,
+				std::string{ "INSERT INTO appearance_settings SELECT singleton, mode, palette_document, palette_variant, palette_stored,"
+							 "ui_family, ui_point_size, ui_weight, ui_line_height, code_family, code_point_size, code_weight,"
+							 "code_tab_width, code_ligatures, code_syntax_bold, code_syntax_italic, 0, 0 FROM appearance_settings_previous" },
+				std::string{ "DROP TABLE appearance_settings_previous" },
+			};
+			for (const auto& statement : statements) {
+				if (auto ran = execute(aDatabase, statement, aStop); !ran) {
+					return ran;
+				}
 			}
 			return { };
 		}
@@ -504,10 +540,15 @@ namespace bpr::adapters::sqlite::detail {
 			// does not have.
 			const auto established = *current == 0
 				? create_schema(aDatabase, aStop)
-				: migrate_to_version_5(aDatabase, *current, aStop);
+				: *current < 5 ? migrate_to_version_5(aDatabase, *current, aStop)
+							   : std::expected<void, failure>{ };
 			if (!established) {
 				rollback();
 				return established;
+			}
+			if (auto migrated = migrate_to_version_6(aDatabase, aStop); !migrated) {
+				rollback();
+				return migrated;
 			}
 			if (auto metadata = execute(
 					aDatabase,
@@ -543,6 +584,9 @@ namespace bpr::adapters::sqlite::detail {
 				return std::unexpected(failure::schema_mismatch);
 			}
 
+			if (auto shape = validate_legacy(aDatabase, appearance_settings_schema_version); !shape) {
+				return shape;
+			}
 			auto meta = prepare(
 				aDatabase,
 				"SELECT schema_format FROM appearance_meta WHERE singleton = 1");
@@ -564,6 +608,121 @@ namespace bpr::adapters::sqlite::detail {
 			}
 			return static_cast<std::uint32_t>(aValue);
 		}
+		[[nodiscard]] auto read_settings(::sqlite3* aDatabase, std::stop_token aStop, bool aHasDif)
+			-> std::expected<std::optional<application::appearance_settings>, failure>
+
+		{
+			if (aStop.stop_requested()) {
+				return std::unexpected(failure::cancelled);
+			}
+			const auto guard = progress_scope{ aDatabase, aStop };
+
+			auto statement = prepare(
+				aDatabase,
+				"SELECT mode, palette_document, ui_family, ui_point_size, ui_weight,"
+				"ui_line_height, code_family, code_point_size, code_weight,"
+				"code_tab_width, code_ligatures, code_syntax_bold,"
+				"code_syntax_italic, palette_variant, palette_stored, "
+					+ std::string{ aHasDif ? "dif_visibility, motion_mode " : "0, 0 " }
+					+ "FROM appearance_settings WHERE singleton = 1");
+			if (!statement) {
+				return std::unexpected(statement.error());
+			}
+
+			const auto stepped = ::sqlite3_step(statement->Value);
+			if (stepped == SQLITE_INTERRUPT || aStop.stop_requested()) {
+				return std::unexpected(failure::cancelled);
+			}
+			if (stepped == SQLITE_DONE) {
+				// Nothing stored. Reported as an absent value rather than as the
+				// defaults, so a fresh installation stays distinguishable from one
+				// that deliberately stored them.
+				return std::optional<application::appearance_settings>{ };
+			}
+			if (stepped != SQLITE_ROW) {
+				return std::unexpected(catalog_sql_failure(aDatabase));
+			}
+
+			const auto mode = mode_of(text_of(statement->Value, 0));
+			if (!mode) {
+				return std::unexpected(mode.error());
+			}
+
+			// Read back through the core's own importer, which is what refuses a
+			// tampered document. A store that parsed colours itself would have to
+			// restate every one of those refusals.
+			const auto imported = core::import_theme(text_of(statement->Value, 1));
+			if (!imported.Palette) {
+				return std::unexpected(failure::integrity_failure);
+			}
+
+			// The variant the stored palette customises. Without it a reader has
+			// only a palette and must guess which built-in profile it was chosen
+			// against, and the guess made from the current desktop is what pinned
+			// a light palette over the dark profile.
+			const auto variant = variant_of(text_of(statement->Value, 13));
+			if (!variant) {
+				return std::unexpected(variant.error());
+			}
+
+			auto settings           = application::appearance_settings{ };
+			settings.Mode           = *mode;
+			settings.Palette        = *imported.Palette;
+			settings.PaletteVariant = *variant;
+			const auto stored       = ::sqlite3_column_int64(statement->Value, 14);
+			if (stored != 0 && stored != 1) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			settings.PaletteStored = stored == 1;
+			const auto visibility  = ::sqlite3_column_int64(statement->Value, 15);
+			const auto motion      = ::sqlite3_column_int64(statement->Value, 16);
+			if (visibility < 0 || visibility > 1 || motion < 0 || motion > 2) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			settings.Dif = { .Visibility = static_cast<core::dif_visibility>(visibility), .Motion = static_cast<core::motion_mode>(motion) };
+			for (const auto column : { 10, 11, 12 }) {
+				const auto flag = ::sqlite3_column_int64(statement->Value, column);
+				if (flag != 0 && flag != 1) {
+					return std::unexpected(failure::integrity_failure);
+				}
+			}
+
+			const auto uiSize     = bounded(::sqlite3_column_int64(statement->Value, 3));
+			const auto uiWeight   = bounded(::sqlite3_column_int64(statement->Value, 4));
+			const auto uiHeight   = bounded(::sqlite3_column_int64(statement->Value, 5));
+			const auto codeSize   = bounded(::sqlite3_column_int64(statement->Value, 7));
+			const auto codeWeight = bounded(::sqlite3_column_int64(statement->Value, 8));
+			const auto codeTab    = bounded(::sqlite3_column_int64(statement->Value, 9));
+			if (!uiSize || !uiWeight || !uiHeight || !codeSize || !codeWeight
+				|| !codeTab) {
+				return std::unexpected(failure::integrity_failure);
+			}
+
+			settings.Typography.Ui.Font.Family                 = text_of(statement->Value, 2);
+			settings.Typography.Ui.Font.PointSizeCentipoints   = *uiSize;
+			settings.Typography.Ui.Font.Weight                 = *uiWeight;
+			settings.Typography.Ui.LineHeightPercent           = *uiHeight;
+			settings.Typography.Code.Font.Family               = text_of(statement->Value, 6);
+			settings.Typography.Code.Font.PointSizeCentipoints = *codeSize;
+			settings.Typography.Code.Font.Weight               = *codeWeight;
+			settings.Typography.Code.TabWidth                  = *codeTab;
+			settings.Typography.Code.Ligatures
+				= ::sqlite3_column_int64(statement->Value, 10) != 0;
+			settings.Typography.Code.SyntaxBold
+				= ::sqlite3_column_int64(statement->Value, 11) != 0;
+			settings.Typography.Code.SyntaxItalic
+				= ::sqlite3_column_int64(statement->Value, 12) != 0;
+
+			// A durable record can be written by another build or edited by hand.
+			// The core is the authority on typography legality, so a record it
+			// rejects is refused whole here rather than adopted and then quietly
+			// repaired somewhere further in.
+			if (!core::validate_typography(settings.Typography).empty()) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			return std::optional{ settings };
+		}
+
 	} // namespace
 
 	appearance_settings_database::appearance_settings_database(
@@ -664,9 +823,9 @@ namespace bpr::adapters::sqlite::detail {
 			"singleton, mode, palette_document, ui_family, ui_point_size,"
 			"ui_weight, ui_line_height, code_family, code_point_size,"
 			"code_weight, code_tab_width, code_ligatures, code_syntax_bold,"
-			"code_syntax_italic, palette_variant, palette_stored) "
+			"code_syntax_italic, palette_variant, palette_stored, dif_visibility, motion_mode) "
 			"VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13,"
-			"?14, ?15) "
+			"?14, ?15, ?16, ?17) "
 			"ON CONFLICT(singleton) DO UPDATE SET "
 			"mode = excluded.mode,"
 			"palette_document = excluded.palette_document,"
@@ -682,7 +841,7 @@ namespace bpr::adapters::sqlite::detail {
 			"code_syntax_bold = excluded.code_syntax_bold,"
 			"code_syntax_italic = excluded.code_syntax_italic,"
 			"palette_variant = excluded.palette_variant,"
-			"palette_stored = excluded.palette_stored");
+			"palette_stored = excluded.palette_stored, dif_visibility = excluded.dif_visibility, motion_mode = excluded.motion_mode");
 		if (!statement) {
 			return std::unexpected(statement.error());
 		}
@@ -725,7 +884,9 @@ namespace bpr::adapters::sqlite::detail {
 			|| ::sqlite3_bind_text(
 				   statement->Value, 14, variant.c_str(), -1, SQLITE_TRANSIENT)
 				!= SQLITE_OK
-			|| ::sqlite3_bind_int64(statement->Value, 15, aSettings.PaletteStored ? 1 : 0) != SQLITE_OK) {
+			|| ::sqlite3_bind_int64(statement->Value, 15, aSettings.PaletteStored ? 1 : 0) != SQLITE_OK
+			|| ::sqlite3_bind_int(statement->Value, 16, static_cast<int>(aSettings.Dif.Visibility)) != SQLITE_OK
+			|| ::sqlite3_bind_int(statement->Value, 17, static_cast<int>(aSettings.Dif.Motion)) != SQLITE_OK) {
 			return std::unexpected(catalog_sql_failure(Handle));
 		}
 
@@ -740,106 +901,9 @@ namespace bpr::adapters::sqlite::detail {
 	}
 
 	auto appearance_settings_database::load(std::stop_token aStop)
-		-> std::expected<
-			std::optional<application::appearance_settings>,
-			failure>
+		-> std::expected<std::optional<application::appearance_settings>, failure>
 	{
-		if (aStop.stop_requested()) {
-			return std::unexpected(failure::cancelled);
-		}
-		const auto guard = progress_scope{ Handle, aStop };
-
-		auto statement = prepare(
-			Handle,
-			"SELECT mode, palette_document, ui_family, ui_point_size, ui_weight,"
-			"ui_line_height, code_family, code_point_size, code_weight,"
-			"code_tab_width, code_ligatures, code_syntax_bold,"
-			"code_syntax_italic, palette_variant, palette_stored "
-			"FROM appearance_settings WHERE singleton = 1");
-		if (!statement) {
-			return std::unexpected(statement.error());
-		}
-
-		const auto stepped = ::sqlite3_step(statement->Value);
-		if (stepped == SQLITE_INTERRUPT || aStop.stop_requested()) {
-			return std::unexpected(failure::cancelled);
-		}
-		if (stepped == SQLITE_DONE) {
-			// Nothing stored. Reported as an absent value rather than as the
-			// defaults, so a fresh installation stays distinguishable from one
-			// that deliberately stored them.
-			return std::optional<application::appearance_settings>{ };
-		}
-		if (stepped != SQLITE_ROW) {
-			return std::unexpected(catalog_sql_failure(Handle));
-		}
-
-		const auto mode = mode_of(text_of(statement->Value, 0));
-		if (!mode) {
-			return std::unexpected(mode.error());
-		}
-
-		// Read back through the core's own importer, which is what refuses a
-		// tampered document. A store that parsed colours itself would have to
-		// restate every one of those refusals.
-		const auto imported = core::import_theme(text_of(statement->Value, 1));
-		if (!imported.Palette) {
-			return std::unexpected(failure::integrity_failure);
-		}
-
-		// The variant the stored palette customises. Without it a reader has
-		// only a palette and must guess which built-in profile it was chosen
-		// against, and the guess made from the current desktop is what pinned
-		// a light palette over the dark profile.
-		const auto variant = variant_of(text_of(statement->Value, 13));
-		if (!variant) {
-			return std::unexpected(variant.error());
-		}
-
-		auto settings           = application::appearance_settings{ };
-		settings.Mode           = *mode;
-		settings.Palette        = *imported.Palette;
-		settings.PaletteVariant = *variant;
-		const auto stored       = ::sqlite3_column_int64(statement->Value, 14);
-		if (stored != 0 && stored != 1) {
-			return std::unexpected(failure::integrity_failure);
-		}
-		settings.PaletteStored = stored == 1;
-
-		const auto uiSize     = bounded(::sqlite3_column_int64(statement->Value, 3));
-		const auto uiWeight   = bounded(::sqlite3_column_int64(statement->Value, 4));
-		const auto uiHeight   = bounded(::sqlite3_column_int64(statement->Value, 5));
-		const auto codeSize   = bounded(::sqlite3_column_int64(statement->Value, 7));
-		const auto codeWeight = bounded(::sqlite3_column_int64(statement->Value, 8));
-		const auto codeTab    = bounded(::sqlite3_column_int64(statement->Value, 9));
-		if (!uiSize || !uiWeight || !uiHeight || !codeSize || !codeWeight
-			|| !codeTab) {
-			return std::unexpected(failure::integrity_failure);
-		}
-
-		settings.Typography.Ui.Font.Family                 = text_of(statement->Value, 2);
-		settings.Typography.Ui.Font.PointSizeCentipoints   = *uiSize;
-		settings.Typography.Ui.Font.Weight                 = *uiWeight;
-		settings.Typography.Ui.LineHeightPercent           = *uiHeight;
-		settings.Typography.Code.Font.Family               = text_of(statement->Value, 6);
-		settings.Typography.Code.Font.PointSizeCentipoints = *codeSize;
-		settings.Typography.Code.Font.Weight               = *codeWeight;
-		settings.Typography.Code.TabWidth                  = *codeTab;
-		settings.Typography.Code.Ligatures
-			= ::sqlite3_column_int64(statement->Value, 10) != 0;
-		settings.Typography.Code.SyntaxBold
-			= ::sqlite3_column_int64(statement->Value, 11) != 0;
-		settings.Typography.Code.SyntaxItalic
-			= ::sqlite3_column_int64(statement->Value, 12) != 0;
-
-		// A durable record can be written by another build or edited by hand.
-		// The core is the authority on typography legality, so a record it
-		// rejects is refused whole here rather than adopted and then quietly
-		// repaired somewhere further in.
-		if (!core::validate_typography(settings.Typography).empty()) {
-			return std::unexpected(failure::integrity_failure);
-		}
-		return std::optional{ settings };
+		return read_settings(Handle, aStop, true);
 	}
 
 	auto appearance_settings_columns(::sqlite3* const aDatabase)

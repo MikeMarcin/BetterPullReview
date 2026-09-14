@@ -106,6 +106,7 @@
 
 #include <QApplication>
 #include <QByteArray>
+#include <QCheckBox>
 #include <QColor>
 #include <QComboBox>
 #include <QCoreApplication>
@@ -11085,6 +11086,10 @@ namespace bpr::app {
 						AppearanceHost->select(aValue.Mode);
 					} else if constexpr (std::is_same_v<
 											 intent,
+											 application::apply_dif_preferences_intent>) {
+						AppearanceHost->apply(aValue.Preferences);
+					} else if constexpr (std::is_same_v<
+											 intent,
 											 application::apply_typography_intent>) {
 						AppearanceHost->apply(std::move(aValue.Typography));
 					} else if constexpr (std::is_same_v<
@@ -11167,6 +11172,7 @@ namespace bpr::app {
 						settings,
 						AppearanceProfile->settings().Palette,
 						std::move(activePreview));
+					panel->adopt_motion(AppearanceHost->dif_resolution());
 				}
 			}
 		}
@@ -11214,6 +11220,7 @@ namespace bpr::app {
 					panel->report(aFailure.ContrastRejections);
 					break;
 				case application::appearance_host_failure::unknown_appearance_mode:
+				case application::appearance_host_failure::invalid_dif_preferences:
 				case application::appearance_host_failure::classification_unavailable:
 				case application::appearance_host_failure::classification_limit:
 				case application::appearance_host_failure::invalid_classification_key:
@@ -12649,6 +12656,9 @@ namespace bpr::app {
 			.AppearanceTabWidth            = this->AppearanceHost != nullptr
 				? this->AppearanceHost->settings().Typography.Code.TabWidth
 				: 0U,
+			.DifResolution                 = this->AppearanceHost != nullptr
+				? this->AppearanceHost->dif_resolution()
+				: core::dif_resolution{ },
 			.AppearanceDivergences         = this->AppearanceDivergences,
 			.ProfileMode                   = this->AppearanceProfile
 				? this->AppearanceProfile->mode()
@@ -13563,9 +13573,13 @@ namespace bpr::app {
 		// below moves.
 		panel->mode_selector()->setCurrentIndex(static_cast<int>(aMode));
 		panel->tab_width_editor()->setValue(static_cast<int>(aTabWidth));
+		panel->dif_visibility_switch()->setChecked(false);
+		panel->motion_selector()->setCurrentIndex(static_cast<int>(core::motion_mode::full));
 		const auto& settings = implementation->AppearanceHost->settings();
 		return settings.Mode == aMode
-			&& settings.Typography.Code.TabWidth == aTabWidth;
+			&& settings.Typography.Code.TabWidth == aTabWidth
+			&& settings.Dif.Visibility == core::dif_visibility::hidden
+			&& settings.Dif.Motion == core::motion_mode::full;
 	}
 
 	auto detail::github_application_fixture_access::refuse_appearance_gesture(

@@ -182,9 +182,10 @@ namespace bpr::app {
 		// The restart claim survives the correction. A composition starts from
 		// `system` and a tab width of four, so a run that makes no gesture and
 		// reports anything else read it from the durable record.
-		std::string   AppearanceMode;
-		std::uint32_t AppearanceTabWidth    = 0U;
-		std::size_t   AppearanceDivergences = 0U;
+		std::string          AppearanceMode;
+		std::uint32_t        AppearanceTabWidth = 0U;
+		core::dif_resolution DifResolution;
+		std::size_t          AppearanceDivergences = 0U;
 		// The composed profile's selected mode and the variant it resolved to.
 		// BPR-0114's claim is about these two, not about the platform palette:
 		// the existing native probe proves Qt's palette follows the operating

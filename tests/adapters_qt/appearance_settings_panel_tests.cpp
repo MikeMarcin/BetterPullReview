@@ -9,6 +9,7 @@
 #include <QCheckBox>
 #include <QColor>
 #include <QComboBox>
+#include <QLabel>
 #include <QLineEdit>
 #include <QMouseEvent>
 #include <QPushButton>
@@ -548,6 +549,39 @@ namespace {
 		panel.request_theme_export(QStringLiteral("chosen.bprtheme"));
 		expect(intents.last<application::export_appearance_theme_intent>()->Path == "chosen.bprtheme", "export dispatches only the chosen path");
 	}
+	void test_dif_controls_translate_and_explain()
+	{
+		recorder                      intents;
+		qt::appearance_settings_panel panel{ intents.sink() };
+		auto                          settings = qt::default_appearance_settings();
+		panel.adopt(settings);
+		expect(panel.dif_visibility_switch()->isChecked() && panel.motion_selector()->currentIndex() == 0 && intents.count() == 0U, "shown/System adoption emits no gesture");
+		panel.motion_selector()->setCurrentIndex(1);
+		expect(intents.last<application::apply_dif_preferences_intent>()->Preferences.Motion == core::motion_mode::full, "Full control emits typed preference intent");
+		panel.dif_visibility_switch()->click();
+		const auto choice = intents.last<application::apply_dif_preferences_intent>()->Preferences;
+		expect(choice.Visibility == core::dif_visibility::hidden && choice.Motion == core::motion_mode::full, "visibility gesture retains chosen motion");
+		settings.Dif     = choice;
+		const auto count = intents.count();
+		panel.adopt(settings);
+		panel.adopt_motion(core::resolve_dif(settings.Dif, core::motion_observation::unsupported));
+		expect(intents.count() == count && !panel.dif_visibility_switch()->isChecked(), "accepted hidden projection updates controls without echo");
+		settings.Dif = { };
+		panel.adopt(settings);
+		panel.adopt_motion(core::resolve_dif(settings.Dif, core::motion_observation::unsupported));
+		bool explained = false;
+		for (const auto* label : panel.findChildren<QLabel*>()) {
+			explained = explained || label->text().contains(QStringLiteral("unsupported"));
+		}
+		expect(explained, "Settings explains unsupported System motion honestly");
+		for (auto* button : panel.findChildren<QPushButton*>()) {
+			if (button->text() == QStringLiteral("Reset Dif preferences")) {
+				button->click();
+			}
+		}
+		expect(intents.last<application::reset_appearance_intent>() && intents.last<application::reset_appearance_intent>()->Scope == application::appearance_reset_scope::dif, "Dif has a scoped native reset button");
+	}
+
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -555,6 +589,7 @@ auto main(int argc, char** argv) -> int
 	QApplication application{ argc, argv };
 	QApplication::setApplicationName(
 		QStringLiteral("BetterPullReviewAppearanceSettingsPanelTests"));
+	test_dif_controls_translate_and_explain();
 	test_preview_bursts_and_invalidation();
 	test_scoped_resets_and_export_are_intents();
 	test_the_mode_control_offers_the_core_vocabulary();

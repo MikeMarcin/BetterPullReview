@@ -102,7 +102,7 @@ namespace bpr::application {
 		{
 		};
 
-		using deferred_appearance_ingress = std::variant<cancel_appearance_palette_preview_intent, reset_appearance_intent, deferred_appearance_theme_export, staged_theme_export, deferred_appearance_restore,
+		using deferred_appearance_ingress = std::variant<core::dif_preferences, core::motion_observation, cancel_appearance_palette_preview_intent, reset_appearance_intent, deferred_appearance_theme_export, staged_theme_export, deferred_appearance_restore,
 														 deferred_appearance_select,
 														 deferred_appearance_observe,
 														 deferred_appearance_palette,
@@ -161,6 +161,9 @@ namespace bpr::application {
 		[[nodiscard]] auto validated_settings(appearance_settings aSettings)
 			-> appearance_settings
 		{
+			if (!core::valid(aSettings.Dif)) {
+				throw std::invalid_argument{ "Invalid Dif preferences" };
+			}
 			if (!known(aSettings.Mode)) {
 				throw std::invalid_argument{ "Invalid appearance mode" };
 			}
@@ -177,8 +180,11 @@ namespace bpr::application {
 		{
 			appearance_consumer_id                      Id;
 			std::shared_ptr<appearance_projection_port> Port;
-			bool                                        Active = true;
+			bool                                        Active                      = true;
+			bool                                        PersistenceFailurePublished = false;
 			core::appearance_observation                Observation;
+			core::motion_observation                    MotionObservation = core::motion_observation::unknown;
+			std::optional<core::dif_resolution>         PublishedDif;
 			appearance_epoch                            Epoch;
 			std::optional<core::appearance_resolution>  PublishedResolution;
 			std::optional<core::appearance_palette>     PublishedPalette;
@@ -289,7 +295,23 @@ namespace bpr::application {
 							return;
 						}
 					}
-					if constexpr (std::is_same_v<ingress_type, cancel_appearance_palette_preview_intent>) {
+					if constexpr (std::is_same_v<ingress_type, core::dif_preferences>) {
+						if (!Closing) {
+							if (!core::valid(aTyped)) {
+								publish_failure(local_context(), appearance_host_failure::invalid_dif_preferences);
+							} else {
+								auto next = Settings;
+								next.Dif  = aTyped;
+								adopt(std::move(next));
+							}
+						}
+					} else if constexpr (std::is_same_v<ingress_type, core::motion_observation>) {
+						const auto consumer = find_consumer(CurrentConsumer);
+						if (!Closing && consumer && consumer->MotionObservation != aTyped) {
+							consumer->MotionObservation = aTyped;
+							publish_consumer_changes(consumer, local_context(), { });
+						}
+					} else if constexpr (std::is_same_v<ingress_type, cancel_appearance_palette_preview_intent>) {
 						retire(appearance_request_domain::theme_import, appearance_terminal_rejection::cancelled);
 					} else if constexpr (std::is_same_v<ingress_type, reset_appearance_intent>) {
 						reset_now(aTyped.Scope);
@@ -668,6 +690,7 @@ namespace bpr::application {
 			auto next            = Settings;
 			auto acknowledgement = std::optional<palette_adoption_publication>{ };
 			switch (aScope) {
+			case appearance_reset_scope::dif:            next.Dif = Defaults.Dif; break;
 			case appearance_reset_scope::mode:           next.Mode = Defaults.Mode; break;
 			case appearance_reset_scope::interface_font: next.Typography.Ui = Defaults.Typography.Ui; break;
 			case appearance_reset_scope::code_font:      next.Typography.Code = Defaults.Typography.Code; break;
@@ -921,6 +944,10 @@ namespace bpr::application {
 			auto loaded = std::move(**aResult);
 			// The store preserves whether the palette is customized. Reset
 			// records intentionally retain an empty override set across restart.
+			if (!core::valid(loaded.Dif)) {
+				publish_failure(aContext, appearance_host_failure::invalid_dif_preferences);
+				return;
+			}
 			if (!known(loaded.Mode)) {
 				publish_failure(aContext,
 								appearance_host_failure::unknown_appearance_mode);
@@ -1019,6 +1046,10 @@ namespace bpr::application {
 			const auto resolution   = core::resolve_appearance(Settings.Mode,
 															   aConsumer->Observation);
 			auto       invalidation = appearance_presentation_invalidation{ };
+			const auto dif          = core::resolve_dif(Settings.Dif, aConsumer->MotionObservation);
+			if (aConsumer->PublishedDif != dif) {
+				invalidation.Dif = dif;
+			}
 			if (aConsumer->PublishedResolution != resolution) {
 				invalidation.Resolution = resolution;
 			}
@@ -1029,6 +1060,10 @@ namespace bpr::application {
 			}
 			if (aConsumer->PublishedTypography != Settings.Typography) {
 				invalidation.Typography = Settings.Typography;
+			}
+			publish_persistence_failure(aConsumer, aContext);
+			if (!aConsumer->Active || Closing) {
+				return;
 			}
 			if (empty(invalidation) && !aPaletteAdoption.has_value()) {
 				return;
@@ -1043,6 +1078,7 @@ namespace bpr::application {
 				aConsumer->PublishedPaletteStored  = Settings.PaletteStored;
 				aConsumer->PublishedPaletteVariant = Settings.PaletteVariant;
 				aConsumer->PublishedTypography     = Settings.Typography;
+				aConsumer->PublishedDif            = dif;
 				presentation                       = std::move(invalidation);
 			}
 			const auto projection = appearance_projection{
@@ -1069,10 +1105,27 @@ namespace bpr::application {
 				[this, &projection] { publish_to_consumer(projection); });
 		}
 
+		void publish_persistence_failure(const std::shared_ptr<consumer_state>& aConsumer, const appearance_request_context& aContext, const bool aRepeat = false)
+		{
+			if (PersistenceUnavailable && aConsumer->Active && (aRepeat || !aConsumer->PersistenceFailurePublished)) {
+				aConsumer->PersistenceFailurePublished = true;
+				deliver_projection([&] { aConsumer->Port->fail(appearance_failure_publication{
+											 .Context = aContext, .Failure = appearance_host_failure::settings_unavailable }); });
+			}
+		}
+
 		void publish_failure(const appearance_request_context& aContext,
 							 const appearance_host_failure     aFailure)
 		{
 			if (Closing) {
+				return;
+			}
+			if (aFailure == appearance_host_failure::settings_unavailable) {
+				PersistenceUnavailable = true;
+				const auto consumers   = Consumers;
+				for (const auto& consumer : consumers) {
+					publish_persistence_failure(consumer, aContext, true);
+				}
 				return;
 			}
 			deliver_projection([this, &aContext, aFailure] {
@@ -1165,6 +1218,7 @@ namespace bpr::application {
 		std::size_t                   RejectedTerminals        = 0U;
 		appearance_terminal_rejection LastRejection            = appearance_terminal_rejection::none;
 		bool                          Closing                  = false;
+		bool                          PersistenceUnavailable   = false;
 		bool                          TurnActive               = false;
 		bool                          DeferredIngressScheduled = false;
 		bool                          ProjectionDeliveryFailed = false;
@@ -1219,6 +1273,19 @@ namespace bpr::application {
 		}
 	}
 
+	void appearance_preferences_application_host::apply(appearance_consumer_id aConsumer, core::dif_preferences aPreferences)
+	{
+		Implementation->enqueue(aPreferences, aConsumer);
+	}
+	void appearance_preferences_application_host::observe_motion(appearance_consumer_id aConsumer, core::motion_observation aObservation)
+	{
+		Implementation->enqueue(aObservation, aConsumer);
+	}
+	auto appearance_preferences_application_host::dif_resolution(appearance_consumer_id aConsumer) const noexcept -> core::dif_resolution
+	{
+		const auto consumer = Implementation->find_consumer(aConsumer);
+		return core::resolve_dif(settings().Dif, consumer ? consumer->MotionObservation : core::motion_observation::unknown);
+	}
 	void appearance_preferences_application_host::restore(appearance_consumer_id aConsumer)
 	{
 		Implementation->enqueue(deferred_appearance_restore{ }, aConsumer);

@@ -499,10 +499,29 @@ namespace {
 		expect(validate_typography(settings) == expected,
 			   "every violation is reported once in the documented order");
 	}
+	void test_dif_preferences_resolve_conservatively()
+	{
+		expect(dif_preferences{ } == dif_preferences{ .Visibility = dif_visibility::shown, .Motion = motion_mode::system }, "Dif defaults to shown/System");
+		for (const auto visibility : { dif_visibility::shown, dif_visibility::hidden }) {
+			for (const auto observation : { motion_observation::full, motion_observation::reduced, motion_observation::unknown, motion_observation::unsupported, motion_observation::failed }) {
+				for (const auto mode : { motion_mode::system, motion_mode::full, motion_mode::reduced }) {
+					const auto preferences = dif_preferences{ .Visibility = visibility, .Motion = mode };
+					const auto resolved    = resolve_dif(preferences, observation);
+					expect(resolved.Preferences == preferences && resolved.Observation == observation, "resolution retains choices and bounded evidence");
+					const auto full = mode == motion_mode::full || (mode == motion_mode::system && observation == motion_observation::full);
+					expect(resolved.EffectiveMotion == (full ? motion_mode::full : motion_mode::reduced), "only explicit Full or reliable System full allows full motion");
+				}
+			}
+		}
+		expect(!valid(dif_preferences{ .Visibility = static_cast<dif_visibility>(255) }) && !valid(dif_preferences{ .Motion = static_cast<motion_mode>(255) }), "unknown preferences are illegal");
+		expect(resolve_dif({ }, static_cast<motion_observation>(255)).EffectiveMotion == motion_mode::reduced, "out-of-vocabulary observation cannot grant motion");
+	}
+
 } // namespace
 
 int main()
 {
+	test_dif_preferences_resolve_conservatively();
 	test_system_mode_follows_the_observed_scheme();
 	test_high_contrast_preference_selects_or_recommends();
 	test_resolution_is_total_and_self_consistent();

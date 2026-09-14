@@ -398,9 +398,69 @@ namespace {
 		const auto closing = h.Preferences->attach(first, false);
 		expect(!closing && closing.error() == application::appearance_attachment_failure::closing, "closed owner rejects new attachment");
 	}
+	void test_dif_profile_preferences_and_failure_fanout()
+	{
+		profile_harness                          h, other;
+		counting_classifier                      ca, cb, cc;
+		recording_projections                    pa, pb, pc;
+		application::appearance_application_host first{ h.Preferences, ca, h.Effects, h.Lane, pa, core::application_session_id{ 41U } };
+		application::appearance_application_host second{ h.Preferences, cb, h.Effects, h.Lane, pb, core::application_session_id{ 42U } };
+		application::appearance_application_host third{ other.Preferences, cc, other.Effects, other.Lane, pc, core::application_session_id{ 43U } };
+		first.observe_motion(core::motion_observation::full);
+		second.observe_motion(core::motion_observation::unsupported);
+		expect(first.dif_resolution().EffectiveMotion == core::motion_mode::full && second.dif_resolution().EffectiveMotion == core::motion_mode::reduced, "System resolution belongs to the attachment");
+		expect(h.Settings.Stores == 0U && h.Effects.pending() == 0U, "observations never write preferences");
+		first.classify(key(7U));
+		h.settle();
+		const auto spans    = first.cached(key(7U));
+		const auto original = first.settings();
+		const auto full     = core::dif_preferences{ .Visibility = core::dif_visibility::hidden, .Motion = core::motion_mode::full };
+		first.apply(full);
+		h.settle();
+		expect(first.settings().Dif == full && second.settings().Dif == full && third.settings().Dif == core::dif_preferences{ }, "one profile fans out without changing another profile");
+		expect(second.dif_resolution().EffectiveMotion == core::motion_mode::full && h.Settings.Stored->Dif == full, "Full overrides unsupported and persists");
+		const auto& change = *pa.Published.back().Presentation;
+		expect(change.Dif && !change.Palette && !change.Typography && !change.Resolution && !pa.Published.back().Spans, "Dif preference change carries only the Dif domain");
+		first.classify(key(7U));
+		h.settle();
+		expect(first.cached(key(7U)) == spans && ca.Requests.size() == 1U, "Dif change preserves classification cache identity");
+		first.reset(application::appearance_reset_scope::dif);
+		h.settle();
+		expect(first.settings() == original && h.Settings.Stored == original, "Dif reset preserves all other appearance domains");
+		first.apply(core::dif_preferences{ .Motion = static_cast<core::motion_mode>(99) });
+		expect(first.settings() == original && pa.Failed.back().Failure == application::appearance_host_failure::invalid_dif_preferences, "invalid intent is refused before state or effect");
+		first.restore();
+		h.Effects.drain();
+		first.apply(full);
+		h.Lane.drain();
+		h.settle();
+		expect(first.settings().Dif == full && first.rejected_terminals() > 0U, "late startup restoration cannot overwrite accepted Dif gesture");
+		h.Settings.Available = false;
+		first.apply(core::dif_preferences{ .Motion = core::motion_mode::reduced });
+		h.settle();
+		expect(first.settings() == second.settings() && first.settings().Dif.Motion == core::motion_mode::reduced, "write failure retains the shared accepted session state");
+		expect(pa.Failed.back().Failure == application::appearance_host_failure::settings_unavailable && pb.Failed.back().Failure == application::appearance_host_failure::settings_unavailable && pc.Failed.empty(), "persistence failure reaches every same-profile window only");
+		auto       late     = std::make_shared<recording_projections>();
+		const auto attached = h.Preferences->attach(late);
+		expect(attached && late->Failed.size() == 1U && late->Published.back().Presentation->Dif->Preferences == first.settings().Dif, "late attachment receives session-only truth and accepted preferences");
+		h.Preferences->detach(*attached);
+		const auto count = late->Published.size();
+		h.Preferences->observe_motion(*attached, core::motion_observation::full);
+		h.Preferences->apply(*attached, full);
+		h.settle();
+		expect(late->Published.size() == count && first.settings().Dif.Motion == core::motion_mode::reduced, "detached observation and preference callbacks cannot act");
+		first.shutdown();
+		second.shutdown();
+		third.shutdown();
+		h.settle();
+		other.settle();
+		expect(first.is_quiescent() && second.is_quiescent() && third.is_quiescent(), "all preference consumers quiesce");
+	}
+
 }
 int main()
 {
+	test_dif_profile_preferences_and_failure_fanout();
 	test_shared_preferences_independent_windows();
 	test_transient_results_target_only_live_origin();
 	test_bounded_reentrant_detachment();

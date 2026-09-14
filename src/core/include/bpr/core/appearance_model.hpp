@@ -11,6 +11,49 @@
 #include <vector>
 
 namespace bpr::core {
+	/// \brief Profile-owned decorative visibility and motion choices.
+	enum class dif_visibility : std::uint8_t { shown  = 0,
+											   hidden = 1 };
+	enum class motion_mode : std::uint8_t { system  = 0,
+											full    = 1,
+											reduced = 2 };
+	/// \brief Bounded native observation; unknown, unsupported and failed remain distinct.
+	enum class motion_observation : std::uint8_t { full,
+												   reduced,
+												   unknown,
+												   unsupported,
+												   failed };
+
+	/// \brief Durable choices; ordinal values are the appearance schema contract.
+	struct dif_preferences
+	{
+		dif_visibility Visibility                                = dif_visibility::shown;
+		motion_mode    Motion                                    = motion_mode::system;
+		auto           operator<=>(const dif_preferences&) const = default;
+	};
+
+	/// \brief Accepted choices plus attachment-local effective motion and its evidence.
+	struct dif_resolution
+	{
+		dif_preferences    Preferences;
+		motion_observation Observation                              = motion_observation::unknown;
+		motion_mode        EffectiveMotion                          = motion_mode::reduced;
+		auto               operator<=>(const dif_resolution&) const = default;
+	};
+
+	/// \brief Rejects preferences outside the closed vocabulary.
+	[[nodiscard]] constexpr auto valid(const dif_preferences aPreferences) noexcept -> bool
+	{
+		return (aPreferences.Visibility == dif_visibility::shown || aPreferences.Visibility == dif_visibility::hidden)
+			&& (aPreferences.Motion == motion_mode::system || aPreferences.Motion == motion_mode::full || aPreferences.Motion == motion_mode::reduced);
+	}
+
+	/// \brief Resolves System conservatively; explicit Full overrides unavailable observation.
+	[[nodiscard]] constexpr auto resolve_dif(const dif_preferences aPreferences, const motion_observation aObservation) noexcept -> dif_resolution
+	{
+		return { .Preferences = aPreferences, .Observation = aObservation, .EffectiveMotion = valid(aPreferences) && (aPreferences.Motion == motion_mode::full || (aPreferences.Motion == motion_mode::system && aObservation == motion_observation::full)) ? motion_mode::full : motion_mode::reduced };
+	}
+
 	/// \brief Describes one colour as four straight 8-bit sRGB channels.
 	///
 	/// \details The core owns the appearance vocabulary and decides nothing about

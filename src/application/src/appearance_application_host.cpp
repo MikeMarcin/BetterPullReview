@@ -82,6 +82,22 @@ namespace bpr::application {
 														   aClassification, aEffects, aDecisionLane, aProjections, aSession, aLimits) }
 	{ }
 	appearance_application_host::~appearance_application_host() = default;
+	void appearance_application_host::apply(core::dif_preferences aPreferences)
+	{
+		if (!Implementation->Closing) {
+			Implementation->Preferences->apply(Implementation->Consumer, aPreferences);
+		}
+	}
+	void appearance_application_host::observe_motion(core::motion_observation aObservation)
+	{
+		if (!Implementation->Closing) {
+			Implementation->Preferences->observe_motion(Implementation->Consumer, aObservation);
+		}
+	}
+	auto appearance_application_host::dif_resolution() const noexcept -> core::dif_resolution
+	{
+		return Implementation->Preferences->dif_resolution(Implementation->Consumer);
+	}
 	void appearance_application_host::restore()
 	{
 		if (!Implementation->Closing) {

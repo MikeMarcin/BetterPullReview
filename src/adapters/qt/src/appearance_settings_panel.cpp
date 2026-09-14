@@ -174,6 +174,19 @@ namespace bpr::qt {
 			ModeSelector->addItem(mode_text(mode), static_cast<int>(index));
 		}
 
+		DifVisibility = new QCheckBox{ QStringLiteral("Show Dif mascot"), this };
+		DifVisibility->setAccessibleName(QStringLiteral("Show Dif mascot"));
+		MotionSelector = new QComboBox{ this };
+		MotionSelector->setAccessibleName(QStringLiteral("Dif motion"));
+		MotionSelector->addItem(QStringLiteral("System"), static_cast<int>(core::motion_mode::system));
+		MotionSelector->addItem(QStringLiteral("Full"), static_cast<int>(core::motion_mode::full));
+		MotionSelector->addItem(QStringLiteral("Reduced"), static_cast<int>(core::motion_mode::reduced));
+		MotionStatus = new QLabel{ this };
+		MotionStatus->setWordWrap(true);
+		MotionStatus->setAccessibleName(QStringLiteral("Dif motion status"));
+		QObject::connect(DifVisibility, &QCheckBox::toggled, this, [this](bool) { dispatch_dif(); });
+		QObject::connect(MotionSelector, &QComboBox::currentIndexChanged, this, [this](int) { dispatch_dif(); });
+
 		UiFamily = new QLineEdit{ this };
 		UiFamily->setAccessibleName(QStringLiteral("Interface font family"));
 		UiSize       = new QSpinBox{ this };
@@ -306,7 +319,14 @@ namespace bpr::qt {
 		addReset(*uiForm, QStringLiteral("Reset interface font"), application::appearance_reset_scope::interface_font);
 		addReset(*codeForm, QStringLiteral("Reset code font"), application::appearance_reset_scope::code_font);
 		addReset(*colorForm, QStringLiteral("Reset semantic colours"), application::appearance_reset_scope::palette);
+		auto* const difGroup = new QGroupBox{ QStringLiteral("Dif mascot"), this };
+		auto* const difForm  = new QFormLayout{ difGroup };
+		difForm->addRow(DifVisibility);
+		difForm->addRow(QStringLiteral("Motion"), MotionSelector);
+		difForm->addRow(MotionStatus);
+		addReset(*difForm, QStringLiteral("Reset Dif preferences"), application::appearance_reset_scope::dif);
 		layout->addLayout(modeForm);
+		layout->addWidget(difGroup);
 		layout->addWidget(colorGroup);
 		layout->addWidget(uiGroup);
 		layout->addWidget(codeGroup);
@@ -358,6 +378,42 @@ namespace bpr::qt {
 		CommittedPalette = AdoptedSettings.Palette;
 		show_adopted();
 	}
+
+	void appearance_settings_panel::dispatch_dif()
+	{
+		if (Echoing || MotionSelector->currentIndex() < 0 || !Dispatch) {
+			return;
+		}
+		Dispatch(application::apply_dif_preferences_intent{ .Preferences = {
+																.Visibility = DifVisibility->isChecked() ? core::dif_visibility::shown : core::dif_visibility::hidden,
+																.Motion     = static_cast<core::motion_mode>(MotionSelector->currentData().toInt()),
+															} });
+	}
+
+	void appearance_settings_panel::adopt_motion(const core::dif_resolution aResolution)
+	{
+		MotionResolution = aResolution;
+		QString text;
+		if (aResolution.Preferences.Visibility == core::dif_visibility::hidden) {
+			text = QStringLiteral("Dif is hidden. Motion is stopped.");
+		} else if (aResolution.Preferences.Motion == core::motion_mode::full) {
+			text = QStringLiteral("Full motion is selected, overriding the system preference.");
+		} else if (aResolution.Preferences.Motion == core::motion_mode::reduced) {
+			text = QStringLiteral("Reduced motion is selected. Dif remains still.");
+		} else {
+			switch (aResolution.Observation) {
+			case core::motion_observation::full:        text = QStringLiteral("System allows full motion."); break;
+			case core::motion_observation::reduced:     text = QStringLiteral("System requests reduced motion. Dif remains still."); break;
+			case core::motion_observation::unsupported: text = QStringLiteral("System motion observation is unsupported. Dif remains still; select Full to override."); break;
+			case core::motion_observation::failed:      text = QStringLiteral("System motion observation failed. Dif remains still; select Full to override."); break;
+			case core::motion_observation::unknown:     text = QStringLiteral("System motion preference is unknown. Dif remains still; select Full to override."); break;
+			}
+		}
+		MotionStatus->setText(text);
+	}
+
+	auto appearance_settings_panel::dif_visibility_switch() const noexcept -> QCheckBox* { return DifVisibility; }
+	auto appearance_settings_panel::motion_selector() const noexcept -> QComboBox* { return MotionSelector; }
 
 	void appearance_settings_panel::set_dispatch(
 		application::appearance_intent_dispatch aDispatch)
@@ -793,6 +849,9 @@ namespace bpr::qt {
 		const auto& record = AdoptedSettings;
 		ModeSelector->setCurrentIndex(static_cast<int>(record.Mode));
 		ThemePreviews->set_current(record.Mode);
+		DifVisibility->setChecked(record.Dif.Visibility == core::dif_visibility::shown);
+		MotionSelector->setCurrentIndex(static_cast<int>(record.Dif.Motion));
+		adopt_motion(core::resolve_dif(record.Dif, MotionResolution.Observation));
 		UiFamily->setText(QString::fromStdString(record.Typography.Ui.Font.Family));
 		UiSize->setValue(
 			static_cast<int>(record.Typography.Ui.Font.PointSizeCentipoints));
