@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0760"
 title: "Build the retained Qt catalog player and lifecycle"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0031"]
 depends_on: ["BPR-0754", "BPR-0758"]
 metadata: {"pack":"bpr-dif-integration-v1","milestone":"runtime-foundation","acceptance":["B1","B2","B9","B10"],"milestone_plan":{"id":"bpr-dif-integration-v1","path":"docs/rfcs/plans/bpr-dif-integration-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"All clip indices, returns, gutters and delayed/invalid elapsed-time cases are checked.","outcome":"pass","revision":"e337c1fa340630fb5b8085a7177a3422d98931f4","evidence":{"kind":"command","detail":"qt_dif_runtime passes ten synthetic RGBA8 PNG clips and verifies frame positions/rates, loops, one-shot returns, gutter rectangles, malformed geometry/digest/gutters, late and backward elapsed time. No production art selected."}},{"criterion":"One timer, coalesced repaint and static/reduced/hidden/modal/shutdown behavior are enforced.","outcome":"pass","revision":"e337c1fa340630fb5b8085a7177a3422d98931f4","evidence":{"kind":"command","detail":"qt_dif_runtime tests one single-shot timer, no paints in a 350 ms static interval, <=5 wakeups over 400 ms animated interval, suppression gates, hide/deactivate and destruction before a late timer deadline."}},{"criterion":"Cache is explicit, immutable/shareable; paint selects retained rectangles without decode/slice/scale allocation.","outcome":"pass","revision":"e337c1fa340630fb5b8085a7177a3422d98931f4","evidence":{"kind":"observation","detail":"Two fixture widgets share one decoded ten-strip cache; cacheKey and loader count remain constant across ticks. Synthetic images account for 16,960 pixel bytes, 34,160 retained estimate and 37,534 conversion peak estimate, below 32/40 MiB bounds. Native backend memory and accepted production catalog remain for later integration/verification."}}]
 ---
 
 # BPR-0760: Build the retained Qt catalog player and lifecycle
