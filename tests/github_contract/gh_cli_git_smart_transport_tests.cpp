@@ -213,6 +213,17 @@ namespace {
 			std::cout << "gh version 2.100.0 (fixture)\n";
 			return 0;
 		}
+		if (args.size() > 2 && args[1] == "api" && args[2].contains("/git/blobs/")) {
+			if (std::filesystem::exists(root / "wait-blob")) {
+				std::this_thread::sleep_for(std::chrono::seconds{ 10 });
+			}
+			std::ifstream response{ root / "blob-response" };
+			if (!response) {
+				return 1;
+			}
+			std::cout << response.rdbuf();
+			return 0;
+		}
 		if (args.size() > 2 && args[1] == "api") {
 			if (std::filesystem::exists(root / "fail-viewer")) {
 				return 1;
@@ -300,6 +311,54 @@ namespace {
 
 		auto transport = make_gh_cli_git_smart_transport(*profile, *configuration, "/usr/bin/git", session, context, [] { return true; });
 		expect(transport.has_value(), "acquire");
+		const application::git_smart_exact_blob_request blobRequest{ context, *core::parse_git_blob_oid(blob.toStdString()), 1024U };
+		const auto                                      goodBlob = "{\"sha\":\"" + blob.toStdString() + "\",\"size\":24,\"encoding\":\"base64\",\"content\":\"" + QByteArray{ "complete local contents\n" }.toBase64().toStdString() + "\"}";
+		// Git hash-object above independently supplies the expected identity.
+		write(root / "blob-response", goodBlob);
+		auto exact = (*transport)->read_exact_blob(blobRequest, { });
+		expect(exact && exact->size() == 24U, "exact blob validated against local Git hash");
+		for (const auto& bad : std::vector<std::string>{ "{}", "not json",
+														 "{\"sha\":\"" + blob.toStdString() + "\",\"size\":1,\"encoding\":\"base64\",\"content\":\"eA==\"}",
+														 "{\"sha\":\"" + blob.toStdString() + "\",\"size\":1025,\"encoding\":\"base64\",\"content\":\"\"}" }) {
+			write(root / "blob-response", bad);
+			expect(!(*transport)->read_exact_blob(blobRequest, { }), "malformed/oversize/hash mismatch blob refused");
+		}
+		for (const auto& replacement : std::vector<std::pair<std::string, std::string>>{
+				 { "base64", "utf-8" }, { blob.toStdString(), std::string(40U, 'a') }, { "Y29tcGxldGU", "!29tcGxldGU" }, { "24", "23" } }) {
+			auto       bad = goodBlob;
+			const auto at  = bad.find(replacement.first);
+			expect(at != std::string::npos, "negative fixture replacement exists");
+			bad.replace(at, replacement.first.size(), replacement.second);
+			write(root / "blob-response", bad);
+			expect(!(*transport)->read_exact_blob(blobRequest, { }), "encoding, SHA, base64 and size mismatches refuse");
+		}
+		write(root / "blob-response", std::string(8192U, 'x'));
+		const auto largeResponse = (*transport)->read_exact_blob(blobRequest, { });
+		expect(!largeResponse && largeResponse.error().Failure == application::git_smart_transport_failure::response_limit, "blob stdout quota enforced");
+		write(root / "blob-response", goodBlob);
+		auto wrongBlobContext = blobRequest;
+		++wrongBlobContext.MaximumBytes;
+		wrongBlobContext.Context.ApplicationSession = core::application_session_id{ 999 };
+		expect(!(*transport)->read_exact_blob(wrongBlobContext, { }), "wrong blob context refused");
+		unsigned   observations         = 0U;
+		auto       changedConfiguration = make_gh_cli_git_smart_transport(*profile, *configuration, "/usr/bin/git", session, context,
+																		  [&] { return ++observations < 3U; });
+		const auto changedRead          = (*changedConfiguration)->read_exact_blob(blobRequest, { });
+		expect(!changedRead && (*changedConfiguration)->revoked() && observations == 3U, "post-read configuration change discards blob and revokes");
+		auto oversizedBlob         = blobRequest;
+		oversizedBlob.MaximumBytes = application::maximum_git_exact_blob_bytes + 1U;
+		expect(!(*transport)->read_exact_blob(oversizedBlob, { }), "oversize request refused");
+		std::filesystem::remove(root / "blob-response");
+		expect(!(*transport)->read_exact_blob(blobRequest, { }), "missing blob refused");
+		write(root / "blob-response", goodBlob);
+		write(root / "wait-blob", "1");
+		{
+			std::stop_source blobStop;
+			std::jthread     cancelBlob{ [&] { std::this_thread::sleep_for(std::chrono::milliseconds{400}); blobStop.request_stop(); } };
+			const auto       cancelledBlob = (*transport)->read_exact_blob(blobRequest, blobStop.get_token());
+			expect(!cancelledBlob && cancelledBlob.error().Failure == application::git_smart_transport_failure::cancelled, "blob child cancelled and reaped");
+		}
+		std::filesystem::remove(root / "wait-blob");
 		constexpr application::git_protocol_v2_fetch_limits limits{ .MaximumWireBytes = 1048576, .MaximumPackBytes = 1048576, .MaximumProgressBytes = 1024, .MaximumPackets = 1024 };
 		recording_pack_sink                                 sink{ core::git_hash_algorithm::sha1 };
 		auto                                                result = application::acquire_git_protocol_v2_pack(**transport, context, { }, sink, limits, { });
@@ -345,6 +404,9 @@ namespace {
 		expect(!cancelled && cancelled.error().Failure == application::git_smart_transport_failure::cancelled && std::chrono::steady_clock::now() - started < std::chrono::seconds{ 3 }, "running clone cancellation is bounded and reaped");
 		std::filesystem::remove(root / "wait-clone");
 		write(root / "switch-viewer", "1");
+		auto       blobAuthority = make_gh_cli_git_smart_transport(*profile, *configuration, "/usr/bin/git", session, context, [] { return true; });
+		const auto wrongAccount  = (*blobAuthority)->read_exact_blob(blobRequest, { });
+		expect(!wrongAccount && wrongAccount.error().Failure == application::git_smart_transport_failure::authentication && (*blobAuthority)->revoked(), "blob read rejects and revokes switched account");
 		auto switched = (*transport)->fetch({ context, *request, 1048576 }, consumer, { });
 		expect(!switched && switched.error().Failure == application::git_smart_transport_failure::authentication && (*transport)->revoked(), "account mismatch revokes");
 		auto revoked = (*transport)->discover({ context }, { });

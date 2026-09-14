@@ -1128,6 +1128,45 @@ namespace bpr::adapters::github::detail {
 		});
 	}
 
+	auto compile_gh_cli_exact_blob_request(
+		const validated_gh_cli_configuration& aConfiguration, const validated_github_host_profile& aProfile,
+		const application::git_smart_exact_blob_request& aRequest) -> std::optional<github_cli_process_request>
+	{
+#if !defined(__APPLE__)
+		static_cast<void>(aConfiguration);
+		static_cast<void>(aProfile);
+		static_cast<void>(aRequest);
+		return std::nullopt;
+#else
+		const auto& context = aRequest.Context;
+		if (!application::valid(context) || !aRequest.ExpectedBlob.valid()
+			|| aRequest.ExpectedBlob.algorithm() != core::git_hash_algorithm::sha1
+			|| aRequest.MaximumBytes == 0U || aRequest.MaximumBytes > application::maximum_git_exact_blob_bytes
+			|| aProfile.authentication_transport() != application::github_authentication_transport::github_cli
+			|| context.Authority.Profile != aProfile.profile() || context.Authority.Host != aProfile.host()
+			|| context.Authority.ProfileRevision.value() != aProfile.revision().value()) {
+			return std::nullopt;
+		}
+		const auto endpoint = "repos/" + context.Repository.Owner + "/" + context.Repository.Name
+			+ "/git/blobs/" + std::string{ core::canonical_hex(aRequest.ExpectedBlob).view() };
+		return constrain_gh_writes(github_cli_process_request{
+			.Executable          = path_bytes(aConfiguration.Executable),
+			.Arguments           = { "api", endpoint, "--hostname", std::string{ aProfile.hostname() }, "--method", "GET",
+									 "--header", "Accept: application/vnd.github+json", "--header", "X-GitHub-Api-Version: 2022-11-28" },
+			.Environment         = aConfiguration.Environment,
+			.WorkingDirectory    = path_bytes(aConfiguration.NeutralWorkingDirectory),
+			.StandardInput       = { },
+			.StandardInputLimit  = 1U,
+			.StandardOutputLimit = aRequest.MaximumBytes * 2U + 4096U > github_cli_process_max_standard_output_bytes
+				? github_cli_process_max_standard_output_bytes
+				: aRequest.MaximumBytes * 2U + 4096U,
+			.StandardErrorLimit  = maximum_standard_error_bytes,
+			.Timeout             = process_timeout,
+			.ReapTimeout         = process_reap_timeout,
+		});
+#endif
+	}
+
 	auto compile_gh_cli_git_clone_request(
 		const validated_gh_cli_configuration&         aConfiguration,
 		const validated_github_host_profile&          aProfile,

@@ -138,6 +138,10 @@ namespace bpr::adapters::github::detail {
 		friend auto compile_gh_cli_version_request(
 			const validated_gh_cli_configuration& aConfiguration)
 			-> github_cli_process_request;
+		friend auto compile_gh_cli_exact_blob_request(
+			const validated_gh_cli_configuration&, const validated_github_host_profile&,
+			const application::git_smart_exact_blob_request&)
+			-> std::optional<github_cli_process_request>;
 		friend auto compile_gh_cli_git_clone_request(
 			const validated_gh_cli_configuration&, const validated_github_host_profile&,
 			const application::git_smart_request_context&, core::git_commit_oid,
@@ -161,6 +165,12 @@ namespace bpr::adapters::github::detail {
 		const validated_gh_cli_configuration& aConfiguration,
 		const validated_github_host_profile&  aProfile,
 		const github_wire_request&            aRequest) -> gh_cli_invocation_result;
+
+	/// \brief Compiles a closed, write-denied GET for one exact repository blob.
+	[[nodiscard]] auto compile_gh_cli_exact_blob_request(
+		const validated_gh_cli_configuration&, const validated_github_host_profile&,
+		const application::git_smart_exact_blob_request&)
+		-> std::optional<github_cli_process_request>;
 
 	/// Local noncredential probe, using the same executable and child environment.
 	[[nodiscard]] auto compile_gh_cli_version_request(

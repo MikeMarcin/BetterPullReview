@@ -139,6 +139,16 @@ namespace bpr::application {
 	[[nodiscard]] auto valid(
 		const git_smart_fetch_request& aRequest) noexcept -> bool;
 
+	/// \brief Requests one content-verified blob within an exact accepted authority.
+	struct git_smart_exact_blob_request
+	{
+		git_smart_request_context Context;
+		core::git_blob_oid        ExpectedBlob;
+		std::size_t               MaximumBytes = 0U;
+	};
+
+	inline constexpr std::size_t maximum_git_exact_blob_bytes = 16U * 1024U * 1024U;
+
 	/// \brief Provides the git smart wire consumer contract.
 	class git_smart_wire_consumer
 	{
@@ -165,6 +175,15 @@ namespace bpr::application {
 
 		virtual auto               revoke() noexcept -> void        = 0;
 		[[nodiscard]] virtual auto revoked() const noexcept -> bool = 0;
+
+		/// \brief Returns exact verified blob bytes; transports without this capability refuse.
+		/// \details The host supplies the OID resolved from its retained exact tree.
+		[[nodiscard]] virtual auto read_exact_blob(
+			const git_smart_exact_blob_request&, std::stop_token)
+			-> git_smart_transport_result<std::vector<std::byte>>
+		{
+			return std::unexpected{ git_smart_transport_error{ git_smart_transport_failure::unavailable } };
+		}
 
 		[[nodiscard]] virtual auto discover(
 			const git_smart_discovery_request& aRequest,

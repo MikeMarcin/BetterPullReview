@@ -4,6 +4,9 @@
 
 #include "bpr/application/git_protocol_v2.hpp"
 
+#include <QCryptographicHash>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QTemporaryDir>
 
 #include <algorithm>
@@ -191,6 +194,92 @@ namespace bpr::adapters::github::detail {
 														 + packet(std::string{ core::canonical_hex(Context.Revision.Head).view() } + " refs/pull/"
 																  + std::to_string(Context.Authority.Number.value()) + "/head\n")
 														 + "0000") };
+			}
+
+			auto read_exact_blob(const git_smart_exact_blob_request& aRequest, std::stop_token aStop)
+				-> git_smart_transport_result<std::vector<std::byte>> override
+			{
+				std::lock_guard lock{ Mutex };
+				if (const auto error = admission(aRequest.Context, aStop)) {
+					return std::unexpected{ git_smart_transport_error{ *error } };
+				}
+				const auto invocation = compile_gh_cli_exact_blob_request(Configuration, Profile, aRequest);
+				if (!invocation) {
+					return std::unexpected{ git_smart_transport_error{ failure::invalid_request } };
+				}
+				std::stop_source   stop;
+				std::stop_callback external{ aStop, [&] { stop.request_stop(); } };
+				std::stop_callback revoked{ Revocation.get_token(), [&] { stop.request_stop(); } };
+				try {
+					auto process = make_github_cli_process_runner();
+					if (!process) {
+						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+					}
+					gh_cli_transport identity{ Profile, Configuration, *process };
+					const auto       before = viewer(identity, stop.get_token());
+					if (!before) {
+						return std::unexpected{ before.error() };
+					}
+					const auto response = process->run(*invocation, stop.get_token());
+					if (!response) {
+						return std::unexpected{ git_smart_transport_error{ process_error(response.error()) } };
+					}
+					if (response->ExitCode != 0) {
+						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+					}
+					const auto after = viewer(identity, stop.get_token());
+					if (!after) {
+						return std::unexpected{ after.error() };
+					}
+					if (before->Account != after->Account || before->Login != after->Login) {
+						revoke();
+						return std::unexpected{ git_smart_transport_error{ failure::authentication } };
+					}
+					if (const auto error = admission(aRequest.Context, stop.get_token())) {
+						return std::unexpected{ git_smart_transport_error{ *error } };
+					}
+					if (!identity.configuration_unchanged()) {
+						revoke();
+						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+					}
+					const auto      malformed = std::unexpected{ git_smart_transport_error{ failure::malformed_response } };
+					QJsonParseError error;
+					const auto      document = QJsonDocument::fromJson(QByteArray::fromStdString(response->StandardOutput), &error);
+					if (error.error != QJsonParseError::NoError || !document.isObject()) {
+						return malformed;
+					}
+					const auto object = document.object();
+					const auto size   = object.value("size");
+					if (!size.isDouble() || size.toDouble() < 0 || size.toDouble() > static_cast<double>(aRequest.MaximumBytes)) {
+						return malformed;
+					}
+					const auto count = static_cast<std::size_t>(size.toDouble());
+					if (static_cast<double>(count) != size.toDouble() || object.value("encoding").toString() != "base64"
+						|| object.value("sha").toString().toStdString() != core::canonical_hex(aRequest.ExpectedBlob).view()
+						|| !object.value("content").isString()) {
+						return malformed;
+					}
+					auto encoded = object.value("content").toString().toUtf8();
+					encoded.replace("\n", "");
+					const auto decoded = QByteArray::fromBase64Encoding(encoded, QByteArray::AbortOnBase64DecodingErrors);
+					if (!decoded || decoded.decoded.toBase64() != encoded || static_cast<std::size_t>(decoded.decoded.size()) != count) {
+						return malformed;
+					}
+					QCryptographicHash hash{ QCryptographicHash::Sha1 };
+					auto               header = QByteArray{ "blob " } + QByteArray::number(static_cast<qulonglong>(count));
+					header.append('\0');
+					hash.addData(header);
+					hash.addData(decoded.decoded);
+					if (hash.result().toHex().toStdString() != core::canonical_hex(aRequest.ExpectedBlob).view()) {
+						return malformed;
+					}
+					if (stop.stop_requested()) {
+						return std::unexpected{ git_smart_transport_error{ failure::cancelled } };
+					}
+					return bytes(std::string_view{ decoded.decoded.constData(), count });
+				} catch (...) {
+					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+				}
 			}
 
 			auto fetch(const git_smart_fetch_request& aRequest, git_smart_wire_consumer& aConsumer, std::stop_token aStop)
