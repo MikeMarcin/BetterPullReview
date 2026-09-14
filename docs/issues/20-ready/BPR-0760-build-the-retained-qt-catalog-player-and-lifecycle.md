@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0760"
 title: "Build the retained Qt catalog player and lifecycle"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0031"]
 depends_on: ["BPR-0754", "BPR-0758"]
 metadata: {"pack":"bpr-dif-integration-v1","milestone":"runtime-foundation","acceptance":["B1","B2","B9","B10"],"milestone_plan":{"id":"bpr-dif-integration-v1","path":"docs/rfcs/plans/bpr-dif-integration-v1/milestone-plan.json"}}
