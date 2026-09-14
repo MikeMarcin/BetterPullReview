@@ -23,7 +23,7 @@ last dependent RFC to satisfy the repository's closeout-card convention.
 | Criterion | Result | Revision |
 |---|---|---|
 | **A1 — Exact intake.** All ten immutable inputs, actual layouts, hashes, source/edit history and new derivative authority/disposition are recorded; no opaque concept-board crop, foreign mascot or guessed generator metadata is shipped. | Partial: ten exact source hashes/layouts and known history limits recorded; derivative disposition remains open | `57ced605`; [intake ledger](../../verification/RFC-BPR-0030-intake.md) |
-| **A2 — One character.** The prop-free master and all ten sequences preserve one identity, resolve the documented drift, and have accepted neutral, body anchors and foot baseline. | Partial: rest candidate and identity/registration drift inventoried; no master or sequence accepted | `57ced605`; [intake ledger](../../verification/RFC-BPR-0030-intake.md) |
+| **A2 — One character.** The prop-free master and all ten sequences preserve one identity, resolve the documented drift, and have accepted neutral, body anchors and foot baseline. | Partial: exact 1024-square neutral candidate and preview plates prepared; identity decision and all sequences remain pending | `b24c4817`; [art ledger](../../verification/RFC-BPR-0030-production-art.md) |
 | **A3 — Complete choreography.** Ten real distinct sequences have the target contracts, closed idle seam, intended eyelid/limb/head motion and clean neutral handoffs; no static alias or whole-raster squash substitutes for a gesture. | Not run; import only | No producing revision |
 | **A4 — Canonical geometry/alpha.** Every final cell and both gutters per strip meet exact format, clipping, inventory, anchor, envelope and transparent-pixel checks. Adversarial drift/empty-frame/padding fixtures fail for the intended reason. | Partial: schema-2 synthetic geometry/alpha/gutter negatives pass; final art cells not produced | `df3ee35e`; [compiler ledger](../../verification/RFC-BPR-0030-compiler-contract.md) |
 | **A5 — Reproducible catalog.** Empty-output regeneration reproduces canonical pixels and metadata, with exact committed payload digest checks and no compressor pin regression. Generated descriptors/resources agree and malformed/unknown/excessive catalog input fails. | Partial: schema-2 synthetic catalog and portable regeneration pass; final committed catalog pending | `df3ee35e`; [compiler ledger](../../verification/RFC-BPR-0030-compiler-contract.md) |
@@ -43,7 +43,30 @@ last dependent RFC to satisfy the repository's closeout-card convention.
 | **B11 — Rendered/accessibility evidence.** Actual app frames at shipping scales and supported appearance modes demonstrate readable alpha edges, calm motion, static reduced interval, noninterference with focus/status and approved visual integration. | Not run; import only | No producing revision |
 | **B12 — Complete handoff.** Focused tests, resource packaging, platform claims, source/ mutable docs, shared-skill consumer context and verification records agree. All ten clips are real and reachable; unavailable evidence/formal closeout remains honestly open, with no fabricated native/art verdict or forced rewriting of settled RFCs. | Partial: plan/consumer context and intake documented; all app/resource/native/art work remains open | `ee1e12df`, `57ced605`; [live import](../../rfcs/assets/bpr-dif-integration-v1.LIVE_IMPORT.md) |
 
-## Current frontier — intake-contract accepted, dif-takeover-20260914 d1 / mandate r1
+## Current frontier — neutral decision pending, dif-takeover-20260914 d2 / mandate r1
+
+The assigned `production-art` milestone binds BPR-0755/0756/0757 and both
+authored exits. BPR-0755 was claimed on `main` at `b24c4817`. Its [current
+candidate and evidence](../../verification/RFC-BPR-0030-production-art.md)
+are an exact-hash 1024-square derivative of the immutable rest source and
+identity/theme/shipping-size review plates. The candidate remains outside
+runtime resources. It passed only structural/alpha/baseline screens; no
+identity verdict or accepted master exists yet. The phase-one attended
+candidate is the exact first decision before broad retouch. BPR-0756/0757
+and the 71-frame production catalog remain unstarted. The accepted historical
+card-bearing catalog and all incoming sheets remain unchanged.
+
+Owned changed paths are the BPR-0755 board record, this closeout, the
+[art ledger](../../verification/RFC-BPR-0030-production-art.md), and
+`docs/verification/dif-production-art-v001/`. The earlier intake evidence
+remains valid. No task-owned model call, source replacement, runtime selection,
+GitHub/GHES mutation or app build occurred. The first-phase identity decision
+is required, then the remainder of `production-art` remains open. The authored
+`runtime-foundation` milestone can proceed independently with fixtures after
+this writer and its commands are quiescent. Formal RFC status and final
+art/derivative/native evidence remain pending.
+
+## Previous frontier — intake-contract accepted, dif-takeover-20260914 d1 / mandate r1
 
 The adopted plan's `intake-contract` milestone is complete on `main` at
 `7beaf272d4318187c8250da06161f2c2290ee878`. BPR-0752, BPR-0753 and
