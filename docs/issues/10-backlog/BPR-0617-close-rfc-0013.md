@@ -59,7 +59,22 @@ remained unchanged. Fixed aggregate evidence is outside the checkout at
 An adapter slice is investigating whether exact selected blobs can be
 acquired within these limits and the existing accepted-epoch object contract.
 No source repair or new tests-disabled product read has yet been accepted.
-The authorized scope is the selected-comparison transition/host mapping,
+That independent adapter analysis found an adapter-only sparse clone cannot
+meet the current cache contract: `index-pack --strict
+--check-self-contained-and-connected` and later revision/merge-base checks
+require complete connectivity. A disposable synthetic Git fixture confirmed
+the strict import accepts a complete pack but refuses one missing a referenced
+blob or parent commit. The CLI transport has no selected-path/blob request;
+the epoch host only reads its retained cache. The worker changed no source,
+ran no live operation, and is quiescent. The selected diff remains unreadable.
+The next architecture proposal is an explicit bounded sparse-residency
+contract with truthful shallow ancestry, a host-owned exact selected-object
+request bound to the accepted authority/comparison and expected blob OID,
+durable recovery and cancellation, plus a qualified `gh` acquisition under
+the same sandbox and limits. Keep the complete-pack path and checks intact.
+This crosses the Git cache, application epoch host and CLI adapter, so it
+needs a renewed bounded integration assignment before implementation.
+The authorized scope was the selected-comparison transition/host mapping,
 focused checks, metadata-only product evidence and this live closeout. Do not
 reopen BPR-0643, BPR-0792 or BPR-0793. Preserve the 250 returned-commit cap,
 exact epoch/object authority, read-only CLI consent and existing RFC-wide

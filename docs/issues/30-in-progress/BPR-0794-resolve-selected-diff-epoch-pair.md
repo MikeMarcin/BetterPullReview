@@ -51,4 +51,10 @@ The fixed aggregate-only record is outside the checkout at
 `~/Library/Application Support/BetterPullReview/BPR-0794-evidence-2026-09-13/diagnosis-d12.json`
 (SHA-256 `a68be3bd2c2b65ab3f749703107b4fbd04d53287d5e607467c64d62dca317311`).
 No child stderr, response body, private object or credential was retained.
-The source repair and tests-disabled product criterion remain open.
+An adapter-only sparse clone cannot satisfy the current strict connected-pack
+Git cache contract. A synthetic complete-pack/missing-blob/missing-parent
+fixture confirmed that the incomplete cases refuse. A host-owned exact-object
+request and separate sparse-residency/recovery contract are needed before a
+selected diff can be sourced within unchanged limits. The source repair and
+tests-disabled product criterion remain open; no second product read is
+claimed.
