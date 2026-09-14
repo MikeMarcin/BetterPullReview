@@ -135,6 +135,7 @@ namespace bpr::qt {
 		QToolButton*                                MaintenanceButton       = nullptr;
 
 		std::optional<core::epoch_occurrence_history>           OccurrenceHistory;
+		bool                                                    AllowOccurrenceImport = false;
 		std::optional<application::epoch_row_projection>        CurrentEpoch;
 		std::optional<core::pull_request_authority>             Authority;
 		std::optional<core::git_commit_oid>                     LastReviewCommit;

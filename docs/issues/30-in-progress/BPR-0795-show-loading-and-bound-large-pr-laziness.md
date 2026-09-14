@@ -59,10 +59,32 @@ focused cross-layer tests, cache and storage contracts, documentation gate,
 and format check pass. Independent critical review confirms that the current
 selected-file path is guarded by exact authority and durable sparse residency.
 
-The older-epoch selection criterion remains open. An unimported force-push
-occurrence is visible but has no local epoch ID, so the existing comparison
-control refuses its activation. A typed occurrence-ID action and targeted,
-authority-bound historical import are needed before claiming that older objects
-load on selection. The task-owned tests-disabled app reached Settings, but
-computer-use control could not activate the CLI host selector; no new live
-product-read or prompt-latency measurement is claimed for this candidate yet.
+The d15 candidate activates an unimported force-push occurrence by its typed
+occurrence ID and accepted catalog revision. Its large-review effect acquires
+only that exact older head and tree, records the derived comparison base without
+claiming an original historical base, and links the occurrence only after the
+durable import. The selected historical file now reads its exact missing blob
+under the selected-side sparse marker, retained ref and commit checks; a
+complete opposite endpoint does not veto that read. Host regressions cover
+stale catalog gestures, switch-before-effect, a second selection after an
+older append commits, a repeated same-occurrence gesture, and cancellation
+after the append's point of no return. The last cases reconcile the core and
+published catalog before resuming the latest selection. Core and Qt tests
+cover typed intent and compact pending state; the state bound is 2,112 bytes.
+
+The synthetic selected historical diff, small complete background route,
+current large selected-file route, and visible loading composition pass focused
+checks. The first full portable course exposed a small-review error: Qt offered
+lazy import for an unimported occurrence whose complete background path had
+reported a rewritten base unavailable. The host now projects permission for
+that action only on the large sparse route and refuses a typed import on the
+small route. Qt checks show disabled rows preserve status and handles, while
+large rows emit the exact typed gesture. The final five-test focused set and
+the isolated portable two-catalogue public course pass, including rewritten
+base reuse, retained events and the unfetchable-first gap. Documentation,
+documentation self-tests, format, and the tests-disabled Release Mac build
+pass. The exact-target product read remains open: the final uniquely identified
+app bundle was prepared and verified, but computer-use reported the Mac locked
+and could not unlock it. No new live selected-source, anchor or prompt-latency
+observation is claimed. BPR-0795 remains In Progress until that native exit
+and the other milestone obligations are met.

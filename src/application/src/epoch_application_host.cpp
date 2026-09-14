@@ -3250,8 +3250,12 @@ namespace bpr::application {
 		{
 			auto update    = epoch_presentation_update{ };
 			update.Catalog = epoch_catalog_projection{
-				.Catalog           = aCatalog,
-				.OccurrenceHistory = aHistory,
+				.Catalog               = aCatalog,
+				.OccurrenceHistory     = aHistory,
+				.AllowOccurrenceImport = Active
+					&& object_loading_for(Active->Handoff.Shape) == pull_request_object_loading::selected_objects
+					&& Active->Handoff.SmartGit
+					&& Active->Handoff.SmartGit->supports_sparse_commit_trees(),
 			};
 			// The accepted selection precedes its durable live append. Never expose
 			// comparisons derived under the prior base while that append is pending.
@@ -3323,6 +3327,20 @@ namespace bpr::application {
 									  request_type,
 									  core::invalidate_epoch_authority_request>) {
 						cancel_authority_jobs();
+					} else if constexpr (std::is_same_v<request_type,
+														core::import_epoch_occurrence_request>) {
+						auto context = exact_context(aValue.Context.Authority, aValue.Context.Revision);
+						if (!context || context->Handoff.ApplicationSession != aValue.Context.ApplicationSession
+							|| State.Catalog != aValue.Context.ExpectedCatalog
+							|| State.EpochGeneration != aValue.Context.Generation) {
+							dispatch_core(core::epoch_occurrence_import_failed_event{
+								.Context = aValue.Context,
+								.Failure = core::epoch_failure::catalog_conflict,
+							});
+						} else {
+							start_historical_import(context, aValue.Context.Request,
+													aValue.Context.Generation, aValue.Context);
+						}
 					} else if constexpr (std::is_same_v<
 											 request_type,
 											 core::cancel_epoch_work_request>) {
@@ -4141,21 +4159,17 @@ namespace bpr::application {
 										   && selectedContext->Handoff.SmartGit->supports_sparse_commit_trees()
 										   && blob_authorization_generation(actor, authorization)
 											   == admittedGeneration) {
-									bool grantCurrentPair = false;
+									auto selectedPair = std::optional<core::comparison_pair>{ };
 									{
 										std::scoped_lock lock{ actor->BlobAuthorityMutex };
 										if (actor->SelectedBlobGrant
 											&& exact_selected_blob_request(*actor->SelectedBlobGrant, aRequest)) {
 											selectedGrantSequence = actor->SelectedBlobGrantSequence;
-											const auto& pair      = actor->SelectedBlobGrant->Request.Diff.Comparison;
-											grantCurrentPair      = (pair.Left.Commit == selectedContext->Revision.Base
-																	 && pair.Right.Commit == selectedContext->Revision.Head)
-												|| (pair.Left.Commit == selectedContext->Revision.Head
-													&& pair.Right.Commit == selectedContext->Revision.Base);
+											selectedPair          = actor->SelectedBlobGrant->Request.Diff.Comparison;
 										}
 									}
 									const auto durablySparse = [&] {
-										if (!selectedGrantSequence || !grantCurrentPair) {
+										if (!selectedGrantSequence || !selectedPair) {
 											return false;
 										}
 										const auto snapshot = selectedContext->Catalog->snapshot(workStop);
@@ -4164,9 +4178,51 @@ namespace bpr::application {
 											|| snapshot->LatestLive->Head != selectedContext->Revision.Head) {
 											return false;
 										}
-										const auto recorded = selectedContext->Catalog->retained_residency(
-											snapshot->LatestLive->Id.Ordinal, workStop);
-										return recorded && *recorded == git_revision_residency::sparse_commit_trees;
+										const auto exactSparseAnchor = [&](const core::comparison_anchor& aAnchor) {
+											if (!core::valid(aAnchor)
+												|| aAnchor.Availability != core::anchor_availability::available
+												|| (aAnchor.Identity.Kind != core::comparison_anchor_kind::epoch_base
+													&& aAnchor.Identity.Kind != core::comparison_anchor_kind::epoch_head)
+												|| aAnchor.Identity.Authority != selectedContext->Authority.Scope
+												|| aAnchor.Identity.Incarnation != snapshot->Binding.Catalog.Incarnation) {
+												return false;
+											}
+											const auto exact = selectedContext->Catalog->exact_anchors(
+												exact_anchor_lookup_request{
+													.Catalog = snapshot->Binding.Catalog,
+													.Anchors = { aAnchor.Identity },
+												},
+												workStop);
+											if (!exact || exact->Catalog != snapshot->Binding.Catalog
+												|| exact->Anchors.size() != 1U || exact->Anchors.front() != aAnchor) {
+												return false;
+											}
+											const auto recorded = selectedContext->Catalog->retained_residency(
+												aAnchor.Identity.Epoch, workStop);
+											if (!recorded || *recorded != git_revision_residency::sparse_commit_trees) {
+												return false;
+											}
+											const auto retained = actor->Cache->inspect_sparse_retained(
+												aAnchor.Identity.Epoch, workStop);
+											if (!retained || !application::valid(*retained)
+												|| retained->Residency != git_revision_residency::sparse_commit_trees
+												|| retained->Scope != selectedContext->Authority.Scope
+												|| retained->Ordinal != aAnchor.Identity.Epoch
+												|| (aAnchor.Identity.Kind == core::comparison_anchor_kind::epoch_base
+														? retained->Base
+														: retained->Head)
+													!= aAnchor.Commit) {
+												return false;
+											}
+											const auto inspected = actor->Cache->inspect_sparse_commit_object(
+												aAnchor.Commit, workStop);
+											return inspected && application::valid(*inspected)
+												&& inspected->Commit == aAnchor.Commit
+												&& inspected->Residency == git_revision_residency::sparse_commit_trees;
+										};
+										return exactSparseAnchor(aRequest.Side == core::diff_side::left
+																	 ? selectedPair->Left
+																	 : selectedPair->Right);
 									}();
 									if (durablySparse) {
 										const auto smartContext = git_smart_request_context{
@@ -6018,25 +6074,61 @@ namespace bpr::application {
 				std::move(actor));
 		}
 
-		void start_historical_import(const std::shared_ptr<authority_context>& aContext,
-									 const core::epoch_request_id              aRequest,
-									 const core::epoch_generation              aGeneration)
+		void resume_pending_occurrence_import(const std::shared_ptr<authority_context>& aContext)
+		{
+			if (aContext->HistoricalImportPending || Active != aContext
+				|| State.Authority != aContext->Authority
+				|| State.AcceptedRevision != aContext->Revision
+				|| !State.Catalog || !State.PendingOccurrence) {
+				return;
+			}
+			const auto pending = *State.PendingOccurrence;
+			start_historical_import(aContext, pending.Request, State.EpochGeneration,
+									core::epoch_occurrence_import_context{
+										State.ApplicationSession, pending.Request, *State.Authority,
+										*State.AcceptedRevision, State.EpochGeneration,
+										State.ComparisonGeneration, *State.Catalog,
+										pending.Occurrence, pending.Side });
+		}
+
+		void start_historical_import(const std::shared_ptr<authority_context>&                  aContext,
+									 const core::epoch_request_id                               aRequest,
+									 const core::epoch_generation                               aGeneration,
+									 const std::optional<core::epoch_occurrence_import_context> aSelection = std::nullopt)
 		{
 			// A historical import is supplementary. One actor serializes it with live
 			// retention, and each successful completion may admit another event.
 			// Large CLI reviews keep older comparison objects out of the initial
 			// load. Unproven historical anchors remain unavailable; a separate
 			// selected-epoch acquisition must prove them before comparison.
-			if (object_loading_for(aContext->Handoff.Shape)
+			const bool sparse = object_loading_for(aContext->Handoff.Shape)
 					== pull_request_object_loading::selected_objects
 				&& aContext->Handoff.SmartGit
-				&& aContext->Handoff.SmartGit->supports_sparse_commit_trees()) {
+				&& aContext->Handoff.SmartGit->supports_sparse_commit_trees();
+			if (sparse && !aSelection) {
 				return;
 			}
-			if (aContext->HistoricalImportPending
-				|| aContext->HistoricalImports + aContext->HistoricalSkipped.size() >= 8U
+			const auto failSelection = [aSelection](implementation& aHost) {
+				if (aSelection) {
+					aHost.dispatch_core(core::epoch_occurrence_import_failed_event{
+						.Context = *aSelection,
+						.Failure = core::epoch_failure::unavailable,
+					});
+				}
+			};
+			if (aSelection && !sparse) {
+				failSelection(*this);
+				return;
+			}
+			if (aContext->HistoricalImportPending) {
+				// The latest typed selection remains pending in core and is resumed
+				// after this actor's current historical effect completes.
+				return;
+			}
+			if (aContext->HistoricalImports + aContext->HistoricalSkipped.size() >= 8U
 				|| !aContext->OccurrenceHistory || !aContext->Handoff.SmartGit
 				|| aContext->Handoff.SmartGit->revoked()) {
+				failSelection(*this);
 				return;
 			}
 			aContext->HistoricalImportPending = true;
@@ -6044,11 +6136,17 @@ namespace bpr::application {
 			auto* const caches                = &Caches;
 			auto* const clock                 = &Clock;
 			const auto  submitted             = submit_effect(
-				[context = aContext, aRequest, aGeneration, entropy, caches, clock](
+				[context = aContext, aRequest, aGeneration, aSelection, sparse, entropy, caches, clock](
 					const std::stop_token aStop) -> worker_completion {
-					const auto noImport = [context](implementation& aHost) {
+					const auto noImport = [context, aSelection](implementation& aHost) {
 						context->HistoricalImportPending = false;
-						static_cast<void>(aHost);
+						if (aSelection) {
+							aHost.dispatch_core(core::epoch_occurrence_import_failed_event{
+								.Context = *aSelection,
+								.Failure = core::epoch_failure::unavailable,
+							});
+						}
+						aHost.resume_pending_occurrence_import(context);
 					};
 					if (aStop.stop_requested()) {
 						return noImport;
@@ -6056,25 +6154,36 @@ namespace bpr::application {
 					const auto snapshot = context->Catalog->snapshot(aStop);
 					const auto history  = context->Catalog->occurrences(aStop);
 					if (!snapshot || !history || !snapshot->LatestLive
-						|| snapshot->Binding != context->Catalog->binding()) {
+						|| snapshot->Binding != context->Catalog->binding()
+						|| (aSelection && snapshot->Binding.Catalog != aSelection->ExpectedCatalog)) {
 						return noImport;
 					}
 					const auto event = std::ranges::find_if(history->Occurrences,
 															[&](const core::epoch_occurrence& aOccurrence) {
 																return aOccurrence.Evidence.Kind == core::epoch_occurrence_kind::force_push_event
 																	&& !aOccurrence.LocalEpoch
-																	&& std::ranges::find(context->HistoricalSkipped, aOccurrence.Id) == context->HistoricalSkipped.end();
+																	&& (aSelection ? aOccurrence.Id == aSelection->Occurrence
+																				   : std::ranges::find(context->HistoricalSkipped, aOccurrence.Id) == context->HistoricalSkipped.end());
 															});
 					if (event == history->Occurrences.end() || !snapshot->NextOrdinal
 						|| !context->Handoff.SmartGit || context->Handoff.SmartGit->revoked()) {
 						return noImport;
 					}
-					const auto skip = [context, aRequest, aGeneration, id = event->Id](implementation& aHost) {
+					const auto skip = [context, aRequest, aGeneration, aSelection, id = event->Id](implementation& aHost) {
 						context->HistoricalImportPending = false;
+						if (aSelection) {
+							aHost.dispatch_core(core::epoch_occurrence_import_failed_event{
+								.Context = *aSelection,
+								.Failure = core::epoch_failure::unavailable,
+							});
+							aHost.resume_pending_occurrence_import(context);
+							return;
+						}
 						context->HistoricalSkipped.push_back(id);
 						if (aHost.Active == context && aHost.State.Authority == context->Authority) {
 							aHost.start_historical_import(context, aRequest, aGeneration);
 						}
+						aHost.resume_pending_occurrence_import(context);
 					};
 					const auto expectedCache = git_cache_open_request{
 						.ApplicationSession = context->Handoff.ApplicationSession,
@@ -6167,6 +6276,8 @@ namespace bpr::application {
 						.Revision           = context->Revision,
 						.Repository         = context->Handoff.Locator,
 						.BaseRef            = context->Handoff.BaseRef,
+						.AcquisitionMode    = sparse ? git_smart_acquisition_mode::sparse_commit_trees
+													 : git_smart_acquisition_mode::complete_closure,
 					};
 					auto transport = context->Handoff.SmartGit->acquire(smartContext);
 					if (!transport || !*transport) {
@@ -6190,14 +6301,17 @@ namespace bpr::application {
 					if (!inventory) {
 						return fail();
 					}
-					const auto spooled = context->Catalog->record_spool({
-																			.Catalog                   = snapshot->Binding.Catalog,
-																			.Operation                 = *operation,
-																			.ExpectedOperationRevision = prepared.Record->OperationRevision,
-																			.Spool                     = durable_fact(acquisition->Fetch.Pack),
-																			.Preimport                 = durable_fact(*inventory),
-																		},
-																		aStop);
+					auto spoolFact      = durable_fact(acquisition->Fetch.Pack);
+					spoolFact.Residency = sparse ? git_revision_residency::sparse_commit_trees
+												 : git_revision_residency::complete_closure;
+					const auto spooled  = context->Catalog->record_spool({
+																			 .Catalog                   = snapshot->Binding.Catalog,
+																			 .Operation                 = *operation,
+																			 .ExpectedOperationRevision = prepared.Record->OperationRevision,
+																			 .Spool                     = spoolFact,
+																			 .Preimport                 = durable_fact(*inventory),
+																		 },
+																		 aStop);
 					if (!spooled) {
 						return fail();
 					}
@@ -6206,43 +6320,58 @@ namespace bpr::application {
 					if (!token || !application::valid(*token)) {
 						return fail();
 					}
-					bool installationWitnessed = false;
-					auto installed             = context->Actor->Cache->prepare_historical_revision({
-																										.Receipt       = acquisition->Fetch.Pack,
-																										.Inventory     = *inventory,
-																										.Authorization = {
-																											.CatalogIncarnation      = snapshot->Binding.Catalog.Incarnation,
-																											.ExpectedCatalogRevision = snapshot->Binding.Catalog.Revision,
-																											.Operation               = *operation,
-																											.ExpectedPack            = acquisition->Fetch.Pack.ExpectedPack,
-																											.ReceiptToken            = acquisition->Fetch.Pack.OpaqueToken,
-																											.InventoryToken          = inventory->OpaqueToken,
-																											.DurableRecordToken      = *token,
-																										},
-																										.SelectedBase = context->Revision.Base,
-																										.Head         = event->Evidence.Head,
-																									},
-																									aStop, [&](const git_prepared_revision& aInstallation) {
-																							if (installationWitnessed || !application::valid(aInstallation)
-																								|| aInstallation.Head != event->Evidence.Head) {
-																								return false;
-																							}
-																							const auto next = context->Catalog->record_install({
-																																				   .Catalog                   = snapshot->Binding.Catalog,
-																																				   .Operation                 = *operation,
-																																				   .ExpectedOperationRevision = prepared.Record->OperationRevision,
-																																				   .Install                   = durable_fact(aInstallation),
-																																				   .DerivedComparisonBase     = aInstallation.Base,
-																																			   },
-																																			   aStop);
-																							if (!next) {
-																								return false;
-																							}
-																							prepared.Record       = *next;
-																							installationWitnessed = true;
-																							return true;
-																									});
-					if (!installed || !installationWitnessed || prepared.Record->Context.Revision.Base != installed->Base) {
+					const auto authorization = git_import_authorization{
+						.CatalogIncarnation      = snapshot->Binding.Catalog.Incarnation,
+						.ExpectedCatalogRevision = snapshot->Binding.Catalog.Revision,
+						.Operation               = *operation,
+						.ExpectedPack            = acquisition->Fetch.Pack.ExpectedPack,
+						.ReceiptToken            = acquisition->Fetch.Pack.OpaqueToken,
+						.InventoryToken          = inventory->OpaqueToken,
+						.DurableRecordToken      = *token,
+					};
+					const auto sparseRequest = git_prepare_revision_request{
+						.Receipt       = acquisition->Fetch.Pack,
+						.Inventory     = *inventory,
+						.Authorization = authorization,
+						.Base          = context->Revision.Base,
+						.Head          = event->Evidence.Head,
+					};
+					bool       installationWitnessed = false;
+					const auto persistInstallation   = [&](const git_prepared_revision& aInstallation) {
+						if (installationWitnessed || !application::valid(aInstallation)
+							|| aInstallation.Head != event->Evidence.Head
+							|| (sparse && !exact_prepared_revision(aInstallation, sparseRequest, git_revision_residency::sparse_commit_trees))
+							|| aInstallation.Residency != (sparse ? git_revision_residency::sparse_commit_trees : git_revision_residency::complete_closure)) {
+							return false;
+						}
+						const auto next = context->Catalog->record_install({
+																			   .Catalog                   = snapshot->Binding.Catalog,
+																			   .Operation                 = *operation,
+																			   .ExpectedOperationRevision = prepared.Record->OperationRevision,
+																			   .Install                   = durable_fact(aInstallation),
+																			   .DerivedComparisonBase     = aInstallation.Base,
+																		   },
+																		   aStop);
+						if (!next) {
+							return false;
+						}
+						prepared.Record       = *next;
+						installationWitnessed = true;
+						return true;
+					};
+					auto installed = sparse
+						? context->Actor->Cache->prepare_sparse_revision(sparseRequest, aStop, persistInstallation)
+						: context->Actor->Cache->prepare_historical_revision({
+																				 .Receipt       = acquisition->Fetch.Pack,
+																				 .Inventory     = *inventory,
+																				 .Authorization = authorization,
+																				 .SelectedBase  = context->Revision.Base,
+																				 .Head          = event->Evidence.Head,
+																			 },
+																			 aStop, persistInstallation);
+					if (!installed || !installationWitnessed
+						|| (sparse && !exact_prepared_revision(*installed, sparseRequest, git_revision_residency::sparse_commit_trees))
+						|| prepared.Record->Context.Revision.Base != installed->Base) {
 						return fail();
 					}
 					prepared.Git       = *installed;
@@ -6295,35 +6424,111 @@ namespace bpr::application {
 					if (!committed) {
 						return noImport;
 					}
-					const auto current = context->Catalog->snapshot(aStop);
-					const auto updated = context->Catalog->occurrences(aStop);
+					// The append may have crossed its durable point of no return even
+					// when the caller has since cancelled. Read its committed identity
+					// before delivering any selection or allowing a newer selection
+					// to reuse this actor.
+					const auto postCommitStop = std::stop_token{ };
+					const auto current        = context->Catalog->snapshot(postCommitStop);
+					const auto updated        = context->Catalog->occurrences(postCommitStop);
 					if (!current || !updated || !current->LatestLive
 						|| current->LatestLive != snapshot->LatestLive) {
 						return noImport;
 					}
+					if (aSelection) {
+						const auto linked = std::ranges::find(updated->Occurrences,
+															  aSelection->Occurrence, &core::epoch_occurrence::Id);
+						if (linked == updated->Occurrences.end()
+							|| linked->LocalEpoch != append->Epoch.Id
+							|| linked->Evidence.Head != append->Epoch.Head
+							|| linked->DerivedComparisonBase != append->Epoch.Base
+							|| current->Binding.Catalog == snapshot->Binding.Catalog) {
+							return noImport;
+						}
+					}
 					return [context, aRequest, aGeneration, expectedCatalog = snapshot->Binding.Catalog, catalog = current->Binding.Catalog,
-							currentEpoch = current->LatestLive, completedHistory = *updated](implementation& aHost) {
+							currentEpoch = current->LatestLive, completedHistory = *updated,
+							aSelection, imported                                 = append->Epoch](implementation& aHost) {
 						context->HistoricalImportPending = false;
 						++context->HistoricalImports;
 						if (aHost.Active == context && aHost.State.Authority == context->Authority) {
-							aHost.dispatch_core(core::epoch_historical_catalog_advanced_event{
-								.ApplicationSession = context->Handoff.ApplicationSession,
-								.Authority          = context->Authority,
-								.Revision           = context->Revision,
-								.ExpectedCatalog    = expectedCatalog,
-								.NewCatalog         = catalog,
-							});
-							context->OccurrenceHistory = completedHistory;
-							aHost.publish_occurrences(catalog, completedHistory, currentEpoch);
-							aHost.start_historical_import(context, aRequest, aGeneration);
+							const auto importedHead = core::comparison_anchor{
+								.Identity = core::comparison_anchor_identity{
+									.Authority   = imported.Id.Authority,
+									.Incarnation = imported.Id.Incarnation,
+									.Kind        = core::comparison_anchor_kind::epoch_head,
+									.Epoch       = imported.Id.Ordinal,
+								},
+								.Commit       = imported.Head,
+								.Availability = imported.HeadAvailability,
+							};
+							if (aSelection) {
+								aHost.dispatch_core(core::epoch_occurrence_imported_event{
+									.Context    = *aSelection,
+									.NewCatalog = catalog,
+									.Head       = importedHead,
+								});
+								// A repeated gesture can supersede the request after its
+								// append is durable. The same verified link satisfies that
+								// latest exact occurrence without fetching it again.
+								if (aHost.State.Catalog == expectedCatalog
+									&& aHost.State.PendingOccurrence
+									&& aHost.State.PendingOccurrence->Occurrence == aSelection->Occurrence) {
+									const auto pending = *aHost.State.PendingOccurrence;
+									aHost.dispatch_core(core::epoch_occurrence_imported_event{
+										.Context = core::epoch_occurrence_import_context{
+											aHost.State.ApplicationSession, pending.Request,
+											*aHost.State.Authority, *aHost.State.AcceptedRevision,
+											aHost.State.EpochGeneration, aHost.State.ComparisonGeneration,
+											expectedCatalog, pending.Occurrence, pending.Side },
+										.NewCatalog = catalog,
+										.Head       = importedHead,
+									});
+								}
+							}
+							if (aHost.State.Catalog == expectedCatalog) {
+								aHost.dispatch_core(core::epoch_historical_catalog_advanced_event{
+									.ApplicationSession = context->Handoff.ApplicationSession,
+									.Authority          = context->Authority,
+									.Revision           = context->Revision,
+									.ExpectedCatalog    = expectedCatalog,
+									.NewCatalog         = catalog,
+								});
+							}
+							if (aHost.State.Catalog == catalog) {
+								context->OccurrenceHistory = completedHistory;
+								aHost.publish_occurrences(catalog, completedHistory, currentEpoch);
+							}
+							if (!aSelection) {
+								aHost.start_historical_import(context, aRequest, aGeneration);
+							}
+							aHost.resume_pending_occurrence_import(context);
 						}
 					};
 				},
-				[context = aContext](implementation&) { context->HistoricalImportPending = false; },
-				[context = aContext](implementation&, core::epoch_failure) { context->HistoricalImportPending = false; },
+				[context = aContext, aSelection](implementation& aHost) {
+					context->HistoricalImportPending = false;
+					if (aSelection) {
+						aHost.dispatch_core(core::epoch_occurrence_import_cancelled_event{
+							.Context = *aSelection,
+						});
+					}
+					aHost.resume_pending_occurrence_import(context);
+				},
+				[context = aContext, aSelection](implementation& aHost, core::epoch_failure aFailure) {
+					context->HistoricalImportPending = false;
+					if (aSelection) {
+						aHost.dispatch_core(core::epoch_occurrence_import_failed_event{
+							.Context = *aSelection,
+							.Failure = aFailure,
+						});
+					}
+					aHost.resume_pending_occurrence_import(context);
+				},
 				aRequest, aGeneration, std::nullopt, std::nullopt, aContext->Actor);
 			if (!submitted) {
 				aContext->HistoricalImportPending = false;
+				failSelection(*this);
 			}
 		}
 
@@ -7470,6 +7675,37 @@ namespace bpr::application {
 								&& sparse->Commit == aCommit
 								&& sparse->Residency == git_revision_residency::sparse_commit_trees
 								&& sparse->Tree == (aCommit == context->Revision.Base ? candidates.LatestLive->Material->BaseTree : candidates.LatestLive->Material->HeadTree);
+						}
+						if (!exact && sparseCandidate) {
+							const auto matchesSparseAnchor = [&](const std::optional<core::comparison_anchor>& aAnchor) {
+								if (!aAnchor || aAnchor->Commit != aCommit
+									|| (aAnchor->Identity.Kind != core::comparison_anchor_kind::epoch_base
+										&& aAnchor->Identity.Kind != core::comparison_anchor_kind::epoch_head)
+									|| aAnchor->Identity.Authority != context->Authority.Scope
+									|| aAnchor->Identity.Incarnation != snapshot->Binding.Catalog.Incarnation) {
+									return false;
+								}
+								const auto recorded = context->Catalog->retained_residency(aAnchor->Identity.Epoch, aStop);
+								if (!recorded || *recorded != git_revision_residency::sparse_commit_trees) {
+									return false;
+								}
+								const auto retained = context->Actor->Cache->inspect_sparse_retained(aAnchor->Identity.Epoch, aStop);
+								if (!retained || !application::valid(*retained)
+									|| retained->Residency != git_revision_residency::sparse_commit_trees
+									|| retained->Scope != context->Authority.Scope
+									|| retained->Ordinal != aAnchor->Identity.Epoch
+									|| (aAnchor->Identity.Kind == core::comparison_anchor_kind::epoch_base
+											? retained->Base
+											: retained->Head)
+										!= aCommit) {
+									return false;
+								}
+								const auto sparse = context->Actor->Cache->inspect_sparse_commit_object(aCommit, aStop);
+								return sparse && application::valid(*sparse) && sparse->Commit == aCommit
+									&& sparse->Residency == git_revision_residency::sparse_commit_trees;
+							};
+							exact = matchesSparseAnchor(candidates.ExplicitLeft)
+								|| matchesSparseAnchor(candidates.ExplicitRight);
 						}
 						verified.emplace_back(aCommit, exact);
 						return exact;

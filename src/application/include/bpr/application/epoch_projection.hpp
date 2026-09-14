@@ -17,6 +17,7 @@ namespace bpr::application {
 		core::select_named_comparison_intent,
 		core::select_comparison_anchors_intent,
 		core::select_comparison_anchor_intent,
+		core::select_epoch_occurrence_intent,
 		core::request_epoch_history_page_intent,
 		core::prune_review_epochs_intent,
 		core::delete_repository_cache_intent,
@@ -115,6 +116,7 @@ namespace bpr::application {
 		std::optional<epoch_history_page_projection>  HistoryPage;
 		std::optional<core::epoch_occurrence_history> OccurrenceHistory;
 		std::optional<epoch_row_projection>           CurrentEpoch;
+		bool                                          AllowOccurrenceImport = false;
 
 		auto operator<=>(const epoch_catalog_projection&) const = default;
 	};

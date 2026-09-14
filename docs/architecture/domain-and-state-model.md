@@ -137,7 +137,7 @@ compact commands, status, and reason-coded diagnostics
 ```
 
 It contains no string, path, ref, catalog page, review collection, Git object,
-or dynamically sized history. `sizeof(epoch_state)` is capped at 2,048 bytes.
+or dynamically sized history. `sizeof(epoch_state)` is capped at 2,112 bytes.
 A catalog observation supplied to the core contains at most one latest live
 epoch, one preceding distinct-head candidate, one current-viewer review
 candidate, one material-match candidate, and the two requested anchors.

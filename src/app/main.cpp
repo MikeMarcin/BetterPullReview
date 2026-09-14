@@ -5301,7 +5301,9 @@ namespace {
 							std::optional<std::size_t> historicalNode;
 							for (std::size_t index = 0U; index < line->update_count(); ++index) {
 								const auto tooltip = line->node_tooltip(index);
-								if (index > 0U && tooltip.contains(QStringLiteral("Historical base unknown"))
+								// The first displayed occurrence can itself be a retained,
+								// selectable historical head.
+								if (tooltip.contains(QStringLiteral("Historical base unknown"))
 									&& tooltip.contains(QStringLiteral("Derived comparison base "))
 									&& !tooltip.contains(QStringLiteral("Comparison unavailable"))) {
 									historicalNode = index;

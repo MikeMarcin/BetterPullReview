@@ -11,6 +11,45 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/pla
 
 # Verify and close RFC-BPR-0013
 
+## Current frontier — bpr0643-r5 / d15 / mandate r16
+
+The d15 companion candidate adds typed selection of an unimported force-push
+occurrence for large reviews. The host imports its exact older head and tree
+only on selection, records the current accepted base as derived comparison
+context rather than historical provenance, then permits an exact selected
+historical blob read under durable sparse residency and selected-file
+authority. A complete opposite endpoint does not block the selected sparse
+blob. Core retains a compact pending occurrence identity; Qt sends the typed
+occurrence action. The existing current-pair large route, small complete
+background route and immediately visible loading surface remain intact.
+
+Independent critical review found two material gaps in the first candidate:
+the blob grant still excluded historical pairs, and a superseded durable
+import could publish a catalog revision core had rejected. Both paths were
+repaired; scoped re-review found no remaining counterexample. Focused host
+regressions now read actual historical bytes, hold a committed A completion
+while B is selected, repeat A before completion, and cancel A after the
+durable commit boundary. The first full portable course then exposed a
+small-review policy error: an unimported row offered lazy import after the
+complete background route correctly found a rewritten base unavailable.
+The host now grants that action only for large sparse reviews and refuses
+small-review typed import. The final five-test core/application/Qt focused
+set passes. Documentation, documentation self-tests and format pass; the
+isolated portable two-catalogue public course passes all rewritten-base,
+retained-history and gap phases in 227.40 seconds. The tests-disabled Release
+Mac bundle builds. A unique signed app copy passed signature verification,
+but the final read-only product attempt stopped because computer-use reported
+the Mac locked and could not unlock it. No new CLI-profile source/anchor/diff
+observation is claimed; this native exit remains open.
+
+BPR-0794 and BPR-0795 remain In Progress. The next bounded objective is to
+run the exact read-only product check when the Mac is unlocked and rebind the
+live milestone. The final product
+exit must show the accepted source and epoch anchors with a readable selected
+diff before either card can be marked Done. Preserve unrelated dirty
+`.gitignore`, `.mask.json` and BPR-0775/0776 deletions; no live PR write,
+account switch, token extraction or private content retention is authorized.
+
 ## Current frontier — bpr0643-r5 / d13 / mandate r16
 
 The owner chose exact, on-demand selected-file objects and deferred older-epoch

@@ -294,13 +294,15 @@ namespace {
 		std::vector<core::git_commit_oid>                       CommitTimeRequests;
 		std::deque<bool>                                        SourceCollisions;
 		std::deque<std::optional<application::epoch_catalog_failure>>
-																 CatalogOpenFailures;
-		std::deque<application::epoch_catalog_snapshot>          CatalogOpenSnapshots;
-		std::optional<application::append_operation_record>      Operation;
-		std::optional<application::maintenance_operation_record> Maintenance;
-		std::optional<application::git_retained_ref_pair>        Retained;
-		std::deque<application::epoch_recovery_page>             RecoveryPages;
-		std::vector<std::optional<core::epoch_operation_id>>     RecoveryPageCursors;
+																						 CatalogOpenFailures;
+		std::deque<application::epoch_catalog_snapshot>                                  CatalogOpenSnapshots;
+		std::optional<application::append_operation_record>                              Operation;
+		std::optional<application::maintenance_operation_record>                         Maintenance;
+		std::optional<application::git_retained_ref_pair>                                Retained;
+		std::vector<application::git_retained_ref_pair>                                  RetainedPairs;
+		std::vector<std::pair<core::epoch_ordinal, application::git_revision_residency>> RetainedResidencies;
+		std::deque<application::epoch_recovery_page>                                     RecoveryPages;
+		std::vector<std::optional<core::epoch_operation_id>>                             RecoveryPageCursors;
 		std::deque<application::epoch_catalog_result<
 			application::epoch_history_page>>
 															 HistoryPages;
@@ -605,11 +607,15 @@ namespace {
 			if (aStop.stop_requested()) {
 				return std::unexpected{ application::epoch_catalog_failure::cancelled };
 			}
-			if (State.SparseCatalogMarkerMissing || !State.Operation || !State.Operation->Install
-				|| State.Operation->ReservedOrdinal != aOrdinal) {
+			if (State.SparseCatalogMarkerMissing || !State.Operation || !State.Operation->Install) {
 				return std::unexpected{ application::epoch_catalog_failure::unavailable };
 			}
-			return State.Operation->Install->Residency;
+			const auto recorded = std::ranges::find_if(State.RetainedResidencies,
+													   [aOrdinal](const auto& aEntry) { return aEntry.first == aOrdinal; });
+			if (recorded == State.RetainedResidencies.end()) {
+				return std::unexpected{ application::epoch_catalog_failure::unavailable };
+			}
+			return recorded->second;
 		}
 
 		[[nodiscard]] auto occurrences(const std::stop_token aStop)
@@ -722,28 +728,34 @@ namespace {
 			auto result = application::exact_anchor_lookup_result{
 				.Catalog = aRequest.Catalog,
 			};
-			if (State.Snapshot.LatestLive) {
-				const auto& epoch = *State.Snapshot.LatestLive;
-				for (const auto& identity : aRequest.Anchors) {
-					if (identity.Authority != epoch.Id.Authority
-						|| identity.Incarnation != epoch.Id.Incarnation
-						|| identity.Epoch != epoch.Id.Ordinal) {
-						continue;
-					}
-					if (identity.Kind == core::comparison_anchor_kind::epoch_base) {
-						result.Anchors.push_back(core::comparison_anchor{
-							.Identity     = identity,
-							.Commit       = epoch.Base,
-							.Availability = epoch.BaseAvailability,
-						});
-					} else if (identity.Kind
-							   == core::comparison_anchor_kind::epoch_head) {
-						result.Anchors.push_back(core::comparison_anchor{
-							.Identity     = identity,
-							.Commit       = epoch.Head,
-							.Availability = epoch.HeadAvailability,
-						});
-					}
+			for (const auto& identity : aRequest.Anchors) {
+				const auto  found = std::ranges::find_if(State.EpochRows, [&identity](const auto& aEpoch) {
+					return identity.Authority == aEpoch.Id.Authority
+						&& identity.Incarnation == aEpoch.Id.Incarnation
+						&& identity.Epoch == aEpoch.Id.Ordinal;
+				});
+				const auto* epoch = found != State.EpochRows.end() ? &*found
+					: State.Snapshot.LatestLive && identity.Authority == State.Snapshot.LatestLive->Id.Authority
+						&& identity.Incarnation == State.Snapshot.LatestLive->Id.Incarnation
+						&& identity.Epoch == State.Snapshot.LatestLive->Id.Ordinal
+					? &*State.Snapshot.LatestLive
+					: nullptr;
+				if (!epoch) {
+					continue;
+				}
+				if (identity.Kind == core::comparison_anchor_kind::epoch_base) {
+					result.Anchors.push_back(core::comparison_anchor{
+						.Identity     = identity,
+						.Commit       = epoch->Base,
+						.Availability = epoch->BaseAvailability,
+					});
+				} else if (identity.Kind
+						   == core::comparison_anchor_kind::epoch_head) {
+					result.Anchors.push_back(core::comparison_anchor{
+						.Identity     = identity,
+						.Commit       = epoch->Head,
+						.Availability = epoch->HeadAvailability,
+					});
 				}
 			}
 			return result;
@@ -1028,6 +1040,10 @@ namespace {
 			};
 			State.Binding.Catalog          = next;
 			State.Snapshot.Binding.Catalog = next;
+			if (State.Operation->Install) {
+				State.RetainedResidencies.emplace_back(aRequest.Mutation.Epoch.Id.Ordinal,
+													   State.Operation->Install->Residency);
+			}
 			if (State.OccurrencesSupported) {
 				State.EpochRows.push_back(aRequest.Mutation.Epoch);
 				if (aRequest.HistoricalOccurrence) {
@@ -1626,6 +1642,7 @@ namespace {
 				.Head      = aAuthorization.Head,
 				.Residency = aPrepared.Residency,
 			};
+			State.RetainedPairs.push_back(*State.Retained);
 			if (State.PromoteAppliesThenFails) {
 				State.PromoteAppliesThenFails = false;
 				return std::unexpected{
@@ -1652,11 +1669,13 @@ namespace {
 			-> application::git_cache_result<application::git_retained_ref_pair> override
 		{
 			State.Calls.emplace_back("cache.inspect-sparse-retained");
-			if (aStop.stop_requested() || !State.Retained || State.Retained->Ordinal != aOrdinal
-				|| State.Retained->Residency != application::git_revision_residency::sparse_commit_trees) {
+			const auto found = std::ranges::find(State.RetainedPairs, aOrdinal,
+												 &application::git_retained_ref_pair::Ordinal);
+			if (aStop.stop_requested() || found == State.RetainedPairs.end()
+				|| found->Residency != application::git_revision_residency::sparse_commit_trees) {
 				return std::unexpected{ application::git_cache_failure::ref_conflict };
 			}
-			return *State.Retained;
+			return *found;
 		}
 
 		[[nodiscard]] auto inspect_commit_object(
@@ -5257,6 +5276,239 @@ namespace {
 			   "physical sparse objects alone cannot replace a missing durable residency marker");
 	}
 
+	void selected_large_occurrence_imports_only_its_sparse_head()
+	{
+		fixture value;
+		value.State.SupportsSparse       = true;
+		value.State.SparseObjects        = true;
+		value.State.OccurrencesSupported = true;
+		value.Clock.set_next_utc(1'789'000'000'500LL);
+		auto handoff                 = make_handoff(value.State, 1U, 20U, true);
+		handoff.Shape                = application::accepted_pull_request_shape{ 101U, 1U, 1U };
+		handoff.ForcePushes          = { force_push(101U, 21U) };
+		handoff.TimelineAvailability = application::epoch_timeline_availability::available;
+		value.Host->accept(std::move(handoff));
+		drain(value);
+		expect(value.Host->state().AcceptedComparison && value.Host->state().Catalog
+				   && value.State.Occurrences.Occurrences.size() == 1U
+				   && !value.State.Occurrences.Occurrences.front().LocalEpoch
+				   && std::ranges::count(value.State.Calls, "cache.prepare-sparse-revision") == 1,
+			   "large open establishes only the current sparse pair while the older event remains unimported");
+		const auto before                 = *value.Host->state().AcceptedComparison;
+		const auto catalog                = *value.Host->state().Catalog;
+		const auto occurrence             = value.State.Occurrences.Occurrences.front().Id;
+		value.State.AfterCommitAuthorized = [&value] {
+			expect(value.State.Operation.has_value(), "selected import has one durable operation");
+			value.State.RecoveryInspections.emplace_back(recovery_observation(
+				*value.State.Operation, application::git_recovery_ref_topology::staging,
+				application::git_recovery_match::exact, application::git_recovery_match::absent));
+		};
+		value.Host->dispatch(core::select_epoch_occurrence_intent{
+			.Side            = core::comparison_side::left,
+			.Occurrence      = occurrence,
+			.ExpectedCatalog = catalog,
+		});
+		drain(value);
+		const auto& linked = value.State.Occurrences.Occurrences.front();
+		expect(linked.LocalEpoch && linked.DerivedComparisonBase == before.Left.Commit
+				   && !linked.HistoricalBase
+				   && value.Host->state().Catalog->Revision.value() == catalog.Revision.value() + 1U
+				   && std::ranges::count(value.State.Calls, "cache.prepare-sparse-revision") == 2
+				   && std::ranges::find(value.State.Calls, "cache.prepare-historical-revision") == value.State.Calls.end(),
+			   "one exact selected event imports a sparse head and labels its comparison base without inventing historical provenance");
+		expect(value.Host->state().AcceptedComparison
+				   && value.Host->state().AcceptedComparison->Left.Identity.Kind == core::comparison_anchor_kind::epoch_head
+				   && value.Host->state().AcceptedComparison->Left.Identity.Epoch == linked.LocalEpoch->Ordinal
+				   && value.Host->state().AcceptedComparison->Left.Commit == linked.Evidence.Head,
+			   "the selected occurrence becomes the readable exact left comparison anchor after durable import");
+		const auto selected = resolve_selected_diff(value, selected_diff_request_for(value), { });
+		expect(selected.Status == application::workbench_selected_diff_status::available
+				   && selected.LeftBlob && selected.RightBlob,
+			   "selected historical file resolves exact blobs before remote materialization");
+		value.State.CachedBlobMissing = true;
+		// A complete opposite endpoint cannot veto the exact missing sparse blob.
+		const auto currentOrdinal = value.State.Snapshot.LatestLive->Id.Ordinal;
+		const auto currentMarker  = std::ranges::find_if(value.State.RetainedResidencies,
+														 [currentOrdinal](const auto& aEntry) { return aEntry.first == currentOrdinal; });
+		expect(currentMarker != value.State.RetainedResidencies.end(),
+			   "current comparison endpoint has a durable residency marker");
+		currentMarker->second        = application::git_revision_residency::complete_closure;
+		auto blob                    = blob_request_for(value.Host->state());
+		blob.Context.Key.LeftAnchor  = selected.Request.Diff.Comparison.Left.Identity;
+		blob.Context.Key.RightAnchor = selected.Request.Diff.Comparison.Right.Identity;
+		blob.Context.Key.LeftBlob    = selected.LeftBlob;
+		blob.Context.Key.RightBlob   = selected.RightBlob;
+		blob.Context.Key.File        = selected.Request.File.File;
+		blob.Context.Key.Options     = selected.Request.Diff.OptionsDigest;
+		blob.Context.Key.Algorithm   = selected.Request.Diff.Algorithm;
+		blob.Blob                    = *selected.LeftBlob;
+		auto materialized            = std::optional<application::diff_blob_observation>{ };
+		auto reader                  = std::jthread{ [&] { materialized = value.Host->materialize(blob, { }); } };
+		value.Effects.wait_for_pending();
+		value.Effects.run_next();
+		reader.join();
+		expect(materialized && materialized->Status == application::diff_blob_status::available
+				   && materialized->Bytes == std::vector<std::uint8_t>{ 'e', 'x', 'a', 'c', 't', ' ', 's', 'e', 'l', 'e', 'c', 't', 'e', 'd', ' ', 'b', 'l', 'o', 'b' }
+				   && value.State.ExactBlobRequests.size() == 1U
+				   && value.State.ExactBlobRequests.front().ExpectedBlob == blob.Blob,
+			   "historical sparse endpoint reads only its selected exact blob with a complete opposite endpoint");
+		const auto imports = std::ranges::count(value.State.Calls, "cache.prepare-sparse-revision");
+		value.Host->dispatch(core::select_epoch_occurrence_intent{
+			.Side            = core::comparison_side::left,
+			.Occurrence      = occurrence,
+			.ExpectedCatalog = catalog,
+		});
+		drain(value);
+		expect(std::ranges::count(value.State.Calls, "cache.prepare-sparse-revision") == imports,
+			   "a stale catalog gesture cannot acquire or rebind an older object");
+	}
+
+	void selected_large_occurrence_switch_drops_late_import()
+	{
+		fixture value;
+		value.State.SupportsSparse       = true;
+		value.State.SparseObjects        = true;
+		value.State.OccurrencesSupported = true;
+		value.Clock.set_next_utc(1'789'000'000'500LL);
+		auto handoff                 = make_handoff(value.State, 1U, 20U, true);
+		handoff.Shape                = application::accepted_pull_request_shape{ 101U, 1U, 1U };
+		handoff.ForcePushes          = { force_push(101U, 21U) };
+		handoff.TimelineAvailability = application::epoch_timeline_availability::available;
+		value.Host->accept(std::move(handoff));
+		drain(value);
+		expect(value.State.Occurrences.Occurrences.size() == 1U
+				   && !value.State.Occurrences.Occurrences.front().LocalEpoch,
+			   "large review has one unimported event before a stale switch");
+		value.Host->dispatch(core::select_epoch_occurrence_intent{
+			.Side            = core::comparison_side::left,
+			.Occurrence      = value.State.Occurrences.Occurrences.front().Id,
+			.ExpectedCatalog = *value.Host->state().Catalog,
+		});
+		value.Host->invalidate(matching_invalidation());
+		drain(value);
+		expect(!value.State.Occurrences.Occurrences.front().LocalEpoch
+				   && std::ranges::count(value.State.Calls, "cache.prepare-sparse-revision") == 1
+				   && !value.Host->state().AcceptedComparison,
+			   "switching away before the effect runs cancels the targeted object read and cannot publish its selection");
+	}
+
+	void selected_large_occurrence_rebases_after_superseded_commit(const bool aRepeatOccurrence = false)
+	{
+		fixture value;
+		value.State.SupportsSparse       = true;
+		value.State.SparseObjects        = true;
+		value.State.OccurrencesSupported = true;
+		value.Clock.set_next_utc(1'789'000'000'500LL);
+		auto handoff                 = make_handoff(value.State, 1U, 20U, true);
+		handoff.Shape                = application::accepted_pull_request_shape{ 101U, 1U, 1U };
+		handoff.ForcePushes          = { force_push(101U, 21U), force_push(102U, 22U) };
+		handoff.TimelineAvailability = application::epoch_timeline_availability::available;
+		value.Host->accept(std::move(handoff));
+		drain(value);
+		expect(value.State.Occurrences.Occurrences.size() == 2U
+				   && !value.State.Occurrences.Occurrences.front().LocalEpoch
+				   && !value.State.Occurrences.Occurrences.back().LocalEpoch,
+			   "large review keeps both older events unimported");
+		value.State.AfterCommitAuthorized = [&value] {
+			expect(value.State.Operation.has_value(), "targeted import has a durable operation");
+			value.State.RecoveryInspections.emplace_back(recovery_observation(
+				*value.State.Operation, application::git_recovery_ref_topology::staging,
+				application::git_recovery_match::exact, application::git_recovery_match::absent));
+		};
+		const auto first   = value.State.Occurrences.Occurrences.front().Id;
+		const auto second  = aRepeatOccurrence ? first : value.State.Occurrences.Occurrences.back().Id;
+		const auto catalog = *value.Host->state().Catalog;
+		value.Host->dispatch(core::select_epoch_occurrence_intent{
+			.Side = core::comparison_side::left, .Occurrence = first, .ExpectedCatalog = catalog });
+		value.Effects.wait_for_pending();
+		value.Effects.run_next();
+		expect(value.State.Occurrences.Occurrences.front().LocalEpoch
+				   && value.Host->state().Catalog == catalog && value.Decisions.pending() > 0U,
+			   "first historical import commits durably while its decision is held");
+		value.Host->dispatch(core::select_epoch_occurrence_intent{
+			.Side = core::comparison_side::left, .Occurrence = second, .ExpectedCatalog = catalog });
+		const auto updatesBeforeCommitDecision = value.State.Updates.size();
+		value.Decisions.run_next();
+		const auto firstPublished = std::ranges::find_if(value.State.Updates.begin() + static_cast<std::ptrdiff_t>(updatesBeforeCommitDecision),
+														 value.State.Updates.end(), [](const auto& aUpdate) {
+															 return aUpdate.Catalog && aUpdate.Catalog->OccurrenceHistory.has_value();
+														 });
+		expect(value.Host->state().Catalog == value.State.Snapshot.Binding.Catalog
+				   && firstPublished != value.State.Updates.end()
+				   && firstPublished->Catalog->Catalog == value.Host->state().Catalog,
+			   "superseded commit publishes only the catalog core has accepted");
+		drain(value);
+		const auto linked = std::ranges::find(value.State.Occurrences.Occurrences, second,
+											  &core::epoch_occurrence::Id);
+		expect(linked != value.State.Occurrences.Occurrences.end() && linked->LocalEpoch
+				   && value.Host->state().Catalog == value.State.Snapshot.Binding.Catalog
+				   && value.Host->state().AcceptedComparison
+				   && value.Host->state().AcceptedComparison->Left.Commit == linked->Evidence.Head,
+			   "superseded durable commit rebases the latest selection and keeps core/catalog synchronized");
+		if (aRepeatOccurrence) {
+			expect(std::ranges::count(value.State.Calls, "cache.prepare-sparse-revision") == 2,
+				   "repeated selection reuses the durably imported occurrence without another object fetch");
+		}
+	}
+
+	void selected_large_occurrence_reconciles_cancel_after_commit_boundary()
+	{
+		fixture value;
+		value.State.SupportsSparse       = true;
+		value.State.SparseObjects        = true;
+		value.State.OccurrencesSupported = true;
+		value.Clock.set_next_utc(1'789'000'000'500LL);
+		auto handoff                 = make_handoff(value.State, 1U, 20U, true);
+		handoff.Shape                = application::accepted_pull_request_shape{ 101U, 1U, 1U };
+		handoff.ForcePushes          = { force_push(101U, 21U), force_push(102U, 22U) };
+		handoff.TimelineAvailability = application::epoch_timeline_availability::available;
+		value.Host->accept(std::move(handoff));
+		drain(value);
+		const auto first                  = value.State.Occurrences.Occurrences.front().Id;
+		const auto second                 = value.State.Occurrences.Occurrences.back().Id;
+		const auto catalog                = *value.Host->state().Catalog;
+		value.State.AfterCommitAuthorized = [&value] {
+			expect(value.State.Operation.has_value(), "historical append has a durable operation");
+			value.State.RecoveryInspections.emplace_back(recovery_observation(
+				*value.State.Operation, application::git_recovery_ref_topology::staging,
+				application::git_recovery_match::exact, application::git_recovery_match::absent));
+		};
+		std::mutex              gate;
+		std::condition_variable changed;
+		bool                    reachedCommitBoundary = false;
+		bool                    releaseWorker         = false;
+		value.State.AfterRefCommitInProgress          = [&] {
+			std::unique_lock lock{ gate };
+			reachedCommitBoundary = true;
+			changed.notify_one();
+			changed.wait(lock, [&] { return releaseWorker; });
+		};
+		value.Host->dispatch(core::select_epoch_occurrence_intent{
+			.Side = core::comparison_side::left, .Occurrence = first, .ExpectedCatalog = catalog });
+		value.Effects.wait_for_pending();
+		std::thread worker{ [&value] { value.Effects.run_next(); } };
+		{
+			std::unique_lock lock{ gate };
+			changed.wait(lock, [&] { return reachedCommitBoundary; });
+		}
+		value.Host->dispatch(core::select_epoch_occurrence_intent{
+			.Side = core::comparison_side::left, .Occurrence = second, .ExpectedCatalog = catalog });
+		{
+			std::scoped_lock lock{ gate };
+			releaseWorker = true;
+			changed.notify_all();
+		}
+		worker.join();
+		drain(value);
+		const auto linked = std::ranges::find(value.State.Occurrences.Occurrences, second,
+											  &core::epoch_occurrence::Id);
+		expect(linked != value.State.Occurrences.Occurrences.end() && linked->LocalEpoch
+				   && value.Host->state().Catalog == value.State.Snapshot.Binding.Catalog
+				   && value.Host->state().AcceptedComparison
+				   && value.Host->state().AcceptedComparison->Left.Commit == linked->Evidence.Head,
+			   "post-commit cancellation still reconciles catalog and honors the later exact selection");
+	}
+
 	[[nodiscard]] auto resolve_selected_diff(
 		fixture&                                            aValue,
 		const application::workbench_selected_diff_request& aRequest,
@@ -7573,6 +7825,11 @@ int main()
 	diff_blob_materialization_reuses_the_epoch_cache_actor();
 	large_selected_blob_reads_only_the_exact_missing_object();
 	large_review_uses_sparse_current_pair_while_small_stays_complete();
+	selected_large_occurrence_imports_only_its_sparse_head();
+	selected_large_occurrence_switch_drops_late_import();
+	selected_large_occurrence_rebases_after_superseded_commit();
+	selected_large_occurrence_rebases_after_superseded_commit(true);
+	selected_large_occurrence_reconciles_cancel_after_commit_boundary();
 	selected_diff_resolution_reuses_and_revalidates_the_epoch_cache_actor();
 	selected_diff_resolves_each_endpoint_without_provider_direction();
 	selected_diff_rename_resolution_is_directional_and_ambiguous_closed();

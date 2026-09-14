@@ -1141,6 +1141,54 @@ namespace bpr::core {
 		right,
 	};
 
+	/// \brief Selects a provider occurrence whose retained head must first be imported.
+	struct select_epoch_occurrence_intent
+	{
+		comparison_side        Side = comparison_side::left;
+		epoch_occurrence_id    Occurrence;
+		epoch_catalog_identity ExpectedCatalog;
+		auto                   operator<=>(const select_epoch_occurrence_intent&) const = default;
+	};
+
+	/// \brief Binds targeted historical work to one exact authority and selection.
+	struct epoch_occurrence_import_context
+	{
+		application_session_id         ApplicationSession;
+		epoch_request_id               Request;
+		pull_request_authority         Authority;
+		accepted_pull_request_revision Revision;
+		epoch_generation               Generation;
+		comparison_generation          ComparisonGeneration;
+		epoch_catalog_identity         ExpectedCatalog;
+		epoch_occurrence_id            Occurrence;
+		comparison_side                Side                                                      = comparison_side::left;
+		auto                           operator<=>(const epoch_occurrence_import_context&) const = default;
+	};
+
+	/// \brief Reports a durably linked occurrence's physically verified head.
+	struct epoch_occurrence_imported_event
+	{
+		epoch_occurrence_import_context Context;
+		epoch_catalog_identity          NewCatalog;
+		comparison_anchor               Head;
+		auto                            operator<=>(const epoch_occurrence_imported_event&) const = default;
+	};
+
+	/// \brief Terminates an exact occurrence import without changing selection.
+	struct epoch_occurrence_import_failed_event
+	{
+		epoch_occurrence_import_context Context;
+		epoch_failure                   Failure                                                        = epoch_failure::unavailable;
+		auto                            operator<=>(const epoch_occurrence_import_failed_event&) const = default;
+	};
+
+	/// \brief Terminates cancelled occurrence work without adopting an anchor.
+	struct epoch_occurrence_import_cancelled_event
+	{
+		epoch_occurrence_import_context Context;
+		auto                            operator<=>(const epoch_occurrence_import_cancelled_event&) const = default;
+	};
+
 	/// \brief Describes the select comparison anchor intent record.
 	struct select_comparison_anchor_intent
 	{
@@ -1195,7 +1243,11 @@ namespace bpr::core {
 		select_comparison_anchors_intent,
 		select_comparison_anchor_intent,
 		cancel_epoch_refresh_intent,
-		cancel_comparison_resolution_intent>;
+		cancel_comparison_resolution_intent,
+		select_epoch_occurrence_intent,
+		epoch_occurrence_imported_event,
+		epoch_occurrence_import_failed_event,
+		epoch_occurrence_import_cancelled_event>;
 
 	/// \brief Describes the invalidate epoch authority request record.
 	struct invalidate_epoch_authority_request
@@ -1273,6 +1325,13 @@ namespace bpr::core {
 		auto operator<=>(const cancel_epoch_work_request&) const = default;
 	};
 
+	/// \brief Requests only the named occurrence, never a history-wide import.
+	struct import_epoch_occurrence_request
+	{
+		epoch_occurrence_import_context Context;
+		auto                            operator<=>(const import_epoch_occurrence_request&) const = default;
+	};
+
 	using epoch_host_request = std::variant<
 		invalidate_epoch_authority_request,
 		load_epoch_catalog_request,
@@ -1282,7 +1341,8 @@ namespace bpr::core {
 		resolve_comparison_request,
 		load_epoch_history_page_request,
 		perform_epoch_maintenance_request,
-		cancel_epoch_work_request>;
+		cancel_epoch_work_request,
+		import_epoch_occurrence_request>;
 
 	enum class epoch_reason_code : std::uint8_t {
 		none,
@@ -1558,35 +1618,46 @@ namespace bpr::core {
 		auto operator<=>(const pending_epoch_maintenance&) const = default;
 	};
 
+	/// \brief Keeps the import identity compact; authority remains in epoch state.
+	struct pending_epoch_occurrence_import
+	{
+		epoch_request_id    Request;
+		epoch_occurrence_id Occurrence;
+		comparison_side     Side                                                      = comparison_side::left;
+		auto                operator<=>(const pending_epoch_occurrence_import&) const = default;
+	};
+
 	/// \brief Describes the epoch state record.
 	struct epoch_state
 	{
-		application_session_id                        ApplicationSession;
-		epoch_request_id                              NextRequest{ 1 };
-		bool                                          RequestCounterExhausted = false;
-		epoch_generation                              EpochGeneration;
-		comparison_generation                         ComparisonGeneration;
-		std::optional<pull_request_authority>         Authority;
-		std::optional<accepted_pull_request_revision> AcceptedRevision;
-		std::optional<epoch_catalog_identity>         Catalog;
-		comparison_selection                          RequestedSelection = named_selection(named_comparison::whole_pr);
-		std::optional<comparison_pair>                AcceptedComparison;
-		comparison_revision                           AcceptedComparisonRevision;
-		std::optional<pending_epoch_ingestion>        PendingIngestion;
-		std::optional<pending_comparison_resolution>  PendingComparison;
-		std::optional<pending_epoch_history_page>     PendingHistory;
-		std::optional<pending_epoch_maintenance>      PendingMaintenance;
-		std::optional<epoch_catalog_identity>         HistoryCatalog;
-		std::optional<epoch_history_navigation>       HistoryNavigation;
-		std::optional<epoch_history_cursor>           HistoryContinuation;
-		epoch_status                                  Status = epoch_status::inactive;
+		application_session_id                         ApplicationSession;
+		epoch_request_id                               NextRequest{ 1 };
+		bool                                           RequestCounterExhausted = false;
+		epoch_generation                               EpochGeneration;
+		comparison_generation                          ComparisonGeneration;
+		std::optional<pull_request_authority>          Authority;
+		std::optional<accepted_pull_request_revision>  AcceptedRevision;
+		std::optional<epoch_catalog_identity>          Catalog;
+		comparison_selection                           RequestedSelection = named_selection(named_comparison::whole_pr);
+		std::optional<comparison_pair>                 AcceptedComparison;
+		comparison_revision                            AcceptedComparisonRevision;
+		std::optional<pending_epoch_ingestion>         PendingIngestion;
+		std::optional<pending_comparison_resolution>   PendingComparison;
+		std::optional<pending_epoch_occurrence_import> PendingOccurrence;
+		std::optional<pending_epoch_history_page>      PendingHistory;
+		std::optional<pending_epoch_maintenance>       PendingMaintenance;
+		std::optional<epoch_catalog_identity>          HistoryCatalog;
+		std::optional<epoch_history_navigation>        HistoryNavigation;
+		std::optional<epoch_history_cursor>            HistoryContinuation;
+		epoch_status                                   Status = epoch_status::inactive;
 
 		auto operator<=>(const epoch_state&) const = default;
 	};
 
 	static_assert(std::is_trivially_copyable_v<epoch_state>);
 	static_assert(std::is_trivially_destructible_v<epoch_state>);
-	static_assert(sizeof(epoch_state) <= 2'048U);
+	// The pending occurrence adds one constant-size request/id/side tuple, not history.
+	static_assert(sizeof(epoch_state) <= 2'112U);
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_EPOCH_MODEL_HPP

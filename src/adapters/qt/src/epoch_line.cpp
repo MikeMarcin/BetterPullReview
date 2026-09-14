@@ -133,7 +133,7 @@ namespace bpr::qt {
 
 	void epoch_line::set_occurrences(const core::epoch_occurrence_history&                   aHistory,
 									 const std::optional<application::epoch_row_projection>& aCurrentEpoch,
-									 const std::vector<application::epoch_row_projection>&   aLocalRows)
+									 const std::vector<application::epoch_row_projection>& aLocalRows, const bool aAllowOccurrenceImport)
 	{
 		Updates.clear();
 		for (const auto& occurrence : aHistory.Occurrences) {
@@ -166,7 +166,7 @@ namespace bpr::qt {
 			if (hasObservedBase && observed->Cause.Origin != core::epoch_origin::explicit_historical_import) {
 				details.append(QStringLiteral(" Locally observed base %1.").arg(short_oid(observed->Base)));
 			}
-			Updates.push_back({ .Id = occurrence.LocalEpoch, .Head = occurrence.Evidence.Head, .Label = label, .Details = details, .HasBase = hasObservedBase || occurrence.HistoricalBase.has_value() || occurrence.DerivedComparisonBase.has_value() });
+			Updates.push_back({ .Id = occurrence.LocalEpoch, .Head = occurrence.Evidence.Head, .Label = label, .Details = details, .HasBase = hasObservedBase || occurrence.HistoricalBase.has_value() || occurrence.DerivedComparisonBase.has_value(), .ImportOccurrence = aAllowOccurrenceImport && !occurrence.LocalEpoch && occurrence.Evidence.Kind == core::epoch_occurrence_kind::force_push_event ? std::optional{ occurrence.Id } : std::nullopt });
 		}
 		const auto provisional = aCurrentEpoch && std::ranges::none_of(Updates, [&aCurrentEpoch](const line_row& aRow) {
 									 return aRow.Id == aCurrentEpoch->Id;
@@ -213,6 +213,11 @@ namespace bpr::qt {
 	{
 		Offered = aOffered;
 		update();
+	}
+
+	void epoch_line::set_occurrence_dispatch(std::function<void(core::comparison_side, core::epoch_occurrence_id)> aDispatch)
+	{
+		OccurrenceDispatch = std::move(aDispatch);
 	}
 
 	void epoch_line::set_dispatch(epoch_line_dispatch aDispatch)
@@ -387,7 +392,7 @@ namespace bpr::qt {
 			stops.push_back({ .Update = 0U, .Kind = core::comparison_anchor_kind::epoch_base });
 		}
 		for (std::size_t index = 0U; index < Updates.size(); ++index) {
-			if (Updates[index].Id) {
+			if (Updates[index].Id || Updates[index].ImportOccurrence) {
 				stops.push_back({ .Update = index, .Kind = core::comparison_anchor_kind::epoch_head });
 			}
 		}
@@ -447,13 +452,17 @@ namespace bpr::qt {
 
 	void epoch_line::choose(const core::comparison_side aSide, const epoch_line_stop& aStop)
 	{
-		if (!Offered || !Dispatch || aStop.Update >= Updates.size()
-			|| !Updates[aStop.Update].Id
+		if (!Offered || aStop.Update >= Updates.size()
 			|| (aStop.Kind == core::comparison_anchor_kind::epoch_base && !Updates[aStop.Update].HasBase)) {
 			return;
 		}
-		ActiveSide = aSide;
-		Dispatch(aSide, identity_of(aStop));
+		ActiveSide      = aSide;
+		const auto& row = Updates[aStop.Update];
+		if (row.Id && Dispatch) {
+			Dispatch(aSide, identity_of(aStop));
+		} else if (row.ImportOccurrence && OccurrenceDispatch && aStop.Kind == core::comparison_anchor_kind::epoch_head) {
+			OccurrenceDispatch(aSide, *row.ImportOccurrence);
+		}
 	}
 
 	void epoch_line::step(const core::comparison_side aSide, const int aDirection)
@@ -676,8 +685,8 @@ namespace bpr::qt {
 		menu.addSeparator();
 		auto* const copy = menu.addAction(QStringLiteral("Copy head commit"));
 		copy->setObjectName(QStringLiteral("copyUpdateHeadAction"));
-		from->setEnabled(Offered && Updates[index].Id.has_value());
-		to->setEnabled(Offered && Updates[index].Id.has_value());
+		from->setEnabled(Offered && (Updates[index].Id || Updates[index].ImportOccurrence));
+		to->setEnabled(Offered && (Updates[index].Id || Updates[index].ImportOccurrence));
 		alone->setEnabled(Offered && Updates[index].Id.has_value() && Updates[index].HasBase);
 		connect(from, &QAction::triggered, this, [this, index] {
 			choose(core::comparison_side::left,

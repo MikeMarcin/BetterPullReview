@@ -243,7 +243,7 @@ handles, or presentation strings.
 The production type has an enforced upper bound:
 
 ```cpp
-static_assert(sizeof(epoch_state) <= 2048);
+static_assert(sizeof(epoch_state) <= 2112);
 ```
 
 A comparison endpoint is exact:

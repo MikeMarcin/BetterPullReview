@@ -870,8 +870,21 @@ namespace {
 				   && line->history_text().contains(QStringLiteral("unresolved"))
 				   && line->history_text().contains(QStringLiteral("not push order")),
 			   "unknown historical base, derived comparison material and history gaps remain explicit");
-		const auto firstTooltip  = line->node_tooltip(0);
-		const auto secondTooltip = line->node_tooltip(1);
+		// The default small-review projection must keep unavailable occurrences inert.
+		line->set_selection_offered(true);
+		const auto unavailableCount  = intents.size();
+		const auto unavailableLeft   = line->left_stop();
+		const auto unavailableRight  = line->right_stop();
+		const auto unavailableStatus = control.status_text();
+		auto       unavailablePress  = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ line->node_centre(0) },
+													QPointF{ line->mapToGlobal(line->node_centre(0)) }, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(line, &unavailablePress);
+		expect(intents.size() == unavailableCount && line->left_stop() == unavailableLeft
+				   && line->right_stop() == unavailableRight && control.status_text() == unavailableStatus,
+			   "small-review unavailable occurrence click preserves handles and status without dispatch");
+		update.Catalog->AllowOccurrenceImport = true;
+		const auto firstTooltip               = line->node_tooltip(0);
+		const auto secondTooltip              = line->node_tooltip(1);
 		std::ranges::reverse(history.Occurrences);
 		std::ranges::sort(history.Occurrences, core::epoch_occurrence_less);
 		update.Catalog->OccurrenceHistory = history;
@@ -886,7 +899,21 @@ namespace {
 		auto       press  = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ line->node_centre(0) },
 										 QPointF{ line->mapToGlobal(line->node_centre(0)) }, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
 		QApplication::sendEvent(line, &press);
-		expect(intents.size() == before, "an occurrence without a local anchor cannot dispatch a fabricated comparison");
+		expect(intents.size() == before + 1 && std::holds_alternative<core::select_epoch_occurrence_intent>(intents.back()), "an unimported force-push dispatches a typed occurrence choice");
+		const auto selectedOccurrence = std::get<core::select_epoch_occurrence_intent>(intents.back());
+		expect(selectedOccurrence.Occurrence == history.Occurrences.front().Id && selectedOccurrence.Side == core::comparison_side::left
+				   && selectedOccurrence.ExpectedCatalog == *control.history_model()->catalog(),
+			   "occurrence gesture carries the exact ID, side and projected catalog");
+		auto rightPress = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ line->node_centre(0) }, QPointF{ line->mapToGlobal(line->node_centre(0)) }, Qt::LeftButton, Qt::LeftButton, Qt::ControlModifier };
+		QApplication::sendEvent(line, &rightPress);
+		expect(std::get<core::select_epoch_occurrence_intent>(intents.back()).Side == core::comparison_side::right, "modified click imports onto the right side");
+		const auto afterImport   = intents.size();
+		auto       observedPress = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ line->node_centre(1) }, QPointF{ line->mapToGlobal(line->node_centre(1)) }, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(line, &observedPress);
+		line->set_selection_offered(false);
+		QApplication::sendEvent(line, &press);
+		expect(intents.size() == afterImport, "unlinked observed-head evidence and disabled input do not import");
+		line->set_selection_offered(true);
 		const auto raster     = line->grab().toImage();
 		const auto background = raster.pixelColor(0, raster.height() - 1);
 		bool       statusInk  = false;

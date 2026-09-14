@@ -888,7 +888,7 @@ The core uses fixed algorithm-tagged commit/tree identities, a complete
 pull-request authority and source revision, a catalog incarnation plus
 monotonic revision, composite epoch cause, exact base/head or review anchors,
 and checked request/epoch/comparison generations. Its state retains no catalog
-page or Git object and is bounded to 2,048 bytes. The host owns refs, object
+page or Git object and is bounded to 2,112 bytes. The host owns refs, object
 residency, ancestry/material observations, time, persistence, append recovery,
 and cancellation. The catalog owns full durable history. BPR-0056 adds the
 bounded core/host page algebra that exposes at most 100 sanitized rows at a

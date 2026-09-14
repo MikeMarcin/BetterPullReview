@@ -65,8 +65,9 @@ namespace bpr::qt {
 		void set_updates(std::vector<application::epoch_row_projection> aOldestFirst);
 		/// \brief Presents host-ordered occurrence evidence without inferring push order.
 		void               set_occurrences(const core::epoch_occurrence_history&                   aHistory,
-										   const std::optional<application::epoch_row_projection>& aCurrentEpoch = std::nullopt,
-										   const std::vector<application::epoch_row_projection>&   aLocalRows    = { });
+										   const std::optional<application::epoch_row_projection>& aCurrentEpoch          = std::nullopt,
+										   const std::vector<application::epoch_row_projection>&   aLocalRows             = { },
+										   bool                                                    aAllowOccurrenceImport = false);
 		[[nodiscard]] auto history_text() const -> QString;
 		/// \brief Adopts the compared anchors the core published.
 		void set_selection(
@@ -77,6 +78,8 @@ namespace bpr::qt {
 		/// \brief Whether the core currently offers anchor selection.
 		void set_selection_offered(bool aOffered);
 		void set_dispatch(epoch_line_dispatch aDispatch);
+		/// \brief Emits a portable occurrence choice before retained material exists.
+		void set_occurrence_dispatch(std::function<void(core::comparison_side, core::epoch_occurrence_id)> aDispatch);
 
 		[[nodiscard]] auto update_count() const noexcept -> std::size_t;
 		[[nodiscard]] auto left_stop() const noexcept -> std::optional<epoch_line_stop>;
@@ -124,22 +127,24 @@ namespace bpr::qt {
 
 		struct line_row
 		{
-			std::optional<core::review_epoch_id> Id;
-			core::git_commit_oid                 Head;
-			QString                              Label;
-			QString                              Details;
-			bool                                 HasBase = false;
+			std::optional<core::review_epoch_id>     Id;
+			core::git_commit_oid                     Head;
+			QString                                  Label;
+			QString                                  Details;
+			bool                                     HasBase = false;
+			std::optional<core::epoch_occurrence_id> ImportOccurrence;
 		};
-		std::vector<line_row>                           Updates;
-		QString                                         HistoryText;
-		std::optional<core::comparison_anchor_identity> Left;
-		std::optional<core::comparison_anchor_identity> Right;
-		std::optional<core::git_commit_oid>             LastReview;
-		epoch_line_dispatch                             Dispatch;
-		std::optional<core::comparison_side>            Dragging;
-		std::optional<epoch_line_stop>                  DragStop;
-		core::comparison_side                           ActiveSide = core::comparison_side::left;
-		bool                                            Offered    = false;
+		std::vector<line_row>                                                 Updates;
+		QString                                                               HistoryText;
+		std::optional<core::comparison_anchor_identity>                       Left;
+		std::optional<core::comparison_anchor_identity>                       Right;
+		std::optional<core::git_commit_oid>                                   LastReview;
+		epoch_line_dispatch                                                   Dispatch;
+		std::function<void(core::comparison_side, core::epoch_occurrence_id)> OccurrenceDispatch;
+		std::optional<core::comparison_side>                                  Dragging;
+		std::optional<epoch_line_stop>                                        DragStop;
+		core::comparison_side                                                 ActiveSide = core::comparison_side::left;
+		bool                                                                  Offered    = false;
 	};
 } // namespace bpr::qt
 

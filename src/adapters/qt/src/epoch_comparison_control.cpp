@@ -316,6 +316,12 @@ namespace bpr::qt {
 				   const core::comparison_anchor_identity& aIdentity) {
 				dispatch_identity(aSide, aIdentity);
 			});
+		Line->set_occurrence_dispatch([this](core::comparison_side aSide, core::epoch_occurrence_id aOccurrence) {
+			const auto catalog = HistoryModel->catalog();
+			if (!ApplyingProjection && Dispatch && catalog) {
+				Dispatch(core::select_epoch_occurrence_intent{ aSide, aOccurrence, *catalog });
+			}
+		});
 		auto* const comparingMenu = new QMenu{ this };
 		comparingMenu->setObjectName(QStringLiteral("epochComparingMenu"));
 		comparingMenu->addAction(WholePrAction);
@@ -647,7 +653,7 @@ namespace bpr::qt {
 		auto updates = HistoryModel->rows();
 		std::ranges::reverse(updates);
 		if (OccurrenceHistory) {
-			Line->set_occurrences(*OccurrenceHistory, CurrentEpoch, updates);
+			Line->set_occurrences(*OccurrenceHistory, CurrentEpoch, updates, AllowOccurrenceImport);
 		} else {
 			Line->set_updates(std::move(updates));
 		}
@@ -955,6 +961,7 @@ namespace bpr::qt {
 	{
 		const auto previousCatalog = HistoryModel->catalog();
 		HistoryModel->apply(aProjection);
+		AllowOccurrenceImport = aProjection.AllowOccurrenceImport;
 		if (aProjection.Replace && !aProjection.OccurrenceHistory) {
 			OccurrenceHistory.reset();
 			CurrentEpoch.reset();

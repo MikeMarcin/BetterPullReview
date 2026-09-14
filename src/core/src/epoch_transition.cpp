@@ -640,6 +640,13 @@ namespace bpr::core {
 		auto retire_pending_comparison(
 			epoch_state& aState, epoch_transition_output& aOutput) -> void
 		{
+			if (aState.PendingOccurrence) {
+				aOutput.Requests.emplace_back(cancel_epoch_work_request{
+					.Request    = aState.PendingOccurrence->Request,
+					.Generation = aState.EpochGeneration,
+				});
+				aState.PendingOccurrence.reset();
+			}
 			if (!aState.PendingComparison.has_value()) {
 				return;
 			}
@@ -1476,6 +1483,27 @@ namespace bpr::core {
 			aState.Catalog = aEvent.NewCatalog;
 			output.Catalog = epoch_catalog_delta{ .Catalog = aEvent.NewCatalog };
 			output.Changed = output.Changed | epoch_changed_domain::catalog;
+			if (aState.PendingOccurrence) {
+				const auto pending    = *aState.PendingOccurrence;
+				const auto generation = advanced(aState.ComparisonGeneration);
+				retire_pending_comparison(aState, output);
+				if (!generation || !request_available(aState)) {
+					diagnose(output, generation ? epoch_reason_code::request_counter_exhausted : epoch_reason_code::comparison_generation_exhausted);
+					set_status(aState, output, epoch_status::failed);
+					return output;
+				}
+				// A prior import may finish durably after a newer gesture. Rebase
+				// that gesture, not the older imported head, onto the new catalog.
+				const auto request          = take_request(aState);
+				aState.ComparisonGeneration = *generation;
+				aState.PendingOccurrence    = pending_epoch_occurrence_import{ request, pending.Occurrence, pending.Side };
+				output.Requests.emplace_back(import_epoch_occurrence_request{
+					.Context = { aState.ApplicationSession, request, *aState.Authority, *aState.AcceptedRevision,
+								 aState.EpochGeneration, *generation, *aState.Catalog, pending.Occurrence, pending.Side } });
+				request_newest_history_page(aState, output);
+				set_status(aState, output, epoch_status::resolving);
+				return output;
+			}
 			request_newest_history_page(aState, output);
 			if (request_available(aState)) {
 				static_cast<void>(start_comparison(aState, output, take_request(aState), true));
@@ -2042,7 +2070,7 @@ namespace bpr::core {
 			}
 			if (aSelection == aState.RequestedSelection
 				&& aState.AcceptedComparison.has_value()
-				&& !aState.PendingComparison.has_value()) {
+				&& !aState.PendingComparison.has_value() && !aState.PendingOccurrence) {
 				return { };
 			}
 			const auto generation = advanced(aState.ComparisonGeneration);
@@ -2133,7 +2161,7 @@ namespace bpr::core {
 			if (aState.AcceptedComparison.has_value()) {
 				pair = { aState.AcceptedComparison->Left.Identity, aState.AcceptedComparison->Right.Identity };
 			} else if (const auto* pending = std::get_if<explicit_comparison_selection>(&aState.RequestedSelection);
-					   aState.PendingComparison.has_value() && pending != nullptr
+					   (aState.PendingComparison.has_value() || aState.PendingOccurrence.has_value()) && pending != nullptr
 					   && anchor_belongs(aState, pending->Left) && anchor_belongs(aState, pending->Right)) {
 				// Selection stays enabled during resolution. Preserve the latest
 				// requested opposite side rather than an absent or older result.
@@ -2147,6 +2175,126 @@ namespace bpr::core {
 				pair.Right = aIntent.Anchor;
 			}
 			return start_selection(aState, pair);
+		}
+
+		[[nodiscard]] auto occurrence_context_matches(const epoch_state&                     aState,
+													  const epoch_occurrence_import_context& aContext) -> bool
+		{
+			return aState.PendingOccurrence && aState.PendingOccurrence->Request == aContext.Request
+				&& aState.PendingOccurrence->Occurrence == aContext.Occurrence
+				&& aState.PendingOccurrence->Side == aContext.Side
+				&& aState.ApplicationSession == aContext.ApplicationSession
+				&& aState.Authority == aContext.Authority && aState.AcceptedRevision == aContext.Revision
+				&& aState.Catalog == aContext.ExpectedCatalog && aState.EpochGeneration == aContext.Generation
+				&& aState.ComparisonGeneration == aContext.ComparisonGeneration;
+		}
+
+		[[nodiscard]] auto handle(epoch_state& aState, const select_epoch_occurrence_intent& aIntent)
+			-> epoch_transition_output
+		{
+			if (!aState.Authority || !aState.AcceptedRevision) {
+				return reject(epoch_reason_code::no_active_authority);
+			}
+			if (!aState.Catalog || aState.Catalog != aIntent.ExpectedCatalog) {
+				return reject(epoch_reason_code::catalog_revision_mismatch);
+			}
+			if (!valid_side(aIntent.Side) || !aIntent.Occurrence.valid()
+				|| aState.PendingIngestion || aState.PendingMaintenance) {
+				return reject(epoch_reason_code::invalid_selection);
+			}
+			explicit_comparison_selection pair;
+			if (aState.AcceptedComparison) {
+				pair = { aState.AcceptedComparison->Left.Identity, aState.AcceptedComparison->Right.Identity };
+			} else if (const auto* pending = std::get_if<explicit_comparison_selection>(&aState.RequestedSelection);
+					   pending && (aState.PendingComparison || aState.PendingOccurrence)) {
+				pair = *pending;
+			} else {
+				return reject(epoch_reason_code::no_resolved_comparison);
+			}
+			if (!anchor_belongs(aState, pair.Left) || !anchor_belongs(aState, pair.Right)) {
+				return reject(epoch_reason_code::invalid_selection);
+			}
+			const auto generation = advanced(aState.ComparisonGeneration);
+			if (!generation) {
+				return reject(epoch_reason_code::comparison_generation_exhausted);
+			}
+			if (!request_available(aState)) {
+				return reject(epoch_reason_code::request_counter_exhausted);
+			}
+			epoch_transition_output output;
+			retire_pending_comparison(aState, output);
+			aState.ComparisonGeneration = *generation;
+			aState.RequestedSelection   = pair;
+			const auto request          = take_request(aState);
+			aState.PendingOccurrence    = pending_epoch_occurrence_import{ request, aIntent.Occurrence, aIntent.Side };
+			output.Requests.emplace_back(import_epoch_occurrence_request{
+				.Context = { aState.ApplicationSession, request, *aState.Authority, *aState.AcceptedRevision,
+							 aState.EpochGeneration, *generation, *aState.Catalog, aIntent.Occurrence, aIntent.Side } });
+			set_status(aState, output, epoch_status::resolving);
+			return output;
+		}
+
+		[[nodiscard]] auto handle(epoch_state& aState, const epoch_occurrence_imported_event& aEvent)
+			-> epoch_transition_output
+		{
+			if (!occurrence_context_matches(aState, aEvent.Context)) {
+				return reject(epoch_reason_code::stale_completion);
+			}
+			if (!valid(aEvent.NewCatalog) || aEvent.NewCatalog.Incarnation != aState.Catalog->Incarnation
+				|| !next_catalog_revision(aState.Catalog->Revision, aEvent.NewCatalog.Revision)
+				|| !valid(aEvent.Head) || !anchor_belongs(aState, aEvent.Head.Identity)
+				|| aEvent.Head.Identity.Kind != comparison_anchor_kind::epoch_head
+				|| aEvent.Head.Availability != anchor_availability::available
+				|| aState.PendingIngestion || aState.PendingMaintenance) {
+				aState.PendingOccurrence.reset();
+				auto output = reject(epoch_reason_code::completion_identity_mismatch);
+				set_status(aState, output, epoch_status::failed);
+				return output;
+			}
+			auto pair = std::get<explicit_comparison_selection>(aState.RequestedSelection);
+			if (aEvent.Context.Side == comparison_side::left) {
+				pair.Left = aEvent.Head.Identity;
+			} else {
+				pair.Right = aEvent.Head.Identity;
+			}
+			aState.PendingOccurrence.reset();
+			epoch_transition_output output;
+			invalidate_history_window(aState, output);
+			aState.Catalog = aEvent.NewCatalog;
+			output.Catalog = epoch_catalog_delta{ .Catalog = aEvent.NewCatalog };
+			output.Changed = output.Changed | epoch_changed_domain::catalog;
+			// Reuse the import's request identity; resolution advances its own generation.
+			aState.RequestedSelection = pair;
+			aState.AcceptedComparison.reset();
+			output.Selection = comparison_selection_delta{ pair };
+			output.Changed   = output.Changed | epoch_changed_domain::selection;
+			request_newest_history_page(aState, output);
+			static_cast<void>(start_comparison(aState, output, aEvent.Context.Request, true));
+			return output;
+		}
+
+		[[nodiscard]] auto handle(epoch_state& aState, const epoch_occurrence_import_failed_event& aEvent)
+			-> epoch_transition_output
+		{
+			if (!occurrence_context_matches(aState, aEvent.Context)) {
+				return reject(epoch_reason_code::stale_completion);
+			}
+			aState.PendingOccurrence.reset();
+			auto output = reject(reason_for(aEvent.Failure));
+			set_status(aState, output, epoch_status::failed);
+			return output;
+		}
+
+		[[nodiscard]] auto handle(epoch_state& aState, const epoch_occurrence_import_cancelled_event& aEvent)
+			-> epoch_transition_output
+		{
+			if (!occurrence_context_matches(aState, aEvent.Context)) {
+				return reject(epoch_reason_code::stale_completion);
+			}
+			aState.PendingOccurrence.reset();
+			auto output = reject(epoch_reason_code::cancelled);
+			set_status(aState, output, epoch_status::cancelled);
+			return output;
 		}
 
 		[[nodiscard]] auto handle(

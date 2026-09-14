@@ -586,9 +586,9 @@ namespace {
 					  repository_cache_scope_id>);
 		static_assert(std::is_trivially_copyable_v<epoch_state>);
 		static_assert(std::is_trivially_destructible_v<epoch_state>);
-		static_assert(sizeof(epoch_state) <= 2'048U);
-		static_assert(std::variant_size_v<epoch_event> == 31U);
-		static_assert(std::variant_size_v<epoch_host_request> == 9U);
+		static_assert(sizeof(epoch_state) <= 2'112U);
+		static_assert(std::variant_size_v<epoch_event> == 35U);
+		static_assert(std::variant_size_v<epoch_host_request> == 10U);
 
 		const auto sha1 = parse_git_commit_oid("0123456789ABCDEF0123456789ABCDEF01234567");
 		expect(sha1.has_value(), "40 hexadecimal digits parse as SHA-1");
@@ -3984,6 +3984,139 @@ namespace {
 			   "the newly published historical line can dispatch against the adopted revision");
 	}
 
+	auto test_pending_occurrence_catalog_rebase() -> void
+	{
+		auto       fixture       = make_ready_fixture();
+		const auto originalPair  = fixture.State.AcceptedComparison;
+		const auto first         = transition(fixture.State, select_epoch_occurrence_intent{ comparison_side::left, opaque<epoch_occurrence_id>(90), fixture.Catalog });
+		const auto firstContext  = request_from<import_epoch_occurrence_request>(first)->Context;
+		const auto second        = transition(fixture.State, select_epoch_occurrence_intent{ comparison_side::right, opaque<epoch_occurrence_id>(91), fixture.Catalog });
+		const auto secondContext = request_from<import_epoch_occurrence_request>(second)->Context;
+		const auto selection     = fixture.State.RequestedSelection;
+		auto       next          = fixture.Catalog;
+		next.Revision            = epoch_catalog_revision{ next.Revision.value() + 1U };
+		const auto stale         = transition(fixture.State, epoch_occurrence_imported_event{ firstContext, next, originalPair->Left });
+		expect(diagnostic_is(stale, epoch_reason_code::stale_completion) && fixture.State.PendingOccurrence->Occurrence == secondContext.Occurrence,
+			   "late A success does not replace pending B");
+		const auto  advanced  = transition(fixture.State, epoch_historical_catalog_advanced_event{ fixture.State.ApplicationSession, fixture.Authority, fixture.Revision, fixture.Catalog, next });
+		const auto* rebased   = request_from<import_epoch_occurrence_request>(advanced);
+		const auto* cancelled = request_from<cancel_epoch_work_request>(advanced);
+		expect(rebased && cancelled && cancelled->Request == secondContext.Request
+				   && rebased->Context.Request != secondContext.Request && rebased->Context.ComparisonGeneration > secondContext.ComparisonGeneration
+				   && rebased->Context.Occurrence == secondContext.Occurrence && rebased->Context.Side == secondContext.Side
+				   && rebased->Context.ExpectedCatalog == next && rebased->Context.Authority == secondContext.Authority
+				   && rebased->Context.Revision == secondContext.Revision && rebased->Context.ApplicationSession == secondContext.ApplicationSession
+				   && rebased->Context.Generation == secondContext.Generation,
+			   "durable A catalog advance retires old B and reissues exact B with fresh request and comparison generation");
+		expect(fixture.State.Catalog == next && fixture.State.RequestedSelection == selection
+				   && fixture.State.AcceptedComparison == originalPair && !advanced.Selection && !advanced.Comparison
+				   && !request_from<resolve_comparison_request>(advanced),
+			   "catalog rebase preserves selection without inventing a historical anchor");
+		const auto pending = fixture.State;
+		expect(diagnostic_is(transition(fixture.State, epoch_occurrence_import_failed_event{ secondContext }), epoch_reason_code::stale_completion)
+				   && fixture.State == pending,
+			   "old B terminal cannot consume rebased B");
+	}
+
+	auto test_targeted_occurrence_selection() -> void
+	{
+		for (const auto side : { comparison_side::left, comparison_side::right }) {
+			auto        fixture      = make_ready_fixture();
+			const auto  originalPair = *fixture.State.AcceptedComparison;
+			const auto  intent       = select_epoch_occurrence_intent{ side, opaque<epoch_occurrence_id>(90), *fixture.State.Catalog };
+			const auto  output       = transition(fixture.State, intent);
+			const auto* request      = request_from<import_epoch_occurrence_request>(output);
+			expect(request && request->Context.Occurrence == intent.Occurrence && request->Context.Side == side,
+				   "unimported occurrence emits one exact typed import request");
+			auto head             = originalPair.Right;
+			head.Identity.Epoch   = epoch_ordinal{ 42 };
+			auto next             = *fixture.State.Catalog;
+			next.Revision         = epoch_catalog_revision{ next.Revision.value() + 1 };
+			const auto completion = epoch_occurrence_imported_event{ request->Context, next, head };
+			for (int mismatch = 0; mismatch < 8; ++mismatch) {
+				auto bad = completion;
+				if (mismatch == 0) {
+					bad.Context.Occurrence = opaque<epoch_occurrence_id>(91);
+				}
+				if (mismatch == 1) {
+					bad.Context.Request = epoch_request_id{ 999 };
+				}
+				if (mismatch == 2) {
+					bad.Context.Authority = authority(2);
+				}
+				if (mismatch == 3) {
+					bad.Context.ComparisonGeneration = comparison_generation{ 999 };
+				}
+				if (mismatch == 4) {
+					bad.Context.Generation = epoch_generation{ 999 };
+				}
+				if (mismatch == 5) {
+					bad.Context.ExpectedCatalog.Revision = next.Revision;
+				}
+				if (mismatch == 6) {
+					bad.Context.Side = side == comparison_side::left ? comparison_side::right : comparison_side::left;
+				}
+				if (mismatch == 7) {
+					bad.Context.ApplicationSession = application_session_id{ 999 };
+				}
+				auto       state    = fixture.State;
+				const auto rejected = transition(state, bad);
+				expect(state == fixture.State && diagnostic_is(rejected, epoch_reason_code::stale_completion),
+					   "mismatched occurrence completion cannot mutate pending selection");
+			}
+			for (int mismatch = 0; mismatch < 4; ++mismatch) {
+				auto bad = completion;
+				if (mismatch == 0) {
+					bad.NewCatalog = intent.ExpectedCatalog;
+				}
+				if (mismatch == 1) {
+					bad.Head.Identity.Kind = comparison_anchor_kind::epoch_base;
+				}
+				if (mismatch == 2) {
+					bad.Head.Availability = anchor_availability::unavailable;
+				}
+				if (mismatch == 3) {
+					bad.Head.Identity.Authority = authority(2).Scope;
+				}
+				auto       state    = fixture.State;
+				const auto rejected = transition(state, bad);
+				expect(!state.PendingOccurrence && state.AcceptedComparison == originalPair
+						   && diagnostic_is(rejected, epoch_reason_code::completion_identity_mismatch),
+					   "invalid imported anchor or non-advanced catalog terminates without selecting");
+			}
+			auto failedState = fixture.State;
+			static_cast<void>(transition(failedState, epoch_occurrence_import_failed_event{ request->Context, epoch_failure::unavailable }));
+			expect(!failedState.PendingOccurrence && failedState.AcceptedComparison == originalPair,
+				   "import failure preserves accepted comparison");
+			auto       superseded  = fixture.State;
+			const auto replacement = transition(superseded, select_named_comparison_intent{ named_comparison::whole_pr, intent.ExpectedCatalog.Revision });
+			expect(request_from<cancel_epoch_work_request>(replacement) && !superseded.PendingOccurrence,
+				   "ordinary comparison choice cancels the pending occurrence import");
+			const auto late = transition(superseded, completion);
+			expect(diagnostic_is(late, epoch_reason_code::stale_completion), "superseded success cannot select");
+			const auto  accepted = transition(fixture.State, completion);
+			const auto* resolve  = request_from<resolve_comparison_request>(accepted);
+			expect(resolve && fixture.State.Catalog == next && !fixture.State.PendingOccurrence,
+				   "successful durable import immediately resolves the requested pair");
+			const auto pair = std::get<explicit_comparison_selection>(resolve->Context.Selection);
+			expect((side == comparison_side::left ? pair.Left : pair.Right) == head.Identity
+					   && (side == comparison_side::left ? pair.Right : pair.Left) == (side == comparison_side::left ? originalPair.Right.Identity : originalPair.Left.Identity),
+				   "completion selects imported head on requested side and preserves opposite anchor");
+			const auto resolved = transition(fixture.State, comparison_resolved_event{ .Context = resolve->Context, .Candidates = { .Catalog = next, .ExplicitLeft = side == comparison_side::left ? head : originalPair.Left, .ExplicitRight = side == comparison_side::right ? head : originalPair.Right } });
+			expect(resolved.Comparison && resolved.Comparison->Pair && fixture.State.AcceptedComparison
+					   && (side == comparison_side::left ? fixture.State.AcceptedComparison->Left : fixture.State.AcceptedComparison->Right) == head,
+				   "the imported head becomes the accepted comparison without a second gesture");
+			expect(diagnostic_is(transition(fixture.State, completion), epoch_reason_code::stale_completion),
+				   "duplicate import completion cannot apply twice");
+		}
+		auto fixture = make_ready_fixture();
+		auto intent  = select_epoch_occurrence_intent{ comparison_side::left, { }, *fixture.State.Catalog };
+		expect(diagnostic_is(transition(fixture.State, intent), epoch_reason_code::invalid_selection), "empty occurrence is refused");
+		intent.Occurrence               = opaque<epoch_occurrence_id>(90);
+		intent.ExpectedCatalog.Revision = epoch_catalog_revision{ 999 };
+		expect(diagnostic_is(transition(fixture.State, intent), epoch_reason_code::catalog_revision_mismatch), "stale occurrence gesture is refused");
+	}
+
 	auto test_deterministic_replay() -> void
 	{
 		const auto first  = make_ready_fixture();
@@ -4022,6 +4155,8 @@ auto main() -> int
 	test_historical_append_planner();
 	test_derived_comparison_invalidation();
 	test_historical_catalog_advance();
+	test_pending_occurrence_catalog_rebase();
+	test_targeted_occurrence_selection();
 	test_deterministic_replay();
 	return EXIT_SUCCESS;
 }
