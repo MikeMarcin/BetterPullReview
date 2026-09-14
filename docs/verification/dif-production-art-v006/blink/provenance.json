@@ -1,0 +1,33 @@
+{
+  "run": "dif-takeover-20260914",
+  "dispatch": "d8",
+  "mandate_revision": 5,
+  "card": "BPR-0756",
+  "scope": "new docs/verification/dif-production-art-v006/blink/** only",
+  "status": "unaccepted candidate",
+  "tool": "built-in image_gen.imagegen",
+  "prompt_file": "PROMPT.txt",
+  "prompt_sha256": "0aa1b1b4022188a8295c9b7ebd16c11c835737a60d16a96553765c8c3b6fbca7",
+  "generated_original_path": "/Users/jaeger/.codex/generated_images/01a0a1f4-3c2f-7703-a794-c66db01b65ab/exec-33adf063-f0b0-4176-9575-9236f1020993.png",
+  "retained_generated_copy": "closed-donor.png",
+  "native_generated_dimensions": [
+    1254,
+    1254
+  ],
+  "requested_dimensions": [
+    1024,
+    1024
+  ],
+  "model_id": null,
+  "seed": null,
+  "human_verdict": null,
+  "generation_replay_claim": false,
+  "recipe": "prepare.py",
+  "reproduction": "Pinned retained input bytes; deterministic local assembly, not prompt replay",
+  "preview_sha256": "6cd9e6a9fcaf8113e7dae1d2281c16fd2ea362511da4e4ba042c4e64bfd37cb4",
+  "input_sha256": {
+    "docs/verification/dif-production-art-v001/dif-neutral-master-candidate.png": "bb6ccdbb00cf55624f15aabcdf08f47b8d97ce1835af9bcc7e01d4d4471ebeef",
+    "docs/verification/dif-production-art-v006/blink/closed-donor.png": "573661259948227f86ce7966ae647696fd9f179df5f443859bbf8456ad0b49a9"
+  },
+  "edit_target": "docs/verification/dif-production-art-v001/dif-neutral-master-candidate.png"
+}

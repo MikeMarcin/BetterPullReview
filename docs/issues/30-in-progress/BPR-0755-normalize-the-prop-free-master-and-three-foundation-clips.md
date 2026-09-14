@@ -103,3 +103,14 @@ the inner root loses an 87-pixel wedge and limb area changes 17.5% at the
 bridge-to-peak step. The two posed inputs remain rejected from source.
 Actual-speed motion and focused human art/derivative verdict remain pending;
 the accepted neutral bytes and shipped source are unchanged.
+
+The d8 [rounded-shoulder continuation](../../verification/dif-production-art-v006/greet/README.md)
+retains one further source-locked partly open image edit and an eight-frame
+local composite. Exact neutral head/chin, opposite body, feet, baseline and
+alpha checks pass. The bridge-to-open visible limb-area increase falls from
+17.5% to 6.3%, but the inner arm root still ends in a near-vertical cut under
+the cheek, and 85 root pixels visible in G1 disappear in G2. Static 64/72/96/256
+inspection therefore still **rejects** the greeting from production source.
+The prepared timed local player was not viewed because the browser blocked its
+`file:` URL. No actual-speed, native Qt or focused human motion verdict exists;
+this card remains In Progress.

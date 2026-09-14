@@ -64,3 +64,22 @@ The later user-authorized d6/d7 offline image-edit continuation supersedes
 the original model-run boundary for **scoped candidate making** only. It does
 not accept edited pixels, alter the production build/runtime, or authorize
 remote mutation. The final objective and focused human review still govern.
+
+The d8 [six-donor graft diagnosis](../../verification/dif-production-art-v006/extended/README.md)
+keeps the accepted neutral exact outside finite local masks and confirms fixed
+feet, clean transparent RGB, baseline and clearance. Static 64/72/96/256
+inspection shows E3's two-paw presentation and E6's correct-side open paw are
+useful material, but their belly/shoulder joins and complete transitions are
+not qualified. E1's eye graft doubles highlights, E2's high paw is occluded
+by the exact head, E4 truncates the too-high paw, and E5 leaves old ear
+fragments. No extended clip is accepted or ready for a final art verdict.
+BPR-0755 remains the unmet dependency; this card stays Backlog.
+
+The d8 [blink eye-material continuation](../../verification/dif-production-art-v006/blink/README.md)
+retains a separate six-frame neutral/half/closed/half/neutral/neutral local
+study at 100 ms per frame. Static 64/72/96/256 theme inspection shows
+soft lids without v005's pale lower-eye sliver and preserves the accepted
+body and alpha outside the eye interiors. It is not accepted source: the
+timed player could not be observed in the subagent browser because `file:`
+navigation was policy-blocked, and no native Qt or focused human art verdict
+exists. The other six gestures still lack qualified complete sequences.

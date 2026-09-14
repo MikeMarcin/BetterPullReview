@@ -1,0 +1,51 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Dif greeting v006 timed study</title>
+<style>
+  body { font: 14px system-ui; margin: 20px; background: #ddd; color: #222; }
+  .row { display: flex; gap: 12px; align-items: center; margin: 10px 0; }
+  .cell { display: grid; place-items: center; width: 130px; height: 120px; }
+  .light { background: #f6f7f9; }
+  .dark { background: #1c2026; }
+  .black { background: #000; }
+  img { object-fit: contain; }
+</style>
+<h1>Greeting · 8 frames × 125 ms</h1>
+<p>Each one-second greeting runs once, then holds exact rest for two seconds before replay. Images are drawn at true 64, 72 and 96-pixel sizes. Frame <span id="frame">0</span>.</p>
+<div id="view"></div>
+<script>
+  const frames = Array.from({length: 8}, (_, i) => `frames/frame-${i}.png`);
+  const view = document.getElementById('view');
+  const images = [];
+  for (const size of [64, 72, 96]) {
+    const row = document.createElement('div');
+    row.className = 'row';
+    const label = document.createElement('span');
+    label.textContent = `${size}px`;
+    row.append(label);
+    for (const theme of ['light', 'dark', 'black']) {
+      const cell = document.createElement('div');
+      cell.className = `cell ${theme}`;
+      const img = document.createElement('img');
+      img.width = img.height = size;
+      img.src = frames[0];
+      cell.append(img);
+      row.append(cell);
+      images.push(img);
+    }
+    view.append(row);
+  }
+  const started = performance.now();
+  let last = -1;
+  function tick(now) {
+    const elapsed = (now - started) % 3000;
+    const index = elapsed < 1000 ? Math.min(7, Math.floor(elapsed / 125)) : 7;
+    if (index !== last) {
+      for (const img of images) img.src = frames[index];
+      document.getElementById('frame').textContent = index;
+      last = index;
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+</script>

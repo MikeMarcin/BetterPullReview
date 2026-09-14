@@ -1,0 +1,282 @@
+{
+  "neutral_sha256": "bb6ccdbb00cf55624f15aabcdf08f47b8d97ce1835af9bcc7e01d4d4471ebeef",
+  "producer": "d8 mandate revision 5",
+  "frames": [
+    {
+      "id": "E1",
+      "input": "docs/verification/dif-production-art-v005/generated-inputs/compare-glance-left.png",
+      "input_sha256": "eeea4f02d3629ec16645b64a5e06b9e2223662abf7ea5a00237e5cf23f0613bd",
+      "recipe": "uniform native canvas fit to 1024, canonical box reduction, finite feathered local graft; diagnostic only",
+      "polygon_256": [
+        [
+          83,
+          91
+        ],
+        [
+          113,
+          91
+        ],
+        [
+          113,
+          122
+        ],
+        [
+          83,
+          122
+        ]
+      ],
+      "extra_eye_rectangle": [
+        141,
+        91,
+        170,
+        122
+      ],
+      "outside_mask_changed_pixels": 0,
+      "feet_hips_changed_pixels": 0,
+      "head_changed_pixels": 2267,
+      "changed_pixels": 2267,
+      "alpha_bbox": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "rgba_sha256": "130d092e0c8d683116257a7aef6e8560a04d702035a60a1aa71b394811c15e66",
+      "status": "unaccepted diagnostic; incomplete choreography"
+    },
+    {
+      "id": "E2",
+      "input": "docs/verification/dif-production-art-v005/generated-inputs/consider-half-lift.png",
+      "input_sha256": "f591e00aa37ad5db86c67bfea508ce9a1d7c24afa03d66a03382a30d706d380b",
+      "recipe": "uniform native canvas fit to 1024, canonical box reduction, finite feathered local graft; diagnostic only",
+      "polygon_256": [
+        [
+          53,
+          143
+        ],
+        [
+          96,
+          143
+        ],
+        [
+          106,
+          169
+        ],
+        [
+          98,
+          195
+        ],
+        [
+          51,
+          195
+        ]
+      ],
+      "extra_eye_rectangle": null,
+      "outside_mask_changed_pixels": 0,
+      "feet_hips_changed_pixels": 0,
+      "head_changed_pixels": 0,
+      "changed_pixels": 2316,
+      "alpha_bbox": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "rgba_sha256": "5a6c51f5b587ccf82f804d7527e963e82e70f3423d66efe957331bc45c7a7827",
+      "status": "unaccepted diagnostic; incomplete choreography"
+    },
+    {
+      "id": "E3",
+      "input": "docs/verification/dif-production-art-v005/generated-inputs/comment-ready-open-peak.png",
+      "input_sha256": "27a98932a6aec3ba0fc821d9e91064838747fbdf950bb8ccec55683cebb957ad",
+      "recipe": "uniform native canvas fit to 1024, canonical box reduction, finite feathered local graft; diagnostic only",
+      "polygon_256": [
+        [
+          33,
+          130
+        ],
+        [
+          217,
+          130
+        ],
+        [
+          224,
+          187
+        ],
+        [
+          201,
+          199
+        ],
+        [
+          52,
+          199
+        ],
+        [
+          31,
+          185
+        ]
+      ],
+      "extra_eye_rectangle": null,
+      "outside_mask_changed_pixels": 0,
+      "feet_hips_changed_pixels": 0,
+      "head_changed_pixels": 130,
+      "changed_pixels": 8242,
+      "alpha_bbox": [
+        36,
+        22,
+        220,
+        223
+      ],
+      "rgba_sha256": "beb806fa420d9131d5643a2b49bc06726c73692b5d720adac15488b6f48672c8",
+      "status": "unaccepted diagnostic; incomplete choreography"
+    },
+    {
+      "id": "E4",
+      "input": "docs/verification/dif-production-art-v005/generated-inputs/attention-chest-paw.png",
+      "input_sha256": "05fda8c8844e558a3ca0e951c6676c59505f5328bc84bd8f3f5c16861adc8809",
+      "recipe": "uniform native canvas fit to 1024, canonical box reduction, finite feathered local graft; diagnostic only",
+      "polygon_256": [
+        [
+          158,
+          146
+        ],
+        [
+          220,
+          146
+        ],
+        [
+          226,
+          184
+        ],
+        [
+          202,
+          198
+        ],
+        [
+          158,
+          198
+        ]
+      ],
+      "extra_eye_rectangle": null,
+      "outside_mask_changed_pixels": 0,
+      "feet_hips_changed_pixels": 0,
+      "head_changed_pixels": 0,
+      "changed_pixels": 2320,
+      "alpha_bbox": [
+        47,
+        22,
+        218,
+        223
+      ],
+      "rgba_sha256": "030bd661e480d583e78b4bfd419d64cf1c527f567430608ac7daaa3a8b4058ea",
+      "status": "unaccepted diagnostic; incomplete choreography"
+    },
+    {
+      "id": "E5",
+      "input": "docs/verification/dif-production-art-v005/generated-inputs/acknowledge-nod-peak.png",
+      "input_sha256": "4a7a8198c3e7bc2ecf566cb30d91992e3ff193e4158dc55bc80dca6df271c3de",
+      "recipe": "uniform native canvas fit to 1024, canonical box reduction, finite feathered local graft; diagnostic only",
+      "polygon_256": [
+        [
+          45,
+          28
+        ],
+        [
+          208,
+          28
+        ],
+        [
+          215,
+          142
+        ],
+        [
+          187,
+          149
+        ],
+        [
+          70,
+          149
+        ],
+        [
+          40,
+          138
+        ]
+      ],
+      "extra_eye_rectangle": null,
+      "outside_mask_changed_pixels": 0,
+      "feet_hips_changed_pixels": 0,
+      "head_changed_pixels": 17520,
+      "changed_pixels": 18239,
+      "alpha_bbox": [
+        50,
+        22,
+        211,
+        223
+      ],
+      "rgba_sha256": "9195ede047d9467b5c3f5255981854dfbade5a83385bf861af0bd2911a309694",
+      "status": "unaccepted diagnostic; incomplete choreography"
+    },
+    {
+      "id": "E6",
+      "input": "docs/verification/dif-production-art-v005/generated-inputs/blocked-left-paw.png",
+      "input_sha256": "58296fe7aa833d09501887d9eba8211031058a10339ec1f24fc6249ca7b1a5ad",
+      "recipe": "uniform native canvas fit to 1024, canonical box reduction, finite feathered local graft; diagnostic only",
+      "polygon_256": [
+        [
+          50,
+          145
+        ],
+        [
+          98,
+          145
+        ],
+        [
+          108,
+          179
+        ],
+        [
+          99,
+          196
+        ],
+        [
+          51,
+          196
+        ]
+      ],
+      "extra_eye_rectangle": null,
+      "outside_mask_changed_pixels": 0,
+      "feet_hips_changed_pixels": 0,
+      "head_changed_pixels": 0,
+      "changed_pixels": 2372,
+      "alpha_bbox": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "rgba_sha256": "09e944139a6483b61d72059150dd2f8435d885b3d7bf0bc2e3015fc3c518a0a8",
+      "status": "unaccepted diagnostic; incomplete choreography"
+    }
+  ],
+  "actual_speed_observed": false,
+  "human_verdict": null,
+  "motion_limit": "Only isolated failed grafts; no interpolated/duplicated poses presented as sequences.",
+  "files": {
+    "acknowledge-nod-peak-allowed-mask.png": "8928a91e54042eca75cf871cdd9913746115fe6d8872cdad6a36c8aed6422377",
+    "acknowledge-nod-peak-trial.png": "c52128cff22f99dd142a2a874696df033dcd54eab34d4d1719a422ecc9c9c3d8",
+    "attention-chest-paw-allowed-mask.png": "65ae2a5eead5ab400a3fa2f7b3295b359d70da7f54e0e13ec777a0850ae3e8b0",
+    "attention-chest-paw-trial.png": "eb3191469ae3d9415616642dffc240c6b4075a1d76c09e5d628a77c7d4c978fd",
+    "blocked-left-paw-allowed-mask.png": "685f03d09dcd290b1d44f603d18355c5f49bdec3bc8fbae48db57c4dac3c0c85",
+    "blocked-left-paw-trial.png": "daa588319687262f9721d3a8e58f6a9ffc918b7a401a8086384712f6ab603ca6",
+    "comment-ready-open-peak-allowed-mask.png": "1d90656d0ee0531ee91aab7c19f0f69dab8146c95d0ebaef43e6906ac8d63c51",
+    "comment-ready-open-peak-trial.png": "81d5bb5367cbe76deb743c8038274a8bd60e783364d1d1637fa9eb25d44e9a82",
+    "compare-glance-left-allowed-mask.png": "70239e3ec16c669892dfde48a004624941ec210828f03fe027c32032ff27608d",
+    "compare-glance-left-trial.png": "89c03246d69aa8b4f4d67c0a6013ec46fa0b671976b02c87ac5598e8de33bd4a",
+    "comparison-256.png": "84623dd9041ccabd7a2dbeb1e859344f24ff091c32894cd50918cc1a881c237d",
+    "comparison-64.png": "6649dfd2ef797c999860b03d5d0e30def6aac0608a480c29d9f29b70a0acad84",
+    "comparison-72.png": "2ef76aef6643f216ee659b485231ab3dd04d38b27650a6a641401ad36b2322fd",
+    "comparison-96.png": "05587826bae2c64308a9b0984e095a93a994fbc0dd618d2776f1370068797135",
+    "consider-half-lift-allowed-mask.png": "19e9e8c4fdb7bf0bdc96a4306d9613923b3a2c66e412d4af449449829ff1e78f",
+    "consider-half-lift-trial.png": "1120a1b5f24d1b9ffb556c647b1bd0d275f3744163d4ee4b4c081e9a892daf6f"
+  }
+}

@@ -236,3 +236,33 @@ and human review. The
 accepted neutral bytes and historic v002–v004 studies are unchanged. No
 complete 71-frame catalog, source manifest, app resource or final Dif-only
 attended candidate exists.
+
+## v006 d8 bounded art continuation — no source promotion
+
+The d8 integrator made one further built-in, source-locked image edit for the
+partly open [greeting shoulder study](dif-production-art-v006/greet/README.md).
+The retained prompt, 1254-square transparent RGBA input, SHA-256, eight-frame
+reconstruction, exact lock facts and true-size plates are traceable there.
+Neutral head/chin, opposite body, feet, baseline and alpha remain exact.
+Bridge-to-open limb area changes 6.3% rather than v005's 17.5%, but the near-
+vertical inner shoulder cut and disappearing G1 root pixels remain visibly
+wrong. The candidate is rejected from production. Its timed HTML is prepared
+but unobserved: the browser refused the local `file:` URL under its URL
+policy. The site of that failed check is not a motion verdict.
+
+The independent [six-donor graft diagnosis](dif-production-art-v006/extended/README.md)
+finds limited useful E3 two-paw and E6 correct-side paw material, while E1,
+E2, E4 and E5 produce visible eye/hand/head failures under neutral locks.
+No gesture source, complete timed sequence, final catalog or native Qt
+presentation is qualified by those isolated trials. The accepted neutral
+and historic human decision remain untouched. Artwork still needs shared
+greeting shoulder/elbow/forearm contours and corrected six-gesture entry,
+peak and return poses before full motion, derivative and human review.
+
+The [v006 blink study](dif-production-art-v006/blink/README.md) adds a
+reproducible eye-local six-frame 100-ms row, using a separately retained
+source-locked closed-lid input. Static true-size theme plates show cleaner
+purple lid material than v005 and no visible pale lower-eye sliver, with
+neutral body/alpha locked. It is still an unaccepted local candidate:
+actual-speed visual playback, native Qt rendering and focused human art/
+derivative review remain absent. No production source was replaced.

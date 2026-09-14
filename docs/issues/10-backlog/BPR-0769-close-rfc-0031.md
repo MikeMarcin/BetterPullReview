@@ -43,7 +43,50 @@ last dependent RFC to satisfy the repository's closeout-card convention.
 | **B11 — Rendered/accessibility evidence.** Actual app frames at shipping scales and supported appearance modes demonstrate readable alpha edges, calm motion, static reduced interval, noninterference with focus/status and approved visual integration. | Not run; import only | No producing revision |
 | **B12 — Complete handoff.** Focused tests, resource packaging, platform claims, source/ mutable docs, shared-skill consumer context and verification records agree. All ten clips are real and reachable; unavailable evidence/formal closeout remains honestly open, with no fabricated native/art verdict or forced rewriting of settled RFCs. | Partial: plan/consumer context and intake documented; all app/resource/native/art work remains open | `ee1e12df`, `57ced605`; [live import](../../rfcs/assets/bpr-dif-integration-v1.LIVE_IMPORT.md) |
 
-## Current frontier — source-grounded pose prompts and edited candidates, dif-takeover-20260914 d7 / mandate r5
+## Current frontier — bounded art retouch, dif-takeover-20260914 d8 / mandate r5
+
+The `production-art` milestone remains partial and blocked by unqualified art.
+The d8 work starts from main checkpoint `95c40fa35bc676b82f6f78c236031816f74c6738`
+and retains the offline v006 studies; no production source, manifest, generated
+runtime catalog or normal app selection changed. BPR-0755 stays In Progress;
+BPR-0756 and BPR-0757 stay Backlog behind their listed dependencies. The
+accepted neutral exact bytes and shared attended decision sequence 379 are
+unchanged. Both authored production-art exits remain pending.
+
+One new [greeting input and eight-frame local study](../../verification/dif-production-art-v006/greet/README.md)
+preserves exact neutral head/chin, opposite body, hips/feet, alpha, baseline
+and endpoints. The bridge-to-open visible limb-area increase improves from
+17.5% to 6.3%, but the near-vertical shoulder root and disappearing G1
+underarm contour remain visible at shipping sizes, so the row is **rejected**.
+The [six extended-donor graft screen](../../verification/dif-production-art-v006/extended/README.md)
+finds useful E3/E6 paw material but demonstrates failed E1/E2/E4/E5 eye,
+height and head grafts; none is a qualified entry/peak/return sequence. The
+[blink continuation](../../verification/dif-production-art-v006/blink/README.md)
+provides a six-frame local eye-only candidate with improved static lid material,
+exact neutral body/alpha locks and true-size theme plates. Its timed visual
+playback, native Qt behavior and human art verdict are still unobserved; it
+has not entered production source.
+
+Only static 64/72/96/256-pixel studies were inspected. A local timed HTML
+player was prepared for greeting and blink, but the subagent browser blocked
+the `file:` URL under its URL policy; no alternate browser route was used.
+There is no actual-speed visual pass, complete 71-frame catalog, final source/
+digest record, fresh Dif-only art/derivative decision or native Qt presentation.
+The concrete next artwork is a single consistent rounded G1/G2 shoulder,
+elbow and forearm with exposed-belly occlusion, plus corrected six-gesture
+intermediate/return poses. The six-frame blink study can be reconsidered only
+with timed inspection and complete-catalog review. Bounded image-edit and
+graft attempts did not reach a production-art exit; do not fabricate catalog
+frames from the rejected trials.
+
+Native d8 dispatched `rfc-worker-deep` for blink material and `rfc-worker`
+for the six extended donors with `fork_turns: none` and no optional model/
+effort override; the integrator retained greeting, board and closeout.
+Configured roles were `gpt-6-astra`/`high` and `gpt-6-astra`/`low` respectively;
+their banners are not serving telemetry or proof of enforced child-role
+allowlists. Task writers/commands are accounted for at the d8 handoff.
+
+## Previous frontier — source-grounded pose prompts and edited candidates, dif-takeover-20260914 d7 / mandate r5
 
 The user has no authored source poses and asked for detailed prompts for the
 missing artwork. The prior offline image-edit authorization remains in force.
