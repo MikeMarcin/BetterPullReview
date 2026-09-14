@@ -1,3 +1,5 @@
+#include "bpr/application/github_window_read_host.hpp"
+#include "bpr/application/manual_executor.hpp"
 #include "diff_publication_fixture.hpp"
 
 #include "bpr/core/diff_compute.hpp"
@@ -21,6 +23,7 @@
 #include <QColor>
 #include <QComboBox>
 #include <QCursor>
+#include <QEvent>
 #include <QFileInfo>
 #include <QFontMetrics>
 #include <QFrame>
@@ -645,6 +648,91 @@ namespace {
 		const char* const     aObjectName) -> QLabel*
 	{
 		return required_child<QLabel>(aWindow, aObjectName);
+	}
+
+	struct loading_transport final : application::github_account_transport_lease
+	{ };
+	auto loading_session() -> application::github_profile_session
+	{
+		application::github_profile_session result{
+			.BprProfile = core::default_bpr_profile_id, .ApplicationSession = core::application_session_id{ 1 }, .ProfileAuthority = { .Profile = core::host_profile_id{ 1 }, .ProfileRevision = application::github_profile_revision{ 1 }, .Host = core::git_host_id{ 1 }, .Hostname = application::github_canonical_hostname{ "github.com" }, .ProbeContractRevision = application::github_probe_contract_revision{ 1 } }, .Session = { .Profile = core::host_profile_id{ 1 }, .Host = core::git_host_id{ 1 }, .Viewer = { .Account = core::github_account_id{ 1 }, .Node = application::github_actor_id{ "actor" }, .Login = "reader" }, .CapabilityEvidence = { .Revision = core::capability_revision{ 1 }, .ContractVersion = 1 } }, .Generation = core::github_identity_generation{ 1 }, .CapabilityEvidence = { .Authority = { .Profile = core::host_profile_id{ 1 }, .ProfileRevision = application::github_profile_revision{ 1 }, .Host = core::git_host_id{ 1 }, .Account = core::github_account_id{ 1 }, .ProbeContractRevision = application::github_probe_contract_revision{ 1 } }, .Revision = core::capability_revision{ 1 } }, .AccountTransport = std::make_shared<loading_transport>()
+		};
+		return result;
+	}
+
+	void test_held_read_paints_loading()
+	{
+		struct held_read final : application::github_pull_request_port
+		{
+			std::optional<application::github_pull_request_provider_request> Request;
+			application::github_pull_request_completion_handler              Complete;
+			std::function<void()>                                            OnSubmit;
+			void                                                             fetch_pull_request(application::github_pull_request_provider_request   aRequest,
+																								application::github_pull_request_completion_handler aComplete) override
+			{
+				OnSubmit();
+				Request  = std::move(aRequest);
+				Complete = std::move(aComplete);
+			}
+			void cancel_pull_request(application::github_pull_request_provider_request) override { }
+		} provider;
+		struct paint_observer final : QObject
+		{
+			std::size_t Paints = 0U;
+			bool        eventFilter(QObject*, QEvent* aEvent) override
+			{
+				if (aEvent->type() == QEvent::Paint) {
+					++Paints;
+				}
+				return false;
+			}
+		} observer;
+		application::manual_executor          lane;
+		application::github_window_read_host* readHost = nullptr;
+		qt::workbench_window                  window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			profiles(),
+			[&](application::github_intent aIntent) {
+				if (const auto* open = std::get_if<core::open_pull_request_intent>(&aIntent)) {
+					readHost->dispatch(*open);
+				}
+			},
+		};
+		application::github_window_read_host host{
+			{ core::default_bpr_profile_id, core::bpr_window_id{ 2 }, core::bpr_window_generation{ 1 } },
+			core::application_session_id{ 2 },
+			provider,
+			lane,
+			[&](const application::github_window_read_update& aUpdate) { window.publish(aUpdate.Presentation); }
+		};
+		readHost = &host;
+		expect(host.adopt(loading_session()), "held read adopts synthetic session");
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{ .Commands = enabled_commands() } });
+		window.resize(900, 720);
+		window.show();
+		QApplication::processEvents();
+		auto* title = required_label(window, "githubEmptyStateTitle");
+		title->installEventFilter(&observer);
+		provider.OnSubmit = [&] {
+			expect(presentation_state(window) == QStringLiteral("loading"),
+				   "loading is projected before provider submission");
+		};
+		window.session_panel()->owner_editor()->setText(QStringLiteral("owner"));
+		window.session_panel()->repository_editor()->setText(QStringLiteral("repo"));
+		window.session_panel()->pull_request_editor()->setValue(1);
+		window.github_open_action()->trigger();
+		expect(provider.Request.has_value(), "public Open action reaches held provider");
+		QApplication::processEvents();
+		expect(presentation_state(window) == QStringLiteral("loading")
+				   && title->isVisible() && observer.Paints > 0U && !host.accepted_snapshot(),
+			   "loading label paints while provider completion remains held");
+		host.cancel();
+		provider.Complete(application::github_pull_request_cancelled{ *provider.Request });
+		lane.drain();
+		expect(host.is_quiescent(), "held read cancellation drains its terminal");
 	}
 
 	auto test_presentation_states_disclosures_and_responsive_layout() -> void
@@ -4370,6 +4458,7 @@ auto main(int argc, char** argv) -> int
 	test_cli_warning_follows_selected_profile();
 	test_conversation_model_is_stable_and_incremental();
 	test_intent_translation_is_narrow_and_account_is_output_only();
+	test_held_read_paints_loading();
 	test_presentation_states_disclosures_and_responsive_layout();
 	test_connection_diagnostics_can_be_copied();
 	test_capability_refusal_detail_is_copyable_and_cleared();

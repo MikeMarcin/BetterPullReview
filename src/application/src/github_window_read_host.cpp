@@ -10,6 +10,24 @@
 #include <vector>
 
 namespace bpr::application {
+	auto object_loading_for(const std::optional<accepted_pull_request_shape>& aShape) noexcept
+		-> pull_request_object_loading
+	{
+		const auto limits = github_read_limits{ };
+		if (!aShape || !aShape->ReportedCommitCount
+			|| aShape->FileCount > limits.MaximumFiles
+			|| aShape->ReturnedCommitCount > limits.MaximumCommits
+			|| std::min(*aShape->ReportedCommitCount, limits.MaximumCommits) != aShape->ReturnedCommitCount) {
+			return pull_request_object_loading::complete;
+		}
+		// The production REST pager admits at most 100 records per page.
+		constexpr std::size_t completeLoadingPageRecords = 100U;
+		return aShape->FileCount > completeLoadingPageRecords
+				|| *aShape->ReportedCommitCount > completeLoadingPageRecords
+			? pull_request_object_loading::selected_objects
+			: pull_request_object_loading::complete;
+	}
+
 	namespace {
 		void append_u64(std::vector<std::uint8_t>& aBytes,
 						const std::uint64_t        aValue)
@@ -518,6 +536,11 @@ namespace bpr::application {
 				.Head                  = *head,
 				.Mode                  = aSnapshot.Mode,
 				.CurrentViewerReview   = std::move(currentReview),
+			};
+			handoff.Shape = accepted_pull_request_shape{
+				.FileCount           = aSnapshot.Files.size(),
+				.ReturnedCommitCount = aSnapshot.Commits.size(),
+				.ReportedCommitCount = aSnapshot.PullRequest.ReportedCommitCount,
 			};
 			switch (aSnapshot.TimelineAvailability) {
 			case github_timeline_availability::unavailable:

@@ -43,10 +43,12 @@ namespace {
 		std::vector<application::epoch_force_push_observation> ForcePushes;
 		application::epoch_timeline_availability               Availability
 			= application::epoch_timeline_availability::unavailable;
-		std::size_t AcceptCount = 0U;
+		std::size_t                                             AcceptCount = 0U;
+		std::optional<application::accepted_pull_request_shape> Shape;
 
 		void accept(application::accepted_pull_request_handoff aHandoff) override
 		{
+			Shape        = aHandoff.Shape;
 			ForcePushes  = std::move(aHandoff.ForcePushes);
 			Availability = aHandoff.TimelineAvailability;
 			++AcceptCount;
@@ -246,7 +248,8 @@ namespace {
 			[](const auto&) { },
 			&epochs
 		};
-		expect(host.adopt(session()), "timeline fixture adopts session");
+		const auto identity = session();
+		expect(host.adopt(identity), "timeline fixture adopts session");
 		host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 1 } });
 		const auto first              = provider.Calls.back();
 		auto       accepted           = snapshot(first.Request);
@@ -262,6 +265,10 @@ namespace {
 				   && epochs.ForcePushes.front().EventId == 917U
 				   && epochs.Availability == application::epoch_timeline_availability::available,
 			   "accepted timeline crosses the exact live epoch handoff");
+		expect(epochs.Shape && epochs.Shape->FileCount == accepted.Files.size()
+				   && epochs.Shape->ReturnedCommitCount == accepted.Commits.size()
+				   && epochs.Shape->ReportedCommitCount == accepted.PullRequest.ReportedCommitCount,
+			   "handoff count facts come from the accepted snapshot");
 
 		host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 2 } });
 		const auto second             = provider.Calls.back();
@@ -272,6 +279,35 @@ namespace {
 		expect(epochs.AcceptCount == 2U && epochs.ForcePushes.empty()
 				   && epochs.Availability == application::epoch_timeline_availability::refused,
 			   "timeline refusal retains the live handoff without fabricated updates");
+		const auto currentShape = epochs.Shape;
+		host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 3 } });
+		const auto stale = provider.Calls.back();
+		expect(host.retire(identity), "identity switch retires pending shape observation");
+		auto replacement       = session();
+		replacement.Generation = core::github_identity_generation{ 2 };
+		expect(host.adopt(replacement), "replacement identity becomes active");
+		stale.Complete(application::github_pull_request_success{ stale.Request, snapshot(stale.Request) });
+		lane.drain();
+		expect(epochs.AcceptCount == 2U && epochs.Shape == currentShape && !host.accepted_snapshot(),
+			   "superseded snapshot cannot replace accepted shape");
+	}
+
+	void test_loading_budget_shape()
+	{
+		using shape         = application::accepted_pull_request_shape;
+		using route         = application::pull_request_object_loading;
+		const auto classify = [](std::optional<shape> aShape) {
+			return application::object_loading_for(aShape);
+		};
+		expect(classify(std::nullopt) == route::complete, "missing shape grants no lazy acquisition");
+		expect(classify(shape{ 100U, 100U, 100U }) == route::complete, "one full page remains complete");
+		expect(classify(shape{ 101U, 1U, 1U }) == route::selected_objects, "a second file page permits bounded selected objects");
+		expect(classify(shape{ 1U, 101U, 101U }) == route::selected_objects, "a second commit page permits bounded selected objects");
+		expect(classify(shape{ 3000U, 250U, 1000U }) == route::selected_objects, "reported total remains distinct from capped returned commits");
+		expect(classify(shape{ 101U, 1U, std::nullopt }) == route::complete, "missing reported count grants no lazy acquisition");
+		expect(classify(shape{ 101U, 1U, 2U }) == route::complete, "inconsistent count grants no lazy acquisition");
+		expect(classify(shape{ 3001U, 1U, 1U }) == route::complete, "file limit violation grants no lazy acquisition");
+		expect(classify(shape{ 101U, 251U, 251U }) == route::complete, "commit limit violation grants no lazy acquisition");
 	}
 
 	void test_two_windows_have_distinct_diagnostic_courses()
@@ -378,6 +414,7 @@ namespace {
 }
 int main()
 {
+	test_loading_budget_shape();
 	test_reentrant_read_publication();
 	test_safe_read_presentation_matches_accepted_state();
 	test_two_windows_have_distinct_diagnostic_courses();

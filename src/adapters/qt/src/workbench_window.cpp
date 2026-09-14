@@ -4120,9 +4120,8 @@ namespace bpr::qt {
 		if (HomeLanding == nullptr || SessionPanel == nullptr) {
 			return;
 		}
-		// Shown only while the centre has nothing: no pull request open, no
-		// comparison held, and no load under way. Which way in it offers
-		// follows the session: an account first, then a pull request.
+		// Home hosts the empty and initial-loading states. Which way in it
+		// offers follows the session: an account first, then a pull request.
 		const auto status   = SessionPanel->status();
 		const auto signedIn = status == core::github_status::session_ready
 			|| status == core::github_status::loading_pull_request
@@ -4165,7 +4164,10 @@ namespace bpr::qt {
 			active                = active || (projection && projection->Enabled);
 		}
 		const auto nothing = !HasGithubPullRequest && !comparing && !loading && !active;
-		const auto home    = nothing || HomeRequested || SetupDestinationRequest.has_value();
+		// The loading message lives on Home. Keep it on screen for a new
+		// target until its accepted snapshot can populate the review surface.
+		const auto home = nothing || (loading && !HasGithubPullRequest)
+			|| HomeRequested || SetupDestinationRequest.has_value();
 		if (HomeAction != nullptr && HomeAction->isChecked() != home) {
 			HomeAction->setChecked(home);
 		}

@@ -7,6 +7,7 @@
 #include "bpr/core/epoch_model.hpp"
 
 #include <compare>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -105,6 +106,27 @@ namespace bpr::application {
 		auto operator<=>(const epoch_force_push_observation&) const = default;
 	};
 
+	/// \brief Bounded count facts from the exact accepted provider snapshot.
+	struct accepted_pull_request_shape
+	{
+		std::size_t                FileCount           = 0U;
+		std::size_t                ReturnedCommitCount = 0U;
+		std::optional<std::size_t> ReportedCommitCount;
+		auto                       operator<=>(const accepted_pull_request_shape&) const = default;
+	};
+
+	enum class pull_request_object_loading : std::uint8_t {
+		complete,
+		selected_objects,
+	};
+
+	/// \brief Selects a bounded acquisition budget; absent or inconsistent facts never grant laziness.
+	/// \details One REST page (100 records) is the complete-loading budget for
+	/// each dimension. This is a scheduling bound, not a latency guarantee.
+	[[nodiscard]] auto object_loading_for(
+		const std::optional<accepted_pull_request_shape>& aShape) noexcept
+		-> pull_request_object_loading;
+
 	// This is the sole accepted GitHub-to-epoch revision handoff. It intentionally
 	// has no pull_request_source_revision, accepted_pull_request_revision, Source,
 	// or Observation member. The epoch host mints the source observation only
@@ -141,9 +163,10 @@ namespace bpr::application {
 		std::optional<core::current_viewer_review_candidate> CurrentViewerReview;
 		// A missing lease is a valid authenticated observation with smart Git
 		// unavailable. It never grants an alternate transport.
-		git_smart_authority                       SmartGit;
-		epoch_timeline_availability               TimelineAvailability = epoch_timeline_availability::unavailable;
-		std::vector<epoch_force_push_observation> ForcePushes;
+		git_smart_authority                        SmartGit;
+		epoch_timeline_availability                TimelineAvailability = epoch_timeline_availability::unavailable;
+		std::vector<epoch_force_push_observation>  ForcePushes;
+		std::optional<accepted_pull_request_shape> Shape;
 	};
 
 	/// \brief Checks whether the supplied value satisfies its contract.
