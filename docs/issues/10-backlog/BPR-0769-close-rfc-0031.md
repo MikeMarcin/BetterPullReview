@@ -45,6 +45,23 @@ last dependent RFC to satisfy the repository's closeout-card convention.
 
 ## Current frontier — dif-takeover-20260914 d1 / rfc-integrator-d1 / mandate r1
 
+The `intake-contract` milestone still binds BPR-0752/0753/0754 and all three
+authored exits with unchanged requirement fingerprints. BPR-0752 is Done at
+`ee1e12df`; BPR-0753's ten-sheet audit is candidate-ready in the [mutable
+intake ledger](../../verification/RFC-BPR-0030-intake.md). All 55 archived
+checksums, ten payload hashes, actual grid arithmetic, raw-audit equality,
+rest structural screening and documentation gate passed. Five grids are
+fractional. Raw idle frame 7 blinks; matte and identity corrections and the
+new derivative decision remain for production-art, not this source audit.
+The existing shipped three-clip compiler validates and its 42 focused tests
+pass. Owned pending paths are BPR-0753's execution record, the intake ledger,
+and this closeout; its worker has returned and has no active command/descendant.
+Next: finish BPR-0753, claim BPR-0754, and implement/test schema-2 ten-clip
+compiler fixtures while retaining the current shipped schema-1 path. No native
+or human art verdict is claimed.
+
+## Prior frontier — dif-takeover-20260914 d1 / rfc-integrator-d1 / mandate r1
+
 `intake-contract` binds BPR-0752/0753/0754 and its three authored exits.
 BPR-0752 is claimed; the imported plan, immutable base, ID mapping and current
 composition-path drift have been checked on `main`. The pack verifier passes on
