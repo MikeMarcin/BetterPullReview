@@ -2,11 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0755"
 title: "Normalize the prop-free master and three foundation clips"
-status: "Parked"
+status: "Ready"
 rfcs: ["RFC-BPR-0030"]
 depends_on: ["BPR-0753"]
 metadata: {"pack":"bpr-dif-integration-v1","milestone":"production-art","acceptance":["A2","A3","A4"],"milestone_plan":{"id":"bpr-dif-integration-v1","path":"docs/rfcs/plans/bpr-dif-integration-v1/milestone-plan.json"}}
-parked_on: "human-review"
 ---
 
 # BPR-0755: Normalize the prop-free master and three foundation clips
