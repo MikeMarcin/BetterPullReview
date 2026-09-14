@@ -43,7 +43,33 @@ last dependent RFC to satisfy the repository's closeout-card convention.
 | **B11 — Rendered/accessibility evidence.** Actual app frames at shipping scales and supported appearance modes demonstrate readable alpha edges, calm motion, static reduced interval, noninterference with focus/status and approved visual integration. | Not run; import only | No producing revision |
 | **B12 — Complete handoff.** Focused tests, resource packaging, platform claims, source/ mutable docs, shared-skill consumer context and verification records agree. All ten clips are real and reachable; unavailable evidence/formal closeout remains honestly open, with no fabricated native/art verdict or forced rewriting of settled RFCs. | Partial: plan/consumer context and intake documented; all app/resource/native/art work remains open | `ee1e12df`, `57ced605`; [live import](../../rfcs/assets/bpr-dif-integration-v1.LIVE_IMPORT.md) |
 
-## Current frontier — runtime-foundation accepted, dif-takeover-20260914 d3 / mandate r1
+## Current frontier — neutral identity accepted, production-art resumed, dif-takeover-20260914 d4 / mandate r2
+
+The exact protected `BPR-0755-neutral-identity-v001` candidate was accepted by
+the human in attended session `cbd48b91000b00f1e72e1ad62c7c384c` at sequence
+`379`: fingerprint
+`1bcdc33cbd9175db6ee843f60f90e3a70e9800470a19562bd4814b18d600ad81`,
+decision `6eabb190-287d-4e7c-a19f-bd14f4075701`, outcome `accept`, empty
+note. Sequence `380` handed the session back. This is approval of the prop-free
+neutral identity only. BPR-0755 was promoted and claimed on `main`; its
+rest/idle/greet motion, BPR-0756's seven extended gestures, BPR-0757's catalog,
+derivative disposition and full-art verdict remain open. The independent
+`runtime-foundation` milestone remains accepted at `3036364c`.
+
+The unrelated older questions appeared because the shared attended-review
+`init` merges candidates into one checkout session, and its page lists all
+answered candidates; 30 prior and current answers were present. No historical
+decision was altered. The hand-back watch has exited and the local host was
+stopped. For the final Dif art decision, use a fresh external `--state`
+session containing only its current candidates. A standard leaf owns the
+bounded offline source-preparation slice under the approved neutral while the
+integrator retains board, manifest, generated catalog and final acceptance.
+No GitHub/GHES mutation, production runtime selection or new model run has
+occurred in this dispatch. The next objective is to normalize the real
+foundation and extended motion, then compile and present the exact production
+catalog for its required final review.
+
+## Previous frontier — runtime-foundation accepted, dif-takeover-20260914 d3 / mandate r1
 
 The authored `runtime-foundation` binding covers BPR-0758/0759/0760 and both
 exits, with accepted `intake-contract` as its only prerequisite. All three

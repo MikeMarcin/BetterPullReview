@@ -26,15 +26,17 @@ Record focused command/gesture, direct surface, result, producing revision, and 
 
 The [production-art frontier](../../verification/RFC-BPR-0030-production-art.md)
 records the exact 1024-square prop-free neutral candidate, offline recipe,
-identity/theme/size plates, hashes and structural checks. The required focused
-neutral identity verdict is pending; none of this accepts the master or the
-rest/idle/greet sequence. The shipped three-clip source remains unchanged.
+identity/theme/size plates, hashes and structural checks. Attended-review session
+`cbd48b91000b00f1e72e1ad62c7c384c` recorded human **accept** at sequence
+`379` for candidate `BPR-0755-neutral-identity-v001`, fingerprint
+`1bcdc33cbd9175db6ee843f60f90e3a70e9800470a19562bd4814b18d600ad81`,
+decision `6eabb190-287d-4e7c-a19f-bd14f4075701`, with an empty note.
+This accepts the exact neutral identity question and permits normalization
+against those bytes. It does not accept the rest/idle/greet motion or the final
+catalog. The shipped three-clip source is still unchanged at this checkpoint.
 
-The phase-one neutral decision is ready in attended-review session
-`cbd48b91000b00f1e72e1ad62c7c384c`, candidate
-`BPR-0755-neutral-identity-v001`. This card waits on that exact identity
-decision; its remaining idle/greet normalization and final acceptance are
-still open.
+The phase-one identity wait is consumed. The card was promoted and claimed on
+`main`; remaining idle/greet normalization and final acceptance are open.
 
 ## Boundaries
 

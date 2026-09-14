@@ -1,9 +1,10 @@
 # RFC-BPR-0030 production-art frontier
 
-Run `dif-takeover-20260914`, dispatch `d2`, producer `rfc-integrator-d2`,
-mandate revision `1`. The adopted `production-art` milestone binds
+Run `dif-takeover-20260914`, dispatch `d4`, producer `rfc-integrator-d4`,
+mandate revision `2`. The adopted `production-art` milestone binds
 BPR-0755/0756/0757 and both authored exits. This record is the current
-candidate/evidence pointer, not acceptance of a master or ten-clip catalog.
+candidate/evidence pointer, not acceptance of the rest/idle/greet motion or a
+ten-clip catalog.
 
 ## Neutral identity candidate — BPR-0755
 
@@ -44,26 +45,37 @@ Focused objective checks on the candidate:
   regenerated all four exact candidate outputs; their hashes are in the
   [review manifest](dif-production-art-v001/README.md).
 
-The required first-phase decision is whether this **exact prop-free neutral**
+The required first-phase decision was whether this **exact prop-free neutral**
 preserves Dif's authorized identity, proportions, awake closed-mouth expression
-and resting paw/foot pose for the new catalog. If rejected, use the supplied
-note to revise just this candidate and repeat this focused check. If accepted,
-promote the candidate into the new production source revision, then normalize
-idle/greet and the seven extended gestures against its exact bytes. No pose
-normalization is claimed before that decision. New derivative/distribution
+and resting paw/foot pose for the new catalog. The human accepted that exact
+question in the shared session at sequence `379`, candidate fingerprint
+`1bcdc33cbd9175db6ee843f60f90e3a70e9800470a19562bd4814b18d600ad81`,
+decision `6eabb190-287d-4e7c-a19f-bd14f4075701`, with an empty note.
+The candidate may be promoted into a new production source revision, then
+idle/greet and the seven extended gestures normalized against its exact bytes.
+No pose normalization or final catalog acceptance follows from this decision.
+New derivative/distribution
 disposition and complete motion/theme/scale/handoff review remain required at
 the final catalog candidate, and old BPR-0291 exact-byte decisions do not cover
 these derivatives.
 
 The shared attended-review session `cbd48b91000b00f1e72e1ad62c7c384c`
-has one ready, protected candidate:
+has the protected candidate:
 `BPR-0755-neutral-identity-v001`, fingerprint
 `1bcdc33cbd9175db6ee843f60f90e3a70e9800470a19562bd4814b18d600ad81`,
 at event sequence `378`. The three review images are embedded in that exact
-candidate. The live local page is served by the session host; its loopback
-token is held outside the repository. A read-only `wait --after 378` watch is
-running in command session `28709`, with any event written to
-`build/dif-production-art/wait-after-378.json`. A decision has not been returned.
+candidate. Sequence `379` holds the scoped accept above; sequence `380` is the
+reviewer's hand-back with no pending item in that shared session. The read-only
+watch exited and the loopback host was stopped after hand-back; the durable
+session and protected candidate remain intact.
+
+The review page also displayed older, completed initiatives because
+`attended_review.py init` merges candidates into the checkout's existing
+session, while its HTML renders every decided candidate in an Answered group.
+That shared session has 30 answered candidates. The old decisions are retained
+without rewriting or deletion. Prepare the later exact-byte full-art review in
+a fresh Dif-only external `--state` session so its page contains only current
+questions; bind that new session to its own final candidate and verdict.
 
 No task-owned model call, GitHub/GHES mutation, source replacement, runtime
 selection or app build occurred in this candidate-preparation slice.
