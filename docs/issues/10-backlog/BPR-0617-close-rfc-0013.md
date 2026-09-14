@@ -13,7 +13,7 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/pla
 
 ## Current frontier — bpr0643-r3 / d11 / mandate r13
 
-BPR-0793 is the newly authorized, separate review-thread normalization slice.
+BPR-0793 is the separately authorized review-thread normalization slice.
 The plan adds `review-thread-null-anchor-read` after BPR-0792; BPR-0643 and
 BPR-0792 remain Done. The plan helper's amendment checker cannot accept a new
 work atom under its same-obligation rule, so mandate r13 and this new card are
@@ -25,11 +25,42 @@ A bounded in-memory `gh` GraphQL read as the observed `MikeMarcin` account
 found 19 review threads. Fifteen have `LINE` subject and both nullable root
 line fields absent; their first comments also have no coordinate. This is the
 leading deterministic parser refusal in `parse_graphql_thread`. No response
-content or token was written to the checkout. The next step is to retain these
-threads with their exact remote identity and unavailable source-line anchor,
-then verify parser/core/projection negatives and the tests-disabled Mac product
-path. This diagnostic alone does not establish a full target read. No task
-writer or command remains active at this checkpoint.
+content or token was written to the checkout. The fixed aggregate record is
+`~/Library/Application Support/BetterPullReview/BPR-0793-evidence-2026-09-13/thread-diagnosis-d11.json`
+(SHA-256 `6822f4ed08d10de67f3523e3385b66998056e6423aeff3eb2017f2777158b63c`).
+The candidate accepts only a `LINE` thread with *both* root coordinates
+absent as unanchored; a current original-only root and all existing malformed
+identities, file-subject coordinates and limits still refuse. Focused parser,
+core and host-projection tests pass 4/4 in `build/bpr0793-focused-tests.log`;
+the composed GitHub.com path passes in `build/bpr0793-composed-tests.log`, the
+documentation gate passes in `build/bpr0793-doc-gate.log`, and the tests-disabled
+Release Mac app builds in `build/bpr0793-product-build.log`. Independent critical
+review found no critical or high changed-surface defect; its suggested stronger
+identity assertions were added and rechecked 2/2 in
+`build/bpr0793-focused-recheck.log`.
+
+One isolated tests-disabled app read through the authorized GitHub.com CLI
+profile reached **Pull request ready** for `EpicGames/UnrealEngine#1773` as
+`MikeMarcin`. The visible workbench listed 1,523 actionable files and 19 review
+threads. The first two selected files each reported `selected_file_stale`:
+“The selected file changed before it could be loaded.” The epoch control said
+“Whole PR. No exact pair is resolved,” and the workbench said “The exact
+comparison is unavailable.” No source diff was readable. The fixed metadata
+record outside the checkout is
+`~/Library/Application Support/BetterPullReview/BPR-0793-evidence-2026-09-13/product-read-d11.json`
+(SHA-256 `65b7c5adda82d1431335176db3491b55ae0785c1ee07d03a5c6c8d600ad47916`).
+The connected `gh` account was `MikeMarcin` before and after; no live PR write,
+credential transfer, device-session change or private response content was
+retained in the checkout. The task-owned app quit with exit 0, and its `gh`
+children are quiescent.
+
+BPR-0793's null-anchor read and next-refusal criterion is satisfied; the exact
+target is still not readable as a selected diff. The next bounded RFC-0013
+objective is to attribute why the exact comparison has no resolved pair after a
+successful large-PR snapshot, then restore a selected diff without weakening
+epoch identity or Git-object bounds. BPR-0617 remains Backlog with BPR-0507,
+BPR-0622, platform and RFC-wide closeout obligations open. Do not reopen the
+Done BPR-0643, BPR-0792 or BPR-0793 slices.
 
 ## Current frontier — bpr0643-r2 / d10 / mandate r12
 
