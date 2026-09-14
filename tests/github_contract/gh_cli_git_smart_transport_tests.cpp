@@ -232,7 +232,10 @@ namespace {
 			std::cout << "HTTP/2.0 200 OK\r\nContent-Type: application/json\r\nX-RateLimit-Limit: 5000\r\nX-RateLimit-Remaining: 4999\r\nX-RateLimit-Used: 1\r\nX-RateLimit-Reset: 2000000000\r\nX-RateLimit-Resource: core\r\n\r\n{\"id\":" << (switched ? 999 : 203) << ",\"node_id\":\"U_fixture\",\"login\":\"fixture\",\"name\":\"Fixture\"}";
 			return 0;
 		}
-		if (args.size() == 19 && args[1] == "repo" && args[2] == "clone") {
+		if ((args.size() == 19 || args.size() == 21) && args[1] == "repo" && args[2] == "clone") {
+			if (args.size() == 21 && (args[19] != "--depth=1" || args[20] != "--filter=blob:none")) {
+				return 6;
+			}
 			const std::filesystem::path target{ args[4].toStdString() };
 			if (!target.parent_path().filename().string().starts_with("bpr-cli-git-") || target.parent_path().parent_path() != "/private/tmp") {
 				return 3;
@@ -252,6 +255,22 @@ namespace {
 			std::filesystem::copy(root / "source.git", target, std::filesystem::copy_options::recursive, error);
 			if (error) {
 				return 5;
+			}
+			if (args.size() == 21) {
+				std::ifstream omitted{ root / "sparse-omitted" };
+				std::string   oid;
+				while (omitted >> oid) {
+					std::filesystem::remove(target / "objects" / oid.substr(0, 2) / oid.substr(2));
+				}
+			}
+			if (args.size() == 21 && std::filesystem::exists(root / "missing-sparse")) {
+				std::filesystem::remove_all(target / "objects");
+			}
+			if (args.size() == 21 && std::filesystem::exists(root / "missing-sparse-tree")) {
+				std::ifstream input{ root / "missing-sparse-tree" };
+				std::string   tree;
+				input >> tree;
+				std::filesystem::remove(target / "objects" / tree.substr(0, 2) / tree.substr(2));
 			}
 			std::cerr << "bounded fixture progress\n";
 			return 0;
@@ -283,7 +302,8 @@ namespace {
 		const auto scope      = "--git-dir=" + QString::fromStdString(source.string());
 		const auto blob       = git(root, { scope, "hash-object", "-w", "--stdin" }, "complete local contents\n");
 		const auto tree       = git(root, { scope, "mktree" }, "100644 blob " + blob + "\tfile.txt\n");
-		const auto base       = git(root, { scope, "commit-tree", tree }, "base\n");
+		const auto ancestor   = git(root, { scope, "commit-tree", tree }, "ancestor\n");
+		const auto base       = git(root, { scope, "commit-tree", tree, "-p", ancestor }, "base\n");
 		const auto head       = git(root, { scope, "commit-tree", tree, "-p", base }, "head\n");
 		auto       context    = smart_context();
 		context.Revision.Base = *core::parse_git_commit_oid(base.toStdString());
@@ -374,6 +394,31 @@ namespace {
 		const auto verifyScope = "--git-dir=" + QString::fromStdString(verify.string());
 		git(root, { verifyScope, "index-pack", "--strict", "--stdin" }, pack);
 		expect(git(root, { verifyScope, "cat-file", "-p", QString::fromStdString(core::canonical_hex(context.Revision.Head).view().data()) + ":file.txt" }) == "complete local contents", "pack contains verified full file contents");
+		write(root / "sparse-omitted", blob.toStdString() + "\n" + ancestor.toStdString() + "\n");
+		auto sparseContext                  = context;
+		sparseContext.AcquisitionMode       = application::git_smart_acquisition_mode::sparse_commit_trees;
+		auto                sparseTransport = make_gh_cli_git_smart_transport(*profile, *configuration, "/usr/bin/git", session, sparseContext, [] { return true; });
+		recording_pack_sink sparseSink{ core::git_hash_algorithm::sha1 };
+		const auto          sparseResult = application::acquire_git_protocol_v2_pack(**sparseTransport, sparseContext, { }, sparseSink, limits, { });
+		expect(sparseResult && sparseSink.Finished, "sparse bridge emits bounded pack");
+		const auto sparseVerify = root / "sparse-verify.git";
+		git(root, { "init", "--bare", QString::fromStdString(sparseVerify.string()) });
+		const auto       sparseScope = "--git-dir=" + QString::fromStdString(sparseVerify.string());
+		const QByteArray sparsePack{ reinterpret_cast<const char*>(sparseSink.Received.data()), static_cast<qsizetype>(sparseSink.Received.size()) };
+		git(root, { sparseScope, "index-pack", "--stdin" }, sparsePack);
+		expect(git(root, { sparseScope, "cat-file", "-t", head }) == "commit", "sparse pack contains exact head");
+		expect(git(root, { sparseScope, "cat-file", "-t", tree }) == "tree", "sparse pack contains root tree");
+		const auto inventory = git(root, { sparseScope, "cat-file", "--batch-all-objects", "--batch-check=%(objecttype)" });
+		expect(!inventory.contains("blob") && inventory.count("commit") == 2, "sparse pack excludes blobs and retains exact wants only");
+		write(root / "missing-sparse", "1");
+		recording_pack_sink missingSparseSink{ core::git_hash_algorithm::sha1 };
+		expect(!application::acquire_git_protocol_v2_pack(**sparseTransport, sparseContext, { }, missingSparseSink, limits, { }) && missingSparseSink.Received.empty(), "missing sparse commit/tree refuses before consumer");
+		std::filesystem::remove(root / "missing-sparse");
+		write(root / "missing-sparse-tree", tree.toStdString());
+		recording_pack_sink missingTreeSink{ core::git_hash_algorithm::sha1 };
+		expect(!application::acquire_git_protocol_v2_pack(**sparseTransport, sparseContext, { }, missingTreeSink, limits, { }) && missingTreeSink.Received.empty(), "missing exact root tree refuses before consumer");
+		std::filesystem::remove(root / "missing-sparse-tree");
+		expect(!(*sparseTransport)->discover({ context }, { }), "complete request cannot reuse sparse authority");
 		const application::detail::git_protocol_v2_capabilities capabilities{ .ObjectFormat = core::git_hash_algorithm::sha1, .LsRefs = true, .Fetch = true };
 		auto                                                    request = application::detail::make_git_protocol_v2_fetch_request(context, capabilities, { });
 		expect(request.has_value(), "fetch request");

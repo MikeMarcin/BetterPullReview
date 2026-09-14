@@ -312,7 +312,8 @@ namespace bpr::adapters::github::detail {
 				if (aStop.stop_requested() || revoked()) {
 					return failure::cancelled;
 				}
-				if (aContext != Context || !application::valid(aContext)) {
+				if (aContext != Context || !application::valid(aContext)
+					|| (aContext.AcquisitionMode != git_smart_acquisition_mode::complete_closure && aContext.AcquisitionMode != git_smart_acquisition_mode::sparse_commit_trees)) {
 					return failure::invalid_request;
 				}
 				if (!ConfigurationCurrent || !ConfigurationCurrent() || !GitObservation || observe_git(Git) != GitObservation) {
@@ -412,6 +413,18 @@ namespace bpr::adapters::github::detail {
 					if (result->ExitCode != 0) {
 						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 					}
+					if (Context.AcquisitionMode == git_smart_acquisition_mode::sparse_commit_trees) {
+						const auto scope  = "--git-dir=" + (root / ("clone-" + std::to_string(index) + ".git")).string();
+						const auto oid    = std::string{ core::canonical_hex(aWants[index]).view() };
+						const auto commit = process->run(local_request(root, { scope, "cat-file", "-t", oid }), aStop);
+						const auto tree   = process->run(local_request(root, { scope, "cat-file", "-t", oid + "^{tree}" }), aStop);
+						if (!commit || !tree) {
+							return std::unexpected{ git_smart_transport_error{ aStop.stop_requested() ? failure::cancelled : failure::malformed_response } };
+						}
+						if (commit->StandardOutput != "commit\n" || tree->StandardOutput != "tree\n") {
+							return std::unexpected{ git_smart_transport_error{ failure::malformed_response } };
+						}
+					}
 				}
 				const auto after = viewer(identity, aStop);
 				if (!after) {
@@ -441,14 +454,21 @@ namespace bpr::adapters::github::detail {
 					revisions += std::string{ core::canonical_hex(aWants[index]).view() } + "\n";
 				}
 				write(store / "objects/info/alternates", alternates);
+				if (Context.AcquisitionMode == git_smart_acquisition_mode::sparse_commit_trees) {
+					// Alternates expose objects, not clone shallow metadata. Each exact
+					// wanted commit is a boundary; ancestors are deliberately excluded.
+					write(store / "shallow", revisions);
+				}
 				const auto spool       = root / "wire.pack";
 				auto       packProcess = make_github_cli_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, spool, false });
 				if (!packProcess) {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 				}
-				const auto packed = packProcess->run(local_request(root,
-																   { "--git-dir=" + store.string(), "pack-objects", "--stdout", "--revs", "--quiet" }, revisions),
-													 aStop);
+				std::vector<std::string> packArguments{ "--git-dir=" + store.string(), "pack-objects", "--stdout", "--revs", "--quiet" };
+				if (Context.AcquisitionMode == git_smart_acquisition_mode::sparse_commit_trees) {
+					packArguments.emplace_back("--filter=blob:none");
+				}
+				const auto packed = packProcess->run(local_request(root, std::move(packArguments), revisions), aStop);
 				if (!packed) {
 					std::error_code error;
 					if (std::filesystem::file_size(spool, error) >= pack_limit && !error) {

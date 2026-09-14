@@ -1207,14 +1207,23 @@ namespace bpr::adapters::github::detail {
 		append_fixed_environment(environment, "GIT_ATTR_NOSYSTEM=1");
 		append_fixed_environment(environment, "GIT_TERMINAL_PROMPT=0");
 		append_fixed_environment(environment, "GIT_ALLOW_PROTOCOL=https");
+		if (aContext.AcquisitionMode != application::git_smart_acquisition_mode::complete_closure
+			&& aContext.AcquisitionMode != application::git_smart_acquisition_mode::sparse_commit_trees) {
+			return std::nullopt;
+		}
+		std::vector<std::string> arguments = { "repo", "clone", "https://" + std::string{ aProfile.hostname() } + "/" + aContext.Repository.Owner + "/" + aContext.Repository.Name + ".git",
+											   path_bytes(root / ("clone-" + std::to_string(aIndex) + ".git")), "--no-upstream", "--",
+											   "--bare", "--quiet", "--revision=" + std::string{ core::canonical_hex(aCommit).view() },
+											   "--template=" + path_bytes(root / "empty"), "--config", "transfer.unpackLimit=0",
+											   "--config", "fetch.unpackLimit=0", "--config", "core.hooksPath=/dev/null",
+											   "--config", "core.fsmonitor=false" };
+		if (aContext.AcquisitionMode == application::git_smart_acquisition_mode::sparse_commit_trees) {
+			arguments.emplace_back("--depth=1");
+			arguments.emplace_back("--filter=blob:none");
+		}
 		return constrain_gh_writes(github_cli_process_request{
 									   .Executable              = path_bytes(aConfiguration.Executable),
-									   .Arguments               = { "repo", "clone", "https://" + std::string{ aProfile.hostname() } + "/" + aContext.Repository.Owner + "/" + aContext.Repository.Name + ".git",
-																	path_bytes(root / ("clone-" + std::to_string(aIndex) + ".git")), "--no-upstream", "--",
-																	"--bare", "--quiet", "--revision=" + std::string{ core::canonical_hex(aCommit).view() },
-																	"--template=" + path_bytes(root / "empty"), "--config", "transfer.unpackLimit=0",
-																	"--config", "fetch.unpackLimit=0", "--config", "core.hooksPath=/dev/null",
-																	"--config", "core.fsmonitor=false" },
+									   .Arguments               = std::move(arguments),
 									   .Environment             = std::move(environment),
 									   .WorkingDirectory        = path_bytes(aConfiguration.NeutralWorkingDirectory),
 									   .StandardInput           = { },

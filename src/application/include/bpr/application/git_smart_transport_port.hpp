@@ -52,6 +52,9 @@ namespace bpr::application {
 		return !aRef.view().empty();
 	}
 
+	enum class git_smart_acquisition_mode : std::uint8_t { complete_closure,
+														   sparse_commit_trees };
+
 	/// \brief Describes the git smart request context record.
 	struct git_smart_request_context
 	{
@@ -60,6 +63,7 @@ namespace bpr::application {
 		core::accepted_pull_request_revision Revision;
 		core::repository_locator             Repository;
 		git_base_branch_ref                  BaseRef;
+		git_smart_acquisition_mode           AcquisitionMode = git_smart_acquisition_mode::complete_closure;
 
 		auto operator<=>(const git_smart_request_context&) const = default;
 	};
@@ -218,6 +222,9 @@ namespace bpr::application {
 			git_smart_transport_factory_port&&) = delete;
 		auto operator=(git_smart_transport_factory_port&&)
 			-> git_smart_transport_factory_port& = delete;
+
+		/// \brief Reports support for explicitly sparse commit/tree acquisition.
+		[[nodiscard]] virtual auto supports_sparse_commit_trees() const noexcept -> bool { return false; }
 
 		[[nodiscard]] virtual auto acquire(
 			const git_smart_request_context& aContext)
