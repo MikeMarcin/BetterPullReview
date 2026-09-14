@@ -816,6 +816,46 @@ set_tests_properties(
 )
 
 bpr_add_executable(
+    test_better_pull_review_qt_dif_runtime_tests
+    dif_runtime_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_qt_dif_runtime_tests
+    PRIVATE BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_dif_runtime_tests)
+bpr_enable_warnings(test_better_pull_review_qt_dif_runtime_tests)
+bpr_add_network_isolated_test(
+    NAME qt_dif_runtime
+    COMMAND test_better_pull_review_qt_dif_runtime_tests
+)
+set_tests_properties(qt_dif_runtime PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment}"
+    PASS_REGULAR_EXPRESSION "dif-runtime-tests:pass"
+    TIMEOUT 120
+)
+
+bpr_add_executable(
+    test_better_pull_review_qt_motion_observer_tests
+    motion_observer_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_qt_motion_observer_tests
+    PRIVATE BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_motion_observer_tests)
+bpr_enable_warnings(test_better_pull_review_qt_motion_observer_tests)
+bpr_add_network_isolated_test(
+    NAME qt_motion_observer
+    COMMAND test_better_pull_review_qt_motion_observer_tests
+)
+set_tests_properties(qt_motion_observer PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment}"
+    PASS_REGULAR_EXPRESSION "motion-observer-tests:pass"
+    TIMEOUT 60
+)
+
+bpr_add_executable(
     test_better_pull_review_qt_diff_axis_tests
     measured_alignment_axis_tests.cpp
 )

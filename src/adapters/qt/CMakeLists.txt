@@ -10,6 +10,8 @@ add_library(
         src/review_landing_model.cpp
         src/defect_card_view.cpp
         src/device_authorization_panel.cpp
+        src/dif_runtime.cpp
+        src/motion_observer.cpp
         src/review_draft_editor.cpp
         src/review_submission_editor.cpp
         src/settings_window.cpp
@@ -67,6 +69,11 @@ bpr_enable_hardening(better_pull_review_adapter_qt)
 bpr_enable_warnings(better_pull_review_adapter_qt)
 
 if(APPLE)
+    enable_language(OBJCXX)
+    target_sources(better_pull_review_adapter_qt PRIVATE src/motion_observer_mac.mm)
+    set_source_files_properties(src/motion_observer_mac.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+    find_library(BPR_DIF_APPKIT_FRAMEWORK AppKit REQUIRED)
+    target_link_libraries(better_pull_review_adapter_qt PRIVATE "${BPR_DIF_APPKIT_FRAMEWORK}")
     # native_window_chrome.cpp reaches the NSWindow through the Objective-C
     # runtime from C++; the runtime is not linked by the Qt targets.
     target_link_libraries(better_pull_review_adapter_qt PRIVATE objc)

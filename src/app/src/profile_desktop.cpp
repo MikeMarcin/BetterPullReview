@@ -3,6 +3,7 @@
 #include "bpr/app/worker_executor.hpp"
 #include "bpr/application/profile_management_host.hpp"
 #include "bpr/qt/event_loop_executor.hpp"
+#include "bpr/qt/motion_observer.hpp"
 #include "bpr/qt/profile_management_window.hpp"
 #include <QCloseEvent>
 #include <QEvent>
@@ -777,6 +778,9 @@ namespace bpr::app {
 
 	auto profile_desktop::start(github_application_config aConfig, profile_desktop_startup_completion aCompletion) -> std::unique_ptr<profile_desktop>
 	{
+		if (!aConfig.MotionObserver) {
+			aConfig.MotionObserver = std::make_shared<qt::motion_observer>(qt::make_native_motion_source());
+		}
 		const auto profile = aConfig.Profile;
 		const auto intent  = aConfig.ProfileLaunchIntent;
 		return start_with_factory(profile, [config = std::move(aConfig)](core::bpr_profile_id aProfile, const std::filesystem::path& aRoot, core::profile_launch_intent aIntent, github_application_startup_completion aDone) {

@@ -19,6 +19,10 @@
 #include <string>
 #include <vector>
 
+namespace bpr::qt {
+	class motion_observer;
+}
+
 namespace bpr::app {
 	namespace detail {
 		class github_application_fixture_access;
@@ -72,6 +76,8 @@ namespace bpr::app {
 		bool                        NetworkDenied       = false;
 		core::bpr_profile_id        Profile             = core::default_bpr_profile_id;
 		core::profile_launch_intent ProfileLaunchIntent = core::profile_launch_intent::activate;
+		/// One explicit process-owned native observation shared by profile windows.
+		std::shared_ptr<qt::motion_observer> MotionObserver;
 	};
 
 	/// \brief Initializes or deliberately resets the designated-live replay

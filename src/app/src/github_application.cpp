@@ -100,6 +100,7 @@
 #include "bpr/qt/event_loop_device_timer.hpp"
 #include "bpr/qt/event_loop_executor.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
+#include "bpr/qt/motion_observer.hpp"
 #include "bpr/qt/sensitive_text_input.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/system_tray_notification_sink.hpp"
@@ -6613,13 +6614,30 @@ namespace bpr::app {
 						dispatch_appearance_intent(std::move(aIntent));
 					});
 			}
+			if (aConfig.MotionObserver) {
+				const auto weak    = std::weak_ptr<const int>{ WindowLifetime };
+				MotionSubscription = aConfig.MotionObserver->subscribe(
+					*Window, [this, weak](const core::motion_observation aObservation) {
+						if (weak.expired() || Closing || !AppearanceHost) {
+							return;
+						}
+						AppearanceHost->observe_motion(aObservation);
+						adopt_appearance_settings();
+					});
+			}
 			// Shows what restore() loaded, so the surface opens on the
 			// settings actually in effect rather than on its own defaults.
 			adopt_appearance_settings();
 			apply_appearance();
 		}
 
-		~implementation() override { WindowLifetime.reset(); }
+		~implementation() override
+		{
+			WindowLifetime.reset();
+			if (MotionSubscription != 0U && Profile->Config.MotionObserver) {
+				Profile->Config.MotionObserver->unsubscribe(MotionSubscription);
+			}
+		}
 
 		[[nodiscard]] auto credential_vault() noexcept -> application::github_credential_vault_port& { return Profile->credential_vault(); }
 
@@ -12028,6 +12046,7 @@ namespace bpr::app {
 		std::shared_ptr<std::atomic_bool>                               LayoutEraseDeliveryFailed = std::make_shared<std::atomic_bool>(false);
 		std::unique_ptr<application::workbench_application_host>        WorkbenchHost;
 		std::unique_ptr<application::appearance_application_host>       AppearanceHost;
+		std::uint64_t                                                   MotionSubscription       = 0U;
 		decltype(github_profile_runtime::QueueStore)&                   QueueStore               = Profile->QueueStore;
 		decltype(github_profile_runtime::QueueRefresh)&                 QueueRefresh             = Profile->QueueRefresh;
 		decltype(github_profile_runtime::QueueHost)&                    QueueHost                = Profile->QueueHost;
@@ -12168,6 +12187,9 @@ namespace bpr::app {
 				}
 			}
 #endif
+			if (!Config.MotionObserver) {
+				Config.MotionObserver = std::make_shared<qt::motion_observer>(qt::make_native_motion_source());
+			}
 			RegistryRoot = native_application_data_root(Config);
 		}
 		~implementation() override
