@@ -1,5 +1,36 @@
 # RFC-BPR-0030 production-art frontier
 
+## Current d9 external-generator handoff — candidate-making only
+
+Run `dif-takeover-20260914`, dispatch `d9`, producer `rfc-integrator-d9`,
+mandate revision `6`. The user requested one portable external-generator
+bundle. The local ignored archive is
+`/Users/jaeger/Documents/GitHub/BetterPullReview/artifacts/dif-external-generator-handoff-d9.zip`
+(26,946,857 bytes; SHA-256
+`cf1390d284b2abcd9af6de07f991ab17b1c7ac1efe7369ff42ef57c60359e751`).
+Its root `START-HERE.md` and `MANIFEST.json` accompany the original
+[copyable d7 prompts](dif-production-art-v005/PROMPTS.md), the
+[d9 corrections](dif-production-art-v007/PROMPTS-D9.md), the two exact
+pixel-equal accepted/canonical neutral encodings, all ten immutable incoming
+gesture sheets, the crop inventory, the proposed clip contract, and curated
+negative/visual references including the d8 greeting shoulder failure.
+The [portable guide](dif-production-art-v007/START-HERE.md) specifies reference
+roles, output canvas/registration, submission format and rights caveat. The
+archive CRC, extracted inventory and SHA-256 of all 42 files passed; its ten
+incoming hashes matched the immutable input manifest, and the accepted and
+canonical neutral PNGs decoded to identical 1024-square RGBA pixels.
+
+This handoff produces **no new pose or accepted production source**. The d8
+root cut, six incomplete extended gestures, unobserved actual-speed playback,
+final derivative disposition, complete 71-frame catalog and focused human
+decision remain open under the adopted `production-art` milestone and
+BPR-0755/0756/0757. External-generator results must return as traceable
+candidates for local composition and review, not as direct runtime assets.
+No upload or external-service call was made in this handoff; the archive was
+only created locally. The task-owned packaging command has completed.
+
+## Earlier production-art evidence
+
 Run `dif-takeover-20260914`, dispatch `d6`, producer `rfc-integrator-d4`,
 mandate revision `4` (the helper environment override was removed after the
 revision 3 image-edit authorization). The adopted `production-art` milestone binds
