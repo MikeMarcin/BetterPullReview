@@ -62,6 +62,12 @@ epoch identity or Git-object bounds. BPR-0617 remains Backlog with BPR-0507,
 BPR-0622, platform and RFC-wide closeout obligations open. Do not reopen the
 Done BPR-0643, BPR-0792 or BPR-0793 slices.
 
+The source candidate is `0d9f3d71`; BPR-0793 finished at `17d84c90`.
+`docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-bpr0643-r3-d11-r13-final.json`
+mechanically binds the final Done obligation for this dispatch after card
+evidence changed its fingerprint. The initial d11 assignment remains as the
+intake binding; no second exact-target product read was made for rebind.
+
 ## Current frontier — bpr0643-r2 / d10 / mandate r12
 
 The `large-pr-returned-commit-boundary` milestone is bound to BPR-0792's
