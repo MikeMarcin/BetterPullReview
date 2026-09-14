@@ -3201,6 +3201,25 @@ namespace bpr::adapters::git {
 				-> application::git_cache_result<
 					application::git_prepared_revision> override
 			{
+				return prepare_revision_impl(aRequest, aStop, aWitness, false);
+			}
+
+			[[nodiscard]] auto prepare_sparse_revision(
+				const application::git_prepare_revision_request& aRequest, std::stop_token aStop,
+				const std::function<bool(const application::git_prepared_revision&)>& aWitness)
+				-> application::git_cache_result<application::git_prepared_revision> override
+			{
+				if (!aWitness || aRequest.DeriveComparisonBase || aRequest.Base.algorithm() != core::git_hash_algorithm::sha1) {
+					return std::unexpected{ application::git_cache_failure::invalid_request };
+				}
+				return prepare_revision_impl(aRequest, aStop, aWitness, true);
+			}
+
+			[[nodiscard]] auto prepare_revision_impl(
+				const application::git_prepare_revision_request& aRequest, std::stop_token aStop,
+				const std::function<bool(const application::git_prepared_revision&)>& aWitness, bool aSparse)
+				-> application::git_cache_result<application::git_prepared_revision>
+			{
 				std::lock_guard operationGuard{ State->OperationMutex };
 				if (aStop.stop_requested()) {
 					return std::unexpected{
@@ -3301,7 +3320,8 @@ namespace bpr::adapters::git {
 							invalid_repository
 					};
 				}
-				auto indexed = State->Process->index_pack(
+				const auto indexPack = aSparse ? &application::git_process_port::index_sparse_pack : &application::git_process_port::index_pack;
+				auto       indexed   = (State->Process.get()->*indexPack)(
 					application::git_index_pack_request{
 						.Repository        = State->Repository,
 						.Operation         = process_operation(aRequest.Receipt.Operation),
@@ -3676,13 +3696,11 @@ namespace bpr::adapters::git {
 							repair_required
 					};
 				}
-				const auto connected = State->Process->verify_connectivity(
-					application::git_connectivity_request{
-						.Repository = State->Repository,
-						.Base       = *base,
-						.Head       = *head,
-					},
-					aStop);
+				auto connected = application::git_process_result<void>{ };
+				if (!aSparse) {
+					connected = State->Process->verify_connectivity(
+						{ .Repository = State->Repository, .Base = *base, .Head = *head }, aStop);
+				}
 				if (!State->active_boundary_still_owned()) {
 					if (
 						!connected.has_value()
@@ -3714,9 +3732,9 @@ namespace bpr::adapters::git {
 							repair_required
 					};
 				}
-				auto headLineage = core::head_lineage::not_applicable;
+				auto headLineage = aSparse && aRequest.PriorHead ? core::head_lineage::unknown : core::head_lineage::not_applicable;
 				if (
-					aRequest.PriorHead.has_value()
+					!aSparse && aRequest.PriorHead.has_value()
 					&& *aRequest.PriorHead != aRequest.Head) {
 					const auto priorHead = process_commit(*aRequest.PriorHead);
 					if (!priorHead.has_value()) {
@@ -3793,6 +3811,7 @@ namespace bpr::adapters::git {
 					.HeadTree      = core_tree(headInspection->Tree),
 					.HeadLineage   = headLineage,
 					.ImportedBytes = aRequest.Receipt.Spool.Bytes,
+					.Residency     = aSparse ? application::git_revision_residency::sparse_commit_trees : application::git_revision_residency::complete_closure,
 				};
 				if (aWitness && !aWitness(prepared)) {
 					// The catalog may have committed despite an unavailable reply.
@@ -4036,10 +4055,11 @@ namespace bpr::adapters::git {
 				}
 				State->forget_operation(aPrepared.Operation);
 				return application::git_retained_ref_pair{
-					.Scope   = aAuthorization.Scope,
-					.Ordinal = aAuthorization.Ordinal,
-					.Base    = aPrepared.Base,
-					.Head    = aPrepared.Head,
+					.Scope     = aAuthorization.Scope,
+					.Ordinal   = aAuthorization.Ordinal,
+					.Base      = aPrepared.Base,
+					.Head      = aPrepared.Head,
+					.Residency = aPrepared.Residency,
 				};
 			}
 
@@ -4048,6 +4068,21 @@ namespace bpr::adapters::git {
 				const std::stop_token     aStop)
 				-> application::git_cache_result<
 					application::git_retained_ref_pair> override
+			{
+				return inspect_retained_impl(aOrdinal, aStop, false);
+			}
+
+			[[nodiscard]] auto inspect_sparse_retained(core::epoch_ordinal aOrdinal, std::stop_token aStop)
+				-> application::git_cache_result<application::git_retained_ref_pair> override
+			{
+				if (State->Request.ObjectFormat != core::git_hash_algorithm::sha1) {
+					return std::unexpected{ application::git_cache_failure::invalid_request };
+				}
+				return inspect_retained_impl(aOrdinal, aStop, true);
+			}
+
+			[[nodiscard]] auto inspect_retained_impl(core::epoch_ordinal aOrdinal, std::stop_token aStop, bool aSparse)
+				-> application::git_cache_result<application::git_retained_ref_pair>
 			{
 				std::lock_guard operationGuard{ State->OperationMutex };
 				if (aStop.stop_requested()) {
@@ -4149,13 +4184,11 @@ namespace bpr::adapters::git {
 							invalid_repository
 					};
 				}
-				const auto connected = State->Process->verify_connectivity(
-					application::git_connectivity_request{
-						.Repository = State->Repository,
-						.Base       = pair->first,
-						.Head       = pair->second,
-					},
-					aStop);
+				auto connected = application::git_process_result<void>{ };
+				if (!aSparse) {
+					connected = State->Process->verify_connectivity(
+						{ .Repository = State->Repository, .Base = pair->first, .Head = pair->second }, aStop);
+				}
 				if (!State->active_boundary_still_owned()) {
 					if (
 						!connected.has_value()
@@ -4176,10 +4209,11 @@ namespace bpr::adapters::git {
 					};
 				}
 				return application::git_retained_ref_pair{
-					.Scope   = State->Request.Authority.Scope,
-					.Ordinal = aOrdinal,
-					.Base    = core_commit(pair->first),
-					.Head    = core_commit(pair->second),
+					.Scope     = State->Request.Authority.Scope,
+					.Ordinal   = aOrdinal,
+					.Base      = core_commit(pair->first),
+					.Head      = core_commit(pair->second),
+					.Residency = aSparse ? application::git_revision_residency::sparse_commit_trees : application::git_revision_residency::complete_closure,
 				};
 			}
 
@@ -4188,6 +4222,21 @@ namespace bpr::adapters::git {
 				const std::stop_token      aStop)
 				-> application::git_cache_result<
 					application::git_cache_commit_inspection> override
+			{
+				return inspect_commit_object_impl(aCommit, aStop, false);
+			}
+
+			[[nodiscard]] auto inspect_sparse_commit_object(core::git_commit_oid aCommit, std::stop_token aStop)
+				-> application::git_cache_result<application::git_cache_commit_inspection> override
+			{
+				if (State->Request.ObjectFormat != core::git_hash_algorithm::sha1) {
+					return std::unexpected{ application::git_cache_failure::invalid_request };
+				}
+				return inspect_commit_object_impl(aCommit, aStop, true);
+			}
+
+			[[nodiscard]] auto inspect_commit_object_impl(core::git_commit_oid aCommit, std::stop_token aStop, bool aSparse)
+				-> application::git_cache_result<application::git_cache_commit_inspection>
 			{
 				std::lock_guard operationGuard{ State->OperationMutex };
 				if (aStop.stop_requested()) {
@@ -4240,13 +4289,11 @@ namespace bpr::adapters::git {
 							: State->process_failure(inspected.error())
 					};
 				}
-				const auto connected = State->Process->verify_connectivity(
-					application::git_connectivity_request{
-						.Repository = State->Repository,
-						.Base       = *expected,
-						.Head       = *expected,
-					},
-					aStop);
+				auto connected = application::git_process_result<void>{ };
+				if (!aSparse) {
+					connected = State->Process->verify_connectivity(
+						{ .Repository = State->Repository, .Base = *expected, .Head = *expected }, aStop);
+				}
 				if (!State->active_boundary_still_owned()) {
 					if (
 						!connected.has_value()
@@ -4270,8 +4317,9 @@ namespace bpr::adapters::git {
 					};
 				}
 				return application::git_cache_commit_inspection{
-					.Commit = aCommit,
-					.Tree   = core_tree(inspected->Tree),
+					.Commit    = aCommit,
+					.Tree      = core_tree(inspected->Tree),
+					.Residency = aSparse ? application::git_revision_residency::sparse_commit_trees : application::git_revision_residency::complete_closure,
 				};
 			}
 
@@ -5364,13 +5412,13 @@ namespace bpr::adapters::git {
 						application::git_cache_failure::invalid_repository
 					};
 				}
-				const auto connected = State->Process->verify_connectivity(
-					application::git_connectivity_request{
-						.Repository = State->Repository,
-						.Base       = aBase,
-						.Head       = aHead,
-					},
-					aStop);
+				const auto sparse = (aRequest.Install && aRequest.Install->Residency == application::git_revision_residency::sparse_commit_trees)
+					|| (aRequest.Spool && aRequest.Spool->Residency == application::git_revision_residency::sparse_commit_trees);
+				auto connected = application::git_process_result<void>{ };
+				if (!sparse) {
+					connected = State->Process->verify_connectivity(
+						{ .Repository = State->Repository, .Base = aBase, .Head = aHead }, aStop);
+				}
 				if (!State->active_boundary_still_owned()) {
 					if (
 						!connected.has_value()

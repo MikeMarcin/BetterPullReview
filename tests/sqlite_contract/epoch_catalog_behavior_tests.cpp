@@ -429,6 +429,7 @@ namespace {
 		std::optional<core::epoch_occurrence_id>            HistoricalOccurrence;
 		std::optional<core::git_commit_oid>                 DerivedComparisonBase;
 		bool                                                StopBeforeFinalize = false;
+		app::git_revision_residency                         Residency          = app::git_revision_residency::complete_closure;
 	};
 
 	[[nodiscard]] auto complete_append(
@@ -524,8 +525,9 @@ namespace {
 			expect(receiving.has_value(), "complete append persists receiving ownership before payload receipt");
 			record = *receiving;
 		}
-		const auto spool   = spool_request(record, aSeed);
-		auto       spooled = aSession.record_spool(spool, { });
+		auto spool            = spool_request(record, aSeed);
+		spool.Spool.Residency = aOptions.Residency;
+		auto spooled          = aSession.record_spool(spool, { });
 		expect(spooled.has_value(), "spool and inventory record atomically");
 		record = *spooled;
 		expect(
@@ -538,7 +540,11 @@ namespace {
 			idempotentSpool && *idempotentSpool == record,
 			"exact spool retry is idempotent");
 
-		auto install = install_request(record, aSeed);
+		auto install              = install_request(record, aSeed);
+		install.Install.Residency = aOptions.Residency;
+		if (aOptions.Residency == app::git_revision_residency::sparse_commit_trees) {
+			install.Install.HeadLineage = core::head_lineage::unknown;
+		}
 		if (aOptions.DerivedComparisonBase) {
 			install.DerivedComparisonBase = aOptions.DerivedComparisonBase;
 			install.Install.Base          = *aOptions.DerivedComparisonBase;
@@ -968,7 +974,7 @@ namespace {
 				"AND name NOT LIKE 'sqlite_%' ORDER BY name");
 			auto output = std::string{ };
 			for (const auto& table : tables) {
-				if (aLegacyRowsOnly && (table == "catalog_meta" || table == "append_occurrence" || table == "epoch_occurrence" || table == "epoch_occurrence_history" || table == "epoch_occurrence_supersession")) {
+				if (aLegacyRowsOnly && (table == "catalog_meta" || table == "append_residency" || table == "append_occurrence" || table == "epoch_occurrence" || table == "epoch_occurrence_history" || table == "epoch_occurrence_supersession")) {
 					continue;
 				}
 				appendField(output, table);
@@ -1427,7 +1433,7 @@ namespace {
 		std::string oldRows;
 		if (aMigrate) {
 			direct_database database{ database_path(root.path()), true };
-			database.execute("BEGIN IMMEDIATE; PRAGMA defer_foreign_keys=ON; CREATE TABLE old_meta AS SELECT * FROM catalog_meta; DROP TABLE catalog_meta; CREATE TABLE catalog_meta(singleton INTEGER NOT NULL PRIMARY KEY CHECK(singleton = 1), schema_format INTEGER NOT NULL CHECK(schema_format = 5), incarnation BLOB NOT NULL CHECK(length(incarnation) = 32 AND incarnation != zeroblob(32))) STRICT, WITHOUT ROWID; CREATE UNIQUE INDEX catalog_meta_incarnation ON catalog_meta(incarnation); INSERT INTO catalog_meta SELECT singleton, 5, incarnation FROM old_meta; DROP TABLE old_meta; PRAGMA user_version=5; COMMIT");
+			database.execute("BEGIN IMMEDIATE; PRAGMA defer_foreign_keys=ON; DROP TABLE append_residency; CREATE TABLE old_meta AS SELECT * FROM catalog_meta; DROP TABLE catalog_meta; CREATE TABLE catalog_meta(singleton INTEGER NOT NULL PRIMARY KEY CHECK(singleton = 1), schema_format INTEGER NOT NULL CHECK(schema_format = 5), incarnation BLOB NOT NULL CHECK(length(incarnation) = 32 AND incarnation != zeroblob(32))) STRICT, WITHOUT ROWID; CREATE UNIQUE INDEX catalog_meta_incarnation ON catalog_meta(incarnation); INSERT INTO catalog_meta SELECT singleton, 5, incarnation FROM old_meta; DROP TABLE old_meta; PRAGMA user_version=5; COMMIT");
 			oldRows = database.logical_fingerprint(true);
 		}
 		if (aMigrate) {
@@ -1448,7 +1454,7 @@ namespace {
 			   "migration and restart retain incarnation, catalog revision and live selectors");
 		if (aMigrate) {
 			const direct_database database{ database_path(root.path()) };
-			expect(database.integer("PRAGMA user_version") == 6 && database.logical_fingerprint(true) == oldRows,
+			expect(database.integer("PRAGMA user_version") == 7 && database.logical_fingerprint(true) == oldRows,
 				   "v6 migration changes no old epoch, anchor, or pending journal row");
 			const auto unlinked = session->occurrences({ });
 			expect(unlinked && unlinked->Occurrences == std::vector{ event }, "unversioned v5 comparison association is unavailable after migration");
@@ -2849,6 +2855,114 @@ namespace {
 					   "AND o.operation = c.operation WHERE o.phase = 4")
 					== 0,
 			"invalid candidate variants leave phase, facts, and SQL unchanged");
+	}
+
+	void sparse_spool_restart_contract()
+	{
+		temporary_root root{ "sparse-spool" };
+		auto           made = sqlite::make_epoch_catalog({ .StorageRoot = root.path() });
+		expect(made.has_value(), "sparse spool catalog opens");
+		auto port   = std::move(*made);
+		auto opened = port->open(open_request(991U), { });
+		expect(opened.has_value(), "sparse spool authority opens");
+		auto       session  = std::move(*opened);
+		const auto reserved = session->reserve_append({
+														  .Context         = context(session->binding(), operation(51U), revision(51U), 51U, core::application_session_id{ 991U }),
+														  .ProposedOrdinal = core::epoch_ordinal{ 1 },
+													  },
+													  { });
+		expect(reserved.has_value(), "sparse spool reserves");
+		auto request            = spool_request(*reserved, 51U);
+		request.Spool.Residency = app::git_revision_residency::sparse_commit_trees;
+		const auto recorded     = session->record_spool(request, { });
+		expect(recorded && recorded->Spool->Residency == request.Spool.Residency && !recorded->Install,
+			   "sparse mode is durable before index or installation witness");
+		auto conflictingSpool            = request;
+		conflictingSpool.Spool.Residency = app::git_revision_residency::complete_closure;
+		expect(!session->record_spool(conflictingSpool, { }), "spool retry cannot change import mode");
+		session.reset();
+		port.reset();
+		made = sqlite::make_epoch_catalog({ .StorageRoot = root.path() });
+		expect(made.has_value(), "pre-index sparse catalog restarts");
+		port   = std::move(*made);
+		opened = port->open(open_request(992U), { });
+		expect(opened.has_value(), "pre-index sparse authority reopens");
+		session             = std::move(*opened);
+		const auto recovery = session->recovery_page(std::nullopt, 100U, { });
+		expect(recovery && recovery->Operations.size() == 1U, "pre-index sparse journal remains recoverable");
+		const auto record = std::get<app::append_operation_record>(recovery->Operations.front());
+		expect(record.Spool == recorded->Spool && !record.Install, "restart retains exact sparse spool mode without invented installation");
+		auto install = install_request(record, 51U, core::head_lineage::unknown);
+		expect(!session->record_install(install, { }), "installation cannot reinterpret sparse spool as complete");
+		install.Install.Residency = app::git_revision_residency::sparse_commit_trees;
+		expect(session->record_install(install, { }).has_value(), "matching sparse installation is admitted after restart");
+	}
+
+	void sparse_install_restart_and_migration_contract(const bool aLegacy)
+	{
+		using residency = app::git_revision_residency;
+		temporary_root root{ "sparse-residency" };
+		auto           made = sqlite::make_epoch_catalog({ .StorageRoot = root.path() });
+		expect(made.has_value(), "sparse residency catalog opens");
+		auto port   = std::move(*made);
+		auto opened = port->open(open_request(981U), { });
+		expect(opened.has_value(), "sparse residency authority opens");
+		auto       session   = std::move(*opened);
+		const auto expected  = aLegacy ? residency::complete_closure : residency::sparse_commit_trees;
+		const auto completed = complete_append(*session, core::epoch_ordinal{ 1 }, 1U,
+											   core::application_session_id{ 981U }, true, false, nullptr, { .Residency = expected });
+		expect(completed.Terminal.RecoveryInputCompacted && completed.Terminal.Install
+				   && completed.Terminal.Install->Residency == expected,
+			   "terminal compaction preserves exact residency witness");
+		const auto pending = complete_append(*session, core::epoch_ordinal{ 2 }, 2U,
+											 core::application_session_id{ 981U }, false, false, nullptr,
+											 { .StopBeforeFinalize = true, .Residency = expected });
+		const auto before  = session->snapshot({ });
+		session.reset();
+		port.reset();
+		if (aLegacy) {
+			direct_database database{ database_path(root.path()), true };
+			database.execute("BEGIN IMMEDIATE; PRAGMA defer_foreign_keys=ON; DROP TABLE append_residency; CREATE TABLE old_meta AS SELECT * FROM catalog_meta; DROP TABLE catalog_meta; CREATE TABLE catalog_meta(singleton INTEGER NOT NULL PRIMARY KEY CHECK(singleton = 1), schema_format INTEGER NOT NULL CHECK(schema_format = 6), incarnation BLOB NOT NULL CHECK(length(incarnation) = 32 AND incarnation != zeroblob(32))) STRICT, WITHOUT ROWID; CREATE UNIQUE INDEX catalog_meta_incarnation ON catalog_meta(incarnation); INSERT INTO catalog_meta SELECT singleton, 6, incarnation FROM old_meta; DROP TABLE old_meta; PRAGMA user_version=6; COMMIT");
+		}
+		if (aLegacy) {
+			sqlite::detail::testing::interrupt_next_migration_before_commit();
+			expect(!sqlite::make_epoch_catalog({ .StorageRoot = root.path() }), "interrupted sparse schema migration refuses");
+			const direct_database database{ database_path(root.path()) };
+			expect(database.integer("PRAGMA user_version") == 6
+					   && database.integer("SELECT count(*) FROM sqlite_schema WHERE name='append_residency'") == 0,
+				   "interrupted migration rolls back version and residency table together");
+		}
+		made = sqlite::make_epoch_catalog({ .StorageRoot = root.path() });
+		expect(made.has_value(), "residency catalog restarts or migrates");
+		port   = std::move(*made);
+		opened = port->open(open_request(982U), { });
+		expect(opened.has_value(), "residency authority reopens");
+		session         = std::move(*opened);
+		const auto page = session->recovery_page(std::nullopt, 100U, { });
+		expect(page && page->Operations.size() == 1U && session->snapshot({ }) == before,
+			   "restart preserves available epochs and pending operation count");
+		const auto& record = std::get<app::append_operation_record>(page->Operations.front());
+		expect(record.Install == pending.Terminal.Install && record.Install->Residency == expected,
+			   "restart preserves sparse witness and old v6 installs retain complete closure semantics");
+
+		expect(session->retained_residency(core::epoch_ordinal{ 1 }, { }) == expected,
+			   "retained mode survives restart and legacy migration exactly");
+		direct_database database{ database_path(root.path()), true };
+		expect(database.integer("PRAGMA user_version") == 7
+				   && database.integer("SELECT count(*) FROM append_residency WHERE residency=1") == (aLegacy ? 0 : 2),
+			   "sparse marker survives terminal compaction and no legacy row is upgraded");
+		if (!aLegacy) {
+			database.execute("UPDATE operation SET reserved_ordinal=77 WHERE kind=1 AND reserved_ordinal=1");
+			expect(!session->retained_residency(core::epoch_ordinal{ 1 }, { }), "forged operation ordinal cannot label an epoch sparse");
+			database.execute("UPDATE operation SET reserved_ordinal=1 WHERE kind=1 AND reserved_ordinal=77");
+			database.execute("PRAGMA ignore_check_constraints=ON; UPDATE append_residency SET residency=9");
+			expect_failure(session->retained_residency(core::epoch_ordinal{ 1 }, { }), app::epoch_catalog_failure::schema_mismatch,
+						   "forged residency encoding is refused");
+			database.execute("UPDATE append_residency SET residency=1; PRAGMA ignore_check_constraints=OFF");
+			database.execute("DELETE FROM append_residency");
+			expect(session->retained_residency(core::epoch_ordinal{ 1 }, { }) == residency::complete_closure,
+				   "missing durable marker never infers sparse mode from physical refs or trees");
+		}
 	}
 
 	void install_lineage_durability_contract()
@@ -6522,6 +6636,9 @@ int main()
 	stale_session_and_association_noop_contract();
 	creation_validation_atomicity_contract();
 	install_lineage_durability_contract();
+	sparse_spool_restart_contract();
+	sparse_install_restart_and_migration_contract(false);
+	sparse_install_restart_and_migration_contract(true);
 	semantic_corruption_fail_closed_contract();
 	composite_scope_integrity_contract();
 	revision_exhaustion_zero_mutation_contract();

@@ -280,6 +280,18 @@ namespace bpr::application {
 		core::git_commit_oid       Head;
 	};
 
+	/// \brief States precisely which object residency an import established.
+	enum class git_revision_residency : std::uint8_t {
+		complete_closure,
+		sparse_commit_trees,
+	};
+
+	[[nodiscard]] constexpr auto valid(const git_revision_residency aResidency) noexcept -> bool
+	{
+		return aResidency == git_revision_residency::complete_closure
+			|| aResidency == git_revision_residency::sparse_commit_trees;
+	}
+
 	/// \brief Describes the git prepared revision record.
 	struct git_prepared_revision
 	{
@@ -298,6 +310,8 @@ namespace bpr::application {
 		core::head_lineage   HeadLineage   = core::head_lineage::not_applicable;
 		std::uint64_t        ImportedBytes = 0U;
 
+		git_revision_residency Residency = git_revision_residency::complete_closure;
+
 		auto operator<=>(const git_prepared_revision&) const = default;
 	};
 
@@ -305,7 +319,9 @@ namespace bpr::application {
 	[[nodiscard]] constexpr auto valid(
 		const git_prepared_revision& aRevision) noexcept -> bool
 	{
-		return aRevision.Operation.valid() && valid(aRevision.Pack)
+		return valid(aRevision.Residency)
+			&& (aRevision.Residency != git_revision_residency::sparse_commit_trees || (aRevision.Pack.Algorithm == core::git_hash_algorithm::sha1 && (aRevision.HeadLineage == core::head_lineage::unknown || aRevision.HeadLineage == core::head_lineage::not_applicable)))
+			&& aRevision.Operation.valid() && valid(aRevision.Pack)
 			&& valid(
 				   aRevision.InstalledPack,
 				   git_artifact_role::installed_pack)
@@ -360,6 +376,8 @@ namespace bpr::application {
 		std::uint64_t                         PreimportRepositoryBytes = 0U;
 		bool                                  ExpectedPackPreexisting  = false;
 
+		git_revision_residency Residency = git_revision_residency::complete_closure;
+
 		auto operator<=>(const git_recovery_spool_expectation&) const = default;
 	};
 
@@ -367,7 +385,9 @@ namespace bpr::application {
 		const git_recovery_spool_expectation& aExpectation) noexcept -> bool
 	{
 		if (
-			!valid(aExpectation.ExpectedPack)
+			!valid(aExpectation.Residency)
+			|| (aExpectation.Residency == git_revision_residency::sparse_commit_trees && aExpectation.ExpectedPack.Algorithm != core::git_hash_algorithm::sha1)
+			|| !valid(aExpectation.ExpectedPack)
 			|| !valid(
 				aExpectation.CompletedSpool,
 				git_artifact_role::completed_spool)
@@ -419,6 +439,8 @@ namespace bpr::application {
 		core::git_tree_oid BaseTree;
 		core::git_tree_oid HeadTree;
 
+		git_revision_residency Residency = git_revision_residency::complete_closure;
+
 		auto operator<=>(const git_recovery_install_expectation&) const = default;
 	};
 
@@ -426,7 +448,9 @@ namespace bpr::application {
 	[[nodiscard]] constexpr auto valid(
 		const git_recovery_install_expectation& aExpectation) noexcept -> bool
 	{
-		return valid(aExpectation.Pack)
+		return valid(aExpectation.Residency)
+			&& (aExpectation.Residency != git_revision_residency::sparse_commit_trees || aExpectation.Pack.Algorithm == core::git_hash_algorithm::sha1)
+			&& valid(aExpectation.Pack)
 			&& valid(
 				   aExpectation.InstalledPack,
 				   git_artifact_role::installed_pack)
@@ -474,7 +498,8 @@ namespace bpr::application {
 					&& aRequest.Install->Pack.Algorithm
 						== aRequest.Base.algorithm()))
 			&& (!aRequest.Spool || !aRequest.Install
-				|| (aRequest.Spool->ExpectedPack == aRequest.Install->Pack
+				|| (aRequest.Spool->Residency == aRequest.Install->Residency
+					&& aRequest.Spool->ExpectedPack == aRequest.Install->Pack
 					&& aRequest.Spool->CompletedSpool.Bytes
 						== aRequest.Install->InstalledPack.Bytes));
 	}
@@ -531,6 +556,8 @@ namespace bpr::application {
 		core::git_commit_oid                  Base;
 		core::git_commit_oid                  Head;
 
+		git_revision_residency Residency = git_revision_residency::complete_closure;
+
 		auto operator<=>(const git_retained_ref_pair&) const = default;
 	};
 
@@ -538,7 +565,7 @@ namespace bpr::application {
 	[[nodiscard]] constexpr auto valid(
 		const git_retained_ref_pair& aPair) noexcept -> bool
 	{
-		return aPair.Scope.valid() && core::valid(aPair.Ordinal)
+		return valid(aPair.Residency) && aPair.Scope.valid() && core::valid(aPair.Ordinal)
 			&& aPair.Base.valid() && aPair.Head.valid()
 			&& aPair.Base.algorithm() == aPair.Head.algorithm();
 	}
@@ -549,6 +576,8 @@ namespace bpr::application {
 		core::git_commit_oid Commit;
 		core::git_tree_oid   Tree;
 
+		git_revision_residency Residency = git_revision_residency::complete_closure;
+
 		auto operator<=>(const git_cache_commit_inspection&) const = default;
 	};
 
@@ -556,7 +585,7 @@ namespace bpr::application {
 	[[nodiscard]] constexpr auto valid(
 		const git_cache_commit_inspection& aInspection) noexcept -> bool
 	{
-		return aInspection.Commit.valid() && aInspection.Tree.valid()
+		return valid(aInspection.Residency) && aInspection.Commit.valid() && aInspection.Tree.valid()
 			&& aInspection.Commit.algorithm() == aInspection.Tree.algorithm();
 	}
 
@@ -724,6 +753,41 @@ namespace bpr::application {
 			const std::function<bool(const git_prepared_revision&)>& aWitness = { })
 			-> git_cache_result<git_prepared_revision> = 0;
 
+		/// \brief Imports exact SHA-1 commit/root trees with explicitly incomplete closure.
+		/// \details Requires a durable installation witness. Parents, subtrees and blobs
+		/// may be absent. Never derives a comparison base or proves ancestry. The host
+		/// must preserve Residency in the durable fact and recovery expectation.
+		[[nodiscard]] virtual auto prepare_sparse_revision(
+			const git_prepare_revision_request& aRequest, std::stop_token aStop,
+			const std::function<bool(const git_prepared_revision&)>& aWitness)
+			-> git_cache_result<git_prepared_revision>
+		{
+			static_cast<void>(aRequest);
+			static_cast<void>(aStop);
+			static_cast<void>(aWitness);
+			return std::unexpected{ git_cache_failure::invalid_request };
+		}
+
+		/// \brief Checks exact retained refs and commit/root trees without closure claims.
+		/// \details Residency reports the extent checked, not durable import mode.
+		/// Obtain durable mode from the catalog before selecting this inspection.
+		[[nodiscard]] virtual auto inspect_sparse_retained(core::epoch_ordinal aOrdinal, std::stop_token aStop)
+			-> git_cache_result<git_retained_ref_pair>
+		{
+			static_cast<void>(aOrdinal);
+			static_cast<void>(aStop);
+			return std::unexpected{ git_cache_failure::invalid_request };
+		}
+
+		/// \brief Checks exact SHA-1 commit/root-tree residency, never a negotiation have.
+		[[nodiscard]] virtual auto inspect_sparse_commit_object(core::git_commit_oid aCommit, std::stop_token aStop)
+			-> git_cache_result<git_cache_commit_inspection>
+		{
+			static_cast<void>(aCommit);
+			static_cast<void>(aStop);
+			return std::unexpected{ git_cache_failure::invalid_request };
+		}
+
 		/// \brief Prepares exact historical head closure through the journaled import path.
 		/// \details The returned Base and BaseTree derive from SelectedBase and Head and
 		/// are comparison anchors only, never evidence of the original historical base.
@@ -860,7 +924,7 @@ namespace bpr::application {
 			std::stop_token                       aStop) -> git_cache_result<void> = 0;
 
 		// Successful catalog cleanup is intentionally distinct from abort. It
-		// requires the exact final pair and object closure, removes only an exact
+		// requires the exact final pair and witnessed object residency, removes only an exact
 		// completed spool/staging residue, and never marks the operation aborted
 		// or consumes bounded abort-history capacity.
 		[[nodiscard]] virtual auto complete_recovered_operation(

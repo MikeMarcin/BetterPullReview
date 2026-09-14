@@ -580,6 +580,9 @@ namespace bpr::adapters::sqlite {
 			[[nodiscard]] auto supersede_occurrence(const core::epoch_occurrence& aExpected, const core::epoch_occurrence& aReplacement, std::stop_token aStop) -> result<void> override;
 			[[nodiscard]] auto occurrences(std::stop_token aStop) -> result<core::epoch_occurrence_history> override;
 			[[nodiscard]] auto record_occurrences(const core::epoch_occurrence_history& aHistory, std::stop_token aStop) -> result<void> override;
+			[[nodiscard]] auto retained_residency(core::epoch_ordinal aOrdinal, std::stop_token aStop)
+				-> result<app::git_revision_residency> override;
+
 			[[nodiscard]] auto snapshot(std::stop_token aStop)
 				-> result<app::epoch_catalog_snapshot> override;
 			[[nodiscard]] auto source_observation_exists(
@@ -739,6 +742,9 @@ namespace bpr::adapters::sqlite {
 				std::string_view Verify;
 			};
 			constexpr std::array cleanup{
+				cleanup_statement{
+					"DELETE FROM append_residency WHERE incarnation = ?1 AND operation IN (SELECT operation FROM operation WHERE incarnation = ?1 AND cache_scope = ?2)",
+					"SELECT count(*) FROM append_residency d JOIN operation o ON o.incarnation = d.incarnation AND o.operation = d.operation WHERE d.incarnation = ?1 AND o.cache_scope = ?2" },
 				cleanup_statement{
 					"DELETE FROM append_occurrence WHERE incarnation = ?1 AND operation IN (SELECT operation FROM operation WHERE incarnation = ?1 AND cache_scope = ?2)",
 					"SELECT count(*) FROM append_occurrence d JOIN operation o ON o.incarnation = d.incarnation AND o.operation = d.operation WHERE d.incarnation = ?1 AND o.cache_scope = ?2" },
@@ -1698,6 +1704,63 @@ namespace bpr::adapters::sqlite {
 				return std::unexpected(failure::schema_mismatch);
 			}
 			return exists != 0;
+		}
+
+		auto sqlite_epoch_catalog_session::retained_residency(core::epoch_ordinal aOrdinal, std::stop_token aStop)
+			-> result<app::git_revision_residency>
+		{
+			if (!core::valid(aOrdinal)) {
+				return std::unexpected(failure::invalid_request);
+			}
+			if (aStop.stop_requested()) {
+				return std::unexpected(failure::cancelled);
+			}
+			std::scoped_lock lock{ State->Mutex };
+			auto*            database = State->Database.handle();
+			progress_guard   progress{ database, aStop };
+			// Epoch and source-observation unique indexes bound every join to one row.
+			auto query = prepare(database,
+								 "SELECT r.residency, i.pack_algorithm, i.head_lineage FROM epoch e "
+								 "JOIN pull_request_scope p ON p.incarnation=e.incarnation AND p.pr_scope=e.pr_scope "
+								 "JOIN repository_scope c ON c.incarnation=p.incarnation AND c.cache_scope=p.cache_scope "
+								 "JOIN operation o INDEXED BY operation_source_observation ON o.incarnation=e.incarnation "
+								 "AND o.source_observation=e.source_observation AND o.kind=1 "
+								 "AND o.pr_scope=e.pr_scope AND o.cache_scope=p.cache_scope AND o.reserved_ordinal=e.ordinal "
+								 "JOIN append_install i ON i.incarnation=o.incarnation AND i.operation=o.operation "
+								 "JOIN epoch_anchor b ON b.incarnation=e.incarnation AND b.pr_scope=e.pr_scope AND b.ordinal=e.ordinal AND b.endpoint=1 "
+								 "JOIN epoch_anchor h ON h.incarnation=e.incarnation AND h.pr_scope=e.pr_scope AND h.ordinal=e.ordinal AND h.endpoint=2 "
+								 "LEFT JOIN append_residency r ON r.incarnation=o.incarnation AND r.operation=o.operation "
+								 "WHERE e.incarnation=?1 AND e.pr_scope=?2 AND e.ordinal=?3 "
+								 "AND p.cache_scope=?4 AND p.catalog_revision=?5 AND p.lifecycle=1 AND c.lifecycle=1 "
+								 "AND o.phase IN (8,9) AND b.availability=1 AND h.availability=1 "
+								 "AND i.base_algorithm=b.object_algorithm AND i.base_digest=b.object_digest "
+								 "AND i.head_algorithm=h.object_algorithm AND i.head_digest=h.object_digest "
+								 "AND i.base_tree_algorithm=e.material_base_algorithm AND i.base_tree_digest=e.material_base_digest "
+								 "AND i.head_tree_algorithm=e.material_head_algorithm AND i.head_tree_digest=e.material_head_digest");
+			if (!query || !bind_fixed(query->Value, 1, Binding.Catalog.Incarnation)
+				|| !bind_fixed(query->Value, 2, Binding.Authority.Scope)
+				|| ::sqlite3_bind_int64(query->Value, 3, aOrdinal.value()) != SQLITE_OK
+				|| !bind_fixed(query->Value, 4, Binding.Authority.Cache)
+				|| ::sqlite3_bind_int64(query->Value, 5, Binding.Catalog.Revision.value()) != SQLITE_OK) {
+				return std::unexpected(query ? failure::unavailable : query.error());
+			}
+			const auto code = ::sqlite3_step(query->Value);
+			if (code == SQLITE_DONE) {
+				return std::unexpected(failure::unavailable);
+			}
+			if (code != SQLITE_ROW) {
+				return std::unexpected(sql_failure(database, aStop));
+			}
+			const auto type      = ::sqlite3_column_type(query->Value, 0);
+			const auto value     = ::sqlite3_column_int(query->Value, 0);
+			const auto algorithm = ::sqlite3_column_int(query->Value, 1);
+			const auto lineage   = ::sqlite3_column_int(query->Value, 2);
+			if ((type != SQLITE_NULL && type != SQLITE_INTEGER) || value < 0 || value > 1
+				|| (value == 1 && (algorithm != 1 || (lineage != stored_enum(core::head_lineage::unknown) && lineage != stored_enum(core::head_lineage::not_applicable))))
+				|| ::sqlite3_step(query->Value) != SQLITE_DONE) {
+				return std::unexpected(failure::schema_mismatch);
+			}
+			return static_cast<app::git_revision_residency>(value);
 		}
 
 		auto sqlite_epoch_catalog_session::snapshot(std::stop_token aStop)
@@ -2737,7 +2800,7 @@ namespace bpr::adapters::sqlite {
 			const app::durable_git_preimport_fact& aPreimport,
 			const app::durable_git_install_fact&   aInstall) noexcept -> bool
 		{
-			if (aInstall.Pack != aSpool.ExpectedPack
+			if (aInstall.Residency != aSpool.Residency || aInstall.Pack != aSpool.ExpectedPack
 				|| aInstall.InstalledPack.Bytes != aSpool.Spool.Bytes) {
 				return false;
 			}
@@ -2932,6 +2995,24 @@ namespace bpr::adapters::sqlite {
 			} else if (receivingCode != SQLITE_DONE) {
 				return std::unexpected(sql_failure(database, { }));
 			}
+			auto residencyQuery = prepare(database, "SELECT residency FROM append_residency WHERE incarnation = ?1 AND operation = ?2");
+			if (!residencyQuery || !bind_fixed(residencyQuery->Value, 1, Binding.Catalog.Incarnation)
+				|| !bind_operation(residencyQuery->Value, 2, aOperation)) {
+				return std::unexpected(failure::unavailable);
+			}
+			auto       residency     = app::git_revision_residency::complete_closure;
+			const auto residencyCode = ::sqlite3_step(residencyQuery->Value);
+			if (residencyCode == SQLITE_ROW) {
+				const auto value = ::sqlite3_column_int(residencyQuery->Value, 0);
+				if (::sqlite3_column_type(residencyQuery->Value, 0) != SQLITE_INTEGER || value < 0 || value > 1
+					|| ::sqlite3_step(residencyQuery->Value) != SQLITE_DONE) {
+					return std::unexpected(failure::schema_mismatch);
+				}
+				residency = static_cast<app::git_revision_residency>(value);
+			} else if (residencyCode != SQLITE_DONE) {
+				return std::unexpected(sql_failure(database, { }));
+			}
+
 			auto receipt = prepare(
 				database,
 				"SELECT spool_identity, spool_bytes, expected_pack_algorithm, "
@@ -2962,6 +3043,7 @@ namespace bpr::adapters::sqlite {
 						.Bytes    = static_cast<std::uint64_t>(
 							::sqlite3_column_int64(receipt->Value, 1)),
 					},
+					.Residency = residency,
 				};
 				app::durable_git_preimport_fact preimport{
 					.Operation       = aOperation,
@@ -3085,6 +3167,7 @@ namespace bpr::adapters::sqlite {
 					.Head        = *installHead,
 					.HeadTree    = *headTree,
 					.HeadLineage = lineage,
+					.Residency   = residency,
 				};
 			} else if (installCode != SQLITE_DONE) {
 				return std::unexpected(sql_failure(database, { }));
@@ -3704,6 +3787,15 @@ namespace bpr::adapters::sqlite {
 				|| ::sqlite3_step(receipt->Value) != SQLITE_DONE) {
 				return std::unexpected(sql_failure(database, aStop));
 			}
+			auto residency = prepare(database,
+									 "INSERT INTO append_residency(incarnation, operation, residency) VALUES(?1, ?2, ?3)");
+			if (!residency || !bind_fixed(residency->Value, 1, Binding.Catalog.Incarnation)
+				|| !bind_operation(residency->Value, 2, aRequest.Operation)
+				|| ::sqlite3_bind_int(residency->Value, 3, static_cast<int>(aRequest.Spool.Residency)) != SQLITE_OK
+				|| ::sqlite3_step(residency->Value) != SQLITE_DONE) {
+				return std::unexpected(sql_failure(database, aStop));
+			}
+
 			auto inventory = prepare(
 				database,
 				"INSERT INTO append_inventory(incarnation, operation, position, "

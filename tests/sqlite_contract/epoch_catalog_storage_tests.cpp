@@ -501,7 +501,7 @@ namespace {
 				database.integer("PRAGMA application_id") == 0x42504543,
 				"BPEC application ID is exact");
 			expect(
-				database.integer("PRAGMA user_version") == 6,
+				database.integer("PRAGMA user_version") == 7,
 				"BPEC user version is exact");
 			expect(
 				database.integer("PRAGMA page_size") == 4'096,
@@ -522,7 +522,7 @@ namespace {
 				database.integer(
 					"SELECT count(*) FROM sqlite_schema WHERE type = 'table' "
 					"AND name NOT LIKE 'sqlite_%'")
-						== 23
+						== 24
 					&& database.integer(
 						   "SELECT count(*) FROM sqlite_schema "
 						   "WHERE type = 'index' AND sql IS NOT NULL "
@@ -540,7 +540,7 @@ namespace {
 						   "AND instr(sql, 'head_lineage INTEGER NOT NULL "
 						   "CHECK(head_lineage BETWEEN 1 AND 4)') != 0")
 						== 1,
-				"closed BPEC v6 schema includes the append-source identity index, "
+				"closed BPEC v7 schema includes the append-source identity index, "
 				"the access-mode uniqueness index, and checked durable head "
 				"lineage");
 			expect(
@@ -1359,7 +1359,7 @@ namespace {
 			direct_database database{ orphans.front() };
 			expect(
 				database.integer("PRAGMA application_id") == 0x42504543
-					&& database.integer("PRAGMA user_version") == 6
+					&& database.integer("PRAGMA user_version") == 7
 					&& database.text("PRAGMA integrity_check(1)") == "ok",
 				"fault seam interrupts only after the orphan is a valid catalog");
 		}

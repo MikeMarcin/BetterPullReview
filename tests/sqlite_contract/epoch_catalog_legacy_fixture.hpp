@@ -9,6 +9,7 @@ namespace bpr::tests::sqlite_contract {
 		}
 		aDatabase.execute("PRAGMA foreign_keys = OFF");
 		aDatabase.execute("BEGIN IMMEDIATE");
+		aDatabase.execute("DROP TABLE append_residency");
 		aDatabase.execute("DROP TABLE append_occurrence");
 		aDatabase.execute("CREATE TABLE fixture_meta AS SELECT * FROM catalog_meta");
 		aDatabase.execute("DROP TABLE catalog_meta");
@@ -31,6 +32,7 @@ namespace bpr::tests::sqlite_contract {
 		}
 		aDatabase.execute("PRAGMA foreign_keys = OFF");
 		aDatabase.execute("BEGIN IMMEDIATE");
+		aDatabase.execute("DROP TABLE append_residency");
 		aDatabase.execute("DROP TABLE append_occurrence");
 		aDatabase.execute("DROP TABLE epoch_occurrence_supersession");
 		aDatabase.execute("DROP TABLE epoch_occurrence");
@@ -62,6 +64,7 @@ namespace bpr::tests::sqlite_contract {
 		}
 		aDatabase.execute("PRAGMA foreign_keys = OFF");
 		aDatabase.execute("BEGIN IMMEDIATE");
+		aDatabase.execute("DROP TABLE append_residency");
 		aDatabase.execute("CREATE TABLE fixture_meta AS SELECT * FROM catalog_meta");
 		aDatabase.execute("DROP TABLE catalog_meta");
 		aDatabase.execute(

@@ -1257,6 +1257,213 @@ namespace {
 				"delete isolated installation refusal cache after verification");
 	}
 
+	auto verify_sparse_residency(
+		application::git_cache_port& aCache,
+		const std::filesystem::path& aRoot,
+		const std::filesystem::path& aExecutable) -> void
+	{
+		using residency   = application::git_revision_residency;
+		const auto source = aRoot / "sparse-source.git";
+		static_cast<void>(run_fixture_git(aExecutable, aRoot,
+										  { "init", "--bare", "--quiet", "--object-format=sha1", QString::fromStdString(source.string()) }));
+		const auto gitDir     = "--git-dir=" + QString::fromStdString(source.string());
+		const auto blobText   = trimmed_hex(run_fixture_git(aExecutable, aRoot,
+															{ gitDir, "hash-object", "-w", "--stdin" }, QByteArray{ "selected source\n" }),
+											40);
+		const auto nestedTree = trimmed_hex(run_fixture_git(aExecutable, aRoot,
+															{ gitDir, "mktree" }, QByteArray::fromStdString("100644 blob " + blobText + "\tnested.txt\n")),
+											40);
+		const auto treeText   = trimmed_hex(run_fixture_git(aExecutable, aRoot,
+															{ gitDir, "mktree" }, QByteArray::fromStdString("100644 blob " + blobText + "\tfile.txt\n040000 tree " + nestedTree + "\tsubdir\n")),
+											40);
+		const auto parentText = trimmed_hex(run_fixture_git(aExecutable, aRoot,
+															{ gitDir, "commit-tree", QString::fromStdString(treeText) }, QByteArray{ "parent\n" }),
+											40);
+		const auto headText   = trimmed_hex(run_fixture_git(aExecutable, aRoot,
+															{ gitDir, "commit-tree", QString::fromStdString(treeText), "-p", QString::fromStdString(parentText) }, QByteArray{ "head\n" }),
+											40);
+		const auto head       = *core::parse_git_commit_oid(headText);
+		const auto tree       = *core::parse_git_tree_oid(treeText);
+		const auto blob       = *core::parse_git_blob_oid(blobText);
+		const auto parent     = *core::parse_git_commit_oid(parentText);
+		const auto makePack   = [&](const std::string& aObjects) {
+			const auto packed = run_fixture_git(aExecutable, aRoot,
+												{ gitDir, "pack-objects", "--stdout" }, QByteArray::fromStdString(aObjects));
+			return std::vector<std::uint8_t>{ packed.Output.begin(), packed.Output.end() };
+		};
+		const auto sparsePack = makePack(headText + "\n" + treeText + "\n");
+		for (std::uint8_t course = 0U; course != 6U; ++course) {
+			const auto cacheRequest = request(static_cast<std::uint8_t>(0xd0U + course), static_cast<std::uint8_t>(0xe0U + course));
+			auto       opened       = aCache.open(cacheRequest, { });
+			require(opened.has_value(), "open sparse fixture cache");
+			const auto operation = identity<core::epoch_operation_id>(static_cast<std::uint8_t>(0xc0U + course));
+			// Course 2 omits the root tree; course 3 supplies a blob as the commit.
+			const auto bytes = course == 2U ? makePack(headText + "\n") : course == 3U ? makePack(blobText + "\n" + treeText + "\n")
+																					   : sparsePack;
+			auto       sink  = (*opened)->create_pack_sink(operation, bytes.size(), { });
+			require(sink.has_value(), "create sparse fixture spool");
+			append_pack(**sink, bytes);
+			const auto receipt = (*sink)->finish({ });
+			require(receipt.has_value(), "finish sparse fixture spool");
+			sink->reset();
+			const auto inventory = (*opened)->observe_preimport(*receipt, { });
+			require(inventory.has_value(), "observe sparse fixture inventory");
+			auto prepareRequest = application::git_prepare_revision_request{
+				.Receipt       = *receipt,
+				.Inventory     = *inventory,
+				.Authorization = {
+					.CatalogIncarnation      = identity<core::epoch_catalog_incarnation_id>(0xd0U),
+					.ExpectedCatalogRevision = core::epoch_catalog_revision{ 0 },
+					.Operation               = operation,
+					.ExpectedPack            = receipt->ExpectedPack,
+					.ReceiptToken            = receipt->OpaqueToken,
+					.InventoryToken          = inventory->OpaqueToken,
+					.DurableRecordToken      = token(0xd0U),
+				},
+				.Base      = course == 3U ? *core::parse_git_commit_oid(blobText) : head,
+				.Head      = head,
+				.PriorHead = course == 4U ? std::nullopt : std::optional{ parent },
+			};
+			std::optional<application::git_prepared_revision> witnessed;
+			const auto                                        witness = [&](const application::git_prepared_revision& aPrepared) {
+				witnessed = aPrepared;
+				return course != 1U;
+			};
+			if (course == 0U) {
+				require(!(*opened)->prepare_sparse_revision(prepareRequest, { }, { }), "sparse import requires durable witness");
+				auto derivedRequest                 = prepareRequest;
+				derivedRequest.DeriveComparisonBase = true;
+				require(!(*opened)->prepare_sparse_revision(derivedRequest, { }, witness), "sparse import refuses derived ancestry");
+				auto wrongAuthority                         = prepareRequest;
+				wrongAuthority.Authorization.InventoryToken = token(0xffU);
+				require(!(*opened)->prepare_sparse_revision(wrongAuthority, { }, witness), "sparse import refuses mismatched operation authority");
+				std::stop_source cancelled;
+				cancelled.request_stop();
+				const auto rejected = (*opened)->prepare_sparse_revision(prepareRequest, cancelled.get_token(), witness);
+				require(!rejected && rejected.error() == application::git_cache_failure::cancelled && !witnessed,
+						"cancelled sparse import neither installs nor witnesses");
+			}
+
+			if (course == 5U) {
+				require(!(*opened)->prepare_revision(prepareRequest, { }, witness) && !witnessed,
+						"strict complete import refuses sparse pack without publication");
+				// Git may leave failed-index residue. Keep this isolated refusal course
+				// out of the positive cache; the owned fixture root removes it at exit.
+				opened->reset();
+				continue;
+			}
+			const auto prepared = (*opened)->prepare_sparse_revision(prepareRequest, { }, witness);
+			if (!prepared && course != 1U && course != 2U && course != 3U) {
+				std::cerr << "sparse fixture failure " << static_cast<int>(prepared.error().Code) << " " << prepared.error().Detail << '\n';
+			}
+			if (course == 2U || course == 3U) {
+				require(!prepared && !witnessed, "sparse import refuses missing root tree and wrong commit object before witness");
+				require((*opened)->abort_operation(operation, { }).has_value(), "abort rejected sparse import");
+			} else {
+				require(witnessed && application::valid(*witnessed)
+							&& witnessed->Residency == residency::sparse_commit_trees
+							&& witnessed->HeadLineage == (course == 4U ? core::head_lineage::not_applicable : core::head_lineage::unknown)
+							&& witnessed->Head == head && witnessed->BaseTree == tree && witnessed->HeadTree == tree,
+						"sparse witness binds exact operation objects without ancestry claim");
+				require((course == 1U && !prepared && prepared.error() == application::git_cache_failure::authorization_mismatch)
+							|| (course != 1U && prepared && *prepared == *witnessed),
+						"witness refusal preserves recoverable installation");
+				auto recovery = application::git_operation_recovery_request{
+					.Operation = operation,
+					.Scope     = cacheRequest.Authority.Scope,
+					.Ordinal   = core::epoch_ordinal{ 1 },
+					.Base      = head,
+					.Head      = head,
+					.Spool     = application::git_recovery_spool_expectation{
+						.ExpectedPack             = receipt->ExpectedPack,
+						.CompletedSpool           = receipt->Spool,
+						.PreimportPacks           = inventory->Packs,
+						.PreimportRepositoryBytes = inventory->RepositoryBytes,
+						.ExpectedPackPreexisting  = inventory->ExpectedPackPreexisting,
+						.Residency                = residency::sparse_commit_trees,
+					},
+					.Install = application::git_recovery_install_expectation{
+						.Pack           = witnessed->Pack,
+						.InstalledPack  = witnessed->InstalledPack,
+						.InstalledIndex = witnessed->InstalledIndex,
+						.BaseTree       = tree,
+						.HeadTree       = tree,
+						.Residency      = residency::sparse_commit_trees,
+					},
+				};
+				opened->reset();
+				opened = aCache.open(cacheRequest, { });
+				require(opened.has_value(), "sparse cache reopens without promisor or shallow repository mutation");
+				const auto observed = (*opened)->inspect_operation_recovery(recovery, { });
+				require(observed && observed->Installed == application::git_recovery_match::exact
+							&& observed->Objects == application::git_recovery_object_match::exact,
+						"restart verifies exact sparse durable installation witness");
+				auto strictRecovery               = recovery;
+				strictRecovery.Install->Residency = residency::complete_closure;
+				strictRecovery.Spool->Residency   = residency::complete_closure;
+				const auto strictObserved         = (*opened)->inspect_operation_recovery(strictRecovery, { });
+				require(strictObserved && strictObserved->Objects != application::git_recovery_object_match::exact,
+						"sparse objects cannot satisfy complete recovery");
+				auto wrongTree              = recovery;
+				wrongTree.Install->HeadTree = *core::parse_git_tree_oid(nestedTree);
+				const auto mismatched       = (*opened)->inspect_operation_recovery(wrongTree, { });
+				require(mismatched && mismatched->Objects == application::git_recovery_object_match::mismatch,
+						"restart refuses changed tree witness");
+				auto preWitnessRecovery = recovery;
+				preWitnessRecovery.Install.reset();
+				if (course == 1U) {
+					const auto preWitness = (*opened)->inspect_operation_recovery(preWitnessRecovery, { });
+					require(preWitness && preWitness->Installed == application::git_recovery_match::inventory_only
+								&& preWitness->Objects == application::git_recovery_object_match::exact,
+							"pre-install witness crash recovers using durable sparse spool mode");
+				}
+				const auto inspected = (*opened)->inspect_sparse_commit_object(head, { });
+				require(inspected && inspected->Tree == tree && inspected->Residency == residency::sparse_commit_trees
+							&& !(*opened)->inspect_commit_object(head, { }) && !(*opened)->inspect_sparse_commit_object(parent, { }),
+						"sparse root inspection never advertises missing ancestor closure");
+				const auto path = (*opened)->find_blob_at_path({ .Commit = head, .Path = "file.txt" }, { });
+				require(path && *path == blob && !(*opened)->materialize_blob({ .Blob = blob, .MaximumBytes = 1024U }, { }),
+						"tree returns exact expected blob OID while missing content remains unavailable");
+				require(!(*opened)->find_blob_at_path({ .Commit = head, .Path = "subdir/nested.txt" }, { }),
+						"absent selected-path subtree is unavailable instead of fabricated absence");
+				if (course == 4U) {
+					const auto promoted = (*opened)->promote_retained(*witnessed, {
+																					  .CatalogIncarnation      = prepareRequest.Authorization.CatalogIncarnation,
+																					  .ExpectedCatalogRevision = core::epoch_catalog_revision{ 0 },
+																					  .Operation               = operation,
+																					  .Scope                   = cacheRequest.Authority.Scope,
+																					  .Ordinal                 = core::epoch_ordinal{ 1 },
+																					  .Base                    = head,
+																					  .Head                    = head,
+																					  .DurableCommitToken      = token(0xd1U),
+																				  },
+																	  { });
+					require(promoted.has_value(), "promote sparse exact refs under durable catalog grant");
+					opened->reset();
+					opened = aCache.open(cacheRequest, { });
+					require(opened.has_value(), "reopen promoted sparse cache");
+					const auto retained = (*opened)->inspect_sparse_retained(core::epoch_ordinal{ 1 }, { });
+					require(retained && retained->Base == head && retained->Head == head
+								&& retained->Residency == residency::sparse_commit_trees
+								&& !(*opened)->inspect_retained(core::epoch_ordinal{ 1 }, { }),
+							"retained sparse inspection stays distinct from full closure after restart");
+					require((*opened)->complete_recovered_operation(recovery, { }).has_value(), "finalized sparse recovery cleans exact spool");
+				} else {
+					require((*opened)->abort_recovered_operation(course == 1U ? preWitnessRecovery : recovery, { }).has_value(), "abort sparse operation from exact restart witness");
+				}
+			}
+			opened->reset();
+			require(aCache.delete_cache(cacheRequest, {
+														  .ApplicationSession = cacheRequest.ApplicationSession,
+														  .Cache              = cacheRequest.Authority.Cache,
+														  .DurableIntentToken = token(0xd2U),
+													  },
+										{ })
+						.has_value(),
+					"delete isolated sparse fixture cache");
+		}
+	}
+
 	auto verify_descendant_lineage(
 		application::git_cache_port& aCache,
 		const force_push_fixture&    aDescendant) -> void
@@ -4511,6 +4718,16 @@ auto main(int argc, char** argv) -> int
 			std::filesystem::path{ argv[6] },
 			std::filesystem::path{ argv[7] });
 	}
+	if (argc == 2 && QString::fromUtf8(argv[1]) == "--sparse") {
+		const auto executable = std::filesystem::canonical(BPR_TEST_GIT_EXECUTABLE);
+		auto       root       = temporary_root{ };
+		auto       cache      = git_adapter::make_installed_git_cache({ .GitExecutable = executable, .StorageRoot = root.Path, .WindowsSystemRoot = bpr::tests::git_contract::windows_system_root() });
+		require(cache.has_value(), "sparse cache adapter opens");
+		verify_sparse_residency(**cache, root.Path, executable);
+		std::cout << "Git sparse cache contract passed\n";
+		return 0;
+	}
+
 	run_cache_contract();
 	std::cout << "Git cache contract passed\n";
 	return 0;

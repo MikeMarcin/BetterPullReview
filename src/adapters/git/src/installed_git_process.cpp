@@ -3208,6 +3208,21 @@ namespace bpr::adapters::git {
 				-> git_process_result<
 					application::git_index_pack_success> override
 			{
+				return index_pack_impl(aRequest, aStop, false);
+			}
+
+			[[nodiscard]] auto index_sparse_pack(const application::git_index_pack_request& aRequest, std::stop_token aStop)
+				-> git_process_result<application::git_index_pack_success> override
+			{
+				if (aRequest.ExpectedPack.Algorithm != application::git_hash_algorithm::sha1) {
+					return std::unexpected{ git_process_failure::invalid_request };
+				}
+				return index_pack_impl(aRequest, aStop, true);
+			}
+
+			[[nodiscard]] auto index_pack_impl(const application::git_index_pack_request& aRequest,
+											   std::stop_token aStop, bool aSparse) -> git_process_result<application::git_index_pack_success>
+			{
 				if (
 					!application::valid_identity(aRequest.Operation)
 					|| !application::valid(aRequest.ExpectedPack)
@@ -3247,12 +3262,15 @@ namespace bpr::adapters::git {
 					arguments,
 					"index-pack",
 					"--stdin",
-					"--strict",
-					"--check-self-contained-and-connected",
-					"--max-input-size="
-						+ std::to_string(aRequest.MaximumInputBytes),
-					"--threads=1",
-					"--no-rev-index");
+					aSparse ? "--fsck-objects" : "--strict");
+				if (!aSparse) {
+					append_arguments(arguments, "--check-self-contained-and-connected");
+				}
+				append_arguments(arguments,
+								 "--max-input-size="
+									 + std::to_string(aRequest.MaximumInputBytes),
+								 "--threads=1",
+								 "--no-rev-index");
 				const auto result = submit(
 					process_request{
 						.Arguments = std::move(arguments),

@@ -127,6 +127,13 @@ set_tests_properties(
         TIMEOUT 600
 )
 
+bpr_add_network_isolated_test(
+    NAME git_sparse_cache_contract
+    WINDOWS_UNCONTAINED
+    COMMAND test_better_pull_review_git_cache_contract_tests --sparse
+)
+set_tests_properties(git_sparse_cache_contract PROPERTIES TIMEOUT 180)
+
 bpr_add_executable(test_better_pull_review_migrated_binding_agent migrated_binding_agent_fixture.cpp)
 target_link_libraries(test_better_pull_review_migrated_binding_agent PRIVATE BetterPullReview::AdapterMcp)
 bpr_enable_hardening(test_better_pull_review_migrated_binding_agent)

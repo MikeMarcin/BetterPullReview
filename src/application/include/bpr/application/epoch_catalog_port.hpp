@@ -695,6 +695,8 @@ namespace bpr::application {
 			.Role = git_artifact_role::completed_spool
 		};
 
+		git_revision_residency Residency = git_revision_residency::complete_closure;
+
 		auto operator<=>(const durable_git_spool_fact&) const = default;
 	};
 
@@ -702,7 +704,9 @@ namespace bpr::application {
 	[[nodiscard]] constexpr auto valid(
 		const durable_git_spool_fact& aFact) noexcept -> bool
 	{
-		return aFact.Operation.valid() && application::valid(aFact.ExpectedPack)
+		return valid(aFact.Residency)
+			&& (aFact.Residency != git_revision_residency::sparse_commit_trees || aFact.ExpectedPack.Algorithm == core::git_hash_algorithm::sha1)
+			&& aFact.Operation.valid() && application::valid(aFact.ExpectedPack)
 			&& aFact.ExpectedPack == aFact.ObservedPack
 			&& application::valid(
 				   aFact.Spool,
@@ -797,6 +801,8 @@ namespace bpr::application {
 		core::git_tree_oid   HeadTree;
 		core::head_lineage   HeadLineage = core::head_lineage::not_applicable;
 
+		git_revision_residency Residency = git_revision_residency::complete_closure;
+
 		auto operator<=>(const durable_git_install_fact&) const = default;
 	};
 
@@ -804,7 +810,9 @@ namespace bpr::application {
 	[[nodiscard]] constexpr auto valid(
 		const durable_git_install_fact& aFact) noexcept -> bool
 	{
-		return aFact.Operation.valid() && application::valid(aFact.Pack)
+		return valid(aFact.Residency)
+			&& (aFact.Residency != git_revision_residency::sparse_commit_trees || (aFact.Pack.Algorithm == core::git_hash_algorithm::sha1 && (aFact.HeadLineage == core::head_lineage::unknown || aFact.HeadLineage == core::head_lineage::not_applicable)))
+			&& aFact.Operation.valid() && application::valid(aFact.Pack)
 			&& application::valid(
 				   aFact.InstalledPack,
 				   git_artifact_role::installed_pack)
@@ -843,6 +851,7 @@ namespace bpr::application {
 			.Head           = aRevision.Head,
 			.HeadTree       = aRevision.HeadTree,
 			.HeadLineage    = aRevision.HeadLineage,
+			.Residency      = aRevision.Residency,
 		};
 	}
 
@@ -1721,6 +1730,18 @@ namespace bpr::application {
 		[[nodiscard]] virtual auto supersede_occurrence(const core::epoch_occurrence&, const core::epoch_occurrence&, std::stop_token)
 			-> epoch_catalog_result<void>
 		{
+			return std::unexpected(epoch_catalog_failure::unavailable);
+		}
+
+		/// \brief Reads durable import residency for one available epoch in this bound catalog.
+		/// \details Verifies the epoch's exact operation, endpoint and material identities.
+		/// Legacy installs default to complete closure. Absent, mismatched, tombstoned
+		/// or uncommitted epochs are unavailable; this is not physical Git evidence.
+		[[nodiscard]] virtual auto retained_residency(core::epoch_ordinal aOrdinal, std::stop_token aStop)
+			-> epoch_catalog_result<git_revision_residency>
+		{
+			static_cast<void>(aOrdinal);
+			static_cast<void>(aStop);
 			return std::unexpected(epoch_catalog_failure::unavailable);
 		}
 

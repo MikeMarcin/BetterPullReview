@@ -427,6 +427,17 @@ namespace bpr::application {
 		[[nodiscard]] virtual auto index_pack(
 			const git_index_pack_request& aRequest,
 			std::stop_token               aStop) -> git_process_result<git_index_pack_success> = 0;
+		/// \brief Validates a self-contained pack's object integrity, allowing absent references.
+		/// \details Sparse SHA-1 import only: does not prove reachable closure and cannot
+		/// resolve thin-pack deltas from external objects. Existing byte/time limits apply.
+		[[nodiscard]] virtual auto index_sparse_pack(
+			const git_index_pack_request& aRequest, std::stop_token aStop)
+			-> git_process_result<git_index_pack_success>
+		{
+			static_cast<void>(aRequest);
+			static_cast<void>(aStop);
+			return std::unexpected{ git_process_failure::invalid_request };
+		}
 		[[nodiscard]] virtual auto inspect_commit(
 			const git_commit_request& aRequest,
 			std::stop_token           aStop) -> git_process_result<git_commit_inspection> = 0;
