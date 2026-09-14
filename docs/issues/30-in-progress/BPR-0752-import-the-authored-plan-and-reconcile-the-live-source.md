@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0752"
 title: "Import the authored plan and reconcile the live source"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0030", "RFC-BPR-0031"]
 depends_on: []
 metadata: {"pack":"bpr-dif-integration-v1","milestone":"intake-contract","acceptance":["A8","B12"],"milestone_plan":{"id":"bpr-dif-integration-v1","path":"docs/rfcs/plans/bpr-dif-integration-v1/milestone-plan.json"}}
