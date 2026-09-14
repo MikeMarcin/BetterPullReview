@@ -4,12 +4,38 @@ id: "BPR-0617"
 title: "Verify and close RFC-BPR-0013"
 status: "Backlog"
 rfcs: ["RFC-BPR-0013"]
-depends_on: ["BPR-0507","BPR-0616","BPR-0618","BPR-0619","BPR-0620","BPR-0621","BPR-0622","BPR-0623","BPR-0624","BPR-0626","BPR-0627","BPR-0628","BPR-0629","BPR-0630","BPR-0631","BPR-0632","BPR-0633","BPR-0634","BPR-0635","BPR-0792","BPR-0793"]
+depends_on: ["BPR-0507","BPR-0616","BPR-0618","BPR-0619","BPR-0620","BPR-0621","BPR-0622","BPR-0623","BPR-0624","BPR-0626","BPR-0627","BPR-0628","BPR-0629","BPR-0630","BPR-0631","BPR-0632","BPR-0633","BPR-0634","BPR-0635","BPR-0792","BPR-0793","BPR-0794"]
 closeout_for: ["RFC-BPR-0013"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"}}
 ---
 
 # Verify and close RFC-BPR-0013
+
+## Current frontier — bpr0643-r4 / d12 / mandate r14
+
+Main reserved BPR-0794 at `aab3e27c` with its counter and immutable receipt.
+The new `selected-diff-exact-epoch-pair` plan milestone follows terminal
+BPR-0793 and binds the read-only exact-target goal. Its acceptance requires a
+real tests-disabled Mac file list **and readable selected diff** with exact
+source/anchor identity. A further refusal remains open. The previous product
+record at
+`~/Library/Application Support/BetterPullReview/BPR-0793-evidence-2026-09-13/product-read-d11.json`
+shows 1,523 files and 19 threads but two `selected_file_stale` selections,
+no resolved epoch pair and no diff. Diagnosis and source changes are pending.
+The plan's same-obligation amendment checker rejects adding a new work atom;
+mandate r14 and the live BPR-0794 card are the explicit basis for this addition.
+All earlier milestone work and exits remain intact. The current binding is
+`docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-bpr0643-r4-d12-r14.json`.
+A read-only code trace found `selected_file_stale` arises when the epoch host
+has no authorized selected-diff context, before diff work starts. Visible
+files come from the accepted GitHub snapshot separately from epoch comparison.
+The pending discriminating observation is whether epoch ingestion/comparison
+is merely delayed or terminally refused, and at which reason-coded stage.
+The authorized scope is the selected-comparison transition/host mapping,
+focused checks, metadata-only product evidence and this live closeout. Do not
+reopen BPR-0643, BPR-0792 or BPR-0793. Preserve the 250 returned-commit cap,
+exact epoch/object authority, read-only CLI consent and existing RFC-wide
+predecessor, platform, human and closeout gates.
 
 ## Current frontier — bpr0643-r3 / d11 / mandate r13
 
