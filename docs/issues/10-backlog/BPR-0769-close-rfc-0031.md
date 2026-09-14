@@ -51,10 +51,19 @@ no-model-run boundary for offline production-art candidate edits only.
 The exact neutral acceptance at sequence 379, immutable incoming provenance,
 ten-clip/71-frame target and final focused human art/derivative review still
 apply. Ordinary builds and shipped runtime remain free of generation. The
-integrator is preparing a new greeting pose candidate against the accepted
-neutral and incoming greet sheet; v003 remains rejected and is not promoted.
-The BPR-0755/0756/0757 and both production-art exits are pending. No new
-human verdict, catalog or runtime asset exists at this checkpoint.
+integrator saved two exact-prompt edited full-body inputs at
+`docs/verification/dif-production-art-v004/generated-inputs/`; both visibly
+change body scale/face and are candidate arm material only. A deep worker's
+first local composite preserved locked neutral regions and improved measured
+limb-area ratios to 0.936–1.084, but 96/256-pixel inspection found a rounded
+fist snapping to a narrow open palm and a straight shoulder join. It is not
+promoted. The same owner is attempting one targeted correction, then will
+report even if it fails. A separate worker is assessing seven raw extended
+clips; its full-body registrations drift, and it is testing a local eyelid
+extraction. Both worker folders are separate; the integrator retains cards,
+source/catalog, review and commits. V003 remains rejected. BPR-0755/0756/0757
+and both production-art exits are pending. No new human verdict, catalog or
+runtime asset exists at this checkpoint.
 
 ## Previous frontier — connected greeting study rejected, dif-takeover-20260914 d5 / mandate r2
 
