@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0794"
+  ],
+  "reserve_for": "bpr0643-r4-d12-r14",
+  "purpose": "selected-diff-exact-epoch-pair",
+  "created": "2026-09-14T01:05:00.074307+00:00",
+  "base": "1721007e34839ceb1db8beb1b386656496f735c5"
+}
