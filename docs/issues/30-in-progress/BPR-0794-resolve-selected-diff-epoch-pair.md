@@ -40,5 +40,15 @@ This is the separate selected-diff follow-up authorized by mandate r14.
 
 ## Evidence
 
-Pending diagnosis and direct product verification. The previous fixed
-metadata-only observation is recorded on BPR-0793 and BPR-0617.
+The previous fixed metadata-only product observation is recorded on BPR-0793
+and BPR-0617. The append-only product diagnostic log attributes the absent
+pair to `protocol_acquire/transport/unavailable` before epoch revision
+preparation. A sandboxed, bounded `gh` Git probe reproduced nonzero full-clone
+exits near the 32-MiB file ceiling. A blobless depth-one exact-base clone
+fits the existing bounds and contains the accepted commit and root tree, but
+not selected-file blobs. This is a possible first step, not a readable diff.
+The fixed aggregate-only record is outside the checkout at
+`~/Library/Application Support/BetterPullReview/BPR-0794-evidence-2026-09-13/diagnosis-d12.json`
+(SHA-256 `a68be3bd2c2b65ab3f749703107b4fbd04d53287d5e607467c64d62dca317311`).
+No child stderr, response body, private object or credential was retained.
+The source repair and tests-disabled product criterion remain open.

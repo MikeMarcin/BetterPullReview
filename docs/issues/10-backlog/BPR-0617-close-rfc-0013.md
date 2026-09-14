@@ -31,6 +31,34 @@ has no authorized selected-diff context, before diff work starts. Visible
 files come from the accepted GitHub snapshot separately from epoch comparison.
 The pending discriminating observation is whether epoch ingestion/comparison
 is merely delayed or terminally refused, and at which reason-coded stage.
+The prior append-only product diagnostic log answers that first question:
+at `2026-09-14T00:56:51Z`, epoch request 1 recorded
+`protocol_acquire/transport/unavailable`, followed by
+`revision_prepare/epoch/unavailable`; catalog open, recovery, cache open,
+smart acquisition and earlier prepare stages succeeded. No exact comparison
+could be committed. The installed `gh` 2.100.0 and Apple Git 2.50.1 match the
+adapter's strict preflight. A fresh bounded `gh api` metadata read through the
+existing account confirmed exact repository/PR identity and both accepted
+commits are addressable; the account remained the same. Neither result proves
+that the clone can acquire bounded Git objects. The next discriminating step
+is to identify which fixed clone/pack stage refuses under the Mac file/store
+limits, then repair only if those limits and exact object checks can hold.
+Bounded external `gh` Git reads under the same macOS file-write sandbox,
+32-MiB single-file limit and 96-MiB/128-entry monitored temporary store
+advanced the diagnosis. The exact base full clone exited 1 after a 31.61-MiB
+maximum file; `blob:none` without shallow history exited 1 after a 30.92-MiB
+maximum file. The exact child cause is not observable because stderr is
+discarded; proximity to the cap supports but does not prove a file-size
+failure. A `blob:none`, depth-one exact-base clone succeeded in 2.35 s using
+7.86 MiB peak temporary storage; credential-free local Git confirmed the
+exact commit and root tree were present. That filtered clone lacks selected
+file blobs and is not a complete diff. Every store was removed; the account
+remained unchanged. Fixed aggregate evidence is outside the checkout at
+`~/Library/Application Support/BetterPullReview/BPR-0794-evidence-2026-09-13/diagnosis-d12.json`
+(SHA-256 `a68be3bd2c2b65ab3f749703107b4fbd04d53287d5e607467c64d62dca317311`).
+An adapter slice is investigating whether exact selected blobs can be
+acquired within these limits and the existing accepted-epoch object contract.
+No source repair or new tests-disabled product read has yet been accepted.
 The authorized scope is the selected-comparison transition/host mapping,
 focused checks, metadata-only product evidence and this live closeout. Do not
 reopen BPR-0643, BPR-0792 or BPR-0793. Preserve the 250 returned-commit cap,
