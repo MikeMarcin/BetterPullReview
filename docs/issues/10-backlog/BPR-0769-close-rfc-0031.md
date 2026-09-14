@@ -43,7 +43,22 @@ last dependent RFC to satisfy the repository's closeout-card convention.
 | **B11 — Rendered/accessibility evidence.** Actual app frames at shipping scales and supported appearance modes demonstrate readable alpha edges, calm motion, static reduced interval, noninterference with focus/status and approved visual integration. | Not run; import only | No producing revision |
 | **B12 — Complete handoff.** Focused tests, resource packaging, platform claims, source/ mutable docs, shared-skill consumer context and verification records agree. All ten clips are real and reachable; unavailable evidence/formal closeout remains honestly open, with no fabricated native/art verdict or forced rewriting of settled RFCs. | Partial: plan/consumer context and intake documented; all app/resource/native/art work remains open | `ee1e12df`, `57ced605`; [live import](../../rfcs/assets/bpr-dif-integration-v1.LIVE_IMPORT.md) |
 
-## Current frontier — authorized offline image-edit continuation, dif-takeover-20260914 d6 / mandate r4
+## Current frontier — source-grounded pose prompts and edited candidates, dif-takeover-20260914 d7 / mandate r5
+
+The user has no authored source poses and asked for detailed prompts for the
+missing artwork. The prior offline image-edit authorization remains in force.
+The integrator is writing copyable, exact-source prompt specifications for
+the greeting transition and six extended gestures, then will use the built-in
+image-edit tool for bounded candidate poses. The accepted neutral decision,
+its bytes, immutable incoming sheets, v002 partial rest/idle, provisional
+v004 blink and rejected v003/v004 greetings remain unchanged. No new source
+or final review candidate exists at this checkpoint. Candidate image outputs
+will be recorded with exact prompts, hashes and native dimensions, then
+tested at shipping sizes before any source promotion. BPR-0755/0756/0757
+and both production-art exits remain open; the final Dif-only review still
+requires a complete catalog and fresh external state.
+
+## Previous frontier — authorized offline image-edit continuation, dif-takeover-20260914 d6 / mandate r4
 
 The user removed the former `PYTHONDONTWRITEBYTECODE=1` helper requirement in
 mandate revision 4; normal helper invocation is now allowed. Completed passing
