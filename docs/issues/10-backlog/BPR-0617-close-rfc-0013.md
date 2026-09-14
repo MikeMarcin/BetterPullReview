@@ -11,6 +11,25 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/pla
 
 # Verify and close RFC-BPR-0013
 
+## Current frontier — bpr0643-r2 / d10 / mandate r12
+
+The `large-pr-returned-commit-boundary` milestone is bound to BPR-0792's
+final Done record by
+`docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-bpr0643-r2-d10-r12.json`.
+Its source candidate remains `3cefa687`; the d8 checks and independent review,
+and d9 exact-target product observation below, remain the acceptance evidence.
+No source code, test input, or target account changed during this mechanical
+rebind, and no second live request was made. BPR-0792's reported-total versus
+returned-record acceptance is complete. The one exact CLI-profile product read
+passed commit and file paging but stopped atomically at
+`malformed_response` during `ListReviewThreads`; its file list and selected
+diff therefore remain unverified. This is a separate pending product refusal,
+not a reopened BPR-0792 criterion. Its cause and repair await a separately
+authorized RFC-0013 scope. BPR-0617 still awaits BPR-0507 and BPR-0622 and
+the RFC-wide platform and closeout evidence; this milestone does not close
+RFC-BPR-0013. Task-owned app and `gh` processes are quiescent, and the other
+owner's `build/app-release-d28` process was left untouched.
+
 ## Current frontier — bpr0643-r2 / d9 / mandate r12
 
 The renewed `large-pr-returned-commit-boundary` assignment is
