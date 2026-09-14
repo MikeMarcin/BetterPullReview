@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0758"
 title: "Add profile-owned motion and visibility preferences"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0031"]
 depends_on: ["BPR-0752"]
 metadata: {"pack":"bpr-dif-integration-v1","milestone":"runtime-foundation","acceptance":["B3"],"milestone_plan":{"id":"bpr-dif-integration-v1","path":"docs/rfcs/plans/bpr-dif-integration-v1/milestone-plan.json"}}
