@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0754"
 title: "Extend the existing asset contract and body registration checks"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0030"]
 depends_on: ["BPR-0752", "BPR-0753"]
 metadata: {"pack":"bpr-dif-integration-v1","milestone":"intake-contract","acceptance":["A4","A5","A6"],"milestone_plan":{"id":"bpr-dif-integration-v1","path":"docs/rfcs/plans/bpr-dif-integration-v1/milestone-plan.json"}}
