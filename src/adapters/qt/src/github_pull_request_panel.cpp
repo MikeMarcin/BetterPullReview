@@ -145,13 +145,18 @@ namespace bpr::qt {
 		OidLabel->setText(
 			QStringLiteral("Base %1\nHead %2")
 				.arg(text(aPullRequest.BaseOid), text(aPullRequest.HeadOid)));
+		auto commitCount = QString::number(aPullRequest.CommitCount);
+		if (aPullRequest.ReturnedCommitCount < aPullRequest.CommitCount) {
+			commitCount += QStringLiteral(" (%1 returned by GitHub)")
+							   .arg(QString::number(aPullRequest.ReturnedCommitCount));
+		}
 		CountLabel->setText(
 			QStringLiteral(
 				"%1 files · %2 commits · %3 reviews · %4 review threads · "
 				"%5 pull request comments")
 				.arg(
 					QString::number(aPullRequest.FileCount),
-					QString::number(aPullRequest.CommitCount),
+					commitCount,
 					QString::number(aPullRequest.ReviewCount),
 					QString::number(aPullRequest.ReviewThreadCount),
 					QString::number(aPullRequest.IssueCommentCount)));

@@ -54,17 +54,18 @@ namespace {
 
 	[[nodiscard]] auto projection() -> application::pull_request_overview_projection
 	{
-		auto projection           = application::pull_request_overview_projection{ };
-		projection.Owner          = "EpicGames";
-		projection.RepositoryName = "UnrealEngine";
-		projection.Number         = core::pull_request_number{ 14366U };
-		projection.Title          = "Hair strand lighting fixes";
-		projection.Body           = "Fixes three crashes.";
-		projection.AuthorLogin    = "jiayin";
-		projection.BaseRef        = "release";
-		projection.HeadRef        = "hair-strand";
-		projection.CommitCount    = 4U;
-		projection.Files          = {
+		auto projection                = application::pull_request_overview_projection{ };
+		projection.Owner               = "EpicGames";
+		projection.RepositoryName      = "UnrealEngine";
+		projection.Number              = core::pull_request_number{ 14366U };
+		projection.Title               = "Hair strand lighting fixes";
+		projection.Body                = "Fixes three crashes.";
+		projection.AuthorLogin         = "jiayin";
+		projection.BaseRef             = "release";
+		projection.HeadRef             = "hair-strand";
+		projection.CommitCount         = 4U;
+		projection.ReturnedCommitCount = 4U;
+		projection.Files               = {
 			row("Engine/Renderer/HairStrandsLighting.cpp", application::overview_file_operation::modified,
 				application::overview_change_since_review::unchanged, core::file_read_state::seen, 3U, 1U),
 			row("Engine/Renderer/HairStrandsVoxelization.cpp", application::overview_file_operation::modified,
@@ -207,6 +208,14 @@ namespace {
 					   == QStringLiteral("?")
 				   && page.entry_button()->text() == QStringLiteral("Start review"),
 			   "what the host cannot answer reads as not known, never as none");
+
+		auto partial                = projection();
+		partial.CommitCount         = 9'311U;
+		partial.ReturnedCommitCount = 250U;
+		page.present(partial);
+		expect(page.summary_label()->text().contains(
+				   QStringLiteral("9311 commits (250 returned by GitHub)")),
+			   "large totals do not label the returned commit slice as complete");
 
 		page.clear();
 		QApplication::processEvents();

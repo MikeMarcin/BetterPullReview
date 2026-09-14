@@ -208,6 +208,7 @@ namespace bpr::application {
 		std::string                                 HeadOid{ };
 		std::size_t                                 FileCount              = 0;
 		std::size_t                                 CommitCount            = 0;
+		std::size_t                                 ReturnedCommitCount    = 0;
 		std::size_t                                 ReviewCount            = 0;
 		std::size_t                                 ReviewThreadCount      = 0;
 		std::size_t                                 IssueCommentCount      = 0;

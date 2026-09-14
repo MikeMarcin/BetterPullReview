@@ -28,15 +28,47 @@ The separate `large-pr-returned-commit-boundary` plan amendment binds
 [BPR-0792](../30-in-progress/BPR-0792-distinguish-large-pr-total-from-returned-commits.md)
 without changing BPR-0643's accepted exits. Its assignment is
 `docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-bpr0643-r2-d8-r12.json`.
-Current candidate is the parser/count distinction under the unchanged 250
-returned-record cap; no product source has yet changed. Owned planned paths:
-the GitHub pager, read model and count projections, focused tests, BPR-0792,
-the RFC-0013 plan/view, and this closeout. No task child or command is active.
-Next: claim the new card, implement exact capped-count validation, run focused
-and public-path checks, then attempt the target read-only through existing `gh`
-authority. No token extraction, live PR write, account change, or private
-content in the checkout is authorized. BPR-0617's older Windows/Linux,
-canonical predecessor, and RFC-wide obligations remain open.
+The current working candidate distinguishes a reported total from returned
+records. The fixed GitHub endpoint ceiling remains 250; a tighter caller
+budget cannot redefine a complete result. The pager requires the exact
+bounded returned count, current head and existing page/snapshot validation;
+the host projects total and returned counts separately into visible copy.
+The focused pager, application overview and rendered Qt overview tests pass
+3/3 in `build/dev`; the pager includes a 9,311/250 positive, short, overlong,
+wrong-head and tightened-local-budget negatives. A fresh exact-target,
+read-only `gh api` memory probe without credential extraction reports
+repository/PR identity true, 9,311 metadata commits, 1,523 files, commit
+pages 100/100/50/0 and returned tail equal to head. It retained no private
+response body or OID in a file or tool log. The isolated tests-disabled
+`build/bpr0792-app-release` bundle is built, strict-signature verified and
+has binary SHA-256 `6eaf79ed6d43fe098ce099b2580879a218ddea216c24ef8ac099426ce8b2c6c8`.
+One independent critical review found the tightened-budget error in the first
+candidate and rechecked the correction. Its narrow final recheck found no
+remaining blocker after the wrong-head negative and accepted-snapshot-to-host
+projection assertion. The composed dev GitHub.com public-path fixture passes
+1/1 in `build/bpr0792-public-path-test.log`. Project format, documentation,
+64 documentation behavior tests, scoped board validation and diff checks pass.
+Current operator docs now describe the reported/returned distinction without
+claiming the owner-retained target renders.
+
+The exact tests-disabled product read is still unverified. Computer-use
+launch/attachment of both the isolated ad-hoc bundle and the established
+Developer ID signed `build/app-release` bundle timed out before any Qt window
+or read request. Each task-owned process remained in `dyld` `__open` in a
+bounded sample (`build/bpr0792-app-sample.txt`,
+`build/bpr0792-signed-sample.txt`); the launch cause is unknown. Both task
+processes were stopped and confirmed absent. A separate `build/app-release-d28`
+process belongs to another owner and was not touched. The signed current
+`build/app-release` binary passes strict code-signature verification and has
+SHA-256 `bf07f6fa6a0a52694334aa2a21ae5a02700a3f51814b0f1721056ba6ab922d2e`.
+BPR-0792 remains In Progress with its file list and selected diff **unverified**;
+no product parser terminal can yet be assigned to the private target. Next:
+restore a working Mac candidate launch, then perform one exact opted-in CLI
+profile read and record only fixed diagnostic metadata and whether the file
+list and selected diff render. No task child or command remains active.
+No token extraction, live PR write, account change, or private content in
+the checkout is authorized. BPR-0617's older Windows/Linux, canonical
+predecessor, and RFC-wide obligations remain open.
 
 ## Current frontier — bpr0643-r1 / d7 / mandate r11
 

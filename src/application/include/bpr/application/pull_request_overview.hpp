@@ -167,9 +167,10 @@ namespace bpr::application {
 		std::string               AuthorLogin;
 		std::string               BaseRef;
 		std::string               HeadRef;
-		github_pull_request_state State       = github_pull_request_state::open;
-		bool                      Draft       = false;
-		std::size_t               CommitCount = 0U;
+		github_pull_request_state State               = github_pull_request_state::open;
+		bool                      Draft               = false;
+		std::size_t               CommitCount         = 0U;
+		std::size_t               ReturnedCommitCount = 0U;
 		/// Rows in folder order, ready to be grouped by `Folder`.
 		std::vector<overview_file_row>    Files;
 		std::vector<overview_participant> Participants;

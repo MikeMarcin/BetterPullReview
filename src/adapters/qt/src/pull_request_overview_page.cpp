@@ -926,11 +926,16 @@ namespace bpr::qt {
 			state = aProjection.Draft ? QStringLiteral(" Draft.") : QString{ };
 			break;
 		}
+		auto commits = aProjection.CommitCount == 1U
+			? QStringLiteral("1 commit")
+			: QStringLiteral("%1 commits").arg(count_text(aProjection.CommitCount));
+		if (aProjection.ReturnedCommitCount < aProjection.CommitCount) {
+			commits += QStringLiteral(" (%1 returned by GitHub)")
+						   .arg(count_text(aProjection.ReturnedCommitCount));
+		}
 		Summary->setText(QStringLiteral("%1 wants to merge %2 into %3 from %4.%5")
 							 .arg(text(aProjection.AuthorLogin),
-								  aProjection.CommitCount == 1U
-									  ? QStringLiteral("1 commit")
-									  : QStringLiteral("%1 commits").arg(count_text(aProjection.CommitCount)),
+								  commits,
 								  text(aProjection.BaseRef),
 								  text(aProjection.HeadRef),
 								  state));

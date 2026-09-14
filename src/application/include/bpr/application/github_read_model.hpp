@@ -191,6 +191,10 @@ namespace bpr::application {
 		commit_oid                         HeadOid;
 		std::string                        BaseRef;
 		std::string                        HeadRef;
+		// REST metadata reports the full PR count, while the pull-request
+		// commits endpoint can return only a bounded slice. Synthetic and
+		// older snapshots may leave this absent.
+		std::optional<std::size_t> ReportedCommitCount;
 
 		auto operator<=>(const github_pull_request_record&) const = default;
 	};
@@ -614,6 +618,8 @@ namespace bpr::application {
 		auto operator<=>(const github_pull_request_snapshot&) const = default;
 	};
 
+	inline constexpr std::size_t maximum_github_pull_request_endpoint_commits = 250U;
+
 	/// \brief Describes the github read limits record.
 	struct github_read_limits
 	{
@@ -627,7 +633,7 @@ namespace bpr::application {
 		std::size_t MaximumHeadlineBytes     = 1024U;
 		std::size_t MaximumCheckNameBytes    = 1024U;
 		std::size_t MaximumFiles             = 3'000U;
-		std::size_t MaximumCommits           = 250U;
+		std::size_t MaximumCommits           = maximum_github_pull_request_endpoint_commits;
 		std::size_t MaximumReviews           = 10'000U;
 		std::size_t MaximumReviewThreads     = 10'000U;
 		std::size_t MaximumCommentsPerThread = 10'000U;
@@ -1910,6 +1916,13 @@ namespace bpr::application {
 			|| aSnapshot.SearchResults.size() > aLimits.MaximumSearchResults) {
 			return detail::validation(
 				github_read_validation_error::collection_too_large);
+		}
+		if (aSnapshot.PullRequest.ReportedCommitCount.has_value()
+			&& std::min(*aSnapshot.PullRequest.ReportedCommitCount,
+						maximum_github_pull_request_endpoint_commits)
+				!= aSnapshot.Commits.size()) {
+			return detail::validation(
+				github_read_validation_error::invalid_relationship);
 		}
 
 		auto totalComments = aSnapshot.IssueComments.size();

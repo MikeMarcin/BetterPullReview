@@ -160,17 +160,18 @@ namespace bpr::application {
 		const auto& request    = aSnapshot.PullRequest;
 		const auto  viewer     = aSnapshot.Viewer.Login;
 
-		projection.Owner          = aSnapshot.Repository.Owner;
-		projection.RepositoryName = aSnapshot.Repository.Name;
-		projection.Number         = request.Number;
-		projection.Title          = request.Title;
-		projection.Body           = request.Body;
-		projection.AuthorLogin    = login_of(request.Author);
-		projection.BaseRef        = request.BaseRef;
-		projection.HeadRef        = request.HeadRef;
-		projection.State          = request.State;
-		projection.Draft          = request.Draft;
-		projection.CommitCount    = aSnapshot.Commits.size();
+		projection.Owner               = aSnapshot.Repository.Owner;
+		projection.RepositoryName      = aSnapshot.Repository.Name;
+		projection.Number              = request.Number;
+		projection.Title               = request.Title;
+		projection.Body                = request.Body;
+		projection.AuthorLogin         = login_of(request.Author);
+		projection.BaseRef             = request.BaseRef;
+		projection.HeadRef             = request.HeadRef;
+		projection.State               = request.State;
+		projection.Draft               = request.Draft;
+		projection.CommitCount         = request.ReportedCommitCount.value_or(aSnapshot.Commits.size());
+		projection.ReturnedCommitCount = aSnapshot.Commits.size();
 
 		// My last review, and what the retained updates say about it.
 		const auto lastReviewed = aContext.Private.has_value()

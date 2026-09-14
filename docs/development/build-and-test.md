@@ -949,8 +949,11 @@ socket routing, CA and redirect behavior, active account and helper processes.
 Pre/post observations can detect some account changes but cannot bind a credential
 generation or prevent a concurrent account switch. Executable/configuration/CA
 replacement and process escape remain uncontained risks. Read opt-in grants no
-publishing authority. RFC-BPR-0013's independent `MaximumCommits=250` parser limit
-remains unchanged; CLI access alone cannot make a larger PR render.
+publishing authority. RFC-BPR-0013 keeps a 250-record limit for commits returned by the pull-request
+endpoint. A larger reported total is accepted only when that endpoint
+returns exactly 250 records ending at the accepted head. The UI names the
+reported total and returned count separately; this does not establish that
+any particular private pull request can render.
 
 The dev/test graph retains unavailable CLI fixtures; those results do not
 qualify tests-disabled macOS CLI reads. The following zero-launch assertions

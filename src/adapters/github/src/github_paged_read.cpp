@@ -2421,7 +2421,8 @@ namespace bpr::adapters::github::detail {
 			}
 			const auto changedFiles = integer(json_member(object, "changed_files"));
 			const auto commits      = integer(json_member(object, "commits"));
-			if (changedFiles > aLimits.MaximumFiles || commits > aLimits.MaximumCommits) {
+			if (changedFiles > aLimits.MaximumFiles
+				|| commits > std::numeric_limits<std::size_t>::max()) {
 				return failed(application::github_provider_failure::response_limit);
 			}
 			const auto id     = core::pull_request_id{ integer(json_member(object, "id")) };
@@ -2439,22 +2440,23 @@ namespace bpr::adapters::github::detail {
 			}
 			return parsed_pull_request{
 				.Record = application::github_pull_request_record{
-					.PullRequest = id,
-					.Repository  = aRepository.Repository,
-					.Number      = number,
-					.Node        = application::github_node_id{ text(json_member(object, "node_id")) },
-					.Title       = text(json_member(object, "title")),
-					.Body        = json_is_null(json_member(object, "body"))
+					.PullRequest         = id,
+					.Repository          = aRepository.Repository,
+					.Number              = number,
+					.Node                = application::github_node_id{ text(json_member(object, "node_id")) },
+					.Title               = text(json_member(object, "title")),
+					.Body                = json_is_null(json_member(object, "body"))
 						? std::string{ }
 						: text(json_member(object, "body")),
-					.State       = pull_request_state(json_text(json_member(object, "state")),
-													  json_bool(json_member(object, "merged"))),
-					.Draft       = json_bool(json_member(object, "draft")),
-					.Author      = author.Actor,
-					.BaseOid     = application::commit_oid{ base->Oid },
-					.HeadOid     = application::commit_oid{ head->Oid },
-					.BaseRef     = base->Ref,
-					.HeadRef     = head->Ref,
+					.State               = pull_request_state(json_text(json_member(object, "state")),
+															  json_bool(json_member(object, "merged"))),
+					.Draft               = json_bool(json_member(object, "draft")),
+					.Author              = author.Actor,
+					.BaseOid             = application::commit_oid{ base->Oid },
+					.HeadOid             = application::commit_oid{ head->Oid },
+					.BaseRef             = base->Ref,
+					.HeadRef             = head->Ref,
+					.ReportedCommitCount = static_cast<std::size_t>(commits),
 				},
 				.ChangedFiles = static_cast<std::size_t>(changedFiles),
 				.Commits      = static_cast<std::size_t>(commits),
@@ -3741,7 +3743,7 @@ namespace bpr::adapters::github::detail {
 			}
 
 			const auto                                expectedFiles   = pullRequest->ChangedFiles;
-			const auto                                expectedCommits = pullRequest->Commits;
+			const auto                                expectedCommits = std::min(pullRequest->Commits, application::maximum_github_pull_request_endpoint_commits);
 			application::github_pull_request_snapshot result{
 				.Profile = aRequest.ProfileAuthority.Profile,
 				.Host    = aRequest.ProfileAuthority.Host,

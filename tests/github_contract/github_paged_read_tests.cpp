@@ -1,3 +1,4 @@
+#include "../../src/application/src/github_projection_mapping.hpp"
 #include "fixture_json.hpp"
 #include "github_anonymous_read_admission.hpp"
 #include "github_paged_read.hpp"
@@ -401,6 +402,9 @@ namespace {
 		commit_count_mismatch,
 		file_count_above_cap,
 		commit_count_above_cap,
+		commit_count_above_cap_short,
+		commit_count_above_cap_overlong,
+		commit_count_above_cap_wrong_head,
 		collection_cap_exact,
 	};
 
@@ -519,8 +523,11 @@ namespace {
 			if (Scenario == fixture_scenario::commit_count_mismatch) {
 				return 2U;
 			}
-			if (Scenario == fixture_scenario::commit_count_above_cap) {
-				return 251U;
+			if (Scenario == fixture_scenario::commit_count_above_cap
+				|| Scenario == fixture_scenario::commit_count_above_cap_short
+				|| Scenario == fixture_scenario::commit_count_above_cap_overlong
+				|| Scenario == fixture_scenario::commit_count_above_cap_wrong_head) {
+				return 9'311U;
 			}
 			return 1U;
 		}
@@ -814,7 +821,11 @@ namespace {
 		commits_response(const github_wire_request& aRequest) const -> wire_response
 		{
 			const auto    total = Scenario == fixture_scenario::collection_cap_exact
+					|| Scenario == fixture_scenario::commit_count_above_cap
+					|| Scenario == fixture_scenario::commit_count_above_cap_wrong_head
 				? std::size_t{ 250U }
+				: Scenario == fixture_scenario::commit_count_above_cap_overlong
+				? std::size_t{ 251U }
 				: std::size_t{ 1U };
 			const auto    page  = aRequest.Wire.Semantic.Page;
 			const auto    begin = (static_cast<std::size_t>(page) - 1U) * std::size_t{ 100U };
@@ -824,7 +835,8 @@ namespace {
 				const auto numeric = std::to_string(index + 1U);
 				auto       oid     = std::string(40U, '0');
 				oid.replace(oid.size() - numeric.size(), numeric.size(), numeric);
-				if (index + 1U == total) {
+				if (index + 1U == total
+					&& Scenario != fixture_scenario::commit_count_above_cap_wrong_head) {
 					oid = head_oid;
 				}
 				auto commitDetails = fixture_object{
@@ -2327,13 +2339,30 @@ namespace {
 														std::stop_token{ });
 		expect(accepted.has_value() && accepted->Files.size() == 3'000U
 				   && accepted->Commits.size() == 250U
+				   && accepted->PullRequest.ReportedCommitCount == 250U
 				   && !accepted->CapabilityEvidence.ReadShape.ViewedFileState,
 			   "advertised file and commit counts remain exact at REST caps even "
 			   "when GraphQL viewed state is unavailable");
 
+		auto       capped = paged_fixture_transport{ fixture_scenario::commit_count_above_cap };
+		const auto large  = perform_paged_github_read(capped,
+													  profile(),
+													  provider_request(),
+													  core::provider_snapshot_id{ 68U },
+													  std::stop_token{ });
+		expect(large.has_value() && large->PullRequest.ReportedCommitCount == 9'311U
+				   && large->Commits.size() == 250U
+				   && large->Commits.back().Oid == large->PullRequest.HeadOid,
+			   "large metadata total preserves only the exact bounded returned commit slice");
+		const auto projected = application::project_github_pull_request(*large);
+		expect(projected.CommitCount == 9'311U && projected.ReturnedCommitCount == 250U,
+			   "accepted capped snapshot projects the reported total and returned slice separately");
+
 		for (const auto scenario : {
 				 fixture_scenario::file_count_mismatch,
 				 fixture_scenario::commit_count_mismatch,
+				 fixture_scenario::commit_count_above_cap_short,
+				 fixture_scenario::commit_count_above_cap_wrong_head,
 			 }) {
 			auto       transport = paged_fixture_transport{ scenario };
 			const auto result    = perform_paged_github_read(transport,
@@ -2347,12 +2376,23 @@ namespace {
 							   malformed_response,
 				   "terminal REST collections must equal advertised PR counts");
 		}
+		{
+			auto limits                   = github_paged_read_limits{ };
+			limits.Records.MaximumCommits = 1U;
+			auto       transport          = paged_fixture_transport{ fixture_scenario::commit_count_mismatch };
+			const auto result             = perform_paged_github_read(transport,
+																	  profile(),
+																	  provider_request(),
+																	  core::provider_snapshot_id{ 70U },
+																	  std::stop_token{ },
+																	  limits);
+			expect(!result.has_value()
+					   && provider_failure_of(result) == application::github_provider_failure::malformed_response,
+				   "a tightened local budget cannot turn an incomplete endpoint into success");
+		}
 
-		for (const auto scenario : {
-				 fixture_scenario::file_count_above_cap,
-				 fixture_scenario::commit_count_above_cap,
-			 }) {
-			auto       transport = paged_fixture_transport{ scenario };
+		{
+			auto       transport = paged_fixture_transport{ fixture_scenario::file_count_above_cap };
 			const auto result    = perform_paged_github_read(transport,
 															 profile(),
 															 provider_request(),
@@ -2363,8 +2403,19 @@ namespace {
 					&& provider_failure_of(result)
 						== application::github_provider_failure::response_limit
 					&& transport.Requests.size() == 2U,
-				"advertised collection counts above GitHub security caps fail "
-				"before capped list endpoints are trusted");
+				"advertised file count above the security cap fails before file paging");
+		}
+		{
+			auto       transport = paged_fixture_transport{ fixture_scenario::commit_count_above_cap_overlong };
+			const auto result    = perform_paged_github_read(transport,
+															 profile(),
+															 provider_request(),
+															 core::provider_snapshot_id{ 69U },
+															 std::stop_token{ });
+			expect(!result.has_value()
+					   && provider_failure_of(result) == application::github_provider_failure::response_limit
+					   && transport.Requests.size() > 2U,
+				   "an overlong returned commit collection fails without publishing a snapshot");
 		}
 	}
 

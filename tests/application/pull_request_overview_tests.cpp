@@ -210,6 +210,12 @@ namespace {
 				   && projection.HeadRef == "hair-strand" && projection.CommitCount == 3U
 				   && projection.Number == core::pull_request_number{ 14366U },
 			   "the header carries title, author, branches and the commit count");
+		auto reported                            = snapshot();
+		reported.PullRequest.ReportedCommitCount = 9'311U;
+		const auto partial                       = application::project_pull_request_overview(
+			reported, application::overview_context{ });
+		expect(partial.CommitCount == 9'311U && partial.ReturnedCommitCount == 3U,
+			   "overview preserves the reported total separately from returned records");
 		expect(projection.Files.size() == 4U
 				   && projection.Files[0].Folder == "" && projection.Files[0].Name == "README.md"
 				   && projection.Files[1].Folder == "Engine/Renderer"
