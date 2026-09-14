@@ -55,5 +55,13 @@ disposition and complete motion/theme/scale/handoff review remain required at
 the final catalog candidate, and old BPR-0291 exact-byte decisions do not cover
 these derivatives.
 
+The shared attended-review session `cbd48b91000b00f1e72e1ad62c7c384c`
+has one ready, protected candidate:
+`BPR-0755-neutral-identity-v001`, fingerprint
+`1bcdc33cbd9175db6ee843f60f90e3a70e9800470a19562bd4814b18d600ad81`,
+at event sequence `378`. The three review images are embedded in that exact
+candidate. The live local page is served by the session host; its loopback
+token is held outside the repository. A decision has not been returned.
+
 No task-owned model call, GitHub/GHES mutation, source replacement, runtime
 selection or app build occurred in this candidate-preparation slice.

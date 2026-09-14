@@ -52,7 +52,9 @@ are an exact-hash 1024-square derivative of the immutable rest source and
 identity/theme/shipping-size review plates. The candidate remains outside
 runtime resources. It passed only structural/alpha/baseline screens; no
 identity verdict or accepted master exists yet. The phase-one attended
-candidate is the exact first decision before broad retouch. BPR-0756/0757
+candidate is `BPR-0755-neutral-identity-v001` in shared session
+`cbd48b91000b00f1e72e1ad62c7c384c`, ready/protected at sequence `378`.
+It is the exact first decision before broad retouch. BPR-0756/0757
 and the 71-frame production catalog remain unstarted. The accepted historical
 card-bearing catalog and all incoming sheets remain unchanged.
 
