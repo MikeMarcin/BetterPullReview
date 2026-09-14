@@ -1,0 +1,504 @@
+{
+  "status": "rejected study: sharp raised shoulder junction and closed-to-open paw substitution remain; no human verdict",
+  "inputs": {
+    "correction": {
+      "file": "../generated-correction/open-paw-intermediate-fullbody.png",
+      "sha256": "71aed58a2c88fec60e76ca00d314c55cfe65c1dd539ebd42e47b010930fd347f"
+    },
+    "raised": {
+      "file": "greet-raised-paw-fullbody.png",
+      "sha256": "4c95bdec249c92ba1397df740dca1a9cec3eb2941926fc0bc920af1e14077d68"
+    },
+    "lower": {
+      "file": "greet-lower-paw-fullbody.png",
+      "sha256": "691f021099c25aa415f8b2494c141c6ac706c2d2a49ff1d1bedb62a49bc1d944"
+    }
+  },
+  "master_sha256": "e2820eeff1f1ebf2584b1947a2b2062f98f29b541dd587cc8ce92196c71ab0cf",
+  "reused_recipe_sha256": "1984ad73db84b5c8bccba30daa6eca58b6513bfe8a7c365bb5dbf19ad2fe1000",
+  "compiler_sha256": "c0361ed24130ff81a8a1b32dab4cca26123ce08e35205304765c3fd09de86abf",
+  "registration": {
+    "source_shoulder": [
+      845,
+      728
+    ],
+    "target_shoulder": [
+      690,
+      592
+    ],
+    "uniform_scale": 0.816,
+    "outward_reach_by_pose": {
+      "raised": 64,
+      "lower": 28,
+      "correction": 5
+    }
+  },
+  "extraction_polygons_native": {
+    "correction": [
+      [
+        804,
+        710
+      ],
+      [
+        858,
+        686
+      ],
+      [
+        917,
+        715
+      ],
+      [
+        943,
+        696
+      ],
+      [
+        952,
+        651
+      ],
+      [
+        978,
+        623
+      ],
+      [
+        1011,
+        625
+      ],
+      [
+        1028,
+        638
+      ],
+      [
+        1055,
+        634
+      ],
+      [
+        1080,
+        656
+      ],
+      [
+        1101,
+        668
+      ],
+      [
+        1117,
+        701
+      ],
+      [
+        1105,
+        750
+      ],
+      [
+        1075,
+        792
+      ],
+      [
+        1024,
+        830
+      ],
+      [
+        964,
+        856
+      ],
+      [
+        902,
+        859
+      ],
+      [
+        858,
+        841
+      ],
+      [
+        837,
+        799
+      ]
+    ],
+    "raised": [
+      [
+        809,
+        707
+      ],
+      [
+        866,
+        681
+      ],
+      [
+        895,
+        631
+      ],
+      [
+        913,
+        564
+      ],
+      [
+        950,
+        548
+      ],
+      [
+        1006,
+        548
+      ],
+      [
+        1030,
+        572
+      ],
+      [
+        1061,
+        578
+      ],
+      [
+        1080,
+        608
+      ],
+      [
+        1077,
+        668
+      ],
+      [
+        1044,
+        720
+      ],
+      [
+        1005,
+        763
+      ],
+      [
+        952,
+        799
+      ],
+      [
+        860,
+        823
+      ],
+      [
+        836,
+        779
+      ]
+    ],
+    "lower": [
+      [
+        810,
+        710
+      ],
+      [
+        866,
+        688
+      ],
+      [
+        905,
+        714
+      ],
+      [
+        930,
+        684
+      ],
+      [
+        975,
+        681
+      ],
+      [
+        1021,
+        711
+      ],
+      [
+        1041,
+        755
+      ],
+      [
+        1038,
+        812
+      ],
+      [
+        1000,
+        851
+      ],
+      [
+        961,
+        874
+      ],
+      [
+        902,
+        873
+      ],
+      [
+        861,
+        848
+      ],
+      [
+        840,
+        796
+      ]
+    ]
+  },
+  "correction_prompt_sha256": "18754d348e974f5c1d8d36ff34e5753596df4fc18c2f19986bffb95be266ffb1",
+  "final_limb_pixel_sources": [
+    "accepted neutral",
+    "generated correction"
+  ],
+  "frame_duration_ms": 125,
+  "frame_recipe": [
+    "exact neutral",
+    "neutral arm +30 degrees",
+    "generated correction",
+    "correction arm +20 degrees then +16 native pixels right",
+    "raised with local +12-degree wrist turn",
+    "correction arm +8 degrees",
+    "neutral arm +25 degrees",
+    "exact neutral"
+  ],
+  "unchanged_regions": {
+    "feet_hips": [
+      0,
+      198,
+      256,
+      256
+    ],
+    "upper_head": [
+      0,
+      0,
+      256,
+      100
+    ],
+    "opposite_body": [
+      0,
+      0,
+      150,
+      256
+    ],
+    "opaque_head": "neutral alpha=255 pixels above row 142"
+  },
+  "actual_speed_observed": false,
+  "human_verdict": null,
+  "frames": [
+    {
+      "frame": 0,
+      "rgba_sha256": "9e4c15b3b6adf62e62f89e1c848dca958e0ec76c29b248e7ad14bccfbf9b0638",
+      "bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "visible_limb_area_px": 1513,
+      "visible_limb_centroid": [
+        178.15,
+        167.89
+      ],
+      "pink_material_proxy_area_px": 21,
+      "all_nonzero_alpha_head_changed_pixels": 0,
+      "pale_lower_chin_changed_pixels": 0,
+      "visible_limb_bounds": [
+        158,
+        122,
+        200,
+        194
+      ],
+      "adjacent_changed_pixels": 2759,
+      "adjacent_motion_roi_pixels": 2759,
+      "adjacent_motion_roi_max_channel_mean": 63.35,
+      "adjacent_pixels_over_24_channel_delta": 1450,
+      "next_visible_limb_area_ratio": 0.962
+    },
+    {
+      "frame": 1,
+      "rgba_sha256": "238768415deec6f0f65447a6f4b5a732d97d5b10500cc12a2ea62eb76771880f",
+      "bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "visible_limb_area_px": 1456,
+      "visible_limb_centroid": [
+        188.02,
+        164.55
+      ],
+      "pink_material_proxy_area_px": 9,
+      "all_nonzero_alpha_head_changed_pixels": 16,
+      "pale_lower_chin_changed_pixels": 12,
+      "visible_limb_bounds": [
+        168,
+        122,
+        209,
+        190
+      ],
+      "adjacent_changed_pixels": 2450,
+      "adjacent_motion_roi_pixels": 3569,
+      "adjacent_motion_roi_max_channel_mean": 70.81,
+      "adjacent_pixels_over_24_channel_delta": 2184,
+      "next_visible_limb_area_ratio": 1.171
+    },
+    {
+      "frame": 2,
+      "rgba_sha256": "7bf152769344a58f928265e0290276813e3e6d2b35e9c6a9b28c12e4f540a9d2",
+      "bounds": [
+        47,
+        22,
+        228,
+        223
+      ],
+      "visible_limb_area_px": 1705,
+      "visible_limb_centroid": [
+        197.35,
+        151.67
+      ],
+      "pink_material_proxy_area_px": 207,
+      "all_nonzero_alpha_head_changed_pixels": 24,
+      "pale_lower_chin_changed_pixels": 16,
+      "visible_limb_bounds": [
+        166,
+        122,
+        228,
+        174
+      ],
+      "adjacent_changed_pixels": 2367,
+      "adjacent_motion_roi_pixels": 3825,
+      "adjacent_motion_roi_max_channel_mean": 48.89,
+      "adjacent_pixels_over_24_channel_delta": 1396,
+      "next_visible_limb_area_ratio": 0.942
+    },
+    {
+      "frame": 3,
+      "rgba_sha256": "3ee12362db4574b485e8a950d686f5991c4447c0aac39d1253a05377af36e9ac",
+      "bounds": [
+        47,
+        22,
+        227,
+        223
+      ],
+      "visible_limb_area_px": 1606,
+      "visible_limb_centroid": [
+        201.77,
+        143.28
+      ],
+      "pink_material_proxy_area_px": 205,
+      "all_nonzero_alpha_head_changed_pixels": 103,
+      "pale_lower_chin_changed_pixels": 12,
+      "visible_limb_bounds": [
+        171,
+        116,
+        227,
+        169
+      ],
+      "adjacent_changed_pixels": 1851,
+      "adjacent_motion_roi_pixels": 3675,
+      "adjacent_motion_roi_max_channel_mean": 9.19,
+      "adjacent_pixels_over_24_channel_delta": 329,
+      "next_visible_limb_area_ratio": 0.984
+    },
+    {
+      "frame": 4,
+      "rgba_sha256": "b12c6bf0e449d7ca70f42f2493edc519083c977be93d9cd0ef220444f5d77e8d",
+      "bounds": [
+        47,
+        22,
+        226,
+        223
+      ],
+      "visible_limb_area_px": 1581,
+      "visible_limb_centroid": [
+        202.38,
+        143.2
+      ],
+      "pink_material_proxy_area_px": 209,
+      "all_nonzero_alpha_head_changed_pixels": 73,
+      "pale_lower_chin_changed_pixels": 12,
+      "visible_limb_bounds": [
+        172,
+        115,
+        226,
+        169
+      ],
+      "adjacent_changed_pixels": 2143,
+      "adjacent_motion_roi_pixels": 3682,
+      "adjacent_motion_roi_max_channel_mean": 32.75,
+      "adjacent_pixels_over_24_channel_delta": 1025,
+      "next_visible_limb_area_ratio": 1.046
+    },
+    {
+      "frame": 5,
+      "rgba_sha256": "61084ea828e8f82403e1cdbe607009db5761353df9ca10fadda40463856d1be6",
+      "bounds": [
+        47,
+        22,
+        227,
+        223
+      ],
+      "visible_limb_area_px": 1654,
+      "visible_limb_centroid": [
+        197.78,
+        148.55
+      ],
+      "pink_material_proxy_area_px": 209,
+      "all_nonzero_alpha_head_changed_pixels": 53,
+      "pale_lower_chin_changed_pixels": 14,
+      "visible_limb_bounds": [
+        167,
+        122,
+        226,
+        172
+      ],
+      "adjacent_changed_pixels": 2581,
+      "adjacent_motion_roi_pixels": 3630,
+      "adjacent_motion_roi_max_channel_mean": 79.68,
+      "adjacent_pixels_over_24_channel_delta": 2317,
+      "next_visible_limb_area_ratio": 0.885
+    },
+    {
+      "frame": 6,
+      "rgba_sha256": "73f44c9449a792834b70252be6af41dd7df4d7b0223b31ed44c91828d50c4ebe",
+      "bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "visible_limb_area_px": 1464,
+      "visible_limb_centroid": [
+        186.59,
+        165.4
+      ],
+      "pink_material_proxy_area_px": 9,
+      "all_nonzero_alpha_head_changed_pixels": 15,
+      "pale_lower_chin_changed_pixels": 12,
+      "visible_limb_bounds": [
+        168,
+        122,
+        207,
+        191
+      ],
+      "adjacent_changed_pixels": 2683,
+      "adjacent_motion_roi_pixels": 2683,
+      "adjacent_motion_roi_max_channel_mean": 57.05,
+      "adjacent_pixels_over_24_channel_delta": 1290,
+      "next_visible_limb_area_ratio": 1.033
+    },
+    {
+      "frame": 7,
+      "rgba_sha256": "9e4c15b3b6adf62e62f89e1c848dca958e0ec76c29b248e7ad14bccfbf9b0638",
+      "bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "visible_limb_area_px": 1513,
+      "visible_limb_centroid": [
+        178.15,
+        167.89
+      ],
+      "pink_material_proxy_area_px": 21,
+      "all_nonzero_alpha_head_changed_pixels": 0,
+      "pale_lower_chin_changed_pixels": 0,
+      "visible_limb_bounds": [
+        158,
+        122,
+        200,
+        194
+      ],
+      "adjacent_changed_pixels": 0,
+      "adjacent_motion_roi_pixels": 0,
+      "adjacent_motion_roi_max_channel_mean": 0,
+      "adjacent_pixels_over_24_channel_delta": 0
+    }
+  ]
+}

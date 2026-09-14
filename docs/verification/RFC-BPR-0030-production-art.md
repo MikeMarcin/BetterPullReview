@@ -1,7 +1,8 @@
 # RFC-BPR-0030 production-art frontier
 
 Run `dif-takeover-20260914`, dispatch `d6`, producer `rfc-integrator-d4`,
-mandate revision `3`. The adopted `production-art` milestone binds
+mandate revision `4` (the helper environment override was removed after the
+revision 3 image-edit authorization). The adopted `production-art` milestone binds
 BPR-0755/0756/0757 and both authored exits. This record is the current
 candidate/evidence pointer, not acceptance of the rest/idle/greet motion or a
 ten-clip catalog.
@@ -186,3 +187,20 @@ inspected the 256-pixel row and retained this as a **provisional** source
 candidate only: faint same-row donor texture bands remain at 256, actual-speed
 playback and human art judgment are unverified. Six other extended gestures
 remain unnormalized. No BPR-0756 acceptance or source/catalog promotion follows.
+
+The [v004 greeting study](dif-production-art-v004/README.md) derives an
+eight-frame candidate from the two retained edited full-body inputs and one
+further targeted built-in correction. That correction's complete prompt,
+native 1254-square output and SHA-256 are preserved separately. Its arm is
+extracted and registered onto the accepted neutral; the full generated body
+is excluded. The best static 64/72/96-pixel plates show an open padded paw,
+with exact neutral endpoints, planted feet and fixed opaque face. Reproduction
+and five fault controls pass. The integrator rejects it from production source:
+frame 1→2 jumps from curled neutral fingers to an open palm (+17.1% measured
+visible limb area), the raised shoulder/body junction remains sharp, and
+moving frames change 15–103 translucent head-edge and 12–16 pale chin pixels.
+The numbers diagnose but cannot substitute for the visible choreography.
+Further source artwork must establish a shoulder-fixed upper arm/elbow,
+consistent forearm volume, a partially uncurling intermediate hand and exact
+head-edge/chin masking. No timed playback, human verdict or runtime source
+selection exists for v004.

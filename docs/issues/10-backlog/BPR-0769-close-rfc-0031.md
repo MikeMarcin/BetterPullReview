@@ -24,7 +24,7 @@ last dependent RFC to satisfy the repository's closeout-card convention.
 |---|---|---|
 | **A1 — Exact intake.** All ten immutable inputs, actual layouts, hashes, source/edit history and new derivative authority/disposition are recorded; no opaque concept-board crop, foreign mascot or guessed generator metadata is shipped. | Partial: ten exact source hashes/layouts and known history limits recorded; derivative disposition remains open | `57ced605`; [intake ledger](../../verification/RFC-BPR-0030-intake.md) |
 | **A2 — One character.** The prop-free master and all ten sequences preserve one identity, resolve the documented drift, and have accepted neutral, body anchors and foot baseline. | Partial: exact neutral identity accepted at session sequence 379; canonical pixel-equal master and rest/idle study exist, but nine moving sequences and final anchors remain unaccepted | `aca551c0`; [art ledger](../../verification/RFC-BPR-0030-production-art.md) |
-| **A3 — Complete choreography.** Ten real distinct sequences have the target contracts, closed idle seam, intended eyelid/limb/head motion and clean neutral handoffs; no static alias or whole-raster squash substitutes for a gesture. | Partial: twelve-frame local breath structurally screened; v003 greeting study rejected for limb-area discontinuity and shoulder crease; seven extended gestures unnormalized; no final motion verdict | [v003 study](../../verification/dif-production-art-v003/README.md) |
+| **A3 — Complete choreography.** Ten real distinct sequences have the target contracts, closed idle seam, intended eyelid/limb/head motion and clean neutral handoffs; no static alias or whole-raster squash substitutes for a gesture. | Partial: twelve-frame local breath screened; v004 edited greeting rejected for hand/shoulder/head-edge discontinuities; local blink provisional; six extended gestures unnormalized; no final motion verdict | [v004 greeting](../../verification/dif-production-art-v004/README.md), [extended study](../../verification/dif-production-art-v004/extended/README.md) |
 | **A4 — Canonical geometry/alpha.** Every final cell and both gutters per strip meet exact format, clipping, inventory, anchor, envelope and transparent-pixel checks. Adversarial drift/empty-frame/padding fixtures fail for the intended reason. | Partial: schema-2 synthetic negatives and staged rest/idle alpha checks pass; final ten-clip cells/gutters remain unproduced | `df3ee35e`; [compiler ledger](../../verification/RFC-BPR-0030-compiler-contract.md), [art ledger](../../verification/RFC-BPR-0030-production-art.md) |
 | **A5 — Reproducible catalog.** Empty-output regeneration reproduces canonical pixels and metadata, with exact committed payload digest checks and no compressor pin regression. Generated descriptors/resources agree and malformed/unknown/excessive catalog input fails. | Partial: schema-2 synthetic catalog and portable regeneration pass; final committed catalog pending | `df3ee35e`; [compiler ledger](../../verification/RFC-BPR-0030-compiler-contract.md) |
 | **A6 — Measured bounds.** The actual catalog stays within the revised limits; arithmetic includes padding and uses checked dimensions/counts. Ordinary builds neither generate art nor acquire creative dependencies/network resources. | Partial: synthetic 71-frame/22.75-MiB strip budget and limits pass; actual catalog/build proof pending | `df3ee35e`; [compiler ledger](../../verification/RFC-BPR-0030-compiler-contract.md) |
@@ -57,21 +57,26 @@ ten-clip/71-frame target and final focused human art/derivative review still
 apply. Ordinary builds and shipped runtime remain free of generation. The
 integrator saved two exact-prompt edited full-body inputs at
 `docs/verification/dif-production-art-v004/generated-inputs/`; both visibly
-change body scale/face and are candidate arm material only. A deep worker's
-first local composite preserved locked neutral regions and improved measured
-limb-area ratios to 0.936–1.084, but 96/256-pixel inspection found a rounded
-fist snapping to a narrow open palm and a straight shoulder join. It is not
-promoted. The same owner is attempting one targeted correction, then will
-report even if it fails. A separate worker is assessing seven raw extended
-clips; its full-body registrations drift, and it is testing a local eyelid
-extraction. The extended worker has now returned quiescent with a provisional
-local-eye blink repair that locks all non-eye pixels and alpha exactly; it
-retains a faint 256-pixel texture band. Its full-body seven-clip studies are
-rejected. The greeting worker remains active in its separate folder; the
-integrator retains cards, source/catalog, review and commits. V003 remains
-rejected. BPR-0755/0756/0757
-and both production-art exits are pending. No new human verdict, catalog or
-runtime asset exists at this checkpoint.
+change body scale/face and supply arm material only. The deep worker used one
+further targeted image edit and returned the reproducible
+[v004 greeting study](../../verification/dif-production-art-v004/README.md).
+Agent inspection rejects it: a closed-to-open paw jump at frames 1→2, a
+sharp raised shoulder join and changed translucent head-edge/chin pixels
+remain. It is not promoted. The separate extended worker returned a
+[seven-gesture study](../../verification/dif-production-art-v004/extended/README.md):
+all raw full-body registrations fail, while its local-eye blink repair keeps
+neutral alpha and non-eye pixels exact and is retained as **provisional** with
+faint 256-pixel texture bands. Both workers and commands are quiescent.
+
+The integrator retains cards, source/catalog, review and commits. V003 and the
+other rejected studies remain historical evidence. BPR-0755 stays In Progress;
+BPR-0756/0757 stay Backlog. Both production-art exits are pending. No new
+human verdict, complete catalog or runtime asset exists. The next artwork
+operation is a shoulder-fixed hand/forearm sequence with a partially opening
+paw and exact head-edge/chin mask, followed by local retouch of the six other
+extended gestures. Only a compiled complete catalog can enter the fresh
+external-state Dif-only review. Historical shared-session answers remain
+untouched.
 
 ## Previous frontier — connected greeting study rejected, dif-takeover-20260914 d5 / mandate r2
 

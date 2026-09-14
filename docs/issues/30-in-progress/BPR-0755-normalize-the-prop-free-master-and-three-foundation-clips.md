@@ -76,3 +76,15 @@ restriction for that candidate work only. Generated pixels require recorded
 inputs/prompts/hashes, objective checks and focused human art/derivative review;
 they are not accepted merely because the image-edit call succeeded. Builds,
 runtime, credentials, remote mutation and shared skills remain outside scope.
+
+The resulting [v004 study](../../verification/dif-production-art-v004/README.md)
+uses two saved edited inputs and one targeted correction, all with exact
+prompts and hashes. Its best eight-frame composite retains exact neutral
+endpoints, opaque head, opposite body, hips/feet, baseline and clean alpha.
+It remains **rejected** at shipping sizes: closed fingers jump to a fully
+open padded paw at frame 1→2 (+17.1% visible limb area), raised poses have
+a sharp shoulder junction, and 15–103 translucent head-edge plus 12–16
+pale chin pixels change in moving frames. A shoulder-fixed elbow/forearm and
+a partially uncurling hand must be authored at the accepted master's scale,
+then the full head edge and chin masked exactly. No BPR-0755 source promotion,
+actual-speed verdict or complete-catalog review follows from this study.
