@@ -581,6 +581,22 @@ class DifAssetTests(unittest.TestCase):
             if alpha == 0:
                 self.assertEqual(resized.pixels[index * 4 : index * 4 + 3], b"\0\0\0")
 
+    def test_fixed_box_resize_clears_color_when_alpha_rounds_to_zero(self) -> None:
+        pixels = bytearray(512 * 512 * 4)
+        pixels[:4] = bytes((120, 50, 90, 1))
+        for y in range(4, 6):
+            for x in range(4, 6):
+                offset = (y * 512 + x) * 4
+                pixels[offset : offset + 4] = bytes((25, 75, 125, 255))
+        image = DIF.RgbaImage(512, 512, bytes(pixels))
+        resized = DIF.resize_box(image, clear_rounded_transparency=True)
+        self.assertEqual(resized.pixels[:4], b"\0\0\0\0")
+        retained = (2 * 256 + 2) * 4
+        self.assertEqual(
+            resized.pixels[retained : retained + 4], bytes((25, 75, 125, 255))
+        )
+        self.assertEqual(DIF.resize_box(image).pixels[:4], bytes((120, 50, 90, 0)))
+
     def test_rejects_ancillary_png_chunks(self) -> None:
         source = self.root / "source/rest/frame-000.png"
         data = source.read_bytes()
@@ -1140,6 +1156,21 @@ class SchemaTwoTests(unittest.TestCase):
         result = compile_catalog(self.root / "generated/dif-sprite-catalog.hpp", 2, 10)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         DIF.verify_assets(self.root)
+
+    def test_master_downsample_ignores_color_under_rounded_off_alpha(self) -> None:
+        path = "source/dif-neutral-master.png"
+        master = DIF.decode_png(self.root / path, path)
+        pixels = bytearray(master.pixels)
+        offset = (20 * master.width + 20) * 4
+        self.assertEqual(pixels[offset : offset + 4], b"\0\0\0\0")
+        pixels[offset : offset + 4] = bytes((120, 50, 90, 1))
+        self.replace_frame(path, DIF.RgbaImage(master.width, master.height, bytes(pixels)))
+        _, _, clips = DIF.compile_assets(self.root)
+        neutral_pixel = (5 * 256 + 5) * 4
+        self.assertEqual(
+            clips[0].frames[0].pixels[neutral_pixel : neutral_pixel + 4],
+            b"\0\0\0\0",
+        )
 
     def test_rejects_unknown_reordered_and_missing_ids(self) -> None:
         original = self.manifest()

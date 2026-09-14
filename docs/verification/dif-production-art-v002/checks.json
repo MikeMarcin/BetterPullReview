@@ -1,0 +1,221 @@
+{
+  "status": "objective preparation only; no final catalog or human motion verdict",
+  "canonical_master_sha256": "e2820eeff1f1ebf2584b1947a2b2062f98f29b541dd587cc8ce92196c71ab0cf",
+  "accepted_master_sha256": "bb6ccdbb00cf55624f15aabcdf08f47b8d97ce1835af9bcc7e01d4d4471ebeef",
+  "master_decoded_rgba_equal": true,
+  "timing_ms": 250,
+  "head_mask": [
+    0,
+    0,
+    256,
+    145
+  ],
+  "hips_feet_mask": [
+    0,
+    198,
+    256,
+    256
+  ],
+  "idle": [
+    {
+      "frame": 0,
+      "alpha_bbox": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "changed_pixels_from_neutral": 0,
+      "change_bbox": null,
+      "next_frame_changed_pixels": 3123
+    },
+    {
+      "frame": 1,
+      "alpha_bbox": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "changed_pixels_from_neutral": 3123,
+      "change_bbox": [
+        63,
+        147,
+        194,
+        197
+      ],
+      "next_frame_changed_pixels": 3376
+    },
+    {
+      "frame": 2,
+      "alpha_bbox": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "changed_pixels_from_neutral": 4104,
+      "change_bbox": [
+        63,
+        146,
+        194,
+        197
+      ],
+      "next_frame_changed_pixels": 3379
+    },
+    {
+      "frame": 3,
+      "alpha_bbox": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "changed_pixels_from_neutral": 4599,
+      "change_bbox": [
+        62,
+        146,
+        194,
+        198
+      ],
+      "next_frame_changed_pixels": 3478
+    },
+    {
+      "frame": 4,
+      "alpha_bbox": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "changed_pixels_from_neutral": 4909,
+      "change_bbox": [
+        61,
+        146,
+        195,
+        198
+      ],
+      "next_frame_changed_pixels": 3478
+    },
+    {
+      "frame": 5,
+      "alpha_bbox": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "changed_pixels_from_neutral": 4599,
+      "change_bbox": [
+        62,
+        146,
+        194,
+        198
+      ],
+      "next_frame_changed_pixels": 3379
+    },
+    {
+      "frame": 6,
+      "alpha_bbox": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "changed_pixels_from_neutral": 4104,
+      "change_bbox": [
+        63,
+        146,
+        194,
+        197
+      ],
+      "next_frame_changed_pixels": 3376
+    },
+    {
+      "frame": 7,
+      "alpha_bbox": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "changed_pixels_from_neutral": 3123,
+      "change_bbox": [
+        63,
+        147,
+        194,
+        197
+      ],
+      "next_frame_changed_pixels": 3123
+    },
+    {
+      "frame": 8,
+      "alpha_bbox": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "changed_pixels_from_neutral": 0,
+      "change_bbox": null,
+      "next_frame_changed_pixels": 3120
+    },
+    {
+      "frame": 9,
+      "alpha_bbox": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "changed_pixels_from_neutral": 3120,
+      "change_bbox": [
+        63,
+        148,
+        193,
+        196
+      ],
+      "next_frame_changed_pixels": 3424
+    },
+    {
+      "frame": 10,
+      "alpha_bbox": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "changed_pixels_from_neutral": 4127,
+      "change_bbox": [
+        62,
+        147,
+        194,
+        197
+      ],
+      "next_frame_changed_pixels": 3424
+    },
+    {
+      "frame": 11,
+      "alpha_bbox": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "changed_pixels_from_neutral": 3120,
+      "change_bbox": [
+        63,
+        148,
+        193,
+        196
+      ],
+      "next_frame_changed_pixels": 3120
+    }
+  ],
+  "rest_matches_compiler_box_after_hidden_rgb_clear": true,
+  "legacy_box_result_hidden_rgb_channels_cleared": 492,
+  "matches_integrated_schema2_box": true,
+  "alpha_zero_rgb": true,
+  "theme_source": "src/adapters/qt/src/appearance_profile.cpp application_surface builtins",
+  "greet": "rejected study; joint seam and insufficient wave; not in source inventory"
+}

@@ -38,6 +38,19 @@ catalog. The shipped three-clip source is still unchanged at this checkpoint.
 The phase-one identity wait is consumed. The card was promoted and claimed on
 `main`; remaining idle/greet normalization and final acceptance are open.
 
+The [v002 offline source study](../../verification/dif-production-art-v002/README.md)
+retains a canonical 1024-square master with decoded pixels exactly equal to the
+accepted neutral, plus a 256-square exact rest and twelve local-breath idle
+candidate frames. It verifies alpha, head/feet lock and seam structure, but
+actual-speed playback and full art judgment are unproved. The attempted
+greeting arm has a visible shoulder seam and misses cheek height, so it is
+retained only as a rejected study, not source. Real greet retouch needs the raw
+raised paw isolated and the occluded belly/shoulder reconstructed at the
+accepted master's scale. BPR-0755 remains In Progress; no source or generated
+runtime asset has been replaced. The compiler's schema-2-only zero-alpha
+rounding repair and unchanged schema-1 output are covered by focused tests and
+the [art ledger](../../verification/RFC-BPR-0030-production-art.md).
+
 ## Boundaries
 
 No GitHub/GHES mutation, model run, credential access or shared-skill replacement is authorized by this card. Any required creative edit remains offline and separately recorded; ordinary builds and the product perform no image generation. Follow the milestone exit rather than running an exhaustive app-wide course for this slice.

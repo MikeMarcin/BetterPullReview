@@ -483,7 +483,12 @@ def decode_png(path: Path, context: str) -> RgbaImage:
         raise AssetError(f"cannot read {context}: {error.strerror}") from error
 
 
-def resize_box(image: RgbaImage, size: int = CELL_SIZE) -> RgbaImage:
+def resize_box(
+    image: RgbaImage,
+    size: int = CELL_SIZE,
+    *,
+    clear_rounded_transparency: bool = False,
+) -> RgbaImage:
     if image.width != image.height:
         raise AssetError("source frame must be square")
     if image.width < size or image.width % size != 0:
@@ -511,7 +516,7 @@ def resize_box(image: RgbaImage, size: int = CELL_SIZE) -> RgbaImage:
             destination = (destination_y * size + destination_x) * 4
             alpha = (alpha_sum + samples // 2) // samples
             output[destination + 3] = alpha
-            if alpha_sum:
+            if alpha_sum and (alpha or not clear_rounded_transparency):
                 for channel in range(3):
                     output[destination + channel] = min(
                         255,
@@ -1183,11 +1188,22 @@ def compile_assets(root: Path) -> tuple[dict[str, Any], dict[str, Any], list[Com
             frame_path = PurePosixPath(frame_value)
             source = decode_png(_asset_path(root, frame_path), str(frame_path))
             _validate_source_frame(source, str(frame_path))
-            runtime_frames.append(resize_box(source))
+            # Preserve schema-1 output bytes while schema 2 clears colors whose
+            # averaged alpha rounds to zero.
+            runtime_frames.append(
+                resize_box(
+                    source,
+                    clear_rounded_transparency=manifest["schema_version"] == 2,
+                )
+            )
         strip = _pack_strip(runtime_frames)
         compiled.append(CompiledClip(clip, tuple(runtime_frames), strip))
     if manifest["schema_version"] == 2:
-        _validate_v2_runtime_geometry(manifest, compiled, resize_box(master_image))
+        _validate_v2_runtime_geometry(
+            manifest,
+            compiled,
+            resize_box(master_image, clear_rounded_transparency=True),
+        )
     else:
         _validate_runtime_geometry(manifest, compiled)
     return manifest, provenance, compiled
