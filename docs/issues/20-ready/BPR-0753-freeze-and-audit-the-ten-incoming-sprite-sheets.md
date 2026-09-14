@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0753"
 title: "Freeze and audit the ten incoming sprite sheets"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0030"]
 depends_on: ["BPR-0752"]
 metadata: {"pack":"bpr-dif-integration-v1","milestone":"intake-contract","acceptance":["A1","A2"],"milestone_plan":{"id":"bpr-dif-integration-v1","path":"docs/rfcs/plans/bpr-dif-integration-v1/milestone-plan.json"}}
