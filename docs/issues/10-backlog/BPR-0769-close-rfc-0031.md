@@ -47,18 +47,25 @@ last dependent RFC to satisfy the repository's closeout-card convention.
 
 The `intake-contract` milestone still binds BPR-0752/0753/0754 and all three
 authored exits with unchanged requirement fingerprints. BPR-0752 is Done at
-`ee1e12df`; BPR-0753's ten-sheet audit is candidate-ready in the [mutable
+`ee1e12df`; BPR-0753 is Done at `57ced605`, with its ten-sheet audit in the [mutable
 intake ledger](../../verification/RFC-BPR-0030-intake.md). All 55 archived
 checksums, ten payload hashes, actual grid arithmetic, raw-audit equality,
 rest structural screening and documentation gate passed. Five grids are
 fractional. Raw idle frame 7 blinks; matte and identity corrections and the
 new derivative decision remain for production-art, not this source audit.
 The existing shipped three-clip compiler validates and its 42 focused tests
-pass. Owned pending paths are BPR-0753's execution record, the intake ledger,
-and this closeout; its worker has returned and has no active command/descendant.
-Next: finish BPR-0753, claim BPR-0754, and implement/test schema-2 ten-clip
-compiler fixtures while retaining the current shipped schema-1 path. No native
-or human art verdict is claimed.
+pass. Its audit worker has returned and has no active command/descendant.
+BPR-0753 finished at `57ced605`; BPR-0754 is claimed at `7d438f16`.
+Its sole worker owns `scripts/dif_assets.py`, `tests/scripts/dif_asset_tests.py`,
+the BPR-0754 execution record and its new compiler ledger. The current uncommitted
+candidate adds a schema-2 ten-clip branch, locked pelvis/foot/head regions,
+content envelopes, generated geometry/digests and portable regeneration while
+retaining the shipped schema-1 path. A focused synthetic suite is active under
+that worker; result and command identity are pending. Parent owns only this
+closeout and will reconcile the worker's result before BPR-0754 acceptance.
+Next: inspect the test outcome, resolve any geometry or source-limit failures,
+run one focused integration pass, then finish BPR-0754 if all bound exits hold.
+No native or human art verdict is claimed.
 
 ## Prior frontier — dif-takeover-20260914 d1 / rfc-integrator-d1 / mandate r1
 
