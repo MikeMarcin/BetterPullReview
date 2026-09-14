@@ -43,7 +43,34 @@ last dependent RFC to satisfy the repository's closeout-card convention.
 | **B11 — Rendered/accessibility evidence.** Actual app frames at shipping scales and supported appearance modes demonstrate readable alpha edges, calm motion, static reduced interval, noninterference with focus/status and approved visual integration. | Not run; import only | No producing revision |
 | **B12 — Complete handoff.** Focused tests, resource packaging, platform claims, source/ mutable docs, shared-skill consumer context and verification records agree. All ten clips are real and reachable; unavailable evidence/formal closeout remains honestly open, with no fabricated native/art verdict or forced rewriting of settled RFCs. | Partial: plan/consumer context and intake documented; all app/resource/native/art work remains open | `ee1e12df`, `57ced605`; [live import](../../rfcs/assets/bpr-dif-integration-v1.LIVE_IMPORT.md) |
 
-## Current frontier — dif-takeover-20260914 d1 / rfc-integrator-d1 / mandate r1
+## Current frontier — intake-contract accepted, dif-takeover-20260914 d1 / mandate r1
+
+The adopted plan's `intake-contract` milestone is complete on `main` at
+`7beaf272d4318187c8250da06161f2c2290ee878`. BPR-0752, BPR-0753 and
+BPR-0754 are Done with separate scoped commits and unchanged assigned
+requirement fingerprints. The [live import](../../rfcs/assets/bpr-dif-integration-v1.LIVE_IMPORT.md)
+binds the immutable base, ID receipt and source drift. The [incoming ledger](../../verification/RFC-BPR-0030-intake.md)
+records ten exact hashes and actual geometry, including five fractional grids
+and unapproved crops. The [compiler ledger](../../verification/RFC-BPR-0030-compiler-contract.md)
+records a tested synthetic schema-2 ten-clip/71-frame contract, pixel-backed
+registration, both gutters, 22.75-MiB decoded fixture and portable PNG/digest
+semantics. The shipped schema-1 catalog remains valid. Fifty-five focused tests,
+direct shipped validate/verify, the registered dev CTest asset contract,
+documentation gate and whitespace check passed. These establish the three
+authored exits for this intake milestone, not final production art or app
+acceptance.
+
+The two leaf workers returned; no task writer, descendant or test command is
+active. Only unrelated pre-existing `.gitignore`, `.mask.json`, `.mask.lock.json`
+and deleted BPR-0775/0776 filenames remain dirty. The next bounded authored
+objective is `production-art` (BPR-0755/0756/0757): confirm one prop-free
+master, normalize all ten real gestures, compile the 71-frame production
+catalog and obtain the exact focused art/derivative decision. BPR-0755 is
+dependency-ready. RFC-0030/0031 formal status, application integration and
+native/human evidence remain open; no GitHub/GHES mutation or publication is
+authorized by this handoff.
+
+## Previous frontier — dif-takeover-20260914 d1 / rfc-integrator-d1 / mandate r1
 
 The `intake-contract` milestone still binds BPR-0752/0753/0754 and all three
 authored exits with unchanged requirement fingerprints. BPR-0752 is Done at
