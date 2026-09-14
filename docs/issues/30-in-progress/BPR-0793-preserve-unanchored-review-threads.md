@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0793"
 title: "Preserve review threads with unavailable line anchors"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0013"]
 depends_on: ["BPR-0792"]
 priority: P1
