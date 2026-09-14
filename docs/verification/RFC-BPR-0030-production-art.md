@@ -1,6 +1,6 @@
 # RFC-BPR-0030 production-art frontier
 
-Run `dif-takeover-20260914`, dispatch `d4`, producer `rfc-integrator-d4`,
+Run `dif-takeover-20260914`, dispatch `d5`, producer `rfc-integrator-d4`,
 mandate revision `2`. The adopted `production-art` milestone binds
 BPR-0755/0756/0757 and both authored exits. This record is the current
 candidate/evidence pointer, not acceptance of the rest/idle/greet motion or a
@@ -128,3 +128,30 @@ greet paw and seven contextual gestures against the accepted master, followed
 by normalized compilation and one complete digest-bound art/derivative review.
 No new model run is authorized in these cards. This is a concrete production-art
 blocker; neither authored exit is satisfied yet.
+
+## v003 connected-anatomy study — rejected from production
+
+The [d5 offline recipe and plates](dif-production-art-v003/README.md) retain a
+third bounded greeting study, without individual production source frames.
+It verifies the accepted master and immutable raw greet hashes, composes six
+distinct moving poses between exact neutral endpoints, and uses actual raw
+padded-paw pixels for the two open-palm poses. Repeated regeneration and the
+retained SHA-256 inventory agree. Objective checks pass fixed hips/feet,
+opposite body, opaque head, alpha cleanup, baseline and clearance. The
+integrator inspected the 96-pixel light/dark plate: the neutral-arm approach
+has an attached shoulder, but the raw-palm forearm arrives as a much larger
+surface, then disappears on return. The study measures visible limb area
+1,036→1,783 pixels at frames 2→3 (+72.1%) and 1,785→1,084 at 4→5
+(−39.3%); a dark shoulder crease remains. These are a diagnosed shape and
+occlusion discontinuity, not a production greeting or a new human verdict.
+
+The next discriminating artwork operation is an authored, continuous
+upper-arm/elbow and forearm at the accepted master's scale across the lift,
+with wrist/paw articulation handled separately. Rigid neutral-arm rotation,
+whole-cell registration and mask feathering have not solved that mismatch.
+Seven extended gestures, compilation, final derivative disposition and one
+complete Dif-only exact-digest review remain pending. That review should use a
+fresh external `--state` so older answered initiatives do not appear on the
+review page. No new attended candidate is ready and no shipped source/runtime
+asset changed. Actual-speed playback and native Qt presentation remain
+unverified.

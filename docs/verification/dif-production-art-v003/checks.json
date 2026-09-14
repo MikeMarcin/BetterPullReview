@@ -1,0 +1,387 @@
+{
+  "status": "qualified study rejected from production source by agent inspection: shoulder crease and pose-volume discontinuity; no human verdict",
+  "canonical_master_sha256": "e2820eeff1f1ebf2584b1947a2b2062f98f29b541dd587cc8ce92196c71ab0cf",
+  "raw_sha256": "1e740dad2a7f4a9f6465421a537d3ce3142525f8dfb2f9722560778c292c0b58",
+  "frame_duration_ms": 125,
+  "frame_recipe": [
+    "exact neutral",
+    "neutral arm +45 degrees",
+    "neutral arm +110 degrees",
+    "raw pose 3",
+    "raw pose 4",
+    "neutral arm +105 degrees",
+    "neutral arm +40 degrees",
+    "exact neutral"
+  ],
+  "raw_poses": [
+    {
+      "crop": [
+        1331,
+        0,
+        1774,
+        444
+      ],
+      "mask": [
+        [
+          290,
+          298
+        ],
+        [
+          316,
+          278
+        ],
+        [
+          329,
+          245
+        ],
+        [
+          350,
+          233
+        ],
+        [
+          374,
+          230
+        ],
+        [
+          394,
+          246
+        ],
+        [
+          409,
+          267
+        ],
+        [
+          400,
+          293
+        ],
+        [
+          382,
+          322
+        ],
+        [
+          354,
+          341
+        ],
+        [
+          306,
+          348
+        ],
+        [
+          292,
+          332
+        ]
+      ],
+      "anchor": [
+        295,
+        303
+      ],
+      "target": [
+        174,
+        149
+      ],
+      "scale": 0.5,
+      "root_widen": 0.08
+    },
+    {
+      "crop": [
+        0,
+        444,
+        444,
+        887
+      ],
+      "mask": [
+        [
+          284,
+          283
+        ],
+        [
+          306,
+          264
+        ],
+        [
+          312,
+          237
+        ],
+        [
+          331,
+          217
+        ],
+        [
+          350,
+          209
+        ],
+        [
+          378,
+          224
+        ],
+        [
+          385,
+          247
+        ],
+        [
+          375,
+          280
+        ],
+        [
+          353,
+          305
+        ],
+        [
+          321,
+          321
+        ],
+        [
+          295,
+          324
+        ],
+        [
+          285,
+          304
+        ]
+      ],
+      "anchor": [
+        291,
+        289
+      ],
+      "target": [
+        175,
+        152
+      ],
+      "scale": 0.53,
+      "root_widen": 0.08
+    }
+  ],
+  "unchanged_regions": {
+    "feet_hips": [
+      0,
+      198,
+      256,
+      256
+    ],
+    "upper_head": [
+      0,
+      0,
+      256,
+      100
+    ],
+    "opposite_body": [
+      0,
+      0,
+      150,
+      256
+    ],
+    "opaque_head": "all neutral alpha=255 pixels above row 142"
+  },
+  "metrics_limit": "Visible colored-limb area excludes opaque head but includes projected upper arm/paw; it is not physical volume or smooth-motion proof. Delta means use the union of the two non-neutral regions, not the whole cell.",
+  "actual_speed_observed": false,
+  "human_verdict": null,
+  "frames": [
+    {
+      "frame": 0,
+      "rgba_sha256": "9e4c15b3b6adf62e62f89e1c848dca958e0ec76c29b248e7ad14bccfbf9b0638",
+      "bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "visible_limb_area_px": 1513,
+      "visible_limb_centroid": [
+        178.15,
+        167.89
+      ],
+      "visible_limb_bounds": [
+        158,
+        122,
+        200,
+        194
+      ],
+      "adjacent_changed_pixels": 2959,
+      "adjacent_motion_roi_pixels": 2959,
+      "adjacent_motion_roi_max_channel_mean": 79.09,
+      "adjacent_pixels_over_24_channel_delta": 1868,
+      "next_visible_limb_area_ratio": 0.945
+    },
+    {
+      "frame": 1,
+      "rgba_sha256": "2e88bacd9d95127d89dd92bdaa2427e02f3c0cd86a26ed4469642a82e18eb6b4",
+      "bounds": [
+        47,
+        22,
+        214,
+        223
+      ],
+      "visible_limb_area_px": 1430,
+      "visible_limb_centroid": [
+        191.97,
+        161.46
+      ],
+      "visible_limb_bounds": [
+        168,
+        122,
+        213,
+        185
+      ],
+      "adjacent_changed_pixels": 2508,
+      "adjacent_motion_roi_pixels": 3862,
+      "adjacent_motion_roi_max_channel_mean": 66.31,
+      "adjacent_pixels_over_24_channel_delta": 1738,
+      "next_visible_limb_area_ratio": 0.724
+    },
+    {
+      "frame": 2,
+      "rgba_sha256": "3a37219926c7b921317a6a2a8ec2ec250b063492b5fdd9246acb84b22847ee04",
+      "bounds": [
+        47,
+        22,
+        221,
+        223
+      ],
+      "visible_limb_area_px": 1036,
+      "visible_limb_centroid": [
+        197.67,
+        143.83
+      ],
+      "visible_limb_bounds": [
+        169,
+        121,
+        220,
+        160
+      ],
+      "adjacent_changed_pixels": 2478,
+      "adjacent_motion_roi_pixels": 3959,
+      "adjacent_motion_roi_max_channel_mean": 45.23,
+      "adjacent_pixels_over_24_channel_delta": 1629,
+      "next_visible_limb_area_ratio": 1.721
+    },
+    {
+      "frame": 3,
+      "rgba_sha256": "a8b078e1bb1cf314adb9773da077b8b6373ec2ab278f39f6ab89fe09aae029a0",
+      "bounds": [
+        47,
+        22,
+        231,
+        223
+      ],
+      "visible_limb_area_px": 1783,
+      "visible_limb_centroid": [
+        196.81,
+        144.79
+      ],
+      "visible_limb_bounds": [
+        164,
+        115,
+        227,
+        169
+      ],
+      "adjacent_changed_pixels": 2218,
+      "adjacent_motion_roi_pixels": 3894,
+      "adjacent_motion_roi_max_channel_mean": 21.5,
+      "adjacent_pixels_over_24_channel_delta": 858,
+      "next_visible_limb_area_ratio": 1.001
+    },
+    {
+      "frame": 4,
+      "rgba_sha256": "090251ee436c685df25b187ff978a186a6b0c0318a29f476e3d1cb168f5c38e9",
+      "bounds": [
+        47,
+        22,
+        226,
+        223
+      ],
+      "visible_limb_area_px": 1785,
+      "visible_limb_centroid": [
+        196.78,
+        143.9
+      ],
+      "visible_limb_bounds": [
+        164,
+        111,
+        225,
+        169
+      ],
+      "adjacent_changed_pixels": 2450,
+      "adjacent_motion_roi_pixels": 3938,
+      "adjacent_motion_roi_max_channel_mean": 45.98,
+      "adjacent_pixels_over_24_channel_delta": 1693,
+      "next_visible_limb_area_ratio": 0.607
+    },
+    {
+      "frame": 5,
+      "rgba_sha256": "e5232cf9c813aa0bd9e2bd53af7f4e2d1620692bb168ae18a884e7316aa9ef8e",
+      "bounds": [
+        47,
+        22,
+        222,
+        223
+      ],
+      "visible_limb_area_px": 1084,
+      "visible_limb_centroid": [
+        197.92,
+        145.17
+      ],
+      "visible_limb_bounds": [
+        169,
+        122,
+        221,
+        162
+      ],
+      "adjacent_changed_pixels": 2513,
+      "adjacent_motion_roi_pixels": 3802,
+      "adjacent_motion_roi_max_channel_mean": 68.88,
+      "adjacent_pixels_over_24_channel_delta": 1792,
+      "next_visible_limb_area_ratio": 1.327
+    },
+    {
+      "frame": 6,
+      "rgba_sha256": "0f547c2e9407fb24623500f672f9c4f8bda5c95a2e2e1cae2e53eaf1cb88c9af",
+      "bounds": [
+        47,
+        22,
+        212,
+        223
+      ],
+      "visible_limb_area_px": 1438,
+      "visible_limb_centroid": [
+        190.65,
+        162.55
+      ],
+      "visible_limb_bounds": [
+        168,
+        122,
+        211,
+        187
+      ],
+      "adjacent_changed_pixels": 2894,
+      "adjacent_motion_roi_pixels": 2894,
+      "adjacent_motion_roi_max_channel_mean": 74.37,
+      "adjacent_pixels_over_24_channel_delta": 1738,
+      "next_visible_limb_area_ratio": 1.052
+    },
+    {
+      "frame": 7,
+      "rgba_sha256": "9e4c15b3b6adf62e62f89e1c848dca958e0ec76c29b248e7ad14bccfbf9b0638",
+      "bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "visible_limb_area_px": 1513,
+      "visible_limb_centroid": [
+        178.15,
+        167.89
+      ],
+      "visible_limb_bounds": [
+        158,
+        122,
+        200,
+        194
+      ],
+      "adjacent_changed_pixels": 0,
+      "adjacent_motion_roi_pixels": 0,
+      "adjacent_motion_roi_max_channel_mean": 0,
+      "adjacent_pixels_over_24_channel_delta": 0
+    }
+  ]
+}

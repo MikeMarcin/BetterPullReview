@@ -24,7 +24,7 @@ last dependent RFC to satisfy the repository's closeout-card convention.
 |---|---|---|
 | **A1 — Exact intake.** All ten immutable inputs, actual layouts, hashes, source/edit history and new derivative authority/disposition are recorded; no opaque concept-board crop, foreign mascot or guessed generator metadata is shipped. | Partial: ten exact source hashes/layouts and known history limits recorded; derivative disposition remains open | `57ced605`; [intake ledger](../../verification/RFC-BPR-0030-intake.md) |
 | **A2 — One character.** The prop-free master and all ten sequences preserve one identity, resolve the documented drift, and have accepted neutral, body anchors and foot baseline. | Partial: exact neutral identity accepted at session sequence 379; canonical pixel-equal master and rest/idle study exist, but nine moving sequences and final anchors remain unaccepted | `aca551c0`; [art ledger](../../verification/RFC-BPR-0030-production-art.md) |
-| **A3 — Complete choreography.** Ten real distinct sequences have the target contracts, closed idle seam, intended eyelid/limb/head motion and clean neutral handoffs; no static alias or whole-raster squash substitutes for a gesture. | Partial: twelve-frame local breath structurally screened; greeting study rejected and seven extended gestures unnormalized; no final motion verdict | [v002 study](../../verification/dif-production-art-v002/README.md) |
+| **A3 — Complete choreography.** Ten real distinct sequences have the target contracts, closed idle seam, intended eyelid/limb/head motion and clean neutral handoffs; no static alias or whole-raster squash substitutes for a gesture. | Partial: twelve-frame local breath structurally screened; v003 greeting study rejected for limb-area discontinuity and shoulder crease; seven extended gestures unnormalized; no final motion verdict | [v003 study](../../verification/dif-production-art-v003/README.md) |
 | **A4 — Canonical geometry/alpha.** Every final cell and both gutters per strip meet exact format, clipping, inventory, anchor, envelope and transparent-pixel checks. Adversarial drift/empty-frame/padding fixtures fail for the intended reason. | Partial: schema-2 synthetic negatives and staged rest/idle alpha checks pass; final ten-clip cells/gutters remain unproduced | `df3ee35e`; [compiler ledger](../../verification/RFC-BPR-0030-compiler-contract.md), [art ledger](../../verification/RFC-BPR-0030-production-art.md) |
 | **A5 — Reproducible catalog.** Empty-output regeneration reproduces canonical pixels and metadata, with exact committed payload digest checks and no compressor pin regression. Generated descriptors/resources agree and malformed/unknown/excessive catalog input fails. | Partial: schema-2 synthetic catalog and portable regeneration pass; final committed catalog pending | `df3ee35e`; [compiler ledger](../../verification/RFC-BPR-0030-compiler-contract.md) |
 | **A6 — Measured bounds.** The actual catalog stays within the revised limits; arithmetic includes padding and uses checked dimensions/counts. Ordinary builds neither generate art nor acquire creative dependencies/network resources. | Partial: synthetic 71-frame/22.75-MiB strip budget and limits pass; actual catalog/build proof pending | `df3ee35e`; [compiler ledger](../../verification/RFC-BPR-0030-compiler-contract.md) |
@@ -43,27 +43,39 @@ last dependent RFC to satisfy the repository's closeout-card convention.
 | **B11 — Rendered/accessibility evidence.** Actual app frames at shipping scales and supported appearance modes demonstrate readable alpha edges, calm motion, static reduced interval, noninterference with focus/status and approved visual integration. | Not run; import only | No producing revision |
 | **B12 — Complete handoff.** Focused tests, resource packaging, platform claims, source/ mutable docs, shared-skill consumer context and verification records agree. All ten clips are real and reachable; unavailable evidence/formal closeout remains honestly open, with no fabricated native/art verdict or forced rewriting of settled RFCs. | Partial: plan/consumer context and intake documented; all app/resource/native/art work remains open | `ee1e12df`, `57ced605`; [live import](../../rfcs/assets/bpr-dif-integration-v1.LIVE_IMPORT.md) |
 
-## Current frontier — greeting anatomy correction, dif-takeover-20260914 d5 / mandate r2
+## Current frontier — connected greeting study rejected, dif-takeover-20260914 d5 / mandate r2
 
-The d4 return was consumed as
-`continue-milestone` on `main` at `6b588724`. The d5 assignment binds the same
-authored BPR-0755/0756/0757 production-art work and both exits with the live
-BPR-0755 evidence progression. The exact phase-one neutral accept remains
-valid; v002 rest/idle are partial objective source studies, both greeting
-retouches are rejected, and the seven extended gestures/final catalog are
-still absent. No prior test or human outcome is being repeated merely because
-the dispatch changed.
+The d4 return was consumed as `continue-milestone` on `main` at `6b588724`.
+The d5 assignment binds the same BPR-0755/0756/0757 production-art work and
+both exits. The exact phase-one neutral identity accept remains valid. V002
+holds a canonical pixel-equal master, exact rest and twelve local-breath idle
+study frames; neither motion nor the canonical derivative has a final art
+verdict. The seven extended gestures and final catalog are still absent.
 
-One deep worker has exclusive ownership of new
-`docs/verification/dif-production-art-v003/` staging only. Its named problem is
-connected master-scale shoulder, forearm and exposed-belly anatomy plus
-genuine approach/return poses from the real raw greeting, without a model run.
-The integrator retains board, compiler/manifest/generated, acceptance and
-commits. No shipped source or runtime resource has changed; the protected v001
-candidate and earlier review decisions remain untouched. The current next step
-is to adjudicate the v003 rendered 64/72/96-px results and checks. BPR-0755
-and both production-art exits remain open until actual source and full review
-evidence satisfy them.
+The [v003 connected-anatomy study](../../verification/dif-production-art-v003/README.md)
+retains a reproducible recipe, checks and 64/72/96-pixel light/dark plates. It
+uses raw padded-paw pixels and passes exact neutral endpoints, fixed body,
+alpha, baseline and clearance checks. Agent inspection rejects it as greeting
+source: visible limb area rises 72.1% at frames 2→3 and falls 39.3% at 4→5,
+with a dark shoulder crease. The shape discontinuity needs a consistently
+authored upper-arm/elbow and forearm across the lift, with separate wrist/paw
+articulation. More rigid rotation, whole-cell registration or feathering do
+not repair that gap. No greeting source frame, source manifest, generated art,
+runtime selection, model call or GitHub/GHES mutation was made. The old
+attended verdict, original source and unrelated dirty files remain intact.
+
+The deep worker returned quiescent; the integrator owns and committed only the
+v003 staging and current records. Its recipe regenerated to retained hashes,
+documentation and board checks passed. No timed playback, native Qt motion or
+human motion decision is claimed. BPR-0755 remains In Progress; BPR-0756/0757
+remain Backlog. Both production-art exits are pending, so no complete-catalog
+review candidate exists. Once a continuous greeting and the seven other real
+gestures are authored and compiled, prepare one focused Dif-only digest-bound
+art/derivative review in a fresh external `--state`; the shared checkout
+session's historical answers must not be rewritten. The next bounded step is
+authored connected-limb illustration at the accepted master's scale, followed
+by actual-speed local playback before extending the catalog. This is an
+artwork dependency, not a completed milestone.
 
 ## Previous frontier — neutral identity accepted, production-art resumed, dif-takeover-20260914 d4 / mandate r2
 

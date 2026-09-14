@@ -54,6 +54,17 @@ runtime asset has been replaced. The compiler's schema-2-only zero-alpha
 rounding repair and unchanged schema-1 output are covered by focused tests and
 the [art ledger](../../verification/RFC-BPR-0030-production-art.md).
 
+The d5 [connected-anatomy study](../../verification/dif-production-art-v003/README.md)
+keeps exact neutral endpoints and uses actual raw padded-paw pixels for its
+raised poses. Its 64/72/96-pixel light/dark plates and repeatable checks pass
+the structural baseline, alpha, fixed-body and clearance screens. It is still
+rejected from production source: visible limb area rises 72.1% at frames 2→3,
+falls 39.3% at 4→5, and a shoulder crease remains. A consistent upper-arm and
+elbow surface through the lift, with separately articulated wrist/fingers, is
+needed before this can be a smooth greeting. The v003 study does not alter the
+accepted neutral, source inventory or shipped assets. No actual-speed or human
+motion verdict exists, and this card remains In Progress.
+
 ## Boundaries
 
 No GitHub/GHES mutation, model run, credential access or shared-skill replacement is authorized by this card. Any required creative edit remains offline and separately recorded; ordinary builds and the product perform no image generation. Follow the milestone exit rather than running an exhaustive app-wide course for this slice.
