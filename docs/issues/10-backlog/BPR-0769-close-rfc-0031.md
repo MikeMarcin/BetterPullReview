@@ -65,7 +65,9 @@ session containing only its current candidates. The standard offline art leaf
 returned quiescent with the [v002 staging study](../../verification/dif-production-art-v002/README.md):
 canonical pixel-equal accepted master, exact rest and twelve local-breath idle
 candidate frames, and a 71-cell provisional raw crop inventory. The attempted
-greeting wave fails the shoulder seam and cheek-height requirements and was
+greeting wave failed the shoulder seam and cheek-height requirements. A focused
+second study used raw raised-paw pixels and reached cheek height but still had
+shoulder/belly seams, a narrow forearm and ghosted entry/return, so it too was
 rejected from source. The seven extended gestures remain unnormalized. No
 shipped source, manifest, generated catalog or runtime selection changed.
 
@@ -87,6 +89,13 @@ retouch of the real greeting paw and seven contextual gestures at the accepted
 master's scale, then normalization, exact catalog compilation and one complete
 Dif-only digest-bound art/derivative review. BPR-0755 stays In Progress; its
 partial source study cannot be called card or milestone completion.
+
+Native delegation used `rfc-worker` with a fresh non-history-copying context,
+then `followup_task` to the same slice owner for the focused greeting correction;
+neither call overrode model or effort. The generated Codex route specifies
+`gpt-6-astra` / `low`, and both worker returns self-reported that banner.
+Serving telemetry and runtime enforcement of the child-role allowlist were not
+exposed; neither is inferred from the banner or generated configuration.
 
 ## Previous frontier — runtime-foundation accepted, dif-takeover-20260914 d3 / mandate r1
 

@@ -43,10 +43,13 @@ retains a canonical 1024-square master with decoded pixels exactly equal to the
 accepted neutral, plus a 256-square exact rest and twelve local-breath idle
 candidate frames. It verifies alpha, head/feet lock and seam structure, but
 actual-speed playback and full art judgment are unproved. The attempted
-greeting arm has a visible shoulder seam and misses cheek height, so it is
-retained only as a rejected study, not source. Real greet retouch needs the raw
-raised paw isolated and the occluded belly/shoulder reconstructed at the
-accepted master's scale. BPR-0755 remains In Progress; no source or generated
+greeting arm has a visible shoulder seam and misses cheek height. A second
+[raw-paw study](../../verification/dif-production-art-v002/rejected-greet-retouch/README.md)
+reaches cheek height but still shows shoulder/belly seams, a narrow forearm and
+ghosted entry/return. Both are rejected studies, not source. Real greet retouch
+needs connected shoulder anatomy, an exposed belly contour and actual
+intermediate poses at the accepted master's scale. BPR-0755 remains In Progress;
+no source or generated
 runtime asset has been replaced. The compiler's schema-2-only zero-alpha
 rounding repair and unchanged schema-1 output are covered by focused tests and
 the [art ledger](../../verification/RFC-BPR-0030-production-art.md).

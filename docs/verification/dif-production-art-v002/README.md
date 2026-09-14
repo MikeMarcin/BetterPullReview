@@ -129,3 +129,11 @@ The optional native-crop materialization uses the first command with
 `--write-native-crops`. Hashes in [SHA256SUMS](SHA256SUMS) bind retained artifacts.
 Semantic documentation disposition: no change to public APIs, architecture,
 UI behavior, persistence, authentication, ordinary builds or packaging.
+
+## Greeting continuation from f6e7d62d
+
+The [raw-paw retouch study](rejected-greet-retouch/README.md) extracts the genuine raised
+paw/forearm from raw greeting frames 2–5. It reaches cheek height, but shoulder
+reconstruction, forearm thickness and ghosted approach/return poses fail local
+96-pixel light/dark inspection. It remains a compact rejected recipe/row/check
+record; no greeting production-source frames were added.

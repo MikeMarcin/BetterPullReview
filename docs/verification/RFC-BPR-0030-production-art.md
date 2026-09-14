@@ -114,6 +114,15 @@ passed. The full suite result predates the added schema-2 master-path test;
 that added test passed separately. The selected-graph check establishes only
 the unchanged shipped schema-1 boundary, not final ten-clip selection.
 
+The focused [raw-paw greeting continuation](dif-production-art-v002/rejected-greet-retouch/README.md)
+isolated actual raised paw/forearm pixels from raw frames 2–5. Its eight-frame
+study retained exact neutral endpoints and structural alpha/foot/clearance
+checks, and the paw reached cheek height. Actual-size light/dark inspection
+still found a shoulder/belly seam, too-narrow forearm and ghosted approach/return
+from cross-fading disparate silhouettes. It was rejected from source. The
+reproducible crop/mask/retouch recipe, 96-px plate and checks remain evidence,
+not an accepted pose or motion verdict.
+
 The next source task is careful offline illustration/layer retouch of the real
 greet paw and seven contextual gestures against the accepted master, followed
 by normalized compilation and one complete digest-bound art/derivative review.
