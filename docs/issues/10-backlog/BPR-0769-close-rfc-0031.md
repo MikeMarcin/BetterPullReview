@@ -78,6 +78,14 @@ extended gestures. Only a compiled complete catalog can enter the fresh
 external-state Dif-only review. Historical shared-session answers remain
 untouched.
 
+Native d6 dispatch arguments selected custom `rfc-worker-deep` for greeting
+and `rfc-worker` for extended art, each with `fork_turns: none` and no per-call
+model/effort override. The installed generated routing configuration specifies
+Codex `gpt-6-astra` / `high` and `gpt-6-astra` / `low`, respectively; both leaf
+banners self-reported those pairs. The extended leaf reported routing as
+unknown. Effective serving telemetry and runtime enforcement of child-role
+allowlists were not exposed, so neither is claimed from the banners/config.
+
 ## Previous frontier — connected greeting study rejected, dif-takeover-20260914 d5 / mandate r2
 
 The d4 return was consumed as `continue-milestone` on `main` at `6b588724`.
