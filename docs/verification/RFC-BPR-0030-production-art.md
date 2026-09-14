@@ -61,7 +61,9 @@ has one ready, protected candidate:
 `1bcdc33cbd9175db6ee843f60f90e3a70e9800470a19562bd4814b18d600ad81`,
 at event sequence `378`. The three review images are embedded in that exact
 candidate. The live local page is served by the session host; its loopback
-token is held outside the repository. A decision has not been returned.
+token is held outside the repository. A read-only `wait --after 378` watch is
+running in command session `28709`, with any event written to
+`build/dif-production-art/wait-after-378.json`. A decision has not been returned.
 
 No task-owned model call, GitHub/GHES mutation, source replacement, runtime
 selection or app build occurred in this candidate-preparation slice.

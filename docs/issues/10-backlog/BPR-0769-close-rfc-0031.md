@@ -68,6 +68,14 @@ is required, then the remainder of `production-art` remains open. The authored
 this writer and its commands are quiescent. Formal RFC status and final
 art/derivative/native evidence remain pending.
 
+The attended local host is serving the exact candidate on loopback port
+`51856` (process `40091`, command session `58012`). A read-only attendance
+watch after sequence `378` is command session `28709`, writing any event to
+`build/dif-production-art/wait-after-378.json`. Its session token remains
+outside the repository. No art/source writer, leaf agent, build or test command
+remains active. The successor must consume the exact verdict by session ID and
+candidate fingerprint; a hand-back without a decision does not accept it.
+
 ## Previous frontier — intake-contract accepted, dif-takeover-20260914 d1 / mandate r1
 
 The adopted plan's `intake-contract` milestone is complete on `main` at
