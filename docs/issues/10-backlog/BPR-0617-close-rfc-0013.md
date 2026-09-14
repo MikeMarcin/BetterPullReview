@@ -11,6 +11,48 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/pla
 
 # Verify and close RFC-BPR-0013
 
+## Current frontier — bpr0643-r2 / d9 / mandate r12
+
+The renewed `large-pr-returned-commit-boundary` assignment is
+`docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-bpr0643-r2-d9-r12.json`.
+The source candidate remains committed at `3cefa687`; the d8 focused,
+composed, documentation and independent-review evidence below is unchanged.
+The exact target's product read now has a truthful terminal. The d8 dyld
+samples were not proof of a persistent launch failure:
+a task-owned direct launch of the tests-disabled candidate reached the Qt event
+loop. Launch Services attachment of the original bundle timed out while
+another owner's `build/app-release-d28` instance remained active. That process
+was not touched.
+
+For one isolated UI attempt, a task-only copy under `build/bpr0792-cua-app/`
+has a unique bundle identifier and ad-hoc signature. Its executable bytes
+before the unchanged `LC_CODE_SIGNATURE` offset 14,643,728 match the d8
+candidate exactly. Its GitHub.com CLI profile was explicitly selected, the
+read-only CLI consent accepted, `MikeMarcin` observed as connected, and exact
+`EpicGames/UnrealEngine#1773` opened **once**. The metadata-only product log
+for request 1/window session 17 records HTTP 200 at `GetRepository`,
+`GetPullRequest`, three `ListPullRequestCommits` pages, sixteen
+`ListPullRequestFiles` pages, `ListReviews`, and sixteen `ListReviewThreads`
+pages. It then records `failure=malformed_response` at `ListReviewThreads`
+(HTTP status 0 is the parser terminal, not a server response). The UI says
+“The pull request could not be loaded. GitHub returned data that
+BetterPullReview could not safely use.” The snapshot was refused atomically;
+no file list or selected diff was visible. This advances beyond the old
+250-total `response_limit` but does not establish a readable target.
+
+The fixed record is outside the checkout at
+`~/Library/Application Support/BetterPullReview/BPR-0792-evidence-2026-09-13/attempt-1-d9-cli-product-metadata.json`
+(SHA-256 `9e85ed8e4c8d6be93f1ba7f8482eeb90dc6a49ef8b6c581a716016d7014b4328`);
+it names the append-only application log and its capture-time digest.
+The task-owned direct app PID 19573 was stopped and its `gh` child exited;
+the other owner's PID 16108 was left alone. No token extraction, live PR
+write, global `gh` account change, device-session change, or private response
+content retention in the checkout or evidence record occurred. BPR-0792's
+bounded distinction and next-refusal acceptance can close; the new review-
+thread parser refusal remains a separate product follow-up if the owner
+renews the exact-target read objective. BPR-0617's Windows/Linux, canonical
+predecessor and RFC-wide obligations remain open.
+
 ## Current frontier — bpr0643-r2 / d8 / mandate r12
 
 The owner renewed the read-only `EpicGames/UnrealEngine#1773` objective after
@@ -25,7 +67,7 @@ historical observation.
 
 Main reserved BPR-0792 at `c26dc022` with its counter and immutable receipt.
 The separate `large-pr-returned-commit-boundary` plan amendment binds
-[BPR-0792](../30-in-progress/BPR-0792-distinguish-large-pr-total-from-returned-commits.md)
+[BPR-0792](../60-done/BPR-0792-distinguish-large-pr-total-from-returned-commits.md)
 without changing BPR-0643's accepted exits. Its assignment is
 `docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-bpr0643-r2-d8-r12.json`.
 The current working candidate distinguishes a reported total from returned
