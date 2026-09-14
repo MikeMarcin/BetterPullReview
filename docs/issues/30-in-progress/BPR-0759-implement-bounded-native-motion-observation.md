@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0759"
 title: "Implement bounded native motion observation"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0031"]
 depends_on: ["BPR-0758"]
 metadata: {"pack":"bpr-dif-integration-v1","milestone":"runtime-foundation","acceptance":["B4","B9"],"milestone_plan":{"id":"bpr-dif-integration-v1","path":"docs/rfcs/plans/bpr-dif-integration-v1/milestone-plan.json"}}
