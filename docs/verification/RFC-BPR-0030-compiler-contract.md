@@ -1,8 +1,8 @@
 # RFC-BPR-0030 compiler contract evidence
 
 BPR-0754 implements the offline structural portions of RFC-BPR-0030 A4–A6.
-The candidate is `d56a8a565735c2ba000623edb6f37a50147d95ca` plus the owned
-compiler/test changes. No production art, source authority, runtime selection,
+The compiler/test revision is `df3ee35ef8017e9220c7c7da671702fbc26d64b2`.
+No production art, source authority, runtime selection,
 or visual acceptance changes in this slice.
 
 ## Schema selection and limits
@@ -104,6 +104,7 @@ Commands use `PYTHONDONTWRITEBYTECODE=1`:
 - `python3 scripts/dif_assets.py verify --assets src/adapters/qt/assets/dif` — passed.
 - `python3 scripts/verify_documentation.py --root .` — passed.
 - `git diff --check` — passed.
+- `PYTHONDONTWRITEBYTECODE=1 ctest --preset dev -R '^dif_assets_contract$' --output-on-failure` — passed, one registered test in 43.28 seconds after the compiler/test revision was committed.
 
 The host used Python 3.14.7 on macOS. The passing source identities are:
 

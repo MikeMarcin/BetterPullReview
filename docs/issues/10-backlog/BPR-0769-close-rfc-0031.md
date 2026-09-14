@@ -25,9 +25,9 @@ last dependent RFC to satisfy the repository's closeout-card convention.
 | **A1 — Exact intake.** All ten immutable inputs, actual layouts, hashes, source/edit history and new derivative authority/disposition are recorded; no opaque concept-board crop, foreign mascot or guessed generator metadata is shipped. | Partial: ten exact source hashes/layouts and known history limits recorded; derivative disposition remains open | `57ced605`; [intake ledger](../../verification/RFC-BPR-0030-intake.md) |
 | **A2 — One character.** The prop-free master and all ten sequences preserve one identity, resolve the documented drift, and have accepted neutral, body anchors and foot baseline. | Partial: rest candidate and identity/registration drift inventoried; no master or sequence accepted | `57ced605`; [intake ledger](../../verification/RFC-BPR-0030-intake.md) |
 | **A3 — Complete choreography.** Ten real distinct sequences have the target contracts, closed idle seam, intended eyelid/limb/head motion and clean neutral handoffs; no static alias or whole-raster squash substitutes for a gesture. | Not run; import only | No producing revision |
-| **A4 — Canonical geometry/alpha.** Every final cell and both gutters per strip meet exact format, clipping, inventory, anchor, envelope and transparent-pixel checks. Adversarial drift/empty-frame/padding fixtures fail for the intended reason. | Not run; import only | No producing revision |
-| **A5 — Reproducible catalog.** Empty-output regeneration reproduces canonical pixels and metadata, with exact committed payload digest checks and no compressor pin regression. Generated descriptors/resources agree and malformed/unknown/excessive catalog input fails. | Not run; import only | No producing revision |
-| **A6 — Measured bounds.** The actual catalog stays within the revised limits; arithmetic includes padding and uses checked dimensions/counts. Ordinary builds neither generate art nor acquire creative dependencies/network resources. | Not run; import only | No producing revision |
+| **A4 — Canonical geometry/alpha.** Every final cell and both gutters per strip meet exact format, clipping, inventory, anchor, envelope and transparent-pixel checks. Adversarial drift/empty-frame/padding fixtures fail for the intended reason. | Partial: schema-2 synthetic geometry/alpha/gutter negatives pass; final art cells not produced | `df3ee35e`; [compiler ledger](../../verification/RFC-BPR-0030-compiler-contract.md) |
+| **A5 — Reproducible catalog.** Empty-output regeneration reproduces canonical pixels and metadata, with exact committed payload digest checks and no compressor pin regression. Generated descriptors/resources agree and malformed/unknown/excessive catalog input fails. | Partial: schema-2 synthetic catalog and portable regeneration pass; final committed catalog pending | `df3ee35e`; [compiler ledger](../../verification/RFC-BPR-0030-compiler-contract.md) |
+| **A6 — Measured bounds.** The actual catalog stays within the revised limits; arithmetic includes padding and uses checked dimensions/counts. Ordinary builds neither generate art nor acquire creative dependencies/network resources. | Partial: synthetic 71-frame/22.75-MiB strip budget and limits pass; actual catalog/build proof pending | `df3ee35e`; [compiler ledger](../../verification/RFC-BPR-0030-compiler-contract.md) |
 | **A7 — Bound visual decision.** Exact normalized bytes, timing and preview renderer are covered by the focused identity/motion/theme/scale/handoff/rest review and derivative disposition. Any changed subject is re-reviewed only to its necessary scope. | Not run; import only | No producing revision |
 | **A8 — Handoff and history.** Mutable docs and live asset/verification ownership identify this new revision; historical decisions remain unchanged; RFC-0031 consumes the accepted new catalog. Existing prerequisites/formal status waits are explicit, not falsely closed. | Partial: live import/IDs and intake ledger exist; accepted new catalog and formal handoff remain open | `ee1e12df`, `57ced605`; [live import](../../rfcs/assets/bpr-dif-integration-v1.LIVE_IMPORT.md) |
 | **B1 — Resource selection.** Normal tests-enabled and tests-disabled Qt apps select the accepted ten-clip catalog; raw inputs/review tools do not ship. Invalid assets fail to a functional art-free surface with bounded diagnostics. Core-only remains clean. | Not run; import only | No producing revision |
@@ -56,15 +56,16 @@ new derivative decision remain for production-art, not this source audit.
 The existing shipped three-clip compiler validates and its 42 focused tests
 pass. Its audit worker has returned and has no active command/descendant.
 BPR-0753 finished at `57ced605`; BPR-0754 is claimed at `7d438f16`.
-Its sole worker owns `scripts/dif_assets.py`, `tests/scripts/dif_asset_tests.py`,
-the BPR-0754 execution record and its new compiler ledger. The current uncommitted
-candidate adds a schema-2 ten-clip branch, locked pelvis/foot/head regions,
-content envelopes, generated geometry/digests and portable regeneration while
-retaining the shipped schema-1 path. A focused synthetic suite is active under
-that worker; result and command identity are pending. Parent owns only this
-closeout and will reconcile the worker's result before BPR-0754 acceptance.
-Next: inspect the test outcome, resolve any geometry or source-limit failures,
-run one focused integration pass, then finish BPR-0754 if all bound exits hold.
+Its sole worker returned candidate-ready and has no active commands or
+descendants. The compiler/tests and new [compiler ledger](../../verification/RFC-BPR-0030-compiler-contract.md)
+are committed at `df3ee35e`; BPR-0754's execution record and this closeout
+are the pending bookkeeping paths. That revision adds a schema-2 ten-clip branch, locked pelvis/foot/head regions,
+measured content envelopes, generated geometry/digests and portable
+regeneration while retaining the shipped schema-1 path. All 55 focused tests,
+a later vertical-foot control, shipped v1 validate/verify, documentation gate
+and whitespace check passed. The registered dev CTest asset contract also
+passed on the committed revision in 43.28 seconds. Parent is finalizing
+BPR-0754 acceptance and the three bound exits; no task command is active.
 No native or human art verdict is claimed.
 
 ## Prior frontier — dif-takeover-20260914 d1 / rfc-integrator-d1 / mandate r1
