@@ -32,7 +32,7 @@ last dependent RFC to satisfy the repository's closeout-card convention.
 | **A8 — Handoff and history.** Mutable docs and live asset/verification ownership identify this new revision; historical decisions remain unchanged; RFC-0031 consumes the accepted new catalog. Existing prerequisites/formal status waits are explicit, not falsely closed. | Partial: live import/IDs and intake ledger exist; accepted new catalog and formal handoff remain open | `ee1e12df`, `57ced605`; [live import](../../rfcs/assets/bpr-dif-integration-v1.LIVE_IMPORT.md) |
 | **B1 — Resource selection.** Normal tests-enabled and tests-disabled Qt apps select the accepted ten-clip catalog; raw inputs/review tools do not ship. Invalid assets fail to a functional art-free surface with bounded diagnostics. Core-only remains clean. | Not run; import only | No producing revision |
 | **B2 — Playback.** Catalog-driven elapsed-time playback renders every clip at its declared rate, one-shots return correctly, idle seam/blink cadence/greeting-once behavior holds, and delayed/invalid time cannot burst, overflow or select gutters. | Not run; import only | No producing revision |
-| **B3 — Preferences.** Real Appearance controls apply/migrate/persist/reset motion and visibility through the current profile authority; rejected/stale writes and session-only fallback are truthful, same-profile fan-out works and other profiles remain unchanged. | Not run; import only | No producing revision |
+| **B3 — Preferences.** Real Appearance controls apply/migrate/persist/reset motion and visibility through the current profile authority; rejected/stale writes and session-only fallback are truthful, same-profile fan-out works and other profiles remain unchanged. | Passed for the profile preference path; actual mascot presentation remains with later integration | `6f07c343`; [runtime ledger](../../verification/RFC-BPR-0031-runtime-foundation.md) |
 | **B4 — Observation.** Native System motion observation/change handling is proved per claimed target; unknown/unsupported resolves reduced, explicit Full is usable, and fixture/native claims and any changed OS setting are documented separately. | Not run; import only | No producing revision |
 | **B5 — Home.** Dif is reachable through the existing signed-out and signed-in Home, including Home covering an open review. Open/back actions, Recent/queue controls, compact layout, focus and return-to-reading state are unchanged. | Not run; import only | No producing revision |
 | **B6 — Context placement.** One explicit visible AI tools slot uses static baseline and short cues, never overlays code/shared comments or opens surfaces itself; one sprite per workbench, no duplicate active slot, and controls retain space/accessibility. | Not run; import only | No producing revision |
@@ -43,7 +43,36 @@ last dependent RFC to satisfy the repository's closeout-card convention.
 | **B11 — Rendered/accessibility evidence.** Actual app frames at shipping scales and supported appearance modes demonstrate readable alpha edges, calm motion, static reduced interval, noninterference with focus/status and approved visual integration. | Not run; import only | No producing revision |
 | **B12 — Complete handoff.** Focused tests, resource packaging, platform claims, source/ mutable docs, shared-skill consumer context and verification records agree. All ten clips are real and reachable; unavailable evidence/formal closeout remains honestly open, with no fabricated native/art verdict or forced rewriting of settled RFCs. | Partial: plan/consumer context and intake documented; all app/resource/native/art work remains open | `ee1e12df`, `57ced605`; [live import](../../rfcs/assets/bpr-dif-integration-v1.LIVE_IMPORT.md) |
 
-## Current frontier — neutral decision pending, dif-takeover-20260914 d2 / mandate r1
+## Current frontier — runtime-foundation in progress, dif-takeover-20260914 d3 / mandate r1
+
+The authored `runtime-foundation` binding covers BPR-0758/0759/0760 and both
+exits, with accepted `intake-contract` as its only prerequisite. Work is on
+`main` from `2b8df80e`; BPR-0758 moved to Ready at `a63de7e4`, was claimed
+at `08cf545b`, and its source candidate was committed at `6f07c343`.
+Its standard worker completed the core/appearance preference host, SQLite
+appearance store, Settings panel and focused tests and is quiescent.
+The integrator owns `src/app/` composition, CMake and board/closeout integration.
+BPR-0759/0760 remain Backlog until BPR-0758 is accepted; a read-only scout
+found macOS AppKit reduced-motion read/change APIs, while Windows and Linux
+support remains unproved/unsupported. No fixture art may enter the shipped catalog.
+
+The [runtime ledger](../../verification/RFC-BPR-0031-runtime-foundation.md)
+records passing focused dev/core-only checks, the built app, and a fixture-only
+real Appearance gesture persisted across a separate process. The separate
+existing `application_appearance_gesture_contract` timed out after 120 seconds
+at its pre-change epoch fixture stage, waiting for six conversation roots while
+four were presented. This is a negative baseline, not Dif acceptance. The
+architecture boundary gate encounters unrelated nested-checkout and GitHub
+CLI assertion drift; no unrelated source was changed. The pending
+neutral identity candidate/session described below remains untouched. No
+GitHub/GHES mutation or production art selection occurred.
+
+Active: no source worker or integrator test command. Next: finish BPR-0758
+bookkeeping, then claim and implement BPR-0759/0760.
+The final art decision, actual ten-clip resource selection and formal RFC
+closeout remain open.
+
+## Previous frontier — neutral decision pending, dif-takeover-20260914 d2 / mandate r1
 
 The assigned `production-art` milestone binds BPR-0755/0756/0757 and both
 authored exits. BPR-0755 was claimed on `main` at `b24c4817`. Its [current
