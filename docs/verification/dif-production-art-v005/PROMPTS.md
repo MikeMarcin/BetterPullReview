@@ -125,6 +125,89 @@ material. The frame count and timing below come from
 | **acknowledge** — 8×125 ms | Author one shallow head nod: preparation, about 3° downward head incline, rise and settle. Keep neutral eyes and closed smile; rotate/deform only the head and its local neck join, never squash or move torso/feet. | Raw whole-body compression and closed-eye smile are not the required nod. No check, medal, confetti or second nod. Frames 0 and 7 are copied neutral. |
 | **blocked** — 6×150 ms | Tilt the head about 3° toward viewer-left, and open the **viewer-left** paw near the belly with a continuous attached arm. Hold briefly, then straighten and close. Keep a patient, capable expression. | Raw sheet puts the prominent open paw on viewer-right, contrary to the clip contract; do not copy that side. No tear, sweat, anger, broken object, question mark or helpless shrug. Frames 0 and 5 are copied neutral. |
 
+The following prompts make each missing **peak** state concrete. For every
+call, image 1 is the exact accepted neutral named above and image 2 is the
+matching immutable incoming sheet named in the hash table. Use the sheet for
+action intent only, then author separate preparation and return states using
+the accepted peak; a peak alone cannot satisfy the clip contract.
+
+**E1 — compare glance, viewer-left eye state:**
+
+```text
+Use case: precise-object-edit. Make one transparent full-body Dif compare-glance pose, not a sheet. Image 1 is the exact accepted neutral and is the identity/registration target. Image 2 is the immutable dif-compare-glance.png sheet and supplies only the notion of a small look around; do not copy its open mouth, wide head turn, body or feet.
+Move both pupils together modestly toward viewer-left inside their existing eye patches, about one pupil radius from neutral. Preserve each eye's roundness, highlight, eye-patch boundary and fine plush texture. Keep the gaze readable at a 64-pixel presentation. The head remains almost frontal; if any head turn is needed, keep it under approximately 2 degrees with the same head silhouette, chin and translucent edge. Do not move the shoulders, forearms, torso, hips or planted feet.
+Exactly preserve Image 1's closed smile, nose, ears, body size/center, baseline, opposite gaze-neutral frame identity and transparent background. No blink, talking mouth, extra eye, duplicated face, shadow, prop, text, cursor, code or badge. Return one pose only. Non-eye/head drift will be discarded locally.
+```
+
+For the viewer-right glance, repeat E1 with `viewer-left` replaced by
+`viewer-right`; use the accepted neutral as image 1 again. The center and
+return states must be authored or copied with pupil travel that eases across
+all eight 150-ms frames, ending in the exact neutral.
+
+**E2 — consider, halfway connected lift:**
+
+```text
+Use case: precise-object-edit. Make one transparent full-body Dif considering transition. Image 1 is the exact accepted neutral identity target. Image 2 is immutable dif-consider.png, for a thoughtful paw-lift idea only; reject its smaller body, different resting paw, torso gap and altered face.
+On the panda's right arm (viewer-left), lift the same attached purple plush paw halfway from the lower-belly rest toward a gentle under-chin touch. Keep one rounded shoulder root fixed to Image 1, with an actual continuous upper arm, elbow and forearm; show no floating cutout, sharp seam, thin stick limb or duplicated resting paw. The hand stays small and softly curled, pads barely visible. Reconstruct only the small belly surface genuinely uncovered by this lift. The other arm and both feet remain as in Image 1.
+Do not yet touch or cover the chin, nose or closed smile. Keep head angle, face, ears, translucent edge, body scale/center and baseline from Image 1. One character, transparent RGBA, no bubble, text, prop, shadow or extra object. Output one pose, not a row; non-arm drift will be excluded during extraction.
+```
+
+For the peak, edit the accepted neutral again with the **qualified** E2 as a
+third reference. Continue that exact shoulder/elbow/forearm to a light
+under-chin contact, at most about 2 degrees of head tilt and a small upward
+gaze. Retain an uncovered smile; then create distinct return art rather than
+flipping or fading a mismatched limb.
+
+**E3 — comment ready, two-paw open peak:**
+
+```text
+Use case: precise-object-edit. Make one transparent full-body Dif comment-ready presentation pose. Image 1 is the exact accepted neutral target. Image 2 is immutable dif-comment-ready.png, action guidance only; its narrow torso, smaller feet and handoff jumps are defects.
+Lift both original purple plush paws a little from their lower-belly rests, keeping their left and right shoulder roots fixed and both elbows visibly connected. Open the paws gently palm-up below the chest/face, as a restrained invitation to comment. Keep the two hands symmetric in intent but naturally shaped, with small pink pads, continuous forearm thickness and no duplicate lower resting paws. Expose and reconstruct only the belly fabric that lifting the arms reveals; retain torso breadth and texture from Image 1.
+Lock Image 1's entire face, closed smile, head/translucent edge, ears, scale, center, hips, legs, planted feet and baseline. The hands may not obscure code or carry anything. One pose and one character on transparent RGBA; no note, pen, speech bubble, badge, text, cast shadow or background. Any full-body drift is unaccepted.
+```
+
+Author a separate half-lift with both paws still mostly curled, and a closing
+state with the same arm volumes. Frame 0 and 7 remain exact neutral.
+
+**E4 — attention, connected chest-height paw:**
+
+```text
+Use case: precise-object-edit. Make one transparent full-body Dif attention pose. Image 1 is the exact accepted neutral target. Image 2 is immutable dif-attention.png, used only for the small one-paw attention cue; its face, body and feet must not replace Image 1. If supplied as Image 3, the qualified G1 greeting bridge shows connected-arm material and a partly uncurling hand, not the required higher greeting action.
+Raise only the panda's left arm (viewer-right) to chest height, below the cheek. Keep the shoulder rooted at Image 1's same body point, a broad soft upper arm and elbow continuously connected, and a small paw turned gently forward with partially visible pink pads. The cue is quiet and capable, not a point or alarm. Maintain forearm volume and pad articulation consistent with a separate curled half-lift and return pose.
+Lock Image 1's head silhouette, eyes, smile, opposite arm, belly outside the exposed arm join, hips, feet, center, scale and baseline. One original body, no duplicated paw or straight shoulder cut. Transparent RGBA; no flash, bug, exclamation, symbol, prop, text, halo or shadow. Any generated non-arm drift is excluded locally.
+```
+
+**E5 — acknowledge, shallow nod peak:**
+
+```text
+Use case: precise-object-edit. Make one transparent full-body Dif acknowledgement nod peak. Image 1 is the exact accepted neutral target. Image 2 is immutable dif-acknowledge.png, action guidance only; its closed-eye grin and whole-body compression are not approved.
+Incline the same plush head about 3 degrees downward at its local neck connection, a single polite nod. Preserve both awake eyes, eye patches, nose, ears and closed smile, with natural small neck fabric adjustment and continuous head alpha; do not squash, shrink or translate the whole mascot. Shoulders, paws, torso, hips and both feet stay in Image 1's exact registration and baseline. A second prep pose should be shallower so the eight 125-ms frames enter, rise and settle without a snap.
+Return one transparent pose of one character. No happy-eye crescent, talking mouth, oversized bow, halo, check mark, medal, confetti, text, prop, shadow or background. Generated pixels outside the carefully bounded head/neck motion remain unaccepted.
+```
+
+**E6 — blocked, viewer-left open-paw peak:**
+
+```text
+Use case: precise-object-edit. Make one transparent full-body Dif blocked-state pose. Image 1 is the exact accepted neutral identity target. Image 2 is immutable dif-blocked.png, used only for the patient pause/tilt idea. Its dominant open paw appears on the wrong side: do not copy it. The contract requires the panda's right paw (viewer-left) to open near the belly.
+Tilt the same head about 3 degrees toward viewer-left without changing its face or scale. Near the lower belly, open only the viewer-left paw gently toward the user, with a small pink palm pad, continuous purple forearm and rounded attached shoulder. Keep the other paw resting as in Image 1. Author a separate partly opening entry state; do not snap from a fist to a fully splayed hand or change the limb area abruptly. The expression is calm and capable, never helpless or angry.
+Preserve Image 1's closed smile, awake eyes, head-edge transparency, torso width, belly fabric outside the local arm join, hips, planted feet, center and baseline. One transparent character/pose; no tears, sweat, broken item, question mark, exclamation, text, extra paw, prop or cast shadow. Exclude generated full-body drift when composing frames.
+```
+
+**B1 — clean closed blink lid.** This is a localized correction to the
+provisional v004 blink, independent of the greeting. Input image 1 is the
+accepted neutral edit target; image 2 is the
+[v004 repaired blink row](../dif-production-art-v004/extended/blink-repair-eye-study.png)
+for the closed-eye action in its third panel only. The previous local repair
+retained faint horizontal donor bands at 256 pixels:
+
+```text
+Use case: precise-object-edit.
+Asset type: one transparent Dif closed-eye blink pose, not a row or sheet.
+Input images: Image 1 is the exact accepted awake neutral edit target. Image 2 is a six-panel diagnostic reference; only its THIRD panel (index 2, gently closed eyes) shows the intended relaxed blink. Its texture bands are a defect, not a style instruction.
+Primary request: Change only the interiors of the two existing purple eye patches in Image 1. Close both eyes softly with matching smooth curved upper lids and a fine natural dark lid crease, like one calm blink. Hide both irises and highlights completely for this single frame. Fill the formerly visible eye areas with the same purple plush material and continuous fine texture as the neighboring untouched eye patches; eliminate horizontal rectangular donor bands, pale lower-eye slivers and hard patch edges. Keep the eyes centered in their existing patch shapes. Do not change the surrounding face, cheeks, nose, closed-mouth smile, ears, head silhouette or head alpha.
+Invariants: leave Image 1's entire body, arms, belly, feet, scale, baseline, camera, lighting and transparent background unchanged. One full-body pose, one character; no squinting happy crescents, raised cheeks, mouth opening, head movement, props, text, shadows, halos or extra objects. Output genuine transparent RGBA. Any non-eye drift will be discarded during local extraction onto the exact neutral.
+```
+
 ## Candidate checks before any promotion
 
 Inspect each actual 64/72/96-pixel pose and timed transition over real light

@@ -37,6 +37,26 @@ six gestures still need local anatomy/matte/handoff retouch. BPR-0755 remains
 In Progress, so this dependency-bound card remains Backlog and no extended
 source or catalog is accepted.
 
+In d7, the user requested detailed pose prompts because no hand-authored
+source poses are available. The integrator retained the exact-source
+[v005 prompt brief](../../verification/dif-production-art-v005/PROMPTS.md)
+for all seven extended gestures and generated one separate, traceable edited
+input for each of six non-blink peaks/transitions plus a closed-blink input;
+the [input ledger](../../verification/dif-production-art-v005/generated-inputs/README.md)
+records exact prompts, references, output hashes and native dimensions.
+All generated full-body outputs drift from the accepted neutral and are
+unaccepted. A [strict eye-local study](../../verification/dif-production-art-v005/blink-study/README.md)
+keeps outside-eye RGBA and all alpha exact but **fails** at 256 pixels because
+of a pale lower-eye seam and uneven purple donor shading. Half lids and timed
+blink motion remain absent. The six other inputs are undergoing bounded
+registration/pose inspection; no full extended sequence or source promotion
+is claimed.
+
 ## Boundaries
 
 No GitHub/GHES mutation, model run, credential access or shared-skill replacement is authorized by this card. Any required creative edit remains offline and separately recorded; ordinary builds and the product perform no image generation. Follow the milestone exit rather than running an exhaustive app-wide course for this slice.
+
+The later user-authorized d6/d7 offline image-edit continuation supersedes
+the original model-run boundary for **scoped candidate making** only. It does
+not accept edited pixels, alter the production build/runtime, or authorize
+remote mutation. The final objective and focused human review still govern.

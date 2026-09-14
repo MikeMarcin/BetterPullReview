@@ -47,16 +47,28 @@ last dependent RFC to satisfy the repository's closeout-card convention.
 
 The user has no authored source poses and asked for detailed prompts for the
 missing artwork. The prior offline image-edit authorization remains in force.
-The integrator is writing copyable, exact-source prompt specifications for
-the greeting transition and six extended gestures, then will use the built-in
-image-edit tool for bounded candidate poses. The accepted neutral decision,
-its bytes, immutable incoming sheets, v002 partial rest/idle, provisional
-v004 blink and rejected v003/v004 greetings remain unchanged. No new source
-or final review candidate exists at this checkpoint. Candidate image outputs
-will be recorded with exact prompts, hashes and native dimensions, then
-tested at shipping sizes before any source promotion. BPR-0755/0756/0757
-and both production-art exits remain open; the final Dif-only review still
-requires a complete catalog and fresh external state.
+The integrator retained the [copyable exact-source prompt brief](../../verification/dif-production-art-v005/PROMPTS.md)
+and made nine separate built-in image edits: a partly opening greeting bridge,
+open-paw peak, closed-blink lid and one pose input for each of six other
+extended gestures. The [input ledger](../../verification/dif-production-art-v005/generated-inputs/README.md)
+records the actual reference roles, prompt blocks, native 1254-square output
+dimensions and SHA-256. The exact accepted neutral and immutable incoming
+sheets remain unchanged; no generated full body is accepted.
+
+The [v005 greeting study](../../verification/dif-production-art-v005/study/README.md)
+reconstructs distinct partly/open fingers with exact 17,539-pixel head/chin
+lock but is **rejected** for the shoulder/elbow mismatch: an 87-pixel inner-root
+wedge vanishes at the bridge-to-peak handoff and limb area changes 17.5%.
+The [v005 blink study](../../verification/dif-production-art-v005/blink-study/README.md)
+keeps outside-eye RGBA and alpha exact but is **rejected** for a pale lower-eye
+seam and uneven purple shading at 256 pixels. Six other edited inputs have
+only first-pass visual/provenance status; their bounded registration screen
+is in progress. The accepted neutral decision, v002 partial rest/idle,
+provisional v004 blink and rejected v003/v004 greetings remain historical
+evidence. No new source, complete catalog, runtime resource or final review
+candidate exists. BPR-0755/0756/0757 and both production-art exits remain
+open. The final Dif-only review still requires a complete catalog and fresh
+external `--state`, without rewriting the shared session's earlier decisions.
 
 ## Previous frontier — authorized offline image-edit continuation, dif-takeover-20260914 d6 / mandate r4
 

@@ -88,3 +88,18 @@ pale chin pixels change in moving frames. A shoulder-fixed elbow/forearm and
 a partially uncurling hand must be authored at the accepted master's scale,
 then the full head edge and chin masked exactly. No BPR-0755 source promotion,
 actual-speed verdict or complete-catalog review follows from this study.
+
+The d7 [source-locked prompt brief](../../verification/dif-production-art-v005/PROMPTS.md)
+records detailed G1/G2 greeting and B1 blink edits against the exact accepted
+neutral, including the v003/v004 defects to avoid. The integrator used the
+built-in image-edit tool, saving exact prompts, reference roles, native
+1254-square RGBA outputs and hashes in the
+[v005 input ledger](../../verification/dif-production-art-v005/generated-inputs/README.md).
+These are candidate inputs, not accepted frames. The reproducible
+[v005 greeting study](../../verification/dif-production-art-v005/study/README.md)
+uses genuinely distinct partly open and fully open hands and restores exact
+head/chin equality, but still fails the rounded shoulder/forearm transition:
+the inner root loses an 87-pixel wedge and limb area changes 17.5% at the
+bridge-to-peak step. The two posed inputs remain rejected from source.
+Actual-speed motion and focused human art/derivative verdict remain pending;
+the accepted neutral bytes and shipped source are unchanged.

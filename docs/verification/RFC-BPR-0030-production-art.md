@@ -204,3 +204,30 @@ Further source artwork must establish a shoulder-fixed upper arm/elbow,
 consistent forearm volume, a partially uncurling intermediate hand and exact
 head-edge/chin masking. No timed playback, human verdict or runtime source
 selection exists for v004.
+
+## v005 source-locked prompts and edited inputs — unaccepted
+
+The user has no authored source poses and requested detailed generation/edit
+prompts in d7 / mandate revision 5. The integrator's
+[copyable brief](dif-production-art-v005/PROMPTS.md) ties nine separate
+built-in image-edit calls to the exact accepted neutral, immutable action
+sheets and v003/v004 defects. [Output provenance](dif-production-art-v005/generated-inputs/README.md)
+records prompt blocks, image roles, hashes, native 1254-square dimensions
+and retained project copies. These are new candidate inputs, not an approved
+identity, individual normalized frames or generator provenance beyond the
+observed local tool output. Ordinary compiler and runtime paths remain free
+of image generation.
+
+The [G1/G2 greeting study](dif-production-art-v005/study/README.md) fixes
+full head/translucent-edge/chin equality across six moving cells and exposes
+distinct partial/open hand states, but its shoulder/forearm boundary remains
+visibly inconsistent. A measured 87-pixel root wedge disappears and the
+bridge-to-open limb area changes 17.5%; the integrator rejects promotion.
+The [B1 strict eye study](dif-production-art-v005/blink-study/README.md)
+preserves neutral pixels outside its mask and all alpha, but pale inner/lower
+eye leakage and uneven purple texture remain at 256 pixels; it too is
+rejected. The six non-blink extended edited inputs only provide pose ideas
+pending local registration/retouch, timed motion and human review. The
+accepted neutral bytes and historic v002–v004 studies are unchanged. No
+complete 71-frame catalog, source manifest, app resource or final Dif-only
+attended candidate exists.

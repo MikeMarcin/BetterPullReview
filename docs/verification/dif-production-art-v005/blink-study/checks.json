@@ -1,0 +1,84 @@
+{
+  "inputs": {
+    "neutral": {
+      "path": "docs/verification/dif-production-art-v001/dif-neutral-master-candidate.png",
+      "sha256": "bb6ccdbb00cf55624f15aabcdf08f47b8d97ce1835af9bcc7e01d4d4471ebeef",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    "generated": {
+      "path": "docs/verification/dif-production-art-v005/generated-inputs/blink-closed-lids.png",
+      "sha256": "fb6764b7ab9df2c087ca909b5e2c748a70245591c17cb2cbe81e2fabd516174e",
+      "size": [
+        1254,
+        1254
+      ]
+    },
+    "v004": {
+      "path": "docs/verification/dif-production-art-v004/extended/blink-repair-eye-study.png",
+      "sha256": "32d4fc719318f0a9f0bb5f2a3cae3e28883fe9d02f5e1d3e6ff1a19581498c24",
+      "size": [
+        1536,
+        256
+      ]
+    }
+  },
+  "registration": {
+    "generated_resize": [
+      1024,
+      1024
+    ],
+    "eye_donor_translation": [
+      [
+        20,
+        -10
+      ],
+      [
+        3,
+        -10
+      ]
+    ],
+    "mask_ellipses": [
+      [
+        398,
+        389,
+        49,
+        65
+      ],
+      [
+        625,
+        389,
+        49,
+        65
+      ]
+    ],
+    "edge_weight": "clip((1-elliptical_distance_squared)*8,0,1)"
+  },
+  "changed_pixels": 19861,
+  "changed_bbox_exclusive": [
+    350,
+    325,
+    674,
+    454
+  ],
+  "non_eye_changed_pixels": 0,
+  "alpha_changed_pixels": 0,
+  "neutral_alpha_bbox": [
+    186,
+    86,
+    838,
+    892
+  ],
+  "hidden_rgb_pixels": 0,
+  "outputs": {
+    "closed-256-study.png": "2064314ec8a7758401ac60d5a847dc7e925540e07028426fdeb28d2260db9bd0",
+    "closed-native-study.png": "d3e7df3d333099105ef7c0f500cb066c76e4b85ffcd3fefade06ec2d17cbeb41",
+    "comparison-256.png": "bb114d6c0264eaade82265908c85d735a16ee3dcfdaa1a5fea91dbe52582534c",
+    "comparison-64.png": "ba06bd8fd4a1fafc4ea9bdef7b134881c7ee889136c255ef73f7656ff53c94ff",
+    "comparison-72.png": "59604a2741a751e22e37aeacbdfc9dc06c545af127080f04d15ffc5020a75d06",
+    "comparison-96.png": "8024d7805df574980d18d37d21cece09e179de58ce01611e35120d043a7bc154",
+    "strict-eye-mask.png": "18d1e17512dac3f1a4a465fd90c8906773e72d6e490c6714ab20eab88d5013c5"
+  }
+}
