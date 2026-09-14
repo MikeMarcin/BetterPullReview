@@ -25,6 +25,12 @@ Verify the pack; resolve live RFC and issue allocations, immutable baseline, cur
 
 Record focused command/gesture, direct surface, result, producing revision, and remaining limitation. Evidence is **not run** at pack authoring. Reuse still-valid prior results; never infer a native/art verdict from a fixture.
 
+## Boundaries
+
+No GitHub/GHES mutation, model run, credential access or shared-skill replacement is authorized by this card. Any required creative edit remains offline and separately recorded; ordinary builds and the product perform no image generation. Follow the milestone exit rather than running an exhaustive app-wide course for this slice.
+
+## Execution record
+
 Implementation intake on `main` began from `3e9065b5e577e92113b8e4cd57fcda01be6e6c32`.
 The [live import record](../../rfcs/assets/bpr-dif-integration-v1.LIVE_IMPORT.md)
 binds pre-import HEAD `9ce46e3576a44441cfcd932fca128091275e0068`,
@@ -45,7 +51,3 @@ two unmanaged `.DS_Store` files introduced within the archived tree; its direct
 run correctly refused that extra inventory. This is a pack integrity and intake
 result, not production-art or application acceptance. The bundled updater zip
 remains archival; the consumer context stays under `.mask/skill-config/`.
-
-## Boundaries
-
-No GitHub/GHES mutation, model run, credential access or shared-skill replacement is authorized by this card. Any required creative edit remains offline and separately recorded; ordinary builds and the product perform no image generation. Follow the milestone exit rather than running an exhaustive app-wide course for this slice.
