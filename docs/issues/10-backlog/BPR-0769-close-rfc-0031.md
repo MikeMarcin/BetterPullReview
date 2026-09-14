@@ -43,7 +43,20 @@ last dependent RFC to satisfy the repository's closeout-card convention.
 | **B11 — Rendered/accessibility evidence.** Actual app frames at shipping scales and supported appearance modes demonstrate readable alpha edges, calm motion, static reduced interval, noninterference with focus/status and approved visual integration. | Not run; import only | No producing revision |
 | **B12 — Complete handoff.** Focused tests, resource packaging, platform claims, source/ mutable docs, shared-skill consumer context and verification records agree. All ten clips are real and reachable; unavailable evidence/formal closeout remains honestly open, with no fabricated native/art verdict or forced rewriting of settled RFCs. | Partial: plan/consumer context and intake documented; all app/resource/native/art work remains open | `ee1e12df`, `57ced605`; [live import](../../rfcs/assets/bpr-dif-integration-v1.LIVE_IMPORT.md) |
 
-## Current frontier — connected greeting study rejected, dif-takeover-20260914 d5 / mandate r2
+## Current frontier — authorized offline image-edit continuation, dif-takeover-20260914 d6 / mandate r3
+
+The user explicitly answered yes to scoped image editing for the missing
+connected arm poses. This d6 amendment overrides the earlier BPR-0755
+no-model-run boundary for offline production-art candidate edits only.
+The exact neutral acceptance at sequence 379, immutable incoming provenance,
+ten-clip/71-frame target and final focused human art/derivative review still
+apply. Ordinary builds and shipped runtime remain free of generation. The
+integrator is preparing a new greeting pose candidate against the accepted
+neutral and incoming greet sheet; v003 remains rejected and is not promoted.
+The BPR-0755/0756/0757 and both production-art exits are pending. No new
+human verdict, catalog or runtime asset exists at this checkpoint.
+
+## Previous frontier — connected greeting study rejected, dif-takeover-20260914 d5 / mandate r2
 
 The d4 return was consumed as `continue-milestone` on `main` at `6b588724`.
 The d5 assignment binds the same BPR-0755/0756/0757 production-art work and
