@@ -68,3 +68,11 @@ motion verdict exists, and this card remains In Progress.
 ## Boundaries
 
 No GitHub/GHES mutation, model run, credential access or shared-skill replacement is authorized by this card. Any required creative edit remains offline and separately recorded; ordinary builds and the product perform no image generation. Follow the milestone exit rather than running an exhaustive app-wide course for this slice.
+
+The user's `dif-takeover-20260914` d6 / mandate revision 3 answer explicitly
+authorizes scoped **offline image editing** to create the missing connected
+arm poses. This later authorization supersedes the card's prior model-run
+restriction for that candidate work only. Generated pixels require recorded
+inputs/prompts/hashes, objective checks and focused human art/derivative review;
+they are not accepted merely because the image-edit call succeeded. Builds,
+runtime, credentials, remote mutation and shared skills remain outside scope.
