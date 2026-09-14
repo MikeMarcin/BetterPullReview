@@ -48,10 +48,14 @@ The task-owned direct app PID 19573 was stopped and its `gh` child exited;
 the other owner's PID 16108 was left alone. No token extraction, live PR
 write, global `gh` account change, device-session change, or private response
 content retention in the checkout or evidence record occurred. BPR-0792's
-bounded distinction and next-refusal acceptance can close; the new review-
-thread parser refusal remains a separate product follow-up if the owner
-renews the exact-target read objective. BPR-0617's Windows/Linux, canonical
-predecessor and RFC-wide obligations remain open.
+bounded distinction and next-refusal acceptance is Done at `edc59774`.
+That card finish changed the live obligation fingerprint after the d9
+assignment was computed; a renewed binding is needed before the plan helper
+can accept this milestone's return. No second private-target attempt is needed
+for that reconciliation. The new review-thread parser refusal remains a
+separate product follow-up if the owner renews the exact-target read
+objective. BPR-0617's Windows/Linux, canonical predecessor and RFC-wide
+obligations remain open.
 
 ## Current frontier — bpr0643-r2 / d8 / mandate r12
 
