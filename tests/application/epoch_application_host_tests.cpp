@@ -318,7 +318,11 @@ namespace {
 		std::vector<application::git_cache_open_request>        CacheOpenRequests;
 		std::function<void()>                                   DuringCacheDestruction;
 		std::vector<application::git_cache_blob_request>        BlobRequests;
-		bool                                                    CachedBlobMissing = false;
+		bool                                                    CachedBlobMissing          = false;
+		bool                                                    SparseObjects              = false;
+		bool                                                    SparseTreeMismatch         = false;
+		bool                                                    SparseCatalogMarkerMissing = false;
+		bool                                                    SupportsSparse             = false;
 		std::vector<application::git_smart_exact_blob_request>  ExactBlobRequests;
 		std::optional<application::git_smart_transport_failure> ExactBlobFailure;
 		std::vector<application::git_cache_tree_entry_request>  TreeEntryRequests;
@@ -590,6 +594,22 @@ namespace {
 				return std::unexpected{ *failure };
 			}
 			return State.Snapshot;
+		}
+
+		[[nodiscard]] auto retained_residency(
+			const core::epoch_ordinal aOrdinal,
+			const std::stop_token     aStop)
+			-> application::epoch_catalog_result<application::git_revision_residency> override
+		{
+			State.Calls.emplace_back("catalog.retained-residency");
+			if (aStop.stop_requested()) {
+				return std::unexpected{ application::epoch_catalog_failure::cancelled };
+			}
+			if (State.SparseCatalogMarkerMissing || !State.Operation || !State.Operation->Install
+				|| State.Operation->ReservedOrdinal != aOrdinal) {
+				return std::unexpected{ application::epoch_catalog_failure::unavailable };
+			}
+			return State.Operation->Install->Residency;
 		}
 
 		[[nodiscard]] auto occurrences(const std::stop_token aStop)
@@ -1518,14 +1538,16 @@ namespace {
 			};
 		}
 
-		[[nodiscard]] auto prepare_revision(
+		[[nodiscard]] auto prepare_fixture_revision(
 			const application::git_prepare_revision_request&                      aRequest,
 			const std::stop_token                                                 aStop,
-			const std::function<bool(const application::git_prepared_revision&)>& aWitness)
-			-> application::git_cache_result<
-				application::git_prepared_revision> override
+			const std::function<bool(const application::git_prepared_revision&)>& aWitness,
+			const application::git_revision_residency                             aResidency)
+			-> application::git_cache_result<application::git_prepared_revision>
 		{
-			State.Calls.emplace_back("cache.prepare-revision");
+			State.Calls.emplace_back(aResidency == application::git_revision_residency::sparse_commit_trees
+										 ? "cache.prepare-sparse-revision"
+										 : "cache.prepare-revision");
 			++State.CacheMutationCalls;
 			if (aStop.stop_requested()) {
 				return std::unexpected{ application::git_cache_failure::cancelled };
@@ -1551,7 +1573,13 @@ namespace {
 				.HeadTree      = oid<core::git_tree_oid>(70U),
 				.HeadLineage   = State.PreparedHeadLineage,
 				.ImportedBytes = 8U,
+				.Residency     = aResidency,
 			};
+			if (aResidency == application::git_revision_residency::sparse_commit_trees) {
+				prepared.HeadLineage = aRequest.PriorHead
+					? core::head_lineage::unknown
+					: core::head_lineage::not_applicable;
+			}
 			if (aWitness && State.InstallWitnessFault != install_witness_fault::omitted && !aWitness(prepared)) {
 				return std::unexpected{ application::git_cache_failure::authorization_mismatch };
 			}
@@ -1564,18 +1592,39 @@ namespace {
 			return prepared;
 		}
 
+		[[nodiscard]] auto prepare_revision(
+			const application::git_prepare_revision_request&                      aRequest,
+			const std::stop_token                                                 aStop,
+			const std::function<bool(const application::git_prepared_revision&)>& aWitness)
+			-> application::git_cache_result<application::git_prepared_revision> override
+		{
+			return prepare_fixture_revision(aRequest, aStop, aWitness,
+											application::git_revision_residency::complete_closure);
+		}
+
+		[[nodiscard]] auto prepare_sparse_revision(
+			const application::git_prepare_revision_request&                      aRequest,
+			const std::stop_token                                                 aStop,
+			const std::function<bool(const application::git_prepared_revision&)>& aWitness)
+			-> application::git_cache_result<application::git_prepared_revision> override
+		{
+			return prepare_fixture_revision(aRequest, aStop, aWitness,
+											application::git_revision_residency::sparse_commit_trees);
+		}
+
 		[[nodiscard]] auto promote_retained(
-			const application::git_prepared_revision&,
+			const application::git_prepared_revision&           aPrepared,
 			const application::git_ref_promotion_authorization& aAuthorization,
 			const std::stop_token) -> application::git_cache_result<application::git_retained_ref_pair> override
 		{
 			State.Calls.emplace_back("cache.promote");
 			++State.CacheMutationCalls;
 			State.Retained = application::git_retained_ref_pair{
-				.Scope   = aAuthorization.Scope,
-				.Ordinal = aAuthorization.Ordinal,
-				.Base    = aAuthorization.Base,
-				.Head    = aAuthorization.Head,
+				.Scope     = aAuthorization.Scope,
+				.Ordinal   = aAuthorization.Ordinal,
+				.Base      = aAuthorization.Base,
+				.Head      = aAuthorization.Head,
+				.Residency = aPrepared.Residency,
 			};
 			if (State.PromoteAppliesThenFails) {
 				State.PromoteAppliesThenFails = false;
@@ -1597,14 +1646,49 @@ namespace {
 			return *State.Retained;
 		}
 
+		[[nodiscard]] auto inspect_sparse_retained(
+			const core::epoch_ordinal aOrdinal,
+			const std::stop_token     aStop)
+			-> application::git_cache_result<application::git_retained_ref_pair> override
+		{
+			State.Calls.emplace_back("cache.inspect-sparse-retained");
+			if (aStop.stop_requested() || !State.Retained || State.Retained->Ordinal != aOrdinal
+				|| State.Retained->Residency != application::git_revision_residency::sparse_commit_trees) {
+				return std::unexpected{ application::git_cache_failure::ref_conflict };
+			}
+			return *State.Retained;
+		}
+
 		[[nodiscard]] auto inspect_commit_object(
 			const core::git_commit_oid aCommit,
 			const std::stop_token) -> application::git_cache_result<application::git_cache_commit_inspection> override
 		{
 			State.Calls.emplace_back("cache.inspect-commit");
+			if (State.SparseObjects) {
+				return std::unexpected{ application::git_cache_failure::object_mismatch };
+			}
 			return application::git_cache_commit_inspection{
 				.Commit = aCommit,
 				.Tree   = oid<core::git_tree_oid>(80U),
+			};
+		}
+
+		[[nodiscard]] auto inspect_sparse_commit_object(
+			const core::git_commit_oid aCommit,
+			const std::stop_token      aStop)
+			-> application::git_cache_result<application::git_cache_commit_inspection> override
+		{
+			State.Calls.emplace_back("cache.inspect-sparse-commit");
+			if (aStop.stop_requested() || !State.SparseObjects) {
+				return std::unexpected{ application::git_cache_failure::object_mismatch };
+			}
+			return application::git_cache_commit_inspection{
+				.Commit    = aCommit,
+				.Tree      = State.SparseTreeMismatch ? oid<core::git_tree_oid>(90U)
+					: aCommit == oid<core::git_commit_oid>(10U)
+					? oid<core::git_tree_oid>(60U)
+					: oid<core::git_tree_oid>(70U),
+				.Residency = application::git_revision_residency::sparse_commit_trees,
 			};
 		}
 
@@ -1838,7 +1922,7 @@ namespace {
 
 		[[nodiscard]] auto read_exact_blob(
 			const application::git_smart_exact_blob_request& aRequest,
-			const std::stop_token aStop)
+			const std::stop_token                            aStop)
 			-> application::git_smart_transport_result<std::vector<std::byte>> override
 		{
 			State.Calls.emplace_back("transport.read-exact-blob");
@@ -1960,6 +2044,11 @@ namespace {
 			-> const application::git_smart_authority_binding& override
 		{
 			return Binding;
+		}
+
+		[[nodiscard]] auto supports_sparse_commit_trees() const noexcept -> bool override
+		{
+			return State.SupportsSparse && !Revoked;
 		}
 
 		[[nodiscard]] auto acquire(
@@ -2773,7 +2862,7 @@ namespace {
 	}
 
 	void establish_ready_comparison(
-		fixture& aValue,
+		fixture&                                                aValue,
 		std::optional<application::accepted_pull_request_shape> aShape = std::nullopt)
 	{
 		auto handoff  = make_handoff(aValue.State, 1U, 20U, true);
@@ -5041,6 +5130,11 @@ namespace {
 			"shutdown closes blob ingress without enqueuing cache work");
 	}
 
+	[[nodiscard]] auto resolve_selected_diff(
+		fixture& aValue, const application::workbench_selected_diff_request& aRequest,
+		std::stop_token aStop)
+		-> application::workbench_selected_diff_observation;
+
 	void large_selected_blob_reads_only_the_exact_missing_object()
 	{
 		const auto read = [](fixture& aValue, const application::diff_blob_request& aRequest) {
@@ -5053,35 +5147,114 @@ namespace {
 			return *result;
 		};
 		fixture large;
+		large.State.SupportsSparse = true;
+		large.State.SparseObjects  = true;
 		establish_ready_comparison(large, application::accepted_pull_request_shape{ 101U, 1U, 1U });
 		large.State.CachedBlobMissing = true;
-		const auto request = blob_request_for(large.Host->state());
-		const auto loaded  = read(large, request);
+		const auto fabricated         = blob_request_for(large.Host->state());
+		expect(read(large, fabricated).Status == application::diff_blob_status::failure
+				   && large.State.ExactBlobRequests.empty(),
+			   "a same-PR blob without selected tree proof cannot be read remotely");
+		const auto selected = resolve_selected_diff(large, selected_diff_request_for(large), { });
+		expect(selected.Status == application::workbench_selected_diff_status::available
+				   && selected.LeftBlob && selected.RightBlob,
+			   "selected file resolves exact left and right tree objects");
+		auto request                    = fabricated;
+		request.Context.Key.LeftAnchor  = selected.Request.Diff.Comparison.Left.Identity;
+		request.Context.Key.RightAnchor = selected.Request.Diff.Comparison.Right.Identity;
+		request.Context.Key.LeftBlob    = selected.LeftBlob;
+		request.Context.Key.RightBlob   = selected.RightBlob;
+		request.Context.Key.File        = selected.Request.File.File;
+		request.Context.Key.Options     = selected.Request.Diff.OptionsDigest;
+		request.Context.Key.Algorithm   = selected.Request.Diff.Algorithm;
+		request.Blob                    = *selected.LeftBlob;
+		const auto loaded               = read(large, request);
 		expect(loaded.Status == application::diff_blob_status::available
 				   && loaded.Bytes == std::vector<std::uint8_t>{ 'e', 'x', 'a', 'c', 't', ' ', 's', 'e', 'l', 'e', 'c', 't', 'e', 'd', ' ', 'b', 'l', 'o', 'b' }
 				   && large.State.ExactBlobRequests.size() == 1U
 				   && large.State.ExactBlobRequests.front().ExpectedBlob == request.Blob
 				   && large.State.ExactBlobRequests.front().Context.Authority == *large.Host->state().Authority
 				   && large.State.ExactBlobRequests.front().MaximumBytes == request.MaximumBytes,
-			"large selection asks for only its exact tree-authorized missing blob");
+			   "large selection asks for only its exact tree-authorized missing blob");
+		auto substituted                 = request;
+		substituted.Blob                 = oid<core::git_blob_oid>(0x55U);
+		substituted.Context.Key.LeftBlob = substituted.Blob;
+		expect(read(large, substituted).Status == application::diff_blob_status::failure
+				   && large.State.ExactBlobRequests.size() == 1U,
+			   "a substituted same-file object cannot borrow the selected grant");
+		auto sameSelection = selected_diff_request_for(large, core::request_id{ 802U });
+		expect(resolve_selected_diff(large, sameSelection, { }).Status
+					   == application::workbench_selected_diff_status::available
+				   && read(large, request).Status == application::diff_blob_status::available
+				   && large.State.ExactBlobRequests.size() == 2U,
+			   "same-file re-resolution preserves the exact grant across request IDs");
 
 		large.State.ExactBlobFailure = application::git_smart_transport_failure::unavailable;
-		const auto unavailable = read(large, request);
+		const auto unavailable       = read(large, request);
 		expect(unavailable.Status == application::diff_blob_status::failure
-				   && unavailable.Bytes.empty() && large.State.ExactBlobRequests.size() == 2U,
-			"unproven remote object remains explicitly unavailable");
+				   && unavailable.Bytes.empty() && large.State.ExactBlobRequests.size() == 3U,
+			   "unproven remote object remains explicitly unavailable");
+		auto changedSelection                  = selected_diff_request_for(large, core::request_id{ 803U });
+		changedSelection.File.File             = core::file_identity_of("other.cpp");
+		changedSelection.File.CurrentPath      = "other.cpp";
+		changedSelection.File.PresentationPath = "other.cpp";
+		expect(resolve_selected_diff(large, changedSelection, { }).Status
+					   == application::workbench_selected_diff_status::available
+				   && read(large, request).Status == application::diff_blob_status::failure
+				   && large.State.ExactBlobRequests.size() == 3U,
+			   "a different selected file revokes the former remote-object grant");
 		large.Host->invalidate(matching_invalidation());
 		expect(large.Host->materialize(request, { }).Status == application::diff_blob_status::failure
-				   && large.State.ExactBlobRequests.size() == 2U,
-			"revoked selection cannot issue another exact object read");
+				   && large.State.ExactBlobRequests.size() == 3U,
+			   "revoked selection cannot issue another exact object read");
 
 		fixture small;
 		establish_ready_comparison(small, application::accepted_pull_request_shape{ 100U, 1U, 1U });
 		small.State.CachedBlobMissing = true;
-		const auto missing = read(small, blob_request_for(small.Host->state()));
+		const auto missing            = read(small, blob_request_for(small.Host->state()));
 		expect(missing.Status == application::diff_blob_status::missing
 				   && small.State.ExactBlobRequests.empty(),
-			"small complete reviews never turn a missing blob into a lazy remote read");
+			   "small complete reviews never turn a missing blob into a lazy remote read");
+	}
+
+	void large_review_uses_sparse_current_pair_while_small_stays_complete()
+	{
+		fixture large;
+		large.State.SupportsSparse = true;
+		large.State.SparseObjects  = true;
+		establish_ready_comparison(large, application::accepted_pull_request_shape{ 101U, 1U, 1U });
+		expect(std::ranges::find(large.State.Calls, "cache.prepare-sparse-revision") != large.State.Calls.end()
+				   && std::ranges::find(large.State.Calls, "cache.prepare-revision") == large.State.Calls.end()
+				   && large.State.Retained
+				   && large.State.Retained->Residency == application::git_revision_residency::sparse_commit_trees
+				   && large.Host->state().AcceptedComparison,
+			   "large accepted shape imports exact sparse current anchors and resolves their comparison");
+
+		fixture small;
+		small.State.SupportsSparse = true;
+		establish_ready_comparison(small, application::accepted_pull_request_shape{ 100U, 1U, 1U });
+		expect(std::ranges::find(small.State.Calls, "cache.prepare-revision") != small.State.Calls.end()
+				   && std::ranges::find(small.State.Calls, "cache.prepare-sparse-revision") == small.State.Calls.end()
+				   && small.State.Retained
+				   && small.State.Retained->Residency == application::git_revision_residency::complete_closure,
+			   "small accepted shape retains the complete background import");
+
+		fixture missingMarker;
+		missingMarker.State.SupportsSparse             = true;
+		missingMarker.State.SparseObjects              = true;
+		missingMarker.State.SparseCatalogMarkerMissing = true;
+		auto handoff                                   = make_handoff(missingMarker.State, 1U, 20U, true);
+		handoff.Shape                                  = application::accepted_pull_request_shape{ 101U, 1U, 1U };
+		missingMarker.Host->accept(std::move(handoff));
+		drive_through_preparation(missingMarker);
+		run_effect_completion(missingMarker);
+		drain(missingMarker);
+		expect(missingMarker.Host->state().AcceptedComparison
+				   && missingMarker.Host->state().AcceptedComparison->Left.Availability != core::anchor_availability::available
+				   && missingMarker.Host->state().AcceptedComparison->Right.Availability != core::anchor_availability::available
+				   && std::ranges::find(missingMarker.State.Calls, "catalog.retained-residency") != missingMarker.State.Calls.end()
+				   && std::ranges::find(missingMarker.State.Calls, "cache.inspect-sparse-commit") == missingMarker.State.Calls.end(),
+			   "physical sparse objects alone cannot replace a missing durable residency marker");
 	}
 
 	[[nodiscard]] auto resolve_selected_diff(
@@ -7399,6 +7572,7 @@ int main()
 	same_repository_actor_switches_exact_pr_cache_sessions_in_fifo_order();
 	diff_blob_materialization_reuses_the_epoch_cache_actor();
 	large_selected_blob_reads_only_the_exact_missing_object();
+	large_review_uses_sparse_current_pair_while_small_stays_complete();
 	selected_diff_resolution_reuses_and_revalidates_the_epoch_cache_actor();
 	selected_diff_resolves_each_endpoint_without_provider_direction();
 	selected_diff_rename_resolution_is_directional_and_ambiguous_closed();

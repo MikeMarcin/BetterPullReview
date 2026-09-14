@@ -343,6 +343,12 @@ namespace {
 			write(root / "blob-response", bad);
 			expect(!(*transport)->read_exact_blob(blobRequest, { }), "malformed/oversize/hash mismatch blob refused");
 		}
+		write(root / "blob-response", "{\"sha\":\"" + blob.toStdString() + "\",\"size\":1025,\"encoding\":\"base64\",\"content\":\"\"}");
+		const auto oversizedSize = (*transport)->read_exact_blob(blobRequest, { });
+		expect(!oversizedSize && oversizedSize.error().Failure == application::git_smart_transport_failure::response_limit, "declared blob size above materialization bound reports response limit");
+		write(root / "blob-response", "{\"size\":1025.5}");
+		const auto fractionalSize = (*transport)->read_exact_blob(blobRequest, { });
+		expect(!fractionalSize && fractionalSize.error().Failure == application::git_smart_transport_failure::malformed_response, "fractional blob size remains malformed");
 		for (const auto& replacement : std::vector<std::pair<std::string, std::string>>{
 				 { "base64", "utf-8" }, { blob.toStdString(), std::string(40U, 'a') }, { "Y29tcGxldGU", "!29tcGxldGU" }, { "24", "23" } }) {
 			auto       bad = goodBlob;

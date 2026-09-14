@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <array>
 #include <charconv>
+#include <cmath>
 #include <fstream>
 #include <mutex>
 #include <optional>
@@ -250,8 +251,11 @@ namespace bpr::adapters::github::detail {
 					}
 					const auto object = document.object();
 					const auto size   = object.value("size");
-					if (!size.isDouble() || size.toDouble() < 0 || size.toDouble() > static_cast<double>(aRequest.MaximumBytes)) {
+					if (!size.isDouble() || size.toDouble() < 0 || std::floor(size.toDouble()) != size.toDouble()) {
 						return malformed;
+					}
+					if (size.toDouble() > static_cast<double>(aRequest.MaximumBytes)) {
+						return std::unexpected{ git_smart_transport_error{ failure::response_limit } };
 					}
 					const auto count = static_cast<std::size_t>(size.toDouble());
 					if (static_cast<double>(count) != size.toDouble() || object.value("encoding").toString() != "base64"

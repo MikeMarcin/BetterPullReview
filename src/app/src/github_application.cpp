@@ -564,6 +564,11 @@ namespace bpr::app {
 																				 [self = shared_from_this()] { return self->Transport.configuration_unchanged(); });
 			}
 
+			[[nodiscard]] auto supports_sparse_commit_trees() const noexcept -> bool override
+			{
+				return true;
+			}
+
 			[[nodiscard]] auto perform(
 				const adapters::github::detail::github_wire_request& aRequest,
 				std::stop_token                                      aStop)

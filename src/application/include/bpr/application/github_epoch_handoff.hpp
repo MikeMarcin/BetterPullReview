@@ -81,7 +81,11 @@ namespace bpr::application {
 			-> const git_smart_authority_binding& = 0;
 		[[nodiscard]] virtual auto acquire(
 			const git_smart_request_context& aContext)
-			-> git_smart_transport_result<git_smart_transport>      = 0;
+			-> git_smart_transport_result<git_smart_transport> = 0;
+		[[nodiscard]] virtual auto supports_sparse_commit_trees() const noexcept -> bool
+		{
+			return false;
+		}
 		virtual void               revoke() noexcept                = 0;
 		[[nodiscard]] virtual auto revoked() const noexcept -> bool = 0;
 	};

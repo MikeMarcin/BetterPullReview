@@ -160,6 +160,17 @@ namespace bpr::application {
 				return Binding;
 			}
 
+			[[nodiscard]] auto supports_sparse_commit_trees() const noexcept -> bool override
+			{
+				if (State->Revoked.load(std::memory_order_acquire)) {
+					return false;
+				}
+				auto* const factory = Account == nullptr
+					? Anonymous
+					: dynamic_cast<git_smart_transport_factory_port*>(Account.get());
+				return factory != nullptr && factory->supports_sparse_commit_trees();
+			}
+
 			[[nodiscard]] auto acquire(const git_smart_request_context& aContext)
 				-> git_smart_transport_result<git_smart_transport> override
 			{

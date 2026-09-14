@@ -771,6 +771,7 @@ namespace bpr::application {
 					.PreimportPacks           = aRecord.Preimport->Packs,
 					.PreimportRepositoryBytes = aRecord.Preimport->RepositoryBytes,
 					.ExpectedPackPreexisting  = aRecord.Preimport->ExpectedPackPreexisting,
+					.Residency                = aRecord.Spool->Residency,
 				};
 			}
 			if (aRecord.Install) {
@@ -780,6 +781,7 @@ namespace bpr::application {
 					.InstalledIndex = aRecord.Install->InstalledIndex,
 					.BaseTree       = aRecord.Install->BaseTree,
 					.HeadTree       = aRecord.Install->HeadTree,
+					.Residency      = aRecord.Install->Residency,
 				};
 			}
 			return application::valid(request) ? std::optional{ std::move(request) }
@@ -804,6 +806,7 @@ namespace bpr::application {
 				.HeadTree       = aRecord.Install->HeadTree,
 				.HeadLineage    = aRecord.Install->HeadLineage,
 				.ImportedBytes  = aRecord.Install->InstalledPack.Bytes,
+				.Residency      = aRecord.Install->Residency,
 			};
 			return application::valid(prepared) ? std::optional{ std::move(prepared) }
 												: std::nullopt;
@@ -813,10 +816,13 @@ namespace bpr::application {
 			const append_operation_record& aRecord) -> git_retained_ref_pair
 		{
 			return {
-				.Scope   = aRecord.FinalBase.Authority,
-				.Ordinal = aRecord.ReservedOrdinal,
-				.Base    = aRecord.Context.Revision.Base,
-				.Head    = aRecord.Context.Revision.Head,
+				.Scope     = aRecord.FinalBase.Authority,
+				.Ordinal   = aRecord.ReservedOrdinal,
+				.Base      = aRecord.Context.Revision.Base,
+				.Head      = aRecord.Context.Revision.Head,
+				.Residency = aRecord.Install
+					? aRecord.Install->Residency
+					: git_revision_residency::complete_closure,
 			};
 		}
 
@@ -1008,9 +1014,11 @@ namespace bpr::application {
 
 		[[nodiscard]] auto exact_prepared_revision(
 			const git_prepared_revision&        aPrepared,
-			const git_prepare_revision_request& aRequest) noexcept -> bool
+			const git_prepare_revision_request& aRequest,
+			const git_revision_residency        aResidency) noexcept -> bool
 		{
 			return application::valid(aPrepared)
+				&& aPrepared.Residency == aResidency
 				&& aPrepared.Operation == aRequest.Authorization.Operation
 				&& aPrepared.Pack == aRequest.Authorization.ExpectedPack
 				&& aPrepared.Base == aRequest.Base && aPrepared.Head == aRequest.Head
@@ -1105,8 +1113,10 @@ namespace bpr::application {
 			/// first must not stop serving the second. Minted only by the
 			/// host, replaced by the next re-alignment, and dropped whenever
 			/// the review's context is replaced or revoked.
-			std::optional<selected_diff_authority> RealignmentAuthority;
-			std::uint64_t                          BlobAuthorityGeneration = 0U;
+			std::optional<selected_diff_authority>             RealignmentAuthority;
+			std::optional<workbench_selected_diff_observation> SelectedBlobGrant;
+			std::uint64_t                                      SelectedBlobGrantSequence = 0U;
+			std::uint64_t                                      BlobAuthorityGeneration   = 0U;
 		};
 
 		struct blob_waiter final
@@ -1351,6 +1361,31 @@ namespace bpr::application {
 			};
 		}
 
+		[[nodiscard]] static auto exact_selected_blob_request(
+			const workbench_selected_diff_observation& aGrant,
+			const diff_blob_request&                   aRequest) noexcept -> bool
+		{
+			if (aGrant.Status != workbench_selected_diff_status::available) {
+				return false;
+			}
+			const auto& selected = aGrant.Request;
+			const auto& key      = aRequest.Context.Key;
+			return aRequest.Context.ApplicationSession == selected.Diff.ApplicationSession
+				&& key.Authority == selected.Diff.Authority
+				&& key.Repository == selected.Diff.Authority.Repository
+				&& key.PullRequest == selected.Diff.Authority.PullRequest
+				&& key.LeftAnchor == selected.Diff.Comparison.Left.Identity
+				&& key.RightAnchor == selected.Diff.Comparison.Right.Identity
+				&& key.LeftBlob == aGrant.LeftBlob
+				&& key.RightBlob == aGrant.RightBlob
+				&& key.File == selected.File.File
+				&& key.Options == selected.Diff.OptionsDigest
+				&& key.Algorithm == selected.Diff.Algorithm
+				&& (aRequest.Side == core::diff_side::left
+						? aGrant.LeftBlob == std::optional{ aRequest.Blob }
+						: aGrant.RightBlob == std::optional{ aRequest.Blob });
+		}
+
 		static void authorize_blobs(
 			const std::shared_ptr<authority_effect_actor>& aActor,
 			const blob_authority&                          aAuthority,
@@ -1362,6 +1397,8 @@ namespace bpr::application {
 			aActor->BlobContext   = aContext;
 			aActor->SelectedDiffAuthority.reset();
 			aActor->RealignmentAuthority.reset();
+			aActor->SelectedBlobGrant.reset();
+			++aActor->SelectedBlobGrantSequence;
 		}
 
 		static void authorize_selected_diff(
@@ -1374,6 +1411,8 @@ namespace bpr::application {
 			}
 			++aActor->BlobAuthorityGeneration;
 			aActor->SelectedDiffAuthority = aAuthority;
+			aActor->SelectedBlobGrant.reset();
+			++aActor->SelectedBlobGrantSequence;
 		}
 
 		/// \brief Grants the one re-alignment authorization, without a bump.
@@ -1400,6 +1439,8 @@ namespace bpr::application {
 			if (aActor->BlobAuthority == std::optional{ aAuthority }) {
 				aActor->BlobAuthority.reset();
 				aActor->BlobContext.reset();
+				aActor->SelectedBlobGrant.reset();
+				++aActor->SelectedBlobGrantSequence;
 				aActor->SelectedDiffAuthority.reset();
 				aActor->RealignmentAuthority.reset();
 				++aActor->BlobAuthorityGeneration;
@@ -2448,8 +2489,10 @@ namespace bpr::application {
 				return std::unexpected{ core::epoch_failure::repair_required };
 			}
 
-			const auto retained = aCache.inspect_retained(
-				aRecord.ReservedOrdinal, postCommitStop);
+			const auto retained = aRecord.Install
+					&& aRecord.Install->Residency == git_revision_residency::sparse_commit_trees
+				? aCache.inspect_sparse_retained(aRecord.ReservedOrdinal, postCommitStop)
+				: aCache.inspect_retained(aRecord.ReservedOrdinal, postCommitStop);
 			if (!retained) {
 				return failedCache(retained.error());
 			}
@@ -3624,6 +3667,26 @@ namespace bpr::application {
 				result.Status = workbench_selected_diff_status::stale;
 				return result;
 			}
+			std::uint64_t grantSequence  = 0U;
+			bool          selectedReview = false;
+			{
+				std::scoped_lock lock{ actor->BlobAuthorityMutex };
+				selectedReview = actor->SelectedDiffAuthority == std::optional{ selected_diff_authority{
+									 .Workbench = aRequest.WorkbenchAuthority,
+									 .Diff      = aRequest.Diff,
+								 } };
+				if (selectedReview) {
+					const auto sameSelection = actor->SelectedBlobGrant
+						&& actor->SelectedBlobGrant->Request.WorkbenchAuthority == aRequest.WorkbenchAuthority
+						&& actor->SelectedBlobGrant->Request.Diff == aRequest.Diff
+						&& actor->SelectedBlobGrant->Request.File == aRequest.File;
+					if (!sameSelection) {
+						actor->SelectedBlobGrant.reset();
+						++actor->SelectedBlobGrantSequence;
+					}
+					grantSequence = actor->SelectedBlobGrantSequence;
+				}
+			}
 			auto waiter = std::shared_ptr<selected_diff_waiter>{ };
 			try {
 				waiter = std::make_shared<selected_diff_waiter>();
@@ -3651,6 +3714,8 @@ namespace bpr::application {
 					[this,
 					 actor,
 					 admittedGeneration = *authorizationGeneration,
+					 grantSequence,
+					 selectedReview,
 					 expected,
 					 aRequest,
 					 aStop,
@@ -3855,7 +3920,8 @@ namespace bpr::application {
 											   (actor->SelectedDiffAuthority != held
 												&& actor->RealignmentAuthority != held)
 											   || actor->BlobAuthorityGeneration
-												   != admittedGeneration) {
+												   != admittedGeneration
+											   || (selectedReview && actor->SelectedBlobGrantSequence != grantSequence)) {
 										observation.Status = workbench_selected_diff_status::stale;
 									} else {
 										observation.Status = workbench_selected_diff_status::available;
@@ -3879,6 +3945,9 @@ namespace bpr::application {
 										observation.RightBlob = std::move(right->Blob);
 										observation.LeftPath  = std::move(left->Path);
 										observation.RightPath = std::move(right->Path);
+										if (selectedReview) {
+											actor->SelectedBlobGrant = observation;
+										}
 									}
 								}
 							}
@@ -4060,46 +4129,76 @@ namespace bpr::application {
 										.MaximumBytes = aRequest.MaximumBytes,
 									},
 									workStop);
-								auto bytes = std::optional<std::vector<std::uint8_t>>{ };
+								auto bytes                 = std::optional<std::vector<std::uint8_t>>{ };
+								auto selectedGrantSequence = std::optional<std::uint64_t>{ };
 								if (cached) {
 									bytes = std::move(*cached);
 								} else if (cached.error() == git_cache_failure::object_mismatch
-									&& object_loading_for(selectedContext->Handoff.Shape)
-										== pull_request_object_loading::selected_objects
-									&& blob_authority_for(*selectedContext) == authorization
-									&& selectedContext->Handoff.SmartGit
-									&& blob_authorization_generation(actor, authorization)
-										== admittedGeneration) {
-									const auto smartContext = git_smart_request_context{
-										.ApplicationSession = selectedContext->Handoff.ApplicationSession,
-										.Authority          = selectedContext->Authority,
-										.Revision           = selectedContext->Revision,
-										.Repository         = selectedContext->Handoff.Locator,
-										.BaseRef            = selectedContext->Handoff.BaseRef,
-									};
-									const auto transport = selectedContext->Handoff.SmartGit->acquire(smartContext);
-									if (transport && *transport) {
-										const auto fetched = (*transport)->read_exact_blob(
-											git_smart_exact_blob_request{
-												.Context      = smartContext,
-												.ExpectedBlob = aRequest.Blob,
-												.MaximumBytes = static_cast<std::size_t>(aRequest.MaximumBytes),
-											},
-											workStop);
-										if (fetched) {
-											bytes.emplace();
-											bytes->reserve(fetched->size());
-											for (const auto byte : *fetched) {
-												bytes->push_back(std::to_integer<std::uint8_t>(byte));
-											}
-										} else if (fetched.error().Failure == git_smart_transport_failure::cancelled) {
-											observation.Status = diff_blob_status::cancelled;
-										} else if (fetched.error().Failure == git_smart_transport_failure::response_limit) {
-											observation.Status = diff_blob_status::materialization_limit;
+										   && object_loading_for(selectedContext->Handoff.Shape)
+											   == pull_request_object_loading::selected_objects
+										   && blob_authority_for(*selectedContext) == authorization
+										   && selectedContext->Handoff.SmartGit
+										   && selectedContext->Handoff.SmartGit->supports_sparse_commit_trees()
+										   && blob_authorization_generation(actor, authorization)
+											   == admittedGeneration) {
+									bool grantCurrentPair = false;
+									{
+										std::scoped_lock lock{ actor->BlobAuthorityMutex };
+										if (actor->SelectedBlobGrant
+											&& exact_selected_blob_request(*actor->SelectedBlobGrant, aRequest)) {
+											selectedGrantSequence = actor->SelectedBlobGrantSequence;
+											const auto& pair      = actor->SelectedBlobGrant->Request.Diff.Comparison;
+											grantCurrentPair      = (pair.Left.Commit == selectedContext->Revision.Base
+																	 && pair.Right.Commit == selectedContext->Revision.Head)
+												|| (pair.Left.Commit == selectedContext->Revision.Head
+													&& pair.Right.Commit == selectedContext->Revision.Base);
 										}
-					} else if (!transport
-						&& transport.error().Failure == git_smart_transport_failure::cancelled) {
-										observation.Status = diff_blob_status::cancelled;
+									}
+									const auto durablySparse = [&] {
+										if (!selectedGrantSequence || !grantCurrentPair) {
+											return false;
+										}
+										const auto snapshot = selectedContext->Catalog->snapshot(workStop);
+										if (!snapshot || !snapshot->LatestLive
+											|| snapshot->LatestLive->Base != selectedContext->Revision.Base
+											|| snapshot->LatestLive->Head != selectedContext->Revision.Head) {
+											return false;
+										}
+										const auto recorded = selectedContext->Catalog->retained_residency(
+											snapshot->LatestLive->Id.Ordinal, workStop);
+										return recorded && *recorded == git_revision_residency::sparse_commit_trees;
+									}();
+									if (durablySparse) {
+										const auto smartContext = git_smart_request_context{
+											.ApplicationSession = selectedContext->Handoff.ApplicationSession,
+											.Authority          = selectedContext->Authority,
+											.Revision           = selectedContext->Revision,
+											.Repository         = selectedContext->Handoff.Locator,
+											.BaseRef            = selectedContext->Handoff.BaseRef,
+										};
+										const auto transport = selectedContext->Handoff.SmartGit->acquire(smartContext);
+										if (transport && *transport) {
+											const auto fetched = (*transport)->read_exact_blob(git_smart_exact_blob_request{
+																								   .Context      = smartContext,
+																								   .ExpectedBlob = aRequest.Blob,
+																								   .MaximumBytes = static_cast<std::size_t>(aRequest.MaximumBytes),
+																							   },
+																							   workStop);
+											if (fetched) {
+												bytes.emplace();
+												bytes->reserve(fetched->size());
+												for (const auto byte : *fetched) {
+													bytes->push_back(std::to_integer<std::uint8_t>(byte));
+												}
+											} else if (fetched.error().Failure == git_smart_transport_failure::cancelled) {
+												observation.Status = diff_blob_status::cancelled;
+											} else if (fetched.error().Failure == git_smart_transport_failure::response_limit) {
+												observation.Status = diff_blob_status::materialization_limit;
+											}
+										} else if (!transport
+												   && transport.error().Failure == git_smart_transport_failure::cancelled) {
+											observation.Status = diff_blob_status::cancelled;
+										}
 									}
 								}
 								if (bytes.has_value()) {
@@ -4114,7 +4213,11 @@ namespace bpr::application {
 										actor->BlobAuthority
 											!= std::optional{ authorization }
 										|| actor->BlobAuthorityGeneration
-											!= admittedGeneration) {
+											!= admittedGeneration
+										|| (selectedGrantSequence
+											&& (actor->SelectedBlobGrantSequence != *selectedGrantSequence
+												|| !actor->SelectedBlobGrant
+												|| !exact_selected_blob_request(*actor->SelectedBlobGrant, aRequest)))) {
 										observation.Status = diff_blob_status::failure;
 									} else {
 										observation.Status = diff_blob_status::available;
@@ -5616,6 +5719,11 @@ namespace bpr::application {
 						.Revision           = aRequest.Context.Revision,
 						.Repository         = context->Handoff.Locator,
 						.BaseRef            = context->Handoff.BaseRef,
+						.AcquisitionMode    = object_loading_for(context->Handoff.Shape)
+									== pull_request_object_loading::selected_objects
+								&& context->Handoff.SmartGit->supports_sparse_commit_trees()
+							? git_smart_acquisition_mode::sparse_commit_trees
+							: git_smart_acquisition_mode::complete_closure,
 					};
 					auto transport = diagnostics.perform(
 						diagnostic_epoch_stage::smart_acquire,
@@ -5704,11 +5812,15 @@ namespace bpr::application {
 							? cancelPrepared()
 							: failPrepared(cache_failure(inventory.error()));
 					}
+					auto spoolFact          = durable_fact(acquisition->Fetch.Pack);
+					spoolFact.Residency     = smartContext.AcquisitionMode == git_smart_acquisition_mode::sparse_commit_trees
+						? git_revision_residency::sparse_commit_trees
+						: git_revision_residency::complete_closure;
 					const auto spoolRequest = record_spool_request{
 						.Catalog                   = expectedCatalog,
 						.Operation                 = prepared.Operation,
 						.ExpectedOperationRevision = prepared.Record->OperationRevision,
-						.Spool                     = durable_fact(acquisition->Fetch.Pack),
+						.Spool                     = spoolFact,
 						.Preimport                 = durable_fact(*inventory),
 					};
 					auto record = diagnostics.perform(
@@ -5765,7 +5877,11 @@ namespace bpr::application {
 					std::optional<core::epoch_failure> witnessFailure;
 					const auto                         persistInstallation = [&](const git_prepared_revision& aInstallation) {
 						if (witnessed || witnessFailure || witnessCancelled
-							|| !exact_prepared_revision(aInstallation, gitRequest)) {
+							|| !exact_prepared_revision(
+								aInstallation, gitRequest,
+								smartContext.AcquisitionMode == git_smart_acquisition_mode::sparse_commit_trees
+									? git_revision_residency::sparse_commit_trees
+									: git_revision_residency::complete_closure)) {
 							witnessFailure = core::epoch_failure::repair_required;
 							return false;
 						}
@@ -5792,7 +5908,11 @@ namespace bpr::application {
 					};
 					auto git = diagnostics.perform(
 						diagnostic_epoch_stage::revision_prepare,
-						[&] { return context->Actor->Cache->prepare_revision(gitRequest, aStop, persistInstallation); });
+						[&] {
+							return smartContext.AcquisitionMode == git_smart_acquisition_mode::sparse_commit_trees
+								? context->Actor->Cache->prepare_sparse_revision(gitRequest, aStop, persistInstallation)
+								: context->Actor->Cache->prepare_revision(gitRequest, aStop, persistInstallation);
+						});
 					if (witnessFailure) {
 						return witnessCancelled ? cancelPrepared() : failPrepared(*witnessFailure);
 					}
@@ -5801,7 +5921,7 @@ namespace bpr::application {
 							? cancelPrepared()
 							: failPrepared(cache_failure(git.error()));
 					}
-					if (!witnessed || !exact_prepared_revision(*git, gitRequest)) {
+					if (!witnessed || !exact_prepared_revision(*git, gitRequest, smartContext.AcquisitionMode == git_smart_acquisition_mode::sparse_commit_trees ? git_revision_residency::sparse_commit_trees : git_revision_residency::complete_closure)) {
 						return failPrepared(core::epoch_failure::repair_required);
 					}
 					*git = normalizeLineage(*git);
@@ -5904,6 +6024,15 @@ namespace bpr::application {
 		{
 			// A historical import is supplementary. One actor serializes it with live
 			// retention, and each successful completion may admit another event.
+			// Large CLI reviews keep older comparison objects out of the initial
+			// load. Unproven historical anchors remain unavailable; a separate
+			// selected-epoch acquisition must prove them before comparison.
+			if (object_loading_for(aContext->Handoff.Shape)
+					== pull_request_object_loading::selected_objects
+				&& aContext->Handoff.SmartGit
+				&& aContext->Handoff.SmartGit->supports_sparse_commit_trees()) {
+				return;
+			}
 			if (aContext->HistoricalImportPending
 				|| aContext->HistoricalImports + aContext->HistoricalSkipped.size() >= 8U
 				|| !aContext->OccurrenceHistory || !aContext->Handoff.SmartGit
@@ -6596,8 +6725,12 @@ namespace bpr::application {
 							return resolveRecovery();
 						}
 						operation.Record     = *record;
-						const auto inspected = context->Actor->Cache->inspect_retained(
-							append->Epoch.Id.Ordinal, { });
+						const auto inspected = operation.Git->Residency
+								== git_revision_residency::sparse_commit_trees
+							? context->Actor->Cache->inspect_sparse_retained(
+								  append->Epoch.Id.Ordinal, { })
+							: context->Actor->Cache->inspect_retained(
+								  append->Epoch.Id.Ordinal, { });
 						if (!inspected) {
 							return resolveRecovery();
 						}
@@ -7287,7 +7420,33 @@ namespace bpr::application {
 						};
 					}
 					std::vector<std::pair<core::git_commit_oid, bool>> verified;
-					const auto                                         isVerified = [&](const core::git_commit_oid aCommit) {
+					const auto                                         sparseCandidate = candidates.LatestLive
+						&& candidates.LatestLive->Material.has_value()
+						&& candidates.LatestLive->Base == context->Revision.Base
+						&& candidates.LatestLive->Head == context->Revision.Head
+						&& object_loading_for(context->Handoff.Shape)
+							== pull_request_object_loading::selected_objects
+						&& context->Handoff.SmartGit
+						&& context->Handoff.SmartGit->supports_sparse_commit_trees();
+					const auto sparseCurrentPair = [&] {
+						if (!sparseCandidate) {
+							return false;
+						}
+						const auto recorded = context->Catalog->retained_residency(
+							candidates.LatestLive->Id.Ordinal, aStop);
+						if (!recorded || *recorded != git_revision_residency::sparse_commit_trees) {
+							return false;
+						}
+						const auto retained = context->Actor->Cache->inspect_sparse_retained(
+							candidates.LatestLive->Id.Ordinal, aStop);
+						return retained && application::valid(*retained)
+							&& retained->Residency == git_revision_residency::sparse_commit_trees
+							&& retained->Scope == context->Authority.Scope
+							&& retained->Ordinal == candidates.LatestLive->Id.Ordinal
+							&& retained->Base == context->Revision.Base
+							&& retained->Head == context->Revision.Head;
+					}();
+					const auto isVerified = [&](const core::git_commit_oid aCommit) {
 						const auto prior = std::ranges::find_if(
 							verified,
 							[&](const auto& aEntry) {
@@ -7298,9 +7457,20 @@ namespace bpr::application {
 						}
 						const auto inspected = context->Actor->Cache->inspect_commit_object(
 							aCommit, aStop);
-						const auto exact = inspected
+						auto exact = inspected
 							&& application::valid(*inspected)
-							&& inspected->Commit == aCommit;
+							&& inspected->Commit == aCommit
+							&& inspected->Residency == git_revision_residency::complete_closure;
+						if (!exact && sparseCurrentPair
+							&& (aCommit == context->Revision.Base
+								|| aCommit == context->Revision.Head)) {
+							const auto sparse = context->Actor->Cache->inspect_sparse_commit_object(
+								aCommit, aStop);
+							exact = sparse && application::valid(*sparse)
+								&& sparse->Commit == aCommit
+								&& sparse->Residency == git_revision_residency::sparse_commit_trees
+								&& sparse->Tree == (aCommit == context->Revision.Base ? candidates.LatestLive->Material->BaseTree : candidates.LatestLive->Material->HeadTree);
+						}
 						verified.emplace_back(aCommit, exact);
 						return exact;
 					};
