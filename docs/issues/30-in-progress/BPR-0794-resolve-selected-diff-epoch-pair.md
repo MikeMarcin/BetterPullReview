@@ -59,8 +59,20 @@ The fixed aggregate-only record is outside the checkout at
 No child stderr, response body, private object or credential was retained.
 An adapter-only sparse clone cannot satisfy the current strict connected-pack
 Git cache contract. A synthetic complete-pack/missing-blob/missing-parent
-fixture confirmed that the incomplete cases refuse. A host-owned exact-object
-request and separate sparse-residency/recovery contract are needed before a
-selected diff can be sourced within unchanged limits. The source repair and
-tests-disabled product criterion remain open; no second product read is
-claimed.
+fixture confirmed that the incomplete cases refuse. The d13 candidate now
+adds a separate durable sparse commit/tree residency mode, exact SHA-1
+commit/root-tree checks and shallow lineage marked unknown when needed. The
+strict complete-pack path remains unchanged. A closed `gh api` exact-blob GET
+checks the Git object ID, size, base64 payload, viewer/configuration and
+cancellation before handing bytes to the host. The host requests a missing
+blob only for an accepted large review and an exact authorized current pair.
+Synthetic tests prove a sparse current pair can be accepted, the small path
+remains complete, and unavailable/stale selected-object reads refuse. The
+tests-disabled Mac bundle builds. Four focused cross-layer tests, the cache
+and storage contracts, documentation gate, and format check pass. Independent
+critical review found no remaining current-pair authority or recovery blocker;
+its older-epoch selection finding remains assigned to BPR-0795. A task-owned
+app instance reached signed-out Settings, but the macOS computer-use control
+could not activate its GitHub CLI host selector, so no new target read or
+source/anchor observation is claimed. The readable selected-diff acceptance
+remains open.

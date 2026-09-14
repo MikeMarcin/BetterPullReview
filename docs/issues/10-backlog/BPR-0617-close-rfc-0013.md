@@ -4,7 +4,7 @@ id: "BPR-0617"
 title: "Verify and close RFC-BPR-0013"
 status: "Backlog"
 rfcs: ["RFC-BPR-0013"]
-depends_on: ["BPR-0507","BPR-0616","BPR-0618","BPR-0619","BPR-0620","BPR-0621","BPR-0622","BPR-0623","BPR-0624","BPR-0626","BPR-0627","BPR-0628","BPR-0629","BPR-0630","BPR-0631","BPR-0632","BPR-0633","BPR-0634","BPR-0635","BPR-0792","BPR-0793","BPR-0794"]
+depends_on: ["BPR-0507","BPR-0616","BPR-0618","BPR-0619","BPR-0620","BPR-0621","BPR-0622","BPR-0623","BPR-0624","BPR-0626","BPR-0627","BPR-0628","BPR-0629","BPR-0630","BPR-0631","BPR-0632","BPR-0633","BPR-0634","BPR-0635","BPR-0792","BPR-0793","BPR-0794","BPR-0795"]
 closeout_for: ["RFC-BPR-0013"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"}}
 ---
@@ -26,23 +26,29 @@ the proposed new work atom; the explicit r16 user mandate and live BPR-0795 card
 are the source basis for the reconciled plan. The renewed current binding is
 `docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-bpr0643-r5-d13-r16.json`.
 
-The thin public path already publishes `loading_pull_request` before posting
-the provider effect; a pause before first paint is not yet attributed. Accepted
-snapshot file and commit counts exist at the application handoff but are not
-passed to the epoch host. A bounded host/Qt owner is checking first-paint
-behavior and adding exact shape facts. The integrator owns sparse Git/cache,
-epoch-host integration, plan/card updates, and final evidence. No source repair,
-new private-target read, or readable selected diff is claimed. The candidate
-starts at `890407b9`; BPR-0794 and BPR-0795 remain open. Unrelated dirty
+The composed held-provider window test found that new-target loading switched
+away from its visible label before paint; the repaired Home projection paints
+loading before the provider completes. Exact accepted shape now chooses the
+complete path for small reviews and bounded sparse commit/tree acquisition for
+large CLI reviews. The current synthetic host path accepts an exact sparse
+current pair and reads only an authorized missing selected blob; small reviews
+retain complete background acquisition. Durable spool/install residency and
+recovery, CLI OID checks, cache and storage contracts, four focused cross-layer
+tests, the documentation gate and format check pass. Both development and
+tests-disabled Mac bundles build. The task-owned Mac app could not activate
+the CLI host selector through computer-use control, so no new private-target
+read or readable selected diff is claimed. An older unimported force-push row
+has no epoch ID and cannot yet trigger targeted acquisition; BPR-0795 stays
+open for typed occurrence selection. The candidate starts at `890407b9`;
+BPR-0794 and BPR-0795 remain open. Unrelated dirty
 `.gitignore`, `.mask.json`, and BPR-0775/0776 deletions belong to other work.
 
-The next discriminating step is a synthetic composed large-review path whose
-exact commit/tree pair becomes available from bounded sparse acquisition and
-whose selected two blobs are requested, OID-checked and materialized only on
-selection. It must refuse absent ancestry, wrong objects, stale authority,
-cancelled acquisition and quota exhaustion; the complete-pack path and its
-strict connected check remain intact. The exact target needs a later read-only
-tests-disabled product attempt with metadata-only evidence and account check.
+The next bounded work is typed occurrence-ID selection and targeted historical
+import for large reviews, preserving authority and explicit unknown lineage.
+The exact target also needs a later read-only tests-disabled product attempt
+with metadata-only evidence, account check and selected source/anchor check.
+The current-pair synthetic path is implemented and independently reviewed;
+the complete-pack path retains its strict connected check.
 
 ## Current frontier — bpr0643-r4 / d12 / mandate r14
 

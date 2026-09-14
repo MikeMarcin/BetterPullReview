@@ -41,8 +41,28 @@ exact-target selected-diff acceptance.
 
 ## Evidence
 
-Pending. The existing core `open_pull_request_intent` publishes
-`loading_pull_request` before the provider fetch starts, and the provider posts
-network/normalization work to an effect executor. The reported pause before a
-paint is not yet attributed. Accepted snapshot file and commit counts exist at
-the application handoff boundary; the epoch handoff does not yet carry them.
+The composed window/action/read-host test held the provider effect and found
+that the new-target projection switched away from the Home loading label before
+Qt could paint it. Keeping that surface visible makes the loading state paint
+before the held provider completes. Accepted file and commit counts now travel
+through the validated handoff. The existing 100-record REST page bound classifies
+over-100-file or over-100-reported-commit reviews as large; absent or conflicting
+facts use complete loading. This threshold bounds scheduling policy, not a
+measured latency guarantee. Host tests cover the boundary and stale identity.
+
+The current candidate routes large CLI reviews through a bounded sparse
+commit/tree import and exact selected-blob read, while a 100-file review still
+uses complete background acquisition. A synthetic host test establishes the
+current sparse pair and checks that small reviews do not request a lazy blob.
+The production Mac target and a tests-disabled Release bundle build. Four
+focused cross-layer tests, cache and storage contracts, documentation gate,
+and format check pass. Independent critical review confirms that the current
+selected-file path is guarded by exact authority and durable sparse residency.
+
+The older-epoch selection criterion remains open. An unimported force-push
+occurrence is visible but has no local epoch ID, so the existing comparison
+control refuses its activation. A typed occurrence-ID action and targeted,
+authority-bound historical import are needed before claiming that older objects
+load on selection. The task-owned tests-disabled app reached Settings, but
+computer-use control could not activate the CLI host selector; no new live
+product-read or prompt-latency measurement is claimed for this candidate yet.
