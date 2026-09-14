@@ -474,10 +474,21 @@ namespace {
 
 		auto missingLine = snapshot;
 		missingLine.ReviewThreads.front().Line.reset();
+		missingLine.ReviewThreads.front().OriginalLine = 42U;
 		expect_error(
 			application::validate(missingLine, request),
 			application::github_read_validation_error::invalid_line,
-			"line-level review thread requires a line");
+			"a current LINE thread cannot substitute originalLine for its missing current line");
+
+		for (const bool outdated : { false, true }) {
+			auto  unanchored = snapshot;
+			auto& thread     = unanchored.ReviewThreads.front();
+			thread.Line.reset();
+			thread.OriginalLine.reset();
+			thread.Outdated = outdated;
+			expect(application::validate(unanchored, request).valid(),
+				   "an exact LINE thread may have no current or original anchor");
+		}
 
 		auto unexpectedLine                       = fileSubject;
 		unexpectedLine.ReviewThreads.front().Line = 42;

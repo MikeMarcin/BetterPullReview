@@ -670,14 +670,17 @@ equal the REST head OID, so a head change between endpoints or pages rejects
 the whole candidate. Each
 GraphQL file path maps exactly once to the REST file collection and carries
 `DISMISSED`, `UNVIEWED`, or `VIEWED`. Each thread carries an explicit `LINE`
-or `FILE` subject, non-null `LEFT` or `RIGHT` diff side, separate current and
-original lines, and per-target resolve/unresolve availability. Line threads
-require a current root line while current; an outdated root requires at least
-one current or original line. File threads prohibit both. A line-thread reply
-may omit both of its own nullable coordinates and inherits the validated root
-anchor; any reply coordinate that is present remains independently typed and
-bounded. The normalizer never substitutes an original line for a missing current
-one. Every comment path must match its thread path. REST and GraphQL
+or `FILE` subject, non-null `LEFT` or `RIGHT` diff side, separate nullable
+current and original lines, and per-target resolve/unresolve availability. A
+`LINE` thread with neither coordinate remains a line-subject conversation with
+an unavailable source-line anchor. A current root with only an original line
+is refused rather than treating that original line as current. An outdated
+root may retain only its original line. File threads prohibit both coordinates.
+A line-thread reply may omit both of its own nullable coordinates; any reply
+coordinate that is present remains independently typed and bounded. The
+normalizer never substitutes an original line for a missing current one or
+derives a missing thread anchor from a comment. Every comment path must match
+its thread path. REST and GraphQL
 records therefore cannot be replayed across repository, pull-request, file,
 actor, or thread authority without the complete candidate failing atomically.
 

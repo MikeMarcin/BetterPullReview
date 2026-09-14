@@ -2058,10 +2058,8 @@ namespace bpr::adapters::github::detail {
 				|| (!json_is_null(line) && !valid_line(line))
 				|| (!json_is_null(originalLine) && !valid_line(originalLine))
 				|| (fileSubject && (!json_is_null(line) || !json_is_null(originalLine)))
-				|| (lineSubject
-					&& ((!json_bool(json_member(thread, "isOutdated")) && json_is_null(line))
-						|| (json_bool(json_member(thread, "isOutdated"))
-							&& json_is_null(line) && json_is_null(originalLine))))
+				|| (lineSubject && !json_bool(json_member(thread, "isOutdated"))
+					&& json_is_null(line) && !json_is_null(originalLine))
 				|| (aShape.ResolvePermission
 					&& !json_is_bool(json_member(thread, "viewerCanResolve")))
 				|| (aShape.UnresolvePermission

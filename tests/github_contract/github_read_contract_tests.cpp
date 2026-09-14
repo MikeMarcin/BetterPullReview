@@ -1399,6 +1399,27 @@ namespace {
 			responses,
 			"a current line thread cannot substitute originalLine for its missing current coordinate");
 
+		for (const bool outdated : { false, true }) {
+			responses = recording.Responses;
+			replace_once(
+				responses[6].Response.Body,
+				"\"line\": 42,\n              \"originalLine\": 42,",
+				"\"line\": null,\n              \"originalLine\": null,");
+			if (outdated) {
+				replace_once(responses[6].Response.Body,
+							 "\"isOutdated\": false,",
+							 "\"isOutdated\": true,");
+			}
+			const auto unanchored = normalize_github_read(context, responses);
+			expect(unanchored.has_value()
+					   && unanchored->PullRequest.ReviewThreads.size() == 4U
+					   && unanchored->PullRequest.ReviewThreads.front().Subject
+						   == application::github_review_thread_subject::line
+					   && !unanchored->PullRequest.ReviewThreads.front().Line
+					   && !unanchored->PullRequest.ReviewThreads.front().OriginalLine,
+				   "the fixture normalizer preserves a LINE thread with no reported anchor");
+		}
+
 		responses = recording.Responses;
 		replace_once(
 			responses[9].Response.Body,

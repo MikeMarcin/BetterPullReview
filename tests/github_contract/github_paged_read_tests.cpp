@@ -339,6 +339,8 @@ namespace {
 		thread_side_wrong,
 		thread_side_unknown,
 		current_thread_original_line_only,
+		current_thread_no_coordinates,
+		outdated_thread_no_coordinates,
 		line_comment_original_line_only,
 		line_comment_no_coordinates,
 		file_comment_original_line,
@@ -1182,6 +1184,13 @@ namespace {
 			} else if (Scenario
 					   == fixture_scenario::current_thread_original_line_only) {
 				thread.insert_or_assign("line", nullptr);
+			} else if (Scenario == fixture_scenario::current_thread_no_coordinates
+					   || Scenario == fixture_scenario::outdated_thread_no_coordinates) {
+				thread.insert_or_assign("line", nullptr);
+				thread.insert_or_assign("originalLine", nullptr);
+				thread.insert_or_assign(
+					"isOutdated",
+					Scenario == fixture_scenario::outdated_thread_no_coordinates);
 			} else if (Scenario == fixture_scenario::file_comment_original_line
 					   || Scenario
 						   == fixture_scenario::paged_file_comment_original_line) {
@@ -1884,6 +1893,33 @@ namespace {
 						   .Comments.front()
 						   .OriginalLine.has_value(),
 			   "a LINE reply may omit both nullable coordinates and inherit the root anchor");
+		for (const auto scenario : { fixture_scenario::current_thread_no_coordinates,
+									 fixture_scenario::outdated_thread_no_coordinates }) {
+			auto       unanchoredTransport = paged_fixture_transport{ scenario };
+			const auto unanchored          = perform_paged_github_read(
+				unanchoredTransport,
+				profile(),
+				provider_request(),
+				core::provider_snapshot_id{ 57U },
+				std::stop_token{ });
+			expect(unanchored.has_value()
+					   && unanchored->ReviewThreads.size() == 1U
+					   && unanchored->ReviewThreads.front().Thread.value() == "T_1"
+					   && unanchored->ReviewThreads.front().Subject
+						   == application::github_review_thread_subject::line
+					   && unanchored->ReviewThreads.front().Path == "src/file0.cpp"
+					   && unanchored->ReviewThreads.front().Comments.size() == 101U
+					   && unanchored->ReviewThreads.front().Comments.front().Comment.value() == "C_0"
+					   && unanchored->ReviewThreads.front().Comments.back().Comment.value() == "C_100"
+					   && unanchored->ReviewThreads.front().Comments.back().Body == "comment 100"
+					   && unanchored->ReviewThreads.front().DiffSide
+						   == application::github_diff_side::right
+					   && !unanchored->ReviewThreads.front().Line
+					   && !unanchored->ReviewThreads.front().OriginalLine
+					   && unanchored->ReviewThreads.front().Outdated
+						   == (scenario == fixture_scenario::outdated_thread_no_coordinates),
+				   "nullable root coordinates preserve the exact remote LINE thread without a guessed anchor");
+		}
 		auto pagedOriginalOnlyTransport = paged_fixture_transport{
 			fixture_scenario::paged_line_comment_original_line_only
 		};

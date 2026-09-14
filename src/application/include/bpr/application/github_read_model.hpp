@@ -1323,9 +1323,8 @@ namespace bpr::application {
 					&& (*aLine == 0U || *aLine > maximum_github_line);
 			};
 			if ((aRecord.Subject == github_review_thread_subject::line
-				 && ((!aRecord.Outdated && !aRecord.Line.has_value())
-					 || (aRecord.Outdated && !aRecord.Line.has_value()
-						 && !aRecord.OriginalLine.has_value())))
+				 && !aRecord.Outdated && !aRecord.Line.has_value()
+				 && aRecord.OriginalLine.has_value())
 				|| (aRecord.Subject == github_review_thread_subject::file
 					&& (aRecord.Line.has_value()
 						|| aRecord.OriginalLine.has_value()))

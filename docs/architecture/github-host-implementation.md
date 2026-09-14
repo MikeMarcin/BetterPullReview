@@ -1630,9 +1630,11 @@ stale completion.
 
 Review-thread projection keeps `diffSide`, current `line`, and `originalLine`
 as separate facts on the root and copies that anchor identity to its replies.
-The provider accepts a current line thread only with a known side and current
-root line; an outdated root may instead retain only its original line. A reply
-may omit both of its own nullable coordinates and inherits that root anchor.
+The provider accepts a current line thread with a known side and current root
+line, or preserves a thread with neither nullable root coordinate as an
+unanchored line-subject conversation. A current thread with only an original
+line is refused; an outdated root may retain only its original line. A reply
+may omit both of its own nullable coordinates and uses the root's anchor state.
 File threads carry neither. Every GraphQL page repeats the pull request's
 `headRefOid`, and the host rejects a snapshot whose REST and GraphQL head OIDs
 differ. The selected-comparison composition may therefore place a current

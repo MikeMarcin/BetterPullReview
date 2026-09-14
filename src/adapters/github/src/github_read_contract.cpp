@@ -1477,10 +1477,8 @@ namespace bpr::adapters::github::detail {
 					|| (fileSubject
 						&& (!json_is_null(line) || !json_is_null(originalLine)))
 					|| (lineSubject
-						&& ((!json_bool(json_member(thread, "isOutdated"))
-							 && json_is_null(line))
-							|| (json_bool(json_member(thread, "isOutdated"))
-								&& json_is_null(line) && json_is_null(originalLine))))
+						&& !json_bool(json_member(thread, "isOutdated"))
+						&& json_is_null(line) && !json_is_null(originalLine))
 					|| !json_is_object(comments)
 					|| !has_exact_keys(
 						json_object(comments),

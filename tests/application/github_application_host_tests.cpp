@@ -2112,6 +2112,49 @@ namespace {
 			"issue comment projects as a distinct top-level conversation");
 	}
 
+	auto test_unanchored_line_thread_projects_without_a_guessed_line() -> void
+	{
+		for (const bool outdated : { false, true }) {
+			host_fixture fixture;
+			establish_native_session(fixture);
+			fixture.Host.dispatch(core::open_pull_request_intent{
+				.Repository = { .Owner = "openai", .Name = "better-pull-review" },
+				.Number     = core::pull_request_number{ 27U },
+			});
+			const auto request  = fixture.Provider.PullRequests.front().Request;
+			auto       snapshot = rich_snapshot(request);
+			auto&      thread   = snapshot.ReviewThreads.front();
+			thread.Line.reset();
+			thread.OriginalLine.reset();
+			thread.Outdated = outdated;
+			fixture.Provider.PullRequests.front().Completion(
+				application::github_pull_request_success{
+					.Request  = request,
+					.Snapshot = snapshot,
+				});
+			fixture.Lane.run_next();
+			const auto& update = fixture.Projections.last_pull_request_update();
+			expect(update.PullRequest.has_value()
+					   && update.PullRequest->Conversations.size() >= 3U,
+				   "an unanchored LINE thread reaches the composed host projection");
+			const auto& projectedThread = update.PullRequest->Conversations[1U];
+			const auto& projectedRoot   = update.PullRequest->Conversations[2U];
+			expect(projectedThread.Id == "review-thread:thread-1"
+					   && projectedThread.Path == thread.Path
+					   && !projectedThread.Line && !projectedThread.OriginalLine
+					   && projectedThread.DiffSide
+						   == application::github_conversation_diff_side::right
+					   && projectedThread.AnchorAvailability
+						   == (outdated
+								   ? application::github_conversation_anchor_availability::outdated_revision
+								   : application::github_conversation_anchor_availability::missing_current_line)
+					   && projectedRoot.ParentId == projectedThread.Id
+					   && projectedRoot.Id == "review-comment:review-comment-1"
+					   && !projectedRoot.Line && !projectedRoot.OriginalLine,
+				   "the thread and comments retain identity but do not borrow a comment coordinate as a source-line anchor");
+		}
+	}
+
 	auto test_every_provider_failure_maps_to_safe_pull_request_failure() -> void
 	{
 		using provider_failure = application::github_provider_failure;
@@ -6215,6 +6258,7 @@ auto main() -> int
 	test_retained_mutation_lease_is_revoked_on_shutdown();
 	test_accepted_snapshot_handoff_and_exact_invalidation();
 	test_success_projection_is_safe_atomic_and_conversation_complete();
+	test_unanchored_line_thread_projects_without_a_guessed_line();
 	test_every_provider_failure_maps_to_safe_pull_request_failure();
 	test_retries_are_bounded_and_stale_work_is_cancelled();
 	test_retry_after_is_terminal_and_preserved();
