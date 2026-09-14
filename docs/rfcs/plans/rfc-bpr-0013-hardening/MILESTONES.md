@@ -69,13 +69,30 @@ A read-only large pull request distinguishes its reported total commits from the
 
 **Boundary:** Separate RFC-0013 follow-up to terminal BPR-0643 under mandate r12; preserve the 250-record cap, existing authentication/session state, and all RFC closeout prerequisites
 
+## review-thread-null-anchor-read
+
+The exact owner-retained pull request either renders a truthful file list and readable selected diff after bounded review-thread normalization or reports the next explicit metadata-only refusal without fabricating a line anchor.
+
+**Work:** `BPR-0793`
+
+**Prerequisites:** large-pr-returned-commit-boundary
+
+**Completion:**
+
+- BPR-0793 attributes the review-thread refusal with a metadata-only read through the existing gh account and preserves all private response content outside repository artifacts
+- A thread with a nullable line anchor retains its exact LINE subject, ID, path, side, comments and unavailable-anchor presentation; malformed identities, pagination, limits and file-subject coordinates still refuse atomically
+- Focused parser/core/projection checks, one composed read-path check, documentation gate and selected integration verification pass
+- One tests-disabled Mac product-path read of EpicGames/UnrealEngine#1773 records a visible correct file list and readable selected diff or the next explicit metadata-only refusal; no live write or account change occurs
+
+**Boundary:** Separate RFC-0013 follow-up to terminal BPR-0643 and BPR-0792 under mandate r13; preserve the 250-record commit endpoint cap, existing auth/session boundary and all RFC closeout prerequisites
+
 ## verify-rfc-0013
 
 All original RFC-BPR-0013 acceptance rows and architectural hardening stages have direct evidence against the immutable baseline and the RFC/card/index state is truthful under canonical order.
 
 **Work:** `BPR-0617`, `RFC-BPR-0013`
 
-**Prerequisites:** default-cache-byte-pressure, durable-agent-workspace-recovery, retained-stress-pr-read, large-pr-returned-commit-boundary
+**Prerequisites:** default-cache-byte-pressure, durable-agent-workspace-recovery, retained-stress-pr-read, large-pr-returned-commit-boundary, review-thread-null-anchor-read
 
 **Completion:**
 

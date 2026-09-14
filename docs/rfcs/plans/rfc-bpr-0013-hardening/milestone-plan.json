@@ -77,6 +77,25 @@
       "boundary": "Separate RFC-0013 follow-up to terminal BPR-0643 under mandate r12; preserve the 250-record cap, existing authentication/session state, and all RFC closeout prerequisites"
     },
     {
+      "id": "review-thread-null-anchor-read",
+      "outcome": "The exact owner-retained pull request either renders a truthful file list and readable selected diff after bounded review-thread normalization or reports the next explicit metadata-only refusal without fabricating a line anchor.",
+      "work": [
+        {
+          "issue": "BPR-0793"
+        }
+      ],
+      "depends_on": [
+        "large-pr-returned-commit-boundary"
+      ],
+      "exit_criteria": [
+        "BPR-0793 attributes the review-thread refusal with a metadata-only read through the existing gh account and preserves all private response content outside repository artifacts",
+        "A thread with a nullable line anchor retains its exact LINE subject, ID, path, side, comments and unavailable-anchor presentation; malformed identities, pagination, limits and file-subject coordinates still refuse atomically",
+        "Focused parser/core/projection checks, one composed read-path check, documentation gate and selected integration verification pass",
+        "One tests-disabled Mac product-path read of EpicGames/UnrealEngine#1773 records a visible correct file list and readable selected diff or the next explicit metadata-only refusal; no live write or account change occurs"
+      ],
+      "boundary": "Separate RFC-0013 follow-up to terminal BPR-0643 and BPR-0792 under mandate r13; preserve the 250-record commit endpoint cap, existing auth/session boundary and all RFC closeout prerequisites"
+    },
+    {
       "id": "verify-rfc-0013",
       "outcome": "All original RFC-BPR-0013 acceptance rows and architectural hardening stages have direct evidence against the immutable baseline and the RFC/card/index state is truthful under canonical order.",
       "work": [
@@ -91,10 +110,11 @@
         "default-cache-byte-pressure",
         "durable-agent-workspace-recovery",
         "retained-stress-pr-read",
-        "large-pr-returned-commit-boundary"
+        "large-pr-returned-commit-boundary",
+        "review-thread-null-anchor-read"
       ],
       "exit_criteria": [
-        "Reconcile the legacy plan’s pack import, architecture, deterministic core, host, Qt, composition, focused tests/fixtures, UX, security, documentation, simplification and closeout stages against the live BPR-0617 matrix and RFC baseline",
+        "Reconcile the legacy plan\u2019s pack import, architecture, deterministic core, host, Qt, composition, focused tests/fixtures, UX, security, documentation, simplification and closeout stages against the live BPR-0617 matrix and RFC baseline",
         "Every RFC acceptance row has a direct check, result, producing revision and explicit native/human limitation; no deferred criterion is marked passing",
         "The documentation gate, focused public-path checks and appropriate integration verification pass at the final candidate",
         "BPR-0617, RFC-BPR-0013 and the canonical index agree; earlier Proposed RFC-BPR-0008/0010/0012 prevent Auto-Verified and Done until their own prerequisites close"

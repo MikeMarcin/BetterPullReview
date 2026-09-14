@@ -4,12 +4,32 @@ id: "BPR-0617"
 title: "Verify and close RFC-BPR-0013"
 status: "Backlog"
 rfcs: ["RFC-BPR-0013"]
-depends_on: ["BPR-0507","BPR-0616","BPR-0618","BPR-0619","BPR-0620","BPR-0621","BPR-0622","BPR-0623","BPR-0624","BPR-0626","BPR-0627","BPR-0628","BPR-0629","BPR-0630","BPR-0631","BPR-0632","BPR-0633","BPR-0634","BPR-0635","BPR-0792"]
+depends_on: ["BPR-0507","BPR-0616","BPR-0618","BPR-0619","BPR-0620","BPR-0621","BPR-0622","BPR-0623","BPR-0624","BPR-0626","BPR-0627","BPR-0628","BPR-0629","BPR-0630","BPR-0631","BPR-0632","BPR-0633","BPR-0634","BPR-0635","BPR-0792","BPR-0793"]
 closeout_for: ["RFC-BPR-0013"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/plans/rfc-bpr-0013-hardening/milestone-plan.json"}}
 ---
 
 # Verify and close RFC-BPR-0013
+
+## Current frontier — bpr0643-r3 / d11 / mandate r13
+
+BPR-0793 is the newly authorized, separate review-thread normalization slice.
+The plan adds `review-thread-null-anchor-read` after BPR-0792; BPR-0643 and
+BPR-0792 remain Done. The plan helper's amendment checker cannot accept a new
+work atom under its same-obligation rule, so mandate r13 and this new card are
+the explicit source-basis for the added obligation. The earlier milestones and
+exits are unchanged. The existing metadata-only BPR-0792 product record is at
+`~/Library/Application Support/BetterPullReview/BPR-0792-evidence-2026-09-13/attempt-1-d9-cli-product-metadata.json`.
+
+A bounded in-memory `gh` GraphQL read as the observed `MikeMarcin` account
+found 19 review threads. Fifteen have `LINE` subject and both nullable root
+line fields absent; their first comments also have no coordinate. This is the
+leading deterministic parser refusal in `parse_graphql_thread`. No response
+content or token was written to the checkout. The next step is to retain these
+threads with their exact remote identity and unavailable source-line anchor,
+then verify parser/core/projection negatives and the tests-disabled Mac product
+path. This diagnostic alone does not establish a full target read. No task
+writer or command remains active at this checkpoint.
 
 ## Current frontier — bpr0643-r2 / d10 / mandate r12
 
