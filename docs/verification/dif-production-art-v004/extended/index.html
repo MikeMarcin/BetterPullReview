@@ -1,0 +1,14 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Rejected extended gesture studies</title>
+<style>body{font:16px system-ui;margin:2rem;max-width:1000px}section{display:flex;gap:20px;padding:20px;margin:12px 0}.light{background:#F6F7F9}.dark{background:#1C2026}canvas{display:block}button,select{font:inherit;margin:8px}p{max-width:75ch}</style>
+<h1>Rejected extended gesture studies</h1><p>Offline diagnosis only. Full-body clips and the first local blink are rejected; the second blink repair is provisional. No verdict is collected. Full-body clips expose raw identity and handoff discontinuities. Local blink locks all non-eye pixels but has a lid/material seam. Playback is one shot at RFC timing, then exact neutral; press Play to repeat.</p>
+<label>Study <select id="clip"></select></label><button id="play">Play</button><button id="step">Next frame</button><span id="state"></span>
+<section class="light"></section><section class="dark"></section>
+<script>
+const specs=[['blink',6,100],['compare_glance',8,150],['consider',8,150],['comment_ready',8,125],['attention',6,150],['acknowledge',8,125],['blocked',6,150],['blink-local-eye',6,100],['blink-repair-eye',6,100]];
+const chooser=document.querySelector('select'); const surfaces=[];let timer=null, frame=0, image=null;
+for(const [name] of specs){const o=document.createElement('option');o.value=name;o.textContent=name+(name==='blink-repair-eye'?' — provisional repair':' — rejected');chooser.append(o)}
+for(const section of document.querySelectorAll('section'))for(const size of [64,72,96]){const box=document.createElement('div');const c=document.createElement('canvas');c.width=size;c.height=size;box.append(c);section.append(box);surfaces.push(c)}
+function stop(){clearInterval(timer);timer=null}function draw(){for(const c of surfaces){const x=c.getContext('2d');x.clearRect(0,0,c.width,c.height);x.drawImage(image,frame*256,0,256,256,0,0,c.width,c.height)}document.querySelector('#state').textContent=`Frame ${frame}, ${specs[chooser.selectedIndex][2]} ms/frame`}
+function load(){stop();frame=0;image=new Image;image.onload=draw;image.src=chooser.value.includes('-eye')?chooser.value+'-study.png':chooser.value+'-handoff-study.png'}
+chooser.onchange=load;document.querySelector('#step').onclick=()=>{stop();frame=(frame+1)%specs[chooser.selectedIndex][1];draw()};document.querySelector('#play').onclick=()=>{stop();frame=0;draw();timer=setInterval(()=>{frame++;if(frame>=specs[chooser.selectedIndex][1]){stop();return}draw()},specs[chooser.selectedIndex][2])};load();
+</script></html>

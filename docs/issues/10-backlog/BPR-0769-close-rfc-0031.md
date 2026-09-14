@@ -43,7 +43,11 @@ last dependent RFC to satisfy the repository's closeout-card convention.
 | **B11 — Rendered/accessibility evidence.** Actual app frames at shipping scales and supported appearance modes demonstrate readable alpha edges, calm motion, static reduced interval, noninterference with focus/status and approved visual integration. | Not run; import only | No producing revision |
 | **B12 — Complete handoff.** Focused tests, resource packaging, platform claims, source/ mutable docs, shared-skill consumer context and verification records agree. All ten clips are real and reachable; unavailable evidence/formal closeout remains honestly open, with no fabricated native/art verdict or forced rewriting of settled RFCs. | Partial: plan/consumer context and intake documented; all app/resource/native/art work remains open | `ee1e12df`, `57ced605`; [live import](../../rfcs/assets/bpr-dif-integration-v1.LIVE_IMPORT.md) |
 
-## Current frontier — authorized offline image-edit continuation, dif-takeover-20260914 d6 / mandate r3
+## Current frontier — authorized offline image-edit continuation, dif-takeover-20260914 d6 / mandate r4
+
+The user removed the former `PYTHONDONTWRITEBYTECODE=1` helper requirement in
+mandate revision 4; normal helper invocation is now allowed. Completed passing
+checks were not repeated solely for this change.
 
 The user explicitly answered yes to scoped image editing for the missing
 connected arm poses. This d6 amendment overrides the earlier BPR-0755
@@ -60,8 +64,12 @@ fist snapping to a narrow open palm and a straight shoulder join. It is not
 promoted. The same owner is attempting one targeted correction, then will
 report even if it fails. A separate worker is assessing seven raw extended
 clips; its full-body registrations drift, and it is testing a local eyelid
-extraction. Both worker folders are separate; the integrator retains cards,
-source/catalog, review and commits. V003 remains rejected. BPR-0755/0756/0757
+extraction. The extended worker has now returned quiescent with a provisional
+local-eye blink repair that locks all non-eye pixels and alpha exactly; it
+retains a faint 256-pixel texture band. Its full-body seven-clip studies are
+rejected. The greeting worker remains active in its separate folder; the
+integrator retains cards, source/catalog, review and commits. V003 remains
+rejected. BPR-0755/0756/0757
 and both production-art exits are pending. No new human verdict, catalog or
 runtime asset exists at this checkpoint.
 

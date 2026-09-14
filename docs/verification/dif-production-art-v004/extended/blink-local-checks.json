@@ -1,0 +1,64 @@
+{
+  "state": "rejected: pale lower-eye sliver and lid/material seam in closed frame",
+  "raw_registration_sha256": "ebb75856686af65d4db0273f4479e56e4e06af3d0b537f4a7346dee6c23fb0e9",
+  "regions_half_open_and_source_translation": [
+    [
+      86,
+      79,
+      113,
+      113,
+      0,
+      -14
+    ],
+    [
+      143,
+      79,
+      168,
+      113,
+      -2,
+      -14
+    ]
+  ],
+  "source_raw_indices": [
+    null,
+    1,
+    2,
+    1,
+    null,
+    null
+  ],
+  "duration_ms": 100,
+  "alpha_exact_neutral": true,
+  "checks": [
+    {
+      "non_eye_changed_pixels": 0,
+      "changed_pixels": 0,
+      "rgba_sha256": "9e4c15b3b6adf62e62f89e1c848dca958e0ec76c29b248e7ad14bccfbf9b0638"
+    },
+    {
+      "non_eye_changed_pixels": 0,
+      "changed_pixels": 1593,
+      "rgba_sha256": "4285013b7833050cd7bd326a159998edb21f99d3f0d2c4c57a888812f41f750e"
+    },
+    {
+      "non_eye_changed_pixels": 0,
+      "changed_pixels": 1596,
+      "rgba_sha256": "4adf951334ccaa06a45ccfd180c61a47d15576310535168b612df0d1b0c7e782"
+    },
+    {
+      "non_eye_changed_pixels": 0,
+      "changed_pixels": 1593,
+      "rgba_sha256": "4285013b7833050cd7bd326a159998edb21f99d3f0d2c4c57a888812f41f750e"
+    },
+    {
+      "non_eye_changed_pixels": 0,
+      "changed_pixels": 0,
+      "rgba_sha256": "9e4c15b3b6adf62e62f89e1c848dca958e0ec76c29b248e7ad14bccfbf9b0638"
+    },
+    {
+      "non_eye_changed_pixels": 0,
+      "changed_pixels": 0,
+      "rgba_sha256": "9e4c15b3b6adf62e62f89e1c848dca958e0ec76c29b248e7ad14bccfbf9b0638"
+    }
+  ]
+}

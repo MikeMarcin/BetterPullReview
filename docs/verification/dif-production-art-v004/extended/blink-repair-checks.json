@@ -1,0 +1,65 @@
+{
+  "state": "provisional repair candidate; faint donor texture bands require integrator inspection",
+  "repair": "same-row neutral patch donor, authored curved lid following raw half/closed motion; no native-resolution claim",
+  "raw_registration_sha256": "ebb75856686af65d4db0273f4479e56e4e06af3d0b537f4a7346dee6c23fb0e9",
+  "regions_half_open_and_source_translation": [
+    [
+      86,
+      79,
+      113,
+      113,
+      0,
+      -14
+    ],
+    [
+      143,
+      79,
+      168,
+      113,
+      -2,
+      -14
+    ]
+  ],
+  "source_raw_indices": [
+    null,
+    1,
+    2,
+    1,
+    null,
+    null
+  ],
+  "duration_ms": 100,
+  "alpha_exact_neutral": true,
+  "checks": [
+    {
+      "non_eye_changed_pixels": 0,
+      "changed_pixels": 0,
+      "rgba_sha256": "9e4c15b3b6adf62e62f89e1c848dca958e0ec76c29b248e7ad14bccfbf9b0638"
+    },
+    {
+      "non_eye_changed_pixels": 0,
+      "changed_pixels": 511,
+      "rgba_sha256": "af81aa65ca6ca84991090d0fdc0439194274e3bfac15ef5cc329676af933f681"
+    },
+    {
+      "non_eye_changed_pixels": 0,
+      "changed_pixels": 1749,
+      "rgba_sha256": "fc49e0b2bf850795040041a4fc03d964aadce773d8154ac5dbeb662be2a98fcd"
+    },
+    {
+      "non_eye_changed_pixels": 0,
+      "changed_pixels": 511,
+      "rgba_sha256": "af81aa65ca6ca84991090d0fdc0439194274e3bfac15ef5cc329676af933f681"
+    },
+    {
+      "non_eye_changed_pixels": 0,
+      "changed_pixels": 0,
+      "rgba_sha256": "9e4c15b3b6adf62e62f89e1c848dca958e0ec76c29b248e7ad14bccfbf9b0638"
+    },
+    {
+      "non_eye_changed_pixels": 0,
+      "changed_pixels": 0,
+      "rgba_sha256": "9e4c15b3b6adf62e62f89e1c848dca958e0ec76c29b248e7ad14bccfbf9b0638"
+    }
+  ]
+}

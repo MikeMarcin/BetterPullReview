@@ -172,5 +172,17 @@ facial pixels. They are supporting candidates only. A local derivation must
 preserve the accepted neutral's locked head, body, opposite arm, hips and
 feet, then prove a smooth limb transition at actual shipping sizes. The
 generated full-body rasters must not replace the exact neutral or be counted
-as production frames. The d6 greeting and seven-gesture studies are under
-bounded separate ownership; no source/catalog/review acceptance is claimed.
+as production frames. The d6 greeting and seven-gesture studies have separate
+ownership; no source/catalog/review acceptance is claimed.
+
+The [v004 extended study](dif-production-art-v004/extended/README.md) checks all
+50 immutable extended raw cells and their provisional native-crop hashes.
+Full-body registration of all seven clips is rejected for visible neutral
+handoff, proportion, face, foot and/or matte drift. A separately authored
+local-eye blink repair copies raw half/closed/half intent into the accepted
+neutral's eye patches, keeps the neutral alpha and every outside-eye pixel
+exact, and removes the first study's pale lower-eye sliver. The integrator
+inspected the 256-pixel row and retained this as a **provisional** source
+candidate only: faint same-row donor texture bands remain at 256, actual-speed
+playback and human art judgment are unverified. Six other extended gestures
+remain unnormalized. No BPR-0756 acceptance or source/catalog promotion follows.

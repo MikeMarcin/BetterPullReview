@@ -1,0 +1,10 @@
+{
+  "reproduction": "exact repeated PNG/check JSON payload equality",
+  "artifact_count": 33,
+  "raw_extended_frames": 50,
+  "full_body_rejected_clips": 7,
+  "local_blink_endpoint_alpha_checks": "pass",
+  "documentation_gate": "DOCUMENTATION_OK",
+  "browser_playback": "not run",
+  "native_Qt": "not run"
+}
