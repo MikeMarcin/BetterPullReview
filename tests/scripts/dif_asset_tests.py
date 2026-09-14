@@ -67,15 +67,15 @@ def cxx_command() -> list[str]:
     return [discovered]
 
 
-def compile_catalog(catalog: Path) -> subprocess.CompletedProcess[str]:
+def compile_catalog(catalog: Path, version: int = 1, clip_count: int = 3) -> subprocess.CompletedProcess[str]:
     with contained_temporary_directory(prefix="bpr-dif-catalog-") as directory:
         root = Path(directory)
         shutil.copy2(catalog, root / "dif-sprite-catalog.hpp")
         consumer = root / "catalog-consumer.cpp"
         consumer.write_text(
             '#include "dif-sprite-catalog.hpp"\n'
-            "static_assert(bpr::adapters::qt::dif::kSchemaVersion == 1);\n"
-            "static_assert(bpr::adapters::qt::dif::kClips.size() == 3);\n"
+            f"static_assert(bpr::adapters::qt::dif::kSchemaVersion == {version});\n"
+            f"static_assert(bpr::adapters::qt::dif::kClips.size() == {clip_count});\n"
             "static_assert(bpr::adapters::qt::dif::kCellSize == 256);\n"
             "int main() { return bpr::adapters::qt::dif::kClips[0].id.empty(); }\n",
             encoding="utf-8",
@@ -283,6 +283,85 @@ def make_pack(root: Path) -> None:
         "source_files": source_files,
     }
     write_json(root / "provenance.json", provenance)
+    DIF._write_products(DIF.generated_products(root), root / "generated")
+
+
+def registered_frame(variant: int = 0, *, limb: bool = False, blink: bool = False) -> DIF.RgbaImage:
+    pixels = bytearray(256 * 256 * 4)
+
+    def rectangle(box: tuple[int, int, int, int], color: tuple[int, int, int, int]) -> None:
+        left, top, right, bottom = box
+        for y in range(top, bottom):
+            for x in range(left, right):
+                pixels[(y * 256 + x) * 4:(y * 256 + x + 1) * 4] = bytes(color)
+
+    for box in ((80, 40, 176, 110), (96, 116, 160, 195),
+                (94, 201, 118, 223), (138, 201, 162, 223)):
+        rectangle(box, (238, 232, 244, 255))
+    rectangle((110, 176, 117, 184), (92, 55, 142, 255))
+    rectangle((101, 211, 108, 218), (92, 55, 142, 255))
+    rectangle((145, 211, 152, 218), (92, 55, 142, 255))
+    if variant:
+        y = 70 if blink else 140
+        rectangle((123, y, 128, y + 4), (105 + variant, 63, 160, 255))
+    if limb:
+        rectangle((160, 124, 220, 144), (92, 55, 142, 255))
+    return DIF.RgbaImage(256, 256, bytes(pixels))
+
+
+def make_v2_pack(root: Path) -> None:
+    make_pack(root)
+    manifest = json.loads((root / "dif-sprite-manifest.json").read_text())
+    provenance = json.loads((root / "provenance.json").read_text())
+    shutil.rmtree(root / "source")
+    shutil.rmtree(root / "generated")
+    manifest["schema_version"] = 2
+    manifest["limits"] = DIF.V2_LIMITS
+    manifest["registration"] = {
+        "baseline_y": 223, "edge_clearance_px": 16, "foot_tolerance_px": 1,
+        "neutral_body_bounds": [56, 22, 200, 224], "visual_center_x": 128,
+        "anchor_regions": {
+            "head": [64, 24, 192, 112], "body": [88, 170, 168, 196],
+            "left_foot": [86, 197, 124, 226], "right_foot": [132, 197, 170, 226],
+        },
+    }
+    template = manifest["clips"][0]
+    manifest["clips"] = []
+    source_images = {"source/dif-neutral-master.png": DIF._scale_nearest(registered_frame(), 1024, 1024)}
+    # The immutable design input, not compiler constants, supplies the oracle.
+    contract = json.loads((REPOSITORY_ROOT / "docs/rfcs/assets/bpr-dif-integration-v1/specs/CLIP-CONTRACT.json").read_text())
+    for spec in contract["clips"]:
+        clip = dict(template)
+        clip_id = spec["id"]
+        clip.update({
+            "id": clip_id, "kind": spec["kind"], "frame_duration_ms": spec["frame_duration_ms"],
+            "representative_frame": spec["representative_frame"], "priority": spec["priority"],
+            "return_target": spec["asset_return_target"], "body_bounds": [56, 22, 200, 224],
+            "content_bounds": [56, 22, 224, 226], "head_travel_px": [0, 0],
+            "handoff_mean_delta_max": 0, "loop_seam_mean_delta_max": 2 if clip_id == "calm_idle" else 0,
+            "frames": [f"source/{clip_id.replace('_', '-')}/frame-{i:03d}.png" for i in range(spec["frame_count"])],
+            "strip": f"generated/dif-{clip_id.replace('_', '-')}.png",
+        })
+        for index, path in enumerate(clip["frames"]):
+            neutral = index in spec["neutral_frames"]
+            source_images[path] = registered_frame(
+                0 if neutral else index + 1,
+                limb=not neutral and clip_id not in {"calm_idle", "blink"},
+                blink=clip_id == "blink",
+            )
+        bounds = [DIF._alpha_bounds(source_images[path]) for path in clip["frames"]]
+        clip["content_bounds"] = [min(box[0] for box in bounds), min(box[1] for box in bounds),
+                                  max(box[2] for box in bounds), max(box[3] for box in bounds)]
+        manifest["clips"].append(clip)
+    for relative, image in source_images.items():
+        destination = root / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(DIF.encode_png(image))
+    provenance["source_files"] = [
+        {"path": path, "sha256": DIF.sha256_file(root / path)} for path in sorted(source_images)
+    ]
+    write_json(root / "provenance.json", provenance)
+    write_json(root / "dif-sprite-manifest.json", manifest)
     DIF._write_products(DIF.generated_products(root), root / "generated")
 
 
@@ -729,7 +808,7 @@ class DifAssetTests(unittest.TestCase):
             + DIF._png_chunk(b"IEND", b"")
         )
         self._restamp_generated_digest(name)
-        DIF.validate_assets(self.root)
+        DIF.verify_assets(self.root)
 
     def test_rejects_a_generated_product_whose_pixels_differ(self) -> None:
         # The digest is re-stamped so the inventory agrees with the file on
@@ -1010,6 +1089,227 @@ class DifAssetTests(unittest.TestCase):
         self.assertGreater(runtime["checked_files"], 0)
         assets = BOUNDARY.validate_asset_tree(REPOSITORY_ROOT)
         self.assertTrue(assets["prompt_recorded_as_provenance_only"])
+
+
+class SchemaTwoTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.temporary = ContainedTemporaryDirectory(prefix="bpr-dif-v2-")
+        cls.base = Path(cls.temporary.name) / "base"
+        make_v2_pack(cls.base)
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.temporary.cleanup()
+
+    def setUp(self) -> None:
+        self.root = Path(self.temporary.name) / "case"
+        shutil.copytree(self.base, self.root)
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.root)
+
+    def manifest(self) -> dict:
+        return json.loads((self.root / "dif-sprite-manifest.json").read_text())
+
+    def write_manifest(self, manifest: dict) -> None:
+        write_json(self.root / "dif-sprite-manifest.json", manifest)
+
+    def replace_frame(self, relative: str, image: DIF.RgbaImage) -> None:
+        (self.root / relative).write_bytes(DIF.encode_png(image))
+        refresh_source_digest(self.root, relative)
+
+    def test_target_catalog_and_all_gutters(self) -> None:
+        manifest, _, clips = DIF.compile_assets(self.root)
+        self.assertEqual(sum(len(clip.frames) for clip in clips), 71)
+        self.assertEqual(sum(len(clip.strip.pixels) for clip in clips), 23_855_104)
+        for clip in clips:
+            self.assertEqual(clip.strip.width, (len(clip.frames) + 2) * 256)
+            self.assertEqual(clip.strip.height, 256)
+            for i, frame in enumerate(clip.frames):
+                self.assertEqual(DIF._region_pixels(clip.strip, [(i + 1) * 256, 0, (i + 2) * 256, 256]), frame)
+            for x in (0, clip.strip.width - 256):
+                self.assertFalse(any(DIF._region_pixels(clip.strip, [x, 0, x + 256, 256]).pixels))
+        products = DIF.generated_products(self.root)
+        catalog = products[DIF.PurePosixPath(DIF.GENERATED_CATALOG)].decode()
+        self.assertIn("kSchemaVersion{2}", catalog)
+        self.assertIn("clip_descriptor, 10>", catalog)
+        for clip in clips:
+            self.assertIn(DIF.sha256_bytes(clip.strip.pixels), catalog)
+            self.assertIn(f"256, 256, 256, {clip.strip.width}, 256, {len(clip.strip.pixels)}", catalog)
+        result = compile_catalog(self.root / "generated/dif-sprite-catalog.hpp", 2, 10)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        DIF.verify_assets(self.root)
+
+    def test_rejects_unknown_reordered_and_missing_ids(self) -> None:
+        original = self.manifest()
+        for change in ("unknown", "reorder", "missing"):
+            manifest = json.loads(json.dumps(original))
+            if change == "unknown":
+                manifest["clips"][3]["id"] = "surprise"
+            elif change == "reorder":
+                manifest["clips"][3:5] = reversed(manifest["clips"][3:5])
+            else:
+                manifest["clips"].pop()
+            self.write_manifest(manifest)
+            with self.subTest(change=change), self.assertRaises(DIF.AssetError):
+                DIF._validate_manifest(self.root)
+
+    def test_rejects_bad_counts_times_returns_and_limits(self) -> None:
+        original = self.manifest()
+        changes = [
+            ("frame_duration_ms", 83), ("frame_duration_ms", 151),
+            ("return_target", "greet"), ("return_target", ["calm_idle"]),
+            ("representative_frame", 99), ("priority", True),
+            ("frames", original["clips"][1]["frames"][:-1]),
+        ]
+        for field, value in changes:
+            manifest = json.loads(json.dumps(original))
+            manifest["clips"][1][field] = value
+            self.write_manifest(manifest)
+            with self.subTest(field=field, value=value), self.assertRaises(DIF.AssetError):
+                DIF._validate_manifest(self.root)
+        for field in ("max_complete_decoded_bytes", "max_content_frames", "max_clips"):
+            manifest = json.loads(json.dumps(original))
+            manifest["limits"][field] += 1
+            self.write_manifest(manifest)
+            with self.subTest(field=field), self.assertRaisesRegex(DIF.AssetError, "fixed RFC limits"):
+                DIF._validate_manifest(self.root)
+
+    def test_rejects_wrong_padding_and_canonical_paths(self) -> None:
+        original = self.manifest()
+        for value in (0, 2, True):
+            manifest = json.loads(json.dumps(original))
+            manifest["cell"]["gutter_cells"] = value
+            self.write_manifest(manifest)
+            with self.subTest(value=value), self.assertRaisesRegex(DIF.AssetError, "cell contract"):
+                DIF._validate_manifest(self.root)
+        manifest = json.loads(json.dumps(original))
+        manifest["clips"][0]["frames"][0] = "source//calm-idle/frame-000.png"
+        self.write_manifest(manifest)
+        with self.assertRaisesRegex(DIF.AssetError, "canonical path"):
+            DIF._validate_manifest(self.root)
+
+    def test_rejects_displaced_body_and_each_foot_with_unchanged_annotations(self) -> None:
+        manifest = self.manifest()
+        relative = manifest["clips"][1]["frames"][3]
+        manifest["clips"][1]["content_bounds"] = [72, 32, 224, 230]
+        self.write_manifest(manifest)
+        original = DIF.decode_png(self.root / relative, relative)
+        for name, dx, dy in (("body", 3, 0), ("left_foot", 3, 0),
+                             ("right_foot", 3, 0), ("head", 3, 0),
+                             ("left_foot", 0, 2), ("right_foot", 0, 2)):
+            box = manifest["registration"]["anchor_regions"][name]
+            # Every subcase starts from the immutable original pixels, not the
+            # previous modified file. Only this named anchor is displaced.
+            pixels = bytearray(original.pixels)
+            left, top, right, bottom = box
+            for y in range(top, bottom):
+                for x in range(left, right):
+                    source_x, source_y = x - dx, y - dy
+                    pixel = (y * 256 + x) * 4
+                    source = (source_y * 256 + source_x) * 4
+                    pixels[pixel:pixel + 4] = (
+                        original.pixels[source:source + 4]
+                        if source_x >= left and source_y >= top else bytes(4)
+                    )
+            self.replace_frame(relative, DIF.RgbaImage(256, 256, bytes(pixels)))
+            expected = "head travel" if name == "head" else f"changes {name} anchor pixels"
+            with self.subTest(name=name, dx=dx, dy=dy), self.assertRaisesRegex(DIF.AssetError, expected):
+                DIF.compile_assets(self.root)
+
+    def test_rejects_missing_content_and_false_anchor_annotation(self) -> None:
+        relative = self.manifest()["clips"][1]["frames"][3]
+        self.replace_frame(relative, DIF.RgbaImage(256, 256, bytes(256 * 256 * 4)))
+        with self.assertRaisesRegex(DIF.AssetError, "no visible content"):
+            DIF.compile_assets(self.root)
+        self.replace_frame(relative, registered_frame(3, limb=True))
+        manifest = self.manifest()
+        manifest["registration"]["anchor_regions"]["body"] = [100, 170, 120, 190]
+        self.write_manifest(manifest)
+        with self.assertRaisesRegex(DIF.AssetError, "enclose the visible anchor"):
+            DIF.compile_assets(self.root)
+
+    def test_rejects_non_neutral_return_and_blink_body_change(self) -> None:
+        relative = self.manifest()["clips"][1]["frames"][-1]
+        self.replace_frame(relative, registered_frame(1))
+        with self.assertRaisesRegex(DIF.AssetError, "exact neutral entry and return"):
+            DIF.compile_assets(self.root)
+        self.replace_frame(relative, registered_frame())
+        relative = self.manifest()["clips"][3]["frames"][2]
+        self.replace_frame(relative, registered_frame(2))
+        with self.assertRaisesRegex(DIF.AssetError, "locked blink body"):
+            DIF.compile_assets(self.root)
+
+    def test_generated_gutter_corruption_fails_even_with_restamped_digest(self) -> None:
+        name = "dif-calm-idle.png"
+        path = self.root / "generated" / name
+        image = DIF.decode_png_bytes(path.read_bytes(), name, max_dimension=6656)
+        for x in (0, image.width - 1):
+            pixels = bytearray(image.pixels)
+            pixels[x * 4:x * 4 + 4] = bytes((1, 2, 3, 255))
+            path.write_bytes(DIF.encode_png(DIF.RgbaImage(image.width, 256, bytes(pixels))))
+            inventory_path = self.root / "generated/dif-sprite-digests.json"
+            inventory = json.loads(inventory_path.read_text())
+            inventory["output_sha256"][name] = DIF.sha256_file(path)
+            write_json(inventory_path, inventory)
+            with self.subTest(x=x), self.assertRaisesRegex(DIF.AssetError, "stale"):
+                DIF.validate_assets(self.root)
+
+    def test_verify_accepts_other_compressor_and_rejects_stale_payload_digest(self) -> None:
+        name = "dif-calm-idle.png"
+        path = self.root / "generated" / name
+        image = DIF.decode_png_bytes(path.read_bytes(), name, max_dimension=6656)
+        path.write_bytes(DIF.PNG_SIGNATURE + DIF._png_chunk(b"IHDR", DIF.struct.pack(">IIBBBBB", image.width, image.height, 8, 6, 0, 0, 0))
+                         + DIF._png_chunk(b"IDAT", DIF.zlib.compress(DIF._filtered_rgba_rows(image), level=1))
+                         + DIF._png_chunk(b"IEND", b""))
+        with self.assertRaisesRegex(DIF.AssetError, "stale"):
+            DIF.validate_assets(self.root)
+        inventory_path = self.root / "generated/dif-sprite-digests.json"
+        inventory = json.loads(inventory_path.read_text())
+        inventory["output_sha256"][name] = DIF.sha256_file(path)
+        write_json(inventory_path, inventory)
+        DIF.verify_assets(self.root)
+
+    def test_rejects_broad_envelope_and_static_alias(self) -> None:
+        manifest = self.manifest()
+        manifest["clips"][0]["content_bounds"] = [64, 32, 224, 230]
+        self.write_manifest(manifest)
+        with self.assertRaisesRegex(DIF.AssetError, "measured content union"):
+            DIF.compile_assets(self.root)
+        manifest["clips"][0]["content_bounds"] = [80, 40, 176, 223]
+        manifest["clips"][1]["content_bounds"] = [80, 40, 176, 223]
+        self.write_manifest(manifest)
+        for relative in manifest["clips"][1]["frames"]:
+            self.replace_frame(relative, registered_frame())
+        with self.assertRaisesRegex(DIF.AssetError, "alias static neutral"):
+            DIF.compile_assets(self.root)
+
+    def test_rejects_source_size_before_digest_read(self) -> None:
+        relative = self.manifest()["clips"][0]["frames"][0]
+        with (self.root / relative).open("wb") as output:
+            output.truncate(DIF.MAX_SOURCE_FILE_BYTES + 1)
+        with self.assertRaisesRegex(DIF.AssetError, "source PNG byte limit"):
+            DIF.compile_assets(self.root)
+
+    def test_complete_resource_budget_includes_twenty_gutters(self) -> None:
+        self.assertEqual(DIF._decoded_resource_bytes(71, 10, DIF.V2_LIMITS), (18_612_224, 23_855_104))
+        self.assertEqual(DIF._decoded_resource_bytes(76, 10, DIF.V2_LIMITS), (19_922_944, 25_165_824))
+        for count in (77, 2**64, True):
+            with self.subTest(count=count), self.assertRaises(DIF.AssetError):
+                DIF._decoded_resource_bytes(count, 10, DIF.V2_LIMITS)
+        with self.assertRaisesRegex(DIF.AssetError, "complete decoded-byte"):
+            DIF._decoded_resource_bytes(71, 10, {**DIF.V2_LIMITS, "max_complete_decoded_bytes": 23_855_103})
+
+    def test_source_and_generated_decode_limits(self) -> None:
+        image = DIF.RgbaImage(2560, 1, bytes(2560 * 4))
+        payload = DIF.encode_png(image)
+        with self.assertRaisesRegex(DIF.AssetError, "dimensions exceed"):
+            DIF.decode_png_bytes(payload, "source")
+        with self.assertRaisesRegex(DIF.AssetError, "decoded-byte"):
+            DIF.decode_png_bytes(payload, "generated", max_dimension=6656, max_decoded_bytes=4096)
+        with self.assertRaisesRegex(DIF.AssetError, "byte limit"):
+            DIF.decode_png_bytes(payload, "source", max_file_bytes=len(payload) - 1)
 
 
 if __name__ == "__main__":

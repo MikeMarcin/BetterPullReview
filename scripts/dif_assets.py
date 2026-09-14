@@ -25,6 +25,20 @@ CLIP_SOURCE_DIRS = {
     "greet": "source/greet",
     "rest": "source/rest",
 }
+# Schema 1 remains the shipped historical contract. Schema 2 is compiled only
+# when explicitly selected by a new manifest; the immutable proposal is not read.
+V2_CLIP_SPECS = {
+    "calm_idle": (12, 250, "loop", 0, 0),
+    "greet": (8, 125, "one_shot", 3, 5),
+    "rest": (1, 0, "static", 0, 0),
+    "blink": (6, 100, "one_shot", 0, 1),
+    "compare_glance": (8, 150, "one_shot", 3, 10),
+    "consider": (8, 150, "one_shot", 3, 15),
+    "comment_ready": (8, 125, "one_shot", 3, 30),
+    "attention": (6, 150, "one_shot", 2, 40),
+    "acknowledge": (8, 125, "one_shot", 3, 20),
+    "blocked": (6, 150, "one_shot", 2, 50),
+}
 CELL_SIZE = 256
 GUTTER_CELLS = 1
 MAX_SOURCE_DIMENSION = 2048
@@ -45,6 +59,13 @@ EXPECTED_LIMITS = {
     "max_content_decoded_bytes": MAX_CONTENT_DECODED_BYTES,
     "max_complete_decoded_bytes": MAX_COMPLETE_DECODED_BYTES,
     "max_generated_file_bytes": MAX_GENERATED_FILE_BYTES,
+}
+V2_LIMITS = {
+    **EXPECTED_LIMITS,
+    "max_clips": 10,
+    "max_content_frames": 76,
+    "max_content_decoded_bytes": 19 * 1024 * 1024,
+    "max_complete_decoded_bytes": 24 * 1024 * 1024,
 }
 EXPECTED_REFERENCES = {
     "dif_ref_sheet": (
@@ -182,6 +203,8 @@ def safe_relative_path(value: Any, context: str) -> PurePosixPath:
         raise AssetError(f"{context} must be repository-relative")
     if any(part in {"", ".", ".."} for part in path.parts):
         raise AssetError(f"{context} contains an unsafe path component")
+    if path.as_posix() != text:
+        raise AssetError(f"{context} is not a canonical path")
     return path
 
 
@@ -296,7 +319,10 @@ def _paeth(a: int, b: int, c: int) -> int:
 
 
 def decode_png_bytes(
-    data: bytes, context: str, *, require_canonical_form: bool = False
+    data: bytes, context: str, *, require_canonical_form: bool = False,
+    max_dimension: int = MAX_SOURCE_DIMENSION,
+    max_file_bytes: int = MAX_SOURCE_FILE_BYTES,
+    max_decoded_bytes: int = MAX_SOURCE_DIMENSION * MAX_SOURCE_DIMENSION * 4,
 ) -> RgbaImage:
     """Decode an 8-bit RGBA PNG, optionally requiring this tool's canonical form.
 
@@ -313,7 +339,7 @@ def decode_png_bytes(
     them here is the point: dropping the byte comparison without them would have
     silently stopped enforcing all three.
     """
-    if len(data) > MAX_SOURCE_FILE_BYTES:
+    if len(data) > max_file_bytes:
         raise AssetError(f"{context} exceeds the source PNG byte limit")
     if not data.startswith(PNG_SIGNATURE):
         raise AssetError(f"{context} is not a PNG")
@@ -368,8 +394,10 @@ def decode_png_bytes(
     width, height, depth, color, compression, filtering, interlace = struct.unpack(
         ">IIBBBBB", header
     )
-    if not 1 <= width <= MAX_SOURCE_DIMENSION or not 1 <= height <= MAX_SOURCE_DIMENSION:
-        raise AssetError(f"{context} dimensions exceed {MAX_SOURCE_DIMENSION}")
+    if not 1 <= width <= max_dimension or not 1 <= height <= max_dimension:
+        raise AssetError(f"{context} dimensions exceed {max_dimension}")
+    if width * height * 4 > max_decoded_bytes:
+        raise AssetError(f"{context} exceeds the decoded-byte limit")
     if (depth, color, compression, filtering, interlace) != (8, 6, 0, 0, 0):
         raise AssetError(
             f"{context} must be non-interlaced 8-bit RGBA with standard compression"
@@ -408,6 +436,10 @@ def decode_png_bytes(
         cursor += 1
         encoded = raw[cursor : cursor + stride]
         cursor += stride
+        if filter_type == 0:
+            pixels.extend(encoded)
+            previous = bytearray(encoded)
+            continue
         reconstructed = bytearray(stride)
         for index, encoded_byte in enumerate(encoded):
             left = reconstructed[index - 4] if index >= 4 else 0
@@ -443,6 +475,8 @@ def decode_png(path: Path, context: str) -> RgbaImage:
     check is untouched by BPR-0378.
     """
     try:
+        if path.stat().st_size > MAX_SOURCE_FILE_BYTES:
+            raise AssetError(f"{context} exceeds the source PNG byte limit")
         data = path.read_bytes()
         return decode_png_bytes(data, context, require_canonical_form=True)
     except OSError as error:
@@ -545,7 +579,7 @@ def _validate_provenance(root: Path) -> dict[str, Any]:
         },
         "provenance",
     )
-    if provenance["schema_version"] != SCHEMA_VERSION:
+    if type(provenance["schema_version"]) is not int or provenance["schema_version"] != SCHEMA_VERSION:
         raise AssetError("provenance schema_version is unsupported")
     if provenance["asset_family"] != "dif":
         raise AssetError("provenance asset_family must be dif")
@@ -650,6 +684,8 @@ def _validate_provenance(root: Path) -> dict[str, Any]:
         seen_paths.add(path)
         expected = _validate_sha256(source["sha256"], f"source file {path}")
         actual_path = _asset_path(root, path)
+        if actual_path.is_file() and actual_path.stat().st_size > MAX_SOURCE_FILE_BYTES:
+            raise AssetError(f"{path} exceeds the source PNG byte limit")
         if not actual_path.is_file() or sha256_file(actual_path) != expected:
             raise AssetError(f"provenance source digest mismatch: {path}")
     return provenance
@@ -675,6 +711,147 @@ def _validate_geometry(value: Any, context: str) -> tuple[int, int, int, int]:
     return left, top, right, bottom
 
 
+def _validate_anchor_regions(registration: dict[str, Any]) -> None:
+    regions = registration["anchor_regions"]
+    if not isinstance(regions, dict):
+        raise AssetError("anchor_regions must be an object")
+    _expect_keys(regions, {"head", "body", "left_foot", "right_foot"}, "anchor_regions")
+    for name, bounds in regions.items():
+        _validate_geometry(bounds, f"anchor {name}")
+    head, body = regions["head"], regions["body"]
+    left, right = regions["left_foot"], regions["right_foot"]
+    if not (head[3] <= body[1] < body[3] <= min(left[1], right[1])
+            and left[2] <= right[0]
+            and left[0] < registration["visual_center_x"] < right[2]):
+        raise AssetError("anchor regions must order head, body, and separate feet")
+
+
+def _region_pixels(image: RgbaImage, bounds: list[int]) -> RgbaImage:
+    left, top, right, bottom = bounds
+    pixels = b"".join(
+        image.pixels[(y * image.width + left) * 4:(y * image.width + right) * 4]
+        for y in range(top, bottom)
+    )
+    return RgbaImage(right - left, bottom - top, pixels)
+
+
+def _visible_anchor(image: RgbaImage, context: str) -> tuple[int, int, int, int]:
+    bounds = _alpha_bounds(image)
+    left, top, right, bottom = bounds
+    if (sum(alpha != 0 for alpha in image.pixels[3::4]) < 64
+            or right - left < 8 or bottom - top < 4):
+        raise AssetError(f"{context} lacks substantial visible anchor pixels")
+    # Horizontal transparent margins make translation observable even for a
+    # flat-colored synthetic body. An arbitrary patch inside solid fur cannot
+    # attest registration. Body bands may intersect the torso vertically.
+    if left == 0 or right == image.width:
+        raise AssetError(f"{context} must enclose the visible anchor horizontally")
+    return bounds
+
+
+def _matches_translated_region(
+    frame: RgbaImage, neutral: RgbaImage, bounds: list[int], tolerance: int
+) -> bool:
+    reference = _region_pixels(neutral, bounds)
+    for dy in range(-tolerance, tolerance + 1):
+        for dx in range(-tolerance, tolerance + 1):
+            shifted = [bounds[0] + dx, bounds[1] + dy,
+                       bounds[2] + dx, bounds[3] + dy]
+            if (min(shifted) >= 0 and shifted[2] <= CELL_SIZE
+                    and shifted[3] <= CELL_SIZE
+                    and _region_pixels(frame, shifted) == reference):
+                return True
+    return False
+
+
+def _validate_v2_runtime_geometry(
+    manifest: dict[str, Any], clips: list[CompiledClip], neutral: RgbaImage
+) -> None:
+    registration = manifest["registration"]
+    regions = registration["anchor_regions"]
+    reference = {name: _region_pixels(neutral, box) for name, box in regions.items()}
+    reference_bounds = {
+        name: _visible_anchor(image, f"neutral {name}")
+        for name, image in reference.items()
+    }
+    body = reference_bounds["body"]
+    body_center_twice = 2 * regions["body"][0] + body[0] + body[2] - 1
+    if abs(body_center_twice - 2 * registration["visual_center_x"]) > 2:
+        raise AssetError("neutral body anchor is not registered to visual center")
+    for name in ("left_foot", "right_foot"):
+        bottom = regions[name][1] + reference_bounds[name][3]
+        if abs(bottom - registration["baseline_y"]) > registration["foot_tolerance_px"]:
+            raise AssetError(f"neutral {name} is not registered to baseline")
+    neutral_bounds = _alpha_bounds(neutral)
+    declared_neutral = registration["neutral_body_bounds"]
+    if (neutral_bounds[0] < declared_neutral[0] or neutral_bounds[1] < declared_neutral[1]
+            or neutral_bounds[2] > declared_neutral[2] or neutral_bounds[3] > declared_neutral[3]):
+        raise AssetError("neutral master exceeds neutral_body_bounds")
+    for clip in clips:
+        clip_id = clip.data["id"]
+        frame_bounds = [_alpha_bounds(frame) for frame in clip.frames]
+        union = [min(box[0] for box in frame_bounds), min(box[1] for box in frame_bounds),
+                 max(box[2] for box in frame_bounds), max(box[3] for box in frame_bounds)]
+        envelope = clip.data["content_bounds"]
+        edge = registration["edge_clearance_px"]
+        if (envelope[0] < edge or envelope[1] < edge
+                or envelope[2] > CELL_SIZE - edge or envelope[3] > CELL_SIZE - edge):
+            raise AssetError(f"clip {clip_id} content_bounds exceeds edge clearance")
+        for index, frame in enumerate(clip.frames):
+            context = f"clip {clip_id} frame {index}"
+            left, top, right, bottom = _alpha_bounds(frame)
+            if (left < envelope[0] or top < envelope[1]
+                    or right > envelope[2] or bottom > envelope[3]):
+                raise AssetError(f"{context} exceeds content_bounds")
+            for name, box in regions.items():
+                actual = _region_pixels(frame, box)
+                bounds = _visible_anchor(actual, f"{context} {name}")
+                if name in {"body", "left_foot", "right_foot"}:
+                    tolerance = 0 if name == "body" else registration["foot_tolerance_px"]
+                    if not _matches_translated_region(frame, neutral, box, tolerance):
+                        raise AssetError(f"{context} displaces or changes {name} anchor pixels")
+                    if name != "body" and abs(box[1] + bounds[3] - registration["baseline_y"]) > tolerance:
+                        raise AssetError(f"{context} {name} drifts from baseline")
+                else:
+                    if sum(alpha != 0 for alpha in actual.pixels[3::4]) * 4 < sum(
+                            alpha != 0 for alpha in reference[name].pixels[3::4]) * 3:
+                        raise AssetError(f"{context} loses visible head content")
+                    travel_x, travel_y = clip.data["head_travel_px"]
+                    for coordinate, limit in zip(range(4), (travel_x, travel_y, travel_x, travel_y)):
+                        if abs(bounds[coordinate] - reference_bounds[name][coordinate]) > limit:
+                            raise AssetError(f"{context} exceeds head travel")
+                    if clip_id == "calm_idle" and actual != reference[name]:
+                        raise AssetError(f"{context} changes locked head pixels")
+                    if clip_id == "blink" and actual.pixels[3::4] != reference[name].pixels[3::4]:
+                        raise AssetError(f"{context} changes blink head silhouette")
+            if clip_id == "blink":
+                lower = [0, regions["head"][3], CELL_SIZE, CELL_SIZE]
+                if _region_pixels(frame, lower) != _region_pixels(neutral, lower):
+                    raise AssetError(f"{context} changes locked blink body pixels")
+        if envelope != union:
+            raise AssetError(f"clip {clip_id} content_bounds must equal measured content union")
+        if clip.data["kind"] == "one_shot":
+            if clip.frames[0] != neutral or clip.frames[-1] != neutral:
+                raise AssetError(f"clip {clip_id} requires exact neutral entry and return")
+            if all(frame == neutral for frame in clip.frames):
+                raise AssetError(f"clip {clip_id} cannot alias static neutral")
+            if clip_id == "blink" and clip.frames[4] != neutral:
+                raise AssetError("blink requires exact neutral open-eye tail")
+        elif clip.frames[0] != neutral:
+            raise AssetError(f"clip {clip_id} requires exact neutral representative")
+    calm = clips[0]
+    if calm.frames[0] == calm.frames[-1]:
+        raise AssetError("calm_idle duplicates its terminal frame")
+    # Compare the occupied union, so transparent cell padding cannot dilute a
+    # discontinuity. This numeric seam guard is not an attended motion verdict.
+    occupied = [i for i in range(0, len(neutral.pixels), 4)
+                if neutral.pixels[i + 3] or calm.frames[-1].pixels[i + 3]]
+    delta = sum(abs(neutral.pixels[i + c] - calm.frames[-1].pixels[i + c])
+                for i in occupied for c in range(4))
+    if delta > calm.data["loop_seam_mean_delta_max"] * len(occupied) * 4:
+        raise AssetError("calm_idle occupied-pixel seam exceeds declared tolerance")
+
+
 def _validate_manifest(root: Path) -> dict[str, Any]:
     manifest = load_canonical_json(root / "dif-sprite-manifest.json")
     _expect_keys(
@@ -689,8 +866,9 @@ def _validate_manifest(root: Path) -> dict[str, Any]:
         },
         "manifest",
     )
-    if manifest["schema_version"] != SCHEMA_VERSION:
-        raise AssetError("manifest schema_version is unsupported")
+    version = _expect_int(manifest["schema_version"], "manifest schema_version", 1, 2)
+    clip_ids = CLIP_IDS if version == 1 else tuple(V2_CLIP_SPECS)
+    limits = EXPECTED_LIMITS if version == 1 else V2_LIMITS
     if manifest["asset_family"] != "dif":
         raise AssetError("manifest asset_family must be dif")
 
@@ -710,9 +888,9 @@ def _validate_manifest(root: Path) -> dict[str, Any]:
         "color_space": "srgb",
         "gutter_cells": GUTTER_CELLS,
     }
-    if cell != expected_cell:
+    if canonical_json_bytes(cell) != canonical_json_bytes(expected_cell):
         raise AssetError("manifest cell contract differs from the fixed RFC contract")
-    if manifest["limits"] != EXPECTED_LIMITS:
+    if canonical_json_bytes(manifest["limits"]) != canonical_json_bytes(limits):
         raise AssetError("manifest limits differ from the fixed RFC limits")
 
     registration = manifest["registration"]
@@ -726,7 +904,7 @@ def _validate_manifest(root: Path) -> dict[str, Any]:
             "neutral_body_bounds",
             "foot_tolerance_px",
             "edge_clearance_px",
-        },
+        } | ({"anchor_regions"} if version == 2 else set()),
         "manifest.registration",
     )
     _expect_int(registration["visual_center_x"], "visual_center_x", 1, CELL_SIZE - 1)
@@ -735,11 +913,16 @@ def _validate_manifest(root: Path) -> dict[str, Any]:
     _expect_int(registration["foot_tolerance_px"], "foot_tolerance_px", 0, 2)
     _expect_int(registration["edge_clearance_px"], "edge_clearance_px", 1, 16)
 
+    if version == 2:
+        if (registration["visual_center_x"], registration["foot_tolerance_px"],
+                registration["edge_clearance_px"]) != (128, 1, 16):
+            raise AssetError("schema 2 requires center 128, foot tolerance 1, clearance 16")
+        _validate_anchor_regions(registration)
     clips = manifest["clips"]
-    if not isinstance(clips, list) or len(clips) != len(CLIP_IDS):
-        raise AssetError("manifest must define exactly three clips")
-    if [clip.get("id") if isinstance(clip, dict) else None for clip in clips] != list(CLIP_IDS):
-        raise AssetError("manifest clips must be ordered calm_idle, greet, rest")
+    if not isinstance(clips, list) or len(clips) != len(clip_ids):
+        raise AssetError(f"manifest must define exactly {len(clip_ids)} clips")
+    if [clip.get("id") if isinstance(clip, dict) else None for clip in clips] != list(clip_ids):
+        raise AssetError("manifest clips must be ordered " + ", ".join(clip_ids))
     total_frames = 0
     source_paths: set[PurePosixPath] = set()
     strip_paths: set[PurePosixPath] = set()
@@ -760,11 +943,12 @@ def _validate_manifest(root: Path) -> dict[str, Any]:
                 "accessible_description",
                 "loop_seam_mean_delta_max",
                 "handoff_mean_delta_max",
-            },
+            } | ({"content_bounds", "head_travel_px"} if version == 2 else set()),
             f"clip {clip['id']}",
         )
         clip_id = clip["id"]
-        if clip["kind"] != CLIP_KINDS[clip_id]:
+        expected_kind = CLIP_KINDS[clip_id] if version == 1 else V2_CLIP_SPECS[clip_id][2]
+        if clip["kind"] != expected_kind:
             raise AssetError(f"clip {clip_id} has the wrong kind")
         frames = clip["frames"]
         if not isinstance(frames, list) or not frames:
@@ -774,7 +958,7 @@ def _validate_manifest(root: Path) -> dict[str, Any]:
         if clip_id == "rest" and len(frames) != 1:
             raise AssetError("rest must contain exactly one frame")
         total_frames += len(frames)
-        expected_parent = PurePosixPath(CLIP_SOURCE_DIRS[clip_id])
+        expected_parent = PurePosixPath("source/" + clip_id.replace("_", "-"))
         for index, frame_value in enumerate(frames):
             frame = safe_relative_path(frame_value, f"clip {clip_id} frame {index}")
             if frame.parent != expected_parent or frame.name != f"frame-{index:03d}.png":
@@ -805,7 +989,7 @@ def _validate_manifest(root: Path) -> dict[str, Any]:
             len(frames) - 1,
         )
         _expect_int(clip["priority"], f"clip {clip_id} priority", 0, 100)
-        expected_return = "calm_idle" if clip_id in {"calm_idle", "greet"} else "rest"
+        expected_return = "rest" if clip_id == "rest" else "calm_idle"
         if clip["return_target"] != expected_return:
             raise AssetError(f"clip {clip_id} has invalid return_target")
         body_bounds = _validate_geometry(
@@ -841,19 +1025,43 @@ def _validate_manifest(root: Path) -> dict[str, Any]:
             raise AssetError("calm_idle must declare a nonzero seam tolerance")
         if clip_id != "calm_idle" and seam != 0:
             raise AssetError(f"clip {clip_id} cannot declare a loop seam tolerance")
-        if clip_id == "greet" and handoff == 0:
+        if version == 1 and clip_id == "greet" and handoff == 0:
             raise AssetError("greet must declare a nonzero handoff tolerance")
-        if clip_id != "greet" and handoff != 0:
+        if (version == 1 and clip_id != "greet" or version == 2) and handoff != 0:
             raise AssetError(f"clip {clip_id} cannot declare a handoff tolerance")
-    if total_frames > MAX_CONTENT_FRAMES:
-        raise AssetError("manifest exceeds the total content-frame limit")
-    content_bytes = total_frames * CELL_SIZE * CELL_SIZE * 4
-    complete_bytes = (total_frames + len(clips) * 2) * CELL_SIZE * CELL_SIZE * 4
-    if content_bytes > MAX_CONTENT_DECODED_BYTES:
-        raise AssetError("manifest exceeds the content decoded-byte limit")
-    if complete_bytes > MAX_COMPLETE_DECODED_BYTES:
-        raise AssetError("manifest exceeds the complete decoded-byte limit")
+        if version == 2:
+            actual_spec = (len(frames), duration, clip["kind"],
+                           clip["representative_frame"], clip["priority"])
+            if actual_spec != V2_CLIP_SPECS[clip_id]:
+                raise AssetError(f"clip {clip_id} differs from schema 2 count/timing/descriptor contract")
+            _validate_geometry(clip["content_bounds"], f"clip {clip_id} content_bounds")
+            head_travel = clip["head_travel_px"]
+            if not isinstance(head_travel, list) or len(head_travel) != 2:
+                raise AssetError(f"clip {clip_id} head_travel_px must contain x,y")
+            for component in head_travel:
+                _expect_int(component, f"clip {clip_id} head travel", 0, 4)
+            if clip_id in {"calm_idle", "blink", "rest"} and head_travel != [0, 0]:
+                raise AssetError(f"clip {clip_id} requires locked head geometry")
+            if seam > 4:
+                raise AssetError("schema 2 occupied-pixel seam tolerance exceeds 4")
+            if clip["allowed_travel_px"] != [0, 0]:
+                raise AssetError("schema 2 body travel must be zero")
+    _decoded_resource_bytes(total_frames, len(clips), limits)
     return manifest
+
+
+def _decoded_resource_bytes(total_frames: int, clip_count: int, limits: dict[str, int]) -> tuple[int, int]:
+    # Python integers do not overflow. Counts are bounded before multiplication,
+    # and only these validated small values enter generated C++ descriptors.
+    _expect_int(total_frames, "total content-frame count", 1, limits["max_content_frames"])
+    _expect_int(clip_count, "clip count", 1, limits.get("max_clips", len(CLIP_IDS)))
+    content_bytes = total_frames * CELL_SIZE * CELL_SIZE * 4
+    complete_bytes = (total_frames + clip_count * 2 * GUTTER_CELLS) * CELL_SIZE * CELL_SIZE * 4
+    if content_bytes > limits["max_content_decoded_bytes"]:
+        raise AssetError("manifest exceeds the content decoded-byte limit")
+    if complete_bytes > limits["max_complete_decoded_bytes"]:
+        raise AssetError("manifest exceeds the complete decoded-byte limit")
+    return content_bytes, complete_bytes
 
 
 def _pack_strip(frames: Iterable[RgbaImage]) -> RgbaImage:
@@ -978,11 +1186,14 @@ def compile_assets(root: Path) -> tuple[dict[str, Any], dict[str, Any], list[Com
             runtime_frames.append(resize_box(source))
         strip = _pack_strip(runtime_frames)
         compiled.append(CompiledClip(clip, tuple(runtime_frames), strip))
-    _validate_runtime_geometry(manifest, compiled)
+    if manifest["schema_version"] == 2:
+        _validate_v2_runtime_geometry(manifest, compiled, resize_box(master_image))
+    else:
+        _validate_runtime_geometry(manifest, compiled)
     return manifest, provenance, compiled
 
 
-def _catalog_bytes(manifest: dict[str, Any]) -> bytes:
+def _catalog_bytes(manifest: dict[str, Any], clips: list[CompiledClip]) -> bytes:
     manifest_digest = sha256_bytes(canonical_json_bytes(manifest))
     lines = [
         "// Generated by scripts/dif_assets.py. Do not edit.",
@@ -1005,14 +1216,24 @@ def _catalog_bytes(manifest: dict[str, Any]) -> bytes:
         "  int priority;",
         "  std::string_view return_target;",
         "  std::string_view accessible_description;",
+        *([
+            "  int cell_width;",
+            "  int cell_height;",
+            "  int content_origin_x;",
+            "  int strip_width;",
+            "  int strip_height;",
+            "  std::size_t decoded_bytes;",
+            "  std::string_view rgba_sha256;",
+        ] if manifest["schema_version"] == 2 else []),
         "};",
         "",
         f'inline constexpr std::string_view kManifestSha256{{"{manifest_digest}"}};',
-        f"inline constexpr int kSchemaVersion{{{SCHEMA_VERSION}}};",
+        f"inline constexpr int kSchemaVersion{{{manifest['schema_version']}}};",
         f"inline constexpr int kCellSize{{{CELL_SIZE}}};",
-        f"inline constexpr std::array<clip_descriptor, {len(CLIP_IDS)}> kClips{{{{",
+        f"inline constexpr std::array<clip_descriptor, {len(manifest['clips'])}> kClips{{{{",
     ]
-    for clip in manifest["clips"]:
+    for compiled in clips:
+        clip = compiled.data
         resource = ":/bpr/dif/" + PurePosixPath(clip["strip"]).name
         description = json.dumps(clip["accessible_description"], ensure_ascii=True)
         catalog_kind = {
@@ -1031,6 +1252,10 @@ def _catalog_bytes(manifest: dict[str, Any]) -> bytes:
             + json.dumps(clip["return_target"])
             + ", "
             + description
+            + (f", {CELL_SIZE}, {CELL_SIZE}, {CELL_SIZE}, "
+               f"{compiled.strip.width}, {compiled.strip.height}, "
+               f"{len(compiled.strip.pixels)}, " + json.dumps(sha256_bytes(compiled.strip.pixels))
+               if manifest["schema_version"] == 2 else "")
             + "},"
         )
     lines.extend(["}};", "}  // namespace bpr::adapters::qt::dif", ""])
@@ -1045,7 +1270,7 @@ def generated_products(
     for clip in clips:
         relative = PurePosixPath(clip.data["strip"]).relative_to("generated")
         products[relative] = encode_png(clip.strip)
-    products[PurePosixPath(GENERATED_CATALOG)] = _catalog_bytes(manifest)
+    products[PurePosixPath(GENERATED_CATALOG)] = _catalog_bytes(manifest, clips)
     source_digests = {
         item["path"]: item["sha256"]
         for item in provenance["source_files"]
@@ -1055,7 +1280,7 @@ def generated_products(
         for relative, payload in sorted(products.items(), key=lambda item: str(item[0]))
     }
     inventory = {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": manifest["schema_version"],
         "manifest_sha256": sha256_file(root / "dif-sprite-manifest.json"),
         "source_sha256": dict(sorted(source_digests.items())),
         "output_sha256": output_digests,
@@ -1091,6 +1316,8 @@ def _tree_bytes(root: Path) -> dict[PurePosixPath, bytes]:
                 f"generated tree contains a symbolic link: {path.relative_to(root).as_posix()}"
             )
         if path.is_file():
+            if path.stat().st_size > MAX_GENERATED_FILE_BYTES:
+                raise AssetError(f"generated file exceeds byte limit: {path.name}")
             result[PurePosixPath(path.relative_to(root).as_posix())] = path.read_bytes()
     return result
 
@@ -1142,8 +1369,16 @@ def _differing_generated_products(
         elif name.endswith(".png"):
             try:
                 if decode_png_bytes(
-                    left, name, require_canonical_form=True
-                ) != decode_png_bytes(right, name, require_canonical_form=True):
+                    left, name, require_canonical_form=True,
+                    max_dimension=(MAX_FRAMES_PER_CLIP + 2) * CELL_SIZE,
+                    max_file_bytes=MAX_GENERATED_FILE_BYTES,
+                    max_decoded_bytes=V2_LIMITS["max_complete_decoded_bytes"],
+                ) != decode_png_bytes(
+                    right, name, require_canonical_form=True,
+                    max_dimension=(MAX_FRAMES_PER_CLIP + 2) * CELL_SIZE,
+                    max_file_bytes=MAX_GENERATED_FILE_BYTES,
+                    max_decoded_bytes=V2_LIMITS["max_complete_decoded_bytes"],
+                ):
                     differing.append(name)
             except AssetError:
                 differing.append(name)
@@ -1173,6 +1408,8 @@ def _digest_inventory_is_stale(
     except (UnicodeDecodeError, json.JSONDecodeError):
         return True
     if not isinstance(recorded, dict) or not isinstance(fresh, dict):
+        return True
+    if committed[key] != canonical_json_bytes(recorded):
         return True
     if {name: value for name, value in recorded.items() if name != "output_sha256"} != {
         name: value for name, value in fresh.items() if name != "output_sha256"
@@ -1249,7 +1486,9 @@ def verify_assets(root: Path) -> None:
         first_tree = _tree_bytes(first)
         if first_tree != _tree_bytes(second):
             raise AssetError("two clean regenerations differ")
-        if first_tree != _tree_bytes(root / "generated"):
+        committed = _tree_bytes(root / "generated")
+        if (_differing_generated_products(committed, first_tree)
+                or _digest_inventory_is_stale(committed, first_tree)):
             raise AssetError("clean regeneration differs from committed products")
     finally:
         _remove_tree(temporary)
@@ -1414,7 +1653,7 @@ def render_previews(root: Path, output: Path) -> None:
         _join_grid(reduced_motion, columns=3)
     )
     preview_manifest = {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": manifest["schema_version"],
         "asset_manifest_sha256": sha256_file(root / "dif-sprite-manifest.json"),
         "files": {
             path: sha256_bytes(payload) for path, payload in sorted(products.items())
