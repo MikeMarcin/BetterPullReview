@@ -11,6 +11,27 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/pla
 
 # Verify and close RFC-BPR-0013
 
+## Current frontier — bpr0643-r5 / d16 / mandate r16
+
+The Mac is unlocked and the signed, tests-disabled d15 candidate was reopened.
+A stale task-owned d13 app held the Default profile lease; after it was quit,
+the d15 product window and Accounts & hosts page rendered normally. The host
+selector remained on GitHub.com Native HTTPS. Computer-use accessibility
+clicks could not select the GitHub CLI entry, pointer actions returned
+`AXError.notImplemented`, and keyboard traversal skipped the selector. The
+d15 app was quit, with no task-owned BetterPullReview process left running.
+No exact-target request or new source, anchor, selected-diff or historical
+observation occurred. The native product exit is still pending, and this UI
+automation limitation does not adjudicate candidate behavior. BPR-0794 and
+BPR-0795 remain In Progress; the d15 focused, portable, documentation, format
+and Release-build evidence still applies to unchanged source. The next bounded
+step is an attended or otherwise usable native selection of the already
+authorized GitHub.com CLI profile, followed by the single read-only
+`EpicGames/UnrealEngine#1773` product check. No live write, account change,
+credential extraction or private content retention is authorized. Preserve
+the unrelated dirty files listed in the d15 frontier below and all RFC-wide
+predecessor, platform and human obligations.
+
 ## Current frontier — bpr0643-r5 / d15 / mandate r16
 
 The d15 companion candidate adds typed selection of an unimported force-push

@@ -88,3 +88,12 @@ app bundle was prepared and verified, but computer-use reported the Mac locked
 and could not unlock it. No new live selected-source, anchor or prompt-latency
 observation is claimed. BPR-0795 remains In Progress until that native exit
 and the other milestone obligations are met.
+
+On the unlocked Mac, the signed d15 tests-disabled app opened and rendered
+Accounts & hosts after the stale task-owned d13 profile holder was quit.
+Computer-use could not select GitHub.com GitHub CLI from the native host combo:
+accessibility clicks left Native HTTPS selected, pointer actions returned
+`AXError.notImplemented`, and keyboard traversal skipped it. The d15 process
+was quit and confirmed absent. No target Open or new loading/diff observation
+occurred, so the native product exit and both cards remain open; the prior
+focused and integration checks still apply to unchanged code.

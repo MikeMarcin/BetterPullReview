@@ -76,3 +76,14 @@ app instance reached signed-out Settings, but the macOS computer-use control
 could not activate its GitHub CLI host selector, so no new target read or
 source/anchor observation is claimed. The readable selected-diff acceptance
 remains open.
+
+The renewed unlocked-Mac d16 attempt launched the signed tests-disabled d15
+candidate after quitting a stale task-owned d13 instance that held the Default
+profile lease. The d15 window and Accounts & hosts page rendered, with the
+selector still showing GitHub.com Native HTTPS. Computer-use accessibility
+clicks did not open or change the selector; pointer actions returned
+`AXError.notImplemented`, and keyboard traversal skipped the selector.
+The d15 app was quit and its process confirmed absent. No CLI profile was
+selected, no target request was made, and source, anchors and diff remain
+unobserved. This is an automation-path limitation, not evidence that the
+candidate either passes or fails the exact selected-diff behavior.
