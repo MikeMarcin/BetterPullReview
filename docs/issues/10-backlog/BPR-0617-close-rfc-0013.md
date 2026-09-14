@@ -11,6 +11,39 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0013-hardening","path":"docs/rfcs/pla
 
 # Verify and close RFC-BPR-0013
 
+## Current frontier — bpr0643-r5 / d13 / mandate r16
+
+The owner chose exact, on-demand selected-file objects and deferred older-epoch
+objects under r15. This does not by itself restore the current exact pair:
+the prior `protocol_acquire/transport/unavailable` precedes revision preparation.
+The owner added r16: every PR open should promptly show loading; small PRs keep
+complete asynchronous background acquisition; only large PRs may use lazy
+objects. BPR-0795 is the separate acceptance card for that UX and routing
+policy, reserved on main at `890407b9`. Its work and an additional exit are
+included in the existing `selected-diff-exact-epoch-pair` milestone while every
+original BPR-0794 exit remains. The same-obligation amendment checker rejected
+the proposed new work atom; the explicit r16 user mandate and live BPR-0795 card
+are the source basis for the reconciled plan. The renewed current binding is
+`docs/rfcs/plans/rfc-bpr-0013-hardening/assignment-bpr0643-r5-d13-r16.json`.
+
+The thin public path already publishes `loading_pull_request` before posting
+the provider effect; a pause before first paint is not yet attributed. Accepted
+snapshot file and commit counts exist at the application handoff but are not
+passed to the epoch host. A bounded host/Qt owner is checking first-paint
+behavior and adding exact shape facts. The integrator owns sparse Git/cache,
+epoch-host integration, plan/card updates, and final evidence. No source repair,
+new private-target read, or readable selected diff is claimed. The candidate
+starts at `890407b9`; BPR-0794 and BPR-0795 remain open. Unrelated dirty
+`.gitignore`, `.mask.json`, and BPR-0775/0776 deletions belong to other work.
+
+The next discriminating step is a synthetic composed large-review path whose
+exact commit/tree pair becomes available from bounded sparse acquisition and
+whose selected two blobs are requested, OID-checked and materialized only on
+selection. It must refuse absent ancestry, wrong objects, stale authority,
+cancelled acquisition and quota exhaustion; the complete-pack path and its
+strict connected check remain intact. The exact target needs a later read-only
+tests-disabled product attempt with metadata-only evidence and account check.
+
 ## Current frontier — bpr0643-r4 / d12 / mandate r14
 
 Main reserved BPR-0794 at `aab3e27c` with its counter and immutable receipt.

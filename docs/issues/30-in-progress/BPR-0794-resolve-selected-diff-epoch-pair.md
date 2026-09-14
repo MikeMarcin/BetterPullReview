@@ -17,6 +17,12 @@ and 19 review threads. Two file selections each refused `selected_file_stale`;
 the epoch control had no exact pair and no selected diff was readable. BPR-0643,
 BPR-0792 and BPR-0793 are Done for their bounded outcomes and remain terminal.
 This is the separate selected-diff follow-up authorized by mandate r14.
+Mandate r15 chooses bounded on-demand selected diffs: acquire only exact current
+selected-file objects needed for an immediate comparison and defer older-epoch
+comparison objects until that epoch is selected. Lazy historical loading alone
+cannot repair the current missing exact pair. The small-versus-large loading
+policy from mandate r16 is tracked separately in BPR-0795; it does not replace
+this card's readable selected-diff criterion.
 
 ## Acceptance
 

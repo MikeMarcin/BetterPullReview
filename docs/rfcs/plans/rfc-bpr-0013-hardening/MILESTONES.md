@@ -88,9 +88,9 @@ The exact owner-retained pull request either renders a truthful file list and re
 
 ## selected-diff-exact-epoch-pair
 
-The owner-retained large pull request displays its correct file list and a readable selected diff through one exact accepted epoch pair, or retains the unresolved product refusal without inventing history or object residency.
+The owner-retained large pull request displays its correct file list and a readable selected diff through one exact accepted epoch pair, or retains the unresolved product refusal without inventing history or object residency. Every pull request also shows loading promptly; small reviews complete asynchronously while only large reviews qualify for on-demand objects.
 
-**Work:** `BPR-0794`
+**Work:** `BPR-0794`, `BPR-0795`
 
 **Prerequisites:** review-thread-null-anchor-read
 
@@ -100,8 +100,9 @@ The owner-retained large pull request displays its correct file list and a reada
 - The responsible transition or host mapping preserves exact authority, accepted anchor and Git-object checks, bounded history and stale-result rejection
 - Focused positive and negative checks, a composed public path, documentation gate and one integration-focused check pass
 - A tests-disabled Mac CLI-profile read of EpicGames/UnrealEngine#1773 shows the correct file list and readable selected diff with checked source and anchor identity; any remaining refusal remains open and explicit, with no live write or account change
+- Every PR open paints a visible loading state promptly; small accepted reviews retain complete asynchronous background Git acquisition, while only large accepted reviews use bounded lazy selected-file and selected historical-epoch object acquisition
 
-**Boundary:** Separate mandate r14 follow-up to terminal BPR-0643, BPR-0792 and BPR-0793; retain all RFC-0013 predecessor, native-platform, human and closeout obligations
+**Boundary:** Separate mandate r14 follow-up to terminal BPR-0643, BPR-0792 and BPR-0793; retain all RFC-0013 predecessor, native-platform, human and closeout obligations; mandate r16 adds BPR-0795 loading and size-qualified policy without replacing BPR-0794 exact-target acceptance
 
 ## verify-rfc-0013
 
