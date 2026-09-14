@@ -43,7 +43,29 @@ last dependent RFC to satisfy the repository's closeout-card convention.
 | **B11 — Rendered/accessibility evidence.** Actual app frames at shipping scales and supported appearance modes demonstrate readable alpha edges, calm motion, static reduced interval, noninterference with focus/status and approved visual integration. | Not run; import only | No producing revision |
 | **B12 — Complete handoff.** Focused tests, resource packaging, platform claims, source/ mutable docs, shared-skill consumer context and verification records agree. All ten clips are real and reachable; unavailable evidence/formal closeout remains honestly open, with no fabricated native/art verdict or forced rewriting of settled RFCs. | Partial: plan/consumer context and intake documented; all app/resource/native/art work remains open | `ee1e12df`, `57ced605`; [live import](../../rfcs/assets/bpr-dif-integration-v1.LIVE_IMPORT.md) |
 
-## Current frontier — neutral identity accepted, production-art resumed, dif-takeover-20260914 d4 / mandate r2
+## Current frontier — greeting anatomy correction, dif-takeover-20260914 d5 / mandate r2
+
+The d4 return was consumed as
+`continue-milestone` on `main` at `6b588724`. The d5 assignment binds the same
+authored BPR-0755/0756/0757 production-art work and both exits with the live
+BPR-0755 evidence progression. The exact phase-one neutral accept remains
+valid; v002 rest/idle are partial objective source studies, both greeting
+retouches are rejected, and the seven extended gestures/final catalog are
+still absent. No prior test or human outcome is being repeated merely because
+the dispatch changed.
+
+One deep worker has exclusive ownership of new
+`docs/verification/dif-production-art-v003/` staging only. Its named problem is
+connected master-scale shoulder, forearm and exposed-belly anatomy plus
+genuine approach/return poses from the real raw greeting, without a model run.
+The integrator retains board, compiler/manifest/generated, acceptance and
+commits. No shipped source or runtime resource has changed; the protected v001
+candidate and earlier review decisions remain untouched. The current next step
+is to adjudicate the v003 rendered 64/72/96-px results and checks. BPR-0755
+and both production-art exits remain open until actual source and full review
+evidence satisfy them.
+
+## Previous frontier — neutral identity accepted, production-art resumed, dif-takeover-20260914 d4 / mandate r2
 
 The exact protected `BPR-0755-neutral-identity-v001` candidate was accepted by
 the human in attended session `cbd48b91000b00f1e72e1ad62c7c384c` at sequence
