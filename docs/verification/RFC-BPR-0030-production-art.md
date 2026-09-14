@@ -226,8 +226,13 @@ bridge-to-open limb area changes 17.5%; the integrator rejects promotion.
 The [B1 strict eye study](dif-production-art-v005/blink-study/README.md)
 preserves neutral pixels outside its mask and all alpha, but pale inner/lower
 eye leakage and uneven purple texture remain at 256 pixels; it too is
-rejected. The six non-blink extended edited inputs only provide pose ideas
-pending local registration/retouch, timed motion and human review. The
+rejected. The [six-input extended screen](dif-production-art-v005/extended-study/README.md)
+rejects all non-blink full outputs for direct promotion. It identifies
+one-eye-only gaze, wrong-height consider/attention poses, a smaller/lower
+unproved nod, opposite blocked head tilt and broad foot/body drift; a few
+connected paws remain potential local donor material. None has a qualified
+local composite or timed clip. They require registration/retouch, timed motion
+and human review. The
 accepted neutral bytes and historic v002–v004 studies are unchanged. No
 complete 71-frame catalog, source manifest, app resource or final Dif-only
 attended candidate exists.

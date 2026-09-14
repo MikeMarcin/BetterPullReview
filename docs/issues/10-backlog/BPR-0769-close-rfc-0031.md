@@ -61,14 +61,35 @@ lock but is **rejected** for the shoulder/elbow mismatch: an 87-pixel inner-root
 wedge vanishes at the bridge-to-peak handoff and limb area changes 17.5%.
 The [v005 blink study](../../verification/dif-production-art-v005/blink-study/README.md)
 keeps outside-eye RGBA and alpha exact but is **rejected** for a pale lower-eye
-seam and uneven purple shading at 256 pixels. Six other edited inputs have
-only first-pass visual/provenance status; their bounded registration screen
-is in progress. The accepted neutral decision, v002 partial rest/idle,
+seam and uneven purple shading at 256 pixels. The
+[six-input extended screen](../../verification/dif-production-art-v005/extended-study/README.md)
+rejects every full output for direct promotion: one-eye glance, wrong-height
+consider/attention, unproved nod, opposite blocked tilt and broad neutral
+registration/foot drift. Some paw shapes are useful donor material; no local
+composite or timed sequence has passed. The accepted neutral decision, v002 partial rest/idle,
 provisional v004 blink and rejected v003/v004 greetings remain historical
 evidence. No new source, complete catalog, runtime resource or final review
 candidate exists. BPR-0755/0756/0757 and both production-art exits remain
 open. The final Dif-only review still requires a complete catalog and fresh
 external `--state`, without rewriting the shared session's earlier decisions.
+An independent read-only `rfc-reviewer` found no blocking changed-surface
+issue after checking nine retained output hashes/bytes, dimensions, greeting
+fault controls, blink masks and the pending extended screen. The reviewer did
+not observe invocation transcripts, timed playback, native Qt or a human art
+verdict, so those claims remain pending. The integrator adjudicated that
+review as consistent with **no asset promotion**.
+
+Native d7 leaf dispatch reused the existing `rfc-worker-deep` greeting owner,
+then selected `rfc-worker` for the disjoint blink and extended-input screens
+and `rfc-reviewer` for the read-only integration review. New calls used
+`fork_turns: none` and no optional model/effort overrides; follow-ups kept
+their original slice owners. The generated route known for the two worker
+roles is Codex `gpt-6-astra` / `high` and `gpt-6-astra` / `low`, and the
+reviewer self-reported `gpt-6-astra` / `medium`. Those banners/configuration
+are separate from the dispatch arguments and are not effective serving
+telemetry or proof of enforced child-role allowlists. All leaf tasks and
+background study commands returned quiescent; the integrator retains the
+cards, catalog, acceptance and any future review.
 
 ## Previous frontier — authorized offline image-edit continuation, dif-takeover-20260914 d6 / mandate r4
 

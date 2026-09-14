@@ -48,9 +48,13 @@ All generated full-body outputs drift from the accepted neutral and are
 unaccepted. A [strict eye-local study](../../verification/dif-production-art-v005/blink-study/README.md)
 keeps outside-eye RGBA and all alpha exact but **fails** at 256 pixels because
 of a pale lower-eye seam and uneven purple donor shading. Half lids and timed
-blink motion remain absent. The six other inputs are undergoing bounded
-registration/pose inspection; no full extended sequence or source promotion
-is claimed.
+blink motion remain absent. The [six-input screen](../../verification/dif-production-art-v005/extended-study/README.md)
+finds every uncomposited output unsuitable for direct promotion. E1 moves
+only one pupil clearly, E2 misses the halfway lift, E4 is too high, E5's
+smaller/lower head does not prove a nod, and E6's head tilts in the wrong
+direction. E3's two open paws and E6's correct-side paw remain useful donor
+ideas, but local shoulder/belly/face/foot registration is unproved. No full
+extended sequence or source promotion is claimed.
 
 ## Boundaries
 

@@ -1,0 +1,186 @@
+{
+  "neutral_sha256": "bb6ccdbb00cf55624f15aabcdf08f47b8d97ce1835af9bcc7e01d4d4471ebeef",
+  "neutral_alpha_bbox": [
+    186,
+    86,
+    838,
+    892
+  ],
+  "inputs": [
+    {
+      "name": "compare-glance-left",
+      "sha256": "eeea4f02d3629ec16645b64a5e06b9e2223662abf7ea5a00237e5cf23f0613bd",
+      "native_size": [
+        1254,
+        1254
+      ],
+      "mode": "RGBA",
+      "alpha_bbox": [
+        41,
+        53,
+        1227,
+        1254
+      ],
+      "transparent_pixels": 937930,
+      "partial_alpha_pixels": 634201,
+      "hidden_rgb_pixels": 0,
+      "screen_resize": "uniform full-canvas LANCZOS to 1024; not body registration",
+      "resized_alpha_bbox": [
+        33,
+        43,
+        1002,
+        1024
+      ],
+      "resized_changed_pixels_vs_neutral": 425385,
+      "resized_changed_alpha_pixels": 66893,
+      "resized_foot_region_changed_pixels_y780_plus": 42368
+    },
+    {
+      "name": "consider-half-lift",
+      "sha256": "f591e00aa37ad5db86c67bfea508ce9a1d7c24afa03d66a03382a30d706d380b",
+      "native_size": [
+        1254,
+        1254
+      ],
+      "mode": "RGBA",
+      "alpha_bbox": [
+        0,
+        46,
+        1232,
+        1254
+      ],
+      "transparent_pixels": 941922,
+      "partial_alpha_pixels": 630426,
+      "hidden_rgb_pixels": 0,
+      "screen_resize": "uniform full-canvas LANCZOS to 1024; not body registration",
+      "resized_alpha_bbox": [
+        0,
+        38,
+        1006,
+        1024
+      ],
+      "resized_changed_pixels_vs_neutral": 426042,
+      "resized_changed_alpha_pixels": 69589,
+      "resized_foot_region_changed_pixels_y780_plus": 42767
+    },
+    {
+      "name": "comment-ready-open-peak",
+      "sha256": "27a98932a6aec3ba0fc821d9e91064838747fbdf950bb8ccec55683cebb957ad",
+      "native_size": [
+        1254,
+        1254
+      ],
+      "mode": "RGBA",
+      "alpha_bbox": [
+        0,
+        53,
+        1234,
+        1254
+      ],
+      "transparent_pixels": 906302,
+      "partial_alpha_pixels": 665566,
+      "hidden_rgb_pixels": 0,
+      "screen_resize": "uniform full-canvas LANCZOS to 1024; not body registration",
+      "resized_alpha_bbox": [
+        0,
+        43,
+        1008,
+        1024
+      ],
+      "resized_changed_pixels_vs_neutral": 450393,
+      "resized_changed_alpha_pixels": 97949,
+      "resized_foot_region_changed_pixels_y780_plus": 45819
+    },
+    {
+      "name": "attention-chest-paw",
+      "sha256": "05fda8c8844e558a3ca0e951c6676c59505f5328bc84bd8f3f5c16861adc8809",
+      "native_size": [
+        1254,
+        1254
+      ],
+      "mode": "RGBA",
+      "alpha_bbox": [
+        97,
+        54,
+        1105,
+        1214
+      ],
+      "transparent_pixels": 922511,
+      "partial_alpha_pixels": 649291,
+      "hidden_rgb_pixels": 0,
+      "screen_resize": "uniform full-canvas LANCZOS to 1024; not body registration",
+      "resized_alpha_bbox": [
+        79,
+        44,
+        902,
+        991
+      ],
+      "resized_changed_pixels_vs_neutral": 440938,
+      "resized_changed_alpha_pixels": 87572,
+      "resized_foot_region_changed_pixels_y780_plus": 42497
+    },
+    {
+      "name": "acknowledge-nod-peak",
+      "sha256": "4a7a8198c3e7bc2ecf566cb30d91992e3ff193e4158dc55bc80dca6df271c3de",
+      "native_size": [
+        1254,
+        1254
+      ],
+      "mode": "RGBA",
+      "alpha_bbox": [
+        0,
+        21,
+        1232,
+        1228
+      ],
+      "transparent_pixels": 960644,
+      "partial_alpha_pixels": 611508,
+      "hidden_rgb_pixels": 0,
+      "screen_resize": "uniform full-canvas LANCZOS to 1024; not body registration",
+      "resized_alpha_bbox": [
+        0,
+        17,
+        1006,
+        1003
+      ],
+      "resized_changed_pixels_vs_neutral": 431755,
+      "resized_changed_alpha_pixels": 96515,
+      "resized_foot_region_changed_pixels_y780_plus": 45277
+    },
+    {
+      "name": "blocked-left-paw",
+      "sha256": "58296fe7aa833d09501887d9eba8211031058a10339ec1f24fc6249ca7b1a5ad",
+      "native_size": [
+        1254,
+        1254
+      ],
+      "mode": "RGBA",
+      "alpha_bbox": [
+        41,
+        55,
+        1194,
+        1230
+      ],
+      "transparent_pixels": 946491,
+      "partial_alpha_pixels": 625135,
+      "hidden_rgb_pixels": 0,
+      "screen_resize": "uniform full-canvas LANCZOS to 1024; not body registration",
+      "resized_alpha_bbox": [
+        33,
+        45,
+        975,
+        1004
+      ],
+      "resized_changed_pixels_vs_neutral": 440471,
+      "resized_changed_alpha_pixels": 104546,
+      "resized_foot_region_changed_pixels_y780_plus": 49735
+    }
+  ],
+  "plates": {
+    "compare-eye-detail.png": "611201cc42cf059a21dc0ea7287160b51c18b09eb398b9c33ce89acbf16e80a9",
+    "comparison-256.png": "f51b90677f7bf95ed1fee8323216c4644d2cd2cc2a7d4267535f2487b5a08e26",
+    "comparison-64.png": "2d920f51130358a39047605ac3bd4eea02b7dbb6196a84d930c02df02ed744b7",
+    "comparison-72.png": "32477dd6f57a470669cdb37ec45e4579e26e7976bccd677b09b3059f6a9f24c5",
+    "comparison-96.png": "6936a2f3dc3ffeb73a2154f12b3da3ba9d1efa5312bce9ab0fe972771a52f357"
+  }
+}

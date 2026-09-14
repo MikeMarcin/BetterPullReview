@@ -99,10 +99,12 @@ the linked project copy has the recorded digest. Every output is native
 | E5 acknowledge nod | [acknowledge-nod-peak.png](acknowledge-nod-peak.png) · `4a7a8198c3e7bc2ecf566cb30d91992e3ff193e4158dc55bc80dca6df271c3de` | `exec-484455cf-f894-48ad-8a1b-a82cade281f0.png` |
 | E6 blocked correct-side paw | [blocked-left-paw.png](blocked-left-paw.png) · `58296fe7aa833d09501887d9eba8211031058a10339ec1f24fc6249ca7b1a5ad` | `exec-1d2b0bc6-b1d0-4a12-87f6-01d637f73b7d.png` |
 
-Initial full-output inspection shows that E2–E6 express their requested
-actions, but all shift face/body registration from the accepted neutral. E1
-visibly changes only one pupil, not the requested conjugate pair. The
-extended study independently tests whether any bounded local material is
-reusable. No peak by itself establishes a complete, timed clip, and none
-may replace the neutral or enter the production catalog without local
-extraction, objective/visual checks and the final human art decision.
+The [extended screen](../extended-study/README.md) finds legible limb/action
+material in some results but rejects all six full outputs. E1 moves only one
+pupil clearly; E2 has already reached the chin rather than a half-lift; E4's
+paw is too high; E6's head tilt points the wrong way. E3's two open paws and
+E6's correct-side paw are useful donor ideas, yet none has a qualified local
+composite. Every full body shifts registration from the accepted neutral.
+No single pose establishes a complete timed clip, and none may enter the
+production catalog without local retouch, objective/visual checks and the
+final human art decision.
