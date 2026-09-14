@@ -43,7 +43,19 @@ last dependent RFC to satisfy the repository's closeout-card convention.
 | **B11 — Rendered/accessibility evidence.** Actual app frames at shipping scales and supported appearance modes demonstrate readable alpha edges, calm motion, static reduced interval, noninterference with focus/status and approved visual integration. | Not run; import only | No producing revision |
 | **B12 — Complete handoff.** Focused tests, resource packaging, platform claims, source/ mutable docs, shared-skill consumer context and verification records agree. All ten clips are real and reachable; unavailable evidence/formal closeout remains honestly open, with no fabricated native/art verdict or forced rewriting of settled RFCs. | Not run; import only | No producing revision |
 
-## Current frontier — import only, dif-import-20260913-1 / mandate r1
+## Current frontier — dif-takeover-20260914 d1 / rfc-integrator-d1 / mandate r1
+
+`intake-contract` binds BPR-0752/0753/0754 and its three authored exits.
+BPR-0752 is claimed; the imported plan, immutable base, ID mapping and current
+composition-path drift have been checked on `main`. The pack verifier passes on
+a temporary exact source copy excluding two unmanaged `.DS_Store` files; direct
+verification refuses the extra inventory as designed. Owned changed paths so far
+are the BPR-0752 board/evidence card and this closeout. No child writer or long
+command is active. Next: finish BPR-0752 with the focused documentation gate,
+audit/freeze BPR-0753, then implement and test BPR-0754's schema-2 compiler.
+Production art, app integration, native and human decisions remain open.
+
+## Earlier frontier — import only, dif-import-20260913-1 / mandate r1
 
 The pack has been imported on `main` with RFC-BPR-0030/0031 Proposed and all
 eighteen mapped cards in Backlog. The immutable source, full alias mapping,
