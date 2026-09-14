@@ -1,7 +1,7 @@
 # RFC-BPR-0030 production-art frontier
 
-Run `dif-takeover-20260914`, dispatch `d5`, producer `rfc-integrator-d4`,
-mandate revision `2`. The adopted `production-art` milestone binds
+Run `dif-takeover-20260914`, dispatch `d6`, producer `rfc-integrator-d4`,
+mandate revision `3`. The adopted `production-art` milestone binds
 BPR-0755/0756/0757 and both authored exits. This record is the current
 candidate/evidence pointer, not acceptance of the rest/idle/greet motion or a
 ten-clip catalog.
@@ -155,3 +155,22 @@ fresh external `--state` so older answered initiatives do not appear on the
 review page. No new attended candidate is ready and no shipped source/runtime
 asset changed. Actual-speed playback and native Qt presentation remain
 unverified.
+
+## v004 authorized image-edit inputs — unaccepted
+
+The user explicitly authorized scoped offline image editing for missing
+connected arm poses in d6. This supersedes the earlier BPR-0755 no-model-run
+boundary for that candidate operation; it does not approve generated pixels
+or change ordinary build/runtime behavior. Two built-in image-edit results,
+their exact prompts, input roles, source and output hashes are retained in
+[v004 generated inputs](dif-production-art-v004/generated-inputs/README.md).
+The first uses the accepted neutral as edit target and immutable raw greet as
+pose reference. The second lowers the first pose. Both tool outputs are
+1254-square RGBA, not the requested 1024-square canvas. Inspection shows
+potentially useful connected arm surfaces but changed head/body scale and
+facial pixels. They are supporting candidates only. A local derivation must
+preserve the accepted neutral's locked head, body, opposite arm, hips and
+feet, then prove a smooth limb transition at actual shipping sizes. The
+generated full-body rasters must not replace the exact neutral or be counted
+as production frames. The d6 greeting and seven-gesture studies are under
+bounded separate ownership; no source/catalog/review acceptance is claimed.
