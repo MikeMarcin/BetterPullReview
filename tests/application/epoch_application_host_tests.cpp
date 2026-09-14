@@ -318,6 +318,9 @@ namespace {
 		std::vector<application::git_cache_open_request>        CacheOpenRequests;
 		std::function<void()>                                   DuringCacheDestruction;
 		std::vector<application::git_cache_blob_request>        BlobRequests;
+		bool                                                    CachedBlobMissing = false;
+		std::vector<application::git_smart_exact_blob_request>  ExactBlobRequests;
+		std::optional<application::git_smart_transport_failure> ExactBlobFailure;
 		std::vector<application::git_cache_tree_entry_request>  TreeEntryRequests;
 		std::deque<std::optional<core::git_blob_oid>>           TreeEntryResults;
 		std::vector<application::git_cache_rename_pair_request> RenamePairRequests;
@@ -1651,6 +1654,9 @@ namespace {
 			if (aStop.stop_requested() && !State.BlobMaterializationIgnoresStop) {
 				return std::unexpected{ application::git_cache_failure::cancelled };
 			}
+			if (State.CachedBlobMissing) {
+				return std::unexpected{ application::git_cache_failure::object_mismatch };
+			}
 			return std::vector<std::uint8_t>{ 'b', 'l', 'o', 'b', '\n' };
 		}
 
@@ -1828,6 +1834,26 @@ namespace {
 		[[nodiscard]] auto revoked() const noexcept -> bool override
 		{
 			return Revoked;
+		}
+
+		[[nodiscard]] auto read_exact_blob(
+			const application::git_smart_exact_blob_request& aRequest,
+			const std::stop_token aStop)
+			-> application::git_smart_transport_result<std::vector<std::byte>> override
+		{
+			State.Calls.emplace_back("transport.read-exact-blob");
+			State.ExactBlobRequests.push_back(aRequest);
+			if (aStop.stop_requested() || aRequest.Context != Context) {
+				return std::unexpected{ application::git_smart_transport_error{
+					.Failure = application::git_smart_transport_failure::cancelled,
+				} };
+			}
+			if (State.ExactBlobFailure) {
+				return std::unexpected{ application::git_smart_transport_error{
+					.Failure = *State.ExactBlobFailure,
+				} };
+			}
+			return bytes("exact selected blob");
 		}
 
 		[[nodiscard]] auto discover(
@@ -2746,9 +2772,13 @@ namespace {
 			   "cache refresh fills committer time without changing first-seen; mixed date order differs from live ordinal order");
 	}
 
-	void establish_ready_comparison(fixture& aValue)
+	void establish_ready_comparison(
+		fixture& aValue,
+		std::optional<application::accepted_pull_request_shape> aShape = std::nullopt)
 	{
-		aValue.Host->accept(make_handoff(aValue.State, 1U, 20U, true));
+		auto handoff  = make_handoff(aValue.State, 1U, 20U, true);
+		handoff.Shape = aShape;
+		aValue.Host->accept(std::move(handoff));
 		drive_through_preparation(aValue);
 		run_effect_completion(aValue);
 		drain(aValue);
@@ -5009,6 +5039,49 @@ namespace {
 			closed.Status == application::diff_blob_status::failure
 				&& value.State.BlobRequests.size() == 1U,
 			"shutdown closes blob ingress without enqueuing cache work");
+	}
+
+	void large_selected_blob_reads_only_the_exact_missing_object()
+	{
+		const auto read = [](fixture& aValue, const application::diff_blob_request& aRequest) {
+			auto result = std::optional<application::diff_blob_observation>{ };
+			auto worker = std::jthread{ [&] { result = aValue.Host->materialize(aRequest, { }); } };
+			aValue.Effects.wait_for_pending();
+			aValue.Effects.run_next();
+			worker.join();
+			expect(result.has_value(), "selected blob returns one bounded terminal");
+			return *result;
+		};
+		fixture large;
+		establish_ready_comparison(large, application::accepted_pull_request_shape{ 101U, 1U, 1U });
+		large.State.CachedBlobMissing = true;
+		const auto request = blob_request_for(large.Host->state());
+		const auto loaded  = read(large, request);
+		expect(loaded.Status == application::diff_blob_status::available
+				   && loaded.Bytes == std::vector<std::uint8_t>{ 'e', 'x', 'a', 'c', 't', ' ', 's', 'e', 'l', 'e', 'c', 't', 'e', 'd', ' ', 'b', 'l', 'o', 'b' }
+				   && large.State.ExactBlobRequests.size() == 1U
+				   && large.State.ExactBlobRequests.front().ExpectedBlob == request.Blob
+				   && large.State.ExactBlobRequests.front().Context.Authority == *large.Host->state().Authority
+				   && large.State.ExactBlobRequests.front().MaximumBytes == request.MaximumBytes,
+			"large selection asks for only its exact tree-authorized missing blob");
+
+		large.State.ExactBlobFailure = application::git_smart_transport_failure::unavailable;
+		const auto unavailable = read(large, request);
+		expect(unavailable.Status == application::diff_blob_status::failure
+				   && unavailable.Bytes.empty() && large.State.ExactBlobRequests.size() == 2U,
+			"unproven remote object remains explicitly unavailable");
+		large.Host->invalidate(matching_invalidation());
+		expect(large.Host->materialize(request, { }).Status == application::diff_blob_status::failure
+				   && large.State.ExactBlobRequests.size() == 2U,
+			"revoked selection cannot issue another exact object read");
+
+		fixture small;
+		establish_ready_comparison(small, application::accepted_pull_request_shape{ 100U, 1U, 1U });
+		small.State.CachedBlobMissing = true;
+		const auto missing = read(small, blob_request_for(small.Host->state()));
+		expect(missing.Status == application::diff_blob_status::missing
+				   && small.State.ExactBlobRequests.empty(),
+			"small complete reviews never turn a missing blob into a lazy remote read");
 	}
 
 	[[nodiscard]] auto resolve_selected_diff(
@@ -7325,6 +7398,7 @@ int main()
 	stale_prepare_and_comparison_terminals_are_inert();
 	same_repository_actor_switches_exact_pr_cache_sessions_in_fifo_order();
 	diff_blob_materialization_reuses_the_epoch_cache_actor();
+	large_selected_blob_reads_only_the_exact_missing_object();
 	selected_diff_resolution_reuses_and_revalidates_the_epoch_cache_actor();
 	selected_diff_resolves_each_endpoint_without_provider_direction();
 	selected_diff_rename_resolution_is_directional_and_ambiguous_closed();

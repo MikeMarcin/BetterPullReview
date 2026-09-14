@@ -1084,6 +1084,8 @@ namespace bpr::application {
 		// request context replacement. Its FIFO serializes catalog/cache effects
 		// that share the lifetime-exclusive cache session, while each context
 		// remains independently discardable.
+		struct authority_context;
+
 		struct authority_effect_actor final
 		{
 			explicit authority_effect_actor(std::shared_ptr<profile_epoch_actor> aShared)
@@ -1094,6 +1096,7 @@ namespace bpr::application {
 			std::unique_ptr<git_cache_session>&    Cache;
 			std::mutex                             BlobAuthorityMutex;
 			std::optional<blob_authority>          BlobAuthority;
+			std::weak_ptr<authority_context>       BlobContext;
 			std::optional<selected_diff_authority> SelectedDiffAuthority;
 			/// BPR-0532. The one older pair a continued turn may re-align,
 			/// held beside the workbench's own authorization rather than in
@@ -1350,11 +1353,13 @@ namespace bpr::application {
 
 		static void authorize_blobs(
 			const std::shared_ptr<authority_effect_actor>& aActor,
-			const blob_authority&                          aAuthority) noexcept
+			const blob_authority&                          aAuthority,
+			const std::shared_ptr<authority_context>&      aContext) noexcept
 		{
 			std::scoped_lock lock{ aActor->BlobAuthorityMutex };
 			++aActor->BlobAuthorityGeneration;
 			aActor->BlobAuthority = aAuthority;
+			aActor->BlobContext   = aContext;
 			aActor->SelectedDiffAuthority.reset();
 			aActor->RealignmentAuthority.reset();
 		}
@@ -1394,6 +1399,7 @@ namespace bpr::application {
 			std::scoped_lock lock{ aActor->BlobAuthorityMutex };
 			if (aActor->BlobAuthority == std::optional{ aAuthority }) {
 				aActor->BlobAuthority.reset();
+				aActor->BlobContext.reset();
 				aActor->SelectedDiffAuthority.reset();
 				aActor->RealignmentAuthority.reset();
 				++aActor->BlobAuthorityGeneration;
@@ -3977,6 +3983,17 @@ namespace bpr::application {
 			if (!authorizationGeneration) {
 				return result;
 			}
+			auto selectedContext = std::shared_ptr<authority_context>{ };
+			{
+				std::scoped_lock lock{ actor->BlobAuthorityMutex };
+				if (actor->BlobAuthority == std::optional{ authorization }
+					&& actor->BlobAuthorityGeneration == *authorizationGeneration) {
+					selectedContext = actor->BlobContext.lock();
+				}
+			}
+			if (!selectedContext) {
+				return result;
+			}
 			auto waiter = std::shared_ptr<blob_waiter>{ };
 			try {
 				waiter = std::make_shared<blob_waiter>();
@@ -4004,6 +4021,7 @@ namespace bpr::application {
 					actor,
 					[this,
 					 actor,
+					 selectedContext,
 					 authorization,
 					 admittedGeneration = *authorizationGeneration,
 					 expected,
@@ -4036,12 +4054,54 @@ namespace bpr::application {
 								observation.Status = diff_blob_status::failure;
 							} else if (
 								open_actor_cache(*actor, Caches, expected, workStop).has_value()) {
-								auto bytes = actor->Cache->materialize_blob(
+								auto cached = actor->Cache->materialize_blob(
 									git_cache_blob_request{
 										.Blob         = aRequest.Blob,
 										.MaximumBytes = aRequest.MaximumBytes,
 									},
 									workStop);
+								auto bytes = std::optional<std::vector<std::uint8_t>>{ };
+								if (cached) {
+									bytes = std::move(*cached);
+								} else if (cached.error() == git_cache_failure::object_mismatch
+									&& object_loading_for(selectedContext->Handoff.Shape)
+										== pull_request_object_loading::selected_objects
+									&& blob_authority_for(*selectedContext) == authorization
+									&& selectedContext->Handoff.SmartGit
+									&& blob_authorization_generation(actor, authorization)
+										== admittedGeneration) {
+									const auto smartContext = git_smart_request_context{
+										.ApplicationSession = selectedContext->Handoff.ApplicationSession,
+										.Authority          = selectedContext->Authority,
+										.Revision           = selectedContext->Revision,
+										.Repository         = selectedContext->Handoff.Locator,
+										.BaseRef            = selectedContext->Handoff.BaseRef,
+									};
+									const auto transport = selectedContext->Handoff.SmartGit->acquire(smartContext);
+									if (transport && *transport) {
+										const auto fetched = (*transport)->read_exact_blob(
+											git_smart_exact_blob_request{
+												.Context      = smartContext,
+												.ExpectedBlob = aRequest.Blob,
+												.MaximumBytes = static_cast<std::size_t>(aRequest.MaximumBytes),
+											},
+											workStop);
+										if (fetched) {
+											bytes.emplace();
+											bytes->reserve(fetched->size());
+											for (const auto byte : *fetched) {
+												bytes->push_back(std::to_integer<std::uint8_t>(byte));
+											}
+										} else if (fetched.error().Failure == git_smart_transport_failure::cancelled) {
+											observation.Status = diff_blob_status::cancelled;
+										} else if (fetched.error().Failure == git_smart_transport_failure::response_limit) {
+											observation.Status = diff_blob_status::materialization_limit;
+										}
+					} else if (!transport
+						&& transport.error().Failure == git_smart_transport_failure::cancelled) {
+										observation.Status = diff_blob_status::cancelled;
+									}
+								}
 								if (bytes.has_value()) {
 									publicationAuthorityLock = std::unique_lock{
 										actor->BlobAuthorityMutex
@@ -4061,13 +4121,15 @@ namespace bpr::application {
 										observation.Bytes  = std::move(*bytes);
 									}
 								} else if (
-									bytes.error() == git_cache_failure::cancelled) {
+									cached.error() == git_cache_failure::cancelled) {
 									observation.Status = diff_blob_status::cancelled;
 								} else if (
-									bytes.error() == git_cache_failure::quota_exceeded) {
+									cached.error() == git_cache_failure::quota_exceeded) {
 									observation.Status = diff_blob_status::materialization_limit;
 								} else if (
-									bytes.error() == git_cache_failure::object_mismatch) {
+									cached.error() == git_cache_failure::object_mismatch
+									&& object_loading_for(selectedContext->Handoff.Shape)
+										!= pull_request_object_loading::selected_objects) {
 									observation.Status = diff_blob_status::missing;
 								}
 							}
@@ -4889,7 +4951,8 @@ namespace bpr::application {
 								&& !invalidationPending) {
 								implementation::authorize_blobs(
 									authorityContext->Actor,
-									implementation::blob_authority_for(*authorityContext));
+									implementation::blob_authority_for(*authorityContext),
+									authorityContext);
 							}
 							return;
 						}
