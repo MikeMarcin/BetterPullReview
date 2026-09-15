@@ -8,6 +8,7 @@
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
+#include "bpr/qt/home_list.hpp"
 #include "bpr/qt/profile_management_window.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/settings_window.hpp"
@@ -347,7 +348,7 @@ auto main(int aArgc, char** aArgv) -> int
 	// `PublicPreviewSignedOut` is still false until a paste activates the
 	// shipped signed-out session, and a sibling that signs in later enrols a
 	// second grant whose identity change retires every window's session.
-	expect(windowA->home_landing()->state() == qt::landing_state::sign_in && !windowA->queue_view()->isVisible(), "first public window lands signed out with no queue");
+	expect(windowA->home_landing()->state() == qt::landing_state::sign_in && !windowA->home_list()->queue_shown(), "first public window lands signed out with no queue");
 	windowA->home_landing()->primary_button()->click();
 	wait_for([&] { return windowA->session_panel()->status() == core::github_status::session_ready && !owner->status().PublicPreviewSignedOut; }, "Home sign-in reaches an account session", [&] {
 		const auto evidence = app::detail::github_application_fixture_access::evidence(*owner);
@@ -356,7 +357,7 @@ auto main(int aArgc, char** aArgv) -> int
 			<< " preview-signed-out=" << owner->status().PublicPreviewSignedOut
 			<< " vault=" << evidence.VaultStores << " bootstrap=" << evidence.BootstrapTransportSelected
 			<< " account=" << evidence.AccountTransportSelected << '\n'; });
-	expect(windowA->queue_view()->isVisible(), "an account shows the queue");
+	expect(windowA->home_list()->queue_shown(), "an account shows the queue");
 	submit(*windowA, 17);
 	auto* signIn = windowA->findChild<QPushButton*>(QStringLiteral("homeSetupContinue"));
 	expect(signIn != nullptr && signIn->isHidden(), "an account opens the first review without a sign-in stop");

@@ -8,6 +8,9 @@ add_library(
         src/system_tray_notification_sink.cpp
         src/review_queue_model.cpp
         src/review_landing_model.cpp
+        src/home_row_delegate.cpp
+        src/home_panel.cpp
+        src/home_list.cpp
         src/defect_card_view.cpp
         src/device_authorization_panel.cpp
         src/dif_runtime.cpp

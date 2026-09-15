@@ -75,7 +75,8 @@ namespace bpr::qt {
 	class dif_catalog_provider;
 	class dif_cue_router;
 	class dif_widget;
-	class review_landing_delegate;
+	class home_list;
+	class home_panel;
 	class diff_workbench;
 	class epoch_comparison_control;
 	// RFC-BPR-0012's two agent surfaces. Declared rather than included: the
@@ -608,8 +609,12 @@ namespace bpr::qt {
 		[[nodiscard]] auto queue_landing() const noexcept -> review_landing_model*;
 		[[nodiscard]] auto queue_filter_model() const noexcept
 			-> review_landing_filter_model*;
-		[[nodiscard]] auto queue_view() const noexcept -> QListView*;
-		/// \brief [[BPR-0650]]. Home's open bar and the action list's delegate.
+		/// \brief [[BPR-0776]]. Home's list: a panel per state in state order, and
+		/// Recently viewed last.
+		[[nodiscard]] auto home_list() const noexcept -> qt::home_list*;
+		/// \brief [[BPR-0776]]. The current queue row on Home, whichever state holds it.
+		[[nodiscard]] auto selected_queue_item() const -> std::optional<core::queue_item>;
+		/// \brief [[BPR-0650]]. Home's open bar.
 		[[nodiscard]] auto home_open_bar() const noexcept -> QLineEdit*;
 		/// \brief [[BPR-0775]]. The bar's own label, "Open", inside its frame.
 		[[nodiscard]] auto home_open_label() const noexcept -> QLabel*;
@@ -631,14 +636,17 @@ namespace bpr::qt {
 		/// setup stage's notice speaks first, then this, then a load refusal. An
 		/// empty text withdraws it.
 		void present_home_restoration_notice(const QString& aText);
-		/// \brief [[BPR-0733]]. Home's recently viewed heading, list and resume.
+		/// \brief [[BPR-0733]] [[BPR-0776]]. Home's Recently viewed panel, its
+		/// list, its Resume action and the row button that shows it.
 		///
-		/// \details All three are shown only while entries were published; an
-		/// empty list is no section at all.
-		[[nodiscard]] auto home_recent_heading() const noexcept -> QLabel*;
+		/// \details The panel is shown only while entries were published; an
+		/// empty list is no panel at all. Resume is a row action: on the hovered
+		/// row, on the current row while the list has focus, and in the row's
+		/// menu.
+		[[nodiscard]] auto home_recent_panel() const noexcept -> home_panel*;
 		[[nodiscard]] auto home_recent_list() const noexcept -> QListWidget*;
 		[[nodiscard]] auto home_recent_resume_action() const noexcept -> QAction*;
-		[[nodiscard]] auto queue_delegate() const noexcept -> review_landing_delegate*;
+		[[nodiscard]] auto home_recent_row_action() const noexcept -> QToolButton*;
 		/// \brief Selects and focuses one exact visible local-queue identity.
 		///
 		/// \details A hidden or absent identity reports a visible local failure and
@@ -882,6 +890,9 @@ namespace bpr::qt {
 		void apply_recent_reviews();
 		/// \brief [[BPR-0733]]. Offers Resume only while the current row kept a reading.
 		void update_recent_resume_action();
+		/// \brief [[BPR-0776]]. Shows the queue surface, its controls, its status and
+		/// the list's state panels by account, readiness and recent entries.
+		void update_home_surface();
 		/// \brief [[BPR-0733]]. Sends one recently viewed row out, to open or to resume.
 		void dispatch_recent_review(int aRow, bool aResume);
 
@@ -1044,7 +1055,6 @@ namespace bpr::qt {
 		QAction*                                 HomeAction           = nullptr;
 		QVBoxLayout*                             HomeColumn           = nullptr;
 		QHBoxLayout*                             HomeSetupRow         = nullptr;
-		QLabel*                                  HomeQueueHeading     = nullptr;
 		QWidget*                                 QueueSurface         = nullptr;
 		QVBoxLayout*                             DrawerTopColumn      = nullptr;
 		QStackedWidget*                          CentralStack         = nullptr;
@@ -1123,7 +1133,7 @@ namespace bpr::qt {
 		std::optional<std::size_t>                         ShownDefectIndex;
 		review_landing_model*                              QueueLanding          = nullptr;
 		review_landing_filter_model*                       QueueFilterModel      = nullptr;
-		QListView*                                         QueueView             = nullptr;
+		qt::home_list*                                     HomeList              = nullptr;
 		QComboBox*                                         QueueRoleFilter       = nullptr;
 		QComboBox*                                         QueueObserverFilter   = nullptr;
 		QComboBox*                                         QueueBucketFilter     = nullptr;
@@ -1160,7 +1170,6 @@ namespace bpr::qt {
 		QString                                            HomeRestorationNotice;
 		QString                                            HomeRefusalDetails;
 		QString                                            DismissedHomeRefusal;
-		review_landing_delegate*                           QueueDelegate         = nullptr;
 		std::vector<core::observer_rule>                   QueueRules;
 		application::queue_landing_projection              QueueProjection;
 		workbench_saved_repository_dispatch                SavedRepositoryDispatch;
@@ -1253,6 +1262,11 @@ namespace bpr::qt {
 		bool                                                       ApplyingLayout         = false;
 		bool                                                       ApplyingFileSelection  = false;
 		bool                                                       QueueReady             = false;
+		/// [[BPR-0776]]. Whether the window has an account to list a queue for.
+		/// Until the session decides, the queue is shown, as its surface always was.
+		bool HomeAccount = true;
+		/// [[BPR-0776]]. Whether the queue status says something Home's panels do not.
+		bool QueueStatusNotable = true;
 		// Set by the first published review-history update. Before one arrives
 		// the shell has no review-history state to state, and quoting the
 		// control's idle wording would report activity that never happened.
@@ -1262,10 +1276,8 @@ namespace bpr::qt {
 		// [[BPR-0733]]. Home's recently viewed section and the list it was
 		// given. The entries are the window's only record of what it shows:
 		// a row's index into them is what leaves through the dispatch.
-		QLabel*                                                HomeRecentHeading      = nullptr;
 		QListWidget*                                           HomeRecentList         = nullptr;
 		QAction*                                               HomeRecentResumeAction = nullptr;
-		QToolButton*                                           HomeRecentResumeButton = nullptr;
 		application::recent_reviews_projection                 RecentReviews;
 		std::function<void(application::recent_review_intent)> RecentReviewDispatch;
 	};

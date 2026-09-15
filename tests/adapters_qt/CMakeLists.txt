@@ -1011,6 +1011,34 @@ set_tests_properties(
         ENVIRONMENT "${bpr_qt_github_common_environment}"
 )
 
+# [[BPR-0776]]. Home's state panels, one row anatomy, sticky headers, empty
+# states and the Resume row action, at the three registered scales.
+bpr_add_executable(test_better_pull_review_qt_home_list_tests home_list_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_home_list_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_home_list_tests)
+bpr_enable_warnings(test_better_pull_review_qt_home_list_tests)
+foreach(bpr_home_list_scale IN ITEMS 100 125 200)
+    if(bpr_home_list_scale STREQUAL "100")
+        set(bpr_home_list_scale_factor "1.0")
+    elseif(bpr_home_list_scale STREQUAL "125")
+        set(bpr_home_list_scale_factor "1.25")
+    else()
+        set(bpr_home_list_scale_factor "2.0")
+    endif()
+    bpr_add_network_isolated_test(
+        NAME qt_home_list_scale_${bpr_home_list_scale}
+        COMMAND test_better_pull_review_qt_home_list_tests "${CMAKE_CURRENT_BINARY_DIR}/home-list-${bpr_home_list_scale}.png"
+    )
+    set_tests_properties(
+        qt_home_list_scale_${bpr_home_list_scale}
+        PROPERTIES
+            ENVIRONMENT
+                "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_home_list_scale_factor};BPR_EXPECTED_QT_SCALE=${bpr_home_list_scale_factor}"
+            PASS_REGULAR_EXPRESSION "home-list-tests:pass"
+            TIMEOUT 120
+    )
+endforeach()
+
 # PR-scoped editor mechanics, independent of provider effects.
 bpr_add_executable(test_better_pull_review_qt_review_submission_editor_tests review_submission_editor_tests.cpp)
 target_link_libraries(test_better_pull_review_qt_review_submission_editor_tests PRIVATE BetterPullReview::AdapterQt)

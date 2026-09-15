@@ -1,13 +1,18 @@
 #include "bpr/qt/review_landing_model.hpp"
 
+#include "bpr/qt/home_row_delegate.hpp"
+
 #include <QAbstractItemModel>
 #include <QCoreApplication>
 #include <QPersistentModelIndex>
+#include <QString>
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <span>
 #include <string_view>
 #include <vector>
 
@@ -557,6 +562,95 @@ namespace {
 			"a direct alternate-sort switch re-evaluates the comparator");
 		expect(recorder.Resets == 0, "alternate-sort switching never resets the model");
 	}
+
+	// [[BPR-0776]]. Home's rows say why in projected facts only, end in one word
+	// per bucket, and collapse to a summary of the same facts.
+	void test_home_rows_say_why_in_projected_facts()
+	{
+		using bucket       = core::attention_bucket;
+		const auto buckets = std::array{
+			bucket::initial_review_requested,
+			bucket::changed_since_my_review,
+			bucket::new_comments_or_author_replies,
+			bucket::fixes_awaiting_verification,
+			bucket::authored_awaiting_reviewer_action,
+			bucket::observed_with_new_activity,
+			bucket::quiet,
+		};
+		auto words = std::vector<QString>{ };
+		for (const auto value : buckets) {
+			const auto word = qt::home_reason_word(value);
+			expect(!word.isEmpty() && !word.contains(QLatin1Char{ ' ' }) && word != QStringLiteral("Approved"),
+				   "every bucket ends its row in one word, and none is Approved");
+			expect(std::ranges::find(words, word) == words.end(), "no two buckets share a word");
+			words.push_back(word);
+			const auto sentence = qt::home_why_sentence(item(9, value));
+			expect(sentence.endsWith(QLatin1Char{ '.' }) && !sentence.contains(QStringLiteral("pushed"))
+					   && !sentence.contains(QStringLiteral(" ago")) && !sentence.contains(QStringLiteral(" of ")),
+				   "no sentence claims a push, a time or a progress the projection does not carry");
+		}
+		expect(words
+				   == std::vector<QString>{ QStringLiteral("Requested"), QStringLiteral("Changed"), QStringLiteral("Replied"),
+											QStringLiteral("Verify"), QStringLiteral("Waiting"), QStringLiteral("Following"),
+											QStringLiteral("Quiet") },
+			   "the words are the accepted ones, in bucket order");
+
+		auto requested  = item(1, bucket::initial_review_requested, core::queue_membership{ .Role = core::github_role::requested_reviewer });
+		requested.Facts = core::queue_item_facts{ .Title = "Parse faster", .Author = "octocat", .UnseenComments = 1U };
+		expect(qt::home_why_sentence(requested) == QStringLiteral("Opened by octocat; my review is requested; 1 new comment."),
+			   "a requested review names its author and what I have not read");
+		auto changed                 = item(2, bucket::changed_since_my_review);
+		changed.Facts.UnseenComments = 3U;
+		expect(qt::home_why_sentence(changed) == QStringLiteral("The code moved since my last review; 3 new comments."),
+			   "a changed review says the code moved, and counts what is unread");
+		auto replied                 = item(3, bucket::new_comments_or_author_replies);
+		replied.Facts.UnseenComments = 2U;
+		expect(qt::home_why_sentence(replied) == QStringLiteral("2 new comments I have not read."),
+			   "a reply says how much I have not read");
+		const auto watched = item(4, bucket::observed_with_new_activity,
+								  core::queue_membership{ .MatchedRule = true, .Rule = core::observer_rule{ .Kind = core::observer_rule_kind::path, .Pattern = "src/parser" } });
+		expect(qt::home_why_sentence(watched)
+				   == QStringLiteral("New activity on a pull request I follow; I watch %1 src/parser.")
+						  .arg(QString::fromUtf8(core::name(core::observer_rule_kind::path).data())),
+			   "a row here only because of a rule names the rule");
+		const auto verify = item(5, bucket::fixes_awaiting_verification);
+		const auto quiet  = item(6, bucket::quiet);
+		expect(qt::home_state_summary(qt::home_group::needs_you, std::array{ requested, changed, replied, verify })
+				   == QStringLiteral("1 requested, 1 changed, 1 replied, 1 to verify; 6 new comments"),
+			   "a collapsed Needs me counts its rows by reason and what I have not read");
+		expect(qt::home_state_summary(qt::home_group::waiting_on_others, std::array{ item(7, bucket::authored_awaiting_reviewer_action) })
+				   == QStringLiteral("1 of mine"),
+			   "Waiting on others counts mine and claims no reviewer count");
+		expect(qt::home_state_summary(qt::home_group::following, std::array{ watched, quiet }) == QStringLiteral("2 followed"),
+			   "Following counts what I follow");
+		expect(qt::home_state_summary(qt::home_group::needs_you, std::span<const core::queue_item>{ }).isEmpty(),
+			   "a state with no row has no summary");
+		const auto entries = std::array{
+			application::recent_review_entry{ .Title = "One", .Resumable = true },
+			application::recent_review_entry{ .Title = "Two" },
+		};
+		expect(qt::home_recent_summary(entries) == QStringLiteral("2 viewed; 1 saved reading"),
+			   "Recently viewed summarises what was viewed and what kept a reading");
+		expect(qt::home_all_empty_sentence()
+				   == QStringLiteral("Nothing needs me. Pull requests from saved repositories and observer rules appear here."),
+			   "the all-empty sentence is the RFC's");
+
+		qt::review_landing_model model;
+		model.apply(std::array{ requested });
+		const auto row = model.index(0);
+		expect(row.data(qt::home_row_role::identity).toString() == QStringLiteral("octo/app#1")
+				   && row.data(qt::home_row_role::title).toString() == QStringLiteral("Parse faster")
+				   && row.data(qt::home_row_role::why).toString() == qt::home_why_sentence(requested)
+				   && row.data(qt::home_row_role::reason_word).toString() == QStringLiteral("Requested")
+				   && row.data(qt::home_row_role::state).toInt() == static_cast<int>(qt::home_group::needs_you)
+				   && row.data(qt::home_row_role::time).toString().isEmpty()
+				   && row.data(qt::home_row_role::progress).toString().isEmpty()
+				   && row.data(qt::home_row_role::account_chip).toString().isEmpty()
+				   && row.data(qt::home_row_role::row_action).toString().isEmpty(),
+			   "the queue model answers Home's row roles and invents no time, progress, chip or action");
+		expect(row.data(Qt::AccessibleDescriptionRole).toString() == qt::home_why_sentence(requested) + QStringLiteral(" Requested"),
+			   "a row describes itself as it is drawn");
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -575,6 +669,7 @@ auto main(int argc, char** argv) -> int
 	test_filters_and_explicit_sorts_preserve_stable_identity();
 	test_a_large_queue_filter_emits_one_bounded_change();
 	test_switching_directly_between_alternate_sorts_reorders();
+	test_home_rows_say_why_in_projected_facts();
 
 	std::cout << "review-landing-model-tests:pass\n";
 	return EXIT_SUCCESS;

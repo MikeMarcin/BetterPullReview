@@ -5,6 +5,7 @@
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/github_session_panel.hpp"
+#include "bpr/qt/home_list.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_landing.hpp"
 #include <QAction>
@@ -336,10 +337,10 @@ namespace {
 		// [[BPR-0732]]. A pasted public link no longer stops at sign-in where
 		// preview is composed (it opens signed out); the account course signs
 		// in from the card first, then pastes.
-		expect(first->home_landing()->state() == qt::landing_state::sign_in && !first->queue_view()->isVisible(), "fresh Home is signed out with no queue");
+		expect(first->home_landing()->state() == qt::landing_state::sign_in && !first->home_list()->queue_shown(), "fresh Home is signed out with no queue");
 		first->home_landing()->primary_button()->click();
 		wait_for([&] { return first->session_panel()->status() == core::github_status::session_ready && !aOwner.status().PublicPreviewSignedOut; }, "Home sign-in reaches an account session");
-		expect(first->queue_view()->isVisible(), "an account shows the queue");
+		expect(first->home_list()->queue_shown(), "an account shows the queue");
 		submit(*first, 17);
 		expect(first->findChild<QPushButton*>(QStringLiteral("homeSetupContinue"))->isHidden(), "an account opens the destination without a stop");
 		accepted(aOwner, aFirst, 17);

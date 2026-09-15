@@ -76,6 +76,25 @@ namespace bpr::qt {
 	[[nodiscard]] auto builtin_appearance_profile_name(
 		core::appearance_variant aVariant) -> QString;
 
+	/// \brief [[BPR-0776]]. Home's three states: what needs me, what waits on
+	/// others, and what I follow.
+	enum class attention_tone : std::uint8_t {
+		needs_me,
+		waiting_on_others,
+		following,
+	};
+
+	/// \brief Returns one Home state colour at text strength for one built-in variant.
+	///
+	/// \details A derived role the closed vocabulary deliberately omits. Home's
+	/// states present the core's attention grouping rather than a review-ledger
+	/// state, so the colours are neither customisable nor stored. Each reads as
+	/// small text at 4.5:1 or better against its variant's code background and
+	/// application surface.
+	[[nodiscard]] auto builtin_attention_color(
+		core::appearance_variant aVariant,
+		attention_tone           aTone) noexcept -> QColor;
+
 	/// \brief Builds one Qt font from the core's UI font record.
 	///
 	/// \details The record is the only source of family, size, and weight. This
@@ -230,6 +249,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto palette() const noexcept
 			-> const core::appearance_palette&;
 		[[nodiscard]] auto color(core::appearance_role aRole) const noexcept
+			-> QColor;
+		/// \brief [[BPR-0776]]. Home's state colour for the resolved variant.
+		[[nodiscard]] auto attention_color(attention_tone aTone) const noexcept
 			-> QColor;
 		[[nodiscard]] auto customised(core::appearance_role aRole) const noexcept
 			-> bool;

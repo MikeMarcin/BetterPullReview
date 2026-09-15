@@ -2491,6 +2491,45 @@ namespace {
 			"every pair colour alone cannot separate is one this palette was "
 			"reviewed and accepted as owing a non-colour signal");
 	}
+
+	// [[BPR-0776]]. Home's state colours are the reason word's ink, so each reads
+	// as small text on the base and the surface of every built-in variant.
+	void test_attention_colours_read_as_text_in_every_variant()
+	{
+		const auto tones = std::array{
+			qt::attention_tone::needs_me,
+			qt::attention_tone::waiting_on_others,
+			qt::attention_tone::following,
+		};
+		for (const auto variant : { core::appearance_variant::light,
+									core::appearance_variant::dark,
+									core::appearance_variant::high_contrast_light,
+									core::appearance_variant::high_contrast_dark }) {
+			const auto& palette = qt::builtin_appearance_palette(variant);
+			const auto  base    = palette[core::index_of(role::code_background)];
+			const auto  surface = palette[core::index_of(role::application_surface)];
+			auto        seen    = std::vector<QColor>{ };
+			for (const auto tone : tones) {
+				const auto colour    = qt::builtin_attention_color(variant, tone);
+				const auto value     = qt::to_appearance_color(colour);
+				const auto onBase    = qt::contrast_ratio(value, base);
+				const auto onSurface = qt::contrast_ratio(value, surface);
+				std::cout << "attention-contrast variant=" << static_cast<int>(variant)
+						  << " tone=" << static_cast<int>(tone) << " colour=" << colour.name().toStdString()
+						  << " base=" << onBase << " surface=" << onSurface << '\n';
+				expect(colour.isValid() && colour.alpha() == 255, "every Home state colour is opaque");
+				expect(onBase >= 4.5 && onSurface >= 4.5,
+					   "every Home state colour reads as small text on its variant's base and surface");
+				expect(std::ranges::find(seen, colour) == seen.end(), "the three states never share a colour");
+				seen.push_back(colour);
+			}
+		}
+		const auto profile = qt::appearance_profile{ };
+		for (const auto tone : tones) {
+			expect(profile.attention_color(tone) == qt::builtin_attention_color(profile.variant(), tone),
+				   "a profile's Home state colour is its resolved variant's");
+		}
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -2525,6 +2564,7 @@ auto main(int argc, char** argv) -> int
 	test_a_selected_rows_mark_stays_visible_and_readable();
 	test_hue_critical_pairs_are_measured_for_every_builtin_profile();
 	test_every_builtin_profile_passes_the_published_contrast_audit();
+	test_attention_colours_read_as_text_in_every_variant();
 
 	std::cout << "appearance-profile-tests:pass\n";
 	return EXIT_SUCCESS;

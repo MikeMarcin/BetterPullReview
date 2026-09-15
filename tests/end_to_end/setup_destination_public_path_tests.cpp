@@ -1,5 +1,6 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "bpr/qt/github_session_panel.hpp"
+#include "bpr/qt/home_list.hpp"
 #include "bpr/qt/workbench_landing.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
@@ -102,7 +103,7 @@ namespace {
 		if (!aEnterprise) {
 			// [[BPR-0732]]. One gesture, signed out: no sign-in stop, no
 			// continuation press, no credential request, no vault write.
-			expect(!window.home_landing()->isHidden() && window.home_landing()->state() == qt::landing_state::sign_in && !window.queue_view()->isVisible(), "the signed-out Home has no queue");
+			expect(!window.home_landing()->isHidden() && window.home_landing()->state() == qt::landing_state::sign_in && !window.home_list()->queue_shown(), "the signed-out Home has no queue");
 			submit(window, url);
 			expect(button(window, "homeSetupContinue")->isHidden(), "a public host with no account offers no sign-in stop");
 			expect(window.home_open_notice()->text().contains(QStringLiteral("without signing in")) || window.session_panel()->status() == core::github_status::pull_request_ready, "the notice names the signed-out open");

@@ -6,6 +6,7 @@
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/epoch_history_model.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
+#include "bpr/qt/home_list.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_landing_model.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
@@ -7223,11 +7224,10 @@ namespace {
 						break;
 					}
 				} else {
-					const auto selected = window.queue_filter_model()->item_at(
-						window.queue_view()->currentIndex());
+					const auto selected = window.selected_queue_item();
 					if (evidence.Selections != 1U || !selected.has_value()
 						|| selected->Ref != notification_fixture_ref()
-						|| QApplication::focusWidget() != window.queue_view()) {
+						|| QApplication::focusWidget() != window.home_list()->current_view()) {
 						break;
 					}
 					QTextStream{ stdout }

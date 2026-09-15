@@ -3,12 +3,12 @@
 
 #include "bpr/application/review_queue_enrollment.hpp"
 #include "bpr/application/setup_destination_projection.hpp"
+#include "bpr/application/window_review_restoration_ports.hpp"
 #include "bpr/core/review_queue_attention.hpp"
 
 #include <QAbstractListModel>
-#include <QColor>
 #include <QSortFilterProxyModel>
-#include <QStyledItemDelegate>
+#include <QString>
 
 #include <optional>
 #include <span>
@@ -45,6 +45,37 @@ namespace bpr::qt {
 	/// why the item is here at all — which rule matched. A reviewer looking at
 	/// an unfamiliar pull request in their own queue is owed the second.
 	[[nodiscard]] auto reason_for(const core::queue_item& aItem) -> QString;
+
+	/// \brief [[BPR-0776]]. The one word that ends a Home row, drawn in its state's colour.
+	///
+	/// \details Readable without colour: every bucket has its own word. No bucket
+	/// means approved, so "Approved" is never produced.
+	[[nodiscard]] auto home_reason_word(core::attention_bucket aBucket) -> QString;
+
+	/// \brief [[BPR-0776]]. "owner/name#123" for a queue row.
+	[[nodiscard]] auto home_identity(const core::queue_item& aItem) -> QString;
+
+	/// \brief [[BPR-0776]]. The sentence that says why a row is where it is, in
+	/// the first person.
+	///
+	/// \details Built only from what the core projected: the bucket, the author,
+	/// the unseen comment count and, when a local rule is the only reason the
+	/// row is here, that rule. Who pushed, how many updates, when and how far I
+	/// read are not projected, and the sentence does not claim them.
+	[[nodiscard]] auto home_why_sentence(const core::queue_item& aItem) -> QString;
+
+	/// \brief [[BPR-0776]]. A collapsed state panel's one-line summary of its rows.
+	///
+	/// \details "2 requested, 1 changed; 4 new comments", "1 of mine", "3
+	/// followed". Empty for a state with no row.
+	[[nodiscard]] auto home_state_summary(home_group aGroup, std::span<const core::queue_item> aRows) -> QString;
+
+	/// \brief [[BPR-0776]]. Recently viewed's collapsed summary: "2 viewed; 1 saved reading".
+	[[nodiscard]] auto home_recent_summary(std::span<const application::recent_review_entry> aEntries)
+		-> QString;
+
+	/// \brief [[BPR-0776]]. What Home's list says when a ready queue is empty.
+	[[nodiscard]] auto home_all_empty_sentence() -> QString;
 
 	/// \brief Presents the reviewer's landing page.
 	///
@@ -112,36 +143,8 @@ namespace bpr::qt {
 	/// The default proxy order follows it without a comparison; alternate sorts
 	/// run only when the reviewer selects one. Qt's proxy mapping retains stable
 	/// source identity and emits incremental filter/layout signals rather than a
-	/// routine model reset.
-	/// \brief Draws Home's action list ([[BPR-0650]]).
-	///
-	/// \details One row per pull request: "repository #n", the title, the
-	/// one-word reason (amber when it needs me), the author and my role;
-	/// a group heading above the first row of each group. It reads the
-	/// model's roles and decides nothing; the group order is the core's
-	/// bucket order, which is what the priority sort gives.
-	class review_landing_delegate final : public QStyledItemDelegate
-	{
-	public:
-		explicit review_landing_delegate(QObject* aParent = nullptr);
-
-		void paint(QPainter* aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const
-			override;
-		[[nodiscard]] auto sizeHint(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const
-			-> QSize override;
-		/// \brief True when the row is the first of its group and carries the heading.
-		[[nodiscard]] static auto heads_group(const QModelIndex& aIndex) -> bool;
-		void                      set_marker(const QColor& aMarker);
-		void                      set_accent(const QColor& aAccent);
-
-		static constexpr int row_height     = 26;
-		static constexpr int heading_height = 22;
-
-	private:
-		QColor Marker{ 0xD2, 0x99, 0x22 };
-		QColor Accent{ 0x09, 0x69, 0xDA };
-	};
-
+	/// routine model reset. [[BPR-0776]]: Home's state panels each admit one
+	/// group of this proxy's rows, so a sort orders rows within a state.
 	class review_landing_filter_model final : public QSortFilterProxyModel
 	{
 	public:

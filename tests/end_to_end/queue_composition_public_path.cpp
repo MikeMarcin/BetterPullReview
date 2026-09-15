@@ -3,6 +3,7 @@
 
 #include "public_path_poll.hpp"
 
+#include "bpr/qt/home_list.hpp"
 #include "bpr/qt/review_landing_model.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
@@ -365,8 +366,7 @@ auto main(int argc, char** argv) -> int
 						   selection,
 						   [&application, &window, &initialRef](wait_terms& aTerms) {
 							   const auto selected
-								   = window.queue_filter_model()->item_at(
-									   window.queue_view()->currentIndex());
+								   = window.selected_queue_item();
 							   const auto status = application->status();
 							   aTerms.note(
 								   "activations",
@@ -390,7 +390,7 @@ auto main(int argc, char** argv) -> int
 								   && aTerms.require(
 									   "queue-view-focused",
 									   QApplication::focusWidget()
-										   == window.queue_view());
+										   == window.home_list()->current_view());
 						   })) {
 				return fail(
 					*application, "activation-selection", selection.render());

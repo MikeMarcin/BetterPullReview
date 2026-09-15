@@ -292,6 +292,19 @@ namespace bpr::qt {
 			{ role::syntax_other, srgb(0xE0E0E0) },
 		} });
 
+		/// \brief [[BPR-0776]]. Home's state colours per built-in variant, in
+		/// `attention_tone` order: amber, blue and green.
+		///
+		/// \details The light amber is darker than the design board's so that the
+		/// reason word reads as small text on white; the high-contrast tones are
+		/// the accepted high-contrast warning, unread and accepted colours.
+		using attention_entries = std::array<std::uint32_t, 3U>;
+
+		constexpr auto light_attention               = attention_entries{ 0x9A6100U, 0x3468D6U, 0x1A7A50U };
+		constexpr auto dark_attention                = attention_entries{ 0xE0A23CU, 0x6D9BFFU, 0x4CC08AU };
+		constexpr auto high_contrast_light_attention = attention_entries{ 0x7A3000U, 0x0033CCU, 0x005A1EU };
+		constexpr auto high_contrast_dark_attention  = attention_entries{ 0xFFBC66U, 0x66B2FFU, 0x4AE56BU };
+
 		constexpr auto contrast_hundredths_per_unit = 100.0;
 
 		[[nodiscard]] auto blend_midpoint(
@@ -504,6 +517,27 @@ namespace bpr::qt {
 		return QStringLiteral("BetterPullReview Light");
 	}
 
+	auto builtin_attention_color(
+		const core::appearance_variant aVariant,
+		const attention_tone           aTone) noexcept -> QColor
+	{
+		const auto& entries = [aVariant]() -> const attention_entries& {
+			switch (aVariant) {
+			case core::appearance_variant::light:
+				break;
+			case core::appearance_variant::dark:
+				return dark_attention;
+			case core::appearance_variant::high_contrast_light:
+				return high_contrast_light_attention;
+			case core::appearance_variant::high_contrast_dark:
+				return high_contrast_dark_attention;
+			}
+			return light_attention;
+		}();
+		const auto index = static_cast<std::size_t>(aTone);
+		return to_presentation_color(srgb(entries[index < entries.size() ? index : 0U]));
+	}
+
 	auto to_presentation_font(const core::font_settings& aFont) -> QFont
 	{
 		auto font = QFont{ };
@@ -630,6 +664,12 @@ namespace bpr::qt {
 	auto appearance_profile::variant() const noexcept -> core::appearance_variant
 	{
 		return Resolution.Variant;
+	}
+
+	auto appearance_profile::attention_color(const attention_tone aTone) const noexcept
+		-> QColor
+	{
+		return builtin_attention_color(Resolution.Variant, aTone);
 	}
 
 	auto appearance_profile::profile_name() const -> QString

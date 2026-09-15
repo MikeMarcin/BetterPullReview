@@ -13,6 +13,7 @@
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
+#include "bpr/qt/home_list.hpp"
 #include "bpr/qt/native_window_chrome.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
@@ -287,26 +288,37 @@ namespace bpr::qt {
 		[[nodiscard]] auto recent_review_item(
 			const application::recent_review_entry& aEntry) -> QListWidgetItem*
 		{
-			auto text = QStringLiteral("%1/%2#%3")
-							.arg(QString::fromStdString(aEntry.Destination.Repository.Owner),
-								 QString::fromStdString(aEntry.Destination.Repository.Name))
-							.arg(aEntry.Destination.Number.value());
+			const auto identity = QStringLiteral("%1/%2#%3")
+									  .arg(QString::fromStdString(aEntry.Destination.Repository.Owner),
+										   QString::fromStdString(aEntry.Destination.Repository.Name))
+									  .arg(aEntry.Destination.Number.value());
+			auto       text     = identity;
 			if (!aEntry.Title.empty()) {
 				text += QStringLiteral(" — ") + QString::fromStdString(aEntry.Title);
 			}
 			if (aEntry.Resumable) {
 				text += QStringLiteral(" · saved reading");
 			}
-			auto detail = QString::fromStdString(aEntry.Destination.Hostname);
-			if (aEntry.ViewedAt != 0) {
-				detail += QStringLiteral(" · viewed ")
-					+ QLocale{ }.toString(
-						QDateTime::fromSecsSinceEpoch(aEntry.ViewedAt).toLocalTime(),
-						QLocale::ShortFormat);
+			auto       detail = QString::fromStdString(aEntry.Destination.Hostname);
+			const auto viewed = aEntry.ViewedAt != 0
+				? QLocale{ }.toString(QDateTime::fromSecsSinceEpoch(aEntry.ViewedAt).toLocalTime(), QLocale::ShortFormat)
+				: QString{ };
+			if (!viewed.isEmpty()) {
+				detail += QStringLiteral(" · viewed ") + viewed;
 			}
 			auto* const item = new QListWidgetItem{ text };
 			item->setToolTip(detail);
 			item->setData(Qt::AccessibleDescriptionRole, detail);
+			// [[BPR-0776]]. The queue row's anatomy. A recent row has no state, so
+			// no reason word and no colour; its time is the host's reading of
+			// when it was viewed, and it offers Resume only where a reading was
+			// kept.
+			item->setData(home_row_role::identity, identity);
+			item->setData(home_row_role::title, QString::fromStdString(aEntry.Title));
+			item->setData(home_row_role::why, aEntry.Resumable ? QStringLiteral("My reading is saved.") : QStringLiteral("Viewed."));
+			item->setData(home_row_role::state, -1);
+			item->setData(home_row_role::time, viewed);
+			item->setData(home_row_role::row_action, aEntry.Resumable ? QStringLiteral("Resume") : QString{ });
 			return item;
 		}
 
@@ -1522,51 +1534,31 @@ namespace bpr::qt {
 				}
 			});
 			HomeOpenAction->setEnabled(false);
-			// [[BPR-0733]]. Between the bar and the queue, what this window
-			// read last, most recent first. The app no longer opens the last
-			// pull request by itself at startup, so this list is how a
-			// reviewer goes back to one, by a gesture. It is governed by the
-			// entries it was given rather than by the account: the
-			// composition has already filtered them for this window's
-			// session, so a signed-out Home lists its public reading.
-			auto* const recentHeadingRow = new QHBoxLayout{ };
-			recentHeadingRow->setContentsMargins(24, 12, 24, 4);
-			HomeRecentHeading = new QLabel{ QStringLiteral("Recently viewed"), HomePage };
-			HomeRecentHeading->setObjectName(QStringLiteral("workbenchHomeRecentHeading"));
-			auto recentHeadingFont = HomeRecentHeading->font();
-			recentHeadingFont.setWeight(QFont::DemiBold);
-			HomeRecentHeading->setFont(recentHeadingFont);
-			recentHeadingRow->addWidget(HomeRecentHeading);
-			HomeRecentResumeAction = new QAction{ tr("Resume reading"), this };
+			// [[BPR-0733]] [[BPR-0776]]. What this window read last, most recent
+			// first. The app no longer opens the last pull request by itself at
+			// startup, so this list is how a reviewer goes back to one, by a
+			// gesture. It is governed by the entries it was given rather than by
+			// the account: the composition has already filtered them for this
+			// window's session, so a signed-out Home lists its public reading.
+			// It is the last panel of Home's list, and Resume is its rows'
+			// action: on hover, on focus and in the row's menu.
+			HomeRecentResumeAction = new QAction{ tr("Resume"), this };
 			HomeRecentResumeAction->setObjectName(QStringLiteral("homeRecentResumeAction"));
-			HomeRecentResumeAction->setEnabled(false);
-			HomeRecentResumeButton = new QToolButton{ HomePage };
-			HomeRecentResumeButton->setDefaultAction(HomeRecentResumeAction);
-			HomeRecentResumeButton->setObjectName(QStringLiteral("homeRecentResumeButton"));
-			HomeRecentResumeButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
-			HomeRecentResumeButton->setFocusPolicy(Qt::StrongFocus);
-			HomeRecentResumeButton->setAccessibleName(QStringLiteral("Resume reading"));
-			HomeRecentResumeButton->setAccessibleDescription(QStringLiteral(
+			HomeRecentResumeAction->setToolTip(QStringLiteral(
 				"Opens the selected recently viewed pull request where its reading was left"));
-			recentHeadingRow->addWidget(HomeRecentResumeButton);
-			recentHeadingRow->addStretch();
-			homeColumn->addLayout(recentHeadingRow);
-			HomeRecentList = new QListWidget{ HomePage };
+			HomeRecentResumeAction->setEnabled(false);
+			auto* const recentList = new home_recent_view{ HomePage };
+			recentList->hide();
+			HomeRecentList = recentList;
 			HomeRecentList->setObjectName(QStringLiteral("homeRecentList"));
 			HomeRecentList->setAccessibleName(QStringLiteral("Recently viewed pull requests"));
 			HomeRecentList->setAccessibleDescription(QStringLiteral(
 				"Return opens a pull request on its overview; Shift and Return resume its saved reading"));
-			HomeRecentList->setSelectionMode(QAbstractItemView::SingleSelection);
-			HomeRecentList->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-			// The action is the list's context menu as well as the button, so
-			// the gesture is where the row is.
+			// The action is the row's menu as well as its hover and focus
+			// button, so the gesture is where the row is.
 			HomeRecentList->setContextMenuPolicy(Qt::ActionsContextMenu);
 			HomeRecentList->addAction(HomeRecentResumeAction);
 			HomeRecentList->installEventFilter(this);
-			auto* const recentRow = new QHBoxLayout{ };
-			recentRow->setContentsMargins(24, 0, 24, 4);
-			recentRow->addWidget(HomeRecentList);
-			homeColumn->addLayout(recentRow);
 			connect(HomeRecentList, &QListWidget::itemActivated, this,
 					[this](QListWidgetItem* const aItem) {
 						dispatch_recent_review(
@@ -1577,16 +1569,6 @@ namespace bpr::qt {
 			connect(HomeRecentResumeAction, &QAction::triggered, this, [this] {
 				dispatch_recent_review(HomeRecentList->currentRow(), true);
 			});
-			// Nothing was published yet, so there is no section to show.
-			apply_recent_reviews();
-			auto* const queueHeading = new QLabel{ QStringLiteral("Review queue"), HomePage };
-			queueHeading->setObjectName(QStringLiteral("workbenchHomeQueueHeading"));
-			queueHeading->setContentsMargins(24, 12, 24, 4);
-			auto headingFont = queueHeading->font();
-			headingFont.setWeight(QFont::DemiBold);
-			queueHeading->setFont(headingFont);
-			homeColumn->addWidget(queueHeading);
-			HomeQueueHeading = queueHeading;
 			build_queue_landing(HomePage, *homeColumn);
 			if (auto* const landing = HomePage->findChild<QWidget*>(
 					QStringLiteral("reviewQueueLanding"), Qt::FindDirectChildrenOnly);
@@ -1596,10 +1578,12 @@ namespace bpr::qt {
 				landing->setContentsMargins(24, 0, 24, 12);
 				homeColumn->setStretchFactor(landing, 1);
 			}
-			// The list had the drawer's 84-pixel bound; Home gives it the room.
-			if (QueueView != nullptr) {
-				QueueView->setMaximumHeight(QWIDGETSIZE_MAX);
+			if (HomeList != nullptr) {
+				HomeList->adopt_recent(*recentList);
+				HomeList->set_recent_action_dispatch([this](const int aRow) { dispatch_recent_review(aRow, true); });
 			}
+			// Nothing was published yet, so there is no panel to show.
+			apply_recent_reviews();
 		}
 		// Only the centre absorbs a window resize, so a drawer keeps the width the
 		// host persisted until the user moves the handle.
@@ -2059,32 +2043,18 @@ namespace bpr::qt {
 
 		QueueLanding     = new review_landing_model{ surface };
 		QueueFilterModel = new review_landing_filter_model{ *QueueLanding, surface };
-		QueueView        = new QListView{ surface };
-		QueueView->setObjectName(QStringLiteral("reviewQueueItems"));
-		QueueView->setAccessibleName(QStringLiteral("Review queue"));
-		QueueView->setAccessibleDescription(QStringLiteral(
-			"Pull requests enrolled by a GitHub role or a local observer rule"));
-		QueueView->setModel(QueueFilterModel);
-		QueueView->installEventFilter(this);
-		QueueView->setMaximumHeight(84);
-		// [[BPR-0650]]. Home's action list: the grouped rows are this
-		// delegate's drawing of the same decided queue; a click or Return
-		// on a row opens its pull request on Overview, as a row of the
-		// repositories tree does.
-		QueueDelegate = new review_landing_delegate{ QueueView };
-		QueueView->setItemDelegate(QueueDelegate);
-		QueueView->setUniformItemSizes(false);
-		connect(QueueView, &QAbstractItemView::clicked, this, [this](const QModelIndex& aIndex) {
-			if (const auto item = QueueFilterModel->item_at(aIndex); item.has_value()) {
-				open_pull_request_item(*item);
-			}
-		});
-		connect(QueueView, &QAbstractItemView::activated, this, [this](const QModelIndex& aIndex) {
-			if (const auto item = QueueFilterModel->item_at(aIndex); item.has_value()) {
-				open_pull_request_item(*item);
-			}
-		});
-		layout->addWidget(QueueView);
+		// [[BPR-0650]] [[BPR-0776]]. Home's list: a panel per state, in state
+		// order, over the same decided queue, and Recently viewed last. A
+		// click or Return on a row opens its pull request on Overview, as a
+		// row of the repositories tree does; an empty queue's sentence links
+		// to Reviews & queue.
+		HomeList = new qt::home_list{ *QueueFilterModel, surface };
+		// The built-in state colours until the composition hands over the
+		// profile it resolved.
+		HomeList->set_state_colours(home_state_colours_for(appearance_profile{ }));
+		HomeList->set_open_dispatch([this](const core::queue_item& aItem) { open_pull_request_item(aItem); });
+		HomeList->set_settings_dispatch([this] { open_settings(settings_page::reviews_and_queue); });
+		layout->addWidget(HomeList, 1);
 
 		auto* const primaryFilters = new QHBoxLayout{ };
 		QueueRoleFilter            = new QComboBox{ surface };
@@ -2452,7 +2422,7 @@ namespace bpr::qt {
 			QueuePreferencesDispatch(application::queue_preferences_intent{ std::move(next), application::queue_preference_field::notifications });
 		});
 		connect(NotificationPreview, &QPushButton::clicked, this, [this] {
-			const auto item = QueueFilterModel->item_at(QueueView->currentIndex());
+			const auto item = selected_queue_item();
 			if (!item) {
 				NotificationStatus->setText(QStringLiteral("Select a review in Home first."));
 				return;
@@ -2633,6 +2603,11 @@ namespace bpr::qt {
 	void workbench_window::update_queue_status(
 		const application::queue_landing_projection& aProjection)
 	{
+		// [[BPR-0776]]. On Home the status sentence speaks only when it says
+		// something the panels do not: restoring, unavailable, a filter that
+		// hides every row, a limit. The count is the panels' headers and an
+		// empty queue is Needs me's sentence. Settings keeps the whole text.
+		auto notable = true;
 		switch (aProjection.Status) {
 		case application::queue_landing_status::restoring:
 			QueueStatus->setText(tr("Restoring local observer rules and queue preferences…"));
@@ -2644,6 +2619,7 @@ namespace bpr::qt {
 			if (aProjection.Items.empty()) {
 				QueueStatus->setText(tr(
 					"Review queue is empty. Local rules never change GitHub assignments."));
+				notable = false;
 			} else if (QueueFilterModel->rowCount() == 0
 					   && QueueFilterModel->has_active_filters()) {
 				QueueStatus->setText(tr(
@@ -2657,6 +2633,7 @@ namespace bpr::qt {
 						.arg(aProjection.Online
 								 ? tr("Refresh is online.")
 								 : tr("Refresh is offline.")));
+				notable = false;
 			}
 			break;
 		}
@@ -2664,10 +2641,13 @@ namespace bpr::qt {
 			QueueStatus->setText(aProjection.Status == application::queue_landing_status::ready
 									 ? tr("The local queue configuration limit was reached. Existing settings are unchanged; remove an entry before adding another.")
 									 : tr("Stored queue configuration exceeds this build's supported limits. It was not loaded or changed."));
+			notable = true;
 		}
 		if (SettingsQueueStatus != nullptr) {
 			SettingsQueueStatus->setText(QueueStatus->text());
 		}
+		QueueStatusNotable = notable;
+		update_home_surface();
 	}
 
 	void workbench_window::dispatch_queue_rule(
@@ -2726,11 +2706,8 @@ namespace bpr::qt {
 		const application::queue_landing_projection& aProjection)
 	{
 		auto selectedReview = std::optional<core::pull_request_ref>{ };
-		if (QueueView->currentIndex().isValid()) {
-			if (const auto item = QueueFilterModel->item_at(QueueView->currentIndex());
-				item.has_value()) {
-				selectedReview = item->Ref;
-			}
+		if (const auto item = selected_queue_item(); item.has_value()) {
+			selectedReview = item->Ref;
 		}
 		auto       selectedRule  = std::optional<core::observer_rule>{ };
 		const auto selectedIndex = QueueRuleSelector->currentIndex();
@@ -2778,14 +2755,15 @@ namespace bpr::qt {
 		rebuild_queue_repositories(
 			aProjection.Items, aProjection.Preferences.Repository);
 		apply_queue_preferences(aProjection.Preferences);
-		if (selectedReview.has_value()) {
-			for (auto row = 0; row < QueueFilterModel->rowCount(); ++row) {
-				const auto index = QueueFilterModel->index(row, 0);
-				const auto item  = QueueFilterModel->item_at(index);
-				if (item.has_value() && item->Ref == *selectedReview) {
-					QueueView->setCurrentIndex(index);
-					break;
-				}
+		if (HomeList != nullptr) {
+			// The panels are recounted now rather than after the model's own
+			// signals settle, so the row the reviewer had is found again in
+			// whichever state holds it. Restoring it neither expands a panel
+			// the reviewer collapsed nor scrolls the page.
+			HomeList->set_queue_status(QueueReady, HomeAccount);
+			HomeList->refresh();
+			if (selectedReview.has_value()) {
+				static_cast<void>(HomeList->select(*selectedReview, false));
 			}
 		}
 		if (rulesChanged) {
@@ -4604,11 +4582,13 @@ namespace bpr::qt {
 		}
 		// The queue is a signed-in surface (RFC-BPR-0026 writes it for a
 		// viewer); without an account there is nothing it could list.
-		if (HomeQueueHeading != nullptr) {
-			HomeQueueHeading->setVisible(account);
-		}
+		// [[BPR-0776]]. Recently viewed stays, for a signed-out window's public
+		// reading, as [[BPR-0733]] and [[BPR-0775]] keep it.
+		// The decision applies once the queue's surface exists; a window whose
+		// session never spoke after it was built shows its queue, as it did.
 		if (QueueSurface != nullptr) {
-			QueueSurface->setVisible(account);
+			HomeAccount = account;
+			update_home_surface();
 		}
 		// Home is the centre until a pull request, a comparison or an active
 		// workbench gives the review chrome something to be about.
@@ -6164,19 +6144,22 @@ namespace bpr::qt {
 		return QueueFilterModel;
 	}
 
-	auto workbench_window::queue_view() const noexcept -> QListView*
+	auto workbench_window::home_list() const noexcept -> qt::home_list*
 	{
-		return QueueView;
+		return HomeList;
+	}
+
+	auto workbench_window::selected_queue_item() const -> std::optional<core::queue_item>
+	{
+		if (HomeList == nullptr) {
+			return std::nullopt;
+		}
+		return HomeList->current_queue_item();
 	}
 
 	auto workbench_window::home_open_bar() const noexcept -> QLineEdit*
 	{
 		return HomeOpenBar;
-	}
-
-	auto workbench_window::queue_delegate() const noexcept -> review_landing_delegate*
-	{
-		return QueueDelegate;
 	}
 
 	void workbench_window::open_pull_request_item(const core::queue_item& aItem)
@@ -6222,9 +6205,14 @@ namespace bpr::qt {
 		update_home_open_notice();
 	}
 
-	auto workbench_window::home_recent_heading() const noexcept -> QLabel*
+	auto workbench_window::home_recent_panel() const noexcept -> home_panel*
 	{
-		return HomeRecentHeading;
+		return HomeList != nullptr ? HomeList->recent_panel() : nullptr;
+	}
+
+	auto workbench_window::home_recent_row_action() const noexcept -> QToolButton*
+	{
+		return HomeList != nullptr ? HomeList->recent_action() : nullptr;
 	}
 
 	auto workbench_window::home_recent_list() const noexcept -> QListWidget*
@@ -6256,8 +6244,7 @@ namespace bpr::qt {
 
 	void workbench_window::apply_recent_reviews()
 	{
-		if (HomeRecentList == nullptr || HomeRecentHeading == nullptr
-			|| HomeRecentResumeButton == nullptr) {
+		if (HomeRecentList == nullptr) {
 			return;
 		}
 		const auto previousRow = HomeRecentList->currentRow();
@@ -6276,21 +6263,45 @@ namespace bpr::qt {
 					previousRow >= 0 && previousRow < rows ? previousRow : 0);
 			}
 		}
-		const auto listed = !RecentReviews.Entries.empty();
-		HomeRecentHeading->setVisible(listed);
-		HomeRecentResumeButton->setVisible(listed);
-		HomeRecentList->setVisible(listed);
-		if (listed) {
-			// Five rows of room at most, measured from the row the style drew,
-			// so the review queue underneath keeps its own; the rest scrolls.
-			constexpr auto shownRecentRows = 5;
-			const auto     rowHeight       = HomeRecentList->sizeHintForRow(0);
-			const auto     shown           = std::min(
-				static_cast<int>(RecentReviews.Entries.size()), shownRecentRows);
-			HomeRecentList->setMaximumHeight(
-				rowHeight * shown + (2 * HomeRecentList->frameWidth()));
+		// [[BPR-0776]]. The rows are the last panel of Home's list, which appears
+		// with them. Home scrolls as one page, so the list is as tall as its
+		// rows rather than five of them.
+		if (HomeList != nullptr) {
+			HomeList->set_recent(static_cast<int>(RecentReviews.Entries.size()),
+								 home_recent_summary(RecentReviews.Entries));
 		}
+		update_home_surface();
 		update_recent_resume_action();
+	}
+
+	void workbench_window::update_home_surface()
+	{
+		// [[BPR-0776]]. The queue's surface holds its status, Home's list and
+		// the queue's controls. An account shows all of them; without one only
+		// Recently viewed can have anything to list.
+		if (QueueSurface != nullptr) {
+			QueueSurface->setVisible(HomeAccount || !RecentReviews.Entries.empty());
+		}
+		// Without an account the surface is shown only for Recently viewed, and
+		// then its queue controls and status are hidden themselves; otherwise
+		// they follow the surface, as they always have.
+		const auto controls = HomeAccount || RecentReviews.Entries.empty();
+		for (auto* const selector : { QueueRoleFilter,
+									  QueueObserverFilter,
+									  QueueBucketFilter,
+									  QueueRepositoryFilter,
+									  QueueQuietFilter,
+									  QueueSort }) {
+			if (selector != nullptr) {
+				selector->setVisible(controls);
+			}
+		}
+		if (QueueStatus != nullptr) {
+			QueueStatus->setVisible(controls && QueueStatusNotable);
+		}
+		if (HomeList != nullptr) {
+			HomeList->set_queue_status(QueueReady, HomeAccount);
+		}
 	}
 
 	void workbench_window::update_recent_resume_action()
@@ -6329,19 +6340,6 @@ namespace bpr::qt {
 			&& (aEvent->type() == QEvent::Show || aEvent->type() == QEvent::Hide
 				|| aEvent->type() == QEvent::Move || aEvent->type() == QEvent::Resize)) {
 			place_dif_corner();
-		}
-		if (aWatched == QueueView && aEvent != nullptr
-			&& aEvent->type() == QEvent::KeyPress) {
-			auto* const key = static_cast<QKeyEvent*>(aEvent);
-			if (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) {
-				// [[BPR-0736]]. macOS treats these as editing keys instead of
-				// emitting activated. Consume them here on every platform so
-				// a key opens once; mouse activation keeps its existing path.
-				if (const auto item = QueueFilterModel->item_at(QueueView->currentIndex()); item.has_value()) {
-					open_pull_request_item(*item);
-				}
-				return true;
-			}
 		}
 		if (aWatched == HomeRecentList && aEvent != nullptr
 			&& aEvent->type() == QEvent::KeyPress) {
@@ -6467,16 +6465,11 @@ namespace bpr::qt {
 	auto workbench_window::select_queue_item(
 		const core::pull_request_ref& aRef) -> bool
 	{
-		for (auto row = 0; row < QueueFilterModel->rowCount(); ++row) {
-			const auto index = QueueFilterModel->index(row, 0);
-			const auto item  = QueueFilterModel->item_at(index);
-			if (item.has_value() && item->Ref == aRef) {
-				QueueView->setCurrentIndex(index);
-				QueueView->scrollTo(index, QAbstractItemView::PositionAtCenter);
-				QueueView->setFocus(Qt::OtherFocusReason);
-				update_queue_status(QueueProjection);
-				return true;
-			}
+		// [[BPR-0776]]. The row is found in whichever state's panel holds it,
+		// which is expanded if the reviewer had collapsed it.
+		if (HomeList != nullptr && HomeList->select(aRef, true)) {
+			update_queue_status(QueueProjection);
+			return true;
 		}
 
 		const auto present = [this, &aRef] {
@@ -6492,6 +6485,8 @@ namespace bpr::qt {
 			present
 				? tr("The notified review is hidden by the active queue filters.")
 				: tr("The notified review is no longer in the local review queue."));
+		QueueStatusNotable = true;
+		update_home_surface();
 		return false;
 	}
 
@@ -6619,15 +6614,15 @@ namespace bpr::qt {
 		// The session chrome and the device sign-in are the Accounts and
 		// hosts page of the Settings window, another top-level window with
 		// its own tab chain; the workbench declares nothing across windows.
-		// [[BPR-0733]]. Home's recently viewed section sits above the queue and
-		// is walked before it: the resume control beside its heading, then the
-		// list. With nothing published there is no section, so there is no stop
-		// either. The heading is a label and was never one.
-		if (HomeRecentList != nullptr && !RecentReviews.Entries.empty()) {
-			append(HomeRecentResumeButton);
-			append(HomeRecentList);
+		// [[BPR-0733]] [[BPR-0776]]. Home's list: each shown panel's header, then
+		// its rows or its sentence, in state order and Recently viewed last. A
+		// panel that is not shown is no stop, and neither is a collapsed
+		// panel's content.
+		if (HomeList != nullptr) {
+			for (auto* const stop : HomeList->focus_chain()) {
+				append(stop);
+			}
 		}
-		append(QueueView);
 		append(QueueRoleFilter);
 		append(QueueObserverFilter);
 		append(QueueBucketFilter);

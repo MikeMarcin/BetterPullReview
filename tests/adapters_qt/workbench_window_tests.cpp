@@ -8,6 +8,7 @@
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/epoch_history_model.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
+#include "bpr/qt/home_list.hpp"
 #include "bpr/qt/info_glyph.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
@@ -6468,8 +6469,7 @@ namespace {
 			.Status = application::queue_landing_status::ready,
 			.Items  = { urgent, quiet },
 		});
-		window.queue_view()->setCurrentIndex(
-			window.queue_filter_model()->index(0, 0));
+		static_cast<void>(window.home_list()->select(urgent.Ref, false));
 		window.queue_role_filter()->setFocus();
 		const auto focused = QApplication::focusWidget();
 		window.queue_role_filter()->setCurrentIndex(
@@ -6563,11 +6563,10 @@ namespace {
 		expect(
 			window.select_queue_item(visible.Ref),
 			"a notification activation selects an exact visible queue identity");
-		const auto selected = window.queue_filter_model()->item_at(
-			window.queue_view()->currentIndex());
+		const auto selected = window.selected_queue_item();
 		expect(
 			selected.has_value() && selected->Ref == visible.Ref
-				&& QApplication::focusWidget() == window.queue_view(),
+				&& QApplication::focusWidget() == window.home_list()->current_view(),
 			"activation focuses the real proxy row without confusing equal repository and number fields");
 		expect(
 			window.queue_filter_model()->preferences() == preferences
@@ -7031,12 +7030,12 @@ namespace {
 			const auto index = window.queue_filter_model()->index(row, 0);
 			const auto item  = window.queue_filter_model()->item_at(index);
 			if (item.has_value() && item->Ref.Number == 1'000) {
-				window.queue_view()->setCurrentIndex(index);
+				static_cast<void>(window.home_list()->select(item->Ref, false));
 				break;
 			}
 		}
 		expect(
-			window.queue_view()->currentIndex().isValid(),
+			window.selected_queue_item().has_value(),
 			"the large queue selects one stable pull-request identity");
 		window.show();
 		QApplication::processEvents();
@@ -7057,8 +7056,7 @@ namespace {
 			window.queue_sort_selector()->findData(
 				static_cast<int>(application::queue_sort_order::pull_request_number)));
 
-		const auto selected = window.queue_filter_model()->item_at(
-			window.queue_view()->currentIndex());
+		const auto selected = window.selected_queue_item();
 		expect(
 			window.queue_landing()->rowCount() == 2'048
 				&& window.queue_filter_model()->rowCount() == 1'024,

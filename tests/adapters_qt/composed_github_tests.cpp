@@ -10,6 +10,7 @@
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
+#include "bpr/qt/home_list.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 
 #include <QAbstractButton>
@@ -1024,7 +1025,6 @@ namespace {
 				&& containsInOrder(
 					window.focus_order(),
 					{
-						window.queue_view(),
 						window.queue_role_filter(),
 						window.queue_observer_filter(),
 						window.queue_bucket_filter(),
@@ -3088,7 +3088,6 @@ namespace {
 		window.activateWindow();
 		QApplication::processEvents();
 		auto* const landing = window.home_landing();
-		auto* const heading = window.findChild<QLabel*>(QStringLiteral("workbenchHomeQueueHeading"));
 		auto* const surface = window.findChild<QWidget*>(QStringLiteral("reviewQueueLanding"));
 		auto* const stack   = window.findChild<QWidget*>(QStringLiteral("githubViewState"));
 		// [[BPR-0775]]. RFC-BPR-0032 A5, first launch and signed out: the strip
@@ -3132,12 +3131,12 @@ namespace {
 		}
 		expect(strayStripControls.isEmpty(),
 			   "the strip shows only Home, account and settings while signed out");
-		expect(heading != nullptr && surface != nullptr && !heading->isVisible() && !surface->isVisible()
-				   && !window.queue_view()->isVisible() && !window.queue_role_filter()->isVisible()
+		expect(surface != nullptr && !surface->isVisible()
+				   && !window.home_list()->queue_shown() && !window.queue_role_filter()->isVisible()
 				   && !window.queue_observer_filter()->isVisible() && !window.queue_bucket_filter()->isVisible()
 				   && !window.queue_repository_filter()->isVisible() && !window.queue_quiet_filter()->isVisible()
 				   && !window.queue_sort_selector()->isVisible(),
-			   "no queue heading, list or filter combo is shown without an account");
+			   "no queue panel, list or filter combo is shown without an account");
 		expect(window.home_open_bar()->isVisible() && QApplication::focusWidget() == window.home_open_bar(),
 			   "the bar is the way in, so it has focus");
 		expect(stack != nullptr && !stack->isVisible() && window.home_open_notice()->isHidden()
@@ -3159,7 +3158,7 @@ namespace {
 		preview.Mode = application::public_preview_mode::signed_out;
 		window.publish(preview);
 		QApplication::processEvents();
-		expect(landing->state() == qt::landing_state::sign_in && !heading->isVisible() && !surface->isVisible()
+		expect(landing->state() == qt::landing_state::sign_in && !surface->isVisible()
 				   && !stack->isVisible(),
 			   "a public-preview session keeps the signed-out Home: no picker, no queue, no empty page");
 		expect(intents.empty(), "nothing was dispatched on the way");
@@ -3169,8 +3168,8 @@ namespace {
 		publish_session_ready(window);
 		QApplication::processEvents();
 		expect(landing->state() == qt::landing_state::choose_pull_request && !landing->isVisible()
-				   && heading->isVisible() && surface->isVisible()
-				   && window.queue_view()->isVisible() && window.queue_role_filter()->isVisible()
+				   && surface->isVisible()
+				   && window.home_list()->queue_shown() && window.queue_role_filter()->isVisible()
 				   && window.home_open_bar()->placeholderText() == QStringLiteral("Paste a link, or write owner/name#123"),
 			   "a session with an account shows the queue, the bar names any pull request, and there is no card");
 		window.hide();
@@ -3225,7 +3224,7 @@ namespace {
 				   && shortcut->text() == focusBar->shortcut().toString(QKeySequence::NativeText),
 			   "Command-L is the bar's window shortcut, and the bar shows it");
 		bar->setText(QStringLiteral("octo/app#7"));
-		window.queue_view()->setFocus(Qt::OtherFocusReason);
+		window.queue_role_filter()->setFocus(Qt::OtherFocusReason);
 		QApplication::processEvents();
 		focusBar->trigger();
 		QApplication::processEvents();
@@ -3315,21 +3314,27 @@ namespace {
 			[&gestures](application::recent_review_intent aIntent) {
 				gestures.push_back(aIntent);
 			});
-		auto* const heading = window.home_recent_heading();
-		auto* const list    = window.home_recent_list();
-		auto* const resume  = window.home_recent_resume_action();
-		auto* const resumeButton
-			= window.findChild<QToolButton*>(QStringLiteral("homeRecentResumeButton"));
-		expect(heading != nullptr && list != nullptr && resume != nullptr
+		// [[BPR-0776]]. Recently viewed is the last panel of Home's list, and
+		// Resume is a row action: on hover, on focus and in the row's menu. The
+		// button beside a heading is gone.
+		auto* const panel        = window.home_recent_panel();
+		auto* const list         = window.home_recent_list();
+		auto* const resume       = window.home_recent_resume_action();
+		auto* const resumeButton = window.home_recent_row_action();
+		expect(panel != nullptr && list != nullptr && resume != nullptr
 				   && resumeButton != nullptr
-				   && heading->objectName() == QStringLiteral("workbenchHomeRecentHeading")
+				   && window.findChild<QToolButton*>(QStringLiteral("homeRecentResumeButton")) == nullptr
+				   && window.findChild<QLabel*>(QStringLiteral("workbenchHomeRecentHeading")) == nullptr
+				   && panel->objectName() == QStringLiteral("homeRecentPanel")
+				   && panel->title() == QStringLiteral("Recently viewed") && panel->isAncestorOf(list)
 				   && list->objectName() == QStringLiteral("homeRecentList")
 				   && resume->objectName() == QStringLiteral("homeRecentResumeAction")
+				   && list->actions().contains(resume) && list->contextMenuPolicy() == Qt::ActionsContextMenu
 				   && list->accessibleName()
 					   == QStringLiteral("Recently viewed pull requests"),
-			   "Home carries a named recently viewed heading, list and resume action");
-		expect(!heading->isVisible() && !list->isVisible() && !resumeButton->isVisible(),
-			   "with nothing published there is no section");
+			   "Home carries a named Recently viewed panel and list, with Resume in the row's menu and no heading button");
+		expect(!panel->isVisible() && !list->isVisible() && !resumeButton->isVisible(),
+			   "with nothing published there is no panel");
 
 		auto projection = application::recent_reviews_projection{ };
 		projection.Entries.push_back(recent_entry(
@@ -3353,13 +3358,14 @@ namespace {
 				   && list->item(0)->toolTip().contains(QStringLiteral("viewed"))
 				   && list->item(2)->toolTip() == QStringLiteral("github.com"),
 			   "each row says its host, and the instant only where one was recorded");
-		expect(heading->isVisible() && list->isVisible() && resumeButton->isVisible(),
-			   "with entries the section is shown, with no account signed in");
-		expect(QApplication::focusWidget() == window.home_open_bar(),
-			   "publishing the list took no focus from where the reviewer was");
+		expect(panel->isVisible() && list->isVisible() && panel->count() == 3
+				   && panel->summary() == QStringLiteral("3 viewed; 1 saved reading"),
+			   "with entries the panel is shown, with no account signed in, and counts them");
+		expect(QApplication::focusWidget() == window.home_open_bar() && !resumeButton->isVisible(),
+			   "publishing the list took no focus from where the reviewer was, and no row offers Resume yet");
 		const auto listed = window.focus_order();
-		expect(listed.contains(list) && listed.contains(resumeButton),
-			   "the list and its resume control are keyboard stops");
+		expect(listed.contains(list) && listed.contains(panel->header()) && !listed.contains(resumeButton),
+			   "the panel's header and its list are keyboard stops; the row action is not a stop of its own");
 
 		expect(list->currentRow() == 0 && !resume->isEnabled(),
 			   "the newest row is current, and it kept no reading to resume");
@@ -3378,13 +3384,29 @@ namespace {
 		QApplication::processEvents();
 		expect(gestures.size() == 2U && gestures.back().Index == 1U && gestures.back().Resume,
 			   "Shift and Return resume the current row rather than opening it");
+		// With the list focused, Resume is the current row's button.
+		expect(list->hasFocus() && resumeButton->isVisible()
+				   && list->visualItemRect(list->item(1)).contains(resumeButton->geometry()),
+			   "with the list focused, Resume sits on the current row that kept a reading");
+		{
+			const auto at      = QPointF{ resumeButton->rect().center() };
+			const auto global  = resumeButton->mapToGlobal(at);
+			auto       press   = QMouseEvent{ QEvent::MouseButtonPress, at, global, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+			auto       release = QMouseEvent{ QEvent::MouseButtonRelease, at, global, Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+			QApplication::sendEvent(resumeButton, &press);
+			QApplication::sendEvent(resumeButton, &release);
+			QApplication::processEvents();
+		}
+		expect(gestures.size() == 3U && gestures.back().Index == 1U && gestures.back().Resume,
+			   "the row's Resume button resumes that row");
 		list->setCurrentRow(2);
-		expect(!resume->isEnabled(),
+		QApplication::processEvents();
+		expect(!resume->isEnabled() && !resumeButton->isVisible(),
 			   "a row that kept no reading offers no resume");
 		auto activate = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
 		QApplication::sendEvent(list, &activate);
 		QApplication::processEvents();
-		expect(gestures.size() == 3U && gestures.back().Index == 2U
+		expect(gestures.size() == 4U && gestures.back().Index == 2U
 				   && !gestures.back().Resume,
 			   "Return opens the current row, on every platform");
 		// The pointer's own activation arrives the way any list's does.
@@ -3398,17 +3420,17 @@ namespace {
 		QApplication::sendEvent(list->viewport(), &press);
 		QApplication::sendEvent(list->viewport(), &doubled);
 		QApplication::processEvents();
-		expect(gestures.size() == 4U && gestures.back().Index == 0U
+		expect(gestures.size() == 5U && gestures.back().Index == 0U
 				   && !gestures.back().Resume,
 			   "a double-click opens the row it was made on");
 
 		window.publish(application::recent_reviews_projection{ });
 		QApplication::processEvents();
 		const auto empty = window.focus_order();
-		expect(list->count() == 0 && !heading->isVisible() && !list->isVisible()
+		expect(list->count() == 0 && !panel->isVisible() && !list->isVisible()
 				   && !resumeButton->isVisible() && !empty.contains(list)
-				   && !empty.contains(resumeButton),
-			   "an empty list is no heading, no rows, no control and no keyboard stop");
+				   && !empty.contains(panel->header()),
+			   "an empty list is no panel, no rows, no control and no keyboard stop");
 		window.hide();
 
 		// [[BPR-0732]] still decides where a signed-out Home starts: at the
@@ -3465,8 +3487,8 @@ namespace {
 		QApplication::processEvents();
 		expect(window.showing_home() && window.home_open_bar() != nullptr
 				   && window.home_page()->isAncestorOf(window.home_open_bar())
-				   && window.home_page()->isAncestorOf(window.queue_view())
-				   && window.queue_view()->maximumHeight() == QWIDGETSIZE_MAX,
+				   && window.home_page()->isAncestorOf(window.home_list())
+				   && window.home_list()->maximumHeight() == QWIDGETSIZE_MAX,
 			   "Home carries the open bar and the list, with the list given room");
 		auto needsMe = core::queue_item{
 			.Ref        = { .Host = "github.com", .Account = "octo-reviewer", .Repository = "better-pull-review/desktop", .Number = 73 },
@@ -3484,24 +3506,29 @@ namespace {
 			.Items  = { needsMe, quiet },
 		});
 		QApplication::processEvents();
-		auto* const view     = window.queue_view();
-		auto* const delegate = window.queue_delegate();
-		expect(delegate != nullptr && view->itemDelegate() == delegate && view->model()->rowCount() == 2,
-			   "the list draws through the action-list delegate");
-		const auto first  = view->model()->index(0, 0);
-		const auto second = view->model()->index(1, 0);
-		expect(qt::review_landing_delegate::heads_group(first) && qt::review_landing_delegate::heads_group(second)
-				   && first.data(qt::review_landing_model::group_role).toInt() == static_cast<int>(qt::home_group::needs_you)
-				   && second.data(qt::review_landing_model::group_role).toInt() == static_cast<int>(qt::home_group::following)
-				   && delegate->sizeHint({ }, first).height()
-					   == qt::review_landing_delegate::row_height + qt::review_landing_delegate::heading_height,
-			   "each group's first row carries its heading and the extra height for it");
-		expect(first.data(qt::review_landing_model::title_role).toString() == QStringLiteral("Preserve the DRCS font")
-				   && first.data(qt::review_landing_model::unseen_role).toBool(),
-			   "the title and the unread dot reach the row");
+		// [[BPR-0776]]. Each state is its own panel over the one decided queue,
+		// drawn through the one row delegate; an empty state is not shown.
+		auto* const needsView     = window.home_list()->state_view(qt::home_group::needs_you);
+		auto* const followingView = window.home_list()->state_view(qt::home_group::following);
+		auto* const delegate      = window.home_list()->row_delegate();
+		expect(delegate != nullptr && needsView->itemDelegate() == delegate && followingView->itemDelegate() == delegate
+				   && needsView->model()->rowCount() == 1 && followingView->model()->rowCount() == 1
+				   && window.home_list()->state_panel(qt::home_group::needs_you)->isVisible()
+				   && !window.home_list()->state_panel(qt::home_group::waiting_on_others)->isVisible(),
+			   "each state's rows draw through the one row delegate in their own panel, and an empty state is not shown");
+		const auto first  = needsView->model()->index(0, 0);
+		const auto second = followingView->model()->index(0, 0);
+		expect(first.data(qt::home_row_role::reason_word).toString() == QStringLiteral("Requested")
+				   && second.data(qt::home_row_role::reason_word).toString() == QStringLiteral("Quiet")
+				   && delegate->sizeHint({ }, first).height() >= qt::home_row_delegate::minimum_row_height,
+			   "each row ends in its state's word and is at least 44 points tall");
+		expect(first.data(qt::home_row_role::title).toString() == QStringLiteral("Preserve the DRCS font")
+				   && first.data(qt::home_row_role::why).toString().endsWith(QStringLiteral("1 new comment.")),
+			   "the title and what I have not read reach the row");
 
 		// [[BPR-0736]]. Send real keys: emitting activated would hide macOS's
 		// edit-key handling, which never emits that signal for Return or Enter.
+		auto* const view = followingView;
 		view->setCurrentIndex(second);
 		view->setFocus();
 		for (const auto key : { Qt::Key_Return, Qt::Key_Enter }) {
@@ -3522,14 +3549,14 @@ namespace {
 		expect(intents.empty(), "Return without a current queue row opens nothing");
 
 		intents.clear();
-		const auto rowRect = view->visualRect(first);
+		const auto rowRect = needsView->visualRect(first);
 		expect(!rowRect.isEmpty(), "the first row is on screen");
 		{
 			const auto at      = QPointF{ rowRect.center() };
 			auto       press   = QMouseEvent{ QEvent::MouseButtonPress, at, at, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
 			auto       release = QMouseEvent{ QEvent::MouseButtonRelease, at, at, Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
-			QApplication::sendEvent(view->viewport(), &press);
-			QApplication::sendEvent(view->viewport(), &release);
+			QApplication::sendEvent(needsView->viewport(), &press);
+			QApplication::sendEvent(needsView->viewport(), &release);
 		}
 		QApplication::processEvents();
 		const auto* const open = intents.empty() ? nullptr : std::get_if<core::open_pull_request_intent>(&intents.back());
@@ -3720,7 +3747,7 @@ namespace {
 				   && rules->isAncestorOf(window.queue_rule_kind_selector())
 				   && rules->isAncestorOf(window.queue_rule_pattern_editor())
 				   && !window.focus_order().contains(window.queue_rule_kind_selector())
-				   && window.focus_order().contains(window.queue_view()),
+				   && window.focus_order().contains(window.queue_role_filter()),
 			   "the observer-rule editor lives on Reviews and queue, off Home and out of the workbench's focus order");
 		window.hide();
 	}
@@ -4387,8 +4414,8 @@ namespace {
 				&& !window.conversations_drawer()->isVisible()
 				&& !window.epoch_selectors()->isVisible()
 				&& !window.comparison_surface()->isVisible()
-				&& !window.queue_view()->isVisible()
-				&& window.home_page()->isAncestorOf(window.queue_view()),
+				&& !window.home_list()->queue_shown()
+				&& window.home_page()->isAncestorOf(window.home_list()),
 			"with nothing open the centre is Home -- the landing, and the review "
 			"queue once there is an account -- and none of the review chrome is shown");
 		expect(
@@ -4484,7 +4511,7 @@ namespace {
 				&& landing->state() == qt::landing_state::choose_pull_request
 				&& !landing->primary_button()->isVisible()
 				&& !landing->secondary_button()->isVisible()
-				&& window.queue_view()->isVisible()
+				&& window.home_list()->queue_shown()
 				&& window.findChild<QWidget*>(QStringLiteral("repositoryOwnerEditor")) == nullptr
 				&& window.home_page()->isAncestorOf(window.home_open_bar()),
 			"signed in with nothing open, Home has no card and no focus-only buttons, and the bar names a pull request");

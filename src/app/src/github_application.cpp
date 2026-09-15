@@ -101,6 +101,7 @@
 #include "bpr/qt/event_loop_device_timer.hpp"
 #include "bpr/qt/event_loop_executor.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
+#include "bpr/qt/home_list.hpp"
 #include "bpr/qt/motion_observer.hpp"
 #include "bpr/qt/sensitive_text_input.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
@@ -11330,6 +11331,10 @@ namespace bpr::app {
 			}
 			if (auto* const overview = Window->overview_page(); overview != nullptr) {
 				overview->adopt_appearance(*AppearanceProfile);
+			}
+			// [[BPR-0776]]. Home's three state colours for the resolved variant.
+			if (auto* const home = Window->home_list(); home != nullptr) {
+				home->set_state_colours(qt::home_state_colours_for(*AppearanceProfile));
 			}
 			if (auto* const conversations = Window->conversation_panel();
 				conversations != nullptr && conversations->cards() != nullptr) {
