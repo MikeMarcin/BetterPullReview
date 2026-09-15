@@ -176,7 +176,8 @@ namespace {
 		const auto fullAfter        = dif_sample(*aWindow.dif());
 		const auto siblingFullAfter = dif_sample(*aSibling.dif());
 		const auto wakeups          = fullAfter["TimerWakeups"].toInteger() - fullBefore["TimerWakeups"].toInteger();
-		expect(wakeups > 0 && wakeups <= fullMs / 10 + 4, "active playback has bounded nonzero timer work");
+		expect(wakeups > 0 && wakeups <= fullMs / 84 + 2, "active playback has bounded nonzero timer work");
+		expect(siblingFullBefore == siblingFullAfter, "inactive sibling remains static during Full playback");
 		const auto diffAfter = aWindow.comparison_surface()->statistics();
 		expect(diffAfter.GeometryRebuilds == diffBefore.GeometryRebuilds && diffAfter.Publications == diffBefore.Publications
 				   && diffAfter.PaneMeasurements == diffBefore.PaneMeasurements && diffAfter.SemanticIndexAdoptions == diffBefore.SemanticIndexAdoptions,
