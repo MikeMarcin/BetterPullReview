@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0783"
 title: "Add Group, State headers, account chips and the Filter menu to Home"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0032"]
 depends_on: ["BPR-0776"]
 metadata: {"pack":"bpr-shell-surfaces-v1","milestone":"home-page","acceptance":["A7"],"milestone_plan":{"id":"bpr-shell-surfaces-v1","path":"docs/rfcs/plans/bpr-shell-surfaces-v1/milestone-plan.json"}}
