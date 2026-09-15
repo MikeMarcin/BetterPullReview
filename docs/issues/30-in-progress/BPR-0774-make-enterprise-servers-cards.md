@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0774"
 title: "Make enterprise servers cards with inline add, a remember switch and a confirmed forget"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0032"]
 depends_on: ["BPR-0772"]
 metadata: {"pack":"bpr-shell-surfaces-v1","milestone":"accounts-page","acceptance":["A3"],"milestone_plan":{"id":"bpr-shell-surfaces-v1","path":"docs/rfcs/plans/bpr-shell-surfaces-v1/milestone-plan.json"}}
