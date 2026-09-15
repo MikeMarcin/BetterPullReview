@@ -25,6 +25,7 @@ add_library(
         src/repositories_drawer.cpp
         src/files_tree.cpp
         src/theme_preview_strip.cpp
+        src/info_glyph.cpp
         src/server_card.cpp
         src/comparison_scroll_controller.cpp
         src/diff_link_map.cpp

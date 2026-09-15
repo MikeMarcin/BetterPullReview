@@ -3,6 +3,7 @@
 
 #include "bpr/application/github_projection.hpp"
 #include "bpr/application/public_preview_projection.hpp"
+#include "bpr/application/review_queue_enrollment.hpp"
 
 #include <QString>
 #include <QWidget>
@@ -15,6 +16,7 @@
 #include <string>
 #include <vector>
 
+class QCheckBox;
 class QEvent;
 class QFrame;
 class QGridLayout;
@@ -25,6 +27,7 @@ class QToolButton;
 
 namespace bpr::qt {
 	class device_authorization_panel;
+	class info_glyph;
 	class usage_ring;
 
 	/// \brief The connection state a server card names in its header, as one word.
@@ -59,6 +62,15 @@ namespace bpr::qt {
 		/// a flow began here and has not handed back to a session, or its
 		/// renewal needs a new code.
 		bool DeviceSignIn = false;
+		/// [[BPR-0774]]. The record the review queue keeps for this enterprise
+		/// server's hostname; none while it keeps none.
+		std::optional<application::saved_server> Remembered;
+		/// Whether keeping and forgetting can be asked for now: an enterprise
+		/// server, and a ready queue with somewhere to send the gesture.
+		bool RememberAdmitted = false;
+		/// Whether the way Sign in opens is admitted now: the device flow's begin
+		/// for a host with one, otherwise Connect. A refused Sign in is not shown.
+		bool SignInAdmitted = true;
 		/// Whether the core admits a Connect now, and what one would do or why not.
 		bool    ConnectAdmitted = true;
 		QString ConnectDescription;
@@ -84,6 +96,10 @@ namespace bpr::qt {
 		std::function<void(core::host_profile_id)> SignIn;
 		/// Sign the account out; the host forgets a remembered grant.
 		std::function<void()> SignOut;
+		/// [[BPR-0774]]. Keep this enterprise server across launches.
+		std::function<void()> Remember;
+		/// Forget exactly this kept record. The window confirms first.
+		std::function<void(application::saved_server)> Forget;
 	};
 
 	/// \brief Records directly observable server-card activity.
@@ -187,6 +203,14 @@ namespace bpr::qt {
 		[[nodiscard]] auto details() const noexcept -> QWidget*;
 		[[nodiscard]] auto last_problem_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto copy_details_button() const noexcept -> QPushButton*;
+		/// \brief [[BPR-0774]]. Whether this server is a GitHub Enterprise Server host.
+		[[nodiscard]] auto enterprise() const noexcept -> bool;
+		/// \brief "Remember this server": checked exactly while the queue keeps a record for it.
+		[[nodiscard]] auto remember_switch() const noexcept -> QCheckBox*;
+		[[nodiscard]] auto remember_glyph() const noexcept -> info_glyph*;
+		/// \brief "Forget server", shown while the queue keeps a record for it.
+		[[nodiscard]] auto forget_button() const noexcept -> QPushButton*;
+		[[nodiscard]] auto forget_glyph() const noexcept -> info_glyph*;
 
 	protected:
 		void paintEvent(QPaintEvent* aEvent) override;
@@ -227,7 +251,13 @@ namespace bpr::qt {
 		QWidget*               AccessRow        = nullptr;
 		QWidget*               RateLimitRow     = nullptr;
 		QWidget*               DetailsRow       = nullptr;
-		std::array<QFrame*, 2> RowHairlines{ };
+		std::array<QFrame*, 4>      RowHairlines{ };
+		QWidget*                    RememberRow      = nullptr;
+		QWidget*                    ForgetRow        = nullptr;
+		QCheckBox*                  RememberSwitch   = nullptr;
+		info_glyph*                 RememberGlyph    = nullptr;
+		QPushButton*                ForgetButton     = nullptr;
+		info_glyph*                 ForgetGlyph      = nullptr;
 		QLabel*                AccessLabel      = nullptr;
 		QLabel*                RateLimitLabel   = nullptr;
 		usage_ring*            UsageIndicator   = nullptr;

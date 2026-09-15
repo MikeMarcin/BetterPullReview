@@ -44,12 +44,15 @@
 #include <QLocale>
 #include <QMenu>
 #include <QMenuBar>
+#include <QMessageBox>
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPalette>
+#include <QPen>
 #include <QPlainTextEdit>
 #include <QPointer>
 #include <QPushButton>
+#include <QRectF>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSignalBlocker>
@@ -1652,6 +1655,17 @@ namespace bpr::qt {
 		// Connect action already opens is the way in beside the refusal.
 		DevicePanel->set_presentation_observer([this] {
 			place_device_sign_in();
+			// A flow belongs to the host it was asked for: while one runs, the
+			// card holding the row is that host, and its terminal sentence is
+			// said only there.
+			if (DevicePanel->signing_in()) {
+				const auto holder = std::ranges::find_if(ServerCards, [this](const server_card* const aCard) {
+					return aCard->device_sign_in() == DevicePanel;
+				});
+				if (holder != ServerCards.end()) {
+					DeviceFlowHost = (*holder)->hostname();
+				}
+			}
 			update_server_cards();
 		});
 		DevicePanel->set_manual_token_dispatch([this] {
@@ -1701,17 +1715,12 @@ namespace bpr::qt {
 			add_server_card(profile);
 		}
 		place_device_sign_in();
-		// [[BPR-0660]]. The enterprise servers the reviewer keeps, so a
-		// GitHub Enterprise host is offered at the next launch without
-		// being typed again. No token is kept here: signing in is still
-		// the device flow on the host picked above.
-		auto* const serversHeading = new QLabel{ QStringLiteral("Enterprise servers"), accounts };
-		serversHeading->setObjectName(QStringLiteral("accountsServersHeading"));
-		auto serversHeadingFont = serversHeading->font();
-		serversHeadingFont.setWeight(QFont::DemiBold);
-		serversHeading->setFont(serversHeadingFont);
-		accountsColumn->addWidget(serversHeading);
-		build_enterprise_servers_editor(accounts, *accountsColumn);
+		// [[BPR-0660]], [[BPR-0774]]. The enterprise servers the reviewer keeps,
+		// so a GitHub Enterprise host is offered at the next launch without
+		// being typed again. There is no list of them: a kept server is its
+		// host's card, with Remember and Forget, and one bordered button under
+		// the cards adds another as a card in its edit state. No token is kept.
+		build_enterprise_server_draft(accounts, *accountsColumn);
 		SettingsWindow->adopt_panel(settings_page::accounts_and_hosts, accounts);
 		// [[BPR-0652]]. Reviews & queue: the observer rules, and a plain
 		// statement of what the page will hold once its authorities exist.
@@ -2676,22 +2685,10 @@ namespace bpr::qt {
 			RepositoriesTree->apply(aProjection.Items, aProjection.SavedRepositories);
 			update_rail_summaries();
 		}
-		// [[BPR-0660]]. The remembered servers, hostname first so the list
-		// reads as the reviewer typed them.
-		if (SavedServerSelector != nullptr && serversChanged) {
-			const auto selectedServer = SavedServerSelector->currentText();
-			SavedServerSelector->clear();
-			for (const auto& server : aProjection.SavedServers) {
-				SavedServerSelector->addItem(
-					server.Account.empty()
-						? QString::fromStdString(server.Hostname)
-						: QStringLiteral("%1 - %2")
-							  .arg(QString::fromStdString(server.Hostname),
-								   QString::fromStdString(server.Account)));
-			}
-			if (const auto restored = SavedServerSelector->findText(selectedServer); restored >= 0) {
-				SavedServerSelector->setCurrentIndex(restored);
-			}
+		// [[BPR-0660]], [[BPR-0774]]. A remembered server is its host's card,
+		// remembering exactly the record the queue keeps.
+		if (serversChanged) {
+			update_server_cards();
 		}
 		if (SavedRepositorySelector != nullptr && repositoriesChanged) {
 			const auto selected = SavedRepositorySelector->currentText();
@@ -2738,7 +2735,7 @@ namespace bpr::qt {
 		++Statistics.QueueUpdates;
 		update_queue_rule_actions();
 		update_saved_repository_actions();
-		update_saved_server_actions();
+		update_enterprise_server_actions();
 		apply_focus_order();
 	}
 
@@ -2794,156 +2791,300 @@ namespace bpr::qt {
 		update_saved_repository_actions();
 	}
 
-	void workbench_window::build_enterprise_servers_editor(QWidget* const aParent, QVBoxLayout& aLayout)
+	namespace {
+		// [[BPR-0774]]. The card in its edit state is drawn the way a server
+		// card is: the base colour, one Mid hairline and the card radius.
+		class card_surface final : public QWidget
+		{
+		public:
+			using QWidget::QWidget;
+
+		protected:
+			void paintEvent(QPaintEvent* const aEvent) override
+			{
+				static_cast<void>(aEvent);
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				painter.setPen(QPen{ palette().color(QPalette::Active, QPalette::Mid), 1.0 });
+				painter.setBrush(palette().color(QPalette::Active, QPalette::Base));
+				painter.drawRoundedRect(QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5), 8.0, 8.0);
+			}
+		};
+	} // namespace
+
+	void workbench_window::build_enterprise_server_draft(QWidget* const aParent, QVBoxLayout& aLayout)
 	{
-		EnterpriseServersEditor = new QWidget{ aParent };
-		EnterpriseServersEditor->setObjectName(QStringLiteral("enterpriseServersEditor"));
-		EnterpriseServersEditor->setAccessibleName(QStringLiteral("Enterprise servers"));
-		EnterpriseServersEditor->setAccessibleDescription(QStringLiteral(
-			"Keep a GitHub Enterprise server so it is offered the next time BetterPullReview starts. "
-			"No sign-in is stored here."));
-		auto* const controls = new QHBoxLayout{ EnterpriseServersEditor };
-		controls->setContentsMargins(0, 0, 0, 0);
-		SavedServerSelector = new QComboBox{ EnterpriseServersEditor };
-		SavedServerSelector->setObjectName(QStringLiteral("savedServerSelector"));
-		SavedServerSelector->setAccessibleName(QStringLiteral("Remembered servers"));
-		SavedServerSelector->setAccessibleDescription(QStringLiteral("Select a remembered server to forget"));
-		controls->addWidget(SavedServerSelector, 1);
-		SavedServerHostname = new QLineEdit{ EnterpriseServersEditor };
-		SavedServerHostname->setObjectName(QStringLiteral("savedServerHostname"));
-		SavedServerHostname->setAccessibleName(QStringLiteral("Server to remember"));
-		SavedServerHostname->setAccessibleDescription(
-			QStringLiteral("The hostname of a GitHub Enterprise server, without a scheme"));
-		SavedServerHostname->setPlaceholderText(QStringLiteral("github.example.com"));
-		SavedServerHostname->setMaxLength(253);
-		controls->addWidget(SavedServerHostname, 1);
-		SavedServerAccount = new QLineEdit{ EnterpriseServersEditor };
-		SavedServerAccount->setObjectName(QStringLiteral("savedServerAccount"));
-		SavedServerAccount->setAccessibleName(QStringLiteral("Account on that server"));
-		SavedServerAccount->setAccessibleDescription(
-			QStringLiteral("The account you sign in with there, if you know it"));
-		SavedServerAccount->setPlaceholderText(QStringLiteral("account (optional)"));
-		SavedServerAccount->setMaxLength(128);
-		controls->addWidget(SavedServerAccount, 1);
-		AddSavedServer = new QAction{ tr("Remember server"), this };
-		AddSavedServer->setObjectName(QStringLiteral("addSavedServer"));
-		ForgetSavedServer = new QAction{ tr("Forget server"), this };
-		ForgetSavedServer->setObjectName(QStringLiteral("forgetSavedServer"));
-		AddSavedServerButton = new QToolButton{ EnterpriseServersEditor };
-		AddSavedServerButton->setDefaultAction(AddSavedServer);
-		AddSavedServerButton->setObjectName(QStringLiteral("addSavedServerButton"));
-		AddSavedServerButton->setAccessibleName(QStringLiteral("Remember server"));
-		AddSavedServerButton->setAccessibleDescription(
-			QStringLiteral("Offer this server the next time BetterPullReview starts"));
-		controls->addWidget(AddSavedServerButton);
-		ForgetSavedServerButton = new QToolButton{ EnterpriseServersEditor };
-		ForgetSavedServerButton->setDefaultAction(ForgetSavedServer);
-		ForgetSavedServerButton->setObjectName(QStringLiteral("forgetSavedServerButton"));
-		ForgetSavedServerButton->setAccessibleName(QStringLiteral("Forget server"));
-		ForgetSavedServerButton->setAccessibleDescription(
-			QStringLiteral("Stop offering the selected server"));
-		controls->addWidget(ForgetSavedServerButton);
-		connect(AddSavedServer, &QAction::triggered, this, [this] {
-			dispatch_saved_server(application::saved_server_action::add);
-		});
-		connect(ForgetSavedServer, &QAction::triggered, this, [this] {
-			dispatch_saved_server(application::saved_server_action::remove);
-		});
-		connect(SavedServerHostname, &QLineEdit::textChanged, this, [this] { update_saved_server_actions(); });
-		connect(SavedServerSelector, qOverload<int>(&QComboBox::currentIndexChanged), this,
-				[this] { update_saved_server_actions(); });
-		aLayout.addWidget(EnterpriseServersEditor);
-		update_saved_server_actions();
+		auto* const draft     = new card_surface{ aParent };
+		EnterpriseServerDraft = draft;
+		draft->setObjectName(QStringLiteral("enterpriseServerDraft"));
+		draft->setAccessibleName(QStringLiteral("New enterprise server"));
+		auto* const grid = new QGridLayout{ draft };
+		grid->setContentsMargins(16, 12, 16, 12);
+		grid->setHorizontalSpacing(16);
+		grid->setVerticalSpacing(8);
+		grid->setColumnMinimumWidth(0, 150);
+		grid->setColumnStretch(1, 1);
+		auto* const title = new QLabel{ QStringLiteral("Enterprise server"), draft };
+		title->setObjectName(QStringLiteral("enterpriseServerDraftTitle"));
+		auto titleFont = title->font();
+		titleFont.setWeight(QFont::DemiBold);
+		title->setFont(titleFont);
+		auto* const hostnameName = new QLabel{ QStringLiteral("Hostname"), draft };
+		EnterpriseServerHostname = new QLineEdit{ draft };
+		EnterpriseServerHostname->setObjectName(QStringLiteral("enterpriseServerHostname"));
+		EnterpriseServerHostname->setAccessibleName(QStringLiteral("Hostname"));
+		EnterpriseServerHostname->setAccessibleDescription(QStringLiteral("The hostname of a GitHub Enterprise server, without a scheme"));
+		EnterpriseServerHostname->setPlaceholderText(QStringLiteral("github.example.com"));
+		EnterpriseServerHostname->setMaxLength(253);
+		hostnameName->setBuddy(EnterpriseServerHostname);
+		auto* const accountName = new QLabel{ QStringLiteral("Account"), draft };
+		EnterpriseServerAccount = new QLineEdit{ draft };
+		EnterpriseServerAccount->setObjectName(QStringLiteral("enterpriseServerAccount"));
+		EnterpriseServerAccount->setAccessibleName(QStringLiteral("Account"));
+		EnterpriseServerAccount->setAccessibleDescription(QStringLiteral("The account you sign in with there, if you know it"));
+		EnterpriseServerAccount->setPlaceholderText(QStringLiteral("optional"));
+		EnterpriseServerAccount->setMaxLength(128);
+		accountName->setBuddy(EnterpriseServerAccount);
+		EnterpriseServerRefusal = new QLabel{ draft };
+		EnterpriseServerRefusal->setObjectName(QStringLiteral("enterpriseServerRefusal"));
+		EnterpriseServerRefusal->setTextFormat(Qt::PlainText);
+		EnterpriseServerRefusal->setWordWrap(true);
+		EnterpriseServerRefusal->hide();
+		EnterpriseServerAdd = new QPushButton{ QStringLiteral("Add"), draft };
+		EnterpriseServerAdd->setObjectName(QStringLiteral("enterpriseServerAdd"));
+		EnterpriseServerAdd->setAutoDefault(false);
+		EnterpriseServerAdd->setAccessibleName(QStringLiteral("Add enterprise server"));
+		EnterpriseServerAdd->setAccessibleDescription(QStringLiteral("Keeps this server so it is offered as a host. No sign-in is stored."));
+		EnterpriseServerCancel = new QPushButton{ QStringLiteral("Cancel"), draft };
+		EnterpriseServerCancel->setObjectName(QStringLiteral("enterpriseServerCancel"));
+		EnterpriseServerCancel->setAutoDefault(false);
+		EnterpriseServerCancel->setFlat(true);
+		auto* const actions = new QHBoxLayout{ };
+		actions->setContentsMargins(0, 0, 0, 0);
+		actions->addStretch(1);
+		actions->addWidget(EnterpriseServerAdd);
+		actions->addWidget(EnterpriseServerCancel);
+		grid->addWidget(title, 0, 0, 1, 2);
+		grid->addWidget(hostnameName, 1, 0);
+		grid->addWidget(EnterpriseServerHostname, 1, 1);
+		grid->addWidget(accountName, 2, 0);
+		grid->addWidget(EnterpriseServerAccount, 2, 1);
+		grid->addWidget(EnterpriseServerRefusal, 3, 0, 1, 2);
+		grid->addLayout(actions, 4, 0, 1, 2);
+		draft->hide();
+		aLayout.addWidget(draft);
+
+		AddEnterpriseServerButton = new QPushButton{ QStringLiteral("Add enterprise server"), aParent };
+		AddEnterpriseServerButton->setObjectName(QStringLiteral("accountsAddEnterpriseServer"));
+		AddEnterpriseServerButton->setAutoDefault(false);
+		AddEnterpriseServerButton->setAccessibleDescription(QStringLiteral("Adds a GitHub Enterprise server as a card, offered again at the next start. No sign-in is stored."));
+		auto* const addRow = new QHBoxLayout{ };
+		addRow->setContentsMargins(0, 0, 0, 0);
+		addRow->addWidget(AddEnterpriseServerButton);
+		addRow->addStretch(1);
+		aLayout.addLayout(addRow);
+
+		connect(AddEnterpriseServerButton, &QPushButton::clicked, this, [this] { open_enterprise_server_draft(); });
+		connect(EnterpriseServerAdd, &QPushButton::clicked, this, [this] { add_enterprise_server(); });
+		connect(EnterpriseServerHostname, &QLineEdit::returnPressed, this, [this] { add_enterprise_server(); });
+		connect(EnterpriseServerAccount, &QLineEdit::returnPressed, this, [this] { add_enterprise_server(); });
+		connect(EnterpriseServerCancel, &QPushButton::clicked, this, [this] { close_enterprise_server_draft(); });
+		connect(EnterpriseServerHostname, &QLineEdit::textEdited, this, [this] { EnterpriseServerRefusal->hide(); });
+		update_enterprise_server_actions();
 	}
 
 	void workbench_window::set_saved_server_dispatch(workbench_saved_server_dispatch aDispatch)
 	{
 		SavedServerDispatch = std::move(aDispatch);
-		update_saved_server_actions();
+		update_enterprise_server_actions();
 	}
 
-	auto workbench_window::enterprise_servers_editor() const noexcept -> QWidget*
+	void workbench_window::open_enterprise_server_draft()
 	{
-		return EnterpriseServersEditor;
-	}
-
-	auto workbench_window::saved_server_hostname() const noexcept -> QLineEdit*
-	{
-		return SavedServerHostname;
-	}
-
-	auto workbench_window::saved_server_account() const noexcept -> QLineEdit*
-	{
-		return SavedServerAccount;
-	}
-
-	auto workbench_window::saved_server_selector() const noexcept -> QComboBox*
-	{
-		return SavedServerSelector;
-	}
-
-	auto workbench_window::add_saved_server_action() const noexcept -> QAction*
-	{
-		return AddSavedServer;
-	}
-
-	auto workbench_window::forget_saved_server_action() const noexcept -> QAction*
-	{
-		return ForgetSavedServer;
-	}
-
-	void workbench_window::dispatch_saved_server(const application::saved_server_action aAction)
-	{
-		if (!SavedServerDispatch || !QueueReady) {
+		if (EnterpriseServerDraft == nullptr || !QueueReady || !SavedServerDispatch) {
 			return;
 		}
-		auto server = application::saved_server{ };
-		if (aAction == application::saved_server_action::add) {
-			server.Hostname = SavedServerHostname->text().trimmed().toLower().toStdString();
-			server.Account  = SavedServerAccount->text().trimmed().toStdString();
-		} else {
-			const auto index = SavedServerSelector->currentIndex();
-			if (index < 0 || static_cast<std::size_t>(index) >= QueueProjection.SavedServers.size()) {
-				return;
-			}
-			server = QueueProjection.SavedServers[static_cast<std::size_t>(index)];
+		EnterpriseDraftOpen = true;
+		EnterpriseServerRefusal->hide();
+		update_enterprise_server_actions();
+		EnterpriseServerHostname->setFocus(Qt::OtherFocusReason);
+	}
+
+	void workbench_window::close_enterprise_server_draft()
+	{
+		if (EnterpriseServerDraft == nullptr) {
+			return;
+		}
+		const auto hadFocus = EnterpriseServerDraft->isAncestorOf(QApplication::focusWidget());
+		EnterpriseDraftOpen = false;
+		EnterpriseServerHostname->clear();
+		EnterpriseServerAccount->clear();
+		EnterpriseServerRefusal->hide();
+		update_enterprise_server_actions();
+		if (hadFocus && AddEnterpriseServerButton->isVisible()) {
+			AddEnterpriseServerButton->setFocus(Qt::OtherFocusReason);
+		}
+	}
+
+	void workbench_window::add_enterprise_server()
+	{
+		if (!EnterpriseDraftOpen) {
+			return;
+		}
+		// A refusal sits beside what was refused, and the fields stay as typed.
+		if (!QueueReady || !SavedServerDispatch) {
+			EnterpriseServerRefusal->setText(QStringLiteral("Servers can be kept once the review queue has loaded."));
+			EnterpriseServerRefusal->show();
+			return;
+		}
+		auto server = application::saved_server{
+			.Hostname = EnterpriseServerHostname->text().trimmed().toLower().toStdString(),
+			.Account  = EnterpriseServerAccount->text().trimmed().toStdString(),
+		};
+		if (!application::valid(server)) {
+			EnterpriseServerRefusal->setText(QStringLiteral("Enter a hostname such as github.example.com, without https:// or a path."));
+			EnterpriseServerRefusal->show();
+			return;
+		}
+		SavedServerDispatch(application::saved_server_intent{
+			.Action = application::saved_server_action::add,
+			.Server = std::move(server),
+		});
+		close_enterprise_server_draft();
+	}
+
+	void workbench_window::update_enterprise_server_actions()
+	{
+		if (EnterpriseServerDraft == nullptr || AddEnterpriseServerButton == nullptr) {
+			return;
+		}
+		// A server is kept without an account and without signing in: only the
+		// queue's own durable state is needed, so adding waits for it.
+		const auto admitted = QueueReady && static_cast<bool>(SavedServerDispatch);
+		if (!admitted && EnterpriseDraftOpen) {
+			EnterpriseDraftOpen = false;
+			EnterpriseServerHostname->clear();
+			EnterpriseServerAccount->clear();
+			EnterpriseServerRefusal->hide();
+		}
+		EnterpriseServerDraft->setVisible(admitted && EnterpriseDraftOpen);
+		AddEnterpriseServerButton->setVisible(admitted && !EnterpriseDraftOpen);
+		update_server_cards();
+	}
+
+	void workbench_window::remember_enterprise_server(const std::string& aHostname)
+	{
+		if (!QueueReady || !SavedServerDispatch || SessionPanel == nullptr) {
+			return;
+		}
+		// The account name kept with the hostname is the one signed in on that
+		// server's card, when one is. The token is still asked for.
+		auto        server  = application::saved_server{ .Hostname = aHostname };
+		const auto& session = SessionPanel->session();
+		const auto  card    = std::ranges::find_if(ServerCards, [&aHostname](const server_card* const aCard) {
+			return aCard->hostname() == aHostname;
+		});
+		if (card != ServerCards.end() && session.has_value() && (*card)->holds(session->Profile)
+			&& !SessionPanel->public_preview_signed_out()) {
+			server.Account = session->Login;
 		}
 		if (!application::valid(server)) {
 			return;
 		}
 		SavedServerDispatch(application::saved_server_intent{
-			.Action = aAction,
+			.Action = application::saved_server_action::add,
 			.Server = std::move(server),
 		});
-		if (aAction == application::saved_server_action::add) {
-			SavedServerHostname->clear();
-			SavedServerAccount->clear();
-		}
 	}
 
-	void workbench_window::update_saved_server_actions()
+	void workbench_window::confirm_forget_server(const application::saved_server& aServer)
 	{
-		if (AddSavedServer == nullptr || ForgetSavedServer == nullptr) {
+		if (!QueueReady || !SavedServerDispatch) {
 			return;
 		}
-		// A server is remembered without an account and without signing in:
-		// only the queue's own durable state is needed.
-		const auto durable = QueueReady && static_cast<bool>(SavedServerDispatch);
-		AddSavedServer->setEnabled(
-			durable
-			&& application::valid(application::saved_server{
-				.Hostname = SavedServerHostname != nullptr
-					? SavedServerHostname->text().trimmed().toLower().toStdString()
-					: std::string{ },
-				.Account  = SavedServerAccount != nullptr
-					? SavedServerAccount->text().trimmed().toStdString()
-					: std::string{ },
-			}));
-		ForgetSavedServer->setEnabled(
-			durable && SavedServerSelector != nullptr && SavedServerSelector->currentIndex() >= 0);
-		AddSavedServer->setToolTip(
-			QStringLiteral("Offer this server at the next start. Signing in there is still the device flow."));
-		ForgetSavedServer->setToolTip(QStringLiteral("Stop offering the selected server."));
+		if (ForgetServerConfirmation != nullptr) {
+			ForgetServerConfirmation->close();
+		}
+		// Forgetting is confirmed first, and the confirmation names exactly
+		// the record it removes and what it does not touch.
+		// Owned by the Settings window the reviewer is looking at: the profile's
+		// shell when one is mounted, so the confirmation is modal to that page.
+		auto* const owner = settings() != nullptr ? static_cast<QWidget*>(settings()) : static_cast<QWidget*>(this);
+		auto* const box   = new QMessageBox{ owner };
+		box->setObjectName(QStringLiteral("forgetServerConfirmation"));
+		box->setAttribute(Qt::WA_DeleteOnClose);
+		box->setWindowModality(Qt::WindowModal);
+		box->setIcon(QMessageBox::Question);
+		const auto host    = QString::fromStdString(aServer.Hostname);
+		const auto account = QString::fromStdString(aServer.Account);
+		box->setWindowTitle(QStringLiteral("Forget %1?").arg(host));
+		box->setText(QStringLiteral("Forget %1?").arg(host));
+		box->setInformativeText(
+			account.isEmpty()
+				? QStringLiteral("BetterPullReview stops offering %1 at the next start. Nothing on the server changes, and no sign-in is removed.").arg(host)
+				: QStringLiteral("BetterPullReview forgets %1 with the account %2 and stops offering it at the next start. Nothing on the server changes, and no sign-in is removed.").arg(host, account));
+		auto* const forget = box->addButton(QStringLiteral("Forget server"), QMessageBox::DestructiveRole);
+		forget->setObjectName(QStringLiteral("forgetServerConfirm"));
+		auto* const cancel = box->addButton(QMessageBox::Cancel);
+		cancel->setObjectName(QStringLiteral("forgetServerCancel"));
+		box->setDefaultButton(cancel);
+		box->setEscapeButton(cancel);
+		ForgetServerConfirmation = box;
+		connect(box, &QMessageBox::buttonClicked, this, [this, server = aServer, forget](QAbstractButton* const aButton) {
+			if (aButton != forget || !QueueReady || !SavedServerDispatch) {
+				return;
+			}
+			SavedServerDispatch(application::saved_server_intent{
+				.Action = application::saved_server_action::remove,
+				.Server = server,
+			});
+		});
+		box->open();
+	}
+
+	auto workbench_window::add_enterprise_server_button() const noexcept -> QPushButton*
+	{
+		return AddEnterpriseServerButton;
+	}
+
+	auto workbench_window::enterprise_server_draft() const noexcept -> QWidget*
+	{
+		return EnterpriseServerDraft;
+	}
+
+	auto workbench_window::enterprise_server_hostname() const noexcept -> QLineEdit*
+	{
+		return EnterpriseServerHostname;
+	}
+
+	auto workbench_window::enterprise_server_account() const noexcept -> QLineEdit*
+	{
+		return EnterpriseServerAccount;
+	}
+
+	auto workbench_window::enterprise_server_add() const noexcept -> QPushButton*
+	{
+		return EnterpriseServerAdd;
+	}
+
+	auto workbench_window::enterprise_server_cancel() const noexcept -> QPushButton*
+	{
+		return EnterpriseServerCancel;
+	}
+
+	auto workbench_window::enterprise_server_refusal() const noexcept -> QLabel*
+	{
+		return EnterpriseServerRefusal;
+	}
+
+	auto workbench_window::forget_server_confirmation() const noexcept -> QMessageBox*
+	{
+		return ForgetServerConfirmation.data();
+	}
+
+	auto workbench_window::kept_servers() const noexcept -> const std::vector<application::saved_server>&
+	{
+		return QueueProjection.SavedServers;
 	}
 
 	void workbench_window::set_saved_repository_dispatch(workbench_saved_repository_dispatch aDispatch)
@@ -5506,6 +5647,14 @@ namespace bpr::qt {
 							GithubDispatch(core::deactivate_github_identity_intent{ });
 						}
 					},
+				.Remember =
+					[this, hostname = aOption.Hostname] {
+						remember_enterprise_server(hostname);
+					},
+				.Forget =
+					[this](const application::saved_server& aServer) {
+						confirm_forget_server(aServer);
+					},
 			},
 			ServerCardColumn->parentWidget(),
 		};
@@ -5579,10 +5728,30 @@ namespace bpr::qt {
 				shown.RateLimits   = SessionPanel->rate_limits();
 			}
 			const auto holdsSignIn = DevicePanel != nullptr && card->device_sign_in() == DevicePanel;
-			shown.DeviceSignIn     = holdsSignIn && deviceFlow;
+			// A running flow's row stays with its card; a finished one is said
+			// only on the host it was asked for, so choosing another host does not
+			// carry a denial or an expiry to a card that never had the code.
+			const auto renewal = DevicePanel != nullptr
+				&& DevicePanel->refresh_observation().State == application::device_authorization_refresh_state::reenrollment_required;
+			const auto flowHere = deviceSigning || renewal || !DeviceFlowHost.has_value() || card->hostname() == *DeviceFlowHost;
+			shown.DeviceSignIn  = holdsSignIn && deviceFlow && flowHere;
+			// Sign in is shown only while its way in is admitted: the device
+			// flow's begin for a host with one, otherwise Connect.
+			shown.SignInAdmitted   = card->offers_device_sign_in()
+				? DevicePanel != nullptr && DevicePanel->begin_button()->isEnabled()
+				: admitted;
 			const auto signedIn    = shown.State == server_card_state::connected && shown.Session.has_value();
 			if (holdsSignIn && deviceSigning && !signedIn) {
 				shown.State = server_card_state::signing_in;
+			}
+			// [[BPR-0774]]. An enterprise server's card remembers exactly the
+			// record the queue keeps for its hostname.
+			shown.RememberAdmitted = card->enterprise() && QueueReady && static_cast<bool>(SavedServerDispatch);
+			if (card->enterprise()) {
+				const auto kept = std::ranges::find(QueueProjection.SavedServers, card->hostname(), &application::saved_server::Hostname);
+				if (kept != QueueProjection.SavedServers.end()) {
+					shown.Remembered = *kept;
+				}
 			}
 			card->apply(shown);
 		}

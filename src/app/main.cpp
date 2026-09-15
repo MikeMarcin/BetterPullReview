@@ -6457,22 +6457,19 @@ namespace {
 						}
 						advance_fixture_stage(*aRun, automated_run::stage::review_behaviour);
 					} else if (aRun->SavedServerRequested) {
-						// [[BPR-0660]]. The seed run remembers an enterprise
-						// server on Accounts & hosts as a reviewer would; the
-						// reuse run opens over the same store and must find it
-						// kept and offered as a host to sign in on.
+						// [[BPR-0660]], [[BPR-0774]]. The seed run keeps an
+						// enterprise server on Accounts & hosts as a reviewer
+						// would, through Add enterprise server and its card in
+						// the edit state; the reuse run opens over the same store
+						// and must find that server's card remembering it.
 						if (aRun->EpochPhase
 							== bpr::app::detail::github_epoch_fixture_phase::seed) {
-							auto* const hostname
-								= window.findChild<QLineEdit*>(QStringLiteral("savedServerHostname"));
-							auto* const account
-								= window.findChild<QLineEdit*>(QStringLiteral("savedServerAccount"));
-							auto* const remember
-								= window.findChild<QAction*>(QStringLiteral("addSavedServer"));
-							if (hostname != nullptr && account != nullptr && remember != nullptr) {
-								hostname->setText(QStringLiteral("ghe.kept.example"));
-								account->setText(QStringLiteral("reviewer"));
-								remember->trigger();
+							auto* const add = window.add_enterprise_server_button();
+							if (add != nullptr) {
+								add->click();
+								window.enterprise_server_hostname()->setText(QStringLiteral("ghe.kept.example"));
+								window.enterprise_server_account()->setText(QStringLiteral("reviewer"));
+								window.enterprise_server_add()->click();
 							}
 						}
 						advance_fixture_stage(*aRun, automated_run::stage::saved_server);
@@ -6703,29 +6700,34 @@ namespace {
 			}
 
 			case automated_run::stage::saved_server: {
-				// [[BPR-0660]]. Poll, do not race: the queue host stores the
-				// server and publishes it back. The seed run requires the
-				// stored server to reach the page; the reuse run opens over
-				// the same store and requires it both listed and offered as a
-				// host profile, which is what a remembered server is for.
-				auto* const selector
-					= window.findChild<QComboBox*>(QStringLiteral("savedServerSelector"));
-				if (selector == nullptr) {
+				// [[BPR-0660]], [[BPR-0774]]. Poll, do not race: the queue host
+				// stores the server and publishes it back. The seed run requires
+				// exactly the stored record to reach the window; the reuse run
+				// opens over the same store and requires the server offered as a
+				// host, its card remembering exactly that record, which is what a
+				// kept server is for.
+				if (window.add_enterprise_server_button() == nullptr) {
 					transition_to_shutdown(aApplication, *aRun);
-					break;
-				}
-				const auto kept
-					= selector->findText(QStringLiteral("ghe.kept.example - reviewer")) >= 0;
-				if (!kept) {
 					break;
 				}
 				const auto seed = aRun->EpochPhase
 					== bpr::app::detail::github_epoch_fixture_phase::seed;
-				// [[BPR-0771]]. Offered as a host means a card for it on Accounts & hosts.
-				const auto cards   = window.server_cards();
-				const auto offered = std::ranges::any_of(cards, [](const bpr::qt::server_card* const aCard) {
-					return aCard->host_label()->text() == QStringLiteral("ghe.kept.example");
+				const auto expected = bpr::application::saved_server{
+					.Hostname = "ghe.kept.example",
+					.Account  = "reviewer",
+				};
+				const auto cards      = window.server_cards();
+				const auto card       = std::ranges::find_if(cards, [](const bpr::qt::server_card* const aCard) {
+					return aCard->hostname() == "ghe.kept.example";
 				});
+				const auto offered    = card != cards.end();
+				const auto remembered = offered && (*card)->presentation().Remembered == expected;
+				const auto kept       = seed
+					? std::ranges::find(window.kept_servers(), expected) != window.kept_servers().end()
+					: remembered;
+				if (!kept) {
+					break;
+				}
 				const auto passed = kept && (seed || offered);
 				QTextStream{ stdout } << (seed ? "SAVED_SERVER_SEEDED" : "SAVED_SERVER")
 									  << ":host=ghe.kept.example:kept=" << (kept ? 1 : 0)

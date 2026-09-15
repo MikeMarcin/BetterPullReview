@@ -5,18 +5,21 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QCheckBox>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFileInfo>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
+#include <QMessageBox>
 #include <QPixmap>
 #include <QPushButton>
 #include <QStatusBar>
 #include <QTemporaryDir>
 #include <QThread>
 
+#include <algorithm>
 #include <cstdlib>
 #include <functional>
 #include <iostream>
@@ -193,6 +196,41 @@ namespace {
 			button(window, "homeSetupContinue")->click();
 			wait_for([&] { return window.home_open_notice()->text().contains(QStringLiteral("Sign-in did not complete")); }, "recorded transport refuses unsupported authority before commitment");
 			expect(window.session_panel()->status() == core::github_status::pull_request_ready && github_application_fixture_access::evidence(*application).VaultStores == 1U, "failed staged setup preserves accepted review and existing vault material");
+			// [[BPR-0774]]. RFC-BPR-0032 A3 through the shipped composition. The
+			// enterprise server added above is kept, so its card remembers that
+			// record; Forget confirms, names it, and removes exactly it through
+			// the queue host; Remember keeps it again. No credential moves.
+			window.open_settings(qt::settings_page::accounts_and_hosts);
+			QApplication::processEvents();
+			qt::server_card* kept = nullptr;
+			for (auto* const candidate : window.server_cards()) {
+				if (candidate->hostname() == "ghe.example.invalid") {
+					kept = candidate;
+				}
+			}
+			expect(kept != nullptr && kept->enterprise(), "the added enterprise server has a card");
+			wait_for([&] { return kept->remember_switch()->isVisibleTo(kept) && kept->remember_switch()->isChecked() && kept->forget_button()->isVisibleTo(kept); }, "the kept enterprise server's card remembers it and offers Forget server");
+			const auto record = kept->presentation().Remembered;
+			expect(record.has_value() && record->Hostname == "ghe.example.invalid" && std::ranges::find(window.kept_servers(), *record) != window.kept_servers().end(), "the card remembers exactly the record the queue keeps");
+			const auto vaultStores = github_application_fixture_access::evidence(*application).VaultStores;
+			kept->forget_button()->click();
+			QApplication::processEvents();
+			auto* confirmation = window.forget_server_confirmation();
+			expect(confirmation != nullptr && confirmation->isVisible() && confirmation->parentWidget() == window.settings() && (confirmation->text() + QLatin1Char{ ' ' } + confirmation->informativeText()).contains(QStringLiteral("ghe.example.invalid")), "Forget server confirms first and names the server it removes");
+			confirmation->findChild<QPushButton*>(QStringLiteral("forgetServerCancel"))->click();
+			QApplication::processEvents();
+			expect(window.forget_server_confirmation() == nullptr || !window.forget_server_confirmation()->isVisible(), "Cancel closes the confirmation");
+			expect(kept->remember_switch()->isChecked() && std::ranges::find(window.kept_servers(), *record) != window.kept_servers().end(), "Cancel performs no effect");
+			kept->forget_button()->click();
+			QApplication::processEvents();
+			confirmation = window.forget_server_confirmation();
+			expect(confirmation != nullptr && confirmation->isVisible(), "Forget server confirms again");
+			confirmation->findChild<QPushButton*>(QStringLiteral("forgetServerConfirm"))->click();
+			wait_for([&] { return std::ranges::find(window.kept_servers(), *record) == window.kept_servers().end() && !kept->remember_switch()->isChecked() && !kept->forget_button()->isVisibleTo(kept); }, "Forget server removes exactly the kept record through the queue host");
+			kept->remember_switch()->click();
+			wait_for([&] { return kept->remember_switch()->isChecked() && std::ranges::any_of(window.kept_servers(), [](const application::saved_server& aServer) { return aServer.Hostname == "ghe.example.invalid"; }); }, "Remember this server keeps it again through the queue host");
+			expect(github_application_fixture_access::evidence(*application).VaultStores == vaultStores, "keeping and forgetting a server enrols no credential");
+			window.settings()->hide();
 		}
 		application->begin_shutdown();
 		wait_for([&] { return application->status().ShutdownComplete; }, "setup and review work quiesce");

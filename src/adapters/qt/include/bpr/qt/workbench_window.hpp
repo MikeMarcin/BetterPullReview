@@ -58,6 +58,7 @@ class QLabel;
 class QLineEdit;
 class QListView;
 class QListWidget;
+class QMessageBox;
 class QMenu;
 class QMenuBar;
 class QPlainTextEdit;
@@ -413,14 +414,25 @@ namespace bpr::qt {
 			workbench_queue_preferences_dispatch aDispatch);
 		/// \brief Where Save and Forget go, from the tree and from Settings.
 		void set_saved_repository_dispatch(workbench_saved_repository_dispatch aDispatch);
-		/// \brief [[BPR-0660]]. Receives the enterprise servers the reviewer keeps.
-		void               set_saved_server_dispatch(workbench_saved_server_dispatch aDispatch);
-		[[nodiscard]] auto enterprise_servers_editor() const noexcept -> QWidget*;
-		[[nodiscard]] auto saved_server_hostname() const noexcept -> QLineEdit*;
-		[[nodiscard]] auto saved_server_account() const noexcept -> QLineEdit*;
-		[[nodiscard]] auto saved_server_selector() const noexcept -> QComboBox*;
-		[[nodiscard]] auto add_saved_server_action() const noexcept -> QAction*;
-		[[nodiscard]] auto forget_saved_server_action() const noexcept -> QAction*;
+		/// \brief [[BPR-0660]], [[BPR-0774]]. Receives the enterprise servers the
+		/// reviewer keeps: Add enterprise server, a card's Remember switch and
+		/// its confirmed Forget server.
+		void set_saved_server_dispatch(workbench_saved_server_dispatch aDispatch);
+		/// \brief [[BPR-0774]]. The bordered button under the server cards, shown
+		/// while the queue that keeps servers is ready.
+		[[nodiscard]] auto add_enterprise_server_button() const noexcept -> QPushButton*;
+		/// \brief The card in its edit state that Add enterprise server opens.
+		[[nodiscard]] auto enterprise_server_draft() const noexcept -> QWidget*;
+		[[nodiscard]] auto enterprise_server_hostname() const noexcept -> QLineEdit*;
+		[[nodiscard]] auto enterprise_server_account() const noexcept -> QLineEdit*;
+		[[nodiscard]] auto enterprise_server_add() const noexcept -> QPushButton*;
+		[[nodiscard]] auto enterprise_server_cancel() const noexcept -> QPushButton*;
+		/// \brief The sentence beside a refused Add; hidden while nothing is refused.
+		[[nodiscard]] auto enterprise_server_refusal() const noexcept -> QLabel*;
+		/// \brief The open Forget server confirmation; null while none is open.
+		[[nodiscard]] auto forget_server_confirmation() const noexcept -> QMessageBox*;
+		/// \brief The records the review queue last published as kept, exactly.
+		[[nodiscard]] auto kept_servers() const noexcept -> const std::vector<application::saved_server>&;
 		[[nodiscard]] auto saved_repositories_editor() const noexcept -> QWidget*;
 		[[nodiscard]] auto saved_repository_name() const noexcept -> QLineEdit*;
 		[[nodiscard]] auto add_saved_repository_action() const noexcept -> QAction*;
@@ -930,10 +942,14 @@ namespace bpr::qt {
 		void open_pull_request_item(const core::queue_item& aItem);
 		void open_from_home_bar();
 		void build_saved_repositories_editor(QWidget* aParent, QVBoxLayout& aLayout);
-		void build_enterprise_servers_editor(QWidget* aParent, QVBoxLayout& aLayout);
-		void dispatch_saved_repository(application::saved_repository_action aAction);
-		void dispatch_saved_server(application::saved_server_action aAction);
-		void update_saved_server_actions();
+		void               build_enterprise_server_draft(QWidget* aParent, QVBoxLayout& aLayout);
+		void               open_enterprise_server_draft();
+		void               close_enterprise_server_draft();
+		void               add_enterprise_server();
+		void               update_enterprise_server_actions();
+		void               remember_enterprise_server(const std::string& aHostname);
+		void               confirm_forget_server(const application::saved_server& aServer);
+		void               dispatch_saved_repository(application::saved_repository_action aAction);
 		void update_saved_repository_actions();
 		void dispatch_queue_preferences(QComboBox* aSource);
 		void build_queue_settings(QWidget* aReviews, QVBoxLayout* aColumn);
@@ -1135,14 +1151,18 @@ namespace bpr::qt {
 		QAction*                                           RemoveSavedRepository       = nullptr;
 		QToolButton*                                       AddSavedRepositoryButton    = nullptr;
 		QToolButton*                                       RemoveSavedRepositoryButton = nullptr;
-		QWidget*                                           EnterpriseServersEditor     = nullptr;
-		QComboBox*                                         SavedServerSelector         = nullptr;
-		QLineEdit*                                         SavedServerHostname         = nullptr;
-		QLineEdit*                                         SavedServerAccount          = nullptr;
-		QAction*                                           AddSavedServer              = nullptr;
-		QAction*                                           ForgetSavedServer           = nullptr;
-		QToolButton*                                       AddSavedServerButton        = nullptr;
-		QToolButton*                                       ForgetSavedServerButton     = nullptr;
+		QWidget*                                           EnterpriseServerDraft       = nullptr;
+		QLineEdit*                                         EnterpriseServerHostname    = nullptr;
+		QLineEdit*                                         EnterpriseServerAccount     = nullptr;
+		QLabel*                                            EnterpriseServerRefusal     = nullptr;
+		QPushButton*                                       EnterpriseServerAdd         = nullptr;
+		QPushButton*                                       EnterpriseServerCancel      = nullptr;
+		QPushButton*                                       AddEnterpriseServerButton   = nullptr;
+		QPointer<QMessageBox>                              ForgetServerConfirmation;
+		bool                                               EnterpriseDraftOpen = false;
+		/// [[BPR-0773]]. The hostname a device flow was last asked for; its
+		/// terminal sentence is said only on that host's card.
+		std::optional<std::string>                         DeviceFlowHost;
 		github_session_panel*                              SessionPanel                = nullptr;
 		device_authorization_panel*                        DevicePanel                 = nullptr;
 		application::device_authorization_gesture_dispatch DeviceDispatch;

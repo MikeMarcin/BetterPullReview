@@ -4304,12 +4304,17 @@ namespace {
 		expect(enterpriseCard != nullptr && enterpriseCard->connect_button()->isVisibleTo(enterpriseCard),
 			   "the host that is not chosen offers Connect on its card");
 		enterpriseCard->connect_button()->click();
+		QApplication::processEvents();
+		// [[BPR-0774]] review correction. A settled flow's sign-in follows the
+		// chosen host, but its expiry is said only on the host the code was
+		// asked for, so the enterprise card offers its own ways in instead.
 		expect(signInGestures.size() == 2U
 				   && window.session_panel()->selected_profile() == core::host_profile_id{ 12U }
 				   && window.device_authorization()->bound_profile() == core::host_profile_id{ 12U }
 				   && enterpriseCard->device_sign_in() == window.device_authorization()
-				   && enterpriseCard->isAncestorOf(window.device_authorization()),
-			   "a card's Connect chooses its host and moves the device sign-in into that card's account row, without a sign-in gesture");
+				   && !window.device_authorization()->isVisible()
+				   && enterpriseCard->sign_in_button()->isVisible(),
+			   "a card's Connect chooses its host and binds the device sign-in to it without a sign-in gesture, and the expired row is not carried to that card");
 		landing->primary_button()->click();
 		expect(signInGestures.size() == 3U
 				   && std::get<core::begin_device_authorization_intent>(signInGestures.back()).Profile == core::host_profile_id{ 12U },
@@ -5699,6 +5704,46 @@ namespace {
 			.Filled             = true,
 		});
 
+		// [[BPR-0774]]. The queue is ready and keeps the enterprise server: its
+		// card carries Remember this server and Forget server, and Add
+		// enterprise server sits under the cards. Every later state keeps them,
+		// so each is inventoried with the enterprise rows on the page.
+		auto keptServerIntents = std::vector<application::saved_server_intent>{ };
+		window.set_saved_server_dispatch([&keptServerIntents](application::saved_server_intent aIntent) {
+			keptServerIntents.push_back(std::move(aIntent));
+		});
+		window.publish(application::queue_landing_projection{
+			.Status       = application::queue_landing_status::ready,
+			.SavedServers = { application::saved_server{ .Hostname = "ghe.example.invalid", .Account = "reviewer" } },
+		});
+		QApplication::processEvents();
+		{
+			const auto  cards      = window.server_cards();
+			auto* const github     = window.server_card_for(core::host_profile_id{ 21U });
+			auto* const enterprise = window.server_card_for(core::host_profile_id{ 23U });
+			auto* const add        = window.add_enterprise_server_button();
+			expect(github != nullptr && enterprise != nullptr && add != nullptr && !cards.empty()
+					   && enterprise->remember_switch()->isVisibleTo(page) && enterprise->remember_switch()->isChecked()
+					   && enterprise->forget_button()->isVisibleTo(page)
+					   && !github->remember_switch()->isVisibleTo(page) && !github->forget_button()->isVisibleTo(page),
+				   "with the queue keeping ghe.example.invalid, its card remembers it and offers Forget server, and GitHub.com's card offers neither");
+			expect(add->isVisibleTo(page) && !add->isDefault()
+					   && add->mapTo(page, QPoint{ 0, 0 }).y()
+						   >= cards.back()->mapTo(page, QPoint{ 0, 0 }).y() + cards.back()->height(),
+				   "Add enterprise server is under the cards and is not the page's filled control");
+		}
+		inspect({
+			.Name               = "the queue keeps the enterprise server",
+			.Current            = core::host_profile_id{ 21U },
+			.GithubPresents     = core::host_profile_id{ 21U },
+			.GithubState        = QStringLiteral("Signed out"),
+			.EnterprisePresents = core::host_profile_id{ 23U },
+			.EnterpriseState    = QStringLiteral("Signed out"),
+			.SignedIn           = false,
+			.Filled             = true,
+		});
+		expect(keptServerIntents.empty(), "inventorying the page with the enterprise rows on it dispatches nothing");
+
 		// [[BPR-0773]]. Signing in on GitHub.com: the chosen card's Sign in is
 		// pressed, and the code the core answers with is that card's account
 		// row. Its address names github.com as part of an address, which is not
@@ -6239,6 +6284,229 @@ namespace {
 		window.settings()->hide();
 		window.hide();
 	}
+
+	/// \brief [[BPR-0774]] review correction. One enterprise host, over native
+	/// HTTPS, which has no device flow.
+	[[nodiscard]] auto enterprise_profile() -> application::github_profile_option
+	{
+		return {
+			.Profile   = core::host_profile_id{ 41U },
+			.Label     = "GHES 3.18 — Native HTTPS",
+			.Hostname  = "ghe.example.invalid",
+			.Product   = application::github_profile_product::github_enterprise_server,
+			.Transport = application::github_profile_transport::native_https,
+		};
+	}
+
+	/// \brief [[BPR-0773]], [[BPR-0774]] review correction. A code belongs to the
+	/// host it was asked for. While it is live its row stays on that host's
+	/// card whichever host is chosen. Once it has finished, its sentence is said
+	/// only on that host's card, and another host's card offers its own ways in.
+	auto test_a_finished_sign_in_is_said_only_on_its_host() -> void
+	{
+		auto                 intents = std::vector<application::github_intent>{ };
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			std::vector<application::github_profile_option>{ device_profiles().front(), enterprise_profile() },
+			[&intents](application::github_intent aIntent) {
+				intents.push_back(std::move(aIntent));
+			},
+		};
+		auto gestures = std::vector<application::device_authorization_gesture>{ };
+		window.set_device_authorization_dispatch([&gestures](application::device_authorization_gesture aGesture) {
+			gestures.push_back(std::move(aGesture));
+		});
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Commands = enabled_commands(),
+				.Status   = core::github_status_delta{ .Status = core::github_status::no_profile },
+			},
+		});
+		window.resize(1'280, 820);
+		window.show();
+		window.open_settings(qt::settings_page::accounts_and_hosts);
+		QApplication::processEvents();
+		auto* const github     = window.server_card_for(core::host_profile_id{ 31U });
+		auto* const enterprise = window.server_card_for(core::host_profile_id{ 41U });
+		auto* const panel      = window.device_authorization();
+		expect(github != nullptr && enterprise != nullptr && github != enterprise && github->presentation().Current
+				   && github->sign_in_button()->isVisible() && enterprise->connect_button()->isVisible(),
+			   "GitHub.com is chosen and offers Sign in, and the enterprise card offers Connect");
+		// The device gesture at `aIndex` begins a sign-in for GitHub.com's profile.
+		const auto begun = [&gestures](const std::size_t aIndex) {
+			return aIndex < gestures.size()
+				&& std::holds_alternative<core::begin_device_authorization_intent>(gestures[aIndex])
+				&& std::get<core::begin_device_authorization_intent>(gestures[aIndex]).Profile == core::host_profile_id{ 31U };
+		};
+		// The GitHub intent at `aIndex` activates exactly this profile with an account.
+		const auto activated = [&intents](const std::size_t aIndex, const core::host_profile_id aProfile) {
+			const auto* const activation = aIndex < intents.size()
+				? std::get_if<core::activate_host_profile_intent>(&intents[aIndex])
+				: nullptr;
+			return activation != nullptr && activation->Profile == aProfile
+				&& activation->Mode == core::github_access_mode::authenticated;
+		};
+
+		github->sign_in_button()->click();
+		panel->apply(device_presentation(core::device_authorization_stage::awaiting_authorization));
+		QApplication::processEvents();
+		expect(gestures.size() == 1U && begun(0U) && github->device_sign_in() == panel && github->isAncestorOf(panel)
+				   && panel->isVisible() && github->state_label()->text() == QStringLiteral("Signing in"),
+			   "GitHub.com's Sign in begins once, and the live code is that card's row, saying Signing in");
+
+		enterprise->connect_button()->click();
+		QApplication::processEvents();
+		expect(intents.size() == 1U && activated(0U, core::host_profile_id{ 41U }),
+			   "Connect on the enterprise card while the code is live dispatches exactly one activation, for the enterprise profile");
+		expect(github->device_sign_in() == panel && github->isAncestorOf(panel) && panel->isVisible()
+				   && github->state_label()->text() == QStringLiteral("Signing in")
+				   && enterprise->device_sign_in() == nullptr && !enterprise->isAncestorOf(panel)
+				   && enterprise->state_label()->text() != QStringLiteral("Signing in"),
+			   "the live code stays on GitHub.com's card, and the enterprise card shows no device row");
+
+		panel->apply(device_presentation(core::device_authorization_stage::denied));
+		QApplication::processEvents();
+		expect(!panel->isVisible() && github->device_sign_in() == nullptr && !github->isAncestorOf(panel)
+				   && github->state_label()->text() == QStringLiteral("Signed out")
+				   && enterprise->state_label()->text() == QStringLiteral("Signed out"),
+			   "a denied code is said on no card once another host is chosen, and GitHub.com's card no longer holds the sign-in");
+		expect(enterprise->presentation().Current && enterprise->sign_in_button()->isVisible()
+				   && enterprise->login_label()->isVisible() && github->connect_button()->isVisible(),
+			   "the enterprise card offers its own Sign in, and GitHub.com's card offers Connect");
+		const auto disabledWhileDenied = disabled_buttons(*github) + disabled_buttons(*enterprise);
+		expect(disabledWhileDenied.empty(), "no button shown in either card is disabled:" + disabledWhileDenied);
+
+		github->connect_button()->click();
+		QApplication::processEvents();
+		expect(intents.size() == 2U && activated(1U, core::host_profile_id{ 31U }),
+			   "Connect on GitHub.com's card dispatches exactly one activation, for its profile");
+		auto retries = 0;
+		for (const auto* const button : github->findChildren<QAbstractButton*>()) {
+			if (button->isVisible() && button->text() == QStringLiteral("Sign in again")) {
+				++retries;
+			}
+		}
+		expect(github->presentation().Current && github->device_sign_in() == panel && github->isAncestorOf(panel)
+				   && panel->isVisible() && panel->status_label()->isVisible()
+				   && panel->status_label()->text() == QStringLiteral("Sign-in was denied.")
+				   && retries == 1 && panel->begin_button()->isVisible(),
+			   "chosen again, GitHub.com's card holds the sign-in and says its denial with one Sign in again");
+		const auto disabledOnItsHost = disabled_buttons(*github) + disabled_buttons(*enterprise);
+		expect(disabledOnItsHost.empty(), "no button shown in either card is disabled:" + disabledOnItsHost);
+
+		panel->begin_button()->click();
+		QApplication::processEvents();
+		expect(gestures.size() == 2U && begun(1U) && intents.size() == 2U,
+			   "Sign in again begins for GitHub.com's profile, and no other device gesture or GitHub intent was dispatched");
+		window.set_device_authorization_dispatch({ });
+		window.settings()->hide();
+		window.hide();
+	}
+
+	/// \brief [[BPR-0774]] review correction. A card's Sign in shows only while
+	/// its way in is admitted: the device flow's begin for a host that has one,
+	/// Connect for a host that does not. A refused way in hides it rather than
+	/// leaving a button that does nothing, and no disabled button shows.
+	auto test_sign_in_waits_for_its_way_in_to_be_admitted() -> void
+	{
+		{
+			auto                 intents = std::vector<application::github_intent>{ };
+			qt::workbench_window window{
+				qt::workbench_intent_dispatch{ },
+				qt::workbench_change_dispatch{ },
+				qt::workbench_drawer_width_dispatch{ },
+				std::vector<application::github_profile_option>{ enterprise_profile() },
+				[&intents](application::github_intent aIntent) {
+					intents.push_back(std::move(aIntent));
+				},
+			};
+			window.publish(application::github_presentation_update{
+				.Transition = application::github_transition_projection{
+					.Commands = enabled_commands(),
+					.Status   = core::github_status_delta{ .Status = core::github_status::no_profile },
+				},
+			});
+			window.resize(1'280, 820);
+			window.show();
+			window.open_settings(qt::settings_page::accounts_and_hosts);
+			QApplication::processEvents();
+			auto* const card = window.server_card_for(core::host_profile_id{ 41U });
+			expect(card != nullptr && card->presentation().Current && !card->offers_device_sign_in()
+					   && card->sign_in_button()->isVisible() && !card->connect_button()->isVisible(),
+				   "a chosen enterprise host offers Sign in while Connect is admitted");
+			// The core's answer arrives on its own, as a command projection.
+			const auto admit = [&window](const bool aEnabled) {
+				window.publish(application::github_presentation_update{
+					.Transition = application::github_transition_projection{
+						.Commands = {
+							{
+								.Id             = core::github_command_id::activate_host_profile,
+								.Enabled        = aEnabled,
+								.DisabledReason = aEnabled ? core::github_reason_code::none : core::github_reason_code::invalid_profile,
+							},
+						},
+					},
+				});
+				QApplication::processEvents();
+			};
+			admit(false);
+			const auto refused = disabled_buttons(*card);
+			expect(!card->sign_in_button()->isVisible() && !card->connect_button()->isVisible()
+					   && refused.empty() && intents.empty(),
+				   "with Connect refused, the enterprise card shows neither Sign in nor Connect, and no disabled button:" + refused);
+			admit(true);
+			expect(card->sign_in_button()->isVisible() && intents.empty(), "admitted again, Sign in returns");
+			window.settings()->hide();
+			window.hide();
+		}
+
+		auto                 gestures = std::vector<application::device_authorization_gesture>{ };
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			device_profiles(),
+			[](application::github_intent) { },
+		};
+		window.set_device_authorization_dispatch([&gestures](application::device_authorization_gesture aGesture) {
+			gestures.push_back(std::move(aGesture));
+		});
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Commands = enabled_commands(),
+				.Status   = core::github_status_delta{ .Status = core::github_status::no_profile },
+			},
+		});
+		window.resize(1'280, 820);
+		window.show();
+		window.open_settings(qt::settings_page::accounts_and_hosts);
+		QApplication::processEvents();
+		auto* const card  = window.server_card_for(core::host_profile_id{ 31U });
+		auto* const panel = window.device_authorization();
+		expect(card != nullptr && card->presentation().Current && card->offers_device_sign_in()
+				   && panel->begin_button()->isEnabled() && card->sign_in_button()->isVisible(),
+			   "a chosen GitHub.com card offers Sign in while the device flow's begin is admitted");
+		// The core refuses a begin, as it does while a flow is being cancelled,
+		// while nothing is on screen for the flow itself.
+		auto refusedBegin     = application::device_authorization_presentation{ };
+		refusedBegin.Commands = core::device_authorization_commands(
+			core::device_authorization_state{ .Stage = core::device_authorization_stage::cancelling });
+		panel->apply(refusedBegin);
+		QApplication::processEvents();
+		const auto refused = disabled_buttons(*card);
+		expect(!panel->begin_button()->isEnabled() && !card->sign_in_button()->isVisible() && !panel->isVisible()
+				   && refused.empty(),
+			   "with the device flow's begin refused, GitHub.com's card shows no Sign in and no disabled button:" + refused);
+		panel->apply(application::device_authorization_presentation{ });
+		QApplication::processEvents();
+		expect(panel->begin_button()->isEnabled() && card->sign_in_button()->isVisible() && gestures.empty(),
+			   "once a begin is admitted again Sign in returns, and nothing was dispatched");
+		window.set_device_authorization_dispatch({ });
+		window.settings()->hide();
+		window.hide();
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -6282,6 +6550,8 @@ auto main(int argc, char** argv) -> int
 	test_one_sign_in_gesture_shows_the_code_in_the_card();
 	test_terminal_and_token_rows_stay_in_the_card();
 	test_the_account_action_presses_the_chosen_cards_sign_in();
+	test_a_finished_sign_in_is_said_only_on_its_host();
+	test_sign_in_waits_for_its_way_in_to_be_admitted();
 
 	std::cout << "All GitHub Qt presentation tests passed\n";
 	return EXIT_SUCCESS;

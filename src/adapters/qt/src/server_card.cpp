@@ -1,11 +1,13 @@
 #include "bpr/qt/server_card.hpp"
 
 #include "bpr/qt/device_authorization_panel.hpp"
+#include "bpr/qt/info_glyph.hpp"
 #include "bpr/qt/usage_ring.hpp"
 
 #include "github_presentation_text.hpp"
 
 #include <QApplication>
+#include <QCheckBox>
 #include <QClipboard>
 #include <QColor>
 #include <QDateTime>
@@ -22,6 +24,7 @@
 #include <QPen>
 #include <QPushButton>
 #include <QRectF>
+#include <QSignalBlocker>
 #include <QStringList>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -108,7 +111,7 @@ namespace bpr::qt {
 			return QStringLiteral("Signed out");
 		}
 
-		// RFC-BPR-0028's accepted green, the one colour on the page, at the
+		// RFC-BPR-0032's accepted green for Connected, the one colour on the page, at the
 		// strength that reads on the ground it sits on.
 		[[nodiscard]] auto connected_colour(const QPalette& aPalette) -> QColor
 		{
@@ -358,7 +361,8 @@ namespace bpr::qt {
 		AccountLayout->setColumnStretch(1, 1);
 		column->addWidget(Account);
 
-		// The rows: Access, Rate limit, and Details, one hairline between each.
+		// The rows: Access, Rate limit, an enterprise server's Remember and
+		// Forget, and Details, one hairline between each.
 		RowsSeparator = make_hairline(this);
 		column->addWidget(RowsSeparator);
 		Rows                   = new QWidget{ this };
@@ -390,8 +394,52 @@ namespace bpr::qt {
 		rateLayout->addWidget(UsageIndicator, 0, 2, Qt::AlignRight | Qt::AlignVCenter);
 		rowsColumn->addWidget(RateLimitRow);
 
+		// [[BPR-0774]]. An enterprise server's own rows: whether the queue keeps
+		// it across launches, and the way to stop keeping it. Each row is label,
+		// info glyph and control, and the consequence is the glyph's.
 		RowHairlines[1] = make_hairline(Rows);
 		rowsColumn->addWidget(RowHairlines[1]);
+		auto [rememberRow, rememberLayout] = make_row(Rows, QStringLiteral("serverCardRememberRow"));
+		RememberRow                        = rememberRow;
+		auto* const rememberLabel          = new QWidget{ RememberRow };
+		auto* const rememberLabelLayout    = new QHBoxLayout{ rememberLabel };
+		rememberLabelLayout->setContentsMargins(0, 0, 0, 0);
+		rememberLabelLayout->setSpacing(4);
+		rememberLabelLayout->addWidget(make_label(rememberLabel, QStringLiteral("serverCardRememberName"), QStringLiteral("Remember this server")));
+		RememberGlyph = new info_glyph{ QStringLiteral("Keeps the hostname and account name across launches. The token is still asked for."), rememberLabel };
+		RememberGlyph->setAccessibleName(QStringLiteral("About remembering %1").arg(host));
+		rememberLabelLayout->addWidget(RememberGlyph);
+		rememberLabelLayout->addStretch(1);
+		RememberSwitch = new QCheckBox{ RememberRow };
+		RememberSwitch->setObjectName(QStringLiteral("serverCardRemember"));
+		RememberSwitch->setAccessibleName(QStringLiteral("Remember %1").arg(host));
+		RememberSwitch->setAccessibleDescription(RememberGlyph->consequence());
+		RememberSwitch->setFocusPolicy(Qt::StrongFocus);
+		rememberLayout->addWidget(rememberLabel, 0, 0, 1, 2, Qt::AlignVCenter);
+		rememberLayout->addWidget(RememberSwitch, 0, 2, Qt::AlignRight | Qt::AlignVCenter);
+		rowsColumn->addWidget(RememberRow);
+
+		RowHairlines[2] = make_hairline(Rows);
+		rowsColumn->addWidget(RowHairlines[2]);
+		auto [forgetRow, forgetLayout] = make_row(Rows, QStringLiteral("serverCardForgetRow"));
+		ForgetRow                      = forgetRow;
+		auto* const forgetControl      = new QWidget{ ForgetRow };
+		auto* const forgetControlRow   = new QHBoxLayout{ forgetControl };
+		forgetControlRow->setContentsMargins(0, 0, 0, 0);
+		forgetControlRow->setSpacing(4);
+		ForgetButton = make_button(forgetControl, QStringLiteral("serverCardForget"), QStringLiteral("Forget server"), QStringLiteral("Forget %1").arg(host));
+		ForgetButton->setFlat(true);
+		ForgetGlyph = new info_glyph{ QStringLiteral("Stops offering this server at the next start. Nothing on the server changes."), forgetControl };
+		ForgetGlyph->setAccessibleName(QStringLiteral("About forgetting %1").arg(host));
+		ForgetButton->setAccessibleDescription(ForgetGlyph->consequence());
+		forgetControlRow->addWidget(ForgetButton);
+		forgetControlRow->addWidget(ForgetGlyph);
+		forgetControlRow->addStretch(1);
+		forgetLayout->addWidget(forgetControl, 0, 0, 1, 3, Qt::AlignVCenter);
+		rowsColumn->addWidget(ForgetRow);
+
+		RowHairlines[3] = make_hairline(Rows);
+		rowsColumn->addWidget(RowHairlines[3]);
 		DetailsRow                   = new QWidget{ Rows };
 		auto* const detailsRowColumn = new QVBoxLayout{ DetailsRow };
 		DetailsRow->setObjectName(QStringLiteral("serverCardDetailsRow"));
@@ -470,6 +518,26 @@ namespace bpr::qt {
 		connect(SignOutButton, &QPushButton::clicked, this, [this] {
 			if (Gestures.SignOut) {
 				Gestures.SignOut();
+			}
+		});
+		connect(RememberSwitch, &QCheckBox::toggled, this, [this](const bool aOn) {
+			// [[BPR-0774]]. The switch shows the record the queue keeps, never a
+			// wish: it returns to that at once, and the gesture asks the window,
+			// which keeps the server or confirms forgetting it.
+			const auto kept = Presentation.Remembered;
+			{
+				const QSignalBlocker blocker{ RememberSwitch };
+				RememberSwitch->setChecked(kept.has_value());
+			}
+			if (aOn && !kept.has_value() && Gestures.Remember) {
+				Gestures.Remember();
+			} else if (!aOn && kept.has_value() && Gestures.Forget) {
+				Gestures.Forget(*kept);
+			}
+		});
+		connect(ForgetButton, &QPushButton::clicked, this, [this] {
+			if (const auto kept = Presentation.Remembered; kept.has_value() && Gestures.Forget) {
+				Gestures.Forget(*kept);
 			}
 		});
 		connect(ConnectButton, &QPushButton::clicked, this, [this] {
@@ -660,7 +728,7 @@ namespace bpr::qt {
 		// profile it speaks for; a chosen GitHub CLI profile's retry is its
 		// Connect. The GitHub CLI offer stays beside them.
 		SignOutButton->setVisible(signedIn);
-		const auto signIn = shown.Current && !signedIn && !waiting && native != nullptr;
+		const auto signIn = shown.Current && !signedIn && !waiting && native != nullptr && shown.SignInAdmitted;
 		SignInButton->setVisible(signIn);
 		SignInButton->setDefault(signIn && !cliPresented);
 		const auto signInTerms = native != nullptr ? signed_out_sentence(*native) : QString{ };
@@ -707,6 +775,17 @@ namespace bpr::qt {
 		const auto rateRow = !rate.isEmpty() || shown.ReadingPublic;
 		RateLimitRow->setVisible(rateRow);
 
+		// [[BPR-0774]]. Remember and Forget are an enterprise server's, while
+		// the queue that keeps servers can be asked.
+		const auto remember = enterprise() && shown.RememberAdmitted;
+		const auto forget   = remember && shown.Remembered.has_value();
+		RememberRow->setVisible(remember);
+		{
+			const QSignalBlocker blocker{ RememberSwitch };
+			RememberSwitch->setChecked(shown.Remembered.has_value());
+		}
+		ForgetRow->setVisible(forget);
+
 		const auto details = shown.Current || !shown.LastProblem.isEmpty();
 		if (!details && DetailsButton->isChecked()) {
 			DetailsButton->setChecked(false);
@@ -742,11 +821,16 @@ namespace bpr::qt {
 		CopyDetailsButton->setVisible(problem);
 
 		// One hairline between rows, none above the first.
-		RowHairlines[0]->setVisible(access && rateRow);
-		RowHairlines[1]->setVisible(details && (access || rateRow));
-		const auto rows = access || rateRow || details;
-		Rows->setVisible(rows);
-		RowsSeparator->setVisible(rows);
+		const std::array shownRows{ access, rateRow, remember, forget, details };
+		auto             above = false;
+		for (std::size_t index = 0U; index < shownRows.size(); ++index) {
+			if (index > 0U) {
+				RowHairlines[index - 1U]->setVisible(shownRows[index] && above);
+			}
+			above = above || shownRows[index];
+		}
+		Rows->setVisible(above);
+		RowsSeparator->setVisible(above);
 	}
 
 	void server_card::refresh_native_appearance()
@@ -949,5 +1033,32 @@ namespace bpr::qt {
 	auto server_card::copy_details_button() const noexcept -> QPushButton*
 	{
 		return CopyDetailsButton;
+	}
+
+	auto server_card::enterprise() const noexcept -> bool
+	{
+		return std::ranges::any_of(Options, [](const application::github_profile_option& aHeld) {
+			return aHeld.Product == application::github_profile_product::github_enterprise_server;
+		});
+	}
+
+	auto server_card::remember_switch() const noexcept -> QCheckBox*
+	{
+		return RememberSwitch;
+	}
+
+	auto server_card::remember_glyph() const noexcept -> info_glyph*
+	{
+		return RememberGlyph;
+	}
+
+	auto server_card::forget_button() const noexcept -> QPushButton*
+	{
+		return ForgetButton;
+	}
+
+	auto server_card::forget_glyph() const noexcept -> info_glyph*
+	{
+		return ForgetGlyph;
 	}
 } // namespace bpr::qt

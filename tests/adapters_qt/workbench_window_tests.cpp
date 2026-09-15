@@ -8,10 +8,13 @@
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/epoch_history_model.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
+#include "bpr/qt/info_glyph.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
+#include <QAbstractButton>
 #include <QAbstractItemModel>
 #include <QAbstractTextDocumentLayout>
+#include <QAccessible>
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
@@ -32,6 +35,7 @@
 #include <QListView>
 #include <QListWidget>
 #include <QMenu>
+#include <QMessageBox>
 #include <QModelIndex>
 #include <QMouseEvent>
 #include <QPersistentModelIndex>
@@ -108,20 +112,27 @@ namespace {
 		window.publish(projection);
 		auto* rules        = window.findChild<QComboBox*>(QStringLiteral("observerRuleSelector"));
 		auto* repositories = window.findChild<QComboBox*>(QStringLiteral("savedRepositorySelector"));
-		auto* servers      = window.saved_server_selector();
+		// [[BPR-0774]]. A kept server has no list of its own: it is its host's
+		// card, and a kept server with no configured host profile adds nothing.
 		expect(rules->count() == static_cast<int>(application::maximum_queue_rules)
 				   && repositories->count() == static_cast<int>(application::maximum_saved_repositories)
-				   && servers->count() == static_cast<int>(application::maximum_saved_servers)
+				   && window.kept_servers() == projection.SavedServers
+				   && window.server_cards().empty()
 				   && window.findChildren<QWidget*>().size() <= widgets + 4,
-			   "maximum admitted Settings collections use bounded models, not widgets per row");
+			   "maximum admitted Settings collections use bounded models, and kept servers add no widgets or cards of their own");
+		auto* const accounts = window.settings()->page_widget(qt::settings_page::accounts_and_hosts);
+		auto* const add      = window.add_enterprise_server_button();
+		expect(accounts != nullptr && add != nullptr && accounts->isAncestorOf(add) && add->isVisibleTo(accounts),
+			   "with the queue ready, Accounts and hosts offers Add enterprise server");
 		const auto ruleIndex       = QPersistentModelIndex{ rules->model()->index(0, 0) };
 		const auto repositoryIndex = QPersistentModelIndex{ repositories->model()->index(0, 0) };
-		const auto serverIndex     = QPersistentModelIndex{ servers->model()->index(0, 0) };
 		projection.Failure         = application::queue_store_failure::collection_limit;
 		window.publish(projection);
-		expect(ruleIndex.isValid() && repositoryIndex.isValid() && serverIndex.isValid()
-				   && window.remove_saved_repository_action()->isEnabled() && window.forget_saved_server_action()->isEnabled(),
-			   "limit refusal preserves accepted model identities and remove actions");
+		expect(ruleIndex.isValid() && repositoryIndex.isValid()
+				   && window.remove_saved_repository_action()->isEnabled()
+				   && window.kept_servers() == projection.SavedServers
+				   && add->isVisibleTo(accounts),
+			   "limit refusal preserves accepted model identities, the remove action, the kept servers and Add enterprise server");
 		auto* status = window.settings()->findChild<QLabel*>(QStringLiteral("settingsQueueStatus"));
 		expect(status != nullptr && status->text().contains(QStringLiteral("limit")),
 			   "the Settings page explains the typed collection refusal");
@@ -5883,57 +5894,477 @@ namespace {
 		window.hide();
 	}
 
-	// [[BPR-0660]]. The enterprise servers the reviewer keeps: on Accounts
-	// and hosts, listed from the projection, remembered and forgotten as
-	// intents, and offered without an account or a signed-in session.
-	void test_enterprise_server_gestures_round_trip_through_the_dispatch()
+	/// \brief [[BPR-0774]]. Names every button shown under a widget that cannot
+	/// be pressed; empty when none.
+	[[nodiscard]] auto disabled_buttons_under(const QWidget& aRoot) -> std::string
 	{
+		auto named = std::string{ };
+		for (const auto* const button : aRoot.findChildren<QAbstractButton*>()) {
+			if (button->isVisibleTo(&aRoot) && !button->isEnabled()) {
+				named += " [" + button->objectName().toStdString() + ": \"" + button->text().toStdString() + "\"]";
+			}
+		}
+		return named;
+	}
+
+	/// \brief Takes the step an event loop would take after a dialog closed.
+	///
+	/// \details A course runs outside any event loop, so `processEvents` alone
+	/// never deletes a `WA_DeleteOnClose` dialog closed by a button; the
+	/// deferred deletion is delivered here explicitly.
+	void settle_closed_dialogs()
+	{
+		QApplication::processEvents();
+		QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+	}
+
+	/// \brief [[BPR-0774]]. GitHub.com and one GitHub Enterprise Server host,
+	/// both over native HTTPS.
+	[[nodiscard]] auto enterprise_profiles() -> std::vector<application::github_profile_option>
+	{
+		return {
+			{
+				.Profile   = core::host_profile_id{ 51U },
+				.Label     = "GitHub.com — Native HTTPS",
+				.Hostname  = "github.com",
+				.Product   = application::github_profile_product::github_com,
+				.Transport = application::github_profile_transport::native_https,
+			},
+			{
+				.Profile   = core::host_profile_id{ 52U },
+				.Label     = "GHE — Native HTTPS",
+				.Hostname  = "ghe.example.com",
+				.Product   = application::github_profile_product::github_enterprise_server,
+				.Transport = application::github_profile_transport::native_https,
+			},
+		};
+	}
+
+	// [[BPR-0660]], [[BPR-0774]]. RFC-BPR-0032 A3: one bordered Add enterprise
+	// server under the cards opens a card in its edit state (hostname,
+	// account, Add and Cancel), and Add leaves as exactly the saved-server
+	// intent the store accepts. It waits for the queue that keeps servers, and
+	// a refused hostname is said beside the fields rather than disabling Add.
+	void test_add_enterprise_server_opens_a_card_in_its_edit_state()
+	{
+		{
+			qt::workbench_window unwired;
+			unwired.publish(application::queue_landing_projection{ .Status = application::queue_landing_status::ready });
+			auto* const unwiredPage = unwired.settings()->page_widget(qt::settings_page::accounts_and_hosts);
+			expect(unwiredPage != nullptr && !unwired.add_enterprise_server_button()->isVisibleTo(unwiredPage)
+					   && !unwired.enterprise_server_draft()->isVisibleTo(unwiredPage),
+				   "a ready queue with nowhere to send a saved server offers no Add enterprise server and no draft");
+		}
+
 		qt::workbench_window window;
 		auto                 intents = std::vector<application::saved_server_intent>{ };
-		window.set_saved_server_dispatch(
-			[&intents](application::saved_server_intent aIntent) {
-				intents.push_back(std::move(aIntent));
-			});
-		auto* const editor = window.enterprise_servers_editor();
-		expect(editor != nullptr
-				   && window.settings()->page_widget(qt::settings_page::accounts_and_hosts)->isAncestorOf(editor)
-				   && !window.home_page()->isAncestorOf(editor)
-				   && !window.focus_order().contains(window.saved_server_hostname()),
-			   "the servers editor lives on Accounts and hosts, off Home and out of the workbench's order");
-		expect(!window.add_saved_server_action()->isEnabled()
-				   && !window.forget_saved_server_action()->isEnabled(),
-			   "before a ready projection neither Remember nor Forget is offered");
+		window.set_saved_server_dispatch([&intents](application::saved_server_intent aIntent) {
+			intents.push_back(std::move(aIntent));
+		});
+		window.resize(1'280, 820);
+		window.show();
+		window.open_settings(qt::settings_page::accounts_and_hosts);
+		QApplication::processEvents();
+		auto* const page     = window.settings()->page_widget(qt::settings_page::accounts_and_hosts);
+		auto* const add      = window.add_enterprise_server_button();
+		auto* const draft    = window.enterprise_server_draft();
+		auto* const hostname = window.enterprise_server_hostname();
+		auto* const account  = window.enterprise_server_account();
+		auto* const confirm  = window.enterprise_server_add();
+		auto* const cancel   = window.enterprise_server_cancel();
+		auto* const refusal  = window.enterprise_server_refusal();
+		expect(page != nullptr && add != nullptr && draft != nullptr && hostname != nullptr && account != nullptr
+				   && confirm != nullptr && cancel != nullptr && refusal != nullptr,
+			   "the window composes Add enterprise server and its draft card");
+		expect(!add->isVisibleTo(page) && !draft->isVisibleTo(page),
+			   "before a ready queue projection there is no Add enterprise server and no draft");
 
-		const auto kept       = application::saved_server{ .Hostname = "ghe.example.com", .Account = "reviewer" };
-		auto       projection = application::queue_landing_projection{
-			.Status = application::queue_landing_status::ready,
+		window.publish(application::queue_landing_projection{ .Status = application::queue_landing_status::ready });
+		QApplication::processEvents();
+		expect(add->isVisible() && add->text() == QStringLiteral("Add enterprise server")
+				   && !add->isDefault() && !add->isFlat() && !draft->isVisibleTo(page),
+			   "with the queue ready, one bordered Add enterprise server is offered and no draft is open");
+		expect(page->isAncestorOf(add) && page->isAncestorOf(draft) && !window.home_page()->isAncestorOf(add)
+				   && !window.home_page()->isAncestorOf(draft)
+				   && !window.focus_order().contains(add) && !window.focus_order().contains(hostname)
+				   && !window.focus_order().contains(account) && !window.focus_order().contains(confirm)
+				   && !window.focus_order().contains(cancel),
+			   "Add enterprise server and its draft live on Accounts and hosts, off Home and out of the workbench's order");
+
+		const auto open = [add, draft, page] {
+			add->click();
+			QApplication::processEvents();
+			return draft->isVisibleTo(page) && !add->isVisibleTo(page);
 		};
-		projection.SavedServers = { kept };
-		window.publish(projection);
-		expect(window.saved_server_selector() != nullptr && window.saved_server_selector()->count() == 1
-				   && window.saved_server_selector()->itemText(0)
-					   == QStringLiteral("ghe.example.com - reviewer"),
-			   "the editor lists the remembered server by hostname and account, with no session of its own");
-		expect(!window.add_saved_server_action()->isEnabled(), "Remember waits for a hostname");
-		window.saved_server_hostname()->setText(QStringLiteral("https://ghe.example.com"));
-		expect(!window.add_saved_server_action()->isEnabled(), "a hostname with a scheme is not offered");
-		window.saved_server_hostname()->setText(QStringLiteral(" GHE.Example.Org "));
-		window.saved_server_account()->setText(QStringLiteral(" reviewer "));
-		expect(window.add_saved_server_action()->isEnabled(), "a hostname is offered");
-		window.add_saved_server_action()->trigger();
+		expect(open(), "Add enterprise server opens the draft card in place of the button");
+		expect(hostname->isVisibleTo(draft) && account->isVisibleTo(draft) && confirm->isVisibleTo(draft)
+				   && cancel->isVisibleTo(draft) && !refusal->isVisibleTo(draft)
+				   && confirm->text() == QStringLiteral("Add") && cancel->text() == QStringLiteral("Cancel")
+				   && window.settings()->focusWidget() == hostname,
+			   "the draft is hostname, account, Add and Cancel with no refusal, and the hostname has focus");
+
+		hostname->setText(QStringLiteral("ghe.cancelled.example"));
+		account->setText(QStringLiteral("reviewer"));
+		cancel->click();
+		QApplication::processEvents();
+		expect(!draft->isVisibleTo(page) && add->isVisibleTo(page) && hostname->text().isEmpty()
+				   && account->text().isEmpty() && intents.empty(),
+			   "Cancel closes the draft, clears its fields and dispatches nothing");
+
+		expect(open(), "Add enterprise server opens the draft again");
+		hostname->setText(QStringLiteral("https://ghe.example.com"));
+		account->setText(QStringLiteral("reviewer"));
+		const auto disabled = disabled_buttons_under(*draft);
+		expect(disabled.empty(), "no button shown in the draft is disabled:" + disabled);
+		confirm->click();
+		QApplication::processEvents();
+		expect(intents.empty() && draft->isVisibleTo(page) && refusal->isVisibleTo(draft)
+				   && !refusal->text().isEmpty() && confirm->isEnabled()
+				   && hostname->text() == QStringLiteral("https://ghe.example.com")
+				   && account->text() == QStringLiteral("reviewer"),
+			   "Add with a hostname that has a scheme is refused in a sentence beside the fields, dispatches nothing and keeps what was typed");
+		auto typed = QKeyEvent{ QEvent::KeyPress, Qt::Key_Slash, Qt::NoModifier, QStringLiteral("/") };
+		QApplication::sendEvent(hostname, &typed);
+		expect(!refusal->isVisibleTo(draft) && hostname->text() == QStringLiteral("https://ghe.example.com/"),
+			   "editing the hostname takes the refusal away");
+		auto hostnameReturn = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+		QApplication::sendEvent(hostname, &hostnameReturn);
+		QApplication::processEvents();
+		expect(intents.empty() && refusal->isVisibleTo(draft) && draft->isVisibleTo(page),
+			   "Return in the hostname field is the same Add, and is refused the same way");
+
+		hostname->setText(QStringLiteral(" GHE.Example.Org "));
+		account->setText(QStringLiteral(" reviewer "));
+		confirm->click();
+		QApplication::processEvents();
 		expect(intents
 				   == std::vector{ application::saved_server_intent{
 					   .Action = application::saved_server_action::add,
 					   .Server = { .Hostname = "ghe.example.org", .Account = "reviewer" } } },
-			   "Remember leaves as an add intent, trimmed and lowercased");
-		expect(window.saved_server_hostname()->text().isEmpty() && window.saved_server_account()->text().isEmpty(),
-			   "the fields clear once the gesture has left");
-		window.saved_server_selector()->setCurrentIndex(0);
-		expect(window.forget_saved_server_action()->isEnabled(), "a selected server can be forgotten");
-		window.forget_saved_server_action()->trigger();
-		expect(intents.size() == 2U && intents.back().Action == application::saved_server_action::remove
-				   && intents.back().Server == kept,
-			   "Forget leaves as a remove intent for the selected server");
+			   "Add dispatches exactly one add intent, with the hostname trimmed and lowercased and the account trimmed");
+		expect(!draft->isVisibleTo(page) && add->isVisibleTo(page) && hostname->text().isEmpty()
+				   && account->text().isEmpty() && !refusal->isVisibleTo(draft),
+			   "once the add has left, the draft closes and clears");
+
+		expect(open(), "Add enterprise server opens the draft a third time");
+		hostname->setText(QStringLiteral("ghe2.example.org"));
+		auto accountReturn = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+		QApplication::sendEvent(account, &accountReturn);
+		QApplication::processEvents();
+		expect(intents.size() == 2U
+				   && intents.back()
+					   == application::saved_server_intent{
+						   .Action = application::saved_server_action::add,
+						   .Server = { .Hostname = "ghe2.example.org", .Account = "" } }
+				   && !draft->isVisibleTo(page),
+			   "Return in the account field adds too, with no account when none was typed");
+
+		expect(open(), "Add enterprise server opens the draft once more");
+		hostname->setText(QStringLiteral("ghe3.example.org"));
+		window.publish(application::queue_landing_projection{ .Status = application::queue_landing_status::restoring });
+		QApplication::processEvents();
+		expect(!draft->isVisibleTo(page) && !add->isVisibleTo(page) && hostname->text().isEmpty() && intents.size() == 2U,
+			   "a queue that is no longer ready closes and clears the draft and offers no Add enterprise server");
+		window.publish(application::queue_landing_projection{ .Status = application::queue_landing_status::ready });
+		QApplication::processEvents();
+		expect(add->isVisibleTo(page) && !draft->isVisibleTo(page) && intents.size() == 2U,
+			   "ready again, Add enterprise server returns with the draft still closed");
+		window.settings()->hide();
+		window.hide();
+	}
+
+	// [[BPR-0774]]. RFC-BPR-0032 A3: a kept enterprise server is its host's
+	// card. Remember this server is a switch showing exactly the record the
+	// queue keeps; Forget server and the switch turned off confirm first,
+	// naming that record, and Cancel does nothing. A token session is labelled
+	// session-only.
+	void test_a_kept_enterprise_server_remembers_and_forgets_on_its_card()
+	{
+		auto                 otherEffects = std::size_t{ 0U };
+		auto                 intents      = std::vector<application::saved_server_intent>{ };
+		qt::workbench_window window{
+			[&otherEffects](core::workbench_interaction_intent) { ++otherEffects; },
+			[&otherEffects](core::navigate_diff_change_intent) { ++otherEffects; },
+			[&otherEffects](core::workbench_drawer, std::uint32_t) { ++otherEffects; },
+			enterprise_profiles(),
+			[&otherEffects](application::github_intent) { ++otherEffects; },
+		};
+		window.set_device_authorization_dispatch([&otherEffects](application::device_authorization_gesture) { ++otherEffects; });
+		window.set_public_preview_dispatch([&otherEffects](application::public_preview_gesture) { ++otherEffects; });
+		window.set_setup_destination_dispatch([&otherEffects](application::setup_destination_intent) { ++otherEffects; });
+		window.set_saved_repository_dispatch([&otherEffects](application::saved_repository_intent) { ++otherEffects; });
+		window.set_queue_rule_dispatch([&otherEffects](application::queue_rule_intent) { ++otherEffects; });
+		window.set_saved_server_dispatch([&intents](application::saved_server_intent aIntent) {
+			intents.push_back(std::move(aIntent));
+		});
+		const auto kept       = application::saved_server{ .Hostname = "ghe.example.com", .Account = "reviewer" };
+		auto       projection   = application::queue_landing_projection{ .Status = application::queue_landing_status::ready };
+		projection.SavedServers = { kept };
+		window.publish(projection);
+		window.open_settings(qt::settings_page::accounts_and_hosts);
+		QApplication::processEvents();
+		// Only what a gesture sends counts; composing and publishing are not gestures.
+		otherEffects = 0U;
+
+		auto* const page       = window.settings()->page_widget(qt::settings_page::accounts_and_hosts);
+		auto* const github     = window.server_card_for(core::host_profile_id{ 51U });
+		auto* const enterprise = window.server_card_for(core::host_profile_id{ 52U });
+		expect(page != nullptr && github != nullptr && enterprise != nullptr && github != enterprise
+				   && enterprise->enterprise() && !github->enterprise()
+				   && window.kept_servers() == std::vector{ kept },
+			   "the window composes GitHub.com's card and the enterprise server's card, and keeps exactly the published record");
+		auto* const toggle = enterprise->remember_switch();
+		auto* const forget = enterprise->forget_button();
+		expect(toggle->isVisibleTo(page) && toggle->isChecked() && toggle->isEnabled()
+				   && forget->isVisibleTo(page) && forget->text() == QStringLiteral("Forget server")
+				   && enterprise->remember_glyph()->isVisibleTo(page) && enterprise->forget_glyph()->isVisibleTo(page)
+				   && enterprise->presentation().Remembered == std::optional{ kept },
+			   "the enterprise card remembers the kept server: Remember this server is on and Forget server is shown");
+		const auto rememberConsequence = QStringLiteral("Keeps the hostname and account name across launches. The token is still asked for.");
+		const auto forgetConsequence   = QStringLiteral("Stops offering this server at the next start. Nothing on the server changes.");
+		expect(enterprise->remember_glyph()->toolTip() == rememberConsequence
+				   && enterprise->remember_glyph()->accessibleDescription() == rememberConsequence
+				   && enterprise->forget_glyph()->toolTip() == forgetConsequence
+				   && enterprise->forget_glyph()->accessibleDescription() == forgetConsequence,
+			   "each row's info glyph says its consequence in its popover and as its accessible description");
+		expect(!github->remember_switch()->isVisibleTo(page) && !github->forget_button()->isVisibleTo(page),
+			   "GitHub.com's card has neither row");
+
+		forget->click();
+		QApplication::processEvents();
+		auto* box = window.forget_server_confirmation();
+		expect(box != nullptr && box->isVisible() && box->objectName() == QStringLiteral("forgetServerConfirmation")
+				   && box->windowModality() == Qt::WindowModal && box->parentWidget() == window.settings()
+				   && box->testAttribute(Qt::WA_DeleteOnClose)
+				   && box->text() == QStringLiteral("Forget ghe.example.com?")
+				   && box->informativeText().contains(QStringLiteral("ghe.example.com"))
+				   && box->informativeText().contains(QStringLiteral("reviewer"))
+				   && box->informativeText().contains(QStringLiteral("Nothing on the server changes"))
+				   && box->informativeText().contains(QStringLiteral("no sign-in is removed"))
+				   && intents.empty(),
+			   "Forget server opens a window-modal confirmation naming the host and the account and what it does not touch, and dispatches nothing yet");
+		auto* confirmButton = box->findChild<QAbstractButton*>(QStringLiteral("forgetServerConfirm"));
+		auto* cancelButton  = box->findChild<QAbstractButton*>(QStringLiteral("forgetServerCancel"));
+		expect(confirmButton != nullptr && confirmButton->text() == QStringLiteral("Forget server") && cancelButton != nullptr,
+			   "the confirmation offers Forget server and Cancel");
+		cancelButton->click();
+		QApplication::processEvents();
+		expect(intents.empty()
+				   && (window.forget_server_confirmation() == nullptr || !window.forget_server_confirmation()->isVisible()),
+			   "Cancel closes the confirmation and dispatches nothing");
+		settle_closed_dialogs();
+		expect(window.forget_server_confirmation() == nullptr && toggle->isChecked() && forget->isVisibleTo(page),
+			   "the closed confirmation is gone, and the server is still remembered");
+
+		toggle->click();
+		QApplication::processEvents();
+		box = window.forget_server_confirmation();
+		expect(toggle->isChecked() && box != nullptr && box->isVisible()
+				   && box->text() == QStringLiteral("Forget ghe.example.com?")
+				   && box->informativeText().contains(QStringLiteral("reviewer")) && intents.empty(),
+			   "switching Remember off returns the switch to the kept record at once and opens the same confirmation");
+		confirmButton = box->findChild<QAbstractButton*>(QStringLiteral("forgetServerConfirm"));
+		expect(confirmButton != nullptr, "the confirmation offers Forget server");
+		confirmButton->click();
+		QApplication::processEvents();
+		expect(intents
+				   == std::vector{ application::saved_server_intent{
+					   .Action = application::saved_server_action::remove,
+					   .Server = kept } },
+			   "Forget server dispatches exactly one remove intent, for exactly the kept record");
+		settle_closed_dialogs();
+		expect(window.forget_server_confirmation() == nullptr && toggle->isChecked(),
+			   "the confirmation is gone, and the switch shows the kept record until a projection says otherwise");
+		expect(otherEffects == 0U, "Forget server, its confirmation and the switch reach no sink but the saved-server dispatch");
+
+		projection.SavedServers.clear();
+		window.publish(projection);
+		QApplication::processEvents();
+		otherEffects = 0U;
+		expect(!toggle->isChecked() && toggle->isVisibleTo(page) && !forget->isVisibleTo(page)
+				   && !enterprise->presentation().Remembered.has_value(),
+			   "with no record kept, Remember this server is off and Forget server is gone");
+		intents.clear();
+		toggle->click();
+		QApplication::processEvents();
+		expect(intents
+					   == std::vector{ application::saved_server_intent{
+						   .Action = application::saved_server_action::add,
+						   .Server = { .Hostname = "ghe.example.com", .Account = "" } } }
+				   && !toggle->isChecked() && window.forget_server_confirmation() == nullptr,
+			   "switching Remember on dispatches exactly one add, with no account while none is signed in, and the switch waits for the projection");
+		expect(otherEffects == 0U, "switching Remember on reaches no sink but the saved-server dispatch");
+		projection.SavedServers = { application::saved_server{ .Hostname = "ghe.example.com", .Account = "" } };
+		window.publish(projection);
+		QApplication::processEvents();
+		expect(toggle->isChecked() && forget->isVisibleTo(page),
+			   "once a projection keeps the server, the switch is on and Forget server is back");
+
+		// Signed in on the enterprise server with a token.
+		projection.SavedServers.clear();
+		window.publish(projection);
+		const auto session = application::github_session_projection{
+			.Profile     = core::host_profile_id{ 52U },
+			.Host        = core::git_host_id{ 62U },
+			.Account     = core::github_account_id{ 72U },
+			.Login       = "enterprise-reviewer",
+			.DisplayName = "Enterprise Reviewer",
+			.Grant       = application::github_grant_projection{
+				.Kind = application::github_grant_kind_projection::token,
+			},
+		};
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Status   = core::github_status_delta{ .Status = core::github_status::session_ready },
+				.Identity = core::github_identity_delta{
+					.Profile    = session.Profile,
+					.Host       = session.Host,
+					.Account    = session.Account,
+					.Generation = core::github_identity_generation{ 1U },
+				},
+			},
+			.Session = session,
+		});
+		QApplication::processEvents();
+		otherEffects = 0U;
+		expect(enterprise->signed_in() && enterprise->login_label()->text() == QStringLiteral("enterprise-reviewer")
+				   && enterprise->consequence_label()->isVisibleTo(page)
+				   && enterprise->consequence_label()->text()
+					   == QStringLiteral("Signed in with a token for this session only; it is asked for again after a restart.")
+				   && !toggle->isChecked() && toggle->isVisibleTo(page),
+			   "an enterprise server signed in with a token says the session is kept for this session only");
+		intents.clear();
+		toggle->click();
+		QApplication::processEvents();
+		expect(intents
+					   == std::vector{ application::saved_server_intent{
+						   .Action = application::saved_server_action::add,
+						   .Server = { .Hostname = "ghe.example.com", .Account = "enterprise-reviewer" } } }
+				   && !toggle->isChecked(),
+			   "signed in on the enterprise server, switching Remember on keeps the hostname with the signed-in login");
+		expect(otherEffects == 0U, "remembering a signed-in server reaches no sink but the saved-server dispatch");
+		window.settings()->hide();
+	}
+
+	/// \brief [[BPR-0774]]. What the servers combo editor was, by object name and accessible name.
+	constexpr std::array retired_server_editor_object_names{
+		"savedServerSelector",
+		"savedServerHostname",
+		"savedServerAccount",
+		"addSavedServerButton",
+		"forgetSavedServerButton",
+		"enterpriseServersEditor",
+		"accountsServersHeading",
+	};
+
+	constexpr std::array retired_server_editor_accessible_names{
+		"Remembered servers",
+		"Server to remember",
+		"Enterprise servers",
+	};
+
+	[[nodiscard]] auto names_one_of(const QString& aName, const std::span<const char* const> aNames) -> bool
+	{
+		return !aName.isEmpty() && std::ranges::any_of(aNames, [&aName](const char* const aCandidate) {
+			return aName == QLatin1String{ aCandidate };
+		});
+	}
+
+	/// \brief Walks an accessibility subtree the way an assistive reader does,
+	/// keeping each node's accessible name and object name, one unit of `aBudget` per node.
+	void collect_accessible_names(
+		QAccessibleInterface* const               aInterface,
+		std::vector<std::pair<QString, QString>>& aNodes,
+		std::size_t&                              aBudget)
+	{
+		if (aInterface == nullptr || !aInterface->isValid() || aBudget == 0U) {
+			return;
+		}
+		--aBudget;
+		const auto* const object = aInterface->object();
+		aNodes.emplace_back(aInterface->text(QAccessible::Name), object == nullptr ? QString{ } : object->objectName());
+		for (auto index = 0; index < aInterface->childCount(); ++index) {
+			collect_accessible_names(aInterface->child(index), aNodes, aBudget);
+		}
+	}
+
+	/// \brief Fails when Accounts and hosts, its widget tree or its accessibility
+	/// tree carries any piece of the retired servers combo editor or any combo box.
+	void expect_no_server_combo_editor(
+		const qt::workbench_window& aWindow,
+		QWidget* const              aPage,
+		const std::string_view      aState)
+	{
+		const auto state   = std::string{ aState };
+		auto       objects = aPage->findChildren<QObject*>();
+		objects.push_front(aPage);
+		for (const auto* const object : std::as_const(objects)) {
+			const auto* const widget = qobject_cast<const QWidget*>(object);
+			expect(!names_one_of(object->objectName(), retired_server_editor_object_names)
+					   && qobject_cast<const QComboBox*>(object) == nullptr
+					   && (widget == nullptr || !names_one_of(widget->accessibleName(), retired_server_editor_accessible_names)),
+				   "Accounts and hosts carries no piece of the servers combo editor and no combo box while " + state + ": "
+					   + object->metaObject()->className() + " " + object->objectName().toStdString());
+		}
+		expect(aWindow.findChild<QAction*>(QStringLiteral("addSavedServer")) == nullptr
+				   && aWindow.findChild<QAction*>(QStringLiteral("forgetSavedServer")) == nullptr,
+			   "the window keeps no Remember server or Forget server action of the editor while " + state);
+		auto nodes  = std::vector<std::pair<QString, QString>>{ };
+		auto budget = std::size_t{ 20'000U };
+		collect_accessible_names(QAccessible::queryAccessibleInterface(aPage), nodes, budget);
+		expect(!nodes.empty() && budget > 0U,
+			   "the accessibility walk of Accounts and hosts reaches the page and finishes while " + state);
+		const auto retired = std::ranges::find_if(nodes, [](const std::pair<QString, QString>& aNode) {
+			return names_one_of(aNode.first, retired_server_editor_accessible_names)
+				|| names_one_of(aNode.second, retired_server_editor_object_names);
+		});
+		expect(retired == nodes.end(),
+			   "the accessibility tree of Accounts and hosts names no piece of the servers combo editor while " + state
+				   + (retired == nodes.end() ? std::string{ } : ": " + retired->first.toStdString() + " / " + retired->second.toStdString()));
+	}
+
+	// [[BPR-0774]]. RFC-BPR-0032 A3 and A1: the Enterprise servers heading and
+	// its combo editor are gone from Accounts and hosts and from its
+	// accessibility tree, before a queue projection, with servers kept, and
+	// with the Add enterprise server draft open.
+	void test_the_servers_combo_editor_is_gone()
+	{
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			enterprise_profiles(),
+			[](application::github_intent) { },
+		};
+		window.resize(1'280, 820);
+		window.show();
+		window.open_settings(qt::settings_page::accounts_and_hosts);
+		QApplication::processEvents();
+		auto* const page = window.settings()->page_widget(qt::settings_page::accounts_and_hosts);
+		expect(page != nullptr, "the Settings window has an Accounts and hosts page");
+		expect_no_server_combo_editor(window, page, "no queue projection has arrived");
+
+		window.set_saved_server_dispatch([](application::saved_server_intent) { });
+		auto projection         = application::queue_landing_projection{ .Status = application::queue_landing_status::ready };
+		projection.SavedServers = {
+			application::saved_server{ .Hostname = "ghe.example.com", .Account = "reviewer" },
+			application::saved_server{ .Hostname = "ghe.other.example", .Account = "" },
+		};
+		window.publish(projection);
+		QApplication::processEvents();
+		auto* const enterprise = window.server_card_for(core::host_profile_id{ 52U });
+		expect(enterprise != nullptr && enterprise->remember_switch()->isVisibleTo(page)
+				   && enterprise->remember_switch()->isChecked()
+				   && window.add_enterprise_server_button()->isVisibleTo(page),
+			   "the state under inspection has reached the page: the kept server's card remembers it and Add enterprise server is offered");
+		expect_no_server_combo_editor(window, page, "the queue is ready and keeps two servers");
+
+		window.add_enterprise_server_button()->click();
+		QApplication::processEvents();
+		expect(window.enterprise_server_draft()->isVisibleTo(page), "Add enterprise server opens its draft card");
+		expect_no_server_combo_editor(window, page, "the Add enterprise server draft is open");
+		window.settings()->hide();
+		window.hide();
 	}
 
 	void test_saved_repository_gestures_round_trip_through_the_dispatch()
@@ -6865,7 +7296,9 @@ auto main(int argc, char** argv) -> int
 	test_queue_rule_gestures_wait_for_the_accepted_projection();
 	test_queue_rule_selection_survives_unrelated_projection();
 	test_saved_repository_gestures_round_trip_through_the_dispatch();
-	test_enterprise_server_gestures_round_trip_through_the_dispatch();
+	test_add_enterprise_server_opens_a_card_in_its_edit_state();
+	test_a_kept_enterprise_server_remembers_and_forgets_on_its_card();
+	test_the_servers_combo_editor_is_gone();
 	test_review_behaviour_rows_dispatch_follow_the_projection_and_reset_by_group();
 	test_hidden_drawer_controls_leave_no_column_and_no_hide_button();
 	test_continue_review_and_opening_honour_the_modality_preferences();
