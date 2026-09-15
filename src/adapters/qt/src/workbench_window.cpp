@@ -350,6 +350,9 @@ namespace bpr::qt {
 		, GithubProfiles{ std::move(aProfiles) }
 		, GithubDispatch{ std::move(aGithubDispatch) }
 	{
+		DifCues = std::make_unique<dif_cue_router>();
+		DifCueClock = std::make_unique<QElapsedTimer>();
+		DifCueClock->start();
 		setObjectName(QStringLiteral("workbenchWindow"));
 		setWindowTitle(QStringLiteral("BetterPullReview"));
 #if defined(__APPLE__)
@@ -3555,6 +3558,83 @@ namespace bpr::qt {
 		DifResolution      = aResolution;
 		DifResolutionReady = true;
 		update_dif_presentation();
+	}
+
+	void workbench_window::observe_dif_context(
+		const core::application_session_id aSession,
+		core::pull_request_authority aAuthority)
+	{
+		DifCues->observe({ aSession, std::move(aAuthority) });
+	}
+
+	void workbench_window::clear_dif_context()
+	{
+		DifCues->clear();
+	}
+
+	void workbench_window::play_dif_cue(std::optional<dif_clip_id> aCue)
+	{
+		if (aCue.has_value() && Dif != nullptr) {
+			static_cast<void>(Dif->play(*aCue));
+		}
+	}
+
+	void workbench_window::start_dif_invocation(
+		const application::agent_invocation_projection_identity& aIdentity)
+	{
+		play_dif_cue(DifCues->start(aIdentity, DifCueClock->elapsed()));
+	}
+
+	void workbench_window::present_dif_agent_delivery(
+		const application::agent_invocation_projection_identity& aIdentity,
+		const application::agent_finding_delivery& aDelivery,
+		const bool aReplyPresented,
+		const bool aFindingsPresented)
+	{
+		DifCues->deliver(
+			aIdentity, aDelivery, aReplyPresented, aFindingsPresented);
+	}
+
+	void workbench_window::finish_dif_invocation(
+		const application::agent_invocation_projection_identity& aIdentity,
+		const application::agent_run_outcome aOutcome)
+	{
+		play_dif_cue(DifCues->finish(aIdentity, aOutcome, DifCueClock->elapsed()));
+	}
+
+	void workbench_window::present_dif_workshop(
+		const core::review_draft_id aDraft,
+		const std::uint64_t aRevision)
+	{
+		play_dif_cue(DifCues->present_workshop(aDraft, aRevision, DifCueClock->elapsed()));
+	}
+
+	void workbench_window::begin_dif_draft(
+		const core::revisioned_review_draft_command& aCommand)
+	{
+		DifCues->begin_draft(aCommand);
+	}
+
+	void workbench_window::accept_dif_draft(
+		const core::revisioned_review_draft_command& aCommand,
+		const core::revisioned_review_draft& aAccepted)
+	{
+		play_dif_cue(DifCues->accept_draft(
+			aCommand, aAccepted, DifCueClock->elapsed()));
+	}
+
+	void workbench_window::cancel_dif_draft(
+		const core::revisioned_review_draft_command& aCommand)
+	{
+		DifCues->cancel_draft(aCommand);
+	}
+
+	void workbench_window::present_dif_continuation(
+		const core::agent_session& aSession,
+		const core::agent_continuation_offer& aOffer)
+	{
+		play_dif_cue(DifCues->present_continuation(
+			aSession, aOffer, DifCueClock->elapsed()));
 	}
 
 	void workbench_window::publish(

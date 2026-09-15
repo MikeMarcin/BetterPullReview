@@ -78,6 +78,241 @@ namespace bpr::qt {
 			return true;
 		}
 
+		auto same_command(
+			const core::revisioned_review_draft_command& aLeft,
+			const core::revisioned_review_draft_command& aRight) -> bool
+		{
+			return aLeft.Command == aRight.Command
+				&& aLeft.ExpectedRevision == aRight.ExpectedRevision
+				&& aLeft.ChangeReplyTarget == aRight.ChangeReplyTarget
+				&& aLeft.ReplyToThread == aRight.ReplyToThread
+				&& aLeft.Scope == aRight.Scope;
+		}
+
+		auto cue_priority(const dif_clip_id aClip) -> int
+		{
+			switch (aClip) {
+				case dif_clip_id::blocked:   return 4;
+				case dif_clip_id::attention: return 3;
+				case dif_clip_id::comment_ready:
+				case dif_clip_id::acknowledge: return 2;
+				case dif_clip_id::consider:
+				case dif_clip_id::compare_glance: return 1;
+				default: return 0;
+			}
+		}
+
+	}
+
+	void dif_cue_router::observe(dif_cue_context aContext)
+	{
+		if (Context == std::optional{ aContext }) {
+			return;
+		}
+		clear();
+		Context = std::move(aContext);
+	}
+
+	void dif_cue_router::clear()
+	{
+		Context.reset();
+		Active.reset();
+		Terminal.reset();
+		LastContinuation.reset();
+		Workshop.reset();
+		DraftOperation.reset();
+		HighestInvocationGeneration = 0U;
+		LastSemanticStart.reset();
+		LastComparisonStart.reset();
+		LastPriority = 0;
+		ReplyPresented = false;
+		FindingsPresented = false;
+	}
+
+	void dif_cue_router::set_visible(const bool aVisible)
+	{
+		Visible = aVisible;
+	}
+
+	auto dif_cue_router::in_context(const core::agent_session& aSession) const
+		-> bool
+	{
+		return Context.has_value()
+			&& aSession.Binding.Host == Context->Authority.Host
+			&& aSession.Binding.Repository == Context->Authority.Repository
+			&& aSession.Binding.PullRequest == Context->Authority.PullRequest;
+	}
+
+	auto dif_cue_router::current(
+		const application::agent_invocation_projection_identity& aIdentity) const
+		-> bool
+	{
+		return Context.has_value() && Active == std::optional{ aIdentity }
+			&& aIdentity.ApplicationSession == Context->ApplicationSession
+			&& aIdentity.Authority == Context->Authority
+			&& in_context(aIdentity.Session);
+	}
+
+	auto dif_cue_router::propose(const dif_clip_id aClip, const std::int64_t aNow)
+		-> std::optional<dif_clip_id>
+	{
+		if (!Visible || aNow < 0
+			|| (LastSemanticStart.has_value() && aNow < *LastSemanticStart)) {
+			return std::nullopt;
+		}
+		if (aClip == dif_clip_id::compare_glance
+			&& LastComparisonStart.has_value()
+			&& aNow - *LastComparisonStart < 5'000) {
+			return std::nullopt;
+		}
+		const auto priority = cue_priority(aClip);
+		if (LastSemanticStart.has_value() && aNow - *LastSemanticStart < 2'000
+			&& priority <= LastPriority) {
+			return std::nullopt;
+		}
+		LastSemanticStart = aNow;
+		LastPriority = priority;
+		if (aClip == dif_clip_id::compare_glance) {
+			LastComparisonStart = aNow;
+		}
+		return aClip;
+	}
+
+	auto dif_cue_router::reveal_findings(const std::int64_t aNow)
+		-> std::optional<dif_clip_id>
+	{
+		return Context.has_value()
+			? propose(dif_clip_id::compare_glance, aNow)
+			: std::nullopt;
+	}
+
+	auto dif_cue_router::start(
+		const application::agent_invocation_projection_identity& aIdentity,
+		const std::int64_t aNow) -> std::optional<dif_clip_id>
+	{
+		if (!Context.has_value()
+			|| aIdentity.ApplicationSession != Context->ApplicationSession
+			|| aIdentity.Authority != Context->Authority
+			|| !in_context(aIdentity.Session)
+			|| aIdentity.InvocationGeneration <= HighestInvocationGeneration) {
+			return std::nullopt;
+		}
+		HighestInvocationGeneration = aIdentity.InvocationGeneration;
+		Active = aIdentity;
+		ReplyPresented = false;
+		FindingsPresented = false;
+		return propose(dif_clip_id::consider, aNow);
+	}
+
+	void dif_cue_router::deliver(
+		const application::agent_invocation_projection_identity& aIdentity,
+		const application::agent_finding_delivery&               aDelivery,
+		const bool aReplyPresented,
+		const bool aFindingsPresented)
+	{
+		if (!current(aIdentity) || aDelivery.Session != aIdentity.Session.Id
+			|| aDelivery.Binding != aIdentity.Session.Binding
+			|| aDelivery.Findings.empty()) {
+			return;
+		}
+		ReplyPresented |= aReplyPresented;
+		FindingsPresented |= aFindingsPresented;
+	}
+
+	auto dif_cue_router::finish(
+		const application::agent_invocation_projection_identity& aIdentity,
+		const application::agent_run_outcome aOutcome,
+		const std::int64_t aNow) -> std::optional<dif_clip_id>
+	{
+		if (!current(aIdentity)) {
+			return std::nullopt;
+		}
+		Terminal = aIdentity;
+		Active.reset();
+		auto clip = std::optional<dif_clip_id>{ };
+		if (aOutcome != application::agent_run_outcome::success) {
+			clip = dif_clip_id::blocked;
+		} else if (FindingsPresented) {
+			clip = dif_clip_id::attention;
+		} else if (ReplyPresented) {
+			clip = dif_clip_id::comment_ready;
+		}
+		ReplyPresented = false;
+		FindingsPresented = false;
+		return clip.has_value() ? propose(*clip, aNow) : std::nullopt;
+	}
+
+	auto dif_cue_router::present_workshop(
+		const core::review_draft_id aDraft,
+		const std::uint64_t aRevision,
+		const std::int64_t aNow) -> std::optional<dif_clip_id>
+	{
+		const auto key = workshop_key{ aDraft, aRevision };
+		if (!Context.has_value() || aDraft.value() == 0U || aRevision == 0U
+			|| Workshop == std::optional{ key }) {
+			return std::nullopt;
+		}
+		Workshop = key;
+		DraftOperation.reset();
+		return propose(dif_clip_id::comment_ready, aNow);
+	}
+
+	void dif_cue_router::begin_draft(
+		const core::revisioned_review_draft_command& aCommand)
+	{
+		DraftOperation.reset();
+		if (Workshop.has_value() && aCommand.Command.Kind == core::review_draft_command_kind::edit
+			&& !aCommand.ChangeReplyTarget
+			&& aCommand.Command.Id == Workshop->Draft
+			&& aCommand.ExpectedRevision == Workshop->Revision) {
+			DraftOperation = aCommand;
+		}
+	}
+
+	auto dif_cue_router::accept_draft(
+		const core::revisioned_review_draft_command& aCommand,
+		const core::revisioned_review_draft& aAccepted,
+		const std::int64_t aNow) -> std::optional<dif_clip_id>
+	{
+		if (!DraftOperation.has_value() || !same_command(*DraftOperation, aCommand)
+			|| aAccepted.Scope != aCommand.Scope
+			|| aAccepted.Draft.Id != aCommand.Command.Id
+			|| aAccepted.Draft.Body != aCommand.Command.Body
+			|| aAccepted.Revision < aCommand.ExpectedRevision
+			|| aAccepted.Revision - aCommand.ExpectedRevision > 1U) {
+			return std::nullopt;
+		}
+		DraftOperation.reset();
+		Workshop.reset();
+		return propose(dif_clip_id::acknowledge, aNow);
+	}
+
+	void dif_cue_router::cancel_draft(
+		const core::revisioned_review_draft_command& aCommand)
+	{
+		if (DraftOperation.has_value() && same_command(*DraftOperation, aCommand)) {
+			DraftOperation.reset();
+		}
+	}
+
+	auto dif_cue_router::present_continuation(
+		const core::agent_session& aSession,
+		const core::agent_continuation_offer& aOffer,
+		const std::int64_t aNow) -> std::optional<dif_clip_id>
+	{
+		if (!aOffer.Required || !in_context(aSession)
+			|| aOffer.ContinueAgainst != aSession.Binding
+			|| LastContinuation == std::optional{ aSession }) {
+			return std::nullopt;
+		}
+		LastContinuation = aSession;
+		return propose(dif_clip_id::blocked, aNow);
+	}
+
+	auto dif_cue_router::active_invocation() const noexcept
+		-> const std::optional<application::agent_invocation_projection_identity>&
+	{
+		return Active;
 	}
 	auto dif_cache::create(const descriptors& aClips, const strip_loader& aLoad) -> std::shared_ptr<const dif_cache>
 	{

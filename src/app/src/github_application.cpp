@@ -3269,6 +3269,8 @@ namespace bpr::app {
 			const application::agent_finding_delivery&)>;
 		using session_sink   = std::function<void(const core::agent_session&)>;
 		using workspace_sink = std::function<void(const application::prepared_workspace&)>;
+		using start_sink = std::function<void(
+			const application::agent_invocation_projection_identity&)>;
 		/// \brief BPR-0538. One turn, ended, with how it ended.
 		///
 		/// \details A press learns that its turn is over from the turn itself. A poll
@@ -3283,12 +3285,14 @@ namespace bpr::app {
 			finding_sink                                   aFindings,
 			session_sink                                   aSessions,
 			run_sink                                       aRuns,
-			workspace_sink                                 aWorkspaces)
+			workspace_sink                                 aWorkspaces,
+			start_sink                                     aStarts)
 			: Panel{ aPanel }
 			, Findings{ std::move(aFindings) }
 			, Sessions{ std::move(aSessions) }
 			, Runs{ std::move(aRuns) }
 			, Workspaces{ std::move(aWorkspaces) }
+			, Starts{ std::move(aStarts) }
 		{
 		}
 
@@ -3323,6 +3327,9 @@ namespace bpr::app {
 			Panel.start(aIdentity, aWorkspace);
 			if (Workspaces) {
 				Workspaces(aWorkspace);
+			}
+			if (Starts) {
+				Starts(aIdentity);
 			}
 		}
 
@@ -3369,6 +3376,7 @@ namespace bpr::app {
 		session_sink                                   Sessions;
 		run_sink                                       Runs;
 		workspace_sink                                 Workspaces;
+		start_sink                                     Starts;
 	};
 
 	/// \brief Forwards chat state and chat outcomes to their surfaces.
@@ -6076,6 +6084,11 @@ namespace bpr::app {
 						if (ChatHost != nullptr) {
 							ChatHost->deliver(aDelivery);
 						}
+						Window->present_dif_agent_delivery(
+							aIdentity,
+							aDelivery,
+							ChatHost != nullptr && !aDelivery.Findings.empty(),
+							FindingHost != nullptr && !aDelivery.Findings.empty());
 						// BPR-0538. Whether the turn a press is waiting on has
 						// produced anything the reviewer could still convert.
 						// Recorded from the delivery rather than inferred at
@@ -6123,9 +6136,17 @@ namespace bpr::app {
 						}
 						settle_comment_workshop(
 							aIdentity.Session.Id, aResult.Outcome);
+						Window->finish_dif_invocation(aIdentity, aResult.Outcome);
 					},
 					[this](const application::prepared_workspace& aWorkspace) {
 						LastAgentWorkspacePath = aWorkspace.Path;
+					},
+					[this](
+						const application::agent_invocation_projection_identity&
+							aIdentity) {
+						if (!Closing && Window != nullptr) {
+							Window->start_dif_invocation(aIdentity);
+						}
 					});
 			auto agentProfiles = core::built_in_agent_profiles();
 			// Stated once and given to both hosts. The chat host asks
@@ -6315,6 +6336,8 @@ namespace bpr::app {
 								.Proposed  = aProposal.Proposed,
 								.Operation = aProposal.Operation,
 							});
+						Window->present_dif_workshop(
+							aProposal.Draft, ReviewDraftRevision);
 					},
 					[this](
 						const application::agent_comment_workshop_refusal
@@ -6355,11 +6378,14 @@ namespace bpr::app {
 						present_chat_outcome(aOutcome);
 					},
 					[this]() {
-						if (SideChat != nullptr) {
-							++SideChatPresentations;
-							SideChat->present(qt::side_chat_projection{ });
-						}
-					});
+					if (SideChat != nullptr) {
+						++SideChatPresentations;
+						SideChat->present(qt::side_chat_projection{ });
+					}
+					if (Window != nullptr) {
+						Window->clear_dif_context();
+					}
+				});
 #if defined(BPR_BUILD_TESTING)
 			if (!DisableChatSessionHostComposition)
 #endif
@@ -8132,8 +8158,10 @@ namespace bpr::app {
 			if (Closing || !ReviewDraft || !ReviewMutationHost || !SharedDrafts) {
 				return;
 			}
+			Window->begin_dif_draft(aRevisionedCommand);
 			const auto outcome = SharedDrafts->apply(DraftConsumer, aRevisionedCommand);
 			if (outcome.Failure || !outcome.Accepted) {
+				Window->cancel_dif_draft(aRevisionedCommand);
 				if (outcome.Accepted && outcome.Refusal == core::revisioned_draft_refusal::conflict) {
 					Window->review_editor()->present_conflict({ .Accepted = *outcome.Accepted, .Refusal = outcome.Refusal });
 				}
@@ -8141,6 +8169,7 @@ namespace bpr::app {
 			}
 			Window->review_editor()->acknowledge(aRevisionedCommand, *outcome.Accepted);
 			accept_shared_draft(*outcome.Accepted);
+			Window->accept_dif_draft(aRevisionedCommand, *outcome.Accepted);
 			if (aCommand.Kind == core::review_draft_command_kind::begin_publish) {
 				PublishingDraft = *outcome.Accepted;
 			}
@@ -8979,6 +9008,9 @@ namespace bpr::app {
 			if (AgentHost != nullptr) {
 				AgentHost->clear();
 			}
+			if (Window != nullptr) {
+				Window->clear_dif_context();
+			}
 			const auto retiresLedger = matches_review_ledger(aInvalidation);
 			if (auto authority = WorkbenchReview.invalidate(aInvalidation);
 				authority.has_value() && WorkbenchHost != nullptr) {
@@ -9511,6 +9543,7 @@ namespace bpr::app {
 				|| !state.AcceptedComparison.has_value() || !AgentReview.has_value()) {
 				AgentHost->clear();
 				clear_side_chat();
+				Window->clear_dif_context();
 				return;
 			}
 			const auto& authority  = *state.Authority;
@@ -9521,8 +9554,10 @@ namespace bpr::app {
 				|| authority.PullRequest != AgentReview->PullRequest) {
 				AgentHost->clear();
 				clear_side_chat();
+				Window->clear_dif_context();
 				return;
 			}
+			Window->observe_dif_context(state.ApplicationSession, authority);
 			AgentHost->observe(
 				state.ApplicationSession,
 				authority,
@@ -10586,6 +10621,8 @@ namespace bpr::app {
 				.GitHost        = AgentReview->Hostname,
 				.Workspace      = LastAgentWorkspacePath,
 			});
+			Window->present_dif_continuation(
+				aChat.Session, aChat.Continuations);
 		}
 
 		/// \brief Shows the chat when its host was cut out of the composition.

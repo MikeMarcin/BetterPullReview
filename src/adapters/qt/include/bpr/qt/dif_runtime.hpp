@@ -1,5 +1,8 @@
 #pragma once
 
+#include "bpr/application/agent_invocation_host.hpp"
+#include "bpr/core/revisioned_review_draft.hpp"
+
 #include <QByteArray>
 #include <QElapsedTimer>
 #include <QImage>
@@ -28,6 +31,90 @@ namespace bpr::qt {
 	enum class dif_playback { still,
 							  loop,
 							  once };
+
+	/// \brief The accepted review identity whose projections may propose a cue.
+	struct dif_cue_context final
+	{
+		core::application_session_id ApplicationSession;
+		core::pull_request_authority Authority;
+
+		auto operator<=>(const dif_cue_context&) const = default;
+	};
+
+	/// \brief Bounded Qt-local admission for presentation-only contextual cues.
+	/// \details This stores one current invocation, one terminal identity, one
+	/// draft operation, and one continuation. It owns no domain result, effect,
+	/// timer, queue, provider, or history. Callers first present authoritative
+	/// text/results, then offer the matching typed fact here.
+	class dif_cue_router final
+	{
+	public:
+		void observe(dif_cue_context aContext);
+		void clear();
+		void set_visible(bool aVisible);
+
+		[[nodiscard]] auto reveal_findings(std::int64_t aNow)
+			-> std::optional<dif_clip_id>;
+		[[nodiscard]] auto start(
+			const application::agent_invocation_projection_identity& aIdentity,
+			std::int64_t aNow) -> std::optional<dif_clip_id>;
+		void deliver(
+			const application::agent_invocation_projection_identity& aIdentity,
+			const application::agent_finding_delivery&               aDelivery,
+			bool aReplyPresented,
+			bool aFindingsPresented);
+		[[nodiscard]] auto finish(
+			const application::agent_invocation_projection_identity& aIdentity,
+			application::agent_run_outcome aOutcome,
+			std::int64_t aNow) -> std::optional<dif_clip_id>;
+
+		[[nodiscard]] auto present_workshop(
+			core::review_draft_id aDraft,
+			std::uint64_t aRevision,
+			std::int64_t aNow) -> std::optional<dif_clip_id>;
+		void begin_draft(const core::revisioned_review_draft_command& aCommand);
+		[[nodiscard]] auto accept_draft(
+			const core::revisioned_review_draft_command& aCommand,
+			const core::revisioned_review_draft& aAccepted,
+			std::int64_t aNow) -> std::optional<dif_clip_id>;
+		void cancel_draft(const core::revisioned_review_draft_command& aCommand);
+		[[nodiscard]] auto present_continuation(
+			const core::agent_session& aSession,
+			const core::agent_continuation_offer& aOffer,
+			std::int64_t aNow) -> std::optional<dif_clip_id>;
+
+		[[nodiscard]] auto active_invocation() const noexcept
+			-> const std::optional<application::agent_invocation_projection_identity>&;
+
+	private:
+		struct workshop_key final
+		{
+			core::review_draft_id Draft;
+			std::uint64_t Revision = 0U;
+			auto operator<=>(const workshop_key&) const = default;
+		};
+		[[nodiscard]] auto propose(dif_clip_id aClip, std::int64_t aNow)
+			-> std::optional<dif_clip_id>;
+		[[nodiscard]] auto current(
+			const application::agent_invocation_projection_identity& aIdentity) const
+			-> bool;
+		[[nodiscard]] auto in_context(const core::agent_session& aSession) const
+			-> bool;
+
+		std::optional<dif_cue_context> Context;
+		std::optional<application::agent_invocation_projection_identity> Active;
+		std::optional<application::agent_invocation_projection_identity> Terminal;
+		std::optional<core::agent_session> LastContinuation;
+		std::optional<workshop_key> Workshop;
+		std::optional<core::revisioned_review_draft_command> DraftOperation;
+		std::uint64_t HighestInvocationGeneration = 0U;
+		std::optional<std::int64_t> LastSemanticStart;
+		std::optional<std::int64_t> LastComparisonStart;
+		int LastPriority = 0;
+		bool Visible = false;
+		bool ReplyPresented = false;
+		bool FindingsPresented = false;
+	};
 
 	/// \brief Validated strip geometry and timing, independent of production asset names.
 	struct dif_clip final

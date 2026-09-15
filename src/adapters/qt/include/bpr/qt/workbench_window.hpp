@@ -52,6 +52,7 @@ class QAction;
 class QCheckBox;
 class QComboBox;
 class QEvent;
+class QElapsedTimer;
 class QLabel;
 class QLineEdit;
 class QListView;
@@ -67,7 +68,9 @@ class QToolButton;
 class QVBoxLayout;
 
 namespace bpr::qt {
+	enum class dif_clip_id : std::size_t;
 	class dif_catalog_provider;
+	class dif_cue_router;
 	class dif_widget;
 	class review_landing_delegate;
 	class diff_workbench;
@@ -451,6 +454,35 @@ namespace bpr::qt {
 		[[nodiscard]] auto dif() const noexcept -> dif_widget*;
 		/// \brief Applies the profile's accepted visibility and motion resolution.
 		void adopt_dif(core::dif_resolution aResolution);
+		/// \brief Primes the exact accepted review whose AI projections may cue Dif.
+		void observe_dif_context(
+			core::application_session_id aSession,
+			core::pull_request_authority aAuthority);
+		void clear_dif_context();
+		/// \brief Offers already-presented accepted AI facts to the Qt-local router.
+		void start_dif_invocation(
+			const application::agent_invocation_projection_identity& aIdentity);
+		void present_dif_agent_delivery(
+			const application::agent_invocation_projection_identity& aIdentity,
+			const application::agent_finding_delivery& aDelivery,
+			bool aReplyPresented,
+			bool aFindingsPresented);
+		void finish_dif_invocation(
+			const application::agent_invocation_projection_identity& aIdentity,
+			application::agent_run_outcome aOutcome);
+		void present_dif_workshop(
+			core::review_draft_id aDraft,
+			std::uint64_t aRevision);
+		void begin_dif_draft(
+			const core::revisioned_review_draft_command& aCommand);
+		void accept_dif_draft(
+			const core::revisioned_review_draft_command& aCommand,
+			const core::revisioned_review_draft& aAccepted);
+		void cancel_dif_draft(
+			const core::revisioned_review_draft_command& aCommand);
+		void present_dif_continuation(
+			const core::agent_session& aSession,
+			const core::agent_continuation_offer& aOffer);
 		/// \brief The strip's Home button: Home on demand, checked while shown.
 		[[nodiscard]] auto home_action() const noexcept -> QAction*;
 		/// \brief Shows Home, or returns to the review when Home was asked for.
@@ -778,6 +810,7 @@ namespace bpr::qt {
 		void apply_review_details_visibility();
 		void update_home_landing();
 		void update_dif_presentation();
+		void play_dif_cue(std::optional<dif_clip_id> aCue);
 		/// \brief [[BPR-0733]]. Rebuilds Home's recently viewed rows and shows
 		/// or hides the section by whether there are any.
 		void apply_recent_reviews();
@@ -897,6 +930,8 @@ namespace bpr::qt {
 		core::workbench_reason_code              LastRefusal         = core::workbench_reason_code::none;
 		workbench_landing*                       HomeLanding         = nullptr;
 		std::shared_ptr<dif_catalog_provider>    DifCatalog;
+		std::unique_ptr<dif_cue_router>          DifCues;
+		std::unique_ptr<QElapsedTimer>           DifCueClock;
 		dif_widget*                              Dif = nullptr;
 		core::dif_resolution                     DifResolution;
 		bool                                     DifResolutionReady   = false;
