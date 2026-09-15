@@ -82,8 +82,9 @@ neither platform is represented as executed or passing.
   final real-display appearance, placement, and actual-speed judgment is
   pending BPR-0768.
 - B12 now has aligned mutable docs, package inventory, selected-graph evidence,
-  and this reconciliation. It remains partial until the attended decision,
-  independent review, card closure, and formal-status disposition are recorded.
+  this reconciliation, and a consumed independent review. It remains partial
+  until the attended decision, BPR-0768/BPR-0769 closure, and formal-status
+  disposition are recorded.
 
 ## Attended decision and formal closeout
 
@@ -123,7 +124,10 @@ limits explicit. The reviewer also observed that the test ceiling was too loose,
 the Full inactive sibling lacked an assertion, and mutable appearance prose
 still described the historical prop concern as future runtime work. Revision
 `0df6f24c` tightens the ceiling and asserts the sibling; the current appearance
-guide states that the accepted runtime is already prop-free.
+guide states that the accepted runtime is already prop-free. The same reviewer
+reinspected those corrections and reported no remaining blocking or
+non-blocking finding. It retained actual allocation overhead/conversion/backend
+measurements, the attended results, and formal closeout as explicit limits.
 
 RFC-BPR-0030 and RFC-BPR-0031 remain `Proposed` while BPR-0768 is pending and
 BPR-0769 is dependency-ineligible. No RFC or index status is advanced from a
