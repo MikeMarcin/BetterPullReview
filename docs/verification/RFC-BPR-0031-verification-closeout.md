@@ -49,11 +49,13 @@ test. These failures do not contradict the deterministic counter course or the
 successful tests-disabled native static render; they leave active native motion
 and appearance judgment to the attended pass.
 
-The current macOS motion value is Reduced and the native source read it. The
+The current macOS motion value was Reduced and the native source read it. The
 injected delivery, duplicate suppression, unsubscribe fencing, and shutdown
-course passes. No command changed the real Accessibility setting, so actual
-System Settings Full-to-Reduced and Reduced-to-Full delivery remains pending.
-Windows and Linux were not available in this milestone. Their selected
+course passes. The attended System-motion candidate then changed the real
+Accessibility setting to the opposite value and back while the Cocoa owner
+window was focused; the human accepted both directions, the lack of queued or
+repeated greeting work, and restoration of the original setting. Windows and
+Linux were not available in this milestone. Their selected
 implementation truthfully reports `unsupported`, which resolves to Reduced;
 neither platform is represented as executed or passing.
 
@@ -61,30 +63,31 @@ neither platform is represented as executed or passing.
 
 - A1-A7 remain passed by the immutable d10 source/art/derivative evidence.
 - A8 has complete mutable source, application, documentation, packaging, and
-  history handoff. Formal RFC status still waits on BPR-0768/BPR-0769 and the
+  history handoff. Formal RFC status still waits on BPR-0769, B10, and the
   repository's canonical closeout rules.
 - B1-B3 and B5-B8 remain passed by unchanged accepted resource, runtime, Home,
   and context evidence.
-- B4 has native macOS current-state and injected lifecycle evidence; the actual
-  OS preference-change gesture is pending attendance. Other targets are
-  explicitly unexecuted/unsupported.
+- B4 passes on the claimed macOS target: current-state and injected lifecycle
+  evidence are joined by a human-accepted real System-setting change in both
+  directions with the original setting restored. Other targets are explicitly
+  unexecuted/unsupported.
 - B9 has deterministic hidden/inactive/reduced/modal/minimized/suspended/
-  destruction checks plus a successful native reduced render. Active Cocoa
-  behavior remains pending owner focus.
+  destruction checks plus a successful native reduced render. The attended
+  focused Cocoa course accepts Full greeting/calm/blink, static Reduced, and a
+  return to calm Full without queued playback or repeated greeting.
 - B10 has actual process memory, exact decoded pixels, conservative retained/
   conversion accounting, bounded timer/paint intervals, inactive-sibling
   suppression, one decode, and unchanged diff-work counters. It remains
   partial because the fixed 16-KiB overhead allowance is not a measured
   allocation and the process-wide offscreen Mach samples do not isolate
   conversion or native-window backend costs.
-- B11 retains accepted 1.0/1.25/2.0 fixture renders and accessibility/focus
-  evidence, plus the new tests-disabled native System/Dark/Reduced render. The
-  final real-display appearance, placement, and actual-speed judgment is
-  pending BPR-0768.
+- B11 passes: accepted 1.0/1.25/2.0 fixture renders and accessibility/focus
+  evidence now join exact human accepts for real-display native appearance,
+  placement/controls, actual-speed Full/Reduced motion, and System motion.
 - B12 now has aligned mutable docs, package inventory, selected-graph evidence,
-  this reconciliation, and a consumed independent review. It remains partial
-  until the attended decision, BPR-0768/BPR-0769 closure, and formal-status
-  disposition are recorded.
+  this reconciliation, a consumed independent review, and the exact attended
+  decisions. It remains partial until B10, BPR-0769, and formal-status
+  disposition are resolved.
 
 ## Attended decision and formal closeout
 
@@ -100,8 +103,7 @@ corrected [sanitized manifest](dif-verification-closeout-v001/attended-manifest.
 has one question per candidate for native appearance, placement/controls,
 Full/Reduced motion, and actual macOS System-motion observation. Each binds the
 same exact executable and a distinct isolated fixture state. Fresh external
-session `ef04771118304d90b3b73259e0604e58` is ready and protected at sequence
-12 with these exact fingerprints:
+session `ef04771118304d90b3b73259e0604e58` retained these exact fingerprints:
 
 | Candidate | Fingerprint |
 |---|---|
@@ -110,7 +112,13 @@ session `ef04771118304d90b3b73259e0604e58` is ready and protected at sequence
 | `BPR-0768-native-motion-d14-v002` | `94235df2567d102f6951802e619123f67a8fc90f0d23805a93a22cd86ae62c2d` |
 | `BPR-0768-system-motion-observer-d14-v002` | `b8cc61ad6e02d9126d15df688f57217ecf67b9384dc5f4c79b6953d90c98969b` |
 
-No prior decision was copied forward.
+No prior decision was copied forward. The human accepted native appearance,
+Full/Reduced motion, placement/controls, and the real System-motion transition
+at sequences 13 through 16 with empty notes. Sequence 17 handed the session
+back with `pending: []`. The [sanitized verdict](dif-verification-closeout-v001/human-verdict.json)
+binds the decision IDs, criteria, fingerprints, executable digest, and stopped
+external state without retaining the loopback token. These decisions satisfy
+BPR-0768 and B4/B9/B11; they do not measure B10's allocation costs.
 
 ## Independent review
 
@@ -129,11 +137,11 @@ reinspected those corrections and reported no remaining blocking or
 non-blocking finding. It retained actual allocation overhead/conversion/backend
 measurements, the attended results, and formal closeout as explicit limits.
 
-RFC-BPR-0030 and RFC-BPR-0031 remain `Proposed` while BPR-0768 is pending and
-BPR-0769 is dependency-ineligible. No RFC or index status is advanced from a
-partial human/native result. The final coordinator must consume the exact
-candidate fingerprint and decision, rerun only invalidated focused evidence,
-then adjudicate BPR-0769 and the canonical formal-status rule.
+RFC-BPR-0030 and RFC-BPR-0031 remain `Proposed`. BPR-0768's human/native
+requirement is complete, but B10 still lacks separately measured actual
+Qt/container overhead, transient conversion peak, and native backend cost.
+BPR-0769 and formal status therefore remain open until that technical criterion
+is satisfied; the attended decisions do not waive it.
 
 ## Execution record
 
@@ -145,3 +153,9 @@ configuration and self-reported banners are retained as routing evidence only;
 effective serving telemetry and runtime child-allowlist enforcement were not
 exposed. No GitHub/GHES mutation, credential access, art generation, push, or
 publication occurred.
+
+Renewed dispatch `d15` consumed the exact four human decisions, stopped the
+attended host, and retained the external session as durable historical evidence.
+No source or selected artifact changed, so the prior focused automated checks
+and independent review remain valid. B10 is the only unresolved technical
+acceptance row before BPR-0769 can adjudicate formal closeout.

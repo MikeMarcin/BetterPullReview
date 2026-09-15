@@ -1,0 +1,67 @@
+{
+  "schema": "bpr.attended-review-verdict.v1",
+  "run": "dif-takeover-20260914",
+  "dispatch": "d15",
+  "producer": "rfc-integrator-d14",
+  "mandate_revision": 7,
+  "session_id": "ef04771118304d90b3b73259e0604e58",
+  "sequence": 17,
+  "handed_back": "2026-09-15T07:32:20.553072+00:00",
+  "candidate_commit": "62354ed613ac52756a5e908212adc052a60e33bb",
+  "candidate_manifest_sha256": "663f537dfda5597d7a7fbed48f132f3fed7bf88a5c0cbcfdc0bcca07f88874a1",
+  "candidate_revision": "source-62354ed6-dev-ae238b6379bd2276e7ca1ab2672ba16827447980011ebb57db9fa533011ffed9",
+  "review_executable_sha256": "ae238b6379bd2276e7ca1ab2672ba16827447980011ebb57db9fa533011ffed9",
+  "decisions": [
+    {
+      "actor": "human",
+      "candidate": "BPR-0768-native-appearance-d14-v002",
+      "criterion": "On a real macOS display under Cocoa/QMacStyle, the exact bound executable renders the unchanged accepted Dif with readable, clean alpha edges in System, Light, Dark, high-contrast Light and high-contrast Dark appearance at ordinary, compact and expanded window sizes.",
+      "decision_id": "e6d068b1-6ef2-4216-a86d-c3f8fa322315",
+      "fingerprint": "8f8d7b7b923e068d772149f60e54215f6d870b0052f1ecbe6e2330c7811b715e",
+      "note": "",
+      "outcome": "accept",
+      "saved_at": "2026-09-15T07:31:23.539127+00:00",
+      "sequence": 13
+    },
+    {
+      "actor": "human",
+      "candidate": "BPR-0768-native-motion-d14-v002",
+      "criterion": "On a focused real macOS window under Cocoa/QMacStyle, app Motion Full shows a restrained greeting followed by calm breathing and blink at actual speed, while app Motion Reduced remains on a static rest frame without queued playback or a repeated greeting when returning to Full.",
+      "decision_id": "e58dbc1f-fee8-49de-9882-f0058180755d",
+      "fingerprint": "94235df2567d102f6951802e619123f67a8fc90f0d23805a93a22cd86ae62c2d",
+      "note": "",
+      "outcome": "accept",
+      "saved_at": "2026-09-15T07:31:47.671967+00:00",
+      "sequence": 14
+    },
+    {
+      "actor": "human",
+      "candidate": "BPR-0768-native-placement-d14-v002",
+      "criterion": "On a real macOS display under Cocoa/QMacStyle, Home, retained review and the explicit AI tools and Findings surface each show at most one nonintrusive Dif widget, with no overlap of code, shared comments, status or controls and no loss of usable focus, navigation or drawer actions.",
+      "decision_id": "f5600b82-805a-4f15-ae0c-12dff8d10e49",
+      "fingerprint": "45b03f0ff28503f647f40a4eb5d718b9f26f8811b154a7ec137a69e423f876ae",
+      "note": "",
+      "outcome": "accept",
+      "saved_at": "2026-09-15T07:32:05.931892+00:00",
+      "sequence": 15
+    },
+    {
+      "actor": "human",
+      "candidate": "BPR-0768-system-motion-observer-d14-v002",
+      "criterion": "With app Motion set to System and the owner window focused, changing macOS Accessibility > Display > Reduce Motion from its original value and back changes Dif between Full playback and static Reduced rest without a queued cue or repeated greeting, and the original operating-system value is restored before finishing.",
+      "decision_id": "822d32fc-483e-4085-a5c0-139167fa2a6e",
+      "fingerprint": "b8cc61ad6e02d9126d15df688f57217ecf67b9384dc5f4c79b6953d90c98969b",
+      "note": "",
+      "outcome": "accept",
+      "saved_at": "2026-09-15T07:32:18.386995+00:00",
+      "sequence": 16
+    }
+  ],
+  "pending": [],
+  "engineering_disposition": "accepted_for_native_integration_closeout_subject_to_remaining_technical_criteria",
+  "external_session_state": {
+    "path": "/Users/jaeger/.mask/bpr-dif-d14-20260914-v002/attended-review/session.json",
+    "sha256_after_host_stop": "994037a01c5cd28189140dccd0db45a15ffd91c839d7165c11a2e93f493e095f",
+    "host_stopped": true
+  }
+}
