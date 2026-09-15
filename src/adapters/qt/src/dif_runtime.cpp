@@ -125,6 +125,7 @@ namespace bpr::qt {
 		LastSemanticStart.reset();
 		LastComparisonStart.reset();
 		LastPriority      = 0;
+		Started           = false;
 		ReplyPresented    = false;
 		FindingsPresented = false;
 	}
@@ -167,9 +168,13 @@ namespace bpr::qt {
 			return std::nullopt;
 		}
 		const auto priority = cue_priority(aClip);
-		if (LastSemanticStart.has_value() && aNow - *LastSemanticStart < 2'000
-			&& priority <= LastPriority) {
-			return std::nullopt;
+		if (LastSemanticStart.has_value() && aNow - *LastSemanticStart < 2'000) {
+			const auto interrupts = (aClip == dif_clip_id::blocked
+									 || aClip == dif_clip_id::attention)
+				&& priority > LastPriority;
+			if (!interrupts) {
+				return std::nullopt;
+			}
 		}
 		LastSemanticStart = aNow;
 		LastPriority      = priority;
@@ -187,9 +192,9 @@ namespace bpr::qt {
 			: std::nullopt;
 	}
 
-	auto dif_cue_router::start(
-		const application::agent_invocation_projection_identity& aIdentity,
-		const std::int64_t                                       aNow) -> std::optional<dif_clip_id>
+	auto dif_cue_router::admit(
+		const application::agent_invocation_projection_identity& aIdentity)
+		-> bool
 	{
 		if (!Context.has_value()
 			|| aIdentity.ApplicationSession != Context->ApplicationSession
@@ -197,12 +202,24 @@ namespace bpr::qt {
 			|| !in_context(aIdentity.Session)
 			|| aIdentity.Session.Binding != Context->Binding
 			|| aIdentity.InvocationGeneration <= HighestInvocationGeneration) {
-			return std::nullopt;
+			return false;
 		}
 		HighestInvocationGeneration = aIdentity.InvocationGeneration;
 		Active                      = aIdentity;
+		Started                     = false;
 		ReplyPresented              = false;
 		FindingsPresented           = false;
+		return true;
+	}
+
+	auto dif_cue_router::start(
+		const application::agent_invocation_projection_identity& aIdentity,
+		const std::int64_t                                       aNow) -> std::optional<dif_clip_id>
+	{
+		if (!current(aIdentity) || Started) {
+			return std::nullopt;
+		}
+		Started = true;
 		return propose(dif_clip_id::consider, aNow);
 	}
 
@@ -230,6 +247,7 @@ namespace bpr::qt {
 			return std::nullopt;
 		}
 		Active.reset();
+		Started   = false;
 		auto clip = std::optional<dif_clip_id>{ };
 		if (aOutcome != application::agent_run_outcome::success) {
 			clip = dif_clip_id::blocked;
@@ -246,11 +264,13 @@ namespace bpr::qt {
 	auto dif_cue_router::present_workshop(
 		const core::review_draft_id aDraft,
 		const std::uint64_t         aRevision,
+		const std::string_view      aProposed,
 		const std::int64_t          aNow) -> std::optional<dif_clip_id>
 	{
-		const auto key = workshop_key{ aDraft, aRevision };
+		const auto key = workshop_key{ aDraft, aRevision, std::string{ aProposed } };
 		if (!Context.has_value() || aDraft.value() == 0U || aRevision == 0U
-			|| Workshop == std::optional{ key }) {
+			|| (Workshop.has_value() && Workshop->Draft == aDraft
+				&& aRevision <= Workshop->Revision)) {
 			return std::nullopt;
 		}
 		Workshop = key;
@@ -265,7 +285,8 @@ namespace bpr::qt {
 		if (Workshop.has_value() && aCommand.Command.Kind == core::review_draft_command_kind::edit
 			&& !aCommand.ChangeReplyTarget
 			&& aCommand.Command.Id == Workshop->Draft
-			&& aCommand.ExpectedRevision == Workshop->Revision) {
+			&& aCommand.ExpectedRevision == Workshop->Revision
+			&& aCommand.Command.Body == Workshop->Proposed) {
 			DraftOperation = aCommand;
 		}
 	}
@@ -284,7 +305,6 @@ namespace bpr::qt {
 			return std::nullopt;
 		}
 		DraftOperation.reset();
-		Workshop.reset();
 		return propose(dif_clip_id::acknowledge, aNow);
 	}
 

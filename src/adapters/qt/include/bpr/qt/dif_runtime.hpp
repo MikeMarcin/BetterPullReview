@@ -15,6 +15,8 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <string>
+#include <string_view>
 
 namespace bpr::qt {
 	enum class dif_clip_id : std::size_t { rest,
@@ -53,6 +55,9 @@ namespace bpr::qt {
 		auto observe(dif_cue_context aContext) -> bool;
 		void clear();
 		void set_visible(bool aVisible);
+		auto admit(
+			const application::agent_invocation_projection_identity& aIdentity)
+			-> bool;
 
 		[[nodiscard]] auto reveal_findings(std::int64_t aNow)
 			-> std::optional<dif_clip_id>;
@@ -72,6 +77,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto present_workshop(
 			core::review_draft_id aDraft,
 			std::uint64_t         aRevision,
+			std::string_view      aProposed,
 			std::int64_t          aNow) -> std::optional<dif_clip_id>;
 		void               begin_draft(const core::revisioned_review_draft_command& aCommand);
 		[[nodiscard]] auto accept_draft(
@@ -91,7 +97,8 @@ namespace bpr::qt {
 		struct workshop_key final
 		{
 			core::review_draft_id Draft;
-			std::uint64_t         Revision                               = 0U;
+			std::uint64_t         Revision = 0U;
+			std::string           Proposed;
 			auto                  operator<=>(const workshop_key&) const = default;
 		};
 		[[nodiscard]] auto propose(dif_clip_id aClip, std::int64_t aNow)
@@ -112,6 +119,7 @@ namespace bpr::qt {
 		std::optional<std::int64_t>                                      LastComparisonStart;
 		int                                                              LastPriority      = 0;
 		bool                                                             Visible           = false;
+		bool                                                             Started           = false;
 		bool                                                             ReplyPresented    = false;
 		bool                                                             FindingsPresented = false;
 	};

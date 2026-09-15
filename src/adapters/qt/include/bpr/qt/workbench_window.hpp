@@ -46,6 +46,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 class QAction;
@@ -465,6 +466,8 @@ namespace bpr::qt {
 			core::agent_revision_binding aBinding);
 		void clear_dif_context();
 		/// \brief Offers already-presented accepted AI facts to the Qt-local router.
+		void admit_dif_invocation(
+			const application::agent_invocation_projection_identity& aIdentity);
 		void start_dif_invocation(
 			const application::agent_invocation_projection_identity& aIdentity);
 		void present_dif_agent_delivery(
@@ -477,7 +480,8 @@ namespace bpr::qt {
 			application::agent_run_outcome                           aOutcome);
 		void present_dif_workshop(
 			core::review_draft_id aDraft,
-			std::uint64_t         aRevision);
+			std::uint64_t         aRevision,
+			std::string_view      aProposed);
 		void begin_dif_draft(
 			const core::revisioned_review_draft_command& aCommand);
 		void accept_dif_draft(

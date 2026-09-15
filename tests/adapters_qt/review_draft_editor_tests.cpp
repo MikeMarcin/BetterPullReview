@@ -436,6 +436,40 @@ namespace {
 		};
 	}
 
+	void test_workshop_acceptance_is_explicit_during_its_dispatch()
+	{
+		auto  legacy             = intent_log{ };
+		auto* editor             = editor_for(legacy);
+		auto  explicitAcceptance = false;
+		auto  ordinaryEdit       = false;
+		editor->set_revisioned_dispatch(
+			[&](const core::revisioned_review_draft_command& aCommand) {
+				if (editor->workshop_accepting(aCommand)) {
+					explicitAcceptance = true;
+				} else {
+					ordinaryEdit = true;
+				}
+			});
+		editor->present(core::revisioned_review_draft{
+			.Draft    = a_draft(original_body),
+			.Revision = 4U,
+			.Scope    = core::review_draft_scope_id{ 8U },
+		});
+		editor->present(a_proposal());
+		editor->accept_revision_action()->trigger();
+		expect(explicitAcceptance && !ordinaryEdit,
+			   "the accept-revision dispatch is explicitly identifiable only while it runs");
+
+		explicitAcceptance = false;
+		editor->present(a_proposal());
+		editor->reject_revision_action()->trigger();
+		editor->body_editor()->setPlainText(QString::fromUtf8(proposed_body));
+		expect(!explicitAcceptance && ordinaryEdit,
+			   "typing the rejected proposal body remains an ordinary edit");
+
+		delete editor;
+	}
+
 	// The workshop's whole point: the reviewer compares two texts, and both
 	// are still there to compare. A single buffer that showed the proposal in
 	// the original's place would have destroyed the thing being compared
@@ -1153,6 +1187,7 @@ auto main(int argc, char** argv) -> int
 	test_every_action_and_widget_is_distinctly_named();
 	test_typed_clear_removes_stale_selection_bound_state();
 	test_the_workshop_shows_both_texts_at_once_on_two_surfaces();
+	test_workshop_acceptance_is_explicit_during_its_dispatch();
 	test_accepting_a_revision_emits_exactly_one_command_and_stores_nothing();
 	test_rejecting_a_revision_leaves_the_original_byte_identical();
 	test_a_revision_is_accepted_only_onto_the_draft_it_names();

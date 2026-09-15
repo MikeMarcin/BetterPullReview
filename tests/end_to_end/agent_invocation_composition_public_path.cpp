@@ -4,6 +4,7 @@
 #include "bpr/adapters/sqlite/storage_root.hpp"
 
 #include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/dif_runtime.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
@@ -640,7 +641,8 @@ auto main(int argc, char** argv) -> int
 		return EXIT_FAILURE;
 	}
 	application->show();
-	auto& window = application->window();
+	auto&           window              = application->window();
+	qt::dif_widget* workspaceFailureDif = nullptr;
 	if (course == "startup-recover" || course == "startup-repair") {
 		if (course == "startup-repair") {
 			auto repair = wait_terms{ };
@@ -921,6 +923,22 @@ auto main(int argc, char** argv) -> int
 		if (!diagnosticGit.has_value()) {
 			return fail(*application, "workspace-diagnostic-git");
 		}
+		window.adopt_dif(core::resolve_dif(
+			{ .Visibility = core::dif_visibility::shown,
+			  .Motion     = core::motion_mode::full },
+			core::motion_observation::full));
+		if (window.conversations_drawer()->state()
+			!= core::workbench_drawer_state::expanded) {
+			window.conversations_drawer_toggle_action()->trigger();
+		}
+		if (!window.ai_tools_action()->isChecked()) {
+			window.ai_tools_action()->trigger();
+		}
+		QApplication::processEvents();
+		workspaceFailureDif = window.dif();
+		if (workspaceFailureDif == nullptr || !window.dif_ai_slot()->isVisible()) {
+			return fail(*application, "workspace-diagnostic-dif");
+		}
 		auto marker = std::ofstream{
 			diagnosticGit->parent_path() / workspace_failure_marker,
 			std::ios::binary | std::ios::trunc,
@@ -1097,7 +1115,9 @@ auto main(int argc, char** argv) -> int
 			&& evidence.Statistics.WorkspaceStarts == 1U
 			&& evidence.Statistics.ProcessStarts == 0U
 			&& evidence.Statistics.WorkspaceCleanups == 0U
-			&& evidence.Quiescent;
+			&& evidence.Quiescent && workspaceFailureDif != nullptr
+			&& workspaceFailureDif->current_frame().Clip
+				== qt::dif_index(qt::dif_clip_id::blocked);
 		if (!shutdown(*application) || !exact) {
 			return EXIT_FAILURE;
 		}

@@ -3643,6 +3643,12 @@ namespace bpr::qt {
 		}
 	}
 
+	void workbench_window::admit_dif_invocation(
+		const application::agent_invocation_projection_identity& aIdentity)
+	{
+		static_cast<void>(DifCues->admit(aIdentity));
+	}
+
 	void workbench_window::start_dif_invocation(
 		const application::agent_invocation_projection_identity& aIdentity)
 	{
@@ -3668,9 +3674,11 @@ namespace bpr::qt {
 
 	void workbench_window::present_dif_workshop(
 		const core::review_draft_id aDraft,
-		const std::uint64_t         aRevision)
+		const std::uint64_t         aRevision,
+		const std::string_view      aProposed)
 	{
-		play_dif_cue(DifCues->present_workshop(aDraft, aRevision, DifCueClock->elapsed()));
+		play_dif_cue(DifCues->present_workshop(
+			aDraft, aRevision, aProposed, DifCueClock->elapsed()));
 	}
 
 	void workbench_window::begin_dif_draft(

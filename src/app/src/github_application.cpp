@@ -3268,6 +3268,8 @@ namespace bpr::app {
 			const application::agent_invocation_projection_identity&,
 			const application::agent_finding_delivery&)>;
 		using session_sink   = std::function<void(const core::agent_session&)>;
+		using admit_sink     = std::function<void(
+			const application::agent_invocation_projection_identity&)>;
 		using workspace_sink = std::function<void(const application::prepared_workspace&)>;
 		using start_sink     = std::function<void(
 			const application::agent_invocation_projection_identity&)>;
@@ -3284,12 +3286,14 @@ namespace bpr::app {
 			application::agent_invocation_projection_port& aPanel,
 			finding_sink                                   aFindings,
 			session_sink                                   aSessions,
+			admit_sink                                     aAdmissions,
 			run_sink                                       aRuns,
 			workspace_sink                                 aWorkspaces,
 			start_sink                                     aStarts)
 			: Panel{ aPanel }
 			, Findings{ std::move(aFindings) }
 			, Sessions{ std::move(aSessions) }
+			, Admissions{ std::move(aAdmissions) }
 			, Runs{ std::move(aRuns) }
 			, Workspaces{ std::move(aWorkspaces) }
 			, Starts{ std::move(aStarts) }
@@ -3317,6 +3321,9 @@ namespace bpr::app {
 			// produces is keyed to the session the chat is holding.
 			if (Sessions) {
 				Sessions(aIdentity.Session);
+			}
+			if (Admissions) {
+				Admissions(aIdentity);
 			}
 		}
 
@@ -3374,6 +3381,7 @@ namespace bpr::app {
 		application::agent_invocation_projection_port& Panel;
 		finding_sink                                   Findings;
 		session_sink                                   Sessions;
+		admit_sink                                     Admissions;
 		run_sink                                       Runs;
 		workspace_sink                                 Workspaces;
 		start_sink                                     Starts;
@@ -6123,6 +6131,13 @@ namespace bpr::app {
 							PendingWorkshopOperation->Session = aSession.Id;
 						}
 					},
+					[this](
+						const application::agent_invocation_projection_identity&
+							aIdentity) {
+						if (!Closing && Window != nullptr) {
+							Window->admit_dif_invocation(aIdentity);
+						}
+					},
 					// BPR-0538. The third sink, and the one this composition
 					// was missing: the turn a press started has ended. Until
 					// it existed the six controls stayed shut behind "a
@@ -6339,7 +6354,9 @@ namespace bpr::app {
 								.Operation = aProposal.Operation,
 							});
 						Window->present_dif_workshop(
-							aProposal.Draft, ReviewDraftRevision);
+							aProposal.Draft,
+							ReviewDraftRevision,
+							aProposal.Proposed);
 					},
 					[this](
 						const application::agent_comment_workshop_refusal
@@ -8160,7 +8177,9 @@ namespace bpr::app {
 			if (Closing || !ReviewDraft || !ReviewMutationHost || !SharedDrafts) {
 				return;
 			}
-			Window->begin_dif_draft(aRevisionedCommand);
+			if (Window->review_editor()->workshop_accepting(aRevisionedCommand)) {
+				Window->begin_dif_draft(aRevisionedCommand);
+			}
 			const auto outcome = SharedDrafts->apply(DraftConsumer, aRevisionedCommand);
 			if (outcome.Failure || !outcome.Accepted) {
 				Window->cancel_dif_draft(aRevisionedCommand);

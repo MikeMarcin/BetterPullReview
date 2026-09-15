@@ -130,6 +130,16 @@ namespace {
 		return result;
 	}
 
+	[[nodiscard]] auto admit_and_start(
+		dif_cue_router&
+																	  aRouter,
+		const bpr::application::agent_invocation_projection_identity& aIdentity,
+		const std::int64_t                                            aNow) -> std::optional<dif_clip_id>
+	{
+		static_cast<void>(aRouter.admit(aIdentity));
+		return aRouter.start(aIdentity, aNow);
+	}
+
 	void test_contextual_cue_router_uses_accepted_identity_and_bounded_latches()
 	{
 		auto router = dif_cue_router{ };
@@ -145,19 +155,18 @@ namespace {
 			   "an explicit findings reveal emits one glance per five seconds");
 
 		const auto first = cue_identity(1U);
-		expect(router.start(first, 7'000) == dif_clip_id::consider
-				   && !router.start(first, 7'001),
+		expect(admit_and_start(router, first, 7'000) == dif_clip_id::consider
+				   && !admit_and_start(router, first, 7'001),
 			   "only a fresh admitted invocation start emits consider");
 		router.deliver(first, cue_delivery(first), true, false);
-		expect(router.finish(first, bpr::application::agent_run_outcome::success, 7'100)
-				   == dif_clip_id::comment_ready,
-			   "an accepted presented reply outranks the running cue");
+		expect(!router.finish(first, bpr::application::agent_run_outcome::success, 7'100),
+			   "a ready cue inside two seconds is dropped after its reply is presented");
 		expect(!router.finish(first, bpr::application::agent_run_outcome::success, 9'100)
-				   && !router.start(first, 9'101),
+				   && !admit_and_start(router, first, 9'101),
 			   "terminal replay and a replayed start stay spent");
 
 		const auto findings = cue_identity(2U);
-		expect(router.start(findings, 10'000) == dif_clip_id::consider,
+		expect(admit_and_start(router, findings, 10'000) == dif_clip_id::consider,
 			   "a newer invocation replaces the terminal latch");
 		router.deliver(findings, cue_delivery(findings), true, true);
 		expect(router.finish(findings, bpr::application::agent_run_outcome::success, 10'100)
@@ -165,18 +174,18 @@ namespace {
 			   "a presented triage batch coalesces over ready");
 
 		const auto failed = cue_identity(3U);
-		expect(router.start(failed, 12'100) == dif_clip_id::consider
+		expect(admit_and_start(router, failed, 12'100) == dif_clip_id::consider
 				   && router.finish(failed, bpr::application::agent_run_outcome::nonzero_exit, 12'200)
 					   == dif_clip_id::blocked,
 			   "a matching presented failure preempts a lower-priority cue");
 		const auto empty = cue_identity(4U);
-		expect(router.start(empty, 14'200) == dif_clip_id::consider
+		expect(admit_and_start(router, empty, 14'200) == dif_clip_id::consider
 				   && !router.finish(empty, bpr::application::agent_run_outcome::success, 14'300),
 			   "process success without accepted presented content emits no success cue");
 
 		const auto hidden = cue_identity(5U);
 		router.set_visible(false);
-		expect(!router.start(hidden, 16'300), "hidden invocation starts no animation");
+		expect(!admit_and_start(router, hidden, 16'300), "hidden invocation starts no animation");
 		router.deliver(hidden, cue_delivery(hidden), true, true);
 		expect(!router.finish(hidden, bpr::application::agent_run_outcome::success, 16'400),
 			   "hidden terminal content is consumed without animation");
@@ -186,9 +195,9 @@ namespace {
 
 		const auto superseded = cue_identity(6U);
 		const auto current    = cue_identity(7U);
-		expect(router.start(superseded, 18'500) == dif_clip_id::consider,
+		expect(admit_and_start(router, superseded, 18'500) == dif_clip_id::consider,
 			   "a fresh visible invocation starts");
-		expect(!router.start(current, 18'600),
+		expect(!admit_and_start(router, current, 18'600),
 			   "the replacement is admitted even when its same-priority cue is cooled down");
 		expect(!router.finish(superseded, bpr::application::agent_run_outcome::nonzero_exit, 18'700)
 				   && router.finish(current, bpr::application::agent_run_outcome::nonzero_exit, 18'700)
@@ -200,12 +209,12 @@ namespace {
 			.Authority          = cue_authority(8U),
 			.Binding            = cue_identity(0U, 8U).Session.Binding,
 		});
-		expect(!router.start(cue_identity(8U), 20'700),
+		expect(!admit_and_start(router, cue_identity(8U), 20'700),
 			   "a prior pull request cannot enter the replacement context");
 
-		expect(router.present_workshop(bpr::core::review_draft_id{ 21U }, 4U, 0)
+		expect(router.present_workshop(bpr::core::review_draft_id{ 21U }, 4U, "accepted revision", 0)
 					   == dif_clip_id::comment_ready
-				   && !router.present_workshop(bpr::core::review_draft_id{ 21U }, 4U, 2'000),
+				   && !router.present_workshop(bpr::core::review_draft_id{ 21U }, 4U, "accepted revision", 2'000),
 			   "one accepted workshop proposal emits ready and duplicate presentation does not");
 		const auto command = bpr::core::revisioned_review_draft_command{
 			.Command = {
@@ -265,15 +274,23 @@ namespace {
 			wrongWindow.ApplicationSession = bpr::core::application_session_id{ 99U };
 			auto wrongReview               = cue_identity(1U, 4U);
 			auto wrongRevision             = cue_identity(1U, 3U, 2U);
-			expect(!router.start(wrongWindow, 0) && !router.start(wrongReview, 0)
-					   && !router.start(wrongRevision, 0)
+			expect(!admit_and_start(router, wrongWindow, 0) && !admit_and_start(router, wrongReview, 0)
+					   && !admit_and_start(router, wrongRevision, 0)
 					   && !router.active_invocation().has_value(),
 				   "window, pull-request, and revision mismatches admit no cue or latch");
 		}
 
 		{
 			auto router = configured();
-			expect(router.start(first, 0) == dif_clip_id::consider,
+			expect(router.admit(first)
+					   && router.finish(first, bpr::application::agent_run_outcome::workspace_unavailable, 0)
+						   == dif_clip_id::blocked,
+				   "an admitted workspace failure blocks without a consider start");
+		}
+
+		{
+			auto router = configured();
+			expect(admit_and_start(router, first, 0) == dif_clip_id::consider,
 				   "the exact current invocation remains admitted beside rejected identities");
 			auto foreign    = cue_delivery(first);
 			foreign.Session = bpr::core::agent_session_id{ 99U };
@@ -284,7 +301,7 @@ namespace {
 
 		{
 			auto router = configured();
-			expect(router.start(first, 0) == dif_clip_id::consider,
+			expect(admit_and_start(router, first, 0) == dif_clip_id::consider,
 				   "the duplicate-delivery course starts from one exact invocation");
 			const auto delivery = cue_delivery(first);
 			router.deliver(first, delivery, true, true);
@@ -297,25 +314,24 @@ namespace {
 
 		{
 			auto router = configured();
-			expect(router.start(first, 0) == dif_clip_id::consider,
+			expect(admit_and_start(router, first, 0) == dif_clip_id::consider,
 				   "the supersession course starts its first invocation");
 			auto replacement            = cue_identity(2U);
 			replacement.Session.Profile = bpr::core::agent_profile_id{ 6U };
-			expect(!router.start(replacement, 1)
+			expect(!admit_and_start(router, replacement, 1)
 					   && router.active_invocation() == std::optional{ replacement },
 				   "a new profile invocation supersedes immediately even while its cue is cooled down");
 			router.deliver(first, cue_delivery(first), true, true);
 			expect(!router.finish(first, bpr::application::agent_run_outcome::cancelled, 2),
 				   "the superseded profile's interruption cannot block the replacement");
 			router.deliver(replacement, cue_delivery(replacement), true, false);
-			expect(router.finish(replacement, bpr::application::agent_run_outcome::success, 2)
-					   == dif_clip_id::comment_ready,
-				   "the replacement's accepted reply still presents its authoritative terminal");
+			expect(!router.finish(replacement, bpr::application::agent_run_outcome::success, 2),
+				   "the replacement reply stays authoritative while its cooled-down ready cue is dropped");
 		}
 
 		{
 			auto router = configured();
-			expect(router.start(first, 0) == dif_clip_id::consider,
+			expect(admit_and_start(router, first, 0) == dif_clip_id::consider,
 				   "the context-switch course starts its old invocation");
 			auto nextWindow               = cue_identity(1U);
 			nextWindow.ApplicationSession = bpr::core::application_session_id{ 5U };
@@ -325,7 +341,7 @@ namespace {
 				.Binding            = nextWindow.Session.Binding,
 			});
 			expect(!router.finish(first, bpr::application::agent_run_outcome::cancelled, 1)
-					   && router.start(nextWindow, 1) == dif_clip_id::consider,
+					   && admit_and_start(router, nextWindow, 1) == dif_clip_id::consider,
 				   "a window switch clears the old terminal and starts with a fresh bounded history");
 
 			auto nextReview = cue_identity(1U, 4U);
@@ -335,7 +351,7 @@ namespace {
 				.Binding            = nextReview.Session.Binding,
 			});
 			expect(!router.finish(nextWindow, bpr::application::agent_run_outcome::success, 2)
-					   && router.start(nextReview, 2) == dif_clip_id::consider,
+					   && admit_and_start(router, nextReview, 2) == dif_clip_id::consider,
 				   "a pull-request switch admits neither the old result nor its cue");
 
 			auto nextRevision = cue_identity(1U, 4U, 2U);
@@ -345,7 +361,7 @@ namespace {
 				.Binding            = nextRevision.Session.Binding,
 			});
 			expect(!router.finish(nextReview, bpr::application::agent_run_outcome::success, 3)
-					   && router.start(nextRevision, 3) == dif_clip_id::consider,
+					   && admit_and_start(router, nextRevision, 3) == dif_clip_id::consider,
 				   "a same-review revision switch rejects the old binding without borrowing its cooldown");
 		}
 
@@ -353,7 +369,7 @@ namespace {
 			auto router = configured();
 			expect(router.reveal_findings(0) == dif_clip_id::compare_glance,
 				   "comparison cooldown begins only after an accepted visible reveal");
-			expect(!router.start(first, 1)
+			expect(!admit_and_start(router, first, 1)
 					   && router.active_invocation() == std::optional{ first },
 				   "cooldown suppresses only playback and never delays invocation state");
 			router.deliver(first, cue_delivery(first), true, true);
@@ -361,7 +377,7 @@ namespace {
 					   == dif_clip_id::attention,
 				   "terminal coalescing preempts the lower-priority running cue synchronously");
 			const auto interrupted = cue_identity(2U);
-			expect(!router.start(interrupted, 3)
+			expect(!admit_and_start(router, interrupted, 3)
 					   && router.finish(interrupted, bpr::application::agent_run_outcome::cancelled, 4)
 						   == dif_clip_id::blocked
 					   && !router.reveal_findings(5),
@@ -392,7 +408,7 @@ namespace {
 
 		{
 			auto router = configured();
-			expect(router.present_workshop(bpr::core::review_draft_id{ 7U }, 3U, 0)
+			expect(router.present_workshop(bpr::core::review_draft_id{ 7U }, 3U, "proposed revision", 0)
 					   == dif_clip_id::comment_ready,
 				   "the draft-conflict course starts from a presented proposal");
 			const auto command = bpr::core::revisioned_review_draft_command{
@@ -418,6 +434,40 @@ namespace {
 					   },
 					   2'000),
 				   "a local conflict cancels its acknowledgement without consuming the visible proposal");
+		}
+
+		{
+			auto       router = configured();
+			const auto draft  = bpr::core::review_draft_id{ 9U };
+			expect(router.present_workshop(draft, 4U, "first", 0)
+						   == dif_clip_id::comment_ready
+					   && router.present_workshop(draft, 5U, "second", 2'000)
+						   == dif_clip_id::comment_ready
+					   && !router.present_workshop(draft, 4U, "first", 4'000)
+					   && !router.present_workshop(draft, 5U, "changed replay", 6'000),
+				   "an older or conflicting same-revision workshop projection cannot replace the latest one");
+			const auto ordinary = bpr::core::revisioned_review_draft_command{
+				.Command = {
+					.Id   = draft,
+					.Kind = bpr::core::review_draft_command_kind::edit,
+					.Body = "ordinary body edit",
+				},
+				.ExpectedRevision = 5U,
+				.Scope            = bpr::core::review_draft_scope_id{ 10U },
+			};
+			router.begin_draft(ordinary);
+			expect(!router.accept_draft(
+					   ordinary,
+					   {
+						   .Draft = {
+							   .Id   = ordinary.Command.Id,
+							   .Body = ordinary.Command.Body,
+						   },
+						   .Revision = 6U,
+						   .Scope    = ordinary.Scope,
+					   },
+					   6'100),
+				   "an ordinary edit cannot acknowledge a retained or rejected workshop proposal");
 		}
 	}
 	void test_catalog_and_playback()

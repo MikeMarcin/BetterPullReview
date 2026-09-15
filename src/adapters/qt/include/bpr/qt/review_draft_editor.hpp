@@ -147,10 +147,11 @@ namespace bpr::qt {
 		std::optional<core::revisioned_review_draft>               Accepted;
 		std::optional<core::revisioned_review_draft>               Replacement;
 		std::optional<core::revisioned_review_draft_command>       Candidate;
-		bool                                                       Conflict = false;
-		bool                                                       Selected = false;
-		QAction*                                                   Reload   = nullptr;
-		QAction*                                                   Reapply  = nullptr;
+		bool                                                       Conflict                      = false;
+		bool                                                       Selected                      = false;
+		bool                                                       DispatchingWorkshopAcceptance = false;
+		QAction*                                                   Reload                        = nullptr;
+		QAction*                                                   Reapply                       = nullptr;
 	};
 	struct review_draft_editor_members
 	{
@@ -246,6 +247,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto reload_draft_action() const noexcept -> QAction*;
 		[[nodiscard]] auto reapply_draft_action() const noexcept -> QAction*;
 		[[nodiscard]] auto rejected_candidate() const noexcept -> const std::optional<core::revisioned_review_draft_command>&;
+		/// \brief True only during the synchronous dispatch from Accept revision.
+		[[nodiscard]] auto workshop_accepting(
+			const core::revisioned_review_draft_command& aCommand) const -> bool;
 
 		/// \brief Adopts one accepted receipt projection.
 		void present(const core::file_receipt& aReceipt);

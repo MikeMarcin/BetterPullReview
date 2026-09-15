@@ -454,7 +454,9 @@ namespace bpr::qt {
 			auto command    = core::revisioned_review_draft_command{ { state.Accepted->Draft.Id, core::review_draft_command_kind::edit, Members.ShownProposal->Proposed }, state.Accepted->Revision, false, { }, state.Accepted->Scope };
 			state.Candidate = command;
 			++Members.Statistics.DraftIntents;
+			state.DispatchingWorkshopAcceptance = true;
 			state.Dispatch(command);
+			state.DispatchingWorkshopAcceptance = false;
 			return;
 		}
 
@@ -554,6 +556,21 @@ namespace bpr::qt {
 	auto review_draft_editor::reload_draft_action() const noexcept -> QAction* { return Members.Revisioned.Reload; }
 	auto review_draft_editor::reapply_draft_action() const noexcept -> QAction* { return Members.Revisioned.Reapply; }
 	auto review_draft_editor::rejected_candidate() const noexcept -> const std::optional<core::revisioned_review_draft_command>& { return Members.Revisioned.Candidate; }
+
+	auto review_draft_editor::workshop_accepting(
+		const core::revisioned_review_draft_command& aCommand) const -> bool
+	{
+		if (!Members.Revisioned.DispatchingWorkshopAcceptance
+			|| !Members.Revisioned.Candidate.has_value()) {
+			return false;
+		}
+		const auto& candidate = *Members.Revisioned.Candidate;
+		return candidate.Command == aCommand.Command
+			&& candidate.ExpectedRevision == aCommand.ExpectedRevision
+			&& candidate.ChangeReplyTarget == aCommand.ChangeReplyTarget
+			&& candidate.ReplyToThread == aCommand.ReplyToThread
+			&& candidate.Scope == aCommand.Scope;
+	}
 	void review_draft_editor::present(const core::revisioned_review_draft& aDraft)
 	{
 		auto& state = Members.Revisioned;
