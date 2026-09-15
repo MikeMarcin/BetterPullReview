@@ -39,21 +39,26 @@ and reduced motion has no timer.
 
 ## Identity, lifecycle, and composed public path
 
-Revision `8353a4fe47a22151a1c1306581bd35c59c195b8c` binds admission to the
+Revisions `8353a4fe47a22151a1c1306581bd35c59c195b8c` and
+`8512a3d81599a5a5d715d0522e8cbb0d4833ca75` bind admission to the
 exact application session, host, repository, pull request, agent session,
 revision binding, and invocation generation. A changed window, profile,
 review, or same-review revision clears prior invocation and cooldown state and
-cancels a playing contextual one-shot to rest. Duplicate delivery/terminal,
-late or superseded operation, mismatched delivery, rejected draft, and local
-draft conflict cannot replay or acknowledge the wrong operation. Hidden
-terminal results are consumed without later replay. An old-revision
+cancels a playing contextual one-shot to rest. Admission happens before
+workspace materialization, so a matching pre-start failure can cue `blocked`
+without inventing a process start. Duplicate delivery/terminal, late or
+superseded operation, mismatched delivery, rejected draft, ordinary edit,
+older or conflicting same-revision workshop replay, and local draft conflict
+cannot replay or acknowledge the wrong operation. Hidden terminal results are
+consumed without later replay. An old-revision
 continuation is allowed only when the visible `ContinueAgainst` value exactly
 labels that stale session binding.
 
 Cooldown affects presentation only. The router continues to accept newer
-authoritative state, retains no animation queue, and permits a higher-priority
-interruption to replace a lower-priority cue. Context clear and widget shutdown
-cancel the single-shot timer synchronously.
+authoritative state and retains no animation queue. During the two-second
+semantic cooldown, only a higher-priority `blocked` or `attention` cue may
+interrupt playback. Context clear and widget shutdown cancel the single-shot
+timer synchronously.
 
 The `application_agent_finding_dif_context_contract` course runs the real app
 composition with the network-isolated fixture review. It expands the existing
@@ -72,24 +77,32 @@ specified product route: `rest`, `greet`, `calm_idle`, and `blink` on Home;
 
 ## Focused verification
 
-After the final source revision, this network-isolated CTest selection passed:
+After the reviewed correction, this network-isolated CTest selection passed:
 
 ```text
 qt_dif_runtime
+qt_review_draft_editor
 qt_workbench_window_scale_100
 qt_workbench_window_scale_125
 qt_workbench_window_scale_200
 application_agent_finding_dif_context_contract
+application_agent_invocation_workspace_diagnostic_contract
 ```
 
-All five tests passed in 73.32 seconds. The runtime course covers wrong session,
+All seven tests passed in 84.51 seconds. The runtime course covers wrong session,
 pull request, revision and delivery; duplicate delivery and terminal;
 superseding invocation; profile/window/review/revision switches; hidden result;
-coalescing, cooldown and priority; exactly labeled old-revision continuation;
-draft conflict; context reset; and timer cancellation. The workbench courses
+pre-start failure; coalescing, cooldown and permitted interruption; exactly
+labeled old-revision continuation; workshop replay, ordinary/rejected edits,
+draft conflict; context reset; and timer cancellation. The editor course proves
+only the explicit Accept revision dispatch can begin Dif acknowledgement. The
+workspace diagnostic course proves the real pre-process materialization failure
+produces `blocked` with one workspace start, zero process starts, the exact
+visible error, and quiescence. The workbench courses
 exercise one movable widget, drawer/selector behavior, static reduced motion,
 narrow-layout yield, Home precedence, focus and accessibility at 1.0, 1.25,
-and 2.0 scale factors. `coding-format-check` and `git diff --check` passed.
+and 2.0 scale factors. `coding-format-check` and `git diff --check` passed after
+the correction.
 
 The pre-existing `application_agent_finding_composition_contract` and
 `application_agent_invocation_composition_contract` failures reproduce before
@@ -105,7 +118,7 @@ those unrelated baselines as milestone success.
 |---|---|---|
 | BPR-0763 / B7 and B8 | Accepted | Source `3a009291`; bounded typed routing, terminal coalescing, no process-only success, and focused identity/dedup checks. Card acceptance `290ac785`. |
 | BPR-0764 / B6, B7 and B11 | Accepted | Source `ad0bb67d`; explicit single AI slot and all six contextual routes, with three-scale workbench coverage. Card acceptance `857f17b0`. |
-| BPR-0765 / B7, B8 and B9 | Accepted | Source `8353a4fe`; adversarial router/lifecycle coverage and the composed application course. Card acceptance `28c307c8`. |
+| BPR-0765 / B7, B8 and B9 | Accepted | Sources `8353a4fe`, `8512a3d8`; corrected admission, workshop fencing, semantic interruption policy, adversarial router/editor/lifecycle coverage, and composed application courses. Card acceptance is rebound by the final milestone record. |
 | `context-integration:exit:1` | Passed | Every contextual clip has an actual application fanout and one explicit UI slot. Dif consumes accepted presentation facts and remains non-authoritative. |
 | `context-integration:exit:2` | Passed | Exact identity/dedup, terminal coalescing, hidden-result suppression, preemption and interruption cases pass without a queue. |
 
