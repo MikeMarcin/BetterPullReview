@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0766"
 title: "Run focused target-native resource and lifecycle verification"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0031"]
 depends_on: ["BPR-0762", "BPR-0765"]
 metadata: {"pack":"bpr-dif-integration-v1","milestone":"verification-closeout","acceptance":["B1","B4","B9","B10","B12"],"milestone_plan":{"id":"bpr-dif-integration-v1","path":"docs/rfcs/plans/bpr-dif-integration-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"Real app and tests-disabled target select identical accepted resources; core-only excludes them","outcome":"pass","revision":"62354ed6","evidence":{"kind":"command","detail":"Selected-graph verifier passed for exact ten-strip dev and app-release binaries and clean core-only; tests-disabled Cocoa app emitted PUBLIC_PATH_OK and RENDER_OK with Dif shown."}},{"criterion":"Support/failure/unsupported motion observations and package/resource behavior are documented per claimed target","outcome":"pass","revision":"fe12d5a9","evidence":{"kind":"observation","detail":"macOS 26.6.2 native current Reduced read and injected observer lifecycle pass; owner-focus refusals and pending actual OS change are explicit; Windows/Linux are unexecuted and unsupported rather than passing."}},{"criterion":"Missing targets are not represented as passing; no default full Cartesian retest or live PR mutation","outcome":"pass","revision":"fe12d5a9","evidence":{"kind":"artifact","detail":"RFC-BPR-0031-verification-closeout.md records focused commands, negative controls, exact platform limits, and no GitHub/GHES mutation."}}]
 ---
 
 # BPR-0766: Run focused target-native resource and lifecycle verification
