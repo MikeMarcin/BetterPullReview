@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0757"
 title: "Compile and accept the complete production revision"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0030"]
 depends_on: ["BPR-0754", "BPR-0755", "BPR-0756"]
 metadata: {"pack":"bpr-dif-integration-v1","milestone":"production-art","acceptance":["A1","A3","A4","A5","A6","A7","A8"],"milestone_plan":{"id":"bpr-dif-integration-v1","path":"docs/rfcs/plans/bpr-dif-integration-v1/milestone-plan.json"}}
