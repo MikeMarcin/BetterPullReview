@@ -40,8 +40,9 @@ and reduced motion has no timer.
 ## Identity, lifecycle, and composed public path
 
 Revisions `8353a4fe47a22151a1c1306581bd35c59c195b8c`,
-`8512a3d81599a5a5d715d0522e8cbb0d4833ca75`, and
-`5fe8045e3a62472db6afdd7a1c8d6fccf585fb98` bind admission to the
+`8512a3d81599a5a5d715d0522e8cbb0d4833ca75`,
+`5fe8045e3a62472db6afdd7a1c8d6fccf585fb98`, and
+`5a1a632cf9e6d3edaa54904bde7e5063e4a8ab0a` bind admission to the
 exact application session, host, repository, pull request, agent session,
 revision binding, and invocation generation. A changed window, profile,
 review, or same-review revision clears prior invocation and cooldown state and
@@ -54,7 +55,10 @@ operation, and local draft conflict cannot replay or acknowledge the wrong
 operation. Every explicit finding action receives a monotonic host generation;
 the router pairs it with the latest admitted agent session, so a fresh workshop
 operation at the same draft revision remains eligible while an older operation
-stays spent. Hidden terminal results are consumed without later replay. An
+stays spent. Admitting a new agent session cancels both a prior workshop and a
+draft operation already begun from it, so neither an acceptance begun after the
+switch nor one completed after the switch can acknowledge the old session.
+Hidden terminal results are consumed without later replay. An
 old-revision continuation is allowed only when the visible `ContinueAgainst`
 value exactly labels that stale session binding.
 
@@ -93,13 +97,14 @@ application_agent_finding_dif_context_contract
 application_agent_invocation_workspace_diagnostic_contract
 ```
 
-All seven tests passed in 84.40 seconds. The runtime course covers wrong session,
+All seven tests passed in 83.79 seconds. The runtime course covers wrong session,
 pull request, revision and delivery; duplicate delivery and terminal;
 superseding invocation; profile/window/review/revision switches; hidden result;
 pre-start failure; coalescing, cooldown and permitted interruption; exactly
 labeled old-revision continuation; same-revision fresh workshop operations,
-cross-draft and conflicting replay, ordinary/rejected edits, draft conflict;
-context reset; and timer cancellation. The editor course proves
+cross-draft and conflicting replay, session replacement before begin and between
+begin/accept, ordinary/rejected edits, draft conflict; context reset; and timer
+cancellation. The editor course proves
 only the explicit Accept revision dispatch can begin Dif acknowledgement. The
 workspace diagnostic course proves the real pre-process materialization failure
 produces `blocked` with one workspace start, zero process starts, the exact
@@ -123,7 +128,7 @@ those unrelated baselines as milestone success.
 |---|---|---|
 | BPR-0763 / B7 and B8 | Accepted | Source `3a009291`; bounded typed routing, terminal coalescing, no process-only success, and focused identity/dedup checks. Card acceptance `290ac785`. |
 | BPR-0764 / B6, B7 and B11 | Accepted | Source `ad0bb67d`; explicit single AI slot and all six contextual routes, with three-scale workbench coverage. Card acceptance `857f17b0`. |
-| BPR-0765 / B7, B8 and B9 | Accepted | Sources `8353a4fe`, `8512a3d8`, `5fe8045e`; corrected admission, explicit workshop-action identity, semantic interruption policy, adversarial router/editor/lifecycle coverage, and composed application courses. Card acceptance is rebound by the final milestone record. |
+| BPR-0765 / B7, B8 and B9 | Accepted | Sources `8353a4fe`, `8512a3d8`, `5fe8045e`, `5a1a632c`; corrected admission, explicit workshop-action identity, session-switch cancellation, semantic interruption policy, adversarial router/editor/lifecycle coverage, and composed application courses. Card acceptance is rebound by the final milestone record. |
 | `context-integration:exit:1` | Passed | Every contextual clip has an actual application fanout and one explicit UI slot. Dif consumes accepted presentation facts and remains non-authoritative. |
 | `context-integration:exit:2` | Passed | Exact identity/dedup, terminal coalescing, hidden-result suppression, preemption and interruption cases pass without a queue. |
 
