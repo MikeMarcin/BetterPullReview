@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "candidates": [
+    {
+      "id": "BPR-0768-native-rendered-integration-d14-v001",
+      "title": "Final Dif rendered integration",
+      "revision": "source-62354ed6-dev-ae238b6379bd2276e7ca1ab2672ba16827447980011ebb57db9fa533011ffed9",
+      "criteria": [
+        "On a real macOS display under Cocoa/QMacStyle, the exact bound executable presents the unchanged accepted Dif with readable native edges in System, Light, Dark and high-contrast appearance; Home and the explicit AI-tools slot each contain one nonintrusive widget; Full motion at actual speed is calm; Reduced is static; controls and focus remain usable; and changing macOS Reduce Motion while app Motion is System changes playback without queued cues or a repeated greeting."
+      ],
+      "content": "First verify the executable digest shown in the revision. Copy the launch command to Terminal. In the fixture app, inspect Home at ordinary, compact and expanded sizes. Open google/UIforETW#74, select UIforETW/UIforETWDlg.cpp through Files, and inspect the explicit AI tools and Findings slot without letting Dif cover code, comments or controls. In Appearance, inspect System, Light, Dark and both high-contrast choices. Select Full and watch greeting, calm breathing and blink at actual speed; select Reduced and confirm a static rest interval. Then select System, note the original macOS Accessibility > Display > Reduce Motion value, change it off and on while the owner window is focused, confirm playback follows the setting without queued or repeated greeting, and restore the original value. Close the fixture app normally. Accept only if the entire criterion was observed; otherwise reject and name the failing appearance, size, surface or transition.",
+      "paths": [
+        "src/adapters/qt/assets/dif",
+        "src/adapters/qt/src/dif_runtime.cpp",
+        "src/adapters/qt/src/workbench_window.cpp",
+        "src/app/src/github_application.cpp",
+        "src/app/src/profile_desktop.cpp"
+      ],
+      "resources": [
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review",
+        "fixture:/Users/jaeger/.mask/bpr-dif-d14-20260914/app-state"
+      ],
+      "resource_versions": {
+        "install:/Users/jaeger/Documents/GitHub/BetterPullReview/build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review": "sha256:ae238b6379bd2276e7ca1ab2672ba16827447980011ebb57db9fa533011ffed9"
+      },
+      "launch": {
+        "label": "Launch the isolated native fixture app",
+        "command": "cd /Users/jaeger/Documents/GitHub/BetterPullReview && shasum -a 256 /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review && env -u QT_QPA_PLATFORM -u QT_STYLE_OVERRIDE /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review --github-fixture uiforetw-74 --epoch-fixture-root /Users/jaeger/.mask/bpr-dif-d14-20260914/app-state --epoch-fixture-phase single --attended-launch"
+      },
+      "metadata": {
+        "card": "BPR-0768",
+        "source_revision": "62354ed6",
+        "release_native_render_sha256": "a7572475715f58b5711beafc87dec24d0bc782c31dbd9a3c58a4b62e080c6f58",
+        "offscreen_report_sha256": "bf90277975d1a9a817a1052ab0c8cfe84af668ed9c1a1a917f2f450994b7c40e"
+      }
+    }
+  ]
+}

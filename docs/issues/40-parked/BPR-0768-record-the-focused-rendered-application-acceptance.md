@@ -2,10 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0768"
 title: "Record the focused rendered application acceptance"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0031"]
 depends_on: ["BPR-0762", "BPR-0765"]
 metadata: {"pack":"bpr-dif-integration-v1","milestone":"verification-closeout","acceptance":["B5","B6","B7","B11","B12"],"milestone_plan":{"id":"bpr-dif-integration-v1","path":"docs/rfcs/plans/bpr-dif-integration-v1/milestone-plan.json"}}
+parked_on: "human-review"
+acceptance: [{"criterion":"Every explicit new UI/visual criterion has its own exact answer and revision binding","outcome":"pending","revision":"source-62354ed6-dev-ae238b6379bd2276e7ca1ab2672ba16827447980011ebb57db9fa533011ffed9","evidence":{"kind":"artifact","detail":"Fresh session fc60f0ba8c2bbff96a6db35cb939c3d2 has one ready protected integrated criterion, fingerprint 4a3b7b7f9e33de88b1b3f42a999bf60bbe41ec034ac200b6df61d2503d221eda."}},{"criterion":"Contact-sheet/raw-viewer output is not substituted for actual application motion","outcome":"pass","revision":"62354ed6","evidence":{"kind":"observation","detail":"Automated captures and the tests-disabled native render are explicitly supporting evidence; the protected candidate requires the bound Cocoa/QMacStyle fixture app at actual speed."}},{"criterion":"Partial replies are preserved and independent automation can proceed; no fabricated verdict","outcome":"pass","revision":"fe12d5a9","evidence":{"kind":"artifact","detail":"Fresh external state is ready at sequence 3 with no decision; BPR-0768 is parked for human-review and automated BPR-0766/0767 evidence remains independent."}}]
 ---
 
 # BPR-0768: Record the focused rendered application acceptance
