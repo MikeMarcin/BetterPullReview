@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0765"
 title: "Exercise stale, duplicate, hidden and interruption cue cases"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0031"]
 depends_on: ["BPR-0764"]
 metadata: {"pack":"bpr-dif-integration-v1","milestone":"context-integration","acceptance":["B7","B8","B9"],"milestone_plan":{"id":"bpr-dif-integration-v1","path":"docs/rfcs/plans/bpr-dif-integration-v1/milestone-plan.json"}}
