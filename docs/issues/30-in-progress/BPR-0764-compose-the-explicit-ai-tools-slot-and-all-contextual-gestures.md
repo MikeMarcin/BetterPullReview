@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0764"
 title: "Compose the explicit AI tools slot and all contextual gestures"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0031"]
 depends_on: ["BPR-0761", "BPR-0763"]
 metadata: {"pack":"bpr-dif-integration-v1","milestone":"context-integration","acceptance":["B6","B7","B11"],"milestone_plan":{"id":"bpr-dif-integration-v1","path":"docs/rfcs/plans/bpr-dif-integration-v1/milestone-plan.json"}}
