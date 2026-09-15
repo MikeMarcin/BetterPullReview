@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0773"
 title: "Put the device sign-in inside the account row as one gesture"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0032"]
 depends_on: ["BPR-0772"]
 metadata: {"pack":"bpr-shell-surfaces-v1","milestone":"accounts-page","acceptance":["A2"],"milestone_plan":{"id":"bpr-shell-surfaces-v1","path":"docs/rfcs/plans/bpr-shell-surfaces-v1/milestone-plan.json"}}
