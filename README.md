@@ -178,6 +178,14 @@ failure returns to those defaults. Done BPR-0237 adds semantic-role preview,
 cancel, persistence, restart restoration, and bounded safe theme import against
 the selected comparison. BPR-0233 owns its recorded selected-diff pixels.
 
+The current Home and explicit `AI tools and Findings` surface compose the
+accepted ten-clip Dif catalog from RFC-BPR-0030/0031. Profile-owned visibility
+and motion preferences apply through the existing Appearance controls; reduced
+motion selects static `rest`, and a refused catalog leaves the Home and review
+controls functional without art. Dif is decorative and consumes only accepted
+presentation facts. Final RFC status still depends on the focused native,
+rendered, and package-boundary closeout recorded by those RFCs.
+
 ## Architecture
 
 > The core decides. The host performs. Qt presents.

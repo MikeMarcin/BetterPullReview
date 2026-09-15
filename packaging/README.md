@@ -26,17 +26,19 @@ ownership are documented in [`icons/README.md`](icons/README.md).
 
 ## Dif asset notice boundary
 
-RFC-BPR-0019 records Dif as owned original artwork. Its exact provenance says
-`notice_required: false` and retains the repository provenance record unless a
-later production input introduces an obligation. The asset RFC does not install
-the source pack, bind the generated strips into an application resource, create
-an SBOM entry, or change a package manifest.
+RFC-BPR-0030's accepted ten-clip production provenance records
+`notice_required: false` and no additional attribution or third-party notice for
+the exact derivative set. The tests-enabled and tests-disabled application
+targets embed only the ten committed generated strips. Editable source frames,
+the manifest, provenance and digest records, generator, raw inputs, review
+media, and other maintenance tools are not runtime resources.
 
-RFC-BPR-0020 must re-evaluate the recorded notice disposition when it selects a
-reviewed asset revision for the application. RFC-BPR-0014 remains the authority
-for final SBOM generation, installation paths, dependency collection, signing,
-notarization, and release evidence. A passing asset or runtime review is not a
-package-readiness claim.
+The selected-graph boundary check confirms that inventory and keeps every Dif
+resource and Qt dependency out of `core-only`. It does not produce or certify an
+installable package. RFC-BPR-0014 remains the authority for final SBOM
+generation, installation paths, dependency collection, signing, notarization,
+and release evidence. Any later production input or rights change must update
+the provenance and notice disposition before packaging.
 
 ## RFC-BPR-0002 dependency record
 

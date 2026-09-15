@@ -131,10 +131,12 @@ ctest --preset core-only -R '^dif_assets_contract$' --output-on-failure
 The contract is network-isolated and uses only the configured C++ compiler and
 Python standard library. Ordinary configure and build steps do not run the
 generator or require ImageGen, ImageMagick, Pillow, a model, or network access.
-The tests-disabled application does not yet select Dif resources.
+Both the tests-enabled application and the tests-disabled `app-release`
+application select the same ten accepted generated strips. `core-only` selects
+neither those resources nor Qt, the platform motion observer, or the generator.
 
-Before closing an asset revision, configure and build clean `dev`, `core-only`,
-and `app-release` graphs, run the complete dev/core matrices, and invoke:
+Before closing an asset or consuming application revision, build the affected
+`dev`, `core-only`, and `app-release` targets and invoke:
 
 ```sh
 python3 scripts/verify_dif_asset_boundaries.py \
@@ -146,8 +148,11 @@ python3 scripts/verify_dif_asset_boundaries.py \
 
 Any source, manifest, generator, generated-product, preview-renderer, or review
 identity change invalidates the affected attended digest. Rebuild the offline
-review page and obtain a new verdict. RFC-BPR-0020 resource or runtime work must
-not be folded into an asset-only revision.
+review page and obtain a new verdict. Unchanged accepted pixels may reuse their
+bound verdict. RFC-BPR-0030 owns the ten-clip source and generated products;
+RFC-BPR-0031 owns their fixed Qt resource selection and runtime composition.
+Run focused acceptance and public-path checks for the changed boundary rather
+than a full build/test matrix by default.
 
 ## Attended native notification course
 

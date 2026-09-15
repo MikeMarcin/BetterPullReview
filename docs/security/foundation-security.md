@@ -62,11 +62,12 @@ only its declared Python standard-library surface and contains no HTTP, model,
 or subprocess capability.
 
 Clean selected-graph and binary scans keep the generator, art dependencies,
-manifest, catalog, and raster resources out of core-only and out of the current
-tests-disabled application. RFC-BPR-0020 must repeat the resource and runtime
-audit when it intentionally changes that application boundary. The attended
-identity review, rather than a byte scan, owns visual originality, GitHub-mark
-absence, and foreign-character exclusion.
+editable source, manifest, provenance, digest records, and review media out of
+the runtime resource collection. They require the same ten accepted generated
+strips in tests-enabled and tests-disabled applications and keep all Dif bytes,
+Qt, and platform motion code out of `core-only`. The attended identity review,
+rather than a byte scan, owns visual originality, GitHub-mark absence, and
+foreign-character exclusion.
 
 ## RFC-BPR-0016 device authorization boundary
 

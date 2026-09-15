@@ -659,27 +659,26 @@ syntax adapter; its resolved package set remains SQLite alone.
 
 ## Dif asset ownership boundary
 
-RFC-BPR-0019 places Dif's editable source frames, manifest, provenance, and
-committed generated products under `src/adapters/qt/assets/dif/`. The offline
-`scripts/dif_assets.py` tool validates and regenerates that tree. It is a
-maintainer tool, not a product dependency: ordinary developer, core-only, and
-tests-disabled application graphs do not select or execute it.
+RFC-BPR-0030's accepted production revision places Dif's editable source
+frames, manifest, provenance, and committed generated products under
+`src/adapters/qt/assets/dif/`. The offline `scripts/dif_assets.py` tool validates
+and regenerates that tree. It is a maintainer tool, not a product dependency:
+ordinary developer and tests-disabled builds consume committed outputs and do
+not execute it; `core-only` selects neither the outputs nor Qt.
 
-The generated catalog is a fixed C++ descriptor with Qt resource names, but
-RFC-BPR-0019 does not bind those resources to a target. Core and application
-state contain no mascot, image, clip, frame, timing, visibility, or motion
-preference. The application binary likewise contains no Dif asset until the
-downstream composition RFC selects it. This keeps creative source ownership
-inside the Qt adapter tree without turning asset policy into core policy or
-runtime JSON parsing.
+The Qt adapter binds the fixed generated descriptor and ten accepted strips as
+resources for the tests-enabled and tests-disabled applications. It owns the
+lazy shared decoded cache, elapsed-time sequencer, widget, painting, window
+eligibility, native motion observation, and presentation-only cue latches. The
+application host owns persisted preference effects and offers typed accepted
+presentation facts to Qt after authoritative content has landed. The core owns
+only deterministic appearance preferences and bounded observation resolution;
+it contains no mascot asset, clip, frame, timer, widget, decode, or cue state.
 
-RFC-BPR-0020 may consume only an Auto-Verified asset revision. It owns the Qt
-resource binding, one decoded cache, sequencer, widget, lifecycle, motion
-preference integration, and real landing composition. The accepted asset note
-also requires the plus/minus prop to remain separable from Dif's core base
-representation. If satisfying that note changes any current raster, the asset
-revision returns through RFC-BPR-0019's deterministic and attended gates before
-the application selects it.
+This allocation preserves RFC-BPR-0019/0020 as historical design context while
+RFC-BPR-0030/0031 supply the current ten-clip revision and composition. Dif's
+base remains prop-free. Any raster change returns through deterministic
+regeneration and a digest-bound attended decision before runtime selection.
 
 ## Feature allocation
 
@@ -694,7 +693,7 @@ the application selects it.
 | Queue/observers | rule matching and attention policy | refresh timers, API/cache, notification request execution | queue models, filters, native notification presentation |
 | AI | provider-host policy, context-scope decisions, staleness, finding promotion | process/session/workspace management and protocols | explicit invocation, approvals, chat/findings presentation |
 | Appearance | no color/font/widget authority | settings persistence and cache scheduling | system mode, fonts, colors, syntax presentation, accessibility |
-| Dif mascot | no asset, frame, timer, or mascot state | no asset generation, decode, or animation state | RFC-BPR-0019 owns reviewed asset bytes; RFC-BPR-0020 later owns fixed resources, sequencing, painting, and lifecycle |
+| Dif mascot | appearance preferences and bounded native-observation resolution only; no asset, clip, frame, timer, widget, decode, or cue state | persisted preference effects and typed accepted presentation facts; no art generation, decode, painting, or animation state | RFC-BPR-0030/0031 fixed resources, shared decoded cache, elapsed-time sequencing, painting, window lifecycle, native observation, and bounded presentation-only cues |
 
 The shipped agent route preserves this allocation. Qt exposes provider,
 disclosure, working-copy choice, start/cancel, stream, and terminal state, but
