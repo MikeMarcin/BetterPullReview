@@ -225,6 +225,19 @@ namespace bpr::qt {
 		updateGeometry();
 	}
 
+	auto workbench_landing::take_illustration() -> QWidget*
+	{
+		if (Illustration == nullptr) {
+			return nullptr;
+		}
+		auto* const result = Illustration;
+		Content->removeWidget(result);
+		Illustration = nullptr;
+		result->hide();
+		updateGeometry();
+		return result;
+	}
+
 	auto workbench_landing::illustration() const noexcept -> QWidget*
 	{
 		return Illustration;

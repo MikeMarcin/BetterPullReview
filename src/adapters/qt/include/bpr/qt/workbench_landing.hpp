@@ -64,6 +64,8 @@ namespace bpr::qt {
 		/// pixels and playback, accepts no input, and disappears before the Home
 		/// controls are allowed to become cramped.
 		void               set_illustration(QWidget* aIllustration);
+		/// \brief Releases the illustration for another window-owned eligible slot.
+		[[nodiscard]] auto take_illustration() -> QWidget*;
 		[[nodiscard]] auto illustration() const noexcept -> QWidget*;
 		[[nodiscard]] auto illustration_space_available() const noexcept -> bool;
 		void               set_illustration_enabled(bool aEnabled);

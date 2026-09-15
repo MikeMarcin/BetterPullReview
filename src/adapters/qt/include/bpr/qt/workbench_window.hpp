@@ -452,6 +452,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto home_landing() const noexcept -> workbench_landing*;
 		/// \brief The decorative Home presentation, absent when assets were refused.
 		[[nodiscard]] auto dif() const noexcept -> dif_widget*;
+		/// \brief The explicit action that reveals the existing AI Findings area.
+		[[nodiscard]] auto ai_tools_action() const noexcept -> QAction*;
+		/// \brief The single contextual presentation slot, empty until explicitly selected.
+		[[nodiscard]] auto dif_ai_slot() const noexcept -> QWidget*;
 		/// \brief Applies the profile's accepted visibility and motion resolution.
 		void adopt_dif(core::dif_resolution aResolution);
 		/// \brief Primes the exact accepted review whose AI projections may cue Dif.
@@ -811,6 +815,7 @@ namespace bpr::qt {
 		void update_home_landing();
 		void update_dif_presentation();
 		void play_dif_cue(std::optional<dif_clip_id> aCue);
+		[[nodiscard]] auto showing_dif_ai() const -> bool;
 		/// \brief [[BPR-0733]]. Rebuilds Home's recently viewed rows and shows
 		/// or hides the section by whether there are any.
 		void apply_recent_reviews();
@@ -933,6 +938,11 @@ namespace bpr::qt {
 		std::unique_ptr<dif_cue_router>          DifCues;
 		std::unique_ptr<QElapsedTimer>           DifCueClock;
 		dif_widget*                              Dif = nullptr;
+		QWidget*                                 DifAiSlot = nullptr;
+		QAction*                                 AiToolsAction = nullptr;
+		QToolButton*                            AiToolsButton = nullptr;
+		QScrollArea*                            ConversationScroll = nullptr;
+		bool                                     AiToolsSelected = false;
 		core::dif_resolution                     DifResolution;
 		bool                                     DifResolutionReady   = false;
 		QWidget*                                 HomePage             = nullptr;

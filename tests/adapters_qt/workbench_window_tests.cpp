@@ -6716,6 +6716,99 @@ namespace {
 		expect(!dif->isVisible(), "the accepted hidden preference removes Home art");
 		window.hide();
 	}
+
+	void test_dif_moves_to_the_explicit_ai_area_without_owning_it()
+	{
+		auto provider = std::make_shared<qt::dif_catalog_provider>();
+		auto window   = qt::workbench_window{ { }, { }, { }, { }, { }, nullptr, provider };
+		window.resize(1'600, 820);
+		window.show();
+		window.activateWindow();
+		window.adopt_dif(core::resolve_dif(
+			{ .Visibility = core::dif_visibility::shown, .Motion = core::motion_mode::reduced },
+			core::motion_observation::full));
+		process_events();
+		auto* const dif = window.dif();
+		expect(dif != nullptr && window.home_landing()->illustration() == dif
+				   && dif->size() == QSize{ 96, 96 } && provider->load_attempts() == 1U,
+			   "Home owns the one lazily decoded Dif presentation before a review opens");
+
+		window.publish(application::github_presentation_update{
+			.PullRequest = application::github_pull_request_projection{
+				.Owner                  = "octo",
+				.RepositoryName         = "app",
+				.Number                 = core::pull_request_number{ 7U },
+				.ReviewThreadCount      = 0U,
+				.ReviewThreadsAvailable = true,
+			},
+		});
+		auto collapsed    = both_files_enabled();
+		collapsed.Drawers = drawer_states(core::workbench_drawer_state::expanded,
+										 core::workbench_drawer_state::collapsed);
+		window.publish(collapsed);
+		process_events();
+		expect(!window.showing_home() && !window.dif_ai_slot()->isVisible()
+				   && !dif->isVisible(),
+			   "opening a review does not place Dif in a generic review or comments surface");
+
+		auto* const action = window.ai_tools_action();
+		expect(action != nullptr && action->isCheckable() && !action->isChecked()
+				   && action->text() == QStringLiteral("AI tools and Findings"),
+			   "the existing AI area has an explicit named selector");
+		action->trigger();
+		process_events();
+		expect(action->isChecked()
+				   && window.conversations_drawer()->state()
+					   == core::workbench_drawer_state::collapsed
+				   && !window.dif_ai_slot()->isVisible() && !dif->isVisible(),
+			   "the AI selector does not open its collapsed drawer or reveal decoration elsewhere");
+
+		auto opened    = collapsed;
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded,
+								  core::workbench_drawer_state::expanded);
+		opened.Layout = application::workbench_layout_delta{
+			.FilesWidth         = 320U,
+			.ConversationsWidth = 375U,
+		};
+		window.publish(opened);
+		process_events();
+		expect(window.dif_ai_slot()->isVisible() && dif->isVisible()
+				   && dif->parentWidget() == window.dif_ai_slot()
+				   && dif->size() == QSize{ 64, 64 }
+				   && window.home_landing()->illustration() == nullptr
+				   && window.findChildren<QWidget*>(QStringLiteral("workbenchDif")).size() == 1
+				   && provider->load_attempts() == 1U,
+			   "the selected wide AI area receives the same single compact presentation");
+		expect(dif->current_frame().Clip == qt::dif_index(qt::dif_clip_id::rest)
+				   && !dif->current_frame().NextMs,
+			   "reduced motion keeps the contextual presentation on a static frame");
+
+		drag_conversations_handle(window, 200);
+		process_events();
+		expect(!window.dif_ai_slot()->isVisible() && !dif->isVisible(),
+			   "the contextual slot yields before the narrow AI drawer's controls");
+
+		window.publish(opened);
+		window.choose_home(true);
+		process_events();
+		expect(window.showing_home() && window.home_landing()->illustration() == dif
+				   && dif->isVisible() && dif->size() == QSize{ 96, 96 }
+				   && !window.dif_ai_slot()->isVisible()
+				   && window.findChildren<QWidget*>(QStringLiteral("workbenchDif")).size() == 1,
+			   "Home wins and reclaims the same presentation at its Home size");
+
+		window.choose_modality(qt::review_modality::read);
+		process_events();
+		expect(!window.showing_home() && window.dif_ai_slot()->isVisible()
+				   && dif->parentWidget() == window.dif_ai_slot(),
+			   "returning to the review restores the still-selected explicit AI placement");
+		action->trigger();
+		process_events();
+		expect(!action->isChecked() && !window.dif_ai_slot()->isVisible()
+				   && !dif->isVisible(),
+			   "leaving the AI area removes its decoration without changing AI content");
+		window.hide();
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -6783,6 +6876,7 @@ auto main(int argc, char** argv) -> int
 	test_notification_settings_wait_for_acceptance_and_reset_only_their_domain();
 	test_large_queue_filters_through_the_composed_window();
 	test_home_composes_the_production_catalog_and_respects_motion_and_width();
+	test_dif_moves_to_the_explicit_ai_area_without_owning_it();
 	test_repositories_drawer_toggles_through_the_core_and_collapses_to_a_rail();
 	test_overview_shows_the_decided_page_and_continue_enters_read();
 	test_identical_overview_skips_rebuild_but_restores_cleared_files();

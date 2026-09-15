@@ -1252,11 +1252,11 @@ namespace bpr::qt {
 		// its own fields overlapping — which is showing a reviewer nothing.
 		// So the content scrolls. Collapse, width reporting, and the toggle
 		// are untouched: this is inside the drawer's content, not around it.
-		auto* const conversationScroll = new QScrollArea{ Drawers[1].Panel };
-		conversationScroll->setObjectName(
+		ConversationScroll = new QScrollArea{ Drawers[1].Panel };
+		ConversationScroll->setObjectName(
 			QStringLiteral("workbenchConversationDrawerScroll"));
-		conversationScroll->setWidgetResizable(true);
-		conversationScroll->setFrameShape(QFrame::NoFrame);
+		ConversationScroll->setWidgetResizable(true);
+		ConversationScroll->setFrameShape(QFrame::NoFrame);
 		// BPR-0527. The drawer opens at the width stated above rather than at
 		// whatever the widest row asked for. [[BPR-0728]]: that width is the
 		// default, not a floor. The owner found Read short of horizontal room
@@ -1270,10 +1270,56 @@ namespace bpr::qt {
 		// row, about 290 pixels) the content scrolls sideways rather than
 		// clipping, so a reviewer who took the drawer down to the floor for
 		// the code's sake can still reach every control in it.
-		conversationScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-		conversationScroll->setWidget(conversationContents);
+		ConversationScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+		ConversationScroll->setWidget(conversationContents);
+
+		// RFC-BPR-0031. The Conversations drawer still opens on shared review
+		// comments. This small header is the explicit transition into the AI
+		// tools already composed below it; selecting it reveals Findings and
+		// permits the one window-owned decorative slot. It dispatches no agent
+		// or review action and never opens the drawer itself.
+		auto* const conversationShell = new QWidget{ Drawers[1].Panel };
+		auto* const conversationShellLayout = new QVBoxLayout{ conversationShell };
+		conversationShellLayout->setContentsMargins(0, 0, 0, 0);
+		auto* const aiHeader = new QWidget{ conversationShell };
+		aiHeader->setObjectName(QStringLiteral("workbenchAiToolsHeader"));
+		auto* const aiHeaderLayout = new QHBoxLayout{ aiHeader };
+		aiHeaderLayout->setContentsMargins(0, 0, 0, 0);
+		AiToolsAction = new QAction{ tr("AI tools and Findings"), this };
+		AiToolsAction->setObjectName(QStringLiteral("showWorkbenchAiToolsAction"));
+		AiToolsAction->setCheckable(true);
+		AiToolsAction->setToolTip(
+			tr("Reveal the existing private AI tools and Findings in this drawer."));
+		AiToolsButton = new QToolButton{ aiHeader };
+		AiToolsButton->setObjectName(QStringLiteral("showWorkbenchAiToolsButton"));
+		AiToolsButton->setDefaultAction(AiToolsAction);
+		AiToolsButton->setAccessibleName(QStringLiteral("AI tools and Findings"));
+		AiToolsButton->setAccessibleDescription(
+			QStringLiteral("Reveal the existing private AI tools and Findings in this drawer."));
+		aiHeaderLayout->addWidget(AiToolsButton);
+		aiHeaderLayout->addStretch(1);
+		DifAiSlot = new QWidget{ aiHeader };
+		DifAiSlot->setObjectName(QStringLiteral("workbenchDifAiSlot"));
+		DifAiSlot->setAccessibleName(QStringLiteral("Decorative Dif AI tools illustration"));
+		DifAiSlot->setFixedSize(72, 72);
+		auto* const difSlotLayout = new QHBoxLayout{ DifAiSlot };
+		difSlotLayout->setContentsMargins(0, 0, 0, 0);
+		DifAiSlot->hide();
+		aiHeaderLayout->addWidget(DifAiSlot, 0, Qt::AlignRight | Qt::AlignVCenter);
+		conversationShellLayout->addWidget(aiHeader);
+		conversationShellLayout->addWidget(ConversationScroll, 1);
+		connect(AiToolsAction, &QAction::toggled, this, [this](const bool aSelected) {
+			AiToolsSelected = aSelected;
+			if (aSelected && ConversationScroll != nullptr && FindingQueue != nullptr) {
+				ConversationScroll->ensureWidgetVisible(FindingQueue, 0, 24);
+			}
+			update_dif_presentation();
+			if (aSelected) {
+				play_dif_cue(DifCues->reveal_findings(DifCueClock->elapsed()));
+			}
+		});
 		Drawers[1].Panel->set_content_widget(
-			conversationScroll, ConversationPanel->view());
+			conversationShell, ConversationPanel->view());
 		CentralSplitter->addWidget(Drawers[2].Panel);
 		CentralSplitter->addWidget(Drawers[0].Panel);
 		CentralSplitter->addWidget(CentreSurface);
@@ -3553,6 +3599,16 @@ namespace bpr::qt {
 		return Dif;
 	}
 
+	auto workbench_window::ai_tools_action() const noexcept -> QAction*
+	{
+		return AiToolsAction;
+	}
+
+	auto workbench_window::dif_ai_slot() const noexcept -> QWidget*
+	{
+		return DifAiSlot;
+	}
+
 	void workbench_window::adopt_dif(const core::dif_resolution aResolution)
 	{
 		DifResolution      = aResolution;
@@ -4331,32 +4387,66 @@ namespace bpr::qt {
 		}
 	}
 
+	auto workbench_window::showing_dif_ai() const -> bool
+	{
+		return AiToolsSelected && !showing_home()
+			&& DrawerStates.Conversations == core::workbench_drawer_state::expanded
+			&& Drawers[1].Panel != nullptr && Drawers[1].Panel->isVisible()
+			&& Drawers[1].Panel->width() >= 240;
+	}
+
 	void workbench_window::update_dif_presentation()
 	{
-		if (HomeLanding == nullptr || !DifResolutionReady) {
+		if (HomeLanding == nullptr || DifAiSlot == nullptr || !DifResolutionReady) {
 			return;
 		}
 		const auto shown = DifResolution.Preferences.Visibility == core::dif_visibility::shown;
-		if (Dif == nullptr && shown && isVisible() && showing_home()
-			&& HomeLanding->illustration_space_available() && DifCatalog) {
+		const auto home = showing_home();
+		const auto homeSlot = home && HomeLanding->illustration_space_available();
+		const auto aiSlot = showing_dif_ai();
+		if (Dif == nullptr && shown && isVisible() && (homeSlot || aiSlot) && DifCatalog) {
 			if (auto cache = DifCatalog->acquire()) {
-				Dif = new dif_widget{ std::move(cache), HomeLanding };
-				Dif->setObjectName(QStringLiteral("homeDif"));
-				HomeLanding->set_illustration(Dif);
+				Dif = new dif_widget{ std::move(cache), homeSlot ? HomeLanding : DifAiSlot };
+				Dif->setObjectName(QStringLiteral("workbenchDif"));
 			}
 		}
-		HomeLanding->set_illustration_enabled(shown);
+		HomeLanding->set_illustration_enabled(shown && home);
+		DifAiSlot->setVisible(shown && aiSlot && Dif != nullptr);
+		DifCues->set_visible(
+			shown && aiSlot && DifResolution.EffectiveMotion == core::motion_mode::full
+			&& isActiveWindow() && QApplication::activeModalWidget() == nullptr);
 		if (Dif == nullptr) {
 			return;
 		}
+		if (home) {
+			if (HomeLanding->illustration() != Dif) {
+				if (DifAiSlot->layout() != nullptr) {
+					DifAiSlot->layout()->removeWidget(Dif);
+				}
+				HomeLanding->set_illustration(Dif);
+			}
+		} else if (aiSlot) {
+			if (HomeLanding->illustration() == Dif) {
+				static_cast<void>(HomeLanding->take_illustration());
+			}
+			if (Dif->parentWidget() != DifAiSlot) {
+				Dif->setParent(DifAiSlot);
+				DifAiSlot->layout()->addWidget(Dif);
+				DifAiSlot->layout()->setAlignment(Dif, Qt::AlignCenter);
+			}
+			Dif->setFixedSize(64, 64);
+			Dif->show();
+		} else {
+			Dif->hide();
+		}
 		Dif->set_eligibility({
-			.Shown      = shown,
+			.Shown      = shown && (home || aiSlot),
 			.FullMotion = DifResolution.EffectiveMotion == core::motion_mode::full,
 			.Active     = isActiveWindow(),
 			.Modal      = QApplication::activeModalWidget() != nullptr,
 			.Suspended  = false,
 		});
-		Dif->set_home(showing_home());
+		Dif->set_home(home);
 	}
 
 	auto workbench_window::home_action() const noexcept -> QAction*
@@ -5814,6 +5904,7 @@ namespace bpr::qt {
 		append(ComparisonSurface->detail_pane());
 		append(Drawers[1].Panel->rail());
 		append(Drawers[1].Panel->focus_stop());
+		append(AiToolsButton);
 		if (ReviewEditor != nullptr) {
 			append(ReviewEditor->body_editor());
 		}
@@ -6481,6 +6572,7 @@ namespace bpr::qt {
 		Drawers[2].Panel->adopt(presented_repositories_state());
 		ApplyingLayout = false;
 		apply_drawer_widths();
+		update_dif_presentation();
 	}
 
 	void workbench_window::apply_drawer_widths()
@@ -6519,6 +6611,7 @@ namespace bpr::qt {
 		report(0, core::workbench_drawer::repositories, presented_repositories_state());
 		report(1, core::workbench_drawer::files, presented_files_state());
 		report(3, core::workbench_drawer::conversations, DrawerStates.Conversations);
+		update_dif_presentation();
 	}
 
 	workbench_central_splitter::workbench_central_splitter(QWidget* const aParent)
