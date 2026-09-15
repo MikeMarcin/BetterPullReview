@@ -205,12 +205,14 @@ namespace {
 				   && !workbench.files_drawer()->isAncestorOf(appearance),
 			   "there is no review header any more, and the appearance panel is not "
 			   "in the files drawer either");
+		// [[BPR-0771]]. The session is a presentation model now rather than a
+		// widget, so what the page holds is its sentence and the device sign-in.
+		auto* const accounts = settings->page_widget(qt::settings_page::accounts_and_hosts);
 		expect(workbench.session_panel() != nullptr && workbench.device_authorization() != nullptr
-				   && settings->page_widget(qt::settings_page::accounts_and_hosts)
-						  ->isAncestorOf(workbench.session_panel())
-				   && settings->page_widget(qt::settings_page::accounts_and_hosts)
-						  ->isAncestorOf(workbench.device_authorization()),
-			   "the session chrome and the device sign-in live on the Accounts and "
+				   && accounts != nullptr
+				   && accounts->findChild<QLabel*>(QStringLiteral("accountsLede")) != nullptr
+				   && accounts->isAncestorOf(workbench.device_authorization()),
+			   "the accounts sentence and the device sign-in live on the Accounts and "
 			   "hosts page, as the design places them");
 		action->trigger();
 		QApplication::processEvents();

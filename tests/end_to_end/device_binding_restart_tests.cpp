@@ -4,6 +4,7 @@
 #include "bpr/qt/workbench_window.hpp"
 
 #include <QApplication>
+#include <QPushButton>
 #include <QElapsedTimer>
 #include <QFileInfo>
 #include <QTemporaryDir>
@@ -95,16 +96,22 @@ int main(int aArgc, char** aArgv)
 		expect(!second->window().grab().isNull(), "rendered composed session panel");
 		// [[BPR-0646]] moved the session chrome and [[BPR-0660]] the account
 		// card onto Settings > Accounts and hosts, so the reviewer opens that
-		// page to sign out. Both controls are the same deactivation.
+		// page to sign out. [[BPR-0771]] left one Sign out, on the signed-in host's card.
 		second->window().open_settings(qt::settings_page::accounts_and_hosts);
 		QApplication::processEvents();
 		auto* settings = second->window().settings();
 		expect(settings != nullptr && settings->isVisible(), "Accounts and hosts settings are visible");
-		auto* signOut = settings->findChild<QToolButton*>(QStringLiteral("signOutGithubButton"));
-		expect(signOut != nullptr && signOut->isVisible() && signOut->text() == QStringLiteral("Sign out"), "visible Sign out action exists");
-		auto* cardSignOut = settings->findChild<QToolButton*>(QStringLiteral("accountSignOut"));
+		qt::server_card* signedInCard = nullptr;
+		for (auto* const card : second->window().server_cards()) {
+			if (card->signed_in()) {
+				signedInCard = card;
+			}
+		}
+		auto* const cardSignOut = signedInCard != nullptr ? signedInCard->sign_out_button() : nullptr;
 		expect(cardSignOut != nullptr && cardSignOut->isVisible() && cardSignOut->text() == QStringLiteral("Sign out"),
-			   "the account card offers Sign out while the session is accepted");
+			   "the signed-in host's card offers Sign out while the session is accepted");
+		expect(settings->findChild<QWidget*>(QStringLiteral("signOutGithubButton")) == nullptr,
+			   "the retired session strip's Sign out is not on the page");
 		cardSignOut->click();
 		wait_for([&second] {const auto evidence=github_application_fixture_access::evidence(*second);return !evidence.SecretRetained && !evidence.RefreshRetained; }, "Sign out exact-deletes both slots");
 		shutdown(*second);
@@ -139,7 +146,9 @@ int main(int aArgc, char** aArgv)
 		expect(manual != nullptr, "application startup succeeds");
 		manual->select_device_authorization();
 		wait_for([&manual] { return github_application_fixture_access::device_binding_durable(*manual); }, "replacement course earns a durable device grant");
-		manual->window().session_panel()->connect_button()->click();
+		// [[BPR-0771]]. The picker row's Connect is retired; the window's Connect
+		// action is the same manual-token enrollment for the chosen host.
+		manual->window().github_connect_action()->trigger();
 		wait_for([&manual] {const auto evidence=github_application_fixture_access::evidence(*manual);return evidence.SecretRetained && !evidence.RefreshRetained && evidence.VaultStoredDigest==evidence.LastEnrollmentDigest; }, "manual replacement removes device refresh and stores only pasted access");
 		expect(!github_application_fixture_access::device_binding_durable(*manual), "manual replacement is session-only");
 		shutdown(*manual);

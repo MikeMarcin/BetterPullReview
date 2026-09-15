@@ -292,11 +292,9 @@ auto main(int argc, char** argv) -> int
 		})) {
 		return fail(*application, "connect", connected.render());
 	}
-	window.session_panel()->owner_editor()->setText(QStringLiteral("octo-org"));
-	window.session_panel()->repository_editor()->setText(
-		QStringLiteral("review-repository"));
-	window.session_panel()->pull_request_editor()->setValue(17);
-	window.github_open_action()->trigger();
+	// [[BPR-0771]]. A pull request is named in the Home bar; the locator is retired.
+	window.home_open_bar()->setText(QStringLiteral("octo-org/review-repository#17"));
+	window.home_open_action()->trigger();
 
 	auto* const panel     = window.agent_panel();
 	auto        offerings = wait_terms{ };

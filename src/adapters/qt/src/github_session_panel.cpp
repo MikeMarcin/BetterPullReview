@@ -1,27 +1,10 @@
 #include "bpr/qt/github_session_panel.hpp"
 
-#include "bpr/qt/review_landing_model.hpp"
+#include "bpr/qt/usage_ring.hpp"
 
 #include "github_presentation_text.hpp"
 
 #include <QAction>
-#include <QApplication>
-#include <QClipboard>
-#include <QComboBox>
-#include <QFont>
-#include <QFrame>
-#include <QGridLayout>
-#include <QHBoxLayout>
-#include <QLabel>
-#include <QLineEdit>
-#include <QResizeEvent>
-#include <QSignalBlocker>
-#include <QSpinBox>
-#include <QStyle>
-#include <QToolButton>
-#include <QVBoxLayout>
-#include <QVariant>
-#include <QWidget>
 
 #include <algorithm>
 #include <ranges>
@@ -160,388 +143,43 @@ namespace bpr::qt {
 		QAction* const                                  aOpenAction,
 		QAction* const                                  aRefreshAction,
 		github_session_environment                      aEnvironment,
-		QWidget* const                                  aParent)
-		: QWidget{ aParent }
+		QObject* const                                  aParent)
+		: QObject{ aParent }
 		, Dispatch{ std::move(aDispatch) }
 		, Profiles{ std::move(aProfiles) }
 		, Environment{ std::move(aEnvironment) }
 		, ConnectAction{ aConnectAction }
 		, OpenAction{ aOpenAction }
 		, RefreshAction{ aRefreshAction }
+		, AccountText{ QStringLiteral("Not authenticated") }
+		, StatusText{ QStringLiteral("No GitHub host is connected.") }
 	{
-		setObjectName(QStringLiteral("githubSessionPanel"));
-		auto* const panelLayout = new QVBoxLayout{ this };
-		panelLayout->setContentsMargins(0, 0, 0, 0);
-		panelLayout->setSpacing(
-			style()->pixelMetric(QStyle::PM_LayoutVerticalSpacing, nullptr, this));
-
-		auto* const identityGroup = new QFrame{ this };
-		identityGroup->setFrameShape(QFrame::StyledPanel);
-		identityGroup->setObjectName(QStringLiteral("githubIdentityGroup"));
-		identityGroup->setAccessibleName(QStringLiteral("GitHub connection"));
-		IdentityLayout = new QGridLayout{ identityGroup };
-		IdentityLayout->setColumnStretch(1, 1);
-
-		ProfileSelector = new QComboBox{ identityGroup };
-		ProfileSelector->setObjectName(QStringLiteral("githubProfileSelector"));
-		ProfileSelector->setAccessibleName(QStringLiteral("GitHub host profile"));
-		ProfileSelector->setAccessibleDescription(
-			QStringLiteral("Select a non-secret GitHub host profile"));
-		for (const auto& profile : Profiles) {
-			ProfileSelector->addItem(
-				text(profile.Label),
-				QVariant::fromValue<qulonglong>(profile.Profile.value()));
+		setObjectName(QStringLiteral("githubSessionPresentation"));
+		// The picker this replaced opened on its first row.
+		if (!Profiles.empty()) {
+			SelectedProfile = Profiles.front().Profile;
 		}
-		auto* const profileLabel = new QLabel{ QStringLiteral("&Host profile:"), identityGroup };
-		profileLabel->setObjectName(QStringLiteral("githubProfileLabel"));
-		profileLabel->setBuddy(ProfileSelector);
-
-		ConnectButton = new QToolButton{ identityGroup };
-		ConnectButton->setDefaultAction(ConnectAction);
-		ConnectButton->setObjectName(QStringLiteral("connectGithubButton"));
-		ConnectButton->setAccessibleName(QStringLiteral("Connect GitHub host"));
-		ConnectButton->setFocusPolicy(Qt::StrongFocus);
-		ConnectButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-
-		// [[BPR-0670]]. Named for what it does. "Public preview" read as a
-		// build channel, and the owner could not tell whether it meant
-		// staged data or continuing without an account.
-		PublicPreviewAction = new QAction{ QStringLiteral("Read without signing in"), this };
-		PublicPreviewButton = new QToolButton{ identityGroup };
-		PublicPreviewButton->setDefaultAction(PublicPreviewAction);
-		PublicPreviewButton->setObjectName(QStringLiteral("publicPreviewButton"));
-		PublicPreviewButton->setAccessibleName(QStringLiteral("Read without signing in"));
-		PublicPreviewButton->setAccessibleDescription(QStringLiteral(
-			"Reads a public pull request on this host without an account. Comments "
-			"and review actions stay read-only."));
-		PublicPreviewButton->setFocusPolicy(Qt::StrongFocus);
-		PublicPreviewButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-
-		ConnectionDetailsButton = new QToolButton{ identityGroup };
-		ConnectionDetailsButton->setObjectName(
-			QStringLiteral("githubConnectionDetailsButton"));
-		ConnectionDetailsButton->setText(QStringLiteral("Details"));
-		ConnectionDetailsButton->setAccessibleName(
-			QStringLiteral("Show GitHub connection details"));
-		// The shell asserts a description on every declared focus stop; the
-		// window this panel came from never checked, so this one was empty on
-		// screen the whole time.
-		ConnectionDetailsButton->setAccessibleDescription(QStringLiteral(
-			"Reveal the connected host, account, capabilities and rate limits"));
-		ConnectionDetailsButton->setCheckable(true);
-		ConnectionDetailsButton->setArrowType(Qt::RightArrow);
-		ConnectionDetailsButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-
-		HostLabel = new QLabel{ identityGroup };
-		HostLabel->setObjectName(QStringLiteral("activeGithubHost"));
-		HostLabel->setAccessibleName(QStringLiteral("Active GitHub host"));
-		set_plain_text_label(HostLabel);
-		TransportLabel = new QLabel{ identityGroup };
-		TransportLabel->setObjectName(QStringLiteral("activeGithubTransport"));
-		TransportLabel->setAccessibleName(
-			QStringLiteral("Active GitHub transport"));
-		set_plain_text_label(TransportLabel);
-		AccountLabel = new QLabel{ QStringLiteral("Not authenticated"), identityGroup };
-		AccountLabel->setObjectName(QStringLiteral("activeGithubAccount"));
-		AccountLabel->setAccessibleName(
-			QStringLiteral("Authenticated GitHub account"));
-		set_plain_text_label(AccountLabel);
-		CapabilityLabel = new QLabel{ identityGroup };
-		CapabilityLabel->setObjectName(QStringLiteral("githubCapabilities"));
-		CapabilityLabel->setAccessibleName(
-			QStringLiteral("GitHub host capabilities"));
-		CapabilityLabel->setWordWrap(true);
-		set_plain_text_label(CapabilityLabel);
-		RateLimitLabel = new QLabel{ identityGroup };
-		RateLimitLabel->setObjectName(QStringLiteral("githubRateLimits"));
-		RateLimitLabel->setAccessibleName(QStringLiteral("GitHub rate limits"));
-		RateLimitLabel->setWordWrap(true);
-		set_plain_text_label(RateLimitLabel);
-
-		ConnectionDetails = new QWidget{ identityGroup };
-		ConnectionDetails->setObjectName(
-			QStringLiteral("githubConnectionDetails"));
-		auto* const detailsLayout = new QGridLayout{ ConnectionDetails };
-		detailsLayout->setContentsMargins(0, 0, 0, 0);
-		auto* const capabilitiesLabel = new QLabel{ QStringLiteral("Capabilities:"), ConnectionDetails };
-		auto* const availabilityLabel = new QLabel{ QStringLiteral("Availability:"), ConnectionDetails };
-		detailsLayout->addWidget(capabilitiesLabel, 0, 0);
-		detailsLayout->addWidget(CapabilityLabel, 0, 1);
-		detailsLayout->addWidget(availabilityLabel, 0, 2);
-		detailsLayout->addWidget(RateLimitLabel, 0, 3);
-		detailsLayout->setColumnStretch(1, 1);
-		detailsLayout->setColumnStretch(3, 1);
-		ConnectionDetails->hide();
-
-		ConnectionActions                  = new QWidget{ identityGroup };
-		auto* const connectionActionLayout = new QHBoxLayout{ ConnectionActions };
-		connectionActionLayout->setContentsMargins(0, 0, 0, 0);
-		connectionActionLayout->addWidget(ConnectButton);
-		SignOutButton = new QToolButton{ ConnectionActions };
-		SignOutButton->setObjectName(QStringLiteral("signOutGithubButton"));
-		SignOutButton->setText(QStringLiteral("Sign out"));
-		SignOutButton->setAccessibleName(QStringLiteral("Sign out of GitHub"));
-		SignOutButton->setToolTip(QStringLiteral("Remove remembered sign-in from this device"));
-		SignOutButton->setFocusPolicy(Qt::StrongFocus);
-		connectionActionLayout->addWidget(SignOutButton);
-		connect(SignOutButton, &QToolButton::clicked, this, [this] {
-			if (Dispatch) {
-				Dispatch(core::deactivate_github_identity_intent{ });
-			}
-		});
-		connectionActionLayout->addWidget(PublicPreviewButton);
-		connectionActionLayout->addWidget(ConnectionDetailsButton);
-		connectionActionLayout->addStretch(1);
-		IdentityLayout->addWidget(profileLabel, 0, 0);
-		IdentityLayout->addWidget(ProfileSelector, 0, 1);
-		IdentityLayout->addWidget(ConnectionActions, 0, 2, 1, 2);
-		IdentityLayout->addWidget(HostLabel, 2, 0, 1, 3);
-		IdentityLayout->addWidget(TransportLabel, 2, 3);
-		IdentityLayout->addWidget(AccountLabel, 3, 0, 1, 4);
-		IdentityLayout->addWidget(ConnectionDetails, 4, 0, 1, 4);
-		auto* const cliWarning = new QLabel{ identityGroup };
-		cliWarning->setObjectName(QStringLiteral("githubCliTrustWarning"));
-		cliWarning->setAccessibleName(QStringLiteral("GitHub CLI trust warning"));
-		cliWarning->setWordWrap(true);
-		set_plain_text_label(cliWarning);
-		IdentityLayout->addWidget(cliWarning, 5, 0, 1, 4);
-
-		panelLayout->addWidget(identityGroup);
-
-		// The mode banner reads above the connection it describes, because a
-		// reviewer has to know which mode they are in before the host, the
-		// account and the limits below mean anything. It is inserted at the
-		// top of the column rather than appended, and it is hidden outright
-		// while signed in: there is no blank mode line to misread.
-		PublicPreviewStrip = new QWidget{ this };
-		PublicPreviewStrip->setObjectName(
-			QStringLiteral("githubPublicPreviewStrip"));
-		PublicPreviewStrip->setAccessibleName(QStringLiteral("Access mode"));
-		auto* const modeLayout = new QVBoxLayout{ PublicPreviewStrip };
-		modeLayout->setContentsMargins(0, 0, 0, 0);
-		auto* const modeRow       = new QWidget{ PublicPreviewStrip };
-		auto* const modeRowLayout = new QHBoxLayout{ modeRow };
-		modeRowLayout->setContentsMargins(0, 0, 0, 0);
-		AccessModeLabel = new QLabel{ modeRow };
-		AccessModeLabel->setObjectName(QStringLiteral("githubAccessMode"));
-		AccessModeLabel->setAccessibleName(QStringLiteral("GitHub access mode"));
-		set_plain_text_label(AccessModeLabel);
-		UsageIndicator = new usage_ring{ modeRow };
-		modeRowLayout->addWidget(AccessModeLabel);
-		modeRowLayout->addWidget(UsageIndicator);
-		modeRowLayout->addStretch(1);
-		RefusalLabel = new QLabel{ PublicPreviewStrip };
-		RefusalLabel->setObjectName(QStringLiteral("githubPublicPreviewRefusal"));
-		RefusalLabel->setAccessibleName(
-			QStringLiteral("Public preview refusal"));
-		RefusalLabel->setWordWrap(true);
-		set_plain_text_label(RefusalLabel);
-		RefusalLabel->hide();
-		modeLayout->addWidget(modeRow);
-		modeLayout->addWidget(RefusalLabel);
-		PublicPreviewStrip->hide();
-		panelLayout->insertWidget(0, PublicPreviewStrip);
-
-		auto* const locatorGroup = new QFrame{ this };
-		locatorGroup->setFrameShape(QFrame::StyledPanel);
-		locatorGroup->setObjectName(QStringLiteral("pullRequestLocatorGroup"));
-		locatorGroup->setAccessibleName(QStringLiteral("Pull request locator"));
-		LocatorLayout = new QGridLayout{ locatorGroup };
-		LocatorLayout->setColumnStretch(1, 1);
-		LocatorLayout->setColumnStretch(3, 1);
-
-		OwnerEditor = new QLineEdit{ locatorGroup };
-		OwnerEditor->setObjectName(QStringLiteral("repositoryOwnerEditor"));
-		OwnerEditor->setAccessibleName(QStringLiteral("Repository owner"));
-		OwnerEditor->setAccessibleDescription(
-			QStringLiteral("The account or organisation that owns the repository"));
-		OwnerEditor->setMaxLength(
-			static_cast<int>(core::maximum_repository_owner_length));
-		OwnerEditor->setPlaceholderText(QStringLiteral("owner, or paste a link"));
-		auto* const ownerLabel = new QLabel{ QStringLiteral("&Owner:"), locatorGroup };
-		ownerLabel->setBuddy(OwnerEditor);
-		// [[BPR-0669]]. A reviewer has a link on the clipboard, not three
-		// fields. Pasting one here fills all three; typing an owner, which
-		// never parses as a reference, is untouched.
-		connect(OwnerEditor, &QLineEdit::textChanged, this, [this](const QString& aText) {
-			const auto reference = parse_pull_request_locator(aText);
-			if (!reference.has_value()) {
-				return;
-			}
-			const QSignalBlocker ownerBlock{ OwnerEditor };
-			OwnerEditor->setText(QString::fromStdString(reference->Repository.Owner));
-			RepositoryEditor->setText(QString::fromStdString(reference->Repository.Name));
-			PullRequestEditor->setValue(static_cast<int>(reference->Number.value()));
-		});
-
-		RepositoryEditor = new QLineEdit{ locatorGroup };
-		RepositoryEditor->setObjectName(QStringLiteral("repositoryNameEditor"));
-		RepositoryEditor->setAccessibleName(QStringLiteral("Repository name"));
-		RepositoryEditor->setAccessibleDescription(
-			QStringLiteral("The repository holding the pull request to review"));
-		RepositoryEditor->setMaxLength(
-			static_cast<int>(core::maximum_repository_name_length));
-		auto* const repositoryLabel = new QLabel{ QStringLiteral("&Repository:"), locatorGroup };
-		repositoryLabel->setBuddy(RepositoryEditor);
-
-		PullRequestEditor = new QSpinBox{ locatorGroup };
-		PullRequestEditor->setObjectName(QStringLiteral("pullRequestNumberEditor"));
-		PullRequestEditor->setAccessibleName(QStringLiteral("Pull request number"));
-		PullRequestEditor->setAccessibleDescription(
-			QStringLiteral("The number of the pull request to open"));
-		PullRequestEditor->setRange(
-			1, static_cast<int>(core::maximum_pull_request_number));
-		auto* const numberLabel = new QLabel{ QStringLiteral("&PR:"), locatorGroup };
-		numberLabel->setBuddy(PullRequestEditor);
-
-		OpenButton = new QToolButton{ locatorGroup };
-		OpenButton->setDefaultAction(OpenAction);
-		OpenButton->setObjectName(QStringLiteral("openPullRequestButton"));
-		OpenButton->setAccessibleName(QStringLiteral("Open pull request"));
-		OpenButton->setFocusPolicy(Qt::StrongFocus);
-		OpenButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-
-		RefreshButton = new QToolButton{ locatorGroup };
-		RefreshButton->setDefaultAction(RefreshAction);
-		RefreshButton->setObjectName(
-			QStringLiteral("refreshPullRequestButton"));
-		RefreshButton->setAccessibleName(QStringLiteral("Refresh pull request"));
-		RefreshButton->setFocusPolicy(Qt::StrongFocus);
-		RefreshButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-
-		LocatorLayout->addWidget(ownerLabel, 0, 0);
-		LocatorLayout->addWidget(OwnerEditor, 0, 1);
-		LocatorLayout->addWidget(repositoryLabel, 0, 2);
-		LocatorLayout->addWidget(RepositoryEditor, 0, 3);
-		LocatorLayout->addWidget(numberLabel, 0, 4);
-		LocatorLayout->addWidget(PullRequestEditor, 0, 5);
-		LocatorActions = new QWidget{ locatorGroup };
-		LocatorActions->setObjectName(
-			QStringLiteral("pullRequestLocatorActions"));
-		auto* const locatorActionLayout = new QHBoxLayout{ LocatorActions };
-		locatorActionLayout->setContentsMargins(0, 0, 0, 0);
-		locatorActionLayout->addStretch(1);
-		locatorActionLayout->addWidget(OpenButton);
-		locatorActionLayout->addWidget(RefreshButton);
-		LocatorLayout->addWidget(LocatorActions, 0, 6);
-		panelLayout->addWidget(locatorGroup);
-
-		StatusBanner = new QFrame{ this };
-		StatusBanner->setFrameShape(QFrame::StyledPanel);
-		StatusBanner->setObjectName(QStringLiteral("githubStatusBanner"));
-		StatusBanner->setAccessibleName(QStringLiteral("GitHub activity"));
-		auto* const statusLayout = new QVBoxLayout{ StatusBanner };
-		StatusLabel              = new QLabel{
-			QStringLiteral("No GitHub host is connected."),
-			StatusBanner,
-		};
-		StatusLabel->setObjectName(QStringLiteral("githubStatus"));
-		StatusLabel->setAccessibleDescription(QStringLiteral("GitHub status"));
-		StatusLabel->setWordWrap(true);
-		set_plain_text_label(StatusLabel);
-		StatusLabel->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
-		statusLayout->addWidget(StatusLabel);
-		DiagnosticLabel = new QLabel{ StatusBanner };
-		DiagnosticLabel->setObjectName(QStringLiteral("githubDiagnostic"));
-		DiagnosticLabel->setAccessibleDescription(QStringLiteral("GitHub diagnostic"));
-		DiagnosticLabel->setWordWrap(true);
-		set_plain_text_label(DiagnosticLabel);
-		DiagnosticLabel->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
-		DiagnosticLabel->hide();
-		statusLayout->addWidget(DiagnosticLabel);
-		auto* const copyMessage = new QToolButton{ StatusBanner };
-		copyMessage->setObjectName(QStringLiteral("copyGithubDiagnosticButton"));
-		copyMessage->setText(QStringLiteral("Copy message"));
-		copyMessage->setAccessibleName(QStringLiteral("Copy GitHub status and diagnostic"));
-		connect(copyMessage, &QToolButton::clicked, this, [this] {
-			if (auto* const clipboard = QApplication::clipboard(); clipboard != nullptr) {
-				auto message = StatusLabel->text();
-				if (!DiagnosticLabel->isHidden() && !DiagnosticLabel->text().isEmpty()) {
-					message += QStringLiteral("\n") + DiagnosticLabel->text();
-				}
-				clipboard->setText(message);
-			}
-		});
-		statusLayout->addWidget(copyMessage, 0, Qt::AlignLeft);
-		panelLayout->addWidget(StatusBanner);
-		connect(ProfileSelector,
-				&QComboBox::currentIndexChanged,
-				this,
-				[this] {
-					update_selected_profile();
-					update_connect_enabled();
-				});
-		connect(
-			ConnectionDetailsButton,
-			&QToolButton::toggled,
-			this,
-			[this](const bool aVisible) {
-				ConnectionDetails->setVisible(aVisible);
-				ConnectionDetailsButton->setArrowType(
-					aVisible ? Qt::DownArrow : Qt::RightArrow);
-				ConnectionDetailsButton->setAccessibleName(
-					aVisible
-						? QStringLiteral("Hide GitHub connection details")
-						: QStringLiteral("Show GitHub connection details"));
-			});
-		connect(ConnectAction,
-				&QAction::triggered,
-				this,
-				[this] {
-					if (const auto profile = selected_profile();
-						profile.has_value() && Dispatch) {
-						Dispatch(application::github_intent{
-							core::activate_host_profile_intent{
-								.Profile = *profile,
-							},
-						});
-					}
-				});
-		connect(PublicPreviewAction,
-				&QAction::triggered,
-				this,
-				[this] {
-					if (const auto profile = selected_profile();
-						profile.has_value() && Dispatch) {
-						Dispatch(application::github_intent{
-							core::activate_host_profile_intent{
-								.Profile = *profile,
-								.Mode    = core::github_access_mode::public_preview,
-							},
-						});
-					}
-				});
-		connect(OpenAction,
-				&QAction::triggered,
-				this,
-				[this] {
-					if (!Dispatch) {
-						return;
-					}
+		if (ConnectAction != nullptr) {
+			connect(ConnectAction, &QAction::triggered, this, [this] {
+				if (const auto profile = selected_profile();
+					profile.has_value() && Dispatch) {
 					Dispatch(application::github_intent{
-						core::open_pull_request_intent{
-							.Repository = {
-								.Owner = OwnerEditor->text().toUtf8().toStdString(),
-								.Name  = RepositoryEditor->text()
-											 .toUtf8()
-											 .toStdString(),
-							},
-							.Number = core::pull_request_number{ static_cast<std::uint32_t>(PullRequestEditor->value()) },
+						core::activate_host_profile_intent{
+							.Profile = *profile,
 						},
 					});
-				});
-		connect(RefreshAction,
-				&QAction::triggered,
-				this,
-				[this] {
-					if (Dispatch) {
-						Dispatch(application::github_intent{
-							core::refresh_pull_request_intent{ },
-						});
-					}
-				});
-
-		update_selected_profile();
+				}
+			});
+		}
+		if (RefreshAction != nullptr) {
+			connect(RefreshAction, &QAction::triggered, this, [this] {
+				if (Dispatch) {
+					Dispatch(application::github_intent{
+						core::refresh_pull_request_intent{ },
+					});
+				}
+			});
+		}
 		update_connect_enabled();
 	}
 
@@ -550,9 +188,11 @@ namespace bpr::qt {
 		if (std::ranges::any_of(Profiles, [&](const auto& aExisting) { return aExisting.Profile == aProfile.Profile; })) {
 			return;
 		}
-		const auto blocker = QSignalBlocker{ ProfileSelector };
-		ProfileSelector->addItem(QString::fromStdString(aProfile.Label), QVariant::fromValue<qulonglong>(aProfile.Profile.value()));
+		if (!SelectedProfile.has_value()) {
+			SelectedProfile = aProfile.Profile;
+		}
 		Profiles.push_back(std::move(aProfile));
+		update_connect_enabled();
 	}
 
 	auto github_session_panel::apply_command(
@@ -565,20 +205,24 @@ namespace bpr::qt {
 			update_connect_enabled();
 			break;
 		case core::github_command_id::open_pull_request:
-			apply_action_state(
-				OpenAction,
-				OpenButton,
-				aCommand.Enabled,
-				aCommand.DisabledReason,
-				QStringLiteral("Open the specified pull request"));
+			if (OpenAction != nullptr) {
+				apply_action_state(
+					OpenAction,
+					nullptr,
+					aCommand.Enabled,
+					aCommand.DisabledReason,
+					QStringLiteral("Open the specified pull request"));
+			}
 			break;
 		case core::github_command_id::refresh_pull_request:
-			apply_action_state(
-				RefreshAction,
-				RefreshButton,
-				aCommand.Enabled,
-				aCommand.DisabledReason,
-				QStringLiteral("Refresh the current pull request"));
+			if (RefreshAction != nullptr) {
+				apply_action_state(
+					RefreshAction,
+					nullptr,
+					aCommand.Enabled,
+					aCommand.DisabledReason,
+					QStringLiteral("Refresh the current pull request"));
+			}
 			break;
 		case core::github_command_id::show_review_threads:
 			// The conversation view is the composing window's, so is its
@@ -593,17 +237,12 @@ namespace bpr::qt {
 		const core::github_identity_delta& aIdentity)
 	{
 		ActiveProfile = aIdentity.Profile;
-		if (aIdentity.Profile.has_value()) {
-			const auto index = profile_index(*aIdentity.Profile);
-			if (index >= 0) {
-				const QSignalBlocker blocker{ ProfileSelector };
-				ProfileSelector->setCurrentIndex(index);
-			}
+		// An accepted identity names the host it is on, so the host the next
+		// Connect means follows it, exactly as the picker's row did.
+		if (aIdentity.Profile.has_value() && profile_option(*aIdentity.Profile) != nullptr) {
+			SelectedProfile = aIdentity.Profile;
 		}
-		SessionAccount.reset();
-		AccountLabel->setText(QStringLiteral("Not authenticated"));
-		apply_rate_limits({ });
-		update_selected_profile();
+		clear_account(QStringLiteral("Not authenticated"));
 		update_connect_enabled();
 		++Statistics.IdentityUpdates;
 	}
@@ -611,7 +250,7 @@ namespace bpr::qt {
 	void github_session_panel::apply_capabilities(
 		const core::github_capabilities& aCapabilities)
 	{
-		CapabilityLabel->setText(capabilities_text(aCapabilities));
+		Capabilities = aCapabilities;
 		++Statistics.CapabilityUpdates;
 	}
 
@@ -621,51 +260,40 @@ namespace bpr::qt {
 		const auto hasPullRequest
 			= Environment.HasPullRequest && Environment.HasPullRequest();
 		if (aStatus == core::github_status::loading_pull_request && hasPullRequest) {
-			StatusLabel->setText(
-				QStringLiteral("Refreshing the pull request."));
+			StatusText = QStringLiteral("Refreshing the pull request.");
 		} else if (
 			aStatus == core::github_status::pull_request_failed
 			&& hasPullRequest) {
-			StatusLabel->setText(
-				QStringLiteral(
-					"Refresh failed. Showing the last accepted pull request."));
+			StatusText = QStringLiteral(
+				"Refresh failed. Showing the last accepted pull request.");
 		} else if (
 			aStatus == core::github_status::pull_request_cancelled
 			&& hasPullRequest) {
-			StatusLabel->setText(
-				QStringLiteral(
-					"Refresh canceled. Showing the last accepted pull request."));
+			StatusText = QStringLiteral(
+				"Refresh canceled. Showing the last accepted pull request.");
 		} else {
-			StatusLabel->setText(github_status_text(aStatus));
+			StatusText = github_status_text(aStatus);
 		}
 		switch (aStatus) {
 		case core::github_status::no_profile:
-			SessionAccount.reset();
-			AccountLabel->setText(QStringLiteral("Not authenticated"));
-			apply_rate_limits({ });
+			clear_account(QStringLiteral("Not authenticated"));
 			[[fallthrough]];
 		case core::github_status::session_ready:
 		case core::github_status::loading_pull_request:
 		case core::github_status::pull_request_ready:
-			DiagnosticLabel->clear();
-			DiagnosticLabel->hide();
+			DiagnosticText.clear();
 			LastDiagnosticReason.reset();
 			LastDiagnosticHasHostDetail = false;
 			break;
 		case core::github_status::establishing_session:
-			SessionAccount.reset();
-			AccountLabel->setText(QStringLiteral("Connecting…"));
-			apply_rate_limits({ });
-			DiagnosticLabel->clear();
-			DiagnosticLabel->hide();
+			clear_account(QStringLiteral("Connecting…"));
+			DiagnosticText.clear();
 			LastDiagnosticReason.reset();
 			LastDiagnosticHasHostDetail = false;
 			break;
 		case core::github_status::session_failed:
 		case core::github_status::session_cancelled:
-			SessionAccount.reset();
-			AccountLabel->setText(QStringLiteral("Not authenticated"));
-			apply_rate_limits({ });
+			clear_account(QStringLiteral("Not authenticated"));
 			break;
 		case core::github_status::pull_request_failed:
 		case core::github_status::pull_request_cancelled:
@@ -711,8 +339,7 @@ namespace bpr::qt {
 				break;
 			}
 		}
-		DiagnosticLabel->setText(message);
-		DiagnosticLabel->setVisible(!message.isEmpty());
+		DiagnosticText              = message;
 		LastDiagnosticReason        = message.isEmpty() ? std::nullopt : std::optional{ aReason };
 		LastDiagnosticHasHostDetail = !message.isEmpty() && aHostDetail;
 		if (Environment.PresentationChanged) {
@@ -724,18 +351,16 @@ namespace bpr::qt {
 	void github_session_panel::apply_session(
 		const application::github_session_projection& aSession)
 	{
-		SessionAccount = aSession.Account;
+		Session = aSession;
 		if (aSession.DisplayName.empty()) {
-			AccountLabel->setText(
-				aSession.Login.empty()
-					? QStringLiteral("Authenticated account")
-					: QStringLiteral("@%1").arg(text(aSession.Login)));
+			AccountText = aSession.Login.empty()
+				? QStringLiteral("Authenticated account")
+				: QStringLiteral("@%1").arg(text(aSession.Login));
 		} else if (aSession.Login.empty()) {
-			AccountLabel->setText(text(aSession.DisplayName));
+			AccountText = text(aSession.DisplayName);
 		} else {
-			AccountLabel->setText(
-				QStringLiteral("%1 (@%2)")
-					.arg(text(aSession.DisplayName), text(aSession.Login)));
+			AccountText = QStringLiteral("%1 (@%2)")
+							  .arg(text(aSession.DisplayName), text(aSession.Login));
 		}
 		apply_capabilities(aSession.Capabilities);
 		apply_rate_limits(aSession.RateLimits);
@@ -745,55 +370,32 @@ namespace bpr::qt {
 	void github_session_panel::apply_rate_limits(
 		const application::github_rate_limits_projection& aLimits)
 	{
-		RateLimitLabel->setText(rate_limits_text(aLimits));
+		RateLimits = aLimits;
 	}
 
-	void github_session_panel::update_selected_profile()
+	void github_session_panel::apply_public_preview(
+		const application::public_preview_presentation& aPresentation,
+		const std::uint64_t                             aNowUnixSeconds)
 	{
-		auto* const cliWarning     = findChild<QLabel*>(QStringLiteral("githubCliTrustWarning"));
-		const auto  warningProfile = selected_profile();
-		const auto* option         = warningProfile.has_value() ? profile_option(*warningProfile) : nullptr;
-		const auto  cli            = option != nullptr
-			&& option->Transport == application::github_profile_transport::github_cli;
-		cliWarning->setVisible(cli);
-		cliWarning->setText(cli ? cli_trust_warning_text(text(option->Hostname)) : QString{ });
+		PublicPreview    = aPresentation;
+		PublicPreviewNow = aNowUnixSeconds;
+	}
 
-		const application::github_profile_option* selected = nullptr;
-		QString                                   prefix;
-		if (ActiveProfile.has_value()) {
-			selected = profile_option(*ActiveProfile);
-			prefix   = QStringLiteral("Active host");
-		} else if (const auto profile = selected_profile(); profile.has_value()) {
-			selected = profile_option(*profile);
-			prefix   = QStringLiteral("Selected host");
-		}
-
-		if (selected == nullptr) {
-			HostLabel->setText(QStringLiteral("No host profile selected"));
-			TransportLabel->setText(QStringLiteral("No transport selected"));
+	void github_session_panel::select_profile(const core::host_profile_id aProfile)
+	{
+		if (profile_option(aProfile) == nullptr) {
 			return;
 		}
-
-		HostLabel->setText(
-			QStringLiteral("%1: %2 (%3)")
-				.arg(
-					prefix,
-					text(selected->Hostname),
-					product_text(selected->Product)));
-		TransportLabel->setText(transport_text(selected->Transport));
+		SelectedProfile = aProfile;
+		update_connect_enabled();
 	}
 
 	void github_session_panel::update_connect_enabled()
 	{
-		const auto hasProfile = selected_profile().has_value();
-		const auto enabled    = ConnectCommandEnabled && hasProfile;
-		apply_action_state(
-			PublicPreviewAction,
-			PublicPreviewButton,
-			enabled,
-			hasProfile ? ConnectDisabledReason : core::github_reason_code::invalid_profile,
-			QStringLiteral("Preview public GitHub.com pull requests without signing in"));
-		if (!hasProfile) {
+		if (ConnectAction == nullptr) {
+			return;
+		}
+		if (!selected_profile().has_value()) {
 			ConnectAction->setEnabled(false);
 			ConnectAction->setProperty(
 				"githubDisabledReason",
@@ -801,252 +403,144 @@ namespace bpr::qt {
 			const auto description = QStringLiteral("No GitHub host profiles are configured.");
 			ConnectAction->setToolTip(description);
 			ConnectAction->setStatusTip(description);
-			if (ConnectButton != nullptr) {
-				ConnectButton->setAccessibleDescription(description);
-			}
 			return;
 		}
 		apply_action_state(
 			ConnectAction,
-			ConnectButton,
-			enabled,
+			nullptr,
+			ConnectCommandEnabled,
 			ConnectDisabledReason,
 			QStringLiteral("Connect the selected GitHub host profile"));
 	}
 
-	void github_session_panel::refresh_native_appearance()
+	void github_session_panel::clear_account(const QString& aAccountText)
 	{
-		auto emphasisFont = font();
-		emphasisFont.setWeight(QFont::DemiBold);
-		StatusLabel->setFont(emphasisFont);
-
-		ConnectAction->setIcon(
-			style()->standardIcon(QStyle::SP_DialogApplyButton));
-		OpenAction->setIcon(
-			style()->standardIcon(QStyle::SP_DialogOpenButton));
-		RefreshAction->setIcon(
-			style()->standardIcon(QStyle::SP_BrowserReload));
+		Session.reset();
+		AccountText = aAccountText;
+		RateLimits  = { };
 	}
 
-	void github_session_panel::resizeEvent(QResizeEvent* const aEvent)
+	auto github_session_panel::profiles() const noexcept
+		-> const std::vector<application::github_profile_option>&
 	{
-		QWidget::resizeEvent(aEvent);
-		// The identity row holds the profile, its selector and the connection
-		// actions side by side. Below what that row needs, the actions take a
-		// row of their own rather than squeezing the account out of view.
-		if (IdentityLayout != nullptr) {
-			apply_compact_layout(width() < IdentityLayout->sizeHint().width());
+		return Profiles;
+	}
+
+	auto github_session_panel::active_profile() const noexcept
+		-> std::optional<core::host_profile_id>
+	{
+		return ActiveProfile;
+	}
+
+	auto github_session_panel::selected_profile() const
+		-> std::optional<core::host_profile_id>
+	{
+		if (SelectedProfile.has_value() && profile_option(*SelectedProfile) != nullptr) {
+			return SelectedProfile;
 		}
+		return std::nullopt;
 	}
 
-	void github_session_panel::apply_compact_layout(const bool aCompact)
+	auto github_session_panel::session() const noexcept
+		-> const std::optional<application::github_session_projection>&
 	{
-		if (
-			LocatorLayout == nullptr || LocatorActions == nullptr
-			|| LocatorActions->property("githubNarrowLayout").toBool() == aCompact) {
-			return;
+		return Session;
+	}
+
+	auto github_session_panel::capabilities() const noexcept
+		-> const core::github_capabilities&
+	{
+		return Capabilities;
+	}
+
+	auto github_session_panel::rate_limits() const noexcept
+		-> const application::github_rate_limits_projection&
+	{
+		return RateLimits;
+	}
+
+	auto github_session_panel::connect_enabled() const noexcept -> bool
+	{
+		return ConnectCommandEnabled && SelectedProfile.has_value();
+	}
+
+	auto github_session_panel::connect_description() const -> QString
+	{
+		if (!selected_profile().has_value()) {
+			return QStringLiteral("No GitHub host profiles are configured.");
 		}
-		LocatorLayout->removeWidget(LocatorActions);
-		IdentityLayout->removeWidget(ConnectionActions);
-		if (aCompact) {
-			LocatorLayout->addWidget(LocatorActions, 1, 0, 1, 6);
-			IdentityLayout->addWidget(ConnectionActions, 1, 0, 1, 4);
-		} else {
-			LocatorLayout->addWidget(LocatorActions, 0, 6);
-			IdentityLayout->addWidget(ConnectionActions, 0, 2, 1, 2);
-		}
-		LocatorActions->setProperty("githubNarrowLayout", aCompact);
-	}
-
-	auto github_session_panel::profile_selector() const noexcept -> QComboBox*
-	{
-		return ProfileSelector;
-	}
-
-	auto github_session_panel::usage_indicator() const noexcept -> usage_ring*
-	{
-		return UsageIndicator;
-	}
-
-	auto github_session_panel::access_mode_label() const noexcept -> QLabel*
-	{
-		return AccessModeLabel;
-	}
-
-	auto github_session_panel::refusal_label() const noexcept -> QLabel*
-	{
-		return RefusalLabel;
+		return ConnectCommandEnabled
+			? QStringLiteral("Connect the selected GitHub host profile")
+			: reason_text(ConnectDisabledReason, std::nullopt, std::nullopt);
 	}
 
 	auto github_session_panel::public_preview_signed_out() const noexcept -> bool
 	{
-		return PublicPreviewStrip != nullptr && !PublicPreviewStrip->isHidden();
+		return PublicPreview.Mode == application::public_preview_mode::signed_out;
 	}
 
-	void github_session_panel::set_public_preview_dispatch(
-		application::public_preview_gesture_dispatch aDispatch)
+	auto github_session_panel::public_preview() const noexcept
+		-> const application::public_preview_presentation&
 	{
-		UsageIndicator->set_dispatch(std::move(aDispatch));
+		return PublicPreview;
 	}
 
-	void github_session_panel::apply_public_preview(
-		const application::public_preview_presentation& aPresentation,
-		const std::uint64_t                             aNowUnixSeconds)
+	auto github_session_panel::public_preview_now() const noexcept -> std::uint64_t
 	{
-		const auto signedOut = aPresentation.Mode
-			== application::public_preview_mode::signed_out;
-		UsageIndicator->apply(aPresentation, aNowUnixSeconds);
-		AccessModeLabel->setText(public_preview_mode_text());
-		PublicPreviewStrip->setVisible(signedOut);
-		if (aPresentation.Refusal.has_value()) {
-			RefusalLabel->setText(public_preview_refusal_text(
-				*aPresentation.Refusal,
-				aPresentation.NowUnixSeconds != 0U
-					? aPresentation.NowUnixSeconds
-					: aNowUnixSeconds));
-		} else {
-			RefusalLabel->clear();
+		return PublicPreviewNow;
+	}
+
+	auto github_session_panel::public_preview_refusal_text() const -> QString
+	{
+		if (!PublicPreview.Refusal.has_value()) {
+			return { };
 		}
-		RefusalLabel->setVisible(signedOut && aPresentation.Refusal.has_value());
-
-		// The picker names the mode as well, because the entry a reviewer
-		// reads while choosing a host is the first place the mode can be
-		// mistaken for an account. The profile's own label is remembered so
-		// leaving the mode restores it rather than re-deriving it.
-		const auto index = ProfileSelector->currentIndex();
-		if (signedOut && index >= 0) {
-			if (ReplacedProfileIndex != index) {
-				ReplacedProfileIndex = index;
-				ReplacedProfileLabel = ProfileSelector->itemText(index);
-			}
-			const auto        selected = selected_profile();
-			const auto* const option   = selected.has_value()
-				? profile_option(*selected)
-				: nullptr;
-			const auto        host     = option != nullptr
-				? text(option->Hostname)
-				: QString{ };
-			ProfileSelector->setItemText(
-				index,
-				host.isEmpty()
-					? public_preview_mode_text()
-					: QStringLiteral("%1 · %2")
-						  .arg(public_preview_mode_text(), host));
-		} else if (ReplacedProfileIndex >= 0) {
-			ProfileSelector->setItemText(
-				ReplacedProfileIndex, ReplacedProfileLabel);
-			ReplacedProfileIndex = -1;
-			ReplacedProfileLabel.clear();
-		}
-	}
-
-	auto github_session_panel::owner_editor() const noexcept -> QLineEdit*
-	{
-		return OwnerEditor;
-	}
-
-	auto github_session_panel::repository_editor() const noexcept -> QLineEdit*
-	{
-		return RepositoryEditor;
-	}
-
-	auto github_session_panel::pull_request_editor() const noexcept -> QSpinBox*
-	{
-		return PullRequestEditor;
-	}
-
-	auto github_session_panel::connect_button() const noexcept -> QToolButton*
-	{
-		return ConnectButton;
-	}
-
-	auto github_session_panel::open_button() const noexcept -> QToolButton*
-	{
-		return OpenButton;
-	}
-
-	auto github_session_panel::public_preview_button() const noexcept -> QToolButton*
-	{
-		return PublicPreviewButton;
-	}
-
-	auto github_session_panel::refresh_button() const noexcept -> QToolButton*
-	{
-		return RefreshButton;
-	}
-
-	auto github_session_panel::connection_details_button() const noexcept
-		-> QToolButton*
-	{
-		return ConnectionDetailsButton;
+		return bpr::qt::public_preview_refusal_text(
+			*PublicPreview.Refusal,
+			PublicPreview.NowUnixSeconds != 0U
+				? PublicPreview.NowUnixSeconds
+				: PublicPreviewNow);
 	}
 
 	auto github_session_panel::showing_diagnostic() const -> bool
 	{
-		// Relative to the panel, not to the screen: the panel answers for
-		// what it shows whether or not the window it sits in is open.
-		return DiagnosticLabel->isVisibleTo(this)
-			&& !DiagnosticLabel->text().isEmpty();
-	}
-
-	auto github_session_panel::status_banner() const noexcept -> QFrame*
-	{
-		return StatusBanner;
+		return !DiagnosticText.isEmpty();
 	}
 
 	auto github_session_panel::summary_text() const -> QString
 	{
-		auto summary = StatusLabel->text();
+		auto summary = StatusText;
 		if (showing_diagnostic()) {
-			summary.append(QStringLiteral(" %1").arg(DiagnosticLabel->text()));
+			summary.append(QStringLiteral(" %1").arg(DiagnosticText));
 		}
 		return summary;
 	}
 
 	auto github_session_panel::status_text() const -> std::string
 	{
-		return StatusLabel->text().toUtf8().toStdString();
+		return StatusText.toUtf8().toStdString();
 	}
 
 	auto github_session_panel::diagnostic_text() const -> std::string
 	{
-		// The text, whether or not the banner is currently showing it. This is
-		// the window accessor's own contract, kept exactly: an earlier draft of
-		// this panel added an `isVisible()` guard, which reads as more correct
-		// and is not what the window did. Every assertion about diagnostic
-		// wording runs against a window that was never shown, so the guard
-		// silently returned nothing and thirteen reason codes appeared to have
-		// lost their presentation text.
-		return DiagnosticLabel->text().toUtf8().toStdString();
+		return DiagnosticText.toUtf8().toStdString();
 	}
 
 	auto github_session_panel::active_host_text() const -> std::string
 	{
-		return HostLabel->text().toUtf8().toStdString();
+		const auto  profile = ActiveProfile.has_value() ? ActiveProfile : SelectedProfile;
+		const auto* option  = profile.has_value() ? profile_option(*profile) : nullptr;
+		return option != nullptr ? option->Hostname : std::string{ };
 	}
 
 	auto github_session_panel::active_account_text() const -> std::string
 	{
-		return AccountLabel->text().toUtf8().toStdString();
+		return AccountText.toUtf8().toStdString();
 	}
 
 	auto github_session_panel::status() const noexcept -> core::github_status
 	{
 		return CurrentStatus;
-	}
-
-	auto github_session_panel::selected_profile() const
-		-> std::optional<core::host_profile_id>
-	{
-		const auto index = ProfileSelector->currentIndex();
-		if (index < 0) {
-			return std::nullopt;
-		}
-		const auto value = ProfileSelector->itemData(index);
-		if (!value.isValid()) {
-			return std::nullopt;
-		}
-		return core::host_profile_id{ value.toULongLong() };
 	}
 
 	auto github_session_panel::statistics() const noexcept
@@ -1065,19 +559,5 @@ namespace bpr::qt {
 				return aOption.Profile == aProfile;
 			});
 		return found == Profiles.end() ? nullptr : &*found;
-	}
-
-	auto github_session_panel::profile_index(
-		const core::host_profile_id aProfile) const -> int
-	{
-		for (auto index = 0; index < ProfileSelector->count(); ++index) {
-			const auto value = ProfileSelector->itemData(index);
-			if (
-				value.isValid()
-				&& core::host_profile_id{ value.toULongLong() } == aProfile) {
-				return index;
-			}
-		}
-		return -1;
 	}
 } // namespace bpr::qt

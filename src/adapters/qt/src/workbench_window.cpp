@@ -16,6 +16,7 @@
 #include "bpr/qt/native_window_chrome.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
+#include "bpr/qt/usage_ring.hpp"
 
 #include <QAbstractButton>
 #include <QAbstractItemView>
@@ -846,11 +847,9 @@ namespace bpr::qt {
 				}
 				return;
 			}
+			// [[BPR-0771]]. The page itself: the locator this once focused is
+			// gone, and naming a pull request is the bar's.
 			open_settings(settings_page::accounts_and_hosts);
-			if (HomeLanding->state() == landing_state::choose_pull_request
-				&& SessionPanel != nullptr) {
-				SessionPanel->owner_editor()->setFocus(Qt::OtherFocusReason);
-			}
 		});
 		home->addWidget(HomeLanding);
 		// [[BPR-0647]]. The centre is a stack: the
@@ -1374,11 +1373,29 @@ namespace bpr::qt {
 			// indistinguishable from a product that does nothing.
 			HomeOpenNotice = new QLabel{ HomePage };
 			HomeOpenNotice->setObjectName(QStringLiteral("homeOpenNotice"));
-			HomeOpenNotice->setContentsMargins(24, 2, 24, 0);
 			HomeOpenNotice->setWordWrap(true);
 			HomeOpenNotice->hide();
-			homeColumn->addWidget(HomeOpenNotice);
 			HomeOpenNotice->setTextFormat(Qt::PlainText);
+			// [[BPR-0771]]. A pull request that could not be loaded is said
+			// here, once, in one sentence, with its details a press away. The
+			// banner on Accounts & hosts that used to say it is gone.
+			HomeOpenDetails = new QPushButton{ tr("Copy details"), HomePage };
+			HomeOpenDetails->setObjectName(QStringLiteral("homeOpenCopyDetails"));
+			HomeOpenDetails->setAccessibleName(QStringLiteral("Copy the details of the refusal"));
+			HomeOpenDetails->setFlat(true);
+			HomeOpenDetails->setAutoDefault(false);
+			HomeOpenDetails->setFocusPolicy(Qt::StrongFocus);
+			HomeOpenDetails->hide();
+			auto* const noticeRow = new QHBoxLayout{ };
+			noticeRow->setContentsMargins(24, 2, 24, 0);
+			noticeRow->addWidget(HomeOpenNotice, 1);
+			noticeRow->addWidget(HomeOpenDetails, 0, Qt::AlignTop);
+			homeColumn->addLayout(noticeRow);
+			connect(HomeOpenDetails, &QPushButton::clicked, this, [this] {
+				if (auto* const clipboard = QApplication::clipboard(); clipboard != nullptr) {
+					clipboard->setText(HomeRefusalDetails);
+				}
+			});
 			auto* setupRow = new QHBoxLayout{ };
 			setupRow->setContentsMargins(24, 2, 24, 4);
 			SetupContinueButton = new QPushButton{ HomePage };
@@ -1408,7 +1425,15 @@ namespace bpr::qt {
 					SetupDestinationDispatch(application::cancel_setup_destination{ });
 				}
 				if (HomeOpenNotice != nullptr && HomeOpenNotice->isVisible()) {
+					// A refusal the reviewer is already rewriting stays dismissed
+					// until the next load rather than returning on the next projection.
+					if (!ApplyingSetupProjection && HomeSetupNotice.isEmpty()) {
+						DismissedHomeRefusal = HomeOpenNotice->text();
+					}
 					HomeOpenNotice->hide();
+				}
+				if (HomeOpenDetails != nullptr) {
+					HomeOpenDetails->hide();
 				}
 				if (HomeOpenAction != nullptr) {
 					HomeOpenAction->setEnabled(
@@ -1577,8 +1602,22 @@ namespace bpr::qt {
 				// the window was built.
 				.PresentationChanged = [this] { update_github_presentation_state(); },
 			},
-			nullptr,
+			this,
 		};
+		// [[BPR-0771]]. Open names what the Home bar names; the locator it
+		// once read is gone. With nothing written there it takes the reviewer
+		// to the bar.
+		connect(GithubOpenAction, &QAction::triggered, this, [this] {
+			if (HomeOpenBar == nullptr) {
+				return;
+			}
+			if (HomeOpenBar->text().trimmed().isEmpty()) {
+				choose_home(true);
+				HomeOpenBar->setFocus(Qt::ShortcutFocusReason);
+				return;
+			}
+			open_from_home_bar();
+		});
 		PullRequestPanel = new github_pull_request_panel{ };
 
 		// [[BPR-0526]]. A profile has two ways in -- the token prompt the
@@ -1604,9 +1643,9 @@ namespace bpr::qt {
 
 		// [[BPR-0646]]. RFC-BPR-0028 AC-01: the chrome above the comparison
 		// is the strip and the epoch line only, and accounts live in Settings.
-		// The device sign-in and the session chrome are the Accounts and
-		// hosts page of the Settings window: sign-in first while signed out,
-		// then the host picker, Connect and the locator. The strip's account
+		// The device sign-in and the host cards are the Accounts and hosts
+		// page of the Settings window: sign-in first while signed out, then
+		// one card per configured host ([[BPR-0771]]). The strip's account
 		// button opens that page, and a flow the core begins presents it, so
 		// the code is seen. The pull request list (the queue landing) and the
 		// pull request summary stay in the files drawer's bounded top region
@@ -1618,20 +1657,25 @@ namespace bpr::qt {
 		accounts->setAccessibleName(QStringLiteral("Accounts and hosts"));
 		auto* const accountsColumn = new QVBoxLayout{ accounts };
 		accountsColumn->setContentsMargins(0, 0, 0, 0);
-		// [[BPR-0652]]. The account card first: who is signed in, on what
-		// host, connected or not, and the rate limit. Then the device sign-in
-		// and the session chrome as BPR-0646 placed them.
-		AccountCard = new account_card{ accounts };
-		// [[BPR-0660]]. The card's Sign out is the same deactivation the session
-		// panel's is: the host forgets the remembered grant and signs out.
-		connect(AccountCard->sign_out_button(), &QToolButton::clicked, this, [this] {
-			if (GithubDispatch) {
-				GithubDispatch(core::deactivate_github_identity_intent{ });
-			}
-		});
-		accountsColumn->addWidget(AccountCard);
+		// [[BPR-0771]]. RFC-BPR-0032: the sentence, sign-in, then one card per
+		// configured host. The host picker, the locator, the status banner and
+		// the public-preview strip are not here: a host is chosen by its card's
+		// Connect, a pull request is named in the Home bar, a load refusal is
+		// said under that bar, and a session failure is said in its card.
+		auto* const lede = new QLabel{ QStringLiteral("One account per server. Credentials are never shown here."), accounts };
+		lede->setObjectName(QStringLiteral("accountsLede"));
+		lede->setWordWrap(true);
+		lede->setTextFormat(Qt::PlainText);
+		lede->setForegroundRole(QPalette::PlaceholderText);
+		accountsColumn->addWidget(lede);
 		accountsColumn->addWidget(DevicePanel);
-		accountsColumn->addWidget(SessionPanel);
+		ServerCardColumn = new QVBoxLayout{ };
+		ServerCardColumn->setContentsMargins(0, 0, 0, 0);
+		ServerCardColumn->setSpacing(16);
+		accountsColumn->addLayout(ServerCardColumn);
+		for (const auto& profile : GithubProfiles) {
+			add_server_card(profile);
+		}
 		// [[BPR-0660]]. The enterprise servers the reviewer keeps, so a
 		// GitHub Enterprise host is offered at the next launch without
 		// being typed again. No token is kept here: signing in is still
@@ -1750,17 +1794,12 @@ namespace bpr::qt {
 		auto* const topColumn = new QVBoxLayout{ top };
 		topColumn->setContentsMargins(0, 0, 0, 0);
 		DrawerTopColumn = topColumn;
-		connect(
-			SessionPanel->profile_selector(),
-			&QComboBox::currentIndexChanged,
-			this,
-			[this] { rebind_device_authorization_profile(); });
 		// Switching to sign-in is offered from the ring and from every
 		// refusal, and both go to the one entry point already mounted here:
-		// the device panel's "Get a code", for the profile the picker names.
-		// The window adds no second way in, so sign-in cannot begin against a
+		// the device panel's "Get a code", for the host last chosen. The
+		// window adds no second way in, so sign-in cannot begin against a
 		// host the reviewer is not looking at.
-		SessionPanel->set_public_preview_dispatch(
+		set_public_preview_dispatch(
 			[this](application::public_preview_gesture aGesture) {
 				static_cast<void>(aGesture);
 				begin_selected_sign_in();
@@ -1863,7 +1902,6 @@ namespace bpr::qt {
 		SessionPanel->apply_capabilities({ });
 		SessionPanel->apply_rate_limits({ });
 		clear_github_pull_request();
-		SessionPanel->update_selected_profile();
 		SessionPanel->update_connect_enabled();
 		// Seeded, exactly as the window it replaces seeded them. A command's
 		// enablement and its disabled reason arrive from projections, and until
@@ -4405,8 +4443,11 @@ namespace bpr::qt {
 			// under a card that already says so.
 			const auto empty = status == core::github_status::session_ready
 				|| status == core::github_status::pull_request_ready;
+			// [[BPR-0771]]. A load refusal is said once, under the bar, so the
+			// stack's page does not say it again.
 			PullRequestStack->setVisible(
-				home && ((signedIn && !empty) || SessionPanel->showing_diagnostic()));
+				home && home_refusal_text().isEmpty()
+				&& ((signedIn && !empty) || SessionPanel->showing_diagnostic()));
 		}
 	}
 
@@ -4640,10 +4681,6 @@ namespace bpr::qt {
 		AccountAction->setText(signedIn ? account : QStringLiteral("Sign in"));
 		AccountAction->setToolTip(description);
 		AccountAction->setStatusTip(description);
-		if (AccountCard != nullptr) {
-			AccountCard->set_status(
-				signedIn ? QStringLiteral("Connected") : QStringLiteral("Signed out"), signedIn);
-		}
 		if (auto* const button = qobject_cast<QToolButton*>(
 				PrimaryToolbar->widgetForAction(AccountAction));
 			button != nullptr) {
@@ -4764,11 +4801,6 @@ namespace bpr::qt {
 		return RepositoriesTree;
 	}
 
-	auto workbench_window::account_card_view() const noexcept -> account_card*
-	{
-		return AccountCard;
-	}
-
 	auto workbench_window::rules_editor() const noexcept -> QWidget*
 	{
 		return RulesEditor;
@@ -4800,9 +4832,7 @@ namespace bpr::qt {
 		}
 		if (aUpdate.Session.has_value()) {
 			SessionPanel->apply_session(*aUpdate.Session);
-			if (AccountCard != nullptr) {
-				AccountCard->apply(*aUpdate.Session, QString::fromStdString(SessionPanel->active_host_text()));
-			}
+			update_server_cards();
 			if (ConversationPanel != nullptr) {
 				ConversationPanel->cards()->set_viewer_login(
 					QString::fromStdString(aUpdate.Session->Login));
@@ -4822,16 +4852,33 @@ namespace bpr::qt {
 		// One polite announcement per material change, not one per projection
 		// field. A screen reader that is told the same thing twice has been told
 		// nothing the second time.
-		if (SessionPanel == nullptr || SessionPanel->status_banner() == nullptr) {
+		if (SessionPanel == nullptr) {
 			return;
 		}
+		// [[BPR-0771]]. Attributed to where the change is said: a pull
+		// request's status to Home, whose bar carries its refusal, and a
+		// session's to its host's card.
+		QObject* source = current_server_card();
+		switch (SessionPanel->status()) {
+		case core::github_status::loading_pull_request:
+		case core::github_status::pull_request_ready:
+		case core::github_status::pull_request_failed:
+		case core::github_status::pull_request_cancelled:
+			source = HomePage;
+			break;
+		case core::github_status::no_profile:
+		case core::github_status::establishing_session:
+		case core::github_status::session_ready:
+		case core::github_status::session_failed:
+		case core::github_status::session_cancelled:
+			break;
+		}
 		const auto announcement = SessionPanel->summary_text();
-		if (announcement.isEmpty() || announcement == LastGithubAnnouncement) {
+		if (source == nullptr || announcement.isEmpty() || announcement == LastGithubAnnouncement) {
 			return;
 		}
 		LastGithubAnnouncement = announcement;
-		QAccessibleAnnouncementEvent event{ SessionPanel->status_banner(),
-											announcement };
+		QAccessibleAnnouncementEvent event{ source, announcement };
 		event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
 		QAccessible::updateAccessibility(&event);
 	}
@@ -4843,6 +4890,11 @@ namespace bpr::qt {
 			if (!SessionPanel->apply_command(command)) {
 				apply_github_content_command(command);
 			}
+		}
+		// [[BPR-0771]]. A command can change without a status: a card must not
+		// go on offering a Connect the core has just refused.
+		if (!aTransition.Commands.empty()) {
+			update_server_cards();
 		}
 		if (aTransition.Identity.has_value()) {
 			SessionPanel->apply_identity(*aTransition.Identity);
@@ -5018,6 +5070,8 @@ namespace bpr::qt {
 		PublicPreviewNow = aNowUnixSeconds;
 		if (SessionPanel != nullptr) {
 			SessionPanel->apply_public_preview(PublicPreview, PublicPreviewNow);
+			update_server_cards();
+			update_home_open_notice();
 		}
 	}
 
@@ -5154,8 +5208,8 @@ namespace bpr::qt {
 
 	auto workbench_window::usage_indicator() const noexcept -> usage_ring*
 	{
-		return SessionPanel != nullptr ? SessionPanel->usage_indicator()
-									   : nullptr;
+		auto* const card = current_server_card();
+		return card != nullptr ? card->usage_indicator() : nullptr;
 	}
 
 	auto workbench_window::public_preview_signed_out() const noexcept -> bool
@@ -5165,9 +5219,8 @@ namespace bpr::qt {
 
 	auto workbench_window::public_preview_refusal_text() const -> QString
 	{
-		return SessionPanel != nullptr && SessionPanel->refusal_label() != nullptr
-			? SessionPanel->refusal_label()->text()
-			: QString{ };
+		return SessionPanel != nullptr ? SessionPanel->public_preview_refusal_text()
+									   : QString{ };
 	}
 
 	void workbench_window::update_github_presentation_state()
@@ -5197,6 +5250,7 @@ namespace bpr::qt {
 			// middle of whatever began the flow.
 		}
 		update_account_action();
+		update_server_cards();
 		update_home_landing();
 
 		QString state;
@@ -5281,7 +5335,7 @@ namespace bpr::qt {
 				EmptyStateBodyLabel->setText(
 					!SessionPanel->showing_diagnostic()
 						? QStringLiteral(
-							  "Check the locator and try opening it again.")
+							  "Check the link in the bar and open it again.")
 						: QString::fromStdString(SessionPanel->diagnostic_text()));
 				break;
 			case core::github_status::pull_request_cancelled:
@@ -5290,16 +5344,13 @@ namespace bpr::qt {
 					QStringLiteral("Pull request loading canceled"));
 				EmptyStateBodyLabel->setText(
 					QStringLiteral(
-						"The locator is unchanged and can be opened again."));
+						"The link in the bar is unchanged and can be opened again."));
 				break;
 			}
 		}
 		PullRequestStack->setProperty("githubPresentationState", state);
 
-		if (auto* const banner = SessionPanel->status_banner();
-			banner != nullptr) {
-			banner->setAccessibleDescription(SessionPanel->summary_text());
-		}
+		update_home_open_notice();
 	}
 
 	void workbench_window::focus_review_threads()
@@ -5357,9 +5408,149 @@ namespace bpr::qt {
 		return ConversationPanel->model();
 	}
 
-	auto workbench_window::profile_selector() const noexcept -> QComboBox*
+	auto workbench_window::server_cards() const -> std::vector<server_card*>
 	{
-		return SessionPanel->profile_selector();
+		return ServerCards;
+	}
+
+	auto workbench_window::server_card_for(const core::host_profile_id aProfile) const
+		-> server_card*
+	{
+		const auto found = std::ranges::find_if(ServerCards, [aProfile](const server_card* const aCard) {
+			return aCard->profile() == aProfile;
+		});
+		return found == ServerCards.end() ? nullptr : *found;
+	}
+
+	auto workbench_window::current_server_card() const -> server_card*
+	{
+		if (SessionPanel == nullptr) {
+			return nullptr;
+		}
+		const auto active  = SessionPanel->active_profile();
+		const auto current = active.has_value() ? active : SessionPanel->selected_profile();
+		return current.has_value() ? server_card_for(*current) : nullptr;
+	}
+
+	void workbench_window::set_public_preview_dispatch(
+		application::public_preview_gesture_dispatch aDispatch)
+	{
+		PublicPreviewDispatch = std::move(aDispatch);
+		for (auto* const card : ServerCards) {
+			card->set_public_preview_dispatch(PublicPreviewDispatch);
+		}
+	}
+
+	void workbench_window::select_github_profile(const core::host_profile_id aProfile)
+	{
+		if (SessionPanel == nullptr) {
+			return;
+		}
+		SessionPanel->select_profile(aProfile);
+		rebind_device_authorization_profile();
+		update_server_cards();
+	}
+
+	void workbench_window::add_server_card(const application::github_profile_option& aOption)
+	{
+		if (ServerCardColumn == nullptr || server_card_for(aOption.Profile) != nullptr) {
+			return;
+		}
+		// The card asks; the window decides. Connect is the host chosen, then
+		// the existing connect intent. Sign in is the device flow where the
+		// host has one, and otherwise the way in Connect already opens.
+		auto* const card = new server_card{
+			aOption,
+			server_card_gestures{
+				.Connect =
+					[this](const core::host_profile_id aProfile) {
+						select_github_profile(aProfile);
+						GithubConnectAction->trigger();
+					},
+				.SignIn =
+					[this](const core::host_profile_id aProfile) {
+						select_github_profile(aProfile);
+						if (const auto* const chosen = server_card_for(aProfile);
+							chosen != nullptr && chosen->offers_device_sign_in()) {
+							begin_selected_sign_in();
+						} else {
+							GithubConnectAction->trigger();
+						}
+					},
+				.SignOut =
+					[this] {
+						if (GithubDispatch) {
+							GithubDispatch(core::deactivate_github_identity_intent{ });
+						}
+					},
+			},
+			ServerCardColumn->parentWidget(),
+		};
+		if (PublicPreviewDispatch) {
+			card->set_public_preview_dispatch(PublicPreviewDispatch);
+		}
+		ServerCards.push_back(card);
+		ServerCardColumn->addWidget(card);
+	}
+
+	void workbench_window::update_server_cards()
+	{
+		if (SessionPanel == nullptr || ServerCards.empty()) {
+			return;
+		}
+		const auto  status   = SessionPanel->status();
+		const auto  active   = SessionPanel->active_profile();
+		const auto  current  = active.has_value() ? active : SessionPanel->selected_profile();
+		const auto& session  = SessionPanel->session();
+		const auto  reading  = SessionPanel->public_preview_signed_out();
+		const auto  admitted = SessionPanel->connect_enabled();
+		for (auto* const card : ServerCards) {
+			auto shown             = server_card_presentation{ };
+			shown.Current          = current == card->profile();
+			shown.ConnectAdmitted  = admitted;
+			shown.ConnectDescription = admitted
+				? QStringLiteral("Chooses %1 and connects it.").arg(QString::fromStdString(card->option().Hostname))
+				: SessionPanel->connect_description();
+			shown.PublicPreview    = SessionPanel->public_preview();
+			shown.PublicPreviewNow = SessionPanel->public_preview_now();
+			if (shown.Current) {
+				switch (status) {
+				case core::github_status::no_profile:
+				case core::github_status::session_cancelled:
+					shown.State = server_card_state::signed_out;
+					break;
+				case core::github_status::establishing_session:
+					shown.State = server_card_state::connecting;
+					break;
+				case core::github_status::session_failed:
+					shown.State       = server_card_state::refused;
+					shown.LastProblem = SessionPanel->showing_diagnostic()
+						? QString::fromStdString(SessionPanel->diagnostic_text())
+						: QString::fromStdString(SessionPanel->status_text());
+					break;
+				case core::github_status::session_ready:
+				case core::github_status::loading_pull_request:
+				case core::github_status::pull_request_ready:
+				case core::github_status::pull_request_failed:
+				case core::github_status::pull_request_cancelled:
+					// Signed out and reading public pull requests is not an account.
+					shown.State         = reading ? server_card_state::signed_out : server_card_state::connected;
+					shown.ReadingPublic = reading;
+					// The refusal that ended the last signed-out read is said beside the
+					// reading, in the card's Details, rather than under the Home bar.
+					if (reading) {
+						shown.LastProblem = SessionPanel->public_preview_refusal_text();
+					}
+					break;
+				}
+				if (!reading && session.has_value() && session->Profile == card->profile()) {
+					shown.Session = session;
+				}
+				shown.Capabilities = SessionPanel->capabilities();
+				shown.RateLimits   = SessionPanel->rate_limits();
+			}
+			card->apply(shown);
+		}
 	}
 
 	auto workbench_window::session_panel() const noexcept -> github_session_panel*
@@ -5543,6 +5734,17 @@ namespace bpr::qt {
 		return HomeOpenNotice;
 	}
 
+	auto workbench_window::home_open_details_button() const noexcept -> QPushButton*
+	{
+		return HomeOpenDetails;
+	}
+
+	void workbench_window::present_home_restoration_notice(const QString& aText)
+	{
+		HomeRestorationNotice = aText;
+		update_home_open_notice();
+	}
+
 	auto workbench_window::home_recent_heading() const noexcept -> QLabel*
 	{
 		return HomeRecentHeading;
@@ -5686,7 +5888,9 @@ namespace bpr::qt {
 			return;
 		}
 		GithubProfiles.push_back(aProfile);
+		add_server_card(aProfile);
 		SessionPanel->add_profile(std::move(aProfile));
+		update_server_cards();
 	}
 
 	void workbench_window::set_setup_destination_dispatch(application::setup_destination_dispatch aDispatch)
@@ -5702,8 +5906,8 @@ namespace bpr::qt {
 			OpenOnOverview = true;
 			HomeOpenBar->clear();
 		}
-		HomeOpenNotice->setText(QString::fromStdString(aProjection.Notice));
-		HomeOpenNotice->setVisible(!aProjection.Notice.empty());
+		HomeSetupNotice = QString::fromStdString(aProjection.Notice);
+		update_home_open_notice();
 		if (aProjection.Opened && !aProjection.Notice.empty()) {
 			statusBar()->showMessage(QString::fromStdString(aProjection.Notice));
 		} else {
@@ -5724,6 +5928,52 @@ namespace bpr::qt {
 		if (HomeOpenBar && SetupDestinationDispatch) {
 			SetupDestinationDispatch(application::submit_setup_destination{ HomeOpenBar->text().toStdString() });
 		}
+	}
+
+	auto workbench_window::home_refusal_text() const -> QString
+	{
+		if (SessionPanel == nullptr || HasGithubPullRequest) {
+			return { };
+		}
+		if (SessionPanel->status() == core::github_status::pull_request_failed) {
+			return SessionPanel->showing_diagnostic()
+				? QString::fromStdString(SessionPanel->diagnostic_text())
+				: QStringLiteral("The pull request could not be loaded.");
+		}
+		// A signed-out mode refusal is not a pull request the bar named; it is
+		// said on the reading host's card instead.
+		return { };
+	}
+
+	void workbench_window::update_home_open_notice()
+	{
+		if (HomeOpenNotice == nullptr || HomeOpenDetails == nullptr || SessionPanel == nullptr) {
+			return;
+		}
+		if (SessionPanel->status() == core::github_status::loading_pull_request) {
+			DismissedHomeRefusal.clear();
+		}
+		// A setup stage's own notice speaks first, then a review restoration's,
+		// then the refusal of the last load, unless the reviewer has already
+		// begun rewriting what was said.
+		const auto refusal = home_refusal_text();
+		const auto passive = !HomeRestorationNotice.isEmpty() ? HomeRestorationNotice : refusal;
+		const auto spoken  = HomeSetupNotice.isEmpty() && !passive.isEmpty()
+			&& passive != DismissedHomeRefusal;
+		const auto refused = spoken && HomeRestorationNotice.isEmpty();
+		const auto notice = !HomeSetupNotice.isEmpty() ? HomeSetupNotice
+			: spoken                    ? passive
+										: QString{ };
+		HomeOpenNotice->setText(notice);
+		HomeOpenNotice->setVisible(!notice.isEmpty());
+		HomeRefusalDetails.clear();
+		if (refused) {
+			HomeRefusalDetails = QString::fromStdString(SessionPanel->status_text());
+			if (HomeRefusalDetails != refusal) {
+				HomeRefusalDetails += QLatin1Char('\n') + refusal;
+			}
+		}
+		HomeOpenDetails->setVisible(refused);
 	}
 
 	auto workbench_window::select_queue_item(

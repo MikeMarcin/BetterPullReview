@@ -674,11 +674,9 @@ auto main(int argc, char** argv) -> int
 		})) {
 		return fail(*application, "connect", connected.render());
 	}
-	window.session_panel()->owner_editor()->setText(QStringLiteral("octo-org"));
-	window.session_panel()->repository_editor()->setText(
-		QStringLiteral("review-repository"));
-	window.session_panel()->pull_request_editor()->setValue(17);
-	window.github_open_action()->trigger();
+	// [[BPR-0771]]. A pull request is named in the Home bar; the locator is retired.
+	window.home_open_bar()->setText(QStringLiteral("octo-org/review-repository#17"));
+	window.home_open_action()->trigger();
 
 	auto* const panel = window.agent_panel();
 	if (course == "construction-cut" || course == "launcher-construction-cut") {
@@ -734,6 +732,12 @@ auto main(int argc, char** argv) -> int
 		return fail(
 			*application, "agent-authority-and-offerings", offerings.render());
 	}
+	// [[BPR-0771]]. Opening from the Home bar lands on the reviewer's opening
+	// modality, Overview by default; the retired locator this course opened
+	// through left the window on Review. The course is about the review
+	// surface, so it chooses Review from the strip, as a reviewer would.
+	window.choose_modality(qt::review_modality::review);
+	QApplication::processEvents();
 	if (course == "positive-reopen") {
 		const auto catalog = app::detail::github_application_fixture_access::
 			agent_session_catalog(*application);

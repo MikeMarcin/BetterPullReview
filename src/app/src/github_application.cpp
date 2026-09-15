@@ -5721,10 +5721,10 @@ namespace bpr::app {
 			if (Closing || !Window) {
 				return;
 			}
-			if (auto* notice = Window->home_open_notice()) {
-				notice->setText(aText);
-				notice->setVisible(!aText.isEmpty());
-			}
+			// [[BPR-0771]]. Through the window, the notice's one writer, so a
+			// load refusal and a setup stage cannot overwrite it or be
+			// overwritten by it.
+			Window->present_home_restoration_notice(aText);
 		}
 		void cancel_restoration(bool aStartup, bool aReadingGesture = false)
 		{
@@ -5875,8 +5875,8 @@ namespace bpr::app {
 			}
 			WorkbenchHost->restore();
 			AppearanceHost->restore();
-			if (Window->session_panel()) {
-				Window->session_panel()->set_public_preview_dispatch([this, weak](application::public_preview_gesture) {
+			if (Window) {
+				Window->set_public_preview_dispatch([this, weak](application::public_preview_gesture) {
 					if (!weak.expired() && !Closing) {
 						begin_public_preview_sign_in(Host->state().ActiveProfile.value_or(core::host_profile_id{ }));
 					}
@@ -7110,8 +7110,9 @@ namespace bpr::app {
 			});
 		}
 
-		// Automation uses the same selected-profile control as an ordinary
-		// launch. Select native HTTPS explicitly; CLI remains unavailable.
+		// [[BPR-0771]]. Automation sends the intent the retired "Read without
+		// signing in" button sent, for the same host, through the window's own
+		// dispatch path. Select native HTTPS explicitly; CLI remains unavailable.
 		void activate_public_preview(const bool aEnterprise)
 		{
 			if (Closing || Host == nullptr || Window == nullptr) {
@@ -7126,17 +7127,15 @@ namespace bpr::app {
 						&& aProfile.authentication_transport()
 						== application::github_authentication_transport::native_https;
 				});
-			if (selected == Profiles.end() || Window->session_panel() == nullptr) {
+			if (selected == Profiles.end() || Window->server_card_for(selected->profile()) == nullptr) {
 				return;
 			}
-			auto* const selector = Window->profile_selector();
-			const auto  index    = selector->findData(
-				QVariant::fromValue<qulonglong>(selected->profile().value()));
-			if (index < 0) {
-				return;
-			}
-			selector->setCurrentIndex(index);
-			Window->session_panel()->public_preview_button()->click();
+			dispatch_intent(application::github_intent{
+				core::activate_host_profile_intent{
+					.Profile = selected->profile(),
+					.Mode    = core::github_access_mode::public_preview,
+				},
+			});
 		}
 
 		// One write and one triage intent, offered to the mode and answered by

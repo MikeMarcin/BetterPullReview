@@ -26,7 +26,6 @@
 #include <QEvent>
 #include <QFileInfo>
 #include <QFontMetrics>
-#include <QFrame>
 #include <QImage>
 #include <QItemSelectionModel>
 #include <QLabel>
@@ -34,6 +33,7 @@
 #include <QLineEdit>
 #include <QListView>
 #include <QListWidget>
+#include <QLocale>
 #include <QPalette>
 #include <QPersistentModelIndex>
 #include <QPixmap>
@@ -41,10 +41,10 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
-#include <QSpinBox>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QStatusBar>
+#include <QStringList>
 #include <QStyleOptionViewItem>
 #include <QToolButton>
 #include <QTreeView>
@@ -154,23 +154,41 @@ namespace {
 		};
 	}
 
-	void test_cli_warning_follows_selected_profile()
+	// [[BPR-0771]] D2. RFC-BPR-0015's trust warning belongs to the GitHub CLI
+	// host, on that host's card where the opt-in is made, whichever host is
+	// chosen. The picker it once followed is gone.
+	void test_cli_warning_lives_on_the_cli_card()
 	{
 		qt::workbench_window window{ qt::workbench_intent_dispatch{ }, qt::workbench_change_dispatch{ }, qt::workbench_drawer_width_dispatch{ }, profiles(), [](application::github_intent) { } };
-		auto* const          warning = required_child<QLabel>(window, "githubCliTrustWarning");
+		auto* const          warning    = required_child<QLabel>(window, "githubCliTrustWarning");
+		auto* const          cliCard    = window.server_card_for(core::host_profile_id{ 11U });
+		auto* const          nativeCard = window.server_card_for(core::host_profile_id{ 12U });
+		expect(cliCard != nullptr && nativeCard != nullptr && cliCard->cli_trust_warning() == warning
+				   && cliCard->isAncestorOf(warning) && nativeCard->cli_trust_warning() == nullptr
+				   && nativeCard->findChild<QLabel*>(QStringLiteral("githubCliTrustWarning")) == nullptr
+				   && window.findChildren<QLabel*>(QStringLiteral("githubCliTrustWarning")).size() == 1,
+			   "the CLI trust warning is on the CLI card only, and the native card carries none");
 		expect(!warning->isHidden() && warning->wordWrap() && warning->textFormat() == Qt::PlainText,
-			   "CLI selection shows a wrapped literal warning before Connect");
+			   "the CLI card shows a wrapped literal warning before Connect");
 		for (const auto* phrase : { "github.com", "existing gh sign-in", "observed after Connect", "native profile", "executable", "configuration", "socket", "CA", "redirects", "child-process", "account switching", "no exact account guarantee", "older gh configuration", "shell credential helper", "gh 2.100.0", "32 MiB", "does not authorize publishing" }) {
 			expect(warning->text().contains(QString::fromLatin1(phrase)), "CLI warning states each residual trust risk and read boundary");
 		}
-		window.session_panel()->profile_selector()->setCurrentIndex(1);
-		expect(warning->isHidden() && warning->text().isEmpty(), "native selection has no CLI warning");
-		window.session_panel()->profile_selector()->setCurrentIndex(0);
-		expect(!warning->isHidden() && warning->text().contains(QStringLiteral("github.com")), "reselecting CLI restores its exact host warning");
-		window.session_panel()->apply_identity({ .Profile = core::host_profile_id{ 12U } });
-		expect(warning->isHidden(), "projected native identity hides the warning even when selector signals are blocked");
-		window.session_panel()->profile_selector()->setCurrentIndex(0);
-		expect(!warning->isHidden(), "CLI selection warns before replacing an active native session");
+		nativeCard->connect_button()->click();
+		expect(window.session_panel()->selected_profile() == core::host_profile_id{ 12U } && !warning->isHidden()
+				   && warning->text().contains(QStringLiteral("github.com")),
+			   "choosing the native host leaves the warning on the CLI card, where the opt-in is made");
+		cliCard->connect_button()->click();
+		expect(window.session_panel()->selected_profile() == core::host_profile_id{ 11U } && !warning->isHidden(),
+			   "choosing the CLI host again keeps its exact host warning");
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Status   = core::github_status_delta{ .Status = core::github_status::establishing_session },
+				.Identity = core::github_identity_delta{ .Profile = core::host_profile_id{ 12U } },
+			},
+		});
+		expect(!warning->isHidden() && nativeCard->cli_trust_warning() == nullptr
+				   && cliCard->connect_button()->isVisibleTo(cliCard),
+			   "a projected native identity leaves the warning beside the CLI card's Connect, before it replaces that session");
 	}
 
 	[[nodiscard]] auto conversation(
@@ -522,8 +540,13 @@ namespace {
 		};
 		window.publish(commandUpdate);
 
-		expect(window.profile_selector()->count() == 2, "two profiles are visible");
-		window.profile_selector()->setCurrentIndex(1);
+		// [[BPR-0771]]. One card per configured host, in profile order; the
+		// picker these replaced is gone, and choosing a host is a model fact.
+		expect(window.server_cards().size() == 2U
+				   && window.server_cards().front()->profile() == core::host_profile_id{ 11U }
+				   && window.server_cards().back()->profile() == core::host_profile_id{ 12U },
+			   "two profiles are presented as two cards in profile order");
+		window.session_panel()->select_profile(core::host_profile_id{ 12U });
 		expect(
 			intents.empty(),
 			"programmatic profile synchronization emits no authority intent");
@@ -535,43 +558,36 @@ namespace {
 				&& activate->Profile == core::host_profile_id{ 12U },
 			"Connect emits only the selected opaque profile identity");
 
-		// [[BPR-0669]]. A link pasted into the first field fills all three; a
-		// reviewer never splits a URL by hand. Typing an owner, which names no
-		// pull request, is left alone.
-		window.session_panel()->owner_editor()->setText(
-			QStringLiteral("https://github.com/better-pull-review/desktop/pull/73"));
-		expect(window.session_panel()->owner_editor()->text() == QStringLiteral("better-pull-review")
-				   && window.session_panel()->repository_editor()->text() == QStringLiteral("desktop")
-				   && window.session_panel()->pull_request_editor()->value() == 73,
-			   "a pasted link fills the owner, the repository and the number");
-		window.session_panel()->owner_editor()->setText(QStringLiteral("better-pull-review"));
-		expect(window.session_panel()->owner_editor()->text() == QStringLiteral("better-pull-review")
-				   && window.session_panel()->repository_editor()->text() == QStringLiteral("desktop"),
-			   "an owner typed on its own is left where it was typed");
-		window.session_panel()->pull_request_editor()->setValue(73);
+		// [[BPR-0771]]. Open names what the Home bar names. The bar's text
+		// leaves as the setup destination, and the application decides what it
+		// names; the locator that once split a pasted link into three fields is
+		// gone ([[BPR-0689]] made the bar the one place a pull request is named).
+		auto submitted = std::vector<std::string>{ };
+		window.set_setup_destination_dispatch([&submitted](application::setup_destination_intent aIntent) {
+			if (const auto* const submit = std::get_if<application::submit_setup_destination>(&aIntent);
+				submit != nullptr) {
+				submitted.push_back(submit->Text);
+			}
+		});
 		window.github_open_action()->trigger();
-		expect(intents.size() == 2U, "Open emits exactly one semantic intent");
-		const auto* const open = std::get_if<core::open_pull_request_intent>(&intents.back());
-		expect(
-			open != nullptr
-				&& open->Repository
-					== core::repository_locator{
-						.Owner = "better-pull-review",
-						.Name  = "desktop",
-					}
-				&& open->Number == core::pull_request_number{ 73U },
-			"Open preserves owner, repository, and pull-request number");
+		expect(submitted.empty() && intents.size() == 1U && window.showing_home(),
+			   "Open with nothing in the bar submits nothing and shows Home");
+		const auto link = std::string{ "https://github.com/better-pull-review/desktop/pull/73" };
+		window.home_open_bar()->setText(QString::fromStdString(link));
+		window.github_open_action()->trigger();
+		expect(submitted.size() == 1U && submitted.back() == link && intents.size() == 1U,
+			   "Open submits exactly the bar's text once and emits no GitHub intent of its own");
 
 		window.github_refresh_action()->trigger();
 		expect(
-			intents.size() == 3U
+			intents.size() == 2U
 				&& std::holds_alternative<core::refresh_pull_request_intent>(
 					intents.back()),
 			"Refresh emits only refresh_pull_request_intent");
 
 		window.show_review_threads_action()->trigger();
 		expect(
-			intents.size() == 3U,
+			intents.size() == 2U,
 			"Show Review Threads remains a local presentation action");
 
 		expect(
@@ -583,12 +599,19 @@ namespace {
 			window.active_account_text() == "Not authenticated",
 			"account identity is initially read-only authenticated output");
 
-		auto* const accessible = QAccessible::queryAccessibleInterface(window.profile_selector());
+		// The card's Connect is how a keyboard or an assistive reader chooses
+		// a host now.
+		auto* const cliCard    = window.server_card_for(core::host_profile_id{ 11U });
+		auto* const accessible = cliCard == nullptr
+			? nullptr
+			: QAccessible::queryAccessibleInterface(cliCard->connect_button());
 		expect(
 			accessible != nullptr
-				&& !accessible->text(QAccessible::Name).isEmpty()
+				&& cliCard->connect_button()->isVisibleTo(cliCard)
+				&& accessible->text(QAccessible::Name) == QStringLiteral("Connect github.com")
+				&& !accessible->text(QAccessible::Description).isEmpty()
 				&& accessible->state().focusable,
-			"profile selector exposes an accessible name and focusable state");
+			"a card's Connect exposes an accessible name, a description and focusable state");
 	}
 
 	auto publish_session_ready(qt::workbench_window& aWindow) -> void
@@ -720,9 +743,19 @@ namespace {
 			expect(presentation_state(window) == QStringLiteral("loading"),
 				   "loading is projected before provider submission");
 		};
-		window.session_panel()->owner_editor()->setText(QStringLiteral("owner"));
-		window.session_panel()->repository_editor()->setText(QStringLiteral("repo"));
-		window.session_panel()->pull_request_editor()->setValue(1);
+		// [[BPR-0771]]. The pull request is named in the Home bar. What the bar
+		// names is the application's decision, so this fixture stands in for it
+		// and resolves exactly the one text written here.
+		window.set_setup_destination_dispatch([&readHost](application::setup_destination_intent aIntent) {
+			const auto* const submit = std::get_if<application::submit_setup_destination>(&aIntent);
+			if (submit != nullptr && submit->Text == "owner/repo#1") {
+				readHost->dispatch(core::open_pull_request_intent{
+					.Repository = core::repository_locator{ .Owner = "owner", .Name = "repo" },
+					.Number     = core::pull_request_number{ 1U },
+				});
+			}
+		});
+		window.home_open_bar()->setText(QStringLiteral("owner/repo#1"));
 		window.github_open_action()->trigger();
 		expect(provider.Request.has_value(), "public Open action reaches held provider");
 		QApplication::processEvents();
@@ -748,30 +781,36 @@ namespace {
 		window.show();
 		QApplication::processEvents();
 
-		auto* const banner           = required_child<QFrame>(window, "githubStatusBanner");
-		auto* const viewState        = required_child<QStackedWidget>(window, "githubViewState");
-		auto* const emptyState       = required_child<QWidget>(window, "githubEmptyState");
-		auto* const emptyTitle       = required_label(window, "githubEmptyStateTitle");
-		auto* const emptyBody        = required_label(window, "githubEmptyStateBody");
-		auto* const connectionButton = required_child<QToolButton>(
-			window, "githubConnectionDetailsButton");
-		auto* const connectionDetails = required_child<QWidget>(window, "githubConnectionDetails");
+		auto* const viewState         = required_child<QStackedWidget>(window, "githubViewState");
+		auto* const emptyState        = required_child<QWidget>(window, "githubEmptyState");
+		auto* const emptyTitle        = required_label(window, "githubEmptyStateTitle");
+		auto* const emptyBody         = required_label(window, "githubEmptyStateBody");
 		auto* const technicalButton   = required_child<QToolButton>(
 			window, "githubTechnicalDetailsButton");
 		auto* const technicalDetails  = required_child<QWidget>(window, "githubTechnicalDetails");
 		auto* const conversationState = required_child<QStackedWidget>(window, "githubConversationState");
 		auto* const conversationEmpty = required_child<QWidget>(window, "githubConversationEmptyState");
-		auto* const connectButton     = required_child<QToolButton>(window, "connectGithubButton");
-		auto* const refreshButton     = required_child<QToolButton>(window, "refreshPullRequestButton");
 		auto* const addRuleButton     = required_child<QToolButton>(window, "addObserverRuleButton");
 		auto* const removeRuleButton  = required_child<QToolButton>(window, "removeObserverRuleButton");
+		// [[BPR-0771]]. The status banner, the connection disclosure and the
+		// Connect and Refresh buttons left Accounts & hosts. A session's state
+		// and Details are its host's card, and Refresh is the strip's.
+		auto* const cliCard        = window.server_card_for(core::host_profile_id{ 11U });
+		auto* const enterpriseCard = window.server_card_for(core::host_profile_id{ 12U });
+		expect(cliCard != nullptr && enterpriseCard != nullptr
+				   && window.findChild<QWidget*>(QStringLiteral("githubStatusBanner")) == nullptr
+				   && window.findChild<QWidget*>(QStringLiteral("githubConnectionDetailsButton")) == nullptr
+				   && window.findChild<QWidget*>(QStringLiteral("connectGithubButton")) == nullptr
+				   && window.findChild<QWidget*>(QStringLiteral("refreshPullRequestButton")) == nullptr,
+			   "the window composes a card per host and none of the retired session chrome");
 
-		// The status banner is the session chrome's, on the Settings window's
-		// accounts page, so that page is presented for the states it shows.
+		// A session's state is its card's, on the Settings window's accounts
+		// page, so that page is presented for the states it shows.
 		window.open_settings(qt::settings_page::accounts_and_hosts);
 		QApplication::processEvents();
 		expect(
-			banner->isVisible()
+			cliCard->isVisible()
+				&& cliCard->state_label()->text() == QStringLiteral("Signed out")
 				&& viewState->currentWidget() == emptyState
 				&& presentation_state(window) == QStringLiteral("disconnected")
 				&& emptyTitle->text() == QStringLiteral("Connect to GitHub")
@@ -866,16 +905,20 @@ namespace {
 				   && window.files_drawer()->isAncestorOf(window.files_tree()),
 			   "the pull request summary is not in the files drawer while a review is open");
 
-		// The session chrome is on the Settings window's accounts page.
+		// The session's card is on the Settings window's accounts page.
 		window.open_settings(qt::settings_page::accounts_and_hosts);
 		QApplication::processEvents();
 		// [[BPR-0671]]. The two disclosures no longer share a surface: the
-		// connection is the session chrome's, on Settings, and the commit oids
-		// are the overview's, beside the branches they identify.
+		// connection is its host's card's Details, on Settings ([[BPR-0771]]),
+		// and the commit oids are the overview's, beside the branches they
+		// identify.
+		auto* const connectionButton  = enterpriseCard->details_button();
+		auto* const connectionDetails = enterpriseCard->details();
 		expect(
-			connectionButton->isVisible() && !connectionDetails->isVisible()
+			enterpriseCard->presentation().Current
+				&& connectionButton->isVisible() && !connectionDetails->isVisible()
 				&& (connectionButton->focusPolicy() & Qt::TabFocus) != 0,
-			"the connection disclosure is focusable and collapsed where the session chrome is");
+			"the connection disclosure is focusable and collapsed on the session's card");
 		expect(
 			window.overview_page()->isAncestorOf(technicalButton)
 				&& window.overview_page()->isAncestorOf(technicalDetails)
@@ -939,11 +982,19 @@ namespace {
 		// The queue is Home's, hidden while a pull request is open, so its
 		// order is a claim on the full declaration rather than on what is
 		// reachable now.
+		// [[BPR-0771]]. The cards' controls are the Settings window's stops,
+		// and Refresh is the strip's, declared with the strip.
+		auto* const refreshPresenter = window.primary_toolbar()->widgetForAction(window.github_refresh_action());
 		expect(
-			!declaredTabStops.contains(window.profile_selector())
-				&& !declaredTabStops.contains(connectButton)
-				&& !declaredTabStops.contains(connectionButton)
-				&& !declaredTabStops.contains(refreshButton)
+			std::ranges::none_of(
+				window.server_cards(),
+				[&declaredTabStops](const qt::server_card* const aCard) {
+					return declaredTabStops.contains(aCard->connect_button())
+						|| declaredTabStops.contains(aCard->sign_in_button())
+						|| declaredTabStops.contains(aCard->details_button());
+				})
+				&& refreshPresenter != nullptr
+				&& window.focus_order().contains(refreshPresenter)
 				&& containsInOrder(
 					window.focus_order(),
 					{
@@ -1155,8 +1206,11 @@ namespace {
 					== QStringLiteral("Connection unavailable")
 				&& emptyBody->text().contains(
 					QStringLiteral("Authentication failed"))
-				&& banner->isVisible(),
-			"identity connection failure presents a focused empty error state");
+				&& cliCard->presentation().Current
+				&& cliCard->state_label()->text() == QStringLiteral("Could not connect")
+				&& cliCard->last_problem_label()->text().contains(
+					QStringLiteral("Authentication failed")),
+			"identity connection failure presents a focused empty error state, and its host's card says so");
 	}
 
 	auto test_connection_diagnostics_can_be_copied() -> void
@@ -1178,33 +1232,46 @@ namespace {
 		});
 		QApplication::processEvents();
 		const auto diagnostic = QStringLiteral("GitHub returned data that BetterPullReview could not safely use.");
-		for (const auto* name : { "githubStatus", "githubDiagnostic", "githubEmptyStateTitle", "githubEmptyStateBody" }) {
+		for (const auto* name : { "githubEmptyStateTitle", "githubEmptyStateBody" }) {
 			auto* const label      = required_label(window, name);
 			auto* const accessible = QAccessible::queryAccessibleInterface(label);
 			expect(label->textFormat() == Qt::PlainText
 					   && label->textInteractionFlags().testFlag(Qt::TextSelectableByMouse)
 					   && label->textInteractionFlags().testFlag(Qt::TextSelectableByKeyboard)
 					   && accessible != nullptr && accessible->text(QAccessible::Name) == label->text(),
-				   "status and diagnostic expose current literal text and support mouse/keyboard selection");
+				   "the empty page exposes current literal text and supports mouse/keyboard selection");
 		}
+		// [[BPR-0771]]. The status banner that repeated the failure is gone. A
+		// session failure is its host's card's Last problem, with Copy details.
+		auto* const card              = window.server_card_for(core::host_profile_id{ 11U });
+		auto* const problem           = card == nullptr ? nullptr : card->last_problem_label();
+		auto* const problemAccessible = problem == nullptr ? nullptr : QAccessible::queryAccessibleInterface(problem);
+		expect(problem != nullptr && card->presentation().Current
+				   && problem->text() == diagnostic
+				   && problem->textFormat() == Qt::PlainText
+				   && problem->textInteractionFlags().testFlag(Qt::TextSelectableByMouse)
+				   && problem->textInteractionFlags().testFlag(Qt::TextSelectableByKeyboard)
+				   && problemAccessible != nullptr && !problemAccessible->text(QAccessible::Name).isEmpty(),
+			   "the card's last problem is the literal diagnostic, named, and selectable by mouse and keyboard");
 		auto* const clipboard = QApplication::clipboard();
 		expect(clipboard != nullptr, "the Qt platform provides a clipboard");
 		required_child<QToolButton>(window, "copyGithubMessageButton")->click();
 		expect(clipboard->text() == QStringLiteral("Connection unavailable\n") + diagnostic,
 			   "the ordinary copy control copies the exact visible failure title and body");
-		required_child<QToolButton>(window, "copyGithubDiagnosticButton")->click();
-		expect(clipboard->text() == QString::fromStdString(window.github_status_text()) + QStringLiteral("\n") + diagnostic,
-			   "the status banner copies its current status and diagnostic without other fields");
+		card->copy_details_button()->click();
+		expect(clipboard->text() == diagnostic,
+			   "the card's Copy details copies its last problem without other fields");
 		capture_layout_state(window, QStringLiteral("copyable-connection-error"));
 		window.publish(application::github_presentation_update{
 			.Transition = application::github_transition_projection{
 				.Status = core::github_status_delta{ .Status = core::github_status::no_profile },
 			},
 		});
-		required_child<QToolButton>(window, "copyGithubDiagnosticButton")->click();
+		card->copy_details_button()->click();
 		expect(!clipboard->text().contains(diagnostic)
-				   && QAccessible::queryAccessibleInterface(required_label(window, "githubDiagnostic"))->text(QAccessible::Name).isEmpty(),
-			   "clearing the diagnostic also removes stale text from copy and accessibility");
+				   && problem->text().isEmpty() && problem->isHidden()
+				   && card->copy_details_button()->isHidden(),
+			   "clearing the diagnostic also removes stale text from the card and from what it copies");
 		required_child<QToolButton>(window, "copyGithubMessageButton")->click();
 		expect(clipboard->text().startsWith(QStringLiteral("Connect to GitHub\n"))
 				   && !clipboard->text().contains(diagnostic),
@@ -1239,10 +1306,13 @@ namespace {
 			if (stage == application::github_bootstrap_failure_stage::capability_discovery) {
 				message.append(QStringLiteral(" No more specific capability refusal detail is available."));
 			}
+			// [[BPR-0771]]. The diagnostic the banner carried is the host
+			// card's Last problem.
+			auto* const card = window.server_card_for(core::host_profile_id{ 11U });
 			expect(required_label(window, "githubEmptyStateBody")->isVisible()
 					   && required_label(window, "githubEmptyStateBody")->text() == message
-					   && required_label(window, "githubDiagnostic")->text() == message,
-				   "bootstrap phase is rendered with the safe existing diagnostic");
+					   && card != nullptr && card->last_problem_label()->text() == message,
+				   "bootstrap phase is rendered with the safe existing diagnostic, on the page and in the host's card");
 			required_child<QToolButton>(window, "copyGithubMessageButton")->click();
 			expect(QApplication::clipboard()->text() == QStringLiteral("Connection unavailable\n") + message,
 				   "copy includes the exact visible bootstrap phase");
@@ -1305,10 +1375,12 @@ namespace {
 			QApplication::processEvents();
 			const auto message = QString::fromStdString(window.github_diagnostic_text());
 
+			const auto* const card = window.server_card_for(core::host_profile_id{ 11U });
 			expect(message.startsWith(QStringLiteral("Capability discovery: ")) && message.endsWith(expected)
 					   && required_label(window, "githubEmptyStateBody")->isVisible()
-					   && required_label(window, "githubEmptyStateBody")->text() == message,
-				   "fixed capability refusal detail appears in the visible error message");
+					   && required_label(window, "githubEmptyStateBody")->text() == message
+					   && card != nullptr && card->last_problem_label()->text() == message,
+				   "fixed capability refusal detail appears in the visible error message and the host card's Last problem");
 			required_child<QToolButton>(window, "copyGithubMessageButton")->click();
 			expect(QApplication::clipboard()->text() == QStringLiteral("Connection unavailable\n") + message,
 				   "copy uses exactly the finite visible detail");
@@ -1334,7 +1406,8 @@ namespace {
 		QApplication::processEvents();
 		auto* const sessionStack      = required_child<QStackedWidget>(sessionWindow, "githubViewState");
 		auto* const sessionEmpty      = required_child<QWidget>(sessionWindow, "githubEmptyState");
-		auto* const sessionDiagnostic = required_label(sessionWindow, "githubDiagnostic");
+		// [[BPR-0771]]. A session's problem is its host's card's, not a banner's.
+		auto* const sessionCard = sessionWindow.server_card_for(core::host_profile_id{ 11U });
 		sessionWindow.publish(application::github_presentation_update{
 			.Transition = application::github_transition_projection{
 				.Status = core::github_status_delta{
@@ -1360,7 +1433,11 @@ namespace {
 				&& sessionWindow.github_status_text()
 					== "The GitHub connection was canceled."
 				&& sessionWindow.github_diagnostic_text().empty()
-				&& sessionDiagnostic->isHidden()
+				&& sessionCard != nullptr
+				&& sessionCard->state_label()->text() == QStringLiteral("Signed out")
+				&& sessionCard->last_problem_label()->isHidden()
+				&& sessionCard->copy_details_button()->isHidden()
+				&& sessionWindow.home_open_notice()->isHidden()
 				&& required_label(sessionWindow, "pullRequestIdentity")->text()
 					== QStringLiteral("No pull request is open")
 				&& !sessionWindow.conversation_view()
@@ -1380,8 +1457,8 @@ namespace {
 		};
 		firstLoadWindow.resize(960, 640);
 		firstLoadWindow.show();
-		// The diagnostic is the session chrome's, on the accounts page.
-		firstLoadWindow.open_settings(qt::settings_page::accounts_and_hosts);
+		// [[BPR-0771]]. A pull request's load refusal is said under the Home
+		// bar, where the pull request was named, rather than on Accounts & hosts.
 		QApplication::processEvents();
 		publish_session_ready(firstLoadWindow);
 		firstLoadWindow.publish(application::github_presentation_update{
@@ -1401,9 +1478,10 @@ namespace {
 				},
 			},
 		});
-		auto* const firstLoadStack      = required_child<QStackedWidget>(firstLoadWindow, "githubViewState");
-		auto* const firstLoadEmpty      = required_child<QWidget>(firstLoadWindow, "githubEmptyState");
-		auto* const firstLoadDiagnostic = required_label(firstLoadWindow, "githubDiagnostic");
+		auto* const firstLoadStack   = required_child<QStackedWidget>(firstLoadWindow, "githubViewState");
+		auto* const firstLoadEmpty   = required_child<QWidget>(firstLoadWindow, "githubEmptyState");
+		auto* const firstLoadNotice  = firstLoadWindow.home_open_notice();
+		auto* const firstLoadDetails = firstLoadWindow.home_open_details_button();
 		expect(
 			presentation_state(firstLoadWindow) == QStringLiteral("cancelled")
 				&& firstLoadStack->currentWidget() == firstLoadEmpty
@@ -1412,11 +1490,12 @@ namespace {
 					== QStringLiteral("Pull request loading canceled")
 				&& required_label(firstLoadWindow, "githubEmptyStateBody")
 					   ->text()
-					   .contains(QStringLiteral("locator is unchanged"))
+					   .contains(QStringLiteral("link in the bar is unchanged"))
 				&& firstLoadWindow.github_status_text()
 					== "Pull request loading was canceled."
 				&& firstLoadWindow.github_diagnostic_text().empty()
-				&& firstLoadDiagnostic->isHidden()
+				&& firstLoadNotice != nullptr && firstLoadNotice->isHidden()
+				&& firstLoadDetails != nullptr && firstLoadDetails->isHidden()
 				&& required_label(firstLoadWindow, "pullRequestIdentity")->text()
 					== QStringLiteral("No pull request is open")
 				&& required_child<QPlainTextEdit>(
@@ -1460,15 +1539,19 @@ namespace {
 				&& required_label(firstLoadWindow, "githubEmptyStateTitle")
 						->text()
 					== QStringLiteral("Pull request unavailable")
-				&& required_label(firstLoadWindow, "githubEmptyStateBody")->text()
-					== firstLoadDiagnostic->text()
 				&& firstLoadWindow.github_status_text()
 					== "The pull request could not be loaded."
 				&& !firstLoadWindow.github_diagnostic_text().empty()
-				&& firstLoadDiagnostic->isVisible()
+				&& required_label(firstLoadWindow, "githubEmptyStateBody")->text()
+					== QString::fromStdString(firstLoadWindow.github_diagnostic_text())
+				&& !firstLoadNotice->isHidden()
+				&& firstLoadNotice->text()
+					== QString::fromStdString(firstLoadWindow.github_diagnostic_text())
+				&& !firstLoadDetails->isHidden()
+				&& firstLoadStack->isHidden()
 				&& firstLoadWindow.conversation_model()->rowCount() == 0,
-			"first-load failure has an empty error page with the visible "
-			"diagnostic");
+			"first-load failure says the diagnostic once, under the Home bar with "
+			"Copy details, and the empty page that carries it is not shown too");
 		capture_layout_state(
 			firstLoadWindow, QStringLiteral("first-load-error"));
 
@@ -1486,7 +1569,7 @@ namespace {
 		QApplication::processEvents();
 		auto* const                 refreshStack      = required_child<QStackedWidget>(refreshWindow, "githubViewState");
 		auto* const                 refreshEmpty      = required_child<QWidget>(refreshWindow, "githubEmptyState");
-		auto* const                 refreshDiagnostic = required_label(refreshWindow, "githubDiagnostic");
+		auto* const                 refreshNotice     = refreshWindow.home_open_notice();
 		const auto                  retainedTitle     = required_label(refreshWindow, "pullRequestTitle")->text();
 		const auto                  retainedIdentity  = required_label(refreshWindow, "pullRequestIdentity")->text();
 		const auto                  retainedBody      = required_child<QPlainTextEdit>(
@@ -1530,7 +1613,8 @@ namespace {
 					== "Refresh canceled. Showing the last accepted pull "
 					   "request."
 				&& refreshWindow.github_diagnostic_text().empty()
-				&& refreshDiagnostic->isHidden(),
+				&& refreshNotice != nullptr && refreshNotice->isHidden()
+				&& refreshWindow.home_open_details_button()->isHidden(),
 			"loaded refresh cancellation retains exact accepted content and "
 			"selection without presenting a failure diagnostic");
 		capture_layout_state(
@@ -1591,12 +1675,19 @@ namespace {
 				},
 			},
 		});
+		// [[BPR-0771]]. The host, its kind and transport, and the connection
+		// state are the host card's header; the "Active host" and transport
+		// lines under the picker are gone.
+		auto* const enterpriseCard = window.server_card_for(core::host_profile_id{ 12U });
 		expect(
-			window.active_host_text().find("ghe.example.invalid")
-					!= std::string::npos
-				&& required_label(window, "activeGithubTransport")->text()
-					== QStringLiteral("Native HTTPS"),
-			"establishing identity shows exact selected host and transport");
+			window.active_host_text() == "ghe.example.invalid"
+				&& enterpriseCard != nullptr && enterpriseCard->presentation().Current
+				&& enterpriseCard->host_label()->text() == QStringLiteral("ghe.example.invalid")
+				&& enterpriseCard->kind_label()->text()
+					== QStringLiteral("GitHub Enterprise Server, native HTTPS")
+				&& enterpriseCard->state_label()->text() == QStringLiteral("Connecting")
+				&& window.findChild<QWidget*>(QStringLiteral("activeGithubTransport")) == nullptr,
+			"establishing identity shows the exact selected host, its kind and transport, and Connecting on its card");
 		expect(
 			window.active_account_text() == "Connecting…",
 			"establishing identity visibly clears the old account");
@@ -1616,10 +1707,11 @@ namespace {
 				== "Octo Reviewer (@octo-reviewer)",
 			"accepted /user output is visible as a read-only account");
 		expect(
-			window.active_host_text().find("Active host")
-					!= std::string::npos
+			window.active_host_text() == "ghe.example.invalid"
+				&& enterpriseCard->state_label()->text() == QStringLiteral("Connected")
+				&& enterpriseCard->login_label()->text() == QStringLiteral("octo-reviewer")
 				&& window.github_open_action()->isEnabled(),
-			"accepted identity marks the configured host active");
+			"accepted identity marks the configured host's card Connected with its account");
 
 		publish_pull_request(window);
 		expect(
@@ -1657,16 +1749,25 @@ namespace {
 			required_label(window, "reviewThreadAvailability")->text()
 				== QStringLiteral("1 review thread available."),
 			"available review threads have an explicit visible state");
+		// [[BPR-0771]]. The capability and rate-limit lines are the session
+		// card's Details now, one value to a row.
+		const auto detailTexts = [](const QWidget* const aDetails, const QString& aObjectName) {
+			auto texts = QStringList{ };
+			for (const auto* const label : aDetails->findChildren<QLabel*>(aObjectName)) {
+				texts.push_back(label->text());
+			}
+			return texts;
+		};
+		const auto capabilityTexts = detailTexts(enterpriseCard->details(), QStringLiteral("serverCardCapability"));
+		const auto rateTexts       = detailTexts(enterpriseCard->details(), QStringLiteral("serverCardRateLimitResource"));
 		expect(
-			required_label(window, "githubCapabilities")
-					->text()
-					.contains(QStringLiteral("Unsupported"))
-				&& required_label(window, "githubCapabilities")
-					   ->text()
-					   .contains(QStringLiteral("Not yet known"))
-				&& required_label(window, "githubRateLimits")
-					   ->text()
-					   .contains(QStringLiteral("4999")),
+			capabilityTexts
+					== QStringList{ QStringLiteral("Supported"), QStringLiteral("Supported"),
+									QStringLiteral("Unsupported"), QStringLiteral("Not yet known") }
+				&& rateTexts.size() == 3
+				&& rateTexts[0].startsWith(QLocale{ }.toString(qulonglong{ 4'999U }))
+				&& rateTexts[1].isEmpty()
+				&& rateTexts[2].startsWith(QLocale{ }.toString(qulonglong{ 4'998U })),
 			"capability tri-state and numeric rate observations remain distinct");
 
 		window.show();
@@ -1862,30 +1963,44 @@ namespace {
 				},
 			},
 		});
+		// [[BPR-0771]]. The switched-to host's card is the current one, and with
+		// no rate limits reported it says so rather than repeating the old ones.
+		auto* const cliCard    = window.server_card_for(core::host_profile_id{ 11U });
+		auto* const unreported = cliCard == nullptr
+			? nullptr
+			: cliCard->details()->findChild<QLabel*>(QStringLiteral("serverCardRateLimitsUnreported"));
 		expect(
-			window.active_host_text().find("github.com") != std::string::npos
+			window.active_host_text() == "github.com"
 				&& window.active_account_text() == "Connecting…"
 				&& window.conversation_model()->rowCount() == 0
 				&& required_label(window, "pullRequestTitle")->text()
 					== QStringLiteral("Not available")
-				&& required_label(window, "githubRateLimits")
-					   ->text()
-					   .contains(QStringLiteral("Not reported")),
+				&& cliCard->presentation().Current
+				&& cliCard->state_label()->text() == QStringLiteral("Connecting")
+				&& unreported != nullptr && !unreported->isHidden()
+				&& std::ranges::all_of(
+					detailTexts(cliCard->details(), QStringLiteral("serverCardRateLimitResource")),
+					[](const QString& aText) { return aText.isEmpty(); })
+				&& !enterpriseCard->presentation().Current
+				&& !enterpriseCard->presentation().Session.has_value()
+				&& enterpriseCard->login_label()->text() == QStringLiteral("No account"),
 			"identity switch removes old account, PR, and rate-limit content");
 
+		// [[BPR-0771]]. A pull request is named in the Home bar; the locator
+		// that once held focus on Accounts & hosts is gone.
 		window.show();
-		// The locator is on the Settings window's accounts page.
-		window.open_settings(qt::settings_page::accounts_and_hosts);
+		window.activateWindow();
 		QApplication::processEvents();
-		window.session_panel()->owner_editor()->setFocus(Qt::OtherFocusReason);
+		expect(window.showing_home(), "with no pull request open the window shows Home and its bar");
+		window.home_open_bar()->setFocus(Qt::OtherFocusReason);
 		QApplication::processEvents();
 		expect(
-			QApplication::focusWidget() == window.session_panel()->owner_editor(),
-			"owner editor receives focus before asynchronous projection");
+			QApplication::focusWidget() == window.home_open_bar(),
+			"the Home bar receives focus before asynchronous projection");
 		publish_session_ready(window);
 		QApplication::processEvents();
 		expect(
-			QApplication::focusWidget() == window.session_panel()->owner_editor(),
+			QApplication::focusWidget() == window.home_open_bar(),
 			"asynchronous projections do not steal keyboard focus");
 	}
 
@@ -2050,7 +2165,9 @@ namespace {
 		window.show();
 		QApplication::processEvents();
 
-		auto* const banner     = required_child<QFrame>(window, "githubStatusBanner");
+		// [[BPR-0771]]. The status banner is gone; the session's host card is the
+		// accounts surface that inherits the application's appearance now.
+		auto* const card       = window.server_card_for(core::host_profile_id{ 12U });
 		auto* const viewState  = required_child<QStackedWidget>(window, "githubViewState");
 		auto* const title      = required_label(window, "pullRequestTitle");
 		auto* const view       = window.conversation_view();
@@ -2088,10 +2205,10 @@ namespace {
 			"long multiline conversation rows receive a larger delegate height");
 
 		const std::array<QWidget*, 4> inheritedWidgets{
-			banner,
+			card,
 			viewState,
 			view,
-			window.profile_selector(),
+			card->details_button(),
 		};
 		expect(
 			std::ranges::all_of(
@@ -2174,7 +2291,7 @@ namespace {
 		QApplication::setPalette(controlledPalette);
 		QApplication::processEvents();
 		expect(
-			banner->palette().color(QPalette::Window) == controlledWindow
+			card->palette().color(QPalette::Window) == controlledWindow
 				&& view->palette().color(QPalette::Base) == controlledBase
 				&& title->palette().color(QPalette::WindowText)
 					== controlledText
@@ -2237,7 +2354,7 @@ namespace {
 		QApplication::processEvents();
 		expect(
 			QFontMetrics{ window.font() }.height() == originalBodyFontHeight
-				&& banner->palette().color(QPalette::Window)
+				&& card->palette().color(QPalette::Window)
 					== originalPalette.color(QPalette::Window)
 				&& stableLong.isValid()
 				&& view->currentIndex() == stableLong
@@ -2251,6 +2368,9 @@ namespace {
 	{
 		QString                             Message;
 		QString                             ObjectName;
+		/// [[BPR-0771]]. Several cards share one object name, so the source is
+		/// also kept by identity.
+		const QObject*                      Object     = nullptr;
 		QAccessible::AnnouncementPoliteness Politeness = QAccessible::AnnouncementPoliteness::Polite;
 	};
 
@@ -2269,6 +2389,7 @@ namespace {
 				.Message    = announcement->message(),
 				.ObjectName = aEvent->object() == nullptr ? QString{ }
 														  : aEvent->object()->objectName(),
+				.Object     = aEvent->object(),
 				.Politeness = announcement->politeness(),
 			});
 	}
@@ -2311,7 +2432,10 @@ namespace {
 			profiles(),
 			[](application::github_intent) { },
 		};
-		auto* const banner = required_child<QFrame>(window, "githubStatusBanner");
+		// [[BPR-0771]]. The banner that carried the announcement is gone. A
+		// session's change is attributed to its host's card, and a pull
+		// request's to Home, whose bar carries its refusal.
+		auto* const card = window.server_card_for(core::host_profile_id{ 11U });
 		window.show();
 		QApplication::processEvents();
 		std::vector<accessible_announcement> announcements;
@@ -2331,19 +2455,21 @@ namespace {
 			};
 			window.publish(failure);
 			expect(
-				announcements.size() == 1U
+				card != nullptr && card->presentation().Current
+					&& announcements.size() == 1U
+					&& announcements.front().Object == card
 					&& announcements.front().ObjectName
-						== QStringLiteral("githubStatusBanner")
+						== QStringLiteral("serverCard")
 					&& announcements.front().Message.contains(
 						QStringLiteral("connection failed"))
 					&& announcements.front().Message.contains(
 						QStringLiteral("Authentication failed"))
 					&& announcements.front().Message
-						== banner->accessibleDescription()
+						== window.session_panel()->summary_text()
 					&& announcements.front().Politeness
 						== QAccessible::AnnouncementPoliteness::Polite,
-				"one polite accessibility announcement combines status and "
-				"diagnostic context");
+				"one polite accessibility announcement from the host's card "
+				"combines status and diagnostic context");
 
 			window.publish(failure);
 			expect(
@@ -2365,11 +2491,33 @@ namespace {
 			});
 			expect(
 				announcements.size() == 2U
+					&& announcements.back().Object == card
 					&& announcements.back().Message.contains(
 						QStringLiteral("This app's GitHub connection cannot read"))
 					&& announcements.back().Message
-						== banner->accessibleDescription(),
+						== window.session_panel()->summary_text(),
 				"a changed diagnostic produces one newly combined announcement");
+
+			window.publish(application::github_presentation_update{
+				.Transition = application::github_transition_projection{
+					.Status = core::github_status_delta{
+						.Status = core::github_status::pull_request_failed,
+					},
+					.Diagnostics = {
+						{
+							.Code = core::github_reason_code::network_unavailable,
+						},
+					},
+				},
+			});
+			expect(
+				announcements.size() == 3U
+					&& announcements.back().Object == window.home_page()
+					&& announcements.back().Message.contains(
+						QStringLiteral("could not be loaded"))
+					&& announcements.back().Message
+						== window.session_panel()->summary_text(),
+				"a pull request's refusal is announced from Home, whose bar says it");
 		}
 	}
 
@@ -2388,8 +2536,11 @@ namespace {
 		window.show();
 		QApplication::processEvents();
 
-		auto* const profileLabel  = window.findChild<QLabel*>(QStringLiteral("githubProfileLabel"));
-		auto* const connectButton = window.findChild<QToolButton*>(QStringLiteral("connectGithubButton"));
+		// [[BPR-0771]]. The host picker, its label and the locator are gone: a
+		// host is chosen by its card's Connect, and a pull request is named in
+		// the Home bar.
+		auto* const otherCard     = window.server_card_for(core::host_profile_id{ 11U });
+		auto* const connectButton = otherCard == nullptr ? nullptr : otherCard->connect_button();
 		// `github_window` scrolled its entire contents, so the lower half of the
 		// window was only reachable by driving that scrollbar. The shell does not
 		// scroll as a whole -- the workbench fills it and the review header is
@@ -2403,9 +2554,9 @@ namespace {
 			}
 		};
 		expect(
-			profileLabel != nullptr
-				&& profileLabel->buddy() == window.profile_selector(),
-			"profile label exposes its accessible buddy relationship");
+			window.findChild<QLabel*>(QStringLiteral("githubProfileLabel")) == nullptr
+				&& window.findChild<QWidget*>(QStringLiteral("githubProfileSelector")) == nullptr,
+			"no host-profile picker or picker label remains to be a buddy");
 		const auto labels   = window.findChildren<QLabel*>();
 		const auto hasBuddy = [&labels](const QWidget* const aWidget) {
 			return std::ranges::any_of(
@@ -2415,27 +2566,25 @@ namespace {
 				});
 		};
 		expect(
-			hasBuddy(window.session_panel()->owner_editor())
-				&& hasBuddy(window.session_panel()->repository_editor())
-				&& hasBuddy(window.session_panel()->pull_request_editor()),
-			"all pull-request locator editors expose label relationships");
+			hasBuddy(window.home_open_bar())
+				&& window.findChild<QWidget*>(QStringLiteral("repositoryOwnerEditor")) == nullptr
+				&& window.findChild<QWidget*>(QStringLiteral("repositoryNameEditor")) == nullptr
+				&& window.findChild<QWidget*>(QStringLiteral("pullRequestNumberEditor")) == nullptr,
+			"the Home bar, where a pull request is named, exposes its label relationship, and no locator editor remains");
 		window.open_settings(qt::settings_page::accounts_and_hosts);
 		QApplication::processEvents();
 		expect(
 			connectButton != nullptr && connectButton->isVisible()
 				&& !connectButton->accessibleName().isEmpty()
 				&& !connectButton->accessibleDescription().isEmpty(),
-			"Connect has visible named keyboard-accessible presentation");
+			"a card's Connect has visible named keyboard-accessible presentation");
 		expect(
-			window.session_panel()->owner_editor()->isVisible()
-				&& window.session_panel()->repository_editor()->isVisible()
-				&& window.session_panel()->pull_request_editor()->isVisible()
-				&& window.conversations_drawer() != nullptr
+			window.conversations_drawer() != nullptr
 				&& window.conversations_drawer()->isVisible()
 				&& window.conversation_view()->isVisible()
 				&& window.conversation_view()->width() > 0
 				&& window.conversation_view()->height() > 0,
-			"identity, locator, metadata, and conversations survive minimum size");
+			"metadata and conversations survive minimum size");
 
 		auto* const conversationAccessible = QAccessible::queryAccessibleInterface(window.conversation_view());
 		expect(
@@ -2444,15 +2593,14 @@ namespace {
 				&& conversationAccessible->state().focusable,
 			"conversation tree exposes an accessible focusable interface");
 
-		window.profile_selector()->setFocus(Qt::TabFocusReason);
+		connectButton->setFocus(Qt::TabFocusReason);
 		QApplication::processEvents();
 		expect(
-			QApplication::focusWidget() == window.profile_selector()
-				&& QAccessible::queryAccessibleInterface(
-					   window.profile_selector())
+			QApplication::focusWidget() == connectButton
+				&& QAccessible::queryAccessibleInterface(connectButton)
 					   ->state()
 					   .focused,
-			"profile selector reports focused accessible state");
+			"a card's Connect reports focused accessible state");
 
 		const auto            expectedScaleText = qEnvironmentVariable("BPR_EXPECTED_QT_SCALE");
 		std::optional<double> expectedScale;
@@ -3344,10 +3492,11 @@ namespace {
 		window.hide();
 	}
 
-	auto test_settings_pages_carry_the_account_card_and_the_rule_editor() -> void
+	auto test_settings_pages_carry_the_server_cards_and_the_rule_editor() -> void
 	{
-		// [[BPR-0652]]. Accounts & hosts opens with the account card; Reviews &
-		// queue holds the observer-rule editor that used to sit on Home.
+		// [[BPR-0652]] [[BPR-0771]]. Accounts & hosts holds one card per host,
+		// which replaced the single account card; Reviews & queue holds the
+		// observer-rule editor that used to sit on Home.
 		std::vector<application::github_intent> intents;
 		qt::workbench_window                    window{
 			qt::workbench_intent_dispatch{ },
@@ -3359,24 +3508,26 @@ namespace {
 		window.resize(1'280, 820);
 		window.show();
 		QApplication::processEvents();
-		auto* const card = window.account_card_view();
+		auto* const card = window.server_card_for(core::host_profile_id{ 12U });
 		expect(card != nullptr && !card->signed_in()
 				   && card->login_label()->text() == QStringLiteral("No account")
-				   && card->status_label()->text() == QStringLiteral("Signed out")
-				   && window.settings()->page_widget(qt::settings_page::accounts_and_hosts)->isAncestorOf(card),
-			   "signed out, the account card on Accounts and hosts says so");
+				   && card->state_label()->text() == QStringLiteral("Signed out")
+				   && window.settings()->page_widget(qt::settings_page::accounts_and_hosts)->isAncestorOf(card)
+				   && window.findChild<QWidget*>(QStringLiteral("accountCard")) == nullptr,
+			   "signed out, the host's card on Accounts and hosts says so, and no separate account card remains");
 		publish_session_ready(window);
 		QApplication::processEvents();
 		expect(card->signed_in() && card->login_label()->text() == QStringLiteral("octo-reviewer")
-				   && card->status_label()->text() == QStringLiteral("Connected")
+				   && card->state_label()->text() == QStringLiteral("Connected")
 				   && card->rate_limit_label()->isVisibleTo(card)
-				   && card->rate_limit_label()->text().startsWith(QStringLiteral("GitHub API")),
+				   && card->rate_limit_label()->text().contains(QStringLiteral("requests remaining")),
 			   "signed in, the card names the account, reads Connected and states the rate limit");
-		// [[BPR-0660]]. The grant line as the design states it.
-		expect(card->grant_label()->isVisibleTo(card)
-				   && card->grant_label()->text().startsWith(QStringLiteral("Signed in on 2025-09-0"))
-				   && card->grant_label()->text().endsWith(QStringLiteral(", renews itself; remembered on this Mac.")),
-			   "a durable device grant reads as signed in on its date, renewing, remembered on this Mac");
+		// [[BPR-0660]]. The grant sentence as RFC-BPR-0032 states it. The date is
+		// local and the machine is named by platform, so neither is pinned.
+		expect(card->consequence_label()->isVisibleTo(card)
+				   && card->consequence_label()->text().startsWith(QStringLiteral("Signed in with a device grant on 2025-09-0"))
+				   && card->consequence_label()->text().contains(QStringLiteral("; renews itself and is remembered on this ")),
+			   "a durable device grant reads as signed in on its date, renewing, remembered on this machine");
 		// [[BPR-0660]]. Sign out on the card leaves as the deactivation the host
 		// forgets the grant on; signed out it is gone.
 		expect(card->sign_out_button()->isVisibleTo(card), "signed in, the card offers Sign out");
@@ -3384,9 +3535,17 @@ namespace {
 		expect(intents.size() == 1U
 				   && std::holds_alternative<core::deactivate_github_identity_intent>(intents.back()),
 			   "Sign out on the card dispatches the deactivation intent");
-		card->clear();
-		expect(!card->sign_out_button()->isVisibleTo(card) && !card->grant_label()->isVisibleTo(card),
-			   "signed out, neither Sign out nor the grant line remains");
+		// The host answers the deactivation by retiring the session, which is
+		// what the card follows; it holds no account state of its own to clear.
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Status = core::github_status_delta{ .Status = core::github_status::no_profile },
+			},
+		});
+		QApplication::processEvents();
+		expect(!card->sign_out_button()->isVisibleTo(card) && !card->signed_in()
+				   && !card->consequence_label()->text().startsWith(QStringLiteral("Signed in")),
+			   "signed out, neither Sign out nor the grant sentence remains");
 		auto* const rules = window.rules_editor();
 		expect(rules != nullptr
 				   && window.settings()->page_widget(qt::settings_page::reviews_and_queue)->isAncestorOf(rules)
@@ -4116,10 +4275,19 @@ namespace {
 			.Stage = core::device_authorization_stage::expired,
 		});
 		window.device_authorization()->apply(expired);
-		window.session_panel()->profile_selector()->setCurrentIndex(1);
+		// [[BPR-0771]]. Another host is chosen by its card's Connect, which
+		// rebinds the device sign-in to it.
+		auto* const enterpriseCard = window.server_card_for(core::host_profile_id{ 12U });
+		expect(enterpriseCard != nullptr && enterpriseCard->connect_button()->isVisibleTo(enterpriseCard),
+			   "the host that is not chosen offers Connect on its card");
+		enterpriseCard->connect_button()->click();
+		expect(signInGestures.size() == 2U
+				   && window.session_panel()->selected_profile() == core::host_profile_id{ 12U }
+				   && window.device_authorization()->bound_profile() == core::host_profile_id{ 12U },
+			   "a card's Connect chooses its host and rebinds the device sign-in without a sign-in gesture");
 		landing->primary_button()->click();
 		expect(signInGestures.size() == 3U
-				   && std::get<core::begin_device_authorization_intent>(signInGestures.back()).Profile == *window.session_panel()->selected_profile(),
+				   && std::get<core::begin_device_authorization_intent>(signInGestures.back()).Profile == core::host_profile_id{ 12U },
 			   "retry after expiry names the newly selected host rather than the old grant");
 		window.set_device_authorization_dispatch({ });
 		window.settings()->hide();
@@ -4139,15 +4307,19 @@ namespace {
 		expect(
 			window.queue_view()->hasFocus(),
 			"choosing from the queue moves focus to the queue");
+		// [[BPR-0771]]. The secondary action opens Accounts and hosts and
+		// focuses nothing there: the locator it used to focus is gone, and a
+		// pull request is named in the Home bar.
 		landing->secondary_button()->click();
 		QApplication::processEvents();
 		expect(
 			window.settings()->isVisible()
 				&& window.settings()->current_page()
 					== qt::settings_page::accounts_and_hosts
-				&& window.session_panel()->owner_editor()->hasFocus(),
-			"entering a pull request opens Accounts and hosts with the locator "
-			"focused");
+				&& window.findChild<QWidget*>(QStringLiteral("repositoryOwnerEditor")) == nullptr
+				&& window.home_page()->isAncestorOf(window.home_open_bar()),
+			"the secondary action opens Accounts and hosts, and naming a pull "
+			"request stays the Home bar's");
 		window.settings()->hide();
 
 		// On Home the strip keeps only Home, account and settings.
@@ -4266,16 +4438,30 @@ namespace {
 			"the device panel is laid into the accounts page's own column on "
 			"the Settings window's Accounts and hosts page");
 		auto* const session = window.session_panel();
+		// [[BPR-0771]]. The page is its sentence, the device sign-in (which
+		// moves into the card in BPR-0773), then one card per host in profile
+		// order. The session is a presentation model now, not a panel here.
+		auto* const pageLayout = header->layout();
+		auto* const lede       = required_child<QLabel>(window, "accountsLede");
+		auto* const cardColumn = pageLayout != nullptr && pageLayout->count() > 2
+			? pageLayout->itemAt(2)->layout()
+			: nullptr;
+		const auto cards = window.server_cards();
 		expect(
-			session != nullptr && session->parentWidget() == header
-				&& header->layout()->indexOf(panel) + 1
-					== header->layout()->indexOf(session),
-			"device sign-in is the page's first panel, directly above the "
-			"session chrome that offers the token prompt");
+			session != nullptr && pageLayout != nullptr
+				&& pageLayout->indexOf(lede) == 0
+				&& pageLayout->indexOf(panel) == 1
+				&& cardColumn != nullptr && cards.size() == 2U
+				&& cardColumn->indexOf(cards.front()) == 0
+				&& cardColumn->indexOf(cards.back()) == 1,
+			"device sign-in follows the page's sentence, directly above the "
+			"host cards whose Connect chooses a host");
 		expect(
 			!window.files_drawer()->isAncestorOf(panel)
-				&& !window.files_drawer()->isAncestorOf(session),
-			"neither sign-in nor the session chrome is in the files drawer");
+				&& std::ranges::none_of(cards, [&window](const qt::server_card* const aCard) {
+					   return window.files_drawer()->isAncestorOf(aCard);
+				   }),
+			"neither sign-in nor a host card is in the files drawer");
 		window.account_action()->trigger();
 		QApplication::processEvents();
 		expect(
@@ -4284,16 +4470,18 @@ namespace {
 					== qt::settings_page::accounts_and_hosts
 				&& panel->isVisible() && panel->width() > 0 && panel->height() > 0
 				&& panel->mapTo(header, QPoint{ 0, 0 }).y()
-					< session->mapTo(header, QPoint{ 0, 0 }).y()
+					< cards.front()->mapTo(header, QPoint{ 0, 0 }).y()
 				&& panel->mapTo(window.settings(), QPoint{ 0, 0 }).y()
 						+ panel->height()
 					<= window.settings()->height(),
 			"the strip's account button presents Accounts and hosts with the "
-			"sign-in panel visible above the Connect control, without "
-			"scrolling");
+			"sign-in panel visible above the host cards, without scrolling");
 		expect(
 			!window.focus_order().contains(panel->begin_button())
-				&& !window.focus_order().contains(session->connect_button()),
+				&& std::ranges::none_of(cards, [&window](const qt::server_card* const aCard) {
+					   return window.focus_order().contains(aCard->connect_button())
+						   || window.focus_order().contains(aCard->sign_in_button());
+				   }),
 			"the workbench declares no focus stops across windows");
 
 		publish_session_ready(window);
@@ -4342,17 +4530,22 @@ namespace {
 			panel->isVisible(),
 			"a flow the core is establishing shows the sign-in panel again");
 
-		// The picker names the host the Connect button acts on. Sign-in has to
-		// mean the same host through both doors, so changing it here changes
-		// which profile a new code would be asked for.
-		const auto first = session->profile_selector()->currentIndex();
-		session->profile_selector()->setCurrentIndex(first == 0 ? 1 : 0);
+		// [[BPR-0771]]. A card's Connect chooses the host a Connect or a new
+		// sign-in means. Sign-in has to mean the same host through both doors,
+		// so choosing another here changes which profile a new code is asked for.
+		const auto  other     = *selected == core::host_profile_id{ 11U } ? core::host_profile_id{ 12U } : core::host_profile_id{ 11U };
+		auto* const otherCard = window.server_card_for(other);
+		expect(
+			otherCard != nullptr && otherCard->connect_button()->isVisibleTo(otherCard),
+			"the host that is not chosen offers Connect on its card");
+		otherCard->connect_button()->click();
 		QApplication::processEvents();
 		const auto changed = session->selected_profile();
 		expect(
-			changed.has_value() && *changed != *selected
-				&& panel->bound_profile() == *changed,
-			"changing the host picker rebinds the mounted panel to that profile");
+			changed.has_value() && *changed == other && *changed != *selected
+				&& panel->bound_profile() == *changed
+				&& gestures.size() == 1U,
+			"a card's Connect rebinds the mounted panel to its host without a sign-in gesture");
 		panel->begin_button()->click();
 		QApplication::processEvents();
 		expect(
@@ -4361,7 +4554,7 @@ namespace {
 					   gestures.back())
 						.Profile
 					== *changed,
-			"the next request names the profile the picker changed to");
+			"the next request names the host the card's Connect chose");
 
 		// One published presentation, applied through the same call the
 		// composition's fan-out makes. It is what turns the two gestures below
@@ -4423,13 +4616,19 @@ namespace {
 			return static_cast<int>(
 				std::lround(static_cast<double>(aValue) * ratio));
 		};
-		const auto origin = headerScroll->mapTo(settingsWindow, QPoint{ 0, 0 });
+		// [[BPR-0771]]. The page scrolls: with one card per host it is taller
+		// than the window, so the crop is the part of the page the window shows,
+		// which is still the page and only the page.
+		const auto visible = headerScroll->visibleRegion().boundingRect();
+		expect(!visible.isEmpty() && visible.contains(placed.topLeft()),
+			   "the visible part of the accounts page includes the device panel's corner");
+		const auto origin = headerScroll->mapTo(settingsWindow, visible.topLeft());
 		// Two rounded edges rather than a rounded origin plus a rounded size,
 		// for the reason BPR-0520 recorded one crop below.
 		const QRect region{
 			QPoint{ scaled(origin.x()), scaled(origin.y()) },
-			QPoint{ scaled(origin.x() + headerScroll->width()) - 1,
-					scaled(origin.y() + headerScroll->height()) - 1 },
+			QPoint{ scaled(origin.x() + visible.width()) - 1,
+					scaled(origin.y() + visible.height()) - 1 },
 		};
 		const auto cropped = rendered.copy(region);
 		expect(
@@ -4447,6 +4646,419 @@ namespace {
 				"the device sign-in crop is saved in the ignored build tree");
 		}
 	}
+
+	/// \brief [[BPR-0771]]. What Accounts & hosts carried before RFC-BPR-0032.
+	///
+	/// \details The host picker row and its buttons, the host, transport and
+	/// login lines beneath it, the locator with Open and Refresh, the status
+	/// banner and its copy, the public-preview strip and the old account card.
+	/// None may return to the page under its object name or its accessible name.
+	constexpr std::array retired_accounts_object_names{
+		"githubProfileSelector",
+		"githubProfileLabel",
+		"connectGithubButton",
+		"signOutGithubButton",
+		"publicPreviewButton",
+		"githubConnectionDetailsButton",
+		"githubConnectionDetails",
+		"activeGithubHost",
+		"activeGithubTransport",
+		"activeGithubAccount",
+		"pullRequestLocatorGroup",
+		"repositoryOwnerEditor",
+		"repositoryNameEditor",
+		"pullRequestNumberEditor",
+		"pullRequestLocatorActions",
+		"openPullRequestButton",
+		"refreshPullRequestButton",
+		"githubStatusBanner",
+		"githubStatus",
+		"githubDiagnostic",
+		"copyGithubDiagnosticButton",
+		"githubPublicPreviewStrip",
+		"githubAccessMode",
+		"githubPublicPreviewRefusal",
+		"githubSessionPanel",
+		"githubIdentityGroup",
+		"accountCard",
+	};
+
+	constexpr std::array retired_accounts_accessible_names{
+		"GitHub host profile",
+		"Pull request locator",
+		"GitHub activity",
+		"Read without signing in",
+		"Access mode",
+		"GitHub connection",
+	};
+
+	[[nodiscard]] auto names_retired(
+		const QString&                     aName,
+		const std::span<const char* const> aRetired) -> bool
+	{
+		return !aName.isEmpty()
+			&& std::ranges::any_of(aRetired, [&aName](const char* const aCandidate) {
+				   return aName == QLatin1String{ aCandidate };
+			   });
+	}
+
+	/// \brief Fails when the page, or any object under it, carries a retired
+	/// object name or a retired accessible name.
+	void expect_no_retired_widgets(
+		QWidget* const         aPage,
+		const std::string_view aState)
+	{
+		auto objects = aPage->findChildren<QObject*>();
+		objects.push_front(aPage);
+		for (const auto* const object : std::as_const(objects)) {
+			const auto* const widget         = qobject_cast<const QWidget*>(object);
+			const auto        accessibleName = widget == nullptr ? QString{ } : widget->accessibleName();
+			expect(!names_retired(object->objectName(), retired_accounts_object_names)
+					   && !names_retired(accessibleName, retired_accounts_accessible_names),
+				   std::string{ "Accounts & hosts carries no retired object while " } + std::string{ aState }
+					   + ": " + object->objectName().toStdString() + " / " + accessibleName.toStdString());
+		}
+	}
+
+	/// \brief One node an assistive reader reaches: its accessible name and,
+	/// where it stands for an object, that object's name.
+	struct accessible_node
+	{
+		QString Name;
+		QString ObjectName;
+	};
+
+	/// \brief Walks an accessibility subtree the way an assistive reader does,
+	/// through each interface's children, spending one unit of `aBudget` per node.
+	void collect_accessible_nodes(
+		QAccessibleInterface* const   aInterface,
+		std::vector<accessible_node>& aNodes,
+		std::size_t&                  aBudget)
+	{
+		if (aInterface == nullptr || !aInterface->isValid() || aBudget == 0U) {
+			return;
+		}
+		--aBudget;
+		const auto* const object = aInterface->object();
+		aNodes.push_back({
+			.Name       = aInterface->text(QAccessible::Name),
+			.ObjectName = object == nullptr ? QString{ } : object->objectName(),
+		});
+		for (auto index = 0; index < aInterface->childCount(); ++index) {
+			collect_accessible_nodes(aInterface->child(index), aNodes, aBudget);
+		}
+	}
+
+	/// \brief Fails when the page's accessibility tree names a retired object.
+	///
+	/// \details The walk must also finish inside its budget, so a tree too
+	/// large to walk fails visibly rather than passing on the part it reached.
+	void expect_no_retired_accessible_nodes(
+		QWidget* const         aPage,
+		const std::string_view aState)
+	{
+		auto nodes  = std::vector<accessible_node>{ };
+		auto budget = std::size_t{ 20'000U };
+		collect_accessible_nodes(QAccessible::queryAccessibleInterface(aPage), nodes, budget);
+		expect(!nodes.empty() && budget > 0U,
+			   std::string{ "the accessibility walk of Accounts & hosts reaches the page and finishes while " }
+				   + std::string{ aState });
+		const auto retired = std::ranges::find_if(nodes, [](const accessible_node& aNode) {
+			return names_retired(aNode.Name, retired_accounts_accessible_names)
+				|| names_retired(aNode.ObjectName, retired_accounts_object_names);
+		});
+		expect(retired == nodes.end(),
+			   std::string{ "the accessibility tree of Accounts & hosts carries no retired name while " }
+				   + std::string{ aState }
+				   + (retired == nodes.end()
+						  ? std::string{ }
+						  : ": " + retired->Name.toStdString() + " / " + retired->ObjectName.toStdString()));
+	}
+
+	/// \brief Fails unless the page holds exactly one card per configured host,
+	/// in profile order, and the window hands out those same cards.
+	void expect_one_card_per_profile(
+		const qt::workbench_window& aWindow,
+		QWidget* const              aPage,
+		const std::string_view      aState)
+	{
+		const auto options = profiles();
+		const auto cards   = aWindow.server_cards();
+		const auto shown   = aPage->findChildren<QWidget*>(QStringLiteral("serverCard"));
+		auto       ordered = cards.size() == options.size()
+			&& static_cast<std::size_t>(shown.size()) == options.size();
+		for (std::size_t index = 0U; ordered && index < options.size(); ++index) {
+			const auto* const card = shown.at(static_cast<qsizetype>(index));
+			ordered                = card == cards[index]
+				&& cards[index]->profile() == options[index].Profile
+				&& card->property("hostProfile").toULongLong() == options[index].Profile.value()
+				&& aWindow.server_card_for(options[index].Profile) == cards[index];
+		}
+		expect(ordered,
+			   std::string{ "Accounts & hosts holds exactly one card per configured host, in profile order, while " }
+				   + std::string{ aState });
+	}
+
+	/// \brief [[BPR-0771]] acceptance 1. The Accounts page's widget and
+	/// accessibility trees contain none of the retired objects in any
+	/// connection state.
+	///
+	/// \details Each state is driven through the window's own projection entry
+	/// points and is first checked for having reached its host's card, so a
+	/// sweep of a page that never changed cannot pass for one that did.
+	auto test_accounts_page_carries_none_of_the_retired_chrome() -> void
+	{
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			profiles(),
+			[](application::github_intent) { },
+		};
+		window.resize(1'280, 820);
+		window.show();
+		window.open_settings(qt::settings_page::accounts_and_hosts);
+		QApplication::processEvents();
+		auto* const page = window.settings()->page_widget(qt::settings_page::accounts_and_hosts);
+		expect(page != nullptr, "the Settings window has an Accounts and hosts page");
+		const auto inspect = [&window, page](
+								 const std::string_view      aState,
+								 const core::host_profile_id aCurrent,
+								 const QString&              aStateWord) {
+			QApplication::processEvents();
+			const auto* const current = window.server_card_for(aCurrent);
+			expect(current != nullptr && current->presentation().Current
+					   && current->state_label()->text() == aStateWord,
+				   std::string{ "the state under inspection has reached its host's card: " } + std::string{ aState });
+			expect_one_card_per_profile(window, page, aState);
+			expect_no_retired_widgets(page, aState);
+			expect_no_retired_accessible_nodes(page, aState);
+		};
+
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Status = core::github_status_delta{ .Status = core::github_status::no_profile },
+			},
+		});
+		inspect("no profile", core::host_profile_id{ 11U }, QStringLiteral("Signed out"));
+
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Status   = core::github_status_delta{ .Status = core::github_status::establishing_session },
+				.Identity = core::github_identity_delta{ .Profile = core::host_profile_id{ 12U } },
+			},
+		});
+		inspect("establishing a session", core::host_profile_id{ 12U }, QStringLiteral("Connecting"));
+
+		publish_session_ready(window);
+		inspect("session ready", core::host_profile_id{ 12U }, QStringLiteral("Connected"));
+
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Status      = core::github_status_delta{ .Status = core::github_status::session_failed },
+				.Diagnostics = { { .Code = core::github_reason_code::authentication_failed } },
+			},
+		});
+		inspect("session failed", core::host_profile_id{ 12U }, QStringLiteral("Could not connect"));
+
+		publish_session_ready(window);
+		auto preview = application::public_preview_presentation{ };
+		preview.Mode = application::public_preview_mode::signed_out;
+		window.publish(preview);
+		inspect("reading public pull requests signed out", core::host_profile_id{ 12U }, QStringLiteral("Signed out"));
+		expect(window.server_card_for(core::host_profile_id{ 12U })->consequence_label()->text()
+				   == QStringLiteral("Reading public pull requests without an account."),
+			   "signed out, the reading host's card says it reads public pull requests without an account");
+		window.settings()->hide();
+		window.hide();
+	}
+
+	/// \brief [[BPR-0771]] acceptance 2, the session half. A failed session is
+	/// said in its host's card: the short refusal, the last problem and Copy
+	/// details, and nowhere else.
+	auto test_a_session_failure_is_said_in_its_card() -> void
+	{
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			profiles(),
+			[](application::github_intent) { },
+		};
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Status   = core::github_status_delta{ .Status = core::github_status::establishing_session },
+				.Identity = core::github_identity_delta{ .Profile = core::host_profile_id{ 12U } },
+			},
+		});
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Status = core::github_status_delta{ .Status = core::github_status::session_failed },
+			},
+		});
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Diagnostics = { { .Code = core::github_reason_code::authentication_failed } },
+			},
+		});
+		QApplication::processEvents();
+
+		auto* const card       = window.server_card_for(core::host_profile_id{ 12U });
+		auto* const other      = window.server_card_for(core::host_profile_id{ 11U });
+		const auto  diagnostic = QString::fromStdString(window.github_diagnostic_text());
+		expect(card != nullptr && other != nullptr && card->presentation().Current && !diagnostic.isEmpty(),
+			   "the failed host's card is the current one, and the failure has a diagnostic");
+		expect(card->state_label()->text() == QStringLiteral("Could not connect"),
+			   "the card's state is the short refusal");
+		expect(card->last_problem_label()->text() == diagnostic && card->details_button()->isVisibleTo(card),
+			   "its Details carries the diagnostic as the last problem");
+		card->details_button()->click();
+		QApplication::processEvents();
+		expect(card->details()->isVisibleTo(card) && card->last_problem_label()->isVisibleTo(card)
+				   && card->copy_details_button()->isVisibleTo(card),
+			   "opening Details shows the last problem with Copy details");
+		auto* const clipboard = QApplication::clipboard();
+		expect(clipboard != nullptr, "the Qt platform provides a clipboard");
+		clipboard->setText(QStringLiteral("clipboard before Copy details"));
+		card->copy_details_button()->click();
+		expect(clipboard->text() == diagnostic, "Copy details copies exactly the last problem");
+		expect(other->state_label()->text() == QStringLiteral("Signed out")
+				   && other->last_problem_label()->text().isEmpty()
+				   && !other->details_button()->isVisibleTo(other),
+			   "the other host's card says nothing of a failure that was not its own");
+		expect(window.home_open_notice()->isHidden() && window.home_open_details_button()->isHidden(),
+			   "a session failure is not said under the Home bar");
+	}
+
+	/// \brief [[BPR-0771]] acceptance 2, the pull-request half. A load that
+	/// failed with nothing open is one sentence and Copy details under the Home
+	/// bar, and the stack's empty page does not say it again.
+	auto test_a_load_refusal_is_said_under_the_home_bar() -> void
+	{
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			profiles(),
+			[](application::github_intent) { },
+		};
+		window.resize(1'280, 820);
+		window.show();
+		window.activateWindow();
+		QApplication::processEvents();
+		publish_session_ready(window);
+		const auto load = [&window] {
+			window.publish(application::github_presentation_update{
+				.Transition = application::github_transition_projection{
+					.Status      = core::github_status_delta{ .Status = core::github_status::loading_pull_request },
+					.PullRequest = core::pull_request_summary_delta{ .Summary = std::nullopt },
+				},
+			});
+		};
+		const auto refuse = [&window] {
+			window.publish(application::github_presentation_update{
+				.Transition = application::github_transition_projection{
+					.Status      = core::github_status_delta{ .Status = core::github_status::pull_request_failed },
+					.Diagnostics = { { .Code = core::github_reason_code::network_unavailable } },
+				},
+			});
+			QApplication::processEvents();
+		};
+		load();
+		refuse();
+
+		auto* const notice     = window.home_open_notice();
+		auto* const details    = window.home_open_details_button();
+		auto* const stack      = required_child<QStackedWidget>(window, "githubViewState");
+		const auto  diagnostic = QString::fromStdString(window.github_diagnostic_text());
+		expect(window.showing_home() && !diagnostic.isEmpty() && notice != nullptr && details != nullptr,
+			   "with no pull request open, a failed load leaves the window on Home with a diagnostic");
+		expect(!notice->isHidden() && notice->text() == diagnostic,
+			   "the refusal is said under the Home bar, as the diagnostic");
+		expect(!details->isHidden() && details->objectName() == QStringLiteral("homeOpenCopyDetails")
+				   && details->text() == QStringLiteral("Copy details"),
+			   "with Copy details beside it");
+		expect(stack->isHidden(), "the pull request stack's empty page does not say it again");
+		auto* const clipboard = QApplication::clipboard();
+		expect(clipboard != nullptr, "the Qt platform provides a clipboard");
+		clipboard->setText(QStringLiteral("clipboard before Copy details"));
+		details->click();
+		expect(clipboard->text().contains(diagnostic)
+				   && clipboard->text()
+					   == QString::fromStdString(window.github_status_text()) + QStringLiteral("\n") + diagnostic,
+			   "Copy details copies the status, then the refusal");
+
+		auto typed = QKeyEvent{ QEvent::KeyPress, Qt::Key_X, Qt::NoModifier, QStringLiteral("x") };
+		QApplication::sendEvent(window.home_open_bar(), &typed);
+		QApplication::processEvents();
+		expect(window.home_open_bar()->text() == QStringLiteral("x") && notice->isHidden() && details->isHidden(),
+			   "typing in the bar dismisses the refusal and its Copy details");
+		refuse();
+		expect(notice->isHidden() && details->isHidden(),
+			   "the same refusal projected again stays dismissed until the next load");
+		load();
+		refuse();
+		expect(!notice->isHidden() && notice->text() == diagnostic && !details->isHidden(),
+			   "the next load's refusal is said again");
+
+		// The negative control: the same window, still with nothing open, and
+		// a status that is not a refusal.
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Status = core::github_status_delta{ .Status = core::github_status::pull_request_ready },
+			},
+		});
+		QApplication::processEvents();
+		expect(notice->isHidden() && details->isHidden(),
+			   "with pull_request_ready there is no notice and no Copy details under the bar");
+		window.hide();
+	}
+
+	/// \brief [[BPR-0771]]. The picker's job, now a card's. Connect on a card
+	/// that is not the chosen one chooses its host, rebinds the device sign-in
+	/// and dispatches exactly one activation for it through the existing intent.
+	auto test_a_card_connect_chooses_and_connects_its_host() -> void
+	{
+		std::vector<application::github_intent> intents;
+		qt::workbench_window                    window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			profiles(),
+			[&intents](application::github_intent aIntent) {
+				intents.push_back(std::move(aIntent));
+			},
+		};
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Commands = enabled_commands(),
+			},
+		});
+		QApplication::processEvents();
+		auto* const chosen  = window.server_card_for(core::host_profile_id{ 12U });
+		auto* const current = window.server_card_for(core::host_profile_id{ 11U });
+		expect(chosen != nullptr && current != nullptr && !chosen->presentation().Current
+				   && current->presentation().Current
+				   && window.session_panel()->selected_profile() == core::host_profile_id{ 11U }
+				   && window.device_authorization()->bound_profile() == core::host_profile_id{ 11U },
+			   "before any gesture the first configured host is the chosen one");
+		expect(chosen->connect_button()->isVisibleTo(chosen) && intents.empty(),
+			   "a host that is not the chosen one offers Connect on its card, and nothing has been dispatched");
+		chosen->connect_button()->click();
+		QApplication::processEvents();
+		const auto* const activation = intents.size() == 1U
+			? std::get_if<core::activate_host_profile_intent>(&intents.front())
+			: nullptr;
+		expect(activation != nullptr && activation->Profile == core::host_profile_id{ 12U }
+				   && activation->Mode == core::github_access_mode::authenticated,
+			   "Connect dispatches exactly one activation, for that card's host");
+		expect(window.session_panel()->selected_profile() == core::host_profile_id{ 12U }
+				   && window.device_authorization()->bound_profile() == core::host_profile_id{ 12U },
+			   "and chooses that host for the next Connect and sign-in");
+		expect(chosen->presentation().Current && !chosen->connect_button()->isVisibleTo(chosen)
+				   && current->connect_button()->isVisibleTo(current),
+			   "the chosen card no longer offers Connect, and the other card now does");
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -4455,7 +5067,7 @@ auto main(int argc, char** argv) -> int
 	QApplication::setApplicationName(
 		QStringLiteral("BetterPullReviewGitHubQtTests"));
 
-	test_cli_warning_follows_selected_profile();
+	test_cli_warning_lives_on_the_cli_card();
 	test_conversation_model_is_stable_and_incremental();
 	test_intent_translation_is_narrow_and_account_is_output_only();
 	test_held_read_paints_loading();
@@ -4470,7 +5082,7 @@ auto main(int argc, char** argv) -> int
 	test_accessible_announcements_are_combined_and_deduplicated();
 	test_accessibility_minimum_geometry_and_render();
 	test_agent_surfaces_are_placed_in_the_conversations_drawer();
-	test_settings_pages_carry_the_account_card_and_the_rule_editor();
+	test_settings_pages_carry_the_server_cards_and_the_rule_editor();
 	test_repositories_drawer_lists_the_queue_and_opens_on_overview();
 	test_home_action_list_opens_rows_and_the_bar_on_overview();
 	test_home_signed_out_is_one_paste_field();
@@ -4481,6 +5093,10 @@ auto main(int argc, char** argv) -> int
 	test_drawer_controls_are_reachable_in_the_conversations_drawer();
 	test_home_landing_funnels_to_an_account_and_then_a_pull_request();
 	test_device_sign_in_is_mounted_beside_the_session_chrome();
+	test_accounts_page_carries_none_of_the_retired_chrome();
+	test_a_session_failure_is_said_in_its_card();
+	test_a_load_refusal_is_said_under_the_home_bar();
+	test_a_card_connect_chooses_and_connects_its_host();
 
 	std::cout << "All GitHub Qt presentation tests passed\n";
 	return EXIT_SUCCESS;

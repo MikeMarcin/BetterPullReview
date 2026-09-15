@@ -62,11 +62,9 @@ int main(int aArgc, char** aArgv)
 			std::ofstream blocker{ root / "locks" };
 			blocker << "synthetic unsafe cache target";
 		}
-		auto* panel = app->window().session_panel();
-		panel->owner_editor()->setText("octo-org");
-		panel->repository_editor()->setText("review-repository");
-		panel->pull_request_editor()->setValue(17);
-		app->window().github_open_action()->trigger();
+		// [[BPR-0771]]. A pull request is named in the Home bar; the locator is retired.
+		app->window().home_open_bar()->setText(QStringLiteral("octo-org/review-repository#17"));
+		app->window().home_open_action()->trigger();
 		wait_for([&app] { return app->status().EpochStatus == bpr::core::epoch_status::failed || app->status().EpochStatus == bpr::core::epoch_status::unavailable; });
 		expect(!app->status().DisplayedComparison, "failed cache preparation cannot display a comparison");
 		app->begin_shutdown();

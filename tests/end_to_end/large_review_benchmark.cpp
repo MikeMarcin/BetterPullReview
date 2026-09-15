@@ -872,10 +872,9 @@ namespace bpr::e2e::large_review {
 			budget.start();
 			sample_resources(report, application.get(), "application_constructed");
 			require(measure_wait(*application, budget, report, "fixture_connect", [&] { window.github_connect_action()->trigger(); }, [&] { return window.github_status_text() == "GitHub account connected." && window.github_open_action()->isEnabled(); }), "connect timed out");
-			window.session_panel()->owner_editor()->setText(QStringLiteral("bpr-fixtures"));
-			window.session_panel()->repository_editor()->setText(QStringLiteral("large-review"));
-			window.session_panel()->pull_request_editor()->setValue(17);
-			require(measure_wait(*application, budget, report, "paged_review_and_git_load", [&] { window.github_open_action()->trigger(); }, [&] { return window.files_drawer()->contents_view()->model()->rowCount() == 515 && access::evidence(*application).SmartFetchCount == 1 && application->status().EpochStatus == core::epoch_status::ready && access::diff_work_evidence(*application).NavigationReady && quiet(*application); }), "review load timed out");
+			// [[BPR-0771]]. A pull request is named in the Home bar; the locator is retired.
+			window.home_open_bar()->setText(QStringLiteral("bpr-fixtures/large-review#17"));
+			require(measure_wait(*application, budget, report, "paged_review_and_git_load", [&] { window.home_open_action()->trigger(); }, [&] { return window.files_drawer()->contents_view()->model()->rowCount() == 515 && access::evidence(*application).SmartFetchCount == 1 && application->status().EpochStatus == core::epoch_status::ready && access::diff_work_evidence(*application).NavigationReady && quiet(*application); }), "review load timed out");
 			verify_snapshot(*application, manifest, report);
 			sample_resources(report, application.get(), "review_loaded");
 			if (report.CacheByteCourse) {

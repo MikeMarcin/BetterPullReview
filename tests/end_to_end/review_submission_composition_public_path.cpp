@@ -4,6 +4,7 @@
 #include "public_path_poll.hpp"
 
 #include <QAction>
+#include <QPushButton>
 #include <QApplication>
 #include <QComboBox>
 #include <QLabel>
@@ -41,11 +42,15 @@ namespace {
 		auto& window = aApp.window();
 		window.github_connect_action()->trigger();
 		wait([&] { return window.github_status_text() == "GitHub account connected." && window.github_open_action()->isEnabled(); }, "connected controls");
-		window.session_panel()->owner_editor()->setText(QStringLiteral("octo-org"));
-		window.session_panel()->repository_editor()->setText(QStringLiteral("review-repository"));
-		window.session_panel()->pull_request_editor()->setValue(17);
-		window.github_open_action()->trigger();
+		// [[BPR-0771]]. A pull request is named in the Home bar; the locator is retired.
+		window.home_open_bar()->setText(QStringLiteral("octo-org/review-repository#17"));
+		window.home_open_action()->trigger();
 		wait([&] { auto* editor = window.review_submission_editor_view(); return editor->shown_draft().has_value() && (editor->discard_action()->isEnabled() || editor->new_review_action()->isEnabled()); }, "review discovery through ordinary PR open");
+		// [[BPR-0771]]. The Home bar opens on the reviewer's opening modality,
+		// Overview by default; the retired locator left the window on Review.
+		// This course is about the review surface, so it chooses Review.
+		window.choose_modality(qt::review_modality::review);
+		QApplication::processEvents();
 		if (!window.conversations_drawer_toggle_action()->isChecked()) {
 			window.conversations_drawer_toggle_action()->trigger();
 		}
@@ -198,8 +203,14 @@ auto main(int argc, char** argv) -> int
 		restored.submit_action()->trigger();
 		wait([&] { return access::held_review_submission_terminals(*application) > 0U; }, "terminal ready before retirement");
 		expect(restored.shown_draft()->Target != pending.Target && restored.shown_draft()->Body == "Frozen across authority change", "new explicit draft binds newly observed head after historical recovery");
-		auto* signOut = application->window().session_panel()->findChild<QToolButton*>(QStringLiteral("signOutGithubButton"));
-		expect(signOut != nullptr, "fixture exposes the ordinary sign-out control");
+		// [[BPR-0771]]. The ordinary Sign out is the signed-in host's card's.
+		QPushButton* signOut = nullptr;
+		for (auto* const card : application->window().server_cards()) {
+			if (card->signed_in()) {
+				signOut = card->sign_out_button();
+			}
+		}
+		expect(signOut != nullptr, "the signed-in host's card exposes the ordinary sign-out control");
 		signOut->click();
 		wait([&] { return restored.status_label()->text().contains(QStringLiteral("authority changed")); }, "fake account invalidation independently retires whole review");
 		shutdown(*application);

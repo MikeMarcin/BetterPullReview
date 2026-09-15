@@ -1,5 +1,6 @@
 #include "bpr/app/github_application.hpp"
 #include "bpr/app/profile_desktop.hpp"
+#include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/diff_link_map.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
@@ -3005,31 +3006,34 @@ namespace {
 		return false;
 	}
 
-	// [[BPR-0535]]. The same gesture as above, from the enterprise row of the
-	// picker. The picker names the profile the mounted panel asks a code for,
-	// so selecting the row is the whole of "the reviewer was looking at GHES":
-	// nothing here names a profile identity, reaches a composition accessor, or
-	// knows which profile the capability was composed for. A window with no
-	// enterprise row, or none that mounts the panel, ends here with `false`.
+	// [[BPR-0535]], repointed by [[BPR-0771]]. A begin pressed for an
+	// enterprise host must end in the typed refusal with nothing built. The
+	// picker that once chose that host is retired, and an enterprise card offers
+	// no device sign-in, so the course first requires exactly that absence on the
+	// GHES card, then binds the still-mounted device panel to that card's host
+	// and presses its begin. A window with no GHES card, a GHES card that offers
+	// the device flow, or no mounted panel ends here with `false`.
 	[[nodiscard]] auto begin_through_ghes_device_panel(
 		const bpr::qt::workbench_window& aWindow) -> bool
 	{
-		auto* const selector = aWindow.profile_selector();
-		if (selector == nullptr) {
-			return false;
-		}
-		for (auto row = 0; row < selector->count(); ++row) {
-			const auto label = selector->itemText(row);
+		for (auto* const card : aWindow.server_cards()) {
+			const auto& option = card->option();
 			if (
-				!label.startsWith(QStringLiteral("GHES"))
-				|| !label.endsWith(QStringLiteral("Native HTTPS"))) {
+				option.Product != bpr::application::github_profile_product::github_enterprise_server
+				|| option.Transport != bpr::application::github_profile_transport::native_https) {
 				continue;
 			}
-			selector->setCurrentIndex(row);
-			if (selector->currentIndex() != row) {
+			auto* const panel = aWindow.device_authorization();
+			if (card->offers_device_sign_in() || panel == nullptr) {
 				return false;
 			}
-			return begin_through_device_panel(aWindow);
+			panel->bind_profile(card->profile());
+			auto* const begin = panel->begin_button();
+			if (begin == nullptr || !begin->isEnabled()) {
+				return false;
+			}
+			begin->click();
+			return true;
 		}
 		return false;
 	}
@@ -3040,8 +3044,13 @@ namespace {
 	{
 		const auto  statistics = aWindow.statistics();
 		const auto& cli        = aRun.Cli;
-		return aWindow.profile_selector()->currentIndex()
-			== cli.ActiveRow
+		// [[BPR-0771]]. The CLI host is a card, chosen by its Connect.
+		const auto  cards = aWindow.server_cards();
+		const auto* card  = cli.ActiveRow >= 0 && static_cast<std::size_t>(cli.ActiveRow) < cards.size()
+			 ? cards[static_cast<std::size_t>(cli.ActiveRow)]
+			 : nullptr;
+		return card != nullptr
+			&& aWindow.session_panel()->selected_profile() == card->profile()
 #if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
 			&& cli.ConsentWarningObserved
 			&& statistics.GithubIdentityUpdates
@@ -3056,6 +3065,7 @@ namespace {
 			&& statistics.GithubDiagnosticUpdates
 			== cli.DiagnosticUpdatesBeforeConnect + 1U
 			&& aWindow.github_status_text() == "The GitHub connection failed."
+			&& card->state_label()->text() == QStringLiteral("Could not connect")
 			&& aWindow.github_diagnostic_text()
 			== "Account identity observation: The selected GitHub CLI connection is unavailable."
 #endif
@@ -3065,25 +3075,29 @@ namespace {
 			&& statistics.GithubFullResets == 0U;
 	}
 
+	// [[BPR-0771]]. The picker that listed these rows is retired: each host is
+	// a card, in profile order, and its profile carries the label the picker
+	// once showed.
 	[[nodiscard]] auto is_cli_unavailable_profile(
-		const QComboBox& aSelector,
-		const int        aRow) -> bool
+		const std::vector<bpr::qt::server_card*>& aCards,
+		const int                                 aRow) -> bool
 	{
+		const auto& option = aCards[static_cast<std::size_t>(aRow)]->option();
+		const auto  label  = QString::fromStdString(option.Label);
+		return option.Transport == bpr::application::github_profile_transport::github_cli
 #if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
-		return aSelector.itemText(aRow).endsWith(
-			QStringLiteral("GitHub CLI (uses your gh sign-in)"));
+			&& label.endsWith(QStringLiteral("GitHub CLI (uses your gh sign-in)"));
 #else
-		return aSelector.itemText(aRow).endsWith(
-			QStringLiteral("GitHub CLI (unavailable)"));
+			&& label.endsWith(QStringLiteral("GitHub CLI (unavailable)"));
 #endif
 	}
 
 	[[nodiscard]] auto cli_unavailable_profile_count(
-		const QComboBox& aSelector) -> std::size_t
+		const std::vector<bpr::qt::server_card*>& aCards) -> std::size_t
 	{
 		auto count = std::size_t{ 0U };
-		for (auto row = 0; row < aSelector.count(); ++row) {
-			if (is_cli_unavailable_profile(aSelector, row)) {
+		for (auto row = 0; static_cast<std::size_t>(row) < aCards.size(); ++row) {
+			if (is_cli_unavailable_profile(aCards, row)) {
 				++count;
 			}
 		}
@@ -3091,11 +3105,11 @@ namespace {
 	}
 
 	[[nodiscard]] auto next_cli_unavailable_profile(
-		const QComboBox& aSelector,
-		const int        aAfterRow) -> int
+		const std::vector<bpr::qt::server_card*>& aCards,
+		const int                                 aAfterRow) -> int
 	{
-		for (auto row = aAfterRow + 1; row < aSelector.count(); ++row) {
-			if (is_cli_unavailable_profile(aSelector, row)) {
+		for (auto row = aAfterRow + 1; static_cast<std::size_t>(row) < aCards.size(); ++row) {
+			if (is_cli_unavailable_profile(aCards, row)) {
 				return row;
 			}
 		}
@@ -3103,12 +3117,12 @@ namespace {
 	}
 
 	[[nodiscard]] auto expected_cli_active_host_text(
-		const QComboBox&                  aSelector,
-		const int                         aRow,
-		const std::optional<std::string>& aEnterpriseHostname)
+		const std::vector<bpr::qt::server_card*>& aCards,
+		const int                                 aRow,
+		const std::optional<std::string>&         aEnterpriseHostname)
 		-> std::optional<std::string>
 	{
-		const auto label = aSelector.itemText(aRow);
+		const auto label = QString::fromStdString(aCards[static_cast<std::size_t>(aRow)]->option().Label);
 #if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
 		const auto githubLabel     = QStringLiteral("GitHub.com — GitHub CLI (uses your gh sign-in)");
 		const auto enterpriseLabel = QStringLiteral("GHES 3.18 — GitHub CLI (uses your gh sign-in)");
@@ -3117,13 +3131,12 @@ namespace {
 		const auto enterpriseLabel = QStringLiteral("GHES 3.18 — GitHub CLI (unavailable)");
 #endif
 		if (label == githubLabel) {
-			return std::string{ "Active host: github.com (GitHub.com)" };
+			return std::string{ "github.com" };
 		}
 		if (
 			label == enterpriseLabel
 			&& aEnterpriseHostname.has_value()) {
-			return std::string{ "Active host: " } + *aEnterpriseHostname
-				+ " (GitHub Enterprise Server)";
+			return *aEnterpriseHostname;
 		}
 		return std::nullopt;
 	}
@@ -3134,16 +3147,18 @@ namespace {
 		const int                  aRow) -> bool
 	{
 		auto& cli          = aRun.Cli;
-		auto  expectedHost = expected_cli_active_host_text(
-			*aWindow.profile_selector(), aRow, cli.EnterpriseHostname);
+		const auto cards        = aWindow.server_cards();
+		auto       expectedHost = expected_cli_active_host_text(
+			cards, aRow, cli.EnterpriseHostname);
 		if (!expectedHost.has_value()) {
 			return false;
 		}
 
-		aWindow.profile_selector()->setCurrentIndex(aRow);
-		if (
-			aWindow.profile_selector()->currentIndex() != aRow
-			|| !aWindow.github_connect_action()->isEnabled()) {
+		// [[BPR-0771]]. The host is chosen by its card's Connect, which the
+		// card shows only while the core admits a Connect.
+		auto* const card    = cards[static_cast<std::size_t>(aRow)];
+		auto* const connect = card->connect_button();
+		if (connect->isHidden() || !aWindow.github_connect_action()->isEnabled()) {
 			return false;
 		}
 
@@ -3172,12 +3187,10 @@ namespace {
 		};
 		QTimer::singleShot(0, qApp, *poll);
 #endif
-		if (aRun.PublicPreview.Enabled) {
-			aWindow.session_panel()->public_preview_button()->click();
-		} else {
-			aWindow.github_connect_action()->trigger();
-		}
-		return true;
+		// The retired "Read without signing in" button reached the same CLI
+		// opt-in as Connect did; both courses now begin at the card's Connect.
+		connect->click();
+		return aWindow.session_panel()->selected_profile() == card->profile();
 	}
 
 	[[nodiscard]] auto os_color_scheme_name(
@@ -5049,8 +5062,13 @@ namespace {
 					if (aRun->PublicPreview.Course
 						|| aRun->PublicPreview.Enterprise) {
 						aRun->PublicPreview.Activated = true;
-						aApplication.activate_public_preview(
-							aRun->PublicPreview.Enterprise);
+						// [[BPR-0771]]. Reading without an account is the Home bar's: pasting a
+						// public link activates the signed-out mode and opens it in one gesture
+						// (below). The enterprise refusal course opens nothing, so it still asks
+						// for the mode directly.
+						if (aRun->PublicPreview.Enterprise) {
+							aApplication.activate_public_preview(true);
+						}
 						advance_fixture_stage(
 							*aRun, automated_run::stage::connect);
 						break;
@@ -5113,14 +5131,13 @@ namespace {
 #endif
 				{
 					const auto visibleCliProfiles = cli_unavailable_profile_count(
-						*window.profile_selector());
+						window.server_cards());
 					const auto expectedCliProfiles = aRun->Cli.EnterpriseHostname.has_value() ? 2U : 1U;
 					if (
 						aRun->Cli.Enabled
 						&& (visibleCliProfiles != expectedCliProfiles
-							|| window.profile_selector()->count()
-								!= static_cast<int>(
-									expectedCliProfiles * 2U))) {
+							|| window.server_cards().size()
+								!= expectedCliProfiles * 2U)) {
 						fail_automated_run(aApplication, *aRun);
 						break;
 					}
@@ -5128,7 +5145,7 @@ namespace {
 						? expectedCliProfiles
 						: 1U;
 					const auto firstCliProfile = next_cli_unavailable_profile(
-						*window.profile_selector(), -1);
+						window.server_cards(), -1);
 					if (
 						firstCliProfile < 0
 						|| !activate_cli_unavailable_profile(
@@ -5211,17 +5228,9 @@ namespace {
 									break;
 								}
 								aRun->PublicPreview.Opened = true;
-								window.session_panel()->owner_editor()->setText(
-									QString::fromStdString(
-										aRun->Expectations.Owner));
-								window.session_panel()
-									->repository_editor()
-									->setText(QString::fromStdString(
-										aRun->Expectations.Repository));
-								window.session_panel()
-									->pull_request_editor()
-									->setValue(aRun->Expectations.Number);
-								window.github_open_action()->trigger();
+								// [[BPR-0771]]. A pull request is named in the Home bar; the locator is retired.
+								window.home_open_bar()->setText(QStringLiteral("%1/%2#%3").arg(QString::fromStdString( aRun->Expectations.Owner), QString::fromStdString( aRun->Expectations.Repository), QString::number(aRun->Expectations.Number)));
+								window.home_open_action()->trigger();
 								break;
 							}
 							if (live.PublicPreviewRequests == 0U
@@ -5236,21 +5245,20 @@ namespace {
 						// whatever authority the host had, which is the one
 						// thing this course must not do.
 						if (!aRun->PublicPreview.Opened) {
-							if (!aApplication.status().PublicPreviewSignedOut) {
+							// [[BPR-0771]]. Without the enterprise hook, the bar gesture below is
+							// what activates the signed-out mode for a public link, so there is no
+							// mode to wait for and nothing is read on an account's authority.
+							if (aRun->PublicPreview.Enterprise
+								&& !aApplication.status().PublicPreviewSignedOut) {
 								break;
 							}
 							aRun->PublicPreview.Opened = true;
-							window.session_panel()->owner_editor()->setText(
-								QString::fromStdString(
-									aRun->Expectations.Owner));
-							window.session_panel()
-								->repository_editor()
-								->setText(QString::fromStdString(
-									aRun->Expectations.Repository));
-							window.session_panel()
-								->pull_request_editor()
-								->setValue(aRun->Expectations.Number);
-							window.github_open_action()->trigger();
+							// [[BPR-0771]]. Reading without an account is the Home bar's; the button is retired.
+							const auto previewLink = aRun->PublicPreview.Enterprise
+								? QStringLiteral("%1/%2#%3")
+								: QStringLiteral("https://github.com/%1/%2/pull/%3");
+							window.home_open_bar()->setText(previewLink.arg(QString::fromStdString( aRun->Expectations.Owner), QString::fromStdString( aRun->Expectations.Repository), QString::number(aRun->Expectations.Number)));
+							window.home_open_action()->trigger();
 							break;
 						}
 						if (aApplication.status().PublicPreviewRequests == 0U
@@ -5546,13 +5554,9 @@ namespace {
 						|| !window.github_open_action()->isEnabled()) {
 						break;
 					}
-					window.session_panel()->owner_editor()->setText(
-						QString::fromStdString(aRun->Expectations.Owner));
-					window.session_panel()->repository_editor()->setText(
-						QString::fromStdString(aRun->Expectations.Repository));
-					window.session_panel()->pull_request_editor()->setValue(
-						aRun->Expectations.Number);
-					window.github_open_action()->trigger();
+					// [[BPR-0771]]. A pull request is named in the Home bar; the locator is retired.
+					window.home_open_bar()->setText(QStringLiteral("%1/%2#%3").arg(QString::fromStdString(aRun->Expectations.Owner), QString::fromStdString(aRun->Expectations.Repository), QString::number(aRun->Expectations.Number)));
+					window.home_open_action()->trigger();
 					advance_fixture_stage(*aRun, automated_run::stage::open);
 				} else if (cli_fail_closed_presentation_passed(window, *aRun))
 #else
@@ -5562,7 +5566,7 @@ namespace {
 					++aRun->Cli.Observed;
 					const auto nextCliProfile = aRun->Cli.Enabled
 						? next_cli_unavailable_profile(
-							  *window.profile_selector(),
+							  window.server_cards(),
 							  aRun->Cli.ActiveRow)
 						: -1;
 					if (nextCliProfile >= 0) {
@@ -6704,10 +6708,11 @@ namespace {
 				}
 				const auto seed = aRun->EpochPhase
 					== bpr::app::detail::github_epoch_fixture_phase::seed;
-				auto* const profiles
-					= window.findChild<QComboBox*>(QStringLiteral("githubProfileSelector"));
-				const auto offered = profiles != nullptr
-					&& profiles->findText(QStringLiteral("ghe.kept.example"), Qt::MatchContains) >= 0;
+				// [[BPR-0771]]. Offered as a host means a card for it on Accounts & hosts.
+				const auto cards   = window.server_cards();
+				const auto offered = std::ranges::any_of(cards, [](const bpr::qt::server_card* const aCard) {
+					return aCard->host_label()->text() == QStringLiteral("ghe.kept.example");
+				});
 				const auto passed = kept && (seed || offered);
 				QTextStream{ stdout } << (seed ? "SAVED_SERVER_SEEDED" : "SAVED_SERVER")
 									  << ":host=ghe.kept.example:kept=" << (kept ? 1 : 0)
@@ -7048,12 +7053,9 @@ namespace {
 			case native_notification_stage::await_connection:
 				if (window.github_status_text() == "GitHub account connected."
 					&& window.github_open_action()->isEnabled()) {
-					window.session_panel()->owner_editor()->setText(
-						QStringLiteral("octo-org"));
-					window.session_panel()->repository_editor()->setText(
-						QStringLiteral("review-repository"));
-					window.session_panel()->pull_request_editor()->setValue(17);
-					window.github_open_action()->trigger();
+					// [[BPR-0771]]. A pull request is named in the Home bar; the locator is retired.
+					window.home_open_bar()->setText(QStringLiteral("%1/%2#%3").arg(QStringLiteral("octo-org"), QStringLiteral("review-repository"), QString::number(17)));
+					window.home_open_action()->trigger();
 					window.queue_rule_kind_selector()->setCurrentIndex(
 						window.queue_rule_kind_selector()->findData(static_cast<int>(
 							bpr::core::observer_rule_kind::repository)));
@@ -7562,20 +7564,19 @@ auto main(int argc, char** argv) -> int
 			if (*fixture == "github-com") {
 				selectedFixture        = bpr::app::detail::github_public_path_fixture::github_com;
 				fixtureName            = "github.com";
-				expectedActiveHostText = "Active host: github.com (GitHub.com)";
+				expectedActiveHostText = "github.com";
 				fixtureExpectations    = synthetic_fixture_expectations();
 			} else if (*fixture == "ghes-3.18") {
 				selectedFixture        = bpr::app::detail::github_public_path_fixture::ghes_3_18;
 				fixtureName            = "ghes-3.18";
-				expectedActiveHostText = "Active host: ghe.example.invalid "
-										 "(GitHub Enterprise Server)";
+				expectedActiveHostText = "ghe.example.invalid";
 				fixtureExpectations    = synthetic_fixture_expectations();
 			} else if (*fixture == "uiforetw-74") {
 				selectedFixture = bpr::app::detail::github_public_path_fixture::uiforetw_74;
 				fixtureName     = "uiforetw-74";
 				// The recorded pull request is on github.com, so the active-host
 				// text is github.com's. Only the served pull request differs.
-				expectedActiveHostText = "Active host: github.com (GitHub.com)";
+				expectedActiveHostText = "github.com";
 				fixtureExpectations    = {
 					.Owner               = "google",
 					.Repository          = "UIforETW",

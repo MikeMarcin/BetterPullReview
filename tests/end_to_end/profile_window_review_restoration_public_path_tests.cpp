@@ -511,11 +511,10 @@ auto main(int aArgc, char** aArgv) -> int
 		if (anonymous) {
 			owner->activate_public_preview();
 			wait_for([&] { return owner->status().PublicPreviewSignedOut; }, "anonymous authority accepted");
-			first->session_panel()->owner_editor()->setText(QStringLiteral("octo-org"));
-			first->session_panel()->repository_editor()->setText(QStringLiteral("review-repository"));
-			first->session_panel()->pull_request_editor()->setValue(17);
 			wait_for([&] { return first->github_open_action()->isEnabled(); }, "anonymous open enabled");
-			first->github_open_action()->trigger();
+			// [[BPR-0771]]. A pull request is named in the Home bar; the locator is retired.
+			first->home_open_bar()->setText(QStringLiteral("octo-org/review-repository#17"));
+			first->home_open_action()->trigger();
 			accepted(*owner, firstContext, 17);
 		} else {
 			seededReadings = seed_auth(*owner, firstContext);

@@ -12,7 +12,6 @@
 #include "bpr/application/window_review_restoration_ports.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/diff_interaction.hpp"
-#include "bpr/qt/account_card.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/defect_card_view.hpp"
@@ -20,6 +19,7 @@
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/github_pull_request_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
+#include "bpr/qt/server_card.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/repositories_drawer.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
@@ -402,6 +402,10 @@ namespace bpr::qt {
 		/// construction cut leaves behind.
 		void set_device_authorization_dispatch(
 			application::device_authorization_gesture_dispatch aDispatch);
+		/// \brief [[BPR-0771]]. Where the public-preview ring's sign-in gesture
+		/// leaves, from whichever card carries the ring.
+		void set_public_preview_dispatch(
+			application::public_preview_gesture_dispatch aDispatch);
 		void set_defect_classification_dispatch(
 			workbench_defect_classification_dispatch aClassificationDispatch);
 		void set_queue_rule_dispatch(workbench_queue_rule_dispatch aDispatch);
@@ -590,6 +594,14 @@ namespace bpr::qt {
 		[[nodiscard]] auto home_open_action() const noexcept -> QAction*;
 		/// \brief [[BPR-0669]]. States a refusal beside the bar rather than doing nothing.
 		[[nodiscard]] auto home_open_notice() const noexcept -> QLabel*;
+		/// \brief [[BPR-0771]]. Copy details, beside a load refusal under the bar.
+		[[nodiscard]] auto home_open_details_button() const noexcept -> QPushButton*;
+		/// \brief [[BPR-0771]]. Says the composition's review-restoration notice under the bar.
+		///
+		/// \details The window is the one writer of the notice under the bar: a
+		/// setup stage's notice speaks first, then this, then a load refusal. An
+		/// empty text withdraws it.
+		void present_home_restoration_notice(const QString& aText);
 		/// \brief [[BPR-0733]]. Home's recently viewed heading, list and resume.
 		///
 		/// \details All three are shown only while entries were published; an
@@ -654,8 +666,14 @@ namespace bpr::qt {
 		[[nodiscard]] auto conversation_view() const noexcept -> QTreeView*;
 		[[nodiscard]] auto conversation_model() const noexcept
 			-> github_conversation_model*;
-		[[nodiscard]] auto profile_selector() const noexcept -> QComboBox*;
-		/// \brief The public-preview consumed-budget ring in the review header.
+		/// \brief [[BPR-0771]]. Accounts & hosts' cards, one per configured host
+		/// profile, in profile order.
+		[[nodiscard]] auto server_cards() const -> std::vector<server_card*>;
+		/// \brief The card presenting one host profile; null when it is not configured.
+		[[nodiscard]] auto server_card_for(core::host_profile_id aProfile) const
+			-> server_card*;
+		/// \brief The public-preview hourly-limit ring, on the card of the host
+		/// being read.
 		[[nodiscard]] auto usage_indicator() const noexcept -> usage_ring*;
 		[[nodiscard]] auto public_preview_signed_out() const noexcept -> bool;
 		/// \brief The refusal wording currently shown, empty when none is.
@@ -681,8 +699,6 @@ namespace bpr::qt {
 		[[nodiscard]] auto repositories_drawer() const noexcept -> workbench_drawer_panel*;
 		[[nodiscard]] auto repositories_drawer_toggle_action() const noexcept -> QAction*;
 		[[nodiscard]] auto repositories_tree() const noexcept -> repositories_tree_view*;
-		/// \brief [[BPR-0652]]. Accounts & hosts' account card.
-		[[nodiscard]] auto account_card_view() const noexcept -> account_card*;
 		/// \brief [[BPR-0652]]. The observer-rule editor, on Reviews & queue.
 		[[nodiscard]] auto rules_editor() const noexcept -> QWidget*;
 		[[nodiscard]] auto conversations_drawer_toggle_action() const noexcept
@@ -889,8 +905,20 @@ namespace bpr::qt {
 			-> std::optional<workbench_defect_classification>;
 		void synchronize_selected_conversation(const QModelIndex& aIndex);
 		void build_queue_landing(QWidget* aParent, QVBoxLayout& aLayout);
-		/// \brief Points device sign-in at the host profile the picker names.
+		/// \brief Points device sign-in at the host profile last chosen.
 		void rebind_device_authorization_profile();
+		/// \brief [[BPR-0771]]. Makes one host the one a Connect or sign-in means.
+		void select_github_profile(core::host_profile_id aProfile);
+		void add_server_card(const application::github_profile_option& aOption);
+		/// \brief Decides each card's presentation from the session and the host
+		/// last chosen.
+		void update_server_cards();
+		/// \brief Says the setup notice, or a pull request's load refusal, under the bar.
+		void update_home_open_notice();
+		[[nodiscard]] auto home_refusal_text() const -> QString;
+		/// \brief The card of the host the session is on, or of the chosen host
+		/// while none is.
+		[[nodiscard]] auto current_server_card() const -> server_card*;
 		void begin_selected_sign_in();
 		void dispatch_queue_rule(application::queue_rule_action aAction);
 		void update_queue_rule_actions();
@@ -1013,7 +1041,8 @@ namespace bpr::qt {
 		QComboBox*                      FilesOrderSelector = nullptr;
 		QLineEdit*                      FilesFilter        = nullptr;
 		repositories_tree_view*         RepositoriesTree   = nullptr;
-		account_card*                   AccountCard        = nullptr;
+		std::vector<server_card*>       ServerCards;
+		QVBoxLayout*                    ServerCardColumn   = nullptr;
 		QWidget*                        RulesEditor        = nullptr;
 		/// Set when a pull request was chosen from the repositories tree, so
 		/// it opens on its overview when it arrives.
@@ -1066,6 +1095,11 @@ namespace bpr::qt {
 		QToolButton*                                       HomeOpenButton        = nullptr;
 		QAction*                                           HomeOpenAction        = nullptr;
 		QLabel*                                            HomeOpenNotice        = nullptr;
+		QPushButton*                                       HomeOpenDetails       = nullptr;
+		QString                                            HomeSetupNotice;
+		QString                                            HomeRestorationNotice;
+		QString                                            HomeRefusalDetails;
+		QString                                            DismissedHomeRefusal;
 		review_landing_delegate*                           QueueDelegate         = nullptr;
 		std::vector<core::observer_rule>                   QueueRules;
 		application::queue_landing_projection              QueueProjection;
@@ -1107,6 +1141,7 @@ namespace bpr::qt {
 		github_session_panel*                              SessionPanel                = nullptr;
 		device_authorization_panel*                        DevicePanel                 = nullptr;
 		application::device_authorization_gesture_dispatch DeviceDispatch;
+		application::public_preview_gesture_dispatch       PublicPreviewDispatch;
 		github_pull_request_panel*                         PullRequestPanel   = nullptr;
 		appearance_settings_panel*                         AppearanceSettings = nullptr;
 		QPointer<settings_window>                          MountedSettings;

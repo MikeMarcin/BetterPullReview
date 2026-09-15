@@ -1,6 +1,7 @@
 #include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/github_session_panel.hpp"
+#include "bpr/qt/server_card.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/usage_ring.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -11,11 +12,13 @@
 #include <QComboBox>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QPushButton>
 #include <QString>
 #include <QStringList>
 #include <QToolButton>
 #include <QWidget>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -122,10 +125,19 @@ namespace {
 		}
 	};
 
-	void test_the_mode_is_named_in_all_three_places(const double aScale)
+	// [[BPR-0771]]. RFC-BPR-0032: the mode is named in the window title and
+	// on the account row of the card whose host is being read. The host picker
+	// entry and the access-mode label that once named it are gone.
+	void test_the_mode_is_named_in_the_title_and_on_its_card(const double aScale)
 	{
 		static_cast<void>(aScale);
 		auto window = make_window();
+		window->publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Status   = core::github_status_delta{ .Status = core::github_status::session_ready },
+				.Identity = core::github_identity_delta{ .Profile = core::host_profile_id{ 1U } },
+			},
+		});
 		window->publish(signed_out_preview());
 		QApplication::processEvents();
 
@@ -133,26 +145,36 @@ namespace {
 		expect(
 			window->windowTitle().contains(mode),
 			"the window title names the mode");
-		auto* const selector = window->profile_selector();
-		expect(selector != nullptr, "the host picker is composed");
-		const auto entry = selector->itemText(selector->currentIndex());
-		expect(entry.contains(mode), "the host picker entry names the mode");
-		expect(
-			entry.contains(QStringLiteral("github.com")),
-			"and carries the profile's host beside it");
-		auto* const label = window->session_panel()->access_mode_label();
-		expect(label != nullptr && label->text() == mode,
-			   "the review header names the mode exactly");
+		auto* const card = window->server_card_for(core::host_profile_id{ 1U });
+		expect(card != nullptr && card->presentation().Current && card->presentation().ReadingPublic,
+			   "the card of the host being read is the one reading");
+		expect(card->host_label()->text() == QStringLiteral("github.com"),
+			   "and it carries the profile's host");
+		expect(card->state_label()->text() == QStringLiteral("Signed out")
+				   && card->login_label()->text() == QStringLiteral("No account")
+				   && card->consequence_label()->text()
+					   == QStringLiteral("Reading public pull requests without an account."),
+			   "its account row says it reads public pull requests without an account");
+		expect(card->sign_in_button()->isVisibleTo(card) && !card->sign_out_button()->isVisibleTo(card),
+			   "and offers Sign in rather than Sign out");
+		expect(window->findChild<QWidget*>(QStringLiteral("githubAccessMode")) == nullptr
+				   && window->findChild<QWidget*>(QStringLiteral("githubProfileSelector")) == nullptr,
+			   "no access-mode label or host picker entry names the mode a second time");
 		expect(
 			window->session_panel()->public_preview_signed_out(),
-			"and the mode strip is on screen rather than blank");
+			"the session presentation is in the mode rather than blank");
 		expect(
 			window->active_account_text().find("Reading without signing in")
-				== std::string::npos,
+					== std::string::npos
+				&& !card->signed_in(),
 			"the mode is not presented as an authenticated account");
 	}
 
-	void test_public_preview_activates_only_the_selected_profile()
+	// [[BPR-0771]]. RFC-BPR-0032 took "Read without signing in" off Accounts
+	// & hosts: reading without an account is the Home bar's. What the page
+	// still owes is that nothing on it enters the mode, and that each card's
+	// Connect activates exactly its own host, as the core admits.
+	void test_accounts_offer_no_public_preview_activation()
 	{
 		auto options = profiles();
 		options.push_back(application::github_profile_option{
@@ -184,74 +206,57 @@ namespace {
 		device.adopt(window);
 		window.resize(1'280, 820);
 		window.show();
-		// [[BPR-0646]] moved the session chrome onto Settings > Accounts and
-		// hosts, so the ordinary connection controls are seen where a
-		// reviewer opens them.
 		window.open_settings(qt::settings_page::accounts_and_hosts);
 		QApplication::processEvents();
-		auto* const panel   = window.session_panel();
-		auto* const preview = panel->public_preview_button();
-		expect(preview->isVisible() && preview->isEnabled(),
-			   "public preview is available beside ordinary connection controls");
-		auto* const accessible = QAccessible::queryAccessibleInterface(preview);
-		expect(accessible != nullptr
-				   && accessible->text(QAccessible::Name) == QStringLiteral("Read without signing in")
-				   && !accessible->text(QAccessible::Description).isEmpty(),
-			   "public preview has an accessible name and explanation");
-		// The session chrome keeps its own reading order inside the Settings
-		// window, so the claim is the panel's focus chain rather than the
-		// workbench's declared order, which these controls left with
-		// [[BPR-0646]].
-		const auto nextFocusable = [](QWidget* const aFrom) -> QWidget* {
-			for (auto* candidate = aFrom->nextInFocusChain(); candidate != nullptr && candidate != aFrom;
-				 candidate       = candidate->nextInFocusChain()) {
-				if (candidate->focusPolicy() != Qt::NoFocus && candidate->isVisible()) {
-					return candidate;
-				}
-			}
-			return nullptr;
-		};
-		expect(nextFocusable(panel->connect_button()) == preview,
-			   "preview follows Connect in the panel's keyboard order");
-		// The panel decides its rows from its own width, wherever it is
-		// mounted. [[BPR-0717]]: on the Settings page the page's layout
-		// owns that width and undoes a plain resize on the same event pass,
-		// so the compact width is imposed as a constraint the layout keeps,
-		// and released before the wide claim.
-		panel->setFixedWidth(420);
-		QApplication::processEvents();
-		expect(preview->mapTo(panel, QPoint{ }).y()
-				   > panel->profile_selector()->mapTo(panel, panel->profile_selector()->rect().bottomLeft()).y(),
-			   "compact connection buttons use a separate row below the profile");
-		panel->setMinimumWidth(0);
-		panel->setMaximumWidth(QWIDGETSIZE_MAX);
-		panel->resize(1'000, panel->height());
-		QApplication::processEvents();
-		const auto previewCenter = preview->mapTo(panel, preview->rect().center()).y();
-		expect(previewCenter >= panel->profile_selector()->mapTo(panel, QPoint{ }).y()
-				   && previewCenter <= panel->profile_selector()->mapTo(panel, panel->profile_selector()->rect().bottomLeft()).y(),
-			   "wide connection buttons return beside the profile");
-		for (auto index = 0; index < panel->profile_selector()->count(); ++index) {
-			panel->profile_selector()->setCurrentIndex(index);
-			expect(intents.empty(), "selecting a profile does not authenticate or activate it");
-			preview->click();
-			expect(intents.size() == 1U, "one preview click emits exactly one intent");
+		auto* const page = window.settings()->page_widget(qt::settings_page::accounts_and_hosts);
+		expect(page != nullptr
+				   && page->findChild<QWidget*>(QStringLiteral("publicPreviewButton")) == nullptr,
+			   "Accounts and hosts carries no public-preview button");
+		const auto pageWidgets = page->findChildren<QWidget*>();
+		expect(std::ranges::none_of(pageWidgets,
+									[](const QWidget* const aWidget) {
+										return aWidget->accessibleName()
+											== QStringLiteral("Read without signing in");
+									}),
+			   "and nothing on it is named for reading without signing in");
+		const auto cards = window.server_cards();
+		expect(cards.size() == options.size(), "one card per configured host");
+		// The card last connected becomes the chosen host, and a chosen host
+		// with a device flow offers Sign in rather than Connect. Walking the
+		// cards from the last back keeps each next card one that offers Connect.
+		for (auto index = options.size(); index > 0U; --index) {
+			auto* const card = cards[index - 1U];
+			expect(card->profile() == options[index - 1U].Profile
+					   && card->connect_button()->isVisibleTo(card),
+				   "a card whose host is not the chosen one offers Connect");
+			card->connect_button()->click();
+			expect(intents.size() == 1U, "one Connect emits exactly one intent");
 			const auto* const activation = std::get_if<core::activate_host_profile_intent>(&intents.front());
 			expect(activation != nullptr
-					   && activation->Profile == options[static_cast<std::size_t>(index)].Profile
-					   && activation->Mode == core::github_access_mode::public_preview,
-				   "preview emits the exact selected profile and public-preview mode");
+					   && activation->Profile == card->profile()
+					   && activation->Mode == core::github_access_mode::authenticated,
+				   "Connect activates exactly its card's host, and never in public preview");
 			intents.clear();
 		}
-		expect(device.Begins == 0U, "preview never emits device sign-in");
-		static_cast<void>(panel->apply_command(core::github_command_projection{
-			.Id             = core::github_command_id::activate_host_profile,
-			.Enabled        = false,
-			.DisabledReason = core::github_reason_code::invalid_profile,
-		}));
-		preview->click();
-		expect(!preview->isEnabled() && intents.empty(),
-			   "preview obeys the host activation command state");
+		expect(device.Begins == 0U, "Connect never emits device sign-in");
+		// The refusal arrives the way the core sends one: a command projection
+		// on its own, through the window.
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Commands = {
+					{
+						.Id             = core::github_command_id::activate_host_profile,
+						.Enabled        = false,
+						.DisabledReason = core::github_reason_code::invalid_profile,
+					},
+				},
+			},
+		});
+		QApplication::processEvents();
+		auto* const other = cards.back();
+		other->connect_button()->click();
+		expect(intents.empty() && !other->connect_button()->isVisibleTo(other),
+			   "a card's Connect obeys the host activation command state");
 	}
 
 	void test_the_ring_reports_the_budget_and_the_way_out(const double aScale)
@@ -261,7 +266,9 @@ namespace {
 		QApplication::processEvents();
 
 		auto* const ring = window->usage_indicator();
-		expect(ring != nullptr, "the ring is composed beside the host picker");
+		auto* const card = window->server_card_for(core::host_profile_id{ 1U });
+		expect(ring != nullptr && card != nullptr && card->usage_indicator() == ring,
+			   "the ring is composed on the card of the host being read");
 		expect(ring->has_budget(), "and it has an observed budget to draw");
 		expect(
 			ring->consumed_fraction() > 0.31 && ring->consumed_fraction() < 0.32,
@@ -480,21 +487,26 @@ namespace {
 		expect(
 			ring->focusPolicy() != Qt::NoFocus,
 			"the ring can take keyboard focus");
-		// [[BPR-0646]] moved the session chrome onto Settings > Accounts and
-		// hosts, so the ring is walked in that page's order, ahead of the
-		// profile selector, rather than in the workbench's declared order.
+		// [[BPR-0771]]. The ring is on the card of the host being read, on
+		// Settings > Accounts and hosts, so it is walked in that card's reading
+		// order rather than in the workbench's declared order: after the
+		// account row's way in, on the Rate limit row, before Details.
 		auto* const page = window->settings()->page_widget(qt::settings_page::accounts_and_hosts);
-		expect(page != nullptr && page->isAncestorOf(ring) && !window->focus_order().contains(ring),
-			   "and it is walked on the Accounts and hosts page, not in the workbench's order");
-		auto walked = false;
-		for (auto* candidate = ring->nextInFocusChain(); candidate != nullptr && candidate != ring;
-			 candidate       = candidate->nextInFocusChain()) {
-			if (candidate == window->profile_selector()) {
-				walked = true;
-				break;
+		auto* const card = window->server_card_for(core::host_profile_id{ 1U });
+		expect(page != nullptr && card != nullptr && page->isAncestorOf(ring) && card->isAncestorOf(ring)
+				   && !window->focus_order().contains(ring),
+			   "and it is walked on its card on the Accounts and hosts page, not in the workbench's order");
+		const auto firstReached = [](QWidget* const aFrom, QWidget* const aOne, QWidget* const aOther) -> QWidget* {
+			for (auto* candidate = aFrom->nextInFocusChain(); candidate != nullptr && candidate != aFrom;
+				 candidate       = candidate->nextInFocusChain()) {
+				if (candidate == aOne || candidate == aOther) {
+					return candidate;
+				}
 			}
-		}
-		expect(walked, "reading order and focus order agree: the mode is read first");
+			return nullptr;
+		};
+		expect(firstReached(card->sign_in_button(), ring, card->details_button()) == ring,
+			   "reading order and focus order agree: the limit is read before its details");
 	}
 
 	void test_an_unpublished_window_shows_nothing_of_the_mode(
@@ -511,14 +523,19 @@ namespace {
 		expect(
 			window->windowTitle() == QStringLiteral("BetterPullReview"),
 			"the title says nothing about a mode nothing described");
-		auto* const selector = window->profile_selector();
+		auto* const card = window->server_card_for(core::host_profile_id{ 1U });
 		expect(
-			selector->itemText(selector->currentIndex())
-				== QStringLiteral("Work GitHub"),
-			"and the host picker still names the profile");
+			card != nullptr
+				&& card->host_label()->text() == QStringLiteral("github.com")
+				&& card->state_label()->text() == QStringLiteral("Signed out")
+				&& card->login_label()->text() == QStringLiteral("No account")
+				&& !card->presentation().ReadingPublic
+				&& card->consequence_label()->text()
+					!= QStringLiteral("Reading public pull requests without an account."),
+			"and the host's card still names its host without claiming to read public pull requests");
 		expect(
 			!window->session_panel()->public_preview_signed_out(),
-			"the mode strip is absent rather than blank");
+			"the session presentation is not in the mode");
 		expect(
 			window->public_preview_refusal_text().isEmpty(),
 			"there is no refusal to state");
@@ -546,8 +563,8 @@ auto main(int argc, char** argv) -> int
 	const auto scale  = scaleText.toDouble(&parsed);
 	expect(parsed, "expected Qt scale is numeric");
 
-	test_the_mode_is_named_in_all_three_places(scale);
-	test_public_preview_activates_only_the_selected_profile();
+	test_the_mode_is_named_in_the_title_and_on_its_card(scale);
+	test_accounts_offer_no_public_preview_activation();
 	test_the_ring_reports_the_budget_and_the_way_out(scale);
 	test_the_reset_wording_degrades_by_the_supplied_instant(scale);
 	test_sign_in_is_offered_from_the_ring_and_from_every_refusal(scale);
