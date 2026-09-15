@@ -30,8 +30,8 @@ digest-bound asset verdict.
 RFC-BPR-0031 owns the current widget, timer, motion-preference,
 accessibility-tree, focus, layout, high-DPI, palette-change,
 platform-observation, and public-path behavior. Dif is present on Home and in
-one explicit AI tools slot; final supported-appearance and native qualification
-remain recorded by that RFC until formal closeout.
+one explicit AI tools slot. Its final supported-appearance and native
+qualification are recorded in the RFC-BPR-0031 closeout ledger.
 
 ## Current system-native presentation
 

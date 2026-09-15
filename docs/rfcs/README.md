@@ -85,8 +85,8 @@ tracked on the issue board's backlog, in the same way as other RFC work.
 | [RFC-BPR-0027](RFC-BPR-0027-structured-diagnostic-logging-verbosity-privacy.md) | Structured Diagnostic Logging, Verbosity, and Privacy | Deferred | RFC-BPR-0001 and RFC-BPR-0002; basic Quill foundation implemented in BPR-0602; advanced retention/privacy/Settings phase deferred |
 | [RFC-BPR-0028](RFC-BPR-0028-review-workbench-direction.md) | Review Workbench Direction: Overview, Epoch Line, Modalities, and Conversation | Proposed | Owner-locked 2026-09-06; supersedes the RFC-BPR-0025 layout and RFC-BPR-0026 Home presentation where they conflict; Settings, explorers and file tree designs follow. Nine human-pending cards are prepared as one attended session at the pack head (`docs/verification/reviews/rfc-bpr-0028-attended-v002/`) under plan `ux-redesign-pack-0028`. BPR-0653 waits for Windows evidence |
 | [RFC-BPR-0029](RFC-BPR-0029-machine-independent-epoch-identity-update-history.md) | Machine-Independent Epoch Identity and Pull Request Update History | Accepted | Revised proposal accepted 2026-09-12 under mandate r17: only evidenced update occurrences receive portable identities; incomplete history and unknown historical bases remain explicit; migration is lossless even where identity is unresolved. RFC-BPR-0002, RFC-BPR-0003 and RFC-BPR-0017; supersedes RFC-BPR-0003 in part. RFC-BPR-0028's AC-02 waits on its card BPR-0743 |
-| [RFC-BPR-0030](RFC-BPR-0030-dif-production-animation-revision.md) | Dif Production Animation Revision: Ten Registered Prop-Free Clips | Proposed | The ten-clip production revision, provenance, deterministic regeneration, and bound art decision are accepted; formal closeout still obeys RFC-BPR-0006 and canonical order |
-| [RFC-BPR-0031](RFC-BPR-0031-dif-workbench-animation-integration.md) | Dif Workbench Integration: Profile Preferences, Bounded Qt Playback, and Truthful Cues | Proposed | Accepted production art is composed on Home and the explicit AI tools surface with profile preferences and bounded cues; focused native, rendered, package-boundary, and formal closeout remain open |
+| [RFC-BPR-0030](RFC-BPR-0030-dif-production-animation-revision.md) | Dif Production Animation Revision: Ten Registered Prop-Free Clips | Auto-Verified | Closed in canonical order by BPR-0769: the exact ten-clip production revision, provenance, deterministic regeneration, measured bounds, and bound art/derivative decisions pass after RFC-BPR-0006 |
+| [RFC-BPR-0031](RFC-BPR-0031-dif-workbench-animation-integration.md) | Dif Workbench Integration: Profile Preferences, Bounded Qt Playback, and Truthful Cues | Auto-Verified | Closed after RFC-BPR-0030 by BPR-0769: accepted art is composed on Home and the explicit AI tools surface with profile preferences, bounded cues, focused native/rendered evidence, resource/core-only checks, and qualified memory observations |
 | [RFC-BPR-0032](RFC-BPR-0032-calm-home-and-accounts-surfaces.md) | Calm Home and Accounts & Hosts: One Language for the Surfaces Before a Review | Proposed | Imported 2026-09-13 from the owner's brief for later implementation, Home revised the same day after owner review; a presentation revision that implements the accepted RFC-BPR-0028 Settings and Home statements as one card per server and state-ordered Home panels with grouping, and records the owner's amendment placing Home's Group, State headers, Filter and refresh in the strip; RFC-BPR-0016, RFC-BPR-0018 and RFC-BPR-0028 |
 | [RFC-BPR-0033](RFC-BPR-0033-profile-chooser-and-the-last-window.md) | Profile Chooser and the Last Window: Profiles Are a Menu, Not a Gate | Proposed | Imported 2026-09-13 for later implementation; removes the last-window chooser presentation, adds a per-platform empty-desktop policy and redesigns the chooser as rows; RFC-BPR-0024, whose text it amends in presentation only |
 | [RFC-BPR-0034](RFC-BPR-0034-appearance-page-and-per-theme-colours.md) | Appearance Page and Per-Theme Colour Customisation | Proposed | Imported 2026-09-13 after owner review of the Appearance page; rebuilds the page as a theme strip, one-line rows with info-glyph popovers, a labelled preview and a colours card for the theme on screen, and changes the appearance store to one customised palette per theme with a migration; RFC-BPR-0006 and RFC-BPR-0018 |
@@ -149,12 +149,13 @@ guidance only. Neither RFC authorizes importing Nib, Mel, AllTheThings art or
 code, foreign animation architecture, or mascot-authored review conclusions.
 
 RFC-BPR-0030 and RFC-BPR-0031 are the imported ten-clip Dif revision and
-workbench-integration proposal. They partially supersede the earlier Dif
-contracts only for their explicit deltas. Their [source pack and live ID
+workbench integration. They partially supersede the earlier Dif contracts only
+for their explicit deltas. Their [source pack and live ID
 mapping](assets/bpr-dif-integration-v1.LIVE_IMPORT.md) and [adopted six-milestone
 plan](plans/bpr-dif-integration-v1/milestone-plan.json) retain the source and
-execution order. Import leaves all eighteen cards in Backlog and both RFCs
-Proposed; technical readiness and canonical formal closeout are separate.
+execution order. At import all eighteen cards were Backlog and both RFCs were
+Proposed. BPR-0769 now records their dependency-ordered `Auto-Verified`
+closeout without rewriting the immutable imported packet.
 
 RFC-BPR-0032, RFC-BPR-0033 and RFC-BPR-0034 are the imported shell-surfaces pack: the owner's
 2026-09-13 verdict that Settings' Accounts & hosts page, Home and the profile

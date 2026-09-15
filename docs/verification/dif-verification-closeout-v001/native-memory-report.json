@@ -1,0 +1,56 @@
+{
+  "after_cache": {
+    "malloc_default_zone_in_use_bytes": 27136928,
+    "physical_footprint_bytes": 41976672,
+    "resident_bytes": 96501760
+  },
+  "after_conversion_before_sampler_stop": {
+    "malloc_default_zone_in_use_bytes": 27137008,
+    "physical_footprint_bytes": 42009440,
+    "resident_bytes": 96534528
+  },
+  "after_native_window": {
+    "malloc_default_zone_in_use_bytes": 30113392,
+    "physical_footprint_bytes": 49152936,
+    "resident_bytes": 118603776
+  },
+  "before_cache": {
+    "malloc_default_zone_in_use_bytes": 3226928,
+    "physical_footprint_bytes": 11158344,
+    "resident_bytes": 63094784
+  },
+  "cache": {
+    "conversion_peak_ceiling_bytes": 41943040,
+    "decoded_clips": 10,
+    "decoded_pixel_bytes": 23855104,
+    "load_attempts": 1,
+    "observed_conversion_default_zone_high_water_bytes": 26011984,
+    "observed_non_pixel_default_zone_delta_bytes": 54896,
+    "observed_retained_default_zone_delta_bytes": 23910000,
+    "production_accounted_conversion_peak_bytes": 26196828,
+    "production_accounted_retained_bytes": 23872384,
+    "retained_ceiling_bytes": 33554432
+  },
+  "environment": {
+    "architecture": "arm64",
+    "operating_system": "macOS Tahoe (26.6.2)",
+    "qt_version": "6.10.3"
+  },
+  "measurement_scope": "macOS default malloc zone plus whole-process Mach TASK_VM_INFO",
+  "native_window": {
+    "cpu_images_retained_without_detach": true,
+    "observed_peak_malloc_delta_bytes": 5825072,
+    "observed_peak_physical_footprint_delta_bytes": 7209032,
+    "observed_peak_resident_delta_bytes": 22134784,
+    "paint_events": 2,
+    "retained_malloc_delta_bytes": 2976464,
+    "retained_physical_footprint_delta_bytes": 7176264,
+    "retained_resident_delta_bytes": 22102016
+  },
+  "qt_platform": "cocoa",
+  "qualification": "Retained and conversion values are sampled default-zone deltas in an otherwise idle process; they do not cover non-default allocators or prove a sub-sample maximum. The production accounting fields are arithmetic admission estimates, not allocator measurements. Native-window deltas come from one static 96-pixel widget and combine widget, raster backing-store, and Cocoa/backend costs.",
+  "schema": "bpr.dif-native-memory.v1",
+  "source_revision": "e0c7caaf2a7a41f2fbfeb745f6046b46c2a97c6a",
+  "executable_sha256": "d9a5cdb8000905df791e1977d872e616db8128ccf9d7782c2b07c0491dcc2677",
+  "command": "env -u QT_QPA_PLATFORM -u QT_STYLE_OVERRIDE BPR_DIF_NATIVE_MEMORY_REPORT_PATH=<absolute-output> build/dev/tests/adapters_qt/better_pull_review_qt_dif_runtime_tests --native-memory-probe"
+}

@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0031"
 title: "Dif Workbench Integration: Profile Preferences, Bounded Qt Playback, and Truthful Cues"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Dif Integration v1"
 depends_on: ["RFC-BPR-0030","RFC-BPR-0005","RFC-BPR-0006"]

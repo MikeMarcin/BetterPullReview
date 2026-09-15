@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0030"
 title: "Dif Production Animation Revision: Ten Registered Prop-Free Clips"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Dif Integration v1"
 depends_on: ["RFC-BPR-0006"]

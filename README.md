@@ -183,8 +183,9 @@ accepted ten-clip Dif catalog from RFC-BPR-0030/0031. Profile-owned visibility
 and motion preferences apply through the existing Appearance controls; reduced
 motion selects static `rest`, and a refused catalog leaves the Home and review
 controls functional without art. Dif is decorative and consumes only accepted
-presentation facts. Final RFC status still depends on the focused native,
-rendered, and package-boundary closeout recorded by those RFCs.
+presentation facts. Both RFCs are `Auto-Verified` after the focused native,
+rendered, memory, resource, and core-only closeout. The selected-graph evidence
+does not certify a signed, notarized, or installable package.
 
 ## Architecture
 
