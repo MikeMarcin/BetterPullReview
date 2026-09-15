@@ -8,12 +8,20 @@
 #include <QPen>
 #include <QPushButton>
 #include <QRectF>
+#include <QResizeEvent>
 #include <QSizePolicy>
 #include <QVBoxLayout>
 
 #include <utility>
 
 namespace bpr::qt {
+	namespace {
+		constexpr auto compact_illustration_width = 1'100;
+		constexpr auto hidden_illustration_width  = 960;
+		constexpr auto normal_illustration_size   = 96;
+		constexpr auto compact_illustration_size  = 72;
+	}
+
 	workbench_landing::workbench_landing(QWidget* const aParent)
 		: QWidget{ aParent }
 	{
@@ -66,13 +74,18 @@ namespace bpr::qt {
 		buttons->addWidget(Secondary);
 		buttons->addStretch(1);
 
-		auto* const column = new QVBoxLayout{ this };
+		auto* const column = new QVBoxLayout;
 		column->setContentsMargins(24, 20, 24, 20);
 		column->setSpacing(8);
 		column->addWidget(Title);
 		column->addWidget(Body);
 		column->addSpacing(4);
 		column->addLayout(buttons);
+
+		Content = new QHBoxLayout{ this };
+		Content->setContentsMargins(0, 0, 0, 0);
+		Content->setSpacing(12);
+		Content->addLayout(column, 1);
 
 		set_state(landing_state::sign_in);
 	}
@@ -192,6 +205,45 @@ namespace bpr::qt {
 		return Body;
 	}
 
+	void workbench_landing::set_illustration(QWidget* const aIllustration)
+	{
+		if (Illustration == aIllustration) {
+			return;
+		}
+		if (Illustration != nullptr) {
+			Content->removeWidget(Illustration);
+			Illustration->hide();
+			Illustration->deleteLater();
+		}
+		Illustration = aIllustration;
+		if (Illustration != nullptr) {
+			Illustration->setParent(this);
+			Illustration->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+			Content->addWidget(Illustration, 0, Qt::AlignCenter);
+		}
+		apply_illustration_layout();
+		updateGeometry();
+	}
+
+	auto workbench_landing::illustration() const noexcept -> QWidget*
+	{
+		return Illustration;
+	}
+
+	auto workbench_landing::illustration_space_available() const noexcept -> bool
+	{
+		return width() >= hidden_illustration_width;
+	}
+
+	void workbench_landing::set_illustration_enabled(const bool aEnabled)
+	{
+		if (IllustrationEnabled == aEnabled) {
+			return;
+		}
+		IllustrationEnabled = aEnabled;
+		apply_illustration_layout();
+	}
+
 	void workbench_landing::set_primary_dispatch(std::function<void()> aDispatch)
 	{
 		PrimaryDispatch = std::move(aDispatch);
@@ -212,5 +264,27 @@ namespace bpr::qt {
 		painter.setBrush(palette().color(QPalette::Active, QPalette::Button));
 		painter.drawRoundedRect(
 			QRectF{ rect() }.adjusted(12.5, 8.5, -12.5, -8.5), 8.0, 8.0);
+	}
+
+	void workbench_landing::resizeEvent(QResizeEvent* const aEvent)
+	{
+		QWidget::resizeEvent(aEvent);
+		apply_illustration_layout();
+	}
+
+	void workbench_landing::apply_illustration_layout()
+	{
+		if (Illustration == nullptr) {
+			return;
+		}
+		if (!IllustrationEnabled || !illustration_space_available()) {
+			Illustration->hide();
+			return;
+		}
+		const auto side = width() < compact_illustration_width
+			? compact_illustration_size
+			: normal_illustration_size;
+		Illustration->setFixedSize(side, side);
+		Illustration->show();
 	}
 } // namespace bpr::qt

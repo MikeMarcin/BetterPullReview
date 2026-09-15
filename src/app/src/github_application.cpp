@@ -2,6 +2,7 @@
 #include "bpr/logging/quill_log.hpp"
 
 #include "bpr/adapters/sqlite/review_submission_recovery_store.hpp"
+#include "bpr/qt/dif_runtime.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/epoch_history_model.hpp"
@@ -5901,7 +5902,9 @@ namespace bpr::app {
 					dispatch_workbench_width(aDrawer, aWidth);
 				},
 				ProfileOptions,
-				[this](application::github_intent aIntent) { dispatch_intent(std::move(aIntent)); });
+				[this](application::github_intent aIntent) { dispatch_intent(std::move(aIntent)); },
+				nullptr,
+				aConfig.DifCatalog);
 
 			SetupDestination = std::make_unique<application::setup_destination_host>(*this);
 			Window->set_setup_destination_dispatch([this](application::setup_destination_intent aIntent) {
@@ -11179,6 +11182,7 @@ namespace bpr::app {
 				++AppearanceDivergences;
 			}
 			if (Window != nullptr) {
+				Window->adopt_dif(AppearanceHost->dif_resolution());
 				if (auto* const panel = Window->appearance_settings();
 					panel != nullptr) {
 					auto activePreview
@@ -12180,6 +12184,7 @@ namespace bpr::app {
 				Config.Profile             = Options.Profile;
 				Config.ProfileLaunchIntent = Options.ProfileLaunchIntent;
 				Config.ApplicationDataRoot = Options.ApplicationDataRoot;
+				Config.DifCatalog          = Options.DifCatalog;
 				if (!Config.ApplicationDataRoot) {
 					auto temporary             = std::make_shared<QTemporaryDir>(QDir::temp().filePath(QStringLiteral("bpr-public-path-XXXXXX")));
 					Config.ApplicationDataRoot = temporary->isValid() ? std::filesystem::path{ QFileInfo{ temporary->path() }.canonicalFilePath().toStdString() } / "data" : std::filesystem::path{ };
@@ -12189,6 +12194,9 @@ namespace bpr::app {
 #endif
 			if (!Config.MotionObserver) {
 				Config.MotionObserver = std::make_shared<qt::motion_observer>(qt::make_native_motion_source());
+			}
+			if (!Config.DifCatalog) {
+				Config.DifCatalog = std::make_shared<qt::dif_catalog_provider>();
 			}
 			RegistryRoot = native_application_data_root(Config);
 		}
@@ -12681,6 +12689,12 @@ namespace bpr::app {
 			.DifResolution                 = this->AppearanceHost != nullptr
 				? this->AppearanceHost->dif_resolution()
 				: core::dif_resolution{ },
+			.DifCatalogLoadAttempts        = this->Profile->Config.DifCatalog
+				? this->Profile->Config.DifCatalog->load_attempts()
+				: 0U,
+			.DifCatalogDecodedClips        = this->Profile->Config.DifCatalog
+				? this->Profile->Config.DifCatalog->decoded_count()
+				: 0U,
 			.AppearanceDivergences         = this->AppearanceDivergences,
 			.ProfileMode                   = this->AppearanceProfile
 				? this->AppearanceProfile->mode()
@@ -13045,10 +13059,12 @@ namespace bpr::app {
 
 	auto detail::github_application_fixture_access::start_desktop(detail::github_public_path_fixture aFixture, detail::github_public_path_fixture_options aOptions, profile_desktop_startup_completion aCompletion) -> std::unique_ptr<profile_desktop>
 	{
-		const auto profile = aOptions.Profile;
-		const auto intent  = aOptions.ProfileLaunchIntent;
+		const auto profile  = aOptions.Profile;
+		const auto intent   = aOptions.ProfileLaunchIntent;
+		aOptions.DifCatalog = std::make_shared<qt::dif_catalog_provider>();
 		return profile_desktop::start_with_factory(profile, [aFixture, options = std::move(aOptions)](core::bpr_profile_id aProfile, const std::filesystem::path& aRoot, core::profile_launch_intent aIntent, github_application_startup_completion aDone) {
             auto next = aProfile == options.Profile ? options : detail::github_public_path_fixture_options{};
+			next.DifCatalog = options.DifCatalog;
             if (!aRoot.empty()) { next.ApplicationDataRoot = aRoot; next.GitExecutable = options.GitExecutable; }
             next.Profile = aProfile;
             next.ProfileLaunchIntent = aIntent;

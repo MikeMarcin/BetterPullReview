@@ -3,12 +3,21 @@
 #include <QApplication>
 #include <QBuffer>
 #include <QCryptographicHash>
+#include <QDebug>
 #include <QEvent>
 #include <QImageReader>
 #include <QPainter>
+#include <QResource>
+
+#include "../assets/dif/generated/dif-sprite-catalog.hpp"
 
 #include <algorithm>
 #include <limits>
+
+static void initialize_dif_resources()
+{
+	Q_INIT_RESOURCE(bpr_dif);
+}
 
 namespace bpr::qt {
 	namespace {
@@ -18,6 +27,7 @@ namespace bpr::qt {
 		auto                    valid_clip(const dif_clip& aClip) -> bool
 		{
 			return aClip.Frames > 0 && aClip.Frames <= 128 && aClip.Cell > 0 && aClip.Cell <= 1024
+				&& aClip.Origin >= 0 && aClip.Origin <= aClip.Cell
 				&& aClip.Gutter >= 0 && aClip.Gutter <= 32 && aClip.Return < 10 && aClip.Sha256.size() == 32
 				&& ((aClip.Playback == dif_playback::still && aClip.Frames == 1 && aClip.FrameMs == 0)
 					|| ((aClip.Playback == dif_playback::loop || aClip.Playback == dif_playback::once)
@@ -55,7 +65,8 @@ namespace bpr::qt {
 		auto transparent_gutters(const QImage& aImage, const dif_clip& aClip) -> bool
 		{
 			for (int x = 0; x < aImage.width(); ++x) {
-				if (x % (aClip.Cell + aClip.Gutter) < aClip.Cell) {
+				if (x >= aClip.Origin && x < aImage.width() - aClip.Origin
+					&& (x - aClip.Origin) % (aClip.Cell + aClip.Gutter) < aClip.Cell) {
 					continue;
 				}
 				for (int y = 0; y < aImage.height(); ++y) {
@@ -84,21 +95,24 @@ namespace bpr::qt {
 				return { };
 			}
 			auto bytes = aLoad(index);
-			if (!bounded_png(bytes) || bytes.size() > 8 * static_cast<qsizetype>(mib)
-				|| QCryptographicHash::hash(bytes, QCryptographicHash::Sha256) != clip.Sha256) {
+			if (!bounded_png(bytes) || bytes.size() > 8 * static_cast<qsizetype>(mib)) {
 				return { };
 			}
 			QBuffer buffer{ &bytes };
 			buffer.open(QIODevice::ReadOnly);
 			QImageReader reader{ &buffer, "PNG" };
-			const QSize  size{ clip.Frames * clip.Cell + (clip.Frames - 1) * clip.Gutter, clip.Cell };
+			const QSize  size{ 2 * clip.Origin + clip.Frames * clip.Cell + (clip.Frames - 1) * clip.Gutter, clip.Cell };
 			const auto   pixels = static_cast<std::uint64_t>(size.width()) * static_cast<std::uint64_t>(size.height()) * 4;
-			const auto   peak   = cache->Pixels + pixels * 2 + static_cast<std::uint64_t>(bytes.capacity()) + sizeof(dif_cache) + overhead;
+			const auto   peak   = cache->Pixels + pixels * 2 + static_cast<std::uint64_t>(bytes.size()) + sizeof(dif_cache) + overhead;
 			if (reader.size() != size || cache->Pixels + pixels > 24 * mib || peak >= 40 * mib) {
 				return { };
 			}
 			auto decoded = reader.read();
 			if (decoded.isNull() || decoded.size() != size || decoded.depth() > 32 || !transparent_gutters(decoded, clip)) {
+				return { };
+			}
+			decoded.convertTo(QImage::Format_RGBA8888);
+			if (QCryptographicHash::hash(QByteArrayView{ reinterpret_cast<const char*>(decoded.constBits()), decoded.sizeInBytes() }, QCryptographicHash::Sha256) != clip.Sha256) {
 				return { };
 			}
 			auto retained = decoded.convertToFormat(QImage::Format_ARGB32_Premultiplied);
@@ -122,20 +136,89 @@ namespace bpr::qt {
 			return { };
 		}
 		const auto& clip = Clips[aClip];
-		return { aFrame * (clip.Cell + clip.Gutter), 0, clip.Cell, clip.Cell };
+		return { clip.Origin + aFrame * (clip.Cell + clip.Gutter), 0, clip.Cell, clip.Cell };
 	}
 	auto dif_cache::pixel_bytes() const -> std::uint64_t { return Pixels; }
 	auto dif_cache::retained_bytes() const -> std::uint64_t { return Pixels + sizeof(dif_cache) + overhead; }
 	auto dif_cache::conversion_peak_bytes() const -> std::uint64_t { return Peak; }
+
+	namespace {
+		constexpr std::array<std::string_view, 10> production_ids{ "rest", "calm_idle", "greet", "blink", "compare_glance", "consider", "comment_ready", "attention", "acknowledge", "blocked" };
+		constexpr std::array<std::size_t, 10>      production_order{ 2, 0, 1, 3, 4, 5, 6, 7, 8, 9 };
+		auto                                       load_production_strip(std::size_t aIndex) -> QByteArray
+		{
+			if (aIndex == 0) {
+				initialize_dif_resources();
+			}
+			const auto      path = adapters::qt::dif::kClips.at(production_order.at(aIndex)).resource;
+			const QResource resource{ QString::fromUtf8(path.data(), static_cast<qsizetype>(path.size())) };
+			if (!resource.isValid() || resource.compressionAlgorithm() != QResource::NoCompression || resource.size() > 8 * static_cast<qint64>(mib)) {
+				return { };
+			}
+			return QByteArray::fromRawData(reinterpret_cast<const char*>(resource.data()), resource.size());
+		}
+	}
+	auto production_dif_catalog() -> dif_cache::descriptors
+	{
+		static_assert(adapters::qt::dif::kSchemaVersion == 2);
+		static_assert(adapters::qt::dif::kManifestSha256 == "c9f3f38e303caea3bb2c1b28edf947a717c2c1e5f484945a1d6814d8aee7f40d");
+		static_assert([] {
+			for (std::size_t index = 0; index < production_order.size(); ++index) {
+				const auto& clip = adapters::qt::dif::kClips[production_order[index]];
+				if (clip.id != production_ids[index] || clip.cell_width != 256 || clip.cell_height != 256
+					|| clip.content_origin_x != 256 || clip.strip_height != 256
+					|| clip.strip_width != static_cast<int>(clip.frame_count + 2) * 256
+					|| clip.decoded_bytes != static_cast<std::size_t>(clip.strip_width) * 256 * 4
+					|| clip.return_target != (index == 0 ? "rest" : "calm_idle")) {
+					return false;
+				}
+			}
+			return true;
+		}());
+		dif_cache::descriptors result;
+		for (std::size_t index = 0; index < result.size(); ++index) {
+			const auto& source = adapters::qt::dif::kClips[production_order[index]];
+			const auto  kind   = source.kind == adapters::qt::dif::clip_kind::static_frame ? dif_playback::still
+				: source.kind == adapters::qt::dif::clip_kind::loop                        ? dif_playback::loop
+																						   : dif_playback::once;
+			result[index]      = { static_cast<int>(source.frame_count), source.cell_width, 0, source.frame_duration_ms, kind,
+								   source.return_target == "rest" ? 0U : 1U,
+								   QByteArray::fromHex(QByteArray{ source.rgba_sha256.data(), static_cast<qsizetype>(source.rgba_sha256.size()) }), source.content_origin_x };
+		}
+		return result;
+	}
+	dif_catalog_provider::dif_catalog_provider()
+		: dif_catalog_provider{ load_production_strip }
+	{ }
+	dif_catalog_provider::dif_catalog_provider(dif_cache::strip_loader aLoader)
+		: Loader{ std::move(aLoader) }
+	{ }
+	auto dif_catalog_provider::acquire() -> std::shared_ptr<const dif_cache>
+	{
+		if (Attempts == 0) {
+			++Attempts;
+			Cache = dif_cache::create(production_dif_catalog(), Loader);
+			if (!Cache) {
+				qWarning("dif-catalog-unavailable");
+			}
+		}
+		return Cache;
+	}
+	auto dif_catalog_provider::load_attempts() const -> std::size_t { return Attempts; }
+	auto dif_catalog_provider::decoded_count() const -> std::size_t { return Cache ? 10 : 0; }
+	auto dif_catalog_provider::cache_identity() const -> const dif_cache* { return Cache.get(); }
+	auto dif_catalog_provider::failure_diagnostic() const -> QByteArray { return Attempts && !Cache ? QByteArray{ "dif-catalog-unavailable" } : QByteArray{ }; }
 
 	dif_sequencer::dif_sequencer(std::shared_ptr<const dif_cache> aCache)
 		: Cache{ std::move(aCache) }
 	{ }
 	void dif_sequencer::reset()
 	{
-		Current = 0;
-		Started = 0;
-		Last    = 0;
+		Home      = false;
+		CalmLoops = 0;
+		Current   = 0;
+		Started   = 0;
+		Last      = 0;
 	}
 	auto dif_sequencer::start(std::size_t aClip, std::int64_t aNow) -> bool
 	{
@@ -143,9 +226,19 @@ namespace bpr::qt {
 			reset();
 			return false;
 		}
-		Current = aClip;
-		Started = aNow;
-		Last    = aNow;
+		CalmLoops = 0;
+		Current   = aClip;
+		Started   = aNow;
+		Last      = aNow;
+		return true;
+	}
+	auto dif_sequencer::home(std::int64_t aNow) -> bool
+	{
+		if (!start(dif_index(Greeted ? dif_clip_id::calm_idle : dif_clip_id::greet), aNow)) {
+			return false;
+		}
+		Home    = true;
+		Greeted = true;
 		return true;
 	}
 	auto dif_sequencer::sample(std::int64_t aNow) -> dif_frame
@@ -161,6 +254,19 @@ namespace bpr::qt {
 		}
 		const auto elapsed  = aNow - Started;
 		const auto duration = static_cast<std::int64_t>(clip.Frames) * clip.FrameMs;
+		if (Home && Current == dif_index(dif_clip_id::calm_idle)) {
+			CalmLoops = static_cast<int>(std::min<std::int64_t>(4, elapsed / duration));
+		}
+		if (Home && Current == dif_index(dif_clip_id::calm_idle) && elapsed >= 4 * duration) {
+			CalmLoops = 0;
+			// A delayed wake never replays an expired blink or accumulates fidget debt.
+			const auto& blink = Cache->clip(dif_index(dif_clip_id::blink));
+			Current           = elapsed - 4 * duration < static_cast<std::int64_t>(blink.Frames) * blink.FrameMs
+				? dif_index(dif_clip_id::blink)
+				: dif_index(dif_clip_id::calm_idle);
+			Started           = aNow;
+			return { Current, 0, Cache->clip(Current).FrameMs };
+		}
 		if (clip.Playback == dif_playback::once && elapsed >= duration) {
 			Current             = clip.Return;
 			Started             = aNow;
@@ -182,7 +288,7 @@ namespace bpr::qt {
 		Timer.setSingleShot(true);
 		Timer.setTimerType(Qt::PreciseTimer);
 		Clock.start();
-		connect(&Timer, &QTimer::timeout, this, [this] { tick(); });
+		connect(&Timer, &QTimer::timeout, this, [this] { ++Statistics.TimerWakeups; tick(); });
 		qApp->installEventFilter(this);
 	}
 	dif_widget::~dif_widget() { shutdown(); }
@@ -208,6 +314,28 @@ namespace bpr::qt {
 			update();
 		}
 	}
+	auto dif_widget::statistics() const -> dif_widget_statistics
+	{
+		auto result               = Statistics;
+		result.Greeted            = Sequencer.greeted();
+		result.CompletedCalmLoops = Sequencer.completed_calm_loops();
+		return result;
+	}
+	void dif_widget::set_home(bool aHome)
+	{
+		if (Home != aHome) {
+			Home = aHome;
+			cancel();
+		}
+		resume_home();
+	}
+	void dif_widget::resume_home()
+	{
+		if (Home && eligible() && !Timer.isActive() && Sequencer.home(Clock.elapsed())) {
+			++Statistics.PlaybackStarts;
+			tick();
+		}
+	}
 	void dif_widget::set_eligibility(dif_eligibility aEligibility)
 	{
 		const auto changedVisibility = Eligibility.Shown != aEligibility.Shown;
@@ -215,6 +343,7 @@ namespace bpr::qt {
 		if (!eligible()) {
 			cancel();
 		}
+		resume_home();
 		if (changedVisibility) {
 			update();
 		}
@@ -229,6 +358,7 @@ namespace bpr::qt {
 			cancel();
 			return false;
 		}
+		++Statistics.PlaybackStarts;
 		tick();
 		return true;
 	}
@@ -253,6 +383,7 @@ namespace bpr::qt {
 		if (!Cache || !Eligibility.Shown || Stopped) {
 			return;
 		}
+		++Statistics.Paints;
 		QPainter painter{ this };
 		painter.drawImage(rect(), Cache->image(Frame.Clip), Cache->source(Frame.Clip, Frame.Frame));
 	}
@@ -262,14 +393,29 @@ namespace bpr::qt {
 			|| aEvent->type() == QEvent::WindowBlocked) {
 			cancel();
 		}
-		return QWidget::event(aEvent);
+		const auto handled = QWidget::event(aEvent);
+		if (aEvent->type() == QEvent::Show) {
+			resume_home();
+		}
+		return handled;
 	}
 	auto dif_widget::eventFilter(QObject* aObject, QEvent* aEvent) -> bool
 	{
-		if ((aObject == window() && (aEvent->type() == QEvent::WindowDeactivate || aEvent->type() == QEvent::WindowBlocked || aEvent->type() == QEvent::Hide || aEvent->type() == QEvent::WindowStateChange))
-			|| aEvent->type() == QEvent::ApplicationDeactivate) {
+		if (aObject == window() && aEvent->type() == QEvent::WindowStateChange) {
+			Eligibility.Active = window()->isActiveWindow();
+			if (eligible()) {
+				resume_home();
+			} else {
+				cancel();
+			}
+		} else if ((aObject == window() && (aEvent->type() == QEvent::WindowDeactivate || aEvent->type() == QEvent::WindowBlocked || aEvent->type() == QEvent::Hide))
+				   || aEvent->type() == QEvent::ApplicationDeactivate) {
 			Eligibility.Active = false;
 			cancel();
+		}
+		if ((aObject == window() && aEvent->type() == QEvent::WindowActivate) || aEvent->type() == QEvent::ApplicationActivate) {
+			Eligibility.Active = window()->isActiveWindow();
+			resume_home();
 		}
 		return QWidget::eventFilter(aObject, aEvent);
 	}

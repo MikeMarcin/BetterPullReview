@@ -6,6 +6,7 @@
 #include <QEvent>
 #include <QEventLoop>
 #include <QPointer>
+#include <QResource>
 
 #include <cstdlib>
 #include <iostream>
@@ -19,6 +20,11 @@ namespace {
 			std::cerr << "FAILED: " << aMessage << '\n';
 			std::exit(EXIT_FAILURE);
 		}
+	}
+	auto rgba_digest(QImage aImage) -> QByteArray
+	{
+		aImage.convertTo(QImage::Format_RGBA8888);
+		return QCryptographicHash::hash(QByteArrayView{ reinterpret_cast<const char*>(aImage.constBits()), aImage.sizeInBytes() }, QCryptographicHash::Sha256);
 	}
 	struct fixture final
 	{
@@ -48,7 +54,7 @@ namespace {
 				QBuffer buffer{ &Bytes[index] };
 				buffer.open(QIODevice::WriteOnly);
 				expect(image.save(&buffer, "PNG"), "fixture PNG encodes");
-				clip.Sha256 = QCryptographicHash::hash(Bytes[index], QCryptographicHash::Sha256);
+				clip.Sha256 = rgba_digest(image);
 			}
 		}
 		auto load() -> std::shared_ptr<const dif_cache>
@@ -122,11 +128,86 @@ namespace {
 		QBuffer badBuffer{ &input.Bytes[1] };
 		badBuffer.open(QIODevice::WriteOnly);
 		expect(badGutter.save(&badBuffer, "PNG"), "malformed gutter fixture encodes");
-		input.Clips[1].Sha256 = QCryptographicHash::hash(input.Bytes[1], QCryptographicHash::Sha256);
+		input.Clips[1].Sha256 = rgba_digest(badGutter);
 		expect(!input.load(), "opaque gutter refused despite valid digest and dimensions");
 		input.Bytes[1].append('x');
 		expect(!input.load(), "digest mismatch refused");
 		std::cout << "fixture pixels=" << cache->pixel_bytes() << " accounted-retained=" << cache->retained_bytes() << " conversion-peak=" << cache->conversion_peak_bytes() << '\n';
+	}
+	void test_production_home()
+	{
+		dif_catalog_provider provider;
+		expect(provider.load_attempts() == 0 && provider.decoded_count() == 0, "production provider is lazy");
+		const auto cache = provider.acquire();
+		expect(cache && provider.acquire() == cache && provider.cache_identity() == cache.get(), "compiled resources decode once and share identity");
+		expect(provider.load_attempts() == 1 && provider.decoded_count() == 10 && provider.failure_diagnostic().isEmpty(), "one production decode lifetime");
+		expect(cache->pixel_bytes() == 23'855'104 && cache->retained_bytes() < 32 * 1024 * 1024 && cache->conversion_peak_bytes() < 40 * 1024 * 1024, "production memory includes all twenty end cells");
+		for (std::size_t index = 0; index < 10; ++index) {
+			expect(cache->source(index, 0).x() == 256 && cache->source(index, cache->clip(index).Frames - 1).right() == cache->image(index).width() - 257, "production rectangles exclude both full-cell gutters");
+		}
+		const auto productionLoader = [](std::size_t aIndex) {
+			const std::array names{ "rest", "calm-idle", "greet", "blink", "compare-glance", "consider", "comment-ready", "attention", "acknowledge", "blocked" };
+			const QResource  resource{ QStringLiteral(":/bpr/dif/dif-") + QString::fromLatin1(names.at(aIndex)) + QStringLiteral(".png") };
+			return QByteArray{ reinterpret_cast<const char*>(resource.data()), resource.size() };
+		};
+		auto malformed         = production_dif_catalog();
+		malformed[0].Sha256[0] = malformed[0].Sha256[0] == 'x' ? 'y' : 'x';
+		expect(!dif_cache::create(malformed, productionLoader), "decoded RGBA digest mismatch refuses production catalog");
+		malformed           = production_dif_catalog();
+		malformed[0].Origin = 0;
+		expect(!dif_cache::create(malformed, productionLoader), "missing production end cells refuse dimensions");
+		for (const int x : { 0, 767 }) {
+			auto image = QImage::fromData(productionLoader(0), "PNG");
+			image.setPixelColor(x, 0, Qt::red);
+			QByteArray bytes;
+			QBuffer    buffer{ &bytes };
+			buffer.open(QIODevice::WriteOnly);
+			expect(image.save(&buffer, "PNG"), "corrupt production end cell encodes");
+			malformed           = production_dif_catalog();
+			malformed[0].Sha256 = rgba_digest(image);
+			expect(!dif_cache::create(malformed, [&bytes, &productionLoader](std::size_t aIndex) { return aIndex == 0 ? bytes : productionLoader(aIndex); }), "both production gutters are validated independently of digest");
+		}
+		dif_sequencer home{ cache };
+		expect(home.home(0) && home.sample(0).Clip == 2 && home.greeted(), "first eligible Home greets");
+		expect(home.sample(1000).Clip == 1, "greet returns to calm");
+		expect(home.sample(3999).Frame == 11 && home.completed_calm_loops() == 0, "full first calm cycle");
+		expect(home.sample(10000).Clip == 1 && home.completed_calm_loops() == 3, "three complete breaths do not blink");
+		expect(home.sample(13000).Clip == 3 && home.sample(13599).Frame == 5, "fourth boundary starts six-frame blink");
+		expect(home.sample(13600).Clip == 1 && home.completed_calm_loops() == 0, "blink returns fresh calm");
+		home.reset();
+		expect(home.home(20000) && home.sample(20000).Clip == 1, "resume never repeats greeting");
+		expect(home.sample(1000000).Clip == 1 && home.completed_calm_loops() == 0, "long delay drops expired blink debt");
+		expect(home.sample(-1).Clip == 0 && !home.sample(0).NextMs, "invalid time rests without timer");
+		int                  refusedLoads = 0;
+		dif_catalog_provider refused{ [&refusedLoads](std::size_t) { ++refusedLoads; return QByteArray{ }; } };
+		expect(!refused.acquire() && !refused.acquire() && refusedLoads == 1 && refused.load_attempts() == 1 && refused.failure_diagnostic() == "dif-catalog-unavailable", "failed catalog is latched with one bounded diagnostic");
+		dif_widget widget{ cache };
+		widget.show();
+		QApplication::processEvents();
+		widget.set_home(true);
+		widget.set_eligibility({ true, true, true, false, false });
+		expect(widget.current_frame().Clip == 2, "Home widget starts greet automatically");
+		widget.set_home(true);
+		expect(widget.statistics().PlaybackStarts == 1, "idempotent Home update does not restart");
+		widget.set_eligibility({ true, false, true, false, false });
+		expect(widget.current_frame().Clip == 0 && !widget.findChild<QTimer*>()->isActive(), "reduced Home rests");
+		widget.set_eligibility({ true, true, true, false, false });
+		expect(widget.current_frame().Clip == 1 && widget.statistics().Greeted, "full Home resumes calm without greet");
+		QEvent deactivate{ QEvent::WindowDeactivate };
+		QApplication::sendEvent(&widget, &deactivate);
+		expect(widget.current_frame().Clip == 0 && !widget.findChild<QTimer*>()->isActive(), "Home deactivation cancels immediately");
+		wait_events(100);
+		expect(!widget.findChild<QTimer*>()->isActive(), "deactivated Home does not restart itself");
+		widget.activateWindow();
+		QApplication::processEvents();
+		QEvent activate{ QEvent::WindowActivate };
+		QApplication::sendEvent(&widget, &activate);
+		expect(widget.current_frame().Clip == 1 && widget.findChild<QTimer*>()->isActive(), "activation resumes calm without repeated greeting");
+		QEvent stateChange{ QEvent::WindowStateChange };
+		QApplication::sendEvent(&widget, &stateChange);
+		expect(widget.current_frame().Clip == 1 && widget.findChild<QTimer*>()->isActive(), "an active non-minimizing window-state change preserves playback");
+		widget.shutdown();
+		std::cout << "production pixels=" << cache->pixel_bytes() << " accounted-retained=" << cache->retained_bytes() << " conversion-peak=" << cache->conversion_peak_bytes() << '\n';
 	}
 	void test_widget_lifecycle()
 	{
@@ -200,5 +281,6 @@ int main(int argc, char** argv)
 	QApplication application{ argc, argv };
 	test_catalog_and_playback();
 	test_widget_lifecycle();
+	test_production_home();
 	std::cout << "dif-runtime-tests:pass\n";
 }

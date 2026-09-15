@@ -8,8 +8,10 @@
 #include <functional>
 
 class QLabel;
+class QHBoxLayout;
 class QPaintEvent;
 class QPushButton;
+class QResizeEvent;
 
 namespace bpr::qt {
 	/// \brief What the centre has nothing to show for, and what to do about it.
@@ -56,20 +58,35 @@ namespace bpr::qt {
 		[[nodiscard]] auto title_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto body_label() const noexcept -> QLabel*;
 
+		/// \brief Places one decorative Home illustration beside the guidance.
+		///
+		/// \details The landing owns only layout. The injected widget owns its
+		/// pixels and playback, accepts no input, and disappears before the Home
+		/// controls are allowed to become cramped.
+		void               set_illustration(QWidget* aIllustration);
+		[[nodiscard]] auto illustration() const noexcept -> QWidget*;
+		[[nodiscard]] auto illustration_space_available() const noexcept -> bool;
+		void               set_illustration_enabled(bool aEnabled);
+
 		void set_primary_dispatch(std::function<void()> aDispatch);
 		void set_secondary_dispatch(std::function<void()> aDispatch);
 
 	protected:
 		void paintEvent(QPaintEvent* aEvent) override;
+		void resizeEvent(QResizeEvent* aEvent) override;
 
 	private:
+		void                  apply_illustration_layout();
 		landing_state         State        = landing_state::sign_in;
 		bool                  QueueOffered = true;
 		QString               ReviewIdentity;
-		QLabel*               Title     = nullptr;
-		QLabel*               Body      = nullptr;
-		QPushButton*          Primary   = nullptr;
-		QPushButton*          Secondary = nullptr;
+		QLabel*               Title               = nullptr;
+		QLabel*               Body                = nullptr;
+		QPushButton*          Primary             = nullptr;
+		QPushButton*          Secondary           = nullptr;
+		QHBoxLayout*          Content             = nullptr;
+		QWidget*              Illustration        = nullptr;
+		bool                  IllustrationEnabled = true;
 		std::function<void()> PrimaryDispatch;
 		std::function<void()> SecondaryDispatch;
 	};

@@ -440,7 +440,16 @@ def make_selected_build(root: Path, profile: str) -> Path:
     if profile in {"dev", "app-release"}:
         application = build / "src/app/better_pull_review"
         application.parent.mkdir(parents=True)
-        application.write_bytes(b"BPR_SYNTHETIC_APPLICATION\0")
+        application.write_bytes(b"BPR_SYNTHETIC_APPLICATION\0" + b"".join(
+            (REPOSITORY_ROOT / BOUNDARY.PRODUCTION_ROOT / name).read_bytes()
+            for name in BOUNDARY.PRODUCTION_STRIPS
+        ))
+        qrc = build / ".qt/rcc/bpr_dif.qrc"
+        qrc.parent.mkdir(parents=True)
+        qrc.write_text('<RCC><qresource prefix="/bpr/dif">' + ''.join(
+            f'<file alias="{name}">{REPOSITORY_ROOT / BOUNDARY.PRODUCTION_ROOT / name}</file>'
+            for name in BOUNDARY.PRODUCTION_STRIPS
+        ) + '</qresource></RCC>', encoding="utf-8")
     if profile == "core-only":
         library = build / "src/core/libbetter_pull_review_core.a"
         library.parent.mkdir(parents=True)
@@ -1059,10 +1068,34 @@ class DifAssetTests(unittest.TestCase):
         )
         application = build / "src/app/better_pull_review"
         application.write_bytes(
-            application.read_bytes() + b":/bpr/dif/dif-calm-idle.png"
+            application.read_bytes() + b":/bpr/dif/dif-unaccepted.png"
         )
         with self.assertRaisesRegex(BOUNDARY.BoundaryError, "binary embeds"):
             BOUNDARY.validate_profile(REPOSITORY_ROOT, build, "app-release")
+
+    def test_boundary_verifier_requires_all_compiled_production_bytes(self) -> None:
+        build = make_selected_build(Path(self.temporary.name) / "missing-bytes", "dev")
+        (build / "src/app/better_pull_review").write_bytes(b"no-resources")
+        with self.assertRaisesRegex(BOUNDARY.BoundaryError, "lacks accepted compiled bytes"):
+            BOUNDARY.validate_profile(REPOSITORY_ROOT, build, "dev")
+
+    def test_boundary_verifier_rejects_extra_resource_alias(self) -> None:
+        build = make_selected_build(Path(self.temporary.name) / "extra-resource", "dev")
+        qrc = build / ".qt/rcc/bpr_dif.qrc"
+        qrc.write_text(qrc.read_text().replace('</qresource>', '<file alias="raw.png">raw.png</file></qresource>'))
+        with self.assertRaisesRegex(BOUNDARY.BoundaryError, "accepted ten strips"):
+            BOUNDARY.validate_profile(REPOSITORY_ROOT, build, "dev")
+
+    def test_boundary_verifier_allows_exact_generated_graph_paths(self) -> None:
+        build = make_selected_build(Path(self.temporary.name) / "accepted-graph", "dev")
+        graph = build / "build.ninja"
+        graph.write_text(graph.read_text() + "\n" + " ".join(
+            f"{REPOSITORY_ROOT}/{BOUNDARY.PRODUCTION_ROOT}/{name}" for name in BOUNDARY.PRODUCTION_PRODUCTS
+        ))
+        BOUNDARY.validate_profile(REPOSITORY_ROOT, build, "dev")
+        graph.write_text(graph.read_text() + " src/adapters/qt/assets/dif/generated/dif-sprite-digests.json")
+        with self.assertRaisesRegex(BOUNDARY.BoundaryError, "forbidden"):
+            BOUNDARY.validate_profile(REPOSITORY_ROOT, build, "dev")
 
     def test_boundary_verifier_rejects_dif_marker_in_core_artifact(self) -> None:
         build = make_selected_build(

@@ -14,6 +14,17 @@
 #include <optional>
 
 namespace bpr::qt {
+	enum class dif_clip_id : std::size_t { rest,
+										   calm_idle,
+										   greet,
+										   blink,
+										   compare_glance,
+										   consider,
+										   comment_ready,
+										   attention,
+										   acknowledge,
+										   blocked };
+	constexpr auto dif_index(dif_clip_id aClip) -> std::size_t { return static_cast<std::size_t>(aClip); }
 	enum class dif_playback { still,
 							  loop,
 							  once };
@@ -27,7 +38,8 @@ namespace bpr::qt {
 		int          FrameMs{ 0 };
 		dif_playback Playback{ dif_playback::still };
 		std::size_t  Return{ 0 };
-		QByteArray   Sha256;
+		QByteArray   Sha256; // SHA-256 of straight RGBA8 rows, excluding no pixels.
+		int          Origin{ 0 }; // Equal transparent leading/trailing margins.
 	};
 
 	/// \brief Immutable, explicitly shared catalog; creation decodes one injected PNG at a time.
@@ -56,6 +68,28 @@ namespace bpr::qt {
 		std::uint64_t          Peak{ 0 };
 	};
 
+	/// \brief Accepted generated descriptors in typed runtime order (rest is zero).
+	auto production_dif_catalog() -> dif_cache::descriptors;
+
+	/// \brief Composition-owned lazy catalog, shared across profiles and windows on the Qt lane.
+	/// \details Failure is latched; no retries or duplicate diagnostics until process teardown.
+	class dif_catalog_provider final
+	{
+	public:
+		dif_catalog_provider();
+		explicit dif_catalog_provider(dif_cache::strip_loader aLoader);
+		auto acquire() -> std::shared_ptr<const dif_cache>;
+		auto load_attempts() const -> std::size_t;
+		auto decoded_count() const -> std::size_t;
+		auto cache_identity() const -> const dif_cache*;
+		auto failure_diagnostic() const -> QByteArray;
+
+	private:
+		dif_cache::strip_loader          Loader;
+		std::shared_ptr<const dif_cache> Cache;
+		std::size_t                      Attempts{ 0 };
+	};
+
 	/// \brief One sampled frame and a relative deadline; absence means no wakeup.
 	struct dif_frame final
 	{
@@ -72,12 +106,19 @@ namespace bpr::qt {
 		auto start(std::size_t aClip, std::int64_t aNow) -> bool;
 		auto sample(std::int64_t aNow) -> dif_frame;
 		void reset();
+		auto greeted() const -> bool { return Greeted; }
+		auto completed_calm_loops() const -> int { return CalmLoops; }
+		/// \brief Starts/resumes Home without replaying its lifetime greeting.
+		auto home(std::int64_t aNow) -> bool;
 
 	private:
 		std::shared_ptr<const dif_cache> Cache;
 		std::size_t                      Current{ 0 };
 		std::int64_t                     Started{ 0 };
 		std::int64_t                     Last{ 0 };
+		bool                             Home{ false };
+		bool                             Greeted{ false };
+		int                              CalmLoops{ 0 };
 	};
 
 	/// \brief Presentation eligibility supplied by the owning window, in addition to Qt exposure.
@@ -90,6 +131,16 @@ namespace bpr::qt {
 		bool Suspended{ false };
 	};
 
+	/// \brief Bounded presentation counters for local performance evidence.
+	struct dif_widget_statistics final
+	{
+		std::uint64_t TimerWakeups{ 0 };
+		std::uint64_t Paints{ 0 };
+		std::uint64_t PlaybackStarts{ 0 };
+		int           CompletedCalmLoops{ 0 };
+		bool          Greeted{ false };
+	};
+
 	/// \brief Decorative retained sprite with one single-shot timer and no per-frame image work.
 	class dif_widget final : public QWidget
 	{
@@ -97,6 +148,12 @@ namespace bpr::qt {
 		explicit dif_widget(std::shared_ptr<const dif_cache> aCache, QWidget* aParent = nullptr);
 		~dif_widget() override;
 		void set_eligibility(dif_eligibility aEligibility);
+		/// \brief Select Home automatic playback; false cancels to static contextual baseline.
+		void set_home(bool aHome);
+		auto play(dif_clip_id aClip) -> bool { return play(dif_index(aClip)); }
+		auto current_frame() const -> dif_frame { return Frame; }
+		auto cache_identity() const -> const dif_cache* { return Cache.get(); }
+		auto statistics() const -> dif_widget_statistics;
 		auto play(std::size_t aClip) -> bool;
 		void shutdown();
 
@@ -116,5 +173,8 @@ namespace bpr::qt {
 		dif_frame                        Frame;
 		dif_eligibility                  Eligibility;
 		bool                             Stopped{ false };
+		bool                             Home{ false };
+		dif_widget_statistics            Statistics;
+		void                             resume_home();
 	};
 }

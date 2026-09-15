@@ -20,6 +20,7 @@
 #include <vector>
 
 namespace bpr::qt {
+	class dif_catalog_provider;
 	class motion_observer;
 }
 
@@ -78,6 +79,8 @@ namespace bpr::app {
 		core::profile_launch_intent ProfileLaunchIntent = core::profile_launch_intent::activate;
 		/// One explicit process-owned native observation shared by profile windows.
 		std::shared_ptr<qt::motion_observer> MotionObserver;
+		/// One lazily decoded production catalog shared by every profile and window.
+		std::shared_ptr<qt::dif_catalog_provider> DifCatalog;
 	};
 
 	/// \brief Initializes or deliberately resets the designated-live replay
@@ -191,7 +194,9 @@ namespace bpr::app {
 		std::string          AppearanceMode;
 		std::uint32_t        AppearanceTabWidth = 0U;
 		core::dif_resolution DifResolution;
-		std::size_t          AppearanceDivergences = 0U;
+		std::size_t          DifCatalogLoadAttempts = 0U;
+		std::size_t          DifCatalogDecodedClips = 0U;
+		std::size_t          AppearanceDivergences  = 0U;
 		// The composed profile's selected mode and the variant it resolved to.
 		// BPR-0114's claim is about these two, not about the platform palette:
 		// the existing native probe proves Qt's palette follows the operating

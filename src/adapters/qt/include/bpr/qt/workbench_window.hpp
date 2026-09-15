@@ -42,6 +42,7 @@
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string>
@@ -66,6 +67,8 @@ class QToolButton;
 class QVBoxLayout;
 
 namespace bpr::qt {
+	class dif_catalog_provider;
+	class dif_widget;
 	class review_landing_delegate;
 	class diff_workbench;
 	class epoch_comparison_control;
@@ -272,7 +275,8 @@ namespace bpr::qt {
 			workbench_drawer_width_dispatch                 aWidthDispatch  = { },
 			std::vector<application::github_profile_option> aProfiles       = { },
 			application::github_intent_dispatch             aGithubDispatch = { },
-			QWidget*                                        aParent         = nullptr);
+			QWidget*                                        aParent         = nullptr,
+			std::shared_ptr<dif_catalog_provider>           aDifCatalog     = { });
 		~workbench_window() override;
 
 		workbench_window(const workbench_window&)                    = delete;
@@ -443,6 +447,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto modality() const noexcept -> modality_control*;
 		/// \brief Home's landing while nothing is open: sign in, or choose.
 		[[nodiscard]] auto home_landing() const noexcept -> workbench_landing*;
+		/// \brief The decorative Home presentation, absent when assets were refused.
+		[[nodiscard]] auto dif() const noexcept -> dif_widget*;
+		/// \brief Applies the profile's accepted visibility and motion resolution.
+		void adopt_dif(core::dif_resolution aResolution);
 		/// \brief The strip's Home button: Home on demand, checked while shown.
 		[[nodiscard]] auto home_action() const noexcept -> QAction*;
 		/// \brief Shows Home, or returns to the review when Home was asked for.
@@ -769,6 +777,7 @@ namespace bpr::qt {
 		void apply_strip_width();
 		void apply_review_details_visibility();
 		void update_home_landing();
+		void update_dif_presentation();
 		/// \brief [[BPR-0733]]. Rebuilds Home's recently viewed rows and shows
 		/// or hides the section by whether there are any.
 		void apply_recent_reviews();
@@ -876,17 +885,21 @@ namespace bpr::qt {
 		workbench_queue_rule_dispatch            QueueRuleDispatch;
 		workbench_queue_preferences_dispatch     QueuePreferencesDispatch;
 
-		QToolBar*                                PrimaryToolbar       = nullptr;
-		workbench_strip*                         Strip                = nullptr;
-		modality_control*                        Modality             = nullptr;
-		QAction*                                 AccountAction        = nullptr;
-		QLabel*                                  IdentityLabel        = nullptr;
-		QLabel*                                  ChangePositionLabel  = nullptr;
-		QLabel*                                  FilePositionLabel    = nullptr;
-		QWidget*                                 ModalitySpacer       = nullptr;
-		QWidget*                                 StripInset           = nullptr;
-		core::workbench_reason_code              LastRefusal          = core::workbench_reason_code::none;
-		workbench_landing*                       HomeLanding          = nullptr;
+		QToolBar*                                PrimaryToolbar      = nullptr;
+		workbench_strip*                         Strip               = nullptr;
+		modality_control*                        Modality            = nullptr;
+		QAction*                                 AccountAction       = nullptr;
+		QLabel*                                  IdentityLabel       = nullptr;
+		QLabel*                                  ChangePositionLabel = nullptr;
+		QLabel*                                  FilePositionLabel   = nullptr;
+		QWidget*                                 ModalitySpacer      = nullptr;
+		QWidget*                                 StripInset          = nullptr;
+		core::workbench_reason_code              LastRefusal         = core::workbench_reason_code::none;
+		workbench_landing*                       HomeLanding         = nullptr;
+		std::shared_ptr<dif_catalog_provider>    DifCatalog;
+		dif_widget*                              Dif = nullptr;
+		core::dif_resolution                     DifResolution;
+		bool                                     DifResolutionReady   = false;
 		QWidget*                                 HomePage             = nullptr;
 		bool                                     StripHome            = false;
 		bool                                     HomeRequested        = false;

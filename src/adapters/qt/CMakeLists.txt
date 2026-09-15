@@ -78,3 +78,21 @@ if(APPLE)
     # runtime from C++; the runtime is not linked by the Qt targets.
     target_link_libraries(better_pull_review_adapter_qt PRIVATE objc)
 endif()
+
+# Accepted committed production products only; no asset generation in ordinary builds.
+qt6_add_resources(better_pull_review_adapter_qt bpr_dif
+    PREFIX "/bpr/dif"
+    BASE "assets/dif/generated"
+    OPTIONS --no-compress
+    FILES
+        assets/dif/generated/dif-rest.png
+        assets/dif/generated/dif-calm-idle.png
+        assets/dif/generated/dif-greet.png
+        assets/dif/generated/dif-blink.png
+        assets/dif/generated/dif-compare-glance.png
+        assets/dif/generated/dif-consider.png
+        assets/dif/generated/dif-comment-ready.png
+        assets/dif/generated/dif-attention.png
+        assets/dif/generated/dif-acknowledge.png
+        assets/dif/generated/dif-blocked.png
+)

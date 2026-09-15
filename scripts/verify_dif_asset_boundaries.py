@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""Verify RFC-BPR-0019's offline Dif asset and selected-build boundary."""
+"""Verify the offline Dif asset and RFC-BPR-0031 selected-build boundaries."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ import importlib.util
 import json
 import re
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
@@ -48,6 +49,52 @@ FORBIDDEN_RUNTIME_MARKERS = (
     b":/bpr/dif/",
     b"80ee8d9924bafe179d3b9b1172e8776254813ec1b62eab413bb31efa730a4f00",
 )
+# Exact accepted product names; the inventory itself and all source/review inputs remain forbidden.
+PRODUCTION_STRIPS = tuple(
+    f"dif-{name}.png" for name in (
+        "rest", "calm-idle", "greet", "blink", "compare-glance", "consider",
+        "comment-ready", "attention", "acknowledge", "blocked",
+    )
+)
+PRODUCTION_PRODUCTS = (*PRODUCTION_STRIPS, "dif-sprite-catalog.hpp")
+PRODUCTION_ROOT = "src/adapters/qt/assets/dif/generated"
+
+
+def _without_accepted_products(content: str) -> str:
+    for name in PRODUCTION_PRODUCTS:
+        content = content.replace(f"{PRODUCTION_ROOT}/{name}", "accepted-product")
+        content = content.replace(f"assets/dif/generated/{name}", "accepted-product")
+        content = content.replace(f":/bpr/dif/{name}", "accepted-resource")
+        content = content.replace(name, "accepted-product")
+    return content
+
+
+def _validate_compiled_resources(source: Path, build: Path, application: Path) -> None:
+    qrcs = list(build.rglob("bpr_dif.qrc"))
+    if len(qrcs) != 1:
+        raise BoundaryError("selected application requires exactly one production Dif resource collection")
+    try:
+        document = ET.parse(qrcs[0]).getroot()
+    except (OSError, ET.ParseError) as error:
+        raise BoundaryError("production Dif resource collection is unreadable") from error
+    expected = {name: (source / PRODUCTION_ROOT / name).resolve() for name in PRODUCTION_STRIPS}
+    actual: dict[str, Path] = {}
+    for resource in document:
+        if resource.tag != "qresource" or resource.attrib != {"prefix": "/bpr/dif"}:
+            raise BoundaryError("production Dif resource namespace differs")
+        for entry in resource:
+            alias = entry.get("alias", "")
+            if entry.tag != "file" or alias in actual or not entry.text:
+                raise BoundaryError("production Dif resource entry is invalid or duplicated")
+            actual[alias] = (qrcs[0].parent / entry.text).resolve()
+    if actual != expected:
+        raise BoundaryError("production Dif resource selection must equal the accepted ten strips")
+    data = application.read_bytes()
+    for name, path in expected.items():
+        if path.read_bytes() not in data:
+            raise BoundaryError(f"selected application lacks accepted compiled bytes for {name}")
+
+
 FORBIDDEN_ASSET_TEXT = (
     b"/Users/",
     b"/home/",
@@ -239,13 +286,19 @@ def _discover_application(build: Path) -> Path:
     return unique[0]
 
 
-def _validate_runtime_markers(path: Path, context: str) -> str:
+def _validate_runtime_markers(path: Path, context: str, production: bool = False) -> str:
     try:
         data = path.read_bytes()
     except OSError as error:
         raise BoundaryError(f"{context} is unreadable") from error
     lowered = data.lower()
-    for marker in FORBIDDEN_RUNTIME_MARKERS:
+    if production:
+        for name in PRODUCTION_PRODUCTS:
+            lowered = lowered.replace(f"{PRODUCTION_ROOT}/{name}".encode(), b"accepted-product")
+            lowered = lowered.replace(f":/bpr/dif/{name}".encode(), b"accepted-resource")
+            lowered = lowered.replace(name.encode(), b"accepted-product")
+    for marker in (*FORBIDDEN_RUNTIME_MARKERS, b"dif-sprite-digests.json", b"assets/dif/source/", b"scripts/dif_assets.py"):
+
         if marker.lower() in lowered:
             raise BoundaryError(
                 f"{context} embeds RFC-BPR-0019 runtime marker {marker.decode('ascii')}"
@@ -292,8 +345,9 @@ def validate_profile(source: Path, build: Path, profile: str) -> dict[str, Any]:
             )
     commands, selected_graph = _read_selected_graph(build)
     lowered_graph = selected_graph.lower().replace("\\", "/")
-    for marker in FORBIDDEN_GRAPH_MARKERS:
-        if marker.lower() in lowered_graph:
+    audited_graph = _without_accepted_products(lowered_graph) if profile != "core-only" else lowered_graph
+    for marker in (*FORBIDDEN_GRAPH_MARKERS, "dif-sprite-digests.json", "assets/dif/source/", "dif-production-art", "assets/dif/raw/"):
+        if marker.lower() in audited_graph:
             raise BoundaryError(
                 f"{profile} selected graph contains forbidden art/runtime "
                 f"marker {marker}"
@@ -335,9 +389,12 @@ def validate_profile(source: Path, build: Path, profile: str) -> dict[str, Any]:
         "first_party_translation_units": len(first_party),
     }
     if profile in {"dev", "app-release"}:
+        application = _discover_application(build)
         result["application_sha256"] = _validate_runtime_markers(
-            _discover_application(build), "selected application binary"
+            application, "selected application binary", production=True
         )
+        _validate_compiled_resources(source, build, application)
+        result["accepted_compiled_strips"] = len(PRODUCTION_STRIPS)
     elif profile == "core-only":
         result["core_artifacts"] = _validate_core_artifacts(build)
     return result
@@ -396,7 +453,12 @@ def validate_runtime_source_absence(source: Path) -> dict[str, Any]:
             raise BoundaryError(
                 "runtime/package boundary source is unreadable"
             ) from error
-        for marker in FORBIDDEN_GRAPH_MARKERS[:7]:
+        relative = path.relative_to(source).as_posix()
+        if relative in {"src/adapters/qt/src/dif_runtime.cpp", "src/adapters/qt/CMakeLists.txt"}:
+            content = _without_accepted_products(content)
+            # CMake's explicit BASE declaration is not a file selection.
+            content = content.replace('base "assets/dif/generated"', 'base "accepted-base"')
+        for marker in (*FORBIDDEN_GRAPH_MARKERS[:7], "dif-sprite-digests.json", "assets/dif/source/", "assets/dif/raw/"):
             if marker.lower() in content:
                 relative = path.relative_to(source).as_posix()
                 raise BoundaryError(

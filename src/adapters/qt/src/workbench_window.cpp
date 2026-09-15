@@ -9,6 +9,7 @@
 #include "bpr/qt/menu_tool_button.hpp"
 
 #include "bpr/qt/device_authorization_panel.hpp"
+#include "bpr/qt/dif_runtime.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
@@ -339,11 +340,13 @@ namespace bpr::qt {
 		workbench_drawer_width_dispatch                 aWidthDispatch,
 		std::vector<application::github_profile_option> aProfiles,
 		application::github_intent_dispatch             aGithubDispatch,
-		QWidget* const                                  aParent)
+		QWidget* const                                  aParent,
+		std::shared_ptr<dif_catalog_provider>           aDifCatalog)
 		: QMainWindow{ aParent }
 		, Dispatch{ std::move(aDispatch) }
 		, ChangeDispatch{ std::move(aChangeDispatch) }
 		, WidthDispatch{ std::move(aWidthDispatch) }
+		, DifCatalog{ std::move(aDifCatalog) }
 		, GithubProfiles{ std::move(aProfiles) }
 		, GithubDispatch{ std::move(aGithubDispatch) }
 	{
@@ -3542,6 +3545,18 @@ namespace bpr::qt {
 		return HomeLanding;
 	}
 
+	auto workbench_window::dif() const noexcept -> dif_widget*
+	{
+		return Dif;
+	}
+
+	void workbench_window::adopt_dif(const core::dif_resolution aResolution)
+	{
+		DifResolution      = aResolution;
+		DifResolutionReady = true;
+		update_dif_presentation();
+	}
+
 	void workbench_window::publish(
 		const application::pull_request_overview_projection& aProjection)
 	{
@@ -4183,6 +4198,7 @@ namespace bpr::qt {
 				HomeFocused = true;
 			}
 		}
+		update_dif_presentation();
 		// On Home the strip keeps only what Home can use: the account and
 		// settings at its right, the inset and the spacers that place them.
 		// Drawers, navigation, the modalities, review details and refresh
@@ -4233,6 +4249,34 @@ namespace bpr::qt {
 			PullRequestStack->setVisible(
 				home && ((signedIn && !empty) || SessionPanel->showing_diagnostic()));
 		}
+	}
+
+	void workbench_window::update_dif_presentation()
+	{
+		if (HomeLanding == nullptr || !DifResolutionReady) {
+			return;
+		}
+		const auto shown = DifResolution.Preferences.Visibility == core::dif_visibility::shown;
+		if (Dif == nullptr && shown && isVisible() && showing_home()
+			&& HomeLanding->illustration_space_available() && DifCatalog) {
+			if (auto cache = DifCatalog->acquire()) {
+				Dif = new dif_widget{ std::move(cache), HomeLanding };
+				Dif->setObjectName(QStringLiteral("homeDif"));
+				HomeLanding->set_illustration(Dif);
+			}
+		}
+		HomeLanding->set_illustration_enabled(shown);
+		if (Dif == nullptr) {
+			return;
+		}
+		Dif->set_eligibility({
+			.Shown      = shown,
+			.FullMotion = DifResolution.EffectiveMotion == core::motion_mode::full,
+			.Active     = isActiveWindow(),
+			.Modal      = QApplication::activeModalWidget() != nullptr,
+			.Suspended  = false,
+		});
+		Dif->set_home(showing_home());
 	}
 
 	auto workbench_window::home_action() const noexcept -> QAction*
@@ -5744,6 +5788,7 @@ namespace bpr::qt {
 	{
 		QMainWindow::resizeEvent(aEvent);
 		apply_strip_width();
+		update_dif_presentation();
 	}
 
 	void workbench_window::showEvent(QShowEvent* const aEvent)
@@ -5756,6 +5801,7 @@ namespace bpr::qt {
 		}
 		// The native window exists once shown; the title text goes then.
 		hide_native_title_text(*this);
+		update_dif_presentation();
 	}
 
 	void workbench_window::update_rail_summaries()
@@ -5907,6 +5953,9 @@ namespace bpr::qt {
 	{
 		QMainWindow::changeEvent(aEvent);
 		switch (aEvent->type()) {
+		case QEvent::ActivationChange:
+			update_dif_presentation();
+			break;
 		case QEvent::ApplicationPaletteChange:
 		case QEvent::PaletteChange:
 		case QEvent::ApplicationFontChange:

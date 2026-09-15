@@ -3,6 +3,7 @@
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/diff_semantics.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/dif_runtime.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/epoch_history_model.hpp"
@@ -48,6 +49,7 @@
 #include <QSysInfo>
 #include <QTextBlock>
 #include <QTextDocument>
+#include <QThread>
 #include <QToolBar>
 #include <QToolButton>
 #include <QWidget>
@@ -6624,6 +6626,96 @@ namespace {
 				&& signalLog.Layout <= 2,
 			"the composed large update is linear and incremental without a reset");
 	}
+
+	void test_home_composes_the_production_catalog_and_respects_motion_and_width()
+	{
+		auto provider = std::make_shared<qt::dif_catalog_provider>();
+		auto window   = qt::workbench_window{ { }, { }, { }, { }, { }, nullptr, provider };
+		expect(provider->load_attempts() == 0U && window.dif() == nullptr,
+			   "constructing Home does not decode before a resolved visible presentation needs it");
+		window.resize(900, 600);
+		window.show();
+		window.activateWindow();
+		process_events();
+		window.adopt_dif(core::resolve_dif(
+			{ .Visibility = core::dif_visibility::shown, .Motion = core::motion_mode::full },
+			core::motion_observation::reduced));
+		process_events();
+		expect(provider->load_attempts() == 0U && window.dif() == nullptr,
+			   "compact Home does not decode art that has no presentation space");
+		window.resize(1'280, 820);
+		process_events();
+		auto* dif = window.dif();
+		expect(dif != nullptr && window.home_landing()->illustration() == dif
+				   && provider->load_attempts() == 1U && provider->decoded_count() == 10U,
+			   "real Home acquires the accepted ten-strip catalog once");
+		expect(dif->focusPolicy() == Qt::NoFocus
+				   && dif->testAttribute(Qt::WA_TransparentForMouseEvents),
+			   "Dif is decoration outside the focus and pointer paths");
+
+		const auto wait_for_frame = [&](const auto& aReady, const int aTimeoutMs) {
+			QElapsedTimer elapsed;
+			elapsed.start();
+			while (!aReady() && elapsed.elapsed() < aTimeoutMs) {
+				QApplication::processEvents();
+				QThread::msleep(2);
+			}
+			return aReady();
+		};
+		expect(wait_for_frame([&] {
+				   return dif->current_frame().Clip == qt::dif_index(qt::dif_clip_id::greet)
+					   && dif->current_frame().Frame > 0;
+			   },
+							  1'000),
+			   "full-motion Home paints the greeting");
+		const auto greeting = dif->grab().toImage();
+		expect(wait_for_frame([&] {
+				   return dif->current_frame().Clip == qt::dif_index(qt::dif_clip_id::calm_idle)
+					   && dif->current_frame().Frame > 0;
+			   },
+							  2'000),
+			   "the greeting returns directly to the breathing loop");
+		const auto breathing = dif->grab().toImage();
+		expect(!greeting.isNull() && !breathing.isNull() && greeting != breathing,
+			   "normal Home renders different accepted greeting and breathing frames");
+		expect(wait_for_frame([&] {
+				   return dif->current_frame().Clip == qt::dif_index(qt::dif_clip_id::blink);
+			   },
+							  13'000),
+			   "four calm loops reach the bounded blink cadence on Home");
+
+		window.adopt_dif(core::resolve_dif(
+			{ .Visibility = core::dif_visibility::shown, .Motion = core::motion_mode::reduced },
+			core::motion_observation::full));
+		process_events();
+		const auto staticFrame   = dif->current_frame();
+		const auto staticWakeups = dif->statistics().TimerWakeups;
+		QThread::msleep(350);
+		process_events();
+		expect(staticFrame.Clip == qt::dif_index(qt::dif_clip_id::rest)
+				   && staticFrame.Frame == 0 && !staticFrame.NextMs
+				   && dif->statistics().TimerWakeups == staticWakeups,
+			   "reduced motion rests on one static frame without a timer wakeup");
+
+		window.resize(1'000, 600);
+		process_events();
+		expect(dif->isVisible() && dif->size() == QSize{ 72, 72 },
+			   "Home compacts the illustration before its input controls");
+		window.home_open_bar()->setFocus(Qt::OtherFocusReason);
+		window.resize(900, 600);
+		process_events();
+		expect(!dif->isVisible() && window.home_open_bar()->isVisible()
+				   && QApplication::focusWidget() == window.home_open_bar(),
+			   "compact Home hides art while retaining the input and its focus");
+
+		window.adopt_dif(core::resolve_dif(
+			{ .Visibility = core::dif_visibility::hidden, .Motion = core::motion_mode::full },
+			core::motion_observation::full));
+		window.resize(1'280, 820);
+		process_events();
+		expect(!dif->isVisible(), "the accepted hidden preference removes Home art");
+		window.hide();
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -6690,6 +6782,7 @@ auto main(int argc, char** argv) -> int
 	test_notification_activation_selects_only_an_exact_visible_queue_row();
 	test_notification_settings_wait_for_acceptance_and_reset_only_their_domain();
 	test_large_queue_filters_through_the_composed_window();
+	test_home_composes_the_production_catalog_and_respects_motion_and_width();
 	test_repositories_drawer_toggles_through_the_core_and_collapses_to_a_rail();
 	test_overview_shows_the_decided_page_and_continue_enters_read();
 	test_identical_overview_skips_rebuild_but_restores_cleared_files();

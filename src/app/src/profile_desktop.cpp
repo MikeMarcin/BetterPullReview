@@ -2,6 +2,7 @@
 #include "bpr/adapters/sqlite/profile_registry_store.hpp"
 #include "bpr/app/worker_executor.hpp"
 #include "bpr/application/profile_management_host.hpp"
+#include "bpr/qt/dif_runtime.hpp"
 #include "bpr/qt/event_loop_executor.hpp"
 #include "bpr/qt/motion_observer.hpp"
 #include "bpr/qt/profile_management_window.hpp"
@@ -780,6 +781,9 @@ namespace bpr::app {
 	{
 		if (!aConfig.MotionObserver) {
 			aConfig.MotionObserver = std::make_shared<qt::motion_observer>(qt::make_native_motion_source());
+		}
+		if (!aConfig.DifCatalog) {
+			aConfig.DifCatalog = std::make_shared<qt::dif_catalog_provider>();
 		}
 		const auto profile = aConfig.Profile;
 		const auto intent  = aConfig.ProfileLaunchIntent;

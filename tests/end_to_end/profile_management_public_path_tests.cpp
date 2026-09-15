@@ -2,6 +2,7 @@
 #include "bpr/adapters/sqlite/appearance_settings_store.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
+#include "bpr/qt/dif_runtime.hpp"
 #include "bpr/qt/profile_management_window.hpp"
 #include "bpr/qt/settings_window.hpp"
 
@@ -117,6 +118,10 @@ auto main(int aArgc, char** aArgv) -> int
 	expect(initial != nullptr, "initial runtime admitted");
 	initial->show();
 	wait_for([&] { return initial->status().ProfileMode == core::appearance_mode::dark; }, "Default preserves tuned preferences");
+	expect(initial->window().dif() != nullptr
+			   && initial->status().DifCatalogLoadAttempts == 1U
+			   && initial->status().DifCatalogDecodedClips == 10U,
+		   "the desktop composes one complete accepted Dif catalog");
 	auto* manage = initial->window().findChild<QAction*>(QStringLiteral("manageProfilesAction"));
 	expect(manage != nullptr, "profile menu exposes management");
 	wait_for([&] { return manage->isEnabled(); }, "profile menu becomes available");
@@ -128,6 +133,11 @@ auto main(int aArgc, char** aArgv) -> int
 	expect(workId != core::default_bpr_profile_id, "new profile has distinct durable identity");
 	auto* work = open(*desktop, management, workId);
 	wait_for([&] { return work->status().AppearancePersistenceAvailable; }, "Work profile settings composed");
+	expect(work->window().dif() != nullptr
+			   && work->window().dif()->cache_identity() == initial->window().dif()->cache_identity()
+			   && work->status().DifCatalogLoadAttempts == 1U
+			   && work->status().DifCatalogDecodedClips == 10U,
+		   "a second profile shares the same once-decoded catalog");
 	expect(work->status().ProfileMode == core::appearance_mode::system, "new profile begins with standard preferences");
 	expect(initial->status().ProfileMode == core::appearance_mode::dark, "new profile does not replace Default");
 	const auto stableRow = QPersistentModelIndex{ management.profiles()->model()->index(management.profiles()->currentRow(), 0) };
@@ -144,7 +154,15 @@ auto main(int aArgc, char** aArgv) -> int
 	work->window().open_settings(qt::settings_page::appearance);
 	auto* mode = work->window().appearance_settings()->mode_selector();
 	mode->setCurrentIndex(mode->findData(static_cast<int>(core::appearance_mode::high_contrast_dark)));
-	wait_for([&] { return work->status().AppearanceDurableWrites > writes; }, "Work preference persists through real Settings");
+	auto* motion = work->window().appearance_settings()->motion_selector();
+	motion->setCurrentIndex(motion->findData(static_cast<int>(core::motion_mode::full)));
+	wait_for([&] {
+		return work->status().AppearanceDurableWrites > writes
+			&& work->status().DifResolution.Preferences.Motion == core::motion_mode::full;
+	},
+			 "Work preferences persist through real Settings");
+	expect(initial->status().DifResolution.Preferences.Motion == core::motion_mode::system,
+		   "a Work motion gesture does not change Default");
 	initial->window().close();
 	wait_for([&] { return desktop->runtime(core::default_bpr_profile_id) == nullptr; }, "closed initial profile drains and retires");
 	expect(!work->status().Closing, "closing initial profile leaves Work usable");
@@ -152,11 +170,25 @@ auto main(int aArgc, char** aArgv) -> int
 	const auto personalId = create(management, QStringLiteral("Personal"));
 	auto*      personal   = open(*desktop, management, personalId);
 	expect(personal != work, "desktop owner remains usable after initial profile closes");
+	expect(personal->window().dif() != nullptr
+			   && personal->window().dif()->cache_identity() == work->window().dif()->cache_identity()
+			   && personal->status().DifCatalogLoadAttempts == 1U
+			   && personal->status().DifCatalogDecodedClips == 10U
+			   && personal->status().DifResolution.Preferences.Motion == core::motion_mode::system
+			   && work->status().DifResolution.Preferences.Motion == core::motion_mode::full,
+		   "a third profile shares decoded pixels while keeping its own motion preference");
 	work->window().close();
 	wait_for([&] { return desktop->runtime(workId) == nullptr; }, "Work closes before owner reuse");
 	management.profiles()->setCurrentItem(item(management, QStringLiteral("Work renamed")));
 	work = open(*desktop, management, workId);
-	wait_for([&] { return work->status().ProfileMode == core::appearance_mode::high_contrast_dark; }, "renamed Work restores its private preferences");
+	wait_for([&] {
+		return work->status().ProfileMode == core::appearance_mode::high_contrast_dark
+			&& work->status().DifResolution.Preferences.Motion == core::motion_mode::full;
+	},
+			 "renamed Work restores its private appearance and motion preferences");
+	expect(work->window().dif()->cache_identity() == personal->window().dif()->cache_identity()
+			   && work->status().DifCatalogLoadAttempts == 1U,
+		   "profile restart reuses the process catalog without a second load");
 	auto* quit = work->window().findChild<QAction*>(QStringLiteral("quitProfilesAction"));
 	expect(quit != nullptr, "native Quit action is composed");
 	quit->trigger();

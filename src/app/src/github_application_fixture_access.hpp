@@ -76,6 +76,7 @@ namespace bpr::app::detail {
 	struct github_public_path_fixture_options
 	{
 		std::optional<std::filesystem::path>             ApplicationDataRoot;
+		std::shared_ptr<qt::dif_catalog_provider>        DifCatalog;
 		core::diff_compute_limits                        DiffComputeLimits;
 		bool                                             LargeReviewHistory = false;
 		github_epoch_fixture_phase                       EpochPhase         = github_epoch_fixture_phase::single;
