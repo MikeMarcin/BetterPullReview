@@ -24,6 +24,22 @@ Generate the catalog, verify it and obtain the focused exact-byte derivative/mot
 
 Record focused command/gesture, direct surface, result, producing revision, and remaining limitation. Evidence is **not run** at pack authoring. Reuse still-valid prior results; never infer a native/art verdict from a fixture.
 
+The d10 [v008 structural candidate](../../verification/dif-production-art-v008/README.md)
+proves that the returned exact 71 frames compile into ten strips with 20
+gutters and a 22.75 MiB decoded catalog inside the measured bounds. Generate,
+validate, verify, retained preview identity and empty-output reproduction pass.
+All ten declared-speed APNGs were observed at shipping sizes. This is not the
+accepted production revision: the returned neutral changed, several motion
+subjects need human judgment, and provider/tool/terms provenance plus the
+exact derivative distribution/notice disposition remain unresolved. A fresh
+Dif-only attended queue is the current acceptance surface. Shipped source,
+generated resources and runtime selection remain unchanged.
+
+Fresh attended session `7e489c0dd362c256bc28715a16892b65` has all twelve
+candidate decisions ready/protected at sequence `110`, bound to candidate
+commit `1b7daff5ec0d6ad2015e50e22b89c5193ebdbbfc`. The exact derivative
+disposition remains its own unanswered candidate.
+
 ## Boundaries
 
 No GitHub/GHES mutation, model run, credential access or shared-skill replacement is authorized by this card. Any required creative edit remains offline and separately recorded; ordinary builds and the product perform no image generation. Follow the milestone exit rather than running an exhaustive app-wide course for this slice.

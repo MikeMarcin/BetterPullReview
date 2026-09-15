@@ -1,6 +1,71 @@
 # RFC-BPR-0030 production-art frontier
 
-## Current d9 external-generator handoff — candidate-making only
+## Current d10 external result — structural catalog, human verdict pending
+
+Run `dif-takeover-20260914`, dispatch `d10`, producer
+`rfc-integrator-d10`, mandate revision `7` imported the user's external result
+without changing `src/adapters/qt/assets/dif/`. The
+[v008 intake and structural candidate](dif-production-art-v008/README.md)
+retains all 71 exact 1024-square RGBA PNGs, the supplied catchlight-removal
+log, per-file raw/canonical/decoded/runtime hashes and the exact d9/result
+archive hashes. Counts match the ten-clip contract. Every frame has clean
+transparent RGB, stays within the measured runtime envelope and baseline, and
+the complete ten-strip/71-frame/20-gutter/22.75-MiB candidate generates,
+validates, verifies and reproduces from an empty output directory.
+
+These facts qualify a focused candidate, not production art. The result omits
+the generator provider/model/seed/version, exact per-pose prompt and input-role
+record, native layers, pre-eye-fix hashes and external terms/notice record.
+Its common endpoint also differs from the sequence-379 accepted neutral in
+1,424 RGB pixels within the eye band while preserving alpha; it visibly
+removes both white catchlights. A new exact identity verdict is required.
+Declared-speed 64/96-pixel light/dark playback was observed. Greet, blink,
+acknowledge and blocked are coherent candidates; calm idle's lower torso and
+the larger transitions in compare glance, consider, comment ready and
+attention remain visual judgment subjects. The retained
+[player](dif-production-art-v008/review/player.html) and per-clip compiler
+APNG/contact-sheet media support independent answers without treating the file
+count as acceptance.
+
+A fresh external-state Dif-only attended queue binds the changed neutral, each
+of the ten exact clip subjects and the missing derivative/distribution
+disposition separately. BPR-0755 is parked on that human review; BPR-0756 and
+BPR-0757 remain dependency-bound Backlog. No candidate PNG, manifest or
+generated catalog has been promoted to the shipped resources. The next
+engineering action depends on the exact answers: promote only an accepted
+complete set, or return rejected subjects to bounded art correction and
+re-review the changed bytes.
+
+The fresh session is `7e489c0dd362c256bc28715a16892b65`; all twelve
+candidates are ready/protected at sequence `110` and bind candidate commit
+`1b7daff5ec0d6ad2015e50e22b89c5193ebdbbfc`. The candidate manifest SHA-256
+is `df4d6dc8a65ab0f5dffd41edae9ad2d80dd1deb2bb6537931d79d42aac79f937`.
+Its offline fallback is retained beside the exact player. A hand-back or
+successful structural command is not a verdict; only each recorded candidate
+decision can satisfy its scoped human criterion.
+
+Independent review caught a 96-pixel CSS override in the first player. The
+integrator released every unanswered candidate, removed the override, verified
+computed 96→64→72 pixel dimensions in the browser, added the player and full
+motion directory to every protected path set, and prepared revision
+`1b7daff5-dif-d10-v008.3-protected-player-d06666d505c5`. The superseded
+definitions have no decision.
+
+The integrator dispatched read-only `rfc-scout` and `rfc-utility` leaves with
+`fork_turns: none` and no optional route override. Their reported banners were
+`gpt-5.6-sol` / `low` and `gpt-5.6-luna` / `xhigh`, respectively. Those
+self-reports are separate from dispatch arguments and are not serving
+telemetry or proof that the runtime enforced the child-role allowlist. Both
+leaves returned without repository writes.
+
+A later read-only `rfc-reviewer` dispatch used `fork_turns: none` and no
+optional route override; its banner reported `gpt-6-astra` / `medium`. After
+the player correction it independently reproduced the candidate and all 59
+retained previews, checked the refreshed twelve-candidate bindings and found
+no remaining blocking or nonblocking issue. Human verdicts remain outside that
+review. The reviewer returned without repository writes.
+
+## Previous d9 external-generator handoff — candidate-making only
 
 Run `dif-takeover-20260914`, dispatch `d9`, producer `rfc-integrator-d9`,
 mandate revision `6`. The user requested one portable external-generator

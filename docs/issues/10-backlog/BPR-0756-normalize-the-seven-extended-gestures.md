@@ -83,3 +83,18 @@ body and alpha outside the eye interiors. It is not accepted source: the
 timed player could not be observed in the subagent browser because `file:`
 navigation was policy-blocked, and no native Qt or focused human art verdict
 exists. The other six gestures still lack qualified complete sequences.
+
+The d10 [v008 external candidate](../../verification/dif-production-art-v008/README.md)
+adds complete rows for all seven extended gestures and passes the same exact
+intake, clean-alpha, envelope, baseline, canonical generation, validation and
+empty-output reproduction checks as the foundation clips. Declared-speed
+light/dark playback is observed. Blink, acknowledge and blocked appear
+coherent; compare glance, consider, comment ready and attention retain visible
+head/shoulder/paw transition questions for the human reviewer. Every row also
+uses the changed no-catchlight endpoint, so no exact art verdict carries over
+from sequence 379. This dependency-bound card stays Backlog and no candidate
+row is promoted before BPR-0755 and the scoped attended decisions resolve.
+
+Fresh attended session `7e489c0dd362c256bc28715a16892b65` has the seven
+individual extended-clip candidates ready/protected at sequence `110`, bound
+to candidate commit `1b7daff5ec0d6ad2015e50e22b89c5193ebdbbfc`.

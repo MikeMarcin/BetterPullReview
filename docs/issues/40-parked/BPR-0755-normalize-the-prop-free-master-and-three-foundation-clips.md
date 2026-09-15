@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0755"
 title: "Normalize the prop-free master and three foundation clips"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0030"]
 depends_on: ["BPR-0753"]
 metadata: {"pack":"bpr-dif-integration-v1","milestone":"production-art","acceptance":["A2","A3","A4"],"milestone_plan":{"id":"bpr-dif-integration-v1","path":"docs/rfcs/plans/bpr-dif-integration-v1/milestone-plan.json"}}
+parked_on: "human-review"
 ---
 
 # BPR-0755: Normalize the prop-free master and three foundation clips
@@ -114,3 +115,21 @@ inspection therefore still **rejects** the greeting from production source.
 The prepared timed local player was not viewed because the browser blocked its
 `file:` URL. No actual-speed, native Qt or focused human motion verdict exists;
 this card remains In Progress.
+
+The user-returned d10 [v008 catalog candidate](../../verification/dif-production-art-v008/README.md)
+contains exact rest/calm-idle/greet rows and the other seven contract clips.
+All 71 received files pass the structural intake, alpha, envelope, baseline,
+canonical generation, validation and empty-output reproduction checks.
+Declared-speed light/dark playback at 64 and 96 pixels is now observed. The
+common endpoint is a new no-catchlight subject: alpha matches the accepted
+neutral, but 1,424 eye-band RGB pixels differ. Calm idle also has broad
+lower-torso deformation; greet appears coherent but still needs the human
+motion/handoff judgment. A fresh exact-byte attended queue is prepared. No
+production source is changed, and this card is parked on that human review
+rather than completed from the mechanical checks.
+
+Fresh attended session `7e489c0dd362c256bc28715a16892b65` has all twelve
+Dif-only candidates ready/protected at sequence `110`, bound to candidate
+commit `1b7daff5ec0d6ad2015e50e22b89c5193ebdbbfc`. This card needs the exact
+neutral, rest, calm-idle and greet decisions. Other clip and derivative
+answers remain scoped to their own candidates; partial decisions are retained.
