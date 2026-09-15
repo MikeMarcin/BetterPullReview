@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0772"
 title: "Compose one server card per configured host with header, account row and rows"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0032"]
 depends_on: ["BPR-0771"]
 metadata: {"pack":"bpr-shell-surfaces-v1","milestone":"accounts-page","acceptance":["A1","A4"],"milestone_plan":{"id":"bpr-shell-surfaces-v1","path":"docs/rfcs/plans/bpr-shell-surfaces-v1/milestone-plan.json"}}
