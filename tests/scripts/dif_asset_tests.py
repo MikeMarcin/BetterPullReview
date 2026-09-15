@@ -908,10 +908,13 @@ class DifAssetTests(unittest.TestCase):
             / "src/adapters/qt/assets/dif/generated/dif-sprite-catalog.hpp"
         )
         self.assertTrue(production.is_file(), "the committed production catalog is absent")
-        catalogs = (self.root / "generated/dif-sprite-catalog.hpp", production)
-        for catalog in catalogs:
+        catalogs = (
+            (self.root / "generated/dif-sprite-catalog.hpp", 1, 3),
+            (production, 2, 10),
+        )
+        for catalog, version, clip_count in catalogs:
             with self.subTest(catalog=catalog):
-                result = compile_catalog(catalog)
+                result = compile_catalog(catalog, version, clip_count)
                 self.assertEqual(
                     result.returncode,
                     0,

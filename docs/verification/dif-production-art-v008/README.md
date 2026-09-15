@@ -1,10 +1,44 @@
-# d10 external Dif result intake and structural catalog candidate
+# d10 external Dif result intake and accepted production catalog
 
 This directory retains the exact files supplied for run
 `dif-takeover-20260914`, dispatch `d10`, producer `rfc-integrator-d10`, mandate
-revision `7`. It is a candidate evidence package. It does not replace the
-production source under `src/adapters/qt/assets/dif/` and does not establish a
-human art or derivative-rights verdict.
+revision `7`, and the d11 acceptance and promotion evidence for those unchanged
+bytes.
+
+## d11 verdict and production promotion
+
+Attended-review session `7e489c0dd362c256bc28715a16892b65` recorded explicit
+human **accept** decisions for the changed neutral, all ten clip subjects and
+the exact derivative disposition at event sequences 111–122. Sequence 123
+handed back all twelve protected candidates with `pending: []`. Every decision
+has an empty note and binds revision
+`1b7daff5-dif-d10-v008.3-protected-player-d06666d505c5`, candidate commit
+`1b7daff5ec0d6ad2015e50e22b89c5193ebdbbfc`, candidate-manifest SHA-256
+`df4d6dc8a65ab0f5dffd41edae9ad2d80dd1deb2bb6537931d79d42aac79f937`
+and player SHA-256
+`d06666d505c586cf0c5d59321c652cedee19f754bb28a866e9b8493e82cd2584`.
+The sanitized [human verdict](review/human-verdict.json) preserves every
+candidate fingerprint, decision ID, criterion, actor, timestamp and event
+sequence without the loopback host token or embedded media. The handed-back
+external session remains durable, and its host is stopped.
+
+The derivative decision accepts storage and distribution of the exact 71-file
+d10 set under the existing Dif scope without additional attribution, notice or
+third-party obligation. It does not manufacture missing generator metadata:
+provider/model/seed/version, prompt/input-role history, native layers,
+pre-catchlight-removal hashes and external service terms remain unknown and are
+recorded below.
+
+The integrator rebuilt the candidate from this retained intake into a fresh
+empty directory, matched all 85 managed source/manifest/generated files byte
+for byte, and promoted that exact result to
+`src/adapters/qt/assets/dif/`. Direct validate and verify, the dev and core-only
+57-test Dif asset contracts, and selected-profile boundary verification pass.
+[Production evidence](production-evidence.json) records the exact manifest and
+source/generated inventory digests, 10 clips, 71 substantive frames, 20 gutters
+and 23,855,104 decoded RGBA bytes. This completes the production-art revision;
+ordinary application resource selection and native Qt presentation remain in
+the later integration milestones.
 
 ## Exact intake
 

@@ -18,14 +18,28 @@ struct clip_descriptor final {
   int priority;
   std::string_view return_target;
   std::string_view accessible_description;
+  int cell_width;
+  int cell_height;
+  int content_origin_x;
+  int strip_width;
+  int strip_height;
+  std::size_t decoded_bytes;
+  std::string_view rgba_sha256;
 };
 
-inline constexpr std::string_view kManifestSha256{"80ee8d9924bafe179d3b9b1172e8776254813ec1b62eab413bb31efa730a4f00"};
-inline constexpr int kSchemaVersion{1};
+inline constexpr std::string_view kManifestSha256{"c9f3f38e303caea3bb2c1b28edf947a717c2c1e5f484945a1d6814d8aee7f40d"};
+inline constexpr int kSchemaVersion{2};
 inline constexpr int kCellSize{256};
-inline constexpr std::array<clip_descriptor, 3> kClips{{
-  {"calm_idle", ":/bpr/dif/dif-calm-idle.png", 3, 250, clip_kind::loop, 1, 0, "calm_idle", "Dif calmly breathes as a decorative companion."},
-  {"greet", ":/bpr/dif/dif-greet.png", 5, 125, clip_kind::one_shot, 2, 10, "calm_idle", "Dif gives one restrained decorative greeting."},
-  {"rest", ":/bpr/dif/dif-rest.png", 1, 0, clip_kind::static_frame, 0, 0, "rest", "Dif rests awake without procedural motion."},
+inline constexpr std::array<clip_descriptor, 10> kClips{{
+  {"calm_idle", ":/bpr/dif/dif-calm-idle.png", 12, 250, clip_kind::loop, 0, 0, "calm_idle", "One soft, three-second breathing cycle. Keep the face, pelvis, and feet registered. Animate a small local chest/shoulder deformation, not a scale transform of the entire panda. No blink in this loop.", 256, 256, 256, 3584, 256, 3670016, "5b4ef75470f2fa644fff06e5d30b5f12ffb9a077aac0707e3c7b334ed46e4788"},
+  {"greet", ":/bpr/dif/dif-greet.png", 8, 125, clip_kind::one_shot, 3, 5, "calm_idle", "One small, relaxed wave with the paw on the viewer's right. Keep the paw inside the existing head-width envelope; keep the opposite paw and both feet fixed. No whole-body squash, jumping, bowing, hearts, or sparkles.", 256, 256, 256, 2560, 256, 2621440, "21bdd6113b19a184376bb8b77850ac66599749c5aff5b8aefe5c75ee945abf50"},
+  {"rest", ":/bpr/dif/dif-rest.png", 1, 0, clip_kind::static_frame, 0, 0, "rest", "Reuse the approved prop-free neutral reference. No new image generation is necessary.", 256, 256, 256, 768, 256, 786432, "3ad24ef3def10ab1c26e65d7450da2cce6785b6c673032b40bc927e2fc47aed6"},
+  {"blink", ":/bpr/dif/dif-blink.png", 6, 100, clip_kind::one_shot, 0, 1, "calm_idle", "Change only the eyelids. Retain the neutral body, ears, eye-patch shapes, nose, mouth, paws, feet, camera, and light. The whole image must not be squashed to make the eyes close.", 256, 256, 256, 2048, 256, 2097152, "e1e18011e19e4378b9e7d93ba7726aa8545f02991e5da0b3806eb938fecd8eb7"},
+  {"compare_glance", ":/bpr/dif/dif-compare-glance.png", 8, 150, clip_kind::one_shot, 3, 10, "calm_idle", "A restrained left-to-right glance. Eyes carry most of the action; head yaw is at most about two degrees. No magnifying glass, cards, arrows, or generated code.", 256, 256, 256, 2560, 256, 2621440, "fdd8291d0b44129930040fb0f832d0c386114463c0e589c3ddd0e6f348148b55"},
+  {"consider", ":/bpr/dif/dif-consider.png", 8, 150, clip_kind::one_shot, 3, 15, "calm_idle", "Bring the viewer-left paw lightly near the chin, tilt the head a little, then return. This is a one-shot, not a pantomime that repeats for the entire task. No thought bubbles or floating dots.", 256, 256, 256, 2560, 256, 2621440, "b0a3c8bd4c8b8cf1cdc4b5f5254e72afd1933c57c191047742998594ab5c8b4f"},
+  {"comment_ready", ":/bpr/dif/dif-comment-ready.png", 8, 125, clip_kind::one_shot, 3, 30, "calm_idle", "Dif makes a small two-paw presentation gesture toward the real UI beside or below the illustration. The sprite itself contains no note, speech bubble, code, text, pen, or author badge.", 256, 256, 256, 2560, 256, 2621440, "399dd5526490b6c67e39d9c25d5cf96ff18b0839a30248bd76bd6ca25cfc5dc1"},
+  {"attention", ":/bpr/dif/dif-attention.png", 6, 150, clip_kind::one_shot, 2, 40, "calm_idle", "A small, polite raised-paw gesture and slightly more attentive eyes, followed by a return to neutral. No alarm, bouncing, red flash, exclamation symbol, bug, or accusing finger.", 256, 256, 256, 2048, 256, 2097152, "1d72ef1a3672b7b952454b6c19bb64aa996dea7cc6fada361d582ca566326d46"},
+  {"acknowledge", ":/bpr/dif/dif-acknowledge.png", 8, 125, clip_kind::one_shot, 3, 20, "calm_idle", "One small affirmative nod with a warm, closed smile. Rotate the head a little; do not compress the entire body. No green check, thumbs-up, medal, confetti, or party pose.", 256, 256, 256, 2560, 256, 2621440, "3e1b3b9996d61ec9bfd5157b3aca04c037ac057f11a37c0749530f22a3f26b0d"},
+  {"blocked", ":/bpr/dif/dif-blocked.png", 6, 150, clip_kind::one_shot, 2, 50, "calm_idle", "A slight inquisitive head tilt and a small open-paw gesture. Keep the emotional tone patient and capable. No crying, sweat drop, anger, broken-object prop, shrugging despair, or question mark.", 256, 256, 256, 2048, 256, 2097152, "1b3224883cf6259c75e784f248d71eceeab78d6e0489f5ae3190e9f6c0b3eb19"},
 }};
 }  // namespace bpr::adapters::qt::dif

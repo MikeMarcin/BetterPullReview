@@ -1,0 +1,155 @@
+{
+  "candidate_commit": "1b7daff5ec0d6ad2015e50e22b89c5193ebdbbfc",
+  "candidate_manifest_sha256": "df4d6dc8a65ab0f5dffd41edae9ad2d80dd1deb2bb6537931d79d42aac79f937",
+  "candidate_revision": "1b7daff5-dif-d10-v008.3-protected-player-d06666d505c5",
+  "decisions": [
+    {
+      "actor": "human",
+      "candidate": "BPR-0755-calm-idle-d10-v001",
+      "criterion": "The exact d10 calm-idle loop reads as subtle breathing, keeps Dif planted, and closes without an objectionable torso-volume jump at 64, 72 and 96 pixels on light, dark and black surfaces.",
+      "decision_id": "cb412ab7-44db-4b66-a3ed-7610ebea830c",
+      "fingerprint": "0889f77cfe578b67fd10bf065b058fa5ead98fc8802fb4d802205d10aa3c5bbd",
+      "note": "",
+      "outcome": "accept",
+      "saved_at": "2026-09-15T03:07:20.515575+00:00",
+      "sequence": 111
+    },
+    {
+      "actor": "human",
+      "candidate": "BPR-0755-greet-d10-v001",
+      "criterion": "The exact d10 greet clip reads as one friendly viewer-right wave with connected shoulder anatomy and a clean neutral entry and return at 64, 72 and 96 pixels on light, dark and black surfaces.",
+      "decision_id": "4ef7ef9c-aedb-4f8e-b84e-2bbd9badc657",
+      "fingerprint": "317f4c4fe9f3e54ee2ad2f7bca28c1d5e43d5c308f306147ad87485f2e105340",
+      "note": "",
+      "outcome": "accept",
+      "saved_at": "2026-09-15T03:07:42.179248+00:00",
+      "sequence": 112
+    },
+    {
+      "actor": "human",
+      "candidate": "BPR-0755-neutral-no-catchlight-v002",
+      "criterion": "The exact d10 no-catchlight endpoint preserves the approved prop-free Dif identity, proportions, awake expression, resting pose and readable eyes at 64, 72 and 96 pixels on light, dark and black surfaces.",
+      "decision_id": "62c5ec31-5133-47a5-8151-7f86bf3ed1bb",
+      "fingerprint": "ab2691a1842a3851d4ff48dc2e1c26350a98d0d270b9b7102164b17b6235723b",
+      "note": "",
+      "outcome": "accept",
+      "saved_at": "2026-09-15T03:07:45.383825+00:00",
+      "sequence": 113
+    },
+    {
+      "actor": "human",
+      "candidate": "BPR-0755-rest-d10-v001",
+      "criterion": "The exact d10 rest frame is a suitable static reduced-motion Dif presentation and a clean neutral handoff at 64, 72 and 96 pixels on light, dark and black surfaces.",
+      "decision_id": "9e239e53-cf4e-45d5-975b-0da18009fbd2",
+      "fingerprint": "19fbc46867227b40198887a9ecfddbc18224d22d9cf677dcc9b667083df68fe0",
+      "note": "",
+      "outcome": "accept",
+      "saved_at": "2026-09-15T03:07:51.278893+00:00",
+      "sequence": 115
+    },
+    {
+      "actor": "human",
+      "candidate": "BPR-0756-acknowledge-d10-v001",
+      "criterion": "The exact d10 acknowledge clip reads as one deliberate nod with stable silhouette and a clean neutral return at 64, 72 and 96 pixels on light, dark and black surfaces.",
+      "decision_id": "4c32ad5c-e625-4db5-8c53-3a47cb12043a",
+      "fingerprint": "fdd090b6ba2c91fa65398246c074c7f63aa9bc67236d2b6980e6d9a20cb1124a",
+      "note": "",
+      "outcome": "accept",
+      "saved_at": "2026-09-15T03:07:48.733537+00:00",
+      "sequence": 114
+    },
+    {
+      "actor": "human",
+      "candidate": "BPR-0756-attention-d10-v001",
+      "criterion": "The exact d10 attention clip reads as a clear attention cue with connected raised-paw/head motion and a clean neutral return at 64, 72 and 96 pixels on light, dark and black surfaces.",
+      "decision_id": "06afea22-f968-4ae5-8177-b78d1d2306a8",
+      "fingerprint": "d639fa76fbd2d55adb429c9442b84299897ebb8292e8ec0de19258b89f762489",
+      "note": "",
+      "outcome": "accept",
+      "saved_at": "2026-09-15T03:07:53.162792+00:00",
+      "sequence": 116
+    },
+    {
+      "actor": "human",
+      "candidate": "BPR-0756-blink-d10-v001",
+      "criterion": "The exact d10 blink clip reads as one natural blink with clean lids and no face or body pop at 64, 72 and 96 pixels on light, dark and black surfaces.",
+      "decision_id": "3c0da036-3667-4f17-9322-dd0aeef8fb00",
+      "fingerprint": "29e77ce9e6749649f18aa1f199222a185c52c660f747b0ab3dd508f862edc2e9",
+      "note": "",
+      "outcome": "accept",
+      "saved_at": "2026-09-15T03:07:57.093233+00:00",
+      "sequence": 117
+    },
+    {
+      "actor": "human",
+      "candidate": "BPR-0756-blocked-d10-v001",
+      "criterion": "The exact d10 blocked clip reads as a patient blocked/waiting cue with coherent viewer-left open-palm anatomy, head tilt and clean neutral return at 64, 72 and 96 pixels on light, dark and black surfaces.",
+      "decision_id": "b4415203-4789-4758-bd6b-bbc1f6316e8b",
+      "fingerprint": "b7dc1b085c92bfdc96c479699b7c87163486b0b00f849d515c340316a4012f31",
+      "note": "",
+      "outcome": "accept",
+      "saved_at": "2026-09-15T03:08:00.991755+00:00",
+      "sequence": 118
+    },
+    {
+      "actor": "human",
+      "candidate": "BPR-0756-comment-ready-d10-v001",
+      "criterion": "The exact d10 comment-ready clip reads as a restrained ready-to-comment gesture with coherent two-paw anatomy and a clean neutral return at 64, 72 and 96 pixels on light, dark and black surfaces.",
+      "decision_id": "8058334f-b8b7-46aa-b5fc-2e78ea07f55e",
+      "fingerprint": "4e24a2e0b8595083cff8025ec0656f74aa91f09c3c0908890d24f3b45716d550",
+      "note": "",
+      "outcome": "accept",
+      "saved_at": "2026-09-15T03:08:03.804062+00:00",
+      "sequence": 119
+    },
+    {
+      "actor": "human",
+      "candidate": "BPR-0756-compare-glance-d10-v001",
+      "criterion": "The exact d10 compare-glance clip reads as an intentional side glance with coherent head/eye motion, clean edges and a clean neutral return at 64, 72 and 96 pixels on light, dark and black surfaces.",
+      "decision_id": "d35e000c-e752-48ec-ab16-75aabe6ed067",
+      "fingerprint": "ec14716aebdc2e84f8c4849e5f1743d628c8ff1d94a830cde1316191ee102b5d",
+      "note": "",
+      "outcome": "accept",
+      "saved_at": "2026-09-15T03:08:06.651388+00:00",
+      "sequence": 120
+    },
+    {
+      "actor": "human",
+      "candidate": "BPR-0756-consider-d10-v001",
+      "criterion": "The exact d10 consider clip reads as a thoughtful paw-to-chin gesture with connected shoulder/chin anatomy and a clean neutral return at 64, 72 and 96 pixels on light, dark and black surfaces.",
+      "decision_id": "9f7c0919-a719-44e3-9d09-2355ce7d5d03",
+      "fingerprint": "826bdd7b156e79eaeb940a8036c89209127a3daa661cb2ce0533ebe0006e0ed1",
+      "note": "",
+      "outcome": "accept",
+      "saved_at": "2026-09-15T03:08:09.340610+00:00",
+      "sequence": 121
+    },
+    {
+      "actor": "human",
+      "candidate": "BPR-0757-d10-derivative-disposition-v001",
+      "criterion": "The exact 71-file d10 derivative set at commit 1b7daff5 may be stored and distributed in BetterPullReview under the existing Dif scope with no additional attribution, notice or third-party obligation.",
+      "decision_id": "47f95037-fd00-4de5-a326-52029923c332",
+      "fingerprint": "de81744cba51715d04118c4e2247a6b4a4f07902efd7c8e91cbf36f65e5910f0",
+      "note": "",
+      "outcome": "accept",
+      "saved_at": "2026-09-15T03:08:11.780100+00:00",
+      "sequence": 122
+    }
+  ],
+  "dispatch": "d11",
+  "engineering_disposition": "accepted_for_production_promotion_subject_to_reproducible_catalog_validation",
+  "external_session_state": {
+    "host_stopped": true,
+    "path": "/Users/jaeger/.mask/bpr-dif-d10-20260914/attended-review/session.json",
+    "sha256_after_host_stop": "691d48c30dfd533239a2b7ab5d93843759144a5a53232aad5a8b9dd6c6987216"
+  },
+  "handed_back": "2026-09-15T03:08:15.393678+00:00",
+  "mandate_revision": 7,
+  "pending": [],
+  "producer": "rfc-integrator-d10",
+  "review_player_sha256": "d06666d505c586cf0c5d59321c652cedee19f754bb28a866e9b8493e82cd2584",
+  "run": "dif-takeover-20260914",
+  "schema": "bpr.attended-review-verdict.v1",
+  "sequence": 123,
+  "session_id": "7e489c0dd362c256bc28715a16892b65"
+}

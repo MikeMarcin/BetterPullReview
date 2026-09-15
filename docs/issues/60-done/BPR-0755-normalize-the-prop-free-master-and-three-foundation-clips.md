@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0755"
 title: "Normalize the prop-free master and three foundation clips"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0030"]
 depends_on: ["BPR-0753"]
 metadata: {"pack":"bpr-dif-integration-v1","milestone":"production-art","acceptance":["A2","A3","A4"],"milestone_plan":{"id":"bpr-dif-integration-v1","path":"docs/rfcs/plans/bpr-dif-integration-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"Master registration and prop-free Dif identity","outcome":"pass","revision":"1b7daff5ec0d6ad2015e50e22b89c5193ebdbbfc","evidence":{"kind":"artifact","detail":"Sequence-123 attended hand-back accepts the exact no-catchlight neutral and rest candidates; source master and every neutral endpoint share canonical SHA-256 15af5f8c072d039e98e16bdb8eeb121ce0eb74727fb3c9748217ce7ffbb4f34f."}},{"criterion":"Foundation motion and clean neutral handoffs","outcome":"pass","revision":"1b7daff5ec0d6ad2015e50e22b89c5193ebdbbfc","evidence":{"kind":"observation","detail":"Human decisions at sequences 111, 112, 113 and 115 accept calm idle, greet, the changed neutral and rest in the protected declared-speed player at 64/72/96 pixels across light, dark and black surfaces."}},{"criterion":"Canonical alpha, baseline and registration","outcome":"pass","revision":"1b7daff5ec0d6ad2015e50e22b89c5193ebdbbfc","evidence":{"kind":"command","detail":"Fresh empty-output reconstruction matched all 85 managed files; direct validate/verify, dev and core-only 57-test asset contracts, and selected-profile boundary verification passed for the promoted catalog."}}]
 ---
 
 # BPR-0755: Normalize the prop-free master and three foundation clips
@@ -132,3 +133,22 @@ Dif-only candidates ready/protected at sequence `110`, bound to candidate
 commit `1b7daff5ec0d6ad2015e50e22b89c5193ebdbbfc`. This card needs the exact
 neutral, rest, calm-idle and greet decisions. Other clip and derivative
 answers remain scoped to their own candidates; partial decisions are retained.
+
+The d11 hand-back resolves this card's four exact questions. Human accept
+decisions were recorded for calm idle at sequence 111 (decision
+`cb412ab7-44db-4b66-a3ed-7610ebea830c`), greet at 112
+(`4ef7ef9c-aedb-4f8e-b84e-2bbd9badc657`), the changed no-catchlight neutral at
+113 (`62c5ec31-5133-47a5-8151-7f86bf3ed1bb`) and static rest at 115
+(`9e239e53-cf4e-45d5-975b-0da18009fbd2`). Each note is empty and each decision
+binds the protected v008.3 player and candidate commit `1b7daff5`. Sequence 123
+handed the complete queue back with no pending item. The durable
+[verdict](../../verification/dif-production-art-v008/review/human-verdict.json)
+preserves the exact fingerprints and criteria.
+
+The integrator rebuilt the unchanged input into an empty output directory,
+matched every managed source and product byte, and promoted the complete
+accepted catalog to `src/adapters/qt/assets/dif/`. The master and every neutral
+endpoint have the same canonical digest; all frames retain clean alpha,
+baseline 223, foot tolerance and declared bounds. Direct validate/verify, both
+57-test asset contracts and the selected-profile boundary gate pass. This
+supersedes the earlier rejected local studies without rewriting their history.

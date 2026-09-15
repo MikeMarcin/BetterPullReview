@@ -1,6 +1,44 @@
 # RFC-BPR-0030 production-art frontier
 
-## Current d10 external result — structural catalog, human verdict pending
+## Current d11 disposition — production catalog accepted and promoted
+
+Run `dif-takeover-20260914`, dispatch `d11`, producer
+`rfc-integrator-d10`, mandate revision `7` consumed the exact attended hand-back
+from session `7e489c0dd362c256bc28715a16892b65`. Events 111–122 contain twelve
+explicit human accept decisions with empty notes for the changed no-catchlight
+neutral, rest, calm idle, greeting, all seven extended gestures and the exact
+derivative disposition. Event 123 handed the protected queue back with no
+pending candidate. The token-free
+[verdict](dif-production-art-v008/review/human-verdict.json) binds every
+fingerprint and decision ID to candidate revision
+`1b7daff5-dif-d10-v008.3-protected-player-d06666d505c5` and commit
+`1b7daff5ec0d6ad2015e50e22b89c5193ebdbbfc`. The review host is stopped; the
+durable session and historical candidates remain intact.
+
+The exact candidate rebuilt from the retained intake in a fresh empty output
+directory. All 85 managed source, manifest and generated files matched byte for
+byte. The accepted schema-2 pack is now the shipped
+`src/adapters/qt/assets/dif/` source: ten distinct clips, 71 substantive frames,
+20 transparent gutters and 23,855,104 decoded RGBA bytes. Direct validate and
+verify pass, as do both 57-test dev/core-only asset contracts and the selected
+dev/core-only/tests-disabled application boundary check. The
+[production evidence](dif-production-art-v008/production-evidence.json) records
+manifest SHA-256
+`c9f3f38e303caea3bb2c1b28edf947a717c2c1e5f484945a1d6814d8aee7f40d`,
+source inventory SHA-256
+`2a1777119cf9a40a88c7c1f1c52444b33368e3e772f5b793585c0ea10c6ba210`
+and generated inventory SHA-256
+`f14116cd33b0ca22a63d127d1292b5bfe2f327ff4af8528b446a10ac75006d40`.
+
+The human derivative decision applies the existing Dif storage/distribution
+scope to this exact 71-file set with no additional attribution, notice or
+third-party obligation. Missing provider/model/seed/version, prompt/input-role,
+native-layer, pre-eye-fix and service-terms metadata remains disclosed; none was
+guessed. BPR-0755/0756/0757 and both authored production-art exits are qualified
+for completion. Runtime resource selection and native Qt presentation remain
+owned by home integration, not this art boundary.
+
+## Previous d10 external result — structural catalog, human verdict pending
 
 Run `dif-takeover-20260914`, dispatch `d10`, producer
 `rfc-integrator-d10`, mandate revision `7` imported the user's external result
