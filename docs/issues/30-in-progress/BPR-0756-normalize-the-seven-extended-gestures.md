@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0756"
 title: "Normalize the seven extended gestures"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0030"]
 depends_on: ["BPR-0755"]
 metadata: {"pack":"bpr-dif-integration-v1","milestone":"production-art","acceptance":["A1","A2","A3","A4"],"milestone_plan":{"id":"bpr-dif-integration-v1","path":"docs/rfcs/plans/bpr-dif-integration-v1/milestone-plan.json"}}
