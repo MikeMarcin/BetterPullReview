@@ -114,10 +114,11 @@ namespace bpr::application {
 	{
 		++Statistics.Actions;
 		auto outcome = agent_finding_outcome{
-			.Session = aRequest.Session,
-			.Ordinal = aRequest.Ordinal,
-			.Action  = aRequest.Action,
-			.Refusal = agent_finding_action_refusal::nothing_delivered,
+			.Session          = aRequest.Session,
+			.Ordinal          = aRequest.Ordinal,
+			.Action           = aRequest.Action,
+			.ActionGeneration = Statistics.Actions,
+			.Refusal          = agent_finding_action_refusal::nothing_delivered,
 		};
 		if (!Delivered.has_value()) {
 			outcome.Refusal = agent_finding_action_refusal::nothing_delivered;

@@ -479,9 +479,11 @@ namespace bpr::qt {
 			const application::agent_invocation_projection_identity& aIdentity,
 			application::agent_run_outcome                           aOutcome);
 		void present_dif_workshop(
-			core::review_draft_id aDraft,
-			std::uint64_t         aRevision,
-			std::string_view      aProposed);
+			const core::agent_session& aSession,
+			std::uint64_t              aActionGeneration,
+			core::review_draft_id      aDraft,
+			std::uint64_t              aRevision,
+			std::string_view           aProposed);
 		void begin_dif_draft(
 			const core::revisioned_review_draft_command& aCommand);
 		void accept_dif_draft(

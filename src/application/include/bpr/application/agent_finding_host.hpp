@@ -137,9 +137,13 @@ namespace bpr::application {
 	/// reviewer believing a finding had landed on a draft it never reached.
 	struct agent_finding_outcome
 	{
-		core::agent_session_id       Session;
-		std::size_t                  Ordinal = 0U;
-		agent_finding_action         Action  = agent_finding_action::open_evidence;
+		core::agent_session_id Session;
+		std::size_t            Ordinal = 0U;
+		agent_finding_action   Action  = agent_finding_action::open_evidence;
+		/// Monotonic identity of this explicit action within the host lifetime.
+		/// Re-presenting the same outcome retains this value; asking again gets
+		/// the next value even when it names the same finding and action.
+		std::uint64_t                ActionGeneration = 0U;
 		agent_finding_action_refusal Refusal
 			= agent_finding_action_refusal::nothing_delivered;
 		/// The core's own answer, and only meaningful once it was asked.

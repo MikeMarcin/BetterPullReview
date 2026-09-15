@@ -118,10 +118,12 @@ namespace bpr::qt {
 	{
 		Context.reset();
 		Active.reset();
+		LatestSession.reset();
 		LastContinuation.reset();
 		Workshop.reset();
 		DraftOperation.reset();
-		HighestInvocationGeneration = 0U;
+		HighestInvocationGeneration     = 0U;
+		HighestWorkshopActionGeneration = 0U;
 		LastSemanticStart.reset();
 		LastComparisonStart.reset();
 		LastPriority      = 0;
@@ -206,6 +208,7 @@ namespace bpr::qt {
 		}
 		HighestInvocationGeneration = aIdentity.InvocationGeneration;
 		Active                      = aIdentity;
+		LatestSession               = aIdentity.Session;
 		Started                     = false;
 		ReplyPresented              = false;
 		FindingsPresented           = false;
@@ -262,18 +265,29 @@ namespace bpr::qt {
 	}
 
 	auto dif_cue_router::present_workshop(
+		const core::agent_session&  aSession,
+		const std::uint64_t         aActionGeneration,
 		const core::review_draft_id aDraft,
 		const std::uint64_t         aRevision,
 		const std::string_view      aProposed,
 		const std::int64_t          aNow) -> std::optional<dif_clip_id>
 	{
-		const auto key = workshop_key{ aDraft, aRevision, std::string{ aProposed } };
-		if (!Context.has_value() || aDraft.value() == 0U || aRevision == 0U
-			|| (Workshop.has_value() && Workshop->Draft == aDraft
-				&& aRevision <= Workshop->Revision)) {
+		const auto key = workshop_key{
+			aSession.Id,
+			aActionGeneration,
+			aDraft,
+			aRevision,
+			std::string{ aProposed },
+		};
+		if (!Context.has_value() || !LatestSession.has_value()
+			|| *LatestSession != aSession || !in_context(aSession)
+			|| aActionGeneration == 0U
+			|| aActionGeneration <= HighestWorkshopActionGeneration
+			|| aDraft.value() == 0U || aRevision == 0U || aProposed.empty()) {
 			return std::nullopt;
 		}
-		Workshop = key;
+		HighestWorkshopActionGeneration = aActionGeneration;
+		Workshop                        = key;
 		DraftOperation.reset();
 		return propose(dif_clip_id::comment_ready, aNow);
 	}

@@ -6115,6 +6115,7 @@ namespace bpr::app {
 						if (Closing) {
 							return;
 						}
+						LatestAgentSession = aSession;
 						if (ChatHost != nullptr) {
 							ChatHost->admitted(aSession);
 						}
@@ -6353,10 +6354,6 @@ namespace bpr::app {
 								.Proposed  = aProposal.Proposed,
 								.Operation = aProposal.Operation,
 							});
-						Window->present_dif_workshop(
-							aProposal.Draft,
-							ReviewDraftRevision,
-							aProposal.Proposed);
 					},
 					[this](
 						const application::agent_comment_workshop_refusal
@@ -10345,8 +10342,19 @@ namespace bpr::app {
 				if (matched) {
 					PendingWorkshopOperation.reset();
 				}
-				static_cast<void>(WorkshopHost->propose(
-					*ReviewDraft, *aOutcome.Draft, asked));
+				const auto refusal = WorkshopHost->propose(
+					*ReviewDraft, *aOutcome.Draft, asked);
+				if (refusal == application::agent_comment_workshop_refusal::none
+					&& Window != nullptr && Window->review_editor() != nullptr
+					&& LatestAgentSession.has_value()
+					&& LatestAgentSession->Id == aOutcome.Session) {
+					Window->present_dif_workshop(
+						*LatestAgentSession,
+						aOutcome.ActionGeneration,
+						aOutcome.Draft->Id,
+						ReviewDraftRevision,
+						aOutcome.Draft->Body);
+				}
 				return;
 			}
 			if (aOutcome.Defect.has_value()) {
@@ -12083,6 +12091,7 @@ namespace bpr::app {
 		/// other. Absent is the ordinary state, and it is what makes a
 		/// promoted finding a proposal nobody workshopped.
 		std::optional<pending_comment_workshop>                         PendingWorkshopOperation;
+		std::optional<core::agent_session>                              LatestAgentSession;
 		std::size_t                                                     FindingRefusalsPresented = 0U;
 		std::size_t                                                     SideChatIntents          = 0U;
 		std::size_t                                                     SideChatPresentations    = 0U;

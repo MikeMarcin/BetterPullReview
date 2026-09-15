@@ -3673,12 +3673,19 @@ namespace bpr::qt {
 	}
 
 	void workbench_window::present_dif_workshop(
+		const core::agent_session&  aSession,
+		const std::uint64_t         aActionGeneration,
 		const core::review_draft_id aDraft,
 		const std::uint64_t         aRevision,
 		const std::string_view      aProposed)
 	{
 		play_dif_cue(DifCues->present_workshop(
-			aDraft, aRevision, aProposed, DifCueClock->elapsed()));
+			aSession,
+			aActionGeneration,
+			aDraft,
+			aRevision,
+			aProposed,
+			DifCueClock->elapsed()));
 	}
 
 	void workbench_window::begin_dif_draft(

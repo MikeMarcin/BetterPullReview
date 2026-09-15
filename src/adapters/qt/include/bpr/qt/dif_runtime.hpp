@@ -75,10 +75,12 @@ namespace bpr::qt {
 			std::int64_t                                             aNow) -> std::optional<dif_clip_id>;
 
 		[[nodiscard]] auto present_workshop(
-			core::review_draft_id aDraft,
-			std::uint64_t         aRevision,
-			std::string_view      aProposed,
-			std::int64_t          aNow) -> std::optional<dif_clip_id>;
+			const core::agent_session& aSession,
+			std::uint64_t              aActionGeneration,
+			core::review_draft_id      aDraft,
+			std::uint64_t              aRevision,
+			std::string_view           aProposed,
+			std::int64_t               aNow) -> std::optional<dif_clip_id>;
 		void               begin_draft(const core::revisioned_review_draft_command& aCommand);
 		[[nodiscard]] auto accept_draft(
 			const core::revisioned_review_draft_command& aCommand,
@@ -96,10 +98,12 @@ namespace bpr::qt {
 	private:
 		struct workshop_key final
 		{
-			core::review_draft_id Draft;
-			std::uint64_t         Revision = 0U;
-			std::string           Proposed;
-			auto                  operator<=>(const workshop_key&) const = default;
+			core::agent_session_id Session;
+			std::uint64_t          ActionGeneration = 0U;
+			core::review_draft_id  Draft;
+			std::uint64_t          Revision = 0U;
+			std::string            Proposed;
+			auto                   operator<=>(const workshop_key&) const = default;
 		};
 		[[nodiscard]] auto propose(dif_clip_id aClip, std::int64_t aNow)
 			-> std::optional<dif_clip_id>;
@@ -111,10 +115,12 @@ namespace bpr::qt {
 
 		std::optional<dif_cue_context>                                   Context;
 		std::optional<application::agent_invocation_projection_identity> Active;
+		std::optional<core::agent_session>                               LatestSession;
 		std::optional<core::agent_session>                               LastContinuation;
 		std::optional<workshop_key>                                      Workshop;
 		std::optional<core::revisioned_review_draft_command>             DraftOperation;
-		std::uint64_t                                                    HighestInvocationGeneration = 0U;
+		std::uint64_t                                                    HighestInvocationGeneration     = 0U;
+		std::uint64_t                                                    HighestWorkshopActionGeneration = 0U;
 		std::optional<std::int64_t>                                      LastSemanticStart;
 		std::optional<std::int64_t>                                      LastComparisonStart;
 		int                                                              LastPriority      = 0;

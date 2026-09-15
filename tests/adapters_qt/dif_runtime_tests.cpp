@@ -212,9 +212,11 @@ namespace {
 		expect(!admit_and_start(router, cue_identity(8U), 20'700),
 			   "a prior pull request cannot enter the replacement context");
 
-		expect(router.present_workshop(bpr::core::review_draft_id{ 21U }, 4U, "accepted revision", 0)
+		const auto workshop = cue_identity(9U, 8U);
+		expect(router.admit(workshop)
+				   && router.present_workshop(workshop.Session, 1U, bpr::core::review_draft_id{ 21U }, 4U, "accepted revision", 0)
 					   == dif_clip_id::comment_ready
-				   && !router.present_workshop(bpr::core::review_draft_id{ 21U }, 4U, "accepted revision", 2'000),
+				   && !router.present_workshop(workshop.Session, 1U, bpr::core::review_draft_id{ 21U }, 4U, "accepted revision", 2'000),
 			   "one accepted workshop proposal emits ready and duplicate presentation does not");
 		const auto command = bpr::core::revisioned_review_draft_command{
 			.Command = {
@@ -407,9 +409,11 @@ namespace {
 		}
 
 		{
-			auto router = configured();
-			expect(router.present_workshop(bpr::core::review_draft_id{ 7U }, 3U, "proposed revision", 0)
-					   == dif_clip_id::comment_ready,
+			auto       router   = configured();
+			const auto workshop = cue_identity(1U);
+			expect(router.admit(workshop)
+					   && router.present_workshop(workshop.Session, 1U, bpr::core::review_draft_id{ 7U }, 3U, "proposed revision", 0)
+						   == dif_clip_id::comment_ready,
 				   "the draft-conflict course starts from a presented proposal");
 			const auto command = bpr::core::revisioned_review_draft_command{
 				.Command = {
@@ -437,22 +441,32 @@ namespace {
 		}
 
 		{
-			auto       router = configured();
-			const auto draft  = bpr::core::review_draft_id{ 9U };
-			expect(router.present_workshop(draft, 4U, "first", 0)
+			auto       router       = configured();
+			const auto operationOne = cue_identity(1U);
+			const auto operationTwo = cue_identity(2U);
+			const auto draft        = bpr::core::review_draft_id{ 9U };
+			const auto other        = bpr::core::review_draft_id{ 10U };
+			expect(router.admit(operationOne)
+					   && router.present_workshop(operationOne.Session, 1U, draft, 4U, "first", 0)
 						   == dif_clip_id::comment_ready
-					   && router.present_workshop(draft, 5U, "second", 2'000)
+					   && router.admit(operationTwo)
+					   && router.present_workshop(operationTwo.Session, 2U, other, 4U, "second", 2'000)
 						   == dif_clip_id::comment_ready
-					   && !router.present_workshop(draft, 4U, "first", 4'000)
-					   && !router.present_workshop(draft, 5U, "changed replay", 6'000),
-				   "an older or conflicting same-revision workshop projection cannot replace the latest one");
+					   && !router.present_workshop(operationOne.Session, 1U, draft, 4U, "first", 4'000)
+					   && !router.present_workshop(operationTwo.Session, 2U, other, 4U, "changed replay", 6'000),
+				   "an obsolete cross-draft operation and conflicting replay cannot replace the latest proposal");
+			const auto operationThree = cue_identity(3U);
+			expect(router.admit(operationThree)
+					   && router.present_workshop(operationThree.Session, 3U, draft, 4U, "fresh same revision", 8'000)
+						   == dif_clip_id::comment_ready,
+				   "a distinct fresh workshop operation remains eligible at the same draft revision");
 			const auto ordinary = bpr::core::revisioned_review_draft_command{
 				.Command = {
 					.Id   = draft,
 					.Kind = bpr::core::review_draft_command_kind::edit,
 					.Body = "ordinary body edit",
 				},
-				.ExpectedRevision = 5U,
+				.ExpectedRevision = 4U,
 				.Scope            = bpr::core::review_draft_scope_id{ 10U },
 			};
 			router.begin_draft(ordinary);
@@ -468,6 +482,29 @@ namespace {
 					   },
 					   6'100),
 				   "an ordinary edit cannot acknowledge a retained or rejected workshop proposal");
+			const auto acceptedWorkshop = bpr::core::revisioned_review_draft_command{
+				.Command = {
+					.Id   = draft,
+					.Kind = bpr::core::review_draft_command_kind::edit,
+					.Body = "fresh same revision",
+				},
+				.ExpectedRevision = 4U,
+				.Scope            = ordinary.Scope,
+			};
+			router.begin_draft(acceptedWorkshop);
+			expect(router.accept_draft(
+					   acceptedWorkshop,
+					   {
+						   .Draft = {
+							   .Id   = draft,
+							   .Body = acceptedWorkshop.Command.Body,
+						   },
+						   .Revision = 5U,
+						   .Scope    = acceptedWorkshop.Scope,
+					   },
+					   10'000)
+					   == dif_clip_id::acknowledge,
+				   "explicitly accepting the fresh same-revision proposal acknowledges its operation");
 		}
 	}
 	void test_catalog_and_playback()
