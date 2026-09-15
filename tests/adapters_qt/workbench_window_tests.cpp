@@ -6744,7 +6744,7 @@ namespace {
 		});
 		auto collapsed    = both_files_enabled();
 		collapsed.Drawers = drawer_states(core::workbench_drawer_state::expanded,
-										 core::workbench_drawer_state::collapsed);
+										  core::workbench_drawer_state::collapsed);
 		window.publish(collapsed);
 		process_events();
 		expect(!window.showing_home() && !window.dif_ai_slot()->isVisible()
@@ -6765,8 +6765,8 @@ namespace {
 
 		auto opened    = collapsed;
 		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded,
-								  core::workbench_drawer_state::expanded);
-		opened.Layout = application::workbench_layout_delta{
+									   core::workbench_drawer_state::expanded);
+		opened.Layout  = application::workbench_layout_delta{
 			.FilesWidth         = 320U,
 			.ConversationsWidth = 375U,
 		};

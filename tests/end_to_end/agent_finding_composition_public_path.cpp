@@ -15,6 +15,7 @@
 
 #include "bpr/adapters/mcp/mcp_context_helper.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/dif_runtime.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
@@ -59,6 +60,7 @@ namespace {
 		= "BPR_FINDING_SUGGESTED_0504 name the exhausted retry in the message";
 	constexpr std::string_view agent_claim
 		= "BPR_FINDING_CLAIM_0504 the retry budget is not reported to the caller";
+	constexpr auto contextual_cue_cooldown_ms = 2'100UL;
 
 	template <typename Predicate>
 	[[nodiscard]] auto wait_until_reporting(
@@ -155,7 +157,7 @@ auto main(int argc, char** argv) -> int
 		&& course != "mcp-construction-cut"
 		&& course != "chat-panel-construction-cut"
 		&& course != "queue-construction-cut"
-		&& course != "workshop-press") {
+		&& course != "workshop-press" && course != "dif-context") {
 		return EXIT_FAILURE;
 	}
 	auto data = QTemporaryDir{ };
@@ -290,6 +292,46 @@ auto main(int argc, char** argv) -> int
 			static_cast<qsizetype>(reviewer_original.size())));
 	QApplication::processEvents();
 
+	qt::dif_widget* dif           = nullptr;
+	auto            difComparison = false;
+	if (course == "dif-context") {
+		window.adopt_dif(core::resolve_dif(
+			{ .Visibility = core::dif_visibility::shown,
+			  .Motion     = core::motion_mode::full },
+			core::motion_observation::full));
+		if (window.conversations_drawer()->state()
+			!= core::workbench_drawer_state::expanded) {
+			window.conversations_drawer_toggle_action()->trigger();
+			auto drawer = wait_terms{ };
+			if (!wait_until_reporting(drawer, [&window](wait_terms& aTerms) {
+					return aTerms.require(
+						"conversations-expanded",
+						window.conversations_drawer()->state()
+							== core::workbench_drawer_state::expanded);
+				})) {
+				return fail(*application, "dif-drawer", drawer.render());
+			}
+		}
+		if (!window.ai_tools_action()->isChecked()) {
+			window.ai_tools_action()->trigger();
+		}
+		auto placement = wait_terms{ };
+		if (!wait_until_reporting(placement, [&window, &dif](wait_terms& aTerms) {
+				dif = window.dif();
+				return aTerms.require("dif-created", dif != nullptr)
+					&& aTerms.require(
+						"dif-ai-slot", window.dif_ai_slot()->isVisible())
+					&& aTerms.require(
+						"dif-visible", dif != nullptr && dif->isVisible());
+			})) {
+			return fail(*application, "dif-placement", placement.render());
+		}
+		difComparison = dif->current_frame().Clip
+			== qt::dif_index(qt::dif_clip_id::compare_glance);
+		QThread::msleep(contextual_cue_cooldown_ms);
+		QApplication::processEvents();
+	}
+
 	const auto codexIndex = panel->profile_selector()->findData(
 		QVariant::fromValue<qulonglong>(core::codex_jsonl_profile_id.value()));
 	if (codexIndex < 0) {
@@ -322,10 +364,16 @@ auto main(int argc, char** argv) -> int
 		panel->start_button()->click();
 	}
 
-	auto delivered = wait_terms{ };
+	auto delivered      = wait_terms{ };
+	auto difSawConsider = false;
 	if (!wait_until_reporting(
 			delivered,
-			[&application](wait_terms& aTerms) {
+			[&application, dif, &difSawConsider](wait_terms& aTerms) {
+				if (dif != nullptr
+					&& dif->current_frame().Clip
+						== qt::dif_index(qt::dif_clip_id::consider)) {
+					difSawConsider = true;
+				}
 				const auto invocation = app::detail::
 					github_application_fixture_access::agent_invocation_evidence(
 						*application);
@@ -345,6 +393,8 @@ auto main(int argc, char** argv) -> int
 		return fail(*application, "agent-run", delivered.render());
 	}
 	QApplication::processEvents();
+	const auto difAttention = dif != nullptr
+		&& dif->current_frame().Clip == qt::dif_index(qt::dif_clip_id::attention);
 
 	// BPR-0538. The same terminal the first turn was waited on, for every turn
 	// after it: quiescent, with exactly as many processes started and
@@ -393,6 +443,10 @@ auto main(int argc, char** argv) -> int
 	const auto afterDelivery
 		= app::detail::github_application_fixture_access::agent_finding_evidence(
 			*application);
+	if (course == "dif-context") {
+		QThread::msleep(contextual_cue_cooldown_ms);
+		QApplication::processEvents();
+	}
 
 	// The conversion gesture, on the composed queue, against the finding the
 	// run delivered. Nothing is published by it and nothing can be.
@@ -408,6 +462,9 @@ auto main(int argc, char** argv) -> int
 	const auto afterConversion
 		= app::detail::github_application_fixture_access::agent_finding_evidence(
 			*application);
+	const auto difCommentReady = dif != nullptr
+		&& dif->current_frame().Clip
+			== qt::dif_index(qt::dif_clip_id::comment_ready);
 
 	if (course == "workshop-press" && editor->clarify_action() != nullptr) {
 		// Answered, so the offer is open again. A control that stayed shut
@@ -422,9 +479,16 @@ auto main(int argc, char** argv) -> int
 		afterConversion.WorkshopProposals == 1U
 		&& editor->accept_revision_action() != nullptr
 		&& editor->accept_revision_action()->isEnabled()) {
+		if (course == "dif-context") {
+			QThread::msleep(contextual_cue_cooldown_ms);
+			QApplication::processEvents();
+		}
 		editor->accept_revision_action()->trigger();
 		QApplication::processEvents();
 	}
+	const auto difAcknowledge = dif != nullptr
+		&& dif->current_frame().Clip
+			== qt::dif_index(qt::dif_clip_id::acknowledge);
 	// BPR-0538. Two more stages, on the press course only, and both driven
 	// through the same composed graph: the turn that answers nothing, and the
 	// turn that belongs to somebody else.
@@ -569,6 +633,27 @@ auto main(int argc, char** argv) -> int
 		&& evidence.LocalDraftBody == agent_suggested
 		&& evidence.SideChatPresentations != 0U
 		&& exact_helper_launch(evidence, snapshotRoot);
+
+	if (course == "dif-context") {
+		const auto passed = difComparison && difSawConsider && difAttention
+			&& difCommentReady && difAcknowledge
+			&& afterDelivery.QueuedFindings == 1U
+			&& afterDelivery.QueuedClaim.find(agent_claim) != std::string::npos
+			&& afterConversion.WorkshopProposalText == agent_suggested
+			&& evidence.LocalDraftBody == agent_suggested && noGithubMutation;
+		if (!passed) {
+			std::cerr << "agent-finding-dif-context-evidence:"
+					  << difComparison << ':' << difSawConsider << ':'
+					  << difAttention << ':' << difCommentReady << ':'
+					  << difAcknowledge << ':' << afterDelivery.QueuedFindings
+					  << ':' << mutation.Submissions << '\n';
+		}
+		if (!shutdown(*application) || !passed) {
+			return EXIT_FAILURE;
+		}
+		std::cout << "agent-finding-dif-context:pass\n";
+		return EXIT_SUCCESS;
+	}
 
 	if (course == "workshop-press") {
 		// BPR-0533. Press → invocation → proposal, in the composed graph and

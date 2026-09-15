@@ -92,40 +92,40 @@ namespace bpr::qt {
 		auto cue_priority(const dif_clip_id aClip) -> int
 		{
 			switch (aClip) {
-				case dif_clip_id::blocked:   return 4;
-				case dif_clip_id::attention: return 3;
-				case dif_clip_id::comment_ready:
-				case dif_clip_id::acknowledge: return 2;
-				case dif_clip_id::consider:
-				case dif_clip_id::compare_glance: return 1;
-				default: return 0;
+			case dif_clip_id::blocked:        return 4;
+			case dif_clip_id::attention:      return 3;
+			case dif_clip_id::comment_ready:
+			case dif_clip_id::acknowledge:    return 2;
+			case dif_clip_id::consider:
+			case dif_clip_id::compare_glance: return 1;
+			default:                          return 0;
 			}
 		}
 
 	}
 
-	void dif_cue_router::observe(dif_cue_context aContext)
+	auto dif_cue_router::observe(dif_cue_context aContext) -> bool
 	{
 		if (Context == std::optional{ aContext }) {
-			return;
+			return false;
 		}
 		clear();
 		Context = std::move(aContext);
+		return true;
 	}
 
 	void dif_cue_router::clear()
 	{
 		Context.reset();
 		Active.reset();
-		Terminal.reset();
 		LastContinuation.reset();
 		Workshop.reset();
 		DraftOperation.reset();
 		HighestInvocationGeneration = 0U;
 		LastSemanticStart.reset();
 		LastComparisonStart.reset();
-		LastPriority = 0;
-		ReplyPresented = false;
+		LastPriority      = 0;
+		ReplyPresented    = false;
 		FindingsPresented = false;
 	}
 
@@ -148,9 +148,10 @@ namespace bpr::qt {
 		-> bool
 	{
 		return Context.has_value() && Active == std::optional{ aIdentity }
-			&& aIdentity.ApplicationSession == Context->ApplicationSession
+		&& aIdentity.ApplicationSession == Context->ApplicationSession
 			&& aIdentity.Authority == Context->Authority
-			&& in_context(aIdentity.Session);
+			&& in_context(aIdentity.Session)
+			&& aIdentity.Session.Binding == Context->Binding;
 	}
 
 	auto dif_cue_router::propose(const dif_clip_id aClip, const std::int64_t aNow)
@@ -171,7 +172,7 @@ namespace bpr::qt {
 			return std::nullopt;
 		}
 		LastSemanticStart = aNow;
-		LastPriority = priority;
+		LastPriority      = priority;
 		if (aClip == dif_clip_id::compare_glance) {
 			LastComparisonStart = aNow;
 		}
@@ -188,27 +189,28 @@ namespace bpr::qt {
 
 	auto dif_cue_router::start(
 		const application::agent_invocation_projection_identity& aIdentity,
-		const std::int64_t aNow) -> std::optional<dif_clip_id>
+		const std::int64_t                                       aNow) -> std::optional<dif_clip_id>
 	{
 		if (!Context.has_value()
 			|| aIdentity.ApplicationSession != Context->ApplicationSession
 			|| aIdentity.Authority != Context->Authority
 			|| !in_context(aIdentity.Session)
+			|| aIdentity.Session.Binding != Context->Binding
 			|| aIdentity.InvocationGeneration <= HighestInvocationGeneration) {
 			return std::nullopt;
 		}
 		HighestInvocationGeneration = aIdentity.InvocationGeneration;
-		Active = aIdentity;
-		ReplyPresented = false;
-		FindingsPresented = false;
+		Active                      = aIdentity;
+		ReplyPresented              = false;
+		FindingsPresented           = false;
 		return propose(dif_clip_id::consider, aNow);
 	}
 
 	void dif_cue_router::deliver(
 		const application::agent_invocation_projection_identity& aIdentity,
 		const application::agent_finding_delivery&               aDelivery,
-		const bool aReplyPresented,
-		const bool aFindingsPresented)
+		const bool                                               aReplyPresented,
+		const bool                                               aFindingsPresented)
 	{
 		if (!current(aIdentity) || aDelivery.Session != aIdentity.Session.Id
 			|| aDelivery.Binding != aIdentity.Session.Binding
@@ -221,13 +223,12 @@ namespace bpr::qt {
 
 	auto dif_cue_router::finish(
 		const application::agent_invocation_projection_identity& aIdentity,
-		const application::agent_run_outcome aOutcome,
-		const std::int64_t aNow) -> std::optional<dif_clip_id>
+		const application::agent_run_outcome                     aOutcome,
+		const std::int64_t                                       aNow) -> std::optional<dif_clip_id>
 	{
 		if (!current(aIdentity)) {
 			return std::nullopt;
 		}
-		Terminal = aIdentity;
 		Active.reset();
 		auto clip = std::optional<dif_clip_id>{ };
 		if (aOutcome != application::agent_run_outcome::success) {
@@ -237,15 +238,15 @@ namespace bpr::qt {
 		} else if (ReplyPresented) {
 			clip = dif_clip_id::comment_ready;
 		}
-		ReplyPresented = false;
+		ReplyPresented    = false;
 		FindingsPresented = false;
 		return clip.has_value() ? propose(*clip, aNow) : std::nullopt;
 	}
 
 	auto dif_cue_router::present_workshop(
 		const core::review_draft_id aDraft,
-		const std::uint64_t aRevision,
-		const std::int64_t aNow) -> std::optional<dif_clip_id>
+		const std::uint64_t         aRevision,
+		const std::int64_t          aNow) -> std::optional<dif_clip_id>
 	{
 		const auto key = workshop_key{ aDraft, aRevision };
 		if (!Context.has_value() || aDraft.value() == 0U || aRevision == 0U
@@ -271,8 +272,8 @@ namespace bpr::qt {
 
 	auto dif_cue_router::accept_draft(
 		const core::revisioned_review_draft_command& aCommand,
-		const core::revisioned_review_draft& aAccepted,
-		const std::int64_t aNow) -> std::optional<dif_clip_id>
+		const core::revisioned_review_draft&         aAccepted,
+		const std::int64_t                           aNow) -> std::optional<dif_clip_id>
 	{
 		if (!DraftOperation.has_value() || !same_command(*DraftOperation, aCommand)
 			|| aAccepted.Scope != aCommand.Scope
@@ -296,9 +297,9 @@ namespace bpr::qt {
 	}
 
 	auto dif_cue_router::present_continuation(
-		const core::agent_session& aSession,
+		const core::agent_session&            aSession,
 		const core::agent_continuation_offer& aOffer,
-		const std::int64_t aNow) -> std::optional<dif_clip_id>
+		const std::int64_t                    aNow) -> std::optional<dif_clip_id>
 	{
 		if (!aOffer.Required || !in_context(aSession)
 			|| aOffer.ContinueAgainst != aSession.Binding
@@ -563,6 +564,12 @@ namespace bpr::qt {
 			cancel();
 		}
 		resume_home();
+	}
+	void dif_widget::reset_contextual()
+	{
+		if (!Home) {
+			cancel();
+		}
 	}
 	void dif_widget::resume_home()
 	{

@@ -350,7 +350,7 @@ namespace bpr::qt {
 		, GithubProfiles{ std::move(aProfiles) }
 		, GithubDispatch{ std::move(aGithubDispatch) }
 	{
-		DifCues = std::make_unique<dif_cue_router>();
+		DifCues     = std::make_unique<dif_cue_router>();
 		DifCueClock = std::make_unique<QElapsedTimer>();
 		DifCueClock->start();
 		setObjectName(QStringLiteral("workbenchWindow"));
@@ -1278,7 +1278,7 @@ namespace bpr::qt {
 		// tools already composed below it; selecting it reveals Findings and
 		// permits the one window-owned decorative slot. It dispatches no agent
 		// or review action and never opens the drawer itself.
-		auto* const conversationShell = new QWidget{ Drawers[1].Panel };
+		auto* const conversationShell       = new QWidget{ Drawers[1].Panel };
 		auto* const conversationShellLayout = new QVBoxLayout{ conversationShell };
 		conversationShellLayout->setContentsMargins(0, 0, 0, 0);
 		auto* const aiHeader = new QWidget{ conversationShell };
@@ -3618,14 +3618,22 @@ namespace bpr::qt {
 
 	void workbench_window::observe_dif_context(
 		const core::application_session_id aSession,
-		core::pull_request_authority aAuthority)
+		core::pull_request_authority       aAuthority,
+		core::agent_revision_binding       aBinding)
 	{
-		DifCues->observe({ aSession, std::move(aAuthority) });
+		if (DifCues->observe(
+				{ aSession, std::move(aAuthority), std::move(aBinding) })
+			&& Dif != nullptr) {
+			Dif->reset_contextual();
+		}
 	}
 
 	void workbench_window::clear_dif_context()
 	{
 		DifCues->clear();
+		if (Dif != nullptr) {
+			Dif->reset_contextual();
+		}
 	}
 
 	void workbench_window::play_dif_cue(std::optional<dif_clip_id> aCue)
@@ -3643,9 +3651,9 @@ namespace bpr::qt {
 
 	void workbench_window::present_dif_agent_delivery(
 		const application::agent_invocation_projection_identity& aIdentity,
-		const application::agent_finding_delivery& aDelivery,
-		const bool aReplyPresented,
-		const bool aFindingsPresented)
+		const application::agent_finding_delivery&               aDelivery,
+		const bool                                               aReplyPresented,
+		const bool                                               aFindingsPresented)
 	{
 		DifCues->deliver(
 			aIdentity, aDelivery, aReplyPresented, aFindingsPresented);
@@ -3653,14 +3661,14 @@ namespace bpr::qt {
 
 	void workbench_window::finish_dif_invocation(
 		const application::agent_invocation_projection_identity& aIdentity,
-		const application::agent_run_outcome aOutcome)
+		const application::agent_run_outcome                     aOutcome)
 	{
 		play_dif_cue(DifCues->finish(aIdentity, aOutcome, DifCueClock->elapsed()));
 	}
 
 	void workbench_window::present_dif_workshop(
 		const core::review_draft_id aDraft,
-		const std::uint64_t aRevision)
+		const std::uint64_t         aRevision)
 	{
 		play_dif_cue(DifCues->present_workshop(aDraft, aRevision, DifCueClock->elapsed()));
 	}
@@ -3673,7 +3681,7 @@ namespace bpr::qt {
 
 	void workbench_window::accept_dif_draft(
 		const core::revisioned_review_draft_command& aCommand,
-		const core::revisioned_review_draft& aAccepted)
+		const core::revisioned_review_draft&         aAccepted)
 	{
 		play_dif_cue(DifCues->accept_draft(
 			aCommand, aAccepted, DifCueClock->elapsed()));
@@ -3686,7 +3694,7 @@ namespace bpr::qt {
 	}
 
 	void workbench_window::present_dif_continuation(
-		const core::agent_session& aSession,
+		const core::agent_session&            aSession,
 		const core::agent_continuation_offer& aOffer)
 	{
 		play_dif_cue(DifCues->present_continuation(
@@ -4400,10 +4408,10 @@ namespace bpr::qt {
 		if (HomeLanding == nullptr || DifAiSlot == nullptr || !DifResolutionReady) {
 			return;
 		}
-		const auto shown = DifResolution.Preferences.Visibility == core::dif_visibility::shown;
-		const auto home = showing_home();
+		const auto shown    = DifResolution.Preferences.Visibility == core::dif_visibility::shown;
+		const auto home     = showing_home();
 		const auto homeSlot = home && HomeLanding->illustration_space_available();
-		const auto aiSlot = showing_dif_ai();
+		const auto aiSlot   = showing_dif_ai();
 		if (Dif == nullptr && shown && isVisible() && (homeSlot || aiSlot) && DifCatalog) {
 			if (auto cache = DifCatalog->acquire()) {
 				Dif = new dif_widget{ std::move(cache), homeSlot ? HomeLanding : DifAiSlot };

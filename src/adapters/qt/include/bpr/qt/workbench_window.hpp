@@ -461,31 +461,32 @@ namespace bpr::qt {
 		/// \brief Primes the exact accepted review whose AI projections may cue Dif.
 		void observe_dif_context(
 			core::application_session_id aSession,
-			core::pull_request_authority aAuthority);
+			core::pull_request_authority aAuthority,
+			core::agent_revision_binding aBinding);
 		void clear_dif_context();
 		/// \brief Offers already-presented accepted AI facts to the Qt-local router.
 		void start_dif_invocation(
 			const application::agent_invocation_projection_identity& aIdentity);
 		void present_dif_agent_delivery(
 			const application::agent_invocation_projection_identity& aIdentity,
-			const application::agent_finding_delivery& aDelivery,
-			bool aReplyPresented,
-			bool aFindingsPresented);
+			const application::agent_finding_delivery&               aDelivery,
+			bool                                                     aReplyPresented,
+			bool                                                     aFindingsPresented);
 		void finish_dif_invocation(
 			const application::agent_invocation_projection_identity& aIdentity,
-			application::agent_run_outcome aOutcome);
+			application::agent_run_outcome                           aOutcome);
 		void present_dif_workshop(
 			core::review_draft_id aDraft,
-			std::uint64_t aRevision);
+			std::uint64_t         aRevision);
 		void begin_dif_draft(
 			const core::revisioned_review_draft_command& aCommand);
 		void accept_dif_draft(
 			const core::revisioned_review_draft_command& aCommand,
-			const core::revisioned_review_draft& aAccepted);
+			const core::revisioned_review_draft&         aAccepted);
 		void cancel_dif_draft(
 			const core::revisioned_review_draft_command& aCommand);
 		void present_dif_continuation(
-			const core::agent_session& aSession,
+			const core::agent_session&            aSession,
 			const core::agent_continuation_offer& aOffer);
 		/// \brief The strip's Home button: Home on demand, checked while shown.
 		[[nodiscard]] auto home_action() const noexcept -> QAction*;
@@ -802,19 +803,19 @@ namespace bpr::qt {
 		void observe_drawer_width(
 			core::workbench_drawer aDrawer,
 			std::uint32_t          aWidth);
-		void apply_drawer_layout();
-		void apply_drawer_widths();
-		void observe_handle_drag();
-		void configure_tool_buttons();
-		void refresh_toolbar_icons();
-		void update_strip_positions();
-		void update_strip_identity();
-		void update_account_action();
-		void apply_strip_width();
-		void apply_review_details_visibility();
-		void update_home_landing();
-		void update_dif_presentation();
-		void play_dif_cue(std::optional<dif_clip_id> aCue);
+		void               apply_drawer_layout();
+		void               apply_drawer_widths();
+		void               observe_handle_drag();
+		void               configure_tool_buttons();
+		void               refresh_toolbar_icons();
+		void               update_strip_positions();
+		void               update_strip_identity();
+		void               update_account_action();
+		void               apply_strip_width();
+		void               apply_review_details_visibility();
+		void               update_home_landing();
+		void               update_dif_presentation();
+		void               play_dif_cue(std::optional<dif_clip_id> aCue);
 		[[nodiscard]] auto showing_dif_ai() const -> bool;
 		/// \brief [[BPR-0733]]. Rebuilds Home's recently viewed rows and shows
 		/// or hides the section by whether there are any.
@@ -937,12 +938,12 @@ namespace bpr::qt {
 		std::shared_ptr<dif_catalog_provider>    DifCatalog;
 		std::unique_ptr<dif_cue_router>          DifCues;
 		std::unique_ptr<QElapsedTimer>           DifCueClock;
-		dif_widget*                              Dif = nullptr;
-		QWidget*                                 DifAiSlot = nullptr;
-		QAction*                                 AiToolsAction = nullptr;
-		QToolButton*                            AiToolsButton = nullptr;
-		QScrollArea*                            ConversationScroll = nullptr;
-		bool                                     AiToolsSelected = false;
+		dif_widget*                              Dif                = nullptr;
+		QWidget*                                 DifAiSlot          = nullptr;
+		QAction*                                 AiToolsAction      = nullptr;
+		QToolButton*                             AiToolsButton      = nullptr;
+		QScrollArea*                             ConversationScroll = nullptr;
+		bool                                     AiToolsSelected    = false;
 		core::dif_resolution                     DifResolution;
 		bool                                     DifResolutionReady   = false;
 		QWidget*                                 HomePage             = nullptr;

@@ -3269,7 +3269,7 @@ namespace bpr::app {
 			const application::agent_finding_delivery&)>;
 		using session_sink   = std::function<void(const core::agent_session&)>;
 		using workspace_sink = std::function<void(const application::prepared_workspace&)>;
-		using start_sink = std::function<void(
+		using start_sink     = std::function<void(
 			const application::agent_invocation_projection_identity&)>;
 		/// \brief BPR-0538. One turn, ended, with how it ended.
 		///
@@ -6087,8 +6087,10 @@ namespace bpr::app {
 						Window->present_dif_agent_delivery(
 							aIdentity,
 							aDelivery,
-							ChatHost != nullptr && !aDelivery.Findings.empty(),
-							FindingHost != nullptr && !aDelivery.Findings.empty());
+							ChatHost != nullptr && SideChat != nullptr
+								&& !aDelivery.Findings.empty(),
+							FindingHost != nullptr && FindingQueue != nullptr
+								&& !aDelivery.Findings.empty());
 						// BPR-0538. Whether the turn a press is waiting on has
 						// produced anything the reviewer could still convert.
 						// Recorded from the delivery rather than inferred at
@@ -6378,14 +6380,14 @@ namespace bpr::app {
 						present_chat_outcome(aOutcome);
 					},
 					[this]() {
-					if (SideChat != nullptr) {
-						++SideChatPresentations;
-						SideChat->present(qt::side_chat_projection{ });
-					}
-					if (Window != nullptr) {
-						Window->clear_dif_context();
-					}
-				});
+						if (SideChat != nullptr) {
+							++SideChatPresentations;
+							SideChat->present(qt::side_chat_projection{ });
+						}
+						if (Window != nullptr) {
+							Window->clear_dif_context();
+						}
+					});
 #if defined(BPR_BUILD_TESTING)
 			if (!DisableChatSessionHostComposition)
 #endif
@@ -9557,20 +9559,6 @@ namespace bpr::app {
 				Window->clear_dif_context();
 				return;
 			}
-			Window->observe_dif_context(state.ApplicationSession, authority);
-			AgentHost->observe(
-				state.ApplicationSession,
-				authority,
-				core::agent_revision_binding{
-					.Host        = authority.Host,
-					.Repository  = authority.Repository,
-					.PullRequest = authority.PullRequest,
-					.BaseOid     = revision.Base,
-					.HeadOid     = revision.Head,
-					.LeftEpoch   = comparison.Left.Identity.Epoch,
-					.RightEpoch  = comparison.Right.Identity.Epoch,
-				});
-			refresh_agent_private_context_choices();
 			const auto observedBinding = core::agent_revision_binding{
 				.Host        = authority.Host,
 				.Repository  = authority.Repository,
@@ -9580,6 +9568,11 @@ namespace bpr::app {
 				.LeftEpoch   = comparison.Left.Identity.Epoch,
 				.RightEpoch  = comparison.Right.Identity.Epoch,
 			};
+			Window->observe_dif_context(
+				state.ApplicationSession, authority, observedBinding);
+			AgentHost->observe(
+				state.ApplicationSession, authority, observedBinding);
+			refresh_agent_private_context_choices();
 			if (ChatHost != nullptr) {
 				// Recorded, never retargeted. The chat host presents itself
 				// through its own projection, so a head that moved makes the

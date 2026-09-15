@@ -1296,6 +1296,7 @@ foreach(
         mcp-construction-cut
         chat-panel-construction-cut
         queue-construction-cut
+        dif-context
 )
     if(course STREQUAL "positive")
         set(finding_test_name application_agent_finding_composition_contract)
