@@ -1,0 +1,26 @@
+{
+  "operation": "Removed bright eye catchlight/white highlights from pose frames to better match requested existing-frame eye treatment.",
+  "changed_files_count": 68,
+  "changed_files_sample": [
+    "poses/acknowledge/frame-000.png",
+    "poses/acknowledge/frame-001.png",
+    "poses/acknowledge/frame-002.png",
+    "poses/acknowledge/frame-003.png",
+    "poses/acknowledge/frame-004.png",
+    "poses/acknowledge/frame-005.png",
+    "poses/acknowledge/frame-006.png",
+    "poses/acknowledge/frame-007.png",
+    "poses/attention/frame-000.png",
+    "poses/attention/frame-001.png",
+    "poses/attention/frame-002.png",
+    "poses/attention/frame-003.png",
+    "poses/attention/frame-004.png",
+    "poses/attention/frame-005.png",
+    "poses/blink/frame-000.png",
+    "poses/blink/frame-004.png",
+    "poses/blink/frame-005.png",
+    "poses/blocked/frame-000.png",
+    "poses/blocked/frame-001.png",
+    "poses/blocked/frame-002.png"
+  ]
+}

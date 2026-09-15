@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dif d10 motion review</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { margin: 0; background: #eef1f6; color: #18202d; }
+    header { position: sticky; top: 0; z-index: 2; padding: 16px 22px; background: #ffffffee; border-bottom: 1px solid #c8cfda; backdrop-filter: blur(10px); }
+    h1 { margin: 0 0 5px; font-size: 20px; }
+    p { margin: 4px 0; max-width: 82ch; }
+    .controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    button { border: 1px solid #8b96a8; border-radius: 7px; padding: 7px 10px; background: #fff; color: #18202d; cursor: pointer; }
+    main { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; padding: 18px; }
+    article { border: 1px solid #c8cfda; border-radius: 10px; background: #fff; overflow: hidden; box-shadow: 0 3px 12px #17243a18; }
+    article h2 { font-size: 16px; margin: 12px 14px 3px; }
+    article p { font-size: 13px; margin: 0 14px 10px; color: #536075; min-height: 38px; }
+    .stage { min-height: 170px; display: grid; place-items: center; background: #f8fafc; border-top: 1px solid #e1e5eb; }
+    .stage img { width: 96px; height: 96px; image-rendering: auto; }
+    body.dark { background: #151922; color: #f0f3f8; }
+    body.dark header { background: #171c25ee; border-color: #3c4555; }
+    body.dark article { background: #202632; border-color: #3c4555; }
+    body.dark article p { color: #b2bccb; }
+    body.dark .stage { background: #252c38; border-color: #3c4555; }
+    body.black { background: #000; color: #fff; }
+    body.black header, body.black article, body.black .stage { background: #000; border-color: #444; }
+    body.black article p { color: #bbb; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Dif d10 exact structural candidate</h1>
+    <p>These APNGs use the manifest's declared frame timing. Inspect the neutral handoff, silhouette, anatomy and intent at the shipping sizes.</p>
+    <div class="controls" aria-label="Preview controls">
+      <button type="button" data-size="64">64 px</button>
+      <button type="button" data-size="72">72 px</button>
+      <button type="button" data-size="96">96 px</button>
+      <button type="button" data-theme="light">Light</button>
+      <button type="button" data-theme="dark">Dark</button>
+      <button type="button" data-theme="black">Black</button>
+      <button type="button" id="replay">Replay all</button>
+    </div>
+  </header>
+  <main id="clips"></main>
+  <script>
+    const clips = [
+      ["rest", "Reduced-motion endpoint and common neutral."],
+      ["calm_idle", "Closed breathing seam; watch lower torso volume."],
+      ["greet", "Viewer-right wave; inspect shoulder and neutral return."],
+      ["blink", "Eye-only blink; inspect lids and endpoint face."],
+      ["compare_glance", "Side glance; inspect full-head yaw and edges."],
+      ["consider", "Paw-to-chin pose; inspect shoulder and chin handoff."],
+      ["comment_ready", "Two open palms; inspect tucked-to-open transition."],
+      ["attention", "Raised open paw; inspect shoulder and head transition."],
+      ["acknowledge", "Single shallow nod and neutral return."],
+      ["blocked", "Viewer-left patient open palm and tilt."]
+    ];
+    let size = 96;
+    const root = document.querySelector("#clips");
+    function source(id) { return `../preview/motion/${id}-${size}px.png`; }
+    function render() {
+      root.replaceChildren(...clips.map(([id, note]) => {
+        const article = document.createElement("article");
+        const title = document.createElement("h2");
+        title.textContent = id.replaceAll("_", " ");
+        const text = document.createElement("p");
+        text.textContent = note;
+        const stage = document.createElement("div");
+        stage.className = "stage";
+        const image = document.createElement("img");
+        image.alt = `${id} animation at ${size} pixels`;
+        image.src = source(id);
+        image.width = size;
+        image.height = size;
+        stage.append(image);
+        article.append(title, text, stage);
+        return article;
+      }));
+    }
+    document.querySelectorAll("[data-size]").forEach(button => button.addEventListener("click", () => {
+      size = Number(button.dataset.size);
+      render();
+    }));
+    document.querySelectorAll("[data-theme]").forEach(button => button.addEventListener("click", () => {
+      document.body.className = button.dataset.theme === "light" ? "" : button.dataset.theme;
+    }));
+    document.querySelector("#replay").addEventListener("click", render);
+    render();
+  </script>
+</body>
+</html>

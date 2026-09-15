@@ -1,0 +1,3087 @@
+{
+  "accepted_neutral": {
+    "canonical_png_sha256": "e2820eeff1f1ebf2584b1947a2b2062f98f29b541dd587cc8ce92196c71ab0cf",
+    "decoded_rgba_sha256": "b1b19d8606fa4b89a07ed01854ed3668b1512378fb56ae60d2c348b2768e5d3b",
+    "dimensions": [
+      1024,
+      1024
+    ]
+  },
+  "contract_counts": {
+    "acknowledge": 8,
+    "attention": 6,
+    "blink": 6,
+    "blocked": 6,
+    "calm_idle": 12,
+    "comment_ready": 8,
+    "compare_glance": 8,
+    "consider": 8,
+    "greet": 8,
+    "rest": 1
+  },
+  "d9_handoff": {
+    "bytes": 26946857,
+    "name": "dif-external-generator-handoff-d9.zip",
+    "sha256": "cf1390d284b2abcd9af6de07f991ab17b1c7ac1efe7369ff42ef57c60359e751"
+  },
+  "decoded_duplicate_groups": [
+    [
+      "poses/acknowledge/frame-000.png",
+      "poses/acknowledge/frame-007.png",
+      "poses/attention/frame-000.png",
+      "poses/attention/frame-005.png",
+      "poses/blink/frame-000.png",
+      "poses/blink/frame-004.png",
+      "poses/blink/frame-005.png",
+      "poses/blocked/frame-000.png",
+      "poses/blocked/frame-005.png",
+      "poses/calm_idle/frame-000.png",
+      "poses/calm_idle/frame-008.png",
+      "poses/comment_ready/frame-000.png",
+      "poses/comment_ready/frame-007.png",
+      "poses/compare_glance/frame-000.png",
+      "poses/compare_glance/frame-007.png",
+      "poses/consider/frame-000.png",
+      "poses/consider/frame-007.png",
+      "poses/greet/frame-000.png",
+      "poses/greet/frame-007.png",
+      "poses/rest/frame-000.png"
+    ],
+    [
+      "poses/blink/frame-001.png",
+      "poses/blink/frame-003.png"
+    ],
+    [
+      "poses/calm_idle/frame-001.png",
+      "poses/calm_idle/frame-007.png"
+    ],
+    [
+      "poses/calm_idle/frame-002.png",
+      "poses/calm_idle/frame-006.png"
+    ],
+    [
+      "poses/calm_idle/frame-003.png",
+      "poses/calm_idle/frame-005.png"
+    ],
+    [
+      "poses/calm_idle/frame-009.png",
+      "poses/calm_idle/frame-011.png"
+    ]
+  ],
+  "dispatch": "d10",
+  "external_neutral": {
+    "alpha_equal": true,
+    "decoded_rgba_sha256": "954222a495fb31f7408e67b5303325d5ba8f4bd39e0cc8aeb0582eb83ad20f7c",
+    "diff_bounds": [
+      398,
+      345,
+      643,
+      376
+    ],
+    "diff_pixel_count": 1424,
+    "file_sha256": "a6bb1934dd7336e575abe1feac7b7714354559002abdb648189c8ec991460b49"
+  },
+  "external_result": {
+    "folder_name": "dif-d9-poses-no-eye-whites",
+    "inventory_sha256": "f31d657e52bb6b93a172ecdf15a7fea9c6bc9d3acb75166428fe066e0f8b4eb7",
+    "png_bytes": 52737369,
+    "png_count": 71,
+    "zip_bytes": 52533993,
+    "zip_name": "dif-d9-poses-no-eye-whites.zip",
+    "zip_sha256": "714ea8bd255695cc50d09b9895de6ebc94dd83e965c0ede0a28f3dcdc0ce1126"
+  },
+  "files": [
+    {
+      "bytes": 760380,
+      "canonical_png_sha256": "15af5f8c072d039e98e16bdb8eeb121ce0eb74727fb3c9748217ce7ffbb4f34f",
+      "decoded_rgba_sha256": "954222a495fb31f7408e67b5303325d5ba8f4bd39e0cc8aeb0582eb83ad20f7c",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/acknowledge/frame-000.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "98157607b582f2a1733991d83601fee8dfdeda0e4546ac8efc7aa20e9d3ba676",
+      "sha256": "a6bb1934dd7336e575abe1feac7b7714354559002abdb648189c8ec991460b49",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 736480,
+      "canonical_png_sha256": "67b11dce04d16addf90314b803609715a4f1df567b2cacbc069431d6cf1685a7",
+      "decoded_rgba_sha256": "4de67b21af8573b5f8bf89454e9eb46c21ec9bdb017da05bb283f26d3be0b409",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/acknowledge/frame-001.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "3d5f140f7c566a50a9edd52f533d929b7b346bb9c22b505bd8da393a88227951",
+      "sha256": "7e11275820e1006d46e9a9054b06a25d79a35aa8f5521e221fed371929522c5a",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 735404,
+      "canonical_png_sha256": "becd90b91740090f9575b48791c4787d5eae09d2dbc0bccfc75208cb7a04b459",
+      "decoded_rgba_sha256": "701e22a9e0bd39213c46898e79bed8553a1aa355ccad6987b012f085e614ca79",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/acknowledge/frame-002.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "b071f826b609225225bf67042c336499772cba5ed903a71a774292028c78a283",
+      "sha256": "f765f5f7a60639b335f5ee70e502c0ec8056e555bffa57e3cf669684391cb037",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 734401,
+      "canonical_png_sha256": "f89c887b5949a2b231d7ee7d5cbcbcfb2e098945def20d6297aecf6a3a0b7937",
+      "decoded_rgba_sha256": "ce55cb1ff381087d1d18e0ef7b8f35927d66c72b73beefe2aca213ebceffa57e",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/acknowledge/frame-003.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "7b10807b5e1cbc1b644e78204b340e8893d7eb9787076c3252a36aa40336eacc",
+      "sha256": "3f8211ca34e7b19c83a7e1111b6931435491a1cfd6e24eb540db235929fcfcd5",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 734568,
+      "canonical_png_sha256": "62b9cf9310235b4bf8d955ccbaa98322249c3c94fc217327b079d674cd5b673a",
+      "decoded_rgba_sha256": "3eeb10fb5e447f98a5230740e78826c0b79eae29ec3e39305c31fc8646422de0",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/acknowledge/frame-004.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "acd738b5cdaa9e0eb7cfcf3609df9f3418ac6351c882fc250f7ab38e6d9a3afa",
+      "sha256": "77f1c2dfc74c155e5dd01e84330f50df320abe83505579e218bb7e61e00642c7",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 736629,
+      "canonical_png_sha256": "d05ad67a3c687d84e8565b9c33007c58023113b01429cfcdf40b825fee540f6f",
+      "decoded_rgba_sha256": "67954cd1dd70291a26997f29bacb80b2fb6e2f02acbaeb417a240e7e28246811",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/acknowledge/frame-005.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "c0d5458755ad38af729b083662af7ce3e68ebfe2a61bb77202b8788764a46196",
+      "sha256": "d2e75e387360bf334ee3d407ebef2abcd49eae32fcaaa0519ed217fd892747a6",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 720435,
+      "canonical_png_sha256": "5699d419b49df14d618feeae260b46b35cffcde66adc0d38ceb32d95adf16cb6",
+      "decoded_rgba_sha256": "c59c122bfb81ff17b3a1389530aa257eb242d08d3fd10ecb03e17ccd2d88d9e3",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/acknowledge/frame-006.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "675b131ec6c1ea9f110b4303b9feb6ad6c9f34990c8a31e08cc7e58c280ddb4f",
+      "sha256": "a487c87e8087d52cc05991224266c9ef470a55aa8a31508ac9a0a0135205f845",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 760380,
+      "canonical_png_sha256": "15af5f8c072d039e98e16bdb8eeb121ce0eb74727fb3c9748217ce7ffbb4f34f",
+      "decoded_rgba_sha256": "954222a495fb31f7408e67b5303325d5ba8f4bd39e0cc8aeb0582eb83ad20f7c",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/acknowledge/frame-007.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "98157607b582f2a1733991d83601fee8dfdeda0e4546ac8efc7aa20e9d3ba676",
+      "sha256": "a6bb1934dd7336e575abe1feac7b7714354559002abdb648189c8ec991460b49",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 760380,
+      "canonical_png_sha256": "15af5f8c072d039e98e16bdb8eeb121ce0eb74727fb3c9748217ce7ffbb4f34f",
+      "decoded_rgba_sha256": "954222a495fb31f7408e67b5303325d5ba8f4bd39e0cc8aeb0582eb83ad20f7c",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/attention/frame-000.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "98157607b582f2a1733991d83601fee8dfdeda0e4546ac8efc7aa20e9d3ba676",
+      "sha256": "a6bb1934dd7336e575abe1feac7b7714354559002abdb648189c8ec991460b49",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 746317,
+      "canonical_png_sha256": "abf9e14bf0bb3674e9c46837b9d9234f72a03a2dbdb9b7db67a3b41cb15cac22",
+      "decoded_rgba_sha256": "86433fcbf016256bab534ca00c8f4952044d733c99a49c5427047c2c0adf4ffa",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/attention/frame-001.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "07f5affbf43c14b670da7251a75e5e0c6e2697d84e23419902e4fec4b5df9224",
+      "sha256": "fc7cf03a3076bad72f927e36b071810ae75930ead6d3c0caf5f3621b86f78926",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 718374,
+      "canonical_png_sha256": "e4eede07ea3e6ee355e06e2e5206dab6cb65d78d1276d0f9377854d36114e376",
+      "decoded_rgba_sha256": "d6c84daf70fd7edda3da4fd769d7fdd461049f48232404fd78f05c9dc3a9232c",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/attention/frame-002.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "88211f402fc6e83ed9d32b49902f0514ef045de32d83584e2bf3407e1533b8ba",
+      "sha256": "34d64ae4a8e7e8af233926027f326ca4d6cb75030d0a57d25f958af0c0eeebde",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 717651,
+      "canonical_png_sha256": "2af349bc45042958bfc133e093c39b5f251c66dda179d4497021e59e928425b4",
+      "decoded_rgba_sha256": "ffad1370a1ae21639175dd8a5cf16fe73413aae7650c294eab691c80d1bcdc91",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/attention/frame-003.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "9c260c30bf16b4265a1799fb1b0ef81f3f8d8a4f32de3fec7ab191f664ec9bdc",
+      "sha256": "2eb74854586674eb0ce5d65d525125794480d56f70faaded510f25d237d34b0b",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 723019,
+      "canonical_png_sha256": "984beda115e38bd63637724650083297db407d2dfca8c18a40d4f7e24146101a",
+      "decoded_rgba_sha256": "375d9f1a359a77d33233c15be5e484865123669897446b6c32a6b2712316b586",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/attention/frame-004.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "ce9b8a28b48883e40ea94f3fe6604cb9118786e64515a40427a6532e5d507848",
+      "sha256": "be832be64c4b1a1f09ce790b73282c4dcd6ca458aeea34b952cd76b15017834b",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 760380,
+      "canonical_png_sha256": "15af5f8c072d039e98e16bdb8eeb121ce0eb74727fb3c9748217ce7ffbb4f34f",
+      "decoded_rgba_sha256": "954222a495fb31f7408e67b5303325d5ba8f4bd39e0cc8aeb0582eb83ad20f7c",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/attention/frame-005.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "98157607b582f2a1733991d83601fee8dfdeda0e4546ac8efc7aa20e9d3ba676",
+      "sha256": "a6bb1934dd7336e575abe1feac7b7714354559002abdb648189c8ec991460b49",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 760380,
+      "canonical_png_sha256": "15af5f8c072d039e98e16bdb8eeb121ce0eb74727fb3c9748217ce7ffbb4f34f",
+      "decoded_rgba_sha256": "954222a495fb31f7408e67b5303325d5ba8f4bd39e0cc8aeb0582eb83ad20f7c",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/blink/frame-000.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "98157607b582f2a1733991d83601fee8dfdeda0e4546ac8efc7aa20e9d3ba676",
+      "sha256": "a6bb1934dd7336e575abe1feac7b7714354559002abdb648189c8ec991460b49",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 760637,
+      "canonical_png_sha256": "3983002059e02f0ad3925be08f8b87a151bae478fcfe581366a3958d1c76dcd6",
+      "decoded_rgba_sha256": "1154a6ab9c75be311cb6a1730960760c1a7f55f8f7579d5d324166b73fb151c2",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/blink/frame-001.png",
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "bde4abbb3af49f28e3fcd40f8f67d2f376b38233b66b21505cdf3dadbe181700",
+      "sha256": "9dd6e587b5548c01f343bd8915ca4ad2fbe6755afca4075263d4b0c64df1a2bc",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 760169,
+      "canonical_png_sha256": "0a010f09a2138afa869d89f2db026960a99d395b0e05042e4f1f7b54f2a89b7b",
+      "decoded_rgba_sha256": "9365f34f634dc54314d69d865b4b87ce0e744e8fa840e54910430ed541dadb56",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/blink/frame-002.png",
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "f635672ab9aca43f2ebd6e6738e199b55255672efb0189bc80b27be0bd8b7d88",
+      "sha256": "bed769c262e428ab7e488dae013050fa0a125f1c3fe918c726c40a09fe038412",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 760637,
+      "canonical_png_sha256": "3983002059e02f0ad3925be08f8b87a151bae478fcfe581366a3958d1c76dcd6",
+      "decoded_rgba_sha256": "1154a6ab9c75be311cb6a1730960760c1a7f55f8f7579d5d324166b73fb151c2",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/blink/frame-003.png",
+      "png_chunks": [
+        "IHDR",
+        "sRGB",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "bde4abbb3af49f28e3fcd40f8f67d2f376b38233b66b21505cdf3dadbe181700",
+      "sha256": "9dd6e587b5548c01f343bd8915ca4ad2fbe6755afca4075263d4b0c64df1a2bc",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 760380,
+      "canonical_png_sha256": "15af5f8c072d039e98e16bdb8eeb121ce0eb74727fb3c9748217ce7ffbb4f34f",
+      "decoded_rgba_sha256": "954222a495fb31f7408e67b5303325d5ba8f4bd39e0cc8aeb0582eb83ad20f7c",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/blink/frame-004.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "98157607b582f2a1733991d83601fee8dfdeda0e4546ac8efc7aa20e9d3ba676",
+      "sha256": "a6bb1934dd7336e575abe1feac7b7714354559002abdb648189c8ec991460b49",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 760380,
+      "canonical_png_sha256": "15af5f8c072d039e98e16bdb8eeb121ce0eb74727fb3c9748217ce7ffbb4f34f",
+      "decoded_rgba_sha256": "954222a495fb31f7408e67b5303325d5ba8f4bd39e0cc8aeb0582eb83ad20f7c",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/blink/frame-005.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "98157607b582f2a1733991d83601fee8dfdeda0e4546ac8efc7aa20e9d3ba676",
+      "sha256": "a6bb1934dd7336e575abe1feac7b7714354559002abdb648189c8ec991460b49",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 760380,
+      "canonical_png_sha256": "15af5f8c072d039e98e16bdb8eeb121ce0eb74727fb3c9748217ce7ffbb4f34f",
+      "decoded_rgba_sha256": "954222a495fb31f7408e67b5303325d5ba8f4bd39e0cc8aeb0582eb83ad20f7c",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/blocked/frame-000.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "98157607b582f2a1733991d83601fee8dfdeda0e4546ac8efc7aa20e9d3ba676",
+      "sha256": "a6bb1934dd7336e575abe1feac7b7714354559002abdb648189c8ec991460b49",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 695066,
+      "canonical_png_sha256": "8f5421ce58e6bc36489a7f975716998185d85452f8d16ddd0f75ccc685be1de5",
+      "decoded_rgba_sha256": "4a6450b5ce0a4c74577881550043f0cf23d31c3c4431e0545ce669af5c367ef4",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/blocked/frame-001.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        46,
+        20,
+        209,
+        223
+      ],
+      "runtime_rgba_sha256": "8d4dd20beb47eb668780a4a453a5bbb6d1d4f9b1dd45565e0f817b6f80cd1209",
+      "sha256": "248bb04c0809874442a94169b83d60b6e184d306e2f40863564d054a4d62efc0",
+      "source_alpha_bounds": [
+        183,
+        82,
+        834,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 693401,
+      "canonical_png_sha256": "a03a780293430728716dd411e96ddde7d875ecd443536b591049c5d4202ca77f",
+      "decoded_rgba_sha256": "7033c30833a999ecb8c52a2a32e3c24b69fed25b5e0ea56c1c86e4d880329587",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/blocked/frame-002.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        45,
+        19,
+        206,
+        223
+      ],
+      "runtime_rgba_sha256": "664785e77cdb964f18d3a165223cf9ba39e7143991e643a0d7c36f3b5807bc10",
+      "sha256": "97ece3d559461a50693bb75a23d27899037b9a71ae955a99d0be9faa01d57b90",
+      "source_alpha_bounds": [
+        181,
+        77,
+        825,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 694041,
+      "canonical_png_sha256": "e45dbaa08f1e28867072d8404a0c128fc5a10833e05539c9aabf5768b27dd679",
+      "decoded_rgba_sha256": "dbebc51d56086be3f2533d94a811ab8a80678514ce70964d0dc34e5d35fc0b74",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/blocked/frame-003.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        45,
+        19,
+        206,
+        223
+      ],
+      "runtime_rgba_sha256": "0b86a3c307bfd192529f6e1bb2206d03117c026582d62aec064d2f7389767f31",
+      "sha256": "d770c0c4522cfda53b5cbcb0fe084f6a017337d92c59f86baeeb337eb4d00c3d",
+      "source_alpha_bounds": [
+        181,
+        77,
+        825,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 696343,
+      "canonical_png_sha256": "876f47a25d4994b346766458def6eab6f62e48d8d13ef3bd697ce7a9bd8abdfe",
+      "decoded_rgba_sha256": "d1a36ef56bd32f692309960db6060f19b14aa17d90f61f642f32ffd274ee0a2f",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/blocked/frame-004.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        46,
+        21,
+        209,
+        223
+      ],
+      "runtime_rgba_sha256": "9f1df9f992283b757473181df09cfce5f1efec7de13f4151422082cebc81172c",
+      "sha256": "4e456f2538dcae1ab53bdf4591ae483aae5dfead521d900773308d85dbe0c462",
+      "source_alpha_bounds": [
+        184,
+        84,
+        835,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 760380,
+      "canonical_png_sha256": "15af5f8c072d039e98e16bdb8eeb121ce0eb74727fb3c9748217ce7ffbb4f34f",
+      "decoded_rgba_sha256": "954222a495fb31f7408e67b5303325d5ba8f4bd39e0cc8aeb0582eb83ad20f7c",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/blocked/frame-005.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "98157607b582f2a1733991d83601fee8dfdeda0e4546ac8efc7aa20e9d3ba676",
+      "sha256": "a6bb1934dd7336e575abe1feac7b7714354559002abdb648189c8ec991460b49",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 760380,
+      "canonical_png_sha256": "15af5f8c072d039e98e16bdb8eeb121ce0eb74727fb3c9748217ce7ffbb4f34f",
+      "decoded_rgba_sha256": "954222a495fb31f7408e67b5303325d5ba8f4bd39e0cc8aeb0582eb83ad20f7c",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/calm_idle/frame-000.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "98157607b582f2a1733991d83601fee8dfdeda0e4546ac8efc7aa20e9d3ba676",
+      "sha256": "a6bb1934dd7336e575abe1feac7b7714354559002abdb648189c8ec991460b49",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 758551,
+      "canonical_png_sha256": "bcdaa2e5fa2f0c213adc78f63d5d990ae6a5173a979bb791a563f2696a1a7f87",
+      "decoded_rgba_sha256": "09202a2499dc2a16eb58a932d81570499e9fc88f60f565e5a2251a9e0bdc3e0e",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/calm_idle/frame-001.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "a9d3c997f2c556d69dd17900bab2f45b4106662af764307527a41f456df75866",
+      "sha256": "f89c74f93a40869aa5a15432c6f8fe6de88bbbdfe2f6ada5c38b38d2af2ceda1",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 758348,
+      "canonical_png_sha256": "b0956dd5e9cb21a3fcf763ddddf4eb228e57bfc3231a3440be5086aa36c39e45",
+      "decoded_rgba_sha256": "8e656ab5460c48636379d952cc1eed3622603a9c40cfc3bdf2bf8b821684155e",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/calm_idle/frame-002.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "c771741a0fd79ac1f941923a32dc3397a76e74dc9178cb5fceff04f2cce317c7",
+      "sha256": "255fcb716e1085e97d4d29833ef274bb49ea29a28353b4711e637fb58ddaeed9",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 757682,
+      "canonical_png_sha256": "cebd6542fa22b4d55c5d0da7920fefde904478d911d172881fc0725a515e97d0",
+      "decoded_rgba_sha256": "3415183e41ace8262627030a1bbc3315a36aca7bd1c74d40b522257914d49d52",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/calm_idle/frame-003.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "9eff7e6721d3b76fbe71188774b8a914b30ad27b90a3f07c6728a15c8349d590",
+      "sha256": "cf750be376b7f63623efc21bb6c340c593186f92acd7a0b77f6a468c7b8b4f1c",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 757402,
+      "canonical_png_sha256": "5bbb4eb18e263e796b5c17cb238939155fb91e30aafa123fa4eca23fb1ac65c7",
+      "decoded_rgba_sha256": "92759e951d98aa4ea640dfa53e8ba2c582b4214290e8536d3adfa79dbecef9c7",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/calm_idle/frame-004.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "0104e69be677fef5fb542982b1b82e8078fb42354c416692dfc5ec90cef3cf27",
+      "sha256": "bbd10b0ab640a1d359b2699df5e4a3a337e60697ee2f034c16c3c92c1d38b9ad",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 757682,
+      "canonical_png_sha256": "cebd6542fa22b4d55c5d0da7920fefde904478d911d172881fc0725a515e97d0",
+      "decoded_rgba_sha256": "3415183e41ace8262627030a1bbc3315a36aca7bd1c74d40b522257914d49d52",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/calm_idle/frame-005.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "9eff7e6721d3b76fbe71188774b8a914b30ad27b90a3f07c6728a15c8349d590",
+      "sha256": "cf750be376b7f63623efc21bb6c340c593186f92acd7a0b77f6a468c7b8b4f1c",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 758348,
+      "canonical_png_sha256": "b0956dd5e9cb21a3fcf763ddddf4eb228e57bfc3231a3440be5086aa36c39e45",
+      "decoded_rgba_sha256": "8e656ab5460c48636379d952cc1eed3622603a9c40cfc3bdf2bf8b821684155e",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/calm_idle/frame-006.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "c771741a0fd79ac1f941923a32dc3397a76e74dc9178cb5fceff04f2cce317c7",
+      "sha256": "255fcb716e1085e97d4d29833ef274bb49ea29a28353b4711e637fb58ddaeed9",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 758551,
+      "canonical_png_sha256": "bcdaa2e5fa2f0c213adc78f63d5d990ae6a5173a979bb791a563f2696a1a7f87",
+      "decoded_rgba_sha256": "09202a2499dc2a16eb58a932d81570499e9fc88f60f565e5a2251a9e0bdc3e0e",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/calm_idle/frame-007.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "a9d3c997f2c556d69dd17900bab2f45b4106662af764307527a41f456df75866",
+      "sha256": "f89c74f93a40869aa5a15432c6f8fe6de88bbbdfe2f6ada5c38b38d2af2ceda1",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 760380,
+      "canonical_png_sha256": "15af5f8c072d039e98e16bdb8eeb121ce0eb74727fb3c9748217ce7ffbb4f34f",
+      "decoded_rgba_sha256": "954222a495fb31f7408e67b5303325d5ba8f4bd39e0cc8aeb0582eb83ad20f7c",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/calm_idle/frame-008.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "98157607b582f2a1733991d83601fee8dfdeda0e4546ac8efc7aa20e9d3ba676",
+      "sha256": "a6bb1934dd7336e575abe1feac7b7714354559002abdb648189c8ec991460b49",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 758481,
+      "canonical_png_sha256": "bc3407c8cddc5dbcdad502d39a73f8ea19f8403f81ab6b6ff8c92a0d1935344b",
+      "decoded_rgba_sha256": "f2165c2578a86b1b0f4544967316bf364671e128b6d837cb39843607541e3a43",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/calm_idle/frame-009.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "3bf9f01bd9b66d58b2372cd62543e1e0d59eb732d9237d2c03ae9741a0ea2a90",
+      "sha256": "0536ada1e21f67664e667d92ba1102220ef70e63cc6edb8174c97604598acdec",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 758294,
+      "canonical_png_sha256": "459274c83259f9d4b4a35f46d06c7c1cc160a1d14c3b7759b99ae5724ee12233",
+      "decoded_rgba_sha256": "41a8c406540e51596614df40abe87d9362aaa86e969f7ef5140267517d7a7445",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/calm_idle/frame-010.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "39609505a616719028e6a99f6ae79283575a59e5cb88b5c28d20e7cfab437cb0",
+      "sha256": "81f9066d2eb5c71e6f58304cc315d2f39ef2ccffc6a397472d28e5e174988da6",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 758481,
+      "canonical_png_sha256": "bc3407c8cddc5dbcdad502d39a73f8ea19f8403f81ab6b6ff8c92a0d1935344b",
+      "decoded_rgba_sha256": "f2165c2578a86b1b0f4544967316bf364671e128b6d837cb39843607541e3a43",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/calm_idle/frame-011.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "3bf9f01bd9b66d58b2372cd62543e1e0d59eb732d9237d2c03ae9741a0ea2a90",
+      "sha256": "0536ada1e21f67664e667d92ba1102220ef70e63cc6edb8174c97604598acdec",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 760380,
+      "canonical_png_sha256": "15af5f8c072d039e98e16bdb8eeb121ce0eb74727fb3c9748217ce7ffbb4f34f",
+      "decoded_rgba_sha256": "954222a495fb31f7408e67b5303325d5ba8f4bd39e0cc8aeb0582eb83ad20f7c",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/comment_ready/frame-000.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "98157607b582f2a1733991d83601fee8dfdeda0e4546ac8efc7aa20e9d3ba676",
+      "sha256": "a6bb1934dd7336e575abe1feac7b7714354559002abdb648189c8ec991460b49",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 737061,
+      "canonical_png_sha256": "aa7cda52bec42ba05afdeec08b09610d532c50ad0ce69b3c61dfc43203de9c34",
+      "decoded_rgba_sha256": "23fa484f2520f2747cabe2e992ed7cc886a85438b40341f454eb4f7b66e4fa24",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/comment_ready/frame-001.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "bbf04cca26ca7d5939bfe82e30d09242374de4395dfbff628d94869934badb01",
+      "sha256": "4c9e45ecf3b09820a51fdcdd7a3eb6a80919954732f92a10abbcd4173dc9eb9e",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 720804,
+      "canonical_png_sha256": "9136d128fd1180ba1043dfd4b2daf55131c446dff84a9d693a8f4af41eebd217",
+      "decoded_rgba_sha256": "f1f6322351ea3676970fce345948bb0d05e2bf1b531690f5858ac876a56713e7",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/comment_ready/frame-002.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "acd7c52ca3e738945de333b052192e28c03e8c07a006f1b0a25dd7cffd548775",
+      "sha256": "2bc44c61a43ceef3dea617867776729eecfde85f7ddd6607b6f27171b4274c0d",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 714524,
+      "canonical_png_sha256": "a44cb65bf3085bed87d18b2957af129c7e8fb051d48b10317dbb38886565a8a2",
+      "decoded_rgba_sha256": "610ba9c2ac8ca7bb0c4af85086eafe4c85c49619dc24b664427477cf9093e6b7",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/comment_ready/frame-003.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "3915ddd5a64bd23441fc005f465d1c5ebc564ea50d607edf1138c841119c6830",
+      "sha256": "a54f50a37fafb147a7f081641de755bcb2bf7bbe6feea21e56441880f6755709",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 712752,
+      "canonical_png_sha256": "20d7255f640141562cb7d10f334251d2342cd88a5473aab7033a90dfd4352d71",
+      "decoded_rgba_sha256": "9ea9248d30056373fb34fdd8785908cfdf56a7b49802cd0a911e31128dd5ddce",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/comment_ready/frame-004.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "44e940cf6121aa6a4c99baf740b997361f56f9f76655256640c63982203890a0",
+      "sha256": "3aeb3c375d32a524568c6f1d30b8e6c5d8d3709c161d885f48eeceec13e898c1",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 693099,
+      "canonical_png_sha256": "9b3a99b4874fcaf5986b432a9fd7d1a2a819f8e24d4eb9e556f08e9991c55709",
+      "decoded_rgba_sha256": "b5032d617a50c4ac8f68dceda30bf40263628fd9e056e20d252b3bfbc3c8fb04",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/comment_ready/frame-005.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "b9dbe0583ad18eaa5bc46d3018c6ce59ec15d7b95e9b3066a3af1be62fb2c1a0",
+      "sha256": "7cd59e3ba4a02a21e61641b8a7d1e3ba4e38216abb1083db16ca8953d7d5dfdd",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 733844,
+      "canonical_png_sha256": "3fe712ba4f5c4f46a640a9b5464bdbcfe014fa496ae569851fa3824235aa7bee",
+      "decoded_rgba_sha256": "994109577f21a22c78723b10f4369ffcaa8b330238ccadbf7dce87f6dda880de",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/comment_ready/frame-006.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "aa52e1cd872f74a858f989dadfb0d384826614adedf71e0ce06419f664f097bc",
+      "sha256": "58a0f39a7d79fcfebe3678e4f835b7b73e664f5dd0bd7cdf2cb9e9502a44201c",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 760380,
+      "canonical_png_sha256": "15af5f8c072d039e98e16bdb8eeb121ce0eb74727fb3c9748217ce7ffbb4f34f",
+      "decoded_rgba_sha256": "954222a495fb31f7408e67b5303325d5ba8f4bd39e0cc8aeb0582eb83ad20f7c",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/comment_ready/frame-007.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "98157607b582f2a1733991d83601fee8dfdeda0e4546ac8efc7aa20e9d3ba676",
+      "sha256": "a6bb1934dd7336e575abe1feac7b7714354559002abdb648189c8ec991460b49",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 760380,
+      "canonical_png_sha256": "15af5f8c072d039e98e16bdb8eeb121ce0eb74727fb3c9748217ce7ffbb4f34f",
+      "decoded_rgba_sha256": "954222a495fb31f7408e67b5303325d5ba8f4bd39e0cc8aeb0582eb83ad20f7c",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/compare_glance/frame-000.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "98157607b582f2a1733991d83601fee8dfdeda0e4546ac8efc7aa20e9d3ba676",
+      "sha256": "a6bb1934dd7336e575abe1feac7b7714354559002abdb648189c8ec991460b49",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 758212,
+      "canonical_png_sha256": "3d1fe6401f40c3695e7b8f82932e57eefacc094fc553daf219302e6c00817bc9",
+      "decoded_rgba_sha256": "ee6efede279426f0f9ce4586bb5847634811019ad7b97c201060c8f4feaa94eb",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/compare_glance/frame-001.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "7c66580c85c7a6941d5d852f326c0f68eb4584e5d397da48ff1609d4c6170a0d",
+      "sha256": "7de9bd7f5f2c7bdd9810d60a93fb1c3b256b2eef1a87dfb41dcd24bda8bb441f",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 737635,
+      "canonical_png_sha256": "85739dc7aeca125174e0d9a3c4c436da93e82929ff29dc6b6565eec0f3208421",
+      "decoded_rgba_sha256": "c0e9590256ae616231246ed4058bc88032ca633dcbcc9c613fe7ec310bf57f74",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/compare_glance/frame-002.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "a7918fc054f7edc74cf9a74445add34680ce750a62236267cffabbc62ee8232c",
+      "sha256": "79dc3e3f35a72c348a048feb4766c1e0c06dde1974683a60493546fb002f02ce",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 728342,
+      "canonical_png_sha256": "8ce099f5abb8df7840c34d5b9232d75904f43910894663ac570d153ccc4dc2af",
+      "decoded_rgba_sha256": "2e651477c339399c5cb7d008a73f9eaf8c91d6cd60a10e1f58cc5f98c44845bc",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/compare_glance/frame-003.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "1a613f9de533ff99ca8490fd03de520aede5be567ba57374d7f822da5f306146",
+      "sha256": "99f1f337da9f2fd1c34c4bbf4eb3e1ee5d34f641ed6474524910a86b22367069",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 758445,
+      "canonical_png_sha256": "abd55f10ec0c703e742ddeadcc81c84543dcf3fb33349b29893a9612d83e2e28",
+      "decoded_rgba_sha256": "c021ecf98d1c5c464bf1e0a03fbc1b5d22cd0cc8613ff12b006fd42e5df964fd",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/compare_glance/frame-004.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "a09c085287f02250d94825335f6ad216e0800b6b30c093399b92a99398a6028d",
+      "sha256": "91ae20c4c5d27f53c8d6b60a4955ee9d641ec50e93d308890774481fe6aec6d0",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 737743,
+      "canonical_png_sha256": "f49b7d8294313dbc99c90598fecf106751882615112fc52cda0d1f6cde81c782",
+      "decoded_rgba_sha256": "ced7fc3efe0ccdd73e1ca8c52e63df14c631c8b2ef416213f2bff892bf1a1557",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/compare_glance/frame-005.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "6a7eba40969d633868345dc9ee3a9ed1b9ee1b58beda8f616be20562f054180e",
+      "sha256": "9bc60e809b844fe3cb1f8c32e0928606dfbe64a95a06dc74f050f5fb510cb792",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 734655,
+      "canonical_png_sha256": "b5890a1ba4078a028acdf47552bfe442e0da7348945072bb5a2c584ffe877e30",
+      "decoded_rgba_sha256": "42b01a0de715d34b028b062c7a5fab25066f76cf2d178395aefad628ac8609f5",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/compare_glance/frame-006.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "1878584833eed626ac68332eaeff6c7db149f6f7446f8fed3ac1a6ac73dbe6aa",
+      "sha256": "3b0537b02ff70b31e0c5d873e466e3cef217048c756130b35392a7ea09ff8611",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 760380,
+      "canonical_png_sha256": "15af5f8c072d039e98e16bdb8eeb121ce0eb74727fb3c9748217ce7ffbb4f34f",
+      "decoded_rgba_sha256": "954222a495fb31f7408e67b5303325d5ba8f4bd39e0cc8aeb0582eb83ad20f7c",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/compare_glance/frame-007.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "98157607b582f2a1733991d83601fee8dfdeda0e4546ac8efc7aa20e9d3ba676",
+      "sha256": "a6bb1934dd7336e575abe1feac7b7714354559002abdb648189c8ec991460b49",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 760380,
+      "canonical_png_sha256": "15af5f8c072d039e98e16bdb8eeb121ce0eb74727fb3c9748217ce7ffbb4f34f",
+      "decoded_rgba_sha256": "954222a495fb31f7408e67b5303325d5ba8f4bd39e0cc8aeb0582eb83ad20f7c",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/consider/frame-000.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "98157607b582f2a1733991d83601fee8dfdeda0e4546ac8efc7aa20e9d3ba676",
+      "sha256": "a6bb1934dd7336e575abe1feac7b7714354559002abdb648189c8ec991460b49",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 748756,
+      "canonical_png_sha256": "f284b4553ec038b683ee908e62b318159957f234d31a9a091495a32d7264a74b",
+      "decoded_rgba_sha256": "fbcddc838fc5cc301586efc8ee4b8ca4c72174759d3c4e1e3c5d292e5b1c8168",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/consider/frame-001.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "4459658e72e2dccb61e913d701b616a625844c964248c5d547937cbfdd946704",
+      "sha256": "bc875021ae6803d372637ba2f8ad28383c33ab338fe58395a51a1d9ddeb1f077",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 746153,
+      "canonical_png_sha256": "317a4162584b54fb86e4023ab55a8d72b009b39fb66eca30e5ba6d1bd1eb46fa",
+      "decoded_rgba_sha256": "754702da96bffe9117f84c85fba4a5d9ebb35ea536c16707f5ac3e8fd0d1a2ee",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/consider/frame-002.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "7f4e4f3a260ceaf6c4fe66c12c5d8b4e119ce74961f8767027c8509994213cc0",
+      "sha256": "f95eb62bac1d3f5a32e29314d0b9d9991d26e92504dd11f6cc72792368fea325",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 692367,
+      "canonical_png_sha256": "813bd87f8126fb03b8fb4fdbc330ebea174dc045a9fa40e3c0f36b0f0fc3819b",
+      "decoded_rgba_sha256": "a6b834fd4ec219a59368f198ff51b6a01f1e4368917f7cec6364e5382f147892",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/consider/frame-003.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        48,
+        20,
+        211,
+        223
+      ],
+      "runtime_rgba_sha256": "f3397bdcc5a265e865e50f6c0a43acb988dea3daacb74b777a3d0f9fd711d7b1",
+      "sha256": "39bc227f516390be86f0e925b46bcd395e5cff60df816ac4b3202848ab3b03e1",
+      "source_alpha_bounds": [
+        193,
+        80,
+        842,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 692148,
+      "canonical_png_sha256": "2c2fbe278c0ad21c53ebe120ffd30adb6c93045c4312a6e44d3efd6a275d4837",
+      "decoded_rgba_sha256": "a29559674a51223ea72168ec046aff9e1cff5c208b10b510eca7f63cefd0a8f3",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/consider/frame-004.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        48,
+        20,
+        211,
+        223
+      ],
+      "runtime_rgba_sha256": "41d8ac3b8f5adcc38217a289c860af9bf2b4ee1db620a45ed1dff81d3a164899",
+      "sha256": "4c30e070dd00aa5b43cbedc2987d4d0f90a7156df6a9d6af5ffe1731069b83c1",
+      "source_alpha_bounds": [
+        193,
+        80,
+        842,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 693528,
+      "canonical_png_sha256": "9bb5c64abd5b7cbc352a3aaeee1772ead58d8729b9ba54a341e08f73981918ea",
+      "decoded_rgba_sha256": "834cb23348f6503102c3915a33cde036da4ff4baaf1e260371e7419ed42aac4f",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/consider/frame-005.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        21,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "c7ae7f05c763fa1eb4c3925c52d37b8bac69859d490c12992c5ef9f43fd6ec43",
+      "sha256": "a47ad6aebb914ec6f84195dcf8ff6cbb04d8792a3b469cdc01671282ed25d3a2",
+      "source_alpha_bounds": [
+        188,
+        84,
+        840,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 751312,
+      "canonical_png_sha256": "e7c11371ea44962fd0fe4dba8afb81a6e682a2f20778d465acd19095cdd3bd73",
+      "decoded_rgba_sha256": "53895c877dff5cc758f9672db6964c366e648cefcb25658d96e5a6495bfe512e",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/consider/frame-006.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "c7f64482cb38103e3ae3fda7e2660f1d4b47c4a13733a138a1748b0a436b9408",
+      "sha256": "548df71a5bf510bc7959e79ebee90e2f5257162101a9e3b303db38517163321c",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 760380,
+      "canonical_png_sha256": "15af5f8c072d039e98e16bdb8eeb121ce0eb74727fb3c9748217ce7ffbb4f34f",
+      "decoded_rgba_sha256": "954222a495fb31f7408e67b5303325d5ba8f4bd39e0cc8aeb0582eb83ad20f7c",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/consider/frame-007.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "98157607b582f2a1733991d83601fee8dfdeda0e4546ac8efc7aa20e9d3ba676",
+      "sha256": "a6bb1934dd7336e575abe1feac7b7714354559002abdb648189c8ec991460b49",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 760380,
+      "canonical_png_sha256": "15af5f8c072d039e98e16bdb8eeb121ce0eb74727fb3c9748217ce7ffbb4f34f",
+      "decoded_rgba_sha256": "954222a495fb31f7408e67b5303325d5ba8f4bd39e0cc8aeb0582eb83ad20f7c",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/greet/frame-000.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "98157607b582f2a1733991d83601fee8dfdeda0e4546ac8efc7aa20e9d3ba676",
+      "sha256": "a6bb1934dd7336e575abe1feac7b7714354559002abdb648189c8ec991460b49",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 745793,
+      "canonical_png_sha256": "34a67933edca6049a3d50b5d65da7297f9c7ac9a1489b7ccad25c809559aa4e4",
+      "decoded_rgba_sha256": "57d561158cba104b10f3cbd0c5c8c2a3ff033200c51ca715782066bcc50fd49e",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/greet/frame-001.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "0a210438fa44dd6f8bc486c335839f096ec3c08532f6913ea2204b3705445893",
+      "sha256": "42eca23455bfa9b4b6ae819d552cb97fb24fa57004c8dbb9ec9cd68ce7f8a5d3",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 743652,
+      "canonical_png_sha256": "35f660150d5e67930d7660767e8f2c6dd853c28368c10053ff6f849c51c218a5",
+      "decoded_rgba_sha256": "41f9253d4256d408a48697714560c75676f65b3e3de3bc5a177e07da7f0279d5",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/greet/frame-002.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "49ff6076cf0516b1295418ae92beeadaae2b7ea918f20bf1593fbe6a0d87e05c",
+      "sha256": "a5c06efd057e4181fca2370b37c5743c82305a6879cc6dc7eedc4f076cf65295",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 757413,
+      "canonical_png_sha256": "5e8bf209671b5e0ab08460bb26dd6d00b4837845e770e0ea322c969a66dfbe4a",
+      "decoded_rgba_sha256": "28a131ceb58a7bb72fc2c09f94cfddccb413d6b1700dcf040ab4d58e4321dbb6",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/greet/frame-003.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "2c5358b7f5a1133ee52d2a2486f954fd786dd055e90a661b44a808d680cd7a8b",
+      "sha256": "d64c22596dfce87a5ccad0c0412e1053c777dcc23534425c5e56437b21034862",
+      "source_alpha_bounds": [
+        186,
+        86,
+        840,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 755030,
+      "canonical_png_sha256": "d2398e93a1a4364e5c82bfbf1844d528a0d4e42215e49f207b02bd778dddc152",
+      "decoded_rgba_sha256": "27656ef237d737c2df0bdcb00376a8318de5da5b7faaf854c62288fa6869c429",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/greet/frame-004.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "88968a1a3cc375515cbbee6cf5d125bf9f8f7ef09b0f44109dfb3a6df9ce5cc6",
+      "sha256": "e6e44da4bc0dadd645ed58bb37f0c92ce59969d14300d546c1e379f0e9271740",
+      "source_alpha_bounds": [
+        186,
+        86,
+        840,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 742883,
+      "canonical_png_sha256": "220d8aca6a95ff7958310223d34ed0a444416c3a23ededd8990eeb53741a3874",
+      "decoded_rgba_sha256": "f15c1895ff94810467a92b9db63add31fefddab086b61c2292d358323b33deee",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/greet/frame-005.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "bcfa933b0a33d954cf06d97a9fa5394b7edd73b4d0727a1ea45cc3645d9321e2",
+      "sha256": "5697469860ffb037424c898a0c67d8efbb483654459191f78a63c157a16c65e9",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 748226,
+      "canonical_png_sha256": "b44bda6d0bd8eaca11903a13e02d27db9d8e577ee21ec42f41aefcb6d8d92789",
+      "decoded_rgba_sha256": "aeb01f0246eea1f2a8f4117606570cf3de12f4025f2dcd46d14407586f24cff6",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/greet/frame-006.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "91e356d5d981a8daf2d200d6f991590ddb3ce4f36339d9ab747fe2f1598b1807",
+      "sha256": "feefa80e2700e5e37ff88dd7ecb15df6eec567422e54f243bec55a7bbe3d7ccb",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 760380,
+      "canonical_png_sha256": "15af5f8c072d039e98e16bdb8eeb121ce0eb74727fb3c9748217ce7ffbb4f34f",
+      "decoded_rgba_sha256": "954222a495fb31f7408e67b5303325d5ba8f4bd39e0cc8aeb0582eb83ad20f7c",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/greet/frame-007.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "98157607b582f2a1733991d83601fee8dfdeda0e4546ac8efc7aa20e9d3ba676",
+      "sha256": "a6bb1934dd7336e575abe1feac7b7714354559002abdb648189c8ec991460b49",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 760380,
+      "canonical_png_sha256": "15af5f8c072d039e98e16bdb8eeb121ce0eb74727fb3c9748217ce7ffbb4f34f",
+      "decoded_rgba_sha256": "954222a495fb31f7408e67b5303325d5ba8f4bd39e0cc8aeb0582eb83ad20f7c",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "mode": "RGBA",
+      "path": "poses/rest/frame-000.png",
+      "png_chunks": [
+        "IHDR",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IDAT",
+        "IEND"
+      ],
+      "runtime_alpha_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "runtime_rgba_sha256": "98157607b582f2a1733991d83601fee8dfdeda0e4546ac8efc7aa20e9d3ba676",
+      "sha256": "a6bb1934dd7336e575abe1feac7b7714354559002abdb648189c8ec991460b49",
+      "source_alpha_bounds": [
+        186,
+        86,
+        838,
+        892
+      ],
+      "zero_alpha_nonzero_rgb": 0
+    },
+    {
+      "bytes": 939,
+      "media_type": "application/json",
+      "path": "eye-fix-log.json",
+      "sha256": "8e1a22bdfdd3f7220ccb5f5f83bdefae7681a9b91f0fea3d187972209bcd29f2"
+    }
+  ],
+  "mandate_revision": 7,
+  "producer": "rfc-integrator-d10",
+  "provenance_gaps": [
+    "generation-log.json absent",
+    "external generator provider/model/seed/version absent",
+    "exact per-pose prompts and input-role hashes absent",
+    "native editable inputs/layers absent",
+    "pre-catchlight-removal hashes absent",
+    "external-service terms and third-party obligations absent",
+    "exact derivative rights/distribution disposition pending attended review"
+  ],
+  "run": "dif-takeover-20260914",
+  "schema": "bpr.dif.external-result-intake.v1",
+  "source_head": "2c1ce74f4789e63e1171b0e0b87092ade5984339",
+  "status": "candidate_only_not_production_authority"
+}

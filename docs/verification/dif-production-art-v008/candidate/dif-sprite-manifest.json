@@ -1,0 +1,474 @@
+{
+  "asset_family": "dif",
+  "cell": {
+    "alpha": "straight",
+    "color_space": "srgb",
+    "gutter_cells": 1,
+    "height": 256,
+    "pixel_format": "rgba8",
+    "width": 256
+  },
+  "clips": [
+    {
+      "accessible_description": "One soft, three-second breathing cycle. Keep the face, pelvis, and feet registered. Animate a small local chest/shoulder deformation, not a scale transform of the entire panda. No blink in this loop.",
+      "allowed_travel_px": [
+        0,
+        0
+      ],
+      "body_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "content_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "frame_duration_ms": 250,
+      "frames": [
+        "source/calm-idle/frame-000.png",
+        "source/calm-idle/frame-001.png",
+        "source/calm-idle/frame-002.png",
+        "source/calm-idle/frame-003.png",
+        "source/calm-idle/frame-004.png",
+        "source/calm-idle/frame-005.png",
+        "source/calm-idle/frame-006.png",
+        "source/calm-idle/frame-007.png",
+        "source/calm-idle/frame-008.png",
+        "source/calm-idle/frame-009.png",
+        "source/calm-idle/frame-010.png",
+        "source/calm-idle/frame-011.png"
+      ],
+      "handoff_mean_delta_max": 0,
+      "head_travel_px": [
+        0,
+        0
+      ],
+      "id": "calm_idle",
+      "kind": "loop",
+      "loop_seam_mean_delta_max": 4,
+      "priority": 0,
+      "representative_frame": 0,
+      "return_target": "calm_idle",
+      "strip": "generated/dif-calm-idle.png"
+    },
+    {
+      "accessible_description": "One small, relaxed wave with the paw on the viewer's right. Keep the paw inside the existing head-width envelope; keep the opposite paw and both feet fixed. No whole-body squash, jumping, bowing, hearts, or sparkles.",
+      "allowed_travel_px": [
+        0,
+        0
+      ],
+      "body_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "content_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "frame_duration_ms": 125,
+      "frames": [
+        "source/greet/frame-000.png",
+        "source/greet/frame-001.png",
+        "source/greet/frame-002.png",
+        "source/greet/frame-003.png",
+        "source/greet/frame-004.png",
+        "source/greet/frame-005.png",
+        "source/greet/frame-006.png",
+        "source/greet/frame-007.png"
+      ],
+      "handoff_mean_delta_max": 0,
+      "head_travel_px": [
+        4,
+        4
+      ],
+      "id": "greet",
+      "kind": "one_shot",
+      "loop_seam_mean_delta_max": 0,
+      "priority": 5,
+      "representative_frame": 3,
+      "return_target": "calm_idle",
+      "strip": "generated/dif-greet.png"
+    },
+    {
+      "accessible_description": "Reuse the approved prop-free neutral reference. No new image generation is necessary.",
+      "allowed_travel_px": [
+        0,
+        0
+      ],
+      "body_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "content_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "frame_duration_ms": 0,
+      "frames": [
+        "source/rest/frame-000.png"
+      ],
+      "handoff_mean_delta_max": 0,
+      "head_travel_px": [
+        0,
+        0
+      ],
+      "id": "rest",
+      "kind": "static",
+      "loop_seam_mean_delta_max": 0,
+      "priority": 0,
+      "representative_frame": 0,
+      "return_target": "rest",
+      "strip": "generated/dif-rest.png"
+    },
+    {
+      "accessible_description": "Change only the eyelids. Retain the neutral body, ears, eye-patch shapes, nose, mouth, paws, feet, camera, and light. The whole image must not be squashed to make the eyes close.",
+      "allowed_travel_px": [
+        0,
+        0
+      ],
+      "body_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "content_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "frame_duration_ms": 100,
+      "frames": [
+        "source/blink/frame-000.png",
+        "source/blink/frame-001.png",
+        "source/blink/frame-002.png",
+        "source/blink/frame-003.png",
+        "source/blink/frame-004.png",
+        "source/blink/frame-005.png"
+      ],
+      "handoff_mean_delta_max": 0,
+      "head_travel_px": [
+        0,
+        0
+      ],
+      "id": "blink",
+      "kind": "one_shot",
+      "loop_seam_mean_delta_max": 0,
+      "priority": 1,
+      "representative_frame": 0,
+      "return_target": "calm_idle",
+      "strip": "generated/dif-blink.png"
+    },
+    {
+      "accessible_description": "A restrained left-to-right glance. Eyes carry most of the action; head yaw is at most about two degrees. No magnifying glass, cards, arrows, or generated code.",
+      "allowed_travel_px": [
+        0,
+        0
+      ],
+      "body_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "content_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "frame_duration_ms": 150,
+      "frames": [
+        "source/compare-glance/frame-000.png",
+        "source/compare-glance/frame-001.png",
+        "source/compare-glance/frame-002.png",
+        "source/compare-glance/frame-003.png",
+        "source/compare-glance/frame-004.png",
+        "source/compare-glance/frame-005.png",
+        "source/compare-glance/frame-006.png",
+        "source/compare-glance/frame-007.png"
+      ],
+      "handoff_mean_delta_max": 0,
+      "head_travel_px": [
+        4,
+        4
+      ],
+      "id": "compare_glance",
+      "kind": "one_shot",
+      "loop_seam_mean_delta_max": 0,
+      "priority": 10,
+      "representative_frame": 3,
+      "return_target": "calm_idle",
+      "strip": "generated/dif-compare-glance.png"
+    },
+    {
+      "accessible_description": "Bring the viewer-left paw lightly near the chin, tilt the head a little, then return. This is a one-shot, not a pantomime that repeats for the entire task. No thought bubbles or floating dots.",
+      "allowed_travel_px": [
+        0,
+        0
+      ],
+      "body_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "content_bounds": [
+        47,
+        20,
+        211,
+        223
+      ],
+      "frame_duration_ms": 150,
+      "frames": [
+        "source/consider/frame-000.png",
+        "source/consider/frame-001.png",
+        "source/consider/frame-002.png",
+        "source/consider/frame-003.png",
+        "source/consider/frame-004.png",
+        "source/consider/frame-005.png",
+        "source/consider/frame-006.png",
+        "source/consider/frame-007.png"
+      ],
+      "handoff_mean_delta_max": 0,
+      "head_travel_px": [
+        4,
+        4
+      ],
+      "id": "consider",
+      "kind": "one_shot",
+      "loop_seam_mean_delta_max": 0,
+      "priority": 15,
+      "representative_frame": 3,
+      "return_target": "calm_idle",
+      "strip": "generated/dif-consider.png"
+    },
+    {
+      "accessible_description": "Dif makes a small two-paw presentation gesture toward the real UI beside or below the illustration. The sprite itself contains no note, speech bubble, code, text, pen, or author badge.",
+      "allowed_travel_px": [
+        0,
+        0
+      ],
+      "body_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "content_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "frame_duration_ms": 125,
+      "frames": [
+        "source/comment-ready/frame-000.png",
+        "source/comment-ready/frame-001.png",
+        "source/comment-ready/frame-002.png",
+        "source/comment-ready/frame-003.png",
+        "source/comment-ready/frame-004.png",
+        "source/comment-ready/frame-005.png",
+        "source/comment-ready/frame-006.png",
+        "source/comment-ready/frame-007.png"
+      ],
+      "handoff_mean_delta_max": 0,
+      "head_travel_px": [
+        4,
+        4
+      ],
+      "id": "comment_ready",
+      "kind": "one_shot",
+      "loop_seam_mean_delta_max": 0,
+      "priority": 30,
+      "representative_frame": 3,
+      "return_target": "calm_idle",
+      "strip": "generated/dif-comment-ready.png"
+    },
+    {
+      "accessible_description": "A small, polite raised-paw gesture and slightly more attentive eyes, followed by a return to neutral. No alarm, bouncing, red flash, exclamation symbol, bug, or accusing finger.",
+      "allowed_travel_px": [
+        0,
+        0
+      ],
+      "body_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "content_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "frame_duration_ms": 150,
+      "frames": [
+        "source/attention/frame-000.png",
+        "source/attention/frame-001.png",
+        "source/attention/frame-002.png",
+        "source/attention/frame-003.png",
+        "source/attention/frame-004.png",
+        "source/attention/frame-005.png"
+      ],
+      "handoff_mean_delta_max": 0,
+      "head_travel_px": [
+        4,
+        4
+      ],
+      "id": "attention",
+      "kind": "one_shot",
+      "loop_seam_mean_delta_max": 0,
+      "priority": 40,
+      "representative_frame": 2,
+      "return_target": "calm_idle",
+      "strip": "generated/dif-attention.png"
+    },
+    {
+      "accessible_description": "One small affirmative nod with a warm, closed smile. Rotate the head a little; do not compress the entire body. No green check, thumbs-up, medal, confetti, or party pose.",
+      "allowed_travel_px": [
+        0,
+        0
+      ],
+      "body_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "content_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "frame_duration_ms": 125,
+      "frames": [
+        "source/acknowledge/frame-000.png",
+        "source/acknowledge/frame-001.png",
+        "source/acknowledge/frame-002.png",
+        "source/acknowledge/frame-003.png",
+        "source/acknowledge/frame-004.png",
+        "source/acknowledge/frame-005.png",
+        "source/acknowledge/frame-006.png",
+        "source/acknowledge/frame-007.png"
+      ],
+      "handoff_mean_delta_max": 0,
+      "head_travel_px": [
+        4,
+        4
+      ],
+      "id": "acknowledge",
+      "kind": "one_shot",
+      "loop_seam_mean_delta_max": 0,
+      "priority": 20,
+      "representative_frame": 3,
+      "return_target": "calm_idle",
+      "strip": "generated/dif-acknowledge.png"
+    },
+    {
+      "accessible_description": "A slight inquisitive head tilt and a small open-paw gesture. Keep the emotional tone patient and capable. No crying, sweat drop, anger, broken-object prop, shrugging despair, or question mark.",
+      "allowed_travel_px": [
+        0,
+        0
+      ],
+      "body_bounds": [
+        47,
+        22,
+        210,
+        223
+      ],
+      "content_bounds": [
+        45,
+        19,
+        210,
+        223
+      ],
+      "frame_duration_ms": 150,
+      "frames": [
+        "source/blocked/frame-000.png",
+        "source/blocked/frame-001.png",
+        "source/blocked/frame-002.png",
+        "source/blocked/frame-003.png",
+        "source/blocked/frame-004.png",
+        "source/blocked/frame-005.png"
+      ],
+      "handoff_mean_delta_max": 0,
+      "head_travel_px": [
+        4,
+        4
+      ],
+      "id": "blocked",
+      "kind": "one_shot",
+      "loop_seam_mean_delta_max": 0,
+      "priority": 50,
+      "representative_frame": 2,
+      "return_target": "calm_idle",
+      "strip": "generated/dif-blocked.png"
+    }
+  ],
+  "limits": {
+    "max_clips": 10,
+    "max_complete_decoded_bytes": 25165824,
+    "max_content_decoded_bytes": 19922944,
+    "max_content_frames": 76,
+    "max_frames_per_clip": 24,
+    "max_frames_per_second": 12,
+    "max_generated_file_bytes": 25165824,
+    "max_source_dimension": 2048,
+    "max_source_file_bytes": 16777216
+  },
+  "registration": {
+    "anchor_regions": {
+      "body": [
+        50,
+        198,
+        205,
+        204
+      ],
+      "head": [
+        40,
+        16,
+        216,
+        148
+      ],
+      "left_foot": [
+        60,
+        208,
+        126,
+        224
+      ],
+      "right_foot": [
+        126,
+        208,
+        210,
+        224
+      ]
+    },
+    "baseline_y": 223,
+    "edge_clearance_px": 16,
+    "foot_tolerance_px": 1,
+    "neutral_body_bounds": [
+      47,
+      22,
+      210,
+      223
+    ],
+    "visual_center_x": 128
+  },
+  "schema_version": 2
+}

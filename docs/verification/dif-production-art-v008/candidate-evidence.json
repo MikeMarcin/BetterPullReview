@@ -1,0 +1,73 @@
+{
+  "asset_manifest_sha256": "c9f3f38e303caea3bb2c1b28edf947a717c2c1e5f484945a1d6814d8aee7f40d",
+  "candidate_manifest_sha256": "c9f3f38e303caea3bb2c1b28edf947a717c2c1e5f484945a1d6814d8aee7f40d",
+  "catalog": {
+    "clips": 10,
+    "decoded_rgba_bytes": 23855104,
+    "frames": 71,
+    "gutters": 20
+  },
+  "checks": [
+    "exact intake hashes",
+    "1024x1024 RGBA8",
+    "zero RGB beneath zero alpha",
+    "canonical generate",
+    "validate",
+    "verify",
+    "empty-output reproduction",
+    "declared-speed APNG preview rendered"
+  ],
+  "dispatch": "d10",
+  "mandate_revision": 7,
+  "neutral_comparison_sha256": "555fd848ad9e1f2b6a811eeef2c9ed1e8ca53e8c0ad852655e1a73fdbb31d8c0",
+  "pending": [
+    "changed no-catchlight neutral identity",
+    "ten clip visual motion verdicts",
+    "exact derivative distribution/notice disposition",
+    "native Qt presentation after production promotion"
+  ],
+  "preview_manifest_sha256": "dd2fc608bbc69e0ee85419f9d616d9ad2b82126b1b89e54e0501885979314c47",
+  "producer": "rfc-integrator-d10",
+  "registration": {
+    "anchor_regions": {
+      "body": [
+        50,
+        198,
+        205,
+        204
+      ],
+      "head": [
+        40,
+        16,
+        216,
+        148
+      ],
+      "left_foot": [
+        60,
+        208,
+        126,
+        224
+      ],
+      "right_foot": [
+        126,
+        208,
+        210,
+        224
+      ]
+    },
+    "baseline_y": 223,
+    "edge_clearance_px": 16,
+    "foot_tolerance_px": 1,
+    "neutral_body_bounds": [
+      47,
+      22,
+      210,
+      223
+    ],
+    "visual_center_x": 128
+  },
+  "run": "dif-takeover-20260914",
+  "schema": "bpr.dif.structural-candidate-evidence.v1",
+  "source_head": "2c1ce74f4789e63e1171b0e0b87092ade5984339",
+  "status": "candidate_only_pending_human_art_and_derivative_verdict"
+}
