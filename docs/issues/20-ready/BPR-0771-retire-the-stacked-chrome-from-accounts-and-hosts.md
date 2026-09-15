@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0771"
 title: "Retire the locator, host picker, status banner and public-preview button from Accounts & hosts"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0032"]
 depends_on: ["BPR-0770"]
 metadata: {"pack":"bpr-shell-surfaces-v1","milestone":"accounts-page","acceptance":["A1","A4","A5"],"milestone_plan":{"id":"bpr-shell-surfaces-v1","path":"docs/rfcs/plans/bpr-shell-surfaces-v1/milestone-plan.json"}}
