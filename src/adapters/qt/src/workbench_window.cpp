@@ -618,8 +618,14 @@ namespace bpr::qt {
 		addAction(AccountAction);
 		connect(AccountAction, &QAction::triggered, this, [this] {
 			open_settings(settings_page::accounts_and_hosts);
-			if (DevicePanel != nullptr && DevicePanel->isVisibleTo(settings())) {
-				begin_selected_sign_in();
+			// [[BPR-0773]] D5. Signed out, the account button is the chosen
+			// server's own Sign in: the card that offers the device flow and
+			// shows Sign in is pressed, exactly as the reviewer would press it.
+			// Anything else only presents the page.
+			if (auto* const card = current_server_card();
+				card != nullptr && card->offers_device_sign_in()
+				&& card->sign_in_button()->isVisibleTo(card)) {
+				card->sign_in_button()->click();
 			}
 		});
 
@@ -1620,12 +1626,12 @@ namespace bpr::qt {
 		});
 		PullRequestPanel = new github_pull_request_panel{ };
 
-		// [[BPR-0526]]. A profile has two ways in -- the token prompt the
-		// Connect button opens, and a code read aloud into a browser -- and a
-		// reviewer looking for either looks in one place. So the device panel
-		// is mounted directly under the session chrome rather than behind a
-		// drawer or a dialog of its own, in the same column, under the same
-		// scroll bound.
+		// [[BPR-0526]], [[BPR-0773]]. A profile has two ways in -- the token
+		// prompt the Connect action opens, and a code read aloud into a browser
+		// -- and a reviewer looking for either looks in one place: the server's
+		// card. So the device panel is laid into that card's account row
+		// (`place_device_sign_in`) rather than behind a drawer or a dialog of
+		// its own.
 		//
 		// The window supplies no dispatch. Every gesture leaves through
 		// `DeviceDispatch`, which the composition sets, so a panel nobody wired
@@ -1640,14 +1646,28 @@ namespace bpr::qt {
 			},
 			nullptr,
 		};
+		// [[BPR-0773]]. The window hears what the panel now shows so the card
+		// holding it can make its account row the sign-in and its header say
+		// Signing in. Where this host has no device flow, the token prompt the
+		// Connect action already opens is the way in beside the refusal.
+		DevicePanel->set_presentation_observer([this] {
+			place_device_sign_in();
+			update_server_cards();
+		});
+		DevicePanel->set_manual_token_dispatch([this] {
+			if (GithubConnectAction != nullptr) {
+				GithubConnectAction->trigger();
+			}
+		});
 
 		// [[BPR-0646]]. RFC-BPR-0028 AC-01: the chrome above the comparison
 		// is the strip and the epoch line only, and accounts live in Settings.
-		// The device sign-in and the host cards are the Accounts and hosts
-		// page of the Settings window: sign-in first while signed out, then
-		// one card per configured host ([[BPR-0771]]). The strip's account
-		// button opens that page, and a flow the core begins presents it, so
-		// the code is seen. The pull request list (the queue landing) and the
+		// The server cards are the Accounts and hosts page of the Settings
+		// window, one per configured server ([[BPR-0771]], [[BPR-0772]]), and
+		// the device sign-in is the account row of its server's card
+		// ([[BPR-0773]]). The strip's account button opens that page, and a
+		// flow the core begins presents it, so the code is seen. The pull
+		// request list (the queue landing) and the
 		// pull request summary stay in the files drawer's bounded top region
 		// until the repositories drawer (BPR-0651) and the overview
 		// (BPR-0647) take them.
@@ -1657,8 +1677,8 @@ namespace bpr::qt {
 		accounts->setAccessibleName(QStringLiteral("Accounts and hosts"));
 		auto* const accountsColumn = new QVBoxLayout{ accounts };
 		accountsColumn->setContentsMargins(0, 0, 0, 0);
-		// [[BPR-0771]]. RFC-BPR-0032: the sentence, sign-in, then one card per
-		// configured host. The host picker, the locator, the status banner and
+		// [[BPR-0771]], [[BPR-0772]]. RFC-BPR-0032: the sentence, then one card
+		// per configured server. The host picker, the locator, the status banner and
 		// the public-preview strip are not here: a host is chosen by its card's
 		// Connect, a pull request is named in the Home bar, a load refusal is
 		// said under that bar, and a session failure is said in its card.
@@ -1668,7 +1688,11 @@ namespace bpr::qt {
 		lede->setTextFormat(Qt::PlainText);
 		lede->setForegroundRole(QPalette::PlaceholderText);
 		accountsColumn->addWidget(lede);
-		accountsColumn->addWidget(DevicePanel);
+		// [[BPR-0773]]. Device sign-in is no longer a panel of its own on the
+		// page: it is the account row of the card whose host it is bound to,
+		// laid in once that card exists.
+		DevicePanel->setParent(accounts);
+		DevicePanel->hide();
 		ServerCardColumn = new QVBoxLayout{ };
 		ServerCardColumn->setContentsMargins(0, 0, 0, 0);
 		ServerCardColumn->setSpacing(16);
@@ -1676,6 +1700,7 @@ namespace bpr::qt {
 		for (const auto& profile : GithubProfiles) {
 			add_server_card(profile);
 		}
+		place_device_sign_in();
 		// [[BPR-0660]]. The enterprise servers the reviewer keeps, so a
 		// GitHub Enterprise host is offered at the next launch without
 		// being typed again. No token is kept here: signing in is still
@@ -5234,21 +5259,11 @@ namespace bpr::qt {
 		}
 		PullRequestStack->setCurrentIndex(HasGithubPullRequest ? 1 : 0);
 		PullRequestPanel->body_editor()->setVisible(HasGithubPullRequest);
-		// [[BPR-0646]]. Sign-in is a state of the window: the device panel is
-		// shown while there is no accepted session and hidden once there is,
-		// so it is reachable without scrolling and absent when it is noise.
-		if (DevicePanel != nullptr) {
-			const auto status = SessionPanel->status();
-			DevicePanel->setVisible(
-				status == core::github_status::no_profile
-				|| status == core::github_status::establishing_session
-				|| status == core::github_status::session_failed
-				|| status == core::github_status::session_cancelled);
-			// A flow begins from the accounts page itself -- the strip's
-			// account button opens it -- so nothing here presents a window;
-			// presenting one would take activation from the workbench in the
-			// middle of whatever began the flow.
-		}
+		// [[BPR-0773]]. Sign-in is a state of its server's card: the card
+		// holding the device sign-in shows it as its account row while a flow
+		// runs (`update_server_cards`), so nothing here shows or hides it. A
+		// flow begins from the accounts page itself -- the strip's account
+		// button opens it -- so nothing here presents a window either.
 		update_account_action();
 		update_server_cards();
 		update_home_landing();
@@ -5461,6 +5476,7 @@ namespace bpr::qt {
 		if (std::ranges::any_of(ServerCards, [&aOption](server_card* const aCard) {
 				return aCard->adopt_option(aOption);
 			})) {
+			place_device_sign_in();
 			return;
 		}
 		// The card asks; the window decides. Connect is the host chosen, then
@@ -5498,6 +5514,7 @@ namespace bpr::qt {
 		}
 		ServerCards.push_back(card);
 		ServerCardColumn->addWidget(card);
+		place_device_sign_in();
 	}
 
 	void workbench_window::update_server_cards()
@@ -5511,6 +5528,10 @@ namespace bpr::qt {
 		const auto& session  = SessionPanel->session();
 		const auto  reading  = SessionPanel->public_preview_signed_out();
 		const auto  admitted = SessionPanel->connect_enabled();
+		// [[BPR-0773]]. What the device sign-in shows decides its card's
+		// account row and, while a flow runs, its header's word.
+		const auto deviceFlow    = DevicePanel != nullptr && DevicePanel->shows_flow();
+		const auto deviceSigning = DevicePanel != nullptr && DevicePanel->signing_in();
 		for (auto* const card : ServerCards) {
 			auto shown               = server_card_presentation{ };
 			shown.Current            = current.has_value() && card->holds(*current);
@@ -5557,6 +5578,12 @@ namespace bpr::qt {
 				shown.Capabilities = SessionPanel->capabilities();
 				shown.RateLimits   = SessionPanel->rate_limits();
 			}
+			const auto holdsSignIn = DevicePanel != nullptr && card->device_sign_in() == DevicePanel;
+			shown.DeviceSignIn     = holdsSignIn && deviceFlow;
+			const auto signedIn    = shown.State == server_card_state::connected && shown.Session.has_value();
+			if (holdsSignIn && deviceSigning && !signedIn) {
+				shown.State = server_card_state::signing_in;
+			}
 			card->apply(shown);
 		}
 	}
@@ -5594,6 +5621,41 @@ namespace bpr::qt {
 			profile.has_value()) {
 			DevicePanel->bind_profile(*profile);
 		}
+		place_device_sign_in();
+	}
+
+	void workbench_window::place_device_sign_in()
+	{
+		if (DevicePanel == nullptr || ServerCards.empty()) {
+			return;
+		}
+		auto* target = server_card_for(DevicePanel->bound_profile());
+		if (target == nullptr) {
+			target = current_server_card();
+		}
+		if (target == nullptr) {
+			target = ServerCards.front();
+		}
+		if (target->device_sign_in() == DevicePanel) {
+			return;
+		}
+		// A live code stays on the card of the host it was asked for. The core
+		// forbids a new flow while one runs, so the row follows a newly chosen
+		// host once the running one has settled, and the observer places it
+		// then.
+		if (DevicePanel->signing_in()
+			&& std::ranges::any_of(ServerCards, [this](const server_card* const aCard) {
+				   return aCard->device_sign_in() == DevicePanel;
+			   })) {
+			return;
+		}
+		for (auto* const card : ServerCards) {
+			if (card != target && card->device_sign_in() == DevicePanel) {
+				card->release_device_sign_in();
+			}
+		}
+		target->adopt_device_sign_in(DevicePanel);
+		update_server_cards();
 	}
 
 	auto workbench_window::pull_request_panel() const noexcept

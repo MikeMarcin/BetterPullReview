@@ -26,6 +26,7 @@
 #include <QCursor>
 #include <QEvent>
 #include <QFileInfo>
+#include <QFontInfo>
 #include <QFontMetrics>
 #include <QImage>
 #include <QItemSelectionModel>
@@ -4259,10 +4260,8 @@ namespace {
 		expect(
 			window.settings()->isVisible()
 				&& window.settings()->current_page()
-					== qt::settings_page::accounts_and_hosts
-				&& window.device_authorization()->begin_button()->hasFocus(),
-			"the sign-in button opens Accounts and hosts with Sign in "
-			"focused");
+					== qt::settings_page::accounts_and_hosts,
+			"the sign-in button opens Accounts and hosts");
 		expect(signInGestures.size() == 1U
 				   && std::holds_alternative<core::begin_device_authorization_intent>(signInGestures.front())
 				   && std::get<core::begin_device_authorization_intent>(signInGestures.front()).Profile == *window.session_panel()->selected_profile(),
@@ -4277,6 +4276,16 @@ namespace {
 			.Stage = core::device_authorization_stage::awaiting_authorization,
 		});
 		window.device_authorization()->apply(waiting);
+		QApplication::processEvents();
+		// [[BPR-0773]]. The code is not a panel of its own on the page: it is
+		// the account row of the card whose host the sign-in was begun for.
+		const auto  signingIn     = window.session_panel()->selected_profile();
+		auto* const signingInCard = signingIn.has_value() ? window.server_card_for(*signingIn) : nullptr;
+		expect(signingInCard != nullptr && signingInCard->device_sign_in() == window.device_authorization()
+				   && window.device_authorization()->isVisible()
+				   && window.device_authorization()->isVisibleTo(signingInCard)
+				   && signingInCard->state_label()->text() == QStringLiteral("Signing in"),
+			   "the live code appears as the account row of the chosen host's card, which says Signing in");
 		landing->primary_button()->click();
 		expect(signInGestures.size() == 1U, "another Home gesture cannot restart a running sign-in");
 		window.device_authorization()->cancel_button()->click();
@@ -4297,8 +4306,10 @@ namespace {
 		enterpriseCard->connect_button()->click();
 		expect(signInGestures.size() == 2U
 				   && window.session_panel()->selected_profile() == core::host_profile_id{ 12U }
-				   && window.device_authorization()->bound_profile() == core::host_profile_id{ 12U },
-			   "a card's Connect chooses its host and rebinds the device sign-in without a sign-in gesture");
+				   && window.device_authorization()->bound_profile() == core::host_profile_id{ 12U }
+				   && enterpriseCard->device_sign_in() == window.device_authorization()
+				   && enterpriseCard->isAncestorOf(window.device_authorization()),
+			   "a card's Connect chooses its host and moves the device sign-in into that card's account row, without a sign-in gesture");
 		landing->primary_button()->click();
 		expect(signInGestures.size() == 3U
 				   && std::get<core::begin_device_authorization_intent>(signInGestures.back()).Profile == core::host_profile_id{ 12U },
@@ -4410,7 +4421,11 @@ namespace {
 		window.hide();
 	}
 
-	auto test_device_sign_in_is_mounted_beside_the_session_chrome() -> void
+	/// \brief [[BPR-0646]], [[BPR-0773]]. Device sign-in is the account row of
+	/// the card whose host it is bound to: hidden while no flow runs, begun by
+	/// the strip's account button, drawn in place with Signing in while a code
+	/// is live, and moved with the host a card's Connect chooses.
+	auto test_device_sign_in_is_mounted_in_the_chosen_cards_account_row() -> void
 	{
 		auto nativeProfiles              = profiles();
 		nativeProfiles.front().Transport = application::github_profile_transport::native_https;
@@ -4440,71 +4455,47 @@ namespace {
 			found != nullptr && found == window.device_authorization(),
 			"the accounts page holds the device sign-in panel under its "
 			"accessible name");
-		auto* const panel = window.device_authorization();
-		expect(
-			panel->parentWidget() == header
-				&& header->layout() != nullptr
-				&& header->layout()->indexOf(panel) >= 0
-				&& window.settings() != nullptr
-				&& window.settings()
-					   ->page_widget(qt::settings_page::accounts_and_hosts)
-					   ->isAncestorOf(panel),
-			"the device panel is laid into the accounts page's own column on "
-			"the Settings window's Accounts and hosts page");
-		auto* const session = window.session_panel();
-		// [[BPR-0771]]. The page is its sentence, the device sign-in (which
-		// moves into the card in BPR-0773), then one card per host in profile
-		// order. The session is a presentation model now, not a panel here.
+		auto* const panel    = window.device_authorization();
+		auto* const session  = window.session_panel();
+		const auto  cards    = window.server_cards();
+		const auto  selected = session == nullptr ? std::optional<core::host_profile_id>{ } : session->selected_profile();
+		auto* const chosen   = selected.has_value() ? window.server_card_for(*selected) : nullptr;
+		auto* const account  = chosen == nullptr ? nullptr : chosen->findChild<QWidget*>(QStringLiteral("serverCardAccount"));
+		// [[BPR-0773]]. The page is its sentence, then one card per host in
+		// profile order. The device sign-in is no longer a panel of its own in
+		// the page's column: it is the chosen native card's account row.
 		auto* const pageLayout = header->layout();
 		auto* const lede       = required_child<QLabel>(window, "accountsLede");
-		auto* const cardColumn = pageLayout != nullptr && pageLayout->count() > 2
-			? pageLayout->itemAt(2)->layout()
+		auto* const cardColumn = pageLayout != nullptr && pageLayout->count() > 1
+			? pageLayout->itemAt(1)->layout()
 			: nullptr;
-		const auto cards = window.server_cards();
 		expect(
 			session != nullptr && pageLayout != nullptr
 				&& pageLayout->indexOf(lede) == 0
-				&& pageLayout->indexOf(panel) == 1
+				&& pageLayout->indexOf(panel) < 0
 				&& cardColumn != nullptr && cards.size() == 2U
 				&& cardColumn->indexOf(cards.front()) == 0
 				&& cardColumn->indexOf(cards.back()) == 1,
-			"device sign-in follows the page's sentence, directly above the "
-			"host cards whose Connect chooses a host");
+			"the page is its sentence, then the host cards, and the device sign-in is not a panel in the page's own column");
+		expect(
+			selected.has_value() && chosen != nullptr && account != nullptr
+				&& chosen->offers_device_sign_in() && chosen->device_sign_in() == panel
+				&& account->isAncestorOf(panel)
+				&& std::ranges::none_of(cards, [chosen, panel](const qt::server_card* const aCard) {
+					   return aCard != chosen && (aCard->device_sign_in() == panel || aCard->isAncestorOf(panel));
+				   })
+				&& window.settings()->page_widget(qt::settings_page::accounts_and_hosts)->isAncestorOf(panel),
+			"the device sign-in is laid into the account row of the chosen native card, and no other card holds it");
+		expect(
+			panel->isHidden() && !panel->isVisibleTo(chosen)
+				&& chosen->sign_in_button()->isVisibleTo(chosen),
+			"while no flow runs the sign-in is hidden, and the card offers its own Sign in");
 		expect(
 			!window.files_drawer()->isAncestorOf(panel)
 				&& std::ranges::none_of(cards, [&window](const qt::server_card* const aCard) {
 					   return window.files_drawer()->isAncestorOf(aCard);
 				   }),
 			"neither sign-in nor a host card is in the files drawer");
-		window.account_action()->trigger();
-		QApplication::processEvents();
-		expect(
-			window.settings()->isVisible()
-				&& window.settings()->current_page()
-					== qt::settings_page::accounts_and_hosts
-				&& panel->isVisible() && panel->width() > 0 && panel->height() > 0
-				&& panel->mapTo(header, QPoint{ 0, 0 }).y()
-					< cards.front()->mapTo(header, QPoint{ 0, 0 }).y()
-				&& panel->mapTo(window.settings(), QPoint{ 0, 0 }).y()
-						+ panel->height()
-					<= window.settings()->height(),
-			"the strip's account button presents Accounts and hosts with the "
-			"sign-in panel visible above the host cards, without scrolling");
-		expect(
-			!window.focus_order().contains(panel->begin_button())
-				&& std::ranges::none_of(cards, [&window](const qt::server_card* const aCard) {
-					   return window.focus_order().contains(aCard->connect_button())
-						   || window.focus_order().contains(aCard->sign_in_button());
-				   }),
-			"the workbench declares no focus stops across windows");
-
-		publish_session_ready(window);
-		publish_pull_request(window);
-		QApplication::processEvents();
-		expect(
-			!panel->isVisible(),
-			"once a session is accepted the sign-in panel is hidden rather than "
-			"left as noise above the pull request");
 
 		// The window sets no dispatch of its own, so this one is the test's,
 		// exactly as it is for the two agent surfaces above.
@@ -4513,66 +4504,27 @@ namespace {
 			[&gestures](application::device_authorization_gesture aGesture) {
 				gestures.push_back(std::move(aGesture));
 			});
+		window.account_action()->trigger();
+		QApplication::processEvents();
+		expect(
+			window.settings()->isVisible()
+				&& window.settings()->current_page() == qt::settings_page::accounts_and_hosts
+				&& gestures.size() == 1U
+				&& std::holds_alternative<core::begin_device_authorization_intent>(gestures.front())
+				&& std::get<core::begin_device_authorization_intent>(gestures.front()).Profile == *selected,
+			"the strip's account button presents Accounts and hosts and begins exactly one device sign-in, for the chosen host");
+		expect(
+			!window.focus_order().contains(panel->begin_button())
+				&& !window.focus_order().contains(panel->open_button())
+				&& std::ranges::none_of(cards, [&window](const qt::server_card* const aCard) {
+					   return window.focus_order().contains(aCard->connect_button())
+						   || window.focus_order().contains(aCard->sign_in_button());
+				   }),
+			"the workbench declares no focus stops across windows");
 
-		const auto selected = session->selected_profile();
-		expect(
-			selected.has_value() && panel->bound_profile() == *selected,
-			"the mounted panel is bound to the profile the picker already names");
-		expect(
-			panel->begin_button()->isEnabled(),
-			"asking for a code is the one command the core allows before a flow");
-		panel->begin_button()->click();
-		QApplication::processEvents();
-		expect(
-			gestures.size() == 1U
-				&& std::holds_alternative<core::begin_device_authorization_intent>(
-					gestures.front())
-				&& std::get<core::begin_device_authorization_intent>(
-					   gestures.front())
-						.Profile
-					== *selected,
-			"pressing begin emits one intent naming the picker's own profile");
-		// The core answers a begin by moving the status; the shell shows the
-		// panel again for the flow it started, exactly as it does for a
-		// signed-out window.
-		window.publish(application::github_presentation_update{
-			.Transition = application::github_transition_projection{
-				.Status = core::github_status_delta{
-					.Status = core::github_status::establishing_session } } });
-		QApplication::processEvents();
-		expect(
-			panel->isVisible(),
-			"a flow the core is establishing shows the sign-in panel again");
-
-		// [[BPR-0771]]. A card's Connect chooses the host a Connect or a new
-		// sign-in means. Sign-in has to mean the same host through both doors,
-		// so choosing another here changes which profile a new code is asked for.
-		const auto  other     = *selected == core::host_profile_id{ 11U } ? core::host_profile_id{ 12U } : core::host_profile_id{ 11U };
-		auto* const otherCard = window.server_card_for(other);
-		expect(
-			otherCard != nullptr && otherCard->connect_button()->isVisibleTo(otherCard),
-			"the host that is not chosen offers Connect on its card");
-		otherCard->connect_button()->click();
-		QApplication::processEvents();
-		const auto changed = session->selected_profile();
-		expect(
-			changed.has_value() && *changed == other && *changed != *selected
-				&& panel->bound_profile() == *changed
-				&& gestures.size() == 1U,
-			"a card's Connect rebinds the mounted panel to its host without a sign-in gesture");
-		panel->begin_button()->click();
-		QApplication::processEvents();
-		expect(
-			gestures.size() == 2U
-				&& std::get<core::begin_device_authorization_intent>(
-					   gestures.back())
-						.Profile
-					== *changed,
-			"the next request names the host the card's Connect chose");
-
-		// One published presentation, applied through the same call the
-		// composition's fan-out makes. It is what turns the two gestures below
-		// into legal ones, and it is what the capture is a picture of.
+		// The core answers a begin with a live code, applied to the panel the
+		// way the composition's fan-out applies it. It is what turns the two
+		// gestures below into legal ones, and what the capture is a picture of.
 		auto awaiting = application::device_authorization_presentation{
 			.Stage                    = core::device_authorization_stage::awaiting_authorization,
 			.UserCode                 = "WDJB-MJHT",
@@ -4586,26 +4538,30 @@ namespace {
 		panel->apply(awaiting);
 		QApplication::processEvents();
 		expect(
-			panel->user_code_field()->text() == QStringLiteral("WDJB-MJHT")
-				&& panel->address_field()->text()
-					== QStringLiteral("https://github.com/login/device"),
-			"a published presentation reaches the mounted panel's own fields");
+			panel->isVisible() && panel->isVisibleTo(chosen) && chosen->device_sign_in() == panel
+				&& chosen->state_label()->text() == QStringLiteral("Signing in")
+				&& !chosen->sign_in_button()->isVisibleTo(chosen)
+				&& !chosen->login_label()->isVisibleTo(chosen)
+				&& panel->user_code_field()->text() == QStringLiteral("WDJB-MJHT")
+				&& panel->address_field()->text() == QStringLiteral("https://github.com/login/device"),
+			"a live code is the chosen card's account row, in place of its ways in, and its header says Signing in");
+		expect(
+			std::ranges::none_of(cards, [chosen](const qt::server_card* const aCard) {
+				return aCard != chosen && aCard->state_label()->text() == QStringLiteral("Signing in");
+			}),
+			"no other card says Signing in");
 
 		panel->open_button()->click();
 		panel->cancel_button()->click();
 		QApplication::processEvents();
 		expect(
-			gestures.size() == 4U
-				&& std::holds_alternative<
-					application::open_verification_address_gesture>(
-					gestures[2])
-				&& std::holds_alternative<
-					core::cancel_device_authorization_intent>(gestures[3]),
+			gestures.size() == 3U
+				&& std::holds_alternative<application::open_verification_address_gesture>(gestures[1])
+				&& std::holds_alternative<core::cancel_device_authorization_intent>(gestures[2]),
 			"opening a browser and cancelling both leave through the same sink "
 			"and neither is performed here");
-		window.set_device_authorization_dispatch({ });
 
-		// The panel is at the top of the accounts page, so the capture is a
+		// The sign-in is near the top of the accounts page, so the capture is a
 		// picture of it without scrolling anything.
 		auto* const headerScroll = window.settings()->page_widget(
 			qt::settings_page::accounts_and_hosts);
@@ -4659,6 +4615,40 @@ namespace {
 					"PNG"),
 				"the device sign-in crop is saved in the ignored build tree");
 		}
+
+		// [[BPR-0771]], [[BPR-0773]]. A card's Connect chooses the host a
+		// Connect or a new sign-in means, and the sign-in moves into that host's
+		// card. The flow is settled back to idle first, so what moves is the
+		// mount alone.
+		panel->apply(application::device_authorization_presentation{ });
+		QApplication::processEvents();
+		expect(
+			panel->isHidden() && chosen->state_label()->text() == QStringLiteral("Signed out")
+				&& chosen->sign_in_button()->isVisibleTo(chosen),
+			"a flow settled back to idle hands the row back to the card's own Sign in");
+		const auto  other     = *selected == core::host_profile_id{ 11U } ? core::host_profile_id{ 12U } : core::host_profile_id{ 11U };
+		auto* const otherCard = window.server_card_for(other);
+		expect(
+			otherCard != nullptr && otherCard != chosen && otherCard->connect_button()->isVisibleTo(otherCard),
+			"the host that is not chosen offers Connect on its card");
+		otherCard->connect_button()->click();
+		QApplication::processEvents();
+		const auto changed = session->selected_profile();
+		expect(
+			changed.has_value() && *changed == other
+				&& panel->bound_profile() == other
+				&& otherCard->device_sign_in() == panel && otherCard->isAncestorOf(panel)
+				&& chosen->device_sign_in() == nullptr && !chosen->isAncestorOf(panel)
+				&& gestures.size() == 3U,
+			"a card's Connect moves the device sign-in into its own account row, bound to its host, without a sign-in gesture");
+		panel->begin_button()->click();
+		QApplication::processEvents();
+		expect(
+			gestures.size() == 4U
+				&& std::holds_alternative<core::begin_device_authorization_intent>(gestures.back())
+				&& std::get<core::begin_device_authorization_intent>(gestures.back()).Profile == other,
+			"the next request names the host the card's Connect chose");
+		window.set_device_authorization_dispatch({ });
 	}
 
 	/// \brief [[BPR-0771]]. What Accounts & hosts carried before RFC-BPR-0032.
@@ -5508,6 +5498,9 @@ namespace {
 		bool SignedIn = false;
 		/// Whether the chosen card's Sign in is the page's one filled control.
 		bool Filled = false;
+		/// [[BPR-0773]]. Whether a code is live in the chosen card's account
+		/// row, whose Open browser is then the page's one filled control.
+		bool SigningIn = false;
 	};
 
 	/// \brief [[BPR-0772]], RFC-BPR-0032 A4. Fails unless each card on the page
@@ -5545,9 +5538,10 @@ namespace {
 			});
 		};
 
-		// Outside the cards: the page's title and sentence, the device sign-in
-		// until BPR-0773 moves it into the card, and the enterprise servers
-		// editor until BPR-0774 replaces it. None of them may say a fact again.
+		// Outside the cards: the page's title and sentence, and the enterprise
+		// servers editor until BPR-0774 replaces it. The device sign-in is a
+		// card's account row since BPR-0773, so its address and code are
+		// counted as that card's. Nothing outside may say a fact again.
 		for (const auto* const card : cards) {
 			expect_mentions(texts, QString::fromStdString(card->hostname()), fact_kind::host, outside, 0U, 0U,
 							during("nothing outside the server cards names " + card->hostname()));
@@ -5621,12 +5615,20 @@ namespace {
 				filled.push_back(button);
 			}
 		}
-		const auto* const chosen = aWindow.server_card_for(aState.Current);
+		// The one filled control is the page's job: the chosen card's Sign in
+		// while it is signed out with native HTTPS presented, and its Open
+		// browser while a code is live in its account row.
+		const auto* const chosen   = aWindow.server_card_for(aState.Current);
+		const auto* const expected = aState.SigningIn
+			? static_cast<const QPushButton*>(aWindow.device_authorization()->open_button())
+			: (aState.Filled && chosen != nullptr ? static_cast<const QPushButton*>(chosen->sign_in_button()) : nullptr);
 		expect(filled.size() <= 1U, during("at most one control on the page is filled"));
-		expect(aState.Filled ? filled.size() == 1U && chosen != nullptr && filled.front() == chosen->sign_in_button()
-							 : filled.empty(),
-			   during(aState.Filled ? "the chosen card's Sign in is the page's one filled control"
-									: "no control on the page is filled"));
+		expect(expected == nullptr
+				   ? filled.empty()
+				   : filled.size() == 1U && filled.front() == expected && chosen != nullptr && chosen->isAncestorOf(expected),
+			   during(aState.SigningIn    ? "the chosen card's Open browser is the page's one filled control"
+						  : aState.Filled ? "the chosen card's Sign in is the page's one filled control"
+										  : "no control on the page is filled"));
 	}
 
 	/// \brief [[BPR-0772]] acceptance 2, RFC-BPR-0032 A4. On every state of the
@@ -5696,6 +5698,44 @@ namespace {
 			.SignedIn           = false,
 			.Filled             = true,
 		});
+
+		// [[BPR-0773]]. Signing in on GitHub.com: the chosen card's Sign in is
+		// pressed, and the code the core answers with is that card's account
+		// row. Its address names github.com as part of an address, which is not
+		// the host said a second time.
+		auto* const panel = window.device_authorization();
+		window.server_card_for(core::host_profile_id{ 21U })->sign_in_button()->click();
+		auto awaiting = application::device_authorization_presentation{
+			.Stage                    = core::device_authorization_stage::awaiting_authorization,
+			.UserCode                 = "WDJB-MJHT",
+			.VerificationUri          = "https://github.com/login/device",
+			.RemainingValiditySeconds = 900U,
+		};
+		awaiting.Commands = core::device_authorization_commands(core::device_authorization_state{
+			.Stage = core::device_authorization_stage::awaiting_authorization,
+		});
+		panel->apply(awaiting);
+		QApplication::processEvents();
+		expect(window.server_card_for(core::host_profile_id{ 21U })->device_sign_in() == panel
+				   && panel->address_field()->isVisibleTo(page)
+				   && panel->address_field()->text().contains(QStringLiteral("github.com/")),
+			   "signing in on GitHub.com, the code and its github.com address are that card's account row");
+		inspect({
+			.Name               = "signing in on GitHub.com",
+			.Current            = core::host_profile_id{ 21U },
+			.GithubPresents     = core::host_profile_id{ 21U },
+			.GithubState        = QStringLiteral("Signing in"),
+			.EnterprisePresents = core::host_profile_id{ 23U },
+			.EnterpriseState    = QStringLiteral("Signed out"),
+			.SignedIn           = false,
+			.Filled             = false,
+			.SigningIn          = true,
+		});
+		panel->apply(application::device_authorization_presentation{ });
+		QApplication::processEvents();
+		expect(!panel->isVisibleTo(page)
+				   && window.server_card_for(core::host_profile_id{ 21U })->state_label()->text() == QStringLiteral("Signed out"),
+			   "settled back to idle, GitHub.com's card is signed out again and the sign-in is hidden");
 
 		window.publish(application::github_presentation_update{
 			.Transition = application::github_transition_projection{
@@ -5819,6 +5859,386 @@ namespace {
 		window.settings()->hide();
 		window.hide();
 	}
+
+	/// \brief [[BPR-0773]]. A composition with one server: GitHub.com over
+	/// native HTTPS, which has a device flow.
+	[[nodiscard]] auto device_profiles()
+		-> std::vector<application::github_profile_option>
+	{
+		return {
+			{
+				.Profile   = core::host_profile_id{ 31U },
+				.Label     = "GitHub.com — Native HTTPS",
+				.Hostname  = "github.com",
+				.Product   = application::github_profile_product::github_com,
+				.Transport = application::github_profile_transport::native_https,
+			},
+		};
+	}
+
+	/// \brief What the composition applies to the device sign-in in one stage:
+	/// a live code while awaiting authorization, and the commands the core
+	/// allows in that stage.
+	[[nodiscard]] auto device_presentation(const core::device_authorization_stage aStage)
+		-> application::device_authorization_presentation
+	{
+		auto presentation = application::device_authorization_presentation{
+			.Stage = aStage,
+		};
+		if (aStage == core::device_authorization_stage::awaiting_authorization) {
+			presentation.UserCode                 = "WDJB-MJHT";
+			presentation.VerificationUri          = "https://github.com/login/device";
+			presentation.RemainingValiditySeconds = 900U;
+		}
+		presentation.Commands = core::device_authorization_commands(
+			core::device_authorization_state{ .Stage = aStage });
+		return presentation;
+	}
+
+	/// \brief Names every button shown in a card that cannot be pressed; empty when none.
+	[[nodiscard]] auto disabled_buttons(const qt::server_card& aCard) -> std::string
+	{
+		auto named = std::string{ };
+		for (const auto* const button : aCard.findChildren<QAbstractButton*>()) {
+			if (button->isVisibleTo(&aCard) && !button->isEnabled()) {
+				named += " [" + button->objectName().toStdString() + ": \"" + button->text().toStdString() + "\"]";
+			}
+		}
+		return named;
+	}
+
+	/// \brief Names every field shown under a widget that is narrower than its
+	/// own text in its own font; empty when none.
+	[[nodiscard]] auto truncated_fields(const QWidget& aRoot) -> std::string
+	{
+		auto named = std::string{ };
+		for (const auto* const field : aRoot.findChildren<QLineEdit*>()) {
+			const auto advance = QFontMetrics{ field->font() }.horizontalAdvance(field->text());
+			if (field->isVisibleTo(&aRoot) && field->width() < advance) {
+				named += " [" + field->objectName().toStdString() + ": " + std::to_string(field->width())
+					+ " px for " + std::to_string(advance) + " px of \"" + field->text().toStdString() + "\"]";
+			}
+		}
+		return named;
+	}
+
+	/// \brief [[BPR-0773]] acceptance 1, RFC-BPR-0032 A2. One Sign in gesture on
+	/// the chosen card begins the device flow, and the code the core answers
+	/// with is shown inside that card: the address sentence and the address,
+	/// the code with Copy code, Open browser filled, the validity, one status
+	/// sentence and Cancel. Nothing is behind a disclosure or below the fold,
+	/// no button shown is disabled and no field is truncated.
+	auto test_one_sign_in_gesture_shows_the_code_in_the_card() -> void
+	{
+		auto                 intents = std::vector<application::github_intent>{ };
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			device_profiles(),
+			[&intents](application::github_intent aIntent) {
+				intents.push_back(std::move(aIntent));
+			},
+		};
+		auto gestures = std::vector<application::device_authorization_gesture>{ };
+		window.set_device_authorization_dispatch([&gestures](application::device_authorization_gesture aGesture) {
+			gestures.push_back(std::move(aGesture));
+		});
+		window.resize(1'280, 820);
+		window.show();
+		window.open_settings(qt::settings_page::accounts_and_hosts);
+		QApplication::processEvents();
+
+		// Settings keeps the size it opens at; the claim below is made there.
+		auto* const settings = window.settings();
+		auto* const page     = settings->page_widget(qt::settings_page::accounts_and_hosts);
+		auto* const scroll   = qobject_cast<QScrollArea*>(settings->pages()->currentWidget());
+		auto* const card     = window.server_card_for(core::host_profile_id{ 31U });
+		auto* const panel    = window.device_authorization();
+		expect(settings->isVisible() && settings->width() <= 960 && settings->height() <= 640
+				   && page != nullptr && scroll != nullptr && scroll->widget() == page
+				   && card != nullptr && card->presentation().Current && card->sign_in_button()->isVisible(),
+			   "Settings is open on Accounts and hosts at no more than its own size, and the chosen GitHub.com card offers Sign in");
+
+		card->sign_in_button()->click();
+		QApplication::processEvents();
+		expect(gestures.size() == 1U
+				   && std::holds_alternative<core::begin_device_authorization_intent>(gestures.front())
+				   && std::get<core::begin_device_authorization_intent>(gestures.front()).Profile == core::host_profile_id{ 31U }
+				   && intents.empty(),
+			   "the card's Sign in emits exactly one device begin, for its native HTTPS profile, and no GitHub intent");
+
+		// The core answers with a live code, applied the way the composition's
+		// fan-out applies it.
+		panel->apply(device_presentation(core::device_authorization_stage::awaiting_authorization));
+		QApplication::processEvents();
+		auto* const                   account = card->findChild<QWidget*>(QStringLiteral("serverCardAccount"));
+		const std::array<QWidget*, 8> row{
+			panel->address_sentence_label(),
+			panel->address_field(),
+			panel->user_code_field(),
+			panel->copy_button(),
+			panel->open_button(),
+			panel->validity_label(),
+			panel->status_label(),
+			panel->cancel_button(),
+		};
+		expect(card->device_sign_in() == panel && account != nullptr && account->isAncestorOf(panel)
+				   && std::ranges::all_of(row, [card, account](const QWidget* const aWidget) {
+						  return card->isAncestorOf(aWidget) && account->isAncestorOf(aWidget) && aWidget->isVisible()
+							  && !card->details()->isAncestorOf(aWidget);
+					  }),
+			   "the address sentence, the address, the code, Copy code, Open browser, the validity, the status sentence and Cancel are all shown in the card's account row, in no disclosure");
+		expect(panel->address_sentence_label()->text() == QStringLiteral("Enter this code at")
+				   && panel->address_field()->text() == QStringLiteral("https://github.com/login/device")
+				   && panel->user_code_field()->text() == QStringLiteral("WDJB-MJHT")
+				   && panel->user_code_field()->isReadOnly()
+				   && panel->open_button()->text() == QStringLiteral("Open browser")
+				   && panel->open_button()->isDefault()
+				   && panel->cancel_button()->text() == QStringLiteral("Cancel")
+				   && !panel->validity_label()->text().isEmpty()
+				   && panel->status_label()->text().startsWith(QStringLiteral("Waiting for the browser to authorize this ")),
+			   "the row reads Enter this code at and the address, the selectable code, Open browser filled, the validity, one status sentence and Cancel");
+		expect(card->state_label()->text() == QStringLiteral("Signing in")
+				   && !card->sign_in_button()->isVisible() && !card->login_label()->isVisible(),
+			   "the header says Signing in, and the row is the sign-in rather than the card's ways in");
+
+		const QRect placed{ panel->mapTo(scroll->viewport(), QPoint{ 0, 0 }), panel->size() };
+		expect(!placed.isEmpty() && scroll->viewport()->rect().contains(placed),
+			   "the whole sign-in lies inside the Accounts page's viewport, without scrolling");
+		const auto disabled = disabled_buttons(*card);
+		expect(disabled.empty(), "no button shown in the card is disabled:" + disabled);
+		const auto truncated = truncated_fields(*panel);
+		expect(truncated.empty(), "no field in the sign-in is narrower than its text:" + truncated);
+		const auto code = panel->user_code_field()->font();
+		expect(QFontInfo{ code }.fixedPitch() && panel->font().pointSizeF() > 0.0
+				   && std::abs(code.pointSizeF() - panel->font().pointSizeF() * 1.6) <= panel->font().pointSizeF() * 0.02,
+			   "the code is in a fixed-pitch font at 1.6 times the row's size");
+		expect(!card->details_button()->isChecked() && !card->details()->isVisible(),
+			   "the card's Details stays collapsed");
+
+		auto* const clipboard = QApplication::clipboard();
+		expect(clipboard != nullptr, "the Qt platform provides a clipboard");
+		clipboard->setText(QStringLiteral("clipboard before Copy code"));
+		panel->copy_button()->click();
+		expect(clipboard->text() == QStringLiteral("WDJB-MJHT")
+				   && panel->copy_button()->text() == QStringLiteral("Copied")
+				   && panel->copy_button()->accessibleName() == QStringLiteral("Copy code")
+				   && panel->copy_button()->toolTip() == QStringLiteral("Copy code"),
+			   "Copy code puts exactly the code on the clipboard and says Copied in place");
+		expect(gestures.size() == 1U && intents.empty(), "showing and copying the code dispatches nothing more");
+		window.set_device_authorization_dispatch({ });
+		settings->hide();
+		window.hide();
+	}
+
+	/// \brief [[BPR-0773]] acceptance 2, RFC-BPR-0032 A2. Cancelled, expired and
+	/// denied flows stay in the card's account row with their sentence and one
+	/// Sign in again. An unavailable device flow adds Sign in with a token,
+	/// which is the window's own Connect. No button shown is disabled and no
+	/// field is truncated, and an authorized flow hands the row back to the
+	/// signed-in account.
+	auto test_terminal_and_token_rows_stay_in_the_card() -> void
+	{
+		auto                 intents = std::vector<application::github_intent>{ };
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			device_profiles(),
+			[&intents](application::github_intent aIntent) {
+				intents.push_back(std::move(aIntent));
+			},
+		};
+		auto gestures = std::vector<application::device_authorization_gesture>{ };
+		window.set_device_authorization_dispatch([&gestures](application::device_authorization_gesture aGesture) {
+			gestures.push_back(std::move(aGesture));
+		});
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Commands = enabled_commands(),
+				.Status   = core::github_status_delta{ .Status = core::github_status::no_profile },
+			},
+		});
+		window.resize(1'280, 820);
+		window.show();
+		window.open_settings(qt::settings_page::accounts_and_hosts);
+		QApplication::processEvents();
+		auto* const card  = window.server_card_for(core::host_profile_id{ 31U });
+		auto* const panel = window.device_authorization();
+		expect(card != nullptr && card->presentation().Current && card->device_sign_in() == panel,
+			   "the chosen GitHub.com card holds the device sign-in");
+
+		card->sign_in_button()->click();
+		panel->apply(device_presentation(core::device_authorization_stage::awaiting_authorization));
+		QApplication::processEvents();
+		expect(gestures.size() == 1U && std::holds_alternative<core::begin_device_authorization_intent>(gestures.back())
+				   && panel->cancel_button()->isVisible(),
+			   "Sign in begins the flow, and its live code offers Cancel");
+		panel->cancel_button()->click();
+		QApplication::processEvents();
+		expect(gestures.size() == 2U && std::holds_alternative<core::cancel_device_authorization_intent>(gestures.back()),
+			   "Cancel emits exactly one cancel intent");
+
+		// A terminal row keeps its sentence in the card, offers one Sign in
+		// again, and shows nothing it cannot do.
+		const auto expectTerminalRow = [card, panel](const std::string_view aStage, const QString& aSentence, const bool aToken) {
+			QApplication::processEvents();
+			const auto name    = std::string{ aStage };
+			auto       retries = 0;
+			for (const auto* const button : card->findChildren<QAbstractButton*>()) {
+				if (button->isVisible() && button->text() == QStringLiteral("Sign in again")) {
+					++retries;
+				}
+			}
+			expect(card->device_sign_in() == panel && card->isAncestorOf(panel) && panel->isVisible()
+					   && panel->status_label()->isVisible() && panel->status_label()->text() == aSentence,
+				   name + ": the card's account row keeps the stage's sentence");
+			expect(retries == 1 && panel->begin_button()->isVisible()
+					   && panel->begin_button()->text() == QStringLiteral("Sign in again"),
+				   name + ": the row offers exactly one Sign in again");
+			expect(!panel->cancel_button()->isVisible() && !panel->open_button()->isVisible()
+					   && !panel->copy_button()->isVisible(),
+				   name + ": the row shows no Cancel, Open browser or Copy code");
+			expect(panel->token_button()->isVisible() == aToken
+					   && (!aToken || panel->token_button()->text() == QStringLiteral("Sign in with a token")),
+				   name + (aToken ? ": the row offers Sign in with a token" : ": the row offers no token way in"));
+			expect(card->state_label()->text() == QStringLiteral("Signed out") && !card->sign_in_button()->isVisible(),
+				   name + ": the header says Signed out, and the row's retry stands in for the card's own Sign in");
+			const auto disabled  = disabled_buttons(*card);
+			const auto truncated = truncated_fields(*card);
+			expect(disabled.empty(), name + ": no button shown in the card is disabled:" + disabled);
+			expect(truncated.empty(), name + ": no field in the card is narrower than its text:" + truncated);
+		};
+		panel->apply(device_presentation(core::device_authorization_stage::cancelled));
+		expectTerminalRow("cancelled", QStringLiteral("Sign-in was cancelled."), false);
+		panel->apply(device_presentation(core::device_authorization_stage::expired));
+		expectTerminalRow("expired", QStringLiteral("The code expired before it was used."), false);
+		panel->apply(device_presentation(core::device_authorization_stage::denied));
+		expectTerminalRow("denied", QStringLiteral("Sign-in was denied."), false);
+		panel->apply(device_presentation(core::device_authorization_stage::unavailable));
+		expectTerminalRow("unavailable", QStringLiteral("Device sign-in is unavailable here."), true);
+
+		// Where the device flow is unavailable, the token way in is the window's
+		// own Connect, which opens the composition's existing token prompt.
+		intents.clear();
+		const auto deviceGestures = gestures.size();
+		panel->token_button()->click();
+		QApplication::processEvents();
+		const auto* const activation = intents.size() == 1U
+			? std::get_if<core::activate_host_profile_intent>(&intents.front())
+			: nullptr;
+		expect(activation != nullptr && activation->Profile == core::host_profile_id{ 31U }
+				   && activation->Mode == core::github_access_mode::authenticated
+				   && window.session_panel()->selected_profile() == core::host_profile_id{ 31U }
+				   && gestures.size() == deviceGestures,
+			   "Sign in with a token triggers the window's Connect: exactly one activation for the chosen profile, and no device gesture");
+
+		panel->apply(device_presentation(core::device_authorization_stage::authorized));
+		publish_session_ready(window, core::host_profile_id{ 31U });
+		QApplication::processEvents();
+		expect(!panel->isVisible() && card->signed_in()
+				   && card->login_label()->isVisible()
+				   && card->login_label()->text() == QStringLiteral("octo-reviewer")
+				   && card->state_label()->text() == QStringLiteral("Connected")
+				   && card->sign_out_button()->isVisible(),
+			   "an authorized flow and the session it opens hand the row back to the signed-in account");
+		window.set_device_authorization_dispatch({ });
+		window.settings()->hide();
+		window.hide();
+	}
+
+	/// \brief [[BPR-0773]] D5. Signed out on GitHub.com, the strip's account
+	/// button presses the chosen card's own Sign in. With an account signed in,
+	/// or with a chosen host that has no device flow, it only opens the page.
+	auto test_the_account_action_presses_the_chosen_cards_sign_in() -> void
+	{
+		{
+			auto                 intents = std::vector<application::github_intent>{ };
+			qt::workbench_window window{
+				qt::workbench_intent_dispatch{ },
+				qt::workbench_change_dispatch{ },
+				qt::workbench_drawer_width_dispatch{ },
+				device_profiles(),
+				[&intents](application::github_intent aIntent) {
+					intents.push_back(std::move(aIntent));
+				},
+			};
+			auto gestures = std::vector<application::device_authorization_gesture>{ };
+			window.set_device_authorization_dispatch([&gestures](application::device_authorization_gesture aGesture) {
+				gestures.push_back(std::move(aGesture));
+			});
+			window.resize(1'280, 820);
+			window.show();
+			QApplication::processEvents();
+			window.account_action()->trigger();
+			QApplication::processEvents();
+			expect(window.settings()->isVisible()
+					   && window.settings()->current_page() == qt::settings_page::accounts_and_hosts
+					   && gestures.size() == 1U
+					   && std::holds_alternative<core::begin_device_authorization_intent>(gestures.front())
+					   && std::get<core::begin_device_authorization_intent>(gestures.front()).Profile == core::host_profile_id{ 31U }
+					   && intents.empty(),
+				   "signed out on GitHub.com, the account button opens Accounts and hosts and begins one device sign-in for the chosen host");
+
+			window.settings()->hide();
+			publish_session_ready(window, core::host_profile_id{ 31U });
+			QApplication::processEvents();
+			auto* const card = window.server_card_for(core::host_profile_id{ 31U });
+			expect(card != nullptr && card->signed_in() && !card->sign_in_button()->isVisibleTo(card),
+				   "with an account signed in, the chosen card offers no Sign in");
+			gestures.clear();
+			intents.clear();
+			window.account_action()->trigger();
+			QApplication::processEvents();
+			expect(window.settings()->isVisible()
+					   && window.settings()->current_page() == qt::settings_page::accounts_and_hosts
+					   && gestures.empty() && intents.empty(),
+				   "signed in, the account button only opens Accounts and hosts: no device begin and no intent");
+			window.set_device_authorization_dispatch({ });
+			window.settings()->hide();
+			window.hide();
+		}
+
+		auto                 intents = std::vector<application::github_intent>{ };
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			std::vector<application::github_profile_option>{
+				{
+					.Profile   = core::host_profile_id{ 41U },
+					.Label     = "GHES 3.18 — Native HTTPS",
+					.Hostname  = "ghe.example.invalid",
+					.Product   = application::github_profile_product::github_enterprise_server,
+					.Transport = application::github_profile_transport::native_https,
+				},
+			},
+			[&intents](application::github_intent aIntent) {
+				intents.push_back(std::move(aIntent));
+			},
+		};
+		auto gestures = std::vector<application::device_authorization_gesture>{ };
+		window.set_device_authorization_dispatch([&gestures](application::device_authorization_gesture aGesture) {
+			gestures.push_back(std::move(aGesture));
+		});
+		window.resize(1'280, 820);
+		window.show();
+		QApplication::processEvents();
+		auto* const card = window.server_card_for(core::host_profile_id{ 41U });
+		expect(card != nullptr && card->presentation().Current && !card->offers_device_sign_in()
+				   && card->sign_in_button()->isVisibleTo(card),
+			   "a chosen enterprise host offers Sign in, but it has no device flow");
+		window.account_action()->trigger();
+		QApplication::processEvents();
+		expect(window.settings()->isVisible()
+				   && window.settings()->current_page() == qt::settings_page::accounts_and_hosts
+				   && gestures.empty() && intents.empty(),
+			   "with a chosen host that has no device flow, the account button only opens Accounts and hosts: no device begin and no intent");
+		window.set_device_authorization_dispatch({ });
+		window.settings()->hide();
+		window.hide();
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -5852,13 +6272,16 @@ auto main(int argc, char** argv) -> int
 	test_one_pane_places_github_threads_on_their_own_rows();
 	test_drawer_controls_are_reachable_in_the_conversations_drawer();
 	test_home_landing_funnels_to_an_account_and_then_a_pull_request();
-	test_device_sign_in_is_mounted_beside_the_session_chrome();
+	test_device_sign_in_is_mounted_in_the_chosen_cards_account_row();
 	test_accounts_page_carries_none_of_the_retired_chrome();
 	test_a_session_failure_is_said_in_its_card();
 	test_a_load_refusal_is_said_under_the_home_bar();
 	test_a_card_connect_chooses_and_connects_its_host();
 	test_one_card_per_server_holds_its_ways_in();
 	test_accounts_page_says_each_fact_once();
+	test_one_sign_in_gesture_shows_the_code_in_the_card();
+	test_terminal_and_token_rows_stay_in_the_card();
+	test_the_account_action_presses_the_chosen_cards_sign_in();
 
 	std::cout << "All GitHub Qt presentation tests passed\n";
 	return EXIT_SUCCESS;

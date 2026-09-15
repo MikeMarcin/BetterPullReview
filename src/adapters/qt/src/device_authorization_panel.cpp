@@ -3,14 +3,17 @@
 #include <QAccessible>
 #include <QApplication>
 #include <QClipboard>
-#include <QFormLayout>
+#include <QEvent>
+#include <QFont>
+#include <QFontDatabase>
+#include <QFontMetrics>
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPointer>
 #include <QPushButton>
-#include <QVBoxLayout>
+#include <QTimer>
 
 #include <algorithm>
 #include <utility>
@@ -22,6 +25,11 @@ namespace bpr::qt {
 		using application::device_authorization_presentation;
 		using application::device_authorization_refresh_observation;
 		using application::device_authorization_refresh_state;
+
+		// RFC-BPR-0032: the user code in the code font at 1.6 times the row's
+		// size, and a "Copied" said in place for as long as it takes to read.
+		constexpr auto code_scale         = 1.6;
+		constexpr auto copied_duration_ms = 1500;
 
 		// Whether the core says this command may be issued right now. The panel
 		// asks; it does not work the answer out from the stage, because the
@@ -42,35 +50,45 @@ namespace bpr::qt {
 			return match != aCommands.end() && match->Enabled;
 		}
 
+		[[nodiscard]] auto this_machine_text() -> QString
+		{
+#if defined(__APPLE__)
+			return QObject::tr("this Mac");
+#else
+			return QObject::tr("this computer");
+#endif
+		}
+
+		// One sentence per typed stage, in the words the account row says.
 		[[nodiscard]] auto stage_text(
 			const core::device_authorization_stage aStage) -> QString
 		{
 			switch (aStage) {
 			case core::device_authorization_stage::idle:
-				return QObject::tr("Not started");
+				return QObject::tr("Not started.");
 			case core::device_authorization_stage::requested:
-				return QObject::tr("Requesting a code");
+				return QObject::tr("Asking for a code.");
 			case core::device_authorization_stage::awaiting_authorization:
-				return QObject::tr("Waiting for you to authorize");
+				return QObject::tr("Waiting for the browser to authorize %1.")
+					.arg(this_machine_text());
 			case core::device_authorization_stage::cancelling:
-				return QObject::tr("Cancelling");
+				return QObject::tr("Cancelling.");
 			case core::device_authorization_stage::authorized:
-				return QObject::tr("Authorized");
+				return QObject::tr("Authorized.");
 			case core::device_authorization_stage::denied:
-				return QObject::tr("Sign-in was denied");
+				return QObject::tr("Sign-in was denied.");
 			case core::device_authorization_stage::expired:
-				return QObject::tr("The code expired before it was used");
+				return QObject::tr("The code expired before it was used.");
 			case core::device_authorization_stage::disabled:
-				return QObject::tr("Device authorization is turned off for this "
-								   "account");
+				return QObject::tr("Device sign-in is turned off for this account.");
 			case core::device_authorization_stage::unavailable:
-				return QObject::tr("Device authorization is unavailable here");
+				return QObject::tr("Device sign-in is unavailable here.");
 			case core::device_authorization_stage::cancelled:
-				return QObject::tr("Cancelled");
+				return QObject::tr("Sign-in was cancelled.");
 			case core::device_authorization_stage::failed:
-				return QObject::tr("Sign-in could not be completed");
+				return QObject::tr("Sign-in could not be completed.");
 			}
-			return QObject::tr("Not started");
+			return QObject::tr("Not started.");
 		}
 
 		// Every one of these says what happened and what the reviewer can still
@@ -133,7 +151,8 @@ namespace bpr::qt {
 
 		// A read-only line edit rather than a label: the reviewer has to be able
 		// to select the text with the keyboard and read it with a screen reader,
-		// and a label supports neither well.
+		// and a label supports neither well. Frameless, because in the account
+		// row it reads as text, not as a field to fill in.
 		[[nodiscard]] auto make_readonly_field(
 			const QString& aObjectName,
 			const QString& aAccessibleName) -> QLineEdit*
@@ -142,8 +161,27 @@ namespace bpr::qt {
 			field->setObjectName(aObjectName);
 			field->setAccessibleName(aAccessibleName);
 			field->setReadOnly(true);
+			field->setFrame(false);
 			field->setFocusPolicy(Qt::StrongFocus);
 			return field;
+		}
+
+		// No field truncates what it holds: each is exactly as wide as its text
+		// in its own font, with the line edit's own margins on both sides.
+		void fit_to_text(QLineEdit* const aField)
+		{
+			const auto margins = aField->textMargins();
+			const auto advance = QFontMetrics{ aField->font() }.horizontalAdvance(aField->text());
+			aField->setFixedWidth(std::max(1, advance + margins.left() + margins.right() + 8));
+		}
+
+		[[nodiscard]] auto make_line(QWidget* const aParent) -> std::pair<QWidget*, QHBoxLayout*>
+		{
+			auto* const line   = new QWidget{ aParent };
+			auto* const layout = new QHBoxLayout{ line };
+			layout->setContentsMargins(0, 0, 0, 0);
+			layout->setSpacing(8);
+			return { line, layout };
 		}
 	} // namespace
 
@@ -158,9 +196,10 @@ namespace bpr::qt {
 		setObjectName(QStringLiteral("bpr-device-authorization-panel"));
 		setAccessibleName(tr("Sign in with a device code"));
 
-		HeadingLabel = new QLabel{ tr("Sign in with a device code") };
-		HeadingLabel->setObjectName(
-			QStringLiteral("bpr-device-authorization-heading"));
+		AddressSentence = new QLabel{ tr("Enter this code at") };
+		AddressSentence->setObjectName(
+			QStringLiteral("bpr-device-authorization-address-sentence"));
+		AddressSentence->setTextFormat(Qt::PlainText);
 
 		UserCodeField = make_readonly_field(
 			QStringLiteral("bpr-device-authorization-user-code"),
@@ -179,12 +218,22 @@ namespace bpr::qt {
 		ValidityLabel->setObjectName(
 			QStringLiteral("bpr-device-authorization-validity"));
 		ValidityLabel->setAccessibleName(tr("Remaining validity"));
+		ValidityLabel->setForegroundRole(QPalette::PlaceholderText);
+
+		StatusLabel = new QLabel{ };
+		StatusLabel->setObjectName(
+			QStringLiteral("bpr-device-authorization-status"));
+		StatusLabel->setAccessibleName(tr("Sign-in status"));
+		StatusLabel->setTextFormat(Qt::PlainText);
+		StatusLabel->setWordWrap(true);
+		StatusLabel->setForegroundRole(QPalette::PlaceholderText);
 
 		HandoffLabel = new QLabel{ };
 		HandoffLabel->setObjectName(
 			QStringLiteral("bpr-device-authorization-handoff"));
 		HandoffLabel->setAccessibleName(tr("Browser handoff"));
 		HandoffLabel->setWordWrap(true);
+		HandoffLabel->setForegroundRole(QPalette::PlaceholderText);
 
 		RenewalLabel = new QLabel{ };
 		RenewalLabel->setObjectName(
@@ -193,22 +242,36 @@ namespace bpr::qt {
 		RenewalLabel->setWordWrap(true);
 
 		BeginButton  = new QPushButton{ tr("Sign in") };
-		CopyButton   = new QPushButton{ tr("Copy code") };
+		CopyButton   = new QPushButton{ };
 		OpenButton   = new QPushButton{ tr("Open browser") };
 		CancelButton = new QPushButton{ tr("Cancel") };
+		TokenButton  = new QPushButton{ tr("Sign in with a token") };
 		BeginButton->setObjectName(
 			QStringLiteral("bpr-device-authorization-begin"));
 		CopyButton->setObjectName(QStringLiteral("bpr-device-authorization-copy"));
 		OpenButton->setObjectName(QStringLiteral("bpr-device-authorization-open"));
 		CancelButton->setObjectName(
 			QStringLiteral("bpr-device-authorization-cancel"));
+		TokenButton->setObjectName(
+			QStringLiteral("bpr-device-authorization-token"));
+		for (auto* const button : { BeginButton, CopyButton, OpenButton, CancelButton, TokenButton }) {
+			button->setAutoDefault(false);
+			button->setFocusPolicy(Qt::StrongFocus);
+		}
+		// The row's job while a code is live, and so its one filled control.
+		OpenButton->setDefault(true);
+		CancelButton->setFlat(true);
+		CopyButton->setFlat(true);
 		// Named apart from the visible text. `BeginButton` relabels itself at a
 		// terminal, and an accessible name that moved with it would rename a
 		// stop under an assistive reader mid-flow.
 		BeginButton->setAccessibleName(tr("Get a device sign-in code"));
 		BeginButton->setAccessibleDescription(
 			tr("Asks this host profile for a code to authorize in a browser."));
-		CopyButton->setAccessibleName(tr("Copy the device sign-in code"));
+		// A glyph is never the only label: the name, the tooltip and the
+		// "Copied" said in place all say what it does.
+		CopyButton->setAccessibleName(tr("Copy code"));
+		CopyButton->setToolTip(tr("Copy code"));
 		CopyButton->setAccessibleDescription(
 			tr("Copies the code to the clipboard. The address is never copied "
 			   "with it."));
@@ -219,37 +282,59 @@ namespace bpr::qt {
 		CancelButton->setAccessibleName(tr("Cancel device sign-in"));
 		CancelButton->setAccessibleDescription(
 			tr("Ends the running sign-in without authorizing it."));
+		TokenButton->setAccessibleDescription(
+			tr("Signs in with a token instead, through the token prompt this "
+			   "host already offers."));
+		CopyIcon = QIcon::fromTheme(QIcon::ThemeIcon::EditCopy);
 
-		auto* const fields = new QFormLayout{ };
-		fields->addRow(tr("Code"), UserCodeField);
-		fields->addRow(tr("Address"), AddressField);
+		auto [addressLine, addressLayout] = make_line(this);
+		AddressLine                       = addressLine;
+		addressLayout->setSpacing(4);
+		addressLayout->addWidget(AddressSentence);
+		addressLayout->addWidget(AddressField);
+		addressLayout->addStretch(1);
 
-		// [[BPR-0646]]. Two rows of two: the panel lives in a 320-pixel drawer
-		// until the accounts page takes it, and four buttons in one row do
-		// not fit that width without clipping the last of them.
-		auto* const actions = new QGridLayout{ };
-		actions->addWidget(BeginButton, 0, 0);
-		actions->addWidget(CopyButton, 0, 1);
-		actions->addWidget(OpenButton, 1, 0);
-		actions->addWidget(CancelButton, 1, 1);
-		actions->setColumnStretch(2, 1);
+		auto [codeLine, codeLayout] = make_line(this);
+		CodeLine                    = codeLine;
+		codeLayout->addWidget(UserCodeField);
+		codeLayout->addWidget(CopyButton);
+		codeLayout->addStretch(1);
 
-		auto* const layout = new QVBoxLayout{ this };
-		layout->addWidget(HeadingLabel);
-		layout->addLayout(fields);
-		layout->addWidget(ValidityLabel);
-		layout->addWidget(HandoffLabel);
-		layout->addWidget(RenewalLabel);
-		layout->addLayout(actions);
+		auto [actionLine, actionLayout] = make_line(this);
+		ActionLine                      = actionLine;
+		actionLayout->addWidget(OpenButton);
+		actionLayout->addStretch(1);
+		actionLayout->addWidget(ValidityLabel);
 
-		// Reading order and tab order agree: code, address, then the actions
-		// left to right, so a keyboard reviewer meets the code before the
-		// button that acts on it.
-		setTabOrder(UserCodeField, AddressField);
-		setTabOrder(AddressField, BeginButton);
-		setTabOrder(BeginButton, CopyButton);
+		auto [retryLine, retryLayout] = make_line(this);
+		RetryLine                     = retryLine;
+		retryLayout->addWidget(BeginButton);
+		retryLayout->addWidget(TokenButton);
+		retryLayout->addStretch(1);
+
+		auto* const layout = new QGridLayout{ this };
+		layout->setContentsMargins(0, 0, 0, 0);
+		layout->setHorizontalSpacing(12);
+		layout->setVerticalSpacing(6);
+		layout->addWidget(AddressLine, 0, 0);
+		layout->addWidget(CancelButton, 0, 1, Qt::AlignRight | Qt::AlignTop);
+		layout->addWidget(CodeLine, 1, 0, 1, 2);
+		layout->addWidget(ActionLine, 2, 0, 1, 2);
+		layout->addWidget(StatusLabel, 3, 0, 1, 2);
+		layout->addWidget(HandoffLabel, 4, 0, 1, 2);
+		layout->addWidget(RenewalLabel, 5, 0, 1, 2);
+		layout->addWidget(RetryLine, 6, 0, 1, 2);
+		layout->setColumnStretch(0, 1);
+
+		// Reading order and tab order agree: the address, the code and its
+		// copy, the browser, then the row's way out and its retries, so a
+		// keyboard reviewer meets the code before the button that acts on it.
+		setTabOrder(AddressField, UserCodeField);
+		setTabOrder(UserCodeField, CopyButton);
 		setTabOrder(CopyButton, OpenButton);
 		setTabOrder(OpenButton, CancelButton);
+		setTabOrder(CancelButton, BeginButton);
+		setTabOrder(BeginButton, TokenButton);
 
 		connect(BeginButton, &QPushButton::clicked, this, [this] {
 			if (Dispatch) {
@@ -259,7 +344,12 @@ namespace bpr::qt {
 			}
 		});
 		connect(CopyButton, &QPushButton::clicked, this, [this] {
-			static_cast<void>(copy_user_code());
+			if (!copy_user_code()) {
+				return;
+			}
+			CopyButton->setIcon(QIcon{ });
+			CopyButton->setText(tr("Copied"));
+			QTimer::singleShot(copied_duration_ms, this, [this] { show_copy_glyph(); });
 		});
 		connect(OpenButton, &QPushButton::clicked, this, [this] {
 			if (Dispatch) {
@@ -271,7 +361,14 @@ namespace bpr::qt {
 				Dispatch(core::cancel_device_authorization_intent{ });
 			}
 		});
+		connect(TokenButton, &QPushButton::clicked, this, [this] {
+			if (TokenDispatch) {
+				TokenDispatch();
+			}
+		});
 
+		apply_fonts();
+		show_copy_glyph();
 		apply_commands();
 	}
 
@@ -290,10 +387,12 @@ namespace bpr::qt {
 
 		if (previous.UserCode != Presentation.UserCode) {
 			UserCodeField->setText(QString::fromStdString(Presentation.UserCode));
+			fit_to_text(UserCodeField);
 		}
 		if (previous.VerificationUri != Presentation.VerificationUri) {
 			AddressField->setText(
 				QString::fromStdString(Presentation.VerificationUri));
+			fit_to_text(AddressField);
 		}
 		if (
 			previous.RemainingValiditySeconds
@@ -307,6 +406,7 @@ namespace bpr::qt {
 
 		apply_commands();
 		announce(compose_status());
+		notify_observer();
 	}
 
 	void device_authorization_panel::apply_refresh(
@@ -329,33 +429,103 @@ namespace bpr::qt {
 
 		++Statistics.Rebuilds;
 		RenewalLabel->setText(renewal_text(Refresh.State));
+		apply_commands();
 		if (Refresh.State
 			== device_authorization_refresh_state::reenrollment_required) {
 			announce(renewal_text(Refresh.State));
 		}
+		notify_observer();
 	}
 
 	void device_authorization_panel::apply_commands()
 	{
 		// Beginning and cancelling are core commands, so their legality comes
 		// from the core. Copying and opening are not: neither moves the flow,
-		// and both are answerable from what is on screen.
-		BeginButton->setEnabled(enabled(
+		// and both are answerable from what is on screen. A command that is not
+		// allowed is also not shown: RFC-BPR-0032 shows no disabled button.
+		const auto begin = enabled(
 			Presentation.Commands,
-			core::device_authorization_command_id::begin_device_authorization));
-		CancelButton->setEnabled(enabled(
+			core::device_authorization_command_id::begin_device_authorization);
+		const auto cancel = enabled(
 			Presentation.Commands,
-			core::device_authorization_command_id::cancel_device_authorization));
-		CopyButton->setEnabled(!Presentation.UserCode.empty());
-		OpenButton->setEnabled(!Presentation.VerificationUri.empty());
+			core::device_authorization_command_id::cancel_device_authorization);
+		const auto code    = !Presentation.UserCode.empty();
+		const auto address = !Presentation.VerificationUri.empty();
+		const auto idle    = Presentation.Stage == core::device_authorization_stage::idle;
+		BeginButton->setEnabled(begin);
+		BeginButton->setVisible(begin);
+		CancelButton->setEnabled(cancel);
+		CancelButton->setVisible(cancel);
+		CopyButton->setEnabled(code);
+		OpenButton->setEnabled(address);
+		CodeLine->setVisible(code);
+		AddressLine->setVisible(address);
+		ActionLine->setVisible(address);
+		ValidityLabel->setVisible(!ValidityLabel->text().isEmpty());
+		HandoffLabel->setVisible(!HandoffLabel->text().isEmpty());
+		RenewalLabel->setVisible(!RenewalLabel->text().isEmpty());
+
+		// One status sentence from the typed stage, once a flow has begun.
+		StatusLabel->setText(idle ? QString{ } : stage_text(Presentation.Stage));
+		StatusLabel->setVisible(!idle);
+
+		// Where this host has no device flow, the token prompt it already
+		// offers is the way in, in the same row.
+		const auto token = static_cast<bool>(TokenDispatch)
+			&& (Presentation.Stage == core::device_authorization_stage::unavailable
+				|| Presentation.Stage == core::device_authorization_stage::disabled);
+		TokenButton->setEnabled(token);
+		TokenButton->setVisible(token);
+		RetryLine->setVisible(begin || token);
 
 		// The one gesture that changes wording rather than only enablement: a
 		// terminal flow is retried by asking for a new code, and calling that
 		// "Get a code" after a denial reads as though nothing happened.
-		BeginButton->setText(
-			Presentation.Stage == core::device_authorization_stage::idle
-				? tr("Sign in")
-				: tr("Sign in again"));
+		BeginButton->setText(idle ? tr("Sign in") : tr("Sign in again"));
+	}
+
+	void device_authorization_panel::apply_fonts()
+	{
+		auto emphasis = font();
+		emphasis.setWeight(QFont::DemiBold);
+		AddressSentence->setFont(emphasis);
+		AddressField->setFont(emphasis);
+		// The platform's code font where it names one; a platform that does
+		// not still gets a fixed-pitch face rather than the interface font.
+		auto code = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+		code.setStyleHint(QFont::Monospace);
+		code.setFixedPitch(true);
+		code.setPointSizeF(font().pointSizeF() * code_scale);
+		UserCodeField->setFont(code);
+		fit_to_text(UserCodeField);
+		fit_to_text(AddressField);
+	}
+
+	void device_authorization_panel::show_copy_glyph()
+	{
+		if (!CopyIcon.isNull()) {
+			CopyButton->setIcon(CopyIcon);
+			CopyButton->setText({ });
+			return;
+		}
+		// U+29C9 TWO JOINED SQUARES, where the font has it; otherwise the word.
+		const auto glyph = QChar{ 0x29C9 };
+		CopyButton->setText(QFontMetrics{ CopyButton->font() }.inFont(glyph) ? QString{ glyph } : tr("Copy"));
+	}
+
+	void device_authorization_panel::changeEvent(QEvent* const aEvent)
+	{
+		QWidget::changeEvent(aEvent);
+		if (aEvent->type() == QEvent::FontChange) {
+			apply_fonts();
+		}
+	}
+
+	void device_authorization_panel::notify_observer()
+	{
+		if (Observer) {
+			Observer();
+		}
 	}
 
 	void device_authorization_panel::bind_profile(
@@ -368,6 +538,54 @@ namespace bpr::qt {
 		-> core::host_profile_id
 	{
 		return Profile;
+	}
+
+	void device_authorization_panel::set_presentation_observer(std::function<void()> aObserver)
+	{
+		Observer = std::move(aObserver);
+	}
+
+	void device_authorization_panel::set_manual_token_dispatch(std::function<void()> aDispatch)
+	{
+		TokenDispatch = std::move(aDispatch);
+		apply_commands();
+	}
+
+	auto device_authorization_panel::presentation() const noexcept
+		-> const device_authorization_presentation&
+	{
+		return Presentation;
+	}
+
+	auto device_authorization_panel::refresh_observation() const noexcept
+		-> const device_authorization_refresh_observation&
+	{
+		return Refresh;
+	}
+
+	auto device_authorization_panel::signing_in() const noexcept -> bool
+	{
+		return Presentation.Stage == core::device_authorization_stage::requested
+			|| Presentation.Stage == core::device_authorization_stage::awaiting_authorization
+			|| Presentation.Stage == core::device_authorization_stage::cancelling;
+	}
+
+	auto device_authorization_panel::shows_flow() const noexcept -> bool
+	{
+		const auto flow = Presentation.Stage != core::device_authorization_stage::idle
+			&& Presentation.Stage != core::device_authorization_stage::authorized;
+		return flow || Refresh.State == device_authorization_refresh_state::reenrollment_required;
+	}
+
+	void device_authorization_panel::focus_primary()
+	{
+		if (OpenButton->isVisibleTo(this) && OpenButton->isEnabled()) {
+			OpenButton->setFocus(Qt::OtherFocusReason);
+		} else if (BeginButton->isVisibleTo(this) && BeginButton->isEnabled()) {
+			BeginButton->setFocus(Qt::OtherFocusReason);
+		} else if (CodeLine->isVisibleTo(this)) {
+			UserCodeField->setFocus(Qt::OtherFocusReason);
+		}
 	}
 
 	auto device_authorization_panel::copy_user_code() -> bool
@@ -389,7 +607,7 @@ namespace bpr::qt {
 		// reader hears the stage and the handoff together instead of twice.
 		auto status = stage_text(Presentation.Stage);
 		if (!Presentation.UserCode.empty()) {
-			status = tr("%1. Code %2.")
+			status = tr("%1 Code %2.")
 						 .arg(status, QString::fromStdString(Presentation.UserCode));
 		}
 		const auto handoff = handoff_text(Presentation.Handoff);
@@ -426,6 +644,11 @@ namespace bpr::qt {
 		return LastAnnouncement;
 	}
 
+	auto device_authorization_panel::address_sentence_label() const noexcept -> QLabel*
+	{
+		return AddressSentence;
+	}
+
 	auto device_authorization_panel::user_code_field() const noexcept -> QLineEdit*
 	{
 		return UserCodeField;
@@ -439,6 +662,11 @@ namespace bpr::qt {
 	auto device_authorization_panel::validity_label() const noexcept -> QLabel*
 	{
 		return ValidityLabel;
+	}
+
+	auto device_authorization_panel::status_label() const noexcept -> QLabel*
+	{
+		return StatusLabel;
 	}
 
 	auto device_authorization_panel::renewal_label() const noexcept -> QLabel*
@@ -469,5 +697,10 @@ namespace bpr::qt {
 	auto device_authorization_panel::cancel_button() const noexcept -> QPushButton*
 	{
 		return CancelButton;
+	}
+
+	auto device_authorization_panel::token_button() const noexcept -> QPushButton*
+	{
+		return TokenButton;
 	}
 } // namespace bpr::qt

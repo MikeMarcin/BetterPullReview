@@ -1,6 +1,7 @@
 #include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/event_loop_device_timer.hpp"
 
+#include <QAbstractButton>
 #include <QAccessible>
 #include <QAccessibleEvent>
 #include <QApplication>
@@ -14,6 +15,7 @@
 #include <QString>
 #include <QTimer>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <functional>
@@ -686,6 +688,103 @@ namespace {
 		panel->deleteLater();
 		QApplication::processEvents();
 	}
+
+	// [[BPR-0773]]. RFC-BPR-0032 A2: the panel is drawn as a server card's
+	// account row. A command the core does not allow is hidden rather than
+	// shown disabled, a terminal keeps its sentence and offers one Sign in
+	// again, and where the device flow is unavailable or turned off the token
+	// way in the composing window adopts sits in the same row.
+	void test_the_row_hides_what_it_cannot_do_and_offers_the_token_way_in(
+		const double aScale)
+	{
+		static_cast<void>(aScale);
+		recorded_gestures record;
+		auto              observed = core::host_profile_id{ };
+		auto* const       panel    = make_panel(record, observed);
+		panel->show();
+		QApplication::processEvents();
+
+		// Every button a reviewer can see can be pressed.
+		const auto noDisabledButton = [panel] {
+			const auto buttons = panel->findChildren<QAbstractButton*>();
+			return std::ranges::none_of(buttons, [panel](const QAbstractButton* const aButton) {
+				return aButton->isVisibleTo(panel) && !aButton->isEnabled();
+			});
+		};
+		const auto visible = [panel](const QWidget* const aWidget) {
+			return aWidget->isVisibleTo(panel);
+		};
+
+		expect(noDisabledButton() && visible(panel->begin_button())
+				   && panel->begin_button()->text() == QStringLiteral("Sign in")
+				   && !visible(panel->cancel_button()) && !visible(panel->open_button())
+				   && !visible(panel->copy_button()) && !visible(panel->token_button())
+				   && !visible(panel->status_label()),
+			   "idle, the row offers Sign in and shows no button it cannot press");
+
+		panel->apply(awaiting());
+		QApplication::processEvents();
+		expect(noDisabledButton()
+				   && visible(panel->address_sentence_label())
+				   && panel->address_sentence_label()->text() == QStringLiteral("Enter this code at")
+				   && visible(panel->address_field()) && visible(panel->user_code_field())
+				   && visible(panel->copy_button()) && visible(panel->open_button())
+				   && visible(panel->validity_label()) && visible(panel->cancel_button())
+				   && visible(panel->status_label()) && !panel->status_label()->text().isEmpty()
+				   && panel->open_button()->isDefault()
+				   && !visible(panel->begin_button()) && !visible(panel->token_button()),
+			   "awaiting, the row shows the address, the code with Copy, Open browser filled, the validity, one status sentence and Cancel, and hides the Sign in the core forbids");
+		expect(panel->copy_button()->accessibleName() == QStringLiteral("Copy code")
+				   && panel->copy_button()->toolTip() == QStringLiteral("Copy code"),
+			   "the copy glyph is named Copy code and says so in its tooltip");
+		auto* const clipboard = QApplication::clipboard();
+		expect(clipboard != nullptr, "the offscreen platform offers a clipboard");
+		clipboard->setText(QStringLiteral("untouched"));
+		panel->copy_button()->click();
+		expect(clipboard->text() == QStringLiteral("WDJB-MJHT")
+				   && panel->copy_button()->text() == QStringLiteral("Copied"),
+			   "copying puts exactly the code on the clipboard and says Copied in place");
+
+		panel->apply(settled(core::device_authorization_stage::denied));
+		QApplication::processEvents();
+		expect(noDisabledButton() && visible(panel->begin_button())
+				   && panel->begin_button()->text() == QStringLiteral("Sign in again")
+				   && visible(panel->status_label())
+				   && panel->status_label()->text() == QStringLiteral("Sign-in was denied.")
+				   && !visible(panel->cancel_button()) && !visible(panel->open_button())
+				   && !visible(panel->copy_button()) && !visible(panel->token_button()),
+			   "a terminal keeps its sentence and offers one Sign in again, with no Cancel, Open browser or Copy");
+
+		panel->apply(settled(core::device_authorization_stage::unavailable));
+		QApplication::processEvents();
+		expect(noDisabledButton() && !visible(panel->token_button()) && visible(panel->begin_button()),
+			   "with no token way in adopted, an unavailable device flow offers none");
+
+		auto tokens = 0;
+		panel->set_manual_token_dispatch([&tokens] { ++tokens; });
+		QApplication::processEvents();
+		expect(noDisabledButton() && visible(panel->token_button())
+				   && panel->token_button()->text() == QStringLiteral("Sign in with a token")
+				   && visible(panel->begin_button())
+				   && panel->status_label()->text() == QStringLiteral("Device sign-in is unavailable here."),
+			   "where the device flow is unavailable, the row offers Sign in with a token beside Sign in again");
+		panel->token_button()->click();
+		expect(tokens == 1 && record.total() == 0U,
+			   "the token way in calls the adopted dispatch once and dispatches no device gesture");
+
+		panel->apply(settled(core::device_authorization_stage::disabled));
+		QApplication::processEvents();
+		expect(noDisabledButton() && visible(panel->token_button())
+				   && panel->status_label()->text() == QStringLiteral("Device sign-in is turned off for this account."),
+			   "a device flow turned off for the account offers the token way in as well");
+		panel->apply(settled(core::device_authorization_stage::expired));
+		QApplication::processEvents();
+		expect(noDisabledButton() && !visible(panel->token_button()) && visible(panel->begin_button()),
+			   "an expired code is retried with a new code, not with a token");
+
+		panel->deleteLater();
+		QApplication::processEvents();
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -710,6 +809,7 @@ auto main(int argc, char** argv) -> int
 	test_the_panel_obeys_the_core_command_legality(scale);
 	test_the_device_path_does_not_displace_manual_token_entry(scale);
 	test_the_panel_renders_at_the_requested_scale(scale);
+	test_the_row_hides_what_it_cannot_do_and_offers_the_token_way_in(scale);
 	test_the_production_timer_arms_fires_once_and_clears(scale);
 	test_the_production_timer_cancels_without_firing(scale);
 	test_arming_replaces_rather_than_accumulates(scale);

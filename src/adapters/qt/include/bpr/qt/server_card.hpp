@@ -24,6 +24,7 @@ class QPushButton;
 class QToolButton;
 
 namespace bpr::qt {
+	class device_authorization_panel;
 	class usage_ring;
 
 	/// \brief The connection state a server card names in its header, as one word.
@@ -54,6 +55,10 @@ namespace bpr::qt {
 		std::optional<application::github_session_projection> Session;
 		/// Reading public pull requests on this host without an account.
 		bool ReadingPublic = false;
+		/// [[BPR-0773]]. The account row is the device sign-in this card holds:
+		/// a flow began here and has not handed back to a session, or its
+		/// renewal needs a new code.
+		bool DeviceSignIn = false;
 		/// Whether the core admits a Connect now, and what one would do or why not.
 		bool    ConnectAdmitted = true;
 		QString ConnectDescription;
@@ -126,6 +131,15 @@ namespace bpr::qt {
 		/// \brief Adopts the sink the public-preview ring's sign-in gesture leaves through.
 		void set_public_preview_dispatch(
 			application::public_preview_gesture_dispatch aDispatch);
+		/// \brief [[BPR-0773]]. Lays the window's device sign-in into this card's
+		/// account row. The card shows it only while its presentation says the
+		/// row is the device sign-in, and never owns what it does.
+		void adopt_device_sign_in(device_authorization_panel* aPanel);
+		/// \brief Takes the device sign-in out of this card's layout so another
+		/// card can adopt it.
+		void release_device_sign_in();
+		/// \brief The device sign-in laid into this card; null when another card holds it.
+		[[nodiscard]] auto device_sign_in() const noexcept -> device_authorization_panel*;
 
 		[[nodiscard]] auto hostname() const noexcept -> const std::string&;
 		/// \brief Whether a host profile is one of this server's ways in.
@@ -201,6 +215,8 @@ namespace bpr::qt {
 		QLabel*                Avatar           = nullptr;
 		QLabel*                LoginLabel       = nullptr;
 		QLabel*                ConsequenceLabel = nullptr;
+		QWidget*                    Actions          = nullptr;
+		device_authorization_panel* DevicePanel      = nullptr;
 		QPushButton*           CliOfferButton   = nullptr;
 		QLabel*                CliTrustWarning  = nullptr;
 		QPushButton*           SignInButton     = nullptr;

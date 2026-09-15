@@ -1,5 +1,6 @@
 #include "bpr/qt/server_card.hpp"
 
+#include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/usage_ring.hpp"
 
 #include "github_presentation_text.hpp"
@@ -338,10 +339,11 @@ namespace bpr::qt {
 		LoginLabel->setAccessibleName(QStringLiteral("Account"));
 		ConsequenceLabel = make_quiet_label(Account, QStringLiteral("serverCardConsequence"));
 		ConsequenceLabel->setAccessibleName(QStringLiteral("Sign-in terms"));
-		AccountLayout->addWidget(Avatar, 0, 0, 4, 1, Qt::AlignTop);
+		AccountLayout->addWidget(Avatar, 0, 0, 5, 1, Qt::AlignTop);
 		AccountLayout->addWidget(LoginLabel, 0, 1);
 		AccountLayout->addWidget(ConsequenceLabel, 1, 1);
-		auto* const actions       = new QWidget{ Account };
+		Actions                   = new QWidget{ Account };
+		auto* const actions       = Actions;
 		auto* const actionsLayout = new QHBoxLayout{ actions };
 		actionsLayout->setContentsMargins(0, 0, 0, 0);
 		SignInButton  = make_button(actions, QStringLiteral("serverCardSignIn"), QStringLiteral("Sign in"), QStringLiteral("Sign in to %1").arg(host));
@@ -564,6 +566,39 @@ namespace bpr::qt {
 		UsageIndicator->set_dispatch(std::move(aDispatch));
 	}
 
+	void server_card::adopt_device_sign_in(device_authorization_panel* const aPanel)
+	{
+		if (aPanel == nullptr || aPanel == DevicePanel) {
+			return;
+		}
+		release_device_sign_in();
+		DevicePanel = aPanel;
+		// Beneath who is signed in, across the terms and the ways in, so a
+		// renewal that needs a new code can sit under a signed-in account and a
+		// running flow can take the whole row.
+		AccountLayout->addWidget(DevicePanel, 4, 1, 1, 2);
+		DevicePanel->setVisible(Presentation.DeviceSignIn);
+		Applied = false;
+		apply(Presentation);
+	}
+
+	void server_card::release_device_sign_in()
+	{
+		if (DevicePanel == nullptr) {
+			return;
+		}
+		AccountLayout->removeWidget(DevicePanel);
+		DevicePanel->hide();
+		DevicePanel = nullptr;
+		Applied     = false;
+		apply(Presentation);
+	}
+
+	auto server_card::device_sign_in() const noexcept -> device_authorization_panel*
+	{
+		return DevicePanel;
+	}
+
 	void server_card::apply_header()
 	{
 		const auto& presented = option();
@@ -595,6 +630,19 @@ namespace bpr::qt {
 		Avatar->setText(login.isEmpty() ? QStringLiteral("?") : login.left(1).toUpper());
 		LoginLabel->setText(login.isEmpty() ? QStringLiteral("No account") : login);
 
+		// [[BPR-0773]]. While signing in, the account row is the device sign-in:
+		// the code, the browser and the way out replace who is signed in and the
+		// ways in. A renewal that needs a new code sits beneath a signed-in
+		// account instead of replacing it.
+		const auto deviceRow = shown.DeviceSignIn && DevicePanel != nullptr;
+		const auto flowRow   = deviceRow && !signedIn;
+		const auto hadFocus  = SignInButton->hasFocus();
+		if (DevicePanel != nullptr) {
+			DevicePanel->setVisible(deviceRow);
+		}
+		LoginLabel->setVisible(!flowRow);
+		Actions->setVisible(!flowRow);
+
 		auto consequence = QString{ };
 		if (signedIn) {
 			consequence = grant_sentence(*shown.Session);
@@ -604,7 +652,7 @@ namespace bpr::qt {
 			consequence = signed_out_sentence(presented);
 		}
 		ConsequenceLabel->setText(consequence);
-		ConsequenceLabel->setVisible(!consequence.isEmpty());
+		ConsequenceLabel->setVisible(!flowRow && !consequence.isEmpty());
 
 		// The ways in or out, never a disabled one. The chosen host signs in
 		// with its native profile, and that Sign in is the page's one filled
@@ -624,9 +672,14 @@ namespace bpr::qt {
 		ConnectButton->setAccessibleDescription(shown.ConnectDescription);
 		ConnectButton->setToolTip(shown.ConnectDescription);
 		if (CliOfferButton != nullptr) {
-			const auto offered = !cliPresented && !waiting && shown.ConnectAdmitted;
+			const auto offered = !flowRow && !cliPresented && !waiting && shown.ConnectAdmitted;
 			CliOfferButton->setVisible(offered);
-			CliTrustWarning->setVisible(offered || cliPresented);
+			CliTrustWarning->setVisible(!flowRow && (offered || cliPresented));
+		}
+		// The Sign in that began the flow is gone from under the keyboard; its
+		// focus moves to the row's job rather than to whatever is next.
+		if (flowRow && hadFocus) {
+			DevicePanel->focus_primary();
 		}
 	}
 

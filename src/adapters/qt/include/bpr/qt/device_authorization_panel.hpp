@@ -3,11 +3,14 @@
 
 #include "bpr/application/device_authorization_projection.hpp"
 
+#include <QIcon>
 #include <QString>
 #include <QWidget>
 
 #include <cstddef>
+#include <functional>
 
+class QEvent;
 class QLabel;
 class QLineEdit;
 class QPushButton;
@@ -35,6 +38,14 @@ namespace bpr::qt {
 	/// beginning, cancelling, and asking for a browser all leave through the
 	/// dispatch closure, and everything it draws arrives through
 	/// `application::device_authorization_presentation`.
+	///
+	/// [[BPR-0773]], RFC-BPR-0032. It is drawn as a server card's account row
+	/// while signing in: "Enter this code at" and the address, the code in the
+	/// code font with its copy glyph, Open browser as the filled control, the
+	/// validity, one status sentence, and Cancel at the right. A command the
+	/// core does not allow is hidden rather than shown disabled; a terminal
+	/// keeps its sentence and offers one Sign in again, and where the device
+	/// flow is unavailable the manual-token way in sits in the same row.
 	///
 	/// What it never sees is the point. There is no access token, no refresh
 	/// token, no device code, no client identifier, no endpoint, and no poll
@@ -89,6 +100,30 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto bound_profile() const noexcept -> core::host_profile_id;
 
+		/// \brief [[BPR-0773]]. Adopts what runs after a publication changed
+		/// what the panel shows, so the window that mounts it can decide where
+		/// it is drawn and what its card's header says. The observer performs
+		/// no effect through the panel.
+		void set_presentation_observer(std::function<void()> aObserver);
+		/// \brief [[BPR-0773]]. Adopts the way in a reviewer takes when the
+		/// device flow is unavailable here: the window's own Connect, which
+		/// opens the composition's token prompt. Without one, no token way in
+		/// is offered.
+		void set_manual_token_dispatch(std::function<void()> aDispatch);
+
+		[[nodiscard]] auto presentation() const noexcept
+			-> const application::device_authorization_presentation&;
+		[[nodiscard]] auto refresh_observation() const noexcept
+			-> const application::device_authorization_refresh_observation&;
+		/// \brief Whether a flow is being asked for, awaited or cancelled.
+		[[nodiscard]] auto signing_in() const noexcept -> bool;
+		/// \brief Whether the panel has anything to show: a flow that began and
+		/// has not handed back to a session, or a renewal that needs a new code.
+		[[nodiscard]] auto shows_flow() const noexcept -> bool;
+		/// \brief Moves keyboard focus to the row's job: Open browser while
+		/// there is an address, otherwise the one retry, otherwise the code.
+		void focus_primary();
+
 		/// \brief Copies the presented user code to the system clipboard.
 		///
 		/// \returns Whether there was a code to copy. Nothing else about the
@@ -99,37 +134,58 @@ namespace bpr::qt {
 			-> device_authorization_panel_statistics;
 		[[nodiscard]] auto accessible_status() const -> QString;
 
+		[[nodiscard]] auto address_sentence_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto user_code_field() const noexcept -> QLineEdit*;
 		[[nodiscard]] auto address_field() const noexcept -> QLineEdit*;
 		[[nodiscard]] auto validity_label() const noexcept -> QLabel*;
+		/// \brief The one status sentence, from the typed stage.
+		[[nodiscard]] auto status_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto handoff_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto renewal_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto begin_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto open_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto copy_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto cancel_button() const noexcept -> QPushButton*;
+		/// \brief "Sign in with a token", shown only where the device flow is
+		/// unavailable or turned off and a manual-token dispatch is adopted.
+		[[nodiscard]] auto token_button() const noexcept -> QPushButton*;
+
+	protected:
+		void changeEvent(QEvent* aEvent) override;
 
 	private:
 		void               announce(QString aText);
 		void               apply_commands();
+		void               apply_fonts();
+		void               show_copy_glyph();
+		void               notify_observer();
 		[[nodiscard]] auto compose_status() const -> QString;
 
 		application::device_authorization_gesture_dispatch    Dispatch;
+		std::function<void()>                                 Observer;
+		std::function<void()>                                 TokenDispatch;
 		core::host_profile_id                                 Profile;
 		application::device_authorization_presentation        Presentation;
 		application::device_authorization_refresh_observation Refresh;
 		device_authorization_panel_statistics                 Statistics;
 		QString                                               LastAnnouncement;
-		QLabel*                                               HeadingLabel  = nullptr;
-		QLineEdit*                                            UserCodeField = nullptr;
-		QLineEdit*                                            AddressField  = nullptr;
-		QLabel*                                               ValidityLabel = nullptr;
-		QLabel*                                               HandoffLabel  = nullptr;
-		QLabel*                                               RenewalLabel  = nullptr;
-		QPushButton*                                          BeginButton   = nullptr;
-		QPushButton*                                          CopyButton    = nullptr;
-		QPushButton*                                          OpenButton    = nullptr;
-		QPushButton*                                          CancelButton  = nullptr;
+		QIcon                                                 CopyIcon;
+		QWidget*                                              AddressLine     = nullptr;
+		QWidget*                                              CodeLine        = nullptr;
+		QWidget*                                              ActionLine      = nullptr;
+		QWidget*                                              RetryLine       = nullptr;
+		QLabel*                                               AddressSentence = nullptr;
+		QLineEdit*                                            UserCodeField   = nullptr;
+		QLineEdit*                                            AddressField    = nullptr;
+		QLabel*                                               ValidityLabel   = nullptr;
+		QLabel*                                               StatusLabel     = nullptr;
+		QLabel*                                               HandoffLabel    = nullptr;
+		QLabel*                                               RenewalLabel    = nullptr;
+		QPushButton*                                          BeginButton     = nullptr;
+		QPushButton*                                          CopyButton      = nullptr;
+		QPushButton*                                          OpenButton      = nullptr;
+		QPushButton*                                          CancelButton    = nullptr;
+		QPushButton*                                          TokenButton     = nullptr;
 	};
 } // namespace bpr::qt
 

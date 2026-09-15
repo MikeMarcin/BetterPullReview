@@ -909,6 +909,9 @@ namespace bpr::qt {
 		void build_queue_landing(QWidget* aParent, QVBoxLayout& aLayout);
 		/// \brief Points device sign-in at the host profile last chosen.
 		void rebind_device_authorization_profile();
+		/// \brief [[BPR-0773]]. Lays the device sign-in into the account row of
+		/// the card holding the profile it is bound to.
+		void place_device_sign_in();
 		/// \brief [[BPR-0771]]. Makes one host the one a Connect or sign-in means.
 		void select_github_profile(core::host_profile_id aProfile);
 		void add_server_card(const application::github_profile_option& aOption);
