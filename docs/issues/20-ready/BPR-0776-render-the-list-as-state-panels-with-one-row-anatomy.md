@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0776"
 title: "Render the list as state panels with one row anatomy"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0032"]
 depends_on: ["BPR-0775"]
 metadata: {"pack":"bpr-shell-surfaces-v1","milestone":"home-page","acceptance":["A6"],"milestone_plan":{"id":"bpr-shell-surfaces-v1","path":"docs/rfcs/plans/bpr-shell-surfaces-v1/milestone-plan.json"}}
