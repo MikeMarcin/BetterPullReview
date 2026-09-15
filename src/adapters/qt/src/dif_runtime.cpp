@@ -208,10 +208,14 @@ namespace bpr::qt {
 		}
 		HighestInvocationGeneration = aIdentity.InvocationGeneration;
 		Active                      = aIdentity;
-		LatestSession               = aIdentity.Session;
-		Started                     = false;
-		ReplyPresented              = false;
-		FindingsPresented           = false;
+		if (LatestSession.has_value() && *LatestSession != aIdentity.Session) {
+			Workshop.reset();
+			DraftOperation.reset();
+		}
+		LatestSession     = aIdentity.Session;
+		Started           = false;
+		ReplyPresented    = false;
+		FindingsPresented = false;
 		return true;
 	}
 

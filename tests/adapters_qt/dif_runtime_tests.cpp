@@ -441,6 +441,71 @@ namespace {
 		}
 
 		{
+			auto       router   = configured();
+			const auto original = cue_identity(1U);
+			const auto next     = cue_identity(2U);
+			const auto command  = bpr::core::revisioned_review_draft_command{
+				.Command = {
+					.Id   = bpr::core::review_draft_id{ 8U },
+					.Kind = bpr::core::review_draft_command_kind::edit,
+					.Body = "proposal from the old session",
+				},
+				.ExpectedRevision = 3U,
+				.Scope            = bpr::core::review_draft_scope_id{ 9U },
+			};
+			expect(router.admit(original)
+					   && router.present_workshop(
+							  original.Session,
+							  1U,
+							  command.Command.Id,
+							  command.ExpectedRevision,
+							  command.Command.Body,
+							  0)
+						   == dif_clip_id::comment_ready
+					   && router.admit(next),
+				   "a newer admitted session replaces the workshop presentation identity");
+			router.begin_draft(command);
+			expect(!router.accept_draft(
+					   command,
+					   {
+						   .Draft = {
+							   .Id   = command.Command.Id,
+							   .Body = command.Command.Body,
+						   },
+						   .Revision = 4U,
+						   .Scope    = command.Scope,
+					   },
+					   2'000),
+				   "accepting a still-visible proposal from the prior session cannot acknowledge it");
+
+			auto between = configured();
+			expect(between.admit(original)
+					   && between.present_workshop(
+							  original.Session,
+							  1U,
+							  command.Command.Id,
+							  command.ExpectedRevision,
+							  command.Command.Body,
+							  0)
+						   == dif_clip_id::comment_ready,
+				   "the between-dispatch course starts from the original session proposal");
+			between.begin_draft(command);
+			expect(between.admit(next)
+					   && !between.accept_draft(
+						   command,
+						   {
+							   .Draft = {
+								   .Id   = command.Command.Id,
+								   .Body = command.Command.Body,
+							   },
+							   .Revision = 4U,
+							   .Scope    = command.Scope,
+						   },
+						   2'000),
+				   "a session replacement between begin and accepted result cancels acknowledgement");
+		}
+
+		{
 			auto       router       = configured();
 			const auto operationOne = cue_identity(1U);
 			const auto operationTwo = cue_identity(2U);
