@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0775"
 title: "Lead Home with the bar and the first-launch card"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0032"]
 depends_on: ["BPR-0770"]
 metadata: {"pack":"bpr-shell-surfaces-v1","milestone":"home-page","acceptance":["A5"],"milestone_plan":{"id":"bpr-shell-surfaces-v1","path":"docs/rfcs/plans/bpr-shell-surfaces-v1/milestone-plan.json"}}
