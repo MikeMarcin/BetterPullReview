@@ -1,0 +1,113 @@
+{
+  "cards": [
+    {
+      "commit": "cc9c97d68a59982d602f6fa85539f1c318d71968",
+      "id": "BPR-0761",
+      "source_fingerprint": "sha256:045698e7b05e5ef699dc4d96d4b62a7c80e354bb377202957d4db2a84c088e79",
+      "source_revision": "4bbecb48950cdd3b10eaea06699df4c5c464c804",
+      "status": "Done"
+    },
+    {
+      "commit": "dbbaafc14c3e3ffab74b41ab9ad6e3a8485eb414",
+      "id": "BPR-0762",
+      "source_fingerprint": "sha256:b5c0d08cab71858bc45697d386a90c510aa1aff46a460c816e6b52a1ca3540c9",
+      "source_revision": "b299818e36887bdf3d4e8be138ed08095ca3e662",
+      "status": "Done"
+    }
+  ],
+  "continuation": {
+    "intent": "fresh",
+    "next_milestone": "context-integration",
+    "reason": "Home integration is accepted at a substantial combined boundary; the next authored milestone owns distinct AI context routes and identity/dedup obligations."
+  },
+  "dispatch_id": "d12",
+  "evidence_hashes": {
+    "asset_manifest_sha256": "c9f3f38e303caea3bb2c1b28edf947a717c2c1e5f484945a1d6814d8aee7f40d",
+    "asset_provenance_sha256": "f77354d6e55fd8631b5741d5a055c1dcb42a52e3a5ebf515d98b6ad1fed76f1c",
+    "home_integration_ledger_sha256": "59c815c7e565cb339071e7a2f9a9d0c4762e350be9acb5ca2e21c57c6e63725a"
+  },
+  "exit_records": [
+    {
+      "criterion": "Normal Home/Settings gestures demonstrate greeting, breathing, blink and static rest.",
+      "evidence": [
+        "docs/verification/RFC-BPR-0031-home-integration.md",
+        "docs/issues/60-done/BPR-0761-wire-accepted-resources-and-dif-into-current-home.md",
+        "docs/issues/60-done/BPR-0762-prove-home-profile-preference-and-shared-cache-behavior.md"
+      ],
+      "outcome": "pass"
+    },
+    {
+      "criterion": "Retained review, compact input layout, profile fan-out, shared cache and inactive timers are verified.",
+      "evidence": [
+        "docs/verification/RFC-BPR-0031-home-integration.md",
+        "docs/issues/60-done/BPR-0762-prove-home-profile-preference-and-shared-cache-behavior.md"
+      ],
+      "outcome": "pass"
+    }
+  ],
+  "mandate_revision": 7,
+  "plan": {
+    "definition_fingerprint": "sha256:b445184d9a0bf38579cd81ae950aeb5a4b88e6c558d0233ffd1a73ab9169f959",
+    "id": "bpr-dif-integration-v1",
+    "milestone": "home-integration",
+    "obligation_fingerprint": "sha256:44db6def452ef79ae90a252abcd61600d82f88513723fa6247728f9ec39df9f8",
+    "path": "docs/rfcs/plans/bpr-dif-integration-v1/milestone-plan.json",
+    "prerequisite_fingerprint": "sha256:c4a997783c151380076a58bd9a7e6b432417b18369788347d54edc80d6c4c241"
+  },
+  "producer_id": "rfc-integrator-d12",
+  "quiescence": {
+    "attended_session": "not-created",
+    "background_commands": "none",
+    "reviewer": "rfc-reviewer-home:completed",
+    "writers": [
+      "rfc-worker_dif-runtime:completed",
+      "rfc-scout-assets:completed",
+      "rfc-scout-home:completed"
+    ]
+  },
+  "run_id": "dif-takeover-20260914",
+  "schema": "implement-rfc.milestone-acceptance.v1",
+  "status": "accepted",
+  "verification": [
+    {
+      "check": "focused network-isolated CTest selection",
+      "result": "7/7 pass after reviewer corrections; 115.20 seconds"
+    },
+    {
+      "check": "selected dev/app-release/core-only Dif boundary",
+      "result": "pass; ten accepted strips in both Qt apps and none in core-only"
+    },
+    {
+      "check": "tests-disabled app-release build",
+      "result": "pass"
+    },
+    {
+      "check": "project C/C++ format gate",
+      "result": "658 files pass"
+    },
+    {
+      "check": "git diff whitespace gate",
+      "result": "pass"
+    },
+    {
+      "check": "independent changed-surface review",
+      "result": "two blocking lifecycle/lazy-load findings corrected; final no findings"
+    },
+    {
+      "check": "documentation gate",
+      "result": "pass"
+    },
+    {
+      "check": "documentation tests",
+      "result": "64 tests pass"
+    },
+    {
+      "check": "scoped RFC issue-board validation",
+      "result": "pass; 787 cards"
+    },
+    {
+      "check": "home-integration plan binding",
+      "result": "structural valid, references resolved, fingerprints unchanged"
+    }
+  ]
+}

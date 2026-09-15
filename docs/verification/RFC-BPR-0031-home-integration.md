@@ -91,3 +91,8 @@ This milestone reuses the accepted production-art human verdict. It does not
 claim a new native visual decision, an actual operating-system motion-setting
 change, signed/notarized packaging, or native-backend memory measurement.
 Contextual gesture routing remains assigned to `context-integration`.
+
+BPR-0761 was accepted at
+`cc9c97d68a59982d602f6fa85539f1c318d71968`; BPR-0762 was accepted at
+`dbbaafc14c3e3ffab74b41ab9ad6e3a8485eb414`. Their card records retain the
+criterion-level source revisions and evidence above.
