@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0770"
 title: "Import the authored plan and reconcile the live source"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0032", "RFC-BPR-0033", "RFC-BPR-0034"]
 depends_on: []
 metadata: {"pack":"bpr-shell-surfaces-v1","milestone":"intake-baseline","acceptance":["A1","B1","C1"],"milestone_plan":{"id":"bpr-shell-surfaces-v1","path":"docs/rfcs/plans/bpr-shell-surfaces-v1/milestone-plan.json"}}
