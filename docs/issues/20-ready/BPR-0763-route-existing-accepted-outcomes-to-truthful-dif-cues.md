@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0763"
 title: "Route existing accepted outcomes to truthful Dif cues"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0031"]
 depends_on: ["BPR-0752", "BPR-0760"]
 metadata: {"pack":"bpr-dif-integration-v1","milestone":"context-integration","acceptance":["B7","B8"],"milestone_plan":{"id":"bpr-dif-integration-v1","path":"docs/rfcs/plans/bpr-dif-integration-v1/milestone-plan.json"}}
