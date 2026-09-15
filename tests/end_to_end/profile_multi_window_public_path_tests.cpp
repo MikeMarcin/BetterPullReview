@@ -2,7 +2,9 @@
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/defect_card_view.hpp"
+#include "bpr/qt/dif_runtime.hpp"
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
@@ -228,6 +230,14 @@ auto main(int aArgc, char** aArgv) -> int
 	expect(windowB != nullptr && windowB != windowA && windowB->isVisible(), "second real Qt window visible");
 	expect(windowB->showing_home(), "new window starts on Home without copying sibling review");
 	expect(desktop->runtime(first.Profile) == owner && desktop->window(second) == windowB, "one profile owner routes both exact contexts");
+	expect(windowA->dif() != nullptr && windowB->dif() != nullptr
+			   && windowA->dif()->cache_identity() == windowB->dif()->cache_identity(),
+		   "both profile windows use the same decoded production catalog");
+	expect(owner->status(first)->DifCatalogLoadAttempts == 1U
+			   && owner->status(first)->DifCatalogDecodedClips == 10U
+			   && owner->status(second)->DifCatalogLoadAttempts == 1U
+			   && owner->status(second)->DifCatalogDecodedClips == 10U,
+		   "the shared provider decodes all ten accepted strips exactly once");
 	windowA->resize(1100, 700);
 	windowB->resize(1400, 900);
 	QApplication::processEvents();
@@ -241,12 +251,24 @@ auto main(int aArgc, char** aArgv) -> int
 	expect(visible_settings() == 1U, "second Settings gesture reuses profile shell");
 	auto* mode = windowB->appearance_settings()->mode_selector();
 	mode->setCurrentIndex(mode->findData(static_cast<int>(core::appearance_mode::high_contrast_dark)));
+	auto* motion = windowB->appearance_settings()->motion_selector();
+	motion->setCurrentIndex(motion->findData(static_cast<int>(core::motion_mode::full)));
 	wait_for([&] {
 		const auto statusA = owner->status(first);
 		const auto statusB = owner->status(second);
-		return statusA && statusB && statusA->ProfileMode == core::appearance_mode::high_contrast_dark && statusB->ProfileMode == statusA->ProfileMode;
+		return statusA && statusB && statusA->ProfileMode == core::appearance_mode::high_contrast_dark
+			&& statusB->ProfileMode == statusA->ProfileMode
+			&& statusA->DifResolution.Preferences.Motion == core::motion_mode::full
+			&& statusB->DifResolution == statusA->DifResolution;
 	},
-			 "accepted profile preference reaches both windows");
+			 "accepted appearance and motion preferences reach both windows");
+	windowB->activateWindow();
+	QApplication::processEvents();
+	const auto inactiveWakeups = windowA->dif()->statistics().TimerWakeups;
+	QThread::msleep(350);
+	QApplication::processEvents();
+	expect(windowA->dif()->statistics().TimerWakeups == inactiveWakeups,
+		   "the inactive sibling schedules no decorative timer wakeups");
 	expect(windowA->size() == sizeA && windowB->size() == sizeB, "shared preferences preserve independent geometry");
 	submit(*windowB, 18);
 	wait_for([&] { return windowB->session_panel()->status() == core::github_status::pull_request_ready; }, "second window opens distinct recorded PR using shared authentication");
@@ -267,6 +289,29 @@ auto main(int aArgc, char** aArgv) -> int
 	const auto selectionB = windowB->comparison_surface()->selection();
 	expect(windowA->comparison_surface()->select_conversation_line(core::diff_side::right, 2U), "first window supports exact semantic line selection");
 	expect(windowA->comparison_surface()->selection().has_value(), "first window receives semantic selection");
+	windowA->comparison_surface()->shared_scrollbar()->setValue(
+		windowA->comparison_surface()->shared_scrollbar()->maximum());
+	windowA->comparison_surface()->shared_scrollbar()->setFocus(Qt::OtherFocusReason);
+	QApplication::processEvents();
+	const auto  retainedSelection  = windowA->comparison_surface()->selection();
+	const auto  retainedScroll     = windowA->comparison_surface()->shared_scrollbar()->value();
+	const auto  retainedLeftEpoch  = windowA->epoch_selectors()->left_selector()->currentIndex();
+	const auto  retainedRightEpoch = windowA->epoch_selectors()->right_selector()->currentIndex();
+	auto* const retainedFocus      = QApplication::focusWidget();
+	windowA->choose_home(true);
+	QApplication::processEvents();
+	expect(windowA->showing_home() && windowA->comparison_surface()->current_result() == comparisonA,
+		   "Home covers the live review without replacing its comparison");
+	windowA->modality()->action(qt::review_modality::read)->trigger();
+	QApplication::processEvents();
+	expect(!windowA->showing_home()
+			   && windowA->comparison_surface()->current_result() == comparisonA
+			   && windowA->comparison_surface()->selection() == retainedSelection
+			   && windowA->comparison_surface()->shared_scrollbar()->value() == retainedScroll
+			   && windowA->epoch_selectors()->left_selector()->currentIndex() == retainedLeftEpoch
+			   && windowA->epoch_selectors()->right_selector()->currentIndex() == retainedRightEpoch
+			   && QApplication::focusWidget() == retainedFocus,
+		   "returning from Home preserves comparison, semantic selection, scroll, epochs, and focus");
 	expect(windowB->comparison_surface()->selection() == selectionB && windowB->comparison_surface()->current_result() == comparisonB,
 		   "navigation in first window preserves second comparison and selection");
 	expect(windowA->comparison_surface()->current_result() == comparisonA, "sibling file selection preserved first comparison");
