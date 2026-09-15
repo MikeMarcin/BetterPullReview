@@ -3,14 +3,29 @@
 #include <QApplication>
 #include <QBuffer>
 #include <QCryptographicHash>
+#include <QDir>
 #include <QEvent>
 #include <QEventLoop>
+#include <QFile>
+#include <QFileInfo>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QPointer>
 #include <QResource>
+#include <QSysInfo>
 
+#include <algorithm>
+#include <atomic>
 #include <cstdlib>
 #include <iostream>
 #include <limits>
+#include <string_view>
+#include <thread>
+
+#ifdef __APPLE__
+	#include <mach/mach.h>
+	#include <malloc/malloc.h>
+#endif
 
 namespace {
 	using namespace bpr::qt;
@@ -80,6 +95,99 @@ namespace {
 		QEventLoop loop;
 		QTimer::singleShot(aMs, &loop, &QEventLoop::quit);
 		loop.exec();
+	}
+
+	struct process_memory final
+	{
+		std::uint64_t MallocInUse{ 0U };
+		std::uint64_t Resident{ 0U };
+		std::uint64_t PhysicalFootprint{ 0U };
+	};
+
+	[[nodiscard]] auto sample_process_memory() -> process_memory
+	{
+#ifdef __APPLE__
+		malloc_statistics_t mallocStatistics{ };
+		malloc_zone_statistics(malloc_default_zone(), &mallocStatistics);
+		task_vm_info_data_t taskInfo{ };
+		auto                count = mach_msg_type_number_t{ TASK_VM_INFO_COUNT };
+		expect(task_info(mach_task_self(), TASK_VM_INFO, reinterpret_cast<task_info_t>(&taskInfo), &count) == KERN_SUCCESS, "Mach task memory sample");
+		return {
+			static_cast<std::uint64_t>(mallocStatistics.size_in_use),
+			static_cast<std::uint64_t>(taskInfo.resident_size),
+			static_cast<std::uint64_t>(taskInfo.phys_footprint),
+		};
+#else
+		return { };
+#endif
+	}
+
+	void retain_max(std::atomic<std::uint64_t>& aMaximum, const std::uint64_t aValue)
+	{
+		auto observed = aMaximum.load(std::memory_order_relaxed);
+		while (observed < aValue && !aMaximum.compare_exchange_weak(observed, aValue, std::memory_order_relaxed)) {
+		}
+	}
+
+	class process_memory_peak final
+	{
+	public:
+		explicit process_memory_peak(const process_memory& aInitial)
+			: Malloc{ aInitial.MallocInUse }
+			, Resident{ aInitial.Resident }
+			, PhysicalFootprint{ aInitial.PhysicalFootprint }
+			, Sampler{ [this] {
+				while (!Stop.load(std::memory_order_relaxed)) {
+					const auto sample = sample_process_memory();
+					retain_max(Malloc, sample.MallocInUse);
+					retain_max(Resident, sample.Resident);
+					retain_max(PhysicalFootprint, sample.PhysicalFootprint);
+					std::this_thread::yield();
+				}
+			} }
+		{
+		}
+		~process_memory_peak() { stop(); }
+		void stop()
+		{
+			if (!Stop.exchange(true, std::memory_order_relaxed) && Sampler.joinable()) {
+				Sampler.join();
+			}
+		}
+		[[nodiscard]] auto malloc_in_use() const -> std::uint64_t { return Malloc.load(std::memory_order_relaxed); }
+		[[nodiscard]] auto resident() const -> std::uint64_t { return Resident.load(std::memory_order_relaxed); }
+		[[nodiscard]] auto physical_footprint() const -> std::uint64_t { return PhysicalFootprint.load(std::memory_order_relaxed); }
+
+	private:
+		std::atomic<bool>          Stop{ false };
+		std::atomic<std::uint64_t> Malloc;
+		std::atomic<std::uint64_t> Resident;
+		std::atomic<std::uint64_t> PhysicalFootprint;
+		std::thread                Sampler;
+	};
+
+	[[nodiscard]] auto positive_delta(const std::uint64_t aAfter, const std::uint64_t aBefore) -> std::uint64_t
+	{
+		return aAfter >= aBefore ? aAfter - aBefore : 0U;
+	}
+
+	[[nodiscard]] auto memory_json(const process_memory& aSample) -> QJsonObject
+	{
+		return {
+			{ "malloc_default_zone_in_use_bytes", static_cast<qint64>(aSample.MallocInUse) },
+			{ "resident_bytes", static_cast<qint64>(aSample.Resident) },
+			{ "physical_footprint_bytes", static_cast<qint64>(aSample.PhysicalFootprint) },
+		};
+	}
+
+	void write_native_memory_report(const QJsonObject& aReport)
+	{
+		const auto path = qEnvironmentVariable("BPR_DIF_NATIVE_MEMORY_REPORT_PATH");
+		expect(!path.isEmpty(), "native memory report path provided");
+		QFile report{ path };
+		expect(QDir{ }.mkpath(QFileInfo{ report }.absolutePath()) && report.open(QIODevice::WriteOnly | QIODevice::Truncate), "native memory report opens");
+		const auto bytes = QJsonDocument{ aReport }.toJson(QJsonDocument::Indented);
+		expect(report.write(bytes) == bytes.size() && report.flush(), "native memory report written");
 	}
 
 	[[nodiscard]] auto cue_authority(const std::uint64_t aPullRequest = 3U)
@@ -700,6 +808,93 @@ namespace {
 		widget.shutdown();
 		std::cout << "production pixels=" << cache->pixel_bytes() << " accounted-retained=" << cache->retained_bytes() << " conversion-peak=" << cache->conversion_peak_bytes() << '\n';
 	}
+	void test_native_memory_probe()
+	{
+#ifdef __APPLE__
+		expect(QApplication::platformName() == QStringLiteral("cocoa"), "native memory probe uses Cocoa");
+		QApplication::processEvents();
+		const auto           beforeCache = sample_process_memory();
+		process_memory_peak  conversionPeak{ beforeCache };
+		dif_catalog_provider provider;
+		const auto           cache           = provider.acquire();
+		const auto           afterConversion = sample_process_memory();
+		conversionPeak.stop();
+		const auto afterCache = sample_process_memory();
+		expect(cache && provider.load_attempts() == 1U && provider.decoded_count() == 10U, "native memory probe decodes one production catalog");
+
+		const auto observedRetainedDelta       = positive_delta(afterCache.MallocInUse, beforeCache.MallocInUse);
+		const auto observedConversionHighWater = positive_delta(std::max({ conversionPeak.malloc_in_use(), afterConversion.MallocInUse, afterCache.MallocInUse }), beforeCache.MallocInUse);
+		expect(observedRetainedDelta >= cache->pixel_bytes(), "observed retained default-zone delta includes decoded pixels");
+		expect(observedRetainedDelta < 32U * 1024U * 1024U, "observed retained default-zone delta stays below art CPU ceiling");
+		expect(observedConversionHighWater >= observedRetainedDelta && observedConversionHighWater < 40U * 1024U * 1024U, "observed conversion default-zone high-water stays below transient ceiling");
+
+		std::array<qint64, 10> imageKeys{ };
+		for (std::size_t index = 0; index < imageKeys.size(); ++index) {
+			imageKeys[index] = cache->image(index).cacheKey();
+		}
+		paint_counter       paints;
+		process_memory_peak nativeWindowPeak{ afterCache };
+		dif_widget          widget{ cache };
+		widget.resize(96, 96);
+		widget.installEventFilter(&paints);
+		widget.show();
+		widget.set_home(true);
+		widget.set_eligibility({ true, false, true, false, false });
+		widget.update();
+		wait_events(250);
+		nativeWindowPeak.stop();
+		const auto afterWindow = sample_process_memory();
+		expect(paints.Paints > 0, "native window paints production Dif");
+		for (std::size_t index = 0; index < imageKeys.size(); ++index) {
+			expect(cache->image(index).cacheKey() == imageKeys[index], "native paint retains CPU image identity without detach");
+		}
+
+		const auto peakWindowMalloc    = std::max(nativeWindowPeak.malloc_in_use(), afterWindow.MallocInUse);
+		const auto peakWindowResident  = std::max(nativeWindowPeak.resident(), afterWindow.Resident);
+		const auto peakWindowFootprint = std::max(nativeWindowPeak.physical_footprint(), afterWindow.PhysicalFootprint);
+		write_native_memory_report({
+			{ "schema", "bpr.dif-native-memory.v1" },
+			{ "qt_platform", QApplication::platformName() },
+			{ "environment", QJsonObject{
+								 { "operating_system", QSysInfo::prettyProductName() },
+								 { "architecture", QSysInfo::currentCpuArchitecture() },
+								 { "qt_version", QString::fromLatin1(qVersion()) },
+							 } },
+			{ "measurement_scope", "macOS default malloc zone plus whole-process Mach TASK_VM_INFO" },
+			{ "cache", QJsonObject{
+						   { "decoded_pixel_bytes", static_cast<qint64>(cache->pixel_bytes()) },
+						   { "observed_retained_default_zone_delta_bytes", static_cast<qint64>(observedRetainedDelta) },
+						   { "observed_non_pixel_default_zone_delta_bytes", static_cast<qint64>(observedRetainedDelta - cache->pixel_bytes()) },
+						   { "observed_conversion_default_zone_high_water_bytes", static_cast<qint64>(observedConversionHighWater) },
+						   { "retained_ceiling_bytes", 32 * 1024 * 1024 },
+						   { "conversion_peak_ceiling_bytes", 40 * 1024 * 1024 },
+						   { "decoded_clips", static_cast<qint64>(provider.decoded_count()) },
+						   { "load_attempts", static_cast<qint64>(provider.load_attempts()) },
+						   { "production_accounted_retained_bytes", static_cast<qint64>(cache->retained_bytes()) },
+						   { "production_accounted_conversion_peak_bytes", static_cast<qint64>(cache->conversion_peak_bytes()) },
+					   } },
+			{ "before_cache", memory_json(beforeCache) },
+			{ "after_conversion_before_sampler_stop", memory_json(afterConversion) },
+			{ "after_cache", memory_json(afterCache) },
+			{ "native_window", QJsonObject{
+								   { "paint_events", paints.Paints },
+								   { "cpu_images_retained_without_detach", true },
+								   { "observed_peak_malloc_delta_bytes", static_cast<qint64>(positive_delta(peakWindowMalloc, afterCache.MallocInUse)) },
+								   { "observed_peak_resident_delta_bytes", static_cast<qint64>(positive_delta(peakWindowResident, afterCache.Resident)) },
+								   { "observed_peak_physical_footprint_delta_bytes", static_cast<qint64>(positive_delta(peakWindowFootprint, afterCache.PhysicalFootprint)) },
+								   { "retained_malloc_delta_bytes", static_cast<qint64>(positive_delta(afterWindow.MallocInUse, afterCache.MallocInUse)) },
+								   { "retained_resident_delta_bytes", static_cast<qint64>(positive_delta(afterWindow.Resident, afterCache.Resident)) },
+								   { "retained_physical_footprint_delta_bytes", static_cast<qint64>(positive_delta(afterWindow.PhysicalFootprint, afterCache.PhysicalFootprint)) },
+							   } },
+			{ "after_native_window", memory_json(afterWindow) },
+			{ "qualification", "Retained and conversion values are sampled default-zone deltas in an otherwise idle process; they do not cover non-default allocators or prove a sub-sample maximum. The production accounting fields are arithmetic admission estimates, not allocator measurements. Native-window deltas come from one static 96-pixel widget and combine widget, raster backing-store, and Cocoa/backend costs." },
+		});
+		widget.shutdown();
+		std::cout << "dif-native-memory-probe:pass\n";
+#else
+		expect(false, "native memory probe is available on macOS");
+#endif
+	}
 	void test_widget_lifecycle()
 	{
 		fixture    input;
@@ -775,6 +970,10 @@ namespace {
 int main(int argc, char** argv)
 {
 	QApplication application{ argc, argv };
+	if (argc == 2 && std::string_view{ argv[1] } == "--native-memory-probe") {
+		test_native_memory_probe();
+		return EXIT_SUCCESS;
+	}
 	test_catalog_and_playback();
 	test_contextual_cue_router_uses_accepted_identity_and_bounded_latches();
 	test_contextual_cue_router_rejects_stale_and_conflicting_facts();
