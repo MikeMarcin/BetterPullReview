@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0768"
 title: "Record the focused rendered application acceptance"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0031"]
 depends_on: ["BPR-0762", "BPR-0765"]
 metadata: {"pack":"bpr-dif-integration-v1","milestone":"verification-closeout","acceptance":["B5","B6","B7","B11","B12"],"milestone_plan":{"id":"bpr-dif-integration-v1","path":"docs/rfcs/plans/bpr-dif-integration-v1/milestone-plan.json"}}
