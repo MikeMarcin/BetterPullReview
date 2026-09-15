@@ -64,8 +64,9 @@ dev/core-only/tests-disabled application boundary pass. Known missing external
 generator metadata remains disclosed; sequence 122 supplies the required exact
 distribution/notice disposition without inventing it.
 
-BPR-0755 and BPR-0756 are Done, and BPR-0757 is completing on this evidence.
-Both authored `production-art` exits are satisfied. The next eligible combined
+BPR-0755, BPR-0756 and BPR-0757 are Done. The
+[milestone acceptance](../../verification/dif-production-art-v008/milestone-acceptance.json)
+binds their final fingerprints and both authored `production-art` exits. The next eligible combined
 milestone is `home-integration`, because `runtime-foundation` is already
 accepted and its fixture-backed runtime can now select the real production
 catalog. That work must prove normal Home/Settings greeting, breathing, blink

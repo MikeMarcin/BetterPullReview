@@ -1,0 +1,104 @@
+{
+  "cards": [
+    {
+      "commit": "98841656ebde50cff92a74a955651f9d1aa9492f",
+      "id": "BPR-0755",
+      "source_fingerprint": "sha256:8a65afd7bacffd23de70d3ce67288e2c3e5664806872ab46d34192447504a619",
+      "status": "Done"
+    },
+    {
+      "commit": "1c715684794af55d4bc3028df4da7df69b363935",
+      "id": "BPR-0756",
+      "source_fingerprint": "sha256:a8c1ddfa5becd6bc08fdb4e53ef522aa636acc0981933f66317161768b20d632",
+      "status": "Done"
+    },
+    {
+      "commit": "f6c5e039d75fdaf401cea829f2d84527e9120f3c",
+      "id": "BPR-0757",
+      "source_fingerprint": "sha256:d9349e9677ba0508c7085c654b563bb474fc56a0efc8b9c53d5ff907aeb1ace9",
+      "status": "Done"
+    }
+  ],
+  "continuation": {
+    "intent": "fresh",
+    "next_milestone": "home-integration",
+    "reason": "Production-art and runtime-foundation are accepted; the next substantial boundary selects and proves the real catalog in Home and Settings."
+  },
+  "dispatch_id": "d11",
+  "evidence_hashes": {
+    "asset_manifest_sha256": "c9f3f38e303caea3bb2c1b28edf947a717c2c1e5f484945a1d6814d8aee7f40d",
+    "asset_provenance_sha256": "f77354d6e55fd8631b5741d5a055c1dcb42a52e3a5ebf515d98b6ad1fed76f1c",
+    "human_verdict_sha256": "57a2a6d8fa6c297173b9f7a93e6411faa3b1cd0c0262ba059b1da36021f4e116",
+    "production_evidence_sha256": "74eb1f7b409eca2129c6ab5e975465188d3855f3e632a7f1755322b9eff22d84"
+  },
+  "exit_records": [
+    {
+      "criterion": "The master, all real gestures, neutral endpoints, seam, matte and body registration pass.",
+      "evidence": [
+        "docs/verification/dif-production-art-v008/review/human-verdict.json",
+        "docs/verification/dif-production-art-v008/production-evidence.json"
+      ],
+      "outcome": "pass"
+    },
+    {
+      "criterion": "71-frame target catalog, exact source/digest record and focused art/derivative decision are complete.",
+      "evidence": [
+        "src/adapters/qt/assets/dif/provenance.json",
+        "docs/verification/dif-production-art-v008/review/human-verdict.json",
+        "docs/verification/dif-production-art-v008/production-evidence.json"
+      ],
+      "outcome": "pass"
+    }
+  ],
+  "mandate_revision": 7,
+  "plan": {
+    "definition_fingerprint": "sha256:c024b4e03c7fb417552c1b1bc41120f8fa9aa6ce50244356950c1e7349060c7a",
+    "id": "bpr-dif-integration-v1",
+    "milestone": "production-art",
+    "obligation_fingerprint": "sha256:3bd33bb5f5d7e8f1d2fc5020f1f27e9befb06b2a559cdfe5c6561bf3d2be6977",
+    "path": "docs/rfcs/plans/bpr-dif-integration-v1/milestone-plan.json"
+  },
+  "producer_id": "rfc-integrator-d10",
+  "quiescence": {
+    "attended_host": "stopped",
+    "attended_watch": "exited",
+    "pending_candidates": []
+  },
+  "run_id": "dif-takeover-20260914",
+  "schema": "implement-rfc.milestone-acceptance.v1",
+  "status": "accepted",
+  "verification": [
+    {
+      "check": "dif_assets validate",
+      "result": "pass"
+    },
+    {
+      "check": "dif_assets verify",
+      "result": "pass"
+    },
+    {
+      "check": "dev dif_assets_contract",
+      "result": "57 tests pass"
+    },
+    {
+      "check": "core-only dif_assets_contract",
+      "result": "57 tests pass"
+    },
+    {
+      "check": "selected-profile Dif boundary",
+      "result": "pass"
+    },
+    {
+      "check": "documentation gate",
+      "result": "pass"
+    },
+    {
+      "check": "documentation tests",
+      "result": "64 tests pass"
+    },
+    {
+      "check": "scoped issue-board validation",
+      "result": "pass"
+    }
+  ]
+}

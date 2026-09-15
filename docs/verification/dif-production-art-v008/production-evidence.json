@@ -20,7 +20,7 @@
   "fresh_rebuild": {
     "byte_exact": true,
     "managed_files_compared": 85,
-    "path": "/tmp/bpr-d11-production-20260915-1"
+    "provenance": "prepare.py rebuilt the retained v008 intake into a fresh empty temporary directory"
   },
   "generated_inventory": {
     "files": 12,
