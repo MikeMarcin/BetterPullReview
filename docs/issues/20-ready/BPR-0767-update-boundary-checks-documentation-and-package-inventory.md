@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0767"
 title: "Update boundary checks, documentation and package inventory"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0030", "RFC-BPR-0031"]
 depends_on: ["BPR-0761", "BPR-0764"]
 metadata: {"pack":"bpr-dif-integration-v1","milestone":"verification-closeout","acceptance":["A6","A8","B1","B12"],"milestone_plan":{"id":"bpr-dif-integration-v1","path":"docs/rfcs/plans/bpr-dif-integration-v1/milestone-plan.json"}}
