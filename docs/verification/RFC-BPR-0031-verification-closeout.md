@@ -12,7 +12,7 @@ context (`aa94a77a`) milestones without changing their evidence.
 |---|---|---|
 | Tests-enabled/tests-disabled resource selection and core-only exclusion | `scripts/verify_dif_asset_boundaries.py` passed against `build/dev`, `build/app-release`, and `build/core-only`: each app graph contains exactly the ten accepted strips; four core-only artifacts and 453 product source files contain no prohibited Dif/runtime-art markers. The verifier explicitly does not establish a signed, notarized, installable, or certified package. | dev `sha256:ae238b6379bd2276e7ca1ab2672ba16827447980011ebb57db9fa533011ffed9`; app-release `sha256:fb3fc6725708bf202983b448d13a362a995915de74869b77414dbebad7e9296c` |
 | Native motion current state | `better_pull_review_qt_motion_observer_tests --native-probe` returned `motion-native-probe:observed` on macOS 26.6.2 arm64. The registered injected observer course also passed. | unchanged observer source from `3036364c` |
-| Actual composed memory/timer/paint work | The network-isolated `application_profile_multi_window_public_path` passed in 75.86 seconds with `BPR_DIF_INTEGRATION_REPORT_PATH` and production resources. It sampled Mach `TASK_VM_INFO`, the shared cache, full-motion work, reduced-motion quiescence, and comparison-surface counters. | source `62354ed6`; local report `build/dif-verification-closeout-d14/offscreen-report.json`, `sha256:bf90277975d1a9a817a1052ab0c8cfe84af668ed9c1a1a917f2f450994b7c40e` |
+| Actual composed memory/timer/paint work | The network-isolated `application_profile_multi_window_public_path` passed in 75.82 seconds with `BPR_DIF_INTEGRATION_REPORT_PATH` and production resources. It sampled Mach `TASK_VM_INFO`, the shared cache, full-motion work, reduced-motion quiescence, inactive-sibling stability, and comparison-surface counters. | report source `62354ed6`, tightened ceiling `0df6f24c`; local report `build/dif-verification-closeout-d14/offscreen-report-v002.json`, `sha256:b4d68bac000e4f72af441d250d34f390fe5ac16ee0bd49ad86d460c8ce69ef12` |
 | Tests-disabled native application | The app-release executable ran through the normal private automated profile on Cocoa/QMacStyle and emitted `PUBLIC_PATH_OK`, `RENDER_OK`, `WORKBENCH_HOST_COMPOSED_OK`, and `DIF_PREFERENCES:shown:system:reduced`. Its dark System Home render contains accepted Dif with functional account/open controls. | app-release digest above; local render `build/dif-verification-closeout-d14/release-native/home.png`, `sha256:a7572475715f58b5711beafc87dec24d0bc782c31dbd9a3c58a4b62e080c6f58` |
 | Maintainer documentation and package inventory | Live product, architecture, appearance, security, build/test, RFC-index, and packaging text now agree that both app graphs embed only the ten generated strips, maintenance/review/source inventory stays out, core-only is clean, and no installable-package certification is claimed. `verify_documentation.py`, all 64 documentation tests, and `coding-format-check` pass. | `fe12d5a9` |
 
@@ -20,15 +20,18 @@ The final composed report identifies `qt_platform: offscreen` and
 `memory_scope: whole-process Mach TASK_VM_INFO`; it is not relabelled as native
 window-backend allocation. Before showing a window the process measured
 21,676,032 resident and 4,096,576 physical-footprint bytes. One composed window
-measured 125,730,816 resident and 64,832,304 physical-footprint bytes; two
-measured 150,716,416 and 85,738,312 respectively. The production cache accounts
-for 23,855,104 pixel bytes, 23,872,384 retained bytes, and a 26,196,828-byte
-conversion peak, with one shared identity and one decode of ten clips.
+measured 126,173,184 resident and 65,274,672 physical-footprint bytes; two
+measured 150,831,104 and 86,115,120 respectively. The production cache has
+23,855,104 exact decoded pixel bytes. Its 23,872,384 retained-byte and
+26,196,828 conversion-peak values are conservative arithmetic estimates using
+a fixed 16-KiB allowance for opaque Qt/allocator overhead, not allocation
+measurements. One identity is shared and ten clips decode once.
 
-During a measured 1,801 ms Full interval, the active window advanced eight
+During a measured 1,800 ms Full interval, the active window advanced eight
 frames with eight timer wakeups and eight paints while its inactive sibling
-remained unchanged. Geometry rebuilds, publications, pane measurements, and
-semantic-index adoptions did not change. During a 1,200 ms Reduced interval,
+remained unchanged. The test ceiling follows the 84 ms minimum timer interval,
+with a two-wakeup scheduling allowance. Geometry rebuilds, publications, pane
+measurements, and semantic-index adoptions did not change. During a 1,200 ms Reduced interval,
 the active and sibling Dif statistics and all comparison counters remained
 unchanged. Capture itself caused the one later paint visible in the serialized
 capture list; the bounded interval samples precede that capture.
@@ -68,10 +71,12 @@ neither platform is represented as executed or passing.
 - B9 has deterministic hidden/inactive/reduced/modal/minimized/suspended/
   destruction checks plus a successful native reduced render. Active Cocoa
   behavior remains pending owner focus.
-- B10 has actual process memory, exact cache accounting, bounded timer/paint
-  intervals, inactive-sibling suppression, one decode, and unchanged diff-work
-  counters. The Mach numbers are process-wide under the offscreen backend; a
-  native-window allocation delta is not fabricated.
+- B10 has actual process memory, exact decoded pixels, conservative retained/
+  conversion accounting, bounded timer/paint intervals, inactive-sibling
+  suppression, one decode, and unchanged diff-work counters. It remains
+  partial because the fixed 16-KiB overhead allowance is not a measured
+  allocation and the process-wide offscreen Mach samples do not isolate
+  conversion or native-window backend costs.
 - B11 retains accepted 1.0/1.25/2.0 fixture renders and accessibility/focus
   evidence, plus the new tests-disabled native System/Dark/Reduced render. The
   final real-display appearance, placement, and actual-speed judgment is
@@ -82,22 +87,43 @@ neither platform is represented as executed or passing.
 
 ## Attended decision and formal closeout
 
-BPR-0768 uses a fresh external attended-review state. Its one final integrated
-candidate binds the exact developer executable, the unchanged accepted art,
-and one real-display criterion covering native appearance/placement,
-actual-speed Full motion, static Reduced motion, noninterference, and the real
-macOS motion-setting transition. Static captures and automated results are
-supporting evidence, not a substitute for that answer.
+BPR-0768 uses a fresh external attended-review state. Four independent
+candidates bind the exact developer executable and unchanged accepted art to
+native appearance, placement/controls, actual-speed Full/Reduced motion, and
+the real macOS motion-setting transition. Static captures and automated results
+are supporting evidence, not substitutes for those answers.
 
-The prepared state is
-`/Users/jaeger/.mask/bpr-dif-d14-20260914/attended-review`, session
-`fc60f0ba8c2bbff96a6db35cb939c3d2`, sequence 3. Candidate
-`BPR-0768-native-rendered-integration-d14-v001` is ready and protected with
-fingerprint
-`4a3b7b7f9e33de88b1b3f42a999bf60bbe41ec034ac200b6df61d2503d221eda`.
-Its [sanitized manifest](dif-verification-closeout-v001/attended-manifest.json)
-contains the exact absolute launch path, digest, isolated fixture state and
-one criterion. No prior attended decision was copied into this state.
+The first prepared candidate was released unanswered after independent review
+found that it combined separable criteria. Its session is historical only. The
+corrected [sanitized manifest](dif-verification-closeout-v001/attended-manifest.json)
+has one question per candidate for native appearance, placement/controls,
+Full/Reduced motion, and actual macOS System-motion observation. Each binds the
+same exact executable and a distinct isolated fixture state. Fresh external
+session `ef04771118304d90b3b73259e0604e58` is ready and protected at sequence
+12 with these exact fingerprints:
+
+| Candidate | Fingerprint |
+|---|---|
+| `BPR-0768-native-appearance-d14-v002` | `8f8d7b7b923e068d772149f60e54215f6d870b0052f1ecbe6e2330c7811b715e` |
+| `BPR-0768-native-placement-d14-v002` | `45b03f0ff28503f647f40a4eb5d718b9f26f8811b154a7ec137a69e423f876ae` |
+| `BPR-0768-native-motion-d14-v002` | `94235df2567d102f6951802e619123f67a8fc90f0d23805a93a22cd86ae62c2d` |
+| `BPR-0768-system-motion-observer-d14-v002` | `b8cc61ad6e02d9126d15df688f57217ecf67b9384dc5f4c79b6953d90c98969b` |
+
+No prior decision was copied forward.
+
+## Independent review
+
+The d14 reviewer found no production regression in migration, resource
+selection, lifetime, or cue identity. It did find two blocking evidence defects:
+the first attended candidate combined separable questions, and B10 described
+conservative retained/conversion arithmetic as exact measured accounting. The
+candidate was released unanswered and replaced by the four questions above;
+B10 now remains partial with its fixed 16-KiB allowance and offscreen/backend
+limits explicit. The reviewer also observed that the test ceiling was too loose,
+the Full inactive sibling lacked an assertion, and mutable appearance prose
+still described the historical prop concern as future runtime work. Revision
+`0df6f24c` tightens the ceiling and asserts the sibling; the current appearance
+guide states that the accepted runtime is already prop-free.
 
 RFC-BPR-0030 and RFC-BPR-0031 remain `Proposed` while BPR-0768 is pending and
 BPR-0769 is dependency-ineligible. No RFC or index status is advanced from a

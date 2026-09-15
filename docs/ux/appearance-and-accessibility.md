@@ -21,11 +21,11 @@ reviewed, approved, rejected, or found a defect. The runtime preserves
 equivalent text and controls when the mascot is absent or motion is reduced;
 animation cannot become the only carrier of application state.
 
-The final attended verdict accepts the exact reviewed assets and notes that the
-plus/minus card should not be part of Dif's core base sprite. Runtime work must
-therefore resolve the prop as a separate composition concern. The current
-rasters cannot be silently cropped or repainted to satisfy that note because
-any changed pixel requires a new digest-bound asset verdict.
+The historical attended verdict required the plus/minus card to stay outside
+Dif's core base sprite. RFC-BPR-0030's accepted production revision is
+prop-free, and the current runtime composes no prop. The accepted rasters still
+cannot be silently cropped or repainted: any changed pixel requires a new
+digest-bound asset verdict.
 
 RFC-BPR-0031 owns the current widget, timer, motion-preference,
 accessibility-tree, focus, layout, high-DPI, palette-change,
