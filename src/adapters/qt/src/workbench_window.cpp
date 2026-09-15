@@ -79,6 +79,58 @@
 
 namespace bpr::qt {
 	namespace {
+		/// \brief [[BPR-0775]]. Home's bar: its label, the field and the shortcut
+		/// inside one bordered field with one 8-point radius.
+		///
+		/// \details Painted from the palette rather than a stylesheet. The rule
+		/// takes Highlight while the field has focus, so the focus ring is the
+		/// frame's rather than a second ring inside it.
+		class home_bar_frame final : public QWidget
+		{
+		public:
+			explicit home_bar_frame(QWidget* const aParent)
+				: QWidget{ aParent }
+			{
+			}
+
+			void watch(QWidget* const aField)
+			{
+				Field = aField;
+				aField->installEventFilter(this);
+			}
+
+		protected:
+			void paintEvent(QPaintEvent* const aEvent) override
+			{
+				static_cast<void>(aEvent);
+				auto       painter = QPainter{ this };
+				const auto focused = Field != nullptr && Field->hasFocus();
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				painter.setPen(QPen{ palette().color(QPalette::Active, focused ? QPalette::Highlight : QPalette::Mid), focused ? 2.0 : 1.0 });
+				painter.setBrush(palette().color(QPalette::Active, QPalette::Base));
+				painter.drawRoundedRect(QRectF{ rect() }.adjusted(1.0, 1.0, -1.0, -1.0), 8.0, 8.0);
+			}
+
+			auto eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool override
+			{
+				if (aWatched == Field && aEvent != nullptr
+					&& (aEvent->type() == QEvent::FocusIn || aEvent->type() == QEvent::FocusOut)) {
+					update();
+				}
+				return QWidget::eventFilter(aWatched, aEvent);
+			}
+
+		private:
+			QPointer<QWidget> Field;
+		};
+
+		/// \brief [[BPR-0775]]. Dif's resting size in the bottom-left corner, in logical pixels.
+		///
+		/// \details Mandate r2 asks Dif to act like AllTheThings' Nib, whose
+		/// footer presentation is 40 points over a 28-point footer slot. The
+		/// first-launch card keeps RFC-BPR-0031's 96- and 72-pixel Home sizes.
+		constexpr auto dif_corner_size = 40;
+
 		// The toolbar's first entries are the file actions and the rest are the
 		// change actions, in the core's own command order.
 		constexpr std::size_t file_navigation_entries = 2U;
@@ -397,6 +449,17 @@ namespace bpr::qt {
 		StatusLabel->setTextInteractionFlags(Qt::TextSelectableByKeyboard
 											 | Qt::TextSelectableByMouse);
 		statusBar()->addWidget(StatusLabel, 1);
+		// [[BPR-0775]] mandate r2. Dif rests in the window's bottom-left corner
+		// while Home is not the first-launch card. This slot reserves the start
+		// of the status line for him; the sprite is laid over it (see
+		// place_dif_corner), so the status bar keeps its height.
+		DifCornerSlot = new QWidget{ this };
+		DifCornerSlot->setObjectName(QStringLiteral("workbenchDifCornerSlot"));
+		DifCornerSlot->setAccessibleName(QStringLiteral("Decorative Dif illustration"));
+		DifCornerSlot->setFixedWidth(dif_corner_size + 8);
+		DifCornerSlot->hide();
+		DifCornerSlot->installEventFilter(this);
+		statusBar()->insertWidget(0, DifCornerSlot, 0);
 
 		configure_tool_buttons();
 		refresh_toolbar_icons();
@@ -825,13 +888,17 @@ namespace bpr::qt {
 		HomePage->setObjectName(QStringLiteral("workbenchHome"));
 		HomePage->setAccessibleName(QStringLiteral("Home"));
 		HomePage->setAccessibleDescription(QStringLiteral(
-			"The landing while nothing is open: sign in or choose a pull "
-			"request, and the local review queue"));
+			"The bar, then the first-launch card or the way back to an open "
+			"review, and the local review queue"));
 		auto* const home = new QVBoxLayout{ HomePage };
-		home->setContentsMargins(0, 0, 0, 0);
+		// [[BPR-0775]]. The bottom inset keeps Home's rows clear of Dif resting
+		// in the corner beneath them.
+		home->setContentsMargins(0, 0, 0, 16);
 		home->setSpacing(0);
 		HomeColumn  = home;
 		HomeLanding = new workbench_landing{ HomePage };
+		// [[BPR-0775]]. The landing's focus-only buttons are gone: the card's
+		// two ways in and the row's way back are all it offers.
 		HomeLanding->set_primary_dispatch([this] {
 			if (HomeLanding->state() == landing_state::back_to_review) {
 				choose_home(false);
@@ -839,26 +906,12 @@ namespace bpr::qt {
 			}
 			if (HomeLanding->state() == landing_state::sign_in) {
 				begin_selected_sign_in();
-				return;
-			}
-			if (QueueView != nullptr) {
-				QueueView->setFocus(Qt::OtherFocusReason);
 			}
 		});
 		HomeLanding->set_secondary_dispatch([this] {
-			if (HomeLanding->state() == landing_state::back_to_review) {
-				// [[BPR-0732]]. Signed out there is no queue; the bar is the
-				// way to another pull request, not Settings.
-				if (QueueView != nullptr && QueueView->isVisible()) {
-					QueueView->setFocus(Qt::OtherFocusReason);
-				} else if (HomeOpenBar != nullptr) {
-					HomeOpenBar->setFocus(Qt::OtherFocusReason);
-				}
-				return;
+			if (HomeLanding->state() == landing_state::sign_in) {
+				begin_enterprise_server_from_home();
 			}
-			// [[BPR-0771]]. The page itself: the locator this once focused is
-			// gone, and naming a pull request is the bar's.
-			open_settings(settings_page::accounts_and_hosts);
 		});
 		home->addWidget(HomeLanding);
 		// [[BPR-0647]]. The centre is a stack: the
@@ -1347,36 +1400,53 @@ namespace bpr::qt {
 			// takes what a reviewer has on the clipboard, whole. It had no
 			// label and no button, so the only affordance was a placeholder
 			// and the Return key, and the owner went looking in Settings.
-			auto* const openLabel = new QLabel{ QStringLiteral("Open a pull request"), HomePage };
-			openLabel->setObjectName(QStringLiteral("workbenchHomeOpenLabel"));
-			openLabel->setContentsMargins(24, 12, 24, 0);
-			auto openLabelFont = openLabel->font();
+			// [[BPR-0775]]. RFC-BPR-0032's address field, alone in Home's first
+			// row: the label "Open", the placeholder and Command-L inside one
+			// bordered field, and Return to open. The heading over it and the
+			// Open button beside it are gone; the action stays for Return and
+			// the menu.
+			auto* const openFrame = new home_bar_frame{ HomePage };
+			openFrame->setObjectName(QStringLiteral("homeOpenFrame"));
+			HomeOpenFrame = openFrame;
+			HomeOpenLabel = new QLabel{ QStringLiteral("Open"), openFrame };
+			HomeOpenLabel->setObjectName(QStringLiteral("homeOpenLabel"));
+			auto openLabelFont = HomeOpenLabel->font();
 			openLabelFont.setWeight(QFont::DemiBold);
-			openLabel->setFont(openLabelFont);
-			homeColumn->addWidget(openLabel);
-			HomeOpenBar = new QLineEdit{ HomePage };
+			HomeOpenLabel->setFont(openLabelFont);
+			HomeOpenBar = new QLineEdit{ openFrame };
 			HomeOpenBar->setObjectName(QStringLiteral("homeOpenBar"));
 			HomeOpenBar->setAccessibleName(QStringLiteral("Open a pull request"));
 			HomeOpenBar->setAccessibleDescription(QStringLiteral(
-				"Paste a pull request link, or owner/name#number, and press Open"));
+				"Paste a pull request link, or owner/name#number, and press Return"));
 			HomeOpenBar->setPlaceholderText(
-				QStringLiteral("Paste a pull request link, or write owner/name#123"));
+				QStringLiteral("Paste a link, or write owner/name#123"));
 			HomeOpenBar->setClearButtonEnabled(true);
-			openLabel->setBuddy(HomeOpenBar);
+			HomeOpenBar->setFrame(false);
+			HomeOpenLabel->setBuddy(HomeOpenBar);
+			openFrame->watch(HomeOpenBar);
 			HomeOpenAction = new QAction{ tr("Open"), this };
 			HomeOpenAction->setObjectName(QStringLiteral("homeOpenAction"));
-			HomeOpenButton = new QToolButton{ HomePage };
-			HomeOpenButton->setDefaultAction(HomeOpenAction);
-			HomeOpenButton->setObjectName(QStringLiteral("homeOpenButton"));
-			HomeOpenButton->setAccessibleName(QStringLiteral("Open the pull request"));
-			HomeOpenButton->setAccessibleDescription(
-				QStringLiteral("Opens the pull request named in the bar, on its overview"));
-			HomeOpenButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
-			HomeOpenButton->setFocusPolicy(Qt::StrongFocus);
+			HomeFocusBarAction = new QAction{ tr("Go to the Open bar"), this };
+			HomeFocusBarAction->setObjectName(QStringLiteral("homeFocusBarAction"));
+			HomeFocusBarAction->setShortcut(QKeySequence{ Qt::CTRL | Qt::Key_L });
+			HomeFocusBarAction->setShortcutContext(Qt::WindowShortcut);
+			addAction(HomeFocusBarAction);
+			connect(HomeFocusBarAction, &QAction::triggered, this, [this] { focus_home_bar(); });
+			auto* const openShortcut = new QLabel{
+				HomeFocusBarAction->shortcut().toString(QKeySequence::NativeText), openFrame
+			};
+			openShortcut->setObjectName(QStringLiteral("homeOpenShortcut"));
+			openShortcut->setForegroundRole(QPalette::PlaceholderText);
+			openShortcut->setAccessibleName(QStringLiteral("Shortcut to the Open bar"));
+			auto* const frameRow = new QHBoxLayout{ openFrame };
+			frameRow->setContentsMargins(12, 8, 12, 8);
+			frameRow->setSpacing(8);
+			frameRow->addWidget(HomeOpenLabel);
+			frameRow->addWidget(HomeOpenBar, 1);
+			frameRow->addWidget(openShortcut);
 			auto* const openRow = new QHBoxLayout{ };
-			openRow->setContentsMargins(24, 4, 24, 0);
-			openRow->addWidget(HomeOpenBar, 1);
-			openRow->addWidget(HomeOpenButton);
+			openRow->setContentsMargins(24, 16, 24, 0);
+			openRow->addWidget(openFrame, 1);
 			homeColumn->addLayout(openRow);
 			// A refusal belongs beside what was refused. Silence on Return was
 			// indistinguishable from a product that does nothing.
@@ -1415,6 +1485,8 @@ namespace bpr::qt {
 			setupRow->addWidget(SetupCancelButton);
 			setupRow->addStretch();
 			homeColumn->addLayout(setupRow);
+			// The first-launch card sits under this row (see place_home_landing).
+			HomeSetupRow = setupRow;
 			SetupContinueButton->hide();
 			SetupCancelButton->hide();
 			connect(SetupContinueButton, &QPushButton::clicked, this, [this] {
@@ -1889,6 +1961,9 @@ namespace bpr::qt {
 		// Bounded: the drawer's files list is what the drawer is for, and a
 		// long summary must not be able to take the height it needs.
 		PullRequestStack->setMaximumHeight(200);
+		// [[BPR-0775]]. The stack's empty page is not Home's, and it has no other
+		// place: it stays hidden here so what writes to it keeps its shape.
+		PullRequestStack->hide();
 		// Placed by update_home_landing: on Home while nothing is open, at
 		// the top of the drawer's region once a pull request is.
 		// The panel builds the description but deliberately does not lay it out:
@@ -4501,11 +4576,7 @@ namespace bpr::qt {
 		// Home hosts the empty and initial-loading states. Which way in it
 		// offers follows the session: an account first, then a pull request.
 		const auto status   = SessionPanel->status();
-		const auto signedIn = status == core::github_status::session_ready
-			|| status == core::github_status::loading_pull_request
-			|| status == core::github_status::pull_request_ready
-			|| status == core::github_status::pull_request_failed
-			|| status == core::github_status::pull_request_cancelled;
+		const auto signedIn = session_signed_in();
 		// [[BPR-0732]]. A public-preview session is signed in for the
 		// window's chrome but has no account: no queue, no picker, and the
 		// same card and bar as before the session, since the bar is what
@@ -4515,11 +4586,22 @@ namespace bpr::qt {
 			&& ComparisonSurface->current_result() != nullptr;
 		const auto loading = status == core::github_status::loading_pull_request;
 		HomeLanding->set_review_identity(IdentityText);
-		HomeLanding->set_queue_offered(account);
+		HomeLanding->set_review_position(
+			Cursor && Cursor->Ordinal > 0U
+				? QStringLiteral("file %1 of %2").arg(Cursor->Ordinal).arg(Cursor->ActionableCount)
+				: QString{ });
 		HomeLanding->set_state(
 			HasGithubPullRequest ? landing_state::back_to_review
 				: account        ? landing_state::choose_pull_request
 								 : landing_state::sign_in);
+		place_home_landing();
+		// [[BPR-0775]]. Signed out, the bar reads a public pull request without
+		// an account and says so; with an account it names any pull request.
+		if (HomeOpenBar != nullptr) {
+			HomeOpenBar->setPlaceholderText(
+				account ? QStringLiteral("Paste a link, or write owner/name#123")
+						: QStringLiteral("Paste a public pull request link to read it without an account"));
+		}
 		// The queue is a signed-in surface (RFC-BPR-0026 writes it for a
 		// viewer); without an account there is nothing it could list.
 		if (HomeQueueHeading != nullptr) {
@@ -4549,14 +4631,25 @@ namespace bpr::qt {
 		if (HomeAction != nullptr && HomeAction->isChecked() != home) {
 			HomeAction->setChecked(home);
 		}
+		auto leavingHome = false;
 		if (CentralStack != nullptr) {
 			const auto arriving = home && CentralStack->currentWidget() != HomePage;
+			leavingHome         = !home && CentralStack->currentWidget() == HomePage;
+			if (arriving) {
+				// [[BPR-0775]]. What had focus in the review has it again when
+				// the review returns: Home covering it moves nothing there.
+				// The window's own focus child, which it keeps whether or not it
+				// is the active window.
+				auto* const focused = focusWidget();
+				FocusBeforeHome     = focused != nullptr && isAncestorOf(focused) && !HomePage->isAncestorOf(focused)
+					? focused
+					: nullptr;
+			}
 			CentralStack->setCurrentWidget(home ? HomePage : ReviewSurface);
-			// [[BPR-0732]]. Signed out, the bar is the way in, so it takes
-			// focus on arrival; a signed-in Home keeps the card's default
-			// button. Only on arrival, so a projection cannot steal focus
-			// from wherever the reviewer has moved it.
-			if ((arriving || !HomeFocused) && home && !account && !HasGithubPullRequest && HomeOpenBar != nullptr && isVisible()) {
+			// [[BPR-0732]], [[BPR-0775]]. The bar has focus when Home appears,
+			// signed in or out. Only on arrival, so a projection cannot steal
+			// focus from wherever the reviewer has moved it since.
+			if ((arriving || !HomeFocused) && home && HomeOpenBar != nullptr && isVisible()) {
 				HomeOpenBar->setFocus(Qt::OtherFocusReason);
 				HomeFocused = true;
 			}
@@ -4590,30 +4683,25 @@ namespace bpr::qt {
 				layout->activate();
 			}
 		}
-		// [[BPR-0671]]. The pull request stack is Home's, and only Home's: its
-		// empty page is where a failed load says why. Once a pull request is
-		// open its summary is the overview's, so the stack has nowhere else to
-		// be and is not shown over the files.
-		if (PullRequestStack != nullptr && HomeColumn != nullptr) {
-			if (PullRequestStack->parentWidget() != HomeColumn->parentWidget()) {
-				if (auto* const current = PullRequestStack->parentWidget();
-					current != nullptr && current->layout() != nullptr) {
-					current->layout()->removeWidget(PullRequestStack);
-				}
-				// Under the landing card, above the queue heading.
-				HomeColumn->insertWidget(1, PullRequestStack);
+		// [[BPR-0775]]. Focus goes back once the strip is settled, so a strip
+		// control that had it before Home is shown again to take it back.
+		if (leavingHome) {
+			if (FocusBeforeHome != nullptr && FocusBeforeHome->isVisible()) {
+				FocusBeforeHome->setFocus(Qt::OtherFocusReason);
 			}
-			// [[BPR-0732]]. On Home the stack's empty page would only restate
-			// the card; it earns its place when it carries a load failure, a
-			// load in progress or a diagnostic, never as "Open a pull request"
-			// under a card that already says so.
-			const auto empty = status == core::github_status::session_ready
-				|| status == core::github_status::pull_request_ready;
-			// [[BPR-0771]]. A load refusal is said once, under the bar, so the
-			// stack's page does not say it again.
-			PullRequestStack->setVisible(
-				home && home_refusal_text().isEmpty()
-				&& ((signedIn && !empty) || SessionPanel->showing_diagnostic()));
+			FocusBeforeHome = nullptr;
+		}
+		// [[BPR-0671]], [[BPR-0775]]. The pull request stack's empty page is not
+		// Home's. It stays parented in the hidden pull request column, so what
+		// writes to it keeps its shape. A first load in progress and a load
+		// refusal are said under the bar, and a session's problem on its host's
+		// card.
+		if (StatusLabel != nullptr) {
+			// update_status_text calls here, so the line is recomputed rather
+			// than refreshed through it.
+			if (const auto line = status_line(); StatusLabel->text() != line) {
+				StatusLabel->setText(line);
+			}
 		}
 	}
 
@@ -4630,31 +4718,54 @@ namespace bpr::qt {
 		if (HomeLanding == nullptr || DifAiSlot == nullptr || !DifResolutionReady) {
 			return;
 		}
-		const auto shown    = DifResolution.Preferences.Visibility == core::dif_visibility::shown;
-		const auto home     = showing_home();
-		const auto homeSlot = home && HomeLanding->illustration_space_available();
-		const auto aiSlot   = showing_dif_ai();
-		if (Dif == nullptr && shown && isVisible() && (homeSlot || aiSlot) && DifCatalog) {
+		const auto shown = DifResolution.Preferences.Visibility == core::dif_visibility::shown;
+		const auto home  = showing_home();
+		// [[BPR-0775]] mandate r2. Dif shows up on Home's first-launch card, at
+		// RFC-BPR-0031's Home sizes, and otherwise rests in the bottom-left
+		// corner out of the way. Only Home rests him there: a review keeps
+		// RFC-BPR-0031's explicit AI slot, or no Dif at all.
+		const auto card       = home && HomeLanding->state() == landing_state::sign_in;
+		const auto cardSlot   = card && HomeLanding->illustration_space_available();
+		const auto cornerSlot = home && !card;
+		const auto aiSlot     = showing_dif_ai();
+		if (Dif == nullptr && shown && isVisible() && (cardSlot || cornerSlot || aiSlot) && DifCatalog) {
 			if (auto cache = DifCatalog->acquire()) {
-				Dif = new dif_widget{ std::move(cache), homeSlot ? HomeLanding : DifAiSlot };
+				auto* const parent = cardSlot ? static_cast<QWidget*>(HomeLanding)
+					: cornerSlot              ? static_cast<QWidget*>(this)
+											  : DifAiSlot;
+				Dif                = new dif_widget{ std::move(cache), parent };
 				Dif->setObjectName(QStringLiteral("workbenchDif"));
+				Dif->setAttribute(Qt::WA_TransparentForMouseEvents, true);
 			}
 		}
-		HomeLanding->set_illustration_enabled(shown && home);
+		HomeLanding->set_illustration_enabled(shown && card);
 		DifAiSlot->setVisible(shown && aiSlot && Dif != nullptr);
+		DifCornerSlot->setVisible(shown && cornerSlot && Dif != nullptr);
 		DifCues->set_visible(
 			shown && aiSlot && DifResolution.EffectiveMotion == core::motion_mode::full
 			&& isActiveWindow() && QApplication::activeModalWidget() == nullptr);
 		if (Dif == nullptr) {
 			return;
 		}
-		if (home) {
+		if (card) {
 			if (HomeLanding->illustration() != Dif) {
 				if (DifAiSlot->layout() != nullptr) {
 					DifAiSlot->layout()->removeWidget(Dif);
 				}
 				HomeLanding->set_illustration(Dif);
 			}
+		} else if (cornerSlot) {
+			if (HomeLanding->illustration() == Dif) {
+				static_cast<void>(HomeLanding->take_illustration());
+			}
+			if (Dif->parentWidget() != this) {
+				if (DifAiSlot->layout() != nullptr) {
+					DifAiSlot->layout()->removeWidget(Dif);
+				}
+				Dif->setParent(this);
+			}
+			Dif->setFixedSize(dif_corner_size, dif_corner_size);
+			place_dif_corner();
 		} else if (aiSlot) {
 			if (HomeLanding->illustration() == Dif) {
 				static_cast<void>(HomeLanding->take_illustration());
@@ -4701,6 +4812,128 @@ namespace bpr::qt {
 	auto workbench_window::showing_home() const -> bool
 	{
 		return CentralStack != nullptr && CentralStack->currentWidget() == HomePage;
+	}
+
+	void workbench_window::place_home_landing()
+	{
+		if (HomeLanding == nullptr || HomeColumn == nullptr || HomeSetupRow == nullptr) {
+			return;
+		}
+		const auto state = HomeLanding->state();
+		HomeLanding->setVisible(state != landing_state::choose_pull_request);
+		// Over a review the row comes first, above the bar; signed out the
+		// card follows the bar and what is said under it.
+		const auto wanted = [this, state] {
+			return state == landing_state::back_to_review ? 0 : HomeColumn->indexOf(HomeSetupRow) + 1;
+		};
+		if (HomeColumn->indexOf(HomeLanding) == wanted()) {
+			return;
+		}
+		HomeColumn->removeWidget(HomeLanding);
+		HomeColumn->insertWidget(wanted(), HomeLanding);
+	}
+
+	void workbench_window::focus_home_bar()
+	{
+		if (HomeOpenBar == nullptr) {
+			return;
+		}
+		if (!showing_home()) {
+			choose_home(true);
+		}
+		HomeOpenBar->setFocus(Qt::ShortcutFocusReason);
+		HomeOpenBar->selectAll();
+	}
+
+	void workbench_window::place_dif_corner()
+	{
+		if (Dif == nullptr || DifCornerSlot == nullptr || Dif->parentWidget() != this) {
+			return;
+		}
+		// The slot is hidden while Home is not showing Dif there, and while the
+		// status bar shows a transient message over its ordinary widgets; the
+		// sprite follows it rather than covering that message.
+		if (!DifCornerSlot->isVisible()) {
+			Dif->hide();
+			return;
+		}
+		const auto bottomLeft = DifCornerSlot->mapTo(this, QPoint{ 0, DifCornerSlot->height() });
+		Dif->move(bottomLeft.x(), bottomLeft.y() - dif_corner_size);
+		Dif->raise();
+		Dif->show();
+	}
+
+	void workbench_window::begin_enterprise_server_from_home()
+	{
+		open_settings(settings_page::accounts_and_hosts);
+		// The same draft the page's own button opens, under the same readiness.
+		open_enterprise_server_draft();
+	}
+
+	auto workbench_window::session_signed_in() const -> bool
+	{
+		if (SessionPanel == nullptr) {
+			return false;
+		}
+		const auto status = SessionPanel->status();
+		return status == core::github_status::session_ready
+			|| status == core::github_status::loading_pull_request
+			|| status == core::github_status::pull_request_ready
+			|| status == core::github_status::pull_request_failed
+			|| status == core::github_status::pull_request_cancelled;
+	}
+
+	auto workbench_window::home_session_line() const -> QString
+	{
+		// [[BPR-0775]]. RFC-BPR-0032's session line. The session projection
+		// carries one account on one host and no refresh time, so the line says
+		// that much and no more.
+		const auto host = SessionPanel != nullptr
+			? QString::fromStdString(SessionPanel->active_host_text())
+			: QString{ };
+		if (session_signed_in() && !PublicPreviewSignedOut) {
+			// The accepted session's login. The strip's account text is a label
+			// ("Not authenticated" until the account row learns its login), not
+			// the login itself.
+			const auto& session = SessionPanel->session();
+			const auto  login   = session.has_value() ? QString::fromStdString(session->Login) : QString{ };
+			if (!login.isEmpty()) {
+				return host.isEmpty() ? QStringLiteral("Signed in as %1.").arg(login)
+									  : QStringLiteral("Signed in as %1 on %2.").arg(login, host);
+			}
+			return host.isEmpty() ? QStringLiteral("Signed in.")
+								  : QStringLiteral("Signed in on %1.").arg(host);
+		}
+		if (SessionPanel != nullptr && SessionPanel->status() == core::github_status::establishing_session) {
+			return host.isEmpty() ? QStringLiteral("Connecting.")
+								  : QStringLiteral("Connecting to %1.").arg(host);
+		}
+		return QStringLiteral("Not signed in. Public pull requests open read-only.");
+	}
+
+	auto workbench_window::dif_corner_slot() const noexcept -> QWidget*
+	{
+		return DifCornerSlot;
+	}
+
+	auto workbench_window::home_open_label() const noexcept -> QLabel*
+	{
+		return HomeOpenLabel;
+	}
+
+	auto workbench_window::home_open_frame() const noexcept -> QWidget*
+	{
+		return HomeOpenFrame;
+	}
+
+	auto workbench_window::home_focus_bar_action() const noexcept -> QAction*
+	{
+		return HomeFocusBarAction;
+	}
+
+	auto workbench_window::status_label() const noexcept -> QLabel*
+	{
+		return StatusLabel;
 	}
 
 	auto workbench_window::account_action() const noexcept -> QAction*
@@ -4999,6 +5232,11 @@ namespace bpr::qt {
 		if (aUpdate.Session.has_value()) {
 			SessionPanel->apply_session(*aUpdate.Session);
 			update_server_cards();
+			// [[BPR-0775]]. Home's line names the accepted session's login, which
+			// arrives after the transition that already decided the line.
+			if (StatusLabel != nullptr) {
+				StatusLabel->setText(status_line());
+			}
 			if (ConversationPanel != nullptr) {
 				ConversationPanel->cards()->set_viewer_login(
 					QString::fromStdString(aUpdate.Session->Login));
@@ -6087,6 +6325,11 @@ namespace bpr::qt {
 
 	auto workbench_window::eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool
 	{
+		if (aWatched == DifCornerSlot && aEvent != nullptr
+			&& (aEvent->type() == QEvent::Show || aEvent->type() == QEvent::Hide
+				|| aEvent->type() == QEvent::Move || aEvent->type() == QEvent::Resize)) {
+			place_dif_corner();
+		}
 		if (aWatched == QueueView && aEvent != nullptr
 			&& aEvent->type() == QEvent::KeyPress) {
 			auto* const key = static_cast<QKeyEvent*>(aEvent);
@@ -6200,9 +6443,15 @@ namespace bpr::qt {
 		const auto spoken  = HomeSetupNotice.isEmpty() && !passive.isEmpty()
 			&& passive != DismissedHomeRefusal;
 		const auto refused = spoken && HomeRestorationNotice.isEmpty();
-		const auto notice = !HomeSetupNotice.isEmpty() ? HomeSetupNotice
-			: spoken                    ? passive
-										: QString{ };
+		// [[BPR-0775]]. A first load in progress is said here as well, where the
+		// pull request was named, since the stack's page that said it is not
+		// Home's. It is not a refusal, so it has no Copy details.
+		const auto loading = SessionPanel->status() == core::github_status::loading_pull_request && !HasGithubPullRequest
+			? QString::fromStdString(SessionPanel->status_text())
+			: QString{ };
+		const auto notice  = !HomeSetupNotice.isEmpty() ? HomeSetupNotice
+			: spoken                                    ? passive
+														: loading;
 		HomeOpenNotice->setText(notice);
 		HomeOpenNotice->setVisible(!notice.isEmpty());
 		HomeRefusalDetails.clear();
@@ -7494,12 +7743,26 @@ namespace bpr::qt {
 
 	void workbench_window::update_status_text()
 	{
+		StatusLabel->setText(status_line());
+		update_strip_positions();
+		update_rail_summaries();
+		update_home_landing();
+	}
+
+	auto workbench_window::status_line() const -> QString
+	{
 		auto status = QString{ };
+		// [[BPR-0775]]. On Home the line is the session's, and never that no
+		// pull request is open: Home is what the window shows when none is. A
+		// host's own failure is still said after it.
+		const auto home = showing_home();
 		// [[BPR-0668]]. A cursor is a position in a comparison, and commands
 		// are a workbench; neither is a pull request. Saying nothing was open
 		// while the strip, the drawer and the conversations all named one told
 		// the owner the product was broken and gave them nothing to do.
-		if (HasGithubPullRequest && (!HasCommands || !Cursor)) {
+		if (home) {
+			status = home_session_line();
+		} else if (HasGithubPullRequest && (!HasCommands || !Cursor)) {
 			// [[BPR-0677]]. Work in progress is not failure. The owner'''s
 			// comparison spent ninety-five seconds in revision_prepare while
 			// the line told them to refresh, which would have thrown that
@@ -7541,6 +7804,9 @@ namespace bpr::qt {
 			status.append(QStringLiteral(" %1").arg(failure_text(
 				application::workbench_host_failure::settings_unavailable)));
 		}
+		if (home) {
+			return status;
+		}
 		if (LedgerUnavailable) {
 			status.append(QStringLiteral(" Private review progress is unavailable."));
 		} else if (ReceiptFailure.has_value()) {
@@ -7570,10 +7836,7 @@ namespace bpr::qt {
 				status.append(QStringLiteral(" %1").arg(epochs));
 			}
 		}
-		StatusLabel->setText(status);
-		update_strip_positions();
-		update_rail_summaries();
-		update_home_landing();
+		return status;
 	}
 
 	void workbench_window::announce_update()

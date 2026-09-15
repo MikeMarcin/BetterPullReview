@@ -752,7 +752,9 @@ namespace {
 		window.resize(900, 720);
 		window.show();
 		QApplication::processEvents();
-		auto* title = required_label(window, "githubEmptyStateTitle");
+		// [[BPR-0775]]. The stack's empty page is not Home's; a first load in
+		// progress is said under the bar, where the pull request was named.
+		auto* title = window.home_open_notice();
 		title->installEventFilter(&observer);
 		provider.OnSubmit = [&] {
 			expect(presentation_state(window) == QStringLiteral("loading"),
@@ -774,9 +776,18 @@ namespace {
 		window.github_open_action()->trigger();
 		expect(provider.Request.has_value(), "public Open action reaches held provider");
 		QApplication::processEvents();
-		expect(presentation_state(window) == QStringLiteral("loading")
-				   && title->isVisible() && observer.Paints > 0U && !host.accepted_snapshot(),
-			   "loading label paints while provider completion remains held");
+		expect(presentation_state(window) == QStringLiteral("loading") && !host.accepted_snapshot()
+				   && window.showing_home(),
+			   "the held read is loading on Home");
+		expect(title->isVisible() && title->text() == QString::fromStdString(window.github_status_text()),
+			   "the loading sentence is said under the bar");
+		expect(window.home_open_details_button()->isHidden(),
+			   "the loading sentence has no Copy details");
+		auto* const stack = required_child<QStackedWidget>(window, "githubViewState");
+		expect(stack->isHidden() && !stack->isVisible() && !window.home_page()->isAncestorOf(stack),
+			   "the stack's page is not shown and is not part of Home");
+		QApplication::processEvents();
+		expect(observer.Paints > 0U, "the loading sentence paints while provider completion remains held");
 		host.cancel();
 		provider.Complete(application::github_pull_request_cancelled{ *provider.Request });
 		lane.drain();
@@ -1270,9 +1281,10 @@ namespace {
 			   "the card's last problem is the literal diagnostic, named, and selectable by mouse and keyboard");
 		auto* const clipboard = QApplication::clipboard();
 		expect(clipboard != nullptr, "the Qt platform provides a clipboard");
-		required_child<QToolButton>(window, "copyGithubMessageButton")->click();
-		expect(clipboard->text() == QStringLiteral("Connection unavailable\n") + diagnostic,
-			   "the ordinary copy control copies the exact visible failure title and body");
+		// [[BPR-0775]]. The stack's empty page is not Home's, so the card is
+		// where a session failure is said and copied.
+		expect(!required_child<QStackedWidget>(window, "githubViewState")->isVisible(),
+			   "the stack's empty page does not carry the session failure on Home");
 		card->copy_details_button()->click();
 		expect(clipboard->text() == diagnostic,
 			   "the card's Copy details copies its last problem without other fields");
@@ -1287,10 +1299,6 @@ namespace {
 				   && problem->text().isEmpty() && problem->isHidden()
 				   && card->copy_details_button()->isHidden(),
 			   "clearing the diagnostic also removes stale text from the card and from what it copies");
-		required_child<QToolButton>(window, "copyGithubMessageButton")->click();
-		expect(clipboard->text().startsWith(QStringLiteral("Connect to GitHub\n"))
-				   && !clipboard->text().contains(diagnostic),
-			   "empty-state copy follows the new projection");
 	}
 
 	auto test_bootstrap_stage_messages_are_visible_copyable_and_cleared() -> void
@@ -1321,16 +1329,16 @@ namespace {
 			if (stage == application::github_bootstrap_failure_stage::capability_discovery) {
 				message.append(QStringLiteral(" No more specific capability refusal detail is available."));
 			}
-			// [[BPR-0771]]. The diagnostic the banner carried is the host
-			// card's Last problem.
+			// [[BPR-0771]], [[BPR-0775]]. The diagnostic the banner carried is the
+			// host card's Last problem; the stack's empty page is not Home's.
 			auto* const card = window.server_card_for(core::host_profile_id{ 11U });
-			expect(required_label(window, "githubEmptyStateBody")->isVisible()
-					   && required_label(window, "githubEmptyStateBody")->text() == message
-					   && card != nullptr && card->last_problem_label()->text() == message,
-				   "bootstrap phase is rendered with the safe existing diagnostic, on the page and in the host's card");
-			required_child<QToolButton>(window, "copyGithubMessageButton")->click();
-			expect(QApplication::clipboard()->text() == QStringLiteral("Connection unavailable\n") + message,
-				   "copy includes the exact visible bootstrap phase");
+			expect(card != nullptr && card->last_problem_label()->text() == message
+					   && !card->last_problem_label()->isHidden() && !card->copy_details_button()->isHidden()
+					   && !required_child<QStackedWidget>(window, "githubViewState")->isVisible(),
+				   "bootstrap phase is rendered with the safe existing diagnostic in the host's card, not on a stack page");
+			card->copy_details_button()->click();
+			expect(QApplication::clipboard()->text() == message,
+				   "the card's Copy details copies the exact bootstrap phase");
 			window.publish(application::github_presentation_update{
 				.Transition = application::github_transition_projection{
 					.Diagnostics = { { .Code = core::github_reason_code::malformed_response } } } });
@@ -1343,8 +1351,9 @@ namespace {
 				.Transition = application::github_transition_projection{
 					.Status = core::github_status_delta{ .Status = core::github_status::no_profile } } });
 			expect(window.github_diagnostic_text().empty(), "identity replacement clears bootstrap phase");
-			required_child<QToolButton>(window, "copyGithubMessageButton")->click();
-			expect(!QApplication::clipboard()->text().contains(QString::fromLatin1(prefix)),
+			card->copy_details_button()->click();
+			expect(!QApplication::clipboard()->text().contains(QString::fromLatin1(prefix))
+					   && card->copy_details_button()->isHidden(),
 				   "cleared bootstrap phase cannot survive in copied text");
 		}
 	}
@@ -1391,13 +1400,15 @@ namespace {
 			const auto message = QString::fromStdString(window.github_diagnostic_text());
 
 			const auto* const card = window.server_card_for(core::host_profile_id{ 11U });
+			// [[BPR-0775]]. The stack's empty page is not Home's; the host card's
+			// Last problem says the refusal and its Copy details copies it.
 			expect(message.startsWith(QStringLiteral("Capability discovery: ")) && message.endsWith(expected)
-					   && required_label(window, "githubEmptyStateBody")->isVisible()
-					   && required_label(window, "githubEmptyStateBody")->text() == message
-					   && card != nullptr && card->last_problem_label()->text() == message,
-				   "fixed capability refusal detail appears in the visible error message and the host card's Last problem");
-			required_child<QToolButton>(window, "copyGithubMessageButton")->click();
-			expect(QApplication::clipboard()->text() == QStringLiteral("Connection unavailable\n") + message,
+					   && card != nullptr && card->last_problem_label()->text() == message
+					   && !card->last_problem_label()->isHidden()
+					   && !required_child<QStackedWidget>(window, "githubViewState")->isVisible(),
+				   "fixed capability refusal detail appears in the host card's Last problem, not on a stack page");
+			card->copy_details_button()->click();
+			expect(QApplication::clipboard()->text() == message,
 				   "copy uses exactly the finite visible detail");
 			if (detail == diagnostic::graphql_code_forbidden) {
 				capture_layout_state(window, QStringLiteral("capability-graphql-code-refusal"));
@@ -2958,8 +2969,12 @@ namespace {
 		window.resize(1'280, 820);
 		window.show();
 		QApplication::processEvents();
-		expect(window.status_text().contains(QStringLiteral("Open a pull request")),
-			   "with nothing open the line asks for a pull request");
+		// [[BPR-0775]]. With nothing open the window is Home, and Home's line is
+		// the session's rather than a request for a pull request.
+		expect(window.showing_home()
+				   && window.status_text() == QStringLiteral("Not signed in. Public pull requests open read-only.")
+				   && !window.status_text().contains(QStringLiteral("No pull request is open")),
+			   "with nothing open, Home's line is the session line");
 		publish_session_ready(window);
 		publish_pull_request(window);
 		QApplication::processEvents();
@@ -3076,11 +3091,47 @@ namespace {
 		auto* const heading = window.findChild<QLabel*>(QStringLiteral("workbenchHomeQueueHeading"));
 		auto* const surface = window.findChild<QWidget*>(QStringLiteral("reviewQueueLanding"));
 		auto* const stack   = window.findChild<QWidget*>(QStringLiteral("githubViewState"));
-		expect(landing->state() == qt::landing_state::sign_in
-				   && landing->body_label()->text().contains(QStringLiteral("without signing in"))
-				   && landing->body_label()->text().contains(QStringLiteral("read-only"))
+		// [[BPR-0775]]. RFC-BPR-0032 A5, first launch and signed out: the strip
+		// with Home, account and settings; the bar relabelled for public
+		// reading; one card with Sign in filled and Add enterprise server
+		// bordered; the status bar line; and nothing else.
+		const auto top = [&window](const QWidget* const aWidget) {
+			return aWidget->mapTo(window.home_page(), QPoint{ }).y();
+		};
+		expect(landing->state() == qt::landing_state::sign_in && landing->isVisible()
+				   && landing->title_label()->text() == QStringLiteral("Sign in to GitHub")
+				   && landing->body_label()->text().contains(QStringLiteral("device code"))
+				   && landing->primary_button()->isVisible() && landing->primary_button()->text() == QStringLiteral("Sign in")
+				   && landing->primary_button()->accessibleName() == QStringLiteral("Sign in to GitHub")
+				   && landing->primary_button()->isDefault()
+				   && landing->secondary_button()->isVisible()
+				   && landing->secondary_button()->text() == QStringLiteral("Add enterprise server")
+				   && !landing->secondary_button()->isFlat() && !landing->secondary_button()->isDefault()
+				   && !landing->shortcut_label()->isVisible()
 				   && window.findChild<QPushButton*>(QStringLiteral("workbenchHomeReadSignedOutButton")) == nullptr,
-			   "signed out, the card says the bar opens a public pull request without an account, and there is no separate button");
+			   "signed out, Home's card is Sign in to GitHub with Sign in filled and Add enterprise server bordered");
+		expect(window.home_open_frame()->isVisible() && window.home_open_label()->text() == QStringLiteral("Open")
+				   && window.home_open_bar()->placeholderText() == QStringLiteral("Paste a public pull request link to read it without an account")
+				   && window.findChild<QWidget*>(QStringLiteral("homeOpenButton")) == nullptr
+				   && window.findChild<QWidget*>(QStringLiteral("workbenchHomeOpenLabel")) == nullptr
+				   && top(window.home_open_frame()) < top(landing),
+			   "the bar comes first, labelled Open and relabelled for public reading, with no heading or button of its own, and the card follows it");
+		expect(window.status_text() == QStringLiteral("Not signed in. Public pull requests open read-only."),
+			   "the status bar says the signed-out session line");
+		auto strayStripControls = QStringList{ };
+		for (auto* const action : window.primary_toolbar()->actions()) {
+			auto* const widget = window.primary_toolbar()->widgetForAction(action);
+			const auto  name   = action->objectName();
+			const auto  kept   = action == window.home_action() || action == window.account_action()
+				|| action == window.settings_action() || name == QStringLiteral("workbenchStripInsetAction")
+				|| name == QStringLiteral("workbenchNavigationSpacerAction")
+				|| name == QStringLiteral("workbenchModalitySpacerAction");
+			if (widget != nullptr && widget->isVisible() && !kept) {
+				strayStripControls.append(name.isEmpty() ? action->text() : name);
+			}
+		}
+		expect(strayStripControls.isEmpty(),
+			   "the strip shows only Home, account and settings while signed out");
 		expect(heading != nullptr && surface != nullptr && !heading->isVisible() && !surface->isVisible()
 				   && !window.queue_view()->isVisible() && !window.queue_role_filter()->isVisible()
 				   && !window.queue_observer_filter()->isVisible() && !window.queue_bucket_filter()->isVisible()
@@ -3089,8 +3140,18 @@ namespace {
 			   "no queue heading, list or filter combo is shown without an account");
 		expect(window.home_open_bar()->isVisible() && QApplication::focusWidget() == window.home_open_bar(),
 			   "the bar is the way in, so it has focus");
-		expect(stack != nullptr && !stack->isVisible(),
-			   "the pull request stack's empty page is not shown under the card");
+		expect(stack != nullptr && !stack->isVisible() && window.home_open_notice()->isHidden()
+				   && window.findChild<QPushButton*>(QStringLiteral("homeSetupContinue"))->isHidden()
+				   && window.findChild<QPushButton*>(QStringLiteral("homeSetupCancel"))->isHidden()
+				   && !window.home_recent_list()->isVisible(),
+			   "nothing else is on Home: no stack page, no notice, no setup row and no recently viewed list");
+		landing->secondary_button()->click();
+		QApplication::processEvents();
+		expect(window.settings()->isVisible()
+				   && window.settings()->current_page() == qt::settings_page::accounts_and_hosts,
+			   "Add enterprise server on the card opens Accounts and hosts");
+		window.settings()->hide();
+		QApplication::processEvents();
 		// A public-preview session is a session with no account: the same
 		// Home, with the queue still absent.
 		publish_session_ready(window);
@@ -3107,9 +3168,100 @@ namespace {
 		window.publish(preview);
 		publish_session_ready(window);
 		QApplication::processEvents();
-		expect(landing->state() == qt::landing_state::choose_pull_request && heading->isVisible() && surface->isVisible()
-				   && window.queue_view()->isVisible() && window.queue_role_filter()->isVisible(),
-			   "a session with an account shows the queue");
+		expect(landing->state() == qt::landing_state::choose_pull_request && !landing->isVisible()
+				   && heading->isVisible() && surface->isVisible()
+				   && window.queue_view()->isVisible() && window.queue_role_filter()->isVisible()
+				   && window.home_open_bar()->placeholderText() == QStringLiteral("Paste a link, or write owner/name#123"),
+			   "a session with an account shows the queue, the bar names any pull request, and there is no card");
+		window.hide();
+	}
+
+	/// \brief [[BPR-0775]]. Signed in, Home's first row is the bar: labelled,
+	/// focused on arrival, reachable by Command-L from anywhere, with a first
+	/// load said under it and the session line in the status bar.
+	auto test_home_leads_with_the_bar_signed_in() -> void
+	{
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			profiles(),
+			[](application::github_intent) { },
+		};
+		window.resize(1'280, 820);
+		window.show();
+		window.activateWindow();
+		QApplication::processEvents();
+		publish_session_ready(window);
+		QApplication::processEvents();
+		auto* const landing = window.home_landing();
+		auto* const bar     = window.home_open_bar();
+		auto* const frame   = window.home_open_frame();
+		const auto  top     = [&window](const QWidget* const aWidget) {
+			return aWidget->mapTo(window.home_page(), QPoint{ }).y();
+		};
+		auto aboveTheBar = QStringList{ };
+		for (auto* const child : window.home_page()->findChildren<QWidget*>(QString{ }, Qt::FindDirectChildrenOnly)) {
+			if (child != frame && child->isVisible() && top(child) <= top(frame)) {
+				aboveTheBar.append(child->objectName());
+			}
+		}
+		expect(window.showing_home() && !landing->isVisible() && frame->isVisible() && aboveTheBar.isEmpty()
+				   && frame->isAncestorOf(bar) && window.home_open_label()->text() == QStringLiteral("Open")
+				   && window.home_open_label()->buddy() == bar
+				   && bar->placeholderText() == QStringLiteral("Paste a link, or write owner/name#123")
+				   && QApplication::focusWidget() == bar,
+			   "signed in, the bar is Home's first row, labelled Open with its placeholder, and has focus on arrival");
+		expect(window.status_text() == QStringLiteral("Signed in as octo-reviewer on ghe.example.invalid.")
+				   && !window.status_text().contains(QStringLiteral("No pull request is open")),
+			   "the status bar carries the session line and never says no pull request is open; it says: "
+				   + window.status_text().toStdString());
+
+		auto* const focusBar = window.home_focus_bar_action();
+		auto* const shortcut = window.findChild<QLabel*>(QStringLiteral("homeOpenShortcut"));
+		expect(focusBar != nullptr && focusBar->shortcut() == QKeySequence{ Qt::CTRL | Qt::Key_L }
+				   && focusBar->shortcutContext() == Qt::WindowShortcut && window.actions().contains(focusBar)
+				   && shortcut != nullptr && frame->isAncestorOf(shortcut)
+				   && shortcut->text() == focusBar->shortcut().toString(QKeySequence::NativeText),
+			   "Command-L is the bar's window shortcut, and the bar shows it");
+		bar->setText(QStringLiteral("octo/app#7"));
+		window.queue_view()->setFocus(Qt::OtherFocusReason);
+		QApplication::processEvents();
+		focusBar->trigger();
+		QApplication::processEvents();
+		expect(QApplication::focusWidget() == bar && bar->selectedText() == QStringLiteral("octo/app#7"),
+			   "Command-L focuses the bar with its text selected");
+		bar->clear();
+
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Status      = core::github_status_delta{ .Status = core::github_status::loading_pull_request },
+				.PullRequest = core::pull_request_summary_delta{ .Summary = std::nullopt },
+			},
+		});
+		QApplication::processEvents();
+		expect(window.showing_home() && window.home_open_notice()->isVisible()
+				   && window.home_open_notice()->text() == QString::fromStdString(window.github_status_text())
+				   && window.home_open_details_button()->isHidden()
+				   && required_child<QStackedWidget>(window, "githubViewState")->isHidden()
+				   && window.status_text().startsWith(QStringLiteral("Signed in as ")),
+			   "a first load in progress is said under the bar, not on the stack's page, and the line stays the session's");
+		publish_session_ready(window);
+		QApplication::processEvents();
+		expect(window.home_open_notice()->isHidden(),
+			   "with no load in progress nothing is said under the bar");
+
+		publish_pull_request(window);
+		QApplication::processEvents();
+		expect(!window.showing_home(), "a pull request brings the review");
+		focusBar->trigger();
+		QApplication::processEvents();
+		expect(window.showing_home() && QApplication::focusWidget() == bar
+				   && landing->isVisible() && landing->state() == qt::landing_state::back_to_review,
+			   "Command-L from the review shows Home over it, with the return row and the bar focused");
+		landing->primary_button()->click();
+		QApplication::processEvents();
+		expect(!window.showing_home(), "the return row goes back to the review");
 		window.hide();
 	}
 
@@ -4243,7 +4395,7 @@ namespace {
 			landing != nullptr && landing->isVisible()
 				&& landing->state() == qt::landing_state::sign_in
 				&& landing->title_label()->text()
-					== QStringLiteral("Connect a GitHub account")
+					== QStringLiteral("Sign in to GitHub")
 				&& landing->primary_button()->isVisible()
 				&& landing->primary_button()->text().startsWith(
 					QStringLiteral("Sign in"))
@@ -4324,33 +4476,20 @@ namespace {
 
 		publish_session_ready(window);
 		QApplication::processEvents();
+		// [[BPR-0775]]. Signed in with nothing open the bar leads Home: the card
+		// and its focus-only buttons are gone, and naming a pull request is the
+		// bar's.
 		expect(
-			landing->isVisible()
+			!landing->isVisible()
 				&& landing->state() == qt::landing_state::choose_pull_request
-				&& landing->title_label()->text()
-					== QStringLiteral("Open a pull request")
-				&& window.queue_view()->isVisible(),
-			"signed in with nothing open, Home offers the queue and the locator");
-		window.activateWindow();
-		landing->primary_button()->click();
-		QApplication::processEvents();
-		expect(
-			window.queue_view()->hasFocus(),
-			"choosing from the queue moves focus to the queue");
-		// [[BPR-0771]]. The secondary action opens Accounts and hosts and
-		// focuses nothing there: the locator it used to focus is gone, and a
-		// pull request is named in the Home bar.
-		landing->secondary_button()->click();
-		QApplication::processEvents();
-		expect(
-			window.settings()->isVisible()
-				&& window.settings()->current_page()
-					== qt::settings_page::accounts_and_hosts
+				&& !landing->primary_button()->isVisible()
+				&& !landing->secondary_button()->isVisible()
+				&& window.queue_view()->isVisible()
 				&& window.findChild<QWidget*>(QStringLiteral("repositoryOwnerEditor")) == nullptr
 				&& window.home_page()->isAncestorOf(window.home_open_bar()),
-			"the secondary action opens Accounts and hosts, and naming a pull "
-			"request stays the Home bar's");
+			"signed in with nothing open, Home has no card and no focus-only buttons, and the bar names a pull request");
 		window.settings()->hide();
+		window.activateWindow();
 
 		// On Home the strip keeps only Home, account and settings.
 		auto* const homeButton = qobject_cast<QToolButton*>(
@@ -4394,8 +4533,37 @@ namespace {
 
 		// Home on demand over an open review, and the modality brings the
 		// review back.
+		window.activateWindow();
+		// A review control outside Home that is enabled with this pull request:
+		// the strip's files toggle, hidden on Home and shown with the review.
+		auto* const reviewControl = window.primary_toolbar()->widgetForAction(window.files_drawer_toggle_action());
+		reviewControl->setFocus(Qt::OtherFocusReason);
+		QApplication::processEvents();
+		// The window's own focus child: what it keeps whether or not it is active.
+		auto* const reviewFocus = window.focusWidget();
 		window.home_action()->trigger();
 		QApplication::processEvents();
+		// [[BPR-0775]]. One shaded return row above the bar, the bar focused on
+		// arrival, and the session line in the status bar.
+		expect(reviewFocus != nullptr && reviewFocus == reviewControl,
+			   std::string{ "a review control had focus before Home; focus is on " }
+				   + (reviewFocus == nullptr ? std::string{ "nothing" } : reviewFocus->objectName().toStdString())
+				   + (reviewControl->isEnabled() ? " (control enabled)" : " (control disabled)")
+				   + (reviewControl->isVisible() ? " (control visible)" : " (control hidden)"));
+		expect(landing->mapTo(window.home_page(), QPoint{ }).y()
+				   < window.home_open_frame()->mapTo(window.home_page(), QPoint{ }).y(),
+			   "over a review the return row is above the bar");
+		expect(!landing->secondary_button()->isVisible() && !landing->body_label()->isVisible()
+				   && landing->shortcut_label()->isVisible()
+				   && landing->shortcut_label()->text() == window.home_action()->shortcut().toString(QKeySequence::NativeText),
+			   "the return row is one button with its shortcut and no second button or body");
+		expect(landing->height() < 80,
+			   "the return row is one row high; it is " + std::to_string(landing->height()));
+		expect(window.focusWidget() == window.home_open_bar(),
+			   "the bar has focus when Home appears over the review");
+		expect(window.status_text().startsWith(QStringLiteral("Signed in as "))
+				   && !window.status_text().contains(QStringLiteral("No pull request is open")),
+			   "over a review Home's line is the session line; it says: " + window.status_text().toStdString());
 		expect(
 			window.showing_home() && window.home_action()->isChecked()
 				&& window.modality()->isVisible()
@@ -4414,15 +4582,25 @@ namespace {
 		landing->primary_button()->click();
 		QApplication::processEvents();
 		expect(
-			!window.showing_home() && !window.home_action()->isChecked(),
-			"Back to the review returns to the review");
+			!window.showing_home() && !window.home_action()->isChecked()
+				&& window.focusWidget() == reviewFocus,
+			"Back to the review returns to the review with its focus where it was");
+		// A strip control that had focus is hidden on Home and shown again with
+		// the review, and takes focus back once it is.
+		auto* const stripControl = window.primary_toolbar()->widgetForAction(window.files_drawer_toggle_action());
+		stripControl->setFocus(Qt::OtherFocusReason);
+		QApplication::processEvents();
+		expect(window.focusWidget() == stripControl, "a strip control had focus before Home");
 		window.home_action()->trigger();
 		QApplication::processEvents();
+		expect(!stripControl->isVisible() && window.focusWidget() == window.home_open_bar(),
+			   "on Home the strip control is hidden and the bar has focus");
 		window.modality()->action(qt::review_modality::review)->trigger();
 		QApplication::processEvents();
 		expect(
-			!window.showing_home() && !window.home_action()->isChecked(),
-			"choosing a modality returns to the review too");
+			!window.showing_home() && !window.home_action()->isChecked()
+				&& stripControl->isVisible() && window.focusWidget() == stripControl,
+			"choosing a modality returns to the review too, with focus back on the strip control");
 		window.hide();
 	}
 
@@ -6534,6 +6712,7 @@ auto main(int argc, char** argv) -> int
 	test_repositories_drawer_lists_the_queue_and_opens_on_overview();
 	test_home_action_list_opens_rows_and_the_bar_on_overview();
 	test_home_signed_out_is_one_paste_field();
+	test_home_leads_with_the_bar_signed_in();
 	test_home_lists_recently_viewed_pull_requests();
 	test_a_pull_request_without_a_comparison_still_lists_its_files();
 	test_read_drawer_shows_threads_as_cards_with_scope_and_actions();

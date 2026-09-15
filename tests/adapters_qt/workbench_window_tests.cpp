@@ -855,9 +855,12 @@ namespace {
 			   "the shell names its composed epoch selectors, its composed "
 			   "comparison surface, and its detail pane");
 
-		expect(window.status_text()
-				   == QStringLiteral("Open a pull request to begin reviewing."),
-			   "an inactive workbench states why navigation is unavailable");
+		// [[BPR-0775]]. An inactive workbench is Home, and Home's line is the
+		// session's; the navigation it cannot offer is not on Home's strip.
+		expect(window.showing_home()
+				   && window.status_text()
+					   == QStringLiteral("Not signed in. Public pull requests open read-only."),
+			   "an inactive workbench is Home and its status line states the session");
 		auto selection = both_files_enabled();
 		selection.Selection
 			= core::workbench_selection_delta{ .Cursor = core::workbench_navigation_cursor{
@@ -4694,11 +4697,23 @@ namespace {
 
 	void test_review_history_state_is_explicit_in_workbench_text()
 	{
+		{
+			// [[BPR-0775]]. Home's line is the session's alone. Review history
+			// is the review surface's, and Home shows none of it.
+			qt::workbench_window home;
+			const auto           session = home.status_text();
+			home.publish(retained_epochs({ epoch_row(1), epoch_row(2) }));
+			expect(home.showing_home()
+					   && session == QStringLiteral("Not signed in. Public pull requests open read-only.")
+					   && home.status_text() == session,
+				   "on Home the line is the session line and states no review history");
+		}
 		qt::workbench_window window;
-		const auto           inactive = window.status_text();
-		expect(inactive
-				   == QStringLiteral("Open a pull request to begin reviewing."),
-			   "before any review-history update the shell states only its own "
+		window.publish(both_files_enabled());
+		const auto inactive = window.status_text();
+		expect(!window.showing_home()
+				   && inactive == QStringLiteral("No pull request is open in the workbench."),
+			   "before any review-history update the review surface states only its own "
 			   "state");
 
 		window.publish(retained_epochs({ }));
@@ -4952,6 +4967,9 @@ namespace {
 				log.Receipt.push_back(std::move(aCommand));
 			});
 		window.show();
+		// [[BPR-0775]]. Receipt progress is the review surface's to state; Home's
+		// line is the session's.
+		window.publish(both_files_enabled());
 		process_events();
 
 		const auto receipt = core::file_receipt{
@@ -7222,17 +7240,40 @@ namespace {
 		window.publish(opened);
 		window.choose_home(true);
 		process_events();
-		expect(window.showing_home() && window.home_landing()->illustration() == dif
-				   && dif->isVisible() && dif->size() == QSize{ 96, 96 }
+		// [[BPR-0775]] mandate r2. Over a review Home is not the first-launch
+		// card, so Dif rests in the window's bottom-left corner, out of the way.
+		auto* const corner = window.dif_corner_slot();
+		expect(window.showing_home() && window.home_landing()->illustration() == nullptr
+				   && corner != nullptr && corner->isVisible()
+				   && dif->parentWidget() == &window && dif->isVisible() && dif->size() == QSize{ 40, 40 }
 				   && !window.dif_ai_slot()->isVisible()
-				   && window.findChildren<QWidget*>(QStringLiteral("workbenchDif")).size() == 1,
-			   "Home wins and reclaims the same presentation at its Home size");
+				   && window.findChildren<QWidget*>(QStringLiteral("workbenchDif")).size() == 1
+				   && provider->load_attempts() == 1U,
+			   "Home wins and rests the same presentation in the bottom-left corner");
+		const auto slotBottomLeft = corner->mapTo(&window, QPoint{ 0, corner->height() });
+		const auto statusBar      = window.statusBar()->geometry();
+		expect(dif->geometry().left() == slotBottomLeft.x() && dif->geometry().bottom() == slotBottomLeft.y() - 1
+				   && dif->geometry().left() < 24
+				   && statusBar.contains(QPoint{ dif->geometry().left(), dif->geometry().bottom() })
+				   && window.status_label()->geometry().left() >= corner->geometry().right(),
+			   "the corner sprite stands on the status line's leading edge and the line begins after it");
+		expect(dif->testAttribute(Qt::WA_TransparentForMouseEvents) && dif->focusPolicy() == Qt::NoFocus,
+			   "the corner sprite is outside the pointer and focus paths");
+		window.statusBar()->showMessage(QStringLiteral("A transient message"));
+		process_events();
+		expect(!corner->isVisible() && !dif->isVisible(),
+			   "a transient status message hides the slot and the sprite rather than being covered by them");
+		window.statusBar()->clearMessage();
+		process_events();
+		expect(corner->isVisible() && dif->isVisible(),
+			   "the corner returns when the message clears");
 
 		window.choose_modality(qt::review_modality::read);
 		process_events();
 		expect(!window.showing_home() && window.dif_ai_slot()->isVisible()
-				   && dif->parentWidget() == window.dif_ai_slot(),
-			   "returning to the review restores the still-selected explicit AI placement");
+				   && dif->parentWidget() == window.dif_ai_slot() && dif->size() == QSize{ 64, 64 }
+				   && !corner->isVisible(),
+			   "returning to the review restores the still-selected explicit AI placement and leaves the corner");
 		action->trigger();
 		process_events();
 		expect(!action->isChecked() && !window.dif_ai_slot()->isVisible()

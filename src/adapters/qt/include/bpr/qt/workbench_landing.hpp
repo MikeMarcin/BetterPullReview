@@ -12,57 +12,59 @@ class QHBoxLayout;
 class QPaintEvent;
 class QPushButton;
 class QResizeEvent;
+class QVBoxLayout;
 
 namespace bpr::qt {
-	/// \brief What the centre has nothing to show for, and what to do about it.
+	/// \brief What Home offers besides the bar, by session and open review.
 	enum class landing_state : std::uint8_t {
-		/// No account: the way in is the bar below, signed out, or an account.
+		/// No account: the first-launch card with its two ways in.
 		/// [[BPR-0732]]. A public-preview session lands here too; it has no
 		/// queue to choose from.
 		sign_in,
-		/// A session but no pull request: the way in is the queue or the locator.
+		/// An account and nothing open: the bar leads Home, so there is no card.
 		choose_pull_request,
-		/// A review is open behind Home: the way back is one press.
+		/// A review is open behind Home: one row whose button goes back to it.
 		back_to_review,
 	};
 
-	/// \brief The centre's landing while there is nothing to review.
+	/// \brief Home's first-launch card, or its one row back to an open review.
 	///
-	/// \details [[BPR-0646]]. Owner direction: the default landing must
-	/// funnel a reviewer with no account or no pull request to the right
-	/// place rather than show empty panes. The surface is presentation only:
-	/// each button reports a gesture through its callback and the window
-	/// decides where it leads (the Accounts and hosts page, the queue). It
-	/// shows only while the centre holds no comparison and no pull request,
-	/// and it never grows past its content, so the comparison beneath keeps
-	/// its room the moment there is something to compare.
+	/// \details [[BPR-0646]], [[BPR-0775]]. RFC-BPR-0032 accepted Home as the
+	/// bar first. Signed out, the landing is the card "Sign in to GitHub" with
+	/// Sign in filled and Add enterprise server bordered, the two ways in
+	/// RFC-BPR-0018 requires without opening Settings. Over an open review it
+	/// is one shaded row naming the review, with Back to the review and its
+	/// shortcut at the right. Signed in with nothing open it shows nothing and
+	/// the window hides it. The surface is presentation only: each button
+	/// reports a gesture through its callback and the window decides where it
+	/// leads.
 	class workbench_landing final : public QWidget
 	{
 	public:
 		explicit workbench_landing(QWidget* aParent = nullptr);
 
 		void set_state(landing_state aState);
-		/// \brief The open review\'s identity, named by the back-to-review state.
+		/// \brief The open review's identity, named by the back-to-review row.
 		void set_review_identity(const QString& aIdentity);
-		/// \brief [[BPR-0732]]. Whether a queue exists to choose from (an account).
-		///
-		/// \details Without one, "choose another" over an open review means
-		/// the bar below, not a queue that is not shown.
-		void               set_queue_offered(bool aOffered);
+		/// \brief Where the reading was left, such as "file 9 of 12"; empty when unknown.
+		void               set_review_position(const QString& aPosition);
 		[[nodiscard]] auto state() const noexcept -> landing_state;
 
-		/// \brief Sign in (signed out) or choose from the queue (signed in).
+		/// \brief Sign in on the first-launch card, Back to the review on the row.
 		[[nodiscard]] auto primary_button() const noexcept -> QPushButton*;
-		/// \brief Open Accounts and hosts, for the settings or the locator.
+		/// \brief Add enterprise server on the first-launch card; hidden otherwise.
 		[[nodiscard]] auto secondary_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto title_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto body_label() const noexcept -> QLabel*;
+		/// \brief The shortcut beside Back to the review; hidden on the card.
+		[[nodiscard]] auto shortcut_label() const noexcept -> QLabel*;
 
-		/// \brief Places one decorative Home illustration beside the guidance.
+		/// \brief Places one decorative Home illustration beside the card's guidance.
 		///
 		/// \details The landing owns only layout. The injected widget owns its
 		/// pixels and playback, accepts no input, and disappears before the Home
-		/// controls are allowed to become cramped.
+		/// controls are allowed to become cramped. Only the first-launch card
+		/// shows it; the return row never does.
 		void set_illustration(QWidget* aIllustration);
 		/// \brief Releases the illustration for another window-owned eligible slot.
 		[[nodiscard]] auto take_illustration() -> QWidget*;
@@ -79,14 +81,18 @@ namespace bpr::qt {
 
 	private:
 		void                  apply_illustration_layout();
-		landing_state         State        = landing_state::sign_in;
-		bool                  QueueOffered = true;
+		void                  apply_arrangement();
+		landing_state         State = landing_state::sign_in;
 		QString               ReviewIdentity;
+		QString               ReviewPosition;
 		QLabel*               Title               = nullptr;
 		QLabel*               Body                = nullptr;
+		QLabel*               Shortcut            = nullptr;
 		QPushButton*          Primary             = nullptr;
 		QPushButton*          Secondary           = nullptr;
 		QHBoxLayout*          Content             = nullptr;
+		QHBoxLayout*          Header              = nullptr;
+		QHBoxLayout*          Buttons             = nullptr;
 		QWidget*              Illustration        = nullptr;
 		bool                  IllustrationEnabled = true;
 		std::function<void()> PrimaryDispatch;

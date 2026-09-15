@@ -54,6 +54,7 @@ class QCheckBox;
 class QComboBox;
 class QEvent;
 class QElapsedTimer;
+class QHBoxLayout;
 class QLabel;
 class QLineEdit;
 class QListView;
@@ -473,6 +474,14 @@ namespace bpr::qt {
 		[[nodiscard]] auto ai_tools_action() const noexcept -> QAction*;
 		/// \brief The single contextual presentation slot, empty until explicitly selected.
 		[[nodiscard]] auto dif_ai_slot() const noexcept -> QWidget*;
+		/// \brief [[BPR-0775]]. Dif's resting place at the start of the status line.
+		///
+		/// \details Mandate r2: Dif greets on the first-launch card and otherwise
+		/// rests in the window's bottom-left corner. The slot reserves the status
+		/// line's leading edge while Home shows him there; the sprite itself is a
+		/// window child laid over the slot's bottom-left, with no pointer or
+		/// focus path.
+		[[nodiscard]] auto dif_corner_slot() const noexcept -> QWidget*;
 		/// \brief Applies the profile's accepted visibility and motion resolution.
 		void adopt_dif(core::dif_resolution aResolution);
 		/// \brief Primes the exact accepted review whose AI projections may cue Dif.
@@ -602,6 +611,14 @@ namespace bpr::qt {
 		[[nodiscard]] auto queue_view() const noexcept -> QListView*;
 		/// \brief [[BPR-0650]]. Home's open bar and the action list's delegate.
 		[[nodiscard]] auto home_open_bar() const noexcept -> QLineEdit*;
+		/// \brief [[BPR-0775]]. The bar's own label, "Open", inside its frame.
+		[[nodiscard]] auto home_open_label() const noexcept -> QLabel*;
+		/// \brief [[BPR-0775]]. The bordered frame that holds the label, the field and its shortcut.
+		[[nodiscard]] auto home_open_frame() const noexcept -> QWidget*;
+		/// \brief [[BPR-0775]]. Command-L: Home, with the bar focused and its text selected.
+		[[nodiscard]] auto home_focus_bar_action() const noexcept -> QAction*;
+		/// \brief The window's one status line; on Home it is the session line.
+		[[nodiscard]] auto status_label() const noexcept -> QLabel*;
 		/// \brief [[BPR-0669]]. Opens what the bar names; disabled until it names one.
 		[[nodiscard]] auto home_open_action() const noexcept -> QAction*;
 		/// \brief [[BPR-0669]]. States a refusal beside the bar rather than doing nothing.
@@ -850,7 +867,14 @@ namespace bpr::qt {
 		void               apply_strip_width();
 		void               apply_review_details_visibility();
 		void               update_home_landing();
-		void               update_dif_presentation();
+		/// \brief [[BPR-0775]]. Puts the landing above the bar as the return row,
+		/// or under it as the first-launch card.
+		void place_home_landing();
+		/// \brief [[BPR-0775]]. Home with the bar focused and its text selected.
+		void focus_home_bar();
+		void update_dif_presentation();
+		/// \brief [[BPR-0775]]. Lays the corner sprite over its status-line slot.
+		void               place_dif_corner();
 		void               play_dif_cue(std::optional<dif_clip_id> aCue);
 		[[nodiscard]] auto showing_dif_ai() const -> bool;
 		/// \brief [[BPR-0733]]. Rebuilds Home's recently viewed rows and shows
@@ -904,7 +928,13 @@ namespace bpr::qt {
 			core::workbench_command_id   aId,
 			core::workbench_drawer_state aState);
 		void update_status_text();
-		void announce_update();
+		/// \brief The status line for what the window shows now, computed without side effects.
+		[[nodiscard]] auto status_line() const -> QString;
+		/// \brief [[BPR-0775]]. Home's session line.
+		[[nodiscard]] auto home_session_line() const -> QString;
+		/// \brief Whether the session is signed in, with or without an account.
+		[[nodiscard]] auto session_signed_in() const -> bool;
+		void               announce_update();
 		void apply_file_rows(
 			const std::vector<application::workbench_file_projection>& aFiles);
 		[[nodiscard]] auto conversation_anchor_file() const -> std::optional<core::file_identity>;
@@ -937,6 +967,9 @@ namespace bpr::qt {
 		/// while none is.
 		[[nodiscard]] auto current_server_card() const -> server_card*;
 		void begin_selected_sign_in();
+		/// \brief [[BPR-0775]]. The first-launch card's second way in: Accounts &
+		/// hosts with a new enterprise server card in its edit state.
+		void               begin_enterprise_server_from_home();
 		void dispatch_queue_rule(application::queue_rule_action aAction);
 		void update_queue_rule_actions();
 		void open_pull_request_item(const core::queue_item& aItem);
@@ -995,6 +1028,7 @@ namespace bpr::qt {
 		std::unique_ptr<QElapsedTimer>           DifCueClock;
 		dif_widget*                              Dif                = nullptr;
 		QWidget*                                 DifAiSlot          = nullptr;
+		QWidget*                                 DifCornerSlot      = nullptr;
 		QAction*                                 AiToolsAction      = nullptr;
 		QToolButton*                             AiToolsButton      = nullptr;
 		QScrollArea*                             ConversationScroll = nullptr;
@@ -1005,8 +1039,11 @@ namespace bpr::qt {
 		bool                                     StripHome            = false;
 		bool                                     HomeRequested        = false;
 		bool                                     HomeFocused          = false;
+		/// [[BPR-0775]]. Where focus was in the review when Home covered it.
+		QPointer<QWidget>                        FocusBeforeHome;
 		QAction*                                 HomeAction           = nullptr;
 		QVBoxLayout*                             HomeColumn           = nullptr;
+		QHBoxLayout*                             HomeSetupRow         = nullptr;
 		QLabel*                                  HomeQueueHeading     = nullptr;
 		QWidget*                                 QueueSurface         = nullptr;
 		QVBoxLayout*                             DrawerTopColumn      = nullptr;
@@ -1113,7 +1150,9 @@ namespace bpr::qt {
 		QLabel*                                            QueueStatus           = nullptr;
 		QLabel*                                            SettingsQueueStatus   = nullptr;
 		QLineEdit*                                         HomeOpenBar           = nullptr;
-		QToolButton*                                       HomeOpenButton        = nullptr;
+		QLabel*                                            HomeOpenLabel         = nullptr;
+		QWidget*                                           HomeOpenFrame         = nullptr;
+		QAction*                                           HomeFocusBarAction    = nullptr;
 		QAction*                                           HomeOpenAction        = nullptr;
 		QLabel*                                            HomeOpenNotice        = nullptr;
 		QPushButton*                                       HomeOpenDetails       = nullptr;

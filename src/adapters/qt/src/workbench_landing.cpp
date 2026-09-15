@@ -2,10 +2,12 @@
 
 #include <QFont>
 #include <QHBoxLayout>
+#include <QKeySequence>
 #include <QLabel>
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPen>
+#include <QPointF>
 #include <QPushButton>
 #include <QRectF>
 #include <QResizeEvent>
@@ -20,6 +22,10 @@ namespace bpr::qt {
 		constexpr auto hidden_illustration_width  = 960;
 		constexpr auto normal_illustration_size   = 96;
 		constexpr auto compact_illustration_size  = 72;
+		// RFC-BPR-0032's rhythm: a page inset of 24 and a card inset of 16.
+		constexpr auto page_inset = 24;
+		constexpr auto card_inset = 16;
+		constexpr auto row_inset  = 8;
 	}
 
 	workbench_landing::workbench_landing(QWidget* const aParent)
@@ -27,19 +33,12 @@ namespace bpr::qt {
 	{
 		setObjectName(QStringLiteral("workbenchHomeLanding"));
 		setAccessibleName(QStringLiteral("Home"));
-		setAccessibleDescription(QStringLiteral(
-			"What to do next while nothing is open: sign in, or choose a pull "
-			"request"));
 		setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
 		Title = new QLabel{ this };
 		Title->setObjectName(QStringLiteral("workbenchHomeTitle"));
 		Title->setTextFormat(Qt::PlainText);
 		Title->setWordWrap(true);
-		auto titleFont = Title->font();
-		titleFont.setPointSizeF(titleFont.pointSizeF() * 1.35);
-		titleFont.setWeight(QFont::DemiBold);
-		Title->setFont(titleFont);
 
 		Body = new QLabel{ this };
 		Body->setObjectName(QStringLiteral("workbenchHomeBody"));
@@ -50,11 +49,12 @@ namespace bpr::qt {
 
 		Primary = new QPushButton{ this };
 		Primary->setObjectName(QStringLiteral("workbenchHomePrimaryButton"));
+		// The page's one filled control: Sign in on the card, the way back on the row.
 		Primary->setDefault(true);
 		Primary->setFocusPolicy(Qt::StrongFocus);
 		Secondary = new QPushButton{ this };
 		Secondary->setObjectName(QStringLiteral("workbenchHomeSecondaryButton"));
-		Secondary->setFlat(true);
+		Secondary->setAutoDefault(false);
 		Secondary->setFocusPolicy(Qt::StrongFocus);
 		connect(Primary, &QPushButton::clicked, this, [this] {
 			if (PrimaryDispatch) {
@@ -67,23 +67,32 @@ namespace bpr::qt {
 			}
 		});
 
-		auto* const buttons = new QHBoxLayout;
-		buttons->setContentsMargins(0, 0, 0, 0);
-		buttons->setSpacing(8);
-		buttons->addWidget(Primary);
-		buttons->addWidget(Secondary);
-		buttons->addStretch(1);
+		Shortcut = new QLabel{ this };
+		Shortcut->setObjectName(QStringLiteral("workbenchHomeReturnShortcut"));
+		Shortcut->setTextFormat(Qt::PlainText);
+		Shortcut->setForegroundRole(QPalette::PlaceholderText);
+		Shortcut->setText(QKeySequence{ Qt::CTRL | Qt::Key_0 }.toString(QKeySequence::NativeText));
+
+		Header = new QHBoxLayout;
+		Header->setContentsMargins(0, 0, 0, 0);
+		Header->setSpacing(8);
+		Header->addWidget(Title, 1);
+
+		Buttons = new QHBoxLayout;
+		Buttons->setContentsMargins(0, 0, 0, 0);
+		Buttons->setSpacing(8);
+		Buttons->addWidget(Primary);
+		Buttons->addWidget(Secondary);
+		Buttons->addStretch(1);
 
 		auto* const column = new QVBoxLayout;
-		column->setContentsMargins(24, 20, 24, 20);
+		column->setContentsMargins(0, 0, 0, 0);
 		column->setSpacing(8);
-		column->addWidget(Title);
+		column->addLayout(Header);
 		column->addWidget(Body);
-		column->addSpacing(4);
-		column->addLayout(buttons);
+		column->addLayout(Buttons);
 
 		Content = new QHBoxLayout{ this };
-		Content->setContentsMargins(0, 0, 0, 0);
 		Content->setSpacing(12);
 		Content->addLayout(column, 1);
 
@@ -95,67 +104,90 @@ namespace bpr::qt {
 		State = aState;
 		switch (aState) {
 		case landing_state::sign_in:
-			Title->setText(QStringLiteral("Connect a GitHub account"));
-			// [[BPR-0732]]. The bar directly below this card is the one way
-			// in without an account: a pasted public link opens signed out,
-			// read-only, in one gesture. The card says so; there is no
-			// separate button and no second screen (which replaced the
-			// [[BPR-0670]] "Read without signing in" button and its detour).
+			Title->setText(QStringLiteral("Sign in to GitHub"));
+			// [[BPR-0775]]. The accepted first-launch card: one sentence, then
+			// the two ways in. The bar above it reads a public pull request
+			// without an account, and it says so itself.
 			Body->setText(QStringLiteral(
-				"Paste a public pull request link, or owner/name#123, in the bar "
-				"below to read it without signing in; comments and review actions "
-				"stay read-only. Sign in once with a device code for your review "
-				"queue; the session is remembered on this Mac."));
-			Primary->setText(QStringLiteral("Sign in to GitHub…"));
+				"A device code in the browser signs this Mac in once; the session is "
+				"remembered here. Home then lists the pull requests that need me, the "
+				"ones waiting on others, and the ones I follow."));
+			Primary->setText(QStringLiteral("Sign in"));
 			Primary->setAccessibleName(QStringLiteral("Sign in to GitHub"));
 			Primary->setAccessibleDescription(QStringLiteral(
-				"Opens Accounts and hosts in Settings with the device sign-in ready."));
-			// A doubled ampersand: a single one is a mnemonic marker on a button.
-			Secondary->setText(QStringLiteral("Accounts && hosts settings"));
-			Secondary->setAccessibleName(QStringLiteral("Accounts and hosts settings"));
+				"Opens Accounts and hosts in Settings and begins a device sign-in there."));
+			Secondary->setText(QStringLiteral("Add enterprise server"));
+			Secondary->setAccessibleName(QStringLiteral("Add enterprise server"));
 			Secondary->setAccessibleDescription(QStringLiteral(
-				"Opens the Accounts and hosts page of Settings."));
+				"Opens Accounts and hosts in Settings with a new enterprise server card to fill in."));
+			setAccessibleDescription(QStringLiteral("Sign in to GitHub, or add an enterprise server"));
 			break;
-		case landing_state::back_to_review:
+		case landing_state::back_to_review: {
 			// Home over an open review closes nothing; the first thing on the
 			// page is the way back, so an accidental Home costs one press.
-			Title->setText(
-				ReviewIdentity.isEmpty()
-					? QStringLiteral("Reviewing a pull request")
-					: QStringLiteral("Reviewing %1").arg(ReviewIdentity));
-			Body->setText(QStringLiteral(
-				"The review is still open behind Home, exactly where you left it."));
+			auto reviewing = ReviewIdentity.isEmpty()
+				? QStringLiteral("Reviewing a pull request")
+				: QStringLiteral("Reviewing %1").arg(ReviewIdentity);
+			if (!ReviewPosition.isEmpty()) {
+				reviewing = QStringLiteral("%1, %2").arg(reviewing, ReviewPosition);
+			}
+			Title->setText(reviewing);
+			Body->clear();
 			Primary->setText(QStringLiteral("Back to the review"));
 			Primary->setAccessibleName(QStringLiteral("Back to the review"));
 			Primary->setAccessibleDescription(QStringLiteral(
 				"Returns to the open pull request at the same file and change."));
-			Secondary->setText(QStringLiteral("Choose another pull request"));
-			Secondary->setAccessibleName(QStringLiteral("Choose another pull request"));
-			Secondary->setAccessibleDescription(
-				QueueOffered ? QStringLiteral("Moves to the review queue below.")
-							 : QStringLiteral("Moves to the bar below, which takes a pull request link or owner/name#number."));
+			Secondary->setText(QString{ });
+			setAccessibleDescription(reviewing);
 			break;
+		}
 		case landing_state::choose_pull_request:
-			Title->setText(QStringLiteral("Open a pull request"));
-			// [[BPR-0669]]. The bar below takes a pasted link; the locator in
-			// Settings is no longer the way a pull request is named.
-			Body->setText(QStringLiteral(
-				"Paste a pull request link in the bar below, or pick one from the "
-				"review queue."));
-			Primary->setText(QStringLiteral("Choose from the queue"));
-			Primary->setAccessibleName(QStringLiteral("Choose from the queue"));
-			Primary->setAccessibleDescription(QStringLiteral(
-				"Moves to the review queue in the files drawer."));
-			Secondary->setText(QStringLiteral("Paste a link"));
-			Secondary->setAccessibleName(QStringLiteral("Paste a pull request link"));
-			Secondary->setAccessibleDescription(QStringLiteral(
-				"Moves to the bar below, which takes a pull request link or owner/name#number."));
+			Title->clear();
+			Body->clear();
+			Primary->setText(QString{ });
+			Secondary->setText(QString{ });
+			setAccessibleDescription(QString{ });
 			break;
 		}
 		Primary->setToolTip(Primary->accessibleDescription());
 		Secondary->setToolTip(Secondary->accessibleDescription());
+		apply_arrangement();
+		apply_illustration_layout();
 		updateGeometry();
 		update();
+	}
+
+	void workbench_landing::apply_arrangement()
+	{
+		const auto card = State == landing_state::sign_in;
+		const auto row  = State == landing_state::back_to_review;
+		// The card and the row hold the same button in different places: under
+		// the sentence on the card, at the right of the row.
+		Header->removeWidget(Primary);
+		Header->removeWidget(Shortcut);
+		Buttons->removeWidget(Primary);
+		if (row) {
+			Header->addWidget(Primary);
+			Header->addWidget(Shortcut);
+		} else {
+			Buttons->insertWidget(0, Primary);
+		}
+		auto titleFont = font();
+		if (card) {
+			titleFont.setPointSizeF(titleFont.pointSizeF() * 1.15);
+			titleFont.setWeight(QFont::DemiBold);
+		}
+		Title->setFont(titleFont);
+		Body->setVisible(card);
+		Primary->setVisible(card || row);
+		Secondary->setVisible(card);
+		Shortcut->setVisible(row);
+		if (card) {
+			Content->setContentsMargins(
+				page_inset + card_inset, row_inset + card_inset, page_inset + card_inset, row_inset + card_inset);
+		} else {
+			Content->setContentsMargins(page_inset, row_inset, page_inset, row_inset);
+		}
 	}
 
 	void workbench_landing::set_review_identity(const QString& aIdentity)
@@ -169,12 +201,12 @@ namespace bpr::qt {
 		}
 	}
 
-	void workbench_landing::set_queue_offered(const bool aOffered)
+	void workbench_landing::set_review_position(const QString& aPosition)
 	{
-		if (QueueOffered == aOffered) {
+		if (ReviewPosition == aPosition) {
 			return;
 		}
-		QueueOffered = aOffered;
+		ReviewPosition = aPosition;
 		if (State == landing_state::back_to_review) {
 			set_state(State);
 		}
@@ -203,6 +235,11 @@ namespace bpr::qt {
 	auto workbench_landing::body_label() const noexcept -> QLabel*
 	{
 		return Body;
+	}
+
+	auto workbench_landing::shortcut_label() const noexcept -> QLabel*
+	{
+		return Shortcut;
 	}
 
 	void workbench_landing::set_illustration(QWidget* const aIllustration)
@@ -270,13 +307,24 @@ namespace bpr::qt {
 	void workbench_landing::paintEvent(QPaintEvent* const aEvent)
 	{
 		static_cast<void>(aEvent);
-		// A card on the window's ground, with the same rule the strip uses.
 		auto painter = QPainter{ this };
+		const auto mid     = palette().color(QPalette::Active, QPalette::Mid);
+		if (State == landing_state::back_to_review) {
+			// One shaded row above the bar, closed by the page's hairline.
+			painter.fillRect(rect(), palette().color(QPalette::Active, QPalette::AlternateBase));
+			painter.setPen(QPen{ mid, 1.0 });
+			painter.drawLine(QPointF{ 0.0, height() - 0.5 }, QPointF{ static_cast<qreal>(width()), height() - 0.5 });
+			return;
+		}
+		if (State != landing_state::sign_in) {
+			return;
+		}
+		// A card on the window's ground: Base inside a Mid rule, one 8-point radius.
 		painter.setRenderHint(QPainter::Antialiasing, true);
-		painter.setPen(QPen{ palette().color(QPalette::Active, QPalette::Mid), 1.0 });
-		painter.setBrush(palette().color(QPalette::Active, QPalette::Button));
+		painter.setPen(QPen{ mid, 1.0 });
+		painter.setBrush(palette().color(QPalette::Active, QPalette::Base));
 		painter.drawRoundedRect(
-			QRectF{ rect() }.adjusted(12.5, 8.5, -12.5, -8.5), 8.0, 8.0);
+			QRectF{ rect() }.adjusted(page_inset + 0.5, row_inset + 0.5, -page_inset - 0.5, -row_inset - 0.5), 8.0, 8.0);
 	}
 
 	void workbench_landing::resizeEvent(QResizeEvent* const aEvent)
@@ -290,7 +338,7 @@ namespace bpr::qt {
 		if (Illustration == nullptr) {
 			return;
 		}
-		if (!IllustrationEnabled || !illustration_space_available()) {
+		if (!IllustrationEnabled || State != landing_state::sign_in || !illustration_space_available()) {
 			Illustration->hide();
 			return;
 		}

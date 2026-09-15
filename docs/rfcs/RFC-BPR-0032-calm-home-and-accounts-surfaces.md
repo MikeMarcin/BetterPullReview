@@ -188,6 +188,21 @@ review keeps its return: one shaded row above the bar, "Reviewing
 NVIDIA/stdexec#1846 …, file 9 of 12" at the left and Back to the review (⌘0)
 as the filled button at the right; Home is unchanged beneath it.
 
+**Dif on Home (owner direction, 2026-09-15).** The owner asked for Dif to
+act mostly like AllTheThings' Nib: he shows up on Home for the first-time
+sign-in experience, and otherwise sits in the very bottom-left corner, out
+of the way. RFC-BPR-0031's Home placement therefore governs the first-launch
+card alone: Dif stands beside the card's sentence at 96 points, 72 at the
+compact breakpoint, and is hidden before the card's controls would be
+squeezed. On every other Home, signed in or over an open review, the same
+single Dif rests at 40 points on the leading edge of the status line in the
+window's bottom-left corner. There he has no pointer or focus path, the line
+begins after him, and he steps aside while the status bar shows a transient
+message. RFC-BPR-0031's greeting, calm and blink cadence, its motion and
+visibility preferences, its one sprite per window and its explicit AI tools
+slot on review surfaces are unchanged. Resting in the corner while a review
+is read lies outside this RFC's Home boundary and is carried as a follow-up.
+
 ### Language shared by both
 
 A row is one line: label, an info glyph and the control. The consequence
