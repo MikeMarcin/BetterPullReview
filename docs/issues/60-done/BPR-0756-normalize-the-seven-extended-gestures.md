@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0756"
 title: "Normalize the seven extended gestures"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0030"]
 depends_on: ["BPR-0755"]
 metadata: {"pack":"bpr-dif-integration-v1","milestone":"production-art","acceptance":["A1","A2","A3","A4"],"milestone_plan":{"id":"bpr-dif-integration-v1","path":"docs/rfcs/plans/bpr-dif-integration-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"Seven distinct extended gestures at declared timing","outcome":"pass","revision":"98841656ebde50cff92a74a955651f9d1aa9492f","evidence":{"kind":"observation","detail":"Human accept decisions at sequences 114, 116, 117, 118, 119, 120 and 121 bind acknowledge, attention, blink, blocked, comment ready, compare glance and consider in the protected actual-speed player."}},{"criterion":"Body, paw, face and neutral-return continuity","outcome":"pass","revision":"98841656ebde50cff92a74a955651f9d1aa9492f","evidence":{"kind":"command","detail":"Promoted schema-2 catalog passes clean-alpha, baseline, body/head/foot registration, bounds, exact neutral handoff and digest validation; dev and core-only 57-test contracts pass."}},{"criterion":"Traceable native source and derivative disposition","outcome":"pass","revision":"98841656ebde50cff92a74a955651f9d1aa9492f","evidence":{"kind":"artifact","detail":"The 71 exact received files, canonical source mapping, hashes and known generator metadata gaps are retained in v008; sequence 122 separately accepts the exact derivative storage/distribution disposition."}}]
 ---
 
 # BPR-0756: Normalize the seven extended gestures
@@ -98,3 +99,21 @@ row is promoted before BPR-0755 and the scoped attended decisions resolve.
 Fresh attended session `7e489c0dd362c256bc28715a16892b65` has the seven
 individual extended-clip candidates ready/protected at sequence `110`, bound
 to candidate commit `1b7daff5ec0d6ad2015e50e22b89c5193ebdbbfc`.
+
+The d11 hand-back resolves all seven protected questions with explicit human
+accept and empty notes: acknowledge at sequence 114, attention at 116, blink at
+117, blocked at 118, comment ready at 119, compare glance at 120 and consider
+at 121. Their decision IDs and exact fingerprints are retained in the
+[sequence-123 verdict](../../verification/dif-production-art-v008/review/human-verdict.json).
+The reviewer therefore accepted the actual declared-speed head, eye, paw,
+shoulder and neutral-return motion that earlier local studies could not prove.
+
+Production commit `98841656ebde50cff92a74a955651f9d1aa9492f` contains each
+accepted canonical source frame and its deterministic generated strip. The
+schema-2 validator confirms distinct closed IDs/counts, clean alpha, baseline
+223, foot/body/head registration, content bounds, exact neutral handoffs and
+source/product digests. The dev and core-only 57-test asset contracts and the
+selected-profile boundary verifier pass on that production tree. The exact
+external-generator metadata gaps remain disclosed, while the separately
+accepted derivative disposition supplies the required storage/distribution
+authority for these bytes.
