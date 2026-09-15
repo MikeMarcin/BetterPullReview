@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0762"
 title: "Prove Home, profile preference and shared-cache behavior"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0031"]
 depends_on: ["BPR-0761"]
 metadata: {"pack":"bpr-dif-integration-v1","milestone":"home-integration","acceptance":["B2","B3","B5","B9","B10","B11"],"milestone_plan":{"id":"bpr-dif-integration-v1","path":"docs/rfcs/plans/bpr-dif-integration-v1/milestone-plan.json"}}
