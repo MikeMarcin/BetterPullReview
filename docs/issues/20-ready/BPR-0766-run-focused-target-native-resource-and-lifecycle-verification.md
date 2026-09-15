@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0766"
 title: "Run focused target-native resource and lifecycle verification"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0031"]
 depends_on: ["BPR-0762", "BPR-0765"]
 metadata: {"pack":"bpr-dif-integration-v1","milestone":"verification-closeout","acceptance":["B1","B4","B9","B10","B12"],"milestone_plan":{"id":"bpr-dif-integration-v1","path":"docs/rfcs/plans/bpr-dif-integration-v1/milestone-plan.json"}}
