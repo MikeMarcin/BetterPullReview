@@ -12,9 +12,12 @@
 #include <cstdint>
 #include <functional>
 #include <optional>
+#include <string>
+#include <vector>
 
 class QEvent;
 class QFrame;
+class QGridLayout;
 class QLabel;
 class QPaintEvent;
 class QPushButton;
@@ -44,6 +47,9 @@ namespace bpr::qt {
 		/// This is the host the session is on, or the chosen host while no
 		/// session is. Its account row offers Sign in; the others offer Connect.
 		bool Current = false;
+		/// The chosen host profile, only when it is one of this host's. Without
+		/// one the card speaks for the host's native profile.
+		std::optional<core::host_profile_id> Chosen;
 		/// The accepted session, only when it is this host's.
 		std::optional<application::github_session_projection> Session;
 		/// Reading public pull requests on this host without an account.
@@ -64,10 +70,12 @@ namespace bpr::qt {
 	/// \brief What a server card's gestures ask for. The card performs none of them.
 	struct server_card_gestures
 	{
-		/// Choose this host, then connect it through the existing connect intent.
+		/// Choose this host profile, then connect it through the existing
+		/// connect intent. Connect names the profile the card speaks for; the
+		/// GitHub CLI offer names the host's GitHub CLI profile.
 		std::function<void(core::host_profile_id)> Connect;
-		/// Begin signing in on this host: its device flow where it has one,
-		/// otherwise the way in Connect opens.
+		/// Begin signing in with this host's native profile: its device flow
+		/// where it has one, otherwise the way in Connect opens.
 		std::function<void(core::host_profile_id)> SignIn;
 		/// Sign the account out; the host forgets a remembered grant.
 		std::function<void()> SignOut;
@@ -84,19 +92,22 @@ namespace bpr::qt {
 		std::size_t Rebuilds     = 0;
 	};
 
-	/// \brief One configured host on Accounts & hosts: a header, an account row and rows.
+	/// \brief One configured server on Accounts & hosts: a header, an account row and rows.
 	///
-	/// \details [[BPR-0771]], RFC-BPR-0032. The header names the host, its kind
-	/// and transport, and the connection state in one word. The account row is
-	/// who is signed in and on what terms, or the one way in. The rows are
-	/// Access, Rate limit and a Details disclosure holding the capabilities,
-	/// the rate limits and the last problem with Copy details.
+	/// \details [[BPR-0771]], [[BPR-0772]], RFC-BPR-0032. One card per
+	/// hostname: every configured host profile on that hostname is a way in
+	/// to the same card, native HTTPS first. The header names the host once,
+	/// the kind and transport of the profile the card speaks for, and the
+	/// connection state in one word. The account row is who is signed in and
+	/// on what terms, or the ways in: Sign in, Connect, and RFC-BPR-0015's
+	/// GitHub CLI offer with its trust warning when the host has a GitHub CLI
+	/// profile. The rows are Access, Rate limit and a Details disclosure
+	/// holding the capabilities, the rate limits and the last problem with
+	/// Copy details.
 	///
 	/// Presentation only. The card reaches no store, vault, provider or
-	/// process; Connect, Sign in and Sign out leave through
-	/// `server_card_gestures`, and what it shows arrives as a
-	/// `server_card_presentation`. A GitHub CLI host carries RFC-BPR-0015's
-	/// trust warning in its account row, where the opt-in is made.
+	/// process; its gestures leave through `server_card_gestures`, and what it
+	/// shows arrives as a `server_card_presentation`.
 	class server_card final : public QWidget
 	{
 	public:
@@ -105,13 +116,33 @@ namespace bpr::qt {
 			server_card_gestures               aGestures,
 			QWidget*                           aParent = nullptr);
 
+		/// \brief Adds another way in to this server.
+		///
+		/// \returns false, changing nothing, unless the option names this
+		/// card's hostname and a host profile the card does not hold yet.
+		auto adopt_option(application::github_profile_option aOption) -> bool;
 		/// \brief Adopts one decision, changing only what differs from the last.
 		void apply(const server_card_presentation& aPresentation);
 		/// \brief Adopts the sink the public-preview ring's sign-in gesture leaves through.
 		void set_public_preview_dispatch(
 			application::public_preview_gesture_dispatch aDispatch);
 
+		[[nodiscard]] auto hostname() const noexcept -> const std::string&;
+		/// \brief Whether a host profile is one of this server's ways in.
+		[[nodiscard]] auto holds(core::host_profile_id aProfile) const noexcept -> bool;
+		/// \brief This server's host profiles, native HTTPS first.
+		[[nodiscard]] auto options() const noexcept
+			-> const std::vector<application::github_profile_option>&;
+		/// \brief The first native HTTPS profile; null when the host has none.
+		[[nodiscard]] auto native_option() const noexcept
+			-> const application::github_profile_option*;
+		/// \brief The GitHub CLI profile; null when the host has none.
+		[[nodiscard]] auto cli_option() const noexcept
+			-> const application::github_profile_option*;
+		/// \brief The host profile the card speaks for now.
 		[[nodiscard]] auto profile() const noexcept -> core::host_profile_id;
+		/// \brief The option the card speaks for now: the chosen one when it is
+		/// this host's, otherwise the host's first profile.
 		[[nodiscard]] auto option() const noexcept
 			-> const application::github_profile_option&;
 		[[nodiscard]] auto presentation() const noexcept
@@ -127,7 +158,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto state_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto login_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto consequence_label() const noexcept -> QLabel*;
-		/// \brief RFC-BPR-0015's configured-CLI trust warning; null unless this is a CLI host.
+		/// \brief RFC-BPR-0015's GitHub CLI offer; null unless the host has a GitHub CLI profile.
+		[[nodiscard]] auto cli_offer_button() const noexcept -> QPushButton*;
+		/// \brief RFC-BPR-0015's configured-CLI trust warning; null unless the host has a GitHub CLI profile.
 		[[nodiscard]] auto cli_trust_warning() const noexcept -> QLabel*;
 		[[nodiscard]] auto sign_in_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto sign_out_button() const noexcept -> QPushButton*;
@@ -146,35 +179,44 @@ namespace bpr::qt {
 		void changeEvent(QEvent* aEvent) override;
 
 	private:
+		[[nodiscard]] auto find_option(core::host_profile_id aProfile) const noexcept
+			-> const application::github_profile_option*;
+		void ensure_cli_offer();
 		void apply_header();
 		void apply_account_row();
 		void apply_rows();
 		void refresh_native_appearance();
 
-		application::github_profile_option Option;
-		server_card_gestures               Gestures;
-		server_card_presentation           Presentation;
-		server_card_statistics             Statistics;
-		bool                               Applied = false;
+		std::vector<application::github_profile_option> Options;
+		server_card_gestures                            Gestures;
+		server_card_presentation                        Presentation;
+		server_card_statistics                          Statistics;
+		bool                                            Applied = false;
 
 		QLabel*                HostLabel        = nullptr;
 		QLabel*                KindLabel        = nullptr;
 		QLabel*                StateLabel       = nullptr;
+		QWidget*               Account          = nullptr;
+		QGridLayout*           AccountLayout    = nullptr;
 		QLabel*                Avatar           = nullptr;
 		QLabel*                LoginLabel       = nullptr;
 		QLabel*                ConsequenceLabel = nullptr;
+		QPushButton*           CliOfferButton   = nullptr;
 		QLabel*                CliTrustWarning  = nullptr;
 		QPushButton*           SignInButton     = nullptr;
 		QPushButton*           SignOutButton    = nullptr;
 		QPushButton*           ConnectButton    = nullptr;
 		QFrame*                RowsSeparator    = nullptr;
 		QWidget*               Rows             = nullptr;
-		QLabel*                AccessName       = nullptr;
+		QWidget*               AccessRow        = nullptr;
+		QWidget*               RateLimitRow     = nullptr;
+		QWidget*               DetailsRow       = nullptr;
+		std::array<QFrame*, 2> RowHairlines{ };
 		QLabel*                AccessLabel      = nullptr;
-		QLabel*                RateLimitName    = nullptr;
 		QLabel*                RateLimitLabel   = nullptr;
 		usage_ring*            UsageIndicator   = nullptr;
 		QToolButton*           DetailsButton    = nullptr;
+		QLabel*                DetailsSummary   = nullptr;
 		QWidget*               Details          = nullptr;
 		std::array<QLabel*, 4> CapabilityValues{ };
 		std::array<QLabel*, 3> RateLimitNames{ };

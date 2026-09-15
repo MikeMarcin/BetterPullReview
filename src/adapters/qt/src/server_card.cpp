@@ -26,20 +26,23 @@
 #include <QVBoxLayout>
 #include <QVariant>
 
+#include <algorithm>
 #include <utility>
 
 namespace bpr::qt {
 	using namespace detail;
 
 	namespace {
-		// A card's inset and the gap between a label and what it labels, on the
-		// 8-point grid RFC-BPR-0032 fixes.
+		// A card's inset, a row's height and the gap between a label and what
+		// it labels, on the 8-point grid RFC-BPR-0032 fixes and at the accepted
+		// mockup's label column.
 		constexpr auto card_inset   = 16;
 		constexpr auto row_inset    = 12;
+		constexpr auto row_height   = 44;
 		constexpr auto column_gap   = 12;
 		constexpr auto avatar_side  = 32;
 		constexpr auto card_radius  = 8.0;
-		constexpr auto label_column = 120;
+		constexpr auto label_column = 150;
 
 		[[nodiscard]] auto this_machine_text() -> QString
 		{
@@ -63,8 +66,8 @@ namespace bpr::qt {
 			return aOption.Transport == application::github_profile_transport::github_cli;
 		}
 
-		// "GitHub.com, native HTTPS". The transport is named once on the page,
-		// here, so Details does not repeat it.
+		// "GitHub.com, native HTTPS". The transport is named once on a card,
+		// here, so neither Details nor the warning repeats it.
 		[[nodiscard]] auto kind_text(
 			const application::github_profile_option& aOption) -> QString
 		{
@@ -72,6 +75,19 @@ namespace bpr::qt {
 				? QStringLiteral("GitHub CLI")
 				: QStringLiteral("native HTTPS");
 			return QStringLiteral("%1, %2").arg(product_text(aOption.Product), transport);
+		}
+
+		// RFC-BPR-0015's offer, in the composition's own words: what its label
+		// says after the product ("GitHub CLI (uses your gh sign-in)"), or the
+		// transport alone for a label that says nothing more.
+		[[nodiscard]] auto cli_offer_text(
+			const application::github_profile_option& aOption) -> QString
+		{
+			const auto label     = QString::fromStdString(aOption.Label);
+			const auto separator = QStringLiteral(" — ");
+			const auto at        = label.indexOf(separator);
+			const auto offer     = at < 0 ? QString{ } : label.mid(at + separator.size()).trimmed();
+			return offer.startsWith(QStringLiteral("GitHub CLI")) ? offer : QStringLiteral("GitHub CLI");
 		}
 
 		[[nodiscard]] auto state_text(const server_card_state aState) -> QString
@@ -125,7 +141,7 @@ namespace bpr::qt {
 			const application::github_profile_option& aOption) -> QString
 		{
 			if (command_line(aOption)) {
-				// The trust warning beneath is this host's consequence.
+				// The trust warning beneath is this way in's consequence.
 				return { };
 			}
 			if (device_capable(aOption)) {
@@ -249,6 +265,22 @@ namespace bpr::qt {
 			button->setAutoDefault(false);
 			return button;
 		}
+
+		// One row of the card's rows: a label column, what it labels, and a
+		// control at the right, one row high.
+		[[nodiscard]] auto make_row(QWidget* const aParent, const QString& aObjectName)
+			-> std::pair<QWidget*, QGridLayout*>
+		{
+			auto* const row    = new QWidget{ aParent };
+			auto* const layout = new QGridLayout{ row };
+			row->setObjectName(aObjectName);
+			row->setMinimumHeight(row_height);
+			layout->setContentsMargins(0, 0, 0, 0);
+			layout->setHorizontalSpacing(card_inset);
+			layout->setColumnMinimumWidth(0, label_column);
+			layout->setColumnStretch(1, 1);
+			return { row, layout };
+		}
 	} // namespace
 
 	server_card::server_card(
@@ -256,14 +288,13 @@ namespace bpr::qt {
 		server_card_gestures               aGestures,
 		QWidget* const                     aParent)
 		: QWidget{ aParent }
-		, Option{ std::move(aOption) }
 		, Gestures{ std::move(aGestures) }
 	{
-		const auto host = text(Option.Hostname);
+		Options.push_back(std::move(aOption));
+		const auto host = text(Options.front().Hostname);
 		setObjectName(QStringLiteral("serverCard"));
-		setProperty("hostProfile", QVariant::fromValue<qulonglong>(Option.Profile.value()));
+		setProperty("hostname", host);
 		setAccessibleName(host);
-		setAccessibleDescription(kind_text(Option));
 
 		auto* const column = new QVBoxLayout{ this };
 		column->setContentsMargins(0, 0, 0, 0);
@@ -278,7 +309,7 @@ namespace bpr::qt {
 		headerLayout->setVerticalSpacing(2);
 		HostLabel = make_label(header, QStringLiteral("serverCardHost"), host);
 		HostLabel->setAccessibleName(QStringLiteral("Host"));
-		KindLabel = make_quiet_label(header, QStringLiteral("serverCardKind"), kind_text(Option));
+		KindLabel = make_quiet_label(header, QStringLiteral("serverCardKind"));
 		KindLabel->setAccessibleName(QStringLiteral("Server kind and transport"));
 		StateLabel = make_label(header, QStringLiteral("serverCardState"));
 		StateLabel->setAccessibleName(QStringLiteral("Connection state"));
@@ -290,39 +321,30 @@ namespace bpr::qt {
 		column->addWidget(header);
 		column->addWidget(make_hairline(this));
 
-		// The account row: who, on what terms, and the one way in or out.
-		auto* const account       = new QWidget{ this };
-		auto* const accountLayout = new QGridLayout{ account };
-		account->setObjectName(QStringLiteral("serverCardAccount"));
-		accountLayout->setContentsMargins(card_inset, row_inset, card_inset, row_inset);
-		accountLayout->setHorizontalSpacing(column_gap);
-		accountLayout->setVerticalSpacing(2);
-		Avatar = make_label(account, QStringLiteral("serverCardAvatar"));
+		// The account row: who, on what terms, and the ways in or out.
+		Account       = new QWidget{ this };
+		AccountLayout = new QGridLayout{ Account };
+		Account->setObjectName(QStringLiteral("serverCardAccount"));
+		AccountLayout->setContentsMargins(card_inset, row_inset, card_inset, row_inset);
+		AccountLayout->setHorizontalSpacing(column_gap);
+		AccountLayout->setVerticalSpacing(2);
+		Avatar = make_label(Account, QStringLiteral("serverCardAvatar"));
 		Avatar->setFixedSize(avatar_side, avatar_side);
 		Avatar->setAlignment(Qt::AlignCenter);
 		Avatar->setAutoFillBackground(true);
 		Avatar->setBackgroundRole(QPalette::Button);
 		Avatar->setTextInteractionFlags(Qt::NoTextInteraction);
-		LoginLabel = make_label(account, QStringLiteral("serverCardLogin"));
+		LoginLabel = make_label(Account, QStringLiteral("serverCardLogin"));
 		LoginLabel->setAccessibleName(QStringLiteral("Account"));
-		ConsequenceLabel = make_quiet_label(account, QStringLiteral("serverCardConsequence"));
+		ConsequenceLabel = make_quiet_label(Account, QStringLiteral("serverCardConsequence"));
 		ConsequenceLabel->setAccessibleName(QStringLiteral("Sign-in terms"));
-		accountLayout->addWidget(Avatar, 0, 0, 3, 1, Qt::AlignTop);
-		accountLayout->addWidget(LoginLabel, 0, 1);
-		accountLayout->addWidget(ConsequenceLabel, 1, 1);
-		if (command_line(Option)) {
-			// [[BPR-0771]] D2. RFC-BPR-0015: the opt-in account row names the
-			// configured-CLI trust risks, before Connect and after it.
-			CliTrustWarning = make_quiet_label(account, QStringLiteral("githubCliTrustWarning"), cli_trust_warning_text(host));
-			CliTrustWarning->setAccessibleName(QStringLiteral("GitHub CLI trust warning"));
-			accountLayout->addWidget(CliTrustWarning, 2, 1);
-		}
-		auto* const actions       = new QWidget{ account };
+		AccountLayout->addWidget(Avatar, 0, 0, 4, 1, Qt::AlignTop);
+		AccountLayout->addWidget(LoginLabel, 0, 1);
+		AccountLayout->addWidget(ConsequenceLabel, 1, 1);
+		auto* const actions       = new QWidget{ Account };
 		auto* const actionsLayout = new QHBoxLayout{ actions };
 		actionsLayout->setContentsMargins(0, 0, 0, 0);
-		SignInButton = make_button(actions, QStringLiteral("serverCardSignIn"), QStringLiteral("Sign in"), QStringLiteral("Sign in to %1").arg(host));
-		// The page's one filled control, and its job.
-		SignInButton->setDefault(true);
+		SignInButton  = make_button(actions, QStringLiteral("serverCardSignIn"), QStringLiteral("Sign in"), QStringLiteral("Sign in to %1").arg(host));
 		SignOutButton = make_button(actions, QStringLiteral("serverCardSignOut"), QStringLiteral("Sign out"), QStringLiteral("Sign out of %1").arg(host));
 		SignOutButton->setToolTip(QStringLiteral("Forgets the sign-in on %1 and signs out").arg(this_machine_text()));
 		SignOutButton->setAccessibleDescription(SignOutButton->toolTip());
@@ -330,29 +352,51 @@ namespace bpr::qt {
 		actionsLayout->addWidget(SignInButton);
 		actionsLayout->addWidget(SignOutButton);
 		actionsLayout->addWidget(ConnectButton);
-		accountLayout->addWidget(actions, 0, 2, 2, 1, Qt::AlignRight | Qt::AlignTop);
-		accountLayout->setColumnStretch(1, 1);
-		column->addWidget(account);
+		AccountLayout->addWidget(actions, 0, 2, 2, 1, Qt::AlignRight | Qt::AlignTop);
+		AccountLayout->setColumnStretch(1, 1);
+		column->addWidget(Account);
 
-		// The rows: Access, Rate limit, and Details.
+		// The rows: Access, Rate limit, and Details, one hairline between each.
 		RowsSeparator = make_hairline(this);
 		column->addWidget(RowsSeparator);
 		Rows                   = new QWidget{ this };
-		auto* const rowsLayout = new QGridLayout{ Rows };
+		auto* const rowsColumn = new QVBoxLayout{ Rows };
 		Rows->setObjectName(QStringLiteral("serverCardRows"));
-		rowsLayout->setContentsMargins(card_inset, row_inset, card_inset, row_inset);
-		rowsLayout->setHorizontalSpacing(card_inset);
-		rowsLayout->setVerticalSpacing(8);
-		rowsLayout->setColumnMinimumWidth(0, label_column);
-		AccessName  = make_label(Rows, QStringLiteral("serverCardAccessName"), QStringLiteral("Access"));
-		AccessLabel = make_quiet_label(Rows, QStringLiteral("serverCardAccess"));
+		rowsColumn->setContentsMargins(card_inset, 0, card_inset, 0);
+		rowsColumn->setSpacing(0);
+
+		auto [accessRow, accessLayout] = make_row(Rows, QStringLiteral("serverCardAccessRow"));
+		AccessRow                      = accessRow;
+		auto* const accessName         = make_label(AccessRow, QStringLiteral("serverCardAccessName"), QStringLiteral("Access"));
+		AccessLabel                    = make_quiet_label(AccessRow, QStringLiteral("serverCardAccess"));
 		AccessLabel->setAccessibleName(QStringLiteral("Access"));
-		RateLimitName  = make_label(Rows, QStringLiteral("serverCardRateLimitName"), QStringLiteral("Rate limit"));
-		RateLimitLabel = make_quiet_label(Rows, QStringLiteral("serverCardRateLimit"));
+		accessLayout->addWidget(accessName, 0, 0, Qt::AlignVCenter);
+		accessLayout->addWidget(AccessLabel, 0, 1, Qt::AlignVCenter);
+		rowsColumn->addWidget(AccessRow);
+
+		RowHairlines[0] = make_hairline(Rows);
+		rowsColumn->addWidget(RowHairlines[0]);
+		auto [rateRow, rateLayout] = make_row(Rows, QStringLiteral("serverCardRateLimitRow"));
+		RateLimitRow               = rateRow;
+		auto* const rateName       = make_label(RateLimitRow, QStringLiteral("serverCardRateLimitName"), QStringLiteral("Rate limit"));
+		RateLimitLabel             = make_quiet_label(RateLimitRow, QStringLiteral("serverCardRateLimit"));
 		RateLimitLabel->setAccessibleName(QStringLiteral("Rate limit"));
-		UsageIndicator = new usage_ring{ Rows };
+		UsageIndicator = new usage_ring{ RateLimitRow };
 		UsageIndicator->hide();
-		DetailsButton = new QToolButton{ Rows };
+		rateLayout->addWidget(rateName, 0, 0, Qt::AlignVCenter);
+		rateLayout->addWidget(RateLimitLabel, 0, 1, Qt::AlignVCenter);
+		rateLayout->addWidget(UsageIndicator, 0, 2, Qt::AlignRight | Qt::AlignVCenter);
+		rowsColumn->addWidget(RateLimitRow);
+
+		RowHairlines[1] = make_hairline(Rows);
+		rowsColumn->addWidget(RowHairlines[1]);
+		DetailsRow                   = new QWidget{ Rows };
+		auto* const detailsRowColumn = new QVBoxLayout{ DetailsRow };
+		DetailsRow->setObjectName(QStringLiteral("serverCardDetailsRow"));
+		detailsRowColumn->setContentsMargins(0, 0, 0, 0);
+		detailsRowColumn->setSpacing(0);
+		auto [detailsLine, detailsLineLayout] = make_row(DetailsRow, QStringLiteral("serverCardDetailsLine"));
+		DetailsButton                         = new QToolButton{ detailsLine };
 		DetailsButton->setObjectName(QStringLiteral("serverCardDetailsButton"));
 		DetailsButton->setText(QStringLiteral("Details"));
 		DetailsButton->setCheckable(true);
@@ -362,11 +406,15 @@ namespace bpr::qt {
 		DetailsButton->setFocusPolicy(Qt::StrongFocus);
 		DetailsButton->setAccessibleName(QStringLiteral("Show details for %1").arg(host));
 		DetailsButton->setAccessibleDescription(QStringLiteral("The capabilities, the rate limits and the last problem on this host"));
+		DetailsSummary = make_quiet_label(detailsLine, QStringLiteral("serverCardDetailsSummary"), QStringLiteral("Capabilities, rate limits and the last problem."));
+		detailsLineLayout->addWidget(DetailsButton, 0, 0, Qt::AlignLeft | Qt::AlignVCenter);
+		detailsLineLayout->addWidget(DetailsSummary, 0, 1, Qt::AlignVCenter);
+		detailsRowColumn->addWidget(detailsLine);
 
-		Details                   = new QWidget{ Rows };
+		Details                   = new QWidget{ DetailsRow };
 		auto* const detailsLayout = new QGridLayout{ Details };
 		Details->setObjectName(QStringLiteral("serverCardDetails"));
-		detailsLayout->setContentsMargins(0, 0, 0, 0);
+		detailsLayout->setContentsMargins(0, 0, 0, row_inset);
 		detailsLayout->setHorizontalSpacing(card_inset);
 		detailsLayout->setColumnMinimumWidth(0, label_column);
 		const std::array capabilityNames{
@@ -407,20 +455,14 @@ namespace bpr::qt {
 		detailsLayout->addWidget(CopyDetailsButton, detailRow, 2, Qt::AlignTop);
 		detailsLayout->setColumnStretch(1, 1);
 		Details->hide();
-
-		rowsLayout->addWidget(AccessName, 0, 0, Qt::AlignTop);
-		rowsLayout->addWidget(AccessLabel, 0, 1);
-		rowsLayout->addWidget(RateLimitName, 1, 0, Qt::AlignTop);
-		rowsLayout->addWidget(RateLimitLabel, 1, 1);
-		rowsLayout->addWidget(UsageIndicator, 1, 2, Qt::AlignRight | Qt::AlignTop);
-		rowsLayout->addWidget(DetailsButton, 2, 0, 1, 3, Qt::AlignLeft);
-		rowsLayout->addWidget(Details, 3, 0, 1, 3);
-		rowsLayout->setColumnStretch(1, 1);
+		detailsRowColumn->addWidget(Details);
+		rowsColumn->addWidget(DetailsRow);
 		column->addWidget(Rows);
 
 		connect(SignInButton, &QPushButton::clicked, this, [this] {
 			if (Gestures.SignIn) {
-				Gestures.SignIn(Option.Profile);
+				const auto* const native = native_option();
+				Gestures.SignIn(native != nullptr ? native->Profile : profile());
 			}
 		});
 		connect(SignOutButton, &QPushButton::clicked, this, [this] {
@@ -430,7 +472,7 @@ namespace bpr::qt {
 		});
 		connect(ConnectButton, &QPushButton::clicked, this, [this] {
 			if (Gestures.Connect) {
-				Gestures.Connect(Option.Profile);
+				Gestures.Connect(profile());
 			}
 		});
 		connect(DetailsButton, &QToolButton::toggled, this, [this, host](const bool aOpen) {
@@ -446,8 +488,58 @@ namespace bpr::qt {
 			}
 		});
 
+		if (command_line(Options.front())) {
+			ensure_cli_offer();
+		}
 		refresh_native_appearance();
 		apply(server_card_presentation{ });
+	}
+
+	auto server_card::adopt_option(application::github_profile_option aOption) -> bool
+	{
+		if (aOption.Hostname != hostname() || holds(aOption.Profile)) {
+			return false;
+		}
+		const auto cli = command_line(aOption);
+		if (cli) {
+			Options.push_back(std::move(aOption));
+			ensure_cli_offer();
+		} else {
+			// Native HTTPS first: the card speaks for it until a host is chosen.
+			const auto firstCli = std::ranges::find_if(Options, [](const application::github_profile_option& aHeld) {
+				return command_line(aHeld);
+			});
+			Options.insert(firstCli, std::move(aOption));
+		}
+		// What the card offers changed even though the decision did not.
+		Applied = false;
+		apply(Presentation);
+		return true;
+	}
+
+	void server_card::ensure_cli_offer()
+	{
+		if (CliOfferButton != nullptr) {
+			return;
+		}
+		const auto* const cli  = cli_option();
+		const auto        host = text(hostname());
+		// [[BPR-0771]] D2, [[BPR-0772]]. RFC-BPR-0015: the account row offers
+		// GitHub CLI for this exact host and names the configured-CLI trust
+		// risks, before the opt-in and after it. The warning says "this
+		// server" because the header already names it.
+		CliOfferButton  = make_button(Account, QStringLiteral("serverCardCliOffer"), cli_offer_text(*cli), QStringLiteral("Connect %1 with GitHub CLI").arg(host));
+		CliTrustWarning = make_quiet_label(Account, QStringLiteral("githubCliTrustWarning"), cli_trust_warning_text());
+		CliTrustWarning->setAccessibleName(QStringLiteral("GitHub CLI trust warning"));
+		CliOfferButton->setAccessibleDescription(CliTrustWarning->text());
+		AccountLayout->addWidget(CliOfferButton, 2, 1, Qt::AlignLeft);
+		AccountLayout->addWidget(CliTrustWarning, 3, 1);
+		QWidget::setTabOrder(ConnectButton, CliOfferButton);
+		connect(CliOfferButton, &QPushButton::clicked, this, [this] {
+			if (const auto* const offered = cli_option(); offered != nullptr && Gestures.Connect) {
+				Gestures.Connect(offered->Profile);
+			}
+		});
 	}
 
 	void server_card::apply(const server_card_presentation& aPresentation)
@@ -474,6 +566,11 @@ namespace bpr::qt {
 
 	void server_card::apply_header()
 	{
+		const auto& presented = option();
+		const auto  kind      = kind_text(presented);
+		KindLabel->setText(kind);
+		setAccessibleDescription(kind);
+		setProperty("hostProfile", QVariant::fromValue<qulonglong>(presented.Profile.value()));
 		StateLabel->setText(state_text(Presentation.State));
 		auto colours = palette();
 		colours.setColor(
@@ -487,9 +584,12 @@ namespace bpr::qt {
 
 	void server_card::apply_account_row()
 	{
-		const auto& shown    = Presentation;
-		const auto  signedIn = this->signed_in();
-		const auto  waiting  = shown.State == server_card_state::connecting
+		const auto&       shown        = Presentation;
+		const auto&       presented    = option();
+		const auto* const native       = native_option();
+		const auto        cliPresented = command_line(presented);
+		const auto        signedIn     = this->signed_in();
+		const auto        waiting      = shown.State == server_card_state::connecting
 			|| shown.State == server_card_state::signing_in;
 		const auto login = signedIn ? text(shown.Session->Login) : QString{ };
 		Avatar->setText(login.isEmpty() ? QStringLiteral("?") : login.left(1).toUpper());
@@ -501,22 +601,33 @@ namespace bpr::qt {
 		} else if (shown.ReadingPublic) {
 			consequence = QStringLiteral("Reading public pull requests without an account.");
 		} else {
-			consequence = signed_out_sentence(Option);
+			consequence = signed_out_sentence(presented);
 		}
 		ConsequenceLabel->setText(consequence);
 		ConsequenceLabel->setVisible(!consequence.isEmpty());
 
-		// One way in or out, never a disabled one. The chosen host signs in;
-		// a GitHub CLI host's way in is its Connect; any other host connects.
+		// The ways in or out, never a disabled one. The chosen host signs in
+		// with its native profile, and that Sign in is the page's one filled
+		// control while the card speaks for it. A host not chosen connects the
+		// profile it speaks for; a chosen GitHub CLI profile's retry is its
+		// Connect. The GitHub CLI offer stays beside them.
 		SignOutButton->setVisible(signedIn);
-		SignInButton->setVisible(shown.Current && !signedIn && !waiting && !command_line(Option));
-		SignInButton->setAccessibleDescription(consequence);
-		SignInButton->setToolTip(consequence);
+		const auto signIn = shown.Current && !signedIn && !waiting && native != nullptr;
+		SignInButton->setVisible(signIn);
+		SignInButton->setDefault(signIn && !cliPresented);
+		const auto signInTerms = native != nullptr ? signed_out_sentence(*native) : QString{ };
+		SignInButton->setAccessibleDescription(signInTerms);
+		SignInButton->setToolTip(signInTerms);
 		ConnectButton->setVisible(
 			!signedIn && !waiting && shown.ConnectAdmitted
-			&& (!shown.Current || command_line(Option)));
+			&& (!shown.Current || cliPresented));
 		ConnectButton->setAccessibleDescription(shown.ConnectDescription);
 		ConnectButton->setToolTip(shown.ConnectDescription);
+		if (CliOfferButton != nullptr) {
+			const auto offered = !cliPresented && !waiting && shown.ConnectAdmitted;
+			CliOfferButton->setVisible(offered);
+			CliTrustWarning->setVisible(offered || cliPresented);
+		}
 	}
 
 	void server_card::apply_rows()
@@ -525,8 +636,8 @@ namespace bpr::qt {
 		const auto  signedIn = this->signed_in();
 
 		AccessLabel->setText(access_sentence(shown.Capabilities));
-		AccessName->setVisible(signedIn);
-		AccessLabel->setVisible(signedIn);
+		const auto access = signedIn;
+		AccessRow->setVisible(access);
 
 		auto rate = QString{ };
 		if (shown.ReadingPublic && shown.PublicPreview.Budget.has_value()) {
@@ -537,16 +648,17 @@ namespace bpr::qt {
 			rate = rate_sentence(*shown.RateLimits.Core);
 		}
 		RateLimitLabel->setText(rate);
-		RateLimitName->setVisible(!rate.isEmpty() || shown.ReadingPublic);
 		RateLimitLabel->setVisible(!rate.isEmpty());
 		UsageIndicator->apply(shown.PublicPreview, shown.PublicPreviewNow);
 		UsageIndicator->setVisible(shown.ReadingPublic);
+		const auto rateRow = !rate.isEmpty() || shown.ReadingPublic;
+		RateLimitRow->setVisible(rateRow);
 
 		const auto details = shown.Current || !shown.LastProblem.isEmpty();
 		if (!details && DetailsButton->isChecked()) {
 			DetailsButton->setChecked(false);
 		}
-		DetailsButton->setVisible(details);
+		DetailsRow->setVisible(details);
 		const std::array capabilities{
 			shown.Capabilities.ReviewThreads,
 			shown.Capabilities.ViewedFileMutations,
@@ -576,7 +688,10 @@ namespace bpr::qt {
 		LastProblemLabel->setVisible(problem);
 		CopyDetailsButton->setVisible(problem);
 
-		const auto rows = signedIn || details || !rate.isEmpty() || shown.ReadingPublic;
+		// One hairline between rows, none above the first.
+		RowHairlines[0]->setVisible(access && rateRow);
+		RowHairlines[1]->setVisible(details && (access || rateRow));
+		const auto rows = access || rateRow || details;
 		Rows->setVisible(rows);
 		RowsSeparator->setVisible(rows);
 	}
@@ -617,14 +732,62 @@ namespace bpr::qt {
 		painter.drawRoundedRect(QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5), card_radius, card_radius);
 	}
 
+	auto server_card::find_option(const core::host_profile_id aProfile) const noexcept
+		-> const application::github_profile_option*
+	{
+		const auto found = std::ranges::find_if(Options, [aProfile](const application::github_profile_option& aHeld) {
+			return aHeld.Profile == aProfile;
+		});
+		return found == Options.end() ? nullptr : &*found;
+	}
+
+	auto server_card::hostname() const noexcept -> const std::string&
+	{
+		return Options.front().Hostname;
+	}
+
+	auto server_card::holds(const core::host_profile_id aProfile) const noexcept -> bool
+	{
+		return find_option(aProfile) != nullptr;
+	}
+
+	auto server_card::options() const noexcept
+		-> const std::vector<application::github_profile_option>&
+	{
+		return Options;
+	}
+
+	auto server_card::native_option() const noexcept
+		-> const application::github_profile_option*
+	{
+		const auto found = std::ranges::find_if(Options, [](const application::github_profile_option& aHeld) {
+			return !command_line(aHeld);
+		});
+		return found == Options.end() ? nullptr : &*found;
+	}
+
+	auto server_card::cli_option() const noexcept
+		-> const application::github_profile_option*
+	{
+		const auto found = std::ranges::find_if(Options, [](const application::github_profile_option& aHeld) {
+			return command_line(aHeld);
+		});
+		return found == Options.end() ? nullptr : &*found;
+	}
+
 	auto server_card::profile() const noexcept -> core::host_profile_id
 	{
-		return Option.Profile;
+		return option().Profile;
 	}
 
 	auto server_card::option() const noexcept -> const application::github_profile_option&
 	{
-		return Option;
+		if (Presentation.Chosen.has_value()) {
+			if (const auto* const chosen = find_option(*Presentation.Chosen); chosen != nullptr) {
+				return *chosen;
+			}
+		}
+		return Options.front();
 	}
 
 	auto server_card::presentation() const noexcept -> const server_card_presentation&
@@ -639,7 +802,9 @@ namespace bpr::qt {
 
 	auto server_card::offers_device_sign_in() const noexcept -> bool
 	{
-		return device_capable(Option);
+		return std::ranges::any_of(Options, [](const application::github_profile_option& aHeld) {
+			return device_capable(aHeld);
+		});
 	}
 
 	auto server_card::signed_in() const noexcept -> bool
@@ -671,6 +836,11 @@ namespace bpr::qt {
 	auto server_card::consequence_label() const noexcept -> QLabel*
 	{
 		return ConsequenceLabel;
+	}
+
+	auto server_card::cli_offer_button() const noexcept -> QPushButton*
+	{
+		return CliOfferButton;
 	}
 
 	auto server_card::cli_trust_warning() const noexcept -> QLabel*

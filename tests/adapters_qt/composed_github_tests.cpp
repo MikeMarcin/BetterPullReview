@@ -12,6 +12,7 @@
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 
+#include <QAbstractButton>
 #include <QAbstractItemDelegate>
 #include <QAbstractItemModel>
 #include <QAbstractScrollArea>
@@ -154,29 +155,39 @@ namespace {
 		};
 	}
 
-	// [[BPR-0771]] D2. RFC-BPR-0015's trust warning belongs to the GitHub CLI
-	// host, on that host's card where the opt-in is made, whichever host is
-	// chosen. The picker it once followed is gone.
-	void test_cli_warning_lives_on_the_cli_card()
+	// [[BPR-0771]] D2, [[BPR-0772]]. RFC-BPR-0015's trust warning belongs to a
+	// server with a GitHub CLI profile, on that server's card where the opt-in
+	// is made, whichever host is chosen. The picker it once followed is gone.
+	// The card's header names the host, so the warning says "this server" and
+	// the host is named once on the card (RFC-BPR-0032 A4).
+	void test_cli_warning_lives_on_its_servers_card()
 	{
 		qt::workbench_window window{ qt::workbench_intent_dispatch{ }, qt::workbench_change_dispatch{ }, qt::workbench_drawer_width_dispatch{ }, profiles(), [](application::github_intent) { } };
 		auto* const          warning    = required_child<QLabel>(window, "githubCliTrustWarning");
 		auto* const          cliCard    = window.server_card_for(core::host_profile_id{ 11U });
 		auto* const          nativeCard = window.server_card_for(core::host_profile_id{ 12U });
-		expect(cliCard != nullptr && nativeCard != nullptr && cliCard->cli_trust_warning() == warning
+		expect(cliCard != nullptr && nativeCard != nullptr && cliCard != nativeCard && cliCard->cli_trust_warning() == warning
 				   && cliCard->isAncestorOf(warning) && nativeCard->cli_trust_warning() == nullptr
 				   && nativeCard->findChild<QLabel*>(QStringLiteral("githubCliTrustWarning")) == nullptr
 				   && window.findChildren<QLabel*>(QStringLiteral("githubCliTrustWarning")).size() == 1,
-			   "the CLI trust warning is on the CLI card only, and the native card carries none");
+			   "the CLI trust warning is on the card of the server with a GitHub CLI profile only, and the native server's card carries none");
+		expect(cliCard->cli_offer_button() != nullptr && nativeCard->cli_offer_button() == nullptr
+				   && !cliCard->cli_offer_button()->isVisibleTo(cliCard),
+			   "only the server with a GitHub CLI profile has the GitHub CLI offer, and it is not offered while GitHub CLI is already the card's way in");
 		expect(!warning->isHidden() && warning->wordWrap() && warning->textFormat() == Qt::PlainText,
 			   "the CLI card shows a wrapped literal warning before Connect");
-		for (const auto* phrase : { "github.com", "existing gh sign-in", "observed after Connect", "native profile", "executable", "configuration", "socket", "CA", "redirects", "child-process", "account switching", "no exact account guarantee", "older gh configuration", "shell credential helper", "gh 2.100.0", "32 MiB", "does not authorize publishing" }) {
+		for (const auto* phrase : { "this server", "existing gh sign-in", "observed after Connect", "native profile", "executable", "configuration", "socket", "CA", "redirects", "child-process", "account switching", "no exact account guarantee", "older gh configuration", "shell credential helper", "gh 2.100.0", "32 MiB", "does not authorize publishing" }) {
 			expect(warning->text().contains(QString::fromLatin1(phrase)), "CLI warning states each residual trust risk and read boundary");
 		}
+		const auto host = QString::fromStdString(cliCard->hostname());
+		expect(!host.isEmpty() && cliCard->host_label()->text() == host
+				   && !warning->text().contains(host, Qt::CaseInsensitive),
+			   "the warning says this server rather than naming the host its card's header already names");
 		nativeCard->connect_button()->click();
 		expect(window.session_panel()->selected_profile() == core::host_profile_id{ 12U } && !warning->isHidden()
-				   && warning->text().contains(QStringLiteral("github.com")),
-			   "choosing the native host leaves the warning on the CLI card, where the opt-in is made");
+				   && warning->text().contains(QStringLiteral("this server"))
+				   && !warning->text().contains(host, Qt::CaseInsensitive),
+			   "choosing the native host leaves the warning on the CLI card, where the opt-in is made, still without the host");
 		cliCard->connect_button()->click();
 		expect(window.session_panel()->selected_profile() == core::host_profile_id{ 11U } && !warning->isHidden(),
 			   "choosing the CLI host again keeps its exact host warning");
@@ -453,11 +464,12 @@ namespace {
 		};
 	}
 
-	[[nodiscard]] auto session_projection()
+	[[nodiscard]] auto session_projection(
+		const core::host_profile_id aProfile = core::host_profile_id{ 12U })
 		-> application::github_session_projection
 	{
 		return {
-			.Profile            = core::host_profile_id{ 12U },
+			.Profile            = aProfile,
 			.Host               = core::git_host_id{ 22U },
 			.Account            = core::github_account_id{ 52U },
 			.Login              = "octo-reviewer",
@@ -614,9 +626,11 @@ namespace {
 			"a card's Connect exposes an accessible name, a description and focusable state");
 	}
 
-	auto publish_session_ready(qt::workbench_window& aWindow) -> void
+	auto publish_session_ready(
+		qt::workbench_window&       aWindow,
+		const core::host_profile_id aProfile = core::host_profile_id{ 12U }) -> void
 	{
-		const auto session = session_projection();
+		const auto session = session_projection(aProfile);
 		aWindow.publish(application::github_presentation_update{
 			.Transition = application::github_transition_projection{
 				.Commands = enabled_commands(),
@@ -4775,28 +4789,63 @@ namespace {
 						  : ": " + retired->Name.toStdString() + " / " + retired->ObjectName.toStdString()));
 	}
 
-	/// \brief Fails unless the page holds exactly one card per configured host,
-	/// in profile order, and the window hands out those same cards.
-	void expect_one_card_per_profile(
-		const qt::workbench_window& aWindow,
-		QWidget* const              aPage,
-		const std::string_view      aState)
+	/// \brief [[BPR-0772]]. Fails unless the page holds exactly one card per
+	/// configured server (hostname), in the order the servers were first
+	/// configured, every configured host profile is a way in to exactly one
+	/// of them, native HTTPS first, and the window hands out those same cards.
+	void expect_one_card_per_server(
+		const qt::workbench_window&                            aWindow,
+		QWidget* const                                         aPage,
+		const std::vector<application::github_profile_option>& aConfigured,
+		const std::string_view                                 aState)
 	{
-		const auto options = profiles();
+		auto hostnames = std::vector<std::string>{ };
+		for (const auto& option : aConfigured) {
+			if (std::ranges::find(hostnames, option.Hostname) == hostnames.end()) {
+				hostnames.push_back(option.Hostname);
+			}
+		}
 		const auto cards   = aWindow.server_cards();
 		const auto shown   = aPage->findChildren<QWidget*>(QStringLiteral("serverCard"));
-		auto       ordered = cards.size() == options.size()
-			&& static_cast<std::size_t>(shown.size()) == options.size();
-		for (std::size_t index = 0U; ordered && index < options.size(); ++index) {
-			const auto* const card = shown.at(static_cast<qsizetype>(index));
-			ordered                = card == cards[index]
-				&& cards[index]->profile() == options[index].Profile
-				&& card->property("hostProfile").toULongLong() == options[index].Profile.value()
-				&& aWindow.server_card_for(options[index].Profile) == cards[index];
+		auto       ordered = cards.size() == hostnames.size()
+			&& static_cast<std::size_t>(shown.size()) == hostnames.size();
+		for (std::size_t index = 0U; ordered && index < hostnames.size(); ++index) {
+			const auto* const card = cards[index];
+			ordered                = shown.at(static_cast<qsizetype>(index)) == card
+				&& card->hostname() == hostnames[index]
+				&& card->property("hostname").toString() == QString::fromStdString(hostnames[index])
+				&& card->holds(card->profile())
+				&& card->property("hostProfile").toULongLong() == card->profile().value();
 		}
 		expect(ordered,
-			   std::string{ "Accounts & hosts holds exactly one card per configured host, in profile order, while " }
+			   std::string{ "Accounts & hosts holds exactly one card per configured server, in the order the servers were first configured, while " }
 				   + std::string{ aState });
+		for (const auto& option : aConfigured) {
+			const auto        holders = std::ranges::count_if(cards, [&option](const qt::server_card* const aCard) {
+				return aCard->holds(option.Profile);
+			});
+			const auto* const card    = aWindow.server_card_for(option.Profile);
+			expect(holders == 1 && card != nullptr && card->hostname() == option.Hostname,
+				   std::string{ "host profile " } + std::to_string(option.Profile.value())
+					   + " is a way in to exactly one card, its server's, and the window names that card, while "
+					   + std::string{ aState });
+		}
+		for (const auto* const card : cards) {
+			const auto& held        = card->options();
+			const auto  configured  = std::ranges::count_if(aConfigured, [card](const application::github_profile_option& aOption) {
+				return aOption.Hostname == card->hostname();
+			});
+			const auto  firstCli    = std::ranges::find_if(held, [](const application::github_profile_option& aHeld) {
+				return aHeld.Transport == application::github_profile_transport::github_cli;
+			});
+			const auto  nativeFirst = std::ranges::none_of(firstCli, held.end(), [](const application::github_profile_option& aHeld) {
+				return aHeld.Transport == application::github_profile_transport::native_https;
+			});
+			expect(static_cast<std::size_t>(configured) == held.size() && nativeFirst,
+				   std::string{ "the card for " } + card->hostname()
+					   + " holds every profile configured for its server and no other, native HTTPS first, while "
+					   + std::string{ aState });
+		}
 	}
 
 	/// \brief [[BPR-0771]] acceptance 1. The Accounts page's widget and
@@ -4830,7 +4879,7 @@ namespace {
 			expect(current != nullptr && current->presentation().Current
 					   && current->state_label()->text() == aStateWord,
 				   std::string{ "the state under inspection has reached its host's card: " } + std::string{ aState });
-			expect_one_card_per_profile(window, page, aState);
+			expect_one_card_per_server(window, page, profiles(), aState);
 			expect_no_retired_widgets(page, aState);
 			expect_no_retired_accessible_nodes(page, aState);
 		};
@@ -5059,6 +5108,717 @@ namespace {
 				   && current->connect_button()->isVisibleTo(current),
 			   "the chosen card no longer offers Connect, and the other card now does");
 	}
+
+	/// \brief [[BPR-0772]]. The shipped composition's shape: each server is
+	/// configured with native HTTPS and with GitHub CLI, labelled the way the
+	/// composition labels them.
+	[[nodiscard]] auto grouped_profiles()
+		-> std::vector<application::github_profile_option>
+	{
+		using product   = application::github_profile_product;
+		using transport = application::github_profile_transport;
+		return {
+			{
+				.Profile   = core::host_profile_id{ 21U },
+				.Label     = "GitHub.com — Native HTTPS",
+				.Hostname  = "github.com",
+				.Product   = product::github_com,
+				.Transport = transport::native_https,
+			},
+			{
+				.Profile   = core::host_profile_id{ 22U },
+				.Label     = "GitHub.com — GitHub CLI (uses your gh sign-in)",
+				.Hostname  = "github.com",
+				.Product   = product::github_com,
+				.Transport = transport::github_cli,
+			},
+			{
+				.Profile   = core::host_profile_id{ 23U },
+				.Label     = "GHES 3.18 — Native HTTPS",
+				.Hostname  = "ghe.example.invalid",
+				.Product   = product::github_enterprise_server,
+				.Transport = transport::native_https,
+			},
+			{
+				.Profile   = core::host_profile_id{ 24U },
+				.Label     = "GHES 3.18 — GitHub CLI (unavailable)",
+				.Hostname  = "ghe.example.invalid",
+				.Product   = product::github_enterprise_server,
+				.Transport = transport::github_cli,
+			},
+		};
+	}
+
+	/// \brief The host profiles a card holds, in the order it holds them.
+	[[nodiscard]] auto held_profiles(const qt::server_card& aCard)
+		-> std::vector<core::host_profile_id>
+	{
+		auto held = std::vector<core::host_profile_id>{ };
+		for (const auto& option : aCard.options()) {
+			held.push_back(option.Profile);
+		}
+		return held;
+	}
+
+	/// \brief [[BPR-0772]] acceptance 1 and 3. One card per configured server
+	/// holds every way in to that server, native HTTPS first. The card's
+	/// Connect and its GitHub CLI offer choose, then connect, exactly the host
+	/// profile they name through the existing intents, and no widget gains an
+	/// effect of its own.
+	auto test_one_card_per_server_holds_its_ways_in() -> void
+	{
+		// Each GitHub intent, with the host chosen and the profile sign-in was
+		// bound to at the instant it left, so that choosing before connecting
+		// is observed rather than inferred.
+		struct observed_intent
+		{
+			application::github_intent           Intent;
+			std::optional<core::host_profile_id> Selected;
+			core::host_profile_id                Bound;
+		};
+		auto                 observed     = std::vector<observed_intent>{ };
+		auto                 otherEffects = std::size_t{ 0U };
+		auto*                observing    = static_cast<qt::workbench_window*>(nullptr);
+		qt::workbench_window window{
+			[&otherEffects](core::workbench_interaction_intent) { ++otherEffects; },
+			[&otherEffects](core::navigate_diff_change_intent) { ++otherEffects; },
+			[&otherEffects](core::workbench_drawer, std::uint32_t) { ++otherEffects; },
+			grouped_profiles(),
+			[&observed, &observing](application::github_intent aIntent) {
+				observed.push_back({
+					.Intent   = std::move(aIntent),
+					.Selected = observing == nullptr ? std::optional<core::host_profile_id>{ }
+													 : observing->session_panel()->selected_profile(),
+					.Bound    = observing == nullptr ? core::host_profile_id{ }
+													 : observing->device_authorization()->bound_profile(),
+				});
+			},
+		};
+		observing = &window;
+		window.set_device_authorization_dispatch([&otherEffects](application::device_authorization_gesture) { ++otherEffects; });
+		window.set_public_preview_dispatch([&otherEffects](application::public_preview_gesture) { ++otherEffects; });
+		window.set_setup_destination_dispatch([&otherEffects](application::setup_destination_intent) { ++otherEffects; });
+		window.set_saved_server_dispatch([&otherEffects](application::saved_server_intent) { ++otherEffects; });
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Commands = enabled_commands(),
+			},
+		});
+		QApplication::processEvents();
+
+		auto* const page = window.settings()->page_widget(qt::settings_page::accounts_and_hosts);
+		expect(page != nullptr, "the Settings window has an Accounts and hosts page");
+		expect_one_card_per_server(window, page, grouped_profiles(), "two servers are configured with two profiles each");
+		const auto  cards      = window.server_cards();
+		auto* const github     = window.server_card_for(core::host_profile_id{ 21U });
+		auto* const enterprise = window.server_card_for(core::host_profile_id{ 23U });
+		expect(cards.size() == 2U && github != nullptr && enterprise != nullptr
+				   && cards.front() == github && cards.back() == enterprise
+				   && window.server_card_for(core::host_profile_id{ 22U }) == github
+				   && window.server_card_for(core::host_profile_id{ 24U }) == enterprise
+				   && !github->holds(core::host_profile_id{ 23U }) && !enterprise->holds(core::host_profile_id{ 22U }),
+			   "GitHub.com's two profiles are one card and the enterprise server's two are another");
+		expect(held_profiles(*github) == std::vector{ core::host_profile_id{ 21U }, core::host_profile_id{ 22U } }
+				   && held_profiles(*enterprise) == std::vector{ core::host_profile_id{ 23U }, core::host_profile_id{ 24U } }
+				   && github->native_option() != nullptr && github->native_option()->Profile == core::host_profile_id{ 21U }
+				   && github->cli_option() != nullptr && github->cli_option()->Profile == core::host_profile_id{ 22U }
+				   && enterprise->native_option() != nullptr && enterprise->native_option()->Profile == core::host_profile_id{ 23U }
+				   && enterprise->cli_option() != nullptr && enterprise->cli_option()->Profile == core::host_profile_id{ 24U },
+			   "each card holds its server's native HTTPS profile first and its GitHub CLI profile second");
+
+		// Configured the other way round, GitHub CLI before native HTTPS and the
+		// enterprise server first, the servers keep the order they were first
+		// configured in and each card still holds native HTTPS first.
+		{
+			auto reversed = grouped_profiles();
+			std::ranges::reverse(reversed);
+			qt::workbench_window reversedWindow{
+				qt::workbench_intent_dispatch{ },
+				qt::workbench_change_dispatch{ },
+				qt::workbench_drawer_width_dispatch{ },
+				reversed,
+				[](application::github_intent) { },
+			};
+			auto* const reversedPage = reversedWindow.settings()->page_widget(qt::settings_page::accounts_and_hosts);
+			expect(reversedPage != nullptr, "the reversed window has an Accounts and hosts page");
+			expect_one_card_per_server(reversedWindow, reversedPage, reversed, "the same profiles are configured in reverse");
+			const auto reversedCards = reversedWindow.server_cards();
+			expect(reversedCards.size() == 2U && reversedCards.front()->hostname() == "ghe.example.invalid"
+					   && held_profiles(*reversedCards.front()) == std::vector{ core::host_profile_id{ 23U }, core::host_profile_id{ 24U } }
+					   && held_profiles(*reversedCards.back()) == std::vector{ core::host_profile_id{ 21U }, core::host_profile_id{ 22U } },
+				   "configured GitHub CLI first, each card still holds native HTTPS first, and the server configured first leads");
+		}
+
+		expect(github->presentation().Current && !enterprise->presentation().Current
+				   && github->profile() == core::host_profile_id{ 21U }
+				   && enterprise->profile() == core::host_profile_id{ 23U }
+				   && github->property("hostProfile").toULongLong() == 21U
+				   && enterprise->property("hostProfile").toULongLong() == 23U,
+			   "before any gesture GitHub.com is chosen, and each card speaks for its native HTTPS profile");
+		expect(github->kind_label()->text() == QStringLiteral("GitHub.com, native HTTPS")
+				   && enterprise->kind_label()->text() == QStringLiteral("GitHub Enterprise Server, native HTTPS"),
+			   "each header's kind line names the product and the transport of the profile its card speaks for");
+		expect(github->cli_offer_button() != nullptr && enterprise->cli_offer_button() != nullptr
+				   && github->cli_offer_button()->text() == QStringLiteral("GitHub CLI (uses your gh sign-in)")
+				   && enterprise->cli_offer_button()->text() == QStringLiteral("GitHub CLI (unavailable)")
+				   && github->cli_offer_button()->isVisibleTo(github)
+				   && enterprise->cli_offer_button()->isVisibleTo(enterprise),
+			   "each server offers GitHub CLI in its own composition's words");
+		expect(window.findChildren<QLabel*>(QStringLiteral("githubCliTrustWarning")).size() == 2
+				   && std::ranges::all_of(cards, [](const qt::server_card* const aCard) {
+						  auto* const warning = aCard->cli_trust_warning();
+						  return warning != nullptr && aCard->isAncestorOf(warning)
+							  && aCard->findChildren<QLabel*>(QStringLiteral("githubCliTrustWarning")) == QList<QLabel*>{ warning }
+						  && warning->isVisibleTo(aCard)
+							  && warning->text().contains(QStringLiteral("this server"))
+							  && !warning->text().contains(QString::fromStdString(aCard->hostname()), Qt::CaseInsensitive);
+					  }),
+			   "exactly one trust warning per server, in that server's card, saying this server rather than its host");
+		expect(github->sign_in_button()->isVisibleTo(github) && github->sign_in_button()->isDefault()
+				   && !github->connect_button()->isVisibleTo(github)
+				   && enterprise->connect_button()->isVisibleTo(enterprise)
+				   && !enterprise->sign_in_button()->isVisibleTo(enterprise),
+			   "the chosen server offers Sign in, filled, and the other offers Connect");
+
+		observed.clear();
+		otherEffects = 0U;
+		// The intent at `aIndex` activates exactly this host profile with an
+		// account, and left after that profile was chosen and sign-in bound to it.
+		const auto activated = [&observed](const std::size_t aIndex, const core::host_profile_id aProfile) {
+			const auto* const activation = aIndex < observed.size()
+				? std::get_if<core::activate_host_profile_intent>(&observed[aIndex].Intent)
+				: nullptr;
+			return activation != nullptr && activation->Profile == aProfile
+				&& activation->Mode == core::github_access_mode::authenticated
+				&& observed[aIndex].Selected == aProfile && observed[aIndex].Bound == aProfile;
+		};
+
+		enterprise->connect_button()->click();
+		QApplication::processEvents();
+		expect(observed.size() == 1U && activated(0U, core::host_profile_id{ 23U }),
+			   "Connect on the card not chosen emits exactly one activation, for its native HTTPS profile, once that profile is chosen and sign-in is bound to it");
+		expect(enterprise->presentation().Current && enterprise->profile() == core::host_profile_id{ 23U }
+				   && !enterprise->connect_button()->isVisibleTo(enterprise)
+				   && enterprise->sign_in_button()->isVisibleTo(enterprise)
+				   && !github->presentation().Current && github->profile() == core::host_profile_id{ 21U }
+				   && github->connect_button()->isVisibleTo(github),
+			   "the enterprise server is chosen, and GitHub.com offers Connect for its native HTTPS profile");
+
+		enterprise->cli_offer_button()->click();
+		QApplication::processEvents();
+		expect(observed.size() == 2U && activated(1U, core::host_profile_id{ 24U }),
+			   "the chosen server's GitHub CLI offer emits exactly one activation, for its GitHub CLI profile");
+		expect(enterprise->presentation().Current && enterprise->profile() == core::host_profile_id{ 24U }
+				   && enterprise->property("hostProfile").toULongLong() == 24U
+				   && enterprise->kind_label()->text() == QStringLiteral("GitHub Enterprise Server, GitHub CLI")
+				   && !enterprise->cli_offer_button()->isVisibleTo(enterprise)
+				   && enterprise->connect_button()->isVisibleTo(enterprise)
+				   && enterprise->sign_in_button()->isVisibleTo(enterprise)
+				   && !enterprise->sign_in_button()->isDefault()
+				   && enterprise->cli_trust_warning()->isVisibleTo(enterprise),
+			   "with GitHub CLI chosen the card speaks for it: the kind line says so, Connect is its retry, the warning stays and Sign in is not filled");
+
+		github->cli_offer_button()->click();
+		QApplication::processEvents();
+		expect(observed.size() == 3U && activated(2U, core::host_profile_id{ 22U }),
+			   "the GitHub CLI offer on the card not chosen emits exactly one activation, for its own GitHub CLI profile");
+		expect(github->presentation().Current && github->profile() == core::host_profile_id{ 22U }
+				   && github->kind_label()->text() == QStringLiteral("GitHub.com, GitHub CLI")
+				   && !enterprise->presentation().Current && enterprise->profile() == core::host_profile_id{ 23U }
+				   && enterprise->kind_label()->text() == QStringLiteral("GitHub Enterprise Server, native HTTPS"),
+			   "GitHub.com now speaks for GitHub CLI, and the enterprise card, no longer chosen, for its native HTTPS profile again");
+		expect(otherEffects == 0U,
+			   "no card gesture leaves through any sink but the GitHub intents: no workbench intent, device sign-in, public preview, setup destination or saved server");
+
+		// A profile added from setup joins its server's card when that server
+		// is already configured; a new server appends one card.
+		auto       configured = grouped_profiles();
+		const auto add        = [&window, &configured](application::github_profile_option aOption) {
+			configured.push_back(aOption);
+			window.add_setup_profile(std::move(aOption));
+			QApplication::processEvents();
+		};
+		add({
+			.Profile   = core::host_profile_id{ 25U },
+			.Label     = "GitHub.com — Native HTTPS (second account)",
+			.Hostname  = "github.com",
+			.Product   = application::github_profile_product::github_com,
+			.Transport = application::github_profile_transport::native_https,
+		});
+		expect(window.server_cards().size() == 2U && window.server_card_for(core::host_profile_id{ 25U }) == github
+				   && held_profiles(*github) == std::vector{ core::host_profile_id{ 21U }, core::host_profile_id{ 25U }, core::host_profile_id{ 22U } }
+				   && window.session_panel()->profile_option(core::host_profile_id{ 25U }) != nullptr,
+			   "a setup profile on a server already configured joins that server's card, native HTTPS still first, and adds no card");
+		add({
+			.Profile   = core::host_profile_id{ 26U },
+			.Label     = "Review GHES — Native HTTPS",
+			.Hostname  = "review.example.invalid",
+			.Product   = application::github_profile_product::github_enterprise_server,
+			.Transport = application::github_profile_transport::native_https,
+		});
+		const auto  grown  = window.server_cards();
+		auto* const review = window.server_card_for(core::host_profile_id{ 26U });
+		expect(grown.size() == 3U && review != nullptr && grown.back() == review
+				   && review->hostname() == "review.example.invalid"
+				   && review->property("hostname").toString() == QStringLiteral("review.example.invalid")
+				   && review->cli_offer_button() == nullptr && review->cli_trust_warning() == nullptr,
+			   "a setup profile on a new server appends one card for it, with no GitHub CLI way in to offer or warn about");
+		// RFC-BPR-0015's offer carries the composition's words only when they
+		// name GitHub CLI after the product; otherwise it says GitHub CLI.
+		add({
+			.Profile   = core::host_profile_id{ 27U },
+			.Label     = "Enterprise through gh",
+			.Hostname  = "cli.example.invalid",
+			.Product   = application::github_profile_product::github_enterprise_server,
+			.Transport = application::github_profile_transport::github_cli,
+		});
+		add({
+			.Profile   = core::host_profile_id{ 28U },
+			.Label     = "Build farm — gh sign-in",
+			.Hostname  = "build.example.invalid",
+			.Product   = application::github_profile_product::github_enterprise_server,
+			.Transport = application::github_profile_transport::github_cli,
+		});
+		auto* const bare    = window.server_card_for(core::host_profile_id{ 27U });
+		auto* const unnamed = window.server_card_for(core::host_profile_id{ 28U });
+		expect(window.server_cards().size() == 5U && bare != nullptr && unnamed != nullptr
+				   && bare->cli_offer_button() != nullptr && unnamed->cli_offer_button() != nullptr
+				   && bare->cli_offer_button()->text() == QStringLiteral("GitHub CLI")
+				   && unnamed->cli_offer_button()->text() == QStringLiteral("GitHub CLI"),
+			   "a GitHub CLI label with no separator, or naming something else after it, is offered as GitHub CLI");
+		expect_one_card_per_server(window, page, configured, "setup has added a profile to one server and three new servers");
+		expect(observed.size() == 3U && otherEffects == 0U, "adding setup profiles dispatches nothing");
+	}
+
+	/// \brief One text a reviewer can read on a page, and the widget showing it.
+	struct shown_text
+	{
+		const QWidget* Widget = nullptr;
+		QString        Text;
+	};
+
+	/// \brief [[BPR-0772]]. Every text a page shows now: the text of each label
+	/// and button, and the current text of each field and combo box, whose
+	/// widget is visible to the page. Nothing is left out for being outside a
+	/// card.
+	[[nodiscard]] auto shown_texts(QWidget* const aPage) -> std::vector<shown_text>
+	{
+		auto texts = std::vector<shown_text>{ };
+		for (const auto* const widget : aPage->findChildren<QWidget*>()) {
+			if (!widget->isVisibleTo(aPage)) {
+				continue;
+			}
+			if (const auto* const label = qobject_cast<const QLabel*>(widget); label != nullptr) {
+				texts.push_back({ .Widget = widget, .Text = label->text() });
+			} else if (const auto* const button = qobject_cast<const QAbstractButton*>(widget); button != nullptr) {
+				texts.push_back({ .Widget = widget, .Text = button->text() });
+			} else if (const auto* const field = qobject_cast<const QLineEdit*>(widget); field != nullptr) {
+				texts.push_back({ .Widget = widget, .Text = field->text() });
+			} else if (const auto* const combo = qobject_cast<const QComboBox*>(widget); combo != nullptr) {
+				texts.push_back({ .Widget = widget, .Text = combo->currentText() });
+			}
+		}
+		return texts;
+	}
+
+	/// \brief How a fact is recognised in a text.
+	enum class fact_kind : std::uint8_t {
+		words,
+		/// A hostname followed by "/" is part of an address, such as the device
+		/// flow's github.com/login/device, and does not name the host.
+		host,
+	};
+
+	/// \brief How many times one text names a fact, case-sensitively.
+	[[nodiscard]] auto mentions(const QString& aText, const QString& aFact, const fact_kind aKind)
+		-> std::size_t
+	{
+		if (aFact.isEmpty()) {
+			return 0U;
+		}
+		auto count = std::size_t{ 0U };
+		for (auto at = aText.indexOf(aFact); at >= 0; at = aText.indexOf(aFact, at + aFact.size())) {
+			const auto end = at + aFact.size();
+			if (aKind == fact_kind::host && end < aText.size() && aText.at(end) == QLatin1Char('/')) {
+				continue;
+			}
+			++count;
+		}
+		return count;
+	}
+
+	/// \brief How many times the texts of the widgets `aWhere` admits name a fact.
+	template <typename Where>
+	[[nodiscard]] auto mentions(
+		const std::vector<shown_text>& aTexts,
+		const QString&                 aFact,
+		const fact_kind                aKind,
+		const Where&                   aWhere) -> std::size_t
+	{
+		auto count = std::size_t{ 0U };
+		for (const auto& shown : aTexts) {
+			if (aWhere(shown.Widget)) {
+				count += mentions(shown.Text, aFact, aKind);
+			}
+		}
+		return count;
+	}
+
+	/// \brief Fails unless the widgets `aWhere` admits name a fact between
+	/// `aLeast` and `aMost` times, and names every text that does.
+	template <typename Where>
+	void expect_mentions(
+		const std::vector<shown_text>& aTexts,
+		const QString&                 aFact,
+		const fact_kind                aKind,
+		const Where&                   aWhere,
+		const std::size_t              aLeast,
+		const std::size_t              aMost,
+		const std::string&             aClaim)
+	{
+		const auto count = mentions(aTexts, aFact, aKind, aWhere);
+		if (count >= aLeast && count <= aMost) {
+			return;
+		}
+		auto named = std::string{ };
+		for (const auto& shown : aTexts) {
+			if (aWhere(shown.Widget) && mentions(shown.Text, aFact, aKind) > 0U) {
+				named += " [" + shown.Widget->objectName().toStdString() + ": \"" + shown.Text.toStdString() + "\"]";
+			}
+		}
+		expect(false,
+			   aClaim + " (\"" + aFact.toStdString() + "\" is named " + std::to_string(count) + " times:"
+				   + (named.empty() ? std::string{ " nowhere" } : named) + ")");
+	}
+
+	/// \brief [[BPR-0772]]. One state of the grouped Accounts page, and what
+	/// each of its two cards should say in it.
+	struct accounts_page_state
+	{
+		std::string_view Name;
+		/// The host profile the session is on, or the one chosen while none is.
+		core::host_profile_id Current;
+		/// The profile GitHub.com's card speaks for, and its state in one word.
+		core::host_profile_id GithubPresents;
+		QString               GithubState;
+		/// The profile the enterprise server's card speaks for, and its state.
+		core::host_profile_id EnterprisePresents;
+		QString               EnterpriseState;
+		/// Whether the chosen card shows the fixture's signed-in account.
+		bool SignedIn = false;
+		/// Whether the chosen card's Sign in is the page's one filled control.
+		bool Filled = false;
+	};
+
+	/// \brief [[BPR-0772]], RFC-BPR-0032 A4. Fails unless each card on the page
+	/// names its host, its account, the transport it speaks for and its state
+	/// once, the page names each host and the account once, nothing outside the
+	/// cards names any of them, and at most one control on the page is filled.
+	void expect_each_fact_once(
+		const qt::workbench_window& aWindow,
+		QWidget* const              aPage,
+		const accounts_page_state&  aState,
+		const std::string_view      aDisclosure)
+	{
+		const auto during = [&aState, aDisclosure](const std::string& aClaim) {
+			return aClaim + " while " + std::string{ aState.Name } + ", " + std::string{ aDisclosure };
+		};
+		const auto texts = shown_texts(aPage);
+		const auto cards = aWindow.server_cards();
+		expect(cards.size() == 2U && cards.front()->holds(core::host_profile_id{ 21U })
+				   && cards.back()->holds(core::host_profile_id{ 23U }),
+			   during("the page holds GitHub.com's card, then the enterprise server's"));
+		const auto       login  = QString::fromStdString(session_projection().Login);
+		const auto       native = QStringLiteral("native HTTPS");
+		const auto       cli    = QStringLiteral("GitHub CLI");
+		const std::array stateWords{
+			QStringLiteral("Signed out"),
+			QStringLiteral("Connecting"),
+			QStringLiteral("Signing in"),
+			QStringLiteral("Connected"),
+			QStringLiteral("Could not connect"),
+		};
+		const auto anywhere = [](const QWidget* const) { return true; };
+		const auto outside  = [&cards](const QWidget* const aWidget) {
+			return std::ranges::none_of(cards, [aWidget](const qt::server_card* const aCard) {
+				return aCard->isAncestorOf(aWidget);
+			});
+		};
+
+		// Outside the cards: the page's title and sentence, the device sign-in
+		// until BPR-0773 moves it into the card, and the enterprise servers
+		// editor until BPR-0774 replaces it. None of them may say a fact again.
+		for (const auto* const card : cards) {
+			expect_mentions(texts, QString::fromStdString(card->hostname()), fact_kind::host, outside, 0U, 0U,
+							during("nothing outside the server cards names " + card->hostname()));
+		}
+		expect_mentions(texts, login, fact_kind::words, outside, 0U, 0U,
+						during("nothing outside the server cards names the account"));
+		for (const auto& transport : { native, cli }) {
+			expect_mentions(texts, transport, fact_kind::words, outside, 0U, 0U,
+							during("nothing outside the server cards names a transport"));
+		}
+		for (const auto& word : stateWords) {
+			expect_mentions(texts, word, fact_kind::words, outside, 0U, 0U,
+							during("nothing outside the server cards names a connection state"));
+		}
+
+		const auto       fixture = grouped_profiles();
+		const std::array presented{ aState.GithubPresents, aState.EnterprisePresents };
+		const std::array words{ aState.GithubState, aState.EnterpriseState };
+		for (std::size_t index = 0U; index < cards.size(); ++index) {
+			const auto* const card   = cards[index];
+			const auto        name   = "the card for " + card->hostname();
+			const auto        within = [card](const QWidget* const aWidget) { return card->isAncestorOf(aWidget); };
+			const auto        option = std::ranges::find(fixture, presented[index], &application::github_profile_option::Profile);
+			expect(option != fixture.end() && card->profile() == presented[index],
+				   during(name + " speaks for the profile the state chose for it"));
+			const auto speaks = option->Transport == application::github_profile_transport::github_cli ? cli : native;
+			const auto other  = speaks == cli ? native : cli;
+			expect_mentions(texts, QString::fromStdString(card->hostname()), fact_kind::host, within, 1U, 1U,
+							during(name + " names its host once"));
+			const auto logins = aState.SignedIn && card->holds(aState.Current) ? 1U : 0U;
+			expect_mentions(texts, login, fact_kind::words, within, logins, logins,
+							during(name + (logins == 1U ? " names its signed-in account once" : " names no account")));
+			expect_mentions(texts, speaks, fact_kind::words, within, 1U, 1U,
+							during(name + " names the transport it speaks for once"));
+			expect_mentions(
+				texts, speaks, fact_kind::words, [card](const QWidget* const aWidget) { return aWidget == card->kind_label(); }, 1U, 1U,
+				during(name + " names the transport it speaks for in its kind line"));
+			expect_mentions(texts, other, fact_kind::words, within, 0U, 1U,
+							during(name + " names the other transport at most once"));
+			expect_mentions(
+				texts, cli, fact_kind::words,
+				[card](const QWidget* const aWidget) {
+					return card->isAncestorOf(aWidget) && aWidget != card->kind_label() && aWidget != card->cli_offer_button();
+				},
+				0U, 0U, during("only the kind line and the GitHub CLI offer name GitHub CLI on " + name));
+			expect_mentions(
+				texts, native, fact_kind::words,
+				[card](const QWidget* const aWidget) { return card->isAncestorOf(aWidget) && aWidget != card->kind_label(); },
+				0U, 0U, during("only the kind line names native HTTPS on " + name));
+			for (const auto& word : stateWords) {
+				const auto expected = word == words[index] ? 1U : 0U;
+				expect_mentions(texts, word, fact_kind::words, within, expected, expected,
+								during(name + (expected == 1U ? " says its own state once" : " says no other state")));
+			}
+			expect_mentions(
+				texts, words[index], fact_kind::words, [card](const QWidget* const aWidget) { return aWidget == card->state_label(); }, 1U, 1U,
+				during(name + " says its state in its header"));
+		}
+
+		for (const auto* const card : cards) {
+			expect_mentions(texts, QString::fromStdString(card->hostname()), fact_kind::host, anywhere, 1U, 1U,
+							during("the page names " + card->hostname() + " once"));
+		}
+		const auto logins = aState.SignedIn ? 1U : 0U;
+		expect_mentions(texts, login, fact_kind::words, anywhere, logins, logins,
+						during(logins == 1U ? "the page names the signed-in account once" : "the page names no account"));
+
+		auto filled = std::vector<const QPushButton*>{ };
+		for (const auto* const button : aPage->findChildren<QPushButton*>()) {
+			if (button->isVisibleTo(aPage) && button->isDefault()) {
+				filled.push_back(button);
+			}
+		}
+		const auto* const chosen = aWindow.server_card_for(aState.Current);
+		expect(filled.size() <= 1U, during("at most one control on the page is filled"));
+		expect(aState.Filled ? filled.size() == 1U && chosen != nullptr && filled.front() == chosen->sign_in_button()
+							 : filled.empty(),
+			   during(aState.Filled ? "the chosen card's Sign in is the page's one filled control"
+									: "no control on the page is filled"));
+	}
+
+	/// \brief [[BPR-0772]] acceptance 2, RFC-BPR-0032 A4. On every state of the
+	/// Accounts page, with each server configured for native HTTPS and GitHub
+	/// CLI, host, login, transport and connection state each appear once,
+	/// checked by an inventory of the page's visible text.
+	///
+	/// \details Each state is driven through the window's own entry points and
+	/// first checked for having reached its card, so an inventory of a page that
+	/// never changed cannot pass for one that did. Each is inventoried with
+	/// Details closed and again with the chosen card's Details open.
+	auto test_accounts_page_says_each_fact_once() -> void
+	{
+		auto                 intents = std::vector<application::github_intent>{ };
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			grouped_profiles(),
+			[&intents](application::github_intent aIntent) {
+				intents.push_back(std::move(aIntent));
+			},
+		};
+		window.resize(1'280, 820);
+		window.show();
+		window.open_settings(qt::settings_page::accounts_and_hosts);
+		QApplication::processEvents();
+		auto* const page = window.settings()->page_widget(qt::settings_page::accounts_and_hosts);
+		expect(page != nullptr && window.settings()->isVisible()
+				   && window.settings()->current_page() == qt::settings_page::accounts_and_hosts,
+			   "Settings is open on Accounts and hosts");
+		const auto inspect = [&window, page](const accounts_page_state& aState) {
+			QApplication::processEvents();
+			auto* const current = window.server_card_for(aState.Current);
+			const auto  word    = current != nullptr && current->holds(core::host_profile_id{ 21U })
+				? aState.GithubState
+				: aState.EnterpriseState;
+			expect(current != nullptr && current->presentation().Current && current->state_label()->text() == word,
+				   std::string{ "the state under inspection has reached its card: " } + std::string{ aState.Name });
+			expect_one_card_per_server(window, page, grouped_profiles(), aState.Name);
+			expect_each_fact_once(window, page, aState, "Details closed");
+			current->details_button()->click();
+			QApplication::processEvents();
+			expect(current->details_button()->isChecked() && current->details()->isVisibleTo(page)
+					   && (current->presentation().LastProblem.isEmpty() || current->last_problem_label()->isVisibleTo(page)),
+				   std::string{ "the chosen card's Details opens, with any last problem in it: " } + std::string{ aState.Name });
+			expect_each_fact_once(window, page, aState, "the chosen card's Details open");
+			current->details_button()->click();
+			QApplication::processEvents();
+			expect(!current->details_button()->isChecked() && !current->details()->isVisibleTo(page),
+				   std::string{ "the chosen card's Details closes again: " } + std::string{ aState.Name });
+		};
+
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Commands = enabled_commands(),
+				.Status   = core::github_status_delta{ .Status = core::github_status::no_profile },
+			},
+		});
+		inspect({
+			.Name               = "no profile",
+			.Current            = core::host_profile_id{ 21U },
+			.GithubPresents     = core::host_profile_id{ 21U },
+			.GithubState        = QStringLiteral("Signed out"),
+			.EnterprisePresents = core::host_profile_id{ 23U },
+			.EnterpriseState    = QStringLiteral("Signed out"),
+			.SignedIn           = false,
+			.Filled             = true,
+		});
+
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Status   = core::github_status_delta{ .Status = core::github_status::establishing_session },
+				.Identity = core::github_identity_delta{ .Profile = core::host_profile_id{ 23U } },
+			},
+		});
+		inspect({
+			.Name               = "connecting to the enterprise server",
+			.Current            = core::host_profile_id{ 23U },
+			.GithubPresents     = core::host_profile_id{ 21U },
+			.GithubState        = QStringLiteral("Signed out"),
+			.EnterprisePresents = core::host_profile_id{ 23U },
+			.EnterpriseState    = QStringLiteral("Connecting"),
+			.SignedIn           = false,
+			.Filled             = false,
+		});
+
+		publish_session_ready(window, core::host_profile_id{ 21U });
+		inspect({
+			.Name               = "signed in on GitHub.com",
+			.Current            = core::host_profile_id{ 21U },
+			.GithubPresents     = core::host_profile_id{ 21U },
+			.GithubState        = QStringLiteral("Connected"),
+			.EnterprisePresents = core::host_profile_id{ 23U },
+			.EnterpriseState    = QStringLiteral("Signed out"),
+			.SignedIn           = true,
+			.Filled             = false,
+		});
+
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Status      = core::github_status_delta{ .Status = core::github_status::session_failed },
+				.Diagnostics = { { .Code = core::github_reason_code::authentication_failed } },
+			},
+		});
+		inspect({
+			.Name               = "the session on GitHub.com failed",
+			.Current            = core::host_profile_id{ 21U },
+			.GithubPresents     = core::host_profile_id{ 21U },
+			.GithubState        = QStringLiteral("Could not connect"),
+			.EnterprisePresents = core::host_profile_id{ 23U },
+			.EnterpriseState    = QStringLiteral("Signed out"),
+			.SignedIn           = false,
+			.Filled             = true,
+		});
+
+		publish_session_ready(window, core::host_profile_id{ 21U });
+		auto preview = application::public_preview_presentation{ };
+		preview.Mode = application::public_preview_mode::signed_out;
+		window.publish(preview);
+		inspect({
+			.Name               = "reading public pull requests signed out on GitHub.com",
+			.Current            = core::host_profile_id{ 21U },
+			.GithubPresents     = core::host_profile_id{ 21U },
+			.GithubState        = QStringLiteral("Signed out"),
+			.EnterprisePresents = core::host_profile_id{ 23U },
+			.EnterpriseState    = QStringLiteral("Signed out"),
+			.SignedIn           = false,
+			.Filled             = true,
+		});
+		expect(window.server_card_for(core::host_profile_id{ 21U })->consequence_label()->text()
+				   == QStringLiteral("Reading public pull requests without an account."),
+			   "signed out, GitHub.com's card says it reads public pull requests without an account");
+
+		// With the mode left and the identity retired, GitHub.com is chosen for
+		// native HTTPS again, and its GitHub CLI offer chooses GitHub CLI.
+		preview.Mode = application::public_preview_mode::signed_in;
+		window.publish(preview);
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Status   = core::github_status_delta{ .Status = core::github_status::no_profile },
+				.Identity = core::github_identity_delta{ },
+			},
+		});
+		QApplication::processEvents();
+		auto* const github = window.server_card_for(core::host_profile_id{ 22U });
+		expect(github != nullptr && github->presentation().Current && github->profile() == core::host_profile_id{ 21U }
+				   && github->cli_offer_button() != nullptr && github->cli_offer_button()->isVisibleTo(page),
+			   "with no identity left GitHub.com is chosen for native HTTPS again and offers GitHub CLI");
+		intents.clear();
+		github->cli_offer_button()->click();
+		const auto* const chosen = intents.size() == 1U
+			? std::get_if<core::activate_host_profile_intent>(&intents.front())
+			: nullptr;
+		expect(chosen != nullptr && chosen->Profile == core::host_profile_id{ 22U },
+			   "GitHub CLI is chosen on GitHub.com through its offer, which activates exactly that profile");
+		inspect({
+			.Name               = "GitHub CLI chosen on GitHub.com, signed out",
+			.Current            = core::host_profile_id{ 22U },
+			.GithubPresents     = core::host_profile_id{ 22U },
+			.GithubState        = QStringLiteral("Signed out"),
+			.EnterprisePresents = core::host_profile_id{ 23U },
+			.EnterpriseState    = QStringLiteral("Signed out"),
+			.SignedIn           = false,
+			.Filled             = false,
+		});
+
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Status   = core::github_status_delta{ .Status = core::github_status::establishing_session },
+				.Identity = core::github_identity_delta{ .Profile = core::host_profile_id{ 22U } },
+			},
+		});
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Status      = core::github_status_delta{ .Status = core::github_status::session_failed },
+				.Diagnostics = { { .Code = core::github_reason_code::authentication_failed } },
+			},
+		});
+		inspect({
+			.Name               = "GitHub CLI on GitHub.com could not connect",
+			.Current            = core::host_profile_id{ 22U },
+			.GithubPresents     = core::host_profile_id{ 22U },
+			.GithubState        = QStringLiteral("Could not connect"),
+			.EnterprisePresents = core::host_profile_id{ 23U },
+			.EnterpriseState    = QStringLiteral("Signed out"),
+			.SignedIn           = false,
+			.Filled             = false,
+		});
+		window.settings()->hide();
+		window.hide();
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -5067,7 +5827,7 @@ auto main(int argc, char** argv) -> int
 	QApplication::setApplicationName(
 		QStringLiteral("BetterPullReviewGitHubQtTests"));
 
-	test_cli_warning_lives_on_the_cli_card();
+	test_cli_warning_lives_on_its_servers_card();
 	test_conversation_model_is_stable_and_incremental();
 	test_intent_translation_is_narrow_and_account_is_output_only();
 	test_held_read_paints_loading();
@@ -5097,6 +5857,8 @@ auto main(int argc, char** argv) -> int
 	test_a_session_failure_is_said_in_its_card();
 	test_a_load_refusal_is_said_under_the_home_bar();
 	test_a_card_connect_chooses_and_connects_its_host();
+	test_one_card_per_server_holds_its_ways_in();
+	test_accounts_page_says_each_fact_once();
 
 	std::cout << "All GitHub Qt presentation tests passed\n";
 	return EXIT_SUCCESS;

@@ -87,21 +87,22 @@ namespace bpr::qt::detail {
 		return QStringLiteral("Unknown transport");
 	}
 
-	[[nodiscard]] inline auto cli_trust_warning_text(const QString& aHostname) -> QString
+	// [[BPR-0772]]. The card's header names the host, so the warning says
+	// "this server" and the host appears once on the card (RFC-BPR-0032 A4).
+	[[nodiscard]] inline auto cli_trust_warning_text() -> QString
 	{
 		return QStringLiteral(
-				   "Connect opts in to reading on %1 using your existing gh sign-in. "
-				   "The current account is observed after Connect; its permissions may differ from your native profile. "
-				   "You trust this machine's CLI executable, configuration (including socket routing), "
-				   "CA certificates and redirects. Executable/configuration/CA replacement and child-process risks remain. "
-				   "Only gh's default home-directory configuration is used; custom CLI environment overrides are ignored. "
-				   "Concurrent account switching can change the account used by a request; there is no exact account guarantee. "
-				   "On macOS, CLI file writes are denied; an older gh configuration that needs migration will be refused. "
-				   "Full diffs may run Git and gh's own shell credential helper as child processes; their executable, configuration and account-switch races remain. "
-				   "Full comparison currently requires gh 2.100.0 and Apple Git 2.50.1, with a 32 MiB per-file Git limit and supervised temporary-store cutoff. "
-				   "Publishing a review or inline comment requires a separate exact-target confirmation for each write. "
-				   "Read opt-in does not authorize publishing.")
-			.arg(aHostname);
+			"Connect opts in to reading on this server using your existing gh sign-in. "
+			"The current account is observed after Connect; its permissions may differ from your native profile. "
+			"You trust this machine's CLI executable, configuration (including socket routing), "
+			"CA certificates and redirects. Executable/configuration/CA replacement and child-process risks remain. "
+			"Only gh's default home-directory configuration is used; custom CLI environment overrides are ignored. "
+			"Concurrent account switching can change the account used by a request; there is no exact account guarantee. "
+			"On macOS, CLI file writes are denied; an older gh configuration that needs migration will be refused. "
+			"Full diffs may run Git and gh's own shell credential helper as child processes; their executable, configuration and account-switch races remain. "
+			"Full comparison currently requires gh 2.100.0 and Apple Git 2.50.1, with a 32 MiB per-file Git limit and supervised temporary-store cutoff. "
+			"Publishing a review or inline comment requires a separate exact-target confirmation for each write. "
+			"Read opt-in does not authorize publishing.");
 	}
 
 	[[nodiscard]] inline auto github_status_text(

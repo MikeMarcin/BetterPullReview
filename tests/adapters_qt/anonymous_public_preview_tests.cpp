@@ -170,10 +170,11 @@ namespace {
 			"the mode is not presented as an authenticated account");
 	}
 
-	// [[BPR-0771]]. RFC-BPR-0032 took "Read without signing in" off Accounts
-	// & hosts: reading without an account is the Home bar's. What the page
-	// still owes is that nothing on it enters the mode, and that each card's
-	// Connect activates exactly its own host, as the core admits.
+	// [[BPR-0771]], [[BPR-0772]]. RFC-BPR-0032 took "Read without signing in"
+	// off Accounts & hosts: reading without an account is the Home bar's. What
+	// the page still owes is that nothing on it enters the mode, and that each
+	// card's ways in activate exactly the host profile they name, as the core
+	// admits. GitHub.com's native HTTPS and GitHub CLI profiles are one card.
 	void test_accounts_offer_no_public_preview_activation()
 	{
 		auto options = profiles();
@@ -219,26 +220,71 @@ namespace {
 											== QStringLiteral("Read without signing in");
 									}),
 			   "and nothing on it is named for reading without signing in");
-		const auto cards = window.server_cards();
-		expect(cards.size() == options.size(), "one card per configured host");
-		// The card last connected becomes the chosen host, and a chosen host
-		// with a device flow offers Sign in rather than Connect. Walking the
-		// cards from the last back keeps each next card one that offers Connect.
-		for (auto index = options.size(); index > 0U; --index) {
-			auto* const card = cards[index - 1U];
-			expect(card->profile() == options[index - 1U].Profile
-					   && card->connect_button()->isVisibleTo(card),
-				   "a card whose host is not the chosen one offers Connect");
-			card->connect_button()->click();
-			expect(intents.size() == 1U, "one Connect emits exactly one intent");
-			const auto* const activation = std::get_if<core::activate_host_profile_intent>(&intents.front());
-			expect(activation != nullptr
-					   && activation->Profile == card->profile()
-					   && activation->Mode == core::github_access_mode::authenticated,
-				   "Connect activates exactly its card's host, and never in public preview");
-			intents.clear();
-		}
-		expect(device.Begins == 0U, "Connect never emits device sign-in");
+		// [[BPR-0772]]. One card per configured server: GitHub.com's native
+		// HTTPS and GitHub CLI profiles are ways in to one card.
+		const auto  cards      = window.server_cards();
+		auto* const github     = window.server_card_for(core::host_profile_id{ 1U });
+		auto* const enterprise = window.server_card_for(core::host_profile_id{ 7U });
+		expect(cards.size() == 2U && github != nullptr && enterprise != nullptr
+				   && cards.front() == github && cards.back() == enterprise
+				   && window.server_card_for(core::host_profile_id{ 9U }) == github,
+			   "one card per configured server, in the order the servers were first configured");
+		expect(github->cli_offer_button() != nullptr && enterprise->cli_offer_button() == nullptr
+				   && github->cli_offer_button()->text() == QStringLiteral("GitHub CLI"),
+			   "only GitHub.com offers GitHub CLI, and a label that says nothing more is offered as GitHub CLI");
+		// Exactly one intent since the last gesture, and it activates exactly
+		// this host profile with an account, never in public preview.
+		const auto activated = [&intents](const core::host_profile_id aProfile) {
+			const auto* const activation = intents.size() == 1U
+				? std::get_if<core::activate_host_profile_intent>(&intents.front())
+				: nullptr;
+			return activation != nullptr && activation->Profile == aProfile
+				&& activation->Mode == core::github_access_mode::authenticated;
+		};
+
+		// The first configured profile is chosen before any gesture.
+		expect(github->presentation().Current && !enterprise->presentation().Current
+				   && enterprise->connect_button()->isVisibleTo(enterprise) && intents.empty(),
+			   "before any gesture GitHub.com is chosen, and the enterprise card offers Connect");
+		enterprise->connect_button()->click();
+		expect(activated(core::host_profile_id{ 7U }),
+			   "the enterprise card's Connect activates exactly its host");
+		intents.clear();
+
+		expect(!github->presentation().Current && github->profile() == core::host_profile_id{ 1U }
+				   && github->connect_button()->isVisibleTo(github),
+			   "GitHub.com, no longer chosen, offers Connect for its native HTTPS profile");
+		github->connect_button()->click();
+		expect(activated(core::host_profile_id{ 1U }),
+			   "GitHub.com's Connect, while it is not chosen, activates exactly its native HTTPS profile");
+		intents.clear();
+
+		expect(github->presentation().Current && github->profile() == core::host_profile_id{ 1U }
+				   && !github->connect_button()->isVisibleTo(github)
+				   && github->sign_in_button()->isVisibleTo(github)
+				   && github->cli_offer_button()->isVisibleTo(github),
+			   "chosen with native HTTPS presented, GitHub.com offers Sign in rather than Connect, beside the GitHub CLI offer");
+		github->cli_offer_button()->click();
+		expect(activated(core::host_profile_id{ 9U }),
+			   "the GitHub CLI offer activates exactly the GitHub CLI profile");
+		intents.clear();
+		expect(github->presentation().Current && github->profile() == core::host_profile_id{ 9U }
+				   && !github->cli_offer_button()->isVisibleTo(github)
+				   && github->connect_button()->isVisibleTo(github)
+				   && github->sign_in_button()->isVisibleTo(github)
+				   && !github->sign_in_button()->isDefault(),
+			   "with GitHub CLI presented the offer gives way to Connect as its retry, and Sign in stays without being filled");
+		expect(device.Begins == 0U, "neither Connect nor the GitHub CLI offer emits device sign-in");
+
+		// Choosing the enterprise host again leaves GitHub.com offering both
+		// Connect and GitHub CLI, so the refusal below has both to take away.
+		enterprise->connect_button()->click();
+		expect(activated(core::host_profile_id{ 7U }),
+			   "choosing the enterprise host again activates exactly it");
+		intents.clear();
+		expect(!github->presentation().Current && github->connect_button()->isVisibleTo(github)
+				   && github->cli_offer_button()->isVisibleTo(github),
+			   "GitHub.com, no longer chosen, offers Connect and GitHub CLI before the refusal");
 		// The refusal arrives the way the core sends one: a command projection
 		// on its own, through the window.
 		window.publish(application::github_presentation_update{
@@ -253,10 +299,15 @@ namespace {
 			},
 		});
 		QApplication::processEvents();
-		auto* const other = cards.back();
-		other->connect_button()->click();
-		expect(intents.empty() && !other->connect_button()->isVisibleTo(other),
-			   "a card's Connect obeys the host activation command state");
+		expect(!github->connect_button()->isVisibleTo(github)
+				   && !github->cli_offer_button()->isVisibleTo(github)
+				   && !enterprise->connect_button()->isVisibleTo(enterprise),
+			   "the refused activation command hides every card's Connect and the GitHub CLI offer");
+		github->connect_button()->click();
+		github->cli_offer_button()->click();
+		enterprise->connect_button()->click();
+		expect(intents.empty() && device.Begins == 0U,
+			   "a card's Connect and its GitHub CLI offer obey the host activation command state");
 	}
 
 	void test_the_ring_reports_the_budget_and_the_way_out(const double aScale)

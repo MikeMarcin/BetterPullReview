@@ -117,6 +117,16 @@ namespace {
 			wait_for([&] { return application->status().ShutdownComplete; }, "setup and review work quiesce");
 			return;
 		}
+		// [[BPR-0772]]. RFC-BPR-0032 A1: one card per configured server. The
+		// composition configures GitHub.com over native HTTPS and over GitHub
+		// CLI, and both are ways in to the one github.com card.
+		{
+			const auto cards = window.server_cards();
+			expect(cards.size() == 1U && cards.front()->hostname() == "github.com" && cards.front()->options().size() == 2U
+					   && cards.front()->native_option() != nullptr && cards.front()->cli_option() != nullptr
+					   && cards.front()->cli_offer_button() != nullptr && cards.front()->host_label()->text() == QStringLiteral("github.com"),
+				   "the composed GitHub.com host profiles share one server card");
+		}
 		submit(window, url);
 		capture(window, QStringLiteral("setup-unknown.png"));
 		expect(window.home_open_bar()->text() == url, "pending setup retains the exact pasted target");
@@ -134,6 +144,11 @@ namespace {
 			wait_for([&] { return button(window, "homeSetupContinue")->text() == QStringLiteral("Sign in and continue") && button(window, "homeSetupContinue")->isVisible(); }, "durable Add server makes the exact host available without restart");
 			evidence = github_application_fixture_access::evidence(*application);
 			expect(evidence.VaultStores == 0U && !evidence.BootstrapTransportSelected, "configuration alone never signs in");
+			// [[BPR-0772]]. The added server is a second card; it joins no other.
+			const auto cards = window.server_cards();
+			expect(cards.size() == 2U && cards.back()->hostname() == "ghe.example.invalid" && cards.back()->options().size() == 1U
+					   && cards.front()->options().size() == 2U,
+				   "an added enterprise server appends its own card");
 		}
 
 		if (aEnterprise) {
@@ -172,6 +187,8 @@ namespace {
 			expect(button(window, "homeSetupContinue")->isVisible(), "continue action visible before gesture");
 			button(window, "homeSetupContinue")->click();
 			wait_for([&] { return button(window, "homeSetupContinue")->text() == QStringLiteral("Sign in and continue"); }, "second explicit server configured");
+			expect(window.server_cards().size() == 3U && window.server_cards().back()->hostname() == "other.example.invalid",
+				   "a second explicit server is a third card");
 			expect(button(window, "homeSetupContinue")->isVisible(), "continue action visible before gesture");
 			button(window, "homeSetupContinue")->click();
 			wait_for([&] { return window.home_open_notice()->text().contains(QStringLiteral("Sign-in did not complete")); }, "recorded transport refuses unsupported authority before commitment");

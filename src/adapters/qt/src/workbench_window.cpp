@@ -5417,7 +5417,7 @@ namespace bpr::qt {
 		-> server_card*
 	{
 		const auto found = std::ranges::find_if(ServerCards, [aProfile](const server_card* const aCard) {
-			return aCard->profile() == aProfile;
+			return aCard->holds(aProfile);
 		});
 		return found == ServerCards.end() ? nullptr : *found;
 	}
@@ -5454,6 +5454,13 @@ namespace bpr::qt {
 	void workbench_window::add_server_card(const application::github_profile_option& aOption)
 	{
 		if (ServerCardColumn == nullptr || server_card_for(aOption.Profile) != nullptr) {
+			return;
+		}
+		// [[BPR-0772]]. One card per configured server: another way in to a
+		// hostname already on the page joins that server's card.
+		if (std::ranges::any_of(ServerCards, [&aOption](server_card* const aCard) {
+				return aCard->adopt_option(aOption);
+			})) {
 			return;
 		}
 		// The card asks; the window decides. Connect is the host chosen, then
@@ -5505,11 +5512,12 @@ namespace bpr::qt {
 		const auto  reading  = SessionPanel->public_preview_signed_out();
 		const auto  admitted = SessionPanel->connect_enabled();
 		for (auto* const card : ServerCards) {
-			auto shown             = server_card_presentation{ };
-			shown.Current          = current == card->profile();
-			shown.ConnectAdmitted  = admitted;
+			auto shown               = server_card_presentation{ };
+			shown.Current            = current.has_value() && card->holds(*current);
+			shown.Chosen             = shown.Current ? current : std::nullopt;
+			shown.ConnectAdmitted    = admitted;
 			shown.ConnectDescription = admitted
-				? QStringLiteral("Chooses %1 and connects it.").arg(QString::fromStdString(card->option().Hostname))
+				? QStringLiteral("Chooses %1 and connects it.").arg(QString::fromStdString(card->hostname()))
 				: SessionPanel->connect_description();
 			shown.PublicPreview    = SessionPanel->public_preview();
 			shown.PublicPreviewNow = SessionPanel->public_preview_now();
@@ -5543,7 +5551,7 @@ namespace bpr::qt {
 					}
 					break;
 				}
-				if (!reading && session.has_value() && session->Profile == card->profile()) {
+				if (!reading && session.has_value() && card->holds(session->Profile)) {
 					shown.Session = session;
 				}
 				shown.Capabilities = SessionPanel->capabilities();

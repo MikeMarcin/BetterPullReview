@@ -666,10 +666,12 @@ namespace bpr::qt {
 		[[nodiscard]] auto conversation_view() const noexcept -> QTreeView*;
 		[[nodiscard]] auto conversation_model() const noexcept
 			-> github_conversation_model*;
-		/// \brief [[BPR-0771]]. Accounts & hosts' cards, one per configured host
-		/// profile, in profile order.
+		/// \brief [[BPR-0771]], [[BPR-0772]]. Accounts & hosts' cards, one per
+		/// configured server (hostname), in the order their hosts were first
+		/// configured.
 		[[nodiscard]] auto server_cards() const -> std::vector<server_card*>;
-		/// \brief The card presenting one host profile; null when it is not configured.
+		/// \brief The card of the server one host profile is a way in to; null
+		/// when the profile is not configured.
 		[[nodiscard]] auto server_card_for(core::host_profile_id aProfile) const
 			-> server_card*;
 		/// \brief The public-preview hourly-limit ring, on the card of the host

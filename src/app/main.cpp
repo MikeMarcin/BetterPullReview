@@ -3006,28 +3006,29 @@ namespace {
 		return false;
 	}
 
-	// [[BPR-0535]], repointed by [[BPR-0771]]. A begin pressed for an
-	// enterprise host must end in the typed refusal with nothing built. The
-	// picker that once chose that host is retired, and an enterprise card offers
-	// no device sign-in, so the course first requires exactly that absence on the
-	// GHES card, then binds the still-mounted device panel to that card's host
-	// and presses its begin. A window with no GHES card, a GHES card that offers
-	// the device flow, or no mounted panel ends here with `false`.
+	// [[BPR-0535]], repointed by [[BPR-0771]] and [[BPR-0772]]. A begin pressed
+	// for an enterprise host must end in the typed refusal with nothing built.
+	// The picker that once chose that host is retired, and an enterprise
+	// server's card offers no device sign-in, so the course first requires
+	// exactly that absence on the GHES card, then binds the still-mounted
+	// device panel to that server's native profile and presses its begin. A
+	// window with no GHES card, a GHES card that offers the device flow, or no
+	// mounted panel ends here with `false`.
 	[[nodiscard]] auto begin_through_ghes_device_panel(
 		const bpr::qt::workbench_window& aWindow) -> bool
 	{
 		for (auto* const card : aWindow.server_cards()) {
-			const auto& option = card->option();
+			const auto* const native = card->native_option();
 			if (
-				option.Product != bpr::application::github_profile_product::github_enterprise_server
-				|| option.Transport != bpr::application::github_profile_transport::native_https) {
+				native == nullptr
+				|| native->Product != bpr::application::github_profile_product::github_enterprise_server) {
 				continue;
 			}
 			auto* const panel = aWindow.device_authorization();
 			if (card->offers_device_sign_in() || panel == nullptr) {
 				return false;
 			}
-			panel->bind_profile(card->profile());
+			panel->bind_profile(native->Profile);
 			auto* const begin = panel->begin_button();
 			if (begin == nullptr || !begin->isEnabled()) {
 				return false;
@@ -3044,13 +3045,15 @@ namespace {
 	{
 		const auto  statistics = aWindow.statistics();
 		const auto& cli        = aRun.Cli;
-		// [[BPR-0771]]. The CLI host is a card, chosen by its Connect.
+		// [[BPR-0771]], [[BPR-0772]]. The CLI host profile is a way in to its
+		// server's card, chosen by that card's GitHub CLI offer.
 		const auto  cards = aWindow.server_cards();
 		const auto* card  = cli.ActiveRow >= 0 && static_cast<std::size_t>(cli.ActiveRow) < cards.size()
 			 ? cards[static_cast<std::size_t>(cli.ActiveRow)]
 			 : nullptr;
-		return card != nullptr
-			&& aWindow.session_panel()->selected_profile() == card->profile()
+		const auto* const offered = card != nullptr ? card->cli_option() : nullptr;
+		return offered != nullptr
+			&& aWindow.session_panel()->selected_profile() == offered->Profile
 #if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
 			&& cli.ConsentWarningObserved
 			&& statistics.GithubIdentityUpdates
@@ -3075,20 +3078,22 @@ namespace {
 			&& statistics.GithubFullResets == 0U;
 	}
 
-	// [[BPR-0771]]. The picker that listed these rows is retired: each host is
-	// a card, in profile order, and its profile carries the label the picker
-	// once showed.
+	// [[BPR-0771]], [[BPR-0772]]. The picker that listed these rows is retired:
+	// each server is a card, in the order its host was configured, and the
+	// server's GitHub CLI profile carries the label the picker once showed.
 	[[nodiscard]] auto is_cli_unavailable_profile(
 		const std::vector<bpr::qt::server_card*>& aCards,
 		const int                                 aRow) -> bool
 	{
-		const auto& option = aCards[static_cast<std::size_t>(aRow)]->option();
-		const auto  label  = QString::fromStdString(option.Label);
-		return option.Transport == bpr::application::github_profile_transport::github_cli
+		const auto* const option = aCards[static_cast<std::size_t>(aRow)]->cli_option();
+		if (option == nullptr) {
+			return false;
+		}
+		const auto label = QString::fromStdString(option->Label);
 #if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
-			&& label.endsWith(QStringLiteral("GitHub CLI (uses your gh sign-in)"));
+		return label.endsWith(QStringLiteral("GitHub CLI (uses your gh sign-in)"));
 #else
-			&& label.endsWith(QStringLiteral("GitHub CLI (unavailable)"));
+		return label.endsWith(QStringLiteral("GitHub CLI (unavailable)"));
 #endif
 	}
 
@@ -3122,7 +3127,11 @@ namespace {
 		const std::optional<std::string>&         aEnterpriseHostname)
 		-> std::optional<std::string>
 	{
-		const auto label = QString::fromStdString(aCards[static_cast<std::size_t>(aRow)]->option().Label);
+		const auto* const offered = aCards[static_cast<std::size_t>(aRow)]->cli_option();
+		if (offered == nullptr) {
+			return std::nullopt;
+		}
+		const auto label = QString::fromStdString(offered->Label);
 #if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
 		const auto githubLabel     = QStringLiteral("GitHub.com — GitHub CLI (uses your gh sign-in)");
 		const auto enterpriseLabel = QStringLiteral("GHES 3.18 — GitHub CLI (uses your gh sign-in)");
@@ -3154,11 +3163,12 @@ namespace {
 			return false;
 		}
 
-		// [[BPR-0771]]. The host is chosen by its card's Connect, which the
-		// card shows only while the core admits a Connect.
+		// [[BPR-0771]], [[BPR-0772]]. The GitHub CLI profile is chosen by its
+		// server card's GitHub CLI offer, which the card shows only while the
+		// core admits a Connect.
 		auto* const card    = cards[static_cast<std::size_t>(aRow)];
-		auto* const connect = card->connect_button();
-		if (connect->isHidden() || !aWindow.github_connect_action()->isEnabled()) {
+		auto* const connect = card->cli_offer_button();
+		if (connect == nullptr || connect->isHidden() || !aWindow.github_connect_action()->isEnabled()) {
 			return false;
 		}
 
@@ -3188,9 +3198,10 @@ namespace {
 		QTimer::singleShot(0, qApp, *poll);
 #endif
 		// The retired "Read without signing in" button reached the same CLI
-		// opt-in as Connect did; both courses now begin at the card's Connect.
+		// opt-in as Connect did; both courses now begin at the server card's
+		// GitHub CLI offer.
 		connect->click();
-		return aWindow.session_panel()->selected_profile() == card->profile();
+		return aWindow.session_panel()->selected_profile() == card->cli_option()->Profile;
 	}
 
 	[[nodiscard]] auto os_color_scheme_name(
@@ -5130,6 +5141,8 @@ namespace {
 				} else
 #endif
 				{
+					// [[BPR-0772]]. One card per server, each offering its
+					// GitHub CLI profile.
 					const auto visibleCliProfiles = cli_unavailable_profile_count(
 						window.server_cards());
 					const auto expectedCliProfiles = aRun->Cli.EnterpriseHostname.has_value() ? 2U : 1U;
@@ -5137,7 +5150,7 @@ namespace {
 						aRun->Cli.Enabled
 						&& (visibleCliProfiles != expectedCliProfiles
 							|| window.server_cards().size()
-								!= expectedCliProfiles * 2U)) {
+								!= expectedCliProfiles)) {
 						fail_automated_run(aApplication, *aRun);
 						break;
 					}
