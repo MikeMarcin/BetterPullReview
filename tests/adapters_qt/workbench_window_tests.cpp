@@ -7265,6 +7265,19 @@ namespace {
 		process_events();
 		expect(corner->isVisible() && dif->isVisible(),
 			   "the corner returns when the message clears");
+		// Review of BPR-0775, finding 1: a message already showing when Home
+		// arrives is not painted over either.
+		window.choose_modality(qt::review_modality::read);
+		process_events();
+		window.statusBar()->showMessage(QStringLiteral("A message before Home"));
+		window.choose_home(true);
+		process_events();
+		expect(window.showing_home() && !corner->isVisible() && !dif->isVisible(),
+			   "Home entered under a transient message keeps the corner hidden until it clears");
+		window.statusBar()->clearMessage();
+		process_events();
+		expect(corner->isVisible() && dif->isVisible() && dif->parentWidget() == &window,
+			   "the corner appears once that message clears");
 
 		window.choose_modality(qt::review_modality::read);
 		process_events();

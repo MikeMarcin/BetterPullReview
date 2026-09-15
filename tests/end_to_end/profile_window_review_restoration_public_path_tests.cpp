@@ -577,7 +577,7 @@ auto main(int aArgc, char** aArgv) -> int
 		home_lists_recent(*owner, firstContext, { 18, 17 });
 		home_lists_recent(*owner, second, { 18, 17 });
 		resume_recent(*owner, firstContext, 17);
-		wait_for([&] { const auto text = first->home_open_notice()->text(); return !text.isEmpty() && !text.startsWith(QStringLiteral("Resuming")); }, "unavailable reading reports explicit failure", [&] {
+		wait_for([&] { const auto text = first->home_open_notice()->text(); return !text.isEmpty() && !text.startsWith(QStringLiteral("Resuming")) && text != QString::fromStdString(first->session_panel()->status_text()); }, "unavailable reading reports explicit failure", [&] {
 			const auto work = github_application_fixture_access::diff_work_evidence(*owner, firstContext);
 			std::cerr << "unavailable-reading navigation=" << work.NavigationReady << " outstanding=" << work.OutstandingJobs
 				<< " workbench-outstanding=" << work.WorkbenchOutstandingRequests << " result=" << bool(first->comparison_surface()->current_result())
@@ -602,7 +602,7 @@ auto main(int aArgc, char** aArgv) -> int
 		// entry names a pull request the server does not have.
 		home_lists_recent(*owner, firstContext, { 99, 17 });
 		resume_recent(*owner, firstContext, 99);
-		wait_for([&] { const auto text = first->home_open_notice()->text(); return !text.isEmpty() && !text.startsWith(QStringLiteral("Resuming")); }, "resumed read failure explicitly visible");
+		wait_for([&] { const auto text = first->home_open_notice()->text(); return !text.isEmpty() && !text.startsWith(QStringLiteral("Resuming")) && text != QString::fromStdString(first->session_panel()->status_text()); }, "resumed read failure explicitly visible");
 		std::cerr << "resumed-read-error=" << first->home_open_notice()->text().toStdString() << '\n';
 		expect(first->showing_home() && first->home_open_bar()->isEnabled(), "failed resume leaves usable Home");
 		expect(!github_application_fixture_access::large_review_snapshot(*owner, firstContext), "failed resume fabricates no content");
@@ -617,7 +617,7 @@ auto main(int aArgc, char** aArgv) -> int
 		// a failure of anything the reviewer asked for.
 		const auto refused = phase == "missing-server" || phase == "corrupt" || phase == "future";
 		if (refused) {
-			wait_for([&] { const auto text = first->home_open_notice()->text(); return !text.isEmpty() && !text.startsWith(QStringLiteral("Resuming")); }, "unreadable saved reviews are explicitly visible");
+			wait_for([&] { const auto text = first->home_open_notice()->text(); return !text.isEmpty() && !text.startsWith(QStringLiteral("Resuming")) && text != QString::fromStdString(first->session_panel()->status_text()); }, "unreadable saved reviews are explicitly visible");
 			std::cerr << "restoration-error=" << first->home_open_notice()->text().toStdString() << '\n';
 		}
 		settle(600);

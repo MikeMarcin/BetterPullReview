@@ -472,6 +472,9 @@ namespace bpr::qt {
 		DifCornerSlot->hide();
 		DifCornerSlot->installEventFilter(this);
 		statusBar()->insertWidget(0, DifCornerSlot, 0);
+		// A message shown before Home arrives must not be painted over either
+		// (review of BPR-0775, finding 1).
+		connect(statusBar(), &QStatusBar::messageChanged, this, [this](const QString&) { update_dif_presentation(); });
 
 		configure_tool_buttons();
 		refresh_toolbar_icons();
@@ -4720,7 +4723,7 @@ namespace bpr::qt {
 		}
 		HomeLanding->set_illustration_enabled(shown && card);
 		DifAiSlot->setVisible(shown && aiSlot && Dif != nullptr);
-		DifCornerSlot->setVisible(shown && cornerSlot && Dif != nullptr);
+		DifCornerSlot->setVisible(shown && cornerSlot && Dif != nullptr && statusBar()->currentMessage().isEmpty());
 		DifCues->set_visible(
 			shown && aiSlot && DifResolution.EffectiveMotion == core::motion_mode::full
 			&& isActiveWindow() && QApplication::activeModalWidget() == nullptr);
@@ -4839,6 +4842,15 @@ namespace bpr::qt {
 		}
 		const auto bottomLeft = DifCornerSlot->mapTo(this, QPoint{ 0, DifCornerSlot->height() });
 		Dif->move(bottomLeft.x(), bottomLeft.y() - dif_corner_size);
+		// Home's rows end above the part of the sprite that rises over the
+		// status bar, whatever height the platform gives that bar (review of
+		// BPR-0775, finding 6).
+		if (HomeColumn != nullptr) {
+			const auto inset = std::max(0, dif_corner_size - statusBar()->height()) + 4;
+			if (HomeColumn->contentsMargins().bottom() != inset) {
+				HomeColumn->setContentsMargins(0, 0, 0, inset);
+			}
+		}
 		Dif->raise();
 		Dif->show();
 	}

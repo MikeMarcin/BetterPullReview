@@ -3151,6 +3151,21 @@ namespace {
 			   "Add enterprise server on the card opens Accounts and hosts");
 		window.settings()->hide();
 		QApplication::processEvents();
+		// Review of BPR-0775, finding 2: once the queue that keeps servers is
+		// ready, the card's second way in opens the new card in its edit state.
+		window.set_saved_server_dispatch([](application::saved_server_intent) { });
+		window.publish(application::queue_landing_projection{ .Status = application::queue_landing_status::ready });
+		QApplication::processEvents();
+		landing->secondary_button()->click();
+		QApplication::processEvents();
+		expect(window.settings()->isVisible()
+				   && window.settings()->current_page() == qt::settings_page::accounts_and_hosts
+				   && window.enterprise_server_draft() != nullptr && window.enterprise_server_draft()->isVisible()
+				   && window.settings()->focusWidget() == window.enterprise_server_hostname(),
+			   "with the queue ready, Add enterprise server opens the new card in its edit state with the hostname focused");
+		window.enterprise_server_cancel()->click();
+		window.settings()->hide();
+		QApplication::processEvents();
 		// A public-preview session is a session with no account: the same
 		// Home, with the queue still absent.
 		publish_session_ready(window);

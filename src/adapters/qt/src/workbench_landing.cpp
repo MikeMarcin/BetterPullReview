@@ -137,15 +137,25 @@ namespace bpr::qt {
 			Primary->setAccessibleName(QStringLiteral("Back to the review"));
 			Primary->setAccessibleDescription(QStringLiteral(
 				"Returns to the open pull request at the same file and change."));
+			// The row has no second button; its name must not linger on the
+			// hidden one (review of BPR-0775, finding 5).
 			Secondary->setText(QString{ });
+			Secondary->setAccessibleName(QString{ });
+			Secondary->setAccessibleDescription(QString{ });
 			setAccessibleDescription(reviewing);
 			break;
 		}
 		case landing_state::choose_pull_request:
+			// Nothing is offered; the hidden buttons carry no stale names a
+			// reader or a selector could find.
 			Title->clear();
 			Body->clear();
 			Primary->setText(QString{ });
+			Primary->setAccessibleName(QString{ });
+			Primary->setAccessibleDescription(QString{ });
 			Secondary->setText(QString{ });
+			Secondary->setAccessibleName(QString{ });
+			Secondary->setAccessibleDescription(QString{ });
 			setAccessibleDescription(QString{ });
 			break;
 		}
