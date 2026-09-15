@@ -25,6 +25,8 @@ __pycache__/
 /.claude/skills/attended-review
 /.agents/skills/wizard
 /.claude/skills/wizard
+/.agents/skills/sprite-sheet-animation-updater
+/.claude/skills/sprite-sheet-animation-updater
 /.claude/agents/rfc-*.md
 /.codex/agents/rfc-*.toml
 /.mask/bootstrap-retired/
