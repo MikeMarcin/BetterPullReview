@@ -50,7 +50,9 @@ and provenance SHA-256
 
 ## Integrated Home and profile course
 
-The corrected `dev` candidate ran this network-isolated CTest selection:
+The combined result at revision
+`b299818e36887bdf3d4e8be138ed08095ca3e662` ran this network-isolated CTest
+selection after the independent-review corrections:
 
 ```text
 qt_dif_runtime
