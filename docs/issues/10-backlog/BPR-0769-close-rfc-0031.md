@@ -22,14 +22,14 @@ last dependent RFC to satisfy the repository's closeout-card convention.
 
 | Criterion | Result | Revision |
 |---|---|---|
-| **A1 — Exact intake.** All ten immutable inputs, actual layouts, hashes, source/edit history and new derivative authority/disposition are recorded; no opaque concept-board crop, foreign mascot or guessed generator metadata is shipped. | Partial: all 71 returned files and the result/d9 archive hashes are retained; generator/prompt/native-layer/terms history and derivative disposition remain open | [v008 intake](../../verification/dif-production-art-v008/README.md), [intake ledger](../../verification/RFC-BPR-0030-intake.md) |
-| **A2 — One character.** The prop-free master and all ten sequences preserve one identity, resolve the documented drift, and have accepted neutral, body anchors and foot baseline. | Partial: all ten d10 rows share measured anchors/baseline and one no-catchlight endpoint, but that endpoint differs from the sequence-379 accepted neutral and awaits a fresh exact identity verdict | [v008 candidate](../../verification/dif-production-art-v008/README.md), [art ledger](../../verification/RFC-BPR-0030-production-art.md) |
-| **A3 — Complete choreography.** Ten real distinct sequences have the target contracts, closed idle seam, intended eyelid/limb/head motion and clean neutral handoffs; no static alias or whole-raster squash substitutes for a gesture. | Partial: ten distinct d10 sequences and declared-speed previews exist; calm-idle torso and four larger head/shoulder/paw transitions remain human judgment subjects | [v008 player](../../verification/dif-production-art-v008/review/player.html), [art ledger](../../verification/RFC-BPR-0030-production-art.md) |
-| **A4 — Canonical geometry/alpha.** Every final cell and both gutters per strip meet exact format, clipping, inventory, anchor, envelope and transparent-pixel checks. Adversarial drift/empty-frame/padding fixtures fail for the intended reason. | Partial: the complete d10 candidate's 71 cells and 20 gutters pass alpha, baseline, clearance, inventory and canonical validation; its art is not accepted source | [v008 candidate evidence](../../verification/dif-production-art-v008/candidate-evidence.json), [compiler ledger](../../verification/RFC-BPR-0030-compiler-contract.md) |
-| **A5 — Reproducible catalog.** Empty-output regeneration reproduces canonical pixels and metadata, with exact committed payload digest checks and no compressor pin regression. Generated descriptors/resources agree and malformed/unknown/excessive catalog input fails. | Partial: d10 candidate empty-output generation and exact retained preview reproduction pass; production source/generated payload promotion awaits verdicts | [v008 rebuild](../../verification/dif-production-art-v008/prepare.py), [compiler ledger](../../verification/RFC-BPR-0030-compiler-contract.md) |
-| **A6 — Measured bounds.** The actual catalog stays within the revised limits; arithmetic includes padding and uses checked dimensions/counts. Ordinary builds neither generate art nor acquire creative dependencies/network resources. | Partial: the actual d10 candidate is 71 frames, 20 gutters and 22.75 MiB decoded within measured bounds; accepted normal-build resource proof awaits promotion | [v008 candidate evidence](../../verification/dif-production-art-v008/candidate-evidence.json), [compiler ledger](../../verification/RFC-BPR-0030-compiler-contract.md) |
-| **A7 — Bound visual decision.** Exact normalized bytes, timing and preview renderer are covered by the focused identity/motion/theme/scale/handoff/rest review and derivative disposition. Any changed subject is re-reviewed only to its necessary scope. | Partial: exact d10 compiler previews and fresh Dif-only candidate questions are prepared; neutral, per-clip motion and derivative verdicts remain unanswered | [v008 review](../../verification/dif-production-art-v008/README.md), [art ledger](../../verification/RFC-BPR-0030-production-art.md) |
-| **A8 — Handoff and history.** Mutable docs and live asset/verification ownership identify this new revision; historical decisions remain unchanged; RFC-0031 consumes the accepted new catalog. Existing prerequisites/formal status waits are explicit, not falsely closed. | Partial: live import/IDs and intake ledger exist; accepted new catalog and formal handoff remain open | `ee1e12df`, `57ced605`; [live import](../../rfcs/assets/bpr-dif-integration-v1.LIVE_IMPORT.md) |
+| **A1 — Exact intake.** All ten immutable inputs, actual layouts, hashes, source/edit history and new derivative authority/disposition are recorded; no opaque concept-board crop, foreign mascot or guessed generator metadata is shipped. | Passed for the exact d10 set: all returned/input/archive hashes and supplied edit log are retained, missing generator metadata is disclosed, and sequence 122 accepts the exact derivative disposition | `98841656`; [v008 intake and verdict](../../verification/dif-production-art-v008/README.md) |
+| **A2 — One character.** The prop-free master and all ten sequences preserve one identity, resolve the documented drift, and have accepted neutral, body anchors and foot baseline. | Passed: sequence 113 accepts the common no-catchlight identity; canonical master/endpoints, body anchors and baseline 223 agree across all ten clips | `98841656`; [production evidence](../../verification/dif-production-art-v008/production-evidence.json) |
+| **A3 — Complete choreography.** Ten real distinct sequences have the target contracts, closed idle seam, intended eyelid/limb/head motion and clean neutral handoffs; no static alias or whole-raster squash substitutes for a gesture. | Passed: sequences 111–121 explicitly accept all ten declared-speed clip subjects; structural checks confirm distinct rows, seam and exact handoffs | `98841656`; [human verdict](../../verification/dif-production-art-v008/review/human-verdict.json) |
+| **A4 — Canonical geometry/alpha.** Every final cell and both gutters per strip meet exact format, clipping, inventory, anchor, envelope and transparent-pixel checks. Adversarial drift/empty-frame/padding fixtures fail for the intended reason. | Passed: promoted 71 cells and 20 gutters validate with clean alpha, bounds, clearance and registration; both 57-test contract runs pass | `98841656`; [production evidence](../../verification/dif-production-art-v008/production-evidence.json) |
+| **A5 — Reproducible catalog.** Empty-output regeneration reproduces canonical pixels and metadata, with exact committed payload digest checks and no compressor pin regression. Generated descriptors/resources agree and malformed/unknown/excessive catalog input fails. | Passed: fresh v008 reconstruction matched all 85 managed files byte for byte; direct validate/verify and narrow schema-2 ten-clip consumer pass | `98841656`; [production evidence](../../verification/dif-production-art-v008/production-evidence.json) |
+| **A6 — Measured bounds.** The actual catalog stays within the revised limits; arithmetic includes padding and uses checked dimensions/counts. Ordinary builds neither generate art nor acquire creative dependencies/network resources. | Passed: 71 frames plus 20 gutters total 23,855,104 decoded bytes; selected dev/core-only/tests-disabled app graphs preserve the offline-tool/runtime boundary | `98841656`; [production evidence](../../verification/dif-production-art-v008/production-evidence.json) |
+| **A7 — Bound visual decision.** Exact normalized bytes, timing and preview renderer are covered by the focused identity/motion/theme/scale/handoff/rest review and derivative disposition. Any changed subject is re-reviewed only to its necessary scope. | Passed: all twelve v008.3 candidates were accepted and handed back at sequence 123 with no pending subject | `98841656`; [human verdict](../../verification/dif-production-art-v008/review/human-verdict.json) |
+| **A8 — Handoff and history.** Mutable docs and live asset/verification ownership identify this new revision; historical decisions remain unchanged; RFC-0031 consumes the accepted new catalog. Existing prerequisites/formal status waits are explicit, not falsely closed. | Passed for production-art handoff: accepted schema-2 source/products are shipped and history is retained; normal app selection remains explicit under B1/home integration | `98841656`; [art ledger](../../verification/RFC-BPR-0030-production-art.md) |
 | **B1 — Resource selection.** Normal tests-enabled and tests-disabled Qt apps select the accepted ten-clip catalog; raw inputs/review tools do not ship. Invalid assets fail to a functional art-free surface with bounded diagnostics. Core-only remains clean. | Partial: fixture ten-strip cache validates bounded assets; accepted production catalog and normal-app resource selection remain pending | `e337c1fa`; [runtime ledger](../../verification/RFC-BPR-0031-runtime-foundation.md) |
 | **B2 — Playback.** Catalog-driven elapsed-time playback renders every clip at its declared rate, one-shots return correctly, idle seam/blink cadence/greeting-once behavior holds, and delayed/invalid time cannot burst, overflow or select gutters. | Partial: fixture ten-clip sequencer passes; real asset idle/blink/greeting path remains pending | `e337c1fa`; [runtime ledger](../../verification/RFC-BPR-0031-runtime-foundation.md) |
 | **B3 — Preferences.** Real Appearance controls apply/migrate/persist/reset motion and visibility through the current profile authority; rejected/stale writes and session-only fallback are truthful, same-profile fan-out works and other profiles remain unchanged. | Passed for the profile preference path; actual mascot presentation remains with later integration | `6f07c343`; [runtime ledger](../../verification/RFC-BPR-0031-runtime-foundation.md) |
@@ -43,35 +43,36 @@ last dependent RFC to satisfy the repository's closeout-card convention.
 | **B11 — Rendered/accessibility evidence.** Actual app frames at shipping scales and supported appearance modes demonstrate readable alpha edges, calm motion, static reduced interval, noninterference with focus/status and approved visual integration. | Not run; import only | No producing revision |
 | **B12 — Complete handoff.** Focused tests, resource packaging, platform claims, source/ mutable docs, shared-skill consumer context and verification records agree. All ten clips are real and reachable; unavailable evidence/formal closeout remains honestly open, with no fabricated native/art verdict or forced rewriting of settled RFCs. | Partial: plan/consumer context and intake documented; all app/resource/native/art work remains open | `ee1e12df`, `57ced605`; [live import](../../rfcs/assets/bpr-dif-integration-v1.LIVE_IMPORT.md) |
 
-## Current frontier — exact external candidate review, dif-takeover-20260914 d10 / mandate r7
+## Current frontier — production art accepted, home integration next, dif-takeover-20260914 d11 / mandate r7
 
-The d10 [v008 evidence package](../../verification/dif-production-art-v008/README.md)
-retains every exact returned PNG and the supplied eye-fix log, then compiles a
-complete ten-clip structural candidate without touching shipped resources.
-All 71 frames and 20 gutters fit the measured baseline/envelope and 22.75 MiB
-decoded budget. Canonical generate, validate, verify, empty-output reproduction
-and retained compiler preview comparison pass. Declared-speed light/dark
-motion was observed at 64 and 96 pixels.
+The d11 integrator consumed the exact hand-back from attended session
+`7e489c0dd362c256bc28715a16892b65`. Twelve explicit human accept decisions at
+sequences 111–122 bind the changed neutral, every declared-speed clip and the
+exact derivative disposition; sequence 123 reports `pending: []`. The
+[sanitized verdict](../../verification/dif-production-art-v008/review/human-verdict.json)
+retains every criterion, fingerprint and decision ID. The loopback host is
+stopped, the watch exited, and the durable external session and protected
+review package remain historical evidence.
 
-Production-art remains partial. The common no-catchlight endpoint differs from
-the prior accepted neutral in 1,424 RGB pixels; several larger pose transitions
-need human judgment. Generator/tool/prompt/native-layer/terms facts are absent,
-so exact derivative distribution/notice disposition is also unanswered. A
-fresh external-state Dif-only attended queue binds those subjects separately.
-BPR-0755 is parked on human review; BPR-0756/BPR-0757 stay Backlog. No source,
-generated runtime catalog or normal application selection is promoted.
+Production commit `98841656ebde50cff92a74a955651f9d1aa9492f` promotes the
+byte-exact v008 result to `src/adapters/qt/assets/dif/`. A fresh reconstruction
+matched all 85 managed source/manifest/generated files. The production schema-2
+catalog has ten clips, 71 substantive frames, 20 transparent gutters and
+23,855,104 decoded RGBA bytes. Direct validate/verify, dev and core-only
+57-test contracts, narrow catalog compilation and the selected
+dev/core-only/tests-disabled application boundary pass. Known missing external
+generator metadata remains disclosed; sequence 122 supplies the required exact
+distribution/notice disposition without inventing it.
 
-Session `7e489c0dd362c256bc28715a16892b65` has all twelve
-candidates ready/protected at sequence `110`, bound to candidate commit
-`1b7daff5ec0d6ad2015e50e22b89c5193ebdbbfc`. Its one-criterion candidates
-preserve partial answers and keep the neutral, each clip and exact derivative
-disposition independently auditable.
-
-The d10 read-only scout and utility leaves returned quiescent. Their dispatched
-custom roles and self-reported route banners are recorded separately in v008;
-serving telemetry and runtime enforcement are not inferred. The next bounded
-action is to consume the exact attended decisions, promote only a complete
-accepted catalog, or repair and re-review rejected subjects.
+BPR-0755 and BPR-0756 are Done, and BPR-0757 is completing on this evidence.
+Both authored `production-art` exits are satisfied. The next eligible combined
+milestone is `home-integration`, because `runtime-foundation` is already
+accepted and its fixture-backed runtime can now select the real production
+catalog. That work must prove normal Home/Settings greeting, breathing, blink
+and static rest plus retained review/layout/profile/cache/inactive-timer
+behavior. It owns normal application resource selection and native Qt
+presentation; this production-art milestone does not claim those B1/B2/B5/B9–
+B11 results or formal RFC closeout.
 
 ## Previous frontier — bounded art retouch, dif-takeover-20260914 d8 / mandate r5
 
