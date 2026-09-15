@@ -17,10 +17,15 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QDateTime>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QFile>
 #include <QFileInfo>
 #include <QItemSelectionModel>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
@@ -40,6 +45,10 @@
 #include <functional>
 #include <iostream>
 #include <iterator>
+
+#ifdef __APPLE__
+	#include <mach/mach.h>
+#endif
 
 namespace {
 	using namespace bpr;
@@ -90,6 +99,137 @@ namespace {
 				expect(aWindow.defect_card()->grab().save(root + QStringLiteral("/card-") + aName), "exact accepted defect card rendered artifact");
 			}
 		}
+	}
+	auto memory_sample() -> QJsonObject
+	{
+#ifdef __APPLE__
+		task_vm_info_data_t info{ };
+		auto                count = mach_msg_type_number_t{ TASK_VM_INFO_COUNT };
+		if (task_info(mach_task_self(), TASK_VM_INFO, reinterpret_cast<task_info_t>(&info), &count) == KERN_SUCCESS) {
+			return { { "available", true }, { "resident_bytes", static_cast<qint64>(info.resident_size) }, { "physical_footprint_bytes", static_cast<qint64>(info.phys_footprint) } };
+		}
+#endif
+		return { { "available", false }, { "resident_bytes", QJsonValue::Null }, { "physical_footprint_bytes", QJsonValue::Null } };
+	}
+	void run_interval(const int aMilliseconds)
+	{
+		QElapsedTimer elapsed;
+		elapsed.start();
+		while (elapsed.elapsed() < aMilliseconds) {
+			QApplication::processEvents();
+			QThread::msleep(1);
+		}
+	}
+	auto dif_sample(const qt::dif_widget& aWidget) -> QJsonObject
+	{
+		const auto stats = aWidget.statistics();
+		const auto frame = aWidget.current_frame();
+		return { { "TimerWakeups", static_cast<qint64>(stats.TimerWakeups) },
+				 { "Paints", static_cast<qint64>(stats.Paints) },
+				 { "PlaybackStarts", static_cast<qint64>(stats.PlaybackStarts) },
+				 { "CompletedCalmLoops", stats.CompletedCalmLoops },
+				 { "Greeted", stats.Greeted },
+				 { "clip", static_cast<qint64>(frame.Clip) },
+				 { "frame", frame.Frame } };
+	}
+	void measure_dif(app::github_application& aOwner, qt::workbench_window& aWindow, qt::workbench_window& aSibling, QJsonObject& aReport)
+	{
+		if (qEnvironmentVariableIsEmpty("BPR_DIF_INTEGRATION_REPORT_PATH")) {
+			return;
+		}
+		aWindow.choose_home(true);
+		aWindow.open_settings(qt::settings_page::appearance);
+		auto* motion = aWindow.appearance_settings()->motion_selector();
+		motion->setCurrentIndex(motion->findData(static_cast<int>(core::motion_mode::full)));
+		for (auto* widget : QApplication::topLevelWidgets()) {
+			if (dynamic_cast<qt::settings_window*>(widget) != nullptr) {
+				widget->close();
+			}
+		}
+		aWindow.raise();
+		aWindow.activateWindow();
+		wait_for([&] { return aWindow.dif()->current_frame().NextMs.has_value(); }, "ordinary Full motion activates Home playback");
+		run_interval(200);
+		const auto* cache = aWindow.dif()->cache_identity();
+		expect(cache != nullptr && cache == aSibling.dif()->cache_identity(), "measurement retains shared production cache");
+		aReport["cache"] = QJsonObject{ { "pixel_bytes", static_cast<qint64>(cache->pixel_bytes()) },
+										{ "retained_bytes", static_cast<qint64>(cache->retained_bytes()) },
+										{ "conversion_peak_bytes", static_cast<qint64>(cache->conversion_peak_bytes()) },
+										{ "shared_identity", true },
+										{ "identity", "production-catalog-1" } };
+		QJsonArray captures;
+		const auto captureFrame = [&](const QString& aLabel) {
+			const auto name = QStringLiteral("dif-%1-%2.png").arg(QDateTime::currentDateTimeUtc().toString(QStringLiteral("yyyyMMddTHHmmsszzzZ")), aLabel);
+			capture(aWindow, name);
+			if (!qEnvironmentVariableIsEmpty("BPR_MULTI_WINDOW_ARTIFACT_ROOT")) {
+				captures.append(QJsonObject{ { "path", QDir(qEnvironmentVariable("BPR_MULTI_WINDOW_ARTIFACT_ROOT")).absoluteFilePath(name) }, { "sample", dif_sample(*aWindow.dif()) } });
+			}
+		};
+		captureFrame(QStringLiteral("full-before"));
+		const auto    fullBefore        = dif_sample(*aWindow.dif());
+		const auto    siblingFullBefore = dif_sample(*aSibling.dif());
+		const auto    diffBefore        = aWindow.comparison_surface()->statistics();
+		QElapsedTimer elapsed;
+		elapsed.start();
+		run_interval(1800);
+		const auto fullMs           = elapsed.elapsed();
+		const auto fullAfter        = dif_sample(*aWindow.dif());
+		const auto siblingFullAfter = dif_sample(*aSibling.dif());
+		const auto wakeups          = fullAfter["TimerWakeups"].toInteger() - fullBefore["TimerWakeups"].toInteger();
+		expect(wakeups > 0 && wakeups <= fullMs / 10 + 4, "active playback has bounded nonzero timer work");
+		const auto diffAfter = aWindow.comparison_surface()->statistics();
+		expect(diffAfter.GeometryRebuilds == diffBefore.GeometryRebuilds && diffAfter.Publications == diffBefore.Publications
+				   && diffAfter.PaneMeasurements == diffBefore.PaneMeasurements && diffAfter.SemanticIndexAdoptions == diffBefore.SemanticIndexAdoptions,
+			   "Home animation interval causes no diff publication, layout or semantic adoption");
+		aReport["full"] = QJsonObject{ { "elapsed_ms", fullMs }, { "before", fullBefore }, { "after", fullAfter }, { "sibling_before", siblingFullBefore }, { "sibling_after", siblingFullAfter } };
+		captureFrame(QStringLiteral("full-after"));
+		aWindow.open_settings(qt::settings_page::appearance);
+		motion->setCurrentIndex(motion->findData(static_cast<int>(core::motion_mode::reduced)));
+		for (auto* widget : QApplication::topLevelWidgets()) {
+			if (dynamic_cast<qt::settings_window*>(widget) != nullptr) {
+				widget->close();
+			}
+		}
+		aWindow.activateWindow();
+		wait_for([&] { return !aWindow.dif()->current_frame().NextMs.has_value(); }, "ordinary Reduced motion removes frame deadline");
+		run_interval(250);
+		captureFrame(QStringLiteral("reduced-before"));
+		const auto reducedBefore        = dif_sample(*aWindow.dif());
+		const auto siblingReducedBefore = dif_sample(*aSibling.dif());
+		const auto reducedDiffBefore    = aWindow.comparison_surface()->statistics();
+		elapsed.restart();
+		run_interval(1200);
+		const auto reducedMs           = elapsed.elapsed();
+		const auto reducedAfter        = dif_sample(*aWindow.dif());
+		const auto siblingReducedAfter = dif_sample(*aSibling.dif());
+		expect(siblingReducedBefore == siblingReducedAfter, "reduced sibling remains static");
+		expect(reducedBefore == reducedAfter, "reduced interval has no timer, paint, playback or frame change");
+		expect(reducedDiffBefore == aWindow.comparison_surface()->statistics(), "reduced interval causes no diff work");
+		aReport["reduced"] = QJsonObject{ { "elapsed_ms", reducedMs }, { "before", reducedBefore }, { "after", reducedAfter }, { "sibling_before", siblingReducedBefore }, { "sibling_after", siblingReducedAfter } };
+		captureFrame(QStringLiteral("reduced-after"));
+		aReport["captures"]            = captures;
+		aReport["diff_work_unchanged"] = true;
+		aReport["diff_work"]           = QJsonObject{ { "geometry_rebuilds_before", static_cast<qint64>(diffBefore.GeometryRebuilds) },
+													  { "geometry_rebuilds_after", static_cast<qint64>(diffAfter.GeometryRebuilds) },
+													  { "publications_before", static_cast<qint64>(diffBefore.Publications) },
+													  { "publications_after", static_cast<qint64>(diffAfter.Publications) },
+													  { "pane_measurements_before", static_cast<qint64>(diffBefore.PaneMeasurements) },
+													  { "pane_measurements_after", static_cast<qint64>(diffAfter.PaneMeasurements) },
+													  { "semantic_adoptions_before", static_cast<qint64>(diffBefore.SemanticIndexAdoptions) },
+													  { "semantic_adoptions_after", static_cast<qint64>(diffAfter.SemanticIndexAdoptions) } };
+		expect(aOwner.status().DifCatalogLoadAttempts == 1U && aOwner.status().DifCatalogDecodedClips == 10U
+				   && aWindow.dif()->cache_identity() == cache && aSibling.dif()->cache_identity() == cache,
+			   "intervals do not decode a second catalog");
+		aReport["load_attempts"] = static_cast<qint64>(aOwner.status().DifCatalogLoadAttempts);
+		aReport["decoded_clips"] = static_cast<qint64>(aOwner.status().DifCatalogDecodedClips);
+		const auto reportPath    = qEnvironmentVariable("BPR_DIF_INTEGRATION_REPORT_PATH");
+		expect(QDir{ }.mkpath(QFileInfo(reportPath).absolutePath()), "Dif report parent directory");
+		QFile report{ reportPath };
+		expect(report.open(QIODevice::WriteOnly | QIODevice::Truncate), "Dif report opens");
+		const auto bytes = QJsonDocument{ aReport }.toJson(QJsonDocument::Indented);
+		expect(report.write(bytes) == bytes.size() && report.flush(), "complete Dif JSON report written");
+		std::cout << "dif-integration-report:pass\n";
+		aWindow.modality()->action(qt::review_modality::read)->trigger();
 	}
 	void select_file(app::github_application& aOwner, qt::workbench_window& aWindow)
 	{
@@ -165,12 +305,18 @@ auto main(int aArgc, char** aArgv) -> int
 	QApplication::setQuitOnLastWindowClosed(false);
 	QTemporaryDir temporary;
 	expect(temporary.isValid(), "private multiwindow test root");
-	const auto root                   = std::filesystem::path{ QFileInfo{ temporary.path() }.canonicalFilePath().toStdString() };
-	auto       options                = app::detail::github_public_path_fixture_options{ };
-	options.ApplicationDataRoot       = root;
-	options.RegisteredDeviceCourse    = true;
-	options.IndependentWindowReads    = true;
-	options.RepeatReadSessions        = true;
+	const auto root                = std::filesystem::path{ QFileInfo{ temporary.path() }.canonicalFilePath().toStdString() };
+	auto       options             = app::detail::github_public_path_fixture_options{ };
+	options.ApplicationDataRoot    = root;
+	options.RegisteredDeviceCourse = true;
+	options.IndependentWindowReads = true;
+	options.RepeatReadSessions     = true;
+	QJsonObject difReport{
+		{ "schema", "bpr.dif-integration.v1" },
+		{ "qt_platform", QGuiApplication::platformName() },
+		{ "memory_scope", "whole-process Mach TASK_VM_INFO" },
+		{ "before_show", memory_sample() },
+	};
 	app::github_application* owner    = nullptr;
 	auto                     terminal = false;
 	auto                     desktop  = app::detail::github_application_fixture_access::start_desktop(
@@ -189,6 +335,7 @@ auto main(int aArgc, char** aArgv) -> int
 	const auto first   = owner->windows().front();
 	auto*      windowA = owner->window(first);
 	expect(windowA != nullptr && windowA->isVisible(), "first public window visible");
+	difReport["one_window"] = memory_sample();
 	// [[BPR-0732]]. Where preview is composed a pasted public link no longer
 	// stops at sign-in: it opens signed out, and the fixture answers the
 	// anonymous read of one pull request once, not the independent and
@@ -238,6 +385,7 @@ auto main(int aArgc, char** aArgv) -> int
 			   && owner->status(second)->DifCatalogLoadAttempts == 1U
 			   && owner->status(second)->DifCatalogDecodedClips == 10U,
 		   "the shared provider decodes all ten accepted strips exactly once");
+	difReport["two_windows"] = memory_sample();
 	windowA->resize(1100, 700);
 	windowB->resize(1400, 900);
 	QApplication::processEvents();
@@ -286,6 +434,7 @@ auto main(int aArgc, char** aArgv) -> int
 	const auto comparisonB = windowB->comparison_surface()->current_result();
 	expect(comparisonA->Alignment.Key.PullRequest == snapshotA->PullRequest.PullRequest && comparisonB->Alignment.Key.PullRequest == snapshotB->PullRequest.PullRequest, "each displayed comparison names its accepted PR");
 	expect(comparisonA->Alignment.Key != comparisonB->Alignment.Key, "different PR windows retain distinct exact comparison keys");
+	measure_dif(*owner, *windowB, *windowA, difReport);
 	const auto selectionB = windowB->comparison_surface()->selection();
 	expect(windowA->comparison_surface()->select_conversation_line(core::diff_side::right, 2U), "first window supports exact semantic line selection");
 	expect(windowA->comparison_surface()->selection().has_value(), "first window receives semantic selection");
