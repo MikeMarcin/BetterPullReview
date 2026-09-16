@@ -2384,6 +2384,42 @@ set_tests_properties(application_profile_management_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300
     PASS_REGULAR_EXPRESSION "profile-management-public-path:pass")
 
+if(APPLE)
+    # RFC-BPR-0033 B1 and B2, the native half. The owner's attended review of the
+    # shipped build found the macOS menu bar emptied by closing the last window,
+    # which the offscreen course above cannot see. This course runs the same
+    # desktop composition on the cocoa platform and reads `[NSApp mainMenu]`
+    # through AppKit at every event-loop turn of the close, then reopens through
+    # the Dock's reopen message, native activation, Command-N and the Profiles
+    # menu. It needs the owner's Aqua session; there is no offscreen substitute.
+    enable_language(OBJCXX)
+    bpr_add_executable(test_profile_empty_desktop_native_menu_bar
+        profile_empty_desktop_native_menu_bar_tests.cpp
+        native_main_menu_probe_mac.mm)
+    set_source_files_properties(native_main_menu_probe_mac.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+    find_library(BPR_TEST_APPKIT_FRAMEWORK AppKit REQUIRED)
+    # QtGui's private QPA headers for the focus-window delivery the cocoa plugin
+    # itself uses, taken only when the session refuses to activate the process.
+    target_link_libraries(test_profile_empty_desktop_native_menu_bar PRIVATE
+        BetterPullReview::Composition "${BPR_TEST_APPKIT_FRAMEWORK}" objc)
+    file(GLOB bpr_qtgui_private_headers LIST_DIRECTORIES true
+        "${Qt6Gui_DIR}/../../QtGui.framework/Headers/[0-9]*.[0-9]*.[0-9]*")
+    list(LENGTH bpr_qtgui_private_headers bpr_qtgui_private_header_count)
+    if(NOT bpr_qtgui_private_header_count EQUAL 1)
+        message(FATAL_ERROR "Expected one versioned QtGui private header directory, found: ${bpr_qtgui_private_headers}")
+    endif()
+    target_include_directories(test_profile_empty_desktop_native_menu_bar SYSTEM PRIVATE
+        "${bpr_qtgui_private_headers}" "${bpr_qtgui_private_headers}/QtGui")
+    target_compile_definitions(test_profile_empty_desktop_native_menu_bar PRIVATE BPR_BUILD_TESTING=1)
+    target_compile_features(test_profile_empty_desktop_native_menu_bar PRIVATE cxx_std_23)
+    bpr_enable_hardening(test_profile_empty_desktop_native_menu_bar)
+    bpr_enable_warnings(test_profile_empty_desktop_native_menu_bar)
+    bpr_add_network_isolated_test(NAME application_profile_empty_desktop_native_menu_bar COMMAND test_profile_empty_desktop_native_menu_bar)
+    set_tests_properties(application_profile_empty_desktop_native_menu_bar PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=cocoa" RUN_SERIAL TRUE TIMEOUT 300
+        PASS_REGULAR_EXPRESSION "profile-empty-desktop-native-menu-bar:pass")
+endif()
+
 bpr_add_executable(test_profile_multi_window_public_path profile_multi_window_public_path_tests.cpp)
 target_link_libraries(test_profile_multi_window_public_path PRIVATE BetterPullReview::Composition)
 target_compile_definitions(test_profile_multi_window_public_path PRIVATE BPR_BUILD_TESTING=1)
