@@ -93,6 +93,34 @@ accepted, rendered and by VoiceOver. What is not met is the last window.
   and [[BPR-0799]].
 - **Unrelated to this pack, and reported by the owner in the same sitting:** [[BPR-0797]].
 
+### Integration pass - d8, source revision `ed2b3f14`, courses at `a85a1365`
+
+One integration pass at the pack's combined boundary, run by the integrator, at
+**zero pending build actions** (`ninja -C build/dev -n` reported "no work to do"
+immediately before and immediately after) and against the **same executable the
+owner reviewed**, sha256 `d500ef7a899d2afef1477f54a37b4ca68ad1e3929bca97995d9dbd80a4399f3b`.
+
+**48 courses, 100% passed, 48/48, 882.21 s** (`scratchpad/d8-int-pass-01.log`,
+zero `***Failed` lines): every `qt_composed_github`, `qt_settings_window`,
+`qt_workbench_window`, `qt_home_list`, `qt_anonymous_public_preview`,
+`qt_device_authorization` and `qt_surface_capture_course` scale variant, the
+appearance set (`qt_appearance_*`, `qt_colour_role_list`, `qt_theme_preview_strip`,
+`qt_type_preview`, `qt_code_sample_painter`, `application_appearance_host`,
+`sqlite_appearance_settings_storage`), `qt_profile_management_window`,
+`qt_settings_effect_boundary`, `application_workbench_host`,
+`application_queue_composition_contract`,
+`application_setup_destination_public_path`, `architecture_boundary_contract`,
+`sqlite_workbench_settings_storage`, all seven `application_profile_*_public_path`
+courses, and the new `application_profile_empty_desktop_native_menu_bar`.
+
+`src/` is byte-identical to the reviewed revision - `git log ed2b3f14..HEAD -- src/`
+is empty - so this pass confirms the pack's behaviour at exactly the revision the
+owner judged, rather than at a moved one. `test_network_isolation_manifest` was
+run separately because d8 adds a test registration; it fails on the
+`.claude/worktrees` checkout's duplicate `add_test` ownership and on
+`gh_cli_git_smart_transport`, exactly as before, and names nothing from the new
+course (`scratchpad/d8-isolation-manifest.log`).
+
 ## Boundaries
 
 No GitHub or GHES mutation, credential access, provider change or new preference is authorized by this card. The core decides, the host performs, Qt presents: no widget reaches a store, a vault, a provider or a process. No stylesheet or hard-coded palette. Follow the milestone exit rather than running an exhaustive app-wide course for this slice.
