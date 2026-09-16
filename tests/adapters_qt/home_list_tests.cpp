@@ -1109,6 +1109,57 @@ namespace {
 			   "a queue publication does not reopen what the reviewer closed");
 	}
 
+	// [[BPR-0783]] Decisions (a), settled by the owner on 2026-09-15: a group's
+	// collapse is deliberately not remembered across a restart. It must therefore
+	// never reach the view the window persists -- a group key names an owner, a
+	// repository or an account -- and a window given its remembered view back
+	// must show its groups expanded.
+	void test_a_group_collapse_never_reaches_the_remembered_view()
+	{
+		home_fixture home;
+		auto         views = 0;
+		home.Source.apply(two_account_queue());
+		home.List.set_queue_status(true, true);
+		home.List.set_view_observer([&views] { ++views; });
+		home.List.show();
+		settle(300);
+
+		// A panel that carries no name is remembered, and reports itself.
+		home.List.state_panel(qt::home_group::following)->set_collapsed(true);
+		settle(100);
+		expect(views == 1 && home.List.collapsed_panels() == application::home_collapsed_panel::following,
+			   "collapsing a state panel reaches the view the window remembers");
+
+		home.List.set_grouping(application::home_grouping::organization);
+		settle(200);
+		const auto  grouped = views;
+		auto* const group   = home.List.group_panel(QStringLiteral("octo-org"));
+		expect(group != nullptr, "the owner group is shown");
+		group->set_collapsed(true);
+		auto* const band = home.List.band_panel(*group, qt::home_group::following);
+		expect(band != nullptr, "its Following band is shown");
+		band->set_collapsed(true);
+		settle(150);
+		expect(views == grouped,
+			   "collapsing a group or its band dispatches nothing, so no owner, repository or account name travels to the store");
+		expect(home.List.collapsed_panels() == application::home_collapsed_panel::following,
+			   "and the panels the window remembers are unchanged by it");
+
+		// What a restart restores is those bits alone.
+		home_fixture restarted;
+		restarted.Source.apply(two_account_queue());
+		restarted.List.set_queue_status(true, true);
+		restarted.List.set_collapsed_panels(home.List.collapsed_panels());
+		restarted.List.set_grouping(application::home_grouping::organization);
+		restarted.List.show();
+		settle(300);
+		auto* const restored = restarted.List.group_panel(QStringLiteral("octo-org"));
+		expect(restored != nullptr && !restored->collapsed(),
+			   "a restarted window shows its groups expanded, as the owner chose");
+		expect(!restarted.List.band_panel(*restored, qt::home_group::following)->collapsed(),
+			   "and the bands inside them expanded");
+	}
+
 	// A7 and A8: the keyboard walks group headers, band headers and rows in
 	// reading order, with one current row across every view.
 	void test_the_keyboard_walks_groups_bands_and_rows()
@@ -1311,6 +1362,7 @@ auto main(int argc, char** argv) -> int
 	test_account_chips_follow_the_account_count_and_the_group();
 	test_a_band_collapses_and_sticks_under_its_group_header();
 	test_group_collapse_survives_a_regroup_round_trip();
+	test_a_group_collapse_never_reaches_the_remembered_view();
 	test_the_keyboard_walks_groups_bands_and_rows();
 	test_an_empty_queue_is_one_sentence_in_every_grouping();
 	test_a_sort_orders_rows_within_a_state();

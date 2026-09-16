@@ -168,9 +168,10 @@ column. Signed in it holds, top to bottom:
   rows inside a state since state is always the first key. Repository and
   Bucket are no longer filters because Group and the state order do their
   job. The menu's footer says nothing here changes GitHub and links to
-  Settings for saved repositories and rules. Group, State headers, collapsed
-  panels and Filter are remembered per window, as RFC-BPR-0024 places window
-  filters.
+  Settings for saved repositories and rules. Group, State headers, the state
+  panels' and Recently viewed's collapse, and Filter are remembered per window,
+  as RFC-BPR-0024 places window filters; a group panel's own collapse is not,
+  by the owner's direction below.
 - **Recently viewed**, last, as its own neutral panel in every grouping, with
   Resume as a row action shown on hover, on focus and in the row's menu.
 - **The status bar** carries the session line ("Signed in as MikeMarcin on
@@ -202,6 +203,17 @@ message. RFC-BPR-0031's greeting, calm and blink cadence, its motion and
 visibility preferences, its one sprite per window and its explicit AI tools
 slot on review surfaces are unchanged. Resting in the corner while a review
 is read lies outside this RFC's Home boundary and is carried as a follow-up.
+
+**Group collapse (owner direction, 2026-09-15).** Collapsing an
+organization, repository or account group is remembered only while its window
+is open. Remembering it across a restart would mean the per-window workbench
+settings record naming owners, repositories and accounts, which that file has
+never held ([[BPR-0189]]); asked to choose, the owner answered "Do what's
+easiest, which sounds like dont remember for now". The basis was ease, and
+"for now", so this is revisitable: remembering it later means a bounded
+durable record for those keys in a store whose purpose admits names, not a
+weakening of the settings schema's guarantee. Everything else Home remembers
+per window is unchanged.
 
 ### Language shared by both
 
@@ -314,7 +326,9 @@ the window's view state.
   State headers, Filter and the refresh glyph before account and settings;
   Filter holds exactly My role, Added by, Quiet items and Sort within a group
   over the existing typed preferences with their store and reset unchanged;
-  Group, State headers, collapse and Filter persist per window; Home over a
+  Group, State headers, the state panels' and Recently viewed's collapse, and
+  Filter persist per window, while a group panel's collapse lasts only while
+  its window is open (owner direction, 2026-09-15); Home over a
   review keeps its one return row; the status bar shows the session line and
   never that no pull request is open while Home is shown.
 - **A8 — Rendered and reachable.** The Accounts page in its connected,
