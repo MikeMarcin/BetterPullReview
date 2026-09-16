@@ -8,7 +8,7 @@ depends_on: []
 platforms: ["mac"]
 metadata: {"pack":"bpr-shell-surfaces-v1","origin":"attended review e966c88f3320638208adf4fcf0651e31, candidate bpr-0779-empty-desktop-dock, rejected 2026-09-16","acceptance":["B1","B2"]}
 parked_on: "human-review"
-acceptance: [{"criterion":"AC1 - On real macOS the last close leaves the application resident with the menu bar RFC-BPR-0033 names, not merely a menu bar, and the Dock icon present; if the RFC's parenthetical is what should change, change it and say why","outcome":"pass","revision":"1c40d04b","evidence":{"kind":"command","detail":"Read from AppKit in the process under test by application_profile_empty_desktop_native_menu_bar on the cocoa platform, at zero pending build actions, against executable sha256 1f60b0a267878bd9525488f15fa27e97e778cf006a087b2f1e2d5a9ae4f0c17d. With a window and after the last close, [NSApp mainMenu] reads the same line: Apple[Preferences...;Services;Hide;Hide Others;Show All;Quit] + ~File[] + Profiles[Default;New Window;Manage Profiles...] + View[Line numbers;One pane], with Line numbers and One pane not enabled. The course asserts three separate equalities - the visible top-level titles, the items of the application menu AppKit owns, the items under View - and then the whole description, so the close is required to subtract nothing a reviewer can see. Before the fix the same course printed 'windowed top-level menus: Apple, Profiles, View' against 'windowless top-level menus: Apple, Profiles'. THE RFC'S PARENTHETICAL WAS NOT CHANGED, and the card says why: File, Profiles and View are all in the bar afterwards; AppKit hides the emptied File title identically with a window and without, so nothing about File changes at the close. A visible File menu carrying New Window was considered and rejected - it would make the windowless bar carry a menu the windowed bar does not, which is the owner's complaint in the other direction. LIMITATION: the Dock TILE itself is human-only; what the course asserts is [NSApp activationPolicy] == NSApplicationActivationPolicyRegular, which is what buys the tile, plus zero AppKit windows on screen. Whether AppKit REPAINTS the bar of a windowless active application is human-only and is the prepared candidate's first question. Logs: scratchpad/d9-native-baseline-verbose.log (before, unchanged source), scratchpad/d9-course-fails-first.log (the failure), scratchpad/d9-course-after-fix-2.log (after)."}},{"criterion":"AC2 - application_profile_empty_desktop_native_menu_bar asserts the new contract on [NSApp mainMenu] and fails before the change; the existing course is extended, not replaced","outcome":"pass","revision":"1c40d04b","evidence":{"kind":"command","detail":"The existing course was extended in place; its 0 ms gap assertion, its Settings pin, its four reopening gestures and its Quit are all still there. Added: a snapshot of the windowed bar (visible titles, application-menu items, View items, full description) and the requirement that the windowless bar equal it; a probe that reads those three lists from AppKit (main_menu_visible_titles, main_menu_items, main_menu_item_is_enabled); gap sampling across each reopening as well as each close. IT FAILED FIRST, on unchanged src/ at zero pending build actions, at exactly the defect: 'FAILED: closing the last window takes no menu off the bar', having printed 'windowed top-level menus: Apple, Profiles, View' and 'windowless top-level menus: Apple, Profiles' (scratchpad/d9-course-fails-first.log). After the fix it passes in 6.4 s (scratchpad/d9-course-after-fix-2.log, scratchpad/d9-decisive-1.log). No new test registration was added and no LOOPBACK_PORT_COUNT changed, so test_network_isolation_manifest was not re-run; d8's run of it stands."}},{"criterion":"AC3 - Activation, Command-N and the Profiles menu each still reopen the most recently used profile at Home exactly once under one runtime owner; the Dock tile, a literal Dock click and AppKit repaint are named, never claimed","outcome":"pass","revision":"1c40d04b","evidence":{"kind":"command","detail":"On the fixed source, at AppKit level: applicationShouldHandleReopen:hasVisibleWindows:NO delivered to the real application delegate, Command-N synthesized as an NSEvent through -[NSApplication sendEvent:] with no key window, and performActionForItemAtIndex: on the native Profiles - Default item each reopen Default at Home, with exactly one window under one runtime owner, and each further close returns the resident bar. Quit from the merged application-menu item quits the desktop. Each reopening is now sampled in both directions and reports a 0 ms gap, which is new: the desktop's bar is retired when a window becomes active, so the handover is a real transition rather than a no-op. Offscreen, application_profile_management_public_path proves the same three gestures including the Qt::ApplicationActive activation signal, and now also pins that the desktop's menu bar steps aside once a window is active. NOT RUN, and recorded as not run: the native hide-and-unhide activation gesture - this console session was screen-locked for every d9 run (CGSSessionScreenIsLocked = 1, frontmost loginwindow), exactly as it was for d8, so the course delivers the two key-window transitions through the QPA entry point the cocoa plugin itself uses and prints 'not run: native application activation (hide and unhide) needs a session that activates this process'. HUMAN-ONLY and not claimed: the Dock tile, a literal Dock click, and whether AppKit repaints a windowless active application's bar."}},{"criterion":"AC4 - The windowed menu bar is unchanged: a parentless menu bar that exists while windows are open must not take the menu bar away from a window that has one; the course pins this with Settings focused","outcome":"pass","revision":"1c40d04b","evidence":{"kind":"command","detail":"THIS WAS A REAL DEFECT AND IT IS FIXED. The course pinned Settings focus only BEFORE the first close, when the desktop had never built its bar, so the pin could not fail. Moved to after a reopening - the arrangement this criterion actually describes - it failed: Qt hands a parentless menu bar to any focused window carrying none of its own (QCocoaMenuBar::updateMenuBarImmediately takes the global bar and only overrides it when the focused window has its own), so the desktop's bar replaced the workbench's the moment the menubar-less Settings window took focus, offering that window's own commands greyed while the window was right behind it. Pre-existing since BPR-0777 and more visible once the bar had View in it. profile_desktop now retires the desktop's menu bar when a profile window becomes ACTIVE - that moment rather than when the window opens, because that is when the window's own bar takes the macOS menu bar - and present_desktop_menu() builds it again when the desktop empties. Both pins now hold: with Settings focused before any close, and with Settings focused after a reopening, [NSApp mainMenu] is the workbench window's own bar. No workbench menu was added, removed or reworded; qt_workbench_window at all four scales, qt_settings_window at all four scales and qt_settings_effect_boundary pass unchanged."}},{"criterion":"AC5 - The owner accepts the result on a real macOS build through the attended-review workflow; the rejection of 2026-09-16 cannot be cleared any other way and BPR-0782 B5 stays unmet until it is","outcome":"pending","revision":"1c40d04b","evidence":{"kind":"observation","detail":"PREPARED, DELIBERATELY NOT PERFORMED. Exactly one candidate, bpr-0796-empty-desktop-menu-bar, in the pack's existing attended session e966c88f3320638208adf4fcf0651e31 at /Users/jaeger/.mask/bpr-shell-surfaces-d7-20260915/attended-review, bound to revision '1c40d04b / app sha256 1f60b0a267878bd9525488f15fa27e97e778cf006a087b2f1e2d5a9ae4f0c17d'. The seventeen verdicts of 2026-09-16 are preserved untouched, including the rejection this candidate answers; the new candidate is a new id, so that rejection stays bound to what was actually reviewed. It carries the AppKit before-and-after as text, a nine-step script ending in the Settings-focus check, an explicit instruction to reject and name the step, and an explicit list of what is not its question (Windows and Linux, and BPR-0797's tests-enabled composition defects). No screenshot is attached and the candidate says why: the macOS menu bar is AppKit's, this console has been locked for every run, and a rendering of our own QMenuBar would be a mockup of the thing in question. It was not performed because a dispatch that changes what a reviewer sees does not get to accept it, and because the mandate asked for preparation rather than performance. This criterion, RFC-BPR-0033 B5, and therefore BPR-0782, stay open until the owner answers."}}]
+acceptance: [{"criterion":"AC1 - On real macOS the last close leaves the application resident with the menu bar RFC-BPR-0033 names, not merely a menu bar, and the Dock icon present; if the RFC's parenthetical is what should change, change it and say why","outcome":"pass","revision":"1c40d04b","evidence":{"kind":"command","detail":"Read from AppKit in the process under test by application_profile_empty_desktop_native_menu_bar on the cocoa platform, at zero pending build actions, against executable sha256 1f60b0a267878bd9525488f15fa27e97e778cf006a087b2f1e2d5a9ae4f0c17d. With a window and after the last close, [NSApp mainMenu] reads the same line: Apple[Preferences...;Services;Hide;Hide Others;Show All;Quit] + ~File[] + Profiles[Default;New Window;Manage Profiles...] + View[Line numbers;One pane], with Line numbers and One pane not enabled. The course asserts three separate equalities - the visible top-level titles, the items of the application menu AppKit owns, the items under View - and then the whole description, so the close is required to subtract nothing a reviewer can see. Before the fix the same course printed 'windowed top-level menus: Apple, Profiles, View' against 'windowless top-level menus: Apple, Profiles'. THE RFC'S PARENTHETICAL WAS NOT CHANGED, and the card says why: File, Profiles and View are all in the bar afterwards; AppKit hides the emptied File title identically with a window and without, so nothing about File changes at the close. A visible File menu carrying New Window was considered and rejected - it would make the windowless bar carry a menu the windowed bar does not, which is the owner's complaint in the other direction. LIMITATION: the Dock TILE itself is human-only; what the course asserts is [NSApp activationPolicy] == NSApplicationActivationPolicyRegular, which is what buys the tile, plus zero AppKit windows on screen. Whether AppKit REPAINTS the bar of a windowless active application was human-only for d8 and d9 and is now ANSWERED, on an unlocked console, by photograph rather than by inference: with the application active, the menu bar strip captured with a window open and the same strip captured after the last window closed are the same PNG, sha256 5bb204b1972d673125b18cc80beda8c454a682f104bc6050feddb6080d7d7858 (scratchpad/d10/cap-a-windowed-bar.png and cap-b-windowless-bar.png, taken with screencapture against the pinned bundle). AppKit repaints it, and it reads Apple, BetterPullReview (tests), Profiles, View in both states. Logs: scratchpad/d9-native-baseline-verbose.log (before, unchanged source), scratchpad/d9-course-fails-first.log (the failure), scratchpad/d9-course-after-fix-2.log (after)."}},{"criterion":"AC2 - application_profile_empty_desktop_native_menu_bar asserts the new contract on [NSApp mainMenu] and fails before the change; the existing course is extended, not replaced","outcome":"pass","revision":"1c40d04b","evidence":{"kind":"command","detail":"The existing course was extended in place; its 0 ms gap assertion, its Settings pin, its four reopening gestures and its Quit are all still there. Added: a snapshot of the windowed bar (visible titles, application-menu items, View items, full description) and the requirement that the windowless bar equal it; a probe that reads those three lists from AppKit (main_menu_visible_titles, main_menu_items, main_menu_item_is_enabled); gap sampling across each reopening as well as each close. IT FAILED FIRST, on unchanged src/ at zero pending build actions, at exactly the defect: 'FAILED: closing the last window takes no menu off the bar', having printed 'windowed top-level menus: Apple, Profiles, View' and 'windowless top-level menus: Apple, Profiles' (scratchpad/d9-course-fails-first.log). After the fix it passes in 6.4 s (scratchpad/d9-course-after-fix-2.log, scratchpad/d9-decisive-1.log). No new test registration was added and no LOOPBACK_PORT_COUNT changed, so test_network_isolation_manifest was not re-run; d8's run of it stands. d10 EXTENDED THE SAME COURSE AGAIN, on the first console that could run all of it. Two things. (1) It now pins the half of the owner's sentence the main menu is blind to: a close watched while this process is the active application must leave it active, counted over every close the course watches, so a person clicking another application mid-run cannot fail it while a close that really resigned activation cannot pass. Not vacuous, twice over: injecting a hide 40 ms into the first close fails at that exact message, and making every close resign activation fails at the summary one (scratchpad/d10/d10-course-nonvacuity.log, d10-nonvacuity2.log). (2) The hide-and-unhide arm, which had NEVER RUN because every earlier session was screen-locked, ran for the first time and FAILED at unhiding activates it again - and the assertion was wrong, not the application: -[NSApplication unhide:] restores windows and does not take activation, and a windowless application has no windows to restore. A plain AppKit application measured beside it stays inactive after unhide: four runs out of four, and stays inactive after activateIgnoringOtherApps: as well (scratchpad/d10/appkit-reference.log). The arm now asks for activation and records whether macOS granted it, which it does intermittently. Green five runs out of five, 3.99-6.05 s (scratchpad/d10/d10-stab1..5.log), with the app binary still sha256 1f60b0a2..., and focus() now falls back to the QPA delivery when the console is taken away mid-run instead of failing on it."}},{"criterion":"AC3 - Activation, Command-N and the Profiles menu each still reopen the most recently used profile at Home exactly once under one runtime owner; the Dock tile, a literal Dock click and AppKit repaint are named, never claimed","outcome":"pass","revision":"1c40d04b","evidence":{"kind":"command","detail":"On the fixed source, at AppKit level: applicationShouldHandleReopen:hasVisibleWindows:NO delivered to the real application delegate, Command-N synthesized as an NSEvent through -[NSApplication sendEvent:] with no key window, and performActionForItemAtIndex: on the native Profiles - Default item each reopen Default at Home, with exactly one window under one runtime owner, and each further close returns the resident bar. Quit from the merged application-menu item quits the desktop. Each reopening is now sampled in both directions and reports a 0 ms gap, which is new: the desktop's bar is retired when a window becomes active, so the handover is a real transition rather than a no-op. Offscreen, application_profile_management_public_path proves the same three gestures including the Qt::ApplicationActive activation signal, and now also pins that the desktop's menu bar steps aside once a window is active. NOT RUN, and recorded as not run: the native hide-and-unhide activation gesture - this console session was screen-locked for every d9 run (CGSSessionScreenIsLocked = 1, frontmost loginwindow), exactly as it was for d8, so the course delivers the two key-window transitions through the QPA entry point the cocoa plugin itself uses and prints 'not run: native application activation (hide and unhide) needs a session that activates this process'. d10 ran all of it on an unlocked console against the pinned bundle and photographed the result: a literal Dock-tile click reopens exactly one window at Home, Command-N does, the native Profiles item does, Quit from the application menu quits, and the windowless bar is repainted and identical. The hide-and-unhide gesture is NOT the same as activation and is recorded separately below. What stays human-only is now only what the owner did on their own console."}},{"criterion":"AC4 - The windowed menu bar is unchanged: a parentless menu bar that exists while windows are open must not take the menu bar away from a window that has one; the course pins this with Settings focused","outcome":"pass","revision":"1c40d04b","evidence":{"kind":"command","detail":"THIS WAS A REAL DEFECT AND IT IS FIXED. The course pinned Settings focus only BEFORE the first close, when the desktop had never built its bar, so the pin could not fail. Moved to after a reopening - the arrangement this criterion actually describes - it failed: Qt hands a parentless menu bar to any focused window carrying none of its own (QCocoaMenuBar::updateMenuBarImmediately takes the global bar and only overrides it when the focused window has its own), so the desktop's bar replaced the workbench's the moment the menubar-less Settings window took focus, offering that window's own commands greyed while the window was right behind it. Pre-existing since BPR-0777 and more visible once the bar had View in it. profile_desktop now retires the desktop's menu bar when a profile window becomes ACTIVE - that moment rather than when the window opens, because that is when the window's own bar takes the macOS menu bar - and present_desktop_menu() builds it again when the desktop empties. Both pins now hold: with Settings focused before any close, and with Settings focused after a reopening, [NSApp mainMenu] is the workbench window's own bar. No workbench menu was added, removed or reworded; qt_workbench_window at all four scales, qt_settings_window at all four scales and qt_settings_effect_boundary pass unchanged."}},{"criterion":"AC5 - The owner accepts the result on a real macOS build through the attended-review workflow; the rejection of 2026-09-16 cannot be cleared any other way and BPR-0782 B5 stays unmet until it is","outcome":"pending","revision":"1c40d04b","evidence":{"kind":"observation","detail":"REJECTED a second time, on this build, and adjudicated. The owner opened bpr-0796-empty-desktop-menu-bar, launched the pinned binary at 07:05:48 PDT and checked its digest at 07:06:08 (their own shell history records both commands verbatim against the candidate's path), and at 14:11:41Z rejected it with: When I close the last window it stays running in the bottom dock but not in the top menu bar. The session is reconciled with their export and now holds 18 of 18 decided at sequence 81. WHAT THAT NOTE TURNED OUT TO DESCRIBE, settled on an unlocked console rather than argued: the fix is right and their eyes were right, about different things. [NSApp mainMenu] is this process's property and reads the same whoever is active; the bar drawn across the top of the screen belongs to the ACTIVE application alone. With the application active, the close changes nothing a person can see - the menu bar strip photographed with a window open and after the close is the same PNG, sha256 5bb204b1972d673125b18cc80beda8c454a682f104bc6050feddb6080d7d7858. Close the last window while the application is NOT active, which a click on an inactive window's red close button does without activating anything, and the report is exact: the process is alive, it has no window, its Dock tile is there, and the menu bar on screen is the other application's (scratchpad/d10/i2-after-clickthrough.png). NOT A REGRESSION OF THIS PACK and not peculiar to this application: a plain AppKit application built for the comparison behaves identically. What is now prepared is a replacement candidate that carries those photographs, tells the owner how to tell whether this application is the front one, and asks the one question only they can answer - whether it was. This criterion, RFC-BPR-0033 B5 and therefore BPR-0782 stay open until they answer it."}}]
 ---
 
 # BPR-0796: Keep the macOS menu bar when the last window closes
@@ -30,6 +30,16 @@ below; read it before choosing a fix.
 The widget tree is what let this ship: [[BPR-0777]] AC2 inferred the native
 behaviour from the fact that `qt::desktop_menu_bar` is parentless, which is
 Qt's documented recipe but is not an observation.
+
+**The owner rejected the fix too**, on the same day, with a second sentence:
+"When I close the last window it stays running in the bottom dock but not in the
+top menu bar." That one is not about the menus. Read
+[d10](#d10-the-second-rejection-and-what-it-turned-out-to-describe) before this
+card's earlier sections, which were written while the menu bar could not be
+photographed and the difference between "our bar" and "the bar on screen" had no
+instrument: only the *active* application's menu bar is drawn, and everything
+below was measured on `[NSApp mainMenu]`, which is true of this process whoever
+is active.
 
 ## Acceptance
 
@@ -252,11 +262,27 @@ An unlocked console session on this machine would close the third of these
 without an attended verdict. None of it is a reason to hold the fix, and none of
 it may be inferred from the course.
 
-### The one prepared attended candidate
+**d10 had that unlocked session, and this list is now shorter than it reads.**
+The repaint is photographed and identical with and without a window; the Dock
+tile was clicked for real and reopens one window at Home; the hide-and-unhide
+gesture ran for the first time and turned out to be asserting something untrue of
+AppKit rather than something untrue of this application. What remains human-only
+is not a property of the build at all — it is what the owner did on their own
+console, which nothing here can recover.
 
-Prepared in d9 and **deliberately not performed**: a dispatch that changes what a
-reviewer sees does not get to accept it, and the mandate asked for preparation
-rather than performance.
+### The one prepared attended candidate — performed by the owner, and rejected
+
+Prepared in d9 and **deliberately not performed** by it: a dispatch that changes
+what a reviewer sees does not get to accept it, and the mandate asked for
+preparation rather than performance. **The owner performed it on 2026-09-16 and
+rejected it**; the record below is what they were given, kept as it was written,
+and the rejection and its adjudication are in
+[d10](#d10-the-second-rejection-and-what-it-turned-out-to-describe). Two things
+in it were wrong and are not repeated in the replacement: it told the owner a
+screenshot was impossible, which stopped being true the moment the console was
+unlocked, and step 8 asked them to check that View's items were **enabled** with
+Settings focused, when at Home they are disabled with any window focused,
+because nothing is open for them to act on.
 
 - **Candidate** `bpr-0796-empty-desktop-menu-bar`, fingerprint
   `f9c7cd40eca353118cfb94779ace743f57f35e21386d079f7ce3a629cb550b07`
@@ -335,6 +361,122 @@ three of them were wrong in text a person will read:
    is not worth moving what the owner is about to look at. Whoever takes the
    owner's verdict should decide it with that verdict in hand.
 
+### d10: the second rejection, and what it turned out to describe
+
+The owner reviewed the fixed build and rejected it again, on 2026-09-16 at
+14:11:41Z:
+
+> When I close the last window it stays running in the bottom dock but not in the
+> top menu bar.
+
+Their shell history settles the first question before any theory is needed. At
+**07:05:48** they ran the candidate's launch command — the pinned binary, path for
+path — and at **07:06:08** they ran `shasum -a 256` on it. They reviewed the build
+the candidate names. Nothing rebuilt `build/dev`: the executable's own timestamp is
+still 02:05:53 that morning and its digest is still
+`1f60b0a267878bd9525488f15fa27e97e778cf006a087b2f1e2d5a9ae4f0c17d`.
+
+**What settled the rest was an unlocked console.** Every earlier dispatch reported
+`screen locked: yes, frontmost: loginwindow` and had to say the menu bar could not
+be photographed. This one could. With the application active, the close changes
+nothing a person can see: the menu-bar strip captured with a window open and the
+strip captured after the last window closed are **the same PNG**, sha256
+`5bb204b1972d673125b18cc80beda8c454a682f104bc6050feddb6080d7d7858`, reading
+`Apple · BetterPullReview (tests) · Profiles · View` in both. Not the same menus by
+name — the same pixels. The walk was done the whole way on that console: a literal
+Dock-tile click, ⌘N and the native Profiles item each reopen exactly one window at
+Home, and Quit from the application menu quits.
+
+**And the owner's sentence is exactly reproducible, on the same build, in one
+gesture.** `[NSApp mainMenu]` is this process's property and reads the same whoever
+is active; the bar drawn across the top of the screen belongs to the **active**
+application alone. Close the last window while this application is *not* the active
+one — which a click on an inactive window's red close button does, because macOS
+lets the close button through without activating anything — and the report is
+word for word what happened: the process is alive, it has no window, its Dock tile
+is there, and the menu bar on screen belongs to whichever application is active
+(`scratchpad/d10/i2-after-clickthrough.png`).
+
+So both are true, of different things. The automated measurement was not wrong; it
+was blind. Every assertion this course made was about a menu, and the owner's
+sentence was about activation.
+
+**None of it is peculiar to this application.** A plain AppKit application, built
+for the comparison and running beside it, keeps activation when its last window
+closes and loses the menu bar the moment anything else is activated
+(`scratchpad/d10/appkit-reference.log`). `Preview` with no windows open behaves the
+same way: hold the bar while active, lose it when not.
+
+**Two things were wrong, and neither was in `src/`.**
+
+1. The course could not see the difference between "this application owns the bar"
+   and "this application is not the active one". It now pins the second, over every
+   close it watches rather than over one of them, so a person clicking another
+   application mid-run cannot fail it and a close that really resigned activation
+   cannot pass. Both halves of that are demonstrated by injection rather than
+   asserted.
+2. The **hide-and-unhide arm had never run**, because a locked screen skipped it,
+   and the first time it ran it failed — on an assertion that was wrong about
+   AppKit. `-[NSApplication unhide:]` restores an application's *windows*; it does
+   not take activation, and an application with no window has none to restore. The
+   plain AppKit reference stays inactive after `unhide:` four runs out of four, and
+   stays inactive after a following `activateIgnoringOtherApps:` as well. Current
+   macOS reserves activation for the person. The arm now asks for activation and
+   records whether macOS granted it — sometimes it does — instead of asserting
+   something the application does not decide. `retire_desktop_menu()`'s single call
+   site was re-examined with the verdict in hand and still has no reachable case;
+   it stays as it is.
+
+**What did not change.** `src/` is byte-identical to `1c40d04b`. The fix stands as
+written, and the executable the rejected candidate was pinned to is still the one
+in `build/dev`, preserved besides at `scratchpad/d10/pinned/`.
+
+**What is still the owner's.** Whether *they* closed that window while the
+application was in front. Nothing on this machine can recover that, and guessing at
+it is how the first rejection got answered with a menu when the question was about
+activation. The replacement candidate asks it directly, carries both photographs,
+and tells them how to tell which application owns the bar.
+
+#### The replacement attended candidate, prepared and not performed
+
+- **Candidate** `bpr-0796-empty-desktop-menu-bar-activation`, fingerprint
+  `4907795c8fc49b43a7f0d23d73eaec94c782407e4bf887ad8f7bd32e4fffb3f0`, in the pack's
+  existing session `e966c88f3320638208adf4fcf0651e31`, state directory
+  `/Users/jaeger/.mask/bpr-shell-surfaces-d7-20260915/attended-review`, sequence 88.
+  **19 candidates, 18 decided, 1 pending** — this one.
+- **Bound to** `1c40d04b / app sha256 1f60b0a2… / courses d10`. The application binary
+  is the same one the owner launched; only the course, its probe and the probe's
+  header moved, and the bundle is protected again as a versioned resource.
+- **The rejected candidate keeps its verdict.** `bpr-0796-empty-desktop-menu-bar` was
+  released from protection so the same bundle could be claimed again, which leaves its
+  rejection, its note and its fingerprint exactly where they were. This is a new
+  candidate id, so no verdict was carried onto different material.
+- **To open it,** serve that state directory:
+  `python3 .agents/skills/attended-review/scripts/attended_review.py --repo-root /Users/jaeger/Documents/GitHub/BetterPullReview --state /Users/jaeger/.mask/bpr-shell-surfaces-d7-20260915/attended-review serve`
+  and open the complete loopback URL it prints.
+- **Offline fallback, already written:**
+  `/Users/jaeger/.mask/bpr-shell-surfaces-d7-20260915/attended-review/bpr-0796-activation-review.html`,
+  237 KB, self-contained, with all three photographs embedded. Decide in the page, use
+  Copy JSON or Download JSON, then `import --file FILE` against the same state
+  directory. The import is the record; browser storage is only a cache.
+- **It carries screenshots**, which the last one said were impossible. Three, taken on
+  this console against this bundle: the bar with a window, the bar after the close, and
+  the bar when the close happened while another application was in front.
+- **What it asks.** That the close changes nothing while BetterPullReview is the front
+  application, and that the Dock tile, ⌘N, the Profiles menu and the Settings-focus
+  check all behave — plus one question only the owner can answer: at the moment they
+  closed that last window, was BetterPullReview's name next to the Apple menu, or
+  another application's?
+- **What it fixes in the asking.** Step 2 now tells them to click the window so the
+  application is in front, and says how to tell. The old step 8's expectation that
+  View's items would be **enabled** with Settings focused is gone: at Home they are
+  greyed with any window focused, because nothing is open for them to act on, and a
+  reviewer following that literally could have rejected on it.
+- **Preparation evidence recorded on the candidate:** the launch binary's digest at zero
+  pending build actions, the provenance and digests of the three photographs, and
+  `ctest --preset dev -R ^application_profile_empty_desktop_native_menu_bar$` exiting 0,
+  1/1 in 3.34 s.
+
 ### Evidence paths
 
 - Native run, unfixed source: `scratchpad/d8-native-unfixed-source-run2.log`
@@ -373,6 +515,30 @@ d9, all at zero pending build actions:
 - Fixed executable, the one the attended candidate is bound to:
   sha256 `1f60b0a267878bd9525488f15fa27e97e778cf006a087b2f1e2d5a9ae4f0c17d`,
   source `1c40d04b`.
+
+d10, on an unlocked console, against the same executable:
+
+- The two menu-bar photographs, byte-identical:
+  `scratchpad/d10/cap-a-windowed-bar.png` and `scratchpad/d10/cap-b-windowless-bar.png`,
+  both sha256 `5bb204b1972d673125b18cc80beda8c454a682f104bc6050feddb6080d7d7858`.
+- The owner's report reproduced by closing an inactive window:
+  `scratchpad/d10/i2-after-clickthrough.png`.
+- The walk on the real screen — Dock click, ⌘N, the Profiles menu, Settings
+  focused, Quit: `scratchpad/d10/h1-after-correct-dockclick.png`,
+  `j2-after-cmdn.png`, `k1-after-profiles-menu.png`, `l1-settings-focused-bar.png`.
+- The plain AppKit reference and its source:
+  `scratchpad/d10/appkit-reference.log`, `scratchpad/d10/appkit_ref2.m`.
+- The course failing on the never-run arm, before it was corrected:
+  `scratchpad/d10/d10-course-unlocked.log`.
+- The two non-vacuity injections: `scratchpad/d10/d10-course-nonvacuity.log`
+  (a hide 40 ms into the first close) and `scratchpad/d10/d10-nonvacuity2.log`
+  (every close resigns activation).
+- The corrected course, five consecutive green runs:
+  `scratchpad/d10/d10-stab1.log` … `d10-stab5.log`, and the seven-course focused
+  selection `scratchpad/d10/d10-focused-1.log`.
+- The bundle the rejected candidate was pinned to, preserved before any rebuild:
+  `scratchpad/d10/pinned/better_pull_review.app`, sha256 of its executable
+  `1f60b0a267878bd9525488f15fa27e97e778cf006a087b2f1e2d5a9ae4f0c17d`.
 
 ### A candidate that was considered and not applied
 
