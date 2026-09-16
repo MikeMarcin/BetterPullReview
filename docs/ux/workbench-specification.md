@@ -603,20 +603,33 @@ for itself, so both answers are drivable on one host:
   from the Profiles menu opens the most recently used profile's window at Home
   through the existing open intent.
 
-  **What the menu bar actually shows, and why that is a defect.** The
-  application's own menu bar carries a File menu holding Quit and a Profiles
-  menu listing the profiles, then New Window and Manage Profiles…. On macOS
-  AppKit merges Quit into the application menu and hides the now-empty File
-  title, so what a reviewer sees after the last window closes is the Apple
-  menu, the application menu and **Profiles** — nothing else. View goes with
-  the window, and so does Preferences…. Measured from `[NSApp mainMenu]` by
-  `application_profile_empty_desktop_native_menu_bar`: with a window,
-  `Apple | ~File | Profiles | View`; after the close, `Apple | ~File |
-  Profiles`. RFC-BPR-0033 says the bar "remains (File, Profiles, View and the
-  rest)", and one visible menu is not that. The owner rejected this on
-  2026-09-16 with "Closing last window closes menu bar." It is [[BPR-0796]],
-  and this paragraph describes the shipped behaviour rather than the intended
-  one until that card lands. "Most recently used" is the last profile whose window was opened or
+  **The menu bar the close leaves behind.** The application's own menu bar
+  carries the same menus a window's bar carries, so the close subtracts nothing
+  a reviewer can see: a File menu holding Quit, a Profiles menu listing the
+  profiles and then New Window and Manage Profiles…, and the window's own
+  **View** — Line numbers, One pane and Settings… — offered and disabled,
+  because no window's presentation is theirs to change. That is what macOS
+  applications offer with no document open, and Settings keeping the
+  preferences role is what keeps the merged Preferences item in the application
+  menu. Measured from `[NSApp mainMenu]` by
+  `application_profile_empty_desktop_native_menu_bar`, which snapshots the bar
+  while a window is open and requires the windowless bar to equal it: both read
+  `Apple | ~File | Profiles | View`. AppKit merges Quit into the application
+  menu and hides the emptied File title — with a window and without, so nothing
+  changes at the close. [[BPR-0796]], after the owner rejected the previous
+  behaviour on 2026-09-16 with "Closing last window closes menu bar."; until
+  then View and Preferences… went with the window.
+
+  **The desktop's bar exists only while the desktop has no window.** Qt hands a
+  parentless menu bar to any focused window that carries none of its own, so a
+  desktop bar left alive after a window reopened would take the menu bar from
+  the workbench the moment a reviewer focused Settings. It is built when the
+  desktop empties and retired when a profile window becomes active — that
+  moment rather than when the window opens, because that is when the window's
+  own bar takes the macOS menu bar, and the course measures a 0 ms gap in both
+  directions rather than assuming one.
+
+  "Most recently used" is the last profile whose window was opened or
   focused in this process; nothing new is persisted for it, because an empty
   desktop exists only after a window has been open.
 - **Windows and Linux** quit, through the existing desktop Quit path, so

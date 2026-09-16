@@ -100,9 +100,9 @@ titles, and "closing last window closes menu bar" is a fair description of that.
 defect is not that the bar is lost; it is that the bar the composition offers a
 windowless application is not the menu bar RFC-BPR-0033 specifies.
 
-### What this card has to decide
+### What this card decided, and why the RFC's parenthetical did not change
 
-Two resolutions, and they are not equivalent:
+Two resolutions were on the table, and they were not equivalent:
 
 1. **Grow the resident bar to what the RFC names.** A visible File menu (New
    Window belongs there as much as under Profiles; Quit will still merge), and
@@ -112,10 +112,103 @@ Two resolutions, and they are not equivalent:
 2. **Narrow the RFC's parenthetical** to the bar the desktop actually needs, and
    say why one menu is the right answer for a windowless application.
 
-The RFC's authority points at (1). d8 did not implement it: it is a design
-change to what a reviewer sees, it cannot be attended-verified in the dispatch
-that makes it, and this was a closeout milestone. Whoever takes it should carry
-the owner a rendered before-and-after rather than a diff.
+**(1), and the specification the fix was written against is the windowed bar
+itself.** RFC-BPR-0033's promise is that the bar *remains*; the sharpest reading
+of "remains" a course can hold is that the close subtracts nothing — the same
+visible titles, the same items in the application menu AppKit owns, the same
+items under View. That is stronger than the parenthetical and it is testable, so
+the course asserts it and the parenthetical is left alone.
+
+**A visible File menu was considered and not added.** d8 suggested moving New
+Window there so the title would show. That would make the *windowless* bar
+carry a menu the *windowed* bar does not, and a File menu appearing on the close
+is the same complaint the owner made, in the other direction. File stays as it
+is — present in the bar, its only item Quit, its title hidden by AppKit with a
+window and without — so nothing about it changes at the close. The RFC's list is
+met: File, Profiles and View are all in the bar afterwards, exactly as they were
+before.
+
+**What is offered and not available is named, not hidden.** `Settings…` is
+offered and disabled with no window, which keeps `Preferences…` in the
+application menu where a close used to remove it. It cannot be enabled here:
+Settings is a window's window, and there is no profile runtime open to back one.
+That is a real gap in what a windowless application can do, it is not something
+RFC-BPR-0033 asks for, and no card is opened for it here; it is written down so
+the next person finds it rather than rediscovers it.
+
+### What d9 measured, changed and re-measured
+
+**d8's diagnosis was re-run before it was believed.** The unchanged course on
+unchanged source, at zero pending build actions, against the executable the
+owner reviewed (sha256 `d500ef7a…`): 1/1 passed in 5.46 s, and it printed the
+two bars. With a window
+`Apple[Preferences...;Services;Hide…;Hide Others;Show All;Quit…] | ~File[] | Profiles[Default;New Window;Manage Profiles…] | View[Line numbers;One pane]`;
+after the last close, the same line **without View**, and **without
+`Preferences...`** in the application menu — the second loss d8's table did not
+name separately. Longest stretch without the Profiles menu: **0 ms**, as d8
+reported. `scratchpad/d9-native-baseline-verbose.log`.
+
+**The course fails first on that, and on nothing else.** It now snapshots the
+windowed bar and requires the windowless bar to equal it, which is the
+comparison the owner's sentence is about:
+
+```
+native-menu-bar: windowed   top-level menus: Apple, Profiles, View
+native-menu-bar: windowless top-level menus: Apple, Profiles
+FAILED: closing the last window takes no menu off the bar
+```
+
+on unchanged `src/`, at zero pending build actions
+(`scratchpad/d9-course-fails-first.log`). Three assertions stand behind it: the
+visible top-level titles, the items of the application menu AppKit owns (which
+is how `Preferences…` is checked without hard-coding a title Qt owns), and the
+items under View; then the whole `[NSApp mainMenu]` description, equal before
+and after.
+
+**The fix.** `qt::desktop_menu_bar` gained the window menu's View — Line
+numbers, One pane, a separator and `Settings…` with `QAction::PreferencesRole` —
+in the window menu's order, every one disabled and connected to nothing. The
+menu bar is presentation, so that is the whole of it in `src/adapters/qt/`.
+
+**Growing it exposed the second defect this card's fourth acceptance bullet
+names, and nothing had been able to reach it.** The bar pinned "with Settings
+focused" before the close, when the desktop had never built its own bar. Once
+the pin was moved after a reopen — the arrangement the bullet actually describes
+— it failed: Qt hands a parentless menu bar to any focused window carrying none
+of its own, so the desktop's bar replaced the workbench's the moment Settings
+took focus, offering that window's own commands greyed while the window was
+right behind it. Pre-existing since [[BPR-0777]], and more visible once the bar
+had View in it. `src/app/` now retires the desktop's bar when a profile window
+becomes **active** — that moment rather than when the window opens, because that
+is when the window's own bar takes the macOS menu bar; the course samples
+`[NSApp mainMenu]` through both transitions and both report a **0 ms** gap.
+
+**What the fixed bar reads, from AppKit:** identical before and after the close,
+
+```
+Apple[Preferences...;Services;Hide…;Hide Others;Show All;Quit…] | ~File[] |
+Profiles[Default;New Window;Manage Profiles…] | View[Line numbers;One pane]
+```
+
+with `Line numbers` and `One pane` not enabled. `scratchpad/d9-course-after-fix-2.log`.
+
+**Checks, all at zero pending build actions and on the binary that was built.**
+`application_profile_empty_desktop_native_menu_bar`, `application_profile_management_public_path`
+and `qt_profile_management_window` pass (`scratchpad/d9-decisive-1.log`), inside a
+14-course desktop-lifecycle, management and settings selection, 14/14 in 184 s
+(`scratchpad/d9-focused-2.log`). The management course had held the desktop's
+menu bar across reopenings; the new lifetime makes that a dangling pointer and
+it crashed, which is how the lifetime got pinned there too — it fetches the bar
+after each close and asserts it steps aside once a window is active. Reviewed
+executable `build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review`,
+sha256 `1f60b0a267878bd9525488f15fa27e97e778cf006a087b2f1e2d5a9ae4f0c17d`,
+carrying `desktopViewMenu`, `desktopToggleLineNumbersAction` and
+`desktopOpenSettingsAction` as UTF-16 literals, so the binary tested is the
+binary built.
+
+**The isolation manifest was not re-run**, because this dispatch adds no test
+registration and changes no `LOOPBACK_PORT_COUNT`; d8's run of it stands
+(`scratchpad/d8-isolation-manifest.log`).
 
 ### What is still not observable here
 
@@ -133,6 +226,29 @@ what buys the tile.
 Note for whoever runs this course on an unlocked session: it calls
 `activateIgnoringOtherApps:` and will take focus from whatever the owner is
 doing.
+
+**d9 found the same session state and the same limitation.** Every run in this
+dispatch reported `screen locked: yes, frontmost: loginwindow`, so the
+hide-and-unhide activation gesture is **not run** here too — not merely
+inherited as not run. What this leaves open is exactly what d8 left open, and
+all of it is the owner's to see rather than a machine's:
+
+- Whether AppKit **repaints** the menu bar of a windowless active application.
+  Nothing in this sandbox can answer it: the course reads what `[NSApp mainMenu]`
+  *is*, and the owner's complaint was about what they *saw*. It is the first
+  question the prepared attended candidate asks.
+- The **Dock tile** and a **literal Dock click**. `activationPolicy == Regular`
+  is asserted, and `applicationShouldHandleReopen:hasVisibleWindows:NO` — the
+  message the Dock sends — is delivered to the real delegate and reopens the
+  profile once. The click itself stays with the Dock and with the owner.
+- **Native application activation** (hide, then unhide) as an AppKit gesture.
+  The course runs it only when the session activates the process and prints
+  `not run: native application activation (hide and unhide) needs a session that
+  activates this process` otherwise, which is what it printed here.
+
+An unlocked console session on this machine would close the third of these
+without an attended verdict. None of it is a reason to hold the fix, and none of
+it may be inferred from the course.
 
 ### Evidence paths
 

@@ -119,6 +119,31 @@ runtime owner and the typed intents were all observed by course, and the
 `platforms`-carrying homes for the Windows and Linux halves are now
 [[BPR-0798]] and [[BPR-0799]].
 
+### The withdrawal is itself withdrawn, 2026-09-16, after the defect was measured
+
+The sentence above was withdrawn on the strength of the owner's rejection,
+before anything native had been read. It was right to doubt an inference, and
+the doubt landed on the wrong sentence. `application_profile_empty_desktop_native_menu_bar`
+has since read `[NSApp mainMenu]` on this machine: with no window, the main menu
+**is** exactly `desktop_menu()->toNSMenu()`, and the longest stretch without it
+during the close is 0 ms. So "it is parentless, so macOS uses it as the
+application's default menu bar" was true of this composition, and it **stands as
+written**.
+
+What was actually wrong is a thing that card never claimed: the bar was there,
+and it was not the bar RFC-BPR-0033 names. Its menus were File (holding only
+Quit, which AppKit merges away) and Profiles, so the close took View off the bar
+and Preferences… out of the application menu, and a reviewer watching that
+reasonably called it "closing last window closes menu bar". [[BPR-0796]] grew
+the desktop's bar to carry the window's menus, and the same course now requires
+the windowless bar to equal the windowed one.
+
+One behaviour this card introduced did turn out to be a defect, and it is
+recorded on [[BPR-0796]] rather than here: Qt hands a parentless menu bar to any
+focused window that carries none of its own, so once the desktop had built its
+bar, focusing the workbench's Settings window took the menu bar away from the
+workbench. The desktop now retires its bar when a profile window becomes active.
+
 ## Boundaries
 
 No GitHub or GHES mutation, credential access, provider change or new preference is authorized by this card. The core decides, the host performs, Qt presents: no widget reaches a store, a vault, a provider or a process. No stylesheet or hard-coded palette. Follow the milestone exit rather than running an exhaustive app-wide course for this slice.

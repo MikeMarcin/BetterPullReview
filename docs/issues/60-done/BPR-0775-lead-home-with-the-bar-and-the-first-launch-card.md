@@ -27,7 +27,7 @@ acceptance: [{"criterion":"AC1 — Signed in, the bar is the first row, labelled
   - Human: the 40 px corner rendering needs its own attended candidate in `BPR-0779`.
     **Answered 2026-09-16: accepted** (`bpr-0779-dif-corner`, decision 123f144b, on executable
     sha256 `d500ef7a…` from source `ed2b3f14`). Owner amendment r2 is settled.
-  - Follow-up for main to allocate: Dif resting in the corner on review surfaces (window-level, RFC-BPR-0031 B6 courses).
+  - Follow-up for main, **allocated in d9 as [[BPR-0800]]**: Dif resting in the corner on review surfaces (window-level, RFC-BPR-0031 B6 courses). The card quotes mandate r2 verbatim and names the AI-tools-slot question that has to be answered first.
   - Native, outside this sandbox: `application_public_path`, `_ghes_cli_unavailable`, `application_device_authorization_public_path`, `_ghes_refusal`, `_panel_course` and `application_saved_server_contract` (credential store, fixture seed), plus `application_anonymous_public_preview_public_path`'s stale pass expression.
   - The design leaves for `BPR-0776` (`rfc-worker`) and `BPR-0783` (`rfc-worker-deep`) have returned designs and are idle. An independent review of `6faf13ed..edb90493` is running; its adjudication goes on `BPR-0776`'s record.
 - **Next.** Promote and claim `BPR-0776`, then resume its design leaf to implement the state panels and the row delegate.
@@ -59,7 +59,7 @@ Record the focused command or gesture, the direct surface, the result, the produ
   - Kept unchanged: B5 reachability on signed-out and signed-in Home and over a review; the one-sprite rule; B6's AI tools slot on review surfaces; the preferences and the lifecycle rules.
   - Recorded in RFC-BPR-0032's Home section ("Dif on Home (owner direction, 2026-09-15)"); RFC-BPR-0031 is settled and not edited.
 - **Bounded out of this card.**
-  - Resting in the corner while a review is read, and not only on Home, is window-level. It would change RFC-BPR-0031's B6 and "all other surfaces hide it" courses, so it is carried as a follow-up for main to allocate.
+  - Resting in the corner while a review is read, and not only on Home, is window-level. It would change RFC-BPR-0031's B6 and "all other surfaces hide it" courses, so it is carried as a follow-up for main, allocated in d9 as [[BPR-0800]].
   - Dif's controls on the Appearance page belong to `appearance` (BPR-0790, D1 Appearance part).
 - **Signed-out Recently viewed.** First launch has no reading history, so nothing renders there. A signed-out Home with public reading history keeps BPR-0733's Recently viewed: RFC-BPR-0032 lists what it removes, and this is not on the list.
 - **The session line says what the projection carries.** It reads "Signed in as {login} on {host}." for the one accepted session, "Connecting to {host}." while connecting, and "Not signed in. Public pull requests open read-only." otherwise. There is no second account and no refresh time, because no projection carries either. A host failure and an unavailable saved layout are still appended; review progress and review history are the review surface's.
