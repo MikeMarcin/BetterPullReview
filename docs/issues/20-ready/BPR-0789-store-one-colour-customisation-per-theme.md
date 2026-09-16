@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0789"
 title: "Store one colour customisation per theme"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0034"]
 depends_on: ["BPR-0770"]
 metadata: {"pack":"bpr-shell-surfaces-v1","milestone":"appearance","acceptance":["C1"],"milestone_plan":{"id":"bpr-shell-surfaces-v1","path":"docs/rfcs/plans/bpr-shell-surfaces-v1/milestone-plan.json"}}
