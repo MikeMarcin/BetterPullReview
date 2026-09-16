@@ -176,7 +176,7 @@ Backlog and the three RFCs Proposed; the three closeouts are independent of each
 On 2026-09-16 the owner reviewed the shipped macOS build and returned seventeen
 verdicts through the attended-review workflow: sixteen acceptances and one
 rejection, that closing the last window closes the menu bar, which is now
-[BPR-0796](../issues/20-ready/BPR-0796-keep-the-macos-menu-bar-when-the-last-window-closes.md).
+[BPR-0796](../issues/30-in-progress/BPR-0796-keep-the-macos-menu-bar-when-the-last-window-closes.md).
 All three RFCs stay `Proposed`, and none of the three is waiting on evidence
 that was simply never gathered. RFC-BPR-0032's and RFC-BPR-0034's own criteria
 are met and their closeout rows are complete; they stay `Proposed` only because
