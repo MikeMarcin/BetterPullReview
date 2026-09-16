@@ -182,9 +182,13 @@ that was simply never gathered. RFC-BPR-0032's and RFC-BPR-0034's own criteria
 are met and their closeout rows are complete; they stay `Proposed` only because
 closure is strictly ordered and RFC-BPR-0018 — and, for RFC-BPR-0032, also
 RFC-BPR-0028 — are not `Auto-Verified`. RFC-BPR-0033 stays `Proposed` for two
-independent reasons: RFC-BPR-0024 is `Deferred`, and B1, B2 and B5 carry that
-rejection until the defect is fixed and the owner accepts the empty desktop on
-a real macOS build. The Windows and Linux halves of B1 have never been observed
+independent reasons: RFC-BPR-0024 is `Deferred`, and B5 needs the owner's
+acceptance of the empty desktop on a real macOS build. The defect behind the
+rejection is fixed — the windowless menu bar now carries the same menus a
+window's bar carries, and B1's macOS half and B2's native half are met on the
+fixed build — and one attended candidate is prepared against that build's own
+digest and has not been performed. A verdict on the old build cannot be carried
+onto a new one. The Windows and Linux halves of B1 have never been observed
 and are recorded as not run, on
 [BPR-0798](../issues/10-backlog/BPR-0798-windows-native-empty-desktop-quit-evidence.md)
 and

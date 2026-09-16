@@ -82,26 +82,70 @@ B3 and B4 are met and are not in question. The Profiles sheet itself was
 accepted, rendered and by VoiceOver. What is not met is one attended verdict on
 the last window, and a dependency that is `Deferred`.
 
-## Current frontier - the pack's one open closeout, bpr-shell-surfaces-20260915 d8 / rfc-integrator-d8 / mandate r5
+## Current frontier - the pack's one open closeout, bpr-shell-surfaces-20260915 d9 / rfc-integrator-d9 / mandate r5
 
 - **Binding.** Plan `bpr-shell-surfaces-v1`, milestone `verification-closeout`, obligations
   `BPR-0779:*`, `BPR-0780:*`, `BPR-0781:*`, `BPR-0782:*`, `BPR-0791:*` and both exits.
-- **What closed.** `BPR-0779` is Done: the attended review ran, all 17 verdicts are recorded and
-  bound to executable sha256 `d500ef7a…` from source `ed2b3f14`. `BPR-0780` was already Done.
-  `BPR-0781` and `BPR-0791` are Done: every A and C row carries evidence or a named unresolved
-  criterion.
-- **What is open, and it is this card.** RFC-BPR-0033's B1, B2 and B5. See above.
-- **What a successor needs first.** [[BPR-0796]] holds d8's diagnosis, and it is no longer a
-  hypothesis: the bar is not lost, it is down to one visible menu where the RFC names four. The
-  next slice is a bounded presentation change to `qt::desktop_menu_bar` with the existing native
-  course extended to assert the new contract, and it needs no new decision - RFC-BPR-0033's own
-  words are the specification. **Only then** does an attended session make sense, and it needs
-  exactly **one** candidate: close the last window, look at the menu bar, then Dock activation,
-  ⌘N and the Profiles menu, prepared against the fixed build's own digest. No candidate was
-  prepared in d8, because the build has not changed and there would be nothing new to look at.
-- **Not run, and never to be inferred.** Windows and Linux native empty-desktop quit: [[BPR-0798]]
-  and [[BPR-0799]].
+- **What closed.** `BPR-0779`, `BPR-0780`, `BPR-0781` and `BPR-0791` are Done. `BPR-0796` is
+  **Parked on `human-review`**: four of its five acceptance bullets pass on the fixed build and
+  the fifth is the owner's verdict.
+- **What is open, and it is this card.** RFC-BPR-0033 **B5**, and only B5. B1's macOS half and
+  B2's native half are met on the fixed build - see their rows. B5 asks for the owner's
+  acceptance of the real macOS application through the attended-review workflow, and a fix
+  cannot supply that.
+- **What a successor does first: nothing but ask.** [[BPR-0796]] is implemented, committed at
+  `1c40d04b`, and its own evidence section carries the measurements. One attended candidate is
+  prepared and waiting, `bpr-0796-empty-desktop-menu-bar`, fingerprint `8365ee84…`, in session
+  `e966c88f3320638208adf4fcf0651e31` at
+  `/Users/jaeger/.mask/bpr-shell-surfaces-d7-20260915/attended-review`, sequence 75, 18
+  candidates with exactly **1 pending**. Serve that state directory and open the loopback URL,
+  or use the offline page already written at
+  `/Users/jaeger/.mask/bpr-shell-surfaces-d7-20260915/attended-review/bpr-0796-review.html` and
+  feed its export back with `import --file`. It is bound to executable sha256 `1f60b0a2…` from
+  source `1c40d04b`, and it protects the three source files, the course, the probe and the built
+  bundle, so **do not rebuild `build/dev` before the verdict is in** - that would move the thing
+  the owner is being asked about. d9 did not perform it and did not wait.
+- **On an accept.** Record it on B5, B1 and B2, unpark [[BPR-0796]] and finish it, then this card
+  can be finished. RFC-BPR-0033 still does not become `Auto-Verified` - see the formal status
+  above; RFC-BPR-0024 is `Deferred`.
+- **On a reject.** The note names the step. Steps 1-4 are the bar, 5-7 the reopening gestures,
+  8 the Settings-focus arbitration. Each has a machine-side counterpart in
+  `application_profile_empty_desktop_native_menu_bar`, so a rejection can be turned into a
+  failing assertion rather than a new hypothesis.
+- **Not run, and never to be inferred.** Windows and Linux native empty-desktop quit
+  ([[BPR-0798]], [[BPR-0799]]); the native hide-and-unhide activation gesture, because this
+  console session has been screen-locked for d8 and d9 alike. An unlocked session would close
+  the last of those without an attended verdict.
+- **Follow-ups allocated in d9, record-only:** [[BPR-0800]] (Dif resting in the corner on review
+  surfaces, the remainder of owner mandate r2) and [[BPR-0801]] (a whole-queue refresh intent).
+  Neither is implemented and neither belongs to this pack's RFCs.
 - **Unrelated to this pack, and reported by the owner in the same sitting:** [[BPR-0797]].
+
+### Integration pass - d9, source revision `1c40d04b`
+
+One integration pass at the pack's combined boundary, run by the integrator, at
+**zero pending build actions** (`ninja -C build/dev -n` reported "no work to do"
+immediately before and immediately after) and against the executable the prepared
+candidate is bound to, sha256
+`1f60b0a267878bd9525488f15fa27e97e778cf006a087b2f1e2d5a9ae4f0c17d`.
+
+**48 courses, 100% passed, 48/48, 880.39 s** (`scratchpad/d9-int-pass-01.log`, zero
+`***Failed` lines) - the same 48-course selection d8 ran, so the two are comparable:
+every `qt_composed_github`, `qt_settings_window`, `qt_workbench_window`, `qt_home_list`,
+`qt_anonymous_public_preview`, `qt_device_authorization` and `qt_surface_capture_course`
+scale variant, the appearance set, `qt_profile_management_window`,
+`qt_settings_effect_boundary`, `application_workbench_host`,
+`application_queue_composition_contract`, `application_setup_destination_public_path`,
+`architecture_boundary_contract`, `sqlite_workbench_settings_storage`, all eight
+`application_profile_*_public_path` courses and
+`application_profile_empty_desktop_native_menu_bar`.
+
+Beside it, a 14-course desktop-lifecycle, management and settings selection passed
+14/14 in 184 s (`scratchpad/d9-focused-2.log`), and the three decisive courses were
+re-run by the integrator rather than accepted from a report
+(`scratchpad/d9-decisive-1.log`). `test_network_isolation_manifest` was **not** re-run:
+d9 adds no test registration and changes no `LOOPBACK_PORT_COUNT`, so d8's run of it
+stands and names nothing new.
 
 ### Integration pass - d8, source revision `ed2b3f14`, courses at `a85a1365`
 
