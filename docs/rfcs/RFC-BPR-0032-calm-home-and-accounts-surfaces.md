@@ -307,7 +307,10 @@ the window's view state.
   stack's empty page is not part of Home; first launch and signed out show
   the strip with Home, account and settings only, the bar relabelled for
   public reading, the sign-in card with Sign in filled and Add enterprise
-  server bordered, and the status bar line, and nothing else.
+  server bordered, and the status bar line, and nothing else. "Nothing else"
+  bounds the landing chrome this clause lists; a signed-out window that has
+  public reading history keeps Recently viewed (owner direction, 2026-09-16,
+  attended candidate `bpr-0779-a5-nothing-else`).
 - **A6 — Rows in state order, panels by state.** Rows are always ordered Needs
   me, Waiting on others, Following from the core attention projection, with
   one row anatomy for the queue and Recently viewed; colour means state only,
