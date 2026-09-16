@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0779"
 title: "Run the rendered, keyboard and screen-reader course and the attended review for the four surfaces"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0032", "RFC-BPR-0033", "RFC-BPR-0034"]
 depends_on: ["BPR-0773", "BPR-0774", "BPR-0778", "BPR-0783", "BPR-0790"]
 metadata: {"pack":"bpr-shell-surfaces-v1","milestone":"verification-closeout","acceptance":["A8","B5","C6"],"milestone_plan":{"id":"bpr-shell-surfaces-v1","path":"docs/rfcs/plans/bpr-shell-surfaces-v1/milestone-plan.json"}}
