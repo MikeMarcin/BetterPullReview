@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0790"
 title: "Rebuild the Appearance page as theme strip, type rows with preview, and colours for the theme on screen"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0034"]
 depends_on: ["BPR-0789"]
 metadata: {"pack":"bpr-shell-surfaces-v1","milestone":"appearance","acceptance":["C2","C3","C4","C5"],"milestone_plan":{"id":"bpr-shell-surfaces-v1","path":"docs/rfcs/plans/bpr-shell-surfaces-v1/milestone-plan.json"}}
