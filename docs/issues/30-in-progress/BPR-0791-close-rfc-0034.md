@@ -73,6 +73,32 @@ and the courses stop on unrelated diff-evidence, epoch-fixture and public-path s
 that are red in this sandbox independently of this pack. Do not read a `*_CONTRACT_OK`
 string in a marker count as a pass: ctest echoes it in its own `Regex=[...]` line.
 
+## Formal status: RFC-BPR-0034 stays `Proposed`, and that is the truthful result
+
+Every C row above now carries direct evidence or a named unresolved criterion,
+and the owner accepted the rendered page, the VoiceOver walk over the tiles,
+the real macOS colour panel and both cosmetic departures on 2026-09-16. The
+RFC's own criteria are met.
+
+It does not become `Auto-Verified`, because the RFC index - the repository's
+sequencing authority - says so in as many words: "Closure remains strictly
+ordered: no RFC becomes `Auto-Verified` before every listed dependency is
+`Auto-Verified`." RFC-BPR-0034 depends on RFC-BPR-0006 (`Auto-Verified`) and
+**RFC-BPR-0018 (`Proposed`)**. This milestone's own boundary is "formal
+closeout follows canonical order and never falsifies a status", so the status
+stays where it is.
+
+The gate is held by [[BPR-0593]], RFC-BPR-0018's closeout card. When it closes,
+RFC-BPR-0034's status and its index row are a one-line change with no further
+verification owed.
+
+Two things stay open and are named rather than closed by a verdict. The real
+macOS colour panel has an owner acceptance but still **no machine evidence**:
+no automated course opens it, only an injectable seam. And the three
+end-to-end appearance contracts are red in this sandbox for reasons proven
+independent of this pack - the discriminator that drives no appearance probe at
+all fails identically on the same binary.
+
 ## Boundaries
 
 No GitHub or GHES mutation, credential access, provider change or new preference is authorized by this card. The core decides, the host performs, Qt presents: no widget reaches a store, a vault, a provider or a process. No stylesheet or hard-coded palette. Follow the milestone exit rather than running an exhaustive app-wide course for this slice.

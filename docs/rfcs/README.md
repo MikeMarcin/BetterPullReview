@@ -173,6 +173,23 @@ reference](assets/bpr-shell-surfaces-v1/design/shell-surfaces-v1.html) and
 retain the source and execution order. Import leaves all seventeen cards in
 Backlog and the three RFCs Proposed; the three closeouts are independent of each other.
 
+On 2026-09-16 the owner reviewed the shipped macOS build and returned seventeen
+verdicts through the attended-review workflow: sixteen acceptances and one
+rejection, that closing the last window closes the menu bar, which is now
+[BPR-0796](../issues/10-backlog/BPR-0796-keep-the-macos-menu-bar-when-the-last-window-closes.md).
+All three RFCs stay `Proposed`, and none of the three is waiting on evidence
+that was simply never gathered. RFC-BPR-0032's and RFC-BPR-0034's own criteria
+are met and their closeout rows are complete; they stay `Proposed` only because
+closure is strictly ordered and RFC-BPR-0018 — and, for RFC-BPR-0032, also
+RFC-BPR-0028 — are not `Auto-Verified`. RFC-BPR-0033 stays `Proposed` for two
+independent reasons: RFC-BPR-0024 is `Deferred`, and B1, B2 and B5 carry that
+rejection until the defect is fixed and the owner accepts the empty desktop on
+a real macOS build. The Windows and Linux halves of B1 have never been observed
+and are recorded as not run, on
+[BPR-0798](../issues/10-backlog/BPR-0798-windows-native-empty-desktop-quit-evidence.md)
+and
+[BPR-0799](../issues/10-backlog/BPR-0799-linux-native-empty-desktop-quit-evidence.md).
+
 RFC-BPR-0022 and RFC-BPR-0023 were reconciled and imported together on
 2026-09-04 with implementation explicitly deferred. The off-hunk pack retains
 0022; the private-thread pack was renumbered to 0023. RFC-BPR-0022 owns semantic
