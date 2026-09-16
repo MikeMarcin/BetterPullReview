@@ -55,6 +55,44 @@ quit branch is never taken here. This is recorded as not run, never as passing.
 Since d8 it has a home per platform, allocated on main: [[BPR-0798]] and
 [[BPR-0799]].
 
+## Formal status: RFC-BPR-0033 stays `Proposed`, for two independent reasons
+
+**One, this RFC has a criterion the owner rejected.** B5 asks in its own words
+for "the owner accepts the real macOS application through the attended-review
+workflow, including closing the last window and reopening from the Dock". On
+2026-09-16 the owner ran exactly that course on the reviewed build and rejected
+it. A fix cannot turn that into an acceptance; only a new attended verdict on a
+fixed build can. B1's macOS half and B2's native half fall the same way. The
+defect is [[BPR-0796]], which is now a dependency of this card.
+
+**Two, closure is ordered and this RFC's dependency is not closed.** The RFC
+index is the sequencing authority and says "Closure remains strictly ordered: no
+RFC becomes `Auto-Verified` before every listed dependency is `Auto-Verified`."
+RFC-BPR-0033 depends on RFC-BPR-0024, which is `Deferred`; its closeout card is
+[[BPR-0595]]. So even with B1, B2 and B5 satisfied this RFC could not close
+today. This milestone's own boundary asks for precisely this behaviour: "formal
+closeout follows canonical order and never falsifies a status."
+
+B3 and B4 are met and are not in question. The Profiles sheet itself was
+accepted, rendered and by VoiceOver. What is not met is the last window.
+
+## Current frontier - the pack's one open closeout, bpr-shell-surfaces-20260915 d8 / rfc-integrator-d8 / mandate r5
+
+- **Binding.** Plan `bpr-shell-surfaces-v1`, milestone `verification-closeout`, obligations
+  `BPR-0779:*`, `BPR-0780:*`, `BPR-0781:*`, `BPR-0782:*`, `BPR-0791:*` and both exits.
+- **What closed.** `BPR-0779` is Done: the attended review ran, all 17 verdicts are recorded and
+  bound to executable sha256 `d500ef7a…` from source `ed2b3f14`. `BPR-0780` was already Done.
+  `BPR-0781` and `BPR-0791` are Done: every A and C row carries evidence or a named unresolved
+  criterion.
+- **What is open, and it is this card.** RFC-BPR-0033's B1, B2 and B5. See above.
+- **What a successor needs first.** [[BPR-0796]] is the defect and holds d8's diagnosis. When it is
+  fixed, the next attended session needs **one** candidate - close the last window, check the menu
+  bar, then Dock activation, ⌘N and the Profiles menu - prepared against the fixed build's own
+  digest. Nothing else on this card is waiting on a person.
+- **Not run, and never to be inferred.** Windows and Linux native empty-desktop quit: [[BPR-0798]]
+  and [[BPR-0799]].
+- **Unrelated to this pack, and reported by the owner in the same sitting:** [[BPR-0797]].
+
 ## Boundaries
 
 No GitHub or GHES mutation, credential access, provider change or new preference is authorized by this card. The core decides, the host performs, Qt presents: no widget reaches a store, a vault, a provider or a process. No stylesheet or hard-coded palette. Follow the milestone exit rather than running an exhaustive app-wide course for this slice.
