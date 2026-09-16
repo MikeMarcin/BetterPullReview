@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0800",
+    "BPR-0801"
+  ],
+  "reserve_for": "bpr-shell-surfaces-20260915-d9",
+  "purpose": "d9: the two follow-ups d8 deliberately left un-carded - Dif resting in the bottom-left corner on review surfaces (owner mandate r2 remainder), and a whole-queue refresh intent for Home's refresh glyph",
+  "created": "2026-09-16T09:25:50.427984+00:00",
+  "base": "1c40d04b2452e4ec8470a2d143ffc3254f3b329c"
+}
