@@ -12,6 +12,42 @@ acceptance: [{"criterion":"AC1 - Captures exist for every named state at 100, 12
 
 # BPR-0779: Run the rendered, keyboard and screen-reader course and the attended review for the four surfaces
 
+## Current frontier - BPR-0779 is human-pending; the pack stops here, bpr-shell-surfaces-20260915 d7 / rfc-integrator-d7 / mandate r3
+
+- **Binding.** Plan `bpr-shell-surfaces-v1`, milestone `verification-closeout`: obligations `BPR-0779:*`,
+  `BPR-0780:*`, `BPR-0781:*`, `BPR-0782:*`, `BPR-0791:*` and both exits.
+- **Candidate.** Local `main`, **nothing pushed**. In order: `cb7d088f` promote 0780, `02d01197` claim 0780,
+  `2e240e1c` promote 0779, `62edc07d` claim 0779, `ed2b3f14` the capture course and its two fixes,
+  `44b8cef1` the documentation, `24523e0d` finish 0780, `694e9594` finish 0779 (human-pending),
+  `d494f31d` the closeout evidence. Tree clean, `build/dev` fully linked at 0 pending actions, no probe
+  process alive.
+- **What is done.** `BPR-0780` is **Done**. `BPR-0779`'s objective half is done: **400 captures** (25 named
+  states x four appearances x four scales) and accessibility walks over all four surfaces with
+  **unnamed=0**. The three closeout cards carry evidence or a named unresolved criterion on every row and
+  each records its integration pass.
+- **What is outstanding, and it is only the human.** 17 attended candidates are **prepared and ready**,
+  session `e966c88f3320638208adf4fcf0651e31`. Nothing is inferred from a capture or a fixture.
+- **The RFCs stay `Proposed`.** `BPR-0781`, `BPR-0782` and `BPR-0791` stay in Backlog with this card as an
+  unmet dependency, which is the honest state while the verdicts they need are outstanding.
+
+### What a successor must know
+
+1. **No four-appearance, four-scale capture course existed.** All three RFCs say to *extend* one. The
+   course was built here; the registered scales were 100/125/200 everywhere except `qt_settings_window`.
+2. **The captures never compose Dif**, so they cannot answer the 40 px corner question. That candidate
+   needs the real app.
+3. **The walk found two real defects on already-accepted surfaces**, both fixed in `ed2b3f14`: the colours
+   scroll well was an unnamed Tab stop (a direct miss of C6), and signed out, Home's bar drew its border
+   around **527 points** of nothing against a size hint of **37**. Both are pinned by assertions that
+   failed before the fix.
+4. **`BPR-0779` AC1 contradicts its own RFC** on the 720-point Home column. Nothing was changed to satisfy
+   it; the measurement it asked for is recorded (1232 at the capture width, 852 at the narrowest) and the
+   conflict is an owner question.
+5. **Three items the dispatch brief called "accumulated" were not recorded anywhere.** The two Appearance
+   cosmetic departures are real *in the source* and are now recorded for the first time; the device-flow
+   host claim is that `DeviceFlowHost` is assigned once and never cleared, which is by design, and what is
+   genuinely missing is a course over the finished-on-A-then-begin-on-B sequence.
+
 ## Outcome
 
 Extend the existing four-appearance, four-scale deterministic capture course to the Accounts page states, the Home states, the Appearance page states with every tile, and the Profiles sheet states; walk the keyboard order and VoiceOver names on macOS; prepare one attended candidate per surface, including the close-and-reopen course, through the shared attended-review workflow with absolute paths and one question per criterion.
