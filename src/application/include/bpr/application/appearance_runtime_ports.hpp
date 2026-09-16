@@ -7,6 +7,7 @@
 #include "bpr/core/model.hpp"
 #include "bpr/core/theme_exchange.hpp"
 
+#include <array>
 #include <compare>
 #include <cstddef>
 #include <cstdint>
@@ -73,41 +74,112 @@ namespace bpr::application {
 		auto operator<=>(const appearance_request_context&) const = default;
 	};
 
+	/// \brief Returns the palette-table index of the supplied variant.
+	[[nodiscard]] constexpr auto variant_index(
+		const core::appearance_variant aVariant) noexcept -> std::size_t
+	{
+		return static_cast<std::size_t>(aVariant);
+	}
+
+	/// \brief Checks whether the supplied variant is inside the closed vocabulary.
+	///
+	/// \details Against the core's published count rather than a restated member
+	/// list, for the same reason the mode check below is.
+	[[nodiscard]] constexpr auto known(
+		const core::appearance_variant aVariant) noexcept -> bool
+	{
+		return variant_index(aVariant) < core::appearance_variant_count;
+	}
+
+	/// \brief Describes one variant's stored colour customization.
+	///
+	/// \details `Stored` is the load-bearing half, and the reason this is a pair
+	/// rather than a bare palette. A composed default and a stored palette are
+	/// different facts, and a record that could not tell them apart is BPR-0216:
+	/// the default palette is built under an empty observation, so on a dark
+	/// desktop it differs from the built-in dark palette in every role and was
+	/// read as forty-six deliberate overrides. An explicit palette reset persists
+	/// `false`, preserving the absence of overrides across restart — per variant,
+	/// so resetting Dark cannot forget that Light was customized.
+	///
+	/// `Palette` is a total palette over the core's closed role vocabulary rather
+	/// than a sparse override set, because that is what a theme document is and
+	/// the store round-trips it through `core::import_theme`, which refuses a
+	/// document that fails to assign every role. Which of those roles count as
+	/// customization is decided by comparing against the built-in profile of this
+	/// variant, and the built-in profiles are presentation's.
+	struct appearance_palette_customisation
+	{
+		core::appearance_palette Palette{ };
+		bool                     Stored = false;
+
+		auto operator<=>(const appearance_palette_customisation&) const = default;
+	};
+
+	/// \brief One stored customization per resolved variant, indexed by variant.
+	///
+	/// \details RFC-BPR-0034. A palette is one total set of colours for exactly
+	/// one variant, so a record holding a single palette could describe only one
+	/// theme: tuning Dark silently forgot Light. There is deliberately no
+	/// "current" or "last committed" slot beside this table — that would be a
+	/// second authority on the same fact, and the earlier single-palette record
+	/// needed `PaletteVariant` precisely because it had no place to say which
+	/// theme it meant. Index with `variant_index`.
+	using appearance_palette_customisations
+		= std::array<appearance_palette_customisation, core::appearance_variant_count>;
+
+	/// \brief Returns one variant's customization from a bare table.
+	///
+	/// \details The published presentation invalidation carries the table rather
+	/// than a whole record, so a consumer reading it needs the same guarded
+	/// accessor a record reader gets. A variant outside the closed vocabulary
+	/// cannot index the table, so it answers the first slot rather than reading
+	/// past the end; every caller that can act on such a value refuses it first,
+	/// which keeps the accessor itself total.
+	[[nodiscard]] constexpr auto customisation_of(
+		const appearance_palette_customisations& aPalettes,
+		const core::appearance_variant           aVariant) noexcept
+		-> const appearance_palette_customisation&
+	{
+		return aPalettes[known(aVariant) ? variant_index(aVariant) : 0U];
+	}
+
 	/// \brief Describes the durable appearance settings record.
 	///
-	/// \details This is the whole durable appearance state: the selected mode, the
-	/// palette over the core's closed role vocabulary, both fonts, and Dif preferences. A fresh
-	/// installation has no durable record, and the mode defaults to `system`. The
-	/// host chooses no colour and no family: the palette and the typography a
-	/// host starts from are supplied by its composition, and every other value it
+	/// \details This is the whole durable appearance state: the selected mode, one
+	/// colour customization per variant, both fonts, and Dif preferences. A fresh
+	/// installation has no durable record, the mode defaults to `system`, and no
+	/// variant carries a customization. The host chooses no colour and no family:
+	/// the typography a host starts from is supplied by its composition, the
+	/// built-in colours belong to presentation, and every other value the record
 	/// holds was either loaded or applied by a gesture.
 	struct appearance_settings
 	{
-		core::appearance_mode     Mode = core::appearance_mode::system;
-		core::appearance_palette  Palette{ };
-		core::typography_settings Typography;
-		/// \brief Whether `Palette` is a deliberate customization.
-		///
-		/// \details A composed default and a stored palette are different
-		/// facts, and a record that could not tell them apart is BPR-0216: the
-		/// default palette is built under an empty observation, so on a dark
-		/// desktop it differs from the built-in dark palette in every role and
-		/// was read as forty-six deliberate overrides. An explicit palette reset
-		/// persists false, preserving the absence of overrides across restart.
-		bool PaletteStored = false;
-		/// \brief The variant the stored palette customizes.
-		///
-		/// \details Meaningful only when `PaletteStored`. A palette is one
-		/// total set of colours for one variant, so a record that carried the
-		/// palette without the variant left the reader to guess, and the guess
-		/// it made was the variant the *current* desktop resolves. A light
-		/// palette then read as forty-six deliberate overrides pinned over the
-		/// dark profile, which is BPR-0216 reappearing for stored records.
-		core::appearance_variant PaletteVariant = core::appearance_variant::light;
-		core::dif_preferences    Dif;
+		core::appearance_mode             Mode = core::appearance_mode::system;
+		appearance_palette_customisations Palettes;
+		core::typography_settings         Typography;
+		core::dif_preferences             Dif;
 
 		auto operator<=>(const appearance_settings&) const = default;
 	};
+
+	/// \brief Returns one variant's stored customization.
+	[[nodiscard]] constexpr auto customisation_of(
+		const appearance_settings&     aSettings,
+		const core::appearance_variant aVariant) noexcept
+		-> const appearance_palette_customisation&
+	{
+		return customisation_of(aSettings.Palettes, aVariant);
+	}
+
+	/// \brief Returns one variant's stored customization for modification.
+	[[nodiscard]] constexpr auto customisation_of(
+		appearance_settings&           aSettings,
+		const core::appearance_variant aVariant) noexcept
+		-> appearance_palette_customisation&
+	{
+		return aSettings.Palettes[known(aVariant) ? variant_index(aVariant) : 0U];
+	}
 
 	/// \brief Checks whether the supplied mode is inside the closed vocabulary.
 	///
@@ -319,13 +391,20 @@ namespace bpr::application {
 	/// The record names presentation work only. It carries no review state, no file
 	/// identity, and no token span, because an appearance change cannot alter
 	/// review semantics and must not be able to express one.
+	///
+	/// `Palettes` is the whole per-variant table rather than the one variant that
+	/// moved. A commit changes one variant and a durable restore changes all four,
+	/// so a member naming a single variant would have to be absent exactly when
+	/// the most changed. Presentation also needs the other variants' customizations
+	/// whether or not they moved: it draws a tile per theme and captions how many
+	/// colours each one customizes.
 	struct appearance_presentation_invalidation
 	{
-		appearance_epoch                           Epoch;
-		std::optional<core::appearance_resolution> Resolution;
-		std::optional<core::appearance_palette>    Palette;
-		std::optional<core::typography_settings>   Typography;
-		std::optional<core::dif_resolution>        Dif;
+		appearance_epoch                                 Epoch;
+		std::optional<core::appearance_resolution>       Resolution;
+		std::optional<appearance_palette_customisations> Palettes;
+		std::optional<core::typography_settings>         Typography;
+		std::optional<core::dif_resolution>              Dif;
 
 		auto operator<=>(const appearance_presentation_invalidation&) const = default;
 	};
@@ -335,7 +414,7 @@ namespace bpr::application {
 		const appearance_presentation_invalidation& aInvalidation) noexcept -> bool
 	{
 		return !aInvalidation.Resolution.has_value()
-			&& !aInvalidation.Palette.has_value()
+			&& !aInvalidation.Palettes.has_value()
 			&& !aInvalidation.Typography.has_value() && !aInvalidation.Dif.has_value();
 	}
 
@@ -375,9 +454,15 @@ namespace bpr::application {
 	/// restore can invalidate the palette without accepting a preview, while a
 	/// commit equal to the already-stored palette accepts the preview without
 	/// invalidating pixels or writing the same record again.
+	///
+	/// `Variant` names the theme the acknowledged palette belongs to, because a
+	/// commit changes exactly one of them. Every host publication sets it from the
+	/// variant the accepted intent was scoped to; the declared default exists only
+	/// so the record can be aggregate-initialized.
 	struct palette_adoption_publication
 	{
 		core::appearance_palette Palette{ };
+		core::appearance_variant Variant = core::appearance_variant::light;
 
 		auto operator<=>(const palette_adoption_publication&) const = default;
 	};

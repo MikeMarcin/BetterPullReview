@@ -589,10 +589,14 @@ namespace bpr::qt {
 
 	auto default_appearance_settings() -> application::appearance_settings
 	{
-		auto settings    = application::appearance_settings{ };
-		settings.Palette = builtin_appearance_palette(
-			core::resolve_appearance(settings.Mode, core::appearance_observation{ })
-				.Variant);
+		// No customization, for any variant. A fresh installation is the absence
+		// of a decision, and the record says so by leaving every stored flag
+		// clear rather than by carrying a palette that a reader would have to
+		// decide the meaning of. The earlier record had one palette and no way to
+		// be empty, so the composed default had to be a real palette — the light
+		// one, whatever the desktop was doing — and on a dark desktop that read
+		// as forty-six deliberate overrides (BPR-0216).
+		auto settings       = application::appearance_settings{ };
 		settings.Typography = default_typography_settings();
 		return settings;
 	}
@@ -606,37 +610,47 @@ namespace bpr::qt {
 		, Typography{ adopted_typography(std::move(aSettings.Typography)) }
 	{
 		rebuild_typography();
-		// The durable record carries exactly one palette, and that palette
-		// customises exactly one variant. It is read as customisation relative
-		// to the built-in profile of *that* variant, which the record names,
-		// so a record whose palette is a built-in profile carries no
-		// customisation at all and the overrides it does carry apply only
-		// while their own variant resolves.
+		// The durable record carries one palette per variant. Each is read as
+		// customisation relative to the built-in profile of *its own* variant, so
+		// a slot whose palette is a built-in profile carries no customisation at
+		// all, and the overrides a slot does carry apply only while that variant
+		// resolves.
 		//
-		// Only a *stored* palette is read this way. A composed default is built
-		// under an empty observation and is therefore the light palette
-		// whatever the desktop is doing, so comparing it against the built-in
-		// palette of the resolved variant made every role differ on a dark
-		// desktop and banked forty-six overrides pinning light colours over a
-		// correctly resolved dark variant. That was BPR-0216, and the fix is to
-		// stop treating the absence of a record as a set of decisions.
-		// BPR-0645 is the same defect for a record that is present: a stored
-		// light palette diffed against the dark built-in is forty-six
-		// overrides again, so the variant travels with the palette.
-		if (aSettings.PaletteStored) {
-			StoredVariant       = aSettings.PaletteVariant;
-			const auto& builtin = builtin_appearance_palette(StoredVariant);
+		// Only a *stored* slot is read this way. An unstored slot is the absence
+		// of a decision, and comparing it against a built-in palette would turn
+		// that absence into forty-six of them: that was BPR-0216, where the
+		// composed default (the light palette, whatever the desktop was doing)
+		// diffed against the resolved dark built-in. BPR-0645 was the same defect
+		// for a record that is present, which is why each palette is read against
+		// the profile of the variant that owns it and no other.
+		adopt_record(aSettings);
+		rebuild();
+	}
+
+	/// \brief Rebuilds every variant's overrides from one durable record.
+	void appearance_profile::adopt_record(
+		const application::appearance_settings& aSettings)
+	{
+		for (auto variant = std::size_t{ 0U };
+			 variant < core::appearance_variant_count;
+			 ++variant) {
+			const auto& customisation = aSettings.Palettes[variant];
+			auto&       overrides     = Overrides[variant];
+			overrides.fill(std::nullopt);
+			if (!customisation.Stored) {
+				continue;
+			}
+			const auto& builtin = builtin_appearance_palette(
+				static_cast<core::appearance_variant>(
+					static_cast<std::uint8_t>(variant)));
 			for (auto index = std::size_t{ 0U };
 				 index < core::appearance_role_count;
 				 ++index) {
-				if (aSettings.Palette[index] != builtin[index]) {
-					Overrides[index] = aSettings.Palette[index];
+				if (customisation.Palette[index] != builtin[index]) {
+					overrides[index] = customisation.Palette[index];
 				}
 			}
-		} else {
-			StoredVariant = core::resolve_appearance(Mode, Observation).Variant;
 		}
-		rebuild();
 	}
 
 	void appearance_profile::set_sink(appearance_presentation_sink aSink)
@@ -693,35 +707,75 @@ namespace bpr::qt {
 		const core::appearance_role aRole) const noexcept -> bool
 	{
 		return in_vocabulary(aRole)
-			&& Overrides[core::index_of(aRole)].has_value();
+			&& Overrides[application::variant_index(Resolution.Variant)]
+						[core::index_of(aRole)]
+							.has_value();
 	}
 
 	auto appearance_profile::customised_roles() const noexcept -> std::size_t
 	{
+		return customised_roles(Resolution.Variant);
+	}
+
+	auto appearance_profile::customised_roles(
+		const core::appearance_variant aVariant) const noexcept -> std::size_t
+	{
+		if (!application::known(aVariant)) {
+			return 0U;
+		}
 		return static_cast<std::size_t>(std::ranges::count_if(
-			Overrides,
+			Overrides[application::variant_index(aVariant)],
 			[](const std::optional<core::appearance_color>& aOverride) {
 				return aOverride.has_value();
 			}));
+	}
+
+	auto appearance_profile::palette_for(const core::appearance_variant aVariant) const
+		-> core::appearance_palette
+	{
+		const auto& builtin   = builtin_appearance_palette(aVariant);
+		const auto& overrides = Overrides[application::known(aVariant)
+											  ? application::variant_index(aVariant)
+											  : 0U];
+		auto        palette   = core::appearance_palette{ };
+		for (auto index = std::size_t{ 0U }; index < core::appearance_role_count;
+			 ++index) {
+			palette[index] = application::known(aVariant)
+				? overrides[index].value_or(builtin[index])
+				: builtin[index];
+		}
+		return palette;
 	}
 
 	auto appearance_profile::settings() const -> application::appearance_settings
 	{
 		auto settings       = application::appearance_settings{ };
 		settings.Mode       = Mode;
-		settings.Palette    = StoredPalette;
 		settings.Typography = Typography;
-		// This record is what gets written, so its palette is by definition a
-		// stored one. Without saying so, a round trip through the durable
-		// record would read a reviewer's chosen colours back as the absence of
-		// any choice, which is the same confusion as BPR-0216 in the other
-		// direction.
-		settings.PaletteStored = true;
-		// The record is the reviewer's customisation of one variant, whatever
-		// the desktop resolves right now. Reporting the rendered palette here
-		// instead would let an observation flip write the other variant's
-		// built-in profile over the colours they chose.
-		settings.PaletteVariant = StoredVariant;
+		// One slot per variant, each holding that theme's own colours. A slot with
+		// overrides is by definition a stored one: without saying so, a round trip
+		// through the durable record would read a reviewer's chosen colours back as
+		// the absence of any choice, which is BPR-0216 in the other direction. A
+		// slot with no override is the absence of a decision and says that instead
+		// of carrying a built-in palette a later reader would have to interpret.
+		//
+		// Every slot is reported, not just the resolved one. Reporting only what is
+		// on screen would let an observation flip write one theme's colours over
+		// another's — and losing the other themes is exactly what the single-palette
+		// record did.
+		for (auto variant = std::size_t{ 0U };
+			 variant < core::appearance_variant_count;
+			 ++variant) {
+			const auto named = static_cast<core::appearance_variant>(
+				static_cast<std::uint8_t>(variant));
+			if (customised_roles(named) == 0U) {
+				continue;
+			}
+			settings.Palettes[variant] = application::appearance_palette_customisation{
+				.Palette = palette_for(named),
+				.Stored  = true,
+			};
+		}
 		return settings;
 	}
 
@@ -835,14 +889,14 @@ namespace bpr::qt {
 		if (!in_vocabulary(aRole)) {
 			return false;
 		}
-		// Editing a colour is a statement about the variant on screen. Any
-		// override banked against another variant is not part of that
-		// statement and is discarded rather than silently adopted into it.
-		if (StoredVariant != Resolution.Variant) {
-			Overrides.fill(std::nullopt);
-			StoredVariant = Resolution.Variant;
-		}
-		auto& slot = Overrides[core::index_of(aRole)];
+		// Editing a colour is a statement about the theme on screen, and only that
+		// one. It used to also *discard* whatever had been banked for another
+		// variant, because there was one override table and it could belong to one
+		// theme at a time — tuning Dark silently forgot Light. Each theme now has
+		// its own table, so the edit lands in the resolved variant's and no other
+		// theme is touched.
+		auto& slot = Overrides[application::variant_index(Resolution.Variant)]
+							  [core::index_of(aRole)];
 		if (slot.has_value() && *slot == aColor) {
 			return false;
 		}
@@ -870,11 +924,24 @@ namespace bpr::qt {
 	}
 
 	auto appearance_profile::adopt_palette(
-		core::appearance_palette                      aPalette,
-		palette_preview_adoption                      aPreview,
-		const std::optional<core::appearance_variant> aVariant) -> bool
+		core::appearance_palette       aPalette,
+		palette_preview_adoption       aPreview,
+		const core::appearance_variant aVariant) -> bool
 	{
 		set_committed_palette(aPalette, aVariant);
+		if (aPreview == palette_preview_adoption::commit) {
+			PreviewPalette.reset();
+		}
+		return adopt();
+	}
+
+	auto appearance_profile::adopt_palettes(
+		const application::appearance_palette_customisations& aPalettes,
+		const palette_preview_adoption                        aPreview) -> bool
+	{
+		auto adopted     = application::appearance_settings{ };
+		adopted.Palettes = aPalettes;
+		adopt_record(adopted);
 		if (aPreview == palette_preview_adoption::commit) {
 			PreviewPalette.reset();
 		}
@@ -891,16 +958,21 @@ namespace bpr::qt {
 		if (!customised(aRole)) {
 			return false;
 		}
-		Overrides[core::index_of(aRole)].reset();
+		Overrides[application::variant_index(Resolution.Variant)]
+				 [core::index_of(aRole)]
+					 .reset();
 		return adopt();
 	}
 
-	auto appearance_profile::restore_all() -> bool
+	auto appearance_profile::restore_all(const core::appearance_variant aVariant)
+		-> bool
 	{
-		if (customised_roles() == 0U) {
+		if (customised_roles(aVariant) == 0U) {
 			return false;
 		}
-		Overrides.fill(std::nullopt);
+		Overrides[application::variant_index(aVariant)].fill(std::nullopt);
+		// Reports whether the *applied* presentation changed, so restoring a theme
+		// that is not on screen answers false: the record moved and no pixel did.
 		return adopt();
 	}
 
@@ -1068,20 +1140,28 @@ namespace bpr::qt {
 	}
 
 	void appearance_profile::set_committed_palette(
-		const core::appearance_palette&         aPalette,
-		std::optional<core::appearance_variant> aVariant)
+		const core::appearance_palette& aPalette,
+		const core::appearance_variant  aVariant)
 	{
-		// An adopted palette is a total set of colours for one variant: the
-		// one a durable record names, or the one on screen when a gesture
-		// supplies none. It becomes that variant's customisation and replaces
-		// whatever was banked for another one.
-		StoredVariant
-			= aVariant.value_or(core::resolve_appearance(Mode, Observation).Variant);
-		const auto& builtin = builtin_appearance_palette(StoredVariant);
+		// An adopted palette is a total set of colours for exactly one theme, and
+		// the caller names which. It becomes that theme's customisation and leaves
+		// every other theme's alone — it used to replace whatever was banked for
+		// another one, because there was only one table to bank in.
+		//
+		// The variant is no longer derived from the mode and the observation when a
+		// caller omits it. That derivation was a guess the presentation adapter is
+		// not entitled to make, and by the time a host adoption arrives the desktop
+		// may already have flipped, which would file the colours under a theme the
+		// reviewer never edited.
+		if (!application::known(aVariant)) {
+			return;
+		}
+		const auto& builtin   = builtin_appearance_palette(aVariant);
+		auto&       overrides = Overrides[application::variant_index(aVariant)];
 		for (auto index = std::size_t{ 0U };
 			 index < core::appearance_role_count;
 			 ++index) {
-			Overrides[index] = aPalette[index] == builtin[index]
+			overrides[index] = aPalette[index] == builtin[index]
 				? std::optional<core::appearance_color>{ }
 				: std::optional<core::appearance_color>{ aPalette[index] };
 		}
@@ -1089,25 +1169,19 @@ namespace bpr::qt {
 
 	void appearance_profile::rebuild()
 	{
+		// The core decides which variant applies; this only reads its answer.
 		Resolution          = core::resolve_appearance(Mode, Observation);
 		const auto& builtin = builtin_appearance_palette(Resolution.Variant);
-		// An override is a colour chosen against one built-in profile. Against
-		// any other profile it is not a preference, it is a leftover, so a
-		// variant the customisation does not belong to renders its built-in
-		// palette untouched.
-		const auto customised = Resolution.Variant == StoredVariant;
+		// An override is a colour chosen against one built-in profile. Against any
+		// other profile it is not a preference, it is a leftover — so only the
+		// resolved variant's own table is applied, and a theme with no
+		// customisation of its own renders its built-in palette untouched.
+		const auto& overrides
+			= Overrides[application::variant_index(Resolution.Variant)];
 		for (auto index = std::size_t{ 0U };
 			 index < core::appearance_role_count;
 			 ++index) {
-			CommittedPalette[index] = customised
-				? Overrides[index].value_or(builtin[index])
-				: builtin[index];
-		}
-		const auto& stored = builtin_appearance_palette(StoredVariant);
-		for (auto index = std::size_t{ 0U };
-			 index < core::appearance_role_count;
-			 ++index) {
-			StoredPalette[index] = Overrides[index].value_or(stored[index]);
+			CommittedPalette[index] = overrides[index].value_or(builtin[index]);
 		}
 		Palette = PreviewPalette.value_or(CommittedPalette);
 		for (auto index = std::size_t{ 0U };

@@ -266,7 +266,7 @@ namespace {
 			} else if constexpr (std::is_same_v<intent, application::import_appearance_theme_intent>) {
 				aHost.import_theme_file(std::move(aValue.Path));
 			} else if constexpr (std::is_same_v<intent, application::export_appearance_theme_intent>) {
-				aHost.export_theme_file(std::move(aValue.Path), aHost.settings().Palette);
+				aHost.export_theme_file(std::move(aValue.Path), application::customisation_of(aHost.settings(), aHost.resolution().Variant).Palette);
 			} else if constexpr (std::is_same_v<intent, application::cancel_appearance_palette_preview_intent>) {
 				aHost.cancel_theme_import();
 			} else {

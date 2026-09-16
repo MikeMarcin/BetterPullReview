@@ -35,12 +35,21 @@ namespace bpr::application {
 		void               restore(appearance_consumer_id aConsumer);
 		void               select(appearance_consumer_id aConsumer, core::appearance_mode aMode);
 		void               observe(appearance_consumer_id aConsumer, core::appearance_observation aObservation);
-		void               apply(appearance_consumer_id aConsumer, core::appearance_palette aPalette);
-		void               apply(appearance_consumer_id aConsumer, core::typography_settings aTypography);
-		void               import_theme_file(appearance_consumer_id aConsumer, std::string aPath);
-		void               cancel_theme_import(appearance_consumer_id aConsumer);
-		void               export_theme_file(appearance_consumer_id aConsumer, std::string aPath, core::appearance_palette aPalette);
-		void               reset(appearance_consumer_id aConsumer, appearance_reset_scope aScope);
+		/// \brief Commits one total palette as the named variant's customization.
+		///
+		/// \details The variant is supplied rather than derived. A palette is one
+		/// total set of colours for exactly one theme, and the theme it belongs to
+		/// is the one that was on screen when the reviewer chose the colours — a
+		/// fact the composition holds and this host would otherwise have to guess
+		/// from an observation that may already have moved. Every other variant's
+		/// customization is left exactly as it was.
+		void apply(appearance_consumer_id aConsumer, core::appearance_palette aPalette, core::appearance_variant aVariant);
+		void apply(appearance_consumer_id aConsumer, core::typography_settings aTypography);
+		void import_theme_file(appearance_consumer_id aConsumer, std::string aPath);
+		void cancel_theme_import(appearance_consumer_id aConsumer);
+		void export_theme_file(appearance_consumer_id aConsumer, std::string aPath, core::appearance_palette aPalette);
+		/// \brief Resets one durable group; `palette` resets the named variant only.
+		void               reset(appearance_consumer_id aConsumer, appearance_reset_scope aScope, core::appearance_variant aVariant);
 		void               cancel();
 		void               shutdown();
 		[[nodiscard]] auto settings() const noexcept -> const appearance_settings&;

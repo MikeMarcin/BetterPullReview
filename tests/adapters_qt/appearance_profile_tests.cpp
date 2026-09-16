@@ -741,9 +741,12 @@ namespace {
 				== QColor{ 12, 34, 56 },
 			"the live surface shows the customised colour immediately");
 		expect(
-			profile.settings().Palette[core::index_of(role::code_background)]
+			application::customisation_of(
+				profile.settings(), core::appearance_variant::dark)
+					.Palette[core::index_of(role::code_background)]
 				== customBackground,
-			"the durable record carries the customised colour");
+			"the durable record carries the customised colour under the theme it "
+			"was chosen for");
 
 		expect(
 			!profile.customise(role::code_background, customBackground),
@@ -814,12 +817,14 @@ namespace {
 		// against the variant the desktop resolves it is forty-six deliberate
 		// overrides pinning light colours over the dark profile; read against
 		// the variant it actually customises it is no customisation at all.
-		auto record    = qt::default_appearance_settings();
-		record.Mode    = core::appearance_mode::system;
-		record.Palette = qt::builtin_appearance_palette(
-			core::appearance_variant::light);
-		record.PaletteStored  = true;
-		record.PaletteVariant = core::appearance_variant::light;
+		auto record = qt::default_appearance_settings();
+		record.Mode = core::appearance_mode::system;
+		application::customisation_of(record, core::appearance_variant::light)
+			= application::appearance_palette_customisation{
+				  .Palette = qt::builtin_appearance_palette(
+					  core::appearance_variant::light),
+				  .Stored = true,
+			  };
 
 		const auto builtin = qt::appearance_profile{ record, onDark };
 		expect(builtin.variant() == core::appearance_variant::dark,
@@ -834,11 +839,15 @@ namespace {
 
 		// A real customisation of the dark profile, which must apply on a dark
 		// desktop and colour nothing on a light one.
-		constexpr auto chosen                            = core::appearance_color{ 3U, 5U, 7U, 255U };
-		auto           dark                              = record;
-		dark.Palette                                     = qt::builtin_appearance_palette(core::appearance_variant::dark);
-		dark.Palette[core::index_of(role::state_defect)] = chosen;
-		dark.PaletteVariant                              = core::appearance_variant::dark;
+		constexpr auto chosen = core::appearance_color{ 3U, 5U, 7U, 255U };
+		auto           darkPalette
+			= qt::builtin_appearance_palette(core::appearance_variant::dark);
+		darkPalette[core::index_of(role::state_defect)] = chosen;
+		auto dark                                       = qt::default_appearance_settings();
+		dark.Mode                                       = core::appearance_mode::system;
+		application::customisation_of(dark, core::appearance_variant::dark)
+			= application::appearance_palette_customisation{ .Palette = darkPalette,
+															 .Stored  = true };
 
 		const auto applied = qt::appearance_profile{ dark, onDark };
 		expect(applied.customised_roles() == 1U
@@ -874,15 +883,15 @@ namespace {
 
 		// The record written back names the variant its palette customises, so
 		// the next launch reads it against the same built-in profile.
-		expect(applied.settings().PaletteStored
-				   && applied.settings().PaletteVariant
-					   == core::appearance_variant::dark,
-			   "the durable record carries the variant the palette customizes");
-		expect(elsewhere.settings().PaletteVariant
-					   == core::appearance_variant::dark
-				   && elsewhere.settings().Palette == applied.settings().Palette,
-			   "and still names the customised variant while another one is on "
-			   "screen, so an observation flip cannot rewrite the record");
+		expect(application::customisation_of(
+				   applied.settings(), core::appearance_variant::dark)
+				   == application::appearance_palette_customisation{
+					   .Palette = darkPalette, .Stored = true },
+			   "the durable record carries the customisation under the theme it "
+			   "belongs to");
+		expect(elsewhere.settings() == applied.settings(),
+			   "and reports the same record while another theme is on screen, so an "
+			   "observation flip cannot rewrite it");
 		const auto reread = qt::appearance_profile{ applied.settings(), onDark };
 		expect(reread.palette() == applied.palette()
 				   && reread.customised_roles() == 1U,
@@ -907,49 +916,131 @@ namespace {
 			core::appearance_variant::light));
 		expect(profile.palette() == dark && profile.customised_roles() == 0U,
 			   "a light record adopted with its own variant leaves the dark profile untouched");
-		expect(profile.settings().PaletteVariant == core::appearance_variant::light
-				   && profile.settings().Palette
-					   == qt::builtin_appearance_palette(core::appearance_variant::light),
-			   "and the record still reports the light customisation it holds");
+		// The adopted palette *is* the built-in light profile, so it overrides
+		// nothing: a stored palette equal to a built-in profile is no customisation
+		// of it (BPR-0645), which is the same rule the neighbouring fixture proves
+		// from the other direction.
+		expect(profile.customised_roles(core::appearance_variant::light) == 0U
+				   && profile.settings() == application::appearance_settings{ .Mode = profile.mode(), .Typography = profile.typography() },
+			   "and the record reports no customisation for light either, because "
+			   "matching the built-in profile is not customising it");
 	}
 
-	auto test_editing_a_colour_belongs_to_the_variant_on_screen() -> void
+	/// \brief RFC-BPR-0034's behaviour change: each theme keeps its own colours.
+	///
+	/// \details This fixture is the one that used to assert the opposite. A single
+	/// override table had to belong to one variant at a time, so editing a colour
+	/// while Dark was on screen *discarded* whatever had been chosen for Light —
+	/// "I'm a bit confused at how colors and theme interact". The edit is still a
+	/// statement about the theme on screen and nothing else, but the other theme's
+	/// statement now survives it.
+	auto test_editing_a_colour_keeps_every_other_theme() -> void
 	{
 		constexpr auto onDark = core::appearance_observation{
 			.Scheme = core::os_color_scheme::dark
 		};
+		constexpr auto onLight = core::appearance_observation{
+			.Scheme = core::os_color_scheme::light
+		};
 		constexpr auto chosen = core::appearance_color{ 11U, 22U, 33U, 255U };
+		constexpr auto stale  = core::appearance_color{ 200U, 100U, 50U, 255U };
 
-		// Starts customised for light, then edits while dark is on screen. The
-		// edit is a statement about the dark profile, so the light overrides
-		// are not silently adopted into it.
-		auto record    = qt::default_appearance_settings();
-		record.Mode    = core::appearance_mode::system;
-		record.Palette = qt::builtin_appearance_palette(
-			core::appearance_variant::light);
-		record.Palette[core::index_of(role::state_stale)]
-			= core::appearance_color{ 200U, 100U, 50U, 255U };
-		record.PaletteStored  = true;
-		record.PaletteVariant = core::appearance_variant::light;
+		// Starts customised for light, then edits while dark is on screen.
+		auto lightPalette
+			= qt::builtin_appearance_palette(core::appearance_variant::light);
+		lightPalette[core::index_of(role::state_stale)] = stale;
+		auto record                                     = qt::default_appearance_settings();
+		record.Mode                                     = core::appearance_mode::system;
+		application::customisation_of(record, core::appearance_variant::light)
+			= application::appearance_palette_customisation{ .Palette = lightPalette,
+															 .Stored  = true };
 
 		auto profile = qt::appearance_profile{ record, onDark };
 		expect(profile.customise(role::state_defect, chosen),
 			   "customising while the dark variant resolves changes what is "
 			   "rendered");
-		expect(profile.customised_roles() == 1U,
-			   "the light override is discarded rather than inherited by the "
-			   "dark profile");
-		expect(profile.settings().PaletteVariant == core::appearance_variant::dark
-				   && profile.settings()
+		expect(profile.customised_roles() == 1U
+				   && profile.customised_roles(core::appearance_variant::dark) == 1U,
+			   "the dark edit is one override of the dark profile");
+		expect(profile.customised_roles(core::appearance_variant::light) == 1U,
+			   "and the light customisation survives it rather than being "
+			   "discarded, which is the behaviour RFC-BPR-0034 changed");
+
+		const auto written = profile.settings();
+		expect(application::customisation_of(written, core::appearance_variant::dark)
+					   .Stored
+				   && application::customisation_of(
+						  written, core::appearance_variant::dark)
 						   .Palette[core::index_of(role::state_defect)]
 					   == chosen,
-			   "and the record written back names the dark profile it edited");
-		expect(
-			profile.settings().Palette[core::index_of(role::state_stale)]
-				== qt::builtin_appearance_palette(
-					core::appearance_variant::dark)[core::index_of(role::state_stale)],
-			"every role the dark edit did not name keeps its built-in dark "
-			"colour");
+			   "the record written back carries the dark edit under Dark");
+		expect(application::customisation_of(written, core::appearance_variant::dark)
+					   .Palette[core::index_of(role::state_stale)]
+				   == qt::builtin_appearance_palette(
+					   core::appearance_variant::dark)[core::index_of(role::state_stale)],
+			   "every role the dark edit did not name keeps its built-in dark colour");
+		expect(application::customisation_of(written, core::appearance_variant::light)
+				   == application::appearance_palette_customisation{
+					   .Palette = lightPalette, .Stored = true },
+			   "and Light's own colours are written back exactly as they were");
+
+		// Both themes render their own colours as the desktop moves between them.
+		expect(profile.palette()[core::index_of(role::state_defect)] == chosen,
+			   "the dark edit applies while dark resolves");
+		expect(profile.observe(onLight)
+				   && profile.palette()[core::index_of(role::state_stale)] == stale
+				   && profile.palette()[core::index_of(role::state_defect)]
+					   == qt::builtin_appearance_palette(
+						   core::appearance_variant::light)[core::index_of(role::state_defect)],
+			   "and following the desktop to light renders light's own "
+			   "customisation, not dark's");
+
+		// Reset all is scoped to one theme too.
+		expect(profile.restore_all(core::appearance_variant::light)
+				   && profile.customised_roles(core::appearance_variant::light) == 0U
+				   && profile.customised_roles(core::appearance_variant::dark) == 1U,
+			   "resetting the theme on screen spares every other theme's colours");
+	}
+
+	/// \brief Per-variant counts and each theme's own storable palette.
+	auto test_customised_counts_and_palettes_are_per_theme() -> void
+	{
+		auto profile = qt::appearance_profile{ };
+		expect(profile.variant() == core::appearance_variant::light,
+			   "a fresh profile with no observation resolves light");
+		static_cast<void>(profile.customise(role::state_defect,
+											core::appearance_color{ 1U, 2U, 3U, 255U }));
+		static_cast<void>(profile.customise(role::state_stale,
+											core::appearance_color{ 4U, 5U, 6U, 255U }));
+		static_cast<void>(profile.select_mode(core::appearance_mode::dark));
+		static_cast<void>(profile.customise(role::state_fixed,
+											core::appearance_color{ 7U, 8U, 9U, 255U }));
+
+		expect(profile.customised_roles(core::appearance_variant::light) == 2U
+				   && profile.customised_roles(core::appearance_variant::dark) == 1U
+				   && profile.customised_roles(core::appearance_variant::high_contrast_light) == 0U
+				   && profile.customised_roles(core::appearance_variant::high_contrast_dark) == 0U,
+			   "each theme reports the number of roles it differs from its own "
+			   "built-in palette by");
+		expect(profile.customised_roles()
+				   == profile.customised_roles(core::appearance_variant::dark),
+			   "the unqualified count is the theme on screen");
+		expect(profile.customised_roles(static_cast<core::appearance_variant>(200U)) == 0U,
+			   "a variant outside the closed vocabulary customises nothing");
+
+		// Each theme's storable palette is its own built-in profile plus its own
+		// overrides, whichever theme happens to be on screen.
+		const auto light = profile.palette_for(core::appearance_variant::light);
+		expect(light[core::index_of(role::state_defect)]
+					   == core::appearance_color{ 1U, 2U, 3U, 255U }
+				   && light[core::index_of(role::state_fixed)]
+					   == qt::builtin_appearance_palette(
+						   core::appearance_variant::light)[core::index_of(role::state_fixed)],
+			   "light's palette carries light's overrides over light's built-in");
+		expect(profile.palette_for(core::appearance_variant::high_contrast_dark)
+				   == qt::builtin_appearance_palette(
+					   core::appearance_variant::high_contrast_dark),
+			   "an uncustomised theme's palette is exactly its built-in profile");
 	}
 
 	auto test_total_palette_preview_cancel_and_adoption_are_exact() -> void
@@ -961,11 +1052,16 @@ namespace {
 		auto       preview                                            = committed;
 		preview[core::index_of(role::diff_group_boundary_rule)].Alpha = 173U;
 
+		const auto lightSlot = [&profile] {
+			return application::customisation_of(
+				profile.settings(), core::appearance_variant::light);
+		};
+
 		expect(profile.preview_palette(preview)
 				   && profile.previewing_palette()
 				   && profile.palette() == preview,
 			   "a total core palette is previewed immediately");
-		expect(profile.settings().Palette == committed,
+		expect(lightSlot() == application::appearance_palette_customisation{ },
 			   "preview never enters the settings record that persistence reads");
 		expect(profile.cancel_palette_preview()
 				   && !profile.previewing_palette()
@@ -975,11 +1071,14 @@ namespace {
 		expect(profile.preview_palette(preview),
 			   "the candidate can be previewed again before commit");
 		const auto beforeAdoption = notifications;
-		expect(!profile.adopt_palette(preview),
+		expect(!profile.adopt_palette(
+				   preview,
+				   qt::palette_preview_adoption::commit,
+				   core::appearance_variant::light),
 			   "adopting pixels already on screen produces no duplicate repaint");
 		expect(notifications == beforeAdoption
 				   && !profile.previewing_palette()
-				   && profile.settings().Palette == preview,
+				   && lightSlot().Stored && lightSlot().Palette == preview,
 			   "host adoption clears preview state and makes the exact palette durable");
 
 		auto laterPreview                                        = preview;
@@ -987,17 +1086,23 @@ namespace {
 		expect(profile.preview_palette(laterPreview),
 			   "a later preview can begin after a palette is already durable");
 		static_cast<void>(profile.select_mode(core::appearance_mode::dark));
+		// Re-adopting light's palette while dark is on screen. It belongs to light
+		// and is filed there whatever is resolved, which is why the variant is the
+		// caller's to name rather than the profile's to derive.
 		expect(!profile.adopt_palette(
 				   preview,
-				   qt::palette_preview_adoption::retain)
+				   qt::palette_preview_adoption::retain,
+				   core::appearance_variant::light)
 				   && profile.previewing_palette()
 				   && profile.palette() == laterPreview
-				   && profile.settings().Palette == preview,
+				   && lightSlot().Palette == preview,
 			   "an unrelated host adoption refreshes the committed baseline beneath the exact preview");
 		expect(profile.cancel_palette_preview()
-				   && profile.palette() == preview
-				   && profile.settings().Palette == preview,
-			   "cancel after unrelated adoption restores the exact durable palette");
+				   && profile.palette()
+					   == qt::builtin_appearance_palette(core::appearance_variant::dark)
+				   && lightSlot().Palette == preview,
+			   "cancel after unrelated adoption renders the theme on screen while "
+			   "light keeps its own durable palette");
 	}
 
 	// Typography fixtures. Every offered value is placed against the core's own
@@ -2549,7 +2654,8 @@ auto main(int argc, char** argv) -> int
 	test_customisation_round_trips_through_the_durable_record();
 	test_a_stored_palette_customises_exactly_one_variant();
 	test_a_record_adopted_with_its_variant_does_not_colour_another();
-	test_editing_a_colour_belongs_to_the_variant_on_screen();
+	test_editing_a_colour_keeps_every_other_theme();
+	test_customised_counts_and_palettes_are_per_theme();
 	test_total_palette_preview_cancel_and_adoption_are_exact();
 	test_typography_defaults_are_legal_and_native();
 	test_fonts_are_built_from_the_core_record();

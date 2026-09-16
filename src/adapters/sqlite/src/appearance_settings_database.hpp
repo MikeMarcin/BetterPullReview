@@ -27,7 +27,13 @@ namespace bpr::adapters::sqlite::detail {
 	/// the built-in dark palette changed with [[BPR-0720]] and the owner
 	/// asked for the saved customisation of the old defaults to be reset.
 	/// Version 6 adds shown/System Dif preferences without changing legacy fields.
-	inline constexpr std::int64_t appearance_settings_schema_version = 6;
+	/// Version 7 replaces the single `palette_document`, `palette_variant` and
+	/// `palette_stored` triple with one document and one stored flag per variant
+	/// (RFC-BPR-0034: each theme keeps its own colours). `palette_variant` had no
+	/// meaning left once every variant has a slot of its own — it existed only to
+	/// say which single theme the one palette belonged to — so it is migration
+	/// input rather than a column version 7 keeps.
+	inline constexpr std::int64_t appearance_settings_schema_version = 7;
 
 	/// \brief Owns the durable appearance settings database.
 	///

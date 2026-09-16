@@ -68,8 +68,9 @@ namespace {
 			.Weight               = 400U,
 		};
 		settings.Typography.Code.TabWidth = 4U;
-		settings.Palette[core::index_of(core::appearance_role::code_background)]
-			= core::appearance_color{ .Red = 20U, .Green = 20U, .Blue = 20U };
+		// No customization, for any variant. A composed base is what a fresh
+		// installation starts from, and that is the absence of a decision rather
+		// than a palette a reader would have to interpret.
 		return settings;
 	}
 
@@ -96,13 +97,17 @@ namespace {
 	{
 		auto settings = base_settings();
 		settings.Mode = core::appearance_mode::dark;
-		settings.Palette[core::index_of(core::appearance_role::code_background)]
-			= core::appearance_color{ .Red = 200U, .Green = 200U, .Blue = 200U };
+		// A persisted record, so the slot it carries is a stored one. BPR-0216: a
+		// default palette and a chosen one are different facts, and only the second
+		// is customisation. That is now said per variant, so this record customises
+		// Dark and says nothing at all about the other three themes.
+		auto dark = core::appearance_palette{ };
+		dark.fill(core::appearance_color{
+			.Red = 200U, .Green = 200U, .Blue = 200U, .Alpha = 255U });
+		application::customisation_of(settings, core::appearance_variant::dark)
+			= application::appearance_palette_customisation{ .Palette = dark,
+															 .Stored  = true };
 		settings.Typography.Ui.Font.PointSizeCentipoints = 1100U;
-		// It is a persisted record, so its palette is a stored one. BPR-0216:
-		// a default palette and a chosen one are different facts, and only the
-		// second is customisation.
-		settings.PaletteStored = true;
 		return settings;
 	}
 
@@ -434,7 +439,7 @@ namespace {
 		const auto& invalidation = *projection.Presentation;
 		expect(invalidation.Epoch == application::appearance_epoch{ 1U },
 			   "the first published change advances the epoch once");
-		expect(invalidation.Resolution.has_value() && invalidation.Palette.has_value()
+		expect(invalidation.Resolution.has_value() && invalidation.Palettes.has_value()
 				   && invalidation.Typography.has_value(),
 			   "the first publication carries every changed domain");
 		expect(invalidation.Resolution->Variant == core::appearance_variant::dark,
@@ -455,7 +460,7 @@ namespace {
 		// Capture the old record on the effect lane, but deliberately hold its
 		// terminal off the decision lane until after the newer gesture.
 		harnessed.Effects.drain();
-		harnessed.Host.apply(palette);
+		harnessed.Host.apply(palette, core::appearance_variant::light);
 		harnessed.settle();
 
 		expect(harnessed.Settings.Loads == 1U
@@ -465,7 +470,10 @@ namespace {
 				   && harnessed.Host.persisted_settings() == 1U,
 			   "the newer palette is durably written exactly once");
 		expect(harnessed.Settings.Stored.has_value()
-				   && harnessed.Settings.Stored->Palette == palette
+				   && application::customisation_of(
+						  *harnessed.Settings.Stored, core::appearance_variant::light)
+						   .Palette
+					   == palette
 				   && harnessed.Host.settings() == *harnessed.Settings.Stored,
 			   "the session and durable record both retain the newer palette");
 		expect(harnessed.Projections.Published.size() == 1U
@@ -585,7 +593,7 @@ namespace {
 			   "a second mode change publishes once");
 
 		const auto& invalidation = *harnessed.Projections.Published.back().Presentation;
-		expect(invalidation.Resolution.has_value() && !invalidation.Palette.has_value()
+		expect(invalidation.Resolution.has_value() && !invalidation.Palettes.has_value()
 				   && !invalidation.Typography.has_value(),
 			   "a bounded mode change invalidates the resolved appearance only");
 		expect(invalidation.Epoch == application::appearance_epoch{ 2U },
@@ -648,27 +656,36 @@ namespace {
 		auto palette = contrast_safe_palette();
 		palette[core::index_of(core::appearance_role::diff_group_boundary_rule)]
 			.Alpha = 254U;
-		harnessed.Host.apply(palette);
+		harnessed.Host.apply(palette, core::appearance_variant::dark);
 		harnessed.settle();
 
 		expect(harnessed.Projections.Published.size() == 2U,
 			   "a palette change publishes once");
 		const auto& projection   = harnessed.Projections.Published.back();
 		const auto& invalidation = *projection.Presentation;
-		expect(invalidation.Palette.has_value() && !invalidation.Resolution.has_value()
+		expect(invalidation.Palettes.has_value() && !invalidation.Resolution.has_value()
 				   && !invalidation.Typography.has_value(),
 			   "a bounded palette change invalidates the palette only");
-		expect(*invalidation.Palette == palette,
-			   "the invalidation carries the adopted palette");
+		expect(application::customisation_of(
+				   *invalidation.Palettes, core::appearance_variant::dark)
+				   == application::appearance_palette_customisation{ .Palette = palette,
+																	 .Stored  = true },
+			   "the invalidation carries the adopted palette under its own variant");
 		expect(projection.PaletteAdoption.has_value()
-				   && projection.PaletteAdoption->Palette == palette,
-			   "the same projection acknowledges the accepted preview commit");
+				   && projection.PaletteAdoption->Palette == palette
+				   && projection.PaletteAdoption->Variant
+					   == core::appearance_variant::dark,
+			   "the same projection acknowledges the accepted preview commit and "
+			   "names the theme it changed");
 		expect(harnessed.Settings.Stored.has_value()
-				   && harnessed.Settings.Stored->Palette == palette,
+				   && application::customisation_of(
+						  *harnessed.Settings.Stored, core::appearance_variant::dark)
+						   .Palette
+					   == palette,
 			   "the palette persists");
 
 		const auto storesBeforeEqual = harnessed.Settings.Stores;
-		harnessed.Host.apply(palette);
+		harnessed.Host.apply(palette, core::appearance_variant::dark);
 		harnessed.settle();
 		expect(harnessed.Settings.Stores == storesBeforeEqual,
 			   "committing the already-stored palette does not rewrite it");
@@ -683,46 +700,99 @@ namespace {
 
 	void test_an_adopted_palette_records_the_variant_it_customises()
 	{
-		constexpr auto observedDark = core::appearance_observation{
-			.Scheme = core::os_color_scheme::dark
-		};
-
-		// A palette is one total set of colours for one variant, and the one it
-		// customises is the variant on screen when the reviewer chose them. A
-		// record that carried the palette without the variant left the reader
-		// to derive it from whatever desktop opened the file next, which is
-		// what pinned a light palette over the dark profile.
-		auto harnessed = harness{ };
-		harnessed.Host.observe(observedDark);
+		// A palette is one total set of colours for one variant, and the variant is
+		// supplied by the composition rather than derived here from an observation
+		// that may already have moved. Deriving it was what pinned a light palette
+		// over the dark profile.
+		auto       harnessed = harness{ };
+		const auto chosen    = contrast_safe_palette();
+		harnessed.Host.apply(chosen, core::appearance_variant::dark);
 		harnessed.settle();
-		expect(harnessed.Host.resolution().Variant == core::appearance_variant::dark,
-			   "the system mode resolves dark under an observed dark scheme");
 
-		harnessed.Host.apply(contrast_safe_palette());
-		harnessed.settle();
-		expect(harnessed.Host.settings().PaletteStored
-				   && harnessed.Host.settings().PaletteVariant
-					   == core::appearance_variant::dark,
-			   "an adopted palette records the variant it customises");
+		const auto& stored = harnessed.Host.settings();
+		expect(application::customisation_of(stored, core::appearance_variant::dark)
+				   == application::appearance_palette_customisation{ .Palette = chosen,
+																	 .Stored  = true },
+			   "an adopted palette becomes exactly the named variant's customization");
+		for (const auto untouched : { core::appearance_variant::light,
+									  core::appearance_variant::high_contrast_light,
+									  core::appearance_variant::high_contrast_dark }) {
+			expect(application::customisation_of(stored, untouched)
+					   == application::appearance_palette_customisation{ },
+				   "and no other theme is given a customization it never had");
+		}
 		expect(harnessed.Settings.Stored.has_value()
-				   && harnessed.Settings.Stored->PaletteVariant
-					   == core::appearance_variant::dark,
-			   "and the durable record carries it");
+				   && *harnessed.Settings.Stored == stored,
+			   "the durable record carries the whole per-variant table");
 
-		// An explicit mode ignores the observation, so the recorded variant
-		// must ignore it too: reading the desktop here rather than the
-		// resolution would label a light palette dark.
-		auto explicitly = harness{ };
-		explicitly.Host.select(core::appearance_mode::light);
-		explicitly.settle();
-		explicitly.Host.observe(observedDark);
-		explicitly.settle();
-		explicitly.Host.apply(contrast_safe_palette());
-		explicitly.settle();
-		expect(explicitly.Host.settings().PaletteVariant
-				   == core::appearance_variant::light,
-			   "an explicit light mode records light however dark the desktop "
-			   "is");
+		// The behaviour change RFC-BPR-0034 exists for: committing one theme must
+		// leave the others exactly as they were. Under the single-palette record
+		// this second commit replaced the first.
+		auto  light = chosen;
+		auto& stale = light[core::index_of(core::appearance_role::state_stale)];
+		// A one-channel nudge rather than a fresh colour. The host validates every
+		// committed palette against the required contrast pairs of all four
+		// variants, and this fixture is about which theme the colours land under,
+		// not about contrast: a colour chosen for contrast reasons would make the
+		// commit refused and the assertion below vacuous.
+		stale.Blue = static_cast<std::uint8_t>(stale.Blue == 0U ? 1U : stale.Blue - 1U);
+		harnessed.Host.apply(light, core::appearance_variant::light);
+		harnessed.settle();
+		expect(application::customisation_of(
+				   harnessed.Host.settings(), core::appearance_variant::dark)
+					   .Palette
+				   == chosen,
+			   "committing Light leaves the Dark customization intact");
+		expect(application::customisation_of(
+				   harnessed.Host.settings(), core::appearance_variant::light)
+					   .Palette
+				   == light,
+			   "and Light now carries its own colours");
+
+		// The restart half of the claim: a fresh host lifetime reading the record
+		// this one wrote finds both themes still customised, and differently.
+		auto restarted            = harness{ };
+		restarted.Settings.Stored = harnessed.Settings.Stored;
+		restarted.Host.restore();
+		restarted.settle();
+		expect(restarted.Host.settings() == harnessed.Host.settings(),
+			   "both variants' customizations survive a reopen, compared whole");
+		expect(application::customisation_of(
+				   restarted.Host.settings(), core::appearance_variant::dark)
+					   .Palette
+				   != application::customisation_of(
+						  restarted.Host.settings(), core::appearance_variant::light)
+						  .Palette,
+			   "and they are still two different themes rather than one");
+	}
+
+	void test_a_palette_reset_names_one_variant_and_spares_the_others()
+	{
+		auto       h      = harness{ };
+		const auto chosen = contrast_safe_palette();
+		h.Host.apply(chosen, core::appearance_variant::dark);
+		h.Host.apply(chosen, core::appearance_variant::light);
+		h.settle();
+
+		h.Host.reset(
+			application::appearance_reset_scope::palette,
+			core::appearance_variant::dark);
+		h.settle();
+		expect(application::customisation_of(
+				   h.Host.settings(), core::appearance_variant::dark)
+				   == application::appearance_palette_customisation{ },
+			   "a palette reset clears exactly the theme it names");
+		expect(application::customisation_of(
+				   h.Host.settings(), core::appearance_variant::light)
+					   .Palette
+				   == chosen,
+			   "and leaves every other theme's colours where they were");
+		expect(h.Projections.Published.back().PaletteAdoption.has_value()
+				   && h.Projections.Published.back().PaletteAdoption->Variant
+					   == core::appearance_variant::dark,
+			   "the reset acknowledgement names the theme it acted on");
+		expect(h.Settings.Stored.has_value() && *h.Settings.Stored == h.Host.settings(),
+			   "the reset persists the absence of one theme's overrides, not all");
 	}
 
 	void test_palette_commit_refuses_contrast_failures_without_writing()
@@ -730,7 +800,7 @@ namespace {
 		auto harnessed = harness{ };
 		auto palette   = core::appearance_palette{ };
 		palette.fill(core::appearance_color{ .Alpha = 255U });
-		harnessed.Host.apply(palette);
+		harnessed.Host.apply(palette, core::appearance_variant::light);
 		harnessed.settle();
 
 		expect(harnessed.Host.settings() == base_settings(),
@@ -898,7 +968,7 @@ namespace {
 		typography.Code.Font.PointSizeCentipoints = 1600U;
 
 		harnessed.Host.select(core::appearance_mode::high_contrast_dark);
-		harnessed.Host.apply(palette);
+		harnessed.Host.apply(palette, core::appearance_variant::high_contrast_dark);
 		harnessed.Host.apply(typography);
 		harnessed.Host.observe(
 			core::appearance_observation{ .Scheme = core::os_color_scheme::dark });
@@ -1109,25 +1179,37 @@ namespace {
 		typography.Code.Font.Family = "Chosen Code";
 		h.Host.apply(typography);
 		h.Host.select(core::appearance_mode::dark);
-		h.Host.apply(contrast_safe_palette());
+		h.Host.apply(contrast_safe_palette(), core::appearance_variant::dark);
 		h.settle();
-		h.Host.reset(application::appearance_reset_scope::interface_font);
+		const auto customised = [&h] {
+			return application::customisation_of(
+					   h.Host.settings(), core::appearance_variant::dark)
+				.Stored;
+		};
+		h.Host.reset(
+			application::appearance_reset_scope::interface_font,
+			core::appearance_variant::dark);
 		h.settle();
 		expect(h.Host.settings().Typography.Ui == defaults.Typography.Ui
 				   && h.Host.settings().Typography.Code == typography.Code
 				   && h.Host.settings().Mode == core::appearance_mode::dark
-				   && h.Host.settings().PaletteStored,
+				   && customised(),
 			   "interface reset preserves code, mode and custom palette");
-		h.Host.reset(application::appearance_reset_scope::code_font);
-		h.Host.reset(application::appearance_reset_scope::mode);
+		h.Host.reset(
+			application::appearance_reset_scope::code_font,
+			core::appearance_variant::dark);
+		h.Host.reset(
+			application::appearance_reset_scope::mode, core::appearance_variant::dark);
 		h.settle();
 		expect(h.Host.settings().Typography == defaults.Typography && h.Host.settings().Mode == defaults.Mode
-				   && h.Host.settings().PaletteStored,
+				   && customised(),
 			   "code and mode resets preserve palette");
 		h.ThemeDocuments.Document = core::export_theme(contrast_safe_palette());
 		h.Host.import_theme_file("late.json");
 		h.Effects.drain();
-		h.Host.reset(application::appearance_reset_scope::palette);
+		h.Host.reset(
+			application::appearance_reset_scope::palette,
+			core::appearance_variant::dark);
 		h.settle();
 		expect(h.Host.settings() == defaults && h.Settings.Stored == defaults,
 			   "palette reset persists the absence of overrides and exact composed defaults");
@@ -1195,6 +1277,7 @@ auto main() -> int
 	test_illegal_typography_is_refused_without_clamping();
 	test_palette_change_publishes_only_the_palette();
 	test_an_adopted_palette_records_the_variant_it_customises();
+	test_a_palette_reset_names_one_variant_and_spares_the_others();
 	test_palette_commit_refuses_contrast_failures_without_writing();
 	test_theme_import_is_bounded_typed_and_preview_only();
 	test_system_mode_follows_the_observation_and_explicit_mode_does_not();

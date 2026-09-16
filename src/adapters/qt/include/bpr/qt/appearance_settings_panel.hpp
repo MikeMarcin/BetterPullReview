@@ -8,6 +8,7 @@
 #include <QString>
 #include <QWidget>
 
+#include <array>
 #include <cstddef>
 #include <optional>
 #include <span>
@@ -64,6 +65,22 @@ namespace bpr::qt {
 			QWidget*                                aParent   = nullptr);
 
 		void set_dispatch(application::appearance_intent_dispatch aDispatch);
+		/// \brief Names the theme on screen, as the composition resolved it.
+		///
+		/// \details Supplied rather than derived. The core decides the variant from
+		/// the selected mode and a bounded observation; this surface observes
+		/// nothing and must not appear to. RFC-BPR-0034: export, import and reset
+		/// act on the theme on screen and say so, and this is what they name.
+		void               set_resolved_variant(core::appearance_variant aVariant);
+		[[nodiscard]] auto resolved_variant() const noexcept
+			-> const std::optional<core::appearance_variant>&;
+		/// \brief Publishes how many colours each theme customises, by variant.
+		///
+		/// \details Computed by the appearance profile, which owns the built-in
+		/// palettes a customisation is measured against, and forwarded to the theme
+		/// strip that captions each tile with it.
+		void set_customised_counts(
+			std::array<std::size_t, core::appearance_variant_count> aCounts);
 		/// Cancels visible preview and pending import, even before a preview arrives.
 		void cancel_preview();
 		/// \brief Reports that an accepted session change could not be persisted.
@@ -165,6 +182,8 @@ namespace bpr::qt {
 		/// \brief Adds the session-only diagnostic when persistence is unavailable.
 		[[nodiscard]] auto with_persistence_status(QString aStatus) const
 			-> QString;
+		/// \brief Names the theme on screen, or says so when nobody has supplied one.
+		[[nodiscard]] auto theme_text() const -> QString;
 
 		application::appearance_intent_dispatch Dispatch;
 		/// The last record the host published. This is a mirror rather than an
@@ -172,6 +191,8 @@ namespace bpr::qt {
 		/// refusal has something exact to restore.
 		application::appearance_settings AdoptedSettings;
 		core::appearance_palette         CommittedPalette{ };
+		/// \brief The theme on screen, once the composition has named it.
+		std::optional<core::appearance_variant> ResolvedVariant;
 
 		QComboBox*                              ModeSelector  = nullptr;
 		QLineEdit*                              UiFamily      = nullptr;

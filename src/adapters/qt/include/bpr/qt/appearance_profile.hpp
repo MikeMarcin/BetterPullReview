@@ -256,6 +256,28 @@ namespace bpr::qt {
 		[[nodiscard]] auto customised(core::appearance_role aRole) const noexcept
 			-> bool;
 		[[nodiscard]] auto customised_roles() const noexcept -> std::size_t;
+		/// \brief Returns how many roles one named theme customises.
+		///
+		/// \details RFC-BPR-0034 captions each theme tile with this number, so it
+		/// is answered for every variant rather than only the resolved one. It is
+		/// the same comparison the resolved-variant overload makes: a role counts
+		/// when its override differs from *that* variant's built-in colour. The
+		/// count lives here because the built-in profiles do: the host holds no
+		/// built-in palette and the core holds no default theme, so neither can say
+		/// what a colour differs from. A variant outside the closed vocabulary
+		/// customises nothing.
+		[[nodiscard]] auto customised_roles(
+			core::appearance_variant aVariant) const noexcept -> std::size_t;
+
+		/// \brief Returns one theme's built-in palette with its own overrides applied.
+		///
+		/// \details What the durable record holds for that variant, and what an
+		/// export of that theme writes. It differs from `palette()` whenever the
+		/// desktop resolves a different variant, and it has to: exporting or
+		/// storing the rendered palette while another theme was on screen would
+		/// write that theme's colours over this one's.
+		[[nodiscard]] auto palette_for(core::appearance_variant aVariant) const
+			-> core::appearance_palette;
 		[[nodiscard]] auto settings() const -> application::appearance_settings;
 		[[nodiscard]] auto generation() const noexcept -> std::uint64_t;
 		[[nodiscard]] auto statistics() const noexcept
@@ -336,23 +358,44 @@ namespace bpr::qt {
 		/// instead re-express the committed palette against another built-in
 		/// variant while retaining the exact visible, cancellable preview.
 		///
-		/// `aVariant` names the variant the palette customises. A durable
-		/// record supplies its own; a gesture omits it and the variant on
-		/// screen applies, because a reviewer edits what they are looking at.
+		/// `aVariant` names the theme the palette customises and is required.
+		/// It used to be optional, and an omitted variant meant "resolve one
+		/// from the mode and the observation" — a guess this class is not
+		/// entitled to make and which RFC-BPR-0034 prohibits: by the time an
+		/// adoption arrives the desktop may have flipped, and the colours would
+		/// be banked against a theme nobody was looking at. A durable record
+		/// names its variant and a gesture is scoped to the resolved one by the
+		/// composition, so there is no caller who does not know.
 		auto adopt_palette(
-			core::appearance_palette                aPalette,
-			palette_preview_adoption                aPreview = palette_preview_adoption::commit,
-			std::optional<core::appearance_variant> aVariant = std::nullopt)
-			-> bool;
+			core::appearance_palette aPalette,
+			palette_preview_adoption aPreview,
+			core::appearance_variant aVariant) -> bool;
+
+		/// \brief Adopts the whole per-variant customization table of one record.
+		///
+		/// \details The durable shape, adopted whole: each variant's overrides are
+		/// rebuilt from its own slot against its own built-in profile, so a light
+		/// customization cannot become the dark profile's overrides and a variant
+		/// whose slot carries no customization renders its built-in palette
+		/// untouched. This replaces the pair of calls a single-palette record
+		/// needed, where "no stored palette" had to mean "restore everything".
+		auto adopt_palettes(
+			const application::appearance_palette_customisations& aPalettes,
+			palette_preview_adoption                              aPreview) -> bool;
 		[[nodiscard]] auto previewing_palette() const noexcept -> bool;
 
 		/// \brief Restores one semantic colour to the built-in profile.
 		/// \returns Whether the applied presentation changed.
 		auto restore(core::appearance_role aRole) -> bool;
 
-		/// \brief Restores every semantic colour to the built-in profile.
+		/// \brief Restores one theme's every semantic colour to its built-in profile.
+		///
+		/// \details Scoped to a variant because RFC-BPR-0034's Reset all resets the
+		/// theme on screen and no other. The other themes' colours are not part of
+		/// that gesture and survive it.
+		///
 		/// \returns Whether the applied presentation changed.
-		auto restore_all() -> bool;
+		auto restore_all(core::appearance_variant aVariant) -> bool;
 
 		/// \brief Republishes after a native palette, font, style, or theme change.
 		///
@@ -408,45 +451,44 @@ namespace bpr::qt {
 		void apply_code_font_to(QWidget& aSurface);
 
 	private:
+		void adopt_record(const application::appearance_settings& aSettings);
 		void rebuild();
 		void rebuild_typography();
 		void set_committed_palette(
-			const core::appearance_palette&         aPalette,
-			std::optional<core::appearance_variant> aVariant);
+			const core::appearance_palette& aPalette,
+			core::appearance_variant        aVariant);
 		auto adopt() -> bool;
 		auto publish() -> bool;
 		void apply_code_metrics(QWidget& aSurface) const;
+
+		/// \brief One variant's overrides over its own built-in profile.
+		using variant_overrides = std::array<
+			std::optional<core::appearance_color>,
+			core::appearance_role_count>;
 
 		core::appearance_mode        Mode = core::appearance_mode::system;
 		core::appearance_observation Observation;
 		core::typography_settings    Typography;
 		QFont                        UiFont;
 		QFont                        CodeFont;
-		std::array<std::optional<core::appearance_color>, core::appearance_role_count>
-									Overrides;
-		core::appearance_resolution Resolution;
-		/// \brief The variant `Overrides` belongs to.
+		/// \brief One override table per variant, indexed by variant ordinal.
 		///
-		/// \details A palette customises exactly one variant, so an override
-		/// is a statement about one built-in profile and means nothing against
-		/// another. Applying the overrides only while this variant resolves is
-		/// what keeps a light customisation from colouring the dark profile.
-		core::appearance_variant StoredVariant
-			= core::appearance_variant::light;
-		core::appearance_palette CommittedPalette{ };
-		/// \brief The stored variant's built-in palette with the overrides applied.
-		///
-		/// \details What the durable record holds. It differs from
-		/// `CommittedPalette` whenever the desktop resolves a variant other than
-		/// the stored one, and it must, or an observation flip would write the
-		/// other variant's built-in profile over the reviewer's customisation.
-		core::appearance_palette                        StoredPalette{ };
-		std::optional<core::appearance_palette>         PreviewPalette;
-		core::appearance_palette                        Palette{ };
-		std::array<QColor, core::appearance_role_count> Colors;
-		appearance_presentation_sink                    Sink;
-		appearance_profile_statistics                   Statistics;
-		std::uint64_t                                   Generation = 0U;
+		/// \details RFC-BPR-0034. An override is a colour chosen against one
+		/// built-in profile: it is a statement about that profile and means nothing
+		/// against another. Keying the table by variant is what lets Light and Dark
+		/// each keep their own colours, and what makes it impossible for a light
+		/// customisation to colour the dark profile — the single table this replaced
+		/// had to be tagged with one variant and discarded whenever the reviewer
+		/// edited another.
+		std::array<variant_overrides, core::appearance_variant_count> Overrides;
+		core::appearance_resolution                                   Resolution;
+		core::appearance_palette                                      CommittedPalette{ };
+		std::optional<core::appearance_palette>                       PreviewPalette;
+		core::appearance_palette                                      Palette{ };
+		std::array<QColor, core::appearance_role_count>               Colors;
+		appearance_presentation_sink                                  Sink;
+		appearance_profile_statistics                                 Statistics;
+		std::uint64_t                                                 Generation = 0U;
 	};
 } // namespace bpr::qt
 

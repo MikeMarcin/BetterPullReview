@@ -102,12 +102,18 @@ namespace {
 
 	[[nodiscard]] auto legal_settings() -> application::appearance_settings
 	{
-		return {
-			.Mode    = core::appearance_mode::light,
-			.Palette = qt::builtin_appearance_palette(
-				core::appearance_variant::light),
-			.Typography = qt::default_typography_settings(),
-		};
+		auto settings = application::appearance_settings{ };
+		settings.Mode = core::appearance_mode::light;
+		// Light customised to its own built-in colours: a stored slot, so the
+		// panel has a palette to show, carrying no override of anything.
+		application::customisation_of(settings, core::appearance_variant::light)
+			= application::appearance_palette_customisation{
+				  .Palette = qt::builtin_appearance_palette(
+					  core::appearance_variant::light),
+				  .Stored = true,
+			  };
+		settings.Typography = qt::default_typography_settings();
+		return settings;
 	}
 
 	/// \brief Every declared mode must be offerable.
@@ -344,8 +350,9 @@ namespace {
 		adopted.Mode        = core::appearance_mode::system;
 		const auto resolved = qt::builtin_appearance_palette(
 			core::appearance_variant::dark);
-		adopted.Palette       = resolved;
-		adopted.PaletteStored = true;
+		application::customisation_of(adopted, core::appearance_variant::dark)
+			= application::appearance_palette_customisation{ .Palette = resolved,
+															 .Stored  = true };
 		panel.adopt(adopted, resolved);
 		recorded.clear();
 
@@ -471,7 +478,8 @@ namespace {
 			   "import replacement invalidates a pending manual candidate");
 		recorded.clear();
 		offer(QStringLiteral("#445566"));
-		panel.preview_import(legal_settings().Palette);
+		panel.preview_import(
+			qt::builtin_appearance_palette(core::appearance_variant::light));
 		QApplication::processEvents();
 		expect(recorded.count() == 0U, "an imported preview supersedes a pending candidate");
 		offer(QStringLiteral("#112233"));

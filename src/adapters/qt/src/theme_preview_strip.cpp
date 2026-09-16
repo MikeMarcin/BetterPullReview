@@ -81,7 +81,9 @@ namespace bpr::qt {
 			.Name = QStringLiteral("High contrast"),
 			.Note = QStringLiteral("follows desktop"),
 		};
-		set_system_variant(core::appearance_variant::light);
+		// No `set_system_variant` here on purpose. This widget cannot observe the
+		// desktop, so a value chosen at construction would be a claim it has no
+		// evidence for; the composition supplies the resolved variant.
 		relayout();
 	}
 
@@ -98,12 +100,34 @@ namespace bpr::qt {
 
 	void theme_preview_strip::set_system_variant(const core::appearance_variant aVariant)
 	{
+		// The composition supplies this on every accepted appearance change, so a
+		// repeated value must not ask for a repaint: the note and both System
+		// halves are derived from it and none of them moved.
+		if (System == aVariant) {
+			return;
+		}
 		System        = aVariant;
 		Cards[0].Note = aVariant == core::appearance_variant::dark
 				|| aVariant == core::appearance_variant::high_contrast_dark
 			? QStringLiteral("dark now")
 			: QStringLiteral("light now");
 		update();
+	}
+
+	void theme_preview_strip::set_customised_counts(
+		std::array<std::size_t, core::appearance_variant_count> aCounts)
+	{
+		if (CustomisedCounts == aCounts) {
+			return;
+		}
+		CustomisedCounts = aCounts;
+		update();
+	}
+
+	auto theme_preview_strip::customised_counts() const noexcept
+		-> const std::array<std::size_t, core::appearance_variant_count>&
+	{
+		return CustomisedCounts;
 	}
 
 	void theme_preview_strip::set_dispatch(theme_preview_dispatch aDispatch)
@@ -171,6 +195,12 @@ namespace bpr::qt {
 		code.setFamily(QStringLiteral("JetBrainsMonoNL Nerd Font"));
 		code.setStyleHint(QFont::Monospace);
 		code.setPointSizeF(code.pointSizeF() * 0.85);
+		// One reading of the supplied variant, used by both the System split and
+		// the high-contrast tiles. Absent means the composition has not said yet,
+		// and light is what a tile is drawn in rather than what it claims.
+		const auto systemDark = System.has_value()
+			&& (*System == core::appearance_variant::dark
+				|| *System == core::appearance_variant::high_contrast_dark);
 		for (const auto& card : Cards) {
 			const auto current = card.Mode == Current;
 			const auto preview = QRectF{ card.Rect }.adjusted(0.5, 0.5, -0.5, -(36.0 + 0.5));
@@ -179,7 +209,7 @@ namespace bpr::qt {
 			switch (card.Mode) {
 			case core::appearance_mode::system: {
 				// Half light, half dark, whichever the desktop is now on the left.
-				const auto now   = System == core::appearance_variant::dark
+				const auto now   = systemDark
 					? core::appearance_variant::dark
 					: core::appearance_variant::light;
 				const auto other = now == core::appearance_variant::dark
@@ -200,7 +230,7 @@ namespace bpr::qt {
 			case core::appearance_mode::high_contrast_light:
 			case core::appearance_mode::high_contrast_dark:
 				paint_sample(painter, preview,
-							 builtin_appearance_palette(System == core::appearance_variant::dark
+							 builtin_appearance_palette(systemDark
 															? core::appearance_variant::high_contrast_dark
 															: core::appearance_variant::high_contrast_light),
 							 code);

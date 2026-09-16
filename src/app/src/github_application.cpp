@@ -11162,11 +11162,19 @@ namespace bpr::app {
 		/// changing the record.
 		void dispatch_appearance_intent(application::appearance_intent aIntent)
 		{
-			if (Closing || AppearanceHost == nullptr) {
+			if (Closing || AppearanceHost == nullptr || !AppearanceProfile) {
 				return;
 			}
+			// RFC-BPR-0034: a commit, a reset and an export act on the theme on
+			// screen. The composition is the only place that holds both the
+			// selected mode and the native observation the core resolves that
+			// theme from, so it is the composition that names the variant on every
+			// scoped gesture. Qt never derives it: a widget that guessed would bank
+			// one theme's colours against another whenever the desktop had moved
+			// since the gesture.
+			const auto variant = AppearanceProfile->variant();
 			std::visit(
-				[this](auto&& aValue) {
+				[this, variant](auto&& aValue) {
 					using intent = std::decay_t<decltype(aValue)>;
 					if constexpr (std::is_same_v<
 									  intent,
@@ -11189,7 +11197,7 @@ namespace bpr::app {
 					} else if constexpr (std::is_same_v<
 											 intent,
 											 application::commit_appearance_palette_intent>) {
-						AppearanceHost->apply(std::move(aValue.Palette));
+						AppearanceHost->apply(std::move(aValue.Palette), variant);
 					} else if constexpr (std::is_same_v<
 											 intent,
 											 application::cancel_appearance_palette_preview_intent>) {
@@ -11198,11 +11206,13 @@ namespace bpr::app {
 							AppearanceProfile->cancel_palette_preview();
 						}
 					} else if constexpr (std::is_same_v<intent, application::reset_appearance_intent>) {
-						AppearanceHost->reset(aValue.Scope);
+						AppearanceHost->reset(aValue.Scope, variant);
 					} else if constexpr (std::is_same_v<intent, application::export_appearance_theme_intent>) {
-						if (AppearanceProfile) {
-							AppearanceHost->export_theme_file(std::move(aValue.Path), AppearanceProfile->settings().Palette);
-						}
+						// The theme on screen, built-in colours included. The
+						// record holds only what a reviewer customised, so
+						// exporting its slot alone would write a document of the
+						// roles they never touched as transparent.
+						AppearanceHost->export_theme_file(std::move(aValue.Path), AppearanceProfile->palette_for(variant));
 					} else {
 						AppearanceHost->import_theme_file(std::move(aValue.Path));
 					}
@@ -11224,21 +11234,17 @@ namespace bpr::app {
 			}
 			const auto settings = AppearanceHost->settings();
 			static_cast<void>(AppearanceProfile->select_mode(settings.Mode));
-			if (settings.PaletteStored) {
-				// [[BPR-0645]]. The record names the variant its palette
-				// customises; adopting it against the variant on screen would
-				// bank a light palette as the dark profile's overrides.
-				static_cast<void>(AppearanceProfile->adopt_palette(
-					settings.Palette,
-					aPaletteCommitted ? qt::palette_preview_adoption::commit
-									  : qt::palette_preview_adoption::retain,
-					settings.PaletteVariant));
-			} else {
-				static_cast<void>(AppearanceProfile->restore_all());
-				if (aPaletteCommitted) {
-					AppearanceProfile->cancel_palette_preview();
-				}
-			}
+			// The whole per-variant table, adopted whole. Each theme's palette is
+			// read against its own built-in profile, so a light customisation
+			// cannot become the dark profile's overrides ([[BPR-0645]]) and a theme
+			// with no customisation of its own renders its built-in palette
+			// untouched ([[BPR-0216]]). This replaces the pair of branches the
+			// single-palette record needed, where "nothing stored" could only mean
+			// "restore every theme".
+			static_cast<void>(AppearanceProfile->adopt_palettes(
+				settings.Palettes,
+				aPaletteCommitted ? qt::palette_preview_adoption::commit
+								  : qt::palette_preview_adoption::retain));
 			const auto selection
 				= AppearanceProfile->select_typography(settings.Typography);
 			if (!selection.accepted()) {
@@ -11257,9 +11263,21 @@ namespace bpr::app {
 					if (AppearanceProfile->previewing_palette()) {
 						activePreview = AppearanceProfile->palette();
 					}
+					// Supplied, never guessed. The panel names the theme its
+					// export, import and reset act on, and the theme strip
+					// captions its System tile, from the core's own resolution.
+					panel->set_resolved_variant(AppearanceProfile->variant());
+					auto counts
+						= std::array<std::size_t, core::appearance_variant_count>{ };
+					for (std::size_t index = 0U; index < counts.size(); ++index) {
+						counts[index] = AppearanceProfile->customised_roles(
+							static_cast<core::appearance_variant>(
+								static_cast<std::uint8_t>(index)));
+					}
+					panel->set_customised_counts(counts);
 					panel->adopt(
 						settings,
-						AppearanceProfile->settings().Palette,
+						AppearanceProfile->palette_for(AppearanceProfile->variant()),
 						std::move(activePreview));
 					panel->adopt_motion(AppearanceHost->dif_resolution());
 				}
@@ -11728,14 +11746,22 @@ namespace bpr::app {
 				failed,
 			};
 
-			phase                                           Phase = phase::awaiting_stable_comparison;
-			std::string                                     Path;
-			application::appearance_settings                BeforeSettings;
-			core::appearance_palette                        BeforePalette{ };
-			core::appearance_palette                        ManualCandidate{ };
-			core::appearance_palette                        Candidate{ };
-			core::appearance_palette                        StoredCandidate{ };
-			core::appearance_observation                    NativeObservation;
+			phase                            Phase = phase::awaiting_stable_comparison;
+			std::string                      Path;
+			application::appearance_settings BeforeSettings;
+			core::appearance_palette         BeforePalette{ };
+			core::appearance_palette         ManualCandidate{ };
+			core::appearance_palette         Candidate{ };
+			core::appearance_palette         StoredCandidate{ };
+			core::appearance_observation     NativeObservation;
+			/// \brief The theme the probe committed its palette to.
+			///
+			/// \details Captured at the commit so the assertions afterwards can
+			/// name it. That is the point of the phases that follow: the
+			/// observation is flipped to another variant and the committed theme's
+			/// colours must still be exactly where they were put.
+			core::appearance_variant CustomisedVariant
+				= core::appearance_variant::light;
 			std::shared_ptr<const core::computed_file_diff> Result;
 			std::optional<core::diff_request_context>       Context;
 			std::optional<core::semantic_selection>         Selection;
@@ -14100,14 +14126,18 @@ namespace bpr::app {
 				return fail();
 			}
 			reportStage("second-preview");
+			probe.CustomisedVariant = implementation->AppearanceProfile->variant();
 			panel->commit_button()->click();
 			reportStage("commit-dispatched");
 			if (implementation->AppearanceProfile->previewing_palette()
 				|| panel->preview_palette().has_value()
 				|| implementation->AppearanceProfile->palette() != probe.Candidate
-				|| implementation->AppearanceHost->settings().Palette
+				|| application::customisation_of(implementation->AppearanceHost->settings(), probe.CustomisedVariant).Palette
 					!= probe.Candidate
-				|| !implementation->AppearanceHost->settings().PaletteStored
+				|| !application::customisation_of(
+						implementation->AppearanceHost->settings(),
+						probe.CustomisedVariant)
+						.Stored
 				|| !unchanged()) {
 				return fail();
 			}
@@ -14125,7 +14155,7 @@ namespace bpr::app {
 			}
 			if (implementation->AppearanceHost->persisted_settings()
 					!= probe.PersistedSettings + 1U
-				|| implementation->AppearanceHost->settings().Palette
+				|| application::customisation_of(implementation->AppearanceHost->settings(), probe.CustomisedVariant).Palette
 					!= probe.Candidate
 				|| !unchanged()) {
 				return fail();
@@ -14154,7 +14184,7 @@ namespace bpr::app {
 					!= probe.StoredCandidate
 				|| panel->preview_palette()
 					!= std::optional{ probe.StoredCandidate }
-				|| implementation->AppearanceHost->settings().Palette
+				|| application::customisation_of(implementation->AppearanceHost->settings(), probe.CustomisedVariant).Palette
 					!= probe.Candidate
 				|| implementation->AppearanceHost->persisted_settings()
 					!= probe.PersistedSettings + 1U
@@ -14181,12 +14211,12 @@ namespace bpr::app {
 				implementation->AppearanceProfile->previewing_palette(),
 				implementation->AppearanceProfile->palette()
 					== probe.StoredCandidate,
-				implementation->AppearanceProfile->settings().Palette
+				application::customisation_of(implementation->AppearanceProfile->settings(), probe.CustomisedVariant).Palette
 					== probe.Candidate,
 				panel->preview_palette() == std::optional{ probe.StoredCandidate },
 				panel->commit_button()->isEnabled(),
 				panel->cancel_button()->isEnabled(),
-				implementation->AppearanceHost->settings().Palette
+				application::customisation_of(implementation->AppearanceHost->settings(), probe.CustomisedVariant).Palette
 					== probe.Candidate,
 				implementation->AppearanceHost->persisted_settings()
 					== probe.PersistedSettings + 1U,
@@ -14218,13 +14248,13 @@ namespace bpr::app {
 			if (!implementation->AppearanceProfile->previewing_palette()
 				|| implementation->AppearanceProfile->palette()
 					!= probe.StoredCandidate
-				|| implementation->AppearanceProfile->settings().Palette
+				|| application::customisation_of(implementation->AppearanceProfile->settings(), probe.CustomisedVariant).Palette
 					!= probe.Candidate
 				|| panel->preview_palette()
 					!= std::optional{ probe.StoredCandidate }
 				|| !panel->commit_button()->isEnabled()
 				|| !panel->cancel_button()->isEnabled()
-				|| implementation->AppearanceHost->settings().Palette
+				|| application::customisation_of(implementation->AppearanceHost->settings(), probe.CustomisedVariant).Palette
 					!= probe.Candidate
 				|| implementation->AppearanceHost->persisted_settings()
 					!= probe.PersistedSettings + 1U
@@ -14235,9 +14265,9 @@ namespace bpr::app {
 			if (implementation->AppearanceProfile->previewing_palette()
 				|| panel->preview_palette().has_value()
 				|| implementation->AppearanceProfile->palette() != probe.Candidate
-				|| implementation->AppearanceProfile->settings().Palette
+				|| application::customisation_of(implementation->AppearanceProfile->settings(), probe.CustomisedVariant).Palette
 					!= probe.Candidate
-				|| implementation->AppearanceHost->settings().Palette
+				|| application::customisation_of(implementation->AppearanceHost->settings(), probe.CustomisedVariant).Palette
 					!= probe.Candidate
 				|| implementation->AppearanceHost->persisted_settings()
 					!= probe.PersistedSettings + 1U
@@ -14260,7 +14290,7 @@ namespace bpr::app {
 				|| panel->preview_palette() != std::optional{ probe.Candidate }
 				|| !panel->commit_button()->isEnabled()
 				|| !panel->cancel_button()->isEnabled()
-				|| implementation->AppearanceHost->settings().Palette
+				|| application::customisation_of(implementation->AppearanceHost->settings(), probe.CustomisedVariant).Palette
 					!= probe.Candidate
 				|| implementation->AppearanceHost->persisted_settings()
 					!= probe.PersistedSettings + 1U
@@ -14277,11 +14307,11 @@ namespace bpr::app {
 		const auto equalCommitFacts = std::array{
 			!implementation->AppearanceProfile->previewing_palette(),
 			implementation->AppearanceProfile->palette() == probe.Candidate,
-			implementation->AppearanceProfile->settings().Palette == probe.Candidate,
+			application::customisation_of(implementation->AppearanceProfile->settings(), probe.CustomisedVariant).Palette == probe.Candidate,
 			!panel->preview_palette().has_value(),
 			!panel->commit_button()->isEnabled(),
 			!panel->cancel_button()->isEnabled(),
-			implementation->AppearanceHost->settings().Palette == probe.Candidate,
+			application::customisation_of(implementation->AppearanceHost->settings(), probe.CustomisedVariant).Palette == probe.Candidate,
 			implementation->AppearanceHost->persisted_settings()
 				== probe.PersistedSettings + 1U,
 			unchanged(),

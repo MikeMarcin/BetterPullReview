@@ -4,6 +4,7 @@
 
 #include <sqlite3.h>
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstdlib>
@@ -62,6 +63,31 @@ namespace {
 		std::filesystem::path Path;
 	};
 
+	[[nodiscard]] constexpr auto variant_at(const std::size_t aIndex) noexcept
+		-> core::appearance_variant
+	{
+		return static_cast<core::appearance_variant>(
+			static_cast<std::uint8_t>(aIndex));
+	}
+
+	/// \brief The column names version 7 keeps one palette per variant in.
+	///
+	/// \details Restated here rather than borrowed from the store. These names are
+	/// the durable contract, so a test that asked the store what it calls its own
+	/// columns would agree with any rename, including one that silently orphaned
+	/// every existing file.
+	[[nodiscard]] auto document_column(const core::appearance_variant aVariant)
+		-> std::string
+	{
+		return std::string{ core::stable_name(aVariant) } + "_palette_document";
+	}
+
+	[[nodiscard]] auto stored_column(const core::appearance_variant aVariant)
+		-> std::string
+	{
+		return std::string{ core::stable_name(aVariant) } + "_palette_stored";
+	}
+
 	/// \brief The least record the core will accept.
 	///
 	/// \details Not `appearance_settings{ }`. A default-constructed
@@ -69,6 +95,9 @@ namespace {
 	/// it cannot know a family and says so by being illegal until a host
 	/// supplies one. A test that stored the default-constructed record would be
 	/// storing something no composition ever produces.
+	///
+	/// It carries no colour customization at all, for any variant, which is what a
+	/// fresh installation looks like.
 	[[nodiscard]] auto legal_baseline() -> application::appearance_settings
 	{
 		auto settings                        = application::appearance_settings{ };
@@ -77,19 +106,46 @@ namespace {
 		return settings;
 	}
 
-	/// \brief A legal record that differs from the baseline in every domain.
-	[[nodiscard]] auto distinct_settings() -> application::appearance_settings
+	/// \brief A total, opaque palette nobody could mistake for another seed's.
+	[[nodiscard]] auto seeded_palette(const std::uint8_t aSeed)
+		-> core::appearance_palette
 	{
-		auto settings = application::appearance_settings{ };
-		settings.Mode = core::appearance_mode::high_contrast_dark;
+		auto palette = core::appearance_palette{ };
 		for (std::size_t index = 0U; index < core::appearance_role_count; ++index) {
-			settings.Palette[index] = core::appearance_color{
-				.Red   = static_cast<std::uint8_t>(index * 3U),
-				.Green = static_cast<std::uint8_t>(index * 5U),
-				.Blue  = static_cast<std::uint8_t>(index * 7U),
+			palette[index] = core::appearance_color{
+				.Red   = static_cast<std::uint8_t>(index * 3U + aSeed),
+				.Green = static_cast<std::uint8_t>(index * 5U + aSeed),
+				.Blue  = static_cast<std::uint8_t>(index * 7U + aSeed),
 				.Alpha = 255U,
 			};
 		}
+		return palette;
+	}
+
+	auto with_customisation(
+		application::appearance_settings& aSettings,
+		const core::appearance_variant    aVariant,
+		const core::appearance_palette&   aPalette) -> void
+	{
+		application::customisation_of(aSettings, aVariant)
+			= application::appearance_palette_customisation{ .Palette = aPalette,
+															 .Stored  = true };
+	}
+
+	/// \brief A legal record that differs from the baseline in every domain.
+	///
+	/// \details The customised variant is deliberately independent of the mode:
+	/// the mode is high contrast dark whichever theme carries the colours, so a
+	/// reader that derived the variant from the mode instead of reading the
+	/// recorded one would file three of the four cases under the wrong theme.
+	[[nodiscard]] auto distinct_settings(
+		const core::appearance_variant aVariant
+		= core::appearance_variant::high_contrast_dark)
+		-> application::appearance_settings
+	{
+		auto settings = application::appearance_settings{ };
+		settings.Mode = core::appearance_mode::high_contrast_dark;
+		with_customisation(settings, aVariant, seeded_palette(0U));
 		settings.Typography.Ui = core::ui_font_settings{
 			.Font = core::font_settings{
 				.Family               = "Stored Interface",
@@ -110,6 +166,90 @@ namespace {
 			.SyntaxItalic = true,
 		};
 		return settings;
+	}
+
+	[[nodiscard]] auto legacy_snapshot(::sqlite3* aDatabase) -> std::vector<std::string>
+	{
+		auto       cells   = std::vector<std::string>{ };
+		const auto collect = [](void* aContext, int aCount, char** aValues, char**) -> int {
+			auto& values = *static_cast<std::vector<std::string>*>(aContext);
+			for (int index = 0; index < aCount; ++index) {
+				values.emplace_back(aValues[index] == nullptr ? "<NULL>" : aValues[index]);
+			}
+			return 0;
+		};
+		expect(::sqlite3_exec(aDatabase,
+							  "PRAGMA application_id; PRAGMA user_version;"
+							  "SELECT type,name,tbl_name,sql FROM sqlite_schema ORDER BY name;"
+							  "PRAGMA table_xinfo(appearance_settings);"
+							  "SELECT * FROM appearance_settings ORDER BY singleton;",
+							  collect, &cells, nullptr)
+				   == SQLITE_OK,
+			   "legacy schema, columns and rows can be captured");
+		return cells;
+	}
+
+	/// \brief Rewrites a current-format file into the exact shape one earlier
+	///        version had, so a migration fixture is a real legacy file.
+	///
+	/// \details The store only ever writes the current schema, so a legacy fixture
+	/// has to be built by editing one back down: the single `palette_document`,
+	/// `palette_variant` and `palette_stored` columns are added and the per-variant
+	/// ones dropped, through a raw connection. That is the idiom the older fixtures
+	/// here already use — `ALTER TABLE` on a STRICT table is refused by the
+	/// hardened production connection but allowed on a plain one, and dropping a
+	/// column takes its own CHECK constraint with it.
+	///
+	/// `aVariant` is the theme the legacy row claims its one palette belongs to,
+	/// and `aStored` whether that row calls it a deliberate customization.
+	auto down_edit_to_version(
+		const std::filesystem::path&   aPath,
+		const std::int64_t             aVersion,
+		const core::appearance_variant aVariant,
+		const bool                     aStored) -> void
+	{
+		::sqlite3* raw = nullptr;
+		expect(::sqlite3_open(aPath.string().c_str(), &raw) == SQLITE_OK,
+			   "a legacy fixture opens raw");
+		auto statements = std::vector<std::string>{
+			"ALTER TABLE appearance_settings ADD COLUMN palette_document TEXT NOT NULL DEFAULT ''",
+			"UPDATE appearance_settings SET palette_document = " + document_column(aVariant),
+		};
+		if (aVersion >= 2) {
+			statements.emplace_back(
+				"ALTER TABLE appearance_settings ADD COLUMN palette_variant TEXT NOT NULL DEFAULT 'light'");
+			statements.emplace_back(
+				"UPDATE appearance_settings SET palette_variant = '"
+				+ std::string{ core::stable_name(aVariant) } + "'");
+		}
+		if (aVersion >= 3) {
+			statements.emplace_back(
+				"ALTER TABLE appearance_settings ADD COLUMN palette_stored INTEGER NOT NULL DEFAULT 0 CHECK(palette_stored IN (0, 1))");
+			statements.emplace_back(
+				std::string{ "UPDATE appearance_settings SET palette_stored = " }
+				+ (aStored ? "1" : "0"));
+		}
+		for (std::size_t index = 0U; index < core::appearance_variant_count; ++index) {
+			statements.emplace_back(
+				"ALTER TABLE appearance_settings DROP COLUMN "
+				+ document_column(variant_at(index)));
+			statements.emplace_back(
+				"ALTER TABLE appearance_settings DROP COLUMN "
+				+ stored_column(variant_at(index)));
+		}
+		if (aVersion < 6) {
+			statements.emplace_back("ALTER TABLE appearance_settings DROP COLUMN dif_visibility");
+			statements.emplace_back("ALTER TABLE appearance_settings DROP COLUMN motion_mode");
+		}
+		statements.emplace_back(
+			"UPDATE appearance_meta SET schema_format = " + std::to_string(aVersion));
+		statements.emplace_back("PRAGMA user_version = " + std::to_string(aVersion));
+		for (const auto& statement : statements) {
+			expect(::sqlite3_exec(raw, statement.c_str(), nullptr, nullptr, nullptr)
+					   == SQLITE_OK,
+				   "a legacy down-edit statement runs: " + statement);
+		}
+		expect(::sqlite3_close(raw) == SQLITE_OK, "the legacy fixture closes");
 	}
 
 	auto test_absent_is_distinguishable_from_stored_defaults() -> void
@@ -141,6 +281,15 @@ namespace {
 			"a deliberately stored default is reported as present");
 		expect(**stored == defaults,
 			   "and reads back as exactly what was stored");
+
+		// And the same distinction per variant: a record that stores no
+		// customization for a theme is not the same fact as one that stores that
+		// theme's built-in colours, and the stored flag is what keeps them apart.
+		for (std::size_t index = 0U; index < core::appearance_variant_count; ++index) {
+			expect(application::customisation_of(**stored, variant_at(index))
+					   == application::appearance_palette_customisation{ },
+				   "a deliberately stored baseline customises no theme");
+		}
 	}
 
 	auto test_every_domain_round_trips() -> void
@@ -159,41 +308,99 @@ namespace {
 		expect(reopened.has_value(), "the store reopens");
 		const auto loaded = reopened->load({ });
 		expect(loaded.has_value() && loaded->has_value(), "the record loads");
-		// Compared whole: mode, all forty-five palette roles, and every
+		// Compared whole: mode, every variant's palette and stored flag, and every
 		// typography field at once. Checking field by field would pass a store
 		// that dropped one added later.
 		expect(**loaded == chosen,
-			   "mode, palette, and typography all survive a close and reopen, "
-			   "compared whole");
+			   "mode, every theme's palette, and typography all survive a close "
+			   "and reopen, compared whole");
 	}
 
-	auto test_the_palette_is_stored_as_a_theme_document() -> void
+	/// \brief RFC-BPR-0034: every theme keeps its own colours, independently.
+	auto test_every_theme_round_trips_independently() -> void
+	{
+		const auto scratch = scratch_directory{ };
+		const auto path    = scratch.file("themes.sqlite3");
+
+		auto chosen = legal_baseline();
+		for (std::size_t index = 0U; index < core::appearance_variant_count; ++index) {
+			with_customisation(
+				chosen,
+				variant_at(index),
+				seeded_palette(static_cast<std::uint8_t>(11U * (index + 1U))));
+		}
+
+		{
+			auto opened = appearance_settings_database::open(path, { });
+			expect(opened.has_value(), "the store opens");
+			expect(opened->store(chosen, { }).has_value(),
+				   "four customised themes store together");
+		}
+
+		auto reopened = appearance_settings_database::open(path, { });
+		expect(reopened.has_value(), "the store reopens");
+		const auto loaded = reopened->load({ });
+		expect(loaded && loaded->has_value() && **loaded == chosen,
+			   "all four themes return exactly as they were stored");
+		for (std::size_t first = 0U; first < core::appearance_variant_count; ++first) {
+			for (auto second = first + 1U; second < core::appearance_variant_count;
+				 ++second) {
+				expect(application::customisation_of(**loaded, variant_at(first)).Palette
+						   != application::customisation_of(**loaded, variant_at(second))
+								  .Palette,
+					   "and no theme's colours were written over another's");
+			}
+		}
+
+		// One theme's reset leaves the others alone all the way through the store.
+		auto reset = chosen;
+		application::customisation_of(reset, core::appearance_variant::dark)
+			= application::appearance_palette_customisation{ };
+		expect(reopened->store(reset, { }).has_value(), "one theme's reset stores");
+		auto again = appearance_settings_database::open(path, { });
+		expect(again && again->load({ }).value().value() == reset,
+			   "and a reopen finds exactly that theme cleared and the rest intact");
+	}
+
+	auto test_each_theme_is_stored_as_its_own_theme_document() -> void
 	{
 		const auto scratch = scratch_directory{ };
 		const auto path    = scratch.file("appearance.sqlite3");
-		const auto chosen  = distinct_settings();
+		auto       chosen  = legal_baseline();
+		for (std::size_t index = 0U; index < core::appearance_variant_count; ++index) {
+			with_customisation(
+				chosen,
+				variant_at(index),
+				seeded_palette(static_cast<std::uint8_t>(7U * (index + 1U))));
+		}
 
 		auto opened = appearance_settings_database::open(path, { });
 		expect(opened.has_value(), "the store opens");
 		expect(opened->store(chosen, { }).has_value(), "the record stores");
 
-		const auto document = scalar_text(
-			opened->handle(),
-			"SELECT palette_document FROM appearance_settings WHERE singleton = 1");
-		expect(document.has_value(), "the palette is stored as text");
-		// The stored bytes are the core's own exported document, not a second
-		// encoding. That is what makes the read path inherit every refusal
-		// `import_theme` already makes against a tampered file.
-		expect(*document == core::export_theme(chosen.Palette),
-			   "the stored palette is exactly the core's theme document");
-		// Keyed by stable role identifiers rather than enum ordinals, so
-		// inserting a role into the vocabulary cannot re-colour every role
-		// after it.
-		expect(
-			document->find(std::string{ core::stable_name(
-				core::appearance_role::code_background) })
-				!= std::string::npos,
-			"roles are named by their stable identifier in the stored document");
+		for (std::size_t index = 0U; index < core::appearance_variant_count; ++index) {
+			const auto variant  = variant_at(index);
+			const auto document = scalar_text(
+				opened->handle(),
+				"SELECT " + document_column(variant)
+					+ " FROM appearance_settings WHERE singleton = 1");
+			expect(document.has_value(), "each theme's palette is stored as text");
+			// The stored bytes are the core's own exported document, not a second
+			// encoding. That is what makes the read path inherit every refusal
+			// `import_theme` already makes against a tampered file.
+			expect(*document
+					   == core::export_theme(
+						   application::customisation_of(chosen, variant).Palette),
+				   "each stored palette is exactly the core's theme document");
+			// Keyed by stable role identifiers rather than enum ordinals, so
+			// inserting a role into the vocabulary cannot re-colour every role
+			// after it.
+			expect(
+				document->find(std::string{ core::stable_name(
+					core::appearance_role::code_background) })
+					!= std::string::npos,
+				"roles are named by their stable identifier in the stored document");
+		}
 	}
 
 	auto test_a_tampered_palette_is_refused() -> void
@@ -208,7 +415,9 @@ namespace {
 				   "a legal record stores");
 		}
 
-		// A durable file can be replaced by another build or edited by hand.
+		// A durable file can be replaced by another build or edited by hand. The
+		// tampered column belongs to a theme that carries no customization, which
+		// is the case a reader that skipped unstored slots would admit.
 		{
 			::sqlite3* raw = nullptr;
 			expect(
@@ -219,9 +428,10 @@ namespace {
 			expect(
 				::sqlite3_exec(
 					raw,
-					"UPDATE appearance_settings "
-					"SET palette_document = 'not a theme document' "
-					"WHERE singleton = 1",
+					("UPDATE appearance_settings SET "
+					 + document_column(core::appearance_variant::dark)
+					 + " = 'not a theme document' WHERE singleton = 1")
+						.c_str(),
 					nullptr,
 					nullptr,
 					nullptr)
@@ -237,6 +447,51 @@ namespace {
 			   "a palette the core's importer refuses is not adopted");
 		expect(loaded.error() == catalog_database_failure::integrity_failure,
 			   "and is refused as an integrity failure");
+	}
+
+	auto test_a_stored_flag_outside_its_range_is_refused() -> void
+	{
+		const auto scratch = scratch_directory{ };
+		const auto path    = scratch.file("appearance.sqlite3");
+
+		{
+			auto opened = appearance_settings_database::open(path, { });
+			expect(opened.has_value(), "the store opens");
+			expect(opened->store(distinct_settings(), { }).has_value(),
+				   "a legal record stores");
+		}
+		{
+			::sqlite3* raw = nullptr;
+			expect(
+				::sqlite3_open_v2(
+					path.string().c_str(), &raw, SQLITE_OPEN_READWRITE, nullptr)
+					== SQLITE_OK,
+				"the database reopens directly");
+			// Past the CHECK constraint on purpose: the reader is the authority
+			// that refuses such a value, and it must still do so when the
+			// constraint was bypassed rather than trusting it.
+			expect(
+				::sqlite3_exec(
+					raw,
+					("PRAGMA ignore_check_constraints = ON;"
+					 "UPDATE appearance_settings SET "
+					 + stored_column(core::appearance_variant::dark)
+					 + " = 2 WHERE singleton = 1")
+						.c_str(),
+					nullptr,
+					nullptr,
+					nullptr)
+					== SQLITE_OK,
+				"a stored flag outside its range is written");
+			(void)::sqlite3_close_v2(raw);
+		}
+
+		auto reopened = appearance_settings_database::open(path, { });
+		expect(reopened.has_value(), "the tampered database still opens");
+		const auto loaded = reopened->load({ });
+		expect(!loaded.has_value()
+				   && loaded.error() == catalog_database_failure::integrity_failure,
+			   "a stored flag that is neither 0 nor 1 is refused");
 	}
 
 	auto test_an_unknown_mode_name_is_refused() -> void
@@ -383,6 +638,174 @@ namespace {
 			   "and a cancelled store leaves the stored record untouched");
 	}
 
+	/// \brief [[BPR-0789]] / RFC-BPR-0034: migration files the palette under its
+	///        recorded variant, and loses nothing doing it.
+	///
+	/// \details One case per theme, so the light direction and the dark direction
+	/// are each proven rather than one standing in for the other. The mode stays
+	/// high contrast dark in every case, so a migration that derived the variant
+	/// from the mode — which is what the version-1 reader had to do — would file
+	/// three of the four under the wrong theme and fail here.
+	auto test_version_six_files_one_palette_under_its_recorded_variant() -> void
+	{
+		const auto scratch = scratch_directory{ };
+		for (std::size_t index = 0U; index < core::appearance_variant_count; ++index) {
+			const auto variant = variant_at(index);
+			const auto name    = std::string{ core::stable_name(variant) };
+			const auto path    = scratch.file("v6-" + name + ".sqlite3");
+			// Dif is deliberately not its default. A version-six file carries
+			// these two columns, so a migration that rebuilt the row without
+			// them - or re-ran the version-six step, which writes them as
+			// shown/System - would silently reset a preference the record held.
+			// A fixture that left them defaulted could not tell that apart from
+			// a correct carry. The pre-version-six fixtures cannot assert this,
+			// because those versions have no such columns to keep.
+			auto original = distinct_settings(variant);
+			original.Dif  = core::dif_preferences{
+				.Visibility = core::dif_visibility::hidden,
+				.Motion     = core::motion_mode::full,
+			};
+			{
+				auto database = appearance_settings_database::open(path, { });
+				expect(database.has_value()
+						   && database->store(original, { }).has_value(),
+					   "a current-format record stores before the down-edit");
+			}
+			down_edit_to_version(path, 6, variant, true);
+
+			auto migrated = appearance_settings_database::open(path, { });
+			expect(migrated.has_value(),
+				   "a version-six file opens and migrates forward: " + name);
+			const auto version
+				= scalar_integer(migrated->handle(), "PRAGMA user_version");
+			expect(version.has_value()
+					   && *version == appearance_settings_schema_version,
+				   "the migrated file is stamped as the current format");
+			const auto format = scalar_integer(
+				migrated->handle(),
+				"SELECT schema_format FROM appearance_meta WHERE singleton = 1");
+			expect(format.has_value() && *format == appearance_settings_schema_version,
+				   "and its metadata row agrees with the stamp");
+			expect(
+				!scalar_text(
+					 migrated->handle(),
+					 "SELECT palette_variant FROM appearance_settings WHERE singleton = 1")
+					 .has_value(),
+				"the column that named the one customised theme is gone, because "
+				"every theme now has a slot of its own");
+
+			const auto loaded = migrated->load({ });
+			expect(loaded.has_value() && loaded->has_value(),
+				   "the migrated record loads");
+			// The whole claim in one comparison: the stored palette is filed under
+			// exactly the theme the version-six row named, every other theme
+			// carries no customization, and no other domain moved.
+			expect(**loaded == original,
+				   "nothing is lost and nothing is invented: " + name);
+			expect(application::customisation_of(**loaded, variant).Stored
+					   && application::customisation_of(**loaded, variant).Palette
+						   == seeded_palette(0U),
+				   "the recorded theme keeps exactly its stored palette");
+			for (std::size_t other = 0U; other < core::appearance_variant_count;
+				 ++other) {
+				if (other == index) {
+					continue;
+				}
+				expect(application::customisation_of(**loaded, variant_at(other))
+						   == application::appearance_palette_customisation{ },
+					   "and every other theme carries no customization at all");
+			}
+
+			// A separate open of the migrated file, which is the restart claim.
+			migrated      = appearance_settings_database{ };
+			auto reopened = appearance_settings_database::open(path, { });
+			expect(reopened.has_value() && reopened->load({ }) == loaded,
+				   "the migrated record survives a close and reopen unchanged");
+		}
+	}
+
+	/// \brief A version-six record that stored no palette customises nothing.
+	auto test_version_six_without_a_stored_palette_carries_no_customisation() -> void
+	{
+		const auto scratch = scratch_directory{ };
+		const auto path    = scratch.file("v6-unstored.sqlite3");
+		// Not the default, for the reason given in the filing test above.
+		auto original = distinct_settings(core::appearance_variant::dark);
+		original.Dif  = core::dif_preferences{
+			.Visibility = core::dif_visibility::hidden,
+			.Motion     = core::motion_mode::full,
+		};
+		{
+			auto database = appearance_settings_database::open(path, { });
+			expect(database.has_value() && database->store(original, { }).has_value(),
+				   "a current-format record stores before the down-edit");
+		}
+		down_edit_to_version(path, 6, core::appearance_variant::dark, false);
+
+		auto migrated = appearance_settings_database::open(path, { });
+		expect(migrated.has_value(), "an unstored version-six file migrates");
+		const auto loaded = migrated->load({ });
+		expect(loaded.has_value() && loaded->has_value(), "the migrated record loads");
+
+		auto expected = original;
+		application::customisation_of(expected, core::appearance_variant::dark)
+			= application::appearance_palette_customisation{ };
+		expect(**loaded == expected,
+			   "a record whose palette was not stored carries no customization, "
+			   "and every other domain survives");
+		for (std::size_t index = 0U; index < core::appearance_variant_count; ++index) {
+			expect(!application::customisation_of(**loaded, variant_at(index)).Stored,
+				   "no theme is invented out of a palette nobody chose");
+		}
+	}
+
+	/// \brief A malformed version-six value refuses the migration, fail-closed.
+	auto test_version_six_refuses_a_malformed_legacy_value() -> void
+	{
+		const auto     scratch   = scratch_directory{ };
+		constexpr auto mutations = std::array{
+			"UPDATE appearance_settings SET palette_variant = 'taupe'",
+			"UPDATE appearance_settings SET palette_document = 'invalid'",
+			"UPDATE appearance_settings SET mode = 'chartreuse'",
+			"UPDATE appearance_settings SET ui_point_size = 1",
+			"PRAGMA ignore_check_constraints = ON;"
+			"UPDATE appearance_settings SET palette_stored = 2",
+		};
+		for (std::size_t index = 0U; index < mutations.size(); ++index) {
+			const auto path = scratch.file("v6-bad-" + std::to_string(index) + ".sqlite3");
+			{
+				auto database = appearance_settings_database::open(path, { });
+				expect(database.has_value()
+						   && database
+								  ->store(
+									  distinct_settings(core::appearance_variant::light),
+									  { })
+								  .has_value(),
+					   "a current-format record stores before the down-edit");
+			}
+			down_edit_to_version(path, 6, core::appearance_variant::light, true);
+
+			::sqlite3* raw = nullptr;
+			expect(::sqlite3_open(path.string().c_str(), &raw) == SQLITE_OK,
+				   "the version-six fixture opens raw");
+			expect(::sqlite3_exec(raw, mutations[index], nullptr, nullptr, nullptr)
+					   == SQLITE_OK,
+				   "an invalid legacy value is written");
+			const auto before = legacy_snapshot(raw);
+			expect(::sqlite3_close(raw) == SQLITE_OK, "the raw writer closes");
+
+			const auto refused = appearance_settings_database::open(path, { });
+			expect(!refused.has_value(),
+				   "an invalid version-six value refuses the migration");
+			expect(::sqlite3_open(path.string().c_str(), &raw) == SQLITE_OK,
+				   "the refused fixture reopens raw");
+			expect(legacy_snapshot(raw) == before,
+				   "and the refusal leaves every legacy column, stamp and value "
+				   "exactly as it was rather than half-migrating the file");
+			expect(::sqlite3_close(raw) == SQLITE_OK, "the raw reader closes");
+		}
+	}
+
 	/// \brief Writes one database in the exact shape schema version 1 had.
 	///
 	/// \details The version-1 statements are restated here rather than reused
@@ -393,6 +816,7 @@ namespace {
 	auto write_version_one_record(
 		const std::filesystem::path&            aPath,
 		const application::appearance_settings& aSettings,
+		const core::appearance_palette&         aPalette,
 		const std::int64_t                      aIdentity) -> void
 	{
 		::sqlite3* raw = nullptr;
@@ -462,7 +886,7 @@ namespace {
 			"the version-1 insert prepares");
 
 		const auto  mode     = std::string{ core::stable_name(aSettings.Mode) };
-		const auto  document = core::export_theme(aSettings.Palette);
+		const auto  document = core::export_theme(aPalette);
 		const auto& ui       = aSettings.Typography.Ui;
 		const auto& code     = aSettings.Typography.Code;
 		expect(
@@ -524,101 +948,29 @@ namespace {
 		return *identity;
 	}
 
-	auto test_the_stored_variant_round_trips() -> void
-	{
-		const auto scratch = scratch_directory{ };
-		const auto path    = scratch.file("appearance.sqlite3");
-		auto       chosen  = distinct_settings();
-		// Not the variant the mode alone would suggest and not the default, so
-		// a store that dropped the column or wrote a derived value instead of
-		// the recorded one fails here.
-		chosen.PaletteVariant = core::appearance_variant::high_contrast_light;
-
-		{
-			auto opened = appearance_settings_database::open(path, { });
-			expect(opened.has_value(), "the store opens");
-			expect(opened->store(chosen, { }).has_value(), "the record stores");
-		}
-
-		auto reopened = appearance_settings_database::open(path, { });
-		expect(reopened.has_value(), "the store reopens");
-		const auto loaded = reopened->load({ });
-		expect(loaded.has_value() && loaded->has_value(), "the record loads");
-		expect(**loaded == chosen,
-			   "the variant the stored palette customizes survives a close and "
-			   "reopen with every other domain, compared whole");
-	}
-
-	auto test_an_unknown_variant_name_is_refused() -> void
-	{
-		const auto scratch = scratch_directory{ };
-		const auto path    = scratch.file("appearance.sqlite3");
-
-		{
-			auto opened = appearance_settings_database::open(path, { });
-			expect(opened.has_value(), "the store opens");
-			expect(opened->store(distinct_settings(), { }).has_value(),
-				   "a legal record stores");
-		}
-		{
-			::sqlite3* raw = nullptr;
-			expect(
-				::sqlite3_open_v2(
-					path.string().c_str(), &raw, SQLITE_OPEN_READWRITE, nullptr)
-					== SQLITE_OK,
-				"the database reopens directly");
-			expect(
-				::sqlite3_exec(
-					raw,
-					"UPDATE appearance_settings SET palette_variant = 'taupe' "
-					"WHERE singleton = 1",
-					nullptr,
-					nullptr,
-					nullptr)
-					== SQLITE_OK,
-				"a variant outside the vocabulary is written");
-			(void)::sqlite3_close_v2(raw);
-		}
-
-		auto reopened = appearance_settings_database::open(path, { });
-		expect(reopened.has_value(), "the tampered database still opens");
-		const auto loaded = reopened->load({ });
-		// Refused for the same reason an unknown mode is: a name the core does
-		// not publish names no variant, and adopting the ordinal it happens to
-		// sit near would silently recolour the record.
-		expect(!loaded.has_value()
-				   && loaded.error() == catalog_database_failure::integrity_failure,
-			   "a variant name the core does not publish is refused");
-	}
-
-	auto test_a_format_one_record_migrates_with_its_derived_variant() -> void
+	/// \brief A version-1 record arrives with its mode and fonts and no colours.
+	///
+	/// \details Version 4 clears `palette_stored` once, because the built-in dark
+	/// palette moved with [[BPR-0720]] and the owner asked for the saved
+	/// customisation of the old defaults to be discarded. Every version below 4
+	/// passes through that reset, so a version-1 palette is deliberately not
+	/// carried into any theme's slot — the versions that do keep their
+	/// customisation are 4, 5 and 6, and those are covered separately.
+	auto test_a_format_one_record_migrates_without_a_customisation() -> void
 	{
 		const auto scratch  = scratch_directory{ };
 		const auto identity = stamped_application_identity(scratch);
 
-		// The derived value is the variant the version-1 reader already
-		// assumed, which is what the core resolves for the stored mode under
-		// an empty observation. System therefore migrates to light, and an
-		// explicit dark mode to dark.
-		struct expectation
-		{
-			core::appearance_mode Mode;
-			std::string_view      Variant;
-			std::string_view      File;
+		constexpr auto modes = std::array{
+			core::appearance_mode::system,
+			core::appearance_mode::dark,
+			core::appearance_mode::high_contrast_light,
 		};
-		constexpr auto expectations = std::array{
-			expectation{ core::appearance_mode::system, "light", "system.sqlite3" },
-			expectation{ core::appearance_mode::dark, "dark", "dark.sqlite3" },
-			expectation{ core::appearance_mode::high_contrast_light,
-						 "high_contrast_light",
-						 "hc-light.sqlite3" },
-		};
-
-		for (const auto& expected : expectations) {
-			const auto path     = scratch.file(expected.File);
+		for (std::size_t index = 0U; index < modes.size(); ++index) {
+			const auto path     = scratch.file("v1-" + std::to_string(index) + ".sqlite3");
 			auto       original = legal_baseline();
-			original.Mode       = expected.Mode;
-			write_version_one_record(path, original, identity);
+			original.Mode       = modes[index];
+			write_version_one_record(path, original, seeded_palette(5U), identity);
 
 			auto migrated = appearance_settings_database::open(path, { });
 			expect(migrated.has_value(),
@@ -634,23 +986,12 @@ namespace {
 			expect(format.has_value() && *format == appearance_settings_schema_version,
 				   "and its metadata row agrees with the stamp");
 
-			const auto variant = scalar_text(
-				migrated->handle(),
-				"SELECT palette_variant FROM appearance_settings "
-				"WHERE singleton = 1");
-			expect(variant.has_value() && *variant == expected.Variant,
-				   "the migrated row carries the variant its mode resolved to "
-				   "under an empty observation");
-
 			const auto loaded = migrated->load({ });
 			expect(loaded.has_value() && loaded->has_value(),
 				   "the migrated record loads");
-			expect((*loaded)->Mode == expected.Mode,
-				   "the migration changes no mode");
-			expect((*loaded)->Typography == original.Typography,
-				   "and no typography value");
-			expect((*loaded)->Palette == original.Palette,
-				   "and no palette colour");
+			expect(**loaded == original,
+				   "the migration changes no mode and no typography value, and "
+				   "leaves every theme uncustomised");
 			auto reopened = appearance_settings_database::open(path, { });
 			expect(reopened.has_value() && reopened->load({ }) == loaded,
 				   "the migrated version-one record reopens with every value preserved");
@@ -661,141 +1002,129 @@ namespace {
 	{
 		const auto scratch = scratch_directory{ };
 		const auto path    = scratch.file("v2.sqlite3");
-		auto       chosen  = distinct_settings();
+		auto       chosen  = distinct_settings(core::appearance_variant::dark);
 		{
 			auto database = appearance_settings_database::open(path, { });
-			expect(database.has_value() && database->store(chosen, { }).has_value(), "legacy fixture starts with a durable record");
+			expect(database.has_value() && database->store(chosen, { }).has_value(),
+				   "legacy fixture starts with a durable record");
 		}
-		{
-			::sqlite3* raw = nullptr;
-			expect(::sqlite3_open(path.string().c_str(), &raw) == SQLITE_OK, "legacy fixture opens raw");
-			expect(::sqlite3_exec(raw, "ALTER TABLE appearance_settings DROP COLUMN dif_visibility; ALTER TABLE appearance_settings DROP COLUMN motion_mode; ALTER TABLE appearance_settings DROP COLUMN palette_stored; UPDATE appearance_meta SET schema_format = 2; PRAGMA user_version = 2", nullptr, nullptr, nullptr) == SQLITE_OK,
-				   "fixture has the exact version-two column set and stamps");
-			expect(::sqlite3_close(raw) == SQLITE_OK, "legacy fixture closes");
-		}
+		down_edit_to_version(path, 2, core::appearance_variant::dark, true);
+
 		// Version 3 carried a version-two palette forward as stored; version 4
-		// resets it once ([[BPR-0720]]), so every other value survives and
-		// the palette arrives as an empty override set.
-		chosen.PaletteStored = false;
+		// resets it once ([[BPR-0720]]), so every other value survives and no
+		// theme arrives customised.
+		application::customisation_of(chosen, core::appearance_variant::dark)
+			= application::appearance_palette_customisation{ };
 		{
 			auto migrated = appearance_settings_database::open(path, { });
 			expect(migrated.has_value(), "version two migrates");
 			const auto loaded = migrated->load({ });
-			expect(loaded && loaded->has_value() && **loaded == chosen, "legacy records keep every stored value and arrive with the palette reset");
-			expect(migrated->store(chosen, { }).has_value(), "reset can persist an empty override set");
+			expect(loaded && loaded->has_value() && **loaded == chosen,
+				   "legacy records keep every stored value and arrive with no "
+				   "theme customised");
+			expect(migrated->store(chosen, { }).has_value(),
+				   "reset can persist an empty override set");
 		}
 		auto reopened = appearance_settings_database::open(path, { });
 		expect(reopened.has_value(), "reset database reopens");
 		const auto loaded = reopened->load({ });
-		expect(loaded && loaded->has_value() && **loaded == chosen, "reset survives SQLite close and reopen without changing other domains");
+		expect(loaded && loaded->has_value() && **loaded == chosen,
+			   "reset survives SQLite close and reopen without changing other domains");
 	}
 
 	/// \brief [[BPR-0720]]: opening a version-3 file resets the stored palette once.
 	auto test_version_three_resets_the_stored_palette_once() -> void
 	{
-		const auto scratch   = scratch_directory{ };
-		const auto path      = scratch.file("v3.sqlite3");
-		auto       chosen    = distinct_settings();
-		chosen.PaletteStored = true;
+		const auto scratch = scratch_directory{ };
+		const auto path    = scratch.file("v3.sqlite3");
+		auto       chosen  = distinct_settings(core::appearance_variant::dark);
 		{
 			auto database = appearance_settings_database::open(path, { });
-			expect(database.has_value() && database->store(chosen, { }).has_value(), "version-three fixture starts with a stored customisation");
+			expect(database.has_value() && database->store(chosen, { }).has_value(),
+				   "version-three fixture starts with a stored customisation");
 		}
-		{
-			::sqlite3* raw = nullptr;
-			expect(::sqlite3_open(path.string().c_str(), &raw) == SQLITE_OK, "version-three fixture opens raw");
-			expect(::sqlite3_exec(raw, "ALTER TABLE appearance_settings DROP COLUMN dif_visibility; ALTER TABLE appearance_settings DROP COLUMN motion_mode; UPDATE appearance_meta SET schema_format = 3; PRAGMA user_version = 3", nullptr, nullptr, nullptr) == SQLITE_OK,
-				   "fixture carries the version-three columns and stamps");
-			expect(::sqlite3_close(raw) == SQLITE_OK, "version-three fixture closes");
-		}
+		down_edit_to_version(path, 3, core::appearance_variant::dark, true);
 		{
 			auto migrated = appearance_settings_database::open(path, { });
 			expect(migrated.has_value(), "version three migrates");
 			const auto version = scalar_integer(migrated->handle(), "PRAGMA user_version");
-			expect(version.has_value() && *version == appearance_settings_schema_version, "the migrated file is stamped as the current format");
-			const auto loaded    = migrated->load({ });
-			chosen.PaletteStored = false;
+			expect(version.has_value() && *version == appearance_settings_schema_version,
+				   "the migrated file is stamped as the current format");
+			const auto loaded = migrated->load({ });
+			application::customisation_of(chosen, core::appearance_variant::dark)
+				= application::appearance_palette_customisation{ };
 			expect(loaded && loaded->has_value() && **loaded == chosen,
-				   "the migration clears the stored palette and keeps the mode, variant and typography");
+				   "the migration clears the stored palette and keeps the mode and "
+				   "typography");
 		}
 		{
 			auto reopened = appearance_settings_database::open(path, { });
-			expect(reopened.has_value(), "the migrated file reopens at the current version");
-			chosen.PaletteStored = true;
-			expect(reopened->store(chosen, { }).has_value(), "a new customisation can be stored after the reset");
+			expect(reopened.has_value(),
+				   "the migrated file reopens at the current version");
+			with_customisation(chosen, core::appearance_variant::dark, seeded_palette(3U));
+			expect(reopened->store(chosen, { }).has_value(),
+				   "a new customisation can be stored after the reset");
 		}
 		auto again = appearance_settings_database::open(path, { });
 		expect(again.has_value(), "the stored file reopens");
 		const auto loaded = again->load({ });
-		expect(loaded && loaded->has_value() && **loaded == chosen, "the reset happens once, not on every open");
+		expect(loaded && loaded->has_value() && **loaded == chosen,
+			   "the reset happens once, not on every open");
 	}
 
 	auto test_version_four_gains_the_macro_role_without_a_reset() -> void
 	{
-		const auto scratch   = scratch_directory{ };
-		const auto path      = scratch.file("v4.sqlite3");
-		auto       chosen    = distinct_settings();
-		chosen.PaletteStored = true;
+		const auto scratch = scratch_directory{ };
+		const auto path    = scratch.file("v4.sqlite3");
+		auto       chosen  = distinct_settings(core::appearance_variant::light);
 		{
 			auto database = appearance_settings_database::open(path, { });
-			expect(database.has_value() && database->store(chosen, { }).has_value(), "version-four fixture starts with a stored customisation");
+			expect(database.has_value() && database->store(chosen, { }).has_value(),
+				   "version-four fixture starts with a stored customisation");
 		}
+		down_edit_to_version(path, 4, core::appearance_variant::light, true);
 		{
 			::sqlite3* raw = nullptr;
-			expect(::sqlite3_open(path.string().c_str(), &raw) == SQLITE_OK, "version-four fixture opens raw");
-			// Strip the `syntax_macro` line the current document carries,
-			// which is what a document written before the role existed
-			// looks like, then stamp the file as version four.
+			expect(::sqlite3_open(path.string().c_str(), &raw) == SQLITE_OK,
+				   "version-four fixture opens raw");
+			// Strip the `syntax_macro` line the current document carries, which is
+			// what a document written before the role existed looks like.
 			expect(::sqlite3_exec(raw,
 								  "UPDATE appearance_settings SET palette_document = "
 								  "substr(palette_document, 1, instr(palette_document, 'syntax_macro ') - 1)"
 								  " || substr(palette_document, instr(palette_document, 'syntax_macro ')"
 								  " + instr(substr(palette_document, instr(palette_document, 'syntax_macro ')), char(10)))"
-								  " WHERE singleton = 1;"
-								  "ALTER TABLE appearance_settings DROP COLUMN dif_visibility; ALTER TABLE appearance_settings DROP COLUMN motion_mode; UPDATE appearance_meta SET schema_format = 4; PRAGMA user_version = 4",
+								  " WHERE singleton = 1",
 								  nullptr, nullptr, nullptr)
 					   == SQLITE_OK,
-				   "fixture carries a document without the macro role and the version-four stamps");
+				   "the fixture's document loses its macro row");
 			const auto stripped = scalar_integer(raw, "SELECT instr(palette_document, 'syntax_macro ') FROM appearance_settings WHERE singleton = 1");
-			expect(stripped.has_value() && *stripped == 0, "the fixture's document has no macro row");
+			expect(stripped.has_value() && *stripped == 0,
+				   "the fixture's document has no macro row");
 			expect(::sqlite3_close(raw) == SQLITE_OK, "version-four fixture closes");
 		}
 		{
 			auto migrated = appearance_settings_database::open(path, { });
 			expect(migrated.has_value(), "version four migrates");
 			const auto version = scalar_integer(migrated->handle(), "PRAGMA user_version");
-			expect(version.has_value() && *version == appearance_settings_schema_version, "the migrated file is stamped as the current format");
+			expect(version.has_value() && *version == appearance_settings_schema_version,
+				   "the migrated file is stamped as the current format");
 			const auto loaded = migrated->load({ });
-			expect(loaded && loaded->has_value(), "the migrated record loads: the document is complete again");
+			expect(loaded && loaded->has_value(),
+				   "the migrated record loads: the document is complete again");
 			if (loaded && loaded->has_value()) {
-				auto expected = chosen;
-				expected.Palette[core::index_of(core::appearance_role::syntax_macro)]
-					= chosen.Palette[core::index_of(core::appearance_role::syntax_preprocessor)];
+				auto  expected = chosen;
+				auto& palette  = application::customisation_of(
+									 expected, core::appearance_variant::light)
+									 .Palette;
+				palette[core::index_of(core::appearance_role::syntax_macro)]
+					= palette[core::index_of(core::appearance_role::syntax_preprocessor)];
 				expect(**loaded == expected,
-					   "the macro role takes the stored preprocessor colour and the customisation, mode, variant and typography are kept");
+					   "the macro role takes the stored preprocessor colour, and "
+					   "the customisation lands under the theme it named without a "
+					   "second reset");
 			}
 		}
-	}
-
-	[[nodiscard]] auto legacy_snapshot(::sqlite3* aDatabase) -> std::vector<std::string>
-	{
-		auto       cells   = std::vector<std::string>{ };
-		const auto collect = [](void* aContext, int aCount, char** aValues, char**) -> int {
-			auto& values = *static_cast<std::vector<std::string>*>(aContext);
-			for (int index = 0; index < aCount; ++index) {
-				values.emplace_back(aValues[index] == nullptr ? "<NULL>" : aValues[index]);
-			}
-			return 0;
-		};
-		expect(::sqlite3_exec(aDatabase,
-							  "PRAGMA application_id; PRAGMA user_version;"
-							  "SELECT type,name,tbl_name,sql FROM sqlite_schema ORDER BY name;"
-							  "PRAGMA table_xinfo(appearance_settings);"
-							  "SELECT * FROM appearance_settings ORDER BY singleton;",
-							  collect, &cells, nullptr)
-				   == SQLITE_OK,
-			   "legacy schema, columns and rows can be captured");
-		return cells;
 	}
 
 	void test_version_five_dif_migration_and_corrupt_refusal()
@@ -803,17 +1132,18 @@ namespace {
 		const auto scratch   = scratch_directory{ };
 		const auto mutations = std::array{ "", "UPDATE appearance_settings SET ui_point_size = 1", "UPDATE appearance_settings SET mode = 'unknown'", "UPDATE appearance_settings SET palette_variant = 'unknown'", "UPDATE appearance_settings SET palette_document = 'invalid'", "PRAGMA ignore_check_constraints = ON; UPDATE appearance_settings SET palette_stored = 2", "PRAGMA ignore_check_constraints = ON; UPDATE appearance_settings SET code_ligatures = 2" };
 		for (std::size_t index = 0; index < mutations.size(); ++index) {
-			const auto corrupt   = index != 0;
-			const auto path      = scratch.file("v5-" + std::to_string(index) + ".sqlite3");
-			auto       chosen    = distinct_settings();
-			chosen.PaletteStored = true;
+			const auto corrupt = index != 0;
+			const auto path    = scratch.file("v5-" + std::to_string(index) + ".sqlite3");
+			auto       chosen  = distinct_settings(core::appearance_variant::high_contrast_light);
 			{
 				auto database = appearance_settings_database::open(path, { });
-				expect(database && database->store(chosen, { }), "version-five fixture begins with distinct settings");
+				expect(database && database->store(chosen, { }),
+					   "version-five fixture begins with distinct settings");
 			}
+			down_edit_to_version(
+				path, 5, core::appearance_variant::high_contrast_light, true);
 			::sqlite3* raw = nullptr;
 			expect(::sqlite3_open(path.string().c_str(), &raw) == SQLITE_OK, "v5 fixture opens raw");
-			expect(::sqlite3_exec(raw, "ALTER TABLE appearance_settings DROP COLUMN dif_visibility; ALTER TABLE appearance_settings DROP COLUMN motion_mode; UPDATE appearance_meta SET schema_format = 5; PRAGMA user_version = 5", nullptr, nullptr, nullptr) == SQLITE_OK, "fixture has exact version-five schema");
 			if (corrupt) {
 				expect(::sqlite3_exec(raw, mutations[index], nullptr, nullptr, nullptr) == SQLITE_OK, "invalid legacy value inserted");
 			}
@@ -829,7 +1159,10 @@ namespace {
 			}
 			expect(migrated.has_value(), "version-five migration succeeds");
 			const auto loaded = migrated->load({ });
-			expect(loaded && loaded->has_value() && **loaded == chosen && (**loaded).Dif == core::dif_preferences{ }, "migration preserves complete legacy settings and supplies shown/System");
+			expect(loaded && loaded->has_value() && **loaded == chosen
+					   && (**loaded).Dif == core::dif_preferences{ },
+				   "migration preserves complete legacy settings, files the palette "
+				   "under the theme it named, and supplies shown/System");
 			chosen.Dif = { .Visibility = core::dif_visibility::hidden, .Motion = core::motion_mode::full };
 			expect(migrated->store(chosen, { }).has_value(), "new Dif choices store");
 			migrated      = appearance_settings_database{ };
@@ -879,7 +1212,7 @@ namespace {
 		for (const auto version : { 1, 2, 3 }) {
 			for (std::size_t index = 0; index < mutations.size(); ++index) {
 				const auto path = scratch.file("legacy-" + std::to_string(version) + "-" + std::to_string(index) + ".sqlite3");
-				write_version_one_record(path, distinct_settings(), identity);
+				write_version_one_record(path, distinct_settings(), seeded_palette(1U), identity);
 				::sqlite3* raw = nullptr;
 				expect(::sqlite3_open(path.string().c_str(), &raw) == SQLITE_OK, "legacy fixture opens raw");
 				if (version >= 2) {
@@ -948,6 +1281,20 @@ namespace {
 			}
 		}
 		expect(!columns->empty(), "the schema declares columns at all");
+
+		// One document and one stored flag per variant, named from the core's own
+		// stable identifiers. A theme whose columns were missing would be a theme
+		// whose colours could not be kept.
+		for (std::size_t index = 0U; index < core::appearance_variant_count; ++index) {
+			const auto variant = variant_at(index);
+			for (const auto& expected :
+				 { document_column(variant), stored_column(variant) }) {
+				expect(std::ranges::find(
+						   *columns, "appearance_settings." + expected)
+						   != columns->end(),
+					   "the schema declares " + expected);
+			}
+		}
 	}
 } // namespace
 
@@ -955,13 +1302,16 @@ auto main() -> int
 {
 	test_absent_is_distinguishable_from_stored_defaults();
 	test_every_domain_round_trips();
-	test_the_palette_is_stored_as_a_theme_document();
+	test_every_theme_round_trips_independently();
+	test_each_theme_is_stored_as_its_own_theme_document();
 	test_a_tampered_palette_is_refused();
+	test_a_stored_flag_outside_its_range_is_refused();
 	test_an_unknown_mode_name_is_refused();
 	test_typography_the_core_rejects_is_refused_whole();
-	test_the_stored_variant_round_trips();
-	test_an_unknown_variant_name_is_refused();
-	test_a_format_one_record_migrates_with_its_derived_variant();
+	test_version_six_files_one_palette_under_its_recorded_variant();
+	test_version_six_without_a_stored_palette_carries_no_customisation();
+	test_version_six_refuses_a_malformed_legacy_value();
+	test_a_format_one_record_migrates_without_a_customisation();
 	test_a_newer_schema_is_refused_for_the_right_reason();
 	test_cancellation_leaves_the_record_untouched();
 	test_version_two_preserves_customization_and_reset();

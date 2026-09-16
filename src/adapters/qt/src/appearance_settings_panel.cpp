@@ -375,8 +375,35 @@ namespace bpr::qt {
 				});
 		}
 
-		CommittedPalette = AdoptedSettings.Palette;
+		// Nothing is on screen yet and no variant has been named, so there is no
+		// palette to show. The first adoption supplies both.
+		CommittedPalette = core::appearance_palette{ };
 		show_adopted();
+	}
+
+	void appearance_settings_panel::set_resolved_variant(
+		const core::appearance_variant aVariant)
+	{
+		ResolvedVariant = aVariant;
+		ThemePreviews->set_system_variant(aVariant);
+	}
+
+	auto appearance_settings_panel::resolved_variant() const noexcept
+		-> const std::optional<core::appearance_variant>&
+	{
+		return ResolvedVariant;
+	}
+
+	void appearance_settings_panel::set_customised_counts(
+		std::array<std::size_t, core::appearance_variant_count> aCounts)
+	{
+		ThemePreviews->set_customised_counts(aCounts);
+	}
+
+	auto appearance_settings_panel::theme_text() const -> QString
+	{
+		return ResolvedVariant.has_value() ? variant_text(*ResolvedVariant)
+										   : QStringLiteral("the theme on screen");
 	}
 
 	void appearance_settings_panel::dispatch_dif()
@@ -430,7 +457,21 @@ namespace bpr::qt {
 	void appearance_settings_panel::adopt(
 		const application::appearance_settings& aSettings)
 	{
-		adopt(aSettings, aSettings.Palette, std::nullopt);
+		// A convenience for a caller with no resolved palette to offer. The
+		// composition always uses the three-argument form, which carries the
+		// palette actually on screen. RFC-BPR-0034 forbids this adapter deciding
+		// which variant applies, so the theme shown here is the one the
+		// composition last supplied through `set_resolved_variant`. Light is a
+		// stated default for a caller that has named no theme at all; it is not
+		// a resolution, it consults no mode and no observation, and it never
+		// reaches the durable record.
+		adopt(
+			aSettings,
+			application::customisation_of(
+				aSettings,
+				ResolvedVariant.value_or(core::appearance_variant::light))
+				.Palette,
+			std::nullopt);
 	}
 
 	void appearance_settings_panel::adopt(
@@ -465,8 +506,11 @@ namespace bpr::qt {
 		show_selected_color();
 		CommitButton->setEnabled(true);
 		CancelButton->setEnabled(true);
+		// Names the theme it previews into, because it previews into exactly one
+		// and committing changes only that one.
 		Status->setText(with_persistence_status(
-			QStringLiteral("Imported theme is previewed only; commit to save it.")));
+			QStringLiteral("Imported theme is previewed into %1 only; commit to save it.")
+				.arg(theme_text())));
 	}
 
 	void appearance_settings_panel::report(
@@ -520,8 +564,12 @@ namespace bpr::qt {
 
 	void appearance_settings_panel::report_theme_export(const bool aSucceeded)
 	{
+		// Names the theme it wrote. An export takes the colours of exactly one
+		// theme, so a message that did not say which left the reviewer to assume
+		// it had written all of them.
 		Status->setText(with_persistence_status(aSucceeded
-													? QStringLiteral("Saved theme exported. Unsaved previews are excluded.")
+													? QStringLiteral("Saved theme exported. %1 was written; unsaved previews are excluded.")
+														  .arg(theme_text())
 													: QStringLiteral("Theme export failed. Choose a writable regular file and try again.")));
 	}
 
@@ -744,7 +792,8 @@ namespace bpr::qt {
 		CommitButton->setEnabled(true);
 		CancelButton->setEnabled(true);
 		Status->setText(with_persistence_status(
-			QStringLiteral("Palette is previewed only; commit to save it.")));
+			QStringLiteral("Palette is previewed only; commit to save it to %1.")
+				.arg(theme_text())));
 		if (!PreviewDeliveryQueued) {
 			PreviewDeliveryQueued = true;
 			// One widget-bound delivery consumes the latest candidate in this event burst.

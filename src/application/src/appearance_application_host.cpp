@@ -134,16 +134,16 @@ namespace bpr::application {
 			Implementation->Preferences->export_theme_file(Implementation->Consumer, std::move(aPath), aPalette);
 		}
 	}
-	void appearance_application_host::reset(const appearance_reset_scope aScope)
+	void appearance_application_host::reset(const appearance_reset_scope aScope, const core::appearance_variant aVariant)
 	{
 		if (!Implementation->Closing) {
-			Implementation->Preferences->reset(Implementation->Consumer, aScope);
+			Implementation->Preferences->reset(Implementation->Consumer, aScope, aVariant);
 		}
 	}
-	void appearance_application_host::apply(core::appearance_palette aPalette)
+	void appearance_application_host::apply(core::appearance_palette aPalette, const core::appearance_variant aVariant)
 	{
 		if (!Implementation->Closing) {
-			Implementation->Preferences->apply(Implementation->Consumer, std::move(aPalette));
+			Implementation->Preferences->apply(Implementation->Consumer, std::move(aPalette), aVariant);
 		}
 	}
 	void appearance_application_host::apply(core::typography_settings aTypography)

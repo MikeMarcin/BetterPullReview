@@ -69,8 +69,8 @@ namespace {
 			.Weight               = 400U,
 		};
 		settings.Typography.Code.TabWidth = 4U;
-		settings.Palette[core::index_of(core::appearance_role::code_background)]
-			= core::appearance_color{ .Red = 20U, .Green = 20U, .Blue = 20U };
+		// No customization, for any variant: a composed base is what a fresh
+		// installation starts from, and that is the absence of a decision.
 		return settings;
 	}
 
@@ -420,11 +420,11 @@ namespace {
 		expect(first.settings().Dif == full && second.settings().Dif == full && third.settings().Dif == core::dif_preferences{ }, "one profile fans out without changing another profile");
 		expect(second.dif_resolution().EffectiveMotion == core::motion_mode::full && h.Settings.Stored->Dif == full, "Full overrides unsupported and persists");
 		const auto& change = *pa.Published.back().Presentation;
-		expect(change.Dif && !change.Palette && !change.Typography && !change.Resolution && !pa.Published.back().Spans, "Dif preference change carries only the Dif domain");
+		expect(change.Dif && !change.Palettes && !change.Typography && !change.Resolution && !pa.Published.back().Spans, "Dif preference change carries only the Dif domain");
 		first.classify(key(7U));
 		h.settle();
 		expect(first.cached(key(7U)) == spans && ca.Requests.size() == 1U, "Dif change preserves classification cache identity");
-		first.reset(application::appearance_reset_scope::dif);
+		first.reset(application::appearance_reset_scope::dif, core::appearance_variant::light);
 		h.settle();
 		expect(first.settings() == original && h.Settings.Stored == original, "Dif reset preserves all other appearance domains");
 		first.apply(core::dif_preferences{ .Motion = static_cast<core::motion_mode>(99) });

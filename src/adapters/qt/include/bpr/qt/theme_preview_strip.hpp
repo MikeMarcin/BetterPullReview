@@ -49,8 +49,21 @@ namespace bpr::qt {
 
 		void               set_current(core::appearance_mode aMode);
 		[[nodiscard]] auto current() const noexcept -> core::appearance_mode;
-		/// \brief What the desktop is now, for System's note.
+		/// \brief What the desktop resolves now, for System's note.
+		///
+		/// \details Supplied by the composition, which is the only place that knows:
+		/// the core decides the variant from the selected mode and a bounded
+		/// observation, and this widget observes nothing. Until it is supplied the
+		/// System note says nothing, rather than saying something untrue.
 		void set_system_variant(core::appearance_variant aVariant);
+		/// \brief How many colours each theme customises, by variant ordinal.
+		///
+		/// \details Published by the composition from the appearance profile, which
+		/// owns the built-in palettes a customisation is measured against.
+		void set_customised_counts(
+			std::array<std::size_t, core::appearance_variant_count> aCounts);
+		[[nodiscard]] auto customised_counts() const noexcept
+			-> const std::array<std::size_t, core::appearance_variant_count>&;
 		void set_dispatch(theme_preview_dispatch aDispatch);
 
 		[[nodiscard]] auto cards() const noexcept
@@ -71,8 +84,16 @@ namespace bpr::qt {
 
 		std::array<theme_preview_card, theme_preview_count> Cards{ };
 		core::appearance_mode                               Current = core::appearance_mode::system;
-		core::appearance_variant                            System  = core::appearance_variant::light;
-		theme_preview_dispatch                              Dispatch;
+		/// \brief What the desktop resolves, once the composition has said.
+		///
+		/// \details Deliberately not defaulted to a variant. The constructor used
+		/// to call `set_system_variant(light)`, so every System tile captioned
+		/// "light now" whatever the desktop was and no production caller ever
+		/// corrected it — a widget guessing the resolved variant, which
+		/// RFC-BPR-0034 prohibits. Absent means nothing has been supplied yet.
+		std::optional<core::appearance_variant>                 System;
+		std::array<std::size_t, core::appearance_variant_count> CustomisedCounts{ };
+		theme_preview_dispatch                                  Dispatch;
 	};
 } // namespace bpr::qt
 

@@ -62,7 +62,12 @@ namespace bpr::application {
 		// Reports the observed operating-system scheme and contrast preference. An
 		// observation is not a setting and is never persisted.
 		void observe(core::appearance_observation aObservation);
-		void apply(core::appearance_palette aPalette);
+		/// \brief Commits one total palette as the named variant's customization.
+		///
+		/// \details The composition supplies the variant: it is the theme on
+		/// screen, which the core resolved, and it is never guessed here or in Qt.
+		/// Every other variant's stored colours survive the commit.
+		void apply(core::appearance_palette aPalette, core::appearance_variant aVariant);
 		void apply(core::typography_settings aTypography);
 		/// \brief Imports one local document into a preview candidate.
 		///
@@ -73,7 +78,8 @@ namespace bpr::application {
 		/// Retires only the pending preview import; accepted durable work continues.
 		void cancel_theme_import();
 		void export_theme_file(std::string aPath, core::appearance_palette aPalette);
-		void reset(appearance_reset_scope aScope);
+		/// \brief Resets one durable group; `palette` resets the named variant only.
+		void reset(appearance_reset_scope aScope, core::appearance_variant aVariant);
 		// Answers from the retained cache when the key is present and runs the
 		// classification port only when it is not.
 		void classify(token_span_cache_key aKey);

@@ -70,6 +70,19 @@ namespace bpr::application {
 		struct deferred_appearance_palette
 		{
 			core::appearance_palette Palette{ };
+			core::appearance_variant Variant{ };
+		};
+
+		/// \brief One scoped reset, carrying the variant a palette reset acts on.
+		///
+		/// \details Distinct from `reset_appearance_intent` because the intent is
+		/// the vocabulary a settings surface speaks and carries no variant: the
+		/// resolved theme is the composition's to supply, never presentation's to
+		/// decide.
+		struct deferred_appearance_reset
+		{
+			appearance_reset_scope   Scope{ };
+			core::appearance_variant Variant{ };
 		};
 
 		struct deferred_appearance_typography
@@ -102,7 +115,7 @@ namespace bpr::application {
 		{
 		};
 
-		using deferred_appearance_ingress = std::variant<core::dif_preferences, core::motion_observation, cancel_appearance_palette_preview_intent, reset_appearance_intent, deferred_appearance_theme_export, staged_theme_export, deferred_appearance_restore,
+		using deferred_appearance_ingress = std::variant<core::dif_preferences, core::motion_observation, cancel_appearance_palette_preview_intent, deferred_appearance_reset, deferred_appearance_theme_export, staged_theme_export, deferred_appearance_restore,
 														 deferred_appearance_select,
 														 deferred_appearance_observe,
 														 deferred_appearance_palette,
@@ -187,10 +200,9 @@ namespace bpr::application {
 			std::optional<core::dif_resolution>         PublishedDif;
 			appearance_epoch                            Epoch;
 			std::optional<core::appearance_resolution>  PublishedResolution;
-			std::optional<core::appearance_palette>     PublishedPalette;
-			std::optional<bool>                         PublishedPaletteStored;
-			std::optional<core::appearance_variant>     PublishedPaletteVariant;
-			std::optional<core::typography_settings>    PublishedTypography;
+			/// \brief The per-variant customization table this consumer has seen.
+			std::optional<appearance_palette_customisations> PublishedPalettes;
+			std::optional<core::typography_settings>         PublishedTypography;
 		};
 		[[nodiscard]] auto find_consumer(appearance_consumer_id aId) const -> std::shared_ptr<consumer_state>
 		{
@@ -313,8 +325,8 @@ namespace bpr::application {
 						}
 					} else if constexpr (std::is_same_v<ingress_type, cancel_appearance_palette_preview_intent>) {
 						retire(appearance_request_domain::theme_import, appearance_terminal_rejection::cancelled);
-					} else if constexpr (std::is_same_v<ingress_type, reset_appearance_intent>) {
-						reset_now(aTyped.Scope);
+					} else if constexpr (std::is_same_v<ingress_type, deferred_appearance_reset>) {
+						reset_now(aTyped.Scope, aTyped.Variant);
 					} else if constexpr (std::is_same_v<ingress_type, deferred_appearance_theme_export>) {
 						if (!Closing) {
 							submit_theme_export(std::move(aTyped.Path), aTyped.Palette);
@@ -335,7 +347,7 @@ namespace bpr::application {
 							observe_now(aTyped.Observation);
 						}
 					} else if constexpr (std::is_same_v<ingress_type, deferred_appearance_palette>) {
-						apply_palette_now(aTyped.Palette);
+						apply_palette_now(aTyped.Palette, aTyped.Variant);
 					} else if constexpr (std::is_same_v<ingress_type, deferred_appearance_typography>) {
 						apply_typography_now(std::move(aTyped.Typography));
 					} else if constexpr (std::is_same_v<ingress_type, deferred_appearance_theme_import>) {
@@ -682,7 +694,15 @@ namespace bpr::application {
 			deliver_projection([this, &projection] { publish_to_consumer(projection); });
 		}
 
-		void reset_now(const appearance_reset_scope aScope)
+		/// \brief Resets one durable group, and for a palette exactly one variant.
+		///
+		/// \details RFC-BPR-0034: Reset all resets the theme on screen. The other
+		/// three variants' customizations are not part of that gesture and survive
+		/// it, which is the whole difference from the single-palette record this
+		/// replaced — there, resetting was necessarily resetting the only one.
+		void reset_now(
+			const appearance_reset_scope   aScope,
+			const core::appearance_variant aVariant)
 		{
 			if (Closing) {
 				return;
@@ -695,11 +715,16 @@ namespace bpr::application {
 			case appearance_reset_scope::interface_font: next.Typography.Ui = Defaults.Typography.Ui; break;
 			case appearance_reset_scope::code_font:      next.Typography.Code = Defaults.Typography.Code; break;
 			case appearance_reset_scope::palette:
+				if (!known(aVariant)) {
+					publish_failure(local_context(), appearance_host_failure::host_failure);
+					return;
+				}
 				retire(appearance_request_domain::theme_import, appearance_terminal_rejection::superseded);
-				next.Palette        = Defaults.Palette;
-				next.PaletteStored  = false;
-				next.PaletteVariant = Defaults.PaletteVariant;
-				acknowledgement     = palette_adoption_publication{ .Palette = next.Palette };
+				customisation_of(next, aVariant) = customisation_of(Defaults, aVariant);
+				acknowledgement                  = palette_adoption_publication{
+					.Palette = customisation_of(next, aVariant).Palette,
+					.Variant = aVariant,
+				};
 				break;
 			default: return;
 			}
@@ -842,9 +867,25 @@ namespace bpr::application {
 			publish_consumer_changes(consumer, local_context(), { });
 		}
 
-		void apply_palette_now(const core::appearance_palette& aPalette)
+		/// \brief Commits one total palette as exactly one variant's customization.
+		///
+		/// \details A palette customises exactly one variant, and the one it
+		/// customises is the theme that was on screen when the reviewer chose the
+		/// colours. That variant arrives from the composition rather than being
+		/// derived here from the current observation: by the time this runs the
+		/// desktop may already have flipped, and deriving it then would file the
+		/// colours under a theme the reviewer was not looking at. Every other
+		/// variant's customization is untouched, so committing Dark cannot forget
+		/// Light.
+		void apply_palette_now(
+			const core::appearance_palette& aPalette,
+			const core::appearance_variant  aVariant)
 		{
 			if (Closing) {
+				return;
+			}
+			if (!known(aVariant)) {
+				publish_failure(local_context(), appearance_host_failure::host_failure);
 				return;
 			}
 			const auto rejections = contrast_rejections(aPalette);
@@ -852,19 +893,14 @@ namespace bpr::application {
 				publish_contrast_rejection(local_context(), rejections);
 				return;
 			}
-			auto next          = Settings;
-			next.Palette       = aPalette;
-			next.PaletteStored = true;
-			// A palette customises exactly one variant, and the one it
-			// customises is the variant on screen when the reviewer chose the
-			// colours. Recording it here is what lets the durable record be
-			// read back as overrides against the right built-in profile
-			// instead of against whatever the desktop resolves next time.
-			next.PaletteVariant
-				= core::resolve_appearance(next.Mode, find_consumer(CurrentConsumer) ? find_consumer(CurrentConsumer)->Observation : EmptyObservation).Variant;
+			auto next                        = Settings;
+			customisation_of(next, aVariant) = appearance_palette_customisation{
+				.Palette = aPalette,
+				.Stored  = true,
+			};
 			adopt(
 				std::move(next),
-				palette_adoption_publication{ .Palette = aPalette });
+				palette_adoption_publication{ .Palette = aPalette, .Variant = aVariant });
 		}
 
 		void import_theme_now(std::string aPath)
@@ -1053,10 +1089,11 @@ namespace bpr::application {
 			if (aConsumer->PublishedResolution != resolution) {
 				invalidation.Resolution = resolution;
 			}
-			if (aConsumer->PublishedPalette != Settings.Palette
-				|| aConsumer->PublishedPaletteStored != Settings.PaletteStored
-				|| aConsumer->PublishedPaletteVariant != Settings.PaletteVariant) {
-				invalidation.Palette = Settings.Palette;
+			// The whole table, compared whole. A commit moves one variant and a
+			// durable restore moves all four; publishing per variant would make
+			// the bounded case the only one a consumer could act on.
+			if (aConsumer->PublishedPalettes != Settings.Palettes) {
+				invalidation.Palettes = Settings.Palettes;
 			}
 			if (aConsumer->PublishedTypography != Settings.Typography) {
 				invalidation.Typography = Settings.Typography;
@@ -1071,15 +1108,13 @@ namespace bpr::application {
 			auto presentation
 				= std::optional<appearance_presentation_invalidation>{ };
 			if (!empty(invalidation)) {
-				aConsumer->Epoch                   = appearance_epoch{ aConsumer->Epoch.value() + 1U };
-				invalidation.Epoch                 = aConsumer->Epoch;
-				aConsumer->PublishedResolution     = resolution;
-				aConsumer->PublishedPalette        = Settings.Palette;
-				aConsumer->PublishedPaletteStored  = Settings.PaletteStored;
-				aConsumer->PublishedPaletteVariant = Settings.PaletteVariant;
-				aConsumer->PublishedTypography     = Settings.Typography;
-				aConsumer->PublishedDif            = dif;
-				presentation                       = std::move(invalidation);
+				aConsumer->Epoch               = appearance_epoch{ aConsumer->Epoch.value() + 1U };
+				invalidation.Epoch             = aConsumer->Epoch;
+				aConsumer->PublishedResolution = resolution;
+				aConsumer->PublishedPalettes   = Settings.Palettes;
+				aConsumer->PublishedTypography = Settings.Typography;
+				aConsumer->PublishedDif        = dif;
+				presentation                   = std::move(invalidation);
 			}
 			const auto projection = appearance_projection{
 				.Context         = aContext,
@@ -1303,10 +1338,10 @@ namespace bpr::application {
 			deferred_appearance_observe{ .Observation = aObservation }, aConsumer);
 	}
 
-	void appearance_preferences_application_host::apply(appearance_consumer_id aConsumer, core::appearance_palette aPalette)
+	void appearance_preferences_application_host::apply(appearance_consumer_id aConsumer, core::appearance_palette aPalette, const core::appearance_variant aVariant)
 	{
 		Implementation->enqueue(
-			deferred_appearance_palette{ .Palette = aPalette }, aConsumer);
+			deferred_appearance_palette{ .Palette = aPalette, .Variant = aVariant }, aConsumer);
 	}
 
 	void appearance_preferences_application_host::apply(appearance_consumer_id aConsumer, core::typography_settings aTypography)
@@ -1331,9 +1366,9 @@ namespace bpr::application {
 		Implementation->enqueue(deferred_appearance_theme_export{ std::move(aPath), aPalette }, aConsumer);
 	}
 
-	void appearance_preferences_application_host::reset(appearance_consumer_id aConsumer, const appearance_reset_scope aScope)
+	void appearance_preferences_application_host::reset(appearance_consumer_id aConsumer, const appearance_reset_scope aScope, const core::appearance_variant aVariant)
 	{
-		Implementation->enqueue(reset_appearance_intent{ aScope }, aConsumer);
+		Implementation->enqueue(deferred_appearance_reset{ .Scope = aScope, .Variant = aVariant }, aConsumer);
 	}
 
 	void appearance_preferences_application_host::cancel()
