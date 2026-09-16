@@ -186,7 +186,8 @@ independent reasons: RFC-BPR-0024 is `Deferred`, and B5 needs the owner's
 acceptance of the empty desktop on a real macOS build. The defect behind the
 rejection is fixed — the windowless menu bar now carries the same menus a
 window's bar carries, and B1's macOS half and B2's native half are met on the
-fixed build — and one attended candidate is prepared against that build's own
+fixed build apart from what only a person can see, the Dock tile and whether
+AppKit repaints a windowless active application's bar — and one attended candidate is prepared against that build's own
 digest and has not been performed. A verdict on the old build cannot be carried
 onto a new one. The Windows and Linux halves of B1 have never been observed
 and are recorded as not run, on

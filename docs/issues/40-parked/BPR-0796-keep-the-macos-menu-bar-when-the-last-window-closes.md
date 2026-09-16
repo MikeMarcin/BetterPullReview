@@ -259,10 +259,11 @@ reviewer sees does not get to accept it, and the mandate asked for preparation
 rather than performance.
 
 - **Candidate** `bpr-0796-empty-desktop-menu-bar`, fingerprint
-  `8365ee8460ec3cdc1b77ee44c88d02f48a725c35af18a71be1b29104240d1d77`.
+  `f9c7cd40eca353118cfb94779ace743f57f35e21386d079f7ce3a629cb550b07`
+  (the second fingerprint; see the correction below).
 - **Session** `e966c88f3320638208adf4fcf0651e31`, the pack's existing one, state
   directory `/Users/jaeger/.mask/bpr-shell-surfaces-d7-20260915/attended-review`,
-  sequence 75. 18 candidates, 17 decided, **1 pending** — this one. The seventeen
+  sequence 80. 18 candidates, 17 decided, **1 pending** — this one. The seventeen
   verdicts of 2026-09-16 are preserved untouched, including the rejection this
   candidate answers, which stays bound to the id and digest it was given on.
 - **Bound to** revision `1c40d04b / app sha256 1f60b0a267878bd9525488f15fa27e97e778cf006a087b2f1e2d5a9ae4f0c17d`,
@@ -296,6 +297,44 @@ rather than performance.
   `ctest --preset dev` exiting 0, and the launch binary's digest checked against
   the declared revision with `ninja -n` reporting no work to do.
 
+### Corrections after an independent review
+
+An `rfc-reviewer` was asked to falsify eleven claims about this dispatch and
+upheld all of them, one with a caveat. It found four things worth acting on, and
+three of them were wrong in text a person will read:
+
+1. **The attended candidate contradicted itself, in the script the owner
+   follows.** Its body says File is hidden with a window and without; step 8 then
+   told the owner to check "File, Profiles, View with its items ENABLED". A
+   reviewer following that literally would look for a File title that macOS never
+   draws and could reject on it. Corrected: step 8 now names Profiles and View,
+   says File stays hidden there too, and the candidate was released, re-written,
+   re-prepared and re-observed. Nothing had been decided, so no verdict moved; the
+   fingerprint changed from `8365ee84…` to `f9c7cd40…`.
+2. **"B1's macOS half is met" claimed slightly more than the evidence.** B1's own
+   words are "stays resident with its menu bar **and Dock icon**". What the course
+   proves is `[NSApp activationPolicy] == NSApplicationActivationPolicyRegular`
+   and zero AppKit windows on screen. That is what buys the tile, and it is as
+   close as a machine gets, but seeing the tile and clicking it are the owner's.
+   The summary sentences on [[BPR-0782]] and in the RFC index now say so where
+   they previously read unconditionally; AC1's own record already disclosed it.
+3. **The formatting sentence implied coverage it did not have** for the
+   Objective-C probe. Corrected above.
+4. **A hardening observation, deliberately not acted on.** `retire_desktop_menu()`
+   is reached from one branch: the `QEvent::WindowActivate` arm, under
+   `!Focusing && current(context)`. A profile window that became visible without
+   ever delivering `WindowActivate` would leave the desktop's parentless bar
+   alive, which is the arrangement this fix exists to prevent. The reviewer could
+   construct no reachable case and neither can I: a window that opens while the
+   application is active becomes key, and one that opens while it is not active
+   cannot show a menu bar at all until the application is activated, at which
+   point it becomes key. The offscreen course pins the common path with
+   `wait_for(desktop->desktop_menu() == nullptr)` after every reopening. It was
+   left alone on purpose: changing `src/` now would rebuild the executable the
+   prepared candidate is bound to, and a hardening change with no reachable case
+   is not worth moving what the owner is about to look at. Whoever takes the
+   owner's verdict should decide it with that verdict in hand.
+
 ### Evidence paths
 
 - Native run, unfixed source: `scratchpad/d8-native-unfixed-source-run2.log`
@@ -325,10 +364,12 @@ d9, all at zero pending build actions:
   `scratchpad/d9-int-pass-01.log`.
 - Documentation gate `DOCUMENTATION_OK` (`scratchpad/d9-doc-gate-2.log`) and 64
   documentation tests OK (`scratchpad/d9-doc-tests.log`).
-- Formatting: every file this card touched is clean under the repository's own
-  `clang-format` except `profile_desktop.cpp`, whose one divergence is a member
-  alignment block that already diverged at `HEAD` before this card and was left
-  alone (`scratchpad/d9-format-check.log`).
+- Formatting: every C++ file this card touched is clean under the repository's
+  own `clang-format` except `profile_desktop.cpp`, whose one divergence is a
+  member alignment block that already diverged at `HEAD` before this card and
+  was left alone (`scratchpad/d9-format-check.log`). `native_main_menu_probe_mac.mm`
+  is **not covered**: this `.clang-format` has no Objective-C section and the
+  tool refuses the file, which is also why `format_check.py` never lists it.
 - Fixed executable, the one the attended candidate is bound to:
   sha256 `1f60b0a267878bd9525488f15fa27e97e778cf006a087b2f1e2d5a9ae4f0c17d`,
   source `1c40d04b`.
