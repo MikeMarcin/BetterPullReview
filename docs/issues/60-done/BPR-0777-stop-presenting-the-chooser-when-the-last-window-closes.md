@@ -100,6 +100,25 @@ belong to `BPR-0779`. Another session was committing unrelated work into this ch
 courses ran; its contents were present in the tree and are now ancestors of this revision, and none of
 them touches this card's files.
 
+### Amendment, 2026-09-16: one sentence of AC2's evidence is withdrawn
+
+This card stays Done and its acceptance records stand as written; the courses
+it ran did pass. One sentence in AC2's evidence is nevertheless withdrawn,
+because the owner has now observed the opposite on real macOS.
+
+AC2's evidence says of `qt::desktop_menu_bar`: "it is parentless, so macOS uses
+it as the application's default menu bar". That is Qt's documented recipe, not
+an observation, and the Limitations paragraph above says so honestly in the
+same card. On 2026-09-16 the owner reviewed the shipped build and rejected the
+empty-desktop candidate with: **"Closing last window closes menu bar."** So the
+inference was wrong on this composition. The behaviour, not this card's
+bookkeeping, is the defect, and it is [[BPR-0796]].
+
+Nothing else in AC2 is affected: the three reopening gestures, the single
+runtime owner and the typed intents were all observed by course, and the
+`platforms`-carrying homes for the Windows and Linux halves are now
+[[BPR-0798]] and [[BPR-0799]].
+
 ## Boundaries
 
 No GitHub or GHES mutation, credential access, provider change or new preference is authorized by this card. The core decides, the host performs, Qt presents: no widget reaches a store, a vault, a provider or a process. No stylesheet or hard-coded palette. Follow the milestone exit rather than running an exhaustive app-wide course for this slice.
