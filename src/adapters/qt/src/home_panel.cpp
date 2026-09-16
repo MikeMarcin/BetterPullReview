@@ -66,8 +66,10 @@ namespace bpr::qt {
 		struct header_geometry
 		{
 			QRect Chevron;
+			QRect Avatar;
 			QRect Title;
 			QRect Count;
+			QRect Trailing;
 			QRect Summary;
 			bool  SummaryBelow = false;
 			int   Height       = 0;
@@ -81,20 +83,41 @@ namespace bpr::qt {
 			const auto style        = aPanel.style_kind();
 			const auto titleMetrics = QFontMetrics{ title_font(aFont) };
 			const auto plainMetrics = QFontMetrics{ aFont };
-			const auto lineHeight   = std::max(titleMetrics.height(), chevron_extent);
-			const auto top          = vertical_padding(style);
-			const auto rail         = aPanel.state().has_value() ? home_panel::rail_width : 0;
-			auto       geometry     = header_geometry{ };
-			auto       x            = rail + leading_inset(style);
-			geometry.Chevron        = QRect{ x, top + ((lineHeight - chevron_extent) / 2), chevron_extent, chevron_extent };
+			// [[BPR-0783]]. A group's avatar tile and its trailing chip each set
+			// the header's line, so neither is clipped by a shorter one.
+			const auto tile       = aPanel.avatar_name().isEmpty() ? 0 : home_tile_extent(aFont);
+			const auto chip       = !aPanel.trailing().isEmpty() && aPanel.trailing_is_chip()
+				? home_chip_size(summary_font(aFont), aPanel.trailing()).height()
+				: 0;
+			const auto lineHeight = std::max({ titleMetrics.height(), chevron_extent, tile, chip });
+			const auto top        = vertical_padding(style);
+			const auto rail       = aPanel.state().has_value() ? home_panel::rail_width : 0;
+			auto       geometry   = header_geometry{ };
+			auto       x          = rail + leading_inset(style);
+			geometry.Chevron      = QRect{ x, top + ((lineHeight - chevron_extent) / 2), chevron_extent, chevron_extent };
 			x += chevron_extent + chevron_gap;
+			if (tile > 0) {
+				geometry.Avatar = QRect{ x, top + ((lineHeight - tile) / 2), tile, tile };
+				x += tile + chevron_gap;
+			}
 			const auto titleWidth = titleMetrics.horizontalAdvance(aPanel.title());
 			geometry.Title        = QRect{ x, top, titleWidth, lineHeight };
 			x += titleWidth + header_gap;
 			const auto countText = QString::number(aPanel.count());
 			geometry.Count       = QRect{ x, top, plainMetrics.horizontalAdvance(countText), lineHeight };
-			const auto right     = aWidth - trailing_inset(style);
+			auto right           = aWidth - trailing_inset(style);
 			geometry.Height      = (top * 2) + lineHeight;
+			if (!aPanel.trailing().isEmpty()) {
+				const auto trailingFont = summary_font(aFont);
+				const auto extent       = aPanel.trailing_is_chip()
+					? home_chip_size(trailingFont, aPanel.trailing())
+					: QSize{ QFontMetrics{ trailingFont }.horizontalAdvance(aPanel.trailing()), lineHeight };
+				geometry.Trailing       = QRect{ right - extent.width(),
+												 top + ((lineHeight - extent.height()) / 2),
+												 extent.width(),
+												 extent.height() };
+				right                   = geometry.Trailing.left() - header_gap;
+			}
 			if (aPanel.collapsed() && !aPanel.summary().isEmpty()) {
 				const auto summaryMetrics = QFontMetrics{ summary_font(aFont) };
 				const auto summaryWidth   = summaryMetrics.horizontalAdvance(aPanel.summary());
@@ -269,12 +292,28 @@ namespace bpr::qt {
 		style()->drawPrimitive(Panel.collapsed() ? QStyle::PE_IndicatorArrowRight : QStyle::PE_IndicatorArrowDown,
 							   &arrow, &painter, this);
 
+		// [[BPR-0783]]. The group's avatar, in neutral ink: colour on Home means
+		// state, and an owner is not one.
+		const auto neutral = home_chip_ink_for(colours, QPalette::Active, false);
+		if (!geometry.Avatar.isEmpty()) {
+			draw_home_tile(painter, geometry.Avatar, home_tile_initial(Panel.avatar_name()),
+						   Panel.avatar_round(), font(), neutral);
+		}
 		painter.setPen(colours.color(QPalette::Active, QPalette::Text));
 		painter.setFont(title_font(font()));
 		painter.drawText(geometry.Title, Qt::AlignLeft | Qt::AlignVCenter, Panel.title());
 		painter.setPen(colours.color(QPalette::Active, QPalette::PlaceholderText));
 		painter.setFont(font());
 		painter.drawText(geometry.Count, Qt::AlignLeft | Qt::AlignVCenter, QString::number(Panel.count()));
+		if (!geometry.Trailing.isEmpty()) {
+			if (Panel.trailing_is_chip()) {
+				draw_home_chip(painter, geometry.Trailing, Panel.trailing(), summary_font(font()), neutral);
+			} else {
+				painter.setFont(summary_font(font()));
+				painter.setPen(colours.color(QPalette::Active, QPalette::PlaceholderText));
+				painter.drawText(geometry.Trailing, Qt::AlignRight | Qt::AlignVCenter, Panel.trailing());
+			}
+		}
 		if (!geometry.Summary.isEmpty()) {
 			painter.setFont(summary_font(font()));
 			painter.drawText(geometry.Summary,
@@ -402,6 +441,36 @@ namespace bpr::qt {
 		refresh_header();
 	}
 
+	void home_panel::set_avatar(const QString& aName, const bool aRound)
+	{
+		if (Avatar == aName && AvatarRound == aRound) {
+			return;
+		}
+		Avatar      = aName;
+		AvatarRound = aRound;
+		refresh_header();
+	}
+
+	void home_panel::set_trailing(const QString& aText, const bool aChip)
+	{
+		if (Trailing == aText && TrailingChip == aChip) {
+			return;
+		}
+		Trailing     = aText;
+		TrailingChip = aChip;
+		refresh_header();
+	}
+
+	void home_panel::set_header_shown(const bool aShown)
+	{
+		if (HeaderShown == aShown) {
+			return;
+		}
+		HeaderShown = aShown;
+		Header->setVisible(aShown);
+		refresh_header();
+	}
+
 	void home_panel::set_content(QWidget* const aContent)
 	{
 		if (Content == aContent) {
@@ -501,6 +570,31 @@ namespace bpr::qt {
 		return Summary;
 	}
 
+	auto home_panel::avatar_name() const -> QString
+	{
+		return Avatar;
+	}
+
+	auto home_panel::avatar_round() const noexcept -> bool
+	{
+		return AvatarRound;
+	}
+
+	auto home_panel::trailing() const -> QString
+	{
+		return Trailing;
+	}
+
+	auto home_panel::trailing_is_chip() const noexcept -> bool
+	{
+		return TrailingChip;
+	}
+
+	auto home_panel::header_shown() const noexcept -> bool
+	{
+		return HeaderShown;
+	}
+
 	auto home_panel::collapsed() const noexcept -> bool
 	{
 		return Collapsed;
@@ -587,18 +681,24 @@ namespace bpr::qt {
 	void home_panel::refresh_header()
 	{
 		const auto panelled = Style == home_panel_style::panel;
-		const auto margins  = QMargins{
+		// [[BPR-0783]]. A headerless card keeps the border its top edge is.
+		const auto header  = HeaderShown ? Header->heightForWidth(std::max(width(), 1)) : 0;
+		const auto margins = QMargins{
 			State.has_value() ? rail_width : (panelled ? 1 : 0),
-			Header->heightForWidth(std::max(width(), 1)),
+			header > 0 ? header : (panelled ? 1 : 0),
 			panelled ? 1 : 0,
 			panelled && !Collapsed ? 1 : 0,
 		};
-		HeaderHeight = margins.top();
+		HeaderHeight = header;
 		if (Column->contentsMargins() != margins) {
 			Column->setContentsMargins(margins);
 			updateGeometry();
 		}
-		const auto name        = QStringLiteral("%1, %2").arg(Title).arg(Count);
+		// [[BPR-0783]]. A single-account group's chip, or the host under Account
+		// grouping, is part of what the header is announced as.
+		const auto name        = Trailing.isEmpty()
+			? QStringLiteral("%1, %2").arg(Title).arg(Count)
+			: QStringLiteral("%1, %2, %3").arg(Title).arg(Count).arg(Trailing);
 		const auto description = Collapsed ? Summary : QString{ };
 		if (Header->accessibleName() != name) {
 			Header->setAccessibleName(name);
@@ -625,12 +725,16 @@ namespace bpr::qt {
 			return;
 		}
 		const auto top = aPanel.mapTo(&aViewport, QPoint{ }).y();
-		aPanel.set_header_offset(aPanel.collapsed() ? 0 : aLine - top);
+		// [[BPR-0783]]. A card with no header has nothing to stick, and its rows
+		// must not be covered by a header that is not drawn.
+		aPanel.set_header_offset(aPanel.collapsed() || !aPanel.header_shown() ? 0 : aLine - top);
 		if (aPanel.collapsed() || aPanel.content() == nullptr) {
 			return;
 		}
 		const auto* const header       = aPanel.header();
-		const auto        headerBottom = header->mapTo(&aViewport, QPoint{ 0, header->height() }).y();
+		const auto        headerBottom = aPanel.header_shown()
+			? header->mapTo(&aViewport, QPoint{ 0, header->height() }).y()
+			: aLine;
 		// The bands are the content's direct children. The panels carry no meta
 		// object of their own, so they are found by type rather than by
 		// `findChildren`.

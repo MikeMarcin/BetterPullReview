@@ -35,7 +35,13 @@ namespace bpr::adapters::sqlite::detail {
 	///
 	/// Seven since [[BPR-0729]]: one pane in both profile defaults and window
 	/// layouts, defaulted disabled to preserve the prior two-pane view.
-	inline constexpr std::int64_t workbench_settings_schema_version = 7;
+	///
+	/// Eight since [[BPR-0783]]: one window's Home view — its grouping, its
+	/// state headers, the panels it left collapsed and its own filter — in the
+	/// per-window table only. Home belongs to the window that shows it, so the
+	/// profile row does not carry it, and every default is the Home a
+	/// version-seven window already showed.
+	inline constexpr std::int64_t workbench_settings_schema_version = 8;
 
 	/// \brief Owns the durable workbench layout database.
 	///

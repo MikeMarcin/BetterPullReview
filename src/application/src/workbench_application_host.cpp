@@ -92,6 +92,11 @@ namespace bpr::application {
 			review_behaviour_settings Settings;
 		};
 
+		struct deferred_workbench_home_view
+		{
+			home_view_state View;
+		};
+
 		struct deferred_workbench_preferences
 		{
 			workbench_profile_preferences Preferences;
@@ -115,7 +120,8 @@ namespace bpr::application {
 														deferred_workbench_change_navigation,
 														deferred_workbench_intent,
 														deferred_workbench_resize,
-														deferred_workbench_behaviour, deferred_workbench_preferences,
+														deferred_workbench_behaviour, deferred_workbench_home_view,
+														deferred_workbench_preferences,
 														deferred_workbench_cancel,
 														deferred_workbench_shutdown, deferred_workbench_orderly_shutdown,
 														staged_observation,
@@ -364,6 +370,8 @@ namespace bpr::application {
 						resize_now(aTyped.Drawer, aTyped.Width);
 					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_behaviour>) {
 						apply_behaviour_now(aTyped.Settings);
+					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_home_view>) {
+						apply_home_view_now(aTyped.View);
 					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_preferences>) {
 						accept_preferences(aTyped.Preferences);
 					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_cancel>) {
@@ -522,7 +530,13 @@ namespace bpr::application {
 			if (retirement != workbench_terminal_rejection::none) {
 				return retirement;
 			}
-			return Closing && !(OrderlyClosing && aDomain == workbench_request_domain::settings_store)
+			// [[BPR-0783]]. An orderly close also admits the settings load that a
+			// held Home view is still waiting for: that record is the only thing
+			// the view can be merged into, and `shutdown_orderly_now` leaves the
+			// load alone for exactly as long as one is held.
+			const auto drained = aDomain == workbench_request_domain::settings_store
+				|| (aDomain == workbench_request_domain::settings_load && HeldHome.has_value());
+			return Closing && !(OrderlyClosing && drained)
 				? workbench_terminal_rejection::cancelled
 				: workbench_terminal_rejection::none;
 		}
@@ -766,8 +780,14 @@ namespace bpr::application {
 				Layout.LineNumbers   = State.LineNumbers;
 				Layout.OnePane       = State.OnePane;
 			}
-			if (Settings.profile_scoped() && Settings.window().value() == 0) {
-				PendingPreferences        = workbench_profile_preferences{ Layout.Behaviour, window_layout(Layout) };
+			if (profile_defaults_scoped()) {
+				// [[BPR-0783]]. Home belongs to the window that shows it. The
+				// profile's defaults record has no window, so the view is dropped
+				// here rather than stored as a default every later window would
+				// inherit without having chosen it.
+				auto defaults             = window_layout(Layout);
+				defaults.Home             = { };
+				PendingPreferences        = workbench_profile_preferences{ Layout.Behaviour, defaults };
 				PendingPreferenceDefaults = true;
 				if (!Preferences->apply_defaults(PendingPreferences->NewWindowDefaults)) {
 					PendingPreferences.reset();
@@ -843,6 +863,10 @@ namespace bpr::application {
 			}
 			retire(workbench_request_domain::settings_load,
 				   workbench_terminal_rejection::superseded);
+			// [[BPR-0783]]. A fresh attempt at the record clears the earlier
+			// refusal, so a Home gesture waits for this load rather than being
+			// applied as though nothing could ever be stored.
+			LayoutLoadFailed = false;
 			if (Settings.profile_scoped() && Settings.window().value() != 0) {
 				Preferences->restore();
 			}
@@ -1050,6 +1074,90 @@ namespace bpr::application {
 			PendingPreferenceDefaults = false;
 		}
 
+		/// \brief Whether this host writes the profile's defaults record.
+		///
+		/// \details [[BPR-0783]]. That record names no window, so it carries no
+		/// Home view; a window bound to it still shows one, but nothing durable
+		/// keeps it.
+		[[nodiscard]] auto profile_defaults_scoped() const -> bool
+		{
+			return Settings.profile_scoped() && Settings.window().value() == 0;
+		}
+
+		/// \brief The Home view this window is showing.
+		///
+		/// \details [[BPR-0783]]. The held view until this window's own record
+		/// arrives, because until then the host has no view of its own and the
+		/// declared default is not what the reviewer is looking at.
+		[[nodiscard]] auto current_home() const noexcept -> const home_view_state&
+		{
+			return HeldHome ? *HeldHome : Layout.Home;
+		}
+
+		/// \brief [[BPR-0783]]. Accepts one window's Home view.
+		///
+		/// \details Presentation arrangement the host holds, validates and
+		/// persists beside the window's layout; nothing here interprets it. A
+		/// view outside its vocabularies is refused and the held one republished
+		/// so Home reverts to it. A view that arrives before this window's record
+		/// has loaded is held rather than applied: persisting it then would write
+		/// the default drawers and widths this window never chose over the ones
+		/// the stored record still holds.
+		void apply_home_view_now(const home_view_state& aView)
+		{
+			if (Closing) {
+				return;
+			}
+			if (!valid(aView)) {
+				RepublishHome = true;
+				publish_changes(local_context());
+				return;
+			}
+			// An unchanged view publishes nothing, which is also what keeps a
+			// window that merely repeats the view it is already showing from
+			// writing that view over a stored one it has not read yet.
+			if (aView == current_home()) {
+				return;
+			}
+			if (!LayoutLoaded) {
+				if (!LayoutLoadFailed) {
+					HeldHome = aView;
+					return;
+				}
+				// [[BPR-0783]]. The record never arrived, so there is nothing to
+				// merge into and nothing this view could be written over. The
+				// arrangement still applies to the window in front of the
+				// reviewer, and the reason it will not be kept is said rather
+				// than swallowed, as an unavailable behaviour write says it.
+				Layout.Home = aView;
+				publish_changes(local_context());
+				publish_failure(local_context(), workbench_host_failure::settings_unavailable);
+				return;
+			}
+			Layout.Home = aView;
+			if (!profile_defaults_scoped()) {
+				submit_settings_store();
+			}
+			publish_changes(local_context());
+		}
+
+		/// \brief Adopts a view applied before this window's record arrived.
+		///
+		/// \details [[BPR-0783]]. Merged into the record just loaded rather than
+		/// written on its own, so the drawers and widths that record still owns
+		/// reach the store unchanged even when no review has been opened yet.
+		void merge_held_home()
+		{
+			const auto held = std::exchange(HeldHome, std::nullopt);
+			if (!held || *held == Layout.Home) {
+				return;
+			}
+			Layout.Home = *held;
+			if (!profile_defaults_scoped()) {
+				submit_settings_store();
+			}
+		}
+
 		void accept_preferences(const workbench_profile_preferences& aPreferences)
 		{
 			if (Closing) {
@@ -1093,7 +1201,13 @@ namespace bpr::application {
 				OwnedPreferences->shutdown();
 			}
 			retire(workbench_request_domain::observation, workbench_terminal_rejection::cancelled);
-			retire(workbench_request_domain::settings_load, workbench_terminal_rejection::cancelled);
+			// [[BPR-0783]]. A view applied before this window's record arrived
+			// drains with that record rather than being dropped: the load it must
+			// merge into is left to finish, so the last Home the reviewer chose is
+			// stored beside the loaded layout instead of over it.
+			if (!HeldHome) {
+				retire(workbench_request_domain::settings_load, workbench_terminal_rejection::cancelled);
+			}
 			retire(workbench_request_domain::selected_diff, workbench_terminal_rejection::cancelled);
 		}
 
@@ -1284,14 +1398,30 @@ namespace bpr::application {
 				return;
 			}
 			if (!aResult.has_value()) {
-				publish_failure(aContext,
-								workbench_host_failure::settings_unavailable);
+				LayoutLoadFailed = true;
+				// [[BPR-0783]]. A view held for this record now has nowhere to
+				// go. It still belongs to the window, and the failure is
+				// reported on the same terms as a failed write, so an orderly
+				// close cannot swallow the last arrangement the reviewer chose.
+				const auto held = HeldHome.has_value();
+				if (held) {
+					Layout.Home = *std::exchange(HeldHome, std::nullopt);
+					publish_changes(aContext);
+				}
+				publish_failure(aContext, workbench_host_failure::settings_unavailable, held);
 				return;
 			}
 			if (PreferenceSubscription != 0 && OwnedPreferences && (!Settings.profile_scoped() || Settings.window().value() == 0)) {
-				Preferences->adopt_loaded({ aResult->Behaviour, window_layout(*aResult) });
+				// [[BPR-0783]]. The defaults the preferences host holds carry no
+				// Home, for the reason `submit_settings_store` gives.
+				auto defaults = window_layout(*aResult);
+				defaults.Home = { };
+				Preferences->adopt_loaded({ aResult->Behaviour, defaults });
 			}
 			Layout = *aResult;
+			if (profile_defaults_scoped()) {
+				Layout.Home = { };
+			}
 			if (PreferenceSubscription != 0 && Preferences->accepted()) {
 				Layout.Behaviour = Preferences->accepted()->Behaviour;
 			}
@@ -1300,6 +1430,11 @@ namespace bpr::application {
 			Layout.RepositoriesWidth  = clamped_width(Layout.RepositoriesWidth, Limits);
 			RestorePending            = true;
 			apply_restored_drawers();
+			// [[BPR-0783]]. After the drawers, so that a view held for this
+			// record is merged into the layout just loaded rather than into
+			// whatever state the window happened to be in before it arrived.
+			LayoutLoaded = true;
+			merge_held_home();
 			publish_changes(aContext);
 		}
 
@@ -1422,6 +1557,19 @@ namespace bpr::application {
 			if (PublishedBehaviour != std::optional{ Layout.Behaviour } || RepublishBehaviour) {
 				projection.Behaviour = Layout.Behaviour;
 			}
+			// [[BPR-0783]]. Withheld until this window's record has loaded.
+			// Before that the host holds no view of its own, and publishing the
+			// declared default would revert an arrangement the reviewer made
+			// while the load was still in flight.
+			// [[BPR-0783]]. A view adopted with no record to merge into is
+			// published as well. That path only exists because the load
+			// failed, so `LayoutLoaded` never becomes true, and presentation
+			// would otherwise never learn the view the host accepted.
+			if (RepublishHome
+				|| ((LayoutLoaded || LayoutLoadFailed)
+					&& PublishedHome != std::optional{ current_home() })) {
+				projection.HomeView = current_home();
+			}
 			auto files = std::vector<workbench_file_projection>{ };
 			files.reserve(Files.size());
 			std::ranges::transform(
@@ -1449,6 +1597,10 @@ namespace bpr::application {
 			PublishedFiles       = std::move(files);
 			PublishedBehaviour   = Layout.Behaviour;
 			RepublishBehaviour   = false;
+			if (projection.HomeView.has_value()) {
+				PublishedHome = projection.HomeView;
+			}
+			RepublishHome = false;
 			deliver_projection(
 				[this, &projection] { Projections.publish(projection); });
 		}
@@ -1502,6 +1654,16 @@ namespace bpr::application {
 		std::optional<workbench_selected_diff_request>  AcceptedSelectedDiff;
 		workbench_layout_settings                       Layout;
 		std::optional<workbench_layout_settings>        PendingLayout;
+		/// [[BPR-0783]]. A Home view applied before this window's own record
+		/// loaded, waiting to be merged into it.
+		std::optional<home_view_state> HeldHome;
+		/// [[BPR-0783]]. Whether that record has arrived. Until it has, a
+		/// view is held rather than applied, and none is published.
+		bool LayoutLoaded = false;
+		/// [[BPR-0783]]. Set when this window's record answered with a failure,
+		/// so a later Home gesture is applied and reported instead of waiting
+		/// for a merge that can never happen.
+		bool LayoutLoadFailed = false;
 
 		std::vector<outstanding_request>       Outstanding;
 		std::deque<deferred_workbench_ingress> DeferredIngress;
@@ -1516,6 +1678,8 @@ namespace bpr::application {
 		std::optional<workbench_layout_delta>                 PublishedLayout;
 		std::optional<review_behaviour_settings>              PublishedBehaviour;
 		bool                                                  RepublishBehaviour = false;
+		std::optional<home_view_state>                        PublishedHome;
+		bool                                                  RepublishHome = false;
 		std::optional<std::vector<workbench_file_projection>> PublishedFiles;
 
 		std::size_t                                RejectedTerminals = 0U;
@@ -1613,6 +1777,11 @@ namespace bpr::application {
 	void workbench_application_host::apply_behaviour(review_behaviour_settings aSettings)
 	{
 		Implementation->enqueue(deferred_workbench_behaviour{ .Settings = aSettings });
+	}
+
+	void workbench_application_host::apply_home_view(home_view_state aState)
+	{
+		Implementation->enqueue(deferred_workbench_home_view{ .View = aState });
 	}
 
 	void workbench_application_host::cancel()

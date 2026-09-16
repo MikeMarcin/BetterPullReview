@@ -1022,17 +1022,21 @@ namespace {
 				})
 				&& refreshPresenter != nullptr
 				&& window.focus_order().contains(refreshPresenter)
+				// [[BPR-0783]]. Home's three controls are the strip's stops, in
+				// the strip's reading order before the refresh glyph; the six
+				// typed queue controls are Settings' Queue defaults and are no
+				// longer declared here at all.
 				&& containsInOrder(
 					window.focus_order(),
 					{
-						window.queue_role_filter(),
-						window.queue_observer_filter(),
-						window.queue_bucket_filter(),
-						window.queue_repository_filter(),
-						window.queue_quiet_filter(),
-						window.queue_sort_selector(),
+						window.home_group_button(),
+						window.primary_toolbar()->widgetForAction(window.home_state_headers_action()),
+						window.home_filter_button(),
+						refreshPresenter,
 						technicalButton,
 					})
+				&& !window.focus_order().contains(window.queue_role_filter())
+				&& !window.focus_order().contains(window.queue_sort_selector())
 				// [[BPR-0652]]. The rule editor is Reviews and queue's now, in the
 				// Settings window; the workbench declares no stops across windows.
 				&& !window.focus_order().contains(window.queue_rule_kind_selector())
@@ -3182,9 +3186,15 @@ namespace {
 		window.publish(preview);
 		publish_session_ready(window);
 		QApplication::processEvents();
+		// [[BPR-0783]]. With an account the list appears and the strip gains
+		// Home's own controls; the six typed combos are Settings' now, so what
+		// says "the queue is here" is the list and those controls.
 		expect(landing->state() == qt::landing_state::choose_pull_request && !landing->isVisible()
 				   && surface->isVisible()
-				   && window.home_list()->queue_shown() && window.queue_role_filter()->isVisible()
+				   && window.home_list()->queue_shown()
+				   && window.home_group_button()->isVisible()
+				   && window.home_state_headers_action()->isVisible()
+				   && window.home_filter_button()->isVisible()
 				   && window.home_open_bar()->placeholderText() == QStringLiteral("Paste a link, or write owner/name#123"),
 			   "a session with an account shows the queue, the bar names any pull request, and there is no card");
 		window.hide();
@@ -3762,8 +3772,11 @@ namespace {
 				   && rules->isAncestorOf(window.queue_rule_kind_selector())
 				   && rules->isAncestorOf(window.queue_rule_pattern_editor())
 				   && !window.focus_order().contains(window.queue_rule_kind_selector())
-				   && window.focus_order().contains(window.queue_role_filter()),
-			   "the observer-rule editor lives on Reviews and queue, off Home and out of the workbench's focus order");
+				   // [[BPR-0783]]. The queue's six typed controls moved to the
+				   // same page, so they are off Home and off this order too.
+				   && !window.focus_order().contains(window.queue_role_filter())
+				   && window.settings()->page_widget(qt::settings_page::reviews_and_queue)->isAncestorOf(window.queue_role_filter()),
+			   "the observer-rule editor and the queue defaults live on Reviews and queue, off Home and out of the workbench's focus order");
 		window.hide();
 	}
 
@@ -4546,9 +4559,16 @@ namespace {
 						->widgetForAction(window.files_drawer_toggle_action())
 						->isVisible()
 				&& !window.modality()->isVisible()
-				&& !window.primary_toolbar()
-						->widgetForAction(window.github_refresh_action())
-						->isVisible()
+				// [[BPR-0783]]. Home's strip carries Group, State headers, Filter
+				// and the refresh glyph before the account and settings, because
+				// an account can fill the list here.
+				&& window.home_group_button()->isVisible()
+				&& window.home_group_button()->text() == QStringLiteral("Group: None")
+				&& window.home_state_headers_action()->isChecked()
+				&& window.home_filter_button()->isVisible()
+				&& window.primary_toolbar()
+					   ->widgetForAction(window.github_refresh_action())
+					   ->isVisible()
 				&& window.primary_toolbar()
 					   ->widgetForAction(window.account_action())
 					   ->isVisible()

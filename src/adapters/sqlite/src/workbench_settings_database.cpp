@@ -6,6 +6,7 @@
 #include <array>
 #include <cctype>
 #include <charconv>
+#include <optional>
 #include <span>
 #include <string_view>
 #include <utility>
@@ -17,6 +18,17 @@ namespace bpr::adapters::sqlite::detail {
 		// that pointing one store at another's file fails at the identity check
 		// rather than at the first query for a table that is not there.
 		constexpr std::int32_t WorkbenchApplicationId = 0x42505257;
+
+		/// \brief The widest table this store admits, in columns.
+		///
+		/// \details [[BPR-0783]]. `window_layout` reached seventeen columns when
+		/// the Home view joined it. `SQLITE_LIMIT_COLUMN` bounds a table
+		/// definition, the values of one INSERT, and the result of one `SELECT *`
+		/// alike, so below this a version-eight file could not even be parsed,
+		/// let alone read: a column added later has to raise this in the same
+		/// schema step. Three admissible tables bound the whole enumerated
+		/// schema at three times this.
+		constexpr std::size_t MaximumTableColumns = 17U;
 
 		/// \brief Writes the layout table's definition under one name.
 		///
@@ -96,6 +108,44 @@ namespace bpr::adapters::sqlite::detail {
 			aSql.erase(aSql.find(column), column.size());
 		}
 
+		/// \brief [[BPR-0783]]. One window's Home view, schema version 8.
+		///
+		/// \details Only the per-window table carries these. Home is one
+		/// window's arrangement of the same rows, so the profile row must not
+		/// answer one: a default stored there would be a view every later
+		/// window inherited without having chosen it.
+		///
+		/// Every default is what a version-seven window already showed —
+		/// ungrouped, with its state headers, nothing collapsed, and the
+		/// profile's own queue filter — so a migrated row keeps the Home it had.
+		///
+		/// The bounds are written out rather than interpolated because this text
+		/// is what a version-eight build stored and what preflight compares a
+		/// stored file against; the asserts below are what keeps them agreeing
+		/// with the vocabularies they encode. Zero is `Any` for the two optional
+		/// filters and a named value is stored one above its enumerator, so
+		/// `github_role::none` — a role a reviewer can filter by — stays
+		/// distinct from no role filter at all.
+		///
+		/// No name here says what was reviewed. `home_collapsed` is the four
+		/// panels that carry no name; a group panel is keyed by an owner, a
+		/// repository or an account, and its collapse stays in the window.
+		constexpr std::string_view HomeColumns
+			= ",home_grouping INTEGER NOT NULL DEFAULT 0 CHECK(home_grouping BETWEEN 0 AND 3),"
+			  "home_state_headers INTEGER NOT NULL DEFAULT 1 CHECK(home_state_headers BETWEEN 0 AND 1),"
+			  "home_collapsed INTEGER NOT NULL DEFAULT 0 CHECK(home_collapsed BETWEEN 0 AND 15),"
+			  "home_filter_owned INTEGER NOT NULL DEFAULT 0 CHECK(home_filter_owned BETWEEN 0 AND 1),"
+			  "home_role INTEGER NOT NULL DEFAULT 0 CHECK(home_role BETWEEN 0 AND 5),"
+			  "home_added_by INTEGER NOT NULL DEFAULT 0 CHECK(home_added_by BETWEEN 0 AND 3),"
+			  "home_quiet INTEGER NOT NULL DEFAULT 0 CHECK(home_quiet BETWEEN 0 AND 2),"
+			  "home_sort INTEGER NOT NULL DEFAULT 0 CHECK(home_sort BETWEEN 0 AND 2)";
+		static_assert(static_cast<std::int64_t>(application::home_grouping::account) == 3);
+		static_assert(application::home_collapsed_panel::all == 15U);
+		static_assert(static_cast<std::int64_t>(core::github_role::author) + 1 == 5);
+		static_assert(static_cast<std::int64_t>(core::observer_rule_kind::path) + 1 == 3);
+		static_assert(static_cast<std::int64_t>(application::queue_quiet_filter::quiet) == 2);
+		static_assert(static_cast<std::int64_t>(application::queue_sort_order::pull_request_number) == 2);
+
 		constexpr std::string_view MetaSql = "CREATE TABLE workbench_meta(singleton INTEGER PRIMARY KEY CHECK(singleton = 1),schema_format INTEGER NOT NULL) STRICT";
 		[[nodiscard]] auto         window_table(const std::int64_t aVersion = workbench_settings_schema_version) -> std::string
 		{
@@ -107,6 +157,9 @@ namespace bpr::adapters::sqlite::detail {
 			sql.replace(first, std::string_view{ "singleton INTEGER PRIMARY KEY CHECK(singleton = 1)" }.size(),
 						"window_id TEXT PRIMARY KEY NOT NULL CHECK(length(window_id) BETWEEN 1 AND 20 AND window_id NOT GLOB '*[^0-9]*' AND substr(window_id,1,1) != '0')");
 			sql.resize(sql.find(",open_modality"));
+			if (aVersion >= 8) {
+				sql += HomeColumns;
+			}
 			return sql + ") STRICT";
 		}
 		/// \brief Writes the profile table as the build that stamped one
@@ -147,13 +200,14 @@ namespace bpr::adapters::sqlite::detail {
 		/// of a renamed table; that is harmless only because the renamed table
 		/// is the one dropped, and the table left behind is created fresh from
 		/// `layout_table`. The per-window table is rebuilt too, preserving every older geometry
-		/// value while the new one-pane column takes its disabled default.
+		/// value, including the one pane a version-seven row already held, while
+		/// the new Home columns take the defaults above.
 		[[nodiscard]] auto migrate_from(const std::int64_t aVersion) -> std::vector<std::string>
 		{
 			const auto columns = std::string{ "singleton,files_state,conversations_state,files_width,conversations_width" }
 				+ (aVersion >= 2 ? ",line_numbers" : "") + (aVersion >= 3 ? ",repositories_state,repositories_width" : "")
 				+ (aVersion >= 4 ? ",open_modality,continue_modality,mark_read,return_comparison,drawer_filter" : "")
-				+ (aVersion >= 6 ? ",drawer_controls" : "");
+				+ (aVersion >= 6 ? ",drawer_controls" : "") + (aVersion >= 7 ? ",one_pane" : "");
 			std::vector<std::string> statements;
 			if (aVersion >= 5) {
 				statements.emplace_back("ALTER TABLE workbench_preferences RENAME TO workbench_layout");
@@ -166,8 +220,9 @@ namespace bpr::adapters::sqlite::detail {
 			}
 			statements.push_back(window_table());
 			if (aVersion >= 5) {
-				constexpr std::string_view windowColumns = "window_id,files_state,conversations_state,files_width,conversations_width,line_numbers,repositories_state,repositories_width";
-				statements.push_back("INSERT INTO window_layout(" + std::string{ windowColumns } + ") SELECT " + std::string{ windowColumns } + " FROM old_window_layout");
+				const auto windowColumns = std::string{ "window_id,files_state,conversations_state,files_width,conversations_width,line_numbers,repositories_state,repositories_width" }
+					+ (aVersion >= 7 ? ",one_pane" : "");
+				statements.push_back("INSERT INTO window_layout(" + windowColumns + ") SELECT " + windowColumns + " FROM old_window_layout");
 				statements.emplace_back("DROP TABLE old_window_layout");
 			}
 			statements.push_back("UPDATE workbench_meta SET schema_format="
@@ -212,8 +267,35 @@ namespace bpr::adapters::sqlite::detail {
 		{
 			static_cast<void>(sqlite3_limit(aDatabase, SQLITE_LIMIT_LENGTH, 16384));
 			static_cast<void>(sqlite3_limit(aDatabase, SQLITE_LIMIT_SQL_LENGTH, 16384));
-			static_cast<void>(sqlite3_limit(aDatabase, SQLITE_LIMIT_COLUMN, 16));
+			static_cast<void>(sqlite3_limit(aDatabase, SQLITE_LIMIT_COLUMN, static_cast<int>(MaximumTableColumns)));
 			static_cast<void>(sqlite3_limit(aDatabase, SQLITE_LIMIT_VDBE_OP, 10000));
+		}
+		/// \brief The largest value one stored preference column may carry.
+		///
+		/// \details [[BPR-0783]]. By name, because these columns are ranges
+		/// rather than flags and they no longer sit at fixed positions: the Home
+		/// view added eight of them to one table and not the other. Anything not
+		/// named here is a flag, and each bound is read off the vocabulary it
+		/// encodes so this and the stored `CHECK` cannot drift apart.
+		[[nodiscard]] auto stored_maximum(const std::string_view aColumn) noexcept -> std::int64_t
+		{
+			if (aColumn == "home_collapsed") {
+				return application::home_collapsed_panel::all;
+			}
+			if (aColumn == "home_role") {
+				return static_cast<std::int64_t>(core::github_role::author) + 1;
+			}
+			if (aColumn == "home_grouping") {
+				return static_cast<std::int64_t>(application::home_grouping::account);
+			}
+			if (aColumn == "home_added_by") {
+				return static_cast<std::int64_t>(core::observer_rule_kind::path) + 1;
+			}
+			if (aColumn == "open_modality" || aColumn == "return_comparison" || aColumn == "drawer_filter"
+				|| aColumn == "home_quiet" || aColumn == "home_sort") {
+				return 2;
+			}
+			return 1;
 		}
 		[[nodiscard]] auto bounded_rows(::sqlite3* aDatabase, const std::string_view aTable,
 										const std::size_t aMaximum) -> bool
@@ -265,7 +347,7 @@ namespace bpr::adapters::sqlite::detail {
 						if (value < application::minimum_workbench_drawer_width || value > application::maximum_workbench_drawer_width) {
 							return false;
 						}
-					} else if (value < 0 || value > ((name == "open_modality" || name == "return_comparison" || name == "drawer_filter") ? 2 : 1)) {
+					} else if (value < 0 || value > stored_maximum(name)) {
 						return false;
 					}
 				}
@@ -420,11 +502,11 @@ namespace bpr::adapters::sqlite::detail {
 			// old create-only path it now issues a `DROP TABLE`; that is safe
 			// only because the whole rebuild is inside one transaction and a
 			// foreign file rolls back at the `INSERT ... FROM` step. And the
-			// migration named here carries versions one to six specifically,
+			// migration named here carries versions one to seven specifically,
 			// written out rather than derived from the constant, so a version
 			// this build has no step for is refused rather than handed to the
 			// wrong one.
-			if (*current < 0 || *current > 6) {
+			if (*current < 0 || *current > 7) {
 				rollback();
 				return std::unexpected(failure::schema_mismatch);
 			}
@@ -556,6 +638,86 @@ namespace bpr::adapters::sqlite::detail {
 			default:
 				return std::unexpected(failure::integrity_failure);
 			}
+		}
+
+		/// \brief Reads one stored filter value where zero means no filter.
+		///
+		/// \details [[BPR-0783]]. A named value is stored one above its
+		/// enumerator so that zero can mean `Any`; `github_role::none` is a role
+		/// a reviewer filters by and must not collapse into no filter at all.
+		template <typename Preference>
+		[[nodiscard]] auto optional_preference_of(const std::int64_t aValue, const Preference aLast)
+			-> std::expected<std::optional<Preference>, failure>
+		{
+			if (aValue == 0) {
+				return std::optional<Preference>{ };
+			}
+			const auto value = preference_of(aValue - 1, aLast);
+			if (!value) {
+				return std::unexpected(value.error());
+			}
+			return std::optional{ *value };
+		}
+
+		/// \brief Reads one stored flag, refusing anything but zero or one.
+		[[nodiscard]] auto flag_of(const std::int64_t aValue) -> std::expected<bool, failure>
+		{
+			if (aValue < 0 || aValue > 1) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			return aValue == 1;
+		}
+
+		/// \brief Reads one window row's stored Home view from `aFirst` onward.
+		///
+		/// \details [[BPR-0783]]. Every field is refused rather than cast when
+		/// the stored value is outside its closed vocabulary, for the reason
+		/// `preference_of` gives: a durable file can be replaced wholesale by
+		/// another build or by hand, and Home would otherwise be asked to
+		/// arrange its rows by a grouping that does not exist.
+		[[nodiscard]] auto home_view_of(::sqlite3_stmt* aStatement, const int aFirst)
+			-> std::expected<application::home_view_state, failure>
+		{
+			const auto grouping  = preference_of(sqlite3_column_int64(aStatement, aFirst), application::home_grouping::account);
+			const auto headers   = flag_of(sqlite3_column_int64(aStatement, aFirst + 1));
+			const auto collapsed = sqlite3_column_int64(aStatement, aFirst + 2);
+			const auto owned     = flag_of(sqlite3_column_int64(aStatement, aFirst + 3));
+			const auto role      = optional_preference_of(sqlite3_column_int64(aStatement, aFirst + 4), core::github_role::author);
+			const auto addedBy   = optional_preference_of(sqlite3_column_int64(aStatement, aFirst + 5), core::observer_rule_kind::path);
+			const auto quiet     = preference_of(sqlite3_column_int64(aStatement, aFirst + 6), application::queue_quiet_filter::quiet);
+			const auto sort      = preference_of(sqlite3_column_int64(aStatement, aFirst + 7), application::queue_sort_order::pull_request_number);
+			if (!grouping || !headers || !owned || !role || !addedBy || !quiet || !sort || collapsed < 0
+				|| collapsed > application::home_collapsed_panel::all) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			return application::home_view_state{
+				.Grouping     = *grouping,
+				.StateHeaders = *headers,
+				.Collapsed    = static_cast<std::uint8_t>(collapsed),
+				.FilterOwned  = *owned,
+				.Filter       = {
+					.Role    = *role,
+					.AddedBy = *addedBy,
+					.Quiet   = *quiet,
+					.Sort    = *sort,
+				},
+			};
+		}
+
+		/// \brief The eight stored columns of one Home view, in schema order.
+		[[nodiscard]] auto home_columns_of(const application::home_view_state& aHome) -> std::array<std::int64_t, 8>
+		{
+			const auto named = [](const auto& aFilter) -> std::int64_t {
+				return aFilter.has_value() ? static_cast<std::int64_t>(*aFilter) + 1 : 0;
+			};
+			return { static_cast<std::int64_t>(aHome.Grouping),
+					 aHome.StateHeaders ? 1 : 0,
+					 aHome.Collapsed,
+					 aHome.FilterOwned ? 1 : 0,
+					 named(aHome.Filter.Role),
+					 named(aHome.Filter.AddedBy),
+					 static_cast<std::int64_t>(aHome.Filter.Quiet),
+					 static_cast<std::int64_t>(aHome.Filter.Sort) };
 		}
 	} // namespace
 
@@ -778,7 +940,7 @@ namespace bpr::adapters::sqlite::detail {
 			return std::unexpected(defaults.error());
 		}
 		const bounded_read_scope guard{ Handle, aStop };
-		auto                     statement = prepare(Handle, "SELECT files_state,conversations_state,files_width,conversations_width,line_numbers,repositories_state,repositories_width,one_pane FROM window_layout WHERE window_id=?1");
+		auto                     statement = prepare(Handle, "SELECT files_state,conversations_state,files_width,conversations_width,line_numbers,repositories_state,repositories_width,one_pane,home_grouping,home_state_headers,home_collapsed,home_filter_owned,home_role,home_added_by,home_quiet,home_sort FROM window_layout WHERE window_id=?1");
 		const auto               key       = std::to_string(aWindow.value());
 		if (!statement || sqlite3_bind_text(statement->Value, 1, key.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
 			return std::unexpected(failure::integrity_failure);
@@ -790,7 +952,7 @@ namespace bpr::adapters::sqlite::detail {
 		if (stepped != SQLITE_ROW) {
 			return std::unexpected(catalog_failure_from_sqlite_result(stepped));
 		}
-		for (int column = 0; column < 8; ++column) {
+		for (int column = 0; column < 16; ++column) {
 			if (sqlite3_column_type(statement->Value, column) != SQLITE_INTEGER) {
 				return std::unexpected(failure::integrity_failure);
 			}
@@ -812,10 +974,17 @@ namespace bpr::adapters::sqlite::detail {
 		if (!onePane) {
 			return std::unexpected(onePane.error());
 		}
+		// [[BPR-0783]]. The window's own Home view. A row written before version
+		// eight reads the defaults its columns were given, which is the Home it
+		// was already showing.
+		const auto home = home_view_of(statement->Value, 8);
+		if (!home) {
+			return std::unexpected(home.error());
+		}
 		const application::workbench_window_layout layout{ *files, *conversations, *repositories, *lines, *onePane,
 														   static_cast<std::uint32_t>(sqlite3_column_int64(statement->Value, 2)),
 														   static_cast<std::uint32_t>(sqlite3_column_int64(statement->Value, 3)),
-														   static_cast<std::uint32_t>(sqlite3_column_int64(statement->Value, 6)) };
+														   static_cast<std::uint32_t>(sqlite3_column_int64(statement->Value, 6)), *home };
 		if (!application::valid(layout)) {
 			return std::unexpected(failure::integrity_failure);
 		}
@@ -851,11 +1020,12 @@ namespace bpr::adapters::sqlite::detail {
 			}
 		}
 		static_cast<void>(sqlite3_reset(existing->Value));
-		auto statement = prepare(Handle, "INSERT INTO window_layout(window_id,files_state,conversations_state,files_width,conversations_width,line_numbers,repositories_state,repositories_width,one_pane) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9) ON CONFLICT(window_id) DO UPDATE SET files_state=excluded.files_state,conversations_state=excluded.conversations_state,files_width=excluded.files_width,conversations_width=excluded.conversations_width,line_numbers=excluded.line_numbers,repositories_state=excluded.repositories_state,repositories_width=excluded.repositories_width,one_pane=excluded.one_pane");
+		auto statement = prepare(Handle, "INSERT INTO window_layout(window_id,files_state,conversations_state,files_width,conversations_width,line_numbers,repositories_state,repositories_width,one_pane,home_grouping,home_state_headers,home_collapsed,home_filter_owned,home_role,home_added_by,home_quiet,home_sort) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17) ON CONFLICT(window_id) DO UPDATE SET files_state=excluded.files_state,conversations_state=excluded.conversations_state,files_width=excluded.files_width,conversations_width=excluded.conversations_width,line_numbers=excluded.line_numbers,repositories_state=excluded.repositories_state,repositories_width=excluded.repositories_width,one_pane=excluded.one_pane,home_grouping=excluded.home_grouping,home_state_headers=excluded.home_state_headers,home_collapsed=excluded.home_collapsed,home_filter_owned=excluded.home_filter_owned,home_role=excluded.home_role,home_added_by=excluded.home_added_by,home_quiet=excluded.home_quiet,home_sort=excluded.home_sort");
 		if (!statement || sqlite3_bind_text(statement->Value, 1, key.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
 			return std::unexpected(failure::integrity_failure);
 		}
-		const std::array<std::int64_t, 8> values{ static_cast<std::int64_t>(aLayout.Files), static_cast<std::int64_t>(aLayout.Conversations), aLayout.FilesWidth, aLayout.ConversationsWidth, static_cast<std::int64_t>(aLayout.LineNumbers), static_cast<std::int64_t>(aLayout.Repositories), aLayout.RepositoriesWidth, static_cast<std::int64_t>(aLayout.OnePane) };
+		std::array<std::int64_t, 16> values{ static_cast<std::int64_t>(aLayout.Files), static_cast<std::int64_t>(aLayout.Conversations), aLayout.FilesWidth, aLayout.ConversationsWidth, static_cast<std::int64_t>(aLayout.LineNumbers), static_cast<std::int64_t>(aLayout.Repositories), aLayout.RepositoriesWidth, static_cast<std::int64_t>(aLayout.OnePane) };
+		std::ranges::copy(home_columns_of(aLayout.Home), values.begin() + 8);
 		for (std::size_t index = 0; index < values.size(); ++index) {
 			if (sqlite3_bind_int64(statement->Value, static_cast<int>(index + 2U), values[index]) != SQLITE_OK) {
 				return std::unexpected(failure::integrity_failure);
@@ -1084,7 +1254,10 @@ namespace bpr::adapters::sqlite::detail {
 				if (stepped != SQLITE_ROW) {
 					return std::unexpected(failure::integrity_failure);
 				}
-				if (found.size() >= 32U) {
+				// Three admissible tables, each bounded by the connection's own
+				// column limit, so this cap follows the schema rather than
+				// having to be remembered whenever a column is added.
+				if (found.size() >= 3U * MaximumTableColumns) {
 					return std::unexpected(failure::schema_mismatch);
 				}
 				found.push_back(table + "." + text_of(columns->Value, 1));

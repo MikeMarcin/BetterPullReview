@@ -33,6 +33,14 @@ def main():
             panes = dict(database.execute("SELECT window_id, one_pane FROM window_layout"))
             if panes != {str(first): 1, str(second): 0}:
                 raise SystemExit(f"one-pane choices disagree: {panes}")
+            # [[BPR-0783]]. Home's arrangement is the window's, in the same row:
+            # A groups by organization with the state headers off, B keeps the
+            # defaults, collapses Recently viewed and owns a Requested filter.
+            home = {window: values for window, *values in database.execute(
+                "SELECT window_id,home_grouping,home_state_headers,home_collapsed,home_filter_owned,home_role"
+                " FROM window_layout")}
+            if home != {str(first): [1, 0, 0, 0, 0], str(second): [0, 1, 8, 1, 4]}:
+                raise SystemExit(f"per-window Home views disagree: {home}")
             tables = [name for (name,) in database.execute(
                 "SELECT name FROM sqlite_schema WHERE type='table' AND name!='window_layout' ORDER BY name")]
             defaults = {name: database.execute(f'SELECT * FROM "{name}"').fetchall() for name in tables}
@@ -43,6 +51,9 @@ def main():
             rows = database.execute("SELECT window_id, files_width FROM window_layout").fetchall()
             if dict(rows) != {str(second): width_b}:
                 raise SystemExit(f"explicit Close/orphan reconciliation changed the wrong rows: {rows}")
+            if dict(database.execute(
+                    "SELECT window_id,home_collapsed FROM window_layout")) != {str(second): 8}:
+                raise SystemExit("the surviving window lost its own Home view")
             if {name: database.execute(f'SELECT * FROM "{name}"').fetchall() for name in tables} != defaults:
                 raise SystemExit("window gestures changed profile defaults or behaviour")
         run("verify")

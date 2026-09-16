@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_REVIEW_LANDING_MODEL_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_REVIEW_LANDING_MODEL_HPP
 
+#include "bpr/application/home_view_state.hpp"
 #include "bpr/application/review_queue_enrollment.hpp"
 #include "bpr/application/setup_destination_projection.hpp"
 #include "bpr/application/window_review_restoration_ports.hpp"
@@ -77,6 +78,19 @@ namespace bpr::qt {
 	/// \brief [[BPR-0776]]. What Home's list says when a ready queue is empty.
 	[[nodiscard]] auto home_all_empty_sentence() -> QString;
 
+	/// \brief [[BPR-0783]]. One account the decided queue's rows name.
+	///
+	/// \details Derived from the rows themselves rather than from a session: the
+	/// queue is what Home lists, and its rows carry the host and account each
+	/// belongs to. Nothing here reaches a session, a vault or a provider.
+	struct home_account
+	{
+		QString Host;
+		QString Login;
+
+		auto operator<=>(const home_account&) const = default;
+	};
+
 	/// \brief Presents the reviewer's landing page.
 	///
 	/// \details The model holds what the core ordered and renders it. It
@@ -103,6 +117,11 @@ namespace bpr::qt {
 			role_role,
 			group_role,
 			unseen_role,
+			/// [[BPR-0783]]. The host and account a row belongs to, which is what
+			/// Home groups and chips by. Answered as roles so a slice of the queue
+			/// can be filtered from the row itself.
+			host_role,
+			account_role,
 		};
 
 		explicit review_landing_model(QObject* aParent = nullptr);
@@ -130,11 +149,22 @@ namespace bpr::qt {
 		[[nodiscard]] auto item_at(const QModelIndex& aIndex) const
 			-> std::optional<core::queue_item>;
 
+		/// \brief [[BPR-0783]]. The distinct host and account of every row, in
+		/// order, whatever any filter above this model admits.
+		///
+		/// \details The account set an account chip is decided by. It is the
+		/// unfiltered queue's, so filtering to one account does not make the
+		/// other one stop existing and silently drop every chip.
+		[[nodiscard]] auto accounts() const noexcept -> const std::vector<home_account>&;
+
 	private:
 		[[nodiscard]] auto position_of(const core::pull_request_ref& aRef) const
 			-> std::optional<std::size_t>;
+		/// \brief Recounts the account set and says so when a chip appears or goes.
+		void adopt_accounts();
 
 		std::vector<core::queue_item> Items;
+		std::vector<home_account>     Accounts;
 	};
 
 	/// \brief Filters and explicitly reorders the decided landing queue.
@@ -153,11 +183,31 @@ namespace bpr::qt {
 
 		void apply(
 			const application::queue_presentation_preferences& aPreferences);
+		/// \brief [[BPR-0783]]. Adopts one window's Home view, whose Filter that
+		/// window may own from its first Filter gesture.
+		void set_home_view(const application::home_view_state& aView);
+		/// \brief The profile's typed preferences, exactly as they were published.
+		///
+		/// \details Not what Home filters by: see `effective_preferences`. This
+		/// stays the profile's answer so the Settings page and the store keep one
+		/// vocabulary between them.
 		[[nodiscard]] auto preferences() const noexcept
 			-> const application::queue_presentation_preferences&;
+		/// \brief [[BPR-0783]]. What Home actually filters by: the window's own
+		/// four fields once it owns them, else the profile's, and never
+		/// Repository or Bucket, which Group and the state order replaced.
+		[[nodiscard]] auto effective_preferences() const noexcept
+			-> const application::queue_presentation_preferences&;
+		[[nodiscard]] auto home_view() const noexcept -> const application::home_view_state&;
 		[[nodiscard]] auto item_at(const QModelIndex& aIndex) const
 			-> std::optional<core::queue_item>;
 		[[nodiscard]] auto has_active_filters() const noexcept -> bool;
+		/// \brief [[BPR-0783]]. The accounts the unfiltered queue beneath names.
+		///
+		/// \details Deliberately the source's rather than this proxy's: filtering
+		/// to one account must not make the other stop existing and silently drop
+		/// every chip on the page.
+		[[nodiscard]] auto accounts() const noexcept -> const std::vector<home_account>&;
 
 	protected:
 		[[nodiscard]] auto filterAcceptsRow(
@@ -168,8 +218,17 @@ namespace bpr::qt {
 			-> bool override;
 
 	private:
+		/// \brief Adopts a profile and a view together and refilters by what
+		/// changed in the preferences Home reads.
+		void adopt(
+			const application::queue_presentation_preferences& aPreferences,
+			const application::home_view_state&                aView);
+
 		review_landing_model&                       Source;
 		application::queue_presentation_preferences Preferences;
+		application::home_view_state                View;
+		application::queue_presentation_preferences Effective
+			= application::home_preferences(application::home_view_state{ }, application::queue_presentation_preferences{ });
 	};
 } // namespace bpr::qt
 

@@ -257,6 +257,10 @@ namespace bpr::qt {
 			return QStringLiteral("%1 %2").arg(home_why_sentence(*item), home_reason_word(item->Bucket));
 		case repository_role:
 			return text(item->Ref.Repository);
+		case host_role:
+			return text(item->Ref.Host);
+		case account_role:
+			return text(item->Ref.Account);
 		case number_role:
 			return QVariant::fromValue(item->Ref.Number);
 		case bucket_role:
@@ -286,9 +290,15 @@ namespace bpr::qt {
 			return home_reason_word(item->Bucket);
 		case home_row_role::state:
 			return static_cast<int>(home_group_of(item->Bucket));
+		case home_row_role::account_chip:
+			// [[BPR-0783]]. The chip is drawn only when the queue names more than
+			// one account; with one there is nothing to tell apart, so every row
+			// would carry the same word.
+			return Accounts.size() > 1U
+				? home_account_chip_text(text(item->Ref.Account), text(item->Ref.Host))
+				: QString{ };
 		case home_row_role::time:
 		case home_row_role::progress:
-		case home_row_role::account_chip:
 		case home_row_role::row_action:
 			return QString{ };
 		default:
@@ -310,6 +320,8 @@ namespace bpr::qt {
 		names.insert(role_role, QByteArrayLiteral("role"));
 		names.insert(group_role, QByteArrayLiteral("group"));
 		names.insert(unseen_role, QByteArrayLiteral("unseen"));
+		names.insert(host_role, QByteArrayLiteral("host"));
+		names.insert(account_role, QByteArrayLiteral("account"));
 		return names;
 	}
 
@@ -381,6 +393,8 @@ namespace bpr::qt {
 				emit       dataChanged(row, row);
 			}
 		}
+
+		adopt_accounts();
 	}
 
 	void review_landing_model::clear()
@@ -391,6 +405,33 @@ namespace bpr::qt {
 		beginRemoveRows({ }, 0, static_cast<int>(Items.size() - 1U));
 		Items.clear();
 		endRemoveRows();
+		adopt_accounts();
+	}
+
+	auto review_landing_model::accounts() const noexcept -> const std::vector<home_account>&
+	{
+		return Accounts;
+	}
+
+	void review_landing_model::adopt_accounts()
+	{
+		const auto named = Accounts.size();
+		Accounts.clear();
+		for (const auto& item : Items) {
+			auto account = home_account{ .Host = text(item.Ref.Host), .Login = text(item.Ref.Account) };
+			if (!std::ranges::contains(Accounts, account)) {
+				Accounts.push_back(std::move(account));
+			}
+		}
+		std::ranges::sort(Accounts);
+		// [[BPR-0783]]. Whether a chip is drawn at all is the account count, so
+		// crossing one changes the chip of rows that did not otherwise change.
+		// That is a data change over the existing rows, never a reset.
+		if ((named > 1U) != (Accounts.size() > 1U) && !Items.empty()) {
+			emit dataChanged(index(0),
+							 index(static_cast<int>(Items.size()) - 1),
+							 QList<int>{ home_row_role::account_chip });
+		}
 	}
 
 	auto review_landing_model::item_at(const QModelIndex& aIndex) const
@@ -422,13 +463,41 @@ namespace bpr::qt {
 		if (!application::valid(aPreferences) || aPreferences == Preferences) {
 			return;
 		}
-		const auto sortChanged = aPreferences.Sort != Preferences.Sort;
+		adopt(aPreferences, View);
+	}
+
+	void review_landing_filter_model::set_home_view(const application::home_view_state& aView)
+	{
+		if (!application::valid(aView) || aView == View) {
+			return;
+		}
+		adopt(Preferences, aView);
+	}
+
+	void review_landing_filter_model::adopt(
+		const application::queue_presentation_preferences& aPreferences,
+		const application::home_view_state&                aView)
+	{
+		// [[BPR-0783]]. Home reads one set of preferences: the window's own four
+		// once it owns them, otherwise the profile's, with Repository and Bucket
+		// cleared because Group and the state order do their job now. The
+		// profile's answer is retained unchanged for the Settings page.
+		const auto effective   = application::home_preferences(aView, aPreferences);
+		const auto sortChanged = effective.Sort != Effective.Sort;
+		const auto filtered    = effective != Effective;
+		Preferences            = aPreferences;
+		View                   = aView;
+		if (!filtered) {
+			// Nothing Home filters by moved: a Repository or Bucket default the
+			// profile keeps for its own store must not disturb Home's rows.
+			return;
+		}
 #if QT_VERSION >= QT_VERSION_CHECK(6, 10, 0)
 		beginFilterChange();
-		Preferences = aPreferences;
+		Effective = effective;
 		endFilterChange(Direction::Rows);
 #else
-		Preferences = aPreferences;
+		Effective = effective;
 		invalidateFilter();
 #endif
 		if (sortChanged) {
@@ -437,7 +506,7 @@ namespace bpr::qt {
 			// Disabling the proxy sort first makes that transition observable on
 			// every supported Qt version.
 			sort(-1);
-			if (Preferences.Sort
+			if (Effective.Sort
 				!= application::queue_sort_order::core_priority) {
 				sort(0, Qt::AscendingOrder);
 			}
@@ -450,19 +519,38 @@ namespace bpr::qt {
 		return Preferences;
 	}
 
+	auto review_landing_filter_model::effective_preferences() const noexcept
+		-> const application::queue_presentation_preferences&
+	{
+		return Effective;
+	}
+
+	auto review_landing_filter_model::home_view() const noexcept
+		-> const application::home_view_state&
+	{
+		return View;
+	}
+
 	auto review_landing_filter_model::item_at(const QModelIndex& aIndex) const
 		-> std::optional<core::queue_item>
 	{
 		return Source.item_at(mapToSource(aIndex));
 	}
 
+	auto review_landing_filter_model::accounts() const noexcept -> const std::vector<home_account>&
+	{
+		return Source.accounts();
+	}
+
 	auto review_landing_filter_model::has_active_filters() const noexcept -> bool
 	{
-		return Preferences.Role.has_value()
-			|| Preferences.ObserverReason.has_value()
-			|| Preferences.Bucket.has_value()
-			|| !Preferences.Repository.empty()
-			|| Preferences.Quiet != application::queue_quiet_filter::all;
+		// [[BPR-0783]]. What Home is filtered by, so the queue's status sentence
+		// explains the rows Home is actually hiding.
+		return Effective.Role.has_value()
+			|| Effective.ObserverReason.has_value()
+			|| Effective.Bucket.has_value()
+			|| !Effective.Repository.empty()
+			|| Effective.Quiet != application::queue_quiet_filter::all;
 	}
 
 	auto review_landing_filter_model::filterAcceptsRow(
@@ -472,28 +560,28 @@ namespace bpr::qt {
 		if (!item) {
 			return false;
 		}
-		if (Preferences.Role.has_value()
-			&& item->Membership.Role != *Preferences.Role) {
+		if (Effective.Role.has_value()
+			&& item->Membership.Role != *Effective.Role) {
 			return false;
 		}
-		if (Preferences.ObserverReason.has_value()
+		if (Effective.ObserverReason.has_value()
 			&& (!item->Membership.MatchedRule
-				|| item->Membership.Rule.Kind != *Preferences.ObserverReason)) {
+				|| item->Membership.Rule.Kind != *Effective.ObserverReason)) {
 			return false;
 		}
-		if (Preferences.Bucket.has_value()
-			&& item->Bucket != *Preferences.Bucket) {
+		if (Effective.Bucket.has_value()
+			&& item->Bucket != *Effective.Bucket) {
 			return false;
 		}
-		if (!Preferences.Repository.empty()
-			&& item->Ref.Repository != Preferences.Repository) {
+		if (!Effective.Repository.empty()
+			&& item->Ref.Repository != Effective.Repository) {
 			return false;
 		}
-		if (Preferences.Quiet == application::queue_quiet_filter::attention
+		if (Effective.Quiet == application::queue_quiet_filter::attention
 			&& item->Bucket == core::attention_bucket::quiet) {
 			return false;
 		}
-		if (Preferences.Quiet == application::queue_quiet_filter::quiet
+		if (Effective.Quiet == application::queue_quiet_filter::quiet
 			&& item->Bucket != core::attention_bucket::quiet) {
 			return false;
 		}
@@ -510,7 +598,7 @@ namespace bpr::qt {
 		}
 		const auto& leftRef  = left->Ref;
 		const auto& rightRef = right->Ref;
-		switch (Preferences.Sort) {
+		switch (Effective.Sort) {
 		case application::queue_sort_order::repository:
 			return std::tie(
 					   leftRef.Repository,

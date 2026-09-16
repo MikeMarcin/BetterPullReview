@@ -25,6 +25,7 @@
 #include <QElapsedTimer>
 #include <QEvent>
 #include <QFileInfo>
+#include <QGroupBox>
 #include <QIcon>
 #include <QImage>
 #include <QKeyEvent>
@@ -39,6 +40,7 @@
 #include <QMessageBox>
 #include <QModelIndex>
 #include <QMouseEvent>
+#include <QPainter>
 #include <QPersistentModelIndex>
 #include <QPlainTextEdit>
 #include <QPoint>
@@ -6486,9 +6488,10 @@ namespace {
 			window.queue_filter_model()->rowCount() == 1,
 			"the presentation filter changes without mutating the source queue");
 
-		window.queue_bucket_filter()->setCurrentIndex(
-			window.queue_bucket_filter()->findData(
-				static_cast<int>(core::attention_bucket::quiet)));
+		// [[BPR-0783]]. Home no longer filters by Bucket, so the filter that can
+		// empty it is one of the four that survive: neither row is authored.
+		window.queue_role_filter()->setCurrentIndex(
+			window.queue_role_filter()->findData(static_cast<int>(core::github_role::author)));
 		window.publish({ .Status = application::queue_landing_status::ready, .Items = { urgent, quiet }, .Preferences = intents.back().Preferences });
 		expect(
 			window.queue_filter_model()->rowCount() == 0
@@ -6512,7 +6515,11 @@ namespace {
 			QApplication::focusWidget() == focused,
 			"an accepted filter/sort projection retains the focused control");
 
+		// [[BPR-0783]]. The six typed controls are Settings' Queue defaults now:
+		// still named, still explained, still the same controls, but stops of
+		// another top-level window, which the workbench never declares.
 		const auto focusOrder = window.focus_order();
+		auto* const defaults   = window.settings()->page_widget(qt::settings_page::reviews_and_queue);
 		for (auto* const selector : { window.queue_role_filter(),
 									  window.queue_observer_filter(),
 									  window.queue_bucket_filter(),
@@ -6522,8 +6529,10 @@ namespace {
 			expect(
 				!selector->accessibleName().isEmpty()
 					&& !selector->accessibleDescription().isEmpty()
-					&& focusOrder.contains(selector),
-				"every queue preference control is named, explained, and in the declared focus order");
+					&& !focusOrder.contains(selector)
+					&& defaults != nullptr && defaults->isAncestorOf(selector)
+					&& !window.home_page()->isAncestorOf(selector),
+				"every queue preference control is named, explained, on Reviews & queue and off the workbench's order");
 		}
 	}
 
@@ -6564,10 +6573,23 @@ namespace {
 			window.select_queue_item(visible.Ref),
 			"a notification activation selects an exact visible queue identity");
 		const auto selected = window.selected_queue_item();
+		expect(selected.has_value(), "activation makes a row current");
+		expect(selected->Ref == visible.Ref,
+			   message_for("activation selects the exact identity, not one with an equal repository and number",
+						   (QString::fromStdString(selected->Ref.Host) + QStringLiteral(" ")
+							+ QString::fromStdString(selected->Ref.Account))
+							   .toStdString()));
 		expect(
-			selected.has_value() && selected->Ref == visible.Ref
-				&& QApplication::focusWidget() == window.home_list()->current_view(),
-			"activation focuses the real proxy row without confusing equal repository and number fields");
+			QApplication::focusWidget() == window.home_list()->current_view(),
+			message_for("activation focuses the real proxy row",
+						QString{ QStringLiteral("focus=%1 current=%2") }
+							.arg(QApplication::focusWidget() == nullptr
+									 ? QStringLiteral("none")
+									 : QApplication::focusWidget()->objectName(),
+								 window.home_list()->current_view() == nullptr
+									 ? QStringLiteral("none")
+									 : window.home_list()->current_view()->objectName())
+							.toStdString()));
 		expect(
 			window.queue_filter_model()->preferences() == preferences
 				&& intents.size() == intentCount,
@@ -7039,11 +7061,14 @@ namespace {
 			"the large queue selects one stable pull-request identity");
 		window.show();
 		QApplication::processEvents();
-		window.queue_role_filter()->setFocus(Qt::OtherFocusReason);
+		// [[BPR-0783]]. The six typed controls are Settings' Queue defaults now,
+		// in a window of its own that is not open here, so the control whose focus
+		// a large publication must not disturb is one of Home's own.
+		window.home_open_bar()->setFocus(Qt::OtherFocusReason);
 		QApplication::processEvents();
 		expect(
-			QApplication::focusWidget() == window.queue_role_filter(),
-			"the real large-queue control accepts focus before its gesture");
+			QApplication::focusWidget() == window.home_open_bar(),
+			"a real Home control accepts focus before the large-queue gesture");
 		const auto focused   = QApplication::focusWidget();
 		auto       signalLog = model_signal_log{ };
 		observe_model_signals(*window.queue_filter_model(), signalLog);
@@ -7072,6 +7097,431 @@ namespace {
 			signalLog.Reset == 0 && signalLog.Removed <= 1'024
 				&& signalLog.Layout <= 2,
 			"the composed large update is linear and incremental without a reset");
+	}
+
+	/// \brief [[BPR-0783]]. A session with an account, which is what Home's own
+	/// strip controls act on.
+	void sign_in(qt::workbench_window& aWindow)
+	{
+		aWindow.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Status = core::github_status_delta{ .Status = core::github_status::session_ready },
+			},
+		});
+		process_events();
+	}
+
+	[[nodiscard]] auto two_account_projection() -> application::queue_landing_projection
+	{
+		auto mine = core::queue_item{
+			.Ref        = { .Host = "github.com", .Account = "octo-reviewer", .Repository = "octo-org/app", .Number = 101 },
+			.Membership = { .Role = core::github_role::requested_reviewer },
+			.Bucket     = core::attention_bucket::initial_review_requested,
+		};
+		mine.Facts  = core::queue_item_facts{ .Title = "A title", .Author = "octocat" };
+		auto theirs = core::queue_item{
+			.Ref        = { .Host = "ghe.example.invalid", .Account = "octo-enterprise", .Repository = "acme-tools/build", .Number = 201 },
+			.Membership = { .Role = core::github_role::reviewer },
+			.Bucket     = core::attention_bucket::quiet,
+		};
+		theirs.Facts = core::queue_item_facts{ .Title = "A title", .Author = "octocat" };
+		return {
+			.Status = application::queue_landing_status::ready,
+			.Items  = core::ordered_queue(std::vector{ mine, theirs }),
+		};
+	}
+
+	/// \brief Saves one full-window capture, optionally with an open menu over it.
+	void save_home_capture(
+		qt::workbench_window& aWindow, const QString& aDirectory, const QString& aName, QWidget* const aOverlay)
+	{
+		auto image = aWindow.grab();
+		if (aOverlay != nullptr) {
+			auto painter = QPainter{ &image };
+			painter.drawPixmap(aWindow.mapFromGlobal(aOverlay->mapToGlobal(QPoint{ })), aOverlay->grab());
+		}
+		expect(image.save(aDirectory + QLatin1Char{ '/' } + aName), "the capture is written");
+	}
+
+	// A7: the strip holds Group, State headers, Filter and the refresh glyph
+	// before the divider, the account and settings, and only where they can act.
+	void test_home_strip_holds_group_state_headers_filter_and_refresh()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		process_events();
+		window.publish(two_account_projection());
+		sign_in(window);
+
+		auto* const toolbar = window.primary_toolbar();
+		const auto  actions = toolbar->actions();
+		// The actions themselves where the window hands them out, and the object
+		// name only for the two widget items and the rule, which it does not.
+		const auto at    = [&actions](QAction* const aAction) { return actions.indexOf(aAction); };
+		const auto named = [&actions](const QString& aName) {
+			for (auto index = qsizetype{ 0 }; index < actions.size(); ++index) {
+				if (actions[index]->objectName() == aName) {
+					return index;
+				}
+			}
+			return qsizetype{ -1 };
+		};
+		const auto groupAt    = named(QStringLiteral("homeGroupAction"));
+		const auto headersAt  = at(window.home_state_headers_action());
+		const auto filterAt   = named(QStringLiteral("homeFilterAction"));
+		const auto refreshAt  = at(window.github_refresh_action());
+		const auto dividerAt  = named(QStringLiteral("workbenchStripRightDividerAction"));
+		const auto accountAt  = at(window.account_action());
+		const auto settingsAt = at(window.settings_action());
+		expect(groupAt >= 0 && groupAt < headersAt && headersAt < filterAt && filterAt < refreshAt
+				   && refreshAt < dividerAt && dividerAt < accountAt && accountAt < settingsAt,
+			   message_for("the strip's order is Group, State headers, Filter, refresh, the divider, account, settings",
+						   QStringLiteral("group=%1 headers=%2 filter=%3 refresh=%4 divider=%5 account=%6 settings=%7")
+							   .arg(groupAt)
+							   .arg(headersAt)
+							   .arg(filterAt)
+							   .arg(refreshAt)
+							   .arg(dividerAt)
+							   .arg(accountAt)
+							   .arg(settingsAt)
+							   .toStdString()));
+
+		auto* const headers = toolbar->widgetForAction(window.home_state_headers_action());
+		expect(window.showing_home() && window.home_group_button()->isVisible()
+				   && window.home_group_button()->text() == QStringLiteral("Group: None")
+				   && headers != nullptr && headers->isVisible()
+				   && window.home_state_headers_action()->isChecked()
+				   && window.home_filter_button()->isVisible()
+				   && window.home_filter_button()->text() == QStringLiteral("Filter")
+				   && toolbar->widgetForAction(window.github_refresh_action())->isVisible(),
+			   "signed in on Home all four are shown, Group says None and State headers is on");
+		expect(!window.github_refresh_action()->isEnabled(),
+			   "the refresh glyph keeps its own enablement: there is no pull request to refresh");
+		for (auto* const stop : { static_cast<QWidget*>(window.home_group_button()), headers,
+								  static_cast<QWidget*>(window.home_filter_button()) }) {
+			expect(stop->focusPolicy() == Qt::StrongFocus && !stop->accessibleName().isEmpty()
+					   && !stop->accessibleDescription().isEmpty() && window.focus_order().contains(stop),
+				   "each of Home's controls is focusable, named, described and declared");
+		}
+
+		// Group and State headers change Home at once and are remembered.
+		auto views = std::vector<application::home_view_state>{ };
+		window.set_home_view_dispatch([&views](application::home_view_state aView) { views.push_back(aView); });
+		window.home_group_action(application::home_grouping::repository)->trigger();
+		process_events();
+		expect(window.home_group_button()->text() == QStringLiteral("Group: Repository")
+				   && window.home_list()->grouping() == application::home_grouping::repository
+				   && views.size() == 1U && views.back().Grouping == application::home_grouping::repository,
+			   "choosing a grouping regroups Home and dispatches the whole view");
+		window.home_state_headers_action()->trigger();
+		process_events();
+		expect(!window.home_list()->state_headers() && views.size() == 2U && !views.back().StateHeaders,
+			   "turning State headers off does the same");
+		// Collapsing one of the panels that carry no name is part of the view.
+		window.home_group_action(application::home_grouping::none)->trigger();
+		window.home_state_headers_action()->trigger();
+		process_events();
+		const auto before = views.size();
+		window.home_list()->state_panel(qt::home_group::needs_you)->set_collapsed(true);
+		process_events();
+		expect(views.size() == before + 1U
+				   && (views.back().Collapsed & application::home_collapsed_panel::needs_me) != 0U,
+			   "collapsing Needs me dispatches the view with that bit set");
+
+		// Signed out they act on nothing, so they are absent rather than disabled.
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Status = core::github_status_delta{ .Status = core::github_status::no_profile },
+			},
+		});
+		process_events();
+		expect(!window.home_group_button()->isVisible() && !headers->isVisible()
+				   && !window.home_filter_button()->isVisible()
+				   && !toolbar->widgetForAction(window.github_refresh_action())->isVisible()
+				   && toolbar->widgetForAction(window.account_action())->isVisible()
+				   && toolbar->widgetForAction(window.settings_action())->isVisible(),
+			   "signed out the strip is Home, account and settings, with no disabled ghosts");
+		window.hide();
+	}
+
+	// A7: Filter holds exactly the four surviving preferences, and one gesture
+	// sends the profile's typed intent and takes ownership of this window's filter.
+	void test_home_filter_menu_and_its_gesture()
+	{
+		qt::workbench_window window;
+		auto                 intents = std::vector<application::queue_preferences_intent>{ };
+		auto                 views   = std::vector<application::home_view_state>{ };
+		window.set_queue_preferences_dispatch(
+			[&intents](application::queue_preferences_intent aIntent) { intents.push_back(std::move(aIntent)); });
+		window.set_home_view_dispatch([&views](application::home_view_state aView) { views.push_back(aView); });
+		window.resize(1'280, 820);
+		window.show();
+		process_events();
+		auto projection = two_account_projection();
+		// A profile that keeps a Repository and a Bucket: Home ignores both.
+		projection.Preferences.Repository = "octo-org/app";
+		projection.Preferences.Bucket     = core::attention_bucket::initial_review_requested;
+		window.publish(projection);
+		sign_in(window);
+
+		// The inventory, exactly, in the board's words.
+		auto inventory = QStringList{ };
+		for (const auto* const action : window.home_filter_menu()->actions()) {
+			if (action->isSeparator() && action->text().isEmpty()) {
+				continue;
+			}
+			inventory.push_back(action->text());
+		}
+		expect(inventory
+				   == QStringList{ QStringLiteral("My role"), QStringLiteral("Any"), QStringLiteral("Author"),
+								   QStringLiteral("Reviewer"), QStringLiteral("Requested"), QStringLiteral("Participant"),
+								   QStringLiteral("No role"),
+								   QStringLiteral("Added by"), QStringLiteral("Any"), QStringLiteral("Repository rule"),
+								   QStringLiteral("Author rule"), QStringLiteral("Path rule"),
+								   QStringLiteral("Quiet items"), QStringLiteral("Hide"), QStringLiteral("Show"),
+								   QStringLiteral("Only quiet"),
+								   QStringLiteral("Sort within a group"), QStringLiteral("Priority"),
+								   QStringLiteral("Repository"), QStringLiteral("Pull request number"),
+								   // [[BPR-0783]]. The text Qt is given: the doubled
+								   // ampersand is the mnemonic escape, not what is shown.
+								   QStringLiteral("Nothing here changes GitHub. Saved repositories and observer rules are in Settings › Reviews && queue."),
+								   QStringLiteral("Open Reviews && queue") },
+			   "Filter holds exactly My role, Added by, Quiet items and Sort within a group, with its footer");
+		expect(window.home_filter_settings_action()->isEnabled(),
+			   "the way to Settings › Reviews & queue is reachable from the menu");
+
+		// [[BPR-0783]]. What a reviewer actually sees, rather than what the source
+		// wrote: a menu eats a single "&" as a mnemonic and draws "Reviews _queue".
+		// Qt's own mnemonic stripping is what assistive technology is given, so the
+		// menu's accessibility tree is the honest oracle for the displayed text.
+		auto* const menuAccessible = QAccessible::queryAccessibleInterface(window.home_filter_menu());
+		expect(menuAccessible != nullptr && menuAccessible->childCount() > 0,
+			   "the Filter menu is in the accessibility tree");
+		auto* const footerAction = window.home_filter_menu()->findChild<QAction*>(QStringLiteral("homeFilterFooter"));
+		const auto  displayed    = [&window, menuAccessible](QAction* const aAction) {
+			const auto  index = window.home_filter_menu()->actions().indexOf(aAction);
+			auto* const item  = index >= 0 ? menuAccessible->child(static_cast<int>(index)) : nullptr;
+			return item != nullptr ? item->text(QAccessible::Name) : QString{ };
+		};
+		expect(footerAction != nullptr
+				   && footerAction->text().contains(QStringLiteral("Reviews && queue"))
+				   && window.home_filter_settings_action()->text().contains(QStringLiteral("Reviews && queue")),
+			   "each literal ampersand is escaped, so the menu draws it instead of eating it as a mnemonic");
+		expect(displayed(footerAction)
+				   == QStringLiteral("Nothing here changes GitHub. Saved repositories and observer rules are in Settings › Reviews & queue."),
+			   message_for("the footer a reviewer reads carries one plain ampersand", displayed(footerAction).toStdString()));
+		expect(displayed(window.home_filter_settings_action()) == QStringLiteral("Open Reviews & queue"),
+			   message_for("and so does the way to Reviews & queue",
+						   displayed(window.home_filter_settings_action()).toStdString()));
+		for (const auto& shown : { displayed(footerAction), displayed(window.home_filter_settings_action()) }) {
+			expect(!shown.contains(QStringLiteral("&&")) && !shown.contains(QLatin1Char{ '_' }),
+				   message_for("no escape and no mnemonic artefact reaches what is read aloud", shown.toStdString()));
+		}
+		window.home_filter_settings_action()->trigger();
+		process_events();
+		expect(window.settings()->isVisible() && window.settings()->current_page() == qt::settings_page::reviews_and_queue,
+			   "and it opens that page");
+		window.settings()->hide();
+		process_events();
+
+		// Home filters by the profile's four until this window filters for itself.
+		expect(window.queue_filter_model()->rowCount() == 2
+				   && window.queue_filter_model()->preferences().Repository == "octo-org/app"
+				   && window.queue_filter_model()->effective_preferences().Repository.empty()
+				   && !window.queue_filter_model()->effective_preferences().Bucket.has_value(),
+			   "Repository and Bucket are kept for the profile and filter nothing on Home");
+
+		auto* const requested = window.home_filter_menu()->findChild<QAction*>(QStringLiteral("homeFilterRequestedAction"));
+		expect(requested != nullptr, "the menu's Requested item is named");
+		requested->trigger();
+		process_events();
+		expect(intents.size() == 1U && intents.back().Field == application::queue_preference_field::role
+				   && intents.back().Preferences.Role == core::github_role::requested_reviewer
+				   && intents.back().Preferences.Repository == "octo-org/app"
+				   && intents.back().Preferences.Bucket == core::attention_bucket::initial_review_requested
+				   && intents.back().Preferences.Notifications == projection.Preferences.Notifications,
+			   "one Filter gesture sends the existing typed intent with that one field changed");
+		expect(views.size() == 1U && views.back().FilterOwned
+				   && views.back().Filter.Role == core::github_role::requested_reviewer,
+			   "and the window's view now owns its own four values");
+		expect(window.home_view().FilterOwned && window.queue_filter_model()->rowCount() == 1,
+			   "Home filters by the window's own filter at once");
+		expect(window.home_filter_button()->text() == QStringLiteral("Filter •")
+				   && window.home_filter_button()->accessibleDescription().contains(QStringLiteral("Requested"))
+				   && window.home_filter_button()->accessibleDescription().startsWith(QStringLiteral("Filtered.")),
+			   "a filter that is not the default is said without colour and described");
+
+		// The profile moving on does not move an owning window.
+		auto moved             = projection;
+		moved.Preferences.Role = core::github_role::author;
+		window.publish(moved);
+		process_events();
+		expect(window.queue_filter_model()->effective_preferences().Role == core::github_role::requested_reviewer
+				   && window.queue_filter_model()->rowCount() == 1,
+			   "an owning window ignores a later profile change");
+		expect(window.queue_role_filter()->currentData().toInt() == static_cast<int>(core::github_role::author),
+			   "while Settings still shows the profile's own answer");
+
+		// A window that never filtered follows the profile.
+		qt::workbench_window following;
+		following.set_queue_preferences_dispatch([](application::queue_preferences_intent) { });
+		following.publish(moved);
+		process_events();
+		expect(!following.home_view().FilterOwned
+				   && following.queue_filter_model()->effective_preferences().Role == core::github_role::author
+				   && following.queue_filter_model()->rowCount() == 0,
+			   "a window that never filtered follows the profile's preferences");
+		// [[BPR-0783]] review finding. The control must say what Home is filtered
+		// by, not what the window was built with: the six combos it replaced
+		// stayed in step with the accepted profile, and so must this.
+		auto* const followingAuthor
+			= following.home_filter_menu()->findChild<QAction*>(QStringLiteral("homeFilterAuthorAction"));
+		expect(followingAuthor != nullptr && followingAuthor->isChecked(),
+			   "the profile preference a window follows is ticked in its Filter menu");
+		expect(following.home_filter_button()->text() == QStringLiteral("Filter •"),
+			   message_for("and the Filter control says it is filtered",
+						   following.home_filter_button()->text().toStdString()));
+		window.hide();
+	}
+
+	// A7: the view the host holds is restored without being dispatched again.
+	void test_a_published_home_view_is_restored_without_a_second_dispatch()
+	{
+		qt::workbench_window window;
+		auto                 views = std::vector<application::home_view_state>{ };
+		window.set_queue_preferences_dispatch([](application::queue_preferences_intent) { });
+		window.set_home_view_dispatch([&views](application::home_view_state aView) { views.push_back(aView); });
+		window.resize(1'280, 820);
+		window.show();
+		process_events();
+		window.publish(two_account_projection());
+		sign_in(window);
+		static_cast<void>(window.home_list()->select(
+			core::pull_request_ref{ .Host = "github.com", .Account = "octo-reviewer", .Repository = "octo-org/app", .Number = 101 },
+			true));
+		process_events();
+
+		auto restored = application::home_view_state{
+			.Grouping     = application::home_grouping::account,
+			.StateHeaders = false,
+			.Collapsed    = application::home_collapsed_panel::recently_viewed,
+			.FilterOwned  = true,
+			.Filter       = { .Quiet = application::queue_quiet_filter::quiet },
+		};
+		auto projection     = application::workbench_projection{ };
+		projection.HomeView = restored;
+		window.publish(projection);
+		process_events();
+		expect(window.home_view() == restored && window.home_list()->grouping() == application::home_grouping::account
+				   && !window.home_list()->state_headers()
+				   && window.home_group_button()->text() == QStringLiteral("Group: Account")
+				   && !window.home_state_headers_action()->isChecked()
+				   && window.queue_filter_model()->effective_preferences().Quiet == application::queue_quiet_filter::quiet,
+			   "a published view is what Home shows, in its list and on its strip");
+		expect(views.empty(), "restoring a view dispatches nothing back");
+
+		// Restoring a view does rearrange Home, which is what it is for. What must
+		// change nothing at all is the same view arriving again.
+		const auto selected = window.selected_queue_item();
+		const auto focused  = QApplication::focusWidget();
+		window.publish(projection);
+		process_events();
+		expect(views.empty(), "the same view again dispatches nothing");
+		expect(QApplication::focusWidget() == focused, "the same view again moves no focus");
+		expect(window.selected_queue_item() == selected, "the same view again loses no selection");
+		window.hide();
+	}
+
+	// A7 and Decisions (e): the six typed controls are Settings' Queue defaults,
+	// with their reset unchanged.
+	void test_the_six_queue_controls_live_on_settings_queue_defaults()
+	{
+		qt::workbench_window window;
+		auto                 intents = std::vector<application::queue_preferences_intent>{ };
+		window.set_queue_preferences_dispatch(
+			[&intents](application::queue_preferences_intent aIntent) { intents.push_back(std::move(aIntent)); });
+		auto projection             = two_account_projection();
+		projection.Preferences.Role = core::github_role::reviewer;
+		window.publish(projection);
+		process_events();
+
+		auto* const page  = window.settings()->page_widget(qt::settings_page::reviews_and_queue);
+		auto* const group = [page] {
+			for (auto* const box : page->findChildren<QGroupBox*>()) {
+				if (box->title() == QStringLiteral("Queue defaults")) {
+					return box;
+				}
+			}
+			return static_cast<QGroupBox*>(nullptr);
+		}();
+		expect(group != nullptr, "Reviews & queue has a Queue defaults group");
+		const auto selectors = std::array{ window.queue_role_filter(), window.queue_observer_filter(),
+										   window.queue_bucket_filter(), window.queue_repository_filter(),
+										   window.queue_quiet_filter(), window.queue_sort_selector() };
+		const auto names     = std::array{ QStringLiteral("queueRoleFilter"), QStringLiteral("queueObserverFilter"),
+										   QStringLiteral("queueBucketFilter"), QStringLiteral("queueRepositoryFilter"),
+										   QStringLiteral("queueQuietFilter"), QStringLiteral("queueSortSelector") };
+		for (auto index = std::size_t{ 0U }; index < selectors.size(); ++index) {
+			expect(selectors[index] != nullptr && selectors[index]->objectName() == names[index]
+					   && group->isAncestorOf(selectors[index])
+					   && !window.home_page()->isAncestorOf(selectors[index]),
+				   "each control keeps its name and moved whole onto Queue defaults");
+		}
+		expect(window.queue_role_filter()->currentData().toInt() == static_cast<int>(core::github_role::reviewer),
+			   "and still shows the accepted profile preference");
+		// Its own gesture still dispatches the same typed intent.
+		window.queue_role_filter()->setCurrentIndex(
+			window.queue_role_filter()->findData(static_cast<int>(core::github_role::author)));
+		expect(intents.size() == 1U && intents.back().Field == application::queue_preference_field::role
+				   && intents.back().Preferences.Role == core::github_role::author,
+			   "a Queue defaults gesture is the same typed profile intent it always was");
+		for (auto* const button : window.findChildren<QPushButton*>()) {
+			if (button->text() == QStringLiteral("Reset queue defaults")) {
+				button->click();
+			}
+		}
+		expect(!intents.back().Preferences.Role
+				   && intents.back().Field == application::queue_preference_field::queue_filters
+				   && intents.back().Preferences.Notifications == projection.Preferences.Notifications,
+			   "Reset queue defaults is unchanged: the filters go, the notification choices stay");
+	}
+
+	// The accepted Home states, captured for the attended boards when asked for.
+	void test_home_captures_every_accepted_view()
+	{
+		const auto directory = qEnvironmentVariable("BPR_HOME_CAPTURE_DIR");
+		if (directory.isEmpty()) {
+			return;
+		}
+		qt::workbench_window window;
+		window.set_queue_preferences_dispatch([](application::queue_preferences_intent) { });
+		window.resize(1'280, 820);
+		window.show();
+		process_events();
+		window.publish(two_account_projection());
+		sign_in(window);
+		process_events();
+		const auto capture = [&window, &directory](const QString& aName, QWidget* const aOverlay = nullptr) {
+			process_events();
+			save_home_capture(window, directory, aName, aOverlay);
+		};
+		capture(QStringLiteral("group-none-headers-on.png"));
+		window.home_state_headers_action()->trigger();
+		capture(QStringLiteral("group-none-headers-off.png"));
+		window.home_group_action(application::home_grouping::organization)->trigger();
+		capture(QStringLiteral("organization-headers-off.png"));
+		window.home_state_headers_action()->trigger();
+		capture(QStringLiteral("organization-headers-on.png"));
+		window.home_group_action(application::home_grouping::account)->trigger();
+		capture(QStringLiteral("account-headers-on.png"));
+		window.home_group_action(application::home_grouping::none)->trigger();
+		process_events();
+		window.home_filter_menu()->popup(window.home_filter_button()->mapToGlobal(QPoint{ 0, window.home_filter_button()->height() }));
+		process_events();
+		capture(QStringLiteral("filter-menu-open.png"), window.home_filter_menu());
+		window.home_filter_menu()->close();
+		window.hide();
 	}
 
 	void test_home_composes_the_production_catalog_and_respects_motion_and_width()
@@ -7360,6 +7810,13 @@ auto main(int argc, char** argv) -> int
 	test_notification_activation_selects_only_an_exact_visible_queue_row();
 	test_notification_settings_wait_for_acceptance_and_reset_only_their_domain();
 	test_large_queue_filters_through_the_composed_window();
+	// [[BPR-0783]]. Home's strip controls, its Filter menu, the window's own view
+	// state, and the six typed controls on Settings' Queue defaults.
+	test_home_strip_holds_group_state_headers_filter_and_refresh();
+	test_home_filter_menu_and_its_gesture();
+	test_a_published_home_view_is_restored_without_a_second_dispatch();
+	test_the_six_queue_controls_live_on_settings_queue_defaults();
+	test_home_captures_every_accepted_view();
 	test_home_composes_the_production_catalog_and_respects_motion_and_width();
 	test_dif_moves_to_the_explicit_ai_area_without_owning_it();
 	test_repositories_drawer_toggles_through_the_core_and_collapses_to_a_rail();

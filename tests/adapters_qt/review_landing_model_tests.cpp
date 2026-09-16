@@ -454,15 +454,22 @@ namespace {
 		auto                  selected = QPersistentModelIndex{ proxy.index(1, 0) };
 		const signal_recorder recorder{ proxy };
 
+		// [[BPR-0783]]. Home no longer filters by Repository: Group and the state
+		// order do that job. The profile still keeps the value, so the proxy
+		// reports it and every row stays; the explicit alternate sort still applies.
 		proxy.apply(application::queue_presentation_preferences{
 			.Repository = "a/repo",
 			.Sort       = application::queue_sort_order::repository,
 		});
 		expect(
-			proxy.rowCount() == 2
+			proxy.rowCount() == 4
 				&& proxy.item_at(proxy.index(0, 0))->Ref.Number == 2
 				&& proxy.item_at(proxy.index(1, 0))->Ref.Number == 5,
-			"repository filtering and its explicit alternate sort are deterministic");
+			"the explicit alternate sort is deterministic and the repository value filters nothing");
+		expect(
+			proxy.preferences().Repository == "a/repo"
+				&& proxy.effective_preferences().Repository.empty(),
+			"the profile's repository is retained and is not one of Home's filters");
 		expect(
 			selected.isValid()
 				&& proxy.item_at(selected)->Ref == authored.Ref,
@@ -483,13 +490,15 @@ namespace {
 			proxy.rowCount() == 1
 				&& proxy.item_at(proxy.index(0, 0))->Ref == observed.Ref,
 			"the exact retained observer reason is applied");
+		// [[BPR-0783]]. Nor by Bucket, for the same reason: the state order already
+		// puts the core's attention first.
 		proxy.apply(application::queue_presentation_preferences{
 			.Bucket = core::attention_bucket::fixes_awaiting_verification,
 		});
 		expect(
-			proxy.rowCount() == 1
-				&& proxy.item_at(proxy.index(0, 0))->Ref == participant.Ref,
-			"the exact core-decided attention bucket is applied");
+			proxy.rowCount() == 4 && proxy.preferences().Bucket == core::attention_bucket::fixes_awaiting_verification
+				&& !proxy.effective_preferences().Bucket.has_value(),
+			"the profile's attention bucket is retained and is not one of Home's filters");
 		proxy.apply(application::queue_presentation_preferences{
 			.Quiet = application::queue_quiet_filter::quiet,
 		});

@@ -612,6 +612,26 @@ namespace bpr::qt {
 		/// \brief [[BPR-0776]]. Home's list: a panel per state in state order, and
 		/// Recently viewed last.
 		[[nodiscard]] auto home_list() const noexcept -> qt::home_list*;
+		/// \brief [[BPR-0783]]. Where this window's Home view leaves for the host,
+		/// which validates it and persists it beside the window's layout.
+		///
+		/// \details Sent whole on every change: Group, State headers, the collapse
+		/// of the panels that carry no name, and the window's own Filter once it
+		/// owns one. A group panel's collapse is not in it (Decisions (a)).
+		void set_home_view_dispatch(std::function<void(application::home_view_state)> aDispatch);
+		/// \brief [[BPR-0783]]. The Home view this window shows.
+		[[nodiscard]] auto home_view() const noexcept -> const application::home_view_state&;
+		/// \brief [[BPR-0783]]. Home's strip controls, shown while Home is and an
+		/// account can fill it: Group, State headers, Filter.
+		[[nodiscard]] auto home_group_button() const noexcept -> QToolButton*;
+		[[nodiscard]] auto home_group_menu() const noexcept -> QMenu*;
+		[[nodiscard]] auto home_group_action(application::home_grouping aGrouping) const noexcept -> QAction*;
+		[[nodiscard]] auto home_state_headers_action() const noexcept -> QAction*;
+		[[nodiscard]] auto home_filter_button() const noexcept -> QToolButton*;
+		[[nodiscard]] auto home_filter_menu() const noexcept -> QMenu*;
+		/// \brief The Filter menu's way to Settings › Reviews & queue, where the
+		/// saved repositories and the observer rules are.
+		[[nodiscard]] auto home_filter_settings_action() const noexcept -> QAction*;
 		/// \brief [[BPR-0776]]. The current queue row on Home, whichever state holds it.
 		[[nodiscard]] auto selected_queue_item() const -> std::optional<core::queue_item>;
 		/// \brief [[BPR-0650]]. Home's open bar.
@@ -997,6 +1017,29 @@ namespace bpr::qt {
 		void update_saved_repository_actions();
 		void dispatch_queue_preferences(QComboBox* aSource);
 		void build_queue_settings(QWidget* aReviews, QVBoxLayout* aColumn);
+		// [[BPR-0783]]. Home's view: the strip's three controls, one Filter menu
+		// over the four surviving typed preferences, and the window's own view.
+		void build_home_strip_controls();
+		void build_home_filter_menu();
+		/// \brief Shows the view the window holds, reporting nothing back out.
+		void apply_home_view();
+		/// \brief Shows what Home is filtered by on the Filter control.
+		///
+		/// \details [[BPR-0783]]. Separate from `apply_home_view` because a window
+		/// that never filtered follows the profile: an accepted preference arrives
+		/// without any view of its own changing, and the control must still say so.
+		void apply_home_filter_controls();
+		/// \brief Sends the whole view to the host, for a change the reviewer made.
+		void dispatch_home_view();
+		/// \brief Adopts a published view; equal to what Home shows, it does nothing
+		/// at all, so focus, selection and scroll are undisturbed.
+		void adopt_home_view(const application::home_view_state& aView);
+		/// \brief One Filter gesture: the profile's typed intent, and from now on
+		/// this window's own four values.
+		void choose_home_filter(
+			application::queue_preference_field aField, const application::home_filter& aFilter);
+		/// \brief What Home filters by, whoever owns it.
+		[[nodiscard]] auto home_filter() const -> application::home_filter;
 		void update_notification_controls();
 		void build_capability_settings();
 		void apply_queue_preferences(
@@ -1134,13 +1177,30 @@ namespace bpr::qt {
 		review_landing_model*                              QueueLanding          = nullptr;
 		review_landing_filter_model*                       QueueFilterModel      = nullptr;
 		qt::home_list*                                     HomeList              = nullptr;
+		// [[BPR-0783]]. This window's Home view and the strip controls over it.
+		application::home_view_state                      HomeView;
+		std::function<void(application::home_view_state)> HomeViewDispatch;
+		QToolButton*                                      HomeGroupButton = nullptr;
+		QMenu*                                            HomeGroupMenu   = nullptr;
+		std::array<QAction*, 4>                           HomeGroupActions{ };
+		QAction*                                          HomeGroupItem      = nullptr;
+		QAction*                                          HomeStateHeaders   = nullptr;
+		QToolButton*                                      HomeFilterButton   = nullptr;
+		QMenu*                                            HomeFilterMenu     = nullptr;
+		QAction*                                          HomeFilterItem     = nullptr;
+		QAction*                                          HomeFilterSettings = nullptr;
+		/// The Filter menu's four sections: My role, Added by, Quiet items and
+		/// Sort within a group, each holding every typed value of its vocabulary.
+		std::array<std::vector<QAction*>, 4> HomeFilterSections{ };
+		/// Set while the window is showing a view it was given, so adopting one
+		/// is never reported back out as the reviewer's own gesture.
+		bool                                               ApplyingHomeView      = false;
 		QComboBox*                                         QueueRoleFilter       = nullptr;
 		QComboBox*                                         QueueObserverFilter   = nullptr;
 		QComboBox*                                         QueueBucketFilter     = nullptr;
 		QComboBox*                                         QueueRepositoryFilter = nullptr;
 		QComboBox*                                         QueueQuietFilter      = nullptr;
 		QComboBox*                                         QueueSort             = nullptr;
-		std::array<QComboBox*, 6>                          SettingsQueueSelectors{ };
 		QCheckBox*                                         NotificationsEnabled = nullptr;
 		QCheckBox*                                         NotificationsPaused  = nullptr;
 		QPushButton*                                       NotificationPreview  = nullptr;

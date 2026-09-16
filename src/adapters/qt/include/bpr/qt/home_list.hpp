@@ -13,11 +13,15 @@
 #include <QSize>
 #include <QSizePolicy>
 #include <QSortFilterProxyModel>
+#include <QString>
 #include <QToolButton>
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
+#include <map>
+#include <memory>
 #include <optional>
 #include <vector>
 
@@ -25,24 +29,77 @@ class QLabel;
 class QVBoxLayout;
 
 namespace bpr::qt {
-	/// \brief [[BPR-0776]]. One of Home's states over the decided, filtered queue.
+	/// \brief [[BPR-0783]]. What identifies one of Home's groups.
 	///
-	/// \details A filter, not a second queue: it holds no item and orders
-	/// nothing, so the rows it admits keep the order of the queue beneath it,
-	/// which is the core's or the reviewer's chosen sort within a state.
-	class home_state_filter_model final : public QSortFilterProxyModel
+	/// \details Always a host and one value, because two hosts may name the same
+	/// owner, repository or login and they are not the same group. The host is
+	/// part of the identity and never part of the name: a chip says "on host",
+	/// and under Account grouping the header states it at its right.
+	struct home_group_key
+	{
+		QString Host;
+		QString Value;
+
+		auto operator<=>(const home_group_key&) const = default;
+
+		[[nodiscard]] auto empty() const -> bool
+		{
+			return Host.isEmpty() && Value.isEmpty();
+		}
+	};
+
+	/// \brief The key one row belongs to under a grouping; empty for no grouping.
+	[[nodiscard]] auto home_group_key_of(
+		application::home_grouping aGrouping, const core::queue_item& aItem) -> home_group_key;
+
+	/// \brief The group's name: an owner, "owner/name", or a login.
+	[[nodiscard]] auto home_group_name(
+		application::home_grouping aGrouping, const home_group_key& aKey) -> QString;
+
+	/// \brief [[BPR-0776]] [[BPR-0783]]. One slice of the decided, filtered queue:
+	/// a state panel, a group panel, or a state band inside a group.
+	///
+	/// \details A filter, not a second queue: it holds no item. Left unordered it
+	/// keeps the order of the queue beneath it, which is the core's or the
+	/// reviewer's chosen sort. Ordered by state it puts the state first and that
+	/// same chosen order within each state, because state is always Home's first
+	/// key and Group only changes the panels around the rows.
+	class home_slice_model final : public QSortFilterProxyModel
 	{
 	public:
-		home_state_filter_model(home_group aGroup, QAbstractItemModel& aSource, QObject* aParent = nullptr);
+		explicit home_slice_model(review_landing_filter_model& aQueue, QObject* aParent = nullptr);
 
-		[[nodiscard]] auto group() const noexcept -> home_group;
+		/// \brief Admits only the rows of one group; an empty key admits every row.
+		void set_key(application::home_grouping aGrouping, const home_group_key& aKey);
+		/// \brief Admits only one of Home's states; nothing admits every state.
+		void set_state(std::optional<home_group> aState);
+		/// \brief Orders by state first, then by the queue's own order within it.
+		void set_state_ordered(bool aOrdered);
+		/// \brief Whether this slice's rows answer with their account chip.
+		///
+		/// \details A row drops the chip where its group already says the account:
+		/// under Account grouping, and in a group whose rows are all one account.
+		void set_chips(bool aChips);
+
+		[[nodiscard]] auto state() const noexcept -> std::optional<home_group>;
+		[[nodiscard]] auto key() const -> home_group_key;
+		[[nodiscard]] auto chips() const noexcept -> bool;
+
+		[[nodiscard]] auto data(const QModelIndex& aIndex, int aRole) const -> QVariant override;
 
 	protected:
 		[[nodiscard]] auto filterAcceptsRow(int aSourceRow, const QModelIndex& aSourceParent) const
 			-> bool override;
+		[[nodiscard]] auto lessThan(const QModelIndex& aLeft, const QModelIndex& aRight) const
+			-> bool override;
 
 	private:
-		home_group Group;
+		review_landing_filter_model& Queue;
+		application::home_grouping   Grouping = application::home_grouping::none;
+		home_group_key               Key;
+		std::optional<home_group>    State;
+		bool                         StateOrdered = false;
+		bool                         Chips        = true;
 	};
 
 	/// \brief [[BPR-0776]]. A list view exactly as tall as its rows, inside a panel.
@@ -130,15 +187,26 @@ namespace bpr::qt {
 		std::function<void(int aRow)> Trigger;
 	};
 
-	/// \brief [[BPR-0776]]. Home's list: one panel per state, in state order, and
-	/// Recently viewed last.
+	/// \brief [[BPR-0776]] [[BPR-0783]]. Home's list: the decided queue arranged
+	/// by the window's view, with Recently viewed last in every arrangement.
 	///
-	/// \details Rows are always Needs me, then Waiting on others, then Following,
-	/// because each panel admits one of the core's groups from the one decided
-	/// queue. A state with no row is not shown. When the ready queue of a signed-in
-	/// window is empty, Needs me holds one sentence whose link opens Reviews &
-	/// queue; no empty box is drawn. The list decides nothing: it reports a row
-	/// chosen, a link followed and a row action taken, and the window acts.
+	/// \details Rows are always in state order — Needs me, then Waiting on
+	/// others, then Following — because state is Home's first key and Group only
+	/// changes the panels around the rows. Four arrangements:
+	///
+	/// - Group None with State headers on: one panel per state.
+	/// - Group None with State headers off: one neutral card of state-ordered
+	///   rows, each carrying its state's 3-point mark.
+	/// - A grouping with State headers on: one neutral panel per group, with a
+	///   slim tinted band per non-empty state nested inside it.
+	/// - A grouping with State headers off: the group's rows directly, in state
+	///   order, with their marks.
+	///
+	/// An empty state, band or group is not shown. When the ready queue of a
+	/// signed-in window is empty, Needs me holds one sentence whose link opens
+	/// Reviews & queue; no empty box is drawn in any arrangement. The list
+	/// decides nothing: it reports a row chosen, a link followed, a row action
+	/// taken and a collapse changed, and the window acts.
 	class home_list final : public QScrollArea
 	{
 	public:
@@ -153,24 +221,57 @@ namespace bpr::qt {
 		void set_queue_status(bool aReady, bool aAccount);
 		void set_recent(int aCount, const QString& aSummary);
 		void set_state_colours(const home_state_colours& aColours);
+
+		/// \brief [[BPR-0783]]. What Home groups its rows by; None is the default.
+		void set_grouping(application::home_grouping aGrouping);
+		/// \brief [[BPR-0783]]. Whether a state is a panel of its own, or a mark on its rows.
+		void set_state_headers(bool aHeaders);
+		/// \brief [[BPR-0783]]. The collapse of the panels that carry no name, as
+		/// bits of `application::home_collapsed_panel`.
+		///
+		/// \details Only these are the window's to remember: a group panel's key
+		/// would name what was reviewed, which the settings store does not hold.
+		void               set_collapsed_panels(std::uint8_t aCollapsed);
+		[[nodiscard]] auto grouping() const noexcept -> application::home_grouping;
+		[[nodiscard]] auto state_headers() const noexcept -> bool;
+		[[nodiscard]] auto collapsed_panels() const noexcept -> std::uint8_t;
+		/// \brief Told when a nameless panel's collapse changed, so the window
+		/// can dispatch its whole view.
+		void set_view_observer(std::function<void()> aObserver);
+
 		/// \brief Recounts every panel, and shows or hides each by what it holds.
 		void refresh();
-		/// \brief Makes one queue identity current; a focusing selection expands its panel.
+		/// \brief Makes one queue identity current; a focusing selection expands
+		/// the group and the band that hold it.
 		auto select(const core::pull_request_ref& aRef, bool aFocus) -> bool;
 		void focus_first_row();
 		void update_sticky_headers();
 
 		[[nodiscard]] auto current_queue_item() const -> std::optional<core::queue_item>;
-		/// \brief The state list holding the current queue row, or null.
+		/// \brief The list holding the current queue row, or null.
 		[[nodiscard]] auto current_view() const -> QListView*;
 		[[nodiscard]] auto state_panel(home_group aGroup) const noexcept -> home_panel*;
 		[[nodiscard]] auto state_view(home_group aGroup) const noexcept -> QListView*;
-		[[nodiscard]] auto state_model(home_group aGroup) const noexcept -> home_state_filter_model*;
+		[[nodiscard]] auto state_model(home_group aGroup) const noexcept -> home_slice_model*;
+		/// \brief [[BPR-0783]]. Group None with State headers off: one card of rows.
+		[[nodiscard]] auto flat_panel() const noexcept -> home_panel*;
+		[[nodiscard]] auto flat_view() const noexcept -> QListView*;
+		/// \brief [[BPR-0783]]. The group panels, in the order they are shown.
+		[[nodiscard]] auto group_panels() const -> std::vector<home_panel*>;
+		/// \brief The group panel of that name, or null while none is shown.
+		[[nodiscard]] auto group_panel(const QString& aName) const -> home_panel*;
+		/// \brief One group's state band, or null when that state is not in it.
+		[[nodiscard]] auto band_panel(const home_panel& aGroup, home_group aState) const -> home_panel*;
+		/// \brief The rows any panel shows, or null when it shows none.
+		[[nodiscard]] auto rows_view(const home_panel& aPanel) const -> QAbstractItemView*;
+		/// \brief [[BPR-0783]]. Whether the queue names more than one account, so
+		/// its rows carry a chip somewhere.
+		[[nodiscard]] auto account_chips() const -> bool;
 		[[nodiscard]] auto recent_panel() const noexcept -> home_panel*;
 		[[nodiscard]] auto recent_action() const noexcept -> home_row_action*;
 		[[nodiscard]] auto empty_sentence() const noexcept -> QLabel*;
 		[[nodiscard]] auto row_delegate() const noexcept -> home_row_delegate*;
-		/// \brief True while state panels may be shown: an account, and the list on screen.
+		/// \brief True while the queue's rows may be shown: an account, and the list on screen.
 		[[nodiscard]] auto queue_shown() const -> bool;
 		/// \brief The keyboard stops of every shown panel, in reading order.
 		[[nodiscard]] auto focus_chain() const -> std::vector<QWidget*>;
@@ -181,36 +282,103 @@ namespace bpr::qt {
 		auto eventFilter(QObject* aWatched, QEvent* aEvent) -> bool override;
 
 	private:
-		void               schedule_refresh();
-		void               adopt_current(std::size_t aGroup, const QModelIndex& aCurrent);
-		void               open_row(std::size_t aGroup, const QModelIndex& aIndex);
+		/// \brief One group panel: its identity, and either its rows or its bands.
+		struct group_entry
+		{
+			home_group_key                    Key;
+			QString                           Name;
+			home_panel*                       Panel     = nullptr;
+			QWidget*                          Content   = nullptr;
+			QVBoxLayout*                      Column    = nullptr;
+			home_slice_model*                 RowsModel = nullptr;
+			home_row_view*                    RowsView  = nullptr;
+			std::array<home_panel*, 3U>       Bands{ };
+			std::array<home_slice_model*, 3U> BandModels{ };
+			std::array<home_row_view*, 3U>    BandViews{ };
+		};
+
+		/// \brief One shown panel and the rows it holds, in reading order.
+		struct panel_stop
+		{
+			home_panel*        Panel = nullptr;
+			QAbstractItemView* Rows  = nullptr;
+		};
+
+		void schedule_refresh();
+		/// \brief The keys of every group with a row, in the order of their first
+		/// row in state order, ties by name.
+		[[nodiscard]] auto ordered_keys() const -> std::vector<home_group_key>;
+		auto               group_for(const home_group_key& aKey, const QString& aName) -> group_entry&;
+		void               retire_groups(const std::vector<home_group_key>& aKept);
+		/// \brief The accounts of every group, in one pass over the queue.
+		///
+		/// \details [[BPR-0783]]. Once per refresh rather than once per group: a
+		/// group asking the whole queue for its own accounts is a scan per group.
+		[[nodiscard]] auto group_accounts() const -> std::map<home_group_key, std::vector<home_account>>;
+		void               refresh_group(
+			group_entry& aGroup, const std::map<home_group_key, std::vector<home_account>>& aAccounts);
+		/// \brief What the window remembers a named panel's collapse under, while it lives.
+		///
+		/// \details The grouping is part of it: an owner and a login can be the
+		/// same word on the same host, and they are not the same group.
+		[[nodiscard]] static auto collapse_key(
+			application::home_grouping aGrouping, const home_group_key& aKey, std::optional<home_group> aState)
+			-> QString;
+		void observe_named_collapse(
+			home_panel& aPanel, const home_group_key& aKey, std::optional<home_group> aState);
+		void               observe_nameless_collapse(home_panel& aPanel, std::uint8_t aBit);
+		void               apply_collapsed_panels();
+		void               adopt_current(QAbstractItemView* aView, const QModelIndex& aCurrent);
+		void               open_row(const QAbstractItemView& aView, const QModelIndex& aIndex);
+		[[nodiscard]] auto item_of(const QAbstractItemView& aView, const QModelIndex& aIndex) const
+			-> std::optional<core::queue_item>;
 		void               ensure_row_visible(QAbstractItemView& aView, const QModelIndex& aIndex, const home_panel& aPanel);
 		void               derive_link_colour();
-		[[nodiscard]] auto shown_panels() const -> std::vector<home_panel*>;
-		[[nodiscard]] auto rows_of(const home_panel& aPanel) const -> QAbstractItemView*;
+		void               adopt_rows(home_row_view& aView, home_slice_model& aModel, const QString& aName, const QString& aAccessible);
+		/// \brief Every shown panel in reading order, with the rows it holds.
+		[[nodiscard]] auto reading_order() const -> std::vector<panel_stop>;
+		/// \brief Every live rows view, whichever arrangement is shown.
+		[[nodiscard]] auto row_views() const -> std::vector<QAbstractItemView*>;
 		auto               navigate_from_header(const home_panel& aPanel, int aKey) -> bool;
 		auto               focus_row(QAbstractItemView& aView, int aRow) -> bool;
+		/// \brief The panel that holds one rows view, or null.
+		[[nodiscard]] auto panel_of(const QAbstractItemView& aView) const -> home_panel*;
 
 		review_landing_filter_model&                 Queue;
 		QWidget*                                     Column   = nullptr;
 		QVBoxLayout*                                 Layout   = nullptr;
 		home_row_delegate*                           Delegate = nullptr;
-		std::array<home_state_filter_model*, 3U>     StateModels{ };
+		std::array<home_slice_model*, 3U>            StateModels{ };
 		std::array<home_panel*, 3U>                  StatePanels{ };
 		std::array<home_row_view*, 3U>               StateViews{ };
+		home_panel*                                  FlatPanel = nullptr;
+		home_slice_model*                            FlatModel = nullptr;
+		home_row_view*                               FlatView  = nullptr;
+		std::vector<std::unique_ptr<group_entry>>    Groups;
 		home_panel*                                  RecentPanel   = nullptr;
 		home_recent_view*                            RecentView    = nullptr;
 		home_row_action*                             RecentAction  = nullptr;
 		QLabel*                                      EmptySentence = nullptr;
-		std::optional<std::size_t>                   CurrentGroup;
+		QAbstractItemView*                           CurrentRows   = nullptr;
 		std::function<void(const core::queue_item&)> OpenDispatch;
 		std::function<void()>                        SettingsDispatch;
 		std::function<void(int aRow)>                RecentActionDispatch;
-		int                                          RecentCount        = 0;
-		bool                                         QueueReady         = false;
-		bool                                         QueueAccount       = false;
-		bool                                         RefreshPending     = false;
-		bool                                         RestoringSelection = false;
+		std::function<void()>                        ViewObserver;
+		/// The collapse of a group panel and of the bands inside it, keyed by the
+		/// owner, repository or account it names. It lives as long as the window
+		/// and is never dispatched, so nothing writes those names to a store.
+		std::map<QString, bool>    GroupCollapse;
+		application::home_grouping Grouping           = application::home_grouping::none;
+		std::uint8_t               CollapsedPanels    = 0U;
+		int                        RecentCount        = 0;
+		bool                       StateHeaders       = true;
+		bool                       QueueReady         = false;
+		bool                       QueueAccount       = false;
+		bool                       RefreshPending     = false;
+		bool                       RestoringSelection = false;
+		/// Set while the list itself is moving a collapse, so adopting a view
+		/// never reports it back as the reviewer's own gesture.
+		bool ApplyingCollapse = false;
 	};
 } // namespace bpr::qt
 

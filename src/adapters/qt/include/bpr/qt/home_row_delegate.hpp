@@ -4,11 +4,15 @@
 #include "bpr/qt/review_landing_model.hpp"
 
 #include <QColor>
+#include <QFont>
+#include <QPalette>
 #include <QRect>
 #include <QSize>
 #include <QStringList>
 #include <QStyledItemDelegate>
 #include <QtTypes>
+
+class QPainter;
 
 namespace bpr::qt {
 	class appearance_profile;
@@ -72,6 +76,54 @@ namespace bpr::qt {
 	/// \brief Mixes one colour over a ground at the given strength, channel by channel.
 	[[nodiscard]] auto mix_colour(const QColor& aTone, const QColor& aGround, qreal aStrength)
 		-> QColor;
+
+	/// \brief [[BPR-0783]]. The ink an account chip or an avatar tile is drawn in.
+	///
+	/// \details Neutral palette roles only. On Home colour means state, so a chip
+	/// drawn in a state's colour would claim a state its account does not have.
+	struct home_chip_ink
+	{
+		QColor Label;
+		QColor Initial;
+		QColor Tile;
+		QColor Border;
+	};
+
+	/// \brief The chip and tile ink for one palette group; a selected row keeps
+	/// the style's own selected text colour.
+	[[nodiscard]] auto home_chip_ink_for(
+		const QPalette& aPalette, QPalette::ColorGroup aGroup, bool aSelected) -> home_chip_ink;
+
+	/// \brief The one character an avatar tile shows for a login or an owner.
+	[[nodiscard]] auto home_tile_initial(const QString& aName) -> QString;
+
+	/// \brief [[BPR-0783]]. An account chip's text: the login, and " on host" off
+	/// github.com, which is the one place a host is repeated.
+	[[nodiscard]] auto home_account_chip_text(const QString& aLogin, const QString& aHost) -> QString;
+
+	/// \brief What one chip occupies: its tile, the gap and the whole text.
+	///
+	/// \details Remote literal text is never elided here, so the chip asks for
+	/// the width its login needs and the row's text yields instead.
+	[[nodiscard]] auto home_chip_size(const QFont& aFont, const QString& aText) -> QSize;
+
+	/// \brief Draws one account chip: a round initial tile, then its text, in a
+	/// bordered pill.
+	void draw_home_chip(
+		QPainter& aPainter, const QRect& aRect, const QString& aText, const QFont& aFont, const home_chip_ink& aInk);
+
+	/// \brief An avatar tile's extent for a font.
+	[[nodiscard]] auto home_tile_extent(const QFont& aFont) -> int;
+
+	/// \brief Draws one initial tile: round for an account, a small radius for an
+	/// owner that is not one ([[BPR-0783]]; no avatar image is cached).
+	void draw_home_tile(
+		QPainter&            aPainter,
+		const QRect&         aRect,
+		const QString&       aInitial,
+		bool                 aRound,
+		const QFont&         aFont,
+		const home_chip_ink& aInk);
 
 	/// \brief [[BPR-0776]]. Draws one Home row: identity and title, the why
 	/// sentence ending in the reason word, and the time and progress at the right.

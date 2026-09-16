@@ -4,12 +4,14 @@
 
 #include <QAbstractItemView>
 #include <QApplication>
+#include <QBrush>
 #include <QFont>
 #include <QFontMetrics>
 #include <QIcon>
 #include <QList>
 #include <QPainter>
 #include <QPalette>
+#include <QPen>
 #include <QPointF>
 #include <QRectF>
 #include <QStyle>
@@ -28,6 +30,21 @@ namespace bpr::qt {
 		constexpr auto secondary_scale = 0.92;
 		/// Between the identity and the title.
 		constexpr auto identity_separator = QLatin1StringView{ "  " };
+		/// [[BPR-0783]]. An account chip: the tile's inset in its pill, the gap
+		/// after the tile, and the room after the login.
+		constexpr auto chip_inset = 2;
+		constexpr auto chip_gap   = 5;
+		constexpr auto chip_pad   = 8;
+		/// The least an initial tile may be, so it holds a character at any font.
+		constexpr auto tile_minimum = 12;
+		/// A square owner tile's radius; an account's tile is a circle.
+		constexpr auto tile_radius = 3.0;
+		/// The initial is set inside the tile rather than at the tile's own size.
+		constexpr auto tile_initial_scale = 0.78;
+		/// [[BPR-0783]]. The one host a chip never repeats.
+		constexpr auto default_host = QLatin1StringView{ "github.com" };
+		/// Between a login and the host it is not on by default.
+		constexpr auto chip_host_separator = QLatin1StringView{ " on " };
 
 		[[nodiscard]] auto secondary_font(const QFont& aFont) -> QFont
 		{
@@ -145,7 +162,11 @@ namespace bpr::qt {
 				SideWidth               = std::max({ sideMetrics.horizontalAdvance(Time),
 													 sideMetrics.horizontalAdvance(Progress),
 													 actionExtent.width() });
-				ChipWidth               = Chip.isEmpty() ? 0 : sideMetrics.horizontalAdvance(Chip);
+				// [[BPR-0783]]. The account chip: a round initial tile and the
+				// login, at the row's right before the time.
+				const auto chipExtent = home_chip_size(SideFont, Chip);
+				ChipWidth             = chipExtent.width();
+				ChipHeight            = chipExtent.height();
 
 				Width                = row_width(aOption);
 				TextLeft             = home_row_delegate::inset + (aMarks ? home_row_delegate::mark_width : 0);
@@ -178,7 +199,7 @@ namespace bpr::qt {
 					+ (SecondHeight > 0 ? home_row_delegate::line_gap + SecondHeight : 0);
 				const auto sideLines = (Time.isEmpty() ? 0 : 1) + (Progress.isEmpty() ? 0 : 1);
 				const auto side      = (home_row_delegate::vertical_padding * 2)
-					+ std::max(sideLines * SideLineHeight, actionExtent.height());
+					+ std::max({ sideLines * SideLineHeight, actionExtent.height(), ChipHeight });
 				RowHeight   = std::max({ home_row_delegate::minimum_row_height, content, side });
 				TotalHeight = RowHeight + (has_hairline(aIndex) ? home_row_delegate::hairline : 0);
 				ContentTop  = ((RowHeight - content) / 2) + home_row_delegate::vertical_padding;
@@ -243,6 +264,7 @@ namespace bpr::qt {
 			int         SideLineHeight = 0;
 			int         SideWidth      = 0;
 			int         ChipWidth      = 0;
+			int         ChipHeight     = 0;
 			int         Width          = 0;
 			int         TextLeft       = 0;
 			int         TextWidth      = 1;
@@ -292,6 +314,125 @@ namespace bpr::qt {
 			channel(tone.greenF(), ground.greenF()),
 			channel(tone.blueF(), ground.blueF()),
 			ground.alphaF());
+	}
+
+	auto home_chip_ink_for(
+		const QPalette& aPalette, const QPalette::ColorGroup aGroup, const bool aSelected) -> home_chip_ink
+	{
+		if (aSelected) {
+			// A selected row is filled by the style; the chip reads in the
+			// style's own selected ink rather than inventing a second one.
+			const auto ink = aPalette.color(aGroup, QPalette::HighlightedText);
+			return { .Label = ink, .Initial = ink, .Tile = QColor{ Qt::transparent }, .Border = ink };
+		}
+		return {
+			.Label   = aPalette.color(aGroup, QPalette::PlaceholderText),
+			.Initial = aPalette.color(aGroup, QPalette::Text),
+			.Tile    = aPalette.color(aGroup, QPalette::Mid),
+			.Border  = aPalette.color(aGroup, QPalette::Mid),
+		};
+	}
+
+	auto home_tile_initial(const QString& aName) -> QString
+	{
+		for (const auto character : aName) {
+			if (character.isLetterOrNumber()) {
+				return QString{ character }.toUpper();
+			}
+		}
+		return QStringLiteral("?");
+	}
+
+	auto home_account_chip_text(const QString& aLogin, const QString& aHost) -> QString
+	{
+		// RFC-BPR-0028: a host is said only where it differs from the default.
+		return aHost.isEmpty() || aHost == default_host
+			? aLogin
+			: aLogin + chip_host_separator + aHost;
+	}
+
+	auto home_tile_extent(const QFont& aFont) -> int
+	{
+		return std::max(tile_minimum, QFontMetrics{ aFont }.height());
+	}
+
+	auto home_chip_size(const QFont& aFont, const QString& aText) -> QSize
+	{
+		if (aText.isEmpty()) {
+			return { };
+		}
+		const auto tile = home_tile_extent(aFont);
+		return { (chip_inset * 2) + tile + chip_gap + QFontMetrics{ aFont }.horizontalAdvance(aText) + chip_pad,
+				 tile + (chip_inset * 2) };
+	}
+
+	void draw_home_tile(
+		QPainter&            aPainter,
+		const QRect&         aRect,
+		const QString&       aInitial,
+		const bool           aRound,
+		const QFont&         aFont,
+		const home_chip_ink& aInk)
+	{
+		if (aRect.isEmpty()) {
+			return;
+		}
+		aPainter.save();
+		aPainter.setRenderHint(QPainter::Antialiasing, true);
+		const auto filled = aInk.Tile.alpha() != 0;
+		aPainter.setPen(filled ? QPen{ Qt::NoPen } : QPen{ aInk.Border, 1.0 });
+		aPainter.setBrush(filled ? QBrush{ aInk.Tile } : QBrush{ Qt::NoBrush });
+		const auto box = QRectF{ aRect }.adjusted(0.5, 0.5, -0.5, -0.5);
+		if (aRound) {
+			aPainter.drawEllipse(box);
+		} else {
+			aPainter.drawRoundedRect(box, tile_radius, tile_radius);
+		}
+		auto initial = aFont;
+		initial.setWeight(QFont::DemiBold);
+		if (initial.pointSizeF() > 0.0) {
+			initial.setPointSizeF(initial.pointSizeF() * tile_initial_scale);
+		} else if (initial.pixelSize() > 0) {
+			initial.setPixelSize(std::max(1, static_cast<int>(std::lround(initial.pixelSize() * tile_initial_scale))));
+		}
+		aPainter.setFont(initial);
+		aPainter.setPen(aInk.Initial);
+		aPainter.drawText(aRect, Qt::AlignCenter, aInitial);
+		aPainter.restore();
+	}
+
+	void draw_home_chip(
+		QPainter&            aPainter,
+		const QRect&         aRect,
+		const QString&       aText,
+		const QFont&         aFont,
+		const home_chip_ink& aInk)
+	{
+		if (aText.isEmpty() || aRect.isEmpty()) {
+			return;
+		}
+		aPainter.save();
+		aPainter.setRenderHint(QPainter::Antialiasing, true);
+		const auto pill = QRectF{ aRect }.adjusted(0.5, 0.5, -0.5, -0.5);
+		aPainter.setPen(QPen{ aInk.Border, 1.0 });
+		aPainter.setBrush(Qt::NoBrush);
+		aPainter.drawRoundedRect(pill, pill.height() / 2.0, pill.height() / 2.0);
+		const auto tile = home_tile_extent(aFont);
+		draw_home_tile(aPainter,
+					   QRect{ aRect.left() + chip_inset, aRect.top() + chip_inset, tile, tile },
+					   home_tile_initial(aText),
+					   true,
+					   aFont,
+					   aInk);
+		const auto left = aRect.left() + chip_inset + tile + chip_gap;
+		aPainter.setFont(aFont);
+		aPainter.setPen(aInk.Label);
+		// Never elided: the login is remote literal text, so the chip asked for
+		// the width it needs and the row's own text yielded instead.
+		aPainter.drawText(QRect{ left, aRect.top(), std::max(0, aRect.right() - left), aRect.height() },
+						  Qt::AlignLeft | Qt::AlignVCenter,
+						  aText);
+		aPainter.restore();
 	}
 
 	home_row_delegate::home_row_delegate(QObject* const aParent)
@@ -376,8 +517,13 @@ namespace bpr::qt {
 			sideTop += layout.SideLineHeight;
 		}
 		if (!layout.Chip.isEmpty()) {
-			aPainter->drawText(QRect{ layout.ChipLeft, layout.ContentTop, layout.ChipWidth, layout.SideLineHeight },
-							   Qt::AlignRight | Qt::AlignVCenter, layout.Chip);
+			// [[BPR-0783]]. Centred on the row beside the time, in neutral ink:
+			// an account is not a state, so the chip carries no state colour.
+			draw_home_chip(*aPainter,
+						   QRect{ layout.ChipLeft, (layout.RowHeight - layout.ChipHeight) / 2, layout.ChipWidth, layout.ChipHeight },
+						   layout.Chip,
+						   layout.SideFont,
+						   home_chip_ink_for(colours, group, selected));
 		}
 		if (has_hairline(aIndex)) {
 			aPainter->fillRect(QRect{ inset, layout.RowHeight, std::max(0, layout.Width - inset), hairline },

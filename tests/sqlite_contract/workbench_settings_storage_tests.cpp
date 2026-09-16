@@ -724,6 +724,225 @@ namespace {
 			   "one pane past the closed vocabulary are refused before writable admission");
 	}
 
+	/// \brief Builds the exact version-seven database this store used to write.
+	///
+	/// \details [[BPR-0783]]. Written out like the older fixtures: the profile
+	/// row away from every default with one pane enabled, and two window rows
+	/// rather than one, so the migration has to carry each window's own values
+	/// instead of any one row's. The first window has one pane enabled and the
+	/// second does not, which is the pair a copy that dropped the column would
+	/// silently flatten.
+	auto establish_version_seven(const std::filesystem::path& aPath) -> void
+	{
+		::sqlite3* raw = nullptr;
+		expect(::sqlite3_open_v2(aPath.string().c_str(), &raw, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr)
+				   == SQLITE_OK,
+			   "a version-seven database is created directly");
+		const auto bounded = [](const std::string_view aColumn) {
+			return "CHECK(" + std::string{ aColumn } + " BETWEEN "
+				+ std::to_string(application::minimum_workbench_drawer_width) + " AND "
+				+ std::to_string(application::maximum_workbench_drawer_width) + ")";
+		};
+		const auto geometry = "files_state INTEGER NOT NULL CHECK(files_state BETWEEN 0 AND 1),"
+							  "conversations_state INTEGER NOT NULL CHECK(conversations_state BETWEEN 0 AND 1),"
+							  "files_width INTEGER NOT NULL "
+			+ bounded("files_width") + ",conversations_width INTEGER NOT NULL " + bounded("conversations_width")
+			+ ",line_numbers INTEGER NOT NULL DEFAULT 1 CHECK(line_numbers BETWEEN 0 AND 1),"
+			  "one_pane INTEGER NOT NULL DEFAULT 0 CHECK(one_pane BETWEEN 0 AND 1),"
+			  "repositories_state INTEGER NOT NULL DEFAULT 1 CHECK(repositories_state BETWEEN 0 AND 1),"
+			  "repositories_width INTEGER NOT NULL DEFAULT 300 "
+			+ bounded("repositories_width");
+		const auto sql = "CREATE TABLE workbench_meta(singleton INTEGER PRIMARY KEY CHECK(singleton = 1),"
+						 "schema_format INTEGER NOT NULL) STRICT;"
+						 "CREATE TABLE workbench_preferences(singleton INTEGER PRIMARY KEY CHECK(singleton = 1),"
+			+ geometry
+			+ ",open_modality INTEGER NOT NULL DEFAULT 0 CHECK(open_modality BETWEEN 0 AND 2),"
+			  "continue_modality INTEGER NOT NULL DEFAULT 0 CHECK(continue_modality BETWEEN 0 AND 1),"
+			  "mark_read INTEGER NOT NULL DEFAULT 0 CHECK(mark_read BETWEEN 0 AND 1),"
+			  "return_comparison INTEGER NOT NULL DEFAULT 0 CHECK(return_comparison BETWEEN 0 AND 2),"
+			  "drawer_filter INTEGER NOT NULL DEFAULT 0 CHECK(drawer_filter BETWEEN 0 AND 2),"
+			  "drawer_controls INTEGER NOT NULL DEFAULT 0 CHECK(drawer_controls BETWEEN 0 AND 1)) STRICT;"
+			  "CREATE TABLE window_layout(window_id TEXT PRIMARY KEY NOT NULL CHECK(length(window_id) BETWEEN 1 AND 20 "
+			  "AND window_id NOT GLOB '*[^0-9]*' AND substr(window_id,1,1) != '0'),"
+			+ geometry
+			+ ") STRICT;"
+			  "INSERT INTO workbench_meta(singleton, schema_format) VALUES(1, 7);"
+			  "INSERT INTO workbench_preferences(singleton, files_state, conversations_state, files_width,"
+			  "conversations_width, line_numbers, one_pane, repositories_state, repositories_width, open_modality,"
+			  "continue_modality, mark_read, return_comparison, drawer_filter, drawer_controls) "
+			  "VALUES(1, 1, 0, 400, 300, 0, 1, 0, 260, 2, 1, 1, 1, 2, 1);"
+			  "INSERT INTO window_layout(window_id, files_state, conversations_state, files_width,"
+			  "conversations_width, line_numbers, one_pane, repositories_state, repositories_width) "
+			  "VALUES('7', 0, 1, 350, 410, 1, 1, 0, 280);"
+			  "INSERT INTO window_layout(window_id, files_state, conversations_state, files_width,"
+			  "conversations_width, line_numbers, one_pane, repositories_state, repositories_width) "
+			  "VALUES('9', 1, 0, 500, 260, 0, 0, 1, 330);"
+			  "PRAGMA application_id = "
+			+ std::to_string(HistoricalApplicationId) + ";PRAGMA user_version = 7;";
+		expect(::sqlite3_exec(raw, sql.c_str(), nullptr, nullptr, nullptr) == SQLITE_OK,
+			   "the version-seven schema and its rows are written");
+		(void)::sqlite3_close_v2(raw);
+	}
+
+	/// \brief [[BPR-0783]]. A version-seven store gains the per-window Home
+	/// view at its defaults and keeps every profile and window value it held,
+	/// one pane included; two windows then carry their own view independently
+	/// across a reopen; the profile row never carries one; and a stored value
+	/// outside a vocabulary is refused by the read and by admission.
+	auto test_a_version_seven_store_migrates_and_gains_the_home_view() -> void
+	{
+		const auto scratch = scratch_directory{ };
+		const auto path    = scratch.file("workbench.sqlite3");
+		establish_version_seven(path);
+		const auto held = application::workbench_layout_settings{
+			.Files              = core::workbench_drawer_state::expanded,
+			.Conversations      = core::workbench_drawer_state::collapsed,
+			.Repositories       = core::workbench_drawer_state::collapsed,
+			.LineNumbers        = core::workbench_line_numbers::hidden,
+			.OnePane            = core::workbench_one_pane::enabled,
+			.FilesWidth         = 400U,
+			.ConversationsWidth = 300U,
+			.RepositoriesWidth  = 260U,
+			.Behaviour          = {
+				.OpenModality     = application::review_open_modality::last_used,
+				.ContinueModality = application::review_continue_modality::review,
+				.MarkRead         = application::review_mark_read_behaviour::when_fully_seen,
+				.ReturnComparison = application::review_return_comparison::since_last_review,
+				.CommentsFilter   = application::review_comments_filter::unresolved,
+				.DrawerControls   = application::review_drawer_controls::shown,
+			},
+		};
+		const auto first = application::workbench_window_layout{
+			.Files              = core::workbench_drawer_state::collapsed,
+			.Conversations      = core::workbench_drawer_state::expanded,
+			.Repositories       = core::workbench_drawer_state::collapsed,
+			.LineNumbers        = core::workbench_line_numbers::shown,
+			.OnePane            = core::workbench_one_pane::enabled,
+			.FilesWidth         = 350U,
+			.ConversationsWidth = 410U,
+			.RepositoriesWidth  = 280U,
+		};
+		const auto second = application::workbench_window_layout{
+			.Files              = core::workbench_drawer_state::expanded,
+			.Conversations      = core::workbench_drawer_state::collapsed,
+			.Repositories       = core::workbench_drawer_state::expanded,
+			.LineNumbers        = core::workbench_line_numbers::hidden,
+			.OnePane            = core::workbench_one_pane::disabled,
+			.FilesWidth         = 500U,
+			.ConversationsWidth = 260U,
+			.RepositoriesWidth  = 330U,
+		};
+		const auto left = application::home_view_state{
+			.Grouping     = application::home_grouping::repository,
+			.StateHeaders = false,
+			.Collapsed    = static_cast<std::uint8_t>(application::home_collapsed_panel::needs_me
+													  | application::home_collapsed_panel::following),
+			.FilterOwned  = true,
+			.Filter       = {
+				.Role    = core::github_role::author,
+				.AddedBy = core::observer_rule_kind::path,
+				.Quiet   = application::queue_quiet_filter::quiet,
+				.Sort    = application::queue_sort_order::pull_request_number,
+			},
+		};
+		// `none` is a role a reviewer can filter by and zero means no filter at
+		// all, so this view is the one that proves the two are stored apart:
+		// every filter here is the first value of its vocabulary.
+		const auto right = application::home_view_state{
+			.Grouping    = application::home_grouping::account,
+			.Collapsed   = application::home_collapsed_panel::all,
+			.FilterOwned = true,
+			.Filter      = {
+				.Role    = core::github_role::none,
+				.AddedBy = core::observer_rule_kind::repository,
+				.Quiet   = application::queue_quiet_filter::attention,
+				.Sort    = application::queue_sort_order::repository,
+			},
+		};
+		auto leftWindow  = first;
+		leftWindow.Home  = left;
+		auto rightWindow = second;
+		rightWindow.Home = right;
+		{
+			auto opened = workbench_settings_database::open(path, { });
+			expect(opened.has_value(), "a version-seven database opens rather than being refused");
+			const auto loaded = opened->load({ });
+			// Compared whole, so a column the rebuild forgot to copy fails here
+			// rather than arriving silently at its default.
+			expect(loaded.has_value() && *loaded == held,
+				   "every value the version-seven profile row held survived the migration");
+			expect(loaded->Home == application::home_view_state{ },
+				   "the profile row answers the default Home view, which is the one it stores");
+			const auto restored = opened->load_window(core::bpr_window_id{ 7 }, { });
+			const auto sibling  = opened->load_window(core::bpr_window_id{ 9 }, { });
+			expect(restored.has_value() && application::window_layout(*restored) == first
+					   && restored->Behaviour == held.Behaviour,
+				   "the first version-seven window row survived in place, one pane included");
+			expect(sibling.has_value() && application::window_layout(*sibling) == second,
+				   "and so did the second, with its own values rather than the first's");
+
+			expect(opened->store_window(core::bpr_window_id{ 7 }, leftWindow, { }).has_value()
+					   && opened->store_window(core::bpr_window_id{ 9 }, rightWindow, { }).has_value(),
+				   "the migrated store takes a Home view for each window");
+			expect(application::window_layout(*opened->load_window(core::bpr_window_id{ 7 }, { })) == leftWindow
+					   && application::window_layout(*opened->load_window(core::bpr_window_id{ 9 }, { })) == rightWindow,
+				   "two windows of one profile round-trip distinct Home views independently");
+			expect(opened->load({ }) == std::expected<application::workbench_layout_settings, failure>{ held },
+				   "a window's view cannot reach the profile row or replace what it holds");
+			auto invalid           = leftWindow;
+			invalid.Home.Collapsed = static_cast<std::uint8_t>(application::home_collapsed_panel::all + 1U);
+			expect(!opened->store_window(core::bpr_window_id{ 7 }, invalid, { }),
+				   "a collapsed bit outside the view cannot be stored");
+			invalid               = leftWindow;
+			invalid.Home.Grouping = static_cast<application::home_grouping>(4);
+			expect(!opened->store_window(core::bpr_window_id{ 7 }, invalid, { }),
+				   "nor can a grouping outside the vocabulary");
+		}
+		expect(integer_pragma(path, "PRAGMA user_version") == workbench_settings_schema_version,
+			   "the migrated database is stamped with the current version");
+		expect(integer_pragma(path, "SELECT schema_format FROM workbench_meta WHERE singleton = 1")
+				   == workbench_settings_schema_version,
+			   "the meta row agrees with the stamp");
+		expect(integer_pragma(path, "PRAGMA application_id") == HistoricalApplicationId,
+			   "the migration left the application identity alone");
+		expect(integer_pragma(path, "SELECT count(*) FROM sqlite_schema WHERE name = 'workbench_layout'") == 0,
+			   "the renamed version-seven table is gone");
+		expect(integer_pragma(path, "SELECT count(*) FROM sqlite_schema WHERE name = 'old_window_layout'") == 0,
+			   "and so is the renamed window table the rebuild copied from");
+		{
+			auto reopened = workbench_settings_database::open(path, { });
+			expect(reopened.has_value(), "the migrated store reopens at the current version");
+			expect(application::window_layout(*reopened->load_window(core::bpr_window_id{ 7 }, { })) == leftWindow
+					   && application::window_layout(*reopened->load_window(core::bpr_window_id{ 9 }, { })) == rightWindow,
+				   "and both windows still hold their own view after a close and reopen");
+		}
+
+		// A durable file can be replaced wholesale by another build or by hand,
+		// so every column's read guard is exercised against a row this build
+		// would never write. The check constraint is suspended to produce one.
+		for (const auto mutation : { "home_grouping=4", "home_state_headers=2", "home_collapsed=16",
+									 "home_filter_owned=2", "home_role=6", "home_role=-1", "home_added_by=4",
+									 "home_quiet=3", "home_sort=3" }) {
+			const auto hostile     = scratch_directory{ };
+			const auto hostilePath = hostile.file("home.sqlite3");
+			{
+				auto database = workbench_settings_database::open(hostilePath, { });
+				expect(database.has_value(), "the hostile Home fixture opens");
+				expect(database->store_window(core::bpr_window_id{ 4 }, leftWindow, { }).has_value(),
+					   "a legal window view stores first");
+				const auto sql = std::string{ "PRAGMA ignore_check_constraints=ON; UPDATE window_layout SET " } + mutation;
+				expect(sqlite3_exec(database->handle(), sql.c_str(), nullptr, nullptr, nullptr) == SQLITE_OK,
+					   "a Home value outside its vocabulary is written past the check");
+				const auto refused = database->load_window(core::bpr_window_id{ 4 }, { });
+				expect(!refused && refused.error() == failure::integrity_failure,
+					   "the read refuses a stored Home value this build never wrote rather than casting it");
+			}
+			const auto reopened = workbench_settings_database::open(hostilePath, { });
+			expect(!reopened && reopened.error() == failure::schema_mismatch,
+				   "and the same row refuses admission before the store becomes writable");
+		}
+	}
+
 	/// \brief [[BPR-0661]]. A version-three store gains the review-behaviour
 	/// preferences at their defaults and keeps every value it held, the
 	/// preferences round-trip, and a value past a vocabulary is refused.
@@ -1137,7 +1356,7 @@ namespace {
 		const std::array<std::string_view, 11> prefixes{ "SELECT name,sql FROM sqlite_schema", "ALTER TABLE workbench_preferences RENAME", "CREATE TABLE workbench_preferences", "INSERT INTO workbench_preferences", "DROP TABLE workbench_layout", "ALTER TABLE window_layout", "INSERT INTO window_layout", "DROP TABLE old_window_layout", "UPDATE workbench_meta", stamp, "COMMIT" };
 		// [[BPR-0721]]. Version five renames its profile table first; that
 		// rename is only in its migration, and it must roll back with the rest.
-		for (const auto version : { 4, 5, 6 }) {
+		for (const auto version : { 4, 5, 6, 7 }) {
 			const auto legacy = version == 4;
 			for (const auto prefix : prefixes) {
 				if (legacy && (prefix.starts_with("ALTER TABLE") || prefix == "INSERT INTO window_layout" || prefix == "DROP TABLE old_window_layout")) {
@@ -1149,8 +1368,10 @@ namespace {
 					create_version_four(path);
 				} else if (version == 5) {
 					establish_version_five(path);
-				} else {
+				} else if (version == 6) {
 					establish_version_six(path);
+				} else {
+					establish_version_seven(path);
 				}
 				const auto before             = logical_snapshot(path, legacy);
 				auto       stop               = std::stop_source{ };
@@ -1236,6 +1457,7 @@ auto main() -> int
 	test_a_version_three_store_migrates_and_gains_the_behaviour_preferences();
 	test_a_version_five_store_migrates_and_gains_the_drawer_controls();
 	test_a_version_six_store_migrates_and_gains_one_pane();
+	test_a_version_seven_store_migrates_and_gains_the_home_view();
 	test_cancellation_is_reported_distinctly();
 	test_the_schema_stores_no_review_content();
 	std::cout << "workbench-settings-storage-tests:pass\n";

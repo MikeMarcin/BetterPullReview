@@ -83,6 +83,20 @@ namespace bpr::qt {
 		void set_count(int aCount);
 		/// \brief The one-line summary shown, and described, only while collapsed.
 		void set_summary(const QString& aSummary);
+		/// \brief [[BPR-0783]]. The avatar at the header's leading edge: an initial
+		/// tile taken from `aName`, round for an account and square for an owner
+		/// that is not one. No avatar image is cached, so a tile is all there is.
+		void set_avatar(const QString& aName, bool aRound);
+		/// \brief [[BPR-0783]]. What the header carries at its right: an account
+		/// chip when the whole group is one account, or the plain host under
+		/// Account grouping. A group's name never carries a host itself.
+		void set_trailing(const QString& aText, bool aChip);
+		/// \brief [[BPR-0783]]. Whether a header is shown at all.
+		///
+		/// \details Group None with State headers off is one neutral card of rows
+		/// with no name to give it, so it has no header and no toggle; the rows
+		/// carry their state marks instead.
+		void set_header_shown(bool aShown);
 		/// \brief Adopts the panel's content; hidden while collapsed.
 		void set_content(QWidget* aContent);
 		void set_collapsed(bool aCollapsed);
@@ -98,6 +112,11 @@ namespace bpr::qt {
 		[[nodiscard]] auto title() const -> QString;
 		[[nodiscard]] auto count() const noexcept -> int;
 		[[nodiscard]] auto summary() const -> QString;
+		[[nodiscard]] auto avatar_name() const -> QString;
+		[[nodiscard]] auto avatar_round() const noexcept -> bool;
+		[[nodiscard]] auto trailing() const -> QString;
+		[[nodiscard]] auto trailing_is_chip() const noexcept -> bool;
+		[[nodiscard]] auto header_shown() const noexcept -> bool;
 		[[nodiscard]] auto collapsed() const noexcept -> bool;
 		[[nodiscard]] auto header() const noexcept -> home_panel_header*;
 		[[nodiscard]] auto header_offset() const noexcept -> int;
@@ -126,9 +145,14 @@ namespace bpr::qt {
 		QWidget*                      Content = nullptr;
 		QString                       Title;
 		QString                       Summary;
+		QString                       Avatar;
+		QString                       Trailing;
 		int                           Count        = 0;
 		int                           HeaderOffset = 0;
 		int                           HeaderHeight = 0;
+		bool                          AvatarRound  = false;
+		bool                          TrailingChip = false;
+		bool                          HeaderShown  = true;
 		bool                          Collapsed    = false;
 		home_state_colours            Colours;
 		std::function<void(bool)>     CollapseObserver;

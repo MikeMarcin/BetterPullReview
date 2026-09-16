@@ -6040,6 +6040,16 @@ namespace bpr::app {
 						WorkbenchHost->apply_behaviour(aSettings);
 					}
 				});
+			// [[BPR-0783]]. Home's arrangement is this window's, so it travels
+			// the same durable path as the window's layout: Qt reports the view
+			// it now shows, the host validates and persists it, and the record
+			// it loads comes back as the projection's HomeView.
+			Window->set_home_view_dispatch(
+				[this](const application::home_view_state& aView) {
+					if (!Closing && WorkbenchHost != nullptr) {
+						WorkbenchHost->apply_home_view(aView);
+					}
+				});
 			Window->set_saved_repository_dispatch(
 				[this](application::saved_repository_intent aIntent) {
 					if (!Closing && QueueHost != nullptr) {

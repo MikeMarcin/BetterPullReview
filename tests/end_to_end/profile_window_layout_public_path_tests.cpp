@@ -1,6 +1,9 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "bpr/app/profile_desktop.hpp"
+#include "bpr/application/home_view_state.hpp"
 #include "bpr/qt/github_session_panel.hpp"
+#include "bpr/qt/home_list.hpp"
+#include "bpr/qt/home_panel.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_landing.hpp"
 
@@ -10,6 +13,7 @@
 #include <QElapsedTimer>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMenu>
 #include <QPixmap>
 #include <QPushButton>
 #include <QThread>
@@ -213,6 +217,39 @@ auto main(int aArgc, char** aArgv) -> int
 																				  << " a home=" << a->showing_home()
 																				  << " a status=" << a->status_text().toStdString()
 																				  << " a session=" << a->session_panel()->status_text() << '\n'; });
+		// [[BPR-0783]]. Home's arrangement belongs to the window, so it takes
+		// the same durable path as the drawers: A groups by organization with
+		// the state headers off; B keeps the default arrangement, collapses
+		// Recently viewed and filters for what was requested of me. Neither
+		// arrangement may arrive in the other window, or in a fresh one.
+		for (auto* const window : { a, b }) {
+			if (!window->showing_home()) {
+				window->home_action()->trigger();
+			}
+			wait_for([window] { return window->showing_home(); }, "Home is shown for its own arrangement");
+		}
+		a->home_group_action(application::home_grouping::organization)->trigger();
+		a->home_state_headers_action()->trigger();
+		b->home_list()->recent_panel()->set_collapsed(true);
+		auto* const requested = b->home_filter_menu()->findChild<QAction*>(QStringLiteral("homeFilterRequestedAction"));
+		expect(requested != nullptr, "the Filter menu names its Requested item");
+		// A Filter gesture is refused until the queue is ready to be filtered,
+		// so it is offered again rather than assumed to have been taken.
+		wait_for([&] {
+			if (!b->home_view().FilterOwned) {
+				requested->trigger();
+			}
+			return b->home_view().FilterOwned; },
+				 "B's Filter gesture is taken",
+				 [&] { std::cerr << "b owned=" << b->home_view().FilterOwned
+								 << " home=" << b->showing_home() << '\n'; });
+		expect(a->home_view().Grouping == application::home_grouping::organization && !a->home_view().StateHeaders
+				   && a->home_view().Collapsed == 0U && !a->home_view().FilterOwned,
+			   "A holds only its own Home arrangement");
+		expect(b->home_view().Grouping == application::home_grouping::none && b->home_view().StateHeaders
+				   && b->home_view().Collapsed == application::home_collapsed_panel::recently_viewed
+				   && b->home_view().Filter.Role == core::github_role::requested_reviewer,
+			   "B holds only its own");
 		quitWindow = a;
 	} else {
 		const auto expected = phase == "restore" ? 2U : 1U;
@@ -224,11 +261,24 @@ auto main(int aArgc, char** aArgv) -> int
 		wait_for([&] { return !b->repositories_drawer_toggle_action()->isChecked(); }, "B restores its own drawer state");
 		expect(b->conversations_drawer_toggle_action()->isChecked() && b->line_numbers_action()->isChecked(), "B preserves independent source and conversation state");
 		expect(static_cast<std::uint64_t>(b->files_drawer()->width()) == saved[3], "B restores chosen files width");
+		// [[BPR-0783]]. The window's Home view came back from its own row.
+		wait_for([&] { return b->home_view().Collapsed == application::home_collapsed_panel::recently_viewed; },
+				 "B restores the Recently viewed panel it collapsed",
+				 [&] { std::cerr << "b collapsed=" << static_cast<unsigned>(b->home_view().Collapsed)
+								 << " owned=" << b->home_view().FilterOwned << '\n'; });
+		expect(b->home_view().FilterOwned && b->home_view().Filter.Role == core::github_role::requested_reviewer
+				   && b->home_view().Grouping == application::home_grouping::none && b->home_view().StateHeaders,
+			   "B restores its own Filter and its own arrangement");
 		if (phase == "restore") {
 			auto* a = select_window(*desktop, saved[0]);
 			expect(a != nullptr, "A stable window restored");
 			open_review(*owner, *a, 17, false);
 			wait_for([&] { return !a->line_numbers_action()->isChecked() && !a->conversations_drawer_toggle_action()->isChecked() && a->one_pane_action()->isChecked(); }, "immediate-Quit final layout restored");
+			wait_for([&] { return a->home_view().Grouping == application::home_grouping::organization; },
+					 "A restores the grouping it chose",
+					 [&] { std::cerr << "a grouping=" << static_cast<unsigned>(a->home_view().Grouping) << '\n'; });
+			expect(!a->home_view().StateHeaders && a->home_view().Collapsed == 0U && !a->home_view().FilterOwned,
+				   "A copied neither B's collapse nor B's filter");
 			expect(a->repositories_drawer_toggle_action()->isChecked(), "A did not copy sibling repositories state");
 			expect(static_cast<std::uint64_t>(a->files_drawer()->width()) == saved[2], "A restores chosen files width");
 			const auto artifact = qEnvironmentVariable("BPR_PROFILE_LAYOUT_ARTIFACT_ROOT");
@@ -254,6 +304,10 @@ auto main(int aArgc, char** aArgv) -> int
 					open_review(*owner, *fresh, 17, false);
 					expect(fresh->repositories_drawer_toggle_action()->isChecked() && fresh->conversations_drawer_toggle_action()->isChecked() && fresh->line_numbers_action()->isChecked() && !fresh->one_pane_action()->isChecked(), "fresh window seeds profile defaults, not either sibling");
 					expect(fresh->files_drawer()->width() == 320, "fresh files width comes from profile defaults");
+					// [[BPR-0783]]. No window's Home arrangement is a profile default,
+					// so a fresh window starts at Home's own.
+					expect(fresh->home_view() == application::home_view_state{ },
+						   "a fresh window starts with Home's default arrangement, not a sibling's");
 				}
 			}
 		}

@@ -188,7 +188,14 @@ namespace {
 			return { };
 		}
 
+		[[nodiscard]] auto profile_scoped() const noexcept -> bool override { return ProfileScoped; }
+		[[nodiscard]] auto window() const noexcept -> core::bpr_window_id override { return Window; }
+
 		application::workbench_layout_settings Stored{ };
+		// [[BPR-0783]]. The profile's defaults record is this port scoped to a
+		// profile with no window: the shape that must never carry a Home view.
+		bool                                   ProfileScoped = false;
+		core::bpr_window_id                    Window{ };
 		bool                                   Available = true;
 		std::size_t                            Loads     = 0U;
 		std::size_t                            Stores    = 0U;
@@ -468,6 +475,43 @@ namespace {
 			&SelectedProjections,
 		};
 	};
+
+	/// \brief [[BPR-0783]]. A Home view away from the default in every field.
+	[[nodiscard]] auto home_view() -> application::home_view_state
+	{
+		return {
+			.Grouping     = application::home_grouping::repository,
+			.StateHeaders = false,
+			.Collapsed    = static_cast<std::uint8_t>(application::home_collapsed_panel::needs_me
+													  | application::home_collapsed_panel::recently_viewed),
+			.FilterOwned  = true,
+			.Filter       = {
+				.Role    = core::github_role::author,
+				.AddedBy = core::observer_rule_kind::path,
+				.Quiet   = application::queue_quiet_filter::quiet,
+				.Sort    = application::queue_sort_order::pull_request_number,
+			},
+		};
+	}
+
+	/// \brief [[BPR-0783]]. A durable record no default could be mistaken for.
+	///
+	/// \details Home is persisted beside the rest of the window's layout, so a
+	/// test that changes only Home has to be able to see the drawers and widths
+	/// it must leave alone.
+	[[nodiscard]] auto stored_layout() -> application::workbench_layout_settings
+	{
+		return {
+			.Files              = core::workbench_drawer_state::collapsed,
+			.Conversations      = core::workbench_drawer_state::collapsed,
+			.Repositories       = core::workbench_drawer_state::collapsed,
+			.LineNumbers        = core::workbench_line_numbers::hidden,
+			.OnePane            = core::workbench_one_pane::enabled,
+			.FilesWidth         = 500U,
+			.ConversationsWidth = 240U,
+			.RepositoriesWidth  = 280U,
+		};
+	}
 
 	void test_change_navigation_observation_is_exact_and_bounded()
 	{
@@ -1473,6 +1517,267 @@ namespace {
 			   "a terminal after shutdown reports no failure");
 		expect(harnessed.Host.is_quiescent(), "the host reaches quiescence");
 	}
+
+	// [[BPR-0783]]. The window's Home view: an accepted view is published as
+	// its own domain and persisted beside the layout the record already held, an
+	// unchanged one does nothing, a view outside a vocabulary is refused and the
+	// held view republished so Home reverts, and a restart restores and
+	// publishes what was stored before any review is open.
+	void test_home_view_persists_publishes_and_refuses_outside_the_vocabulary()
+	{
+		auto durable      = fake_settings{ };
+		durable.Stored    = stored_layout();
+		const auto loaded = durable.Stored;
+		const auto chosen = home_view();
+		{
+			auto harnessed = harness{ { }, &durable };
+			harnessed.Host.restore();
+			harnessed.settle();
+			expect(harnessed.Host.layout().Home == application::home_view_state{ },
+				   "a record stored without a Home answers exactly the declared default view");
+			harnessed.Projections.Published.clear();
+
+			harnessed.Host.apply_home_view(chosen);
+			const auto& published = harnessed.Projections.Published.back();
+			expect(harnessed.Projections.Published.size() == 1U
+					   && published.HomeView == std::optional{ chosen }
+					   && !published.Layout.has_value() && !published.Behaviour.has_value()
+					   && !published.Drawers.has_value() && !published.Selection.has_value()
+					   && !published.Commands.has_value() && !published.Files.has_value(),
+				   "an accepted view publishes the Home domain only");
+			expect(harnessed.Host.layout().Home == chosen, "the host holds the accepted view");
+			harnessed.settle();
+			auto expected = loaded;
+			expected.Home = chosen;
+			// Compared whole. A write assembled from the defaults rather than
+			// from the loaded record would also carry the view and would also
+			// look right field by field.
+			expect(durable.Stores == 1U && durable.Stored == expected,
+				   "the view is persisted beside the loaded layout, which reaches the store unchanged");
+			expect(harnessed.Host.persisted_layouts() == 1U,
+				   "the store terminal was accepted exactly once");
+
+			harnessed.Host.apply_home_view(chosen);
+			harnessed.settle();
+			expect(harnessed.Projections.Published.size() == 1U && durable.Stores == 1U,
+				   "an equal view publishes nothing and persists nothing");
+
+			auto outside     = chosen;
+			outside.Grouping = static_cast<application::home_grouping>(9);
+			harnessed.Host.apply_home_view(outside);
+			harnessed.settle();
+			expect(harnessed.Projections.Published.size() == 2U
+					   && harnessed.Projections.Published.back().HomeView == std::optional{ chosen }
+					   && durable.Stores == 1U && harnessed.Host.layout().Home == chosen,
+				   "a grouping past the vocabulary is refused: nothing stored, the held view republished");
+
+			auto outsideFilter        = chosen;
+			outsideFilter.Filter.Role = static_cast<core::github_role>(9);
+			harnessed.Host.apply_home_view(outsideFilter);
+			auto outsidePanels      = chosen;
+			outsidePanels.Collapsed = static_cast<std::uint8_t>(application::home_collapsed_panel::all + 1U);
+			harnessed.Host.apply_home_view(outsidePanels);
+			harnessed.settle();
+			expect(harnessed.Projections.Published.size() == 4U && durable.Stores == 1U
+					   && harnessed.Host.layout().Home == chosen,
+				   "a filter value and a collapsed bit outside the view are refused the same way");
+		}
+
+		auto second = harness{ { }, &durable };
+		second.Host.restore();
+		second.settle();
+		expect(second.Host.layout().Home == chosen, "a restarted window restores the stored view");
+		expect(std::ranges::any_of(second.Projections.Published,
+								   [&chosen](const auto& aProjection) {
+									   return aProjection.HomeView == std::optional{ chosen };
+								   }),
+			   "the restored view is published, so Home can show it");
+		expect(!second.Host.state().Navigation.has_value(),
+			   "and it is published with no review open, which is when Home is shown");
+		expect(durable.Stores == 1U, "a restart performs no write-back");
+	}
+
+	// [[BPR-0783]]. A view applied while the window's own record is still
+	// loading is neither lost nor allowed to write the defaults this window
+	// never chose over the stored layout.
+	void test_a_view_applied_before_the_load_merges_into_the_loaded_record()
+	{
+		auto durable                 = fake_settings{ };
+		durable.Stored               = stored_layout();
+		durable.Stored.Home.Grouping = application::home_grouping::organization;
+		const auto loaded            = durable.Stored;
+		const auto chosen            = home_view();
+		expect(loaded.Home != chosen, "the stored view differs from the one applied in flight");
+
+		auto harnessed = harness{ { }, &durable };
+		harnessed.Host.restore();
+		harnessed.Host.apply_home_view(chosen);
+		expect(harnessed.Projections.Published.empty() && durable.Stores == 0U,
+			   "a view applied before the record loads publishes nothing and writes nothing");
+
+		harnessed.settle();
+		auto expected = loaded;
+		expected.Home = chosen;
+		expect(durable.Stores == 1U && durable.Stored == expected,
+			   "the held view is merged into the loaded record rather than written over it");
+		expect(harnessed.Host.layout().Home == chosen, "the reviewer's later gesture wins over the stored view");
+		expect(std::ranges::count_if(harnessed.Projections.Published,
+									 [](const auto& aProjection) { return aProjection.HomeView.has_value(); })
+				   == 1,
+			   "the merged view is published exactly once");
+		expect(harnessed.Projections.Published.back().HomeView == std::optional{ chosen },
+			   "and what is published is the merged view, not the record's own");
+
+		// The other half of the same claim. A window that merely repeats the
+		// view it is already showing must not turn that into a write of the
+		// default over the view the record holds.
+		auto sync = harness{ { }, &durable };
+		sync.Host.restore();
+		sync.Host.apply_home_view(application::home_view_state{ });
+		sync.settle();
+		expect(sync.Host.layout().Home == chosen && durable.Stores == 1U,
+			   "a view equal to the one already shown before the load stores nothing");
+	}
+
+	// [[BPR-0783]]. The latest view drains with the latest layout, including one
+	// still waiting for the record it has to be merged into.
+	void test_orderly_shutdown_flushes_the_latest_home_view()
+	{
+		auto durable = fake_settings{ };
+		auto value   = harness{ { }, &durable };
+		value.Host.restore();
+		value.settle();
+		const auto first  = home_view();
+		auto       latest = first;
+		latest.Grouping   = application::home_grouping::organization;
+		value.Host.apply_home_view(first);
+		value.Host.apply_home_view(latest);
+		value.Host.shutdown_orderly();
+		value.Host.apply_home_view(application::home_view_state{ });
+		value.settle();
+		expect(durable.Stores == 2U && durable.Stored.Home == latest && value.Host.layout().Home == latest
+				   && value.Host.is_quiescent(),
+			   "orderly shutdown drains the latest accepted view and rejects ingress after it");
+
+		auto held          = fake_settings{ };
+		held.Stored        = stored_layout();
+		const auto record  = held.Stored;
+		auto       closing = harness{ { }, &held };
+		closing.Host.restore();
+		closing.Host.apply_home_view(first);
+		closing.Host.shutdown_orderly();
+		closing.settle();
+		auto expected = record;
+		expected.Home = first;
+		expect(held.Stores == 1U && held.Stored == expected && closing.Host.is_quiescent()
+				   && closing.Projections.Failed.empty(),
+			   "a view still held when the window closes drains with the record it was waiting for");
+	}
+
+	// [[BPR-0783]]. Home belongs to the window that shows it. The profile's
+	// defaults record names no window, so it never carries one.
+	void test_home_is_not_a_profile_default()
+	{
+		auto durable          = fake_settings{ };
+		durable.ProfileScoped = true;
+		durable.Stored        = stored_layout();
+		durable.Stored.Home   = home_view();
+		auto harnessed        = harness{ { }, &durable };
+		harnessed.Host.restore();
+		harnessed.settle();
+		expect(harnessed.Host.layout().Home == application::home_view_state{ },
+			   "the profile's defaults record answers the default view whatever it held");
+
+		auto chosen     = home_view();
+		chosen.Grouping = application::home_grouping::account;
+		harnessed.Host.apply_home_view(chosen);
+		harnessed.settle();
+		expect(harnessed.Host.layout().Home == chosen && durable.Stores == 0U,
+			   "a view over the defaults record is shown but never written as a default");
+
+		harnessed.Host.resize(core::workbench_drawer::files, 480U);
+		harnessed.settle();
+		expect(durable.Stores == 1U && durable.Stored.FilesWidth == 480U
+				   && durable.Stored.Home == application::home_view_state{ },
+			   "a later defaults write carries the new width and no Home view");
+	}
+
+	// [[BPR-0783]]. A Home gesture the host cannot keep must not vanish. The
+	// record never arrived, so there is nothing to merge the view into and
+	// nothing the host could write but the default layout this window never
+	// read; the view still applies in memory, is published so Home shows what
+	// the reviewer chose, and reports settings_unavailable as a behaviour
+	// change does when its durable path is unavailable.
+	void test_a_home_view_whose_record_cannot_be_read_is_shown_and_reported()
+	{
+		auto durable         = fake_settings{ };
+		durable.Available    = false;
+		auto       harnessed = harness{ { }, &durable };
+		const auto chosen    = home_view();
+		harnessed.Host.restore();
+		harnessed.Host.apply_home_view(chosen);
+		expect(harnessed.Projections.Published.empty(),
+			   "a view applied while the load is still in flight publishes nothing yet");
+
+		harnessed.settle();
+		expect(harnessed.Host.layout().Home == chosen,
+			   "a view held for a record that never arrives is adopted rather than held for ever");
+		expect(std::ranges::any_of(harnessed.Projections.Published,
+								   [&chosen](const auto& aProjection) {
+									   return aProjection.HomeView == std::optional{ chosen };
+								   }),
+			   "and it is published, so Home shows what the reviewer chose");
+		expect(!harnessed.Projections.Failed.empty()
+				   && harnessed.Projections.Failed.back().Failure
+					   == application::workbench_host_failure::settings_unavailable,
+			   "the record the host could not read is reported");
+		expect(durable.Stores == 0U,
+			   "and nothing is written, because the only record to write would be the default "
+			   "layout this window never read");
+
+		// The other half of the same claim. With no load in flight at all, a
+		// later gesture is neither held nor silent.
+		harnessed.Projections.Published.clear();
+		harnessed.Projections.Failed.clear();
+		harnessed.Projections.Events.clear();
+		auto later     = chosen;
+		later.Grouping = application::home_grouping::organization;
+		harnessed.Host.apply_home_view(later);
+		expect(harnessed.Projections.Published.size() == 1U
+				   && harnessed.Projections.Published.back().HomeView == std::optional{ later }
+				   && harnessed.Host.layout().Home == later,
+			   "a gesture made after the failed load is applied and published at once");
+		expect(harnessed.Projections.Failed.size() == 1U
+				   && harnessed.Projections.Failed.back().Failure
+					   == application::workbench_host_failure::settings_unavailable,
+			   "and it reports that the host cannot keep it");
+		expect(harnessed.Projections.Events == std::vector<std::string_view>{ "publish", "fail" },
+			   "the accepted view reaches presentation before the failure that qualifies it");
+		harnessed.settle();
+		expect(durable.Stores == 0U, "a view the host cannot keep is not written either");
+	}
+
+	// [[BPR-0783]]. The same case during an orderly close is reported on the
+	// same terms as a failed store rather than swallowed by the close.
+	void test_an_orderly_close_reports_a_home_view_whose_record_never_arrived()
+	{
+		auto durable      = fake_settings{ };
+		durable.Available = false;
+		auto       value  = harness{ { }, &durable };
+		const auto chosen = home_view();
+		value.Host.restore();
+		value.Host.apply_home_view(chosen);
+		value.Host.shutdown_orderly();
+		value.settle();
+		expect(value.Projections.Failed.size() == 1U
+				   && value.Projections.Failed.back().Failure
+					   == application::workbench_host_failure::settings_unavailable,
+			   "an orderly close reports the record it could not read while a view waited for it");
+		expect(value.Host.layout().Home == chosen,
+			   "the held view is adopted rather than dropped on the floor by the close");
+		expect(durable.Stores == 0U && value.Host.is_quiescent(),
+			   "and the window closes without writing a default layout over the stored one");
+	}
 } // namespace
 
 auto main() -> int
@@ -1501,6 +1806,12 @@ auto main() -> int
 	test_restore_applies_when_the_workbench_activates();
 	test_layout_survives_a_restart();
 	test_review_behaviour_persists_publishes_and_refuses_outside_the_vocabulary();
+	test_home_view_persists_publishes_and_refuses_outside_the_vocabulary();
+	test_a_view_applied_before_the_load_merges_into_the_loaded_record();
+	test_orderly_shutdown_flushes_the_latest_home_view();
+	test_home_is_not_a_profile_default();
+	test_a_home_view_whose_record_cannot_be_read_is_shown_and_reported();
+	test_an_orderly_close_reports_a_home_view_whose_record_never_arrived();
 	test_settings_failure_is_reported();
 	test_shutdown_withholds_publication_and_quiesces();
 	std::cout << "workbench application host tests passed\n";

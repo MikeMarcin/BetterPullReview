@@ -75,6 +75,11 @@ namespace bpr::application {
 		// persisted; a refused record republishes the one held so the page
 		// reverts.
 		void apply_behaviour(review_behaviour_settings aSettings);
+		// [[BPR-0783]]. This window's Home view, validated and persisted beside
+		// its own layout; a refused view republishes the one held so Home
+		// reverts. A view applied before the layout has loaded is merged into the
+		// loaded record rather than written over it.
+		void apply_home_view(home_view_state aState);
 		void cancel();
 		void shutdown();
 		// Closes ingress while draining the latest accepted window layout. Ports and

@@ -71,6 +71,83 @@ namespace {
 		return result;
 	}
 
+	/// \brief [[BPR-0783]]. One row of a sanitized two-account fixture.
+	[[nodiscard]] auto owned_item(
+		const std::int64_t aNumber,
+		const bucket       aBucket,
+		const std::string& aHost,
+		const std::string& aAccount,
+		const std::string& aRepository) -> core::queue_item
+	{
+		auto result = core::queue_item{
+			.Ref        = { .Host = aHost, .Account = aAccount, .Repository = aRepository, .Number = aNumber },
+			.Membership = { .Role = core::github_role::reviewer },
+			.Bucket     = aBucket,
+		};
+		result.Facts = core::queue_item_facts{ .Title = "A title", .Author = "octocat" };
+		return result;
+	}
+
+	constexpr auto enterprise_host = "ghe.example.invalid";
+	constexpr auto default_host    = "github.com";
+	constexpr auto default_login   = "octo-reviewer";
+	constexpr auto other_login     = "octo-enterprise";
+
+	/// \brief Two accounts on two hosts, in the shape boards H6 to H8 draw.
+	///
+	/// \details State order puts the two Needs me rows first, so Organization
+	/// groups read octo-org, acme-tools, then octo-reviewer.
+	[[nodiscard]] auto two_account_queue() -> std::vector<core::queue_item>
+	{
+		return core::ordered_queue(std::vector{
+			owned_item(101, bucket::initial_review_requested, default_host, default_login, "octo-org/app"),
+			owned_item(102, bucket::observed_with_new_activity, default_host, default_login, "octo-org/app"),
+			owned_item(201, bucket::changed_since_my_review, enterprise_host, other_login, "acme-tools/build"),
+			owned_item(202, bucket::quiet, enterprise_host, other_login, "acme-tools/build"),
+			owned_item(301, bucket::authored_awaiting_reviewer_action, default_host, default_login, "octo-reviewer/notes"),
+		});
+	}
+
+	/// \brief One group holding two accounts, as board H6's mixed group draws it.
+	///
+	/// \details Both rows are owned by octo-org on github.com, so Organization
+	/// puts them in one group whose rows belong to different accounts.
+	[[nodiscard]] auto mixed_account_queue() -> std::vector<core::queue_item>
+	{
+		return core::ordered_queue(std::vector{
+			owned_item(401, bucket::initial_review_requested, default_host, default_login, "octo-org/app"),
+			owned_item(402, bucket::changed_since_my_review, default_host, "octo-second", "octo-org/tools"),
+		});
+	}
+
+	/// \brief The same rows on one account, so no chip is drawn anywhere.
+	[[nodiscard]] auto one_account_queue() -> std::vector<core::queue_item>
+	{
+		return core::ordered_queue(std::vector{
+			owned_item(101, bucket::initial_review_requested, default_host, default_login, "octo-org/app"),
+			owned_item(201, bucket::changed_since_my_review, default_host, default_login, "acme-tools/build"),
+			owned_item(301, bucket::authored_awaiting_reviewer_action, default_host, default_login, "octo-reviewer/notes"),
+		});
+	}
+
+	[[nodiscard]] auto identities_of(const QAbstractItemView& aView) -> QStringList
+	{
+		auto rows = QStringList{ };
+		for (auto row = 0; row < aView.model()->rowCount(); ++row) {
+			rows.push_back(aView.model()->index(row, 0).data(qt::home_row_role::identity).toString());
+		}
+		return rows;
+	}
+
+	[[nodiscard]] auto titles_of(const std::vector<qt::home_panel*>& aPanels) -> QStringList
+	{
+		auto titles = QStringList{ };
+		for (const auto* const panel : aPanels) {
+			titles.push_back(panel->title());
+		}
+		return titles;
+	}
+
 	[[nodiscard]] auto recent_item(const QString& aIdentity, const QString& aTitle, const bool aResumable, const QString& aTime)
 		-> QListWidgetItem*
 	{
@@ -588,7 +665,9 @@ namespace {
 		expect(noState() && !sentence->isVisible(), "without an account there is no state panel at all");
 
 		home.List.set_queue_status(true, true);
-		home.Filter.apply(application::queue_presentation_preferences{ .Bucket = bucket::quiet });
+		// [[BPR-0783]]. Home filters by role, added by, quiet items and the sort
+		// within a group; Repository and Bucket are no longer filters at all.
+		home.Filter.apply(application::queue_presentation_preferences{ .Role = core::github_role::author });
 		home.List.refresh();
 		settle(100);
 		expect(noState() && !sentence->isVisible(), "a filter that hides every row draws no sentence and no box");
@@ -680,6 +759,503 @@ namespace {
 			   "an activation expands the panel that holds its row");
 	}
 
+	/// \brief Counts saturated pixels down the leading few points of one view.
+	///
+	/// \details [[BPR-0783]]. With State headers off there is no tinted band to
+	/// carry the state, so each row does: a 3-point mark at its left.
+	[[nodiscard]] auto marked_pixels(QWidget& aPanel, const QAbstractItemView& aRows) -> int
+	{
+		const auto image = aPanel.grab().toImage();
+		const auto ratio = image.devicePixelRatio();
+		const auto top   = aRows.viewport()->mapTo(&aPanel, QPoint{ 0, 0 });
+		auto       found = 0;
+		for (auto y = top.y() + 2; y < top.y() + aRows.viewport()->height() - 2; ++y) {
+			for (auto x = top.x(); x < top.x() + qt::home_row_delegate::mark_width; ++x) {
+				const auto point = QPoint{ static_cast<int>(x * ratio), static_cast<int>(y * ratio) };
+				if (point.x() < image.width() && point.y() < image.height() && chroma(image.pixelColor(point)) > 40) {
+					++found;
+				}
+			}
+		}
+		return found;
+	}
+
+	// A7: Group None with State headers off is one card of state-ordered rows,
+	// each carrying its state's mark, with no state panel at all.
+	void test_group_none_without_state_headers_is_one_marked_list()
+	{
+		home_fixture home;
+		home.Source.apply(two_account_queue());
+		home.List.set_queue_status(true, true);
+		home.List.set_state_headers(false);
+		home.List.show();
+		settle(300);
+
+		auto* const flat = home.List.flat_panel();
+		auto* const rows = home.List.flat_view();
+		expect(flat->isVisible() && rows->isVisible() && !flat->header_shown(),
+			   "the rows sit in one neutral card with no header of its own");
+		for (const auto state : { qt::home_group::needs_you, qt::home_group::waiting_on_others, qt::home_group::following }) {
+			expect(!home.List.state_panel(state)->isVisible(), "no state is a panel of its own");
+		}
+		expect(identities_of(*rows)
+				   == QStringList{ QStringLiteral("octo-org/app#101"),
+								   QStringLiteral("acme-tools/build#201"),
+								   QStringLiteral("octo-reviewer/notes#301"),
+								   QStringLiteral("octo-org/app#102"),
+								   QStringLiteral("acme-tools/build#202") },
+			   "state is still the first key: Needs me, then Waiting on others, then Following");
+		expect(marked_pixels(*flat, *rows) > 0, "each row carries its state's mark at its leading edge");
+		const auto chain = home.List.focus_chain();
+		expect(std::ranges::find(chain, static_cast<QWidget*>(rows)) != chain.end()
+				   && std::ranges::find(chain, static_cast<QWidget*>(flat->header())) == chain.end(),
+			   "the rows are a keyboard stop and the headerless card is not");
+	}
+
+	// A7: one neutral panel per group, with bands inside when State headers is on
+	// and plain state-ordered rows when it is off.
+	void test_each_grouping_renders_with_state_headers_on_and_off()
+	{
+		home_fixture home;
+		home.Source.apply(two_account_queue());
+		home.List.set_queue_status(true, true);
+		home.List.show();
+		settle(300);
+
+		// The states the first group of each grouping holds: octo-org and its
+		// repository hold a Needs me and a Following row, while the github.com
+		// account holds those and the authored one as well.
+		const auto both     = std::vector{ qt::home_group::needs_you, qt::home_group::following };
+		const auto whole    = std::vector{ qt::home_group::needs_you, qt::home_group::waiting_on_others, qt::home_group::following };
+		const auto expected = std::vector{
+			std::tuple{ application::home_grouping::organization,
+						QStringList{ QStringLiteral("octo-org"), QStringLiteral("acme-tools"), QStringLiteral("octo-reviewer") },
+						both },
+			std::tuple{ application::home_grouping::repository,
+						QStringList{ QStringLiteral("octo-org/app"), QStringLiteral("acme-tools/build"), QStringLiteral("octo-reviewer/notes") },
+						both },
+			std::tuple{ application::home_grouping::account,
+						QStringList{ QStringLiteral("octo-reviewer"), QStringLiteral("octo-enterprise") },
+						whole },
+		};
+		for (const auto& [grouping, names, states] : expected) {
+			home.List.set_grouping(grouping);
+			home.List.set_state_headers(true);
+			settle(200);
+			const auto panels = home.List.group_panels();
+			expect(titles_of(panels) == names,
+				   "each group is a neutral panel, in the order its first row in state order gives it");
+			expect(std::ranges::all_of(panels, [](const qt::home_panel* const aPanel) { return !aPanel->state().has_value(); }),
+				   "a group panel is neutral: it carries no state and no rail");
+			auto previous = -1;
+			for (const auto* const panel : panels) {
+				expect(panel->y() > previous, "the groups are laid out in that order");
+				previous = panel->y();
+			}
+			// State headers on: a slim tinted band per non-empty state inside the group.
+			auto* const first = panels.front();
+			auto* const band  = home.List.band_panel(*first, qt::home_group::needs_you);
+			expect(band != nullptr && band->style_kind() == qt::home_panel_style::band
+					   && band->state() == qt::home_group::needs_you && band->isVisible()
+					   && band->title() == QStringLiteral("Needs me"),
+				   "the group's first state is a band of its own inside it");
+			auto shown = std::vector<qt::home_group>{ };
+			for (const auto state : { qt::home_group::needs_you, qt::home_group::waiting_on_others, qt::home_group::following }) {
+				if (home.List.band_panel(*first, state) != nullptr) {
+					shown.push_back(state);
+				}
+			}
+			expect(shown == states,
+				   "the group holds one band per state it has rows in, and a state with nothing in it is not shown");
+			expect(home.List.rows_view(*first) == nullptr && home.List.rows_view(*band) != nullptr,
+				   "with bands the rows belong to the bands, not to the group");
+			const auto counted = [&home, first] {
+				auto total = 0;
+				for (const auto state : { qt::home_group::needs_you, qt::home_group::waiting_on_others, qt::home_group::following }) {
+					if (auto* const each = home.List.band_panel(*first, state); each != nullptr) {
+						total += each->count();
+					}
+				}
+				return total;
+			}();
+			expect(first->count() == counted && first->count() > 0,
+				   "the group's count is what its bands hold");
+
+			// State headers off: the group's rows directly, in state order, marked.
+			home.List.set_state_headers(false);
+			settle(200);
+			const auto plain = home.List.group_panels();
+			expect(titles_of(plain) == names, "the same groups in the same order");
+			auto* const rows = home.List.rows_view(*home.List.group_panels().front());
+			expect(rows != nullptr && rows->isVisible()
+					   && home.List.band_panel(*home.List.group_panels().front(), qt::home_group::needs_you) == nullptr,
+				   "the rows sit directly in the group and no band is shown");
+			expect(marked_pixels(*home.List.group_panels().front(), *rows) > 0,
+				   "those rows carry their state marks instead");
+		}
+
+		// Recently viewed is the last neutral panel in every grouping.
+		auto* const recent = new qt::home_recent_view{ };
+		recent->addItem(recent_item(QStringLiteral("octo-org/app#99"), QStringLiteral("A title"), false, QStringLiteral("Tue")));
+		home.List.adopt_recent(*recent);
+		home.List.set_recent(1, QStringLiteral("1 viewed"));
+		for (const auto grouping : { application::home_grouping::none,
+									 application::home_grouping::organization,
+									 application::home_grouping::repository,
+									 application::home_grouping::account }) {
+			home.List.set_grouping(grouping);
+			settle(150);
+			const auto panels = home.List.group_panels();
+			expect(home.List.recent_panel()->isVisible()
+					   && (panels.empty() || home.List.recent_panel()->y() > panels.back()->y()),
+				   "Recently viewed is the last panel, in every grouping");
+		}
+	}
+
+	// A7 and Decisions (d): the account chip, the group that carries it instead,
+	// and the single-account profile that shows none.
+	void test_account_chips_follow_the_account_count_and_the_group()
+	{
+		home_fixture home;
+		home.Source.apply(two_account_queue());
+		home.List.set_queue_status(true, true);
+		home.List.show();
+		settle(300);
+
+		expect(home.List.account_chips(), "the queue names two accounts, so a chip is drawn somewhere");
+		const auto chip = [](const QAbstractItemView& aView, const int aRow) {
+			return aView.model()->index(aRow, 0).data(qt::home_row_role::account_chip).toString();
+		};
+		auto* const needs = home.List.state_view(qt::home_group::needs_you);
+		expect(chip(*needs, 0) == QStringLiteral("octo-reviewer")
+				   && chip(*needs, 1) == QStringLiteral("octo-enterprise on ghe.example.invalid"),
+			   "with no grouping each row carries its account, and the host only where it differs");
+
+		home.List.set_grouping(application::home_grouping::organization);
+		settle(200);
+		auto* const group = home.List.group_panel(QStringLiteral("octo-org"));
+		auto* const band  = home.List.band_panel(*group, qt::home_group::needs_you);
+		expect(group != nullptr && band != nullptr && chip(*home.List.rows_view(*band), 0).isEmpty()
+				   && group->trailing() == QStringLiteral("octo-reviewer") && group->trailing_is_chip(),
+			   "a single-account group carries the chip in its header and its rows drop it");
+		auto* const enterprise = home.List.group_panel(QStringLiteral("acme-tools"));
+		expect(enterprise != nullptr
+				   && enterprise->trailing() == QStringLiteral("octo-enterprise on ghe.example.invalid"),
+			   "the enterprise group's own chip says the host it is on");
+		// Decisions (d): an owner that is one of the accounts' logins is round.
+		expect(group->avatar_name() == QStringLiteral("octo-org") && !group->avatar_round(),
+			   "an owner that is not one of the logins gets a square tile");
+		expect(home.List.group_panel(QStringLiteral("octo-reviewer"))->avatar_round(),
+			   "an owner that is one of the logins gets a round tile");
+
+		home.List.set_grouping(application::home_grouping::account);
+		settle(200);
+		auto* const account = home.List.group_panel(QStringLiteral("octo-reviewer"));
+		expect(account != nullptr && account->avatar_round()
+				   && account->trailing() == QStringLiteral("github.com") && !account->trailing_is_chip(),
+			   "an account group is round and states its host at the header's right");
+		expect(chip(*home.List.rows_view(*home.List.band_panel(*account, qt::home_group::needs_you)), 0).isEmpty(),
+			   "under Account grouping no row carries a chip");
+		expect(account->header()->accessibleName().contains(QStringLiteral("github.com")),
+			   "what the header carries at its right is announced with it");
+
+		// Board H6 and [[BPR-0783]] review finding: a group holding two accounts
+		// keeps the chip on each row, and carries none in its header.
+		home_fixture mixed;
+		mixed.Source.apply(mixed_account_queue());
+		mixed.List.set_queue_status(true, true);
+		mixed.List.set_grouping(application::home_grouping::organization);
+		mixed.List.set_state_headers(false);
+		mixed.List.show();
+		settle(250);
+		auto* const mixedGroup = mixed.List.group_panel(QStringLiteral("octo-org"));
+		expect(mixedGroup != nullptr && mixedGroup->trailing().isEmpty(),
+			   "a group of two accounts carries no chip in its header");
+		auto* const mixedRows = mixed.List.rows_view(*mixedGroup);
+		expect(mixedRows != nullptr && mixedRows->model()->rowCount() == 2,
+			   "both accounts' rows are in the one group");
+		expect(!chip(*mixedRows, 0).isEmpty() && !chip(*mixedRows, 1).isEmpty()
+				   && chip(*mixedRows, 0) != chip(*mixedRows, 1),
+			   "and each row keeps its own account chip");
+
+		// One account: no chip anywhere, whatever the grouping.
+		home_fixture single;
+		single.Source.apply(one_account_queue());
+		single.List.set_queue_status(true, true);
+		single.List.show();
+		settle(200);
+		expect(!single.List.account_chips(), "one account is nothing to tell apart");
+		for (const auto grouping : { application::home_grouping::none, application::home_grouping::organization }) {
+			single.List.set_grouping(grouping);
+			settle(150);
+			for (auto* const view : { single.List.state_view(qt::home_group::needs_you) }) {
+				if (grouping == application::home_grouping::none) {
+					expect(chip(*view, 0).isEmpty(), "a single-account profile shows no chip on its rows");
+				}
+			}
+			if (grouping == application::home_grouping::organization) {
+				expect(single.List.group_panel(QStringLiteral("octo-org"))->trailing().isEmpty(),
+					   "and none in a group header either");
+			}
+		}
+	}
+
+	// A7: a band collapses on its own and sticks under its group's header.
+	void test_a_band_collapses_and_sticks_under_its_group_header()
+	{
+		home_fixture home;
+		auto         items = std::vector<core::queue_item>{ };
+		for (auto number = std::int64_t{ 1 }; number <= 24; ++number) {
+			items.push_back(owned_item(number, bucket::initial_review_requested, default_host, default_login, "octo-org/app"));
+		}
+		for (auto number = std::int64_t{ 25 }; number <= 30; ++number) {
+			items.push_back(owned_item(number, bucket::quiet, default_host, default_login, "octo-org/app"));
+		}
+		home.Source.apply(core::ordered_queue(items));
+		home.List.set_queue_status(true, true);
+		home.List.set_grouping(application::home_grouping::organization);
+		home.List.resize(600, 400);
+		home.List.show();
+		settle(400);
+
+		auto* const group = home.List.group_panel(QStringLiteral("octo-org"));
+		auto* const band  = home.List.band_panel(*group, qt::home_group::needs_you);
+		expect(group != nullptr && band != nullptr && band->count() == 24, "the band holds its state's rows");
+		auto* const bar = home.List.verticalScrollBar();
+		bar->setValue(band->mapTo(home.List.widget(), QPoint{ }).y() + 200);
+		settle(100);
+		expect(group->header()->mapTo(home.List.viewport(), QPoint{ }).y() == 0,
+			   "the group's header sticks to the top of the page");
+		expect(band->header()->mapTo(home.List.viewport(), QPoint{ }).y() == group->header()->height(),
+			   "the band in view sticks directly under its group's header");
+
+		bar->setValue(0);
+		settle(100);
+		send_key(*band->header(), Qt::Key_Left);
+		settle(100);
+		expect(band->collapsed() && !home.List.rows_view(*band) && group->count() == 30,
+			   "the band collapses on its own and the group still counts every row");
+		expect(band->header()->accessibleName() == QStringLiteral("Needs me, 24"),
+			   "a collapsed band keeps its name and count");
+		send_key(*band->header(), Qt::Key_Right);
+		settle(100);
+		expect(!band->collapsed(), "Right expands it again");
+	}
+
+	// Decisions (a): a group's collapse lives as long as the window and survives a
+	// regroup, and is never part of the view the window would have persisted.
+	void test_group_collapse_survives_a_regroup_round_trip()
+	{
+		home_fixture home;
+		home.Source.apply(two_account_queue());
+		home.List.set_queue_status(true, true);
+		home.List.set_grouping(application::home_grouping::organization);
+		home.List.show();
+		settle(300);
+
+		auto* const group = home.List.group_panel(QStringLiteral("octo-org"));
+		auto* const band  = home.List.band_panel(*group, qt::home_group::following);
+		expect(group != nullptr && band != nullptr, "the group and its Following band are shown");
+		group->set_collapsed(true);
+		band->set_collapsed(true);
+		settle(100);
+		expect(home.List.collapsed_panels() == 0U,
+			   "a group's collapse is not one of the panels the window remembers");
+
+		home.List.set_grouping(application::home_grouping::none);
+		settle(200);
+		expect(home.List.group_panels().empty(), "the groups are retired with the grouping");
+		home.List.set_grouping(application::home_grouping::organization);
+		settle(200);
+		auto* const again = home.List.group_panel(QStringLiteral("octo-org"));
+		expect(again != nullptr && again->collapsed(), "the same owner is still collapsed after a regroup");
+		again->set_collapsed(false);
+		settle(100);
+		expect(home.List.band_panel(*again, qt::home_group::following)->collapsed(),
+			   "and so is the band inside it");
+
+		// [[BPR-0783]] review finding. An owner and a login can be the same word
+		// on one host — "octo-reviewer" is both here — and they are not the same
+		// group, so one's collapse is not the other's memory.
+		auto* const owner = home.List.group_panel(QStringLiteral("octo-reviewer"));
+		expect(owner != nullptr, "the owner group named like the login is shown");
+		owner->set_collapsed(true);
+		settle(50);
+		home.List.set_grouping(application::home_grouping::account);
+		settle(200);
+		auto* const account = home.List.group_panel(QStringLiteral("octo-reviewer"));
+		// Two claims, asserted apart: a bundled one cannot say whether the group
+		// was missing or merely collapsed.
+		expect(account != nullptr, "the account group named like the owner is shown");
+		expect(!account->collapsed(),
+			   "the account of the same name is not collapsed by the owner's memory");
+		account->set_collapsed(true);
+		settle(50);
+		home.List.set_grouping(application::home_grouping::organization);
+		settle(200);
+		expect(home.List.group_panel(QStringLiteral("octo-reviewer"))->collapsed(),
+			   "and each keeps its own collapse across the round trip");
+
+		// A publication that keeps the same keys keeps the collapse too. The round
+		// trip rebuilt the panels, so the group is found again rather than held.
+		auto* const firstOwner = home.List.group_panel(QStringLiteral("octo-org"));
+		expect(firstOwner != nullptr, "the first owner is shown again");
+		firstOwner->set_collapsed(true);
+		settle(50);
+		home.Source.apply(two_account_queue());
+		home.List.refresh();
+		settle(150);
+		expect(home.List.group_panel(QStringLiteral("octo-org"))->collapsed(),
+			   "a queue publication does not reopen what the reviewer closed");
+	}
+
+	// A7 and A8: the keyboard walks group headers, band headers and rows in
+	// reading order, with one current row across every view.
+	void test_the_keyboard_walks_groups_bands_and_rows()
+	{
+		home_fixture home;
+		home.Source.apply(two_account_queue());
+		home.List.set_queue_status(true, true);
+		home.List.set_grouping(application::home_grouping::organization);
+		home.List.show();
+		home.List.activateWindow();
+		settle(300);
+
+		auto* const group  = home.List.group_panel(QStringLiteral("octo-org"));
+		auto* const needs  = home.List.band_panel(*group, qt::home_group::needs_you);
+		auto* const follow = home.List.band_panel(*group, qt::home_group::following);
+		const auto  chain  = home.List.focus_chain();
+		expect(chain.size() > 4U && chain[0] == group->header() && chain[1] == needs->header()
+				   && chain[2] == home.List.rows_view(*needs) && chain[3] == follow->header()
+				   && chain[4] == home.List.rows_view(*follow),
+			   "the chain is the group's header, then each band's header and its rows, in reading order");
+
+		group->header()->setFocus(Qt::OtherFocusReason);
+		send_key(*group->header(), Qt::Key_Down);
+		expect(QApplication::focusWidget() == needs->header(), "Down from a group header reaches its first band");
+		send_key(*needs->header(), Qt::Key_Down);
+		expect(QApplication::focusWidget() == home.List.rows_view(*needs), "Down again reaches that band's rows");
+		auto* const rows = home.List.rows_view(*needs);
+		send_key(*rows, Qt::Key_Up);
+		expect(QApplication::focusWidget() == needs->header(), "Up from the first row returns to the band's header");
+		send_key(*needs->header(), Qt::Key_Up);
+		expect(QApplication::focusWidget() == group->header(), "Up again returns to the group's header");
+
+		// One current row on the page, across groups.
+		auto* const other     = home.List.group_panel(QStringLiteral("acme-tools"));
+		auto* const otherRows = home.List.rows_view(*home.List.band_panel(*other, qt::home_group::needs_you));
+		rows->setCurrentIndex(rows->model()->index(0, 0));
+		expect(home.List.current_view() == rows && home.List.current_queue_item()->Ref.Number == 101,
+			   "a row made current in one group is the page's current row");
+		otherRows->setCurrentIndex(otherRows->model()->index(0, 0));
+		QApplication::processEvents();
+		expect(home.List.current_view() == otherRows && !rows->currentIndex().isValid(),
+			   "making a row current in another group clears the first");
+
+		// Selecting an identity expands the band and the group that hold it.
+		group->set_collapsed(true);
+		needs->set_collapsed(true);
+		settle(100);
+		expect(home.List.select(core::pull_request_ref{ .Host = default_host, .Account = default_login, .Repository = "octo-org/app", .Number = 101 }, true)
+				   && !group->collapsed() && !needs->collapsed(),
+			   "focusing a row expands the group and the band that hold it");
+	}
+
+	// A6 and A7: an empty ready queue is one sentence whatever the view asks for.
+	void test_an_empty_queue_is_one_sentence_in_every_grouping()
+	{
+		home_fixture home;
+		home.List.set_queue_status(true, true);
+		home.List.show();
+		settle(200);
+		for (const auto grouping : { application::home_grouping::none,
+									 application::home_grouping::organization,
+									 application::home_grouping::repository,
+									 application::home_grouping::account }) {
+			for (const auto headers : { true, false }) {
+				home.List.set_grouping(grouping);
+				home.List.set_state_headers(headers);
+				settle(120);
+				expect(home.List.state_panel(qt::home_group::needs_you)->isVisible()
+						   && home.List.empty_sentence()->isVisible()
+						   && !home.List.state_panel(qt::home_group::waiting_on_others)->isVisible()
+						   && !home.List.state_panel(qt::home_group::following)->isVisible()
+						   && !home.List.flat_panel()->isVisible()
+						   && home.List.group_panels().empty(),
+					   "an empty queue has nothing to group: one sentence, and no box at all");
+			}
+		}
+	}
+
+	// Incremental: a grouped large queue stays linear and resets nothing.
+	void test_a_large_grouped_queue_stays_incremental()
+	{
+		home_fixture home;
+		auto         resets  = 0;
+		auto         context = QObject{ };
+		QObject::connect(&home.Source, &QAbstractItemModel::modelReset, &context, [&resets] { ++resets; });
+		auto items = std::vector<core::queue_item>{ };
+		items.reserve(2'048U);
+		for (auto number = std::int64_t{ 1 }; number <= 2'048; ++number) {
+			items.push_back(owned_item(number,
+									   number % 2 == 0 ? bucket::initial_review_requested : bucket::quiet,
+									   default_host,
+									   default_login,
+									   number % 4 == 0 ? "octo-org/app" : "acme-tools/build"));
+		}
+		home.Source.apply(core::ordered_queue(items));
+		home.List.set_queue_status(true, true);
+		home.List.set_grouping(application::home_grouping::repository);
+		home.List.set_state_headers(false);
+		home.List.resize(700, 500);
+		home.List.show();
+		settle(600);
+
+		const auto panels = home.List.group_panels();
+		auto       total  = 0;
+		for (const auto* const panel : panels) {
+			total += panel->count();
+		}
+		expect(panels.size() == 2U && total == 2'048, "every row is in exactly one group");
+		expect(resets == 0, "the decided queue is never reset to arrange it");
+		expect(identities_of(*home.List.rows_view(*panels.front())).size() == panels.front()->count(),
+			   "the group's rows are the rows it counted");
+	}
+
+	// A7: the chosen sort orders rows inside a state, never across states.
+	void test_a_sort_orders_rows_within_a_state()
+	{
+		home_fixture home;
+		home.Source.apply(core::ordered_queue(std::vector{
+			owned_item(1, bucket::initial_review_requested, default_host, default_login, "octo-org/zebra"),
+			owned_item(2, bucket::changed_since_my_review, default_host, default_login, "octo-org/alpha"),
+			owned_item(3, bucket::quiet, default_host, default_login, "octo-org/middle"),
+		}));
+		home.Filter.apply(application::queue_presentation_preferences{
+			.Sort = application::queue_sort_order::repository,
+		});
+		home.List.set_queue_status(true, true);
+		home.List.set_state_headers(false);
+		home.List.show();
+		settle(300);
+
+		// Sorted by repository alone the queue would read alpha, middle, zebra.
+		// State is always the first key, so Needs me comes first and the sort
+		// orders only within it.
+		const auto expected = QStringList{ QStringLiteral("octo-org/alpha#2"),
+										   QStringLiteral("octo-org/zebra#1"),
+										   QStringLiteral("octo-org/middle#3") };
+		expect(identities_of(*home.List.flat_view()) == expected,
+			   "with State headers off the sort orders rows inside a state, not across states");
+
+		home.List.set_grouping(application::home_grouping::organization);
+		settle(250);
+		auto* const group = home.List.group_panel(QStringLiteral("octo-org"));
+		expect(group != nullptr && home.List.rows_view(*group) != nullptr
+				   && identities_of(*home.List.rows_view(*group)) == expected,
+			   "and the same inside a group");
+	}
+
 	// A panel's rows do not scroll on their own: Home scrolls as one page.
 	void test_a_wheel_over_rows_scrolls_the_page()
 	{
@@ -729,6 +1305,16 @@ auto main(int argc, char** argv) -> int
 	test_resume_is_a_row_action_on_hover_and_focus();
 	test_a_row_that_changes_state_moves_panels_and_keeps_its_place();
 	test_a_wheel_over_rows_scrolls_the_page();
+	// [[BPR-0783]]. Group, the state bands, the account chips and the keyboard.
+	test_group_none_without_state_headers_is_one_marked_list();
+	test_each_grouping_renders_with_state_headers_on_and_off();
+	test_account_chips_follow_the_account_count_and_the_group();
+	test_a_band_collapses_and_sticks_under_its_group_header();
+	test_group_collapse_survives_a_regroup_round_trip();
+	test_the_keyboard_walks_groups_bands_and_rows();
+	test_an_empty_queue_is_one_sentence_in_every_grouping();
+	test_a_sort_orders_rows_within_a_state();
+	test_a_large_grouped_queue_stays_incremental();
 
 	std::cout << "home-list-tests:pass\n";
 	return EXIT_SUCCESS;

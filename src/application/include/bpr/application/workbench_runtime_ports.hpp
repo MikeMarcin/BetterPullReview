@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_WORKBENCH_RUNTIME_PORTS_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_WORKBENCH_RUNTIME_PORTS_HPP
 
+#include "bpr/application/home_view_state.hpp"
 #include "bpr/core/profile_window.hpp"
 #include "bpr/core/workbench_interaction.hpp"
 
@@ -547,6 +548,9 @@ namespace bpr::application {
 		/// [[BPR-0661]]. The review-behaviour preferences, durable beside the
 		/// layout because they are one reviewer's, not one review's.
 		review_behaviour_settings Behaviour;
+		/// [[BPR-0783]]. This window's Home view. It belongs to the window
+		/// alone: the profile's defaults do not store it.
+		home_view_state Home;
 
 		auto operator<=>(const workbench_layout_settings&) const = default;
 	};
@@ -560,7 +564,9 @@ namespace bpr::application {
 		core::workbench_line_numbers LineNumbers   = core::workbench_line_numbers::shown;
 		core::workbench_one_pane     OnePane       = core::workbench_one_pane::disabled;
 		std::uint32_t                FilesWidth = 320U, ConversationsWidth = 320U, RepositoriesWidth = 300U;
-		auto                         operator<=>(const workbench_window_layout&) const = default;
+		/// [[BPR-0783]].
+		home_view_state Home;
+		auto            operator<=>(const workbench_window_layout&) const = default;
 	};
 	struct workbench_profile_preferences
 	{
@@ -571,13 +577,13 @@ namespace bpr::application {
 	[[nodiscard]] inline auto window_layout(const workbench_layout_settings& aSettings) -> workbench_window_layout
 	{
 		return { aSettings.Files, aSettings.Conversations, aSettings.Repositories, aSettings.LineNumbers, aSettings.OnePane,
-				 aSettings.FilesWidth, aSettings.ConversationsWidth, aSettings.RepositoriesWidth };
+				 aSettings.FilesWidth, aSettings.ConversationsWidth, aSettings.RepositoriesWidth, aSettings.Home };
 	}
 	[[nodiscard]] inline auto combined_layout(const workbench_window_layout&   aLayout,
 											  const review_behaviour_settings& aBehaviour) -> workbench_layout_settings
 	{
 		return { aLayout.Files, aLayout.Conversations, aLayout.Repositories, aLayout.LineNumbers, aLayout.OnePane,
-				 aLayout.FilesWidth, aLayout.ConversationsWidth, aLayout.RepositoriesWidth, aBehaviour };
+				 aLayout.FilesWidth, aLayout.ConversationsWidth, aLayout.RepositoriesWidth, aBehaviour, aLayout.Home };
 	}
 	[[nodiscard]] inline auto valid(const workbench_window_layout& aLayout) noexcept -> bool
 	{
@@ -586,7 +592,8 @@ namespace bpr::application {
 		return drawer(aLayout.Files) && drawer(aLayout.Conversations) && drawer(aLayout.Repositories)
 			&& (aLayout.LineNumbers == core::workbench_line_numbers::shown || aLayout.LineNumbers == core::workbench_line_numbers::hidden)
 			&& (aLayout.OnePane == core::workbench_one_pane::disabled || aLayout.OnePane == core::workbench_one_pane::enabled)
-			&& width(aLayout.FilesWidth) && width(aLayout.ConversationsWidth) && width(aLayout.RepositoriesWidth);
+			&& width(aLayout.FilesWidth) && width(aLayout.ConversationsWidth) && width(aLayout.RepositoriesWidth)
+			&& valid(aLayout.Home);
 	}
 	[[nodiscard]] inline auto valid(const workbench_profile_preferences& aPreferences) noexcept -> bool
 	{
@@ -628,7 +635,12 @@ namespace bpr::application {
 			if (!loaded) {
 				return std::unexpected(loaded.error());
 			}
-			return workbench_profile_preferences{ loaded->Behaviour, window_layout(*loaded) };
+			// [[BPR-0783]]. A window's Home view is never a profile default. The
+			// durable adapter strips it; stripping it here too makes that
+			// structural, so no legacy window-bound port can carry one through.
+			auto defaults = window_layout(*loaded);
+			defaults.Home = { };
+			return workbench_profile_preferences{ loaded->Behaviour, defaults };
 		}
 		[[nodiscard]] virtual auto store_preferences(const workbench_profile_preferences& aPreferences,
 													 std::stop_token                      aStop) -> workbench_settings_result<void>
@@ -702,6 +714,10 @@ namespace bpr::application {
 		/// not a retained state, so it is published each time it happens and
 		/// never carried into a later publication.
 		std::optional<core::workbench_reason_code> Refusal;
+		/// [[BPR-0783]]. The window's Home view: published when the layout is
+		/// first loaded and whenever the accepted view changes, and again when a
+		/// view was refused so Home reverts to what the host holds.
+		std::optional<home_view_state> HomeView;
 
 		auto operator<=>(const workbench_projection&) const = default;
 	};
@@ -718,7 +734,8 @@ namespace bpr::application {
 			&& !aProjection.Layout.has_value()
 			&& !aProjection.Files.has_value()
 			&& !aProjection.Behaviour.has_value()
-			&& !aProjection.Refusal.has_value();
+			&& !aProjection.Refusal.has_value()
+			&& !aProjection.HomeView.has_value();
 	}
 
 	enum class workbench_host_failure : std::uint8_t {
