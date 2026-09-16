@@ -1,0 +1,13 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0796",
+    "BPR-0797",
+    "BPR-0798",
+    "BPR-0799"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "d8: macOS empty-desktop menu bar defect; tests-build composition gate defect (r4+r5); win and linux native empty-desktop quit evidence",
+  "created": "2026-09-16T07:57:03.712676+00:00",
+  "base": "5e635bc30e26c01402e029e1086853b197d5fa8b"
+}
