@@ -85,10 +85,14 @@ accepted, rendered and by VoiceOver. What is not met is the last window.
   `BPR-0781` and `BPR-0791` are Done: every A and C row carries evidence or a named unresolved
   criterion.
 - **What is open, and it is this card.** RFC-BPR-0033's B1, B2 and B5. See above.
-- **What a successor needs first.** [[BPR-0796]] is the defect and holds d8's diagnosis. When it is
-  fixed, the next attended session needs **one** candidate - close the last window, check the menu
-  bar, then Dock activation, ⌘N and the Profiles menu - prepared against the fixed build's own
-  digest. Nothing else on this card is waiting on a person.
+- **What a successor needs first.** [[BPR-0796]] holds d8's diagnosis, and it is no longer a
+  hypothesis: the bar is not lost, it is down to one visible menu where the RFC names four. The
+  next slice is a bounded presentation change to `qt::desktop_menu_bar` with the existing native
+  course extended to assert the new contract, and it needs no new decision - RFC-BPR-0033's own
+  words are the specification. **Only then** does an attended session make sense, and it needs
+  exactly **one** candidate: close the last window, look at the menu bar, then Dock activation,
+  ⌘N and the Profiles menu, prepared against the fixed build's own digest. No candidate was
+  prepared in d8, because the build has not changed and there would be nothing new to look at.
 - **Not run, and never to be inferred.** Windows and Linux native empty-desktop quit: [[BPR-0798]]
   and [[BPR-0799]].
 - **Unrelated to this pack, and reported by the owner in the same sitting:** [[BPR-0797]].
