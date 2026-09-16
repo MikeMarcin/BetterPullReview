@@ -156,8 +156,9 @@ auto main(int aArgc, char** aArgv) -> int
 	auto original = await_profile(root, core::default_bpr_profile_id);
 	wait_for([&] { return original.Runtime->status().ProfileMode == core::appearance_mode::dark; }, "Default retains original settings");
 	const auto workWrites = work.Runtime->status().AppearanceDurableWrites;
-	auto*      mode       = work.Runtime->window().appearance_settings()->mode_selector();
-	mode->setCurrentIndex(mode->findData(static_cast<int>(core::appearance_mode::high_contrast_light)));
+	// [[BPR-0790]]. The theme tiles are the control; choosing one is this gesture.
+	work.Runtime->window().appearance_settings()->choose_mode(
+		core::appearance_mode::high_contrast_light);
 	wait_for([&] { return work.Runtime->status().AppearanceDurableWrites > workWrites; }, "Work setting persists through owning host");
 	expect(original.Runtime->status().ProfileMode == core::appearance_mode::dark, "Work edit leaves Default appearance unchanged");
 	expect_refusal(root, core::bpr_profile_id{ 2U }, false, app::github_application_startup_failure::owner_busy);

@@ -1,5 +1,7 @@
 #include "bpr/qt/diff_workbench.hpp"
 
+#include "bpr/qt/code_sample_painter.hpp"
+
 #include <QAbstractTextDocumentLayout>
 #include <QAccessible>
 #include <QApplication>
@@ -699,26 +701,6 @@ namespace bpr::qt {
 			return QStringLiteral("Comparison unavailable");
 		}
 
-		/// \brief Converts a byte offset inside one line to a character index.
-		///
-		/// \details The core reports intraline edits as byte spans, because
-		/// bytes are what it compared. Qt addresses text in UTF-16 code units,
-		/// so the prefix is decoded and measured rather than assumed equal:
-		/// every non-ASCII character ahead of the edit would otherwise shift
-		/// the emphasis left by however many continuation bytes it carries.
-		[[nodiscard]] auto character_offset(
-			const std::span<const std::uint8_t> aLineBytes,
-			const std::uint64_t                 aByteOffset) -> int
-		{
-			const auto bounded = std::min<std::size_t>(
-				static_cast<std::size_t>(aByteOffset), aLineBytes.size());
-			return static_cast<int>(
-				QString::fromUtf8(
-					reinterpret_cast<const char*>(aLineBytes.data()),
-					static_cast<qsizetype>(bounded))
-					.size());
-		}
-
 		/// \brief The lines one pane could currently show, with a margin.
 		///
 		/// \details Painting is bounded to this. `QPlainTextEdit` walks its
@@ -757,67 +739,6 @@ namespace bpr::qt {
 			const auto end   = std::min(aLeft.End, aRight.End);
 			return core::line_span{ .Begin = begin,
 									.End   = begin < end ? end : begin };
-		}
-
-		/// \brief Appends one full-width background over a span of lines.
-		void append_line_band(
-			QList<QTextEdit::ExtraSelection>& aSelections,
-			QPlainTextEdit&                   aPane,
-			const core::line_span             aSpan,
-			const QColor&                     aColor)
-		{
-			if (!aColor.isValid() || aSpan.empty()) {
-				return;
-			}
-			for (auto line = aSpan.Begin; line < aSpan.End; ++line) {
-				const auto block = aPane.document()->findBlockByNumber(
-					static_cast<int>(line));
-				if (!block.isValid()) {
-					continue;
-				}
-				auto band   = QTextEdit::ExtraSelection{ };
-				band.cursor = QTextCursor{ block };
-				band.format.setProperty(QTextFormat::FullWidthSelection, true);
-				band.format.setBackground(aColor);
-				aSelections.push_back(band);
-			}
-		}
-
-		/// \brief Appends the band marking where the reviewer is.
-		/// \brief Washes the selected lines, bounded to what the pane shows.
-		///
-		/// \details A selection can be one line or a whole change group, and
-		/// the core already says which: `semantic_selection_kind::group`
-		/// carries the group's exact span per side. Painting only the
-		/// preferred line whatever the kind made a group selection look like a
-		/// line selection, and left the question of whether a change tint
-		/// survives the wash unanswerable — a single washed row has nothing
-		/// beside it to compare against (BPR-0205).
-		///
-		/// Clipped to the paintable window rather than the span, so selecting
-		/// a group the size of the file costs the viewport and not the file.
-		void append_selection_band(
-			QList<QTextEdit::ExtraSelection>& aSelections,
-			QPlainTextEdit&                   aPane,
-			const core::line_span             aLines,
-			const core::line_span             aPaintable)
-		{
-			const auto begin = std::max(aLines.Begin, aPaintable.Begin);
-			const auto end   = std::min(aLines.End, aPaintable.End);
-			auto       color = aPane.palette().color(QPalette::Highlight);
-			color.setAlpha(core::selection_wash_alpha);
-			for (auto line = begin; line < end; ++line) {
-				const auto block = aPane.document()->findBlockByNumber(
-					static_cast<int>(line));
-				if (!block.isValid()) {
-					continue;
-				}
-				auto band   = QTextEdit::ExtraSelection{ };
-				band.cursor = QTextCursor{ block };
-				band.format.setProperty(QTextFormat::FullWidthSelection, true);
-				band.format.setBackground(color);
-				aSelections.push_back(band);
-			}
 		}
 
 		void set_line_selection(
@@ -2222,12 +2143,10 @@ namespace bpr::qt {
 			.Variant          = aProfile.variant(),
 			.Supplied         = true,
 		};
-		for (auto index = std::size_t{ 0U }; index < core::appearance_role_count;
-			 ++index) {
-			colors.Syntax[index] = aProfile.color(
-				static_cast<core::appearance_role>(index));
-		}
-		Colors = std::move(colors);
+		// The same table the theme tiles and the type preview read, so one change
+		// to how a role becomes a colour cannot reach one surface and miss another.
+		colors.Syntax = code_role_colors_of(aProfile.palette());
+		Colors        = std::move(colors);
 		update_diff_paint();
 	}
 
@@ -2556,51 +2475,28 @@ namespace bpr::qt {
 				static_cast<std::size_t>(
 					decoded.Content.End - decoded.Content.Begin)
 			};
-			auto       formats = QList<QTextLayout::FormatRange>{ };
-			const auto struck  = &aPane == Unified && aSide == core::diff_side::left;
-			if (struck) {
-				auto strike   = QTextLayout::FormatRange{ };
-				strike.length = static_cast<int>(block.text().size());
-				strike.format.setFontStrikeOut(true);
-				formats.push_back(strike);
-			}
-			for (; span != last && span->Line == line; ++span) {
+			// The run of spans this line owns, counted as they are stepped over so
+			// the cost of one screenful stays visible in the statistics, and handed
+			// to the shared painter whole: the ranges, the byte-to-character
+			// conversion and the write-only-where-different rule are now the same
+			// ones the Appearance preview paints through.
+			const auto first  = span;
+			const auto struck = &aPane == Unified && aSide == core::diff_side::left;
+			while (span != last && span->Line == line) {
+				++span;
 				++Statistics.SyntaxSpansVisited;
-				const auto index = static_cast<std::size_t>(span->Role);
-				if (
-					span->Length == 0U || index >= Colors.Syntax.size()
-					|| span->Role == core::appearance_role::syntax_normal) {
-					// Normal text is what the pane already draws. Restating it
-					// as a format would cost a range per unclassified word to
-					// change nothing.
-					continue;
-				}
-				const auto& color = Colors.Syntax[index];
-				if (!color.isValid()) {
-					continue;
-				}
-				const auto from = character_offset(bytes, span->Column);
-				const auto to   = character_offset(
-					bytes,
-					static_cast<std::uint64_t>(span->Column) + span->Length);
-				if (from >= to) {
-					continue;
-				}
-				auto range   = QTextLayout::FormatRange{ };
-				range.start  = from;
-				range.length = to - from;
-				range.format.setForeground(color);
-				if (struck) {
-					range.format.setFontStrikeOut(true);
-				}
-				formats.push_back(range);
 			}
-			if (block.layout()->formats() == formats) {
+			const auto formats = code_syntax_format_ranges(
+				code_syntax_format_request{
+					.LineBytes       = bytes,
+					.Spans           = std::span<const application::token_span>{ first, span },
+					.Colors          = &Colors.Syntax,
+					.StrikeOut       = struck,
+					.StrikeOutLength = static_cast<int>(block.text().size()),
+				});
+			if (!apply_syntax_format_ranges(*aPane.document(), block, formats)) {
 				continue;
 			}
-			block.layout()->setFormats(formats);
-			aPane.document()->markContentsDirty(
-				block.position(), block.length());
 			++Statistics.SyntaxBlocksFormatted;
 		}
 	}

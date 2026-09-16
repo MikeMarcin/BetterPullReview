@@ -4,6 +4,7 @@
 #include <QFocusEvent>
 #include <QFontMetrics>
 #include <QIcon>
+#include <QMetaObject>
 #include <QPoint>
 #include <QToolTip>
 
@@ -37,7 +38,14 @@ namespace bpr::qt {
 
 	void info_glyph::show_popover()
 	{
-		QToolTip::showText(mapToGlobal(QPoint{ 0, height() }), Consequence, this, rect());
+		// Deliberately unbound to a rect. `QToolTip::showText` given a rect hides
+		// the tip as soon as the pointer leaves it, which is right for a tip the
+		// pointer summoned and wrong for this one: a keyboard reviewer's pointer
+		// is somewhere else entirely, or nowhere, so the rect form showed the
+		// sentence to nobody and the focus route quietly reached no one
+		// ([[BPR-0790]]). Hovering still shows the same sentence through the tool
+		// tip, and RFC-BPR-0034's row language requires both routes to work.
+		QToolTip::showText(mapToGlobal(QPoint{ 0, height() }), Consequence, this);
 	}
 
 	void info_glyph::focusInEvent(QFocusEvent* const aEvent)
@@ -46,7 +54,20 @@ namespace bpr::qt {
 		// A keyboard reviewer reaches the sentence by focusing the glyph; a
 		// pointer that clicked already sees it through the press.
 		if (aEvent->reason() != Qt::MouseFocusReason && aEvent->reason() != Qt::PopupFocusReason) {
-			show_popover();
+			// Deferred by one turn of the event loop, which is load-bearing.
+			// Qt's tip window hides itself on FocusIn and FocusOut, so a tip
+			// shown from inside this handler is destroyed by the very focus
+			// change that asked for it: the sentence was never shown to the
+			// keyboard reviewer it exists for, while every property a test can
+			// read still looked correct ([[BPR-0790]]).
+			QMetaObject::invokeMethod(
+				this,
+				[this] {
+					if (hasFocus()) {
+						show_popover();
+					}
+				},
+				Qt::QueuedConnection);
 		}
 	}
 

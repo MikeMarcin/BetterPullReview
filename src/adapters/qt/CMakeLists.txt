@@ -29,6 +29,10 @@ add_library(
         src/repositories_drawer.cpp
         src/files_tree.cpp
         src/theme_preview_strip.cpp
+        src/code_sample_painter.cpp
+        src/type_preview.cpp
+        src/appearance_role_display.cpp
+        src/colour_role_list.cpp
         src/info_glyph.cpp
         src/server_card.cpp
         src/comparison_scroll_controller.cpp

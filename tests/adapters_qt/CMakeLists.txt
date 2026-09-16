@@ -537,6 +537,134 @@ set_tests_properties(
         TIMEOUT 120
 )
 
+# [[BPR-0790]]. The shared code sample painter, which is what makes the theme
+# tiles and the type preview consumers of the comparison panes' painter rather
+# than a second renderer of their own.
+bpr_add_executable(
+    test_better_pull_review_qt_code_sample_painter_tests
+    code_sample_painter_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_qt_code_sample_painter_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_code_sample_painter_tests)
+bpr_enable_warnings(test_better_pull_review_qt_code_sample_painter_tests)
+
+bpr_add_network_isolated_test(
+    NAME qt_code_sample_painter
+    COMMAND test_better_pull_review_qt_code_sample_painter_tests
+)
+set_tests_properties(
+    qt_code_sample_painter
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment}"
+        PASS_REGULAR_EXPRESSION "code-sample-painter-tests:pass"
+        TIMEOUT 120
+)
+
+# The strip's pixel assertions compare both halves of both System tiles against
+# the built-in palettes, which is what RFC-BPR-0034's C2 asks for by name.
+bpr_add_executable(
+    test_better_pull_review_qt_theme_preview_strip_tests
+    theme_preview_strip_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_qt_theme_preview_strip_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_theme_preview_strip_tests)
+bpr_enable_warnings(test_better_pull_review_qt_theme_preview_strip_tests)
+
+bpr_add_network_isolated_test(
+    NAME qt_theme_preview_strip
+    COMMAND test_better_pull_review_qt_theme_preview_strip_tests
+)
+set_tests_properties(
+    qt_theme_preview_strip
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment}"
+        PASS_REGULAR_EXPRESSION "theme-preview-strip-tests:pass"
+        TIMEOUT 120
+)
+
+# [[BPR-0790]]. The Colours card's vocabulary and its list. The vocabulary is
+# presentation's own: the core's stable names are durable exchange identifiers and
+# must never be displayed, so the course checks that none of them is.
+bpr_add_executable(
+    test_better_pull_review_qt_appearance_role_display_tests
+    appearance_role_display_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_qt_appearance_role_display_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_appearance_role_display_tests)
+bpr_enable_warnings(test_better_pull_review_qt_appearance_role_display_tests)
+
+bpr_add_network_isolated_test(
+    NAME qt_appearance_role_display
+    COMMAND test_better_pull_review_qt_appearance_role_display_tests
+)
+set_tests_properties(
+    qt_appearance_role_display
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment}"
+        PASS_REGULAR_EXPRESSION "appearance-role-display-tests:pass"
+        TIMEOUT 120
+)
+
+bpr_add_executable(
+    test_better_pull_review_qt_colour_role_list_tests
+    colour_role_list_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_qt_colour_role_list_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_colour_role_list_tests)
+bpr_enable_warnings(test_better_pull_review_qt_colour_role_list_tests)
+
+bpr_add_network_isolated_test(
+    NAME qt_colour_role_list
+    COMMAND test_better_pull_review_qt_colour_role_list_tests
+)
+set_tests_properties(
+    qt_colour_role_list
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment}"
+        PASS_REGULAR_EXPRESSION "colour-role-list-tests:pass"
+        TIMEOUT 120
+)
+
+bpr_add_executable(
+    test_better_pull_review_qt_type_preview_tests
+    type_preview_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_qt_type_preview_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_type_preview_tests)
+bpr_enable_warnings(test_better_pull_review_qt_type_preview_tests)
+
+bpr_add_network_isolated_test(
+    NAME qt_type_preview
+    COMMAND test_better_pull_review_qt_type_preview_tests
+)
+set_tests_properties(
+    qt_type_preview
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment}"
+        PASS_REGULAR_EXPRESSION "type-preview-tests:pass"
+        TIMEOUT 120
+)
+
 bpr_add_executable(
     test_better_pull_review_qt_settings_window_tests
     settings_window_tests.cpp

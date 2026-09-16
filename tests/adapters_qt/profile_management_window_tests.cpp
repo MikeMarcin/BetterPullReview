@@ -217,8 +217,14 @@ namespace {
 				++firstPreviews;
 			}
 		});
-		first->appearance_settings()->color_editor()->setText(QStringLiteral("#112233"));
-		first->appearance_settings()->preview_button()->click();
+		// [[BPR-0790]]. A colour is edited through a swatch and the picker seam now,
+		// which is what queues the preview candidate this assertion is about.
+		first->appearance_settings()->set_colour_picker(
+			[](const auto&) { return std::optional{ QColor{ 0x11, 0x22, 0x33 } }; });
+		first->appearance_settings()
+			->colours()
+			->swatch_of(core::appearance_role::diff_added_background)
+			->click();
 		first->unmount_settings();
 		QApplication::processEvents();
 		expect(firstCancels == 1U && firstPreviews == 0U && !first->appearance_settings()->preview_palette(),

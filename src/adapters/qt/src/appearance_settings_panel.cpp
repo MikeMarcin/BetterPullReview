@@ -1,52 +1,255 @@
 #include "bpr/qt/appearance_settings_panel.hpp"
 
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/info_glyph.hpp"
+#include "bpr/qt/type_preview.hpp"
 
+#include <QAbstractButton>
 #include <QCheckBox>
 #include <QColor>
 #include <QComboBox>
 #include <QFileDialog>
-#include <QFormLayout>
-#include <QGroupBox>
+#include <QFontDatabase>
+#include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <QLocale>
 #include <QMetaObject>
+#include <QPalette>
 #include <QPushButton>
 #include <QSpinBox>
+#include <QToolButton>
 #include <QVBoxLayout>
+#include <QValidator>
 
-#include <cstdint>
+#include <algorithm>
 #include <string>
 #include <utility>
 
 namespace bpr::qt {
 	namespace {
-		/// \brief Returns the reviewer-facing name of one appearance mode.
-		///
-		/// \details Presentation text, derived from the core's own enumeration
-		/// rather than from a parallel list, so a mode the core declares cannot
-		/// be one this surface silently omits. The switch has no default: a
-		/// seventh mode is a compile error here rather than a control that
-		/// quietly offers six.
-		[[nodiscard]] auto mode_text(const core::appearance_mode aMode) -> QString
+		// The row language of RFC-BPR-0032 as RFC-BPR-0034 amends it, on the same
+		// 8-point grid the Accounts page uses. A row is one line, so its height is a
+		// line's height and not a stacked label's.
+		constexpr auto card_inset = 16;
+		constexpr auto row_inset  = 10;
+		constexpr auto row_height = 32;
+		constexpr auto column_gap = 12;
+		constexpr auto glyph_gap  = 4;
+		/// The three widths the accepted design's tab segment offers.
+		constexpr auto tab_width_options = std::array<std::uint32_t, 3U>{ 2U, 4U, 8U };
+
+		[[nodiscard]] auto make_hairline(QWidget* const aParent) -> QFrame*
 		{
-			switch (aMode) {
-			case core::appearance_mode::system:
-				return QStringLiteral("Follow the system");
-			case core::appearance_mode::light:
-				return QStringLiteral("Light");
-			case core::appearance_mode::dark:
-				return QStringLiteral("Dark");
-			case core::appearance_mode::high_contrast_system:
-				return QStringLiteral("High contrast, follow the system");
-			case core::appearance_mode::high_contrast_light:
-				return QStringLiteral("High contrast light");
-			case core::appearance_mode::high_contrast_dark:
-				return QStringLiteral("High contrast dark");
-			}
-			return { };
+			auto* const line = new QFrame{ aParent };
+			line->setFrameShape(QFrame::HLine);
+			line->setFrameShadow(QFrame::Plain);
+			line->setForegroundRole(QPalette::Mid);
+			line->setFixedHeight(1);
+			return line;
 		}
+
+		/// \brief A size stepper that reads in points and carries hundredths.
+		///
+		/// \details The core stores centipoints so that every legal size is exactly
+		/// representable, and `core::bounds_of` bounds that storage. The control
+		/// therefore keeps the stored value — which is what makes the range the
+		/// core's own rather than a converted copy of it — and shows points, with the
+		/// two decimals dropped when they are zero. The page this replaces showed
+		/// "1300" for thirteen points.
+		///
+		/// Prefix and suffix are deliberately not used: Qt's own validation would
+		/// then read the typed text as the stored integer and refuse "13" as below
+		/// the minimum. Rendering and parsing are both done here instead, so typing a
+		/// size and stepping one agree.
+		class point_spin_box final : public QSpinBox
+		{
+		public:
+			explicit point_spin_box(QWidget* const aParent)
+				: QSpinBox{ aParent }
+			{
+				// One whole point per step, which is what the design's stepper moves.
+				setSingleStep(100);
+			}
+
+		protected:
+			[[nodiscard]] auto textFromValue(const int aValue) const
+				-> QString override
+			{
+				return QStringLiteral("%1 pt").arg(point_size_text(
+					static_cast<std::uint32_t>(std::max(aValue, 0))));
+			}
+
+			[[nodiscard]] auto valueFromText(const QString& aText) const
+				-> int override
+			{
+				return centipoints_of(aText).value_or(value());
+			}
+
+			[[nodiscard]] auto validate(QString& aInput, int&) const
+				-> QValidator::State override
+			{
+				const auto centipoints = centipoints_of(aInput);
+				if (!centipoints.has_value()) {
+					return aInput.trimmed().isEmpty() ? QValidator::Intermediate
+													  : QValidator::Invalid;
+				}
+				return *centipoints < minimum() || *centipoints > maximum()
+					? QValidator::Intermediate
+					: QValidator::Acceptable;
+			}
+
+		private:
+			[[nodiscard]] static auto centipoints_of(const QString& aText)
+				-> std::optional<int>
+			{
+				auto text = aText.trimmed();
+				if (text.endsWith(QStringLiteral("pt"), Qt::CaseInsensitive)) {
+					text.chop(2);
+					text = text.trimmed();
+				}
+				auto       accepted = false;
+				const auto points   = QLocale{ }.toDouble(text, &accepted);
+				return accepted
+					? std::optional{ static_cast<int>(qRound(points * 100.0)) }
+					: std::nullopt;
+			}
+		};
+
+		/// \brief One card: a header that names it and carries its Reset, and a body.
+		struct settings_card
+		{
+			QFrame*      Frame  = nullptr;
+			QHBoxLayout* Header = nullptr;
+			QVBoxLayout* Body   = nullptr;
+			QLabel*      Title  = nullptr;
+		};
+
+		[[nodiscard]] auto make_card(
+			QWidget* const aParent,
+			const QString& aTitle,
+			const QString& aObjectName) -> settings_card
+		{
+			auto card  = settings_card{ };
+			card.Frame = new QFrame{ aParent };
+			card.Frame->setObjectName(aObjectName);
+			// The platform's own panel frame rather than a style sheet, which
+			// RFC-BPR-0034 prohibits along with a second palette.
+			card.Frame->setFrameShape(QFrame::StyledPanel);
+			card.Frame->setAccessibleName(aTitle);
+			auto* const column = new QVBoxLayout{ card.Frame };
+			column->setContentsMargins(0, 0, 0, 0);
+			column->setSpacing(0);
+
+			auto* const header = new QWidget{ card.Frame };
+			header->setObjectName(aObjectName + QStringLiteral("Header"));
+			header->setAutoFillBackground(true);
+			// A native palette role, so the header tint follows every theme.
+			header->setBackgroundRole(QPalette::AlternateBase);
+			card.Header = new QHBoxLayout{ header };
+			card.Header->setContentsMargins(
+				card_inset, row_inset, card_inset, row_inset);
+			card.Header->setSpacing(column_gap / 2);
+			card.Title = new QLabel{ aTitle, header };
+			card.Title->setObjectName(aObjectName + QStringLiteral("Title"));
+			auto title = card.Title->font();
+			title.setWeight(QFont::DemiBold);
+			card.Title->setFont(title);
+			card.Header->addWidget(card.Title);
+			card.Header->addStretch(1);
+			column->addWidget(header);
+			column->addWidget(make_hairline(card.Frame));
+
+			auto* const body = new QWidget{ card.Frame };
+			body->setObjectName(aObjectName + QStringLiteral("Body"));
+			card.Body = new QVBoxLayout{ body };
+			card.Body->setContentsMargins(
+				card_inset, row_inset / 2, card_inset, row_inset / 2);
+			card.Body->setSpacing(0);
+			column->addWidget(body);
+			return card;
+		}
+
+		/// \brief A card header's button: flat, named, and never a default button.
+		[[nodiscard]] auto make_header_button(
+			QWidget* const aParent,
+			const QString& aText,
+			const QString& aAccessibleName,
+			const QString& aObjectName) -> QPushButton*
+		{
+			auto* const button = new QPushButton{ aText, aParent };
+			button->setObjectName(aObjectName);
+			button->setAccessibleName(aAccessibleName);
+			button->setFlat(true);
+			button->setAutoDefault(false);
+			button->setFocusPolicy(Qt::StrongFocus);
+			return button;
+		}
+
+		/// \brief What one row of the shared language is made of.
+		struct language_row
+		{
+			QWidget*    Frame = nullptr;
+			QLabel*     Label = nullptr;
+			info_glyph* Glyph = nullptr;
+		};
+
+		/// \brief Adds one row: label, info glyph, control, on one line.
+		///
+		/// \details The accepted shape, the same one `server_card` builds: the
+		/// consequence sentence lives in the glyph's popover and is the glyph's
+		/// accessible description, and it is put on the control as well so a reviewer
+		/// who reaches the control alone is told what it does. Nothing here is
+		/// reachable by pointer only.
+		///
+		/// The pieces are returned for a caller that needs them; most rows are built
+		/// and never spoken of again, so the result is deliberately not required.
+		auto add_row(
+			QVBoxLayout&   aRows,
+			QWidget* const aParent,
+			const QString& aObjectName,
+			const QString& aLabel,
+			const QString& aConsequence,
+			QWidget* const aControl) -> language_row
+		{
+			auto row  = language_row{ };
+			row.Frame = new QWidget{ aParent };
+			row.Frame->setObjectName(aObjectName);
+			row.Frame->setMinimumHeight(row_height);
+			auto* const line = new QHBoxLayout{ row.Frame };
+			line->setContentsMargins(0, 0, 0, 0);
+			line->setSpacing(glyph_gap);
+
+			row.Label = new QLabel{ aLabel, row.Frame };
+			row.Label->setObjectName(aObjectName + QStringLiteral("Name"));
+			row.Label->setTextInteractionFlags(Qt::NoTextInteraction);
+			row.Glyph = new info_glyph{ aConsequence, row.Frame };
+			row.Glyph->setObjectName(aObjectName + QStringLiteral("Glyph"));
+			row.Glyph->setAccessibleName(
+				QStringLiteral("About %1").arg(aLabel.toLower()));
+
+			line->addWidget(row.Label, 0, Qt::AlignVCenter);
+			line->addWidget(row.Glyph, 0, Qt::AlignVCenter);
+			line->addStretch(1);
+			if (aControl != nullptr) {
+				aControl->setParent(row.Frame);
+				if (aControl->accessibleName().isEmpty()) {
+					aControl->setAccessibleName(aLabel);
+				}
+				aControl->setAccessibleDescription(row.Glyph->consequence());
+				line->addWidget(aControl, 0, Qt::AlignVCenter);
+			}
+			if (aRows.count() > 0) {
+				aRows.addWidget(make_hairline(aParent));
+			}
+			aRows.addWidget(row.Frame);
+			return row;
+		}
+
+		// There is deliberately no mode wording here any more. The six-way combo box
+		// is gone and the tiles are the control, so the only place a mode is named is
+		// the strip that draws it.
 
 		[[nodiscard]] auto target_text(const core::typography_target aTarget)
 			-> QString
@@ -60,8 +263,7 @@ namespace bpr::qt {
 			return { };
 		}
 
-		[[nodiscard]] auto field_text(const core::typography_field aField)
-			-> QString
+		[[nodiscard]] auto field_text(const core::typography_field aField) -> QString
 		{
 			switch (aField) {
 			case core::typography_field::family:
@@ -153,6 +355,35 @@ namespace bpr::qt {
 			aBox.setRange(
 				static_cast<int>(bounds.Minimum), static_cast<int>(bounds.Maximum));
 		}
+
+		/// \brief Builds a font chooser showing the family in effect.
+		///
+		/// \details Editable on purpose. The installed families are what a reviewer
+		/// chooses from, and the family is also the one typography value the core
+		/// bounds by byte length rather than by value, so it is the only field a
+		/// control can express illegally — a refusal this page must be able to
+		/// provoke and show. The system font is not a pseudo-entry: a fresh
+		/// installation already carries the platform's own family, and the card's
+		/// Reset is what puts it back.
+		[[nodiscard]] auto make_font_chooser(
+			QWidget* const aParent,
+			const QString& aAccessibleName,
+			const QString& aObjectName) -> QComboBox*
+		{
+			auto* const chooser = new QComboBox{ aParent };
+			chooser->setObjectName(aObjectName);
+			chooser->setAccessibleName(aAccessibleName);
+			chooser->setEditable(true);
+			chooser->setInsertPolicy(QComboBox::NoInsert);
+			// Bounded width: a family name is arbitrarily long, and a chooser sized
+			// to the longest installed one would push the whole page sideways.
+			chooser->setSizeAdjustPolicy(
+				QComboBox::AdjustToMinimumContentsLengthWithIcon);
+			chooser->setMinimumContentsLength(12);
+			chooser->setMaxVisibleItems(20);
+			chooser->addItems(QFontDatabase::families());
+			return chooser;
+		}
 	} // namespace
 
 	appearance_settings_panel::appearance_settings_panel(
@@ -163,206 +394,394 @@ namespace bpr::qt {
 	{
 		setAccessibleName(QStringLiteral("Appearance settings"));
 
-		ModeSelector = new QComboBox{ this };
-		ModeSelector->setAccessibleName(QStringLiteral("Appearance mode"));
-		// Built from the core's published count, so a mode added there appears
-		// here without this file being edited. A restated list is exactly the
-		// drift this avoids.
-		for (auto index = std::size_t{ 0U }; index < core::appearance_mode_count;
-			 ++index) {
-			const auto mode = static_cast<core::appearance_mode>(index);
-			ModeSelector->addItem(mode_text(mode), static_cast<int>(index));
-		}
+		auto* const page = new QVBoxLayout{ this };
+		page->setContentsMargins(0, 0, 0, 0);
+		page->setSpacing(column_gap);
 
-		DifVisibility = new QCheckBox{ QStringLiteral("Show Dif mascot"), this };
-		DifVisibility->setAccessibleName(QStringLiteral("Show Dif mascot"));
-		MotionSelector = new QComboBox{ this };
-		MotionSelector->setAccessibleName(QStringLiteral("Dif motion"));
-		MotionSelector->addItem(QStringLiteral("System"), static_cast<int>(core::motion_mode::system));
-		MotionSelector->addItem(QStringLiteral("Full"), static_cast<int>(core::motion_mode::full));
-		MotionSelector->addItem(QStringLiteral("Reduced"), static_cast<int>(core::motion_mode::reduced));
-		MotionStatus = new QLabel{ this };
-		MotionStatus->setWordWrap(true);
-		MotionStatus->setAccessibleName(QStringLiteral("Dif motion status"));
-		QObject::connect(DifVisibility, &QCheckBox::toggled, this, [this](bool) { dispatch_dif(); });
-		QObject::connect(MotionSelector, &QComboBox::currentIndexChanged, this, [this](int) { dispatch_dif(); });
-
-		UiFamily = new QLineEdit{ this };
-		UiFamily->setAccessibleName(QStringLiteral("Interface font family"));
-		UiSize       = new QSpinBox{ this };
-		UiWeight     = new QSpinBox{ this };
-		UiLineHeight = new QSpinBox{ this };
-		UiSize->setAccessibleName(QStringLiteral("Interface font size, hundredths of a point"));
-		UiWeight->setAccessibleName(QStringLiteral("Interface font weight"));
-		UiLineHeight->setAccessibleName(QStringLiteral("Interface line height, percent"));
-		bind_bounds(*UiSize, core::typography_field::point_size);
-		bind_bounds(*UiWeight, core::typography_field::weight);
-		bind_bounds(*UiLineHeight, core::typography_field::line_height);
-
-		CodeFamily = new QLineEdit{ this };
-		CodeFamily->setAccessibleName(QStringLiteral("Code font family"));
-		CodeSize   = new QSpinBox{ this };
-		CodeWeight = new QSpinBox{ this };
-		TabWidth   = new QSpinBox{ this };
-		CodeSize->setAccessibleName(QStringLiteral("Code font size, hundredths of a point"));
-		CodeWeight->setAccessibleName(QStringLiteral("Code font weight"));
-		TabWidth->setAccessibleName(QStringLiteral("Tab width, in spaces"));
-		bind_bounds(*CodeSize, core::typography_field::point_size);
-		bind_bounds(*CodeWeight, core::typography_field::weight);
-		bind_bounds(*TabWidth, core::typography_field::tab_width);
-
-		Ligatures    = new QCheckBox{ QStringLiteral("Ligatures"), this };
-		SyntaxBold   = new QCheckBox{ QStringLiteral("Bold syntax emphasis"), this };
-		SyntaxItalic = new QCheckBox{ QStringLiteral("Italic syntax emphasis"), this };
-
-		RoleSelector = new QComboBox{ this };
-		RoleSelector->setAccessibleName(QStringLiteral("Semantic colour role"));
-		for (auto index = std::size_t{ 0U };
-			 index < core::appearance_role_count;
-			 ++index) {
-			const auto name = core::stable_name(
-				static_cast<core::appearance_role>(index));
-			RoleSelector->addItem(
-				QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size())),
-				static_cast<int>(index));
-		}
-		ColorEditor = new QLineEdit{ this };
-		ColorEditor->setAccessibleName(QStringLiteral("Semantic colour value"));
-		ColorEditor->setPlaceholderText(QStringLiteral("#rrggbb or #aarrggbb"));
-		PreviewButton = new QPushButton{ QStringLiteral("Preview"), this };
-		CommitButton  = new QPushButton{ QStringLiteral("Commit"), this };
-		CancelButton  = new QPushButton{ QStringLiteral("Cancel preview"), this };
-		ImportButton  = new QPushButton{ QStringLiteral("Import theme…"), this };
-		CommitButton->setEnabled(false);
-		CancelButton->setEnabled(false);
-
-		Status = new QLabel{ this };
-		Status->setWordWrap(true);
-		Status->setAccessibleName(QStringLiteral("Appearance settings status"));
-
-		// There is deliberately no code line height. BPR-0118 retired it on the
-		// product owner's decision, and `code_font_settings` has no field one
-		// could occupy, so this omission is structural rather than an oversight
-		// a later reader should correct.
-		auto* const uiGroup = new QGroupBox{ QStringLiteral("Interface font"), this };
-		auto* const uiForm  = new QFormLayout{ uiGroup };
-		uiForm->addRow(QStringLiteral("Family"), UiFamily);
-		uiForm->addRow(QStringLiteral("Size"), UiSize);
-		uiForm->addRow(QStringLiteral("Weight"), UiWeight);
-		uiForm->addRow(QStringLiteral("Line height"), UiLineHeight);
-
-		auto* const codeGroup = new QGroupBox{ QStringLiteral("Code font"), this };
-		auto* const codeForm  = new QFormLayout{ codeGroup };
-		codeForm->addRow(QStringLiteral("Family"), CodeFamily);
-		codeForm->addRow(QStringLiteral("Size"), CodeSize);
-		codeForm->addRow(QStringLiteral("Weight"), CodeWeight);
-		codeForm->addRow(QStringLiteral("Tab width"), TabWidth);
-		codeForm->addRow(Ligatures);
-		codeForm->addRow(SyntaxBold);
-		codeForm->addRow(SyntaxItalic);
-
-		auto* const colorGroup = new QGroupBox{ QStringLiteral("Semantic colours"), this };
-		auto* const colorForm  = new QFormLayout{ colorGroup };
-		colorForm->addRow(QStringLiteral("Role"), RoleSelector);
-		colorForm->addRow(QStringLiteral("Colour"), ColorEditor);
-		auto* const colorActions = new QHBoxLayout{ };
-		colorActions->addWidget(PreviewButton);
-		colorActions->addWidget(CommitButton);
-		colorActions->addWidget(CancelButton);
-		auto* const exchangeActions = new QHBoxLayout{ };
-		exchangeActions->addWidget(ImportButton);
-		auto* const exportButton = new QPushButton{ QStringLiteral("Export saved theme…"), this };
-		exportButton->setObjectName(QStringLiteral("appearanceExportTheme"));
-		exchangeActions->addWidget(exportButton);
-		colorForm->addRow(exchangeActions);
-		QObject::connect(exportButton, &QPushButton::clicked, this, [this] {
-			const auto path = QFileDialog::getSaveFileName(this, QStringLiteral("Export saved theme"), QStringLiteral("theme.bprtheme"), QStringLiteral("Theme files (*.bprtheme)"));
-			request_theme_export(path);
-		});
-		colorForm->addRow(colorActions);
-
-		auto* const layout = new QVBoxLayout{ this };
-		// [[BPR-0652]]. The accepted page opens with the theme as four
-		// previews drawn from the palettes themselves; choosing one is the
-		// same gesture as the mode selector beneath, which stays for the
-		// modes the previews do not name.
-		auto* const subtitle = new QLabel{
-			QStringLiteral("Changes apply as you make them and show in the review window behind this one."),
+		auto* const lede = new QLabel{
+			QStringLiteral("Changes apply as you make them and show in the review "
+						   "window behind this one."),
 			this
 		};
-		subtitle->setObjectName(QStringLiteral("appearanceSubtitle"));
-		subtitle->setWordWrap(true);
-		layout->addWidget(subtitle);
-		ThemePreviews = new theme_preview_strip{ this };
-		ThemePreviews->set_dispatch([this](const core::appearance_mode aMode) {
-			const auto index = static_cast<int>(aMode);
-			if (ModeSelector->currentIndex() == index) {
-				return;
-			}
-			ModeSelector->setCurrentIndex(index);
-		});
-		layout->addWidget(ThemePreviews);
-		auto* const modeForm = new QFormLayout{ };
-		modeForm->addRow(QStringLiteral("Appearance"), ModeSelector);
-		const auto addReset = [this](QFormLayout& aForm, const QString& aLabel, const application::appearance_reset_scope aScope) {
-			auto* const button = new QPushButton{ aLabel, this };
-			button->setAccessibleName(aLabel);
-			aForm.addRow(button);
-			QObject::connect(button, &QPushButton::clicked, this, [this, aScope] {
-				PendingPreview.reset();
-				if (Dispatch) {
-					Dispatch(application::reset_appearance_intent{ aScope });
-				}
-			});
-		};
-		addReset(*modeForm, QStringLiteral("Reset appearance mode"), application::appearance_reset_scope::mode);
-		addReset(*uiForm, QStringLiteral("Reset interface font"), application::appearance_reset_scope::interface_font);
-		addReset(*codeForm, QStringLiteral("Reset code font"), application::appearance_reset_scope::code_font);
-		addReset(*colorForm, QStringLiteral("Reset semantic colours"), application::appearance_reset_scope::palette);
-		auto* const difGroup = new QGroupBox{ QStringLiteral("Dif mascot"), this };
-		auto* const difForm  = new QFormLayout{ difGroup };
-		difForm->addRow(DifVisibility);
-		difForm->addRow(QStringLiteral("Motion"), MotionSelector);
-		difForm->addRow(MotionStatus);
-		addReset(*difForm, QStringLiteral("Reset Dif preferences"), application::appearance_reset_scope::dif);
-		layout->addLayout(modeForm);
-		layout->addWidget(difGroup);
-		layout->addWidget(colorGroup);
-		layout->addWidget(uiGroup);
-		layout->addWidget(codeGroup);
-		layout->addWidget(Status);
+		lede->setObjectName(QStringLiteral("appearanceLede"));
+		lede->setWordWrap(true);
+		lede->setForegroundRole(QPalette::PlaceholderText);
+		page->addWidget(lede);
 
-		QObject::connect(
-			ModeSelector,
-			&QComboBox::currentIndexChanged,
+		// ── Theme. The tiles are the control; the six-way combo box is gone.
+		auto theme = make_card(
+			this, QStringLiteral("Theme"), QStringLiteral("appearanceThemeCard"));
+		auto* const themeReset = make_header_button(
+			theme.Frame,
+			QStringLiteral("Reset"),
+			QStringLiteral("Reset appearance mode"),
+			QStringLiteral("appearanceThemeReset"));
+		theme.Header->addWidget(themeReset);
+		QObject::connect(themeReset, &QPushButton::clicked, this, [this] {
+			dispatch_reset(application::appearance_reset_scope::mode);
+		});
+		ThemePreviews = new theme_preview_strip{ theme.Frame };
+		ThemePreviews->set_dispatch([this](const core::appearance_mode aMode) {
+			dispatch_mode(aMode);
+		});
+		theme.Body->addWidget(ThemePreviews);
+		page->addWidget(theme.Frame);
+
+		// ── Type. Eleven one-line rows, and the preview beside them.
+		auto type = make_card(
+			this, QStringLiteral("Type"), QStringLiteral("appearanceTypeCard"));
+		auto* const typeReset = make_header_button(
+			type.Frame,
+			QStringLiteral("Reset"),
+			QStringLiteral("Reset type"),
+			QStringLiteral("appearanceTypeReset"));
+		// Type is two durable groups, and the design gives the card one Reset, so
+		// the one gesture resets both. Each still reaches the host as its own
+		// existing scope; no new scope is invented.
+		typeReset->setToolTip(QStringLiteral(
+			"Puts the interface font and the code font back to the system "
+			"defaults."));
+		typeReset->setAccessibleDescription(typeReset->toolTip());
+		type.Header->addWidget(typeReset);
+		QObject::connect(typeReset, &QPushButton::clicked, this, [this] {
+			dispatch_reset(application::appearance_reset_scope::interface_font);
+			dispatch_reset(application::appearance_reset_scope::code_font);
+		});
+
+		auto* const typeColumns = new QHBoxLayout{ };
+		typeColumns->setContentsMargins(0, 0, 0, 0);
+		typeColumns->setSpacing(card_inset);
+		auto* const typeRows = new QWidget{ type.Frame };
+		typeRows->setObjectName(QStringLiteral("appearanceTypeRows"));
+		auto* const rows = new QVBoxLayout{ typeRows };
+		rows->setContentsMargins(0, 0, 0, 0);
+		rows->setSpacing(0);
+
+		UiFamily = make_font_chooser(
+			typeRows,
+			QStringLiteral("Interface font family"),
+			QStringLiteral("appearanceUiFamily"));
+		add_row(
+			*rows,
+			typeRows,
+			QStringLiteral("appearanceUiFamilyRow"),
+			QStringLiteral("Interface font"),
+			QStringLiteral("Menus, drawers, headers. The system font unless chosen."),
+			UiFamily);
+
+		UiSize = new point_spin_box{ typeRows };
+		UiSize->setAccessibleName(
+			QStringLiteral("Interface font size, in points"));
+		bind_bounds(*UiSize, core::typography_field::point_size);
+		add_row(
+			*rows,
+			typeRows,
+			QStringLiteral("appearanceUiSizeRow"),
+			QStringLiteral("Interface size"),
+			QStringLiteral(
+				"The size of menus, drawers and headers, in points. Your desktop's "
+				"own size unless changed."),
+			UiSize);
+
+		UiWeight = new QSpinBox{ typeRows };
+		UiWeight->setAccessibleName(QStringLiteral("Interface font weight"));
+		UiWeight->setSingleStep(100);
+		bind_bounds(*UiWeight, core::typography_field::weight);
+		add_row(
+			*rows,
+			typeRows,
+			QStringLiteral("appearanceUiWeightRow"),
+			QStringLiteral("Interface weight"),
+			QStringLiteral("400 is regular; 500 and 600 are heavier."),
+			UiWeight);
+
+		UiLineHeight = new QSpinBox{ typeRows };
+		UiLineHeight->setAccessibleName(
+			QStringLiteral("Interface line height, percent"));
+		UiLineHeight->setSuffix(QStringLiteral(" %"));
+		UiLineHeight->setSingleStep(5);
+		bind_bounds(*UiLineHeight, core::typography_field::line_height);
+		add_row(
+			*rows,
+			typeRows,
+			QStringLiteral("appearanceUiLineHeightRow"),
+			QStringLiteral("Line height"),
+			QStringLiteral("Of the font's natural height."),
+			UiLineHeight);
+
+		CodeFamily = make_font_chooser(
+			typeRows,
+			QStringLiteral("Code font family"),
+			QStringLiteral("appearanceCodeFamily"));
+		add_row(
+			*rows,
+			typeRows,
+			QStringLiteral("appearanceCodeFamilyRow"),
+			QStringLiteral("Code font"),
+			QStringLiteral("Diffs, paths and identifiers."),
+			CodeFamily);
+
+		CodeSize = new point_spin_box{ typeRows };
+		CodeSize->setAccessibleName(QStringLiteral("Code font size, in points"));
+		bind_bounds(*CodeSize, core::typography_field::point_size);
+		add_row(
+			*rows,
+			typeRows,
+			QStringLiteral("appearanceCodeSizeRow"),
+			QStringLiteral("Code size"),
+			QStringLiteral("The size of every diff, path and identifier, in points."),
+			CodeSize);
+
+		CodeWeight = new QSpinBox{ typeRows };
+		CodeWeight->setAccessibleName(QStringLiteral("Code font weight"));
+		CodeWeight->setSingleStep(100);
+		bind_bounds(*CodeWeight, core::typography_field::weight);
+		add_row(
+			*rows,
+			typeRows,
+			QStringLiteral("appearanceCodeWeightRow"),
+			QStringLiteral("Code weight"),
+			QStringLiteral(
+				"400 is regular; a heavier code font thickens every glyph in a "
+				"diff."),
+			CodeWeight);
+
+		auto* const segment = new QWidget{ typeRows };
+		segment->setObjectName(QStringLiteral("appearanceTabWidthSegment"));
+		segment->setAccessibleName(QStringLiteral("Tab width, in spaces"));
+		auto* const segmentRow = new QHBoxLayout{ segment };
+		segmentRow->setContentsMargins(0, 0, 0, 0);
+		segmentRow->setSpacing(0);
+		for (auto index = std::size_t{ 0U }; index < tab_width_options.size();
+			 ++index) {
+			const auto width  = tab_width_options[index];
+			const auto bounds = core::bounds_of(core::typography_field::tab_width);
+			// Offered only while the core admits it. The three are the design's, and
+			// the bound is the validator's own, so the segment cannot offer a width
+			// the core would refuse.
+			if (width < bounds.Minimum || width > bounds.Maximum) {
+				continue;
+			}
+			auto* const option = new QToolButton{ segment };
+			option->setObjectName(
+				QStringLiteral("appearanceTabWidth%1").arg(width));
+			option->setText(QString::number(width));
+			option->setCheckable(true);
+			option->setFocusPolicy(Qt::StrongFocus);
+			option->setAccessibleName(
+				QStringLiteral("Tab width %1").arg(width));
+			QObject::connect(option, &QAbstractButton::clicked, this, [this, width] {
+				choose_tab_width(width);
+			});
+			segmentRow->addWidget(option);
+			TabWidths[index] = option;
+		}
+		const auto tabWidthRow = add_row(
+			*rows,
+			typeRows,
+			QStringLiteral("appearanceTabWidthRow"),
+			QStringLiteral("Tab width"),
+			QStringLiteral("Spaces per tab stop."),
+			segment);
+		// Each segment is its own focusable control, so each one says the row's
+		// consequence. Leaving it on the container that holds them would put the
+		// sentence on the one thing in the row nobody can focus.
+		for (auto* const option : TabWidths) {
+			if (option != nullptr) {
+				option->setAccessibleDescription(tabWidthRow.Glyph->consequence());
+			}
+		}
+
+		Ligatures = new QCheckBox{ typeRows };
+		Ligatures->setAccessibleName(QStringLiteral("Ligatures"));
+		add_row(
+			*rows,
+			typeRows,
+			QStringLiteral("appearanceLigaturesRow"),
+			QStringLiteral("Ligatures"),
+			QStringLiteral("Off keeps every character visible in a diff."),
+			Ligatures);
+
+		SyntaxBold = new QCheckBox{ typeRows };
+		SyntaxBold->setAccessibleName(QStringLiteral("Bold syntax emphasis"));
+		add_row(
+			*rows,
+			typeRows,
+			QStringLiteral("appearanceSyntaxBoldRow"),
+			QStringLiteral("Bold syntax emphasis"),
+			QStringLiteral("Keywords and types in bold."),
+			SyntaxBold);
+
+		SyntaxItalic = new QCheckBox{ typeRows };
+		SyntaxItalic->setAccessibleName(QStringLiteral("Italic syntax emphasis"));
+		add_row(
+			*rows,
+			typeRows,
+			QStringLiteral("appearanceSyntaxItalicRow"),
+			QStringLiteral("Italic syntax emphasis"),
+			QStringLiteral("Comments and documentation in italic."),
+			SyntaxItalic);
+		rows->addStretch(1);
+
+		Specimen = new type_preview{ type.Frame };
+		typeColumns->addWidget(typeRows, 1);
+		typeColumns->addWidget(Specimen, 0);
+		type.Body->addLayout(typeColumns);
+		page->addWidget(type.Frame);
+
+		// ── Colours. The whole vocabulary, for the theme on screen.
+		auto colours = make_card(
 			this,
-			[this](int) { dispatch_mode(); });
-		QObject::connect(
-			RoleSelector,
-			&QComboBox::currentIndexChanged,
-			this,
-			[this](int) { show_selected_color(); });
-		QObject::connect(
-			PreviewButton, &QPushButton::clicked, this, [this] {
-				dispatch_palette_preview();
+			QStringLiteral("Colours"),
+			QStringLiteral("appearanceColoursCard"));
+		ColoursCard  = colours.Frame;
+		ColoursTitle = colours.Title;
+		ImportButton = make_header_button(
+			colours.Frame,
+			QStringLiteral("Import…"),
+			QStringLiteral("Import theme"),
+			QStringLiteral("appearanceImportTheme"));
+		ExportButton = make_header_button(
+			colours.Frame,
+			QStringLiteral("Export…"),
+			QStringLiteral("Export saved theme"),
+			QStringLiteral("appearanceExportTheme"));
+		auto* const coloursReset = make_header_button(
+			colours.Frame,
+			QStringLiteral("Reset all"),
+			QStringLiteral("Reset all colours"),
+			QStringLiteral("appearanceColoursReset"));
+		colours.Header->addWidget(ImportButton);
+		colours.Header->addWidget(ExportButton);
+		colours.Header->addWidget(coloursReset);
+		QObject::connect(ImportButton, &QPushButton::clicked, this, [this] {
+			select_theme_file();
+		});
+		QObject::connect(ExportButton, &QPushButton::clicked, this, [this] {
+			select_theme_destination();
+		});
+		QObject::connect(coloursReset, &QPushButton::clicked, this, [this] {
+			dispatch_reset(application::appearance_reset_scope::palette);
+		});
+
+		ColoursSubtitle = new QLabel{ colours.Frame };
+		ColoursSubtitle->setObjectName(QStringLiteral("appearanceColoursSubtitle"));
+		ColoursSubtitle->setWordWrap(true);
+		ColoursSubtitle->setForegroundRole(QPalette::PlaceholderText);
+		colours.Body->addWidget(ColoursSubtitle);
+		Colours = new colour_role_list{ colours.Frame };
+		Colours->set_dispatch(
+			[this](
+				const core::appearance_role  aRole,
+				const core::appearance_color aColour) {
+				edit_colour(aRole, aColour);
 			});
+		colours.Body->addWidget(Colours);
+		page->addWidget(colours.Frame);
+
+		// ── Dif. RFC-BPR-0031's B3 controls, in the new row language.
+		auto dif = make_card(
+			this, QStringLiteral("Dif"), QStringLiteral("appearanceDifCard"));
+		auto* const difReset = make_header_button(
+			dif.Frame,
+			QStringLiteral("Reset"),
+			QStringLiteral("Reset Dif preferences"),
+			QStringLiteral("appearanceDifReset"));
+		dif.Header->addWidget(difReset);
+		QObject::connect(difReset, &QPushButton::clicked, this, [this] {
+			dispatch_reset(application::appearance_reset_scope::dif);
+		});
+		auto* const difRows   = new QWidget{ dif.Frame };
+		auto* const difColumn = new QVBoxLayout{ difRows };
+		difColumn->setContentsMargins(0, 0, 0, 0);
+		difColumn->setSpacing(0);
+
+		DifVisibility = new QCheckBox{ difRows };
+		// The accessible name RFC-BPR-0031's evidence names. The row's label is what
+		// a sighted reviewer reads; this is what a screen reader says, and it stays
+		// exactly as it was.
+		DifVisibility->setAccessibleName(QStringLiteral("Show Dif mascot"));
+		add_row(
+			*difColumn,
+			difRows,
+			QStringLiteral("appearanceDifVisibilityRow"),
+			QStringLiteral("Show Dif mascot"),
+			QStringLiteral(
+				"Hides Dif in the window's corner. Nothing else about the review "
+				"changes."),
+			DifVisibility);
+
+		MotionSelector = new QComboBox{ difRows };
+		MotionSelector->setAccessibleName(QStringLiteral("Dif motion"));
+		MotionSelector->addItem(
+			QStringLiteral("System"), static_cast<int>(core::motion_mode::system));
+		MotionSelector->addItem(
+			QStringLiteral("Full"), static_cast<int>(core::motion_mode::full));
+		MotionSelector->addItem(
+			QStringLiteral("Reduced"), static_cast<int>(core::motion_mode::reduced));
+		add_row(
+			*difColumn,
+			difRows,
+			QStringLiteral("appearanceDifMotionRow"),
+			QStringLiteral("Dif motion"),
+			QStringLiteral(
+				"System follows your desktop's reduced-motion setting. Full "
+				"overrides it."),
+			MotionSelector);
+
+		// A value row rather than a consequence row: the amendment keeps a row whose
+		// second text is a value in the row, and what the system asked for is a
+		// value.
+		auto* const motionRow = new QWidget{ difRows };
+		motionRow->setObjectName(QStringLiteral("appearanceDifMotionStatusRow"));
+		motionRow->setMinimumHeight(row_height);
+		auto* const motionLine = new QHBoxLayout{ motionRow };
+		motionLine->setContentsMargins(0, 0, 0, 0);
+		motionLine->setSpacing(column_gap);
+		auto* const motionLabel = new QLabel{
+			QStringLiteral("Motion now"), motionRow
+		};
+		MotionStatus = new QLabel{ motionRow };
+		MotionStatus->setObjectName(QStringLiteral("appearanceDifMotionStatus"));
+		MotionStatus->setWordWrap(true);
+		MotionStatus->setAccessibleName(QStringLiteral("Dif motion status"));
+		MotionStatus->setForegroundRole(QPalette::PlaceholderText);
+		motionLine->addWidget(motionLabel, 0, Qt::AlignVCenter);
+		motionLine->addWidget(MotionStatus, 1, Qt::AlignVCenter);
+		difColumn->addWidget(make_hairline(difRows));
+		difColumn->addWidget(motionRow);
+		dif.Body->addWidget(difRows);
+		page->addWidget(dif.Frame);
+
+		Status = new QLabel{ this };
+		Status->setObjectName(QStringLiteral("appearanceStatus"));
+		Status->setWordWrap(true);
+		Status->setAccessibleName(QStringLiteral("Appearance settings status"));
+		page->addWidget(Status);
+		page->addStretch(1);
+
+		QObject::connect(DifVisibility, &QCheckBox::toggled, this, [this](bool) {
+			dispatch_dif();
+		});
 		QObject::connect(
-			CommitButton, &QPushButton::clicked, this, [this] {
-				dispatch_palette_commit();
-			});
-		QObject::connect(
-			CancelButton, &QPushButton::clicked, this, [this] {
-				dispatch_palette_cancel();
-			});
-		QObject::connect(
-			ImportButton, &QPushButton::clicked, this, [this] {
-				select_theme_file();
+			MotionSelector, &QComboBox::currentIndexChanged, this, [this](int) {
+				dispatch_dif();
 			});
 
 		const auto onTypography = [this] { dispatch_typography(); };
-		QObject::connect(UiFamily, &QLineEdit::editingFinished, this, onTypography);
-		QObject::connect(CodeFamily, &QLineEdit::editingFinished, this, onTypography);
-		for (auto* const box : { UiSize, UiWeight, UiLineHeight, CodeSize, CodeWeight, TabWidth }) {
+		for (auto* const chooser : { UiFamily, CodeFamily }) {
+			QObject::connect(
+				chooser->lineEdit(),
+				&QLineEdit::editingFinished,
+				this,
+				onTypography);
+			QObject::connect(
+				chooser, &QComboBox::activated, this, [onTypography](int) {
+					onTypography();
+				});
+		}
+		for (auto* const box :
+			 { UiSize, UiWeight, UiLineHeight, CodeSize, CodeWeight }) {
 			QObject::connect(
 				box, &QSpinBox::valueChanged, this, [onTypography](int) {
 					onTypography();
@@ -386,6 +805,9 @@ namespace bpr::qt {
 	{
 		ResolvedVariant = aVariant;
 		ThemePreviews->set_system_variant(aVariant);
+		Specimen->set_theme_name(variant_text(aVariant));
+		refresh_colours();
+		refresh_preview_bar();
 	}
 
 	auto appearance_settings_panel::resolved_variant() const noexcept
@@ -400,6 +822,48 @@ namespace bpr::qt {
 		ThemePreviews->set_customised_counts(aCounts);
 	}
 
+	void appearance_settings_panel::set_theme_palettes(
+		std::array<core::appearance_palette, core::appearance_variant_count>
+			aPalettes)
+	{
+		ThemePreviews->set_theme_palettes(std::move(aPalettes));
+	}
+
+	void appearance_settings_panel::set_code_font(QFont aFont)
+	{
+		ThemePreviews->set_code_font(aFont);
+		Colours->set_value_font(std::move(aFont));
+	}
+
+	void appearance_settings_panel::adopt_appearance(appearance_profile& aProfile)
+	{
+		set_resolved_variant(aProfile.variant());
+		auto palettes
+			= std::array<core::appearance_palette, core::appearance_variant_count>{ };
+		auto counts = std::array<std::size_t, core::appearance_variant_count>{ };
+		for (auto index = std::size_t{ 0U }; index < palettes.size(); ++index) {
+			const auto variant = static_cast<core::appearance_variant>(
+				static_cast<std::uint8_t>(index));
+			palettes[index] = aProfile.palette_for(variant);
+			counts[index]   = aProfile.customised_roles(variant);
+		}
+		set_theme_palettes(std::move(palettes));
+		set_customised_counts(counts);
+		set_code_font(aProfile.code_font());
+		Specimen->adopt_appearance(aProfile);
+	}
+
+	void appearance_settings_panel::set_colour_picker(colour_picker aPicker)
+	{
+		Colours->set_picker(std::move(aPicker));
+	}
+
+	void appearance_settings_panel::choose_mode(const core::appearance_mode aMode)
+	{
+		ThemePreviews->set_current(aMode);
+		dispatch_mode(aMode);
+	}
+
 	auto appearance_settings_panel::theme_text() const -> QString
 	{
 		return ResolvedVariant.has_value() ? variant_text(*ResolvedVariant)
@@ -411,36 +875,68 @@ namespace bpr::qt {
 		if (Echoing || MotionSelector->currentIndex() < 0 || !Dispatch) {
 			return;
 		}
-		Dispatch(application::apply_dif_preferences_intent{ .Preferences = {
-																.Visibility = DifVisibility->isChecked() ? core::dif_visibility::shown : core::dif_visibility::hidden,
-																.Motion     = static_cast<core::motion_mode>(MotionSelector->currentData().toInt()),
-															} });
+		Dispatch(application::apply_dif_preferences_intent{
+			.Preferences = {
+				.Visibility = DifVisibility->isChecked()
+					? core::dif_visibility::shown
+					: core::dif_visibility::hidden,
+				.Motion     = static_cast<core::motion_mode>(
+					MotionSelector->currentData().toInt()),
+			} });
 	}
 
-	void appearance_settings_panel::adopt_motion(const core::dif_resolution aResolution)
+	void appearance_settings_panel::adopt_motion(
+		const core::dif_resolution aResolution)
 	{
 		MotionResolution = aResolution;
 		QString text;
 		if (aResolution.Preferences.Visibility == core::dif_visibility::hidden) {
 			text = QStringLiteral("Dif is hidden. Motion is stopped.");
 		} else if (aResolution.Preferences.Motion == core::motion_mode::full) {
-			text = QStringLiteral("Full motion is selected, overriding the system preference.");
+			text = QStringLiteral(
+				"Full motion is selected, overriding the system preference.");
 		} else if (aResolution.Preferences.Motion == core::motion_mode::reduced) {
-			text = QStringLiteral("Reduced motion is selected. Dif remains still.");
+			text = QStringLiteral(
+				"Reduced motion is selected. Dif remains still.");
 		} else {
 			switch (aResolution.Observation) {
-			case core::motion_observation::full:        text = QStringLiteral("System allows full motion."); break;
-			case core::motion_observation::reduced:     text = QStringLiteral("System requests reduced motion. Dif remains still."); break;
-			case core::motion_observation::unsupported: text = QStringLiteral("System motion observation is unsupported. Dif remains still; select Full to override."); break;
-			case core::motion_observation::failed:      text = QStringLiteral("System motion observation failed. Dif remains still; select Full to override."); break;
-			case core::motion_observation::unknown:     text = QStringLiteral("System motion preference is unknown. Dif remains still; select Full to override."); break;
+			case core::motion_observation::full:
+				text = QStringLiteral("System allows full motion.");
+				break;
+			case core::motion_observation::reduced:
+				text = QStringLiteral(
+					"System requests reduced motion. Dif remains still.");
+				break;
+			case core::motion_observation::unsupported:
+				text = QStringLiteral(
+					"System motion observation is unsupported. Dif remains still; "
+					"select Full to override.");
+				break;
+			case core::motion_observation::failed:
+				text = QStringLiteral(
+					"System motion observation failed. Dif remains still; select "
+					"Full to override.");
+				break;
+			case core::motion_observation::unknown:
+				text = QStringLiteral(
+					"System motion preference is unknown. Dif remains still; "
+					"select Full to override.");
+				break;
 			}
 		}
 		MotionStatus->setText(text);
 	}
 
-	auto appearance_settings_panel::dif_visibility_switch() const noexcept -> QCheckBox* { return DifVisibility; }
-	auto appearance_settings_panel::motion_selector() const noexcept -> QComboBox* { return MotionSelector; }
+	auto appearance_settings_panel::dif_visibility_switch() const noexcept
+		-> QCheckBox*
+	{
+		return DifVisibility;
+	}
+
+	auto appearance_settings_panel::motion_selector() const noexcept -> QComboBox*
+	{
+		return MotionSelector;
+	}
 
 	void appearance_settings_panel::set_dispatch(
 		application::appearance_intent_dispatch aDispatch)
@@ -492,10 +988,11 @@ namespace bpr::qt {
 		PreviewPalette   = std::move(aActivePreview);
 		++Statistics.Adoptions;
 		show_adopted();
-		Status->setText(with_persistence_status(PreviewPalette.has_value()
-													? QStringLiteral(
-														  "Appearance settings are in effect; the palette preview remains unsaved.")
-													: QStringLiteral("Appearance settings are in effect.")));
+		Status->setText(with_persistence_status(
+			PreviewPalette.has_value()
+				? QStringLiteral("Appearance settings are in effect; the palette "
+								 "preview remains unsaved.")
+				: QStringLiteral("Appearance settings are in effect.")));
 	}
 
 	void appearance_settings_panel::preview_import(
@@ -503,13 +1000,13 @@ namespace bpr::qt {
 	{
 		PendingPreview.reset();
 		PreviewPalette = aPalette;
-		show_selected_color();
-		CommitButton->setEnabled(true);
-		CancelButton->setEnabled(true);
+		refresh_colours();
+		refresh_preview_bar();
 		// Names the theme it previews into, because it previews into exactly one
-		// and committing changes only that one.
+		// and keeping the changes changes only that one.
 		Status->setText(with_persistence_status(
-			QStringLiteral("Imported theme is previewed into %1 only; commit to save it.")
+			QStringLiteral("Imported theme is previewed into %1 only; Keep changes "
+						   "saves it.")
 				.arg(theme_text())));
 	}
 
@@ -529,28 +1026,38 @@ namespace bpr::qt {
 	}
 
 	void appearance_settings_panel::report(
-		const std::span<const application::appearance_contrast_rejection> aRejections)
+		const std::span<const application::appearance_contrast_rejection>
+			aRejections)
 	{
 		++Statistics.Rejections;
 		auto text = QStringLiteral(
 			"Palette refused; the committed palette is unchanged:");
 		for (const auto& rejection : aRejections) {
-			const auto foreground = core::stable_name(rejection.Finding.Pair.Foreground);
-			const auto background = core::stable_name(rejection.Finding.Pair.Background);
+			const auto foreground
+				= core::stable_name(rejection.Finding.Pair.Foreground);
+			const auto background
+				= core::stable_name(rejection.Finding.Pair.Background);
 			text += QStringLiteral("\n· %1: %2 on %3 is %4:1; %5:1 is required")
 						.arg(variant_text(rejection.Variant))
 						.arg(QString::fromUtf8(
-							foreground.data(), static_cast<qsizetype>(foreground.size())))
+							foreground.data(),
+							static_cast<qsizetype>(foreground.size())))
 						.arg(QString::fromUtf8(
-							background.data(), static_cast<qsizetype>(background.size())))
-						.arg(static_cast<double>(rejection.Finding.RatioHundredths) / 100.0,
-							 0,
-							 'f',
-							 2)
-						.arg(static_cast<double>(rejection.Finding.MinimumHundredths) / 100.0,
-							 0,
-							 'f',
-							 2);
+							background.data(),
+							static_cast<qsizetype>(background.size())))
+						.arg(
+							static_cast<double>(rejection.Finding.RatioHundredths)
+								/ 100.0,
+							0,
+							'f',
+							2)
+						.arg(
+							static_cast<double>(
+								rejection.Finding.MinimumHundredths)
+								/ 100.0,
+							0,
+							'f',
+							2);
 		}
 		Status->setText(with_persistence_status(std::move(text)));
 	}
@@ -558,7 +1065,8 @@ namespace bpr::qt {
 	void appearance_settings_panel::request_theme_export(const QString& aPath)
 	{
 		if (!aPath.isEmpty() && Dispatch) {
-			Dispatch(application::export_appearance_theme_intent{ aPath.toStdString() });
+			Dispatch(
+				application::export_appearance_theme_intent{ aPath.toStdString() });
 		}
 	}
 
@@ -567,10 +1075,13 @@ namespace bpr::qt {
 		// Names the theme it wrote. An export takes the colours of exactly one
 		// theme, so a message that did not say which left the reviewer to assume
 		// it had written all of them.
-		Status->setText(with_persistence_status(aSucceeded
-													? QStringLiteral("Saved theme exported. %1 was written; unsaved previews are excluded.")
-														  .arg(theme_text())
-													: QStringLiteral("Theme export failed. Choose a writable regular file and try again.")));
+		Status->setText(with_persistence_status(
+			aSucceeded
+				? QStringLiteral("Saved theme exported. %1 was written; unsaved "
+								 "previews are excluded.")
+					  .arg(theme_text())
+				: QStringLiteral("Theme export failed. Choose a writable regular "
+								 "file and try again.")));
 	}
 
 	void appearance_settings_panel::report_theme_document_unavailable()
@@ -619,19 +1130,40 @@ namespace bpr::qt {
 		Status->setText(with_persistence_status(std::move(text)));
 	}
 
-	auto appearance_settings_panel::theme_previews() const noexcept -> theme_preview_strip*
+	auto appearance_settings_panel::theme_previews() const noexcept
+		-> theme_preview_strip*
 	{
 		return ThemePreviews;
 	}
 
-	auto appearance_settings_panel::mode_selector() const noexcept -> QComboBox*
+	auto appearance_settings_panel::specimen() const noexcept -> type_preview*
 	{
-		return ModeSelector;
+		return Specimen;
 	}
 
-	auto appearance_settings_panel::ui_family_editor() const noexcept -> QLineEdit*
+	auto appearance_settings_panel::colours() const noexcept -> colour_role_list*
+	{
+		return Colours;
+	}
+
+	auto appearance_settings_panel::colours_title() const noexcept -> QLabel*
+	{
+		return ColoursTitle;
+	}
+
+	auto appearance_settings_panel::colours_subtitle() const noexcept -> QLabel*
+	{
+		return ColoursSubtitle;
+	}
+
+	auto appearance_settings_panel::ui_font_chooser() const noexcept -> QComboBox*
 	{
 		return UiFamily;
+	}
+
+	auto appearance_settings_panel::code_font_chooser() const noexcept -> QComboBox*
+	{
+		return CodeFamily;
 	}
 
 	auto appearance_settings_panel::ui_size_editor() const noexcept -> QSpinBox*
@@ -650,26 +1182,39 @@ namespace bpr::qt {
 		return UiLineHeight;
 	}
 
-	auto appearance_settings_panel::code_family_editor() const noexcept
-		-> QLineEdit*
-	{
-		return CodeFamily;
-	}
-
 	auto appearance_settings_panel::code_size_editor() const noexcept -> QSpinBox*
 	{
 		return CodeSize;
 	}
 
-	auto appearance_settings_panel::code_weight_editor() const noexcept
-		-> QSpinBox*
+	auto appearance_settings_panel::code_weight_editor() const noexcept -> QSpinBox*
 	{
 		return CodeWeight;
 	}
 
-	auto appearance_settings_panel::tab_width_editor() const noexcept -> QSpinBox*
+	auto appearance_settings_panel::tab_width_option(
+		const std::uint32_t aWidth) const -> QAbstractButton*
 	{
-		return TabWidth;
+		for (auto index = std::size_t{ 0U }; index < tab_width_options.size();
+			 ++index) {
+			if (tab_width_options[index] == aWidth) {
+				return TabWidths[index];
+			}
+		}
+		return nullptr;
+	}
+
+	auto appearance_settings_panel::tab_width() const -> std::uint32_t
+	{
+		for (auto index = std::size_t{ 0U }; index < TabWidths.size(); ++index) {
+			if (TabWidths[index] != nullptr && TabWidths[index]->isChecked()) {
+				return tab_width_options[index];
+			}
+		}
+		// No segment chosen, which happens exactly when the adopted record carries a
+		// legal width the design does not offer. The record's own width is then what
+		// is in effect, and an unrelated font gesture must not quietly change it.
+		return AdoptedSettings.Typography.Code.TabWidth;
 	}
 
 	auto appearance_settings_panel::ligatures_switch() const noexcept -> QCheckBox*
@@ -677,8 +1222,7 @@ namespace bpr::qt {
 		return Ligatures;
 	}
 
-	auto appearance_settings_panel::syntax_bold_switch() const noexcept
-		-> QCheckBox*
+	auto appearance_settings_panel::syntax_bold_switch() const noexcept -> QCheckBox*
 	{
 		return SyntaxBold;
 	}
@@ -689,34 +1233,36 @@ namespace bpr::qt {
 		return SyntaxItalic;
 	}
 
-	auto appearance_settings_panel::role_selector() const noexcept -> QComboBox*
-	{
-		return RoleSelector;
-	}
-
-	auto appearance_settings_panel::color_editor() const noexcept -> QLineEdit*
-	{
-		return ColorEditor;
-	}
-
-	auto appearance_settings_panel::preview_button() const noexcept -> QPushButton*
-	{
-		return PreviewButton;
-	}
-
-	auto appearance_settings_panel::commit_button() const noexcept -> QPushButton*
-	{
-		return CommitButton;
-	}
-
-	auto appearance_settings_panel::cancel_button() const noexcept -> QPushButton*
-	{
-		return CancelButton;
-	}
-
 	auto appearance_settings_panel::import_button() const noexcept -> QPushButton*
 	{
 		return ImportButton;
+	}
+
+	auto appearance_settings_panel::export_button() const noexcept -> QPushButton*
+	{
+		return ExportButton;
+	}
+
+	auto appearance_settings_panel::preview_bar() const noexcept -> QWidget*
+	{
+		return PreviewBar;
+	}
+
+	auto appearance_settings_panel::preview_bar_text() const -> QString
+	{
+		return PreviewBarLabel == nullptr ? QString{ } : PreviewBarLabel->text();
+	}
+
+	auto appearance_settings_panel::keep_changes_button() const noexcept
+		-> QPushButton*
+	{
+		return KeepChanges;
+	}
+
+	auto appearance_settings_panel::cancel_changes_button() const noexcept
+		-> QPushButton*
+	{
+		return CancelChanges;
 	}
 
 	auto appearance_settings_panel::preview_palette() const noexcept
@@ -742,21 +1288,18 @@ namespace bpr::qt {
 		return Statistics;
 	}
 
-	void appearance_settings_panel::dispatch_mode()
+	void appearance_settings_panel::dispatch_mode(const core::appearance_mode aMode)
 	{
 		if (Echoing) {
 			++Statistics.SuppressedEchoes;
 			return;
 		}
-		const auto index = ModeSelector->currentIndex();
-		if (index < 0 || static_cast<std::size_t>(index) >= core::appearance_mode_count) {
+		if (!application::known(aMode)) {
 			return;
 		}
 		++Statistics.ModeGestures;
 		if (Dispatch) {
-			Dispatch(application::select_appearance_mode_intent{
-				.Mode = static_cast<core::appearance_mode>(index),
-			});
+			Dispatch(application::select_appearance_mode_intent{ .Mode = aMode });
 		}
 	}
 
@@ -774,39 +1317,73 @@ namespace bpr::qt {
 		}
 	}
 
-	void appearance_settings_panel::dispatch_palette_preview()
+	void appearance_settings_panel::choose_tab_width(const std::uint32_t aWidth)
 	{
-		const auto index = RoleSelector->currentIndex();
-		const auto color = QColor{ ColorEditor->text() };
-		if (index < 0
-			|| static_cast<std::size_t>(index) >= core::appearance_role_count
-			|| !color.isValid()) {
-			Status->setText(with_persistence_status(QStringLiteral(
-				"Enter a valid #rrggbb or #aarrggbb semantic colour.")));
+		for (auto index = std::size_t{ 0U }; index < TabWidths.size(); ++index) {
+			if (TabWidths[index] != nullptr) {
+				TabWidths[index]->setChecked(tab_width_options[index] == aWidth);
+			}
+		}
+		if (aWidth != AdoptedSettings.Typography.Code.TabWidth) {
+			dispatch_typography();
+		}
+	}
+
+	void appearance_settings_panel::dispatch_reset(
+		const application::appearance_reset_scope aScope)
+	{
+		PendingPreview.reset();
+		if (Dispatch) {
+			Dispatch(application::reset_appearance_intent{ aScope });
+		}
+	}
+
+	void appearance_settings_panel::edit_colour(
+		const core::appearance_role  aRole,
+		const core::appearance_color aColour)
+	{
+		auto palette                   = PreviewPalette.value_or(CommittedPalette);
+		palette[core::index_of(aRole)] = aColour;
+		if (palette == CommittedPalette) {
+			// Back to the colours the host last adopted, which is what a cancelled
+			// picker reports. There is nothing left to preview, so the preview ends
+			// rather than standing with no difference in it.
+			dispatch_palette_cancel();
 			return;
 		}
-		auto palette                             = PreviewPalette.value_or(CommittedPalette);
-		palette[static_cast<std::size_t>(index)] = to_appearance_color(color);
-		PreviewPalette                           = palette;
-		PendingPreview                           = palette;
-		CommitButton->setEnabled(true);
-		CancelButton->setEnabled(true);
+		PreviewPalette = palette;
+		PendingPreview = palette;
+		refresh_colours();
+		refresh_preview_bar();
 		Status->setText(with_persistence_status(
-			QStringLiteral("Palette is previewed only; commit to save it to %1.")
+			QStringLiteral("Colours are previewed only; Keep changes saves them to "
+						   "%1.")
 				.arg(theme_text())));
-		if (!PreviewDeliveryQueued) {
-			PreviewDeliveryQueued = true;
-			// One widget-bound delivery consumes the latest candidate in this event burst.
-			QMetaObject::invokeMethod(this, [this] {
+		offer_preview();
+	}
+
+	void appearance_settings_panel::offer_preview()
+	{
+		if (PreviewDeliveryQueued) {
+			return;
+		}
+		PreviewDeliveryQueued = true;
+		// One widget-bound delivery consumes the latest candidate in this event
+		// burst, so dragging a picker across a gradient offers the colour it landed
+		// on rather than every colour it crossed.
+		QMetaObject::invokeMethod(
+			this,
+			[this] {
 				PreviewDeliveryQueued = false;
-				auto pending = std::exchange(PendingPreview, std::nullopt);
+				auto pending          = std::exchange(PendingPreview, std::nullopt);
 				if (pending && Dispatch) {
 					++Statistics.PalettePreviews;
 					Dispatch(application::preview_appearance_palette_intent{
 						.Palette = std::move(*pending),
 					});
-				} }, Qt::QueuedConnection);
-		}
+				}
+			},
+			Qt::QueuedConnection);
 	}
 
 	void appearance_settings_panel::dispatch_palette_commit()
@@ -833,9 +1410,8 @@ namespace bpr::qt {
 		PendingPreview.reset();
 		PreviewPalette.reset();
 		++Statistics.PaletteCancels;
-		show_selected_color();
-		CommitButton->setEnabled(PreviewPalette.has_value());
-		CancelButton->setEnabled(PreviewPalette.has_value());
+		refresh_colours();
+		refresh_preview_bar();
 		Status->setText(with_persistence_status(
 			QStringLiteral("Preview cancelled; the committed palette is restored.")));
 		if (Dispatch) {
@@ -849,21 +1425,17 @@ namespace bpr::qt {
 			this,
 			QStringLiteral("Import appearance theme"),
 			{ },
-			QStringLiteral("BetterPullReview themes (*.bprtheme *.theme);;All files (*)")));
+			QStringLiteral(
+				"BetterPullReview themes (*.bprtheme *.theme);;All files (*)")));
 	}
 
-	void appearance_settings_panel::show_selected_color()
+	void appearance_settings_panel::select_theme_destination()
 	{
-		const auto index = RoleSelector->currentIndex();
-		if (index < 0
-			|| static_cast<std::size_t>(index) >= core::appearance_role_count) {
-			ColorEditor->clear();
-			return;
-		}
-		const auto& palette = PreviewPalette.value_or(CommittedPalette);
-		ColorEditor->setText(
-			to_presentation_color(palette[static_cast<std::size_t>(index)])
-				.name(QColor::HexArgb));
+		request_theme_export(QFileDialog::getSaveFileName(
+			this,
+			QStringLiteral("Export saved theme"),
+			QStringLiteral("theme.bprtheme"),
+			QStringLiteral("Theme files (*.bprtheme)")));
 	}
 
 	auto appearance_settings_panel::composed_typography() const
@@ -872,7 +1444,7 @@ namespace bpr::qt {
 		return core::typography_settings{
 			.Ui = {
 				.Font = {
-					.Family               = UiFamily->text().toStdString(),
+					.Family               = UiFamily->currentText().toStdString(),
 					.PointSizeCentipoints = static_cast<std::uint32_t>(UiSize->value()),
 					.Weight               = static_cast<std::uint32_t>(UiWeight->value()),
 				},
@@ -880,11 +1452,11 @@ namespace bpr::qt {
 			},
 			.Code = {
 				.Font = {
-					.Family               = CodeFamily->text().toStdString(),
+					.Family               = CodeFamily->currentText().toStdString(),
 					.PointSizeCentipoints = static_cast<std::uint32_t>(CodeSize->value()),
 					.Weight               = static_cast<std::uint32_t>(CodeWeight->value()),
 				},
-				.TabWidth     = static_cast<std::uint32_t>(TabWidth->value()),
+				.TabWidth     = tab_width(),
 				.Ligatures    = Ligatures->isChecked(),
 				.SyntaxBold   = SyntaxBold->isChecked(),
 				.SyntaxItalic = SyntaxItalic->isChecked(),
@@ -896,34 +1468,147 @@ namespace bpr::qt {
 	{
 		Echoing            = true;
 		const auto& record = AdoptedSettings;
-		ModeSelector->setCurrentIndex(static_cast<int>(record.Mode));
 		ThemePreviews->set_current(record.Mode);
-		DifVisibility->setChecked(record.Dif.Visibility == core::dif_visibility::shown);
+		DifVisibility->setChecked(
+			record.Dif.Visibility == core::dif_visibility::shown);
 		MotionSelector->setCurrentIndex(static_cast<int>(record.Dif.Motion));
 		adopt_motion(core::resolve_dif(record.Dif, MotionResolution.Observation));
-		UiFamily->setText(QString::fromStdString(record.Typography.Ui.Font.Family));
+		UiFamily->setCurrentText(
+			QString::fromStdString(record.Typography.Ui.Font.Family));
 		UiSize->setValue(
 			static_cast<int>(record.Typography.Ui.Font.PointSizeCentipoints));
 		UiWeight->setValue(static_cast<int>(record.Typography.Ui.Font.Weight));
 		UiLineHeight->setValue(
 			static_cast<int>(record.Typography.Ui.LineHeightPercent));
-		CodeFamily->setText(
+		CodeFamily->setCurrentText(
 			QString::fromStdString(record.Typography.Code.Font.Family));
 		CodeSize->setValue(
 			static_cast<int>(record.Typography.Code.Font.PointSizeCentipoints));
 		CodeWeight->setValue(static_cast<int>(record.Typography.Code.Font.Weight));
-		TabWidth->setValue(static_cast<int>(record.Typography.Code.TabWidth));
+		for (auto index = std::size_t{ 0U }; index < TabWidths.size(); ++index) {
+			if (TabWidths[index] != nullptr) {
+				TabWidths[index]->setChecked(
+					tab_width_options[index] == record.Typography.Code.TabWidth);
+			}
+		}
 		Ligatures->setChecked(record.Typography.Code.Ligatures);
 		SyntaxBold->setChecked(record.Typography.Code.SyntaxBold);
 		SyntaxItalic->setChecked(record.Typography.Code.SyntaxItalic);
-		show_selected_color();
-		CommitButton->setEnabled(PreviewPalette.has_value());
-		CancelButton->setEnabled(PreviewPalette.has_value());
 		Echoing = false;
+		refresh_colours();
+		refresh_preview_bar();
 	}
 
-	auto appearance_settings_panel::with_persistence_status(
-		QString aStatus) const -> QString
+	void appearance_settings_panel::refresh_colours()
+	{
+		Colours->set_theme_colours(CommittedPalette);
+		Colours->set_previewed_colours(PreviewPalette);
+		ColoursTitle->setText(
+			QStringLiteral("Colours for %1").arg(theme_text()));
+		ColoursSubtitle->setText(
+			QStringLiteral("Edits change %1 only. Each theme keeps its own "
+						   "colours.")
+				.arg(theme_text()));
+		ColoursCard->setAccessibleName(ColoursTitle->text());
+	}
+
+	void appearance_settings_panel::refresh_preview_bar()
+	{
+		if (!PreviewPalette.has_value()) {
+			if (PreviewBar == nullptr) {
+				return;
+			}
+			// Removed rather than hidden: RFC-BPR-0034 says the bar exists only
+			// while something is previewed, and a hidden widget is still in the
+			// accessibility tree. Detaching it first makes it absent from this
+			// panel at once, and the deferred delete is what keeps a click on
+			// Cancel from destroying the button it came from.
+			PreviewBar->hide();
+			PreviewBar->setParent(nullptr);
+			PreviewBar->deleteLater();
+			PreviewBar      = nullptr;
+			PreviewBarLabel = nullptr;
+			KeepChanges     = nullptr;
+			CancelChanges   = nullptr;
+			return;
+		}
+
+		if (PreviewBar == nullptr) {
+			PreviewBar = new QWidget{ ColoursCard };
+			PreviewBar->setObjectName(QStringLiteral("appearancePreviewBar"));
+			auto* const column = new QVBoxLayout{ PreviewBar };
+			column->setContentsMargins(0, 0, 0, 0);
+			column->setSpacing(0);
+			column->addWidget(make_hairline(PreviewBar));
+			auto* const foot = new QWidget{ PreviewBar };
+			foot->setAutoFillBackground(true);
+			foot->setBackgroundRole(QPalette::AlternateBase);
+			auto* const line = new QHBoxLayout{ foot };
+			line->setContentsMargins(card_inset, row_inset, card_inset, row_inset);
+			line->setSpacing(column_gap / 2);
+			PreviewBarLabel = new QLabel{ foot };
+			PreviewBarLabel->setWordWrap(true);
+			CancelChanges = make_header_button(
+				foot,
+				QStringLiteral("Cancel"),
+				QStringLiteral("Cancel colour changes"),
+				QStringLiteral("appearancePreviewCancel"));
+			KeepChanges = new QPushButton{ QStringLiteral("Keep changes"), foot };
+			KeepChanges->setObjectName(QStringLiteral("appearancePreviewKeep"));
+			KeepChanges->setAccessibleName(QStringLiteral("Keep changes"));
+			KeepChanges->setAutoDefault(false);
+			KeepChanges->setFocusPolicy(Qt::StrongFocus);
+			line->addWidget(PreviewBarLabel, 1);
+			line->addWidget(CancelChanges);
+			line->addWidget(KeepChanges);
+			column->addWidget(foot);
+			QObject::connect(CancelChanges, &QPushButton::clicked, this, [this] {
+				dispatch_palette_cancel();
+			});
+			QObject::connect(KeepChanges, &QPushButton::clicked, this, [this] {
+				dispatch_palette_commit();
+			});
+			if (auto* const card = qobject_cast<QVBoxLayout*>(
+					ColoursCard->layout());
+				card != nullptr) {
+				card->addWidget(PreviewBar);
+			}
+		}
+
+		auto changes = std::size_t{ 0U };
+		for (auto index = std::size_t{ 0U }; index < core::appearance_role_count;
+			 ++index) {
+			changes += (*PreviewPalette)[index] != CommittedPalette[index] ? 1U : 0U;
+		}
+		const auto sentence = [this, changes]() -> QString {
+			if (changes == 1U) {
+				return QStringLiteral(
+						   "Previewing 1 colour change to %1 in the review window.")
+					.arg(theme_text());
+			}
+			if (changes > 1U) {
+				return QStringLiteral(
+						   "Previewing %1 colour changes to %2 in the review window.")
+					.arg(static_cast<qulonglong>(changes))
+					.arg(theme_text());
+			}
+			// An imported theme can be equal to the one on screen. Saying it is
+			// previewing nothing is the truth, and it keeps the bar's presence
+			// meaning exactly "something is previewed".
+			return QStringLiteral(
+					   "Previewing %1 in the review window; no colour differs.")
+				.arg(theme_text());
+		}();
+		PreviewBarLabel->setText(sentence);
+		PreviewBar->setAccessibleName(sentence);
+		KeepChanges->setAccessibleDescription(
+			QStringLiteral("Saves the previewed colours to %1.").arg(theme_text()));
+		CancelChanges->setAccessibleDescription(QStringLiteral(
+			"Puts the previewed colours back to the ones in effect."));
+	}
+
+	auto appearance_settings_panel::with_persistence_status(QString aStatus) const
+		-> QString
 	{
 		if (PersistenceAvailable) {
 			return aStatus;

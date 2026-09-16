@@ -178,8 +178,9 @@ auto main(int aArgc, char** aArgv) -> int
 
 	const auto writes = work->status().AppearanceDurableWrites;
 	work->window().open_settings(qt::settings_page::appearance);
-	auto* mode = work->window().appearance_settings()->mode_selector();
-	mode->setCurrentIndex(mode->findData(static_cast<int>(core::appearance_mode::high_contrast_dark)));
+	// [[BPR-0790]]. The theme tiles are the control; choosing one is this gesture.
+	work->window().appearance_settings()->choose_mode(
+		core::appearance_mode::high_contrast_dark);
 	auto* motion = work->window().appearance_settings()->motion_selector();
 	motion->setCurrentIndex(motion->findData(static_cast<int>(core::motion_mode::full)));
 	wait_for([&] {

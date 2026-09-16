@@ -3,24 +3,30 @@
 
 #include "bpr/application/appearance_runtime_ports.hpp"
 #include "bpr/core/appearance_model.hpp"
+#include "bpr/qt/colour_role_list.hpp"
 #include "bpr/qt/theme_preview_strip.hpp"
 
+#include <QFont>
 #include <QString>
 #include <QWidget>
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <span>
 
+class QAbstractButton;
 class QCheckBox;
 class QComboBox;
 class QLabel;
-class QLineEdit;
 class QPushButton;
 class QSpinBox;
 
 namespace bpr::qt {
+	class appearance_profile;
+	class type_preview;
+
 	/// \brief Records directly observable settings-surface activity.
 	struct appearance_settings_panel_statistics
 	{
@@ -38,25 +44,41 @@ namespace bpr::qt {
 			= default;
 	};
 
-	/// \brief Lets a reviewer choose appearance mode, fonts, and code layout.
+	/// \brief RFC-BPR-0034's Appearance page: Theme, Type, Colours, and Dif.
 	///
-	/// \details Every committed control shows what the host last published
-	/// through `adopt`, and every gesture leaves as an intent; nothing here
-	/// applies a font, a colour, or a mode. The sole transient state is an
-	/// explicitly labelled total-palette preview, which commit offers to the host
-	/// and cancel discards in favour of the last adopted palette.
+	/// \details [[BPR-0790]]. The lede, then cards. Each card's header carries its
+	/// name and, at the right, its Reset; a card body is rows in the shared row
+	/// language of RFC-BPR-0032 as this RFC amends it — one line each, of label, an
+	/// info glyph whose popover carries the consequence, and the control. The
+	/// consequence is also the glyph's and the control's accessible description, so
+	/// it is never reachable by pointer only.
 	///
-	/// Rejections are shown, never repaired. `core::validate_typography`
-	/// refuses a record whole and names each violation; `report` displays those
-	/// reasons and puts every control back to the last adopted record. Clamping
-	/// an out-of-range value into range would tell the reviewer that the value
-	/// they typed was the value they got.
+	/// Theme is the six-tile strip in its inset well: the tiles are the control, and
+	/// the six-way mode combo box that repeated them is gone. Type is eleven rows
+	/// beside the labelled preview, with sizes in points rather than in the
+	/// hundredths the core stores. Colours is the whole 47-role list for the theme on
+	/// screen, edited through the platform picker, with one bar at its foot while
+	/// anything is previewed. Dif keeps the mascot's visibility, its motion and the
+	/// explanation of what the system asked for, which RFC-BPR-0031's B3 requires to
+	/// remain applied, migrated, persisted and resettable from real controls.
 	///
-	/// Numeric ranges come from `core::bounds_of`, which is the same function
-	/// the validator enforces with, so an in-range gesture cannot be one the
-	/// core would then reject. Only the family, which the core bounds by byte
-	/// length rather than by value, can be refused from this surface — and that
-	/// path is exercised rather than assumed.
+	/// Every committed control shows what the host last published through `adopt`,
+	/// and every gesture leaves as an existing `application::appearance_intent`;
+	/// nothing here applies a font, a colour, or a mode. The sole transient state is
+	/// the palette preview, which Keep changes offers to the host and Cancel discards
+	/// in favour of the last adopted palette.
+	///
+	/// Rejections are shown, never repaired. `core::validate_typography` refuses a
+	/// record whole and names each violation; `report` displays those reasons and
+	/// puts every control back to the last adopted record. Clamping an out-of-range
+	/// value into range would tell the reviewer that the value they typed was the
+	/// value they got.
+	///
+	/// Numeric ranges come from `core::bounds_of`, which is the same function the
+	/// validator enforces with, so an in-range gesture cannot be one the core would
+	/// then reject. Only the family, which the core bounds by byte length rather than
+	/// by value, can be refused from this surface — and that path is exercised rather
+	/// than assumed.
 	class appearance_settings_panel final : public QWidget
 	{
 	public:
@@ -69,8 +91,9 @@ namespace bpr::qt {
 		///
 		/// \details Supplied rather than derived. The core decides the variant from
 		/// the selected mode and a bounded observation; this surface observes
-		/// nothing and must not appear to. RFC-BPR-0034: export, import and reset
-		/// act on the theme on screen and say so, and this is what they name.
+		/// nothing and must not appear to. RFC-BPR-0034: the Colours card is titled
+		/// for the theme on screen and export, import and reset act on it and say
+		/// so, and this is what they name.
 		void               set_resolved_variant(core::appearance_variant aVariant);
 		[[nodiscard]] auto resolved_variant() const noexcept
 			-> const std::optional<core::appearance_variant>&;
@@ -81,17 +104,54 @@ namespace bpr::qt {
 		/// strip that captions each tile with it.
 		void set_customised_counts(
 			std::array<std::size_t, core::appearance_variant_count> aCounts);
+		/// \brief Publishes each theme's palette: its built-in plus its overrides.
+		///
+		/// \details Forwarded to the theme strip, which paints each tile in that
+		/// theme's own colours. The profile owns the built-in palettes and the
+		/// per-variant overrides, so the composition is the only place that can say
+		/// what a theme looks like; this surface passes the answer on and keeps
+		/// none of it.
+		void set_theme_palettes(
+			std::array<core::appearance_palette, core::appearance_variant_count>
+				aPalettes);
+		/// \brief Adopts the code font the accepted typography asks for.
+		///
+		/// \details The tiles paint their snippet in it and the Colours list sets
+		/// every value in it, which is what the accepted design asks for. Supplied,
+		/// because the profile builds the font from the record the host accepted.
+		void set_code_font(QFont aFont);
+		/// \brief Adopts everything the applied appearance decides for this page.
+		///
+		/// \details One call for the facts only the profile can answer: which theme
+		/// is on screen, what each theme's palette is, how many colours each one
+		/// customises, the code font, and the preview's own repaint. The composition
+		/// still publishes the host's accepted record through `adopt`; this is the
+		/// presentation half, and it is separate because a settings record cannot say
+		/// what a built-in palette looks like.
+		void adopt_appearance(appearance_profile& aProfile);
+		/// \brief Installs the picker a swatch opens.
+		///
+		/// \details Production leaves the platform picker in place. A course installs
+		/// a recording stub, which is what makes the live-preview path verifiable
+		/// without a modal dialog no test could drive.
+		void set_colour_picker(colour_picker aPicker);
+		/// \brief Chooses one appearance mode, as choosing a tile does.
+		///
+		/// \details The gesture the tiles perform, offered by name because the tiles
+		/// are now the control: there is no combo box index to set. It marks the
+		/// chosen tile and dispatches the same intent.
+		void choose_mode(core::appearance_mode aMode);
 		/// Cancels visible preview and pending import, even before a preview arrives.
 		void cancel_preview();
 		/// \brief Reports that an accepted session change could not be persisted.
 		void report_persistence_unavailable();
 
-		/// \brief Shows the settings the host has put into effect.
 		/// \brief Presents the host's attachment-local motion resolution without an effect.
 		void               adopt_motion(core::dif_resolution aResolution);
 		[[nodiscard]] auto dif_visibility_switch() const noexcept -> QCheckBox*;
 		[[nodiscard]] auto motion_selector() const noexcept -> QComboBox*;
-		void               adopt(const application::appearance_settings& aSettings);
+		/// \brief Shows the settings the host has put into effect.
+		void adopt(const application::appearance_settings& aSettings);
 		/// \brief Shows settings plus the palette currently resolved by presentation.
 		///
 		/// \details A fresh System record intentionally carries no stored palette.
@@ -104,8 +164,8 @@ namespace bpr::qt {
 		///
 		/// \details The composed appearance profile owns whether a preview is still
 		/// active after an unrelated mode, typography, or native observation. Passing
-		/// that exact palette keeps the panel's commit/cancel controls consistent with
-		/// the pixels; `std::nullopt` makes an accepted palette commit terminal.
+		/// that exact palette keeps the panel's preview bar consistent with the
+		/// pixels; `std::nullopt` makes an accepted palette commit terminal.
 		void adopt(
 			const application::appearance_settings& aSettings,
 			const core::appearance_palette&         aResolvedPalette,
@@ -127,26 +187,47 @@ namespace bpr::qt {
 		void request_theme_import(const QString& aPath);
 		void request_theme_export(const QString& aPath);
 
-		[[nodiscard]] auto mode_selector() const noexcept -> QComboBox*;
-		/// \brief [[BPR-0652]]. The four theme previews above the mode selector.
+		/// \brief The six theme tiles, which are the Theme card's control.
 		[[nodiscard]] auto theme_previews() const noexcept -> theme_preview_strip*;
-		[[nodiscard]] auto ui_family_editor() const noexcept -> QLineEdit*;
+		/// \brief The Type card's labelled preview.
+		[[nodiscard]] auto specimen() const noexcept -> type_preview*;
+		/// \brief The Colours card's 47-role list.
+		[[nodiscard]] auto colours() const noexcept -> colour_role_list*;
+		[[nodiscard]] auto colours_title() const noexcept -> QLabel*;
+		[[nodiscard]] auto colours_subtitle() const noexcept -> QLabel*;
+		/// \brief The interface font chooser, which shows the family in effect.
+		[[nodiscard]] auto ui_font_chooser() const noexcept -> QComboBox*;
+		[[nodiscard]] auto code_font_chooser() const noexcept -> QComboBox*;
+		/// \brief The size steppers, which read in points and carry centipoints.
 		[[nodiscard]] auto ui_size_editor() const noexcept -> QSpinBox*;
 		[[nodiscard]] auto ui_weight_editor() const noexcept -> QSpinBox*;
 		[[nodiscard]] auto ui_line_height_editor() const noexcept -> QSpinBox*;
-		[[nodiscard]] auto code_family_editor() const noexcept -> QLineEdit*;
 		[[nodiscard]] auto code_size_editor() const noexcept -> QSpinBox*;
 		[[nodiscard]] auto code_weight_editor() const noexcept -> QSpinBox*;
-		[[nodiscard]] auto tab_width_editor() const noexcept -> QSpinBox*;
+		/// \brief One segment of the 2, 4, 8 tab-width control, or none.
+		///
+		/// \details Absent for any other width: the segment offers the three the
+		/// design names, and a durable record carrying another legal width leaves
+		/// every segment unchosen rather than showing a width that is not in effect.
+		[[nodiscard]] auto tab_width_option(std::uint32_t aWidth) const
+			-> QAbstractButton*;
+		/// \brief The tab width the segment currently expresses.
+		[[nodiscard]] auto tab_width() const -> std::uint32_t;
 		[[nodiscard]] auto ligatures_switch() const noexcept -> QCheckBox*;
 		[[nodiscard]] auto syntax_bold_switch() const noexcept -> QCheckBox*;
 		[[nodiscard]] auto syntax_italic_switch() const noexcept -> QCheckBox*;
-		[[nodiscard]] auto role_selector() const noexcept -> QComboBox*;
-		[[nodiscard]] auto color_editor() const noexcept -> QLineEdit*;
-		[[nodiscard]] auto preview_button() const noexcept -> QPushButton*;
-		[[nodiscard]] auto commit_button() const noexcept -> QPushButton*;
-		[[nodiscard]] auto cancel_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto import_button() const noexcept -> QPushButton*;
+		[[nodiscard]] auto export_button() const noexcept -> QPushButton*;
+		/// \brief The bar at the Colours card's foot, or nothing.
+		///
+		/// \details Present exactly while something is previewed. It is created when
+		/// a preview begins and removed when it ends, rather than hidden, so it is
+		/// absent from the widget tree and from the accessibility tree at every
+		/// moment the reviewer is not previewing anything.
+		[[nodiscard]] auto preview_bar() const noexcept -> QWidget*;
+		[[nodiscard]] auto preview_bar_text() const -> QString;
+		[[nodiscard]] auto keep_changes_button() const noexcept -> QPushButton*;
+		[[nodiscard]] auto cancel_changes_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto preview_palette() const noexcept
 			-> const std::optional<core::appearance_palette>&;
 		[[nodiscard]] auto status_text() const -> QString;
@@ -156,18 +237,25 @@ namespace bpr::qt {
 			-> appearance_settings_panel_statistics;
 
 	private:
-		QCheckBox*           DifVisibility  = nullptr;
-		QComboBox*           MotionSelector = nullptr;
-		QLabel*              MotionStatus   = nullptr;
-		core::dif_resolution MotionResolution;
-		void                 dispatch_dif();
-		void                 dispatch_mode();
-		void                 dispatch_typography();
-		void                 dispatch_palette_preview();
-		void                 dispatch_palette_commit();
-		void                 dispatch_palette_cancel();
-		void                 select_theme_file();
-		void                 show_selected_color();
+		void dispatch_dif();
+		void dispatch_mode(core::appearance_mode aMode);
+		void dispatch_typography();
+		/// \brief Chooses one segment of the tab-width control and offers the record.
+		///
+		/// \details The three segments are not an auto-exclusive group, because Qt
+		/// refuses to uncheck the checked member of one and a durable record carrying
+		/// a legal width the design does not offer must leave every segment unchosen.
+		/// Exclusivity is therefore kept here, where that case can be expressed.
+		void choose_tab_width(std::uint32_t aWidth);
+		void dispatch_reset(application::appearance_reset_scope aScope);
+		void dispatch_palette_commit();
+		void dispatch_palette_cancel();
+		void select_theme_file();
+		void select_theme_destination();
+		/// \brief Folds one edited colour into the preview and offers it.
+		void edit_colour(core::appearance_role aRole, core::appearance_color aColour);
+		/// \brief Queues one coalesced preview delivery of the latest candidate.
+		void offer_preview();
 		/// \brief Returns the record the controls currently express.
 		[[nodiscard]] auto composed_typography() const
 			-> core::typography_settings;
@@ -179,6 +267,10 @@ namespace bpr::qt {
 		/// produced it, and a rejection would re-offer the record that was just
 		/// refused.
 		void show_adopted();
+		/// \brief Shows the adopted and previewed colours, and the card's title.
+		void refresh_colours();
+		/// \brief Creates, updates or removes the one preview bar.
+		void refresh_preview_bar();
 		/// \brief Adds the session-only diagnostic when persistence is unavailable.
 		[[nodiscard]] auto with_persistence_status(QString aStatus) const
 			-> QString;
@@ -194,26 +286,37 @@ namespace bpr::qt {
 		/// \brief The theme on screen, once the composition has named it.
 		std::optional<core::appearance_variant> ResolvedVariant;
 
-		QComboBox*                              ModeSelector  = nullptr;
-		QLineEdit*                              UiFamily      = nullptr;
-		QSpinBox*                               UiSize        = nullptr;
-		QSpinBox*                               UiWeight      = nullptr;
-		QSpinBox*                               UiLineHeight  = nullptr;
-		QLineEdit*                              CodeFamily    = nullptr;
-		QSpinBox*                               CodeSize      = nullptr;
-		QSpinBox*                               CodeWeight    = nullptr;
-		QSpinBox*                               TabWidth      = nullptr;
-		QCheckBox*                              Ligatures     = nullptr;
-		QCheckBox*                              SyntaxBold    = nullptr;
-		QCheckBox*                              SyntaxItalic  = nullptr;
-		QComboBox*                              RoleSelector  = nullptr;
-		QLineEdit*                              ColorEditor   = nullptr;
-		QPushButton*                            PreviewButton = nullptr;
-		QPushButton*                            CommitButton  = nullptr;
-		QPushButton*                            CancelButton  = nullptr;
-		QPushButton*                            ImportButton  = nullptr;
-		QLabel*                                 Status        = nullptr;
-		theme_preview_strip*                    ThemePreviews = nullptr;
+		theme_preview_strip* ThemePreviews   = nullptr;
+		type_preview*        Specimen        = nullptr;
+		colour_role_list*    Colours         = nullptr;
+		QLabel*              ColoursTitle    = nullptr;
+		QLabel*              ColoursSubtitle = nullptr;
+		QComboBox*           UiFamily        = nullptr;
+		QSpinBox*            UiSize          = nullptr;
+		QSpinBox*            UiWeight        = nullptr;
+		QSpinBox*            UiLineHeight    = nullptr;
+		QComboBox*           CodeFamily      = nullptr;
+		QSpinBox*            CodeSize        = nullptr;
+		QSpinBox*            CodeWeight      = nullptr;
+		/// The 2, 4, 8 segment, in that order; an entry is absent when the core's
+		/// own bounds do not admit that width.
+		std::array<QAbstractButton*, 3U> TabWidths{ };
+		QCheckBox*                       Ligatures      = nullptr;
+		QCheckBox*                       SyntaxBold     = nullptr;
+		QCheckBox*                       SyntaxItalic   = nullptr;
+		QPushButton*                     ImportButton   = nullptr;
+		QPushButton*                     ExportButton   = nullptr;
+		QCheckBox*                       DifVisibility  = nullptr;
+		QComboBox*                       MotionSelector = nullptr;
+		QLabel*                          MotionStatus   = nullptr;
+		core::dif_resolution             MotionResolution;
+		QWidget*                         ColoursCard     = nullptr;
+		QWidget*                         PreviewBar      = nullptr;
+		QLabel*                          PreviewBarLabel = nullptr;
+		QPushButton*                     KeepChanges     = nullptr;
+		QPushButton*                     CancelChanges   = nullptr;
+		QLabel*                          Status          = nullptr;
+
 		std::optional<core::appearance_palette> PreviewPalette;
 		std::optional<core::appearance_palette> PendingPreview;
 		bool                                    PreviewDeliveryQueued = false;

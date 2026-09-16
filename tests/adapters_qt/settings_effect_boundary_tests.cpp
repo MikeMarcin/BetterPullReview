@@ -322,7 +322,9 @@ namespace {
 		panel->adopt(host.settings());
 		panel->set_dispatch([&host](application::appearance_intent aIntent) { dispatch_appearance(host, std::move(aIntent)); });
 		window.settings()->present(qt::settings_page::appearance);
-		panel->mode_selector()->setCurrentIndex(static_cast<int>(core::appearance_mode::dark));
+		// [[BPR-0790]]. The tiles are the mode control now; `choose_mode` is the
+		// gesture choosing one performs, and the six-way combo box is gone.
+		panel->choose_mode(core::appearance_mode::dark);
 		expect(log.Calls.empty() && effects.pending() == 1 && host.persisted_settings() == 0, "appearance mode gesture queues persistence without capability entry");
 		// Appearance intentionally adopts session settings before durability; only
 		// its durable completion must wait for the decision lane.

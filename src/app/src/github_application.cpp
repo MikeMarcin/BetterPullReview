@@ -11263,18 +11263,14 @@ namespace bpr::app {
 					if (AppearanceProfile->previewing_palette()) {
 						activePreview = AppearanceProfile->palette();
 					}
-					// Supplied, never guessed. The panel names the theme its
-					// export, import and reset act on, and the theme strip
-					// captions its System tile, from the core's own resolution.
-					panel->set_resolved_variant(AppearanceProfile->variant());
-					auto counts
-						= std::array<std::size_t, core::appearance_variant_count>{ };
-					for (std::size_t index = 0U; index < counts.size(); ++index) {
-						counts[index] = AppearanceProfile->customised_roles(
-							static_cast<core::appearance_variant>(
-								static_cast<std::uint8_t>(index)));
-					}
-					panel->set_customised_counts(counts);
+					// Supplied, never guessed. The panel names the theme its export,
+					// import and reset act on; the strip captions its System tile and
+					// paints every tile in that theme's own colours; the Colours list
+					// sets its values in the accepted code font; and the Type preview
+					// repaints. All of it comes from the profile, which is the only
+					// place holding the built-in palettes and the core's own
+					// resolution. [[BPR-0790]].
+					panel->adopt_appearance(*AppearanceProfile);
 					panel->adopt(
 						settings,
 						AppearanceProfile->palette_for(AppearanceProfile->variant()),
@@ -13670,6 +13666,31 @@ namespace bpr::app {
 				.IdentityGeneration = aHandoff.IdentityGeneration,
 			};
 		}
+
+		/// \brief Edits one colour through the swatch and the picker seam.
+		///
+		/// \details [[BPR-0790]]. The path the rebuilt Colours card offers: a swatch
+		/// opens the picker, every colour the picker moves through previews in the
+		/// review window, and the colour it lands on stays previewed. The picker is a
+		/// settable seam exactly so this composed probe can drive it without a modal
+		/// panel; the widget still performs no effect of its own.
+		void pick_colour(
+			qt::appearance_settings_panel& aPanel,
+			const core::appearance_role    aRole,
+			std::vector<QColor>            aMoves,
+			const QColor&                  aAccepted)
+		{
+			aPanel.set_colour_picker(
+				[moves = std::move(aMoves), accepted = aAccepted](
+					const qt::colour_pick_request& aRequest)
+					-> std::optional<QColor> {
+					for (const auto& moved : moves) {
+						aRequest.Changed(moved);
+					}
+					return accepted;
+				});
+			aPanel.colours()->swatch_of(aRole)->click();
+		}
 	} // namespace
 
 	auto detail::github_application_fixture_access::select_other_appearance_mode(
@@ -13704,12 +13725,18 @@ namespace bpr::app {
 		if (panel == nullptr) {
 			return false;
 		}
-		// Through the controls, which is the whole claim. Setting the combo box
-		// index and the spin box value is what a reviewer's click and keystroke
-		// produce; if the wiring between them and the host is missing, nothing
-		// below moves.
-		panel->mode_selector()->setCurrentIndex(static_cast<int>(aMode));
-		panel->tab_width_editor()->setValue(static_cast<int>(aTabWidth));
+		// Through the controls, which is the whole claim. Choosing a theme tile and
+		// clicking a tab-width segment is what a reviewer's click produces; if the
+		// wiring between them and the host is missing, nothing below moves.
+		panel->choose_mode(aMode);
+		auto* const segment = panel->tab_width_option(aTabWidth);
+		if (segment == nullptr) {
+			// The segment offers the three widths the accepted design names; a
+			// probe asking for another would not be driving a control that
+			// exists.
+			return false;
+		}
+		segment->click();
 		panel->dif_visibility_switch()->setChecked(false);
 		panel->motion_selector()->setCurrentIndex(static_cast<int>(core::motion_mode::full));
 		const auto& settings = implementation->AppearanceHost->settings();
@@ -13735,13 +13762,13 @@ namespace bpr::app {
 		const auto before = implementation->AppearanceHost->settings();
 		// An empty family is the one illegal value a control can express: the
 		// numeric controls carry the core's own bounds, so they cannot.
-		panel->code_family_editor()->setText(QString{ });
-		Q_EMIT panel->code_family_editor()->editingFinished();
+		panel->code_font_chooser()->setCurrentText(QString{ });
+		Q_EMIT panel->code_font_chooser()->lineEdit()->editingFinished();
 		const auto& after = implementation->AppearanceHost->settings();
 		return after == before
 			&& !implementation->AppearanceHost->last_rejections().empty()
 			&& panel->status_text().startsWith(QStringLiteral("Refused"))
-			&& panel->code_family_editor()->text().toStdString()
+			&& panel->code_font_chooser()->currentText().toStdString()
 			== before.Typography.Code.Font.Family;
 	}
 
@@ -13874,15 +13901,15 @@ namespace bpr::app {
 			probe.ManualCandidate = probe.BeforePalette;
 			auto& color           = probe.ManualCandidate[core::index_of(role)];
 			color.Red             = color.Red == 0U ? 1U : 0U;
-			panel->role_selector()->setCurrentIndex(
-				static_cast<int>(core::index_of(role)));
-			panel->color_editor()->setText(QStringLiteral("#112233"));
-			panel->preview_button()->click();
-			panel->color_editor()->setText(QStringLiteral("#445566"));
-			panel->preview_button()->click();
-			panel->color_editor()->setText(
-				qt::to_presentation_color(color).name(QColor::HexArgb));
-			panel->preview_button()->click();
+			// Through the swatch and the picker seam, which is the accepted path:
+			// the picker reports every colour it moves through and then the one it
+			// landed on, so one gesture offers the burst of candidates the three
+			// preview clicks used to.
+			pick_colour(
+				*panel,
+				role,
+				{ QColor{ 0x11, 0x22, 0x33 }, QColor{ 0x44, 0x55, 0x66 } },
+				qt::to_presentation_color(color));
 			if (implementation->AppearanceProfile->generation() != probe.ProfileGeneration) {
 				return fail();
 			}
@@ -13950,8 +13977,8 @@ namespace bpr::app {
 						  == probe.ManualCandidate,
 					  panel->preview_palette()
 						  == std::optional{ probe.ManualCandidate },
-					  panel->commit_button()->isEnabled(),
-					  panel->cancel_button()->isEnabled(),
+					  panel->preview_bar() != nullptr,
+					  panel->keep_changes_button() != nullptr,
 					  implementation->AppearanceHost->settings()
 						  == probe.BeforeSettings,
 					  implementation->AppearanceHost->persisted_settings()
@@ -13986,8 +14013,8 @@ namespace bpr::app {
 					!= probe.ManualCandidate
 				|| panel->preview_palette()
 					!= std::optional{ probe.ManualCandidate }
-				|| !panel->commit_button()->isEnabled()
-				|| !panel->cancel_button()->isEnabled()
+				|| panel->preview_bar() == nullptr
+				|| panel->keep_changes_button() == nullptr
 				|| implementation->AppearanceHost->settings()
 					!= probe.BeforeSettings
 				|| implementation->AppearanceHost->persisted_settings()
@@ -14008,8 +14035,11 @@ namespace bpr::app {
 			}
 			reportStage("manual-cancelled");
 			implementation->Window->open_settings(qt::settings_page::appearance);
-			panel->color_editor()->setText(QStringLiteral("#112233"));
-			panel->preview_button()->click();
+			pick_colour(
+				*panel,
+				core::appearance_role::diff_added_background,
+				{ },
+				QColor{ 0x11, 0x22, 0x33 });
 			implementation->Window->settings()->close();
 			QCoreApplication::sendPostedEvents(panel, QEvent::MetaCall);
 			if (implementation->AppearanceProfile->previewing_palette()
@@ -14018,13 +14048,17 @@ namespace bpr::app {
 				return fail();
 			}
 			implementation->Window->open_settings(qt::settings_page::appearance);
-			panel->preview_button()->click();
+			pick_colour(
+				*panel,
+				core::appearance_role::diff_added_background,
+				{ },
+				QColor{ 0x11, 0x22, 0x33 });
 			if (implementation->AppearanceProfile->previewing_palette() || !panel->preview_palette()) {
 				return fail();
 			}
 			auto* reset = static_cast<QPushButton*>(nullptr);
 			for (auto* button : panel->findChildren<QPushButton*>()) {
-				if (button->accessibleName() == QStringLiteral("Reset semantic colours")) {
+				if (button->accessibleName() == QStringLiteral("Reset all colours")) {
 					reset = button;
 				}
 			}
@@ -14092,7 +14126,7 @@ namespace bpr::app {
 				|| !identityUnchanged) {
 				return fail();
 			}
-			panel->cancel_button()->click();
+			panel->cancel_changes_button()->click();
 			reportStage("cancelled");
 			if (implementation->AppearanceProfile->previewing_palette()
 				|| panel->preview_palette().has_value()
@@ -14127,7 +14161,7 @@ namespace bpr::app {
 			}
 			reportStage("second-preview");
 			probe.CustomisedVariant = implementation->AppearanceProfile->variant();
-			panel->commit_button()->click();
+			panel->keep_changes_button()->click();
 			reportStage("commit-dispatched");
 			if (implementation->AppearanceProfile->previewing_palette()
 				|| panel->preview_palette().has_value()
@@ -14165,11 +14199,7 @@ namespace bpr::app {
 			const auto role       = core::appearance_role::diff_removed_background;
 			auto&      color      = probe.StoredCandidate[core::index_of(role)];
 			color.Blue            = color.Blue == 0U ? 1U : 0U;
-			panel->role_selector()->setCurrentIndex(
-				static_cast<int>(core::index_of(role)));
-			panel->color_editor()->setText(
-				qt::to_presentation_color(color).name(QColor::HexArgb));
-			panel->preview_button()->click();
+			pick_colour(*panel, role, { }, qt::to_presentation_color(color));
 			probe.Phase = github_application::implementation::
 				appearance_theme_probe_state::phase::awaiting_stored_preview;
 			reportStage("stored-palette-preview-requested");
@@ -14214,8 +14244,8 @@ namespace bpr::app {
 				application::customisation_of(implementation->AppearanceProfile->settings(), probe.CustomisedVariant).Palette
 					== probe.Candidate,
 				panel->preview_palette() == std::optional{ probe.StoredCandidate },
-				panel->commit_button()->isEnabled(),
-				panel->cancel_button()->isEnabled(),
+				panel->preview_bar() != nullptr,
+				panel->keep_changes_button() != nullptr,
 				application::customisation_of(implementation->AppearanceHost->settings(), probe.CustomisedVariant).Palette
 					== probe.Candidate,
 				implementation->AppearanceHost->persisted_settings()
@@ -14252,8 +14282,8 @@ namespace bpr::app {
 					!= probe.Candidate
 				|| panel->preview_palette()
 					!= std::optional{ probe.StoredCandidate }
-				|| !panel->commit_button()->isEnabled()
-				|| !panel->cancel_button()->isEnabled()
+				|| panel->preview_bar() == nullptr
+				|| panel->keep_changes_button() == nullptr
 				|| application::customisation_of(implementation->AppearanceHost->settings(), probe.CustomisedVariant).Palette
 					!= probe.Candidate
 				|| implementation->AppearanceHost->persisted_settings()
@@ -14261,7 +14291,7 @@ namespace bpr::app {
 				|| !unchanged()) {
 				return fail();
 			}
-			panel->cancel_button()->click();
+			panel->cancel_changes_button()->click();
 			if (implementation->AppearanceProfile->previewing_palette()
 				|| panel->preview_palette().has_value()
 				|| implementation->AppearanceProfile->palette() != probe.Candidate
@@ -14288,8 +14318,8 @@ namespace bpr::app {
 			if (!implementation->AppearanceProfile->previewing_palette()
 				|| implementation->AppearanceProfile->palette() != probe.Candidate
 				|| panel->preview_palette() != std::optional{ probe.Candidate }
-				|| !panel->commit_button()->isEnabled()
-				|| !panel->cancel_button()->isEnabled()
+				|| panel->preview_bar() == nullptr
+				|| panel->keep_changes_button() == nullptr
 				|| application::customisation_of(implementation->AppearanceHost->settings(), probe.CustomisedVariant).Palette
 					!= probe.Candidate
 				|| implementation->AppearanceHost->persisted_settings()
@@ -14297,7 +14327,7 @@ namespace bpr::app {
 				|| !unchanged()) {
 				return fail();
 			}
-			panel->commit_button()->click();
+			panel->keep_changes_button()->click();
 			probe.Phase = github_application::implementation::
 				appearance_theme_probe_state::phase::awaiting_equal_stored_commit;
 			reportStage("equal-stored-commit-dispatched");
@@ -14309,8 +14339,8 @@ namespace bpr::app {
 			implementation->AppearanceProfile->palette() == probe.Candidate,
 			application::customisation_of(implementation->AppearanceProfile->settings(), probe.CustomisedVariant).Palette == probe.Candidate,
 			!panel->preview_palette().has_value(),
-			!panel->commit_button()->isEnabled(),
-			!panel->cancel_button()->isEnabled(),
+			panel->preview_bar() == nullptr,
+			panel->keep_changes_button() == nullptr,
 			application::customisation_of(implementation->AppearanceHost->settings(), probe.CustomisedVariant).Palette == probe.Candidate,
 			implementation->AppearanceHost->persisted_settings()
 				== probe.PersistedSettings + 1U,

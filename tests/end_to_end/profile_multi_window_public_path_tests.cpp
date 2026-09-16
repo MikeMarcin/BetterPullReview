@@ -400,8 +400,9 @@ auto main(int aArgc, char** aArgv) -> int
 	expect(visible_settings() == 1U, "first Settings gesture opens one shell");
 	windowB->open_settings(qt::settings_page::appearance);
 	expect(visible_settings() == 1U, "second Settings gesture reuses profile shell");
-	auto* mode = windowB->appearance_settings()->mode_selector();
-	mode->setCurrentIndex(mode->findData(static_cast<int>(core::appearance_mode::high_contrast_dark)));
+	// [[BPR-0790]]. The theme tiles are the control; choosing one is this gesture.
+	windowB->appearance_settings()->choose_mode(
+		core::appearance_mode::high_contrast_dark);
 	auto* motion = windowB->appearance_settings()->motion_selector();
 	motion->setCurrentIndex(motion->findData(static_cast<int>(core::motion_mode::full)));
 	wait_for([&] {
