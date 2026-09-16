@@ -173,6 +173,8 @@ namespace bpr::tests::native_menu {
 
 	auto application_is_active() -> bool { return [NSApp isActive] == YES; }
 
+	auto application_is_hidden() -> bool { return [NSApp isHidden] == YES; }
+
 	auto session_screen_is_locked() -> bool
 	{
 		NSDictionary* session = CFBridgingRelease(CGSessionCopyCurrentDictionary());

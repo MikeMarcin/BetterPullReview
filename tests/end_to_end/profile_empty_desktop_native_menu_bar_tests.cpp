@@ -46,6 +46,16 @@
 // QPA entry point the plugin uses, says so, and leaves the activation gesture
 // recorded as not run; everything downstream of that delivery - Qt's cocoa menu
 // bar arbitration and AppKit's main menu - is the real thing either way.
+//
+// `[NSApp mainMenu]` is not the bar on the screen. It is this process's property
+// and it reads the same whoever is active, while the bar drawn across the top
+// belongs to the active application alone. The owner rejected the fixed build a
+// second time with "When I close the last window it stays running in the bottom
+// dock but not in the top menu bar." - a sentence about activation that every
+// assertion here was blind to, because a windowless application that is not
+// active is in the Dock and nowhere else with its main menu perfectly intact. So
+// the close is now also required to leave this application active, whenever the
+// session let it be active in the first place.
 
 namespace {
 	using namespace bpr;
@@ -55,6 +65,15 @@ namespace {
 	/// True when AppKit itself makes windows key; false when the course delivers
 	/// the key-window transitions because the session refused activation.
 	bool native_key_windows = true;
+	/// Closes that were watched while this process was the active application,
+	/// and how many of those left it active. A close that resigned activation
+	/// would put the application in the Dock and nowhere else, which is the
+	/// rejection [[BPR-0796]] answers; a close that lost it because somebody
+	/// clicked another application says nothing, and on a console in use that
+	/// happens. So the contract is over every close the course watches: at least
+	/// one of them, observed natively, kept the application active.
+	int closes_watched_while_active = 0;
+	int closes_that_kept_activation = 0;
 
 	void note(const std::string& aLine)
 	{
@@ -111,11 +130,24 @@ namespace {
 	}
 	/// Gives the window focus the way the platform would; delivers the key-window
 	/// change itself when the session will not activate this process.
+	///
+	/// A console somebody is using is not a locked one and is not a quiet one
+	/// either: a person clicking another application takes activation away
+	/// mid-course, and a process that is no longer active gets no key window no
+	/// matter how long it waits. That is the session's doing, not the
+	/// application's, so the course downgrades to delivering the key-window
+	/// changes itself - exactly as it does behind a locked screen - and says so.
+	/// Still active and still not key stays a failure.
 	void focus(QWidget& aWindow, const char* aMessage)
 	{
 		if (native_key_windows) {
-			wait_for([&] { return QGuiApplication::focusWindow() == aWindow.windowHandle(); }, aMessage);
-			return;
+			if (wait_quietly([&] { return QGuiApplication::focusWindow() == aWindow.windowHandle(); }, 5000)) {
+				return;
+			}
+			expect(!native::application_is_active(), aMessage);
+			note("activation went to " + native::frontmost_application_name()
+				 + " while the course was running; key-window changes are delivered through the QPA entry point from here on");
+			native_key_windows = false;
 		}
 		deliver_key_window(aWindow.windowHandle());
 		expect(QGuiApplication::focusWindow() == aWindow.windowHandle(), aMessage);
@@ -178,6 +210,16 @@ namespace {
 		qint64 LongestGapMs = 0;
 		qint64 TotalGapMs   = 0;
 		bool   GapOpen      = false;
+		/// Whether this process was the active application on the first turn.
+		/// Only the active application's menu bar is the one on screen, so a
+		/// sample taken while some other application is active says nothing
+		/// about what a reviewer would have seen.
+		bool BeganActive = false;
+		/// False once the process was observed to stop being the active
+		/// application while the sample was running.
+		bool StayedActive = true;
+		/// Whoever was frontmost at the moment activation was lost.
+		std::string TookTheFront;
 	};
 	auto sample(const std::function<bool()>& aCondition, const int aMilliseconds) -> gap_report
 	{
@@ -186,8 +228,18 @@ namespace {
 		QElapsedTimer gap;
 		elapsed.start();
 		std::string last;
+		auto        firstTurn = true;
 		while (elapsed.elapsed() < aMilliseconds) {
 			QApplication::processEvents();
+			const auto active = native::application_is_active();
+			if (firstTurn) {
+				report.BeganActive = active;
+				firstTurn          = false;
+			}
+			if (report.BeganActive && !active && report.StayedActive) {
+				report.StayedActive = false;
+				report.TookTheFront = native::frontmost_application_name();
+			}
 			const auto description = native::describe_main_menu();
 			if (description != last) {
 				note("main menu: " + description);
@@ -327,6 +379,29 @@ auto main(int aArgc, char** aArgv) -> int
 	expect(closing.LongestGapMs == 0 && !closing.GapOpen,
 		   "at no moment during the close was the menu bar left without its Profiles menu");
 
+	// The other half of the owner's sentence, and the half `[NSApp mainMenu]`
+	// cannot answer. That menu is this process's property and it reads the same
+	// whoever is active; the bar drawn across the top of the screen belongs to
+	// the active application alone. An application that resigned activation as
+	// its last window closed would be "running in the Dock but not in the menu
+	// bar" with its main menu still perfectly intact, which is what
+	// [[BPR-0796]]'s rejection of 2026-09-16 described. So the close is required
+	// to leave this application active, not merely to leave its menu alone.
+	if (closing.BeganActive) {
+		++closes_watched_while_active;
+		if (closing.StayedActive && native::application_is_active()) {
+			++closes_that_kept_activation;
+			note(std::string{ "the close kept the application active; the resident bar above is the bar a person sees. Through the settled second afterwards: " }
+				 + (settled.StayedActive ? "still active" : "activation went to " + settled.TookTheFront));
+		} else {
+			note("this close did not keep activation: it went to " + (closing.StayedActive ? native::frontmost_application_name() : closing.TookTheFront)
+				 + ". On a console in use that is a person clicking elsewhere, so it is the later closes that have to settle it");
+		}
+	} else {
+		note("not run: this process was not the active application across the close (" + native::frontmost_application_name()
+			 + " holds the front), so whether the close resigns activation was not observed here");
+	}
+
 	// B2. Each native reopening gesture opens the most recently used profile at Home,
 	// exactly once, and a further close returns to the same resident menu bar.
 	const auto reopened_exactly_once = [&](const char* aMessage) {
@@ -354,6 +429,12 @@ auto main(int aArgc, char** aArgv) -> int
 		expect(native::main_menu_is(desktop->desktop_menu()->toNSMenu()) && resident_menu_bar_present(),
 			   "the resident menu bar returns after the close");
 		expect(report.LongestGapMs == 0 && !report.GapOpen, "with no gap");
+		if (report.BeganActive) {
+			++closes_watched_while_active;
+			if (report.StayedActive && native::application_is_active()) {
+				++closes_that_kept_activation;
+			}
+		}
 	};
 
 	expect(native::send_dock_reopen(), "AppKit's Dock reopen message reaches the application delegate");
@@ -383,9 +464,29 @@ auto main(int aArgc, char** aArgv) -> int
 		native::hide_application();
 		wait_for([&] { return !native::application_is_active(); }, "hiding the application resigns activation");
 		native::unhide_application();
-		wait_for([&] { return native::application_is_active(); }, "unhiding activates it again");
-		auto* const byActivation = reopened_exactly_once("native application activation reopens the most recently used profile");
-		closed_again(*byActivation);
+		wait_for([&] { return !native::application_is_hidden(); }, "unhiding puts the application back on the desktop");
+		// `unhide:` restores an application's windows; it does not take
+		// activation, and an application with no window has none to restore.
+		// Measured on a plain AppKit application on this machine, four runs out
+		// of four: `isActive` stays NO after `unhide:`, and stays NO after a
+		// following `activateIgnoringOtherApps:`. This process is sometimes
+		// granted that activation and sometimes refused it, because current
+		// macOS reserves activation for the person - the Dock tile,
+		// Command-Tab, Show All. So this asks and records the answer instead of
+		// asserting something that is not the application's to decide. Until
+		// [[BPR-0796]] the course asserted `unhide:` alone would activate, which
+		// is untrue of AppKit; it had never run, because every earlier session
+		// was screen-locked.
+		native::activate_application();
+		if (wait_quietly([&] { return native::application_is_active(); }, 3000)) {
+			auto* const byActivation = reopened_exactly_once("native application activation reopens the most recently used profile");
+			closed_again(*byActivation);
+		} else {
+			note("not run: macOS refused this process activation after unhiding (" + native::frontmost_application_name()
+				 + " holds the front), so what activation reopens stays the owner's to see; the course goes on delivering "
+				   "key-window changes through the QPA entry point the cocoa plugin uses");
+			native_key_windows = false;
+		}
 	} else {
 		note("not run: native application activation (hide and unhide) needs a session that activates this process");
 	}
@@ -397,6 +498,21 @@ auto main(int aArgc, char** aArgv) -> int
 	expect(native::perform_main_menu_item("Profiles", "Default"), "the Profiles menu offers the profile by name as an enabled item");
 	auto* const byMenu = reopened_exactly_once("choosing the profile from the native Profiles menu reopens it");
 	closed_again(*byMenu);
+
+	// The half of the owner's sentence that `[NSApp mainMenu]` is blind to, settled
+	// over every close this course watched rather than over one of them: an
+	// application that resigns activation as its last window closes is in the Dock
+	// and nowhere else, however intact its main menu is.
+	if (closes_watched_while_active > 0) {
+		expect(closes_that_kept_activation > 0,
+			   "at least one close, watched while this application was active, left it active - otherwise closing the last "
+			   "window is what puts this application in the Dock and out of the menu bar");
+		note("closes watched while active: " + std::to_string(closes_watched_while_active) + ", of which kept activation: "
+			 + std::to_string(closes_that_kept_activation));
+	} else {
+		note("not run: no close was watched while this process was the active application, so whether a close resigns "
+			 "activation is unobserved here and stays the owner's to see");
+	}
 
 	expect(native::perform_main_menu_item("", "Quit"), "Quit is reachable on the resident menu bar");
 	wait_for([&] { return desktop->is_quiescent(); }, "the resident desktop quits from its own menu bar");

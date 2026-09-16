@@ -47,7 +47,14 @@ namespace bpr::tests::native_menu {
 	/// \brief Whether the named item of the named top-level menu is actionable.
 	[[nodiscard]] auto main_menu_item_is_enabled(std::string_view aMenuTitle, std::string_view aItemTitle) -> bool;
 	/// \brief Whether the process is the active application.
+	///
+	/// \details This is the difference between what `[NSApp mainMenu]` holds and
+	/// what a person sees: only the active application's menu bar is drawn. An
+	/// inactive application with no window is present in the Dock and nowhere
+	/// else, which is exactly how [[BPR-0796]]'s rejection described it.
 	[[nodiscard]] auto application_is_active() -> bool;
+	/// \brief Whether the application is hidden, as `-[NSApplication hide:]` leaves it.
+	[[nodiscard]] auto application_is_hidden() -> bool;
 	/// \brief Whether the console session's screen is locked, which is when no
 	/// application can be activated and the login window is frontmost.
 	[[nodiscard]] auto session_screen_is_locked() -> bool;
@@ -61,11 +68,22 @@ namespace bpr::tests::native_menu {
 	void begin_main_menu_trace();
 	/// \brief The recorded installations since the trace began, oldest first.
 	[[nodiscard]] auto main_menu_trace() -> std::vector<std::string>;
-	/// \brief Makes the process the active application, in front of every other.
+	/// \brief Asks AppKit to make this process the active application.
+	///
+	/// \details An ask, not a guarantee. Current macOS reserves activation for
+	/// the person: a process that is not already active is routinely refused,
+	/// which a caller must treat as "not run" rather than as a failure of the
+	/// application under test.
 	void activate_application();
 	/// \brief Hides the application, which resigns activation.
 	void hide_application();
-	/// \brief Unhides the application, which AppKit reports as activation.
+	/// \brief Unhides the application.
+	///
+	/// \details `-[NSApplication unhide:]` restores an application's windows; it
+	/// does not take activation, and an application with no window has none to
+	/// restore. Measured on a plain AppKit application on macOS 26: after
+	/// `hide:` then `unhide:`, and again after `activateIgnoringOtherApps:`,
+	/// `isActive` stays `NO`.
 	void unhide_application();
 	/// \brief Delivers the delegate message AppKit sends for a Dock icon click.
 	///
