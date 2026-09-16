@@ -25,6 +25,8 @@ acceptance: [{"criterion":"AC1 — Signed in, the bar is the first row, labelled
 - **Verification.** Recorded under Verification: the Qt courses at three scales, a full build, a 67-course integration selection (seven failures identical to baseline) and two caught negative controls.
 - **Carried forward.**
   - Human: the 40 px corner rendering needs its own attended candidate in `BPR-0779`.
+    **Answered 2026-09-16: accepted** (`bpr-0779-dif-corner`, decision 123f144b, on executable
+    sha256 `d500ef7a…` from source `ed2b3f14`). Owner amendment r2 is settled.
   - Follow-up for main to allocate: Dif resting in the corner on review surfaces (window-level, RFC-BPR-0031 B6 courses).
   - Native, outside this sandbox: `application_public_path`, `_ghes_cli_unavailable`, `application_device_authorization_public_path`, `_ghes_refusal`, `_panel_course` and `application_saved_server_contract` (credential store, fixture seed), plus `application_anonymous_public_preview_public_path`'s stale pass expression.
   - The design leaves for `BPR-0776` (`rfc-worker`) and `BPR-0783` (`rfc-worker-deep`) have returned designs and are idle. An independent review of `6faf13ed..edb90493` is running; its adjudication goes on `BPR-0776`'s record.
