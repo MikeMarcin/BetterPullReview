@@ -1,8 +1,10 @@
 # Profile and window authority inventory
 
 Planning for RFC-BPR-0024, inspected at `e354b45e`; setup destination work
-BPR-0689 is concurrent. This inventory records design and source ownership,
-not implemented behavior. BPR-0595 is the acceptance ledger.
+BPR-0689 is concurrent. The ownership table and foundation decisions below
+record design and source ownership rather than implemented behavior; the
+closing section on the empty desktop records shipped behavior and says so.
+BPR-0595 is the acceptance ledger.
 
 ## Existing ownership
 
@@ -15,7 +17,7 @@ not implemented behavior. BPR-0595 is the acceptance ledger.
 | Review and edit records | Ledger store is one durable authority. Notes lack expected revisions; inline draft revision is in composition memory. Shared edits need compare-and-set outcomes retaining the rejected candidate; no second ledger. |
 | Reading state | `workbench_application_host` owns selected diff, cursor, file order and generation per instance. Keep these per window. Layout persistence currently uses one singleton record and mixes durable preference defaults with current drawer state. |
 | Settings | Each workbench owns a Settings child today. Move singleton ownership to profile runtime; accepted preferences project to every window of that profile. |
-| Lifetime | Startup creates one application object; last-window shutdown terminates its services. There is no profile admission owner, stable window identity, or distinct close-versus-quit restoration path. |
+| Lifetime | Startup creates one application object. At this audit, last-window shutdown terminated its services, and there was no profile admission owner, stable window identity, or distinct close-versus-quit restoration path. RFC-BPR-0033 supersedes the first of those and the core catalog the last: an injected policy decides what an empty desktop does, and an explicit close and Quit now keep different restore records. |
 
 The read-only scout verified these ownership facts. BPR-0689 adds a shared,
 synchronized provider catalog for live server registration, but does not create
@@ -76,6 +78,34 @@ runtime. Opening a not-yet-owned profile first admits its runtime, reloads the
 global allocator, then requests the existing core window lifecycle. Closing or
 failed-start entries cannot bypass admission merely because their map key remains.
 Startup refusal consumes its callback exactly once, including shutdown reentry.
+
+## The empty desktop and the chooser (RFC-BPR-0033)
+
+This section records shipped behavior rather than planned ownership. Closing a
+window no longer presents the management window. `profile_desktop`'s
+last-runtime branch asks an `empty_desktop_policy` the composition injects, and
+that function — not a platform test inside the desktop — decides between
+staying resident and quitting; the outcome it last gave is observable, so both
+answers are drivable on one host. `native_empty_desktop_policy` answers
+`stay_resident` on macOS and `quit` everywhere else. A resident desktop keeps
+its own menu bar while no window exists (File › Quit; Profiles listing the
+profiles by name with the current one checked, then New Window and Manage
+Profiles…), and application activation, New Window or choosing a profile
+dispatches the existing open intent for the most recently used profile — the
+last profile whose window was opened or focused in this process, which persists
+nothing new. A quitting desktop uses the existing Quit path, so profile records
+are saved exactly as an explicit Quit saves them; it retries while the registry
+is still saving the close that emptied the desktop and forces shutdown only if
+that request is persistently refused. The registry and scratch lease are
+unchanged from [[BPR-0696]], whose last-window presentation this supersedes.
+
+The restoration paths are distinct in the core rather than by convention:
+`profile_window_catalog::close` permanently retires exactly that window from
+automatic restoration, while `quit` retains every live window in focus order
+before their runtime contexts are retired. A profile operation that fails while
+a window exists is reported in that window's Profiles menu status item; the
+chooser is presented for a failure only when no window exists to carry it,
+which is the startup case RFC-BPR-0024 already describes.
 
 The admission foundation's public process course checks the existing owner's
 durable window rows after contention. BPR-0712 adds the lease-bound POSIX local

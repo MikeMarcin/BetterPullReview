@@ -216,22 +216,55 @@ Color is never the only state signal. Icons, labels, gutter marks, line prefixes
 
 ### Semantic customization and local import
 
-The settings surface enumerates the core's semantic-role vocabulary and edits
-one role inside a total `appearance_palette`; a raw `QPalette`, QSS fragment, or
-widget stylesheet is never the saved authority. On a fresh System profile the
-editor starts from the palette currently resolved by presentation, not from the
-light bootstrap record whose unstored palette deliberately means “no user
-choice.” Untouched roles therefore remain the colours on screen when the
-operating system currently resolves System to Dark.
+The settings surface lists the whole closed role vocabulary — all 47 roles in
+four groups, Surfaces and text, Diff, Review states and Syntax, with sticky
+group headers and counts — and edits roles inside a total
+`appearance_palette`; a raw `QPalette`, QSS fragment, or widget stylesheet is
+never the saved authority. The list is built from the core's published count in
+the core's own order, so a role the core declares cannot be one the editor
+omits, and a filter field narrows it. A row is a swatch, the role's name in
+words and its value in the code font; the swatch opens the platform colour
+picker and the change previews in the review window as the picker moves, and an
+edited row shows its new value beside the old one. The role combo box and the
+hex field are gone (RFC-BPR-0034). On a fresh System profile the editor starts
+from the palette currently resolved by presentation, not from the light
+bootstrap record whose unstored palette deliberately means “no user choice.”
+Untouched roles therefore remain the colours on screen when the operating
+system currently resolves System to Dark.
 
-Preview and commit are separate operations. Preview is a Qt-local mirror of a
-total semantic palette: it repaints the selected comparison immediately and
-does not call the settings port. Cancel discards that mirror and restores the
-exact palette last adopted from the host. Commit offers the same total palette
-to `appearance_application_host`, which validates it against every shipped
-appearance variant before adopting it. A changed durable record issues exactly
-one settings-store effect; a palette already stored exactly is acknowledged as
-committed without rewriting the same record.
+**Each theme keeps its own colours.** The store holds one customised palette
+per variant — light, dark, high-contrast light and high-contrast dark — and the
+Qt appearance profile keys its override table by variant, so a light
+customisation is never applied over the dark profile and tuning one theme
+cannot silently forget another. Until RFC-BPR-0034 there was exactly one stored
+palette tagged with the variant it was made for, and committing while a
+different variant was on screen made that the customised variant and discarded
+the previous overrides. Everything scoped now names the theme on screen, which
+the composition supplies and Qt never guesses: the Colours card is titled for
+it ("Colours for Dark") under the subtitle "Edits change Dark only. Each theme
+keeps its own colours."; a commit changes that variant's customisation and no
+other; Import previews into it and says so; Export writes it and says which
+theme was written; Reset all resets it. A theme's customised-colour count is
+the number of roles whose override differs from that variant's built-in colour,
+which is the comparison the profile already makes, and it is the count the
+theme tiles caption.
+
+Preview and commit remain distinct operations, but they are one control.
+Preview is a Qt-local mirror of a total semantic palette: it repaints the
+selected comparison immediately and does not call the settings port. While
+anything is previewed — and only then — a bar at the Colours card's foot says
+what is being previewed and into which theme ("Previewing 2 colour changes to
+Dark in the review window.") and offers **Cancel** and **Keep changes**. Keep
+changes is the commit; Cancel discards the mirror and restores the exact
+palette last adopted from the host. The separate Preview, Commit and Cancel
+preview buttons are gone. The bar is removed rather than hidden when nothing is
+previewed, because a hidden widget is still in the accessibility tree, and an
+edit that returns a role to the colour the host last adopted ends the preview
+rather than leaving one with no difference in it. Commit offers the same total
+palette to `appearance_application_host`, which validates it against every
+shipped appearance variant before adopting it. A changed durable record issues
+exactly one settings-store effect; a palette already stored exactly is
+acknowledged as committed without rewriting the same record.
 A refused commit leaves the host-adopted settings and durable record unchanged;
 the reviewer may correct the preview or cancel it. When BPR-0236's session-only
 fallback is active, the same preview and selection behavior remains available
@@ -267,6 +300,40 @@ forward versions. A structurally valid palette is still refused, with the
 variant and exact `contrast_finding` preserved, if any of the four variants
 fails the conservative contrast gate. Import success publishes a preview
 candidate and performs no store write until the reviewer commits it.
+
+The page around the editor is three cards in the shared row language, under the
+lede "Changes apply as you make them and show in the review window behind this
+one." **Theme** is a sideways-scrolling well of six tiles, one per mode in the
+order System, Light, Dark, High contrast system, High contrast light and High
+contrast dark. A tile is painted by the existing preview painter from that
+mode's built-in palette plus that theme's overrides, so the diff and syntax
+colours are seen rather than described. The two System tiles are split
+diagonally, light over dark, by clipping alone — no edge is drawn, so the edge
+is nothing but the change of palette — and their caption names the half in
+effect ("dark now", "light now"); a theme with overrides captions its count
+("2 colours customised"). The six-way mode combo box is gone: the tiles are
+the control. **Type** is eleven one-line rows — interface family, size, weight
+and line height; code family, size and weight; tab width as a 2, 4, 8 segment;
+and ligatures, bold and italic syntax emphasis as switches — with sizes in
+points rather than hundredths, beside a labelled Preview painted by the review
+window's own code painter from the accepted typography and the theme on
+screen, captioned with the values in effect. **Colours** is the editor above.
+
+Every row is one line: label, an info glyph and the control. The consequence
+sentence lives in the glyph's popover, which is shown on hover and on keyboard
+focus and is also the glyph's accessible description, so it is never reachable
+by pointer only; a row whose second text is a value rather than a consequence
+keeps the value in the row. The keyboard route is not a convenience. Qt's tip
+window hides itself on a focus change, so a tip shown from inside the focus
+handler is destroyed by the very focus change that asked for it, and a tip
+bound to a rectangle hides as soon as a pointer leaves that rectangle — which
+shows nothing at all to a reviewer whose pointer is elsewhere or nowhere. The
+sentence is therefore posted one turn of the event loop later and unbound to a
+rect, and both routes are asserted rather than assumed, because every property
+a test could read looked correct while the sentence reached no one
+([[BPR-0790]]). A control that shares a row with siblings, such as each tab-width
+segment, carries the row's consequence itself rather than leaving it on the one
+thing in the row nobody can focus.
 
 Colour-only changes reuse the selected diff, semantic selection, token-span
 objects, classification cache, shared comparison position, and measured

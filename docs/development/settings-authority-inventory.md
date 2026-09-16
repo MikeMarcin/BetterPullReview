@@ -3,16 +3,17 @@
 BPR-0592, audited 2026-09-07 at `8c66a42c`. This inventories the default
 application environment before RFC-BPR-0024 introduces profile isolation.
 RFC-BPR-0028 owns the current three-page presentation. RFC-BPR-0018 owns the
-remaining Settings work. The table maps ownership; actual criterion evidence belongs to BPR-0593.
+remaining Settings work, RFC-BPR-0032 the Accounts & hosts page and RFC-BPR-0034
+the Appearance page. The table maps ownership; actual criterion evidence belongs to BPR-0593.
 
 ## Existing adjustable values
 
 | Values | Classification and authority | Persistence, reset and failure scope |
 |---|---|---|
-| Appearance mode (six choices); UI family, size, weight, line height; code family, size, weight, tab width, ligatures, syntax bold/italic | Durable; `appearance_model.hpp` validates typography, `appearance_application_host` accepts intents and publishes `appearance_projection` | `appearance_settings_store`, schema 3, migrates v1/v2 and preserves the absence of palette overrides; unavailable storage permits labelled session changes. Reset must apply domain defaults through this host, never delete the database. |
-| Palette role colors, stored-palette flag and variant; import, preview, keep, cancel | Durable committed palette, session preview; same appearance host, bounded theme document port; 46 closed roles | Same store; preview/cancel changes no durable record; import is bounded and rejects nonregular files. BPR-0680 adds host-owned atomic export of the accepted palette and independent mode/font/palette resets. |
-| Files/comments/repositories expanded state and widths; line numbers | Durable default-environment layout; `workbench_interaction` owns semantic state, `workbench_application_host` owns accepted layout | `workbench_settings_store`, schema 4, migrates older layouts; session fallback when unavailable. Reset only layout fields, preserving behavior. Profile/window partitioning belongs to 0024. |
-| Open modality, Continue modality, mark-read behavior, return comparison, initial comment filter | Durable `review_behaviour_settings`; workbench host validates and publishes accepted layout | Same schema-4 store; defaults Overview/Read/by hand/whole PR/all. Current ownership validation resides in application types; any expanded policy belongs in core. No new automatic transitions are implied. |
+| Appearance mode (six choices); UI family, size, weight, line height; code family, size, weight, tab width, ligatures, syntax bold/italic | Durable; `appearance_model.hpp` validates typography, `appearance_application_host` accepts intents and publishes `appearance_projection` | `appearance_settings_store`, schema 7, migrates versions 1 to 6 and preserves the absence of palette overrides; unavailable storage permits labelled session changes. Reset must apply domain defaults through this host, never delete the database. |
+| Palette role colors, per-variant stored-palette flags; import, preview, keep, cancel | Durable committed palette per variant, session preview; same appearance host, bounded theme document port; 47 closed roles ([[BPR-0738]] added `syntax_macro`) | Same store; one palette document and one stored flag per variant since schema 7 (RFC-BPR-0034), so commit, reset, import and export are scoped to the variant the composition supplies and no other variant's colours are touched. Preview/cancel changes no durable record; import is bounded and rejects nonregular files. BPR-0680 adds host-owned atomic export of the accepted palette and independent mode/font/palette resets. |
+| Files/comments/repositories expanded state and widths; line numbers | Durable default-environment layout; `workbench_interaction` owns semantic state, `workbench_application_host` owns accepted layout | `workbench_settings_store`, schema 8, migrates older layouts; session fallback when unavailable. Reset only layout fields, preserving behavior. Profile/window partitioning belongs to 0024; schema 8 adds one window's Home view to the per-window table only ([[BPR-0783]]). |
+| Open modality, Continue modality, mark-read behavior, return comparison, initial comment filter | Durable `review_behaviour_settings`; workbench host validates and publishes accepted layout | Same schema-8 store, which these preferences joined at schema 4; defaults Overview/Read/by hand/whole PR/all. Current ownership validation resides in application types; any expanded policy belongs in core. No new automatic transitions are implied. |
 | Queue role, observer reason, attention bucket, repository filter, quiet/current filter, sort | Durable `queue_presentation_preferences`; queue enrollment host accepts, Qt presents explicit order above core attention | `queue_enrollment_store`, schema 6, older schemas migrate; failed persistence must not leave optimistic controls. Reset these six fields only. Window filter ownership changes under 0024/0026. |
 | Observer rule kind/value and removal | Durable local workflow; `observer_rule` core vocabulary, `queue_rule_intent`, enrollment host | Queue store transaction retains exact enrollment reasons. Rule deletion is local and reconciles only its memberships; never changes GitHub subscriptions. Bounded rule count and string admission remain host/store contracts. |
 | Saved repository host/account/repository; save/forget | Durable local workflow, `saved_repository_intent`, queue enrollment host | Queue schema 6; does not currently discover authored/requested PRs merely by saving. Identity remains exact; failed store does not silently enroll. 0026 adds discovery. |
@@ -28,22 +29,46 @@ remaining Settings work. The table maps ownership; actual criterion evidence bel
 
 ## Baseline gaps (before BPR-0678)
 
-`workbench_window` owns one `settings_window`, adopts the existing appearance
-panel and Accounts/Reviews panels, and routes the platform Preferences action.
-The shell holds seven fixed pages, but currently provides no scroll container,
-Escape close behavior, or visible default-profile identity. The pages are stable
-objects; retain them while adding bounded scrolling and focus behavior.
+`workbench_window` owned one `settings_window`, adopted the existing appearance
+panel and Accounts/Reviews panels, and routed the platform Preferences action.
+The shell held seven fixed pages and, at that baseline, provided no scroll
+container, Escape close behavior, or visible default-profile identity. The pages
+are stable objects; they were retained while bounded scrolling and focus
+behavior were added.
 
 At that baseline the three pages reused domain dispatch. General, Notifications,
-Agents & context, Storage & privacy are notices. Several notices still name
-completed issue IDs. Direct Sign in currently opens Accounts with Get a code
-focused; it does not satisfy RFC-0018's single-gesture begin criterion. Appearance
-is already migrated, so rebuilding a second editor would violate its authority.
+Agents & context, Storage & privacy were notices. Several notices still named
+completed issue IDs. Direct Sign in opened Accounts with Get a code focused,
+which did not satisfy RFC-0018's single-gesture begin criterion; sign-in now
+begins inside the server card's account row (RFC-BPR-0032, [[BPR-0773]]).
+Appearance was already migrated, so rebuilding a second editor would have
+violated its authority.
 
 Core/host generations remain domain-specific: appearance request context and
 preview supersession, workbench request/session context, queue session identity,
 and GitHub/device authority. The Settings shell must not replace those with a
 generic setting bag or accept a late completion merely because a row is visible.
+
+## Server card rows and their authorities
+
+RFC-BPR-0032 makes Accounts & hosts one card per configured server, replacing
+the host-profile picker, the locator, the status banner and the servers combo
+editor. The card is presentation: every row below reaches an authority that
+already existed, and the card creates no credential authority of its own.
+
+| Row or control | What the gesture sends | Authority that performs it |
+|---|---|---|
+| Header connection state | nothing; it is a projection | GitHub application host session status, said as one word (Connected, Connecting, Signing in, Signed out, Could not connect). The only coloured thing on the page. |
+| Account row: avatar, login, consequence sentence | nothing; it is a projection | Accepted session identity and grant provenance from the GitHub and device hosts. The displayed login is not authentication authority. |
+| Sign in | the device flow, begun in this row | Device authorization host through the existing gesture dispatch; where a host has no device flow the gesture opens the token prompt Connect already opens. No second sign-in path is created. |
+| Sign out | `deactivate_github_identity_intent` | GitHub application host. It removes the exact binding and both token slots; the button performs no vault effect. |
+| Connect | host-profile selection, then the existing connect intent | The composition's configured host profiles and the GitHub application host. This is what replaced selecting a host in a picker. |
+| Access | nothing; it is a projection | Provider capability observation. |
+| Rate limit | nothing; it is a projection | Provider rate-limit observation. In public preview the same row carries the budget ring, whose only gesture is sign-in. |
+| Details | a Qt-local disclosure; Copy details writes the clipboard | Capability and rate-limit observations and the existing bounded diagnostic text. No secret enters it. |
+| Remember this server | `saved_server_intent` (add) | Queue enrollment host and queue store, schema 6. Hostname and account name are noncredential metadata and the token is still asked for. The switch shows the record the store keeps rather than a wish: it returns to that record at once and the gesture asks the window. |
+| Forget server | `saved_server_intent` (remove), behind a confirmation naming exactly what is removed | Queue enrollment host. It removes this server record only; nothing on the server changes and no sign-in is removed. |
+| Add enterprise server | the same saved-server add intent, from a card in its edit state (hostname, optional account, Add, Cancel) | Queue enrollment host. It configures a server to offer, never an account to be. |
 
 ## Bounded implementation and criterion map
 

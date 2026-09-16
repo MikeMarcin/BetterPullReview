@@ -643,16 +643,38 @@ roles, never colours, and consults no standard path.
 
 The Qt adapter turns a core-resolved variant plus a palette into applied
 presentation without installing a forced style or QSS, preserving the contract
-that the application inherits the native style and interface font. A stored
-palette customizes exactly one variant, which the durable record names
-(`palette_variant`, appearance schema format 2, BPR-0645): the adapter reads
-the record as overrides against that variant's built-in profile and applies
-them only while that variant resolves, so a light customization never colours
-the dark profile when the desktop scheme changes. Format 3 also persists
-`palette_stored`: scoped palette reset removes overrides without deleting other
-appearance preferences. Formats 1 and 2 migrate with customization retained.
-Theme export runs through the appearance host and an atomic bounded document
-writer; it exports the accepted palette and excludes unsaved previews.
+that the application inherits the native style and interface font. Each variant
+keeps its own customization: the durable record holds one palette document and
+one stored flag per variant (appearance schema format 7, RFC-BPR-0034), and the
+adapter's override table is keyed by variant, so it reads each variant's record
+as overrides against that variant's built-in profile and applies them only
+while that variant resolves. A light customization therefore never colours the
+dark profile when the desktop scheme changes, and committing one theme leaves
+the other three exactly as they were. Before format 7 there was one palette
+tagged with the variant it belonged to (`palette_variant`, format 2,
+BPR-0645), so tuning a second theme discarded the first; `palette_variant` had
+no meaning left once every variant owns a slot and is migration input rather
+than a column. The stored flag, not the document, says whether a slot is a
+decision: every slot holds a *complete* document, because the reader imports
+each one through the core parser and that parser refuses a document that fails
+to assign every role. Scoped palette reset removes one variant's overrides
+without deleting other appearance preferences.
+
+Migration files the version-6 palette under exactly the variant that row
+recorded, keeping its document bytes, and leaves the other three uncustomized,
+which is the same "no customization" a fresh installation has. It runs inside
+the transaction that stamps the new version, admits the legacy row through the
+version-6 reader first — so a tampered document, an unpublished mode or variant
+name, an out-of-range flag or illegal typography refuses the migration rather
+than being repaired into the new shape — and binds the variant names as
+parameters rather than interpolating them into SQL. A database stamped newer
+than this build is refused rather than opened, and a stamped file's application
+identity is checked before the first write, so another application's database
+leaves untouched. Formats 1 to 6 migrate with customization retained, except
+the deliberate one-time clear format 4 performs for [[BPR-0720]]'s changed
+built-in dark palette. Theme export runs through the appearance host and an
+atomic bounded document writer; it exports the accepted palette of the theme on
+screen, which the composition supplies, and excludes unsaved previews.
 
 The Qt-free `core-only` preset acquires neither KSyntaxHighlighting nor the
 syntax adapter; its resolved package set remains SQLite alone.

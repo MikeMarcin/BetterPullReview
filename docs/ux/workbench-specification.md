@@ -11,6 +11,11 @@ and [personal Home and PR URL navigation](../rfcs/RFC-BPR-0026-personal-review-h
 Backlog entry/closeout cards are [[BPR-0592]] through [[BPR-0599]]. The sections
 below retain their existing scope; this cross-reference does not claim that
 profiles, multiple windows, tabs, or personal discovery are already shipped.
+Home, the Accounts & hosts card page, the empty desktop and the Profiles sheet
+are a later revision of those surfaces and are described as they behave
+(RFC-BPR-0032, RFC-BPR-0033, RFC-BPR-0034). The list on Home still shows exactly
+what the queue projection supplies, which is what personal discovery would
+change.
 
 ## Architectural interaction contract
 
@@ -37,26 +42,151 @@ profiles, multiple windows, tabs, or personal discovery are already shipped.
 
 The file and conversation regions are true collapsible drawers. Their open widths are independently resizable and persisted. Collapsing one returns its width to the central review surface. Their toggles remain at the opposite edges of one compact icon-only row, so both surfaces stay reopenable without a second drawer toolbar.
 
+## Home
+
+Home is the window's other page, shown whenever no pull request is open and
+reachable at any time through Home in the strip (`Ctrl+0`, which macOS
+presents as ⌘0). It is the window ground edge to edge rather than a narrow
+column, and RFC-BPR-0032 gives it one job per row.
+
+- **The strip.** Home at the left; at the right, before a divider, the
+  account and settings buttons. While Home is shown and an account can fill
+  its list, Group, State headers, Filter and the refresh glyph stand before
+  them. Signed out those four act on nothing, so they are absent rather than
+  disabled, which is how RFC-BPR-0028's rule that the strip carries only
+  Home, account and settings still holds there. They are absent from the
+  review strip for the same reason.
+- **The bar**, alone in the first row: one bordered field labelled Open,
+  with the placeholder "Paste a link, or write owner/name#123", its shortcut
+  printed at the trailing edge (`Ctrl+L`, ⌘L on macOS), and Return to open.
+  It has focus when Home appears — on arrival only, so a later projection
+  cannot take focus from wherever the reviewer has since moved it.
+- **A refusal under the bar**: one sentence from the existing diagnostic
+  with **Copy details** beside it. A first load still in progress is said in
+  the same place and carries no Copy details, because it is not a refusal.
+  A refusal the reviewer has already begun rewriting stays dismissed until
+  the next load. The pull-request stack's empty page is not part of Home; it
+  stays parented in the hidden pull-request column so what writes to it keeps
+  its shape.
+- **The list** is always in state order — Needs me, then Waiting on others,
+  then Following — from the core's attention projection. Qt invents no
+  urgency, and Group only changes the panels around the rows.
+- **A row** is the identity, the title, a second line that says why and ends
+  in its one-word reason, and at the right the time and my reading progress.
+  Recently viewed uses the same anatomy, so a row reads the same way wherever
+  it appears. Colour means state and nothing else: the reason word, and
+  either a 3-point mark at the row's left or the rail of the panel holding
+  it. Row text wraps rather than eliding, and the style paints its own
+  selection, hover and focus.
+- **Panels.** With State headers on — the default — each state is a bordered
+  card with a rail in its colour and a tinted header carrying the name and
+  the count. A header sticks to the top of the scroll area while its panel is
+  in view. Every panel collapses to its header by chevron, Space, Return,
+  Left and Right, keeps its count and a one-line summary while collapsed, and
+  announces its expanded or collapsed state. An empty state is not shown, and
+  when a signed-in window's ready queue is empty Needs me holds one sentence
+  — "Nothing needs me. Pull requests from saved repositories and observer
+  rules appear here." — whose link opens Settings › Reviews & queue. No empty
+  box is drawn in any arrangement.
+- **Group** is a strip menu of None (the default), Organization, Repository
+  and Account. A group is a neutral panel headed by an initial tile — round
+  for an account, a small radius for an owner that is not one — and its name,
+  with its count; no avatar image is cached, so the tile is all there is.
+  With State headers on, a slim tinted band per non-empty state nests inside
+  each group and collapses on its own; with it off, the group's rows sit
+  directly in state order carrying their marks.
+- **Account chips.** A row carries its account's chip at the right when the
+  queue names more than one account. A group whose rows are all one account
+  carries the chip in its header instead and its rows drop it; under Account
+  grouping no row carries one; with a single account none is drawn anywhere.
+  A chip uses neutral palette roles only, because on Home colour means state
+  and a chip in a state's colour would claim a state its account does not
+  have.
+- **Filter** is a strip menu of exactly four sections over the surviving
+  typed queue preferences — My role, Added by, Quiet items, and Sort within a
+  group — each an exclusive choice listing every value of its vocabulary, so
+  an item cannot be unticked into nothing. Repository and Bucket are no
+  longer filters because Group and the state order do their work. The menu's
+  footer says that nothing there changes GitHub and offers the way to
+  Settings › Reviews & queue. These are the same typed controls Settings
+  presents as queue defaults, not a mirror of them.
+- **Recently viewed** is the last panel in every arrangement, and Resume is
+  its rows' action: on hover, on focus and in the row's menu. It is governed
+  by the entries the composition gave the window rather than by the account,
+  so a signed-out window still lists its public reading.
+- **The status bar** on Home carries the session line ("Signed in as
+  MikeMarcin on github.com.") and never "No pull request is open in the
+  workbench.", because Home is what the window shows when none is. The
+  session projection carries one account on one host and no refresh time, so
+  the line says that much and no more.
+
+Group, State headers, Filter and the collapse of the panels that carry no
+name are remembered per window, in the per-window table of the workbench
+layout store (schema 8). A group panel's own collapse is not: its key would
+name an owner, a repository or an account, which that store has never held
+([[BPR-0189]]), so it lasts only while its window is open.
+
+First launch and signed out: the strip with Home, account and settings only;
+the bar relabelled "Paste a public pull request link to read it without an
+account"; one card, **Sign in to GitHub**, with a sentence, Sign in as the
+page's one filled button and Add enterprise server beside it as a bordered
+one — the two ways in RFC-BPR-0018 requires, without opening Settings; and
+the status bar line "Not signed in. Public pull requests open read-only."
+No list, no panels, no filters.
+
+Home over an open review keeps the way back: one row above the bar naming
+what is being reviewed and how far through it, with **Back to the review**
+(⌘0) as the filled button at its right. Home beneath it is unchanged, and
+whatever had focus in the review has it again when the review returns.
+
 ## GitHub host and pull-request presentation
 
-Before the complete workbench is publicly composed, the GitHub presentation
-surface exposes the same architectural contract in a bounded read-only
-window:
+A server is configured on the Accounts & hosts page of Settings, and its
+pull request is read on the review surface. RFC-BPR-0032 separates the two:
+the page carries the servers, and naming a pull request is the Home bar's
+job.
 
-- The user selects a configured profile, never an account identity. The
-  active hostname, transport, and authenticated account are visible,
-  read-only outputs of the accepted session.
-- Connect, Open, and Refresh emit semantic application intents. Show Review
+- The page is a title, the sentence "One account per server. Credentials are
+  never shown here.", one card per configured server, and one bordered **Add
+  enterprise server** button. There is no host-profile picker. A host is
+  chosen by its own card's **Connect**, which selects that host through the
+  existing selection intent and then connects.
+- A card's header carries the hostname, the server kind and transport beneath
+  it as one quiet line, and the connection state at its right as one word:
+  Connected, Connecting, Signing in, Signed out, or the short refusal "Could
+  not connect". Connected is drawn in the accepted green and is the only
+  colour on the page.
+- The account row is a letter avatar, the login, and one consequence sentence
+  built from the existing grant projection; signed out it reads "No account"
+  with the terms of signing in instead. **Sign out** stands at its right
+  while a session exists, **Sign in** while the card speaks for the chosen
+  host, and **Connect** for a host that is not chosen. Where a host offers
+  GitHub CLI the offer stands beside them and carries the configured-CLI
+  trust warning RFC-BPR-0015 requires, before the opt-in and after it.
+- The rows are Access and Rate limit, each a value from an existing
+  observation; an enterprise server's **Remember this server** switch and
+  flat **Forget server** action; and a **Details** disclosure holding the
+  capability lines, the per-resource rate limits, and the last problem with
+  **Copy details**. Each row is one line of label, info glyph and control,
+  and the consequence sentence is the glyph's popover and its accessible
+  description.
+- Add enterprise server opens a card in its edit state — hostname, an
+  optional account, Add and Cancel — through the existing saved-server
+  intents. It creates no credential authority: a hostname and an account name
+  are metadata, and the token is still asked for.
+- The host-profile picker row and its buttons, the Owner/Repository/PR
+  locator with Open and Refresh, the "Active host", transport and login
+  lines, the pull-request status banner with Copy message, and the servers
+  combo editor are absent from the page and from its accessibility tree.
+  Their jobs moved rather than disappearing: a pull request is named in the
+  Home bar, a load refusal is said under that bar, Refresh is the strip's,
+  and a session failure is the card's own state and its Details.
+- Every gesture on the page emits a semantic application intent. Show Review
   Threads is Qt-local presentation behavior that selects, expands, scrolls
   to, and focuses the first available review thread.
-- Connection and pull-request locator controls form compact responsive rows.
-  The active host, transport, and account remain visible, while capability
-  and rate-limit facts are behind a Connection Details disclosure. At narrow
-  widths locator actions move below their inputs, and the description and
-  conversation regions change from a horizontal to a vertical split.
-- Repository and pull-request input, command legality, capability tri-state,
-  rate-limit observations, normalized metadata, conversations, status, and
-  bounded diagnostic text remain distinct accessible fields.
+- Command legality, capability tri-state, rate-limit observations, normalized
+  metadata, conversations, status, and bounded diagnostic text remain
+  distinct accessible fields.
 - The pull-request title, author, branch, state, and counts establish the
   primary hierarchy. Exact commit identities remain available behind a
   Technical Details disclosure rather than competing with the review
@@ -95,19 +225,29 @@ installation defaulting to System.
 
 ## Public preview
 
-On enabled macOS, Public preview beside Connect activates the selected native
-GitHub.com profile without sign-in. CLI selections still report unavailable. The title and session strip explicitly label the mode. The same file
-drawer and exact selected-file comparison show public content. REST inline
-comments appear as read-only root/reply groups, with no invented thread
-resolution. Unobserved and observed-empty conversations have different wording.
+Public preview is the credential-free reading mode for public GitHub.com pull
+requests. macOS enables it; CLI selections still report unavailable. It is
+reached through the Home bar, which relabels itself for it while no account is
+signed in, and it is stated on the github.com card's account row while such a
+session exists: "Reading public pull requests without an account." There is no
+Public preview button beside Connect and no session strip to label the mode —
+RFC-BPR-0032 retired both, and the status bar's "Not signed in. Public pull
+requests open read-only." says the same thing where the reviewer is looking.
+The same file drawer and exact selected-file comparison show public content.
+REST inline comments appear as read-only root/reply groups, with no invented
+thread resolution. Unobserved and observed-empty conversations have different
+wording.
 
 Queue role, private review progress, review-thread resolution, and publishing
-remain visible but disabled with explanations. A budget ring has no consumed
-fraction before a budget was observed; after a read it shows the reported limit,
-remaining units, and reset. Exhaustion and private-or-missing failures offer
-Sign in. The Sign in gesture uses the selected profile's existing device path.
-GHES refuses preview and Linux/Windows report unavailable rather than silently
-trying a credentialed read. Switching mode clears stale identity-sensitive UI.
+remain visible but disabled with explanations. A budget ring sits on the
+reading host's card, in its Rate limit row: it has no consumed fraction before
+a budget was observed, and after a read it shows the reported limit, remaining
+units, and reset. Exhaustion and private-or-missing failures offer Sign in, as
+the ring does, and both reach the one sign-in already mounted — the device
+sign-in in that card's account row — so a flow can never begin against a host
+the reviewer is not looking at. GHES refuses preview and Linux/Windows report
+unavailable rather than silently trying a credentialed read. Switching mode
+clears stale identity-sensitive UI.
 
 ## Signing in with a device code
 
@@ -138,7 +278,7 @@ the token field stays. `qt::device_authorization_panel` is the surface:
   as the rest of this window, and the panel is rendered at 1.0x, 1.25x, and
   2.0x in the Qt harness.
 
-The session chrome offers **Sign out** beside Connect. Device grants are
+The server's card offers **Sign out** in its account row. Device grants are
 remembered across orderly quits; manual tokens remain session-only. Sign out
 removes both device-token slots and disables the stored binding. Startup
 restores only an exactly validated session and reports unusable retained
@@ -149,13 +289,18 @@ The panel receives a projection and never a token, a refresh token, a device
 code, a client identifier, or an endpoint; those fields do not exist on the
 type it is handed.
 
-**Where it is mounted.** The workbench places the panel in the review header
-column, directly under the session chrome that offers the host picker and the
-Connect control, because a profile has two ways in and a reviewer looking for
-either looks in one place. It is bound to whichever profile that picker names
-and is rebound when the picker changes, so the token prompt and the device code
-can never mean two different hosts. The header column scrolls, and the panel is
-below the fold at the default height ([[BPR-0526]]).
+**Where it is mounted.** The panel is laid into a server card's account row on
+the Accounts & hosts page, because a profile has two ways in — the token prompt
+Connect opens and a code read aloud into a browser — and a reviewer looking for
+either looks at the server's card ([[BPR-0526]], [[BPR-0773]]). While a flow
+runs, that row *is* the sign-in: the login, the terms and the ways in give it
+the whole row, and a renewal that needs a new code sits beneath a signed-in
+account instead of replacing it. The panel is bound to the profile the flow was
+asked for, and it follows a newly chosen host only once a running flow has
+settled, because the core forbids a second flow while one runs; so the token
+prompt and the device code can never mean two different hosts. The strip's
+account button is what opens the page, and a flow the core begins presents it,
+so the code is seen.
 
 The application constructs the device host on every platform and binds its
 projection port to a fan-out: every publication reaches the recording sink the
@@ -429,18 +574,72 @@ the model.
 
 ## Menu bar
 
-The window carries a menu bar with one menu, **View**, holding the line-number
-toggle. It was added by BPR-0457 because the owner asked for a "view menu
-option" and, offered the choice between a real menu bar and a checkable entry
-in the existing toolbar popup, chose the menu bar. On macOS it merges into the
-system menu bar and costs the window no height; on Windows and Linux it takes a
-row, which is the price of the same answer being true on every platform. The
-existing toolbar popup keeps the private progress actions it already had.
+The window carries a menu bar. **View** holds the line-number toggle, the
+one-pane toggle and, after a separator, Settings…. The bar was added by
+BPR-0457 because the owner asked for a "view menu option" and, offered the
+choice between a real menu bar and a checkable entry in the existing toolbar
+popup, chose the menu bar. On macOS it merges into the system menu bar and
+costs the window no height; on Windows and Linux it takes a row, which is the
+price of the same answer being true on every platform. The existing toolbar
+popup keeps the private progress actions it already had. **File** holds Quit,
+and **Profiles** lists the profiles by name with the current one checked, then
+New Window and Manage Profiles….
 
-The entry is disabled until a pull request is open, because line-number
-visibility is workbench-surface state and an inactive workbench disables every
-workbench command. A reader who opens **View** on a freshly launched window
-sees the entry greyed.
+The line-number entry is disabled until a pull request is open, because
+line-number visibility is workbench-surface state and an inactive workbench
+disables every workbench command. A reader who opens **View** on a freshly
+launched window sees the entry greyed.
+
+### The empty desktop
+
+Closing a window closes a window. No chooser, and no other window, is
+presented because a window closed (RFC-BPR-0033, amending the last-window
+presentation [[BPR-0696]] added). What a desktop with no window does is a
+named policy the composition injects, not a platform test the desktop makes
+for itself, so both answers are drivable on one host:
+
+- **macOS** stays resident, as macOS applications do. The application's own
+  menu bar remains — File › Quit, and Profiles listing the profiles, then New
+  Window and Manage Profiles… — and so does the Dock icon. Activating the
+  application, `Ctrl+N` (⌘N), or choosing a profile from that menu opens the
+  most recently used profile's window at Home through the existing open
+  intent. "Most recently used" is the last profile whose window was opened or
+  focused in this process; nothing new is persisted for it, because an empty
+  desktop exists only after a window has been open.
+- **Windows and Linux** quit, through the existing desktop Quit path, so
+  profile records are saved exactly as an explicit Quit saves them. The
+  platform expectation is that a program with no window is gone. The request
+  is refused while the registry is still saving the close that emptied the
+  desktop, so it is retried until it lands; only a persistently refused
+  request forces the shutdown, because a process with no window and no way to
+  reach one is the defect [[BPR-0696]] fixed by presenting the chooser.
+
+The restore records already tell the two apart: an explicit close retires that
+window from automatic restoration, while Quit retains every live window in
+focus order. A profile operation that fails while a window exists is reported
+in that window — the Profiles menu grows a status item under a separator,
+shown only after a refusal — rather than by presenting the chooser, which is
+presented for a failure only when no window exists to carry it.
+
+### The Profiles sheet
+
+**Profiles** opens from Profiles › Manage Profiles…, or at startup when no
+profile can be opened. It is a sheet of rows: a letter avatar, the profile
+name, and its state at the right ("Open in 2 windows", "Opening", "Closing",
+"Closed") from the existing projection, which is also the row's accessible
+description. The current profile's row is selected when the sheet opens.
+Return or a double-click opens the selected profile, and the footer's filled
+button says **Open** for a closed profile and **New window** for an open one,
+because that is what the gesture does.
+
+**Rename** and **New profile** are footer actions that turn the row into an
+editor in place, with Save and Cancel replacing the footer's buttons, so a
+name is edited where it is read; the field exists only while an edit is open.
+Escape cancels and keeps the text, and a refused edit stays open on exactly
+what was typed. A failure is one notice above the rows with a single **Try
+again**, and is absent otherwise. There is no permanent name field, no
+permanent status sentence and no Reload Profiles button, and nothing announces
+"Profile saved.": the renamed row is the confirmation.
 
 ## Conversation drawer
 
