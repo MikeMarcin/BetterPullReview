@@ -133,10 +133,19 @@ the last window, and a dependency that is `Deferred`.
   can be finished. RFC-BPR-0033 still does not become `Auto-Verified` - see the formal status
   above; RFC-BPR-0024 is `Deferred`.
 - **On a reject.** Read the note for the step, and read it for the activation answer before
-  reaching for a code change: two rejections in a row have now been about what the reviewer was
-  looking at rather than about what the composition builds. Every step has a machine-side
-  counterpart in `application_profile_empty_desktop_native_menu_bar`, which as of d10 covers the
-  activation half as well.
+  reaching for a code change. Every step has a machine-side counterpart in
+  `application_profile_empty_desktop_native_menu_bar`, which as of d10 covers the activation half
+  as well.
+- **What this casts doubt on, and what it does not.** The *first* rejection
+  (`bpr-0779-empty-desktop-dock`, f4a23296, *"Closing last window closes menu bar."*) was read by
+  d8 and d9 as a report about the bar's titles, and on that build the close really did take `View`
+  and the merged `Preferences…` away. It could equally have been the same activation observation
+  as the second one; nothing recorded distinguishes them, and d10 will not pretend otherwise.
+  **It does not unsettle the fix.** RFC-BPR-0033 B1 names File, Profiles and View by name, the
+  windowless bar was short of them, and [[BPR-0796]] made the close subtract nothing. That is met
+  on the RFC's own words whatever the owner was looking at. **It does unsettle the inference** -
+  drawn in d8 and repeated in d9 - that the first note had been *accounted for*. What was
+  accounted for was a defect the note was consistent with.
 - **Not run, and never to be inferred.** Windows and Linux native empty-desktop quit
   ([[BPR-0798]], [[BPR-0799]]). The hide-and-unhide gesture's *reopen* is conditional: macOS
   grants this process activation after an unhide only intermittently, and the course records
