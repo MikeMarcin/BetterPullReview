@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0777"
 title: "Stop presenting the chooser when the last window closes; stay resident on macOS and quit elsewhere"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0033"]
 depends_on: ["BPR-0770"]
 metadata: {"pack":"bpr-shell-surfaces-v1","milestone":"profile-chooser","acceptance":["B1","B2","B3"],"milestone_plan":{"id":"bpr-shell-surfaces-v1","path":"docs/rfcs/plans/bpr-shell-surfaces-v1/milestone-plan.json"}}
