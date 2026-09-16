@@ -97,6 +97,20 @@ card authoring.
   tests-enabled composition those words are "(unavailable)". RFC-BPR-0032's own
   verification row for A2 names "the recording device port" as the direct
   surface. The pack's acceptance stands; this card is new work.
+- **The owner's "without going through the device auth flow first" is already
+  how the surface works, and there is a second reason they could not see it.**
+  The offer's predicate is
+  `!flowRow && !cliPresented && !waiting && shown.ConnectAdmitted`
+  (`src/adapters/qt/src/server_card.cpp`), and `flowRow` is
+  `shown.DeviceSignIn && DevicePanel != nullptr && !signedIn`. Device state only
+  ever *suppresses* the offer; it is never a precondition. But the screenshot
+  was taken mid sign-in, so `flowRow` was true and the GitHub CLI offer and its
+  trust warning were hidden at that exact moment — by [[BPR-0773]]'s design,
+  which makes the account row *be* the device sign-in while one runs. Cancelling
+  the flow brings the offer back. So the honest answer to the owner has two
+  parts: the offer is not gated behind the device flow, and it is nevertheless
+  invisible while one is running; and even once visible it says "(unavailable)"
+  in the build they were running.
 - Also noted and not fixed here: even the shipped opener overstates by one
   notch. `QDesktopServices::openUrl` returning `true` means the launch was
   dispatched, not that a browser rendered, and `github_application.cpp` already
