@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0778"
 title: "Redesign the chooser as rows with in-place rename and create"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0033"]
 depends_on: ["BPR-0777"]
 metadata: {"pack":"bpr-shell-surfaces-v1","milestone":"profile-chooser","acceptance":["B4"],"milestone_plan":{"id":"bpr-shell-surfaces-v1","path":"docs/rfcs/plans/bpr-shell-surfaces-v1/milestone-plan.json"}}
