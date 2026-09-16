@@ -15,6 +15,7 @@
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/native_window_chrome.hpp"
+#include "bpr/qt/profile_management_window.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/usage_ring.hpp"
@@ -7387,6 +7388,16 @@ namespace bpr::qt {
 				ManageProfiles();
 			}
 		});
+		// [[BPR-0777]]. RFC-BPR-0033 B3 reports a profile refusal in a window that
+		// exists rather than presenting the chooser to carry it. Shown only after a
+		// refusal, so at every other moment the menu is the profiles and their
+		// two actions.
+		ProfileStatusSeparator = ProfilesMenu->addSeparator();
+		ProfileStatusSeparator->setVisible(false);
+		ProfileStatusAction = ProfilesMenu->addAction(QString{ });
+		ProfileStatusAction->setObjectName(QStringLiteral("profileManagementStatusAction"));
+		ProfileStatusAction->setEnabled(false);
+		ProfileStatusAction->setVisible(false);
 		QuitProfilesAction = fileMenu->addAction(QStringLiteral("Quit"));
 		QuitProfilesAction->setObjectName(QStringLiteral("quitProfilesAction"));
 		QuitProfilesAction->setMenuRole(QAction::QuitRole);
@@ -7459,6 +7470,17 @@ namespace bpr::qt {
 		const application::profile_management_projection& aProjection,
 		const core::bpr_profile_id                        aCurrentProfile)
 	{
+		// [[BPR-0777]]. Adopted before the bounded-list guard: a refused projection is
+		// exactly when this window has to say so.
+		ProfileFailure = aProjection.Failure
+			? std::optional{ aProjection.Failure->Reason }
+			: std::nullopt;
+		ProfileStatusAction->setText(ProfileFailure
+										 ? profile_management_failure_text(*ProfileFailure)
+										 : QString{ });
+		ProfileStatusAction->setVisible(ProfileFailure.has_value());
+		ProfileStatusSeparator->setVisible(ProfileFailure.has_value());
+		update_status_text();
 		if (aProjection.Profiles.size() > core::maximum_bpr_profiles) {
 			return;
 		}
@@ -8214,6 +8236,11 @@ namespace bpr::qt {
 			&& Failure != application::workbench_host_failure::settings_unavailable) {
 			status.append(QStringLiteral(" %1").arg(failure_text(
 				application::workbench_host_failure::settings_unavailable)));
+		}
+		// [[BPR-0777]]. A profile refusal is this window's to say on whatever it is
+		// showing, because RFC-BPR-0033 routes it here instead of presenting the chooser.
+		if (ProfileFailure) {
+			status.append(QStringLiteral(" %1").arg(profile_management_failure_text(*ProfileFailure)));
 		}
 		if (home) {
 			return status;

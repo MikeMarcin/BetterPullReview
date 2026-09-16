@@ -2378,8 +2378,10 @@ target_compile_features(test_profile_management_public_path PRIVATE cxx_std_23)
 bpr_enable_hardening(test_profile_management_public_path)
 bpr_enable_warnings(test_profile_management_public_path)
 bpr_add_network_isolated_test(NAME application_profile_management_public_path COMMAND test_profile_management_public_path)
+# [[BPR-0777]]. The course now drives both empty-desktop policies and three
+# reopening gestures, so it starts several more profile runtimes than it did at 90 s.
 set_tests_properties(application_profile_management_public_path PROPERTIES
-    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 90
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300
     PASS_REGULAR_EXPRESSION "profile-management-public-path:pass")
 
 bpr_add_executable(test_profile_multi_window_public_path profile_multi_window_public_path_tests.cpp)

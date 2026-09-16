@@ -2,17 +2,16 @@
 #include "bpr/adapters/sqlite/profile_registry_store.hpp"
 #include "bpr/app/worker_executor.hpp"
 #include "bpr/application/profile_management_host.hpp"
+#include "bpr/qt/desktop_menu_bar.hpp"
 #include "bpr/qt/dif_runtime.hpp"
 #include "bpr/qt/event_loop_executor.hpp"
 #include "bpr/qt/motion_observer.hpp"
 #include "bpr/qt/profile_management_window.hpp"
 #include <QCloseEvent>
 #include <QEvent>
-#include <QLabel>
-#include <QLayout>
+#include <QGuiApplication>
 #include <QObject>
 #include <QPointer>
-#include <QPushButton>
 #include <QTimer>
 #include <algorithm>
 #include <limits>
@@ -50,11 +49,13 @@ namespace bpr::app {
 		};
 
 	public:
-		implementation(core::bpr_profile_id aInitial, startup_factory aFactory, profile_desktop_startup_completion aCompletion, core::profile_launch_intent aIntent)
+		implementation(core::bpr_profile_id aInitial, startup_factory aFactory, profile_desktop_startup_completion aCompletion, core::profile_launch_intent aIntent, empty_desktop_policy aPolicy)
 			: Initial{ aInitial }
 			, Factory{ std::move(aFactory) }
 			, Completion{ std::move(aCompletion) }
 			, InitialIntent{ aIntent }
+			, Policy{ aPolicy ? std::move(aPolicy) : native_empty_desktop_policy() }
+			, LastUsedProfile{ aInitial }
 		{
 			Poll.setInterval(10);
 			QObject::connect(&Poll, &QTimer::timeout, this, [this] { poll(); });
@@ -67,6 +68,13 @@ namespace bpr::app {
 		void begin()
 		{
 			Lifetime = shared_from_this();
+			// RFC-BPR-0033 B2. Activating a resident desktop with no window reopens the
+			// most recently used profile. The signal, rather than an application-wide
+			// event filter, because every event in the process would pass through one.
+			if (auto* const application = qobject_cast<QGuiApplication*>(QCoreApplication::instance()); application != nullptr) {
+				QObject::connect(application, &QGuiApplication::applicationStateChanged, this,
+								 [this](const Qt::ApplicationState aState) { application_state_changed(aState); });
+			}
 			Poll.start();
 			start_runtime(Initial);
 		}
@@ -114,6 +122,8 @@ namespace bpr::app {
 			return selected != found->second.Windows.end() && selected->second.Context == aContext && !selected->second.Closing;
 		}
 		auto management_window() const noexcept -> qt::profile_management_window* { return Management.get(); }
+		auto desktop_menu() const noexcept -> qt::desktop_menu_bar* { return DesktopMenu.get(); }
+		auto last_empty_desktop_outcome() const noexcept -> std::optional<empty_desktop_outcome> { return LastEmptyOutcome; }
 		void quit(int aExitCode)
 		{
 			if (aExitCode != 0) {
@@ -211,8 +221,9 @@ namespace bpr::app {
 			}
 			if (Management) {
 				Management->adopt(aProjection);
-				ReloadProfiles->setEnabled(!aProjection.Busy && !aProjection.Closing && !Quitting);
-				RecoveryNotice->setVisible(aProjection.Failure.has_value());
+			}
+			if (DesktopMenu) {
+				DesktopMenu->adopt(aProjection, most_recent_profile());
 			}
 			for (auto& [profile, entry] : Runtimes) {
 				if (!entry.Runtime) {
@@ -232,7 +243,11 @@ namespace bpr::app {
 					presented->adopt_profile_management(aProjection, profile);
 				}
 			}
-			if (aProjection.Failure && Management && !Quitting && !Management->isVisible()) {
+			// RFC-BPR-0033 B3. Every live window has just adopted this projection and
+			// reports the refusal itself, so the chooser is presented for a failure only
+			// when no window exists to carry it - the startup case RFC-BPR-0024
+			// describes. While the chooser is already open, its own notice says it.
+			if (aProjection.Failure && Management && !Quitting && !Management->isVisible() && !presented_window_exists()) {
 				Management->present();
 			}
 			if (!InitialRegistered && aProjection.Ready && !aProjection.Closing && !Quitting) {
@@ -290,6 +305,7 @@ namespace bpr::app {
 			if (aCommand.Kind == application::profile_runtime_command_kind::activate) {
 				if (current(aCommand.Context) && found != Runtimes.end() && found->second.Runtime) {
 					found->second.Runtime->focus_window(aCommand.Context);
+					LastUsedProfile = profile;
 					complete_activation(found->second, application::profile_activation_outcome::queued);
 				}
 				return;
@@ -314,9 +330,17 @@ namespace bpr::app {
 		auto eventFilter(QObject* aObject, QEvent* aEvent) -> bool override
 		{
 			if (aEvent->type() == QEvent::Close && aObject == Management.get() && Runtimes.empty() && !Quitting) {
-				static_cast<QCloseEvent*>(aEvent)->ignore();
-				quit(0);
-				return true;
+				// Closing the chooser leaves the desktop empty again, so the same named
+				// policy decides. [[BPR-0696]] quit here unconditionally, which is what
+				// kept an invisible process from being left behind; on macOS staying
+				// resident with the menu bar is now that platform's answer.
+				if (empty_desktop_decision() == empty_desktop_outcome::quit) {
+					static_cast<QCloseEvent*>(aEvent)->ignore();
+					quit_empty_desktop();
+					return true;
+				}
+				present_desktop_menu();
+				return QObject::eventFilter(aObject, aEvent);
 			}
 			if (aEvent->type() != QEvent::Close && aEvent->type() != QEvent::WindowActivate) {
 				return QObject::eventFilter(aObject, aEvent);
@@ -339,7 +363,8 @@ namespace bpr::app {
 						}
 						return true;
 					} else if (!Focusing && current(context)) {
-						Focusing = true;
+						Focusing        = true;
+						LastUsedProfile = context.Profile;
 						static_cast<void>(Host->focus(context));
 						if (current(context)) {
 							entry.Runtime->focus_window(context);
@@ -353,6 +378,93 @@ namespace bpr::app {
 		}
 
 	private:
+		/// \brief Whether any profile has a window on screen to carry a refusal.
+		[[nodiscard]] auto presented_window_exists() const -> bool
+		{
+			return std::ranges::any_of(Runtimes, [this](const auto& aEntry) { return !windows(aEntry.first).empty(); });
+		}
+		/// \brief The profile a reopened window belongs to.
+		///
+		/// \details The last profile whose window was opened or focused in this
+		/// process. Nothing new is persisted for it: an empty desktop only exists
+		/// after a window has been open, and a fresh launch opens its initial profile.
+		[[nodiscard]] auto most_recent_profile() const -> core::bpr_profile_id
+		{
+			const auto known = std::ranges::any_of(Projection.Profiles, [this](const auto& aProfile) { return aProfile.Profile == LastUsedProfile; });
+			if (known) {
+				return LastUsedProfile;
+			}
+			return Projection.Profiles.empty() ? Initial : Projection.Profiles.front().Profile;
+		}
+		/// \brief Records and returns the composition's answer for an empty desktop.
+		[[nodiscard]] auto empty_desktop_decision() -> empty_desktop_outcome
+		{
+			const auto outcome = Policy ? Policy() : empty_desktop_outcome::quit;
+			LastEmptyOutcome   = outcome;
+			return outcome;
+		}
+		/// \brief RFC-BPR-0033 B1. A close is a close: no window and no chooser is
+		/// presented because a window closed, and the policy decides what remains.
+		void desktop_emptied()
+		{
+			if (empty_desktop_decision() == empty_desktop_outcome::quit) {
+				EmptyDesktopQuit = true;
+				quit_empty_desktop();
+				return;
+			}
+			present_desktop_menu();
+		}
+		/// \brief Ends the process on a platform where no window means gone.
+		///
+		/// \details The durable Quit path is preferred, so profile records are saved
+		/// exactly as an explicit Quit saves them. It refuses while the registry is
+		/// still saving the close that emptied the desktop, so the poll retries it.
+		/// Only a persistently refused request forces the shutdown, because a process
+		/// with no window and no way to reach one is the defect [[BPR-0696]] fixed by
+		/// presenting the chooser. Nothing is on screen and no live window set needs
+		/// preserving by then.
+		void quit_empty_desktop()
+		{
+			if (Quitting) {
+				EmptyDesktopQuit = false;
+				return;
+			}
+			if (Host && Host->request_quit()) {
+				EmptyDesktopQuit = false;
+				return;
+			}
+			if (!Host || ++EmptyDesktopQuitAttempts >= empty_desktop_quit_attempts) {
+				EmptyDesktopQuit = false;
+				force_shutdown(ExitCode);
+			}
+		}
+		/// \brief Keeps Profiles, New Window and Quit reachable while no window exists.
+		void present_desktop_menu()
+		{
+			if (!DesktopMenu) {
+				DesktopMenu = std::make_unique<qt::desktop_menu_bar>();
+				DesktopMenu->set_dispatch(
+					[weak = weak_from_this()](application::profile_management_intent aIntent) {if (const auto self=weak.lock();self && !self->Quitting){ self->dispatch(std::move(aIntent));
+} },
+					[weak = weak_from_this()] {if (const auto self=weak.lock();self && self->Management && !self->Quitting){ if (self->Host && !self->Projection.Busy && !self->Projection.Closing) { self->Host->reload(); } self->Management->present();
+} },
+					[weak = weak_from_this()] {if (const auto self=weak.lock()){ self->quit(0);
+} });
+			}
+			DesktopMenu->adopt(Projection, most_recent_profile());
+		}
+		/// \brief RFC-BPR-0033 B2. Opens the most recently used profile when a resident
+		/// desktop with no window is activated, through the existing open intent.
+		void application_state_changed(const Qt::ApplicationState aState)
+		{
+			if (aState != Qt::ApplicationActive || Quitting || !Runtimes.empty() || !Host || PendingLaunch) {
+				return;
+			}
+			if (LastEmptyOutcome != empty_desktop_outcome::stay_resident || !Projection.Ready || Projection.Busy || Projection.Closing) {
+				return;
+			}
+			dispatch(application::open_bpr_profile_intent{ most_recent_profile() });
+		}
 		void complete_activation(runtime_entry& aEntry, application::profile_activation_outcome aOutcome)
 		{
 			if (auto reply = std::exchange(aEntry.ActivationReply, { })) {
@@ -489,20 +601,9 @@ namespace bpr::app {
 			Registry     = adapters::sqlite::make_profile_registry_store(RegistryRoot);
 			Management   = std::make_unique<qt::profile_management_window>();
 			Management->installEventFilter(this);
-			RecoveryNotice = new QLabel{ QStringLiteral("If a profile operation fails, reload profiles, then retry the operation. Your windows remain open until Close or Quit is saved."), Management.get() };
-			RecoveryNotice->setObjectName(QStringLiteral("profileRecoveryNotice"));
-			RecoveryNotice->setWordWrap(true);
-			RecoveryNotice->hide();
-			Management->layout()->addWidget(RecoveryNotice);
-			ReloadProfiles = new QPushButton{ QStringLiteral("Reload Profiles"), Management.get() };
-			ReloadProfiles->setObjectName(QStringLiteral("reloadProfiles"));
-			ReloadProfiles->setAccessibleName(QStringLiteral("Reload profiles after a failed operation"));
-			Management->layout()->addWidget(ReloadProfiles);
-			QObject::connect(ReloadProfiles, &QPushButton::clicked, this, [weak = weak_from_this()] {
-				if (const auto self = weak.lock(); self && !self->Quitting && self->Host && !self->Projection.Busy && !self->Projection.Closing) {
-					self->Host->reload();
-				}
-			});
+			// [[BPR-0777]]. The appended recovery notice and Reload Profiles button are
+			// gone: RFC-BPR-0033 puts one failure notice with Try again inside the
+			// chooser, over the same reload intent this dispatch already carries.
 			Host = std::make_unique<application::profile_management_host>(*Registry, Effects, Decisions, *this, core::application_session_id{ 1U });
 			Management->set_dispatch([weak = weak_from_this()](application::profile_management_intent aIntent) {if (const auto self=weak.lock();self && !self->Quitting){ self->dispatch(std::move(aIntent));
 } });
@@ -552,6 +653,7 @@ namespace bpr::app {
 					return;
 				}
 				entry.WindowPublished = true;
+				LastUsedProfile       = aContext.Profile;
 				entry.Runtime->focus_window(aContext);
 				complete_activation(entry, application::profile_activation_outcome::queued);
 				if (aContext.Profile == Initial && Completion) {
@@ -715,9 +817,12 @@ namespace bpr::app {
 					ExitCode = 1;
 				}
 				position = Runtimes.erase(position);
-				if (Runtimes.empty() && !Quitting && Management) {
-					Management->present();
+				if (Runtimes.empty() && !Quitting) {
+					desktop_emptied();
 				}
+			}
+			if (EmptyDesktopQuit && !Quitting && Runtimes.empty()) {
+				quit_empty_desktop();
 			}
 			if (is_quiescent()) {
 				Poll.stop();
@@ -729,31 +834,47 @@ namespace bpr::app {
 		startup_factory                                                             Factory;
 		profile_desktop_startup_completion                                          Completion;
 		core::profile_launch_intent                                                 InitialIntent;
+		empty_desktop_policy                                                        Policy;
+		core::bpr_profile_id                                                        LastUsedProfile;
+		std::optional<empty_desktop_outcome>                                        LastEmptyOutcome;
 		std::filesystem::path                                                       RegistryRoot;
 		worker_executor                                                             Effects;
 		qt::event_loop_executor                                                     Decisions;
 		std::unique_ptr<application::profile_registry_port>                         Registry;
 		std::unique_ptr<application::profile_management_host>                       Host;
 		std::unique_ptr<qt::profile_management_window>                              Management;
-		QLabel*                                                                     RecoveryNotice = nullptr;
-		QPushButton*                                                                ReloadProfiles = nullptr;
+		std::unique_ptr<qt::desktop_menu_bar>                                       DesktopMenu;
 		std::map<core::bpr_profile_id, runtime_entry>                               Runtimes;
 		application::profile_management_projection                                  Projection;
 		std::optional<std::pair<core::bpr_profile_id, core::profile_launch_intent>> PendingLaunch;
 		QTimer                                                                      Poll;
 		std::shared_ptr<implementation>                                             Lifetime;
-		std::uint64_t                                                               NextStartup       = 0;
+		/// Two seconds of 10 ms polls: long enough for the close that emptied the
+		/// desktop to finish saving, short enough not to leave an invisible process.
+		static constexpr unsigned                                                   empty_desktop_quit_attempts = 200U;
+		unsigned                                                                    EmptyDesktopQuitAttempts    = 0U;
+		bool                                                                        EmptyDesktopQuit            = false;
+		std::uint64_t                                                               NextStartup                 = 0;
 		bool                                                                        InitialRegistered = false, Quitting = false, Focusing = false;
 		int                                                                         ExitCode = 0;
 	};
+
+	auto native_empty_desktop_policy() -> empty_desktop_policy
+	{
+#if defined(__APPLE__)
+		return [] { return empty_desktop_outcome::stay_resident; };
+#else
+		return [] { return empty_desktop_outcome::quit; };
+#endif
+	}
 
 	profile_desktop::profile_desktop(std::shared_ptr<implementation> aImplementation)
 		: Implementation{ std::move(aImplementation) }
 	{ }
 	profile_desktop::~profile_desktop() { Implementation->force_shutdown(0); }
-	auto profile_desktop::start_with_factory(core::bpr_profile_id aProfile, startup_factory aFactory, profile_desktop_startup_completion aCompletion, core::profile_launch_intent aIntent) -> std::unique_ptr<profile_desktop>
+	auto profile_desktop::start_with_factory(core::bpr_profile_id aProfile, startup_factory aFactory, profile_desktop_startup_completion aCompletion, core::profile_launch_intent aIntent, empty_desktop_policy aPolicy) -> std::unique_ptr<profile_desktop>
 	{
-		auto state   = std::make_shared<implementation>(aProfile, std::move(aFactory), std::move(aCompletion), aIntent);
+		auto state   = std::make_shared<implementation>(aProfile, std::move(aFactory), std::move(aCompletion), aIntent, std::move(aPolicy));
 		auto desktop = std::unique_ptr<profile_desktop>{ new profile_desktop{ state } };
 		state->begin();
 		return desktop;
@@ -777,7 +898,7 @@ namespace bpr::app {
 		return next;
 	}
 
-	auto profile_desktop::start(github_application_config aConfig, profile_desktop_startup_completion aCompletion) -> std::unique_ptr<profile_desktop>
+	auto profile_desktop::start(github_application_config aConfig, profile_desktop_startup_completion aCompletion, empty_desktop_policy aPolicy) -> std::unique_ptr<profile_desktop>
 	{
 		if (!aConfig.MotionObserver) {
 			aConfig.MotionObserver = std::make_shared<qt::motion_observer>(qt::make_native_motion_source());
@@ -790,12 +911,14 @@ namespace bpr::app {
 		return start_with_factory(profile, [config = std::move(aConfig)](core::bpr_profile_id aProfile, const std::filesystem::path& aRoot, core::profile_launch_intent aIntent, github_application_startup_completion aDone) {
             auto next = configuration_for_profile(config, aProfile, aRoot);
             next.ProfileLaunchIntent = aIntent;
-            return github_application::start_profile(std::move(next), std::move(aDone)); }, std::move(aCompletion), intent);
+            return github_application::start_profile(std::move(next), std::move(aDone)); }, std::move(aCompletion), intent, std::move(aPolicy));
 	}
 	auto profile_desktop::runtime(core::bpr_profile_id aProfile) const noexcept -> github_application* { return Implementation->runtime(aProfile); }
 	auto profile_desktop::windows(core::bpr_profile_id aProfile) const -> std::vector<core::bpr_window_context> { return Implementation->windows(aProfile); }
 	auto profile_desktop::window(core::bpr_window_context aContext) const noexcept -> qt::workbench_window* { return Implementation->window(aContext); }
 	auto profile_desktop::management_window() const noexcept -> qt::profile_management_window* { return Implementation->management_window(); }
+	auto profile_desktop::desktop_menu() const noexcept -> qt::desktop_menu_bar* { return Implementation->desktop_menu(); }
+	auto profile_desktop::last_empty_desktop_outcome() const noexcept -> std::optional<empty_desktop_outcome> { return Implementation->last_empty_desktop_outcome(); }
 	void profile_desktop::quit(int aExitCode) { Implementation->quit(aExitCode); }
 	auto profile_desktop::is_quiescent() const noexcept -> bool { return Implementation->is_quiescent(); }
 	auto profile_desktop::exit_code() const noexcept -> int { return Implementation->exit_code(); }

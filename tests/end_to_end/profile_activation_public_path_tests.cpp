@@ -4,6 +4,7 @@
 #include "bpr/qt/profile_management_window.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
+#include <QAction>
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QEvent>
@@ -151,11 +152,18 @@ auto main(int aArgc, char** aArgv) -> int
 	});
 	const auto mutation = app::detail::github_application_fixture_access::review_mutation_evidence(*desktop->runtime(profile));
 	expect(mutation.Submissions == 0 && mutation.Replies == 0 && mutation.Resolutions == 0, "activation performs no provider mutation");
-	auto* reload = desktop->management_window()->findChild<QPushButton*>(QStringLiteral("reloadProfiles"));
-	expect(reload != nullptr, "registry reload action");
-	wait_for([&] { return reload->isEnabled(); });
-	reload->click();
-	wait_for([&] { return reload->isEnabled(); });
+	// [[BPR-0777]]. The desktop no longer appends a Reload Profiles button to the
+	// chooser, because RFC-BPR-0033 moves recovery into the chooser's own failure
+	// notice. The reload this course needs is the one Manage Profiles already performs,
+	// and Create's enablement is the same registry-idle fact the button carried.
+	auto* idle = desktop->management_window()->create_button();
+	expect(idle != nullptr, "the chooser's registry-idle indicator");
+	wait_for([&] { return idle->isEnabled(); });
+	auto* manage = desktop->window(desktop->windows(profile).front())
+					   ->findChild<QAction*>(QStringLiteral("manageProfilesAction"));
+	expect(manage != nullptr, "registry reload reaches the host through Manage Profiles");
+	manage->trigger();
+	wait_for([&] { return idle->isEnabled(); });
 	desktop->quit();
 	wait_for([&] { return desktop->is_quiescent(); });
 	expect(desktop->exit_code() == 0, "owner orderly drain");

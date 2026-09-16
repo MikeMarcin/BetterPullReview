@@ -2,7 +2,9 @@
 #include "bpr/adapters/sqlite/profile_registry_store.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/profile_management_window.hpp"
+#include "bpr/qt/workbench_window.hpp"
 
+#include <QAction>
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QEvent>
@@ -126,7 +128,9 @@ auto main(int aArgc, char** aArgv) -> int
 #if !defined(__unix__) && !defined(__APPLE__)
 		wait_for([&] { return retry.Retried; });
 #endif
-		auto* settled = management->findChild<QPushButton*>(QStringLiteral("reloadProfiles"));
+		// [[BPR-0777]]. Create's enablement is the registry-settled fact the retired
+		// Reload Profiles button carried.
+		auto* settled = management->create_button();
 		expect(settled != nullptr, "registry settlement indicator");
 		wait_for([&] { return settled->isEnabled(); });
 		expect(desktop->windows(core::default_bpr_profile_id).empty(), "Open Profile contention creates no foreign window");
@@ -140,11 +144,16 @@ auto main(int aArgc, char** aArgv) -> int
 	// Another profile can advance the global allocator while this process is open.
 	// Reload before Quit exercises the existing explicit CAS recovery course.
 	auto* management = desktop->management_window();
-	auto* reload     = management->findChild<QPushButton*>(QStringLiteral("reloadProfiles"));
-	expect(reload != nullptr, "registry recovery action");
-	wait_for([&] { return reload->isEnabled(); }, "registry idle before reload");
-	reload->click();
-	wait_for([&] { return reload->isEnabled(); }, "registry reload completes");
+	auto* idle       = management->create_button();
+	expect(idle != nullptr, "the chooser's registry-idle indicator");
+	wait_for([&] { return idle->isEnabled(); }, "registry idle before reload");
+	// [[BPR-0777]]. Manage Profiles is the reload gesture now that the desktop appends
+	// no Reload Profiles button; the explicit CAS recovery it exercises is unchanged.
+	auto* manage = desktop->window(desktop->windows(profile).front())
+					   ->findChild<QAction*>(QStringLiteral("manageProfilesAction"));
+	expect(manage != nullptr, "registry reload reaches the host through Manage Profiles");
+	manage->trigger();
+	wait_for([&] { return idle->isEnabled(); }, "registry reload completes");
 	desktop->quit();
 	wait_for([&] { return desktop->is_quiescent(); }, "owner and all services drain after quit");
 	expect(desktop->exit_code() == 0, "orderly owner quit");

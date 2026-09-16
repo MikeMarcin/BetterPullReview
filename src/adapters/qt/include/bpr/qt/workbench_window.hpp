@@ -1121,6 +1121,11 @@ namespace bpr::qt {
 		application::profile_management_dispatch ProfileManagementDispatch;
 		std::function<void()>                    ManageProfiles;
 		std::function<void()>                    QuitProfiles;
+		/// [[BPR-0777]]. RFC-BPR-0033 B3 reports a profile refusal in the window that
+		/// has one, so these carry it in the Profiles menu beside the status line.
+		QAction*                                               ProfileStatusAction    = nullptr;
+		QAction*                                               ProfileStatusSeparator = nullptr;
+		std::optional<application::profile_management_failure> ProfileFailure;
 
 		QAction*                                                     LineNumbersAction    = nullptr;
 		QAction*                                                     OnePaneAction        = nullptr;

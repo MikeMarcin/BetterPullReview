@@ -14,28 +14,28 @@
 #include <utility>
 
 namespace bpr::qt {
-	namespace {
-		auto failure_text(const application::profile_management_failure aFailure) -> QString
-		{
-			using failure = application::profile_management_failure;
-			switch (aFailure) {
-			case failure::invalid_label:        return QStringLiteral("Choose a nonblank profile name within the supported length. Your text has been kept.");
-			case failure::unknown_profile:      return QStringLiteral("That profile is no longer available. Your text has been kept.");
-			case failure::profile_limit:        return QStringLiteral("The profile limit has been reached. Your text has been kept.");
-			case failure::window_limit:         return QStringLiteral("This profile has reached its window limit. Close a window and try again.");
-			case failure::identity_exhausted:   return QStringLiteral("No more profile identities are available. Your text has been kept.");
-			case failure::busy:                 return QStringLiteral("Another profile change is in progress. Your text has been kept; try again when it finishes.");
-			case failure::closing:              return QStringLiteral("Profiles are closing. Your text has been kept.");
-			case failure::runtime_unavailable:  return QStringLiteral("The profile could not be opened. Other profiles remain available.");
-			case failure::owner_busy:           return QStringLiteral("This profile is already open in another application process. Use its existing window.");
-			case failure::cancelled:            return QStringLiteral("The profile operation was cancelled. Your text has been kept.");
-			case failure::conflict:             return QStringLiteral("Profiles changed during this edit. Your text has been kept; review the list and try again.");
-			case failure::registry_unavailable:
-			case failure::invalid_registry:     return QStringLiteral("Profiles could not be loaded or saved. Your text has been kept.");
-			}
-			return QStringLiteral("The profile operation failed. Your text has been kept.");
+	auto profile_management_failure_text(const application::profile_management_failure aFailure) -> QString
+	{
+		using failure = application::profile_management_failure;
+		switch (aFailure) {
+		case failure::invalid_label:        return QStringLiteral("Choose a nonblank profile name within the supported length. Your text has been kept.");
+		case failure::unknown_profile:      return QStringLiteral("That profile is no longer available. Your text has been kept.");
+		case failure::profile_limit:        return QStringLiteral("The profile limit has been reached. Your text has been kept.");
+		case failure::window_limit:         return QStringLiteral("This profile has reached its window limit. Close a window and try again.");
+		case failure::identity_exhausted:   return QStringLiteral("No more profile identities are available. Your text has been kept.");
+		case failure::busy:                 return QStringLiteral("Another profile change is in progress. Your text has been kept; try again when it finishes.");
+		case failure::closing:              return QStringLiteral("Profiles are closing. Your text has been kept.");
+		case failure::runtime_unavailable:  return QStringLiteral("The profile could not be opened. Other profiles remain available.");
+		case failure::owner_busy:           return QStringLiteral("This profile is already open in another application process. Use its existing window.");
+		case failure::cancelled:            return QStringLiteral("The profile operation was cancelled. Your text has been kept.");
+		case failure::conflict:             return QStringLiteral("Profiles changed during this edit. Your text has been kept; review the list and try again.");
+		case failure::registry_unavailable:
+		case failure::invalid_registry:     return QStringLiteral("Profiles could not be loaded or saved. Your text has been kept.");
 		}
+		return QStringLiteral("The profile operation failed. Your text has been kept.");
+	}
 
+	namespace {
 		auto item_profile(const QListWidgetItem* aItem) -> core::bpr_profile_id
 		{
 			return core::bpr_profile_id{ aItem == nullptr ? 0U : aItem->data(Qt::UserRole).toULongLong() };
@@ -166,7 +166,7 @@ namespace bpr::qt {
 			Name->setText(Profiles->currentItem()->text());
 		}
 		if (aProjection.Failure) {
-			Status->setText(failure_text(aProjection.Failure->Reason));
+			Status->setText(profile_management_failure_text(aProjection.Failure->Reason));
 			PendingEdit.reset();
 		} else if (aProjection.AcceptedEdit && PendingEdit
 				   && aProjection.AcceptedEdit->Operation == *PendingEdit

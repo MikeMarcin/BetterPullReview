@@ -1,9 +1,11 @@
+#include "bpr/qt/desktop_menu_bar.hpp"
 #include "bpr/qt/profile_management_window.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include <QAction>
 #include <QApplication>
 #include <QKeyEvent>
+#include <QKeySequence>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
@@ -190,7 +192,73 @@ namespace {
 		expect(newWindow != nullptr && newWindow->isEnabled(), "New Window is reachable in the real profile menu");
 		newWindow->trigger();
 		expect(std::get<application::new_bpr_window_intent>(intents.back()).Profile == core::default_bpr_profile_id, "New Window dispatches this window's current profile identity");
-		expect(menu->actions().size() == 4, "Profiles includes existing profiles, New Window and management");
+		auto visible = 0;
+		for (const auto* action : menu->actions()) {
+			visible += action->isVisible() ? 1 : 0;
+		}
+		expect(visible == 4, "Profiles shows the existing profiles, New Window and management, and nothing else");
+
+		// [[BPR-0777]] RFC-BPR-0033 B3: a refusal while this window is live is said
+		// here and in its status line, which is what lets the desktop keep the
+		// chooser away.
+		auto* const status = window.findChild<QAction*>(QStringLiteral("profileManagementStatusAction"));
+		expect(status != nullptr && !status->isVisible(), "no refusal is said while none has happened");
+		accepted.Failure = application::profile_management_error{
+			.Operation = application::profile_management_operation::rename,
+			.Profile   = core::bpr_profile_id{ 2U },
+			.Reason    = application::profile_management_failure::registry_unavailable
+		};
+		window.adopt_profile_management(accepted, core::default_bpr_profile_id);
+		expect(status->isVisible() && !status->isEnabled()
+				   && status->text() == qt::profile_management_failure_text(application::profile_management_failure::registry_unavailable),
+			   "the refusal is one non-actionable item in the window's own Profiles menu");
+		expect(window.status_text().contains(QStringLiteral("Profiles could not be loaded or saved")),
+			   "and the window's status line carries the same sentence");
+		accepted.Failure.reset();
+		window.adopt_profile_management(accepted, core::default_bpr_profile_id);
+		expect(!status->isVisible() && !window.status_text().contains(QStringLiteral("could not be loaded or saved")),
+			   "a later accepted projection clears it from both");
+	}
+
+	// [[BPR-0777]] RFC-BPR-0033 B1 and B2: with no window the application keeps its
+	// own menu bar, and its gestures are the same typed intents a window's menu sends.
+	void test_the_desktop_menu_bar_reopens_the_most_recent_profile()
+	{
+		qt::desktop_menu_bar                                menu;
+		std::vector<application::profile_management_intent> intents;
+		auto                                                managed = 0U;
+		auto                                                quit    = 0U;
+		menu.set_dispatch([&intents](auto aIntent) { intents.push_back(std::move(aIntent)); }, [&managed] { ++managed; }, [&quit] { ++quit; });
+		auto accepted                = projection();
+		accepted.Profiles[0].Runtime = application::profile_management_runtime::closed;
+		menu.adopt(accepted, core::bpr_profile_id{ 2U });
+		expect(menu.parentWidget() == nullptr, "the desktop's menu bar belongs to the application, not to a window");
+		auto* const profiles = menu.profiles_menu();
+		expect(profiles->actions().size() == 4, "Profiles lists the profiles, New Window and management");
+		expect(profiles->actions()[1]->isChecked() && !profiles->actions()[0]->isChecked(),
+			   "the most recently used profile is the checked one");
+		expect(menu.new_window_action()->isEnabled()
+				   && menu.new_window_action()->shortcut() == QKeySequence{ QKeySequence::New },
+			   "New Window is offered with no runtime open at all, on the platform's own shortcut");
+		menu.new_window_action()->trigger();
+		expect(std::get<application::new_bpr_window_intent>(intents.back()).Profile == core::bpr_profile_id{ 2U },
+			   "it reopens the most recently used profile through the existing intent");
+		profiles->actions()[0]->trigger();
+		expect(std::get<application::open_bpr_profile_intent>(intents.back()).Profile == core::default_bpr_profile_id,
+			   "choosing a profile opens exactly that profile");
+		menu.manage_profiles_action()->trigger();
+		menu.quit_action()->trigger();
+		expect(managed == 1U && quit == 1U && intents.size() == 2U,
+			   "management and Quit reach their desktop owner without inventing a profile intent");
+		auto* const renamed        = profiles->actions()[1];
+		accepted.Profiles[1].Label = "Renamed & Co";
+		menu.adopt(accepted, core::bpr_profile_id{ 2U });
+		expect(profiles->actions()[1] == renamed && renamed->text() == QStringLiteral("Renamed && Co"),
+			   "a rename keeps the action identity and escapes a literal ampersand");
+		auto closing                = accepted;
+		closing.Profiles[1].Runtime = application::profile_management_runtime::closing;
+		menu.adopt(closing, core::bpr_profile_id{ 2U });
+		expect(!profiles->actions()[1]->isEnabled(), "a closing profile is not offered");
 	}
 }
 
@@ -200,6 +268,7 @@ auto main(int argc, char** argv) -> int
 	test_management_keeps_identity_and_rejected_candidates();
 	test_keyboard_accessibility_and_compact_layout();
 	test_native_profiles_menu_keeps_action_identity();
+	test_the_desktop_menu_bar_reopens_the_most_recent_profile();
 	test_profile_owned_settings_mount_and_session_lifetime();
 	std::cout << "profile-management-window-tests:pass\n";
 	return EXIT_SUCCESS;

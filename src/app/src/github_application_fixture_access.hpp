@@ -77,6 +77,10 @@ namespace bpr::app::detail {
 	{
 		std::optional<std::filesystem::path>             ApplicationDataRoot;
 		std::shared_ptr<qt::dif_catalog_provider>        DifCatalog;
+		/// [[BPR-0777]]. Drives the composition's empty-desktop policy from a course,
+		/// so both the resident and the quit outcome are observable on one machine.
+		/// Unset selects the running platform's own policy.
+		empty_desktop_policy                             EmptyDesktopPolicy;
 		core::diff_compute_limits                        DiffComputeLimits;
 		bool                                             LargeReviewHistory = false;
 		github_epoch_fixture_phase                       EpochPhase         = github_epoch_fixture_phase::single;

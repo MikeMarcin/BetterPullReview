@@ -15,6 +15,13 @@ class QListWidget;
 class QPushButton;
 
 namespace bpr::qt {
+	/// \brief One sentence per profile-management refusal.
+	///
+	/// \details [[BPR-0777]]. Shared with the windows, because RFC-BPR-0033 routes a
+	/// refusal that has a live window to that window instead of presenting the
+	/// chooser, and both surfaces must say the same thing about the same refusal.
+	[[nodiscard]] auto profile_management_failure_text(application::profile_management_failure aFailure) -> QString;
+
 	/// \brief Modeless profile management; all durable changes leave as typed intents.
 	class profile_management_window final : public QWidget
 	{

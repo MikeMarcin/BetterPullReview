@@ -56,10 +56,16 @@ namespace {
 		auto* management = aDesktop.management_window();
 		expect(management != nullptr, "management available for recovery");
 		management->present();
-		auto* reload = management->findChild<QPushButton*>(QStringLiteral("reloadProfiles"));
-		auto* notice = management->findChild<QLabel*>(QStringLiteral("profileRecoveryNotice"));
-		expect(reload && notice, "accessible recovery controls exist");
-		wait_for([&] { return reload->isEnabled(); }, "registry idle before fault");
+		// [[BPR-0777]]. The appended recovery notice and Reload Profiles button are gone.
+		// RFC-BPR-0033 B3 reports a refusal in a window that exists, so recovery is
+		// observed there: the window's Profiles menu carries the refusal, and Manage
+		// Profiles performs the reload that clears it. The chooser's Create button is
+		// the registry-idle indicator while the registry is accepted; a refused save
+		// leaves it unready, which is why only the window's item is waited on below.
+		auto* failure = aWindow.findChild<QAction*>(QStringLiteral("profileManagementStatusAction"));
+		auto* idle    = management->create_button();
+		expect(failure != nullptr && idle != nullptr, "the window's refusal item and the chooser's idle indicator exist");
+		wait_for([&] { return idle->isEnabled(); }, "registry idle before fault");
 		sqlite3* raw = nullptr;
 		expect(sqlite3_open_v2((aRoot / "state/v1/profile-registry.sqlite3").string().c_str(), &raw,
 							   SQLITE_OPEN_READWRITE, nullptr)
@@ -72,12 +78,12 @@ namespace {
 		} else {
 			aWindow.close();
 		}
-		wait_for([&] { return notice->isVisible() && reload->isEnabled(); }, "failed save exposes recovery");
+		wait_for([&] { return failure->isVisible(); }, "the failed save is reported in the window that stays usable");
 		expect(aWindow.isVisible() && aDesktop.windows(core::default_bpr_profile_id).size() == 2U && !aDesktop.is_quiescent(),
 			   "failed lifecycle save keeps both real windows usable");
 		expect(sqlite3_exec(raw, "ROLLBACK", nullptr, nullptr, nullptr) == SQLITE_OK, "fixture releases write lock");
-		reload->click();
-		wait_for([&] { return !notice->isVisible() && reload->isEnabled(); }, "explicit reload recovers accepted registry");
+		trigger(aWindow, "manageProfilesAction");
+		wait_for([&] { return !failure->isVisible() && idle->isEnabled(); }, "an explicit reload recovers the accepted registry");
 		expect(aWindow.isVisible() && aDesktop.windows(core::default_bpr_profile_id).size() == 2U,
 			   "reload never retries a destructive action automatically");
 	}

@@ -2,6 +2,7 @@
 #include "bpr/adapters/sqlite/appearance_settings_store.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
+#include "bpr/qt/desktop_menu_bar.hpp"
 #include "bpr/qt/dif_runtime.hpp"
 #include "bpr/qt/profile_management_window.hpp"
 #include "bpr/qt/settings_window.hpp"
@@ -46,6 +47,20 @@ namespace {
 			QThread::msleep(1);
 		}
 		expect(aCondition(), aMessage);
+	}
+	/// A retired desktop releases the owner lease its startup scratch holds when its
+	/// implementation is destroyed, which is the poll tick after it first reports
+	/// quiescence. Only a course starts another desktop in the same process, so it is
+	/// the course that has to let that tick happen; otherwise the next startup is
+	/// correctly refused as owner_busy.
+	void settle(const int aMilliseconds)
+	{
+		QElapsedTimer elapsed;
+		elapsed.start();
+		while (elapsed.elapsed() < aMilliseconds) {
+			QApplication::processEvents();
+			QThread::msleep(1);
+		}
 	}
 	auto item(qt::profile_management_window& aManagement, const QString& aLabel) -> QListWidgetItem*
 	{
@@ -202,24 +217,155 @@ auto main(int aArgc, char** aArgv) -> int
 			   "each concurrent profile retains its own startup and shutdown diagnostics");
 	}
 
-	// Closing the last visible management surface must drain the desktop too.
-	initial  = nullptr;
-	terminal = false;
-	desktop  = app::detail::github_application_fixture_access::start_desktop(
-		app::detail::github_public_path_fixture::github_com, options, [&](auto aResult) {
+	// [[BPR-0777]] RFC-BPR-0033 B1. This platform's own answer for an empty desktop,
+	// read from the one place the composition names it. The other platform's answer is
+	// driven below through the injected policy; its native behaviour is target work.
+#if defined(__APPLE__)
+	expect(app::native_empty_desktop_policy()() == app::empty_desktop_outcome::stay_resident,
+		   "macOS stays resident when its last window closes");
+#else
+	expect(app::native_empty_desktop_policy()() == app::empty_desktop_outcome::quit,
+		   "a platform where no window means gone quits when its last window closes");
+#endif
+
+	// B1 and B2 under the resident policy: closing the last window presents nothing,
+	// the application stays alive with no window, and each of the three reopening
+	// gestures opens the most recently used profile exactly once.
+	settle(300);
+	initial                            = nullptr;
+	terminal                           = false;
+	auto residentOptions               = options;
+	residentOptions.EmptyDesktopPolicy = [] { return app::empty_desktop_outcome::stay_resident; };
+	desktop                            = app::detail::github_application_fixture_access::start_desktop(
+		app::detail::github_public_path_fixture::github_com, residentOptions, [&](auto aResult) {
 			terminal = true;
 			if (aResult) {
 				initial = *aResult;
 			}
 		});
-	wait_for([&] { return terminal; }, "second desktop startup");
-	expect(initial != nullptr, "second desktop admits Default");
+	wait_for([&] { return terminal; }, "resident desktop startup");
+	expect(initial != nullptr, "the resident desktop admits Default");
 	initial->show();
 	wait_for([&] { return desktop->management_window() != nullptr; }, "desktop management composed");
+	auto& resident = *desktop->management_window();
+	wait_for([&] { return resident.rename_button()->isEnabled(); }, "the registry is ready for management");
+	const auto closed_the_last_window = [&] {
+		wait_for([&] { return desktop->runtime(core::default_bpr_profile_id) == nullptr; },
+				 "the last window closes and its profile retires");
+		expect(!resident.isVisible(), "closing the last window presents no chooser");
+		expect(desktop->last_empty_desktop_outcome() == app::empty_desktop_outcome::stay_resident,
+			   "the injected policy decided to stay resident");
+		expect(!desktop->is_quiescent(), "so the application is still running with no window");
+	};
+	const auto reopened_exactly_once = [&](const char* aMessage) {
+		wait_for([&] { return desktop->runtime(core::default_bpr_profile_id) != nullptr; }, aMessage);
+		auto* const runtime = desktop->runtime(core::default_bpr_profile_id);
+		QApplication::processEvents();
+		expect(desktop->windows(core::default_bpr_profile_id).size() == 1U,
+			   "exactly one window, under one runtime owner");
+		expect(!resident.isVisible(), "and still no chooser");
+		expect(runtime->window().showing_home(), "the reopened window arrives at Home");
+		return runtime;
+	};
 	initial->window().close();
-	wait_for([&] { return desktop->runtime(core::default_bpr_profile_id) == nullptr && desktop->management_window()->isVisible(); }, "last profile retirement presents management");
-	desktop->management_window()->close();
-	wait_for([&] { return desktop->is_quiescent(); }, "last management close drains invisible desktop owner");
+	closed_the_last_window();
+	auto* const desktopMenu = desktop->desktop_menu();
+	expect(desktopMenu != nullptr && desktopMenu->parentWidget() == nullptr,
+		   "the resident desktop keeps the application's own menu bar");
+	expect(desktopMenu->profiles_menu()->actions().size() == 5,
+		   "which lists the three profiles, New Window and management");
+
+	// B3 with no window to carry a refusal: the chooser is presented for it, which is
+	// the startup case RFC-BPR-0024 already describes.
+	resident.name_editor()->setText(QString{ });
+	resident.rename_button()->click();
+	wait_for([&] { return resident.isVisible(); }, "a refusal with no window presents the chooser");
+	expect(resident.status_text().contains(QStringLiteral("nonblank profile name")), "and says what was refused");
+	desktopMenu->manage_profiles_action()->trigger();
+	wait_for([&] { return resident.rename_button()->isEnabled(); }, "management from the menu bar reloads profiles");
+	resident.hide();
+
+	desktopMenu->new_window_action()->trigger();
+	auto* const byMenuBar = reopened_exactly_once("New Window on the application's menu bar reopens the most recently used profile");
+
+	// B3 with a live window: the refusal is reported there and the chooser stays away.
+	resident.name_editor()->setText(QString{ });
+	resident.rename_button()->click();
+	wait_for([&] { return byMenuBar->window().status_text().contains(QStringLiteral("nonblank profile name")); },
+			 "a refusal with a live window is reported in that window");
+	expect(!resident.isVisible(), "and the chooser is not presented to carry it");
+	auto* const windowStatus = byMenuBar->window().findChild<QAction*>(QStringLiteral("profileManagementStatusAction"));
+	expect(windowStatus != nullptr && windowStatus->isVisible(), "the window's own Profiles menu carries it too");
+	byMenuBar->window().findChild<QAction*>(QStringLiteral("manageProfilesAction"))->trigger();
+	wait_for([&] { return resident.rename_button()->isEnabled(); }, "management from the window reloads profiles");
+	resident.hide();
+
+	byMenuBar->window().close();
+	closed_the_last_window();
+	expect(QMetaObject::invokeMethod(qApp, "applicationStateChanged", Qt::DirectConnection,
+									 Q_ARG(Qt::ApplicationState, Qt::ApplicationActive)),
+		   "the platform's own activation signal is deliverable");
+	auto* const byActivation = reopened_exactly_once("activating the resident application reopens the most recently used profile");
+
+	byActivation->window().close();
+	closed_the_last_window();
+	auto* const defaultRow = desktopMenu->findChild<QAction*>(QStringLiteral("desktopOpenBprProfile_1"));
+	expect(defaultRow != nullptr && defaultRow->isEnabled(), "the Profiles menu offers the profile by name");
+	defaultRow->trigger();
+	static_cast<void>(reopened_exactly_once("choosing the profile from the Profiles menu reopens it"));
+	desktop->quit(0);
+	wait_for([&] { return desktop->is_quiescent(); }, "the resident desktop still quits when asked");
+	desktop.reset();
+	settle(300);
+
+	// B1 under the quit policy: the same close ends the application through the
+	// existing drain and Quit path, with no chooser presented on the way out.
+	initial                        = nullptr;
+	terminal                       = false;
+	auto quitOptions               = options;
+	quitOptions.EmptyDesktopPolicy = [] { return app::empty_desktop_outcome::quit; };
+	desktop                        = app::detail::github_application_fixture_access::start_desktop(
+		app::detail::github_public_path_fixture::github_com, quitOptions, [&](auto aResult) {
+			terminal = true;
+			if (aResult) {
+				initial = *aResult;
+			}
+		});
+	wait_for([&] { return terminal; }, "quitting-policy desktop startup");
+	expect(initial != nullptr, "it admits Default");
+	initial->show();
+	wait_for([&] { return desktop->management_window() != nullptr; }, "its management is composed");
+	const auto quitWindow = desktop->windows(core::default_bpr_profile_id).front().Window;
+	initial->window().close();
+	wait_for([&] { return desktop->is_quiescent(); }, "closing the last window quits the application");
+	expect(desktop->last_empty_desktop_outcome() == app::empty_desktop_outcome::quit,
+		   "through the injected policy rather than a platform test in the desktop");
+	expect(!desktop->management_window()->isVisible(), "with no chooser presented on the way out");
+	expect(desktop->exit_code() == 0, "and an orderly exit code");
+	desktop.reset();
+	settle(300);
+
+	// RFC-BPR-0024's restore records still tell this close from a Quit: an explicitly
+	// closed window is not restored, so the next launch opens a new window identity.
+	initial  = nullptr;
+	terminal = false;
+	desktop  = app::detail::github_application_fixture_access::start_desktop(
+		app::detail::github_public_path_fixture::github_com, residentOptions, [&](auto aResult) {
+			terminal = true;
+			if (aResult) {
+				initial = *aResult;
+			}
+		});
+	wait_for([&] { return terminal; }, "relaunch after the quitting close");
+	expect(initial != nullptr, "the relaunch admits Default");
+	initial->show();
+	QApplication::processEvents();
+	const auto relaunched = desktop->windows(core::default_bpr_profile_id);
+	expect(relaunched.size() == 1U, "one window opens");
+	expect(relaunched.front().Window != quitWindow,
+		   "and it is a new window rather than the explicitly closed one restored");
+	desktop->quit(0);
+	wait_for([&] { return desktop->is_quiescent(); }, "the relaunched desktop quits");
 	desktop.reset();
 	std::cout << "profile-management-public-path:pass\n";
 	return EXIT_SUCCESS;

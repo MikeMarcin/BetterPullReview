@@ -12,6 +12,7 @@ add_library(
         src/home_panel.cpp
         src/home_list.cpp
         src/defect_card_view.cpp
+        src/desktop_menu_bar.cpp
         src/device_authorization_panel.cpp
         src/dif_runtime.cpp
         src/motion_observer.cpp
