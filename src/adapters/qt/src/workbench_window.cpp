@@ -1477,6 +1477,16 @@ namespace bpr::qt {
 			frameRow->addWidget(HomeOpenLabel);
 			frameRow->addWidget(HomeOpenBar, 1);
 			frameRow->addWidget(openShortcut);
+			// [[BPR-0779]]. RFC-BPR-0032 puts the bar "alone in the first row",
+			// and the accepted board H1 of `design/home-v2.html` puts first
+			// launch's slack in a fill *below* the sign-in card. Signed in, the
+			// list takes the column's spare height. Signed out the list is
+			// hidden, and this frame's default Preferred policy let it absorb
+			// that height instead, drawing its rounded border around some 530
+			// points of nothing — the empty box A6 forbids. The frame is
+			// bordered, so its height is the box: it keeps the height it asks
+			// for in every session state.
+			openFrame->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
 			auto* const openRow = new QHBoxLayout{ };
 			openRow->setContentsMargins(24, 16, 24, 0);
 			openRow->addWidget(openFrame, 1);

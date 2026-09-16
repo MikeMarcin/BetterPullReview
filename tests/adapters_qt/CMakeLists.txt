@@ -1214,3 +1214,50 @@ bpr_enable_hardening(test_better_pull_review_qt_profile_management_window_tests)
 bpr_enable_warnings(test_better_pull_review_qt_profile_management_window_tests)
 bpr_add_network_isolated_test(NAME qt_profile_management_window COMMAND test_better_pull_review_qt_profile_management_window_tests)
 set_tests_properties(qt_profile_management_window PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" TIMEOUT 60)
+
+# [[BPR-0779]]. RFC-BPR-0032 A8, RFC-BPR-0033 B5 and RFC-BPR-0034 C6's
+# four-appearance, four-scale rendered and reachable course for the Accounts
+# page, Home, the Profiles sheet and the Appearance page.
+#
+# Built rather than extended. The three criteria each speak of extending "the
+# existing four-appearance, four-scale capture course"; there was none. The four
+# appearances were iterated inside individual translation units, and the
+# registered scale variants were 100, 125 and 200 everywhere except
+# qt_settings_window, which alone carried 150. This is the first registration at
+# all four scales for these surfaces.
+#
+# Captures are written only when BPR_SURFACE_CAPTURE_DIR names a directory, which
+# is the gating convention BPR_SETTINGS_RENDER_ROOT and BPR_HOME_CAPTURE_DIR
+# already use: an ordinary run writes nothing and stays fast, while every
+# composition assertion still runs.
+bpr_add_executable(
+    test_better_pull_review_qt_surface_capture_course_tests
+    surface_capture_course_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_qt_surface_capture_course_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_surface_capture_course_tests)
+bpr_enable_warnings(test_better_pull_review_qt_surface_capture_course_tests)
+
+foreach(bpr_surface_capture_scale IN ITEMS 100 125 150 200)
+    math(EXPR bpr_surface_capture_whole "${bpr_surface_capture_scale} / 100")
+    math(EXPR bpr_surface_capture_fraction "${bpr_surface_capture_scale} % 100")
+    set(bpr_surface_capture_factor
+        "${bpr_surface_capture_whole}.${bpr_surface_capture_fraction}"
+    )
+    bpr_add_network_isolated_test(
+        NAME qt_surface_capture_course_scale_${bpr_surface_capture_scale}
+        COMMAND test_better_pull_review_qt_surface_capture_course_tests
+    )
+    set_tests_properties(
+        qt_surface_capture_course_scale_${bpr_surface_capture_scale}
+        PROPERTIES
+            ENVIRONMENT
+                "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_surface_capture_factor};BPR_EXPECTED_QT_SCALE=${bpr_surface_capture_factor}"
+            PASS_REGULAR_EXPRESSION "surface-capture-course-tests:pass"
+            TIMEOUT 600
+    )
+endforeach()

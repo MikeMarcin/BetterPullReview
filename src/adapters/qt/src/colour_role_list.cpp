@@ -128,6 +128,15 @@ namespace bpr::qt {
 
 		Well = new QScrollArea{ this };
 		Well->setObjectName(QStringLiteral("appearanceColourWell"));
+		// [[BPR-0779]]. RFC-BPR-0034 C6 wants every control reachable by
+		// keyboard to carry an accessible name. A QScrollArea defaults to
+		// Qt::WheelFocus, which includes Tab, so this well is a real stop on the
+		// way through the card and a screen reader would reach it unannounced.
+		// It keeps that stop, because the well is how a keyboard reviewer
+		// scrolls 47 roles, and is named instead. The theme strip's well takes
+		// the other route (`theme_preview_strip.cpp`, Qt::NoFocus) because Left
+		// and Right on the strip itself already scroll the selection into view.
+		Well->setAccessibleName(QStringLiteral("Colour roles"));
 		Well->setFrameShape(QFrame::NoFrame);
 		Well->setWidgetResizable(true);
 		Well->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
