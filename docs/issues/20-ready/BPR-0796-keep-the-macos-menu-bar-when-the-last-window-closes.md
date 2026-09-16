@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0796"
 title: "Keep the macOS menu bar when the last window closes"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0033"]
 depends_on: []
 platforms: ["mac"]
