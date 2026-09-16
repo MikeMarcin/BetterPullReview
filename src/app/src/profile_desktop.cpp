@@ -220,6 +220,9 @@ namespace bpr::app {
 				}
 			}
 			if (Management) {
+				// [[BPR-0778]]. The projection carries a runtime state and no count, so
+				// the composition that owns the windows supplies what a row says.
+				Management->set_window_counts(window_counts());
 				Management->adopt(aProjection);
 			}
 			if (DesktopMenu) {
@@ -248,6 +251,7 @@ namespace bpr::app {
 			// when no window exists to carry it - the startup case RFC-BPR-0024
 			// describes. While the chooser is already open, its own notice says it.
 			if (aProjection.Failure && Management && !Quitting && !Management->isVisible() && !presented_window_exists()) {
+				Management->set_current_profile(most_recent_profile());
 				Management->present();
 			}
 			if (!InitialRegistered && aProjection.Ready && !aProjection.Closing && !Quitting) {
@@ -378,6 +382,16 @@ namespace bpr::app {
 		}
 
 	private:
+		/// \brief How many windows each profile has on screen, for the chooser's rows.
+		[[nodiscard]] auto window_counts() const -> std::map<core::bpr_profile_id, int>
+		{
+			auto counts = std::map<core::bpr_profile_id, int>{ };
+			for (const auto& [profile, entry] : Runtimes) {
+				static_cast<void>(entry);
+				counts.emplace(profile, static_cast<int>(windows(profile).size()));
+			}
+			return counts;
+		}
 		/// \brief Whether any profile has a window on screen to carry a refusal.
 		[[nodiscard]] auto presented_window_exists() const -> bool
 		{
@@ -446,7 +460,7 @@ namespace bpr::app {
 				DesktopMenu->set_dispatch(
 					[weak = weak_from_this()](application::profile_management_intent aIntent) {if (const auto self=weak.lock();self && !self->Quitting){ self->dispatch(std::move(aIntent));
 } },
-					[weak = weak_from_this()] {if (const auto self=weak.lock();self && self->Management && !self->Quitting){ if (self->Host && !self->Projection.Busy && !self->Projection.Closing) { self->Host->reload(); } self->Management->present();
+					[weak = weak_from_this()] {if (const auto self=weak.lock();self && self->Management && !self->Quitting){ if (self->Host && !self->Projection.Busy && !self->Projection.Closing) { self->Host->reload(); } self->Management->set_current_profile(self->most_recent_profile()); self->Management->present();
 } },
 					[weak = weak_from_this()] {if (const auto self=weak.lock()){ self->quit(0);
 } });
@@ -582,7 +596,7 @@ namespace bpr::app {
 			presented->set_profile_management_dispatch(
 				[weak, aContext](application::profile_management_intent aIntent) {if (const auto self=weak.lock();self && self->current(aContext)){ self->dispatch(std::move(aIntent));
 } },
-				[weak, aContext] {if (const auto self=weak.lock();self && self->current(aContext) && self->Management){ if (!self->Projection.Busy && !self->Projection.Closing) { self->Host->reload(); } self->Management->present();
+				[weak, aContext] {if (const auto self=weak.lock();self && self->current(aContext) && self->Management){ if (!self->Projection.Busy && !self->Projection.Closing) { self->Host->reload(); } self->Management->set_current_profile(aContext.Profile); self->Management->present();
 } },
 				[weak, aContext] {if (const auto self=weak.lock();self && self->current(aContext)){ self->quit(0);
 } });

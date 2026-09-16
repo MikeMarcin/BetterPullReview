@@ -6,6 +6,7 @@
 #include <QApplication>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -119,8 +120,12 @@ namespace {
 		auto* row = profile_item(*management, aProfile);
 		expect(row != nullptr, "durable profile remains listed");
 		management->profiles()->setCurrentItem(row);
-		wait_for([&] { return management->open_button()->isEnabled(); }, "Open Profile enabled");
-		management->open_button()->click();
+		wait_for([&] { return management->open_button()->isEnabled(); }, "the sheet's filled action is enabled");
+		// [[BPR-0778]]. Return on the row opens a closed profile and activates an open one.
+		// The footer's filled action offers an open profile a new window instead, which is
+		// not what this helper means.
+		auto open = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+		QApplication::sendEvent(management->profiles(), &open);
 		wait_for([&] { return !aDesktop.windows(aProfile).empty(); }, "profile windows open");
 	}
 }
@@ -171,9 +176,13 @@ auto main(int aArgc, char** aArgv) -> int
 		trigger(*a, "manageProfilesAction");
 		auto* management = desktop->management_window();
 		wait_for([&] { return management && management->create_button()->isEnabled(); }, "profile creation available");
-		management->name_editor()->setText(QStringLiteral("Work"));
+		// [[BPR-0778]]. New profile appends a row already in its editor, so the name is
+		// typed there and saved; the sheet has no permanent name field to fill first. The
+		// wait is for the edit to close, because the row being named is already counted.
 		management->create_button()->click();
-		wait_for([&] { return management->profiles()->count() == 2; }, "Work profile saved");
+		management->name_editor()->setText(QStringLiteral("Work"));
+		management->save_button()->click();
+		wait_for([&] { return management->profiles()->count() == 2 && !management->editing(); }, "Work profile saved");
 		for (auto index = 0; index < management->profiles()->count(); ++index) {
 			const auto id = management->profiles()->item(index)->data(Qt::UserRole).toULongLong();
 			if (id != defaultId.value()) {

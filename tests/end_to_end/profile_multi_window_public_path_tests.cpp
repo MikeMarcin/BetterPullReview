@@ -27,6 +27,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
@@ -529,10 +530,15 @@ auto main(int aArgc, char** aArgv) -> int
 	action(*windowB, "manageProfilesAction")->trigger();
 	wait_for([&] { return desktop->management_window() != nullptr; }, "management remains reachable from survivor");
 	auto& management = *desktop->management_window();
-	wait_for([&] { return management.open_button()->isEnabled(); }, "Open Profile available for current profile");
-	management.open_button()->click();
+	wait_for([&] { return management.open_button()->isEnabled(); }, "the chooser's filled action is available for the current profile");
+	// [[BPR-0778]]. Return on the row activates an open profile; the footer's filled
+	// action now offers that profile a new window instead, so activation is the row's.
+	expect(management.open_button()->text() == QStringLiteral("New window"),
+		   "an open profile is offered a new window, not a second activation");
+	auto activate = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+	QApplication::sendEvent(management.profiles(), &activate);
 	QApplication::processEvents();
-	expect(owner->windows().size() == 1U && owner->window(second) == windowB, "Open Profile activates survivor without duplicate owner or session");
+	expect(owner->windows().size() == 1U && owner->window(second) == windowB, "activating the survivor adds no duplicate owner or session");
 	action(*windowB, "newBprWindowAction")->trigger();
 	wait_for([&] { return owner->windows().size() == 2U; }, "New Window remains usable after initial retirement");
 	qt::workbench_window* windowC = nullptr;

@@ -6,6 +6,7 @@
 #include <QApplication>
 #include <QKeyEvent>
 #include <QKeySequence>
+#include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
@@ -39,20 +40,57 @@ namespace {
 				 .Ready = true };
 	}
 
-	void test_management_keeps_identity_and_rejected_candidates()
+	// [[BPR-0778]] RFC-BPR-0033 B4: the sheet is rows, edited in place, and it keeps a
+	// refused candidate exactly as the retired form did.
+	void test_the_sheet_is_rows_edited_in_place()
 	{
 		qt::profile_management_window                       window;
 		std::vector<application::profile_management_intent> intents;
 		window.set_dispatch([&intents](auto aIntent) { intents.push_back(std::move(aIntent)); });
 		auto accepted = projection();
+		window.set_window_counts({ { core::default_bpr_profile_id, 2 } });
+		window.set_current_profile(core::default_bpr_profile_id);
 		window.adopt(accepted);
+		// Shown, because what the sheet presents is the claim: a child of a hidden
+		// window is never visible, so an in-place editor could not be judged at all.
+		window.present();
+		QApplication::processEvents();
+
+		// The retired controls are gone: no permanent name field, no permanent status
+		// sentence, no Reload Profiles button.
+		expect(!window.name_editor()->isVisible() && !window.editing(), "the name field does not exist outside an edit");
+		expect(window.status_text().isEmpty() && !window.try_again_button()->isVisible(),
+			   "no status sentence and no retry are shown before a failure");
+		expect(window.findChild<QPushButton*>(QStringLiteral("reloadProfiles")) == nullptr
+				   && window.findChild<QLabel*>(QStringLiteral("profileRecoveryNotice")) == nullptr,
+			   "the Reload Profiles button and the recovery notice are absent");
+
+		// One row per profile: the name, and the state at the right, which is also the
+		// row's accessible description. The current profile is selected on open.
+		expect(window.profiles()->count() == 2, "one row per profile");
+		expect(window.profiles()->currentItem() == window.profiles()->item(0), "the current profile's row is selected on open");
+		expect(window.profiles()->item(0)->data(Qt::AccessibleDescriptionRole).toString() == QStringLiteral("Open in 2 windows")
+				   && window.profiles()->item(1)->data(Qt::AccessibleDescriptionRole).toString() == QStringLiteral("Closed"),
+			   "each row states its profile's runtime, counted by the composition");
+		expect(window.open_button()->text() == QStringLiteral("New window"), "the filled action says New window for an open profile");
 		auto* work = window.profiles()->item(1);
 		window.profiles()->setCurrentRow(1);
-		expect(window.name_editor()->text() == QStringLiteral("Work & Research"), "selecting a stable profile shows its literal label");
-		window.name_editor()->setText(QStringLiteral("Renamed / Work"));
+		expect(window.open_button()->text() == QStringLiteral("Open"), "and Open for a closed one");
+
+		// Rename edits the selected row in place.
 		window.rename_button()->click();
+		expect(window.editing() && window.name_editor()->isVisible()
+				   && window.name_editor()->text() == QStringLiteral("Work & Research"),
+			   "Rename turns the selected row's name into an editor holding its literal label");
+		expect(window.save_button()->isVisible() && window.cancel_button()->isVisible()
+				   && !window.rename_button()->isVisible() && !window.open_button()->isVisible(),
+			   "Save and Cancel replace the footer's buttons");
+		window.name_editor()->setText(QStringLiteral("Renamed / Work"));
+		window.save_button()->click();
 		auto* rename = std::get_if<application::rename_bpr_profile_intent>(&intents.back());
-		expect(rename != nullptr && rename->Profile == core::bpr_profile_id{ 2U } && rename->Label == "Renamed / Work", "rename sends the selected ID and literal candidate");
+		expect(rename != nullptr && rename->Profile == core::bpr_profile_id{ 2U } && rename->Label == "Renamed / Work",
+			   "rename sends the selected ID and literal candidate");
+
 		accepted.Failure = application::profile_management_error{
 			.Operation = application::profile_management_operation::rename,
 			.Profile   = core::bpr_profile_id{ 2U },
@@ -61,15 +99,30 @@ namespace {
 		window.adopt(accepted);
 		expect(window.name_editor()->text() == QStringLiteral("Renamed / Work") && window.profiles()->currentItem() == work,
 			   "refusal preserves both candidate and selected row identity");
-		expect(window.status_text().contains(QStringLiteral("kept")), "refusal is visible and explains retained text");
-		window.rename_button()->click();
+		expect(window.status_text().contains(QStringLiteral("kept")) && window.try_again_button()->isVisible(),
+			   "the failure is one notice with Try again");
+		window.try_again_button()->click();
+		expect(std::holds_alternative<application::reload_bpr_profiles_intent>(intents.back()), "Try again reloads");
+
+		window.save_button()->click();
 		accepted.Failure.reset();
 		accepted.Profiles[1].Label = "Renamed / Work";
 		accepted.AcceptedEdit      = application::profile_management_edit{ application::profile_management_operation::rename, core::bpr_profile_id{ 2U } };
 		window.adopt(accepted);
-		expect(window.profiles()->item(1) == work && work->text() == QStringLiteral("Renamed / Work"), "accepted rename updates the original row");
-		window.name_editor()->setText(QStringLiteral("New Profile"));
+		expect(window.profiles()->item(1) == work && work->text() == QStringLiteral("Renamed / Work"),
+			   "the accepted rename updates the original row, which is the confirmation");
+		expect(!window.editing() && !window.name_editor()->isVisible() && window.status_text().isEmpty(),
+			   "the editor and the notice close on acceptance, and nothing is announced");
+
+		// New profile appends a row already in its editor.
 		window.create_button()->click();
+		expect(window.editing() && window.profiles()->count() == 3
+				   && window.profiles()->currentRow() == 2
+				   && window.name_editor()->text().isEmpty()
+				   && window.name_editor()->placeholderText() == QStringLiteral("Profile name"),
+			   "New profile appends an editing row with its placeholder");
+		window.name_editor()->setText(QStringLiteral("New Profile"));
+		window.save_button()->click();
 		expect(std::get<application::create_bpr_profile_intent>(intents.back()).Label == "New Profile", "create sends only its label");
 		accepted.AcceptedEdit.reset();
 		accepted.Failure = application::profile_management_error{
@@ -77,13 +130,22 @@ namespace {
 			.Reason    = application::profile_management_failure::invalid_label
 		};
 		window.adopt(accepted);
-		expect(window.name_editor()->text() == QStringLiteral("New Profile"), "create refusal keeps its candidate");
+		expect(window.name_editor()->text() == QStringLiteral("New Profile") && window.editing(),
+			   "create refusal keeps its candidate and its editor");
 		accepted.Failure.reset();
 		accepted.Profiles.insert(accepted.Profiles.begin(), { core::bpr_profile_id{ 3U }, "Third" });
 		window.adopt(accepted);
-		expect(window.name_editor()->text() == QStringLiteral("New Profile"), "later unrelated publications preserve a refused candidate");
-		expect(window.profiles()->currentItem() == work && window.profiles()->row(work) == 2, "insertion preserves the selected stable row");
-		expect(intents.size() == 3U, "projection updates emit no edit intents");
+		expect(window.name_editor()->text() == QStringLiteral("New Profile"),
+			   "later unrelated publications preserve a refused candidate");
+		expect(window.profiles()->row(work) == 2, "insertion preserves the stable rows");
+
+		// Escape cancels and keeps the name.
+		const auto before = intents.size();
+		auto       escape = QKeyEvent{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
+		QApplication::sendEvent(window.name_editor(), &escape);
+		expect(!window.editing() && !window.name_editor()->isVisible() && intents.size() == before,
+			   "Escape cancels the edit, dispatches nothing and leaves the name as it was");
+		expect(window.profiles()->count() == 3, "the pending row leaves with the cancelled edit");
 	}
 
 	void test_keyboard_accessibility_and_compact_layout()
@@ -93,26 +155,40 @@ namespace {
 		window.set_dispatch([&intents](auto aIntent) { intents.push_back(std::move(aIntent)); });
 		window.adopt(projection());
 		window.present();
-		window.resize(400, 340);
 		QApplication::processEvents();
-		expect(window.profiles()->hasFocus(), "present starts keyboard focus in the profile list");
+		expect(window.width() == qt::profile_management_window::sheet_width
+				   && window.height() == qt::profile_management_window::sheet_height,
+			   "the sheet opens at the accepted size");
+		expect(window.profiles()->visualItemRect(window.profiles()->item(0)).height()
+				   == qt::profile_management_window::row_height,
+			   "rows are the accepted height");
+		expect(window.profiles()->hasFocus(), "present starts keyboard focus in the rows");
 		auto down = QKeyEvent{ QEvent::KeyPress, Qt::Key_Down, Qt::NoModifier };
 		QApplication::sendEvent(window.profiles(), &down);
 		auto enter = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
 		QApplication::sendEvent(window.profiles(), &enter);
-		expect(intents.size() == 1U && std::get<application::open_bpr_profile_intent>(intents.back()).Profile == core::bpr_profile_id{ 2U }, "keyboard navigation and Return open the selected profile ID");
-		expect(window.name_editor()->accessibleName() == QStringLiteral("Profile name")
-				   && !window.create_button()->accessibleName().isEmpty()
+		expect(intents.size() == 1U && std::get<application::open_bpr_profile_intent>(intents.back()).Profile == core::bpr_profile_id{ 2U },
+			   "keyboard navigation and Return open the selected profile ID");
+		window.profiles()->itemDoubleClicked(window.profiles()->item(1));
+		expect(intents.size() == 2U && std::get<application::open_bpr_profile_intent>(intents.back()).Profile == core::bpr_profile_id{ 2U },
+			   "double-click opens the same profile through the same intent");
+		expect(!window.create_button()->accessibleName().isEmpty()
 				   && !window.rename_button()->accessibleName().isEmpty()
 				   && !window.open_button()->accessibleName().isEmpty(),
-			   "every editing control has an accessible name");
-		expect(window.rect().contains(window.name_editor()->geometry())
-				   && window.rect().contains(window.open_button()->geometry())
+			   "every footer action has an accessible name");
+		window.rename_button()->click();
+		QApplication::processEvents();
+		expect(window.name_editor()->accessibleName() == QStringLiteral("Profile name")
+				   && !window.save_button()->accessibleName().isEmpty()
+				   && !window.cancel_button()->accessibleName().isEmpty(),
+			   "the in-place editor and its two actions have accessible names");
+		expect(window.rect().contains(window.save_button()->geometry())
 				   && window.profiles()->height() > 60,
-			   "the compact window keeps its list and actions within layout bounds");
+			   "the sheet keeps its rows and actions within layout bounds");
+		window.cancel_button()->click();
 		auto escape = QKeyEvent{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
 		QApplication::sendEvent(&window, &escape);
-		expect(!window.isVisible() && intents.size() == 1U, "Escape hides management without closing a profile");
+		expect(!window.isVisible() && intents.size() == 2U, "Escape hides the sheet without opening a profile");
 	}
 
 	void test_profile_owned_settings_mount_and_session_lifetime()
@@ -265,7 +341,7 @@ namespace {
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
-	test_management_keeps_identity_and_rejected_candidates();
+	test_the_sheet_is_rows_edited_in_place();
 	test_keyboard_accessibility_and_compact_layout();
 	test_native_profiles_menu_keeps_action_identity();
 	test_the_desktop_menu_bar_reopens_the_most_recent_profile();

@@ -13,6 +13,7 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFileInfo>
+#include <QKeyEvent>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
@@ -74,9 +75,12 @@ namespace {
 	}
 	auto create(qt::profile_management_window& aManagement, const QString& aLabel) -> core::bpr_profile_id
 	{
-		aManagement.name_editor()->setText(aLabel);
-		expect(aManagement.create_button()->isEnabled(), "Create is reachable");
+		// [[BPR-0778]]. New profile appends a row already in its editor, so the name is
+		// typed into that row and saved; there is no permanent name field to fill first.
+		expect(aManagement.create_button()->isEnabled(), "New profile is reachable");
 		aManagement.create_button()->click();
+		aManagement.name_editor()->setText(aLabel);
+		aManagement.save_button()->click();
 		wait_for([&] { return item(aManagement, aLabel) != nullptr; }, "created profile is durably projected");
 		auto* created = item(aManagement, aLabel);
 		aManagement.profiles()->setCurrentItem(created);
@@ -156,13 +160,20 @@ auto main(int aArgc, char** aArgv) -> int
 	expect(work->status().ProfileMode == core::appearance_mode::system, "new profile begins with standard preferences");
 	expect(initial->status().ProfileMode == core::appearance_mode::dark, "new profile does not replace Default");
 	const auto stableRow = QPersistentModelIndex{ management.profiles()->model()->index(management.profiles()->currentRow(), 0) };
-	management.name_editor()->setText(QStringLiteral("Work renamed"));
 	management.rename_button()->click();
+	management.name_editor()->setText(QStringLiteral("Work renamed"));
+	management.save_button()->click();
 	wait_for([&] { return work->window().windowTitle().contains(QStringLiteral("Work renamed")); }, "accepted rename reaches open chrome");
 	expect(stableRow.isValid() && stableRow.data().toString() == QStringLiteral("Work renamed"), "rename preserves semantic model index");
-	management.open_button()->click();
+	// [[BPR-0778]]. Return on the row activates an open profile; the footer's filled
+	// action says New window for one, because that is what that gesture does.
+	expect(management.open_button()->text() == QStringLiteral("New window"),
+		   "the filled action offers a new window for the open profile");
+	auto openRow = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+	QApplication::sendEvent(management.profiles(), &openRow);
 	QApplication::processEvents();
-	expect(desktop->runtime(workId) == work, "reopening live profile activates its existing runtime");
+	expect(desktop->runtime(workId) == work, "reopening the live profile activates its existing runtime");
+	expect(desktop->windows(workId).size() == 1U, "and does not add a window");
 	capture(management);
 
 	const auto writes = work->status().AppearanceDurableWrites;
@@ -277,8 +288,9 @@ auto main(int aArgc, char** aArgv) -> int
 
 	// B3 with no window to carry a refusal: the chooser is presented for it, which is
 	// the startup case RFC-BPR-0024 already describes.
-	resident.name_editor()->setText(QString{ });
 	resident.rename_button()->click();
+	resident.name_editor()->setText(QString{ });
+	resident.save_button()->click();
 	wait_for([&] { return resident.isVisible(); }, "a refusal with no window presents the chooser");
 	expect(resident.status_text().contains(QStringLiteral("nonblank profile name")), "and says what was refused");
 	desktopMenu->manage_profiles_action()->trigger();
@@ -289,8 +301,9 @@ auto main(int aArgc, char** aArgv) -> int
 	auto* const byMenuBar = reopened_exactly_once("New Window on the application's menu bar reopens the most recently used profile");
 
 	// B3 with a live window: the refusal is reported there and the chooser stays away.
-	resident.name_editor()->setText(QString{ });
 	resident.rename_button()->click();
+	resident.name_editor()->setText(QString{ });
+	resident.save_button()->click();
 	wait_for([&] { return byMenuBar->window().status_text().contains(QStringLiteral("nonblank profile name")); },
 			 "a refusal with a live window is reported in that window");
 	expect(!resident.isVisible(), "and the chooser is not presented to carry it");
