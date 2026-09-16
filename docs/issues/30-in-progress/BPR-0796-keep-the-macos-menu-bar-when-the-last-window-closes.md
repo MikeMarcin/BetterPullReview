@@ -250,6 +250,50 @@ An unlocked console session on this machine would close the third of these
 without an attended verdict. None of it is a reason to hold the fix, and none of
 it may be inferred from the course.
 
+### The one prepared attended candidate
+
+Prepared in d9 and **deliberately not performed**: a dispatch that changes what a
+reviewer sees does not get to accept it, and the mandate asked for preparation
+rather than performance.
+
+- **Candidate** `bpr-0796-empty-desktop-menu-bar`, fingerprint
+  `8365ee8460ec3cdc1b77ee44c88d02f48a725c35af18a71be1b29104240d1d77`.
+- **Session** `e966c88f3320638208adf4fcf0651e31`, the pack's existing one, state
+  directory `/Users/jaeger/.mask/bpr-shell-surfaces-d7-20260915/attended-review`,
+  sequence 75. 18 candidates, 17 decided, **1 pending** — this one. The seventeen
+  verdicts of 2026-09-16 are preserved untouched, including the rejection this
+  candidate answers, which stays bound to the id and digest it was given on.
+- **Bound to** revision `1c40d04b / app sha256 1f60b0a267878bd9525488f15fa27e97e778cf006a087b2f1e2d5a9ae4f0c17d`,
+  and it protects `desktop_menu_bar.cpp`/`.hpp`, `profile_desktop.cpp`, the course
+  and the probe, plus the built bundle as a versioned resource, so a rebuild
+  conflicts rather than silently moving what was reviewed.
+- **To open it, serve the session:**
+  `python3 .agents/skills/attended-review/scripts/attended_review.py --repo-root /Users/jaeger/Documents/GitHub/BetterPullReview --state /Users/jaeger/.mask/bpr-shell-surfaces-d7-20260915/attended-review serve`
+  and open the complete loopback URL it prints.
+- **Offline fallback, already written:**
+  `/Users/jaeger/.mask/bpr-shell-surfaces-d7-20260915/attended-review/bpr-0796-review.html`,
+  64 KB, self-contained. Decide in the page, use its Copy JSON or Download JSON,
+  then feed it back with `import --file FILE` (or `--file -` for stdin) on the
+  same state directory. Browser storage is a convenience; the import is the
+  record.
+- **What it asks.** One question: with the last window closed, does the menu bar
+  still carry everything it carried with a window open — Profiles and View, and
+  `Preferences…` in the application menu — and do a Dock click, ⌘N and the
+  Profiles menu each reopen the most recent profile at Home exactly once? The
+  body carries the AppKit before-and-after as text, a nine-step script ending in
+  the Settings-focus check, the launch command with every path absolute, and an
+  explicit instruction to reject and name the step.
+- **What it excludes, in its own words.** Windows and Linux ([[BPR-0798]],
+  [[BPR-0799]]), and [[BPR-0797]]'s tests-enabled composition defects, so a
+  verdict cannot be confounded by something this card did not touch.
+- **Why there is no screenshot.** The macOS menu bar is AppKit's, this console
+  has been locked for every run, and a rendering of our own `QMenuBar` would be a
+  mockup of the exact thing in question. The candidate says so rather than
+  leaving the absence to be read as an oversight.
+- **Preparation evidence recorded on the candidate:** the course re-run through
+  `ctest --preset dev` exiting 0, and the launch binary's digest checked against
+  the declared revision with `ninja -n` reporting no work to do.
+
 ### Evidence paths
 
 - Native run, unfixed source: `scratchpad/d8-native-unfixed-source-run2.log`
@@ -264,6 +308,29 @@ it may be inferred from the course.
   sha256 `d500ef7a899d2afef1477f54a37b4ca68ad1e3929bca97995d9dbd80a4399f3b`,
   source `ed2b3f14`.
 
+d9, all at zero pending build actions:
+
+- The diagnosis re-run on unchanged source, before anything was believed:
+  `scratchpad/d9-native-baseline.log`, `scratchpad/d9-native-baseline-verbose.log`.
+- The course failing first, on the real defect: `scratchpad/d9-course-fails-first.log`.
+- The course passing after the fix: `scratchpad/d9-course-after-fix-2.log`;
+  integrator's own re-run of the three decisive courses
+  `scratchpad/d9-decisive-1.log`.
+- The 14-course desktop-lifecycle, management and settings selection, 14/14 in
+  184 s: `scratchpad/d9-focused-2.log`.
+- The pack's integration pass, 48 courses, **100% passed, 48/48, 880.39 s**, with
+  `ninja -n` reporting "no work to do" immediately before and immediately after:
+  `scratchpad/d9-int-pass-01.log`.
+- Documentation gate `DOCUMENTATION_OK` (`scratchpad/d9-doc-gate-2.log`) and 64
+  documentation tests OK (`scratchpad/d9-doc-tests.log`).
+- Formatting: every file this card touched is clean under the repository's own
+  `clang-format` except `profile_desktop.cpp`, whose one divergence is a member
+  alignment block that already diverged at `HEAD` before this card and was left
+  alone (`scratchpad/d9-format-check.log`).
+- Fixed executable, the one the attended candidate is bound to:
+  sha256 `1f60b0a267878bd9525488f15fa27e97e778cf006a087b2f1e2d5a9ae4f0c17d`,
+  source `1c40d04b`.
+
 ### A candidate that was considered and not applied
 
 Calling `present_desktop_menu()` before `Runtimes.erase()` at
@@ -273,6 +340,17 @@ takes the menu bar whenever a menubar-less window is focused, and the course
 proves today's behaviour correctly keeps the workbench bar while Settings has
 focus. Neither was applied, because no observable either would change was
 demonstrated.
+
+**d9 kept both decisions, and the second one turned out to matter more than it
+looked.** The intra-tick husk is still unobservable: the gap is 0 ms through the
+close and, now that it is sampled, 0 ms through each reopening too, so moving
+`present_desktop_menu()` earlier would still change nothing a reviewer can see.
+Eager construction was right to reject, and for exactly the reason given — a
+parentless bar takes the menu bar whenever a menubar-less window is focused. What
+that note could not know is that this was already happening after the first
+reopening, because the bar the desktop built was never retired. The fix goes the
+other way from eager construction: the bar exists only while the desktop has no
+window.
 
 ## Boundaries
 
