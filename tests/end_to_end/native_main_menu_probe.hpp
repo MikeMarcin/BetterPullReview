@@ -32,6 +32,20 @@ namespace bpr::tests::native_menu {
 	/// item title matches exactly or as the first word, because that merged item
 	/// carries the application name after it.
 	[[nodiscard]] auto main_menu_offers(std::string_view aMenuTitle, std::string_view aItemTitle) -> bool;
+	/// \brief The visible top-level menu titles of `[NSApp mainMenu]`, in order.
+	///
+	/// \details These are the words a reviewer reads across the top of the
+	/// screen. A menu AppKit hides - an emptied `File` whose only item merged
+	/// into the application menu - is not one of them.
+	[[nodiscard]] auto main_menu_visible_titles() -> std::vector<std::string>;
+	/// \brief The visible, non-separator item titles of the named top-level menu.
+	///
+	/// \details Comparing this list before and after a close says whether a
+	/// command left the bar, without the course having to spell out a title Qt
+	/// or AppKit owns, such as the merged `Preferences` item.
+	[[nodiscard]] auto main_menu_items(std::string_view aMenuTitle) -> std::vector<std::string>;
+	/// \brief Whether the named item of the named top-level menu is actionable.
+	[[nodiscard]] auto main_menu_item_is_enabled(std::string_view aMenuTitle, std::string_view aItemTitle) -> bool;
 	/// \brief Whether the process is the active application.
 	[[nodiscard]] auto application_is_active() -> bool;
 	/// \brief Whether the console session's screen is locked, which is when no

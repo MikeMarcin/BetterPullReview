@@ -367,6 +367,12 @@ namespace bpr::app {
 						}
 						return true;
 					} else if (!Focusing && current(context)) {
+						// [[BPR-0796]]. A profile window is active, so the desktop's own
+						// menu bar steps aside. Retired here rather than when the window
+						// opens, because this is the moment the window's own menu bar
+						// takes the macOS menu bar: retiring it earlier would leave the
+						// bar with nothing installed until the window became key.
+						retire_desktop_menu();
 						Focusing        = true;
 						LastUsedProfile = context.Profile;
 						static_cast<void>(Host->focus(context));
@@ -466,6 +472,22 @@ namespace bpr::app {
 } });
 			}
 			DesktopMenu->adopt(Projection, most_recent_profile());
+		}
+		/// \brief [[BPR-0796]]. Gives the menu bar back once a window has one of its own.
+		///
+		/// \details Qt hands a parentless menu bar to any focused window that carries
+		/// none, so a desktop menu bar left alive after a window reopened would take
+		/// the macOS menu bar the moment the reviewer focused the workbench's Settings
+		/// window - offering that window's own commands disabled while the window is
+		/// right behind it. The desktop's bar belongs to a desktop with no window;
+		/// `present_desktop_menu()` builds it again when the desktop empties. Deleted
+		/// through the event loop, because the gesture that opened the window may be an
+		/// action this bar owns.
+		void retire_desktop_menu()
+		{
+			if (auto* const retired = DesktopMenu.release()) {
+				retired->deleteLater();
+			}
 		}
 		/// \brief RFC-BPR-0033 B2. Opens the most recently used profile when a resident
 		/// desktop with no window is activated, through the existing open intent.

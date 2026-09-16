@@ -24,12 +24,19 @@
 
 // RFC-BPR-0033 B1 and B2, the native half. The offscreen management course proves
 // the composition keeps a parentless `desktop_menu_bar`; the owner's attended
-// review of the shipped build found that closing the last window left the macOS
-// menu bar with nothing in it (BPR-0782, `bpr-0779-empty-desktop-dock`). This
-// course runs the real desktop composition on the cocoa platform and asserts what
-// `[NSApp mainMenu]` carries at every event-loop turn from the last close to the
-// settled empty desktop, then reopens through the Dock's reopen message, native
-// activation, Command-N and the Profiles menu as AppKit delivers them.
+// review of the shipped build rejected the empty desktop with "Closing last window
+// closes menu bar." (BPR-0782, `bpr-0779-empty-desktop-dock`). This course runs the
+// real desktop composition on the cocoa platform and asserts what `[NSApp mainMenu]`
+// carries at every event-loop turn from the last close to the settled empty desktop,
+// then reopens through the Dock's reopen message, native activation, Command-N and
+// the Profiles menu as AppKit delivers them.
+//
+// The bar was never lost and the gap was always 0 ms; what the close took was most
+// of the bar's titles. So the contract here is a comparison, not a presence check:
+// the windowed bar is snapshotted, and the windowless bar must equal it - the same
+// visible top-level menus, the same items in the application menu AppKit owns, the
+// same items under View - with the window's own presentation commands disabled.
+// [[BPR-0796]] grew the desktop's bar to meet it.
 //
 // Qt installs a menu bar from `QGuiApplication::focusWindow()`, which the cocoa
 // plugin sets when AppKit makes a window key (qcocoawindow.mm, windowDidBecomeKey
@@ -123,13 +130,45 @@ namespace {
 		}
 	}
 	/// The menu bar RFC-BPR-0033 promises while no window is open: Profiles with New
-	/// Window and management, and Quit, which AppKit merges into the application
-	/// menu. Read from AppKit, not from Qt.
+	/// Window and management, View, and Quit, which AppKit merges into the
+	/// application menu. Read from AppKit, not from Qt. Every bar this course sees -
+	/// a window's and the desktop's - satisfies it, so it is also the predicate for
+	/// "no menu was lost for a moment" across a close or a reopening.
 	auto resident_menu_bar_present() -> bool
 	{
 		return native::main_menu_offers("Profiles", "New Window")
 			&& native::main_menu_offers("Profiles", "Manage Profiles…")
+			&& native::main_menu_offers("View", "Line numbers")
 			&& native::main_menu_offers("", "Quit");
+	}
+	auto join(const std::vector<std::string>& aValues) -> std::string
+	{
+		std::string line;
+		for (const auto& value : aValues) {
+			if (!line.empty()) {
+				line += ", ";
+			}
+			line += value;
+		}
+		return line;
+	}
+	/// The bar a reviewer actually reads: the titles across the top, the items of
+	/// the application menu AppKit owns, and the items of View. RFC-BPR-0033 B1
+	/// promises all of it survives the close - "the menu bar remains (File,
+	/// Profiles, View and the rest), the Dock icon remains" - so the windowed bar
+	/// is the specification for the windowless one, and the close must subtract
+	/// nothing from it.
+	struct menu_bar_snapshot
+	{
+		std::vector<std::string> Titles;
+		std::vector<std::string> ApplicationItems;
+		std::vector<std::string> ViewItems;
+		std::string              Description;
+	};
+	auto snapshot_menu_bar() -> menu_bar_snapshot
+	{
+		return { native::main_menu_visible_titles(), native::main_menu_items("Apple"),
+				 native::main_menu_items("View"), native::describe_main_menu() };
 	}
 	/// Samples `[NSApp mainMenu]` on every event-loop turn until the condition holds,
 	/// recording each change and the longest stretch where the Profiles menu was
@@ -232,6 +271,11 @@ auto main(int aArgc, char** aArgv) -> int
 	note("windowed main menu: " + native::describe_main_menu());
 	expect(native::main_menu_offers("Profiles", "New Window") && native::main_menu_offers("View", "Line numbers"),
 		   "and it carries the workbench menus");
+	const auto windowed = snapshot_menu_bar();
+	note("windowed top-level menus: " + join(windowed.Titles));
+	expect(std::ranges::find(windowed.Titles, std::string{ "Profiles" }) != windowed.Titles.end()
+			   && std::ranges::find(windowed.Titles, std::string{ "View" }) != windowed.Titles.end(),
+		   "the windowed bar carries the menus RFC-BPR-0033 names, so it is the thing the close must preserve");
 
 	// A menubar-less window of the workbench, such as Settings, must not swap the
 	// workbench's menus out from under the reviewer while a workbench window exists.
@@ -265,21 +309,40 @@ auto main(int aArgc, char** aArgv) -> int
 		   "with no window, the main menu is the desktop's own menu bar");
 	expect(resident_menu_bar_present(), "and it offers Profiles, New Window, management and Quit");
 	expect(native::main_menu_offers("Profiles", "Default"), "and the profile by name");
+	// The owner's rejection, "Closing last window closes menu bar.", is this
+	// comparison. The bar is never lost, but until [[BPR-0796]] the close took
+	// View away and the merged Preferences with it, leaving one visible menu
+	// where the RFC names four.
+	const auto resident = snapshot_menu_bar();
+	note("windowless top-level menus: " + join(resident.Titles));
+	expect(resident.Titles == windowed.Titles, "closing the last window takes no menu off the bar");
+	expect(resident.ApplicationItems == windowed.ApplicationItems,
+		   "and no item out of the application menu, the merged Preferences item included");
+	expect(resident.ViewItems == windowed.ViewItems, "View and its commands are still offered with no window open");
+	expect(!native::main_menu_item_is_enabled("View", "Line numbers")
+			   && !native::main_menu_item_is_enabled("View", "One pane"),
+		   "offered and not actionable, because no window's presentation is theirs to change");
+	expect(resident.Description == windowed.Description,
+		   "the bar a reviewer reads is the same bar before and after the last close");
 	expect(closing.LongestGapMs == 0 && !closing.GapOpen,
 		   "at no moment during the close was the menu bar left without its Profiles menu");
 
 	// B2. Each native reopening gesture opens the most recently used profile at Home,
 	// exactly once, and a further close returns to the same resident menu bar.
 	const auto reopened_exactly_once = [&](const char* aMessage) {
-		wait_for([&] { return desktop->runtime(core::default_bpr_profile_id) != nullptr; }, aMessage);
-		auto* const runtime = desktop->runtime(core::default_bpr_profile_id);
+		const auto  reopening = sample_until([&] { return desktop->runtime(core::default_bpr_profile_id) != nullptr; }, aMessage);
+		auto* const runtime   = desktop->runtime(core::default_bpr_profile_id);
 		QApplication::processEvents();
 		expect(desktop->windows(core::default_bpr_profile_id).size() == 1U, "exactly one window, under one runtime owner");
 		expect(runtime->window().showing_home(), "the reopened window arrives at Home");
 		wait_for([&] { return runtime->window().windowHandle() != nullptr && runtime->window().isVisible(); }, "the reopened window is shown");
 		focus(runtime->window(), "the reopened window is the focus window");
-		wait_for([&] { return native::main_menu_is(runtime->window().menu_bar()->toNSMenu()); },
-				 "and the reopened window's menu bar takes the menu bar back");
+		// The desktop retires its own bar when a window becomes active, so this is the
+		// handover; a reviewer must not see the bar lose a menu while it happens.
+		const auto handover = sample_until([&] { return native::main_menu_is(runtime->window().menu_bar()->toNSMenu()); },
+										   "and the reopened window's menu bar takes the menu bar back");
+		expect(reopening.LongestGapMs == 0 && !reopening.GapOpen && handover.LongestGapMs == 0 && !handover.GapOpen,
+			   "with no moment in either direction where the bar was short a menu");
 		return runtime;
 	};
 	const auto closed_again = [&](app::github_application& aRuntime) {
@@ -295,6 +358,25 @@ auto main(int aArgc, char** aArgv) -> int
 
 	expect(native::send_dock_reopen(), "AppKit's Dock reopen message reaches the application delegate");
 	auto* const byDock = reopened_exactly_once("the Dock's reopen message reopens the most recently used profile");
+
+	// The arrangement the pin before the close could not reach: there, the desktop
+	// had never built its bar. Qt gives a parentless menu bar to any focused window
+	// that carries none, so a desktop bar still alive now would take the menu bar
+	// from the workbench the moment Settings was focused - and offer that window's
+	// own commands disabled while the window is right behind it.
+	expect(desktop->desktop_menu() == nullptr, "the desktop's own menu bar is retired once a window is active again");
+	byDock->window().open_settings(qt::settings_page::general);
+	wait_for([&] { return byDock->window().settings() != nullptr && byDock->window().settings()->isVisible(); },
+			 "Settings opens over the reopened window");
+	wait_for([&] { return byDock->window().settings()->windowHandle() != nullptr; }, "Settings has a native window");
+	focus(*byDock->window().settings(), "Settings takes focus while the resident bar exists");
+	settle(200);
+	note("main menu with Settings focused and a resident desktop bar alive: " + native::describe_main_menu());
+	expect(native::main_menu_is(byDock->window().menu_bar()->toNSMenu()),
+		   "a menubar-less Settings window keeps the workbench window's own menu bar");
+	close_window(*byDock->window().settings());
+	focus(byDock->window(), "focus returns to the workbench");
+
 	closed_again(*byDock);
 
 	if (native_key_windows) {

@@ -129,6 +129,48 @@ namespace bpr::tests::native_menu {
 		return find_item(find_menu(aMenuTitle, aItemTitle), aItemTitle) >= 0;
 	}
 
+	auto main_menu_visible_titles() -> std::vector<std::string>
+	{
+		std::vector<std::string> titles;
+		NSMenu*                  mainMenu = [NSApp mainMenu];
+		if (mainMenu == nil) {
+			return titles;
+		}
+		for (NSMenuItem* item in [mainMenu itemArray]) {
+			if ([item isHidden]) {
+				continue;
+			}
+			titles.push_back(text([item title]));
+		}
+		return titles;
+	}
+
+	auto main_menu_items(const std::string_view aMenuTitle) -> std::vector<std::string>
+	{
+		std::vector<std::string> items;
+		if (aMenuTitle.empty()) {
+			return items;
+		}
+		NSMenu* menu = find_menu(aMenuTitle, std::string_view{ });
+		if (menu == nil) {
+			return items;
+		}
+		for (NSMenuItem* entry in [menu itemArray]) {
+			if ([entry isSeparatorItem] || [entry isHidden]) {
+				continue;
+			}
+			items.push_back(text([entry title]));
+		}
+		return items;
+	}
+
+	auto main_menu_item_is_enabled(const std::string_view aMenuTitle, const std::string_view aItemTitle) -> bool
+	{
+		NSMenu*         menu  = find_menu(aMenuTitle, aItemTitle);
+		const NSInteger index = find_item(menu, aItemTitle);
+		return index >= 0 && [[menu itemAtIndex:index] isEnabled] == YES;
+	}
+
 	auto application_is_active() -> bool { return [NSApp isActive] == YES; }
 
 	auto session_screen_is_locked() -> bool

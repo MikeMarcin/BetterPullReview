@@ -277,15 +277,30 @@ auto main(int aArgc, char** aArgv) -> int
 			   "exactly one window, under one runtime owner");
 		expect(!resident.isVisible(), "and still no chooser");
 		expect(runtime->window().showing_home(), "the reopened window arrives at Home");
+		// [[BPR-0796]]. The application's own menu bar belongs to a desktop with no
+		// window. Qt hands a parentless menu bar to any focused window that carries
+		// none of its own, so one left alive here would take the menu bar from the
+		// reopened window the moment its Settings window was focused.
+		wait_for([&] { return desktop->desktop_menu() == nullptr; },
+				 "and the desktop's own menu bar steps aside once that window is active");
 		return runtime;
+	};
+	// Fetched again after each close rather than held, because the desktop builds it
+	// when it empties and retires it when a window becomes active.
+	const auto resident_menu_bar = [&] {
+		auto* const menu = desktop->desktop_menu();
+		expect(menu != nullptr && menu->parentWidget() == nullptr,
+			   "the resident desktop keeps the application's own menu bar");
+		return menu;
 	};
 	initial->window().close();
 	closed_the_last_window();
-	auto* const desktopMenu = desktop->desktop_menu();
-	expect(desktopMenu != nullptr && desktopMenu->parentWidget() == nullptr,
-		   "the resident desktop keeps the application's own menu bar");
+	auto* desktopMenu = resident_menu_bar();
 	expect(desktopMenu->profiles_menu()->actions().size() == 5,
 		   "which lists the three profiles, New Window and management");
+	expect(desktopMenu->view_menu() != nullptr && desktopMenu->view_menu()->actions().size() == 4
+			   && !desktopMenu->view_menu()->actions().front()->isEnabled(),
+		   "and carries the window menu's View, offered and disabled, so the close takes no menu off the bar");
 
 	// B3 with no window to carry a refusal: the chooser is presented for it, which is
 	// the startup case RFC-BPR-0024 already describes.
@@ -316,6 +331,7 @@ auto main(int aArgc, char** aArgv) -> int
 
 	byMenuBar->window().close();
 	closed_the_last_window();
+	desktopMenu = resident_menu_bar();
 	expect(QMetaObject::invokeMethod(qApp, "applicationStateChanged", Qt::DirectConnection,
 									 Q_ARG(Qt::ApplicationState, Qt::ApplicationActive)),
 		   "the platform's own activation signal is deliverable");
@@ -323,6 +339,7 @@ auto main(int aArgc, char** aArgv) -> int
 
 	byActivation->window().close();
 	closed_the_last_window();
+	desktopMenu            = resident_menu_bar();
 	auto* const defaultRow = desktopMenu->findChild<QAction*>(QStringLiteral("desktopOpenBprProfile_1"));
 	expect(defaultRow != nullptr && defaultRow->isEnabled(), "the Profiles menu offers the profile by name");
 	defaultRow->trigger();

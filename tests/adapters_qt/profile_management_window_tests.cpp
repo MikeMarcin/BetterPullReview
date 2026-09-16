@@ -341,6 +341,22 @@ namespace {
 		closing.Profiles[1].Runtime = application::profile_management_runtime::closing;
 		menu.adopt(closing, core::bpr_profile_id{ 2U });
 		expect(!profiles->actions()[1]->isEnabled(), "a closing profile is not offered");
+		// [[BPR-0796]] RFC-BPR-0033 B1. The desktop's bar carries the same menus a
+		// window's bar carries, so closing the last window takes no menu off the
+		// macOS menu bar. The window's own presentation commands are offered and
+		// disabled, and Settings keeps the role macOS merges into the application
+		// menu, which is what keeps Preferences… there with no window open.
+		auto* const view = menu.view_menu();
+		expect(view != nullptr && view->title() == QStringLiteral("&View"), "the desktop bar offers View");
+		const auto viewActions = view->actions();
+		expect(viewActions.size() == 4 && viewActions[0]->text() == QStringLiteral("&Line numbers")
+				   && viewActions[1]->text() == QStringLiteral("&One pane") && viewActions[2]->isSeparator()
+				   && viewActions[3]->text() == QStringLiteral("&Settings…"),
+			   "with the window menu's own commands, in the window menu's own order");
+		expect(!viewActions[0]->isEnabled() && !viewActions[1]->isEnabled() && !viewActions[3]->isEnabled(),
+			   "none of them actionable, because no window's presentation is theirs to change");
+		expect(viewActions[3]->menuRole() == QAction::PreferencesRole,
+			   "and Settings keeps the preferences role, so the application menu keeps its merged item");
 	}
 }
 

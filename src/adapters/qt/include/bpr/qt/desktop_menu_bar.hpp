@@ -21,6 +21,15 @@ namespace bpr::qt {
 	/// holds no window state and performs no effect: a gesture leaves as one of the
 	/// existing typed profile intents or as the desktop's own management and quit
 	/// closures. Platforms whose empty desktop quits never construct one.
+	///
+	/// [[BPR-0796]]. It carries the *same menus* a window's bar carries, because
+	/// RFC-BPR-0033 B1 promises "the menu bar remains (File, Profiles, View and the
+	/// rest)" and a reviewer reads that promise as titles across the top of the
+	/// screen. The window's own presentation commands are therefore offered here
+	/// and disabled, as macOS applications offer them with no document open: the
+	/// close subtracts nothing from the bar. Offering them is all this bar does
+	/// with them - a disabled action is connected to nothing, so the rule that this
+	/// bar holds no window state and performs no effect still holds.
 	class desktop_menu_bar final : public QMenuBar
 	{
 	public:
@@ -39,9 +48,12 @@ namespace bpr::qt {
 		[[nodiscard]] auto new_window_action() const noexcept -> QAction*;
 		[[nodiscard]] auto manage_profiles_action() const noexcept -> QAction*;
 		[[nodiscard]] auto quit_action() const noexcept -> QAction*;
+		/// \brief The window's presentation menu, offered with no window and disabled.
+		[[nodiscard]] auto view_menu() const noexcept -> QMenu*;
 
 	private:
 		QMenu*                                   ProfilesMenu         = nullptr;
+		QMenu*                                   ViewMenu             = nullptr;
 		QAction*                                 NewBprWindowAction   = nullptr;
 		QAction*                                 ManageProfilesAction = nullptr;
 		QAction*                                 QuitProfilesAction   = nullptr;

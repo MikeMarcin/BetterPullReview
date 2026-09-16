@@ -47,6 +47,38 @@ namespace bpr::qt {
 				ManageProfiles();
 			}
 		});
+		// [[BPR-0796]]. The workbench window's View menu, offered here and disabled.
+		// Without it the last close took View off the bar and the merged Preferences
+		// item out of the application menu, leaving one visible menu where
+		// RFC-BPR-0033 B1 names four; the owner rejected exactly that on 2026-09-16.
+		// Titles, order and roles mirror `workbench_window::build_menu_bar` so the
+		// close subtracts nothing a reviewer can see. Nothing is connected: with no
+		// window there is no presentation these could change, and this bar performs
+		// no effect of its own.
+		ViewMenu = addMenu(QStringLiteral("&View"));
+		ViewMenu->setObjectName(QStringLiteral("desktopViewMenu"));
+		ViewMenu->setAccessibleName(QStringLiteral("View"));
+		ViewMenu->setAccessibleDescription(
+			QStringLiteral("Presentation options for the comparison surface, unavailable while no window is open"));
+		auto* const lineNumbers = ViewMenu->addAction(QStringLiteral("&Line numbers"));
+		lineNumbers->setObjectName(QStringLiteral("desktopToggleLineNumbersAction"));
+		lineNumbers->setCheckable(true);
+		lineNumbers->setShortcut(QKeySequence{ QStringLiteral("Alt+Shift+5") });
+		lineNumbers->setEnabled(false);
+		auto* const onePane = ViewMenu->addAction(QStringLiteral("&One pane"));
+		onePane->setObjectName(QStringLiteral("desktopToggleOnePaneAction"));
+		onePane->setCheckable(true);
+		onePane->setEnabled(false);
+		// [[BPR-0646]] gives Settings the preferences role, which macOS merges into
+		// the application menu. Offered so that menu keeps every item it had while a
+		// window was open; disabled because Settings is a window's, and no window is
+		// open to carry one.
+		ViewMenu->addSeparator();
+		auto* const settings = ViewMenu->addAction(QStringLiteral("&Settings…"));
+		settings->setObjectName(QStringLiteral("desktopOpenSettingsAction"));
+		settings->setMenuRole(QAction::PreferencesRole);
+		settings->setShortcut(QKeySequence::Preferences);
+		settings->setEnabled(false);
 	}
 
 	void desktop_menu_bar::set_dispatch(application::profile_management_dispatch aDispatch,
@@ -112,4 +144,5 @@ namespace bpr::qt {
 	auto desktop_menu_bar::new_window_action() const noexcept -> QAction* { return NewBprWindowAction; }
 	auto desktop_menu_bar::manage_profiles_action() const noexcept -> QAction* { return ManageProfilesAction; }
 	auto desktop_menu_bar::quit_action() const noexcept -> QAction* { return QuitProfilesAction; }
+	auto desktop_menu_bar::view_menu() const noexcept -> QMenu* { return ViewMenu; }
 }
