@@ -598,12 +598,25 @@ presentation [[BPR-0696]] added). What a desktop with no window does is a
 named policy the composition injects, not a platform test the desktop makes
 for itself, so both answers are drivable on one host:
 
-- **macOS** stays resident, as macOS applications do. The application's own
-  menu bar remains — File › Quit, and Profiles listing the profiles, then New
-  Window and Manage Profiles… — and so does the Dock icon. Activating the
-  application, `Ctrl+N` (⌘N), or choosing a profile from that menu opens the
-  most recently used profile's window at Home through the existing open
-  intent. "Most recently used" is the last profile whose window was opened or
+- **macOS** stays resident, as macOS applications do, and the Dock icon
+  remains. Activating the application, `Ctrl+N` (⌘N), or choosing a profile
+  from the Profiles menu opens the most recently used profile's window at Home
+  through the existing open intent.
+
+  **What the menu bar actually shows, and why that is a defect.** The
+  application's own menu bar carries a File menu holding Quit and a Profiles
+  menu listing the profiles, then New Window and Manage Profiles…. On macOS
+  AppKit merges Quit into the application menu and hides the now-empty File
+  title, so what a reviewer sees after the last window closes is the Apple
+  menu, the application menu and **Profiles** — nothing else. View goes with
+  the window, and so does Preferences…. Measured from `[NSApp mainMenu]` by
+  `application_profile_empty_desktop_native_menu_bar`: with a window,
+  `Apple | ~File | Profiles | View`; after the close, `Apple | ~File |
+  Profiles`. RFC-BPR-0033 says the bar "remains (File, Profiles, View and the
+  rest)", and one visible menu is not that. The owner rejected this on
+  2026-09-16 with "Closing last window closes menu bar." It is [[BPR-0796]],
+  and this paragraph describes the shipped behaviour rather than the intended
+  one until that card lands. "Most recently used" is the last profile whose window was opened or
   focused in this process; nothing new is persisted for it, because an empty
   desktop exists only after a window has been open.
 - **Windows and Linux** quit, through the existing desktop Quit path, so
