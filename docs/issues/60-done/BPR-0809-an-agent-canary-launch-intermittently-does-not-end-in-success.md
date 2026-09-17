@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0809"
 title: "An agent canary launch intermittently does not end in success"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac"]
 metadata: {"found_by":"BPR-0666 repro and final batches","found_at":"94f4e6dc","run":"run-20260916-stations","dispatch":"dsp-001-r2"}
+acceptance: [{"criterion":"AC1 the launch outcome of a failing run is named on this card with evidence","outcome":"pass","revision":"866c5b906309f7b45cf9ed46b04d07662d8fcb75","evidence":{"kind":"artifact","detail":"failed_to_start with standard error Operation not permitted: the child's setpgid(0, 0) refused with EPERM while racing the supervisor's setpgid(child, child); 7 in 1,527 instrumented launches (build/r2-logs/dsp3-0809-repro1.log, dsp3-0809-repro2.log) and the standalone fork probe (dsp3-0809-pgrace.log)."}},{"criterion":"AC2 agent_parent_death passes 40 consecutive runs on macOS under the load of a concurrent build","outcome":"pass","revision":"866c5b90 plus the supervisor change committed by this finish","evidence":{"kind":"command","detail":"ctest -R ^agent_parent_death$ --repeat until-fail:40: 40/40 with three concurrent builds and CPU spinners, load 7-40 (dsp3-0809-until-fail-40.log); 10/10 more at the integrated head eade8828 (dsp3-int8-parent-death-x10.log); independent critical review found no blocker."}}]
 ---
 
 # BPR-0809: An agent canary launch intermittently does not end in success

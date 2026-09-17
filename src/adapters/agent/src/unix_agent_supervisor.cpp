@@ -6,6 +6,7 @@
 #include <csignal>
 #include <cstdint>
 #include <cstdlib>
+#include <initializer_list>
 #include <string_view>
 
 #include <fcntl.h>
@@ -84,34 +85,50 @@ auto main(int argc, char** argv) -> int
 		return Failure;
 	}
 	static_cast<void>(::signal(SIGPIPE, SIG_IGN));
-	int execution[2] = { -1, -1 };
-	if (::pipe(execution) != 0) {
+	int  execution[2] = { -1, -1 };
+	int  group[2]     = { -1, -1 };
+	auto closePipes   = [&execution, &group]() noexcept {
+		for (const auto descriptor : { execution[0], execution[1], group[0], group[1] }) {
+			close_descriptor(descriptor);
+		}
+	};
+	if (::pipe(execution) != 0 || ::pipe(group) != 0
+		|| ::fcntl(execution[0], F_SETFD, FD_CLOEXEC) != 0
+		|| ::fcntl(execution[1], F_SETFD, FD_CLOEXEC) != 0
+		|| ::fcntl(group[0], F_SETFD, FD_CLOEXEC) != 0
+		|| ::fcntl(group[1], F_SETFD, FD_CLOEXEC) != 0) {
 		static_cast<void>(report_start(errno));
-		return Failure;
-	}
-	if (::fcntl(execution[0], F_SETFD, FD_CLOEXEC) != 0
-		|| ::fcntl(execution[1], F_SETFD, FD_CLOEXEC) != 0) {
-		static_cast<void>(report_start(errno));
-		close_descriptor(execution[0]);
-		close_descriptor(execution[1]);
+		closePipes();
 		return Failure;
 	}
 	const auto child = ::fork();
 	if (child < 0) {
 		static_cast<void>(report_start(errno));
-		close_descriptor(execution[0]);
-		close_descriptor(execution[1]);
+		closePipes();
 		return Failure;
 	}
 	if (child == 0) {
 		close_descriptor(Owner);
 		close_descriptor(execution[0]);
+		close_descriptor(group[1]);
 		if (workspaceLease) {
 			close_descriptor(4);
 		}
 		static_cast<void>(::signal(SIGPIPE, SIG_DFL));
-		if (::setpgid(0, 0) == 0) {
+		// The parent alone creates this process group; the child waits for it
+		// and never calls setpgid. When both sides raced to create the group,
+		// Darwin sometimes refused the child's setpgid(0, 0) with EPERM, and
+		// the launch ended as failed_to_start (BPR-0809). End of file means
+		// the parent gave up, so the agent never runs outside its group.
+		auto released = char{ 0 };
+		auto count    = ssize_t{ };
+		do {
+			count = ::read(group[0], &released, 1U);
+		} while (count < 0 && errno == EINTR);
+		if (count == 1 && ::getpgrp() == ::getpid()) {
 			::execv(argv[1], argv + 1);
+		} else if (count >= 0) {
+			errno = EPERM;
 		}
 		const auto error = static_cast<std::int32_t>(errno);
 		// glibc declares write warn_unused_result under _FORTIFY_SOURCE, and GCC
@@ -123,9 +140,23 @@ auto main(int argc, char** argv) -> int
 		std::_Exit(127);
 	}
 	close_descriptor(execution[1]);
-	// Both sides establish the group, covering owner death before child exec.
-	if (::setpgid(child, child) != 0 && errno != EACCES) {
-		static_cast<void>(report_start(errno));
+	close_descriptor(group[0]);
+	// The group exists before the child can exec, so the group signal in
+	// finish_child also covers owner death before the agent starts. The child
+	// cannot have exec'd yet, so every setpgid failure here is real.
+	auto established = ::setpgid(child, child) == 0;
+	if (established) {
+		constexpr auto release = char{ 1 };
+		auto           written = ssize_t{ };
+		do {
+			written = ::write(group[1], &release, 1U);
+		} while (written < 0 && errno == EINTR);
+		established = written == 1;
+	}
+	const auto groupError = errno;
+	close_descriptor(group[1]);
+	if (!established) {
+		static_cast<void>(report_start(groupError != 0 ? groupError : EIO));
 		static_cast<void>(::kill(child, SIGKILL));
 		close_descriptor(execution[0]);
 		return finish_child(child);

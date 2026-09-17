@@ -653,6 +653,9 @@ namespace {
 		launched.Arguments.insert(launched.Arguments.end(), { "--pre-assignment-side-effect", marker.string(), "--probe-inherited-fd", "4" });
 		auto       launcher = adapters::agent::agent_process_launcher{ };
 		const auto result   = launcher.run(launched, 20'000);
+		if (result.Outcome != application::agent_run_outcome::success) {
+			std::cerr << "guarded launch outcome " << static_cast<int>(result.Outcome) << ": " << result.StandardError << '\n';
+		}
 		expect(result.Outcome == application::agent_run_outcome::success && std::filesystem::exists(marker)
 				   && std::ranges::any_of(result.Events, [](const auto& aEvent) { return aEvent.Text == "inherited-fd-closed"; }),
 			   "guarded launch succeeds without exposing the guard descriptor to the agent");
@@ -891,6 +894,9 @@ namespace {
 		auto launcher             = adapters::agent::agent_process_launcher{ };
 		if (aPhase == "--recover-agent-parent") {
 			const auto recovered = launcher.run(launched, 20'000);
+			if (recovered.Outcome != application::agent_run_outcome::success) {
+				std::cerr << "recovery launch outcome " << static_cast<int>(recovered.Outcome) << ": " << recovered.StandardError << '\n';
+			}
 			expect(recovered.Outcome == application::agent_run_outcome::success, "fresh launcher succeeds after abrupt owner death");
 			std::cout << "agent-parent-recovery:pass\n";
 			return;
