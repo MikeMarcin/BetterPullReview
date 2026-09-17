@@ -767,6 +767,9 @@ if(WIN32)
     # timeBeginPeriod, so the fixture's millisecond pacing is millisecond
     # pacing rather than a 15.6 ms timer tick per chunk (BPR-0240).
     target_link_libraries(test_better_pull_review_agent_canary PRIVATE winmm)
+    # [[BPR-0622]]. The child-side handle probe reads its own handles' object
+    # types through ntdll; fixture code only.
+    target_link_libraries(test_better_pull_review_agent_canary PRIVATE ntdll)
 endif()
 bpr_enable_hardening(test_better_pull_review_agent_canary)
 bpr_enable_warnings(test_better_pull_review_agent_canary)
@@ -780,6 +783,7 @@ target_link_libraries(
     PRIVATE
         BetterPullReview::AdapterAgent
         Qt6::Core
+        $<$<PLATFORM_ID:Windows>:Advapi32>
 )
 target_compile_definitions(
     test_better_pull_review_qt_agent_launch_canary_tests
@@ -806,9 +810,12 @@ set_tests_properties(
         TIMEOUT 120
 )
 
-if(UNIX)
+# [[BPR-0622]]. Windows runs the same course: suspend the supervisor, kill
+# the owner, and require the guard to stay held until the job is empty.
+if(UNIX OR WIN32)
     bpr_add_network_isolated_test(
         NAME agent_parent_death
+        WINDOWS_UNCONTAINED
         COMMAND
             Python3::Interpreter
             "${PROJECT_SOURCE_DIR}/tests/scripts/agent_parent_death_tests.py"

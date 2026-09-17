@@ -316,7 +316,7 @@ namespace bpr::adapters::agent {
 			return result;
 		}
 
-#if !defined(Q_OS_UNIX)
+#if !defined(Q_OS_UNIX) && !defined(Q_OS_WIN)
 		if (aRequest.WorkspaceLifetimeGuard.has_value()) {
 			result.Outcome       = application::agent_run_outcome::failed_to_start;
 			result.StandardError = "workspace lifetime guard is unavailable on this platform";

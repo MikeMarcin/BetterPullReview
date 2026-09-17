@@ -114,6 +114,12 @@ set(
     agent_unix_supervisor_relative
     "src/adapters/agent/src/unix_agent_supervisor.cpp"
 )
+# [[BPR-0622]]. The Windows counterpart of the Unix supervisor: it owns the
+# child's job from outside it, so it is a designated process owner too.
+set(
+    agent_windows_supervisor_relative
+    "src/adapters/agent/src/windows_agent_supervisor.cpp"
+)
 set(
     agent_protocol_loop_relative
     "src/adapters/agent/src/agent_protocol_loop.cpp"
@@ -211,6 +217,7 @@ if(NOT agent_cmake_contents STREQUAL "")
             "${agent_protocol_loop_relative}"
             "${agent_windows_process_relative}"
             "${agent_unix_supervisor_relative}"
+            "${agent_windows_supervisor_relative}"
     )
         if(NOT EXISTS "${BPR_ROOT}/${required_agent_source}")
             message(
@@ -1682,12 +1689,14 @@ verify_effect_owner(
     "CreateProcess(AsUser|WithLogon|WithToken)?[AW]?[ \t\r\n]*\\("
     "native Windows process creation API"
     "${agent_windows_process_relative}"
+    "${agent_windows_supervisor_relative}"
 )
 verify_effect_owner(
     "(CreateJobObjectW|SetInformationJobObject|AssignProcessToJobObject|ResumeThread|TerminateJobObject|QueryInformationJobObject|InitializeProcThreadAttributeList|UpdateProcThreadAttribute|DeleteProcThreadAttributeList|PROC_THREAD_ATTRIBUTE_HANDLE_LIST|CancelSynchronousIo)"
     "native Windows agent containment API"
     "${git_process_runner_relative}"
     "${agent_windows_process_relative}"
+    "${agent_windows_supervisor_relative}"
 )
 verify_effect_owner(
     "QNetworkAccessManager"

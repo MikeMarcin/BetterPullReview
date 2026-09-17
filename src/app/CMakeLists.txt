@@ -99,7 +99,9 @@ if(BPR_BUILD_QT)
         app_better_pull_review
         main.cpp
     )
-    if(UNIX)
+    # The bundled agent supervisor sits beside the application image on every
+    # platform that has one ([[BPR-0622]] added Windows).
+    if(UNIX OR WIN32)
         add_dependencies(app_better_pull_review tool_better_pull_review_agent_supervisor)
         set_property(TARGET app_better_pull_review APPEND PROPERTY LINK_DEPENDS
             "$<TARGET_FILE:tool_better_pull_review_agent_supervisor>")

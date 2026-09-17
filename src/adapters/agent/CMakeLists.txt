@@ -29,10 +29,23 @@ if(WIN32)
         PRIVATE
             src/windows_agent_process.cpp
     )
+    # [[BPR-0622]]. The Windows owner of a guarded child's job; see
+    # windows_agent_supervisor.cpp. It links no Qt.
+    bpr_add_executable(tool_better_pull_review_agent_supervisor src/windows_agent_supervisor.cpp)
+    target_compile_features(tool_better_pull_review_agent_supervisor PRIVATE cxx_std_23)
+    target_link_libraries(tool_better_pull_review_agent_supervisor PRIVATE Kernel32 Advapi32)
+    bpr_enable_hardening(tool_better_pull_review_agent_supervisor)
+    bpr_enable_warnings(tool_better_pull_review_agent_supervisor)
+    add_dependencies(better_pull_review_adapter_agent tool_better_pull_review_agent_supervisor)
+    if(BUILD_TESTING)
+        target_compile_definitions(better_pull_review_adapter_agent PRIVATE
+            "BPR_AGENT_SUPERVISOR_EXECUTABLE_W=L\"$<TARGET_FILE:tool_better_pull_review_agent_supervisor>\"")
+    endif()
     target_link_libraries(
         better_pull_review_adapter_agent
         PRIVATE
             Kernel32
+            Advapi32
     )
 endif()
 add_library(
