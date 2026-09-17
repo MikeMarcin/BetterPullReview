@@ -218,6 +218,11 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "native_https_device_authorization_fixture": "dos-volume-name",
     "epoch_history_fixture_contract": "dos-volume-name",
     "epoch_maintenance_integration": "dos-volume-name",
+    # BPR-0846: the same real host, cache and catalog composition as
+    # epoch_maintenance_integration, not yet measured contained on Windows.
+    "git_haves_trimmed_pack_update": "dos-volume-name",
+    "git_haves_trimmed_pack_missing-object": "dos-volume-name",
+    "git_haves_trimmed_pack_unconnected": "dos-volume-name",
     "epoch_kill_recovery": "dos-volume-name",
     "epoch_transaction_kill_recovery": "dos-volume-name",
     "git_process_contract": "qprocess-named-pipe",

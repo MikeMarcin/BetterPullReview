@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0850",
+    "BPR-0851"
+  ],
+  "reserve_for": "bpr-main-mac",
+  "purpose": "dsp-004: git_protocol_boundary red since 2026-09-12; a missing-object pack leaves the cache repair_required",
+  "created": "2026-09-17T15:55:50.243141+00:00",
+  "base": "94cca148a3524f56ed1def23270d878c09088fcc"
+}

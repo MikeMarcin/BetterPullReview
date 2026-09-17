@@ -187,6 +187,46 @@ set_tests_properties(
         TIMEOUT 90
 )
 
+# [[BPR-0846]]. The live path's update fetch over a local upload-pack that
+# honours haves, through the real host, protocol, cache and catalog, plus the
+# two refusals. Uncontained on Windows for the same canonical storage-root
+# reason as epoch_maintenance_integration, whose composition it shares.
+bpr_add_executable(
+    test_better_pull_review_haves_trimmed_pack_integration_tests
+    haves_trimmed_pack_integration_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_haves_trimmed_pack_integration_tests
+    PRIVATE
+        BetterPullReview::AdapterGit
+        BetterPullReview::AdapterSQLite
+        Qt6::Core
+        Threads::Threads
+)
+target_compile_definitions(
+    test_better_pull_review_haves_trimmed_pack_integration_tests
+    PRIVATE
+        BPR_TEST_GIT_EXECUTABLE="$<TARGET_FILE:Git::Git>"
+)
+if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    target_compile_definitions(
+        test_better_pull_review_haves_trimmed_pack_integration_tests
+        PRIVATE
+            _LIBCPP_ENABLE_EXPERIMENTAL
+    )
+endif()
+bpr_enable_hardening(test_better_pull_review_haves_trimmed_pack_integration_tests)
+bpr_enable_warnings(test_better_pull_review_haves_trimmed_pack_integration_tests)
+
+foreach(bpr_haves_course IN ITEMS update missing-object unconnected)
+    bpr_add_network_isolated_test(
+        NAME "git_haves_trimmed_pack_${bpr_haves_course}"
+        WINDOWS_UNCONTAINED
+        COMMAND test_better_pull_review_haves_trimmed_pack_integration_tests "--${bpr_haves_course}"
+    )
+    set_tests_properties("git_haves_trimmed_pack_${bpr_haves_course}" PROPERTIES TIMEOUT 120)
+endforeach()
+
 bpr_add_network_isolated_test(
     NAME epoch_kill_recovery
     WINDOWS_UNCONTAINED

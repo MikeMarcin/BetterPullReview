@@ -3874,6 +3874,15 @@ namespace bpr::adapters::git {
 							.Bytes = aRequest.SpoolBytes,
 						},
 						.Timeout = pack_process_timeout,
+						// [[BPR-0846]] --check-self-contained-and-connected exits 1, after
+						// writing the pack and reporting it on standard output, only when
+						// every object the pack references resolves and some resolve to
+						// objects already in the repository. A server that honours `have`
+						// lines sends exactly that pack. A missing object or a broken
+						// object still dies (128). Exit 1 proves only the pack's direct
+						// references, so every caller verifies the full closure with
+						// verify_connectivity before it publishes or journals anything.
+						.AllowExitOne = !aSparse,
 					},
 					aStop);
 				if (!result.has_value()) {

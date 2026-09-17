@@ -424,6 +424,10 @@ namespace bpr::application {
 		// Calls are synchronous so the application host can run them on its
 		// effect executor. The caller retains the stop_source for the supplied
 		// token and can therefore cancel a blocked child from another thread.
+		/// \brief Installs a complete pack whose objects are valid and whose references resolve.
+		/// \details References may resolve to objects already in the repository, as in a pack a
+		/// server trimmed with `have` lines (BPR-0846). Success therefore does not prove reachable
+		/// closure: the caller must verify_connectivity before publishing or journaling a revision.
 		[[nodiscard]] virtual auto index_pack(
 			const git_index_pack_request& aRequest,
 			std::stop_token               aStop) -> git_process_result<git_index_pack_success> = 0;
