@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0840"
 title: "The agent chat stale contract reported workspace unavailable under a parallel ctest run"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0012"]
 depends_on: []
 priority: "P3"
