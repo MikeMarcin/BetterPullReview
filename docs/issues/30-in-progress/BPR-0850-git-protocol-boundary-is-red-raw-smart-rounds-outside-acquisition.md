@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0850"
 title: "git_protocol_boundary is red: two production files call raw smart rounds outside complete acquisition"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
