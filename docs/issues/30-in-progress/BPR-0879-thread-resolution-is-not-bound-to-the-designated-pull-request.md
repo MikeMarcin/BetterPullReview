@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0879"
 title: "Thread resolve and unresolve are not bound to the designated pull request by any server observation"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
