@@ -2,8 +2,11 @@
 /// \brief Hostile local agent fixture for protocol and process-lifecycle tests.
 
 #include <algorithm>
+#include <array>
 #include <cerrno>
 #include <chrono>
+#include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -22,6 +25,8 @@
 	#include <windows.h>
 
 	#include <timeapi.h>
+	#include <tlhelp32.h>
+	#include <winternl.h>
 // The UCRT already supplies `_environ`, as a macro over `__p__environ()`. A
 // hand-written `extern "C"` declaration redeclares that accessor without its
 // import linkage, so the fixture takes the header's spelling instead.
@@ -365,19 +370,140 @@ namespace {
 		}
 	}
 
+#if defined(_WIN32)
+	// [[BPR-0622]]. The parent process identity, read by the parent-death course
+	// only to suspend the supervisor; no liveness claim is made from it.
+	[[nodiscard]] auto parent_process_id() -> unsigned long
+	{
+		const auto self     = ::GetCurrentProcessId();
+		const auto snapshot = ::CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0U);
+		if (snapshot == INVALID_HANDLE_VALUE) {
+			return 0U;
+		}
+		auto entry   = PROCESSENTRY32W{ };
+		entry.dwSize = sizeof(entry);
+		auto parent  = 0UL;
+		for (auto more = ::Process32FirstW(snapshot, &entry); more != FALSE; more = ::Process32NextW(snapshot, &entry)) {
+			if (entry.th32ProcessID == self) {
+				parent = entry.th32ParentProcessID;
+				break;
+			}
+		}
+		static_cast<void>(::CloseHandle(snapshot));
+		return parent;
+	}
+
+	// Test fixture only: the object type name of one of this process's own
+	// handles, through ntdll's ObjectTypeInformation class, which never blocks.
+	[[nodiscard]] auto object_type_name(const HANDLE aHandle) -> std::wstring
+	{
+		auto buffer = std::array<std::byte, 4096U>{ };
+		auto length = ULONG{ 0U };
+		if (::NtQueryObject(aHandle, ObjectTypeInformation, buffer.data(), static_cast<ULONG>(buffer.size()), &length) < 0) {
+			return { };
+		}
+		const auto* const information = static_cast<const PUBLIC_OBJECT_TYPE_INFORMATION*>(static_cast<const void*>(buffer.data()));
+		return std::wstring{ information->TypeName.Buffer, information->TypeName.Length / sizeof(wchar_t) };
+	}
+
+	[[nodiscard]] auto same_final_path(const HANDLE aHandle, const std::wstring& aPath) -> bool
+	{
+		auto       name   = std::wstring(32'768U, L'\0');
+		const auto length = ::GetFinalPathNameByHandleW(aHandle, name.data(), static_cast<DWORD>(name.size()), FILE_NAME_NORMALIZED);
+		if (length == 0U || length >= name.size()) {
+			return false;
+		}
+		name.resize(length);
+		if (name.starts_with(L"\\\\?\\")) {
+			name.erase(0U, 4U);
+		}
+		return ::CompareStringOrdinal(name.c_str(), static_cast<int>(name.size()), aPath.c_str(), static_cast<int>(aPath.size()), TRUE) == CSTR_EQUAL;
+	}
+
+	// [[BPR-0622]]. The child-side census behind the proof that a supervised
+	// agent received only its standard handles. Every process owns completion
+	// ports of its own thread pool, so type alone cannot tell an inherited port;
+	// the course compares these counts with an unsupervised launch of the same
+	// fixture, and the workspace guard is matched by its final path.
+	void probe_inherited_handles(const protocol aProtocol, const std::string& aGuardPath)
+	{
+		const auto                   guardPath = std::filesystem::path{ aGuardPath }.wstring();
+		const std::array<HANDLE, 3U> standard{ ::GetStdHandle(STD_INPUT_HANDLE), ::GetStdHandle(STD_OUTPUT_HANDLE), ::GetStdHandle(STD_ERROR_HANDLE) };
+		auto                         guard = false;
+		auto                         job = 0U, port = 0U, pipe = 0U;
+		for (auto value = std::uintptr_t{ 4U }; value <= 0x10000U; value += 4U) {
+			const auto handle = reinterpret_cast<HANDLE>(value);
+			auto       flags  = DWORD{ 0U };
+			if (::GetHandleInformation(handle, &flags) == FALSE || std::ranges::find(standard, handle) != standard.end()) {
+				continue;
+			}
+			const auto type = object_type_name(handle);
+			if (type == L"Job") {
+				++job;
+			} else if (type == L"IoCompletion") {
+				++port;
+			} else if (type == L"File") {
+				const auto kind = ::GetFileType(handle);
+				if (kind == FILE_TYPE_PIPE) {
+					++pipe;
+				} else if (kind == FILE_TYPE_DISK && same_final_path(handle, guardPath)) {
+					guard = true;
+				}
+			}
+		}
+		emit(aProtocol, guard ? "inherited-guard-open" : "inherited-guard-closed");
+		emit(aProtocol, "handle-count-job\t" + std::to_string(job));
+		emit(aProtocol, "handle-count-port\t" + std::to_string(port));
+		emit(aProtocol, "handle-count-extra-pipe\t" + std::to_string(pipe));
+	}
+
+	// [[BPR-0622]]. A descendant that asks to leave its job. The supervisor's
+	// job never allows breakaway, so the request is refused; the descendant is
+	// then created inside the job and must die at teardown with the rest.
+	[[nodiscard]] auto spawn_breakaway_descendant(
+		const std::string& aExecutable, const std::string& aMarker, long& aChildId, DWORD& aRefusal) -> bool
+	{
+		auto command = std::wstring{ L"\"" } + std::filesystem::path{ aExecutable }.wstring() + L"\" --descendant-heartbeat \""
+			+ std::filesystem::path{ aMarker }.wstring() + L"\"";
+		auto startup       = STARTUPINFOW{ };
+		startup.cb         = sizeof(startup);
+		auto       process = PROCESS_INFORMATION{ };
+		const auto created = [&](const DWORD aFlags) {
+			auto line = command;
+			return ::CreateProcessW(nullptr, line.data(), nullptr, nullptr, FALSE, aFlags, nullptr, nullptr, &startup, &process) != FALSE;
+		};
+		aRefusal = 0U;
+		if (!created(CREATE_BREAKAWAY_FROM_JOB)) {
+			aRefusal = ::GetLastError();
+			if (!created(0U)) {
+				return false;
+			}
+		}
+		aChildId = static_cast<long>(process.dwProcessId);
+		static_cast<void>(::CloseHandle(process.hThread));
+		static_cast<void>(::CloseHandle(process.hProcess));
+		return true;
+	}
+#endif
+
 	[[nodiscard]] auto spawn_descendant(
 		const std::string& aExecutable, const std::string& aMarker, long& aChildId) -> bool
 	{
 #if defined(_WIN32)
-		static_cast<void>(aChildId);
-		return ::_spawnl(
-				   _P_NOWAIT,
-				   aExecutable.c_str(),
-				   aExecutable.c_str(),
-				   "--descendant-heartbeat",
-				   aMarker.c_str(),
-				   nullptr)
-			!= -1;
+		const auto spawned = ::_spawnl(
+			_P_NOWAIT,
+			aExecutable.c_str(),
+			aExecutable.c_str(),
+			"--descendant-heartbeat",
+			aMarker.c_str(),
+			nullptr);
+		if (spawned == -1) {
+			return false;
+		}
+		const auto child = reinterpret_cast<HANDLE>(spawned);
+		aChildId         = static_cast<long>(::GetProcessId(child));
+		static_cast<void>(::CloseHandle(child));
+		return aChildId != 0;
 #else
 		const auto child = ::fork();
 		if (child == 0) {
@@ -444,6 +570,11 @@ auto main(int argc, char** argv) -> int
 	}
 
 	const auto protocol = selected_protocol(argc, argv);
+#if defined(_WIN32)
+	if (const auto guard = argument_after(argc, argv, "--probe-inherited-handles"); !guard.empty()) {
+		probe_inherited_handles(protocol, guard);
+	}
+#endif
 #if !defined(_WIN32)
 	if (const auto descriptor = argument_after(argc, argv, "--probe-inherited-fd"); !descriptor.empty()) {
 		const auto value = std::stoi(descriptor);
@@ -528,6 +659,21 @@ auto main(int argc, char** argv) -> int
 			std::cerr.flush();
 		}
 	}
+#if defined(_WIN32)
+	if (const auto marker = argument_after(argc, argv, "--spawn-breakaway-descendant"); !marker.empty()) {
+		long  childId = 0;
+		DWORD refusal = 0U;
+		if (!spawn_breakaway_descendant(argv[0], marker, childId, refusal)) {
+			return 32;
+		}
+		// A timed-out run publishes no events, so the answer is also a file.
+		auto answer = std::ofstream{ marker + ".breakaway", std::ios::binary };
+		answer << (refusal == 0U ? std::string{ "granted" } : "refused " + std::to_string(refusal));
+		answer.close();
+		emit(protocol, refusal == 0U ? "breakaway-granted" : "breakaway-refused\t" + std::to_string(refusal));
+		emit(protocol, "descendant-id\t" + std::to_string(childId));
+	}
+#endif
 	if (has_argument(argc, argv, "--spawn-descendant")
 		|| executable_mode(argv, "descendant-wait")) {
 		auto marker = argument_after(argc, argv, "--spawn-descendant");
@@ -643,6 +789,7 @@ auto main(int argc, char** argv) -> int
 		if (has_argument(argc, argv, "--report-process-id")
 			|| executable_mode(argv, "crash-descendant-wait")) {
 #if defined(_WIN32)
+			emit(protocol, "supervisor-id\t" + std::to_string(parent_process_id()));
 			emit(protocol, "process-id\t" + std::to_string(::_getpid()));
 #else
 			emit(protocol, "supervisor-id\t" + std::to_string(::getppid()));

@@ -22,6 +22,12 @@
 #include <thread>
 #include <vector>
 
+#if defined(Q_OS_WIN)
+	#include "../../src/adapters/agent/src/windows_workspace_guard.hpp"
+
+	#include <aclapi.h>
+#endif
+
 #if defined(Q_OS_UNIX)
 	#include <fcntl.h>
 	#include <sys/file.h>
@@ -483,7 +489,7 @@ namespace {
 		// The switches above all outrun a pipe buffer or wait on parent input,
 		// so the parent always reads their refusal while the child is still
 		// running. This one writes its whole exchange at once and exits, so the
-		// refusal arrives in the same drain that ends the loop — the one path
+		// refusal arrives in the same drain that ends the loop â€” the one path
 		// where a later trailing decode could restate the exact cause.
 		auto fastFailure = request(core::agent_protocol::codex_jsonl_exec);
 		fastFailure.Arguments.emplace_back("--fast-remote-failure");
@@ -671,6 +677,212 @@ namespace {
 	}
 #endif
 
+#if defined(Q_OS_WIN)
+	namespace win_guard = adapters::agent::detail;
+
+	[[nodiscard]] auto utf8_path(const std::filesystem::path& aPath) -> std::string
+	{
+		const auto text = aPath.u8string();
+		return std::string{ text.begin(), text.end() };
+	}
+
+	// [[BPR-0622]]. A fixture guard created exactly as a workspace journal is:
+	// owner and a single full grant for the current user (and package when
+	// contained), protected, single link.
+	[[nodiscard]] auto make_workspace_guard(const std::filesystem::path& aPath) -> application::agent_workspace_lifetime_guard
+	{
+		const auto principals = win_guard::windows_private_principals::load();
+		expect(principals.has_value(), "load the current token's principals");
+		auto descriptor = win_guard::windows_private_descriptor::make(*principals, false);
+		expect(descriptor.has_value(), "build the private guard descriptor");
+		const auto file = win_guard::windows_handle{ ::CreateFileW(
+			aPath.c_str(), GENERIC_WRITE, FILE_SHARE_READ, descriptor->attributes(), CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr) };
+		expect(static_cast<bool>(file), "create the private fixture guard");
+		constexpr std::string_view text{ "fixture-owned workspace guard\n" };
+		auto                       written = DWORD{ 0U };
+		expect(::WriteFile(file.get(), text.data(), static_cast<DWORD>(text.size()), &written, nullptr) != FALSE, "write fixture guard");
+		const auto identity = win_guard::windows_regular_file_identity(file.get());
+		expect(identity.has_value(), "capture exact fixture guard identity");
+		return { .Path = utf8_path(aPath), .FileIdentity = *identity };
+	}
+
+	[[nodiscard]] auto hold_exclusive(const application::agent_workspace_lifetime_guard& aGuard) -> win_guard::windows_handle
+	{
+		return win_guard::open_windows_workspace_guard(std::filesystem::path{ std::u8string{ aGuard.Path.begin(), aGuard.Path.end() } }.wstring(), aGuard.FileIdentity, win_guard::windows_guard_lock::exclusive);
+	}
+
+	[[nodiscard]] auto has_event(const application::agent_run_result& aResult, const std::string_view aText) -> bool
+	{
+		return std::ranges::any_of(aResult.Events, [&](const auto& aEvent) { return aEvent.Text == aText; });
+	}
+
+	[[nodiscard]] auto count_event(const application::agent_run_result& aResult, const std::string_view aPrefix) -> std::optional<unsigned long>
+	{
+		for (const auto& event : aResult.Events) {
+			if (event.Text.starts_with(aPrefix)) {
+				return std::stoul(event.Text.substr(aPrefix.size()));
+			}
+		}
+		return std::nullopt;
+	}
+
+	[[nodiscard]] auto share_with_everyone(const std::filesystem::path& aPath) -> bool
+	{
+		PACL                 current    = nullptr;
+		PSECURITY_DESCRIPTOR descriptor = nullptr;
+		if (::GetNamedSecurityInfoW(aPath.c_str(), SE_FILE_OBJECT, DACL_SECURITY_INFORMATION, nullptr, nullptr, &current, nullptr, &descriptor) != ERROR_SUCCESS) {
+			return false;
+		}
+		SID_IDENTIFIER_AUTHORITY world    = SECURITY_WORLD_SID_AUTHORITY;
+		PSID                     everyone = nullptr;
+		if (::AllocateAndInitializeSid(&world, 1, SECURITY_WORLD_RID, 0, 0, 0, 0, 0, 0, 0, &everyone) == FALSE) {
+			static_cast<void>(::LocalFree(descriptor));
+			return false;
+		}
+		auto grant                 = EXPLICIT_ACCESSW{ };
+		grant.grfAccessPermissions = GENERIC_READ;
+		grant.grfAccessMode        = GRANT_ACCESS;
+		grant.grfInheritance       = NO_INHERITANCE;
+		grant.Trustee.TrusteeForm  = TRUSTEE_IS_SID;
+		grant.Trustee.TrusteeType  = TRUSTEE_IS_WELL_KNOWN_GROUP;
+		grant.Trustee.ptstrName    = static_cast<LPWSTR>(everyone);
+		PACL widened               = nullptr;
+		auto status                = ::SetEntriesInAclW(1, &grant, current, &widened);
+		if (status == ERROR_SUCCESS) {
+			auto path = aPath.wstring();
+			status    = ::SetNamedSecurityInfoW(path.data(), SE_FILE_OBJECT, DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION, nullptr, nullptr, widened, nullptr);
+		}
+		static_cast<void>(::LocalFree(widened));
+		static_cast<void>(::FreeSid(everyone));
+		static_cast<void>(::LocalFree(descriptor));
+		return status == ERROR_SUCCESS;
+	}
+
+	void test_workspace_guard(const std::filesystem::path& aRoot)
+	{
+		qputenv("BPR_CANARY_AGENT_IDENTITY", QByteArray{ "allowed" });
+		const auto guardPath            = aRoot / "guard";
+		const auto original             = make_workspace_guard(guardPath);
+		auto       launched             = request(core::agent_protocol::external_terminal);
+		launched.WorkspaceLifetimeGuard = original;
+		const auto marker               = aRoot / "guard-side-effect";
+		launched.Arguments.insert(launched.Arguments.end(), { "--pre-assignment-side-effect", utf8_path(marker), "--probe-inherited-handles", utf8_path(guardPath) });
+		auto       launcher = adapters::agent::agent_process_launcher{ };
+		const auto result   = launcher.run(launched, 20'000);
+		if (result.Outcome != application::agent_run_outcome::success) {
+			std::cerr << "guarded launch outcome " << static_cast<int>(result.Outcome) << ": " << result.StandardError << '\n';
+		}
+		expect(result.Outcome == application::agent_run_outcome::success && std::filesystem::exists(marker),
+			   "guarded launch succeeds through the Windows supervisor");
+		// The same fixture launched unsupervised is the baseline: whatever job,
+		// port or extra pipe handles a process owns for itself appear there too.
+		auto baselineRequest = launched;
+		baselineRequest.WorkspaceLifetimeGuard.reset();
+		const auto baseline = launcher.run(baselineRequest, 20'000);
+		expect(baseline.Outcome == application::agent_run_outcome::success, "unsupervised census baseline launch succeeds");
+		for (const auto* const name : { "handle-count-job\t", "handle-count-port\t", "handle-count-extra-pipe\t" }) {
+			const auto supervised   = count_event(result, name);
+			const auto unsupervised = count_event(baseline, name);
+			std::cout << "agent-workspace-guard:census\t" << name << (supervised ? std::to_string(*supervised) : std::string{ "absent" }) << " unsupervised " << (unsupervised ? std::to_string(*unsupervised) : std::string{ "absent" }) << '\n';
+			expect(supervised.has_value() && supervised == unsupervised, "the supervised agent inherits no job, port or owner pipe handle beyond its own");
+		}
+		expect(has_event(result, "inherited-guard-closed"), "the supervised agent holds no workspace guard handle");
+		std::filesystem::remove(marker);
+		std::filesystem::remove(marker);
+		{
+			const auto exclusive = hold_exclusive(original);
+			expect(static_cast<bool>(exclusive), "completed launch releases lifetime exclusion");
+			expect(launcher.run(launched, 20'000).Outcome == application::agent_run_outcome::failed_to_start
+					   && !std::filesystem::exists(marker),
+				   "recovery's exclusive lock refuses launch before any child side effect");
+		}
+		std::filesystem::rename(guardPath, aRoot / "original");
+		static_cast<void>(make_workspace_guard(guardPath));
+		expect(launcher.run(launched, 20'000).Outcome == application::agent_run_outcome::failed_to_start
+				   && !std::filesystem::exists(marker),
+			   "same-path guard substitution refuses before execution");
+		std::filesystem::remove(guardPath);
+		expect(::CreateHardLinkW(guardPath.c_str(), (aRoot / "original").c_str(), nullptr) != FALSE, "create a second link to the guard");
+		expect(launcher.run(launched, 20'000).Outcome == application::agent_run_outcome::failed_to_start
+				   && !std::filesystem::exists(marker),
+			   "a guard with two links refuses before execution");
+		std::filesystem::remove(guardPath);
+		if (::CreateSymbolicLinkW(guardPath.c_str(), (aRoot / "original").c_str(), SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE) != FALSE) {
+			expect(launcher.run(launched, 20'000).Outcome == application::agent_run_outcome::failed_to_start
+					   && !std::filesystem::exists(marker),
+				   "guard symlink refuses before execution");
+			std::filesystem::remove(guardPath);
+			std::cout << "agent-workspace-guard:symlink-refused\n";
+		} else {
+			// Symbolic-link creation needs Developer Mode or the privilege; the
+			// reparse refusal is still covered by the ownership journal course.
+			std::cout << "agent-workspace-guard:symlink-unavailable\t" << ::GetLastError() << '\n';
+		}
+		std::filesystem::rename(aRoot / "original", guardPath);
+		expect(launcher.run(launched, 20'000).Outcome == application::agent_run_outcome::success, "the restored exact guard launches again");
+		std::filesystem::remove(marker);
+		expect(share_with_everyone(guardPath), "widen the guard's DACL");
+		expect(launcher.run(launched, 20'000).Outcome == application::agent_run_outcome::failed_to_start
+				   && !std::filesystem::exists(marker),
+			   "a guard whose DACL is not private refuses before execution");
+		std::cout << "agent-workspace-guard:pass\n";
+	}
+
+	// [[BPR-0622]]. The supervisor's job allows no breakaway: a descendant that
+	// asks for CREATE_BREAKAWAY_FROM_JOB is refused, lives inside the job, and
+	// dies at teardown. This course runs inside whatever job the test launcher
+	// already placed this process in, so the supervisor's job is nested.
+	void test_breakaway_descendant_dies_with_supervised_job()
+	{
+		qputenv("BPR_CANARY_AGENT_IDENTITY", QByteArray{ "allowed" });
+		// An owner already inside a job (a test runner, a terminal, a launcher)
+		// must still get a working supervised job nested under it. This process
+		// joins a plain outer job first; the course is the last in the run.
+		auto alreadyInJob = BOOL{ FALSE };
+		static_cast<void>(::IsProcessInJob(::GetCurrentProcess(), nullptr, &alreadyInJob));
+		static const auto outer = win_guard::windows_handle{ ::CreateJobObjectW(nullptr, nullptr) };
+		expect(static_cast<bool>(outer) && ::AssignProcessToJobObject(outer.get(), ::GetCurrentProcess()) != FALSE,
+			   "the owner joins an outer job before launching");
+		std::cout << "agent-breakaway:owner-already-in-job\t" << (alreadyInJob != FALSE ? 1 : 0) << '\n';
+		const auto root = std::filesystem::temp_directory_path()
+			/ ("bpr-agent-breakaway-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+		std::filesystem::create_directory(root);
+		const auto marker               = root / "heartbeat";
+		auto       launched             = request(core::agent_protocol::external_terminal);
+		launched.WorkspaceLifetimeGuard = make_workspace_guard(root / "guard");
+		launched.Arguments.insert(launched.Arguments.end(), { "--spawn-breakaway-descendant", utf8_path(marker), "--wait-forever" });
+		auto       launcher = adapters::agent::agent_process_launcher{ };
+		const auto result   = launcher.run(launched, 1'500);
+		expect(result.Outcome == application::agent_run_outcome::timeout, "the breakaway fixture reaches the bounded timeout");
+		auto nested = BOOL{ FALSE };
+		static_cast<void>(::IsProcessInJob(::GetCurrentProcess(), nullptr, &nested));
+		std::cout << "agent-breakaway:owner-in-job\t" << (nested != FALSE ? 1 : 0) << '\n';
+		expect(nested != FALSE, "the owner ran the supervised launch from inside a job");
+		QElapsedTimer started;
+		started.start();
+		while (!std::filesystem::exists(marker) && started.elapsed() < 2'000) {
+			std::this_thread::sleep_for(std::chrono::milliseconds{ 10 });
+		}
+		expect(std::filesystem::exists(marker), "the breakaway descendant wrote its heartbeat before teardown");
+		const auto answer = [&] {
+			auto stream = std::ifstream{ marker.string() + ".breakaway", std::ios::binary };
+			return std::string{ std::istreambuf_iterator<char>{ stream }, std::istreambuf_iterator<char>{ } };
+		}();
+		std::cout << "agent-breakaway:answer\t" << answer << '\n';
+		expect(answer.starts_with("refused "), "the supervised job refuses a descendant's breakaway request");
+		const auto stopped = std::filesystem::file_size(marker);
+		std::this_thread::sleep_for(std::chrono::milliseconds{ 250 });
+		expect(std::filesystem::file_size(marker) == stopped, "the breakaway descendant stops with the supervised job");
+		{
+			const auto exclusive = hold_exclusive(*launched.WorkspaceLifetimeGuard);
+			expect(static_cast<bool>(exclusive), "teardown releases lifetime exclusion after the job is empty");
+		}
+		std::error_code ignored;
+		std::filesystem::remove_all(root, ignored);
+		std::cout << "agent-breakaway:pass\n";
+	}
+#endif
+
 	void run_parent_death_course(const std::string_view aPhase, const std::filesystem::path& aRoot)
 	{
 		qputenv("BPR_CANARY_AGENT_IDENTITY", QByteArray{ "allowed" });
@@ -684,7 +896,7 @@ namespace {
 			return;
 		}
 		expect(aPhase == "--kill-agent-parent", "known parent-death course");
-#if defined(Q_OS_UNIX)
+#if defined(Q_OS_UNIX) || defined(Q_OS_WIN)
 		launched.WorkspaceLifetimeGuard = make_workspace_guard(aRoot / "workspace.guard");
 #endif
 
@@ -779,7 +991,7 @@ auto main(int argc, char** argv) -> int
 {
 	QCoreApplication application{ argc, argv };
 	if (argc == 3) {
-#if defined(Q_OS_UNIX)
+#if defined(Q_OS_UNIX) || defined(Q_OS_WIN)
 		if (std::string_view{ argv[1] } == "--workspace-guard") {
 			test_workspace_guard(std::filesystem::canonical(argv[2]));
 			return EXIT_SUCCESS;
@@ -798,6 +1010,9 @@ auto main(int argc, char** argv) -> int
 #endif
 #if defined(Q_OS_WIN) && defined(BPR_BUILD_TESTING)
 	test_windows_assignment_failure_has_no_pre_assignment_side_effect();
+#endif
+#if defined(Q_OS_WIN)
+	test_breakaway_descendant_dies_with_supervised_job();
 #endif
 	std::cout << "agent-launch-canary-tests:pass\n";
 	return EXIT_SUCCESS;

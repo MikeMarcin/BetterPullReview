@@ -1,6 +1,7 @@
 #include "windows_agent_process.hpp"
 
 #include "agent_protocol_loop.hpp"
+#include "windows_workspace_guard.hpp"
 
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -107,7 +108,7 @@ namespace bpr::adapters::agent::detail {
 			}
 
 			[[nodiscard]] auto set_handle_list(
-				std::array<HANDLE, 3U>& aHandles) -> bool
+				const std::span<HANDLE> aHandles) -> bool
 			{
 				return UpdateProcThreadAttribute(
 						   List,
@@ -458,6 +459,28 @@ namespace bpr::adapters::agent::detail {
 			return accounting.ActiveProcesses;
 		}
 
+		/// [[BPR-0622]]. A supervised child is owned by the supervisor's job, not
+		/// by one this process holds. Closing the owner pipe asks the supervisor
+		/// to terminate that job and confirm it empty before it exits; only if it
+		/// does not exit in time is it terminated, which fires its own job's
+		/// kill-on-close. The supervisor's exit is what releases its guard lock.
+		[[nodiscard]] auto end_supervisor(
+			unique_handle& aOwner, const HANDLE aSupervisor, const HANDLE aInput, const HANDLE aOutput, const HANDLE aError) -> bool
+		{
+			for (const auto handle : { aInput, aOutput, aError }) {
+				if (handle != nullptr && handle != INVALID_HANDLE_VALUE) {
+					static_cast<void>(CancelIoEx(handle, nullptr));
+				}
+			}
+			aOwner.reset();
+			if (WaitForSingleObject(aSupervisor, static_cast<DWORD>(reap_timeout.count() * 1'000)) == WAIT_OBJECT_0) {
+				return true;
+			}
+			static_cast<void>(TerminateProcess(aSupervisor, 1U));
+			static_cast<void>(WaitForSingleObject(aSupervisor, static_cast<DWORD>(reap_timeout.count() * 1'000)));
+			return false;
+		}
+
 		[[nodiscard]] auto terminate_and_reap(
 			const HANDLE aJob,
 			const HANDLE aProcess,
@@ -501,7 +524,8 @@ namespace bpr::adapters::agent::detail {
 				const HANDLE              aProcess,
 				const HANDLE              aJob,
 				const clock::time_point   aDeadline,
-				const cancellation_probe& aCancelled)
+				const cancellation_probe& aCancelled,
+				unique_handle* const      aSupervisorOwner = nullptr)
 				: Input{ aInput }
 				, Output{ aOutput }
 				, Error{ aError }
@@ -509,6 +533,7 @@ namespace bpr::adapters::agent::detail {
 				, Job{ aJob }
 				, Deadline{ aDeadline }
 				, Cancelled{ aCancelled }
+				, SupervisorOwner{ aSupervisorOwner }
 			{
 			}
 
@@ -565,6 +590,9 @@ namespace bpr::adapters::agent::detail {
 
 			[[nodiscard]] auto terminate() noexcept -> bool override
 			{
+				if (SupervisorOwner != nullptr) {
+					return end_supervisor(*SupervisorOwner, Process, Input.get(), Output.get(), Error.get());
+				}
 				return terminate_and_reap(
 					Job, Process, Input.get(), Output.get(), Error.get());
 			}
@@ -577,9 +605,199 @@ namespace bpr::adapters::agent::detail {
 			HANDLE                    Job;
 			clock::time_point         Deadline;
 			const cancellation_probe& Cancelled;
+			unique_handle*            SupervisorOwner      = nullptr;
 			std::size_t               OutputBatchRemaining = 0U;
 			std::size_t               ErrorBatchRemaining  = 0U;
 		};
+		[[nodiscard]] auto supervisor_executable() -> std::wstring
+		{
+#if defined(BPR_AGENT_SUPERVISOR_EXECUTABLE_W)
+			return BPR_AGENT_SUPERVISOR_EXECUTABLE_W;
+#else
+			// Bundled beside the application image, exactly as on Unix.
+			auto       path   = std::wstring(32'768U, L'\0');
+			const auto length = GetModuleFileNameW(nullptr, path.data(), static_cast<DWORD>(path.size()));
+			if (length == 0U || length >= path.size()) {
+				return { };
+			}
+			path.resize(length);
+			const auto separator = path.find_last_of(L'\\');
+			if (separator == std::wstring::npos) {
+				return { };
+			}
+			path.resize(separator + 1U);
+			return path + L"better_pull_review_agent_supervisor.exe";
+#endif
+		}
+
+		[[nodiscard]] auto write_value(const HANDLE aPipe, const void* const aData, const DWORD aBytes) -> bool
+		{
+			auto written = DWORD{ 0U };
+			while (written < aBytes) {
+				auto count = DWORD{ 0U };
+				if (WriteFile(aPipe, static_cast<const char*>(aData) + written, aBytes - written, &count, nullptr) == FALSE || count == 0U) {
+					return false;
+				}
+				written += count;
+			}
+			return true;
+		}
+
+		[[nodiscard]] auto write_string(const HANDLE aPipe, const std::wstring& aValue) -> bool
+		{
+			const auto length = static_cast<DWORD>(aValue.size());
+			return write_value(aPipe, &length, sizeof(length))
+				&& write_value(aPipe, aValue.data(), length * static_cast<DWORD>(sizeof(wchar_t)));
+		}
+
+		/// [[BPR-0622]]. A guarded launch: this process keeps its own shared
+		/// guard lock, and the bundled supervisor, outside any job this process
+		/// holds, takes its own lock, owns the child's job and releases the
+		/// guard only once that job is confirmed empty.
+		[[nodiscard]] auto run_supervised_agent_process(
+			const application::agent_launch_request& aRequest,
+			const std::wstring&                      aExecutable,
+			const std::wstring&                      aCommand,
+			std::vector<wchar_t>&                    aEnvironment,
+			const std::wstring&                      aWorkingDirectory,
+			pipe_pair&                               aInput,
+			pipe_pair&                               aOutput,
+			pipe_pair&                               aError,
+			const int                                aTimeoutMilliseconds,
+			const application::agent_output_sink&    aSink,
+			const cancellation_probe&                aCancelled) -> application::agent_run_result
+		{
+			auto        result     = application::agent_run_result{ .Session = aRequest.Session };
+			const auto& requested  = *aRequest.WorkspaceLifetimeGuard;
+			const auto  guardPath  = utf16(requested.Path);
+			auto        ownerGuard = guardPath
+				? open_windows_workspace_guard(*guardPath, requested.FileIdentity, windows_guard_lock::shared)
+				: windows_handle{ };
+			if (!ownerGuard) {
+				result.StandardError = "workspace lifetime guard could not be retained";
+				return result;
+			}
+			const auto supervisor = supervisor_executable();
+			auto       lifetime   = make_pipe(true);
+			auto       report     = make_pipe(false);
+			if (supervisor.empty() || !lifetime || !report) {
+				result.StandardError = "agent supervisor channel creation failed";
+				return result;
+			}
+			auto inheritedHandles = std::array<HANDLE, 5U>{
+				aInput.Child.get(), aOutput.Child.get(), aError.Child.get(), lifetime->Child.get(), report->Child.get()
+			};
+			auto attributes = attribute_list{ };
+			if (!attributes.initialize() || !attributes.set_handle_list(inheritedHandles)) {
+				result.StandardError = "agent private handle-list creation failed";
+				return result;
+			}
+			auto supervisorCommand = std::wstring{ L"\"" } + supervisor + L"\" --workspace-owner "
+				+ std::to_wstring(static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(lifetime->Child.get()))) + L" "
+				+ std::to_wstring(static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(report->Child.get())));
+			auto startup                   = STARTUPINFOEXW{ };
+			startup.StartupInfo.cb         = sizeof(startup);
+			startup.StartupInfo.dwFlags    = STARTF_USESTDHANDLES;
+			startup.StartupInfo.hStdInput  = aInput.Child.get();
+			startup.StartupInfo.hStdOutput = aOutput.Child.get();
+			startup.StartupInfo.hStdError  = aError.Child.get();
+			startup.lpAttributeList        = attributes.get();
+			auto       processInformation  = PROCESS_INFORMATION{ };
+			const auto created             = CreateProcessW(
+												 supervisor.c_str(),
+												 supervisorCommand.data(),
+												 nullptr,
+												 nullptr,
+												 TRUE,
+												 CREATE_UNICODE_ENVIRONMENT | EXTENDED_STARTUPINFO_PRESENT,
+												 aEnvironment.data(),
+												 aWorkingDirectory.c_str(),
+												 &startup.StartupInfo,
+												 &processInformation)
+				!= FALSE;
+			auto process = unique_handle{ processInformation.hProcess };
+			auto thread  = unique_handle{ processInformation.hThread };
+			thread.reset();
+			aInput.Child.reset();
+			aOutput.Child.reset();
+			aError.Child.reset();
+			lifetime->Child.reset();
+			report->Child.reset();
+			if (!created) {
+				result.StandardError = "agent supervisor process creation failed";
+				return result;
+			}
+
+			const auto deadline = clock::now()
+				+ std::chrono::milliseconds{ std::max(aTimeoutMilliseconds, 0) };
+			// The command line arrives as a mutable CreateProcessW buffer with its
+			// terminator; the specification carries text, which may not contain NUL.
+			auto commandText = aCommand;
+			while (!commandText.empty() && commandText.back() == L'\0') {
+				commandText.pop_back();
+			}
+			const auto magic       = DWORD{ 0x53525042U };
+			const auto version     = DWORD{ 1U };
+			const auto flags       = DWORD{ 1U };
+			const auto specWritten = write_value(lifetime->Parent.get(), &magic, sizeof(magic))
+				&& write_value(lifetime->Parent.get(), &version, sizeof(version))
+				&& write_value(lifetime->Parent.get(), &flags, sizeof(flags))
+				&& write_string(lifetime->Parent.get(), aExecutable)
+				&& write_string(lifetime->Parent.get(), commandText)
+				&& write_string(lifetime->Parent.get(), *guardPath)
+				&& write_value(lifetime->Parent.get(), requested.FileIdentity.data(), sizeof(requested.FileIdentity));
+
+			auto startError = std::int32_t{ ERROR_BROKEN_PIPE };
+			auto received   = DWORD{ 0U };
+			auto outcome    = application::agent_run_outcome::failed_to_start;
+			while (specWritten && received < sizeof(startError)) {
+				if (aCancelled() || clock::now() >= deadline) {
+					outcome = aCancelled() ? application::agent_run_outcome::cancelled : application::agent_run_outcome::timeout;
+					break;
+				}
+				auto available = DWORD{ 0U };
+				if (PeekNamedPipe(report->Parent.get(), nullptr, 0U, nullptr, &available, nullptr) == FALSE) {
+					break;
+				}
+				if (available == 0U) {
+					std::this_thread::sleep_for(io_poll_interval);
+					continue;
+				}
+				auto count = DWORD{ 0U };
+				if (ReadFile(report->Parent.get(), reinterpret_cast<char*>(&startError) + received, sizeof(startError) - received, &count, nullptr) == FALSE || count == 0U) {
+					break;
+				}
+				received += count;
+			}
+			if (received != sizeof(startError) || startError != 0) {
+				static_cast<void>(end_supervisor(lifetime->Parent, process.get(), aInput.Parent.get(), aOutput.Parent.get(), aError.Parent.get()));
+				result.Outcome = outcome;
+				if (outcome == application::agent_run_outcome::failed_to_start) {
+					result.StandardError = startError == static_cast<std::int32_t>(ERROR_LOCK_VIOLATION)
+						? "workspace lifetime guard could not be retained"
+						: "agent supervisor could not start the agent (Windows error " + std::to_string(startError)
+							+ ", supervisor exit " + std::to_string([&] { auto code = DWORD{ 0U }; return GetExitCodeProcess(process.get(), &code) != FALSE ? code : DWORD{ 0xFFFFFFFFU }; }()) + ")";
+				}
+				return result;
+			}
+
+			auto transport = windows_agent_protocol_transport{
+				aInput.Parent,
+				aOutput.Parent,
+				aError.Parent,
+				process.get(),
+				nullptr,
+				deadline,
+				aCancelled,
+				&lifetime->Parent,
+			};
+			auto run = run_agent_protocol_loop(aRequest, aSink, transport);
+			// The protocol loop observed the supervisor exit or ended it; either
+			// way this process's own guard lock is released only after that.
+			static_cast<void>(WaitForSingleObject(process.get(), static_cast<DWORD>(reap_timeout.count() * 1'000)));
+			ownerGuard.reset();
+			return run;
+		}
 	} // namespace
 
 	auto run_windows_agent_process(
@@ -615,6 +833,12 @@ namespace bpr::adapters::agent::detail {
 		if (!input || !output || !error) {
 			result.StandardError = "agent private standard-I/O pipe creation failed";
 			return result;
+		}
+
+		if (aRequest.WorkspaceLifetimeGuard.has_value()) {
+			return run_supervised_agent_process(
+				aRequest, *executable, *command, *environment, *workingDirectory,
+				*input, *output, *error, aTimeoutMilliseconds, aSink, aCancelled);
 		}
 
 		auto job = unique_handle{ CreateJobObjectW(nullptr, nullptr) };
