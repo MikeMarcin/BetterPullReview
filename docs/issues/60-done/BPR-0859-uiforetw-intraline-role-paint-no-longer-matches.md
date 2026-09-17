@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0859"
 title: "The UIforETW selected-diff course finds intraline highlights no longer painted as their roles"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "win"]
 metadata: {"found_by":"bpr-linux task-20260917-lnx-0851-sweep full ctest sweep; reproduced on macOS by dsp-004; scouted","found_at":"a1864fa296ce3450ce0e0470f36bd0d95cd59470","run":"run-20260916-stations","dispatch":"dsp-004"}
+acceptance: [{"criterion":"The row passes on macOS and Linux","outcome":"pass","revision":"2b2e5549","evidence":{"kind":"command","detail":"application_uiforetw_selected_diff_contract passes on macOS 3/3 at 68.5, 67.6 and 67.8 s at the fix, again after the platform-aware strip row, and at 67.43 s in the full macOS sweep at 2b2e5549; and on Linux at 15.72 s in bpr-linux's full sweep at the same commit, with UIFORETW_SELECTED_DIFF_CONTRACT_OK and no budget expiry."}},{"criterion":"The intraline roles are painted as the appearance profile defines them, and that is shown in the rendered application, not only in a model test","outcome":"pass","revision":"2b2e5549","evidence":{"kind":"artifact","detail":"The capture stage, which had not run since the regression, completes for all four appearance profiles on both platforms and measures the rasterised viewport: role_pixel_count grabs viewport()->grab(rect).toImage() over the span's own rectangle and counts pixels whose exact ARGB is the profile's role colour, that colour under the selection wash, or the derived fill. The two platforms agree exactly -- light #fff1b9b4/#ff9effb5, dark #ff933030/#ff145e20, both high-contrast profiles #ffff9999/#ff55ff55 -- each with five intraline edits, the exact row true, and fixture_diff_helper_invocations 0, so it is the shipped drawer-selection wire rather than the test shortcut. Evidence under build/r2-dev/tests/end_to_end/uiforetw-selected-diff-contract/evidence/<profile>/ and in the station's sweep record. An independent rfc-reviewer confirmed the pixel assertion is non-trivial: the core requires emphasis to be separated from its band, so the band under the mark cannot satisfy it."}}]
 ---
 
 # BPR-0859: The UIforETW selected-diff course finds intraline highlights no longer painted as their roles
@@ -176,3 +177,28 @@ review and BPR-0653's.
 **Still open.** Criterion 1 names macOS **and Linux**. The Linux run at the
 fix is owed: the "18 of 18" Linux pass was at `754d0538`, which predates the
 fix. The card stays In Progress for it.
+
+## Linux confirmation, and the card closes (dsp-005, integrator)
+
+`bpr-linux`'s full sweep at `2b2e5549` passes this row in 15.72 s with
+`UIFORETW_SELECTED_DIFF_CONTRACT_OK`, and the confirmation is stronger than a
+green row:
+
+- The **rasterised** role paint matches the macOS table exactly for all four
+  appearance profiles — light `#fff1b9b4`/`#ff9effb5`, dark
+  `#ff933030`/`#ff145e20`, both high-contrast profiles
+  `#ffff9999`/`#ff55ff55` — each with five intraline edits, the exact row true
+  and `fixture_diff_helper_invocations: 0`. So criterion 2 holds on both
+  platforms through the shipped wire, not just the macOS one.
+- The capture stage **ran** rather than being skipped (its evidence was
+  written during the sweep), which is what makes the ~4 s per profile on Linux
+  against ~17 s on macOS a platform speed difference rather than a missing
+  stage.
+- The strip row read **27** actions, so the platform-aware pin is exact off
+  Windows and `UIFORETW_NAVIGATION_ROW_UNEXPECTED` did not print.
+- It did not expire the budget: 15.72 s against a 120 s row timeout.
+
+macOS passes at 67.43 s in the full macOS sweep at the same commit. Both
+acceptance criteria are met on both named platforms, so the card is Done. The
+Windows run is not part of this card's acceptance and is dispatched with
+`bpr-win` anyway, because BPR-0653 makes the Windows strip row 29 actions.
