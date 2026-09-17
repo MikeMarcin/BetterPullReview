@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0828",
+    "BPR-0829",
+    "BPR-0830"
+  ],
+  "reserve_for": "bpr-main-mac",
+  "purpose": "dsp-002: diff workbench regex, anonymous preview regex, review ledger present-on-entry",
+  "created": "2026-09-17T10:50:45.450023+00:00",
+  "base": "fe629c90bf37bbeb6fa3e578cf76f81d45155d08"
+}
