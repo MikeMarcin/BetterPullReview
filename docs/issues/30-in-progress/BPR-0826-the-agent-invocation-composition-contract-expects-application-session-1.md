@@ -72,3 +72,13 @@ with the next `bpr-win` envelope, and the Linux rerun with the next
 
 **Status.** The macOS criterion is met. The card stays In Progress until the
 Windows station records its rerun.
+
+## Windows and Linux reruns; finished (dsp-003)
+
+- **Windows.** `bpr-win` reran the contract at `55937770`, which contains
+  `d9ea1cbc`. It passes in 26.85 s (seed and reopen pass,
+  `AGENT_INVOCATION_COMPOSITION_CONTRACT_OK`). Main merged it as `013d2036`
+  ([the Windows rerun](../../verification/BPR-0826-windows-rerun.md)).
+- **Linux.** `bpr-linux` reran it at `780d0a1c`, and it passes in 10.44 s
+  ("BPR-0826" in [the dsp-002 Linux confirmation](../../verification/dsp2-linux-confirmation.md)).
+- **macOS.** It passes again at main `8a03a5be` (`build/r2-logs/dsp3-int1-ctest.log`).
