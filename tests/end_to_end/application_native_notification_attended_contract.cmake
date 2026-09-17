@@ -40,6 +40,12 @@ else()
     set(expected_bundle_identity "not-applicable")
 endif()
 
+# [[BPR-0875]]. The data root moves inside an owned parent, because the build
+# tree this course roots in is writable by other principals and the agent
+# workspace neighbourhood refuses such a parent.
+include("${CMAKE_CURRENT_LIST_DIR}/bpr_narrow_owner_private.cmake")
+bpr_private_data_root(BPR_ROOT)
+
 foreach(course IN ITEMS positive request-cut activation-cut)
     string(REPLACE "-" "_" course_name "${course}")
     set(course_root "${BPR_ROOT}_${course_name}")
