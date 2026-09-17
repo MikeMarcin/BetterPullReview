@@ -13,7 +13,10 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 # Contained on Windows a tempfile root is unusable (BPR-0350); see the helper.
-from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
+from scripts.contained_temporary_support import (  # noqa: E402
+    contained_temporary_directory,
+    rmtree_callback_arguments,
+)
 
 
 UPDATED = "B7B8DC0E5C4FBAC8079B2C44BACFFF5D36519C13"
@@ -153,7 +156,9 @@ def main():
         first = course(args.application, root, args.budget_ms, args.logs, "first")
         # [[BPR-0834]]. Git writes its pack files read-only, which Windows
         # refuses to unlink until the attribute is cleared.
-        shutil.rmtree(root, onexc=clear_read_only_and_retry)
+        # [[BPR-0867]]. `onexc` is 3.12 and the tree's floor is 3.10, so the
+        # keyword comes from the helper that already adapts between the two.
+        shutil.rmtree(root, **rmtree_callback_arguments(clear_read_only_and_retry))
         require(not root.exists(), "catalogue recreation must physically remove the old root")
         recreated = course(args.application, root, args.budget_ms, args.logs, "recreated")
         require(first[0] == recreated[0], "portable occurrence changed after physical recreation")

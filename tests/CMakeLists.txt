@@ -386,6 +386,16 @@ bpr_add_network_isolated_test(
         "${PROJECT_SOURCE_DIR}/tests/scripts/contained_temporary_usage_tests.py"
 )
 
+# The same helper's own behaviour: it works at the declared interpreter floor
+# ([[BPR-0867]]) and names a removal it cannot perform ([[BPR-0868]]). Contained
+# on Windows like its neighbour above; nothing in it needs the host.
+bpr_add_network_isolated_test(
+    NAME contained_temporary_support_contract
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/contained_temporary_support_tests.py"
+)
+
 bpr_add_network_isolated_test(
     NAME coding_standard_format_gate_contract
     WINDOWS_UNCONTAINED
