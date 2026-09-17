@@ -127,3 +127,13 @@ smaller VFS, would add a lifetime and registration surface to every store for
 no protection against an actor who cannot already write the stores. If a
 later threat model admits an attacker with write access to `state\v1` who
 cannot write the store files, this decision should be revisited.
+
+## macOS run; finished (dsp-003)
+
+Main merged `windows-lane` at `2f3a6720` as `d514e76e`. On macOS at that head,
+the store courses listed on [[BPR-0813]] pass, along with
+`sqlite_profile_runtime_lease`, `sqlite_profile_storage_root`, both isolation
+gates, `architecture_boundaries` and the round-trip contract: 16 of 16
+(`build/r2-logs/dsp3-int7-ctest.log`). Items 1 and 2 are the portable changes:
+the connection owner in `catalog_database.cpp`, and admission before the helper
+in `device_binding_store.cpp`.
