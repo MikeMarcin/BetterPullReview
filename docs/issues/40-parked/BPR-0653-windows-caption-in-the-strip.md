@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0653"
 title: "Windows: the strip as the title row"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P2"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"}}
+parked_on: "human-review"
 ---
 
 # Windows: the strip as the title row
@@ -206,3 +207,48 @@ top level at the 900-pixel floor on Windows, at 100% and at 125%.
 
 **Open, only if it matters.** Should the 3-character step also apply on macOS,
 or only on Windows? The owner did not say.
+
+## Windows station, 2026-09-17 (task-20260917-win-0653-resume): the 3-character labels are 2 pixels short
+
+The base is `a1864fa296ce3450ce0e0470f36bd0d95cd59470`. The measurement is a
+reverted trial; nothing but this record is committed. Logs:
+`build/logs/task-20260917-win-0653-resume/measure-{100,125}.log`.
+
+**Method.** The uncommitted work-in-progress patch was applied: the menu
+control and three 46-pixel caption buttons. The window is the one in
+`test_strip_identity_stays_at_every_width`, with `microsoft/terminal #20607`
+open (so Next new comment shows), offscreen at `QT_SCALE_FACTOR` 1.0 and
+1.25. It was swept from 1200 to 900 one pixel at a time. At each width,
+`apply_strip_width`'s existing yields ran first: the identity yields whole,
+the positions below 960, and the modality segments compact. Then the four
+modality buttons were set to `Ove`, `Rea`, `Rev` and `Dis`, and the
+toolbar was remeasured. The overflow extension button was checked directly
+from 903 down to 900.
+
+**Result, in logical pixels, identical at 100% and 125%.**
+
+| At the 900 floor | Compact labels | 3-character labels |
+|---|---|---|
+| Modality control width | 255 | 175 |
+| Toolbar size hint (toolbar width 900) | 982 | 902 |
+| Narrowest width with every control top level | 1027 | 902 |
+
+With the 3-character labels the overflow extension button is hidden at 903
+and 902, and **shown at 901 and 900**. The labels save 80 pixels but leave
+the strip **2 pixels short at the floor, at 100% and at 125% alike**. The
+card does not choose another yield.
+
+**macOS.** The 3-character step would never be taken on macOS at or above
+its floor. On this station, the same strip without the Windows controls
+needs 806 pixels at 900 with the existing compact labels (726 with 3
+characters). macOS's own `qt_workbench_window_scale_*` already pins "no strip
+control folds into an overflow menu at the width floor" with the compact
+labels. A yield taken only while the strip still overflows has nothing to do
+there, so "macOS too?" does not matter.
+
+### The ask
+
+The owner's 3-character proposal, together with the identity's existing
+yield, leaves the Windows strip **2 logical pixels** wider than the 900-pixel
+floor, at 100% and at 125%. Every strip control stays top level from 902
+pixels. **How should those 2 pixels be found on Windows?**
