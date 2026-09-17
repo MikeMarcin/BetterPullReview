@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0846"
 title: "A fetch that sends haves gets a pack the cache import refuses"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0029"]
 depends_on: []
 priority: "P1"
