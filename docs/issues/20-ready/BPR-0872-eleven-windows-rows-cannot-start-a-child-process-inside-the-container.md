@@ -68,3 +68,22 @@ defects:
 - The card states whether the failures predate this run.
 - macOS and Linux are unaffected: all eleven pass there today and must
   continue to.
+
+## What `WINDOWS_UNCONTAINED` actually costs (r5 critical review)
+
+This card's central question is which rows should run contained at all, so the
+price of the alternative belongs on it.
+
+`cmake/WindowsTestIsolationSetup.cmake:140` grants the AppContainer
+`(OI)(CI)(M)` on the whole `CMAKE_BINARY_DIR`, and
+`cmake/BprTestIsolation.cmake:698-704` drops the launcher entirely for the
+forty-odd `WINDOWS_UNCONTAINED` rows. So for those rows the effective boundary
+is **the user's own token, with no filesystem or network restriction**, and
+the socket-level `--network-denied` refusal (`src/app/main.cpp:7800`) is the
+only stand-in.
+
+That is a documented limitation rather than a defect — the manifest gate pins
+the uncontained set (`scripts/verify_test_network_isolation.py:69-270`), so it
+cannot grow quietly. But it means "register it uncontained" is a real
+reduction in isolation and not a free move, and this card should say so when
+it decides each row.

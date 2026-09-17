@@ -78,3 +78,18 @@ cause are registered `WINDOWS_UNCONTAINED`.
 - `registry_unavailable` no longer stands in for several distinct startup
   failures, or the card says why it must.
 - macOS and Linux keep passing all five.
+
+## Two additions from the r5 critical review
+
+**The sibling arm has the same disease, and a pin depends on this one.**
+
+- The `unavailable` arm collapses `github_profile_runtime` construction,
+  `start_services()` and `open_window` into one word
+  (`src/app/src/github_application.cpp:12633-12655`), exactly as `registry`
+  does for its seven causes. [[BPR-0882]] carries that arm and the two other
+  boundaries that discard `what()`. Fix them in one pass if convenient; the
+  work is the same shape.
+- **`tests/end_to_end/CMakeLists.txt:2295-2296` pins
+  `EPOCH_FIXTURE_NONCANONICAL_ROOT_CAUSE_OK:registry`.** When this card splits
+  the `registry` arm into named causes, that pin must move with it, or it will
+  fail for the right reason and look like a regression. Change them together.

@@ -77,3 +77,25 @@ Whether it is newly broken is unknown and is part of the work.
 - The card states whether a person quitting the application on Windows was
   ever affected.
 - macOS and Linux are unaffected: all thirteen pass there today.
+
+## The open question is answered: a person is affected too (r5 critical review)
+
+This card asked whether a person quitting the real application on Windows hits
+the same failure. **They do, and here is the line:**
+`src/app/src/profile_desktop.cpp:851-853` sets `ExitCode = 1` when
+`profile_shutdown_cleanup_failed()`, in the same drain the real desktop uses.
+
+So the Windows cluster is not test-only. A reviewer quitting the application
+gets exit 1 from the same three unnamed sources at
+`src/app/src/github_application.cpp:11762-11812`, and one of those three is
+the durable layout write — which is the one whose failure a person would
+actually notice, because it is their window layout.
+
+That raises this card's stakes: it is not thirteen red rows, it is thirteen
+red rows plus a user-visible failure sharing one unnamed cause. Naming the
+three sources is still the right first step, and now it is worth doing for the
+product's sake rather than only the suite's.
+
+Related: [[BPR-0890]] records that a crash *after* the marker passes any row
+with a `PASS_REGULAR_EXPRESSION`, so shutdown faults are exactly the class the
+suite is currently weakest at seeing. The two should be read together.
