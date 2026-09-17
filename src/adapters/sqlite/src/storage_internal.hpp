@@ -4,7 +4,10 @@
 #include "bpr/adapters/sqlite/profile_runtime_lease.hpp"
 #include "state_directory.hpp"
 
+#include <expected>
 #include <string_view>
+
+struct sqlite3;
 
 namespace bpr::adapters::sqlite::detail {
 	/// \brief Verifies genuine native lease authority for the exact current root and process.
@@ -28,5 +31,15 @@ namespace bpr::adapters::sqlite::detail {
 	/// \brief Restricts a store file this process has just opened under state/v1 to its owner.
 	[[nodiscard]] auto restrict_private_store_file(state_directory& aDirectory, std::string_view aName)
 		-> std::expected<void, state_directory_failure>;
+	/// \brief Opens one private store file under state/v1 with SQLite.
+	/// \details Admits the file, opens it by its UTF-8 path, and restricts it to its
+	/// owner. On Windows the handle SQLite actually holds is then bound to the
+	/// admitted name ([[BPR-0813]]): it must be a private regular file with one link
+	/// and no reparse point, its final path must be that name, and its identity must
+	/// be the identity that name has now. A reparse point or second link substituted
+	/// between admission and open is refused. Returns an open connection the caller
+	/// owns; on failure nothing is left open.
+	[[nodiscard]] auto open_private_store_database(state_directory& aDirectory, std::string_view aName, int aFlags)
+		-> std::expected<::sqlite3*, state_directory_failure>;
 }
 #endif

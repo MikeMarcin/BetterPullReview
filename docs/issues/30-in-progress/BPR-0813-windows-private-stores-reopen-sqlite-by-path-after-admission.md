@@ -56,3 +56,95 @@ two follow-ups:
 - A Windows contract opens all three stores under a root containing
   characters outside the ANSI code page.
 - The macOS and Linux store courses still pass.
+
+## Windows station, 2026-09-17 (task-20260917-win-hardening)
+
+The base is `de58ebc6`. Logs are under `build/logs/task-20260917-win-hardening/`.
+
+**Change: bind the held handle to the name.** The three stores open through
+one helper, `detail::open_private_store_database` (`storage_internal.hpp`,
+implemented in `catalog_database.cpp`). It runs in this order:
+
+1. It admits the file, as before.
+2. It opens the file by its **UTF-8** path on every platform. Windows uses
+   `win32-longpath`; POSIX uses the default VFS.
+3. It restricts the file to its owner.
+4. **On Windows**, it binds the handle SQLite holds
+   (`SQLITE_FCNTL_WIN32_GET_HANDLE`) to the admitted name. The handle must be
+   a private regular file with one link and no reparse point, its final path
+   must be the name, and its identity must equal the identity the name has
+   now. Otherwise the connection is closed and the open refused.
+
+A test-build checkpoint,
+`detail::testing::set_private_store_open_checkpoint`, runs after admission and
+after open (`BPR_SQLITE_TESTING` only, like the adapter's existing hooks).
+
+**Contract.** `sqlite_private_store_open` (`tests/sqlite_contract/private_store_open_tests.cpp`,
+Windows only) runs through the public stores. It has three courses:
+
+- **`non-ansi-root`.** All three stores open and create their files under
+  `bpr-0813-プロフィール-😀-…`.
+- **`symbolic-link`.** At the admitted checkpoint the registry file is moved
+  aside and a file symbolic link to another private registry is put in its
+  place. At the opened checkpoint the link is removed and the original name
+  restored, so the path-based restriction sees exactly what was admitted.
+  Loading must fail. Output: `restored=1:loaded=0`.
+- **`hard-link`.** The same with a hard link. It cannot be undone while SQLite
+  holds the file, because the Win32 VFS does not share delete, so the name
+  still has two links when the path-based restriction looks. Output:
+  `restored=0:loaded=0`. It shows the refusal but not the gap.
+
+**Against current behaviour** (reverted trial): the binding was removed and
+HEAD's `path.string()` open restored.
+
+- `symbolic-link` **fails**: `restored=1:loaded=1` and `FAILED: a store opened
+  through a substituted symbolic-link is refused`. The store served the
+  substituted database.
+- `non-ansi-root` **fails with exit 3**: the narrow conversion throws and
+  nothing catches it.
+- `hard-link` passes, as expected; HEAD's restriction already refuses a second
+  link.
+
+**Registration.** The contract is pinned `WINDOWS_UNCONTAINED` with cause
+`dos-volume-name`. Contained, it stops at `canonical: Access is denied.` of
+the temporary directory. It passes uncontained (0.14 s).
+
+**Results after rebuild.** These passed:
+
+- `sqlite_private_store_open`, `sqlite_device_binding_storage`,
+  `sqlite_profile_registry_storage`, `sqlite_window_review_restoration_storage`,
+  `sqlite_profile_activation`, `sqlite_epoch_catalog_storage_contract`;
+- `application_device_binding_restart` (38.56 s),
+  `application_profile_startup_public_path`,
+  `application_profile_management_public_path`,
+  `application_profile_multi_window_public_path` (33.74 s),
+  `application_windows_profile_storage_startup_contract`;
+- `architecture_boundaries` and `test_network_isolation_structure_contract`.
+
+`test_network_isolation_manifest` reports only [[BPR-0812]]'s two parked epoch
+rows.
+
+**Found, not changed.** `sqlite_profile_storage_root` is registered contained
+but fails contained on this host: exit 3, because its scratch root calls
+`std::filesystem::canonical` first. It passes uncontained. Its sources do not
+touch the changed open path.
+
+**Still open: macOS and Linux store courses.** The helper changes the POSIX
+open as well:
+
+- The path is UTF-8 (`u8string`), which is the same bytes as before.
+- The restriction now runs before each store's read limits or read scope is
+  installed.
+- A failed open now closes its connection. Previously the device-binding store
+  left it open.
+
+**Portable sources touched:**
+- `src/adapters/sqlite/src/catalog_database.cpp`: the helper and the testing
+  checkpoint.
+- `src/adapters/sqlite/src/storage_internal.hpp`: the helper declaration.
+- `src/adapters/sqlite/include/bpr/adapters/sqlite/testing.hpp`: the testing
+  checkpoint.
+- `profile_registry_store.cpp`, `window_review_restoration_store.cpp` and
+  `device_binding_store.cpp`.
+- `tests/sqlite_contract/CMakeLists.txt`: a Windows-only block.
+- `scripts/verify_test_network_isolation.py`: pin only.
