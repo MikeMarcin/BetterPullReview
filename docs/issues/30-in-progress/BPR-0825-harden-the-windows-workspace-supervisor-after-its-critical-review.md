@@ -164,3 +164,27 @@ separately. These passed:
   `workspace_parent_trusted`.
 - `tests/scripts/agent_workspace_ownership_tests.py` gains a Windows-only
   helper and two Windows-only courses.
+
+## Integrated; item 3 waits on an owner decision (dsp-003)
+
+Main merged `windows-lane` at `711d3ddc` as `902cda35`. Items 1, 2, 4 and 5
+are done on Windows with native courses or reverted trials (above). Their
+source changes sit inside Windows-only branches. At main `8a03a5be` on macOS,
+`agent_workspace_ownership` and `git_process_contract` still pass
+(`build/r2-logs/dsp3-int1-ctest.log`).
+
+**Owner ask (item 3, architecture).** Where should the one definition of
+the Windows owner-private descriptor live, so that a change on the SQLite
+side cannot silently turn Windows workspace ownership into `repair_required`?
+
+- (a) The Git adapter calls a new public SQLite validator
+  (`AdapterGit → AdapterSQLite`).
+- (b) The SQLite adapter includes the agent adapter's header
+  (`AdapterSQLite → AdapterAgent`).
+- (c) A new neutral header-only target that both adapters include, with a
+  new owner entry in the architecture boundaries.
+
+The integrator recommends (c). Adapters are narrow host capability ports,
+and (a) and (b) each add an adapter-to-adapter edge for a platform
+definition that neither adapter owns. Until the owner answers, the card is
+parked on this question and nothing else in it is open.
