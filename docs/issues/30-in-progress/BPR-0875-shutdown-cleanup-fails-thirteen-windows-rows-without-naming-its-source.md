@@ -346,3 +346,56 @@ This station's 2026-08-27 matrix run has
 `application_workbench_composition_contract` passing in 6.90 s, which is the
 before-evidence. So this is a regression from this run rather than a
 long-standing fault.
+
+## Where this card stands at the end of dsp-006, and the two steps left
+
+Merged to main at `c1723a3f` (the naming) and `81844fef` (the fix). Against the
+card's own four acceptance lines:
+
+1. **"A cleanup failure names which of the three sources failed"** — met, and
+   then some. The instrumentation named a **fourth** source the card did not
+   list, and that is the one that fires. All thirteen rows report
+   `agent-workspace-recovery:<data-root>\agent-workspace-ownership-v1:repair-required`,
+   48 times across their phases. None of the three named sources ever fired.
+2. **"The thirteen rows pass on Windows, or each remaining failure is a named,
+   understood cause"** — eleven pass with zero cleanup terms and zero quit
+   terms. `application_uiforetw_selected_diff_contract` reaches
+   `cleanup_failed=0` and now fails on [[BPR-0859]]'s Windows problem instead,
+   on the same two markers it failed on before the change, which is a named
+   cause with its own card. **Not yet confirmed:**
+   `application_review_round_trip_composition_contract`, which failed on the
+   lane only because the lane carried the naming without main's reseal. It
+   should pass once the station fast-forwards to `81844fef`; that is the single
+   outstanding measurement on this card.
+3. **"The card states whether a person quitting on Windows was ever affected"** —
+   met, in both directions and by experiment rather than by reading. In the
+   **test environment** yes: exit 1 from an ordinary quit, plus [[BPR-0808]]'s
+   repair presentation in every window, from a refusal that was really about
+   where a harness put a directory. For a **real installation**, no:
+   `%LOCALAPPDATA%` grants no Authenticated Users, its one foreign principal has
+   no write right, and the same row rooted there passes with zero cleanup-source
+   lines while rooted in the build tree it fails. **The reviewer's window layout
+   was never at risk** — the durable layout write never refused in any run.
+4. **"macOS and Linux are unaffected"** — macOS is verified at the merged tree:
+   twelve of the thirteen affected rows pass, and the thirteenth
+   (`application_review_behaviour_contract`) passes too once an unrelated
+   in-flight [[BPR-0890]] change is taken out of the tree, 93.86 s
+   (`build/r2-logs/dsp6-merge2-isolate.log`). This matters because
+   `bpr_private_data_root` moves the data root down one level on **every**
+   platform. **Linux has not been re-run** and is the other outstanding
+   measurement.
+
+So: two measurements left, both cheap — the Windows round-trip row at
+`81844fef`, and the twelve affected courses on Linux. Neither is expected to
+surprise anyone, and neither has been done.
+
+**Do not let the origin story get lost.** [[BPR-0622]]'s `c94e02b1`, dated
+2026-09-17, introduced this *during this run* by adding `Q_OS_WIN` to the guard
+around the recovery post in `start_services`; `dd88b9c9` put the ownership
+journal on Windows the same day. Before that Windows never called recovery at
+all. BPR-0622 carries a pointer back to here.
+
+Carded out of this work: [[BPR-0899]] (the layout port's `write_failed()` reads
+true while a write is in flight) and [[BPR-0900]] (the harness and the product
+both write the owner-private descriptor and nothing pins that they agree —
+which thirteen rows now depend on).
