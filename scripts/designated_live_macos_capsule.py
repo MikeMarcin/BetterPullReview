@@ -8,6 +8,8 @@ import contextlib
 import hashlib
 import os
 import pathlib
+import plistlib
+import re
 import shutil
 import signal
 import socket
@@ -59,6 +61,7 @@ ALLOWED_PLUGIN_FILES = {
 }
 MAXIMUM_INVENTORY_BYTES = 16 * 1024 * 1024
 MAXIMUM_IMAGE_BYTES = 16 * 1024 * 1024 * 1024
+IMAGE_DETACH_TIMEOUT_SECONDS = 60.0
 STAGE_ONE_TIMEOUT_SECONDS = 1500.0
 STAGE_ONE_TERM_GRACE_SECONDS = 10.0
 STAGE_ONE_KILL_GRACE_SECONDS = 10.0
@@ -959,6 +962,74 @@ def image_sha256(path: pathlib.Path) -> str:
     return sha256(path)
 
 
+def attached_image_disks(image: pathlib.Path, hdiutil: pathlib.Path) -> list[str]:
+    """The whole-disk devices of every attachment of exactly `image`.
+
+    Matching this build's own resolved image path is the whole safety argument
+    for detaching what comes back: an attachment of any other image, however
+    alike, is never returned. A listing that cannot be read, or an attachment
+    of this image with no whole disk to detach, fails closed, because neither
+    shows that the image is not attached.
+    """
+    listing = command([str(hdiutil), "info", "-plist"])
+    if listing.returncode != 0:
+        raise CapsuleFailure(f"image attachment listing failed: {listing.stderr.strip()}")
+    try:
+        parsed = plistlib.loads(listing.stdout.encode("utf-8"))
+    except Exception as error:
+        raise CapsuleFailure("image attachment listing is unreadable") from error
+    images = parsed.get("images", []) if isinstance(parsed, dict) else None
+    if not isinstance(images, list):
+        raise CapsuleFailure("image attachment listing is unreadable")
+    target = os.path.realpath(image)
+    disks: list[str] = []
+    for attached in images:
+        if not isinstance(attached, dict):
+            raise CapsuleFailure("image attachment listing is unreadable")
+        path = attached.get("image-path")
+        if not isinstance(path, str) or os.path.realpath(path) != target:
+            continue
+        entities = attached.get("system-entities", [])
+        whole = [
+            entity["dev-entry"]
+            for entity in (entities if isinstance(entities, list) else [])
+            if isinstance(entity, dict)
+            and isinstance(entity.get("dev-entry"), str)
+            and re.fullmatch(r"/dev/disk[0-9]+", entity["dev-entry"])
+        ]
+        if not whole:
+            raise CapsuleFailure("image is attached without a whole disk to detach")
+        disks.extend(whole)
+    return disks
+
+
+def detach_created_image(image: pathlib.Path, hdiutil: pathlib.Path) -> None:
+    """Leaves no attachment of the image this build just created.
+
+    BPR-0836, after BPR-0814. While other image creates run on the machine,
+    `hdiutil create` can exit 0 with its write-once device still attached, and
+    the device stays attached; stage zero's later attach of the image then
+    fails. The image bytes are already final. Each attempt re-lists and
+    ordinarily detaches the next whole disk of exactly this image, because
+    detaching the physical store removes the container synthesized on it but
+    the listing does not say which disk is the store. Force is never used
+    (fact_6): an attachment that outlasts the bound is a refusal, and no digest
+    is reported for it.
+    """
+    deadline = time.monotonic() + IMAGE_DETACH_TIMEOUT_SECONDS
+    attempt = 0
+    reason = "no ordinary detach was attempted"
+    while disks := attached_image_disks(image, hdiutil):
+        if time.monotonic() >= deadline:
+            raise CapsuleFailure(
+                f"image is still attached after creation as {', '.join(disks)}: {reason}"
+            )
+        detached = command([str(hdiutil), "detach", disks[attempt % len(disks)], "-quiet"])
+        reason = detached.stderr.strip() or "ordinary detach did not remove it"
+        attempt += 1
+        time.sleep(0.1)
+
+
 def build_image(arguments: argparse.Namespace) -> None:
     """Stages the capsule and its inventory, then writes a read-only image."""
     capsule = arguments.capsule.resolve(strict=True)
@@ -990,8 +1061,9 @@ def build_image(arguments: argparse.Namespace) -> None:
                 str(arguments.output),
             ]
         )
-        if result.returncode != 0:
-            raise CapsuleFailure(f"image creation failed: {result.stderr.strip()}")
+    detach_created_image(arguments.output, arguments.hdiutil)
+    if result.returncode != 0:
+        raise CapsuleFailure(f"image creation failed: {result.stderr.strip()}")
     arguments.output.chmod(0o600)
     digest = image_sha256(arguments.output)
     if arguments.image_digest is not None:

@@ -4,10 +4,11 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 import contextlib
 from pathlib import Path
 import importlib.util
+import io
 import os
 import pathlib
 import plistlib
@@ -559,7 +560,7 @@ class CapsuleImageTests(unittest.TestCase):
     def build_real_image(
         self, root: pathlib.Path, inventory: pathlib.Path, image: pathlib.Path
     ) -> None:
-        """Builds `image` and establishes that none of it is still attached.
+        """Builds `image` and asserts that none of it is still attached.
 
         BPR-0814. `hdiutil create` writes this image through a write-once
         device. While other copies of this suite create images at the same
@@ -568,8 +569,12 @@ class CapsuleImageTests(unittest.TestCase):
         ejecting the APFS container synthesized on the device rather than the
         device itself. The image bytes were already final, and an ordinary
         detach of the device removed it. A stage-zero attach of that image
-        failed, which is not the behavior these cases test, so the
-        precondition is restored here, where it broke.
+        failed.
+
+        BPR-0836. The production image build now detaches what its own create
+        leaves attached, so this fixture no longer repairs it: concurrent
+        copies of this suite check the real device instead.
+        `real_image_directory` still detaches on every exit path.
         """
         capsule.build_image(
             self.image_arguments(
@@ -579,7 +584,277 @@ class CapsuleImageTests(unittest.TestCase):
                 image_digest=None,
             )
         )
-        self.detach_image(image)
+        self.assertEqual(
+            self.attached_whole_disks(image),
+            [],
+            "the image build returned with its own image still attached",
+        )
+
+    SIMULATOR_IMAGE = (
+        "/System/Library/AssetsV2/com_apple_MobileAsset_iOSSimulatorRuntime/"
+        "example.asset/AssetData/Restore/example.dmg"
+    )
+
+    @staticmethod
+    def attachment_listing(attached: dict[str, list[str]]) -> str:
+        """`hdiutil info -plist` output for these image paths and devices."""
+        return plistlib.dumps(
+            {
+                "images": [
+                    {
+                        "image-path": path,
+                        "system-entities": [
+                            {"dev-entry": device} for device in devices
+                        ],
+                    }
+                    for path, devices in attached.items()
+                ]
+            }
+        ).decode("utf-8")
+
+    def leaking_image_tool(
+        self,
+        image: pathlib.Path,
+        events: list[list[str]],
+        *,
+        store: str | None,
+        create_returncode: int = 0,
+        listing: subprocess.CompletedProcess[str] | None = None,
+    ) -> Callable[[list[str]], subprocess.CompletedProcess[str]]:
+        """A fake `hdiutil` whose create leaves `image` attached (BPR-0836).
+
+        A real leak cannot be forced on demand: it needs other creates running
+        and then happens only some of the time. This seam replays its shape.
+        The leaked attachment lists its synthesized container before its
+        physical store, and only an ordinary detach of `store` removes it
+        (`None`: nothing does). Attachments of other images stay attached
+        throughout, including a look-alike beside this image and one whose
+        path merely extends it. `listing`, when given, replaces every listing.
+        """
+        own = os.path.realpath(image)
+        attached = {
+            self.SIMULATOR_IMAGE: ["/dev/disk4", "/dev/disk4s1", "/dev/disk5"],
+            str(image.parent / "neighbor" / image.name): ["/dev/disk20", "/dev/disk21"],
+            own + ".shadow": ["/dev/disk22"],
+        }
+
+        def tool(arguments: list[str]) -> subprocess.CompletedProcess[str]:
+            events.append(list(arguments))
+            if arguments[1] == "create":
+                pathlib.Path(arguments[-1]).write_bytes(b"created image")
+                attached[own] = ["/dev/disk11", "/dev/disk11s1", "/dev/disk10"]
+                return subprocess.CompletedProcess(
+                    arguments,
+                    create_returncode,
+                    "",
+                    "" if create_returncode == 0 else "create refused",
+                )
+            if arguments[1:] == ["info", "-plist"]:
+                if listing is not None:
+                    return listing
+                return subprocess.CompletedProcess(
+                    arguments, 0, self.attachment_listing(attached), ""
+                )
+            if arguments[1] == "detach":
+                if own in attached and arguments[2] == store:
+                    del attached[own]
+                    return subprocess.CompletedProcess(arguments, 0, "", "")
+                return subprocess.CompletedProcess(
+                    arguments, 16, "", "hdiutil: detach failed - Resource busy"
+                )
+            raise AssertionError(f"unexpected hdiutil call: {arguments}")
+
+        return tool
+
+    def test_image_build_detaches_its_own_leaked_device_before_reporting_a_digest(
+        self,
+    ) -> None:
+        with contained_temporary_directory() as directory:
+            parent = pathlib.Path(directory).resolve()
+            root, inventory = make_capsule(parent)
+            image = parent / "capsule.dmg"
+            digest_file = parent / "capsule.dmg.sha256"
+            events: list[list[str]] = []
+            tool = self.leaking_image_tool(image, events, store="/dev/disk10")
+            reported = io.StringIO()
+
+            def observed(arguments: list[str]) -> subprocess.CompletedProcess[str]:
+                # Nothing is reported while any hdiutil step is still running.
+                self.assertEqual(reported.getvalue(), "")
+                self.assertFalse(digest_file.exists())
+                return tool(arguments)
+
+            with (
+                mock.patch.object(capsule, "command", observed),
+                mock.patch.object(capsule.time, "sleep"),
+                contextlib.redirect_stdout(reported),
+            ):
+                capsule.build_image(
+                    self.image_arguments(
+                        capsule=root,
+                        inventory=inventory,
+                        output=image,
+                        image_digest=digest_file,
+                    )
+                )
+            self.assertEqual(
+                [event[1] for event in events],
+                ["create", "info", "detach", "info", "detach", "info"],
+            )
+            self.assertEqual(
+                [event for event in events if event[1] == "detach"],
+                [
+                    ["/usr/bin/hdiutil", "detach", "/dev/disk11", "-quiet"],
+                    ["/usr/bin/hdiutil", "detach", "/dev/disk10", "-quiet"],
+                ],
+                "only whole disks of this image, one per re-listing, never forced",
+            )
+            digest = capsule.image_sha256(image)
+            self.assertEqual(digest_file.read_text(encoding="utf-8"), f"{digest}\n")
+            self.assertEqual(
+                reported.getvalue(), f"designated-live-macos-capsule:image:{digest}\n"
+            )
+
+    def test_image_build_refuses_without_a_digest_while_its_image_stays_attached(
+        self,
+    ) -> None:
+        with contained_temporary_directory() as directory:
+            parent = pathlib.Path(directory).resolve()
+            root, inventory = make_capsule(parent)
+            image = parent / "capsule.dmg"
+            digest_file = parent / "capsule.dmg.sha256"
+            events: list[list[str]] = []
+            clock = [0.0]
+
+            def advance(seconds: float) -> None:
+                clock[0] += seconds
+
+            stdout, stderr = io.StringIO(), io.StringIO()
+            argv = [
+                str(SCRIPT),
+                "image",
+                "--capsule",
+                str(root),
+                "--inventory",
+                str(inventory),
+                "--output",
+                str(image),
+                "--image-digest",
+                str(digest_file),
+                "--source-sha256",
+                SOURCE_DIGEST,
+            ]
+            with (
+                mock.patch.object(
+                    capsule, "command", self.leaking_image_tool(image, events, store=None)
+                ),
+                mock.patch.object(capsule, "IMAGE_DETACH_TIMEOUT_SECONDS", 0.35),
+                mock.patch.object(capsule.time, "monotonic", lambda: clock[0]),
+                mock.patch.object(capsule.time, "sleep", advance),
+                mock.patch.object(sys, "argv", argv),
+                contextlib.redirect_stdout(stdout),
+                contextlib.redirect_stderr(stderr),
+            ):
+                self.assertEqual(capsule.main(), 1)
+            self.assertEqual(
+                stderr.getvalue(),
+                "designated-live-macos-capsule:fail:image is still attached after "
+                "creation as /dev/disk11, /dev/disk10: "
+                "hdiutil: detach failed - Resource busy\n",
+            )
+            self.assertEqual(stdout.getvalue(), "", "no digest and no pass while attached")
+            self.assertFalse(digest_file.exists())
+            self.assertEqual(
+                [event[1:] for event in events[1:]],
+                [
+                    ["info", "-plist"],
+                    ["detach", "/dev/disk11", "-quiet"],
+                    ["info", "-plist"],
+                    ["detach", "/dev/disk10", "-quiet"],
+                    ["info", "-plist"],
+                    ["detach", "/dev/disk11", "-quiet"],
+                    ["info", "-plist"],
+                    ["detach", "/dev/disk10", "-quiet"],
+                    ["info", "-plist"],
+                ],
+            )
+
+    def test_image_build_refuses_a_listing_that_cannot_show_it_detached(self) -> None:
+        cases = (
+            ("listing failed", 1, "", "hdiutil: info failed"),
+            ("listing is unreadable", 0, "not a property list", ""),
+            ("listing is unreadable", 0, plistlib.dumps(["images"]).decode("utf-8"), ""),
+            ("attached without a whole disk", 0, None, ""),
+        )
+        for index, (reason, returncode, stdout, stderr) in enumerate(cases):
+            with self.subTest(case=index), contained_temporary_directory() as directory:
+                parent = pathlib.Path(directory).resolve()
+                root, inventory = make_capsule(parent)
+                image = parent / "capsule.dmg"
+                digest_file = parent / "capsule.dmg.sha256"
+                if stdout is None:
+                    stdout = self.attachment_listing(
+                        {os.path.realpath(image): ["/dev/disk10s1"]}
+                    )
+                events: list[list[str]] = []
+                tool = self.leaking_image_tool(
+                    image,
+                    events,
+                    store="/dev/disk10",
+                    listing=subprocess.CompletedProcess([], returncode, stdout, stderr),
+                )
+                reported = io.StringIO()
+                with (
+                    mock.patch.object(capsule, "command", tool),
+                    contextlib.redirect_stdout(reported),
+                    self.assertRaisesRegex(capsule.CapsuleFailure, reason),
+                ):
+                    capsule.build_image(
+                        self.image_arguments(
+                            capsule=root,
+                            inventory=inventory,
+                            output=image,
+                            image_digest=digest_file,
+                        )
+                    )
+                self.assertEqual([event[1] for event in events], ["create", "info"])
+                self.assertEqual(reported.getvalue(), "")
+                self.assertFalse(digest_file.exists())
+
+    def test_failed_image_create_still_detaches_its_own_device(self) -> None:
+        with contained_temporary_directory() as directory:
+            parent = pathlib.Path(directory).resolve()
+            root, inventory = make_capsule(parent)
+            image = parent / "capsule.dmg"
+            events: list[list[str]] = []
+            tool = self.leaking_image_tool(
+                image, events, store="/dev/disk10", create_returncode=1
+            )
+            with (
+                mock.patch.object(capsule, "command", tool),
+                mock.patch.object(capsule.time, "sleep"),
+                self.assertRaisesRegex(
+                    capsule.CapsuleFailure, "image creation failed: create refused"
+                ),
+            ):
+                capsule.build_image(
+                    self.image_arguments(
+                        capsule=root,
+                        inventory=inventory,
+                        output=image,
+                        image_digest=None,
+                    )
+                )
+            self.assertEqual(
+                [event[1:3] for event in events[1:]],
+                [
+                    ["info", "-plist"],
+                    ["detach", "/dev/disk11"],
+                    ["info", "-plist"],
+                    ["detach", "/dev/disk10"],
+                    ["info", "-plist"],
+                ],
+            )
 
     def test_attach_asks_for_a_read_only_unbrowsable_mount(self) -> None:
         recorded: list[list[str]] = []
