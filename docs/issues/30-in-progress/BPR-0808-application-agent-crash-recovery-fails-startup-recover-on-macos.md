@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0808"
 title: "application_agent_crash_recovery fails its startup-recover step on macOS"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0013"]
 depends_on: []
 priority: "P1"
