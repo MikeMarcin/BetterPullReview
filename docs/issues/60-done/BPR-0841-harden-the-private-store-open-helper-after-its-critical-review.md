@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0841"
 title: "Harden the private store open helper after BPR-0813's critical review"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P3"
 platforms: ["win", "mac", "linux"]
 metadata: {"found_by":"dsp-003 critical review of BPR-0813 (711d3ddc)","found_at":"711d3ddc5f8db9f237e4c4b84758d116b9e897af","run":"run-20260916-stations","dispatch":"dsp-003"}
+acceptance: [{"criterion":"AC1 items 1, 2, 5 and 6 fixed with a course or reverted trial each; items 3 and 4 fixed or declined with a reason","outcome":"pass","revision":"bf930d12c74c959e49b81ffdf2a1297f01abcb17","evidence":{"kind":"artifact","detail":"bpr-win: item 1 exception-releases-file renamed=1 (trial renamed=0); item 2 admission-retry refused=1:retried=1 (trial retried=0); item 5 unknown argument exits 1 (trial printed pass); item 6 lone-surrogate-root loaded=0 (trial aborted); item 4 named skip on ERROR_PRIVILEGE_NOT_HELD; item 3 declined by the integrator with the threat-model reason recorded on this card."}},{"criterion":"AC2 the Windows and macOS store courses listed on BPR-0813 still pass","outcome":"pass","revision":"2f3a6720 (Windows); d514e76e (macOS)","evidence":{"kind":"command","detail":"Windows: sqlite_private_store_open (6 courses), the three store storage contracts, profile activation, epoch catalog storage, device binding restart, profile startup/management/multi-window, Windows storage startup contract and isolation gates pass. macOS: 16/16 at d514e76e (build/r2-logs/dsp3-int7-ctest.log)."}}]
 ---
 
 # BPR-0841: Harden the private store open helper after BPR-0813's critical review
