@@ -199,7 +199,9 @@ if(NOT agent_cmake_contents STREQUAL "")
             "bpr_add_executable\\([ \t\r\n]*tool_better_pull_review_agent_supervisor[ \t\r\n]+src/unix_agent_supervisor\\.cpp[ \t\r\n]*\\)"
             "if\\(WIN32\\)"
             "src/windows_agent_process\\.cpp"
-            "Kernel32"
+            # [[BPR-0842]] A link names its target: the Windows supervisor
+            # links Kernel32 too, and a bare token cannot tell the two apart.
+            "target_link_libraries\\([ \t\r\n]*better_pull_review_adapter_agent[ \t\r\n]([^)]*[ \t\r\n])?Kernel32([ \t\r\n]|\\))"
             "if\\(BUILD_TESTING\\)"
             "BPR_BUILD_TESTING=1"
     )
@@ -207,6 +209,22 @@ if(NOT agent_cmake_contents STREQUAL "")
             message(
                 FATAL_ERROR
                 "Agent process adapter target contract is incomplete: ${pattern}"
+            )
+        endif()
+    endforeach()
+    # The Windows supervisor is a designated owner of the native process and
+    # job APIs below; that permission presumes this executable, built from that
+    # source, with its own Kernel32 link.
+    foreach(
+        pattern
+        IN ITEMS
+            "bpr_add_executable\\([ \t\r\n]*tool_better_pull_review_agent_supervisor[ \t\r\n]+src/windows_agent_supervisor\\.cpp[ \t\r\n]*\\)"
+            "target_link_libraries\\([ \t\r\n]*tool_better_pull_review_agent_supervisor[ \t\r\n]([^)]*[ \t\r\n])?Kernel32([ \t\r\n]|\\))"
+    )
+        if(NOT agent_cmake_contents MATCHES "${pattern}")
+            message(
+                FATAL_ERROR
+                "Windows agent supervisor target contract is incomplete: ${pattern}"
             )
         endif()
     endforeach()
