@@ -7,8 +7,12 @@ import os
 from pathlib import Path
 import struct
 import subprocess
-import tempfile
 import zlib
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+# Contained on Windows a tempfile root is unusable (BPR-0350); see the helper.
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 
 def graph():
@@ -97,7 +101,7 @@ def main():
         payload = (fixture / name).read_bytes()
         assert hashlib.sha256(payload).hexdigest() == manifest["packs"][name]["sha256"]
         assert len(payload) == manifest["packs"][name]["bytes"]
-        with tempfile.TemporaryDirectory(prefix="bpr-reading-graph-") as directory:
+        with contained_temporary_directory(prefix="bpr-reading-graph-") as directory:
             env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
             env.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull)
 

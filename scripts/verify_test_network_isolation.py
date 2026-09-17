@@ -97,6 +97,19 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # the first checkpoint (its data-root canonicalisation); both pass uncontained.
     "application_agent_crash_recovery": "dos-volume-name",
     "application_agent_materialization_crash_recovery": "dos-volume-name",
+    # BPR-0812: measured on JaegAW 2026-09-17, each passing uncontained.
+    # Contained, std::filesystem::canonical of the test root (lease) or of the
+    # Git executable (sparse cache) throws "Access is denied" and aborts.
+    "sqlite_profile_runtime_lease": "dos-volume-name",
+    "git_sparse_cache_contract": "dos-volume-name",
+    # Contained, `git init` in the fixture root fails "unable to get current
+    # working directory: Permission denied".
+    "profile_window_restoration_fixture_contract": "dos-volume-name",
+    # Contained, narrowing the composed course's own data root to the
+    # owner-private shape fails before any course step
+    # (`agent-*-composition-failure:private-test-root`).
+    "application_agent_chat_anchored_continuation_contract": "dos-volume-name",
+    "application_agent_finding_dif_context_contract": "dos-volume-name",
     "application_device_binding_restart": "dos-volume-name",
     "sqlite_epoch_catalog_storage_contract": "dos-volume-name",
     "sqlite_epoch_catalog_behavior_contract": "dos-volume-name",

@@ -451,7 +451,8 @@ target_compile_definitions(test_profile_activation PRIVATE BPR_ACTIVATION_TEST_E
 target_link_libraries(test_profile_activation PRIVATE BetterPullReview::AdapterSQLite)
 bpr_enable_hardening(test_profile_activation)
 bpr_enable_warnings(test_profile_activation)
-bpr_add_network_isolated_test(NAME sqlite_profile_activation WINDOWS_UNCONTAINED COMMAND test_profile_activation)
+# [[BPR-0812]]. Measured on JaegAW 2026-09-17: passes inside the AppContainer.
+bpr_add_network_isolated_test(NAME sqlite_profile_activation COMMAND test_profile_activation)
 set_tests_properties(sqlite_profile_activation PROPERTIES TIMEOUT 30)
 
 bpr_add_executable(test_better_pull_review_window_review_restoration_storage_tests window_review_restoration_storage_tests.cpp)
