@@ -49,3 +49,38 @@ commits since 2026-09-11, each with low confidence:
 - The row passes on macOS and Linux.
 - A stalled width store fails with a named term, not by running out the
   budget.
+
+## Second scout (dsp-004, read-only): what code reading rules out
+
+**Ruled out.** The splitter order at HEAD is repositories, files, centre,
+conversations (`workbench_window.cpp` ~1418), so handle 2 is still the
+files-drawer edge. Every link from drag to store is intact:
+
+- `move_handle`
+- `splitterMoved`
+- `observe_handle_drag` (~7844), which requires a published layout, an
+  expanded files drawer and 4 widgets
+- `observe_drawer_width`
+- `dispatch_workbench_width` (`github_application.cpp` ~7394)
+- `resize_now` (`workbench_application_host.cpp` ~1020)
+- `submit_settings_store` (~770)
+- `finish_settings_store` (~1455), or, on profile defaults, `accept_preferences` (~1167)
+
+`ad0bb67d`, `3dcbf237` and `ed2b3f14` break no link.
+
+**Remaining candidates**, all runtime conditions:
+
+- (a) the files drawer cannot grow in the offscreen window, so the size is
+  unchanged and nothing is dispatched;
+- (b) the course is on the profile-defaults branch, and `ce62ed52`'s
+  empty-Home defaults make `accept_preferences` mismatch, so the stored count
+  never moves (a product regression);
+- (c) no layout was ever published (`LayoutWidths` is empty).
+
+A user dragging the drawer edge still persists the width, by the code, unless
+(b) applies.
+
+**Next step.** Cap the wait at ~14887-14896 and fail with separate terms for
+"no width dispatch" and "no stored layout". Emit the splitter sizes, the
+drawer state, `LayoutWidths` and whether the profile is scoped. Bisect from
+the last green run.

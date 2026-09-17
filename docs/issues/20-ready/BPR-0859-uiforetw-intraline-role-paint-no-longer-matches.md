@@ -51,3 +51,31 @@ medium-low. The row passed when BPR-0723 closed on 2026-09-11.
 - The row passes on macOS and Linux.
 - The intraline roles are painted as the appearance profile defines them, and
   that is shown in the rendered application, not only in a model test.
+
+## Second scout (dsp-004, read-only): suspects narrowed
+
+A code-reading trace did not confirm the suspected commits:
+
+- `a5427499` moved `character_offset`, `append_line_band` and
+  `append_selection_band` into `code_sample_painter.cpp` with identical
+  bodies. `append_intraline_emphasis` (`diff_workbench.cpp` ~2505-2624) and
+  its colour sources are unchanged.
+- `867e4bed` does not touch the diff workbench or the probe.
+
+The probe reads the panes' own `extraSelections()`, and it accepts the role
+colour, the colour under the selection wash, and the derived fill. It also
+accepts an underline, although the code at HEAD sets none.
+
+The remaining candidates are runtime conditions, so bisect from the last
+green run rather than assuming a commit:
+
+- (a) the target line is outside `paintable_line_bounds` when the probe
+  samples;
+- (b) the intraline pairs do not match the pane line;
+- (c) `QColor ==` compares the colour spec, so the derived-fill branch can
+  mismatch;
+- (d) a timing change elsewhere.
+
+Log each pane's highlight colours and specs, the accepted colours and the
+paint bounds at the failure. That separates a product repaint defect from a
+stale probe.
