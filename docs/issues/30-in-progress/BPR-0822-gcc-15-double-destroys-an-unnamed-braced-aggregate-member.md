@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0822"
 title: "GCC 15.2 destroys an unnamed braced aggregate member twice when a later initializer throws"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
