@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0821"
+  ],
+  "reserve_for": "bpr-main-mac",
+  "purpose": "dsp-002 discovery: composition contract encodes BPR-0797's retired compile-time gates",
+  "created": "2026-09-17T08:18:59.577720+00:00",
+  "base": "af612a050f9f8a8a74b8307d1f237b8dc7e9b04f"
+}
