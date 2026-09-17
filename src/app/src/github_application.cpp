@@ -12598,6 +12598,12 @@ namespace bpr::app {
 				const auto endpoint = adapters::sqlite::make_profile_activation_server(*root, Config.Profile, RuntimeLease);
 				if (endpoint) {
 					ActivationServer = *endpoint;
+				} else {
+					// [[BPR-0881]]. A profile with no endpoint answers its own second launch with
+					// owner-busy forever, and skipping the refusal silently is how that survived.
+					const auto resolved = adapters::sqlite::profile_activation_endpoint(*root);
+					qWarning("profile-activation-endpoint-unavailable %s",
+							 resolved ? "bind-refused" : adapters::sqlite::describe_profile_activation_endpoint_failure(resolved.error()));
 				}
 			}
 			auto store  = adapters::sqlite::make_queue_enrollment_store({ .StorageRoot = *root });

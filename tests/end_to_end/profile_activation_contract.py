@@ -1,6 +1,7 @@
 """Real desktop activation preserves owner identity and durable window routing."""
 import argparse
 import contextlib
+import hashlib
 import os
 from pathlib import Path
 import sqlite3
@@ -23,8 +24,10 @@ def private_fixture_parent():
     workspace recovery refuses, and the orderly drain exits 1. The macOS runner's
     `BPR_TEST_SOCKET_ROOT` is such a directory. Linux's network sandbox sets
     none, and shared `/tmp` is not one, so the course makes its own there. `/tmp`
-    keeps the socket path short. On POSIX the contained support delegates to
-    `tempfile.mkdtemp`, so the directory is still created mode 0700.
+    keeps the data root short; since [[BPR-0881]] it no longer governs the
+    rendezvous, which lives in a per-user runtime directory instead. On POSIX
+    the contained support delegates to `tempfile.mkdtemp`, so the directory is
+    still created mode 0700.
     """
     configured = os.environ.get("BPR_TEST_SOCKET_ROOT")
     if configured is not None:
@@ -32,6 +35,61 @@ def private_fixture_parent():
         return
     with contained_temporary_directory(prefix="bpr-activation-course-", parent="/tmp") as private:
         yield private
+
+
+def owner_private_directory(path, follow_links=True):
+    """[[BPR-0881]]. Mirrors the product's own check on a runtime directory."""
+    try:
+        info = os.stat(path) if follow_links else os.lstat(path)
+    except OSError:
+        return False
+    return (
+        stat.S_ISDIR(info.st_mode)
+        and info.st_uid == os.geteuid()
+        and stat.S_IMODE(info.st_mode) == 0o700
+    )
+
+
+def runtime_directory():
+    """[[BPR-0881]]. The same candidate order `profile_activation.cpp` walks.
+
+    Linux's `/run/user/<uid>` first, then `$TMPDIR`, then `/tmp`; a candidate
+    that is not itself owner-private earns one owner-private `bpr-<uid>` child,
+    checked without following links so a planted symlink is refused.
+    """
+    identity = str(os.geteuid())
+    configured = os.environ.get("TMPDIR")
+    candidates = [Path("/run/user") / identity]
+    if configured and configured.startswith("/"):
+        candidates.append(Path(configured))
+    candidates.append(Path("/tmp"))
+    for candidate in candidates:
+        if owner_private_directory(candidate):
+            return candidate
+        child = candidate / ("bpr-" + identity)
+        try:
+            child.mkdir(mode=0o700)
+        except FileExistsError:
+            pass
+        except OSError:
+            continue
+        if owner_private_directory(child, follow_links=False):
+            return child
+    return None
+
+
+def activation_endpoint(profile_root):
+    """[[BPR-0881]]. The endpoint the product derives for this profile root.
+
+    The digest is over the *lexically* normalised path, matching
+    `endpoint_name`'s `lexically_normal()`: neither side resolves symlinks, so
+    both sides must decline to resolve them.
+    """
+    directory = runtime_directory()
+    assert directory is not None, "no owner-private per-user runtime directory"
+    native = os.path.normpath(str(profile_root))
+    digest = hashlib.sha256(os.fsencode(native)).hexdigest()[:16]
+    return directory / f"bpr-activate-{digest}.sock"
 
 
 def windows(root, profile):
@@ -140,10 +198,18 @@ def main():
             wait_marker(sender, "ACTIVATION_QUEUED")
             assert windows(root, 2) == other_before
             assert windows(root, 1) == before, "other profile activation crossed identity"
-            endpoints = list(root.rglob("activate.sock"))
-            assert endpoints, "owner activation endpoint was not created"
-            # Only remove the fixture socket for the default owner's root.
-            endpoint = next(path for path in endpoints if "profile-2" not in path.parts)
+            # [[BPR-0881]]. The rendezvous left the data root for a short
+            # per-user runtime directory, so the course derives the default
+            # owner's endpoint the way the product does instead of globbing the
+            # root for it. A wrong derivation fails here naming both what it
+            # expected and what is actually there, rather than silently finding
+            # nothing to unlink.
+            endpoint = activation_endpoint(root)
+            assert endpoint.exists(), (
+                f"owner activation endpoint was not created at {endpoint}; "
+                f"the runtime directory holds "
+                f"{sorted(path.name for path in endpoint.parent.glob('bpr-activate-*.sock'))}"
+            )
             endpoint.unlink()
             sender = start("unavailable", 1, "unavailable")
             assert sender[0].wait(timeout=35) == 0

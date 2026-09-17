@@ -1,12 +1,14 @@
 #include "bpr/adapters/sqlite/profile_activation.hpp"
 #include "bpr/adapters/sqlite/profile_runtime_lease.hpp"
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <iostream>
+#include <string>
 #include <string_view>
 #include <thread>
 
@@ -31,6 +33,20 @@ namespace {
 		}
 	}
 #if !defined(_WIN32)
+	// The geometry this contract has to reproduce. A real macOS profile root is
+	// `/Users/<user>/Library/Application Support/BetterPullReview/BetterPullReview/profiles/profile-N`:
+	// 94 bytes for a six-character user name, whose in-root `activate.sock` needs 108 -- past
+	// Darwin's 104-byte `sun_path`, and exactly at Linux's 108 ([[BPR-0881]]). The fixture used to
+	// assert that its own short path fit, which is the one condition the product could never meet,
+	// so it grows its root to the real length and asks the product where the endpoint is instead.
+	constexpr std::string_view legacy_endpoint_name{ "/activate.sock" };
+	constexpr std::size_t      realistic_root_size = 94U;
+
+	[[nodiscard]] auto in_root_endpoint_would_fit(const std::filesystem::path& aRoot) -> bool
+	{
+		return aRoot.string().size() + legacy_endpoint_name.size() < sizeof(sockaddr_un::sun_path);
+	}
+
 	class scratch_directory
 	{
 	public:
@@ -49,15 +65,29 @@ namespace {
 	#endif
 			auto pattern = (std::filesystem::path{ socketRoot ? socketRoot : "/tmp" } / "bpr-act-XXXXXX").string();
 			expect(::mkdtemp(pattern.data()) != nullptr, "make private scratch");
-			Path = std::filesystem::canonical(pattern.data());
+			Base = std::filesystem::canonical(pattern.data());
+			Path = Base;
+			// Grow the root until it is at least as long as a real profile root and no shorter
+			// than the length at which an in-root endpoint stops fitting `sun_path`.
+			const auto target = std::max(realistic_root_size, sizeof(sockaddr_un::sun_path) - legacy_endpoint_name.size());
+			while (Path.string().size() < target) {
+				const auto deficit = target - Path.string().size();
+				Path /= std::string(std::min<std::size_t>(deficit > 1U ? deficit - 1U : 1U, 48U), 'd');
+				expect(::mkdir(Path.c_str(), 0700) == 0 && ::chmod(Path.c_str(), 0700) == 0, "extend scratch to a realistic root");
+			}
 		}
 		~scratch_directory()
 		{
 			std::error_code ignored;
-			std::filesystem::remove_all(Path, ignored);
+			// The rendezvous is no longer inside the root, so the fixture removes it by name.
+			if (const auto endpoint = profile_activation_endpoint(Path)) {
+				std::filesystem::remove(*endpoint, ignored);
+			}
+			std::filesystem::remove_all(Base, ignored);
 		}
 		scratch_directory(const scratch_directory&)                                     = delete;
 		auto                  operator=(const scratch_directory&) -> scratch_directory& = delete;
+		std::filesystem::path Base;
 		std::filesystem::path Path;
 	};
 
@@ -65,7 +95,18 @@ namespace {
 	{
 		const scratch_directory root;
 		const scratch_directory other;
-		auto                    lease = acquire_profile_runtime_lease(root.Path);
+		expect(root.Path.string().size() >= realistic_root_size, "fixture root is at least a real profile root long");
+		expect(!in_root_endpoint_would_fit(root.Path), "an endpoint beside this root could not fit sun_path");
+		const auto endpoint = profile_activation_endpoint(root.Path);
+		expect(endpoint.has_value(), "a realistic-length root still resolves an endpoint");
+		expect(endpoint->string().size() < sizeof(sockaddr_un::sun_path), "the resolved endpoint fits sun_path");
+		// Lengths rather than paths, so the measured geometry is inspectable without naming a user.
+		std::cout << "profile-activation geometry: root " << root.Path.string().size() << " bytes, in-root endpoint "
+				  << root.Path.string().size() + legacy_endpoint_name.size() << " bytes, runtime endpoint "
+				  << endpoint->string().size() << " bytes, sun_path " << sizeof(sockaddr_un::sun_path) << " bytes\n";
+		const auto unowned = profile_activation_endpoint(root.Path / "absent");
+		expect(!unowned && unowned.error() == profile_activation_endpoint_failure::root_refused, "a root this caller does not own resolves no endpoint");
+		auto lease = acquire_profile_runtime_lease(root.Path);
 		expect(lease.has_value(), "acquire lease");
 		expect(!make_profile_activation_server(root.Path, profile, { }), "null lease refused");
 		expect(!make_profile_activation_server(root.Path, profile, std::make_shared<bpr::application::profile_runtime_lease>()), "forged lease refused");
@@ -76,15 +117,16 @@ namespace {
 		lease->reset();
 		expect(!acquire_profile_runtime_lease(root.Path), "server retains lease");
 		server->reset();
-		expect(!std::filesystem::exists(root.Path / "activate.sock"), "socket removed on drain");
+		expect(!std::filesystem::exists(*endpoint), "socket removed on drain");
 		expect(acquire_profile_runtime_lease(root.Path).has_value(), "lease released after server");
 		const auto missing = send_profile_activation(root.Path, profile, intent::activate);
 		expect(!missing && missing.error() == outcome::unavailable, "missing owner unavailable");
-		std::filesystem::create_symlink(other.Path, root.Path / "activate.sock");
+		std::filesystem::create_symlink(other.Path, *endpoint);
 		lease = acquire_profile_runtime_lease(root.Path);
 		expect(!make_profile_activation_server(root.Path, profile, *lease), "socket symlink refused");
-		expect(std::filesystem::is_symlink(root.Path / "activate.sock"), "refusal preserves hostile entry");
+		expect(std::filesystem::is_symlink(*endpoint), "refusal preserves hostile entry");
 		expect(!send_profile_activation(root.Path, profile, intent::activate), "client refuses socket symlink");
+		expect(std::filesystem::remove(*endpoint), "fixture removes its own hostile entry");
 	}
 
 	auto launch_client(const std::filesystem::path& aRoot, const char* aIntent, const char* aExpected) -> pid_t
@@ -155,10 +197,14 @@ namespace {
 	{
 		const int socket = ::socket(AF_UNIX, SOCK_STREAM, 0);
 		expect(socket >= 0, "raw client socket");
+		// The fixture asks the product where the rendezvous is rather than assuming it is beside
+		// the root, and the length it checks is the product's own choice ([[BPR-0881]]).
+		const auto endpoint = profile_activation_endpoint(aRoot);
+		expect(endpoint.has_value(), "raw client resolves the product's endpoint");
 		sockaddr_un address{ };
 		address.sun_family = AF_UNIX;
-		const auto path    = (aRoot / "activate.sock").string();
-		expect(path.size() < sizeof(address.sun_path), "fixture socket path fits");
+		const auto path    = endpoint->string();
+		expect(path.size() < sizeof(address.sun_path), "the product's endpoint fits sun_path");
 		std::memcpy(address.sun_path, path.c_str(), path.size() + 1U);
 		expect(::connect(socket, reinterpret_cast<const sockaddr*>(&address), sizeof(address)) == 0, "raw connect");
 		return socket;
@@ -218,6 +264,36 @@ namespace {
 		receive_request(*server).Reply->complete(outcome::queued);
 		await_child(child);
 	}
+
+	void test_stale_endpoint()
+	{
+		const scratch_directory root;
+		const auto              endpoint = profile_activation_endpoint(root.Path);
+		expect(endpoint.has_value(), "stale course resolves the endpoint");
+		const auto path = endpoint->string();
+		{
+			// The entry an owner that died leaves behind: bound and owner-private, never drained.
+			// It now sits in the runtime directory rather than the root, so prove there too that
+			// it does not wedge the next launch.
+			const int listener = ::socket(AF_UNIX, SOCK_STREAM, 0);
+			expect(listener >= 0, "stale listener socket");
+			sockaddr_un address{ };
+			address.sun_family = AF_UNIX;
+			expect(path.size() < sizeof(address.sun_path), "the product's endpoint fits sun_path");
+			std::memcpy(address.sun_path, path.c_str(), path.size() + 1U);
+			expect(::bind(listener, reinterpret_cast<const sockaddr*>(&address), sizeof(address)) == 0, "stale bind");
+			expect(::chmod(path.c_str(), 0600) == 0, "stale socket is owner-private");
+			::close(listener);
+		}
+		expect(std::filesystem::exists(*endpoint), "stale socket outlives its owner");
+		auto lease = acquire_profile_runtime_lease(root.Path);
+		expect(lease.has_value(), "stale course lease");
+		auto server = make_profile_activation_server(root.Path, profile, *lease);
+		expect(server.has_value(), "a stale socket does not wedge the next launch");
+		const auto child = launch_client(root.Path, "activate", "queued");
+		receive_request(*server).Reply->complete(outcome::queued);
+		await_child(child);
+	}
 #endif
 }
 
@@ -232,11 +308,14 @@ auto main(int aCount, char** aArguments) -> int
 	test_authority();
 	test_process_handoff();
 	test_hostile_framing();
+	test_stale_endpoint();
 #else
 	(void)aCount;
 	(void)aArguments;
 	expect(!make_profile_activation_server({ }, profile, { }), "Windows explicit unavailable");
 	expect(!send_profile_activation({ }, profile, intent::activate), "Windows client unavailable");
+	const auto endpoint = profile_activation_endpoint({ });
+	expect(!endpoint && endpoint.error() == profile_activation_endpoint_failure::platform_unsupported, "Windows has no native endpoint");
 #endif
 	std::cout << "profile-activation-tests:pass\n";
 }
