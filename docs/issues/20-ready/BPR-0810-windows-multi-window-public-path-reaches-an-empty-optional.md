@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0810"
 title: "Windows: the multi-window public path reaches an empty optional"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0024"]
 depends_on: []
 priority: "P2"
