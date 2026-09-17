@@ -151,3 +151,17 @@ committed.
   acceptance names.
 - The reviewed reseal on main, using the values above, and the round-trip
   contract passing after it.
+
+## macOS run and reseal; finished (dsp-003)
+
+Main merged `linux-lane` at `e70b9112` as `0c111e34`. It then resealed the
+round-trip pins in `417ef7b0` for `df235fa1..0c111e34`, citing the station's
+independent review of `a621ce27`. On macOS at that head:
+
+- `application_anonymous_public_preview_public_path` passes 2 of 2. Its pass
+  expression requires `SMART_ACQUISITIONS:4`.
+- `application_review_round_trip_composition_contract`,
+  `application_composition_contract`, `application_epoch_persistence_github-com`
+  and `architecture_boundaries` pass.
+
+Logs: `build/r2-logs/dsp3-int9-*`.
