@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0806"
 title: "The tests-disabled Windows app cannot start its profile desktop"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0024"]
 depends_on: []
 priority: "P1"
 platforms: ["win"]
 metadata: {"found_by":"bpr-win during task-20260917-win-evidence (BPR-0798, BPR-0730)","found_at":"f2b8e682255fc553a87d4d164c3b27f061300e07","run":"run-20260916-stations","dispatch":"dsp-001-r2"}
+acceptance: [{"criterion":"The windows-app-release image starts on an empty default data root, shows the profile desktop window, and quits cleanly; a second launch on the same root reopens it without STARTUP_FAILED","outcome":"pass","revision":"d587b5f1","evidence":{"kind":"artifact","detail":"bpr-win: window after 0.8 s, WindowPattern.Close exit 0, relaunch window exit 0, second process PROFILE_ALREADY_OPEN exit 1; image sha256 46619a53...; docs/verification/BPR-0806-windows-profile-storage-startup.md"}},{"criterion":"application_profile_management_public_path passes on windows-dev, including its non-Apple native_empty_desktop_policy() == quit expectation","outcome":"pass","revision":"d587b5f1","evidence":{"kind":"command","detail":"ctest --preset windows-dev on bpr-win, 13.85 s; same evidence file"}},{"criterion":"Focused Windows contract: a forward-slash Qt root is converted before storage admission, canonical_windows_root still refuses /, UNC and \\\\?\\ inputs, and a registry file with a non-private DACL is still refused","outcome":"pass","revision":"d587b5f1","evidence":{"kind":"command","detail":"application_windows_profile_storage_startup_contract passes and fails without the conversion or with the old POSIX check; same evidence file"}},{"criterion":"The macOS and Linux storage courses that cover the changed sources still pass, and architecture_boundaries passes","outcome":"pass","revision":"4e4fd6b9 (Linux) and 99712ec3ada8e8482f3a855d3873d20690283f95 (macOS)","evidence":{"kind":"command","detail":"Linux: five sqlite storage contracts, application_profile_startup_public_path and architecture_boundaries pass on the stock build (docs/verification/BPR-0806-linux-storage-courses.md). macOS: startup/management public paths, sqlite registry and queue storage, architecture_boundaries pass at 99712ec3ada8e8482f3a855d3873d20690283f95 (build/r2-logs/dsp2-int2-*.log), and 15 storage/profile courses passed earlier at c0f2fa31. The Linux multi-window abort is BPR-0810's defect, independent of this card and fixed on main in 3ca3e12c; it is rerun as BPR-0810's Linux confirmation."}}]
 ---
 
 # BPR-0806: The tests-disabled Windows app cannot start its profile desktop
@@ -126,3 +127,24 @@ on Windows but its contained registration still fails; `application_logging` is
 not registered on Windows.
 
 This card stays In Progress until the Linux storage courses are recorded.
+
+## Linux storage courses recorded, 2026-09-17 (dsp-002)
+
+`bpr-linux` ran them on the stock GCC 15.2 build for `task-20260917-lnx-build`;
+see [the Linux storage courses](../../verification/BPR-0806-linux-storage-courses.md).
+Main merged the station's work as `fb84f41c`.
+
+- All five `sqlite_*` storage contracts, `application_profile_startup_public_path`
+  and `architecture_boundaries` pass on Linux. The fourth criterion is
+  therefore met on both platforms.
+- `application_profile_multi_window_public_path` aborts on Linux at
+  `profile_multi_window_public_path_tests.cpp:573`, dereferencing an empty
+  `shown_receipt()` after its own line selections. The station's scout showed
+  this is independent of BPR-0806's path and storage changes. It is the defect
+  [[BPR-0810]] fixed on main in `3ca3e12c`, which `linux-lane` did not yet
+  contain. The next Linux envelope reruns that course as BPR-0810's Linux
+  confirmation. It is not an open BPR-0806 obligation.
+- At `99712ec3`, macOS still passes `application_profile_startup_public_path`,
+  `application_profile_management_public_path`, the sqlite registry and
+  queue storage contracts, and `architecture_boundaries`
+  (`build/r2-logs/dsp2-int2-units.log`, `dsp2-int2-courses.log`).
