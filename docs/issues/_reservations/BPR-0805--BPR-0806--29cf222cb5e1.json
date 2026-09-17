@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0805",
+    "BPR-0806"
+  ],
+  "reserve_for": "bpr-main-mac",
+  "purpose": "Windows defects found by bpr-win: windows-dev /bigobj and profile-storage startup",
+  "created": "2026-09-17T04:39:58.072692+00:00",
+  "base": "bd7096fd3cbd3a9942419387b194172d70f79bce"
+}
