@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0835"
 title: "The agent finding composition contracts fail without a named failure"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win", "mac"]
 metadata: {"found_by":"bpr-win task-20260917-win-hardening new defect","found_at":"711d3ddc5f8db9f237e4c4b84758d116b9e897af","run":"run-20260916-stations","dispatch":"dsp-003"}
+acceptance: [{"criterion":"AC1 both contracts pass on macOS and on the Windows station, and the cause is named here","outcome":"pass","revision":"3cc2ac48 and c3557ca1f07d459aab26c55d339c140b71f518fd; macOS at 3bd65861","evidence":{"kind":"command","detail":"Causes: 826fb871 (BPR-0705 per-window MCP snapshot folder) and 554564f8/91383cc4 (setup destination submit call sites), both course expectations; plus a Windows-only string comparison of native vs Qt path spellings. macOS 2/2 quiet and 2/2 at 3bd65861 (build/r2-logs/dsp3-0835-quiet-*.log, dsp3-int10-0835-*.log); Windows 2/2 each (docs/verification/BPR-0835-windows-observation.md); Linux 3/3 each (docs/verification/BPR-0835-linux-confirmation.md)."}}]
 ---
 
 # BPR-0835: The agent finding composition contracts fail without a named failure
