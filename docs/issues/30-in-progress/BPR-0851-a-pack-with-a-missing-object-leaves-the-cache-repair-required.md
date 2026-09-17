@@ -144,3 +144,46 @@ cancelled `index-pack` takes the same branch, but no test covers that.
 **Still open.** A critical review, and the Linux and Windows runs of the fix.
 Git for Windows may create `tmp_pack_*` read-only, or with a descriptor that
 the private check refuses; in that case the cleanup fails closed at 13.
+
+## Critical review and correction (dsp-004)
+
+An `rfc-reviewer-critical` found **no blocking issue**.
+
+- **Ownership proof.** A hard link, symlink or reparse swap fails the identity
+  check. A swap after the quarantine rename deletes nothing.
+- **Failing closed.** A listing error or the bound removes nothing. The
+  inventory still refuses a `.rev` file, an unknown name, a pre-existing
+  `tmp_*` and a crash-left `.bpr-file-cleanup-*`. Fault injection is defined
+  only on the cache-contract test target.
+- **Timeout and cancel.** On those paths the child is killed and reaped
+  before the cleanup runs, and `reap_failure` is excluded.
+- **BPR-0852.** Unrecognised lines are only counted, the stderr limit holds,
+  and output over 1024 bytes carries no text. The success rule is unchanged.
+
+The reviewer's findings, with their dispositions:
+
+1. Courses 7 and 8 matched the planted files of earlier courses: run alone,
+   they failed. **Corrected.** Each course now inspects only its own cache's
+   object store. Run alone, courses 6, 7 and 8 each pass, and so do both
+   contracts (`build/r2-logs/dsp4-0851-fix2-trial-{before,after}.log`,
+   `dsp4-0851-fix2-contracts.log`).
+2. Windows was unverified. **Since run.** On `bpr-win`, Git for Windows
+   leaves `tmp_pack_*` with attributes READONLY|ARCHIVE. The file passes the
+   single-link and private checks, and its removal succeeds.
+3. A same-uid process writing a `tmp_pack_*` file into the locked store during
+   `index-pack` now has that file removed. **Recorded:** the cache lock is the
+   authority boundary.
+4. The agent workspace path carries cache detail into an agent invocation's
+   stderr. **Recorded:** the new summary is fixed words and counts, and the
+   existing `index-pack` stderr already named an object id there.
+
+**Station runs of `15eb1540`.**
+
+- **Linux (Git 2.53.0).** All 7 rows pass, with `MISSING_REFUSAL_REASONS:27`
+  and the same summary as macOS. An `LD_PRELOAD` observer saw the product
+  quarantine and remove exactly `tmp_pack_vijD1a` (mode 400, 1 link, own uid)
+  (`docs/verification/dsp4-linux-confirmation.md`).
+- **Windows (Git for Windows 2.55.0).** The process, cache and sparse-cache
+  contracts and the three haves courses pass, with
+  `MISSING_REFUSAL_REASONS:27` and no 26
+  (`docs/verification/dsp4-windows-confirmation.md`).

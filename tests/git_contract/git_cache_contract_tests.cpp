@@ -28,6 +28,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <ranges>
 #include <span>
 #include <stop_token>
@@ -1257,11 +1258,24 @@ namespace {
 				"delete isolated installation refusal cache after verification");
 	}
 
-	// Every file under `aRoot` with index-pack's temporary name, sorted.
-	[[nodiscard]] auto index_residue(const std::filesystem::path& aRoot) -> std::vector<std::string>
+	// Every `objects/pack` directory under `aRoot`, sorted.
+	[[nodiscard]] auto pack_directories(const std::filesystem::path& aRoot) -> std::vector<std::filesystem::path>
+	{
+		auto directories = std::vector<std::filesystem::path>{ };
+		for (const auto& entry : std::filesystem::recursive_directory_iterator{ aRoot }) {
+			if (entry.is_directory() && entry.path().filename() == "pack" && entry.path().parent_path().filename() == "objects") {
+				directories.push_back(entry.path());
+			}
+		}
+		std::ranges::sort(directories);
+		return directories;
+	}
+
+	// Every file in one pack directory with index-pack's temporary name, sorted.
+	[[nodiscard]] auto index_residue(const std::filesystem::path& aPackDirectory) -> std::vector<std::string>
 	{
 		auto names = std::vector<std::string>{ };
-		for (const auto& entry : std::filesystem::recursive_directory_iterator{ aRoot }) {
+		for (const auto& entry : std::filesystem::directory_iterator{ aPackDirectory }) {
 			const auto name = entry.path().filename().string();
 			if (name.starts_with("tmp_pack_") || name.starts_with("tmp_idx_")) {
 				names.push_back(name);
@@ -1269,13 +1283,6 @@ namespace {
 		}
 		std::ranges::sort(names);
 		return names;
-	}
-
-	[[nodiscard]] auto count_named(const std::filesystem::path& aRoot, const std::string_view aName) -> std::size_t
-	{
-		return static_cast<std::size_t>(std::ranges::count_if(
-			std::filesystem::recursive_directory_iterator{ aRoot },
-			[&](const auto& aEntry) { return aEntry.path().filename().string() == aName; }));
 	}
 
 	auto verify_sparse_residency(
@@ -1317,8 +1324,18 @@ namespace {
 		// leaves tmp_pack_XXXXXX; 6-8 plant entries the cleanup must leave (BPR-0851).
 		for (std::uint8_t course = 0U; course != 9U; ++course) {
 			const auto cacheRequest = request(static_cast<std::uint8_t>(0xd0U + course), static_cast<std::uint8_t>(0xe0U + course));
+			const auto storesBefore = course >= 5U ? pack_directories(aRoot) : std::vector<std::filesystem::path>{ };
 			auto       opened       = aCache.open(cacheRequest, { });
 			require(opened.has_value(), "open sparse fixture cache");
+			// Courses 5-8 inspect only their own object store. The caches of earlier
+			// refusal courses stay under `aRoot`, and must not stand in for this one.
+			auto coursePackDirectory = std::filesystem::path{ };
+			if (course >= 5U) {
+				auto added = std::vector<std::filesystem::path>{ };
+				std::ranges::set_difference(pack_directories(aRoot), storesBefore, std::back_inserter(added));
+				require(added.size() == 1U, "the course's cache adds exactly one object store");
+				coursePackDirectory = added.front();
+			}
 			const auto operation = identity<core::epoch_operation_id>(static_cast<std::uint8_t>(0xc0U + course));
 			// Course 2 omits the root tree; course 3 supplies a blob as the commit.
 			const auto bytes = course == 2U ? makePack(headText + "\n") : course == 3U ? makePack(blobText + "\n" + treeText + "\n")
@@ -1379,7 +1396,7 @@ namespace {
 				if (course != 5U) {
 					std::filesystem::remove(marker);
 				}
-				const auto residue = index_residue(aRoot);
+				const auto residue = index_residue(coursePackDirectory);
 				std::cout << "SPARSE_STRICT_REFUSAL:" << static_cast<int>(course) << ':'
 						  << (strict ? -1 : static_cast<int>(strict.error().Code)) << ':' << residue.size() << '\n';
 				require(!strict && !witnessed, "strict complete import refuses sparse pack without publication");
@@ -1389,7 +1406,11 @@ namespace {
 				} else {
 					require(strict.error() == application::git_cache_failure::repair_required,
 							"a store changed beyond index-pack's own residue still needs repair");
-					auto planted = std::vector<std::string>{ "tmp_pack_BPRpre" };
+					// Exactly what this course planted remains: Git's own residue is gone.
+					auto planted = std::vector<std::string>{ };
+					if (course == 6U) {
+						planted.emplace_back("tmp_pack_BPRpre");
+					}
 					if (course == 8U) {
 						planted.insert(planted.end(), { "tmp_idx_BPRln2", "tmp_pack_BPRln1" });
 #if !defined(_WIN32)
@@ -1397,12 +1418,12 @@ namespace {
 #endif
 						std::ranges::sort(planted);
 					}
-					require(residue == planted && count_named(aRoot, "tmp_pack_BPRpre") == 1U,
-							"the cleanup removed Git's residue and left every planted temporary name");
-					require(course == 6U
-								|| (count_named(aRoot, "pack-" + std::string(40U, 'e') + ".pack") == 1U
-									&& count_named(aRoot, "pack-" + std::string(40U, 'e') + ".idx") == 1U),
-							"the cleanup leaves a planted extra pack");
+					require(residue == planted,
+							"the cleanup removed Git's residue and left every temporary name this course planted");
+					const auto extraPack = "pack-" + std::string(40U, 'e');
+					require(std::filesystem::exists(coursePackDirectory / (extraPack + ".pack")) == (course == 7U)
+								&& std::filesystem::exists(coursePackDirectory / (extraPack + ".idx")) == (course == 7U),
+							"the cleanup leaves the extra pack this course planted, and no other course has one");
 					opened->reset();
 					continue;
 				}
