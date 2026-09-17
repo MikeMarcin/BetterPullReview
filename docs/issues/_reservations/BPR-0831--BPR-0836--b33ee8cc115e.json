@@ -1,0 +1,15 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0831",
+    "BPR-0832",
+    "BPR-0833",
+    "BPR-0834",
+    "BPR-0835",
+    "BPR-0836"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "dsp-003: Windows station defects from task-20260917-win-hardening and BPR-0814's production capsule exposure",
+  "created": "2026-09-17T11:45:06.905238+00:00",
+  "base": "8a03a5bee813fc285e1c0be91f6a5c070436364f"
+}
