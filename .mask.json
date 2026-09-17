@@ -26,7 +26,7 @@
     "agentskills": {
       "packages": "skills",
       "ref": "refs/heads/main",
-      "repository": "https://github.com/MikeMarcin/AgentSkills.git"
+      "repository": "ssh://git@github.com/~/MikeMarcin/AgentSkills.git"
     }
   }
 }
