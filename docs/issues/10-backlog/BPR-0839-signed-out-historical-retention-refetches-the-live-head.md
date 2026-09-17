@@ -41,3 +41,9 @@ on bytes already present.
   longer refetches an already retained head, the course's count is updated
   with its reason, and the epoch persistence and portable occurrence courses
   still pass on macOS.
+
+**Platform timing (dsp-003).** With [[BPR-0829]]'s wait in place, the whole
+course takes about 1.5 s on Linux (`bpr-linux`, 5 runs) and 33 to 36 s on
+macOS, where each retention import took about 7.5 s. Whether the macOS cost
+is the refetch, the sandboxed Git process or the fixture transport is not
+established.

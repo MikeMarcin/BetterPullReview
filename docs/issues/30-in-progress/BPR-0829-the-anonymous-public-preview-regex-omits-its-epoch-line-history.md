@@ -131,3 +131,13 @@ no blocker. It had two non-blocking findings on the wait, and both are applied:
 
 After both changes the course passes 3 of 3 on macOS (34.0 to 35.6 s, load
 about 5; `build/r2-logs/dsp3-int4-0829-course-{1,2,3}.log`).
+
+## Linux rerun; finished (dsp-003)
+
+`bpr-linux` reran the course 5 times at `84ac5e0c`, which contains
+`2842f484`, `7555cba4` and the reseal, and main merged the run as
+`f4758aa9`. It passed 5 of 5, with `PUBLIC_PREVIEW_SMART_ACQUISITIONS:4` and
+`OCCURRENCES:4` every run and no `PUBLIC_PREVIEW_WAITING_FOR` line ([the dsp-003 Linux confirmation](../../verification/dsp3-linux-confirmation.md),
+step 2). On Linux each run takes about 1.5 s. On macOS it takes 33 to 36 s,
+because each retention import takes about 7.5 s there; that difference is
+recorded on [[BPR-0839]] and not investigated here.
