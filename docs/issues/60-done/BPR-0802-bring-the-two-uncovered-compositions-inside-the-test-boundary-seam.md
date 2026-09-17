@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0802"
 title: "Bring the two compositions the test-boundary audit cannot cover inside the seam"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0015", "RFC-BPR-0016"]
 depends_on: []
 platforms: ["mac", "win", "linux"]
 metadata: {"pack":"bpr-shell-surfaces-v1","origin":"BPR-0797 named both gaps in its own AC4 evidence and its frontier rather than glossing them; d13 asked for one card between them; allocated on main in d14","acceptance":["BPR-0797 AC4 follow-up"]}
+acceptance: [{"criterion":"AC1 gh_cli_git_smart_transport is a named enumerated exception asserting it links no bpr::app symbol","outcome":"pass","revision":"49d7df695ff7115dd1020b3dce330ec00a657c48","evidence":{"kind":"artifact","detail":"macOS half section: MACOS_UNSANDBOXED_TESTS entry with nm -C zero bpr::app symbol check and negative controls (build/r2-logs/dsp2-0802-*); Windows manifest dropped the raw add_test finding (docs/verification/BPR-0802-windows-confirmation.md); Linux manifest OK:configured=362."}},{"criterion":"AC2 in-process composition answers the boundary question where the composition is decided","outcome":"pass","revision":"49d7df695ff7115dd1020b3dce330ec00a657c48","evidence":{"kind":"command","detail":"github_application_liveness_tests asserts inside/recording browser/no CLI read; reader-removed mutation fails (dsp2-0802-r3-mutation-reader-removed.log); Linux prints github-application-boundary-tests:pass. Windows startup of that course is blocked by BPR-0832, unrelated to the reader."}},{"criterion":"AC3 test_network_isolation_manifest passes on the two findings this card owns","outcome":"pass","revision":"49d7df69 macOS; 711d3ddc Windows; 780d0a1c Linux","evidence":{"kind":"command","detail":"macOS TEST_NETWORK_ISOLATION_OK (dsp2-int5, dsp3-int1-ctest.log); Linux OK:configured=362; Windows 24 findings, exactly the previous 25 minus this card's, the rest owned by BPR-0812."}},{"criterion":"AC4 no test gains the ability to open a browser or spawn gh","outcome":"pass","revision":"49d7df695ff7115dd1020b3dce330ec00a657c48","evidence":{"kind":"observation","detail":"Marker, scrubs, sandbox profile and loopback denial unchanged; Windows ENVIRONMENT_MODIFICATION identical for all 354 rows before and after."}}]
 ---
 
 # BPR-0802: Bring the two compositions the test-boundary audit cannot cover inside the seam
