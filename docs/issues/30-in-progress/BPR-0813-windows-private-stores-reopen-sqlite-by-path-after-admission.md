@@ -148,3 +148,64 @@ open as well:
   `device_binding_store.cpp`.
 - `tests/sqlite_contract/CMakeLists.txt`: a Windows-only block.
 - `scripts/verify_test_network_isolation.py`: pin only.
+
+## macOS store courses and critical review (dsp-003)
+
+Main merged `windows-lane` at `711d3ddc` as `902cda35`.
+
+**macOS at main `8a03a5be` passes all of these** (`build/r2-logs/dsp3-int1-ctest.log`):
+
+- `sqlite_device_binding_storage`, `sqlite_profile_registry_storage` and
+  `sqlite_window_review_restoration_storage`;
+- `sqlite_profile_activation`, `sqlite_profile_runtime_lease`,
+  `sqlite_profile_storage_root` and `sqlite_epoch_catalog_storage_contract`;
+- `application_device_binding_restart` (29.35 s);
+- `application_profile_startup_public_path`,
+  `application_profile_management_public_path` and
+  `application_profile_multi_window_public_path`.
+
+`sqlite_private_store_open` is Windows-only.
+
+**Independent critical review** of `711d3ddc` found **no blocker**. It read
+the source, SQLite 3.53.4's amalgamation and the recorded Windows evidence,
+and could not run Windows code.
+
+What it confirmed:
+
+- The held handle is bound on volume serial plus 128-bit file ID, and
+  reparse, delete-pending and a link count other than 1 are refused on that
+  handle itself.
+- `path_matches_handle` compares against the same `\\?\` name that
+  admission uses.
+- `win32-longpath` differs from `win32` only in maximum path length, so
+  locking and journalling of existing stores are unchanged.
+- Restriction must precede the bind for a newly created file, and does.
+- The checkpoint exists only in `BUILD_TESTING` builds.
+- The non-ANSI course opens all three public stores.
+- On POSIX the path bytes are identical, and every failure still maps to
+  `unavailable`.
+
+Its non-blocking findings:
+
+1. `open_private_store_database`'s `bad_alloc` catch does not close an
+   already-open connection (`catalog_database.cpp` ~4771). Only reachable
+   when memory runs out.
+2. The device-binding store now latches `Failed` when admission fails
+   (`device_binding_store.cpp` ~215). Before, an admission failure returned
+   `unavailable` without latching, so a later `ensure_open` retried. The host
+   treats `corrupt` and `unavailable` alike, so no authority changes, but
+   retry behaviour changed on every platform.
+3. The symbolic-link course needs Developer Mode or the symlink privilege,
+   and fails rather than skips without it.
+4. SQLite still opens side files (`-journal`) by path, and a reparse point
+   pre-placed in `state\v1` would be followed. The code behaved the same
+   before this change, and exploiting it needs write access to the owner's
+   state directory.
+5. The contract binary prints `pass` for an unrecognised argument (ctest
+   passes none).
+6. `u8string()` can throw on a lone-surrogate root name, and the helper
+   catches only `bad_alloc`.
+
+These are follow-up hardening, not criteria of this card.
+
+**Still open:** the Linux store courses.
