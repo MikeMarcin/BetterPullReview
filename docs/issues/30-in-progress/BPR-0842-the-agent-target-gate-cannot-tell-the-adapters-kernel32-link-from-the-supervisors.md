@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0842"
 title: "The agent target gate cannot tell the adapter's Kernel32 link from the supervisor's"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
