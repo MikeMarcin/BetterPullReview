@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0854"
 title: "Four source-scan contracts are red on main"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
