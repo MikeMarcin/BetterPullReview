@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0861"
 title: "The native notification probe cannot find the tray icon since the runtime owns the sink"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
