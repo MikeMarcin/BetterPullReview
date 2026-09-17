@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0810"
 title: "Windows: the multi-window public path reaches an empty optional"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0024"]
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"bpr-win under BPR-0806","found_at":"d587b5f1","run":"run-20260916-stations","dispatch":"dsp-001-r2"}
+acceptance: [{"criterion":"application_profile_multi_window_public_path passes through ctest --preset windows-dev on the Windows station","outcome":"pass","revision":"3ca3e12c","evidence":{"kind":"observation","detail":"bpr-win 33.70/33.76 s pass; WINDOWS_UNCONTAINED pinned dos-volume-name with measured contained cause; gate delta zero"}},{"criterion":"The dereference site is guarded or unreachable by construction, and the macOS course still passes","outcome":"pass","revision":"f33a10c9","evidence":{"kind":"command","detail":"adopt_review_selection re-presents the selected file's accepted receipt after selection_cleared; application_profile_multi_window_public_path 74.56 s pass on macOS at merge; build/r2-logs/int3-ctest.log"}}]
 ---
 
 # BPR-0810: Windows: the multi-window public path reaches an empty optional
@@ -170,3 +171,33 @@ The `windows-app-release` image builds with the change.
 **The macOS course was not run on this station.** The change is portable: the
 composition, the course and the CMake and script registrations. The integrator
 runs the Mac courses at merge.
+
+## Integration and macOS evidence, 2026-09-17 (integrator, run-20260916-stations, dsp-001-r2)
+
+Merged on main as `f33a10c9`. The fix is in `adopt_review_selection`. For a
+present selection cleared by `selection_cleared`, it re-presents the file's
+accepted `ReviewLedgerReceipt` when that receipt belongs to the selected file,
+read under `ReviewLedgerStateMutex`. The empty-optional read is therefore
+unreachable by construction on every platform. Before the fix it was undefined
+behaviour everywhere: macOS passed only because libc++'s unhardened
+`optional::operator->` read destroyed bytes.
+
+| Criterion | Result | Revision |
+|---|---|---|
+| Passes through `ctest --preset windows-dev` | pass: 33.70 s and 33.76 s on bpr-win. Contained registration fails on the canonical-storage temp root, so the course is `WINDOWS_UNCONTAINED`, pinned `dos-volume-name`; `application_setup_destination_public_path` is pinned under the same measured cause. Isolation gate delta is zero | `3ca3e12c` |
+| Dereference site guarded or unreachable, and the macOS course still passes | pass: `application_profile_multi_window_public_path` 74.56 s at the merge, asserting the diagnostics sink `available` on macOS | `f33a10c9` |
+
+Other courses passed at the merge: `application_setup_destination_public_path`,
+`application_profile_startup_public_path`,
+`application_profile_management_public_path`, `qt_review_draft_editor`,
+`application_review_ledger_host`, `application_review_ledger_composition_contract`,
+`application_review_submission_composition_public_path`,
+`application_window_review_restoration`, `qt_composed_github_scale_100` and
+`architecture_boundaries`. Two review contracts failed. Both already fail at a
+clean `8b2bea5b`, so this change did not cause them; they are [[BPR-0818]] and
+[[BPR-0819]].
+
+**Residual.** On one Windows run, the first after reconfiguring and relinking
+the same source, four courses exited `0xc0000409` in 2–8 s. It did not
+reproduce in two full runs, a direct run, or with a temporary guard around the
+new lock. It is recorded but not explained.
