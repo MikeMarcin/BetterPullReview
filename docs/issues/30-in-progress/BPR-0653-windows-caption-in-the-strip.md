@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0653"
 title: "Windows: the strip as the title row"
-status: "Parked"
+status: "In Progress"
 rfcs: ["RFC-BPR-0028"]
 depends_on: []
 priority: "P2"
 metadata: {"milestone_plan":{"id":"ux-redesign-pack-0028","path":"docs/rfcs/plans/ux-redesign-pack-0028/milestone-plan.json"}}
-parked_on: "human-review"
 ---
 
 # Windows: the strip as the title row
@@ -252,3 +251,28 @@ The owner's 3-character proposal, together with the identity's existing
 yield, leaves the Windows strip **2 logical pixels** wider than the 900-pixel
 floor, at 100% and at 125%. Every strip control stays top level from 902
 pixels. **How should those 2 pixels be found on Windows?**
+
+## Owner answer on the 2 pixels, 2026-09-17 (relayed verbatim by the coordinator, dsp-004)
+
+The coordinator offered three options:
+
+1. Raise the Windows minimum width to 902, and use the three-character
+   modality labels (`Ove`, `Rea`, `Rev`, `Dis`) as the last yield.
+2. Trim 2 pixels of spacing and keep 900.
+3. Raise the minimum to 1030 and keep today's compact labels.
+
+The owner answered:
+
+> 902 is fine
+
+**Decision: option 1, on Windows.**
+
+- The Windows minimum width becomes 902 logical pixels.
+- Below the width at which the compact labels no longer fit, the modality
+  labels shorten to their three-character prefixes, as the last yield.
+- Every strip control stays top level at the floor.
+- The accessible names and tooltips keep the full words.
+
+The station measured that the three-character step never triggers on macOS
+at or above its floor, so the macOS question does not arise. macOS keeps 900.
+Criterion 4's attended capture is still an owner task for later.
