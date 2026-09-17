@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0815"
+  ],
+  "reserve_for": "bpr-main-mac",
+  "purpose": "Device authorization panel course no longer begins the flow on macOS",
+  "created": "2026-09-17T06:23:13.918584+00:00",
+  "base": "282e490834ec54b8b6d57d8952c3dba44e53a65c"
+}
