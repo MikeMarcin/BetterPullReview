@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0859"
 title: "The UIforETW selected-diff course finds intraline highlights no longer painted as their roles"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
