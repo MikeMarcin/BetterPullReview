@@ -206,3 +206,56 @@ uncarded red found on the way: the repo-wide formatting gate.
 **Still open.** Criterion 1 names macOS **and Linux**, so this card stays In
 Progress for the Linux run. The row is also registered on Windows
 (`WINDOWS_UNCONTAINED`), so the Windows run is worth taking in the same pass.
+
+## Linux run at the merged head (dsp-005, bpr-linux/int-12)
+
+Station `bpr-linux` (JaegAW, WSL2), branch `linux-lane`, at
+`754d05387286b201d2afb13757cd894bccfddcbd` — the merged head, equal to `main`
+— on a clean tree, after a stock `cmake --preset dev --fresh` configure and a
+`--clean-first` build that was warning-clean under GCC 15.2.0. Its own serial
+run, `ctest --test-dir build/dev -j1 -V -R '^application_workbench_composition_contract$'`,
+from 18:52:01Z, at a 1-minute load average of 9.8 — below the ~15 threshold
+this card records. The Secret Service `login` collection read `(<false>,)`
+before the group.
+
+| Row | Result | Time | Marker |
+|---|---|---|---|
+| `application_workbench_composition_contract` | Pass | 2.80 s | `WORKBENCH_COMPOSITION_CONTRACT_OK` |
+
+One run, as asked; no bisect was needed. Against the 40.38 s
+`RUN_BUDGET_EXPIRED` this card opened with, the row now finishes in 2.80 s,
+well inside its 120 s timeout and its 40 s run budget.
+
+**`splitter_widgets` is 4 under `QT_STYLE_OVERRIDE=Windows`.** The row is
+offscreen *and* Windows-styled by registration, not by an exported variable:
+`bpr_public_path_fixture_environment` appends `QT_STYLE_OVERRIDE=Windows` on
+`UNIX AND NOT APPLE` (`tests/end_to_end/CMakeLists.txt` ~1086-1092), and the
+log's "Environment variables" block shows both `QT_QPA_PLATFORM=offscreen` and
+`QT_STYLE_OVERRIDE=Windows`. For this probe a pass measures the widget count
+rather than merely being consistent with it: `awaiting_files_drawer` will not
+take its baselines or drag until `sizes.size() == 4 && sizes[1] > 0`, with the
+window and the host both reporting the files drawer expanded and
+`outstanding_requests() == 0` (`src/app/src/github_application.cpp`
+~14986-14996). Anything else re-waits and then stalls by name. The probe went
+on to satisfy every original width assertion, including the strict
+`== base + 1` dispatch and persisted-layout counts, so the splitter reported
+exactly four widgets with a non-zero files width. The reviewer's expectation
+that a hidden drawer still occupies a slot at size 0 holds on the Linux
+Windows-style path.
+
+**No stall term fired.** None of `WORKBENCH_FILES_DRAWER_EXPAND_STALLED`,
+`WORKBENCH_DRAWER_WIDTH_DISPATCH_STALLED` or
+`WORKBENCH_DRAWER_WIDTH_STORE_STALLED` appears in the log, and neither does
+`RUN_BUDGET_EXPIRED`. So there is no whole line to quote: the Review entry
+through the strip's public modality action and the drag by the reviewer's
+delta both work on Linux, and the capped waits were never reached.
+
+A passing run prints none of the probe's own marker lines, because the
+contract's CMake script captures the probe output into `probe_output` and
+prints it only when the process fails
+(`tests/end_to_end/application_workbench_composition_contract.cmake` ~74-100).
+The contract marker above is what a green row emits.
+
+Criterion 1 named macOS **and Linux**; both now pass. Windows
+(`WINDOWS_UNCONTAINED`) is the only run this card still owes. The run record
+is in `docs/verification/dsp4-linux-confirmation.md`.

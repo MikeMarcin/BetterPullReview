@@ -166,6 +166,30 @@ confirmed that:
 
 It could not run macOS or libc++ either.
 
+## Confirmation at the merged head (dsp-005, bpr-linux/int-12)
+
+`main` moved under this card, so the row was rerun at the merged head,
+`754d05387286b201d2afb13757cd894bccfddcbd`, on branch `linux-lane` with a
+clean tree, after a stock `cmake --preset dev --fresh` configure and a
+`--clean-first` build that was warning-clean under GCC 15.2.0. Its own serial
+run, `ctest --test-dir build/dev -j1 -V -R '^application_epoch_host$'`, from
+18:52:07Z. The Secret Service `login` collection read `(<false>,)` before the
+group.
+
+| Row | Result | Time | Marker |
+|---|---|---|---|
+| `application_epoch_host` | Pass | 0.25 s | No `FAILED:` line |
+
+0.25 s is exactly the time the eight runs at `346e64fc` and the three at the
+old lane tip took, so the merge changed nothing here. The log carries the
+course's own injected-fault observations — `EPOCH_CACHE_FAILURE:`,
+`EPOCH_CATALOG_FAILURE:` and `EPOCH_EFFECT_FAILED:` lines — as it did before;
+those are the cases doing their work, and there is no bare `FAILED:` line,
+which is this row's failure marker.
+
+The `std::exchange(hook, { })` re-arming still holds against GCC's libstdc++
+at this head.
+
 ## For macOS
 
 - **Still needed:** `application_epoch_host` passes on macOS with this change.

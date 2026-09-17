@@ -116,3 +116,29 @@ to `cc903934…`. The mutation-branch pin is unchanged.
   `application_queue_composition_contract` pass
   (`dsp4-int3-ctest-neighbours.log`).
 - Linux and Windows still have to run the row.
+
+## Linux run at the merged head (dsp-005, bpr-linux/int-12)
+
+Station `bpr-linux` (JaegAW, WSL2), branch `linux-lane`, at
+`754d05387286b201d2afb13757cd894bccfddcbd` — the merged head, equal to `main`
+— on a clean tree, after a stock `cmake --preset dev --fresh` configure and a
+`--clean-first` build that was warning-clean under GCC 15.2.0. Its own serial
+run, `ctest --test-dir build/dev -j1 -V -R '^application_native_notification_attended_contract$'`,
+from 18:51:57Z. The Secret Service `login` collection read `(<false>,)` before
+the group.
+
+| Row | Result | Time | Marker |
+|---|---|---|---|
+| `application_native_notification_attended_contract` | Pass | 3.72 s | `NATIVE_NOTIFICATION_ATTENDED_CONTRACT_OK` |
+
+The `notification_tray` fixture accessor reaches the runtime-owned sink's tray
+on Linux as it does on macOS. No `NATIVE_NOTIFICATION_REFUSED:platform_tray_not_composed`
+appears, so the probe is no longer scoped to `window().findChild` and the
+runtime keeps ownership of the sink, as [[BPR-0705]] made it.
+
+This also settles the misattribution the card records: [[BPR-0843]]'s note
+called the failure "pre-existing, the WSLg limit", and this is the WSL2
+station where that limit would apply. The row passes here under the offscreen
+platform with no fixture fallback needed, so the cause was the probe's lookup
+and not the environment. Windows remains the one platform still to run it.
+The run record is in `docs/verification/dsp4-linux-confirmation.md`.

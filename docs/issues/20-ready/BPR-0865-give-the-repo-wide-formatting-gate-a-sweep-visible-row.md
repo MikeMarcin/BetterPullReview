@@ -67,28 +67,45 @@ left unrecorded.
 ## Station versions, collected 2026-09-17 (dsp-005)
 
 Two of the three are known, and they settle the question against a naive row.
+`bpr-linux`'s numbers were collected by that station (`bpr-linux/int-12`) and
+re-verified there; macOS is the integrator's own.
 
 | Station | `clang-format` | Python |
 |---|---|---|
 | `bpr-main-mac` (integrator, macOS) | 23.1.0, and 22.1.8 also installed; both report the tree clean at `754d0538` | 3.14 |
-| `bpr-linux` (WSL2) | **21.1.8 on the default `PATH`**; 22.1.8 only at the absolute `/usr/bin/clang-format` | 3.13.15 (`python3` resolves to `~/.local/bin/python3`) |
+| `bpr-linux` (JaegAW, WSL2, Ubuntu 26.04) | **21.1.8 on the default `PATH`**; 22.1.8 only at `/usr/bin/clang-format` | 3.13.15 on `PATH`, 3.14.4 at `/usr/bin/python3` |
 | `bpr-win` | not yet collected | not yet collected |
 
-**This is the answer the deferral was waiting for.** A ctest row that resolved
-`clang-format` from `PATH` and gated on version 22 would have gone red on
-`bpr-linux` — for a shadowed toolchain, not for formatting rot. That station's
-own gates have used the absolute `/usr/bin/clang-format` since the shadowing
-was found, which is why its formatting verdicts have been trustworthy while a
-row would not have been.
+The Linux station's exact strings, because the shadowing is the whole point:
 
-So the row, if it is added, has two hard requirements rather than one:
+| Resolution | Version string | Meets the `(22,)` minimum |
+|---|---|---|
+| `clang-format` (PATH) → `/home/mmarcin/.local/bin/clang-format` | `Ubuntu clang-format version 21.1.8 (6ubuntu1)` | **No** |
+| `/usr/bin/clang-format` | `Ubuntu clang-format version 22.1.8 (++20260714015917+ca7933e47d3a-1~exp1~20260714135927.17)` | Yes |
+
+**This is the answer the deferral was waiting for, and it is concrete rather
+than hypothetical.** A ctest row that resolved `clang-format` from `PATH` and
+gated on version 22 would have gone red on `bpr-linux` **today** — for a
+shadowed toolchain, not for formatting rot, which is exactly the outcome this
+card was opened to avoid. That station's own gates have had to say
+`/usr/bin/clang-format` explicitly since the shadowing was found, including
+[[BPR-0855]]'s and [[BPR-0856]]'s runs, which is why its formatting verdicts
+have been trustworthy while a naive row would not have been.
+
+**Integrator's decision on these numbers (dsp-005).** They settle this card
+against adding the row as first imagined. If the row is ever added it has two
+hard requirements rather than one:
 
 - **Resolve the tool explicitly**, the way that station's gates do and the way
-  CMake's own discovery would, rather than trusting `PATH`. A row that picks up
-  whichever `clang-format` is first on `PATH` is not reproducible across these
-  three machines.
+  CMake's own discovery would, rather than trusting `PATH`. A row that picks
+  up whichever `clang-format` is first on `PATH` is not reproducible across
+  these three machines.
 - **Skip, not fail**, when no supported tool is found, so a missing or old
   tool never reads as unformatted source.
 
 Windows's version is the last input. It is asked for in the next `bpr-win`
 envelope.
+
+**Not run on the Linux station.** That task was runs, not fixes: the repo-wide
+`coding-format-check` gate was not executed there and no registration was
+added or changed. Only the versions above were collected.
