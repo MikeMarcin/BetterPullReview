@@ -287,6 +287,7 @@ set_tests_properties(
 
 bpr_add_network_isolated_test(
     NAME documentation_structure
+    WINDOWS_UNCONTAINED
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/scripts/verify_documentation.py"
@@ -296,6 +297,7 @@ bpr_add_network_isolated_test(
 
 bpr_add_network_isolated_test(
     NAME documentation_issue_graph_contract
+    WINDOWS_UNCONTAINED
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/tests/scripts/verify_documentation_tests.py"
@@ -303,6 +305,7 @@ bpr_add_network_isolated_test(
 
 bpr_add_network_isolated_test(
     NAME issue_id_allocation_contract
+    WINDOWS_UNCONTAINED
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/tests/scripts/allocate_issue_id_tests.py"
@@ -310,6 +313,7 @@ bpr_add_network_isolated_test(
 
 bpr_add_network_isolated_test(
     NAME github_recorded_fixture_contract
+    WINDOWS_UNCONTAINED
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/tests/scripts/recorded_pull_request_fixture_tests.py"
@@ -318,6 +322,7 @@ bpr_add_network_isolated_test(
 if(TARGET Git::Git)
     bpr_add_network_isolated_test(
         NAME large_review_fixture_contract
+        WINDOWS_UNCONTAINED
         COMMAND Python3::Interpreter
             "${PROJECT_SOURCE_DIR}/tests/scripts/large_review_fixture_tests.py"
             --git "$<TARGET_FILE:Git::Git>"
@@ -336,6 +341,7 @@ bpr_add_network_isolated_test(
 
 bpr_add_network_isolated_test(
     NAME attended_review_verdict_contract
+    WINDOWS_UNCONTAINED
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/tests/scripts/attended_review_verdict_tests.py"
@@ -354,6 +360,7 @@ bpr_add_network_isolated_test(
 
 bpr_add_network_isolated_test(
     NAME project_source_dump_contract
+    WINDOWS_UNCONTAINED
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/tests/scripts/make_project_source_dumps_tests.py"
@@ -426,6 +433,7 @@ bpr_add_network_isolated_test(
 
 bpr_add_network_isolated_test(
     NAME dif_assets_contract
+    WINDOWS_UNCONTAINED
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/tests/scripts/dif_asset_tests.py"
@@ -467,6 +475,7 @@ bpr_add_network_isolated_test(
 # Retained RFC-0016 authority remains valid after shared-skill cutover.
 bpr_add_network_isolated_test(
     NAME rfc0016_relocated_operator_contract
+    WINDOWS_UNCONTAINED
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/tests/scripts/rfc0016_relocated_operator_contract_tests.py"
@@ -477,6 +486,7 @@ bpr_add_network_isolated_test(
 # network and writes only inside a scratch repository it creates.
 bpr_add_network_isolated_test(
     NAME rfc0017_public_preview_decision_contract
+    WINDOWS_UNCONTAINED
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/tests/scripts/validate_rfc0017_public_preview_decision_tests.py"
@@ -503,6 +513,7 @@ bpr_add_network_isolated_test(
 
 bpr_add_network_isolated_test(
     NAME rfc0016_production_identity_security
+    WINDOWS_UNCONTAINED
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/tests/scripts/verify_rfc0016_production_identity_tests.py"

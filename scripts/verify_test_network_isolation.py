@@ -57,6 +57,21 @@ WINDOWS_UNCONTAINED_LABEL = "bpr_windows_uncontained"
 #   a child's standard streams over a named pipe.
 # - `credential-manager`: the Windows Credential Manager refuses a lowbox
 #   token; the native vault tests pass uncontained and fail inside.
+# - `child-process-denied`: `CreateProcess` is refused outright with WinError 5,
+#   because the tool being launched lives outside the three granted scopes --
+#   `git.exe` under Program Files, whose ACL carries no application-package
+#   entry. Measured on the Windows station on 2026-09-17 ([[BPR-0872]]). This is
+#   a different obstacle from `dos-volume-name`, which is what Git hits *after*
+#   it starts; the pin names the first failure, not the second.
+# - `repository-content-outside-checkout`: the row reads content the repository
+#   points at but does not contain. `scripts/verify_documentation.py` imports
+#   `board_model` from `.agents/skills/implement-rfc/scripts`, which on the
+#   Windows station is a symlink out of the checkout into the MASK store under
+#   the user profile. The container is denied it, and a Git child lies behind
+#   that as well. Measured 2026-09-17 ([[BPR-0873]]). Unlike the others this is
+#   not at heart a lowbox limitation -- it is a fact about the checkout that
+#   would bite any sandbox -- but it is measured here and it is why these rows
+#   cannot be contained.
 #
 # The application tests are `dos-volume-name` through one step: the
 # application canonicalises its data root and the catalog walks that root's
@@ -217,6 +232,23 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # beside the transport fixture above and uncontained for the same reason.
     "native_https_device_authorization_fixture": "dos-volume-name",
     "epoch_history_fixture_contract": "dos-volume-name",
+    # [[BPR-0872]]. Eleven tooling rows measured uncontained on the Windows
+    # station on 2026-09-17: each launches Git or another interpreter, and the
+    # container refuses the child before the tool runs at all.
+    "application_agent_finding_protocol": "child-process-denied",
+    "attended_review_verdict_contract": "child-process-denied",
+    "dif_assets_contract": "child-process-denied",
+    "github_recorded_fixture_contract": "child-process-denied",
+    "issue_id_allocation_contract": "child-process-denied",
+    "large_review_fixture_contract": "child-process-denied",
+    "project_source_dump_contract": "child-process-denied",
+    "rfc0016_production_identity_security": "child-process-denied",
+    "rfc0016_relocated_operator_contract": "child-process-denied",
+    "rfc0017_public_preview_decision_contract": "child-process-denied",
+    # [[BPR-0873]]. The documentation gate imports a module from outside the
+    # checkout, and needs a Git child behind that.
+    "documentation_structure": "repository-content-outside-checkout",
+    "documentation_issue_graph_contract": "repository-content-outside-checkout",
     "epoch_maintenance_integration": "dos-volume-name",
     # BPR-0846: the same real host, cache and catalog composition as
     # epoch_maintenance_integration, not yet measured contained on Windows.
