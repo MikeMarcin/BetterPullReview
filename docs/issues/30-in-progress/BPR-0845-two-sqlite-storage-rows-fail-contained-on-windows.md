@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0845"
 title: "Two SQLite storage rows fail contained on Windows"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
