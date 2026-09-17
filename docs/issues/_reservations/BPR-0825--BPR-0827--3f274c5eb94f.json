@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0825",
+    "BPR-0826",
+    "BPR-0827"
+  ],
+  "reserve_for": "bpr-main-mac",
+  "purpose": "dsp-002: BPR-0622 review follow-ups, agent invocation session identity, poller liveness tick",
+  "created": "2026-09-17T10:06:03.875051+00:00",
+  "base": "49d7df695ff7115dd1020b3dce330ec00a657c48"
+}
