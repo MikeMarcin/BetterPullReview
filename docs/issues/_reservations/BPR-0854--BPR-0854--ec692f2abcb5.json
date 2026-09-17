@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0854"
+  ],
+  "reserve_for": "bpr-main-mac",
+  "purpose": "dsp-004: four source-scan contracts red on main (bpr-linux sweep, confirmed on macOS)",
+  "created": "2026-09-17T17:14:05.546469+00:00",
+  "base": "20d9991412df1fb63dd0ad593ca801a4b87b415d"
+}
