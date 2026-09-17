@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0853"
 title: "epoch_maintenance_integration fails on Windows reopening a copied catalog"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0029"]
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"bpr-win task-20260917-win-0846 new defect 1","found_at":"e6b7193e19862ba3f0d27c3096ba30ddc0ea60cf","run":"run-20260916-stations","dispatch":"dsp-004"}
+acceptance: [{"criterion":"AC1 the course passes on Windows 3 runs in a row, still passes on macOS, and the cause is named","outcome":"pass","revision":"4dbb00fd","evidence":{"kind":"command","detail":"Cause named on the card (bpr-win task-20260917-win-0853): three course faults, not product ones: a std::filesystem::copy catalog with inherited-only descriptors that the owner-private store correctly refuses, a text-mode binding file, and a text-mode fixture agent stdout. Test-only fix 6cfb444b; the refusal is unchanged. Windows: before 3/3 fail, after 3/3 consecutive pass. macOS epoch_maintenance_integration passes at 4dbb00fd (build/r2-logs/dsp4-int1-ctest.log)."}}]
 ---
 
 # BPR-0853: epoch_maintenance_integration fails on Windows reopening a copied catalog
