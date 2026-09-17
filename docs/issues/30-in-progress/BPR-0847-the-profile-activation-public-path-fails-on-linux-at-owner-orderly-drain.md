@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0847"
 title: "The profile activation public path fails on Linux at the owner's orderly drain"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
