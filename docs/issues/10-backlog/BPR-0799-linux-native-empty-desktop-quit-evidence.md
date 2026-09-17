@@ -46,3 +46,44 @@ the injected policy course.
 
 No GitHub or GHES mutation, credential access or provider change is authorized
 by this card. macOS residency is [[BPR-0796]]; Windows is [[BPR-0798]].
+
+## Linux station evidence, 2026-09-17
+
+Station `bpr-linux` recorded this evidence during task
+`task-20260917-lnx-evidence` (`dsp-001-r2`), in
+[BPR-0799's Linux native evidence](../../verification/BPR-0799-linux-native-empty-desktop-quit.md).
+The builds are product source `9bbe3604`, GCC 15.2; the tests-disabled image's
+SHA-256 is `da30fc69…f058`.
+
+- **Native policy (criterion 3): observed.**
+  `native_empty_desktop_policy()() == quit` holds on the target. It is asserted
+  inside `application_profile_management_public_path` on `dev`, whose close and
+  relaunch course uses an injected quit policy.
+  - That test **fails** under the stock `/tmp` with `FAILED: and an orderly exit
+    code`.
+  - It passes with a private `TMPDIR`.
+- **Close from Quit (criterion 2): observed natively.** The tests-disabled
+  image ran on the WSLg display, where Qt chose Wayland, and was closed through
+  the caption close.
+  - A caption close drops the window row, and the next launch opens a new
+    identity: 1, then 2.
+  - An explicit Quit keeps window 3, and the next launch restores 3 at a new
+    generation.
+- **Quit with exit code 0 and no chooser (criterion 1): passes at umask
+  `0022`.** Exit 0 came 43–45 ms after the close, with the `op=application
+  outcome=shutdown` diagnostic and no chooser window seen.
+  - **It fails at umask `0002`.** The data root's parent is created 775, and
+    closing the last window then exits **1**.
+  - **Cause.** The agent workspace neighbourhood beside the data root is refused
+    for a group-writable parent (`prepare_workspace_neighbourhood`). Startup
+    recovery then marks cleanup failed.
+  - **Negative control.** A parent pre-created 755 under the same umask exits 0.
+  - The same refusal is behind the automated failure under `/tmp`.
+
+Not Done. Criterion 1 fails under umask `0002`. Ubuntu's `USERGROUPS_ENAB yes`
+plausibly gives desktop logins that umask; no real desktop session was
+observed. The defect is reported to the integrator and needs a design decision
+in the Unix agent workspace path.
+
+The card was not moved on the lane: any move rewrites its link in
+`docs/rfcs/README.md`, which this dispatch does not permit.
