@@ -203,7 +203,7 @@ the application was the front one when they closed that window — was put to th
 on a replacement candidate bound to the same digest, and they closed the question
 rather than answering it on its merits. The Windows and Linux halves of B1 have never been observed
 and are recorded as not run, on
-[BPR-0798](../issues/10-backlog/BPR-0798-windows-native-empty-desktop-quit-evidence.md)
+[BPR-0798](../issues/60-done/BPR-0798-windows-native-empty-desktop-quit-evidence.md)
 and
 [BPR-0799](../issues/10-backlog/BPR-0799-linux-native-empty-desktop-quit-evidence.md).
 
