@@ -923,6 +923,15 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto agent_invocation_context(
 			github_application& aApplication)
 			-> std::optional<agent_invocation_context_evidence>;
+		/// \brief The application session the composition gave one live window.
+		///
+		/// \details Each window session owns an application session distinct
+		/// from the profile runtime's (BPR-0705), so a course derives the session
+		/// it expects here rather than assuming the one-window value (BPR-0826).
+		[[nodiscard]] static auto window_application_session(
+			const github_application& aApplication,
+			core::bpr_window_context  aContext) noexcept
+			-> std::optional<core::application_session_id>;
 		[[nodiscard]] static auto agent_session_catalog(
 			github_application& aApplication)
 			-> std::optional<agent_session_catalog_evidence>;

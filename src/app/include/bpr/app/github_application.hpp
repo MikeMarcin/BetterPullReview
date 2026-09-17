@@ -517,17 +517,21 @@ namespace bpr::app {
 
 		/// \brief Expires the moment this application stops being usable.
 		///
-		/// \details `~implementation` pumps `processEvents` in its own shutdown
-		/// loop, which delivers whatever timers were still armed when `exec()`
-		/// returned. By then the owning `unique_ptr` has already been nulled —
-		/// libc++'s `reset` assigns before invoking the deleter — so any queued
-		/// callback that reaches back in through this class reads a member off
-		/// a null pointer and the process segfaults.
+		/// \details Destruction pumps `processEvents` while it drains shutdown,
+		/// which delivers whatever timers were still armed when `exec()`
+		/// returned. When BPR-0217 added this token, that pump ran inside
+		/// `~implementation` after libc++'s `reset` had nulled the owning handle,
+		/// so a queued callback reaching back in through this class read a
+		/// member off a null pointer and the process segfaulted. Since BPR-0705
+		/// the drain runs in `~github_application` itself, over windows that are
+		/// already shutting down.
 		///
 		/// Every poller that re-enters the application holds a weak reference
-		/// to this and does nothing once it has expired. It is cleared in the
-		/// destructor body, which runs before any member is destroyed, so the
-		/// window between "unusable" and "says so" is empty.
+		/// to this and does nothing once it has expired. It is cleared first in
+		/// the destructor body, before shutdown begins and before anything is
+		/// pumped, so the window between "unusable" and "says so" is empty.
+		/// Internal callbacks that must still run during that drain use their
+		/// own guard, never this one (BPR-0827).
 		///
 		/// BPR-0215 first fixed this with a token local to one scheduler, and a
 		/// second scheduler with the identical shape crashed the same way an
@@ -645,9 +649,13 @@ namespace bpr::app {
 		void               set_profile_label(std::string aLabel);
 
 		// Declared before `Implementation` only for readability; what matters is
-		// that the destructor body clears it, which precedes member destruction
-		// regardless of order.
-		std::shared_ptr<const int>                                                                       Liveness = std::make_shared<const int>(0);
+		// that the destructor body clears `Liveness` before shutdown begins and
+		// `SessionCloseLifetime` after the shutdown drain, both of which precede
+		// member destruction regardless of order. `SessionCloseLifetime` guards
+		// only the window-session close callbacks, which the drain itself must
+		// still deliver (BPR-0827).
+		std::shared_ptr<const int>                                                                       Liveness             = std::make_shared<const int>(0);
+		std::shared_ptr<const int>                                                                       SessionCloseLifetime = std::make_shared<const int>(0);
 		std::shared_ptr<github_profile_runtime>                                                          Profile;
 		std::map<core::bpr_window_context, std::shared_ptr<implementation>, detail::window_context_less> Sessions;
 		std::shared_ptr<implementation>                                                                  Implementation;

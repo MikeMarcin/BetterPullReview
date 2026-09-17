@@ -1548,11 +1548,25 @@ auto main(int argc, char** argv) -> int
 		actualFields = parse_context_fields(
 			std::string_view{ *decodedInput }.substr(contextHeader.size()));
 	}
-	const auto expectedFields      = expectedContext.has_value()
+	const auto expectedFields = expectedContext.has_value()
 		? std::optional{ expected_context_fields(*expectedContext) }
 		: std::optional<context_fields>{ };
+	// [[BPR-0826]]. Since BPR-0705 each window session owns an application
+	// session distinct from the profile runtime's ("Profile and window
+	// ownership", docs/architecture/system-architecture.md). The expected session
+	// is the one the composition gave the window this course invoked from, which
+	// has to be the only live window, not the one-window constant assumed here
+	// before.
+	const auto liveWindows    = application->windows();
+	const auto invokingWindow = liveWindows.size() == 1U
+		&& application->window(liveWindows.front()) == &window;
+	const auto composedSession     = invokingWindow
+		? app::detail::github_application_fixture_access::window_application_session(
+			  *application, liveWindows.front())
+		: std::optional<core::application_session_id>{ };
 	const auto acceptedAuthorities = expectedContext.has_value()
-		&& expectedContext->ApplicationSession == core::application_session_id{ 1U }
+		&& composedSession.has_value()
+		&& expectedContext->ApplicationSession == *composedSession
 		&& expectedContext->NextSession == core::agent_session_id{ 1U }
 		&& expectedContext->Authority.Host == core::git_host_id{ 1U }
 		&& expectedContext->Authority.Repository == core::repository_id{ 2001U }
@@ -1627,7 +1641,13 @@ auto main(int argc, char** argv) -> int
 				  << evidence.Statistics.WorkspaceCleanups << ':'
 				  << (actualFields.has_value() ? actualFields->size() : 0U) << ':'
 				  << (expectedFields.has_value() ? expectedFields->size() : 0U)
-				  << '\n';
+				  << "\nagent-exact-context-session:"
+				  << (expectedContext.has_value()
+						  ? expectedContext->ApplicationSession.value()
+						  : 0U)
+				  << ':'
+				  << (composedSession.has_value() ? composedSession->value() : 0U)
+				  << ':' << liveWindows.size() << ':' << invokingWindow << '\n';
 	}
 	const auto shutdownComplete = shutdown(*application);
 	const auto rootRemoved      = shutdownComplete

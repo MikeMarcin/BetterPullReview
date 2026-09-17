@@ -12676,6 +12676,12 @@ namespace bpr::app {
 	{ }
 	github_application::~github_application()
 	{
+		// [[BPR-0827]]. First, before shutdown begins and before the drain below
+		// pumps events, so a poller tick that the drain delivers finds the token
+		// expired rather than re-entering windows that are already shutting down.
+		// BPR-0705 cleared it after the drain, and every such tick still found
+		// the application usable.
+		Liveness.reset();
 		begin_shutdown();
 		// The existing fallback drain now belongs to the profile facade, after all
 		// window sessions have been told to stop. Normal desktop close is already quiescent.
@@ -12683,7 +12689,7 @@ namespace bpr::app {
 			QCoreApplication::processEvents(QEventLoop::AllEvents);
 			std::this_thread::yield();
 		}
-		Liveness.reset();
+		SessionCloseLifetime.reset();
 	}
 	auto github_application::liveness() const noexcept -> std::weak_ptr<const void> { return Liveness; }
 	void github_application::show()
@@ -12734,7 +12740,10 @@ namespace bpr::app {
 		try {
 			auto session = std::make_shared<implementation>(Profile, aContext);
 			Sessions.emplace(aContext, session);
-			auto weak         = liveness();
+			// Not `liveness()`: this callback erases the session and starts profile
+			// shutdown, so it has to run inside the destructor's own drain, after
+			// that token has expired (BPR-0827).
+			auto weak         = std::weak_ptr<const void>{ SessionCloseLifetime };
 			session->OnClosed = [this, weak, aContext] {
 				if (weak.expired()) {
 					return;
@@ -19183,6 +19192,18 @@ namespace bpr::app {
 			},
 			.CurrentDraft = implementation->current_agent_draft_observation(),
 		};
+	}
+
+	auto detail::github_application_fixture_access::window_application_session(
+		const github_application&      aApplication,
+		const core::bpr_window_context aContext) noexcept
+		-> std::optional<core::application_session_id>
+	{
+		const auto found = aApplication.Sessions.find(aContext);
+		if (found == aApplication.Sessions.end() || found->second->Closing) {
+			return std::nullopt;
+		}
+		return found->second->WindowSession;
 	}
 
 	auto detail::github_application_fixture_access::agent_session_catalog(

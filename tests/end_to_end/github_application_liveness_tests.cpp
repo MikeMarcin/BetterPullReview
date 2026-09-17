@@ -71,10 +71,12 @@ namespace {
 	// waited for. Five runs of the command that produced the second crash never
 	// reproduced it, because it needs a tick still armed at the moment `exec()`
 	// returns and that configuration does not reliably create one. Destroying
-	// the application with a tick deliberately armed creates it every time:
-	// `~github_application` clears the token, then `~implementation` pumps
-	// `processEvents` in its own shutdown loop and delivers the tick while
-	// libc++ has already nulled the owning handle.
+	// the application with a tick deliberately armed creates it every time. At
+	// the time `~implementation` pumped `processEvents` after libc++ had nulled
+	// the owning handle; since BPR-0705 the shutdown drain in
+	// `~github_application` pumps over windows that are already shutting down.
+	// Either way the token must be clear before the pump runs. BPR-0705 cleared
+	// it after the drain, and BPR-0827 moved it back in front.
 	void test_a_tick_armed_before_destruction_reaches_nothing()
 	{
 		with_fixtureless_application([](auto& application) {
@@ -109,11 +111,11 @@ namespace {
 
 			// Anti-vacuity anchor. The guard is only load-bearing while something
 			// still delivers the tick, so a refactor that removes the pump inside
-			// `~implementation` must fail here rather than quietly turn the other
-			// two assertions into statements about an event that never happened.
+			// destruction must fail here rather than quietly turn the other two
+			// assertions into statements about an event that never happened.
 			expect(delivered,
-				   "the pump inside ~implementation delivers a tick armed before "
-				   "destruction");
+				   "the shutdown drain inside destruction delivers a tick armed "
+				   "before destruction");
 			expect(expiredAtDelivery,
 				   "the liveness token has expired by the time that tick runs");
 			expect(!reentered,
