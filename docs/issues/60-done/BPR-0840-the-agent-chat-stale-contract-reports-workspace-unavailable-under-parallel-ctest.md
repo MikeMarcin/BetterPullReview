@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0840"
 title: "The agent chat stale contract reported workspace unavailable under a parallel ctest run"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0012"]
 depends_on: []
 priority: "P3"
 platforms: ["mac"]
 metadata: {"found_by":"dsp-003 integration pass at 8a03a5be","found_at":"8a03a5bee813fc285e1c0be91f6a5c070436364f","run":"run-20260916-stations","dispatch":"dsp-003"}
+acceptance: [{"criterion":"AC1 the cause is named, and the agent chat and finding composition courses pass together under ctest -j 4 for 5 consecutive batches on macOS","outcome":"pass","revision":"98a661be68ae42bba613b159cb1da54cdd7cbc9b","evidence":{"kind":"command","detail":"Cause named on the card: BPR-0809's setpgid supervisor race (fixed at 6a596d91, after both failing revisions), reproduced exactly by injecting the pre-fix EPERM start report for Git steps (chat stale workspace_unavailable) and the agent (full-agent failed_to_start); no shared resource or lock wait under loads up to 64. At 7a37d89c plus the test-only panel-status report, all 15 application_agent_(chat|finding)_ rows passed 5/5 consecutive ctest -j 4 batches at load 8.10 to 5.23; the other 15 application_agent_* rows passed once (build/r2-logs/dsp4-0840-final.log, dsp4-0840-accept-{1..5}.log)."}}]
 ---
 
 # BPR-0840: The agent chat stale contract reported workspace unavailable under a parallel ctest run
