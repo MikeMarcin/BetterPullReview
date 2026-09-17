@@ -241,7 +241,15 @@ namespace bpr::qt {
 			std::vector<QRect>                         Posts;
 			std::vector<std::pair<card_action, QRect>> Actions;
 		};
+		/// \brief The measurements taken at one content width.
+		struct measurement_generation
+		{
+			int                                  Width = -1;
+			std::map<std::string, measured_card> Cards;
+		};
 		void               measure_cached(thread_card& aCard, int aWidth);
+		void               clear_measurements();
+		void               forget_measurements_if(const std::function<bool(const std::string&)>& aForget);
 		[[nodiscard]] auto card_height(const thread_card& aCard, int aWidth) const -> int;
 		void               measure(thread_card& aCard, int aWidth) const;
 		[[nodiscard]] auto to_content(QPoint aViewportPoint) const -> QPoint;
@@ -249,6 +257,9 @@ namespace bpr::qt {
 		void               place_cards(bool aForce);
 
 		std::vector<application::github_conversation_projection> Retained;
+		/// The file identity of each retained node's path, index for index,
+		/// derived once per adopted forest rather than once per relayout.
+		std::vector<core::file_identity>                         RetainedFiles;
 		std::vector<thread_card>                                 Cards;
 		std::optional<core::file_identity>                       AnchorFile;
 		std::optional<core::review_comment_draft>                Draft;
@@ -273,11 +284,17 @@ namespace bpr::qt {
 		QColor                                                   Marker{ 0xD2, 0x99, 0x22 };
 		int                                                      ContentHeight = 0;
 		std::uint64_t                                            Layouts       = 0U;
-		// Bounded by the current retained forest plus its one draft. Content,
-		// authority and presentation invalidations discard these rectangles.
-		std::map<std::string, measured_card> Measurements;
+		// Bounded by two widths of the current retained forest plus its one
+		// draft. Content, authority and presentation invalidations discard
+		// these rectangles.
+		//
+		// [[BPR-0673]]. Two widths, because the vertical scroll bar alternates
+		// the content width: a whole-pull-request layout shows it and a
+		// one-file layout hides it. Keeping one width re-measured every card of
+		// a large review each time a refresh widened the drawer.
+		measurement_generation               Measurements;
+		measurement_generation               PreviousMeasurements;
 		QFont                                MeasurementFont;
-		int                                  MeasurementWidth             = 0;
 		bool                                 MeasurementFeed              = false;
 		bool                                 MeasurementResolutionOffered = false;
 		std::uint64_t                        MeasurementCount             = 0U;

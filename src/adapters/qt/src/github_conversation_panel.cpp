@@ -19,7 +19,9 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <span>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 
@@ -82,16 +84,19 @@ namespace bpr::qt {
 		/// projection is treated as a root: the alternative is discarding a
 		/// comment because its ancestor is missing, and a visible orphan is
 		/// better than a silent omission.
+		///
+		/// `aFiles` holds the file identity of each node's path, index for index.
 		[[nodiscard]] auto anchored_to(
 			const std::vector<application::github_conversation_projection>&
 														aConversations,
+			const std::span<const core::file_identity>  aFiles,
 			const std::optional<core::file_identity>&   aFile,
 			const std::optional<core::source_line_ref>& aLine,
 			const bool                                  aLeftHasCurrentDiffRevision,
 			const bool                                  aRightHasCurrentDiffRevision)
 			-> std::vector<application::github_conversation_projection>
 		{
-			auto byId = std::unordered_map<std::string, std::size_t>{ };
+			auto byId = std::unordered_map<std::string_view, std::size_t>{ };
 			byId.reserve(aConversations.size());
 			for (auto index = std::size_t{ 0U }; index < aConversations.size();
 				 ++index) {
@@ -99,28 +104,28 @@ namespace bpr::qt {
 			}
 
 			const auto rootMatches = [&](std::size_t aIndex) {
-				const auto anchorMatches = [&](const auto& aNode) {
+				const auto anchorMatches = [&](const std::size_t aNodeIndex) {
+					const auto& node = aConversations[aNodeIndex];
 					if (aFile.has_value()
-						&& (aNode.Path.empty()
-							|| core::file_identity_of(aNode.Path) != *aFile)) {
+						&& (node.Path.empty() || aFiles[aNodeIndex] != *aFile)) {
 						return false;
 					}
 					if (!aLine.has_value()) {
 						return true;
 					}
-					if (aNode.AnchorAvailability
+					if (node.AnchorAvailability
 							!= application::github_conversation_anchor_availability::current
-						|| !aNode.Line.has_value() || *aNode.Line == 0U
+						|| !node.Line.has_value() || *node.Line == 0U
 						|| !endpoint_is_current(
-							aNode,
+							node,
 							aLeftHasCurrentDiffRevision,
 							aRightHasCurrentDiffRevision)) {
 						return false;
 					}
 					const auto side = github_conversation_source_side(
-						static_cast<int>(*aNode.DiffSide));
+						static_cast<int>(*node.DiffSide));
 					return side.has_value() && *side == aLine->Side
-						&& *aNode.Line - 1U == aLine->Line;
+						&& *node.Line - 1U == aLine->Line;
 				};
 				// Bounded by the node count, so a projection that somehow
 				// contained a cycle cannot spin here.
@@ -128,11 +133,11 @@ namespace bpr::qt {
 					 ++step) {
 					const auto& node = aConversations[aIndex];
 					if (!node.ParentId.has_value()) {
-						return anchorMatches(node);
+						return anchorMatches(aIndex);
 					}
 					const auto parent = byId.find(*node.ParentId);
 					if (parent == byId.end()) {
-						return anchorMatches(node);
+						return anchorMatches(aIndex);
 					}
 					aIndex = parent->second;
 				}
@@ -424,6 +429,11 @@ namespace bpr::qt {
 			return;
 		}
 		Retained = aConversations;
+		RetainedFiles.clear();
+		RetainedFiles.reserve(Retained.size());
+		for (const auto& node : Retained) {
+			RetainedFiles.push_back(core::file_identity_of(node.Path));
+		}
 		refresh_projection();
 	}
 
@@ -434,6 +444,7 @@ namespace bpr::qt {
 		auto       shown    = AnchorFile.has_value() || AnchorLine.has_value()
 			? anchored_to(
 				  Retained,
+				  RetainedFiles,
 				  AnchorFile,
 				  AnchorLine,
 				  LeftHasCurrentDiffRevision,
@@ -479,6 +490,7 @@ namespace bpr::qt {
 	{
 		ExpandOnNextProjection = true;
 		Retained.clear();
+		RetainedFiles.clear();
 		Shown.clear();
 		AvailabilityLabel->setText(std::move(aAvailabilityText));
 		Model->clear();

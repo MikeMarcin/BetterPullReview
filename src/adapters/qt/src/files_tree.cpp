@@ -2,6 +2,7 @@
 
 #include <QFont>
 #include <QFontMetrics>
+#include <QHash>
 #include <QHeaderView>
 #include <QPainter>
 #include <QPalette>
@@ -82,11 +83,21 @@ namespace bpr::qt {
 
 	void files_tree_model::apply_overview(const std::span<const application::overview_file_row> aFiles)
 	{
+		// [[BPR-0673]]. Each overview path is decoded once. Searching the rows
+		// for every entry decoded a path per pair, a quarter of a million for
+		// a five-hundred-file review, on every overview publication. The first
+		// row for a path answers for it, as that search did.
+		auto rows = QHash<QString, const application::overview_file_row*>{ };
+		rows.reserve(static_cast<qsizetype>(aFiles.size()));
+		for (const auto& row : aFiles) {
+			auto path = text(row.Path);
+			if (!rows.contains(path)) {
+				rows.insert(std::move(path), &row);
+			}
+		}
 		for (auto& entry : Entries) {
-			const auto found = std::ranges::find_if(aFiles, [&entry](const application::overview_file_row& aRow) {
-				return text(aRow.Path) == entry.Path;
-			});
-			entry.Overview   = found != aFiles.end() ? std::optional{ *found } : std::nullopt;
+			const auto found = rows.constFind(entry.Path);
+			entry.Overview   = found != rows.constEnd() ? std::optional{ **found } : std::nullopt;
 		}
 		rebuild();
 	}

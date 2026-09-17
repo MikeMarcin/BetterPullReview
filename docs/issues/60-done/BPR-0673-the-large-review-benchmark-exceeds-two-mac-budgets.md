@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0673"
 title: "The large-review benchmark exceeds two of its Mac budgets"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
+acceptance: [{"criterion":"AC1 application_large_review_history passes on macOS, alone and under a parallel matrix","outcome":"pass","revision":"8b002ccde89557a47dbc88ba4b3fb5ed53048475 plus the src/adapters/qt change committed by this finish","evidence":{"kind":"command","detail":"Alone: 4 slice runs (worst 64.2-67.2 ms) and the integrated head run (worst 68.6 ms, refreshes 2-31 at 54-61 ms) against the 100 ms limit (build/r2-logs/dsp3-0673-after-history-alone-*.log, dsp3-0673-final-history-alone.log, dsp3-int12-history.log). Under a concurrent ctest -j 4 matrix of 12 Qt rows, 17 rounds: pass, worst 67.2 ms (dsp3-0673-after-history-parallel.log). Before: 93.5 ms."}},{"criterion":"AC2 the card names what was holding the loop and what changed","outcome":"pass","revision":"same","evidence":{"kind":"artifact","detail":"Recorded on this card: cards view re-measuring 1000 cards on alternating widths, files_tree path decoding, per-relayout file identity hashing; removed redundant work on the loop (two-width measurement cache, per-forest identities, hash lookups, path-to-row hash); independent rfc-reviewer no blocker; 15/15 Qt and composition rows pass (dsp3-int12-qt.log)."}}]
 ---
 
 # The large-review benchmark exceeds two of its Mac budgets
@@ -28,7 +29,7 @@ second at a time, during a refresh of a large review, the window does not
 answer the reviewer.
 
 Not caused by the RFC-BPR-0028 pack's presentation work: removing
-[BPR-0668](../60-done/BPR-0668-a-failed-comparison-leaves-an-empty-workbench-that-says-nothing-is-open.md)'s
+[BPR-0668](BPR-0668-a-failed-comparison-leaves-an-empty-workbench-that-says-nothing-is-open.md)'s
 status refresh and rebuilding leaves the failure exactly where it was. It
 was observed failing at three heads in this session, including before that
 change landed. Whether it predates the pack is not established; that is the

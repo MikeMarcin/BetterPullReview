@@ -536,6 +536,55 @@ namespace {
 		expect(view.measurements() > beforeFont, "font changes invalidate cached text measurements");
 	}
 
+	auto test_alternating_widths_keep_both_widths_measured() -> void
+	{
+		// [[BPR-0673]]. Widening a large review's drawer shows the scroll bar
+		// and narrowing it to one file hides it again, so the content width
+		// alternates between two values. Each width keeps its measurements.
+		qt::conversation_cards_view view;
+		view.resize(400, 600);
+		view.show();
+		QApplication::processEvents();
+		auto projection = std::vector<conversation>{ };
+		for (auto index = 0; index < 1000; ++index) {
+			const auto id = std::to_string(index);
+			projection.push_back(thread("t" + id, "src/a.cpp", static_cast<std::uint32_t>(index + 1)));
+			projection.push_back(reply("p" + id, "t" + id, "author", "A retained post whose text measurement must survive a width change."));
+		}
+		view.adopt(projection, std::nullopt);
+		QApplication::processEvents();
+		const auto wide = view.cards();
+		view.resize(320, 600);
+		QApplication::processEvents();
+		const auto narrow       = view.cards();
+		const auto measurements = view.measurements();
+		for (auto cycle = 0; cycle < 10; ++cycle) {
+			view.resize(400, 600);
+			view.set_anchor_file(core::file_identity_of("src/a.cpp"));
+			view.set_anchor_file(std::nullopt);
+			view.resize(320, 600);
+			view.set_anchor_file(core::file_identity_of("src/a.cpp"));
+			view.set_anchor_file(std::nullopt);
+		}
+		QApplication::processEvents();
+		expect(view.measurements() == measurements && view.cards().size() == 1000U,
+			   "alternating between two widths re-measures no card at either width");
+		const auto sameRects = [](const std::vector<qt::thread_card>& aLeft, const std::vector<qt::thread_card>& aRight) {
+			return std::ranges::equal(aLeft, aRight, [](const qt::thread_card& aA, const qt::thread_card& aB) {
+				return aA.Id == aB.Id && aA.Rect == aB.Rect && aA.Actions == aB.Actions
+					&& std::ranges::equal(aA.Posts, aB.Posts, { }, &qt::card_post::Rect, &qt::card_post::Rect);
+			});
+		};
+		expect(sameRects(view.cards(), narrow), "the narrow width's retained measurements lay the cards out as before");
+		view.resize(400, 600);
+		QApplication::processEvents();
+		expect(view.measurements() == measurements && sameRects(view.cards(), wide),
+			   "the wide width's retained measurements lay the cards out as before");
+		view.resize(360, 600);
+		QApplication::processEvents();
+		expect(view.measurements() == measurements + 1000U, "a third width measures its cards afresh");
+	}
+
 	auto test_cards_sit_at_their_lines_and_never_overlap() -> void
 	{
 		qt::conversation_cards_view view;
@@ -673,6 +722,7 @@ auto main(int argc, char** argv) -> int
 	test_the_feed_heads_posts_excerpts_code_and_filters();
 	test_cards_sit_at_their_lines_and_never_overlap();
 	test_unchanged_refresh_retains_measured_cards();
+	test_alternating_widths_keep_both_widths_measured();
 	test_feed_geometry_refresh_updates_excerpts();
 	test_cached_geometry_matches_a_fresh_view();
 	std::cout << "conversation-cards-view-tests:pass\n";

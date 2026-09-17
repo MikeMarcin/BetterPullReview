@@ -17,7 +17,9 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <string_view>
 #include <tuple>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -145,10 +147,15 @@ namespace bpr::qt {
 					roots.insert(node.Id);
 				}
 			}
-			std::erase_if(Measurements, [&roots, this](const auto& aEntry) {
-				return !roots.contains(aEntry.first) && !(aEntry.first.empty() && Draft.has_value());
+			forget_measurements_if([&roots, this](const std::string& aId) {
+				return !roots.contains(aId) && !(aId.empty() && Draft.has_value());
 			});
 			Retained = aConversations;
+			RetainedFiles.clear();
+			RetainedFiles.reserve(Retained.size());
+			for (const auto& node : Retained) {
+				RetainedFiles.push_back(core::file_identity_of(node.Path));
+			}
 		}
 		AnchorFile = std::move(aFile);
 		relayout();
@@ -156,8 +163,9 @@ namespace bpr::qt {
 
 	void conversation_cards_view::clear()
 	{
-		Measurements.clear();
+		clear_measurements();
 		Retained.clear();
+		RetainedFiles.clear();
 		Draft.reset();
 		Current.clear();
 		relayout();
@@ -200,7 +208,7 @@ namespace bpr::qt {
 			return;
 		}
 		if (!aDraft.has_value()) {
-			Measurements.erase(std::string{ });
+			forget_measurements_if([](const std::string& aId) { return aId.empty(); });
 		}
 		Draft             = std::move(aDraft);
 		CurrentComparison = std::move(aCurrentComparison);
@@ -540,19 +548,40 @@ namespace bpr::qt {
 		return MeasurementCount;
 	}
 
+	void conversation_cards_view::clear_measurements()
+	{
+		Measurements         = { };
+		PreviousMeasurements = { };
+	}
+
+	void conversation_cards_view::forget_measurements_if(
+		const std::function<bool(const std::string&)>& aForget)
+	{
+		for (auto* const generation : { &Measurements, &PreviousMeasurements }) {
+			std::erase_if(generation->Cards, [&aForget](const auto& aEntry) { return aForget(aEntry.first); });
+		}
+	}
+
 	void conversation_cards_view::measure_cached(thread_card& aCard, const int aWidth)
 	{
-		if (MeasurementFont != font() || MeasurementWidth != aWidth
-			|| MeasurementFeed != Feed || MeasurementResolutionOffered != ResolutionOffered) {
-			Measurements.clear();
+		if (MeasurementFont != font() || MeasurementFeed != Feed
+			|| MeasurementResolutionOffered != ResolutionOffered) {
+			clear_measurements();
 			MeasurementFont              = font();
-			MeasurementWidth             = aWidth;
 			MeasurementFeed              = Feed;
 			MeasurementResolutionOffered = ResolutionOffered;
 		}
-		const auto cached = Measurements.find(aCard.Id);
+		if (Measurements.Width != aWidth) {
+			// The other width is kept rather than discarded, so a layout that
+			// returns to it finds its cards already measured.
+			std::swap(Measurements, PreviousMeasurements);
+			if (Measurements.Width != aWidth) {
+				Measurements = measurement_generation{ .Width = aWidth };
+			}
+		}
+		const auto cached = Measurements.Cards.find(aCard.Id);
 		const auto header = aCard.Resolved || aCard.Outdated || aCard.Draft;
-		if (cached != Measurements.end() && cached->second.Excerpt == aCard.Excerpt
+		if (cached != Measurements.Cards.end() && cached->second.Excerpt == aCard.Excerpt
 			&& cached->second.Header == header && cached->second.Draft == aCard.Draft
 			&& cached->second.Resolved == aCard.Resolved && cached->second.Unread == (aCard.UnreadCount > 0U)
 			&& std::ranges::equal(cached->second.Bodies, aCard.Posts, { }, std::identity{ }, &card_post::Body)) {
@@ -578,7 +607,7 @@ namespace bpr::qt {
 			measured.Bodies.push_back(post.Body);
 			measured.Posts.push_back(post.Rect);
 		}
-		Measurements.insert_or_assign(aCard.Id, std::move(measured));
+		Measurements.Cards.insert_or_assign(aCard.Id, std::move(measured));
 	}
 
 	void conversation_cards_view::relayout()
@@ -588,7 +617,9 @@ namespace bpr::qt {
 		// The forest: review threads are roots, their comments hang beneath
 		// by ParentId. Reviews and pull request comments are not threads on
 		// a line and are not cards.
-		auto byId = std::map<std::string, const application::github_conversation_projection*>{ };
+		// Keyed by views of the retained identities, which outlive this call.
+		auto byId = std::unordered_map<std::string_view, const application::github_conversation_projection*>{ };
+		byId.reserve(Retained.size());
 		for (const auto& node : Retained) {
 			byId.emplace(node.Id, &node);
 		}
@@ -608,14 +639,15 @@ namespace bpr::qt {
 			}
 			return { current, depth };
 		};
-		auto cardsById = std::map<std::string, std::size_t>{ };
-		for (const auto& node : Retained) {
+		auto cardsById = std::unordered_map<std::string_view, std::size_t>{ };
+		for (std::size_t index = 0U; index < Retained.size(); ++index) {
+			const auto& node = Retained[index];
 			if (node.Kind != application::github_conversation_kind::review_thread
 				|| node.ParentId.has_value()) {
 				continue;
 			}
 			if (Scope == cards_scope::this_file && AnchorFile.has_value()
-				&& core::file_identity_of(node.Path) != *AnchorFile) {
+				&& RetainedFiles[index] != *AnchorFile) {
 				continue;
 			}
 			auto card     = thread_card{ };
@@ -629,6 +661,13 @@ namespace bpr::qt {
 					!= application::github_conversation_anchor_availability::current;
 			cardsById.emplace(node.Id, Cards.size());
 			Cards.push_back(std::move(card));
+		}
+		// The first state recorded for a thread answers for it, as a search
+		// from the front would.
+		auto readStateByThread = std::unordered_map<std::string_view, const thread_read_state*>{ };
+		readStateByThread.reserve(ReadState.size());
+		for (const auto& state : ReadState) {
+			readStateByThread.emplace(state.Thread, &state);
 		}
 		for (const auto& node : Retained) {
 			if (node.Kind == application::github_conversation_kind::review_thread
@@ -645,9 +684,9 @@ namespace bpr::qt {
 			}
 			const auto author = text(node.AuthorLogin);
 			auto&      target = Cards[card->second];
-			const auto state  = std::ranges::find(ReadState, root->Id, &thread_read_state::Thread);
-			const auto unread = state != ReadState.end()
-				&& std::ranges::find(state->UnreadPosts, node.Id) != state->UnreadPosts.end();
+			const auto state  = readStateByThread.find(root->Id);
+			const auto unread = state != readStateByThread.end()
+				&& std::ranges::find(state->second->UnreadPosts, node.Id) != state->second->UnreadPosts.end();
 			if (unread) {
 				if (target.Posts.empty()) {
 					target.RootUnread = true;
@@ -829,7 +868,7 @@ namespace bpr::qt {
 	{
 		QAbstractScrollArea::changeEvent(aEvent);
 		if (aEvent->type() == QEvent::FontChange || aEvent->type() == QEvent::StyleChange) {
-			Measurements.clear();
+			clear_measurements();
 			relayout();
 		}
 	}

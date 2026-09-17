@@ -195,6 +195,10 @@ namespace bpr::qt {
 		/// drawer to follow immediately, and the projection does not arrive
 		/// again just because they scrolled.
 		std::vector<application::github_conversation_projection> Retained;
+		/// [[BPR-0673]]. The file identity of each retained node's path, index
+		/// for index. Derived once per adopted forest: re-filtering a
+		/// thousand-thread review hashed every path on every anchor change.
+		std::vector<core::file_identity>                         RetainedFiles;
 		std::vector<application::github_conversation_projection> Shown;
 	};
 } // namespace bpr::qt
