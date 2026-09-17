@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0858"
 title: "application_unavailable_diff_public_path still expects the work-limit refusal BPR-0719 retired"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
