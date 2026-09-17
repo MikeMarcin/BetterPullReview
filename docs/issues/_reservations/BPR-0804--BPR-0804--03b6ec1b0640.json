@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-0804"
+  ],
+  "reserve_for": "bpr-main-mac",
+  "purpose": "Non-Apple tests-disabled build fails on unused confirm_cli_publication parameter (found by bpr-win)",
+  "created": "2026-09-17T04:07:41.067044+00:00",
+  "base": "eeb16d1310e555d9b36f8e9d7516211d74aa2856"
+}
