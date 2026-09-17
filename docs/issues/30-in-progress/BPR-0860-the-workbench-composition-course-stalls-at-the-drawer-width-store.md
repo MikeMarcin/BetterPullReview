@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0860"
 title: "The workbench composition course stalls at the drawer width store until its run budget expires"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
