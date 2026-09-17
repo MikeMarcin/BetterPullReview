@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0799"
 title: "Linux: observe the native empty-desktop quit"
-status: "Backlog"
+status: "Blocked"
 rfcs: ["RFC-BPR-0033"]
 depends_on: []
 platforms: ["linux"]
 metadata: {"pack":"bpr-shell-surfaces-v1","origin":"RFC-BPR-0033 B1, carried as not run since the profile-chooser milestone","acceptance":["B1"]}
+blocked_by: "bpr-0817-group-writable-data-root"
 ---
 
 # BPR-0799: Linux: observe the native empty-desktop quit
@@ -87,3 +88,27 @@ in the Unix agent workspace path.
 
 The card was not moved on the lane: any move rewrites its link in
 `docs/rfcs/README.md`, which this dispatch does not permit.
+
+## Linux evidence and block, 2026-09-17 (run-20260916-stations, dispatch dsp-001-r2)
+
+bpr-linux observed B1 at `17f495fe` on WSL2 Ubuntu with WSLg. The full record is
+[the Linux evidence](../../verification/BPR-0799-linux-native-empty-desktop-quit.md)
+(station commit `6d649ecd`, merged on main in `a9076de1`).
+
+- **Criterion 3 — pass.** `application_profile_management_public_path` asserts
+  `native_empty_desktop_policy()() == quit` on Linux. The course's close and
+  relaunch section uses an injected policy, and those assertions are not cited.
+- **Criterion 2 — pass.** A caption close gives the next launch a new window
+  (1, then 2). An explicit Quit keeps window 3, and the next launch restores it.
+- **Criterion 1 — depends on umask, blocked.** Under umask `0022`, the window
+  exits 0 about 44 ms after a caption close, logs `op=application outcome=shutdown`,
+  and shows no chooser. Under umask `0002`, which is a plausible Ubuntu
+  user-private-group desktop default, the application creates its data folder
+  `775`, refuses its own agent workspace neighbourhood, and exits **1**
+  ([[BPR-0817]]).
+- **Close transport.** Qt chose Wayland under Weston, which lacks
+  `_NET_CLOSE_WINDOW`, so the close used the WSLg window's caption-close
+  message. The process was not killed.
+
+The card stays Blocked until [[BPR-0817]] is fixed. Criterion 1 must then be
+rerun under umask `0002`.
