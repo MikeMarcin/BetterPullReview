@@ -94,7 +94,9 @@ namespace {
 		const auto size  = std::filesystem::file_size(sentinel);
 		auto       store = adapters::sqlite::make_profile_registry_store(scratch.Root);
 		const auto first = store->load({ });
-		expect(first && *first == profile_registry_snapshot{ }, "fresh legacy environment adopts exactly one immutable Default");
+		// Named: GCC 15.2 misreads a conditionally built snapshot temporary as dangling (BPR-0816).
+		const auto defaultOnlyRegistry = profile_registry_snapshot{ };
+		expect(first && *first == defaultOnlyRegistry, "fresh legacy environment adopts exactly one immutable Default");
 		const auto& original = *first;
 		store.reset();
 		store = adapters::sqlite::make_profile_registry_store(scratch.Root);
@@ -192,7 +194,9 @@ namespace {
 		sqlite3_close(raw);
 		store              = adapters::sqlite::make_profile_registry_store(scratch.Root);
 		const auto adopted = store->load({ });
-		expect(adopted && *adopted == profile_registry_snapshot{ }, "restart adopts exactly one Default after interrupted transaction");
+		// Named: GCC 15.2 misreads a conditionally built snapshot temporary as dangling (BPR-0816).
+		const auto defaultOnlyRegistry = profile_registry_snapshot{ };
+		expect(adopted && *adopted == defaultOnlyRegistry, "restart adopts exactly one Default after interrupted transaction");
 		stop                       = std::stop_source{ };
 		interruption::Stop         = &stop;
 		interruption::Prefix       = "DELETE FROM profile_registry_profiles";

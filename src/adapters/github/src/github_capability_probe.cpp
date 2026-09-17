@@ -1465,7 +1465,7 @@ namespace bpr::adapters::github::detail {
 				"unresolveInput",
 			};
 			for (const auto alias : inputAliases) {
-				const auto& value = json_member(aData, QString::fromUtf8(alias.data(), static_cast<qsizetype>(alias.size())));
+				const auto& value = json_member(aData, alias);
 				if (
 					value.is_object()
 					&& json_member(json_object(value), "inputFields").is_array()

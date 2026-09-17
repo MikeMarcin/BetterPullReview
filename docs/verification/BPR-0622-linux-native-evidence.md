@@ -3,31 +3,20 @@
 ## Current frontier
 
 - **Binding.** Run `run-20260916-stations`, dispatch `dsp-001-r2` (station
-  `bpr-linux/int-1`), mandate r2 with integrator amendments 1 and 2, task
-  `task-20260917-lnx-evidence`. Station `bpr-linux` (`stn-3f7fcc92`, `wsl2`),
-  branch `linux-lane`, authority `lane-commit`.
-- **Task state: all three cards recorded and pushed.** No card was moved.
-- **BPR-0622** stays In Progress, unedited.
-  - This file holds its Linux run: five of eight pass, including the `flock`
-    and `waitid` courses.
-  - The three failures are platform-independent known defects (BPR-0808,
-    BPR-0807, BPR-0802).
-- **BPR-0799** stays in Backlog and is not Done.
-  - [Its evidence](BPR-0799-linux-native-empty-desktop-quit.md) meets
-    criteria 2 and 3 natively.
-  - Criterion 1 holds at umask `0022` and fails at `0002`: exit 1 from the
-    agent workspace neighbourhood refusal. That is reported for a design
-    decision.
-  - Moving the card would rewrite `docs/rfcs/README.md`.
-- **BPR-0731** stays in Backlog with its acceptance met on Linux:
-  [packaged and developer inventories identical](BPR-0731-linux-settings-inventory.md).
-  Main still has to add the BPR-0593 AC-11 ledger link and move the card,
-  because a move rewrites BPR-0593 and BPR-0683.
-- **Open for the integrator.**
-  - The GCC 15.2 `-Werror` failures outside BPR-0622's path, listed below.
-  - The umask `0002` / group-writable data-root parent exit 1, which also fails
-    `application_profile_management_public_path` under the stock `/tmp`.
-  - The BPR-0808 hypothesis below.
+  `bpr-linux/int-2`), mandate r2, task `task-20260917-lnx-build`. Station
+  `bpr-linux` (`stn-3f7fcc92`, `wsl2`), branch `linux-lane`, authority
+  `lane-commit`.
+- **State.** BPR-0816 is fixed at `4883dbd9` and pushed at `3bb60d90`. Its
+  Linux criterion is met, and its macOS criterion is open for main.
+  - The Unix recovery set was rerun on the **stock** `dev` tree at `4883dbd9`.
+    Seven of eight pass. `test_network_isolation_manifest` reports only
+    BPR-0802's known raw `add_test` finding.
+  - The results are recorded at the end of this file, under "Rerun on the stock
+    build, `task-20260917-lnx-build`".
+- **BPR-0622** stays In Progress and unedited. This file is its only Linux
+  record.
+- **Earlier task.** `task-20260917-lnx-evidence` recorded the sections after
+  this one, at `9bbe3604` with demoted diagnostics. They stand as recorded.
 
 ## Station, task and revisions
 
@@ -239,3 +228,56 @@ It was not measured.
   roots.
 - **Boundaries.** No GitHub or GHES request, credential read, live agent, paid
   service or GitHub Actions run was used.
+
+## Rerun on the stock build, `task-20260917-lnx-build`
+
+Station `bpr-linux` reran the Unix recovery set on 2026-09-17 for task
+`task-20260917-lnx-build` (dispatch `dsp-001-r2`). No compiler flag was
+overridden this time.
+
+- **Revision.** Product source `4883dbd9`, which is base `20a72bf7` plus the
+  [BPR-0816](BPR-0816-linux-gcc15-stock-build.md) GCC fixes. The run's HEAD was
+  `3bb60d90`, whose only further change is documentation.
+- **Build.** The `dev` tree was configured with `cmake --preset dev --fresh`
+  (empty `CMAKE_CXX_FLAGS`) and clean-built at `4883dbd9`. `ninja -n` reported
+  no pending work before the run.
+- **Host.** Same host as above. The Secret Service `login` collection read
+  `(<false>,)` before the run.
+- **Main since the earlier run.** Main now includes BPR-0808's course and
+  repair-message fix, and BPR-0807's boundary fix.
+
+The command was:
+
+```sh
+ctest --preset dev -j1 -V -R '^(agent_parent_death|agent_workspace_ownership|application_agent_materialization_crash_recovery|application_agent_crash_recovery|qt_agent_launch_canary|git_process_contract|architecture_boundaries|test_network_isolation_manifest)$'
+```
+
+It started at 2026-09-17T07:45:31Z, took 126 s and exited with ctest rc 8. The
+names were confirmed with `ctest --preset dev -N`.
+
+| Test | Result | Duration | Markers observed |
+|---|---|---|---|
+| `architecture_boundaries` | **Pass** (was: fail, BPR-0807) | 11.09 s | `Application, provider, and Qt architecture boundaries verified` |
+| `test_network_isolation_manifest` | Fail, **expected** | 1.62 s | Only `TEST_NETWORK_ISOLATION_FAILED:raw add_test ownership is ['cmake/BprTestIsolation.cmake', 'tests/github_contract/CMakeLists.txt'], expected only cmake/BprTestIsolation.cmake`, which is BPR-0802's `if(APPLE)` raw `add_test` for `gh_cli_git_smart_transport`. No other finding. |
+| `qt_agent_launch_canary` | Pass | 60.93 s | `agent-launch-canary-tests:pass` |
+| `agent_parent_death` | Pass | 20.79 s | `agent-parent-death:owner-pid:pass`, `agent-parent-death:owner-group:pass` |
+| `git_process_contract` | Pass | 5.27 s | `Git process contract passed` |
+| `agent_workspace_ownership` | Pass | 0.69 s | `AGENT_WORKSPACE_OWNERSHIP_OK` |
+| `application_agent_crash_recovery` | **Pass** (was: fail 3 of 3, BPR-0808) | 18.73 s | `agent-composition-kill:reopen-1:pass`, `:reopen-2:pass`, `owned-workspace-reclaimed entries=18`, `agent-composition-kill:pass` |
+| `application_agent_materialization_crash_recovery` | Pass | 7.10 s | `agent-materialization-kill:init:pass`, `:checkout:pass`, `:cancel:pass`, `agent-materialization-kill:pass` |
+
+**Result.** Seven of eight pass on the stock Linux build. The eighth,
+`test_network_isolation_manifest`, reports only the known BPR-0802 source-scan
+finding. There was no unexpected failure, so nothing was diagnosed or changed
+in BPR-0622's path.
+
+- **BPR-0808.** Its fix holds on Linux. The crash course reopens twice,
+  reclaims the owned workspace (18 entries) and passes, where the earlier
+  Linux run failed at `live_recovery`.
+- **Supervisor binary.** It now builds from the stock tree. No flag was
+  overridden, and the one-line `unix_agent_supervisor.cpp` fix from `9bbe3604`
+  is in the base.
+- **Limitations unchanged.** WSL2's kernel; offscreen registration for the
+  canary and both crash courses; no Windows evidence.
+- **Logs.** `/home/mmarcin/bpr-station-logs/task-20260917-lnx-build/run-0622.ctest.log`
+  and `run-0622-0806.summary`. They are not committed.

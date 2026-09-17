@@ -166,6 +166,8 @@ namespace {
 		std::thread                Sampler;
 	};
 
+#ifdef __APPLE__
+	// Report helpers for the macOS-only native memory probe; defined exactly where it is.
 	[[nodiscard]] auto positive_delta(const std::uint64_t aAfter, const std::uint64_t aBefore) -> std::uint64_t
 	{
 		return aAfter >= aBefore ? aAfter - aBefore : 0U;
@@ -189,6 +191,7 @@ namespace {
 		const auto bytes = QJsonDocument{ aReport }.toJson(QJsonDocument::Indented);
 		expect(report.write(bytes) == bytes.size() && report.flush(), "native memory report written");
 	}
+#endif
 
 	[[nodiscard]] auto cue_authority(const std::uint64_t aPullRequest = 3U)
 		-> bpr::core::pull_request_authority

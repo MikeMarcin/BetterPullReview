@@ -528,8 +528,9 @@ namespace {
 				   && migrated->store_saved_server(application::saved_server{ .Hostname = "ghe.example.com", .Account = "octo-two" }).has_value(),
 			   "remembering stores, and remembering again is accepted");
 		const auto listed = migrated->load_saved_servers();
-		expect(listed.has_value()
-				   && *listed == std::vector{ lab, application::saved_server{ .Hostname = "ghe.example.com", .Account = "octo-two" } },
+		// Named: GCC 15.2 misreads a conditionally built list temporary as dangling (BPR-0816).
+		const auto latestByHostname = std::vector{ lab, application::saved_server{ .Hostname = "ghe.example.com", .Account = "octo-two" } };
+		expect(listed.has_value() && *listed == latestByHostname,
 			   "the list is one row per hostname ordered by hostname, the account the latest remembered");
 		expect(migrated->erase_saved_server(ghe).has_value(), "forgetting a server is accepted");
 		const auto after = migrated->load_saved_servers();

@@ -6118,7 +6118,7 @@ namespace {
 		window.set_saved_server_dispatch([&intents](application::saved_server_intent aIntent) {
 			intents.push_back(std::move(aIntent));
 		});
-		const auto kept       = application::saved_server{ .Hostname = "ghe.example.com", .Account = "reviewer" };
+		const auto kept         = application::saved_server{ .Hostname = "ghe.example.com", .Account = "reviewer" };
 		auto       projection   = application::queue_landing_projection{ .Status = application::queue_landing_status::ready };
 		projection.SavedServers = { kept };
 		window.publish(projection);
@@ -6208,10 +6208,11 @@ namespace {
 		intents.clear();
 		toggle->click();
 		QApplication::processEvents();
-		expect(intents
-					   == std::vector{ application::saved_server_intent{
-						   .Action = application::saved_server_action::add,
-						   .Server = { .Hostname = "ghe.example.com", .Account = "" } } }
+		// Named: GCC 15.2 misreads an intent list temporary inside a && chain as dangling (BPR-0816).
+		const auto accountlessAdd = std::vector{ application::saved_server_intent{
+			.Action = application::saved_server_action::add,
+			.Server = { .Hostname = "ghe.example.com", .Account = "" } } };
+		expect(intents == accountlessAdd
 				   && !toggle->isChecked() && window.forget_server_confirmation() == nullptr,
 			   "switching Remember on dispatches exactly one add, with no account while none is signed in, and the switch waits for the projection");
 		expect(otherEffects == 0U, "switching Remember on reaches no sink but the saved-server dispatch");
@@ -6257,11 +6258,11 @@ namespace {
 		intents.clear();
 		toggle->click();
 		QApplication::processEvents();
-		expect(intents
-					   == std::vector{ application::saved_server_intent{
-						   .Action = application::saved_server_action::add,
-						   .Server = { .Hostname = "ghe.example.com", .Account = "enterprise-reviewer" } } }
-				   && !toggle->isChecked(),
+		// Named: GCC 15.2 misreads an intent list temporary inside a && chain as dangling (BPR-0816).
+		const auto signedInAdd = std::vector{ application::saved_server_intent{
+			.Action = application::saved_server_action::add,
+			.Server = { .Hostname = "ghe.example.com", .Account = "enterprise-reviewer" } } };
+		expect(intents == signedInAdd && !toggle->isChecked(),
 			   "signed in on the enterprise server, switching Remember on keeps the hostname with the signed-in login");
 		expect(otherEffects == 0U, "remembering a signed-in server reaches no sink but the saved-server dispatch");
 		window.settings()->hide();
@@ -6518,7 +6519,7 @@ namespace {
 		// [[BPR-0783]]. The six typed controls are Settings' Queue defaults now:
 		// still named, still explained, still the same controls, but stops of
 		// another top-level window, which the workbench never declares.
-		const auto focusOrder = window.focus_order();
+		const auto  focusOrder = window.focus_order();
 		auto* const defaults   = window.settings()->page_widget(qt::settings_page::reviews_and_queue);
 		for (auto* const selector : { window.queue_role_filter(),
 									  window.queue_observer_filter(),

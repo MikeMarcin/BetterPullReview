@@ -4,7 +4,9 @@ from __future__ import annotations
 import argparse
 import fcntl
 import json
+import os
 from pathlib import Path
+import stat
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -24,6 +26,41 @@ def check(exe: Path, phase: str, root: Path, expected: str) -> None:
     actual = run(exe, phase, root).strip()
     if actual != expected:
         raise RuntimeError(f"{phase}: expected {expected!r}, got {actual!r}")
+
+
+def mode(path: Path) -> int:
+    return stat.S_IMODE(path.lstat().st_mode)
+
+
+def check_neighbourhood_parent_rule(exe: Path, parent: Path) -> None:
+    """BPR-0817: a missing neighbourhood is created only below a private parent.
+
+    A parent that already exists and that group or other can write to is
+    refused as `repair_required`, is not repaired, and gains no entry. Below a
+    private parent the neighbourhood is created exactly 0700 even under the
+    user-private-group umask 0002.
+    """
+    for name, shared_mode in (("shared-parent-0775", 0o775), ("shared-parent-1777", 0o1777)):
+        root = parent / name
+        root.mkdir(mode=0o700)
+        root.chmod(shared_mode)
+        check(exe, "recover", root, "failure=1")
+        if list(root.iterdir()):
+            raise RuntimeError(f"{name}: refused recovery created an entry")
+        if mode(root) != shared_mode:
+            raise RuntimeError(f"{name}: refused recovery changed the parent's mode")
+    root = parent / "private-parent-umask-0002"
+    root.mkdir(mode=0o700)
+    previous = os.umask(0o002)
+    try:
+        check(exe, "recover", root, "recovered=0 live=0")
+    finally:
+        os.umask(previous)
+    neighbourhood = root / "neighbourhood"
+    if not stat.S_ISDIR(neighbourhood.lstat().st_mode) or mode(neighbourhood) != 0o700:
+        raise RuntimeError("the neighbourhood was not created as an exactly 0700 directory under umask 0002")
+    if mode(root / "registry") != 0o700:
+        raise RuntimeError("the registry was not created as an exactly 0700 directory under umask 0002")
 
 
 def journal(root: Path) -> Path:
@@ -51,6 +88,7 @@ def main() -> None:
     exe = args.executable.resolve(strict=True)
     with contained_temporary_directory(prefix="bpr-workspace-ownership-") as temporary:
         parent = Path(temporary).resolve()
+        check_neighbourhood_parent_rule(exe, parent)
         # Real SIGKILL between committed native phases, including both renames.
         for point in [*(f"journal-{i}" for i in range(7)), "child-quarantined", "parent-quarantined"]:
             root = create_root(parent, point)

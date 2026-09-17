@@ -1807,11 +1807,13 @@ namespace bpr::adapters::sqlite::detail {
 				|| ((fileType == SQLITE_NULL) != (comparisonType == SQLITE_NULL))) {
 				return std::unexpected(failure::integrity_failure);
 			}
+			// [[BPR-0816]]. Name the nested type: GCC 15 destroys a braced
+			// aggregate member twice when a later member initializer throws.
 			auto note = application::local_note_record{
 				.Id       = application::local_note_id{ static_cast<std::uint64_t>(id) },
-				.Note     = { .Text = std::string{
-								  reinterpret_cast<const char*>(text),
-								  static_cast<std::size_t>(textBytes) } },
+				.Note     = core::supplement_note{ .Text = std::string{
+													   reinterpret_cast<const char*>(text),
+													   static_cast<std::size_t>(textBytes) } },
 				.Revision = application::local_note_revision{ static_cast<std::uint64_t>(::sqlite3_column_int64(notes->Value, 4)) },
 			};
 			if (fileType != SQLITE_NULL) {

@@ -2,16 +2,21 @@
 
 ## Current frontier
 
-- **Binding.** Run `run-20260916-stations`, dispatch `dsp-001-r2`, task
-  `task-20260917-lnx-evidence`. Station `bpr-linux` (`stn-3f7fcc92`, `wsl2`),
-  branch `linux-lane`. BPR-0622's evidence is pushed at `2285f4a0`.
-- **State.** The automated and native courses are recorded below.
-  - B1's first criterion fails on Linux under a group-writable data-root
-    parent, which a umask of `0002` produces. The card cannot be Done until that
-    defect is resolved or explicitly ruled out of scope.
-  - The card stays in Backlog, unmoved. Every lane move rewrites its link in
-    `docs/rfcs/README.md`, and this dispatch forbids tracker README edits.
-- **Next.** BPR-0731, from the same `app-release` and `dev` trees.
+- **Binding.** Run `run-20260916-stations`, dispatch `dsp-001-r2` (station
+  `bpr-linux/int-2`), mandate r2, task `task-20260917-lnx-build`. Station
+  `bpr-linux` (`stn-3f7fcc92`, `wsl2`), branch `linux-lane`.
+- **State.** All three criteria pass natively at `1c6eaf21`, the
+  [BPR-0817](BPR-0817-linux-owner-private-data-root.md) fix. The results are
+  recorded at the end of this file, under "Rerun after BPR-0817,
+  `task-20260917-lnx-build`".
+  - Criterion 1 holds under umask 0002 with a fresh data root and under umask
+    0022, on the stock tests-disabled image.
+  - The card moves from Blocked to Done.
+- **Residual, not in B1.** A data root whose parent already existed as 0775
+  still exits 1. That is BPR-0817's parked owner question.
+- **Earlier task.** The sections after this one were recorded by
+  `task-20260917-lnx-evidence` at `9bbe3604`, with demoted diagnostics. They
+  stand as recorded.
 
 ## Station, revision and builds
 
@@ -209,3 +214,100 @@ automated half.
   vault write took place. Scratch roots and course JSON are kept outside the
   checkout under `/home/mmarcin/bpr-station-logs/task-20260917-lnx-evidence/`
   and are not committed.
+
+## Rerun after BPR-0817, `task-20260917-lnx-build`
+
+### Revision, image and host
+
+- **Revision.** Product source `1c6eaf21`. That is base `20a72bf7`, which
+  includes BPR-0808, plus [BPR-0816](BPR-0816-linux-gcc15-stock-build.md)'s GCC
+  fixes (`4883dbd9`) and [BPR-0817](BPR-0817-linux-owner-private-data-root.md)'s
+  owner-private data root (`1c6eaf21`).
+- **Build.** Stock presets under GCC 15.2 `-Werror`, with no demoted class:
+  `cmake --preset app-release --fresh` and `cmake --preset dev --fresh`, then
+  builds.
+- **Image.** The tests-disabled `build/app-release/src/app/better_pull_review`
+  (Release, `BUILD_TESTING=OFF`) has SHA-256
+  `9b9ef069aba611ef77d927720b2c21b1366267105f1b1c1f98bf30cbea172f4a`.
+- **Host.** Same host and WSLg display as above. Qt chose Wayland on Weston.
+  The Secret Service `login` collection read `(<false>,)` before the course.
+- **Harness.** `task-20260917-lnx-build/tools/course_0817.py`.
+  - It sets the process umask before it creates anything, then builds a new
+    scratch XDG root under that umask.
+  - Each launch waits for its window row plus 3 s. It is then closed either by
+    posting the caption close (`WM_SYSCOMMAND`/`SC_CLOSE`) to its RAIL window,
+    or by pressing File > Quit through AT-SPI. No signal or kill was sent.
+  - After each caption close, it samples every BetterPullReview or Profiles
+    RAIL window for 8 s. Registry rows and directory modes are copied after
+    each exit.
+
+### Criterion 1: quit with exit code 0 and no chooser
+
+| Course (UTC, 2026-09-17) | Umask | Launch | Close sent | Exit | Close to exit | Windows seen after close | Diagnostics |
+|---|---|---|---|---|---|---|---|
+| `candidate2-umask002` run 1 | 0002 | 08:21:31.698 | caption close 08:21:35.394 | **0** at 08:21:35.436 | 42 ms | none | `outcome=started`, then `outcome=shutdown` |
+| `candidate2-umask002` run 2 | 0002 | 08:21:44.421 | caption close 08:21:48.099 | **0** at 08:21:48.139 | 40 ms | none | as above |
+| `candidate2-umask002` run 3 | 0002 | 08:21:57.158 | File > Quit (AT-SPI `Press`) | **0** at 08:22:00.439 | — | — | as above |
+| `candidate2-umask002` run 4 | 0002 | 08:22:01.441 | caption close 08:22:04.901 | **0** at 08:22:04.948 | 47 ms | none | as above |
+| `candidate2-umask022` run 1 | 0022 | 08:22:14.032 | caption close 08:22:17.691 | **0** at 08:22:17.730 | 39 ms | none | as above |
+| `candidate2-umask022` run 2 | 0022 | 08:22:26.785 | caption close 08:22:30.434 | **0** at 08:22:30.476 | 42 ms | none | as above |
+
+- **Windows seen.** "None" means that apart from the closing window, which the
+  watch sees once as it goes, no BetterPullReview or Profiles window appeared.
+  Stdout was empty in every run.
+- **Fresh data root under umask 0002.** After exit, the application had created
+  `xdg_data_home/BetterPullReview` at **0700**, the data root at 0700 and
+  `BetterPullReview-agent-workspaces-v1` at 0700. The harness's own
+  `xdg_data_home` was 0775.
+- **Negative control.** The same course on the pre-fix image (`ef3f782b`,
+  SHA-256 `307c1793…`) exits **1**, and the parent is 0775 with no
+  neighbourhood (`course-0817-prefix-umask002.json`).
+
+### Criterion 2: the restore record tells a close from a Quit
+
+The umask 0002 course above shows it:
+
+- **Caption closes.** Run 1 opened window `1` at generation 1, and its close
+  dropped the row. Run 2 opened a **new** identity, `2`, and its close dropped
+  that row too.
+- **Quit.** Run 3 opened window `3`, and its File > Quit **kept** the row:
+  `3`, generation 1.
+- **After Quit.** Run 4 restored **`3` at generation 2**. Its caption close
+  dropped the row, with `last_window_id` still 3.
+
+### Criterion 3: the native policy answers `quit`
+
+`application_profile_management_public_path` passes on the stock `dev` tree
+at `1c6eaf21`: 2.88 s, `profile-management-public-path:pass`
+(`focused-0817.ctest.log`).
+
+- **Environment.** It ran under the host's root-owned 1777 `/tmp` with
+  `TMPDIR` unset. The failure recorded earlier, "and an orderly exit code",
+  is gone.
+- **What it asserts.** On non-Apple platforms the course asserts
+  `app::native_empty_desktop_policy()() == app::empty_desktop_outcome::quit`
+  (`profile_management_public_path_tests.cpp:269`).
+- **What it does not show.** Its close and relaunch section still uses an
+  injected policy. Only the native assertion is cited.
+
+### Disposition
+
+All three criteria pass on target-native Linux at `1c6eaf21`, and the card
+moves to Done.
+
+**Limitation carried to BPR-0817.** Suppose `$XDG_DATA_HOME/BetterPullReview`
+already existed as 0775, for example from an install made before `1c6eaf21`
+under umask 0002.
+
+- The neighbourhood is still refused, and closing still exits 1
+  (`course-candidate2-umask002-parent775.json`).
+- Whether that exit should be 0 is BPR-0817's parked owner question.
+
+**Other limitations.**
+
+- **Session.** WSLg runs Weston, not a GNOME or KDE session. Umask 0002 came
+  from the harness, not a `pam_umask` desktop login.
+- **Chooser watch.** It samples about every 20 ms.
+- **Logs.** Logs and course JSON are under
+  `/home/mmarcin/bpr-station-logs/task-20260917-lnx-build/native/` and are not
+  committed.

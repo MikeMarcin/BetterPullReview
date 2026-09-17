@@ -4792,6 +4792,159 @@ namespace bpr::adapters::sqlite {
 			&& status.permissions() == std::filesystem::perms::owner_all;
 #endif
 	}
+
+	namespace {
+		/// The components of a storage root that do not exist yet, deepest
+		/// first, and the deepest ancestor that does.
+		struct storage_root_chain final
+		{
+			std::filesystem::path              Existing;
+			std::vector<std::filesystem::path> Missing;
+		};
+
+		[[nodiscard]] auto find_storage_root_chain(const std::filesystem::path& aRoot)
+			-> std::optional<storage_root_chain>
+		{
+			auto            chain   = storage_root_chain{ };
+			auto            current = aRoot;
+			std::error_code error;
+			while (true) {
+				const auto status = std::filesystem::symlink_status(current, error);
+				if (status.type() != std::filesystem::file_type::not_found) {
+					if (error) {
+						return std::nullopt;
+					}
+					chain.Existing = std::move(current);
+					return chain;
+				}
+				auto parent = current.parent_path();
+				if (parent.empty() || parent == current) {
+					return std::nullopt;
+				}
+				chain.Missing.push_back(std::move(current));
+				current = std::move(parent);
+			}
+		}
+
+		// The same test the application applied before it created anything: no
+		// link, and no spelling that resolves somewhere else.
+		[[nodiscard]] auto real_canonical_directory(const std::filesystem::path& aPath) -> bool
+		{
+			std::error_code error;
+			const auto      status = std::filesystem::symlink_status(aPath, error);
+			if (error || status.type() != std::filesystem::file_type::directory) {
+				return false;
+			}
+			const auto canonical = std::filesystem::canonical(aPath, error);
+			return !error && canonical == aPath;
+		}
+
+#if !defined(_WIN32)
+		struct owner_private_component final
+		{
+			detail::file_descriptor Directory;
+			bool                    Created = false;
+		};
+
+		// Created relative to the held parent and opened without following a
+		// link, so the directory whose mode is set is the one just made. The
+		// mode is set explicitly because `mkdirat` only ever narrows by the
+		// umask. A directory someone else made first is accepted as it is.
+		[[nodiscard]] auto create_owner_private_component(
+			const detail::file_descriptor& aParent, const std::string& aName)
+			-> std::optional<owner_private_component>
+		{
+			if (aName.empty() || aName == "." || aName == "..") {
+				return std::nullopt;
+			}
+			const auto created = ::mkdirat(aParent.Value, aName.c_str(), S_IRWXU) == 0;
+			if (!created && errno != EEXIST) {
+				return std::nullopt;
+			}
+			auto result = owner_private_component{
+				.Directory = detail::file_descriptor{ ::openat(
+					aParent.Value, aName.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW) },
+				.Created   = created,
+			};
+			struct stat status{ };
+			if (result.Directory.Value < 0 || ::fstat(result.Directory.Value, &status) != 0
+				|| !S_ISDIR(status.st_mode)) {
+				return std::nullopt;
+			}
+			if (!created) {
+				return result;
+			}
+			if (status.st_uid != ::geteuid() || ::fchmod(result.Directory.Value, S_IRWXU) != 0
+				|| ::fstat(result.Directory.Value, &status) != 0 || !detail::private_directory(status)) {
+				return std::nullopt;
+			}
+			return result;
+		}
+
+		// Every component this call creates, the root included, is narrowed
+		// through its own descriptor here, never through its path.
+		[[nodiscard]] auto create_owner_private_chain(const storage_root_chain& aChain) -> bool
+		{
+			auto parent = detail::file_descriptor{ ::open(
+				aChain.Existing.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW) };
+			if (parent.Value < 0) {
+				return false;
+			}
+			for (const auto& component : aChain.Missing | std::views::reverse) {
+				auto child = create_owner_private_component(parent, component.filename().string());
+				if (!child) {
+					return false;
+				}
+				parent = std::move(child->Directory);
+			}
+			return true;
+		}
+#endif
+	} // namespace
+
+	auto create_storage_root_owner_private(const std::filesystem::path& aRoot) -> bool
+	{
+		try {
+			if (aRoot.empty() || !aRoot.is_absolute() || aRoot != aRoot.lexically_normal()) {
+				return false;
+			}
+			const auto chain = find_storage_root_chain(aRoot);
+			if (!chain) {
+				return false;
+			}
+			// An existing root is never repaired here; it is accepted only when
+			// the stores would already admit it.
+			if (chain->Missing.empty()) {
+				return detail::validate_private_storage_root(aRoot).has_value();
+			}
+			if (!real_canonical_directory(chain->Existing)) {
+				return false;
+			}
+#if defined(_WIN32)
+			// No umask: what the chain inherits is unchanged, and the root's
+			// descriptor is written by the narrowing below, as before.
+			std::error_code error;
+			if (!std::filesystem::create_directories(aRoot, error) || error) {
+				return false;
+			}
+			return make_storage_root_owner_private(aRoot);
+#else
+			// A trailing separator names no folder to create, and the stores
+			// refuse that spelling of a root anyway.
+			if (!aRoot.has_filename()) {
+				return false;
+			}
+			// The chain already set a root it created to 0700 through its
+			// descriptor. A path-based narrowing here could follow a link
+			// swapped in for the root and change a directory this call did not
+			// create, so a created root is validated exactly as a pre-existing
+			// or concurrently created one is.
+			return create_owner_private_chain(*chain) && detail::validate_private_storage_root(aRoot).has_value();
+#endif
+		} catch (...) {
+			return false;
+		}
+	}
 } // namespace bpr::adapters::sqlite
 
 namespace bpr::adapters::sqlite::detail {

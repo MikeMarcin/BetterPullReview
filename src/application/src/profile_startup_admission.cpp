@@ -53,23 +53,46 @@ namespace bpr::application {
 			return Context == aContext && Phase == aPhase;
 		}
 
-		void finish(const profile_startup_context aContext, profile_startup_result<profile_startup_admission> aResult)
+		/// \brief Retires the pending phase for one exact context; false when nothing is owed or no projection remains.
+		[[nodiscard]] auto retire(const profile_startup_context aContext) -> bool
 		{
 			if (Context != aContext || Phase == startup_phase::idle) {
-				return;
+				return false;
 			}
 			Phase = startup_phase::idle;
-			if (Stop.stop_requested() || Closing) {
-				aResult = std::unexpected(profile_startup_failure::cancelled);
-			}
-			if (Projection == nullptr) {
-				return;
-			}
+			return Projection != nullptr;
+		}
+
+		void publish(const profile_startup_terminal& aTerminal)
+		{
 			try {
-				Projection->publish({ aContext, std::move(aResult) });
+				Projection->publish(aTerminal);
 			} catch (...) {
 				DeliveryFailed = true;
 			}
+		}
+
+		// Each terminal is built in place from its own alternative, so no
+		// admission-carrying std::expected is ever moved on the failure path.
+		void finish(const profile_startup_context aContext, const profile_startup_failure aFailure)
+		{
+			if (!retire(aContext)) {
+				return;
+			}
+			const auto failure = Stop.stop_requested() || Closing ? profile_startup_failure::cancelled : aFailure;
+			publish({ aContext, std::unexpected(failure) });
+		}
+
+		void finish(const profile_startup_context aContext, profile_startup_admission aAdmission)
+		{
+			if (!retire(aContext)) {
+				return;
+			}
+			if (Stop.stop_requested() || Closing) {
+				publish({ aContext, std::unexpected(profile_startup_failure::cancelled) });
+				return;
+			}
+			publish({ aContext, std::move(aAdmission) });
 		}
 
 		void root_completed(const profile_startup_context aContext, profile_storage_authority aAuthority,
@@ -79,11 +102,11 @@ namespace bpr::application {
 				return;
 			}
 			if (!aResult) {
-				finish(aContext, std::unexpected(aResult.error()));
+				finish(aContext, aResult.error());
 				return;
 			}
 			if (aResult->empty() || !aResult->is_absolute() || *aResult != aResult->lexically_normal()) {
-				finish(aContext, std::unexpected(profile_startup_failure::root_unavailable));
+				finish(aContext, profile_startup_failure::root_unavailable);
 				return;
 			}
 			finish(aContext, profile_startup_admission{ std::move(aAuthority), std::move(aLabel), std::move(*aResult) });
@@ -109,7 +132,7 @@ namespace bpr::application {
 			} catch (...) {
 				Decision.post([self, aContext] {
 					if (self->matches(aContext, startup_phase::root)) {
-						self->finish(aContext, std::unexpected(profile_startup_failure::root_unavailable));
+						self->finish(aContext, profile_startup_failure::root_unavailable);
 					}
 				});
 			}
@@ -121,16 +144,16 @@ namespace bpr::application {
 				return;
 			}
 			if (Stop.stop_requested() || Closing) {
-				finish(aContext, std::unexpected(profile_startup_failure::cancelled));
+				finish(aContext, profile_startup_failure::cancelled);
 				return;
 			}
 			if (!aResult) {
-				finish(aContext, std::unexpected(registry_failure(aResult.error())));
+				finish(aContext, registry_failure(aResult.error()));
 				return;
 			}
 			const auto authority = profile_storage_authority::select(*aResult, aContext.Profile);
 			if (!authority) {
-				finish(aContext, std::unexpected(authority.error() == profile_storage_authority_failure::unknown_profile ? profile_startup_failure::unknown_profile : profile_startup_failure::invalid_registry));
+				finish(aContext, authority.error() == profile_storage_authority_failure::unknown_profile ? profile_startup_failure::unknown_profile : profile_startup_failure::invalid_registry);
 				return;
 			}
 			const auto entry = std::ranges::find_if(aResult->Profiles, [aContext](const auto& aEntry) { return aEntry.Profile.Id == aContext.Profile; });
@@ -167,7 +190,7 @@ namespace bpr::application {
 			} catch (...) {
 				Decision.post([self, context] {
 					if (self->matches(context, startup_phase::registry)) {
-						self->finish(context, std::unexpected(profile_startup_failure::registry_unavailable));
+						self->finish(context, profile_startup_failure::registry_unavailable);
 					}
 				});
 			}

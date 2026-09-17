@@ -24,6 +24,38 @@ namespace bpr::adapters::sqlite {
 	/// adapter will later demand.
 	[[nodiscard]] auto make_storage_root_owner_private(
 		const std::filesystem::path& aRoot) -> bool;
+
+	/// \brief Creates a storage root that does not exist yet, and each missing
+	/// folder above it, in the owner-private shape, whatever the process umask.
+	///
+	/// \details `std::filesystem::create_directories` takes its modes from the
+	/// umask, so under the user-private-group umask `0002` a Linux desktop login
+	/// commonly has, every folder it made above the root was `0775`. The root
+	/// itself was narrowed afterwards, but its parent stayed group-writable, and
+	/// the agent workspace neighbourhood that lives beside the root refuses such
+	/// a parent (BPR-0817).
+	///
+	/// `aRoot` must be absolute and lexically normal. The deepest existing
+	/// ancestor must be a real directory, not a symbolic link or a file, whose
+	/// canonical spelling is its own. On POSIX each missing component is created
+	/// relative to its already opened parent without following links, opened,
+	/// checked to be a directory owned by the effective user, and set to exactly
+	/// `0700` through that descriptor. A component that a concurrent creator made
+	/// first is accepted when it is then a real directory; its owner and mode
+	/// are neither checked nor changed here. The root, however it came to exist,
+	/// is then accepted only when the stores would admit it. On Windows, which
+	/// has no umask, the missing chain is created with
+	/// `std::filesystem::create_directories` and the root narrowed by
+	/// `make_storage_root_owner_private`, exactly as before.
+	///
+	/// The call never changes the mode, owner or access-control list of a
+	/// directory that already existed: a pre-existing root is accepted only when
+	/// the stores would already admit it, and a pre-existing or concurrently
+	/// created shared ancestor is left for the checks that refuse it, such as
+	/// the agent workspace neighbourhood's refusal of a parent another user can
+	/// write. It returns `false` on any failure and throws nothing.
+	[[nodiscard]] auto create_storage_root_owner_private(
+		const std::filesystem::path& aRoot) -> bool;
 } // namespace bpr::adapters::sqlite
 
 #endif // BPR_SRC_ADAPTERS_SQLITE_INCLUDE_BPR_ADAPTERS_SQLITE_STORAGE_ROOT_HPP
