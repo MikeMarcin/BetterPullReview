@@ -50,6 +50,14 @@ check passes except:
 `application_large_review_history` passes quietly, but refresh 32's pulse
 is 93.3 ms against its 100 ms limit (noted on [[BPR-0673]]).
 
+**Active Mac slices (writers active, uncommitted, in scratch worktrees
+outside the checkout).**
+
+- [[BPR-0802]], claimed: its Mac half, from `7fc0e498`. Logs:
+  `build/r2-logs/dsp2-0802-*`.
+- [[BPR-0644]], claimed: its fixture criteria, from `90bedde4`. Logs:
+  `build/r2-logs/dsp2-0644-*`. The attended relaunch stays human-pending.
+
 **Active station envelopes (writers active):**
 
 - `bpr-win` `task-20260917-win-workspace-recovery`, base `743c59d7`: BPR-0622
