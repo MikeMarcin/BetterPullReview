@@ -409,8 +409,11 @@ class CapsuleImageTests(unittest.TestCase):
                 defaults[name] = value.resolve(strict=False)
         return argparse.Namespace(**defaults)
 
-    def assert_process_gone(self, process_id: int) -> None:
-        deadline = time.monotonic() + 5.0
+    def assert_process_gone(
+        self, process_id: int, deadline: float | None = None
+    ) -> None:
+        if deadline is None:
+            deadline = time.monotonic() + 5.0
         while time.monotonic() < deadline:
             try:
                 os.kill(process_id, 0)
@@ -1137,7 +1140,9 @@ class CapsuleImageTests(unittest.TestCase):
                 "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
                 f"pathlib.Path({str(descendant_pid)!r}).write_text(str(os.getpid()))\n"
                 f"pathlib.Path({str(descendant_ready)!r}).write_text('ready')\n"
-                "while True:\n"
+                # Bounded like blocking_helper's, so a failed reap cannot leave
+                # a SIGTERM-ignoring interpreter running until reboot.
+                "for _ in range(300):\n"
                 "    time.sleep(1)\n"
             )
             helper_source = (
@@ -1149,7 +1154,7 @@ class CapsuleImageTests(unittest.TestCase):
                 "    time.sleep(0.01)\n"
                 f"pathlib.Path({str(helper_pid)!r}).write_text(str(os.getpid()))\n"
                 f"pathlib.Path({str(helper_ready)!r}).write_text('ready')\n"
-                "while True:\n"
+                "for _ in range(300):\n"
                 "    time.sleep(1)\n"
             )
             helper = root / capsule.HELPER_RELATIVE
@@ -1211,11 +1216,25 @@ class CapsuleImageTests(unittest.TestCase):
                 int(descendant_pid.read_text(encoding="utf-8")),
             )
             process.send_signal(signal.SIGTERM)
-            stdout, stderr = process.communicate(timeout=30)
+            # BPR-0692. The reap and the detach run on different clocks. Stage
+            # zero bounds the reap by its own term and kill graces, so that is
+            # asserted from the signal. The ordinary detach that follows waits
+            # on DiskArbitration's unmount and eject, which stage zero does not
+            # bound: one eject took 10.7 s under spinning-process load, and a
+            # single 30-second window already spent 10 s of it on the term
+            # grace this SIGTERM-ignoring descendant forces. So the detach gets
+            # a hang bound, not a promptness claim.
+            reap_deadline = (
+                time.monotonic()
+                + capsule.STAGE_ONE_TERM_GRACE_SECONDS
+                + capsule.STAGE_ONE_KILL_GRACE_SECONDS
+                + 10.0
+            )
+            for process_id in child_processes:
+                self.assert_process_gone(process_id, reap_deadline)
+            stdout, stderr = process.communicate(timeout=180)
             self.assertNotEqual(process.returncode, 0, stdout + stderr)
             self.assertIn("stage zero interrupted by signal", stderr)
-            for process_id in child_processes:
-                self.assert_process_gone(process_id)
             listing = subprocess.run(
                 ["/usr/bin/hdiutil", "info"],
                 check=False,
