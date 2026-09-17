@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0825"
 title: "Harden the Windows workspace supervisor and recovery after BPR-0622's critical review"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0013"]
 depends_on: []
 priority: "P2"
 platforms: ["win"]
 metadata: {"found_by":"dsp-002 rfc-reviewer-critical of windows-lane 743c59d7..c94e02b1 (no blocking findings)","found_at":"2ba02ddbe59bf6e07302cbb7460f61cc9cad2627","run":"run-20260916-stations","dispatch":"dsp-002"}
+parked_on: "human-review"
 ---
 
 # BPR-0825: Harden the Windows workspace supervisor and recovery after BPR-0622's critical review
