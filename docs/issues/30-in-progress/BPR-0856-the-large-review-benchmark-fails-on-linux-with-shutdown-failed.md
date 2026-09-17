@@ -45,8 +45,10 @@ platforms with a different message. It is carded separately.
   (`stn-3f7fcc92`, `wsl2`), branch `linux-lane`, authority `lane-commit`.
   The lane started at `e794da856e0af2cfb2c5f234138a2f606ffe9cb7`.
 - **Outcome.** The cause is named below, and the fix is in the benchmark
-  harness only. The card stays In Progress until main runs the benchmark's
-  rows on macOS.
+  harness only: `b841dfb5365c852365640009566014eb22a13727` on `linux-lane`.
+  The row passes 3 runs in a row on Linux at that pushed commit (see
+  "Verification at the commit"). The card stays In Progress until main runs
+  the benchmark's rows on macOS.
 - **Changed path.** `tests/end_to_end/large_review_benchmark.cpp`. No product
   source and no pinned digest changed.
 - **Logs.** `/home/mmarcin/bpr-station-logs/task-20260917-lnx-sweep-fixes/`
@@ -126,6 +128,23 @@ Secret Service `login` collection read `(<false>,)` before the group.
 Gates: `/usr/bin/clang-format` 22 reports the whole file clean, and
 `git diff --check` is clean. `clang-tidy` reports 20 findings in this file,
 all on lines the change does not touch (`0856-tidy.log`).
+
+## Verification at the commit (Linux, bpr-linux, WSL2)
+
+At `b841dfb5365c852365640009566014eb22a13727`, pushed and equal to
+`origin/linux-lane`, a clean tree; `ninja -n` had no work to do. The Secret
+Service `login` collection read `(<false>,)` before the group. Each run was a
+serial `ctest --test-dir build/dev -j1 -V -R '^application_large_review_benchmark$'`,
+from 17:35:26Z, with a 1-minute load average of 0.15 to 0.35
+(`0856-at-commit.summary`, `0856-at-commit-run<n>.log`).
+
+| Run | Result | Time |
+|---|---|---|
+| 1 | Pass, `LARGE_REVIEW_COMPOSED_BENCHMARK_OK` | 5.53 s |
+| 2 | Pass, `LARGE_REVIEW_COMPOSED_BENCHMARK_OK` | 5.44 s |
+| 3 | Pass, `LARGE_REVIEW_COMPOSED_BENCHMARK_OK` | 5.26 s |
+
+`/tmp` listed the same entries before and after the three runs.
 
 ## Independent review
 
