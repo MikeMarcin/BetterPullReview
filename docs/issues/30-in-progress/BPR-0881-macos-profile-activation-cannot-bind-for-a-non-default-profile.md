@@ -230,3 +230,41 @@ at the point it is handed to the product, so the two agree.
 A wrong derivation now fails by naming both the path it expected and the
 `bpr-activate-*.sock` files actually present, rather than silently finding
 nothing to unlink.
+
+## The real desktop course passes, so the first acceptance line is a run
+
+`application_profile_activation_public_path` — **Passed, 5.02 s**, on the dev
+preset at `68f8152e` (`build/r2-logs/dsp6-0879-test-activation.log`; run by the
+BPR-0879 worker, which already had the app built, rather than paying for a
+second app build).
+
+That course drives the real desktop application, not a fixture. It starts an
+owner on **profile 2**, a non-default profile, then launches profile 2 again
+and waits for `ACTIVATION_QUEUED` while asserting the durable window rows do
+not change and that profile 1's do not either. So the card's first acceptance
+line — "a second launch of a non-default macOS profile activates the running
+window" — is now met by a real second launch rather than by argument.
+
+Two halves, and it is worth being exact about which proves what:
+
+- the **course** proves the handoff works, on a short `/tmp` root. That root is
+  why the course passed before this card existed: it never reached the limit.
+- the **contract** proves the geometry, on the real 94-byte root, and a forced
+  revert to `aRoot / "activate.sock"` fails it
+  (`build/r2-logs/dsp6-0881-sabotage.log`).
+
+Neither alone would be enough. Together they cover the defect and the fix.
+
+Still open on this card, which is why it stays In Progress: **Linux**.
+`bpr-linux` has measured its endpoint directory — `/run/user/1000`, mode 0700,
+owner `mmarcin`, with `XDG_RUNTIME_DIR` set and systemd as PID 1, giving a
+45-byte endpoint against the 108 limit — but has not yet run
+`sqlite_profile_activation` or the end-to-end course there. Since this card
+deliberately moved Linux's path on a platform whose suite was 367/367, that run
+is a criterion, not a courtesy.
+
+Noted for whoever reads this next: that station also cannot measure the
+fall-through candidates. With `TMPDIR` unset and `/tmp` at 1777 root-owned, its
+first candidate verifies immediately, so `$TMPDIR` and the product-created
+`/tmp/bpr-<uid>` branches stay untested on Linux by construction. A WSL2 host
+with systemd disabled is the configuration that would exercise them.
