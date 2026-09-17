@@ -140,9 +140,10 @@ committed.
   - the change follows the coding standard.
 
   One nit is not acted on: "the counters above" belong to a different class
-  in the same file. The review overlapped preview runs 1 to 5. During
-  that time the reviewer ran only read-only `git show`, `grep` and `sed`,
-  and the load average stayed near 1.
+  in the same file. The review ran from 13:23Z to about 13:25Z, so it
+  overlapped the whole batch (13:23:36Z to 13:24:25Z). It ran only
+  read-only `git show`, `grep` and `sed`, and the load average stayed
+  near 1.
 
 ## Still open
 
