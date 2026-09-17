@@ -104,6 +104,13 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # BPR-0813: measured on JaegAW 2026-09-17. Contained, the contract's scratch
     # root stops at `canonical: Access is denied.` of the temporary directory.
     "sqlite_private_store_open": "dos-volume-name",
+    # BPR-0834: measured on JaegAW 2026-09-17, both passing uncontained once the
+    # course root and its parent are owner-private. Contained, with both narrowed
+    # to the user and the container, the composed application still refuses
+    # startup with startup_failure::registry: the application step described
+    # above, the same refusal the agent crash courses measured.
+    "application_epoch_portable_occurrence_two_catalogues": "dos-volume-name",
+    "application_epoch_ordinary_update_recreated": "dos-volume-name",
     "git_sparse_cache_contract": "dos-volume-name",
     # Contained, `git init` in the fixture root fails "unable to get current
     # working directory: Permission denied".
