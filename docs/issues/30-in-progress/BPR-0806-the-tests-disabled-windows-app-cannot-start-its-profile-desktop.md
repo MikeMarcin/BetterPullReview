@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0806"
 title: "The tests-disabled Windows app cannot start its profile desktop"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0024"]
 depends_on: []
 priority: "P1"
