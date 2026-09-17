@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0797"
 title: "A tests-enabled build must not claim the capabilities it swapped out"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0015", "RFC-BPR-0016"]
 depends_on: []
 platforms: ["mac"]
