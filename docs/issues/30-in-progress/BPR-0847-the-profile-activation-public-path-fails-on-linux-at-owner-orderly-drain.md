@@ -36,8 +36,9 @@ there.
 ## Current frontier (dsp-004, bpr-linux, task-20260917-lnx-0847-drain)
 
 - **Outcome:** the cause is named below, and it is in the course. The fix
-  is committed on `linux-lane`. The card stays In Progress until main runs
-  the fixed course on macOS.
+  is `f987cc7f091c4c030212df4db7d22a4db54d61cb` on `linux-lane`, and the
+  course passes 3 runs in a row on Linux there. The card stays In Progress
+  until main runs the fixed course on macOS.
 - **Changed path:** `tests/end_to_end/profile_activation_contract.py` only.
   No product source and no pinned digest changed.
 - **Logs:** `/home/mmarcin/bpr-station-logs/task-20260917-lnx-0847-drain/`.
@@ -152,6 +153,29 @@ a named boolean. The same reviewer then confirmed the final diff
 `302971c6d260049d505b54594fed8bec23ddb8d19f86f6bcfd6270ac71d20da5`, identical
 to the commit). Its prediction that the sibling course fails the same way
 held; see "New defect".
+
+## Verification at the commit (Linux, bpr-linux, WSL2)
+
+At `f987cc7f091c4c030212df4db7d22a4db54d61cb`, pushed and equal to
+`origin/linux-lane`. `cmake --build --preset dev` had no work to do. The
+setup is the same as above: offscreen by registration, and the Secret
+Service collection read `(<false>,)` before each group. Every course ran
+serially with `ctest --test-dir build/dev -j1 -V -R '^<name>$'`, from
+15:37:13Z to 15:37:37Z, at load 0.15 to 0.46. The summary is `runs-A.summary`
+and the logs are `runA-*.log`.
+
+| Course | Result | Time |
+|---|---|---|
+| `application_profile_activation_public_path`, run 1 | Pass, `PROFILE_ACTIVATION_OK` | 2.78 s |
+| `application_profile_activation_public_path`, run 2 | Pass, `PROFILE_ACTIVATION_OK` | 2.73 s |
+| `application_profile_activation_public_path`, run 3 | Pass, `PROFILE_ACTIVATION_OK` | 2.73 s |
+| `application_profile_startup_public_path` | Pass | 1.71 s |
+| `application_profile_management_public_path` | Pass | 2.81 s |
+| `application_profile_multi_window_public_path` | Pass | 9.33 s |
+| `sqlite_profile_runtime_lease` | Pass | 0.01 s |
+| `application_review_round_trip_composition_contract` | Pass, so the pins are unchanged | 1.50 s |
+
+No `bpr-activation-course-*` or `act-*` directory was left in `/tmp`.
 
 ## For macOS
 
