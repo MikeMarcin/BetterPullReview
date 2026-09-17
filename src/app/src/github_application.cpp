@@ -8307,7 +8307,9 @@ namespace bpr::app {
 				if (!SharedDrafts) {
 					return;
 				}
-				auto outcome = SharedDrafts->apply(DraftConsumer, { .Command = { .Id = ReviewDraft->Id, .Kind = core::review_draft_command_kind::edit, .Body = ReviewDraft->Body }, .ExpectedRevision = ReviewDraftRevision, .ChangeReplyTarget = true, .ReplyToThread = thread, .Scope = DraftScope });
+				// [[BPR-0822]]. Name the nested type: GCC 15 destroys a braced aggregate
+				// member twice when a later member initializer throws.
+				auto outcome = SharedDrafts->apply(DraftConsumer, { .Command = core::review_draft_command{ .Id = ReviewDraft->Id, .Kind = core::review_draft_command_kind::edit, .Body = ReviewDraft->Body }, .ExpectedRevision = ReviewDraftRevision, .ChangeReplyTarget = true, .ReplyToThread = thread, .Scope = DraftScope });
 				if (outcome.Failure || !outcome.Accepted) {
 					return;
 				}
@@ -17535,8 +17537,10 @@ namespace bpr::app {
 					&& statistics.PersistenceRequests == 0U
 					&& statistics.Completions == 0U
 					&& statistics.StoreFailures > 0U;
+			// [[BPR-0824]]. Not `ReceiptLoadHits`: this window's queued refresh_shared_ledger re-reads its own carry-over commit, racing this tick.
 			probe.Evidence.ReceiptLoadedOnEntry
-				= statistics.ReceiptLoadHits == 1U;
+				= statistics.MaterialObservations == 1U
+				&& statistics.MaterialReceiptHits == 1U;
 			implementation->ReviewLedgerWasPresentOnEntry
 				= probe.Evidence.ReceiptLoadedOnEntry;
 
@@ -17928,12 +17932,13 @@ namespace bpr::app {
 			// the real mutation host receives any publication request.
 			const auto beforeDraftRefusals = implementation->ReviewMutationHost->statistics();
 			const auto acceptedRevision    = implementation->ReviewDraftRevision;
+			// [[BPR-0822]]. Named nested types, as in the shared draft edit.
 			implementation->dispatch_review_draft(core::revisioned_review_draft_command{
-				.Command          = { .Id = implementation->ReviewDraft->Id, .Kind = core::review_draft_command_kind::begin_publish },
+				.Command          = core::review_draft_command{ .Id = implementation->ReviewDraft->Id, .Kind = core::review_draft_command_kind::begin_publish },
 				.ExpectedRevision = priorDraftRevision,
 				.Scope            = implementation->DraftScope });
 			implementation->dispatch_review_draft(core::revisioned_review_draft_command{
-				.Command          = { .Id = implementation->ReviewDraft->Id, .Kind = core::review_draft_command_kind::begin_publish },
+				.Command          = core::review_draft_command{ .Id = implementation->ReviewDraft->Id, .Kind = core::review_draft_command_kind::begin_publish },
 				.ExpectedRevision = acceptedRevision,
 				.Scope            = core::review_draft_scope_id{ implementation->DraftScope.value() + 1U } });
 			if (implementation->ReviewMutationHost->statistics() != beforeDraftRefusals

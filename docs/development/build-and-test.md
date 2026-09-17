@@ -796,6 +796,58 @@ this list does not cover — C4189 (unreferenced local) and C4996 (a deprecated
 CRT name) have both done so — and the fix is the rename or the portable call,
 never a narrower flag.
 
+### GCC 15 can destroy a braced aggregate member twice
+
+GCC 15.2 miscompiles one aggregate-initialization shape ([[BPR-0822]]). Clang
+and MSVC are correct. The shape:
+
+- A member is itself an aggregate with more than one element and a
+  non-trivially destructible subobject, such as `std::string`.
+- That member is initialized from braces without naming its type. This covers
+  named or positional elements, `{ }`, and leaving the member out.
+- A later member's initializer can throw.
+
+On a throw, GCC destroys the member's subobjects twice. AddressSanitizer
+reports `attempting double-free`, and an optimized build aborts. It happens in
+every context that aggregate-initializes: `return`, `new`, a function argument,
+`push_back`, an initializer list, a lambda capture, a base class, and a default
+member initializer used by an omitted member. A member initialized directly in
+a constructor's member-initializer list, a single-element nested aggregate and
+a non-aggregate member type are not affected. An aggregate braced inside a
+member-initializer list is.
+
+**The fix.** Initialize the member from a prvalue of its named type, for
+example `.Receipt = application::review_mutation_receipt{ ... }` or
+`.Anchor = review_mutation_anchor_binding{ }`. Values, order and behaviour stay
+the same. For an omitted member, name it and its type explicitly. A named type
+in the member's default initializer does not help.
+
+**Warnings do not find it.** The `app-release` preset (`-O3 -Werror`) reported
+two sites as `-Wmaybe-uninitialized` and then built clean with others still
+present. Clang tooling sees Clang's lowering, not GCC's. On the Linux station,
+run the survey that asks GCC itself:
+
+```sh
+python3 scripts/survey_gcc_aggregate_cleanups.py --build-dir build/dev --build-dir build/app-release --jobs 10
+```
+
+- **What it does.** It first compiles and runs an embedded reproducer of every
+  known shape, then requires its detector to flag exactly the shapes that
+  double-destroy. Next it recompiles each translation unit with its recorded
+  flags plus GCC's GIMPLE and EH dumps. It reports the nested cleanups that one
+  throw would run twice.
+- **Exit status.** 1 when a finding lies under `src/`. 2 when calibration or a
+  compile fails, the compiler is neither GCC nor Clang, or the database was
+  configured from another checkout. 0 when the tree is clean or the compiler
+  is unaffected. Findings under `tests/` are listed but do not fail it.
+- **Reading a finding.** It names the line GCC attributes to the overlap,
+  which for an initializer list can be the closing brace of the enclosing
+  function. It means GCC built overlapping exception cleanups there; the call
+  that would throw may never throw in practice.
+- **When to run it.** After the station's GCC changes, and on a Linux stock
+  build of a base that adds aggregate initializers under `src/`. Both presets
+  take about five minutes at `--jobs 10`.
+
 ### The format gate needs clang-format 22 or newer
 
 The tree is rendered by **clang-format 22 or newer**, and both format scripts

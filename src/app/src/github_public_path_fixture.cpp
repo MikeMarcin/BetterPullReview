@@ -607,8 +607,10 @@ namespace bpr::app::detail {
 				}
 				exchanges.push_back(
 					{
-						.Request = {
-							.Semantic  = { },
+						// [[BPR-0822]]. Name the nested types: GCC 15 destroys a braced
+						// aggregate member twice when a later member initializer throws.
+						.Request = adapters::github::detail::wire_request{
+							.Semantic  = adapters::github::detail::semantic_read_request{ },
 							.Server    = aDescriptor.Server,
 							.Operation = *operation,
 							.Method    = *method,

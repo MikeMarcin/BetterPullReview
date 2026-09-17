@@ -701,6 +701,7 @@ namespace {
 			   "carry-over commits before its receipt projection");
 		expect(host.statistics().ReceiptLoads == 2U
 				   && host.statistics().ReceiptLoadHits == 1U
+				   && host.statistics().MaterialReceiptHits == 1U
 				   && host.statistics().PersistenceRequests == 1U,
 			   "material observation distinguishes loads, hits, and carry-over writes");
 	}
@@ -1029,6 +1030,8 @@ namespace {
 		accepted.Read     = core::file_read_state::read;
 		store.Committed   = accepted;
 		expect(host.refresh_receipt().value() == accepted && projection.Published.back().Receipt == accepted, "same material accepts sibling receipt");
+		// [[BPR-0824]]. The composing window's own commit echo reaches here too.
+		expect(host.statistics().ReceiptLoadHits == 1U && host.statistics().MaterialReceiptHits == 0U, "a refresh hit is not a material-observation hit");
 		selected.Material = opaque<core::file_material_id>(99U);
 		host.retain(selected);
 		const auto refreshed = host.refresh_receipt();
